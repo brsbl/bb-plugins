@@ -4,7 +4,6 @@
   "type": "module",
   "files": [
     "dist",
-    "skills",
     "README.md"
   ],
   "engines": {
@@ -42,10 +41,6 @@
     "vaul": "^1.1.2"
   },
   "scripts": {
-    "skill:check": "node scripts/prompt-shaper-skill.mjs check",
-    "skill:snapshot": "node scripts/prompt-shaper-skill.mjs snapshot",
-    "skill:sync": "node scripts/prompt-shaper-skill.mjs sync-from-personal",
-    "skill:restore": "node scripts/prompt-shaper-skill.mjs restore",
     "typecheck": "tsc --noEmit",
     "test": "vitest run core.test.ts"
   }
