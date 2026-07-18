@@ -8,14 +8,6 @@ import {
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import { Icon } from "@/components/ui/icon";
 import {
   Tooltip,
@@ -24,11 +16,10 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import type { rpcContract } from "./server";
-import { decideCompletedEnhancement, scopeKey } from "./core.js";
+import { scopeKey } from "./core.js";
 
 interface PendingRequest {
   requestId: string;
-  originalDraft: string;
   scopeKey: string;
 }
 
@@ -50,14 +41,11 @@ function loadPendingRequest(composerScopeKey: string): PendingRequest | null {
       value !== null &&
       "requestId" in value &&
       typeof value.requestId === "string" &&
-      "originalDraft" in value &&
-      typeof value.originalDraft === "string" &&
       "scopeKey" in value &&
       value.scopeKey === composerScopeKey
     ) {
       return {
         requestId: value.requestId,
-        originalDraft: value.originalDraft,
         scopeKey: value.scopeKey,
       };
     }
@@ -86,12 +74,6 @@ function clearPendingRequest(request: PendingRequest): void {
   }
 }
 
-interface ReviewState {
-  enhancedPrompt: string;
-  assumptions: string | null;
-  draftChanged: boolean;
-}
-
 function signalRequestId(payload: unknown): string | null {
   if (
     typeof payload === "object" &&
@@ -118,7 +100,11 @@ function PromptShaperAction({
     loadPendingRequest(composerScopeKey),
   );
   const pendingRef = useRef<PendingRequest | null>(pending);
-  const [review, setReview] = useState<ReviewState | null>(null);
+  const composerRef = useRef(composer);
+  const composerScopeKeyRef = useRef(composerScopeKey);
+  composerRef.current = composer;
+  composerScopeKeyRef.current = composerScopeKey;
+  const isRunning = pending?.scopeKey === composerScopeKey;
 
   const setPendingRequest = useCallback((next: PendingRequest | null) => {
     const previous = pendingRef.current;
@@ -133,35 +119,46 @@ function PromptShaperAction({
     const recovered = loadPendingRequest(composerScopeKey);
     pendingRef.current = recovered;
     setPending(recovered);
-    setReview(null);
   }, [composerScopeKey]);
 
-  const applyEnhancement = useCallback(
-    (enhancedPrompt: string) => {
-      const previousDraft = composer.text;
-      composer.setText(enhancedPrompt);
-      composer.focus();
-      toast.success("Prompt enhanced", {
-        action: {
-          label: "Undo",
-          onClick: () => {
-            let restored = false;
-            composer.updateText((current) => {
-              if (current !== enhancedPrompt) return current;
-              restored = true;
-              return previousDraft;
-            });
-            if (restored) {
-              composer.focus();
-            } else {
-              toast.info("Draft changed, so undo was not applied.");
-            }
-          },
+  useEffect(() => {
+    composer.setTextEffect?.(isRunning ? "shimmer" : null);
+  }, [composer.setTextEffect, isRunning]);
+
+  useEffect(() => {
+    return () => {
+      composer.setTextEffect?.(null);
+    };
+  }, [composer.setTextEffect, composerScopeKey]);
+
+  const applyEnhancement = useCallback((enhancedPrompt: string) => {
+    const activeComposer = composerRef.current;
+    let previousDraft = activeComposer.text;
+    activeComposer.updateText((current) => {
+      previousDraft = current;
+      return enhancedPrompt;
+    });
+    activeComposer.focus();
+    toast.success("Prompt enhanced", {
+      action: {
+        label: "Undo",
+        onClick: () => {
+          const currentComposer = composerRef.current;
+          let restored = false;
+          currentComposer.updateText((current) => {
+            if (current !== enhancedPrompt) return current;
+            restored = true;
+            return previousDraft;
+          });
+          if (restored) {
+            currentComposer.focus();
+          } else {
+            toast.info("Draft changed, so undo was not applied.");
+          }
         },
-      });
-    },
-    [composer],
-  );
+      },
+    });
+  }, []);
 
   const consumeResult = useCallback(
     async (requestId: string) => {
@@ -169,7 +166,9 @@ function PromptShaperAction({
       if (active === null || active.requestId !== requestId) return;
 
       const record = await rpc.call("getEnhancement", { requestId });
+      if (pendingRef.current !== active) return;
       if (record === null || record.status === "running") return;
+      composerRef.current.setTextEffect?.(null);
       setPendingRequest(null);
 
       if (record.status === "failed") {
@@ -177,30 +176,15 @@ function PromptShaperAction({
         return;
       }
 
-      const decision = decideCompletedEnhancement({
-        originalDraft: active.originalDraft,
-        currentDraft: composer.text,
-        assumptions: record.assumptions,
-        scopeMatches: active.scopeKey === composerScopeKey,
-      });
-
-      if (decision === "discard") {
+      if (active.scopeKey !== composerScopeKeyRef.current) {
         toast.info(
           "Enhancement finished after you changed composers. Nothing was replaced.",
         );
         return;
       }
-      if (decision === "review") {
-        setReview({
-          enhancedPrompt: record.enhancedPrompt,
-          assumptions: record.assumptions,
-          draftChanged: composer.text !== active.originalDraft,
-        });
-        return;
-      }
       applyEnhancement(record.enhancedPrompt);
     },
-    [applyEnhancement, composer, composerScopeKey, rpc, setPendingRequest],
+    [applyEnhancement, rpc, setPendingRequest],
   );
 
   useRealtime("enhancement-changed", (payload) => {
@@ -209,12 +193,12 @@ function PromptShaperAction({
   });
 
   useEffect(() => {
-    if (pending === null) return;
+    if (!isRunning || pending === null) return;
     const timer = window.setInterval(() => {
       void consumeResult(pending.requestId);
     }, 2_000);
     return () => window.clearInterval(timer);
-  }, [consumeResult, pending]);
+  }, [consumeResult, isRunning, pending]);
 
   const enhance = useCallback(async () => {
     const draft = composer.text;
@@ -224,11 +208,10 @@ function PromptShaperAction({
 
     const request: PendingRequest = {
       requestId: crypto.randomUUID(),
-      originalDraft: draft,
       scopeKey: composerScopeKey,
     };
+    composer.setTextEffect?.("shimmer");
     setPendingRequest(request);
-    setReview(null);
 
     try {
       await rpc.call("startEnhancement", {
@@ -239,6 +222,7 @@ function PromptShaperAction({
       });
       await consumeResult(request.requestId);
     } catch (error) {
+      composerRef.current.setTextEffect?.(null);
       setPendingRequest(null);
       toast.error(
         error instanceof Error
@@ -256,89 +240,36 @@ function PromptShaperAction({
     threadId,
   ]);
 
-  const isRunning = pending !== null;
   const isDisabled =
     projectId === null || composer.text.trim().length === 0 || isRunning;
 
   return (
-    <>
-      <TooltipProvider delayDuration={300}>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              className="size-7 text-muted-foreground"
-              disabled={isDisabled}
-              aria-label={isRunning ? "Improving prompt" : "Improve prompt"}
-              onClick={() => void enhance()}
-            >
-              {isRunning ? (
-                <Icon
-                  name="Loading"
-                  className="animate-spin"
-                  aria-hidden="true"
-                />
-              ) : (
-                <Icon name="AiScanText" aria-hidden="true" />
-              )}
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent side="top">Improve prompt</TooltipContent>
-        </Tooltip>
-      </TooltipProvider>
-
-      <Dialog
-        open={review !== null}
-        onOpenChange={(open) => {
-          if (!open) setReview(null);
-        }}
-      >
-        <DialogContent className="max-w-2xl">
-          <DialogHeader>
-            <DialogTitle>Review enhanced prompt</DialogTitle>
-            <DialogDescription>
-              {review?.draftChanged
-                ? "Your draft changed while Prompt Shaper was working. Review before replacing it."
-                : "Prompt Shaper found missing context. Review its assumption before replacing your draft."}
-            </DialogDescription>
-          </DialogHeader>
-
-          {review?.assumptions ? (
-            <div className="rounded-md border border-border bg-muted/40 px-3 py-2 text-sm">
-              <div className="mb-1 font-medium text-foreground">Assumption</div>
-              <div className="whitespace-pre-wrap text-muted-foreground">
-                {review.assumptions}
-              </div>
-            </div>
-          ) : null}
-
-          <textarea
-            readOnly
-            value={review?.enhancedPrompt ?? ""}
-            aria-label="Enhanced prompt"
-            className="min-h-64 w-full resize-y rounded-md border border-input bg-transparent p-3 font-mono text-sm leading-6 text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-          />
-
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setReview(null)}>
-              Keep current
-            </Button>
-            <Button
-              onClick={() => {
-                if (review === null) return;
-                const enhancedPrompt = review.enhancedPrompt;
-                setReview(null);
-                applyEnhancement(enhancedPrompt);
-              }}
-            >
-              Replace draft
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    </>
+    <TooltipProvider delayDuration={300}>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="size-7 text-muted-foreground"
+            disabled={isDisabled}
+            aria-label={isRunning ? "Improving prompt" : "Improve prompt"}
+            onClick={() => void enhance()}
+          >
+            {isRunning ? (
+              <Icon
+                name="Loading"
+                className="animate-spin"
+                aria-hidden="true"
+              />
+            ) : (
+              <Icon name="AiScanText" aria-hidden="true" />
+            )}
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent side="top">Improve prompt</TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
   );
 }
 

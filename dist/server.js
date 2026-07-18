@@ -14695,7 +14695,7 @@ async function plugin(bb) {
         projectId: input.projectId,
         prompt: buildWorkerPrompt({ draft: input.draft }),
         environment: { type: "project-default" },
-        permissionMode: "readonly",
+        permissionMode: "auto",
         visibility: "hidden",
         title: "Prompt Shaper"
       });
@@ -14720,7 +14720,7 @@ async function plugin(bb) {
           model: execution.model,
           reasoningLevel: execution.reasoningLevel,
           serviceTier: execution.serviceTier,
-          permissionMode: "readonly",
+          permissionMode: "auto",
           sourceThreadId: input.sourceThreadId,
           originKind: "side-chat",
           visibility: "hidden",
@@ -14747,7 +14747,7 @@ async function plugin(bb) {
         reasoningLevel: execution.reasoningLevel,
         serviceTier: execution.serviceTier
       },
-      permissionMode: "readonly",
+      permissionMode: "auto",
       visibility: "hidden",
       title: "Prompt Shaper"
     });

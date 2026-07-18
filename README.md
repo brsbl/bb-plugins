@@ -5,10 +5,10 @@ Prompt Shaper adds **Enhance prompt** to the bb composer. It turns the current r
 ## How It Works
 
 - Click **Enhance prompt** after writing a rough request.
-- A hidden, read-only bb thread applies your Prompt Shaper skill.
+- A hidden, sandboxed bb thread applies your Prompt Shaper skill.
 - In an existing thread, the worker inherits that thread's semantic context. If session cloning is unavailable, it explicitly inspects the source thread.
-- If the draft is unchanged, the enhanced prompt replaces it and can be undone.
-- If you kept typing or the worker made an assumption, you review the result before replacing anything.
+- When enhancement finishes, it replaces the composer's current text and can be undone—even if you kept typing or the worker made an assumption.
+- The draft stays visible while the text shimmers to show that enhancement is running.
 
 Attachments stay attached. The plugin never sends the prompt or performs the drafted task.
 
@@ -16,7 +16,7 @@ Attachments stay attached. The plugin never sends the prompt or performs the dra
 
 1. Write a rough prompt in any bb composer.
 2. Click **Enhance prompt**.
-3. Review the shaped draft, then send normally.
+3. Review the shaped draft in the composer, then send normally.
 
 ## Release Requirement
 

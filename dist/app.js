@@ -617,8 +617,8 @@ var createParseClassName = (config) => {
 };
 var createSortModifiers = (config) => {
   const modifierWeights = /* @__PURE__ */ new Map();
-  config.orderSensitiveModifiers.forEach((mod8, index) => {
-    modifierWeights.set(mod8, 1e6 + index);
+  config.orderSensitiveModifiers.forEach((mod6, index) => {
+    modifierWeights.set(mod6, 1e6 + index);
   });
   return (modifiers) => {
     const result = [];
@@ -3659,471 +3659,6 @@ var Button = forwardRef(
 );
 Button.displayName = "Button";
 
-// bb-plugin-runtime-shim:@radix-ui/react-dialog
-var runtime5 = globalThis.__bbPluginRuntime;
-if (runtime5 == null || runtime5.radixDialog == null) {
-  throw new Error('Cannot load "@radix-ui/react-dialog": this bundle must be loaded by the BB app, which provides the shared plugin runtime (globalThis.__bbPluginRuntime).');
-}
-var mod5 = runtime5.radixDialog;
-var {
-  Close,
-  Content,
-  Description,
-  Dialog,
-  DialogClose,
-  DialogContent,
-  DialogDescription,
-  DialogOverlay,
-  DialogPortal,
-  DialogTitle,
-  DialogTrigger,
-  Overlay,
-  Portal,
-  Root,
-  Title,
-  Trigger,
-  WarningProvider,
-  createDialogScope
-} = mod5;
-
-// lib/portal-scope.ts
-function usePortalScopeProps() {
-  return {
-    "data-bb-portaled-overlay": "",
-    "data-bb-plugin-root": ""
-  };
-}
-
-// hooks/useBrowserDimmingModal.ts
-function useBrowserDimmingModal(_active) {
-}
-
-// bb-plugin-runtime-shim:vaul
-var runtime6 = globalThis.__bbPluginRuntime;
-if (runtime6 == null || runtime6.vaul == null) {
-  throw new Error('Cannot load "vaul": this bundle must be loaded by the BB app, which provides the shared plugin runtime (globalThis.__bbPluginRuntime).');
-}
-var mod6 = runtime6.vaul;
-var {
-  Content: Content2,
-  Drawer,
-  Handle,
-  NestedRoot,
-  Overlay: Overlay2,
-  Portal: Portal2,
-  Root: Root2
-} = mod6;
-
-// components/ui/overlay-trigger.ts
-var OVERLAY_TRIGGER_CLASS_NAME = "select-none";
-var NON_TEXT_INPUT_TYPES = /* @__PURE__ */ new Set([
-  "button",
-  "checkbox",
-  "file",
-  "hidden",
-  "image",
-  "radio",
-  "range",
-  "reset",
-  "submit"
-]);
-var getOverlayTriggerClassName = (className) => cn(OVERLAY_TRIGGER_CLASS_NAME, className);
-function isKeyboardInputElement(element) {
-  if (element instanceof HTMLTextAreaElement) return true;
-  if (element instanceof HTMLInputElement) {
-    return !element.disabled && !element.readOnly && !NON_TEXT_INPUT_TYPES.has(element.type);
-  }
-  if (!(element instanceof HTMLElement)) return false;
-  return element.isContentEditable || element.closest("[contenteditable='true']") !== null;
-}
-function blurActiveKeyboardInputWithin(container) {
-  if (typeof document === "undefined") return;
-  const activeElement = document.activeElement;
-  if (!activeElement || !isKeyboardInputElement(activeElement)) return;
-  if (container !== null && !container.contains(activeElement)) return;
-  activeElement.blur();
-}
-function blurActiveKeyboardInputBeforeOverlayOpen() {
-  blurActiveKeyboardInputWithin(null);
-}
-function blurActiveKeyboardInputBeforeOverlayClose() {
-  blurActiveKeyboardInputWithin(null);
-}
-function preventOverlayTriggerSelection(event) {
-  event.preventDefault();
-}
-var lastInputModality = "pointer";
-if (typeof document !== "undefined") {
-  document.addEventListener(
-    "keydown",
-    () => {
-      lastInputModality = "keyboard";
-    },
-    { capture: true }
-  );
-  document.addEventListener(
-    "pointerdown",
-    () => {
-      lastInputModality = "pointer";
-    },
-    { capture: true }
-  );
-}
-
-// components/ui/drawer.tsx
-var Drawer2 = ({
-  shouldScaleBackground = false,
-  ...props
-}) => /* @__PURE__ */ jsx(
-  Drawer.Root,
-  {
-    shouldScaleBackground,
-    ...props
-  }
-);
-Drawer2.displayName = "Drawer";
-var DrawerTrigger = forwardRef(({ className, ...props }, ref) => /* @__PURE__ */ jsx(
-  Drawer.Trigger,
-  {
-    ref,
-    className: getOverlayTriggerClassName(className),
-    onMouseDown: preventOverlayTriggerSelection,
-    ...props
-  }
-));
-DrawerTrigger.displayName = Drawer.Trigger.displayName;
-var DrawerPortal = Drawer.Portal;
-var DrawerClose = Drawer.Close;
-var DrawerOverlay = forwardRef(({ className, ...props }, ref) => /* @__PURE__ */ jsx(
-  Drawer.Overlay,
-  {
-    ref,
-    ...usePortalScopeProps(),
-    className: cn(
-      "fixed inset-0 z-50 bg-black/40 backdrop-blur-[1px]",
-      className
-    ),
-    ...props
-  }
-));
-DrawerOverlay.displayName = Drawer.Overlay.displayName;
-var DrawerContent = forwardRef(({ className, children, ...props }, ref) => /* @__PURE__ */ jsxs(DrawerPortal, { children: [
-  /* @__PURE__ */ jsx(DrawerOverlay, {}),
-  /* @__PURE__ */ jsxs(
-    Drawer.Content,
-    {
-      ref,
-      ...usePortalScopeProps(),
-      className: cn(
-        "fixed inset-x-0 bottom-0 z-50 mt-24 flex max-h-[85dvh] flex-col rounded-t-xl border bg-background",
-        className
-      ),
-      ...props,
-      children: [
-        /* @__PURE__ */ jsx(
-          Drawer.Handle,
-          {
-            className: "mx-auto mt-3 mb-1 h-1 w-10 shrink-0 rounded-full bg-muted-foreground/20"
-          }
-        ),
-        children
-      ]
-    }
-  )
-] }));
-DrawerContent.displayName = "DrawerContent";
-var DrawerTitle = forwardRef(({ className, ...props }, ref) => /* @__PURE__ */ jsx(
-  Drawer.Title,
-  {
-    ref,
-    className: cn(
-      "text-lg font-semibold leading-none tracking-tight",
-      className
-    ),
-    ...props
-  }
-));
-DrawerTitle.displayName = Drawer.Title.displayName;
-var DrawerDescription = forwardRef(({ className, ...props }, ref) => /* @__PURE__ */ jsx(
-  Drawer.Description,
-  {
-    ref,
-    className: cn("text-sm text-muted-foreground", className),
-    ...props
-  }
-));
-DrawerDescription.displayName = Drawer.Description.displayName;
-
-// components/ui/hooks/use-media-query.ts
-var mediaQueryCache = /* @__PURE__ */ new Map();
-function createMediaQueryRef(query) {
-  if (typeof window === "undefined") return null;
-  let ref = mediaQueryCache.get(query);
-  if (ref) return ref;
-  const mql = window.matchMedia(query);
-  const listeners = /* @__PURE__ */ new Set();
-  const onChange = () => {
-    for (const listener of listeners) listener();
-  };
-  ref = {
-    mql,
-    subscribe(notify) {
-      const wasEmpty = listeners.size === 0;
-      listeners.add(notify);
-      if (wasEmpty) {
-        mql.addEventListener("change", onChange);
-      }
-      return () => {
-        listeners.delete(notify);
-        if (listeners.size === 0) {
-          mql.removeEventListener("change", onChange);
-          mediaQueryCache.delete(query);
-        }
-      };
-    }
-  };
-  mediaQueryCache.set(query, ref);
-  return ref;
-}
-function subscribeMediaQuery(query, notify) {
-  return createMediaQueryRef(query)?.subscribe(notify) ?? (() => {
-  });
-}
-function getMediaQuerySnapshot(query) {
-  if (typeof window === "undefined") return false;
-  return mediaQueryCache.get(query)?.mql.matches ?? window.matchMedia(query).matches;
-}
-function useMediaQuery(query) {
-  return useSyncExternalStore(
-    (notify) => subscribeMediaQuery(query, notify),
-    () => getMediaQuerySnapshot(query),
-    () => false
-  );
-}
-
-// components/ui/hooks/use-compact-viewport.tsx
-var COMPACT_VIEWPORT_QUERY = "(max-width: 767px)";
-var CompactViewportOverrideContext = createContext(null);
-function useIsCompactViewport() {
-  const override = useContext(CompactViewportOverrideContext);
-  const isCompactViewport = useMediaQuery(COMPACT_VIEWPORT_QUERY);
-  if (override !== null) {
-    return override;
-  }
-  return isCompactViewport;
-}
-
-// components/ui/hooks/use-pointer-coarse.ts
-var POINTER_COARSE_QUERY = "(pointer: coarse)";
-function usePointerCoarse() {
-  return useMediaQuery(POINTER_COARSE_QUERY);
-}
-
-// components/ui/responsive-overlay.tsx
-var ResponsiveDrawerDepthContext = createContext(0);
-var SONNER_TOASTER_SELECTOR = "[data-sonner-toaster]";
-function resetDrawerKeyboardStyles(drawerElement) {
-  if (drawerElement === null) return;
-  drawerElement.style.height = "";
-  drawerElement.style.bottom = "";
-}
-function isSonnerToasterPointerTarget(target) {
-  return target instanceof Element && target.closest(SONNER_TOASTER_SELECTOR) !== null;
-}
-function useResponsiveRoot(controlledOpen, controlledOnChange, defaultOpen = false) {
-  const isCompactViewport = useIsCompactViewport();
-  const [internalOpen, setInternalOpen] = useState(defaultOpen);
-  const isControlled = controlledOpen !== void 0;
-  const open = isControlled ? controlledOpen : internalOpen;
-  const onOpenChange = useCallback(
-    (next) => {
-      if (open && !next && isCompactViewport) {
-        blurActiveKeyboardInputBeforeOverlayClose();
-      }
-      if (!isControlled) {
-        setInternalOpen(next);
-      }
-      controlledOnChange?.(next);
-    },
-    [isCompactViewport, isControlled, controlledOnChange, open]
-  );
-  return useMemo(
-    () => ({ isCompactViewport, open, onOpenChange }),
-    [isCompactViewport, open, onOpenChange]
-  );
-}
-var MobileTrigger = forwardRef(
-  ({
-    asChild,
-    open,
-    onOpenChange,
-    haspopup,
-    onClick,
-    children,
-    className,
-    ...domProps
-  }, ref) => {
-    const triggerClassName = getOverlayTriggerClassName(className);
-    const handleClick = (e) => {
-      onClick?.(e);
-      if (!e.defaultPrevented) {
-        if (!open) {
-          blurActiveKeyboardInputBeforeOverlayOpen();
-        }
-        onOpenChange(!open);
-      }
-    };
-    const ariaProps = {
-      "aria-expanded": open,
-      "aria-haspopup": haspopup,
-      "data-state": open ? "open" : "closed"
-    };
-    if (asChild) {
-      return /* @__PURE__ */ jsx(
-        Slot,
-        {
-          ref,
-          onClick: handleClick,
-          onMouseDown: preventOverlayTriggerSelection,
-          className: triggerClassName,
-          ...ariaProps,
-          ...domProps,
-          children
-        }
-      );
-    }
-    return /* @__PURE__ */ jsx(
-      "button",
-      {
-        ref,
-        type: "button",
-        onClick: handleClick,
-        onMouseDown: preventOverlayTriggerSelection,
-        className: triggerClassName,
-        ...ariaProps,
-        ...domProps,
-        children
-      }
-    );
-  }
-);
-MobileTrigger.displayName = "MobileTrigger";
-var RADIX_CONTENT_PROP_NAMES = [
-  "side",
-  "sideOffset",
-  "align",
-  "alignOffset",
-  "collisionPadding",
-  "collisionBoundary",
-  "arrowPadding",
-  "sticky",
-  "hideWhenDetached",
-  "avoidCollisions",
-  "onOpenAutoFocus",
-  "onCloseAutoFocus",
-  "onEscapeKeyDown",
-  "onPointerDownOutside",
-  "onFocusOutside",
-  "onInteractOutside"
-];
-var RADIX_CONTENT_KEYS = new Set(
-  RADIX_CONTENT_PROP_NAMES
-);
-function stripRadixContentProps(props) {
-  const result = {};
-  for (const key of Object.keys(props)) {
-    if (!RADIX_CONTENT_KEYS.has(key)) {
-      result[key] = props[key];
-    }
-  }
-  return result;
-}
-function ResponsiveDrawerShell({
-  open,
-  onOpenChange,
-  srLabel,
-  contentClassName,
-  handleOnly,
-  repositionInputs,
-  onContentAnimationEnd,
-  children
-}) {
-  const parentDrawerDepth = useContext(ResponsiveDrawerDepthContext);
-  const drawerContentRef = useRef(null);
-  const isPointerCoarse = usePointerCoarse();
-  const isNestedDrawer = parentDrawerDepth > 0;
-  const shouldRepositionInputs = repositionInputs ?? !isNestedDrawer;
-  const resetClosingKeyboardState = useCallback(() => {
-    blurActiveKeyboardInputWithin(drawerContentRef.current);
-    resetDrawerKeyboardStyles(drawerContentRef.current);
-  }, []);
-  const handleOpenChange = useCallback(
-    (nextOpen) => {
-      if (!nextOpen) {
-        resetClosingKeyboardState();
-      }
-      onOpenChange(nextOpen);
-    },
-    [onOpenChange, resetClosingKeyboardState]
-  );
-  const handleContentAnimationEnd = useCallback(
-    (event) => {
-      if (event.currentTarget !== event.target) {
-        return;
-      }
-      onContentAnimationEnd?.(open);
-    },
-    [onContentAnimationEnd, open]
-  );
-  const handleOpenAutoFocus = useCallback(
-    (event) => {
-      if (isPointerCoarse) {
-        event.preventDefault();
-      }
-    },
-    [isPointerCoarse]
-  );
-  const handlePointerDownOutside = useCallback(
-    (event) => {
-      if (isSonnerToasterPointerTarget(event.detail.originalEvent.target)) {
-        event.preventDefault();
-      }
-    },
-    []
-  );
-  const previousOpenRef = useRef(open);
-  useLayoutEffect(() => {
-    if (previousOpenRef.current && !open) {
-      resetClosingKeyboardState();
-    }
-    previousOpenRef.current = open;
-  }, [open, resetClosingKeyboardState]);
-  return /* @__PURE__ */ jsx(
-    Drawer2,
-    {
-      open,
-      onOpenChange: handleOpenChange,
-      handleOnly,
-      nested: isNestedDrawer,
-      repositionInputs: shouldRepositionInputs,
-      children: /* @__PURE__ */ jsx(
-        DrawerContent,
-        {
-          ref: drawerContentRef,
-          className: contentClassName,
-          onAnimationEnd: handleContentAnimationEnd,
-          onOpenAutoFocus: handleOpenAutoFocus,
-          onPointerDownOutside: handlePointerDownOutside,
-          children: /* @__PURE__ */ jsxs(ResponsiveDrawerDepthContext.Provider, { value: parentDrawerDepth + 1, children: [
-            srLabel !== void 0 ? /* @__PURE__ */ jsx(DrawerTitle, { className: "sr-only", children: srLabel }) : null,
-            children
-          ] })
-        }
-      )
-    }
-  );
-}
-
 // node_modules/@hugeicons/react/dist/esm/HugeiconsIcon.js
 var defaultAttributes = {
   xmlns: "http://www.w3.org/2000/svg",
@@ -5316,237 +4851,40 @@ function Icon({
   );
 }
 
-// components/ui/dialog.tsx
-var ResponsiveDialogContext = createContext({
-  isCompactViewport: false,
-  open: false,
-  onOpenChange: () => {
-  }
-});
-function useResponsiveDialog() {
-  return useContext(ResponsiveDialogContext);
-}
-function Dialog2({
-  children,
-  open: controlledOpen,
-  onOpenChange: controlledOnChange,
-  ...props
-}) {
-  const ctx = useResponsiveRoot(controlledOpen, controlledOnChange);
-  const body = ctx.isCompactViewport ? children : /* @__PURE__ */ jsx(
-    Root,
-    {
-      open: ctx.open,
-      onOpenChange: ctx.onOpenChange,
-      ...props,
-      children
-    }
-  );
-  return /* @__PURE__ */ jsx(ResponsiveDialogContext.Provider, { value: ctx, children: body });
-}
-var DialogTrigger2 = forwardRef(({ asChild, children, className, ...props }, ref) => {
-  const { isCompactViewport, open, onOpenChange } = useResponsiveDialog();
-  if (isCompactViewport) {
-    return /* @__PURE__ */ jsx(
-      MobileTrigger,
-      {
-        ref,
-        asChild,
-        open,
-        onOpenChange,
-        haspopup: "dialog",
-        className,
-        ...props,
-        children
-      }
-    );
-  }
-  return /* @__PURE__ */ jsx(
-    Trigger,
-    {
-      ref,
-      asChild,
-      className: getOverlayTriggerClassName(className),
-      onMouseDown: (event) => {
-        if (!open) {
-          blurActiveKeyboardInputBeforeOverlayOpen();
-        }
-        preventOverlayTriggerSelection(event);
-      },
-      ...props,
-      children
-    }
-  );
-});
-DialogTrigger2.displayName = "DialogTrigger";
-var DialogClose2 = forwardRef(
-  ({ asChild, onClick, children, ...props }, ref) => {
-    const { isCompactViewport, onOpenChange } = useResponsiveDialog();
-    if (isCompactViewport) {
-      const Comp = asChild ? Slot : "button";
-      const handleClick = (event) => {
-        onClick?.(event);
-        if (!event.defaultPrevented) {
-          onOpenChange(false);
-        }
-      };
-      return /* @__PURE__ */ jsx(Comp, { ref, onClick: handleClick, ...props, children });
-    }
-    return /* @__PURE__ */ jsx(
-      Close,
-      {
-        ref,
-        asChild,
-        onClick,
-        ...props,
-        children
-      }
-    );
-  }
-);
-DialogClose2.displayName = "DialogClose";
-var DialogOverlay2 = forwardRef(({ className, ...props }, ref) => /* @__PURE__ */ jsx(
-  Overlay,
-  {
-    ref,
-    ...usePortalScopeProps(),
-    className: cn(
-      "fixed inset-0 z-50 bg-black/40 backdrop-blur-[1px] data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0",
-      className
-    ),
-    ...props
-  }
-));
-DialogOverlay2.displayName = Overlay.displayName;
-var DialogContent2 = forwardRef(
-  ({ className, children, ...props }, ref) => {
-    const { isCompactViewport, open, onOpenChange } = useResponsiveDialog();
-    useBrowserDimmingModal(open);
-    const scopeProps = usePortalScopeProps();
-    if (isCompactViewport) {
-      const domProps = stripRadixContentProps(props);
-      return /* @__PURE__ */ jsx(ResponsiveDrawerShell, { open, onOpenChange, children: /* @__PURE__ */ jsx(
-        "div",
-        {
-          ref,
-          className: cn(
-            "grid gap-4 overflow-y-auto px-4 pt-2 pb-[max(1rem,env(safe-area-inset-bottom))]",
-            className,
-            // The drawer spans the full viewport width; ignore any desktop
-            // max-width override a caller passes so content fills the drawer.
-            "max-w-none"
-          ),
-          ...domProps,
-          children
-        }
-      ) });
-    }
-    return /* @__PURE__ */ jsxs(Portal, { children: [
-      /* @__PURE__ */ jsx(DialogOverlay2, {}),
-      /* @__PURE__ */ jsxs(
-        Content,
-        {
-          ref,
-          ...scopeProps,
-          className: cn(
-            "fixed left-[50%] top-[50%] z-50 grid w-full max-w-lg translate-x-[-50%] translate-y-[-50%] gap-4 border bg-background p-6 shadow-sm duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 sm:rounded-lg",
-            className
-          ),
-          ...props,
-          children: [
-            children,
-            /* @__PURE__ */ jsxs(Close, { className: "absolute right-4 top-4 cursor-pointer rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none data-[state=open]:bg-state-active data-[state=open]:text-foreground", children: [
-              /* @__PURE__ */ jsx(Icon, { name: "X", className: "h-4 w-4" }),
-              /* @__PURE__ */ jsx("span", { className: "sr-only", children: "Close" })
-            ] })
-          ]
-        }
-      )
-    ] });
-  }
-);
-DialogContent2.displayName = "DialogContent";
-var DialogHeader = ({
-  className,
-  ...props
-}) => /* @__PURE__ */ jsx(
-  "div",
-  {
-    className: cn("flex flex-col space-y-1.5 text-left", className),
-    ...props
-  }
-);
-DialogHeader.displayName = "DialogHeader";
-var DialogFooter = ({
-  className,
-  ...props
-}) => /* @__PURE__ */ jsx(
-  "div",
-  {
-    className: cn(
-      "flex flex-col-reverse sm:flex-row sm:justify-end sm:space-x-2",
-      className
-    ),
-    ...props
-  }
-);
-DialogFooter.displayName = "DialogFooter";
-var DialogTitle2 = forwardRef(({ className, ...props }, ref) => {
-  const { isCompactViewport } = useResponsiveDialog();
-  const Comp = isCompactViewport ? DrawerTitle : Title;
-  return /* @__PURE__ */ jsx(
-    Comp,
-    {
-      ref,
-      className: cn(
-        "text-base font-semibold leading-none tracking-tight",
-        className
-      ),
-      ...props
-    }
-  );
-});
-DialogTitle2.displayName = "DialogTitle";
-var DialogDescription2 = forwardRef(({ className, ...props }, ref) => {
-  const { isCompactViewport } = useResponsiveDialog();
-  const Comp = isCompactViewport ? DrawerDescription : Description;
-  return /* @__PURE__ */ jsx(
-    Comp,
-    {
-      ref,
-      className: cn("text-sm text-muted-foreground", className),
-      ...props
-    }
-  );
-});
-DialogDescription2.displayName = Description.displayName;
-
 // bb-plugin-runtime-shim:@radix-ui/react-tooltip
-var runtime7 = globalThis.__bbPluginRuntime;
-if (runtime7 == null || runtime7.radixTooltip == null) {
+var runtime5 = globalThis.__bbPluginRuntime;
+if (runtime5 == null || runtime5.radixTooltip == null) {
   throw new Error('Cannot load "@radix-ui/react-tooltip": this bundle must be loaded by the BB app, which provides the shared plugin runtime (globalThis.__bbPluginRuntime).');
 }
-var mod7 = runtime7.radixTooltip;
+var mod5 = runtime5.radixTooltip;
 var {
   Arrow,
-  Content: Content3,
-  Portal: Portal3,
+  Content,
+  Portal,
   Provider,
-  Root: Root3,
+  Root,
   Tooltip,
   TooltipArrow,
   TooltipContent,
   TooltipPortal,
   TooltipProvider,
   TooltipTrigger,
-  Trigger: Trigger2,
+  Trigger,
   createTooltipScope
-} = mod7;
+} = mod5;
+
+// lib/portal-scope.ts
+function usePortalScopeProps() {
+  return {
+    "data-bb-portaled-overlay": "",
+    "data-bb-plugin-root": ""
+  };
+}
 
 // components/ui/tooltip.tsx
 var TooltipProvider2 = Provider;
-var Tooltip2 = Root3;
-var TooltipTrigger2 = Trigger2;
+var Tooltip2 = Root;
+var TooltipTrigger2 = Trigger;
 var TooltipContent2 = forwardRef(function TooltipContentComponent({
   avoidCollisions = true,
   className,
@@ -5554,8 +4892,8 @@ var TooltipContent2 = forwardRef(function TooltipContentComponent({
   sideOffset = 4,
   ...props
 }, ref) {
-  return /* @__PURE__ */ jsx(Portal3, { children: /* @__PURE__ */ jsx(
-    Content3,
+  return /* @__PURE__ */ jsx(Portal, { children: /* @__PURE__ */ jsx(
+    Content,
     {
       ref,
       ...usePortalScopeProps(),
@@ -5570,16 +4908,9 @@ var TooltipContent2 = forwardRef(function TooltipContentComponent({
     }
   ) });
 });
-TooltipContent2.displayName = Content3.displayName;
+TooltipContent2.displayName = Content.displayName;
 
 // core.ts
-function decideCompletedEnhancement(input) {
-  if (!input.scopeMatches) return "discard";
-  if (input.currentDraft !== input.originalDraft || input.assumptions !== null) {
-    return "review";
-  }
-  return "apply";
-}
 function scopeKey(scope) {
   return scope.kind === "thread" ? `thread:${scope.threadId ?? ""}` : `new-thread:${scope.projectId ?? ""}`;
 }
@@ -5596,10 +4927,9 @@ function loadPendingRequest(composerScopeKey) {
     );
     if (raw === null) return null;
     const value = JSON.parse(raw);
-    if (typeof value === "object" && value !== null && "requestId" in value && typeof value.requestId === "string" && "originalDraft" in value && typeof value.originalDraft === "string" && "scopeKey" in value && value.scopeKey === composerScopeKey) {
+    if (typeof value === "object" && value !== null && "requestId" in value && typeof value.requestId === "string" && "scopeKey" in value && value.scopeKey === composerScopeKey) {
       return {
         requestId: value.requestId,
-        originalDraft: value.originalDraft,
         scopeKey: value.scopeKey
       };
     }
@@ -5639,7 +4969,11 @@ function PromptShaperAction({
     () => loadPendingRequest(composerScopeKey)
   );
   const pendingRef = useRef(pending);
-  const [review, setReview] = useState(null);
+  const composerRef = useRef(composer);
+  const composerScopeKeyRef = useRef(composerScopeKey);
+  composerRef.current = composer;
+  composerScopeKeyRef.current = composerScopeKey;
+  const isRunning = pending?.scopeKey === composerScopeKey;
   const setPendingRequest = useCallback((next) => {
     const previous = pendingRef.current;
     if (previous !== null) clearPendingRequest(previous);
@@ -5652,80 +4986,77 @@ function PromptShaperAction({
     const recovered = loadPendingRequest(composerScopeKey);
     pendingRef.current = recovered;
     setPending(recovered);
-    setReview(null);
   }, [composerScopeKey]);
-  const applyEnhancement = useCallback(
-    (enhancedPrompt) => {
-      const previousDraft = composer.text;
-      composer.setText(enhancedPrompt);
-      composer.focus();
-      toast.success("Prompt enhanced", {
-        action: {
-          label: "Undo",
-          onClick: () => {
-            let restored = false;
-            composer.updateText((current) => {
-              if (current !== enhancedPrompt) return current;
-              restored = true;
-              return previousDraft;
-            });
-            if (restored) {
-              composer.focus();
-            } else {
-              toast.info("Draft changed, so undo was not applied.");
-            }
+  useEffect(() => {
+    composer.setTextEffect?.(isRunning ? "shimmer" : null);
+  }, [composer.setTextEffect, isRunning]);
+  useEffect(() => {
+    return () => {
+      composer.setTextEffect?.(null);
+    };
+  }, [composer.setTextEffect, composerScopeKey]);
+  const applyEnhancement = useCallback((enhancedPrompt) => {
+    const activeComposer = composerRef.current;
+    let previousDraft = activeComposer.text;
+    activeComposer.updateText((current) => {
+      previousDraft = current;
+      return enhancedPrompt;
+    });
+    activeComposer.focus();
+    toast.success("Prompt enhanced", {
+      action: {
+        label: "Undo",
+        onClick: () => {
+          const currentComposer = composerRef.current;
+          let restored = false;
+          currentComposer.updateText((current) => {
+            if (current !== enhancedPrompt) return current;
+            restored = true;
+            return previousDraft;
+          });
+          if (restored) {
+            currentComposer.focus();
+          } else {
+            toast.info("Draft changed, so undo was not applied.");
           }
         }
-      });
-    },
-    [composer]
-  );
+      }
+    });
+  }, []);
   const consumeResult = useCallback(
     async (requestId) => {
       const active = pendingRef.current;
       if (active === null || active.requestId !== requestId) return;
       const record = await rpc.call("getEnhancement", { requestId });
+      if (pendingRef.current !== active) return;
       if (record === null || record.status === "running") return;
+      composerRef.current.setTextEffect?.(null);
       setPendingRequest(null);
       if (record.status === "failed") {
         toast.error(record.error);
         return;
       }
-      const decision = decideCompletedEnhancement({
-        originalDraft: active.originalDraft,
-        currentDraft: composer.text,
-        assumptions: record.assumptions,
-        scopeMatches: active.scopeKey === composerScopeKey
-      });
-      if (decision === "discard") {
+      if (active.scopeKey !== composerScopeKeyRef.current) {
         toast.info(
           "Enhancement finished after you changed composers. Nothing was replaced."
         );
         return;
       }
-      if (decision === "review") {
-        setReview({
-          enhancedPrompt: record.enhancedPrompt,
-          assumptions: record.assumptions,
-          draftChanged: composer.text !== active.originalDraft
-        });
-        return;
-      }
       applyEnhancement(record.enhancedPrompt);
     },
-    [applyEnhancement, composer, composerScopeKey, rpc, setPendingRequest]
+    [applyEnhancement, rpc, setPendingRequest]
   );
   useRealtime("enhancement-changed", (payload) => {
     const requestId = signalRequestId(payload);
     if (requestId !== null) void consumeResult(requestId);
   });
   useEffect(() => {
-    if (pending === null) return;
+    if (!isRunning || pending === null) return;
     const timer = window.setInterval(() => {
       void consumeResult(pending.requestId);
     }, 2e3);
     return () => window.clearInterval(timer);
-  }, [consumeResult, pending]);
+  }, [consumeResult, isRunning, pending]);
   const enhance = useCallback(async () => {
     const draft = composer.text;
     if (projectId === null || draft.trim().length === 0 || pendingRef.current) {
@@ -5733,11 +5064,10 @@ function PromptShaperAction({
     }
     const request = {
       requestId: crypto.randomUUID(),
-      originalDraft: draft,
       scopeKey: composerScopeKey
     };
+    composer.setTextEffect?.("shimmer");
     setPendingRequest(request);
-    setReview(null);
     try {
       await rpc.call("startEnhancement", {
         requestId: request.requestId,
@@ -5747,6 +5077,7 @@ function PromptShaperAction({
       });
       await consumeResult(request.requestId);
     } catch (error) {
+      composerRef.current.setTextEffect?.(null);
       setPendingRequest(null);
       toast.error(
         error instanceof Error ? error.message : "Could not enhance the prompt."
@@ -5761,76 +5092,30 @@ function PromptShaperAction({
     setPendingRequest,
     threadId
   ]);
-  const isRunning = pending !== null;
   const isDisabled = projectId === null || composer.text.trim().length === 0 || isRunning;
-  return /* @__PURE__ */ jsxs(Fragment2, { children: [
-    /* @__PURE__ */ jsx(TooltipProvider2, { delayDuration: 300, children: /* @__PURE__ */ jsxs(Tooltip2, { children: [
-      /* @__PURE__ */ jsx(TooltipTrigger2, { asChild: true, children: /* @__PURE__ */ jsx(
-        Button,
-        {
-          type: "button",
-          variant: "ghost",
-          size: "icon",
-          className: "size-7 text-muted-foreground",
-          disabled: isDisabled,
-          "aria-label": isRunning ? "Improving prompt" : "Improve prompt",
-          onClick: () => void enhance(),
-          children: isRunning ? /* @__PURE__ */ jsx(
-            Icon,
-            {
-              name: "Loading",
-              className: "animate-spin",
-              "aria-hidden": "true"
-            }
-          ) : /* @__PURE__ */ jsx(Icon, { name: "AiScanText", "aria-hidden": "true" })
-        }
-      ) }),
-      /* @__PURE__ */ jsx(TooltipContent2, { side: "top", children: "Improve prompt" })
-    ] }) }),
-    /* @__PURE__ */ jsx(
-      Dialog2,
+  return /* @__PURE__ */ jsx(TooltipProvider2, { delayDuration: 300, children: /* @__PURE__ */ jsxs(Tooltip2, { children: [
+    /* @__PURE__ */ jsx(TooltipTrigger2, { asChild: true, children: /* @__PURE__ */ jsx(
+      Button,
       {
-        open: review !== null,
-        onOpenChange: (open) => {
-          if (!open) setReview(null);
-        },
-        children: /* @__PURE__ */ jsxs(DialogContent2, { className: "max-w-2xl", children: [
-          /* @__PURE__ */ jsxs(DialogHeader, { children: [
-            /* @__PURE__ */ jsx(DialogTitle2, { children: "Review enhanced prompt" }),
-            /* @__PURE__ */ jsx(DialogDescription2, { children: review?.draftChanged ? "Your draft changed while Prompt Shaper was working. Review before replacing it." : "Prompt Shaper found missing context. Review its assumption before replacing your draft." })
-          ] }),
-          review?.assumptions ? /* @__PURE__ */ jsxs("div", { className: "rounded-md border border-border bg-muted/40 px-3 py-2 text-sm", children: [
-            /* @__PURE__ */ jsx("div", { className: "mb-1 font-medium text-foreground", children: "Assumption" }),
-            /* @__PURE__ */ jsx("div", { className: "whitespace-pre-wrap text-muted-foreground", children: review.assumptions })
-          ] }) : null,
-          /* @__PURE__ */ jsx(
-            "textarea",
-            {
-              readOnly: true,
-              value: review?.enhancedPrompt ?? "",
-              "aria-label": "Enhanced prompt",
-              className: "min-h-64 w-full resize-y rounded-md border border-input bg-transparent p-3 font-mono text-sm leading-6 text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-            }
-          ),
-          /* @__PURE__ */ jsxs(DialogFooter, { children: [
-            /* @__PURE__ */ jsx(Button, { variant: "outline", onClick: () => setReview(null), children: "Keep current" }),
-            /* @__PURE__ */ jsx(
-              Button,
-              {
-                onClick: () => {
-                  if (review === null) return;
-                  const enhancedPrompt = review.enhancedPrompt;
-                  setReview(null);
-                  applyEnhancement(enhancedPrompt);
-                },
-                children: "Replace draft"
-              }
-            )
-          ] })
-        ] })
+        type: "button",
+        variant: "ghost",
+        size: "icon",
+        className: "size-7 text-muted-foreground",
+        disabled: isDisabled,
+        "aria-label": isRunning ? "Improving prompt" : "Improve prompt",
+        onClick: () => void enhance(),
+        children: isRunning ? /* @__PURE__ */ jsx(
+          Icon,
+          {
+            name: "Loading",
+            className: "animate-spin",
+            "aria-hidden": "true"
+          }
+        ) : /* @__PURE__ */ jsx(Icon, { name: "AiScanText", "aria-hidden": "true" })
       }
-    )
-  ] });
+    ) }),
+    /* @__PURE__ */ jsx(TooltipContent2, { side: "top", children: "Improve prompt" })
+  ] }) });
 }
 var app_default = definePluginApp((app) => {
   app.slots.composerAccessory({

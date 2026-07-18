@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 
 import {
   buildWorkerPrompt,
-  decideCompletedEnhancement,
   parseShaperOutput,
   scopeKey,
 } from "./core.js";
@@ -49,48 +48,7 @@ describe("buildWorkerPrompt", () => {
   });
 });
 
-describe("composer application decision", () => {
-  it("applies only to the unchanged draft in the same composer", () => {
-    expect(
-      decideCompletedEnhancement({
-        originalDraft: "rough",
-        currentDraft: "rough",
-        assumptions: null,
-        scopeMatches: true,
-      }),
-    ).toBe("apply");
-  });
-
-  it("requires review after edits or assumptions", () => {
-    expect(
-      decideCompletedEnhancement({
-        originalDraft: "rough",
-        currentDraft: "rougher",
-        assumptions: null,
-        scopeMatches: true,
-      }),
-    ).toBe("review");
-    expect(
-      decideCompletedEnhancement({
-        originalDraft: "rough",
-        currentDraft: "rough",
-        assumptions: "Target staging",
-        scopeMatches: true,
-      }),
-    ).toBe("review");
-  });
-
-  it("never writes into a different composer", () => {
-    expect(
-      decideCompletedEnhancement({
-        originalDraft: "rough",
-        currentDraft: "rough",
-        assumptions: null,
-        scopeMatches: false,
-      }),
-    ).toBe("discard");
-  });
-
+describe("composer scope key", () => {
   it("keys thread and new-thread composers separately", () => {
     expect(scopeKey({ kind: "thread", threadId: "thr_1" })).toBe(
       "thread:thr_1",

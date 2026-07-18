@@ -74,24 +74,6 @@ export function buildWorkerPrompt(input: {
   ].join("\n");
 }
 
-export type CompletionDecision = "apply" | "review" | "discard";
-
-export function decideCompletedEnhancement(input: {
-  originalDraft: string;
-  currentDraft: string;
-  assumptions: string | null;
-  scopeMatches: boolean;
-}): CompletionDecision {
-  if (!input.scopeMatches) return "discard";
-  if (
-    input.currentDraft !== input.originalDraft ||
-    input.assumptions !== null
-  ) {
-    return "review";
-  }
-  return "apply";
-}
-
 export function scopeKey(scope: {
   kind: "thread" | "new-thread";
   threadId?: string;
