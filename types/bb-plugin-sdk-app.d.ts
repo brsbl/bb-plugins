@@ -288,8 +288,8 @@ interface PluginPendingInteractionRegistration {
 /** Context handed to a `sidebarFooterAction`'s `run`. */
 interface PluginSidebarFooterActionContext {
     /**
-     * Navigate to this plugin's Plugins detail page
-     * (`/tools/plugins/<pluginId>`), where declarative settings and
+     * Navigate to this plugin's Settings detail page
+     * (`/settings/plugins/<pluginId>`), where declarative settings and
      * `settingsSection` slots render.
      */
     openSettings(): void;
@@ -387,10 +387,14 @@ interface PluginSettingsState {
 }
 /** State of the app's shared realtime connection to the bb server. */
 type PluginRealtimeConnectionState = "connecting" | "connected" | "reconnecting";
-/** Where `useComposer()` writes: the active thread's draft or the new-thread draft. */
+/** Where `useComposer()` writes. */
 type PluginComposerScope = {
     kind: "thread";
     threadId: string;
+} | {
+    kind: "queued-message";
+    threadId: string;
+    queuedMessageId: string;
 } | {
     kind: "new-thread";
     projectId: string | null;
@@ -409,9 +413,11 @@ interface PluginComposerMention {
 /**
  * Programmatic access to the chat composer draft — the same shared draft the
  * built-in "Add to chat" affordances (file preview, diff, terminal selections)
- * write to. Inside a thread context writes land in that thread's draft;
- * anywhere else (nav panel, homepage section) they seed the new-thread
- * composer draft, which persists until the user sends or clears it.
+ * write to. While a queued message is being edited, writes land in that
+ * message's inline editor. Otherwise, inside a thread context writes land in
+ * that thread's draft; anywhere else (nav panel, homepage section) they seed
+ * the new-thread composer draft, which persists until the user sends or clears
+ * it.
  */
 interface PluginComposerApi {
     scope: PluginComposerScope;
@@ -468,30 +474,16 @@ interface BbNavigate {
     toPluginPanel(path: string, options?: {
         subPath?: string;
         replace?: boolean;
-        /** Mark this entry so `exitPluginPanel` returns to its predecessor. */
-        returnOnExit?: boolean;
-    }): void;
-    /**
-     * Leave a panel subroute. Entries opened with `returnOnExit` pop back;
-     * direct entries replace themselves with this fallback location.
-     */
-    exitPluginPanel(path: string, options?: {
-        subPath?: string;
     }): void;
     /**
      * Navigate to the root compose surface (the new-thread screen). Pass
      * `initialPrompt` to seed the composer draft and `focusPrompt` to focus the
      * composer on arrival — the pairing behind "Create via chat" style entry
-     * points that drop the user into chat with a prefilled prompt. Set
-     * `replaceInitialPrompt` for an explicit resource action whose context must
-     * replace any stale root-composer draft. Set `replace` for redirects so the
-     * intermediary route does not trap browser Back navigation.
+     * points that drop the user into chat with a prefilled prompt.
      */
     toCompose(options?: {
         initialPrompt?: string;
         focusPrompt?: boolean;
-        replaceInitialPrompt?: boolean;
-        replace?: boolean;
     }): void;
 }
 /**

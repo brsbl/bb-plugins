@@ -2,6 +2,11 @@ import { useEffect, useSyncExternalStore } from "react";
 
 type ComposerScope =
   | { kind: "thread"; threadId: string }
+  | {
+      kind: "queued-message";
+      threadId: string;
+      queuedMessageId: string;
+    }
   | { kind: "new-thread"; projectId: string | null };
 type TextEffect = "shimmer" | null;
 type RpcHandler = (input: unknown) => unknown | Promise<unknown>;
@@ -18,10 +23,7 @@ interface TestRuntime {
 }
 
 const listeners = new Set<() => void>();
-const realtimeHandlers = new Map<
-  string,
-  Set<(payload: unknown) => void>
->();
+const realtimeHandlers = new Map<string, Set<(payload: unknown) => void>>();
 
 const runtime: TestRuntime = {
   text: "",

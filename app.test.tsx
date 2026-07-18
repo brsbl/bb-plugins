@@ -55,7 +55,8 @@ async function loadAction() {
       },
     },
   } as never);
-  if (component === null) throw new Error("Prompt Shaper action was not registered");
+  if (component === null)
+    throw new Error("Prompt Shaper action was not registered");
   return component;
 }
 
@@ -71,6 +72,45 @@ afterEach(() => {
 });
 
 describe("Prompt Shaper composer action", () => {
+  it("enhances the active queued-message draft and preserves its attachments for manual save", async () => {
+    resetTestPluginRuntime({
+      text: "queued rough draft",
+      attachments: ["queued-brief.png"],
+      scope: {
+        kind: "queued-message",
+        threadId: "thr_source",
+        queuedMessageId: "qmsg_1",
+      },
+      rpc: {
+        startEnhancement: () => ({
+          requestId: REQUEST_ID,
+          helperThreadId: "thr_helper",
+        }),
+        getEnhancement: () => ({
+          requestId: REQUEST_ID,
+          helperThreadId: "thr_helper",
+          status: "complete",
+          enhancedPrompt: "Improved queued draft.",
+          assumptions: null,
+          createdAt: 1,
+          completedAt: 2,
+        }),
+      },
+    });
+    const Action = await loadAction();
+    render(<Action projectId="proj_1" threadId="thr_source" />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Improve prompt" }));
+
+    await waitFor(() => {
+      expect(getTestPluginRuntime().text).toBe("Improved queued draft.");
+      expect(getTestPluginRuntime().textEffect).toBeNull();
+    });
+    expect(getTestPluginRuntime().attachments).toEqual(["queued-brief.png"]);
+    expect(getTestPluginRuntime().rpcCalls).toHaveLength(2);
+    expect(getTestPluginRuntime().focusCount).toBe(1);
+  }, 15_000);
+
   it("replaces the latest edited draft automatically, preserves attachments, and keeps Undo", async () => {
     const result = deferred<{
       requestId: string;
@@ -127,8 +167,7 @@ describe("Prompt Shaper composer action", () => {
     expect(screen.queryByRole("dialog")).toBeNull();
 
     const successOptions = vi.mocked(toast.success).mock.calls[0]?.[1] as
-      | { action?: { label: string; onClick(): void } }
-      | undefined;
+      { action?: { label: string; onClick(): void } } | undefined;
     expect(successOptions?.action?.label).toBe("Undo");
     act(() => {
       successOptions?.action?.onClick();
@@ -149,9 +188,7 @@ describe("Prompt Shaper composer action", () => {
       },
     });
     const Action = await loadAction();
-    const view = render(
-      <Action projectId="proj_1" threadId="thr_source" />,
-    );
+    const view = render(<Action projectId="proj_1" threadId="thr_source" />);
 
     fireEvent.click(screen.getByRole("button", { name: "Improve prompt" }));
     await waitFor(() => {

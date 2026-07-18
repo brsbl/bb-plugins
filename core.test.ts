@@ -1,10 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import {
-  buildWorkerPrompt,
-  parseShaperOutput,
-  scopeKey,
-} from "./core.js";
+import { buildWorkerPrompt, parseShaperOutput, scopeKey } from "./core.js";
 
 describe("parseShaperOutput", () => {
   it("extracts and unquotes the enhanced prompt", () => {
@@ -49,10 +45,17 @@ describe("buildWorkerPrompt", () => {
 });
 
 describe("composer scope key", () => {
-  it("keys thread and new-thread composers separately", () => {
+  it("keys thread, queued-message, and new-thread composers separately", () => {
     expect(scopeKey({ kind: "thread", threadId: "thr_1" })).toBe(
       "thread:thr_1",
     );
+    expect(
+      scopeKey({
+        kind: "queued-message",
+        threadId: "thr_1",
+        queuedMessageId: "msg_1",
+      }),
+    ).toBe("queued-message:thr_1:msg_1");
     expect(scopeKey({ kind: "new-thread", projectId: "proj_1" })).toBe(
       "new-thread:proj_1",
     );

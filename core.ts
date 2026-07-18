@@ -75,11 +75,16 @@ export function buildWorkerPrompt(input: {
 }
 
 export function scopeKey(scope: {
-  kind: "thread" | "new-thread";
+  kind: "thread" | "queued-message" | "new-thread";
   threadId?: string;
+  queuedMessageId?: string;
   projectId?: string | null;
 }): string {
-  return scope.kind === "thread"
-    ? `thread:${scope.threadId ?? ""}`
-    : `new-thread:${scope.projectId ?? ""}`;
+  if (scope.kind === "thread") {
+    return `thread:${scope.threadId ?? ""}`;
+  }
+  if (scope.kind === "queued-message") {
+    return `queued-message:${scope.threadId ?? ""}:${scope.queuedMessageId ?? ""}`;
+  }
+  return `new-thread:${scope.projectId ?? ""}`;
 }
