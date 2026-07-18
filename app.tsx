@@ -5,8 +5,6 @@ import {
   useRealtime,
   useRpc,
 } from "@bb/plugin-sdk/app";
-import { AiScanIcon as AiScanTextIcon } from "@hugeicons/core-free-icons";
-import { HugeiconsIcon } from "@hugeicons/react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -19,6 +17,12 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Icon } from "@/components/ui/icon";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import type { rpcContract } from "./server";
 import { decideCompletedEnhancement, scopeKey } from "./core.js";
 
@@ -258,22 +262,35 @@ function PromptShaperAction({
 
   return (
     <>
-      <Button
-        type="button"
-        variant="ghost"
-        size="sm"
-        className="h-7 px-2 text-xs text-muted-foreground"
-        disabled={isDisabled}
-        aria-label={isRunning ? "Improving prompt" : "Improve prompt"}
-        onClick={() => void enhance()}
-      >
-        {isRunning ? (
-          <Icon name="Loading" className="animate-spin" aria-hidden="true" />
-        ) : (
-          <HugeiconsIcon icon={AiScanTextIcon} aria-hidden="true" />
-        )}
-        {isRunning ? "Improving…" : "Improve prompt"}
-      </Button>
+      <TooltipProvider delayDuration={300}>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="h-7 px-2 text-xs text-muted-foreground"
+              disabled={isDisabled}
+              aria-label={isRunning ? "Improving prompt" : "Improve prompt"}
+              onClick={() => void enhance()}
+            >
+              {isRunning ? (
+                <Icon
+                  name="Loading"
+                  className="animate-spin"
+                  aria-hidden="true"
+                />
+              ) : (
+                <Icon name="AiScanText" aria-hidden="true" />
+              )}
+              {isRunning ? "Improving…" : "Improve prompt"}
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent side="top">
+            Rewrite this draft with clearer context and completion criteria
+          </TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
 
       <Dialog
         open={review !== null}
