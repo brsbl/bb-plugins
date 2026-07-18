@@ -5,6 +5,8 @@ import {
   useRealtime,
   useRpc,
 } from "@bb/plugin-sdk/app";
+import { AiScanIcon as AiScanTextIcon } from "@hugeicons/core-free-icons";
+import { HugeiconsIcon } from "@hugeicons/react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -262,15 +264,15 @@ function PromptShaperAction({
         size="sm"
         className="h-7 px-2 text-xs text-muted-foreground"
         disabled={isDisabled}
-        aria-label={isRunning ? "Enhancing prompt" : "Enhance prompt"}
+        aria-label={isRunning ? "Improving prompt" : "Improve prompt"}
         onClick={() => void enhance()}
       >
-        <Icon
-          name={isRunning ? "Loading" : "Zap"}
-          className={isRunning ? "animate-spin" : undefined}
-          aria-hidden="true"
-        />
-        {isRunning ? "Enhancing…" : "Enhance prompt"}
+        {isRunning ? (
+          <Icon name="Loading" className="animate-spin" aria-hidden="true" />
+        ) : (
+          <HugeiconsIcon icon={AiScanTextIcon} aria-hidden="true" />
+        )}
+        {isRunning ? "Improving…" : "Improve prompt"}
       </Button>
 
       <Dialog
