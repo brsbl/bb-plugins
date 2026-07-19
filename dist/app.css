@@ -27,6 +27,7 @@
     --shadow-lg: var(--shadow-lg);
     --shadow-xl: var(--shadow-xl);
     --shadow-2xl: var(--shadow-2xl);
+    --animate-pulse: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
     --default-transition-duration: 150ms;
     --default-transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
     --shadow: var(--shadow);
@@ -884,6 +885,16 @@
         }
       }
     }
+    .motion-safe\:animate-pulse {
+      @media (prefers-reduced-motion: no-preference) {
+        animation: var(--animate-pulse);
+      }
+    }
+    .motion-safe\:\[animation-duration\:1\.5s\] {
+      @media (prefers-reduced-motion: no-preference) {
+        animation-duration: 1.5s;
+      }
+    }
     .sm\:flex-row {
       @media (width >= 40rem) {
         flex-direction: row;
@@ -1316,6 +1327,11 @@
   syntax: "*";
   inherits: false;
   initial-value: 0;
+}
+@keyframes pulse {
+  50% {
+    opacity: 0.5;
+  }
 }
 @keyframes enter {
   from {

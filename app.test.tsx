@@ -225,6 +225,9 @@ describe("Prompt Shaper composer action", () => {
       const icon = cancelButton.querySelector('[data-icon="AiScanText"]');
       expect(icon).not.toBeNull();
       expect(icon?.classList.contains("animate-shine-icon")).toBe(true);
+      expect(
+        icon?.parentElement?.classList.contains("motion-safe:animate-pulse"),
+      ).toBe(true);
       expect(getTestPluginRuntime().threadRowStatus).not.toBeNull();
       expect(
         getTestPluginRuntime().rpcCalls.map((call) => call.method),
@@ -262,6 +265,54 @@ describe("Prompt Shaper composer action", () => {
     expect(getTestPluginRuntime().text).toBe("keep this draft");
     expect(getTestPluginRuntime().attachments).toEqual(["brief.png"]);
     expect(toast.success).not.toHaveBeenCalled();
+  });
+
+  it("reveals the cancel icon on hover and keyboard focus while preserving the loading icon otherwise", async () => {
+    const start = deferred<never>();
+    resetTestPluginRuntime({
+      text: "rough draft",
+      scope: { kind: "thread", threadId: "thr_source" },
+      rpc: {
+        startEnhancement: () => start.promise,
+        getEnhancement: () => null,
+      },
+    });
+    const Action = await loadAction();
+    render(<Action projectId="proj_1" threadId="thr_source" />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Improve prompt" }));
+    const cancelButton = await screen.findByRole("button", {
+      name: "Cancel prompt improvement",
+    });
+    expect(
+      cancelButton.querySelector('[data-icon="AiScanText"]'),
+    ).not.toBeNull();
+
+    fireEvent.mouseEnter(cancelButton);
+    expect(cancelButton.querySelector('[data-icon="X"]')).not.toBeNull();
+    expect(cancelButton.querySelector('[data-icon="AiScanText"]')).toBeNull();
+
+    fireEvent.mouseLeave(cancelButton);
+    expect(
+      cancelButton.querySelector('[data-icon="AiScanText"]'),
+    ).not.toBeNull();
+
+    const nativeMatches = HTMLElement.prototype.matches;
+    const matches = vi
+      .spyOn(cancelButton, "matches")
+      .mockImplementation((selector) =>
+        selector === ":focus-visible"
+          ? true
+          : nativeMatches.call(cancelButton, selector),
+      );
+    fireEvent.focus(cancelButton);
+    expect(cancelButton.querySelector('[data-icon="X"]')).not.toBeNull();
+    expect((await screen.findAllByText("Cancel")).length).toBeGreaterThan(0);
+    fireEvent.blur(cancelButton);
+    expect(
+      cancelButton.querySelector('[data-icon="AiScanText"]'),
+    ).not.toBeNull();
+    matches.mockRestore();
   });
 
   it("clears loading effects when the composer scope changes", async () => {

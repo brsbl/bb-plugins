@@ -4982,9 +4982,12 @@ function PromptShaperAction({
   const pendingRef = useRef(pending);
   const composerRef = useRef(composer);
   const composerScopeKeyRef = useRef(composerScopeKey);
+  const [isHovered, setIsHovered] = useState(false);
+  const [isKeyboardFocused, setIsKeyboardFocused] = useState(false);
   composerRef.current = composer;
   composerScopeKeyRef.current = composerScopeKey;
   const isRunning = pending?.scopeKey === composerScopeKey;
+  const showCancelIcon = isRunning && (isHovered || isKeyboardFocused);
   const setPendingRequest = useCallback((next) => {
     const previous = pendingRef.current;
     if (previous !== null) clearPendingRequest(previous);
@@ -5141,13 +5144,25 @@ function PromptShaperAction({
         disabled: isDisabled,
         "aria-busy": isRunning,
         "aria-label": isRunning ? "Cancel prompt improvement" : "Improve prompt",
+        onBlur: () => setIsKeyboardFocused(false),
+        onFocus: (event) => setIsKeyboardFocused(
+          event.currentTarget.matches(":focus-visible")
+        ),
+        onMouseEnter: () => setIsHovered(true),
+        onMouseLeave: () => setIsHovered(false),
         onClick: () => void (isRunning ? cancel() : enhance()),
         children: /* @__PURE__ */ jsx(
-          Icon,
+          "span",
           {
-            name: "AiScanText",
-            className: isRunning ? "animate-shine-icon" : void 0,
-            "aria-hidden": "true"
+            className: isRunning && !showCancelIcon ? "inline-flex size-4 items-center justify-center motion-safe:animate-pulse" : "inline-flex size-4 items-center justify-center",
+            children: /* @__PURE__ */ jsx(
+              Icon,
+              {
+                name: showCancelIcon ? "X" : "AiScanText",
+                className: isRunning && !showCancelIcon ? "animate-shine-icon motion-safe:[animation-duration:1.5s]" : void 0,
+                "aria-hidden": "true"
+              }
+            )
           }
         )
       }

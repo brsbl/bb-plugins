@@ -107,9 +107,12 @@ function PromptShaperAction({
   const pendingRef = useRef<PendingRequest | null>(pending);
   const composerRef = useRef(composer);
   const composerScopeKeyRef = useRef(composerScopeKey);
+  const [isHovered, setIsHovered] = useState(false);
+  const [isKeyboardFocused, setIsKeyboardFocused] = useState(false);
   composerRef.current = composer;
   composerScopeKeyRef.current = composerScopeKey;
   const isRunning = pending?.scopeKey === composerScopeKey;
+  const showCancelIcon = isRunning && (isHovered || isKeyboardFocused);
 
   const setPendingRequest = useCallback((next: PendingRequest | null) => {
     const previous = pendingRef.current;
@@ -293,13 +296,33 @@ function PromptShaperAction({
             aria-label={
               isRunning ? "Cancel prompt improvement" : "Improve prompt"
             }
+            onBlur={() => setIsKeyboardFocused(false)}
+            onFocus={(event) =>
+              setIsKeyboardFocused(
+                event.currentTarget.matches(":focus-visible"),
+              )
+            }
+            onMouseEnter={() => setIsHovered(true)}
+            onMouseLeave={() => setIsHovered(false)}
             onClick={() => void (isRunning ? cancel() : enhance())}
           >
-            <Icon
-              name="AiScanText"
-              className={isRunning ? "animate-shine-icon" : undefined}
-              aria-hidden="true"
-            />
+            <span
+              className={
+                isRunning && !showCancelIcon
+                  ? "inline-flex size-4 items-center justify-center motion-safe:animate-pulse"
+                  : "inline-flex size-4 items-center justify-center"
+              }
+            >
+              <Icon
+                name={showCancelIcon ? "X" : "AiScanText"}
+                className={
+                  isRunning && !showCancelIcon
+                    ? "animate-shine-icon motion-safe:[animation-duration:1.5s]"
+                    : undefined
+                }
+                aria-hidden="true"
+              />
+            </span>
           </Button>
         </TooltipTrigger>
         <TooltipContent side="top">
