@@ -13,7 +13,27 @@ import {
 } from "./gallery-shell.js";
 import { Button } from "./components/ui/button.js";
 import { Icon } from "./components/ui/icon.js";
-import { sourceBrowserFixture } from "./source-browser-fixtures.js";
+import { useSourceBrowserData } from "./source-browser-data.js";
+
+function SourceBrowserContent({
+  navigation,
+  mode = "gallery",
+}: {
+  navigation: GalleryNavigation;
+  mode?: "gallery" | "panel";
+}) {
+  const { snapshot, error } = useSourceBrowserData();
+
+  if (!snapshot) {
+    return (
+      <main className="grid min-h-40 place-items-center p-4 text-sm text-muted-foreground" role="status">
+        {error ?? "Loading upstream source records…"}
+      </main>
+    );
+  }
+
+  return <GalleryShell navigation={navigation} snapshot={snapshot} showTitle={false} mode={mode} />;
+}
 
 function useBbGalleryNavigation(subPath: string): GalleryNavigation {
   const navigate = useBbNavigate();
@@ -46,7 +66,7 @@ function useBbGalleryNavigation(subPath: string): GalleryNavigation {
 
 function UiPatternsPanel({ subPath }: { subPath: string }) {
   const navigation = useBbGalleryNavigation(subPath);
-  return <GalleryShell navigation={navigation} snapshot={sourceBrowserFixture} showTitle={false} />;
+  return <SourceBrowserContent navigation={navigation} />;
 }
 
 function UiPatternsThreadPanel() {
@@ -57,7 +77,7 @@ function UiPatternsThreadPanel() {
     closeInspector: () => setEntryId(null),
   };
 
-  return <GalleryShell navigation={navigation} snapshot={sourceBrowserFixture} showTitle={false} mode="panel" />;
+  return <SourceBrowserContent navigation={navigation} mode="panel" />;
 }
 
 function UiPatternsComposerAccessory() {

@@ -10,6 +10,8 @@ import {
   GalleryShell,
   type GalleryNavigation,
 } from "./gallery-shell.js";
+// The standalone demo has no bb RPC host. Keep its fixture isolated from the
+// plugin composition path, which reads the provider snapshot through RPC.
 import { sourceBrowserFixture } from "./source-browser-fixtures.js";
 
 function useHistoryGalleryNavigation(): GalleryNavigation {

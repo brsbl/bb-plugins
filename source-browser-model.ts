@@ -1,4 +1,8 @@
-import type { LibraryProvider, SourceBrowserSnapshot, SourceItem } from "./source-item.js";
+import type {
+  LibraryProvider,
+  SourceBrowserSnapshot,
+  SourceItem,
+} from "./providers/source-browser.js";
 
 export interface SourceBrowserFilters {
   query: string;

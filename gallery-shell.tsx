@@ -8,7 +8,10 @@ import {
   sourceItemById,
   type SourceBrowserFilters,
 } from "./source-browser-model.js";
-import type { SourceBrowserSnapshot, SourceItem } from "./source-item.js";
+import type {
+  SourceBrowserSnapshot,
+  SourceItem,
+} from "./providers/source-browser.js";
 import { Button } from "./components/ui/button.js";
 import { Card } from "./components/ui/card.js";
 import {

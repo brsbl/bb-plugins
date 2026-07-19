@@ -1,4 +1,4 @@
-import type { SourceBrowserSnapshot } from "./source-item.js";
+import type { SourceBrowserSnapshot } from "./providers/source-browser.js";
 
 /**
  * Frontend-only snapshot used while the provider kernel is integrated. It is

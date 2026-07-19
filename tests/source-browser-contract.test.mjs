@@ -112,6 +112,26 @@ test("the rendered browser presents provider metadata and source-specific links"
   assert.match(markup, /data-source-item-id="base-ui:button"/);
 });
 
+test("the generated provider snapshot is a usable source-browser input", () => {
+  const snapshot = sourceBrowser.getSourceBrowserSnapshot();
+  const markup = renderToStaticMarkup(
+    React.createElement(GalleryShell, {
+      snapshot,
+      navigation: {
+        entryId: null,
+        openEntry() {},
+        closeInspector() {},
+      },
+    }),
+  );
+
+  assert.equal(Object.isFrozen(snapshot), true);
+  assert.equal(snapshot.items.length, 125);
+  assert.equal(snapshot.items.every((item) => item.id.includes(":")), true);
+  assert.match(markup, /data-source-item-id="govuk-design-system:/);
+  assert.match(markup, /data-source-item-id="uswds:/);
+});
+
 test("source-native deep links encode IDs and preserve close-history semantics", () => {
   const subPath = sourceBrowser.entrySubPath("aria-apg:combobox");
   assert.equal(subPath, "entry/aria-apg%3Acombobox");

@@ -15,11 +15,15 @@ const buildScript = await readFile(
   "utf8",
 );
 const readme = await readFile(new URL("../README.md", import.meta.url), "utf8");
+const sourceBrowserData = await readFile(
+  new URL("../source-browser-data.ts", import.meta.url),
+  "utf8",
+);
 
 test("the package ships the source browser, not the Atlas preview system", () => {
-  assert.ok(packageJson.files.includes("source-item.ts"));
+  assert.ok(packageJson.files.includes("providers/"));
+  assert.ok(packageJson.files.includes("source-browser-data.ts"));
   assert.ok(packageJson.files.includes("source-browser-model.ts"));
-  assert.ok(packageJson.files.includes("source-browser-fixtures.ts"));
   assert.equal(packageJson.files.includes("atlas-ds/"), false);
   assert.equal(packageJson.files.includes("pattern-previews.tsx"), false);
   assert.equal(packageJson.files.includes("generated/atlas-registry.v2.json"), false);
@@ -37,7 +41,10 @@ test("the plugin retains navigation, thread panel, composer, and deep-link surfa
   assert.match(app, /entrySubPath\(id\)/);
   assert.match(app, /entryIdFromSubPath\(subPath\)/);
   assert.match(app, /window\.history\.back\(\)/);
-  assert.match(app, /snapshot=\{sourceBrowserFixture\}/);
+  assert.match(app, /useSourceBrowserData/);
+  assert.doesNotMatch(app, /sourceBrowserFixture/);
+  assert.match(sourceBrowserData, /useRpc<typeof sourceBrowserRpcContract>/);
+  assert.match(sourceBrowserData, /rpc\.call\("getSourceBrowserSnapshot", null\)/);
 });
 
 test("the active browser uses sanctioned controls and source-native detail fields", () => {
@@ -50,5 +57,6 @@ test("the active browser uses sanctioned controls and source-native detail field
   assert.match(gallery, /Native kind/);
   assert.match(gallery, /Freshness/);
   assert.match(gallery, /Canonical source links/);
+  assert.match(gallery, /providers\/source-browser/);
   assert.doesNotMatch(gallery, /pattern-previews|atlas-ds|PatternVisual|entry\.details|seeAlsoIds/);
 });
