@@ -31,6 +31,15 @@ export function entryIdFromSubPath(subPath: string) {
   return match?.[1] ? decodeRouteValue(match[1]) : null;
 }
 
+/**
+ * v2 routes used an Atlas-owned slug. During the compatibility window, turn
+ * that slug into a neutral source query instead of assigning it to a library.
+ */
+export function legacyQueryFromEntryId(entryId: string | null) {
+  if (!entryId || entryId.includes(":")) return null;
+  return entryId.replaceAll("-", " ");
+}
+
 export function entrySubPath(entryId: string) {
   return `entry/${encodeURIComponent(entryId)}`;
 }

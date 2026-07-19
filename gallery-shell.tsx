@@ -1,18 +1,19 @@
+import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import {
-  type ReactNode,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
-import { categories, entries, typeLabels } from "./data.js";
-import { searchEntries } from "./search.js";
-import {
-  PatternPreview,
-  patternPreviewRegistry,
-  type PatternPreviewEntryId,
-} from "./pattern-previews.js";
+  filterSourceItems,
+  freshnessLabel,
+  groupSourceItemsByExactTitle,
+  mayDisplayExcerpt,
+  providerById,
+  sourceItemById,
+  type SourceBrowserFilters,
+} from "./source-browser-model.js";
+import type {
+  SourceBrowserSnapshot,
+  SourceItem,
+} from "./providers/source-browser.js";
 import { Button } from "./components/ui/button.js";
+import { Card } from "./components/ui/card.js";
 import {
   Dialog,
   DialogClose,
@@ -29,39 +30,23 @@ import {
   SelectTrigger,
   SelectValue,
 } from "./components/ui/select.js";
-import "./gallery.css";
-
-type PatternEntry = (typeof entries)[number];
-type EntryType = PatternEntry["type"];
-type TypeFilter = EntryType | "all";
-type Category = (typeof categories)[number];
-type CategoryFilter = Category | "all";
-
-interface BrowseFilters {
-  query: string;
-  type: TypeFilter;
-  category: CategoryFilter;
-}
 
 export interface GalleryNavigation {
   entryId: string | null;
+  /** A legacy Atlas id translated to a neutral source query. */
+  legacyQuery?: string | null;
   openEntry: (id: string) => void;
   closeInspector: () => void;
 }
 
-const catalog = entries;
-const entryById = new Map(catalog.map((entry) => [entry.id, entry]));
-const motionDurationMs = 1_500;
-const motionHoldMs = 650;
-const motionEntryIds = new Set(
-  patternPreviewRegistry
-    .filter(
-      ({ states }) => states.includes("rest") && states.includes("active"),
-    )
-    .map(({ entryId }) => entryId),
-);
+const contentKindLabels = {
+  component: "Component",
+  pattern: "Pattern",
+  guidance: "Guidance",
+  unknown: "Other",
+} as const;
+const focusRestoreStorageKey = "ui-pattern-atlas:source-focus-restore";
 let pendingFocusRestoreId: string | null = null;
-const focusRestoreStorageKey = "ui-pattern-atlas:focus-restore";
 
 function storedFocusRestoreId() {
   if (typeof window === "undefined") return null;
@@ -77,7 +62,7 @@ function rememberFocusRestoreId(id: string) {
   try {
     window.sessionStorage.setItem(focusRestoreStorageKey, id);
   } catch {
-    // Storage may be unavailable in an isolated host; the module value remains.
+    // Keep the module value when storage is unavailable in an isolated host.
   }
 }
 
@@ -86,317 +71,221 @@ function clearStoredFocusRestoreId() {
   try {
     window.sessionStorage.removeItem(focusRestoreStorageKey);
   } catch {
-    // No-op when the host blocks storage.
+    // No-op when storage is unavailable.
   }
 }
 
-function PatternVisual({
-  entry,
-  motion = "static",
-  active = false,
-  inspector = false,
+function externalLinkProps(url: string) {
+  return { href: url, target: "_blank", rel: "noreferrer" };
+}
+
+function SourceItemMetadata({
+  item,
+  library,
 }: {
-  entry: PatternEntry;
-  motion?: "static" | "hover" | "loop";
-  active?: boolean;
-  inspector?: boolean;
+  item: SourceItem;
+  library: string;
 }) {
-  const [phase, setPhase] = useState(1);
-  const [visible, setVisible] = useState(inspector);
-  const animationFrame = useRef<number | null>(null);
-  const visualRef = useRef<HTMLElement | null>(null);
-  const reduceMotion =
-    typeof window !== "undefined" &&
-    typeof window.matchMedia === "function" &&
-    window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-  const hasMotion = motionEntryIds.has(entry.id as PatternPreviewEntryId);
-  const shouldAnimate =
-    hasMotion &&
-    !reduceMotion &&
-    (motion === "loop" || (motion === "hover" && active));
-
-  useEffect(() => {
-    if (inspector || typeof IntersectionObserver === "undefined") {
-      setVisible(true);
-      return;
-    }
-    const node = visualRef.current;
-    if (!node) return;
-    const observer = new IntersectionObserver(
-      ([record]) => {
-        if (!record?.isIntersecting) return;
-        setVisible(true);
-        observer.disconnect();
-      },
-      { rootMargin: "480px 0px" },
-    );
-    observer.observe(node);
-    return () => observer.disconnect();
-  }, [inspector]);
-
-  useEffect(() => {
-    if (animationFrame.current !== null) {
-      cancelAnimationFrame(animationFrame.current);
-    }
-    animationFrame.current = null;
-
-    if (!shouldAnimate) {
-      setPhase(1);
-      return;
-    }
-
-    const start = performance.now();
-    setPhase(0);
-
-    const tick = (now: number) => {
-      const elapsed = now - start;
-      const cycle = motionDurationMs + motionHoldMs;
-      const cycleElapsed = motion === "loop" ? elapsed % cycle : elapsed;
-      setPhase(Math.min(1, cycleElapsed / motionDurationMs));
-      if (motion === "loop" || elapsed < motionDurationMs) {
-        animationFrame.current = requestAnimationFrame(tick);
-      } else {
-        animationFrame.current = null;
-      }
-    };
-
-    animationFrame.current = requestAnimationFrame(tick);
-    return () => {
-      if (animationFrame.current !== null) {
-        cancelAnimationFrame(animationFrame.current);
-      }
-      animationFrame.current = null;
-    };
-  }, [entry.id, motion, shouldAnimate]);
-
   return (
-    <figure
-      ref={visualRef}
-      className={`pa-visual${inspector ? " pa-visual--inspector" : ""}`}
-    >
-      {visible ? (
-        <PatternPreview
-          className="pa-visual__component"
-          entryId={entry.id as PatternPreviewEntryId}
-          mode={inspector ? "interactive" : "inert"}
-          phase={phase}
-          state={reduceMotion ? "reduced-motion" : undefined}
-        />
-      ) : (
-        <span className="pa-visual__placeholder" aria-hidden="true" />
-      )}
-    </figure>
+    <dl className="grid gap-2 text-sm sm:grid-cols-2">
+      <div className="min-w-0">
+        <dt className="text-xs font-medium text-muted-foreground">Library</dt>
+        <dd className="mt-0.5 truncate text-foreground">{library}</dd>
+      </div>
+      <div className="min-w-0">
+        <dt className="text-xs font-medium text-muted-foreground">Native kind</dt>
+        <dd className="mt-0.5 text-foreground">{contentKindLabels[item.contentKind]}</dd>
+      </div>
+      <div className="min-w-0">
+        <dt className="text-xs font-medium text-muted-foreground">Section</dt>
+        <dd className="mt-0.5 truncate text-foreground">{item.sourceSection ?? "Not supplied"}</dd>
+      </div>
+      <div className="min-w-0">
+        <dt className="text-xs font-medium text-muted-foreground">Freshness</dt>
+        <dd className="mt-0.5 text-foreground">{freshnessLabel(item)}</dd>
+      </div>
+    </dl>
   );
 }
 
-function PatternCaption({
-  entry,
-  inspector = false,
-}: {
-  entry: PatternEntry;
-  inspector?: boolean;
-}) {
-  if (inspector) {
-    return (
-      <div className="pa-caption pa-caption--inspector">
-        <DialogTitle className="pa-caption__name">{entry.name}</DialogTitle>
-        <DialogDescription className="pa-caption__definition">
-          {entry.description}
-        </DialogDescription>
-      </div>
-    );
-  }
+function SourceLinks({ item }: { item: SourceItem }) {
+  const links = new Map(item.links.map((link) => [link.kind, link.url]));
 
   return (
-    <div className="pa-caption">
-      <span className="pa-caption__name">{entry.name}</span>
-      <span
-        id={`pattern-card-${entry.id}-description`}
-        className="pa-caption__definition"
-      >
-        {entry.description}
-      </span>
+    <div className="flex flex-wrap gap-2" aria-label="Canonical source links">
+      <Button asChild size="sm" variant="outline">
+        <a {...externalLinkProps(item.canonicalUrl)}>
+          Documentation <Icon name="ArrowUpRight" className="size-3.5" aria-hidden="true" />
+        </a>
+      </Button>
+      {(["example", "code"] as const).map((kind) => {
+        const url = links.get(kind);
+        if (!url) return null;
+        return (
+          <Button asChild key={kind} size="sm" variant="outline">
+            <a {...externalLinkProps(url)}>
+              {kind === "example" ? "Example" : "Code"}
+              <Icon name="ArrowUpRight" className="size-3.5" aria-hidden="true" />
+            </a>
+          </Button>
+        );
+      })}
     </div>
   );
 }
 
-function ResultCard({
-  entry,
+function SourceItemCard({
+  item,
+  library,
   onOpen,
 }: {
-  entry: PatternEntry;
+  item: SourceItem;
+  library: string;
   onOpen: (id: string) => void;
 }) {
-  const [previewActive, setPreviewActive] = useState(false);
-
   return (
-    <article
-      className="pa-card"
-      onPointerEnter={() => setPreviewActive(true)}
-      onPointerLeave={() => setPreviewActive(false)}
-    >
-      <PatternVisual entry={entry} motion="hover" active={previewActive} />
-      <PatternCaption entry={entry} />
+    <Card className="min-w-0 shadow-sm transition-colors hover:bg-muted/40 focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2" role="article">
       <button
-        className="pa-card__trigger"
+        className="flex w-full flex-col gap-3 p-4 text-left outline-none"
         type="button"
-        aria-label={`View ${entry.name}`}
-        aria-describedby={`pattern-card-${entry.id}-description`}
-        data-entry-id={entry.id}
-        onClick={() => onOpen(entry.id)}
-        onFocus={() => setPreviewActive(true)}
-        onBlur={() => setPreviewActive(false)}
-      />
-    </article>
+        aria-label={`Open ${item.title} from ${library}`}
+        data-source-item-id={item.id}
+        onClick={() => onOpen(item.id)}
+      >
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <h2 className="truncate text-sm font-semibold text-foreground">{item.title}</h2>
+            <p className="mt-1 text-xs text-muted-foreground">{library}</p>
+          </div>
+          <span className="shrink-0 rounded-full border border-border px-2 py-0.5 text-xs text-muted-foreground">
+            {contentKindLabels[item.contentKind]}
+          </span>
+        </div>
+        <p className="line-clamp-1 text-sm text-muted-foreground">
+          {item.sourceSection ?? "No native section supplied"}
+        </p>
+        {mayDisplayExcerpt(item) ? (
+          <p className="line-clamp-3 text-sm leading-6 text-foreground">
+            <span className="font-medium">Licensed excerpt: </span>
+            {item.excerpt}
+          </p>
+        ) : null}
+        <div className="flex items-center justify-between gap-3 text-xs text-muted-foreground">
+          <span>{freshnessLabel(item)}</span>
+          <span className="truncate">{item.id}</span>
+        </div>
+      </button>
+    </Card>
   );
 }
 
-function EmptyState({
-  title,
-  description,
-  action,
+function SourceDetail({
+  item,
+  library,
   dialog = false,
 }: {
-  title: string;
-  description?: string;
-  action?: ReactNode;
+  item: SourceItem;
+  library: string;
   dialog?: boolean;
 }) {
+  const title = `${item.title} — ${library}`;
+  const titleElement = dialog ? (
+    <DialogTitle className="pr-8 text-base">{title}</DialogTitle>
+  ) : (
+    <h2 className="pr-8 text-base font-semibold">{title}</h2>
+  );
+
   return (
-    <div className="pa-empty">
-      {dialog ? (
-        <DialogTitle className="pa-empty__title">{title}</DialogTitle>
-      ) : (
-        <p className="pa-empty__title">{title}</p>
-      )}
-      {description ? (
-        dialog ? (
-          <DialogDescription className="pa-empty__description">
-            {description}
-          </DialogDescription>
+    <div className="grid gap-5">
+      <div className="grid gap-1">
+        {titleElement}
+        {dialog ? (
+          <DialogDescription>{item.id}</DialogDescription>
         ) : (
-          <p className="pa-empty__description">{description}</p>
-        )
+          <p className="text-sm text-muted-foreground">{item.id}</p>
+        )}
+      </div>
+      <SourceItemMetadata item={item} library={library} />
+      {mayDisplayExcerpt(item) ? (
+        <section className="grid gap-1.5 rounded-md border border-border bg-muted/40 p-3" aria-label="Licensed upstream excerpt">
+          <p className="text-xs font-medium text-muted-foreground">Licensed excerpt</p>
+          <p className="text-sm leading-6 text-foreground">{item.excerpt}</p>
+        </section>
       ) : null}
-      {action}
+      <SourceLinks item={item} />
+      <p className="text-xs text-muted-foreground">
+        Upstream revision {item.provenance.upstreamRevision}
+      </p>
     </div>
   );
 }
 
-function PatternInspector({
+function SourceInspector({
+  snapshot,
   entryId,
   onClose,
 }: {
+  snapshot: SourceBrowserSnapshot;
   entryId: string | null;
   onClose: () => void;
 }) {
-  const entry = entryId ? entryById.get(entryId) : undefined;
-  const missing = Boolean(entryId && !entry);
+  const item = sourceItemById(snapshot, entryId);
+  const providers = providerById(snapshot.providers);
 
   return (
-    <Dialog
-      open={Boolean(entryId)}
-      onOpenChange={(open) => {
-        if (!open && entryId) onClose();
-      }}
-    >
-      <DialogContent
-        className={`pa-inspector${missing ? " pa-inspector--missing" : ""}`}
-      >
-        {entry ? (
-          <>
-            <PatternVisual entry={entry} motion="loop" inspector />
-            <PatternCaption entry={entry} inspector />
-          </>
-        ) : missing ? (
-          <EmptyState
-            dialog
-            title="Pattern not found"
-            description="This link does not match a current gallery entry."
-            action={
-              <DialogClose asChild>
-                <Button variant="outline" size="sm">
-                  Return to gallery
-                </Button>
-              </DialogClose>
-            }
-          />
+    <Dialog open={Boolean(entryId)} onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="max-h-[calc(100dvh-2rem)] max-w-xl overflow-y-auto">
+        {item ? (
+          <SourceDetail item={item} library={providers.get(item.providerId)?.name ?? item.providerId} dialog />
         ) : (
-          <DialogTitle className="sr-only">Pattern inspector</DialogTitle>
+          <div className="grid gap-3">
+            <DialogTitle>Source item not found</DialogTitle>
+            <DialogDescription>
+              This link no longer matches an item in the current provider snapshot.
+            </DialogDescription>
+            <DialogClose asChild>
+              <Button className="w-fit" variant="outline">Return to sources</Button>
+            </DialogClose>
+          </div>
         )}
       </DialogContent>
     </Dialog>
   );
 }
 
-function PanelPatternInspector({
-  entryId,
-  onClose,
-}: {
-  entryId: string;
-  onClose: () => void;
-}) {
-  const entry = entryById.get(entryId);
-
+function EmptyState({ children }: { children: ReactNode }) {
   return (
-    <section className="pa-panel-inspector" aria-label="Pattern detail">
-      <span className="pa-panel-inspector__back" title="Back to patterns">
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon"
-          className="h-8 w-8"
-          aria-label="Back to patterns"
-          onClick={onClose}
-        >
-          <Icon name="ChevronLeft" aria-hidden="true" />
-        </Button>
-      </span>
-      {entry ? (
-        <>
-          <PatternVisual entry={entry} motion="loop" inspector />
-          <div className="pa-panel-inspector__caption">
-            <h2 className="pa-caption__name">{entry.name}</h2>
-            <p className="pa-caption__definition">{entry.description}</p>
-          </div>
-        </>
-      ) : (
-        <EmptyState
-          title="Pattern not found"
-          description="This link does not match a current gallery entry."
-        />
-      )}
-    </section>
+    <div className="grid min-h-40 place-items-center rounded-lg border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
+      {children}
+    </div>
   );
-}
-
-function ResultCount({ count }: { count: number }) {
-  return <>{`${count} ${count === 1 ? "result" : "results"}`}</>;
 }
 
 export function GalleryShell({
   navigation,
+  snapshot,
   showTitle = true,
   mode = "gallery",
 }: {
   navigation: GalleryNavigation;
+  snapshot: SourceBrowserSnapshot;
   showTitle?: boolean;
   mode?: "gallery" | "panel";
 }) {
-  const [filters, setFilters] = useState<BrowseFilters>({
-    query: "",
-    type: "all",
-    category: "all",
+  const [filters, setFilters] = useState<SourceBrowserFilters>({
+    query: navigation.legacyQuery ?? "",
+    providerId: "all",
+    contentKind: "all",
   });
+  const searchRef = useRef<HTMLInputElement>(null);
   const focusRestoreId = useRef<string | null>(null);
   const previousEntryId = useRef<string | null>(navigation.entryId);
-  const searchRef = useRef<HTMLInputElement>(null);
-
-  const search = useMemo(
-    () => searchEntries(catalog, filters),
-    [filters],
+  const providers = useMemo(() => providerById(snapshot.providers), [snapshot.providers]);
+  const results = useMemo(
+    () => filterSourceItems(snapshot.items, filters),
+    [filters, snapshot.items],
   );
-  const results = search.entries as PatternEntry[];
+  const groups = useMemo(() => groupSourceItemsByExactTitle(results), [results]);
 
   useEffect(() => {
     const storedRestoreId = storedFocusRestoreId();
@@ -405,20 +294,21 @@ export function GalleryShell({
       focusRestoreId.current = null;
       clearStoredFocusRestoreId();
       window.requestAnimationFrame(() => {
-        const card = restoreId
-          ? document.querySelector<HTMLButtonElement>(
-              `[data-entry-id="${CSS.escape(restoreId)}"]`,
-            )
+        const escapedId = window.CSS?.escape?.(restoreId ?? "") ?? restoreId ?? "";
+        const card = escapedId
+          ? document.querySelector<HTMLButtonElement>(`[data-source-item-id="${escapedId}"]`)
           : null;
         const target = card ?? searchRef.current;
         target?.focus();
-        window.setTimeout(() => {
-          if (document.activeElement === document.body) target?.focus();
-        }, 350);
       });
     }
     previousEntryId.current = navigation.entryId;
   }, [navigation.entryId]);
+
+  useEffect(() => {
+    if (!navigation.legacyQuery) return;
+    setFilters((current) => ({ ...current, query: navigation.legacyQuery ?? current.query }));
+  }, [navigation.legacyQuery]);
 
   function openEntry(id: string) {
     focusRestoreId.current = id;
@@ -427,140 +317,82 @@ export function GalleryShell({
   }
 
   if (mode === "panel" && navigation.entryId) {
+    const item = sourceItemById(snapshot, navigation.entryId);
     return (
-      <main className="pa-shell pa-shell--panel">
-        <PanelPatternInspector
-          entryId={navigation.entryId}
-          onClose={navigation.closeInspector}
-        />
+      <main className="grid gap-4 p-4" aria-label="Source detail">
+        <Button className="w-fit" type="button" variant="ghost" size="sm" onClick={navigation.closeInspector}>
+          <Icon name="ChevronLeft" className="size-4" aria-hidden="true" /> Back to sources
+        </Button>
+        {item ? (
+          <SourceDetail item={item} library={providers.get(item.providerId)?.name ?? item.providerId} />
+        ) : (
+          <EmptyState>This source item is not present in the current provider snapshot.</EmptyState>
+        )}
       </main>
     );
   }
 
   return (
-    <main
-      className={`pa-shell${mode === "panel" ? " pa-shell--panel" : ""}`}
-    >
-      {showTitle ? (
-        <header className="pa-header">
-          <h1 className="pa-title text-sm font-semibold">UI patterns</h1>
-        </header>
+    <main className="mx-auto grid w-full max-w-6xl gap-5 p-4 sm:p-5" aria-label="UI pattern sources">
+      {showTitle ? <h1 className="text-lg font-semibold tracking-tight">UI pattern sources</h1> : null}
+      {navigation.legacyQuery ? (
+        <p className="rounded-md border border-border bg-muted/40 px-3 py-2 text-sm text-muted-foreground" role="status">
+          Legacy Atlas link: showing upstream candidates for “{navigation.legacyQuery}”.
+        </p>
       ) : null}
-
-      <section className="pa-toolbar" aria-label="Filter patterns">
-        <div className="pa-search">
-          <Icon
-            name="Search"
-            className="pa-search__icon size-4"
-            aria-hidden="true"
-          />
+      <section className="grid gap-3 border-b border-border pb-4 sm:grid-cols-2 lg:grid-cols-[minmax(16rem,1fr)_12rem_10rem_auto]" aria-label="Filter sources">
+        <div className="relative">
+          <Icon name="Search" className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
           <Input
             ref={searchRef}
-            id="pa-search"
+            id="source-search"
             type="search"
-            aria-label="Search"
-            spellCheck={false}
-            placeholder="Search"
-            className="pa-search__input h-9"
+            aria-label="Search sources"
+            placeholder="Search upstream sources"
+            className="h-9 pl-9"
             value={filters.query}
-            onChange={(event) => {
-              const query = event.currentTarget.value;
-              setFilters((current) => ({ ...current, query }));
-            }}
+            onChange={(event) => setFilters((current) => ({ ...current, query: event.currentTarget.value }))}
           />
         </div>
-
-        <div className="pa-control">
-          <span id="pa-category-label" className="pa-control__label text-xs font-medium">
-            Category
-          </span>
-          <Select
-            value={filters.category}
-            onValueChange={(value) =>
-              setFilters((current) => ({
-                ...current,
-                category: value as CategoryFilter,
-              }))
-            }
-          >
-            <SelectTrigger
-              id="pa-category-filter"
-              className="pa-select-trigger h-9"
-              aria-labelledby="pa-category-label"
-            >
-              <SelectValue />
-            </SelectTrigger>
+        <label className="grid gap-1 text-xs font-medium text-muted-foreground">
+          Library
+          <Select value={filters.providerId} onValueChange={(providerId) => setFilters((current) => ({ ...current, providerId }))}>
+            <SelectTrigger className="h-9 text-foreground" aria-label="Filter by library"><SelectValue /></SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">All categories</SelectItem>
-              {categories.map((category) => (
-                <SelectItem key={category} value={category}>
-                  {category}
-                </SelectItem>
-              ))}
+              <SelectItem value="all">All libraries</SelectItem>
+              {snapshot.providers.map((provider) => <SelectItem key={provider.id} value={provider.id}>{provider.name}</SelectItem>)}
             </SelectContent>
           </Select>
-        </div>
-
-        <div className="pa-control">
-          <span id="pa-type-label" className="pa-control__label text-xs font-medium">
-            Record type
-          </span>
-          <Select
-            value={filters.type}
-            onValueChange={(value) =>
-              setFilters((current) => ({
-                ...current,
-                type: value as TypeFilter,
-              }))
-            }
-          >
-            <SelectTrigger
-              id="pa-type-filter"
-              className="pa-select-trigger h-9"
-              aria-labelledby="pa-type-label"
-            >
-              <SelectValue />
-            </SelectTrigger>
+        </label>
+        <label className="grid gap-1 text-xs font-medium text-muted-foreground">
+          Native kind
+          <Select value={filters.contentKind} onValueChange={(contentKind) => setFilters((current) => ({ ...current, contentKind: contentKind as SourceBrowserFilters["contentKind"] }))}>
+            <SelectTrigger className="h-9 text-foreground" aria-label="Filter by native kind"><SelectValue /></SelectTrigger>
             <SelectContent>
-              {Object.entries(typeLabels as Record<string, string>).map(
-                ([value, label]) => (
-                  <SelectItem key={value} value={value}>
-                    {value === "all" ? "All record types" : label}
-                  </SelectItem>
-                ),
-              )}
+              <SelectItem value="all">All kinds</SelectItem>
+              {Object.entries(contentKindLabels).map(([value, label]) => <SelectItem key={value} value={value}>{label}</SelectItem>)}
             </SelectContent>
           </Select>
-        </div>
-
-        <p className="pa-result-count" role="status" aria-live="polite">
-          <ResultCount count={results.length} />
+        </label>
+        <p className="self-end pb-2 text-right text-xs text-muted-foreground" role="status" aria-live="polite">
+          {results.length} {results.length === 1 ? "source" : "sources"}
         </p>
       </section>
-
-      {results.length ? (
-        <section
-          className="pa-grid"
-          id="pattern-results"
-          aria-label="Pattern results"
-        >
-          {results.map((entry) => (
-            <ResultCard key={entry.id} entry={entry} onOpen={openEntry} />
+      {groups.length ? (
+        <section className="grid gap-6" id="pattern-results" aria-label="Source results">
+          {groups.map((group) => (
+            <section key={group.title} className="grid gap-3" aria-label={`${group.title} source records`}>
+              {group.items.length > 1 ? <p className="text-xs font-medium text-muted-foreground">{group.title} · {group.items.length} upstream records</p> : null}
+              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                {group.items.map((item) => <SourceItemCard key={item.id} item={item} library={providers.get(item.providerId)?.name ?? item.providerId} onOpen={openEntry} />)}
+              </div>
+            </section>
           ))}
         </section>
       ) : (
-        <EmptyState
-          title="No patterns found"
-          description="Try a different search or filter."
-        />
+        <EmptyState>There are no matching source records. Try a different search or filter.</EmptyState>
       )}
-
-      {mode === "gallery" ? (
-        <PatternInspector
-          entryId={navigation.entryId}
-          onClose={navigation.closeInspector}
-        />
-      ) : null}
+      {mode === "gallery" ? <SourceInspector snapshot={snapshot} entryId={navigation.entryId} onClose={navigation.closeInspector} /> : null}
     </main>
   );
 }
