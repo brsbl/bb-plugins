@@ -4,7 +4,7 @@
   --atlas-color-surface-raised: #fcfcfd;
   --atlas-color-ink: #202124;
   --atlas-color-ink-muted: #666970;
-  --atlas-color-ink-subtle: #8c9098;
+  --atlas-color-ink-subtle: #6b6f77;
   --atlas-color-line: #dfe1e5;
   --atlas-color-line-strong: #c8cbd1;
   --atlas-color-control: #f1f2f4;
@@ -570,6 +570,10 @@
   transform: translateX(0.85rem);
 }
 
+[data-preview-state="reduced-motion"] .atlas-switch::after {
+  transition: none;
+}
+
 .atlas-spinner-glyph {
   width: 0.8rem;
   height: 0.8rem;
@@ -584,7 +588,16 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .atlas-spinner-glyph { animation-duration: 1.8s; }
+  .atlas-switch::after { transition: none; }
+  .atlas-spinner-glyph {
+    border-right-color: currentcolor;
+    animation: none;
+  }
+}
+
+[data-preview-state="reduced-motion"] .atlas-spinner-glyph {
+  border-right-color: currentcolor;
+  animation: none;
 }
 
 .atlas-field {
@@ -1056,6 +1069,10 @@
 
 @media (prefers-reduced-motion: reduce) {
   .atlas-skeleton[data-animated]::after { animation: none; }
+}
+
+[data-preview-state="reduced-motion"] .atlas-skeleton[data-animated]::after {
+  animation: none;
 }
 
 .atlas-toast-region {

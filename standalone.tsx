@@ -4,7 +4,7 @@ import {
   inspectorCloseMode,
   parseStandaloneRoute,
   standaloneEntryPath,
-} from "../gallery-state.js";
+} from "./gallery-state.js";
 import {
   GalleryShell,
   type GalleryNavigation,

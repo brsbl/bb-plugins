@@ -68,6 +68,14 @@ test("exports the compact primitive and composition API", () => {
     "AgentActivity",
     "ActionApproval",
   ]);
+  const stableExports = [
+    ...Object.values(fixture.manifest.families).flat(),
+    ...fixture.manifest.examples,
+  ];
+  assert.equal(new Set(stableExports).size, stableExports.length);
+  for (const name of stableExports) {
+    assert.ok(fixture.exportNames.includes(name), `${name} must exist at the manifest entrypoint`);
+  }
 });
 
 test("identity and context primitives expose quiet typed hierarchy", () => {
@@ -115,6 +123,20 @@ test("navigation and collections use APG roles and native table semantics", () =
   assert.match(markup, /role="tabpanel"/);
   assert.match(markup, /<caption[^>]*>Components<\/caption>/);
   assert.match(markup, /<th scope="row"/);
+});
+
+test("interactive data grids expose one roving cell and directional navigation", async () => {
+  const markup = fixture.renderGridFixture();
+  assert.match(markup, /<table[^>]*role="grid"/);
+  assert.match(markup, /aria-rowcount="3"/);
+  assert.match(markup, /aria-colcount="2"/);
+  assert.match(markup, /role="columnheader"/);
+  assert.match(markup, /role="rowheader"[^>]*tabindex="0"/);
+  assert.match(markup, /role="gridcell"[^>]*tabindex="-1"/);
+  const source = await readFile(path.join(sourceDirectory, "collections.tsx"), "utf8");
+  for (const key of ["ArrowDown", "ArrowUp", "ArrowRight", "ArrowLeft", "Home", "End"]) {
+    assert.match(source, new RegExp(`event\\.key === "${key}"`));
+  }
 });
 
 test("feedback distinguishes assertive alerts, progress, and transient status", () => {

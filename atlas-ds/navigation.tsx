@@ -403,7 +403,9 @@ export function StepIndicator({
                 <span className="atlas-step-indicator__label">{item.label}</span>
                 {item.description ? <span className="atlas-step-indicator__description">{item.description}</span> : null}
               </span>
-            ) : null}
+            ) : (
+              <span className="atlas-sr-only">{item.label}</span>
+            )}
           </li>
         ))}
       </ol>
@@ -501,12 +503,14 @@ export function TreeView({
                 );
                 if (child) {
                   event.preventDefault();
+                  onSelectionChange(child.dataset.treeId ?? node.id);
                   child.focus();
                   return;
                 }
               } else if (event.key === "ArrowLeft") {
                 if (hasChildren && isExpanded) {
                   event.preventDefault();
+                  onSelectionChange(node.id);
                   toggle(node.id, false);
                   return;
                 }
@@ -516,12 +520,14 @@ export function TreeView({
                 );
                 if (parentItem) {
                   event.preventDefault();
+                  onSelectionChange(parentItem.dataset.treeId ?? node.id);
                   parentItem.focus();
                   return;
                 }
               }
               if (target) {
                 event.preventDefault();
+                onSelectionChange(target.dataset.treeId ?? node.id);
                 target.focus();
               }
             }}

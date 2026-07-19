@@ -5,7 +5,7 @@ const require = __createRequire(import.meta.url);
 var __filename = __fileURLToPath(import.meta.url);
 var __dirname = __pathDirname(__filename);
 
-// runtime-cli.js
+// ../../../plugin-sources/ui-patterns-recovered/runtime-cli.js
 var categoryDefinitions = (
   /** @type {const} */
   [
@@ -2004,7 +2004,7 @@ Run ui-patterns --help for usage.
   }
 }
 
-// server.ts
+// ../../../plugin-sources/ui-patterns-recovered/server.ts
 async function plugin(bb) {
   bb.cli.register({
     name: "ui-patterns",

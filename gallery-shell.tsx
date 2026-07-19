@@ -5,10 +5,11 @@ import {
   useRef,
   useState,
 } from "react";
-import { categories, entries, typeLabels } from "../data.js";
-import { searchEntries } from "../search.js";
+import { categories, entries, typeLabels } from "./data.js";
+import { searchEntries } from "./search.js";
 import {
   PatternPreview,
+  patternPreviewRegistry,
   type PatternPreviewEntryId,
 } from "./pattern-previews.js";
 import { Button } from "./components/ui/button.js";
@@ -52,6 +53,13 @@ const catalog = entries;
 const entryById = new Map(catalog.map((entry) => [entry.id, entry]));
 const motionDurationMs = 1_500;
 const motionHoldMs = 650;
+const motionEntryIds = new Set(
+  patternPreviewRegistry
+    .filter(
+      ({ states }) => states.includes("rest") && states.includes("active"),
+    )
+    .map(({ entryId }) => entryId),
+);
 let pendingFocusRestoreId: string | null = null;
 const focusRestoreStorageKey = "ui-pattern-atlas:focus-restore";
 
@@ -101,7 +109,9 @@ function PatternVisual({
     typeof window !== "undefined" &&
     typeof window.matchMedia === "function" &&
     window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const hasMotion = motionEntryIds.has(entry.id as PatternPreviewEntryId);
   const shouldAnimate =
+    hasMotion &&
     !reduceMotion &&
     (motion === "loop" || (motion === "hover" && active));
 
@@ -198,9 +208,15 @@ function PatternCaption({
   }
 
   return (
-    <span className="pa-caption">
+    <div className="pa-caption">
       <span className="pa-caption__name">{entry.name}</span>
-    </span>
+      <span
+        id={`pattern-card-${entry.id}-description`}
+        className="pa-caption__definition"
+      >
+        {entry.description}
+      </span>
+    </div>
   );
 }
 
@@ -225,6 +241,7 @@ function ResultCard({
         className="pa-card__trigger"
         type="button"
         aria-label={`View ${entry.name}`}
+        aria-describedby={`pattern-card-${entry.id}-description`}
         data-entry-id={entry.id}
         onClick={() => onOpen(entry.id)}
         onFocus={() => setPreviewActive(true)}

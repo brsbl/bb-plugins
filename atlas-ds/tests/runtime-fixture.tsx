@@ -83,6 +83,27 @@ export function renderNavigationFixture() {
   );
 }
 
+export function renderGridFixture() {
+  const items = [
+    { id: "one", name: "Morgan Lee", role: "Admin" },
+    { id: "two", name: "Sam Kim", role: "Editor" },
+  ];
+  return renderToStaticMarkup(
+    <Atlas.AtlasRoot>
+      <Atlas.DataTable
+        interaction="grid"
+        caption="Workspace access"
+        items={items}
+        getRowId={(item) => item.id}
+        columns={[
+          { id: "name", header: "Member", rowHeader: true, cell: (item) => item.name },
+          { id: "role", header: "Role", cell: (item) => item.role },
+        ]}
+      />
+    </Atlas.AtlasRoot>,
+  );
+}
+
 export function renderFeedbackFixture() {
   return renderToStaticMarkup(
     <Atlas.AtlasRoot>

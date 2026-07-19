@@ -18,6 +18,7 @@ export interface DataTableProps<T>
   items: readonly T[];
   getRowId: (item: T) => React.Key;
   emptyMessage?: React.ReactNode;
+  interaction?: "table" | "grid";
 }
 
 export function DataTable<T>({
@@ -26,19 +27,72 @@ export function DataTable<T>({
   items,
   getRowId,
   emptyMessage = "No records",
+  interaction = "table",
   className,
   ...props
 }: DataTableProps<T>) {
+  const tableRef = React.useRef<HTMLTableElement>(null);
+  const [activeCell, setActiveCell] = React.useState("0:0");
+  const grid = interaction === "grid";
+
+  const moveGridFocus = (
+    event: React.KeyboardEvent<HTMLTableCellElement>,
+    row: number,
+    column: number,
+  ) => {
+    if (!grid) return;
+    if (event.target !== event.currentTarget) {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        event.currentTarget.focus();
+      }
+      return;
+    }
+    if (event.key === "Enter" || event.key === "F2") {
+      const widget = event.currentTarget.querySelector<HTMLElement>(
+        "button, input, select, textarea, [tabindex]",
+      );
+      if (widget) {
+        event.preventDefault();
+        widget.focus();
+      }
+      return;
+    }
+    let nextRow = row;
+    let nextColumn = column;
+    if (event.key === "ArrowDown") nextRow = Math.min(items.length - 1, row + 1);
+    else if (event.key === "ArrowUp") nextRow = Math.max(0, row - 1);
+    else if (event.key === "ArrowRight") nextColumn = Math.min(columns.length - 1, column + 1);
+    else if (event.key === "ArrowLeft") nextColumn = Math.max(0, column - 1);
+    else if (event.key === "Home") nextColumn = 0;
+    else if (event.key === "End") nextColumn = columns.length - 1;
+    else return;
+    event.preventDefault();
+    const nextId = `${nextRow}:${nextColumn}`;
+    setActiveCell(nextId);
+    tableRef.current
+      ?.querySelector<HTMLElement>(`[data-grid-cell="${nextId}"]`)
+      ?.focus();
+  };
+
   return (
     <div className="atlas-table-frame">
-      <table className={cx("atlas-table", className)} {...props}>
+      <table
+        ref={tableRef}
+        className={cx("atlas-table", className)}
+        {...props}
+        role={grid ? "grid" : props.role}
+        aria-rowcount={grid ? items.length + 1 : undefined}
+        aria-colcount={grid ? columns.length : undefined}
+      >
         <caption className="atlas-sr-only">{caption}</caption>
         <thead>
-          <tr>
+          <tr role={grid ? "row" : undefined}>
             {columns.map((column) => (
               <th
                 key={column.id}
                 scope="col"
+                role={grid ? "columnheader" : undefined}
                 data-align={column.align ?? "start"}
               >
                 {column.header}
@@ -54,14 +108,22 @@ export function DataTable<T>({
               </td>
             </tr>
           ) : (
-            items.map((item) => (
-              <tr key={getRowId(item)}>
-                {columns.map((column) => {
+            items.map((item, rowIndex) => (
+              <tr key={getRowId(item)} role={grid ? "row" : undefined}>
+                {columns.map((column, columnIndex) => {
                   const Component = column.rowHeader ? "th" : "td";
+                  const cellId = `${rowIndex}:${columnIndex}`;
                   return (
                     <Component
                       key={column.id}
                       scope={column.rowHeader ? "row" : undefined}
+                      role={grid ? (column.rowHeader ? "rowheader" : "gridcell") : undefined}
+                      data-grid-cell={grid ? cellId : undefined}
+                      tabIndex={grid ? (activeCell === cellId ? 0 : -1) : undefined}
+                      onFocus={grid ? () => setActiveCell(cellId) : undefined}
+                      onKeyDown={grid
+                        ? (event) => moveGridFocus(event, rowIndex, columnIndex)
+                        : undefined}
                       data-align={column.align ?? "start"}
                     >
                       {column.cell(item)}
@@ -79,6 +141,7 @@ export function DataTable<T>({
 
 export interface CollectionItem {
   id: string;
+  htmlId?: string;
   primary: React.ReactNode;
   secondary?: React.ReactNode;
   meta?: React.ReactNode;
@@ -105,7 +168,7 @@ export function CollectionList({
       {...props}
     >
       {items.map((item) => (
-        <li key={item.id} className="atlas-collection__item">
+        <li key={item.id} id={item.htmlId} className="atlas-collection__item">
           {item.leading ? (
             <span className="atlas-collection__leading">{item.leading}</span>
           ) : null}

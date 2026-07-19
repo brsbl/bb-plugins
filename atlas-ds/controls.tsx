@@ -85,7 +85,7 @@ export const IconButton = React.forwardRef<
       data-tone={tone}
       data-size={size}
       aria-label={label}
-      title={title ?? label}
+      title={title}
       {...props}
     >
       {children}

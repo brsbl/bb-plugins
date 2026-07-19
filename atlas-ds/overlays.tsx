@@ -103,6 +103,7 @@ export interface StageDialogProps {
   role?: "dialog" | "alertdialog";
   variant?: "dialog" | "drawer" | "sheet";
   className?: string;
+  initialFocusId?: string;
 }
 
 export function StageDialog({
@@ -118,6 +119,7 @@ export function StageDialog({
   role = "dialog",
   variant = "dialog",
   className,
+  initialFocusId,
 }: StageDialogProps) {
   const { inert } = usePreviewStage();
   const titleId = React.useId();
@@ -129,12 +131,14 @@ export function StageDialog({
     const dialog = dialogRef.current;
     const ownerDocument = dialog.ownerDocument;
     const previouslyFocused = ownerDocument.activeElement as HTMLElement | null;
-    const initialTarget = focusableElements(dialog)[0] ?? dialog;
+    const initialTarget = initialFocusId
+      ? ownerDocument.getElementById(initialFocusId) ?? focusableElements(dialog)[0] ?? dialog
+      : focusableElements(dialog)[0] ?? dialog;
     initialTarget.focus();
     return () => {
       if (previouslyFocused?.isConnected) previouslyFocused.focus();
     };
-  }, [inert, open]);
+  }, [inert, initialFocusId, open]);
 
   if (!open) return null;
 

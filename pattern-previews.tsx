@@ -144,6 +144,35 @@ export interface PatternPreviewRegistryRecord {
   states: readonly PatternPreviewState[];
 }
 
+export function resolvePreviewActiveState(
+  state: PatternPreviewState,
+  _phase: number,
+): boolean {
+  return state !== "rest";
+}
+
+export function resolvePreviewEnabledState(
+  entryId: PatternPreviewEntryId,
+  active: boolean,
+): boolean {
+  return entryId === "action-approval" || entryId === "agent-management"
+    ? false
+    : active;
+}
+
+export function resolvePreviewState(
+  states: readonly PatternPreviewState[],
+  phase: number,
+  requestedState?: PatternPreviewState,
+): PatternPreviewState {
+  if (requestedState) return requestedState;
+  return states.includes("rest") && states.includes("active")
+    ? phase >= 0.5
+      ? "active"
+      : "rest"
+    : "default";
+}
+
 const anatomyById = new Map(
   anatomyRecords.map((record) => [record.entryId, record]),
 );
@@ -179,10 +208,28 @@ interface PreviewContext {
   state: PatternPreviewState;
   selected: string;
   setSelected: (value: string) => void;
+  query: string;
+  setQuery: (value: string) => void;
+  activeOptionIndex: number;
+  setActiveOptionIndex: (value: number) => void;
+  invokedCommand: string;
+  setInvokedCommand: (value: string) => void;
+  numericValue: number;
+  setNumericValue: (value: number) => void;
+  actionResult: string;
+  setActionResult: (value: string) => void;
+  selectedIds: readonly string[];
+  setSelectedIds: (value: readonly string[]) => void;
+  secondarySelected: string;
+  setSecondarySelected: (value: string) => void;
   enabled: boolean;
   setEnabled: (value: boolean) => void;
   approved: boolean;
   setApproved: (value: boolean) => void;
+  expandedIds: readonly string[];
+  setExpandedIds: (ids: readonly string[]) => void;
+  splitPercent: number;
+  setSplitPercent: (value: number) => void;
 }
 
 type PreviewRenderer = (context: PreviewContext) => React.ReactNode;
@@ -209,7 +256,13 @@ function initialSelection(
   labels: readonly string[],
   title: string,
 ) {
-  if (entryId === "button") return "Northstar";
+  if (entryId === "button") return "Launch workspace";
+  if (entryId === "date-picker") return "2026-07-24";
+  if (entryId === "form-validation") return "morgan@";
+  if (entryId === "draft-autosave") return "Launch the workspace with a staged access review.";
+  if (entryId === "rule-builder") return "Finance";
+  if (entryId === "master-detail") return "customer-1";
+  if (entryId === "version-history") return "revision-2";
   if (secondaryFixtureValueIds.has(entryId)) {
     return labels[3] ?? labels[2] ?? title;
   }
@@ -238,30 +291,21 @@ function ContextPage({
   context,
   children,
   actions,
-  sidebar,
 }: {
   context: PreviewContext;
   children: React.ReactNode;
   actions?: React.ReactNode;
-  sidebar?: React.ReactNode;
 }) {
   return (
-    <ApplicationFrame
-      label={`${context.story.card.title} example`}
-      title="Northstar"
-      brand={<AtlasIcon name="GridView" size="sm" />}
-      actions={actions ?? <Avatar name="Morgan Lee" size="sm" status="online" />}
-      sidebar={sidebar}
-    >
-      <Stack className="atlas-preview-context" gap="md">
-        <PageHeader
-          title={context.labels[0]}
-          description={context.labels[1]}
-          level={3}
-        />
-        {children}
-      </Stack>
-    </ApplicationFrame>
+    <Stack className="atlas-preview-context" gap="md">
+      <PageHeader
+        title={context.labels[0]}
+        description={context.labels[1]}
+        actions={actions}
+        level={3}
+      />
+      {children}
+    </Stack>
   );
 }
 
@@ -309,10 +353,16 @@ function ControlPreview(context: PreviewContext) {
             />
             <Cluster justify="end">
               <Button size="sm" tone="quiet">Cancel</Button>
-              <Button size="sm" tone="primary" onClick={() => setSelected(second)}>
+              <Button
+                size="sm"
+                tone="primary"
+                disabled={!context.selected.trim()}
+                onClick={() => context.interactive && context.setActionResult(`Created ${context.selected}`)}
+              >
                 {second}
               </Button>
             </Cluster>
+            {context.actionResult ? <Text role="status" tone="muted" size="xs">{context.actionResult}</Text> : null}
           </SettingSurface>
         </ContextPage>
       );
@@ -494,6 +544,10 @@ function ControlPreview(context: PreviewContext) {
         </ContextPage>
       );
     case "combobox":
+      const ownerOptions = [second, third, support(context, 3, "Jordan Doe")].filter((label) =>
+        label.toLocaleLowerCase().includes(context.query.toLocaleLowerCase()),
+      );
+      const activeOwner = ownerOptions[context.activeOptionIndex];
       return (
         <ContextPage context={context}>
           <SettingSurface title="Issue owner" description="Search people, then choose one result.">
@@ -503,10 +557,31 @@ function ControlPreview(context: PreviewContext) {
                 aria-expanded="true"
                 aria-controls="owner-suggestions"
                 aria-autocomplete="list"
-                aria-activedescendant="owner-suggestion-morgan"
+                aria-activedescendant={activeOwner
+                  ? `owner-suggestion-${[second, third, support(context, 3, "Jordan Doe")].indexOf(activeOwner)}`
+                  : undefined}
                 label={first}
-                value={context.selected}
-                onChange={(event) => setSelected(event.currentTarget.value)}
+                value={context.query}
+                onChange={(event) => {
+                  if (!context.interactive) return;
+                  context.setQuery(event.currentTarget.value);
+                  context.setActiveOptionIndex(0);
+                }}
+                onKeyDown={(event) => {
+                  if (!context.interactive) return;
+                  if (event.key === "Enter" && activeOwner) {
+                    event.preventDefault();
+                    context.setSelected(activeOwner);
+                    context.setQuery(activeOwner);
+                    return;
+                  }
+                  if (!["ArrowDown", "ArrowUp"].includes(event.key) || ownerOptions.length === 0) return;
+                  event.preventDefault();
+                  const delta = event.key === "ArrowDown" ? 1 : -1;
+                  context.setActiveOptionIndex(
+                    (context.activeOptionIndex + delta + ownerOptions.length) % ownerOptions.length,
+                  );
+                }}
               />
               <Surface
                 id="owner-suggestions"
@@ -514,16 +589,18 @@ function ControlPreview(context: PreviewContext) {
                 aria-label={`${first} suggestions`}
               >
                 <Stack gap="xs">
-                  {[second, third, support(context, 3, "Jordan Doe")].map((label, index) => (
+                  {ownerOptions.map((label, index) => (
                     <div
                       key={label}
-                      id={index === 0 ? "owner-suggestion-morgan" : undefined}
+                      id={`owner-suggestion-${[second, third, support(context, 3, "Jordan Doe")].indexOf(label)}`}
                       role="option"
-                      aria-selected={index === 0}
-                      tabIndex={index === 0 ? 0 : -1}
-                      onClick={() => setSelected(label)}
-                      onKeyDown={(event) => {
-                        if (event.key === "Enter" || event.key === " ") setSelected(label);
+                      aria-selected={label === activeOwner}
+                      tabIndex={-1}
+                      onPointerMove={() => context.interactive && context.setActiveOptionIndex(index)}
+                      onClick={() => {
+                        if (!context.interactive) return;
+                        context.setSelected(label);
+                        context.setQuery(label);
                       }}
                     >
                       <Cluster>
@@ -532,12 +609,15 @@ function ControlPreview(context: PreviewContext) {
                           <Text>{label}</Text>
                           <Text tone="muted" size="xs">{index === 0 ? "Workspace member" : "Organization member"}</Text>
                         </Stack>
-                        {index === 0 ? <AtlasIcon name="Check" size="xs" /> : null}
+                        {label === context.selected ? <AtlasIcon name="Check" size="xs" /> : null}
                       </Cluster>
                     </div>
                   ))}
                 </Stack>
               </Surface>
+              <Text role="status" tone="muted" size="xs">
+                {context.selected ? `Selected ${context.selected}` : `${ownerOptions.length} suggestions`}
+              </Text>
             </Stack>
           </SettingSurface>
         </ContextPage>
@@ -586,20 +666,23 @@ function ControlPreview(context: PreviewContext) {
         </ContextPage>
       );
     case "slider":
+      const sliderValue = context.interactive
+        ? context.numericValue
+        : Math.round(24 + (44 * context.phase));
       return (
         <ContextPage context={context}>
           <SettingSurface title="Alert threshold" description="Tune the threshold and review its current value.">
             <label>
               <Cluster justify="between">
                 <span>{first}</span>
-                <Badge>{context.active ? "68%" : "24%"}</Badge>
+                <Badge>{sliderValue}%</Badge>
               </Cluster>
               <TextInput
                 type="range"
                 min="0"
                 max="100"
-                value={context.active ? 68 : 24}
-                onChange={noop}
+                value={sliderValue}
+                onChange={(event) => context.interactive && context.setNumericValue(Number(event.currentTarget.value))}
               />
               <Cluster justify="between">
                 <Text tone="muted" size="xs">0%: quiet</Text>
@@ -607,26 +690,38 @@ function ControlPreview(context: PreviewContext) {
               </Cluster>
             </label>
             <InlineAlert tone="info" title="Current threshold">
-              Alerts fire when usage exceeds {context.active ? "68%" : "24%"}.
+              Alerts fire when usage exceeds {sliderValue}%.
             </InlineAlert>
           </SettingSurface>
         </ContextPage>
       );
     case "date-picker":
+      const minimumDate = "2026-07-18";
+      const invalidDate = context.selected < minimumDate;
       return (
         <ContextPage context={context}>
           <SettingSurface title="Schedule review" description="Choose a valid review date.">
             <TextField
               label={first}
               type="date"
-              value="2026-07-17"
-              min="2026-07-18"
+              value={context.selected}
+              min={minimumDate}
               max="2026-08-31"
-              error="Choose July 18 or later."
-              onChange={noop}
+              error={invalidDate ? "Choose July 18 or later." : undefined}
+              onChange={(event) => setSelected(event.currentTarget.value)}
             />
             <Text tone="muted" size="xs">Dates before July 18 are unavailable. Displayed in your locale.</Text>
-            <Cluster justify="end"><Button size="sm" tone="primary">Schedule</Button></Cluster>
+            <Cluster justify="end">
+              <Button
+                size="sm"
+                tone="primary"
+                disabled={invalidDate}
+                onClick={() => context.interactive && context.setActionResult(`Scheduled for ${context.selected}`)}
+              >
+                Schedule
+              </Button>
+            </Cluster>
+            {context.actionResult ? <Text role="status" tone="muted" size="xs">{context.actionResult}</Text> : null}
           </SettingSurface>
         </ContextPage>
       );
@@ -636,26 +731,49 @@ function ControlPreview(context: PreviewContext) {
           <SettingSurface title="Import customer data" description="CSV files up to 25 MB.">
             <label>
               {first}
-              <TextInput type="file" accept=".csv,text/csv" onChange={noop} />
+              <TextInput
+                type="file"
+                accept=".csv,text/csv"
+                onChange={(event) => {
+                  if (!context.interactive) return;
+                  const file = event.currentTarget.files?.[0];
+                  context.setEnabled(Boolean(file));
+                  if (file) context.setSelected(file.name);
+                }}
+              />
             </label>
-            <CollectionList
+            {context.enabled ? <CollectionList
               label="Selected files"
               items={[{
                 id: "customers",
-                primary: second,
+                primary: context.selected || second,
                 secondary: "1.8 MB",
                 leading: <AtlasIcon name="FileText" />,
                 meta: context.active
                   ? <StatusBadge tone="success">Ready</StatusBadge>
                   : <ProgressBar label="Uploading customers.csv" value={42} valueText="42%" />,
-                action: <IconButton label="Remove customers.csv" size="sm"><AtlasIcon name="X" /></IconButton>,
+                action: (
+                  <IconButton
+                    label={`Remove ${context.selected || second}`}
+                    size="sm"
+                    onClick={() => context.interactive && context.setEnabled(false)}
+                  >
+                    <AtlasIcon name="X" />
+                  </IconButton>
+                ),
               }]}
-            />
-            <Cluster justify="end"><Button size="sm" tone="primary" disabled={!context.active}>Continue import</Button></Cluster>
+            /> : <Text tone="muted" size="xs">No file selected.</Text>}
+            <Cluster justify="end"><Button size="sm" tone="primary" disabled={!context.enabled}>Continue import</Button></Cluster>
           </SettingSurface>
         </ContextPage>
       );
     case "search-field":
+      const searchResults = [
+        { id: "policy", primary: second, secondary: "Updated yesterday" },
+        { id: "roles", primary: "Role permissions", secondary: "Admin guide" },
+      ].filter((item) =>
+        `${item.primary} ${item.secondary}`.toLocaleLowerCase().includes(context.selected.toLocaleLowerCase()),
+      );
       return (
         <ContextPage context={context}>
           <SettingSurface title="Knowledge base">
@@ -668,13 +786,10 @@ function ControlPreview(context: PreviewContext) {
               />
               <IconButton label="Clear search" size="sm" onClick={() => setSelected("")}><AtlasIcon name="X" /></IconButton>
             </Cluster>
-            <Text tone="muted" size="xs">2 results in Help center</Text>
+            <Text role="status" tone="muted" size="xs">{searchResults.length} results in Help center</Text>
             <CollectionList
               label="Search results"
-              items={[
-                { id: "policy", primary: second, secondary: "Updated yesterday" },
-                { id: "roles", primary: "Role permissions", secondary: "Admin guide" },
-              ]}
+              items={searchResults}
             />
           </SettingSurface>
         </ContextPage>
@@ -713,7 +828,7 @@ function NavigationPreview(context: PreviewContext) {
     return (
       <ApplicationFrame
         label={context.labels[0]}
-        title="Northstar"
+        title="Workspace"
         brand={<AtlasIcon name="GridView" />}
         navigation={
           <NavigationBar
@@ -741,7 +856,7 @@ function NavigationPreview(context: PreviewContext) {
     return (
       <ContextPage context={context}>
         <Breadcrumbs items={labels.map((label, index) => ({ id: label, label, href: index < labels.length - 1 ? `#${index}` : undefined }))} />
-        <SettingSurface title={labels.at(-1)} description="Permissions inherited from Northstar.">
+        <SettingSurface title={labels.at(-1)} description="Permissions inherited from the workspace.">
           <CollectionList label="Access" items={collectionItems(context, 2)} />
         </SettingSurface>
       </ContextPage>
@@ -829,6 +944,7 @@ function NavigationPreview(context: PreviewContext) {
     );
   }
   if (context.entryId === "pagination") {
+    const page = Math.max(1, Math.min(3, context.numericValue || 2));
     return (
       <ContextPage context={context}>
         <DataTable
@@ -842,15 +958,21 @@ function NavigationPreview(context: PreviewContext) {
         />
         <nav aria-label={context.labels[0]}>
           <Cluster justify="between">
-            <Text tone="muted" size="xs">21-40 of 126</Text>
+            <Text tone="muted" size="xs">{(page - 1) * 20 + 1}-{page * 20} of 126</Text>
             <Cluster>
               {["Previous", "1", "2", "3", "Next"].map((label) => (
                 <Button
                   key={label}
                   size="sm"
-                  disabled={label === "Previous"}
-                  aria-current={label === "2" ? "page" : undefined}
+                  disabled={(label === "Previous" && page === 1) || (label === "Next" && page === 3)}
+                  aria-current={label === String(page) ? "page" : undefined}
                   aria-label={/^\d+$/.test(label) ? `Page ${label}` : label}
+                  onClick={() => {
+                    if (!context.interactive) return;
+                    if (label === "Previous") context.setNumericValue(Math.max(1, page - 1));
+                    else if (label === "Next") context.setNumericValue(Math.min(3, page + 1));
+                    else context.setNumericValue(Number(label));
+                  }}
                 >
                   {label}
                 </Button>
@@ -944,7 +1066,7 @@ function ContentPreview(context: PreviewContext) {
     <ContextPage context={context}>
       <SettingSurface title={context.labels[0]} description="Interactive chips expose their selected state.">
         <Cluster>
-          <Chip selected onClick={() => context.interactive && context.setEnabled(true)}>{label}</Chip>
+          <Chip selected={context.enabled} onClick={() => context.interactive && context.setEnabled(!context.enabled)}>{label}</Chip>
           <Chip>Open</Chip>
           <Chip>High priority</Chip>
         </Cluster>
@@ -956,7 +1078,38 @@ function ContentPreview(context: PreviewContext) {
 
 function CollectionPreview(context: PreviewContext) {
   const items = collectionItems(context, 3);
-  if (["table", "audit-log"].includes(context.entryId)) {
+  if (context.entryId === "audit-log") {
+    const rows = [
+      { id: "event-1", time: "10:42", actor: "Morgan Lee", action: "Updated access policy", target: "Guest projects", outcome: "Succeeded" },
+      { id: "event-2", time: "09:18", actor: "Sam Kim", action: "Approved request", target: "Finance workspace", outcome: "Succeeded" },
+      { id: "event-3", time: "Yesterday", actor: "System", action: "Exported records", target: "Customer data", outcome: "Failed" },
+    ];
+    return (
+      <ContextPage context={context} actions={<Button size="sm">Export log</Button>}>
+        <DataTable
+          caption={context.labels[0]}
+          items={rows}
+          getRowId={(row) => row.id}
+          columns={[
+            { id: "time", header: support(context, 0, "Time"), cell: (row) => row.time },
+            { id: "actor", header: support(context, 1, "Actor"), rowHeader: true, cell: (row) => row.actor },
+            { id: "action", header: support(context, 2, "Action"), cell: (row) => row.action },
+            { id: "target", header: support(context, 3, "Target"), cell: (row) => row.target },
+            {
+              id: "outcome",
+              header: "Outcome",
+              cell: (row) => (
+                <StatusBadge tone={row.outcome === "Succeeded" ? "success" : "danger"}>
+                  {row.outcome}
+                </StatusBadge>
+              ),
+            },
+          ]}
+        />
+      </ContextPage>
+    );
+  }
+  if (context.entryId === "table") {
     const rows = items.map((item, index) => ({ id: item.id, name: item.primary, actor: support(context, index + 1, `Member ${index + 1}`), state: index === 0 ? "Ready" : "Pending" }));
     return (
       <ContextPage context={context} actions={<Button size="sm">Export</Button>}>
@@ -973,20 +1126,64 @@ function CollectionPreview(context: PreviewContext) {
       </ContextPage>
     );
   }
-  if (["data-grid", "bulk-selection-and-actions"].includes(context.entryId)) {
+  if (context.entryId === "data-grid") {
+    const rows = items.map((item, index) => ({
+      id: item.id,
+      member: item.primary,
+      role: index === 0 ? "Admin" : "Editor",
+      scope: index === 2 ? "Assigned projects" : "All projects",
+      active: index !== 2,
+    }));
+    return (
+      <ContextPage context={context} actions={<Button size="sm">Add member</Button>}>
+        <DataTable
+          interaction="grid"
+          aria-label={context.labels[0]}
+          caption={context.labels[0]}
+          items={rows}
+          getRowId={(row) => row.id}
+          columns={[
+            { id: "member", header: support(context, 0, "Member"), rowHeader: true, cell: (row) => row.member },
+            {
+              id: "role",
+              header: support(context, 1, "Role"),
+              cell: (row) => (
+                <NativeSelect aria-label={`Role for ${row.member}`} defaultValue={row.role} tabIndex={-1}>
+                  <option>Admin</option>
+                  <option>Editor</option>
+                  <option>Viewer</option>
+                </NativeSelect>
+              ),
+            },
+            { id: "scope", header: support(context, 2, "Scope"), cell: (row) => row.scope },
+            {
+              id: "status",
+              header: support(context, 3, "Status"),
+              cell: (row) => <Switch aria-label={`Active status for ${row.member}`} defaultChecked={row.active} tabIndex={-1} />,
+            },
+          ]}
+        />
+      </ContextPage>
+    );
+  }
+  if (context.entryId === "bulk-selection-and-actions") {
+    const selectedCount = context.selectedIds.length;
+    const allSelected = selectedCount === items.length;
     return (
       <ContextPage context={context}>
         <Stack gap="sm">
           <Cluster justify="between">
             <BooleanField
-              label={context.enabled ? "3 selected" : "Select all"}
-              checked={context.enabled}
-              onChange={(event) =>
-                context.interactive && context.setEnabled(event.currentTarget.checked)}
+              label={selectedCount > 0 ? `${selectedCount} selected` : "Select all"}
+              checked={allSelected}
+              onChange={(event) => {
+                if (!context.interactive) return;
+                context.setSelectedIds(event.currentTarget.checked ? items.map(({ id }) => id) : []);
+              }}
             />
             <Cluster>
-              <Button size="sm" disabled={!context.enabled}>Change role</Button>
-              <Button size="sm" tone="danger" disabled={!context.enabled}>Remove</Button>
+              <Button size="sm" disabled={selectedCount === 0}>Change role</Button>
+              <Button size="sm" tone="danger" disabled={selectedCount === 0}>Remove</Button>
             </Cluster>
           </Cluster>
           <DataTable
@@ -994,7 +1191,22 @@ function CollectionPreview(context: PreviewContext) {
             items={items}
             getRowId={(item) => item.id}
             columns={[
-              { id: "select", header: "Select", cell: () => <Checkbox aria-label="Select row" /> },
+              {
+                id: "select",
+                header: "Select",
+                cell: (item) => (
+                  <Checkbox
+                    aria-label={`Select ${item.primary}`}
+                    checked={context.selectedIds.includes(item.id)}
+                    onChange={(event) => {
+                      if (!context.interactive) return;
+                      context.setSelectedIds(event.currentTarget.checked
+                        ? [...context.selectedIds, item.id]
+                        : context.selectedIds.filter((id) => id !== item.id));
+                    }}
+                  />
+                ),
+              },
               { id: "item", header: support(context, 0, "Member"), rowHeader: true, cell: (item) => item.primary },
               { id: "role", header: support(context, 1, "Role"), cell: () => "Editor" },
               { id: "status", header: "Status", cell: () => <StatusBadge tone="success">Active</StatusBadge> },
@@ -1010,9 +1222,9 @@ function CollectionPreview(context: PreviewContext) {
         <SettingSurface title="Files" description="Expand folders and move focus through visible tree items.">
           <TreeView
             label={context.labels[0]}
-            expandedIds={["src", "components"]}
-            selectedId="app"
-            onExpandedChange={noop}
+            expandedIds={context.expandedIds}
+            selectedId={context.selected === "src" || context.selected === "components" || context.selected === "app" || context.selected === "tests" ? context.selected : "app"}
+            onExpandedChange={(ids) => context.interactive && context.setExpandedIds(ids)}
             onSelectionChange={(id) => context.interactive && context.setSelected(id)}
             nodes={[{
               id: "src",
@@ -1077,18 +1289,28 @@ function CollectionPreview(context: PreviewContext) {
     );
   }
   if (context.entryId === "comment-thread") {
+    const postedReply = context.actionResult;
     return (
       <ContextPage context={context}>
         <SettingSurface title="Review thread">
           <CollectionList
             label={context.labels[0]}
-            items={items.slice(0, 2).map((item, index) => ({
+            items={[
+              ...items.slice(0, 2).map((item, index) => ({
               ...item,
               primary: index === 0 ? "Morgan Lee" : "Sam Kim",
               secondary: index === 0 ? support(context, 1, "Can we narrow the scope?") : support(context, 3, "Updated."),
               leading: <Avatar name={index === 0 ? "Morgan Lee" : "Sam Kim"} size="sm" />,
               meta: index === 0 ? "10:42" : "11:08",
-            }))}
+              })),
+              ...(postedReply ? [{
+                id: "posted-reply",
+                primary: "You",
+                secondary: postedReply,
+                leading: <Avatar name="You" size="sm" />,
+                meta: "Now",
+              }] : []),
+            ]}
           />
           <TextArea
             aria-label="Reply"
@@ -1097,25 +1319,50 @@ function CollectionPreview(context: PreviewContext) {
             onChange={(event) =>
               context.interactive && context.setSelected(event.currentTarget.value)}
           />
-          <Cluster justify="end"><Button size="sm" tone="primary">Reply</Button></Cluster>
+          <Cluster justify="end">
+            <Button
+              size="sm"
+              tone="primary"
+              disabled={!context.selected.trim()}
+              onClick={() => {
+                if (!context.interactive || !context.selected.trim()) return;
+                context.setActionResult(context.selected.trim());
+                context.setSelected("");
+              }}
+            >
+              Reply
+            </Button>
+          </Cluster>
         </SettingSurface>
       </ContextPage>
     );
   }
   if (context.entryId === "collaborative-presence") {
+    const collaborators = context.active
+      ? ["Morgan Lee", "Sam Kim", "Jordan Doe"]
+      : [];
     return (
       <ContextPage
         context={context}
-        actions={
+        actions={collaborators.length > 0 ? (
           <AvatarGroup
             label="Editing now"
-            people={["Morgan Lee", "Sam Kim", "Jordan Doe"].map((name) => ({ name, status: "online" as const }))}
+            people={collaborators.map((name) => ({ name, status: "online" as const }))}
           />
-        }
+        ) : <StatusBadge tone="neutral">Only you</StatusBadge>}
       >
-        <SettingSurface title="Launch plan" description="Morgan is editing the rollout section.">
+        <SettingSurface
+          title="Launch plan"
+          description={context.active
+            ? "Morgan is editing the rollout section."
+            : "No one else is editing this page."}
+        >
           <Text>Confirm owners, milestones, and the final launch decision.</Text>
-          <InlineAlert tone="info" title="Sam is viewing this section">Changes appear as collaborators edit.</InlineAlert>
+          {context.active ? (
+            <InlineAlert tone="info" title="Sam is viewing this section">
+              Changes appear as collaborators edit.
+            </InlineAlert>
+          ) : null}
         </SettingSurface>
       </ContextPage>
     );
@@ -1154,28 +1401,66 @@ function CollectionPreview(context: PreviewContext) {
     );
   }
   if (context.entryId === "search-and-filtering") {
+    const query = context.query.toLocaleLowerCase();
+    const filteredItems = items.filter((item) =>
+      `${item.primary} ${item.secondary ?? ""}`.toLocaleLowerCase().includes(query),
+    );
     return (
       <ContextPage context={context}>
         <Cluster>
-          <TextField label="Search issues" type="search" value="access" onChange={noop} />
-          {[0, 1, 2].map((index) => <Chip key={index} selected>{support(context, index, `Filter ${index + 1}`)}</Chip>)}
+          <TextField
+            label="Search issues"
+            type="search"
+            value={context.query}
+            onChange={(event) => context.interactive && context.setQuery(event.currentTarget.value)}
+          />
+          {[0, 1, 2].map((index) => {
+            const filter = support(context, index, `Filter ${index + 1}`);
+            const selected = context.selectedIds.includes(filter);
+            return (
+              <Chip
+                key={filter}
+                selected={selected}
+                onClick={() => context.interactive && context.setSelectedIds(
+                  selected
+                    ? context.selectedIds.filter((id) => id !== filter)
+                    : [...context.selectedIds, filter],
+                )}
+              >
+                {filter}
+              </Chip>
+            );
+          })}
         </Cluster>
-        <CollectionList label="Filtered issues" items={items} />
+        <Text role="status" tone="muted" size="xs">{filteredItems.length} matching issues</Text>
+        <CollectionList label="Filtered issues" items={filteredItems} />
       </ContextPage>
     );
   }
   if (context.entryId === "filter-bar") {
+    const filters = context.selectedIds;
     return (
       <ContextPage context={context}>
         <Cluster justify="between">
           <Cluster>
-            {[0, 1].map((index) => (
-              <Tag key={index} onRemove={noop} removeLabel={`Remove ${support(context, index, "filter")}`}>
-                {support(context, index, `Filter ${index + 1}`)}
+            {filters.map((filter) => (
+              <Tag
+                key={filter}
+                onRemove={() => context.interactive && context.setSelectedIds(filters.filter((item) => item !== filter))}
+                removeLabel={`Remove ${filter}`}
+              >
+                {filter}
               </Tag>
             ))}
           </Cluster>
-          <Button size="sm" tone="quiet">{support(context, 2, "Clear")}</Button>
+          <Button
+            size="sm"
+            tone="quiet"
+            disabled={filters.length === 0}
+            onClick={() => context.interactive && context.setSelectedIds([])}
+          >
+            {support(context, 2, "Clear")}
+          </Button>
         </Cluster>
         <DataTable
           caption="Filtered audit log"
@@ -1190,39 +1475,59 @@ function CollectionPreview(context: PreviewContext) {
     );
   }
   if (context.entryId === "sorting") {
+    const sortedItems = context.secondarySelected === "oldest" ? [...items].reverse() : items;
     return (
       <ContextPage context={context}>
         <Cluster justify="end">
           <SelectField
             label={support(context, 0, "Sort")}
-            value="newest"
-            onChange={noop}
+            value={context.secondarySelected || "newest"}
+            onChange={(event) => context.interactive && context.setSecondarySelected(event.currentTarget.value)}
             options={[
               { value: "newest", label: support(context, 1, "Newest first") },
               { value: "oldest", label: "Oldest first" },
             ]}
           />
         </Cluster>
-        <CollectionList label="Sorted projects" items={items.map((item, index) => ({ ...item, meta: `${index + 1}d ago` }))} />
+        <CollectionList label="Sorted projects" items={sortedItems.map((item, index) => ({ ...item, meta: `${index + 1}d ago` }))} />
       </ContextPage>
     );
   }
   if (context.entryId === "conversation-history") {
+    const conversations = [
+      { id: "launch", primary: "Launch risks", secondary: "Release risks and owners" },
+      { id: "access", primary: "Access review", secondary: "Permission gaps" },
+      { id: "migration", primary: "Migration plan", secondary: "Customer migration" },
+    ].filter((item) =>
+      `${item.primary} ${item.secondary}`.toLocaleLowerCase().includes(context.query.toLocaleLowerCase()),
+    );
     return (
       <ContextPage context={context} actions={<Button size="sm" tone="primary">New conversation</Button>}>
-        <TextField label="Search conversations" type="search" value="" onChange={noop} />
+        <TextField
+          label="Search conversations"
+          type="search"
+          value={context.query}
+          onChange={(event) => context.interactive && context.setQuery(event.currentTarget.value)}
+        />
         <Heading level={4} size="sm">Recent</Heading>
         <CollectionList
           label={context.labels[0]}
-          items={items.map((item, index) => ({
+          items={conversations.map((item, index) => ({
             ...item,
             leading: <AtlasIcon name="MessageSquare" />,
-            primary: ["Launch risks", "Access review", "Migration plan"][index],
-            secondary: ["Release risks and owners", "Permission gaps", "Customer migration"][index],
             meta: index === 0 ? <StatusBadge tone="info">Open</StatusBadge> : ["", "Yesterday", "Monday"][index],
-            action: <IconButton label={`More actions for ${item.primary}`} size="sm"><AtlasIcon name="MoreHorizontal" /></IconButton>,
+            action: (
+              <Button
+                size="sm"
+                tone="quiet"
+                onClick={() => context.interactive && context.setActionResult(`Opened ${item.primary}`)}
+              >
+                Open
+              </Button>
+            ),
           }))}
         />
+        {context.actionResult ? <Text role="status" tone="muted" size="xs">{context.actionResult}</Text> : null}
       </ContextPage>
     );
   }
@@ -1256,7 +1561,7 @@ function CollectionPreview(context: PreviewContext) {
           items={items.map((item, index) => ({
             ...item,
             leading: <Avatar name={["Morgan Lee", "Sam Kim", "System"][index]} size="sm" />,
-            primary: ["Morgan Lee updated Access policy", "Sam Kim joined Northstar", "System completed Customer export"][index],
+            primary: ["Morgan Lee updated Access policy", "Sam Kim joined the workspace", "System completed Customer export"][index],
             secondary: ["Changed guest access from all projects to assigned projects", "Workspace member", "128 records exported"][index],
             meta: ["4 min", "1 hour", "3 hours"][index],
           }))}
@@ -1279,7 +1584,7 @@ function CollectionPreview(context: PreviewContext) {
               ...item,
               leading: <AtlasIcon name={index === 0 ? "MessageSquare" : index === 1 ? "CircleCheck" : "FileText"} />,
               primary: ["Morgan mentioned you", "Access request approved", "Export is ready"][index],
-              secondary: ["Launch plan", "Northstar workspace", "Customer records"][index],
+              secondary: ["Launch plan", "Launch workspace", "Customer records"][index],
               meta: index < 2 ? <Badge tone="info">Unread</Badge> : "3 hours",
               action: index === 0 ? <Button size="sm" tone="quiet">Reply</Button> : undefined,
             }))}
@@ -1290,16 +1595,26 @@ function CollectionPreview(context: PreviewContext) {
   }
   if (context.entryId === "notification-center") {
     const labels = ["All", "Mentions", "Approvals"];
+    const unreadCount = context.active && context.actionResult !== "read" ? 8 : 0;
     return (
-      <ContextPage context={context} actions={<Button size="sm" tone="quiet">Mark all read</Button>}>
+      <ContextPage
+        context={context}
+        actions={unreadCount > 0 ? (
+          <Button size="sm" tone="quiet" onClick={() => context.interactive && context.setActionResult("read")}>
+            Mark all read
+          </Button>
+        ) : undefined}
+      >
         <Cluster justify="between">
-          <Text tone="muted" size="xs">8 unread across this workspace</Text>
+          <Text tone="muted" size="xs">
+            {unreadCount > 0 ? `${unreadCount} unread across this workspace` : "You're all caught up"}
+          </Text>
           <Button size="sm" tone="quiet">Notification settings</Button>
         </Cluster>
         <Tabs
           label="Notification categories"
-          selectedId="All"
-          onSelectionChange={noop}
+          selectedId={context.secondarySelected || "All"}
+          onSelectionChange={(id) => context.interactive && context.setSecondarySelected(id)}
           items={labels.map((label) => ({
             id: label,
             label,
@@ -1310,7 +1625,9 @@ function CollectionPreview(context: PreviewContext) {
                   ...item,
                   leading: <AtlasIcon name={index === 0 ? "CircleCheck" : index === 1 ? "MessageSquare" : "FileText"} />,
                   secondary: ["Access request approved", "Mentioned in Atlas", "Export completed"][index],
-                  meta: index === 0 ? <Badge tone="info">Unread</Badge> : `${index + 1} hours`,
+                  meta: unreadCount > 0 && index === 0
+                    ? <Badge tone="info">Unread</Badge>
+                    : `${index + 1} hours`,
                   action: <IconButton label={`Open ${item.primary}`} size="sm"><AtlasIcon name="ArrowRight" /></IconButton>,
                 }))}
               />
@@ -1337,8 +1654,10 @@ function FeedbackPreview(context: PreviewContext) {
           <CollectionList label="Members" items={collectionItems(context, 2)} />
         </SettingSurface>
         <ToastRegion
-          toasts={[{ id: "preview", title: first, description: second, tone: "success" }]}
-          onDismiss={context.interactive ? noop : undefined}
+          toasts={context.active && context.actionResult !== "dismissed"
+            ? [{ id: "preview", title: first, description: second, tone: "success" }]
+            : []}
+          onDismiss={context.interactive ? () => context.setActionResult("dismissed") : undefined}
         />
       </ContextPage>
     );
@@ -1358,8 +1677,8 @@ function FeedbackPreview(context: PreviewContext) {
           />
           <ProgressBar
             label="Uploading"
-            value={context.active ? 72 : 24}
-            valueText={context.active ? "72%" : "24%"}
+            value={Math.round(24 + (48 * context.phase))}
+            valueText={`${Math.round(24 + (48 * context.phase))}%`}
           />
           <Cluster justify="end"><Button size="sm" tone="quiet">Cancel</Button></Cluster>
         </SettingSurface>
@@ -1371,7 +1690,11 @@ function FeedbackPreview(context: PreviewContext) {
       <ContextPage context={context}>
         <SettingSurface title="Search results">
           <TextField label="Search" value="access policy" onChange={noop} />
-          <LoadingStatus label={first} />
+          {context.active ? (
+            <LoadingStatus label={first} />
+          ) : (
+            <StatusBadge tone="success">Results ready</StatusBadge>
+          )}
         </SettingSurface>
       </ContextPage>
     );
@@ -1386,13 +1709,15 @@ function FeedbackPreview(context: PreviewContext) {
         <Surface
           as="section"
           aria-label="Audit event updates"
-          aria-busy="true"
+          aria-busy={context.active}
           elevation="raised"
         >
           <Stack gap="sm">
             <Cluster justify="between">
               <Heading level={4} size="sm">Recent audit events</Heading>
-              <StatusBadge tone="info">Updating</StatusBadge>
+              <StatusBadge tone={context.active ? "info" : "success"}>
+                {context.active ? "Updating" : "Up to date"}
+              </StatusBadge>
             </Cluster>
             <DataTable
               caption="Recent audit events"
@@ -1404,7 +1729,11 @@ function FeedbackPreview(context: PreviewContext) {
                 { id: "status", header: "Status", cell: (row) => <StatusBadge tone="success">{row.status}</StatusBadge> },
               ]}
             />
-            <LoadingStatus label={first} />
+            {context.active ? (
+              <LoadingStatus label={first} />
+            ) : (
+              <Text tone="muted" size="xs">Last updated just now.</Text>
+            )}
           </Stack>
         </Surface>
       </ContextPage>
@@ -1414,21 +1743,39 @@ function FeedbackPreview(context: PreviewContext) {
     return (
       <ContextPage context={context}>
         <SettingSurface title="Customer record">
-          <Stack gap="sm" aria-busy="true" aria-label={context.labels[0]}>
-            <Cluster>
-              <Skeleton shape="circle" width="2.5rem" height="2.5rem" />
-              <Stack gap="xs">
-                <Skeleton width="8rem" />
-                <Skeleton width="5rem" />
-              </Stack>
-            </Cluster>
-            <Divider />
-            <Skeleton width="100%" height="2.75rem" />
-            <Cluster>
-              <Skeleton width="46%" height="3.5rem" />
-              <Skeleton width="46%" height="3.5rem" />
-            </Cluster>
-          </Stack>
+          {context.active ? (
+            <Stack gap="sm" aria-busy="true" aria-label={context.labels[0]}>
+              <Cluster>
+                <Skeleton shape="circle" width="2.5rem" height="2.5rem" />
+                <Stack gap="xs">
+                  <Skeleton width="8rem" />
+                  <Skeleton width="5rem" />
+                </Stack>
+              </Cluster>
+              <Divider />
+              <Skeleton width="100%" height="2.75rem" />
+              <Cluster>
+                <Skeleton width="46%" height="3.5rem" />
+                <Skeleton width="46%" height="3.5rem" />
+              </Cluster>
+            </Stack>
+          ) : (
+            <Stack gap="sm" aria-label={context.labels[0]}>
+              <Cluster>
+                <Avatar name="Morgan Lee" />
+                <Stack gap="xs">
+                  <Heading level={4} size="sm">Morgan Lee</Heading>
+                  <Text tone="muted" size="xs">Workspace administrator</Text>
+                </Stack>
+              </Cluster>
+              <Divider />
+              <Text>morgan@example.com</Text>
+              <Cluster>
+                <Badge>Active</Badge>
+                <Badge>Admin</Badge>
+              </Cluster>
+            </Stack>
+          )}
         </SettingSurface>
       </ContextPage>
     );
@@ -1440,8 +1787,12 @@ function FeedbackPreview(context: PreviewContext) {
           <EmptyState
             title={first}
             description={second}
-            action={{ label: support(context, 2, "Create first item"), onAction: noop }}
+            action={{
+              label: support(context, 2, "Create first item"),
+              onAction: () => context.interactive && context.setActionResult("creation-started"),
+            }}
           />
+          {context.actionResult ? <Text role="status" tone="muted" size="xs">Creation started.</Text> : null}
         </SettingSurface>
       </ContextPage>
     );
@@ -1466,7 +1817,7 @@ function FeedbackPreview(context: PreviewContext) {
     return (
       <ApplicationFrame
         label={context.labels[0]}
-        title="Northstar"
+        title="Workspace"
         brand={<AtlasIcon name="GridView" />}
       >
         <Stack gap="md">
@@ -1482,7 +1833,7 @@ function FeedbackPreview(context: PreviewContext) {
     <ContextPage context={context}>
       <SettingSurface title="Account settings">
         <InlineAlert title={first} tone="info">{second}</InlineAlert>
-        <TextField label="Billing email" value="billing@northstar.co" onChange={noop} />
+        <TextField label="Billing email" value="billing@example.com" onChange={noop} />
       </SettingSurface>
     </ContextPage>
   );
@@ -1506,19 +1857,90 @@ function OverlayPreview(context: PreviewContext) {
     "sheet",
   ]);
   const popoverEntries = new Set(["popover", "tooltip", "menu", "workspace-switcher"]);
+  const commands = [first, second, third];
+  const normalizedQuery = context.query.trim().toLocaleLowerCase();
+  const filteredCommands = commands.filter((command) =>
+    command.toLocaleLowerCase().includes(normalizedQuery),
+  );
+  const activeCommand = filteredCommands[context.activeOptionIndex];
+  const invokeActiveCommand = () => {
+    if (!context.interactive || !activeCommand) return;
+    context.setInvokedCommand(activeCommand);
+  };
   const dialogBody =
     context.entryId === "command-palette" ? (
       <Stack gap="sm">
-        <TextField label="Command" type="search" placeholder="Type a command" />
-        <CollectionList
-          label="Commands"
-          items={[first, second, third].map((label, index) => ({
-            id: label,
-            primary: label,
-            leading: <AtlasIcon name={(["File", "Plus", "Repeat"] as const)[index]} />,
-            meta: index === 0 ? "Command P" : undefined,
-          }))}
+        <TextField
+          id={`${surfaceId}-input`}
+          label="Command"
+          type="search"
+          role="combobox"
+          aria-expanded="true"
+          aria-controls={`${surfaceId}-commands`}
+          aria-autocomplete="list"
+          aria-activedescendant={activeCommand
+            ? `${surfaceId}-command-${commands.indexOf(activeCommand)}`
+            : undefined}
+          placeholder="Type a command"
+          value={context.query}
+          onChange={(event) => {
+            if (!context.interactive) return;
+            context.setQuery(event.currentTarget.value);
+            context.setActiveOptionIndex(0);
+            context.setInvokedCommand("");
+          }}
+          onKeyDown={(event) => {
+            if (!context.interactive) return;
+            if (event.key === "Enter") {
+              event.preventDefault();
+              invokeActiveCommand();
+              return;
+            }
+            if (!["ArrowDown", "ArrowUp"].includes(event.key) || filteredCommands.length === 0) return;
+            event.preventDefault();
+            const delta = event.key === "ArrowDown" ? 1 : -1;
+            context.setActiveOptionIndex(
+              (context.activeOptionIndex + delta + filteredCommands.length) % filteredCommands.length,
+            );
+          }}
         />
+        <Surface id={`${surfaceId}-commands`} role="listbox" aria-label="Commands">
+          <Stack gap="xs">
+            {filteredCommands.map((label, filteredIndex) => {
+              const commandIndex = commands.indexOf(label);
+              return (
+              <Button
+                key={label}
+                id={`${surfaceId}-command-${commandIndex}`}
+                role="option"
+                tone="quiet"
+                size="sm"
+                aria-selected={filteredIndex === context.activeOptionIndex}
+                tabIndex={-1}
+                onPointerMove={() => context.interactive && context.setActiveOptionIndex(filteredIndex)}
+                onClick={() => {
+                  if (!context.interactive) return;
+                  context.setActiveOptionIndex(filteredIndex);
+                  context.setInvokedCommand(label);
+                }}
+              >
+                <Cluster justify="between">
+                  <Cluster><AtlasIcon name={(["File", "Plus", "Repeat"] as const)[commandIndex]} />{label}</Cluster>
+                  {commandIndex === 0 ? <Text as="span" tone="subtle" size="xs">Command P</Text> : null}
+                </Cluster>
+              </Button>
+              );
+            })}
+            {filteredCommands.length === 0 ? (
+              <Text tone="muted" size="xs">No matching commands</Text>
+            ) : null}
+          </Stack>
+        </Surface>
+        <Text role="status" aria-live="polite" tone="muted" size="xs">
+          {context.invokedCommand
+            ? `Opened ${context.invokedCommand}`
+            : `${filteredCommands.length} commands`}
+        </Text>
       </Stack>
     ) : context.entryId === "drawer" ? (
       <SideNavigation
@@ -1533,14 +1955,14 @@ function OverlayPreview(context: PreviewContext) {
       <Stack gap="sm">
         <SelectField
           label={first}
-          value="morgan"
-          onChange={noop}
+          value={context.secondarySelected || "morgan"}
+          onChange={(event) => context.interactive && context.setSecondarySelected(event.currentTarget.value)}
           options={[{ value: "morgan", label: "Morgan Lee" }, { value: "sam", label: "Sam Kim" }]}
         />
         <SelectField
           label={second}
-          value="open"
-          onChange={noop}
+          value={context.query || "open"}
+          onChange={(event) => context.interactive && context.setQuery(event.currentTarget.value)}
           options={[{ value: "open", label: "Open" }, { value: "closed", label: "Closed" }]}
         />
       </Stack>
@@ -1567,25 +1989,47 @@ function OverlayPreview(context: PreviewContext) {
       </Stack>
     ) : context.entryId === "workspace-switcher" ? (
       <Stack gap="sm">
-        <TextField label="Find workspace" type="search" value="" onChange={noop} />
+        <TextField
+          label="Find workspace"
+          type="search"
+          value={context.query}
+          onChange={(event) => context.interactive && context.setQuery(event.currentTarget.value)}
+        />
         <CollectionList
           label={context.labels[0]}
-          items={[first, second, third].map((label, index) => ({
+          items={[first, second, third]
+            .filter((label) => label.toLocaleLowerCase().includes(context.query.toLocaleLowerCase()))
+            .map((label) => ({
             id: label,
             primary: label,
             leading: <Avatar name={label} initials={label.slice(0, 1)} size="sm" />,
-            meta: index === 0 ? <StatusBadge tone="success">Current</StatusBadge> : undefined,
-            action: index === 0 ? undefined : <Button size="sm">Switch</Button>,
+            meta: (context.secondarySelected || first) === label
+              ? <StatusBadge tone="success">Current</StatusBadge>
+              : undefined,
+            action: (context.secondarySelected || first) === label
+              ? undefined
+              : (
+                <Button
+                  size="sm"
+                  onClick={() => {
+                    if (!context.interactive) return;
+                    context.setSecondarySelected(label);
+                    setOpen(false);
+                  }}
+                >
+                  Switch
+                </Button>
+              ),
           }))}
         />
       </Stack>
     ) : (
       <Stack gap="sm">
-        <TextField label={first} value={context.selected} onChange={noop} />
+        <TextField label={first} value={context.selected} onChange={(event) => context.interactive && context.setSelected(event.currentTarget.value)} />
         <SelectField
           label={second}
-          value="open"
-          onChange={noop}
+          value={context.secondarySelected || "open"}
+          onChange={(event) => context.interactive && context.setSecondarySelected(event.currentTarget.value)}
           options={[{ value: "open", label: "Open" }, { value: "closed", label: "Closed" }]}
         />
         <Cluster justify="end"><Button size="sm" tone="primary">{third}</Button></Cluster>
@@ -1593,7 +2037,7 @@ function OverlayPreview(context: PreviewContext) {
     );
 
   const triggerLabel = context.entryId === "workspace-switcher"
-    ? "Northstar"
+    ? "Launch workspace"
     : context.entryId === "command-palette"
       ? "Open command palette"
       : context.entryId === "alert-dialog"
@@ -1620,6 +2064,10 @@ function OverlayPreview(context: PreviewContext) {
       aria-controls={context.entryId === "menu" && open ? surfaceId : undefined}
       aria-describedby={context.entryId === "tooltip" && open ? surfaceId : undefined}
       onClick={() => setOpen(!open)}
+      onMouseEnter={() => context.entryId === "tooltip" && setOpen(true)}
+      onMouseLeave={() => context.entryId === "tooltip" && setOpen(false)}
+      onFocus={() => context.entryId === "tooltip" && setOpen(true)}
+      onBlur={() => context.entryId === "tooltip" && setOpen(false)}
       onKeyDown={(event) => {
         if (context.entryId === "tooltip" && event.key === "Escape") setOpen(false);
       }}
@@ -1649,7 +2097,7 @@ function OverlayPreview(context: PreviewContext) {
     >
       <ApplicationFrame
         label={`${context.story.card.title} background`}
-        title="Northstar"
+        title="Workspace"
         brand={<AtlasIcon name="GridView" />}
         actions={trigger}
       >
@@ -1664,6 +2112,7 @@ function OverlayPreview(context: PreviewContext) {
           id={surfaceId}
           onOpenChange={setOpen}
           title={context.labels[0]}
+          initialFocusId={context.entryId === "command-palette" ? `${surfaceId}-input` : undefined}
           role={context.entryId === "alert-dialog" ? "alertdialog" : "dialog"}
           description={
             context.entryId === "command-palette" || context.entryId === "drawer"
@@ -1787,17 +2236,44 @@ function LayoutPreview(context: PreviewContext) {
     );
   }
   if (["split-view", "master-detail"].includes(context.entryId)) {
+    const customers = [
+      { id: "customer-1", name: "Acme Corp", detail: "Enterprise account · 24 members" },
+      { id: "customer-2", name: "Bluebird Labs", detail: "Growth account · 8 members" },
+      { id: "customer-3", name: "Cedar Group", detail: "Standard account · 5 members" },
+    ];
+    const selectedCustomer = customers.find(({ id }) => id === context.selected) ?? customers[0];
     return (
       <ApplicationFrame
         label={context.labels[0]}
         title={context.entryId === "split-view" ? "Compare" : "Customers"}
         brand={<AtlasIcon name="Columns2" />}
       >
-        <div style={{ display: "grid", gridTemplateColumns: "minmax(8rem, 0.82fr) auto minmax(12rem, 1.18fr)", gap: "0.5rem", height: "100%" }}>
+        <div style={{ display: "grid", gridTemplateColumns: `minmax(8rem, ${context.splitPercent}fr) auto minmax(12rem, ${100 - context.splitPercent}fr)`, gap: "0.5rem", height: "100%" }}>
           <Surface>
             <Stack gap="sm">
               <Heading level={4} size="sm">{context.entryId === "split-view" ? "Current" : "Customers"}</Heading>
-              <CollectionList label={context.labels[0]} items={collectionItems(context, 3)} />
+              <CollectionList
+                label={context.labels[0]}
+                items={context.entryId === "master-detail"
+                  ? customers.map((customer) => ({
+                      id: customer.id,
+                      primary: (
+                        <Button
+                          size="sm"
+                          tone="quiet"
+                          aria-pressed={selectedCustomer.id === customer.id}
+                          onClick={() => context.interactive && context.setSelected(customer.id)}
+                        >
+                          {customer.name}
+                        </Button>
+                      ),
+                      secondary: customer.detail,
+                      meta: selectedCustomer.id === customer.id
+                        ? <StatusBadge tone="info">Selected</StatusBadge>
+                        : undefined,
+                    }))
+                  : collectionItems(context, 3)}
+              />
             </Stack>
           </Surface>
           <Divider
@@ -1806,18 +2282,37 @@ function LayoutPreview(context: PreviewContext) {
             aria-label={context.entryId === "split-view" ? "Resize comparison panes" : "Resize customer list"}
             aria-valuemin={25}
             aria-valuemax={75}
-            aria-valuenow={42}
+            aria-valuenow={context.splitPercent}
             tabIndex={0}
+            onKeyDown={(event) => {
+              if (!context.interactive) return;
+              const next = event.key === "ArrowLeft"
+                ? context.splitPercent - 5
+                : event.key === "ArrowRight"
+                  ? context.splitPercent + 5
+                  : event.key === "Home"
+                    ? 25
+                    : event.key === "End"
+                      ? 75
+                      : null;
+              if (next === null) return;
+              event.preventDefault();
+              context.setSplitPercent(Math.max(25, Math.min(75, next)));
+            }}
           />
           <Surface elevation="raised">
             <Stack gap="sm">
               <PageHeader
-                title={context.entryId === "split-view" ? "Proposed" : support(context, 0, "Acme")}
-                description={context.labels[1]}
+                title={context.entryId === "split-view" ? "Proposed" : selectedCustomer.name}
+                description={context.entryId === "split-view" ? context.labels[1] : selectedCustomer.detail}
                 level={4}
               />
               <Divider />
-              <Text>{support(context, 1, "Selected record details and activity.")}</Text>
+              <Text>
+                {context.entryId === "split-view"
+                  ? "Review the proposed changes alongside the current version."
+                  : `Account summary and recent activity for ${selectedCustomer.name}.`}
+              </Text>
               <CollectionList label="Details" items={collectionItems(context, 2)} />
             </Stack>
           </Surface>
@@ -1850,8 +2345,8 @@ function LayoutPreview(context: PreviewContext) {
         </SettingSurface>
         <Tabs
           label="Customer record sections"
-          selectedId="relationships"
-          onSelectionChange={noop}
+          selectedId={context.secondarySelected || "relationships"}
+          onSelectionChange={(id) => context.interactive && context.setSecondarySelected(id)}
           items={[
             {
               id: "relationships",
@@ -1906,6 +2401,17 @@ function LayoutPreview(context: PreviewContext) {
       </ApplicationFrame>
     );
   }
+  if (!context.enabled) {
+    return (
+      <ContextPage context={context} actions={(
+        <Button size="sm" onClick={() => context.interactive && context.setEnabled(true)}>
+          Open issue panel
+        </Button>
+      )}>
+        <CollectionList label="Issues" items={collectionItems(context, 3)} />
+      </ContextPage>
+    );
+  }
   return (
     <ContextPage context={context}>
       <div style={{ display: "grid", gridTemplateColumns: "minmax(9rem, 0.75fr) minmax(12rem, 1.25fr)", gap: "0.5rem" }}>
@@ -1920,7 +2426,13 @@ function LayoutPreview(context: PreviewContext) {
           <Stack gap="sm">
             <Cluster justify="between">
               {previewHeader(context)}
-              <IconButton label="Close panel" size="sm"><AtlasIcon name="X" /></IconButton>
+              <IconButton
+                label="Close panel"
+                size="sm"
+                onClick={() => context.interactive && context.setEnabled(false)}
+              >
+                <AtlasIcon name="X" />
+              </IconButton>
             </Cluster>
             <Divider />
             <Text>{support(context, 0, "Panel content")}</Text>
@@ -1934,7 +2446,8 @@ function LayoutPreview(context: PreviewContext) {
 
 function FormPreview(context: PreviewContext) {
   const first = support(context, 0, "Name");
-  const hasError = context.entryId === "form-validation" && context.active;
+  const validationExample = context.entryId === "form-validation";
+  const hasError = validationExample && !/^\S+@\S+\.\S+$/.test(context.selected);
   return (
     <ContextPage context={context}>
       <SettingSurface title={context.labels[0]} description={context.labels[1]}>
@@ -1943,28 +2456,28 @@ function FormPreview(context: PreviewContext) {
             <FormSection title="Member details">
               <TextField
                 label={first}
+                type={validationExample ? "email" : "text"}
                 value={context.selected}
                 error={hasError ? support(context, 1, "A value is required") : undefined}
                 onChange={(event) =>
                   context.interactive && context.setSelected(event.currentTarget.value)}
               />
-              <TextField
+              {!validationExample ? <TextField
                 label="Email"
                 type="email"
-                value={hasError ? "morgan@" : "morgan@northstar.co"}
-                error={hasError ? support(context, 1, "Enter a valid address") : undefined}
-                onChange={noop}
-              />
+                value={context.query || "morgan@example.com"}
+                onChange={(event) => context.interactive && context.setQuery(event.currentTarget.value)}
+              /> : null}
               <SelectField
                 label={support(context, 2, "Role")}
-                value="editor"
-                onChange={noop}
+                value={context.secondarySelected || "editor"}
+                onChange={(event) => context.interactive && context.setSecondarySelected(event.currentTarget.value)}
                 options={[{ value: "editor", label: "Editor" }, { value: "viewer", label: "Viewer" }]}
               />
             </FormSection>
             <FormActions>
               <Button size="sm" tone="quiet">Cancel</Button>
-              <Button size="sm" tone="primary" type="submit">Create member</Button>
+              <Button size="sm" tone="primary" type="submit" disabled={hasError}>Create member</Button>
             </FormActions>
           </Stack>
         </form>
@@ -1974,7 +2487,15 @@ function FormPreview(context: PreviewContext) {
 }
 
 function FlowPreview(context: PreviewContext) {
-  const activeIndex = context.active ? 2 : 1;
+  const phaseIndex = context.entryId === "import-workflow" && context.actionResult
+    ? 3
+    : context.active
+      ? 2
+      : 1;
+  const interactiveFlow = context.entryId === "multi-step-flow" || context.entryId === "approval-workflow";
+  const activeIndex = interactiveFlow && context.interactive
+    ? Math.max(0, Math.min(3, context.numericValue))
+    : phaseIndex;
   const stepLabels = [0, 1, 2, 3].map((index) => support(context, index, `Step ${index + 1}`));
   const steps = stepLabels.map((label, index) => ({
     id: `step-${index}`,
@@ -1999,37 +2520,117 @@ function FlowPreview(context: PreviewContext) {
     );
   }
   if (context.entryId === "onboarding-checklist") {
+    const started = context.actionResult === "started";
     return (
       <ContextPage context={context}>
-        <ProgressBar label="Workspace setup" value={66} valueText="2 of 3 complete" />
+        <ProgressBar
+          label="Workspace setup"
+          value={started ? 83 : 66}
+          valueText={started ? "Final task started" : "2 of 3 complete"}
+        />
         <CollectionList
           label={context.labels[0]}
           items={stepLabels.slice(0, 3).map((label, index) => ({
             id: label,
             primary: label,
             leading: <Checkbox checked={index < 2} readOnly aria-label={`${label} complete`} />,
-            meta: index < 2 ? <StatusBadge tone="success">Done</StatusBadge> : <Button size="sm">Start</Button>,
+            meta: index < 2
+              ? <StatusBadge tone="success">Done</StatusBadge>
+              : started
+                ? <StatusBadge tone="info">In progress</StatusBadge>
+                : <Button size="sm" onClick={() => context.interactive && context.setActionResult("started")}>Start</Button>,
           }))}
         />
       </ContextPage>
     );
   }
   if (context.entryId === "import-workflow") {
-    const rows = collectionItems(context, 2);
+    const rows = [
+      { id: "row-1", record: "morgan@example.com", status: "Valid", detail: "Ready to import" },
+      { id: "row-2", record: "sam@example.com", status: "Duplicate", detail: "Matches an existing member" },
+      { id: "row-3", record: "missing-email", status: "Invalid", detail: "Email is required" },
+    ];
     return (
       <ContextPage context={context}>
         <StepIndicator label="Import progress" items={steps} compact />
-        <ProgressBar label="Validating rows" value={context.active ? 76 : 20} valueText={context.active ? "76 rows" : "20 rows"} />
+        <ProgressBar
+          label="Validating rows"
+          value={Math.round(20 + (56 * context.phase))}
+          valueText={`${Math.round(20 + (56 * context.phase))} rows`}
+        />
         <DataTable
           caption={context.labels[0]}
           items={rows}
           getRowId={(item) => item.id}
           columns={[
-            { id: "item", header: support(context, 0, "Record"), cell: (item) => item.primary },
-            { id: "status", header: "Status", cell: () => <StatusBadge tone="success">Valid</StatusBadge> },
+            { id: "item", header: support(context, 0, "Record"), rowHeader: true, cell: (item) => item.record },
+            {
+              id: "status",
+              header: "Status",
+              cell: (item) => (
+                <StatusBadge tone={item.status === "Valid" ? "success" : item.status === "Duplicate" ? "warning" : "danger"}>
+                  {item.status}
+                </StatusBadge>
+              ),
+            },
+            { id: "detail", header: "Resolution", cell: (item) => item.detail },
           ]}
         />
-        <Cluster justify="end"><Button size="sm" tone="primary">Import valid rows</Button></Cluster>
+        <InlineAlert tone="warning" title="2 rows need attention">
+          Fix invalid rows or import the 1 valid row now. Duplicate rows will be skipped.
+        </InlineAlert>
+        <Cluster justify="end">
+          <Button size="sm" tone="quiet">Download errors</Button>
+          <Button
+            size="sm"
+            tone="primary"
+            onClick={() => context.interactive && context.setActionResult("Imported 1 valid row; skipped 2 rows")}
+          >
+            Import 1 valid row
+          </Button>
+        </Cluster>
+        {context.actionResult ? <Text role="status" tone="muted" size="xs">{context.actionResult}</Text> : null}
+      </ContextPage>
+    );
+  }
+  if (context.entryId === "approval-workflow") {
+    const stageCopy = [
+      "Request submitted with business justification.",
+      "Manager checks necessity and scope.",
+      "Security reviews risk and policy exceptions.",
+      "Access approved and requester notified.",
+    ][activeIndex];
+    return (
+      <ContextPage context={context}>
+        <StepIndicator label={context.labels[0]} items={steps} />
+        <SettingSurface title={stepLabels[activeIndex]} description={stageCopy}>
+          <CollectionList
+            label="Request summary"
+            items={[
+              { id: "requester", primary: "Requester", meta: "Morgan Lee" },
+              { id: "access", primary: "Requested access", meta: "Finance workspace" },
+              { id: "duration", primary: "Duration", meta: "30 days" },
+            ]}
+          />
+          <Cluster justify="end">
+            <Button
+              size="sm"
+              tone="quiet"
+              disabled={activeIndex === 0}
+              onClick={() => context.interactive && context.setNumericValue(Math.max(0, activeIndex - 1))}
+            >
+              Back
+            </Button>
+            <Button
+              size="sm"
+              tone="primary"
+              disabled={activeIndex === steps.length - 1}
+              onClick={() => context.interactive && context.setNumericValue(Math.min(steps.length - 1, activeIndex + 1))}
+            >
+              Continue review
+            </Button>
+          </Cluster>
+        </SettingSurface>
       </ContextPage>
     );
   }
@@ -2037,10 +2638,28 @@ function FlowPreview(context: PreviewContext) {
     <ContextPage context={context}>
       <StepIndicator label={context.labels[0]} items={steps} />
       <SettingSurface title={stepLabels[activeIndex]} description={context.labels[1]}>
-        <TextField label="Field mapping" value="Email to Customer email" onChange={noop} />
+        <TextField
+          label="Field mapping"
+          value={context.selected}
+          onChange={(event) => context.interactive && context.setSelected(event.currentTarget.value)}
+        />
         <Cluster justify="end">
-          <Button size="sm" tone="quiet">Back</Button>
-          <Button size="sm" tone="primary">Continue</Button>
+          <Button
+            size="sm"
+            tone="quiet"
+            disabled={activeIndex === 0}
+            onClick={() => context.interactive && context.setNumericValue(Math.max(0, activeIndex - 1))}
+          >
+            Back
+          </Button>
+          <Button
+            size="sm"
+            tone="primary"
+            disabled={activeIndex === steps.length - 1}
+            onClick={() => context.interactive && context.setNumericValue(Math.min(steps.length - 1, activeIndex + 1))}
+          >
+            Continue
+          </Button>
         </Cluster>
       </SettingSurface>
     </ContextPage>
@@ -2064,8 +2683,20 @@ function AiPreview(context: PreviewContext) {
           />
           <Cluster justify="between">
             <Tag><AtlasIcon name="Paperclip" size="xs" /> context.pdf</Tag>
-            <Button size="sm" tone="primary"><AtlasIcon name="Sent" />{second}</Button>
+            <Button
+              size="sm"
+              tone="primary"
+              disabled={!context.selected.trim()}
+              onClick={() => {
+                if (!context.interactive || !context.selected.trim()) return;
+                context.setActionResult(`Sent: ${context.selected.trim()}`);
+                context.setSelected("");
+              }}
+            >
+              <AtlasIcon name="Sent" />{second}
+            </Button>
           </Cluster>
+          {context.actionResult ? <Text role="status" tone="muted" size="xs">{context.actionResult}</Text> : null}
         </SettingSurface>
       </ContextPage>
     );
@@ -2092,7 +2723,21 @@ function AiPreview(context: PreviewContext) {
               value={context.selected}
               onChange={(event) => context.interactive && context.setSelected(event.currentTarget.value)}
             />
-            <Cluster justify="end"><Button size="sm" tone="primary">Send prompt</Button></Cluster>
+            <Cluster justify="end">
+              <Button
+                size="sm"
+                tone="primary"
+                disabled={!context.selected.trim()}
+                onClick={() => {
+                  if (!context.interactive || !context.selected.trim()) return;
+                  context.setActionResult(`Sent: ${context.selected.trim()}`);
+                  context.setSelected("");
+                }}
+              >
+                Send prompt
+              </Button>
+            </Cluster>
+            {context.actionResult ? <Text role="status" tone="muted" size="xs">{context.actionResult}</Text> : null}
           </Stack>
         </SettingSurface>
       </ContextPage>
@@ -2128,17 +2773,29 @@ function AiPreview(context: PreviewContext) {
     );
   }
   if (context.entryId === "streaming-response") {
+    const generating = context.active && context.enabled;
+    const stopped = context.active && !context.enabled;
     return (
       <ContextPage context={context}>
         <SettingSurface title="Assistant response">
-          <div aria-live="polite" aria-busy={context.active}>
+          <div aria-live="polite" aria-busy={generating}>
             <Stack gap="sm">
               <Cluster justify="between">
-                <Badge tone={context.active ? "info" : "success"}>{context.active ? "Generating" : "Complete"}</Badge>
-                {context.active ? <Button size="sm" tone="quiet">Stop</Button> : null}
+                <Badge tone={generating ? "info" : stopped ? "warning" : "success"}>
+                  {generating ? "Generating" : stopped ? "Stopped" : "Complete"}
+                </Badge>
+                {generating ? (
+                  <Button size="sm" tone="quiet" onClick={() => context.interactive && context.setEnabled(false)}>
+                    Stop
+                  </Button>
+                ) : null}
               </Cluster>
-              <Text>{context.active ? `${first} The access review is in progress.` : `${first} The access review is complete.`}</Text>
-              {context.active ? <LoadingStatus label={second} /> : null}
+              <Text>{generating
+                ? `${first} The access review is in progress.`
+                : stopped
+                  ? `${first} Generation stopped; the partial response is preserved.`
+                  : `${first} The access review is complete.`}</Text>
+              {generating ? <LoadingStatus label={second} /> : null}
             </Stack>
           </div>
         </SettingSurface>
@@ -2146,6 +2803,9 @@ function AiPreview(context: PreviewContext) {
     );
   }
   if (context.entryId === "response-regeneration") {
+    const regenerating = context.interactive
+      ? context.actionResult === "regenerating"
+      : context.active;
     return (
       <ContextPage context={context}>
         <SettingSurface title="Assistant response">
@@ -2153,10 +2813,24 @@ function AiPreview(context: PreviewContext) {
           <Text tone="muted" size="xs">Previous response remains available while a replacement is generated.</Text>
           <Divider />
           <Cluster>
-            <Button size="sm" tone="quiet"><AtlasIcon name="RotateCcw" />{second}</Button>
-            <Button size="sm" tone="quiet"><AtlasIcon name="Settings" />Use different model</Button>
+            <Button
+              size="sm"
+              tone="quiet"
+              disabled={regenerating}
+              onClick={() => context.interactive && context.setActionResult("regenerating")}
+            >
+              <AtlasIcon name="RotateCcw" />{second}
+            </Button>
+            <Button
+              size="sm"
+              tone="quiet"
+              onClick={() => context.interactive && context.setSecondarySelected("different-model")}
+            >
+              <AtlasIcon name="Settings" />Use different model
+            </Button>
           </Cluster>
-          {context.active ? <LoadingStatus label="Generating replacement response" /> : null}
+          {context.secondarySelected === "different-model" ? <Badge>Model options opened</Badge> : null}
+          {regenerating ? <LoadingStatus label="Generating replacement response" /> : null}
         </SettingSurface>
       </ContextPage>
     );
@@ -2173,6 +2847,7 @@ function AiPreview(context: PreviewContext) {
             items={[
               {
                 id: "source-policy",
+                htmlId: "source-policy",
                 primary: third,
                 secondary: "Policy.pdf, page 4",
                 leading: <AtlasIcon name="FileText" />,
@@ -2180,6 +2855,7 @@ function AiPreview(context: PreviewContext) {
               },
               {
                 id: "source-audit",
+                htmlId: "source-audit",
                 primary: "Audit schedule",
                 secondary: "Controls handbook, page 12",
                 leading: <AtlasIcon name="FileText" />,
@@ -2192,20 +2868,37 @@ function AiPreview(context: PreviewContext) {
     );
   }
   if (context.entryId === "context-attachment") {
+    const attachmentIds = context.selectedIds;
     return (
       <ContextPage context={context}>
         <SettingSurface title="Attached context" description="Review exactly what the assistant can use.">
           <CollectionList
             label={context.labels[0]}
-            items={[first, second].map((label, index) => ({
+            items={[first, second].map((label, index) => ({ label, index })).filter(({ index }) =>
+              attachmentIds.includes(index === 0 ? "attachment-1" : "attachment-2"),
+            ).map(({ label, index }) => ({
               id: label,
               primary: label,
               secondary: index === 0 ? "Workspace scope, 1.8 MB" : "Conversation scope, 14 MB limit exceeded",
               leading: <AtlasIcon name="FileText" />,
-              meta: index === 0 ? <StatusBadge tone="success">Included</StatusBadge> : <StatusBadge tone="danger">Error</StatusBadge>,
+              meta: index === 0
+                ? <StatusBadge tone="success">Included</StatusBadge>
+                : context.actionResult === "retried"
+                  ? <StatusBadge tone="info">Retrying</StatusBadge>
+                  : <StatusBadge tone="danger">Error</StatusBadge>,
               action: index === 0
-                ? <IconButton label={`Remove ${label}`} size="sm"><AtlasIcon name="X" /></IconButton>
-                : <Button size="sm">Retry</Button>,
+                ? (
+                  <IconButton
+                    label={`Remove ${label}`}
+                    size="sm"
+                    onClick={() => context.interactive && context.setSelectedIds(
+                      attachmentIds.filter((id) => id !== "attachment-1"),
+                    )}
+                  >
+                    <AtlasIcon name="X" />
+                  </IconButton>
+                )
+                : <Button size="sm" onClick={() => context.interactive && context.setActionResult("retried")}>Retry</Button>,
             }))}
           />
           <Text tone="muted" size="xs">Removing an attachment excludes it from the next prompt.</Text>
@@ -2222,10 +2915,34 @@ function AiPreview(context: PreviewContext) {
             Choose the workspace the update should apply to.
           </InlineAlert>
           <Cluster>
-            {[second, third].map((label) => <Button key={label} size="sm">{label}</Button>)}
+            {[second, third].map((label) => (
+              <Button
+                key={label}
+                size="sm"
+                aria-pressed={context.actionResult === label}
+                onClick={() => context.interactive && context.setActionResult(label)}
+              >
+                {label}
+              </Button>
+            ))}
           </Cluster>
-          <TextField label="Or answer in your own words" value="" onChange={noop} />
-          <Text tone="muted" size="xs">The task resumes after you answer.</Text>
+          <TextField
+            label="Or answer in your own words"
+            value={context.selected}
+            onChange={(event) => context.interactive && context.setSelected(event.currentTarget.value)}
+          />
+          <Cluster justify="between">
+            <Text role="status" tone="muted" size="xs">
+              {context.actionResult ? `Answered: ${context.actionResult}` : "The task resumes after you answer."}
+            </Text>
+            <Button
+              size="sm"
+              disabled={!context.selected.trim()}
+              onClick={() => context.interactive && context.setActionResult(context.selected.trim())}
+            >
+              Answer
+            </Button>
+          </Cluster>
         </SettingSurface>
       </ContextPage>
     );
@@ -2256,7 +2973,11 @@ function AiPreview(context: PreviewContext) {
                 ]}
               />
             </Stack>
-            <Cluster justify="end"><Button size="sm">Preview</Button><Button size="sm" tone="primary">Apply</Button></Cluster>
+            <Cluster justify="end">
+              <Button size="sm" onClick={() => context.interactive && context.setActionResult("Preview opened")}>Preview</Button>
+              <Button size="sm" tone="primary" onClick={() => context.interactive && context.setActionResult("Artifact applied")}>Apply</Button>
+            </Cluster>
+            {context.actionResult ? <Text role="status" tone="muted" size="xs">{context.actionResult}</Text> : null}
           </Stack>
         </Surface>
       </ContextPage>
@@ -2303,20 +3024,21 @@ function AiPreview(context: PreviewContext) {
 }
 
 function AgentPreview(context: PreviewContext) {
+  const running = context.active && context.enabled;
   return (
     <ContextPage context={context}>
       <AgentActivity
         title={context.labels[0]}
-        status={context.active ? "running" : "queued"}
+        status={context.active ? (context.enabled ? "running" : "stopped") : "queued"}
         summary={context.labels[1]}
-        onStop={context.interactive ? () => context.setEnabled(false) : undefined}
+        onStop={context.interactive && running ? () => context.setEnabled(false) : undefined}
         steps={[0, 1, 2].map((index) => ({
           id: `step-${index}`,
           label: support(context, index, `Step ${index + 1}`),
           summary: index === 0 ? "Completed with 3 records" : undefined,
           status: index === 0
-            ? "completed"
-            : index === 1 && context.active
+            ? context.active ? "completed" : "pending"
+            : index === 1 && running
               ? "running"
               : "pending",
         }))}
@@ -2330,9 +3052,11 @@ function ApprovalPreview(context: PreviewContext) {
     <ContextPage context={context}>
       <ActionApproval
         title={context.labels[0]}
-        description={context.labels[1]}
+        description={context.active
+          ? context.labels[1]
+          : "Preparing the affected objects and recovery details for review."}
         action={support(context, 0, "Apply changes")}
-        affectedObjects={[support(context, 1, "3 records")]}
+        affectedObjects={context.active ? [support(context, 1, "3 records")] : []}
         risk="high"
         reversible
         state={context.approved ? "approved" : "pending"}
@@ -2355,20 +3079,45 @@ function ApprovalPreview(context: PreviewContext) {
 }
 
 function RecoveryPreview(context: PreviewContext) {
+  if (context.actionResult) {
+    return (
+      <ContextPage context={context}>
+        <SettingSurface title="Assistant">
+          <InlineAlert tone="success" title={context.actionResult}>
+            The failed attempt made no changes. You remain in control of the next step.
+          </InlineAlert>
+        </SettingSurface>
+      </ContextPage>
+    );
+  }
   return (
     <ContextPage context={context}>
       <SettingSurface title="Assistant">
         <InlineAlert
           tone="danger"
           title={support(context, 0, "Source unavailable")}
-          actions={
+          actions={context.active ? (
             <Cluster>
-              <Button size="sm" tone="primary">{support(context, 1, "Retry")}</Button>
-              <Button size="sm" tone="quiet">{support(context, 2, "Continue without source")}</Button>
+              <Button
+                size="sm"
+                tone="primary"
+                onClick={() => context.interactive && context.setActionResult("Retry started")}
+              >
+                {support(context, 1, "Retry")}
+              </Button>
+              <Button
+                size="sm"
+                tone="quiet"
+                onClick={() => context.interactive && context.setActionResult("Continued without the unavailable source")}
+              >
+                {support(context, 2, "Continue without source")}
+              </Button>
             </Cluster>
-          }
+          ) : undefined}
         >
-          {context.labels[1]} No changes were made.
+          {context.active
+            ? `${context.labels[1]} No changes were made.`
+            : "Checking what can be retried safely. No changes have been made."}
         </InlineAlert>
       </SettingSurface>
     </ContextPage>
@@ -2386,29 +3135,66 @@ function GovernancePreview(context: PreviewContext) {
           getRowId={(row) => row.id}
           columns={[
             { id: "role", header: support(context, 0, "Role"), rowHeader: true, cell: (row) => row.primary },
-            { id: "view", header: support(context, 3, "Read"), cell: () => <Switch aria-label="Read permission" defaultChecked /> },
-            { id: "edit", header: support(context, 4, "Write"), cell: () => <Switch aria-label="Write permission" /> },
-            { id: "manage", header: support(context, 5, "Manage"), cell: () => <Switch aria-label="Manage permission" /> },
+            { id: "view", header: support(context, 3, "Read"), cell: (row) => <Switch aria-label={`${row.primary}: Read permission`} defaultChecked /> },
+            { id: "edit", header: support(context, 4, "Write"), cell: (row) => <Switch aria-label={`${row.primary}: Write permission`} /> },
+            { id: "manage", header: support(context, 5, "Manage"), cell: (row) => <Switch aria-label={`${row.primary}: Manage permission`} /> },
           ]}
         />
       </ContextPage>
     );
   }
   if (context.entryId === "rule-builder") {
+    const attribute = context.secondarySelected || "department";
+    const operator = context.query || "is";
+    const access = context.invokedCommand || "allow";
     return (
       <ContextPage context={context}>
         <SettingSurface title={context.labels[0]} description={context.labels[1]}>
           <Cluster align="end">
             <Badge>IF</Badge>
-            <SelectField label="Attribute" value="department" onChange={noop} options={[{ value: "department", label: support(context, 1, "department") }]} />
-            <SelectField label="Operator" value="is" onChange={noop} options={[{ value: "is", label: support(context, 2, "is") }]} />
-            <TextField label="Value" value={support(context, 3, "Finance")} onChange={noop} />
+            <SelectField
+              label="Attribute"
+              value={attribute}
+              onChange={(event) => context.interactive && context.setSecondarySelected(event.currentTarget.value)}
+              options={[
+                { value: "department", label: support(context, 1, "department") },
+                { value: "location", label: "location" },
+                { value: "employment", label: "employment type" },
+              ]}
+            />
+            <SelectField
+              label="Operator"
+              value={operator}
+              onChange={(event) => context.interactive && context.setQuery(event.currentTarget.value)}
+              options={[
+                { value: "is", label: support(context, 2, "is") },
+                { value: "is-not", label: "is not" },
+                { value: "contains", label: "contains" },
+              ]}
+            />
+            <TextField label="Value" value={context.selected} onChange={(event) => context.interactive && context.setSelected(event.currentTarget.value)} />
           </Cluster>
           <Cluster align="end">
             <Badge tone="info">THEN</Badge>
-            <SelectField label="Access" value="allow" onChange={noop} options={[{ value: "allow", label: support(context, 5, "allow") }]} />
+            <SelectField
+              label="Access"
+              value={access}
+              onChange={(event) => context.interactive && context.setInvokedCommand(event.currentTarget.value)}
+              options={[
+                { value: "allow", label: support(context, 5, "allow") },
+                { value: "deny", label: "deny" },
+                { value: "review", label: "require review" },
+              ]}
+            />
           </Cluster>
-          <Cluster justify="end"><Button size="sm" tone="primary">Save rule</Button></Cluster>
+          <Cluster justify="between">
+            <Button size="sm" tone="quiet" onClick={() => context.interactive && context.setSelectedIds([...context.selectedIds, `condition-${context.selectedIds.length + 2}`])}>
+              Add condition
+            </Button>
+            <Button size="sm" tone="primary" onClick={() => context.interactive && context.setActionResult("Rule saved")}>Save rule</Button>
+          </Cluster>
+          {context.selectedIds.length > 0 ? <Text tone="muted" size="xs">{context.selectedIds.length + 1} conditions</Text> : null}
+          {context.actionResult ? <Text role="status" tone="muted" size="xs">{context.actionResult}</Text> : null}
         </SettingSurface>
       </ContextPage>
     );
@@ -2435,6 +3221,7 @@ function GovernancePreview(context: PreviewContext) {
     );
   }
   if (context.entryId === "review-queue") {
+    const selectedReview = context.actionResult;
     return (
       <ContextPage context={context} actions={<Button size="sm">Queue settings</Button>}>
         <CollectionList
@@ -2444,9 +3231,21 @@ function GovernancePreview(context: PreviewContext) {
             leading: <Badge tone={index === 0 ? "danger" : index === 1 ? "warning" : "neutral"}>{index + 1}</Badge>,
             secondary: [support(context, 0, "High risk"), support(context, 1, "Due today"), support(context, 2, "Needs context")][index],
             meta: index === 0 ? <StatusBadge tone="danger">Urgent</StatusBadge> : "2h",
-            action: <Button size="sm">Review</Button>,
+            action: (
+              <Button
+                size="sm"
+                onClick={() => context.interactive && context.setActionResult(String(item.primary))}
+              >
+                Review
+              </Button>
+            ),
           }))}
         />
+        {selectedReview ? (
+          <InlineAlert tone="info" title={`Reviewing ${selectedReview}`}>
+            The request details and decision controls are now in focus.
+          </InlineAlert>
+        ) : null}
       </ContextPage>
     );
   }
@@ -2537,12 +3336,27 @@ function GovernancePreview(context: PreviewContext) {
     );
   }
   if (context.entryId === "draft-autosave") {
+    const saving = context.interactive
+      ? context.actionResult === "saving"
+      : !context.active;
     return (
       <ContextPage context={context}>
         <SettingSurface title={context.labels[0]}>
-          <TextAreaField label="Brief" value="Launch Northstar with a staged access review." onChange={noop} />
+          <TextAreaField
+            label="Brief"
+            value={context.selected}
+            onChange={(event) => {
+              if (!context.interactive) return;
+              context.setSelected(event.currentTarget.value);
+              context.setActionResult("saving");
+            }}
+            onBlur={() => context.interactive && context.setActionResult("saved")}
+          />
           <Cluster justify="between">
-            <StatusBadge tone="success"><AtlasIcon name="CircleCheck" size="xs" />{context.active ? "Saved" : "Saving"}</StatusBadge>
+            <StatusBadge tone={saving ? "warning" : "success"}>
+              <AtlasIcon name={saving ? "Clock" : "CircleCheck"} size="xs" />
+              <span role="status" aria-live="polite">{saving ? "Saving…" : "Saved"}</span>
+            </StatusBadge>
             <Text tone="muted" size="xs">Drafts are restored after reconnecting.</Text>
           </Cluster>
         </SettingSurface>
@@ -2550,28 +3364,47 @@ function GovernancePreview(context: PreviewContext) {
     );
   }
   if (context.entryId === "version-history") {
+    const revisions = [
+      { id: "revision-3", primary: "Revision 3: Current", secondary: "Morgan Lee, today 10:42", current: true, change: "Security review completed; launch date confirmed." },
+      { id: "revision-2", primary: "Revision 2: Updated launch dates", secondary: "Sam Kim, yesterday at 16:20", current: false, change: "Launch date moved to September 18; security review added." },
+      { id: "revision-1", primary: "Revision 1: Initial plan", secondary: "Morgan Lee, Monday", current: false, change: "Initial owners, milestones, and rollout plan created." },
+    ];
+    const selectedRevision = revisions.find(({ id }) => id === context.selected) ?? revisions[1];
     return (
       <ContextPage context={context}>
         <div style={{ display: "grid", gridTemplateColumns: "minmax(10rem, 0.8fr) minmax(12rem, 1.2fr)", gap: "0.5rem" }}>
           <CollectionList
             label={context.labels[0]}
-            items={collectionItems(context, 3).map((item, index) => ({
-              ...item,
+            items={revisions.map((item) => ({
+              id: item.id,
               leading: <AtlasIcon name="Clock" />,
-              primary: support(context, index, `Revision ${index + 1}`),
-              secondary: ["Morgan Lee, today 10:42", "Sam Kim, yesterday", "Morgan Lee, Monday"][index],
-              meta: index === 0 ? <Badge tone="info">Current</Badge> : undefined,
+              primary: (
+                <Button
+                  size="sm"
+                  tone="quiet"
+                  aria-pressed={selectedRevision.id === item.id}
+                  onClick={() => context.interactive && context.setSelected(item.id)}
+                >
+                  {item.primary}
+                </Button>
+              ),
+              secondary: item.secondary,
+              meta: selectedRevision.id === item.id
+                ? <Badge tone="info">Viewing</Badge>
+                : item.current
+                  ? <Badge>Current</Badge>
+                  : undefined,
             }))}
           />
           <Surface as="section" elevation="raised">
             <Stack gap="sm">
               <Cluster justify="between">
-                <Heading level={4} size="sm">Updated launch dates</Heading>
-                <Button size="sm">Restore this version</Button>
+                <Heading level={4} size="sm">{selectedRevision.primary}</Heading>
+                <Button size="sm" disabled={selectedRevision.current}>Restore this version</Button>
               </Cluster>
-              <Text tone="muted" size="xs">Sam Kim, yesterday at 16:20</Text>
+              <Text tone="muted" size="xs">{selectedRevision.secondary}</Text>
               <Divider />
-              <InlineAlert tone="info" title="2 changes">Launch date moved to September 18; security review added.</InlineAlert>
+              <InlineAlert tone="info" title="Revision summary">{selectedRevision.change}</InlineAlert>
             </Stack>
           </Surface>
         </div>
@@ -2592,29 +3425,59 @@ function GovernancePreview(context: PreviewContext) {
 }
 
 function InlineEditPreview(context: PreviewContext) {
+  const editing = context.interactive
+    ? context.actionResult !== "saved" && context.actionResult !== "cancelled"
+    : context.active;
   return (
     <ContextPage context={context}>
       <SettingSurface title="Project details">
-        <Cluster justify="between">
-          <Text tone="muted" size="xs">Project name</Text>
-          <StatusBadge tone="success">Saved</StatusBadge>
-        </Cluster>
-        <TextField
-          label={support(context, 0, "Name")}
-          value={context.selected}
-          onChange={(event) =>
-            context.interactive && context.setSelected(event.currentTarget.value)}
-        />
-        <Cluster justify="end">
-          <Button size="sm" tone="quiet">Cancel</Button>
-          <Button size="sm" tone="primary">Save</Button>
-        </Cluster>
+        {editing ? (
+          <>
+            <TextField
+              label={support(context, 0, "Name")}
+              value={context.selected}
+              onChange={(event) =>
+                context.interactive && context.setSelected(event.currentTarget.value)}
+            />
+            <Cluster justify="end">
+              <Button
+                size="sm"
+                tone="quiet"
+                onClick={() => {
+                  if (!context.interactive) return;
+                  context.setSelected(support(context, 1, "Atlas redesign"));
+                  context.setActionResult("cancelled");
+                }}
+              >
+                Cancel
+              </Button>
+              <Button
+                size="sm"
+                tone="primary"
+                onClick={() => context.interactive && context.setActionResult("saved")}
+              >
+                Save
+              </Button>
+            </Cluster>
+          </>
+        ) : (
+          <Cluster justify="between">
+            <Stack gap="xs">
+              <Text tone="muted" size="xs">Project name</Text>
+              <Text>{context.selected}</Text>
+            </Stack>
+            <Button size="sm" onClick={() => context.interactive && context.setActionResult("editing")}>Edit</Button>
+          </Cluster>
+        )}
+        {context.actionResult === "saved" ? <Text role="status" tone="muted" size="xs">Saved</Text> : null}
       </SettingSurface>
     </ContextPage>
   );
 }
 
 function MemoryPreview(context: PreviewContext) {
+  const cleared = context.actionResult === "cleared";
+  const confirming = context.actionResult === "confirm-clear";
   return (
     <ContextPage context={context}>
       <SettingSurface title="Workspace memory" description="Review what is retained, for how long, and where it applies.">
@@ -2627,28 +3490,39 @@ function MemoryPreview(context: PreviewContext) {
             context.interactive && context.setEnabled(event.currentTarget.checked)}
         />
         <Cluster>
-          <Badge>Scope: Northstar</Badge>
+          <Badge>Scope: Launch workspace</Badge>
           <Badge>{support(context, 1, "30 days")}</Badge>
         </Cluster>
         <CollectionList
           label="Remembered context"
-          items={[
+          items={cleared ? [] : [
             { id: "launch", primary: "Launch date", secondary: "September 18", action: <Button size="sm">{support(context, 2, "Review")}</Button> },
             { id: "owner", primary: "Release owner", secondary: "Morgan Lee", action: <Button size="sm">Review</Button> },
           ]}
         />
-        <InlineAlert
-          tone="danger"
-          title="Clear workspace memory?"
-          actions={
-            <Cluster>
-              <Button size="sm" tone="quiet">Cancel</Button>
-              <Button size="sm" tone="danger">{support(context, 3, "Clear")}</Button>
-            </Cluster>
-          }
-        >
-          This permanently removes two remembered facts from Northstar.
-        </InlineAlert>
+        {cleared ? <Text role="status" tone="muted" size="xs">Workspace memory cleared.</Text> : null}
+        {confirming ? (
+          <InlineAlert
+            tone="danger"
+            title="Clear workspace memory?"
+            actions={
+              <Cluster>
+                <Button size="sm" tone="quiet" onClick={() => context.interactive && context.setActionResult("")}>Cancel</Button>
+                <Button size="sm" tone="danger" onClick={() => context.interactive && context.setActionResult("cleared")}>
+                  {support(context, 3, "Clear")}
+                </Button>
+              </Cluster>
+            }
+          >
+            This permanently removes two remembered facts from the workspace.
+          </InlineAlert>
+        ) : !cleared ? (
+          <Cluster justify="end">
+            <Button size="sm" tone="danger" onClick={() => context.interactive && context.setActionResult("confirm-clear")}>
+              Clear workspace memory
+            </Button>
+          </Cluster>
+        ) : null}
       </SettingSurface>
     </ContextPage>
   );
@@ -2713,9 +3587,12 @@ export function PatternPreview({
   }
 
   const normalizedPhase = Math.max(0, Math.min(1, phase));
-  const resolvedState = state ?? (normalizedPhase > 0 ? "active" : "rest");
-  const active = resolvedState === "active" ||
-    (resolvedState === "default" && normalizedPhase >= 0.5);
+  const resolvedState = resolvePreviewState(
+    registryRecord.states,
+    normalizedPhase,
+    state,
+  );
+  const active = resolvePreviewActiveState(resolvedState, normalizedPhase);
   const interactive = mode === "interactive";
   const initialValue = initialSelection(
     entryId,
@@ -2723,14 +3600,82 @@ export function PatternPreview({
     registryRecord.title,
   );
   const [selected, setSelected] = React.useState(initialValue);
-  const [enabled, setEnabled] = React.useState(
-    entryId === "action-approval" || entryId === "agent-management"
-      ? false
-      : active,
+  const [query, setQuery] = React.useState("");
+  const [activeOptionIndex, setActiveOptionIndex] = React.useState(0);
+  const [invokedCommand, setInvokedCommand] = React.useState("");
+  const [numericValue, setNumericValue] = React.useState(
+    entryId === "pagination"
+      ? 2
+      : entryId === "multi-step-flow" || entryId === "approval-workflow"
+        ? 1
+        : 68,
   );
+  const [actionResult, setActionResult] = React.useState("");
+  const [selectedIds, setSelectedIds] = React.useState<readonly string[]>(
+    entryId === "filter-bar"
+      ? registryRecord.labels.slice(2, 4)
+      : entryId === "search-and-filtering"
+        ? registryRecord.labels.slice(2, 3)
+        : entryId === "context-attachment"
+          ? ["attachment-1", "attachment-2"]
+          : [],
+  );
+  const [secondarySelected, setSecondarySelected] = React.useState(
+    entryId === "notification-center"
+      ? "All"
+      : entryId === "sorting"
+        ? "newest"
+        : "",
+  );
+  const phaseDrivenEnabled = resolvePreviewEnabledState(entryId, active);
+  const [enabled, setEnabled] = React.useState(phaseDrivenEnabled);
   const [approved, setApproved] = React.useState(false);
+  const [expandedIds, setExpandedIds] = React.useState<readonly string[]>([
+    "src",
+    "components",
+  ]);
+  const [splitPercent, setSplitPercent] = React.useState(42);
   const labels = registryRecord.labels as readonly [string, string, ...string[]];
   const renderer = templateRenderers[registryRecord.template];
+
+  React.useEffect(() => {
+    if (!interactive) setEnabled(phaseDrivenEnabled);
+  }, [entryId, interactive, phaseDrivenEnabled]);
+
+  React.useEffect(() => {
+    setSelected(initialValue);
+    setQuery("");
+    setActiveOptionIndex(0);
+    setInvokedCommand("");
+    setNumericValue(
+      entryId === "pagination"
+        ? 2
+        : entryId === "multi-step-flow" || entryId === "approval-workflow"
+          ? 1
+          : 68,
+    );
+    setActionResult("");
+    setSelectedIds(
+      entryId === "filter-bar"
+        ? registryRecord.labels.slice(2, 4)
+        : entryId === "search-and-filtering"
+          ? registryRecord.labels.slice(2, 3)
+          : entryId === "context-attachment"
+            ? ["attachment-1", "attachment-2"]
+          : [],
+    );
+    setSecondarySelected(
+      entryId === "notification-center"
+        ? "All"
+        : entryId === "sorting"
+          ? "newest"
+          : "",
+    );
+    setEnabled(phaseDrivenEnabled);
+    setApproved(false);
+    setExpandedIds(["src", "components"]);
+    setSplitPercent(42);
+  }, [entryId, initialValue]);
 
   return (
     <AtlasRoot
@@ -2756,10 +3701,28 @@ export function PatternPreview({
           state: resolvedState,
           selected,
           setSelected,
+          query,
+          setQuery,
+          activeOptionIndex,
+          setActiveOptionIndex,
+          invokedCommand,
+          setInvokedCommand,
+          numericValue,
+          setNumericValue,
+          actionResult,
+          setActionResult,
+          selectedIds,
+          setSelectedIds,
+          secondarySelected,
+          setSecondarySelected,
           enabled,
           setEnabled,
           approved,
           setApproved,
+          expandedIds,
+          setExpandedIds,
+          splitPercent,
+          setSplitPercent,
         })}
       </Surface>
     </AtlasRoot>
