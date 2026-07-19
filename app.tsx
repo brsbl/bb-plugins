@@ -16,6 +16,7 @@ import {
 import {
   detailRowEndIndex,
   displayDomainIdentifier,
+  domainFilterFromIdentifier,
   filterRules,
   ruleIdFromPath,
   toggledRulePath,
@@ -142,29 +143,61 @@ function DomainPills({
   );
 }
 
+function DomainIdentifierPill({
+  identifier,
+  selectedDomain,
+  onSelect,
+}: {
+  identifier: string;
+  selectedDomain: string;
+  onSelect: (domain: string) => void;
+}) {
+  const filterDomain = domainFilterFromIdentifier(identifier);
+  const selected = selectedDomain === filterDomain;
+  const style = DOMAIN_STYLES[filterDomain] ?? DOMAIN_STYLES.all;
+  const label = displayDomainIdentifier(identifier);
+
+  return (
+    <button
+      type="button"
+      className={`inline-flex max-w-full items-center rounded-full border px-2 py-0.5 text-[11px] font-medium leading-4 text-foreground transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background ${selected ? style.selected : style.idle}`}
+      aria-label={`Filter rules by ${filterDomain} domain`}
+      aria-pressed={selected}
+      onClick={() => onSelect(filterDomain)}
+    >
+      <span className="truncate">{label}</span>
+    </button>
+  );
+}
+
 function RuleCard({
   rule,
   selected,
+  selectedDomain,
   onToggle,
+  onSelectDomain,
 }: {
   rule: DoctrineRule;
   selected: boolean;
+  selectedDomain: string;
   onToggle: () => void;
+  onSelectDomain: (domain: string) => void;
 }) {
   const detailId = `rule-detail-${rule.id}`;
   return (
-    <article className="min-w-0" id={`rule-card-${rule.id}`}>
-      <button
-        type="button"
-        className={`group flex h-full w-full flex-col rounded-xl border bg-card p-4 text-left text-card-foreground shadow-sm transition-colors hover:border-foreground/20 hover:bg-muted/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${selected ? "border-foreground/25 bg-muted/30 ring-1 ring-foreground/10" : "border-border"}`}
-        aria-controls={detailId}
-        aria-expanded={selected}
-        onClick={onToggle}
-      >
+    <article
+      className={`relative min-w-0 rounded-xl border bg-card text-card-foreground shadow-sm transition-colors hover:border-foreground/20 hover:bg-muted/30 ${selected ? "border-foreground/25 bg-muted/30 ring-1 ring-foreground/10" : "border-border"}`}
+      id={`rule-card-${rule.id}`}
+    >
+      <div className="pointer-events-none relative z-10 flex h-full flex-col p-4">
         <div className="flex w-full items-center justify-between gap-3">
-          <span className="truncate text-[11px] font-medium tracking-wide text-muted-foreground">
-            {displayDomainIdentifier(rule.domain)}
-          </span>
+          <div className="pointer-events-auto min-w-0">
+            <DomainIdentifierPill
+              identifier={rule.domain}
+              selectedDomain={selectedDomain}
+              onSelect={onSelectDomain}
+            />
+          </div>
           <StatusBadge status={rule.status} />
         </div>
         <h2 className="mt-2 text-base font-semibold leading-snug text-foreground">
@@ -179,7 +212,15 @@ function RuleCard({
           <span>{rule.confidence} confidence</span>
           <code className="ml-auto font-mono text-[10px] opacity-70">{rule.id}</code>
         </div>
-      </button>
+      </div>
+      <button
+        type="button"
+        className="absolute inset-0 z-0 rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+        aria-label={`${selected ? "Collapse" : "Expand"} rule: ${rule.title}`}
+        aria-controls={detailId}
+        aria-expanded={selected}
+        onClick={onToggle}
+      />
     </article>
   );
 }
@@ -224,11 +265,15 @@ function Fact({ label, children }: { label: string; children: React.ReactNode })
 function RuleDetail({
   rule,
   requestedId,
+  selectedDomain,
   onClose,
+  onSelectDomain,
 }: {
   rule: DoctrineRule | null;
   requestedId: string | null;
+  selectedDomain: string;
   onClose: () => void;
+  onSelectDomain: (domain: string) => void;
 }) {
   useEffect(() => {
     if (!requestedId) return;
@@ -262,9 +307,11 @@ function RuleDetail({
           <>
             <header className="border-b border-border pb-6 pr-10">
               <div className="flex items-center gap-2">
-                <span className="text-[11px] font-medium tracking-wide text-muted-foreground">
-                  {displayDomainIdentifier(rule.domain)}
-                </span>
+                <DomainIdentifierPill
+                  identifier={rule.domain}
+                  selectedDomain={selectedDomain}
+                  onSelect={onSelectDomain}
+                />
                 <StatusBadge status={rule.status} />
               </div>
               <h2 id="doctrine-rule-title" className="mt-2 text-2xl font-semibold leading-tight tracking-tight">
@@ -442,7 +489,13 @@ function DoctrineLibrary({ subPath }: { subPath: string }) {
           <section className="mx-auto grid w-full max-w-6xl grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3" aria-label="Design doctrine rules">
             {requestedId && !selectedRule ? (
               <div className="col-span-full" ref={detailRef}>
-                <RuleDetail rule={null} requestedId={requestedId} onClose={closeDetail} />
+                <RuleDetail
+                  rule={null}
+                  requestedId={requestedId}
+                  selectedDomain={domain}
+                  onClose={closeDetail}
+                  onSelectDomain={setDomain}
+                />
               </div>
             ) : null}
             {results.map((rule, index) => (
@@ -450,6 +503,7 @@ function DoctrineLibrary({ subPath }: { subPath: string }) {
                 <RuleCard
                   rule={rule}
                   selected={requestedId === rule.id}
+                  selectedDomain={domain}
                   onToggle={() => {
                     const nextPath = toggledRulePath(requestedId, rule.id);
                     if (!nextPath) {
@@ -461,13 +515,16 @@ function DoctrineLibrary({ subPath }: { subPath: string }) {
                       replace: requestedId !== null,
                     });
                   }}
+                  onSelectDomain={setDomain}
                 />
                 {index === detailAfterIndex ? (
                   <div className="col-span-full" ref={detailRef}>
                     <RuleDetail
                       rule={selectedRule}
                       requestedId={requestedId}
+                      selectedDomain={domain}
                       onClose={closeDetail}
+                      onSelectDomain={setDomain}
                     />
                   </div>
                 ) : null}
@@ -476,7 +533,13 @@ function DoctrineLibrary({ subPath }: { subPath: string }) {
           </section>
         ) : requestedId && !selectedRule ? (
           <div className="mx-auto w-full max-w-6xl" ref={detailRef}>
-            <RuleDetail rule={null} requestedId={requestedId} onClose={closeDetail} />
+            <RuleDetail
+              rule={null}
+              requestedId={requestedId}
+              selectedDomain={domain}
+              onClose={closeDetail}
+              onSelectDomain={setDomain}
+            />
           </div>
         ) : (
           <div className="grid min-h-72 place-content-center text-center">

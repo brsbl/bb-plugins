@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   detailRowEndIndex,
   displayDomainIdentifier,
+  domainFilterFromIdentifier,
   filterRules,
   ruleIdFromPath,
   rulePath,
@@ -84,5 +85,10 @@ describe("design doctrine library", () => {
     expect(displayDomainIdentifier("AI.CONTEXT")).toBe("ai.context");
     expect(displayDomainIdentifier(rule?.domain ?? "")).toBe("ai.context");
     expect(rule?.domain).toBe("ai.context");
+  });
+
+  it("maps rule-domain identifiers to the existing top-level filter", () => {
+    expect(domainFilterFromIdentifier("AI.CONTEXT")).toBe("ai");
+    expect(domainFilterFromIdentifier("information.hierarchy")).toBe("information");
   });
 });

@@ -4,6 +4,10 @@ export function displayDomainIdentifier(identifier: string): string {
   return identifier.toLocaleLowerCase();
 }
 
+export function domainFilterFromIdentifier(identifier: string): string {
+  return displayDomainIdentifier(identifier).split(".", 1)[0] || "all";
+}
+
 export function rulePath(id: string): string {
   return `rule/${encodeURIComponent(id)}`;
 }

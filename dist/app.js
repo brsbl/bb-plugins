@@ -70,6 +70,9 @@ var {
 function displayDomainIdentifier(identifier) {
   return identifier.toLocaleLowerCase();
 }
+function domainFilterFromIdentifier(identifier) {
+  return displayDomainIdentifier(identifier).split(".", 1)[0] || "all";
+}
 function rulePath(id) {
   return `rule/${encodeURIComponent(id)}`;
 }
@@ -241,39 +244,79 @@ function DomainPills({
     }
   );
 }
-function RuleCard({
-  rule,
-  selected,
-  onToggle
+function DomainIdentifierPill({
+  identifier,
+  selectedDomain,
+  onSelect
 }) {
-  const detailId = `rule-detail-${rule.id}`;
-  return /* @__PURE__ */ jsx("article", { className: "min-w-0", id: `rule-card-${rule.id}`, children: /* @__PURE__ */ jsxs(
+  const filterDomain = domainFilterFromIdentifier(identifier);
+  const selected = selectedDomain === filterDomain;
+  const style = DOMAIN_STYLES[filterDomain] ?? DOMAIN_STYLES.all;
+  const label = displayDomainIdentifier(identifier);
+  return /* @__PURE__ */ jsx(
     "button",
     {
       type: "button",
-      className: `group flex h-full w-full flex-col rounded-xl border bg-card p-4 text-left text-card-foreground shadow-sm transition-colors hover:border-foreground/20 hover:bg-muted/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${selected ? "border-foreground/25 bg-muted/30 ring-1 ring-foreground/10" : "border-border"}`,
-      "aria-controls": detailId,
-      "aria-expanded": selected,
-      onClick: onToggle,
+      className: `inline-flex max-w-full items-center rounded-full border px-2 py-0.5 text-[11px] font-medium leading-4 text-foreground transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background ${selected ? style.selected : style.idle}`,
+      "aria-label": `Filter rules by ${filterDomain} domain`,
+      "aria-pressed": selected,
+      onClick: () => onSelect(filterDomain),
+      children: /* @__PURE__ */ jsx("span", { className: "truncate", children: label })
+    }
+  );
+}
+function RuleCard({
+  rule,
+  selected,
+  selectedDomain,
+  onToggle,
+  onSelectDomain
+}) {
+  const detailId = `rule-detail-${rule.id}`;
+  return /* @__PURE__ */ jsxs(
+    "article",
+    {
+      className: `relative min-w-0 rounded-xl border bg-card text-card-foreground shadow-sm transition-colors hover:border-foreground/20 hover:bg-muted/30 ${selected ? "border-foreground/25 bg-muted/30 ring-1 ring-foreground/10" : "border-border"}`,
+      id: `rule-card-${rule.id}`,
       children: [
-        /* @__PURE__ */ jsxs("div", { className: "flex w-full items-center justify-between gap-3", children: [
-          /* @__PURE__ */ jsx("span", { className: "truncate text-[11px] font-medium tracking-wide text-muted-foreground", children: displayDomainIdentifier(rule.domain) }),
-          /* @__PURE__ */ jsx(StatusBadge, { status: rule.status })
-        ] }),
-        /* @__PURE__ */ jsx("h2", { className: "mt-2 text-base font-semibold leading-snug text-foreground", children: rule.title }),
-        /* @__PURE__ */ jsx("p", { className: "mt-1.5 line-clamp-3 text-sm leading-6 text-muted-foreground", children: rule.statement }),
-        /* @__PURE__ */ jsxs("div", { className: "mt-auto flex w-full items-center gap-2 pt-4 text-[11px] text-muted-foreground", children: [
-          /* @__PURE__ */ jsx("span", { children: rule.strength }),
-          /* @__PURE__ */ jsx("span", { "aria-hidden": "true", children: "\xB7" }),
-          /* @__PURE__ */ jsxs("span", { children: [
-            rule.confidence,
-            " confidence"
+        /* @__PURE__ */ jsxs("div", { className: "pointer-events-none relative z-10 flex h-full flex-col p-4", children: [
+          /* @__PURE__ */ jsxs("div", { className: "flex w-full items-center justify-between gap-3", children: [
+            /* @__PURE__ */ jsx("div", { className: "pointer-events-auto min-w-0", children: /* @__PURE__ */ jsx(
+              DomainIdentifierPill,
+              {
+                identifier: rule.domain,
+                selectedDomain,
+                onSelect: onSelectDomain
+              }
+            ) }),
+            /* @__PURE__ */ jsx(StatusBadge, { status: rule.status })
           ] }),
-          /* @__PURE__ */ jsx("code", { className: "ml-auto font-mono text-[10px] opacity-70", children: rule.id })
-        ] })
+          /* @__PURE__ */ jsx("h2", { className: "mt-2 text-base font-semibold leading-snug text-foreground", children: rule.title }),
+          /* @__PURE__ */ jsx("p", { className: "mt-1.5 line-clamp-3 text-sm leading-6 text-muted-foreground", children: rule.statement }),
+          /* @__PURE__ */ jsxs("div", { className: "mt-auto flex w-full items-center gap-2 pt-4 text-[11px] text-muted-foreground", children: [
+            /* @__PURE__ */ jsx("span", { children: rule.strength }),
+            /* @__PURE__ */ jsx("span", { "aria-hidden": "true", children: "\xB7" }),
+            /* @__PURE__ */ jsxs("span", { children: [
+              rule.confidence,
+              " confidence"
+            ] }),
+            /* @__PURE__ */ jsx("code", { className: "ml-auto font-mono text-[10px] opacity-70", children: rule.id })
+          ] })
+        ] }),
+        /* @__PURE__ */ jsx(
+          "button",
+          {
+            type: "button",
+            className: "absolute inset-0 z-0 rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
+            "aria-label": `${selected ? "Collapse" : "Expand"} rule: ${rule.title}`,
+            "aria-controls": detailId,
+            "aria-expanded": selected,
+            onClick: onToggle
+          }
+        )
       ]
     }
-  ) });
+  );
 }
 function ListSection({
   title,
@@ -299,7 +342,9 @@ function Fact({ label, children }) {
 function RuleDetail({
   rule,
   requestedId,
-  onClose
+  selectedDomain,
+  onClose,
+  onSelectDomain
 }) {
   useEffect(() => {
     if (!requestedId) return;
@@ -331,7 +376,14 @@ function RuleDetail({
         rule ? /* @__PURE__ */ jsxs(Fragment2, { children: [
           /* @__PURE__ */ jsxs("header", { className: "border-b border-border pb-6 pr-10", children: [
             /* @__PURE__ */ jsxs("div", { className: "flex items-center gap-2", children: [
-              /* @__PURE__ */ jsx("span", { className: "text-[11px] font-medium tracking-wide text-muted-foreground", children: displayDomainIdentifier(rule.domain) }),
+              /* @__PURE__ */ jsx(
+                DomainIdentifierPill,
+                {
+                  identifier: rule.domain,
+                  selectedDomain,
+                  onSelect: onSelectDomain
+                }
+              ),
               /* @__PURE__ */ jsx(StatusBadge, { status: rule.status })
             ] }),
             /* @__PURE__ */ jsx("h2", { id: "doctrine-rule-title", className: "mt-2 text-2xl font-semibold leading-tight tracking-tight", children: rule.title }),
@@ -481,13 +533,23 @@ function DoctrineLibrary({ subPath }) {
       /* @__PURE__ */ jsx("p", { className: "mt-1 max-w-md text-sm text-muted-foreground", children: error }),
       /* @__PURE__ */ jsx("button", { type: "button", className: "mx-auto mt-4 rounded-lg border border-border px-3 py-1.5 text-sm hover:bg-muted", onClick: () => void load(), children: "Retry" })
     ] }) : loading && !library ? /* @__PURE__ */ jsx("div", { className: "grid min-h-72 place-content-center text-sm text-muted-foreground", children: "Loading rules\u2026" }) : results.length ? /* @__PURE__ */ jsxs("section", { className: "mx-auto grid w-full max-w-6xl grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3", "aria-label": "Design doctrine rules", children: [
-      requestedId && !selectedRule ? /* @__PURE__ */ jsx("div", { className: "col-span-full", ref: detailRef, children: /* @__PURE__ */ jsx(RuleDetail, { rule: null, requestedId, onClose: closeDetail }) }) : null,
+      requestedId && !selectedRule ? /* @__PURE__ */ jsx("div", { className: "col-span-full", ref: detailRef, children: /* @__PURE__ */ jsx(
+        RuleDetail,
+        {
+          rule: null,
+          requestedId,
+          selectedDomain: domain,
+          onClose: closeDetail,
+          onSelectDomain: setDomain
+        }
+      ) }) : null,
       results.map((rule, index) => /* @__PURE__ */ jsxs(Fragment, { children: [
         /* @__PURE__ */ jsx(
           RuleCard,
           {
             rule,
             selected: requestedId === rule.id,
+            selectedDomain: domain,
             onToggle: () => {
               const nextPath = toggledRulePath(requestedId, rule.id);
               if (!nextPath) {
@@ -498,7 +560,8 @@ function DoctrineLibrary({ subPath }) {
                 subPath: nextPath,
                 replace: requestedId !== null
               });
-            }
+            },
+            onSelectDomain: setDomain
           }
         ),
         index === detailAfterIndex ? /* @__PURE__ */ jsx("div", { className: "col-span-full", ref: detailRef, children: /* @__PURE__ */ jsx(
@@ -506,11 +569,22 @@ function DoctrineLibrary({ subPath }) {
           {
             rule: selectedRule,
             requestedId,
-            onClose: closeDetail
+            selectedDomain: domain,
+            onClose: closeDetail,
+            onSelectDomain: setDomain
           }
         ) }) : null
       ] }, rule.id))
-    ] }) : requestedId && !selectedRule ? /* @__PURE__ */ jsx("div", { className: "mx-auto w-full max-w-6xl", ref: detailRef, children: /* @__PURE__ */ jsx(RuleDetail, { rule: null, requestedId, onClose: closeDetail }) }) : /* @__PURE__ */ jsxs("div", { className: "grid min-h-72 place-content-center text-center", children: [
+    ] }) : requestedId && !selectedRule ? /* @__PURE__ */ jsx("div", { className: "mx-auto w-full max-w-6xl", ref: detailRef, children: /* @__PURE__ */ jsx(
+      RuleDetail,
+      {
+        rule: null,
+        requestedId,
+        selectedDomain: domain,
+        onClose: closeDetail,
+        onSelectDomain: setDomain
+      }
+    ) }) : /* @__PURE__ */ jsxs("div", { className: "grid min-h-72 place-content-center text-center", children: [
       /* @__PURE__ */ jsx("strong", { className: "text-sm font-semibold", children: "No rules found" }),
       /* @__PURE__ */ jsx("p", { className: "mt-1 text-sm text-muted-foreground", children: "Try a different search or filter." })
     ] }) })
