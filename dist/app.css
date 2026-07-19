@@ -421,20 +421,32 @@
       border-bottom-style: var(--tw-border-style);
       border-bottom-width: 1px;
     }
-    .border-amber-500\/20 {
-      border-color: color-mix(in srgb, oklch(76.9% 0.188 70.08) 20%, transparent);
+    .border-amber-500\/10 {
+      border-color: color-mix(in srgb, oklch(76.9% 0.188 70.08) 10%, transparent);
       @supports (color: color-mix(in lab, red, red)) {
-        border-color: color-mix(in oklab, var(--color-amber-500) 20%, transparent);
+        border-color: color-mix(in oklab, var(--color-amber-500) 10%, transparent);
       }
     }
-    .border-amber-500\/50 {
-      border-color: color-mix(in srgb, oklch(76.9% 0.188 70.08) 50%, transparent);
+    .border-amber-500\/30 {
+      border-color: color-mix(in srgb, oklch(76.9% 0.188 70.08) 30%, transparent);
       @supports (color: color-mix(in lab, red, red)) {
-        border-color: color-mix(in oklab, var(--color-amber-500) 50%, transparent);
+        border-color: color-mix(in oklab, var(--color-amber-500) 30%, transparent);
       }
     }
     .border-border {
       border-color: var(--border);
+    }
+    .border-border\/60 {
+      border-color: var(--border);
+      @supports (color: color-mix(in lab, red, red)) {
+        border-color: color-mix(in oklab, var(--border) 60%, transparent);
+      }
+    }
+    .border-foreground\/20 {
+      border-color: var(--foreground);
+      @supports (color: color-mix(in lab, red, red)) {
+        border-color: color-mix(in oklab, var(--foreground) 20%, transparent);
+      }
     }
     .border-foreground\/25 {
       border-color: var(--foreground);
@@ -442,91 +454,91 @@
         border-color: color-mix(in oklab, var(--foreground) 25%, transparent);
       }
     }
-    .border-indigo-500\/20 {
-      border-color: color-mix(in srgb, oklch(58.5% 0.233 277.117) 20%, transparent);
+    .border-indigo-500\/10 {
+      border-color: color-mix(in srgb, oklch(58.5% 0.233 277.117) 10%, transparent);
       @supports (color: color-mix(in lab, red, red)) {
-        border-color: color-mix(in oklab, var(--color-indigo-500) 20%, transparent);
+        border-color: color-mix(in oklab, var(--color-indigo-500) 10%, transparent);
       }
     }
-    .border-indigo-500\/50 {
-      border-color: color-mix(in srgb, oklch(58.5% 0.233 277.117) 50%, transparent);
+    .border-indigo-500\/30 {
+      border-color: color-mix(in srgb, oklch(58.5% 0.233 277.117) 30%, transparent);
       @supports (color: color-mix(in lab, red, red)) {
-        border-color: color-mix(in oklab, var(--color-indigo-500) 50%, transparent);
+        border-color: color-mix(in oklab, var(--color-indigo-500) 30%, transparent);
       }
     }
     .border-input {
       border-color: var(--input);
     }
-    .border-lime-500\/20 {
-      border-color: color-mix(in srgb, oklch(76.8% 0.233 130.85) 20%, transparent);
+    .border-lime-500\/10 {
+      border-color: color-mix(in srgb, oklch(76.8% 0.233 130.85) 10%, transparent);
       @supports (color: color-mix(in lab, red, red)) {
-        border-color: color-mix(in oklab, var(--color-lime-500) 20%, transparent);
+        border-color: color-mix(in oklab, var(--color-lime-500) 10%, transparent);
       }
     }
-    .border-lime-500\/50 {
-      border-color: color-mix(in srgb, oklch(76.8% 0.233 130.85) 50%, transparent);
+    .border-lime-500\/30 {
+      border-color: color-mix(in srgb, oklch(76.8% 0.233 130.85) 30%, transparent);
       @supports (color: color-mix(in lab, red, red)) {
-        border-color: color-mix(in oklab, var(--color-lime-500) 50%, transparent);
+        border-color: color-mix(in oklab, var(--color-lime-500) 30%, transparent);
       }
     }
-    .border-orange-500\/20 {
-      border-color: color-mix(in srgb, oklch(70.5% 0.213 47.604) 20%, transparent);
+    .border-orange-500\/10 {
+      border-color: color-mix(in srgb, oklch(70.5% 0.213 47.604) 10%, transparent);
       @supports (color: color-mix(in lab, red, red)) {
-        border-color: color-mix(in oklab, var(--color-orange-500) 20%, transparent);
+        border-color: color-mix(in oklab, var(--color-orange-500) 10%, transparent);
       }
     }
-    .border-orange-500\/50 {
-      border-color: color-mix(in srgb, oklch(70.5% 0.213 47.604) 50%, transparent);
+    .border-orange-500\/30 {
+      border-color: color-mix(in srgb, oklch(70.5% 0.213 47.604) 30%, transparent);
       @supports (color: color-mix(in lab, red, red)) {
-        border-color: color-mix(in oklab, var(--color-orange-500) 50%, transparent);
+        border-color: color-mix(in oklab, var(--color-orange-500) 30%, transparent);
       }
     }
-    .border-pink-500\/20 {
-      border-color: color-mix(in srgb, oklch(65.6% 0.241 354.308) 20%, transparent);
+    .border-pink-500\/10 {
+      border-color: color-mix(in srgb, oklch(65.6% 0.241 354.308) 10%, transparent);
       @supports (color: color-mix(in lab, red, red)) {
-        border-color: color-mix(in oklab, var(--color-pink-500) 20%, transparent);
+        border-color: color-mix(in oklab, var(--color-pink-500) 10%, transparent);
       }
     }
-    .border-pink-500\/50 {
-      border-color: color-mix(in srgb, oklch(65.6% 0.241 354.308) 50%, transparent);
+    .border-pink-500\/30 {
+      border-color: color-mix(in srgb, oklch(65.6% 0.241 354.308) 30%, transparent);
       @supports (color: color-mix(in lab, red, red)) {
-        border-color: color-mix(in oklab, var(--color-pink-500) 50%, transparent);
+        border-color: color-mix(in oklab, var(--color-pink-500) 30%, transparent);
       }
     }
-    .border-sky-500\/20 {
-      border-color: color-mix(in srgb, oklch(68.5% 0.169 237.323) 20%, transparent);
+    .border-sky-500\/10 {
+      border-color: color-mix(in srgb, oklch(68.5% 0.169 237.323) 10%, transparent);
       @supports (color: color-mix(in lab, red, red)) {
-        border-color: color-mix(in oklab, var(--color-sky-500) 20%, transparent);
+        border-color: color-mix(in oklab, var(--color-sky-500) 10%, transparent);
       }
     }
-    .border-sky-500\/50 {
-      border-color: color-mix(in srgb, oklch(68.5% 0.169 237.323) 50%, transparent);
+    .border-sky-500\/30 {
+      border-color: color-mix(in srgb, oklch(68.5% 0.169 237.323) 30%, transparent);
       @supports (color: color-mix(in lab, red, red)) {
-        border-color: color-mix(in oklab, var(--color-sky-500) 50%, transparent);
+        border-color: color-mix(in oklab, var(--color-sky-500) 30%, transparent);
       }
     }
-    .border-teal-500\/20 {
-      border-color: color-mix(in srgb, oklch(70.4% 0.14 182.503) 20%, transparent);
+    .border-teal-500\/10 {
+      border-color: color-mix(in srgb, oklch(70.4% 0.14 182.503) 10%, transparent);
       @supports (color: color-mix(in lab, red, red)) {
-        border-color: color-mix(in oklab, var(--color-teal-500) 20%, transparent);
+        border-color: color-mix(in oklab, var(--color-teal-500) 10%, transparent);
       }
     }
-    .border-teal-500\/50 {
-      border-color: color-mix(in srgb, oklch(70.4% 0.14 182.503) 50%, transparent);
+    .border-teal-500\/30 {
+      border-color: color-mix(in srgb, oklch(70.4% 0.14 182.503) 30%, transparent);
       @supports (color: color-mix(in lab, red, red)) {
-        border-color: color-mix(in oklab, var(--color-teal-500) 50%, transparent);
+        border-color: color-mix(in oklab, var(--color-teal-500) 30%, transparent);
       }
     }
-    .border-violet-500\/20 {
-      border-color: color-mix(in srgb, oklch(60.6% 0.25 292.717) 20%, transparent);
+    .border-violet-500\/10 {
+      border-color: color-mix(in srgb, oklch(60.6% 0.25 292.717) 10%, transparent);
       @supports (color: color-mix(in lab, red, red)) {
-        border-color: color-mix(in oklab, var(--color-violet-500) 20%, transparent);
+        border-color: color-mix(in oklab, var(--color-violet-500) 10%, transparent);
       }
     }
-    .border-violet-500\/50 {
-      border-color: color-mix(in srgb, oklch(60.6% 0.25 292.717) 50%, transparent);
+    .border-violet-500\/30 {
+      border-color: color-mix(in srgb, oklch(60.6% 0.25 292.717) 30%, transparent);
       @supports (color: color-mix(in lab, red, red)) {
-        border-color: color-mix(in oklab, var(--color-violet-500) 50%, transparent);
+        border-color: color-mix(in oklab, var(--color-violet-500) 30%, transparent);
       }
     }
     .bg-background {
@@ -1160,10 +1172,16 @@
       --tw-ring-shadow: var(--tw-ring-inset,) 0 0 0 calc(1px + var(--tw-ring-offset-width)) var(--tw-ring-color, currentcolor);
       box-shadow: var(--tw-inset-shadow), var(--tw-inset-ring-shadow), var(--tw-ring-offset-shadow), var(--tw-ring-shadow), var(--tw-shadow);
     }
-    .ring-amber-500\/30 {
-      --tw-ring-color: color-mix(in srgb, oklch(76.9% 0.188 70.08) 30%, transparent);
+    .ring-amber-500\/20 {
+      --tw-ring-color: color-mix(in srgb, oklch(76.9% 0.188 70.08) 20%, transparent);
       @supports (color: color-mix(in lab, red, red)) {
-        --tw-ring-color: color-mix(in oklab, var(--color-amber-500) 30%, transparent);
+        --tw-ring-color: color-mix(in oklab, var(--color-amber-500) 20%, transparent);
+      }
+    }
+    .ring-foreground\/8 {
+      --tw-ring-color: var(--foreground);
+      @supports (color: color-mix(in lab, red, red)) {
+        --tw-ring-color: color-mix(in oklab, var(--foreground) 8%, transparent);
       }
     }
     .ring-foreground\/10 {
@@ -1172,46 +1190,46 @@
         --tw-ring-color: color-mix(in oklab, var(--foreground) 10%, transparent);
       }
     }
-    .ring-indigo-500\/30 {
-      --tw-ring-color: color-mix(in srgb, oklch(58.5% 0.233 277.117) 30%, transparent);
+    .ring-indigo-500\/20 {
+      --tw-ring-color: color-mix(in srgb, oklch(58.5% 0.233 277.117) 20%, transparent);
       @supports (color: color-mix(in lab, red, red)) {
-        --tw-ring-color: color-mix(in oklab, var(--color-indigo-500) 30%, transparent);
+        --tw-ring-color: color-mix(in oklab, var(--color-indigo-500) 20%, transparent);
       }
     }
-    .ring-lime-500\/30 {
-      --tw-ring-color: color-mix(in srgb, oklch(76.8% 0.233 130.85) 30%, transparent);
+    .ring-lime-500\/20 {
+      --tw-ring-color: color-mix(in srgb, oklch(76.8% 0.233 130.85) 20%, transparent);
       @supports (color: color-mix(in lab, red, red)) {
-        --tw-ring-color: color-mix(in oklab, var(--color-lime-500) 30%, transparent);
+        --tw-ring-color: color-mix(in oklab, var(--color-lime-500) 20%, transparent);
       }
     }
-    .ring-orange-500\/30 {
-      --tw-ring-color: color-mix(in srgb, oklch(70.5% 0.213 47.604) 30%, transparent);
+    .ring-orange-500\/20 {
+      --tw-ring-color: color-mix(in srgb, oklch(70.5% 0.213 47.604) 20%, transparent);
       @supports (color: color-mix(in lab, red, red)) {
-        --tw-ring-color: color-mix(in oklab, var(--color-orange-500) 30%, transparent);
+        --tw-ring-color: color-mix(in oklab, var(--color-orange-500) 20%, transparent);
       }
     }
-    .ring-pink-500\/30 {
-      --tw-ring-color: color-mix(in srgb, oklch(65.6% 0.241 354.308) 30%, transparent);
+    .ring-pink-500\/20 {
+      --tw-ring-color: color-mix(in srgb, oklch(65.6% 0.241 354.308) 20%, transparent);
       @supports (color: color-mix(in lab, red, red)) {
-        --tw-ring-color: color-mix(in oklab, var(--color-pink-500) 30%, transparent);
+        --tw-ring-color: color-mix(in oklab, var(--color-pink-500) 20%, transparent);
       }
     }
-    .ring-sky-500\/30 {
-      --tw-ring-color: color-mix(in srgb, oklch(68.5% 0.169 237.323) 30%, transparent);
+    .ring-sky-500\/20 {
+      --tw-ring-color: color-mix(in srgb, oklch(68.5% 0.169 237.323) 20%, transparent);
       @supports (color: color-mix(in lab, red, red)) {
-        --tw-ring-color: color-mix(in oklab, var(--color-sky-500) 30%, transparent);
+        --tw-ring-color: color-mix(in oklab, var(--color-sky-500) 20%, transparent);
       }
     }
-    .ring-teal-500\/30 {
-      --tw-ring-color: color-mix(in srgb, oklch(70.4% 0.14 182.503) 30%, transparent);
+    .ring-teal-500\/20 {
+      --tw-ring-color: color-mix(in srgb, oklch(70.4% 0.14 182.503) 20%, transparent);
       @supports (color: color-mix(in lab, red, red)) {
-        --tw-ring-color: color-mix(in oklab, var(--color-teal-500) 30%, transparent);
+        --tw-ring-color: color-mix(in oklab, var(--color-teal-500) 20%, transparent);
       }
     }
-    .ring-violet-500\/30 {
-      --tw-ring-color: color-mix(in srgb, oklch(60.6% 0.25 292.717) 30%, transparent);
+    .ring-violet-500\/20 {
+      --tw-ring-color: color-mix(in srgb, oklch(60.6% 0.25 292.717) 20%, transparent);
       @supports (color: color-mix(in lab, red, red)) {
-        --tw-ring-color: color-mix(in oklab, var(--color-violet-500) 30%, transparent);
+        --tw-ring-color: color-mix(in oklab, var(--color-violet-500) 20%, transparent);
       }
     }
     .filter {
@@ -1247,12 +1265,22 @@
         color: var(--muted-foreground);
       }
     }
-    .hover\:border-amber-500\/40 {
+    .hover\:border-amber-500\/25 {
       &:hover {
         @media (hover: hover) {
-          border-color: color-mix(in srgb, oklch(76.9% 0.188 70.08) 40%, transparent);
+          border-color: color-mix(in srgb, oklch(76.9% 0.188 70.08) 25%, transparent);
           @supports (color: color-mix(in lab, red, red)) {
-            border-color: color-mix(in oklab, var(--color-amber-500) 40%, transparent);
+            border-color: color-mix(in oklab, var(--color-amber-500) 25%, transparent);
+          }
+        }
+      }
+    }
+    .hover\:border-foreground\/15 {
+      &:hover {
+        @media (hover: hover) {
+          border-color: var(--foreground);
+          @supports (color: color-mix(in lab, red, red)) {
+            border-color: color-mix(in oklab, var(--foreground) 15%, transparent);
           }
         }
       }
@@ -1267,72 +1295,72 @@
         }
       }
     }
-    .hover\:border-indigo-500\/40 {
+    .hover\:border-indigo-500\/25 {
       &:hover {
         @media (hover: hover) {
-          border-color: color-mix(in srgb, oklch(58.5% 0.233 277.117) 40%, transparent);
+          border-color: color-mix(in srgb, oklch(58.5% 0.233 277.117) 25%, transparent);
           @supports (color: color-mix(in lab, red, red)) {
-            border-color: color-mix(in oklab, var(--color-indigo-500) 40%, transparent);
+            border-color: color-mix(in oklab, var(--color-indigo-500) 25%, transparent);
           }
         }
       }
     }
-    .hover\:border-lime-500\/40 {
+    .hover\:border-lime-500\/25 {
       &:hover {
         @media (hover: hover) {
-          border-color: color-mix(in srgb, oklch(76.8% 0.233 130.85) 40%, transparent);
+          border-color: color-mix(in srgb, oklch(76.8% 0.233 130.85) 25%, transparent);
           @supports (color: color-mix(in lab, red, red)) {
-            border-color: color-mix(in oklab, var(--color-lime-500) 40%, transparent);
+            border-color: color-mix(in oklab, var(--color-lime-500) 25%, transparent);
           }
         }
       }
     }
-    .hover\:border-orange-500\/40 {
+    .hover\:border-orange-500\/25 {
       &:hover {
         @media (hover: hover) {
-          border-color: color-mix(in srgb, oklch(70.5% 0.213 47.604) 40%, transparent);
+          border-color: color-mix(in srgb, oklch(70.5% 0.213 47.604) 25%, transparent);
           @supports (color: color-mix(in lab, red, red)) {
-            border-color: color-mix(in oklab, var(--color-orange-500) 40%, transparent);
+            border-color: color-mix(in oklab, var(--color-orange-500) 25%, transparent);
           }
         }
       }
     }
-    .hover\:border-pink-500\/40 {
+    .hover\:border-pink-500\/25 {
       &:hover {
         @media (hover: hover) {
-          border-color: color-mix(in srgb, oklch(65.6% 0.241 354.308) 40%, transparent);
+          border-color: color-mix(in srgb, oklch(65.6% 0.241 354.308) 25%, transparent);
           @supports (color: color-mix(in lab, red, red)) {
-            border-color: color-mix(in oklab, var(--color-pink-500) 40%, transparent);
+            border-color: color-mix(in oklab, var(--color-pink-500) 25%, transparent);
           }
         }
       }
     }
-    .hover\:border-sky-500\/40 {
+    .hover\:border-sky-500\/25 {
       &:hover {
         @media (hover: hover) {
-          border-color: color-mix(in srgb, oklch(68.5% 0.169 237.323) 40%, transparent);
+          border-color: color-mix(in srgb, oklch(68.5% 0.169 237.323) 25%, transparent);
           @supports (color: color-mix(in lab, red, red)) {
-            border-color: color-mix(in oklab, var(--color-sky-500) 40%, transparent);
+            border-color: color-mix(in oklab, var(--color-sky-500) 25%, transparent);
           }
         }
       }
     }
-    .hover\:border-teal-500\/40 {
+    .hover\:border-teal-500\/25 {
       &:hover {
         @media (hover: hover) {
-          border-color: color-mix(in srgb, oklch(70.4% 0.14 182.503) 40%, transparent);
+          border-color: color-mix(in srgb, oklch(70.4% 0.14 182.503) 25%, transparent);
           @supports (color: color-mix(in lab, red, red)) {
-            border-color: color-mix(in oklab, var(--color-teal-500) 40%, transparent);
+            border-color: color-mix(in oklab, var(--color-teal-500) 25%, transparent);
           }
         }
       }
     }
-    .hover\:border-violet-500\/40 {
+    .hover\:border-violet-500\/25 {
       &:hover {
         @media (hover: hover) {
-          border-color: color-mix(in srgb, oklch(60.6% 0.25 292.717) 40%, transparent);
+          border-color: color-mix(in srgb, oklch(60.6% 0.25 292.717) 25%, transparent);
           @supports (color: color-mix(in lab, red, red)) {
-            border-color: color-mix(in oklab, var(--color-violet-500) 40%, transparent);
+            border-color: color-mix(in oklab, var(--color-violet-500) 25%, transparent);
           }
         }
       }
