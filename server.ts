@@ -318,7 +318,14 @@ export default async function plugin(bb: BbPluginApi) {
         return { requestId: input.requestId, helperThreadId };
       } catch (error) {
         if (helperThreadId !== null) {
-          await archiveHelper(helperThreadId);
+          try {
+            await clearRequest(input.requestId, helperThreadId);
+          } catch (cleanupError) {
+            bb.log.warn(
+              `could not clear failed Prompt Shaper request ${input.requestId}: ${errorMessage(cleanupError)}`,
+            );
+          }
+          await cancelHelper(helperThreadId);
         }
         throw error;
       } finally {

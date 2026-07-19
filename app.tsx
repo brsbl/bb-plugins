@@ -30,6 +30,10 @@ interface UndoState {
 }
 
 const PENDING_STORAGE_PREFIX = "bb-plugin-prompt-shaper:pending:";
+const pendingUnmountInvalidations = new Map<
+  string,
+  { owner: object; request: PendingRequest }
+>();
 const THREAD_ROW_STATUS = {
   icon: "AiContentGenerator01",
   label: "Prompt Shaper improving prompt",
@@ -41,7 +45,10 @@ function pendingStorageKey(composerScopeKey: string): string {
   return `${PENDING_STORAGE_PREFIX}${composerScopeKey}`;
 }
 
-function loadPendingRequest(composerScopeKey: string): PendingRequest | null {
+function loadPendingRequest(
+  composerScopeKey: string,
+  owner: object,
+): PendingRequest | null {
   try {
     const raw = window.sessionStorage.getItem(
       pendingStorageKey(composerScopeKey),
@@ -56,10 +63,16 @@ function loadPendingRequest(composerScopeKey: string): PendingRequest | null {
       "scopeKey" in value &&
       value.scopeKey === composerScopeKey
     ) {
-      return {
+      const request = {
         requestId: value.requestId,
         scopeKey: value.scopeKey,
       };
+      const invalidation = pendingUnmountInvalidations.get(request.requestId);
+      if (invalidation !== undefined && invalidation.owner !== owner) {
+        clearPendingRequest(request);
+        return null;
+      }
+      return request;
     }
   } catch {
     // Session storage is a recovery aid; enhancement still works without it.
@@ -108,17 +121,21 @@ function PromptShaperAction({
   const composer = useComposer();
   const composerScopeKey = scopeKey(composer.scope);
   const rpc = useRpc<typeof rpcContract>();
+  const lifecycleOwnerRef = useRef<object>({});
   const [pending, setPending] = useState<PendingRequest | null>(() =>
-    loadPendingRequest(composerScopeKey),
+    loadPendingRequest(composerScopeKey, lifecycleOwnerRef.current),
   );
+  const initialPendingRef = useRef(pending);
   const pendingRef = useRef<PendingRequest | null>(pending);
   const composerRef = useRef(composer);
+  const rpcRef = useRef(rpc);
   const composerScopeKeyRef = useRef(composerScopeKey);
   const previousComposerScopeKeyRef = useRef(composerScopeKey);
   const [isHovered, setIsHovered] = useState(false);
   const [isKeyboardFocused, setIsKeyboardFocused] = useState(false);
   const [undoState, setUndoState] = useState<UndoState | null>(null);
   composerRef.current = composer;
+  rpcRef.current = rpc;
   composerScopeKeyRef.current = composerScopeKey;
   const isRunning = pending?.scopeKey === composerScopeKey;
   const canUndo =
@@ -170,6 +187,47 @@ function PromptShaperAction({
       composer.setThreadRowStatus?.(null);
     };
   }, [composer.setTextEffect, composer.setThreadRowStatus, composerScopeKey]);
+
+  useEffect(() => {
+    const owner = lifecycleOwnerRef.current;
+    const recoveredRequest = initialPendingRef.current;
+    if (recoveredRequest !== null) {
+      const invalidation = pendingUnmountInvalidations.get(
+        recoveredRequest.requestId,
+      );
+      if (invalidation?.owner === owner) {
+        pendingUnmountInvalidations.delete(recoveredRequest.requestId);
+        pendingRef.current = recoveredRequest;
+      } else if (invalidation !== undefined) {
+        pendingRef.current = null;
+        clearPendingRequest(recoveredRequest);
+        setPending(null);
+      }
+    }
+    return () => {
+      const staleRequest = pendingRef.current;
+      if (staleRequest === null) return;
+      pendingRef.current = null;
+      pendingUnmountInvalidations.set(staleRequest.requestId, {
+        owner,
+        request: staleRequest,
+      });
+      queueMicrotask(() => {
+        const invalidation = pendingUnmountInvalidations.get(
+          staleRequest.requestId,
+        );
+        if (invalidation?.owner !== owner) return;
+        pendingUnmountInvalidations.delete(staleRequest.requestId);
+        clearPendingRequest(staleRequest);
+        void rpcRef.current
+          .call("cancelEnhancement", { requestId: staleRequest.requestId })
+          .catch(() => {
+            // Ownership is already invalidated locally. The server may have
+            // completed or become unavailable while this composer unmounted.
+          });
+      });
+    };
+  }, []);
 
   const clearLoadingEffects = useCallback(() => {
     composerRef.current.setTextEffect?.(null);

@@ -170,6 +170,29 @@ describe("Prompt Shaper cancellation", () => {
     });
     expect([...harness.kv.keys()]).toEqual([]);
   });
+
+  it("stops the helper and clears persisted state when startup reconciliation fails", async () => {
+    const harness = await createHarness({
+      get: async () => {
+        throw new Error("helper status unavailable");
+      },
+    });
+
+    await expect(harness.rpc.startEnhancement(START_INPUT)).rejects.toThrow(
+      "helper status unavailable",
+    );
+    expect(harness.threads.stop).toHaveBeenCalledWith({
+      threadId: "thr_helper",
+    });
+    expect(harness.threads.archive).toHaveBeenCalledWith({
+      threadId: "thr_helper",
+    });
+    expect(
+      [...harness.kv.keys()].filter(
+        (key) => key.startsWith("request:") || key.startsWith("thread:"),
+      ),
+    ).toEqual([]);
+  });
 });
 
 describe("Prompt Shaper side-chat helpers", () => {

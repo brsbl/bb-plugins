@@ -14822,7 +14822,14 @@ async function plugin(bb) {
         return { requestId: input.requestId, helperThreadId };
       } catch (error51) {
         if (helperThreadId !== null) {
-          await archiveHelper(helperThreadId);
+          try {
+            await clearRequest(input.requestId, helperThreadId);
+          } catch (cleanupError) {
+            bb.log.warn(
+              `could not clear failed Prompt Shaper request ${input.requestId}: ${errorMessage(cleanupError)}`
+            );
+          }
+          await cancelHelper(helperThreadId);
         }
         throw error51;
       } finally {

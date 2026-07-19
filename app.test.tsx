@@ -8,7 +8,7 @@ import {
   screen,
   waitFor,
 } from "@testing-library/react";
-import type { ComponentType } from "react";
+import { StrictMode, type ComponentType } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { toast } from "sonner";
 
@@ -672,5 +672,137 @@ describe("Prompt Shaper composer action", () => {
     expect(
       screen.queryByRole("button", { name: "Undo prompt" }),
     ).toBeNull();
+  });
+
+  it("cancels pending work on unmount and ignores its late result after remount", async () => {
+    const result = deferred<{
+      requestId: string;
+      helperThreadId: string;
+      status: "complete";
+      enhancedPrompt: string;
+      assumptions: null;
+      createdAt: number;
+      completedAt: number;
+    }>();
+    const cancelEnhancement = vi.fn(() => ({ cancelled: true as const }));
+    resetTestPluginRuntime({
+      text: "side-chat draft before deactivation",
+      attachments: ["side-chat-brief.png"],
+      scope: {
+        kind: "side-chat",
+        projectId: "proj_1",
+        parentThreadId: "thr_parent",
+        tabId: "side-chat:one",
+        childThreadId: "thr_child",
+      },
+      rpc: {
+        startEnhancement: () => ({
+          requestId: REQUEST_ID,
+          helperThreadId: "thr_helper",
+        }),
+        getEnhancement: () => result.promise,
+        cancelEnhancement,
+      },
+    });
+    const Action = await loadAction();
+    const view = render(
+      <Action key="active" projectId="proj_1" threadId="thr_child" />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Improve prompt" }));
+    await waitFor(() => {
+      expect(getTestPluginRuntime().textEffect).toBe("shimmer");
+      expect(window.sessionStorage.length).toBe(1);
+    });
+
+    act(() => {
+      setTestComposerText("fresh draft after returning to the tab");
+      view.rerender(
+        <Action key="returned" projectId="proj_1" threadId="thr_child" />,
+      );
+    });
+
+    await waitFor(() => {
+      expect(cancelEnhancement).toHaveBeenCalledWith({
+        requestId: REQUEST_ID,
+      });
+      expect(window.sessionStorage.length).toBe(0);
+      expect(getTestPluginRuntime().textEffect).toBeNull();
+      expect(getTestPluginRuntime().threadRowStatus).toBeNull();
+      expect(
+        screen.getByRole("button", { name: "Improve prompt" }),
+      ).not.toBeNull();
+      expect(
+        screen.queryByRole("button", { name: "Undo prompt" }),
+      ).toBeNull();
+    });
+
+    await act(async () => {
+      result.resolve({
+        requestId: REQUEST_ID,
+        helperThreadId: "thr_helper",
+        status: "complete",
+        enhancedPrompt: "Late result from the inactive tab.",
+        assumptions: null,
+        createdAt: 1,
+        completedAt: 2,
+      });
+      await result.promise;
+      await Promise.resolve();
+    });
+
+    expect(getTestPluginRuntime().text).toBe(
+      "fresh draft after returning to the tab",
+    );
+    expect(getTestPluginRuntime().attachments).toEqual([
+      "side-chat-brief.png",
+    ]);
+  });
+
+  it("keeps recovered pending work active through StrictMode's synthetic teardown", async () => {
+    const cancelEnhancement = vi.fn(() => ({ cancelled: true as const }));
+    window.sessionStorage.setItem(
+      "bb-plugin-prompt-shaper:pending:thread:thr_source",
+      JSON.stringify({
+        requestId: REQUEST_ID,
+        scopeKey: "thread:thr_source",
+      }),
+    );
+    resetTestPluginRuntime({
+      text: "recovered draft",
+      scope: { kind: "thread", threadId: "thr_source" },
+      rpc: {
+        getEnhancement: () => ({
+          requestId: REQUEST_ID,
+          helperThreadId: "thr_helper",
+          status: "running",
+          createdAt: 1,
+        }),
+        cancelEnhancement,
+      },
+    });
+    const Action = await loadAction();
+    const view = render(
+      <StrictMode>
+        <Action projectId="proj_1" threadId="thr_source" />
+      </StrictMode>,
+    );
+
+    await waitFor(() => {
+      expect(
+        screen.getByRole("button", { name: "Cancel prompt improvement" }),
+      ).not.toBeNull();
+      expect(getTestPluginRuntime().textEffect).toBe("shimmer");
+      expect(window.sessionStorage.length).toBe(1);
+    });
+    expect(cancelEnhancement).not.toHaveBeenCalled();
+
+    view.unmount();
+    await waitFor(() => {
+      expect(cancelEnhancement).toHaveBeenCalledWith({
+        requestId: REQUEST_ID,
+      });
+      expect(window.sessionStorage.length).toBe(0);
+    });
   });
 });
