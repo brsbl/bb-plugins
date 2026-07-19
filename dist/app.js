@@ -4899,7 +4899,6 @@ function scopeKey(scope) {
 
 // app.tsx
 var PENDING_STORAGE_PREFIX = "bb-plugin-prompt-shaper:pending:";
-var pendingUnmountInvalidations = /* @__PURE__ */ new Map();
 var THREAD_ROW_STATUS = {
   icon: "AiContentGenerator01",
   label: "Prompt Shaper improving prompt",
@@ -4909,7 +4908,7 @@ var THREAD_ROW_STATUS = {
 function pendingStorageKey(composerScopeKey) {
   return `${PENDING_STORAGE_PREFIX}${composerScopeKey}`;
 }
-function loadPendingRequest(composerScopeKey, owner) {
+function loadPendingRequest(composerScopeKey) {
   try {
     const raw = window.sessionStorage.getItem(
       pendingStorageKey(composerScopeKey)
@@ -4917,16 +4916,10 @@ function loadPendingRequest(composerScopeKey, owner) {
     if (raw === null) return null;
     const value = JSON.parse(raw);
     if (typeof value === "object" && value !== null && "requestId" in value && typeof value.requestId === "string" && "scopeKey" in value && value.scopeKey === composerScopeKey) {
-      const request = {
+      return {
         requestId: value.requestId,
         scopeKey: value.scopeKey
       };
-      const invalidation = pendingUnmountInvalidations.get(request.requestId);
-      if (invalidation !== void 0 && invalidation.owner !== owner) {
-        clearPendingRequest(request);
-        return null;
-      }
-      return request;
     }
   } catch {
   }
@@ -4960,21 +4953,18 @@ function PromptShaperAction({
   const composer = useComposer();
   const composerScopeKey = scopeKey(composer.scope);
   const rpc = useRpc();
-  const lifecycleOwnerRef = useRef({});
   const [pending, setPending] = useState(
-    () => loadPendingRequest(composerScopeKey, lifecycleOwnerRef.current)
+    () => loadPendingRequest(composerScopeKey)
   );
-  const initialPendingRef = useRef(pending);
+  const reconcileRecoveredPendingRef = useRef(pending !== null);
   const pendingRef = useRef(pending);
   const composerRef = useRef(composer);
-  const rpcRef = useRef(rpc);
   const composerScopeKeyRef = useRef(composerScopeKey);
   const previousComposerScopeKeyRef = useRef(composerScopeKey);
   const [isHovered, setIsHovered] = useState(false);
   const [isKeyboardFocused, setIsKeyboardFocused] = useState(false);
   const [undoState, setUndoState] = useState(null);
   composerRef.current = composer;
-  rpcRef.current = rpc;
   composerScopeKeyRef.current = composerScopeKey;
   const isRunning = pending?.scopeKey === composerScopeKey;
   const canUndo = !isRunning && undoState?.scopeKey === composerScopeKey && composer.text === undoState.enhancedPrompt;
@@ -4988,13 +4978,20 @@ function PromptShaperAction({
   }, []);
   useEffect(() => {
     if (previousComposerScopeKeyRef.current === composerScopeKey) return;
+    const previousComposerScopeKey = previousComposerScopeKeyRef.current;
     previousComposerScopeKeyRef.current = composerScopeKey;
     const staleRequest = pendingRef.current;
-    if (staleRequest === null) return;
-    setPendingRequest(null);
-    void rpc.call("cancelEnhancement", { requestId: staleRequest.requestId }).catch(() => {
-    });
-  }, [composerScopeKey, rpc, setPendingRequest]);
+    const isThreadNavigation = previousComposerScopeKey.startsWith("thread:") && composerScopeKey.startsWith("thread:");
+    if (staleRequest !== null && !isThreadNavigation) {
+      clearPendingRequest(staleRequest);
+      void rpc.call("cancelEnhancement", { requestId: staleRequest.requestId }).catch(() => {
+      });
+    }
+    const recoveredRequest = loadPendingRequest(composerScopeKey);
+    pendingRef.current = recoveredRequest;
+    reconcileRecoveredPendingRef.current = recoveredRequest !== null;
+    setPending(recoveredRequest);
+  }, [composerScopeKey, rpc]);
   useEffect(() => {
     composer.setTextEffect?.(isRunning ? "shimmer" : null);
     composer.setThreadRowStatus?.(isRunning ? THREAD_ROW_STATUS : null);
@@ -5011,39 +5008,15 @@ function PromptShaperAction({
     };
   }, [composer.setTextEffect, composer.setThreadRowStatus, composerScopeKey]);
   useEffect(() => {
-    const owner = lifecycleOwnerRef.current;
-    const recoveredRequest = initialPendingRef.current;
-    if (recoveredRequest !== null) {
-      const invalidation = pendingUnmountInvalidations.get(
-        recoveredRequest.requestId
-      );
-      if (invalidation?.owner === owner) {
-        pendingUnmountInvalidations.delete(recoveredRequest.requestId);
-        pendingRef.current = recoveredRequest;
-      } else if (invalidation !== void 0) {
-        pendingRef.current = null;
-        clearPendingRequest(recoveredRequest);
-        setPending(null);
-      }
+    const recoveredRequest = loadPendingRequest(
+      composerScopeKeyRef.current
+    );
+    if (pendingRef.current === null && recoveredRequest !== null) {
+      pendingRef.current = recoveredRequest;
+      setPending(recoveredRequest);
     }
     return () => {
-      const staleRequest = pendingRef.current;
-      if (staleRequest === null) return;
       pendingRef.current = null;
-      pendingUnmountInvalidations.set(staleRequest.requestId, {
-        owner,
-        request: staleRequest
-      });
-      queueMicrotask(() => {
-        const invalidation = pendingUnmountInvalidations.get(
-          staleRequest.requestId
-        );
-        if (invalidation?.owner !== owner) return;
-        pendingUnmountInvalidations.delete(staleRequest.requestId);
-        clearPendingRequest(staleRequest);
-        void rpcRef.current.call("cancelEnhancement", { requestId: staleRequest.requestId }).catch(() => {
-        });
-      });
     };
   }, []);
   const clearLoadingEffects = useCallback(() => {
@@ -5107,6 +5080,10 @@ function PromptShaperAction({
   });
   useEffect(() => {
     if (!isRunning || pending === null) return;
+    if (reconcileRecoveredPendingRef.current) {
+      reconcileRecoveredPendingRef.current = false;
+      void consumeResult(pending.requestId);
+    }
     const timer = window.setInterval(() => {
       void consumeResult(pending.requestId);
     }, 2e3);
