@@ -314,7 +314,7 @@ function PromptShaperAction({
     action === "cancel"
       ? "Cancel prompt improvement"
       : action === "undo"
-        ? "Undo prompt improvement"
+        ? "Undo"
         : "Improve prompt";
   const iconName =
     action === "cancel"
@@ -376,7 +376,7 @@ function PromptShaperAction({
           {action === "cancel"
             ? "Cancel"
             : action === "undo"
-              ? "Undo prompt improvement"
+              ? "Undo"
               : "Improve prompt"}
         </TooltipContent>
       </Tooltip>

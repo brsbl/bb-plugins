@@ -111,7 +111,7 @@ describe("Prompt Shaper composer action", () => {
       expect(getTestPluginRuntime().text).toBe("Improved queued draft.");
       expect(getTestPluginRuntime().textEffect).toBeNull();
       expect(
-        screen.getByRole("button", { name: "Undo prompt improvement" }),
+        screen.getByRole("button", { name: "Undo" }),
       ).not.toBeNull();
     });
     expect(getTestPluginRuntime().attachments).toEqual(["queued-brief.png"]);
@@ -183,14 +183,14 @@ describe("Prompt Shaper composer action", () => {
     expect(toast.success).not.toHaveBeenCalled();
 
     const undoButton = screen.getByRole("button", {
-      name: "Undo prompt improvement",
+      name: "Undo",
     });
     expect(
       undoButton.querySelector('[data-icon="ArrowTurnBackward"]'),
     ).not.toBeNull();
     fireEvent.focus(undoButton);
     expect(
-      (await screen.findAllByText("Undo prompt improvement")).length,
+      (await screen.findAllByText("Undo")).length,
     ).toBeGreaterThan(0);
     fireEvent.click(undoButton);
 
@@ -231,12 +231,12 @@ describe("Prompt Shaper composer action", () => {
     render(<Action projectId="proj_1" threadId="thr_source" />);
 
     fireEvent.click(screen.getByRole("button", { name: "Improve prompt" }));
-    await screen.findByRole("button", { name: "Undo prompt improvement" });
+    await screen.findByRole("button", { name: "Undo" });
 
     act(() => setTestComposerText("Edited enhanced prompt."));
     await waitFor(() => {
       expect(
-        screen.queryByRole("button", { name: "Undo prompt improvement" }),
+        screen.queryByRole("button", { name: "Undo" }),
       ).toBeNull();
       expect(
         screen.getByRole("button", { name: "Improve prompt" }),
@@ -245,16 +245,16 @@ describe("Prompt Shaper composer action", () => {
 
     act(() => setTestComposerText("Enhanced prompt."));
     expect(
-      screen.queryByRole("button", { name: "Undo prompt improvement" }),
+      screen.queryByRole("button", { name: "Undo" }),
     ).toBeNull();
 
     fireEvent.click(screen.getByRole("button", { name: "Improve prompt" }));
-    await screen.findByRole("button", { name: "Undo prompt improvement" });
+    await screen.findByRole("button", { name: "Undo" });
     act(() => setTestComposerText(""));
 
     await waitFor(() => {
       expect(
-        screen.queryByRole("button", { name: "Undo prompt improvement" }),
+        screen.queryByRole("button", { name: "Undo" }),
       ).toBeNull();
       expect(
         (
@@ -291,21 +291,21 @@ describe("Prompt Shaper composer action", () => {
     const view = render(<Action projectId="proj_1" threadId="thr_source" />);
 
     fireEvent.click(screen.getByRole("button", { name: "Improve prompt" }));
-    await screen.findByRole("button", { name: "Undo prompt improvement" });
+    await screen.findByRole("button", { name: "Undo" });
     act(() => {
       setTestComposerScope({ kind: "thread", threadId: "thr_next" });
     });
 
     await waitFor(() => {
       expect(
-        screen.queryByRole("button", { name: "Undo prompt improvement" }),
+        screen.queryByRole("button", { name: "Undo" }),
       ).toBeNull();
     });
     view.unmount();
 
     render(<Action projectId="proj_1" threadId="thr_next" />);
     expect(
-      screen.queryByRole("button", { name: "Undo prompt improvement" }),
+      screen.queryByRole("button", { name: "Undo" }),
     ).toBeNull();
   });
 
@@ -369,7 +369,7 @@ describe("Prompt Shaper composer action", () => {
     expect(getTestPluginRuntime().text).toBe("keep this draft");
     expect(getTestPluginRuntime().attachments).toEqual(["brief.png"]);
     expect(
-      screen.queryByRole("button", { name: "Undo prompt improvement" }),
+      screen.queryByRole("button", { name: "Undo" }),
     ).toBeNull();
 
     await act(async () => {
@@ -515,7 +515,7 @@ describe("Prompt Shaper composer action", () => {
     });
     expect(getTestPluginRuntime().textEffectCalls).toContain("shimmer");
     expect(
-      screen.queryByRole("button", { name: "Undo prompt improvement" }),
+      screen.queryByRole("button", { name: "Undo" }),
     ).toBeNull();
   });
 });

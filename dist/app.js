@@ -5142,7 +5142,7 @@ function PromptShaperAction({
   }, [clearLoadingEffects, rpc, setPendingRequest]);
   const action = isRunning ? "cancel" : canUndo ? "undo" : "improve";
   const isDisabled = action === "improve" && (projectId === null || composer.text.trim().length === 0);
-  const actionLabel = action === "cancel" ? "Cancel prompt improvement" : action === "undo" ? "Undo prompt improvement" : "Improve prompt";
+  const actionLabel = action === "cancel" ? "Cancel prompt improvement" : action === "undo" ? "Undo" : "Improve prompt";
   const iconName = action === "cancel" ? showCancelIcon ? "X" : "AiScanText" : action === "undo" ? "ArrowTurnBackward" : "AiScanText";
   return /* @__PURE__ */ jsx(TooltipProvider2, { delayDuration: 300, children: /* @__PURE__ */ jsxs(Tooltip2, { children: [
     /* @__PURE__ */ jsx(TooltipTrigger2, { asChild: true, children: /* @__PURE__ */ jsx(
@@ -5178,7 +5178,7 @@ function PromptShaperAction({
         )
       }
     ) }),
-    /* @__PURE__ */ jsx(TooltipContent2, { side: "top", children: action === "cancel" ? "Cancel" : action === "undo" ? "Undo prompt improvement" : "Improve prompt" })
+    /* @__PURE__ */ jsx(TooltipContent2, { side: "top", children: action === "cancel" ? "Cancel" : action === "undo" ? "Undo" : "Improve prompt" })
   ] }) });
 }
 var app_default = definePluginApp((app) => {
