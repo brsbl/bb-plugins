@@ -319,9 +319,6 @@
     .w-8 {
       width: calc(var(--spacing) * 8);
     }
-    .w-9 {
-      width: calc(var(--spacing) * 9);
-    }
     .w-full {
       width: 100%;
     }
@@ -1125,6 +1122,9 @@
     }
     .opacity-70 {
       opacity: 70%;
+    }
+    .opacity-\[0\.85\] {
+      opacity: 0.85;
     }
     .shadow-sm {
       --tw-shadow: var(--shadow-sm);
@@ -1979,16 +1979,6 @@
       &:focus-visible {
         --tw-outline-style: none;
         outline-style: none;
-      }
-    }
-    .disabled\:cursor-wait {
-      &:disabled {
-        cursor: wait;
-      }
-    }
-    .disabled\:opacity-50 {
-      &:disabled {
-        opacity: 50%;
       }
     }
     .sm\:w-56 {

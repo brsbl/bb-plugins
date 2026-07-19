@@ -10,6 +10,7 @@ import {
   definePluginApp,
   useBbNavigate,
   useRealtime,
+  useRealtimeConnectionState,
   useRpc,
 } from "@bb/plugin-sdk/app";
 
@@ -115,7 +116,7 @@ function MeshFill({ start, end }: { start: string; end: string }) {
   return (
     <span
       aria-hidden="true"
-      className="pointer-events-none absolute inset-0 overflow-hidden rounded-[inherit]"
+      className="pointer-events-none absolute inset-0 overflow-hidden rounded-[inherit] opacity-[0.85]"
     >
       <span
         className={`absolute -left-3 -top-3 h-8 w-2/3 rounded-full blur-md transition-colors duration-200 ${start}`}
@@ -460,6 +461,9 @@ function RuleDetail({
 function DoctrineLibrary({ subPath }: { subPath: string }) {
   const rpc = useRpc<typeof rpcContract>();
   const navigate = useBbNavigate();
+  const connectionState = useRealtimeConnectionState();
+  const previousConnectionState = useRef(connectionState);
+  const hasConnected = useRef(connectionState !== "connecting");
   const [library, setLibrary] = useState<LibraryPayload | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -488,6 +492,14 @@ function DoctrineLibrary({ subPath }: { subPath: string }) {
   useRealtime("rules-changed", () => {
     void load();
   });
+
+  useEffect(() => {
+    const previous = previousConnectionState.current;
+    previousConnectionState.current = connectionState;
+    if (connectionState !== "connected" || previous === "connected") return;
+    if (hasConnected.current) void load();
+    hasConnected.current = true;
+  }, [connectionState, load]);
 
   const results = useMemo(() => {
     if (!library) return [];
@@ -534,20 +546,10 @@ function DoctrineLibrary({ subPath }: { subPath: string }) {
           selectedDomain={domain}
           onSelect={setDomain}
         />
-        <div className="ml-auto flex h-9 shrink-0 items-center gap-1.5">
+        <div className="ml-auto flex h-9 shrink-0 items-center">
           <span className="shrink-0 text-xs tabular-nums text-muted-foreground" role="status">
             {results.length} {results.length === 1 ? "rule" : "rules"}
           </span>
-          <button
-            type="button"
-            className="grid h-9 w-9 shrink-0 place-items-center rounded-lg text-lg text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-wait disabled:opacity-50"
-            title="Refresh"
-            aria-label="Refresh doctrine"
-            disabled={loading}
-            onClick={() => void load()}
-          >
-            ↻
-          </button>
         </div>
       </section>
 
