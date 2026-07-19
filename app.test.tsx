@@ -323,13 +323,20 @@ describe("Prompt Shaper composer action", () => {
     expect(screen.queryByRole("dialog")).toBeNull();
     expect(toast.success).not.toHaveBeenCalled();
 
-    const improveButtonAfterReplacement = screen.getByRole("button", {
-      name: "Improve prompt",
-    });
     const undoButton = screen.getByRole("button", {
       name: "Undo prompt",
     });
-    expect(improveButtonAfterReplacement.nextElementSibling).toBe(undoButton);
+    expect(
+      screen.queryByRole("button", { name: "Improve prompt" }),
+    ).toBeNull();
+    expect(
+      undoButton.closest("[data-prompt-shaper-actions]")?.querySelectorAll(
+        "button",
+      ),
+    ).toHaveLength(1);
+    expect(
+      undoButton.querySelector('[data-icon="AiContentGenerator01"]'),
+    ).not.toBeNull();
     expect(
       undoButton.querySelector('[data-icon="ArrowTurnBackward"]'),
     ).not.toBeNull();

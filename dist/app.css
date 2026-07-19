@@ -301,6 +301,9 @@
     .w-\[28px\] {
       width: 28px;
     }
+    .w-auto {
+      width: auto;
+    }
     .w-full {
       width: 100%;
     }
@@ -347,6 +350,9 @@
     }
     .justify-center {
       justify-content: center;
+    }
+    .gap-1 {
+      gap: calc(var(--spacing) * 1);
     }
     .gap-2 {
       gap: calc(var(--spacing) * 2);
@@ -448,6 +454,9 @@
     }
     .px-0 {
       padding-inline: calc(var(--spacing) * 0);
+    }
+    .px-1\.5 {
+      padding-inline: calc(var(--spacing) * 1.5);
     }
     .px-2 {
       padding-inline: calc(var(--spacing) * 2);

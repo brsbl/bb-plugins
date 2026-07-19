@@ -377,6 +377,7 @@ function PromptShaperAction({
   const actionLabel = isRunning
     ? "Cancel prompt improvement"
     : "Improve prompt";
+  const controlLabel = canUndo ? "Undo prompt" : actionLabel;
   const iconName =
     isRunning
       ? showCancelIcon
@@ -394,13 +395,15 @@ function PromptShaperAction({
               variant="ghost"
               size="icon"
               className={
-                isRunning && !showCancelIcon
+                canUndo
+                  ? "h-7 w-auto gap-1 px-1.5 text-muted-foreground"
+                  : isRunning && !showCancelIcon
                   ? "size-7 text-success"
                   : "size-7 text-muted-foreground"
               }
               disabled={isDisabled}
               aria-busy={isRunning}
-              aria-label={actionLabel}
+              aria-label={controlLabel}
               onMouseDown={(event) => {
                 // Keep narrow/inline composers expanded until the click is
                 // delivered. Their action row collapses when the editor blurs.
@@ -414,51 +417,44 @@ function PromptShaperAction({
               }
               onMouseEnter={() => setIsHovered(true)}
               onMouseLeave={() => setIsHovered(false)}
-              onClick={() => void (isRunning ? cancel() : enhance())}
-            >
-              <span
-                className={
-                  isRunning && !showCancelIcon
-                    ? "inline-flex size-4 items-center justify-center motion-safe:animate-pulse"
-                    : "inline-flex size-4 items-center justify-center"
+              onClick={() => {
+                if (canUndo) {
+                  undo();
+                  return;
                 }
-              >
-                <Icon
-                  name={iconName}
+                void (isRunning ? cancel() : enhance());
+              }}
+            >
+              {canUndo ? (
+                <>
+                  <Icon name="AiContentGenerator01" aria-hidden="true" />
+                  <Icon name="ArrowTurnBackward" aria-hidden="true" />
+                </>
+              ) : (
+                <span
                   className={
                     isRunning && !showCancelIcon
-                      ? "animate-shine-icon motion-safe:[animation-duration:1.5s]"
-                      : undefined
+                      ? "inline-flex size-4 items-center justify-center motion-safe:animate-pulse"
+                      : "inline-flex size-4 items-center justify-center"
                   }
-                  aria-hidden="true"
-                />
-              </span>
+                >
+                  <Icon
+                    name={iconName}
+                    className={
+                      isRunning && !showCancelIcon
+                        ? "animate-shine-icon motion-safe:[animation-duration:1.5s]"
+                        : undefined
+                    }
+                    aria-hidden="true"
+                  />
+                </span>
+              )}
             </Button>
           </TooltipTrigger>
           <TooltipContent side="top">
-            {isRunning ? "Cancel" : "Improve prompt"}
+            {canUndo ? "Undo prompt" : isRunning ? "Cancel" : "Improve prompt"}
           </TooltipContent>
         </Tooltip>
-        {canUndo ? (
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                className="size-7 text-muted-foreground"
-                aria-label="Undo prompt"
-                onMouseDown={(event) => {
-                  event.preventDefault();
-                }}
-                onClick={undo}
-              >
-                <Icon name="ArrowTurnBackward" aria-hidden="true" />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent side="top">Undo prompt</TooltipContent>
-          </Tooltip>
-        ) : null}
       </div>
     </TooltipProvider>
   );
