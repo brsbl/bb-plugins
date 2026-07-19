@@ -29,6 +29,7 @@ await build({
       'export * from "./providers/registry.ts";',
       'export * from "./providers/schema.ts";',
       'export * from "./providers/search.ts";',
+      'export * from "./providers/source-browser.ts";',
     ].join("\n"),
     loader: "ts",
     resolveDir: packageRoot,
@@ -146,6 +147,81 @@ test("offline search uses upstream names, aliases, summaries, and kinds", () => 
   );
 });
 
+test("source browser exposes the agreed read-only frontend contract", () => {
+  const snapshot = kernel.getSourceBrowserSnapshot();
+  assert.equal(snapshot.providers.length, 2);
+  assert.equal(snapshot.items.length, 125);
+  assert.equal(Object.isFrozen(snapshot), true);
+  assert.equal(Object.isFrozen(snapshot.items), true);
+
+  const govuk = snapshot.providers.find(
+    ({ id }) => id === "govuk-design-system",
+  );
+  assert.deepEqual(
+    {
+      homepageUrl: govuk.homepageUrl,
+      adapterVersion: govuk.adapterVersion,
+      upstream: govuk.upstream,
+      contentMode: govuk.license.contentMode,
+    },
+    {
+      homepageUrl: "https://design-system.service.gov.uk/",
+      adapterVersion: "1",
+      upstream: {
+        kind: "git",
+        locator: "https://github.com/alphagov/govuk-design-system",
+      },
+      contentMode: "metadata-only",
+    },
+  );
+
+  const accordion = snapshot.items.find(
+    ({ id }) => id === "govuk-design-system:accordion",
+  );
+  assert.deepEqual(
+    {
+      providerId: accordion.providerId,
+      nativeId: accordion.nativeId,
+      title: accordion.title,
+      contentKind: accordion.contentKind,
+      sourceSection: accordion.sourceSection,
+      contentMode: accordion.provenance.contentMode,
+      hasExcerpt: "excerpt" in accordion,
+      linkKinds: accordion.links.map(({ kind }) => kind),
+    },
+    {
+      providerId: "govuk-design-system",
+      nativeId: "accordion",
+      title: "Accordion",
+      contentKind: "component",
+      sourceSection: "component",
+      contentMode: "metadata-only",
+      hasExcerpt: false,
+      linkKinds: ["docs", "code"],
+    },
+  );
+});
+
+test("source browser search keeps same-name records separate", () => {
+  const result = kernel.searchSourceItems({ query: "accordion" });
+  assert.equal(result.mode, "exact");
+  assert.deepEqual(
+    result.items.map(({ id }) => id),
+    ["govuk-design-system:accordion", "uswds:usa-accordion"],
+  );
+  assert.equal(Object.isFrozen(result.items), true);
+
+  const uswds = kernel.searchSourceItems({
+    query: "accordion",
+    providerId: "uswds",
+    contentKind: "component",
+  });
+  assert.deepEqual(
+    uswds.items.map(({ id }) => id),
+    ["uswds:usa-accordion"],
+  );
+});
+
 test("license policy rejects unapproved provider ingestion", () => {
   const input = structuredClone(kernel.providerBuildInputs[0]);
   input.definition.license.expression = "LicenseRef-Unreviewed";
@@ -238,6 +314,7 @@ test("runtime provider modules do not fetch or scrape", async () => {
     "providers/health.ts",
     "providers/rpc.ts",
     "providers/search.ts",
+    "providers/source-browser.ts",
   ];
   const source = (
     await Promise.all(

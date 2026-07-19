@@ -7,6 +7,13 @@ import { providerIndex, providerSnapshot } from "./generated.js";
 import { assessProviderHealth } from "./health.js";
 import { providerRecordSchema } from "./schema.js";
 import {
+  getSourceBrowserSnapshot,
+  searchSourceItems,
+  sourceBrowserSnapshotSchema,
+  sourceItemSearchInputSchema,
+  sourceItemSearchResultSchema,
+} from "./source-browser.js";
+import {
   findProviderRecord,
   searchProviderIndex,
 } from "./search.js";
@@ -43,6 +50,17 @@ const providerSummarySchema = z
     health: healthReportSchema,
   })
   .strict();
+
+export const sourceBrowserRpcContract = defineRpcContract({
+  getSourceBrowserSnapshot: {
+    input: z.null(),
+    output: sourceBrowserSnapshotSchema,
+  },
+  searchSourceItems: {
+    input: sourceItemSearchInputSchema,
+    output: sourceItemSearchResultSchema,
+  },
+});
 
 export const providerRpcContract = defineRpcContract({
   listProviders: {
@@ -105,6 +123,23 @@ function publicRecord(
 }
 
 export function registerProviderRpc(bb: BbPluginApi): void {
+  bb.rpc.register(sourceBrowserRpcContract, {
+    getSourceBrowserSnapshot() {
+      const snapshot = getSourceBrowserSnapshot();
+      return {
+        providers: [...snapshot.providers],
+        items: [...snapshot.items],
+      };
+    },
+    searchSourceItems(input) {
+      const result = searchSourceItems(input);
+      return {
+        mode: result.mode,
+        queryTerms: [...result.queryTerms],
+        items: [...result.items],
+      };
+    },
+  });
   bb.rpc.register(providerRpcContract, {
     listProviders() {
       const now = new Date();

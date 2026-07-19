@@ -50,6 +50,7 @@ function nativeId(path: string) {
 
 export const govukDesignSystemAdapter: ProviderAdapter = {
   id: "govuk-design-system",
+  version: "1",
   adapt(definition: ProviderDefinition, input: unknown): readonly ProviderRecord[] {
     const source = govukInputSchema.parse(input);
     if (source.revision !== definition.source.revision) {
