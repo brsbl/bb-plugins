@@ -28,6 +28,8 @@
   "files": [
     "server.ts",
     "runtime-cli.js",
+    "atlas-cli-v3.js",
+    "atlas-compatibility.js",
     "app.tsx",
     "gallery-shell.tsx",
     "gallery-state.ts",

@@ -12,6 +12,10 @@ import {
   patternPreviewRegistry,
   type PatternPreviewEntryId,
 } from "./pattern-previews.js";
+import {
+  legacyCandidatesFor,
+  legacyIdFromRouteEntryId,
+} from "./atlas-compatibility.js";
 import { Button } from "./components/ui/button.js";
 import {
   Dialog,
@@ -283,6 +287,41 @@ function EmptyState({
   );
 }
 
+function DeprecatedRouteNotice({
+  entryId,
+  onClose,
+  dialog = false,
+}: {
+  entryId: string;
+  onClose: () => void;
+  dialog?: boolean;
+}) {
+  const legacyId = legacyIdFromRouteEntryId(entryId);
+  const candidates = legacyId ? legacyCandidatesFor(legacyId) : [];
+  const candidateIds = candidates.map((candidate) => candidate.id).join(", ");
+
+  return (
+    <EmptyState
+      dialog={dialog}
+      title="This entry route is deprecated"
+      description={`entry/${legacyId} is a legacy Atlas v2 identity. Choose an explicit provider-native ID: ${candidateIds}.`}
+      action={
+        dialog ? (
+          <DialogClose asChild>
+            <Button variant="outline" size="sm">
+              Return to gallery
+            </Button>
+          </DialogClose>
+        ) : (
+          <Button variant="outline" size="sm" onClick={onClose}>
+            Return to gallery
+          </Button>
+        )
+      }
+    />
+  );
+}
+
 function PatternInspector({
   entryId,
   onClose,
@@ -290,8 +329,9 @@ function PatternInspector({
   entryId: string | null;
   onClose: () => void;
 }) {
-  const entry = entryId ? entryById.get(entryId) : undefined;
-  const missing = Boolean(entryId && !entry);
+  const legacyRoute = Boolean(entryId && legacyIdFromRouteEntryId(entryId));
+  const entry = entryId && !legacyRoute ? entryById.get(entryId) : undefined;
+  const missing = Boolean(entryId && !entry && !legacyRoute);
 
   return (
     <Dialog
@@ -308,6 +348,8 @@ function PatternInspector({
             <PatternVisual entry={entry} motion="loop" inspector />
             <PatternCaption entry={entry} inspector />
           </>
+        ) : legacyRoute && entryId ? (
+          <DeprecatedRouteNotice entryId={entryId} onClose={onClose} dialog />
         ) : missing ? (
           <EmptyState
             dialog
@@ -336,7 +378,8 @@ function PanelPatternInspector({
   entryId: string;
   onClose: () => void;
 }) {
-  const entry = entryById.get(entryId);
+  const legacyRoute = Boolean(legacyIdFromRouteEntryId(entryId));
+  const entry = legacyRoute ? undefined : entryById.get(entryId);
 
   return (
     <section className="pa-panel-inspector" aria-label="Pattern detail">
@@ -360,6 +403,8 @@ function PanelPatternInspector({
             <p className="pa-caption__definition">{entry.description}</p>
           </div>
         </>
+      ) : legacyRoute ? (
+        <DeprecatedRouteNotice entryId={entryId} onClose={onClose} />
       ) : (
         <EmptyState
           title="Pattern not found"

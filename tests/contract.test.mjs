@@ -46,6 +46,18 @@ const runtimeCli = await readFile(
   new URL("../runtime-cli.js", import.meta.url),
   "utf8",
 );
+const cliV3 = await readFile(
+  new URL("../atlas-cli-v3.js", import.meta.url),
+  "utf8",
+);
+const compatibility = await readFile(
+  new URL("../atlas-compatibility.js", import.meta.url),
+  "utf8",
+);
+const galleryState = await readFile(
+  new URL("../gallery-state.ts", import.meta.url),
+  "utf8",
+);
 const builtApp = await readFile(
   new URL("../dist/app.js", import.meta.url),
   "utf8",
@@ -69,6 +81,8 @@ test("package declares the current installable bb contract", () => {
   assert.deepEqual(packageJson.bb.skills, ["skills"]);
   assert.ok(packageJson.files.includes("server.ts"));
   assert.ok(packageJson.files.includes("runtime-cli.js"));
+  assert.ok(packageJson.files.includes("atlas-cli-v3.js"));
+  assert.ok(packageJson.files.includes("atlas-compatibility.js"));
   assert.ok(packageJson.files.includes("app.tsx"));
   assert.ok(packageJson.files.includes("gallery-shell.tsx"));
   assert.ok(packageJson.files.includes("gallery-state.ts"));
@@ -80,12 +94,14 @@ test("package declares the current installable bb contract", () => {
   assert.ok(packageJson.files.includes("skills/"));
 });
 
-test("source-directory installs use a self-contained plugin-local CLI runtime", () => {
+test("source-directory installs use a self-contained v3 CLI compatibility runtime", () => {
   assert.match(serverSource, /from "\.\/runtime-cli\.js"/);
   assert.doesNotMatch(serverSource, /from "\.\.\/cli-core\.js"/);
   assert.doesNotMatch(buildScript, /projectRoot|\.\.\/cli-core\.js/);
-  assert.match(runtimeCli, /function runAtlasCli/);
-  assert.match(runtimeCli, /Bottom sheet/);
+  assert.match(runtimeCli, /\.\/atlas-cli-v3\.js/);
+  assert.match(cliV3, /function runAtlasCli/);
+  assert.match(compatibility, /apg\("combobox"/);
+  assert.doesNotMatch(cliV3, /seeAlso|ambiguityRoutes|categoryTieBreakRule/);
 });
 
 test("bb-built artifacts match the package identity and SDK", () => {
@@ -102,10 +118,19 @@ test("bb-built artifacts match the package identity and SDK", () => {
 test("the packaged skill teaches agents to use the bb command", () => {
   assert.match(skill, /name: ui-pattern-atlas/);
   assert.match(skill, /bb ui-patterns search/);
-  assert.match(skill, /bb ui-patterns show/);
-  assert.match(skill, /Record type/);
-  assert.doesNotMatch(skill, /--context|ui-patterns contexts/);
+  assert.match(skill, /bb ui-patterns show aria-apg:combobox/);
+  assert.match(skill, /bb ui-patterns status/);
+  assert.match(skill, /provider-native/);
+  assert.doesNotMatch(skill, /bb ui-patterns categories/);
   assert.doesNotMatch(skill, /\/Users\//);
+});
+
+test("legacy entry routes remain visible as compatibility routes while gallery navigation has a separate path", () => {
+  assert.match(galleryState, /legacyRouteEntryId/);
+  assert.match(galleryState, /gallery\/\$\{encodeURIComponent\(entryId\)\}/);
+  assert.match(galleryState, /routeKind === "entry"/);
+  assert.match(gallery, /This entry route is deprecated/);
+  assert.match(gallery, /provider-native ID/);
 });
 
 test("the plugin UI exposes only Category and Record type facets", () => {

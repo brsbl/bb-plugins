@@ -1,11 +1,11 @@
 ---
 name: ui-pattern-atlas
-description: Use Pattern Atlas for precise, established UI vocabulary and concise interaction guidance when planning, designing, implementing, reviewing, critiquing, or naming an interface; resolving vague terms such as dropdown, alert, popup, panel, search, or command palette; or surveying Category and Record type.
+description: Use Pattern Atlas v3 for source-native UI vocabulary and explicit provenance when planning, designing, implementing, reviewing, critiquing, or naming an interface.
 ---
 
 # UI Pattern Atlas
 
-Search for the concrete UI noun, inspect the selected stable record ID, then apply the result to the product. Pattern Atlas is lexical and deterministic; the agent still owns product reasoning.
+Search for one concrete UI noun, inspect an explicit provider-native ID, then apply the result to the product. Pattern Atlas is lexical and deterministic; the agent still owns product reasoning.
 
 ## Query workflow
 
@@ -16,69 +16,59 @@ Search for the concrete UI noun, inspect the selected stable record ID, then app
    bb ui-patterns search "<term>" --json
    ```
 
-3. Read descriptions and match metadata. Keep routed ambiguity candidates distinct.
-4. Show the selected stable ID:
+3. Read the candidates and provenance. Keep provider records distinct; the Atlas does not choose a preferred library.
+4. Show one provider-native ID:
 
    ```bash
-   bb ui-patterns show <id> --json
+   bb ui-patterns show aria-apg:combobox --json
    ```
 
 5. If the boundary remains unclear, show no more than two alternatives.
 6. Apply the guidance while preserving the product’s design system, platform conventions, accessibility requirements, and established terminology.
 
-Search covers preferred names, alternate labels, hidden lookup labels, descriptions, details, and the optional search-only subject. It tolerates bounded spelling and prefix variants and ignores common framing words; it does not infer design intent.
+Search covers source-native names, aliases, IDs, and concise paraphrases. It tolerates bounded spelling and prefix variants; it does not infer design intent.
 
 Use `data.retrieval.mode` to judge results:
 
-- `exact` and `routed` are direct vocabulary matches.
+- `exact` is a direct vocabulary match.
 - `tolerant` used bounded spelling or prefix recovery.
-- `expanded` did not match every meaningful term; inspect `match.unmatchedTerms`.
+- `expanded` is a looser lexical result; inspect `match.unmatchedTerms`.
+
+## Compatibility
+
+For one compatibility release, a v2 slug never selects a source on the agent’s behalf. Both commands below return `data.status: "deprecated"`, a deprecation code, and sorted provider-native candidates:
+
+```bash
+bb ui-patterns show button --json
+bb ui-patterns show entry/button --json
+```
+
+Choose a returned ID such as `aria-apg:button` or `html:button` and show it explicitly. Do not use legacy Category, see-also, or ambiguity-route metadata to make the choice.
 
 ## Inventory work
 
-Use broader commands only for a taxonomy or bounded inventory:
+Use broader commands only for a bounded provider inventory:
 
 ```bash
-bb ui-patterns categories --json
-bb ui-patterns list --type component --category "<category>" --json
-bb ui-patterns list --type pattern --category "<category>" --json
+bb ui-patterns list --provider aria-apg --json
+bb ui-patterns list --type pattern --json
 ```
 
-Category and Record type are the only inventory filters. `categories` returns the controlled scope notes and tie-break rule.
-
-Intrinsically generative or agentic records remain discoverable through ordinary search:
-
-```bash
-bb ui-patterns search "generative AI" --limit 107 --json
-```
-
-The result identifies `subject` in `match.fields` when the search-only subject contributes. Do not treat subject or Kind as another filter.
+`--provider` and source-native `--type element|pattern` are the inventory filters. `--type component` is accepted only as a v2 compatibility alias for `element`; `--category` is explicitly retired.
 
 ## Decision output
 
-Summarize the query, canonical candidate or candidates, selected record and distinguishing boundary, and any directional see-also records that change the plan. Do not paste raw JSON.
+Summarize the query, source-native candidate or candidates, selected record, and the provenance that matters to the decision. Do not paste raw JSON.
 
-If no useful match appears, shorten the query once. Then use `categories` plus `list` for a bounded slice. If that fails, say so and continue with product evidence.
+If no useful match appears, shorten the query once. Then use `list --provider` for a bounded slice. If that fails, say so and continue with product evidence.
 
-## Common ambiguity checks
+## Provenance, status, and recovery
 
-| Informal term | Inspect |
-| --- | --- |
-| `dropdown` | Select, Combobox, and Menu |
-| `sidebar` | Side navigation, Panel, and Drawer |
-| `pill` | Badge, Tag, and Chip |
-| `alert` | Inline alert, Banner, Alert dialog, and Toast where relevant |
-| `popup` | Popover, Menu, Dialog, Tooltip, and related disclosure surfaces |
-| `search` | Search field, Search and filtering, and Command palette |
-
-Treat this table as query guidance, not a substitute for current CLI results.
-
-## Sources and recovery
-
-Entries omit per-entry citations. Retrieve the library-level register when provenance matters:
+Every v3 record includes `provider`, `canonicalUrl`, `upstreamRevision`, `retrievedAt`, `license`, and `contentMode`. Retrieve the provider register or readiness state when needed:
 
 ```bash
 bb ui-patterns sources --json
+bb ui-patterns status --json
 ```
 
 If the top-level command is unavailable, try:

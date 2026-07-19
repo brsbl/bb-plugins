@@ -1,3 +1,5 @@
+import { legacyRouteEntryId } from "./atlas-compatibility.js";
+
 function decodeRouteValue(value: string) {
   try {
     return decodeURIComponent(value);
@@ -11,11 +13,15 @@ function normalizePath(path: string) {
 }
 
 export function parseStandaloneRoute(pathname: string) {
-  const match = pathname.match(/^(.*?)(?:\/entry\/([^/]+))\/?$/);
-  if (match?.[2]) {
+  const match = pathname.match(/^(.*?)(?:\/(entry|gallery)\/([^/]+))\/?$/);
+  if (match?.[2] && match[3]) {
+    const routeKind = match[2];
+    const routeValue = decodeRouteValue(match[3]);
     return {
       basePath: `${match[1] || ""}/`.replace(/\/+/g, "/"),
-      entryId: decodeRouteValue(match[2]),
+      entryId: routeKind === "entry"
+        ? legacyRouteEntryId(routeValue) ?? routeValue
+        : routeValue,
     };
   }
 
@@ -27,16 +33,20 @@ export function parseStandaloneRoute(pathname: string) {
 }
 
 export function entryIdFromSubPath(subPath: string) {
-  const match = normalizePath(subPath).match(/^entry\/([^/]+)$/);
-  return match?.[1] ? decodeRouteValue(match[1]) : null;
+  const match = normalizePath(subPath).match(/^(entry|gallery)\/([^/]+)$/);
+  if (!match?.[1] || !match[2]) return null;
+  const routeValue = decodeRouteValue(match[2]);
+  return match[1] === "entry"
+    ? legacyRouteEntryId(routeValue) ?? routeValue
+    : routeValue;
 }
 
 export function entrySubPath(entryId: string) {
-  return `entry/${encodeURIComponent(entryId)}`;
+  return `gallery/${encodeURIComponent(entryId)}`;
 }
 
 export function standaloneEntryPath(basePath: string, entryId: string) {
-  return `${basePath.replace(/\/+$/, "")}/entry/${encodeURIComponent(entryId)}`;
+  return `${basePath.replace(/\/+$/, "")}/gallery/${encodeURIComponent(entryId)}`;
 }
 
 export function inspectorCloseMode(openedFromGallery: boolean) {
