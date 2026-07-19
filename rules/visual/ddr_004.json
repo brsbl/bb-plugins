@@ -1,0 +1,192 @@
+{
+  "schema_version": 1,
+  "id": "ddr_004",
+  "revision": 1,
+  "title": "Make new surfaces feel product-native and real",
+  "kind": "standard",
+  "strength": "required",
+  "statement": "New product surfaces need credible anatomy, density, and host-product fidelity; do not ship generic system UI or mock-like bespoke compositions.",
+  "rationale": "Minimal chrome is not permission for abstract, low-fidelity, or visibly foreign product surfaces.",
+  "guidance": {
+    "prefer": [
+      "Use realistic product anatomy and density.",
+      "Ground the surface in host-product components and tokens."
+    ],
+    "avoid": [
+      "Generic system chrome.",
+      "Abstract mockups that cannot be recognized as the intended product object."
+    ]
+  },
+  "classification": {
+    "primary": "visual.hierarchy",
+    "secondary": [
+      "system.design-system",
+      "visual.layout"
+    ],
+    "pattern_categories": [
+      "Layout & composition",
+      "Content & data"
+    ]
+  },
+  "applicability": {
+    "products": [
+      "global"
+    ],
+    "activities": [
+      "architecture",
+      "design",
+      "critique",
+      "implementation",
+      "qa"
+    ],
+    "artifacts": [
+      "workflow",
+      "screen",
+      "component"
+    ],
+    "surfaces": [
+      "production UI",
+      "design-system components",
+      "pattern illustrations"
+    ],
+    "contexts": [
+      "new component",
+      "visual artifact",
+      "product screen"
+    ],
+    "when": [
+      "A design will represent or become a real product surface."
+    ],
+    "not_when": [
+      "A deliberately brandless technical wireframe is the requested artifact, while still retaining recognizable anatomy."
+    ]
+  },
+  "exceptions": [],
+  "relationships": [],
+  "evidence": [
+    {
+      "id": "ev_004_01",
+      "source": {
+        "type": "published_summary",
+        "store": "public-doctrine",
+        "thread_id": "published-context-007",
+        "source_keys": [
+          "published-signal-020"
+        ],
+        "project_id": "published-scope-002"
+      },
+      "signal": "explicit_instruction",
+      "stance": "supports",
+      "observed_at": "2026-05-30",
+      "summary": "Rejected generic system-style UI and excessive inputs; asked for a minimal, intentional surface matching the host product.",
+      "excerpt": null,
+      "content_sha256": "sha256:34e100c560ebc4962769ca0f39a4fe891119163e1c23f750435f1e3a6e03e4d9",
+      "doctrine_version_seen": "pre-doctrine",
+      "episode_id": "external:published:episode-017",
+      "episode_source_keys": [
+        "published-span-020"
+      ]
+    },
+    {
+      "id": "ev_004_02",
+      "source": {
+        "type": "published_summary",
+        "store": "public-doctrine",
+        "thread_id": "published-context-008",
+        "source_keys": [
+          "published-signal-021"
+        ],
+        "project_id": "published-scope-002"
+      },
+      "signal": "explicit_correction",
+      "stance": "supports",
+      "observed_at": "2026-06-04",
+      "summary": "Flagged clipped comment hover treatment and a thread interface that looked like an unrelated mockup.",
+      "excerpt": null,
+      "content_sha256": "sha256:df02335d67bbe4770ecfb277c496cd6ae909c9a1335b66f718fc36e4e2e98d8f",
+      "doctrine_version_seen": "pre-doctrine",
+      "episode_id": "external:published:episode-019",
+      "episode_source_keys": [
+        "published-span-021"
+      ]
+    },
+    {
+      "id": "ev_004_03",
+      "source": {
+        "type": "published_summary",
+        "store": "public-doctrine",
+        "thread_id": "published-context-005",
+        "source_keys": [
+          "published-signal-012"
+        ],
+        "project_id": "published-scope-003"
+      },
+      "signal": "explicit_correction",
+      "stance": "supports",
+      "observed_at": "2026-07-17",
+      "summary": "Judged the implemented interaction patterns insufficiently faithful to product-quality UI.",
+      "excerpt": null,
+      "content_sha256": "sha256:d7a32025f33021021fd81b51526f42771204c4f46eb9642b5caccef75befbc19",
+      "doctrine_version_seen": "pre-doctrine",
+      "episode_id": "external:published:episode-010",
+      "episode_source_keys": [
+        "published-span-012"
+      ]
+    }
+  ],
+  "confidence": {
+    "level": "high",
+    "basis": {
+      "explicit_user_signals": 3,
+      "supporting_episodes": 3,
+      "challenging_episodes": 0,
+      "distinct_threads": 3,
+      "distinct_projects": 2
+    },
+    "assessed_at": "2026-07-17",
+    "note": "Bootstrapped from independent direct user episodes under the owner's request to mine durable design rules."
+  },
+  "lifecycle": {
+    "status": "active",
+    "created_at": "2026-07-17",
+    "updated_at": "2026-07-17",
+    "activated_at": "2026-07-17",
+    "last_reviewed_at": "2026-07-17",
+    "review_after": "2027-01-17",
+    "approved_by": "owner-direct-history-bootstrap",
+    "decision_note": "Activated only for the owner-requested initial bootstrap because repeated independent direct instructions or corrections establish this decision boundary."
+  },
+  "retrieval": {
+    "keywords": [
+      "artifact",
+      "component",
+      "components",
+      "design-system",
+      "hierarchy",
+      "illustrations",
+      "new",
+      "pattern",
+      "product",
+      "production",
+      "screen",
+      "visual"
+    ],
+    "aliases": [],
+    "positive_examples": [
+      "Use realistic product anatomy and density.",
+      "Ground the surface in host-product components and tokens."
+    ],
+    "negative_examples": [
+      "Generic system chrome.",
+      "Abstract mockups that cannot be recognized as the intended product object."
+    ]
+  },
+  "verification": {
+    "method": "visual_review",
+    "checks": [
+      "Can the intended product object be recognized without explanation?",
+      "Does the surface feel native beside its closest host-product sibling?",
+      "Is the anatomy credible at realistic content density?"
+    ]
+  }
+}

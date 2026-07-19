@@ -1,0 +1,62 @@
+{
+  "schema_version": 1,
+  "generated_at": "2026-07-19T00:51:26+00:00",
+  "corpus_sha256": "809aae1dd03259d716ee8a14b71d0cf90bf280e0ec262d73986e33fe7a683884",
+  "rule_count": 33,
+  "status_counts": {
+    "active": 20,
+    "candidate": 13
+  },
+  "canonical_files": [
+    "schema/rule.schema.json",
+    "schema/taxonomy.schema.json",
+    "taxonomy.json",
+    "rules/accessibility/ddr_028.json",
+    "rules/ai/ddr_029.json",
+    "rules/ai/ddr_030.json",
+    "rules/content/ddr_021.json",
+    "rules/content/ddr_022.json",
+    "rules/information/ddr_002.json",
+    "rules/information/ddr_013.json",
+    "rules/information/ddr_014.json",
+    "rules/information/ddr_015.json",
+    "rules/information/ddr_023.json",
+    "rules/information/ddr_024.json",
+    "rules/interaction/ddr_001.json",
+    "rules/interaction/ddr_005.json",
+    "rules/interaction/ddr_011.json",
+    "rules/interaction/ddr_012.json",
+    "rules/interaction/ddr_016.json",
+    "rules/interaction/ddr_017.json",
+    "rules/interaction/ddr_018.json",
+    "rules/interaction/ddr_019.json",
+    "rules/interaction/ddr_025.json",
+    "rules/interaction/ddr_026.json",
+    "rules/process/ddr_006.json",
+    "rules/process/ddr_031.json",
+    "rules/process/ddr_032.json",
+    "rules/system/ddr_003.json",
+    "rules/system/ddr_027.json",
+    "rules/system/ddr_033.json",
+    "rules/visual/ddr_004.json",
+    "rules/visual/ddr_007.json",
+    "rules/visual/ddr_008.json",
+    "rules/visual/ddr_009.json",
+    "rules/visual/ddr_010.json",
+    "rules/visual/ddr_020.json"
+  ],
+  "generated_files": [
+    "generated/DOCTRINE.md",
+    "generated/index.jsonl",
+    "generated/browse.html",
+    "generated/manifest.json"
+  ],
+  "view_source_sha256": {
+    "templates/browse.html": "16d7bc20a224d9286e8f2fc7145086bb4e7477aa00271a9fbc5876e5cdb976f6"
+  },
+  "generated_sha256": {
+    "generated/DOCTRINE.md": "32b7129faba4b173b2522d19d2675220ccc064a2b51ed589f5f802f6e3ae062f",
+    "generated/index.jsonl": "09bd89d0a42db0aa6b9102702d1fac95d9b16e261bce041ec34c10dc4e147d5a",
+    "generated/browse.html": "2c5677562737b99a7150812afbbcf06d51decd209f77f3478d83688d9d1d5cc5"
+  }
+}

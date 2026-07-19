@@ -1,0 +1,141 @@
+{
+  "schema_version": 1,
+  "id": "ddr_022",
+  "revision": 1,
+  "title": "Describe the interaction that actually ships",
+  "kind": "standard",
+  "strength": "required",
+  "statement": "UI copy must name the real gesture and outcome, especially hover versus click, rather than describe an idealized interaction.",
+  "rationale": "Incorrect instructions make a working feature feel broken and invalidate documentation evidence.",
+  "guidance": {
+    "prefer": [
+      "Verify and name the exact shipped gesture and result."
+    ],
+    "avoid": [
+      "Describing click behavior when the feature uses hover, or vice versa.",
+      "Copy based only on intended behavior."
+    ]
+  },
+  "classification": {
+    "primary": "content.instructions",
+    "secondary": [
+      "interaction.input",
+      "product.trust"
+    ],
+    "pattern_categories": [
+      "Content & data",
+      "Inputs & selection"
+    ]
+  },
+  "applicability": {
+    "products": [
+      "global"
+    ],
+    "activities": [
+      "design",
+      "critique",
+      "implementation",
+      "documentation"
+    ],
+    "artifacts": [
+      "documentation",
+      "note",
+      "visual"
+    ],
+    "surfaces": [
+      "help text",
+      "onboarding",
+      "release copy"
+    ],
+    "contexts": [
+      "interaction instructions"
+    ],
+    "when": [
+      "Copy instructs the user how to interact with a feature."
+    ],
+    "not_when": [
+      "The text is explicitly conceptual and labeled as such."
+    ]
+  },
+  "exceptions": [],
+  "relationships": [],
+  "evidence": [
+    {
+      "id": "ev_022_01",
+      "source": {
+        "type": "published_summary",
+        "store": "public-doctrine",
+        "thread_id": "published-context-003",
+        "source_keys": [
+          "published-signal-005",
+          "published-signal-006",
+          "published-signal-007"
+        ],
+        "project_id": "published-scope-002"
+      },
+      "signal": "explicit_correction",
+      "stance": "supports",
+      "observed_at": "2026-07-02",
+      "summary": "Corrected feature copy to describe clicking, browser tabs, and interactive pills, while removing redundant explanation.",
+      "excerpt": null,
+      "content_sha256": "sha256:72a2c5c0c70b0976ce94d0a8cb781059cf0607473df80df87689e5e24a0f1cfe",
+      "doctrine_version_seen": "pre-doctrine",
+      "episode_id": "external:published:episode-006",
+      "episode_source_keys": [
+        "published-span-005",
+        "published-span-006",
+        "published-span-007"
+      ]
+    }
+  ],
+  "confidence": {
+    "level": "high",
+    "basis": {
+      "explicit_user_signals": 3,
+      "supporting_episodes": 1,
+      "challenging_episodes": 0,
+      "distinct_threads": 1,
+      "distinct_projects": 1
+    },
+    "assessed_at": "2026-07-17",
+    "note": "Bootstrapped from independent direct user episodes under the owner's request to mine durable design rules."
+  },
+  "lifecycle": {
+    "status": "candidate",
+    "created_at": "2026-07-17",
+    "updated_at": "2026-07-17",
+    "activated_at": null,
+    "last_reviewed_at": "2026-07-17",
+    "review_after": null,
+    "approved_by": null,
+    "decision_note": "Candidate pending independent recurrence or explicit owner approval."
+  },
+  "retrieval": {
+    "keywords": [
+      "content",
+      "copy",
+      "help",
+      "instructions",
+      "interaction",
+      "onboarding",
+      "release",
+      "text"
+    ],
+    "aliases": [],
+    "positive_examples": [
+      "Verify and name the exact shipped gesture and result."
+    ],
+    "negative_examples": [
+      "Describing click behavior when the feature uses hover, or vice versa.",
+      "Copy based only on intended behavior."
+    ]
+  },
+  "verification": {
+    "method": "content_review",
+    "checks": [
+      "Does the described gesture match the current rendered product?",
+      "Does the stated outcome occur?",
+      "Was the interaction verified directly?"
+    ]
+  }
+}

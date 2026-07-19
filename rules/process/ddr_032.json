@@ -1,0 +1,192 @@
+{
+  "schema_version": 1,
+  "id": "ddr_032",
+  "revision": 1,
+  "title": "Demonstrate work with current realistic evidence",
+  "kind": "standard",
+  "strength": "required",
+  "statement": "Design evidence must use the current product UI and realistic inputs, framed to demonstrate the user job; reject fake, stale, low-resolution, or cramped captures.",
+  "rationale": "Evidence is part of the design: an unrealistic or stale demonstration prevents an honest judgment of whether the work succeeds.",
+  "guidance": {
+    "prefer": [
+      "Use current product UI with realistic safe content.",
+      "Frame the state and viewport around the user job.",
+      "Inspect final-resolution assets."
+    ],
+    "avoid": [
+      "Fake or placeholder product UI.",
+      "Stale, low-resolution, cropped, or cramped captures that hide the behavior."
+    ]
+  },
+  "classification": {
+    "primary": "process.validation",
+    "secondary": [
+      "visual.imagery",
+      "product.trust"
+    ],
+    "pattern_categories": [
+      "Content & data",
+      "Layout & composition"
+    ]
+  },
+  "applicability": {
+    "products": [
+      "global"
+    ],
+    "activities": [
+      "critique",
+      "qa",
+      "documentation"
+    ],
+    "artifacts": [
+      "documentation",
+      "note",
+      "visual"
+    ],
+    "surfaces": [
+      "stories",
+      "screenshots",
+      "documentation",
+      "visual QA"
+    ],
+    "contexts": [
+      "design evidence",
+      "feature demonstration"
+    ],
+    "when": [
+      "A visual artifact is used to approve, document, or claim a design outcome."
+    ],
+    "not_when": [
+      "A rough conceptual sketch is explicitly the requested stage and is labeled conceptual."
+    ]
+  },
+  "exceptions": [],
+  "relationships": [],
+  "evidence": [
+    {
+      "id": "ev_032_01",
+      "source": {
+        "type": "published_summary",
+        "store": "public-doctrine",
+        "thread_id": "published-context-003",
+        "source_keys": [
+          "published-signal-009"
+        ],
+        "project_id": "published-scope-002"
+      },
+      "signal": "explicit_correction",
+      "stance": "supports",
+      "observed_at": "2026-07-02",
+      "summary": "Requested real, matching examples across feature visuals and removal of decorative or floating UI that distorted the demonstration.",
+      "excerpt": null,
+      "content_sha256": "sha256:d364634c3921fce04303384b032dfbc860e497884ec5e3da0dff10ee8863b12d",
+      "doctrine_version_seen": "pre-doctrine",
+      "episode_id": "external:published:episode-003",
+      "episode_source_keys": [
+        "published-span-009"
+      ]
+    },
+    {
+      "id": "ev_032_02",
+      "source": {
+        "type": "published_summary",
+        "store": "public-doctrine",
+        "thread_id": "published-context-010",
+        "source_keys": [
+          "published-signal-036"
+        ],
+        "project_id": "published-scope-002"
+      },
+      "signal": "explicit_correction",
+      "stance": "supports",
+      "observed_at": "2026-07-17",
+      "summary": "Requested current, high-resolution, uncrowded screenshots that show the relevant surrounding interface.",
+      "excerpt": null,
+      "content_sha256": "sha256:d35e827fa86db73e74d316d6c8fd791512cc3391dae4d679936c9030549e74a0",
+      "doctrine_version_seen": "pre-doctrine",
+      "episode_id": "external:published:episode-025",
+      "episode_source_keys": [
+        "published-span-036"
+      ]
+    },
+    {
+      "id": "ev_032_03",
+      "source": {
+        "type": "published_summary",
+        "store": "public-doctrine",
+        "thread_id": "published-context-014",
+        "source_keys": [
+          "published-signal-058",
+          "published-signal-059"
+        ],
+        "project_id": "published-scope-001"
+      },
+      "signal": "explicit_correction",
+      "stance": "supports",
+      "observed_at": "2026-07-17",
+      "summary": "Rejected prototype-only, broad visual changes and required minimal changes be applied to the real component stories.",
+      "excerpt": null,
+      "content_sha256": "sha256:3bd513c4f080505252ed204525654f4542989712405a3225df06a08e6074d167",
+      "doctrine_version_seen": "pre-doctrine",
+      "episode_id": "external:published:episode-041",
+      "episode_source_keys": [
+        "published-span-058",
+        "published-span-059"
+      ]
+    }
+  ],
+  "confidence": {
+    "level": "high",
+    "basis": {
+      "explicit_user_signals": 4,
+      "supporting_episodes": 3,
+      "challenging_episodes": 0,
+      "distinct_threads": 3,
+      "distinct_projects": 2
+    },
+    "assessed_at": "2026-07-17",
+    "note": "Bootstrapped from independent direct user episodes under the owner's request to mine durable design rules."
+  },
+  "lifecycle": {
+    "status": "active",
+    "created_at": "2026-07-17",
+    "updated_at": "2026-07-17",
+    "activated_at": "2026-07-17",
+    "last_reviewed_at": "2026-07-17",
+    "review_after": "2027-01-17",
+    "approved_by": "owner-direct-history-bootstrap",
+    "decision_note": "Activated only for the owner-requested initial bootstrap because repeated independent direct instructions or corrections establish this decision boundary."
+  },
+  "retrieval": {
+    "keywords": [
+      "demonstration",
+      "design",
+      "documentation",
+      "evidence",
+      "feature",
+      "process",
+      "screenshots",
+      "stories",
+      "validation",
+      "visual"
+    ],
+    "aliases": [],
+    "positive_examples": [
+      "Use current product UI with realistic safe content.",
+      "Frame the state and viewport around the user job."
+    ],
+    "negative_examples": [
+      "Fake or placeholder product UI.",
+      "Stale, low-resolution, cropped, or cramped captures that hide the behavior."
+    ]
+  },
+  "verification": {
+    "method": "design_review",
+    "checks": [
+      "Does the artifact come from the current product state?",
+      "Are inputs realistic and safe to publish?",
+      "Does framing demonstrate the intended user job?",
+      "Was final resolution inspected?"
+    ]
+  }
+}

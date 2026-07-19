@@ -1,0 +1,190 @@
+{
+  "schema_version": 1,
+  "id": "ddr_018",
+  "revision": 1,
+  "title": "Represent state once on the owning control",
+  "kind": "guideline",
+  "strength": "default",
+  "statement": "Encode installed, running, paused, and similar state once as a distinct state of the owning control; do not repeat it across rows or add competing toggles.",
+  "rationale": "Duplicated state labels and parallel controls create ambiguity about ownership and the next available action.",
+  "guidance": {
+    "prefer": [
+      "Let the owning control communicate current state and next action.",
+      "Keep one canonical status location."
+    ],
+    "avoid": [
+      "Repeating the same state label throughout a row.",
+      "Adding a second toggle that competes with the primary state control."
+    ]
+  },
+  "classification": {
+    "primary": "interaction.feedback",
+    "secondary": [
+      "information.hierarchy"
+    ],
+    "pattern_categories": [
+      "Feedback & status",
+      "Actions & commands"
+    ]
+  },
+  "applicability": {
+    "products": [
+      "global"
+    ],
+    "activities": [
+      "architecture",
+      "design",
+      "critique",
+      "implementation",
+      "qa"
+    ],
+    "artifacts": [
+      "workflow",
+      "screen",
+      "component"
+    ],
+    "surfaces": [
+      "resource overviews",
+      "management actions",
+      "rows"
+    ],
+    "contexts": [
+      "installed state",
+      "running state",
+      "paused state"
+    ],
+    "when": [
+      "A resource has a persistent state and a related action."
+    ],
+    "not_when": [
+      "A separate status is needed for monitoring at a different scope."
+    ]
+  },
+  "exceptions": [],
+  "relationships": [],
+  "evidence": [
+    {
+      "id": "ev_018_01",
+      "source": {
+        "type": "published_summary",
+        "store": "public-doctrine",
+        "thread_id": "published-context-006",
+        "source_keys": [
+          "published-signal-017"
+        ],
+        "project_id": "published-scope-001"
+      },
+      "signal": "explicit_correction",
+      "stance": "supports",
+      "observed_at": "2026-07-14",
+      "summary": "Requested installed state be represented on its button rather than as a card-wide hover replacement.",
+      "excerpt": null,
+      "content_sha256": "sha256:b4df5914bb013ca10ea3f5140078eb2b98b3a013e4041da9fdddd5c5e44962b3",
+      "doctrine_version_seen": "pre-doctrine",
+      "episode_id": "external:published:episode-014",
+      "episode_source_keys": [
+        "published-span-017"
+      ]
+    },
+    {
+      "id": "ev_018_02",
+      "source": {
+        "type": "published_summary",
+        "store": "public-doctrine",
+        "thread_id": "published-context-013",
+        "source_keys": [
+          "published-signal-047"
+        ],
+        "project_id": "published-scope-001"
+      },
+      "signal": "explicit_correction",
+      "stance": "supports",
+      "observed_at": "2026-07-08",
+      "summary": "Rejected duplicated installed and paused state labels across related resource rows.",
+      "excerpt": null,
+      "content_sha256": "sha256:6b6aa95975b5f4b8b135f7e02beaf02347ba49cdaa5aad1959553998b89e1fc7",
+      "doctrine_version_seen": "pre-doctrine",
+      "episode_id": "external:published:episode-038",
+      "episode_source_keys": [
+        "published-span-047"
+      ]
+    },
+    {
+      "id": "ev_018_03",
+      "source": {
+        "type": "published_summary",
+        "store": "public-doctrine",
+        "thread_id": "published-context-015",
+        "source_keys": [
+          "published-signal-065"
+        ],
+        "project_id": "published-scope-001"
+      },
+      "signal": "explicit_correction",
+      "stance": "supports",
+      "observed_at": "2026-07-13",
+      "summary": "Asked repeated run-status wording be removed when an icon already communicates the status.",
+      "excerpt": null,
+      "content_sha256": "sha256:fe106bace2ce1479bf539087e7aa95493efd8dbf1ed61e6ebacc518b69378783",
+      "doctrine_version_seen": "pre-doctrine",
+      "episode_id": "external:published:episode-051",
+      "episode_source_keys": [
+        "published-span-065"
+      ]
+    }
+  ],
+  "confidence": {
+    "level": "high",
+    "basis": {
+      "explicit_user_signals": 3,
+      "supporting_episodes": 3,
+      "challenging_episodes": 0,
+      "distinct_threads": 3,
+      "distinct_projects": 1
+    },
+    "assessed_at": "2026-07-17",
+    "note": "Bootstrapped from independent direct user episodes under the owner's request to mine durable design rules."
+  },
+  "lifecycle": {
+    "status": "active",
+    "created_at": "2026-07-17",
+    "updated_at": "2026-07-17",
+    "activated_at": "2026-07-17",
+    "last_reviewed_at": "2026-07-17",
+    "review_after": "2027-01-17",
+    "approved_by": "owner-direct-history-bootstrap",
+    "decision_note": "Activated only for the owner-requested initial bootstrap because repeated independent direct instructions or corrections establish this decision boundary."
+  },
+  "retrieval": {
+    "keywords": [
+      "actions",
+      "feedback",
+      "installed",
+      "interaction",
+      "management",
+      "overviews",
+      "paused",
+      "resource",
+      "rows",
+      "running",
+      "state"
+    ],
+    "aliases": [],
+    "positive_examples": [
+      "Let the owning control communicate current state and next action.",
+      "Keep one canonical status location."
+    ],
+    "negative_examples": [
+      "Repeating the same state label throughout a row.",
+      "Adding a second toggle that competes with the primary state control."
+    ]
+  },
+  "verification": {
+    "method": "interaction_test",
+    "checks": [
+      "Where is the canonical state shown?",
+      "Does the owning control reveal the next valid action?",
+      "Is the same status repeated without adding information?"
+    ]
+  }
+}

@@ -1,0 +1,167 @@
+{
+  "schema_version": 1,
+  "id": "ddr_023",
+  "revision": 1,
+  "title": "Group content by the user's job",
+  "kind": "guideline",
+  "strength": "default",
+  "statement": "Combine controls and explanations that serve one user job; split genuinely separate capabilities into separately legible features.",
+  "rationale": "Grouping by implementation or chronology obscures what users can accomplish and why related controls belong together.",
+  "guidance": {
+    "prefer": [
+      "Group controls, examples, and explanation around one coherent user job.",
+      "Separate capabilities when they have different goals or outcomes."
+    ],
+    "avoid": [
+      "Grouping by implementation module when the user jobs differ.",
+      "Splitting one job into several arbitrary feature fragments."
+    ]
+  },
+  "classification": {
+    "primary": "information.organization",
+    "secondary": [
+      "product.workflow",
+      "content.instructions"
+    ],
+    "pattern_categories": [
+      "Content & data",
+      "Layout & composition"
+    ]
+  },
+  "applicability": {
+    "products": [
+      "global"
+    ],
+    "activities": [
+      "architecture",
+      "design",
+      "critique",
+      "implementation",
+      "qa"
+    ],
+    "artifacts": [
+      "workflow",
+      "screen",
+      "component"
+    ],
+    "surfaces": [
+      "feature pages",
+      "release notes",
+      "information architecture"
+    ],
+    "contexts": [
+      "content grouping",
+      "feature grouping"
+    ],
+    "when": [
+      "A page or document describes multiple controls or capabilities."
+    ],
+    "not_when": [
+      "Side-by-side comparison of true peer capabilities is the job."
+    ]
+  },
+  "exceptions": [],
+  "relationships": [],
+  "evidence": [
+    {
+      "id": "ev_023_01",
+      "source": {
+        "type": "published_summary",
+        "store": "public-doctrine",
+        "thread_id": "published-context-003",
+        "source_keys": [
+          "published-signal-003"
+        ],
+        "project_id": "published-scope-002"
+      },
+      "signal": "explicit_correction",
+      "stance": "supports",
+      "observed_at": "2026-06-26",
+      "summary": "Asked releases to split a combined capability into separately named features that match distinct user jobs.",
+      "excerpt": null,
+      "content_sha256": "sha256:fb27358be2a82f8b0e001ac9c015c597dac24844cdb482f99086c571e9847df2",
+      "doctrine_version_seen": "pre-doctrine",
+      "episode_id": "external:published:episode-005",
+      "episode_source_keys": [
+        "published-span-003"
+      ]
+    },
+    {
+      "id": "ev_023_02",
+      "source": {
+        "type": "published_summary",
+        "store": "public-doctrine",
+        "thread_id": "published-context-010",
+        "source_keys": [
+          "published-signal-043",
+          "published-signal-044"
+        ],
+        "project_id": "published-scope-002"
+      },
+      "signal": "explicit_correction",
+      "stance": "supports",
+      "observed_at": "2026-07-11",
+      "summary": "Asked dragging and docking to be one feature, while unrelated formula and tab improvements remain separate groups.",
+      "excerpt": null,
+      "content_sha256": "sha256:a2e1fdfa72cbb0ff8ba9ce28d6cb53b133261cd9da0de291870a1827161dc31a",
+      "doctrine_version_seen": "pre-doctrine",
+      "episode_id": "external:published:episode-026",
+      "episode_source_keys": [
+        "published-span-043",
+        "published-span-044"
+      ]
+    }
+  ],
+  "confidence": {
+    "level": "medium",
+    "basis": {
+      "explicit_user_signals": 3,
+      "supporting_episodes": 2,
+      "challenging_episodes": 0,
+      "distinct_threads": 2,
+      "distinct_projects": 1
+    },
+    "assessed_at": "2026-07-17",
+    "note": "Bootstrapped from independent direct user episodes under the owner's request to mine durable design rules."
+  },
+  "lifecycle": {
+    "status": "active",
+    "created_at": "2026-07-17",
+    "updated_at": "2026-07-17",
+    "activated_at": "2026-07-17",
+    "last_reviewed_at": "2026-07-17",
+    "review_after": "2027-01-17",
+    "approved_by": "owner-direct-history-bootstrap",
+    "decision_note": "Activated only for the owner-requested initial bootstrap because repeated independent direct instructions or corrections establish this decision boundary."
+  },
+  "retrieval": {
+    "keywords": [
+      "architecture",
+      "content",
+      "feature",
+      "grouping",
+      "information",
+      "notes",
+      "organization",
+      "pages",
+      "release"
+    ],
+    "aliases": [],
+    "positive_examples": [
+      "Group controls, examples, and explanation around one coherent user job.",
+      "Separate capabilities when they have different goals or outcomes."
+    ],
+    "negative_examples": [
+      "Grouping by implementation module when the user jobs differ.",
+      "Splitting one job into several arbitrary feature fragments."
+    ]
+  },
+  "verification": {
+    "method": "visual_review",
+    "checks": [
+      "Can each group be named as one user job?",
+      "Do controls in the group share an outcome?",
+      "Are distinct capabilities separately legible?"
+    ]
+  }
+}

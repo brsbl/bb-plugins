@@ -1,0 +1,163 @@
+{
+  "schema_version": 1,
+  "id": "ddr_010",
+  "revision": 1,
+  "title": "Use dividers to express stable structure",
+  "kind": "taste",
+  "strength": "preference",
+  "statement": "Dividers communicate stable grouping, not transient drag state; avoid duplicate seams and keep related boundaries visually consistent.",
+  "rationale": "A boundary should explain composition rather than add noise or become a temporary state indicator.",
+  "guidance": {
+    "prefer": [
+      "Use one quiet consistent boundary where stable grouping needs it.",
+      "Use a dedicated drag or selection affordance for transient state."
+    ],
+    "avoid": [
+      "Duplicate seams.",
+      "Turning a structural divider into the only drag-state indicator."
+    ]
+  },
+  "classification": {
+    "primary": "visual.hierarchy",
+    "secondary": [
+      "visual.layout"
+    ],
+    "pattern_categories": [
+      "Layout & composition"
+    ]
+  },
+  "applicability": {
+    "products": [
+      "global"
+    ],
+    "activities": [
+      "architecture",
+      "design",
+      "critique",
+      "implementation",
+      "qa"
+    ],
+    "artifacts": [
+      "workflow",
+      "screen",
+      "component"
+    ],
+    "surfaces": [
+      "lists",
+      "drawers",
+      "panels"
+    ],
+    "contexts": [
+      "section boundary",
+      "drag state"
+    ],
+    "when": [
+      "A visible line separates persistent regions or groups."
+    ],
+    "not_when": [
+      "The boundary is an interactive resizable splitter with clear affordance."
+    ]
+  },
+  "exceptions": [],
+  "relationships": [],
+  "evidence": [
+    {
+      "id": "ev_010_01",
+      "source": {
+        "type": "published_summary",
+        "store": "public-doctrine",
+        "thread_id": "published-context-014",
+        "source_keys": [
+          "published-signal-049"
+        ],
+        "project_id": "published-scope-001"
+      },
+      "signal": "explicit_correction",
+      "stance": "supports",
+      "observed_at": "2026-07-17",
+      "summary": "Required the row divider to remain stable during dragging and existing fade behavior to be reused.",
+      "excerpt": null,
+      "content_sha256": "sha256:3907d33b607137b77dab4e1da5b8ec8ead1359b909680a4205cbbe0df8001191",
+      "doctrine_version_seen": "pre-doctrine",
+      "episode_id": "external:published:episode-049",
+      "episode_source_keys": [
+        "published-span-049"
+      ]
+    },
+    {
+      "id": "ev_010_02",
+      "source": {
+        "type": "published_summary",
+        "store": "public-doctrine",
+        "thread_id": "published-context-010",
+        "source_keys": [
+          "published-signal-026"
+        ],
+        "project_id": "published-scope-002"
+      },
+      "signal": "explicit_correction",
+      "stance": "supports",
+      "observed_at": "2026-07-13",
+      "summary": "Questioned a redundant footer boundary and inconsistent hierarchy between visually sibling action sections.",
+      "excerpt": null,
+      "content_sha256": "sha256:d8d8961099bd5215e6712b8a52166844899a50aa0d1fe3c475513d7a7d88afba",
+      "doctrine_version_seen": "pre-doctrine",
+      "episode_id": "external:published:episode-034",
+      "episode_source_keys": [
+        "published-span-026"
+      ]
+    }
+  ],
+  "confidence": {
+    "level": "medium",
+    "basis": {
+      "explicit_user_signals": 2,
+      "supporting_episodes": 2,
+      "challenging_episodes": 0,
+      "distinct_threads": 2,
+      "distinct_projects": 2
+    },
+    "assessed_at": "2026-07-17",
+    "note": "Bootstrapped from independent direct user episodes under the owner's request to mine durable design rules."
+  },
+  "lifecycle": {
+    "status": "active",
+    "created_at": "2026-07-17",
+    "updated_at": "2026-07-17",
+    "activated_at": "2026-07-17",
+    "last_reviewed_at": "2026-07-17",
+    "review_after": "2027-01-17",
+    "approved_by": "owner-direct-history-bootstrap",
+    "decision_note": "Activated only for the owner-requested initial bootstrap because repeated independent direct instructions or corrections establish this decision boundary."
+  },
+  "retrieval": {
+    "keywords": [
+      "boundary",
+      "drag",
+      "drawers",
+      "hierarchy",
+      "lists",
+      "panels",
+      "section",
+      "state",
+      "visual"
+    ],
+    "aliases": [],
+    "positive_examples": [
+      "Use one quiet consistent boundary where stable grouping needs it.",
+      "Use a dedicated drag or selection affordance for transient state."
+    ],
+    "negative_examples": [
+      "Duplicate seams.",
+      "Turning a structural divider into the only drag-state indicator."
+    ]
+  },
+  "verification": {
+    "method": "visual_review",
+    "checks": [
+      "Does the divider explain stable structure?",
+      "Are adjacent seams duplicated?",
+      "Is transient state communicated independently?"
+    ]
+  }
+}

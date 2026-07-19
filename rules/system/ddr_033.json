@@ -1,0 +1,148 @@
+{
+  "schema_version": 1,
+  "id": "ddr_033",
+  "revision": 1,
+  "title": "Compose pattern references from reusable UI anatomy",
+  "kind": "guideline",
+  "strength": "default",
+  "statement": "For Pattern Atlas references, compose recognizable UI anatomy from reusable components rather than drawing bespoke abstract scenes.",
+  "rationale": "Reusable component anatomy makes references more credible, coherent, and maintainable than one-off drawings that only approximate a real interface.",
+  "guidance": {
+    "prefer": [
+      "Build reference compositions from reusable controls, containers, and layout primitives.",
+      "Preserve recognizable interface anatomy while keeping the visual treatment intentionally neutral."
+    ],
+    "avoid": [
+      "Bespoke scenes that look like generic diagrams instead of usable interface patterns.",
+      "Duplicating component anatomy separately for each reference."
+    ]
+  },
+  "classification": {
+    "primary": "system.design-system",
+    "secondary": [
+      "visual.hierarchy",
+      "process.prototyping"
+    ],
+    "pattern_categories": [
+      "Layout & composition",
+      "Content & data"
+    ]
+  },
+  "applicability": {
+    "products": [
+      "pattern-atlas"
+    ],
+    "activities": [
+      "architecture",
+      "design",
+      "implementation",
+      "qa"
+    ],
+    "artifacts": [
+      "component",
+      "visual",
+      "design-system"
+    ],
+    "surfaces": [
+      "pattern gallery",
+      "pattern inspector",
+      "reference preview"
+    ],
+    "contexts": [
+      "reusable anatomy",
+      "neutral wireframes",
+      "pattern documentation"
+    ],
+    "when": [
+      "A Pattern Atlas reference must represent a reusable product pattern."
+    ],
+    "not_when": [
+      "The requested artifact is a deliberately abstract diagram rather than a UI reference."
+    ]
+  },
+  "exceptions": [],
+  "relationships": [
+    {
+      "type": "supports",
+      "target_id": "ddr_004",
+      "resolution": null
+    }
+  ],
+  "evidence": [
+    {
+      "id": "ev_033_01",
+      "source": {
+        "type": "published_summary",
+        "store": "public-doctrine",
+        "thread_id": "published-context-005",
+        "source_keys": [
+          "published-signal-013",
+          "published-signal-014"
+        ],
+        "project_id": "published-scope-003"
+      },
+      "signal": "explicit_correction",
+      "stance": "supports",
+      "observed_at": "2026-07-17",
+      "summary": "Requested Pattern Atlas wireframes be built from components and verified with screenshots because the existing references were not built credibly enough.",
+      "excerpt": null,
+      "content_sha256": "sha256:29e543ad864ae867d72ee60ab06c754e4377cd716873a147e2d97fe7b648e1da",
+      "doctrine_version_seen": "unknown",
+      "episode_id": "external:published:episode-011",
+      "episode_source_keys": [
+        "published-span-013",
+        "published-span-014"
+      ]
+    }
+  ],
+  "confidence": {
+    "level": "low",
+    "basis": {
+      "explicit_user_signals": 0,
+      "supporting_episodes": 0,
+      "challenging_episodes": 0,
+      "distinct_threads": 0,
+      "distinct_projects": 0
+    },
+    "assessed_at": "2026-07-17",
+    "note": "One direct episode supports this scoped candidate, but doctrine influence is unknown and cannot establish independent recurrence."
+  },
+  "lifecycle": {
+    "status": "candidate",
+    "created_at": "2026-07-17",
+    "updated_at": "2026-07-17",
+    "activated_at": null,
+    "last_reviewed_at": "2026-07-17",
+    "review_after": null,
+    "approved_by": null,
+    "decision_note": "Candidate pending independent recurrence or explicit owner approval."
+  },
+  "retrieval": {
+    "keywords": [
+      "anatomy",
+      "components",
+      "gallery",
+      "pattern atlas",
+      "preview",
+      "reference",
+      "reusable",
+      "wireframe"
+    ],
+    "aliases": [],
+    "positive_examples": [
+      "Build a pattern preview by composing reusable controls and layout primitives.",
+      "Keep a neutral wireframe recognizable as a real interface pattern."
+    ],
+    "negative_examples": [
+      "Draw a one-off abstract scene for each pattern."
+    ]
+  },
+  "verification": {
+    "method": "visual_review",
+    "checks": [
+      "Does the reference use reusable UI anatomy rather than a bespoke scene?",
+      "Is the represented pattern recognizable at gallery and inspector scale?",
+      "Do screenshots confirm the composition remains readable in its target surface?"
+    ]
+  }
+}

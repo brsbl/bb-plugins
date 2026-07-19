@@ -1,0 +1,1607 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>Design doctrine</title>
+  <style>
+    :root {
+      --page: #f3f1ed;
+      --surface: #fbfaf8;
+      --surface-raised: #ffffff;
+      --surface-soft: #eeece7;
+      --ink: #252522;
+      --ink-soft: #575751;
+      --ink-faint: #87867e;
+      --line: rgba(39, 39, 34, 0.13);
+      --line-strong: rgba(39, 39, 34, 0.22);
+      --shadow: 0 1px 2px rgba(25, 25, 20, 0.08), 0 12px 32px rgba(25, 25, 20, 0.05);
+      --focus: #3e6c5a;
+      --active: #3e765f;
+      --candidate: #a66c21;
+      --danger: #9a554d;
+      --radius-sm: 8px;
+      --radius-md: 12px;
+      --radius-lg: 18px;
+      --page-gutter: clamp(16px, 3vw, 42px);
+      --page-max: 1540px;
+      font-family: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      font-synthesis: none;
+      color: var(--ink);
+      background: var(--page);
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --page: #1d1e1c;
+        --surface: #252623;
+        --surface-raised: #2b2c29;
+        --surface-soft: #20211f;
+        --ink: #efeee8;
+        --ink-soft: #b8b7af;
+        --ink-faint: #85857e;
+        --line: rgba(239, 238, 232, 0.11);
+        --line-strong: rgba(239, 238, 232, 0.19);
+        --shadow: 0 1px 2px rgba(0, 0, 0, 0.35), 0 16px 40px rgba(0, 0, 0, 0.18);
+        --focus: #85b59f;
+        --active: #7ab393;
+        --candidate: #d49a53;
+        --danger: #d78a80;
+      }
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html {
+      min-width: 300px;
+      background: var(--page);
+      scroll-behavior: smooth;
+    }
+
+    body {
+      min-height: 100vh;
+      margin: 0;
+      color: var(--ink);
+      background:
+        radial-gradient(circle at 10% -10%, rgba(255, 255, 255, 0.42), transparent 34rem),
+        var(--page);
+    }
+
+    button,
+    input,
+    select {
+      font: inherit;
+    }
+
+    button,
+    select {
+      color: inherit;
+    }
+
+    button {
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    .shell {
+      width: min(100%, var(--page-max));
+      margin: 0 auto;
+      padding: 26px var(--page-gutter) 64px;
+    }
+
+    .masthead {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 24px;
+      margin-bottom: 22px;
+    }
+
+    .identity {
+      min-width: 0;
+    }
+
+    .identity h1 {
+      margin: 0;
+      font-size: clamp(20px, 2.1vw, 29px);
+      line-height: 1.08;
+      font-weight: 620;
+      letter-spacing: -0.035em;
+    }
+
+    .identity p {
+      max-width: 620px;
+      margin: 7px 0 0;
+      color: var(--ink-soft);
+      font-size: 13px;
+      line-height: 1.5;
+    }
+
+    .corpus-meta {
+      flex: 0 0 auto;
+      margin-top: 3px;
+      color: var(--ink-faint);
+      font-size: 11px;
+      line-height: 1.45;
+      text-align: right;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .controls {
+      position: sticky;
+      z-index: 10;
+      top: 0;
+      display: grid;
+      grid-template-columns: minmax(240px, 1fr) auto auto;
+      gap: 8px;
+      padding: 10px 0;
+      margin: 0 0 12px;
+      background: color-mix(in srgb, var(--page) 88%, transparent);
+      backdrop-filter: blur(18px) saturate(110%);
+    }
+
+    .field {
+      position: relative;
+      min-width: 0;
+    }
+
+    .field svg {
+      position: absolute;
+      top: 50%;
+      left: 12px;
+      width: 15px;
+      height: 15px;
+      color: var(--ink-faint);
+      pointer-events: none;
+      transform: translateY(-50%);
+    }
+
+    .search-input,
+    .filter-select {
+      width: 100%;
+      height: 38px;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      outline: 0;
+      color: var(--ink);
+      background: color-mix(in srgb, var(--surface-raised) 92%, transparent);
+      box-shadow: 0 1px 0 rgba(255, 255, 255, 0.25);
+      transition: border-color 120ms ease, box-shadow 120ms ease, background 120ms ease;
+    }
+
+    .search-input {
+      padding: 0 36px;
+      font-size: 13px;
+    }
+
+    .search-input::placeholder {
+      color: var(--ink-faint);
+    }
+
+    .search-input::-webkit-search-cancel-button {
+      opacity: 0.62;
+    }
+
+    .filter-select {
+      min-width: 138px;
+      padding: 0 34px 0 12px;
+      font-size: 12px;
+      cursor: pointer;
+    }
+
+    .search-input:focus,
+    .filter-select:focus-visible {
+      border-color: var(--focus);
+      box-shadow: 0 0 0 3px color-mix(in srgb, var(--focus) 18%, transparent);
+      background: var(--surface-raised);
+    }
+
+    .results-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      min-height: 28px;
+      margin-bottom: 10px;
+      color: var(--ink-faint);
+      font-size: 11px;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .legend {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      white-space: nowrap;
+    }
+
+    .legend-item,
+    .status-label {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+    }
+
+    .status-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 999px;
+      background: var(--ink-faint);
+      box-shadow: 0 0 0 2px color-mix(in srgb, currentColor 10%, transparent);
+    }
+
+    .status-dot.active {
+      color: var(--active);
+      background: var(--active);
+    }
+
+    .status-dot.candidate {
+      color: var(--candidate);
+      background: var(--candidate);
+    }
+
+    .library-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: clamp(12px, 1.5vw, 20px);
+      align-items: start;
+    }
+
+    .rule-card {
+      min-width: 0;
+      padding: 0;
+      border: 1px solid var(--line);
+      border-radius: var(--radius-md);
+      overflow: hidden;
+      text-align: left;
+      color: inherit;
+      background: var(--surface);
+      box-shadow: 0 1px 1px rgba(25, 25, 20, 0.025);
+      cursor: pointer;
+      transition: transform 150ms ease, border-color 150ms ease, box-shadow 150ms ease;
+    }
+
+    .rule-card:hover {
+      border-color: var(--line-strong);
+      box-shadow: var(--shadow);
+      transform: translateY(-2px);
+    }
+
+    .rule-card:focus-visible {
+      outline: 3px solid color-mix(in srgb, var(--focus) 32%, transparent);
+      outline-offset: 3px;
+    }
+
+    .rule-visual {
+      position: relative;
+      aspect-ratio: 8 / 5;
+      padding: 13px;
+      overflow: hidden;
+      border-bottom: 1px solid var(--line);
+      background:
+        linear-gradient(140deg, color-mix(in srgb, var(--accent) 11%, var(--surface-soft)), var(--surface-soft) 72%);
+    }
+
+    .rule-visual::after {
+      position: absolute;
+      inset: 0;
+      content: "";
+      opacity: 0.28;
+      pointer-events: none;
+      background-image: radial-gradient(var(--line-strong) 0.55px, transparent 0.55px);
+      background-size: 8px 8px;
+      mask-image: linear-gradient(to bottom right, black, transparent 72%);
+    }
+
+    .rule-card:hover .mini-focus {
+      outline-color: color-mix(in srgb, var(--accent) 82%, white 18%);
+      box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent);
+    }
+
+    .rule-card:hover .mini-tooltip {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    .rule-card:hover .mini-motion {
+      transform: translateX(7px);
+    }
+
+    .rule-caption {
+      min-height: 138px;
+      padding: 13px 14px 14px;
+    }
+
+    .caption-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      margin-bottom: 8px;
+      color: var(--ink-faint);
+      font-size: 10px;
+      line-height: 1.2;
+      text-transform: uppercase;
+      letter-spacing: 0.065em;
+    }
+
+    .domain-label {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .rule-caption h2 {
+      margin: 0;
+      font-size: 15px;
+      line-height: 1.26;
+      font-weight: 625;
+      letter-spacing: -0.015em;
+    }
+
+    .rule-caption p {
+      display: -webkit-box;
+      margin: 7px 0 0;
+      overflow: hidden;
+      color: var(--ink-soft);
+      font-size: 12px;
+      line-height: 1.48;
+      -webkit-box-orient: vertical;
+      -webkit-line-clamp: 3;
+    }
+
+    .card-meta {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      margin-top: 11px;
+      color: var(--ink-faint);
+      font-size: 10px;
+      line-height: 1;
+    }
+
+    .card-meta span + span::before {
+      margin-right: 5px;
+      content: "·";
+    }
+
+    .mini-window {
+      position: relative;
+      z-index: 1;
+      display: flex;
+      flex-direction: column;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      border: 1px solid color-mix(in srgb, var(--accent) 18%, var(--line));
+      border-radius: 8px;
+      background: color-mix(in srgb, var(--surface-raised) 94%, transparent);
+      box-shadow: 0 8px 26px rgba(28, 28, 24, 0.08);
+    }
+
+    .mini-bar {
+      display: flex;
+      align-items: center;
+      height: 22px;
+      padding: 0 7px;
+      border-bottom: 1px solid var(--line);
+      background: color-mix(in srgb, var(--surface) 88%, transparent);
+    }
+
+    .mini-dots {
+      display: flex;
+      gap: 3px;
+    }
+
+    .mini-dot {
+      width: 4px;
+      height: 4px;
+      border-radius: 50%;
+      background: var(--line-strong);
+    }
+
+    .mini-title {
+      width: 32%;
+      height: 4px;
+      margin-left: 8px;
+      border-radius: 4px;
+      background: color-mix(in srgb, var(--accent) 22%, var(--line));
+    }
+
+    .mini-body {
+      display: flex;
+      flex: 1;
+      min-height: 0;
+      padding: 8px;
+      gap: 7px;
+    }
+
+    .mini-side {
+      flex: 0 0 25%;
+      padding: 6px;
+      border-right: 1px solid var(--line);
+    }
+
+    .mini-main {
+      display: flex;
+      flex: 1;
+      min-width: 0;
+      flex-direction: column;
+      gap: 5px;
+    }
+
+    .mini-line {
+      display: block;
+      width: 100%;
+      height: 5px;
+      border-radius: 4px;
+      background: color-mix(in srgb, var(--ink) 10%, transparent);
+    }
+
+    .mini-line.short {
+      width: 55%;
+    }
+
+    .mini-line.medium {
+      width: 76%;
+    }
+
+    .mini-line.accent {
+      background: color-mix(in srgb, var(--accent) 44%, transparent);
+    }
+
+    .mini-row {
+      position: relative;
+      display: flex;
+      align-items: center;
+      min-height: 20px;
+      padding: 4px 5px;
+      gap: 5px;
+      border: 1px solid var(--line);
+      border-radius: 5px;
+      background: color-mix(in srgb, var(--surface-raised) 82%, transparent);
+    }
+
+    .mini-row.flat {
+      border-color: transparent;
+      background: transparent;
+    }
+
+    .mini-icon {
+      flex: 0 0 auto;
+      width: 12px;
+      height: 12px;
+      border: 1px solid color-mix(in srgb, var(--accent) 40%, var(--line-strong));
+      border-radius: 4px;
+      background: color-mix(in srgb, var(--accent) 12%, transparent);
+    }
+
+    .mini-button {
+      flex: 0 0 auto;
+      width: 17px;
+      height: 17px;
+      margin-left: auto;
+      border: 1px solid var(--line-strong);
+      border-radius: 5px;
+      background: var(--surface-raised);
+    }
+
+    .mini-button.primary {
+      width: 40px;
+      border-color: color-mix(in srgb, var(--accent) 46%, var(--line));
+      background: color-mix(in srgb, var(--accent) 74%, var(--surface-raised));
+    }
+
+    .mini-chip {
+      display: inline-flex;
+      align-items: center;
+      height: 14px;
+      padding: 0 6px;
+      border: 1px solid color-mix(in srgb, var(--accent) 24%, var(--line));
+      border-radius: 999px;
+      color: color-mix(in srgb, var(--accent) 74%, var(--ink));
+      background: color-mix(in srgb, var(--accent) 9%, transparent);
+      font-size: 6px;
+      line-height: 1;
+    }
+
+    .mini-focus {
+      outline: 2px solid color-mix(in srgb, var(--accent) 55%, transparent);
+      outline-offset: 1px;
+      transition: outline-color 140ms ease, box-shadow 140ms ease;
+    }
+
+    .mini-tooltip {
+      position: absolute;
+      right: 2px;
+      bottom: calc(100% + 4px);
+      padding: 3px 5px;
+      border-radius: 4px;
+      opacity: 0;
+      color: var(--surface-raised);
+      background: var(--ink);
+      font-size: 6px;
+      line-height: 1;
+      white-space: nowrap;
+      transform: translateY(2px);
+      transition: opacity 140ms ease, transform 140ms ease;
+    }
+
+    .mini-columns,
+    .mini-grid {
+      display: grid;
+      flex: 1;
+      gap: 6px;
+    }
+
+    .mini-columns {
+      grid-template-columns: 0.72fr 1fr 1.28fr;
+    }
+
+    .mini-grid {
+      grid-template-columns: repeat(2, 1fr);
+    }
+
+    .mini-panel {
+      min-width: 0;
+      padding: 6px;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background: color-mix(in srgb, var(--surface-raised) 76%, transparent);
+    }
+
+    .mini-panel.emphasis {
+      border-color: color-mix(in srgb, var(--accent) 34%, var(--line));
+      box-shadow: inset 0 2px 0 color-mix(in srgb, var(--accent) 56%, transparent);
+    }
+
+    .mini-swatch-row {
+      display: flex;
+      gap: 4px;
+      margin-top: auto;
+    }
+
+    .mini-swatch {
+      width: 18px;
+      height: 18px;
+      border: 1px solid var(--line);
+      border-radius: 5px;
+      background: color-mix(in srgb, var(--accent) 16%, var(--surface-raised));
+    }
+
+    .mini-swatch:nth-child(2) {
+      background: color-mix(in srgb, var(--accent) 34%, var(--surface-raised));
+    }
+
+    .mini-swatch:nth-child(3) {
+      background: color-mix(in srgb, var(--accent) 58%, var(--surface-raised));
+    }
+
+    .mini-node-row {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      min-height: 26px;
+    }
+
+    .mini-node {
+      display: grid;
+      flex: 1;
+      min-width: 0;
+      min-height: 25px;
+      place-items: center;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background: var(--surface-raised);
+    }
+
+    .mini-node.is-current {
+      border-color: color-mix(in srgb, var(--accent) 45%, var(--line));
+      background: color-mix(in srgb, var(--accent) 12%, var(--surface-raised));
+    }
+
+    .mini-connector {
+      flex: 0 0 8px;
+      height: 1px;
+      background: var(--line-strong);
+      transition: transform 140ms ease;
+    }
+
+    .mini-composer {
+      display: flex;
+      align-items: center;
+      min-height: 31px;
+      margin-top: auto;
+      padding: 5px 6px;
+      gap: 4px;
+      border: 1px solid color-mix(in srgb, var(--accent) 28%, var(--line));
+      border-radius: 7px;
+      background: var(--surface-raised);
+    }
+
+    .mini-handle {
+      width: 4px;
+      height: 11px;
+      border-radius: 2px;
+      background: repeating-linear-gradient(to bottom, var(--ink-faint) 0 1px, transparent 1px 3px);
+    }
+
+    .mini-check {
+      position: relative;
+      flex: 0 0 auto;
+      width: 12px;
+      height: 12px;
+      border: 1px solid color-mix(in srgb, var(--accent) 46%, var(--line-strong));
+      border-radius: 50%;
+      background: color-mix(in srgb, var(--accent) 18%, transparent);
+    }
+
+    .mini-check::after {
+      position: absolute;
+      left: 3px;
+      top: 2px;
+      width: 4px;
+      height: 2px;
+      border-left: 1px solid var(--accent);
+      border-bottom: 1px solid var(--accent);
+      content: "";
+      transform: rotate(-45deg);
+    }
+
+    .empty-state {
+      display: none;
+      min-height: 320px;
+      place-items: center;
+      padding: 32px;
+      border: 1px dashed var(--line-strong);
+      border-radius: var(--radius-md);
+      color: var(--ink-soft);
+      text-align: center;
+      background: color-mix(in srgb, var(--surface) 54%, transparent);
+    }
+
+    .empty-state.is-visible {
+      display: grid;
+    }
+
+    .empty-state h2 {
+      margin: 0;
+      color: var(--ink);
+      font-size: 16px;
+      font-weight: 620;
+    }
+
+    .empty-state p {
+      max-width: 390px;
+      margin: 7px 0 15px;
+      font-size: 12px;
+      line-height: 1.5;
+    }
+
+    .quiet-button {
+      height: 32px;
+      padding: 0 11px;
+      border: 1px solid var(--line-strong);
+      border-radius: 8px;
+      color: var(--ink);
+      background: var(--surface-raised);
+      cursor: pointer;
+    }
+
+    .rule-dialog {
+      width: min(1020px, calc(100vw - 28px));
+      max-height: min(88vh, 940px);
+      padding: 0;
+      border: 1px solid var(--line-strong);
+      border-radius: var(--radius-lg);
+      overflow: hidden;
+      color: var(--ink);
+      background: var(--surface);
+      box-shadow: 0 34px 100px rgba(12, 12, 10, 0.28);
+    }
+
+    .rule-dialog::backdrop {
+      background: rgba(18, 18, 16, 0.43);
+      backdrop-filter: blur(7px);
+    }
+
+    .dialog-shell {
+      display: flex;
+      max-height: min(88vh, 940px);
+      flex-direction: column;
+    }
+
+    .dialog-bar {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 18px;
+      padding: 18px 20px 16px;
+      border-bottom: 1px solid var(--line);
+      background: color-mix(in srgb, var(--surface-raised) 86%, transparent);
+    }
+
+    .dialog-title-wrap {
+      min-width: 0;
+    }
+
+    .dialog-kicker {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      margin-bottom: 5px;
+      color: var(--ink-faint);
+      font-size: 10px;
+      line-height: 1.2;
+      text-transform: uppercase;
+      letter-spacing: 0.065em;
+    }
+
+    .dialog-title {
+      margin: 0;
+      font-size: clamp(19px, 2.4vw, 27px);
+      line-height: 1.16;
+      font-weight: 640;
+      letter-spacing: -0.03em;
+    }
+
+    .dialog-actions {
+      display: flex;
+      flex: 0 0 auto;
+      gap: 5px;
+    }
+
+    .icon-button {
+      position: relative;
+      display: grid;
+      width: 32px;
+      height: 32px;
+      padding: 0;
+      place-items: center;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      color: var(--ink-soft);
+      background: var(--surface);
+      cursor: pointer;
+    }
+
+    .icon-button:hover {
+      color: var(--ink);
+      border-color: var(--line-strong);
+      background: var(--surface-raised);
+    }
+
+    .icon-button:focus-visible {
+      outline: 3px solid color-mix(in srgb, var(--focus) 28%, transparent);
+      outline-offset: 2px;
+    }
+
+    .icon-button svg {
+      width: 15px;
+      height: 15px;
+    }
+
+    .icon-button::after {
+      position: absolute;
+      right: 0;
+      bottom: calc(100% + 7px);
+      z-index: 2;
+      padding: 5px 7px;
+      border-radius: 5px;
+      opacity: 0;
+      color: var(--surface-raised);
+      background: var(--ink);
+      content: attr(data-tip);
+      font-size: 10px;
+      line-height: 1;
+      white-space: nowrap;
+      pointer-events: none;
+      transform: translateY(2px);
+      transition: opacity 120ms ease, transform 120ms ease;
+    }
+
+    .icon-button:hover::after,
+    .icon-button:focus-visible::after {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    .dialog-scroll {
+      overflow: auto;
+      overscroll-behavior: contain;
+    }
+
+    .dialog-hero {
+      display: grid;
+      grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+      gap: 24px;
+      padding: 22px 20px 24px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .dialog-visual {
+      min-height: 250px;
+      padding: 18px;
+      border: 1px solid var(--line);
+      border-radius: 13px;
+      background: linear-gradient(140deg, color-mix(in srgb, var(--accent) 11%, var(--surface-soft)), var(--surface-soft) 72%);
+    }
+
+    .dialog-visual .mini-window {
+      min-height: 212px;
+    }
+
+    .statement {
+      margin: 0;
+      color: var(--ink);
+      font-size: clamp(18px, 2.15vw, 24px);
+      line-height: 1.28;
+      letter-spacing: -0.026em;
+    }
+
+    .rationale {
+      margin: 15px 0 0;
+      color: var(--ink-soft);
+      font-size: 13px;
+      line-height: 1.58;
+    }
+
+    .scope-tags {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 5px;
+      margin-top: 18px;
+    }
+
+    .tag {
+      display: inline-flex;
+      align-items: center;
+      min-height: 22px;
+      padding: 3px 7px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      color: var(--ink-soft);
+      background: color-mix(in srgb, var(--surface-raised) 68%, transparent);
+      font-size: 10px;
+      line-height: 1.2;
+    }
+
+    .dialog-content {
+      display: grid;
+      grid-template-columns: minmax(0, 1.35fr) minmax(240px, 0.65fr);
+      gap: 28px;
+      padding: 24px 20px 30px;
+    }
+
+    .content-stack,
+    .side-stack {
+      display: flex;
+      min-width: 0;
+      flex-direction: column;
+      gap: 24px;
+    }
+
+    .detail-section h3 {
+      margin: 0 0 9px;
+      color: var(--ink-faint);
+      font-size: 10px;
+      font-weight: 650;
+      line-height: 1.2;
+      text-transform: uppercase;
+      letter-spacing: 0.075em;
+    }
+
+    .detail-section ul {
+      display: grid;
+      gap: 7px;
+      margin: 0;
+      padding: 0;
+      list-style: none;
+    }
+
+    .detail-section li {
+      position: relative;
+      padding-left: 15px;
+      color: var(--ink-soft);
+      font-size: 12px;
+      line-height: 1.52;
+    }
+
+    .detail-section li::before {
+      position: absolute;
+      left: 1px;
+      top: 0.72em;
+      width: 5px;
+      height: 1px;
+      content: "";
+      background: var(--ink-faint);
+    }
+
+    .guidance-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+    }
+
+    .guidance-panel {
+      min-width: 0;
+      padding: 13px;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      background: color-mix(in srgb, var(--surface-raised) 64%, transparent);
+    }
+
+    .guidance-panel.prefer {
+      border-top-color: color-mix(in srgb, var(--active) 58%, var(--line));
+    }
+
+    .guidance-panel.avoid {
+      border-top-color: color-mix(in srgb, var(--danger) 58%, var(--line));
+    }
+
+    .meta-table {
+      width: 100%;
+      border-collapse: collapse;
+      table-layout: fixed;
+    }
+
+    .meta-table th,
+    .meta-table td {
+      padding: 8px 0;
+      border-bottom: 1px solid var(--line);
+      vertical-align: top;
+      text-align: left;
+      font-size: 11px;
+      line-height: 1.45;
+    }
+
+    .meta-table th {
+      width: 38%;
+      color: var(--ink-faint);
+      font-weight: 500;
+    }
+
+    .meta-table td {
+      color: var(--ink-soft);
+      overflow-wrap: anywhere;
+    }
+
+    .evidence-list {
+      display: grid;
+      gap: 8px;
+    }
+
+    .evidence-item {
+      padding: 10px;
+      border: 1px solid var(--line);
+      border-radius: 9px;
+      background: color-mix(in srgb, var(--surface-raised) 58%, transparent);
+    }
+
+    .evidence-item p {
+      margin: 0;
+      color: var(--ink-soft);
+      font-size: 11px;
+      line-height: 1.48;
+    }
+
+    .evidence-source {
+      margin-top: 6px;
+      color: var(--ink-faint);
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 9px;
+      line-height: 1.4;
+      overflow-wrap: anywhere;
+    }
+
+    .nonoperative-note {
+      padding: 10px 11px;
+      border: 1px solid color-mix(in srgb, var(--candidate) 38%, var(--line));
+      border-radius: 9px;
+      color: color-mix(in srgb, var(--candidate) 72%, var(--ink));
+      background: color-mix(in srgb, var(--candidate) 8%, transparent);
+      font-size: 11px;
+      line-height: 1.45;
+    }
+
+    @media (max-width: 1180px) {
+      .library-grid {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+      }
+    }
+
+    @media (max-width: 820px) {
+      .library-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .dialog-hero,
+      .dialog-content {
+        grid-template-columns: 1fr;
+      }
+
+      .dialog-visual {
+        min-height: 220px;
+      }
+    }
+
+    @media (max-width: 620px) {
+      .shell {
+        padding-top: 18px;
+      }
+
+      .masthead {
+        display: block;
+        margin-bottom: 14px;
+      }
+
+      .corpus-meta {
+        margin-top: 9px;
+        text-align: left;
+      }
+
+      .controls {
+        grid-template-columns: minmax(0, 1fr) minmax(112px, 0.43fr);
+      }
+
+      .field {
+        grid-column: 1 / -1;
+      }
+
+      .filter-select {
+        min-width: 0;
+      }
+
+      .results-row {
+        align-items: flex-start;
+      }
+
+      .legend {
+        gap: 8px;
+      }
+
+      .library-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .rule-caption {
+        min-height: 0;
+      }
+
+      .rule-dialog {
+        width: calc(100vw - 12px);
+        max-height: calc(100vh - 12px);
+        border-radius: 14px;
+      }
+
+      .dialog-shell {
+        max-height: calc(100vh - 12px);
+      }
+
+      .dialog-bar {
+        padding: 15px;
+      }
+
+      .dialog-hero,
+      .dialog-content {
+        padding-left: 15px;
+        padding-right: 15px;
+      }
+
+      .guidance-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      html {
+        scroll-behavior: auto;
+      }
+
+      *,
+      *::before,
+      *::after {
+        scroll-behavior: auto !important;
+        transition-duration: 0.01ms !important;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <header class="masthead">
+      <div class="identity">
+        <h1>Design doctrine</h1>
+        <p>Evidence-backed principles, standards, guidelines, and taste. Active rules guide work; candidates remain visible for review and posterity.</p>
+      </div>
+      <div class="corpus-meta" id="corpus-meta"></div>
+    </header>
+
+    <section class="controls" aria-label="Filter doctrine">
+      <label class="field">
+        <span hidden>Search doctrine</span>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+          <circle cx="11" cy="11" r="6.6"></circle>
+          <path d="m16 16 4 4"></path>
+        </svg>
+        <input class="search-input" id="search" type="search" autocomplete="off" placeholder="Search rules, surfaces, guidance, or evidence" aria-label="Search doctrine">
+      </label>
+      <label>
+        <span hidden>Lifecycle</span>
+        <select class="filter-select" id="status-filter" aria-label="Filter by lifecycle">
+          <option value="all">All lifecycle</option>
+          <option value="active">Active rules</option>
+          <option value="candidate">Candidates</option>
+          <option value="other">Other history</option>
+        </select>
+      </label>
+      <label>
+        <span hidden>Domain</span>
+        <select class="filter-select" id="domain-filter" aria-label="Filter by domain">
+          <option value="all">All domains</option>
+        </select>
+      </label>
+    </section>
+
+    <div class="results-row">
+      <span id="result-count" aria-live="polite"></span>
+      <span class="legend" aria-label="Lifecycle legend">
+        <span class="legend-item"><span class="status-dot active"></span>Active</span>
+        <span class="legend-item"><span class="status-dot candidate"></span>Candidate</span>
+      </span>
+    </div>
+
+    <section class="library-grid" id="library-grid" aria-label="Doctrine rules"></section>
+
+    <section class="empty-state" id="empty-state">
+      <div>
+        <h2>No rules match</h2>
+        <p>Try a broader term or clear the lifecycle and domain filters.</p>
+        <button class="quiet-button" id="clear-filters" type="button">Clear filters</button>
+      </div>
+    </section>
+  </main>
+
+  <dialog class="rule-dialog" id="rule-dialog" aria-labelledby="dialog-title">
+    <div class="dialog-shell" id="dialog-shell"></div>
+  </dialog>
+
+  <noscript>
+    <p style="padding: 24px; font-family: system-ui;">This generated library needs JavaScript to filter and inspect rules. The Markdown catalog remains available as DOCTRINE.md.</p>
+  </noscript>
+
+  <script id="doctrine-data" type="application/json">{"meta":{"corpus_sha256":"809aae1dd03259d716ee8a14b71d0cf90bf280e0ec262d73986e33fe7a683884","generated_at":"2026-07-19T00:51:26+00:00","rule_count":33,"status_counts":{"active":20,"candidate":13}},"rules":[{"applicability":{"activities":["architecture","design","critique","implementation","qa"],"artifacts":["workflow","screen","component"],"contexts":["hover reveal","keyboard focus"],"not_when":["The control is always visible or the entire containing object is the target."],"products":["global"],"surfaces":["drag handles","icon-only actions","dense rows"],"when":["A control is hidden until hover to reduce density."]},"canonical_path":"rules/accessibility/ddr_028.json","classification":{"pattern_categories":["Actions & commands","Surfaces & disclosure"],"primary":"accessibility.operation","secondary":["interaction.disclosure","accessibility.comprehension"]},"confidence":{"assessed_at":"2026-07-17","basis":{"challenging_episodes":0,"distinct_projects":2,"distinct_threads":2,"explicit_user_signals":3,"supporting_episodes":2},"level":"high","note":"Bootstrapped from independent direct user episodes under the owner's request to mine durable design rules."},"evidence":[{"content_sha256":"sha256:869f5f3770057f944f912ae455da0eb0f19b92876d31d902b6295f4a24a0ebbd","doctrine_version_seen":"pre-doctrine","episode_id":"external:published:episode-040","episode_source_keys":["published-span-062","published-span-055"],"excerpt":null,"id":"ev_028_01","observed_at":"2026-07-17","signal":"explicit_correction","source":{"project_id":"published-scope-001","source_keys":["published-signal-062","published-signal-055"],"store":"public-doctrine","thread_id":"published-context-014","type":"published_summary"},"stance":"supports","summary":"Requested a persistent drag-handle cue and accurate tooltip so its location is not guesswork before hover."},{"content_sha256":"sha256:f81bb57a9449258c374015775f362eb2e0b076f9076b0751c7b44d9e93905b81","doctrine_version_seen":"pre-doctrine","episode_id":"external:published:episode-002","episode_source_keys":["published-span-002"],"excerpt":null,"id":"ev_028_02","observed_at":"2026-06-17","signal":"explicit_instruction","source":{"project_id":"published-scope-002","source_keys":["published-signal-002"],"store":"public-doctrine","thread_id":"published-context-002","type":"published_summary"},"stance":"supports","summary":"Required comment-list interaction to open the comment at its actual gutter anchor, not from a detached list control."}],"exceptions":[],"guidance":{"avoid":["Completely invisible hit areas.","Hover-only access with no keyboard path."],"prefer":["Leave a quiet positional cue at rest.","Reveal the control on hover and focus with an accessible name and concise tooltip."]},"id":"ddr_028","kind":"standard","lifecycle":{"activated_at":"2026-07-17","approved_by":"owner-direct-history-bootstrap","created_at":"2026-07-17","decision_note":"Activated only for the owner-requested initial bootstrap because repeated independent direct instructions or corrections establish this decision boundary.","last_reviewed_at":"2026-07-17","review_after":"2027-01-17","status":"active","updated_at":"2026-07-17"},"rationale":"Progressive disclosure should reduce clutter without making the affordance impossible to locate.","relationships":[],"retrieval":{"aliases":[],"keywords":["accessibility","actions","dense","drag","focus","handles","hover","icon-only","keyboard","operation","reveal","rows"],"negative_examples":["Completely invisible hit areas.","Hover-only access with no keyboard path."],"positive_examples":["Leave a quiet positional cue at rest.","Reveal the control on hover and focus with an accessible name and concise tooltip."]},"revision":1,"schema_version":1,"statement":"When a control appears on hover, show a quiet at-rest cue for its location and support keyboard focus plus a tooltip; users must not memorize invisible hit areas.","strength":"required","title":"Make the locus of hover controls discoverable","verification":{"checks":["Can a user locate the affordance before hovering precisely?","Does keyboard focus reveal and operate it?","Is the tooltip supplemental rather than essential?"],"method":"interaction_test"}},{"applicability":{"activities":["architecture","design","critique","implementation","qa"],"artifacts":["workflow","screen","component"],"contexts":["panel resize","note switch","timeline transition"],"not_when":["The user closes or explicitly undocks it, or a hard permission boundary requires dismissal."],"products":["moss"],"surfaces":["dockable agent composer"],"when":["The user has explicitly docked a composer for sustained work."]},"canonical_path":"rules/ai/ddr_030.json","classification":{"pattern_categories":["Layout & composition","Inputs & selection"],"primary":"ai.agency","secondary":["visual.layout","system.responsiveness"]},"confidence":{"assessed_at":"2026-07-17","basis":{"challenging_episodes":0,"distinct_projects":1,"distinct_threads":1,"explicit_user_signals":1,"supporting_episodes":1},"level":"high","note":"Bootstrapped from independent direct user episodes under the owner's request to mine durable design rules."},"evidence":[{"content_sha256":"sha256:8c31e962d61509b00910c982701439673f6360286eff5eeab9951bc136c40954","doctrine_version_seen":"pre-doctrine","episode_id":"external:published:episode-033","episode_source_keys":["published-span-041"],"excerpt":null,"id":"ev_030_01","observed_at":"2026-07-11","signal":"explicit_instruction","source":{"project_id":"published-scope-002","source_keys":["published-signal-041"],"store":"public-doctrine","thread_id":"published-context-010","type":"published_summary"},"stance":"supports","summary":"Reported resizing a side panel temporarily made the docked composer disappear."}],"exceptions":[],"guidance":{"avoid":["Unmounting or disabling the docked composer during adjacent navigation or resize."],"prefer":["Preserve composer presence, content, and operability across normal workspace transitions."]},"id":"ddr_030","kind":"standard","lifecycle":{"activated_at":null,"approved_by":null,"created_at":"2026-07-17","decision_note":"Candidate pending independent recurrence or explicit owner approval.","last_reviewed_at":"2026-07-17","review_after":null,"status":"candidate","updated_at":"2026-07-17"},"rationale":"Docking signals sustained work; losing the composer during ordinary workspace transitions breaks that contract.","relationships":[],"retrieval":{"aliases":[],"keywords":["agency","agent","ai","composer","dockable","note","panel","resize","switch","timeline","transition"],"negative_examples":["Unmounting or disabling the docked composer during adjacent navigation or resize."],"positive_examples":["Preserve composer presence, content, and operability across normal workspace transitions."]},"revision":1,"schema_version":1,"statement":"A docked composer remains present and operable through resize, panel, note, and timeline transitions.","strength":"required","title":"Keep a docked agent composer persistent","verification":{"checks":["Does the composer survive resize and navigation?","Is draft context preserved?","Can the user still submit or recover?"],"method":"interaction_test"}},{"applicability":{"activities":["architecture","design","critique","implementation","qa"],"artifacts":["workflow","screen","component"],"contexts":["selected text","images","thread context"],"not_when":["A surface intentionally represents a different immutable historical snapshot."],"products":["moss"],"surfaces":["agent composer","action timeline","context tray"],"when":["The same agent context appears in more than one lifecycle surface."]},"canonical_path":"rules/ai/ddr_029.json","classification":{"pattern_categories":["Content & data","Surfaces & disclosure"],"primary":"ai.context","secondary":["information.organization","interaction.disclosure"]},"confidence":{"assessed_at":"2026-07-17","basis":{"challenging_episodes":0,"distinct_projects":1,"distinct_threads":1,"explicit_user_signals":2,"supporting_episodes":1},"level":"medium","note":"Bootstrapped from independent direct user episodes under the owner's request to mine durable design rules."},"evidence":[{"content_sha256":"sha256:d0c8c0ac786a5b6d6168eb19220674a1923112320ceab2bdbd4d5009e00a1aef","doctrine_version_seen":"pre-doctrine","episode_id":"external:published:episode-022","episode_source_keys":["published-span-028","published-span-033"],"excerpt":null,"id":"ev_029_01","observed_at":"2026-07-17","signal":"explicit_correction","source":{"project_id":"published-scope-002","source_keys":["published-signal-028","published-signal-033"],"store":"public-doctrine","thread_id":"published-context-010","type":"published_summary"},"stance":"supports","summary":"Requested context pills and images collapse compactly using a model consistent with the command palette, especially when context is absent."}],"exceptions":[],"guidance":{"avoid":["Independent context models for composition and history."],"prefer":["Use the same ordering, summary, count, and expansion logic wherever agent context appears."]},"id":"ddr_029","kind":"principle","lifecycle":{"activated_at":null,"approved_by":null,"created_at":"2026-07-17","decision_note":"Candidate pending independent recurrence or explicit owner approval.","last_reviewed_at":"2026-07-17","review_after":null,"status":"candidate","updated_at":"2026-07-17"},"rationale":"Context changes meaning when each surface summarizes, expands, or orders it differently.","relationships":[],"retrieval":{"aliases":[],"keywords":["action","agent","ai","composer","context","images","selected","text","thread","timeline","tray"],"negative_examples":["Independent context models for composition and history."],"positive_examples":["Use the same ordering, summary, count, and expansion logic wherever agent context appears."]},"revision":1,"schema_version":1,"statement":"Context pills, images, and threads should compress and expand through one coherent model across the composer and action timeline.","strength":"default","title":"Use one coherent model for agent context","verification":{"checks":["Does the same context retain identity across surfaces?","Are compression and expansion rules consistent?","Can the user tell what was actually sent?"],"method":"interaction_test"}},{"applicability":{"activities":["design","critique","implementation","documentation"],"artifacts":["documentation","note","visual"],"contexts":["interaction instructions"],"not_when":["The text is explicitly conceptual and labeled as such."],"products":["global"],"surfaces":["help text","onboarding","release copy"],"when":["Copy instructs the user how to interact with a feature."]},"canonical_path":"rules/content/ddr_022.json","classification":{"pattern_categories":["Content & data","Inputs & selection"],"primary":"content.instructions","secondary":["interaction.input","product.trust"]},"confidence":{"assessed_at":"2026-07-17","basis":{"challenging_episodes":0,"distinct_projects":1,"distinct_threads":1,"explicit_user_signals":3,"supporting_episodes":1},"level":"high","note":"Bootstrapped from independent direct user episodes under the owner's request to mine durable design rules."},"evidence":[{"content_sha256":"sha256:72a2c5c0c70b0976ce94d0a8cb781059cf0607473df80df87689e5e24a0f1cfe","doctrine_version_seen":"pre-doctrine","episode_id":"external:published:episode-006","episode_source_keys":["published-span-005","published-span-006","published-span-007"],"excerpt":null,"id":"ev_022_01","observed_at":"2026-07-02","signal":"explicit_correction","source":{"project_id":"published-scope-002","source_keys":["published-signal-005","published-signal-006","published-signal-007"],"store":"public-doctrine","thread_id":"published-context-003","type":"published_summary"},"stance":"supports","summary":"Corrected feature copy to describe clicking, browser tabs, and interactive pills, while removing redundant explanation."}],"exceptions":[],"guidance":{"avoid":["Describing click behavior when the feature uses hover, or vice versa.","Copy based only on intended behavior."],"prefer":["Verify and name the exact shipped gesture and result."]},"id":"ddr_022","kind":"standard","lifecycle":{"activated_at":null,"approved_by":null,"created_at":"2026-07-17","decision_note":"Candidate pending independent recurrence or explicit owner approval.","last_reviewed_at":"2026-07-17","review_after":null,"status":"candidate","updated_at":"2026-07-17"},"rationale":"Incorrect instructions make a working feature feel broken and invalidate documentation evidence.","relationships":[],"retrieval":{"aliases":[],"keywords":["content","copy","help","instructions","interaction","onboarding","release","text"],"negative_examples":["Describing click behavior when the feature uses hover, or vice versa.","Copy based only on intended behavior."],"positive_examples":["Verify and name the exact shipped gesture and result."]},"revision":1,"schema_version":1,"statement":"UI copy must name the real gesture and outcome, especially hover versus click, rather than describe an idealized interaction.","strength":"required","title":"Describe the interaction that actually ships","verification":{"checks":["Does the described gesture match the current rendered product?","Does the stated outcome occur?","Was the interaction verified directly?"],"method":"content_review"}},{"applicability":{"activities":["design","critique","implementation","documentation"],"artifacts":["documentation","note","visual"],"contexts":["user-facing copy","feature explanation"],"not_when":["The audience explicitly needs technical implementation detail."],"products":["global"],"surfaces":["documentation","release notes","labels","skills"],"when":["Copy explains a feature, action, or result to the user."]},"canonical_path":"rules/content/ddr_021.json","classification":{"pattern_categories":["Content & data"],"primary":"content.terminology","secondary":["product.value","content.instructions"]},"confidence":{"assessed_at":"2026-07-17","basis":{"challenging_episodes":0,"distinct_projects":1,"distinct_threads":2,"explicit_user_signals":3,"supporting_episodes":2},"level":"high","note":"Bootstrapped from independent direct user episodes under the owner's request to mine durable design rules."},"evidence":[{"content_sha256":"sha256:1d6eb8af1a06261b3d67836c6385a547bbc3a49dfbf816e2ad4bcaa066ea6963","doctrine_version_seen":"pre-doctrine","episode_id":"external:published:episode-005","episode_source_keys":["published-span-003"],"excerpt":null,"id":"ev_021_01","observed_at":"2026-06-26","signal":"explicit_correction","source":{"project_id":"published-scope-002","source_keys":["published-signal-003"],"store":"public-doctrine","thread_id":"published-context-003","type":"published_summary"},"stance":"supports","summary":"Asked release notes to avoid implementation identifiers and describe features in language meaningful to end users."},{"content_sha256":"sha256:3963af94fa234101e193bb8bb83fd08f68e94cdaa8346026db18f5206b4093b1","doctrine_version_seen":"pre-doctrine","episode_id":"external:published:episode-028","episode_source_keys":["published-span-025","published-span-035"],"excerpt":null,"id":"ev_021_02","observed_at":"2026-07-17","signal":"explicit_correction","source":{"project_id":"published-scope-002","source_keys":["published-signal-025","published-signal-035"],"store":"public-doctrine","thread_id":"published-context-010","type":"published_summary"},"stance":"supports","summary":"Asked formula documentation to use ordinary terms and concise instructions instead of technical, granular wording."}],"exceptions":[],"guidance":{"avoid":["Implementation terms that do not change the user's action.","Granular process detail in primary copy."],"prefer":["Name the user job, capability, and observable outcome.","Use product vocabulary consistently."]},"id":"ddr_021","kind":"principle","lifecycle":{"activated_at":"2026-07-17","approved_by":"owner-direct-history-bootstrap","created_at":"2026-07-17","decision_note":"Activated only for the owner-requested initial bootstrap because repeated independent direct instructions or corrections establish this decision boundary.","last_reviewed_at":"2026-07-17","review_after":"2027-01-17","status":"active","updated_at":"2026-07-17"},"rationale":"Product language should help users act and understand value, not expose the structure of the implementation.","relationships":[],"retrieval":{"aliases":[],"keywords":["content","copy","documentation","explanation","feature","labels","notes","release","skills","terminology","user-facing"],"negative_examples":["Implementation terms that do not change the user's action.","Granular process detail in primary copy."],"positive_examples":["Name the user job, capability, and observable outcome.","Use product vocabulary consistently."]},"revision":1,"schema_version":1,"statement":"Write for the user's task and product vocabulary rather than internal implementation; avoid overly technical or granular explanations.","strength":"default","title":"Write in user-capability language","verification":{"checks":["Does the copy lead with the user capability?","Can internal terms be removed without losing meaning?","Is the observable outcome clear?"],"method":"content_review"}},{"applicability":{"activities":["architecture","design","critique","implementation","qa"],"artifacts":["workflow","screen","component"],"contexts":["dense product UI","overview surfaces"],"not_when":["Removing the element would hide state, orientation, recovery, or an otherwise undiscoverable action."],"products":["global"],"surfaces":["menus","drawers","panels","cards","gallery shells"],"when":["Several persistent UI elements compete with the content or primary job."]},"canonical_path":"rules/information/ddr_002.json","classification":{"pattern_categories":["Layout & composition","Content & data"],"primary":"information.density","secondary":["visual.hierarchy","visual.layout"]},"confidence":{"assessed_at":"2026-07-17","basis":{"challenging_episodes":0,"distinct_projects":2,"distinct_threads":3,"explicit_user_signals":5,"supporting_episodes":3},"level":"high","note":"Bootstrapped from independent direct user episodes under the owner's request to mine durable design rules."},"evidence":[{"content_sha256":"sha256:fe14c39a3e0856b6c83a3e53e7e8ccc673f2c7ef86e0945360a8931195265c7c","doctrine_version_seen":"pre-doctrine","episode_id":"external:published:episode-012","episode_source_keys":["published-span-018","published-span-015"],"excerpt":null,"id":"ev_002_01","observed_at":"2026-07-17","signal":"explicit_correction","source":{"project_id":"published-scope-001","source_keys":["published-signal-018","published-signal-015"],"store":"public-doctrine","thread_id":"published-context-006","type":"published_summary"},"stance":"supports","summary":"Asked routinely used menus to be narrower and flagged supporting sections whose presentation was too flat."},{"content_sha256":"sha256:54be542bd6cfc19d7f02ba399c0d51e9a7fa3d68c5791017447d2549e6547931","doctrine_version_seen":"pre-doctrine","episode_id":"external:published:episode-035","episode_source_keys":["published-span-027","published-span-028"],"excerpt":null,"id":"ev_002_02","observed_at":"2026-07-17","signal":"explicit_correction","source":{"project_id":"published-scope-002","source_keys":["published-signal-027","published-signal-028"],"store":"public-doctrine","thread_id":"published-context-010","type":"published_summary"},"stance":"supports","summary":"Asked context content to collapse compactly and match the command palette; rejected heavy actions-panel sections."},{"content_sha256":"sha256:f66b236ec2fb84dcffc0d1c6937556bb2c3a2a3c67179a2606aa8248a6ff18a8","doctrine_version_seen":"pre-doctrine","episode_id":"external:published:episode-043","episode_source_keys":["published-span-050"],"excerpt":null,"id":"ev_002_03","observed_at":"2026-07-17","signal":"explicit_correction","source":{"project_id":"published-scope-001","source_keys":["published-signal-050"],"store":"public-doctrine","thread_id":"published-context-014","type":"published_summary"},"stance":"supports","summary":"Flagged a fullscreen drawer with excessive blank space beneath its content."}],"exceptions":[],"guidance":{"avoid":["Explanatory labels, borders, sections, and gaps that do not change a decision.","Oversized or uniformly heavy chrome."],"prefer":["Let content and the current job establish hierarchy.","Use the smallest amount of persistent structure that preserves orientation and state."]},"id":"ddr_002","kind":"taste","lifecycle":{"activated_at":"2026-07-17","approved_by":"owner-direct-history-bootstrap","created_at":"2026-07-17","decision_note":"Activated only for the owner-requested initial bootstrap because repeated independent direct instructions or corrections establish this decision boundary.","last_reviewed_at":"2026-07-17","review_after":"2027-01-17","status":"active","updated_at":"2026-07-17"},"rationale":"Repeated corrections reject interfaces that become too wide, tall, labeled, heavy, or structurally noisy.","relationships":[],"retrieval":{"aliases":[],"keywords":["cards","dense","density","drawers","gallery","information","menus","overview","panels","product","shells","surfaces"],"negative_examples":["Explanatory labels, borders, sections, and gaps that do not change a decision.","Oversized or uniformly heavy chrome."],"positive_examples":["Let content and the current job establish hierarchy.","Use the smallest amount of persistent structure that preserves orientation and state."]},"revision":1,"schema_version":1,"statement":"Every label, border, section, menu width, and vertical gap must earn its visual weight; prefer compact, content-led layouts over explanatory chrome.","strength":"preference","title":"Make every piece of chrome earn its weight","verification":{"checks":["Can any label, border, section, or gap disappear without reducing understanding?","Does visual weight match product importance?","Is content still the dominant surface?"],"method":"visual_review"}},{"applicability":{"activities":["architecture","design","critique","implementation","qa"],"artifacts":["workflow","screen","component"],"contexts":["status display","resource metadata"],"not_when":["Redundancy is required for accessibility, safety, or cross-context orientation."],"products":["global"],"surfaces":["overview rows","detail panels","cards"],"when":["A dense surface repeats descriptive or status text."]},"canonical_path":"rules/information/ddr_024.json","classification":{"pattern_categories":["Content & data"],"primary":"information.density","secondary":["content.terminology","visual.hierarchy"]},"confidence":{"assessed_at":"2026-07-17","basis":{"challenging_episodes":0,"distinct_projects":1,"distinct_threads":2,"explicit_user_signals":2,"supporting_episodes":2},"level":"high","note":"Bootstrapped from independent direct user episodes under the owner's request to mine durable design rules."},"evidence":[{"content_sha256":"sha256:fa980a42939a6d139f06815c04f6140ab228a26e4d52e2c9100fc93a6ed22044","doctrine_version_seen":"pre-doctrine","episode_id":"external:published:episode-051","episode_source_keys":["published-span-065"],"excerpt":null,"id":"ev_024_01","observed_at":"2026-07-13","signal":"explicit_correction","source":{"project_id":"published-scope-001","source_keys":["published-signal-065"],"store":"public-doctrine","thread_id":"published-context-015","type":"published_summary"},"stance":"supports","summary":"Asked run-state text be removed when icons communicate it and required overview context to carry into detail rows."},{"content_sha256":"sha256:73064664806dad5aa24441e9413ee3151d1474f6f4e30e136cb4c663acdcc95b","doctrine_version_seen":"pre-doctrine","episode_id":"external:published:episode-038","episode_source_keys":["published-span-047"],"excerpt":null,"id":"ev_024_02","observed_at":"2026-07-08","signal":"explicit_correction","source":{"project_id":"published-scope-001","source_keys":["published-signal-047"],"store":"public-doctrine","thread_id":"published-context-013","type":"published_summary"},"stance":"supports","summary":"Rejected duplicate status labeling and unnecessary inline detail navigation."}],"exceptions":[],"guidance":{"avoid":["Repeating labels or status already conveyed by the owning control or section."],"prefer":["Show metadata that changes interpretation or the next action.","Choose one canonical location for each status."]},"id":"ddr_024","kind":"guideline","lifecycle":{"activated_at":"2026-07-17","approved_by":"owner-direct-history-bootstrap","created_at":"2026-07-17","decision_note":"Activated only for the owner-requested initial bootstrap because repeated independent direct instructions or corrections establish this decision boundary.","last_reviewed_at":"2026-07-17","review_after":"2027-01-17","status":"active","updated_at":"2026-07-17"},"rationale":"Repeated metadata lowers information density and makes important differences harder to scan.","relationships":[],"retrieval":{"aliases":[],"keywords":["cards","density","detail","display","information","metadata","overview","panels","resource","rows","status"],"negative_examples":["Repeating labels or status already conveyed by the owning control or section."],"positive_examples":["Show metadata that changes interpretation or the next action.","Choose one canonical location for each status."]},"revision":1,"schema_version":1,"statement":"Do not repeat status, labels, or explanatory metadata already clear from the surrounding object; show only what changes a decision.","strength":"default","title":"Remove redundant metadata","verification":{"checks":["Does each metadata item change a decision?","Is the same status shown elsewhere?","Can a label disappear without ambiguity?"],"method":"visual_review"}},{"applicability":{"activities":["architecture","design","critique","implementation","qa"],"artifacts":["workflow","screen","component"],"contexts":["sibling sections","mixed roles"],"not_when":["The sections are true peers that users compare directly."],"products":["global"],"surfaces":["panels","detail pages","overview modules"],"when":["Adjacent sections serve different user jobs or importance levels."]},"canonical_path":"rules/information/ddr_015.json","classification":{"pattern_categories":["Layout & composition","Content & data"],"primary":"information.hierarchy","secondary":["visual.hierarchy"]},"confidence":{"assessed_at":"2026-07-17","basis":{"challenging_episodes":0,"distinct_projects":2,"distinct_threads":2,"explicit_user_signals":2,"supporting_episodes":2},"level":"medium","note":"Bootstrapped from independent direct user episodes under the owner's request to mine durable design rules."},"evidence":[{"content_sha256":"sha256:64c4e53ba7619ca2620563b35d0e3457a60a503909c62bd0b98dfc325917d389","doctrine_version_seen":"pre-doctrine","episode_id":"external:published:episode-034","episode_source_keys":["published-span-026"],"excerpt":null,"id":"ev_015_01","observed_at":"2026-07-13","signal":"explicit_correction","source":{"project_id":"published-scope-002","source_keys":["published-signal-026"],"store":"public-doctrine","thread_id":"published-context-010","type":"published_summary"},"stance":"supports","summary":"Asked visually sibling action sections to use the same hierarchy and questioned an unnecessary undocked footer boundary."},{"content_sha256":"sha256:9415b1e5d1bcfb76a4cd1903edfc4882602c6e99eab56d6a1fd3620fd3abfe42","doctrine_version_seen":"pre-doctrine","episode_id":"external:published:episode-013","episode_source_keys":["published-span-015"],"excerpt":null,"id":"ev_015_02","observed_at":"2026-07-17","signal":"explicit_correction","source":{"project_id":"published-scope-001","source_keys":["published-signal-015"],"store":"public-doctrine","thread_id":"published-context-006","type":"published_summary"},"stance":"supports","summary":"Rejected flat Includes and Activity sections and asked for clearer organization."}],"exceptions":[],"guidance":{"avoid":["Giving every section the same weight because they share a component family."],"prefer":["Use hierarchy to distinguish primary work, supporting context, and metadata.","Keep sibling styling consistent without erasing role differences."]},"id":"ddr_015","kind":"guideline","lifecycle":{"activated_at":"2026-07-17","approved_by":"owner-direct-history-bootstrap","created_at":"2026-07-17","decision_note":"Activated only for the owner-requested initial bootstrap because repeated independent direct instructions or corrections establish this decision boundary.","last_reviewed_at":"2026-07-17","review_after":"2027-01-17","status":"active","updated_at":"2026-07-17"},"rationale":"A consistent component system still needs enough hierarchy to communicate role and importance.","relationships":[],"retrieval":{"aliases":[],"keywords":["detail","hierarchy","information","mixed","modules","overview","pages","panels","roles","sections","sibling"],"negative_examples":["Giving every section the same weight because they share a component family."],"positive_examples":["Use hierarchy to distinguish primary work, supporting context, and metadata.","Keep sibling styling consistent without erasing role differences."]},"revision":1,"schema_version":1,"statement":"Sibling surfaces with different jobs need visibly different hierarchy; sections should not merely look equally flat.","strength":"default","title":"Make hierarchy reflect the job","verification":{"checks":["Can a skimmer tell which section owns the primary job?","Are peers equal and non-peers differentiated?","Does hierarchy remain within the shared system?"],"method":"visual_review"}},{"applicability":{"activities":["architecture","design","critique","implementation","qa"],"artifacts":["workflow","screen","component"],"contexts":["skills","plugins","automations","related resource types"],"not_when":["A resource has a fundamentally different user job or lifecycle."],"products":["bb"],"surfaces":["resource hubs","overview rows","detail pages"],"when":["Several resource types live in one product hub or lifecycle."]},"canonical_path":"rules/information/ddr_013.json","classification":{"pattern_categories":["Layout & composition","Content & data"],"primary":"information.organization","secondary":["system.design-system","product.architecture"]},"confidence":{"assessed_at":"2026-07-17","basis":{"challenging_episodes":0,"distinct_projects":1,"distinct_threads":2,"explicit_user_signals":2,"supporting_episodes":2},"level":"high","note":"Bootstrapped from independent direct user episodes under the owner's request to mine durable design rules."},"evidence":[{"content_sha256":"sha256:c75ba2c6b04fa86e4915058714795655a3aee4d2bf71c0dfb95895e2b33b1728","doctrine_version_seen":"pre-doctrine","episode_id":"external:published:episode-038","episode_source_keys":["published-span-047"],"excerpt":null,"id":"ev_013_01","observed_at":"2026-07-08","signal":"explicit_instruction","source":{"project_id":"published-scope-001","source_keys":["published-signal-047"],"store":"public-doctrine","thread_id":"published-context-013","type":"published_summary"},"stance":"supports","summary":"Asked detail pages and resource rows to share taxonomy, layout, and components rather than invent parallel structures."},{"content_sha256":"sha256:ca997e1398431404c378d8c36d3518e2edbf334fa8a89654410363cb28b62d9f","doctrine_version_seen":"pre-doctrine","episode_id":"external:published:episode-015","episode_source_keys":["published-span-016"],"excerpt":null,"id":"ev_013_02","observed_at":"2026-07-13","signal":"explicit_instruction","source":{"project_id":"published-scope-001","source_keys":["published-signal-016"],"store":"public-doctrine","thread_id":"published-context-006","type":"published_summary"},"stance":"supports","summary":"Requested a reusable detail-page taxonomy based on what each resource's metadata means."}],"exceptions":[],"guidance":{"avoid":["Independent layouts, status vocabularies, and row structures for sibling resource types."],"prefer":["Reuse the same information skeleton and shared components.","Express only genuine type-specific differences."]},"id":"ddr_013","kind":"principle","lifecycle":{"activated_at":"2026-07-17","approved_by":"owner-direct-history-bootstrap","created_at":"2026-07-17","decision_note":"Activated only for the owner-requested initial bootstrap because repeated independent direct instructions or corrections establish this decision boundary.","last_reviewed_at":"2026-07-17","review_after":"2027-01-17","status":"active","updated_at":"2026-07-17"},"rationale":"Shared structure improves learnability and prevents sibling resource systems from drifting into separate products.","relationships":[],"retrieval":{"aliases":[],"keywords":["automations","detail","hubs","information","organization","overview","pages","plugins","related","resource","rows","skills","types"],"negative_examples":["Independent layouts, status vocabularies, and row structures for sibling resource types."],"positive_examples":["Reuse the same information skeleton and shared components.","Express only genuine type-specific differences."]},"revision":1,"schema_version":1,"statement":"Related resource types should share a layout, taxonomy, and component spine, varying only where type, ownership, or state creates a real difference.","strength":"default","title":"Give related resources one shared spine","verification":{"checks":["Do sibling resource pages share the same structural grammar?","Are differences explained by real resource semantics?","Can one shared component own the common behavior?"],"method":"visual_review"}},{"applicability":{"activities":["architecture","design","critique","implementation","qa"],"artifacts":["workflow","screen","component"],"contexts":["content grouping","feature grouping"],"not_when":["Side-by-side comparison of true peer capabilities is the job."],"products":["global"],"surfaces":["feature pages","release notes","information architecture"],"when":["A page or document describes multiple controls or capabilities."]},"canonical_path":"rules/information/ddr_023.json","classification":{"pattern_categories":["Content & data","Layout & composition"],"primary":"information.organization","secondary":["product.workflow","content.instructions"]},"confidence":{"assessed_at":"2026-07-17","basis":{"challenging_episodes":0,"distinct_projects":1,"distinct_threads":2,"explicit_user_signals":3,"supporting_episodes":2},"level":"medium","note":"Bootstrapped from independent direct user episodes under the owner's request to mine durable design rules."},"evidence":[{"content_sha256":"sha256:fb27358be2a82f8b0e001ac9c015c597dac24844cdb482f99086c571e9847df2","doctrine_version_seen":"pre-doctrine","episode_id":"external:published:episode-005","episode_source_keys":["published-span-003"],"excerpt":null,"id":"ev_023_01","observed_at":"2026-06-26","signal":"explicit_correction","source":{"project_id":"published-scope-002","source_keys":["published-signal-003"],"store":"public-doctrine","thread_id":"published-context-003","type":"published_summary"},"stance":"supports","summary":"Asked releases to split a combined capability into separately named features that match distinct user jobs."},{"content_sha256":"sha256:a2e1fdfa72cbb0ff8ba9ce28d6cb53b133261cd9da0de291870a1827161dc31a","doctrine_version_seen":"pre-doctrine","episode_id":"external:published:episode-026","episode_source_keys":["published-span-043","published-span-044"],"excerpt":null,"id":"ev_023_02","observed_at":"2026-07-11","signal":"explicit_correction","source":{"project_id":"published-scope-002","source_keys":["published-signal-043","published-signal-044"],"store":"public-doctrine","thread_id":"published-context-010","type":"published_summary"},"stance":"supports","summary":"Asked dragging and docking to be one feature, while unrelated formula and tab improvements remain separate groups."}],"exceptions":[],"guidance":{"avoid":["Grouping by implementation module when the user jobs differ.","Splitting one job into several arbitrary feature fragments."],"prefer":["Group controls, examples, and explanation around one coherent user job.","Separate capabilities when they have different goals or outcomes."]},"id":"ddr_023","kind":"guideline","lifecycle":{"activated_at":"2026-07-17","approved_by":"owner-direct-history-bootstrap","created_at":"2026-07-17","decision_note":"Activated only for the owner-requested initial bootstrap because repeated independent direct instructions or corrections establish this decision boundary.","last_reviewed_at":"2026-07-17","review_after":"2027-01-17","status":"active","updated_at":"2026-07-17"},"rationale":"Grouping by implementation or chronology obscures what users can accomplish and why related controls belong together.","relationships":[],"retrieval":{"aliases":[],"keywords":["architecture","content","feature","grouping","information","notes","organization","pages","release"],"negative_examples":["Grouping by implementation module when the user jobs differ.","Splitting one job into several arbitrary feature fragments."],"positive_examples":["Group controls, examples, and explanation around one coherent user job.","Separate capabilities when they have different goals or outcomes."]},"revision":1,"schema_version":1,"statement":"Combine controls and explanations that serve one user job; split genuinely separate capabilities into separately legible features.","strength":"default","title":"Group content by the user's job","verification":{"checks":["Can each group be named as one user job?","Do controls in the group share an outcome?","Are distinct capabilities separately legible?"],"method":"visual_review"}},{"applicability":{"activities":["architecture","design","critique","implementation","qa"],"artifacts":["workflow","screen","component"],"contexts":["faceted navigation"],"not_when":["A small flat set has no meaningful facets."],"products":["global"],"surfaces":["catalogs","browse screens","search filters"],"when":["Users browse or filter a typed collection."]},"canonical_path":"rules/information/ddr_014.json","classification":{"pattern_categories":["Content & data","Inputs & selection"],"primary":"information.organization","secondary":["information.findability"]},"confidence":{"assessed_at":"2026-07-17","basis":{"challenging_episodes":0,"distinct_projects":1,"distinct_threads":1,"explicit_user_signals":1,"supporting_episodes":1},"level":"high","note":"Bootstrapped from independent direct user episodes under the owner's request to mine durable design rules."},"evidence":[{"content_sha256":"sha256:f04d81a354270dc926fa22e2303314f31de4cc84cb58752c7f497df3189f3214","doctrine_version_seen":"pre-doctrine","episode_id":"external:published:episode-009","episode_source_keys":["published-span-011"],"excerpt":null,"id":"ev_014_01","observed_at":"2026-07-17","signal":"explicit_correction","source":{"project_id":"published-scope-003","source_keys":["published-signal-011"],"store":"public-doctrine","thread_id":"published-context-005","type":"published_summary"},"stance":"supports","summary":"Rejected filters that mixed capability, business model, and market context; requested a coherent search taxonomy."}],"exceptions":[],"guidance":{"avoid":["Mixing capability, business model, market, and context in one filter."],"prefer":["Give each visible facet one mutually understandable classification dimension.","Keep useful cross-cutting terms searchable as metadata."]},"id":"ddr_014","kind":"principle","lifecycle":{"activated_at":null,"approved_by":null,"created_at":"2026-07-17","decision_note":"Candidate pending independent recurrence or explicit owner approval.","last_reviewed_at":"2026-07-17","review_after":null,"status":"candidate","updated_at":"2026-07-17"},"rationale":"A facet becomes confusing when its options answer different classification questions.","relationships":[],"retrieval":{"aliases":[],"keywords":["browse","catalogs","faceted","filters","information","navigation","organization","screens","search"],"negative_examples":["Mixing capability, business model, market, and context in one filter."],"positive_examples":["Give each visible facet one mutually understandable classification dimension.","Keep useful cross-cutting terms searchable as metadata."]},"revision":1,"schema_version":1,"statement":"Visible filters must represent comparable dimensions; mixed capability, market, and business-model terms belong in searchable metadata rather than one facet.","strength":"default","title":"Make each visible facet one coherent dimension","verification":{"checks":["Do all options answer the same question?","Would any option fit equally in another facet?","Can cross-cutting terms remain searchable without becoming filters?"],"method":"visual_review"}},{"applicability":{"activities":["architecture","design","critique","implementation","qa"],"artifacts":["workflow","screen","component"],"contexts":["routine inspection","repeated actions"],"not_when":["The action is unfamiliar, destructive, or the primary transition.","The icon cannot express the action precisely."],"products":["global"],"surfaces":["toolbars","dense rows","operational utilities"],"when":["The action is routine, local, reversible, and repeatedly used in a dense surface."]},"canonical_path":"rules/interaction/ddr_001.json","classification":{"pattern_categories":["Actions & commands","Surfaces & disclosure"],"primary":"interaction.efficiency","secondary":["visual.hierarchy","accessibility.comprehension"]},"confidence":{"assessed_at":"2026-07-17","basis":{"challenging_episodes":0,"distinct_projects":3,"distinct_threads":3,"explicit_user_signals":5,"supporting_episodes":3},"level":"high","note":"Bootstrapped from independent direct user episodes under the owner's request to mine durable design rules."},"evidence":[{"content_sha256":"sha256:4820dc2a99be888ef9ec9001ee5fa9b594b28a85dad4ac904712c72ba246a4f6","doctrine_version_seen":"pre-doctrine","episode_id":"external:published:episode-008","episode_source_keys":["published-span-010"],"excerpt":null,"id":"ev_001_01","observed_at":"2026-07-17","signal":"explicit_instruction","source":{"project_id":"published-scope-003","source_keys":["published-signal-010"],"store":"public-doctrine","thread_id":"published-context-004","type":"published_summary"},"stance":"supports","summary":"Asked to mine thread history into a personal doctrine, illustrating compact icon-only utility controls with tooltips."},{"content_sha256":"sha256:591b2c6264ad6a41a84afe3028007c05bfc4c01c2d2a51f96d352d34171d5c9e","doctrine_version_seen":"pre-doctrine","episode_id":"external:published:episode-045","episode_source_keys":["published-span-054","published-span-057","published-span-055"],"excerpt":null,"id":"ev_001_02","observed_at":"2026-07-17","signal":"explicit_correction","source":{"project_id":"published-scope-001","source_keys":["published-signal-054","published-signal-057","published-signal-055"],"store":"public-doctrine","thread_id":"published-context-014","type":"published_summary"},"stance":"supports","summary":"Asked automation-row controls to stay hidden until row hover, while the drag affordance remains discoverable beforehand."},{"content_sha256":"sha256:93b3d7aa34a939590b523bb403dffbf20fe400479812ca3f143f12558023584c","doctrine_version_seen":"pre-doctrine","episode_id":"external:published:episode-002","episode_source_keys":["published-span-002"],"excerpt":null,"id":"ev_001_03","observed_at":"2026-06-17","signal":"explicit_correction","source":{"project_id":"published-scope-002","source_keys":["published-signal-002"],"store":"public-doctrine","thread_id":"published-context-002","type":"published_summary"},"stance":"supports","summary":"Requested a compact comment popover with inline counts, no carets, and navigation back to the anchored gutter."}],"exceptions":[{"condition":"The action is primary, destructive, unfamiliar, or difficult to represent precisely.","evidence_refs":[],"id":"primary-or-risky-action","rationale":"Clarity and safety outrank density.","use_instead":"Use a concise labeled control and the appropriate confirmation or recovery treatment."}],"guidance":{"avoid":["Large labeled controls for refresh, retry, view output, open source, or similar inspection utilities.","Icon-only treatment for unfamiliar, destructive, or primary actions."],"prefer":["Use a semantically exact icon, accessible name, and concise tooltip.","Use a labeled button for the one action that advances the primary workflow."]},"id":"ddr_001","kind":"guideline","lifecycle":{"activated_at":"2026-07-17","approved_by":"owner-direct-history-bootstrap","created_at":"2026-07-17","decision_note":"Activated only for the owner-requested initial bootstrap because repeated independent direct instructions or corrections establish this decision boundary.","last_reviewed_at":"2026-07-17","review_after":"2027-01-17","status":"active","updated_at":"2026-07-17"},"rationale":"This reduces label noise in dense operational surfaces while preserving discoverability and a clear primary-action hierarchy.","relationships":[],"retrieval":{"aliases":[],"keywords":["actions","dense","efficiency","inspection","interaction","operational","repeated","routine","rows","toolbars","utilities"],"negative_examples":["Large labeled controls for refresh, retry, view output, open source, or similar inspection utilities.","Icon-only treatment for unfamiliar, destructive, or primary actions."],"positive_examples":["Use a semantically exact icon, accessible name, and concise tooltip.","Use a labeled button for the one action that advances the primary workflow."]},"revision":1,"schema_version":1,"statement":"Routine inspection and operational utilities default to compact icon-only controls with concise tooltips and accessible names; reserve labeled buttons for primary workflow transitions.","strength":"default","title":"Keep routine utilities compact","verification":{"checks":["Are routine utilities compact without competing with the primary action?","Does every icon-only action have an accessible name and concise tooltip?","Would a first-time user understand any action that remains unlabeled?"],"method":"interaction_test"}},{"applicability":{"activities":["architecture","design","critique","implementation","qa"],"artifacts":["workflow","screen","component"],"contexts":["hover feedback"],"not_when":["The entire card is one interactive target."],"products":["global"],"surfaces":["dense rows","install controls","overflow actions"],"when":["A nested action or row needs hover feedback."]},"canonical_path":"rules/interaction/ddr_016.json","classification":{"pattern_categories":["Feedback & status","Actions & commands"],"primary":"interaction.feedback","secondary":["visual.hierarchy"]},"confidence":{"assessed_at":"2026-07-17","basis":{"challenging_episodes":0,"distinct_projects":1,"distinct_threads":3,"explicit_user_signals":3,"supporting_episodes":3},"level":"high","note":"Bootstrapped from independent direct user episodes under the owner's request to mine durable design rules."},"evidence":[{"content_sha256":"sha256:3eecca4764c384ab91de9bdf9d8380e86afe18799ab7f88c0234265c714c40b1","doctrine_version_seen":"pre-doctrine","episode_id":"external:published:episode-014","episode_source_keys":["published-span-017"],"excerpt":null,"id":"ev_016_01","observed_at":"2026-07-14","signal":"explicit_correction","source":{"project_id":"published-scope-001","source_keys":["published-signal-017"],"store":"public-doctrine","thread_id":"published-context-006","type":"published_summary"},"stance":"supports","summary":"Requested only the hovered button, not its entire card, change state."},{"content_sha256":"sha256:ce1b59c1dbb72875cef8332490269221b4ae469ab2a0e17a4c462ba299791ae5","doctrine_version_seen":"pre-doctrine","episode_id":"external:published:episode-042","episode_source_keys":["published-span-057"],"excerpt":null,"id":"ev_016_02","observed_at":"2026-07-17","signal":"explicit_correction","source":{"project_id":"published-scope-001","source_keys":["published-signal-057"],"store":"public-doctrine","thread_id":"published-context-014","type":"published_summary"},"stance":"supports","summary":"Requested row actions and the drag handle appear only on row hover."},{"content_sha256":"sha256:bbc5a00e50971b928f8fedb4ce21af5794fa4cc25dc6d108e87714813524f190","doctrine_version_seen":"pre-doctrine","episode_id":"external:published:episode-039","episode_source_keys":["published-span-048"],"excerpt":null,"id":"ev_016_03","observed_at":"2026-07-08","signal":"explicit_correction","source":{"project_id":"published-scope-001","source_keys":["published-signal-048"],"store":"public-doctrine","thread_id":"published-context-013","type":"published_summary"},"stance":"supports","summary":"Restored row-hover action buttons after they disappeared."}],"exceptions":[],"guidance":{"avoid":["Changing an entire card when only one row or action is interactive."],"prefer":["Apply hover feedback to the smallest owning interactive region."]},"id":"ddr_016","kind":"guideline","lifecycle":{"activated_at":"2026-07-17","approved_by":"owner-direct-history-bootstrap","created_at":"2026-07-17","decision_note":"Activated only for the owner-requested initial bootstrap because repeated independent direct instructions or corrections establish this decision boundary.","last_reviewed_at":"2026-07-17","review_after":"2027-01-17","status":"active","updated_at":"2026-07-17"},"rationale":"Local hover scope makes the interactive target and ownership legible without lighting up unrelated content.","relationships":[],"retrieval":{"aliases":[],"keywords":["actions","controls","dense","feedback","hover","install","interaction","overflow","rows"],"negative_examples":["Changing an entire card when only one row or action is interactive."],"positive_examples":["Apply hover feedback to the smallest owning interactive region."]},"revision":1,"schema_version":1,"statement":"Hover styling and action changes belong to the owning row or control rather than an unrelated whole card.","strength":"default","title":"Keep hover effects local","verification":{"checks":["Does the hover region match the actual click target?","Does unrelated content remain visually stable?"],"method":"interaction_test"}},{"applicability":{"activities":["architecture","design","critique","implementation","qa"],"artifacts":["workflow","screen","component"],"contexts":["interactive state"],"not_when":["A clearly labeled static demonstration is intentionally non-interactive."],"products":["global"],"surfaces":["buttons","toggles","navigation controls"],"when":["A surface presents an interactive control or stateful action."]},"canonical_path":"rules/interaction/ddr_017.json","classification":{"pattern_categories":["Actions & commands","Feedback & status"],"primary":"interaction.feedback","secondary":["product.trust","accessibility.comprehension"]},"confidence":{"assessed_at":"2026-07-17","basis":{"challenging_episodes":0,"distinct_projects":1,"distinct_threads":2,"explicit_user_signals":3,"supporting_episodes":2},"level":"high","note":"Bootstrapped from independent direct user episodes under the owner's request to mine durable design rules."},"evidence":[{"content_sha256":"sha256:66a9b55b790a4e10ddbf2808b5dd3e8531ba74b2286a20391c3c3d0c8b36746e","doctrine_version_seen":"pre-doctrine","episode_id":"external:published:episode-018","episode_source_keys":["published-span-023"],"excerpt":null,"id":"ev_017_01","observed_at":"2026-06-04","signal":"explicit_correction","source":{"project_id":"published-scope-002","source_keys":["published-signal-023"],"store":"public-doctrine","thread_id":"published-context-008","type":"published_summary"},"stance":"supports","summary":"Reported a bulk-resolution control that did nothing and looked permanently pressed."},{"content_sha256":"sha256:fa77a9d05c41ee0d8fc4fe0a4711280a584b58370c23a021751cd645f8645213","doctrine_version_seen":"pre-doctrine","episode_id":"external:published:episode-004","episode_source_keys":["published-span-004","published-span-008"],"excerpt":null,"id":"ev_017_02","observed_at":"2026-07-02","signal":"explicit_correction","source":{"project_id":"published-scope-002","source_keys":["published-signal-004","published-signal-008"],"store":"public-doctrine","thread_id":"published-context-003","type":"published_summary"},"stance":"supports","summary":"Rejected a nonworking upvote and a navigation dropdown that opened on unintended hover."}],"exceptions":[],"guidance":{"avoid":["Inert controls that look actionable.","Pressed styling disconnected from actual state."],"prefer":["Wire every visible control to real behavior.","Reflect real selected, pressed, loading, and disabled state."]},"id":"ddr_017","kind":"standard","lifecycle":{"activated_at":"2026-07-17","approved_by":"owner-direct-history-bootstrap","created_at":"2026-07-17","decision_note":"Activated only for the owner-requested initial bootstrap because repeated independent direct instructions or corrections establish this decision boundary.","last_reviewed_at":"2026-07-17","review_after":"2027-01-17","status":"active","updated_at":"2026-07-17"},"rationale":"False affordances and decorative state destroy trust faster than a visibly unavailable action.","relationships":[],"retrieval":{"aliases":[],"keywords":["buttons","controls","feedback","interaction","interactive","navigation","state","toggles"],"negative_examples":["Inert controls that look actionable.","Pressed styling disconnected from actual state."],"positive_examples":["Wire every visible control to real behavior.","Reflect real selected, pressed, loading, and disabled state."]},"revision":1,"schema_version":1,"statement":"A visible control must work and its pressed or selected appearance must reflect real state; otherwise remove, disable, or fix it.","strength":"required","title":"Make controls behaviorally honest","verification":{"checks":["Can every visible control be activated as expected?","Does visual state match application state?","Is unavailable behavior clearly disabled or removed?"],"method":"interaction_test"}},{"applicability":{"activities":["architecture","design","critique","implementation","qa"],"artifacts":["workflow","screen","component"],"contexts":["installed state","running state","paused state"],"not_when":["A separate status is needed for monitoring at a different scope."],"products":["global"],"surfaces":["resource overviews","management actions","rows"],"when":["A resource has a persistent state and a related action."]},"canonical_path":"rules/interaction/ddr_018.json","classification":{"pattern_categories":["Feedback & status","Actions & commands"],"primary":"interaction.feedback","secondary":["information.hierarchy"]},"confidence":{"assessed_at":"2026-07-17","basis":{"challenging_episodes":0,"distinct_projects":1,"distinct_threads":3,"explicit_user_signals":3,"supporting_episodes":3},"level":"high","note":"Bootstrapped from independent direct user episodes under the owner's request to mine durable design rules."},"evidence":[{"content_sha256":"sha256:b4df5914bb013ca10ea3f5140078eb2b98b3a013e4041da9fdddd5c5e44962b3","doctrine_version_seen":"pre-doctrine","episode_id":"external:published:episode-014","episode_source_keys":["published-span-017"],"excerpt":null,"id":"ev_018_01","observed_at":"2026-07-14","signal":"explicit_correction","source":{"project_id":"published-scope-001","source_keys":["published-signal-017"],"store":"public-doctrine","thread_id":"published-context-006","type":"published_summary"},"stance":"supports","summary":"Requested installed state be represented on its button rather than as a card-wide hover replacement."},{"content_sha256":"sha256:6b6aa95975b5f4b8b135f7e02beaf02347ba49cdaa5aad1959553998b89e1fc7","doctrine_version_seen":"pre-doctrine","episode_id":"external:published:episode-038","episode_source_keys":["published-span-047"],"excerpt":null,"id":"ev_018_02","observed_at":"2026-07-08","signal":"explicit_correction","source":{"project_id":"published-scope-001","source_keys":["published-signal-047"],"store":"public-doctrine","thread_id":"published-context-013","type":"published_summary"},"stance":"supports","summary":"Rejected duplicated installed and paused state labels across related resource rows."},{"content_sha256":"sha256:fe106bace2ce1479bf539087e7aa95493efd8dbf1ed61e6ebacc518b69378783","doctrine_version_seen":"pre-doctrine","episode_id":"external:published:episode-051","episode_source_keys":["published-span-065"],"excerpt":null,"id":"ev_018_03","observed_at":"2026-07-13","signal":"explicit_correction","source":{"project_id":"published-scope-001","source_keys":["published-signal-065"],"store":"public-doctrine","thread_id":"published-context-015","type":"published_summary"},"stance":"supports","summary":"Asked repeated run-status wording be removed when an icon already communicates the status."}],"exceptions":[],"guidance":{"avoid":["Repeating the same state label throughout a row.","Adding a second toggle that competes with the primary state control."],"prefer":["Let the owning control communicate current state and next action.","Keep one canonical status location."]},"id":"ddr_018","kind":"guideline","lifecycle":{"activated_at":"2026-07-17","approved_by":"owner-direct-history-bootstrap","created_at":"2026-07-17","decision_note":"Activated only for the owner-requested initial bootstrap because repeated independent direct instructions or corrections establish this decision boundary.","last_reviewed_at":"2026-07-17","review_after":"2027-01-17","status":"active","updated_at":"2026-07-17"},"rationale":"Duplicated state labels and parallel controls create ambiguity about ownership and the next available action.","relationships":[],"retrieval":{"aliases":[],"keywords":["actions","feedback","installed","interaction","management","overviews","paused","resource","rows","running","state"],"negative_examples":["Repeating the same state label throughout a row.","Adding a second toggle that competes with the primary state control."],"positive_examples":["Let the owning control communicate current state and next action.","Keep one canonical status location."]},"revision":1,"schema_version":1,"statement":"Encode installed, running, paused, and similar state once as a distinct state of the owning control; do not repeat it across rows or add competing toggles.","strength":"default","title":"Represent state once on the owning control","verification":{"checks":["Where is the canonical state shown?","Does the owning control reveal the next valid action?","Is the same status repeated without adding information?"],"method":"interaction_test"}},{"applicability":{"activities":["architecture","design","critique","implementation","qa"],"artifacts":["workflow","screen","component"],"contexts":["empty collection","absent optional section"],"not_when":[],"products":["global"],"surfaces":["panels","folders","sidebars","screenshots"],"when":["A proposed or existing surface has no items or content, requiring a decision whether the surface should remain visible."]},"canonical_path":"rules/interaction/ddr_005.json","classification":{"pattern_categories":["Feedback & status","Content & data"],"primary":"interaction.feedback","secondary":["information.hierarchy","content.instructions"]},"confidence":{"assessed_at":"2026-07-17","basis":{"challenging_episodes":0,"distinct_projects":2,"distinct_threads":3,"explicit_user_signals":3,"supporting_episodes":3},"level":"high","note":"Bootstrapped from independent direct user episodes under the owner's request to mine durable design rules."},"evidence":[{"content_sha256":"sha256:76e9bf6a56cacfa9cc31aa3516a4ff3d694443915a961ffd855f8f5c8ced9fb3","doctrine_version_seen":"pre-doctrine","episode_id":"external:published:episode-030","episode_source_keys":["published-span-034"],"excerpt":null,"id":"ev_005_01","observed_at":"2026-07-17","signal":"explicit_correction","source":{"project_id":"published-scope-002","source_keys":["published-signal-034"],"store":"public-doctrine","thread_id":"published-context-010","type":"published_summary"},"stance":"supports","summary":"Asked empty sections to disappear rather than display a placeholder."},{"content_sha256":"sha256:9bfc7b718be84aceb11450c1f4ea551adbdbc72b427b39486352b9d0cf78de54","doctrine_version_seen":"pre-doctrine","episode_id":"external:published:episode-021","episode_source_keys":["published-span-024"],"excerpt":null,"id":"ev_005_02","observed_at":"2026-07-11","signal":"explicit_correction","source":{"project_id":"published-scope-003","source_keys":["published-signal-024"],"store":"public-doctrine","thread_id":"published-context-009","type":"published_summary"},"stance":"supports","summary":"Changed external-folder emptiness to remove the folder, not show an empty container and prominent action."},{"content_sha256":"sha256:e01ca4bce5b20a407731505b3bdf637b25989312f73ac9d02bb665ce1e7ac84c","doctrine_version_seen":"pre-doctrine","episode_id":"external:published:episode-036","episode_source_keys":["published-span-045"],"excerpt":null,"id":"ev_005_03","observed_at":"2026-07-17","signal":"explicit_correction","source":{"project_id":"published-scope-003","source_keys":["published-signal-045"],"store":"public-doctrine","thread_id":"published-context-011","type":"published_summary"},"stance":"supports","summary":"Flagged an empty state that concealed a necessary keyboard shortcut."}],"exceptions":[],"guidance":{"avoid":["Showing an empty card or zero-count section merely because the container exists.","Leaving a visible empty surface without orientation or its first useful action."],"prefer":["Collapse irrelevant empty containers so no artificial empty state remains.","When the surface remains, explain what belongs there and keep the first useful action compact."]},"id":"ddr_005","kind":"guideline","lifecycle":{"activated_at":"2026-07-17","approved_by":"owner-direct-history-bootstrap","created_at":"2026-07-17","decision_note":"Activated only for the owner-requested initial bootstrap because repeated independent direct instructions or corrections establish this decision boundary.","last_reviewed_at":"2026-07-17","review_after":"2027-01-17","status":"active","updated_at":"2026-07-17"},"rationale":"Design every user-visible state, but do not preserve an unnecessary container merely to render a placeholder. If absence matters, the remaining state must orient the user and support progress.","relationships":[],"retrieval":{"aliases":[],"keywords":["absent","collection","empty","feedback","folders","interaction","optional","panels","screenshots","section","sidebars"],"negative_examples":["Showing an empty card or zero-count section merely because the container exists.","Hiding the only useful first action or shortcut."],"positive_examples":["Collapse irrelevant empty containers.","Keep compact first-step guidance when it unlocks a meaningful action."]},"revision":1,"schema_version":1,"statement":"Treat emptiness first as a structural decision: remove or collapse a section with no useful next action; when the surface must remain, explain what belongs there and provide the first useful action in a compact empty state.","strength":"default","title":"Treat empty state as semantic absence","verification":{"checks":["Does the empty container help the user act or understand state?","If not, can it collapse entirely?","If guidance remains, is it compact and actionable?"],"method":"interaction_test"}},{"applicability":{"activities":["architecture","design","critique","implementation","qa"],"artifacts":["workflow","screen","component"],"contexts":["direct edit","focus transition"],"not_when":["The edit requires a deliberate multi-step modal workflow for safety."],"products":["global"],"surfaces":["pills","inline editors","popovers"],"when":["A user invokes editing directly from an object."]},"canonical_path":"rules/interaction/ddr_026.json","classification":{"pattern_categories":["Inputs & selection","Feedback & status"],"primary":"interaction.input","secondary":["accessibility.operation","visual.hierarchy"]},"confidence":{"assessed_at":"2026-07-17","basis":{"challenging_episodes":0,"distinct_projects":1,"distinct_threads":1,"explicit_user_signals":3,"supporting_episodes":1},"level":"high","note":"Bootstrapped from independent direct user episodes under the owner's request to mine durable design rules."},"evidence":[{"content_sha256":"sha256:5b37fe9c76de8bc3ee8662e8f9965906ac609b551a0dea2e2bd4dd25ad21d78d","doctrine_version_seen":"pre-doctrine","episode_id":"external:published:episode-027","episode_source_keys":["published-span-030","published-span-031","published-span-032"],"excerpt":null,"id":"ev_026_01","observed_at":"2026-07-17","signal":"explicit_correction","source":{"project_id":"published-scope-002","source_keys":["published-signal-030","published-signal-031","published-signal-032"],"store":"public-doctrine","thread_id":"published-context-010","type":"published_summary"},"stance":"supports","summary":"Reported editing a formula pill selected its container and flashed a hover card; asked for a clearer editing anchor."}],"exceptions":[],"guidance":{"avoid":["Opening an editor without focus.","Leaving selection or hover state that visually competes with editing."],"prefer":["Move focus immediately to the real editing target.","Keep the source anchor visible and quiet competing hover state."]},"id":"ddr_026","kind":"guideline","lifecycle":{"activated_at":null,"approved_by":null,"created_at":"2026-07-17","decision_note":"Candidate pending independent recurrence or explicit owner approval.","last_reviewed_at":"2026-07-17","review_after":null,"status":"candidate","updated_at":"2026-07-17"},"rationale":"Editing feels direct only when the user remains anchored to the object and input focus is unambiguous.","relationships":[],"retrieval":{"aliases":[],"keywords":["direct","edit","editors","focus","inline","input","interaction","pills","popovers","transition"],"negative_examples":["Opening an editor without focus.","Leaving selection or hover state that visually competes with editing."],"positive_examples":["Move focus immediately to the real editing target.","Keep the source anchor visible and quiet competing hover state."]},"revision":1,"schema_version":1,"statement":"Direct edit should focus the intended object immediately, make its anchor obvious, and suppress transient hover or selection interference.","strength":"default","title":"Focus direct editing on the real anchor","verification":{"checks":["Does focus land on the intended input?","Can the user still identify the source object?","Are competing transient states suppressed?"],"method":"interaction_test"}},{"applicability":{"activities":["architecture","design","critique","implementation","qa"],"artifacts":["workflow","screen","component"],"contexts":["pointer gesture","direct manipulation"],"not_when":["A platform convention explicitly combines equivalent gestures without ambiguity."],"products":["global"],"surfaces":["reordering","grouping","drag handles"],"when":["A control supports drag or another continuous gesture."]},"canonical_path":"rules/interaction/ddr_019.json","classification":{"pattern_categories":["Inputs & selection","Actions & commands"],"primary":"interaction.input","secondary":["accessibility.operation"]},"confidence":{"assessed_at":"2026-07-17","basis":{"challenging_episodes":0,"distinct_projects":1,"distinct_threads":1,"explicit_user_signals":2,"supporting_episodes":1},"level":"high","note":"Bootstrapped from independent direct user episodes under the owner's request to mine durable design rules."},"evidence":[{"content_sha256":"sha256:b56692c328331bd54f17e5a0c1786f5ce8ad3bbc5410173adb9936dffb97f5d5","doctrine_version_seen":"pre-doctrine","episode_id":"external:published:episode-047","episode_source_keys":["published-span-061","published-span-056"],"excerpt":null,"id":"ev_019_01","observed_at":"2026-07-17","signal":"explicit_correction","source":{"project_id":"published-scope-001","source_keys":["published-signal-061","published-signal-056"],"store":"public-doctrine","thread_id":"published-context-014","type":"published_summary"},"stance":"supports","summary":"Asked to remove click-to-group behavior and restore a simple, working drag handle."}],"exceptions":[],"guidance":{"avoid":["Using a drag handle as an unrelated click target."],"prefer":["Assign one primary intent to each gesture target.","Expose separate actions through separate controls."]},"id":"ddr_019","kind":"standard","lifecycle":{"activated_at":null,"approved_by":null,"created_at":"2026-07-17","decision_note":"Candidate pending independent recurrence or explicit owner approval.","last_reviewed_at":"2026-07-17","review_after":null,"status":"candidate","updated_at":"2026-07-17"},"rationale":"One gesture target with competing meanings is hard to discover, operate, and recover from.","relationships":[],"retrieval":{"aliases":[],"keywords":["direct","drag","gesture","grouping","handles","input","interaction","manipulation","pointer","reordering"],"negative_examples":["Using a drag handle as an unrelated click target."],"positive_examples":["Assign one primary intent to each gesture target.","Expose separate actions through separate controls."]},"revision":1,"schema_version":1,"statement":"A drag handle drags; do not overload it with click-to-group, copy, or unrelated actions.","strength":"required","title":"Give each gesture one intent","verification":{"checks":["Does the target have one predictable gesture meaning?","Are keyboard and touch alternatives available?","Can an accidental activation be undone?"],"method":"interaction_test"}},{"applicability":{"activities":["architecture","design","critique","implementation","qa"],"artifacts":["workflow","screen","component"],"contexts":["in-place editing"],"not_when":["The product explicitly creates a new derived object and communicates that transition."],"products":["global"],"surfaces":["queues","rows","inline objects"],"when":["The user invokes edit on an existing object."]},"canonical_path":"rules/interaction/ddr_025.json","classification":{"pattern_categories":["Inputs & selection","Content & data"],"primary":"interaction.input","secondary":["product.trust"]},"confidence":{"assessed_at":"2026-07-17","basis":{"challenging_episodes":0,"distinct_projects":1,"distinct_threads":1,"explicit_user_signals":1,"supporting_episodes":1},"level":"high","note":"Bootstrapped from independent direct user episodes under the owner's request to mine durable design rules."},"evidence":[{"content_sha256":"sha256:2718e95f2a738ddfeb4ce7fee03f35b07b9206a449e609c846ea0cb7b9fe08a2","doctrine_version_seen":"pre-doctrine","episode_id":"external:published:episode-046","episode_source_keys":["published-span-053"],"excerpt":null,"id":"ev_025_01","observed_at":"2026-07-17","signal":"explicit_correction","source":{"project_id":"published-scope-001","source_keys":["published-signal-053"],"store":"public-doctrine","thread_id":"published-context-014","type":"published_summary"},"stance":"supports","summary":"Required in-place editing to update the queued item where it is, rather than move content into a separate prompt."}],"exceptions":[],"guidance":{"avoid":["Copying an item into a detached composer.","Moving the item because it entered edit mode."],"prefer":["Edit and commit the same object at the same location.","Preserve ordering unless reordering is the explicit action."]},"id":"ddr_025","kind":"standard","lifecycle":{"activated_at":null,"approved_by":null,"created_at":"2026-07-17","decision_note":"Candidate pending independent recurrence or explicit owner approval.","last_reviewed_at":"2026-07-17","review_after":null,"status":"candidate","updated_at":"2026-07-17"},"rationale":"Direct editing should maintain object identity and spatial context so the user knows exactly what will change.","relationships":[],"retrieval":{"aliases":[],"keywords":["editing","in-place","inline","input","interaction","objects","queues","rows"],"negative_examples":["Copying an item into a detached composer.","Moving the item because it entered edit mode."],"positive_examples":["Edit and commit the same object at the same location.","Preserve ordering unless reordering is the explicit action."]},"revision":1,"schema_version":1,"statement":"Editing an item in place preserves its position and commits back to that same item rather than moving the work into a separate composer or reordered draft.","strength":"required","title":"Preserve object identity during in-place editing","verification":{"checks":["Is the edited object still the same object?","Does it remain in place?","Does commit update that exact object?"],"method":"interaction_test"}},{"applicability":{"activities":["architecture","design","critique","implementation","qa"],"artifacts":["workflow","screen","component"],"contexts":["source-linked list item"],"not_when":["The source object no longer exists and the UI explicitly presents a historical record."],"products":["global"],"surfaces":["comments","annotations","search results"],"when":["A secondary list represents content that exists in a primary document or canvas."]},"canonical_path":"rules/interaction/ddr_012.json","classification":{"pattern_categories":["Navigation & wayfinding","Content & data"],"primary":"interaction.navigation","secondary":["information.findability"]},"confidence":{"assessed_at":"2026-07-17","basis":{"challenging_episodes":0,"distinct_projects":1,"distinct_threads":1,"explicit_user_signals":1,"supporting_episodes":1},"level":"high","note":"Bootstrapped from independent direct user episodes under the owner's request to mine durable design rules."},"evidence":[{"content_sha256":"sha256:85f8ef6ad2a3dc014810558a9b4b711ec96da07c59d25e451cea8fedd56e9faf","doctrine_version_seen":"pre-doctrine","episode_id":"external:published:episode-002","episode_source_keys":["published-span-002"],"excerpt":null,"id":"ev_012_01","observed_at":"2026-06-17","signal":"explicit_instruction","source":{"project_id":"published-scope-002","source_keys":["published-signal-002"],"store":"public-doctrine","thread_id":"published-context-002","type":"published_summary"},"stance":"supports","summary":"Required comment-list rows to navigate to the actual comment anchor in the editor gutter."}],"exceptions":[],"guidance":{"avoid":["Navigating to a detached copy, placeholder, or unreachable location."],"prefer":["Anchor navigation to the real editable or inspectable source object."]},"id":"ddr_012","kind":"standard","lifecycle":{"activated_at":null,"approved_by":null,"created_at":"2026-07-17","decision_note":"Candidate pending independent recurrence or explicit owner approval.","last_reviewed_at":"2026-07-17","review_after":null,"status":"candidate","updated_at":"2026-07-17"},"rationale":"Users inspect the source object to understand and act; a detached representation breaks that mental model.","relationships":[],"retrieval":{"aliases":[],"keywords":["annotations","comments","interaction","item","list","navigation","results","search","source-linked"],"negative_examples":["Navigating to a detached copy, placeholder, or unreachable location."],"positive_examples":["Anchor navigation to the real editable or inspectable source object."]},"revision":1,"schema_version":1,"statement":"A list item representing in-document content must navigate to the live anchored object rather than an unreachable surrogate.","strength":"required","title":"Navigate to the live source object","verification":{"checks":["Does activation reveal and focus the real source object?","Is the destination recoverable when the source is missing?"],"method":"interaction_test"}},{"applicability":{"activities":["architecture","design","critique","implementation","qa"],"artifacts":["workflow","screen","component"],"contexts":["navigation activation"],"not_when":["A platform-native pattern requires hover disclosure and is safely reversible."],"products":["global"],"surfaces":["menus","persistent navigation"],"when":["A menu or navigation surface changes place or reveals a substantial panel."]},"canonical_path":"rules/interaction/ddr_011.json","classification":{"pattern_categories":["Navigation & wayfinding","Surfaces & disclosure"],"primary":"interaction.navigation","secondary":["interaction.disclosure"]},"confidence":{"assessed_at":"2026-07-17","basis":{"challenging_episodes":0,"distinct_projects":1,"distinct_threads":1,"explicit_user_signals":1,"supporting_episodes":1},"level":"medium","note":"Bootstrapped from independent direct user episodes under the owner's request to mine durable design rules."},"evidence":[{"content_sha256":"sha256:be554ebf4e9f22a09289fb6300120d8bdcaa95797f59302052387d6eb8a6161f","doctrine_version_seen":"pre-doctrine","episode_id":"external:published:episode-007","episode_source_keys":["published-span-008"],"excerpt":null,"id":"ev_011_01","observed_at":"2026-07-02","signal":"explicit_correction","source":{"project_id":"published-scope-002","source_keys":["published-signal-008"],"store":"public-doctrine","thread_id":"published-context-003","type":"published_summary"},"stance":"supports","summary":"Required navigation dropdowns to open only after an explicit click and noted the intended behavior still failed."}],"exceptions":[],"guidance":{"avoid":["Opening a navigation surface because the pointer merely crossed it."],"prefer":["Require a click or equivalent explicit activation to open navigation.","Keep hover effects local and non-navigational."]},"id":"ddr_011","kind":"guideline","lifecycle":{"activated_at":null,"approved_by":null,"created_at":"2026-07-17","decision_note":"Candidate pending independent recurrence or explicit owner approval.","last_reviewed_at":"2026-07-17","review_after":null,"status":"candidate","updated_at":"2026-07-17"},"rationale":"Explicit activation avoids accidental navigation while preserving efficient disclosure of secondary actions.","relationships":[],"retrieval":{"aliases":[],"keywords":["activation","interaction","menus","navigation","persistent"],"negative_examples":["Opening a navigation surface because the pointer merely crossed it."],"positive_examples":["Require a click or equivalent explicit activation to open navigation.","Keep hover effects local and non-navigational."]},"revision":1,"schema_version":1,"statement":"Navigation menus should open on explicit click rather than incidental hover; hover may reveal secondary local row controls.","strength":"default","title":"Open navigation on explicit intent","verification":{"checks":["Can pointer movement accidentally open or navigate?","Is keyboard activation equivalent?"],"method":"interaction_test"}},{"applicability":{"activities":["architecture","design","critique","implementation","qa"],"artifacts":["documentation","note","visual"],"contexts":["durable decision","editable artifact"],"not_when":["The requested deliverable is primarily a visual or interactive demonstration."],"products":["moss"],"surfaces":["decision notes","specifications","planning artifacts"],"when":["The artifact captures decisions the user will revise or comment on."]},"canonical_path":"rules/process/ddr_006.json","classification":{"pattern_categories":["Content & data"],"primary":"process.handoff","secondary":["content.instructions","interaction.input"]},"confidence":{"assessed_at":"2026-07-17","basis":{"challenging_episodes":0,"distinct_projects":1,"distinct_threads":1,"explicit_user_signals":1,"supporting_episodes":1},"level":"medium","note":"Bootstrapped from independent direct user episodes under the owner's request to mine durable design rules."},"evidence":[{"content_sha256":"sha256:cece5e690a7dd498a453c0e14c9f8b5f14fb1e1840f32b9b681f7a62d4990a68","doctrine_version_seen":"pre-doctrine","episode_id":"external:published:episode-016","episode_source_keys":["published-span-019"],"excerpt":null,"id":"ev_006_01","observed_at":"2026-06-03","signal":"explicit_correction","source":{"project_id":"published-scope-002","source_keys":["published-signal-019"],"store":"public-doctrine","thread_id":"published-context-007","type":"published_summary"},"stance":"supports","summary":"Rejected using chat as a substitute for editing the underlying note."}],"exceptions":[],"guidance":{"avoid":["Replacing editable choices with a non-editable visual artifact."],"prefer":["Keep the decision itself in editable, commentable source.","Use scoped HTML only where visual shape or interaction materially improves understanding."]},"id":"ddr_006","kind":"guideline","lifecycle":{"activated_at":null,"approved_by":null,"created_at":"2026-07-17","decision_note":"Candidate pending independent recurrence or explicit owner approval.","last_reviewed_at":"2026-07-17","review_after":null,"status":"candidate","updated_at":"2026-07-17"},"rationale":"A visually rich but non-editable decision surface can displace the user's actual work instead of supporting it.","relationships":[],"retrieval":{"aliases":[],"keywords":["artifact","artifacts","decision","durable","editable","handoff","notes","planning","process","specifications"],"negative_examples":["Replacing editable choices with a non-editable visual artifact."],"positive_examples":["Keep the decision itself in editable, commentable source.","Use scoped HTML only where visual shape or interaction materially improves understanding."]},"revision":1,"schema_version":1,"statement":"For durable decisions in a note, default to editable Markdown tables or checklists; use HTML for a focused visual or interaction demonstration rather than as an opaque replacement.","strength":"default","title":"Keep durable decisions editable at the source","verification":{"checks":["Can the user edit the actual decision at its canonical source?","Is any HTML block scoped to one visual job?"],"method":"design_review"}},{"applicability":{"activities":["critique","qa","documentation"],"artifacts":["documentation","note","visual"],"contexts":["design evidence","feature demonstration"],"not_when":["A rough conceptual sketch is explicitly the requested stage and is labeled conceptual."],"products":["global"],"surfaces":["stories","screenshots","documentation","visual QA"],"when":["A visual artifact is used to approve, document, or claim a design outcome."]},"canonical_path":"rules/process/ddr_032.json","classification":{"pattern_categories":["Content & data","Layout & composition"],"primary":"process.validation","secondary":["visual.imagery","product.trust"]},"confidence":{"assessed_at":"2026-07-17","basis":{"challenging_episodes":0,"distinct_projects":2,"distinct_threads":3,"explicit_user_signals":4,"supporting_episodes":3},"level":"high","note":"Bootstrapped from independent direct user episodes under the owner's request to mine durable design rules."},"evidence":[{"content_sha256":"sha256:d364634c3921fce04303384b032dfbc860e497884ec5e3da0dff10ee8863b12d","doctrine_version_seen":"pre-doctrine","episode_id":"external:published:episode-003","episode_source_keys":["published-span-009"],"excerpt":null,"id":"ev_032_01","observed_at":"2026-07-02","signal":"explicit_correction","source":{"project_id":"published-scope-002","source_keys":["published-signal-009"],"store":"public-doctrine","thread_id":"published-context-003","type":"published_summary"},"stance":"supports","summary":"Requested real, matching examples across feature visuals and removal of decorative or floating UI that distorted the demonstration."},{"content_sha256":"sha256:d35e827fa86db73e74d316d6c8fd791512cc3391dae4d679936c9030549e74a0","doctrine_version_seen":"pre-doctrine","episode_id":"external:published:episode-025","episode_source_keys":["published-span-036"],"excerpt":null,"id":"ev_032_02","observed_at":"2026-07-17","signal":"explicit_correction","source":{"project_id":"published-scope-002","source_keys":["published-signal-036"],"store":"public-doctrine","thread_id":"published-context-010","type":"published_summary"},"stance":"supports","summary":"Requested current, high-resolution, uncrowded screenshots that show the relevant surrounding interface."},{"content_sha256":"sha256:3bd513c4f080505252ed204525654f4542989712405a3225df06a08e6074d167","doctrine_version_seen":"pre-doctrine","episode_id":"external:published:episode-041","episode_source_keys":["published-span-058","published-span-059"],"excerpt":null,"id":"ev_032_03","observed_at":"2026-07-17","signal":"explicit_correction","source":{"project_id":"published-scope-001","source_keys":["published-signal-058","published-signal-059"],"store":"public-doctrine","thread_id":"published-context-014","type":"published_summary"},"stance":"supports","summary":"Rejected prototype-only, broad visual changes and required minimal changes be applied to the real component stories."}],"exceptions":[],"guidance":{"avoid":["Fake or placeholder product UI.","Stale, low-resolution, cropped, or cramped captures that hide the behavior."],"prefer":["Use current product UI with realistic safe content.","Frame the state and viewport around the user job.","Inspect final-resolution assets."]},"id":"ddr_032","kind":"standard","lifecycle":{"activated_at":"2026-07-17","approved_by":"owner-direct-history-bootstrap","created_at":"2026-07-17","decision_note":"Activated only for the owner-requested initial bootstrap because repeated independent direct instructions or corrections establish this decision boundary.","last_reviewed_at":"2026-07-17","review_after":"2027-01-17","status":"active","updated_at":"2026-07-17"},"rationale":"Evidence is part of the design: an unrealistic or stale demonstration prevents an honest judgment of whether the work succeeds.","relationships":[],"retrieval":{"aliases":[],"keywords":["demonstration","design","documentation","evidence","feature","process","screenshots","stories","validation","visual"],"negative_examples":["Fake or placeholder product UI.","Stale, low-resolution, cropped, or cramped captures that hide the behavior."],"positive_examples":["Use current product UI with realistic safe content.","Frame the state and viewport around the user job."]},"revision":1,"schema_version":1,"statement":"Design evidence must use the current product UI and realistic inputs, framed to demonstrate the user job; reject fake, stale, low-resolution, or cramped captures.","strength":"required","title":"Demonstrate work with current realistic evidence","verification":{"checks":["Does the artifact come from the current product state?","Are inputs realistic and safe to publish?","Does framing demonstrate the intended user job?","Was final resolution inspected?"],"method":"design_review"}},{"applicability":{"activities":["critique","qa","documentation"],"artifacts":["documentation","note","visual"],"contexts":["visual explanation","completion claim"],"not_when":["The task is explicitly source-only and visual state is out of scope, which must be stated."],"products":["global"],"surfaces":["visual QA","editor rendering","agent reports"],"when":["An agent explains, reviews, or claims completion of visible UI work."]},"canonical_path":"rules/process/ddr_031.json","classification":{"pattern_categories":["Feedback & status"],"primary":"process.validation","secondary":["ai.transparency","product.trust"]},"confidence":{"assessed_at":"2026-07-17","basis":{"challenging_episodes":0,"distinct_projects":1,"distinct_threads":2,"explicit_user_signals":2,"supporting_episodes":2},"level":"high","note":"Bootstrapped from independent direct user episodes under the owner's request to mine durable design rules."},"evidence":[{"content_sha256":"sha256:f8d2c5026b4458e084c84531ead52478ac5ee0c2975a1cac89943bad6e3d37b8","doctrine_version_seen":"pre-doctrine","episode_id":"external:published:episode-001","episode_source_keys":["published-span-001"],"excerpt":null,"id":"ev_031_01","observed_at":"2026-07-11","signal":"explicit_instruction","source":{"project_id":"published-scope-002","source_keys":["published-signal-001"],"store":"public-doctrine","thread_id":"published-context-001","type":"published_summary"},"stance":"supports","summary":"Questioned an agent's claim about rendered content and requested a canvas screenshot capability."},{"content_sha256":"sha256:df473cc814281336773e314dd2a84a32f645fb2acfbfacf07534e6eccd920643","doctrine_version_seen":"pre-doctrine","episode_id":"external:published:episode-032","episode_source_keys":["published-span-042"],"excerpt":null,"id":"ev_031_02","observed_at":"2026-07-11","signal":"explicit_correction","source":{"project_id":"published-scope-002","source_keys":["published-signal-042"],"store":"public-doctrine","thread_id":"published-context-010","type":"published_summary"},"stance":"supports","summary":"Reported a valid callout existed on disk but was absent from the rendered canvas because inspection never checked the visual result."}],"exceptions":[],"guidance":{"avoid":["Declaring UI correct because code looks correct.","Using stale screenshots or an unverified server."],"prefer":["Inspect the current rendered target in the relevant state and viewport.","Report what was observed separately from what source implies."]},"id":"ddr_031","kind":"standard","lifecycle":{"activated_at":"2026-07-17","approved_by":"owner-direct-history-bootstrap","created_at":"2026-07-17","decision_note":"Activated only for the owner-requested initial bootstrap because repeated independent direct instructions or corrections establish this decision boundary.","last_reviewed_at":"2026-07-17","review_after":"2027-01-17","status":"active","updated_at":"2026-07-17"},"rationale":"Source can be correct while runtime composition, state, density, or stale assets remain visibly wrong.","relationships":[],"retrieval":{"aliases":[],"keywords":["agent","claim","completion","editor","explanation","process","rendering","reports","validation","visual"],"negative_examples":["Declaring UI correct because code looks correct.","Using stale screenshots or an unverified server."],"positive_examples":["Inspect the current rendered target in the relevant state and viewport.","Report what was observed separately from what source implies."]},"revision":1,"schema_version":1,"statement":"An agent must not infer visible UI correctness from source text alone; it needs direct inspection of the rendered target before explaining or claiming success.","strength":"required","title":"Inspect rendered state before claiming visual correctness","verification":{"checks":["Was the current rendered target inspected directly?","Were the relevant state and viewport exercised?","Does the report distinguish observed behavior from inference?"],"method":"design_review"}},{"applicability":{"activities":["architecture","design","implementation","qa"],"artifacts":["component","visual","design-system"],"contexts":["reusable anatomy","neutral wireframes","pattern documentation"],"not_when":["The requested artifact is a deliberately abstract diagram rather than a UI reference."],"products":["pattern-atlas"],"surfaces":["pattern gallery","pattern inspector","reference preview"],"when":["A Pattern Atlas reference must represent a reusable product pattern."]},"canonical_path":"rules/system/ddr_033.json","classification":{"pattern_categories":["Layout & composition","Content & data"],"primary":"system.design-system","secondary":["visual.hierarchy","process.prototyping"]},"confidence":{"assessed_at":"2026-07-17","basis":{"challenging_episodes":0,"distinct_projects":0,"distinct_threads":0,"explicit_user_signals":0,"supporting_episodes":0},"level":"low","note":"One direct episode supports this scoped candidate, but doctrine influence is unknown and cannot establish independent recurrence."},"evidence":[{"content_sha256":"sha256:29e543ad864ae867d72ee60ab06c754e4377cd716873a147e2d97fe7b648e1da","doctrine_version_seen":"unknown","episode_id":"external:published:episode-011","episode_source_keys":["published-span-013","published-span-014"],"excerpt":null,"id":"ev_033_01","observed_at":"2026-07-17","signal":"explicit_correction","source":{"project_id":"published-scope-003","source_keys":["published-signal-013","published-signal-014"],"store":"public-doctrine","thread_id":"published-context-005","type":"published_summary"},"stance":"supports","summary":"Requested Pattern Atlas wireframes be built from components and verified with screenshots because the existing references were not built credibly enough."}],"exceptions":[],"guidance":{"avoid":["Bespoke scenes that look like generic diagrams instead of usable interface patterns.","Duplicating component anatomy separately for each reference."],"prefer":["Build reference compositions from reusable controls, containers, and layout primitives.","Preserve recognizable interface anatomy while keeping the visual treatment intentionally neutral."]},"id":"ddr_033","kind":"guideline","lifecycle":{"activated_at":null,"approved_by":null,"created_at":"2026-07-17","decision_note":"Candidate pending independent recurrence or explicit owner approval.","last_reviewed_at":"2026-07-17","review_after":null,"status":"candidate","updated_at":"2026-07-17"},"rationale":"Reusable component anatomy makes references more credible, coherent, and maintainable than one-off drawings that only approximate a real interface.","relationships":[{"resolution":null,"target_id":"ddr_004","type":"supports"}],"retrieval":{"aliases":[],"keywords":["anatomy","components","gallery","pattern atlas","preview","reference","reusable","wireframe"],"negative_examples":["Draw a one-off abstract scene for each pattern."],"positive_examples":["Build a pattern preview by composing reusable controls and layout primitives.","Keep a neutral wireframe recognizable as a real interface pattern."]},"revision":1,"schema_version":1,"statement":"For Pattern Atlas references, compose recognizable UI anatomy from reusable components rather than drawing bespoke abstract scenes.","strength":"default","title":"Compose pattern references from reusable UI anatomy","verification":{"checks":["Does the reference use reusable UI anatomy rather than a bespoke scene?","Is the represented pattern recognizable at gallery and inspector scale?","Do screenshots confirm the composition remains readable in its target surface?"],"method":"visual_review"}},{"applicability":{"activities":["architecture","design","critique","implementation","qa"],"artifacts":["workflow","screen","component"],"contexts":["new feature","redesign","component creation"],"not_when":["Existing primitives cannot express the capability without creating a worse mental model."],"products":["global"],"surfaces":["product UI","feature additions","design-system components"],"when":["A new or changed surface has an established product neighbor or primitive."]},"canonical_path":"rules/system/ddr_003.json","classification":{"pattern_categories":["Layout & composition"],"primary":"system.design-system","secondary":["product.architecture","visual.hierarchy"]},"confidence":{"assessed_at":"2026-07-17","basis":{"challenging_episodes":0,"distinct_projects":2,"distinct_threads":4,"explicit_user_signals":5,"supporting_episodes":4},"level":"high","note":"Bootstrapped from independent direct user episodes under the owner's request to mine durable design rules."},"evidence":[{"content_sha256":"sha256:afecdc09f617cf7dc4b62b1f3e2d8a536f79067c346f141dd5ca36387f4b0787","doctrine_version_seen":"pre-doctrine","episode_id":"external:published:episode-037","episode_source_keys":["published-span-046"],"excerpt":null,"id":"ev_003_01","observed_at":"2026-06-03","signal":"explicit_instruction","source":{"project_id":"published-scope-002","source_keys":["published-signal-046"],"store":"public-doctrine","thread_id":"published-context-012","type":"published_summary"},"stance":"supports","summary":"Required embed surfaces to reuse the editor's established preview and fullscreen behaviors."},{"content_sha256":"sha256:df02335d67bbe4770ecfb277c496cd6ae909c9a1335b66f718fc36e4e2e98d8f","doctrine_version_seen":"pre-doctrine","episode_id":"external:published:episode-020","episode_source_keys":["published-span-021","published-span-022"],"excerpt":null,"id":"ev_003_02","observed_at":"2026-06-04","signal":"explicit_correction","source":{"project_id":"published-scope-002","source_keys":["published-signal-021","published-signal-022"],"store":"public-doctrine","thread_id":"published-context-008","type":"published_summary"},"stance":"supports","summary":"Flagged clipped comment hover treatment and a thread interface that looked like an unrelated mockup."},{"content_sha256":"sha256:564e4c0d702eccf80089ebc1c820cd2618917f1f73c6aa012cd77fb1fd9b004f","doctrine_version_seen":"pre-doctrine","episode_id":"external:published:episode-049","episode_source_keys":["published-span-049"],"excerpt":null,"id":"ev_003_03","observed_at":"2026-07-17","signal":"explicit_instruction","source":{"project_id":"published-scope-001","source_keys":["published-signal-049"],"store":"public-doctrine","thread_id":"published-context-014","type":"published_summary"},"stance":"supports","summary":"Asked a drag affordance to preserve the row divider and reuse an existing fade treatment."},{"content_sha256":"sha256:1138c93a1936b59de6aef056def871de31d840ba3a8f712e3d6736d53ead7166","doctrine_version_seen":"pre-doctrine","episode_id":"external:published:episode-023","episode_source_keys":["published-span-027"],"excerpt":null,"id":"ev_003_04","observed_at":"2026-07-14","signal":"explicit_correction","source":{"project_id":"published-scope-002","source_keys":["published-signal-027"],"store":"public-doctrine","thread_id":"published-context-010","type":"published_summary"},"stance":"supports","summary":"Asked heavy action sections to match the closest established sibling pattern."}],"exceptions":[],"guidance":{"avoid":["Custom components whose anatomy or behavior feels unrelated to the host product.","Copying surface color while inventing a different interaction language."],"prefer":["Find the closest product-native sibling and reuse its structure, tokens, and behavior.","Introduce a new primitive only when existing ones cannot express the job."]},"id":"ddr_003","kind":"principle","lifecycle":{"activated_at":"2026-07-17","approved_by":"owner-direct-history-bootstrap","created_at":"2026-07-17","decision_note":"Activated only for the owner-requested initial bootstrap because repeated independent direct instructions or corrections establish this decision boundary.","last_reviewed_at":"2026-07-17","review_after":"2027-01-17","status":"active","updated_at":"2026-07-17"},"rationale":"Product consistency is judged by perceived lineage and behavior, not merely by matching a few colors.","relationships":[],"retrieval":{"aliases":[],"keywords":["additions","component","components","creation","design-system","feature","new","product","redesign","system"],"negative_examples":["Custom components whose anatomy or behavior feels unrelated to the host product.","Copying surface color while inventing a different interaction language."],"positive_examples":["Find the closest product-native sibling and reuse its structure, tokens, and behavior.","Introduce a new primitive only when existing ones cannot express the job."]},"revision":1,"schema_version":1,"statement":"Start from the closest established product surface, component, behavior, and token set; extend it before introducing bespoke UI.","strength":"default","title":"Extend the existing product language","verification":{"checks":["What existing surface is the closest behavioral sibling?","Which real tokens and components are reused?","If a new primitive is necessary, is the reason explicit?"],"method":"design_review"}},{"applicability":{"activities":["architecture","design","critique","implementation","qa"],"artifacts":["workflow","screen","component"],"contexts":["visual system","related surfaces"],"not_when":["A one-off visual artifact intentionally has no product-system role."],"products":["global"],"surfaces":["themes","shelves","panels","controls"],"when":["Several related surfaces need visual tuning."]},"canonical_path":"rules/system/ddr_027.json","classification":{"pattern_categories":["Layout & composition"],"primary":"system.design-system","secondary":["visual.color","visual.layout"]},"confidence":{"assessed_at":"2026-07-17","basis":{"challenging_episodes":0,"distinct_projects":1,"distinct_threads":1,"explicit_user_signals":1,"supporting_episodes":1},"level":"medium","note":"Bootstrapped from independent direct user episodes under the owner's request to mine durable design rules."},"evidence":[{"content_sha256":"sha256:a3131b4d511420bd6ac55e821943c3eb0fb3518cad28c82141288e0e8a708b35","doctrine_version_seen":"pre-doctrine","episode_id":"external:published:episode-050","episode_source_keys":["published-span-064"],"excerpt":null,"id":"ev_027_01","observed_at":"2026-07-11","signal":"explicit_instruction","source":{"project_id":"published-scope-001","source_keys":["published-signal-064"],"store":"public-doctrine","thread_id":"published-context-015","type":"published_summary"},"stance":"supports","summary":"Requested uniform spacing be maintained through a shared token system."}],"exceptions":[],"guidance":{"avoid":["Fixing each component with unrelated literal values."],"prefer":["Define a small semantic set of surface, border, spacing, and elevation roles.","Reuse roles across related components."]},"id":"ddr_027","kind":"principle","lifecycle":{"activated_at":null,"approved_by":null,"created_at":"2026-07-17","decision_note":"Candidate pending independent recurrence or explicit owner approval.","last_reviewed_at":"2026-07-17","review_after":null,"status":"candidate","updated_at":"2026-07-17"},"rationale":"One-off visual fixes accumulate into drift; a semantic ladder makes nearby surfaces feel related and changes predictable.","relationships":[],"retrieval":{"aliases":[],"keywords":["controls","design-system","panels","related","shelves","surfaces","system","themes","visual"],"negative_examples":["Fixing each component with unrelated literal values."],"positive_examples":["Define a small semantic set of surface, border, spacing, and elevation roles.","Reuse roles across related components."]},"revision":1,"schema_version":1,"statement":"Use a small semantic tokenized surface system rather than ad hoc spacing and color fixes so related UI stays uniform and maintainable.","strength":"default","title":"Use a small semantic token ladder","verification":{"checks":["Can each visual value be named by semantic role?","Do related components reuse the same ladder?","Would one token change update the family coherently?"],"method":"design_review"}},{"applicability":{"activities":["architecture","design","critique","implementation","qa"],"artifacts":["workflow","screen","component"],"contexts":["semantic states","status differentiation"],"not_when":["A deliberately neutral or brandless wireframe is the artifact."],"products":["global"],"surfaces":["status chips","stateful controls","product chrome"],"when":["Color carries state or status meaning in product UI."]},"canonical_path":"rules/visual/ddr_007.json","classification":{"pattern_categories":["Feedback & status"],"primary":"visual.color","secondary":["system.design-system","interaction.feedback"]},"confidence":{"assessed_at":"2026-07-17","basis":{"challenging_episodes":0,"distinct_projects":1,"distinct_threads":1,"explicit_user_signals":1,"supporting_episodes":1},"level":"medium","note":"Bootstrapped from independent direct user episodes under the owner's request to mine durable design rules."},"evidence":[{"content_sha256":"sha256:e9d9b68cf2228d604c28125ef634ef008b8493b58b06d2ab63624395b20c2583","doctrine_version_seen":"pre-doctrine","episode_id":"external:published:episode-017","episode_source_keys":["published-span-020"],"excerpt":null,"id":"ev_007_01","observed_at":"2026-05-30","signal":"explicit_instruction","source":{"project_id":"published-scope-002","source_keys":["published-signal-020"],"store":"public-doctrine","thread_id":"published-context-007","type":"published_summary"},"stance":"supports","summary":"Rejected saturated status colors as childish and asked for restrained, professional status treatment."}],"exceptions":[],"guidance":{"avoid":["Childish saturation.","Making every state the same neutral or accent color."],"prefer":["Use the product token system and reserve color differences for meaningful semantics.","Balance professional restraint with enough variety to distinguish states."]},"id":"ddr_007","kind":"taste","lifecycle":{"activated_at":null,"approved_by":null,"created_at":"2026-07-17","decision_note":"Candidate pending independent recurrence or explicit owner approval.","last_reviewed_at":"2026-07-17","review_after":null,"status":"candidate","updated_at":"2026-07-17"},"rationale":"Color should communicate meaningful status and structure while remaining professional and native to the product.","relationships":[],"retrieval":{"aliases":[],"keywords":["chips","chrome","color","controls","differentiation","product","semantic","stateful","states","status","visual"],"negative_examples":["Childish saturation.","Making every state the same neutral or accent color."],"positive_examples":["Use the product token system and reserve color differences for meaningful semantics.","Balance professional restraint with enough variety to distinguish states."]},"revision":1,"schema_version":1,"statement":"Use product-native tokenized color with tasteful semantic variety; avoid both childish saturation and blanket desaturation or one-accent monotony.","strength":"preference","title":"Use restrained semantic color variety","verification":{"checks":["Does each color difference carry meaning?","Does the palette feel product-native and professional?","Are distinct states still distinguishable?"],"method":"visual_review"}},{"applicability":{"activities":["architecture","design","critique","implementation","qa"],"artifacts":["workflow","screen","component"],"contexts":["new component","visual artifact","product screen"],"not_when":["A deliberately brandless technical wireframe is the requested artifact, while still retaining recognizable anatomy."],"products":["global"],"surfaces":["production UI","design-system components","pattern illustrations"],"when":["A design will represent or become a real product surface."]},"canonical_path":"rules/visual/ddr_004.json","classification":{"pattern_categories":["Layout & composition","Content & data"],"primary":"visual.hierarchy","secondary":["system.design-system","visual.layout"]},"confidence":{"assessed_at":"2026-07-17","basis":{"challenging_episodes":0,"distinct_projects":2,"distinct_threads":3,"explicit_user_signals":3,"supporting_episodes":3},"level":"high","note":"Bootstrapped from independent direct user episodes under the owner's request to mine durable design rules."},"evidence":[{"content_sha256":"sha256:34e100c560ebc4962769ca0f39a4fe891119163e1c23f750435f1e3a6e03e4d9","doctrine_version_seen":"pre-doctrine","episode_id":"external:published:episode-017","episode_source_keys":["published-span-020"],"excerpt":null,"id":"ev_004_01","observed_at":"2026-05-30","signal":"explicit_instruction","source":{"project_id":"published-scope-002","source_keys":["published-signal-020"],"store":"public-doctrine","thread_id":"published-context-007","type":"published_summary"},"stance":"supports","summary":"Rejected generic system-style UI and excessive inputs; asked for a minimal, intentional surface matching the host product."},{"content_sha256":"sha256:df02335d67bbe4770ecfb277c496cd6ae909c9a1335b66f718fc36e4e2e98d8f","doctrine_version_seen":"pre-doctrine","episode_id":"external:published:episode-019","episode_source_keys":["published-span-021"],"excerpt":null,"id":"ev_004_02","observed_at":"2026-06-04","signal":"explicit_correction","source":{"project_id":"published-scope-002","source_keys":["published-signal-021"],"store":"public-doctrine","thread_id":"published-context-008","type":"published_summary"},"stance":"supports","summary":"Flagged clipped comment hover treatment and a thread interface that looked like an unrelated mockup."},{"content_sha256":"sha256:d7a32025f33021021fd81b51526f42771204c4f46eb9642b5caccef75befbc19","doctrine_version_seen":"pre-doctrine","episode_id":"external:published:episode-010","episode_source_keys":["published-span-012"],"excerpt":null,"id":"ev_004_03","observed_at":"2026-07-17","signal":"explicit_correction","source":{"project_id":"published-scope-003","source_keys":["published-signal-012"],"store":"public-doctrine","thread_id":"published-context-005","type":"published_summary"},"stance":"supports","summary":"Judged the implemented interaction patterns insufficiently faithful to product-quality UI."}],"exceptions":[],"guidance":{"avoid":["Generic system chrome.","Abstract mockups that cannot be recognized as the intended product object."],"prefer":["Use realistic product anatomy and density.","Ground the surface in host-product components and tokens."]},"id":"ddr_004","kind":"standard","lifecycle":{"activated_at":"2026-07-17","approved_by":"owner-direct-history-bootstrap","created_at":"2026-07-17","decision_note":"Activated only for the owner-requested initial bootstrap because repeated independent direct instructions or corrections establish this decision boundary.","last_reviewed_at":"2026-07-17","review_after":"2027-01-17","status":"active","updated_at":"2026-07-17"},"rationale":"Minimal chrome is not permission for abstract, low-fidelity, or visibly foreign product surfaces.","relationships":[],"retrieval":{"aliases":[],"keywords":["artifact","component","components","design-system","hierarchy","illustrations","new","pattern","product","production","screen","visual"],"negative_examples":["Generic system chrome.","Abstract mockups that cannot be recognized as the intended product object."],"positive_examples":["Use realistic product anatomy and density.","Ground the surface in host-product components and tokens."]},"revision":1,"schema_version":1,"statement":"New product surfaces need credible anatomy, density, and host-product fidelity; do not ship generic system UI or mock-like bespoke compositions.","strength":"required","title":"Make new surfaces feel product-native and real","verification":{"checks":["Can the intended product object be recognized without explanation?","Does the surface feel native beside its closest host-product sibling?","Is the anatomy credible at realistic content density?"],"method":"visual_review"}},{"applicability":{"activities":["architecture","design","critique","implementation","qa"],"artifacts":["workflow","screen","component"],"contexts":["section boundary","drag state"],"not_when":["The boundary is an interactive resizable splitter with clear affordance."],"products":["global"],"surfaces":["lists","drawers","panels"],"when":["A visible line separates persistent regions or groups."]},"canonical_path":"rules/visual/ddr_010.json","classification":{"pattern_categories":["Layout & composition"],"primary":"visual.hierarchy","secondary":["visual.layout"]},"confidence":{"assessed_at":"2026-07-17","basis":{"challenging_episodes":0,"distinct_projects":2,"distinct_threads":2,"explicit_user_signals":2,"supporting_episodes":2},"level":"medium","note":"Bootstrapped from independent direct user episodes under the owner's request to mine durable design rules."},"evidence":[{"content_sha256":"sha256:3907d33b607137b77dab4e1da5b8ec8ead1359b909680a4205cbbe0df8001191","doctrine_version_seen":"pre-doctrine","episode_id":"external:published:episode-049","episode_source_keys":["published-span-049"],"excerpt":null,"id":"ev_010_01","observed_at":"2026-07-17","signal":"explicit_correction","source":{"project_id":"published-scope-001","source_keys":["published-signal-049"],"store":"public-doctrine","thread_id":"published-context-014","type":"published_summary"},"stance":"supports","summary":"Required the row divider to remain stable during dragging and existing fade behavior to be reused."},{"content_sha256":"sha256:d8d8961099bd5215e6712b8a52166844899a50aa0d1fe3c475513d7a7d88afba","doctrine_version_seen":"pre-doctrine","episode_id":"external:published:episode-034","episode_source_keys":["published-span-026"],"excerpt":null,"id":"ev_010_02","observed_at":"2026-07-13","signal":"explicit_correction","source":{"project_id":"published-scope-002","source_keys":["published-signal-026"],"store":"public-doctrine","thread_id":"published-context-010","type":"published_summary"},"stance":"supports","summary":"Questioned a redundant footer boundary and inconsistent hierarchy between visually sibling action sections."}],"exceptions":[],"guidance":{"avoid":["Duplicate seams.","Turning a structural divider into the only drag-state indicator."],"prefer":["Use one quiet consistent boundary where stable grouping needs it.","Use a dedicated drag or selection affordance for transient state."]},"id":"ddr_010","kind":"taste","lifecycle":{"activated_at":"2026-07-17","approved_by":"owner-direct-history-bootstrap","created_at":"2026-07-17","decision_note":"Activated only for the owner-requested initial bootstrap because repeated independent direct instructions or corrections establish this decision boundary.","last_reviewed_at":"2026-07-17","review_after":"2027-01-17","status":"active","updated_at":"2026-07-17"},"rationale":"A boundary should explain composition rather than add noise or become a temporary state indicator.","relationships":[],"retrieval":{"aliases":[],"keywords":["boundary","drag","drawers","hierarchy","lists","panels","section","state","visual"],"negative_examples":["Duplicate seams.","Turning a structural divider into the only drag-state indicator."],"positive_examples":["Use one quiet consistent boundary where stable grouping needs it.","Use a dedicated drag or selection affordance for transient state."]},"revision":1,"schema_version":1,"statement":"Dividers communicate stable grouping, not transient drag state; avoid duplicate seams and keep related boundaries visually consistent.","strength":"preference","title":"Use dividers to express stable structure","verification":{"checks":["Does the divider explain stable structure?","Are adjacent seams duplicated?","Is transient state communicated independently?"],"method":"visual_review"}},{"applicability":{"activities":["architecture","design","critique","implementation","qa"],"artifacts":["workflow","screen","component"],"contexts":["icon substitution"],"not_when":["The concept is unfamiliar or has no precise established symbol."],"products":["global"],"surfaces":["attachments","state markers","feature headings","controls"],"when":["Text is being replaced to reduce density."]},"canonical_path":"rules/visual/ddr_020.json","classification":{"pattern_categories":["Actions & commands","Feedback & status"],"primary":"visual.imagery","secondary":["content.terminology","accessibility.comprehension"]},"confidence":{"assessed_at":"2026-07-17","basis":{"challenging_episodes":0,"distinct_projects":2,"distinct_threads":2,"explicit_user_signals":4,"supporting_episodes":2},"level":"medium","note":"Bootstrapped from independent direct user episodes under the owner's request to mine durable design rules."},"evidence":[{"content_sha256":"sha256:86990c63ca7321ab764b3e9fa12b23e75976ab3a42b8ad6e94d02e942758f6e0","doctrine_version_seen":"pre-doctrine","episode_id":"external:published:episode-044","episode_source_keys":["published-span-060","published-span-063","published-span-051"],"excerpt":null,"id":"ev_020_01","observed_at":"2026-07-17","signal":"explicit_correction","source":{"project_id":"published-scope-001","source_keys":["published-signal-060","published-signal-063","published-signal-051"],"store":"public-doctrine","thread_id":"published-context-014","type":"published_summary"},"stance":"supports","summary":"Requested semantic attachment and chat icons retain necessary counts, while row borders become lighter."},{"content_sha256":"sha256:f764d541b261e2e9b70fac34ebe33bf1e49f53920999ec664317bd505115d99a","doctrine_version_seen":"pre-doctrine","episode_id":"external:published:episode-003","episode_source_keys":["published-span-009"],"excerpt":null,"id":"ev_020_02","observed_at":"2026-07-02","signal":"explicit_correction","source":{"project_id":"published-scope-002","source_keys":["published-signal-009"],"store":"public-doctrine","thread_id":"published-context-003","type":"published_summary"},"stance":"supports","summary":"Rejected a decorative emoji and requested feature visuals use one real, consistent example without a floating toolbar."}],"exceptions":[],"guidance":{"avoid":["Decorative emoji in product chrome.","Ambiguous icons that erase essential state or quantity."],"prefer":["Use a canonical symbol with an accessible name.","Retain counts or state when they change the user's decision."]},"id":"ddr_020","kind":"taste","lifecycle":{"activated_at":"2026-07-17","approved_by":"owner-direct-history-bootstrap","created_at":"2026-07-17","decision_note":"Activated only for the owner-requested initial bootstrap because repeated independent direct instructions or corrections establish this decision boundary.","last_reviewed_at":"2026-07-17","review_after":"2027-01-17","status":"active","updated_at":"2026-07-17"},"rationale":"Compactness helps only when users can still understand the object, state, or action without guessing.","relationships":[],"retrieval":{"aliases":[],"keywords":["attachments","controls","feature","headings","icon","imagery","markers","state","substitution","visual"],"negative_examples":["Decorative emoji in product chrome.","Ambiguous icons that erase essential state or quantity."],"positive_examples":["Use a canonical symbol with an accessible name.","Retain counts or state when they change the user's decision."]},"revision":1,"schema_version":1,"statement":"Replace text with an icon only when the symbol is semantically exact; retain essential quantity or state and avoid decorative emoji.","strength":"preference","title":"Use icons only when they preserve meaning","verification":{"checks":["Is the icon semantically exact?","Does removing text hide quantity or state?","Is the control still accessible without hover?"],"method":"visual_review"}},{"applicability":{"activities":["architecture","design","critique","implementation","qa"],"artifacts":["workflow","screen","component"],"contexts":["variable content","resizable surface"],"not_when":["Growth would exceed a viewport or destabilize the primary workspace."],"products":["global"],"surfaces":["editors","popovers","drawers","panels"],"when":["Content length or user editing meaningfully changes the useful footprint."]},"canonical_path":"rules/visual/ddr_009.json","classification":{"pattern_categories":["Layout & composition","Inputs & selection"],"primary":"visual.layout","secondary":["system.responsiveness","interaction.input"]},"confidence":{"assessed_at":"2026-07-17","basis":{"challenging_episodes":0,"distinct_projects":2,"distinct_threads":2,"explicit_user_signals":3,"supporting_episodes":2},"level":"high","note":"Bootstrapped from independent direct user episodes under the owner's request to mine durable design rules."},"evidence":[{"content_sha256":"sha256:d5e922f13fd5633f7edf5ef4799d277cff66dcfc1d60f84c7431a9142e0e87fc","doctrine_version_seen":"pre-doctrine","episode_id":"external:published:episode-043","episode_source_keys":["published-span-050"],"excerpt":null,"id":"ev_009_01","observed_at":"2026-07-17","signal":"explicit_correction","source":{"project_id":"published-scope-001","source_keys":["published-signal-050"],"store":"public-doctrine","thread_id":"published-context-014","type":"published_summary"},"stance":"supports","summary":"Flagged a fullscreen surface that exceeded content needs and left excessive empty space."},{"content_sha256":"sha256:527f43e92d2174eacbb51629690ad8cf5be79b75c07697f9738fc09244c799b6","doctrine_version_seen":"pre-doctrine","episode_id":"external:published:episode-031","episode_source_keys":["published-span-037","published-span-038"],"excerpt":null,"id":"ev_009_02","observed_at":"2026-07-17","signal":"explicit_correction","source":{"project_id":"published-scope-002","source_keys":["published-signal-037","published-signal-038"],"store":"public-doctrine","thread_id":"published-context-010","type":"published_summary"},"stance":"supports","summary":"Rejected an unrequested minimum-width change while asking comment input width to grow only to a maximum."},{"content_sha256":"sha256:0ec1b2079c23eb5206de78ae95aee7d0a6dd1d255175e72b102a2d5e24b4fd6f","doctrine_version_seen":"sha256:3160f41cd26d0c6e040206782a6a3e311fefd8e44c44e0ad53366c0213893aeb","episode_id":"external:published:episode-029","episode_source_keys":["published-span-039","published-span-040"],"excerpt":null,"id":"ev_009_03","observed_at":"2026-07-17","signal":"explicit_instruction","source":{"project_id":"published-scope-002","source_keys":["published-signal-039","published-signal-040"],"store":"public-doctrine","thread_id":"published-context-010","type":"published_summary"},"stance":"supports","summary":"Specified a comment composer that grows as text wraps: compact secondary actions in a plus menu at one line, then inline footer actions while text continues paragraph-like."}],"exceptions":[],"guidance":{"avoid":["Fixed cramped surfaces for variable content.","Changing a neighboring minimum merely to fit one state."],"prefer":["Grow with useful content until a clear maximum.","Preserve unrelated minimum sizes and narrow-viewport constraints."]},"id":"ddr_009","kind":"guideline","lifecycle":{"activated_at":"2026-07-17","approved_by":"owner-direct-history-bootstrap","created_at":"2026-07-17","decision_note":"Activated only for the owner-requested initial bootstrap because repeated independent direct instructions or corrections establish this decision boundary.","last_reviewed_at":"2026-07-17","review_after":"2027-01-17","status":"active","updated_at":"2026-07-17"},"rationale":"Useful content should not be artificially cramped, while unbounded growth and collateral resizing destabilize the surrounding layout.","relationships":[],"retrieval":{"aliases":[],"keywords":["content","drawers","editors","layout","panels","popovers","resizable","surface","variable","visual"],"negative_examples":["Fixed cramped surfaces for variable content.","Changing a neighboring minimum merely to fit one state."],"positive_examples":["Grow with useful content until a clear maximum.","Preserve unrelated minimum sizes and narrow-viewport constraints."]},"revision":1,"schema_version":1,"statement":"Let inputs and surfaces grow with useful content to an explicit maximum; do not alter unrelated minimum constraints.","strength":"default","title":"Let content grow within explicit bounds","verification":{"checks":["Is there a useful growth range and explicit maximum?","Are unrelated constraints preserved?","Does the narrowest supported viewport remain usable?"],"method":"visual_review"}},{"applicability":{"activities":["architecture","design","critique","implementation","qa"],"artifacts":["workflow","screen","component"],"contexts":["hover reveal","inline editing","drag affordance"],"not_when":["Intentional content expansion is the action and the anchor remains stable."],"products":["global"],"surfaces":["rows","inline editors","drag handles"],"when":["A transient affordance appears inside an existing row or panel."]},"canonical_path":"rules/visual/ddr_008.json","classification":{"pattern_categories":["Layout & composition","Actions & commands"],"primary":"visual.layout","secondary":["interaction.efficiency"]},"confidence":{"assessed_at":"2026-07-17","basis":{"challenging_episodes":0,"distinct_projects":2,"distinct_threads":2,"explicit_user_signals":2,"supporting_episodes":2},"level":"high","note":"Bootstrapped from independent direct user episodes under the owner's request to mine durable design rules."},"evidence":[{"content_sha256":"sha256:4d63095d39a14d8f5393307912486faf93a069d2bf8734d8dde80103c38bbb1a","doctrine_version_seen":"pre-doctrine","episode_id":"external:published:episode-048","episode_source_keys":["published-span-052"],"excerpt":null,"id":"ev_008_01","observed_at":"2026-07-17","signal":"explicit_correction","source":{"project_id":"published-scope-001","source_keys":["published-signal-052"],"store":"public-doctrine","thread_id":"published-context-014","type":"published_summary"},"stance":"supports","summary":"Reported the row's padding shrank when its drag handle appeared."},{"content_sha256":"sha256:8b9f98a77c500e5f9c5d139c458ef65ec2c8718e958b7268d49ca3febbe70acc","doctrine_version_seen":"pre-doctrine","episode_id":"external:published:episode-024","episode_source_keys":["published-span-029"],"excerpt":null,"id":"ev_008_02","observed_at":"2026-07-17","signal":"explicit_correction","source":{"project_id":"published-scope-002","source_keys":["published-signal-029"],"store":"public-doctrine","thread_id":"published-context-010","type":"published_summary"},"stance":"supports","summary":"Reported entering formula or variable mode shifted the layout downward."}],"exceptions":[],"guidance":{"avoid":["Adding hover or edit controls that push content or resize the row."],"prefer":["Overlay transient actions or reserve their space.","Keep the anchor and neighboring content stable."]},"id":"ddr_008","kind":"guideline","lifecycle":{"activated_at":"2026-07-17","approved_by":"owner-direct-history-bootstrap","created_at":"2026-07-17","decision_note":"Activated only for the owner-requested initial bootstrap because repeated independent direct instructions or corrections establish this decision boundary.","last_reviewed_at":"2026-07-17","review_after":"2027-01-17","status":"active","updated_at":"2026-07-17"},"rationale":"Reflow under the pointer makes dense interfaces feel unstable and causes users to lose their target.","relationships":[],"retrieval":{"aliases":[],"keywords":["affordance","drag","editing","editors","handles","hover","inline","layout","reveal","rows","visual"],"negative_examples":["Adding hover or edit controls that push content or resize the row."],"positive_examples":["Overlay transient actions or reserve their space.","Keep the anchor and neighboring content stable."]},"revision":1,"schema_version":1,"statement":"Hover, drag, and edit affordances must not shift row or panel geometry; transient controls should overlay or use reserved space.","strength":"default","title":"Reveal controls without reflow","verification":{"checks":["Does geometry remain stable when controls appear?","Can the pointer target stay under the pointer?","Is intentional expansion visually anchored?"],"method":"visual_review"}}],"taxonomy":{"activities":["architecture","design","critique","prototype","implementation","qa","documentation"],"artifacts":["capability","workflow","screen","component","design-system","visual","note","documentation"],"deprecations":[],"id_aliases":[],"pattern_categories":["Actions & commands","Inputs & selection","Navigation & wayfinding","Content & data","Feedback & status","Surfaces & disclosure","Layout & composition"],"products":[{"id":"global","name":"Cross-product"},{"id":"bb","name":"bb"},{"id":"moss","name":"Moss"},{"id":"pattern-atlas","name":"Pattern Atlas"}],"roots":[{"definition":"Capability architecture, value, workflows, and trust.","id":"product","leaves":[{"id":"product.architecture","name":"Architecture"},{"id":"product.value","name":"Value"},{"id":"product.workflow","name":"Workflow"},{"id":"product.trust","name":"Trust"}],"name":"Product"},{"definition":"Hierarchy, organization, findability, and density.","id":"information","leaves":[{"id":"information.hierarchy","name":"Hierarchy"},{"id":"information.organization","name":"Organization"},{"id":"information.findability","name":"Findability"},{"id":"information.density","name":"Density"}],"name":"Information"},{"definition":"Navigation, input, disclosure, feedback, recovery, and efficiency.","id":"interaction","leaves":[{"id":"interaction.navigation","name":"Navigation"},{"id":"interaction.input","name":"Input"},{"id":"interaction.disclosure","name":"Disclosure"},{"id":"interaction.feedback","name":"Feedback"},{"id":"interaction.recovery","name":"Recovery"},{"id":"interaction.efficiency","name":"Efficiency"}],"name":"Interaction"},{"definition":"Hierarchy, layout, typography, color, motion, and imagery.","id":"visual","leaves":[{"id":"visual.hierarchy","name":"Hierarchy"},{"id":"visual.layout","name":"Layout"},{"id":"visual.typography","name":"Typography"},{"id":"visual.color","name":"Color"},{"id":"visual.motion","name":"Motion"},{"id":"visual.imagery","name":"Imagery"}],"name":"Visual"},{"definition":"Terminology, voice, instructions, and error language.","id":"content","leaves":[{"id":"content.terminology","name":"Terminology"},{"id":"content.voice","name":"Voice"},{"id":"content.instructions","name":"Instructions"},{"id":"content.error","name":"Error language"}],"name":"Content"},{"definition":"Agency, context, transparency, uncertainty, and reversibility.","id":"ai","leaves":[{"id":"ai.agency","name":"Agency"},{"id":"ai.context","name":"Context"},{"id":"ai.transparency","name":"Transparency"},{"id":"ai.uncertainty","name":"Uncertainty"},{"id":"ai.reversibility","name":"Reversibility"}],"name":"AI"},{"definition":"Perception, operation, comprehension, and compatibility.","id":"accessibility","leaves":[{"id":"accessibility.perception","name":"Perception"},{"id":"accessibility.operation","name":"Operation"},{"id":"accessibility.comprehension","name":"Comprehension"},{"id":"accessibility.compatibility","name":"Compatibility"}],"name":"Accessibility"},{"definition":"Design-system lineage, platform behavior, performance, responsiveness, and privacy.","id":"system","leaves":[{"id":"system.design-system","name":"Design system"},{"id":"system.platform","name":"Platform"},{"id":"system.performance","name":"Performance"},{"id":"system.responsiveness","name":"Responsiveness"},{"id":"system.privacy","name":"Privacy"}],"name":"System"},{"definition":"Discovery, prototyping, critique, validation, and handoff.","id":"process","leaves":[{"id":"process.discovery","name":"Discovery"},{"id":"process.prototyping","name":"Prototyping"},{"id":"process.critique","name":"Critique"},{"id":"process.validation","name":"Validation"},{"id":"process.handoff","name":"Handoff"}],"name":"Process"}],"schema_version":1,"updated_at":"2026-07-17"}}</script>
+  <script>
+    (function () {
+      "use strict";
+
+      var data = JSON.parse(document.getElementById("doctrine-data").textContent);
+      var rules = data.rules;
+      var roots = data.taxonomy.roots;
+      var rootById = Object.fromEntries(roots.map(function (root) { return [root.id, root]; }));
+      var searchInput = document.getElementById("search");
+      var statusFilter = document.getElementById("status-filter");
+      var domainFilter = document.getElementById("domain-filter");
+      var grid = document.getElementById("library-grid");
+      var resultCount = document.getElementById("result-count");
+      var emptyState = document.getElementById("empty-state");
+      var clearFilters = document.getElementById("clear-filters");
+      var dialog = document.getElementById("rule-dialog");
+      var dialogShell = document.getElementById("dialog-shell");
+      var activeCard = null;
+      var accents = {
+        product: "#667ab0",
+        information: "#8a7357",
+        interaction: "#3f7f70",
+        visual: "#836b9d",
+        content: "#927058",
+        ai: "#4f7894",
+        accessibility: "#587f5b",
+        system: "#6f7780",
+        process: "#9a6f55"
+      };
+
+      function escapeHtml(value) {
+        return String(value == null ? "" : value)
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;")
+          .replace(/"/g, "&quot;")
+          .replace(/'/g, "&#039;");
+      }
+
+      function titleCase(value) {
+        return String(value || "")
+          .replace(/[_-]/g, " ")
+          .replace(/\b\w/g, function (letter) { return letter.toUpperCase(); });
+      }
+
+      function rootId(rule) {
+        return rule.classification.primary.split(".")[0];
+      }
+
+      function rootName(rule) {
+        var root = rootById[rootId(rule)];
+        return root ? root.name : titleCase(rootId(rule));
+      }
+
+      function leafName(rule) {
+        var root = rootById[rootId(rule)];
+        var leaf = root && root.leaves.find(function (item) {
+          return item.id === rule.classification.primary;
+        });
+        return leaf ? leaf.name : titleCase(rule.classification.primary.split(".")[1]);
+      }
+
+      function accentFor(rule) {
+        return accents[rootId(rule)] || "#68736e";
+      }
+
+      function statusMarkup(status, includeLabel) {
+        var known = status === "active" || status === "candidate";
+        var label = includeLabel ? escapeHtml(titleCase(status)) : "";
+        return '<span class="status-label"><span class="status-dot ' +
+          (known ? escapeHtml(status) : "") + '"></span>' + label + "</span>";
+      }
+
+      function line(widthClass, accent) {
+        return '<span class="mini-line ' + (widthClass || "") + (accent ? " accent" : "") + '"></span>';
+      }
+
+      function visualMarkup(rule) {
+        var domain = rootId(rule);
+        var commonStart = '<div class="mini-window"><div class="mini-bar"><span class="mini-dots"><span class="mini-dot"></span><span class="mini-dot"></span><span class="mini-dot"></span></span><span class="mini-title"></span></div>';
+        var end = "</div>";
+        var body = "";
+
+        if (domain === "product") {
+          body = '<div class="mini-body"><div class="mini-side">' + line("", true) + line("medium") + line("short") +
+            '</div><div class="mini-main"><div class="mini-node-row"><span class="mini-node">' + line("short") +
+            '</span><span class="mini-connector mini-motion"></span><span class="mini-node is-current">' + line("short", true) +
+            '</span><span class="mini-connector"></span><span class="mini-node">' + line("short") +
+            '</span></div><div class="mini-panel emphasis">' + line("medium", true) + line("") + line("short") +
+            '</div></div></div>';
+        } else if (domain === "information") {
+          body = '<div class="mini-body"><div class="mini-columns"><div class="mini-panel">' + line("medium") + line("short") +
+            '</div><div class="mini-panel emphasis">' + line("", true) + line("medium") + line("short") +
+            '</div><div class="mini-panel">' + line("short") + line("") + line("medium") + line("short") +
+            '</div></div></div>';
+        } else if (domain === "interaction") {
+          body = '<div class="mini-body"><div class="mini-main"><div class="mini-row flat">' + line("medium", true) +
+            '<span class="mini-button"></span><span class="mini-button"></span></div><div class="mini-row">' +
+            '<span class="mini-icon"></span>' + line("medium") + '<span class="mini-button mini-focus"><span class="mini-tooltip">Inspect</span></span>' +
+            '</div><div class="mini-row"><span class="mini-icon"></span>' + line("short") +
+            '<span class="mini-button primary"></span></div></div></div>';
+        } else if (domain === "visual") {
+          body = '<div class="mini-body"><div class="mini-grid"><div class="mini-panel emphasis">' + line("medium", true) +
+            line("") + line("short") + '</div><div class="mini-panel">' + line("short") + line("medium") +
+            '</div><div class="mini-panel">' + line("") + line("medium") + '</div><div class="mini-panel">' +
+            line("medium", true) + '<span class="mini-swatch-row"><span class="mini-swatch"></span><span class="mini-swatch"></span><span class="mini-swatch"></span></span></div></div></div>';
+        } else if (domain === "content") {
+          body = '<div class="mini-body"><div class="mini-main"><div class="mini-panel emphasis">' + line("short", true) +
+            line("") + line("medium") + line("") + '</div><div class="mini-row flat"><span class="mini-chip">User job</span>' +
+            '<span class="mini-chip">Outcome</span></div><div class="mini-row"><span class="mini-icon"></span>' +
+            line("medium") + '</div></div></div>';
+        } else if (domain === "ai") {
+          body = '<div class="mini-body"><div class="mini-main"><div class="mini-row flat"><span class="mini-chip">Note</span>' +
+            '<span class="mini-chip">Image</span><span class="mini-chip">Thread</span></div><div class="mini-row"><span class="mini-icon"></span>' +
+            line("medium") + '<span class="mini-check"></span></div><div class="mini-composer">' + line("medium", true) +
+            '<span class="mini-button primary"></span></div></div></div>';
+        } else if (domain === "accessibility") {
+          body = '<div class="mini-body"><div class="mini-main"><div class="mini-row flat">' + line("short", true) +
+            '<span class="mini-chip">Tab</span></div><div class="mini-row mini-focus"><span class="mini-handle"></span><span class="mini-icon"></span>' +
+            line("medium") + '<span class="mini-button"><span class="mini-tooltip">More actions</span></span></div>' +
+            '<div class="mini-row"><span class="mini-check"></span>' + line("short") + '</div></div></div>';
+        } else if (domain === "system") {
+          body = '<div class="mini-body"><div class="mini-side">' + line("medium", true) + line("short") +
+            line("medium") + '</div><div class="mini-main"><div class="mini-row"><span class="mini-chip">Token</span>' +
+            line("medium") + '</div><div class="mini-row"><span class="mini-icon"></span>' + line("short") +
+            '<span class="mini-button"></span></div><div class="mini-swatch-row"><span class="mini-swatch"></span><span class="mini-swatch"></span><span class="mini-swatch"></span></div></div></div>';
+        } else {
+          body = '<div class="mini-body"><div class="mini-main"><div class="mini-node-row"><span class="mini-node">' +
+            line("short") + '</span><span class="mini-connector"></span><span class="mini-node is-current">' +
+            line("short", true) + '</span><span class="mini-connector mini-motion"></span><span class="mini-node">' +
+            line("short") + '</span></div><div class="mini-row"><span class="mini-check"></span>' +
+            line("medium") + '</div><div class="mini-row"><span class="mini-check"></span>' + line("short") +
+            '</div></div></div>';
+        }
+
+        return commonStart + body + end;
+      }
+
+      function searchableText(rule) {
+        var fields = [
+          rule.id,
+          rule.title,
+          rule.statement,
+          rule.rationale,
+          rule.kind,
+          rule.strength,
+          rule.lifecycle.status,
+          rule.classification.primary,
+          rule.classification.secondary,
+          rule.classification.pattern_categories,
+          rule.applicability.products,
+          rule.applicability.activities,
+          rule.applicability.artifacts,
+          rule.applicability.surfaces,
+          rule.applicability.contexts,
+          rule.applicability.when,
+          rule.applicability.not_when,
+          rule.guidance.prefer,
+          rule.guidance.avoid,
+          rule.retrieval.keywords,
+          rule.retrieval.aliases,
+          rule.retrieval.positive_examples,
+          rule.retrieval.negative_examples,
+          rule.verification.checks,
+          rule.evidence.map(function (item) { return item.summary; })
+        ];
+        return fields.flat(Infinity).filter(Boolean).join(" ").toLowerCase();
+      }
+
+      rules.forEach(function (rule) {
+        rule._search = searchableText(rule);
+      });
+
+      function cardMarkup(rule) {
+        return '<button class="rule-card" type="button" data-rule-id="' + escapeHtml(rule.id) +
+          '" style="--accent:' + accentFor(rule) + '" aria-label="Open ' + escapeHtml(rule.title) + '">' +
+          '<div class="rule-visual">' + visualMarkup(rule) + '</div>' +
+          '<div class="rule-caption"><div class="caption-top"><span class="domain-label">' +
+          escapeHtml(rootName(rule)) + " · " + escapeHtml(leafName(rule)) + "</span>" +
+          statusMarkup(rule.lifecycle.status, true) + "</div><h2>" + escapeHtml(rule.title) +
+          "</h2><p>" + escapeHtml(rule.statement) + '</p><div class="card-meta"><span>' +
+          escapeHtml(titleCase(rule.kind)) + "</span><span>" + escapeHtml(titleCase(rule.strength)) +
+          "</span><span>" + escapeHtml(rule.id) + "</span></div></div></button>";
+      }
+
+      function filteredRules() {
+        var terms = searchInput.value.trim().toLowerCase().split(/\s+/).filter(Boolean);
+        var status = statusFilter.value;
+        var domain = domainFilter.value;
+        return rules.filter(function (rule) {
+          var statusMatch = status === "all" ||
+            rule.lifecycle.status === status ||
+            (status === "other" && rule.lifecycle.status !== "active" && rule.lifecycle.status !== "candidate");
+          var domainMatch = domain === "all" || rootId(rule) === domain;
+          var searchMatch = terms.every(function (term) { return rule._search.indexOf(term) !== -1; });
+          return statusMatch && domainMatch && searchMatch;
+        });
+      }
+
+      function renderLibrary() {
+        var visible = filteredRules();
+        grid.innerHTML = visible.map(cardMarkup).join("");
+        resultCount.textContent = visible.length + (visible.length === 1 ? " rule" : " rules");
+        emptyState.classList.toggle("is-visible", visible.length === 0);
+        grid.hidden = visible.length === 0;
+        grid.querySelectorAll(".rule-card").forEach(function (card) {
+          card.addEventListener("click", function () {
+            openRule(card.dataset.ruleId, card);
+          });
+        });
+      }
+
+      function listMarkup(items) {
+        if (!items || !items.length) {
+          return '<ul><li>None recorded.</li></ul>';
+        }
+        return "<ul>" + items.map(function (item) {
+          return "<li>" + escapeHtml(item) + "</li>";
+        }).join("") + "</ul>";
+      }
+
+      function tagsMarkup(items) {
+        return (items || []).map(function (item) {
+          return '<span class="tag">' + escapeHtml(item) + "</span>";
+        }).join("");
+      }
+
+      function evidenceMarkup(rule) {
+        return rule.evidence.map(function (item) {
+          var source = item.source || {};
+          var locator = source.thread_id ?
+            source.thread_id + "/" + (source.source_keys || []).join(",") :
+            "external";
+          return '<div class="evidence-item"><p>' + escapeHtml(item.summary) +
+            '</p><div class="evidence-source">' + escapeHtml(item.id) + " · " +
+            escapeHtml(item.stance) + " · " + escapeHtml(locator) + "</div></div>";
+        }).join("");
+      }
+
+      function exceptionsMarkup(rule) {
+        if (!rule.exceptions.length) {
+          return "";
+        }
+        var items = rule.exceptions.map(function (item) {
+          return item.condition + " Use instead: " + item.use_instead + " Why: " + item.rationale;
+        });
+        return '<section class="detail-section"><h3>Exceptions</h3>' + listMarkup(items) + "</section>";
+      }
+
+      function dialogMarkup(rule) {
+        var basis = rule.confidence.basis;
+        var lifecycle = rule.lifecycle;
+        var operativeNote = lifecycle.status === "active" ? "" :
+          '<div class="nonoperative-note">This record is visible for review and posterity, but it is not an operative design instruction.</div>';
+        var applicabilityTags = []
+          .concat(rule.applicability.products)
+          .concat(rule.applicability.activities)
+          .concat(rule.applicability.artifacts)
+          .concat(rule.applicability.surfaces);
+
+        return '<header class="dialog-bar"><div class="dialog-title-wrap"><div class="dialog-kicker">' +
+          statusMarkup(lifecycle.status, true) + "<span>" + escapeHtml(rootName(rule)) + " · " +
+          escapeHtml(leafName(rule)) + " · " + escapeHtml(rule.id) +
+          '</span></div><h2 class="dialog-title" id="dialog-title">' + escapeHtml(rule.title) +
+          '</h2></div><div class="dialog-actions"><button class="icon-button" id="copy-link" type="button" data-tip="Copy link" aria-label="Copy link to this rule">' +
+          '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M10.5 13.5 13.5 10.5"></path><path d="M8.2 15.8 6.4 17.6a3.7 3.7 0 0 1-5.2-5.2L5 8.6a3.7 3.7 0 0 1 5.2 0"></path><path d="m15.8 8.2 1.8-1.8a3.7 3.7 0 0 1 5.2 5.2L19 15.4a3.7 3.7 0 0 1-5.2 0"></path></svg></button>' +
+          '<button class="icon-button" id="close-dialog" type="button" data-tip="Close" aria-label="Close rule details">' +
+          '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18"></path></svg></button></div></header>' +
+          '<div class="dialog-scroll"><section class="dialog-hero"><div class="dialog-visual" style="--accent:' +
+          accentFor(rule) + '">' + visualMarkup(rule) +
+          '</div><div><p class="statement">' + escapeHtml(rule.statement) + '</p><p class="rationale">' +
+          escapeHtml(rule.rationale) + '</p><div class="scope-tags">' + tagsMarkup(applicabilityTags) +
+          "</div></div></section>" +
+          '<div class="dialog-content"><div class="content-stack">' + operativeNote +
+          '<section class="detail-section"><h3>Use when</h3>' + listMarkup(rule.applicability.when) +
+          "</section>" +
+          (rule.applicability.not_when.length ? '<section class="detail-section"><h3>Do not use when</h3>' +
+            listMarkup(rule.applicability.not_when) + "</section>" : "") +
+          '<section class="detail-section"><h3>Guidance</h3><div class="guidance-grid"><div class="guidance-panel prefer"><h3>Prefer</h3>' +
+          listMarkup(rule.guidance.prefer) + '</div><div class="guidance-panel avoid"><h3>Avoid</h3>' +
+          listMarkup(rule.guidance.avoid) + "</div></div></section>" +
+          exceptionsMarkup(rule) +
+          '<section class="detail-section"><h3>Review checks</h3>' + listMarkup(rule.verification.checks) +
+          '</section><section class="detail-section"><h3>Evidence</h3><div class="evidence-list">' +
+          evidenceMarkup(rule) + '</div></section></div><aside class="side-stack"><section class="detail-section"><h3>Record</h3>' +
+          '<table class="meta-table"><tbody>' +
+          "<tr><th>Kind</th><td>" + escapeHtml(titleCase(rule.kind)) + "</td></tr>" +
+          "<tr><th>Strength</th><td>" + escapeHtml(titleCase(rule.strength)) + "</td></tr>" +
+          "<tr><th>Confidence</th><td>" + escapeHtml(titleCase(rule.confidence.level)) + "</td></tr>" +
+          "<tr><th>Support</th><td>" + basis.supporting_episodes + " episodes · " + basis.distinct_threads + " threads</td></tr>" +
+          "<tr><th>Approval</th><td>" + escapeHtml(lifecycle.approved_by || "None") + "</td></tr>" +
+          "<tr><th>Last review</th><td>" + escapeHtml(lifecycle.last_reviewed_at || "Not reviewed") + "</td></tr>" +
+          "<tr><th>Next review</th><td>" + escapeHtml(lifecycle.review_after || "Not scheduled") + "</td></tr>" +
+          "<tr><th>Source</th><td>" + escapeHtml(rule.canonical_path) + "</td></tr>" +
+          '</tbody></table></section><section class="detail-section"><h3>Classification</h3><div class="scope-tags">' +
+          tagsMarkup([rule.classification.primary].concat(rule.classification.secondary).concat(rule.classification.pattern_categories)) +
+          "</div></section>" +
+          (rule.lifecycle.decision_note ? '<section class="detail-section"><h3>Decision</h3><p class="rationale">' +
+            escapeHtml(rule.lifecycle.decision_note) + "</p></section>" : "") +
+          "</aside></div></div>";
+      }
+
+      function findRule(id) {
+        return rules.find(function (rule) { return rule.id === id; });
+      }
+
+      function setHash(id) {
+        if (window.location.hash !== "#" + id) {
+          history.pushState(null, "", "#" + id);
+        }
+      }
+
+      function clearHash() {
+        if (window.location.hash) {
+          history.replaceState(null, "", window.location.pathname + window.location.search);
+        }
+      }
+
+      function openRule(id, card) {
+        var rule = findRule(id);
+        if (!rule) {
+          return;
+        }
+        activeCard = card || document.activeElement;
+        dialogShell.innerHTML = dialogMarkup(rule);
+        setHash(rule.id);
+        dialog.style.setProperty("--accent", accentFor(rule));
+        if (!dialog.open) {
+          dialog.showModal();
+        }
+        document.getElementById("close-dialog").addEventListener("click", function () {
+          dialog.close();
+        });
+        document.getElementById("copy-link").addEventListener("click", copyCurrentLink);
+      }
+
+      function copyCurrentLink() {
+        var button = document.getElementById("copy-link");
+        var url = window.location.href;
+        var done = function () {
+          button.dataset.tip = "Copied";
+          window.setTimeout(function () { button.dataset.tip = "Copy link"; }, 1400);
+        };
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(url).then(done).catch(function () {
+            fallbackCopy(url, done);
+          });
+        } else {
+          fallbackCopy(url, done);
+        }
+      }
+
+      function fallbackCopy(value, done) {
+        var textarea = document.createElement("textarea");
+        textarea.value = value;
+        textarea.setAttribute("readonly", "");
+        textarea.style.position = "fixed";
+        textarea.style.opacity = "0";
+        document.body.appendChild(textarea);
+        textarea.select();
+        try {
+          document.execCommand("copy");
+          done();
+        } finally {
+          textarea.remove();
+        }
+      }
+
+      function handleHash() {
+        var id = window.location.hash.slice(1);
+        var rule = findRule(id);
+        if (rule) {
+          openRule(id, null);
+        } else if (dialog.open) {
+          dialog.close();
+        }
+      }
+
+      roots.forEach(function (root) {
+        var option = document.createElement("option");
+        option.value = root.id;
+        option.textContent = root.name;
+        domainFilter.appendChild(option);
+      });
+
+      var generatedDate = new Date(data.meta.generated_at);
+      var dateLabel = Number.isNaN(generatedDate.getTime()) ?
+        data.meta.generated_at :
+        generatedDate.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
+      document.getElementById("corpus-meta").textContent =
+        data.meta.rule_count + " rules · " + data.meta.status_counts.active + " active · updated " + dateLabel;
+
+      [searchInput, statusFilter, domainFilter].forEach(function (control) {
+        control.addEventListener(control.tagName === "INPUT" ? "input" : "change", renderLibrary);
+      });
+
+      clearFilters.addEventListener("click", function () {
+        searchInput.value = "";
+        statusFilter.value = "all";
+        domainFilter.value = "all";
+        renderLibrary();
+        searchInput.focus();
+      });
+
+      dialog.addEventListener("close", function () {
+        clearHash();
+        if (activeCard && document.contains(activeCard)) {
+          activeCard.focus();
+        }
+        activeCard = null;
+      });
+
+      dialog.addEventListener("click", function (event) {
+        if (event.target === dialog) {
+          dialog.close();
+        }
+      });
+
+      window.addEventListener("hashchange", handleHash);
+      document.addEventListener("keydown", function (event) {
+        if (event.key === "/" && !dialog.open && document.activeElement !== searchInput) {
+          event.preventDefault();
+          searchInput.focus();
+        }
+      });
+
+      renderLibrary();
+      handleHash();
+    }());
+  </script>
+</body>
+</html>

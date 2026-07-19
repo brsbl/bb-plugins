@@ -1,0 +1,214 @@
+{
+  "schema_version": 1,
+  "id": "ddr_003",
+  "revision": 1,
+  "title": "Extend the existing product language",
+  "kind": "principle",
+  "strength": "default",
+  "statement": "Start from the closest established product surface, component, behavior, and token set; extend it before introducing bespoke UI.",
+  "rationale": "Product consistency is judged by perceived lineage and behavior, not merely by matching a few colors.",
+  "guidance": {
+    "prefer": [
+      "Find the closest product-native sibling and reuse its structure, tokens, and behavior.",
+      "Introduce a new primitive only when existing ones cannot express the job."
+    ],
+    "avoid": [
+      "Custom components whose anatomy or behavior feels unrelated to the host product.",
+      "Copying surface color while inventing a different interaction language."
+    ]
+  },
+  "classification": {
+    "primary": "system.design-system",
+    "secondary": [
+      "product.architecture",
+      "visual.hierarchy"
+    ],
+    "pattern_categories": [
+      "Layout & composition"
+    ]
+  },
+  "applicability": {
+    "products": [
+      "global"
+    ],
+    "activities": [
+      "architecture",
+      "design",
+      "critique",
+      "implementation",
+      "qa"
+    ],
+    "artifacts": [
+      "workflow",
+      "screen",
+      "component"
+    ],
+    "surfaces": [
+      "product UI",
+      "feature additions",
+      "design-system components"
+    ],
+    "contexts": [
+      "new feature",
+      "redesign",
+      "component creation"
+    ],
+    "when": [
+      "A new or changed surface has an established product neighbor or primitive."
+    ],
+    "not_when": [
+      "Existing primitives cannot express the capability without creating a worse mental model."
+    ]
+  },
+  "exceptions": [],
+  "relationships": [],
+  "evidence": [
+    {
+      "id": "ev_003_01",
+      "source": {
+        "type": "published_summary",
+        "store": "public-doctrine",
+        "thread_id": "published-context-012",
+        "source_keys": [
+          "published-signal-046"
+        ],
+        "project_id": "published-scope-002"
+      },
+      "signal": "explicit_instruction",
+      "stance": "supports",
+      "observed_at": "2026-06-03",
+      "summary": "Required embed surfaces to reuse the editor's established preview and fullscreen behaviors.",
+      "excerpt": null,
+      "content_sha256": "sha256:afecdc09f617cf7dc4b62b1f3e2d8a536f79067c346f141dd5ca36387f4b0787",
+      "doctrine_version_seen": "pre-doctrine",
+      "episode_id": "external:published:episode-037",
+      "episode_source_keys": [
+        "published-span-046"
+      ]
+    },
+    {
+      "id": "ev_003_02",
+      "source": {
+        "type": "published_summary",
+        "store": "public-doctrine",
+        "thread_id": "published-context-008",
+        "source_keys": [
+          "published-signal-021",
+          "published-signal-022"
+        ],
+        "project_id": "published-scope-002"
+      },
+      "signal": "explicit_correction",
+      "stance": "supports",
+      "observed_at": "2026-06-04",
+      "summary": "Flagged clipped comment hover treatment and a thread interface that looked like an unrelated mockup.",
+      "excerpt": null,
+      "content_sha256": "sha256:df02335d67bbe4770ecfb277c496cd6ae909c9a1335b66f718fc36e4e2e98d8f",
+      "doctrine_version_seen": "pre-doctrine",
+      "episode_id": "external:published:episode-020",
+      "episode_source_keys": [
+        "published-span-021",
+        "published-span-022"
+      ]
+    },
+    {
+      "id": "ev_003_03",
+      "source": {
+        "type": "published_summary",
+        "store": "public-doctrine",
+        "thread_id": "published-context-014",
+        "source_keys": [
+          "published-signal-049"
+        ],
+        "project_id": "published-scope-001"
+      },
+      "signal": "explicit_instruction",
+      "stance": "supports",
+      "observed_at": "2026-07-17",
+      "summary": "Asked a drag affordance to preserve the row divider and reuse an existing fade treatment.",
+      "excerpt": null,
+      "content_sha256": "sha256:564e4c0d702eccf80089ebc1c820cd2618917f1f73c6aa012cd77fb1fd9b004f",
+      "doctrine_version_seen": "pre-doctrine",
+      "episode_id": "external:published:episode-049",
+      "episode_source_keys": [
+        "published-span-049"
+      ]
+    },
+    {
+      "id": "ev_003_04",
+      "source": {
+        "type": "published_summary",
+        "store": "public-doctrine",
+        "thread_id": "published-context-010",
+        "source_keys": [
+          "published-signal-027"
+        ],
+        "project_id": "published-scope-002"
+      },
+      "signal": "explicit_correction",
+      "stance": "supports",
+      "observed_at": "2026-07-14",
+      "summary": "Asked heavy action sections to match the closest established sibling pattern.",
+      "excerpt": null,
+      "content_sha256": "sha256:1138c93a1936b59de6aef056def871de31d840ba3a8f712e3d6736d53ead7166",
+      "doctrine_version_seen": "pre-doctrine",
+      "episode_id": "external:published:episode-023",
+      "episode_source_keys": [
+        "published-span-027"
+      ]
+    }
+  ],
+  "confidence": {
+    "level": "high",
+    "basis": {
+      "explicit_user_signals": 5,
+      "supporting_episodes": 4,
+      "challenging_episodes": 0,
+      "distinct_threads": 4,
+      "distinct_projects": 2
+    },
+    "assessed_at": "2026-07-17",
+    "note": "Bootstrapped from independent direct user episodes under the owner's request to mine durable design rules."
+  },
+  "lifecycle": {
+    "status": "active",
+    "created_at": "2026-07-17",
+    "updated_at": "2026-07-17",
+    "activated_at": "2026-07-17",
+    "last_reviewed_at": "2026-07-17",
+    "review_after": "2027-01-17",
+    "approved_by": "owner-direct-history-bootstrap",
+    "decision_note": "Activated only for the owner-requested initial bootstrap because repeated independent direct instructions or corrections establish this decision boundary."
+  },
+  "retrieval": {
+    "keywords": [
+      "additions",
+      "component",
+      "components",
+      "creation",
+      "design-system",
+      "feature",
+      "new",
+      "product",
+      "redesign",
+      "system"
+    ],
+    "aliases": [],
+    "positive_examples": [
+      "Find the closest product-native sibling and reuse its structure, tokens, and behavior.",
+      "Introduce a new primitive only when existing ones cannot express the job."
+    ],
+    "negative_examples": [
+      "Custom components whose anatomy or behavior feels unrelated to the host product.",
+      "Copying surface color while inventing a different interaction language."
+    ]
+  },
+  "verification": {
+    "method": "design_review",
+    "checks": [
+      "What existing surface is the closest behavioral sibling?",
+      "Which real tokens and components are reused?",
+      "If a new primitive is necessary, is the reason explicit?"
+    ]
+  }
+}

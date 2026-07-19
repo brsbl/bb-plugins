@@ -1,0 +1,132 @@
+{
+  "schema_version": 1,
+  "id": "ddr_011",
+  "revision": 1,
+  "title": "Open navigation on explicit intent",
+  "kind": "guideline",
+  "strength": "default",
+  "statement": "Navigation menus should open on explicit click rather than incidental hover; hover may reveal secondary local row controls.",
+  "rationale": "Explicit activation avoids accidental navigation while preserving efficient disclosure of secondary actions.",
+  "guidance": {
+    "prefer": [
+      "Require a click or equivalent explicit activation to open navigation.",
+      "Keep hover effects local and non-navigational."
+    ],
+    "avoid": [
+      "Opening a navigation surface because the pointer merely crossed it."
+    ]
+  },
+  "classification": {
+    "primary": "interaction.navigation",
+    "secondary": [
+      "interaction.disclosure"
+    ],
+    "pattern_categories": [
+      "Navigation & wayfinding",
+      "Surfaces & disclosure"
+    ]
+  },
+  "applicability": {
+    "products": [
+      "global"
+    ],
+    "activities": [
+      "architecture",
+      "design",
+      "critique",
+      "implementation",
+      "qa"
+    ],
+    "artifacts": [
+      "workflow",
+      "screen",
+      "component"
+    ],
+    "surfaces": [
+      "menus",
+      "persistent navigation"
+    ],
+    "contexts": [
+      "navigation activation"
+    ],
+    "when": [
+      "A menu or navigation surface changes place or reveals a substantial panel."
+    ],
+    "not_when": [
+      "A platform-native pattern requires hover disclosure and is safely reversible."
+    ]
+  },
+  "exceptions": [],
+  "relationships": [],
+  "evidence": [
+    {
+      "id": "ev_011_01",
+      "source": {
+        "type": "published_summary",
+        "store": "public-doctrine",
+        "thread_id": "published-context-003",
+        "source_keys": [
+          "published-signal-008"
+        ],
+        "project_id": "published-scope-002"
+      },
+      "signal": "explicit_correction",
+      "stance": "supports",
+      "observed_at": "2026-07-02",
+      "summary": "Required navigation dropdowns to open only after an explicit click and noted the intended behavior still failed.",
+      "excerpt": null,
+      "content_sha256": "sha256:be554ebf4e9f22a09289fb6300120d8bdcaa95797f59302052387d6eb8a6161f",
+      "doctrine_version_seen": "pre-doctrine",
+      "episode_id": "external:published:episode-007",
+      "episode_source_keys": [
+        "published-span-008"
+      ]
+    }
+  ],
+  "confidence": {
+    "level": "medium",
+    "basis": {
+      "explicit_user_signals": 1,
+      "supporting_episodes": 1,
+      "challenging_episodes": 0,
+      "distinct_threads": 1,
+      "distinct_projects": 1
+    },
+    "assessed_at": "2026-07-17",
+    "note": "Bootstrapped from independent direct user episodes under the owner's request to mine durable design rules."
+  },
+  "lifecycle": {
+    "status": "candidate",
+    "created_at": "2026-07-17",
+    "updated_at": "2026-07-17",
+    "activated_at": null,
+    "last_reviewed_at": "2026-07-17",
+    "review_after": null,
+    "approved_by": null,
+    "decision_note": "Candidate pending independent recurrence or explicit owner approval."
+  },
+  "retrieval": {
+    "keywords": [
+      "activation",
+      "interaction",
+      "menus",
+      "navigation",
+      "persistent"
+    ],
+    "aliases": [],
+    "positive_examples": [
+      "Require a click or equivalent explicit activation to open navigation.",
+      "Keep hover effects local and non-navigational."
+    ],
+    "negative_examples": [
+      "Opening a navigation surface because the pointer merely crossed it."
+    ]
+  },
+  "verification": {
+    "method": "interaction_test",
+    "checks": [
+      "Can pointer movement accidentally open or navigate?",
+      "Is keyboard activation equivalent?"
+    ]
+  }
+}

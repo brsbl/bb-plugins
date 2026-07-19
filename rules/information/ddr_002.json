@@ -1,0 +1,197 @@
+{
+  "schema_version": 1,
+  "id": "ddr_002",
+  "revision": 1,
+  "title": "Make every piece of chrome earn its weight",
+  "kind": "taste",
+  "strength": "preference",
+  "statement": "Every label, border, section, menu width, and vertical gap must earn its visual weight; prefer compact, content-led layouts over explanatory chrome.",
+  "rationale": "Repeated corrections reject interfaces that become too wide, tall, labeled, heavy, or structurally noisy.",
+  "guidance": {
+    "prefer": [
+      "Let content and the current job establish hierarchy.",
+      "Use the smallest amount of persistent structure that preserves orientation and state."
+    ],
+    "avoid": [
+      "Explanatory labels, borders, sections, and gaps that do not change a decision.",
+      "Oversized or uniformly heavy chrome."
+    ]
+  },
+  "classification": {
+    "primary": "information.density",
+    "secondary": [
+      "visual.hierarchy",
+      "visual.layout"
+    ],
+    "pattern_categories": [
+      "Layout & composition",
+      "Content & data"
+    ]
+  },
+  "applicability": {
+    "products": [
+      "global"
+    ],
+    "activities": [
+      "architecture",
+      "design",
+      "critique",
+      "implementation",
+      "qa"
+    ],
+    "artifacts": [
+      "workflow",
+      "screen",
+      "component"
+    ],
+    "surfaces": [
+      "menus",
+      "drawers",
+      "panels",
+      "cards",
+      "gallery shells"
+    ],
+    "contexts": [
+      "dense product UI",
+      "overview surfaces"
+    ],
+    "when": [
+      "Several persistent UI elements compete with the content or primary job."
+    ],
+    "not_when": [
+      "Removing the element would hide state, orientation, recovery, or an otherwise undiscoverable action."
+    ]
+  },
+  "exceptions": [],
+  "relationships": [],
+  "evidence": [
+    {
+      "id": "ev_002_01",
+      "source": {
+        "type": "published_summary",
+        "store": "public-doctrine",
+        "thread_id": "published-context-006",
+        "source_keys": [
+          "published-signal-018",
+          "published-signal-015"
+        ],
+        "project_id": "published-scope-001"
+      },
+      "signal": "explicit_correction",
+      "stance": "supports",
+      "observed_at": "2026-07-17",
+      "summary": "Asked routinely used menus to be narrower and flagged supporting sections whose presentation was too flat.",
+      "excerpt": null,
+      "content_sha256": "sha256:fe14c39a3e0856b6c83a3e53e7e8ccc673f2c7ef86e0945360a8931195265c7c",
+      "doctrine_version_seen": "pre-doctrine",
+      "episode_id": "external:published:episode-012",
+      "episode_source_keys": [
+        "published-span-018",
+        "published-span-015"
+      ]
+    },
+    {
+      "id": "ev_002_02",
+      "source": {
+        "type": "published_summary",
+        "store": "public-doctrine",
+        "thread_id": "published-context-010",
+        "source_keys": [
+          "published-signal-027",
+          "published-signal-028"
+        ],
+        "project_id": "published-scope-002"
+      },
+      "signal": "explicit_correction",
+      "stance": "supports",
+      "observed_at": "2026-07-17",
+      "summary": "Asked context content to collapse compactly and match the command palette; rejected heavy actions-panel sections.",
+      "excerpt": null,
+      "content_sha256": "sha256:54be542bd6cfc19d7f02ba399c0d51e9a7fa3d68c5791017447d2549e6547931",
+      "doctrine_version_seen": "pre-doctrine",
+      "episode_id": "external:published:episode-035",
+      "episode_source_keys": [
+        "published-span-027",
+        "published-span-028"
+      ]
+    },
+    {
+      "id": "ev_002_03",
+      "source": {
+        "type": "published_summary",
+        "store": "public-doctrine",
+        "thread_id": "published-context-014",
+        "source_keys": [
+          "published-signal-050"
+        ],
+        "project_id": "published-scope-001"
+      },
+      "signal": "explicit_correction",
+      "stance": "supports",
+      "observed_at": "2026-07-17",
+      "summary": "Flagged a fullscreen drawer with excessive blank space beneath its content.",
+      "excerpt": null,
+      "content_sha256": "sha256:f66b236ec2fb84dcffc0d1c6937556bb2c3a2a3c67179a2606aa8248a6ff18a8",
+      "doctrine_version_seen": "pre-doctrine",
+      "episode_id": "external:published:episode-043",
+      "episode_source_keys": [
+        "published-span-050"
+      ]
+    }
+  ],
+  "confidence": {
+    "level": "high",
+    "basis": {
+      "explicit_user_signals": 5,
+      "supporting_episodes": 3,
+      "challenging_episodes": 0,
+      "distinct_threads": 3,
+      "distinct_projects": 2
+    },
+    "assessed_at": "2026-07-17",
+    "note": "Bootstrapped from independent direct user episodes under the owner's request to mine durable design rules."
+  },
+  "lifecycle": {
+    "status": "active",
+    "created_at": "2026-07-17",
+    "updated_at": "2026-07-17",
+    "activated_at": "2026-07-17",
+    "last_reviewed_at": "2026-07-17",
+    "review_after": "2027-01-17",
+    "approved_by": "owner-direct-history-bootstrap",
+    "decision_note": "Activated only for the owner-requested initial bootstrap because repeated independent direct instructions or corrections establish this decision boundary."
+  },
+  "retrieval": {
+    "keywords": [
+      "cards",
+      "dense",
+      "density",
+      "drawers",
+      "gallery",
+      "information",
+      "menus",
+      "overview",
+      "panels",
+      "product",
+      "shells",
+      "surfaces"
+    ],
+    "aliases": [],
+    "positive_examples": [
+      "Let content and the current job establish hierarchy.",
+      "Use the smallest amount of persistent structure that preserves orientation and state."
+    ],
+    "negative_examples": [
+      "Explanatory labels, borders, sections, and gaps that do not change a decision.",
+      "Oversized or uniformly heavy chrome."
+    ]
+  },
+  "verification": {
+    "method": "visual_review",
+    "checks": [
+      "Can any label, border, section, or gap disappear without reducing understanding?",
+      "Does visual weight match product importance?",
+      "Is content still the dominant surface?"
+    ]
+  }
+}

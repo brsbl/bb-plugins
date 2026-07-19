@@ -1,0 +1,189 @@
+{
+  "schema_version": 1,
+  "id": "ddr_005",
+  "revision": 1,
+  "title": "Treat empty state as semantic absence",
+  "kind": "guideline",
+  "strength": "default",
+  "statement": "Treat emptiness first as a structural decision: remove or collapse a section with no useful next action; when the surface must remain, explain what belongs there and provide the first useful action in a compact empty state.",
+  "rationale": "Design every user-visible state, but do not preserve an unnecessary container merely to render a placeholder. If absence matters, the remaining state must orient the user and support progress.",
+  "guidance": {
+    "prefer": [
+      "Collapse irrelevant empty containers so no artificial empty state remains.",
+      "When the surface remains, explain what belongs there and keep the first useful action compact."
+    ],
+    "avoid": [
+      "Showing an empty card or zero-count section merely because the container exists.",
+      "Leaving a visible empty surface without orientation or its first useful action."
+    ]
+  },
+  "classification": {
+    "primary": "interaction.feedback",
+    "secondary": [
+      "information.hierarchy",
+      "content.instructions"
+    ],
+    "pattern_categories": [
+      "Feedback & status",
+      "Content & data"
+    ]
+  },
+  "applicability": {
+    "products": [
+      "global"
+    ],
+    "activities": [
+      "architecture",
+      "design",
+      "critique",
+      "implementation",
+      "qa"
+    ],
+    "artifacts": [
+      "workflow",
+      "screen",
+      "component"
+    ],
+    "surfaces": [
+      "panels",
+      "folders",
+      "sidebars",
+      "screenshots"
+    ],
+    "contexts": [
+      "empty collection",
+      "absent optional section"
+    ],
+    "when": [
+      "A proposed or existing surface has no items or content, requiring a decision whether the surface should remain visible."
+    ],
+    "not_when": []
+  },
+  "exceptions": [],
+  "relationships": [],
+  "evidence": [
+    {
+      "id": "ev_005_01",
+      "source": {
+        "type": "published_summary",
+        "store": "public-doctrine",
+        "thread_id": "published-context-010",
+        "source_keys": [
+          "published-signal-034"
+        ],
+        "project_id": "published-scope-002"
+      },
+      "signal": "explicit_correction",
+      "stance": "supports",
+      "observed_at": "2026-07-17",
+      "summary": "Asked empty sections to disappear rather than display a placeholder.",
+      "excerpt": null,
+      "content_sha256": "sha256:76e9bf6a56cacfa9cc31aa3516a4ff3d694443915a961ffd855f8f5c8ced9fb3",
+      "doctrine_version_seen": "pre-doctrine",
+      "episode_id": "external:published:episode-030",
+      "episode_source_keys": [
+        "published-span-034"
+      ]
+    },
+    {
+      "id": "ev_005_02",
+      "source": {
+        "type": "published_summary",
+        "store": "public-doctrine",
+        "thread_id": "published-context-009",
+        "source_keys": [
+          "published-signal-024"
+        ],
+        "project_id": "published-scope-003"
+      },
+      "signal": "explicit_correction",
+      "stance": "supports",
+      "observed_at": "2026-07-11",
+      "summary": "Changed external-folder emptiness to remove the folder, not show an empty container and prominent action.",
+      "excerpt": null,
+      "content_sha256": "sha256:9bfc7b718be84aceb11450c1f4ea551adbdbc72b427b39486352b9d0cf78de54",
+      "doctrine_version_seen": "pre-doctrine",
+      "episode_id": "external:published:episode-021",
+      "episode_source_keys": [
+        "published-span-024"
+      ]
+    },
+    {
+      "id": "ev_005_03",
+      "source": {
+        "type": "published_summary",
+        "store": "public-doctrine",
+        "thread_id": "published-context-011",
+        "source_keys": [
+          "published-signal-045"
+        ],
+        "project_id": "published-scope-003"
+      },
+      "signal": "explicit_correction",
+      "stance": "supports",
+      "observed_at": "2026-07-17",
+      "summary": "Flagged an empty state that concealed a necessary keyboard shortcut.",
+      "excerpt": null,
+      "content_sha256": "sha256:e01ca4bce5b20a407731505b3bdf637b25989312f73ac9d02bb665ce1e7ac84c",
+      "doctrine_version_seen": "pre-doctrine",
+      "episode_id": "external:published:episode-036",
+      "episode_source_keys": [
+        "published-span-045"
+      ]
+    }
+  ],
+  "confidence": {
+    "level": "high",
+    "basis": {
+      "explicit_user_signals": 3,
+      "supporting_episodes": 3,
+      "challenging_episodes": 0,
+      "distinct_threads": 3,
+      "distinct_projects": 2
+    },
+    "assessed_at": "2026-07-17",
+    "note": "Bootstrapped from independent direct user episodes under the owner's request to mine durable design rules."
+  },
+  "lifecycle": {
+    "status": "active",
+    "created_at": "2026-07-17",
+    "updated_at": "2026-07-17",
+    "activated_at": "2026-07-17",
+    "last_reviewed_at": "2026-07-17",
+    "review_after": "2027-01-17",
+    "approved_by": "owner-direct-history-bootstrap",
+    "decision_note": "Activated only for the owner-requested initial bootstrap because repeated independent direct instructions or corrections establish this decision boundary."
+  },
+  "retrieval": {
+    "keywords": [
+      "absent",
+      "collection",
+      "empty",
+      "feedback",
+      "folders",
+      "interaction",
+      "optional",
+      "panels",
+      "screenshots",
+      "section",
+      "sidebars"
+    ],
+    "aliases": [],
+    "positive_examples": [
+      "Collapse irrelevant empty containers.",
+      "Keep compact first-step guidance when it unlocks a meaningful action."
+    ],
+    "negative_examples": [
+      "Showing an empty card or zero-count section merely because the container exists.",
+      "Hiding the only useful first action or shortcut."
+    ]
+  },
+  "verification": {
+    "method": "interaction_test",
+    "checks": [
+      "Does the empty container help the user act or understand state?",
+      "If not, can it collapse entirely?",
+      "If guidance remains, is it compact and actionable?"
+    ]
+  }
+}

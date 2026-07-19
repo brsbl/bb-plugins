@@ -1,0 +1,148 @@
+{
+  "schema_version": 1,
+  "updated_at": "2026-07-17",
+  "id_aliases": [],
+  "deprecations": [],
+  "roots": [
+    {
+      "id": "product",
+      "name": "Product",
+      "definition": "Capability architecture, value, workflows, and trust.",
+      "leaves": [
+        {"id": "product.architecture", "name": "Architecture"},
+        {"id": "product.value", "name": "Value"},
+        {"id": "product.workflow", "name": "Workflow"},
+        {"id": "product.trust", "name": "Trust"}
+      ]
+    },
+    {
+      "id": "information",
+      "name": "Information",
+      "definition": "Hierarchy, organization, findability, and density.",
+      "leaves": [
+        {"id": "information.hierarchy", "name": "Hierarchy"},
+        {"id": "information.organization", "name": "Organization"},
+        {"id": "information.findability", "name": "Findability"},
+        {"id": "information.density", "name": "Density"}
+      ]
+    },
+    {
+      "id": "interaction",
+      "name": "Interaction",
+      "definition": "Navigation, input, disclosure, feedback, recovery, and efficiency.",
+      "leaves": [
+        {"id": "interaction.navigation", "name": "Navigation"},
+        {"id": "interaction.input", "name": "Input"},
+        {"id": "interaction.disclosure", "name": "Disclosure"},
+        {"id": "interaction.feedback", "name": "Feedback"},
+        {"id": "interaction.recovery", "name": "Recovery"},
+        {"id": "interaction.efficiency", "name": "Efficiency"}
+      ]
+    },
+    {
+      "id": "visual",
+      "name": "Visual",
+      "definition": "Hierarchy, layout, typography, color, motion, and imagery.",
+      "leaves": [
+        {"id": "visual.hierarchy", "name": "Hierarchy"},
+        {"id": "visual.layout", "name": "Layout"},
+        {"id": "visual.typography", "name": "Typography"},
+        {"id": "visual.color", "name": "Color"},
+        {"id": "visual.motion", "name": "Motion"},
+        {"id": "visual.imagery", "name": "Imagery"}
+      ]
+    },
+    {
+      "id": "content",
+      "name": "Content",
+      "definition": "Terminology, voice, instructions, and error language.",
+      "leaves": [
+        {"id": "content.terminology", "name": "Terminology"},
+        {"id": "content.voice", "name": "Voice"},
+        {"id": "content.instructions", "name": "Instructions"},
+        {"id": "content.error", "name": "Error language"}
+      ]
+    },
+    {
+      "id": "ai",
+      "name": "AI",
+      "definition": "Agency, context, transparency, uncertainty, and reversibility.",
+      "leaves": [
+        {"id": "ai.agency", "name": "Agency"},
+        {"id": "ai.context", "name": "Context"},
+        {"id": "ai.transparency", "name": "Transparency"},
+        {"id": "ai.uncertainty", "name": "Uncertainty"},
+        {"id": "ai.reversibility", "name": "Reversibility"}
+      ]
+    },
+    {
+      "id": "accessibility",
+      "name": "Accessibility",
+      "definition": "Perception, operation, comprehension, and compatibility.",
+      "leaves": [
+        {"id": "accessibility.perception", "name": "Perception"},
+        {"id": "accessibility.operation", "name": "Operation"},
+        {"id": "accessibility.comprehension", "name": "Comprehension"},
+        {"id": "accessibility.compatibility", "name": "Compatibility"}
+      ]
+    },
+    {
+      "id": "system",
+      "name": "System",
+      "definition": "Design-system lineage, platform behavior, performance, responsiveness, and privacy.",
+      "leaves": [
+        {"id": "system.design-system", "name": "Design system"},
+        {"id": "system.platform", "name": "Platform"},
+        {"id": "system.performance", "name": "Performance"},
+        {"id": "system.responsiveness", "name": "Responsiveness"},
+        {"id": "system.privacy", "name": "Privacy"}
+      ]
+    },
+    {
+      "id": "process",
+      "name": "Process",
+      "definition": "Discovery, prototyping, critique, validation, and handoff.",
+      "leaves": [
+        {"id": "process.discovery", "name": "Discovery"},
+        {"id": "process.prototyping", "name": "Prototyping"},
+        {"id": "process.critique", "name": "Critique"},
+        {"id": "process.validation", "name": "Validation"},
+        {"id": "process.handoff", "name": "Handoff"}
+      ]
+    }
+  ],
+  "pattern_categories": [
+    "Actions & commands",
+    "Inputs & selection",
+    "Navigation & wayfinding",
+    "Content & data",
+    "Feedback & status",
+    "Surfaces & disclosure",
+    "Layout & composition"
+  ],
+  "products": [
+    {"id": "global", "name": "Cross-product"},
+    {"id": "bb", "name": "bb"},
+    {"id": "moss", "name": "Moss"},
+    {"id": "pattern-atlas", "name": "Pattern Atlas"}
+  ],
+  "activities": [
+    "architecture",
+    "design",
+    "critique",
+    "prototype",
+    "implementation",
+    "qa",
+    "documentation"
+  ],
+  "artifacts": [
+    "capability",
+    "workflow",
+    "screen",
+    "component",
+    "design-system",
+    "visual",
+    "note",
+    "documentation"
+  ]
+}

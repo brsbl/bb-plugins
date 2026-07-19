@@ -1,0 +1,170 @@
+{
+  "schema_version": 1,
+  "id": "ddr_020",
+  "revision": 1,
+  "title": "Use icons only when they preserve meaning",
+  "kind": "taste",
+  "strength": "preference",
+  "statement": "Replace text with an icon only when the symbol is semantically exact; retain essential quantity or state and avoid decorative emoji.",
+  "rationale": "Compactness helps only when users can still understand the object, state, or action without guessing.",
+  "guidance": {
+    "prefer": [
+      "Use a canonical symbol with an accessible name.",
+      "Retain counts or state when they change the user's decision."
+    ],
+    "avoid": [
+      "Decorative emoji in product chrome.",
+      "Ambiguous icons that erase essential state or quantity."
+    ]
+  },
+  "classification": {
+    "primary": "visual.imagery",
+    "secondary": [
+      "content.terminology",
+      "accessibility.comprehension"
+    ],
+    "pattern_categories": [
+      "Actions & commands",
+      "Feedback & status"
+    ]
+  },
+  "applicability": {
+    "products": [
+      "global"
+    ],
+    "activities": [
+      "architecture",
+      "design",
+      "critique",
+      "implementation",
+      "qa"
+    ],
+    "artifacts": [
+      "workflow",
+      "screen",
+      "component"
+    ],
+    "surfaces": [
+      "attachments",
+      "state markers",
+      "feature headings",
+      "controls"
+    ],
+    "contexts": [
+      "icon substitution"
+    ],
+    "when": [
+      "Text is being replaced to reduce density."
+    ],
+    "not_when": [
+      "The concept is unfamiliar or has no precise established symbol."
+    ]
+  },
+  "exceptions": [],
+  "relationships": [],
+  "evidence": [
+    {
+      "id": "ev_020_01",
+      "source": {
+        "type": "published_summary",
+        "store": "public-doctrine",
+        "thread_id": "published-context-014",
+        "source_keys": [
+          "published-signal-060",
+          "published-signal-063",
+          "published-signal-051"
+        ],
+        "project_id": "published-scope-001"
+      },
+      "signal": "explicit_correction",
+      "stance": "supports",
+      "observed_at": "2026-07-17",
+      "summary": "Requested semantic attachment and chat icons retain necessary counts, while row borders become lighter.",
+      "excerpt": null,
+      "content_sha256": "sha256:86990c63ca7321ab764b3e9fa12b23e75976ab3a42b8ad6e94d02e942758f6e0",
+      "doctrine_version_seen": "pre-doctrine",
+      "episode_id": "external:published:episode-044",
+      "episode_source_keys": [
+        "published-span-060",
+        "published-span-063",
+        "published-span-051"
+      ]
+    },
+    {
+      "id": "ev_020_02",
+      "source": {
+        "type": "published_summary",
+        "store": "public-doctrine",
+        "thread_id": "published-context-003",
+        "source_keys": [
+          "published-signal-009"
+        ],
+        "project_id": "published-scope-002"
+      },
+      "signal": "explicit_correction",
+      "stance": "supports",
+      "observed_at": "2026-07-02",
+      "summary": "Rejected a decorative emoji and requested feature visuals use one real, consistent example without a floating toolbar.",
+      "excerpt": null,
+      "content_sha256": "sha256:f764d541b261e2e9b70fac34ebe33bf1e49f53920999ec664317bd505115d99a",
+      "doctrine_version_seen": "pre-doctrine",
+      "episode_id": "external:published:episode-003",
+      "episode_source_keys": [
+        "published-span-009"
+      ]
+    }
+  ],
+  "confidence": {
+    "level": "medium",
+    "basis": {
+      "explicit_user_signals": 4,
+      "supporting_episodes": 2,
+      "challenging_episodes": 0,
+      "distinct_threads": 2,
+      "distinct_projects": 2
+    },
+    "assessed_at": "2026-07-17",
+    "note": "Bootstrapped from independent direct user episodes under the owner's request to mine durable design rules."
+  },
+  "lifecycle": {
+    "status": "active",
+    "created_at": "2026-07-17",
+    "updated_at": "2026-07-17",
+    "activated_at": "2026-07-17",
+    "last_reviewed_at": "2026-07-17",
+    "review_after": "2027-01-17",
+    "approved_by": "owner-direct-history-bootstrap",
+    "decision_note": "Activated only for the owner-requested initial bootstrap because repeated independent direct instructions or corrections establish this decision boundary."
+  },
+  "retrieval": {
+    "keywords": [
+      "attachments",
+      "controls",
+      "feature",
+      "headings",
+      "icon",
+      "imagery",
+      "markers",
+      "state",
+      "substitution",
+      "visual"
+    ],
+    "aliases": [],
+    "positive_examples": [
+      "Use a canonical symbol with an accessible name.",
+      "Retain counts or state when they change the user's decision."
+    ],
+    "negative_examples": [
+      "Decorative emoji in product chrome.",
+      "Ambiguous icons that erase essential state or quantity."
+    ]
+  },
+  "verification": {
+    "method": "visual_review",
+    "checks": [
+      "Is the icon semantically exact?",
+      "Does removing text hide quantity or state?",
+      "Is the control still accessible without hover?"
+    ]
+  }
+}

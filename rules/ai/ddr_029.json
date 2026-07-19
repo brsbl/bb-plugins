@@ -1,0 +1,143 @@
+{
+  "schema_version": 1,
+  "id": "ddr_029",
+  "revision": 1,
+  "title": "Use one coherent model for agent context",
+  "kind": "principle",
+  "strength": "default",
+  "statement": "Context pills, images, and threads should compress and expand through one coherent model across the composer and action timeline.",
+  "rationale": "Context changes meaning when each surface summarizes, expands, or orders it differently.",
+  "guidance": {
+    "prefer": [
+      "Use the same ordering, summary, count, and expansion logic wherever agent context appears."
+    ],
+    "avoid": [
+      "Independent context models for composition and history."
+    ]
+  },
+  "classification": {
+    "primary": "ai.context",
+    "secondary": [
+      "information.organization",
+      "interaction.disclosure"
+    ],
+    "pattern_categories": [
+      "Content & data",
+      "Surfaces & disclosure"
+    ]
+  },
+  "applicability": {
+    "products": [
+      "moss"
+    ],
+    "activities": [
+      "architecture",
+      "design",
+      "critique",
+      "implementation",
+      "qa"
+    ],
+    "artifacts": [
+      "workflow",
+      "screen",
+      "component"
+    ],
+    "surfaces": [
+      "agent composer",
+      "action timeline",
+      "context tray"
+    ],
+    "contexts": [
+      "selected text",
+      "images",
+      "thread context"
+    ],
+    "when": [
+      "The same agent context appears in more than one lifecycle surface."
+    ],
+    "not_when": [
+      "A surface intentionally represents a different immutable historical snapshot."
+    ]
+  },
+  "exceptions": [],
+  "relationships": [],
+  "evidence": [
+    {
+      "id": "ev_029_01",
+      "source": {
+        "type": "published_summary",
+        "store": "public-doctrine",
+        "thread_id": "published-context-010",
+        "source_keys": [
+          "published-signal-028",
+          "published-signal-033"
+        ],
+        "project_id": "published-scope-002"
+      },
+      "signal": "explicit_correction",
+      "stance": "supports",
+      "observed_at": "2026-07-17",
+      "summary": "Requested context pills and images collapse compactly using a model consistent with the command palette, especially when context is absent.",
+      "excerpt": null,
+      "content_sha256": "sha256:d0c8c0ac786a5b6d6168eb19220674a1923112320ceab2bdbd4d5009e00a1aef",
+      "doctrine_version_seen": "pre-doctrine",
+      "episode_id": "external:published:episode-022",
+      "episode_source_keys": [
+        "published-span-028",
+        "published-span-033"
+      ]
+    }
+  ],
+  "confidence": {
+    "level": "medium",
+    "basis": {
+      "explicit_user_signals": 2,
+      "supporting_episodes": 1,
+      "challenging_episodes": 0,
+      "distinct_threads": 1,
+      "distinct_projects": 1
+    },
+    "assessed_at": "2026-07-17",
+    "note": "Bootstrapped from independent direct user episodes under the owner's request to mine durable design rules."
+  },
+  "lifecycle": {
+    "status": "candidate",
+    "created_at": "2026-07-17",
+    "updated_at": "2026-07-17",
+    "activated_at": null,
+    "last_reviewed_at": "2026-07-17",
+    "review_after": null,
+    "approved_by": null,
+    "decision_note": "Candidate pending independent recurrence or explicit owner approval."
+  },
+  "retrieval": {
+    "keywords": [
+      "action",
+      "agent",
+      "ai",
+      "composer",
+      "context",
+      "images",
+      "selected",
+      "text",
+      "thread",
+      "timeline",
+      "tray"
+    ],
+    "aliases": [],
+    "positive_examples": [
+      "Use the same ordering, summary, count, and expansion logic wherever agent context appears."
+    ],
+    "negative_examples": [
+      "Independent context models for composition and history."
+    ]
+  },
+  "verification": {
+    "method": "interaction_test",
+    "checks": [
+      "Does the same context retain identity across surfaces?",
+      "Are compression and expansion rules consistent?",
+      "Can the user tell what was actually sent?"
+    ]
+  }
+}

@@ -1,0 +1,139 @@
+{
+  "schema_version": 1,
+  "id": "ddr_030",
+  "revision": 1,
+  "title": "Keep a docked agent composer persistent",
+  "kind": "standard",
+  "strength": "required",
+  "statement": "A docked composer remains present and operable through resize, panel, note, and timeline transitions.",
+  "rationale": "Docking signals sustained work; losing the composer during ordinary workspace transitions breaks that contract.",
+  "guidance": {
+    "prefer": [
+      "Preserve composer presence, content, and operability across normal workspace transitions."
+    ],
+    "avoid": [
+      "Unmounting or disabling the docked composer during adjacent navigation or resize."
+    ]
+  },
+  "classification": {
+    "primary": "ai.agency",
+    "secondary": [
+      "visual.layout",
+      "system.responsiveness"
+    ],
+    "pattern_categories": [
+      "Layout & composition",
+      "Inputs & selection"
+    ]
+  },
+  "applicability": {
+    "products": [
+      "moss"
+    ],
+    "activities": [
+      "architecture",
+      "design",
+      "critique",
+      "implementation",
+      "qa"
+    ],
+    "artifacts": [
+      "workflow",
+      "screen",
+      "component"
+    ],
+    "surfaces": [
+      "dockable agent composer"
+    ],
+    "contexts": [
+      "panel resize",
+      "note switch",
+      "timeline transition"
+    ],
+    "when": [
+      "The user has explicitly docked a composer for sustained work."
+    ],
+    "not_when": [
+      "The user closes or explicitly undocks it, or a hard permission boundary requires dismissal."
+    ]
+  },
+  "exceptions": [],
+  "relationships": [],
+  "evidence": [
+    {
+      "id": "ev_030_01",
+      "source": {
+        "type": "published_summary",
+        "store": "public-doctrine",
+        "thread_id": "published-context-010",
+        "source_keys": [
+          "published-signal-041"
+        ],
+        "project_id": "published-scope-002"
+      },
+      "signal": "explicit_instruction",
+      "stance": "supports",
+      "observed_at": "2026-07-11",
+      "summary": "Reported resizing a side panel temporarily made the docked composer disappear.",
+      "excerpt": null,
+      "content_sha256": "sha256:8c31e962d61509b00910c982701439673f6360286eff5eeab9951bc136c40954",
+      "doctrine_version_seen": "pre-doctrine",
+      "episode_id": "external:published:episode-033",
+      "episode_source_keys": [
+        "published-span-041"
+      ]
+    }
+  ],
+  "confidence": {
+    "level": "high",
+    "basis": {
+      "explicit_user_signals": 1,
+      "supporting_episodes": 1,
+      "challenging_episodes": 0,
+      "distinct_threads": 1,
+      "distinct_projects": 1
+    },
+    "assessed_at": "2026-07-17",
+    "note": "Bootstrapped from independent direct user episodes under the owner's request to mine durable design rules."
+  },
+  "lifecycle": {
+    "status": "candidate",
+    "created_at": "2026-07-17",
+    "updated_at": "2026-07-17",
+    "activated_at": null,
+    "last_reviewed_at": "2026-07-17",
+    "review_after": null,
+    "approved_by": null,
+    "decision_note": "Candidate pending independent recurrence or explicit owner approval."
+  },
+  "retrieval": {
+    "keywords": [
+      "agency",
+      "agent",
+      "ai",
+      "composer",
+      "dockable",
+      "note",
+      "panel",
+      "resize",
+      "switch",
+      "timeline",
+      "transition"
+    ],
+    "aliases": [],
+    "positive_examples": [
+      "Preserve composer presence, content, and operability across normal workspace transitions."
+    ],
+    "negative_examples": [
+      "Unmounting or disabling the docked composer during adjacent navigation or resize."
+    ]
+  },
+  "verification": {
+    "method": "interaction_test",
+    "checks": [
+      "Does the composer survive resize and navigation?",
+      "Is draft context preserved?",
+      "Can the user still submit or recover?"
+    ]
+  }
+}

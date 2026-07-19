@@ -1,0 +1,170 @@
+{
+  "schema_version": 1,
+  "id": "ddr_028",
+  "revision": 1,
+  "title": "Make the locus of hover controls discoverable",
+  "kind": "standard",
+  "strength": "required",
+  "statement": "When a control appears on hover, show a quiet at-rest cue for its location and support keyboard focus plus a tooltip; users must not memorize invisible hit areas.",
+  "rationale": "Progressive disclosure should reduce clutter without making the affordance impossible to locate.",
+  "guidance": {
+    "prefer": [
+      "Leave a quiet positional cue at rest.",
+      "Reveal the control on hover and focus with an accessible name and concise tooltip."
+    ],
+    "avoid": [
+      "Completely invisible hit areas.",
+      "Hover-only access with no keyboard path."
+    ]
+  },
+  "classification": {
+    "primary": "accessibility.operation",
+    "secondary": [
+      "interaction.disclosure",
+      "accessibility.comprehension"
+    ],
+    "pattern_categories": [
+      "Actions & commands",
+      "Surfaces & disclosure"
+    ]
+  },
+  "applicability": {
+    "products": [
+      "global"
+    ],
+    "activities": [
+      "architecture",
+      "design",
+      "critique",
+      "implementation",
+      "qa"
+    ],
+    "artifacts": [
+      "workflow",
+      "screen",
+      "component"
+    ],
+    "surfaces": [
+      "drag handles",
+      "icon-only actions",
+      "dense rows"
+    ],
+    "contexts": [
+      "hover reveal",
+      "keyboard focus"
+    ],
+    "when": [
+      "A control is hidden until hover to reduce density."
+    ],
+    "not_when": [
+      "The control is always visible or the entire containing object is the target."
+    ]
+  },
+  "exceptions": [],
+  "relationships": [],
+  "evidence": [
+    {
+      "id": "ev_028_01",
+      "source": {
+        "type": "published_summary",
+        "store": "public-doctrine",
+        "thread_id": "published-context-014",
+        "source_keys": [
+          "published-signal-062",
+          "published-signal-055"
+        ],
+        "project_id": "published-scope-001"
+      },
+      "signal": "explicit_correction",
+      "stance": "supports",
+      "observed_at": "2026-07-17",
+      "summary": "Requested a persistent drag-handle cue and accurate tooltip so its location is not guesswork before hover.",
+      "excerpt": null,
+      "content_sha256": "sha256:869f5f3770057f944f912ae455da0eb0f19b92876d31d902b6295f4a24a0ebbd",
+      "doctrine_version_seen": "pre-doctrine",
+      "episode_id": "external:published:episode-040",
+      "episode_source_keys": [
+        "published-span-062",
+        "published-span-055"
+      ]
+    },
+    {
+      "id": "ev_028_02",
+      "source": {
+        "type": "published_summary",
+        "store": "public-doctrine",
+        "thread_id": "published-context-002",
+        "source_keys": [
+          "published-signal-002"
+        ],
+        "project_id": "published-scope-002"
+      },
+      "signal": "explicit_instruction",
+      "stance": "supports",
+      "observed_at": "2026-06-17",
+      "summary": "Required comment-list interaction to open the comment at its actual gutter anchor, not from a detached list control.",
+      "excerpt": null,
+      "content_sha256": "sha256:f81bb57a9449258c374015775f362eb2e0b076f9076b0751c7b44d9e93905b81",
+      "doctrine_version_seen": "pre-doctrine",
+      "episode_id": "external:published:episode-002",
+      "episode_source_keys": [
+        "published-span-002"
+      ]
+    }
+  ],
+  "confidence": {
+    "level": "high",
+    "basis": {
+      "explicit_user_signals": 3,
+      "supporting_episodes": 2,
+      "challenging_episodes": 0,
+      "distinct_threads": 2,
+      "distinct_projects": 2
+    },
+    "assessed_at": "2026-07-17",
+    "note": "Bootstrapped from independent direct user episodes under the owner's request to mine durable design rules."
+  },
+  "lifecycle": {
+    "status": "active",
+    "created_at": "2026-07-17",
+    "updated_at": "2026-07-17",
+    "activated_at": "2026-07-17",
+    "last_reviewed_at": "2026-07-17",
+    "review_after": "2027-01-17",
+    "approved_by": "owner-direct-history-bootstrap",
+    "decision_note": "Activated only for the owner-requested initial bootstrap because repeated independent direct instructions or corrections establish this decision boundary."
+  },
+  "retrieval": {
+    "keywords": [
+      "accessibility",
+      "actions",
+      "dense",
+      "drag",
+      "focus",
+      "handles",
+      "hover",
+      "icon-only",
+      "keyboard",
+      "operation",
+      "reveal",
+      "rows"
+    ],
+    "aliases": [],
+    "positive_examples": [
+      "Leave a quiet positional cue at rest.",
+      "Reveal the control on hover and focus with an accessible name and concise tooltip."
+    ],
+    "negative_examples": [
+      "Completely invisible hit areas.",
+      "Hover-only access with no keyboard path."
+    ]
+  },
+  "verification": {
+    "method": "interaction_test",
+    "checks": [
+      "Can a user locate the affordance before hovering precisely?",
+      "Does keyboard focus reveal and operate it?",
+      "Is the tooltip supplemental rather than essential?"
+    ]
+  }
+}

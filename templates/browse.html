@@ -1,0 +1,1607 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>Design doctrine</title>
+  <style>
+    :root {
+      --page: #f3f1ed;
+      --surface: #fbfaf8;
+      --surface-raised: #ffffff;
+      --surface-soft: #eeece7;
+      --ink: #252522;
+      --ink-soft: #575751;
+      --ink-faint: #87867e;
+      --line: rgba(39, 39, 34, 0.13);
+      --line-strong: rgba(39, 39, 34, 0.22);
+      --shadow: 0 1px 2px rgba(25, 25, 20, 0.08), 0 12px 32px rgba(25, 25, 20, 0.05);
+      --focus: #3e6c5a;
+      --active: #3e765f;
+      --candidate: #a66c21;
+      --danger: #9a554d;
+      --radius-sm: 8px;
+      --radius-md: 12px;
+      --radius-lg: 18px;
+      --page-gutter: clamp(16px, 3vw, 42px);
+      --page-max: 1540px;
+      font-family: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      font-synthesis: none;
+      color: var(--ink);
+      background: var(--page);
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --page: #1d1e1c;
+        --surface: #252623;
+        --surface-raised: #2b2c29;
+        --surface-soft: #20211f;
+        --ink: #efeee8;
+        --ink-soft: #b8b7af;
+        --ink-faint: #85857e;
+        --line: rgba(239, 238, 232, 0.11);
+        --line-strong: rgba(239, 238, 232, 0.19);
+        --shadow: 0 1px 2px rgba(0, 0, 0, 0.35), 0 16px 40px rgba(0, 0, 0, 0.18);
+        --focus: #85b59f;
+        --active: #7ab393;
+        --candidate: #d49a53;
+        --danger: #d78a80;
+      }
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html {
+      min-width: 300px;
+      background: var(--page);
+      scroll-behavior: smooth;
+    }
+
+    body {
+      min-height: 100vh;
+      margin: 0;
+      color: var(--ink);
+      background:
+        radial-gradient(circle at 10% -10%, rgba(255, 255, 255, 0.42), transparent 34rem),
+        var(--page);
+    }
+
+    button,
+    input,
+    select {
+      font: inherit;
+    }
+
+    button,
+    select {
+      color: inherit;
+    }
+
+    button {
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    .shell {
+      width: min(100%, var(--page-max));
+      margin: 0 auto;
+      padding: 26px var(--page-gutter) 64px;
+    }
+
+    .masthead {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 24px;
+      margin-bottom: 22px;
+    }
+
+    .identity {
+      min-width: 0;
+    }
+
+    .identity h1 {
+      margin: 0;
+      font-size: clamp(20px, 2.1vw, 29px);
+      line-height: 1.08;
+      font-weight: 620;
+      letter-spacing: -0.035em;
+    }
+
+    .identity p {
+      max-width: 620px;
+      margin: 7px 0 0;
+      color: var(--ink-soft);
+      font-size: 13px;
+      line-height: 1.5;
+    }
+
+    .corpus-meta {
+      flex: 0 0 auto;
+      margin-top: 3px;
+      color: var(--ink-faint);
+      font-size: 11px;
+      line-height: 1.45;
+      text-align: right;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .controls {
+      position: sticky;
+      z-index: 10;
+      top: 0;
+      display: grid;
+      grid-template-columns: minmax(240px, 1fr) auto auto;
+      gap: 8px;
+      padding: 10px 0;
+      margin: 0 0 12px;
+      background: color-mix(in srgb, var(--page) 88%, transparent);
+      backdrop-filter: blur(18px) saturate(110%);
+    }
+
+    .field {
+      position: relative;
+      min-width: 0;
+    }
+
+    .field svg {
+      position: absolute;
+      top: 50%;
+      left: 12px;
+      width: 15px;
+      height: 15px;
+      color: var(--ink-faint);
+      pointer-events: none;
+      transform: translateY(-50%);
+    }
+
+    .search-input,
+    .filter-select {
+      width: 100%;
+      height: 38px;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      outline: 0;
+      color: var(--ink);
+      background: color-mix(in srgb, var(--surface-raised) 92%, transparent);
+      box-shadow: 0 1px 0 rgba(255, 255, 255, 0.25);
+      transition: border-color 120ms ease, box-shadow 120ms ease, background 120ms ease;
+    }
+
+    .search-input {
+      padding: 0 36px;
+      font-size: 13px;
+    }
+
+    .search-input::placeholder {
+      color: var(--ink-faint);
+    }
+
+    .search-input::-webkit-search-cancel-button {
+      opacity: 0.62;
+    }
+
+    .filter-select {
+      min-width: 138px;
+      padding: 0 34px 0 12px;
+      font-size: 12px;
+      cursor: pointer;
+    }
+
+    .search-input:focus,
+    .filter-select:focus-visible {
+      border-color: var(--focus);
+      box-shadow: 0 0 0 3px color-mix(in srgb, var(--focus) 18%, transparent);
+      background: var(--surface-raised);
+    }
+
+    .results-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      min-height: 28px;
+      margin-bottom: 10px;
+      color: var(--ink-faint);
+      font-size: 11px;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .legend {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      white-space: nowrap;
+    }
+
+    .legend-item,
+    .status-label {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+    }
+
+    .status-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 999px;
+      background: var(--ink-faint);
+      box-shadow: 0 0 0 2px color-mix(in srgb, currentColor 10%, transparent);
+    }
+
+    .status-dot.active {
+      color: var(--active);
+      background: var(--active);
+    }
+
+    .status-dot.candidate {
+      color: var(--candidate);
+      background: var(--candidate);
+    }
+
+    .library-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: clamp(12px, 1.5vw, 20px);
+      align-items: start;
+    }
+
+    .rule-card {
+      min-width: 0;
+      padding: 0;
+      border: 1px solid var(--line);
+      border-radius: var(--radius-md);
+      overflow: hidden;
+      text-align: left;
+      color: inherit;
+      background: var(--surface);
+      box-shadow: 0 1px 1px rgba(25, 25, 20, 0.025);
+      cursor: pointer;
+      transition: transform 150ms ease, border-color 150ms ease, box-shadow 150ms ease;
+    }
+
+    .rule-card:hover {
+      border-color: var(--line-strong);
+      box-shadow: var(--shadow);
+      transform: translateY(-2px);
+    }
+
+    .rule-card:focus-visible {
+      outline: 3px solid color-mix(in srgb, var(--focus) 32%, transparent);
+      outline-offset: 3px;
+    }
+
+    .rule-visual {
+      position: relative;
+      aspect-ratio: 8 / 5;
+      padding: 13px;
+      overflow: hidden;
+      border-bottom: 1px solid var(--line);
+      background:
+        linear-gradient(140deg, color-mix(in srgb, var(--accent) 11%, var(--surface-soft)), var(--surface-soft) 72%);
+    }
+
+    .rule-visual::after {
+      position: absolute;
+      inset: 0;
+      content: "";
+      opacity: 0.28;
+      pointer-events: none;
+      background-image: radial-gradient(var(--line-strong) 0.55px, transparent 0.55px);
+      background-size: 8px 8px;
+      mask-image: linear-gradient(to bottom right, black, transparent 72%);
+    }
+
+    .rule-card:hover .mini-focus {
+      outline-color: color-mix(in srgb, var(--accent) 82%, white 18%);
+      box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent);
+    }
+
+    .rule-card:hover .mini-tooltip {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    .rule-card:hover .mini-motion {
+      transform: translateX(7px);
+    }
+
+    .rule-caption {
+      min-height: 138px;
+      padding: 13px 14px 14px;
+    }
+
+    .caption-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      margin-bottom: 8px;
+      color: var(--ink-faint);
+      font-size: 10px;
+      line-height: 1.2;
+      text-transform: uppercase;
+      letter-spacing: 0.065em;
+    }
+
+    .domain-label {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .rule-caption h2 {
+      margin: 0;
+      font-size: 15px;
+      line-height: 1.26;
+      font-weight: 625;
+      letter-spacing: -0.015em;
+    }
+
+    .rule-caption p {
+      display: -webkit-box;
+      margin: 7px 0 0;
+      overflow: hidden;
+      color: var(--ink-soft);
+      font-size: 12px;
+      line-height: 1.48;
+      -webkit-box-orient: vertical;
+      -webkit-line-clamp: 3;
+    }
+
+    .card-meta {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      margin-top: 11px;
+      color: var(--ink-faint);
+      font-size: 10px;
+      line-height: 1;
+    }
+
+    .card-meta span + span::before {
+      margin-right: 5px;
+      content: "·";
+    }
+
+    .mini-window {
+      position: relative;
+      z-index: 1;
+      display: flex;
+      flex-direction: column;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      border: 1px solid color-mix(in srgb, var(--accent) 18%, var(--line));
+      border-radius: 8px;
+      background: color-mix(in srgb, var(--surface-raised) 94%, transparent);
+      box-shadow: 0 8px 26px rgba(28, 28, 24, 0.08);
+    }
+
+    .mini-bar {
+      display: flex;
+      align-items: center;
+      height: 22px;
+      padding: 0 7px;
+      border-bottom: 1px solid var(--line);
+      background: color-mix(in srgb, var(--surface) 88%, transparent);
+    }
+
+    .mini-dots {
+      display: flex;
+      gap: 3px;
+    }
+
+    .mini-dot {
+      width: 4px;
+      height: 4px;
+      border-radius: 50%;
+      background: var(--line-strong);
+    }
+
+    .mini-title {
+      width: 32%;
+      height: 4px;
+      margin-left: 8px;
+      border-radius: 4px;
+      background: color-mix(in srgb, var(--accent) 22%, var(--line));
+    }
+
+    .mini-body {
+      display: flex;
+      flex: 1;
+      min-height: 0;
+      padding: 8px;
+      gap: 7px;
+    }
+
+    .mini-side {
+      flex: 0 0 25%;
+      padding: 6px;
+      border-right: 1px solid var(--line);
+    }
+
+    .mini-main {
+      display: flex;
+      flex: 1;
+      min-width: 0;
+      flex-direction: column;
+      gap: 5px;
+    }
+
+    .mini-line {
+      display: block;
+      width: 100%;
+      height: 5px;
+      border-radius: 4px;
+      background: color-mix(in srgb, var(--ink) 10%, transparent);
+    }
+
+    .mini-line.short {
+      width: 55%;
+    }
+
+    .mini-line.medium {
+      width: 76%;
+    }
+
+    .mini-line.accent {
+      background: color-mix(in srgb, var(--accent) 44%, transparent);
+    }
+
+    .mini-row {
+      position: relative;
+      display: flex;
+      align-items: center;
+      min-height: 20px;
+      padding: 4px 5px;
+      gap: 5px;
+      border: 1px solid var(--line);
+      border-radius: 5px;
+      background: color-mix(in srgb, var(--surface-raised) 82%, transparent);
+    }
+
+    .mini-row.flat {
+      border-color: transparent;
+      background: transparent;
+    }
+
+    .mini-icon {
+      flex: 0 0 auto;
+      width: 12px;
+      height: 12px;
+      border: 1px solid color-mix(in srgb, var(--accent) 40%, var(--line-strong));
+      border-radius: 4px;
+      background: color-mix(in srgb, var(--accent) 12%, transparent);
+    }
+
+    .mini-button {
+      flex: 0 0 auto;
+      width: 17px;
+      height: 17px;
+      margin-left: auto;
+      border: 1px solid var(--line-strong);
+      border-radius: 5px;
+      background: var(--surface-raised);
+    }
+
+    .mini-button.primary {
+      width: 40px;
+      border-color: color-mix(in srgb, var(--accent) 46%, var(--line));
+      background: color-mix(in srgb, var(--accent) 74%, var(--surface-raised));
+    }
+
+    .mini-chip {
+      display: inline-flex;
+      align-items: center;
+      height: 14px;
+      padding: 0 6px;
+      border: 1px solid color-mix(in srgb, var(--accent) 24%, var(--line));
+      border-radius: 999px;
+      color: color-mix(in srgb, var(--accent) 74%, var(--ink));
+      background: color-mix(in srgb, var(--accent) 9%, transparent);
+      font-size: 6px;
+      line-height: 1;
+    }
+
+    .mini-focus {
+      outline: 2px solid color-mix(in srgb, var(--accent) 55%, transparent);
+      outline-offset: 1px;
+      transition: outline-color 140ms ease, box-shadow 140ms ease;
+    }
+
+    .mini-tooltip {
+      position: absolute;
+      right: 2px;
+      bottom: calc(100% + 4px);
+      padding: 3px 5px;
+      border-radius: 4px;
+      opacity: 0;
+      color: var(--surface-raised);
+      background: var(--ink);
+      font-size: 6px;
+      line-height: 1;
+      white-space: nowrap;
+      transform: translateY(2px);
+      transition: opacity 140ms ease, transform 140ms ease;
+    }
+
+    .mini-columns,
+    .mini-grid {
+      display: grid;
+      flex: 1;
+      gap: 6px;
+    }
+
+    .mini-columns {
+      grid-template-columns: 0.72fr 1fr 1.28fr;
+    }
+
+    .mini-grid {
+      grid-template-columns: repeat(2, 1fr);
+    }
+
+    .mini-panel {
+      min-width: 0;
+      padding: 6px;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background: color-mix(in srgb, var(--surface-raised) 76%, transparent);
+    }
+
+    .mini-panel.emphasis {
+      border-color: color-mix(in srgb, var(--accent) 34%, var(--line));
+      box-shadow: inset 0 2px 0 color-mix(in srgb, var(--accent) 56%, transparent);
+    }
+
+    .mini-swatch-row {
+      display: flex;
+      gap: 4px;
+      margin-top: auto;
+    }
+
+    .mini-swatch {
+      width: 18px;
+      height: 18px;
+      border: 1px solid var(--line);
+      border-radius: 5px;
+      background: color-mix(in srgb, var(--accent) 16%, var(--surface-raised));
+    }
+
+    .mini-swatch:nth-child(2) {
+      background: color-mix(in srgb, var(--accent) 34%, var(--surface-raised));
+    }
+
+    .mini-swatch:nth-child(3) {
+      background: color-mix(in srgb, var(--accent) 58%, var(--surface-raised));
+    }
+
+    .mini-node-row {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      min-height: 26px;
+    }
+
+    .mini-node {
+      display: grid;
+      flex: 1;
+      min-width: 0;
+      min-height: 25px;
+      place-items: center;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background: var(--surface-raised);
+    }
+
+    .mini-node.is-current {
+      border-color: color-mix(in srgb, var(--accent) 45%, var(--line));
+      background: color-mix(in srgb, var(--accent) 12%, var(--surface-raised));
+    }
+
+    .mini-connector {
+      flex: 0 0 8px;
+      height: 1px;
+      background: var(--line-strong);
+      transition: transform 140ms ease;
+    }
+
+    .mini-composer {
+      display: flex;
+      align-items: center;
+      min-height: 31px;
+      margin-top: auto;
+      padding: 5px 6px;
+      gap: 4px;
+      border: 1px solid color-mix(in srgb, var(--accent) 28%, var(--line));
+      border-radius: 7px;
+      background: var(--surface-raised);
+    }
+
+    .mini-handle {
+      width: 4px;
+      height: 11px;
+      border-radius: 2px;
+      background: repeating-linear-gradient(to bottom, var(--ink-faint) 0 1px, transparent 1px 3px);
+    }
+
+    .mini-check {
+      position: relative;
+      flex: 0 0 auto;
+      width: 12px;
+      height: 12px;
+      border: 1px solid color-mix(in srgb, var(--accent) 46%, var(--line-strong));
+      border-radius: 50%;
+      background: color-mix(in srgb, var(--accent) 18%, transparent);
+    }
+
+    .mini-check::after {
+      position: absolute;
+      left: 3px;
+      top: 2px;
+      width: 4px;
+      height: 2px;
+      border-left: 1px solid var(--accent);
+      border-bottom: 1px solid var(--accent);
+      content: "";
+      transform: rotate(-45deg);
+    }
+
+    .empty-state {
+      display: none;
+      min-height: 320px;
+      place-items: center;
+      padding: 32px;
+      border: 1px dashed var(--line-strong);
+      border-radius: var(--radius-md);
+      color: var(--ink-soft);
+      text-align: center;
+      background: color-mix(in srgb, var(--surface) 54%, transparent);
+    }
+
+    .empty-state.is-visible {
+      display: grid;
+    }
+
+    .empty-state h2 {
+      margin: 0;
+      color: var(--ink);
+      font-size: 16px;
+      font-weight: 620;
+    }
+
+    .empty-state p {
+      max-width: 390px;
+      margin: 7px 0 15px;
+      font-size: 12px;
+      line-height: 1.5;
+    }
+
+    .quiet-button {
+      height: 32px;
+      padding: 0 11px;
+      border: 1px solid var(--line-strong);
+      border-radius: 8px;
+      color: var(--ink);
+      background: var(--surface-raised);
+      cursor: pointer;
+    }
+
+    .rule-dialog {
+      width: min(1020px, calc(100vw - 28px));
+      max-height: min(88vh, 940px);
+      padding: 0;
+      border: 1px solid var(--line-strong);
+      border-radius: var(--radius-lg);
+      overflow: hidden;
+      color: var(--ink);
+      background: var(--surface);
+      box-shadow: 0 34px 100px rgba(12, 12, 10, 0.28);
+    }
+
+    .rule-dialog::backdrop {
+      background: rgba(18, 18, 16, 0.43);
+      backdrop-filter: blur(7px);
+    }
+
+    .dialog-shell {
+      display: flex;
+      max-height: min(88vh, 940px);
+      flex-direction: column;
+    }
+
+    .dialog-bar {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 18px;
+      padding: 18px 20px 16px;
+      border-bottom: 1px solid var(--line);
+      background: color-mix(in srgb, var(--surface-raised) 86%, transparent);
+    }
+
+    .dialog-title-wrap {
+      min-width: 0;
+    }
+
+    .dialog-kicker {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      margin-bottom: 5px;
+      color: var(--ink-faint);
+      font-size: 10px;
+      line-height: 1.2;
+      text-transform: uppercase;
+      letter-spacing: 0.065em;
+    }
+
+    .dialog-title {
+      margin: 0;
+      font-size: clamp(19px, 2.4vw, 27px);
+      line-height: 1.16;
+      font-weight: 640;
+      letter-spacing: -0.03em;
+    }
+
+    .dialog-actions {
+      display: flex;
+      flex: 0 0 auto;
+      gap: 5px;
+    }
+
+    .icon-button {
+      position: relative;
+      display: grid;
+      width: 32px;
+      height: 32px;
+      padding: 0;
+      place-items: center;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      color: var(--ink-soft);
+      background: var(--surface);
+      cursor: pointer;
+    }
+
+    .icon-button:hover {
+      color: var(--ink);
+      border-color: var(--line-strong);
+      background: var(--surface-raised);
+    }
+
+    .icon-button:focus-visible {
+      outline: 3px solid color-mix(in srgb, var(--focus) 28%, transparent);
+      outline-offset: 2px;
+    }
+
+    .icon-button svg {
+      width: 15px;
+      height: 15px;
+    }
+
+    .icon-button::after {
+      position: absolute;
+      right: 0;
+      bottom: calc(100% + 7px);
+      z-index: 2;
+      padding: 5px 7px;
+      border-radius: 5px;
+      opacity: 0;
+      color: var(--surface-raised);
+      background: var(--ink);
+      content: attr(data-tip);
+      font-size: 10px;
+      line-height: 1;
+      white-space: nowrap;
+      pointer-events: none;
+      transform: translateY(2px);
+      transition: opacity 120ms ease, transform 120ms ease;
+    }
+
+    .icon-button:hover::after,
+    .icon-button:focus-visible::after {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    .dialog-scroll {
+      overflow: auto;
+      overscroll-behavior: contain;
+    }
+
+    .dialog-hero {
+      display: grid;
+      grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+      gap: 24px;
+      padding: 22px 20px 24px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .dialog-visual {
+      min-height: 250px;
+      padding: 18px;
+      border: 1px solid var(--line);
+      border-radius: 13px;
+      background: linear-gradient(140deg, color-mix(in srgb, var(--accent) 11%, var(--surface-soft)), var(--surface-soft) 72%);
+    }
+
+    .dialog-visual .mini-window {
+      min-height: 212px;
+    }
+
+    .statement {
+      margin: 0;
+      color: var(--ink);
+      font-size: clamp(18px, 2.15vw, 24px);
+      line-height: 1.28;
+      letter-spacing: -0.026em;
+    }
+
+    .rationale {
+      margin: 15px 0 0;
+      color: var(--ink-soft);
+      font-size: 13px;
+      line-height: 1.58;
+    }
+
+    .scope-tags {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 5px;
+      margin-top: 18px;
+    }
+
+    .tag {
+      display: inline-flex;
+      align-items: center;
+      min-height: 22px;
+      padding: 3px 7px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      color: var(--ink-soft);
+      background: color-mix(in srgb, var(--surface-raised) 68%, transparent);
+      font-size: 10px;
+      line-height: 1.2;
+    }
+
+    .dialog-content {
+      display: grid;
+      grid-template-columns: minmax(0, 1.35fr) minmax(240px, 0.65fr);
+      gap: 28px;
+      padding: 24px 20px 30px;
+    }
+
+    .content-stack,
+    .side-stack {
+      display: flex;
+      min-width: 0;
+      flex-direction: column;
+      gap: 24px;
+    }
+
+    .detail-section h3 {
+      margin: 0 0 9px;
+      color: var(--ink-faint);
+      font-size: 10px;
+      font-weight: 650;
+      line-height: 1.2;
+      text-transform: uppercase;
+      letter-spacing: 0.075em;
+    }
+
+    .detail-section ul {
+      display: grid;
+      gap: 7px;
+      margin: 0;
+      padding: 0;
+      list-style: none;
+    }
+
+    .detail-section li {
+      position: relative;
+      padding-left: 15px;
+      color: var(--ink-soft);
+      font-size: 12px;
+      line-height: 1.52;
+    }
+
+    .detail-section li::before {
+      position: absolute;
+      left: 1px;
+      top: 0.72em;
+      width: 5px;
+      height: 1px;
+      content: "";
+      background: var(--ink-faint);
+    }
+
+    .guidance-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+    }
+
+    .guidance-panel {
+      min-width: 0;
+      padding: 13px;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      background: color-mix(in srgb, var(--surface-raised) 64%, transparent);
+    }
+
+    .guidance-panel.prefer {
+      border-top-color: color-mix(in srgb, var(--active) 58%, var(--line));
+    }
+
+    .guidance-panel.avoid {
+      border-top-color: color-mix(in srgb, var(--danger) 58%, var(--line));
+    }
+
+    .meta-table {
+      width: 100%;
+      border-collapse: collapse;
+      table-layout: fixed;
+    }
+
+    .meta-table th,
+    .meta-table td {
+      padding: 8px 0;
+      border-bottom: 1px solid var(--line);
+      vertical-align: top;
+      text-align: left;
+      font-size: 11px;
+      line-height: 1.45;
+    }
+
+    .meta-table th {
+      width: 38%;
+      color: var(--ink-faint);
+      font-weight: 500;
+    }
+
+    .meta-table td {
+      color: var(--ink-soft);
+      overflow-wrap: anywhere;
+    }
+
+    .evidence-list {
+      display: grid;
+      gap: 8px;
+    }
+
+    .evidence-item {
+      padding: 10px;
+      border: 1px solid var(--line);
+      border-radius: 9px;
+      background: color-mix(in srgb, var(--surface-raised) 58%, transparent);
+    }
+
+    .evidence-item p {
+      margin: 0;
+      color: var(--ink-soft);
+      font-size: 11px;
+      line-height: 1.48;
+    }
+
+    .evidence-source {
+      margin-top: 6px;
+      color: var(--ink-faint);
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 9px;
+      line-height: 1.4;
+      overflow-wrap: anywhere;
+    }
+
+    .nonoperative-note {
+      padding: 10px 11px;
+      border: 1px solid color-mix(in srgb, var(--candidate) 38%, var(--line));
+      border-radius: 9px;
+      color: color-mix(in srgb, var(--candidate) 72%, var(--ink));
+      background: color-mix(in srgb, var(--candidate) 8%, transparent);
+      font-size: 11px;
+      line-height: 1.45;
+    }
+
+    @media (max-width: 1180px) {
+      .library-grid {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+      }
+    }
+
+    @media (max-width: 820px) {
+      .library-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .dialog-hero,
+      .dialog-content {
+        grid-template-columns: 1fr;
+      }
+
+      .dialog-visual {
+        min-height: 220px;
+      }
+    }
+
+    @media (max-width: 620px) {
+      .shell {
+        padding-top: 18px;
+      }
+
+      .masthead {
+        display: block;
+        margin-bottom: 14px;
+      }
+
+      .corpus-meta {
+        margin-top: 9px;
+        text-align: left;
+      }
+
+      .controls {
+        grid-template-columns: minmax(0, 1fr) minmax(112px, 0.43fr);
+      }
+
+      .field {
+        grid-column: 1 / -1;
+      }
+
+      .filter-select {
+        min-width: 0;
+      }
+
+      .results-row {
+        align-items: flex-start;
+      }
+
+      .legend {
+        gap: 8px;
+      }
+
+      .library-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .rule-caption {
+        min-height: 0;
+      }
+
+      .rule-dialog {
+        width: calc(100vw - 12px);
+        max-height: calc(100vh - 12px);
+        border-radius: 14px;
+      }
+
+      .dialog-shell {
+        max-height: calc(100vh - 12px);
+      }
+
+      .dialog-bar {
+        padding: 15px;
+      }
+
+      .dialog-hero,
+      .dialog-content {
+        padding-left: 15px;
+        padding-right: 15px;
+      }
+
+      .guidance-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      html {
+        scroll-behavior: auto;
+      }
+
+      *,
+      *::before,
+      *::after {
+        scroll-behavior: auto !important;
+        transition-duration: 0.01ms !important;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <header class="masthead">
+      <div class="identity">
+        <h1>Design doctrine</h1>
+        <p>Evidence-backed principles, standards, guidelines, and taste. Active rules guide work; candidates remain visible for review and posterity.</p>
+      </div>
+      <div class="corpus-meta" id="corpus-meta"></div>
+    </header>
+
+    <section class="controls" aria-label="Filter doctrine">
+      <label class="field">
+        <span hidden>Search doctrine</span>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+          <circle cx="11" cy="11" r="6.6"></circle>
+          <path d="m16 16 4 4"></path>
+        </svg>
+        <input class="search-input" id="search" type="search" autocomplete="off" placeholder="Search rules, surfaces, guidance, or evidence" aria-label="Search doctrine">
+      </label>
+      <label>
+        <span hidden>Lifecycle</span>
+        <select class="filter-select" id="status-filter" aria-label="Filter by lifecycle">
+          <option value="all">All lifecycle</option>
+          <option value="active">Active rules</option>
+          <option value="candidate">Candidates</option>
+          <option value="other">Other history</option>
+        </select>
+      </label>
+      <label>
+        <span hidden>Domain</span>
+        <select class="filter-select" id="domain-filter" aria-label="Filter by domain">
+          <option value="all">All domains</option>
+        </select>
+      </label>
+    </section>
+
+    <div class="results-row">
+      <span id="result-count" aria-live="polite"></span>
+      <span class="legend" aria-label="Lifecycle legend">
+        <span class="legend-item"><span class="status-dot active"></span>Active</span>
+        <span class="legend-item"><span class="status-dot candidate"></span>Candidate</span>
+      </span>
+    </div>
+
+    <section class="library-grid" id="library-grid" aria-label="Doctrine rules"></section>
+
+    <section class="empty-state" id="empty-state">
+      <div>
+        <h2>No rules match</h2>
+        <p>Try a broader term or clear the lifecycle and domain filters.</p>
+        <button class="quiet-button" id="clear-filters" type="button">Clear filters</button>
+      </div>
+    </section>
+  </main>
+
+  <dialog class="rule-dialog" id="rule-dialog" aria-labelledby="dialog-title">
+    <div class="dialog-shell" id="dialog-shell"></div>
+  </dialog>
+
+  <noscript>
+    <p style="padding: 24px; font-family: system-ui;">This generated library needs JavaScript to filter and inspect rules. The Markdown catalog remains available as DOCTRINE.md.</p>
+  </noscript>
+
+  <script id="doctrine-data" type="application/json">__DOCTRINE_DATA__</script>
+  <script>
+    (function () {
+      "use strict";
+
+      var data = JSON.parse(document.getElementById("doctrine-data").textContent);
+      var rules = data.rules;
+      var roots = data.taxonomy.roots;
+      var rootById = Object.fromEntries(roots.map(function (root) { return [root.id, root]; }));
+      var searchInput = document.getElementById("search");
+      var statusFilter = document.getElementById("status-filter");
+      var domainFilter = document.getElementById("domain-filter");
+      var grid = document.getElementById("library-grid");
+      var resultCount = document.getElementById("result-count");
+      var emptyState = document.getElementById("empty-state");
+      var clearFilters = document.getElementById("clear-filters");
+      var dialog = document.getElementById("rule-dialog");
+      var dialogShell = document.getElementById("dialog-shell");
+      var activeCard = null;
+      var accents = {
+        product: "#667ab0",
+        information: "#8a7357",
+        interaction: "#3f7f70",
+        visual: "#836b9d",
+        content: "#927058",
+        ai: "#4f7894",
+        accessibility: "#587f5b",
+        system: "#6f7780",
+        process: "#9a6f55"
+      };
+
+      function escapeHtml(value) {
+        return String(value == null ? "" : value)
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;")
+          .replace(/"/g, "&quot;")
+          .replace(/'/g, "&#039;");
+      }
+
+      function titleCase(value) {
+        return String(value || "")
+          .replace(/[_-]/g, " ")
+          .replace(/\b\w/g, function (letter) { return letter.toUpperCase(); });
+      }
+
+      function rootId(rule) {
+        return rule.classification.primary.split(".")[0];
+      }
+
+      function rootName(rule) {
+        var root = rootById[rootId(rule)];
+        return root ? root.name : titleCase(rootId(rule));
+      }
+
+      function leafName(rule) {
+        var root = rootById[rootId(rule)];
+        var leaf = root && root.leaves.find(function (item) {
+          return item.id === rule.classification.primary;
+        });
+        return leaf ? leaf.name : titleCase(rule.classification.primary.split(".")[1]);
+      }
+
+      function accentFor(rule) {
+        return accents[rootId(rule)] || "#68736e";
+      }
+
+      function statusMarkup(status, includeLabel) {
+        var known = status === "active" || status === "candidate";
+        var label = includeLabel ? escapeHtml(titleCase(status)) : "";
+        return '<span class="status-label"><span class="status-dot ' +
+          (known ? escapeHtml(status) : "") + '"></span>' + label + "</span>";
+      }
+
+      function line(widthClass, accent) {
+        return '<span class="mini-line ' + (widthClass || "") + (accent ? " accent" : "") + '"></span>';
+      }
+
+      function visualMarkup(rule) {
+        var domain = rootId(rule);
+        var commonStart = '<div class="mini-window"><div class="mini-bar"><span class="mini-dots"><span class="mini-dot"></span><span class="mini-dot"></span><span class="mini-dot"></span></span><span class="mini-title"></span></div>';
+        var end = "</div>";
+        var body = "";
+
+        if (domain === "product") {
+          body = '<div class="mini-body"><div class="mini-side">' + line("", true) + line("medium") + line("short") +
+            '</div><div class="mini-main"><div class="mini-node-row"><span class="mini-node">' + line("short") +
+            '</span><span class="mini-connector mini-motion"></span><span class="mini-node is-current">' + line("short", true) +
+            '</span><span class="mini-connector"></span><span class="mini-node">' + line("short") +
+            '</span></div><div class="mini-panel emphasis">' + line("medium", true) + line("") + line("short") +
+            '</div></div></div>';
+        } else if (domain === "information") {
+          body = '<div class="mini-body"><div class="mini-columns"><div class="mini-panel">' + line("medium") + line("short") +
+            '</div><div class="mini-panel emphasis">' + line("", true) + line("medium") + line("short") +
+            '</div><div class="mini-panel">' + line("short") + line("") + line("medium") + line("short") +
+            '</div></div></div>';
+        } else if (domain === "interaction") {
+          body = '<div class="mini-body"><div class="mini-main"><div class="mini-row flat">' + line("medium", true) +
+            '<span class="mini-button"></span><span class="mini-button"></span></div><div class="mini-row">' +
+            '<span class="mini-icon"></span>' + line("medium") + '<span class="mini-button mini-focus"><span class="mini-tooltip">Inspect</span></span>' +
+            '</div><div class="mini-row"><span class="mini-icon"></span>' + line("short") +
+            '<span class="mini-button primary"></span></div></div></div>';
+        } else if (domain === "visual") {
+          body = '<div class="mini-body"><div class="mini-grid"><div class="mini-panel emphasis">' + line("medium", true) +
+            line("") + line("short") + '</div><div class="mini-panel">' + line("short") + line("medium") +
+            '</div><div class="mini-panel">' + line("") + line("medium") + '</div><div class="mini-panel">' +
+            line("medium", true) + '<span class="mini-swatch-row"><span class="mini-swatch"></span><span class="mini-swatch"></span><span class="mini-swatch"></span></span></div></div></div>';
+        } else if (domain === "content") {
+          body = '<div class="mini-body"><div class="mini-main"><div class="mini-panel emphasis">' + line("short", true) +
+            line("") + line("medium") + line("") + '</div><div class="mini-row flat"><span class="mini-chip">User job</span>' +
+            '<span class="mini-chip">Outcome</span></div><div class="mini-row"><span class="mini-icon"></span>' +
+            line("medium") + '</div></div></div>';
+        } else if (domain === "ai") {
+          body = '<div class="mini-body"><div class="mini-main"><div class="mini-row flat"><span class="mini-chip">Note</span>' +
+            '<span class="mini-chip">Image</span><span class="mini-chip">Thread</span></div><div class="mini-row"><span class="mini-icon"></span>' +
+            line("medium") + '<span class="mini-check"></span></div><div class="mini-composer">' + line("medium", true) +
+            '<span class="mini-button primary"></span></div></div></div>';
+        } else if (domain === "accessibility") {
+          body = '<div class="mini-body"><div class="mini-main"><div class="mini-row flat">' + line("short", true) +
+            '<span class="mini-chip">Tab</span></div><div class="mini-row mini-focus"><span class="mini-handle"></span><span class="mini-icon"></span>' +
+            line("medium") + '<span class="mini-button"><span class="mini-tooltip">More actions</span></span></div>' +
+            '<div class="mini-row"><span class="mini-check"></span>' + line("short") + '</div></div></div>';
+        } else if (domain === "system") {
+          body = '<div class="mini-body"><div class="mini-side">' + line("medium", true) + line("short") +
+            line("medium") + '</div><div class="mini-main"><div class="mini-row"><span class="mini-chip">Token</span>' +
+            line("medium") + '</div><div class="mini-row"><span class="mini-icon"></span>' + line("short") +
+            '<span class="mini-button"></span></div><div class="mini-swatch-row"><span class="mini-swatch"></span><span class="mini-swatch"></span><span class="mini-swatch"></span></div></div></div>';
+        } else {
+          body = '<div class="mini-body"><div class="mini-main"><div class="mini-node-row"><span class="mini-node">' +
+            line("short") + '</span><span class="mini-connector"></span><span class="mini-node is-current">' +
+            line("short", true) + '</span><span class="mini-connector mini-motion"></span><span class="mini-node">' +
+            line("short") + '</span></div><div class="mini-row"><span class="mini-check"></span>' +
+            line("medium") + '</div><div class="mini-row"><span class="mini-check"></span>' + line("short") +
+            '</div></div></div>';
+        }
+
+        return commonStart + body + end;
+      }
+
+      function searchableText(rule) {
+        var fields = [
+          rule.id,
+          rule.title,
+          rule.statement,
+          rule.rationale,
+          rule.kind,
+          rule.strength,
+          rule.lifecycle.status,
+          rule.classification.primary,
+          rule.classification.secondary,
+          rule.classification.pattern_categories,
+          rule.applicability.products,
+          rule.applicability.activities,
+          rule.applicability.artifacts,
+          rule.applicability.surfaces,
+          rule.applicability.contexts,
+          rule.applicability.when,
+          rule.applicability.not_when,
+          rule.guidance.prefer,
+          rule.guidance.avoid,
+          rule.retrieval.keywords,
+          rule.retrieval.aliases,
+          rule.retrieval.positive_examples,
+          rule.retrieval.negative_examples,
+          rule.verification.checks,
+          rule.evidence.map(function (item) { return item.summary; })
+        ];
+        return fields.flat(Infinity).filter(Boolean).join(" ").toLowerCase();
+      }
+
+      rules.forEach(function (rule) {
+        rule._search = searchableText(rule);
+      });
+
+      function cardMarkup(rule) {
+        return '<button class="rule-card" type="button" data-rule-id="' + escapeHtml(rule.id) +
+          '" style="--accent:' + accentFor(rule) + '" aria-label="Open ' + escapeHtml(rule.title) + '">' +
+          '<div class="rule-visual">' + visualMarkup(rule) + '</div>' +
+          '<div class="rule-caption"><div class="caption-top"><span class="domain-label">' +
+          escapeHtml(rootName(rule)) + " · " + escapeHtml(leafName(rule)) + "</span>" +
+          statusMarkup(rule.lifecycle.status, true) + "</div><h2>" + escapeHtml(rule.title) +
+          "</h2><p>" + escapeHtml(rule.statement) + '</p><div class="card-meta"><span>' +
+          escapeHtml(titleCase(rule.kind)) + "</span><span>" + escapeHtml(titleCase(rule.strength)) +
+          "</span><span>" + escapeHtml(rule.id) + "</span></div></div></button>";
+      }
+
+      function filteredRules() {
+        var terms = searchInput.value.trim().toLowerCase().split(/\s+/).filter(Boolean);
+        var status = statusFilter.value;
+        var domain = domainFilter.value;
+        return rules.filter(function (rule) {
+          var statusMatch = status === "all" ||
+            rule.lifecycle.status === status ||
+            (status === "other" && rule.lifecycle.status !== "active" && rule.lifecycle.status !== "candidate");
+          var domainMatch = domain === "all" || rootId(rule) === domain;
+          var searchMatch = terms.every(function (term) { return rule._search.indexOf(term) !== -1; });
+          return statusMatch && domainMatch && searchMatch;
+        });
+      }
+
+      function renderLibrary() {
+        var visible = filteredRules();
+        grid.innerHTML = visible.map(cardMarkup).join("");
+        resultCount.textContent = visible.length + (visible.length === 1 ? " rule" : " rules");
+        emptyState.classList.toggle("is-visible", visible.length === 0);
+        grid.hidden = visible.length === 0;
+        grid.querySelectorAll(".rule-card").forEach(function (card) {
+          card.addEventListener("click", function () {
+            openRule(card.dataset.ruleId, card);
+          });
+        });
+      }
+
+      function listMarkup(items) {
+        if (!items || !items.length) {
+          return '<ul><li>None recorded.</li></ul>';
+        }
+        return "<ul>" + items.map(function (item) {
+          return "<li>" + escapeHtml(item) + "</li>";
+        }).join("") + "</ul>";
+      }
+
+      function tagsMarkup(items) {
+        return (items || []).map(function (item) {
+          return '<span class="tag">' + escapeHtml(item) + "</span>";
+        }).join("");
+      }
+
+      function evidenceMarkup(rule) {
+        return rule.evidence.map(function (item) {
+          var source = item.source || {};
+          var locator = source.thread_id ?
+            source.thread_id + "/" + (source.source_keys || []).join(",") :
+            "external";
+          return '<div class="evidence-item"><p>' + escapeHtml(item.summary) +
+            '</p><div class="evidence-source">' + escapeHtml(item.id) + " · " +
+            escapeHtml(item.stance) + " · " + escapeHtml(locator) + "</div></div>";
+        }).join("");
+      }
+
+      function exceptionsMarkup(rule) {
+        if (!rule.exceptions.length) {
+          return "";
+        }
+        var items = rule.exceptions.map(function (item) {
+          return item.condition + " Use instead: " + item.use_instead + " Why: " + item.rationale;
+        });
+        return '<section class="detail-section"><h3>Exceptions</h3>' + listMarkup(items) + "</section>";
+      }
+
+      function dialogMarkup(rule) {
+        var basis = rule.confidence.basis;
+        var lifecycle = rule.lifecycle;
+        var operativeNote = lifecycle.status === "active" ? "" :
+          '<div class="nonoperative-note">This record is visible for review and posterity, but it is not an operative design instruction.</div>';
+        var applicabilityTags = []
+          .concat(rule.applicability.products)
+          .concat(rule.applicability.activities)
+          .concat(rule.applicability.artifacts)
+          .concat(rule.applicability.surfaces);
+
+        return '<header class="dialog-bar"><div class="dialog-title-wrap"><div class="dialog-kicker">' +
+          statusMarkup(lifecycle.status, true) + "<span>" + escapeHtml(rootName(rule)) + " · " +
+          escapeHtml(leafName(rule)) + " · " + escapeHtml(rule.id) +
+          '</span></div><h2 class="dialog-title" id="dialog-title">' + escapeHtml(rule.title) +
+          '</h2></div><div class="dialog-actions"><button class="icon-button" id="copy-link" type="button" data-tip="Copy link" aria-label="Copy link to this rule">' +
+          '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M10.5 13.5 13.5 10.5"></path><path d="M8.2 15.8 6.4 17.6a3.7 3.7 0 0 1-5.2-5.2L5 8.6a3.7 3.7 0 0 1 5.2 0"></path><path d="m15.8 8.2 1.8-1.8a3.7 3.7 0 0 1 5.2 5.2L19 15.4a3.7 3.7 0 0 1-5.2 0"></path></svg></button>' +
+          '<button class="icon-button" id="close-dialog" type="button" data-tip="Close" aria-label="Close rule details">' +
+          '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18"></path></svg></button></div></header>' +
+          '<div class="dialog-scroll"><section class="dialog-hero"><div class="dialog-visual" style="--accent:' +
+          accentFor(rule) + '">' + visualMarkup(rule) +
+          '</div><div><p class="statement">' + escapeHtml(rule.statement) + '</p><p class="rationale">' +
+          escapeHtml(rule.rationale) + '</p><div class="scope-tags">' + tagsMarkup(applicabilityTags) +
+          "</div></div></section>" +
+          '<div class="dialog-content"><div class="content-stack">' + operativeNote +
+          '<section class="detail-section"><h3>Use when</h3>' + listMarkup(rule.applicability.when) +
+          "</section>" +
+          (rule.applicability.not_when.length ? '<section class="detail-section"><h3>Do not use when</h3>' +
+            listMarkup(rule.applicability.not_when) + "</section>" : "") +
+          '<section class="detail-section"><h3>Guidance</h3><div class="guidance-grid"><div class="guidance-panel prefer"><h3>Prefer</h3>' +
+          listMarkup(rule.guidance.prefer) + '</div><div class="guidance-panel avoid"><h3>Avoid</h3>' +
+          listMarkup(rule.guidance.avoid) + "</div></div></section>" +
+          exceptionsMarkup(rule) +
+          '<section class="detail-section"><h3>Review checks</h3>' + listMarkup(rule.verification.checks) +
+          '</section><section class="detail-section"><h3>Evidence</h3><div class="evidence-list">' +
+          evidenceMarkup(rule) + '</div></section></div><aside class="side-stack"><section class="detail-section"><h3>Record</h3>' +
+          '<table class="meta-table"><tbody>' +
+          "<tr><th>Kind</th><td>" + escapeHtml(titleCase(rule.kind)) + "</td></tr>" +
+          "<tr><th>Strength</th><td>" + escapeHtml(titleCase(rule.strength)) + "</td></tr>" +
+          "<tr><th>Confidence</th><td>" + escapeHtml(titleCase(rule.confidence.level)) + "</td></tr>" +
+          "<tr><th>Support</th><td>" + basis.supporting_episodes + " episodes · " + basis.distinct_threads + " threads</td></tr>" +
+          "<tr><th>Approval</th><td>" + escapeHtml(lifecycle.approved_by || "None") + "</td></tr>" +
+          "<tr><th>Last review</th><td>" + escapeHtml(lifecycle.last_reviewed_at || "Not reviewed") + "</td></tr>" +
+          "<tr><th>Next review</th><td>" + escapeHtml(lifecycle.review_after || "Not scheduled") + "</td></tr>" +
+          "<tr><th>Source</th><td>" + escapeHtml(rule.canonical_path) + "</td></tr>" +
+          '</tbody></table></section><section class="detail-section"><h3>Classification</h3><div class="scope-tags">' +
+          tagsMarkup([rule.classification.primary].concat(rule.classification.secondary).concat(rule.classification.pattern_categories)) +
+          "</div></section>" +
+          (rule.lifecycle.decision_note ? '<section class="detail-section"><h3>Decision</h3><p class="rationale">' +
+            escapeHtml(rule.lifecycle.decision_note) + "</p></section>" : "") +
+          "</aside></div></div>";
+      }
+
+      function findRule(id) {
+        return rules.find(function (rule) { return rule.id === id; });
+      }
+
+      function setHash(id) {
+        if (window.location.hash !== "#" + id) {
+          history.pushState(null, "", "#" + id);
+        }
+      }
+
+      function clearHash() {
+        if (window.location.hash) {
+          history.replaceState(null, "", window.location.pathname + window.location.search);
+        }
+      }
+
+      function openRule(id, card) {
+        var rule = findRule(id);
+        if (!rule) {
+          return;
+        }
+        activeCard = card || document.activeElement;
+        dialogShell.innerHTML = dialogMarkup(rule);
+        setHash(rule.id);
+        dialog.style.setProperty("--accent", accentFor(rule));
+        if (!dialog.open) {
+          dialog.showModal();
+        }
+        document.getElementById("close-dialog").addEventListener("click", function () {
+          dialog.close();
+        });
+        document.getElementById("copy-link").addEventListener("click", copyCurrentLink);
+      }
+
+      function copyCurrentLink() {
+        var button = document.getElementById("copy-link");
+        var url = window.location.href;
+        var done = function () {
+          button.dataset.tip = "Copied";
+          window.setTimeout(function () { button.dataset.tip = "Copy link"; }, 1400);
+        };
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(url).then(done).catch(function () {
+            fallbackCopy(url, done);
+          });
+        } else {
+          fallbackCopy(url, done);
+        }
+      }
+
+      function fallbackCopy(value, done) {
+        var textarea = document.createElement("textarea");
+        textarea.value = value;
+        textarea.setAttribute("readonly", "");
+        textarea.style.position = "fixed";
+        textarea.style.opacity = "0";
+        document.body.appendChild(textarea);
+        textarea.select();
+        try {
+          document.execCommand("copy");
+          done();
+        } finally {
+          textarea.remove();
+        }
+      }
+
+      function handleHash() {
+        var id = window.location.hash.slice(1);
+        var rule = findRule(id);
+        if (rule) {
+          openRule(id, null);
+        } else if (dialog.open) {
+          dialog.close();
+        }
+      }
+
+      roots.forEach(function (root) {
+        var option = document.createElement("option");
+        option.value = root.id;
+        option.textContent = root.name;
+        domainFilter.appendChild(option);
+      });
+
+      var generatedDate = new Date(data.meta.generated_at);
+      var dateLabel = Number.isNaN(generatedDate.getTime()) ?
+        data.meta.generated_at :
+        generatedDate.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
+      document.getElementById("corpus-meta").textContent =
+        data.meta.rule_count + " rules · " + data.meta.status_counts.active + " active · updated " + dateLabel;
+
+      [searchInput, statusFilter, domainFilter].forEach(function (control) {
+        control.addEventListener(control.tagName === "INPUT" ? "input" : "change", renderLibrary);
+      });
+
+      clearFilters.addEventListener("click", function () {
+        searchInput.value = "";
+        statusFilter.value = "all";
+        domainFilter.value = "all";
+        renderLibrary();
+        searchInput.focus();
+      });
+
+      dialog.addEventListener("close", function () {
+        clearHash();
+        if (activeCard && document.contains(activeCard)) {
+          activeCard.focus();
+        }
+        activeCard = null;
+      });
+
+      dialog.addEventListener("click", function (event) {
+        if (event.target === dialog) {
+          dialog.close();
+        }
+      });
+
+      window.addEventListener("hashchange", handleHash);
+      document.addEventListener("keydown", function (event) {
+        if (event.key === "/" && !dialog.open && document.activeElement !== searchInput) {
+          event.preventDefault();
+          searchInput.focus();
+        }
+      });
+
+      renderLibrary();
+      handleHash();
+    }());
+  </script>
+</body>
+</html>

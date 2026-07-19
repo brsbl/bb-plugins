@@ -1,0 +1,165 @@
+{
+  "schema_version": 1,
+  "id": "ddr_017",
+  "revision": 1,
+  "title": "Make controls behaviorally honest",
+  "kind": "standard",
+  "strength": "required",
+  "statement": "A visible control must work and its pressed or selected appearance must reflect real state; otherwise remove, disable, or fix it.",
+  "rationale": "False affordances and decorative state destroy trust faster than a visibly unavailable action.",
+  "guidance": {
+    "prefer": [
+      "Wire every visible control to real behavior.",
+      "Reflect real selected, pressed, loading, and disabled state."
+    ],
+    "avoid": [
+      "Inert controls that look actionable.",
+      "Pressed styling disconnected from actual state."
+    ]
+  },
+  "classification": {
+    "primary": "interaction.feedback",
+    "secondary": [
+      "product.trust",
+      "accessibility.comprehension"
+    ],
+    "pattern_categories": [
+      "Actions & commands",
+      "Feedback & status"
+    ]
+  },
+  "applicability": {
+    "products": [
+      "global"
+    ],
+    "activities": [
+      "architecture",
+      "design",
+      "critique",
+      "implementation",
+      "qa"
+    ],
+    "artifacts": [
+      "workflow",
+      "screen",
+      "component"
+    ],
+    "surfaces": [
+      "buttons",
+      "toggles",
+      "navigation controls"
+    ],
+    "contexts": [
+      "interactive state"
+    ],
+    "when": [
+      "A surface presents an interactive control or stateful action."
+    ],
+    "not_when": [
+      "A clearly labeled static demonstration is intentionally non-interactive."
+    ]
+  },
+  "exceptions": [],
+  "relationships": [],
+  "evidence": [
+    {
+      "id": "ev_017_01",
+      "source": {
+        "type": "published_summary",
+        "store": "public-doctrine",
+        "thread_id": "published-context-008",
+        "source_keys": [
+          "published-signal-023"
+        ],
+        "project_id": "published-scope-002"
+      },
+      "signal": "explicit_correction",
+      "stance": "supports",
+      "observed_at": "2026-06-04",
+      "summary": "Reported a bulk-resolution control that did nothing and looked permanently pressed.",
+      "excerpt": null,
+      "content_sha256": "sha256:66a9b55b790a4e10ddbf2808b5dd3e8531ba74b2286a20391c3c3d0c8b36746e",
+      "doctrine_version_seen": "pre-doctrine",
+      "episode_id": "external:published:episode-018",
+      "episode_source_keys": [
+        "published-span-023"
+      ]
+    },
+    {
+      "id": "ev_017_02",
+      "source": {
+        "type": "published_summary",
+        "store": "public-doctrine",
+        "thread_id": "published-context-003",
+        "source_keys": [
+          "published-signal-004",
+          "published-signal-008"
+        ],
+        "project_id": "published-scope-002"
+      },
+      "signal": "explicit_correction",
+      "stance": "supports",
+      "observed_at": "2026-07-02",
+      "summary": "Rejected a nonworking upvote and a navigation dropdown that opened on unintended hover.",
+      "excerpt": null,
+      "content_sha256": "sha256:fa77a9d05c41ee0d8fc4fe0a4711280a584b58370c23a021751cd645f8645213",
+      "doctrine_version_seen": "pre-doctrine",
+      "episode_id": "external:published:episode-004",
+      "episode_source_keys": [
+        "published-span-004",
+        "published-span-008"
+      ]
+    }
+  ],
+  "confidence": {
+    "level": "high",
+    "basis": {
+      "explicit_user_signals": 3,
+      "supporting_episodes": 2,
+      "challenging_episodes": 0,
+      "distinct_threads": 2,
+      "distinct_projects": 1
+    },
+    "assessed_at": "2026-07-17",
+    "note": "Bootstrapped from independent direct user episodes under the owner's request to mine durable design rules."
+  },
+  "lifecycle": {
+    "status": "active",
+    "created_at": "2026-07-17",
+    "updated_at": "2026-07-17",
+    "activated_at": "2026-07-17",
+    "last_reviewed_at": "2026-07-17",
+    "review_after": "2027-01-17",
+    "approved_by": "owner-direct-history-bootstrap",
+    "decision_note": "Activated only for the owner-requested initial bootstrap because repeated independent direct instructions or corrections establish this decision boundary."
+  },
+  "retrieval": {
+    "keywords": [
+      "buttons",
+      "controls",
+      "feedback",
+      "interaction",
+      "interactive",
+      "navigation",
+      "state",
+      "toggles"
+    ],
+    "aliases": [],
+    "positive_examples": [
+      "Wire every visible control to real behavior.",
+      "Reflect real selected, pressed, loading, and disabled state."
+    ],
+    "negative_examples": [
+      "Inert controls that look actionable.",
+      "Pressed styling disconnected from actual state."
+    ]
+  },
+  "verification": {
+    "method": "interaction_test",
+    "checks": [
+      "Can every visible control be activated as expected?",
+      "Does visual state match application state?",
+      "Is unavailable behavior clearly disabled or removed?"
+    ]
+  }
+}

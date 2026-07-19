@@ -1,0 +1,81 @@
+{
+  "version": 1,
+  "cases": [
+    {
+      "id": "routine-utilities",
+      "text": "routine refresh retry view output open source tooltip button",
+      "product": "bb",
+      "limit": 8,
+      "expected_first": "ddr_001",
+      "expected_contains": [
+        "ddr_001"
+      ]
+    },
+    {
+      "id": "semantic-empty-state",
+      "text": "empty placeholder remove collapse shortcut",
+      "limit": 8,
+      "expected_first": "ddr_005",
+      "expected_contains": [
+        "ddr_005"
+      ],
+      "max_results": 2
+    },
+    {
+      "id": "hover-without-reflow",
+      "text": "hover edit row moves layout",
+      "limit": 8,
+      "expected_first": "ddr_008",
+      "expected_contains": [
+        "ddr_008",
+        "ddr_016",
+        "ddr_028"
+      ]
+    },
+    {
+      "id": "candidate-is-not-operative",
+      "text": "navigation menu open on hover click",
+      "limit": 12,
+      "expected_excludes": [
+        "ddr_011"
+      ]
+    },
+    {
+      "id": "candidate-remains-browsable",
+      "text": "navigation menu open on hover click",
+      "status": "candidate",
+      "limit": 12,
+      "expected_contains": [
+        "ddr_011"
+      ]
+    },
+    {
+      "id": "product-specific-resource-spine",
+      "text": "shared resource spine skills plugins automations",
+      "product": "bb",
+      "limit": 8,
+      "expected_first": "ddr_013",
+      "expected_contains": [
+        "ddr_013"
+      ]
+    },
+    {
+      "id": "typed-surface-filter",
+      "text": "compact utility controls",
+      "activity": "critique",
+      "artifact": "component",
+      "surface": "toolbars",
+      "limit": 8,
+      "expected_first": "ddr_001",
+      "expected_contains": [
+        "ddr_001"
+      ]
+    },
+    {
+      "id": "non-design-near-miss",
+      "text": "sha256 hashing python bytes",
+      "limit": 8,
+      "max_results": 0
+    }
+  ]
+}

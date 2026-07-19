@@ -1,0 +1,142 @@
+{
+  "schema_version": 1,
+  "id": "ddr_019",
+  "revision": 1,
+  "title": "Give each gesture one intent",
+  "kind": "standard",
+  "strength": "required",
+  "statement": "A drag handle drags; do not overload it with click-to-group, copy, or unrelated actions.",
+  "rationale": "One gesture target with competing meanings is hard to discover, operate, and recover from.",
+  "guidance": {
+    "prefer": [
+      "Assign one primary intent to each gesture target.",
+      "Expose separate actions through separate controls."
+    ],
+    "avoid": [
+      "Using a drag handle as an unrelated click target."
+    ]
+  },
+  "classification": {
+    "primary": "interaction.input",
+    "secondary": [
+      "accessibility.operation"
+    ],
+    "pattern_categories": [
+      "Inputs & selection",
+      "Actions & commands"
+    ]
+  },
+  "applicability": {
+    "products": [
+      "global"
+    ],
+    "activities": [
+      "architecture",
+      "design",
+      "critique",
+      "implementation",
+      "qa"
+    ],
+    "artifacts": [
+      "workflow",
+      "screen",
+      "component"
+    ],
+    "surfaces": [
+      "reordering",
+      "grouping",
+      "drag handles"
+    ],
+    "contexts": [
+      "pointer gesture",
+      "direct manipulation"
+    ],
+    "when": [
+      "A control supports drag or another continuous gesture."
+    ],
+    "not_when": [
+      "A platform convention explicitly combines equivalent gestures without ambiguity."
+    ]
+  },
+  "exceptions": [],
+  "relationships": [],
+  "evidence": [
+    {
+      "id": "ev_019_01",
+      "source": {
+        "type": "published_summary",
+        "store": "public-doctrine",
+        "thread_id": "published-context-014",
+        "source_keys": [
+          "published-signal-061",
+          "published-signal-056"
+        ],
+        "project_id": "published-scope-001"
+      },
+      "signal": "explicit_correction",
+      "stance": "supports",
+      "observed_at": "2026-07-17",
+      "summary": "Asked to remove click-to-group behavior and restore a simple, working drag handle.",
+      "excerpt": null,
+      "content_sha256": "sha256:b56692c328331bd54f17e5a0c1786f5ce8ad3bbc5410173adb9936dffb97f5d5",
+      "doctrine_version_seen": "pre-doctrine",
+      "episode_id": "external:published:episode-047",
+      "episode_source_keys": [
+        "published-span-061",
+        "published-span-056"
+      ]
+    }
+  ],
+  "confidence": {
+    "level": "high",
+    "basis": {
+      "explicit_user_signals": 2,
+      "supporting_episodes": 1,
+      "challenging_episodes": 0,
+      "distinct_threads": 1,
+      "distinct_projects": 1
+    },
+    "assessed_at": "2026-07-17",
+    "note": "Bootstrapped from independent direct user episodes under the owner's request to mine durable design rules."
+  },
+  "lifecycle": {
+    "status": "candidate",
+    "created_at": "2026-07-17",
+    "updated_at": "2026-07-17",
+    "activated_at": null,
+    "last_reviewed_at": "2026-07-17",
+    "review_after": null,
+    "approved_by": null,
+    "decision_note": "Candidate pending independent recurrence or explicit owner approval."
+  },
+  "retrieval": {
+    "keywords": [
+      "direct",
+      "drag",
+      "gesture",
+      "grouping",
+      "handles",
+      "input",
+      "interaction",
+      "manipulation",
+      "pointer",
+      "reordering"
+    ],
+    "aliases": [],
+    "positive_examples": [
+      "Assign one primary intent to each gesture target.",
+      "Expose separate actions through separate controls."
+    ],
+    "negative_examples": [
+      "Using a drag handle as an unrelated click target."
+    ]
+  },
+  "verification": {
+    "method": "interaction_test",
+    "checks": [
+      "Does the target have one predictable gesture meaning?",
+      "Are keyboard and touch alternatives available?",
+      "Can an accidental activation be undone?"
+    ]
+  }
+}

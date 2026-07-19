@@ -1,0 +1,1222 @@
+[data-bb-plugin-root][data-bb-plugin="design-doctrine"] {
+  display: block;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.dd-shell,
+.dd-inspector {
+  --dd-surface: var(--background);
+  --dd-surface-soft: color-mix(in srgb, var(--muted) 66%, var(--background));
+  --dd-line: color-mix(in srgb, var(--foreground) 16%, transparent);
+  --dd-line-strong: color-mix(in srgb, var(--foreground) 34%, transparent);
+  --dd-ink-soft: color-mix(in srgb, var(--foreground) 68%, var(--background));
+  --dd-accent: var(--foreground);
+  box-sizing: border-box;
+  color: var(--foreground);
+  font-family: var(--font-sans, ui-sans-serif, system-ui, sans-serif);
+}
+
+.dd-shell {
+  width: min(100%, 84rem);
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  max-height: 100dvh;
+  margin: 0 auto;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: clamp(1rem, 2.5vw, 2rem) clamp(0.9rem, 2vw, 1.5rem) 3rem;
+  container-name: doctrine-library;
+  container-type: inline-size;
+}
+
+.dd-shell *,
+.dd-shell *::before,
+.dd-shell *::after,
+.dd-inspector *,
+.dd-inspector *::before,
+.dd-inspector *::after {
+  box-sizing: border-box;
+}
+
+.dd-toolbar {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(15rem, 1fr) minmax(9rem, 0.32fr) minmax(11rem, 0.38fr) auto;
+  gap: 0.65rem;
+  align-items: end;
+  padding-bottom: 0.9rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.dd-search {
+  position: relative;
+}
+
+.dd-search__icon {
+  position: absolute;
+  z-index: 1;
+  top: 50%;
+  left: 0.72rem;
+  width: 1rem;
+  height: 1rem;
+  color: var(--muted-foreground);
+  pointer-events: none;
+  transform: translateY(-50%);
+}
+
+.dd-search input {
+  height: 2.25rem;
+  padding-left: 2.25rem;
+  border-color: var(--input, var(--border));
+  background: transparent;
+}
+
+.dd-control {
+  display: grid;
+  min-width: 0;
+  gap: 0.28rem;
+}
+
+.dd-control > span {
+  color: var(--muted-foreground);
+  font-size: 0.72rem;
+  font-weight: 500;
+  line-height: 1;
+}
+
+.dd-control button {
+  height: 2.25rem;
+  border-color: var(--input, var(--border));
+  box-shadow: none;
+}
+
+.dd-toolbar__status {
+  display: flex;
+  height: 2.25rem;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.25rem;
+}
+
+.dd-git {
+  display: inline-flex;
+  min-width: 0;
+  height: 1.75rem;
+  align-items: center;
+  gap: 0.3rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 0 0.55rem;
+  color: var(--muted-foreground);
+  background: color-mix(in srgb, var(--muted) 48%, transparent);
+  font-size: 0.68rem;
+  line-height: 1;
+}
+
+.dd-git svg {
+  width: 0.8rem;
+  height: 0.8rem;
+}
+
+.dd-git code {
+  color: var(--foreground);
+  font-family: var(--font-mono, ui-monospace, monospace);
+}
+
+.dd-git i {
+  color: var(--foreground);
+  font-style: normal;
+}
+
+.dd-git--dirty {
+  border-style: dashed;
+}
+
+.dd-refresh {
+  width: 2rem !important;
+  height: 2rem !important;
+  color: var(--muted-foreground);
+}
+
+.dd-result-count {
+  position: absolute;
+  right: 0;
+  bottom: -2rem;
+  margin: 0;
+  color: var(--muted-foreground);
+  font-size: 0.72rem;
+  line-height: 1;
+}
+
+.dd-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.78rem;
+  padding-top: 2.65rem;
+}
+
+.dd-card {
+  position: relative;
+  display: grid;
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: calc(var(--radius, 0.65rem) - 0.08rem);
+  padding: 0.42rem;
+  background: var(--background);
+  box-shadow:
+    0 1px 1px color-mix(in srgb, var(--foreground) 5%, transparent),
+    0 7px 18px color-mix(in srgb, var(--foreground) 6%, transparent);
+  transition:
+    border-color 140ms ease,
+    transform 140ms ease;
+}
+
+.dd-card:hover,
+.dd-card:has(.dd-card__trigger:focus-visible) {
+  border-color: var(--dd-line-strong);
+  transform: translateY(-1px);
+}
+
+.dd-card:has(.dd-card__trigger:focus-visible) {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+.dd-card__trigger {
+  position: absolute;
+  z-index: 2;
+  inset: 0;
+  border: 0;
+  border-radius: inherit;
+  background: transparent;
+  cursor: pointer;
+}
+
+.dd-card__trigger:focus-visible {
+  outline: none;
+}
+
+.dd-card__body {
+  display: grid;
+  min-width: 0;
+  gap: 0.46rem;
+  padding: 0.62rem 0.25rem 0.32rem;
+}
+
+.dd-card__meta,
+.dd-card__footer,
+.dd-inspector__kicker {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  color: var(--muted-foreground);
+  font-size: 0.66rem;
+  line-height: 1;
+  text-transform: capitalize;
+}
+
+.dd-card__meta {
+  justify-content: space-between;
+}
+
+.dd-card h2 {
+  margin: 0;
+  font-size: 0.84rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  line-height: 1.26;
+}
+
+.dd-card p {
+  display: -webkit-box;
+  min-height: 3.55em;
+  margin: 0;
+  overflow: hidden;
+  color: var(--muted-foreground);
+  font-size: 0.72rem;
+  line-height: 1.48;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+}
+
+.dd-card__footer {
+  padding-top: 0.12rem;
+}
+
+.dd-card__footer span + span::before {
+  content: "·";
+  margin-right: 0.4rem;
+}
+
+.dd-card__footer code {
+  margin-left: auto;
+  color: var(--muted-foreground);
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 0.64rem;
+  text-transform: none;
+}
+
+.dd-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.28rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 0.18rem 0.38rem;
+  color: var(--muted-foreground);
+  background: var(--background);
+  font-size: 0.62rem;
+  font-weight: 500;
+  line-height: 1;
+  text-transform: capitalize;
+}
+
+.dd-pill__dot {
+  width: 0.34rem;
+  height: 0.34rem;
+  border: 1px solid currentColor;
+  border-radius: 999px;
+}
+
+.dd-pill--active {
+  color: var(--foreground);
+}
+
+.dd-pill--active .dd-pill__dot {
+  background: currentColor;
+}
+
+.dd-pill--candidate {
+  border-style: dashed;
+}
+
+.dd-visual {
+  width: 100%;
+  aspect-ratio: 8 / 5;
+  margin: 0;
+  overflow: hidden;
+  border: 1px solid var(--dd-line);
+  border-radius: calc(var(--radius, 0.65rem) - 0.22rem);
+  background: var(--dd-surface-soft);
+  container-type: inline-size;
+}
+
+.dd-visual__stage {
+  display: grid;
+  width: 100%;
+  height: 100%;
+  grid-template-rows: auto 1fr;
+  gap: 8cqi;
+  padding: 7cqi;
+}
+
+.dd-visual__topline {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.dd-visual__eyebrow {
+  color: var(--muted-foreground);
+  font-size: clamp(0.44rem, 3.4cqi, 0.74rem);
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  line-height: 1;
+  text-transform: uppercase;
+}
+
+.dd-visual__status-dot {
+  width: 3.4cqi;
+  height: 3.4cqi;
+  border: 1px solid var(--dd-line-strong);
+  border-radius: 999px;
+}
+
+.dd-anatomy {
+  min-width: 0;
+  min-height: 0;
+}
+
+.dd-anatomy--product {
+  display: flex;
+  align-items: center;
+}
+
+.dd-anatomy__node {
+  width: 19%;
+  aspect-ratio: 1;
+  border: 1px solid var(--dd-line-strong);
+  border-radius: 22%;
+  background: var(--dd-surface);
+}
+
+.dd-anatomy__node--strong {
+  background: var(--dd-accent);
+}
+
+.dd-anatomy__connector {
+  flex: 1;
+  height: 1px;
+  background: var(--dd-line-strong);
+}
+
+.dd-anatomy--information {
+  display: grid;
+  grid-template-columns: 29% 1fr;
+  gap: 8cqi;
+}
+
+.dd-anatomy__rail,
+.dd-anatomy__copy {
+  display: grid;
+  align-content: center;
+  gap: 5cqi;
+}
+
+.dd-anatomy__rail i,
+.dd-anatomy__copy i,
+.dd-anatomy--content > *,
+.dd-anatomy__label {
+  display: block;
+  height: 1px;
+  background: var(--dd-line-strong);
+}
+
+.dd-anatomy__rail i:first-child {
+  height: 6cqi;
+  border-radius: 999px;
+  background: var(--dd-accent);
+}
+
+.dd-anatomy__copy i:first-child {
+  width: 72%;
+  height: 3px;
+  background: var(--dd-accent);
+}
+
+.dd-anatomy__copy i:nth-child(3) {
+  width: 84%;
+}
+
+.dd-anatomy__copy i:last-child {
+  width: 56%;
+}
+
+.dd-anatomy--interaction {
+  display: grid;
+  align-content: center;
+  gap: 4cqi;
+}
+
+.dd-anatomy--interaction > span {
+  display: flex;
+  height: 12cqi;
+  align-items: center;
+  gap: 4cqi;
+  border: 1px solid var(--dd-line);
+  border-radius: 3cqi;
+  padding: 0 4cqi;
+  background: var(--dd-surface);
+}
+
+.dd-anatomy--interaction i {
+  flex: 1;
+  height: 1px;
+  background: var(--dd-line-strong);
+}
+
+.dd-anatomy--interaction b {
+  width: 7cqi;
+  height: 7cqi;
+  border: 1px solid var(--dd-line-strong);
+  border-radius: 2cqi;
+}
+
+.dd-anatomy--visual {
+  display: grid;
+  grid-template-columns: 1.5fr 1fr 1fr;
+  grid-template-rows: 1fr 1fr;
+  gap: 4cqi;
+}
+
+.dd-anatomy--visual > span {
+  border: 1px solid var(--dd-line-strong);
+  border-radius: 3cqi;
+  background: var(--dd-surface);
+}
+
+.dd-anatomy--visual .dd-anatomy__hero {
+  grid-row: 1 / -1;
+  background: var(--dd-accent);
+}
+
+.dd-anatomy--visual > span:last-child {
+  grid-column: 2 / -1;
+}
+
+.dd-anatomy--content {
+  display: grid;
+  align-content: center;
+  gap: 5cqi;
+}
+
+.dd-anatomy--content strong {
+  width: 58%;
+  height: 4px;
+  background: var(--dd-accent);
+}
+
+.dd-anatomy--content span:nth-child(2) {
+  width: 96%;
+}
+
+.dd-anatomy--content span:nth-child(3) {
+  width: 82%;
+}
+
+.dd-anatomy--content small {
+  width: 36%;
+}
+
+.dd-anatomy--ai {
+  display: grid;
+  align-content: center;
+  gap: 8cqi;
+}
+
+.dd-anatomy__context {
+  display: flex;
+  gap: 3cqi;
+}
+
+.dd-anatomy__context i {
+  width: 24%;
+  height: 9cqi;
+  border: 1px solid var(--dd-line-strong);
+  border-radius: 999px;
+  background: var(--dd-surface);
+}
+
+.dd-anatomy__composer {
+  display: flex;
+  height: 24cqi;
+  align-items: end;
+  gap: 5cqi;
+  border: 1px solid var(--dd-line-strong);
+  border-radius: 5cqi;
+  padding: 5cqi;
+  background: var(--dd-surface);
+}
+
+.dd-anatomy__composer i {
+  flex: 1;
+  height: 1px;
+  margin-bottom: 4cqi;
+  background: var(--dd-line-strong);
+}
+
+.dd-anatomy__composer b {
+  width: 11cqi;
+  height: 11cqi;
+  border-radius: 4cqi;
+  background: var(--dd-accent);
+}
+
+.dd-anatomy--accessibility {
+  position: relative;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  gap: 8cqi;
+  padding-top: 8cqi;
+}
+
+.dd-anatomy__focus {
+  display: grid;
+  width: 28cqi;
+  height: 28cqi;
+  border: 2px solid var(--ring);
+  border-radius: 6cqi;
+  place-items: center;
+}
+
+.dd-anatomy__focus i {
+  width: 17cqi;
+  height: 17cqi;
+  border-radius: 4cqi;
+  background: var(--dd-accent);
+}
+
+.dd-anatomy__tooltip {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 31cqi;
+  height: 10cqi;
+  border-radius: 3cqi;
+  background: var(--dd-accent);
+}
+
+.dd-anatomy__label {
+  width: 78%;
+}
+
+.dd-anatomy--system {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 5cqi;
+}
+
+.dd-anatomy--system span {
+  border: 1px solid var(--dd-line-strong);
+  border-radius: 4cqi;
+  background: var(--dd-surface);
+}
+
+.dd-anatomy--system span:nth-child(2),
+.dd-anatomy--system span:nth-child(4) {
+  background: var(--dd-accent);
+}
+
+.dd-anatomy--process {
+  display: grid;
+  align-content: center;
+  gap: 5cqi;
+}
+
+.dd-anatomy--process > span {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  gap: 5cqi;
+}
+
+.dd-anatomy--process i {
+  display: block;
+  width: 10cqi;
+  height: 10cqi;
+  border: 1px solid var(--dd-line-strong);
+  border-radius: 999px;
+  background: var(--dd-surface);
+}
+
+.dd-anatomy--process span:first-child i,
+.dd-anatomy--process span:nth-child(2) i {
+  background: var(--dd-accent);
+}
+
+.dd-anatomy--process b {
+  height: 1px;
+  background: var(--dd-line-strong);
+}
+
+.dd-visual__stage {
+  gap: clamp(0.45rem, 2cqi, 1rem);
+  padding: clamp(0.65rem, 3cqi, 1.35rem);
+}
+
+.dd-visual__decisions {
+  display: grid;
+  min-width: 0;
+  min-height: 0;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: clamp(0.4rem, 2cqi, 0.8rem);
+}
+
+.dd-decision {
+  display: grid;
+  min-width: 0;
+  min-height: 0;
+  grid-template-rows: auto 1fr auto;
+  gap: clamp(0.3rem, 1.6cqi, 0.65rem);
+  border: 1px solid var(--dd-line);
+  border-radius: calc(var(--radius, 0.65rem) - 0.25rem);
+  padding: clamp(0.4rem, 2cqi, 0.8rem);
+  background: color-mix(in srgb, var(--background) 82%, transparent);
+}
+
+.dd-decision--avoid {
+  border-style: dashed;
+  color: var(--muted-foreground);
+}
+
+.dd-decision--prefer {
+  border-color: var(--dd-line-strong);
+  color: var(--foreground);
+  background: var(--background);
+}
+
+.dd-decision__label {
+  font-size: clamp(0.42rem, 2.6cqi, 0.63rem);
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  line-height: 1;
+  text-transform: uppercase;
+}
+
+.dd-decision strong {
+  min-width: 0;
+  overflow: hidden;
+  font-size: clamp(0.5rem, 3cqi, 0.72rem);
+  font-weight: 600;
+  line-height: 1.15;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dd-concept {
+  display: grid;
+  min-width: 0;
+  min-height: 0;
+  align-content: center;
+}
+
+.dd-concept i,
+.dd-concept b,
+.dd-concept span {
+  box-sizing: border-box;
+}
+
+.dd-concept__bars {
+  display: grid;
+  min-width: 0;
+  align-content: center;
+  gap: clamp(0.15rem, 1cqi, 0.35rem);
+}
+
+.dd-concept__bars i {
+  display: block;
+  width: 100%;
+  height: 1px;
+  background: currentColor;
+  opacity: 0.55;
+}
+
+.dd-concept__bars i:last-child {
+  width: 68%;
+}
+
+.dd-concept__toolbar,
+.dd-concept__state {
+  display: flex;
+  align-items: center;
+  gap: clamp(0.18rem, 1.2cqi, 0.42rem);
+  border: 1px solid currentColor;
+  border-radius: 0.3rem;
+  padding: clamp(0.22rem, 1.3cqi, 0.45rem);
+  opacity: 0.82;
+}
+
+.dd-concept__toolbar .dd-concept__bars,
+.dd-concept__state .dd-concept__bars {
+  flex: 1;
+}
+
+.dd-concept__toolbar > i,
+.dd-concept__state > i {
+  width: clamp(0.42rem, 3.5cqi, 0.9rem);
+  aspect-ratio: 1;
+  border: 1px solid currentColor;
+  border-radius: 0.2rem;
+}
+
+.dd-concept--preferred .dd-concept__toolbar > i:last-child,
+.dd-concept--preferred .dd-concept__state > i:last-child {
+  background: currentColor;
+}
+
+.dd-concept__toolbar > b,
+.dd-concept__state > b {
+  width: clamp(1rem, 8cqi, 2.3rem);
+  height: clamp(0.42rem, 3.5cqi, 0.9rem);
+  border-radius: 0.2rem;
+  background: currentColor;
+}
+
+.dd-concept__layout {
+  position: relative;
+  display: grid;
+  min-height: clamp(1.7rem, 12cqi, 3.4rem);
+  grid-template-columns: 24% 1fr;
+  gap: clamp(0.25rem, 1.5cqi, 0.5rem);
+  border: 1px solid currentColor;
+  border-radius: 0.3rem;
+  padding: clamp(0.25rem, 1.5cqi, 0.5rem);
+  opacity: 0.82;
+}
+
+.dd-concept__layout > i {
+  border-radius: 0.2rem;
+  background: currentColor;
+  opacity: 0.72;
+}
+
+.dd-concept__layout > b {
+  position: absolute;
+  inset: 18%;
+  border: 2px solid currentColor;
+  border-radius: 0.2rem;
+}
+
+.dd-concept__components,
+.dd-concept__tokens,
+.dd-concept__hierarchy {
+  display: flex;
+  min-height: clamp(1.7rem, 12cqi, 3.4rem);
+  align-items: stretch;
+  gap: clamp(0.2rem, 1.3cqi, 0.45rem);
+}
+
+.dd-concept__components i,
+.dd-concept__tokens i,
+.dd-concept__hierarchy i {
+  flex: 1;
+  border: 1px solid currentColor;
+  border-radius: 0.3rem;
+  opacity: 0.72;
+}
+
+.dd-concept--avoid .dd-concept__components i:nth-child(2),
+.dd-concept--avoid .dd-concept__tokens i:nth-child(2),
+.dd-concept--avoid .dd-concept__hierarchy i:nth-child(2) {
+  align-self: end;
+  height: 58%;
+  border-radius: 999px;
+}
+
+.dd-concept--preferred .dd-concept__components i:nth-child(2),
+.dd-concept--preferred .dd-concept__tokens i:nth-child(2),
+.dd-concept--preferred .dd-concept__hierarchy i:first-child {
+  background: currentColor;
+}
+
+.dd-concept__navigation {
+  position: relative;
+  display: grid;
+  min-height: clamp(1.7rem, 12cqi, 3.4rem);
+  grid-template-columns: 30% 1fr;
+  grid-template-rows: auto 1fr;
+  gap: clamp(0.2rem, 1.2cqi, 0.4rem);
+}
+
+.dd-concept__navigation > i {
+  grid-row: 1 / 3;
+  border: 1px solid currentColor;
+  border-radius: 0.3rem;
+}
+
+.dd-concept__navigation > b {
+  align-self: start;
+  font-size: clamp(0.38rem, 2.3cqi, 0.58rem);
+  font-weight: 600;
+  line-height: 1;
+}
+
+.dd-concept__navigation > span {
+  border: 1px solid currentColor;
+  border-radius: 0.3rem;
+  padding: clamp(0.18rem, 1cqi, 0.35rem);
+}
+
+.dd-concept--preferred .dd-concept__navigation > i {
+  background: currentColor;
+}
+
+.dd-concept__content {
+  display: grid;
+  min-height: clamp(1.7rem, 12cqi, 3.4rem);
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  gap: clamp(0.28rem, 1.5cqi, 0.55rem);
+}
+
+.dd-concept__content > strong {
+  border: 1px solid currentColor;
+  border-radius: 999px;
+  padding: 0.22rem 0.35rem;
+  font-size: clamp(0.38rem, 2.3cqi, 0.58rem);
+  line-height: 1;
+}
+
+.dd-concept--preferred .dd-concept__content > strong {
+  color: var(--background);
+  background: currentColor;
+}
+
+.dd-concept__flow,
+.dd-concept__evidence {
+  display: flex;
+  min-height: clamp(1.7rem, 12cqi, 3.4rem);
+  align-items: center;
+  gap: clamp(0.2rem, 1.2cqi, 0.45rem);
+}
+
+.dd-concept__flow > i,
+.dd-concept__evidence > span {
+  flex: 1;
+  height: 72%;
+  border: 1px solid currentColor;
+  border-radius: 0.3rem;
+}
+
+.dd-concept__flow > b,
+.dd-concept__evidence > b {
+  font-size: clamp(0.55rem, 3.4cqi, 0.9rem);
+}
+
+.dd-concept__flow .dd-concept__target,
+.dd-concept__evidence .dd-concept__render {
+  border-width: 2px;
+  background: color-mix(in srgb, currentColor 12%, transparent);
+}
+
+.dd-concept__evidence > span:first-child {
+  display: grid;
+  align-content: center;
+  padding: clamp(0.2rem, 1.2cqi, 0.4rem);
+}
+
+.dd-concept__context {
+  display: grid;
+  min-height: clamp(1.7rem, 12cqi, 3.4rem);
+  align-content: center;
+  gap: clamp(0.25rem, 1.4cqi, 0.5rem);
+}
+
+.dd-concept__context > span {
+  display: flex;
+  gap: clamp(0.18rem, 1cqi, 0.35rem);
+}
+
+.dd-concept__context > span i {
+  width: 30%;
+  height: clamp(0.35rem, 2.5cqi, 0.65rem);
+  border: 1px solid currentColor;
+  border-radius: 999px;
+}
+
+.dd-concept__context > b {
+  display: flex;
+  align-items: center;
+  gap: clamp(0.2rem, 1.2cqi, 0.4rem);
+  border: 1px solid currentColor;
+  border-radius: 0.3rem;
+  padding: clamp(0.2rem, 1.2cqi, 0.4rem);
+}
+
+.dd-concept__context > b .dd-concept__bars {
+  flex: 1;
+}
+
+.dd-concept__context > b > i {
+  width: clamp(0.45rem, 3.5cqi, 0.85rem);
+  aspect-ratio: 1;
+  border-radius: 0.2rem;
+  background: currentColor;
+}
+
+.dd-loading,
+.dd-empty {
+  display: grid;
+  width: min(100%, 27rem);
+  min-height: 12rem;
+  align-content: center;
+  justify-items: start;
+  gap: 0.48rem;
+  margin: 1.5rem auto 0;
+  padding: 1rem;
+}
+
+.dd-loading {
+  justify-items: center;
+}
+
+.dd-loading svg {
+  width: 1rem;
+  height: 1rem;
+  color: var(--muted-foreground);
+}
+
+.dd-empty strong,
+.dd-empty p {
+  margin: 0;
+}
+
+.dd-empty strong {
+  font-size: 0.875rem;
+}
+
+.dd-empty p {
+  color: var(--muted-foreground);
+  font-size: 0.8125rem;
+}
+
+.dd-spin {
+  animation: dd-spin 0.9s linear infinite;
+}
+
+@keyframes dd-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.dd-inspector {
+  width: min(58rem, calc(100vw - 2rem)) !important;
+  max-width: min(58rem, calc(100vw - 2rem)) !important;
+  max-height: calc(100dvh - 2rem);
+  gap: 0 !important;
+  overflow-y: auto;
+  border-color: var(--border) !important;
+  padding: 0.48rem !important;
+  background: var(--background) !important;
+  box-shadow: 0 24px 70px color-mix(in srgb, var(--foreground) 25%, transparent) !important;
+}
+
+.dd-inspector--missing {
+  width: min(28rem, calc(100vw - 2rem)) !important;
+  max-width: min(28rem, calc(100vw - 2rem)) !important;
+}
+
+.dd-inspector > button {
+  top: 0.7rem;
+  right: 0.7rem;
+  display: grid;
+  width: 2rem;
+  height: 2rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--foreground);
+  background: color-mix(in srgb, var(--background) 92%, transparent);
+  opacity: 1;
+  place-items: center;
+}
+
+.dd-visual--inspector {
+  min-height: 13rem;
+  aspect-ratio: auto;
+  border-color: var(--border);
+}
+
+.dd-inspector__header,
+.dd-inspector__content {
+  display: grid;
+  gap: 0.72rem;
+  padding: 0.9rem 0.72rem 0.45rem;
+}
+
+.dd-inspector__header {
+  padding-right: 3rem;
+}
+
+.dd-inspector__header h2 {
+  font-size: 1.08rem;
+  line-height: 1.22;
+}
+
+.dd-inspector__header > p {
+  max-width: 76ch;
+  line-height: 1.5;
+}
+
+.dd-inspector__kicker {
+  text-transform: capitalize;
+}
+
+.dd-candidate-note {
+  display: flex;
+  max-width: 48rem;
+  align-items: flex-start;
+  gap: 0.42rem;
+  border: 1px dashed var(--border);
+  border-radius: var(--radius, 0.65rem);
+  padding: 0.62rem 0.7rem;
+  color: var(--muted-foreground);
+  background: var(--dd-surface-soft);
+  font-size: 0.76rem;
+  line-height: 1.42;
+}
+
+.dd-candidate-note svg {
+  flex: none;
+  width: 0.9rem;
+  height: 0.9rem;
+  margin-top: 0.08rem;
+}
+
+.dd-rationale,
+.dd-detail-block {
+  display: grid;
+  gap: 0.48rem;
+  border-top: 1px solid var(--border);
+  padding-top: 0.78rem;
+}
+
+.dd-rationale h3,
+.dd-rationale p,
+.dd-detail-block h3,
+.dd-detail-block ul,
+.dd-detail-block p {
+  margin: 0;
+}
+
+.dd-rationale h3,
+.dd-detail-block h3 {
+  font-size: 0.76rem;
+  font-weight: 600;
+}
+
+.dd-rationale p,
+.dd-detail-block li,
+.dd-exceptions p,
+.dd-evidence p {
+  color: var(--muted-foreground);
+  font-size: 0.77rem;
+  line-height: 1.48;
+}
+
+.dd-guidance-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+}
+
+.dd-detail-block ul {
+  display: grid;
+  gap: 0.32rem;
+  padding-left: 1.12rem;
+}
+
+.dd-detail-block--positive li::marker {
+  content: "✓  ";
+}
+
+.dd-detail-block--negative li::marker {
+  content: "×  ";
+}
+
+.dd-exceptions,
+.dd-evidence {
+  display: grid;
+  gap: 0.55rem;
+}
+
+.dd-exceptions article,
+.dd-evidence article {
+  display: grid;
+  gap: 0.28rem;
+  border-left: 2px solid var(--border);
+  padding-left: 0.65rem;
+}
+
+.dd-exceptions strong {
+  font-size: 0.75rem;
+}
+
+.dd-exceptions small {
+  color: var(--muted-foreground);
+  font-size: 0.7rem;
+}
+
+.dd-evidence code,
+.dd-metadata code {
+  overflow-wrap: anywhere;
+  color: var(--muted-foreground);
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 0.66rem;
+}
+
+.dd-metadata {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.6rem;
+  margin: 0;
+  border-top: 1px solid var(--border);
+  padding-top: 0.78rem;
+}
+
+.dd-metadata div {
+  display: grid;
+  min-width: 0;
+  gap: 0.2rem;
+}
+
+.dd-metadata dt {
+  color: var(--muted-foreground);
+  font-size: 0.66rem;
+}
+
+.dd-metadata dd {
+  margin: 0;
+  font-size: 0.74rem;
+  text-transform: none;
+}
+
+@container doctrine-library (max-width: 54rem) {
+  .dd-toolbar {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .dd-search {
+    grid-column: 1 / -1;
+  }
+
+  .dd-toolbar__status {
+    justify-content: flex-start;
+  }
+
+  .dd-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@container doctrine-library (max-width: 35rem) {
+  .dd-toolbar {
+    grid-template-columns: 1fr;
+  }
+
+  .dd-git {
+    max-width: calc(100% - 2.5rem);
+  }
+
+  .dd-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 42.5rem) {
+  .dd-inspector {
+    width: calc(100vw - 1rem) !important;
+    max-width: calc(100vw - 1rem) !important;
+    max-height: calc(100dvh - 1rem);
+    padding: 0.38rem !important;
+  }
+
+  .dd-visual--inspector {
+    min-height: 11rem;
+  }
+
+  .dd-guidance-grid,
+  .dd-metadata {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dd-card {
+    transition: none;
+  }
+
+  .dd-card:hover,
+  .dd-card:has(.dd-card__trigger:focus-visible) {
+    transform: none;
+  }
+
+  .dd-spin {
+    animation: none;
+  }
+}

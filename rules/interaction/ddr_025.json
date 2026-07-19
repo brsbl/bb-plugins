@@ -1,0 +1,139 @@
+{
+  "schema_version": 1,
+  "id": "ddr_025",
+  "revision": 1,
+  "title": "Preserve object identity during in-place editing",
+  "kind": "standard",
+  "strength": "required",
+  "statement": "Editing an item in place preserves its position and commits back to that same item rather than moving the work into a separate composer or reordered draft.",
+  "rationale": "Direct editing should maintain object identity and spatial context so the user knows exactly what will change.",
+  "guidance": {
+    "prefer": [
+      "Edit and commit the same object at the same location.",
+      "Preserve ordering unless reordering is the explicit action."
+    ],
+    "avoid": [
+      "Copying an item into a detached composer.",
+      "Moving the item because it entered edit mode."
+    ]
+  },
+  "classification": {
+    "primary": "interaction.input",
+    "secondary": [
+      "product.trust"
+    ],
+    "pattern_categories": [
+      "Inputs & selection",
+      "Content & data"
+    ]
+  },
+  "applicability": {
+    "products": [
+      "global"
+    ],
+    "activities": [
+      "architecture",
+      "design",
+      "critique",
+      "implementation",
+      "qa"
+    ],
+    "artifacts": [
+      "workflow",
+      "screen",
+      "component"
+    ],
+    "surfaces": [
+      "queues",
+      "rows",
+      "inline objects"
+    ],
+    "contexts": [
+      "in-place editing"
+    ],
+    "when": [
+      "The user invokes edit on an existing object."
+    ],
+    "not_when": [
+      "The product explicitly creates a new derived object and communicates that transition."
+    ]
+  },
+  "exceptions": [],
+  "relationships": [],
+  "evidence": [
+    {
+      "id": "ev_025_01",
+      "source": {
+        "type": "published_summary",
+        "store": "public-doctrine",
+        "thread_id": "published-context-014",
+        "source_keys": [
+          "published-signal-053"
+        ],
+        "project_id": "published-scope-001"
+      },
+      "signal": "explicit_correction",
+      "stance": "supports",
+      "observed_at": "2026-07-17",
+      "summary": "Required in-place editing to update the queued item where it is, rather than move content into a separate prompt.",
+      "excerpt": null,
+      "content_sha256": "sha256:2718e95f2a738ddfeb4ce7fee03f35b07b9206a449e609c846ea0cb7b9fe08a2",
+      "doctrine_version_seen": "pre-doctrine",
+      "episode_id": "external:published:episode-046",
+      "episode_source_keys": [
+        "published-span-053"
+      ]
+    }
+  ],
+  "confidence": {
+    "level": "high",
+    "basis": {
+      "explicit_user_signals": 1,
+      "supporting_episodes": 1,
+      "challenging_episodes": 0,
+      "distinct_threads": 1,
+      "distinct_projects": 1
+    },
+    "assessed_at": "2026-07-17",
+    "note": "Bootstrapped from independent direct user episodes under the owner's request to mine durable design rules."
+  },
+  "lifecycle": {
+    "status": "candidate",
+    "created_at": "2026-07-17",
+    "updated_at": "2026-07-17",
+    "activated_at": null,
+    "last_reviewed_at": "2026-07-17",
+    "review_after": null,
+    "approved_by": null,
+    "decision_note": "Candidate pending independent recurrence or explicit owner approval."
+  },
+  "retrieval": {
+    "keywords": [
+      "editing",
+      "in-place",
+      "inline",
+      "input",
+      "interaction",
+      "objects",
+      "queues",
+      "rows"
+    ],
+    "aliases": [],
+    "positive_examples": [
+      "Edit and commit the same object at the same location.",
+      "Preserve ordering unless reordering is the explicit action."
+    ],
+    "negative_examples": [
+      "Copying an item into a detached composer.",
+      "Moving the item because it entered edit mode."
+    ]
+  },
+  "verification": {
+    "method": "interaction_test",
+    "checks": [
+      "Is the edited object still the same object?",
+      "Does it remain in place?",
+      "Does commit update that exact object?"
+    ]
+  }
+}

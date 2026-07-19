@@ -1,0 +1,181 @@
+{
+  "schema_version": 1,
+  "id": "ddr_016",
+  "revision": 1,
+  "title": "Keep hover effects local",
+  "kind": "guideline",
+  "strength": "default",
+  "statement": "Hover styling and action changes belong to the owning row or control rather than an unrelated whole card.",
+  "rationale": "Local hover scope makes the interactive target and ownership legible without lighting up unrelated content.",
+  "guidance": {
+    "prefer": [
+      "Apply hover feedback to the smallest owning interactive region."
+    ],
+    "avoid": [
+      "Changing an entire card when only one row or action is interactive."
+    ]
+  },
+  "classification": {
+    "primary": "interaction.feedback",
+    "secondary": [
+      "visual.hierarchy"
+    ],
+    "pattern_categories": [
+      "Feedback & status",
+      "Actions & commands"
+    ]
+  },
+  "applicability": {
+    "products": [
+      "global"
+    ],
+    "activities": [
+      "architecture",
+      "design",
+      "critique",
+      "implementation",
+      "qa"
+    ],
+    "artifacts": [
+      "workflow",
+      "screen",
+      "component"
+    ],
+    "surfaces": [
+      "dense rows",
+      "install controls",
+      "overflow actions"
+    ],
+    "contexts": [
+      "hover feedback"
+    ],
+    "when": [
+      "A nested action or row needs hover feedback."
+    ],
+    "not_when": [
+      "The entire card is one interactive target."
+    ]
+  },
+  "exceptions": [],
+  "relationships": [],
+  "evidence": [
+    {
+      "id": "ev_016_01",
+      "source": {
+        "type": "published_summary",
+        "store": "public-doctrine",
+        "thread_id": "published-context-006",
+        "source_keys": [
+          "published-signal-017"
+        ],
+        "project_id": "published-scope-001"
+      },
+      "signal": "explicit_correction",
+      "stance": "supports",
+      "observed_at": "2026-07-14",
+      "summary": "Requested only the hovered button, not its entire card, change state.",
+      "excerpt": null,
+      "content_sha256": "sha256:3eecca4764c384ab91de9bdf9d8380e86afe18799ab7f88c0234265c714c40b1",
+      "doctrine_version_seen": "pre-doctrine",
+      "episode_id": "external:published:episode-014",
+      "episode_source_keys": [
+        "published-span-017"
+      ]
+    },
+    {
+      "id": "ev_016_02",
+      "source": {
+        "type": "published_summary",
+        "store": "public-doctrine",
+        "thread_id": "published-context-014",
+        "source_keys": [
+          "published-signal-057"
+        ],
+        "project_id": "published-scope-001"
+      },
+      "signal": "explicit_correction",
+      "stance": "supports",
+      "observed_at": "2026-07-17",
+      "summary": "Requested row actions and the drag handle appear only on row hover.",
+      "excerpt": null,
+      "content_sha256": "sha256:ce1b59c1dbb72875cef8332490269221b4ae469ab2a0e17a4c462ba299791ae5",
+      "doctrine_version_seen": "pre-doctrine",
+      "episode_id": "external:published:episode-042",
+      "episode_source_keys": [
+        "published-span-057"
+      ]
+    },
+    {
+      "id": "ev_016_03",
+      "source": {
+        "type": "published_summary",
+        "store": "public-doctrine",
+        "thread_id": "published-context-013",
+        "source_keys": [
+          "published-signal-048"
+        ],
+        "project_id": "published-scope-001"
+      },
+      "signal": "explicit_correction",
+      "stance": "supports",
+      "observed_at": "2026-07-08",
+      "summary": "Restored row-hover action buttons after they disappeared.",
+      "excerpt": null,
+      "content_sha256": "sha256:bbc5a00e50971b928f8fedb4ce21af5794fa4cc25dc6d108e87714813524f190",
+      "doctrine_version_seen": "pre-doctrine",
+      "episode_id": "external:published:episode-039",
+      "episode_source_keys": [
+        "published-span-048"
+      ]
+    }
+  ],
+  "confidence": {
+    "level": "high",
+    "basis": {
+      "explicit_user_signals": 3,
+      "supporting_episodes": 3,
+      "challenging_episodes": 0,
+      "distinct_threads": 3,
+      "distinct_projects": 1
+    },
+    "assessed_at": "2026-07-17",
+    "note": "Bootstrapped from independent direct user episodes under the owner's request to mine durable design rules."
+  },
+  "lifecycle": {
+    "status": "active",
+    "created_at": "2026-07-17",
+    "updated_at": "2026-07-17",
+    "activated_at": "2026-07-17",
+    "last_reviewed_at": "2026-07-17",
+    "review_after": "2027-01-17",
+    "approved_by": "owner-direct-history-bootstrap",
+    "decision_note": "Activated only for the owner-requested initial bootstrap because repeated independent direct instructions or corrections establish this decision boundary."
+  },
+  "retrieval": {
+    "keywords": [
+      "actions",
+      "controls",
+      "dense",
+      "feedback",
+      "hover",
+      "install",
+      "interaction",
+      "overflow",
+      "rows"
+    ],
+    "aliases": [],
+    "positive_examples": [
+      "Apply hover feedback to the smallest owning interactive region."
+    ],
+    "negative_examples": [
+      "Changing an entire card when only one row or action is interactive."
+    ]
+  },
+  "verification": {
+    "method": "interaction_test",
+    "checks": [
+      "Does the hover region match the actual click target?",
+      "Does unrelated content remain visually stable?"
+    ]
+  }
+}

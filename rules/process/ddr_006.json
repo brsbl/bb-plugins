@@ -1,0 +1,139 @@
+{
+  "schema_version": 1,
+  "id": "ddr_006",
+  "revision": 1,
+  "title": "Keep durable decisions editable at the source",
+  "kind": "guideline",
+  "strength": "default",
+  "statement": "For durable decisions in a note, default to editable Markdown tables or checklists; use HTML for a focused visual or interaction demonstration rather than as an opaque replacement.",
+  "rationale": "A visually rich but non-editable decision surface can displace the user's actual work instead of supporting it.",
+  "guidance": {
+    "prefer": [
+      "Keep the decision itself in editable, commentable source.",
+      "Use scoped HTML only where visual shape or interaction materially improves understanding."
+    ],
+    "avoid": [
+      "Replacing editable choices with a non-editable visual artifact."
+    ]
+  },
+  "classification": {
+    "primary": "process.handoff",
+    "secondary": [
+      "content.instructions",
+      "interaction.input"
+    ],
+    "pattern_categories": [
+      "Content & data"
+    ]
+  },
+  "applicability": {
+    "products": [
+      "moss"
+    ],
+    "activities": [
+      "architecture",
+      "design",
+      "critique",
+      "implementation",
+      "qa"
+    ],
+    "artifacts": [
+      "documentation",
+      "note",
+      "visual"
+    ],
+    "surfaces": [
+      "decision notes",
+      "specifications",
+      "planning artifacts"
+    ],
+    "contexts": [
+      "durable decision",
+      "editable artifact"
+    ],
+    "when": [
+      "The artifact captures decisions the user will revise or comment on."
+    ],
+    "not_when": [
+      "The requested deliverable is primarily a visual or interactive demonstration."
+    ]
+  },
+  "exceptions": [],
+  "relationships": [],
+  "evidence": [
+    {
+      "id": "ev_006_01",
+      "source": {
+        "type": "published_summary",
+        "store": "public-doctrine",
+        "thread_id": "published-context-007",
+        "source_keys": [
+          "published-signal-019"
+        ],
+        "project_id": "published-scope-002"
+      },
+      "signal": "explicit_correction",
+      "stance": "supports",
+      "observed_at": "2026-06-03",
+      "summary": "Rejected using chat as a substitute for editing the underlying note.",
+      "excerpt": null,
+      "content_sha256": "sha256:cece5e690a7dd498a453c0e14c9f8b5f14fb1e1840f32b9b681f7a62d4990a68",
+      "doctrine_version_seen": "pre-doctrine",
+      "episode_id": "external:published:episode-016",
+      "episode_source_keys": [
+        "published-span-019"
+      ]
+    }
+  ],
+  "confidence": {
+    "level": "medium",
+    "basis": {
+      "explicit_user_signals": 1,
+      "supporting_episodes": 1,
+      "challenging_episodes": 0,
+      "distinct_threads": 1,
+      "distinct_projects": 1
+    },
+    "assessed_at": "2026-07-17",
+    "note": "Bootstrapped from independent direct user episodes under the owner's request to mine durable design rules."
+  },
+  "lifecycle": {
+    "status": "candidate",
+    "created_at": "2026-07-17",
+    "updated_at": "2026-07-17",
+    "activated_at": null,
+    "last_reviewed_at": "2026-07-17",
+    "review_after": null,
+    "approved_by": null,
+    "decision_note": "Candidate pending independent recurrence or explicit owner approval."
+  },
+  "retrieval": {
+    "keywords": [
+      "artifact",
+      "artifacts",
+      "decision",
+      "durable",
+      "editable",
+      "handoff",
+      "notes",
+      "planning",
+      "process",
+      "specifications"
+    ],
+    "aliases": [],
+    "positive_examples": [
+      "Keep the decision itself in editable, commentable source.",
+      "Use scoped HTML only where visual shape or interaction materially improves understanding."
+    ],
+    "negative_examples": [
+      "Replacing editable choices with a non-editable visual artifact."
+    ]
+  },
+  "verification": {
+    "method": "design_review",
+    "checks": [
+      "Can the user edit the actual decision at its canonical source?",
+      "Is any HTML block scoped to one visual job?"
+    ]
+  }
+}

@@ -1,0 +1,194 @@
+{
+  "schema_version": 1,
+  "id": "ddr_009",
+  "revision": 1,
+  "title": "Let content grow within explicit bounds",
+  "kind": "guideline",
+  "strength": "default",
+  "statement": "Let inputs and surfaces grow with useful content to an explicit maximum; do not alter unrelated minimum constraints.",
+  "rationale": "Useful content should not be artificially cramped, while unbounded growth and collateral resizing destabilize the surrounding layout.",
+  "guidance": {
+    "prefer": [
+      "Grow with useful content until a clear maximum.",
+      "Preserve unrelated minimum sizes and narrow-viewport constraints."
+    ],
+    "avoid": [
+      "Fixed cramped surfaces for variable content.",
+      "Changing a neighboring minimum merely to fit one state."
+    ]
+  },
+  "classification": {
+    "primary": "visual.layout",
+    "secondary": [
+      "system.responsiveness",
+      "interaction.input"
+    ],
+    "pattern_categories": [
+      "Layout & composition",
+      "Inputs & selection"
+    ]
+  },
+  "applicability": {
+    "products": [
+      "global"
+    ],
+    "activities": [
+      "architecture",
+      "design",
+      "critique",
+      "implementation",
+      "qa"
+    ],
+    "artifacts": [
+      "workflow",
+      "screen",
+      "component"
+    ],
+    "surfaces": [
+      "editors",
+      "popovers",
+      "drawers",
+      "panels"
+    ],
+    "contexts": [
+      "variable content",
+      "resizable surface"
+    ],
+    "when": [
+      "Content length or user editing meaningfully changes the useful footprint."
+    ],
+    "not_when": [
+      "Growth would exceed a viewport or destabilize the primary workspace."
+    ]
+  },
+  "exceptions": [],
+  "relationships": [],
+  "evidence": [
+    {
+      "id": "ev_009_01",
+      "source": {
+        "type": "published_summary",
+        "store": "public-doctrine",
+        "thread_id": "published-context-014",
+        "source_keys": [
+          "published-signal-050"
+        ],
+        "project_id": "published-scope-001"
+      },
+      "signal": "explicit_correction",
+      "stance": "supports",
+      "observed_at": "2026-07-17",
+      "summary": "Flagged a fullscreen surface that exceeded content needs and left excessive empty space.",
+      "excerpt": null,
+      "content_sha256": "sha256:d5e922f13fd5633f7edf5ef4799d277cff66dcfc1d60f84c7431a9142e0e87fc",
+      "doctrine_version_seen": "pre-doctrine",
+      "episode_id": "external:published:episode-043",
+      "episode_source_keys": [
+        "published-span-050"
+      ]
+    },
+    {
+      "id": "ev_009_02",
+      "source": {
+        "type": "published_summary",
+        "store": "public-doctrine",
+        "thread_id": "published-context-010",
+        "source_keys": [
+          "published-signal-037",
+          "published-signal-038"
+        ],
+        "project_id": "published-scope-002"
+      },
+      "signal": "explicit_correction",
+      "stance": "supports",
+      "observed_at": "2026-07-17",
+      "summary": "Rejected an unrequested minimum-width change while asking comment input width to grow only to a maximum.",
+      "excerpt": null,
+      "content_sha256": "sha256:527f43e92d2174eacbb51629690ad8cf5be79b75c07697f9738fc09244c799b6",
+      "doctrine_version_seen": "pre-doctrine",
+      "episode_id": "external:published:episode-031",
+      "episode_source_keys": [
+        "published-span-037",
+        "published-span-038"
+      ]
+    },
+    {
+      "id": "ev_009_03",
+      "source": {
+        "type": "published_summary",
+        "store": "public-doctrine",
+        "thread_id": "published-context-010",
+        "source_keys": [
+          "published-signal-039",
+          "published-signal-040"
+        ],
+        "project_id": "published-scope-002"
+      },
+      "signal": "explicit_instruction",
+      "stance": "supports",
+      "observed_at": "2026-07-17",
+      "summary": "Specified a comment composer that grows as text wraps: compact secondary actions in a plus menu at one line, then inline footer actions while text continues paragraph-like.",
+      "excerpt": null,
+      "content_sha256": "sha256:0ec1b2079c23eb5206de78ae95aee7d0a6dd1d255175e72b102a2d5e24b4fd6f",
+      "doctrine_version_seen": "sha256:3160f41cd26d0c6e040206782a6a3e311fefd8e44c44e0ad53366c0213893aeb",
+      "episode_id": "external:published:episode-029",
+      "episode_source_keys": [
+        "published-span-039",
+        "published-span-040"
+      ]
+    }
+  ],
+  "confidence": {
+    "level": "high",
+    "basis": {
+      "explicit_user_signals": 3,
+      "supporting_episodes": 2,
+      "challenging_episodes": 0,
+      "distinct_threads": 2,
+      "distinct_projects": 2
+    },
+    "assessed_at": "2026-07-17",
+    "note": "Bootstrapped from independent direct user episodes under the owner's request to mine durable design rules."
+  },
+  "lifecycle": {
+    "status": "active",
+    "created_at": "2026-07-17",
+    "updated_at": "2026-07-17",
+    "activated_at": "2026-07-17",
+    "last_reviewed_at": "2026-07-17",
+    "review_after": "2027-01-17",
+    "approved_by": "owner-direct-history-bootstrap",
+    "decision_note": "Activated only for the owner-requested initial bootstrap because repeated independent direct instructions or corrections establish this decision boundary."
+  },
+  "retrieval": {
+    "keywords": [
+      "content",
+      "drawers",
+      "editors",
+      "layout",
+      "panels",
+      "popovers",
+      "resizable",
+      "surface",
+      "variable",
+      "visual"
+    ],
+    "aliases": [],
+    "positive_examples": [
+      "Grow with useful content until a clear maximum.",
+      "Preserve unrelated minimum sizes and narrow-viewport constraints."
+    ],
+    "negative_examples": [
+      "Fixed cramped surfaces for variable content.",
+      "Changing a neighboring minimum merely to fit one state."
+    ]
+  },
+  "verification": {
+    "method": "visual_review",
+    "checks": [
+      "Is there a useful growth range and explicit maximum?",
+      "Are unrelated constraints preserved?",
+      "Does the narrowest supported viewport remain usable?"
+    ]
+  }
+}

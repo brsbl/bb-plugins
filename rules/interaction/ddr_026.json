@@ -1,0 +1,147 @@
+{
+  "schema_version": 1,
+  "id": "ddr_026",
+  "revision": 1,
+  "title": "Focus direct editing on the real anchor",
+  "kind": "guideline",
+  "strength": "default",
+  "statement": "Direct edit should focus the intended object immediately, make its anchor obvious, and suppress transient hover or selection interference.",
+  "rationale": "Editing feels direct only when the user remains anchored to the object and input focus is unambiguous.",
+  "guidance": {
+    "prefer": [
+      "Move focus immediately to the real editing target.",
+      "Keep the source anchor visible and quiet competing hover state."
+    ],
+    "avoid": [
+      "Opening an editor without focus.",
+      "Leaving selection or hover state that visually competes with editing."
+    ]
+  },
+  "classification": {
+    "primary": "interaction.input",
+    "secondary": [
+      "accessibility.operation",
+      "visual.hierarchy"
+    ],
+    "pattern_categories": [
+      "Inputs & selection",
+      "Feedback & status"
+    ]
+  },
+  "applicability": {
+    "products": [
+      "global"
+    ],
+    "activities": [
+      "architecture",
+      "design",
+      "critique",
+      "implementation",
+      "qa"
+    ],
+    "artifacts": [
+      "workflow",
+      "screen",
+      "component"
+    ],
+    "surfaces": [
+      "pills",
+      "inline editors",
+      "popovers"
+    ],
+    "contexts": [
+      "direct edit",
+      "focus transition"
+    ],
+    "when": [
+      "A user invokes editing directly from an object."
+    ],
+    "not_when": [
+      "The edit requires a deliberate multi-step modal workflow for safety."
+    ]
+  },
+  "exceptions": [],
+  "relationships": [],
+  "evidence": [
+    {
+      "id": "ev_026_01",
+      "source": {
+        "type": "published_summary",
+        "store": "public-doctrine",
+        "thread_id": "published-context-010",
+        "source_keys": [
+          "published-signal-030",
+          "published-signal-031",
+          "published-signal-032"
+        ],
+        "project_id": "published-scope-002"
+      },
+      "signal": "explicit_correction",
+      "stance": "supports",
+      "observed_at": "2026-07-17",
+      "summary": "Reported editing a formula pill selected its container and flashed a hover card; asked for a clearer editing anchor.",
+      "excerpt": null,
+      "content_sha256": "sha256:5b37fe9c76de8bc3ee8662e8f9965906ac609b551a0dea2e2bd4dd25ad21d78d",
+      "doctrine_version_seen": "pre-doctrine",
+      "episode_id": "external:published:episode-027",
+      "episode_source_keys": [
+        "published-span-030",
+        "published-span-031",
+        "published-span-032"
+      ]
+    }
+  ],
+  "confidence": {
+    "level": "high",
+    "basis": {
+      "explicit_user_signals": 3,
+      "supporting_episodes": 1,
+      "challenging_episodes": 0,
+      "distinct_threads": 1,
+      "distinct_projects": 1
+    },
+    "assessed_at": "2026-07-17",
+    "note": "Bootstrapped from independent direct user episodes under the owner's request to mine durable design rules."
+  },
+  "lifecycle": {
+    "status": "candidate",
+    "created_at": "2026-07-17",
+    "updated_at": "2026-07-17",
+    "activated_at": null,
+    "last_reviewed_at": "2026-07-17",
+    "review_after": null,
+    "approved_by": null,
+    "decision_note": "Candidate pending independent recurrence or explicit owner approval."
+  },
+  "retrieval": {
+    "keywords": [
+      "direct",
+      "edit",
+      "editors",
+      "focus",
+      "inline",
+      "input",
+      "interaction",
+      "pills",
+      "popovers",
+      "transition"
+    ],
+    "aliases": [],
+    "positive_examples": [
+      "Move focus immediately to the real editing target.",
+      "Keep the source anchor visible and quiet competing hover state."
+    ],
+    "negative_examples": [
+      "Opening an editor without focus.",
+      "Leaving selection or hover state that visually competes with editing."
+    ]
+  },
+  "verification": {
+    "method": "interaction_test",
+    "checks": [
+      "Does focus land on the intended input?",
+      "Can the user still identify the source object?",
+      "Are competing transient states suppressed?"
+    ]
+  }
+}

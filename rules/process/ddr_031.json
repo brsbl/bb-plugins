@@ -1,0 +1,163 @@
+{
+  "schema_version": 1,
+  "id": "ddr_031",
+  "revision": 1,
+  "title": "Inspect rendered state before claiming visual correctness",
+  "kind": "standard",
+  "strength": "required",
+  "statement": "An agent must not infer visible UI correctness from source text alone; it needs direct inspection of the rendered target before explaining or claiming success.",
+  "rationale": "Source can be correct while runtime composition, state, density, or stale assets remain visibly wrong.",
+  "guidance": {
+    "prefer": [
+      "Inspect the current rendered target in the relevant state and viewport.",
+      "Report what was observed separately from what source implies."
+    ],
+    "avoid": [
+      "Declaring UI correct because code looks correct.",
+      "Using stale screenshots or an unverified server."
+    ]
+  },
+  "classification": {
+    "primary": "process.validation",
+    "secondary": [
+      "ai.transparency",
+      "product.trust"
+    ],
+    "pattern_categories": [
+      "Feedback & status"
+    ]
+  },
+  "applicability": {
+    "products": [
+      "global"
+    ],
+    "activities": [
+      "critique",
+      "qa",
+      "documentation"
+    ],
+    "artifacts": [
+      "documentation",
+      "note",
+      "visual"
+    ],
+    "surfaces": [
+      "visual QA",
+      "editor rendering",
+      "agent reports"
+    ],
+    "contexts": [
+      "visual explanation",
+      "completion claim"
+    ],
+    "when": [
+      "An agent explains, reviews, or claims completion of visible UI work."
+    ],
+    "not_when": [
+      "The task is explicitly source-only and visual state is out of scope, which must be stated."
+    ]
+  },
+  "exceptions": [],
+  "relationships": [],
+  "evidence": [
+    {
+      "id": "ev_031_01",
+      "source": {
+        "type": "published_summary",
+        "store": "public-doctrine",
+        "thread_id": "published-context-001",
+        "source_keys": [
+          "published-signal-001"
+        ],
+        "project_id": "published-scope-002"
+      },
+      "signal": "explicit_instruction",
+      "stance": "supports",
+      "observed_at": "2026-07-11",
+      "summary": "Questioned an agent's claim about rendered content and requested a canvas screenshot capability.",
+      "excerpt": null,
+      "content_sha256": "sha256:f8d2c5026b4458e084c84531ead52478ac5ee0c2975a1cac89943bad6e3d37b8",
+      "doctrine_version_seen": "pre-doctrine",
+      "episode_id": "external:published:episode-001",
+      "episode_source_keys": [
+        "published-span-001"
+      ]
+    },
+    {
+      "id": "ev_031_02",
+      "source": {
+        "type": "published_summary",
+        "store": "public-doctrine",
+        "thread_id": "published-context-010",
+        "source_keys": [
+          "published-signal-042"
+        ],
+        "project_id": "published-scope-002"
+      },
+      "signal": "explicit_correction",
+      "stance": "supports",
+      "observed_at": "2026-07-11",
+      "summary": "Reported a valid callout existed on disk but was absent from the rendered canvas because inspection never checked the visual result.",
+      "excerpt": null,
+      "content_sha256": "sha256:df473cc814281336773e314dd2a84a32f645fb2acfbfacf07534e6eccd920643",
+      "doctrine_version_seen": "pre-doctrine",
+      "episode_id": "external:published:episode-032",
+      "episode_source_keys": [
+        "published-span-042"
+      ]
+    }
+  ],
+  "confidence": {
+    "level": "high",
+    "basis": {
+      "explicit_user_signals": 2,
+      "supporting_episodes": 2,
+      "challenging_episodes": 0,
+      "distinct_threads": 2,
+      "distinct_projects": 1
+    },
+    "assessed_at": "2026-07-17",
+    "note": "Bootstrapped from independent direct user episodes under the owner's request to mine durable design rules."
+  },
+  "lifecycle": {
+    "status": "active",
+    "created_at": "2026-07-17",
+    "updated_at": "2026-07-17",
+    "activated_at": "2026-07-17",
+    "last_reviewed_at": "2026-07-17",
+    "review_after": "2027-01-17",
+    "approved_by": "owner-direct-history-bootstrap",
+    "decision_note": "Activated only for the owner-requested initial bootstrap because repeated independent direct instructions or corrections establish this decision boundary."
+  },
+  "retrieval": {
+    "keywords": [
+      "agent",
+      "claim",
+      "completion",
+      "editor",
+      "explanation",
+      "process",
+      "rendering",
+      "reports",
+      "validation",
+      "visual"
+    ],
+    "aliases": [],
+    "positive_examples": [
+      "Inspect the current rendered target in the relevant state and viewport.",
+      "Report what was observed separately from what source implies."
+    ],
+    "negative_examples": [
+      "Declaring UI correct because code looks correct.",
+      "Using stale screenshots or an unverified server."
+    ]
+  },
+  "verification": {
+    "method": "design_review",
+    "checks": [
+      "Was the current rendered target inspected directly?",
+      "Were the relevant state and viewport exercised?",
+      "Does the report distinguish observed behavior from inference?"
+    ]
+  }
+}

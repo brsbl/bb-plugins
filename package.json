@@ -1,0 +1,63 @@
+{
+  "name": "bb-plugin-design-doctrine",
+  "version": "0.1.0",
+  "description": "Browse and query an evidence-backed personal design doctrine with Git provenance.",
+  "type": "module",
+  "license": "MIT",
+  "engines": {
+    "bb": ">=0.0.31",
+    "bbPluginSdk": "^0.4.0"
+  },
+  "bb": {
+    "name": "Design Doctrine",
+    "description": "Browse and query an evidence-backed personal design doctrine with Git provenance.",
+    "branding": {
+      "icon": "Explore"
+    },
+    "server": "./server.ts",
+    "app": "./app.tsx",
+    "skills": [
+      "skills"
+    ]
+  },
+  "files": [
+    "dist",
+    "skills",
+    "governance.md",
+    "taxonomy.json",
+    "schema",
+    "rules",
+    "generated",
+    "maintenance",
+    "scripts",
+    "templates"
+  ],
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run server.test.ts",
+    "build": "NODE_PATH=./node_modules bb plugin build ."
+  },
+  "dependencies": {
+    "@hugeicons/core-free-icons": "^4.1.3",
+    "@hugeicons/react": "^1.1.6",
+    "@radix-ui/react-select": "^2.3.3",
+    "@radix-ui/react-slot": "^1.3.0",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
+    "tailwind-merge": "^3.4.0",
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "@radix-ui/react-dialog": "^1.1.19",
+    "@types/better-sqlite3": "^7.6.12",
+    "@types/node": "^22.0.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.2.3",
+    "better-sqlite3": "^12.0.0",
+    "esbuild": "0.28.1",
+    "hono": "^4.11.9",
+    "typescript": "^5.7.0",
+    "vaul": "^1.1.2",
+    "vitest": "^4.0.0"
+  }
+}

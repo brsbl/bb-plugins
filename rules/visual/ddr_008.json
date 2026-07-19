@@ -1,0 +1,165 @@
+{
+  "schema_version": 1,
+  "id": "ddr_008",
+  "revision": 1,
+  "title": "Reveal controls without reflow",
+  "kind": "guideline",
+  "strength": "default",
+  "statement": "Hover, drag, and edit affordances must not shift row or panel geometry; transient controls should overlay or use reserved space.",
+  "rationale": "Reflow under the pointer makes dense interfaces feel unstable and causes users to lose their target.",
+  "guidance": {
+    "prefer": [
+      "Overlay transient actions or reserve their space.",
+      "Keep the anchor and neighboring content stable."
+    ],
+    "avoid": [
+      "Adding hover or edit controls that push content or resize the row."
+    ]
+  },
+  "classification": {
+    "primary": "visual.layout",
+    "secondary": [
+      "interaction.efficiency"
+    ],
+    "pattern_categories": [
+      "Layout & composition",
+      "Actions & commands"
+    ]
+  },
+  "applicability": {
+    "products": [
+      "global"
+    ],
+    "activities": [
+      "architecture",
+      "design",
+      "critique",
+      "implementation",
+      "qa"
+    ],
+    "artifacts": [
+      "workflow",
+      "screen",
+      "component"
+    ],
+    "surfaces": [
+      "rows",
+      "inline editors",
+      "drag handles"
+    ],
+    "contexts": [
+      "hover reveal",
+      "inline editing",
+      "drag affordance"
+    ],
+    "when": [
+      "A transient affordance appears inside an existing row or panel."
+    ],
+    "not_when": [
+      "Intentional content expansion is the action and the anchor remains stable."
+    ]
+  },
+  "exceptions": [],
+  "relationships": [],
+  "evidence": [
+    {
+      "id": "ev_008_01",
+      "source": {
+        "type": "published_summary",
+        "store": "public-doctrine",
+        "thread_id": "published-context-014",
+        "source_keys": [
+          "published-signal-052"
+        ],
+        "project_id": "published-scope-001"
+      },
+      "signal": "explicit_correction",
+      "stance": "supports",
+      "observed_at": "2026-07-17",
+      "summary": "Reported the row's padding shrank when its drag handle appeared.",
+      "excerpt": null,
+      "content_sha256": "sha256:4d63095d39a14d8f5393307912486faf93a069d2bf8734d8dde80103c38bbb1a",
+      "doctrine_version_seen": "pre-doctrine",
+      "episode_id": "external:published:episode-048",
+      "episode_source_keys": [
+        "published-span-052"
+      ]
+    },
+    {
+      "id": "ev_008_02",
+      "source": {
+        "type": "published_summary",
+        "store": "public-doctrine",
+        "thread_id": "published-context-010",
+        "source_keys": [
+          "published-signal-029"
+        ],
+        "project_id": "published-scope-002"
+      },
+      "signal": "explicit_correction",
+      "stance": "supports",
+      "observed_at": "2026-07-17",
+      "summary": "Reported entering formula or variable mode shifted the layout downward.",
+      "excerpt": null,
+      "content_sha256": "sha256:8b9f98a77c500e5f9c5d139c458ef65ec2c8718e958b7268d49ca3febbe70acc",
+      "doctrine_version_seen": "pre-doctrine",
+      "episode_id": "external:published:episode-024",
+      "episode_source_keys": [
+        "published-span-029"
+      ]
+    }
+  ],
+  "confidence": {
+    "level": "high",
+    "basis": {
+      "explicit_user_signals": 2,
+      "supporting_episodes": 2,
+      "challenging_episodes": 0,
+      "distinct_threads": 2,
+      "distinct_projects": 2
+    },
+    "assessed_at": "2026-07-17",
+    "note": "Bootstrapped from independent direct user episodes under the owner's request to mine durable design rules."
+  },
+  "lifecycle": {
+    "status": "active",
+    "created_at": "2026-07-17",
+    "updated_at": "2026-07-17",
+    "activated_at": "2026-07-17",
+    "last_reviewed_at": "2026-07-17",
+    "review_after": "2027-01-17",
+    "approved_by": "owner-direct-history-bootstrap",
+    "decision_note": "Activated only for the owner-requested initial bootstrap because repeated independent direct instructions or corrections establish this decision boundary."
+  },
+  "retrieval": {
+    "keywords": [
+      "affordance",
+      "drag",
+      "editing",
+      "editors",
+      "handles",
+      "hover",
+      "inline",
+      "layout",
+      "reveal",
+      "rows",
+      "visual"
+    ],
+    "aliases": [],
+    "positive_examples": [
+      "Overlay transient actions or reserve their space.",
+      "Keep the anchor and neighboring content stable."
+    ],
+    "negative_examples": [
+      "Adding hover or edit controls that push content or resize the row."
+    ]
+  },
+  "verification": {
+    "method": "visual_review",
+    "checks": [
+      "Does geometry remain stable when controls appear?",
+      "Can the pointer target stay under the pointer?",
+      "Is intentional expansion visually anchored?"
+    ]
+  }
+}

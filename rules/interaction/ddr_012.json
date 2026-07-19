@@ -1,0 +1,135 @@
+{
+  "schema_version": 1,
+  "id": "ddr_012",
+  "revision": 1,
+  "title": "Navigate to the live source object",
+  "kind": "standard",
+  "strength": "required",
+  "statement": "A list item representing in-document content must navigate to the live anchored object rather than an unreachable surrogate.",
+  "rationale": "Users inspect the source object to understand and act; a detached representation breaks that mental model.",
+  "guidance": {
+    "prefer": [
+      "Anchor navigation to the real editable or inspectable source object."
+    ],
+    "avoid": [
+      "Navigating to a detached copy, placeholder, or unreachable location."
+    ]
+  },
+  "classification": {
+    "primary": "interaction.navigation",
+    "secondary": [
+      "information.findability"
+    ],
+    "pattern_categories": [
+      "Navigation & wayfinding",
+      "Content & data"
+    ]
+  },
+  "applicability": {
+    "products": [
+      "global"
+    ],
+    "activities": [
+      "architecture",
+      "design",
+      "critique",
+      "implementation",
+      "qa"
+    ],
+    "artifacts": [
+      "workflow",
+      "screen",
+      "component"
+    ],
+    "surfaces": [
+      "comments",
+      "annotations",
+      "search results"
+    ],
+    "contexts": [
+      "source-linked list item"
+    ],
+    "when": [
+      "A secondary list represents content that exists in a primary document or canvas."
+    ],
+    "not_when": [
+      "The source object no longer exists and the UI explicitly presents a historical record."
+    ]
+  },
+  "exceptions": [],
+  "relationships": [],
+  "evidence": [
+    {
+      "id": "ev_012_01",
+      "source": {
+        "type": "published_summary",
+        "store": "public-doctrine",
+        "thread_id": "published-context-002",
+        "source_keys": [
+          "published-signal-002"
+        ],
+        "project_id": "published-scope-002"
+      },
+      "signal": "explicit_instruction",
+      "stance": "supports",
+      "observed_at": "2026-06-17",
+      "summary": "Required comment-list rows to navigate to the actual comment anchor in the editor gutter.",
+      "excerpt": null,
+      "content_sha256": "sha256:85f8ef6ad2a3dc014810558a9b4b711ec96da07c59d25e451cea8fedd56e9faf",
+      "doctrine_version_seen": "pre-doctrine",
+      "episode_id": "external:published:episode-002",
+      "episode_source_keys": [
+        "published-span-002"
+      ]
+    }
+  ],
+  "confidence": {
+    "level": "high",
+    "basis": {
+      "explicit_user_signals": 1,
+      "supporting_episodes": 1,
+      "challenging_episodes": 0,
+      "distinct_threads": 1,
+      "distinct_projects": 1
+    },
+    "assessed_at": "2026-07-17",
+    "note": "Bootstrapped from independent direct user episodes under the owner's request to mine durable design rules."
+  },
+  "lifecycle": {
+    "status": "candidate",
+    "created_at": "2026-07-17",
+    "updated_at": "2026-07-17",
+    "activated_at": null,
+    "last_reviewed_at": "2026-07-17",
+    "review_after": null,
+    "approved_by": null,
+    "decision_note": "Candidate pending independent recurrence or explicit owner approval."
+  },
+  "retrieval": {
+    "keywords": [
+      "annotations",
+      "comments",
+      "interaction",
+      "item",
+      "list",
+      "navigation",
+      "results",
+      "search",
+      "source-linked"
+    ],
+    "aliases": [],
+    "positive_examples": [
+      "Anchor navigation to the real editable or inspectable source object."
+    ],
+    "negative_examples": [
+      "Navigating to a detached copy, placeholder, or unreachable location."
+    ]
+  },
+  "verification": {
+    "method": "interaction_test",
+    "checks": [
+      "Does activation reveal and focus the real source object?",
+      "Is the destination recoverable when the source is missing?"
+    ]
+  }
+}

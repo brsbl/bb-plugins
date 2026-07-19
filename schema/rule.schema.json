@@ -1,0 +1,333 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://local.bb/design-doctrine/rule.schema.json",
+  "title": "Design Doctrine Rule",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "id",
+    "revision",
+    "title",
+    "kind",
+    "strength",
+    "statement",
+    "rationale",
+    "guidance",
+    "classification",
+    "applicability",
+    "exceptions",
+    "relationships",
+    "evidence",
+    "confidence",
+    "lifecycle",
+    "retrieval",
+    "verification"
+  ],
+  "properties": {
+    "schema_version": {"const": 1},
+    "id": {"type": "string", "pattern": "^ddr_[0-9]{3,}$"},
+    "revision": {"type": "integer", "minimum": 1},
+    "title": {"type": "string", "minLength": 3, "maxLength": 120},
+    "kind": {
+      "enum": ["principle", "standard", "guideline", "taste", "anti_pattern"]
+    },
+    "strength": {
+      "enum": ["required", "default", "preference", "warning"]
+    },
+    "statement": {"type": "string", "minLength": 10},
+    "rationale": {"type": "string", "minLength": 10},
+    "guidance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["prefer", "avoid"],
+      "properties": {
+        "prefer": {
+          "type": "array",
+          "items": {"type": "string", "minLength": 3},
+          "minItems": 1
+        },
+        "avoid": {
+          "type": "array",
+          "items": {"type": "string", "minLength": 3},
+          "minItems": 1
+        }
+      }
+    },
+    "classification": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["primary", "secondary", "pattern_categories"],
+      "properties": {
+        "primary": {"type": "string", "pattern": "^[a-z-]+\\.[a-z-]+$"},
+        "secondary": {
+          "type": "array",
+          "items": {"type": "string", "pattern": "^[a-z-]+\\.[a-z-]+$"},
+          "maxItems": 2,
+          "uniqueItems": true
+        },
+        "pattern_categories": {
+          "type": "array",
+          "items": {"type": "string"},
+          "uniqueItems": true
+        }
+      }
+    },
+    "applicability": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "products",
+        "activities",
+        "artifacts",
+        "surfaces",
+        "contexts",
+        "when",
+        "not_when"
+      ],
+      "properties": {
+        "products": {
+          "type": "array",
+          "items": {"type": "string", "pattern": "^[a-z0-9-]+$"},
+          "minItems": 1,
+          "uniqueItems": true
+        },
+        "activities": {
+          "type": "array",
+          "items": {"type": "string", "pattern": "^[a-z-]+$"},
+          "minItems": 1,
+          "uniqueItems": true
+        },
+        "artifacts": {
+          "type": "array",
+          "items": {"type": "string", "pattern": "^[a-z-]+$"},
+          "minItems": 1,
+          "uniqueItems": true
+        },
+        "surfaces": {
+          "type": "array",
+          "items": {"type": "string", "minLength": 1},
+          "uniqueItems": true
+        },
+        "contexts": {
+          "type": "array",
+          "items": {"type": "string", "minLength": 1},
+          "uniqueItems": true
+        },
+        "when": {
+          "type": "array",
+          "items": {"type": "string", "minLength": 3},
+          "minItems": 1
+        },
+        "not_when": {
+          "type": "array",
+          "items": {"type": "string", "minLength": 3}
+        }
+      }
+    },
+    "exceptions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "condition", "use_instead", "rationale", "evidence_refs"],
+        "properties": {
+          "id": {"type": "string", "pattern": "^[a-z0-9-]+$"},
+          "condition": {"type": "string", "minLength": 3},
+          "use_instead": {"type": "string", "minLength": 3},
+          "rationale": {"type": "string", "minLength": 3},
+          "evidence_refs": {
+            "type": "array",
+            "items": {"type": "string", "pattern": "^ev_[a-zA-Z0-9_-]+$"},
+            "uniqueItems": true
+          }
+        }
+      }
+    },
+    "relationships": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["type", "target_id"],
+        "properties": {
+          "type": {
+            "enum": ["supports", "qualifies", "tensions_with", "depends_on", "supersedes"]
+          },
+          "target_id": {"type": "string", "pattern": "^ddr_[0-9]{3,}$"},
+          "resolution": {"type": ["string", "null"]}
+        }
+      }
+    },
+    "evidence": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/evidence"},
+      "minItems": 1
+    },
+    "confidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["level", "basis", "assessed_at", "note"],
+      "properties": {
+        "level": {"enum": ["low", "medium", "high"]},
+        "basis": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "explicit_user_signals",
+            "supporting_episodes",
+            "challenging_episodes",
+            "distinct_threads",
+            "distinct_projects"
+          ],
+          "properties": {
+            "explicit_user_signals": {"type": "integer", "minimum": 0},
+            "supporting_episodes": {"type": "integer", "minimum": 0},
+            "challenging_episodes": {"type": "integer", "minimum": 0},
+            "distinct_threads": {"type": "integer", "minimum": 0},
+            "distinct_projects": {"type": "integer", "minimum": 0}
+          }
+        },
+        "assessed_at": {"type": "string", "format": "date"},
+        "note": {"type": "string"}
+      }
+    },
+    "lifecycle": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "status",
+        "created_at",
+        "updated_at",
+        "activated_at",
+        "last_reviewed_at",
+        "review_after",
+        "approved_by",
+        "decision_note"
+      ],
+      "properties": {
+        "status": {
+          "enum": ["candidate", "active", "contested", "rejected", "superseded", "deprecated"]
+        },
+        "created_at": {"type": "string", "format": "date"},
+        "updated_at": {"type": "string", "format": "date"},
+        "activated_at": {"type": ["string", "null"], "format": "date"},
+        "last_reviewed_at": {"type": ["string", "null"], "format": "date"},
+        "review_after": {"type": ["string", "null"], "format": "date"},
+        "approved_by": {"type": ["string", "null"]},
+        "decision_note": {"type": "string"}
+      }
+    },
+    "retrieval": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["keywords", "aliases", "positive_examples", "negative_examples"],
+      "properties": {
+        "keywords": {
+          "type": "array",
+          "items": {"type": "string", "minLength": 1},
+          "minItems": 1,
+          "uniqueItems": true
+        },
+        "aliases": {
+          "type": "array",
+          "items": {"type": "string", "minLength": 1},
+          "uniqueItems": true
+        },
+        "positive_examples": {
+          "type": "array",
+          "items": {"type": "string", "minLength": 3}
+        },
+        "negative_examples": {
+          "type": "array",
+          "items": {"type": "string", "minLength": 3}
+        }
+      }
+    },
+    "verification": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["method", "checks"],
+      "properties": {
+        "method": {
+          "enum": ["design_review", "visual_review", "interaction_test", "content_review", "automated_check"]
+        },
+        "checks": {
+          "type": "array",
+          "items": {"type": "string", "minLength": 3},
+          "minItems": 1
+        }
+      }
+    }
+  },
+  "$defs": {
+    "evidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "episode_id",
+        "episode_source_keys",
+        "source",
+        "signal",
+        "stance",
+        "observed_at",
+        "summary",
+        "excerpt",
+        "content_sha256",
+        "doctrine_version_seen"
+      ],
+      "properties": {
+        "id": {"type": "string", "pattern": "^ev_[a-zA-Z0-9_-]+$"},
+        "episode_id": {
+          "type": "string",
+          "pattern": "^(bb:thr_[a-zA-Z0-9_-]+:[a-f0-9]{16}|external:[a-zA-Z0-9_.:-]+)$"
+        },
+        "episode_source_keys": {
+          "type": "array",
+          "items": {"type": "string", "minLength": 1},
+          "minItems": 1,
+          "uniqueItems": true
+        },
+        "source": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["type", "store", "thread_id", "source_keys", "project_id"],
+          "properties": {
+            "type": {
+              "enum": [
+                "bb_task_episode",
+                "current_user_instruction",
+                "external_decision",
+                "published_summary"
+              ]
+            },
+            "store": {"type": "string"},
+            "thread_id": {"type": ["string", "null"]},
+            "source_keys": {
+              "type": "array",
+              "items": {"type": "string"},
+              "uniqueItems": true
+            },
+            "project_id": {"type": ["string", "null"]}
+          }
+        },
+        "signal": {
+          "enum": ["explicit_instruction", "explicit_correction", "approval", "rejection", "exception", "supersession", "inferred_pattern"]
+        },
+        "stance": {"enum": ["supports", "challenges", "neutral"]},
+        "observed_at": {"type": "string", "format": "date"},
+        "summary": {"type": "string", "minLength": 3},
+        "excerpt": {"type": ["string", "null"], "maxLength": 360},
+        "content_sha256": {
+          "type": "string",
+          "pattern": "^sha256:[a-f0-9]{64}$"
+        },
+        "doctrine_version_seen": {
+          "type": "string",
+          "pattern": "^(pre-doctrine|unseen|unknown|sha256:[a-f0-9]{64})$"
+        }
+      }
+    }
+  }
+}

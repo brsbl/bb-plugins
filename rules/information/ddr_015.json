@@ -1,0 +1,164 @@
+{
+  "schema_version": 1,
+  "id": "ddr_015",
+  "revision": 1,
+  "title": "Make hierarchy reflect the job",
+  "kind": "guideline",
+  "strength": "default",
+  "statement": "Sibling surfaces with different jobs need visibly different hierarchy; sections should not merely look equally flat.",
+  "rationale": "A consistent component system still needs enough hierarchy to communicate role and importance.",
+  "guidance": {
+    "prefer": [
+      "Use hierarchy to distinguish primary work, supporting context, and metadata.",
+      "Keep sibling styling consistent without erasing role differences."
+    ],
+    "avoid": [
+      "Giving every section the same weight because they share a component family."
+    ]
+  },
+  "classification": {
+    "primary": "information.hierarchy",
+    "secondary": [
+      "visual.hierarchy"
+    ],
+    "pattern_categories": [
+      "Layout & composition",
+      "Content & data"
+    ]
+  },
+  "applicability": {
+    "products": [
+      "global"
+    ],
+    "activities": [
+      "architecture",
+      "design",
+      "critique",
+      "implementation",
+      "qa"
+    ],
+    "artifacts": [
+      "workflow",
+      "screen",
+      "component"
+    ],
+    "surfaces": [
+      "panels",
+      "detail pages",
+      "overview modules"
+    ],
+    "contexts": [
+      "sibling sections",
+      "mixed roles"
+    ],
+    "when": [
+      "Adjacent sections serve different user jobs or importance levels."
+    ],
+    "not_when": [
+      "The sections are true peers that users compare directly."
+    ]
+  },
+  "exceptions": [],
+  "relationships": [],
+  "evidence": [
+    {
+      "id": "ev_015_01",
+      "source": {
+        "type": "published_summary",
+        "store": "public-doctrine",
+        "thread_id": "published-context-010",
+        "source_keys": [
+          "published-signal-026"
+        ],
+        "project_id": "published-scope-002"
+      },
+      "signal": "explicit_correction",
+      "stance": "supports",
+      "observed_at": "2026-07-13",
+      "summary": "Asked visually sibling action sections to use the same hierarchy and questioned an unnecessary undocked footer boundary.",
+      "excerpt": null,
+      "content_sha256": "sha256:64c4e53ba7619ca2620563b35d0e3457a60a503909c62bd0b98dfc325917d389",
+      "doctrine_version_seen": "pre-doctrine",
+      "episode_id": "external:published:episode-034",
+      "episode_source_keys": [
+        "published-span-026"
+      ]
+    },
+    {
+      "id": "ev_015_02",
+      "source": {
+        "type": "published_summary",
+        "store": "public-doctrine",
+        "thread_id": "published-context-006",
+        "source_keys": [
+          "published-signal-015"
+        ],
+        "project_id": "published-scope-001"
+      },
+      "signal": "explicit_correction",
+      "stance": "supports",
+      "observed_at": "2026-07-17",
+      "summary": "Rejected flat Includes and Activity sections and asked for clearer organization.",
+      "excerpt": null,
+      "content_sha256": "sha256:9415b1e5d1bcfb76a4cd1903edfc4882602c6e99eab56d6a1fd3620fd3abfe42",
+      "doctrine_version_seen": "pre-doctrine",
+      "episode_id": "external:published:episode-013",
+      "episode_source_keys": [
+        "published-span-015"
+      ]
+    }
+  ],
+  "confidence": {
+    "level": "medium",
+    "basis": {
+      "explicit_user_signals": 2,
+      "supporting_episodes": 2,
+      "challenging_episodes": 0,
+      "distinct_threads": 2,
+      "distinct_projects": 2
+    },
+    "assessed_at": "2026-07-17",
+    "note": "Bootstrapped from independent direct user episodes under the owner's request to mine durable design rules."
+  },
+  "lifecycle": {
+    "status": "active",
+    "created_at": "2026-07-17",
+    "updated_at": "2026-07-17",
+    "activated_at": "2026-07-17",
+    "last_reviewed_at": "2026-07-17",
+    "review_after": "2027-01-17",
+    "approved_by": "owner-direct-history-bootstrap",
+    "decision_note": "Activated only for the owner-requested initial bootstrap because repeated independent direct instructions or corrections establish this decision boundary."
+  },
+  "retrieval": {
+    "keywords": [
+      "detail",
+      "hierarchy",
+      "information",
+      "mixed",
+      "modules",
+      "overview",
+      "pages",
+      "panels",
+      "roles",
+      "sections",
+      "sibling"
+    ],
+    "aliases": [],
+    "positive_examples": [
+      "Use hierarchy to distinguish primary work, supporting context, and metadata.",
+      "Keep sibling styling consistent without erasing role differences."
+    ],
+    "negative_examples": [
+      "Giving every section the same weight because they share a component family."
+    ]
+  },
+  "verification": {
+    "method": "visual_review",
+    "checks": [
+      "Can a skimmer tell which section owns the primary job?",
+      "Are peers equal and non-peers differentiated?",
+      "Does hierarchy remain within the shared system?"
+    ]
+  }
+}

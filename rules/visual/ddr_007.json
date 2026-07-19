@@ -1,0 +1,143 @@
+{
+  "schema_version": 1,
+  "id": "ddr_007",
+  "revision": 1,
+  "title": "Use restrained semantic color variety",
+  "kind": "taste",
+  "strength": "preference",
+  "statement": "Use product-native tokenized color with tasteful semantic variety; avoid both childish saturation and blanket desaturation or one-accent monotony.",
+  "rationale": "Color should communicate meaningful status and structure while remaining professional and native to the product.",
+  "guidance": {
+    "prefer": [
+      "Use the product token system and reserve color differences for meaningful semantics.",
+      "Balance professional restraint with enough variety to distinguish states."
+    ],
+    "avoid": [
+      "Childish saturation.",
+      "Making every state the same neutral or accent color."
+    ]
+  },
+  "classification": {
+    "primary": "visual.color",
+    "secondary": [
+      "system.design-system",
+      "interaction.feedback"
+    ],
+    "pattern_categories": [
+      "Feedback & status"
+    ]
+  },
+  "applicability": {
+    "products": [
+      "global"
+    ],
+    "activities": [
+      "architecture",
+      "design",
+      "critique",
+      "implementation",
+      "qa"
+    ],
+    "artifacts": [
+      "workflow",
+      "screen",
+      "component"
+    ],
+    "surfaces": [
+      "status chips",
+      "stateful controls",
+      "product chrome"
+    ],
+    "contexts": [
+      "semantic states",
+      "status differentiation"
+    ],
+    "when": [
+      "Color carries state or status meaning in product UI."
+    ],
+    "not_when": [
+      "A deliberately neutral or brandless wireframe is the artifact."
+    ]
+  },
+  "exceptions": [],
+  "relationships": [],
+  "evidence": [
+    {
+      "id": "ev_007_01",
+      "source": {
+        "type": "published_summary",
+        "store": "public-doctrine",
+        "thread_id": "published-context-007",
+        "source_keys": [
+          "published-signal-020"
+        ],
+        "project_id": "published-scope-002"
+      },
+      "signal": "explicit_instruction",
+      "stance": "supports",
+      "observed_at": "2026-05-30",
+      "summary": "Rejected saturated status colors as childish and asked for restrained, professional status treatment.",
+      "excerpt": null,
+      "content_sha256": "sha256:e9d9b68cf2228d604c28125ef634ef008b8493b58b06d2ab63624395b20c2583",
+      "doctrine_version_seen": "pre-doctrine",
+      "episode_id": "external:published:episode-017",
+      "episode_source_keys": [
+        "published-span-020"
+      ]
+    }
+  ],
+  "confidence": {
+    "level": "medium",
+    "basis": {
+      "explicit_user_signals": 1,
+      "supporting_episodes": 1,
+      "challenging_episodes": 0,
+      "distinct_threads": 1,
+      "distinct_projects": 1
+    },
+    "assessed_at": "2026-07-17",
+    "note": "Bootstrapped from independent direct user episodes under the owner's request to mine durable design rules."
+  },
+  "lifecycle": {
+    "status": "candidate",
+    "created_at": "2026-07-17",
+    "updated_at": "2026-07-17",
+    "activated_at": null,
+    "last_reviewed_at": "2026-07-17",
+    "review_after": null,
+    "approved_by": null,
+    "decision_note": "Candidate pending independent recurrence or explicit owner approval."
+  },
+  "retrieval": {
+    "keywords": [
+      "chips",
+      "chrome",
+      "color",
+      "controls",
+      "differentiation",
+      "product",
+      "semantic",
+      "stateful",
+      "states",
+      "status",
+      "visual"
+    ],
+    "aliases": [],
+    "positive_examples": [
+      "Use the product token system and reserve color differences for meaningful semantics.",
+      "Balance professional restraint with enough variety to distinguish states."
+    ],
+    "negative_examples": [
+      "Childish saturation.",
+      "Making every state the same neutral or accent color."
+    ]
+  },
+  "verification": {
+    "method": "visual_review",
+    "checks": [
+      "Does each color difference carry meaning?",
+      "Does the palette feel product-native and professional?",
+      "Are distinct states still distinguishable?"
+    ]
+  }
+}

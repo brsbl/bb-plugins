@@ -1,0 +1,140 @@
+{
+  "schema_version": 1,
+  "id": "ddr_027",
+  "revision": 1,
+  "title": "Use a small semantic token ladder",
+  "kind": "principle",
+  "strength": "default",
+  "statement": "Use a small semantic tokenized surface system rather than ad hoc spacing and color fixes so related UI stays uniform and maintainable.",
+  "rationale": "One-off visual fixes accumulate into drift; a semantic ladder makes nearby surfaces feel related and changes predictable.",
+  "guidance": {
+    "prefer": [
+      "Define a small semantic set of surface, border, spacing, and elevation roles.",
+      "Reuse roles across related components."
+    ],
+    "avoid": [
+      "Fixing each component with unrelated literal values."
+    ]
+  },
+  "classification": {
+    "primary": "system.design-system",
+    "secondary": [
+      "visual.color",
+      "visual.layout"
+    ],
+    "pattern_categories": [
+      "Layout & composition"
+    ]
+  },
+  "applicability": {
+    "products": [
+      "global"
+    ],
+    "activities": [
+      "architecture",
+      "design",
+      "critique",
+      "implementation",
+      "qa"
+    ],
+    "artifacts": [
+      "workflow",
+      "screen",
+      "component"
+    ],
+    "surfaces": [
+      "themes",
+      "shelves",
+      "panels",
+      "controls"
+    ],
+    "contexts": [
+      "visual system",
+      "related surfaces"
+    ],
+    "when": [
+      "Several related surfaces need visual tuning."
+    ],
+    "not_when": [
+      "A one-off visual artifact intentionally has no product-system role."
+    ]
+  },
+  "exceptions": [],
+  "relationships": [],
+  "evidence": [
+    {
+      "id": "ev_027_01",
+      "source": {
+        "type": "published_summary",
+        "store": "public-doctrine",
+        "thread_id": "published-context-015",
+        "source_keys": [
+          "published-signal-064"
+        ],
+        "project_id": "published-scope-001"
+      },
+      "signal": "explicit_instruction",
+      "stance": "supports",
+      "observed_at": "2026-07-11",
+      "summary": "Requested uniform spacing be maintained through a shared token system.",
+      "excerpt": null,
+      "content_sha256": "sha256:a3131b4d511420bd6ac55e821943c3eb0fb3518cad28c82141288e0e8a708b35",
+      "doctrine_version_seen": "pre-doctrine",
+      "episode_id": "external:published:episode-050",
+      "episode_source_keys": [
+        "published-span-064"
+      ]
+    }
+  ],
+  "confidence": {
+    "level": "medium",
+    "basis": {
+      "explicit_user_signals": 1,
+      "supporting_episodes": 1,
+      "challenging_episodes": 0,
+      "distinct_threads": 1,
+      "distinct_projects": 1
+    },
+    "assessed_at": "2026-07-17",
+    "note": "Bootstrapped from independent direct user episodes under the owner's request to mine durable design rules."
+  },
+  "lifecycle": {
+    "status": "candidate",
+    "created_at": "2026-07-17",
+    "updated_at": "2026-07-17",
+    "activated_at": null,
+    "last_reviewed_at": "2026-07-17",
+    "review_after": null,
+    "approved_by": null,
+    "decision_note": "Candidate pending independent recurrence or explicit owner approval."
+  },
+  "retrieval": {
+    "keywords": [
+      "controls",
+      "design-system",
+      "panels",
+      "related",
+      "shelves",
+      "surfaces",
+      "system",
+      "themes",
+      "visual"
+    ],
+    "aliases": [],
+    "positive_examples": [
+      "Define a small semantic set of surface, border, spacing, and elevation roles.",
+      "Reuse roles across related components."
+    ],
+    "negative_examples": [
+      "Fixing each component with unrelated literal values."
+    ]
+  },
+  "verification": {
+    "method": "design_review",
+    "checks": [
+      "Can each visual value be named by semantic role?",
+      "Do related components reuse the same ladder?",
+      "Would one token change update the family coherently?"
+    ]
+  }
+}
