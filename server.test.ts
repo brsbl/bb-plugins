@@ -7,6 +7,9 @@ import {
   filterRules,
   ruleIdFromPath,
   rulePath,
+  SUBDOMAIN_GRADIENT_STYLES,
+  subdomainFromIdentifier,
+  titleCaseDomainFilter,
   toggledRulePath,
 } from "./app-logic";
 import { loadDoctrine, searchDoctrine } from "./server";
@@ -90,5 +93,26 @@ describe("design doctrine library", () => {
   it("maps rule-domain identifiers to the existing top-level filter", () => {
     expect(domainFilterFromIdentifier("AI.CONTEXT")).toBe("ai");
     expect(domainFilterFromIdentifier("information.hierarchy")).toBe("information");
+    expect(subdomainFromIdentifier("AI.CONTEXT")).toBe("context");
+  });
+
+  it("title-cases the top-level filter labels", () => {
+    expect(titleCaseDomainFilter("all")).toBe("All");
+    expect(titleCaseDomainFilter("ai")).toBe("AI");
+    expect(titleCaseDomainFilter("design-system")).toBe("Design System");
+  });
+
+  it("gives every current subdomain a unique gradient endpoint", async () => {
+    const library = await loadDoctrine(process.cwd());
+    const subdomains = [
+      ...new Set(library.rules.map((rule) => subdomainFromIdentifier(rule.domain))),
+    ].sort();
+    const mappedSubdomains = Object.keys(SUBDOMAIN_GRADIENT_STYLES).sort();
+    const gradientEndpoints = mappedSubdomains.map(
+      (subdomain) => SUBDOMAIN_GRADIENT_STYLES[subdomain].idle,
+    );
+
+    expect(mappedSubdomains).toEqual(subdomains);
+    expect(new Set(gradientEndpoints).size).toBe(gradientEndpoints.length);
   });
 });

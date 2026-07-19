@@ -19,52 +19,80 @@ import {
   domainFilterFromIdentifier,
   filterRules,
   ruleIdFromPath,
+  SUBDOMAIN_GRADIENT_STYLES,
+  subdomainFromIdentifier,
+  titleCaseDomainFilter,
   toggledRulePath,
 } from "./app-logic";
 import type { DoctrineRule, LibraryPayload, rpcContract } from "./server";
 
-const DOMAIN_STYLES: Record<string, { idle: string; selected: string }> = {
+const DOMAIN_STYLES: Record<
+  string,
+  {
+    idle: string;
+    selected: string;
+    gradientIdle: string;
+    gradientSelected: string;
+  }
+> = {
   all: {
-    idle: "border-border bg-muted/50 hover:border-foreground/20 hover:bg-muted",
-    selected: "border-foreground/25 bg-muted text-foreground ring-1 ring-foreground/10",
+    idle: "border-border bg-muted/30 hover:border-foreground/20 hover:bg-muted/50",
+    selected: "border-foreground/25 bg-muted/60 text-foreground ring-1 ring-foreground/10",
+    gradientIdle: "from-muted/30 hover:from-muted/50",
+    gradientSelected: "from-muted/60 hover:from-muted/70",
   },
   accessibility: {
-    idle: "border-teal-500/20 bg-teal-500/10 hover:border-teal-500/40 hover:bg-teal-500/20",
-    selected: "border-teal-500/50 bg-teal-500/20 text-foreground ring-1 ring-teal-500/30",
+    idle: "border-teal-500/20 bg-teal-500/5 hover:border-teal-500/40 hover:bg-teal-500/10",
+    selected: "border-teal-500/50 bg-teal-500/10 text-foreground ring-1 ring-teal-500/30",
+    gradientIdle: "from-teal-500/5 hover:from-teal-500/10",
+    gradientSelected: "from-teal-500/15 hover:from-teal-500/20",
   },
   ai: {
-    idle: "border-violet-500/20 bg-violet-500/10 hover:border-violet-500/40 hover:bg-violet-500/20",
-    selected: "border-violet-500/50 bg-violet-500/20 text-foreground ring-1 ring-violet-500/30",
+    idle: "border-violet-500/20 bg-violet-500/5 hover:border-violet-500/40 hover:bg-violet-500/10",
+    selected: "border-violet-500/50 bg-violet-500/10 text-foreground ring-1 ring-violet-500/30",
+    gradientIdle: "from-violet-500/5 hover:from-violet-500/10",
+    gradientSelected: "from-violet-500/15 hover:from-violet-500/20",
   },
   content: {
-    idle: "border-amber-500/20 bg-amber-500/10 hover:border-amber-500/40 hover:bg-amber-500/20",
-    selected: "border-amber-500/50 bg-amber-500/20 text-foreground ring-1 ring-amber-500/30",
+    idle: "border-amber-500/20 bg-amber-500/5 hover:border-amber-500/40 hover:bg-amber-500/10",
+    selected: "border-amber-500/50 bg-amber-500/10 text-foreground ring-1 ring-amber-500/30",
+    gradientIdle: "from-amber-500/5 hover:from-amber-500/10",
+    gradientSelected: "from-amber-500/15 hover:from-amber-500/20",
   },
   information: {
-    idle: "border-sky-500/20 bg-sky-500/10 hover:border-sky-500/40 hover:bg-sky-500/20",
-    selected: "border-sky-500/50 bg-sky-500/20 text-foreground ring-1 ring-sky-500/30",
+    idle: "border-sky-500/20 bg-sky-500/5 hover:border-sky-500/40 hover:bg-sky-500/10",
+    selected: "border-sky-500/50 bg-sky-500/10 text-foreground ring-1 ring-sky-500/30",
+    gradientIdle: "from-sky-500/5 hover:from-sky-500/10",
+    gradientSelected: "from-sky-500/15 hover:from-sky-500/20",
   },
   interaction: {
-    idle: "border-indigo-500/20 bg-indigo-500/10 hover:border-indigo-500/40 hover:bg-indigo-500/20",
-    selected: "border-indigo-500/50 bg-indigo-500/20 text-foreground ring-1 ring-indigo-500/30",
+    idle: "border-indigo-500/20 bg-indigo-500/5 hover:border-indigo-500/40 hover:bg-indigo-500/10",
+    selected: "border-indigo-500/50 bg-indigo-500/10 text-foreground ring-1 ring-indigo-500/30",
+    gradientIdle: "from-indigo-500/5 hover:from-indigo-500/10",
+    gradientSelected: "from-indigo-500/15 hover:from-indigo-500/20",
   },
   process: {
-    idle: "border-orange-500/20 bg-orange-500/10 hover:border-orange-500/40 hover:bg-orange-500/20",
-    selected: "border-orange-500/50 bg-orange-500/20 text-foreground ring-1 ring-orange-500/30",
+    idle: "border-orange-500/20 bg-orange-500/5 hover:border-orange-500/40 hover:bg-orange-500/10",
+    selected: "border-orange-500/50 bg-orange-500/10 text-foreground ring-1 ring-orange-500/30",
+    gradientIdle: "from-orange-500/5 hover:from-orange-500/10",
+    gradientSelected: "from-orange-500/15 hover:from-orange-500/20",
   },
   system: {
-    idle: "border-lime-500/20 bg-lime-500/10 hover:border-lime-500/40 hover:bg-lime-500/20",
-    selected: "border-lime-500/50 bg-lime-500/20 text-foreground ring-1 ring-lime-500/30",
+    idle: "border-lime-500/20 bg-lime-500/5 hover:border-lime-500/40 hover:bg-lime-500/10",
+    selected: "border-lime-500/50 bg-lime-500/10 text-foreground ring-1 ring-lime-500/30",
+    gradientIdle: "from-lime-500/5 hover:from-lime-500/10",
+    gradientSelected: "from-lime-500/15 hover:from-lime-500/20",
   },
   visual: {
-    idle: "border-pink-500/20 bg-pink-500/10 hover:border-pink-500/40 hover:bg-pink-500/20",
-    selected: "border-pink-500/50 bg-pink-500/20 text-foreground ring-1 ring-pink-500/30",
+    idle: "border-pink-500/20 bg-pink-500/5 hover:border-pink-500/40 hover:bg-pink-500/10",
+    selected: "border-pink-500/50 bg-pink-500/10 text-foreground ring-1 ring-pink-500/30",
+    gradientIdle: "from-pink-500/5 hover:from-pink-500/10",
+    gradientSelected: "from-pink-500/15 hover:from-pink-500/20",
   },
 };
 
 function domainLabel(domain: string): string {
-  if (domain === "all") return "All";
-  return displayDomainIdentifier(domain);
+  return titleCaseDomainFilter(domain);
 }
 
 function getGridColumnCount(): number {
@@ -155,12 +183,20 @@ function DomainIdentifierPill({
   const filterDomain = domainFilterFromIdentifier(identifier);
   const selected = selectedDomain === filterDomain;
   const style = DOMAIN_STYLES[filterDomain] ?? DOMAIN_STYLES.all;
+  const subdomainStyle =
+    SUBDOMAIN_GRADIENT_STYLES[subdomainFromIdentifier(identifier)] ?? {
+      idle: "to-muted/30 hover:to-muted/50",
+      selected: "to-muted/60 hover:to-muted/70",
+    };
   const label = displayDomainIdentifier(identifier);
+  const gradientStyle = selected
+    ? `${style.gradientSelected} ${subdomainStyle.selected}`
+    : `${style.gradientIdle} ${subdomainStyle.idle}`;
 
   return (
     <button
       type="button"
-      className={`inline-flex max-w-full items-center rounded-full border px-2 py-0.5 text-[11px] font-medium leading-4 text-foreground transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background ${selected ? style.selected : style.idle}`}
+      className={`inline-flex max-w-full items-center rounded-full border bg-linear-to-r px-2 py-0.5 text-[11px] font-medium leading-4 text-foreground transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background ${selected ? style.selected : style.idle} ${gradientStyle}`}
       aria-label={`Filter rules by ${filterDomain} domain`}
       aria-pressed={selected}
       onClick={() => onSelect(filterDomain)}
