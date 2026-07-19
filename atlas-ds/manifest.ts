@@ -1,0 +1,71 @@
+export const atlasDesignSystemManifest = {
+  schemaVersion: 1,
+  id: "atlas-react-foundation",
+  entrypoint: "./atlas-ds/index.js",
+  stylesheet: "./atlas-ds/tokens.css",
+  stateModel: "controlled",
+  overlayRoot: "PreviewStage",
+  previewMode: "native-inert",
+  families: {
+    foundation: [
+      "AtlasRoot",
+      "Surface",
+      "Stack",
+      "Cluster",
+      "Divider",
+      "Heading",
+      "Text",
+      "AtlasIcon",
+      "PageHeader",
+      "ApplicationFrame",
+    ],
+    identity: ["Avatar", "AvatarGroup", "Badge", "Tag", "Chip"],
+    forms: [
+      "Button",
+      "IconButton",
+      "TextField",
+      "TextAreaField",
+      "SelectField",
+      "BooleanField",
+      "FormSection",
+      "FormActions",
+    ],
+    navigation: [
+      "Breadcrumbs",
+      "Tabs",
+      "SideNavigation",
+      "NavigationBar",
+      "NavigationRail",
+      "TabBar",
+      "StepIndicator",
+      "TreeView",
+    ],
+    collections: ["DataTable", "CollectionList", "EmptyState", "Skeleton"],
+    overlays: [
+      "PreviewStage",
+      "StagePortal",
+      "StageDialog",
+      "StagePopover",
+      "ConfirmationFooter",
+    ],
+    feedback: [
+      "StatusBadge",
+      "InlineAlert",
+      "ProgressBar",
+      "LoadingStatus",
+      "ToastRegion",
+    ],
+    agent: ["AgentActivity", "ActionApproval"],
+  },
+  examples: [
+    "FormExample",
+    "NavigationAndCollectionExample",
+    "OverlayExample",
+    "FeedbackExample",
+    "AgentAndApprovalExample",
+  ],
+} as const;
+
+export type AtlasDesignSystemManifest = typeof atlasDesignSystemManifest;
+export type AtlasComponentFamily =
+  keyof AtlasDesignSystemManifest["families"];
