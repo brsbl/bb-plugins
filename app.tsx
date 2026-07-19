@@ -31,7 +31,7 @@ interface UndoState {
 
 const PENDING_STORAGE_PREFIX = "bb-plugin-prompt-shaper:pending:";
 const THREAD_ROW_STATUS = {
-  icon: "AiScanText",
+  icon: "AiContentGenerator01",
   label: "Prompt Shaper improving prompt",
   effect: "shimmer",
   tone: "success",
@@ -324,8 +324,8 @@ function PromptShaperAction({
     isRunning
       ? showCancelIcon
         ? "X"
-        : "AiScanText"
-      : "AiScanText";
+        : "AiContentGenerator01"
+      : "AiContentGenerator01";
 
   return (
     <TooltipProvider delayDuration={300}>

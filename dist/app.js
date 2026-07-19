@@ -3710,6 +3710,13 @@ var HugeiconsIcon = forwardRef(({ color = "currentColor", size = 24, strokeWidth
 });
 HugeiconsIcon.displayName = "HugeiconsIcon";
 
+// node_modules/@hugeicons/core-free-icons/dist/esm/AiContentGenerator01Icon.js
+var AiContentGenerator01Icon = [
+  ["path", { d: "M11 21H10C6.22876 21 4.34315 21 3.17157 19.8284C2 18.6569 2 16.7712 2 13V10C2 6.22876 2 4.34315 3.17157 3.17157C4.34315 2 6.22876 2 10 2H12C15.7712 2 17.6569 2 18.8284 3.17157C20 4.34315 20 6.22876 20 10V10.5", stroke: "currentColor", strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: "1.5", key: "0" }],
+  ["path", { d: "M17.4069 14.4036C17.6192 13.8655 18.3808 13.8655 18.5931 14.4036L18.6298 14.4969C19.1482 15.8113 20.1887 16.8518 21.5031 17.3702L21.5964 17.4069C22.1345 17.6192 22.1345 18.3808 21.5964 18.5931L21.5031 18.6298C20.1887 19.1482 19.1482 20.1887 18.6298 21.5031L18.5931 21.5964C18.3808 22.1345 17.6192 22.1345 17.4069 21.5964L17.3702 21.5031C16.8518 20.1887 15.8113 19.1482 14.4969 18.6298L14.4036 18.5931C13.8655 18.3808 13.8655 17.6192 14.4036 17.4069L14.4969 17.3702C15.8113 16.8518 16.8518 15.8113 17.3702 14.4969L17.4069 14.4036Z", stroke: "currentColor", strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: "1.5", key: "1" }],
+  ["path", { d: "M7 7H15M7 11.5H15M7 16H11", stroke: "currentColor", strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: "1.5", key: "2" }]
+];
+
 // node_modules/@hugeicons/core-free-icons/dist/esm/Alert02Icon.js
 var Alert02Icon = [
   ["path", { d: "M13.9248 21H10.0752C5.44476 21 3.12955 21 2.27636 19.4939C1.42317 17.9879 2.60736 15.9914 4.97574 11.9985L6.90057 8.75333C9.17559 4.91778 10.3131 3 12 3C13.6869 3 14.8244 4.91777 17.0994 8.75332L19.0243 11.9985C21.3926 15.9914 22.5768 17.9879 21.7236 19.4939C20.8704 21 18.5552 21 13.9248 21Z", stroke: "currentColor", strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: "1.5", key: "0" }],
@@ -4665,42 +4672,8 @@ var SectionAddStrokeRoundedIcon = [
     }
   ]
 ];
-var AiScanTextIcon = [
-  [
-    "path",
-    {
-      d: "M2.5 16.5C2.5 17.4293 2.5 17.894 2.57686 18.2804C2.89249 19.8671 4.13288 21.1075 5.71964 21.4231C6.10603 21.5 6.57069 21.5 7.5 21.5M21.5 16.5C21.5 17.4293 21.5 17.894 21.4231 18.2804C21.1075 19.8671 19.8671 21.1075 18.2804 21.4231C17.894 21.5 17.4293 21.5 16.5 21.5M2.5 7.5C2.5 6.57069 2.5 6.10603 2.57686 5.71964C2.89249 4.13288 4.13288 2.89249 5.71964 2.57686C6.10603 2.5 6.57069 2.5 7.5 2.5",
-      stroke: "currentColor",
-      strokeLinecap: "round",
-      strokeLinejoin: "round",
-      strokeWidth: "1.5",
-      key: "0"
-    }
-  ],
-  [
-    "path",
-    {
-      d: "M7 9.5H13M7 14.5H17",
-      stroke: "currentColor",
-      strokeLinecap: "round",
-      strokeLinejoin: "round",
-      strokeWidth: "1.5",
-      key: "1"
-    }
-  ],
-  [
-    "path",
-    {
-      d: "M19 2.5L18.8158 2.9979C18.5742 3.6507 18.4534 3.9772 18.2153 4.2153C17.9772 4.4534 17.6507 4.5742 16.9979 4.8158L16.5 5L16.9979 5.1842C17.6507 5.4258 17.9772 5.5466 18.2153 5.7847C18.4534 6.0228 18.5742 6.3493 18.8158 7.0021L19 7.5L19.1842 7.0021C19.4258 6.3493 19.5466 6.0228 19.7847 5.7847C20.0228 5.5466 20.3493 5.4258 21.0021 5.1842L21.5 5L21.0021 4.8158C20.3493 4.5742 20.0228 4.4534 19.7847 4.2153C19.5466 3.9772 19.4258 3.6507 19.1842 2.9979L19 2.5Z",
-      stroke: "currentColor",
-      strokeLinejoin: "round",
-      strokeWidth: "1.5",
-      key: "2"
-    }
-  ]
-];
 var ICON_MAP = {
-  AiScanText: AiScanTextIcon,
+  AiContentGenerator01: AiContentGenerator01Icon,
   AlertCircle: AlertCircleIcon,
   AlertTriangle: Alert02Icon,
   AlignLeft: Menu02Icon,
@@ -4927,7 +4900,7 @@ function scopeKey(scope) {
 // app.tsx
 var PENDING_STORAGE_PREFIX = "bb-plugin-prompt-shaper:pending:";
 var THREAD_ROW_STATUS = {
-  icon: "AiScanText",
+  icon: "AiContentGenerator01",
   label: "Prompt Shaper improving prompt",
   effect: "shimmer",
   tone: "success"
@@ -5150,7 +5123,7 @@ function PromptShaperAction({
   }, [clearLoadingEffects, rpc, setPendingRequest]);
   const isDisabled = !isRunning && (projectId === null || composer.text.trim().length === 0);
   const actionLabel = isRunning ? "Cancel prompt improvement" : "Improve prompt";
-  const iconName = isRunning ? showCancelIcon ? "X" : "AiScanText" : "AiScanText";
+  const iconName = isRunning ? showCancelIcon ? "X" : "AiContentGenerator01" : "AiContentGenerator01";
   return /* @__PURE__ */ jsx(TooltipProvider2, { delayDuration: 300, children: /* @__PURE__ */ jsxs("div", { className: "flex items-center", "data-prompt-shaper-actions": true, children: [
     /* @__PURE__ */ jsxs(Tooltip2, { children: [
       /* @__PURE__ */ jsx(TooltipTrigger2, { asChild: true, children: /* @__PURE__ */ jsx(

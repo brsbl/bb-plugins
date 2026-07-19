@@ -14,7 +14,7 @@
     "name": "Prompt Shaper",
     "description": "Enhance a rough composer draft into a context-complete prompt before sending it.",
     "branding": {
-      "icon": "Zap"
+      "icon": "AiContentGenerator01"
     },
     "server": "./server.ts",
     "app": "./app.tsx"

@@ -289,7 +289,7 @@ describe("Prompt Shaper composer action", () => {
     await waitFor(() => {
       expect(getTestPluginRuntime().textEffect).toBe("shimmer");
       expect(getTestPluginRuntime().threadRowStatus).toEqual({
-        icon: "AiScanText",
+        icon: "AiContentGenerator01",
         label: "Prompt Shaper improving prompt",
         effect: "shimmer",
         tone: "success",
@@ -348,7 +348,7 @@ describe("Prompt Shaper composer action", () => {
       name: "Improve prompt",
     });
     expect(
-      improveButton.querySelector('[data-icon="AiScanText"]'),
+      improveButton.querySelector('[data-icon="AiContentGenerator01"]'),
     ).not.toBeNull();
   });
 
@@ -488,7 +488,9 @@ describe("Prompt Shaper composer action", () => {
       });
       expect(cancelButton.getAttribute("aria-busy")).toBe("true");
       expect(cancelButton.classList.contains("text-success")).toBe(true);
-      const icon = cancelButton.querySelector('[data-icon="AiScanText"]');
+      const icon = cancelButton.querySelector(
+        '[data-icon="AiContentGenerator01"]',
+      );
       expect(icon).not.toBeNull();
       expect(icon?.classList.contains("animate-shine-icon")).toBe(true);
       expect(
@@ -554,12 +556,14 @@ describe("Prompt Shaper composer action", () => {
       name: "Cancel prompt improvement",
     });
     expect(
-      cancelButton.querySelector('[data-icon="AiScanText"]'),
+      cancelButton.querySelector('[data-icon="AiContentGenerator01"]'),
     ).not.toBeNull();
 
     fireEvent.mouseEnter(cancelButton);
     expect(cancelButton.querySelector('[data-icon="X"]')).not.toBeNull();
-    expect(cancelButton.querySelector('[data-icon="AiScanText"]')).toBeNull();
+    expect(
+      cancelButton.querySelector('[data-icon="AiContentGenerator01"]'),
+    ).toBeNull();
     expect(cancelButton.classList.contains("text-success")).toBe(false);
     expect(cancelButton.classList.contains("text-muted-foreground")).toBe(
       true,
@@ -567,7 +571,7 @@ describe("Prompt Shaper composer action", () => {
 
     fireEvent.mouseLeave(cancelButton);
     expect(
-      cancelButton.querySelector('[data-icon="AiScanText"]'),
+      cancelButton.querySelector('[data-icon="AiContentGenerator01"]'),
     ).not.toBeNull();
     expect(cancelButton.classList.contains("text-success")).toBe(true);
 
@@ -584,7 +588,7 @@ describe("Prompt Shaper composer action", () => {
     expect((await screen.findAllByText("Cancel")).length).toBeGreaterThan(0);
     fireEvent.blur(cancelButton);
     expect(
-      cancelButton.querySelector('[data-icon="AiScanText"]'),
+      cancelButton.querySelector('[data-icon="AiContentGenerator01"]'),
     ).not.toBeNull();
     matches.mockRestore();
   });
