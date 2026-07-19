@@ -4,6 +4,7 @@ import {
   entryIdFromSubPath,
   entrySubPath,
   inspectorCloseMode,
+  legacyQueryFromEntryId,
   parseStandaloneRoute,
 } from "./gallery-state.js";
 import {
@@ -12,13 +13,7 @@ import {
 } from "./gallery-shell.js";
 import { Button } from "./components/ui/button.js";
 import { Icon } from "./components/ui/icon.js";
-import { atlasPluginStyles } from "./plugin-styles.js";
-
-function AtlasPluginStyles() {
-  return (
-    <style data-ui-pattern-atlas-styles="">{atlasPluginStyles}</style>
-  );
-}
+import { sourceBrowserFixture } from "./source-browser-fixtures.js";
 
 function useBbGalleryNavigation(subPath: string): GalleryNavigation {
   const navigate = useBbNavigate();
@@ -27,10 +22,13 @@ function useBbGalleryNavigation(subPath: string): GalleryNavigation {
     typeof window === "undefined"
       ? null
       : parseStandaloneRoute(window.location.pathname).entryId;
-  const entryId = entryIdFromSubPath(subPath) ?? initialPathEntry;
+  const routeEntryId = entryIdFromSubPath(subPath) ?? initialPathEntry;
+  const legacyQuery = legacyQueryFromEntryId(routeEntryId);
+  const entryId = legacyQuery ? null : routeEntryId;
 
   return {
     entryId,
+    legacyQuery,
     openEntry(id) {
       openedFromGallery.current = true;
       navigate.toPluginPanel("library", { subPath: entrySubPath(id) });
@@ -48,12 +46,7 @@ function useBbGalleryNavigation(subPath: string): GalleryNavigation {
 
 function UiPatternsPanel({ subPath }: { subPath: string }) {
   const navigation = useBbGalleryNavigation(subPath);
-  return (
-    <>
-      <AtlasPluginStyles />
-      <GalleryShell navigation={navigation} showTitle={false} />
-    </>
-  );
+  return <GalleryShell navigation={navigation} snapshot={sourceBrowserFixture} showTitle={false} />;
 }
 
 function UiPatternsThreadPanel() {
@@ -64,16 +57,7 @@ function UiPatternsThreadPanel() {
     closeInspector: () => setEntryId(null),
   };
 
-  return (
-    <>
-      <AtlasPluginStyles />
-      <GalleryShell
-        navigation={navigation}
-        showTitle={false}
-        mode="panel"
-      />
-    </>
-  );
+  return <GalleryShell navigation={navigation} snapshot={sourceBrowserFixture} showTitle={false} mode="panel" />;
 }
 
 function UiPatternsComposerAccessory() {
@@ -84,21 +68,18 @@ function UiPatternsComposerAccessory() {
   // Keep the control useful without impersonating a native panel: the supported
   // fallback opens the Atlas nav panel until the host adds that callback.
   return (
-    <>
-      <AtlasPluginStyles />
-      <span className="inline-flex" title="Open UI Patterns">
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon"
-          className="h-6 w-6 shrink-0 rounded p-0 text-muted-foreground hover:text-foreground [&_svg]:size-3.5 max-md:pointer-coarse:h-9 max-md:pointer-coarse:w-9 max-md:pointer-coarse:[&_svg]:size-5"
-          aria-label="Open UI Patterns"
-          onClick={() => navigate.toPluginPanel("library")}
-        >
-          <Icon name="GridView" aria-hidden="true" />
-        </Button>
-      </span>
-    </>
+    <span className="inline-flex" title="Open UI Patterns">
+      <Button
+        type="button"
+        variant="ghost"
+        size="icon"
+        className="h-6 w-6 shrink-0 rounded p-0 text-muted-foreground hover:text-foreground [&_svg]:size-3.5 max-md:pointer-coarse:h-9 max-md:pointer-coarse:w-9 max-md:pointer-coarse:[&_svg]:size-5"
+        aria-label="Open UI Patterns"
+        onClick={() => navigate.toPluginPanel("library")}
+      >
+        <Icon name="GridView" aria-hidden="true" />
+      </Button>
+    </span>
   );
 }
 

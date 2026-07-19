@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import {
   inspectorCloseMode,
+  legacyQueryFromEntryId,
   parseStandaloneRoute,
   standaloneEntryPath,
 } from "./gallery-state.js";
@@ -9,6 +10,7 @@ import {
   GalleryShell,
   type GalleryNavigation,
 } from "./gallery-shell.js";
+import { sourceBrowserFixture } from "./source-browser-fixtures.js";
 
 function useHistoryGalleryNavigation(): GalleryNavigation {
   const initialRoute = parseStandaloneRoute(window.location.pathname);
@@ -17,7 +19,7 @@ function useHistoryGalleryNavigation(): GalleryNavigation {
     Boolean(window.history.state?.openedFromGallery),
   );
   const [entryId, setEntryId] = useState<string | null>(
-    initialRoute.entryId,
+    legacyQueryFromEntryId(initialRoute.entryId) ? null : initialRoute.entryId,
   );
 
   useEffect(() => {
@@ -39,7 +41,7 @@ function useHistoryGalleryNavigation(): GalleryNavigation {
       openedFromGallery.current = Boolean(
         window.history.state?.openedFromGallery,
       );
-      setEntryId(route.entryId);
+      setEntryId(legacyQueryFromEntryId(route.entryId) ? null : route.entryId);
     };
 
     window.addEventListener("popstate", onPopState);
@@ -48,6 +50,7 @@ function useHistoryGalleryNavigation(): GalleryNavigation {
 
   return {
     entryId,
+    legacyQuery: legacyQueryFromEntryId(parseStandaloneRoute(window.location.pathname).entryId),
     openEntry(id) {
       openedFromGallery.current = true;
       window.history.pushState(
@@ -80,7 +83,7 @@ function StandaloneGallery() {
       <a className="pa-skip-link" href="#pattern-results">
         Skip to patterns
       </a>
-      <GalleryShell navigation={navigation} />
+      <GalleryShell navigation={navigation} snapshot={sourceBrowserFixture} />
     </>
   );
 }

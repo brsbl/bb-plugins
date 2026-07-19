@@ -24,15 +24,12 @@
     "app.tsx",
     "gallery-shell.tsx",
     "gallery-state.ts",
-    "data.ts",
-    "search.ts",
-    "pattern-previews.tsx",
-    "plugin-styles.ts",
+    "source-item.ts",
+    "source-browser-model.ts",
+    "source-browser-fixtures.ts",
     "standalone.tsx",
     "types",
     "components",
-    "atlas-ds/**/*.ts",
-    "atlas-ds/**/*.tsx",
     "lib",
     "hooks"
   ]
