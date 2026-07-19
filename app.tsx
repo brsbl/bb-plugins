@@ -24,6 +24,11 @@ interface PendingRequest {
 }
 
 const PENDING_STORAGE_PREFIX = "bb-plugin-prompt-shaper:pending:";
+const THREAD_ROW_STATUS = {
+  icon: "AiScanText",
+  label: "Prompt Shaper improving prompt",
+  effect: "shimmer",
+} as const;
 
 function pendingStorageKey(composerScopeKey: string): string {
   return `${PENDING_STORAGE_PREFIX}${composerScopeKey}`;
@@ -123,13 +128,20 @@ function PromptShaperAction({
 
   useEffect(() => {
     composer.setTextEffect?.(isRunning ? "shimmer" : null);
-  }, [composer.setTextEffect, isRunning]);
+    composer.setThreadRowStatus?.(isRunning ? THREAD_ROW_STATUS : null);
+  }, [composer.setTextEffect, composer.setThreadRowStatus, isRunning]);
 
   useEffect(() => {
     return () => {
       composer.setTextEffect?.(null);
+      composer.setThreadRowStatus?.(null);
     };
-  }, [composer.setTextEffect, composerScopeKey]);
+  }, [composer.setTextEffect, composer.setThreadRowStatus, composerScopeKey]);
+
+  const clearLoadingEffects = useCallback(() => {
+    composerRef.current.setTextEffect?.(null);
+    composerRef.current.setThreadRowStatus?.(null);
+  }, []);
 
   const applyEnhancement = useCallback((enhancedPrompt: string) => {
     const activeComposer = composerRef.current;
@@ -168,7 +180,7 @@ function PromptShaperAction({
       const record = await rpc.call("getEnhancement", { requestId });
       if (pendingRef.current !== active) return;
       if (record === null || record.status === "running") return;
-      composerRef.current.setTextEffect?.(null);
+      clearLoadingEffects();
       setPendingRequest(null);
 
       if (record.status === "failed") {
@@ -184,7 +196,7 @@ function PromptShaperAction({
       }
       applyEnhancement(record.enhancedPrompt);
     },
-    [applyEnhancement, rpc, setPendingRequest],
+    [applyEnhancement, clearLoadingEffects, rpc, setPendingRequest],
   );
 
   useRealtime("enhancement-changed", (payload) => {
@@ -211,6 +223,7 @@ function PromptShaperAction({
       scopeKey: composerScopeKey,
     };
     composer.setTextEffect?.("shimmer");
+    composer.setThreadRowStatus?.(THREAD_ROW_STATUS);
     setPendingRequest(request);
 
     try {
@@ -222,7 +235,8 @@ function PromptShaperAction({
       });
       await consumeResult(request.requestId);
     } catch (error) {
-      composerRef.current.setTextEffect?.(null);
+      if (pendingRef.current !== request) return;
+      clearLoadingEffects();
       setPendingRequest(null);
       toast.error(
         error instanceof Error
@@ -233,6 +247,7 @@ function PromptShaperAction({
   }, [
     composer,
     composerScopeKey,
+    clearLoadingEffects,
     consumeResult,
     projectId,
     rpc,
@@ -240,8 +255,29 @@ function PromptShaperAction({
     threadId,
   ]);
 
+  const cancel = useCallback(async () => {
+    const active = pendingRef.current;
+    if (active === null || active.scopeKey !== composerScopeKeyRef.current) {
+      return;
+    }
+
+    clearLoadingEffects();
+    setPendingRequest(null);
+    try {
+      await rpc.call("cancelEnhancement", {
+        requestId: active.requestId,
+      });
+    } catch (error) {
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : "Could not cancel prompt improvement.",
+      );
+    }
+  }, [clearLoadingEffects, rpc, setPendingRequest]);
+
   const isDisabled =
-    projectId === null || composer.text.trim().length === 0 || isRunning;
+    !isRunning && (projectId === null || composer.text.trim().length === 0);
 
   return (
     <TooltipProvider delayDuration={300}>
@@ -253,21 +289,21 @@ function PromptShaperAction({
             size="icon"
             className="size-7 text-muted-foreground"
             disabled={isDisabled}
-            aria-label={isRunning ? "Improving prompt" : "Improve prompt"}
-            onClick={() => void enhance()}
+            aria-label={
+              isRunning ? "Cancel prompt improvement" : "Improve prompt"
+            }
+            onClick={() => void (isRunning ? cancel() : enhance())}
           >
             {isRunning ? (
-              <Icon
-                name="Loading"
-                className="animate-spin"
-                aria-hidden="true"
-              />
+              <Icon name="X" aria-hidden="true" />
             ) : (
               <Icon name="AiScanText" aria-hidden="true" />
             )}
           </Button>
         </TooltipTrigger>
-        <TooltipContent side="top">Improve prompt</TooltipContent>
+        <TooltipContent side="top">
+          {isRunning ? "Cancel" : "Improve prompt"}
+        </TooltipContent>
       </Tooltip>
     </TooltipProvider>
   );

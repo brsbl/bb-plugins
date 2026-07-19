@@ -10,6 +10,7 @@ import {
 const REQUEST_TTL_MS = 24 * 60 * 60 * 1_000;
 const REQUEST_PREFIX = "request:";
 const THREAD_PREFIX = "thread:";
+const CANCELLATION_PREFIX = "cancellation:";
 
 const requestIdSchema = z.string().uuid();
 
@@ -33,6 +34,9 @@ const enhancementRecordSchema = z.discriminatedUnion("status", [
     completedAt: z.number().int().nonnegative(),
   }),
 ]);
+const cancellationRecordSchema = z.object({
+  createdAt: z.number().int().nonnegative(),
+});
 
 type EnhancementRecord = z.infer<typeof enhancementRecordSchema>;
 type RunningRecord = Extract<EnhancementRecord, { status: "running" }>;
@@ -58,6 +62,10 @@ export const rpcContract = {
     input: z.object({ requestId: requestIdSchema }),
     output: enhancementRecordSchema.nullable(),
   },
+  cancelEnhancement: {
+    input: z.object({ requestId: requestIdSchema }),
+    output: z.object({ cancelled: z.literal(true) }),
+  },
 } as const;
 
 function requestKey(requestId: string): string {
@@ -66,6 +74,10 @@ function requestKey(requestId: string): string {
 
 function threadKey(threadId: string): string {
   return `${THREAD_PREFIX}${threadId}`;
+}
+
+function cancellationKey(requestId: string): string {
+  return `${CANCELLATION_PREFIX}${requestId}`;
 }
 
 function errorMessage(error: unknown): string {
@@ -97,6 +109,18 @@ export default async function plugin(bb: BbPluginApi) {
     await bb.storage.kv.set(requestKey(record.requestId), record);
   }
 
+  async function cancellationRequested(requestId: string): Promise<boolean> {
+    return (await bb.storage.kv.get(cancellationKey(requestId))) !== undefined;
+  }
+
+  async function clearRequest(
+    requestId: string,
+    helperThreadId: string,
+  ): Promise<void> {
+    await bb.storage.kv.delete(requestKey(requestId));
+    await bb.storage.kv.delete(threadKey(helperThreadId));
+  }
+
   async function archiveHelper(threadId: string): Promise<void> {
     try {
       await bb.sdk.threads.archive({ threadId });
@@ -105,6 +129,17 @@ export default async function plugin(bb: BbPluginApi) {
         `could not archive Prompt Shaper helper ${threadId}: ${errorMessage(error)}`,
       );
     }
+  }
+
+  async function cancelHelper(threadId: string): Promise<void> {
+    try {
+      await bb.sdk.threads.stop({ threadId });
+    } catch (error) {
+      bb.log.warn(
+        `could not stop Prompt Shaper helper ${threadId}: ${errorMessage(error)}`,
+      );
+    }
+    await archiveHelper(threadId);
   }
 
   async function finish(
@@ -133,7 +168,12 @@ export default async function plugin(bb: BbPluginApi) {
             completedAt,
           };
 
+    if (await cancellationRequested(requestId)) return;
     await writeRecord(next);
+    if (await cancellationRequested(requestId)) {
+      await clearRequest(requestId, threadId);
+      return;
+    }
     bb.realtime.publish("enhancement-changed", { requestId });
     await bb.storage.kv.delete(threadKey(threadId));
     await archiveHelper(threadId);
@@ -242,16 +282,24 @@ export default async function plugin(bb: BbPluginApi) {
 
   bb.rpc.register(rpcContract, {
     async startEnhancement(input) {
-      if ((await readRecord(input.requestId)) !== null) {
-        throw new Error(
-          `Enhancement request ${input.requestId} already exists`,
-        );
-      }
-
       let helperThreadId: string | null = null;
       try {
+        if (await cancellationRequested(input.requestId)) {
+          throw new Error("Enhancement was cancelled.");
+        }
+        if ((await readRecord(input.requestId)) !== null) {
+          throw new Error(
+            `Enhancement request ${input.requestId} already exists`,
+          );
+        }
+
         const helper = await spawnHelper(input);
         helperThreadId = helper.id;
+        if (await cancellationRequested(input.requestId)) {
+          await cancelHelper(helperThreadId);
+          helperThreadId = null;
+          throw new Error("Enhancement was cancelled.");
+        }
         const record: RunningRecord = {
           requestId: input.requestId,
           helperThreadId,
@@ -260,6 +308,12 @@ export default async function plugin(bb: BbPluginApi) {
         };
         await writeRecord(record);
         await bb.storage.kv.set(threadKey(helperThreadId), input.requestId);
+        if (await cancellationRequested(input.requestId)) {
+          await clearRequest(input.requestId, helperThreadId);
+          await cancelHelper(helperThreadId);
+          helperThreadId = null;
+          throw new Error("Enhancement was cancelled.");
+        }
         await reconcileHelper(helperThreadId);
         return { requestId: input.requestId, helperThreadId };
       } catch (error) {
@@ -267,6 +321,8 @@ export default async function plugin(bb: BbPluginApi) {
           await archiveHelper(helperThreadId);
         }
         throw error;
+      } finally {
+        await bb.storage.kv.delete(cancellationKey(input.requestId));
       }
     },
     async getEnhancement({ requestId }) {
@@ -281,6 +337,18 @@ export default async function plugin(bb: BbPluginApi) {
         }
       }
       return readRecord(requestId);
+    },
+    async cancelEnhancement({ requestId }) {
+      await bb.storage.kv.set(cancellationKey(requestId), {
+        createdAt: Date.now(),
+      });
+      const record = await readRecord(requestId);
+      if (record !== null) {
+        await clearRequest(requestId, record.helperThreadId);
+        await cancelHelper(record.helperThreadId);
+      }
+      bb.realtime.publish("enhancement-changed", { requestId });
+      return { cancelled: true as const };
     },
   });
 
@@ -300,6 +368,13 @@ export default async function plugin(bb: BbPluginApi) {
     if (record !== null && now - record.createdAt > REQUEST_TTL_MS) {
       await bb.storage.kv.delete(key);
       await bb.storage.kv.delete(threadKey(record.helperThreadId));
+    }
+  }
+  for (const key of await bb.storage.kv.list(CANCELLATION_PREFIX)) {
+    const value = await bb.storage.kv.get<unknown>(key);
+    const parsed = cancellationRecordSchema.safeParse(value);
+    if (!parsed.success || now - parsed.data.createdAt > REQUEST_TTL_MS) {
+      await bb.storage.kv.delete(key);
     }
   }
 

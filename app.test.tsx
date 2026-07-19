@@ -15,6 +15,7 @@ import { toast } from "sonner";
 import {
   getTestPluginRuntime,
   resetTestPluginRuntime,
+  setTestComposerScope,
   setTestComposerText,
 } from "./test/plugin-sdk-app";
 
@@ -139,6 +140,11 @@ describe("Prompt Shaper composer action", () => {
     fireEvent.click(screen.getByRole("button", { name: "Improve prompt" }));
     await waitFor(() => {
       expect(getTestPluginRuntime().textEffect).toBe("shimmer");
+      expect(getTestPluginRuntime().threadRowStatus).toEqual({
+        icon: "AiScanText",
+        label: "Prompt Shaper improving prompt",
+        effect: "shimmer",
+      });
     });
 
     act(() => {
@@ -162,12 +168,14 @@ describe("Prompt Shaper composer action", () => {
         "Enhanced prompt with the missing guardrail.",
       );
       expect(getTestPluginRuntime().textEffect).toBeNull();
+      expect(getTestPluginRuntime().threadRowStatus).toBeNull();
     });
     expect(getTestPluginRuntime().attachments).toEqual(["brief.png"]);
     expect(screen.queryByRole("dialog")).toBeNull();
 
     const successOptions = vi.mocked(toast.success).mock.calls[0]?.[1] as
-      { action?: { label: string; onClick(): void } } | undefined;
+      | { action?: { label: string; onClick(): void } }
+      | undefined;
     expect(successOptions?.action?.label).toBe("Undo");
     act(() => {
       successOptions?.action?.onClick();
@@ -177,7 +185,111 @@ describe("Prompt Shaper composer action", () => {
     );
   });
 
-  it("clears the shimmer when enhancement fails and when the action unmounts", async () => {
+  it("cancels the helper, clears loading state, and ignores a late result without changing the draft", async () => {
+    const result = deferred<{
+      requestId: string;
+      helperThreadId: string;
+      status: "complete";
+      enhancedPrompt: string;
+      assumptions: null;
+      createdAt: number;
+      completedAt: number;
+    }>();
+    const cancelEnhancement = vi.fn(() => ({ cancelled: true as const }));
+    resetTestPluginRuntime({
+      text: "keep this draft",
+      attachments: ["brief.png"],
+      scope: { kind: "thread", threadId: "thr_source" },
+      rpc: {
+        startEnhancement: () => ({
+          requestId: REQUEST_ID,
+          helperThreadId: "thr_helper",
+        }),
+        getEnhancement: () => result.promise,
+        cancelEnhancement,
+      },
+    });
+    const Action = await loadAction();
+    render(<Action projectId="proj_1" threadId="thr_source" />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Improve prompt" }));
+    await waitFor(() => {
+      expect(
+        screen.getByRole("button", { name: "Cancel prompt improvement" }),
+      ).not.toBeNull();
+      expect(getTestPluginRuntime().threadRowStatus).not.toBeNull();
+      expect(
+        getTestPluginRuntime().rpcCalls.map((call) => call.method),
+      ).toContain("getEnhancement");
+    });
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Cancel prompt improvement" }),
+    );
+
+    await waitFor(() => {
+      expect(cancelEnhancement).toHaveBeenCalledWith({
+        requestId: REQUEST_ID,
+      });
+      expect(getTestPluginRuntime().textEffect).toBeNull();
+      expect(getTestPluginRuntime().threadRowStatus).toBeNull();
+      expect(window.sessionStorage.length).toBe(0);
+    });
+    expect(getTestPluginRuntime().text).toBe("keep this draft");
+    expect(getTestPluginRuntime().attachments).toEqual(["brief.png"]);
+
+    await act(async () => {
+      result.resolve({
+        requestId: REQUEST_ID,
+        helperThreadId: "thr_helper",
+        status: "complete",
+        enhancedPrompt: "late enhanced prompt",
+        assumptions: null,
+        createdAt: 1,
+        completedAt: 2,
+      });
+      await result.promise;
+    });
+
+    expect(getTestPluginRuntime().text).toBe("keep this draft");
+    expect(getTestPluginRuntime().attachments).toEqual(["brief.png"]);
+    expect(toast.success).not.toHaveBeenCalled();
+  });
+
+  it("clears loading effects when the composer scope changes", async () => {
+    const start = deferred<never>();
+    resetTestPluginRuntime({
+      text: "rough draft",
+      scope: { kind: "thread", threadId: "thr_source" },
+      rpc: {
+        startEnhancement: () => start.promise,
+        getEnhancement: () => null,
+      },
+    });
+    const Action = await loadAction();
+    render(<Action projectId="proj_1" threadId="thr_source" />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Improve prompt" }));
+    await waitFor(() => {
+      expect(getTestPluginRuntime().textEffect).toBe("shimmer");
+      expect(getTestPluginRuntime().threadRowStatus).not.toBeNull();
+    });
+
+    act(() => {
+      setTestComposerScope({
+        kind: "thread",
+        threadId: "thr_next",
+      });
+    });
+
+    await waitFor(() => {
+      expect(getTestPluginRuntime().textEffect).toBeNull();
+      expect(getTestPluginRuntime().threadRowStatus).toBeNull();
+    });
+    expect(getTestPluginRuntime().text).toBe("rough draft");
+  });
+
+  it("clears loading effects when enhancement fails and when the action unmounts", async () => {
     const start = deferred<never>();
     resetTestPluginRuntime({
       text: "rough draft",
@@ -193,10 +305,12 @@ describe("Prompt Shaper composer action", () => {
     fireEvent.click(screen.getByRole("button", { name: "Improve prompt" }));
     await waitFor(() => {
       expect(getTestPluginRuntime().textEffect).toBe("shimmer");
+      expect(getTestPluginRuntime().threadRowStatus).not.toBeNull();
     });
 
     view.unmount();
     expect(getTestPluginRuntime().textEffect).toBeNull();
+    expect(getTestPluginRuntime().threadRowStatus).toBeNull();
 
     window.sessionStorage.clear();
     resetTestPluginRuntime({
@@ -214,6 +328,7 @@ describe("Prompt Shaper composer action", () => {
 
     await waitFor(() => {
       expect(getTestPluginRuntime().textEffect).toBeNull();
+      expect(getTestPluginRuntime().threadRowStatus).toBeNull();
       expect(toast.error).toHaveBeenCalledWith("agent unavailable");
     });
     expect(getTestPluginRuntime().textEffectCalls).toContain("shimmer");

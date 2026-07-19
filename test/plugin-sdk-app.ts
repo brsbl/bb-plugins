@@ -9,6 +9,11 @@ type ComposerScope =
     }
   | { kind: "new-thread"; projectId: string | null };
 type TextEffect = "shimmer" | null;
+type ThreadRowStatus = {
+  icon: string;
+  label: string;
+  effect: "shimmer" | null;
+} | null;
 type RpcHandler = (input: unknown) => unknown | Promise<unknown>;
 
 interface TestRuntime {
@@ -17,6 +22,8 @@ interface TestRuntime {
   scope: ComposerScope;
   textEffect: TextEffect;
   textEffectCalls: TextEffect[];
+  threadRowStatus: ThreadRowStatus;
+  threadRowStatusCalls: ThreadRowStatus[];
   focusCount: number;
   rpcHandlers: Map<string, RpcHandler>;
   rpcCalls: Array<{ method: string; input: unknown }>;
@@ -31,6 +38,8 @@ const runtime: TestRuntime = {
   scope: { kind: "new-thread", projectId: null },
   textEffect: null,
   textEffectCalls: [],
+  threadRowStatus: null,
+  threadRowStatusCalls: [],
   focusCount: 0,
   rpcHandlers: new Map(),
   rpcCalls: [],
@@ -52,6 +61,8 @@ export function resetTestPluginRuntime(input?: {
     input?.scope ?? ({ kind: "new-thread", projectId: null } as const);
   runtime.textEffect = null;
   runtime.textEffectCalls = [];
+  runtime.threadRowStatus = null;
+  runtime.threadRowStatusCalls = [];
   runtime.focusCount = 0;
   runtime.rpcHandlers = new Map(Object.entries(input?.rpc ?? {}));
   runtime.rpcCalls = [];
@@ -64,6 +75,11 @@ export function setTestComposerText(text: string): void {
   notify();
 }
 
+export function setTestComposerScope(scope: ComposerScope): void {
+  runtime.scope = scope;
+  notify();
+}
+
 export function getTestPluginRuntime(): Readonly<TestRuntime> {
   return runtime;
 }
@@ -73,14 +89,15 @@ export function definePluginApp(setup: (app: unknown) => void) {
 }
 
 export function useComposer() {
-  const text = useSyncExternalStore(
+  useSyncExternalStore(
     (listener) => {
       listeners.add(listener);
       return () => listeners.delete(listener);
     },
-    () => runtime.text,
-    () => runtime.text,
+    () => `${JSON.stringify(runtime.scope)}\n${runtime.text}`,
+    () => `${JSON.stringify(runtime.scope)}\n${runtime.text}`,
   );
+  const text = runtime.text;
 
   return {
     scope: runtime.scope,
@@ -100,6 +117,10 @@ export function useComposer() {
     setTextEffect(effect: TextEffect) {
       runtime.textEffect = effect;
       runtime.textEffectCalls.push(effect);
+    },
+    setThreadRowStatus(status: ThreadRowStatus) {
+      runtime.threadRowStatus = status;
+      runtime.threadRowStatusCalls.push(status);
     },
     addQuote() {},
     insertMention() {},
