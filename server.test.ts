@@ -31,14 +31,18 @@ function deferred<T>(): Deferred<T> {
 
 async function createHarness(options?: {
   spawn?: () => Promise<{ id: string }>;
+  get?: () => Promise<Record<string, unknown>>;
+  defaultExecutionOptions?: () => Promise<Record<string, unknown> | null>;
 }) {
   const kv = new Map<string, unknown>();
   const eventHandlers = new Map<string, Array<(payload: never) => unknown>>();
   let rpcHandlers: RpcHandlers | null = null;
   const threads = {
     spawn: vi.fn(options?.spawn ?? (async () => ({ id: "thr_helper" }))),
-    get: vi.fn(async () => ({ status: "active" })),
-    defaultExecutionOptions: vi.fn(async () => null),
+    get: vi.fn(options?.get ?? (async () => ({ status: "active" }))),
+    defaultExecutionOptions: vi.fn(
+      options?.defaultExecutionOptions ?? (async () => null),
+    ),
     output: vi.fn(async () => ({ output: null })),
     stop: vi.fn(async () => ({ ok: true })),
     archive: vi.fn(async () => ({ ok: true })),
@@ -165,5 +169,59 @@ describe("Prompt Shaper cancellation", () => {
       threadId: "thr_late_helper",
     });
     expect([...harness.kv.keys()]).toEqual([]);
+  });
+});
+
+describe("Prompt Shaper side-chat helpers", () => {
+  it("falls back to an inspecting helper when a nested side-chat parent is invalid", async () => {
+    const spawn = vi
+      .fn<() => Promise<{ id: string }>>()
+      .mockRejectedValueOnce(new Error("Parent thread is invalid"))
+      .mockResolvedValueOnce({ id: "thr_fallback" });
+    const harness = await createHarness({
+      spawn,
+      get: async () => ({
+        id: "thr_side_chat",
+        projectId: "proj_1",
+        environmentId: "env_1",
+        providerId: "codex",
+        canSpawnChild: true,
+        status: "idle",
+      }),
+      defaultExecutionOptions: async () => ({
+        model: "gpt-5.5",
+        reasoningLevel: "medium",
+        serviceTier: "default",
+      }),
+    });
+
+    await expect(
+      harness.rpc.startEnhancement({
+        ...START_INPUT,
+        sourceThreadId: "thr_side_chat",
+      }),
+    ).resolves.toEqual({
+      requestId: REQUEST_ID,
+      helperThreadId: "thr_fallback",
+    });
+
+    expect(spawn).toHaveBeenCalledTimes(2);
+    expect(spawn).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({
+        sourceThreadId: "thr_side_chat",
+        originKind: "side-chat",
+      }),
+    );
+    expect(spawn).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        environment: { type: "reuse", environmentId: "env_1" },
+        prompt: expect.stringContaining(
+          "inspect bb thread thr_side_chat with the available bb tools",
+        ),
+      }),
+    );
+    expect(spawn.mock.calls[1]?.[0]).not.toHaveProperty("sourceThreadId");
   });
 });

@@ -105,20 +105,154 @@ describe("Prompt Shaper composer action", () => {
       name: "Improve prompt",
     });
     expect((improveButton as HTMLButtonElement).disabled).toBe(false);
+    expect(fireEvent.mouseDown(improveButton)).toBe(false);
     fireEvent.click(improveButton);
 
     await waitFor(() => {
       expect(getTestPluginRuntime().text).toBe("Improved queued draft.");
       expect(getTestPluginRuntime().textEffect).toBeNull();
-      expect(
-        screen.getByRole("button", { name: "Undo" }),
-      ).not.toBeNull();
+      expect(screen.getByRole("button", { name: "Undo" })).not.toBeNull();
     });
     expect(getTestPluginRuntime().attachments).toEqual(["queued-brief.png"]);
     expect(getTestPluginRuntime().rpcCalls).toHaveLength(2);
     expect(getTestPluginRuntime().focusCount).toBe(1);
     expect(toast.success).not.toHaveBeenCalled();
   }, 15_000);
+
+  it("enhances and undoes a side-chat draft without losing its attachments", async () => {
+    resetTestPluginRuntime({
+      text: "rough side-chat draft",
+      attachments: ["side-brief.png"],
+      scope: {
+        kind: "side-chat",
+        projectId: "proj_1",
+        parentThreadId: "thr_parent",
+        tabId: "side-chat:one",
+        childThreadId: null,
+      },
+      rpc: {
+        startEnhancement: () => ({
+          requestId: REQUEST_ID,
+          helperThreadId: "thr_helper",
+        }),
+        getEnhancement: () => ({
+          requestId: REQUEST_ID,
+          helperThreadId: "thr_helper",
+          status: "complete",
+          enhancedPrompt: "Improved side-chat draft.",
+          assumptions: null,
+          createdAt: 1,
+          completedAt: 2,
+        }),
+      },
+    });
+    const Action = await loadAction();
+    render(<Action projectId="proj_1" threadId="thr_parent" />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Improve prompt" }));
+
+    await waitFor(() => {
+      expect(getTestPluginRuntime().text).toBe("Improved side-chat draft.");
+      expect(screen.getByRole("button", { name: "Undo" })).not.toBeNull();
+    });
+    expect(getTestPluginRuntime().attachments).toEqual(["side-brief.png"]);
+
+    fireEvent.click(screen.getByRole("button", { name: "Undo" }));
+    expect(getTestPluginRuntime().text).toBe("rough side-chat draft");
+    expect(getTestPluginRuntime().attachments).toEqual(["side-brief.png"]);
+    expect(getTestPluginRuntime().focusCount).toBe(2);
+  });
+
+  it("invalidates and cancels a pending side-chat request when tab ownership changes", async () => {
+    const result = deferred<{
+      requestId: string;
+      helperThreadId: string;
+      status: "complete";
+      enhancedPrompt: string;
+      assumptions: null;
+      createdAt: number;
+      completedAt: number;
+    }>();
+    const cancelEnhancement = vi.fn(() => ({ cancelled: true as const }));
+    resetTestPluginRuntime({
+      text: "first side-chat draft",
+      scope: {
+        kind: "side-chat",
+        projectId: "proj_1",
+        parentThreadId: "thr_parent",
+        tabId: "side-chat:one",
+        childThreadId: "thr_child_one",
+      },
+      rpc: {
+        startEnhancement: () => ({
+          requestId: REQUEST_ID,
+          helperThreadId: "thr_helper",
+        }),
+        getEnhancement: () => result.promise,
+        cancelEnhancement,
+      },
+    });
+    const Action = await loadAction();
+    render(<Action projectId="proj_1" threadId="thr_child_one" />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Improve prompt" }));
+    await waitFor(() => {
+      expect(getTestPluginRuntime().textEffect).toBe("shimmer");
+      expect(window.sessionStorage.length).toBe(1);
+    });
+
+    act(() => {
+      setTestComposerScope({
+        kind: "side-chat",
+        projectId: "proj_1",
+        parentThreadId: "thr_parent",
+        tabId: "side-chat:two",
+        childThreadId: "thr_child_two",
+      });
+      setTestComposerText("second side-chat draft");
+    });
+
+    await waitFor(() => {
+      expect(cancelEnhancement).toHaveBeenCalledWith({
+        requestId: REQUEST_ID,
+      });
+      expect(getTestPluginRuntime().textEffect).toBeNull();
+      expect(getTestPluginRuntime().threadRowStatus).toBeNull();
+      expect(window.sessionStorage.length).toBe(0);
+    });
+
+    await act(async () => {
+      result.resolve({
+        requestId: REQUEST_ID,
+        helperThreadId: "thr_helper",
+        status: "complete",
+        enhancedPrompt: "Late result for the first tab.",
+        assumptions: null,
+        createdAt: 1,
+        completedAt: 2,
+      });
+      await result.promise;
+    });
+
+    expect(getTestPluginRuntime().text).toBe("second side-chat draft");
+    expect(screen.queryByRole("button", { name: "Undo" })).toBeNull();
+
+    act(() => {
+      setTestComposerScope({
+        kind: "side-chat",
+        projectId: "proj_1",
+        parentThreadId: "thr_parent",
+        tabId: "side-chat:one",
+        childThreadId: "thr_child_one",
+      });
+    });
+    expect(window.sessionStorage.length).toBe(0);
+    expect(
+      screen.queryByRole("button", {
+        name: "Cancel prompt improvement",
+      }),
+    ).toBeNull();
+  });
 
   it("replaces the latest edited draft and restores it through inline Undo", async () => {
     const result = deferred<{
@@ -189,9 +323,7 @@ describe("Prompt Shaper composer action", () => {
       undoButton.querySelector('[data-icon="ArrowTurnBackward"]'),
     ).not.toBeNull();
     fireEvent.focus(undoButton);
-    expect(
-      (await screen.findAllByText("Undo")).length,
-    ).toBeGreaterThan(0);
+    expect((await screen.findAllByText("Undo")).length).toBeGreaterThan(0);
     fireEvent.click(undoButton);
 
     expect(getTestPluginRuntime().text).toBe(
@@ -235,27 +367,21 @@ describe("Prompt Shaper composer action", () => {
 
     act(() => setTestComposerText("Edited enhanced prompt."));
     await waitFor(() => {
-      expect(
-        screen.queryByRole("button", { name: "Undo" }),
-      ).toBeNull();
+      expect(screen.queryByRole("button", { name: "Undo" })).toBeNull();
       expect(
         screen.getByRole("button", { name: "Improve prompt" }),
       ).not.toBeNull();
     });
 
     act(() => setTestComposerText("Enhanced prompt."));
-    expect(
-      screen.queryByRole("button", { name: "Undo" }),
-    ).toBeNull();
+    expect(screen.queryByRole("button", { name: "Undo" })).toBeNull();
 
     fireEvent.click(screen.getByRole("button", { name: "Improve prompt" }));
     await screen.findByRole("button", { name: "Undo" });
     act(() => setTestComposerText(""));
 
     await waitFor(() => {
-      expect(
-        screen.queryByRole("button", { name: "Undo" }),
-      ).toBeNull();
+      expect(screen.queryByRole("button", { name: "Undo" })).toBeNull();
       expect(
         (
           screen.getByRole("button", {
@@ -297,16 +423,12 @@ describe("Prompt Shaper composer action", () => {
     });
 
     await waitFor(() => {
-      expect(
-        screen.queryByRole("button", { name: "Undo" }),
-      ).toBeNull();
+      expect(screen.queryByRole("button", { name: "Undo" })).toBeNull();
     });
     view.unmount();
 
     render(<Action projectId="proj_1" threadId="thr_next" />);
-    expect(
-      screen.queryByRole("button", { name: "Undo" }),
-    ).toBeNull();
+    expect(screen.queryByRole("button", { name: "Undo" })).toBeNull();
   });
 
   it("cancels the helper, clears loading state, and ignores a late result without changing the draft", async () => {
@@ -368,9 +490,7 @@ describe("Prompt Shaper composer action", () => {
     });
     expect(getTestPluginRuntime().text).toBe("keep this draft");
     expect(getTestPluginRuntime().attachments).toEqual(["brief.png"]);
-    expect(
-      screen.queryByRole("button", { name: "Undo" }),
-    ).toBeNull();
+    expect(screen.queryByRole("button", { name: "Undo" })).toBeNull();
 
     await act(async () => {
       result.resolve({
@@ -514,8 +634,6 @@ describe("Prompt Shaper composer action", () => {
       expect(toast.error).toHaveBeenCalledWith("agent unavailable");
     });
     expect(getTestPluginRuntime().textEffectCalls).toContain("shimmer");
-    expect(
-      screen.queryByRole("button", { name: "Undo" }),
-    ).toBeNull();
+    expect(screen.queryByRole("button", { name: "Undo" })).toBeNull();
   });
 });

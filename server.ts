@@ -85,7 +85,7 @@ function errorMessage(error: unknown): string {
 }
 
 function canFallBackFromSideChat(error: unknown): boolean {
-  return /cannot fork|cannot spawn child|hierarchy|source has no active session/i.test(
+  return /cannot fork|cannot spawn child|hierarchy|parent thread is invalid|source has no active session/i.test(
     errorMessage(error),
   );
 }

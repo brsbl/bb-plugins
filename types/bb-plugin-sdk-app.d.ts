@@ -396,6 +396,12 @@ type PluginComposerScope = {
     threadId: string;
     queuedMessageId: string;
 } | {
+    kind: "side-chat";
+    projectId: string;
+    parentThreadId: string;
+    tabId: string;
+    childThreadId: string | null;
+} | {
     kind: "new-thread";
     projectId: string | null;
 };

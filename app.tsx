@@ -113,6 +113,7 @@ function PromptShaperAction({
   const pendingRef = useRef<PendingRequest | null>(pending);
   const composerRef = useRef(composer);
   const composerScopeKeyRef = useRef(composerScopeKey);
+  const previousComposerScopeKeyRef = useRef(composerScopeKey);
   const [isHovered, setIsHovered] = useState(false);
   const [isKeyboardFocused, setIsKeyboardFocused] = useState(false);
   const [undoState, setUndoState] = useState<UndoState | null>(null);
@@ -134,11 +135,18 @@ function PromptShaperAction({
   }, []);
 
   useEffect(() => {
-    if (pendingRef.current?.scopeKey === composerScopeKey) return;
-    const recovered = loadPendingRequest(composerScopeKey);
-    pendingRef.current = recovered;
-    setPending(recovered);
-  }, [composerScopeKey]);
+    if (previousComposerScopeKeyRef.current === composerScopeKey) return;
+    previousComposerScopeKeyRef.current = composerScopeKey;
+    const staleRequest = pendingRef.current;
+    if (staleRequest === null) return;
+    setPendingRequest(null);
+    void rpc
+      .call("cancelEnhancement", { requestId: staleRequest.requestId })
+      .catch(() => {
+        // Scope changes invalidate the local request even if the helper has
+        // already exited or the cancellation transport is unavailable.
+      });
+  }, [composerScopeKey, rpc, setPendingRequest]);
 
   useEffect(() => {
     composer.setTextEffect?.(isRunning ? "shimmer" : null);
@@ -337,6 +345,11 @@ function PromptShaperAction({
             disabled={isDisabled}
             aria-busy={isRunning}
             aria-label={actionLabel}
+            onMouseDown={(event) => {
+              // Keep narrow/inline composers expanded until the click is
+              // delivered. Their action row collapses when the editor blurs.
+              event.preventDefault();
+            }}
             onBlur={() => setIsKeyboardFocused(false)}
             onFocus={(event) =>
               setIsKeyboardFocused(

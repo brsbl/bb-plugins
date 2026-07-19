@@ -45,7 +45,7 @@ describe("buildWorkerPrompt", () => {
 });
 
 describe("composer scope key", () => {
-  it("keys thread, queued-message, and new-thread composers separately", () => {
+  it("keys thread, queued-message, side-chat, and new-thread composers separately", () => {
     expect(scopeKey({ kind: "thread", threadId: "thr_1" })).toBe(
       "thread:thr_1",
     );
@@ -56,6 +56,24 @@ describe("composer scope key", () => {
         queuedMessageId: "msg_1",
       }),
     ).toBe("queued-message:thr_1:msg_1");
+    expect(
+      scopeKey({
+        kind: "side-chat",
+        projectId: "proj_1",
+        parentThreadId: "thr_parent",
+        tabId: "side-chat:one",
+        childThreadId: "thr_child",
+      }),
+    ).toBe("side-chat:proj_1:thr_parent:side-chat:one:thr_child");
+    expect(
+      scopeKey({
+        kind: "side-chat",
+        projectId: "proj_1",
+        parentThreadId: "thr_parent",
+        tabId: "side-chat:draft",
+        childThreadId: null,
+      }),
+    ).toBe("side-chat:proj_1:thr_parent:side-chat:draft:");
     expect(scopeKey({ kind: "new-thread", projectId: "proj_1" })).toBe(
       "new-thread:proj_1",
     );
