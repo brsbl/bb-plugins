@@ -28,6 +28,7 @@
     "search.ts",
     "pattern-previews.tsx",
     "plugin-styles.ts",
+    "providers/**/*.ts",
     "standalone.tsx",
     "types",
     "components",

@@ -1,0 +1,7 @@
+{
+  "schemaVersion": "1",
+  "inputs": {
+    "govuk-design-system": "c35023510a47416c7535c780ee6bc58124d60d9acb3a6d29819ba8d9ddca1f29",
+    "uswds": "f938d2fc8df73f77634cf0f59e389c669da7ae0130537548ca5f0326e9a43d7c"
+  }
+}
