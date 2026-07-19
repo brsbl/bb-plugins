@@ -7,7 +7,7 @@ import {
   filterRules,
   ruleIdFromPath,
   rulePath,
-  SUBDOMAIN_GRADIENT_STYLES,
+  SUBDOMAIN_MESH_STYLES,
   subdomainFromIdentifier,
   titleCaseDomainFilter,
   toggledRulePath,
@@ -102,17 +102,17 @@ describe("design doctrine library", () => {
     expect(titleCaseDomainFilter("design-system")).toBe("Design System");
   });
 
-  it("gives every current subdomain a unique gradient endpoint", async () => {
+  it("gives every current subdomain a unique mesh endpoint", async () => {
     const library = await loadDoctrine(process.cwd());
     const subdomains = [
       ...new Set(library.rules.map((rule) => subdomainFromIdentifier(rule.domain))),
     ].sort();
-    const mappedSubdomains = Object.keys(SUBDOMAIN_GRADIENT_STYLES).sort();
-    const gradientEndpoints = mappedSubdomains.map(
-      (subdomain) => SUBDOMAIN_GRADIENT_STYLES[subdomain].idle,
+    const mappedSubdomains = Object.keys(SUBDOMAIN_MESH_STYLES).sort();
+    const meshEndpoints = mappedSubdomains.map(
+      (subdomain) => SUBDOMAIN_MESH_STYLES[subdomain].idle,
     );
 
     expect(mappedSubdomains).toEqual(subdomains);
-    expect(new Set(gradientEndpoints).size).toBe(gradientEndpoints.length);
+    expect(new Set(meshEndpoints).size).toBe(meshEndpoints.length);
   });
 });

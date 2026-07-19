@@ -19,7 +19,7 @@ import {
   domainFilterFromIdentifier,
   filterRules,
   ruleIdFromPath,
-  SUBDOMAIN_GRADIENT_STYLES,
+  SUBDOMAIN_MESH_STYLES,
   subdomainFromIdentifier,
   titleCaseDomainFilter,
   toggledRulePath,
@@ -31,65 +31,101 @@ const DOMAIN_STYLES: Record<
   {
     idle: string;
     selected: string;
-    gradientIdle: string;
-    gradientSelected: string;
+    meshStartIdle: string;
+    meshStartSelected: string;
+    meshEndIdle: string;
+    meshEndSelected: string;
   }
 > = {
   all: {
-    idle: "border-border/60 bg-background/35 hover:border-foreground/15 hover:bg-background/55",
-    selected: "border-foreground/20 bg-background/60 text-foreground ring-1 ring-foreground/8",
-    gradientIdle: "from-muted/15 hover:from-muted/25",
-    gradientSelected: "from-muted/25 hover:from-muted/35",
+    idle: "border-border/60 bg-background/45 hover:border-foreground/15 hover:bg-background/55",
+    selected: "border-foreground/20 bg-background/55 text-foreground ring-1 ring-foreground/8",
+    meshStartIdle: "bg-muted/40 group-hover:bg-muted/50",
+    meshStartSelected: "bg-muted/55 group-hover:bg-muted/65",
+    meshEndIdle: "bg-accent/35 group-hover:bg-accent/45",
+    meshEndSelected: "bg-accent/50 group-hover:bg-accent/60",
   },
   accessibility: {
-    idle: "border-teal-500/10 bg-background/35 hover:border-teal-500/25 hover:bg-background/55",
-    selected: "border-teal-500/30 bg-background/60 text-foreground ring-1 ring-teal-500/20",
-    gradientIdle: "from-teal-500/10 hover:from-teal-500/15",
-    gradientSelected: "from-teal-500/15 hover:from-teal-500/20",
+    idle: "border-emerald-400/10 bg-background/45 hover:border-emerald-400/25 hover:bg-background/55",
+    selected: "border-emerald-400/30 bg-background/55 text-foreground ring-1 ring-emerald-400/20",
+    meshStartIdle: "bg-emerald-300/40 group-hover:bg-emerald-300/50",
+    meshStartSelected: "bg-emerald-300/55 group-hover:bg-emerald-300/65",
+    meshEndIdle: "bg-cyan-300/35 group-hover:bg-cyan-300/45",
+    meshEndSelected: "bg-cyan-300/50 group-hover:bg-cyan-300/60",
   },
   ai: {
-    idle: "border-violet-500/10 bg-background/35 hover:border-violet-500/25 hover:bg-background/55",
-    selected: "border-violet-500/30 bg-background/60 text-foreground ring-1 ring-violet-500/20",
-    gradientIdle: "from-violet-500/10 hover:from-violet-500/15",
-    gradientSelected: "from-violet-500/15 hover:from-violet-500/20",
+    idle: "border-indigo-400/10 bg-background/45 hover:border-indigo-400/25 hover:bg-background/55",
+    selected: "border-indigo-400/30 bg-background/55 text-foreground ring-1 ring-indigo-400/20",
+    meshStartIdle: "bg-indigo-300/40 group-hover:bg-indigo-300/50",
+    meshStartSelected: "bg-indigo-300/55 group-hover:bg-indigo-300/65",
+    meshEndIdle: "bg-violet-300/35 group-hover:bg-violet-300/45",
+    meshEndSelected: "bg-violet-300/50 group-hover:bg-violet-300/60",
   },
   content: {
-    idle: "border-amber-500/10 bg-background/35 hover:border-amber-500/25 hover:bg-background/55",
-    selected: "border-amber-500/30 bg-background/60 text-foreground ring-1 ring-amber-500/20",
-    gradientIdle: "from-amber-500/10 hover:from-amber-500/15",
-    gradientSelected: "from-amber-500/15 hover:from-amber-500/20",
+    idle: "border-amber-400/10 bg-background/45 hover:border-amber-400/25 hover:bg-background/55",
+    selected: "border-amber-400/30 bg-background/55 text-foreground ring-1 ring-amber-400/20",
+    meshStartIdle: "bg-amber-300/40 group-hover:bg-amber-300/50",
+    meshStartSelected: "bg-amber-300/55 group-hover:bg-amber-300/65",
+    meshEndIdle: "bg-rose-300/35 group-hover:bg-rose-300/45",
+    meshEndSelected: "bg-rose-300/50 group-hover:bg-rose-300/60",
   },
   information: {
-    idle: "border-sky-500/10 bg-background/35 hover:border-sky-500/25 hover:bg-background/55",
-    selected: "border-sky-500/30 bg-background/60 text-foreground ring-1 ring-sky-500/20",
-    gradientIdle: "from-sky-500/10 hover:from-sky-500/15",
-    gradientSelected: "from-sky-500/15 hover:from-sky-500/20",
+    idle: "border-sky-400/10 bg-background/45 hover:border-sky-400/25 hover:bg-background/55",
+    selected: "border-sky-400/30 bg-background/55 text-foreground ring-1 ring-sky-400/20",
+    meshStartIdle: "bg-sky-300/40 group-hover:bg-sky-300/50",
+    meshStartSelected: "bg-sky-300/55 group-hover:bg-sky-300/65",
+    meshEndIdle: "bg-indigo-300/35 group-hover:bg-indigo-300/45",
+    meshEndSelected: "bg-indigo-300/50 group-hover:bg-indigo-300/60",
   },
   interaction: {
-    idle: "border-indigo-500/10 bg-background/35 hover:border-indigo-500/25 hover:bg-background/55",
-    selected: "border-indigo-500/30 bg-background/60 text-foreground ring-1 ring-indigo-500/20",
-    gradientIdle: "from-indigo-500/10 hover:from-indigo-500/15",
-    gradientSelected: "from-indigo-500/15 hover:from-indigo-500/20",
+    idle: "border-violet-400/10 bg-background/45 hover:border-violet-400/25 hover:bg-background/55",
+    selected: "border-violet-400/30 bg-background/55 text-foreground ring-1 ring-violet-400/20",
+    meshStartIdle: "bg-violet-300/40 group-hover:bg-violet-300/50",
+    meshStartSelected: "bg-violet-300/55 group-hover:bg-violet-300/65",
+    meshEndIdle: "bg-pink-300/35 group-hover:bg-pink-300/45",
+    meshEndSelected: "bg-pink-300/50 group-hover:bg-pink-300/60",
   },
   process: {
-    idle: "border-orange-500/10 bg-background/35 hover:border-orange-500/25 hover:bg-background/55",
-    selected: "border-orange-500/30 bg-background/60 text-foreground ring-1 ring-orange-500/20",
-    gradientIdle: "from-orange-500/10 hover:from-orange-500/15",
-    gradientSelected: "from-orange-500/15 hover:from-orange-500/20",
+    idle: "border-orange-400/10 bg-background/45 hover:border-orange-400/25 hover:bg-background/55",
+    selected: "border-orange-400/30 bg-background/55 text-foreground ring-1 ring-orange-400/20",
+    meshStartIdle: "bg-orange-300/40 group-hover:bg-orange-300/50",
+    meshStartSelected: "bg-orange-300/55 group-hover:bg-orange-300/65",
+    meshEndIdle: "bg-yellow-300/35 group-hover:bg-yellow-300/45",
+    meshEndSelected: "bg-yellow-300/50 group-hover:bg-yellow-300/60",
   },
   system: {
-    idle: "border-lime-500/10 bg-background/35 hover:border-lime-500/25 hover:bg-background/55",
-    selected: "border-lime-500/30 bg-background/60 text-foreground ring-1 ring-lime-500/20",
-    gradientIdle: "from-lime-500/10 hover:from-lime-500/15",
-    gradientSelected: "from-lime-500/15 hover:from-lime-500/20",
+    idle: "border-teal-400/10 bg-background/45 hover:border-teal-400/25 hover:bg-background/55",
+    selected: "border-teal-400/30 bg-background/55 text-foreground ring-1 ring-teal-400/20",
+    meshStartIdle: "bg-teal-300/40 group-hover:bg-teal-300/50",
+    meshStartSelected: "bg-teal-300/55 group-hover:bg-teal-300/65",
+    meshEndIdle: "bg-lime-300/35 group-hover:bg-lime-300/45",
+    meshEndSelected: "bg-lime-300/50 group-hover:bg-lime-300/60",
   },
   visual: {
-    idle: "border-pink-500/10 bg-background/35 hover:border-pink-500/25 hover:bg-background/55",
-    selected: "border-pink-500/30 bg-background/60 text-foreground ring-1 ring-pink-500/20",
-    gradientIdle: "from-pink-500/10 hover:from-pink-500/15",
-    gradientSelected: "from-pink-500/15 hover:from-pink-500/20",
+    idle: "border-rose-400/10 bg-background/45 hover:border-rose-400/25 hover:bg-background/55",
+    selected: "border-rose-400/30 bg-background/55 text-foreground ring-1 ring-rose-400/20",
+    meshStartIdle: "bg-rose-300/40 group-hover:bg-rose-300/50",
+    meshStartSelected: "bg-rose-300/55 group-hover:bg-rose-300/65",
+    meshEndIdle: "bg-purple-300/35 group-hover:bg-purple-300/45",
+    meshEndSelected: "bg-purple-300/50 group-hover:bg-purple-300/60",
   },
 };
+
+function MeshFill({ start, end }: { start: string; end: string }) {
+  return (
+    <span
+      aria-hidden="true"
+      className="pointer-events-none absolute inset-0 overflow-hidden rounded-[inherit]"
+    >
+      <span
+        className={`absolute -left-3 -top-3 h-8 w-2/3 rounded-full blur-md transition-colors duration-200 ${start}`}
+      />
+      <span
+        className={`absolute -bottom-3 -right-3 h-8 w-2/3 rounded-full blur-md transition-colors duration-200 ${end}`}
+      />
+    </span>
+  );
+}
 
 function domainLabel(domain: string): string {
   return titleCaseDomainFilter(domain);
@@ -154,16 +190,21 @@ function DomainPills({
         const selected = selectedDomain === domain;
         const style = DOMAIN_STYLES[domain] ?? DOMAIN_STYLES.all;
         const label = domainLabel(domain);
+        const meshStart = selected
+          ? style.meshStartSelected
+          : style.meshStartIdle;
+        const meshEnd = selected ? style.meshEndSelected : style.meshEndIdle;
         return (
           <button
             key={domain}
             type="button"
-            className={`cursor-pointer rounded-full border bg-linear-to-b to-background/75 px-3 py-1 text-xs font-medium text-foreground shadow-xs backdrop-blur-sm transition-colors hover:to-background/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background ${selected ? `${style.selected} ${style.gradientSelected}` : `${style.idle} ${style.gradientIdle}`}`}
+            className={`group relative isolate cursor-pointer overflow-hidden rounded-full border px-3 py-1 text-xs font-medium text-foreground shadow-xs backdrop-blur-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background ${selected ? style.selected : style.idle}`}
             aria-label={domain === "all" ? "Show all domains" : `Show ${label} domain`}
             aria-pressed={selected}
             onClick={() => onSelect(domain)}
           >
-            {label}
+            <MeshFill start={meshStart} end={meshEnd} />
+            <span className="relative z-10">{label}</span>
           </button>
         );
       })}
@@ -183,25 +224,25 @@ function DomainIdentifierPill({
   const filterDomain = domainFilterFromIdentifier(identifier);
   const selected = selectedDomain === filterDomain;
   const style = DOMAIN_STYLES[filterDomain] ?? DOMAIN_STYLES.all;
-  const subdomainStyle =
-    SUBDOMAIN_GRADIENT_STYLES[subdomainFromIdentifier(identifier)] ?? {
-      idle: "to-muted/15 hover:to-muted/25",
-      selected: "to-muted/25 hover:to-muted/35",
+  const subdomainMesh =
+    SUBDOMAIN_MESH_STYLES[subdomainFromIdentifier(identifier)] ?? {
+      idle: "bg-accent/35 group-hover:bg-accent/45",
+      selected: "bg-accent/50 group-hover:bg-accent/60",
     };
   const label = displayDomainIdentifier(identifier);
-  const gradientStyle = selected
-    ? `${style.gradientSelected} ${subdomainStyle.selected}`
-    : `${style.gradientIdle} ${subdomainStyle.idle}`;
+  const meshStart = selected ? style.meshStartSelected : style.meshStartIdle;
+  const meshEnd = selected ? subdomainMesh.selected : subdomainMesh.idle;
 
   return (
     <button
       type="button"
-      className={`inline-flex max-w-full cursor-pointer items-center rounded-full border bg-linear-to-r px-2 py-0.5 text-[11px] font-medium leading-4 text-foreground shadow-xs backdrop-blur-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background ${selected ? style.selected : style.idle} ${gradientStyle}`}
+      className={`group relative isolate inline-flex max-w-full cursor-pointer items-center overflow-hidden rounded-full border px-2 py-0.5 text-[11px] font-medium leading-4 text-foreground shadow-xs backdrop-blur-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background ${selected ? style.selected : style.idle}`}
       aria-label={`Filter rules by ${filterDomain} domain`}
       aria-pressed={selected}
       onClick={() => onSelect(filterDomain)}
     >
-      <span className="truncate">{label}</span>
+      <MeshFill start={meshStart} end={meshEnd} />
+      <span className="relative z-10 truncate">{label}</span>
     </button>
   );
 }

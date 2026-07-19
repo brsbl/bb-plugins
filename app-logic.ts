@@ -1,85 +1,85 @@
 import type { DoctrineRule } from "./server";
 
-export type IdentifierGradientStyle = {
+export type IdentifierMeshStyle = {
   idle: string;
   selected: string;
 };
 
-export const SUBDOMAIN_GRADIENT_STYLES: Record<
+export const SUBDOMAIN_MESH_STYLES: Record<
   string,
-  IdentifierGradientStyle
+  IdentifierMeshStyle
 > = {
   operation: {
-    idle: "to-cyan-500/10 hover:to-cyan-500/15",
-    selected: "to-cyan-500/15 hover:to-cyan-500/20",
+    idle: "bg-cyan-300/40 group-hover:bg-cyan-300/50",
+    selected: "bg-cyan-300/55 group-hover:bg-cyan-300/65",
   },
   agency: {
-    idle: "to-rose-500/10 hover:to-rose-500/15",
-    selected: "to-rose-500/15 hover:to-rose-500/20",
+    idle: "bg-rose-300/40 group-hover:bg-rose-300/50",
+    selected: "bg-rose-300/55 group-hover:bg-rose-300/65",
   },
   context: {
-    idle: "to-sky-500/10 hover:to-sky-500/15",
-    selected: "to-sky-500/15 hover:to-sky-500/20",
+    idle: "bg-sky-300/40 group-hover:bg-sky-300/50",
+    selected: "bg-sky-300/55 group-hover:bg-sky-300/65",
   },
   instructions: {
-    idle: "to-yellow-500/10 hover:to-yellow-500/15",
-    selected: "to-yellow-500/15 hover:to-yellow-500/20",
+    idle: "bg-amber-200/40 group-hover:bg-amber-200/50",
+    selected: "bg-amber-200/55 group-hover:bg-amber-200/65",
   },
   terminology: {
-    idle: "to-orange-500/10 hover:to-orange-500/15",
-    selected: "to-orange-500/15 hover:to-orange-500/20",
+    idle: "bg-orange-300/40 group-hover:bg-orange-300/50",
+    selected: "bg-orange-300/55 group-hover:bg-orange-300/65",
   },
   density: {
-    idle: "to-blue-500/10 hover:to-blue-500/15",
-    selected: "to-blue-500/15 hover:to-blue-500/20",
+    idle: "bg-blue-300/40 group-hover:bg-blue-300/50",
+    selected: "bg-blue-300/55 group-hover:bg-blue-300/65",
   },
   hierarchy: {
-    idle: "to-indigo-500/10 hover:to-indigo-500/15",
-    selected: "to-indigo-500/15 hover:to-indigo-500/20",
+    idle: "bg-indigo-300/40 group-hover:bg-indigo-300/50",
+    selected: "bg-indigo-300/55 group-hover:bg-indigo-300/65",
   },
   organization: {
-    idle: "to-emerald-500/10 hover:to-emerald-500/15",
-    selected: "to-emerald-500/15 hover:to-emerald-500/20",
+    idle: "bg-emerald-300/40 group-hover:bg-emerald-300/50",
+    selected: "bg-emerald-300/55 group-hover:bg-emerald-300/65",
   },
   efficiency: {
-    idle: "to-lime-500/10 hover:to-lime-500/15",
-    selected: "to-lime-500/15 hover:to-lime-500/20",
+    idle: "bg-lime-300/40 group-hover:bg-lime-300/50",
+    selected: "bg-lime-300/55 group-hover:bg-lime-300/65",
   },
   feedback: {
-    idle: "to-pink-500/10 hover:to-pink-500/15",
-    selected: "to-pink-500/15 hover:to-pink-500/20",
+    idle: "bg-pink-300/40 group-hover:bg-pink-300/50",
+    selected: "bg-pink-300/55 group-hover:bg-pink-300/65",
   },
   input: {
-    idle: "to-teal-500/10 hover:to-teal-500/15",
-    selected: "to-teal-500/15 hover:to-teal-500/20",
+    idle: "bg-teal-300/40 group-hover:bg-teal-300/50",
+    selected: "bg-teal-300/55 group-hover:bg-teal-300/65",
   },
   navigation: {
-    idle: "to-purple-500/10 hover:to-purple-500/15",
-    selected: "to-purple-500/15 hover:to-purple-500/20",
+    idle: "bg-violet-300/40 group-hover:bg-violet-300/50",
+    selected: "bg-violet-300/55 group-hover:bg-violet-300/65",
   },
   handoff: {
-    idle: "to-amber-500/10 hover:to-amber-500/15",
-    selected: "to-amber-500/15 hover:to-amber-500/20",
+    idle: "bg-yellow-300/40 group-hover:bg-yellow-300/50",
+    selected: "bg-yellow-300/55 group-hover:bg-yellow-300/65",
   },
   validation: {
-    idle: "to-green-500/10 hover:to-green-500/15",
-    selected: "to-green-500/15 hover:to-green-500/20",
+    idle: "bg-green-300/40 group-hover:bg-green-300/50",
+    selected: "bg-green-300/55 group-hover:bg-green-300/65",
   },
   "design-system": {
-    idle: "to-fuchsia-500/10 hover:to-fuchsia-500/15",
-    selected: "to-fuchsia-500/15 hover:to-fuchsia-500/20",
+    idle: "bg-fuchsia-300/40 group-hover:bg-fuchsia-300/50",
+    selected: "bg-fuchsia-300/55 group-hover:bg-fuchsia-300/65",
   },
   color: {
-    idle: "to-red-500/10 hover:to-red-500/15",
-    selected: "to-red-500/15 hover:to-red-500/20",
+    idle: "bg-red-300/40 group-hover:bg-red-300/50",
+    selected: "bg-red-300/55 group-hover:bg-red-300/65",
   },
   imagery: {
-    idle: "to-violet-500/10 hover:to-violet-500/15",
-    selected: "to-violet-500/15 hover:to-violet-500/20",
+    idle: "bg-purple-300/40 group-hover:bg-purple-300/50",
+    selected: "bg-purple-300/55 group-hover:bg-purple-300/65",
   },
   layout: {
-    idle: "to-cyan-300/10 hover:to-cyan-300/15",
-    selected: "to-cyan-300/15 hover:to-cyan-300/20",
+    idle: "bg-cyan-200/40 group-hover:bg-cyan-200/50",
+    selected: "bg-cyan-200/55 group-hover:bg-cyan-200/65",
   },
 };
 
