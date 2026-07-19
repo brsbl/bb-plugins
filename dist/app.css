@@ -544,6 +544,9 @@
     .text-secondary-foreground {
       color: var(--secondary-foreground);
     }
+    .text-success {
+      color: var(--success);
+    }
     .lowercase {
       text-transform: lowercase;
     }

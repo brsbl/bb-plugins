@@ -34,6 +34,7 @@ const THREAD_ROW_STATUS = {
   icon: "AiScanText",
   label: "Prompt Shaper improving prompt",
   effect: "shimmer",
+  tone: "success",
 } as const;
 
 function pendingStorageKey(composerScopeKey: string): string {
@@ -314,85 +315,94 @@ function PromptShaperAction({
     }
   }, [clearLoadingEffects, rpc, setPendingRequest]);
 
-  const action = isRunning ? "cancel" : canUndo ? "undo" : "improve";
   const isDisabled =
-    action === "improve" &&
-    (projectId === null || composer.text.trim().length === 0);
-  const actionLabel =
-    action === "cancel"
-      ? "Cancel prompt improvement"
-      : action === "undo"
-        ? "Undo"
-        : "Improve prompt";
+    !isRunning && (projectId === null || composer.text.trim().length === 0);
+  const actionLabel = isRunning
+    ? "Cancel prompt improvement"
+    : "Improve prompt";
   const iconName =
-    action === "cancel"
+    isRunning
       ? showCancelIcon
         ? "X"
         : "AiScanText"
-      : action === "undo"
-        ? "ArrowTurnBackward"
-        : "AiScanText";
+      : "AiScanText";
 
   return (
     <TooltipProvider delayDuration={300}>
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            className="size-7 text-muted-foreground"
-            disabled={isDisabled}
-            aria-busy={isRunning}
-            aria-label={actionLabel}
-            onMouseDown={(event) => {
-              // Keep narrow/inline composers expanded until the click is
-              // delivered. Their action row collapses when the editor blurs.
-              event.preventDefault();
-            }}
-            onBlur={() => setIsKeyboardFocused(false)}
-            onFocus={(event) =>
-              setIsKeyboardFocused(
-                event.currentTarget.matches(":focus-visible"),
-              )
-            }
-            onMouseEnter={() => setIsHovered(true)}
-            onMouseLeave={() => setIsHovered(false)}
-            onClick={() =>
-              void (action === "cancel"
-                ? cancel()
-                : action === "undo"
-                  ? undo()
-                  : enhance())
-            }
-          >
-            <span
+      <div className="flex items-center" data-prompt-shaper-actions>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
               className={
                 isRunning && !showCancelIcon
-                  ? "inline-flex size-4 items-center justify-center motion-safe:animate-pulse"
-                  : "inline-flex size-4 items-center justify-center"
+                  ? "size-7 text-success"
+                  : "size-7 text-muted-foreground"
               }
+              disabled={isDisabled}
+              aria-busy={isRunning}
+              aria-label={actionLabel}
+              onMouseDown={(event) => {
+                // Keep narrow/inline composers expanded until the click is
+                // delivered. Their action row collapses when the editor blurs.
+                event.preventDefault();
+              }}
+              onBlur={() => setIsKeyboardFocused(false)}
+              onFocus={(event) =>
+                setIsKeyboardFocused(
+                  event.currentTarget.matches(":focus-visible"),
+                )
+              }
+              onMouseEnter={() => setIsHovered(true)}
+              onMouseLeave={() => setIsHovered(false)}
+              onClick={() => void (isRunning ? cancel() : enhance())}
             >
-              <Icon
-                name={iconName}
+              <span
                 className={
                   isRunning && !showCancelIcon
-                    ? "animate-shine-icon motion-safe:[animation-duration:1.5s]"
-                    : undefined
+                    ? "inline-flex size-4 items-center justify-center motion-safe:animate-pulse"
+                    : "inline-flex size-4 items-center justify-center"
                 }
-                aria-hidden="true"
-              />
-            </span>
-          </Button>
-        </TooltipTrigger>
-        <TooltipContent side="top">
-          {action === "cancel"
-            ? "Cancel"
-            : action === "undo"
-              ? "Undo"
-              : "Improve prompt"}
-        </TooltipContent>
-      </Tooltip>
+              >
+                <Icon
+                  name={iconName}
+                  className={
+                    isRunning && !showCancelIcon
+                      ? "animate-shine-icon motion-safe:[animation-duration:1.5s]"
+                      : undefined
+                  }
+                  aria-hidden="true"
+                />
+              </span>
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent side="top">
+            {isRunning ? "Cancel" : "Improve prompt"}
+          </TooltipContent>
+        </Tooltip>
+        {canUndo ? (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="size-7 text-muted-foreground"
+                aria-label="Undo prompt"
+                onMouseDown={(event) => {
+                  event.preventDefault();
+                }}
+                onClick={undo}
+              >
+                <Icon name="ArrowTurnBackward" aria-hidden="true" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="top">Undo prompt</TooltipContent>
+          </Tooltip>
+        ) : null}
+      </div>
     </TooltipProvider>
   );
 }

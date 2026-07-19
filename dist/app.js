@@ -4929,7 +4929,8 @@ var PENDING_STORAGE_PREFIX = "bb-plugin-prompt-shaper:pending:";
 var THREAD_ROW_STATUS = {
   icon: "AiScanText",
   label: "Prompt Shaper improving prompt",
-  effect: "shimmer"
+  effect: "shimmer",
+  tone: "success"
 };
 function pendingStorageKey(composerScopeKey) {
   return `${PENDING_STORAGE_PREFIX}${composerScopeKey}`;
@@ -5147,48 +5148,67 @@ function PromptShaperAction({
       );
     }
   }, [clearLoadingEffects, rpc, setPendingRequest]);
-  const action = isRunning ? "cancel" : canUndo ? "undo" : "improve";
-  const isDisabled = action === "improve" && (projectId === null || composer.text.trim().length === 0);
-  const actionLabel = action === "cancel" ? "Cancel prompt improvement" : action === "undo" ? "Undo" : "Improve prompt";
-  const iconName = action === "cancel" ? showCancelIcon ? "X" : "AiScanText" : action === "undo" ? "ArrowTurnBackward" : "AiScanText";
-  return /* @__PURE__ */ jsx(TooltipProvider2, { delayDuration: 300, children: /* @__PURE__ */ jsxs(Tooltip2, { children: [
-    /* @__PURE__ */ jsx(TooltipTrigger2, { asChild: true, children: /* @__PURE__ */ jsx(
-      Button,
-      {
-        type: "button",
-        variant: "ghost",
-        size: "icon",
-        className: "size-7 text-muted-foreground",
-        disabled: isDisabled,
-        "aria-busy": isRunning,
-        "aria-label": actionLabel,
-        onMouseDown: (event) => {
-          event.preventDefault();
-        },
-        onBlur: () => setIsKeyboardFocused(false),
-        onFocus: (event) => setIsKeyboardFocused(
-          event.currentTarget.matches(":focus-visible")
-        ),
-        onMouseEnter: () => setIsHovered(true),
-        onMouseLeave: () => setIsHovered(false),
-        onClick: () => void (action === "cancel" ? cancel() : action === "undo" ? undo() : enhance()),
-        children: /* @__PURE__ */ jsx(
-          "span",
-          {
-            className: isRunning && !showCancelIcon ? "inline-flex size-4 items-center justify-center motion-safe:animate-pulse" : "inline-flex size-4 items-center justify-center",
-            children: /* @__PURE__ */ jsx(
-              Icon,
-              {
-                name: iconName,
-                className: isRunning && !showCancelIcon ? "animate-shine-icon motion-safe:[animation-duration:1.5s]" : void 0,
-                "aria-hidden": "true"
-              }
-            )
-          }
-        )
-      }
-    ) }),
-    /* @__PURE__ */ jsx(TooltipContent2, { side: "top", children: action === "cancel" ? "Cancel" : action === "undo" ? "Undo" : "Improve prompt" })
+  const isDisabled = !isRunning && (projectId === null || composer.text.trim().length === 0);
+  const actionLabel = isRunning ? "Cancel prompt improvement" : "Improve prompt";
+  const iconName = isRunning ? showCancelIcon ? "X" : "AiScanText" : "AiScanText";
+  return /* @__PURE__ */ jsx(TooltipProvider2, { delayDuration: 300, children: /* @__PURE__ */ jsxs("div", { className: "flex items-center", "data-prompt-shaper-actions": true, children: [
+    /* @__PURE__ */ jsxs(Tooltip2, { children: [
+      /* @__PURE__ */ jsx(TooltipTrigger2, { asChild: true, children: /* @__PURE__ */ jsx(
+        Button,
+        {
+          type: "button",
+          variant: "ghost",
+          size: "icon",
+          className: isRunning && !showCancelIcon ? "size-7 text-success" : "size-7 text-muted-foreground",
+          disabled: isDisabled,
+          "aria-busy": isRunning,
+          "aria-label": actionLabel,
+          onMouseDown: (event) => {
+            event.preventDefault();
+          },
+          onBlur: () => setIsKeyboardFocused(false),
+          onFocus: (event) => setIsKeyboardFocused(
+            event.currentTarget.matches(":focus-visible")
+          ),
+          onMouseEnter: () => setIsHovered(true),
+          onMouseLeave: () => setIsHovered(false),
+          onClick: () => void (isRunning ? cancel() : enhance()),
+          children: /* @__PURE__ */ jsx(
+            "span",
+            {
+              className: isRunning && !showCancelIcon ? "inline-flex size-4 items-center justify-center motion-safe:animate-pulse" : "inline-flex size-4 items-center justify-center",
+              children: /* @__PURE__ */ jsx(
+                Icon,
+                {
+                  name: iconName,
+                  className: isRunning && !showCancelIcon ? "animate-shine-icon motion-safe:[animation-duration:1.5s]" : void 0,
+                  "aria-hidden": "true"
+                }
+              )
+            }
+          )
+        }
+      ) }),
+      /* @__PURE__ */ jsx(TooltipContent2, { side: "top", children: isRunning ? "Cancel" : "Improve prompt" })
+    ] }),
+    canUndo ? /* @__PURE__ */ jsxs(Tooltip2, { children: [
+      /* @__PURE__ */ jsx(TooltipTrigger2, { asChild: true, children: /* @__PURE__ */ jsx(
+        Button,
+        {
+          type: "button",
+          variant: "ghost",
+          size: "icon",
+          className: "size-7 text-muted-foreground",
+          "aria-label": "Undo prompt",
+          onMouseDown: (event) => {
+            event.preventDefault();
+          },
+          onClick: undo,
+          children: /* @__PURE__ */ jsx(Icon, { name: "ArrowTurnBackward", "aria-hidden": "true" })
+        }
+      ) }),
+      /* @__PURE__ */ jsx(TooltipContent2, { side: "top", children: "Undo prompt" })
+    ] }) : null
   ] }) });
 }
 var app_default = definePluginApp((app) => {
