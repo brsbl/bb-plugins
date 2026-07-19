@@ -1,5 +1,9 @@
 import type { DoctrineRule } from "./server";
 
+export function displayDomainIdentifier(identifier: string): string {
+  return identifier.toLocaleLowerCase();
+}
+
 export function rulePath(id: string): string {
   return `rule/${encodeURIComponent(id)}`;
 }

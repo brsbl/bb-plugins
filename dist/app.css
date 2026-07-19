@@ -341,13 +341,6 @@
         margin-block-end: calc(calc(var(--spacing) * 2) * calc(1 - var(--tw-space-y-reverse)));
       }
     }
-    .space-y-2\.5 {
-      :where(& > :not(:last-child)) {
-        --tw-space-y-reverse: 0;
-        margin-block-start: calc(calc(var(--spacing) * 2.5) * var(--tw-space-y-reverse));
-        margin-block-end: calc(calc(var(--spacing) * 2.5) * calc(1 - var(--tw-space-y-reverse)));
-      }
-    }
     .space-y-7 {
       :where(& > :not(:last-child)) {
         --tw-space-y-reverse: 0;
@@ -1121,6 +1114,11 @@
         opacity: 50%;
       }
     }
+    .sm\:w-56 {
+      @media (width >= 40rem) {
+        width: calc(var(--spacing) * 56);
+      }
+    }
     .md\:grid-cols-2 {
       @media (width >= 48rem) {
         grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1144,6 +1142,16 @@
     .md\:pb-10 {
       @media (width >= 48rem) {
         padding-bottom: calc(var(--spacing) * 10);
+      }
+    }
+    .lg\:w-64 {
+      @media (width >= 64rem) {
+        width: calc(var(--spacing) * 64);
+      }
+    }
+    .lg\:flex-nowrap {
+      @media (width >= 64rem) {
+        flex-wrap: nowrap;
       }
     }
     .xl\:grid-cols-3 {

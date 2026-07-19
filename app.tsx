@@ -15,6 +15,7 @@ import {
 
 import {
   detailRowEndIndex,
+  displayDomainIdentifier,
   filterRules,
   ruleIdFromPath,
   toggledRulePath,
@@ -62,8 +63,7 @@ const DOMAIN_STYLES: Record<string, { idle: string; selected: string }> = {
 
 function domainLabel(domain: string): string {
   if (domain === "all") return "All";
-  if (domain === "ai") return "AI";
-  return `${domain.charAt(0).toLocaleUpperCase()}${domain.slice(1)}`;
+  return displayDomainIdentifier(domain);
 }
 
 function getGridColumnCount(): number {
@@ -117,7 +117,7 @@ function DomainPills({
 }) {
   return (
     <div
-      className="flex min-w-0 flex-1 flex-wrap items-center gap-1.5"
+      className="flex min-w-0 flex-1 flex-wrap items-center gap-1.5 lg:flex-nowrap"
       role="group"
       aria-label="Filter by domain"
     >
@@ -162,8 +162,8 @@ function RuleCard({
         onClick={onToggle}
       >
         <div className="flex w-full items-center justify-between gap-3">
-          <span className="truncate text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-            {rule.domain}
+          <span className="truncate text-[11px] font-medium tracking-wide text-muted-foreground">
+            {displayDomainIdentifier(rule.domain)}
           </span>
           <StatusBadge status={rule.status} />
         </div>
@@ -262,8 +262,8 @@ function RuleDetail({
           <>
             <header className="border-b border-border pb-6 pr-10">
               <div className="flex items-center gap-2">
-                <span className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-                  {rule.domain}
+                <span className="text-[11px] font-medium tracking-wide text-muted-foreground">
+                  {displayDomainIdentifier(rule.domain)}
                 </span>
                 <StatusBadge status={rule.status} />
               </div>
@@ -396,16 +396,24 @@ function DoctrineLibrary({ subPath }: { subPath: string }) {
 
   return (
     <main className="flex h-full min-h-0 flex-col bg-background text-foreground">
-      <section className="shrink-0 space-y-2.5 border-b border-border bg-background px-4 py-3" aria-label="Filter design doctrine">
-        <div className="flex items-center gap-2">
-          <input
-            type="search"
-            className="h-9 min-w-0 flex-1 rounded-lg border border-input bg-background px-3 text-sm text-foreground outline-none placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring"
-            aria-label="Search doctrine"
-            placeholder="Search rules…"
-            value={query}
-            onChange={(event) => setQuery(event.currentTarget.value)}
-          />
+      <section className="flex shrink-0 flex-wrap items-center gap-2 border-b border-border bg-background px-4 py-3 lg:flex-nowrap" aria-label="Filter design doctrine">
+        <input
+          type="search"
+          className="h-9 w-full min-w-0 rounded-lg border border-input bg-background px-3 text-sm text-foreground outline-none placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring sm:w-56 lg:w-64"
+          aria-label="Search doctrine"
+          placeholder="Search rules…"
+          value={query}
+          onChange={(event) => setQuery(event.currentTarget.value)}
+        />
+        <DomainPills
+          domains={library?.domains ?? []}
+          selectedDomain={domain}
+          onSelect={setDomain}
+        />
+        <div className="ml-auto flex h-9 shrink-0 items-center gap-1.5">
+          <span className="shrink-0 text-xs tabular-nums text-muted-foreground" role="status">
+            {results.length} {results.length === 1 ? "rule" : "rules"}
+          </span>
           <button
             type="button"
             className="grid h-9 w-9 shrink-0 place-items-center rounded-lg text-lg text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-wait disabled:opacity-50"
@@ -416,15 +424,7 @@ function DoctrineLibrary({ subPath }: { subPath: string }) {
           >
             ↻
           </button>
-          <span className="shrink-0 text-xs tabular-nums text-muted-foreground" role="status">
-            {results.length} {results.length === 1 ? "rule" : "rules"}
-          </span>
         </div>
-        <DomainPills
-          domains={library?.domains ?? []}
-          selectedDomain={domain}
-          onSelect={setDomain}
-        />
       </section>
 
       <div className="min-h-0 flex-1 overflow-y-auto p-4">

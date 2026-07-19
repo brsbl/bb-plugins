@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   detailRowEndIndex,
+  displayDomainIdentifier,
   filterRules,
   ruleIdFromPath,
   rulePath,
@@ -74,5 +75,14 @@ describe("design doctrine library", () => {
     expect(toggledRulePath(null, "ddr_001")).toBe("rule/ddr_001");
     expect(toggledRulePath("ddr_001", "ddr_001")).toBe("");
     expect(toggledRulePath("ddr_001", "ddr_002")).toBe("rule/ddr_002");
+  });
+
+  it("presents domain identifiers in lowercase without changing rule data", async () => {
+    const library = await loadDoctrine(process.cwd());
+    const rule = library.rules.find((item) => item.id === "ddr_029");
+
+    expect(displayDomainIdentifier("AI.CONTEXT")).toBe("ai.context");
+    expect(displayDomainIdentifier(rule?.domain ?? "")).toBe("ai.context");
+    expect(rule?.domain).toBe("ai.context");
   });
 });

@@ -67,6 +67,9 @@ var {
 } = mod2;
 
 // app-logic.ts
+function displayDomainIdentifier(identifier) {
+  return identifier.toLocaleLowerCase();
+}
 function rulePath(id) {
   return `rule/${encodeURIComponent(id)}`;
 }
@@ -174,8 +177,7 @@ var DOMAIN_STYLES = {
 };
 function domainLabel(domain) {
   if (domain === "all") return "All";
-  if (domain === "ai") return "AI";
-  return `${domain.charAt(0).toLocaleUpperCase()}${domain.slice(1)}`;
+  return displayDomainIdentifier(domain);
 }
 function getGridColumnCount() {
   if (typeof window === "undefined") return 1;
@@ -216,7 +218,7 @@ function DomainPills({
   return /* @__PURE__ */ jsx(
     "div",
     {
-      className: "flex min-w-0 flex-1 flex-wrap items-center gap-1.5",
+      className: "flex min-w-0 flex-1 flex-wrap items-center gap-1.5 lg:flex-nowrap",
       role: "group",
       "aria-label": "Filter by domain",
       children: ["all", ...domains].map((domain) => {
@@ -255,7 +257,7 @@ function RuleCard({
       onClick: onToggle,
       children: [
         /* @__PURE__ */ jsxs("div", { className: "flex w-full items-center justify-between gap-3", children: [
-          /* @__PURE__ */ jsx("span", { className: "truncate text-[11px] font-medium uppercase tracking-wide text-muted-foreground", children: rule.domain }),
+          /* @__PURE__ */ jsx("span", { className: "truncate text-[11px] font-medium tracking-wide text-muted-foreground", children: displayDomainIdentifier(rule.domain) }),
           /* @__PURE__ */ jsx(StatusBadge, { status: rule.status })
         ] }),
         /* @__PURE__ */ jsx("h2", { className: "mt-2 text-base font-semibold leading-snug text-foreground", children: rule.title }),
@@ -329,7 +331,7 @@ function RuleDetail({
         rule ? /* @__PURE__ */ jsxs(Fragment2, { children: [
           /* @__PURE__ */ jsxs("header", { className: "border-b border-border pb-6 pr-10", children: [
             /* @__PURE__ */ jsxs("div", { className: "flex items-center gap-2", children: [
-              /* @__PURE__ */ jsx("span", { className: "text-[11px] font-medium uppercase tracking-wide text-muted-foreground", children: rule.domain }),
+              /* @__PURE__ */ jsx("span", { className: "text-[11px] font-medium tracking-wide text-muted-foreground", children: displayDomainIdentifier(rule.domain) }),
               /* @__PURE__ */ jsx(StatusBadge, { status: rule.status })
             ] }),
             /* @__PURE__ */ jsx("h2", { id: "doctrine-rule-title", className: "mt-2 text-2xl font-semibold leading-tight tracking-tight", children: rule.title }),
@@ -434,19 +436,32 @@ function DoctrineLibrary({ subPath }) {
     if (requestedId && selectedRule && selectedResultIndex < 0) closeDetail();
   }, [closeDetail, requestedId, selectedResultIndex, selectedRule]);
   return /* @__PURE__ */ jsxs("main", { className: "flex h-full min-h-0 flex-col bg-background text-foreground", children: [
-    /* @__PURE__ */ jsxs("section", { className: "shrink-0 space-y-2.5 border-b border-border bg-background px-4 py-3", "aria-label": "Filter design doctrine", children: [
-      /* @__PURE__ */ jsxs("div", { className: "flex items-center gap-2", children: [
-        /* @__PURE__ */ jsx(
-          "input",
-          {
-            type: "search",
-            className: "h-9 min-w-0 flex-1 rounded-lg border border-input bg-background px-3 text-sm text-foreground outline-none placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring",
-            "aria-label": "Search doctrine",
-            placeholder: "Search rules\u2026",
-            value: query,
-            onChange: (event) => setQuery(event.currentTarget.value)
-          }
-        ),
+    /* @__PURE__ */ jsxs("section", { className: "flex shrink-0 flex-wrap items-center gap-2 border-b border-border bg-background px-4 py-3 lg:flex-nowrap", "aria-label": "Filter design doctrine", children: [
+      /* @__PURE__ */ jsx(
+        "input",
+        {
+          type: "search",
+          className: "h-9 w-full min-w-0 rounded-lg border border-input bg-background px-3 text-sm text-foreground outline-none placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring sm:w-56 lg:w-64",
+          "aria-label": "Search doctrine",
+          placeholder: "Search rules\u2026",
+          value: query,
+          onChange: (event) => setQuery(event.currentTarget.value)
+        }
+      ),
+      /* @__PURE__ */ jsx(
+        DomainPills,
+        {
+          domains: library?.domains ?? [],
+          selectedDomain: domain,
+          onSelect: setDomain
+        }
+      ),
+      /* @__PURE__ */ jsxs("div", { className: "ml-auto flex h-9 shrink-0 items-center gap-1.5", children: [
+        /* @__PURE__ */ jsxs("span", { className: "shrink-0 text-xs tabular-nums text-muted-foreground", role: "status", children: [
+          results.length,
+          " ",
+          results.length === 1 ? "rule" : "rules"
+        ] }),
         /* @__PURE__ */ jsx(
           "button",
           {
@@ -458,21 +473,8 @@ function DoctrineLibrary({ subPath }) {
             onClick: () => void load(),
             children: "\u21BB"
           }
-        ),
-        /* @__PURE__ */ jsxs("span", { className: "shrink-0 text-xs tabular-nums text-muted-foreground", role: "status", children: [
-          results.length,
-          " ",
-          results.length === 1 ? "rule" : "rules"
-        ] })
-      ] }),
-      /* @__PURE__ */ jsx(
-        DomainPills,
-        {
-          domains: library?.domains ?? [],
-          selectedDomain: domain,
-          onSelect: setDomain
-        }
-      )
+        )
+      ] })
     ] }),
     /* @__PURE__ */ jsx("div", { className: "min-h-0 flex-1 overflow-y-auto p-4", children: error ? /* @__PURE__ */ jsxs("div", { className: "grid min-h-72 place-content-center text-center", children: [
       /* @__PURE__ */ jsx("strong", { className: "text-sm font-semibold", children: "Could not load doctrine" }),
