@@ -23,6 +23,12 @@ interface PendingRequest {
   scopeKey: string;
 }
 
+interface UndoState {
+  scopeKey: string;
+  enhancedPrompt: string;
+  previousDraft: string;
+}
+
 const PENDING_STORAGE_PREFIX = "bb-plugin-prompt-shaper:pending:";
 const THREAD_ROW_STATUS = {
   icon: "AiScanText",
@@ -109,9 +115,14 @@ function PromptShaperAction({
   const composerScopeKeyRef = useRef(composerScopeKey);
   const [isHovered, setIsHovered] = useState(false);
   const [isKeyboardFocused, setIsKeyboardFocused] = useState(false);
+  const [undoState, setUndoState] = useState<UndoState | null>(null);
   composerRef.current = composer;
   composerScopeKeyRef.current = composerScopeKey;
   const isRunning = pending?.scopeKey === composerScopeKey;
+  const canUndo =
+    !isRunning &&
+    undoState?.scopeKey === composerScopeKey &&
+    composer.text === undoState.enhancedPrompt;
   const showCancelIcon = isRunning && (isHovered || isKeyboardFocused);
 
   const setPendingRequest = useCallback((next: PendingRequest | null) => {
@@ -135,6 +146,16 @@ function PromptShaperAction({
   }, [composer.setTextEffect, composer.setThreadRowStatus, isRunning]);
 
   useEffect(() => {
+    if (
+      undoState !== null &&
+      (undoState.scopeKey !== composerScopeKey ||
+        composer.text !== undoState.enhancedPrompt)
+    ) {
+      setUndoState(null);
+    }
+  }, [composer.text, composerScopeKey, undoState]);
+
+  useEffect(() => {
     return () => {
       composer.setTextEffect?.(null);
       composer.setThreadRowStatus?.(null);
@@ -153,27 +174,32 @@ function PromptShaperAction({
       previousDraft = current;
       return enhancedPrompt;
     });
-    activeComposer.focus();
-    toast.success("Prompt enhanced", {
-      action: {
-        label: "Undo",
-        onClick: () => {
-          const currentComposer = composerRef.current;
-          let restored = false;
-          currentComposer.updateText((current) => {
-            if (current !== enhancedPrompt) return current;
-            restored = true;
-            return previousDraft;
-          });
-          if (restored) {
-            currentComposer.focus();
-          } else {
-            toast.info("Draft changed, so undo was not applied.");
-          }
-        },
-      },
+    setUndoState({
+      scopeKey: composerScopeKeyRef.current,
+      enhancedPrompt,
+      previousDraft,
     });
+    activeComposer.focus();
   }, []);
+
+  const undo = useCallback(() => {
+    if (undoState === null) return;
+
+    const currentComposer = composerRef.current;
+    let restored = false;
+    currentComposer.updateText((current) => {
+      if (
+        undoState.scopeKey !== composerScopeKeyRef.current ||
+        current !== undoState.enhancedPrompt
+      ) {
+        return current;
+      }
+      restored = true;
+      return undoState.previousDraft;
+    });
+    setUndoState(null);
+    if (restored) currentComposer.focus();
+  }, [undoState]);
 
   const consumeResult = useCallback(
     async (requestId: string) => {
@@ -225,6 +251,7 @@ function PromptShaperAction({
       requestId: crypto.randomUUID(),
       scopeKey: composerScopeKey,
     };
+    setUndoState(null);
     composer.setTextEffect?.("shimmer");
     composer.setThreadRowStatus?.(THREAD_ROW_STATUS);
     setPendingRequest(request);
@@ -279,8 +306,24 @@ function PromptShaperAction({
     }
   }, [clearLoadingEffects, rpc, setPendingRequest]);
 
+  const action = isRunning ? "cancel" : canUndo ? "undo" : "improve";
   const isDisabled =
-    !isRunning && (projectId === null || composer.text.trim().length === 0);
+    action === "improve" &&
+    (projectId === null || composer.text.trim().length === 0);
+  const actionLabel =
+    action === "cancel"
+      ? "Cancel prompt improvement"
+      : action === "undo"
+        ? "Undo prompt improvement"
+        : "Improve prompt";
+  const iconName =
+    action === "cancel"
+      ? showCancelIcon
+        ? "X"
+        : "AiScanText"
+      : action === "undo"
+        ? "ArrowTurnBackward"
+        : "AiScanText";
 
   return (
     <TooltipProvider delayDuration={300}>
@@ -293,9 +336,7 @@ function PromptShaperAction({
             className="size-7 text-muted-foreground"
             disabled={isDisabled}
             aria-busy={isRunning}
-            aria-label={
-              isRunning ? "Cancel prompt improvement" : "Improve prompt"
-            }
+            aria-label={actionLabel}
             onBlur={() => setIsKeyboardFocused(false)}
             onFocus={(event) =>
               setIsKeyboardFocused(
@@ -304,7 +345,13 @@ function PromptShaperAction({
             }
             onMouseEnter={() => setIsHovered(true)}
             onMouseLeave={() => setIsHovered(false)}
-            onClick={() => void (isRunning ? cancel() : enhance())}
+            onClick={() =>
+              void (action === "cancel"
+                ? cancel()
+                : action === "undo"
+                  ? undo()
+                  : enhance())
+            }
           >
             <span
               className={
@@ -314,7 +361,7 @@ function PromptShaperAction({
               }
             >
               <Icon
-                name={showCancelIcon ? "X" : "AiScanText"}
+                name={iconName}
                 className={
                   isRunning && !showCancelIcon
                     ? "animate-shine-icon motion-safe:[animation-duration:1.5s]"
@@ -326,7 +373,11 @@ function PromptShaperAction({
           </Button>
         </TooltipTrigger>
         <TooltipContent side="top">
-          {isRunning ? "Cancel" : "Improve prompt"}
+          {action === "cancel"
+            ? "Cancel"
+            : action === "undo"
+              ? "Undo prompt improvement"
+              : "Improve prompt"}
         </TooltipContent>
       </Tooltip>
     </TooltipProvider>

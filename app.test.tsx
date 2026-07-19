@@ -110,13 +110,17 @@ describe("Prompt Shaper composer action", () => {
     await waitFor(() => {
       expect(getTestPluginRuntime().text).toBe("Improved queued draft.");
       expect(getTestPluginRuntime().textEffect).toBeNull();
+      expect(
+        screen.getByRole("button", { name: "Undo prompt improvement" }),
+      ).not.toBeNull();
     });
     expect(getTestPluginRuntime().attachments).toEqual(["queued-brief.png"]);
     expect(getTestPluginRuntime().rpcCalls).toHaveLength(2);
     expect(getTestPluginRuntime().focusCount).toBe(1);
+    expect(toast.success).not.toHaveBeenCalled();
   }, 15_000);
 
-  it("replaces the latest edited draft automatically, preserves attachments, and keeps Undo", async () => {
+  it("replaces the latest edited draft and restores it through inline Undo", async () => {
     const result = deferred<{
       requestId: string;
       helperThreadId: string;
@@ -176,17 +180,133 @@ describe("Prompt Shaper composer action", () => {
     });
     expect(getTestPluginRuntime().attachments).toEqual(["brief.png"]);
     expect(screen.queryByRole("dialog")).toBeNull();
+    expect(toast.success).not.toHaveBeenCalled();
 
-    const successOptions = vi.mocked(toast.success).mock.calls[0]?.[1] as
-      | { action?: { label: string; onClick(): void } }
-      | undefined;
-    expect(successOptions?.action?.label).toBe("Undo");
-    act(() => {
-      successOptions?.action?.onClick();
+    const undoButton = screen.getByRole("button", {
+      name: "Undo prompt improvement",
     });
+    expect(
+      undoButton.querySelector('[data-icon="ArrowTurnBackward"]'),
+    ).not.toBeNull();
+    fireEvent.focus(undoButton);
+    expect(
+      (await screen.findAllByText("Undo prompt improvement")).length,
+    ).toBeGreaterThan(0);
+    fireEvent.click(undoButton);
+
     expect(getTestPluginRuntime().text).toBe(
       "edited while enhancement was running",
     );
+    expect(getTestPluginRuntime().attachments).toEqual(["brief.png"]);
+    expect(getTestPluginRuntime().focusCount).toBe(2);
+    const improveButton = screen.getByRole("button", {
+      name: "Improve prompt",
+    });
+    expect(
+      improveButton.querySelector('[data-icon="AiScanText"]'),
+    ).not.toBeNull();
+  });
+
+  it("invalidates inline Undo after the enhanced draft is edited or sent", async () => {
+    resetTestPluginRuntime({
+      text: "rough draft",
+      scope: { kind: "thread", threadId: "thr_source" },
+      rpc: {
+        startEnhancement: () => ({
+          requestId: REQUEST_ID,
+          helperThreadId: "thr_helper",
+        }),
+        getEnhancement: () => ({
+          requestId: REQUEST_ID,
+          helperThreadId: "thr_helper",
+          status: "complete",
+          enhancedPrompt: "Enhanced prompt.",
+          assumptions: null,
+          createdAt: 1,
+          completedAt: 2,
+        }),
+      },
+    });
+    const Action = await loadAction();
+    render(<Action projectId="proj_1" threadId="thr_source" />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Improve prompt" }));
+    await screen.findByRole("button", { name: "Undo prompt improvement" });
+
+    act(() => setTestComposerText("Edited enhanced prompt."));
+    await waitFor(() => {
+      expect(
+        screen.queryByRole("button", { name: "Undo prompt improvement" }),
+      ).toBeNull();
+      expect(
+        screen.getByRole("button", { name: "Improve prompt" }),
+      ).not.toBeNull();
+    });
+
+    act(() => setTestComposerText("Enhanced prompt."));
+    expect(
+      screen.queryByRole("button", { name: "Undo prompt improvement" }),
+    ).toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: "Improve prompt" }));
+    await screen.findByRole("button", { name: "Undo prompt improvement" });
+    act(() => setTestComposerText(""));
+
+    await waitFor(() => {
+      expect(
+        screen.queryByRole("button", { name: "Undo prompt improvement" }),
+      ).toBeNull();
+      expect(
+        (
+          screen.getByRole("button", {
+            name: "Improve prompt",
+          }) as HTMLButtonElement
+        ).disabled,
+      ).toBe(true);
+    });
+    expect(toast.success).not.toHaveBeenCalled();
+  });
+
+  it("clears inline Undo when the composer scope changes or the action unmounts", async () => {
+    resetTestPluginRuntime({
+      text: "rough draft",
+      scope: { kind: "thread", threadId: "thr_source" },
+      rpc: {
+        startEnhancement: () => ({
+          requestId: REQUEST_ID,
+          helperThreadId: "thr_helper",
+        }),
+        getEnhancement: () => ({
+          requestId: REQUEST_ID,
+          helperThreadId: "thr_helper",
+          status: "complete",
+          enhancedPrompt: "Enhanced prompt.",
+          assumptions: null,
+          createdAt: 1,
+          completedAt: 2,
+        }),
+      },
+    });
+    const Action = await loadAction();
+    const view = render(<Action projectId="proj_1" threadId="thr_source" />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Improve prompt" }));
+    await screen.findByRole("button", { name: "Undo prompt improvement" });
+    act(() => {
+      setTestComposerScope({ kind: "thread", threadId: "thr_next" });
+    });
+
+    await waitFor(() => {
+      expect(
+        screen.queryByRole("button", { name: "Undo prompt improvement" }),
+      ).toBeNull();
+    });
+    view.unmount();
+
+    render(<Action projectId="proj_1" threadId="thr_next" />);
+    expect(
+      screen.queryByRole("button", { name: "Undo prompt improvement" }),
+    ).toBeNull();
   });
 
   it("cancels the helper, clears loading state, and ignores a late result without changing the draft", async () => {
@@ -248,6 +368,9 @@ describe("Prompt Shaper composer action", () => {
     });
     expect(getTestPluginRuntime().text).toBe("keep this draft");
     expect(getTestPluginRuntime().attachments).toEqual(["brief.png"]);
+    expect(
+      screen.queryByRole("button", { name: "Undo prompt improvement" }),
+    ).toBeNull();
 
     await act(async () => {
       result.resolve({
@@ -391,5 +514,8 @@ describe("Prompt Shaper composer action", () => {
       expect(toast.error).toHaveBeenCalledWith("agent unavailable");
     });
     expect(getTestPluginRuntime().textEffectCalls).toContain("shimmer");
+    expect(
+      screen.queryByRole("button", { name: "Undo prompt improvement" }),
+    ).toBeNull();
   });
 });
