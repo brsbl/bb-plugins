@@ -15,3 +15,11 @@ export function adapterFor(definition: ProviderDefinition): ProviderAdapter {
   }
   return adapter;
 }
+
+export function adapterVersionFor(adapterId: string): string {
+  const adapter = adapters.get(adapterId as ProviderDefinition["adapter"]);
+  if (!adapter) {
+    throw new Error(`No adapter registered for ${adapterId}.`);
+  }
+  return adapter.version;
+}

@@ -26001,6 +26001,7 @@ function nativeId(path) {
 }
 var govukDesignSystemAdapter = {
   id: "govuk-design-system",
+  version: "1",
   adapt(definition, input) {
     const source = govukInputSchema.parse(input);
     if (source.revision !== definition.source.revision) {
@@ -26068,6 +26069,7 @@ function storyMetadata(title) {
 }
 var uswdsAdapter = {
   id: "uswds",
+  version: "1",
   adapt(definition, input) {
     const source = uswdsInputSchema.parse(input);
     if (source.revision !== definition.source.revision) {
@@ -26101,6 +26103,13 @@ var adapters = /* @__PURE__ */ new Map([
   [govukDesignSystemAdapter.id, govukDesignSystemAdapter],
   [uswdsAdapter.id, uswdsAdapter]
 ]);
+function adapterVersionFor(adapterId) {
+  const adapter = adapters.get(adapterId);
+  if (!adapter) {
+    throw new Error(`No adapter registered for ${adapterId}.`);
+  }
+  return adapter.version;
+}
 
 // providers/policy.ts
 var acceptedMetadataLicenses = /* @__PURE__ */ new Map([
@@ -26208,6 +26217,195 @@ function findProviderRecord(index, providerId, nativeId2) {
   ) ?? null;
 }
 
+// providers/source-browser.ts
+var contentModeSchema = external_exports.enum([
+  "metadata-only",
+  "excerpt",
+  "redistributable"
+]);
+var contentKindSchema = external_exports.enum([
+  "component",
+  "pattern",
+  "guidance",
+  "unknown"
+]);
+var libraryProviderSchema = external_exports.object({
+  id: external_exports.string().min(1),
+  name: external_exports.string().min(1),
+  homepageUrl: external_exports.url(),
+  adapterVersion: external_exports.string().min(1),
+  upstream: external_exports.object({
+    kind: external_exports.enum(["git", "npm", "json"]),
+    locator: external_exports.string().min(1)
+  }).strict(),
+  license: external_exports.object({
+    id: external_exports.string().min(1),
+    url: external_exports.url(),
+    attribution: external_exports.string().min(1).optional(),
+    contentMode: contentModeSchema
+  }).strict()
+}).strict();
+var sourceItemLinkSchema = external_exports.object({
+  kind: external_exports.enum(["docs", "example", "code"]),
+  url: external_exports.url()
+}).strict();
+var sourceItemSchema = external_exports.object({
+  id: external_exports.custom(
+    (value) => typeof value === "string" && value.indexOf(":") > 0 && value.indexOf(":") < value.length - 1,
+    "Expected a provider-scoped source-native id."
+  ),
+  providerId: external_exports.string().min(1),
+  nativeId: external_exports.string().min(1),
+  title: external_exports.string().min(1),
+  canonicalUrl: external_exports.url(),
+  contentKind: contentKindSchema,
+  aliases: external_exports.array(external_exports.string().min(1)),
+  excerpt: external_exports.string().min(1).optional(),
+  sourceSection: external_exports.string().min(1).optional(),
+  sourceTags: external_exports.array(external_exports.string().min(1)),
+  links: external_exports.array(sourceItemLinkSchema),
+  provenance: external_exports.object({
+    upstreamRevision: external_exports.string().min(1),
+    retrievedAt: external_exports.string().min(1),
+    contentMode: contentModeSchema
+  }).strict()
+}).strict();
+var sourceBrowserSnapshotSchema = external_exports.object({
+  providers: external_exports.array(libraryProviderSchema),
+  items: external_exports.array(sourceItemSchema)
+}).strict();
+var sourceItemSearchInputSchema = external_exports.object({
+  query: external_exports.string().max(500).optional(),
+  providerId: external_exports.string().min(1).max(80).optional(),
+  contentKind: contentKindSchema.optional(),
+  limit: external_exports.number().int().min(1).max(100).optional()
+}).strict();
+var sourceItemSearchResultSchema = external_exports.object({
+  mode: external_exports.enum(["browse", "exact", "prefix", "expanded"]),
+  queryTerms: external_exports.array(external_exports.string()),
+  items: external_exports.array(sourceItemSchema)
+}).strict();
+function contentKindFor(kind) {
+  switch (kind.toLocaleLowerCase()) {
+    case "component":
+    case "components":
+      return "component";
+    case "pattern":
+    case "patterns":
+      return "pattern";
+    default:
+      return "unknown";
+  }
+}
+function codeUrl(record2) {
+  return `${record2.provenance.repository}/blob/${record2.provenance.revision}/${record2.provenance.sourcePath}`;
+}
+function linksFor(record2) {
+  const sourceCodeUrl = codeUrl(record2);
+  const links = [
+    {
+      kind: record2.canonicalUrl === sourceCodeUrl ? "code" : "docs",
+      url: record2.canonicalUrl
+    }
+  ];
+  if (record2.canonicalUrl !== sourceCodeUrl) {
+    links.push({ kind: "code", url: sourceCodeUrl });
+  }
+  return links;
+}
+function toLibraryProvider(provider) {
+  return {
+    id: provider.id,
+    name: provider.name,
+    homepageUrl: provider.homepage,
+    adapterVersion: adapterVersionFor(provider.source.adapter),
+    upstream: {
+      kind: "git",
+      locator: provider.source.repository
+    },
+    license: {
+      id: provider.license.expression,
+      url: provider.license.url,
+      ...provider.license.expression === "MIT" ? { attribution: provider.license.notice } : {},
+      contentMode: provider.license.scope
+    }
+  };
+}
+function toSourceItem(provider, record2) {
+  return {
+    id: `${provider.id}:${record2.nativeId}`,
+    providerId: provider.id,
+    nativeId: record2.nativeId,
+    title: record2.name,
+    canonicalUrl: record2.canonicalUrl,
+    contentKind: contentKindFor(record2.kind),
+    aliases: [...record2.aliases],
+    sourceSection: record2.kind,
+    sourceTags: [],
+    links: linksFor(record2),
+    provenance: {
+      upstreamRevision: record2.provenance.revision,
+      retrievedAt: provider.source.observedAt,
+      contentMode: provider.license.scope
+    }
+  };
+}
+function freezeProvider(provider) {
+  Object.freeze(provider.upstream);
+  Object.freeze(provider.license);
+  return Object.freeze(provider);
+}
+function freezeItem(item) {
+  Object.freeze(item.aliases);
+  Object.freeze(item.sourceTags);
+  for (const link of item.links) Object.freeze(link);
+  Object.freeze(item.links);
+  Object.freeze(item.provenance);
+  return Object.freeze(item);
+}
+function createSourceBrowserSnapshot() {
+  const parsed = sourceBrowserSnapshotSchema.parse({
+    providers: providerSnapshot.providers.map(toLibraryProvider),
+    items: providerSnapshot.providers.flatMap(
+      (provider) => provider.records.map((record2) => toSourceItem(provider, record2))
+    )
+  });
+  const providers = parsed.providers.map(freezeProvider);
+  const items = parsed.items.map(freezeItem);
+  return Object.freeze({
+    providers: Object.freeze(providers),
+    items: Object.freeze(items)
+  });
+}
+var bundledSourceBrowserSnapshot = createSourceBrowserSnapshot();
+var sourceItemsById = new Map(
+  bundledSourceBrowserSnapshot.items.map((item) => [item.id, item])
+);
+function getSourceBrowserSnapshot() {
+  return bundledSourceBrowserSnapshot;
+}
+function searchSourceItems(options = {}) {
+  const parsed = sourceItemSearchInputSchema.parse(options);
+  const limit = parsed.limit ?? 50;
+  const result = searchProviderIndex(providerIndex, {
+    query: parsed.query,
+    providerId: parsed.providerId,
+    limit: providerIndex.documents.length
+  });
+  const items = result.results.map(
+    ({ record: record2 }) => sourceItemsById.get(
+      `${record2.provenance.providerId}:${record2.nativeId}`
+    )
+  ).filter((item) => Boolean(item)).filter(
+    (item) => !parsed.contentKind || item.contentKind === parsed.contentKind
+  ).slice(0, limit);
+  return Object.freeze({
+    mode: result.mode,
+    queryTerms: Object.freeze([...result.queryTerms]),
+    items: Object.freeze(items)
+  });
+}
+
 // providers/rpc.ts
 var healthReportSchema = external_exports.object({
   health: external_exports.enum(["healthy", "degraded", "unavailable"]),
@@ -26233,6 +26431,16 @@ var providerSummarySchema = external_exports.object({
   }).strict(),
   health: healthReportSchema
 }).strict();
+var sourceBrowserRpcContract = defineRpcContract({
+  getSourceBrowserSnapshot: {
+    input: external_exports.null(),
+    output: sourceBrowserSnapshotSchema
+  },
+  searchSourceItems: {
+    input: sourceItemSearchInputSchema,
+    output: sourceItemSearchResultSchema
+  }
+});
 var providerRpcContract = defineRpcContract({
   listProviders: {
     input: external_exports.null(),
@@ -26278,6 +26486,23 @@ function publicRecord(record2) {
   return result;
 }
 function registerProviderRpc(bb) {
+  bb.rpc.register(sourceBrowserRpcContract, {
+    getSourceBrowserSnapshot() {
+      const snapshot = getSourceBrowserSnapshot();
+      return {
+        providers: [...snapshot.providers],
+        items: [...snapshot.items]
+      };
+    },
+    searchSourceItems(input) {
+      const result = searchSourceItems(input);
+      return {
+        mode: result.mode,
+        queryTerms: [...result.queryTerms],
+        items: [...result.items]
+      };
+    }
+  });
   bb.rpc.register(providerRpcContract, {
     listProviders() {
       const now = /* @__PURE__ */ new Date();

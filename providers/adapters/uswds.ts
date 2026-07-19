@@ -41,6 +41,7 @@ function storyMetadata(title: string) {
 
 export const uswdsAdapter: ProviderAdapter = {
   id: "uswds",
+  version: "1",
   adapt(definition: ProviderDefinition, input: unknown): readonly ProviderRecord[] {
     const source = uswdsInputSchema.parse(input);
     if (source.revision !== definition.source.revision) {
