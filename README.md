@@ -28,6 +28,20 @@ Exact same-title groups are visual scanning aids only. Each card remains an inde
 
 The shell uses the sanctioned shadcn registry components and bb host theme tokens. It does not ship an Atlas design system or locally authored previews.
 
+## Agent CLI
+
+The versioned CLI preserves the existing `bb ui-patterns` surface while exposing source-native identities and provenance:
+
+```bash
+bb ui-patterns search combobox --json
+bb ui-patterns show aria-apg:combobox --json
+bb ui-patterns list --provider aria-apg --type pattern --json
+bb ui-patterns sources --json
+bb ui-patterns status --json
+```
+
+Legacy unqualified identities return an explicit deprecation with provider-native candidates; the CLI does not silently choose a preferred library.
+
 ## Development
 
 ```bash

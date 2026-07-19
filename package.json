@@ -28,6 +28,8 @@
   "files": [
     "server.ts",
     "runtime-cli.js",
+    "atlas-cli-v3.js",
+    "atlas-compatibility.js",
     "providers/",
     "generated/provider-snapshot.v1.json",
     "generated/provider-index.v1.json",
@@ -50,7 +52,7 @@
     "build:providers": "node scripts/build-provider-snapshot.mjs",
     "check:providers": "node scripts/build-provider-snapshot.mjs --check",
     "build": "node scripts/build.mjs",
-    "test": "node --test tests/contract.test.mjs tests/source-browser-contract.test.mjs tests/provider-kernel.test.mjs tests/upstream-adapters.test.mjs",
+    "test": "node --test tests/contract.test.mjs tests/source-browser-contract.test.mjs tests/provider-kernel.test.mjs tests/upstream-adapters.test.mjs tests/cli-v3.test.mjs",
     "prepack": "npm run build"
   },
   "dependencies": {

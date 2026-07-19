@@ -119,7 +119,132 @@ var {
   useSettings
 } = mod2;
 
-// ../../../../../plugin-sources/ui-patterns-recovered/gallery-state.ts
+// atlas-compatibility.js
+var retrievedAt = "2026-07-17T00:00:00.000Z";
+var w3cDocumentLicense = Object.freeze({
+  name: "W3C Document License",
+  url: "https://www.w3.org/copyright/document-license/"
+});
+var providerDefinitions = Object.freeze({
+  "aria-apg": Object.freeze({
+    provider: "aria-apg",
+    name: "WAI-ARIA Authoring Practices Guide",
+    canonicalUrl: "https://www.w3.org/WAI/ARIA/apg/",
+    upstreamRevision: "WAI-ARIA APG snapshot 2026-07-17",
+    retrievedAt,
+    license: w3cDocumentLicense,
+    contentMode: "terms-and-paraphrase",
+    status: "available"
+  }),
+  html: Object.freeze({
+    provider: "html",
+    name: "HTML Living Standard",
+    canonicalUrl: "https://html.spec.whatwg.org/",
+    upstreamRevision: "WHATWG Living Standard snapshot 2026-07-17",
+    retrievedAt,
+    license: w3cDocumentLicense,
+    contentMode: "terms-and-paraphrase",
+    status: "available"
+  })
+});
+function sourceEntry({
+  provider,
+  sourceId,
+  name,
+  aliases = [],
+  description,
+  canonicalUrl,
+  recordType,
+  legacyIds = []
+}) {
+  const source = providerDefinitions[provider];
+  return Object.freeze({
+    id: `${provider}:${sourceId}`,
+    provider,
+    sourceId,
+    name,
+    aliases: Object.freeze([...aliases]),
+    description,
+    recordType,
+    canonicalUrl,
+    upstreamRevision: source.upstreamRevision,
+    retrievedAt: source.retrievedAt,
+    license: source.license,
+    contentMode: source.contentMode,
+    status: source.status,
+    legacyIds: Object.freeze([...legacyIds])
+  });
+}
+var apg = (sourceId, name, aliases, description, legacyIds = [sourceId]) => sourceEntry({
+  provider: "aria-apg",
+  sourceId,
+  name,
+  aliases,
+  description,
+  recordType: "pattern",
+  canonicalUrl: `https://www.w3.org/WAI/ARIA/apg/patterns/${sourceId}/`,
+  legacyIds
+});
+var html = (sourceId, name, aliases, description, anchor, legacyIds = [sourceId]) => sourceEntry({
+  provider: "html",
+  sourceId,
+  name,
+  aliases,
+  description,
+  recordType: "element",
+  canonicalUrl: `https://html.spec.whatwg.org/multipage/${anchor}`,
+  legacyIds
+});
+var nativeEntries = Object.freeze([
+  apg("alert", "Alert", [], "A non-modal live region for important, time-sensitive information."),
+  apg("alertdialog", "Alert dialog", ["alert dialog"], "A modal dialog that interrupts work for an acknowledgement or decision.", ["alert-dialog"]),
+  apg("button", "Button", ["button widget"], "A custom button pattern with its required keyboard and state behavior."),
+  apg("checkbox", "Checkbox", [], "A checkable control pattern for independent binary choices."),
+  apg("combobox", "Combobox", ["autocomplete", "editable select"], "A composite input that combines text entry or selection with a related popup."),
+  apg("dialog-modal", "Modal dialog", ["modal dialog"], "A dialog pattern that makes content outside the dialog inert while it is open.", ["dialog"]),
+  apg("grid", "Grid", ["data grid"], "A composite widget pattern for a two-dimensional collection of interactive cells.", ["data-grid"]),
+  apg("link", "Link", [], "A custom link pattern for navigation to another resource or location."),
+  apg("listbox", "Listbox", [], "A list of options with a selected value or values."),
+  apg("menu-button", "Menu button", [], "A button that opens a menu of actions or choices."),
+  apg("menubar", "Menu and menubar", ["menu", "menubar"], "A menu pattern for commands and a persistent menubar pattern for grouped menus.", ["menu"]),
+  apg("radio", "Radio group", ["radio buttons"], "A group of mutually exclusive choices represented by radio controls.", ["radio-group"]),
+  apg("slider", "Slider", [], "A control pattern for choosing a value from a continuous or discrete range."),
+  apg("spinbutton", "Spinbutton", ["number input"], "A text input pattern for numeric values with increment and decrement controls."),
+  apg("switch", "Switch", [], "A binary on-or-off control pattern."),
+  apg("tabs", "Tabs", [], "A set of related panels with one tab selected at a time."),
+  apg("toolbar", "Toolbar", [], "A grouped set of controls for a shared context."),
+  apg("tooltip", "Tooltip", [], "A non-modal popup that provides supplemental descriptive text for a control."),
+  apg("treegrid", "Treegrid", [], "A hierarchical grid pattern with rows, columns, and expandable items."),
+  apg("treeview", "Tree view", ["tree"], "A hierarchical collection of expandable and selectable items.", ["tree-view"]),
+  html("a", "a element", ["anchor", "link element"], "The native hyperlink element.", "text-level-semantics.html#the-a-element", ["link"]),
+  html("button", "button element", ["native button"], "The native element for an actionable button.", "form-elements.html#the-button-element", ["button"]),
+  html("input", "input element", ["text input"], "The native single-control form element with type-specific behavior.", "input.html#the-input-element", ["text-field"]),
+  html("select", "select element", ["native select", "dropdown"], "The native control for selecting one or more options.", "form-elements.html#the-select-element", ["select"]),
+  html("textarea", "textarea element", ["text area"], "The native multi-line plain-text input element.", "form-elements.html#the-textarea-element", ["text-area"])
+].sort((left, right) => left.id.localeCompare(right.id)));
+var providerRecordCounts = /* @__PURE__ */ new Map();
+for (const entry of nativeEntries) {
+  providerRecordCounts.set(entry.provider, (providerRecordCounts.get(entry.provider) ?? 0) + 1);
+}
+var providers = Object.freeze(
+  Object.values(providerDefinitions).map((provider) => Object.freeze({
+    ...provider,
+    recordCount: providerRecordCounts.get(provider.provider) ?? 0
+  })).sort((left, right) => left.provider.localeCompare(right.provider))
+);
+function legacyCandidatesFor(target) {
+  const legacyId = target.trim().toLocaleLowerCase();
+  return nativeEntries.filter((entry) => entry.legacyIds.includes(legacyId));
+}
+function legacyIdFromRouteEntryId(entryId) {
+  return entryId.startsWith("legacy:") ? entryId.slice("legacy:".length) : null;
+}
+function legacyRouteEntryId(entryId) {
+  const legacyId = entryId.trim().toLocaleLowerCase();
+  return legacyCandidatesFor(legacyId).length ? `legacy:${legacyId}` : null;
+}
+
+// gallery-state.ts
 function decodeRouteValue(value) {
   try {
     return decodeURIComponent(value);
@@ -131,11 +256,13 @@ function normalizePath(path) {
   return path.replace(/^\/+|\/+$/g, "");
 }
 function parseStandaloneRoute(pathname) {
-  const match = pathname.match(/^(.*?)(?:\/entry\/([^/]+))\/?$/);
-  if (match?.[2]) {
+  const match = pathname.match(/^(.*?)(?:\/(entry|gallery)\/([^/]+))\/?$/);
+  if (match?.[2] && match[3]) {
+    const routeKind = match[2];
+    const routeValue = decodeRouteValue(match[3]);
     return {
       basePath: `${match[1] || ""}/`.replace(/\/+/g, "/"),
-      entryId: decodeRouteValue(match[2])
+      entryId: routeKind === "entry" ? legacyRouteEntryId(routeValue) ?? routeValue : routeValue
     };
   }
   const normalized = pathname.endsWith("/") ? pathname : `${pathname}/`;
@@ -145,17 +272,19 @@ function parseStandaloneRoute(pathname) {
   };
 }
 function entryIdFromSubPath(subPath) {
-  const match = normalizePath(subPath).match(/^entry\/([^/]+)$/);
-  return match?.[1] ? decodeRouteValue(match[1]) : null;
+  const match = normalizePath(subPath).match(/^(entry|gallery)\/([^/]+)$/);
+  if (!match?.[1] || !match[2]) return null;
+  const routeValue = decodeRouteValue(match[2]);
+  return match[1] === "entry" ? legacyRouteEntryId(routeValue) ?? routeValue : routeValue;
 }
 function entrySubPath(entryId) {
-  return `entry/${encodeURIComponent(entryId)}`;
+  return `gallery/${encodeURIComponent(entryId)}`;
 }
 function inspectorCloseMode(openedFromGallery) {
   return openedFromGallery ? "back" : "replace";
 }
 
-// ../../../../../plugin-sources/ui-patterns-recovered/node_modules/zod/v4/classic/external.js
+// node_modules/zod/v4/classic/external.js
 var external_exports = {};
 __export(external_exports, {
   $brand: () => $brand,
@@ -398,7 +527,7 @@ __export(external_exports, {
   xor: () => xor
 });
 
-// ../../../../../plugin-sources/ui-patterns-recovered/node_modules/zod/v4/core/index.js
+// node_modules/zod/v4/core/index.js
 var core_exports2 = {};
 __export(core_exports2, {
   $ZodAny: () => $ZodAny,
@@ -677,7 +806,7 @@ __export(core_exports2, {
   version: () => version2
 });
 
-// ../../../../../plugin-sources/ui-patterns-recovered/node_modules/zod/v4/core/core.js
+// node_modules/zod/v4/core/core.js
 var _a;
 var NEVER = /* @__PURE__ */ Object.freeze({
   status: "aborted"
@@ -754,7 +883,7 @@ function config(newConfig) {
   return globalConfig;
 }
 
-// ../../../../../plugin-sources/ui-patterns-recovered/node_modules/zod/v4/core/util.js
+// node_modules/zod/v4/core/util.js
 var util_exports = {};
 __export(util_exports, {
   BIGINT_FORMAT_RANGES: () => BIGINT_FORMAT_RANGES,
@@ -1450,7 +1579,7 @@ var Class = class {
   }
 };
 
-// ../../../../../plugin-sources/ui-patterns-recovered/node_modules/zod/v4/core/errors.js
+// node_modules/zod/v4/core/errors.js
 var initializer = (inst, def) => {
   inst.name = "$ZodError";
   Object.defineProperty(inst, "_zod", {
@@ -1589,7 +1718,7 @@ function prettifyError(error51) {
   return lines.join("\n");
 }
 
-// ../../../../../plugin-sources/ui-patterns-recovered/node_modules/zod/v4/core/parse.js
+// node_modules/zod/v4/core/parse.js
 var _parse = (_Err) => (schema, value, _ctx, _params) => {
   const ctx = _ctx ? { ..._ctx, async: false } : { async: false };
   const result = schema._zod.run({ value, issues: [] }, ctx);
@@ -1677,7 +1806,7 @@ var _safeDecodeAsync = (_Err) => async (schema, value, _ctx) => {
 };
 var safeDecodeAsync = /* @__PURE__ */ _safeDecodeAsync($ZodRealError);
 
-// ../../../../../plugin-sources/ui-patterns-recovered/node_modules/zod/v4/core/regexes.js
+// node_modules/zod/v4/core/regexes.js
 var regexes_exports = {};
 __export(regexes_exports, {
   base64: () => base64,
@@ -1836,7 +1965,7 @@ var sha512_hex = /^[0-9a-fA-F]{128}$/;
 var sha512_base64 = /* @__PURE__ */ fixedBase64(86, "==");
 var sha512_base64url = /* @__PURE__ */ fixedBase64url(86);
 
-// ../../../../../plugin-sources/ui-patterns-recovered/node_modules/zod/v4/core/checks.js
+// node_modules/zod/v4/core/checks.js
 var $ZodCheck = /* @__PURE__ */ $constructor("$ZodCheck", (inst, def) => {
   var _a3;
   inst._zod ?? (inst._zod = {});
@@ -2384,7 +2513,7 @@ var $ZodCheckOverwrite = /* @__PURE__ */ $constructor("$ZodCheckOverwrite", (ins
   };
 });
 
-// ../../../../../plugin-sources/ui-patterns-recovered/node_modules/zod/v4/core/doc.js
+// node_modules/zod/v4/core/doc.js
 var Doc = class {
   constructor(args = []) {
     this.content = [];
@@ -2420,14 +2549,14 @@ var Doc = class {
   }
 };
 
-// ../../../../../plugin-sources/ui-patterns-recovered/node_modules/zod/v4/core/versions.js
+// node_modules/zod/v4/core/versions.js
 var version2 = {
   major: 4,
   minor: 4,
   patch: 3
 };
 
-// ../../../../../plugin-sources/ui-patterns-recovered/node_modules/zod/v4/core/schemas.js
+// node_modules/zod/v4/core/schemas.js
 var $ZodType = /* @__PURE__ */ $constructor("$ZodType", (inst, def) => {
   var _a3;
   inst ?? (inst = {});
@@ -4520,7 +4649,7 @@ function handleRefineResult(result, payload, input, inst) {
   }
 }
 
-// ../../../../../plugin-sources/ui-patterns-recovered/node_modules/zod/v4/locales/index.js
+// node_modules/zod/v4/locales/index.js
 var locales_exports = {};
 __export(locales_exports, {
   ar: () => ar_default,
@@ -4577,7 +4706,7 @@ __export(locales_exports, {
   zhTW: () => zh_TW_default
 });
 
-// ../../../../../plugin-sources/ui-patterns-recovered/node_modules/zod/v4/locales/ar.js
+// node_modules/zod/v4/locales/ar.js
 var error = () => {
   const Sizable = {
     string: { unit: "\u062D\u0631\u0641", verb: "\u0623\u0646 \u064A\u062D\u0648\u064A" },
@@ -4684,7 +4813,7 @@ function ar_default() {
   };
 }
 
-// ../../../../../plugin-sources/ui-patterns-recovered/node_modules/zod/v4/locales/az.js
+// node_modules/zod/v4/locales/az.js
 var error2 = () => {
   const Sizable = {
     string: { unit: "simvol", verb: "olmal\u0131d\u0131r" },
@@ -4790,7 +4919,7 @@ function az_default() {
   };
 }
 
-// ../../../../../plugin-sources/ui-patterns-recovered/node_modules/zod/v4/locales/be.js
+// node_modules/zod/v4/locales/be.js
 function getBelarusianPlural(count, one, few, many) {
   const absCount = Math.abs(count);
   const lastDigit = absCount % 10;
@@ -4947,7 +5076,7 @@ function be_default() {
   };
 }
 
-// ../../../../../plugin-sources/ui-patterns-recovered/node_modules/zod/v4/locales/bg.js
+// node_modules/zod/v4/locales/bg.js
 var error4 = () => {
   const Sizable = {
     string: { unit: "\u0441\u0438\u043C\u0432\u043E\u043B\u0430", verb: "\u0434\u0430 \u0441\u044A\u0434\u044A\u0440\u0436\u0430" },
@@ -5068,7 +5197,7 @@ function bg_default() {
   };
 }
 
-// ../../../../../plugin-sources/ui-patterns-recovered/node_modules/zod/v4/locales/ca.js
+// node_modules/zod/v4/locales/ca.js
 var error5 = () => {
   const Sizable = {
     string: { unit: "car\xE0cters", verb: "contenir" },
@@ -5177,7 +5306,7 @@ function ca_default() {
   };
 }
 
-// ../../../../../plugin-sources/ui-patterns-recovered/node_modules/zod/v4/locales/cs.js
+// node_modules/zod/v4/locales/cs.js
 var error6 = () => {
   const Sizable = {
     string: { unit: "znak\u016F", verb: "m\xEDt" },
@@ -5289,7 +5418,7 @@ function cs_default() {
   };
 }
 
-// ../../../../../plugin-sources/ui-patterns-recovered/node_modules/zod/v4/locales/da.js
+// node_modules/zod/v4/locales/da.js
 var error7 = () => {
   const Sizable = {
     string: { unit: "tegn", verb: "havde" },
@@ -5405,7 +5534,7 @@ function da_default() {
   };
 }
 
-// ../../../../../plugin-sources/ui-patterns-recovered/node_modules/zod/v4/locales/de.js
+// node_modules/zod/v4/locales/de.js
 var error8 = () => {
   const Sizable = {
     string: { unit: "Zeichen", verb: "zu haben" },
@@ -5514,7 +5643,7 @@ function de_default() {
   };
 }
 
-// ../../../../../plugin-sources/ui-patterns-recovered/node_modules/zod/v4/locales/el.js
+// node_modules/zod/v4/locales/el.js
 var error9 = () => {
   const Sizable = {
     string: { unit: "\u03C7\u03B1\u03C1\u03B1\u03BA\u03C4\u03AE\u03C1\u03B5\u03C2", verb: "\u03BD\u03B1 \u03AD\u03C7\u03B5\u03B9" },
@@ -5624,7 +5753,7 @@ function el_default() {
   };
 }
 
-// ../../../../../plugin-sources/ui-patterns-recovered/node_modules/zod/v4/locales/en.js
+// node_modules/zod/v4/locales/en.js
 var error10 = () => {
   const Sizable = {
     string: { unit: "characters", verb: "to have" },
@@ -5737,7 +5866,7 @@ function en_default() {
   };
 }
 
-// ../../../../../plugin-sources/ui-patterns-recovered/node_modules/zod/v4/locales/eo.js
+// node_modules/zod/v4/locales/eo.js
 var error11 = () => {
   const Sizable = {
     string: { unit: "karaktrojn", verb: "havi" },
@@ -5847,7 +5976,7 @@ function eo_default() {
   };
 }
 
-// ../../../../../plugin-sources/ui-patterns-recovered/node_modules/zod/v4/locales/es.js
+// node_modules/zod/v4/locales/es.js
 var error12 = () => {
   const Sizable = {
     string: { unit: "caracteres", verb: "tener" },
@@ -5980,7 +6109,7 @@ function es_default() {
   };
 }
 
-// ../../../../../plugin-sources/ui-patterns-recovered/node_modules/zod/v4/locales/fa.js
+// node_modules/zod/v4/locales/fa.js
 var error13 = () => {
   const Sizable = {
     string: { unit: "\u06A9\u0627\u0631\u0627\u06A9\u062A\u0631", verb: "\u062F\u0627\u0634\u062A\u0647 \u0628\u0627\u0634\u062F" },
@@ -6095,7 +6224,7 @@ function fa_default() {
   };
 }
 
-// ../../../../../plugin-sources/ui-patterns-recovered/node_modules/zod/v4/locales/fi.js
+// node_modules/zod/v4/locales/fi.js
 var error14 = () => {
   const Sizable = {
     string: { unit: "merkki\xE4", subject: "merkkijonon" },
@@ -6208,7 +6337,7 @@ function fi_default() {
   };
 }
 
-// ../../../../../plugin-sources/ui-patterns-recovered/node_modules/zod/v4/locales/fr.js
+// node_modules/zod/v4/locales/fr.js
 var error15 = () => {
   const Sizable = {
     string: { unit: "caract\xE8res", verb: "avoir" },
@@ -6334,7 +6463,7 @@ function fr_default() {
   };
 }
 
-// ../../../../../plugin-sources/ui-patterns-recovered/node_modules/zod/v4/locales/fr-CA.js
+// node_modules/zod/v4/locales/fr-CA.js
 var error16 = () => {
   const Sizable = {
     string: { unit: "caract\xE8res", verb: "avoir" },
@@ -6442,7 +6571,7 @@ function fr_CA_default() {
   };
 }
 
-// ../../../../../plugin-sources/ui-patterns-recovered/node_modules/zod/v4/locales/he.js
+// node_modules/zod/v4/locales/he.js
 var error17 = () => {
   const TypeNames = {
     string: { label: "\u05DE\u05D7\u05E8\u05D5\u05D6\u05EA", gender: "f" },
@@ -6637,7 +6766,7 @@ function he_default() {
   };
 }
 
-// ../../../../../plugin-sources/ui-patterns-recovered/node_modules/zod/v4/locales/hr.js
+// node_modules/zod/v4/locales/hr.js
 var error18 = () => {
   const Sizable = {
     string: { unit: "znakova", verb: "imati" },
@@ -6760,7 +6889,7 @@ function hr_default() {
   };
 }
 
-// ../../../../../plugin-sources/ui-patterns-recovered/node_modules/zod/v4/locales/hu.js
+// node_modules/zod/v4/locales/hu.js
 var error19 = () => {
   const Sizable = {
     string: { unit: "karakter", verb: "legyen" },
@@ -6869,7 +6998,7 @@ function hu_default() {
   };
 }
 
-// ../../../../../plugin-sources/ui-patterns-recovered/node_modules/zod/v4/locales/hy.js
+// node_modules/zod/v4/locales/hy.js
 function getArmenianPlural(count, one, many) {
   return Math.abs(count) === 1 ? one : many;
 }
@@ -7017,7 +7146,7 @@ function hy_default() {
   };
 }
 
-// ../../../../../plugin-sources/ui-patterns-recovered/node_modules/zod/v4/locales/id.js
+// node_modules/zod/v4/locales/id.js
 var error21 = () => {
   const Sizable = {
     string: { unit: "karakter", verb: "memiliki" },
@@ -7124,7 +7253,7 @@ function id_default() {
   };
 }
 
-// ../../../../../plugin-sources/ui-patterns-recovered/node_modules/zod/v4/locales/is.js
+// node_modules/zod/v4/locales/is.js
 var error22 = () => {
   const Sizable = {
     string: { unit: "stafi", verb: "a\xF0 hafa" },
@@ -7234,7 +7363,7 @@ function is_default() {
   };
 }
 
-// ../../../../../plugin-sources/ui-patterns-recovered/node_modules/zod/v4/locales/it.js
+// node_modules/zod/v4/locales/it.js
 var error23 = () => {
   const Sizable = {
     string: { unit: "caratteri", verb: "avere" },
@@ -7343,7 +7472,7 @@ function it_default() {
   };
 }
 
-// ../../../../../plugin-sources/ui-patterns-recovered/node_modules/zod/v4/locales/ja.js
+// node_modules/zod/v4/locales/ja.js
 var error24 = () => {
   const Sizable = {
     string: { unit: "\u6587\u5B57", verb: "\u3067\u3042\u308B" },
@@ -7451,7 +7580,7 @@ function ja_default() {
   };
 }
 
-// ../../../../../plugin-sources/ui-patterns-recovered/node_modules/zod/v4/locales/ka.js
+// node_modules/zod/v4/locales/ka.js
 var error25 = () => {
   const Sizable = {
     string: { unit: "\u10E1\u10D8\u10DB\u10D1\u10DD\u10DA\u10DD", verb: "\u10E3\u10DC\u10D3\u10D0 \u10E8\u10D4\u10D8\u10EA\u10D0\u10D5\u10D3\u10D4\u10E1" },
@@ -7564,7 +7693,7 @@ function ka_default() {
   };
 }
 
-// ../../../../../plugin-sources/ui-patterns-recovered/node_modules/zod/v4/locales/km.js
+// node_modules/zod/v4/locales/km.js
 var error26 = () => {
   const Sizable = {
     string: { unit: "\u178F\u17BD\u17A2\u1780\u17D2\u179F\u179A", verb: "\u1782\u17BD\u179A\u1798\u17B6\u1793" },
@@ -7675,12 +7804,12 @@ function km_default() {
   };
 }
 
-// ../../../../../plugin-sources/ui-patterns-recovered/node_modules/zod/v4/locales/kh.js
+// node_modules/zod/v4/locales/kh.js
 function kh_default() {
   return km_default();
 }
 
-// ../../../../../plugin-sources/ui-patterns-recovered/node_modules/zod/v4/locales/ko.js
+// node_modules/zod/v4/locales/ko.js
 var error27 = () => {
   const Sizable = {
     string: { unit: "\uBB38\uC790", verb: "to have" },
@@ -7792,7 +7921,7 @@ function ko_default() {
   };
 }
 
-// ../../../../../plugin-sources/ui-patterns-recovered/node_modules/zod/v4/locales/lt.js
+// node_modules/zod/v4/locales/lt.js
 var capitalizeFirstCharacter = (text) => {
   return text.charAt(0).toUpperCase() + text.slice(1);
 };
@@ -7996,7 +8125,7 @@ function lt_default() {
   };
 }
 
-// ../../../../../plugin-sources/ui-patterns-recovered/node_modules/zod/v4/locales/mk.js
+// node_modules/zod/v4/locales/mk.js
 var error29 = () => {
   const Sizable = {
     string: { unit: "\u0437\u043D\u0430\u0446\u0438", verb: "\u0434\u0430 \u0438\u043C\u0430\u0430\u0442" },
@@ -8106,7 +8235,7 @@ function mk_default() {
   };
 }
 
-// ../../../../../plugin-sources/ui-patterns-recovered/node_modules/zod/v4/locales/ms.js
+// node_modules/zod/v4/locales/ms.js
 var error30 = () => {
   const Sizable = {
     string: { unit: "aksara", verb: "mempunyai" },
@@ -8214,7 +8343,7 @@ function ms_default() {
   };
 }
 
-// ../../../../../plugin-sources/ui-patterns-recovered/node_modules/zod/v4/locales/nl.js
+// node_modules/zod/v4/locales/nl.js
 var error31 = () => {
   const Sizable = {
     string: { unit: "tekens", verb: "heeft" },
@@ -8325,7 +8454,7 @@ function nl_default() {
   };
 }
 
-// ../../../../../plugin-sources/ui-patterns-recovered/node_modules/zod/v4/locales/no.js
+// node_modules/zod/v4/locales/no.js
 var error32 = () => {
   const Sizable = {
     string: { unit: "tegn", verb: "\xE5 ha" },
@@ -8434,7 +8563,7 @@ function no_default() {
   };
 }
 
-// ../../../../../plugin-sources/ui-patterns-recovered/node_modules/zod/v4/locales/ota.js
+// node_modules/zod/v4/locales/ota.js
 var error33 = () => {
   const Sizable = {
     string: { unit: "harf", verb: "olmal\u0131d\u0131r" },
@@ -8544,7 +8673,7 @@ function ota_default() {
   };
 }
 
-// ../../../../../plugin-sources/ui-patterns-recovered/node_modules/zod/v4/locales/ps.js
+// node_modules/zod/v4/locales/ps.js
 var error34 = () => {
   const Sizable = {
     string: { unit: "\u062A\u0648\u06A9\u064A", verb: "\u0648\u0644\u0631\u064A" },
@@ -8659,7 +8788,7 @@ function ps_default() {
   };
 }
 
-// ../../../../../plugin-sources/ui-patterns-recovered/node_modules/zod/v4/locales/pl.js
+// node_modules/zod/v4/locales/pl.js
 var error35 = () => {
   const Sizable = {
     string: { unit: "znak\xF3w", verb: "mie\u0107" },
@@ -8769,7 +8898,7 @@ function pl_default() {
   };
 }
 
-// ../../../../../plugin-sources/ui-patterns-recovered/node_modules/zod/v4/locales/pt.js
+// node_modules/zod/v4/locales/pt.js
 var error36 = () => {
   const Sizable = {
     string: { unit: "caracteres", verb: "ter" },
@@ -8878,7 +9007,7 @@ function pt_default() {
   };
 }
 
-// ../../../../../plugin-sources/ui-patterns-recovered/node_modules/zod/v4/locales/ro.js
+// node_modules/zod/v4/locales/ro.js
 var error37 = () => {
   const Sizable = {
     string: { unit: "caractere", verb: "s\u0103 aib\u0103" },
@@ -8998,7 +9127,7 @@ function ro_default() {
   };
 }
 
-// ../../../../../plugin-sources/ui-patterns-recovered/node_modules/zod/v4/locales/ru.js
+// node_modules/zod/v4/locales/ru.js
 function getRussianPlural(count, one, few, many) {
   const absCount = Math.abs(count);
   const lastDigit = absCount % 10;
@@ -9155,7 +9284,7 @@ function ru_default() {
   };
 }
 
-// ../../../../../plugin-sources/ui-patterns-recovered/node_modules/zod/v4/locales/sl.js
+// node_modules/zod/v4/locales/sl.js
 var error39 = () => {
   const Sizable = {
     string: { unit: "znakov", verb: "imeti" },
@@ -9265,7 +9394,7 @@ function sl_default() {
   };
 }
 
-// ../../../../../plugin-sources/ui-patterns-recovered/node_modules/zod/v4/locales/sv.js
+// node_modules/zod/v4/locales/sv.js
 var error40 = () => {
   const Sizable = {
     string: { unit: "tecken", verb: "att ha" },
@@ -9376,7 +9505,7 @@ function sv_default() {
   };
 }
 
-// ../../../../../plugin-sources/ui-patterns-recovered/node_modules/zod/v4/locales/ta.js
+// node_modules/zod/v4/locales/ta.js
 var error41 = () => {
   const Sizable = {
     string: { unit: "\u0B8E\u0BB4\u0BC1\u0BA4\u0BCD\u0BA4\u0BC1\u0B95\u0BCD\u0B95\u0BB3\u0BCD", verb: "\u0B95\u0BCA\u0BA3\u0BCD\u0B9F\u0BBF\u0BB0\u0BC1\u0B95\u0BCD\u0B95 \u0BB5\u0BC7\u0BA3\u0BCD\u0B9F\u0BC1\u0BAE\u0BCD" },
@@ -9487,7 +9616,7 @@ function ta_default() {
   };
 }
 
-// ../../../../../plugin-sources/ui-patterns-recovered/node_modules/zod/v4/locales/th.js
+// node_modules/zod/v4/locales/th.js
 var error42 = () => {
   const Sizable = {
     string: { unit: "\u0E15\u0E31\u0E27\u0E2D\u0E31\u0E01\u0E29\u0E23", verb: "\u0E04\u0E27\u0E23\u0E21\u0E35" },
@@ -9598,7 +9727,7 @@ function th_default() {
   };
 }
 
-// ../../../../../plugin-sources/ui-patterns-recovered/node_modules/zod/v4/locales/tr.js
+// node_modules/zod/v4/locales/tr.js
 var error43 = () => {
   const Sizable = {
     string: { unit: "karakter", verb: "olmal\u0131" },
@@ -9704,7 +9833,7 @@ function tr_default() {
   };
 }
 
-// ../../../../../plugin-sources/ui-patterns-recovered/node_modules/zod/v4/locales/uk.js
+// node_modules/zod/v4/locales/uk.js
 var error44 = () => {
   const Sizable = {
     string: { unit: "\u0441\u0438\u043C\u0432\u043E\u043B\u0456\u0432", verb: "\u043C\u0430\u0442\u0438\u043C\u0435" },
@@ -9813,12 +9942,12 @@ function uk_default() {
   };
 }
 
-// ../../../../../plugin-sources/ui-patterns-recovered/node_modules/zod/v4/locales/ua.js
+// node_modules/zod/v4/locales/ua.js
 function ua_default() {
   return uk_default();
 }
 
-// ../../../../../plugin-sources/ui-patterns-recovered/node_modules/zod/v4/locales/ur.js
+// node_modules/zod/v4/locales/ur.js
 var error45 = () => {
   const Sizable = {
     string: { unit: "\u062D\u0631\u0648\u0641", verb: "\u06C1\u0648\u0646\u0627" },
@@ -9929,7 +10058,7 @@ function ur_default() {
   };
 }
 
-// ../../../../../plugin-sources/ui-patterns-recovered/node_modules/zod/v4/locales/uz.js
+// node_modules/zod/v4/locales/uz.js
 var error46 = () => {
   const Sizable = {
     string: { unit: "belgi", verb: "bo\u2018lishi kerak" },
@@ -10040,7 +10169,7 @@ function uz_default() {
   };
 }
 
-// ../../../../../plugin-sources/ui-patterns-recovered/node_modules/zod/v4/locales/vi.js
+// node_modules/zod/v4/locales/vi.js
 var error47 = () => {
   const Sizable = {
     string: { unit: "k\xFD t\u1EF1", verb: "c\xF3" },
@@ -10149,7 +10278,7 @@ function vi_default() {
   };
 }
 
-// ../../../../../plugin-sources/ui-patterns-recovered/node_modules/zod/v4/locales/zh-CN.js
+// node_modules/zod/v4/locales/zh-CN.js
 var error48 = () => {
   const Sizable = {
     string: { unit: "\u5B57\u7B26", verb: "\u5305\u542B" },
@@ -10259,7 +10388,7 @@ function zh_CN_default() {
   };
 }
 
-// ../../../../../plugin-sources/ui-patterns-recovered/node_modules/zod/v4/locales/zh-TW.js
+// node_modules/zod/v4/locales/zh-TW.js
 var error49 = () => {
   const Sizable = {
     string: { unit: "\u5B57\u5143", verb: "\u64C1\u6709" },
@@ -10367,7 +10496,7 @@ function zh_TW_default() {
   };
 }
 
-// ../../../../../plugin-sources/ui-patterns-recovered/node_modules/zod/v4/locales/yo.js
+// node_modules/zod/v4/locales/yo.js
 var error50 = () => {
   const Sizable = {
     string: { unit: "\xE0mi", verb: "n\xED" },
@@ -10475,7 +10604,7 @@ function yo_default() {
   };
 }
 
-// ../../../../../plugin-sources/ui-patterns-recovered/node_modules/zod/v4/core/registries.js
+// node_modules/zod/v4/core/registries.js
 var _a2;
 var $output = /* @__PURE__ */ Symbol("ZodOutput");
 var $input = /* @__PURE__ */ Symbol("ZodInput");
@@ -10525,7 +10654,7 @@ function registry() {
 (_a2 = globalThis).__zod_globalRegistry ?? (_a2.__zod_globalRegistry = registry());
 var globalRegistry = globalThis.__zod_globalRegistry;
 
-// ../../../../../plugin-sources/ui-patterns-recovered/node_modules/zod/v4/core/api.js
+// node_modules/zod/v4/core/api.js
 // @__NO_SIDE_EFFECTS__
 function _string(Class2, params) {
   return new Class2({
@@ -11564,7 +11693,7 @@ function _stringFormat(Class2, format, fnOrRegex, _params = {}) {
   return inst;
 }
 
-// ../../../../../plugin-sources/ui-patterns-recovered/node_modules/zod/v4/core/to-json-schema.js
+// node_modules/zod/v4/core/to-json-schema.js
 function initializeContext(params) {
   let target = params?.target ?? "draft-2020-12";
   if (target === "draft-4")
@@ -11923,7 +12052,7 @@ var createStandardJSONSchemaMethod = (schema, io, processors = {}) => (params) =
   return finalize(ctx, schema);
 };
 
-// ../../../../../plugin-sources/ui-patterns-recovered/node_modules/zod/v4/core/json-schema-processors.js
+// node_modules/zod/v4/core/json-schema-processors.js
 var formatMap = {
   guid: "uuid",
   url: "uri",
@@ -12467,7 +12596,7 @@ function toJSONSchema(input, params) {
   return finalize(ctx, input);
 }
 
-// ../../../../../plugin-sources/ui-patterns-recovered/node_modules/zod/v4/core/json-schema-generator.js
+// node_modules/zod/v4/core/json-schema-generator.js
 var JSONSchemaGenerator = class {
   /** @deprecated Access via ctx instead */
   get metadataRegistry() {
@@ -12542,10 +12671,10 @@ var JSONSchemaGenerator = class {
   }
 };
 
-// ../../../../../plugin-sources/ui-patterns-recovered/node_modules/zod/v4/core/json-schema.js
+// node_modules/zod/v4/core/json-schema.js
 var json_schema_exports = {};
 
-// ../../../../../plugin-sources/ui-patterns-recovered/node_modules/zod/v4/classic/schemas.js
+// node_modules/zod/v4/classic/schemas.js
 var schemas_exports2 = {};
 __export(schemas_exports2, {
   ZodAny: () => ZodAny,
@@ -12716,7 +12845,7 @@ __export(schemas_exports2, {
   xor: () => xor
 });
 
-// ../../../../../plugin-sources/ui-patterns-recovered/node_modules/zod/v4/classic/checks.js
+// node_modules/zod/v4/classic/checks.js
 var checks_exports2 = {};
 __export(checks_exports2, {
   endsWith: () => _endsWith,
@@ -12750,7 +12879,7 @@ __export(checks_exports2, {
   uppercase: () => _uppercase
 });
 
-// ../../../../../plugin-sources/ui-patterns-recovered/node_modules/zod/v4/classic/iso.js
+// node_modules/zod/v4/classic/iso.js
 var iso_exports = {};
 __export(iso_exports, {
   ZodISODate: () => ZodISODate,
@@ -12791,7 +12920,7 @@ function duration2(params) {
   return _isoDuration(ZodISODuration, params);
 }
 
-// ../../../../../plugin-sources/ui-patterns-recovered/node_modules/zod/v4/classic/errors.js
+// node_modules/zod/v4/classic/errors.js
 var initializer2 = (inst, issues) => {
   $ZodError.init(inst, issues);
   inst.name = "ZodError";
@@ -12831,7 +12960,7 @@ var ZodRealError = /* @__PURE__ */ $constructor("ZodError", initializer2, {
   Parent: Error
 });
 
-// ../../../../../plugin-sources/ui-patterns-recovered/node_modules/zod/v4/classic/parse.js
+// node_modules/zod/v4/classic/parse.js
 var parse2 = /* @__PURE__ */ _parse(ZodRealError);
 var parseAsync2 = /* @__PURE__ */ _parseAsync(ZodRealError);
 var safeParse2 = /* @__PURE__ */ _safeParse(ZodRealError);
@@ -12845,7 +12974,7 @@ var safeDecode2 = /* @__PURE__ */ _safeDecode(ZodRealError);
 var safeEncodeAsync2 = /* @__PURE__ */ _safeEncodeAsync(ZodRealError);
 var safeDecodeAsync2 = /* @__PURE__ */ _safeDecodeAsync(ZodRealError);
 
-// ../../../../../plugin-sources/ui-patterns-recovered/node_modules/zod/v4/classic/schemas.js
+// node_modules/zod/v4/classic/schemas.js
 var _installedGroups = /* @__PURE__ */ new WeakMap();
 function _installLazyMethods(inst, group, methods) {
   const proto = Object.getPrototypeOf(inst);
@@ -14135,7 +14264,7 @@ function preprocess(fn, schema) {
   });
 }
 
-// ../../../../../plugin-sources/ui-patterns-recovered/node_modules/zod/v4/classic/compat.js
+// node_modules/zod/v4/classic/compat.js
 var ZodIssueCode = {
   invalid_type: "invalid_type",
   too_big: "too_big",
@@ -14161,7 +14290,7 @@ var ZodFirstPartyTypeKind;
 /* @__PURE__ */ (function(ZodFirstPartyTypeKind2) {
 })(ZodFirstPartyTypeKind || (ZodFirstPartyTypeKind = {}));
 
-// ../../../../../plugin-sources/ui-patterns-recovered/node_modules/zod/v4/classic/from-json-schema.js
+// node_modules/zod/v4/classic/from-json-schema.js
 var z = {
   ...schemas_exports2,
   ...checks_exports2,
@@ -14641,7 +14770,7 @@ function fromJSONSchema(schema, params) {
   return convertSchema(normalized, ctx);
 }
 
-// ../../../../../plugin-sources/ui-patterns-recovered/node_modules/zod/v4/classic/coerce.js
+// node_modules/zod/v4/classic/coerce.js
 var coerce_exports = {};
 __export(coerce_exports, {
   bigint: () => bigint3,
@@ -14666,10 +14795,10 @@ function date4(params) {
   return _coercedDate(ZodDate, params);
 }
 
-// ../../../../../plugin-sources/ui-patterns-recovered/node_modules/zod/v4/classic/external.js
+// node_modules/zod/v4/classic/external.js
 config(en_default());
 
-// ../../../../../plugin-sources/ui-patterns-recovered/generated/atlas-registry.v2.json
+// generated/atlas-registry.v2.json
 var atlas_registry_v2_default = {
   schemaVersion: "2",
   manifestVersion: "2026-07-17",
@@ -32779,7 +32908,7 @@ var atlas_registry_v2_default = {
   ]
 };
 
-// ../../../../../plugin-sources/ui-patterns-recovered/data.ts
+// data.ts
 var patternEntrySchema = external_exports.object({
   id: external_exports.string(),
   name: external_exports.string(),
@@ -32813,7 +32942,7 @@ var typeLabels = {
   pattern: "Patterns"
 };
 
-// ../../../../../plugin-sources/ui-patterns-recovered/search.ts
+// search.ts
 var fieldWeights = {
   name: 1e3,
   altLabels: 700,
@@ -33073,7 +33202,7 @@ var {
   jsxs
 } = mod3;
 
-// ../../../../../plugin-sources/ui-patterns-recovered/atlas-ds/foundation.tsx
+// atlas-ds/foundation.tsx
 function cx(...values) {
   return values.filter(Boolean).join(" ");
 }
@@ -33243,7 +33372,7 @@ function ApplicationFrame({
   );
 }
 
-// ../../../../../plugin-sources/ui-patterns-recovered/atlas-ds/controls.tsx
+// atlas-ds/controls.tsx
 var Button = forwardRef(
   ({
     className,
@@ -33360,7 +33489,7 @@ function SpinnerGlyph() {
   return /* @__PURE__ */ jsx("span", { className: "atlas-spinner-glyph", "aria-hidden": "true" });
 }
 
-// ../../../../../plugin-sources/ui-patterns-recovered/atlas-ds/forms.tsx
+// atlas-ds/forms.tsx
 function useFieldIds(suppliedId, description, error51) {
   const generatedId = useId();
   const id = suppliedId ?? generatedId;
@@ -33602,7 +33731,7 @@ function FormActions({
   );
 }
 
-// ../../../../../plugin-sources/ui-patterns-recovered/node_modules/@hugeicons/react/dist/esm/HugeiconsIcon.js
+// node_modules/@hugeicons/react/dist/esm/HugeiconsIcon.js
 var defaultAttributes = {
   xmlns: "http://www.w3.org/2000/svg",
   width: 24,
@@ -33653,113 +33782,113 @@ var HugeiconsIcon = forwardRef(({ color = "currentColor", size = 24, strokeWidth
 });
 HugeiconsIcon.displayName = "HugeiconsIcon";
 
-// ../../../../../plugin-sources/ui-patterns-recovered/node_modules/@hugeicons/core-free-icons/dist/esm/Alert02Icon.js
+// node_modules/@hugeicons/core-free-icons/dist/esm/Alert02Icon.js
 var Alert02Icon = [
   ["path", { d: "M13.9248 21H10.0752C5.44476 21 3.12955 21 2.27636 19.4939C1.42317 17.9879 2.60736 15.9914 4.97574 11.9985L6.90057 8.75333C9.17559 4.91778 10.3131 3 12 3C13.6869 3 14.8244 4.91777 17.0994 8.75332L19.0243 11.9985C21.3926 15.9914 22.5768 17.9879 21.7236 19.4939C20.8704 21 18.5552 21 13.9248 21Z", stroke: "currentColor", strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: "1.5", key: "0" }],
   ["path", { d: "M12 9V13", stroke: "currentColor", strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: "1.5", key: "1" }],
   ["path", { d: "M12.125 16.75H12M12.25 16.75C12.25 16.8881 12.1381 17 12 17C11.8619 17 11.75 16.8881 11.75 16.75C11.75 16.6119 11.8619 16.5 12 16.5C12.1381 16.5 12.25 16.6119 12.25 16.75Z", stroke: "currentColor", strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: "1.5", key: "2" }]
 ];
 
-// ../../../../../plugin-sources/ui-patterns-recovered/node_modules/@hugeicons/core-free-icons/dist/esm/AlertCircleIcon.js
+// node_modules/@hugeicons/core-free-icons/dist/esm/AlertCircleIcon.js
 var AlertCircleIcon = [
   ["circle", { cx: "12", cy: "12", r: "10", stroke: "currentColor", strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: "1.5", key: "0" }],
   ["path", { d: "M12 8V12", stroke: "currentColor", strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: "1.5", key: "1" }],
   ["path", { d: "M12.125 15.75H12M12.25 15.75C12.25 15.8881 12.1381 16 12 16C11.8619 16 11.75 15.8881 11.75 15.75C11.75 15.6119 11.8619 15.5 12 15.5C12.1381 15.5 12.25 15.6119 12.25 15.75Z", stroke: "currentColor", strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: "1.5", key: "2" }]
 ];
 
-// ../../../../../plugin-sources/ui-patterns-recovered/node_modules/@hugeicons/core-free-icons/dist/esm/Archive03Icon.js
+// node_modules/@hugeicons/core-free-icons/dist/esm/Archive03Icon.js
 var Archive03Icon = [
   ["path", { d: "M21 7H3V13C3 16.7712 3 18.6569 4.17157 19.8284C5.34315 21 7.22876 21 11 21H13C16.7712 21 18.6569 21 19.8284 19.8284C21 18.6569 21 16.7712 21 13V7Z", stroke: "currentColor", strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: "1.5", key: "0" }],
   ["path", { d: "M21 7H3L4.2 5.4C5.08328 4.22229 5.52492 3.63344 6.15836 3.31672C6.7918 3 7.52786 3 9 3H15C16.4721 3 17.2082 3 17.8416 3.31672C18.4751 3.63344 18.9167 4.22229 19.8 5.4L21 7Z", stroke: "currentColor", strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: "1.5", key: "1" }],
   ["path", { d: "M12 17L12 10.5M9 14.5C9.58984 15.1068 11.1597 17.5 12 17.5C12.8403 17.5 14.4102 15.1068 15 14.5", stroke: "currentColor", strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: "1.5", key: "2" }]
 ];
 
-// ../../../../../plugin-sources/ui-patterns-recovered/node_modules/@hugeicons/core-free-icons/dist/esm/ArrowDown01Icon.js
+// node_modules/@hugeicons/core-free-icons/dist/esm/ArrowDown01Icon.js
 var ArrowDown01Icon = [
   ["path", { d: "M18 9.00005C18 9.00005 13.5811 15 12 15C10.4188 15 6 9 6 9", stroke: "currentColor", strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: "1.5", key: "0" }]
 ];
 
-// ../../../../../plugin-sources/ui-patterns-recovered/node_modules/@hugeicons/core-free-icons/dist/esm/ArrowDown02Icon.js
+// node_modules/@hugeicons/core-free-icons/dist/esm/ArrowDown02Icon.js
 var ArrowDown02Icon = [
   ["path", { d: "M12 18.502V5.00195", stroke: "currentColor", strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: "1.5", key: "0" }],
   ["path", { d: "M18 13.002C18 13.002 13.5811 19.0019 12 19.002C10.4188 19.002 6 13.002 6 13.002", stroke: "currentColor", strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: "1.5", key: "1" }]
 ];
 
-// ../../../../../plugin-sources/ui-patterns-recovered/node_modules/@hugeicons/core-free-icons/dist/esm/ArrowDownDoubleIcon.js
+// node_modules/@hugeicons/core-free-icons/dist/esm/ArrowDownDoubleIcon.js
 var ArrowDownDoubleIcon = [
   ["path", { d: "M17.9997 12.5C17.9997 12.5 13.5807 18.5 11.9996 18.5C10.4185 18.5 5.99966 12.5 5.99966 12.5", stroke: "currentColor", strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: "1.5", key: "0" }],
   ["path", { d: "M17.9997 5.50005C17.9997 5.50005 13.5807 11.5 11.9996 11.5C10.4185 11.5 5.99966 5.5 5.99966 5.5", stroke: "currentColor", strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: "1.5", key: "1" }]
 ];
 
-// ../../../../../plugin-sources/ui-patterns-recovered/node_modules/@hugeicons/core-free-icons/dist/esm/ArrowExpand01Icon.js
+// node_modules/@hugeicons/core-free-icons/dist/esm/ArrowExpand01Icon.js
 var ArrowExpand01Icon = [
   ["path", { d: "M16.4999 3.26621C17.3443 3.25421 20.1408 2.67328 20.7337 3.26621C21.3266 3.85913 20.7457 6.65559 20.7337 7.5M20.5059 3.49097L13.5021 10.4961", stroke: "currentColor", strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: "1.5", key: "0" }],
   ["path", { d: "M3.26636 16.5001C3.25436 17.3445 2.67343 20.141 3.26636 20.7339C3.85928 21.3268 6.65574 20.7459 7.50015 20.7339M10.502 13.4976L3.49824 20.5027", stroke: "currentColor", strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: "1.5", key: "1" }]
 ];
 
-// ../../../../../plugin-sources/ui-patterns-recovered/node_modules/@hugeicons/core-free-icons/dist/esm/ArrowLeft01Icon.js
+// node_modules/@hugeicons/core-free-icons/dist/esm/ArrowLeft01Icon.js
 var ArrowLeft01Icon = [
   ["path", { d: "M15 6C15 6 9.00001 10.4189 9 12C8.99999 13.5812 15 18 15 18", stroke: "currentColor", strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: "1.5", key: "0" }]
 ];
 
-// ../../../../../plugin-sources/ui-patterns-recovered/node_modules/@hugeicons/core-free-icons/dist/esm/ArrowMoveDownLeftIcon.js
+// node_modules/@hugeicons/core-free-icons/dist/esm/ArrowMoveDownLeftIcon.js
 var ArrowMoveDownLeftIcon = [
   ["path", { d: "M20 3V5.07692C20 7.07786 20 8.07833 19.8547 8.91545C19.0547 13.5235 15.0934 17.1376 10.0426 17.8674C9.12509 18 7.19318 18 5 18", stroke: "currentColor", strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: "1.5", key: "0" }],
   ["path", { d: "M7 21C6.39316 20.4102 4 18.8403 4 18C4 17.1597 6.39316 15.5898 7 15", stroke: "currentColor", strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: "1.5", key: "1" }]
 ];
 
-// ../../../../../plugin-sources/ui-patterns-recovered/node_modules/@hugeicons/core-free-icons/dist/esm/ArrowMoveDownRightIcon.js
+// node_modules/@hugeicons/core-free-icons/dist/esm/ArrowMoveDownRightIcon.js
 var ArrowMoveDownRightIcon = [
   ["path", { d: "M4 3V5.07692C4 7.07786 4 8.07833 4.14533 8.91545C4.94529 13.5235 8.90656 17.1376 13.9574 17.8674C14.8749 18 16.8068 18 19 18", stroke: "currentColor", strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: "1.5", key: "0" }],
   ["path", { d: "M17 21C17.6068 20.4102 20 18.8403 20 18C20 17.1597 17.6068 15.5898 17 15", stroke: "currentColor", strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: "1.5", key: "1" }]
 ];
 
-// ../../../../../plugin-sources/ui-patterns-recovered/node_modules/@hugeicons/core-free-icons/dist/esm/ArrowRight01Icon.js
+// node_modules/@hugeicons/core-free-icons/dist/esm/ArrowRight01Icon.js
 var ArrowRight01Icon = [
   ["path", { d: "M9.00005 6C9.00005 6 15 10.4189 15 12C15 13.5812 9 18 9 18", stroke: "currentColor", strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: "1.5", key: "0" }]
 ];
 
-// ../../../../../plugin-sources/ui-patterns-recovered/node_modules/@hugeicons/core-free-icons/dist/esm/ArrowRight02Icon.js
+// node_modules/@hugeicons/core-free-icons/dist/esm/ArrowRight02Icon.js
 var ArrowRight02Icon = [
   ["path", { d: "M18.5 12L4.99997 12", stroke: "currentColor", strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: "1.5", key: "0" }],
   ["path", { d: "M13 18C13 18 19 13.5811 19 12C19 10.4188 13 6 13 6", stroke: "currentColor", strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: "1.5", key: "1" }]
 ];
 
-// ../../../../../plugin-sources/ui-patterns-recovered/node_modules/@hugeicons/core-free-icons/dist/esm/ArrowShrink01Icon.js
+// node_modules/@hugeicons/core-free-icons/dist/esm/ArrowShrink01Icon.js
 var ArrowShrink01Icon = [
   ["path", { d: "M6.5023 10.7365C7.34671 10.7485 10.1432 11.3294 10.7361 10.7365C11.329 10.1436 10.7481 7.34708 10.7361 6.50267M13.2685 17.5027C13.2565 16.6583 12.6756 13.8618 13.2685 13.2689C13.8614 12.676 16.6579 13.2569 17.5023 13.2689M20.9991 21.001L13.6102 13.6188M10.3691 10.3763L2.99998 2.99902", stroke: "currentColor", strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: "1.5", key: "0" }]
 ];
 
-// ../../../../../plugin-sources/ui-patterns-recovered/node_modules/@hugeicons/core-free-icons/dist/esm/ArrowTurnBackwardIcon.js
+// node_modules/@hugeicons/core-free-icons/dist/esm/ArrowTurnBackwardIcon.js
 var ArrowTurnBackwardIcon = [
   ["path", { d: "M11 6H15.5C17.9853 6 20 8.01472 20 10.5C20 12.9853 17.9853 15 15.5 15H4", stroke: "currentColor", strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: "1.5", key: "0" }],
   ["path", { d: "M6.99998 12C6.99998 12 4.00001 14.2095 4 15C3.99999 15.7906 7 18 7 18", stroke: "currentColor", strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: "1.5", key: "1" }]
 ];
 
-// ../../../../../plugin-sources/ui-patterns-recovered/node_modules/@hugeicons/core-free-icons/dist/esm/ArrowTurnForwardIcon.js
+// node_modules/@hugeicons/core-free-icons/dist/esm/ArrowTurnForwardIcon.js
 var ArrowTurnForwardIcon = [
   ["path", { d: "M13 6H8.5C6.01472 6 4 8.01472 4 10.5C4 12.9853 6.01472 15 8.5 15H20", stroke: "currentColor", strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: "1.5", key: "0" }],
   ["path", { d: "M17 12C17 12 20 14.2095 20 15C20 15.7906 17 18 17 18", stroke: "currentColor", strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: "1.5", key: "1" }]
 ];
 
-// ../../../../../plugin-sources/ui-patterns-recovered/node_modules/@hugeicons/core-free-icons/dist/esm/ArrowUp01Icon.js
+// node_modules/@hugeicons/core-free-icons/dist/esm/ArrowUp01Icon.js
 var ArrowUp01Icon = [
   ["path", { d: "M17.9998 15C17.9998 15 13.5809 9.00001 11.9998 9C10.4187 8.99999 5.99985 15 5.99985 15", stroke: "currentColor", strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: "1.5", key: "0" }]
 ];
 
-// ../../../../../plugin-sources/ui-patterns-recovered/node_modules/@hugeicons/core-free-icons/dist/esm/ArrowUp02Icon.js
+// node_modules/@hugeicons/core-free-icons/dist/esm/ArrowUp02Icon.js
 var ArrowUp02Icon = [
   ["path", { d: "M12 5.5V19", stroke: "currentColor", strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: "1.5", key: "0" }],
   ["path", { d: "M18 11C18 11 13.5811 5.00001 12 5C10.4188 4.99999 6 11 6 11", stroke: "currentColor", strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: "1.5", key: "1" }]
 ];
 
-// ../../../../../plugin-sources/ui-patterns-recovered/node_modules/@hugeicons/core-free-icons/dist/esm/ArrowUpDoubleIcon.js
+// node_modules/@hugeicons/core-free-icons/dist/esm/ArrowUpDoubleIcon.js
 var ArrowUpDoubleIcon = [
   ["path", { d: "M18 11.5C18 11.5 13.5811 5.50001 12 5.5C10.4188 5.49999 6 11.5 6 11.5", stroke: "currentColor", strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: "1.5", key: "0" }],
   ["path", { d: "M18 18.5C18 18.5 13.5811 12.5 12 12.5C10.4188 12.5 6 18.5 6 18.5", stroke: "currentColor", strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: "1.5", key: "1" }]
 ];
 
-// ../../../../../plugin-sources/ui-patterns-recovered/node_modules/@hugeicons/core-free-icons/dist/esm/ArrowUpDownIcon.js
+// node_modules/@hugeicons/core-free-icons/dist/esm/ArrowUpDownIcon.js
 var ArrowUpDownIcon = [
   ["path", { d: "M7 4V20", stroke: "currentColor", strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: "1.5", key: "0" }],
   ["path", { d: "M17 19L17 4", stroke: "currentColor", strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: "1.5", key: "1" }],
@@ -33767,17 +33896,17 @@ var ArrowUpDownIcon = [
   ["path", { d: "M20 17C20 17 17.7905 20 17 20C16.2094 20 14 17 14 17", stroke: "currentColor", strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: "1.5", key: "3" }]
 ];
 
-// ../../../../../plugin-sources/ui-patterns-recovered/node_modules/@hugeicons/core-free-icons/dist/esm/ArrowUpRight01Icon.js
+// node_modules/@hugeicons/core-free-icons/dist/esm/ArrowUpRight01Icon.js
 var ArrowUpRight01Icon = [
   ["path", { d: "M9 6.65032C9 6.65032 15.9383 6.10759 16.9154 7.08463C17.8924 8.06167 17.3496 15 17.3496 15M16.5 7.5L6.5 17.5", stroke: "currentColor", strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: "1.5", key: "0" }]
 ];
 
-// ../../../../../plugin-sources/ui-patterns-recovered/node_modules/@hugeicons/core-free-icons/dist/esm/AttachmentIcon.js
+// node_modules/@hugeicons/core-free-icons/dist/esm/AttachmentIcon.js
 var AttachmentIcon = [
   ["path", { d: "M19.5 12.0001V13.5001C19.5 17.6422 16.1421 21.0001 12 21.0001C7.85786 21.0001 4.5 17.6422 4.5 13.5001V8C4.5 5.23858 6.73858 3 9.5 3C12.2614 3 14.5 5.23858 14.5 8V13.5C14.5 14.8807 13.3807 16 12 16C10.6193 16 9.5 14.8807 9.5 13.5V9.5", stroke: "currentColor", strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: "1.5", key: "0" }]
 ];
 
-// ../../../../../plugin-sources/ui-patterns-recovered/node_modules/@hugeicons/core-free-icons/dist/esm/AudioWave01Icon.js
+// node_modules/@hugeicons/core-free-icons/dist/esm/AudioWave01Icon.js
 var AudioWave01Icon = [
   ["path", { d: "M9 3V21", stroke: "currentColor", strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: "1.5", key: "0" }],
   ["path", { d: "M6 7V17", stroke: "currentColor", strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: "1.5", key: "1" }],
@@ -33788,32 +33917,32 @@ var AudioWave01Icon = [
   ["path", { d: "M3 11L3 13", stroke: "currentColor", strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: "1.5", key: "6" }]
 ];
 
-// ../../../../../plugin-sources/ui-patterns-recovered/node_modules/@hugeicons/core-free-icons/dist/esm/Book02Icon.js
+// node_modules/@hugeicons/core-free-icons/dist/esm/Book02Icon.js
 var Book02Icon = [
   ["path", { d: "M15.5 7H8.5M12.499 11H8.49902", stroke: "currentColor", strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: "1.5", key: "0" }],
   ["path", { d: "M20 22H6C4.89543 22 4 21.1046 4 20M4 20C4 18.8954 4.89543 18 6 18H20V6C20 4.11438 20 3.17157 19.4142 2.58579C18.8284 2 17.8856 2 16 2H10C7.17157 2 5.75736 2 4.87868 2.87868C4 3.75736 4 5.17157 4 8V20Z", stroke: "currentColor", strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: "1.5", key: "1" }],
   ["path", { d: "M19.5 18C19.5 18 18.5 18.7628 18.5 20C18.5 21.2372 19.5 22 19.5 22", stroke: "currentColor", strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: "1.5", key: "2" }]
 ];
 
-// ../../../../../plugin-sources/ui-patterns-recovered/node_modules/@hugeicons/core-free-icons/dist/esm/BrowserIcon.js
+// node_modules/@hugeicons/core-free-icons/dist/esm/BrowserIcon.js
 var BrowserIcon = [
   ["path", { d: "M3 12C3 7.75736 3 5.63604 4.31802 4.31802C5.63604 3 7.75736 3 12 3C16.2426 3 18.364 3 19.682 4.31802C21 5.63604 21 7.75736 21 12C21 16.2426 21 18.364 19.682 19.682C18.364 21 16.2426 21 12 21C7.75736 21 5.63604 21 4.31802 19.682C3 18.364 3 16.2426 3 12Z", stroke: "currentColor", strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: "1.5", key: "0" }],
   ["path", { d: "M3 9H21", stroke: "currentColor", strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: "1.5", key: "1" }]
 ];
 
-// ../../../../../plugin-sources/ui-patterns-recovered/node_modules/@hugeicons/core-free-icons/dist/esm/BubbleChatAddIcon.js
+// node_modules/@hugeicons/core-free-icons/dist/esm/BubbleChatAddIcon.js
 var BubbleChatAddIcon = [
   ["path", { d: "M21.5 12C21.5 17.2467 17.2467 21.5 12 21.5C10.3719 21.5 8.8394 21.0904 7.5 20.3687C5.63177 19.362 4.37462 20.2979 3.26592 20.4658C3.09774 20.4913 2.93024 20.4302 2.80997 20.31C2.62741 20.1274 2.59266 19.8451 2.6935 19.6074C3.12865 18.5818 3.5282 16.6382 2.98341 15C2.6698 14.057 2.5 13.0483 2.5 12C2.5 6.75329 6.75329 2.5 12 2.5C17.2467 2.5 21.5 6.75329 21.5 12Z", stroke: "currentColor", strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: "1.5", key: "0" }],
   ["path", { d: "M15.5 12H8.5M12 8.5V15.5", stroke: "currentColor", strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: "1.5", key: "1" }]
 ];
 
-// ../../../../../plugin-sources/ui-patterns-recovered/node_modules/@hugeicons/core-free-icons/dist/esm/BubbleChatIcon.js
+// node_modules/@hugeicons/core-free-icons/dist/esm/BubbleChatIcon.js
 var BubbleChatIcon = [
   ["path", { d: "M21.5 12C21.5 17.2467 17.2467 21.5 12 21.5C10.3719 21.5 8.8394 21.0904 7.5 20.3687C5.63177 19.362 4.37462 20.2979 3.26592 20.4658C3.09774 20.4913 2.93024 20.4302 2.80997 20.31C2.62741 20.1274 2.59266 19.8451 2.6935 19.6074C3.12865 18.5818 3.5282 16.6382 2.98341 15C2.6698 14.057 2.5 13.0483 2.5 12C2.5 6.75329 6.75329 2.5 12 2.5C17.2467 2.5 21.5 6.75329 21.5 12Z", stroke: "currentColor", strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: "1.5", key: "0" }],
   ["path", { d: "M12.1257 12H12.0007M8.125 12H8M16.125 12H16M12.2507 12C12.2507 12.1381 12.1388 12.25 12.0007 12.25C11.8627 12.25 11.7507 12.1381 11.7507 12C11.7507 11.8619 11.8627 11.75 12.0007 11.75C12.1388 11.75 12.2507 11.8619 12.2507 12ZM8.25 12C8.25 12.1381 8.13807 12.25 8 12.25C7.86193 12.25 7.75 12.1381 7.75 12C7.75 11.8619 7.86193 11.75 8 11.75C8.13807 11.75 8.25 11.8619 8.25 12ZM16.25 12C16.25 12.1381 16.1381 12.25 16 12.25C15.8619 12.25 15.75 12.1381 15.75 12C15.75 11.8619 15.8619 11.75 16 11.75C16.1381 11.75 16.25 11.8619 16.25 12Z", stroke: "currentColor", strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: "1.5", key: "1" }]
 ];
 
-// ../../../../../plugin-sources/ui-patterns-recovered/node_modules/@hugeicons/core-free-icons/dist/esm/Bug01Icon.js
+// node_modules/@hugeicons/core-free-icons/dist/esm/Bug01Icon.js
 var Bug01Icon = [
   ["path", { d: "M3.01309 4.99084C2.89323 6.05084 3.55249 8.42285 6.48923 8.42285", stroke: "currentColor", strokeLinecap: "round", strokeWidth: "1.5", key: "0" }],
   ["path", { d: "M17.5951 8.38081C18.8357 8.57881 21.1132 7.49881 20.9957 5.00281", stroke: "currentColor", strokeLinecap: "round", strokeWidth: "1.5", key: "1" }],
@@ -33825,18 +33954,18 @@ var Bug01Icon = [
   ["path", { d: "M12.0033 16.4988L12.0033 20.2788", stroke: "currentColor", strokeLinecap: "round", strokeWidth: "1.5", key: "7" }]
 ];
 
-// ../../../../../plugin-sources/ui-patterns-recovered/node_modules/@hugeicons/core-free-icons/dist/esm/Cancel01Icon.js
+// node_modules/@hugeicons/core-free-icons/dist/esm/Cancel01Icon.js
 var Cancel01Icon = [
   ["path", { d: "M18 6L6.00081 17.9992M17.9992 18L6 6.00085", stroke: "currentColor", strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: "1.5", key: "0" }]
 ];
 
-// ../../../../../plugin-sources/ui-patterns-recovered/node_modules/@hugeicons/core-free-icons/dist/esm/CancelCircleIcon.js
+// node_modules/@hugeicons/core-free-icons/dist/esm/CancelCircleIcon.js
 var CancelCircleIcon = [
   ["path", { d: "M22 12C22 6.47715 17.5228 2 12 2C6.47715 2 2 6.47715 2 12C2 17.5228 6.47715 22 12 22C17.5228 22 22 17.5228 22 12Z", stroke: "currentColor", strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: "1.5", key: "0" }],
   ["path", { d: "M14.9994 15L9 9M9.00064 15L15 9", stroke: "currentColor", strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: "1.5", key: "1" }]
 ];
 
-// ../../../../../plugin-sources/ui-patterns-recovered/node_modules/@hugeicons/core-free-icons/dist/esm/ChartColumnIcon.js
+// node_modules/@hugeicons/core-free-icons/dist/esm/ChartColumnIcon.js
 var ChartColumnIcon = [
   ["path", { d: "M8 9V17", stroke: "currentColor", strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: "1.5", key: "0" }],
   ["path", { d: "M13 5V17", stroke: "currentColor", strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: "1.5", key: "1" }],
@@ -33844,7 +33973,7 @@ var ChartColumnIcon = [
   ["path", { d: "M3 3V13C3 16.7712 3 18.6569 4.17157 19.8284C5.34315 21 7.22876 21 11 21H21", stroke: "currentColor", strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: "1.5", key: "3" }]
 ];
 
-// ../../../../../plugin-sources/ui-patterns-recovered/node_modules/@hugeicons/core-free-icons/dist/esm/CheckListIcon.js
+// node_modules/@hugeicons/core-free-icons/dist/esm/CheckListIcon.js
 var CheckListIcon = [
   ["path", { d: "M11 6L21 6", stroke: "currentColor", strokeLinecap: "round", strokeWidth: "1.5", key: "0" }],
   ["path", { d: "M11 12L21 12", stroke: "currentColor", strokeLinecap: "round", strokeWidth: "1.5", key: "1" }],
@@ -33853,58 +33982,58 @@ var CheckListIcon = [
   ["path", { d: "M3 18.3929C3 18.3929 4 19.0447 4.5 20C4.5 20 6 16.25 8 15", stroke: "currentColor", strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: "1.5", key: "4" }]
 ];
 
-// ../../../../../plugin-sources/ui-patterns-recovered/node_modules/@hugeicons/core-free-icons/dist/esm/CheckmarkCircle02Icon.js
+// node_modules/@hugeicons/core-free-icons/dist/esm/CheckmarkCircle02Icon.js
 var CheckmarkCircle02Icon = [
   ["path", { d: "M22 12C22 6.47715 17.5228 2 12 2C6.47715 2 2 6.47715 2 12C2 17.5228 6.47715 22 12 22C17.5228 22 22 17.5228 22 12Z", stroke: "currentColor", strokeWidth: "1.5", key: "0" }],
   ["path", { d: "M8 12.5L10.5 15L16 9", stroke: "currentColor", strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: "1.5", key: "1" }]
 ];
 
-// ../../../../../plugin-sources/ui-patterns-recovered/node_modules/@hugeicons/core-free-icons/dist/esm/CircleArrowShrink01Icon.js
+// node_modules/@hugeicons/core-free-icons/dist/esm/CircleArrowShrink01Icon.js
 var CircleArrowShrink01Icon = [
   ["circle", { cx: "12", cy: "12", r: "10", stroke: "currentColor", strokeWidth: "1.5", key: "0" }],
   ["path", { d: "M11.115 11.1151C11.6324 10.5977 11.5463 8.4 11.5463 8.4M11.115 11.1151C10.5977 11.6324 8.4 11.5462 8.4 11.5462M11.115 11.1151L7.5 7.5M12.8882 12.8882C13.4055 12.3708 15.6032 12.4569 15.6032 12.4569M12.8882 12.8882C12.3709 13.4055 12.457 15.6032 12.457 15.6032M12.8882 12.8882L16.5 16.5", stroke: "currentColor", strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: "1.5", key: "1" }]
 ];
 
-// ../../../../../plugin-sources/ui-patterns-recovered/node_modules/@hugeicons/core-free-icons/dist/esm/CircleIcon.js
+// node_modules/@hugeicons/core-free-icons/dist/esm/CircleIcon.js
 var CircleIcon = [
   ["circle", { cx: "12", cy: "12", r: "10", stroke: "currentColor", strokeLinejoin: "round", strokeWidth: "1.5", key: "0" }]
 ];
 
-// ../../../../../plugin-sources/ui-patterns-recovered/node_modules/@hugeicons/core-free-icons/dist/esm/Clock01Icon.js
+// node_modules/@hugeicons/core-free-icons/dist/esm/Clock01Icon.js
 var Clock01Icon = [
   ["circle", { cx: "12", cy: "12", r: "10", stroke: "currentColor", strokeWidth: "1.5", key: "0" }],
   ["path", { d: "M12 8V12L14 14", stroke: "currentColor", strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: "1.5", key: "1" }]
 ];
 
-// ../../../../../plugin-sources/ui-patterns-recovered/node_modules/@hugeicons/core-free-icons/dist/esm/CloudIcon.js
+// node_modules/@hugeicons/core-free-icons/dist/esm/CloudIcon.js
 var CloudIcon = [
   ["path", { d: "M17.4776 10.0001C17.485 10 17.4925 10 17.5 10C19.9853 10 22 12.0147 22 14.5C22 16.9853 19.9853 19 17.5 19H7C4.23858 19 2 16.7614 2 14C2 11.4003 3.98398 9.26407 6.52042 9.0227M17.4776 10.0001C17.4924 9.83536 17.5 9.66856 17.5 9.5C17.5 6.46243 15.0376 4 12 4C9.12324 4 6.76233 6.20862 6.52042 9.0227M17.4776 10.0001C17.3753 11.1345 16.9286 12.1696 16.2428 13M6.52042 9.0227C6.67826 9.00768 6.83823 9 7 9C8.12582 9 9.16474 9.37209 10.0005 10", stroke: "currentColor", strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: "1.5", key: "0" }]
 ];
 
-// ../../../../../plugin-sources/ui-patterns-recovered/node_modules/@hugeicons/core-free-icons/dist/esm/ComputerTerminal01Icon.js
+// node_modules/@hugeicons/core-free-icons/dist/esm/ComputerTerminal01Icon.js
 var ComputerTerminal01Icon = [
   ["path", { d: "M7.5 7.5L8.72654 8.55719C9.24218 9.00163 9.5 9.22386 9.5 9.5C9.5 9.77614 9.24218 9.99836 8.72654 10.4428L7.5 11.5", stroke: "currentColor", strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: "1.5", key: "0" }],
   ["path", { d: "M11.5 12.5H15.5", stroke: "currentColor", strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: "1.5", key: "1" }],
   ["path", { d: "M12 21C15.7497 21 17.6246 21 18.9389 20.0451C19.3634 19.7367 19.7367 19.3634 20.0451 18.9389C21 17.6246 21 15.7497 21 12C21 8.25027 21 6.3754 20.0451 5.06107C19.7367 4.6366 19.3634 4.26331 18.9389 3.95491C17.6246 3 15.7497 3 12 3C8.25027 3 6.3754 3 5.06107 3.95491C4.6366 4.26331 4.26331 4.6366 3.95491 5.06107C3 6.3754 3 8.25027 3 12C3 15.7497 3 17.6246 3.95491 18.9389C4.26331 19.3634 4.6366 19.7367 5.06107 20.0451C6.3754 21 8.25027 21 12 21Z", stroke: "currentColor", strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: "1.5", key: "2" }]
 ];
 
-// ../../../../../plugin-sources/ui-patterns-recovered/node_modules/@hugeicons/core-free-icons/dist/esm/Copy01Icon.js
+// node_modules/@hugeicons/core-free-icons/dist/esm/Copy01Icon.js
 var Copy01Icon = [
   ["path", { d: "M9 15C9 12.1716 9 10.7574 9.87868 9.87868C10.7574 9 12.1716 9 15 9L16 9C18.8284 9 20.2426 9 21.1213 9.87868C22 10.7574 22 12.1716 22 15V16C22 18.8284 22 20.2426 21.1213 21.1213C20.2426 22 18.8284 22 16 22H15C12.1716 22 10.7574 22 9.87868 21.1213C9 20.2426 9 18.8284 9 16L9 15Z", stroke: "currentColor", strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: "1.5", key: "0" }],
   ["path", { d: "M16.9999 9C16.9975 6.04291 16.9528 4.51121 16.092 3.46243C15.9258 3.25989 15.7401 3.07418 15.5376 2.90796C14.4312 2 12.7875 2 9.5 2C6.21252 2 4.56878 2 3.46243 2.90796C3.25989 3.07417 3.07418 3.25989 2.90796 3.46243C2 4.56878 2 6.21252 2 9.5C2 12.7875 2 14.4312 2.90796 15.5376C3.07417 15.7401 3.25989 15.9258 3.46243 16.092C4.51121 16.9528 6.04291 16.9975 9 16.9999", stroke: "currentColor", strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: "1.5", key: "1" }]
 ];
 
-// ../../../../../plugin-sources/ui-patterns-recovered/node_modules/@hugeicons/core-free-icons/dist/esm/DashedLine02Icon.js
+// node_modules/@hugeicons/core-free-icons/dist/esm/DashedLine02Icon.js
 var DashedLine02Icon = [
   ["path", { d: "M6.3 2.75143C5.26076 2.94471 4.49591 3.28657 3.89124 3.89124C3.28657 4.49591 2.94471 5.26076 2.75143 6.3M17.7 2.75143C18.7392 2.94471 19.5041 3.28657 20.1088 3.89124C20.7134 4.49591 21.0553 5.26076 21.2486 6.3M13.9 2.50495C13.3156 2.5 12.6839 2.5 12 2.5C11.3161 2.5 10.6844 2.5 10.1 2.50495M21.495 10.1C21.5 10.6844 21.5 11.3161 21.5 12C21.5 12.6839 21.5 13.3156 21.495 13.9001M2.50495 10.1C2.5 10.6844 2.5 11.3161 2.5 12C2.5 12.6839 2.5 13.3156 2.50496 13.9001M2.75143 17.7C2.94471 18.7392 3.28657 19.5041 3.89124 20.1088C4.49591 20.7134 5.26076 21.0553 6.3 21.2486M21.2486 17.7C21.0553 18.7392 20.7134 19.5041 20.1088 20.1088C19.5041 20.7134 18.7392 21.0553 17.7 21.2486M13.9 21.495C13.3156 21.5 12.6839 21.5 12 21.5C11.3162 21.5 10.6845 21.5 10.1002 21.495", stroke: "currentColor", strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: "1.5", key: "0" }]
 ];
 
-// ../../../../../plugin-sources/ui-patterns-recovered/node_modules/@hugeicons/core-free-icons/dist/esm/DashedLineCircleIcon.js
+// node_modules/@hugeicons/core-free-icons/dist/esm/DashedLineCircleIcon.js
 var DashedLineCircleIcon = [
   ["path", { d: "M14 2.20004C13.3538 2.06886 12.6849 2 12 2C11.3151 2 10.6462 2.06886 10 2.20004M21.8 10C21.9311 10.6462 22 11.3151 22 12C22 12.6849 21.9311 13.3538 21.8 14M14 21.8C13.3538 21.9311 12.6849 22 12 22C11.3151 22 10.6462 21.9311 10 21.8M2.20004 14C2.06886 13.3538 2 12.6849 2 12C2 11.3151 2.06886 10.6462 2.20004 10M17.5 3.64702C18.6332 4.39469 19.6053 5.36678 20.353 6.5M20.353 17.5C19.6053 18.6332 18.6332 19.6053 17.5 20.353M6.5 20.353C5.36678 19.6053 4.39469 18.6332 3.64702 17.5M3.64702 6.5C4.39469 5.36678 5.36678 4.39469 6.5 3.64702", stroke: "currentColor", strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: "1.5", key: "0" }]
 ];
 
-// ../../../../../plugin-sources/ui-patterns-recovered/node_modules/@hugeicons/core-free-icons/dist/esm/Delete02Icon.js
+// node_modules/@hugeicons/core-free-icons/dist/esm/Delete02Icon.js
 var Delete02Icon = [
   ["path", { d: "M19.5 5.5L18.8803 15.5251C18.7219 18.0864 18.6428 19.3671 18.0008 20.2879C17.6833 20.7431 17.2747 21.1273 16.8007 21.416C15.8421 22 14.559 22 11.9927 22C9.42312 22 8.1383 22 7.17905 21.4149C6.7048 21.1257 6.296 20.7408 5.97868 20.2848C5.33688 19.3626 5.25945 18.0801 5.10461 15.5152L4.5 5.5", stroke: "currentColor", strokeLinecap: "round", strokeWidth: "1.5", key: "0" }],
   ["path", { d: "M3 5.5H21M16.0557 5.5L15.3731 4.09173C14.9196 3.15626 14.6928 2.68852 14.3017 2.39681C14.215 2.3321 14.1231 2.27454 14.027 2.2247C13.5939 2 13.0741 2 12.0345 2C10.9688 2 10.436 2 9.99568 2.23412C9.8981 2.28601 9.80498 2.3459 9.71729 2.41317C9.32164 2.7167 9.10063 3.20155 8.65861 4.17126L8.05292 5.5", stroke: "currentColor", strokeLinecap: "round", strokeWidth: "1.5", key: "1" }],
@@ -33912,7 +34041,7 @@ var Delete02Icon = [
   ["path", { d: "M14.5 16.5L14.5 10.5", stroke: "currentColor", strokeLinecap: "round", strokeWidth: "1.5", key: "3" }]
 ];
 
-// ../../../../../plugin-sources/ui-patterns-recovered/node_modules/@hugeicons/core-free-icons/dist/esm/DiscordIcon.js
+// node_modules/@hugeicons/core-free-icons/dist/esm/DiscordIcon.js
 var DiscordIcon = [
   ["path", { d: "M15.5 17.5C16.5 19 17.3333 19.6667 18 20C19.3333 19.6667 22 18.2 22 15C22 11.8 20.6667 7.33333 20 5.5C18 4.3 15.8333 4 15 4L14.198 5.60393C13.4135 5.28708 12.4058 5.25438 12 5.27763C11.5942 5.25438 10.5865 5.28708 9.80197 5.60393L9 4C8.16667 4 6 4.3 4 5.5C3.33333 7.33333 2 11.8 2 15C2 18.2 4.66667 19.6667 6 20C6.66667 19.6667 7.5 19 8.5 17.5", stroke: "currentColor", strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: "1.5", key: "0" }],
   ["path", { d: "M17.3652 11.5C17.3652 12.6046 16.5817 13.5 15.6152 13.5C14.6487 13.5 13.8652 12.6046 13.8652 11.5C13.8652 10.3954 14.6487 9.5 15.6152 9.5C16.5817 9.5 17.3652 10.3954 17.3652 11.5Z", stroke: "currentColor", strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: "1.5", key: "1" }],
@@ -33920,7 +34049,7 @@ var DiscordIcon = [
   ["path", { d: "M17.5 16.5C16.4022 17.3967 14.3502 18 12 18C9.64981 18 7.59785 17.3967 6.5 16.5", stroke: "currentColor", strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: "1.5", key: "3" }]
 ];
 
-// ../../../../../plugin-sources/ui-patterns-recovered/node_modules/@hugeicons/core-free-icons/dist/esm/DragDropHorizontalIcon.js
+// node_modules/@hugeicons/core-free-icons/dist/esm/DragDropHorizontalIcon.js
 var DragDropHorizontalIcon = [
   ["path", { d: "M6 8C6.55228 8 7 8.44772 7 9C7 9.55228 6.55228 10 6 10C5.44772 10 5 9.55228 5 9C5 8.44772 5.44772 8 6 8Z", stroke: "currentColor", strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: "1.5", key: "0" }],
   ["path", { d: "M6 14C6.55228 14 7 14.4477 7 15C7 15.5523 6.55228 16 6 16C5.44772 16 5 15.5523 5 15C5 14.4477 5.44772 14 6 14Z", stroke: "currentColor", strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: "1.5", key: "1" }],
@@ -33930,7 +34059,7 @@ var DragDropHorizontalIcon = [
   ["path", { d: "M12 14C12.5523 14 13 14.4477 13 15C13 15.5523 12.5523 16 12 16C11.4477 16 11 15.5523 11 15C11 14.4477 11.4477 14 12 14Z", stroke: "currentColor", strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: "1.5", key: "5" }]
 ];
 
-// ../../../../../plugin-sources/ui-patterns-recovered/node_modules/@hugeicons/core-free-icons/dist/esm/DragDropVerticalIcon.js
+// node_modules/@hugeicons/core-free-icons/dist/esm/DragDropVerticalIcon.js
 var DragDropVerticalIcon = [
   ["path", { d: "M16 6C16 6.55228 15.5523 7 15 7C14.4477 7 14 6.55228 14 6C14 5.44772 14.4477 5 15 5C15.5523 5 16 5.44772 16 6Z", stroke: "currentColor", strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: "1.5", key: "0" }],
   ["path", { d: "M10 6C10 6.55228 9.55228 7 9 7C8.44772 7 8 6.55228 8 6C8 5.44772 8.44772 5 9 5C9.55228 5 10 5.44772 10 6Z", stroke: "currentColor", strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: "1.5", key: "1" }],
@@ -33940,63 +34069,63 @@ var DragDropVerticalIcon = [
   ["path", { d: "M10 12C10 12.5523 9.55228 13 9 13C8.44772 13 8 12.5523 8 12C8 11.4477 8.44772 11 9 11C9.55228 11 10 11.4477 10 12Z", stroke: "currentColor", strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: "1.5", key: "5" }]
 ];
 
-// ../../../../../plugin-sources/ui-patterns-recovered/node_modules/@hugeicons/core-free-icons/dist/esm/Edit02Icon.js
+// node_modules/@hugeicons/core-free-icons/dist/esm/Edit02Icon.js
 var Edit02Icon = [
   ["path", { d: "M14.0737 3.88545C14.8189 3.07808 15.1915 2.6744 15.5874 2.43893C16.5427 1.87076 17.7191 1.85309 18.6904 2.39232C19.0929 2.6158 19.4769 3.00812 20.245 3.79276C21.0131 4.5774 21.3972 4.96972 21.6159 5.38093C22.1438 6.37312 22.1265 7.57479 21.5703 8.5507C21.3398 8.95516 20.9446 9.33578 20.1543 10.097L10.7506 19.1543C9.25288 20.5969 8.504 21.3182 7.56806 21.6837C6.63212 22.0493 5.6032 22.0224 3.54536 21.9686L3.26538 21.9613C2.63891 21.9449 2.32567 21.9367 2.14359 21.73C1.9615 21.5234 1.98636 21.2043 2.03608 20.5662L2.06308 20.2197C2.20301 18.4235 2.27297 17.5255 2.62371 16.7182C2.97444 15.9109 3.57944 15.2555 4.78943 13.9445L14.0737 3.88545Z", stroke: "currentColor", strokeLinejoin: "round", strokeWidth: "1.5", key: "0" }],
   ["path", { d: "M13 4L20 11", stroke: "currentColor", strokeLinejoin: "round", strokeWidth: "1.5", key: "1" }],
   ["path", { d: "M14 22L22 22", stroke: "currentColor", strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: "1.5", key: "2" }]
 ];
 
-// ../../../../../plugin-sources/ui-patterns-recovered/node_modules/@hugeicons/core-free-icons/dist/esm/Edit04Icon.js
+// node_modules/@hugeicons/core-free-icons/dist/esm/Edit04Icon.js
 var Edit04Icon = [
   ["path", { d: "M8.17151 19.8284L19.8284 8.17157C20.3736 7.62632 20.6462 7.3537 20.792 7.0596C21.0693 6.50005 21.0693 5.8431 20.792 5.28354C20.6462 4.98945 20.3736 4.71682 19.8284 4.17157C19.2831 3.62632 19.0105 3.3537 18.7164 3.20796C18.1568 2.93068 17.4999 2.93068 16.9403 3.20796C16.6462 3.3537 16.3736 3.62632 15.8284 4.17157L4.17151 15.8284C3.59345 16.4064 3.30442 16.6955 3.15218 17.063C2.99994 17.4305 2.99994 17.8393 2.99994 18.6568V20.9999H5.34308C6.16059 20.9999 6.56934 20.9999 6.93688 20.8477C7.30442 20.6955 7.59345 20.4064 8.17151 19.8284Z", stroke: "currentColor", strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: "1.5", key: "0" }],
   ["path", { d: "M12 21H18", stroke: "currentColor", strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: "1.5", key: "1" }],
   ["path", { d: "M14.5 5.5L18.5 9.5", stroke: "currentColor", strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: "1.5", key: "2" }]
 ];
 
-// ../../../../../plugin-sources/ui-patterns-recovered/node_modules/@hugeicons/core-free-icons/dist/esm/File01Icon.js
+// node_modules/@hugeicons/core-free-icons/dist/esm/File01Icon.js
 var File01Icon = [
   ["path", { d: "M8 7L16 7", stroke: "currentColor", strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: "1.5", key: "0" }],
   ["path", { d: "M8 11L12 11", stroke: "currentColor", strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: "1.5", key: "1" }],
   ["path", { d: "M13 21.5V21C13 18.1716 13 16.7574 13.8787 15.8787C14.7574 15 16.1716 15 19 15H19.5M20 13.3431V10C20 6.22876 20 4.34315 18.8284 3.17157C17.6569 2 15.7712 2 12 2C8.22877 2 6.34315 2 5.17157 3.17157C4 4.34314 4 6.22876 4 10L4 14.5442C4 17.7892 4 19.4117 4.88607 20.5107C5.06508 20.7327 5.26731 20.9349 5.48933 21.1139C6.58831 22 8.21082 22 11.4558 22C12.1614 22 12.5141 22 12.8372 21.886C12.9044 21.8623 12.9702 21.835 13.0345 21.8043C13.3436 21.6564 13.593 21.407 14.0919 20.9081L18.8284 16.1716C19.4065 15.5935 19.6955 15.3045 19.8478 14.9369C20 14.5694 20 14.1606 20 13.3431Z", stroke: "currentColor", strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: "1.5", key: "2" }]
 ];
 
-// ../../../../../plugin-sources/ui-patterns-recovered/node_modules/@hugeicons/core-free-icons/dist/esm/FileEmpty02Icon.js
+// node_modules/@hugeicons/core-free-icons/dist/esm/FileEmpty02Icon.js
 var FileEmpty02Icon = [
   ["path", { d: "M13 2.5V3C13 5.82843 13 7.24264 13.8787 8.12132C14.7574 9 16.1716 9 19 9H19.5M20 10.6569V14C20 17.7712 20 19.6569 18.8284 20.8284C17.6569 22 15.7712 22 12 22C8.22876 22 6.34315 22 5.17157 20.8284C4 19.6569 4 17.7712 4 14V9.45584C4 6.21082 4 4.58831 4.88607 3.48933C5.06508 3.26731 5.26731 3.06508 5.48933 2.88607C6.58831 2 8.21082 2 11.4558 2C12.1614 2 12.5141 2 12.8372 2.11401C12.9044 2.13772 12.9702 2.165 13.0345 2.19575C13.3436 2.34355 13.593 2.593 14.0919 3.09188L18.8284 7.82843C19.4065 8.40649 19.6955 8.69552 19.8478 9.06306C20 9.4306 20 9.83935 20 10.6569Z", stroke: "currentColor", strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: "1.5", key: "0" }]
 ];
 
-// ../../../../../plugin-sources/ui-patterns-recovered/node_modules/@hugeicons/core-free-icons/dist/esm/FileQuestionMarkIcon.js
+// node_modules/@hugeicons/core-free-icons/dist/esm/FileQuestionMarkIcon.js
 var FileQuestionMarkIcon = [
   ["path", { d: "M3.5 14.5C3.5 13.1193 4.6193 12 6 12C7.3807 12 8.5 13.1193 8.5 14.5C8.5 15.3569 8.06886 16.1131 7.41166 16.5636C6.72833 17.0319 6 17.6716 6 18.5", stroke: "currentColor", strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: "1.5", key: "0" }],
   ["path", { d: "M6.125 21.75H6M6.25 21.75C6.25 21.8881 6.13807 22 6 22C5.86193 22 5.75 21.8881 5.75 21.75C5.75 21.6119 5.86193 21.5 6 21.5C6.13807 21.5 6.25 21.6119 6.25 21.75Z", stroke: "currentColor", strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: "1.5", key: "1" }],
   ["path", { d: "M13.5 2.5V3C13.5 5.82843 13.5 7.24264 14.3787 8.12132C15.2574 9 16.6716 9 19.5 9H20M4.50394 7.98123C4.52397 5.69117 4.64575 4.40752 5.38607 3.48933C5.56507 3.26731 5.76731 3.06508 5.98932 2.88607C7.0883 2 8.71081 2 11.9558 2C12.6614 2 13.0141 2 13.3372 2.11401C13.4044 2.13772 13.4702 2.165 13.5345 2.19575C13.8435 2.34355 14.093 2.593 14.5919 3.09188L19.3284 7.82843C19.9065 8.40649 20.1955 8.69552 20.3478 9.06306C20.5 9.4306 20.5 9.83935 20.5 10.6569V14C20.5 17.7712 20.5 19.6569 19.3284 20.8284C18.1568 22 16.2712 22 12.5 22C11.7645 22 11.1007 22 10.5 21.9913", stroke: "currentColor", strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: "1.5", key: "2" }]
 ];
 
-// ../../../../../plugin-sources/ui-patterns-recovered/node_modules/@hugeicons/core-free-icons/dist/esm/FileXIcon.js
+// node_modules/@hugeicons/core-free-icons/dist/esm/FileXIcon.js
 var FileXIcon = [
   ["path", { d: "M14.4834 13L11.9917 15.4958M11.9917 15.4958L9.49168 18M11.9917 15.4958L14.4917 18M11.9917 15.4958L9.5 13", stroke: "currentColor", strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: "1.5", key: "0" }],
   ["path", { d: "M13 2.5V3C13 5.82843 13 7.24264 13.8787 8.12132C14.7574 9 16.1716 9 19 9H19.5M20 10.6569V14C20 17.7712 20 19.6569 18.8284 20.8284C17.6569 22 15.7712 22 12 22C8.22876 22 6.34315 22 5.17157 20.8284C4 19.6569 4 17.7712 4 14V9.45584C4 6.21082 4 4.58831 4.88607 3.48933C5.06508 3.26731 5.26731 3.06508 5.48933 2.88607C6.58831 2 8.21082 2 11.4558 2C12.1614 2 12.5141 2 12.8372 2.11401C12.9044 2.13772 12.9702 2.165 13.0345 2.19575C13.3436 2.34355 13.593 2.593 14.0919 3.09188L18.8284 7.82843C19.4065 8.40649 19.6955 8.69552 19.8478 9.06306C20 9.4306 20 9.83935 20 10.6569Z", stroke: "currentColor", strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: "1.5", key: "1" }]
 ];
 
-// ../../../../../plugin-sources/ui-patterns-recovered/node_modules/@hugeicons/core-free-icons/dist/esm/Folder01Icon.js
+// node_modules/@hugeicons/core-free-icons/dist/esm/Folder01Icon.js
 var Folder01Icon = [
   ["path", { d: "M8 7H16.75C18.8567 7 19.91 7 20.6667 7.50559C20.9943 7.72447 21.2755 8.00572 21.4944 8.33329C22 9.08996 22 10.1433 22 12.25C22 15.7612 22 17.5167 21.1573 18.7779C20.7926 19.3238 20.3238 19.7926 19.7779 20.1573C18.5167 21 16.7612 21 13.25 21H12C7.28595 21 4.92893 21 3.46447 19.5355C2 18.0711 2 15.714 2 11V7.94427C2 6.1278 2 5.21956 2.38032 4.53806C2.65142 4.05227 3.05227 3.65142 3.53806 3.38032C4.21956 3 5.1278 3 6.94427 3C8.10802 3 8.6899 3 9.19926 3.19101C10.3622 3.62712 10.8418 4.68358 11.3666 5.73313L12 7", stroke: "currentColor", strokeLinecap: "round", strokeWidth: "1.5", key: "0" }]
 ];
 
-// ../../../../../plugin-sources/ui-patterns-recovered/node_modules/@hugeicons/core-free-icons/dist/esm/Folder02Icon.js
+// node_modules/@hugeicons/core-free-icons/dist/esm/Folder02Icon.js
 var Folder02Icon = [
   ["path", { d: "M2 19V7.54902C2 6.10516 2 5.38322 2.24332 4.81647C2.5467 4.10985 3.10985 3.5467 3.81647 3.24332C4.38322 3 5.09805 3 6.54902 3H7.04311C7.64819 3 8.22075 3.27394 8.60041 3.74509L10.4175 6M10.4175 6H16C17.4001 6 18.1002 6 18.635 6.27248C19.1054 6.51217 19.4878 6.89462 19.7275 7.36502C20 7.8998 20 8.59987 20 10V11M10.4175 6H7", stroke: "currentColor", strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: "1.5", key: "0" }],
   ["path", { d: "M3.15802 15.5144L3.45643 14.7717C4.19029 12.9449 4.55723 12.0316 5.3224 11.5158C6.08757 11 7.07557 11 9.05157 11H17.1119C19.8004 11 21.1446 11 21.7422 11.8787C22.3397 12.7575 21.8405 14.0002 20.842 16.4856L20.5436 17.2283C19.8097 19.0551 19.4428 19.9684 18.6776 20.4842C17.9124 21 16.9244 21 14.9484 21H6.88812C4.19961 21 2.85535 21 2.25782 20.1213C1.66029 19.2425 2.15953 17.9998 3.15802 15.5144Z", stroke: "currentColor", strokeLinejoin: "round", strokeWidth: "1.5", key: "1" }]
 ];
 
-// ../../../../../plugin-sources/ui-patterns-recovered/node_modules/@hugeicons/core-free-icons/dist/esm/FolderAddIcon.js
+// node_modules/@hugeicons/core-free-icons/dist/esm/FolderAddIcon.js
 var FolderAddIcon = [
   ["path", { d: "M13 21H12C7.28595 21 4.92893 21 3.46447 19.5355C2 18.0711 2 15.714 2 11V7.94427C2 6.1278 2 5.21956 2.38032 4.53806C2.65142 4.05227 3.05227 3.65142 3.53806 3.38032C4.21956 3 5.1278 3 6.94427 3C8.10802 3 8.6899 3 9.19926 3.19101C10.3622 3.62712 10.8418 4.68358 11.3666 5.73313L12 7M8 7H16.75C18.8567 7 19.91 7 20.6667 7.50559C20.9943 7.72447 21.2755 8.00572 21.4944 8.33329C21.9796 9.05942 21.9992 10.0588 22 12", stroke: "currentColor", strokeLinecap: "round", strokeWidth: "1.5", key: "0" }],
   ["path", { d: "M18 13V21M22 17H14", stroke: "currentColor", strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: "1.5", key: "1" }]
 ];
 
-// ../../../../../plugin-sources/ui-patterns-recovered/node_modules/@hugeicons/core-free-icons/dist/esm/FolderGitTwoIcon.js
+// node_modules/@hugeicons/core-free-icons/dist/esm/FolderGitTwoIcon.js
 var FolderGitTwoIcon = [
   ["path", { d: "M8 6.50116H16.75C18.8567 6.50116 19.91 6.50116 20.6667 7.0069C20.9943 7.22584 21.2755 7.50717 21.4944 7.83484C22 8.59173 22 9.64538 22 11.7527C22 12.0122 22 12.2621 21.9997 12.5029M12 6.50116L11.3666 5.23392C10.8418 4.18406 10.3622 3.1273 9.19926 2.69106C8.6899 2.5 8.10802 2.5 6.94427 2.5C5.1278 2.5 4.21956 2.5 3.53806 2.88043C3.05227 3.15161 2.65142 3.55257 2.38032 4.03851C2 4.72021 2 5.62871 2 7.44571V10.5023C2 15.2177 2 17.5754 3.46447 19.0403C4.70529 20.2815 6.58687 20.4711 10 20.5", stroke: "currentColor", strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: "1.5", key: "0" }],
   ["circle", { cx: "14", cy: "12.5", r: "2", stroke: "currentColor", strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: "1.5", key: "1" }],
@@ -34005,13 +34134,13 @@ var FolderGitTwoIcon = [
   ["path", { d: "M14 14.5V21.5", stroke: "currentColor", strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: "1.5", key: "4" }]
 ];
 
-// ../../../../../plugin-sources/ui-patterns-recovered/node_modules/@hugeicons/core-free-icons/dist/esm/FolderRemoveIcon.js
+// node_modules/@hugeicons/core-free-icons/dist/esm/FolderRemoveIcon.js
 var FolderRemoveIcon = [
   ["path", { d: "M13 21H12C7.28595 21 4.92893 21 3.46447 19.5355C2 18.0711 2 15.714 2 11V7.94427C2 6.1278 2 5.21956 2.38032 4.53806C2.65142 4.05227 3.05227 3.65142 3.53806 3.38032C4.21956 3 5.1278 3 6.94427 3C8.10802 3 8.6899 3 9.19926 3.19101C10.3622 3.62712 10.8418 4.68358 11.3666 5.73313L12 7M8 7H16.75C18.8567 7 19.91 7 20.6667 7.50559C20.9943 7.72447 21.2755 8.00572 21.4944 8.33329C21.9796 9.05942 21.9992 10.0588 22 12", stroke: "currentColor", strokeLinecap: "round", strokeWidth: "1.5", key: "0" }],
   ["path", { d: "M22 15L16 21M22 21L16 15", stroke: "currentColor", strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: "1.5", key: "1" }]
 ];
 
-// ../../../../../plugin-sources/ui-patterns-recovered/node_modules/@hugeicons/core-free-icons/dist/esm/GitBranchIcon.js
+// node_modules/@hugeicons/core-free-icons/dist/esm/GitBranchIcon.js
 var GitBranchIcon = [
   ["path", { d: "M7 19H13C15.8284 19 17.2426 19 18.1213 18.1213C19 17.2426 19 15.8284 19 13V10M19 10C19.7002 10 21.0085 11.9943 21.5 12.5M19 10C18.2998 10 16.9915 11.9943 16.5 12.5", stroke: "currentColor", strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: "1.5", key: "0" }],
   ["path", { d: "M5 7L5 17", stroke: "currentColor", strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: "1.5", key: "1" }],
@@ -34020,7 +34149,7 @@ var GitBranchIcon = [
   ["circle", { cx: "5", cy: "19", r: "2", stroke: "currentColor", strokeWidth: "1.5", key: "4" }]
 ];
 
-// ../../../../../plugin-sources/ui-patterns-recovered/node_modules/@hugeicons/core-free-icons/dist/esm/GitMergeIcon.js
+// node_modules/@hugeicons/core-free-icons/dist/esm/GitMergeIcon.js
 var GitMergeIcon = [
   ["path", { d: "M7 20C8.10457 20 9 19.1046 9 18C9 16.8954 8.10457 16 7 16C5.89543 16 5 16.8954 5 18C5 19.1046 5.89543 20 7 20Z", stroke: "currentColor", strokeWidth: "1.5", key: "0" }],
   ["path", { d: "M7 8C8.10457 8 9 7.10457 9 6C9 4.89543 8.10457 4 7 4C5.89543 4 5 4.89543 5 6C5 7.10457 5.89543 8 7 8Z", stroke: "currentColor", strokeWidth: "1.5", key: "1" }],
@@ -34028,7 +34157,7 @@ var GitMergeIcon = [
   ["path", { d: "M7.02116 8.2793V15.4073M14.4113 12.0047L10.0193 12.0048C8.92158 12.0048 6.86182 11.1254 7.01818 8.78001", stroke: "currentColor", strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: "1.5", key: "3" }]
 ];
 
-// ../../../../../plugin-sources/ui-patterns-recovered/node_modules/@hugeicons/core-free-icons/dist/esm/GitPullRequestClosedIcon.js
+// node_modules/@hugeicons/core-free-icons/dist/esm/GitPullRequestClosedIcon.js
 var GitPullRequestClosedIcon = [
   ["path", { d: "M6 8L6 16", stroke: "currentColor", strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: "1.5", key: "0" }],
   ["path", { d: "M18 11L18 16", stroke: "currentColor", strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: "1.5", key: "1" }],
@@ -34038,7 +34167,7 @@ var GitPullRequestClosedIcon = [
   ["path", { d: "M20 4L18 6M18 6L16 8M18 6L20 8M18 6L16 4", stroke: "currentColor", strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: "1.5", key: "5" }]
 ];
 
-// ../../../../../plugin-sources/ui-patterns-recovered/node_modules/@hugeicons/core-free-icons/dist/esm/GitPullRequestDraftIcon.js
+// node_modules/@hugeicons/core-free-icons/dist/esm/GitPullRequestDraftIcon.js
 var GitPullRequestDraftIcon = [
   ["path", { d: "M6 8L6 16", stroke: "currentColor", strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: "1.5", key: "0" }],
   ["circle", { cx: "6", cy: "18", r: "2", stroke: "currentColor", strokeWidth: "1.5", key: "1" }],
@@ -34048,7 +34177,7 @@ var GitPullRequestDraftIcon = [
   ["path", { d: "M18.125 6H18M18.25 6C18.25 6.13807 18.1381 6.25 18 6.25C17.8619 6.25 17.75 6.13807 17.75 6C17.75 5.86193 17.8619 5.75 18 5.75C18.1381 5.75 18.25 5.86193 18.25 6Z", stroke: "currentColor", strokeLinecap: "round", strokeWidth: "1.5", key: "5" }]
 ];
 
-// ../../../../../plugin-sources/ui-patterns-recovered/node_modules/@hugeicons/core-free-icons/dist/esm/GitPullRequestIcon.js
+// node_modules/@hugeicons/core-free-icons/dist/esm/GitPullRequestIcon.js
 var GitPullRequestIcon = [
   ["path", { d: "M6 8L6 16", stroke: "currentColor", strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: "1.5", key: "0" }],
   ["path", { d: "M18 16V12C18 9.17156 18 7.75735 17.1213 6.87867C16.2426 5.99999 14.8284 5.99999 12 5.99999L11 5.99999M11 5.99999C11 5.29976 12.9943 3.99152 13.5 3.49999M11 5.99999C11 6.70022 12.9943 8.00846 13.5 8.49999", stroke: "currentColor", strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: "1.5", key: "1" }],
@@ -34057,13 +34186,13 @@ var GitPullRequestIcon = [
   ["circle", { cx: "18", cy: "18", r: "2", stroke: "currentColor", strokeWidth: "1.5", key: "4" }]
 ];
 
-// ../../../../../plugin-sources/ui-patterns-recovered/node_modules/@hugeicons/core-free-icons/dist/esm/GithubIcon.js
+// node_modules/@hugeicons/core-free-icons/dist/esm/GithubIcon.js
 var GithubIcon = [
   ["path", { d: "M10 20.5675C6.57143 21.7248 3.71429 20.5675 2 17", stroke: "currentColor", strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: "1.5", key: "0" }],
   ["path", { d: "M10 22V18.7579C10 18.1596 10.1839 17.6396 10.4804 17.1699C10.6838 16.8476 10.5445 16.3904 10.1771 16.2894C7.13394 15.4528 5 14.1077 5 9.64606C5 8.48611 5.38005 7.39556 6.04811 6.4464C6.21437 6.21018 6.29749 6.09208 6.31748 5.9851C6.33746 5.87813 6.30272 5.73852 6.23322 5.45932C5.95038 4.32292 5.96871 3.11619 6.39322 2.02823C6.39322 2.02823 7.27042 1.74242 9.26698 2.98969C9.72282 3.27447 9.95075 3.41686 10.1515 3.44871C10.3522 3.48056 10.6206 3.41384 11.1573 3.28041C11.8913 3.09795 12.6476 3 13.5 3C14.3524 3 15.1087 3.09795 15.8427 3.28041C16.3794 3.41384 16.6478 3.48056 16.8485 3.44871C17.0493 3.41686 17.2772 3.27447 17.733 2.98969C19.7296 1.74242 20.6068 2.02823 20.6068 2.02823C21.0313 3.11619 21.0496 4.32292 20.7668 5.45932C20.6973 5.73852 20.6625 5.87813 20.6825 5.9851C20.7025 6.09207 20.7856 6.21019 20.9519 6.4464C21.6199 7.39556 22 8.48611 22 9.64606C22 14.1077 19.8661 15.4528 16.8229 16.2894C16.4555 16.3904 16.3162 16.8476 16.5196 17.1699C16.8161 17.6396 17 18.1596 17 18.7579V22", stroke: "currentColor", strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: "1.5", key: "1" }]
 ];
 
-// ../../../../../plugin-sources/ui-patterns-recovered/node_modules/@hugeicons/core-free-icons/dist/esm/GridViewIcon.js
+// node_modules/@hugeicons/core-free-icons/dist/esm/GridViewIcon.js
 var GridViewIcon = [
   ["path", { d: "M3.88884 9.66294C4.39329 10 5.09552 10 6.49998 10C7.90445 10 8.60668 10 9.11113 9.66294C9.32951 9.51702 9.51701 9.32952 9.66292 9.11114C9.99998 8.60669 9.99998 7.90446 9.99998 6.5C9.99998 5.09554 9.99998 4.39331 9.66292 3.88886C9.51701 3.67048 9.32951 3.48298 9.11113 3.33706C8.60668 3 7.90445 3 6.49998 3C5.09552 3 4.39329 3 3.88884 3.33706C3.67046 3.48298 3.48296 3.67048 3.33705 3.88886C2.99998 4.39331 2.99998 5.09554 2.99998 6.5C2.99998 7.90446 2.99998 8.60669 3.33705 9.11114C3.48296 9.32952 3.67046 9.51702 3.88884 9.66294Z", stroke: "currentColor", strokeLinejoin: "round", strokeWidth: "1.5", key: "0" }],
   ["path", { d: "M14.8888 9.66294C15.3933 10 16.0955 10 17.5 10C18.9044 10 19.6067 10 20.1111 9.66294C20.3295 9.51702 20.517 9.32952 20.6629 9.11114C21 8.60669 21 7.90446 21 6.5C21 5.09554 21 4.39331 20.6629 3.88886C20.517 3.67048 20.3295 3.48298 20.1111 3.33706C19.6067 3 18.9044 3 17.5 3C16.0955 3 15.3933 3 14.8888 3.33706C14.6705 3.48298 14.483 3.67048 14.337 3.88886C14 4.39331 14 5.09554 14 6.5C14 7.90446 14 8.60669 14.337 9.11114C14.483 9.32952 14.6705 9.51702 14.8888 9.66294Z", stroke: "currentColor", strokeLinejoin: "round", strokeWidth: "1.5", key: "1" }],
@@ -34071,52 +34200,52 @@ var GridViewIcon = [
   ["path", { d: "M14.8888 20.6629C15.3933 21 16.0955 21 17.5 21C18.9044 21 19.6067 21 20.1111 20.6629C20.3295 20.517 20.517 20.3295 20.6629 20.1111C21 19.6067 21 18.9045 21 17.5C21 16.0955 21 15.3933 20.6629 14.8889C20.517 14.6705 20.3295 14.483 20.1111 14.3371C19.6067 14 18.9044 14 17.5 14C16.0955 14 15.3933 14 14.8888 14.3371C14.6705 14.483 14.483 14.6705 14.337 14.8889C14 15.3933 14 16.0955 14 17.5C14 18.9045 14 19.6067 14.337 20.1111C14.483 20.3295 14.6705 20.517 14.8888 20.6629Z", stroke: "currentColor", strokeLinejoin: "round", strokeWidth: "1.5", key: "3" }]
 ];
 
-// ../../../../../plugin-sources/ui-patterns-recovered/node_modules/@hugeicons/core-free-icons/dist/esm/InformationCircleIcon.js
+// node_modules/@hugeicons/core-free-icons/dist/esm/InformationCircleIcon.js
 var InformationCircleIcon = [
   ["circle", { cx: "12", cy: "12", r: "10", stroke: "currentColor", strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: "1.5", key: "0" }],
   ["path", { d: "M12 16V12", stroke: "currentColor", strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: "1.5", key: "1" }],
   ["path", { d: "M12.125 8.25H12M12.25 8.25C12.25 8.11193 12.1381 8 12 8C11.8619 8 11.75 8.11193 11.75 8.25C11.75 8.38807 11.8619 8.5 12 8.5C12.1381 8.5 12.25 8.38807 12.25 8.25Z", stroke: "currentColor", strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: "1.5", key: "2" }]
 ];
 
-// ../../../../../plugin-sources/ui-patterns-recovered/node_modules/@hugeicons/core-free-icons/dist/esm/InternetIcon.js
+// node_modules/@hugeicons/core-free-icons/dist/esm/InternetIcon.js
 var InternetIcon = [
   ["circle", { cx: "12", cy: "12", r: "10", stroke: "currentColor", strokeWidth: "1.5", key: "0" }],
   ["ellipse", { cx: "12", cy: "12", rx: "4", ry: "10", stroke: "currentColor", strokeWidth: "1.5", key: "1" }],
   ["path", { d: "M2 12H22", stroke: "currentColor", strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: "1.5", key: "2" }]
 ];
 
-// ../../../../../plugin-sources/ui-patterns-recovered/node_modules/@hugeicons/core-free-icons/dist/esm/LaptopIcon.js
+// node_modules/@hugeicons/core-free-icons/dist/esm/LaptopIcon.js
 var LaptopIcon = [
   ["path", { d: "M20.4999 16.5V8.5C20.4999 6.14298 20.4999 4.96447 19.7676 4.23223C19.0354 3.5 17.8569 3.5 15.4999 3.5H8.49988C6.14286 3.5 4.96434 3.5 4.23211 4.23223C3.49988 4.96447 3.49988 6.14298 3.49988 8.5V16.5", stroke: "currentColor", strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: "1.5", key: "0" }],
   ["path", { d: "M21.9841 20.5H2.01567C1.63273 20.5 1.38367 20.1088 1.55493 19.7764L3.49988 16.5H20.4999L22.4448 19.7764C22.6161 20.1088 22.367 20.5 21.9841 20.5Z", stroke: "currentColor", strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: "1.5", key: "1" }]
 ];
 
-// ../../../../../plugin-sources/ui-patterns-recovered/node_modules/@hugeicons/core-free-icons/dist/esm/Layers01Icon.js
+// node_modules/@hugeicons/core-free-icons/dist/esm/Layers01Icon.js
 var Layers01Icon = [
   ["path", { d: "M8.64298 3.14559L6.93816 3.93362C4.31272 5.14719 3 5.75397 3 6.75C3 7.74603 4.31272 8.35281 6.93817 9.56638L8.64298 10.3544C10.2952 11.1181 11.1214 11.5 12 11.5C12.8786 11.5 13.7048 11.1181 15.357 10.3544L17.0618 9.56638C19.6873 8.35281 21 7.74603 21 6.75C21 5.75397 19.6873 5.14719 17.0618 3.93362L15.357 3.14559C13.7048 2.38186 12.8786 2 12 2C11.1214 2 10.2952 2.38186 8.64298 3.14559Z", stroke: "currentColor", strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: "1.5", key: "0" }],
   ["path", { d: "M20.788 11.0972C20.9293 11.2959 21 11.5031 21 11.7309C21 12.7127 19.6873 13.3109 17.0618 14.5072L15.357 15.284C13.7048 16.0368 12.8786 16.4133 12 16.4133C11.1214 16.4133 10.2952 16.0368 8.64298 15.284L6.93817 14.5072C4.31272 13.3109 3 12.7127 3 11.7309C3 11.5031 3.07067 11.2959 3.212 11.0972", stroke: "currentColor", strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: "1.5", key: "1" }],
   ["path", { d: "M20.3767 16.2661C20.7922 16.5971 21 16.927 21 17.3176C21 18.2995 19.6873 18.8976 17.0618 20.0939L15.357 20.8707C13.7048 21.6236 12.8786 22 12 22C11.1214 22 10.2952 21.6236 8.64298 20.8707L6.93817 20.0939C4.31272 18.8976 3 18.2995 3 17.3176C3 16.927 3.20778 16.5971 3.62334 16.2661", stroke: "currentColor", strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: "1.5", key: "2" }]
 ];
 
-// ../../../../../plugin-sources/ui-patterns-recovered/node_modules/@hugeicons/core-free-icons/dist/esm/LayoutTwoColumnIcon.js
+// node_modules/@hugeicons/core-free-icons/dist/esm/LayoutTwoColumnIcon.js
 var LayoutTwoColumnIcon = [
   ["path", { d: "M3.89124 3.89124C5.28249 2.5 7.52166 2.5 12 2.5C16.4783 2.5 18.7175 2.5 20.1088 3.89124C21.5 5.28249 21.5 7.52166 21.5 12C21.5 16.4783 21.5 18.7175 20.1088 20.1088C18.7175 21.5 16.4783 21.5 12 21.5C7.52166 21.5 5.28249 21.5 3.89124 20.1088C2.5 18.7175 2.5 16.4783 2.5 12C2.5 7.52166 2.5 5.28249 3.89124 3.89124Z", stroke: "currentColor", strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: "1.5", key: "0" }],
   ["path", { d: "M12 2.5V21.5", stroke: "currentColor", strokeLinecap: "round", strokeWidth: "1.5", key: "1" }]
 ];
 
-// ../../../../../plugin-sources/ui-patterns-recovered/node_modules/@hugeicons/core-free-icons/dist/esm/LayoutTwoRowIcon.js
+// node_modules/@hugeicons/core-free-icons/dist/esm/LayoutTwoRowIcon.js
 var LayoutTwoRowIcon = [
   ["path", { d: "M20.1088 3.89124C21.5 5.28249 21.5 7.52166 21.5 12C21.5 16.4783 21.5 18.7175 20.1088 20.1088C18.7175 21.5 16.4783 21.5 12 21.5C7.52166 21.5 5.28249 21.5 3.89124 20.1088C2.5 18.7175 2.5 16.4783 2.5 12C2.5 7.52166 2.5 5.28249 3.89124 3.89124C5.28249 2.5 7.52166 2.5 12 2.5C16.4783 2.5 18.7175 2.5 20.1088 3.89124Z", stroke: "currentColor", strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: "1.5", key: "0" }],
   ["path", { d: "M21.5 12L2.50078 12", stroke: "currentColor", strokeLinecap: "round", strokeWidth: "1.5", key: "1" }]
 ];
 
-// ../../../../../plugin-sources/ui-patterns-recovered/node_modules/@hugeicons/core-free-icons/dist/esm/LinkSquare02Icon.js
+// node_modules/@hugeicons/core-free-icons/dist/esm/LinkSquare02Icon.js
 var LinkSquare02Icon = [
   ["path", { d: "M11.0991 3.00012C7.45013 3.00669 5.53932 3.09629 4.31817 4.31764C3.00034 5.63568 3.00034 7.75704 3.00034 11.9997C3.00034 16.2424 3.00034 18.3638 4.31817 19.6818C5.63599 20.9999 7.75701 20.9999 11.9991 20.9999C16.241 20.9999 18.3621 20.9999 19.6799 19.6818C20.901 18.4605 20.9906 16.5493 20.9972 12.8998", stroke: "currentColor", strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: "1.5", key: "0" }],
   ["path", { d: "M20.556 3.49612L11.0487 13.0586M20.556 3.49612C20.062 3.00151 16.7343 3.04761 16.0308 3.05762M20.556 3.49612C21.05 3.99074 21.0039 7.32273 20.9939 8.02714", stroke: "currentColor", strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: "1.5", key: "1" }]
 ];
 
-// ../../../../../plugin-sources/ui-patterns-recovered/node_modules/@hugeicons/core-free-icons/dist/esm/Loading03Icon.js
+// node_modules/@hugeicons/core-free-icons/dist/esm/Loading03Icon.js
 var Loading03Icon = [
   ["path", { d: "M12 3V6", stroke: "currentColor", strokeLinecap: "round", strokeWidth: "1.5", key: "0" }],
   ["path", { d: "M12 18V21", stroke: "currentColor", strokeLinecap: "round", strokeWidth: "1.5", key: "1" }],
@@ -34128,63 +34257,63 @@ var Loading03Icon = [
   ["path", { d: "M7.75804 7.75804L5.63672 5.63672", stroke: "currentColor", strokeLinecap: "round", strokeWidth: "1.5", key: "7" }]
 ];
 
-// ../../../../../plugin-sources/ui-patterns-recovered/node_modules/@hugeicons/core-free-icons/dist/esm/LockIcon.js
+// node_modules/@hugeicons/core-free-icons/dist/esm/LockIcon.js
 var LockIcon = [
   ["path", { d: "M22 12C22 17.5228 17.5228 22 12 22C6.47715 22 2 17.5228 2 12C2 6.47715 6.47715 2 12 2C17.5228 2 22 6.47715 22 12Z", stroke: "currentColor", strokeWidth: "1.5", key: "0" }],
   ["path", { d: "M12 13C13.1046 13 14 12.1046 14 11C14 9.89543 13.1046 9 12 9C10.8954 9 10 9.89543 10 11C10 12.1046 10.8954 13 12 13ZM12 13L12 16", stroke: "currentColor", strokeLinecap: "round", strokeWidth: "1.5", key: "1" }]
 ];
 
-// ../../../../../plugin-sources/ui-patterns-recovered/node_modules/@hugeicons/core-free-icons/dist/esm/Mail02Icon.js
+// node_modules/@hugeicons/core-free-icons/dist/esm/Mail02Icon.js
 var Mail02Icon = [
   ["path", { d: "M7 8.5L9.94202 10.2394C11.6572 11.2535 12.3428 11.2535 14.058 10.2394L17 8.5", stroke: "currentColor", strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: "1.5", key: "0" }],
   ["path", { d: "M2.01577 13.4756C2.08114 16.5412 2.11383 18.0739 3.24496 19.2094C4.37608 20.3448 5.95033 20.3843 9.09883 20.4634C11.0393 20.5122 12.9607 20.5122 14.9012 20.4634C18.0497 20.3843 19.6239 20.3448 20.7551 19.2094C21.8862 18.0739 21.9189 16.5412 21.9842 13.4756C22.0053 12.4899 22.0053 11.5101 21.9842 10.5244C21.9189 7.45886 21.8862 5.92609 20.7551 4.79066C19.6239 3.65523 18.0497 3.61568 14.9012 3.53657C12.9607 3.48781 11.0393 3.48781 9.09882 3.53656C5.95033 3.61566 4.37608 3.65521 3.24495 4.79065C2.11382 5.92608 2.08114 7.45885 2.01576 10.5244C1.99474 11.5101 1.99475 12.4899 2.01577 13.4756Z", stroke: "currentColor", strokeLinejoin: "round", strokeWidth: "1.5", key: "1" }]
 ];
 
-// ../../../../../plugin-sources/ui-patterns-recovered/node_modules/@hugeicons/core-free-icons/dist/esm/MailOpen01Icon.js
+// node_modules/@hugeicons/core-free-icons/dist/esm/MailOpen01Icon.js
 var MailOpen01Icon = [
   ["path", { d: "M2 19L8.91302 14.2905C11.4387 12.5698 12.5613 12.5698 15.087 14.2905L22 19", stroke: "currentColor", strokeLinejoin: "round", strokeWidth: "1.5", key: "0" }],
   ["path", { d: "M2.01592 14.551C2.08186 17.5843 2.11484 19.1009 3.24611 20.2241C4.37738 21.3473 5.95183 21.3862 9.10072 21.4641C11.0393 21.512 12.9607 21.512 14.8993 21.4641C18.0482 21.3862 19.6226 21.3473 20.7539 20.2241C21.8852 19.1009 21.9181 17.5843 21.9841 14.551C22.0164 13.0649 21.9995 11.5934 21.9334 10.0921C21.8924 9.15964 21.8719 8.69341 21.6354 8.27984C21.3989 7.86628 20.9913 7.59935 20.176 7.0655L16.4152 4.60286C14.2742 3.20096 13.2038 2.5 12 2.5C10.7962 2.5 9.72577 3.20095 7.58483 4.60286L3.82397 7.0655C3.00869 7.59935 2.60106 7.86628 2.36459 8.27984C2.12812 8.69341 2.1076 9.15965 2.06656 10.0921C2.00049 11.5934 1.98361 13.0649 2.01592 14.551Z", stroke: "currentColor", strokeLinejoin: "round", strokeWidth: "1.5", key: "1" }],
   ["path", { d: "M22 9.5L17.7346 12.6072C16.7004 13.3606 15.8504 14 14.5 14M2 9.5L6.26538 12.6072C7.29955 13.3606 8.14961 14 9.5 14", stroke: "currentColor", strokeLinejoin: "round", strokeWidth: "1.5", key: "2" }]
 ];
 
-// ../../../../../plugin-sources/ui-patterns-recovered/node_modules/@hugeicons/core-free-icons/dist/esm/Menu02Icon.js
+// node_modules/@hugeicons/core-free-icons/dist/esm/Menu02Icon.js
 var Menu02Icon = [
   ["path", { d: "M4 5L16 5", stroke: "currentColor", strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: "1.5", key: "0" }],
   ["path", { d: "M4 12L20 12", stroke: "currentColor", strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: "1.5", key: "1" }],
   ["path", { d: "M4 19L12 19", stroke: "currentColor", strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: "1.5", key: "2" }]
 ];
 
-// ../../../../../plugin-sources/ui-patterns-recovered/node_modules/@hugeicons/core-free-icons/dist/esm/MessageAdd02Icon.js
+// node_modules/@hugeicons/core-free-icons/dist/esm/MessageAdd02Icon.js
 var MessageAdd02Icon = [
   ["path", { d: "M13 3.02144C12.6777 3.00721 12.3445 2.99998 12 2.99998C4.13281 2.99998 2 7.02942 2 12C2 14.0712 2.37034 15.979 3.37161 17.5C4.63281 19.5 3.99253 21.3333 3 22C4.61547 22 5.70211 21.4858 6.39239 20.9766C6.88252 20.615 7.50688 20.4364 8.0984 20.5814C9.20689 20.8533 10.4991 21 12 21C19.1328 21 22 16.9705 22 12C22 11.3126 21.9643 10.6432 21.8812 9.99998", stroke: "currentColor", strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: "1.5", key: "0" }],
   ["path", { d: "M12.1248 12H11.9998M16.125 12H16M8.125 12H8M12.2498 12C12.2498 12.1381 12.1379 12.25 11.9998 12.25C11.8618 12.25 11.7498 12.1381 11.7498 12C11.7498 11.8619 11.8618 11.75 11.9998 11.75C12.1379 11.75 12.2498 11.8619 12.2498 12ZM16.25 12C16.25 12.1381 16.1381 12.25 16 12.25C15.8619 12.25 15.75 12.1381 15.75 12C15.75 11.8619 15.8619 11.75 16 11.75C16.1381 11.75 16.25 11.8619 16.25 12ZM8.25 12C8.25 12.1381 8.13807 12.25 8 12.25C7.86193 12.25 7.75 12.1381 7.75 12C7.75 11.8619 7.86193 11.75 8 11.75C8.13807 11.75 8.25 11.8619 8.25 12Z", stroke: "currentColor", strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: "1.5", key: "1" }],
   ["path", { d: "M16 4.99998H22M19 1.99998L19 7.99998", stroke: "currentColor", strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: "1.5", key: "2" }]
 ];
 
-// ../../../../../plugin-sources/ui-patterns-recovered/node_modules/@hugeicons/core-free-icons/dist/esm/MessageQuestionIcon.js
+// node_modules/@hugeicons/core-free-icons/dist/esm/MessageQuestionIcon.js
 var MessageQuestionIcon = [
   ["path", { d: "M12 20.5C19.1328 20.5 22 16.4706 22 11.5C22 6.52944 20.1328 2.5 12 2.5C4.13281 2.5 2 6.52944 2 11.5C2 13.5712 2.37034 15.4791 3.37161 17C4.63281 19 3.99253 20.8333 3 21.5C4.61547 21.5 5.70211 20.9858 6.39239 20.4766C6.88252 20.115 7.50688 19.9364 8.0984 20.0815C9.20689 20.3533 10.4991 20.5 12 20.5Z", stroke: "currentColor", strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: "1.5", key: "0" }],
   ["path", { d: "M10 9C10 7.89543 10.8954 7 12 7C13.1046 7 14 7.89543 14 9C14 9.57777 13.755 10.0983 13.3632 10.4634C12.7572 11.0282 12 11.6716 12 12.5M12.125 15.75H12M12.25 15.75C12.25 15.8881 12.1381 16 12 16C11.8619 16 11.75 15.8881 11.75 15.75C11.75 15.6119 11.8619 15.5 12 15.5C12.1381 15.5 12.25 15.6119 12.25 15.75Z", stroke: "currentColor", strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: "1.5", key: "1" }]
 ];
 
-// ../../../../../plugin-sources/ui-patterns-recovered/node_modules/@hugeicons/core-free-icons/dist/esm/Mic02Icon.js
+// node_modules/@hugeicons/core-free-icons/dist/esm/Mic02Icon.js
 var Mic02Icon = [
   ["path", { d: "M17 7V11C17 13.7614 14.7614 16 12 16C9.23858 16 7 13.7614 7 11V7C7 4.23858 9.23858 2 12 2C14.7614 2 17 4.23858 17 7Z", stroke: "currentColor", strokeWidth: "1.5", key: "0" }],
   ["path", { d: "M20 11C20 15.4183 16.4183 19 12 19M12 19C7.58172 19 4 15.4183 4 11M12 19V22M12 22H15M12 22H9", stroke: "currentColor", strokeLinecap: "round", strokeWidth: "1.5", key: "1" }]
 ];
 
-// ../../../../../plugin-sources/ui-patterns-recovered/node_modules/@hugeicons/core-free-icons/dist/esm/MoreHorizontalIcon.js
+// node_modules/@hugeicons/core-free-icons/dist/esm/MoreHorizontalIcon.js
 var MoreHorizontalIcon = [
   ["path", { d: "M6.00449 12.5V12M18.0045 12.5V12M12.0045 12.5V12M7.00449 12.5C7.00449 11.9477 6.55677 11.5 6.00449 11.5C5.4522 11.5 5.00449 11.9477 5.00449 12.5C5.00449 13.0523 5.4522 13.5 6.00449 13.5C6.55677 13.5 7.00449 13.0523 7.00449 12.5ZM19.0045 12.5C19.0045 11.9477 18.5568 11.5 18.0045 11.5C17.4522 11.5 17.0045 11.9477 17.0045 12.5C17.0045 13.0523 17.4522 13.5 18.0045 13.5C18.5568 13.5 19.0045 13.0523 19.0045 12.5ZM13.0045 12.5C13.0045 11.9477 12.5568 11.5 12.0045 11.5C11.4522 11.5 11.0045 11.9477 11.0045 12.5C11.0045 13.0523 11.4522 13.5 12.0045 13.5C12.5568 13.5 13.0045 13.0523 13.0045 12.5Z", stroke: "currentColor", strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: "1.5", key: "0" }]
 ];
 
-// ../../../../../plugin-sources/ui-patterns-recovered/node_modules/@hugeicons/core-free-icons/dist/esm/PauseIcon.js
+// node_modules/@hugeicons/core-free-icons/dist/esm/PauseIcon.js
 var PauseIcon = [
   ["path", { d: "M4 7C4 5.58579 4 4.87868 4.43934 4.43934C4.87868 4 5.58579 4 7 4C8.41421 4 9.12132 4 9.56066 4.43934C10 4.87868 10 5.58579 10 7V17C10 18.4142 10 19.1213 9.56066 19.5607C9.12132 20 8.41421 20 7 20C5.58579 20 4.87868 20 4.43934 19.5607C4 19.1213 4 18.4142 4 17V7Z", stroke: "currentColor", strokeWidth: "1.5", key: "0" }],
   ["path", { d: "M14 7C14 5.58579 14 4.87868 14.4393 4.43934C14.8787 4 15.5858 4 17 4C18.4142 4 19.1213 4 19.5607 4.43934C20 4.87868 20 5.58579 20 7V17C20 18.4142 20 19.1213 19.5607 19.5607C19.1213 20 18.4142 20 17 20C15.5858 20 14.8787 20 14.4393 19.5607C14 19.1213 14 18.4142 14 17V7Z", stroke: "currentColor", strokeWidth: "1.5", key: "1" }]
 ];
 
-// ../../../../../plugin-sources/ui-patterns-recovered/node_modules/@hugeicons/core-free-icons/dist/esm/PinOffIcon.js
+// node_modules/@hugeicons/core-free-icons/dist/esm/PinOffIcon.js
 var PinOffIcon = [
   ["path", { d: "M7.5 8C6.95863 8.1281 6.49932 8.14239 5.99268 8.45891C5.07234 9.03388 4.85108 9.71674 5.08821 10.7612C5.94028 14.5139 9.48599 18.0596 13.2388 18.9117C14.2834 19.1489 14.9661 18.928 15.5416 18.0077C15.8411 17.5288 15.8716 17.0081 16 16.5", stroke: "currentColor", strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: "1.5", key: "0" }],
   ["path", { d: "M12 7.79915C12.1776 7.77794 12.3182 7.74034 12.4295 7.68235C13.3997 7.17686 13.9291 5.53361 14.4498 4.60009C14.9311 3.73715 15.1718 3.30567 15.7379 3.10227C16.3041 2.89888 16.6448 3.02205 17.3262 3.26839C18.9197 3.8445 20.1555 5.08032 20.7316 6.6738C20.9779 7.35521 21.1011 7.69591 20.8977 8.26204C20.6943 8.82817 20.2628 9.06884 19.3999 9.55018C18.4608 10.074 16.7954 10.6108 16.2905 11.5898C16.2345 11.6983 16.1978 11.8327 16.1769 12", stroke: "currentColor", strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: "1.5", key: "1" }],
@@ -34192,86 +34321,86 @@ var PinOffIcon = [
   ["path", { d: "M3 3L21 21", stroke: "currentColor", strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: "1.5", key: "3" }]
 ];
 
-// ../../../../../plugin-sources/ui-patterns-recovered/node_modules/@hugeicons/core-free-icons/dist/esm/PinIcon.js
+// node_modules/@hugeicons/core-free-icons/dist/esm/PinIcon.js
 var PinIcon = [
   ["path", { d: "M3 21L8 16", stroke: "currentColor", strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: "1.5", key: "0" }],
   ["path", { d: "M13.2585 18.8714C9.51516 18.0215 5.97844 14.4848 5.12853 10.7415C4.99399 10.1489 4.92672 9.85266 5.12161 9.37197C5.3165 8.89129 5.55457 8.74255 6.03071 8.44509C7.10705 7.77265 8.27254 7.55888 9.48209 7.66586C11.1793 7.81598 12.0279 7.89104 12.4512 7.67048C12.8746 7.44991 13.1622 6.93417 13.7376 5.90269L14.4664 4.59604C14.9465 3.73528 15.1866 3.3049 15.7513 3.10202C16.316 2.89913 16.6558 3.02199 17.3355 3.26771C18.9249 3.84236 20.1576 5.07505 20.7323 6.66449C20.978 7.34417 21.1009 7.68401 20.898 8.2487C20.6951 8.8134 20.2647 9.05346 19.4039 9.53358L18.0672 10.2792C17.0376 10.8534 16.5229 11.1406 16.3024 11.568C16.0819 11.9955 16.162 12.8256 16.3221 14.4859C16.4399 15.7068 16.2369 16.88 15.5555 17.9697C15.2577 18.4458 15.1088 18.6839 14.6283 18.8786C14.1477 19.0733 13.8513 19.006 13.2585 18.8714Z", stroke: "currentColor", strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: "1.5", key: "1" }]
 ];
 
-// ../../../../../plugin-sources/ui-patterns-recovered/node_modules/@hugeicons/core-free-icons/dist/esm/PlayIcon.js
+// node_modules/@hugeicons/core-free-icons/dist/esm/PlayIcon.js
 var PlayIcon = [
   ["path", { d: "M18.8906 12.846C18.5371 14.189 16.8667 15.138 13.5257 17.0361C10.296 18.8709 8.6812 19.7884 7.37983 19.4196C6.8418 19.2671 6.35159 18.9776 5.95624 18.5787C5 17.6139 5 15.7426 5 12C5 8.2574 5 6.3861 5.95624 5.42132C6.35159 5.02245 6.8418 4.73288 7.37983 4.58042C8.6812 4.21165 10.296 5.12907 13.5257 6.96393C16.8667 8.86197 18.5371 9.811 18.8906 11.154C19.0365 11.7084 19.0365 12.2916 18.8906 12.846Z", stroke: "currentColor", strokeLinejoin: "round", strokeWidth: "1.5", key: "0" }]
 ];
 
-// ../../../../../plugin-sources/ui-patterns-recovered/node_modules/@hugeicons/core-free-icons/dist/esm/PlusMinusSquare01Icon.js
+// node_modules/@hugeicons/core-free-icons/dist/esm/PlusMinusSquare01Icon.js
 var PlusMinusSquare01Icon = [
   ["path", { d: "M12 7.5V13.8636M15.5 10.6818H8.5M15.5 16.5H8.5", stroke: "currentColor", strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: "1.5", key: "0" }],
   ["path", { d: "M2.5 12C2.5 7.52166 2.5 5.28249 3.89124 3.89124C5.28249 2.5 7.52166 2.5 12 2.5C16.4783 2.5 18.7175 2.5 20.1088 3.89124C21.5 5.28249 21.5 7.52166 21.5 12C21.5 16.4783 21.5 18.7175 20.1088 20.1088C18.7175 21.5 16.4783 21.5 12 21.5C7.52166 21.5 5.28249 21.5 3.89124 20.1088C2.5 18.7175 2.5 16.4783 2.5 12Z", stroke: "currentColor", strokeLinejoin: "round", strokeWidth: "1.5", key: "1" }]
 ];
 
-// ../../../../../plugin-sources/ui-patterns-recovered/node_modules/@hugeicons/core-free-icons/dist/esm/PlusSignIcon.js
+// node_modules/@hugeicons/core-free-icons/dist/esm/PlusSignIcon.js
 var PlusSignIcon = [
   ["path", { d: "M12 4V20M20 12H4", stroke: "currentColor", strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: "1.5", key: "0" }]
 ];
 
-// ../../../../../plugin-sources/ui-patterns-recovered/node_modules/@hugeicons/core-free-icons/dist/esm/Refresh01Icon.js
+// node_modules/@hugeicons/core-free-icons/dist/esm/Refresh01Icon.js
 var Refresh01Icon = [
   ["path", { d: "M20.4879 15C19.2524 18.4956 15.9187 21 12 21C7.02943 21 3 16.9706 3 12C3 7.02943 7.02943 3 12 3C15.7292 3 18.9286 5.26806 20.2941 8.5", stroke: "currentColor", strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: "1.5", key: "0" }],
   ["path", { d: "M15 9H18C19.4142 9 20.1213 9 20.5607 8.56066C21 8.12132 21 7.41421 21 6V3", stroke: "currentColor", strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: "1.5", key: "1" }]
 ];
 
-// ../../../../../plugin-sources/ui-patterns-recovered/node_modules/@hugeicons/core-free-icons/dist/esm/RepeatIcon.js
+// node_modules/@hugeicons/core-free-icons/dist/esm/RepeatIcon.js
 var RepeatIcon = [
   ["path", { d: "M16.3884 3L17.3913 3.97574C17.8393 4.41165 18.0633 4.62961 17.9844 4.81481C17.9056 5 17.5888 5 16.9552 5H9.19422C5.22096 5 2 8.13401 2 12C2 13.4872 2.47668 14.8662 3.2895 16", stroke: "currentColor", strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: "1.5", key: "0" }],
   ["path", { d: "M7.61156 21L6.60875 20.0243C6.16074 19.5883 5.93673 19.3704 6.01557 19.1852C6.09441 19 6.4112 19 7.04478 19H14.8058C18.779 19 22 15.866 22 12C22 10.5128 21.5233 9.13383 20.7105 8", stroke: "currentColor", strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: "1.5", key: "1" }]
 ];
 
-// ../../../../../plugin-sources/ui-patterns-recovered/node_modules/@hugeicons/core-free-icons/dist/esm/Search01Icon.js
+// node_modules/@hugeicons/core-free-icons/dist/esm/Search01Icon.js
 var Search01Icon = [
   ["path", { d: "M17 17L21 21", stroke: "currentColor", strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: "1.5", key: "0" }],
   ["path", { d: "M19 11C19 6.58172 15.4183 3 11 3C6.58172 3 3 6.58172 3 11C3 15.4183 6.58172 19 11 19C15.4183 19 19 15.4183 19 11Z", stroke: "currentColor", strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: "1.5", key: "1" }]
 ];
 
-// ../../../../../plugin-sources/ui-patterns-recovered/node_modules/@hugeicons/core-free-icons/dist/esm/SentIcon.js
+// node_modules/@hugeicons/core-free-icons/dist/esm/SentIcon.js
 var SentIcon = [
   ["path", { d: "M21.0477 3.05293C18.8697 0.707363 2.48648 6.4532 2.50001 8.551C2.51535 10.9299 8.89809 11.6617 10.6672 12.1581C11.7311 12.4565 12.016 12.7625 12.2613 13.8781C13.3723 18.9305 13.9301 21.4435 15.2014 21.4996C17.2278 21.5892 23.1733 5.342 21.0477 3.05293Z", stroke: "currentColor", strokeWidth: "1.5", key: "0" }],
   ["path", { d: "M11.4999 12.5L14.9999 9", stroke: "currentColor", strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: "1.5", key: "1" }]
 ];
 
-// ../../../../../plugin-sources/ui-patterns-recovered/node_modules/@hugeicons/core-free-icons/dist/esm/Settings01Icon.js
+// node_modules/@hugeicons/core-free-icons/dist/esm/Settings01Icon.js
 var Settings01Icon = [
   ["path", { d: "M21.3175 7.14139L20.8239 6.28479C20.4506 5.63696 20.264 5.31305 19.9464 5.18388C19.6288 5.05472 19.2696 5.15664 18.5513 5.36048L17.3311 5.70418C16.8725 5.80994 16.3913 5.74994 15.9726 5.53479L15.6357 5.34042C15.2766 5.11043 15.0004 4.77133 14.8475 4.37274L14.5136 3.37536C14.294 2.71534 14.1842 2.38533 13.9228 2.19657C13.6615 2.00781 13.3143 2.00781 12.6199 2.00781H11.5051C10.8108 2.00781 10.4636 2.00781 10.2022 2.19657C9.94085 2.38533 9.83106 2.71534 9.61149 3.37536L9.27753 4.37274C9.12465 4.77133 8.84845 5.11043 8.48937 5.34042L8.15249 5.53479C7.73374 5.74994 7.25259 5.80994 6.79398 5.70418L5.57375 5.36048C4.85541 5.15664 4.49625 5.05472 4.17867 5.18388C3.86109 5.31305 3.67445 5.63696 3.30115 6.28479L2.80757 7.14139C2.45766 7.74864 2.2827 8.05227 2.31666 8.37549C2.35061 8.69871 2.58483 8.95918 3.05326 9.48012L4.0843 10.6328C4.3363 10.9518 4.51521 11.5078 4.51521 12.0077C4.51521 12.5078 4.33636 13.0636 4.08433 13.3827L3.05326 14.5354C2.58483 15.0564 2.35062 15.3168 2.31666 15.6401C2.2827 15.9633 2.45766 16.2669 2.80757 16.8741L3.30114 17.7307C3.67443 18.3785 3.86109 18.7025 4.17867 18.8316C4.49625 18.9608 4.85542 18.8589 5.57377 18.655L6.79394 18.3113C7.25263 18.2055 7.73387 18.2656 8.15267 18.4808L8.4895 18.6752C8.84851 18.9052 9.12464 19.2442 9.2775 19.6428L9.61149 20.6403C9.83106 21.3003 9.94085 21.6303 10.2022 21.8191C10.4636 22.0078 10.8108 22.0078 11.5051 22.0078H12.6199C13.3143 22.0078 13.6615 22.0078 13.9228 21.8191C14.1842 21.6303 14.294 21.3003 14.5136 20.6403L14.8476 19.6428C15.0004 19.2442 15.2765 18.9052 15.6356 18.6752L15.9724 18.4808C16.3912 18.2656 16.8724 18.2055 17.3311 18.3113L18.5513 18.655C19.2696 18.8589 19.6288 18.9608 19.9464 18.8316C20.264 18.7025 20.4506 18.3785 20.8239 17.7307L21.3175 16.8741C21.6674 16.2669 21.8423 15.9633 21.8084 15.6401C21.7744 15.3168 21.5402 15.0564 21.0718 14.5354L20.0407 13.3827C19.7887 13.0636 19.6098 12.5078 19.6098 12.0077C19.6098 11.5078 19.7888 10.9518 20.0407 10.6328L21.0718 9.48012C21.5402 8.95918 21.7744 8.69871 21.8084 8.37549C21.8423 8.05227 21.6674 7.74864 21.3175 7.14139Z", stroke: "currentColor", strokeLinecap: "round", strokeWidth: "1.5", key: "0" }],
   ["path", { d: "M15.5195 12C15.5195 13.933 13.9525 15.5 12.0195 15.5C10.0865 15.5 8.51953 13.933 8.51953 12C8.51953 10.067 10.0865 8.5 12.0195 8.5C13.9525 8.5 15.5195 10.067 15.5195 12Z", stroke: "currentColor", strokeWidth: "1.5", key: "1" }]
 ];
 
-// ../../../../../plugin-sources/ui-patterns-recovered/node_modules/@hugeicons/core-free-icons/dist/esm/SidebarBottomIcon.js
+// node_modules/@hugeicons/core-free-icons/dist/esm/SidebarBottomIcon.js
 var SidebarBottomIcon = [
   ["path", { d: "M2 12C2 8.31087 2 6.4663 2.81382 5.15877C3.1149 4.67502 3.48891 4.25427 3.91891 3.91555C5.08116 3 6.72077 3 10 3H14C17.2792 3 18.9188 3 20.0811 3.91555C20.5111 4.25427 20.8851 4.67502 21.1862 5.15877C22 6.4663 22 8.31087 22 12C22 15.6891 22 17.5337 21.1862 18.8412C20.8851 19.325 20.5111 19.7457 20.0811 20.0845C18.9188 21 17.2792 21 14 21H10C6.72077 21 5.08116 21 3.91891 20.0845C3.48891 19.7457 3.1149 19.325 2.81382 18.8412C2 17.5337 2 15.6891 2 12Z", stroke: "currentColor", strokeWidth: "1.5", key: "0" }],
   ["path", { d: "M2 14.5L22 14.5", stroke: "currentColor", strokeLinejoin: "round", strokeWidth: "1.5", key: "1" }],
   ["path", { d: "M6 18H7M10 18H11", stroke: "currentColor", strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: "1.5", key: "2" }]
 ];
 
-// ../../../../../plugin-sources/ui-patterns-recovered/node_modules/@hugeicons/core-free-icons/dist/esm/SidebarLeftIcon.js
+// node_modules/@hugeicons/core-free-icons/dist/esm/SidebarLeftIcon.js
 var SidebarLeftIcon = [
   ["path", { d: "M2 12C2 8.31087 2 6.4663 2.81382 5.15877C3.1149 4.67502 3.48891 4.25427 3.91891 3.91554C5.08116 3 6.72077 3 10 3H14C17.2792 3 18.9188 3 20.0811 3.91554C20.5111 4.25427 20.8851 4.67502 21.1862 5.15877C22 6.4663 22 8.31087 22 12C22 15.6891 22 17.5337 21.1862 18.8412C20.8851 19.325 20.5111 19.7457 20.0811 20.0845C18.9188 21 17.2792 21 14 21H10C6.72077 21 5.08116 21 3.91891 20.0845C3.48891 19.7457 3.1149 19.325 2.81382 18.8412C2 17.5337 2 15.6891 2 12Z", stroke: "currentColor", strokeWidth: "1.5", key: "0" }],
   ["path", { d: "M9.5 3L9.5 21", stroke: "currentColor", strokeLinejoin: "round", strokeWidth: "1.5", key: "1" }],
   ["path", { d: "M5 7H6M5 10H6", stroke: "currentColor", strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: "1.5", key: "2" }]
 ];
 
-// ../../../../../plugin-sources/ui-patterns-recovered/node_modules/@hugeicons/core-free-icons/dist/esm/SidebarRightIcon.js
+// node_modules/@hugeicons/core-free-icons/dist/esm/SidebarRightIcon.js
 var SidebarRightIcon = [
   ["path", { d: "M2 12C2 8.3109 2 6.46633 2.81382 5.1588C3.1149 4.67505 3.48891 4.2543 3.91891 3.91557C5.08116 3.00003 6.72077 3.00003 10 3.00003H14C17.2792 3.00003 18.9188 3.00003 20.0811 3.91557C20.5111 4.2543 20.8851 4.67505 21.1862 5.1588C22 6.46633 22 8.3109 22 12C22 15.6892 22 17.5337 21.1862 18.8413C20.8851 19.325 20.5111 19.7458 20.0811 20.0845C18.9188 21 17.2792 21 14 21H10C6.72077 21 5.08116 21 3.91891 20.0845C3.48891 19.7458 3.1149 19.325 2.81382 18.8413C2 17.5337 2 15.6892 2 12Z", stroke: "currentColor", strokeWidth: "1.5", key: "0" }],
   ["path", { d: "M14.5 3.00003L14.5 21", stroke: "currentColor", strokeLinejoin: "round", strokeWidth: "1.5", key: "1" }],
   ["path", { d: "M18 7.00006H19M18 10.0001H19", stroke: "currentColor", strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: "1.5", key: "2" }]
 ];
 
-// ../../../../../plugin-sources/ui-patterns-recovered/node_modules/@hugeicons/core-free-icons/dist/esm/SmartPhone01Icon.js
+// node_modules/@hugeicons/core-free-icons/dist/esm/SmartPhone01Icon.js
 var SmartPhone01Icon = [
   ["path", { d: "M13.5 2H10.5C8.14298 2 6.96447 2 6.23223 2.73223C5.5 3.46447 5.5 4.64298 5.5 7V17C5.5 19.357 5.5 20.5355 6.23223 21.2678C6.96447 22 8.14298 22 10.5 22H13.5C15.857 22 17.0355 22 17.7678 21.2678C18.5 20.5355 18.5 19.357 18.5 17V7C18.5 4.64298 18.5 3.46447 17.7678 2.73223C17.0355 2 15.857 2 13.5 2Z", stroke: "currentColor", strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: "1.5", key: "0" }],
   ["path", { d: "M12.125 19H12M12.25 19C12.25 19.1381 12.1381 19.25 12 19.25C11.8619 19.25 11.75 19.1381 11.75 19C11.75 18.8619 11.8619 18.75 12 18.75C12.1381 18.75 12.25 18.8619 12.25 19Z", stroke: "currentColor", strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: "1.5", key: "1" }]
 ];
 
-// ../../../../../plugin-sources/ui-patterns-recovered/node_modules/@hugeicons/core-free-icons/dist/esm/Sorting01Icon.js
+// node_modules/@hugeicons/core-free-icons/dist/esm/Sorting01Icon.js
 var Sorting01Icon = [
   ["path", { d: "M11.0001 8L19.0001 8.00006", stroke: "currentColor", strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: "1.5", key: "0" }],
   ["path", { d: "M11.0001 12H16.0001", stroke: "currentColor", strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: "1.5", key: "1" }],
@@ -34280,26 +34409,26 @@ var Sorting01Icon = [
   ["path", { d: "M5.5 21V3M5.5 21C4.79977 21 3.49153 19.0057 3 18.5M5.5 21C6.20023 21 7.50847 19.0057 8 18.5", stroke: "currentColor", strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: "1.5", key: "4" }]
 ];
 
-// ../../../../../plugin-sources/ui-patterns-recovered/node_modules/@hugeicons/core-free-icons/dist/esm/SourceCodeIcon.js
+// node_modules/@hugeicons/core-free-icons/dist/esm/SourceCodeIcon.js
 var SourceCodeIcon = [
   ["path", { d: "M17 8L18.8398 9.85008C19.6133 10.6279 20 11.0168 20 11.5C20 11.9832 19.6133 12.3721 18.8398 13.1499L17 15", stroke: "currentColor", strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: "1.5", key: "0" }],
   ["path", { d: "M7 8L5.16019 9.85008C4.38673 10.6279 4 11.0168 4 11.5C4 11.9832 4.38673 12.3721 5.16019 13.1499L7 15", stroke: "currentColor", strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: "1.5", key: "1" }],
   ["path", { d: "M14.5 4L9.5 20", stroke: "currentColor", strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: "1.5", key: "2" }]
 ];
 
-// ../../../../../plugin-sources/ui-patterns-recovered/node_modules/@hugeicons/core-free-icons/dist/esm/SquareIcon.js
+// node_modules/@hugeicons/core-free-icons/dist/esm/SquareIcon.js
 var SquareIcon = [
   ["path", { d: "M2.5 12C2.5 7.52166 2.5 5.28249 3.89124 3.89124C5.28249 2.5 7.52166 2.5 12 2.5C16.4783 2.5 18.7175 2.5 20.1088 3.89124C21.5 5.28249 21.5 7.52166 21.5 12C21.5 16.4783 21.5 18.7175 20.1088 20.1088C18.7175 21.5 16.4783 21.5 12 21.5C7.52166 21.5 5.28249 21.5 3.89124 20.1088C2.5 18.7175 2.5 16.4783 2.5 12Z", stroke: "currentColor", strokeWidth: "1.5", key: "0" }]
 ];
 
-// ../../../../../plugin-sources/ui-patterns-recovered/node_modules/@hugeicons/core-free-icons/dist/esm/Target02Icon.js
+// node_modules/@hugeicons/core-free-icons/dist/esm/Target02Icon.js
 var Target02Icon = [
   ["path", { d: "M17 12C17 14.7614 14.7614 17 12 17C9.23858 17 7 14.7614 7 12C7 9.23858 9.23858 7 12 7", stroke: "currentColor", strokeLinecap: "round", strokeWidth: "1.5", key: "0" }],
   ["path", { d: "M14 2.20004C13.3538 2.06886 12.6849 2 12 2C6.47715 2 2 6.47715 2 12C2 17.5228 6.47715 22 12 22C17.5228 22 22 17.5228 22 12C22 11.3151 21.9311 10.6462 21.8 10", stroke: "currentColor", strokeLinecap: "round", strokeWidth: "1.5", key: "1" }],
   ["path", { d: "M12.0303 11.9625L16.5832 7.4096M19.7404 4.34462L19.1872 2.35748C19.0853 2.03011 18.6914 1.89965 18.4259 2.11662C16.9898 3.29018 15.4254 4.87091 16.703 7.36419C19.2771 8.56455 20.7466 6.94584 21.8733 5.5853C22.0975 5.3146 21.9623 4.90767 21.6247 4.81005L19.7404 4.34462Z", stroke: "currentColor", strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: "1.5", key: "2" }]
 ];
 
-// ../../../../../plugin-sources/ui-patterns-recovered/node_modules/@hugeicons/core-free-icons/dist/esm/TextWrapIcon.js
+// node_modules/@hugeicons/core-free-icons/dist/esm/TextWrapIcon.js
 var TextWrapIcon = [
   ["path", { d: "M3 3H21", stroke: "currentColor", strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: "1.5", key: "0" }],
   ["path", { d: "M3 15H9", stroke: "currentColor", strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: "1.5", key: "1" }],
@@ -34307,39 +34436,39 @@ var TextWrapIcon = [
   ["path", { d: "M3 9H16.5C18.9853 9 21 11.0147 21 13.5C21 15.9853 18.9853 18 16.5 18H12M12 18C12 17.1597 14.3932 15.5898 15 15M12 18C12 18.8403 14.3932 20.4102 15 21", stroke: "currentColor", strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: "1.5", key: "3" }]
 ];
 
-// ../../../../../plugin-sources/ui-patterns-recovered/node_modules/@hugeicons/core-free-icons/dist/esm/Tick02Icon.js
+// node_modules/@hugeicons/core-free-icons/dist/esm/Tick02Icon.js
 var Tick02Icon = [
   ["path", { d: "M5 14L8.5 17.5L19 6.5", stroke: "currentColor", strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: "1.5", key: "0" }]
 ];
 
-// ../../../../../plugin-sources/ui-patterns-recovered/node_modules/@hugeicons/core-free-icons/dist/esm/TrendingUpDownIcon.js
+// node_modules/@hugeicons/core-free-icons/dist/esm/TrendingUpDownIcon.js
 var TrendingUpDownIcon = [
   ["path", { d: "M3 14.001L7 10.001C7.88256 9.11841 8.32385 8.67713 8.86543 8.62835C8.95496 8.62028 9.04504 8.62028 9.13457 8.62835C9.67615 8.67713 10.1174 9.11841 11 10.001C11.8826 10.8835 12.3238 11.3248 12.8654 11.3736C12.955 11.3817 13.045 11.3817 13.1346 11.3736C13.6762 11.3248 14.1174 10.8835 15 10.001L20 5.00098M16 15.001L20 19.001", stroke: "currentColor", strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: "1.5", key: "0" }],
   ["path", { d: "M16 19.7244C16 19.7244 20.101 20.3467 20.7234 19.7244C21.3458 19.102 20.7234 15.001 20.7234 15.001", stroke: "currentColor", strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: "1.5", key: "1" }],
   ["path", { d: "M16 4.27682C16 4.27682 20.101 3.6545 20.7234 4.27685C21.3458 4.8992 20.7234 9.00024 20.7234 9.00024", stroke: "currentColor", strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: "1.5", key: "2" }]
 ];
 
-// ../../../../../plugin-sources/ui-patterns-recovered/node_modules/@hugeicons/core-free-icons/dist/esm/Unarchive03Icon.js
+// node_modules/@hugeicons/core-free-icons/dist/esm/Unarchive03Icon.js
 var Unarchive03Icon = [
   ["path", { d: "M21 7H3V13C3 16.7712 3 18.6569 4.17157 19.8284C5.34315 21 7.22876 21 11 21H13C16.7712 21 18.6569 21 19.8284 19.8284C21 18.6569 21 16.7712 21 13V7Z", stroke: "currentColor", strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: "1.5", key: "0" }],
   ["path", { d: "M21 7H3L4.2 5.4C5.08328 4.22229 5.52492 3.63344 6.15836 3.31672C6.7918 3 7.52786 3 9 3H15C16.4721 3 17.2082 3 17.8416 3.31672C18.4751 3.63344 18.9167 4.22229 19.8 5.4L21 7Z", stroke: "currentColor", strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: "1.5", key: "1" }],
   ["path", { d: "M12 11L12 17.5M9 13.5C9.58984 12.8932 11.1597 10.5 12 10.5C12.8403 10.5 14.4102 12.8932 15 13.5", stroke: "currentColor", strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: "1.5", key: "2" }]
 ];
 
-// ../../../../../plugin-sources/ui-patterns-recovered/node_modules/@hugeicons/core-free-icons/dist/esm/UserAdd01Icon.js
+// node_modules/@hugeicons/core-free-icons/dist/esm/UserAdd01Icon.js
 var UserAdd01Icon = [
   ["path", { d: "M15 8C15 5.23858 12.7614 3 10 3C7.23858 3 5 5.23858 5 8C5 10.7614 7.23858 13 10 13C12.7614 13 15 10.7614 15 8Z", stroke: "currentColor", strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: "1.5", key: "0" }],
   ["path", { d: "M17.5 21L17.5 14M14 17.5H21", stroke: "currentColor", strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: "1.5", key: "1" }],
   ["path", { d: "M3 20C3 16.134 6.13401 13 10 13C11.4872 13 12.8662 13.4638 14 14.2547", stroke: "currentColor", strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: "1.5", key: "2" }]
 ];
 
-// ../../../../../plugin-sources/ui-patterns-recovered/node_modules/@hugeicons/core-free-icons/dist/esm/UserIcon.js
+// node_modules/@hugeicons/core-free-icons/dist/esm/UserIcon.js
 var UserIcon = [
   ["path", { d: "M17 8.5C17 5.73858 14.7614 3.5 12 3.5C9.23858 3.5 7 5.73858 7 8.5C7 11.2614 9.23858 13.5 12 13.5C14.7614 13.5 17 11.2614 17 8.5Z", stroke: "currentColor", strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: "1.5", key: "0" }],
   ["path", { d: "M19 20.5C19 16.634 15.866 13.5 12 13.5C8.13401 13.5 5 16.634 5 20.5", stroke: "currentColor", strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: "1.5", key: "1" }]
 ];
 
-// ../../../../../plugin-sources/ui-patterns-recovered/node_modules/@hugeicons/core-free-icons/dist/esm/WorkflowCircle03Icon.js
+// node_modules/@hugeicons/core-free-icons/dist/esm/WorkflowCircle03Icon.js
 var WorkflowCircle03Icon = [
   ["path", { d: "M15 5C15 6.65685 13.6569 8 12 8C10.3431 8 9 6.65685 9 5C9 3.34315 10.3431 2 12 2C13.6569 2 15 3.34315 15 5Z", stroke: "currentColor", strokeWidth: "1.5", key: "0" }],
   ["path", { d: "M12 8V9M12 9C12 9.93188 12 10.3978 12.1776 10.7654C12.4144 11.2554 12.8687 11.6448 13.4404 11.8478C13.8692 12 14.4128 12 15.5 12C16.5872 12 17.1308 12 17.5596 12.1522C18.1313 12.3552 18.5856 12.7446 18.8224 13.2346C19 13.6022 19 14.0681 19 15V16M12 9C12 9.93188 12 10.3978 11.8224 10.7654C11.5856 11.2554 11.1313 11.6448 10.5596 11.8478C10.1308 12 9.5872 12 8.5 12C7.4128 12 6.8692 12 6.44041 12.1522C5.86867 12.3552 5.41443 12.7446 5.17761 13.2346C5 13.6022 5 14.0681 5 15V16", stroke: "currentColor", strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: "1.5", key: "1" }],
@@ -34347,26 +34476,26 @@ var WorkflowCircle03Icon = [
   ["path", { d: "M22 19C22 20.6569 20.6569 22 19 22C17.3431 22 16 20.6569 16 19C16 17.3431 17.3431 16 19 16C20.6569 16 22 17.3431 22 19Z", stroke: "currentColor", strokeWidth: "1.5", key: "3" }]
 ];
 
-// ../../../../../plugin-sources/ui-patterns-recovered/node_modules/@hugeicons/core-free-icons/dist/esm/ZapIcon.js
+// node_modules/@hugeicons/core-free-icons/dist/esm/ZapIcon.js
 var ZapIcon = [
   ["path", { d: "M8.62814 12.6736H8.16918C6.68545 12.6736 5.94358 12.6736 5.62736 12.1844C5.31114 11.6953 5.61244 11.0138 6.21504 9.65083L8.02668 5.55323C8.57457 4.314 8.84852 3.69438 9.37997 3.34719C9.91142 3 10.5859 3 11.935 3H14.0244C15.6632 3 16.4826 3 16.7916 3.53535C17.1007 4.0707 16.6942 4.78588 15.8811 6.21623L14.8092 8.10188C14.405 8.81295 14.2029 9.16849 14.2057 9.45952C14.2094 9.83775 14.4105 10.1862 14.7354 10.377C14.9854 10.5239 15.3927 10.5239 16.2074 10.5239C17.2373 10.5239 17.7523 10.5239 18.0205 10.7022C18.3689 10.9338 18.5513 11.3482 18.4874 11.7632C18.4382 12.0826 18.0918 12.4656 17.399 13.2317L11.8639 19.3523C10.7767 20.5545 10.2331 21.1556 9.86807 20.9654C9.50303 20.7751 9.67833 19.9822 10.0289 18.3962L10.7157 15.2896C10.9826 14.082 11.1161 13.4782 10.7951 13.0759C10.4741 12.6736 9.85877 12.6736 8.62814 12.6736Z", stroke: "currentColor", strokeLinejoin: "round", strokeWidth: "1.5", key: "0" }]
 ];
 
-// ../../../../../plugin-sources/ui-patterns-recovered/node_modules/@hugeicons/core-free-icons/dist/esm/ZoomInAreaIcon.js
+// node_modules/@hugeicons/core-free-icons/dist/esm/ZoomInAreaIcon.js
 var ZoomInAreaIcon = [
   ["path", { d: "M18.5016 19.1217L21 21.6217M20 15.1217C20 12.0842 17.5376 9.62173 14.5 9.62173C11.4624 9.62173 9 12.0842 9 15.1217C9 18.1593 11.4624 20.6217 14.5 20.6217C17.5376 20.6217 20 18.1593 20 15.1217Z", stroke: "currentColor", strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: "1.5", key: "0" }],
   ["path", { d: "M14.5 13.1217V17.1217M16.5 15.1217H12.5", stroke: "currentColor", strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: "1.5", key: "1" }],
   ["path", { d: "M10 3.62173H14M3 10.6217V14.6217M6.5 21.6217C4.567 21.6217 3 20.0547 3 18.1217M17.5 3.62173C19.433 3.62173 21 5.18873 21 7.12173M3 7.12173C3 5.18873 4.567 3.62173 6.5 3.62173", stroke: "currentColor", strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: "1.5", key: "2" }]
 ];
 
-// ../../../../../plugin-sources/ui-patterns-recovered/node_modules/@hugeicons/core-free-icons/dist/esm/ZoomOutAreaIcon.js
+// node_modules/@hugeicons/core-free-icons/dist/esm/ZoomOutAreaIcon.js
 var ZoomOutAreaIcon = [
   ["path", { d: "M18.5016 18.5L21 21M20 14.5C20 11.4624 17.5376 9 14.5 9C11.4624 9 9 11.4624 9 14.5C9 17.5376 11.4624 20 14.5 20C17.5376 20 20 17.5376 20 14.5Z", stroke: "currentColor", strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: "1.5", key: "0" }],
   ["path", { d: "M16.5 14.5H12.5", stroke: "currentColor", strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: "1.5", key: "1" }],
   ["path", { d: "M10 3H14M3 10V14M6.5 21C4.567 21 3 19.433 3 17.5M17.5 3C19.433 3 21 4.567 21 6.5M3 6.5C3 4.567 4.567 3 6.5 3", stroke: "currentColor", strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: "1.5", key: "2" }]
 ];
 
-// ../../../../../plugin-sources/ui-patterns-recovered/node_modules/clsx/dist/clsx.mjs
+// node_modules/clsx/dist/clsx.mjs
 function r(e) {
   var t, f, n = "";
   if ("string" == typeof e || "number" == typeof e) n += e;
@@ -34381,7 +34510,7 @@ function clsx() {
   return n;
 }
 
-// ../../../../../plugin-sources/ui-patterns-recovered/node_modules/tailwind-merge/dist/bundle-mjs.mjs
+// node_modules/tailwind-merge/dist/bundle-mjs.mjs
 var concatArrays = (array1, array2) => {
   const combinedArray = new Array(array1.length + array2.length);
   for (let i = 0; i < array1.length; i++) {
@@ -37635,12 +37764,12 @@ var getDefaultConfig = () => {
 };
 var twMerge = /* @__PURE__ */ createTailwindMerge(getDefaultConfig);
 
-// ../../../../../plugin-sources/ui-patterns-recovered/lib/utils.ts
+// lib/utils.ts
 function cn(...inputs) {
   return twMerge(clsx(inputs));
 }
 
-// ../../../../../plugin-sources/ui-patterns-recovered/components/ui/icon.tsx
+// components/ui/icon.tsx
 var PaletteStrokeRoundedIcon = [
   [
     "path",
@@ -37854,7 +37983,7 @@ function Icon({
   );
 }
 
-// ../../../../../plugin-sources/ui-patterns-recovered/atlas-ds/icons.tsx
+// atlas-ds/icons.tsx
 function AtlasIcon({
   name,
   size = "sm",
@@ -37876,7 +38005,7 @@ function AtlasIcon({
   );
 }
 
-// ../../../../../plugin-sources/ui-patterns-recovered/atlas-ds/feedback.tsx
+// atlas-ds/feedback.tsx
 function StatusBadge({
   tone = "neutral",
   className,
@@ -38014,7 +38143,7 @@ function ToastRegion({
   );
 }
 
-// ../../../../../plugin-sources/ui-patterns-recovered/atlas-ds/agent-surfaces.tsx
+// atlas-ds/agent-surfaces.tsx
 var agentStatusTone = {
   queued: "neutral",
   pending: "neutral",
@@ -38158,7 +38287,7 @@ function ActionApproval({
   );
 }
 
-// ../../../../../plugin-sources/ui-patterns-recovered/atlas-ds/collections.tsx
+// atlas-ds/collections.tsx
 function DataTable({
   caption,
   columns,
@@ -38294,7 +38423,7 @@ function EmptyState({
   );
 }
 
-// ../../../../../plugin-sources/ui-patterns-recovered/atlas-ds/navigation.tsx
+// atlas-ds/navigation.tsx
 function Breadcrumbs({
   items,
   label = "Breadcrumb",
@@ -38683,7 +38812,7 @@ var {
   version: version3
 } = mod4;
 
-// ../../../../../plugin-sources/ui-patterns-recovered/atlas-ds/overlays.tsx
+// atlas-ds/overlays.tsx
 var StageContext = createContext(null);
 function PreviewStage({
   label,
@@ -38936,7 +39065,7 @@ function StagePopover({
   ) });
 }
 
-// ../../../../../plugin-sources/ui-patterns-recovered/atlas-ds/identity.tsx
+// atlas-ds/identity.tsx
 function initialsFor(name) {
   return name.trim().split(/\s+/).slice(0, 2).map((part) => part[0]?.toLocaleUpperCase() ?? "").join("") || "?";
 }
@@ -39040,7 +39169,7 @@ function Chip({
   );
 }
 
-// ../../../../../plugin-sources/ui-patterns-recovered/pattern-previews.tsx
+// pattern-previews.tsx
 var patternPreviewIds = [
   "button",
   "toggle-button",
@@ -42335,7 +42464,7 @@ function PatternPreview({
   );
 }
 
-// ../../../../../plugin-sources/ui-patterns-recovered/node_modules/@radix-ui/react-compose-refs/dist/index.mjs
+// node_modules/@radix-ui/react-compose-refs/dist/index.mjs
 function setRef(ref, value) {
   if (typeof ref === "function") {
     return ref(value);
@@ -42371,7 +42500,7 @@ function useComposedRefs(...refs) {
   return useCallback(composeRefs(...refs), refs);
 }
 
-// ../../../../../plugin-sources/ui-patterns-recovered/node_modules/@radix-ui/react-slot/dist/index.mjs
+// node_modules/@radix-ui/react-slot/dist/index.mjs
 // @__NO_SIDE_EFFECTS__
 function createSlot(ownerName) {
   const Slot2 = forwardRef((props, forwardedRef) => {
@@ -42491,7 +42620,7 @@ var createSlottableError = (ownerName) => {
 };
 var use2 = react_exports[" use ".trim().toString()];
 
-// ../../../../../plugin-sources/ui-patterns-recovered/node_modules/class-variance-authority/dist/index.mjs
+// node_modules/class-variance-authority/dist/index.mjs
 var falsyToString = (value) => typeof value === "boolean" ? `${value}` : value === 0 ? "0" : value;
 var cx2 = clsx;
 var cva = (base, config2) => (props) => {
@@ -42533,10 +42662,10 @@ var cva = (base, config2) => (props) => {
   return cx2(base, getVariantClassNames, getCompoundVariantClassNames, props === null || props === void 0 ? void 0 : props.class, props === null || props === void 0 ? void 0 : props.className);
 };
 
-// ../../../../../plugin-sources/ui-patterns-recovered/components/ui/motion.ts
+// components/ui/motion.ts
 var CONTROL_HOVER_TRANSITION = "transition-colors duration-150 hover:duration-0";
 
-// ../../../../../plugin-sources/ui-patterns-recovered/components/ui/button.tsx
+// components/ui/button.tsx
 var buttonVariants = cva(
   `inline-flex cursor-pointer items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium ${CONTROL_HOVER_TRANSITION} focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0`,
   {
@@ -42604,7 +42733,7 @@ var {
   createDialogScope
 } = mod5;
 
-// ../../../../../plugin-sources/ui-patterns-recovered/lib/portal-scope.ts
+// lib/portal-scope.ts
 function usePortalScopeProps() {
   if (typeof document !== "undefined" && document.querySelector("[data-pattern-atlas-root]")) {
     return { "data-pattern-atlas-root": "" };
@@ -42612,7 +42741,7 @@ function usePortalScopeProps() {
   return { "data-bb-plugin-root": "" };
 }
 
-// ../../../../../plugin-sources/ui-patterns-recovered/hooks/useBrowserDimmingModal.ts
+// hooks/useBrowserDimmingModal.ts
 function useBrowserDimmingModal(_active) {
 }
 
@@ -42632,7 +42761,7 @@ var {
   Root: Root2
 } = mod6;
 
-// ../../../../../plugin-sources/ui-patterns-recovered/components/ui/overlay-trigger.ts
+// components/ui/overlay-trigger.ts
 var OVERLAY_TRIGGER_CLASS_NAME = "select-none";
 var NON_TEXT_INPUT_TYPES = /* @__PURE__ */ new Set([
   "button",
@@ -42688,7 +42817,7 @@ if (typeof document !== "undefined") {
   );
 }
 
-// ../../../../../plugin-sources/ui-patterns-recovered/components/ui/drawer.tsx
+// components/ui/drawer.tsx
 var Drawer2 = ({
   shouldScaleBackground = false,
   ...props
@@ -42773,7 +42902,7 @@ var DrawerDescription = forwardRef(({ className, ...props }, ref) => /* @__PURE_
 ));
 DrawerDescription.displayName = Drawer.Description.displayName;
 
-// ../../../../../plugin-sources/ui-patterns-recovered/components/ui/hooks/use-media-query.ts
+// components/ui/hooks/use-media-query.ts
 var mediaQueryCache = /* @__PURE__ */ new Map();
 function createMediaQueryRef(query) {
   if (typeof window === "undefined") return null;
@@ -42820,7 +42949,7 @@ function useMediaQuery(query) {
   );
 }
 
-// ../../../../../plugin-sources/ui-patterns-recovered/components/ui/hooks/use-compact-viewport.tsx
+// components/ui/hooks/use-compact-viewport.tsx
 var COMPACT_VIEWPORT_QUERY = "(max-width: 767px)";
 var CompactViewportOverrideContext = createContext(null);
 function useIsCompactViewport() {
@@ -42832,13 +42961,13 @@ function useIsCompactViewport() {
   return isCompactViewport;
 }
 
-// ../../../../../plugin-sources/ui-patterns-recovered/components/ui/hooks/use-pointer-coarse.ts
+// components/ui/hooks/use-pointer-coarse.ts
 var POINTER_COARSE_QUERY = "(pointer: coarse)";
 function usePointerCoarse() {
   return useMediaQuery(POINTER_COARSE_QUERY);
 }
 
-// ../../../../../plugin-sources/ui-patterns-recovered/components/ui/responsive-overlay.tsx
+// components/ui/responsive-overlay.tsx
 var ResponsiveDrawerDepthContext = createContext(0);
 var SONNER_TOASTER_SELECTOR = "[data-sonner-toaster]";
 function resetDrawerKeyboardStyles(drawerElement) {
@@ -43043,7 +43172,7 @@ function ResponsiveDrawerShell({
   );
 }
 
-// ../../../../../plugin-sources/ui-patterns-recovered/components/ui/dialog.tsx
+// components/ui/dialog.tsx
 var ResponsiveDialogContext = createContext({
   isCompactViewport: false,
   open: false,
@@ -43252,11 +43381,11 @@ var DialogDescription2 = forwardRef(({ className, ...props }, ref) => {
 });
 DialogDescription2.displayName = Description.displayName;
 
-// ../../../../../plugin-sources/ui-patterns-recovered/components/ui/coarse-pointer-sizing.ts
+// components/ui/coarse-pointer-sizing.ts
 var COARSE_POINTER_TEXT_BASE_CLASS = "text-sm max-md:pointer-coarse:text-base";
 var COARSE_POINTER_INPUT_HEIGHT_CLASS = "h-9 max-md:pointer-coarse:h-10";
 
-// ../../../../../plugin-sources/ui-patterns-recovered/components/ui/input.tsx
+// components/ui/input.tsx
 var Input = forwardRef(
   ({ className, type, ...props }, ref) => {
     return /* @__PURE__ */ jsx(
@@ -43324,7 +43453,7 @@ var {
   unstable_SelectProvider
 } = mod7;
 
-// ../../../../../plugin-sources/ui-patterns-recovered/components/ui/select.tsx
+// components/ui/select.tsx
 var Select2 = Root3;
 var SelectValue2 = Value;
 var SelectTrigger2 = forwardRef(({ className, children, ...props }, ref) => /* @__PURE__ */ jsxs(
@@ -43435,7 +43564,7 @@ var SelectSeparator2 = forwardRef(({ className, ...props }, ref) => /* @__PURE__
 ));
 SelectSeparator2.displayName = Separator.displayName;
 
-// ../../../../../plugin-sources/ui-patterns-recovered/gallery-shell.tsx
+// gallery-shell.tsx
 var catalog = entries;
 var entryById = new Map(catalog.map((entry) => [entry.id, entry]));
 var motionDurationMs = 1500;
@@ -43613,12 +43742,31 @@ function EmptyState2({
     action
   ] });
 }
+function DeprecatedRouteNotice({
+  entryId,
+  onClose,
+  dialog = false
+}) {
+  const legacyId = legacyIdFromRouteEntryId(entryId);
+  const candidates = legacyId ? legacyCandidatesFor(legacyId) : [];
+  const candidateIds = candidates.map((candidate) => candidate.id).join(", ");
+  return /* @__PURE__ */ jsx(
+    EmptyState2,
+    {
+      dialog,
+      title: "This entry route is deprecated",
+      description: `entry/${legacyId} is a legacy Atlas v2 identity. Choose an explicit provider-native ID: ${candidateIds}.`,
+      action: dialog ? /* @__PURE__ */ jsx(DialogClose2, { asChild: true, children: /* @__PURE__ */ jsx(Button2, { variant: "outline", size: "sm", children: "Return to gallery" }) }) : /* @__PURE__ */ jsx(Button2, { variant: "outline", size: "sm", onClick: onClose, children: "Return to gallery" })
+    }
+  );
+}
 function PatternInspector({
   entryId,
   onClose
 }) {
-  const entry = entryId ? entryById.get(entryId) : void 0;
-  const missing = Boolean(entryId && !entry);
+  const legacyRoute = Boolean(entryId && legacyIdFromRouteEntryId(entryId));
+  const entry = entryId && !legacyRoute ? entryById.get(entryId) : void 0;
+  const missing = Boolean(entryId && !entry && !legacyRoute);
   return /* @__PURE__ */ jsx(
     Dialog2,
     {
@@ -43633,7 +43781,7 @@ function PatternInspector({
           children: entry ? /* @__PURE__ */ jsxs(Fragment2, { children: [
             /* @__PURE__ */ jsx(PatternVisual, { entry, motion: "loop", inspector: true }),
             /* @__PURE__ */ jsx(PatternCaption, { entry, inspector: true })
-          ] }) : missing ? /* @__PURE__ */ jsx(
+          ] }) : legacyRoute && entryId ? /* @__PURE__ */ jsx(DeprecatedRouteNotice, { entryId, onClose, dialog: true }) : missing ? /* @__PURE__ */ jsx(
             EmptyState2,
             {
               dialog: true,
@@ -43651,7 +43799,8 @@ function PanelPatternInspector({
   entryId,
   onClose
 }) {
-  const entry = entryById.get(entryId);
+  const legacyRoute = Boolean(legacyIdFromRouteEntryId(entryId));
+  const entry = legacyRoute ? void 0 : entryById.get(entryId);
   return /* @__PURE__ */ jsxs("section", { className: "pa-panel-inspector", "aria-label": "Pattern detail", children: [
     /* @__PURE__ */ jsx("span", { className: "pa-panel-inspector__back", title: "Back to patterns", children: /* @__PURE__ */ jsx(
       Button2,
@@ -43671,7 +43820,7 @@ function PanelPatternInspector({
         /* @__PURE__ */ jsx("h2", { className: "pa-caption__name", children: entry.name }),
         /* @__PURE__ */ jsx("p", { className: "pa-caption__definition", children: entry.description })
       ] })
-    ] }) : /* @__PURE__ */ jsx(
+    ] }) : legacyRoute ? /* @__PURE__ */ jsx(DeprecatedRouteNotice, { entryId, onClose }) : /* @__PURE__ */ jsx(
       EmptyState2,
       {
         title: "Pattern not found",
@@ -43852,10 +44001,10 @@ function GalleryShell({
   );
 }
 
-// ../../../../../plugin-sources/ui-patterns-recovered/plugin-styles.ts
+// plugin-styles.ts
 var atlasPluginStyles = '@scope ([data-bb-plugin-root]) {\n[data-atlas-ds-root] {\n  --atlas-color-canvas: #f7f7f8;\n  --atlas-color-surface: #ffffff;\n  --atlas-color-surface-raised: #fcfcfd;\n  --atlas-color-ink: #202124;\n  --atlas-color-ink-muted: #666970;\n  --atlas-color-ink-subtle: #6b6f77;\n  --atlas-color-line: #dfe1e5;\n  --atlas-color-line-strong: #c8cbd1;\n  --atlas-color-control: #f1f2f4;\n  --atlas-color-control-hover: #e8e9ec;\n  --atlas-color-control-active: #dedfe3;\n  --atlas-color-focus: #555a63;\n  --atlas-color-scrim: rgb(22 24 27 / 0.28);\n  --atlas-color-info: #3f5f83;\n  --atlas-color-info-soft: #edf3f8;\n  --atlas-color-success: #3f694f;\n  --atlas-color-success-soft: #edf5ef;\n  --atlas-color-warning: #765d28;\n  --atlas-color-warning-soft: #f8f2e4;\n  --atlas-color-danger: #8a4545;\n  --atlas-color-danger-soft: #faeeee;\n  --atlas-radius-sm: 0.35rem;\n  --atlas-radius-md: 0.55rem;\n  --atlas-radius-lg: 0.75rem;\n  --atlas-space-1: 0.25rem;\n  --atlas-space-2: 0.5rem;\n  --atlas-space-3: 0.75rem;\n  --atlas-space-4: 1rem;\n  --atlas-space-5: 1.5rem;\n  --atlas-control-sm: 1.875rem;\n  --atlas-control-md: 2.25rem;\n  --atlas-shadow-raised: 0 1px 2px rgb(20 22 26 / 0.06);\n  --atlas-shadow-overlay:\n    0 2px 7px rgb(20 22 26 / 0.1),\n    0 18px 42px rgb(20 22 26 / 0.13);\n  color: var(--atlas-color-ink);\n  background: var(--atlas-color-canvas);\n  color-scheme: light;\n  font-family:\n    ui-sans-serif,\n    system-ui,\n    -apple-system,\n    BlinkMacSystemFont,\n    "Segoe UI",\n    sans-serif;\n  font-size: 0.875rem;\n  line-height: 1.45;\n}\n\n[data-atlas-ds-root][data-theme="dark"] {\n  --atlas-color-canvas: #17181a;\n  --atlas-color-surface: #1d1f22;\n  --atlas-color-surface-raised: #222428;\n  --atlas-color-ink: #f0f1f3;\n  --atlas-color-ink-muted: #b0b3ba;\n  --atlas-color-ink-subtle: #858992;\n  --atlas-color-line: #363940;\n  --atlas-color-line-strong: #4a4e57;\n  --atlas-color-control: #292c31;\n  --atlas-color-control-hover: #33363c;\n  --atlas-color-control-active: #3c4047;\n  --atlas-color-focus: #c8cbd2;\n  --atlas-color-scrim: rgb(0 0 0 / 0.48);\n  --atlas-color-info: #a7c1dc;\n  --atlas-color-info-soft: #263646;\n  --atlas-color-success: #a6cfb4;\n  --atlas-color-success-soft: #253b2d;\n  --atlas-color-warning: #d4bc82;\n  --atlas-color-warning-soft: #41371f;\n  --atlas-color-danger: #e1aaaa;\n  --atlas-color-danger-soft: #482a2a;\n  color-scheme: dark;\n}\n\n@media (prefers-color-scheme: dark) {\n  [data-atlas-ds-root][data-theme="system"] {\n    --atlas-color-canvas: #17181a;\n    --atlas-color-surface: #1d1f22;\n    --atlas-color-surface-raised: #222428;\n    --atlas-color-ink: #f0f1f3;\n    --atlas-color-ink-muted: #b0b3ba;\n    --atlas-color-ink-subtle: #858992;\n    --atlas-color-line: #363940;\n    --atlas-color-line-strong: #4a4e57;\n    --atlas-color-control: #292c31;\n    --atlas-color-control-hover: #33363c;\n    --atlas-color-control-active: #3c4047;\n    --atlas-color-focus: #c8cbd2;\n    --atlas-color-scrim: rgb(0 0 0 / 0.48);\n    --atlas-color-info: #a7c1dc;\n    --atlas-color-info-soft: #263646;\n    --atlas-color-success: #a6cfb4;\n    --atlas-color-success-soft: #253b2d;\n    --atlas-color-warning: #d4bc82;\n    --atlas-color-warning-soft: #41371f;\n    --atlas-color-danger: #e1aaaa;\n    --atlas-color-danger-soft: #482a2a;\n    color-scheme: dark;\n  }\n}\n\n[data-atlas-ds-root],\n[data-atlas-ds-root] *,\n[data-atlas-ds-root] *::before,\n[data-atlas-ds-root] *::after {\n  box-sizing: border-box;\n}\n\n[data-atlas-ds-root] :where(button, input, select, textarea) {\n  color: inherit;\n  font: inherit;\n}\n\n[data-atlas-ds-root] :where(button, a, input, select, textarea, summary):focus-visible {\n  outline: 2px solid var(--atlas-color-focus);\n  outline-offset: 2px;\n}\n\n.atlas-root {\n  min-width: 0;\n}\n\n.atlas-root[data-density="comfortable"] {\n  --atlas-control-sm: 2.125rem;\n  --atlas-control-md: 2.5rem;\n  --atlas-space-2: 0.625rem;\n  --atlas-space-3: 0.875rem;\n  --atlas-space-4: 1.125rem;\n}\n\n.atlas-stack {\n  display: flex;\n  min-width: 0;\n  flex-direction: column;\n}\n\n.atlas-stack[data-gap="xs"] { gap: var(--atlas-space-1); }\n.atlas-stack[data-gap="sm"] { gap: var(--atlas-space-2); }\n.atlas-stack[data-gap="md"] { gap: var(--atlas-space-3); }\n.atlas-stack[data-gap="lg"] { gap: var(--atlas-space-5); }\n\n.atlas-cluster {\n  display: flex;\n  min-width: 0;\n  flex-wrap: wrap;\n}\n\n.atlas-cluster[data-align="start"] { align-items: flex-start; }\n.atlas-cluster[data-align="center"] { align-items: center; }\n.atlas-cluster[data-align="end"] { align-items: flex-end; }\n.atlas-cluster[data-justify="start"] { justify-content: flex-start; }\n.atlas-cluster[data-justify="between"] { justify-content: space-between; }\n.atlas-cluster[data-justify="end"] { justify-content: flex-end; }\n.atlas-cluster[data-gap="xs"] { gap: var(--atlas-space-1); }\n.atlas-cluster[data-gap="sm"] { gap: var(--atlas-space-2); }\n.atlas-cluster[data-gap="md"] { gap: var(--atlas-space-3); }\n\n.atlas-surface {\n  min-width: 0;\n  border: 1px solid var(--atlas-color-line);\n  border-radius: var(--atlas-radius-md);\n  color: var(--atlas-color-ink);\n  background: var(--atlas-color-surface);\n}\n\n.atlas-surface[data-elevation="raised"] {\n  background: var(--atlas-color-surface-raised);\n  box-shadow: var(--atlas-shadow-raised);\n}\n\n.atlas-surface[data-elevation="overlay"] {\n  background: var(--atlas-color-surface-raised);\n  box-shadow: var(--atlas-shadow-overlay);\n}\n\n.atlas-divider {\n  width: 100%;\n  height: 1px;\n  margin: 0;\n  border: 0;\n  background: var(--atlas-color-line);\n}\n\n.atlas-divider[aria-orientation="vertical"] {\n  width: 1px;\n  height: auto;\n  min-height: var(--atlas-control-sm);\n  align-self: stretch;\n}\n\n.atlas-heading,\n.atlas-text {\n  margin: 0;\n}\n\n.atlas-heading {\n  color: var(--atlas-color-ink);\n  font-weight: 600;\n  letter-spacing: -0.012em;\n  line-height: 1.25;\n}\n\n.atlas-heading[data-size="sm"] { font-size: 0.8125rem; }\n.atlas-heading[data-size="md"] { font-size: 0.9375rem; }\n.atlas-heading[data-size="lg"] { font-size: 1.125rem; }\n.atlas-text[data-size="xs"] { font-size: 0.6875rem; }\n.atlas-text[data-size="sm"] { font-size: 0.75rem; }\n.atlas-text[data-size="md"] { font-size: 0.875rem; }\n.atlas-text[data-tone="muted"] { color: var(--atlas-color-ink-muted); }\n.atlas-text[data-tone="subtle"] { color: var(--atlas-color-ink-subtle); }\n\n.atlas-sr-only {\n  position: absolute;\n  width: 1px;\n  height: 1px;\n  overflow: hidden;\n  clip: rect(0, 0, 0, 0);\n  clip-path: inset(50%);\n  white-space: nowrap;\n}\n\n.atlas-icon {\n  display: inline-flex;\n  flex: 0 0 auto;\n  align-items: center;\n  justify-content: center;\n  color: currentcolor;\n  line-height: 0;\n}\n\n.atlas-icon > svg { width: 100%; height: 100%; }\n.atlas-icon[data-size="xs"] { width: 0.75rem; height: 0.75rem; }\n.atlas-icon[data-size="sm"] { width: 0.875rem; height: 0.875rem; }\n.atlas-icon[data-size="md"] { width: 1rem; height: 1rem; }\n\n.atlas-page-header {\n  display: grid;\n  grid-template-columns: minmax(0, 1fr) auto;\n  gap: var(--atlas-space-4);\n  align-items: start;\n}\n\n.atlas-page-header__eyebrow {\n  font-weight: 650;\n  letter-spacing: 0.06em;\n  text-transform: uppercase;\n}\n\n.atlas-application-frame {\n  display: grid;\n  height: 100%;\n  min-width: 0;\n  min-height: 12rem;\n  grid-template-rows: auto minmax(0, 1fr);\n  overflow: hidden;\n  border: 1px solid var(--atlas-color-line);\n  border-radius: var(--atlas-radius-lg);\n  background: var(--atlas-color-surface);\n}\n\n.atlas-application-frame__bar {\n  display: grid;\n  min-height: 2.75rem;\n  grid-template-columns: auto minmax(0, 1fr) auto;\n  gap: var(--atlas-space-4);\n  align-items: center;\n  padding: 0 var(--atlas-space-3);\n  border-bottom: 1px solid var(--atlas-color-line);\n}\n\n.atlas-application-frame__brand {\n  display: inline-flex;\n  align-items: center;\n  justify-content: center;\n}\n\n.atlas-application-frame__nav { min-width: 0; }\n.atlas-application-frame__actions { grid-column: 3; }\n\n.atlas-application-frame__body {\n  display: grid;\n  min-width: 0;\n  min-height: 0;\n  background: var(--atlas-color-canvas);\n}\n\n.atlas-application-frame__body[data-has-sidebar] {\n  grid-template-columns: minmax(7.5rem, 0.34fr) minmax(0, 1fr);\n}\n\n.atlas-application-frame__sidebar {\n  min-width: 0;\n  padding: var(--atlas-space-3);\n  border-right: 1px solid var(--atlas-color-line);\n  background: var(--atlas-color-surface-raised);\n}\n\n.atlas-application-frame__content {\n  display: flex;\n  min-width: 0;\n  min-height: 0;\n  overflow: hidden;\n  padding: var(--atlas-space-4);\n}\n\n.atlas-preview-context {\n  width: 100%;\n  min-height: 0;\n}\n\n.atlas-setting-surface {\n  padding: var(--atlas-space-3);\n}\n\n.atlas-avatar {\n  position: relative;\n  display: inline-flex;\n  flex: 0 0 auto;\n  align-items: center;\n  justify-content: center;\n  overflow: visible;\n  border: 1px solid var(--atlas-color-line-strong);\n  border-radius: 50%;\n  color: var(--atlas-color-ink-muted);\n  background: var(--atlas-color-control);\n  font-size: 0.625rem;\n  font-weight: 650;\n  line-height: 1;\n}\n\n.atlas-avatar[data-size="sm"] { width: 1.5rem; height: 1.5rem; }\n.atlas-avatar[data-size="md"] { width: 2rem; height: 2rem; }\n.atlas-avatar[data-size="lg"] { width: 2.75rem; height: 2.75rem; font-size: 0.75rem; }\n.atlas-avatar > img { width: 100%; height: 100%; border-radius: inherit; object-fit: cover; }\n\n.atlas-avatar__status {\n  position: absolute;\n  right: -0.05rem;\n  bottom: -0.05rem;\n  width: 0.48rem;\n  height: 0.48rem;\n  border: 2px solid var(--atlas-color-surface);\n  border-radius: 50%;\n  background: var(--atlas-color-ink-subtle);\n}\n\n.atlas-avatar__status[data-status="online"] { background: var(--atlas-color-success); }\n.atlas-avatar__status[data-status="away"] { background: var(--atlas-color-warning); }\n.atlas-avatar__status[data-status="busy"] { background: var(--atlas-color-danger); }\n\n.atlas-avatar-group { display: flex; align-items: center; padding-left: 0.3rem; }\n.atlas-avatar-group > * { margin-left: -0.3rem; box-shadow: 0 0 0 2px var(--atlas-color-surface); }\n.atlas-avatar-group__overflow {\n  display: inline-flex;\n  width: 1.5rem;\n  height: 1.5rem;\n  align-items: center;\n  justify-content: center;\n  border-radius: 50%;\n  color: var(--atlas-color-ink-muted);\n  background: var(--atlas-color-control);\n  font-size: 0.625rem;\n  font-weight: 650;\n}\n\n.atlas-badge,\n.atlas-tag,\n.atlas-chip {\n  display: inline-flex;\n  width: max-content;\n  min-height: 1.5rem;\n  align-items: center;\n  gap: var(--atlas-space-1);\n  border-radius: 999px;\n  padding: 0 var(--atlas-space-2);\n  font-size: 0.6875rem;\n  line-height: 1;\n}\n\n.atlas-badge {\n  color: var(--atlas-color-ink-muted);\n  background: var(--atlas-color-control);\n  font-weight: 600;\n}\n\n.atlas-badge[data-tone="info"] { color: var(--atlas-color-info); background: var(--atlas-color-info-soft); }\n.atlas-badge[data-tone="success"] { color: var(--atlas-color-success); background: var(--atlas-color-success-soft); }\n.atlas-badge[data-tone="warning"] { color: var(--atlas-color-warning); background: var(--atlas-color-warning-soft); }\n.atlas-badge[data-tone="danger"] { color: var(--atlas-color-danger); background: var(--atlas-color-danger-soft); }\n\n.atlas-tag {\n  border: 1px solid var(--atlas-color-line-strong);\n  color: var(--atlas-color-ink);\n  background: var(--atlas-color-surface);\n}\n\n.atlas-tag__remove {\n  display: inline-flex;\n  width: 1.1rem;\n  height: 1.1rem;\n  align-items: center;\n  justify-content: center;\n  margin-right: -0.25rem;\n  border: 0;\n  border-radius: 50%;\n  padding: 0;\n  color: var(--atlas-color-ink-muted);\n  background: transparent;\n  cursor: pointer;\n}\n\n.atlas-tag__remove:hover { color: var(--atlas-color-ink); background: var(--atlas-color-control); }\n\n.atlas-chip {\n  border: 1px solid var(--atlas-color-line-strong);\n  color: var(--atlas-color-ink-muted);\n  background: var(--atlas-color-surface);\n  cursor: pointer;\n}\n\n.atlas-chip:hover { color: var(--atlas-color-ink); background: var(--atlas-color-control); }\n.atlas-chip[aria-pressed="true"] { border-color: var(--atlas-color-ink); color: var(--atlas-color-surface); background: var(--atlas-color-ink); }\n\n.atlas-button,\n.atlas-icon-button {\n  display: inline-flex;\n  align-items: center;\n  justify-content: center;\n  border: 1px solid var(--atlas-color-line-strong);\n  border-radius: var(--atlas-radius-sm);\n  color: var(--atlas-color-ink);\n  background: var(--atlas-color-control);\n  font-weight: 550;\n  line-height: 1;\n  cursor: pointer;\n}\n\n.atlas-button {\n  gap: var(--atlas-space-2);\n  padding: 0 var(--atlas-space-3);\n}\n\n.atlas-button[data-size="sm"],\n.atlas-icon-button[data-size="sm"] {\n  min-height: var(--atlas-control-sm);\n  font-size: 0.75rem;\n}\n\n.atlas-button[data-size="md"],\n.atlas-icon-button[data-size="md"] {\n  min-height: var(--atlas-control-md);\n  font-size: 0.8125rem;\n}\n\n.atlas-icon-button[data-size="sm"] {\n  width: var(--atlas-control-sm);\n  padding: 0;\n}\n\n.atlas-icon-button[data-size="md"] {\n  width: var(--atlas-control-md);\n  padding: 0;\n}\n\n.atlas-button[data-tone="primary"],\n.atlas-icon-button[data-tone="primary"] {\n  border-color: var(--atlas-color-ink);\n  color: var(--atlas-color-surface);\n  background: var(--atlas-color-ink);\n}\n\n.atlas-button[data-tone="danger"],\n.atlas-icon-button[data-tone="danger"] {\n  border-color: var(--atlas-color-danger);\n  color: var(--atlas-color-surface);\n  background: var(--atlas-color-danger);\n}\n\n.atlas-button[data-tone="quiet"],\n.atlas-icon-button[data-tone="quiet"] {\n  border-color: transparent;\n  background: transparent;\n}\n\n.atlas-button:hover:not(:disabled),\n.atlas-icon-button:hover:not(:disabled) {\n  background: var(--atlas-color-control-hover);\n}\n\n.atlas-button[data-tone="primary"]:hover:not(:disabled) {\n  background: color-mix(in srgb, var(--atlas-color-ink) 88%, var(--atlas-color-surface));\n}\n\n.atlas-button[data-tone="danger"]:hover:not(:disabled) {\n  background: color-mix(in srgb, var(--atlas-color-danger) 88%, var(--atlas-color-ink));\n}\n\n.atlas-button:disabled,\n.atlas-icon-button:disabled {\n  cursor: not-allowed;\n  opacity: 0.5;\n}\n\n.atlas-input {\n  display: block;\n  width: 100%;\n  min-height: var(--atlas-control-md);\n  border: 1px solid var(--atlas-color-line-strong);\n  border-radius: var(--atlas-radius-sm);\n  padding: 0 var(--atlas-space-3);\n  color: var(--atlas-color-ink);\n  background: var(--atlas-color-surface);\n}\n\n.atlas-input::placeholder {\n  color: var(--atlas-color-ink-subtle);\n}\n\n.atlas-input[aria-invalid="true"] {\n  border-color: var(--atlas-color-danger);\n}\n\n.atlas-textarea {\n  min-height: 4.5rem;\n  padding-block: var(--atlas-space-2);\n  resize: vertical;\n}\n\n.atlas-select {\n  padding-right: 2rem;\n}\n\n.atlas-checkbox {\n  width: 1rem;\n  height: 1rem;\n  margin: 0.1rem 0 0;\n  accent-color: var(--atlas-color-ink);\n}\n\n.atlas-switch {\n  position: relative;\n  width: 1.9rem;\n  height: 1.05rem;\n  margin: 0.08rem 0 0;\n  border: 0;\n  border-radius: 999px;\n  background: var(--atlas-color-line-strong);\n  cursor: pointer;\n  appearance: none;\n}\n\n.atlas-switch::after {\n  position: absolute;\n  top: 0.15rem;\n  left: 0.15rem;\n  width: 0.75rem;\n  height: 0.75rem;\n  border-radius: 50%;\n  background: var(--atlas-color-surface);\n  content: "";\n  transition: transform 120ms ease;\n}\n\n.atlas-switch:checked {\n  background: var(--atlas-color-ink);\n}\n\n.atlas-switch:checked::after {\n  transform: translateX(0.85rem);\n}\n\n[data-preview-state="reduced-motion"] .atlas-switch::after {\n  transition: none;\n}\n\n.atlas-spinner-glyph {\n  width: 0.8rem;\n  height: 0.8rem;\n  border: 1.5px solid currentcolor;\n  border-right-color: transparent;\n  border-radius: 50%;\n  animation: atlas-spin 800ms linear infinite;\n}\n\n@keyframes atlas-spin {\n  to { transform: rotate(360deg); }\n}\n\n@media (prefers-reduced-motion: reduce) {\n  .atlas-switch::after { transition: none; }\n  .atlas-spinner-glyph {\n    border-right-color: currentcolor;\n    animation: none;\n  }\n}\n\n[data-preview-state="reduced-motion"] .atlas-spinner-glyph {\n  border-right-color: currentcolor;\n  animation: none;\n}\n\n.atlas-field {\n  display: grid;\n  min-width: 0;\n  gap: var(--atlas-space-1);\n}\n\n.atlas-field__label {\n  color: var(--atlas-color-ink);\n  font-size: 0.75rem;\n  font-weight: 550;\n}\n\n.atlas-field__required,\n.atlas-field__error {\n  color: var(--atlas-color-danger);\n}\n\n.atlas-boolean-field {\n  display: grid;\n  grid-template-columns: auto minmax(0, 1fr);\n  gap: var(--atlas-space-2);\n  align-items: start;\n}\n\n.atlas-form-section {\n  display: grid;\n  min-width: 0;\n  gap: var(--atlas-space-3);\n  margin: 0;\n  border: 0;\n  padding: 0;\n}\n\n.atlas-form-section > legend {\n  padding: 0;\n}\n\n.atlas-form-actions {\n  padding-top: var(--atlas-space-3);\n  border-top: 1px solid var(--atlas-color-line);\n}\n\n.atlas-breadcrumbs ol,\n.atlas-side-nav ul,\n.atlas-collection,\n.atlas-agent-steps {\n  margin: 0;\n  padding: 0;\n  list-style: none;\n}\n\n.atlas-breadcrumbs ol {\n  display: flex;\n  flex-wrap: wrap;\n  gap: var(--atlas-space-1);\n  color: var(--atlas-color-ink-muted);\n  font-size: 0.6875rem;\n}\n\n.atlas-breadcrumbs li:not(:last-child)::after {\n  margin-left: var(--atlas-space-1);\n  color: var(--atlas-color-ink-subtle);\n  content: "/";\n}\n\n.atlas-breadcrumbs a {\n  color: inherit;\n  text-decoration: none;\n}\n\n.atlas-breadcrumbs a:hover {\n  color: var(--atlas-color-ink);\n  text-decoration: underline;\n}\n\n.atlas-side-nav {\n  min-width: 9rem;\n}\n\n.atlas-side-nav ul {\n  display: grid;\n  gap: 2px;\n}\n\n.atlas-side-nav a,\n.atlas-side-nav button {\n  display: flex;\n  width: 100%;\n  min-height: var(--atlas-control-sm);\n  align-items: center;\n  justify-content: space-between;\n  gap: var(--atlas-space-2);\n  border: 0;\n  border-radius: var(--atlas-radius-sm);\n  padding: 0 var(--atlas-space-2);\n  color: var(--atlas-color-ink-muted);\n  background: transparent;\n  font: inherit;\n  font-size: 0.75rem;\n  text-align: left;\n  text-decoration: none;\n  cursor: pointer;\n}\n\n.atlas-side-nav :where(a, button):hover,\n.atlas-side-nav :where(a, button)[aria-current="page"] {\n  color: var(--atlas-color-ink);\n  background: var(--atlas-color-control);\n}\n\n.atlas-side-nav__badge {\n  color: var(--atlas-color-ink-subtle);\n  font-size: 0.6875rem;\n}\n\n.atlas-tabs {\n  min-width: 0;\n}\n\n.atlas-tabs__list {\n  display: flex;\n  gap: var(--atlas-space-3);\n  border-bottom: 1px solid var(--atlas-color-line);\n}\n\n.atlas-tabs__tab {\n  min-height: var(--atlas-control-sm);\n  margin-bottom: -1px;\n  border: 0;\n  border-bottom: 2px solid transparent;\n  padding: 0 var(--atlas-space-1);\n  color: var(--atlas-color-ink-muted);\n  background: transparent;\n  font-size: 0.75rem;\n  cursor: pointer;\n}\n\n.atlas-tabs__tab[aria-selected="true"] {\n  border-bottom-color: var(--atlas-color-ink);\n  color: var(--atlas-color-ink);\n}\n\n.atlas-tabs__panel {\n  padding-top: var(--atlas-space-3);\n}\n\n.atlas-navigation-bar ul,\n.atlas-navigation-rail ul,\n.atlas-tab-bar ul,\n.atlas-step-indicator ol,\n.atlas-tree,\n.atlas-tree ul {\n  margin: 0;\n  padding: 0;\n  list-style: none;\n}\n\n.atlas-navigation-bar ul {\n  display: flex;\n  min-width: 0;\n  gap: var(--atlas-space-1);\n  align-items: center;\n}\n\n.atlas-navigation-bar :where(a, button) {\n  display: inline-flex;\n  min-height: var(--atlas-control-sm);\n  align-items: center;\n  border: 0;\n  border-radius: var(--atlas-radius-sm);\n  padding: 0 var(--atlas-space-2);\n  color: var(--atlas-color-ink-muted);\n  background: transparent;\n  font: inherit;\n  font-size: 0.75rem;\n  text-decoration: none;\n  cursor: pointer;\n}\n\n.atlas-navigation-bar :where(a, button):hover,\n.atlas-navigation-bar :where(a, button)[aria-current="page"] {\n  color: var(--atlas-color-ink);\n  background: var(--atlas-color-control);\n}\n\n.atlas-navigation-rail { width: 4.5rem; }\n.atlas-navigation-rail ul { display: grid; gap: var(--atlas-space-1); }\n.atlas-navigation-rail button,\n.atlas-tab-bar button {\n  display: inline-grid;\n  width: 100%;\n  min-height: 3rem;\n  justify-items: center;\n  gap: 0.15rem;\n  align-content: center;\n  border: 0;\n  border-radius: var(--atlas-radius-md);\n  padding: var(--atlas-space-1);\n  color: var(--atlas-color-ink-muted);\n  background: transparent;\n  font: inherit;\n  font-size: 0.625rem;\n  cursor: pointer;\n}\n\n.atlas-navigation-rail :where(button:hover, button[aria-current="page"]),\n.atlas-tab-bar :where(button:hover, button[aria-current="page"]) {\n  color: var(--atlas-color-ink);\n  background: var(--atlas-color-control);\n}\n\n.atlas-navigation-rail__icon,\n.atlas-tab-bar__icon { display: inline-flex; align-items: center; justify-content: center; }\n\n.atlas-tab-bar { width: 100%; }\n.atlas-tab-bar ul { display: grid; grid-auto-columns: minmax(3.5rem, 1fr); grid-auto-flow: column; }\n\n.atlas-step-indicator ol {\n  display: grid;\n  grid-template-columns: repeat(var(--atlas-step-count, 1), minmax(0, 1fr));\n}\n\n.atlas-step-indicator li {\n  position: relative;\n  display: grid;\n  min-width: 0;\n  grid-template-columns: auto minmax(0, 1fr);\n  gap: var(--atlas-space-2);\n  align-items: start;\n  color: var(--atlas-color-ink-muted);\n}\n\n.atlas-step-indicator li:not(:last-child)::after {\n  position: absolute;\n  z-index: 0;\n  top: 0.7rem;\n  left: 1.5rem;\n  right: var(--atlas-space-2);\n  height: 1px;\n  background: var(--atlas-color-line-strong);\n  content: "";\n}\n\n.atlas-step-indicator__marker {\n  z-index: 1;\n  display: inline-flex;\n  width: 1.4rem;\n  height: 1.4rem;\n  align-items: center;\n  justify-content: center;\n  border: 1px solid var(--atlas-color-line-strong);\n  border-radius: 50%;\n  color: var(--atlas-color-ink-muted);\n  background: var(--atlas-color-surface);\n  font-size: 0.625rem;\n  font-weight: 650;\n}\n\n.atlas-step-indicator li[data-status="complete"] .atlas-step-indicator__marker,\n.atlas-step-indicator li[data-status="current"] .atlas-step-indicator__marker {\n  border-color: var(--atlas-color-ink);\n  color: var(--atlas-color-surface);\n  background: var(--atlas-color-ink);\n}\n\n.atlas-step-indicator li[data-status="error"] .atlas-step-indicator__marker {\n  border-color: var(--atlas-color-danger);\n  color: var(--atlas-color-danger);\n}\n\n.atlas-step-indicator__body { display: grid; min-width: 0; gap: 0.1rem; padding-right: var(--atlas-space-2); }\n.atlas-step-indicator__label { color: var(--atlas-color-ink); font-size: 0.6875rem; font-weight: 550; }\n.atlas-step-indicator__description { color: var(--atlas-color-ink-muted); font-size: 0.625rem; }\n.atlas-step-indicator[data-compact] li { grid-template-columns: auto; }\n\n.atlas-tree { display: grid; gap: 1px; }\n.atlas-tree [role="group"] { display: grid; gap: 1px; }\n\n.atlas-tree__item {\n  display: grid;\n  width: 100%;\n  min-height: var(--atlas-control-sm);\n  grid-template-columns: 0.75rem 0.875rem minmax(0, 1fr);\n  gap: var(--atlas-space-1);\n  align-items: center;\n  border: 0;\n  border-radius: var(--atlas-radius-sm);\n  padding: 0 var(--atlas-space-2);\n  padding-left: calc(var(--atlas-space-2) + (var(--tree-level, 1) - 1) * var(--atlas-space-3));\n  color: var(--atlas-color-ink-muted);\n  background: transparent;\n  font: inherit;\n  font-size: 0.75rem;\n  text-align: left;\n  cursor: pointer;\n}\n\n.atlas-tree__item[aria-level="2"] { padding-left: calc(var(--atlas-space-2) + var(--atlas-space-3)); }\n.atlas-tree__item[aria-level="3"] { padding-left: calc(var(--atlas-space-2) + 2 * var(--atlas-space-3)); }\n.atlas-tree__item:hover,\n.atlas-tree__item[aria-selected="true"] { color: var(--atlas-color-ink); background: var(--atlas-color-control); }\n.atlas-tree__expander,\n.atlas-tree__icon { display: inline-flex; align-items: center; justify-content: center; }\n.atlas-tree__label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }\n\n.atlas-table-frame {\n  width: 100%;\n  overflow-x: auto;\n  border: 1px solid var(--atlas-color-line);\n  border-radius: var(--atlas-radius-md);\n}\n\n.atlas-table {\n  width: 100%;\n  border-collapse: collapse;\n  font-size: 0.75rem;\n}\n\n.atlas-table th,\n.atlas-table td {\n  padding: var(--atlas-space-2) var(--atlas-space-3);\n  border-bottom: 1px solid var(--atlas-color-line);\n  text-align: left;\n}\n\n.atlas-table thead th {\n  color: var(--atlas-color-ink-muted);\n  background: var(--atlas-color-control);\n  font-size: 0.6875rem;\n  font-weight: 550;\n}\n\n.atlas-table tbody th {\n  font-weight: 550;\n}\n\n.atlas-table tr:last-child > * {\n  border-bottom: 0;\n}\n\n.atlas-table [data-align="center"] { text-align: center; }\n.atlas-table [data-align="end"] { text-align: right; }\n.atlas-table__empty {\n  height: 4rem;\n  color: var(--atlas-color-ink-muted);\n  text-align: center !important;\n}\n\n.atlas-collection {\n  border: 1px solid var(--atlas-color-line);\n  border-radius: var(--atlas-radius-md);\n  overflow: hidden;\n}\n\n.atlas-collection__item {\n  display: grid;\n  grid-template-columns: auto minmax(0, 1fr) auto auto;\n  gap: var(--atlas-space-3);\n  align-items: center;\n  min-height: 2.75rem;\n  padding: var(--atlas-space-2) var(--atlas-space-3);\n  border-bottom: 1px solid var(--atlas-color-line);\n}\n\n.atlas-collection__item:last-child { border-bottom: 0; }\n.atlas-collection__body { display: grid; min-width: 0; }\n.atlas-collection__primary { font-size: 0.75rem; font-weight: 550; }\n.atlas-collection__secondary,\n.atlas-collection__meta { color: var(--atlas-color-ink-muted); font-size: 0.6875rem; }\n.atlas-empty-state { align-items: flex-start; padding: var(--atlas-space-5); }\n\n.atlas-status-badge {\n  display: inline-flex;\n  min-height: 1.25rem;\n  align-items: center;\n  width: max-content;\n  border-radius: 999px;\n  padding: 0 0.45rem;\n  color: var(--atlas-color-ink-muted);\n  background: var(--atlas-color-control);\n  font-size: 0.625rem;\n  font-weight: 600;\n  line-height: 1;\n  text-transform: capitalize;\n}\n\n.atlas-status-badge[data-tone="info"] { color: var(--atlas-color-info); background: var(--atlas-color-info-soft); }\n.atlas-status-badge[data-tone="success"] { color: var(--atlas-color-success); background: var(--atlas-color-success-soft); }\n.atlas-status-badge[data-tone="warning"] { color: var(--atlas-color-warning); background: var(--atlas-color-warning-soft); }\n.atlas-status-badge[data-tone="danger"] { color: var(--atlas-color-danger); background: var(--atlas-color-danger-soft); }\n\n.atlas-alert {\n  display: grid;\n  grid-template-columns: auto minmax(0, 1fr);\n  gap: var(--atlas-space-3);\n  border: 1px solid var(--atlas-color-line);\n  border-radius: var(--atlas-radius-md);\n  padding: var(--atlas-space-3);\n  background: var(--atlas-color-surface);\n}\n\n.atlas-alert__mark {\n  width: 0.3rem;\n  border-radius: 999px;\n  background: var(--atlas-color-info);\n}\n\n.atlas-alert[data-tone="success"] .atlas-alert__mark { background: var(--atlas-color-success); }\n.atlas-alert[data-tone="warning"] .atlas-alert__mark { background: var(--atlas-color-warning); }\n.atlas-alert[data-tone="danger"] .atlas-alert__mark { background: var(--atlas-color-danger); }\n.atlas-alert__title { font-size: 0.75rem; }\n\n.atlas-progress {\n  display: grid;\n  gap: var(--atlas-space-1);\n  font-size: 0.75rem;\n}\n\n.atlas-progress progress {\n  width: 100%;\n  height: 0.35rem;\n  border: 0;\n  border-radius: 999px;\n  overflow: hidden;\n  background: var(--atlas-color-control);\n  appearance: none;\n}\n\n.atlas-progress progress::-webkit-progress-bar { background: var(--atlas-color-control); }\n.atlas-progress progress::-webkit-progress-value { background: var(--atlas-color-ink); }\n.atlas-progress progress::-moz-progress-bar { background: var(--atlas-color-ink); }\n\n.atlas-loading-status {\n  display: inline-flex;\n  gap: var(--atlas-space-2);\n  align-items: center;\n  color: var(--atlas-color-ink-muted);\n  font-size: 0.75rem;\n}\n\n.atlas-skeleton {\n  position: relative;\n  display: block;\n  width: 100%;\n  min-height: 0.65rem;\n  overflow: hidden;\n  border-radius: var(--atlas-radius-sm);\n  background: var(--atlas-color-control);\n}\n\n.atlas-skeleton[data-shape="text"] { height: 0.65rem; border-radius: 999px; }\n.atlas-skeleton[data-shape="block"] { min-height: 3.5rem; }\n.atlas-skeleton[data-shape="circle"] { width: 2rem; height: 2rem; min-height: 0; border-radius: 50%; }\n\n.atlas-skeleton[data-animated]::after {\n  position: absolute;\n  inset: 0;\n  background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--atlas-color-surface) 70%, transparent), transparent);\n  content: "";\n  transform: translateX(-100%);\n  animation: atlas-skeleton-wave 1.5s ease-in-out infinite;\n}\n\n@keyframes atlas-skeleton-wave {\n  to { transform: translateX(100%); }\n}\n\n@media (prefers-reduced-motion: reduce) {\n  .atlas-skeleton[data-animated]::after { animation: none; }\n}\n\n[data-preview-state="reduced-motion"] .atlas-skeleton[data-animated]::after {\n  animation: none;\n}\n\n.atlas-toast-region {\n  display: grid;\n  gap: var(--atlas-space-2);\n}\n\n.atlas-toast {\n  display: grid;\n  grid-template-columns: minmax(0, 1fr) auto;\n  gap: var(--atlas-space-3);\n  align-items: start;\n  border: 1px solid var(--atlas-color-line);\n  border-radius: var(--atlas-radius-md);\n  padding: var(--atlas-space-3);\n  background: var(--atlas-color-surface-raised);\n  box-shadow: var(--atlas-shadow-raised);\n  font-size: 0.75rem;\n}\n\n.atlas-preview-stage {\n  position: relative;\n  min-height: var(--atlas-stage-height, 22rem);\n  overflow: hidden;\n  contain: layout paint;\n  isolation: isolate;\n  border: 1px solid var(--atlas-color-line);\n  border-radius: var(--atlas-radius-lg);\n  background:\n    linear-gradient(var(--atlas-color-line) 1px, transparent 1px),\n    linear-gradient(90deg, var(--atlas-color-line) 1px, transparent 1px),\n    var(--atlas-color-canvas);\n  background-size: 1.5rem 1.5rem;\n}\n\n.atlas-preview-stage__canvas {\n  position: relative;\n  z-index: 0;\n  padding: var(--atlas-space-5);\n}\n\n.atlas-preview-stage__portals {\n  position: absolute;\n  z-index: 10;\n  inset: 0;\n  overflow: hidden;\n  pointer-events: none;\n}\n\n.atlas-overlay-scrim {\n  position: absolute;\n  display: grid;\n  inset: 0;\n  align-items: center;\n  justify-items: center;\n  padding: var(--atlas-space-5);\n  background: var(--atlas-color-scrim);\n  pointer-events: auto;\n}\n\n.atlas-overlay-scrim[data-variant="drawer"] {\n  align-items: stretch;\n  justify-items: end;\n  padding: 0;\n}\n\n.atlas-overlay-scrim[data-variant="sheet"] {\n  align-items: end;\n  justify-items: stretch;\n  padding: 0;\n}\n\n.atlas-dialog {\n  width: min(100%, 26rem);\n  max-height: calc(100% - 2 * var(--atlas-space-5));\n  overflow: auto;\n  border: 1px solid var(--atlas-color-line-strong);\n  border-radius: var(--atlas-radius-lg);\n  background: var(--atlas-color-surface-raised);\n  box-shadow: var(--atlas-shadow-overlay);\n}\n\n.atlas-dialog[data-variant="drawer"] {\n  width: min(20rem, 78%);\n  height: 100%;\n  max-height: none;\n  border-block: 0;\n  border-right: 0;\n  border-radius: var(--atlas-radius-lg) 0 0 var(--atlas-radius-lg);\n}\n\n.atlas-dialog[data-variant="sheet"] {\n  width: 100%;\n  max-height: 76%;\n  border-right: 0;\n  border-bottom: 0;\n  border-left: 0;\n  border-radius: var(--atlas-radius-lg) var(--atlas-radius-lg) 0 0;\n}\n\n.atlas-dialog__header {\n  display: grid;\n  grid-template-columns: minmax(0, 1fr) auto;\n  gap: var(--atlas-space-3);\n  align-items: start;\n  padding: var(--atlas-space-4);\n}\n\n.atlas-dialog__body {\n  padding: 0 var(--atlas-space-4) var(--atlas-space-4);\n}\n\n.atlas-dialog__footer {\n  padding: var(--atlas-space-3) var(--atlas-space-4);\n  border-top: 1px solid var(--atlas-color-line);\n  background: var(--atlas-color-surface);\n}\n\n.atlas-popover {\n  position: absolute;\n  width: min(16rem, calc(100% - 2 * var(--atlas-space-4)));\n  border: 1px solid var(--atlas-color-line-strong);\n  border-radius: var(--atlas-radius-md);\n  padding: var(--atlas-space-3);\n  background: var(--atlas-color-surface-raised);\n  box-shadow: var(--atlas-shadow-overlay);\n  pointer-events: auto;\n}\n\n.atlas-popover[data-placement^="top"] { top: var(--atlas-space-4); }\n.atlas-popover[data-placement^="bottom"] { bottom: var(--atlas-space-4); }\n.atlas-popover[data-placement$="start"] { left: var(--atlas-space-4); }\n.atlas-popover[data-placement$="end"] { right: var(--atlas-space-4); }\n.atlas-popover__close { position: absolute; top: var(--atlas-space-1); right: var(--atlas-space-1); }\n\n.atlas-agent-activity,\n.atlas-approval {\n  padding: var(--atlas-space-4);\n}\n\n.atlas-agent-activity__header,\n.atlas-approval__header {\n  display: grid;\n  grid-template-columns: minmax(0, 1fr) auto;\n  gap: var(--atlas-space-3);\n  align-items: start;\n}\n\n.atlas-agent-steps {\n  display: grid;\n  gap: var(--atlas-space-3);\n  margin-top: var(--atlas-space-4);\n}\n\n.atlas-agent-steps > li {\n  display: grid;\n  grid-template-columns: auto minmax(0, 1fr);\n  gap: var(--atlas-space-3);\n}\n\n.atlas-agent-step__mark {\n  width: 0.55rem;\n  height: 0.55rem;\n  margin-top: 0.33rem;\n  border: 1px solid var(--atlas-color-line-strong);\n  border-radius: 50%;\n  background: var(--atlas-color-surface);\n}\n\n.atlas-agent-steps > li[data-status="running"] .atlas-agent-step__mark { border-color: var(--atlas-color-info); background: var(--atlas-color-info); }\n.atlas-agent-steps > li[data-status="completed"] .atlas-agent-step__mark { border-color: var(--atlas-color-success); background: var(--atlas-color-success); }\n.atlas-agent-steps > li[data-status="failed"] .atlas-agent-step__mark { border-color: var(--atlas-color-danger); background: var(--atlas-color-danger); }\n.atlas-agent-step__label { font-size: 0.75rem; font-weight: 550; }\n\n.atlas-agent-step__details {\n  margin-top: var(--atlas-space-1);\n  color: var(--atlas-color-ink-muted);\n  font-size: 0.6875rem;\n}\n\n.atlas-agent-step__details summary {\n  width: max-content;\n  cursor: pointer;\n}\n\n.atlas-agent-activity__footer,\n.atlas-approval__footer {\n  display: flex;\n  justify-content: flex-end;\n  gap: var(--atlas-space-2);\n  margin-top: var(--atlas-space-4);\n  padding-top: var(--atlas-space-3);\n  border-top: 1px solid var(--atlas-color-line);\n}\n\n.atlas-approval__facts {\n  display: grid;\n  gap: var(--atlas-space-2);\n  margin: var(--atlas-space-4) 0;\n}\n\n.atlas-approval__facts > div {\n  display: grid;\n  grid-template-columns: 5.5rem minmax(0, 1fr);\n  gap: var(--atlas-space-3);\n}\n\n.atlas-approval__facts dt {\n  color: var(--atlas-color-ink-muted);\n  font-size: 0.6875rem;\n}\n\n.atlas-approval__facts dd {\n  margin: 0;\n  font-size: 0.75rem;\n}\n\n.atlas-approval__facts ul {\n  margin: 0;\n  padding-left: 1rem;\n}\n\n.atlas-example-card {\n  padding: var(--atlas-space-4);\n}\n\n.atlas-example-split {\n  display: grid;\n  grid-template-columns: minmax(9rem, 0.28fr) minmax(0, 1fr);\n  gap: var(--atlas-space-5);\n}\n\n.atlas-example-grid {\n  display: grid;\n  grid-template-columns: repeat(2, minmax(0, 1fr));\n  gap: var(--atlas-space-3);\n}\n\n@media (max-width: 42rem) {\n  .atlas-example-split,\n  .atlas-example-grid {\n    grid-template-columns: 1fr;\n  }\n\n  .atlas-side-nav ul {\n    grid-template-columns: repeat(3, minmax(0, 1fr));\n  }\n}\n\n.pa-shell,\n.pa-inspector {\n  --ui-visual-bg: var(--background);\n  --ui-visual-surface: var(--background);\n  --ui-visual-control: color-mix(in srgb, var(--muted) 70%, var(--background));\n  --ui-visual-line: color-mix(in srgb, var(--foreground) 22%, transparent);\n  --ui-visual-accent: color-mix(in srgb, var(--foreground) 72%, var(--background));\n  --ui-visual-accent-soft: color-mix(in srgb, var(--foreground) 7%, var(--background));\n  --ui-visual-ink: var(--foreground);\n  --ui-visual-muted: var(--muted-foreground);\n  --ui-visual-scrim: color-mix(in srgb, var(--foreground) 22%, transparent);\n  --ui-visual-on-accent: var(--background);\n  --ui-visual-font: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;\n  box-sizing: border-box;\n  color: var(--foreground);\n  font-family: var(--font-sans, ui-sans-serif, system-ui, sans-serif);\n}\n\n.pa-shell {\n  width: min(100%, 80rem);\n  min-width: 0;\n  margin: 0 auto;\n  padding: clamp(1rem, 2.5vw, 2rem) clamp(0.9rem, 2vw, 1.5rem) 3rem;\n  container-name: pattern-atlas;\n  container-type: inline-size;\n  font-size: 0.9375rem;\n}\n\n.pa-shell--panel {\n  width: 100%;\n  margin: 0;\n  padding: 0;\n}\n\n.pa-shell--panel .pa-toolbar {\n  grid-template-columns: 1fr;\n}\n\n.pa-shell--panel .pa-control,\n.pa-shell--panel .pa-result-count {\n  display: none;\n}\n\n.pa-shell--panel .pa-grid {\n  grid-template-columns: 1fr;\n  gap: 0.6rem;\n  padding-top: 0.6rem;\n}\n\n.pa-shell--panel .pa-caption {\n  min-height: 0;\n}\n\n.pa-shell *,\n.pa-shell *::before,\n.pa-shell *::after,\n.pa-inspector *,\n.pa-inspector *::before,\n.pa-inspector *::after {\n  box-sizing: border-box;\n}\n\n.pa-header {\n  padding: 0 0 0.65rem;\n}\n\n.pa-title {\n  margin: 0;\n  color: var(--foreground);\n  letter-spacing: -0.01em;\n  line-height: 1.25;\n}\n\n.pa-toolbar {\n  position: relative;\n  display: grid;\n  grid-template-columns: minmax(15rem, 1fr) minmax(10rem, 0.42fr) minmax(9rem, 0.36fr) auto;\n  gap: 0.65rem;\n  align-items: end;\n  padding: 0 0 0.9rem;\n  border-bottom: 1px solid var(--border);\n}\n\n.pa-search {\n  position: relative;\n}\n\n.pa-search__icon {\n  position: absolute;\n  z-index: 1;\n  top: 50%;\n  left: 0.72rem;\n  color: var(--muted-foreground);\n  pointer-events: none;\n  transform: translateY(-50%);\n}\n\n.pa-search__input {\n  height: 2.25rem !important;\n  padding-left: 2.25rem !important;\n  border-color: var(--input, var(--border)) !important;\n  color: var(--foreground);\n  background: transparent !important;\n}\n\n.pa-control {\n  display: grid;\n  min-width: 0;\n  gap: 0.28rem;\n}\n\n.pa-control__label {\n  color: var(--muted-foreground);\n  line-height: 1;\n}\n\n.pa-select-trigger {\n  height: 2.25rem !important;\n  border-color: var(--input, var(--border)) !important;\n  color: var(--foreground);\n  background: transparent !important;\n  box-shadow: none !important;\n}\n\n.pa-result-count {\n  min-width: max-content;\n  margin: 0;\n  padding: 0 0 0.52rem 0.35rem;\n  color: var(--muted-foreground);\n  font-size: 0.75rem;\n  line-height: 1;\n  text-align: right;\n}\n\n.pa-grid {\n  display: grid;\n  grid-template-columns: repeat(3, minmax(0, 1fr));\n  gap: 0.72rem;\n  padding-top: 0.72rem;\n}\n\n.pa-card {\n  position: relative;\n  display: grid;\n  min-width: 0;\n  margin: 0;\n  overflow: hidden;\n  border: 1px solid var(--border);\n  border-radius: calc(var(--radius, 0.65rem) - 0.12rem);\n  padding: 0.42rem;\n  color: var(--foreground);\n  background: var(--background);\n  box-shadow:\n    0 1px 1px color-mix(in srgb, var(--foreground) 6%, transparent),\n    0 7px 18px color-mix(in srgb, var(--foreground) 7%, transparent);\n  text-align: left;\n  transition:\n    border-color 140ms ease,\n    transform 140ms ease;\n}\n\n.pa-card:hover,\n.pa-card:has(.pa-card__trigger:focus-visible) {\n  border-color: color-mix(in srgb, var(--foreground) 35%, var(--border));\n  transform: translateY(-1px);\n}\n\n.pa-card:has(.pa-card__trigger:focus-visible) {\n  outline: 2px solid var(--ring);\n  outline-offset: 2px;\n}\n\n.pa-card__trigger {\n  position: absolute;\n  z-index: 2;\n  inset: 0;\n  border: 0;\n  border-radius: inherit;\n  padding: 0;\n  background: transparent;\n  cursor: pointer;\n}\n\n.pa-card__trigger:focus-visible {\n  outline: none;\n}\n\n.pa-visual {\n  display: block;\n  width: 100%;\n  aspect-ratio: 8 / 5;\n  margin: 0;\n  overflow: hidden;\n  border: 1px solid color-mix(in srgb, var(--foreground) 12%, transparent);\n  border-radius: calc(var(--radius, 0.65rem) - 0.22rem);\n  background: var(--ui-visual-bg);\n  container-type: inline-size;\n}\n\n.pa-visual__component {\n  display: block;\n  width: 100%;\n  height: 100%;\n  overflow: hidden;\n  padding: clamp(0.45rem, 3.4cqi, 1rem);\n  font-size: clamp(0.5rem, 2.65cqi, 0.875rem);\n}\n\n.pa-visual__component > .atlas-surface {\n  width: 100%;\n  height: 100%;\n  overflow: hidden;\n  border: 0;\n  border-radius: 0;\n  padding: 0;\n  background: transparent;\n}\n\n.pa-visual:not(.pa-visual--inspector) [data-atlas-ds-root] {\n  --atlas-control-sm: 1.55rem;\n  --atlas-control-md: 1.85rem;\n  --atlas-space-2: 0.35rem;\n  --atlas-space-3: 0.5rem;\n  --atlas-space-4: 0.7rem;\n  --atlas-space-5: 0.9rem;\n}\n\n.pa-visual:not(.pa-visual--inspector) .atlas-collection__item {\n  min-height: 2.1rem;\n}\n\n.pa-visual:not(.pa-visual--inspector) .pa-visual__component > .atlas-surface {\n  width: 116.28%;\n  height: 116.28%;\n  transform: scale(0.86);\n  transform-origin: top left;\n}\n\n.pa-visual__placeholder {\n  display: block;\n  width: 100%;\n  height: 100%;\n  background:\n    linear-gradient(90deg, transparent, color-mix(in srgb, var(--foreground) 4%, transparent), transparent),\n    var(--ui-visual-bg);\n}\n\n.pa-caption {\n  display: grid;\n  min-height: 0;\n  gap: 0.24rem;\n  padding: 0.58rem 0.2rem 0.3rem;\n}\n\n.pa-caption__name {\n  display: block;\n  margin: 0;\n  color: var(--foreground);\n  font-size: 0.79rem;\n  font-weight: 600;\n  line-height: 1.2;\n}\n\n.pa-caption__definition {\n  display: block;\n  margin: 0;\n  color: var(--muted-foreground);\n  font-size: 0.71rem;\n  font-weight: 400;\n  line-height: 1.38;\n}\n\n.pa-empty {\n  display: grid;\n  width: min(100%, 25rem);\n  min-height: 9rem;\n  gap: 0.48rem;\n  align-content: center;\n  justify-items: start;\n  margin: 1.5rem auto 0;\n  padding: 1rem;\n  color: var(--foreground);\n}\n\n.pa-empty__title,\n.pa-empty__description {\n  margin: 0;\n}\n\n.pa-empty__title {\n  font-size: 0.875rem;\n  font-weight: 600;\n  line-height: 1.3;\n}\n\n.pa-empty__description {\n  color: var(--muted-foreground);\n  font-size: 0.8125rem;\n  line-height: 1.45;\n}\n\n.pa-inspector {\n  width: min(54rem, calc(100vw - 2rem)) !important;\n  max-width: min(54rem, calc(100vw - 2rem)) !important;\n  max-height: calc(100dvh - 2rem);\n  gap: 0 !important;\n  overflow-y: auto;\n  border-color: var(--border) !important;\n  padding: 0.48rem !important;\n  color: var(--foreground);\n  background: var(--background) !important;\n  box-shadow:\n    0 24px 70px color-mix(in srgb, #000 28%, transparent) !important;\n}\n\n.pa-inspector--missing {\n  width: min(28rem, calc(100vw - 2rem)) !important;\n  max-width: min(28rem, calc(100vw - 2rem)) !important;\n}\n\n.pa-inspector > button {\n  top: 0.65rem;\n  right: 0.65rem;\n  display: grid;\n  width: 2rem;\n  height: 2rem;\n  border: 1px solid var(--border);\n  border-radius: 999px;\n  color: var(--foreground);\n  background: color-mix(in srgb, var(--background) 92%, transparent);\n  opacity: 1;\n  place-items: center;\n}\n\n.pa-inspector > button:hover {\n  background: var(--state-hover, var(--muted));\n}\n\n.pa-visual--inspector {\n  border-color: var(--border);\n}\n\n.pa-visual--inspector .atlas-preview-stage,\n.pa-visual--inspector .atlas-preview-stage__canvas,\n.pa-visual--inspector .atlas-preview-stage__canvas > div {\n  min-height: 0 !important;\n  height: 100%;\n}\n\n.pa-caption--inspector {\n  min-height: 0;\n  padding: 0.7rem 0.48rem 0.58rem;\n}\n\n.pa-caption--inspector .pa-caption__name {\n  padding-right: 2.5rem;\n  font-size: 0.94rem;\n}\n\n.pa-caption--inspector .pa-caption__definition {\n  max-width: 72ch;\n  font-size: 0.8rem;\n}\n\n.pa-inspector--missing .pa-empty {\n  min-height: 9rem;\n  margin: 0;\n}\n\n.pa-panel-inspector {\n  display: grid;\n  gap: 0.65rem;\n}\n\n.pa-panel-inspector__back {\n  display: inline-flex;\n  justify-self: start;\n}\n\n.pa-panel-inspector__caption {\n  display: grid;\n  gap: 0.28rem;\n  padding: 0 0.15rem;\n}\n\n.pa-panel-inspector__caption .pa-caption__name {\n  font-size: 0.9rem;\n}\n\n.pa-panel-inspector__caption .pa-caption__definition {\n  font-size: 0.78rem;\n}\n\n@container pattern-atlas (max-width: 48rem) {\n  .pa-toolbar {\n    grid-template-columns: 1fr 1fr;\n  }\n\n  .pa-search {\n    grid-column: 1 / -1;\n  }\n\n  .pa-result-count {\n    position: absolute;\n    right: 0;\n    bottom: -2rem;\n    padding: 0;\n  }\n\n  .pa-grid {\n    grid-template-columns: repeat(2, minmax(0, 1fr));\n    padding-top: 2.65rem;\n  }\n}\n\n@container pattern-atlas (max-width: 34rem) {\n  .pa-grid {\n    grid-template-columns: 1fr;\n  }\n}\n\n@media (max-width: 42.5rem) {\n  .pa-inspector {\n    width: calc(100vw - 1rem) !important;\n    max-width: calc(100vw - 1rem) !important;\n    max-height: calc(100dvh - 1rem);\n    padding: 0.38rem !important;\n  }\n}\n\n@media (prefers-reduced-motion: reduce) {\n  .pa-card {\n    transition: none;\n  }\n\n  .pa-card:hover,\n  .pa-card:has(.pa-card__trigger:focus-visible) {\n    transform: none;\n  }\n}\n}\n';
 
-// ../../../../../plugin-sources/ui-patterns-recovered/app.tsx
+// app.tsx
 function AtlasPluginStyles() {
   return /* @__PURE__ */ jsx("style", { "data-ui-pattern-atlas-styles": "", children: atlasPluginStyles });
 }
