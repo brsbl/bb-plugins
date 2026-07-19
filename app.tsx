@@ -7,7 +7,6 @@ import {
 } from "@bb/plugin-sdk/app";
 
 import type { DoctrineRule, LibraryPayload, rpcContract } from "./server";
-import "./library.css";
 
 type StatusFilter = "active" | "all" | "inactive";
 
@@ -50,33 +49,86 @@ function searchableText(rule: DoctrineRule): string {
     .toLocaleLowerCase();
 }
 
+function StatusBadge({ status }: { status: DoctrineRule["status"] }) {
+  if (status === "active") return null;
+  return (
+    <span
+      className={
+        status === "conflicted"
+          ? "rounded-full bg-destructive/10 px-2 py-0.5 text-[11px] font-medium text-destructive"
+          : "rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground"
+      }
+    >
+      {status}
+    </span>
+  );
+}
+
 function RuleCard({ rule, onOpen }: { rule: DoctrineRule; onOpen: () => void }) {
   return (
-    <article className="dd-card">
-      <button type="button" className="dd-card__button" onClick={onOpen}>
-        <span className="dd-card__domain">{rule.domain}</span>
-        <h2>{rule.title}</h2>
-        <p>{rule.statement}</p>
-        <span className="dd-card__meta">
-          {rule.strength} · {rule.confidence} confidence
-          {rule.status === "active" ? "" : ` · ${rule.status}`}
-        </span>
+    <article className="min-w-0">
+      <button
+        type="button"
+        className="group flex h-full w-full flex-col rounded-xl border border-border bg-card p-4 text-left text-card-foreground shadow-sm transition-colors hover:border-foreground/20 hover:bg-muted/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        onClick={onOpen}
+      >
+        <div className="flex w-full items-center justify-between gap-3">
+          <span className="truncate text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+            {rule.domain}
+          </span>
+          <StatusBadge status={rule.status} />
+        </div>
+        <h2 className="mt-2 text-base font-semibold leading-snug text-foreground">
+          {rule.title}
+        </h2>
+        <p className="mt-1.5 line-clamp-3 text-sm leading-6 text-muted-foreground">
+          {rule.statement}
+        </p>
+        <div className="mt-auto flex w-full items-center gap-2 pt-4 text-[11px] text-muted-foreground">
+          <span>{rule.strength}</span>
+          <span aria-hidden="true">·</span>
+          <span>{rule.confidence} confidence</span>
+          <code className="ml-auto font-mono text-[10px] opacity-70">{rule.id}</code>
+        </div>
       </button>
     </article>
   );
 }
 
-function ListSection({ title, items }: { title: string; items: string[] }) {
+function ListSection({
+  title,
+  items,
+  tone = "neutral",
+}: {
+  title: string;
+  items: string[];
+  tone?: "neutral" | "positive" | "negative";
+}) {
   if (!items.length) return null;
+  const marker = tone === "positive" ? "bg-emerald-600" : tone === "negative" ? "bg-destructive" : "bg-muted-foreground";
   return (
     <section>
-      <h3>{title}</h3>
-      <ul>
+      <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+        {title}
+      </h3>
+      <ul className="mt-2 space-y-2 text-sm leading-6 text-foreground">
         {items.map((item) => (
-          <li key={item}>{item}</li>
+          <li key={item} className="flex gap-2.5">
+            <span className={`mt-2 h-1.5 w-1.5 shrink-0 rounded-full ${marker}`} aria-hidden="true" />
+            <span>{item}</span>
+          </li>
         ))}
       </ul>
     </section>
+  );
+}
+
+function Fact({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="min-w-0">
+      <dt className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">{label}</dt>
+      <dd className="mt-1 break-words text-xs text-foreground">{children}</dd>
+    </div>
   );
 }
 
@@ -101,31 +153,43 @@ function RuleInspector({
   if (!requestedId) return null;
 
   return (
-    <div className="dd-overlay" role="presentation" onMouseDown={onClose}>
+    <div
+      className="fixed inset-0 z-50 flex justify-end bg-foreground/20 p-3 backdrop-blur-[1px]"
+      role="presentation"
+      onMouseDown={onClose}
+    >
       <article
-        className="dd-inspector"
+        className="relative flex h-full max-h-full w-full max-w-2xl flex-col overflow-hidden rounded-xl border border-border bg-background text-foreground shadow-2xl"
         role="dialog"
         aria-modal="true"
-        aria-labelledby="dd-inspector-title"
+        aria-labelledby="doctrine-rule-title"
         onMouseDown={(event) => event.stopPropagation()}
       >
         <button
           type="button"
-          className="dd-icon-button dd-inspector__close"
+          className="absolute right-3 top-3 z-10 grid h-8 w-8 place-items-center rounded-md text-xl leading-none text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           aria-label="Close rule"
           title="Close"
           onClick={onClose}
         >
           ×
         </button>
+
         {rule ? (
-          <div className="dd-inspector__scroll">
-            <header>
-              <span className="dd-card__domain">{rule.domain}</span>
-              <h2 id="dd-inspector-title">{rule.title}</h2>
-              <p className="dd-statement">{rule.statement}</p>
+          <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 pb-10 pt-6 md:px-8 md:pt-8">
+            <header className="border-b border-border pb-6 pr-10">
+              <div className="flex items-center gap-2">
+                <span className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                  {rule.domain}
+                </span>
+                <StatusBadge status={rule.status} />
+              </div>
+              <h2 id="doctrine-rule-title" className="mt-2 text-2xl font-semibold leading-tight tracking-tight">
+                {rule.title}
+              </h2>
+              <p className="mt-3 text-base leading-7 text-muted-foreground">{rule.statement}</p>
               {rule.status !== "active" ? (
-                <p className="dd-status-note">
+                <p className="mt-4 rounded-lg bg-muted px-3 py-2 text-sm text-muted-foreground">
                   {rule.status === "conflicted"
                     ? "This rule is paused because explicit preferences conflict."
                     : "This rule is kept for history and no longer guides work."}
@@ -133,38 +197,52 @@ function RuleInspector({
               ) : null}
             </header>
 
-            <section>
-              <h3>Why</h3>
-              <p>{rule.why}</p>
+            <section className="mt-6">
+              <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Why</h3>
+              <p className="mt-2 text-sm leading-6 text-foreground">{rule.why}</p>
             </section>
 
-            <div className="dd-inspector__columns">
-              <ListSection title="Prefer" items={rule.prefer} />
-              <ListSection title="Avoid" items={rule.avoid} />
+            <div className="mt-7 grid gap-7 md:grid-cols-2">
+              <ListSection title="Prefer" items={rule.prefer} tone="positive" />
+              <ListSection title="Avoid" items={rule.avoid} tone="negative" />
             </div>
-            <div className="dd-inspector__columns">
+            <div className="mt-7 grid gap-7 md:grid-cols-2">
               <ListSection title="Use when" items={rule.use_when} />
               <ListSection title="Do not use when" items={rule.not_when} />
             </div>
 
-            <ListSection title="Exceptions" items={rule.exceptions} />
-            <ListSection title="Evidence" items={rule.evidence} />
-            <ListSection title="Check" items={rule.checks} />
+            <div className="mt-7 space-y-7">
+              <ListSection title="Exceptions" items={rule.exceptions} />
+              <ListSection title="Check" items={rule.checks} />
+            </div>
 
-            <dl className="dd-facts">
-              <div><dt>ID</dt><dd>{rule.id}</dd></div>
-              <div><dt>Kind</dt><dd>{rule.kind}</dd></div>
-              <div><dt>Strength</dt><dd>{rule.strength}</dd></div>
-              <div><dt>Confidence</dt><dd>{rule.confidence}</dd></div>
-              <div><dt>Evidence</dt><dd>{rule.supporting_episodes} supporting · {rule.challenging_episodes} challenging</dd></div>
-              <div><dt>Updated</dt><dd>{rule.updated}</dd></div>
-              <div><dt>Source</dt><dd><code>{rule.canonical_path}</code></dd></div>
+            {rule.evidence.length ? (
+              <section className="mt-7">
+                <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Evidence</h3>
+                <div className="mt-2 space-y-2">
+                  {rule.evidence.map((item) => (
+                    <p key={item} className="rounded-lg bg-muted/60 px-3 py-2.5 text-sm leading-6 text-muted-foreground">
+                      {item}
+                    </p>
+                  ))}
+                </div>
+              </section>
+            ) : null}
+
+            <dl className="mt-8 grid grid-cols-2 gap-x-6 gap-y-4 border-t border-border pt-5 md:grid-cols-3">
+              <Fact label="ID">{rule.id}</Fact>
+              <Fact label="Kind">{rule.kind}</Fact>
+              <Fact label="Strength">{rule.strength}</Fact>
+              <Fact label="Confidence">{rule.confidence}</Fact>
+              <Fact label="Evidence">{rule.supporting_episodes} supporting · {rule.challenging_episodes} challenging</Fact>
+              <Fact label="Updated">{rule.updated}</Fact>
+              <Fact label="Source"><code className="font-mono text-[10px]">{rule.canonical_path}</code></Fact>
             </dl>
           </div>
         ) : (
-          <div className="dd-inspector__missing">
-            <h2 id="dd-inspector-title">Rule not found</h2>
-            <p>{requestedId} is not in this doctrine.</p>
+          <div className="grid min-h-72 place-content-center p-8 text-center">
+            <h2 id="doctrine-rule-title" className="text-lg font-semibold">Rule not found</h2>
+            <p className="mt-1 text-sm text-muted-foreground">{requestedId} is not in this doctrine.</p>
           </div>
         )}
       </article>
@@ -229,27 +307,38 @@ function DoctrineLibrary({ subPath }: { subPath: string }) {
   const selectedRule = library?.rules.find((rule) => rule.id === requestedId) ?? null;
 
   return (
-    <main className="dd-library">
-      <section className="dd-toolbar" aria-label="Filter design doctrine">
+    <main className="flex h-full min-h-0 flex-col bg-background text-foreground">
+      <section className="flex shrink-0 flex-wrap items-center gap-2 border-b border-border bg-background px-4 py-3" aria-label="Filter design doctrine">
         <input
           type="search"
+          className="h-9 min-w-56 flex-1 rounded-lg border border-input bg-background px-3 text-sm text-foreground outline-none placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring"
           aria-label="Search doctrine"
           placeholder="Search rules…"
           value={query}
           onChange={(event) => setQuery(event.currentTarget.value)}
         />
-        <select aria-label="Domain" value={domain} onChange={(event) => setDomain(event.currentTarget.value)}>
+        <select
+          className="h-9 max-w-44 rounded-lg border border-input bg-background px-2.5 text-sm text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          aria-label="Domain"
+          value={domain}
+          onChange={(event) => setDomain(event.currentTarget.value)}
+        >
           <option value="all">All domains</option>
           {library?.domains.map((item) => <option key={item} value={item}>{item}</option>)}
         </select>
-        <select aria-label="Status" value={status} onChange={(event) => setStatus(event.currentTarget.value as StatusFilter)}>
+        <select
+          className="h-9 max-w-44 rounded-lg border border-input bg-background px-2.5 text-sm text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          aria-label="Status"
+          value={status}
+          onChange={(event) => setStatus(event.currentTarget.value as StatusFilter)}
+        >
           <option value="active">Current</option>
           <option value="all">All</option>
           <option value="inactive">Conflicted or retired</option>
         </select>
         <button
           type="button"
-          className="dd-icon-button"
+          className="grid h-9 w-9 shrink-0 place-items-center rounded-lg text-lg text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-wait disabled:opacity-50"
           title="Refresh"
           aria-label="Refresh doctrine"
           disabled={loading}
@@ -257,29 +346,42 @@ function DoctrineLibrary({ subPath }: { subPath: string }) {
         >
           ↻
         </button>
-        <span className="dd-count" role="status">{results.length} {results.length === 1 ? "rule" : "rules"}</span>
+        <span className="ml-auto text-xs tabular-nums text-muted-foreground" role="status">
+          {results.length} {results.length === 1 ? "rule" : "rules"}
+        </span>
       </section>
 
-      {error ? (
-        <div className="dd-empty"><strong>Could not load doctrine</strong><p>{error}</p><button type="button" onClick={() => void load()}>Retry</button></div>
-      ) : loading && !library ? (
-        <div className="dd-empty">Loading…</div>
-      ) : results.length ? (
-        <section className="dd-grid" aria-label="Design doctrine rules">
-          {results.map((rule) => (
-            <RuleCard
-              key={rule.id}
-              rule={rule}
-              onOpen={() => {
-                openedFromLibrary.current = true;
-                navigate.toPluginPanel("library", { subPath: rulePath(rule.id) });
-              }}
-            />
-          ))}
-        </section>
-      ) : (
-        <div className="dd-empty"><strong>No rules found</strong><p>Try a different search or filter.</p></div>
-      )}
+      <div className="min-h-0 flex-1 overflow-y-auto p-4">
+        {error ? (
+          <div className="grid min-h-72 place-content-center text-center">
+            <strong className="text-sm font-semibold">Could not load doctrine</strong>
+            <p className="mt-1 max-w-md text-sm text-muted-foreground">{error}</p>
+            <button type="button" className="mx-auto mt-4 rounded-lg border border-border px-3 py-1.5 text-sm hover:bg-muted" onClick={() => void load()}>
+              Retry
+            </button>
+          </div>
+        ) : loading && !library ? (
+          <div className="grid min-h-72 place-content-center text-sm text-muted-foreground">Loading rules…</div>
+        ) : results.length ? (
+          <section className="mx-auto grid w-full max-w-6xl grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3" aria-label="Design doctrine rules">
+            {results.map((rule) => (
+              <RuleCard
+                key={rule.id}
+                rule={rule}
+                onOpen={() => {
+                  openedFromLibrary.current = true;
+                  navigate.toPluginPanel("library", { subPath: rulePath(rule.id) });
+                }}
+              />
+            ))}
+          </section>
+        ) : (
+          <div className="grid min-h-72 place-content-center text-center">
+            <strong className="text-sm font-semibold">No rules found</strong>
+            <p className="mt-1 text-sm text-muted-foreground">Try a different search or filter.</p>
+          </div>
+        )}
+      </div>
 
       <RuleInspector rule={selectedRule} requestedId={requestedId} onClose={closeInspector} />
     </main>
