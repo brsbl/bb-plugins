@@ -332,7 +332,7 @@ function DomainPills({
           "button",
           {
             type: "button",
-            className: `rounded-full border bg-linear-to-b to-background/75 px-3 py-1 text-xs font-medium text-foreground shadow-xs backdrop-blur-sm transition-colors hover:to-background/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background ${selected ? `${style.selected} ${style.gradientSelected}` : `${style.idle} ${style.gradientIdle}`}`,
+            className: `cursor-pointer rounded-full border bg-linear-to-b to-background/75 px-3 py-1 text-xs font-medium text-foreground shadow-xs backdrop-blur-sm transition-colors hover:to-background/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background ${selected ? `${style.selected} ${style.gradientSelected}` : `${style.idle} ${style.gradientIdle}`}`,
             "aria-label": domain === "all" ? "Show all domains" : `Show ${label} domain`,
             "aria-pressed": selected,
             onClick: () => onSelect(domain),
@@ -362,7 +362,7 @@ function DomainIdentifierPill({
     "button",
     {
       type: "button",
-      className: `inline-flex max-w-full items-center rounded-full border bg-linear-to-r px-2 py-0.5 text-[11px] font-medium leading-4 text-foreground shadow-xs backdrop-blur-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background ${selected ? style.selected : style.idle} ${gradientStyle}`,
+      className: `inline-flex max-w-full cursor-pointer items-center rounded-full border bg-linear-to-r px-2 py-0.5 text-[11px] font-medium leading-4 text-foreground shadow-xs backdrop-blur-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background ${selected ? style.selected : style.idle} ${gradientStyle}`,
       "aria-label": `Filter rules by ${filterDomain} domain`,
       "aria-pressed": selected,
       onClick: () => onSelect(filterDomain),
