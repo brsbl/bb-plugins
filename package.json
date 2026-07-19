@@ -35,6 +35,7 @@
     "search.ts",
     "pattern-previews.tsx",
     "plugin-styles.ts",
+    "upstream-adapters/",
     "generated/atlas-registry.v2.json",
     "gallery.css",
     "standalone.tsx",
