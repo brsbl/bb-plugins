@@ -14650,6 +14650,20 @@ function normalizeMessage(value) {
   const normalized = value.replace(/\r\n?/g, "\n").split("\n").map((line) => line.replace(/[\t ]+/g, " ").trim()).join("\n").replace(/\n{3,}/g, "\n\n").trim();
   return normalized.length > 1600 ? `${normalized.slice(0, 1599).trimEnd()}\u2026` : normalized;
 }
+function latestAssistantMessage(timeline) {
+  for (let rowIndex = timeline.rows.length - 1; rowIndex >= 0; rowIndex -= 1) {
+    const row = timeline.rows[rowIndex];
+    if (!row) continue;
+    const visibleRows = row.kind === "turn" ? row.children ?? [] : [row];
+    for (let visibleIndex = visibleRows.length - 1; visibleIndex >= 0; visibleIndex -= 1) {
+      const visibleRow = visibleRows[visibleIndex];
+      if (visibleRow?.kind === "conversation" && visibleRow.role === "assistant" && visibleRow.text.trim().length > 0) {
+        return visibleRow.text;
+      }
+    }
+  }
+  return null;
+}
 function repositoryName(remoteUrl, fallback) {
   if (!remoteUrl) return fallback;
   const scpPath = remoteUrl.match(/^[^@]+@[^:]+:(.+)$/)?.[1];
@@ -14954,24 +14968,31 @@ function plugin(bb) {
           ),
           { unavailableWhenNull: true }
         );
-        const outputPromise = measureStage(
+        const messageTimelinePromise = measureStage(
           recorder,
-          "output",
+          "messageTimeline",
           () => within(
-            safely(bb.sdk.threads.output({ signal, threadId })),
+            safely(
+              bb.sdk.threads.timeline({
+                includeNestedRows: "true",
+                segmentLimit: "1",
+                signal,
+                threadId
+              })
+            ),
             remainingMs()
           ),
           { unavailableWhenNull: true }
         );
-        const [projectResult, executionOptions, threadOutput] = await Promise.all([
+        const [projectResult, executionOptions, messageTimeline] = await Promise.all([
           projectPromise,
           executionOptionsPromise,
-          outputPromise
+          messageTimelinePromise
         ]);
         const project = projectResult.value;
         const isGitRepository = environment?.isGitRepo ?? project?.gitRemoteUrl != null;
         const normalizedAssistantMessage = normalizeMessage(
-          threadOutput?.output ?? ""
+          messageTimeline ? latestAssistantMessage(messageTimeline) ?? "" : ""
         );
         const diagnostics = finishDiagnostics(recorder);
         recordDiagnostics(bb, "threadSummary", threadId, diagnostics);
