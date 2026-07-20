@@ -1,12 +1,12 @@
 import type { BbPluginApi } from "@bb/plugin-sdk";
-import { cliCommandInfo, runAtlasCli } from "./runtime-cli.js";
-import { registerProviderRpc } from "./providers/rpc.js";
+import { cliCommandInfo, runAtlasCli } from "./atlas-cli-v5.js";
+import { registerProviderRpc } from "./providers/rpc-v2.js";
 
 export default async function plugin(bb: BbPluginApi) {
   registerProviderRpc(bb);
   bb.cli.register({
     name: "ui-patterns",
-    summary: "Search and inspect the Pattern Atlas UI vocabulary",
+    summary: "Search and inspect the approved-source UI Pattern Atlas",
     commands: cliCommandInfo.map((command) => ({
       name: command.name,
       summary: command.summary,
@@ -16,6 +16,6 @@ export default async function plugin(bb: BbPluginApi) {
       return runAtlasCli(argv);
     },
   });
-  bb.log.info("UI Patterns provider index loaded");
-  bb.onDispose(() => bb.log.info("UI Patterns provider index disposed"));
+  bb.log.info("UI Pattern Atlas generated index loaded");
+  bb.onDispose(() => bb.log.info("UI Pattern Atlas generated index disposed"));
 }

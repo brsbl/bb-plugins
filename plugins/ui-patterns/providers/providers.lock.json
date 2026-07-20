@@ -1,7 +1,9 @@
 {
-  "schemaVersion": "1",
+  "schemaVersion": "2",
   "inputs": {
-    "govuk-design-system": "c35023510a47416c7535c780ee6bc58124d60d9acb3a6d29819ba8d9ddca1f29",
-    "uswds": "f938d2fc8df73f77634cf0f59e389c669da7ae0130537548ca5f0326e9a43d7c"
+    "aria-apg": "b93c214dfd921831c4755de86c418226f1043cd92680233541bcc24418ac0c9d",
+    "assistant-ui": "d06fb88cde25316298ce874dede502b889386ecf8faf0fae5b44577807a1ad87",
+    "base-ui": "3dd313fe593136aef3d89ef6e7ed5aca2ffc1e301e859c0c3b3cf61d0eafb2f3",
+    "shadcn-ui": "adb049596a7c1f7f06a51887d76eb51d5f57ad63adca95ffe668f1d595d77d14"
   }
 }

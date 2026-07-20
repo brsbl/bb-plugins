@@ -1,11 +1,9 @@
 import type { ProviderDefinition } from "../schema.js";
-import { govukDesignSystemAdapter } from "./govuk-design-system.js";
+import { sourceRecordsAdapter } from "./source-records.js";
 import type { ProviderAdapter } from "./types.js";
-import { uswdsAdapter } from "./uswds.js";
 
 const adapters = new Map<ProviderDefinition["adapter"], ProviderAdapter>([
-  [govukDesignSystemAdapter.id, govukDesignSystemAdapter],
-  [uswdsAdapter.id, uswdsAdapter],
+  [sourceRecordsAdapter.id, sourceRecordsAdapter],
 ]);
 
 export function adapterFor(definition: ProviderDefinition): ProviderAdapter {

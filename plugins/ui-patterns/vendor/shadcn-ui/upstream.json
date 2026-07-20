@@ -1,0 +1,20 @@
+{
+  "repository": "https://github.com/shadcn-ui/ui",
+  "revision": "d28738b183c5eaa69d8d540826e450f30d39ab6c",
+  "registryPath": "apps/v4/registry/bases/base",
+  "demoPath": "apps/v4/examples/base",
+  "uiFileCount": 60,
+  "uiTreeSha256": "024ac9ef78014ce13971008bc1dbceff7698d1262130715ebd6ae994dfdda24e",
+  "demoFileCount": 69,
+  "demoTreeSha256": "a02f4359f9601c46561f1a467b58aad21070bb300508dd1a18c118074ff1a3d5",
+  "stylePaths": {
+    "globals": "apps/v4/app/globals.css",
+    "nova": "apps/v4/registry/styles/style-nova.css",
+    "tailwind": "packages/shadcn/src/tailwind.css"
+  },
+  "styleSha256": {
+    "globals": "cbae6d633c38be59fc036d1e5cf60203ae7619ea6af9b4cdd8d632a211ccffa9",
+    "nova": "8f923185fe46a8427a8c0c4f7c9312584b53f420328d0430a2e542d4877ea320",
+    "tailwind": "bc7d83425702955b4cb67cb14ede9d603f9d912376d57a2d81d661094d2a782a"
+  }
+}

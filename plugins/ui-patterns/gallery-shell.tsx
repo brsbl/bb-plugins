@@ -1,26 +1,21 @@
 import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import {
-  filterSourceItems,
-  freshnessLabel,
-  groupSourceItemsByExactTitle,
-  mayDisplayExcerpt,
+  atlasEntryForRecordId,
+  filterAtlasEntries,
+  galleryImplementationRecords,
+  galleryProviderIds,
   providerById,
-  sourceItemById,
+  recordsForEntry,
+  sourceRecordById,
   type SourceBrowserFilters,
 } from "./source-browser-model.js";
+import type { AtlasEntry } from "./providers/schema.js";
 import type {
+  LibraryProvider,
   SourceBrowserSnapshot,
-  SourceItem,
-} from "./providers/source-browser.js";
+  SourceRecord,
+} from "./providers/source-browser-v2.js";
 import { Button } from "./components/ui/button.js";
-import { Card } from "./components/ui/card.js";
-import {
-  Dialog,
-  DialogClose,
-  DialogContent,
-  DialogDescription,
-  DialogTitle,
-} from "./components/ui/dialog.js";
 import { Icon } from "./components/ui/icon.js";
 import { Input } from "./components/ui/input.js";
 import {
@@ -30,226 +25,134 @@ import {
   SelectTrigger,
   SelectValue,
 } from "./components/ui/select.js";
+import {
+  galleryPreviewsForRecords,
+  LiveComponentPreview,
+} from "./live-component-previews.js";
 
 export interface GalleryNavigation {
   entryId: string | null;
   /** A legacy Atlas id translated to a neutral source query. */
   legacyQuery?: string | null;
   openEntry: (id: string) => void;
+  replaceEntry?: (id: string) => void;
   closeInspector: () => void;
-}
-
-const contentKindLabels = {
-  component: "Component",
-  pattern: "Pattern",
-  guidance: "Guidance",
-  unknown: "Other",
-} as const;
-const focusRestoreStorageKey = "ui-pattern-atlas:source-focus-restore";
-let pendingFocusRestoreId: string | null = null;
-
-function storedFocusRestoreId() {
-  if (typeof window === "undefined") return null;
-  try {
-    return window.sessionStorage.getItem(focusRestoreStorageKey);
-  } catch {
-    return null;
-  }
-}
-
-function rememberFocusRestoreId(id: string) {
-  pendingFocusRestoreId = id;
-  try {
-    window.sessionStorage.setItem(focusRestoreStorageKey, id);
-  } catch {
-    // Keep the module value when storage is unavailable in an isolated host.
-  }
-}
-
-function clearStoredFocusRestoreId() {
-  pendingFocusRestoreId = null;
-  try {
-    window.sessionStorage.removeItem(focusRestoreStorageKey);
-  } catch {
-    // No-op when storage is unavailable.
-  }
 }
 
 function externalLinkProps(url: string) {
   return { href: url, target: "_blank", rel: "noreferrer" };
 }
 
-function SourceItemMetadata({
-  item,
-  library,
-}: {
-  item: SourceItem;
-  library: string;
-}) {
-  return (
-    <dl className="grid gap-2 text-sm sm:grid-cols-2">
-      <div className="min-w-0">
-        <dt className="text-xs font-medium text-muted-foreground">Library</dt>
-        <dd className="mt-0.5 truncate text-foreground">{library}</dd>
-      </div>
-      <div className="min-w-0">
-        <dt className="text-xs font-medium text-muted-foreground">Native kind</dt>
-        <dd className="mt-0.5 text-foreground">{contentKindLabels[item.contentKind]}</dd>
-      </div>
-      <div className="min-w-0">
-        <dt className="text-xs font-medium text-muted-foreground">Section</dt>
-        <dd className="mt-0.5 truncate text-foreground">{item.sourceSection ?? "Not supplied"}</dd>
-      </div>
-      <div className="min-w-0">
-        <dt className="text-xs font-medium text-muted-foreground">Freshness</dt>
-        <dd className="mt-0.5 text-foreground">{freshnessLabel(item)}</dd>
-      </div>
-    </dl>
-  );
+function plural(count: number, singular: string, pluralForm = `${singular}s`) {
+  return `${count} ${count === 1 ? singular : pluralForm}`;
 }
 
-function SourceLinks({ item }: { item: SourceItem }) {
-  const links = new Map(item.links.map((link) => [link.kind, link.url]));
+function providerName(
+  providerId: string,
+  providers: ReadonlyMap<string, LibraryProvider>,
+) {
+  return providers.get(providerId)?.name ?? providerId;
+}
+
+function ExampleLinks({
+  record,
+}: {
+  record: SourceRecord;
+}) {
+  const examples = record.examples.filter(
+    ({ url }) => url !== record.canonicalUrl,
+  );
+  if (!examples.length) return null;
 
   return (
-    <div className="flex flex-wrap gap-2" aria-label="Canonical source links">
-      <Button asChild size="sm" variant="outline">
-        <a {...externalLinkProps(item.canonicalUrl)}>
-          Documentation <Icon name="ArrowUpRight" className="size-3.5" aria-hidden="true" />
-        </a>
-      </Button>
-      {(["example", "code"] as const).map((kind) => {
-        const url = links.get(kind);
-        if (!url) return null;
-        return (
-          <Button asChild key={kind} size="sm" variant="outline">
-            <a {...externalLinkProps(url)}>
-              {kind === "example" ? "Example" : "Code"}
-              <Icon name="ArrowUpRight" className="size-3.5" aria-hidden="true" />
+    <section className="grid gap-2" aria-label={`${record.name} examples`}>
+      <h4 className="text-xs font-medium text-muted-foreground">Examples</h4>
+      <ul className="grid gap-1.5">
+        {examples.map((example) => (
+          <li key={`${example.nativeId}:${example.url}`}>
+            <a
+              className="group inline-flex cursor-pointer items-start gap-1.5 text-sm text-foreground underline-offset-4 hover:underline"
+              {...externalLinkProps(example.url)}
+            >
+              <span>{example.title}</span>
+              <Icon
+                name="ArrowUpRight"
+                className="mt-0.5 size-3.5 shrink-0 text-muted-foreground transition-colors group-hover:text-foreground"
+                aria-hidden="true"
+              />
             </a>
-          </Button>
-        );
-      })}
-    </div>
+          </li>
+        ))}
+      </ul>
+    </section>
   );
 }
 
-function SourceItemCard({
-  item,
-  library,
-  onOpen,
+function ImplementationDetail({
+  record,
+  provider,
 }: {
-  item: SourceItem;
-  library: string;
-  onOpen: (id: string) => void;
+  record: SourceRecord;
+  provider: LibraryProvider | undefined;
 }) {
   return (
-    <Card className="min-w-0 shadow-sm transition-colors hover:bg-muted/40 focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2" role="article">
-      <button
-        className="flex w-full flex-col gap-3 p-4 text-left outline-none"
-        type="button"
-        aria-label={`Open ${item.title} from ${library}`}
-        data-source-item-id={item.id}
-        onClick={() => onOpen(item.id)}
-      >
-        <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0">
-            <h2 className="truncate text-sm font-semibold text-foreground">{item.title}</h2>
-            <p className="mt-1 text-xs text-muted-foreground">{library}</p>
-          </div>
-          <span className="shrink-0 rounded-full border border-border px-2 py-0.5 text-xs text-muted-foreground">
-            {contentKindLabels[item.contentKind]}
-          </span>
-        </div>
-        <p className="line-clamp-1 text-sm text-muted-foreground">
-          {item.sourceSection ?? "No native section supplied"}
-        </p>
-        {mayDisplayExcerpt(item) ? (
-          <p className="line-clamp-3 text-sm leading-6 text-foreground">
-            <span className="font-medium">Licensed excerpt: </span>
-            {item.excerpt}
+    <section
+      className="grid gap-4"
+      aria-label={`${provider?.name ?? record.provenance.providerId} source detail`}
+    >
+      <div className="grid gap-1">
+        <h3 className="text-sm font-medium text-foreground">
+          About this {provider?.name ?? record.provenance.providerId} implementation
+        </h3>
+        {record.summary ? (
+          <p className="text-sm leading-6 text-muted-foreground">
+            {record.summary.text}
           </p>
         ) : null}
-        <div className="flex items-center justify-between gap-3 text-xs text-muted-foreground">
-          <span>{freshnessLabel(item)}</span>
-          <span className="truncate">{item.id}</span>
-        </div>
-      </button>
-    </Card>
-  );
-}
-
-function SourceDetail({
-  item,
-  library,
-  dialog = false,
-}: {
-  item: SourceItem;
-  library: string;
-  dialog?: boolean;
-}) {
-  const title = `${item.title} — ${library}`;
-  const titleElement = dialog ? (
-    <DialogTitle className="pr-8 text-base">{title}</DialogTitle>
-  ) : (
-    <h2 className="pr-8 text-base font-semibold">{title}</h2>
-  );
-
-  return (
-    <div className="grid gap-5">
-      <div className="grid gap-1">
-        {titleElement}
-        {dialog ? (
-          <DialogDescription>{item.id}</DialogDescription>
-        ) : (
-          <p className="text-sm text-muted-foreground">{item.id}</p>
-        )}
       </div>
-      <SourceItemMetadata item={item} library={library} />
-      {mayDisplayExcerpt(item) ? (
-        <section className="grid gap-1.5 rounded-md border border-border bg-muted/40 p-3" aria-label="Licensed upstream excerpt">
-          <p className="text-xs font-medium text-muted-foreground">Licensed excerpt</p>
-          <p className="text-sm leading-6 text-foreground">{item.excerpt}</p>
-        </section>
-      ) : null}
-      <SourceLinks item={item} />
-      <p className="text-xs text-muted-foreground">
-        Upstream revision {item.provenance.upstreamRevision}
-      </p>
-    </div>
+      <ExampleLinks record={record} />
+    </section>
   );
 }
 
-function SourceInspector({
-  snapshot,
-  entryId,
-  onClose,
+function AccessibilityDetail({
+  record,
 }: {
-  snapshot: SourceBrowserSnapshot;
-  entryId: string | null;
-  onClose: () => void;
+  record: SourceRecord;
 }) {
-  const item = sourceItemById(snapshot, entryId);
-  const providers = providerById(snapshot.providers);
+  const sections = record.sections.filter(
+    (section): section is typeof section & { content: string } =>
+      section.content !== null,
+  );
+  if (!sections.length && !record.examples.length) return null;
 
   return (
-    <Dialog open={Boolean(entryId)} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-h-[calc(100dvh-2rem)] max-w-xl overflow-y-auto">
-        {item ? (
-          <SourceDetail item={item} library={providers.get(item.providerId)?.name ?? item.providerId} dialog />
-        ) : (
-          <div className="grid gap-3">
-            <DialogTitle>Source item not found</DialogTitle>
-            <DialogDescription>
-              This link no longer matches an item in the current provider snapshot.
-            </DialogDescription>
-            <DialogClose asChild>
-              <Button className="w-fit" variant="outline">Return to sources</Button>
-            </DialogClose>
-          </div>
-        )}
-      </DialogContent>
-    </Dialog>
+    <section
+      className="grid gap-4 border-t border-border pt-5"
+      aria-label="Additive WAI-ARIA APG guidance"
+    >
+      <div className="grid gap-1">
+        <h3 className="text-sm font-medium text-foreground">
+          Accessibility guidance
+        </h3>
+        <p className="text-xs text-muted-foreground">
+          Paired guidance from the WAI-ARIA Authoring Practices Guide.
+        </p>
+      </div>
+      <div className="grid gap-5">
+        {sections.map((section) => (
+          <section key={section.nativeId} className="grid gap-2">
+            <h4 className="text-xs font-medium text-muted-foreground">
+              {section.title}
+            </h4>
+            <p className="whitespace-pre-line text-sm leading-6 text-foreground">
+              {section.content}
+            </p>
+          </section>
+        ))}
+      </div>
+      <ExampleLinks record={record} />
+    </section>
   );
 }
 
@@ -258,6 +161,234 @@ function EmptyState({ children }: { children: ReactNode }) {
     <div className="grid min-h-40 place-items-center rounded-lg border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
       {children}
     </div>
+  );
+}
+
+function GalleryCard({
+  entry,
+  records,
+  providers,
+  onOpen,
+}: {
+  entry: AtlasEntry;
+  records: readonly SourceRecord[];
+  providers: ReadonlyMap<string, LibraryProvider>;
+  onOpen: (id: string) => void;
+}) {
+  const [implementation] = galleryPreviewsForRecords(records);
+  if (!implementation) return null;
+
+  const sourceName = providerName(
+    implementation.record.provenance.providerId,
+    providers,
+  );
+  const headingId = `gallery-card-${implementation.record.id.replace(
+    /[^a-zA-Z0-9_-]/g,
+    "-",
+  )}`;
+
+  return (
+    <article
+      className="min-w-0 overflow-hidden rounded-xl border border-border bg-card text-card-foreground shadow-sm"
+      data-gallery-card=""
+      data-source-item-id={implementation.record.id}
+      aria-labelledby={headingId}
+    >
+      <button
+        type="button"
+        className="group flex w-full cursor-pointer items-start justify-between gap-3 px-4 py-3 text-left outline-none transition-colors hover:bg-muted/50 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+        onClick={() => onOpen(implementation.record.id)}
+        aria-label={`Open ${entry.name} details`}
+      >
+        <span className="min-w-0">
+          <span
+            id={headingId}
+            className="block truncate text-sm font-semibold text-foreground"
+          >
+            {entry.name}
+          </span>
+          <span className="mt-0.5 block truncate text-xs text-muted-foreground">
+            {sourceName}
+          </span>
+        </span>
+        <Icon
+          name="ChevronRight"
+          className="mt-1 size-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5 group-hover:text-foreground"
+          aria-hidden="true"
+        />
+      </button>
+      <LiveComponentPreview
+        definition={implementation.preview}
+        size="card"
+      />
+    </article>
+  );
+}
+
+function ImplementationSwitcher({
+  previews,
+  providers,
+  selectedSourceRecordId,
+  onSelect,
+}: {
+  previews: ReturnType<typeof galleryPreviewsForRecords>;
+  providers: ReadonlyMap<string, LibraryProvider>;
+  selectedSourceRecordId: string;
+  onSelect: (id: string) => void;
+}) {
+  if (previews.length < 2) return null;
+
+  return (
+    <div
+      className="flex w-fit max-w-full flex-wrap gap-1 rounded-lg bg-muted p-1"
+      role="group"
+      aria-label="Implementation"
+    >
+      {previews.map(({ record, preview }) => {
+        const selected = record.id === selectedSourceRecordId;
+        return (
+          <button
+            key={record.id}
+            type="button"
+            aria-pressed={selected}
+            className={`cursor-pointer rounded-md px-3 py-1.5 text-sm outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring ${
+              selected
+                ? "bg-background text-foreground shadow-sm"
+                : "text-muted-foreground hover:text-foreground"
+            }`}
+            onClick={() => onSelect(record.id)}
+          >
+            {providerName(record.provenance.providerId, providers)}
+            <span className="sr-only"> — {preview.runtimeLabel}</span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+function EntryViewer({
+  entry,
+  records,
+  providers,
+  preferredSourceRecordId,
+  onSelectSource,
+  onBack,
+}: {
+  entry: AtlasEntry;
+  records: readonly SourceRecord[];
+  providers: ReadonlyMap<string, LibraryProvider>;
+  preferredSourceRecordId?: string | null;
+  onSelectSource?: (id: string) => void;
+  onBack: () => void;
+}) {
+  const previews = galleryPreviewsForRecords(records);
+  const [selectedPreviewId, setSelectedPreviewId] = useState<string | null>(null);
+  const selectedPreview =
+    previews.find(({ record }) => record.id === selectedPreviewId) ??
+    previews.find(({ record }) => record.id === preferredSourceRecordId) ??
+    previews.find(({ record }) => record.provenance.providerId === "shadcn-ui") ??
+    previews[0];
+  const guidanceRecords = records.filter(
+    (record) =>
+      record.provenance.providerId === "aria-apg" &&
+      record.sections.some(({ content }) => content !== null),
+  );
+
+  if (!selectedPreview) {
+    return (
+      <div className="grid gap-4 p-4">
+        <Button
+          className="w-fit"
+          type="button"
+          variant="ghost"
+          size="sm"
+          onClick={onBack}
+        >
+          <Icon name="ChevronLeft" className="size-4" aria-hidden="true" />
+          Back to UI Patterns
+        </Button>
+        <EmptyState>
+          This retained source record does not have a visual gallery
+          implementation. Browse the shadcn/ui and assistant-ui cards instead.
+        </EmptyState>
+      </div>
+    );
+  }
+
+  function selectImplementation(id: string) {
+    setSelectedPreviewId(id);
+    onSelectSource?.(id);
+  }
+
+  return (
+    <article className="mx-auto grid w-full max-w-6xl gap-5 pb-6">
+      <header className="sticky top-0 z-20 grid gap-3 border-b border-border bg-background px-4 py-3">
+        <Button
+          className="-ml-2 w-fit"
+          type="button"
+          variant="ghost"
+          size="sm"
+          onClick={onBack}
+        >
+          <Icon name="ChevronLeft" className="size-4" aria-hidden="true" />
+          Back to UI Patterns
+        </Button>
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="min-w-0">
+            <h2 className="text-lg font-semibold tracking-tight">
+              {entry.name}
+            </h2>
+            <p className="mt-0.5 text-xs text-muted-foreground">
+              {providerName(
+                selectedPreview.record.provenance.providerId,
+                providers,
+              )}
+            </p>
+          </div>
+          <a
+            className="inline-flex cursor-pointer items-center gap-1 text-sm text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
+            {...externalLinkProps(selectedPreview.record.canonicalUrl)}
+          >
+            Documentation
+            <Icon name="ArrowUpRight" className="size-3.5" aria-hidden="true" />
+          </a>
+        </div>
+        <ImplementationSwitcher
+          previews={previews}
+          providers={providers}
+          selectedSourceRecordId={selectedPreview.record.id}
+          onSelect={selectImplementation}
+        />
+      </header>
+
+      <div className="grid gap-5 px-4">
+        <section
+          className="grid gap-3"
+          aria-label={`${entry.name} interactive preview`}
+        >
+          <LiveComponentPreview
+            key={selectedPreview.record.id}
+            definition={selectedPreview.preview}
+          />
+        </section>
+
+        <section
+          className="grid gap-5 border-t border-border pt-5"
+          aria-label="Source guidance and examples"
+        >
+          <ImplementationDetail
+            record={selectedPreview.record}
+            provider={providers.get(
+              selectedPreview.record.provenance.providerId,
+            )}
+          />
+          {guidanceRecords.map((record) => (
+            <AccessibilityDetail key={record.id} record={record} />
+          ))}
+        </section>
+      </div>
+    </article>
   );
 }
 
@@ -275,124 +406,204 @@ export function GalleryShell({
   const [filters, setFilters] = useState<SourceBrowserFilters>({
     query: navigation.legacyQuery ?? "",
     providerId: "all",
-    contentKind: "all",
   });
   const searchRef = useRef<HTMLInputElement>(null);
-  const focusRestoreId = useRef<string | null>(null);
-  const previousEntryId = useRef<string | null>(navigation.entryId);
-  const providers = useMemo(() => providerById(snapshot.providers), [snapshot.providers]);
-  const results = useMemo(
-    () => filterSourceItems(snapshot.items, filters),
-    [filters, snapshot.items],
+  const focusRestoreSourceIdRef = useRef<string | null>(null);
+  const previousEntryIdRef = useRef(navigation.entryId);
+  const providers = useMemo(
+    () => providerById(snapshot.providers),
+    [snapshot.providers],
   );
-  const groups = useMemo(() => groupSourceItemsByExactTitle(results), [results]);
-
-  useEffect(() => {
-    const storedRestoreId = storedFocusRestoreId();
-    if (!navigation.entryId && (previousEntryId.current || pendingFocusRestoreId || storedRestoreId)) {
-      const restoreId = focusRestoreId.current ?? pendingFocusRestoreId ?? storedRestoreId;
-      focusRestoreId.current = null;
-      clearStoredFocusRestoreId();
-      window.requestAnimationFrame(() => {
-        const escapedId = window.CSS?.escape?.(restoreId ?? "") ?? restoreId ?? "";
-        const card = escapedId
-          ? document.querySelector<HTMLButtonElement>(`[data-source-item-id="${escapedId}"]`)
-          : null;
-        const target = card ?? searchRef.current;
-        target?.focus();
-      });
-    }
-    previousEntryId.current = navigation.entryId;
-  }, [navigation.entryId]);
+  const records = useMemo(
+    () => sourceRecordById(snapshot.records),
+    [snapshot.records],
+  );
+  const results = useMemo(
+    () => filterAtlasEntries(snapshot, filters),
+    [filters, snapshot],
+  );
+  const routedEntry = atlasEntryForRecordId(snapshot, navigation.entryId);
+  const routedEntryRecords = routedEntry
+    ? recordsForEntry(routedEntry, records)
+    : [];
+  const galleryProviders = galleryProviderIds.flatMap((providerId) => {
+    const provider = providers.get(providerId);
+    return provider ? [provider] : [];
+  });
 
   useEffect(() => {
     if (!navigation.legacyQuery) return;
-    setFilters((current) => ({ ...current, query: navigation.legacyQuery ?? current.query }));
+    setFilters((current) => ({
+      ...current,
+      query: navigation.legacyQuery ?? current.query,
+    }));
   }, [navigation.legacyQuery]);
 
+  useEffect(() => {
+    const wasOpen = previousEntryIdRef.current !== null;
+    previousEntryIdRef.current = navigation.entryId;
+    if (!wasOpen || navigation.entryId !== null) return;
+
+    const sourceRecordId = focusRestoreSourceIdRef.current;
+    if (!sourceRecordId || typeof document === "undefined") return;
+    const frame = requestAnimationFrame(() => {
+      const card = Array.from(
+        document.querySelectorAll<HTMLElement>("[data-source-item-id]"),
+      ).find(
+        (candidate) => candidate.dataset.sourceItemId === sourceRecordId,
+      );
+      card?.querySelector<HTMLButtonElement>("button")?.focus();
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [navigation.entryId]);
+
   function openEntry(id: string) {
-    focusRestoreId.current = id;
-    rememberFocusRestoreId(id);
+    focusRestoreSourceIdRef.current = id;
     navigation.openEntry(id);
   }
 
-  if (mode === "panel" && navigation.entryId) {
-    const item = sourceItemById(snapshot, navigation.entryId);
+  if (navigation.entryId) {
     return (
-      <main className="grid gap-4 p-4" aria-label="Source detail">
-        <Button className="w-fit" type="button" variant="ghost" size="sm" onClick={navigation.closeInspector}>
-          <Icon name="ChevronLeft" className="size-4" aria-hidden="true" /> Back to sources
-        </Button>
-        {item ? (
-          <SourceDetail item={item} library={providers.get(item.providerId)?.name ?? item.providerId} />
+      <main
+        className="h-full min-h-0 overflow-y-auto"
+        aria-label="UI Pattern detail"
+      >
+        {routedEntry ? (
+          <EntryViewer
+            entry={routedEntry}
+            records={routedEntryRecords}
+            providers={providers}
+            preferredSourceRecordId={navigation.entryId}
+            onSelectSource={navigation.replaceEntry}
+            onBack={navigation.closeInspector}
+          />
         ) : (
-          <EmptyState>This source item is not present in the current provider snapshot.</EmptyState>
+          <div className="grid gap-4 p-4">
+            <Button
+              className="w-fit"
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={navigation.closeInspector}
+            >
+              <Icon name="ChevronLeft" className="size-4" aria-hidden="true" />
+              Back to UI Patterns
+            </Button>
+            <EmptyState>
+              This source-native record is not present in the current snapshot.
+            </EmptyState>
+          </div>
         )}
       </main>
     );
   }
 
   return (
-    <main className="mx-auto grid w-full max-w-6xl gap-5 p-4 sm:p-5" aria-label="UI pattern sources">
-      {showTitle ? <h1 className="text-lg font-semibold tracking-tight">UI pattern sources</h1> : null}
-      {navigation.legacyQuery ? (
-        <p className="rounded-md border border-border bg-muted/40 px-3 py-2 text-sm text-muted-foreground" role="status">
-          Legacy Atlas link: showing upstream candidates for “{navigation.legacyQuery}”.
-        </p>
-      ) : null}
-      <section className="grid gap-3 border-b border-border pb-4 sm:grid-cols-2 lg:grid-cols-[minmax(16rem,1fr)_12rem_10rem_auto]" aria-label="Filter sources">
-        <div className="relative">
-          <Icon name="Search" className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
-          <Input
-            ref={searchRef}
-            id="source-search"
-            type="search"
-            aria-label="Search sources"
-            placeholder="Search upstream sources"
-            className="h-9 pl-9"
-            value={filters.query}
-            onChange={(event) => setFilters((current) => ({ ...current, query: event.currentTarget.value }))}
-          />
-        </div>
-        <label className="grid gap-1 text-xs font-medium text-muted-foreground">
-          Library
-          <Select value={filters.providerId} onValueChange={(providerId) => setFilters((current) => ({ ...current, providerId }))}>
-            <SelectTrigger className="h-9 text-foreground" aria-label="Filter by library"><SelectValue /></SelectTrigger>
+    <main
+      className={`flex w-full flex-col overflow-hidden ${
+        showTitle ? "h-screen min-h-0" : "h-full min-h-0"
+      }`}
+      aria-label="UI Pattern Atlas"
+      data-gallery-mode={mode}
+    >
+      <header className="grid shrink-0 gap-3 border-b border-border bg-background p-4">
+        {showTitle ? (
+          <h1 className="text-lg font-semibold tracking-tight">
+            UI Pattern Atlas
+          </h1>
+        ) : null}
+        {navigation.legacyQuery ? (
+          <p
+            className="rounded-md border border-border bg-muted/40 px-3 py-2 text-sm text-muted-foreground"
+            role="status"
+          >
+            Legacy Atlas link: showing matches for “{navigation.legacyQuery}”.
+          </p>
+        ) : null}
+        <section
+          className="grid gap-3 sm:grid-cols-[minmax(12rem,1fr)_10rem_auto]"
+          aria-label="Find components"
+        >
+          <div className="relative">
+            <Icon
+              name="Search"
+              className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
+              aria-hidden="true"
+            />
+            <Input
+              ref={searchRef}
+              id="source-search"
+              type="search"
+              aria-label="Search components"
+              placeholder="Search UI patterns"
+              className="h-9 pl-9"
+              value={filters.query}
+              onChange={(event) => {
+                const query = event.currentTarget.value;
+                setFilters((current) => ({ ...current, query }));
+              }}
+            />
+          </div>
+          <Select
+            value={filters.providerId}
+            onValueChange={(providerId) =>
+              setFilters((current) => ({ ...current, providerId }))
+            }
+          >
+            <SelectTrigger
+              className="h-9 text-foreground"
+              aria-label="Filter by library"
+            >
+              <SelectValue />
+            </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All libraries</SelectItem>
-              {snapshot.providers.map((provider) => <SelectItem key={provider.id} value={provider.id}>{provider.name}</SelectItem>)}
+              {galleryProviders.map((provider) => (
+                <SelectItem key={provider.id} value={provider.id}>
+                  {provider.name}
+                </SelectItem>
+              ))}
             </SelectContent>
           </Select>
-        </label>
-        <label className="grid gap-1 text-xs font-medium text-muted-foreground">
-          Native kind
-          <Select value={filters.contentKind} onValueChange={(contentKind) => setFilters((current) => ({ ...current, contentKind: contentKind as SourceBrowserFilters["contentKind"] }))}>
-            <SelectTrigger className="h-9 text-foreground" aria-label="Filter by native kind"><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All kinds</SelectItem>
-              {Object.entries(contentKindLabels).map(([value, label]) => <SelectItem key={value} value={value}>{label}</SelectItem>)}
-            </SelectContent>
-          </Select>
-        </label>
-        <p className="self-end pb-2 text-right text-xs text-muted-foreground" role="status" aria-live="polite">
-          {results.length} {results.length === 1 ? "source" : "sources"}
-        </p>
-      </section>
-      {groups.length ? (
-        <section className="grid gap-6" id="pattern-results" aria-label="Source results">
-          {groups.map((group) => (
-            <section key={group.title} className="grid gap-3" aria-label={`${group.title} source records`}>
-              {group.items.length > 1 ? <p className="text-xs font-medium text-muted-foreground">{group.title} · {group.items.length} upstream records</p> : null}
-              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-                {group.items.map((item) => <SourceItemCard key={item.id} item={item} library={providers.get(item.providerId)?.name ?? item.providerId} onOpen={openEntry} />)}
-              </div>
-            </section>
-          ))}
+          <p
+            className="self-center text-right text-xs text-muted-foreground"
+            role="status"
+            aria-live="polite"
+          >
+            {plural(results.length, "component")}
+          </p>
         </section>
-      ) : (
-        <EmptyState>There are no matching source records. Try a different search or filter.</EmptyState>
-      )}
-      {mode === "gallery" ? <SourceInspector snapshot={snapshot} entryId={navigation.entryId} onClose={navigation.closeInspector} /> : null}
+      </header>
+
+      <section
+        id={showTitle ? "pattern-results" : undefined}
+        tabIndex={showTitle ? -1 : undefined}
+        className="min-h-0 flex-1 overflow-y-auto p-3 outline-none sm:p-4"
+        aria-label="Components"
+      >
+        {results.length ? (
+          <div className="grid grid-cols-[repeat(auto-fill,minmax(min(100%,20rem),1fr))] items-start gap-3">
+            {results.map((entry) => (
+              <GalleryCard
+                key={entry.sourceRecordIds.join("|")}
+                entry={entry}
+                records={galleryImplementationRecords(
+                  entry,
+                  records,
+                  filters.providerId,
+                )}
+                providers={providers}
+                onOpen={openEntry}
+              />
+            ))}
+          </div>
+        ) : (
+          <EmptyState>
+            There are no matching UI patterns. Try a different search or
+            library.
+          </EmptyState>
+        )}
+      </section>
     </main>
   );
 }

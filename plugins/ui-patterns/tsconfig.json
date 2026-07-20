@@ -14,6 +14,17 @@
     "paths": {
       "@bb/plugin-sdk": ["./types/bb-plugin-sdk.d.ts"],
       "@bb/plugin-sdk/app": ["./types/bb-plugin-sdk-app.d.ts"],
+      "@/app/(create)/components/icon-placeholder": ["./vendor/shadcn-ui/icon-placeholder.tsx"],
+      "@/components/ui/tooltip": ["./vendor/shadcn-ui/bases/base/ui/tooltip.tsx"],
+      "@/hooks/use-mobile": ["./vendor/shadcn-ui/bases/base/hooks/use-mobile.ts"],
+      "@/styles/base-nova/ui/*": ["./vendor/shadcn-ui/bases/base/ui/*"],
+      "@/styles/base-rhea/ui/*": ["./vendor/shadcn-ui/bases/base/ui/*"],
+      "@/registry/new-york-v4/ui/*": ["./vendor/shadcn-ui/bases/base/ui/*"],
+      "@/registry/bases/base/hooks/*": ["./vendor/shadcn-ui/bases/base/hooks/*"],
+      "@/registry/bases/base/lib/*": ["./vendor/shadcn-ui/bases/base/lib/*"],
+      "@/registry/bases/base/ui/*": ["./vendor/shadcn-ui/bases/base/ui/*"],
+      "next/image": ["./vendor/shadcn-ui/next-image.tsx"],
+      "next/link": ["./vendor/shadcn-ui/next-link.tsx"],
       "@/*": ["./*"]
     },
     "noEmit": true,
@@ -22,8 +33,12 @@
   "include": [
     "server.ts",
     "app.tsx",
+    "assistant-ui-previews.tsx",
+    "base-ui-demo-previews.tsx",
     "gallery-shell.tsx",
     "gallery-state.ts",
+    "live-component-previews.tsx",
+    "shadcn-demo-previews.tsx",
     "source-browser-data.ts",
     "source-browser-model.ts",
     "providers/**/*.ts",
@@ -31,6 +46,12 @@
     "types",
     "components",
     "lib",
-    "hooks"
+    "hooks",
+    "vendor/shadcn-ui/icon-placeholder.tsx",
+    "vendor/shadcn-ui/next-image.tsx",
+    "vendor/shadcn-ui/next-link.tsx",
+    "vendor/shadcn-ui/bases/base/ui/**/*.tsx",
+    "vendor/shadcn-ui/bases/base/hooks/use-mobile.ts",
+    "vendor/shadcn-ui/bases/base/lib/utils.ts"
   ]
 }

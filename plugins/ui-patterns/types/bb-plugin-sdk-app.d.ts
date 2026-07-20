@@ -120,6 +120,12 @@ interface PluginThreadPanelProps {
 interface PluginComposerAccessoryProps {
     projectId: string | null;
     threadId: string | null;
+    /**
+     * Opens one of this plugin's own `threadPanelAction` components in the
+     * current thread side panel. Omitted by older hosts; null on composer
+     * surfaces without a thread panel.
+     */
+    openThreadPanel?: PluginMessageDirectiveOpenThreadPanel | null;
 }
 interface PluginPendingInteractionView {
     id: string;

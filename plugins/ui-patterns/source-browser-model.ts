@@ -1,105 +1,148 @@
+import type { AtlasEntry } from "./providers/schema.js";
 import type {
   LibraryProvider,
   SourceBrowserSnapshot,
-  SourceItem,
-} from "./providers/source-browser.js";
+  SourceRecord,
+} from "./providers/source-browser-v2.js";
+import { hasGalleryPreview } from "./live-component-previews.js";
 
 export interface SourceBrowserFilters {
   query: string;
   providerId: string | "all";
-  contentKind: SourceItem["contentKind"] | "all";
-}
-
-export interface SourceItemGroup {
-  /** Presentation-only grouping key. Individual source items are never merged. */
-  title: string;
-  items: readonly SourceItem[];
 }
 
 const collator = new Intl.Collator(undefined, { sensitivity: "base" });
+
+export const galleryProviderIds = ["shadcn-ui", "assistant-ui"] as const;
 
 function normalized(value: string) {
   return value.trim().toLocaleLowerCase();
 }
 
-function searchableText(item: SourceItem) {
+function relevance(entry: AtlasEntry, query: string) {
+  const normalizedQuery = normalized(query);
+  if (!normalizedQuery) return 0;
+  if (normalized(entry.name) === normalizedQuery) return 0;
+  if (entry.aliases.some((alias) => normalized(alias) === normalizedQuery)) return 1;
+  if (normalized(entry.name).startsWith(normalizedQuery)) return 2;
+  return 3;
+}
+
+export function sourceRecordById(records: readonly SourceRecord[]) {
+  return new Map(records.map((record) => [record.id, record]));
+}
+
+export function recordsForEntry(
+  entry: AtlasEntry,
+  records: ReadonlyMap<string, SourceRecord>,
+) {
+  return entry.sourceRecordIds
+    .map((id) => records.get(id))
+    .filter((record): record is SourceRecord => Boolean(record));
+}
+
+export function galleryImplementationRecords(
+  entry: AtlasEntry,
+  records: ReadonlyMap<string, SourceRecord>,
+  providerId: SourceBrowserFilters["providerId"] = "all",
+) {
+  return recordsForEntry(entry, records).filter(
+    (record) =>
+      hasGalleryPreview(record.id) &&
+      (providerId === "all" ||
+        record.provenance.providerId === providerId),
+  );
+}
+
+export function additiveGuidanceRecords(
+  entry: AtlasEntry,
+  records: ReadonlyMap<string, SourceRecord>,
+) {
+  return recordsForEntry(entry, records).filter(
+    (record) =>
+      record.provenance.providerId === "aria-apg" &&
+      record.sections.some(({ content }) => content !== null),
+  );
+}
+
+function searchableText(
+  entry: AtlasEntry,
+  records: ReadonlyMap<string, SourceRecord>,
+  providerId: SourceBrowserFilters["providerId"],
+) {
+  const sourceRecords = [
+    ...galleryImplementationRecords(entry, records, providerId),
+    ...(providerId === "all" ? additiveGuidanceRecords(entry, records) : []),
+  ];
   return [
-    item.title,
-    item.nativeId,
-    ...item.aliases,
-    item.sourceSection ?? "",
-    ...item.sourceTags,
-    item.provenance.contentMode === "metadata-only" ? "" : item.excerpt ?? "",
+    ...(providerId === "all"
+      ? [entry.name, ...entry.aliases, entry.summary?.text ?? "", entry.kind]
+      : []),
+    ...sourceRecords.flatMap((record) => [
+      record.name,
+      ...record.aliases,
+      record.nativeId,
+      record.summary?.text ?? "",
+      record.kind,
+      ...record.sections.flatMap(({ title, content }) => [title, content ?? ""]),
+      ...record.relationships.flatMap(({ label, targetTitle }) => [label, targetTitle]),
+    ]),
   ]
     .join(" ")
     .toLocaleLowerCase();
 }
 
-/** Deterministic, offline filtering over the latest provider snapshot. */
-export function filterSourceItems(
-  items: readonly SourceItem[],
+/** Deterministic, offline filtering over the latest generated Atlas entries. */
+export function filterAtlasEntries(
+  snapshot: SourceBrowserSnapshot,
   filters: SourceBrowserFilters,
 ) {
   const queryTerms = normalized(filters.query).split(/\s+/).filter(Boolean);
+  const records = sourceRecordById(snapshot.records);
 
-  return items
+  return snapshot.entries
     .slice()
-    .filter((item) =>
-      filters.providerId === "all" ? true : item.providerId === filters.providerId,
+    .filter(
+      (entry) =>
+        galleryImplementationRecords(entry, records, filters.providerId).length >
+        0,
     )
-    .filter((item) =>
-      filters.contentKind === "all" ? true : item.contentKind === filters.contentKind,
-    )
-    .filter((item) => {
-      const text = searchableText(item);
+    .filter((entry) => {
+      const text = searchableText(entry, records, filters.providerId);
       return queryTerms.every((term) => text.includes(term));
     })
-    .sort((left, right) => {
-      const titleComparison = collator.compare(left.title, right.title);
-      if (titleComparison !== 0) return titleComparison;
-      return collator.compare(left.id, right.id);
-    });
-}
-
-/**
- * Exact-title groups only improve scanning. The group retains every upstream
- * item and does not imply equivalence, precedence, or a synthetic record.
- */
-export function groupSourceItemsByExactTitle(
-  items: readonly SourceItem[],
-): SourceItemGroup[] {
-  const byTitle = new Map<string, SourceItem[]>();
-
-  for (const item of items) {
-    const key = normalized(item.title);
-    const existing = byTitle.get(key) ?? [];
-    existing.push(item);
-    byTitle.set(key, existing);
-  }
-
-  return [...byTitle.values()]
-    .map((group) => ({
-      title: group[0]?.title ?? "",
-      items: group.slice().sort((left, right) => collator.compare(left.id, right.id)),
-    }))
-    .sort((left, right) => collator.compare(left.title, right.title));
+    .sort(
+      (left, right) =>
+        relevance(left, filters.query) - relevance(right, filters.query) ||
+        collator.compare(left.name, right.name) ||
+        collator.compare(left.sourceRecordIds[0] ?? "", right.sourceRecordIds[0] ?? ""),
+    );
 }
 
 export function providerById(providers: readonly LibraryProvider[]) {
   return new Map(providers.map((provider) => [provider.id, provider]));
 }
 
-export function sourceItemById(
+export function atlasEntryForRecordId(
   snapshot: SourceBrowserSnapshot,
-  id: string | null,
+  sourceRecordId: string | null,
 ) {
-  return id ? snapshot.items.find((item) => item.id === id) : undefined;
+  return sourceRecordId
+    ? snapshot.entries.find((entry) => entry.sourceRecordIds.includes(sourceRecordId as `${string}:${string}`))
+    : undefined;
 }
 
-export function mayDisplayExcerpt(item: SourceItem) {
-  return Boolean(item.excerpt && item.provenance.contentMode !== "metadata-only");
+export function primarySourceRecordId(entry: AtlasEntry) {
+  return entry.sourceRecordIds[0] ?? null;
 }
 
-export function freshnessLabel(item: SourceItem) {
-  return `Retrieved ${item.provenance.retrievedAt}`;
+export function preferredVisibleSourceRecordId(
+  visibleRecords: readonly SourceRecord[],
+  currentSourceRecordId: string | null,
+) {
+  return (
+    visibleRecords.find(({ id }) => id === currentSourceRecordId)?.id ??
+    visibleRecords[0]?.id ??
+    null
+  );
 }

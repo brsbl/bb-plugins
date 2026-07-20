@@ -1,8 +1,61 @@
 import type { ProviderDefinition } from "./schema.js";
 
-const acceptedMetadataLicenses = new Map([
-  ["MIT", { requiresNotice: true }],
-  ["CC0-1.0", { requiresNotice: false }],
+const approvedProviders = new Map<
+  string,
+  {
+    repository: string;
+    license: string;
+    maximumContentMode: "metadata-only" | "excerpt";
+    sourcePaths: readonly string[];
+  }
+>([
+  [
+    "shadcn-ui",
+    {
+      repository: "https://github.com/shadcn-ui/ui",
+      license: "MIT",
+      maximumContentMode: "excerpt",
+      sourcePaths: [
+        "apps/v4/content/docs/components/base/meta.json",
+        "apps/v4/content/docs/components/base/*.mdx",
+      ],
+    },
+  ],
+  [
+    "base-ui",
+    {
+      repository: "https://github.com/mui/base-ui",
+      license: "MIT",
+      maximumContentMode: "excerpt",
+      sourcePaths: ["docs/src/app/(docs)/react/components/*/page.mdx"],
+    },
+  ],
+  [
+    "assistant-ui",
+    {
+      repository: "https://github.com/assistant-ui/assistant-ui",
+      license: "MIT",
+      maximumContentMode: "excerpt",
+      sourcePaths: [
+        "apps/docs/content/docs/primitives/meta.json",
+        "apps/docs/content/docs/primitives/*.mdx",
+        "apps/docs/content/docs/(reference)/api-reference/primitives/meta.json",
+        "apps/docs/content/docs/(reference)/api-reference/primitives/*.mdx",
+      ],
+    },
+  ],
+  [
+    "aria-apg",
+    {
+      repository: "https://github.com/w3c/aria-practices",
+      license: "W3C-Software-Document",
+      maximumContentMode: "excerpt",
+      sourcePaths: [
+        "content/patterns/**/*-pattern.html",
+        "content/patterns/**/examples/*.html",
+      ],
+    },
+  ],
 ]);
 
 export class ProviderPolicyError extends Error {
@@ -15,23 +68,51 @@ export class ProviderPolicyError extends Error {
   }
 }
 
+function sameStrings(left: readonly string[], right: readonly string[]) {
+  return (
+    left.length === right.length &&
+    left.every((value, index) => value === right[index])
+  );
+}
+
 export function enforceProviderLicensePolicy(
   provider: ProviderDefinition,
 ): void {
-  const policy = acceptedMetadataLicenses.get(provider.license.expression);
+  const policy = approvedProviders.get(provider.id);
   if (!policy) {
     throw new ProviderPolicyError(
-      "license-not-allowed",
-      `Provider ${provider.id} uses unapproved license ${provider.license.expression}.`,
+      "provider-not-approved",
+      `Provider ${provider.id} is not approved for Atlas ingestion.`,
     );
   }
-  if (provider.license.scope !== "metadata-only") {
+  if (provider.source.repository !== policy.repository) {
     throw new ProviderPolicyError(
-      "license-scope-not-allowed",
+      "repository-not-approved",
+      `Provider ${provider.id} does not use its approved repository.`,
+    );
+  }
+  if (provider.license.expression !== policy.license) {
+    throw new ProviderPolicyError(
+      "license-not-approved",
+      `Provider ${provider.id} does not use its approved license.`,
+    );
+  }
+  if (
+    provider.license.scope === "excerpt" &&
+    policy.maximumContentMode === "metadata-only"
+  ) {
+    throw new ProviderPolicyError(
+      "content-mode-not-approved",
       `Provider ${provider.id} may ingest metadata only.`,
     );
   }
-  if (policy.requiresNotice && !provider.license.notice.trim()) {
+  if (!sameStrings(provider.source.sourcePaths, policy.sourcePaths)) {
+    throw new ProviderPolicyError(
+      "source-paths-not-approved",
+      `Provider ${provider.id} does not use its approved upstream paths.`,
+    );
+  }
+  if (!provider.license.notice.trim()) {
     throw new ProviderPolicyError(
       "license-notice-required",
       `Provider ${provider.id} must retain its license notice.`,
@@ -40,7 +121,6 @@ export function enforceProviderLicensePolicy(
 }
 
 export const providerLicensePolicy = Object.freeze({
-  version: "1",
-  ingestionScope: "metadata-only",
-  acceptedExpressions: [...acceptedMetadataLicenses.keys()].sort(),
+  version: "2",
+  approvedProviderIds: Object.freeze([...approvedProviders.keys()].sort()),
 });

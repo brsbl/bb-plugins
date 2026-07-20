@@ -1,14 +1,17 @@
 import { adapterFor } from "./adapters/index.js";
 import { sha256Canonical } from "./canonical.js";
+import { approvedEquivalenceGroups } from "./equivalences.js";
 import { enforceProviderLicensePolicy, ProviderPolicyError } from "./policy.js";
 import {
+  atlasEntrySchema,
   federatedSnapshotSchema,
   providerIndexSchema,
   providerRecordSchema,
   providerSnapshotSchema,
+  type AtlasEntry,
+  type AtlasEntryDocument,
   type FederatedSnapshot,
   type ProviderDefinition,
-  type ProviderDocument,
   type ProviderIndex,
   type ProviderRecord,
   type ProviderSnapshot,
@@ -48,12 +51,26 @@ export function normalizeProviderSearchText(value: string): string[] {
     .filter(Boolean);
 }
 
+function sourceRecordId(record: ProviderRecord): `${string}:${string}` {
+  return `${record.provenance.providerId}:${record.nativeId}`;
+}
+
 function sortRecords(records: readonly ProviderRecord[]) {
   return [...records].sort(
     (left, right) =>
       left.nativeId.localeCompare(right.nativeId) ||
       left.name.localeCompare(right.name),
   );
+}
+
+function duplicateValue<T>(items: readonly T[], keyFor: (item: T) => string) {
+  const seen = new Set<string>();
+  for (const item of items) {
+    const key = keyFor(item);
+    if (seen.has(key)) return key;
+    seen.add(key);
+  }
+  return null;
 }
 
 function validateRecordSet(
@@ -86,6 +103,57 @@ function validateRecordSet(
       );
     }
     nativeIds.add(record.nativeId);
+
+    const duplicateSection = duplicateValue(
+      record.sections,
+      ({ nativeId }) => nativeId,
+    );
+    if (duplicateSection) {
+      throw new ProviderBuildError(
+        definition.id,
+        "duplicate-section-id",
+        `Record ${record.nativeId} emitted duplicate section ${duplicateSection}.`,
+      );
+    }
+    const duplicateExample = duplicateValue(
+      record.examples,
+      ({ nativeId }) => nativeId,
+    );
+    if (duplicateExample) {
+      throw new ProviderBuildError(
+        definition.id,
+        "duplicate-example-id",
+        `Record ${record.nativeId} emitted duplicate example ${duplicateExample}.`,
+      );
+    }
+    const duplicateLink = duplicateValue(
+      record.links,
+      ({ kind, url }) => `${kind}:${url}`,
+    );
+    if (duplicateLink) {
+      throw new ProviderBuildError(
+        definition.id,
+        "duplicate-link",
+        `Record ${record.nativeId} emitted duplicate link ${duplicateLink}.`,
+      );
+    }
+    if (definition.license.scope === "metadata-only" && record.summary) {
+      throw new ProviderBuildError(
+        definition.id,
+        "summary-not-allowed",
+        `Record ${record.nativeId} contains source text under metadata-only policy.`,
+      );
+    }
+    if (
+      definition.license.scope === "metadata-only" &&
+      record.sections.some(({ content }) => content !== null)
+    ) {
+      throw new ProviderBuildError(
+        definition.id,
+        "section-content-not-allowed",
+        `Record ${record.nativeId} contains section text under metadata-only policy.`,
+      );
+    }
   }
 }
 
@@ -149,11 +217,36 @@ function verifiedPreviousSnapshot(
   previousSnapshot: FederatedSnapshot | undefined,
 ) {
   if (!previousSnapshot) return undefined;
-  const previous = federatedSnapshotSchema.parse(previousSnapshot);
-  if (sha256Canonical(previous.providers) !== previous.fingerprint) {
+  if (
+    sha256Canonical({
+      providers: previousSnapshot.providers,
+      entries: previousSnapshot.entries,
+    }) !== previousSnapshot.fingerprint
+  ) {
     throw new Error("Previous provider snapshot fingerprint is invalid.");
   }
-  return previous;
+
+  // Snapshot v2 originally predated additive source section content. Verify the
+  // stored artifact before normalizing that legacy boundary so last-known-good
+  // fallback remains available without making the current contract optional.
+  const providers = previousSnapshot.providers.map((provider) => ({
+    ...provider,
+    records: provider.records.map((record) => ({
+      ...record,
+      sections: record.sections.map((section) => ({
+        ...section,
+        content: section.content ?? null,
+      })),
+    })),
+  }));
+  return federatedSnapshotSchema.parse({
+    ...previousSnapshot,
+    fingerprint: sha256Canonical({
+      providers,
+      entries: previousSnapshot.entries,
+    }),
+    providers,
+  });
 }
 
 function lastKnownGoodProvider(
@@ -188,47 +281,177 @@ function lastKnownGoodProvider(
   });
 }
 
-function documentKey(providerId: string, nativeId: string) {
-  return `${providerId}:${encodeURIComponent(nativeId)}`;
+class RecordGroups {
+  private readonly parent = new Map<string, string>();
+
+  constructor(ids: readonly string[]) {
+    for (const id of ids) this.parent.set(id, id);
+  }
+
+  find(id: string): string {
+    const parent = this.parent.get(id);
+    if (!parent) throw new Error(`Unknown source record ${id}.`);
+    if (parent === id) return id;
+    const root = this.find(parent);
+    this.parent.set(id, root);
+    return root;
+  }
+
+  union(left: string, right: string): void {
+    const leftRoot = this.find(left);
+    const rightRoot = this.find(right);
+    if (leftRoot === rightRoot) return;
+    const [first, second] = [leftRoot, rightRoot].sort();
+    this.parent.set(second, first);
+  }
+}
+
+export function buildAtlasEntries(
+  providers: readonly ProviderSnapshot[],
+): AtlasEntry[] {
+  const records = providers
+    .flatMap(({ records: providerRecords }) => providerRecords)
+    .slice()
+    .sort((left, right) => sourceRecordId(left).localeCompare(sourceRecordId(right)));
+  const recordById = new Map(records.map((record) => [sourceRecordId(record), record]));
+  const groups = new RecordGroups([...recordById.keys()]);
+  const canonicalNameByRoot = new Map<string, string>();
+  const groupedRecordIds = new Set<string>();
+
+  for (const equivalence of approvedEquivalenceGroups) {
+    for (const id of equivalence.sourceRecordIds) {
+      if (!recordById.has(id)) {
+        throw new Error(`Approved equivalence references missing source record ${id}.`);
+      }
+      if (groupedRecordIds.has(id)) {
+        throw new Error(`Source record ${id} belongs to more than one equivalence group.`);
+      }
+      groupedRecordIds.add(id);
+    }
+    const [firstId, ...otherIds] = equivalence.sourceRecordIds;
+    if (!firstId) continue;
+    for (const id of otherIds) groups.union(firstId, id);
+    canonicalNameByRoot.set(groups.find(firstId), equivalence.canonicalName);
+  }
+
+  const membersByRoot = new Map<string, ProviderRecord[]>();
+  for (const record of records) {
+    const root = groups.find(sourceRecordId(record));
+    const members = membersByRoot.get(root) ?? [];
+    members.push(record);
+    membersByRoot.set(root, members);
+  }
+
+  return [...membersByRoot.values()]
+    .map((members) => {
+      members.sort((left, right) => sourceRecordId(left).localeCompare(sourceRecordId(right)));
+      const names = [...new Set(members.map(({ name }) => name))].sort((left, right) =>
+        left.localeCompare(right),
+      );
+      const name = canonicalNameByRoot.get(groups.find(sourceRecordId(members[0]!))) ?? names[0] ?? "";
+      const aliases = [
+        ...new Set(
+          members.flatMap((record) => [
+            ...record.aliases,
+            ...(record.name === name ? [] : [record.name]),
+          ]),
+        ),
+      ].sort((left, right) => left.localeCompare(right));
+      const summaries = [
+        ...new Map(
+          members
+            .filter((record) => record.summary)
+            .map((record) => [record.summary!.text, record] as const),
+        ).entries(),
+      ];
+      const kinds = [...new Set(members.map(({ kind }) => kind))];
+      const exampleCount = new Set(
+        members.flatMap((record) =>
+          record.examples.map(
+            (example) => `${sourceRecordId(record)}:${example.nativeId}`,
+          ),
+        ),
+      ).size;
+      return atlasEntrySchema.parse({
+        name,
+        aliases,
+        summary:
+          summaries.length === 1
+            ? {
+                text: summaries[0]![0],
+                sourceRecordId: sourceRecordId(summaries[0]![1]),
+              }
+            : null,
+        kind: kinds.length === 1 ? kinds[0] : "mixed",
+        sourceRecordIds: members.map(sourceRecordId),
+        exampleCount,
+      });
+    })
+    .sort(
+      (left, right) =>
+        left.name.localeCompare(right.name) ||
+        left.sourceRecordIds[0]!.localeCompare(right.sourceRecordIds[0]!),
+    );
 }
 
 export function buildProviderIndex(
   snapshot: FederatedSnapshot,
 ): ProviderIndex {
-  const documents: ProviderDocument[] = snapshot.providers
-    .flatMap((provider) =>
-      provider.records.map((record) => ({
-        ...record,
-        providerName: provider.name,
-        key: documentKey(provider.id, record.nativeId),
-        search: {
-          name: normalizeProviderSearchText(record.name),
-          aliases: normalizeProviderSearchText(record.aliases.join(" ")),
-          summary: normalizeProviderSearchText(record.summary ?? ""),
-          kind: normalizeProviderSearchText(record.kind),
-          nativeId: normalizeProviderSearchText(record.nativeId),
-        },
-      })),
-    )
-    .sort(
-      (left, right) =>
-        left.provenance.providerId.localeCompare(
-          right.provenance.providerId,
-        ) || left.nativeId.localeCompare(right.nativeId),
-    );
+  const recordById = new Map(
+    snapshot.providers.flatMap((provider) =>
+      provider.records.map((record) => [sourceRecordId(record), record] as const),
+    ),
+  );
+  const documents: AtlasEntryDocument[] = snapshot.entries.map((entry) => {
+    const records = entry.sourceRecordIds.map((id) => recordById.get(id)!);
+    return {
+      ...entry,
+      key: entry.sourceRecordIds[0]!,
+      search: {
+        name: normalizeProviderSearchText(entry.name),
+        aliases: normalizeProviderSearchText(entry.aliases.join(" ")),
+        summaries: normalizeProviderSearchText(
+          records.map((record) => record.summary?.text ?? "").join(" "),
+        ),
+        kinds: normalizeProviderSearchText(
+          records.map((record) => record.kind).join(" "),
+        ),
+        nativeIds: normalizeProviderSearchText(
+          records.map((record) => record.nativeId).join(" "),
+        ),
+        sections: normalizeProviderSearchText(
+          records
+            .flatMap((record) =>
+              record.sections.flatMap(({ title, content }) => [
+                title,
+                content ?? "",
+              ]),
+            )
+            .join(" "),
+        ),
+        relationships: normalizeProviderSearchText(
+          records
+            .flatMap((record) =>
+              record.relationships.flatMap(({ label, targetTitle }) => [label, targetTitle]),
+            )
+            .join(" "),
+        ),
+      },
+    };
+  });
 
-  const postings = new Map<string, Set<string>>();
+  const postings = new Map<string, Set<`${string}:${string}`>>();
   for (const document of documents) {
     const terms = new Set(Object.values(document.search).flat());
     for (const term of terms) {
-      const keys = postings.get(term) ?? new Set<string>();
+      const keys = postings.get(term) ?? new Set<`${string}:${string}`>();
       keys.add(document.key);
       postings.set(term, keys);
     }
   }
 
   return providerIndexSchema.parse({
-    schemaVersion: "1",
+    schemaVersion: "2",
     snapshotFingerprint: snapshot.fingerprint,
     documents,
     postings: Object.fromEntries(
@@ -250,9 +473,7 @@ export function buildProviderArtifacts({
 }): ProviderArtifacts {
   const previous = verifiedPreviousSnapshot(previousSnapshot);
   const providers = [...inputs]
-    .sort((left, right) =>
-      left.definition.id.localeCompare(right.definition.id),
-    )
+    .sort((left, right) => left.definition.id.localeCompare(right.definition.id))
     .map((input) => {
       try {
         return currentProvider(input);
@@ -260,12 +481,14 @@ export function buildProviderArtifacts({
         return lastKnownGoodProvider(input, previous, error);
       }
     });
-
+  const entries = buildAtlasEntries(providers);
+  const fingerprint = sha256Canonical({ providers, entries });
   const snapshot = federatedSnapshotSchema.parse({
-    schemaVersion: "1",
+    schemaVersion: "2",
     assembledAt,
-    fingerprint: sha256Canonical(providers),
+    fingerprint,
     providers,
+    entries,
   });
 
   return {

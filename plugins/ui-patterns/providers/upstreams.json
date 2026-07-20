@@ -1,0 +1,111 @@
+{
+  "schemaVersion": "1",
+  "assembledAt": "2026-07-18T19:00:00.000Z",
+  "providers": [
+    {
+      "id": "shadcn-ui",
+      "name": "shadcn/ui",
+      "homepage": "https://ui.shadcn.com/",
+      "adapter": "source-records",
+      "source": {
+        "repository": "https://github.com/shadcn-ui/ui",
+        "revision": "d28738b183c5eaa69d8d540826e450f30d39ab6c",
+        "observedAt": "2026-07-18T19:00:00.000Z",
+        "format": "MDX frontmatter and headings",
+        "inputPath": "providers/sources/shadcn-ui.json",
+        "sourcePaths": [
+          "apps/v4/content/docs/components/base/meta.json",
+          "apps/v4/content/docs/components/base/*.mdx"
+        ]
+      },
+      "license": {
+        "expression": "MIT",
+        "url": "https://github.com/shadcn-ui/ui/blob/d28738b183c5eaa69d8d540826e450f30d39ab6c/LICENSE.md",
+        "scope": "excerpt",
+        "notice": "Copyright (c) 2023 shadcn."
+      },
+      "freshness": {
+        "staleAfterDays": 45
+      }
+    },
+    {
+      "id": "base-ui",
+      "name": "Base UI",
+      "homepage": "https://base-ui.com/",
+      "adapter": "source-records",
+      "source": {
+        "repository": "https://github.com/mui/base-ui",
+        "revision": "bdcb685fadcca9d18b18f013c052795a53b6aa33",
+        "observedAt": "2026-07-18T19:00:00.000Z",
+        "format": "MDX headings and source-owned subtitles",
+        "inputPath": "providers/sources/base-ui.json",
+        "sourcePaths": [
+          "docs/src/app/(docs)/react/components/*/page.mdx"
+        ]
+      },
+      "license": {
+        "expression": "MIT",
+        "url": "https://github.com/mui/base-ui/blob/bdcb685fadcca9d18b18f013c052795a53b6aa33/LICENSE",
+        "scope": "excerpt",
+        "notice": "Copyright (c) 2019 Material-UI SAS."
+      },
+      "freshness": {
+        "staleAfterDays": 45
+      }
+    },
+    {
+      "id": "assistant-ui",
+      "name": "assistant-ui",
+      "homepage": "https://www.assistant-ui.com/docs/primitives",
+      "adapter": "source-records",
+      "source": {
+        "repository": "https://github.com/assistant-ui/assistant-ui",
+        "revision": "9d75e20461bb9ca9742b7f2cc476d3eebe6b74c6",
+        "observedAt": "2026-07-18T19:00:00.000Z",
+        "format": "MDX frontmatter and generated primitive reference headings",
+        "inputPath": "providers/sources/assistant-ui.json",
+        "sourcePaths": [
+          "apps/docs/content/docs/primitives/meta.json",
+          "apps/docs/content/docs/primitives/*.mdx",
+          "apps/docs/content/docs/(reference)/api-reference/primitives/meta.json",
+          "apps/docs/content/docs/(reference)/api-reference/primitives/*.mdx"
+        ]
+      },
+      "license": {
+        "expression": "MIT",
+        "url": "https://github.com/assistant-ui/assistant-ui/blob/9d75e20461bb9ca9742b7f2cc476d3eebe6b74c6/LICENSE",
+        "scope": "excerpt",
+        "notice": "Copyright (c) 2025 AgentbaseAI Inc."
+      },
+      "freshness": {
+        "staleAfterDays": 45
+      }
+    },
+    {
+      "id": "aria-apg",
+      "name": "WAI-ARIA Authoring Practices Guide",
+      "homepage": "https://www.w3.org/WAI/ARIA/apg/patterns/",
+      "adapter": "source-records",
+      "source": {
+        "repository": "https://github.com/w3c/aria-practices",
+        "revision": "18c1a2fca626f7aeb33270e23ae9b18833e2164d",
+        "observedAt": "2026-07-18T19:00:00.000Z",
+        "format": "Semantic HTML pattern pages",
+        "inputPath": "providers/sources/aria-apg.json",
+        "sourcePaths": [
+          "content/patterns/**/*-pattern.html",
+          "content/patterns/**/examples/*.html"
+        ]
+      },
+      "license": {
+        "expression": "W3C-Software-Document",
+        "url": "https://www.w3.org/copyright/software-license-2023/",
+        "scope": "excerpt",
+        "notice": "W3C Software and Document License."
+      },
+      "freshness": {
+        "staleAfterDays": 45
+      }
+    }
+  ]
+}

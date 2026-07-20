@@ -1,9 +1,20 @@
 function decodeRouteValue(value: string) {
-  try {
-    return decodeURIComponent(value);
-  } catch {
-    return value;
+  let decoded = value;
+
+  // `toPluginPanel` owns URL encoding. Older Atlas builds encoded the entry
+  // segment before handing it to the host, so persisted links can arrive
+  // double-encoded. Decode until stable to keep those links working.
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    try {
+      const next = decodeURIComponent(decoded);
+      if (next === decoded) break;
+      decoded = next;
+    } catch {
+      break;
+    }
   }
+
+  return decoded;
 }
 
 function normalizePath(path: string) {
@@ -41,7 +52,7 @@ export function legacyQueryFromEntryId(entryId: string | null) {
 }
 
 export function entrySubPath(entryId: string) {
-  return `entry/${encodeURIComponent(entryId)}`;
+  return `entry/${entryId}`;
 }
 
 export function standaloneEntryPath(basePath: string, entryId: string) {

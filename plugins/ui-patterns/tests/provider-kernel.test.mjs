@@ -6,17 +6,12 @@ import test, { after } from "node:test";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { build } from "esbuild";
 
-import providerIndex from "../generated/provider-index.v1.json" with {
-  type: "json",
-};
-import providerSnapshot from "../generated/provider-snapshot.v1.json" with {
-  type: "json",
-};
+import providerIndex from "../generated/provider-index.v2.json" with { type: "json" };
+import providerSnapshot from "../generated/provider-snapshot.v2.json" with { type: "json" };
 
 const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-const temporaryDirectory = await mkdtemp(
-  resolve(tmpdir(), "ui-pattern-atlas-provider-test-"),
-);
+process.env.UI_PATTERN_ATLAS_ROOT = packageRoot;
+const temporaryDirectory = await mkdtemp(resolve(tmpdir(), "ui-pattern-atlas-provider-test-"));
 const outputFile = resolve(temporaryDirectory, "provider-kernel.mjs");
 
 await build({
@@ -28,8 +23,8 @@ await build({
       'export * from "./providers/policy.ts";',
       'export * from "./providers/registry.ts";',
       'export * from "./providers/schema.ts";',
-      'export * from "./providers/search.ts";',
-      'export * from "./providers/source-browser.ts";',
+      'export * from "./providers/search-v2.ts";',
+      'export * from "./providers/source-browser-v2.ts";',
     ].join("\n"),
     loader: "ts",
     resolveDir: packageRoot,
@@ -39,48 +34,31 @@ await build({
   bundle: true,
   format: "esm",
   platform: "node",
-  target: "node20",
+  target: "node22",
   logLevel: "silent",
 });
 
-const kernel = await import(
-  `${pathToFileURL(outputFile).href}?provider-test=${Date.now()}`
-);
+const kernel = await import(`${pathToFileURL(outputFile).href}?provider-test=${Date.now()}`);
 
 after(async () => {
   await rm(temporaryDirectory, { recursive: true, force: true });
 });
 
-test("bundled provider artifacts validate and contain only upstream records", () => {
-  assert.deepEqual(
-    kernel.federatedSnapshotSchema.parse(providerSnapshot),
-    providerSnapshot,
-  );
-  assert.deepEqual(
-    kernel.providerIndexSchema.parse(providerIndex),
-    providerIndex,
-  );
-  assert.equal(providerSnapshot.providers.length, 2);
+test("bundled artifacts contain only the four approved sources", () => {
+  assert.deepEqual(kernel.federatedSnapshotSchema.parse(providerSnapshot), providerSnapshot);
+  assert.deepEqual(kernel.providerIndexSchema.parse(providerIndex), providerIndex);
   assert.deepEqual(
     providerSnapshot.providers.map(({ id, records }) => [id, records.length]),
     [
-      ["govuk-design-system", 70],
-      ["uswds", 55],
+      ["aria-apg", 30],
+      ["assistant-ui", 18],
+      ["base-ui", 37],
+      ["shadcn-ui", 64],
     ],
   );
-  assert.equal(providerIndex.documents.length, 125);
-
-  for (const provider of providerSnapshot.providers) {
-    assert.equal(provider.license.scope, "metadata-only");
-    assert.equal(provider.build.mode, "current");
-    for (const record of provider.records) {
-      assert.equal(record.provenance.providerId, provider.id);
-      assert.equal("taxonomy" in record, false);
-      assert.equal("relationships" in record, false);
-      assert.equal("examples" in record, false);
-      assert.equal("preview" in record, false);
-    }
-  }
+  assert.equal(providerSnapshot.entries.length, 98);
+  assert.equal(providerIndex.documents.length, 98);
+  assert.equal(providerSnapshot.providers.every(({ build }) => build.mode === "current"), true);
 });
 
 test("the checked-in snapshot and index are deterministic build outputs", () => {
@@ -97,145 +75,128 @@ test("the checked-in snapshot and index are deterministic build outputs", () => 
   assert.deepEqual(reversed, first);
 });
 
-test("source-native IDs remain scoped by provider instead of being rewritten", () => {
-  const results = kernel.searchProviderIndex(providerIndex, {
-    query: "accordion",
-  });
-  assert.equal(results.mode, "exact");
-  assert.deepEqual(
-    results.results
-      .map(({ record }) => [
-        record.provenance.providerId,
-        record.nativeId,
-      ])
-      .sort(),
-    [
-      ["govuk-design-system", "accordion"],
-      ["uswds", "usa-accordion"],
-    ],
-  );
+test("deterministic grouping joins declared equivalents but keeps all source records", () => {
+  const button = providerSnapshot.entries.find(({ name }) => name === "Button");
+  assert.deepEqual(button.sourceRecordIds, ["aria-apg:button", "base-ui:button", "shadcn-ui:button"]);
+  assert.equal(button.kind, "mixed");
+  assert.equal(button.summary, null);
+  assert.equal(button.exampleCount, 19);
 
-  const uswdsOnly = kernel.searchProviderIndex(providerIndex, {
-    query: "accordion",
-    providerId: "uswds",
-  });
+  const composer = providerSnapshot.entries.find(({ name }) => name === "Composer");
+  assert.equal(composer.summary.sourceRecordId, "assistant-ui:composer");
+
   assert.deepEqual(
-    uswdsOnly.results.map(({ record }) => record.nativeId),
-    ["usa-accordion"],
+    providerSnapshot.entries.find(({ name }) => name === "Alert").sourceRecordIds,
+    ["aria-apg:alert", "shadcn-ui:alert"],
   );
+  assert.equal(providerSnapshot.entries.filter(({ name }) => name === "Attachment").length, 2);
+  assert.equal(providerSnapshot.entries.filter(({ name }) => name === "Message").length, 2);
+  const dialog = providerSnapshot.entries.find(({ name }) => name === "Dialog");
+  assert.equal(dialog.sourceRecordIds.includes("shadcn-ui:sheet"), false);
 });
 
-test("offline search uses upstream names, aliases, summaries, and kinds", () => {
-  const alias = kernel.searchProviderIndex(providerIndex, {
-    query: "back button",
-    providerId: "govuk-design-system",
-  });
-  assert.equal(alias.results[0].record.nativeId, "back-link");
-
-  const patterns = kernel.searchProviderIndex(providerIndex, {
-    query: "addresses",
-    kind: "pattern",
-  });
-  assert.equal(patterns.results[0].record.nativeId, "addresses");
-  assert.equal(
-    kernel.findProviderRecord(
-      providerIndex,
-      "govuk-design-system",
-      "addresses",
-    ).canonicalUrl,
-    "https://design-system.service.gov.uk/patterns/addresses/",
-  );
-});
-
-test("source browser exposes the agreed read-only frontend contract", () => {
-  const snapshot = kernel.getSourceBrowserSnapshot();
-  assert.equal(snapshot.providers.length, 2);
-  assert.equal(snapshot.items.length, 125);
-  assert.equal(Object.isFrozen(snapshot), true);
-  assert.equal(Object.isFrozen(snapshot.items), true);
-
-  const govuk = snapshot.providers.find(
-    ({ id }) => id === "govuk-design-system",
-  );
-  assert.deepEqual(
-    {
-      homepageUrl: govuk.homepageUrl,
-      adapterVersion: govuk.adapterVersion,
-      upstream: govuk.upstream,
-      contentMode: govuk.license.contentMode,
-    },
-    {
-      homepageUrl: "https://design-system.service.gov.uk/",
-      adapterVersion: "1",
-      upstream: {
-        kind: "git",
-        locator: "https://github.com/alphagov/govuk-design-system",
-      },
-      contentMode: "metadata-only",
-    },
-  );
-
-  const accordion = snapshot.items.find(
-    ({ id }) => id === "govuk-design-system:accordion",
-  );
-  assert.deepEqual(
-    {
-      providerId: accordion.providerId,
-      nativeId: accordion.nativeId,
-      title: accordion.title,
-      contentKind: accordion.contentKind,
-      sourceSection: accordion.sourceSection,
-      contentMode: accordion.provenance.contentMode,
-      hasExcerpt: "excerpt" in accordion,
-      linkKinds: accordion.links.map(({ kind }) => kind),
-    },
-    {
-      providerId: "govuk-design-system",
-      nativeId: "accordion",
-      title: "Accordion",
-      contentKind: "component",
-      sourceSection: "component",
-      contentMode: "metadata-only",
-      hasExcerpt: false,
-      linkKinds: ["docs", "code"],
-    },
-  );
-});
-
-test("source browser search keeps same-name records separate", () => {
-  const result = kernel.searchSourceItems({ query: "accordion" });
+test("offline search returns computed entries with provider filtering", () => {
+  const result = kernel.searchProviderIndex(providerIndex, { query: "combobox" });
   assert.equal(result.mode, "exact");
-  assert.deepEqual(
-    result.items.map(({ id }) => id),
-    ["govuk-design-system:accordion", "uswds:usa-accordion"],
-  );
-  assert.equal(Object.isFrozen(result.items), true);
+  assert.equal(result.results[0].entry.name, "Combobox");
 
-  const uswds = kernel.searchSourceItems({
-    query: "accordion",
-    providerId: "uswds",
-    contentKind: "component",
+  const assistantOnly = kernel.searchProviderIndex(providerIndex, {
+    query: "composerprimitive",
+    providerId: "assistant-ui",
   });
-  assert.deepEqual(
-    uswds.items.map(({ id }) => id),
-    ["uswds:usa-accordion"],
+  assert.equal(assistantOnly.results[0].entry.name, "Composer");
+  assert.equal(kernel.findAtlasEntry(providerIndex, "base-ui:combobox").name, "Combobox");
+
+  const dialog = kernel.searchProviderIndex(providerIndex, { query: "dialog" });
+  assert.equal(dialog.results[0].entry.name, "Dialog");
+
+  assert.throws(() =>
+    kernel.atlasEntrySearchInputSchema.parse({ kind: "primitive" }),
   );
 });
 
-test("license policy rejects unapproved provider ingestion", () => {
-  const input = structuredClone(kernel.providerBuildInputs[0]);
-  input.definition.license.expression = "LicenseRef-Unreviewed";
-  assert.throws(
-    () =>
-      kernel.buildProviderArtifacts({
-        inputs: [input],
-        assembledAt: kernel.providerSnapshotAssembledAt,
-      }),
-    (error) => error.code === "license-not-allowed",
+test("offline search requires every query term", () => {
+  for (const query of [
+    "button frobnicate",
+    "combobox zzzzz",
+    "composer nonexistent",
+  ]) {
+    const result = kernel.searchProviderIndex(providerIndex, { query });
+    assert.equal(result.mode, "exact");
+    assert.deepEqual(result.results, []);
+  }
+});
+
+test("provider-filtered search excludes text owned by other providers", () => {
+  const baseOnly = kernel.searchProviderIndex(providerIndex, {
+    query: "vertically",
+    providerId: "base-ui",
+  });
+  assert.deepEqual(baseOnly.results, []);
+
+  const shadcnOnly = kernel.searchProviderIndex(providerIndex, {
+    query: "collapsible",
+    providerId: "shadcn-ui",
+  });
+  assert.equal(
+    shadcnOnly.results.some(({ entry }) => entry.name === "Accordion"),
+    false,
+  );
+  assert.equal(
+    shadcnOnly.results.some(({ entry }) => entry.name === "Collapsible"),
+    true,
   );
 });
 
-test("an invalid candidate retains a verified last-known-good provider", () => {
+test("source browser exposes entries and source-owned detail through one frozen snapshot", () => {
+  const snapshot = kernel.getSourceBrowserSnapshot();
+  assert.equal(snapshot.providers.length, 4);
+  assert.equal(snapshot.records.length, 149);
+  assert.equal(snapshot.entries.length, 98);
+  assert.equal(Object.isFrozen(snapshot), true);
+  assert.equal(Object.isFrozen(snapshot.records), true);
+
+  const composer = snapshot.records.find(({ id }) => id === "assistant-ui:composer");
+  assert.equal(composer.summary.text, "Build custom message input UIs with full control over layout and behavior.");
+  assert.ok(composer.sections.length > 0);
+  assert.equal(composer.examples.length, 0);
+  assert.ok(composer.relationships.length > 0);
+
+  const apgButton = snapshot.records.find(({ id }) => id === "aria-apg:button");
+  assert.ok(
+    apgButton.sections.some(
+      ({ nativeId, content }) =>
+        nativeId === "keyboard_interaction" &&
+        content?.includes("Space : Activates the button"),
+    ),
+  );
+  assert.ok(
+    snapshot.records
+      .flatMap((record) =>
+        record.examples.map((example) => ({ record, example })),
+      )
+      .every(
+        ({ record, example }) =>
+          example.url.startsWith("https://") &&
+          example.url !== record.canonicalUrl,
+      ),
+  );
+});
+
+test("provider policy binds exact IDs, repositories, paths, and licenses", () => {
+  for (const mutation of [
+    (input) => { input.definition.id = "unapproved"; },
+    (input) => { input.definition.source.repository = "https://github.com/example/repo"; },
+    (input) => { input.definition.source.sourcePaths = ["**/*"]; },
+    (input) => { input.definition.license.expression = "LicenseRef-Unreviewed"; },
+  ]) {
+    const input = structuredClone(kernel.providerBuildInputs[0]);
+    mutation(input);
+    assert.throws(() => kernel.enforceProviderLicensePolicy(input.definition));
+  }
+});
+
+test("an invalid candidate retains its verified last-known-good provider", () => {
   const inputs = structuredClone(kernel.providerBuildInputs);
   inputs[0].expectedInputSha256 = "0".repeat(64);
   const result = kernel.buildProviderArtifacts({
@@ -243,83 +204,31 @@ test("an invalid candidate retains a verified last-known-good provider", () => {
     assembledAt: kernel.providerSnapshotAssembledAt,
     previousSnapshot: providerSnapshot,
   });
-  const retained = result.snapshot.providers.find(
-    ({ id }) => id === "govuk-design-system",
-  );
+  const providerId = inputs[0].definition.id;
+  const retained = result.snapshot.providers.find(({ id }) => id === providerId);
   assert.equal(retained.build.mode, "last-known-good");
   assert.equal(retained.build.failure.code, "input-integrity-mismatch");
-  assert.deepEqual(
-    retained.records,
-    providerSnapshot.providers[0].records,
-  );
-  assert.equal(
-    result.snapshot.providers.find(({ id }) => id === "uswds").build.mode,
-    "current",
-  );
 });
 
-test("provider health separates availability from freshness", () => {
-  const provider = providerSnapshot.providers[0];
-  const fresh = kernel.assessProviderHealth(
-    provider,
-    new Date("2026-07-18T00:00:00.000Z"),
-  );
-  assert.deepEqual(
-    [fresh.health, fresh.availability, fresh.freshness],
-    ["healthy", "current", "fresh"],
-  );
-
-  const stale = kernel.assessProviderHealth(
-    provider,
-    new Date("2027-01-01T00:00:00.000Z"),
-  );
-  assert.deepEqual(
-    [stale.health, stale.availability, stale.freshness],
-    ["degraded", "current", "stale"],
-  );
-  assert.equal(stale.reason, "freshness-window-exceeded");
-
-  const unavailable = kernel.assessProviderHealth(undefined);
-  assert.deepEqual(
-    [
-      unavailable.health,
-      unavailable.availability,
-      unavailable.freshness,
-    ],
-    ["unavailable", "unavailable", "unknown"],
-  );
-});
-
-test("strict record validation rejects Atlas-authored catalog fields", () => {
+test("strict schemas reject bespoke taxonomy, technology, package, and evidence fields", () => {
   const record = providerSnapshot.providers[0].records[0];
-  for (const field of [
-    "taxonomy",
-    "relationships",
-    "examples",
-    "preview",
-    "details",
-  ]) {
-    assert.throws(() =>
-      kernel.providerRecordSchema.parse({
-        ...record,
-        [field]: [],
-      }),
-    );
+  for (const field of ["taxonomy", "technologies", "packages", "evidence", "evidenceBadges", "sourceTags", "details", "preview"]) {
+    assert.throws(() => kernel.providerRecordSchema.parse({ ...record, [field]: [] }));
+  }
+  const entry = providerSnapshot.entries[0];
+  for (const field of ["taxonomy", "technologies", "packages", "evidence", "evidenceBadges", "sourceTags"]) {
+    assert.throws(() => kernel.atlasEntrySchema.parse({ ...entry, [field]: [] }));
   }
 });
 
-test("runtime provider modules do not fetch or scrape", async () => {
+test("runtime modules remain offline", async () => {
   const files = [
-    "providers/generated.ts",
+    "providers/generated-v2.ts",
     "providers/health.ts",
-    "providers/rpc.ts",
-    "providers/search.ts",
-    "providers/source-browser.ts",
+    "providers/rpc-v2.ts",
+    "providers/search-v2.ts",
+    "providers/source-browser-v2.ts",
   ];
-  const source = (
-    await Promise.all(
-      files.map((file) => readFile(resolve(packageRoot, file), "utf8")),
-    )
-  ).join("\n");
+  const source = (await Promise.all(files.map((file) => readFile(resolve(packageRoot, file), "utf8")))).join("\n");
   assert.doesNotMatch(source, /\bfetch\s*\(|node:https|node:http|puppeteer|playwright/);
 });

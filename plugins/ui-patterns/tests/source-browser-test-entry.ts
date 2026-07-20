@@ -1,10 +1,14 @@
-export { sourceBrowserFixture } from "../source-browser-fixtures.js";
-export { getSourceBrowserSnapshot } from "../providers/source-browser.js";
+export { getSourceBrowserSnapshot } from "../providers/source-browser-v2.js";
 export {
-  filterSourceItems,
-  freshnessLabel,
-  groupSourceItemsByExactTitle,
-  mayDisplayExcerpt,
+  atlasEntryForRecordId,
+  filterAtlasEntries,
+  galleryImplementationRecords,
+  galleryProviderIds,
+  primarySourceRecordId,
+  preferredVisibleSourceRecordId,
+  providerById,
+  recordsForEntry,
+  sourceRecordById,
 } from "../source-browser-model.js";
 export {
   entryIdFromSubPath,
@@ -12,3 +16,7 @@ export {
   inspectorCloseMode,
   legacyQueryFromEntryId,
 } from "../gallery-state.js";
+export {
+  galleryPreviewSourceIds,
+  livePreviewSourceIds,
+} from "../live-component-previews.js";

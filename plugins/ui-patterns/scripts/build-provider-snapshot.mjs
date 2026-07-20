@@ -11,8 +11,8 @@ import { build } from "esbuild";
 
 const packageRoot = fileURLToPath(new URL("..", import.meta.url));
 const generatedPaths = {
-  snapshot: resolve(packageRoot, "generated/provider-snapshot.v1.json"),
-  index: resolve(packageRoot, "generated/provider-index.v1.json"),
+  snapshot: resolve(packageRoot, "generated/provider-snapshot.v2.json"),
+  index: resolve(packageRoot, "generated/provider-index.v2.json"),
 };
 const check = process.argv.includes("--check");
 

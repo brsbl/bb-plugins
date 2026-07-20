@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useRpc } from "@bb/plugin-sdk/app";
-import type { sourceBrowserRpcContract } from "./providers/rpc.js";
-import type { SourceBrowserSnapshot } from "./providers/source-browser.js";
+import type { sourceBrowserRpcContract } from "./providers/rpc-v2.js";
+import type { SourceBrowserSnapshot } from "./providers/source-browser-v2.js";
 
 export interface SourceBrowserDataState {
   snapshot: SourceBrowserSnapshot | null;

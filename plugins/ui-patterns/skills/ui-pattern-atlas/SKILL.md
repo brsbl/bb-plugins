@@ -1,11 +1,11 @@
 ---
 name: ui-pattern-atlas
-description: Use Pattern Atlas v3 for source-native UI vocabulary and explicit provenance when planning, designing, implementing, reviewing, critiquing, or naming an interface.
+description: Use the approved-source UI Pattern Atlas for established vocabulary and attributable upstream guidance when planning, designing, implementing, reviewing, critiquing, or naming an interface.
 ---
 
 # UI Pattern Atlas
 
-Search for one concrete UI noun, inspect an explicit provider-native ID, then apply the result to the product. Pattern Atlas is lexical and deterministic; the agent still owns product reasoning.
+Search for a concrete UI noun, inspect the computed entry and its source records, then apply the relevant upstream guidance to the product. The Atlas is deterministic and source-attributed; the agent still owns product reasoning.
 
 ## Query workflow
 
@@ -16,55 +16,38 @@ Search for one concrete UI noun, inspect an explicit provider-native ID, then ap
    bb ui-patterns search "<term>" --json
    ```
 
-3. Read the candidates and provenance. Keep provider records distinct; the Atlas does not choose a preferred library.
-4. Show one provider-native ID:
+3. Read the returned entry’s `sourceRecordIds`. Each value is a source-native ID: the upstream source’s own stable slug or key, namespaced with its provider for attribution and exact resolution.
+4. Show one contributing source-native ID:
 
    ```bash
    bb ui-patterns show aria-apg:combobox --json
    ```
 
-5. If the boundary remains unclear, show no more than two alternatives.
+5. Compare the returned `sourceRecords` only when their source-owned guidance differs in a way that matters to the task.
 6. Apply the guidance while preserving the product’s design system, platform conventions, accessibility requirements, and established terminology.
 
-Search covers source-native names, aliases, IDs, and concise paraphrases. It tolerates bounded spelling and prefix variants; it does not infer design intent.
-
-Use `data.retrieval.mode` to judge results:
-
-- `exact` is a direct vocabulary match.
-- `tolerant` used bounded spelling or prefix recovery.
-- `expanded` is a looser lexical result; inspect `match.unmatchedTerms`.
-
-## Compatibility
-
-For one compatibility release, a v2 slug never selects a source on the agent’s behalf. Both commands below return `data.status: "deprecated"`, a deprecation code, and sorted provider-native candidates:
-
-```bash
-bb ui-patterns show button --json
-bb ui-patterns show entry/button --json
-```
-
-Choose a returned ID such as `aria-apg:button` or `html:button` and show it explicitly. Do not use legacy Category, see-also, or ambiguity-route metadata to make the choice.
+Search covers entry names and aliases plus source-owned summaries, native IDs, sections, kinds, and relationships. `data.retrieval.mode` is `exact`, `prefix`, or `expanded`.
 
 ## Inventory work
 
-Use broader commands only for a bounded provider inventory:
+Use broader commands only for a bounded slice:
 
 ```bash
+bb ui-patterns list --provider assistant-ui --json
 bb ui-patterns list --provider aria-apg --json
-bb ui-patterns list --type pattern --json
 ```
 
-`--provider` and source-native `--type element|pattern` are the inventory filters. `--type component` is accepted only as a v2 compatibility alias for `element`; `--category` is explicitly retired.
+The approved provider IDs are `shadcn-ui`, `base-ui`, `assistant-ui`, and `aria-apg`. Record type is descriptive metadata, not an inventory filter.
 
 ## Decision output
 
-Summarize the query, source-native candidate or candidates, selected record, and the provenance that matters to the decision. Do not paste raw JSON.
+Summarize the query, selected entry, and the source guidance that materially affected the decision. Attribute source-owned statements to their source and link its canonical URL when useful. Do not paste raw JSON.
 
-If no useful match appears, shorten the query once. Then use `list --provider` for a bounded slice. If that fails, say so and continue with product evidence.
+If no useful match appears, shorten the query once. Then use `list --provider` for a bounded source inventory. If that fails, say so and continue with product evidence.
 
-## Provenance, status, and recovery
+## Sources and recovery
 
-Every v3 record includes `provider`, `canonicalUrl`, `upstreamRevision`, `retrievedAt`, `license`, and `contentMode`. Retrieve the provider register or readiness state when needed:
+Retrieve the approved source register or generated-snapshot status when needed:
 
 ```bash
 bb ui-patterns sources --json
@@ -77,4 +60,4 @@ If the top-level command is unavailable, try:
 bb plugin run ui-patterns search "<term>" --json
 ```
 
-If both forms fail, report that Pattern Atlas is unavailable and continue with product evidence.
+If both forms fail, report that UI Pattern Atlas is unavailable and continue with product evidence.

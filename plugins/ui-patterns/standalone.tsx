@@ -10,9 +10,11 @@ import {
   GalleryShell,
   type GalleryNavigation,
 } from "./gallery-shell.js";
-// The standalone demo has no bb RPC host. Keep its fixture isolated from the
-// plugin composition path, which reads the provider snapshot through RPC.
-import { sourceBrowserFixture } from "./source-browser-fixtures.js";
+// The standalone demo has no bb RPC host, so it reads the same generated,
+// offline snapshot that the plugin server exposes through RPC.
+import { getSourceBrowserSnapshot } from "./providers/source-browser-v2.js";
+
+const sourceBrowserSnapshot = getSourceBrowserSnapshot();
 
 function useHistoryGalleryNavigation(): GalleryNavigation {
   const initialRoute = parseStandaloneRoute(window.location.pathname);
@@ -62,6 +64,14 @@ function useHistoryGalleryNavigation(): GalleryNavigation {
       );
       setEntryId(id);
     },
+    replaceEntry(id) {
+      window.history.replaceState(
+        { view: "inspector", id, openedFromGallery: openedFromGallery.current },
+        "",
+        standaloneEntryPath(basePath.current, id),
+      );
+      setEntryId(id);
+    },
     closeInspector() {
       if (inspectorCloseMode(openedFromGallery.current) === "back") {
         openedFromGallery.current = false;
@@ -85,7 +95,7 @@ function StandaloneGallery() {
       <a className="pa-skip-link" href="#pattern-results">
         Skip to patterns
       </a>
-      <GalleryShell navigation={navigation} snapshot={sourceBrowserFixture} />
+      <GalleryShell navigation={navigation} snapshot={sourceBrowserSnapshot} />
     </>
   );
 }

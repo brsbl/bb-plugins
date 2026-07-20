@@ -1,0 +1,2710 @@
+{
+  "schemaVersion": "1",
+  "revision": "bdcb685fadcca9d18b18f013c052795a53b6aa33",
+  "records": [
+    {
+      "nativeId": "accordion",
+      "name": "Accordion",
+      "aliases": [],
+      "summary": {
+        "text": "A set of collapsible panels with headings.",
+        "url": "https://base-ui.com/react/components/accordion"
+      },
+      "kind": "primitive",
+      "canonicalUrl": "https://base-ui.com/react/components/accordion",
+      "sections": [
+        {
+          "nativeId": "anatomy",
+          "title": "Anatomy",
+          "url": "https://base-ui.com/react/components/accordion#anatomy",
+          "content": null
+        },
+        {
+          "nativeId": "examples",
+          "title": "Examples",
+          "url": "https://base-ui.com/react/components/accordion#examples",
+          "content": null
+        },
+        {
+          "nativeId": "api-reference",
+          "title": "API reference",
+          "url": "https://base-ui.com/react/components/accordion#api-reference",
+          "content": null
+        }
+      ],
+      "links": [
+        {
+          "kind": "docs",
+          "label": null,
+          "url": "https://base-ui.com/react/components/accordion"
+        },
+        {
+          "kind": "code",
+          "label": null,
+          "url": "https://github.com/mui/base-ui/blob/bdcb685fadcca9d18b18f013c052795a53b6aa33/docs/src/app/(docs)/react/components/accordion/page.mdx"
+        }
+      ],
+      "examples": [
+        {
+          "nativeId": "open-multiple-panels",
+          "title": "Open multiple panels",
+          "url": "https://base-ui.com/react/components/accordion#open-multiple-panels"
+        }
+      ],
+      "relationships": [],
+      "sourcePath": "docs/src/app/(docs)/react/components/accordion/page.mdx"
+    },
+    {
+      "nativeId": "alert-dialog",
+      "name": "Alert Dialog",
+      "aliases": [],
+      "summary": {
+        "text": "A dialog that requires a user response to proceed.",
+        "url": "https://base-ui.com/react/components/alert-dialog"
+      },
+      "kind": "primitive",
+      "canonicalUrl": "https://base-ui.com/react/components/alert-dialog",
+      "sections": [
+        {
+          "nativeId": "anatomy",
+          "title": "Anatomy",
+          "url": "https://base-ui.com/react/components/alert-dialog#anatomy",
+          "content": null
+        },
+        {
+          "nativeId": "examples",
+          "title": "Examples",
+          "url": "https://base-ui.com/react/components/alert-dialog#examples",
+          "content": null
+        },
+        {
+          "nativeId": "api-reference",
+          "title": "API reference",
+          "url": "https://base-ui.com/react/components/alert-dialog#api-reference",
+          "content": null
+        },
+        {
+          "nativeId": "createhandle",
+          "title": "createHandle",
+          "url": "https://base-ui.com/react/components/alert-dialog#createhandle",
+          "content": null
+        }
+      ],
+      "links": [
+        {
+          "kind": "docs",
+          "label": null,
+          "url": "https://base-ui.com/react/components/alert-dialog"
+        },
+        {
+          "kind": "code",
+          "label": null,
+          "url": "https://github.com/mui/base-ui/blob/bdcb685fadcca9d18b18f013c052795a53b6aa33/docs/src/app/(docs)/react/components/alert-dialog/page.mdx"
+        }
+      ],
+      "examples": [
+        {
+          "nativeId": "open-from-a-menu",
+          "title": "Open from a menu",
+          "url": "https://base-ui.com/react/components/alert-dialog#open-from-a-menu"
+        },
+        {
+          "nativeId": "close-confirmation",
+          "title": "Close confirmation",
+          "url": "https://base-ui.com/react/components/alert-dialog#close-confirmation"
+        },
+        {
+          "nativeId": "detached-triggers",
+          "title": "Detached triggers",
+          "url": "https://base-ui.com/react/components/alert-dialog#detached-triggers"
+        },
+        {
+          "nativeId": "multiple-triggers",
+          "title": "Multiple triggers",
+          "url": "https://base-ui.com/react/components/alert-dialog#multiple-triggers"
+        },
+        {
+          "nativeId": "controlled-mode-with-multiple-triggers",
+          "title": "Controlled mode with multiple triggers",
+          "url": "https://base-ui.com/react/components/alert-dialog#controlled-mode-with-multiple-triggers"
+        }
+      ],
+      "relationships": [],
+      "sourcePath": "docs/src/app/(docs)/react/components/alert-dialog/page.mdx"
+    },
+    {
+      "nativeId": "autocomplete",
+      "name": "Autocomplete",
+      "aliases": [],
+      "summary": {
+        "text": "An input that suggests options as you type.",
+        "url": "https://base-ui.com/react/components/autocomplete"
+      },
+      "kind": "primitive",
+      "canonicalUrl": "https://base-ui.com/react/components/autocomplete",
+      "sections": [
+        {
+          "nativeId": "usage-guidelines",
+          "title": "Usage guidelines",
+          "url": "https://base-ui.com/react/components/autocomplete#usage-guidelines",
+          "content": null
+        },
+        {
+          "nativeId": "anatomy",
+          "title": "Anatomy",
+          "url": "https://base-ui.com/react/components/autocomplete#anatomy",
+          "content": null
+        },
+        {
+          "nativeId": "typescript-inference",
+          "title": "TypeScript inference",
+          "url": "https://base-ui.com/react/components/autocomplete#typescript-inference",
+          "content": null
+        },
+        {
+          "nativeId": "examples",
+          "title": "Examples",
+          "url": "https://base-ui.com/react/components/autocomplete#examples",
+          "content": null
+        },
+        {
+          "nativeId": "api-reference",
+          "title": "API reference",
+          "url": "https://base-ui.com/react/components/autocomplete#api-reference",
+          "content": null
+        },
+        {
+          "nativeId": "usefilter",
+          "title": "useFilter",
+          "url": "https://base-ui.com/react/components/autocomplete#usefilter",
+          "content": null
+        },
+        {
+          "nativeId": "usefiltereditems",
+          "title": "useFilteredItems",
+          "url": "https://base-ui.com/react/components/autocomplete#usefiltereditems",
+          "content": null
+        }
+      ],
+      "links": [
+        {
+          "kind": "docs",
+          "label": null,
+          "url": "https://base-ui.com/react/components/autocomplete"
+        },
+        {
+          "kind": "code",
+          "label": null,
+          "url": "https://github.com/mui/base-ui/blob/bdcb685fadcca9d18b18f013c052795a53b6aa33/docs/src/app/(docs)/react/components/autocomplete/page.mdx"
+        }
+      ],
+      "examples": [
+        {
+          "nativeId": "async-search",
+          "title": "Async search",
+          "url": "https://base-ui.com/react/components/autocomplete#async-search"
+        },
+        {
+          "nativeId": "inline-autocomplete",
+          "title": "Inline autocomplete",
+          "url": "https://base-ui.com/react/components/autocomplete#inline-autocomplete"
+        },
+        {
+          "nativeId": "grouped",
+          "title": "Grouped",
+          "url": "https://base-ui.com/react/components/autocomplete#grouped"
+        },
+        {
+          "nativeId": "fuzzy-matching",
+          "title": "Fuzzy matching",
+          "url": "https://base-ui.com/react/components/autocomplete#fuzzy-matching"
+        },
+        {
+          "nativeId": "limit-results",
+          "title": "Limit results",
+          "url": "https://base-ui.com/react/components/autocomplete#limit-results"
+        },
+        {
+          "nativeId": "auto-highlight",
+          "title": "Auto highlight",
+          "url": "https://base-ui.com/react/components/autocomplete#auto-highlight"
+        },
+        {
+          "nativeId": "command-palette",
+          "title": "Command palette",
+          "url": "https://base-ui.com/react/components/autocomplete#command-palette"
+        },
+        {
+          "nativeId": "grid-layout",
+          "title": "Grid layout",
+          "url": "https://base-ui.com/react/components/autocomplete#grid-layout"
+        },
+        {
+          "nativeId": "virtualized",
+          "title": "Virtualized",
+          "url": "https://base-ui.com/react/components/autocomplete#virtualized"
+        }
+      ],
+      "relationships": [
+        {
+          "kind": "related-to",
+          "label": "Combobox",
+          "targetTitle": "Combobox",
+          "targetUrl": "https://base-ui.com/react/components/combobox"
+        }
+      ],
+      "sourcePath": "docs/src/app/(docs)/react/components/autocomplete/page.mdx"
+    },
+    {
+      "nativeId": "avatar",
+      "name": "Avatar",
+      "aliases": [],
+      "summary": {
+        "text": "An easily stylable avatar component.",
+        "url": "https://base-ui.com/react/components/avatar"
+      },
+      "kind": "primitive",
+      "canonicalUrl": "https://base-ui.com/react/components/avatar",
+      "sections": [
+        {
+          "nativeId": "anatomy",
+          "title": "Anatomy",
+          "url": "https://base-ui.com/react/components/avatar#anatomy",
+          "content": null
+        },
+        {
+          "nativeId": "api-reference",
+          "title": "API reference",
+          "url": "https://base-ui.com/react/components/avatar#api-reference",
+          "content": null
+        },
+        {
+          "nativeId": "additional-types",
+          "title": "Additional types",
+          "url": "https://base-ui.com/react/components/avatar#additional-types",
+          "content": null
+        }
+      ],
+      "links": [
+        {
+          "kind": "docs",
+          "label": null,
+          "url": "https://base-ui.com/react/components/avatar"
+        },
+        {
+          "kind": "code",
+          "label": null,
+          "url": "https://github.com/mui/base-ui/blob/bdcb685fadcca9d18b18f013c052795a53b6aa33/docs/src/app/(docs)/react/components/avatar/page.mdx"
+        }
+      ],
+      "examples": [],
+      "relationships": [],
+      "sourcePath": "docs/src/app/(docs)/react/components/avatar/page.mdx"
+    },
+    {
+      "nativeId": "button",
+      "name": "Button",
+      "aliases": [],
+      "summary": {
+        "text": "A button component that can be rendered as another tag or focusable when disabled.",
+        "url": "https://base-ui.com/react/components/button"
+      },
+      "kind": "primitive",
+      "canonicalUrl": "https://base-ui.com/react/components/button",
+      "sections": [
+        {
+          "nativeId": "usage-guidelines",
+          "title": "Usage guidelines",
+          "url": "https://base-ui.com/react/components/button#usage-guidelines",
+          "content": null
+        },
+        {
+          "nativeId": "anatomy",
+          "title": "Anatomy",
+          "url": "https://base-ui.com/react/components/button#anatomy",
+          "content": null
+        },
+        {
+          "nativeId": "examples",
+          "title": "Examples",
+          "url": "https://base-ui.com/react/components/button#examples",
+          "content": null
+        },
+        {
+          "nativeId": "api-reference",
+          "title": "API reference",
+          "url": "https://base-ui.com/react/components/button#api-reference",
+          "content": null
+        }
+      ],
+      "links": [
+        {
+          "kind": "docs",
+          "label": null,
+          "url": "https://base-ui.com/react/components/button"
+        },
+        {
+          "kind": "code",
+          "label": null,
+          "url": "https://github.com/mui/base-ui/blob/bdcb685fadcca9d18b18f013c052795a53b6aa33/docs/src/app/(docs)/react/components/button/page.mdx"
+        }
+      ],
+      "examples": [
+        {
+          "nativeId": "rendering-as-another-tag",
+          "title": "Rendering as another tag",
+          "url": "https://base-ui.com/react/components/button#rendering-as-another-tag"
+        },
+        {
+          "nativeId": "rendering-links-as-buttons",
+          "title": "Rendering links as buttons",
+          "url": "https://base-ui.com/react/components/button#rendering-links-as-buttons"
+        },
+        {
+          "nativeId": "loading-states",
+          "title": "Loading states",
+          "url": "https://base-ui.com/react/components/button#loading-states"
+        }
+      ],
+      "relationships": [],
+      "sourcePath": "docs/src/app/(docs)/react/components/button/page.mdx"
+    },
+    {
+      "nativeId": "checkbox",
+      "name": "Checkbox",
+      "aliases": [],
+      "summary": {
+        "text": "An easily stylable checkbox component.",
+        "url": "https://base-ui.com/react/components/checkbox"
+      },
+      "kind": "primitive",
+      "canonicalUrl": "https://base-ui.com/react/components/checkbox",
+      "sections": [
+        {
+          "nativeId": "usage-guidelines",
+          "title": "Usage guidelines",
+          "url": "https://base-ui.com/react/components/checkbox#usage-guidelines",
+          "content": null
+        },
+        {
+          "nativeId": "anatomy",
+          "title": "Anatomy",
+          "url": "https://base-ui.com/react/components/checkbox#anatomy",
+          "content": null
+        },
+        {
+          "nativeId": "examples",
+          "title": "Examples",
+          "url": "https://base-ui.com/react/components/checkbox#examples",
+          "content": null
+        },
+        {
+          "nativeId": "api-reference",
+          "title": "API reference",
+          "url": "https://base-ui.com/react/components/checkbox#api-reference",
+          "content": null
+        }
+      ],
+      "links": [
+        {
+          "kind": "docs",
+          "label": null,
+          "url": "https://base-ui.com/react/components/checkbox"
+        },
+        {
+          "kind": "code",
+          "label": null,
+          "url": "https://github.com/mui/base-ui/blob/bdcb685fadcca9d18b18f013c052795a53b6aa33/docs/src/app/(docs)/react/components/checkbox/page.mdx"
+        }
+      ],
+      "examples": [
+        {
+          "nativeId": "labeling-a-checkbox",
+          "title": "Labeling a checkbox",
+          "url": "https://base-ui.com/react/components/checkbox#labeling-a-checkbox"
+        },
+        {
+          "nativeId": "rendering-as-a-native-button",
+          "title": "Rendering as a native button",
+          "url": "https://base-ui.com/react/components/checkbox#rendering-as-a-native-button"
+        },
+        {
+          "nativeId": "form-integration",
+          "title": "Form integration",
+          "url": "https://base-ui.com/react/components/checkbox#form-integration"
+        }
+      ],
+      "relationships": [
+        {
+          "kind": "related-to",
+          "label": "Field",
+          "targetTitle": "Field",
+          "targetUrl": "https://base-ui.com/react/components/field"
+        }
+      ],
+      "sourcePath": "docs/src/app/(docs)/react/components/checkbox/page.mdx"
+    },
+    {
+      "nativeId": "checkbox-group",
+      "name": "Checkbox Group",
+      "aliases": [],
+      "summary": {
+        "text": "Provides shared state to a series of checkboxes.",
+        "url": "https://base-ui.com/react/components/checkbox-group"
+      },
+      "kind": "primitive",
+      "canonicalUrl": "https://base-ui.com/react/components/checkbox-group",
+      "sections": [
+        {
+          "nativeId": "usage-guidelines",
+          "title": "Usage guidelines",
+          "url": "https://base-ui.com/react/components/checkbox-group#usage-guidelines",
+          "content": null
+        },
+        {
+          "nativeId": "anatomy",
+          "title": "Anatomy",
+          "url": "https://base-ui.com/react/components/checkbox-group#anatomy",
+          "content": null
+        },
+        {
+          "nativeId": "examples",
+          "title": "Examples",
+          "url": "https://base-ui.com/react/components/checkbox-group#examples",
+          "content": null
+        },
+        {
+          "nativeId": "api-reference",
+          "title": "API reference",
+          "url": "https://base-ui.com/react/components/checkbox-group#api-reference",
+          "content": null
+        }
+      ],
+      "links": [
+        {
+          "kind": "docs",
+          "label": null,
+          "url": "https://base-ui.com/react/components/checkbox-group"
+        },
+        {
+          "kind": "code",
+          "label": null,
+          "url": "https://github.com/mui/base-ui/blob/bdcb685fadcca9d18b18f013c052795a53b6aa33/docs/src/app/(docs)/react/components/checkbox-group/page.mdx"
+        }
+      ],
+      "examples": [
+        {
+          "nativeId": "labeling-a-checkbox-group",
+          "title": "Labeling a checkbox group",
+          "url": "https://base-ui.com/react/components/checkbox-group#labeling-a-checkbox-group"
+        },
+        {
+          "nativeId": "rendering-as-a-native-button",
+          "title": "Rendering as a native button",
+          "url": "https://base-ui.com/react/components/checkbox-group#rendering-as-a-native-button"
+        },
+        {
+          "nativeId": "form-integration",
+          "title": "Form integration",
+          "url": "https://base-ui.com/react/components/checkbox-group#form-integration"
+        },
+        {
+          "nativeId": "parent-checkbox",
+          "title": "Parent checkbox",
+          "url": "https://base-ui.com/react/components/checkbox-group#parent-checkbox"
+        },
+        {
+          "nativeId": "nested-parent-checkbox",
+          "title": "Nested parent checkbox",
+          "url": "https://base-ui.com/react/components/checkbox-group#nested-parent-checkbox"
+        }
+      ],
+      "relationships": [
+        {
+          "kind": "related-to",
+          "label": "Checkbox",
+          "targetTitle": "Checkbox",
+          "targetUrl": "https://base-ui.com/react/components/checkbox"
+        },
+        {
+          "kind": "related-to",
+          "label": "Field",
+          "targetTitle": "Field",
+          "targetUrl": "https://base-ui.com/react/components/field"
+        },
+        {
+          "kind": "related-to",
+          "label": "Fieldset",
+          "targetTitle": "Fieldset",
+          "targetUrl": "https://base-ui.com/react/components/fieldset"
+        }
+      ],
+      "sourcePath": "docs/src/app/(docs)/react/components/checkbox-group/page.mdx"
+    },
+    {
+      "nativeId": "collapsible",
+      "name": "Collapsible",
+      "aliases": [],
+      "summary": {
+        "text": "A collapsible panel controlled by a button.",
+        "url": "https://base-ui.com/react/components/collapsible"
+      },
+      "kind": "primitive",
+      "canonicalUrl": "https://base-ui.com/react/components/collapsible",
+      "sections": [
+        {
+          "nativeId": "anatomy",
+          "title": "Anatomy",
+          "url": "https://base-ui.com/react/components/collapsible#anatomy",
+          "content": null
+        },
+        {
+          "nativeId": "api-reference",
+          "title": "API reference",
+          "url": "https://base-ui.com/react/components/collapsible#api-reference",
+          "content": null
+        }
+      ],
+      "links": [
+        {
+          "kind": "docs",
+          "label": null,
+          "url": "https://base-ui.com/react/components/collapsible"
+        },
+        {
+          "kind": "code",
+          "label": null,
+          "url": "https://github.com/mui/base-ui/blob/bdcb685fadcca9d18b18f013c052795a53b6aa33/docs/src/app/(docs)/react/components/collapsible/page.mdx"
+        }
+      ],
+      "examples": [],
+      "relationships": [],
+      "sourcePath": "docs/src/app/(docs)/react/components/collapsible/page.mdx"
+    },
+    {
+      "nativeId": "combobox",
+      "name": "Combobox",
+      "aliases": [],
+      "summary": {
+        "text": "An input combined with a list of predefined items to select.",
+        "url": "https://base-ui.com/react/components/combobox"
+      },
+      "kind": "primitive",
+      "canonicalUrl": "https://base-ui.com/react/components/combobox",
+      "sections": [
+        {
+          "nativeId": "usage-guidelines",
+          "title": "Usage guidelines",
+          "url": "https://base-ui.com/react/components/combobox#usage-guidelines",
+          "content": null
+        },
+        {
+          "nativeId": "anatomy",
+          "title": "Anatomy",
+          "url": "https://base-ui.com/react/components/combobox#anatomy",
+          "content": null
+        },
+        {
+          "nativeId": "typescript",
+          "title": "TypeScript",
+          "url": "https://base-ui.com/react/components/combobox#typescript",
+          "content": null
+        },
+        {
+          "nativeId": "examples",
+          "title": "Examples",
+          "url": "https://base-ui.com/react/components/combobox#examples",
+          "content": null
+        },
+        {
+          "nativeId": "api-reference",
+          "title": "API reference",
+          "url": "https://base-ui.com/react/components/combobox#api-reference",
+          "content": null
+        },
+        {
+          "nativeId": "usefilter",
+          "title": "useFilter",
+          "url": "https://base-ui.com/react/components/combobox#usefilter",
+          "content": null
+        },
+        {
+          "nativeId": "usefiltereditems",
+          "title": "useFilteredItems",
+          "url": "https://base-ui.com/react/components/combobox#usefiltereditems",
+          "content": null
+        }
+      ],
+      "links": [
+        {
+          "kind": "docs",
+          "label": null,
+          "url": "https://base-ui.com/react/components/combobox"
+        },
+        {
+          "kind": "code",
+          "label": null,
+          "url": "https://github.com/mui/base-ui/blob/bdcb685fadcca9d18b18f013c052795a53b6aa33/docs/src/app/(docs)/react/components/combobox/page.mdx"
+        }
+      ],
+      "examples": [
+        {
+          "nativeId": "typed-wrapper-component",
+          "title": "Typed wrapper component",
+          "url": "https://base-ui.com/react/components/combobox#typed-wrapper-component"
+        },
+        {
+          "nativeId": "multiple-select",
+          "title": "Multiple select",
+          "url": "https://base-ui.com/react/components/combobox#multiple-select"
+        },
+        {
+          "nativeId": "input-inside-popup",
+          "title": "Input inside popup",
+          "url": "https://base-ui.com/react/components/combobox#input-inside-popup"
+        },
+        {
+          "nativeId": "grouped",
+          "title": "Grouped",
+          "url": "https://base-ui.com/react/components/combobox#grouped"
+        },
+        {
+          "nativeId": "async-search-single",
+          "title": "Async search (single)",
+          "url": "https://base-ui.com/react/components/combobox#async-search-single"
+        },
+        {
+          "nativeId": "async-search-multiple",
+          "title": "Async search (multiple)",
+          "url": "https://base-ui.com/react/components/combobox#async-search-multiple"
+        },
+        {
+          "nativeId": "creatable",
+          "title": "Creatable",
+          "url": "https://base-ui.com/react/components/combobox#creatable"
+        },
+        {
+          "nativeId": "virtualized",
+          "title": "Virtualized",
+          "url": "https://base-ui.com/react/components/combobox#virtualized"
+        }
+      ],
+      "relationships": [
+        {
+          "kind": "related-to",
+          "label": "Select",
+          "targetTitle": "Select",
+          "targetUrl": "https://base-ui.com/react/components/select"
+        },
+        {
+          "kind": "related-to",
+          "label": "Autocomplete",
+          "targetTitle": "Autocomplete",
+          "targetUrl": "https://base-ui.com/react/components/autocomplete"
+        }
+      ],
+      "sourcePath": "docs/src/app/(docs)/react/components/combobox/page.mdx"
+    },
+    {
+      "nativeId": "context-menu",
+      "name": "Context Menu",
+      "aliases": [],
+      "summary": {
+        "text": "A menu that appears at the pointer on right click or long press.",
+        "url": "https://base-ui.com/react/components/context-menu"
+      },
+      "kind": "primitive",
+      "canonicalUrl": "https://base-ui.com/react/components/context-menu",
+      "sections": [
+        {
+          "nativeId": "usage-guidelines",
+          "title": "Usage guidelines",
+          "url": "https://base-ui.com/react/components/context-menu#usage-guidelines",
+          "content": null
+        },
+        {
+          "nativeId": "anatomy",
+          "title": "Anatomy",
+          "url": "https://base-ui.com/react/components/context-menu#anatomy",
+          "content": null
+        },
+        {
+          "nativeId": "examples",
+          "title": "Examples",
+          "url": "https://base-ui.com/react/components/context-menu#examples",
+          "content": null
+        },
+        {
+          "nativeId": "api-reference",
+          "title": "API reference",
+          "url": "https://base-ui.com/react/components/context-menu#api-reference",
+          "content": null
+        }
+      ],
+      "links": [
+        {
+          "kind": "docs",
+          "label": null,
+          "url": "https://base-ui.com/react/components/context-menu"
+        },
+        {
+          "kind": "code",
+          "label": null,
+          "url": "https://github.com/mui/base-ui/blob/bdcb685fadcca9d18b18f013c052795a53b6aa33/docs/src/app/(docs)/react/components/context-menu/page.mdx"
+        }
+      ],
+      "examples": [
+        {
+          "nativeId": "using-with-menu",
+          "title": "Using with Menu",
+          "url": "https://base-ui.com/react/components/context-menu#using-with-menu"
+        },
+        {
+          "nativeId": "nested-menu",
+          "title": "Nested menu",
+          "url": "https://base-ui.com/react/components/context-menu#nested-menu"
+        }
+      ],
+      "relationships": [
+        {
+          "kind": "related-to",
+          "label": "Menu",
+          "targetTitle": "Menu",
+          "targetUrl": "https://base-ui.com/react/components/menu"
+        }
+      ],
+      "sourcePath": "docs/src/app/(docs)/react/components/context-menu/page.mdx"
+    },
+    {
+      "nativeId": "dialog",
+      "name": "Dialog",
+      "aliases": [],
+      "summary": {
+        "text": "A popup that opens on top of the entire page.",
+        "url": "https://base-ui.com/react/components/dialog"
+      },
+      "kind": "primitive",
+      "canonicalUrl": "https://base-ui.com/react/components/dialog",
+      "sections": [
+        {
+          "nativeId": "usage-guidelines",
+          "title": "Usage guidelines",
+          "url": "https://base-ui.com/react/components/dialog#usage-guidelines",
+          "content": null
+        },
+        {
+          "nativeId": "anatomy",
+          "title": "Anatomy",
+          "url": "https://base-ui.com/react/components/dialog#anatomy",
+          "content": null
+        },
+        {
+          "nativeId": "examples",
+          "title": "Examples",
+          "url": "https://base-ui.com/react/components/dialog#examples",
+          "content": null
+        },
+        {
+          "nativeId": "api-reference",
+          "title": "API reference",
+          "url": "https://base-ui.com/react/components/dialog#api-reference",
+          "content": null
+        },
+        {
+          "nativeId": "createhandle",
+          "title": "createHandle",
+          "url": "https://base-ui.com/react/components/dialog#createhandle",
+          "content": null
+        }
+      ],
+      "links": [
+        {
+          "kind": "docs",
+          "label": null,
+          "url": "https://base-ui.com/react/components/dialog"
+        },
+        {
+          "kind": "code",
+          "label": null,
+          "url": "https://github.com/mui/base-ui/blob/bdcb685fadcca9d18b18f013c052795a53b6aa33/docs/src/app/(docs)/react/components/dialog/page.mdx"
+        }
+      ],
+      "examples": [
+        {
+          "nativeId": "state",
+          "title": "State",
+          "url": "https://base-ui.com/react/components/dialog#state"
+        },
+        {
+          "nativeId": "open-from-a-menu",
+          "title": "Open from a menu",
+          "url": "https://base-ui.com/react/components/dialog#open-from-a-menu"
+        },
+        {
+          "nativeId": "nested-dialogs",
+          "title": "Nested dialogs",
+          "url": "https://base-ui.com/react/components/dialog#nested-dialogs"
+        },
+        {
+          "nativeId": "close-confirmation",
+          "title": "Close confirmation",
+          "url": "https://base-ui.com/react/components/dialog#close-confirmation"
+        },
+        {
+          "nativeId": "outside-scroll-dialog",
+          "title": "Outside scroll dialog",
+          "url": "https://base-ui.com/react/components/dialog#outside-scroll-dialog"
+        },
+        {
+          "nativeId": "inside-scroll-dialog",
+          "title": "Inside scroll dialog",
+          "url": "https://base-ui.com/react/components/dialog#inside-scroll-dialog"
+        },
+        {
+          "nativeId": "placing-elements-outside-the-popup",
+          "title": "Placing elements outside the popup",
+          "url": "https://base-ui.com/react/components/dialog#placing-elements-outside-the-popup"
+        },
+        {
+          "nativeId": "detached-triggers",
+          "title": "Detached triggers",
+          "url": "https://base-ui.com/react/components/dialog#detached-triggers"
+        },
+        {
+          "nativeId": "multiple-triggers",
+          "title": "Multiple triggers",
+          "url": "https://base-ui.com/react/components/dialog#multiple-triggers"
+        },
+        {
+          "nativeId": "controlled-mode-with-multiple-triggers",
+          "title": "Controlled mode with multiple triggers",
+          "url": "https://base-ui.com/react/components/dialog#controlled-mode-with-multiple-triggers"
+        }
+      ],
+      "relationships": [
+        {
+          "kind": "related-to",
+          "label": "Drawer",
+          "targetTitle": "Drawer",
+          "targetUrl": "https://base-ui.com/react/components/drawer"
+        },
+        {
+          "kind": "related-to",
+          "label": "Scroll Area component",
+          "targetTitle": "Scroll Area component",
+          "targetUrl": "https://base-ui.com/react/components/scroll-area"
+        }
+      ],
+      "sourcePath": "docs/src/app/(docs)/react/components/dialog/page.mdx"
+    },
+    {
+      "nativeId": "drawer",
+      "name": "Drawer",
+      "aliases": [],
+      "summary": {
+        "text": "A panel that slides in from the edge of the screen.",
+        "url": "https://base-ui.com/react/components/drawer"
+      },
+      "kind": "primitive",
+      "canonicalUrl": "https://base-ui.com/react/components/drawer",
+      "sections": [
+        {
+          "nativeId": "usage-guidelines",
+          "title": "Usage guidelines",
+          "url": "https://base-ui.com/react/components/drawer#usage-guidelines",
+          "content": null
+        },
+        {
+          "nativeId": "anatomy",
+          "title": "Anatomy",
+          "url": "https://base-ui.com/react/components/drawer#anatomy",
+          "content": null
+        },
+        {
+          "nativeId": "examples",
+          "title": "Examples",
+          "url": "https://base-ui.com/react/components/drawer#examples",
+          "content": null
+        },
+        {
+          "nativeId": "api-reference",
+          "title": "API reference",
+          "url": "https://base-ui.com/react/components/drawer#api-reference",
+          "content": null
+        },
+        {
+          "nativeId": "createhandle",
+          "title": "createHandle",
+          "url": "https://base-ui.com/react/components/drawer#createhandle",
+          "content": null
+        }
+      ],
+      "links": [
+        {
+          "kind": "docs",
+          "label": null,
+          "url": "https://base-ui.com/react/components/drawer"
+        },
+        {
+          "kind": "code",
+          "label": null,
+          "url": "https://github.com/mui/base-ui/blob/bdcb685fadcca9d18b18f013c052795a53b6aa33/docs/src/app/(docs)/react/components/drawer/page.mdx"
+        }
+      ],
+      "examples": [
+        {
+          "nativeId": "state",
+          "title": "State",
+          "url": "https://base-ui.com/react/components/drawer#state"
+        },
+        {
+          "nativeId": "position",
+          "title": "Position",
+          "url": "https://base-ui.com/react/components/drawer#position"
+        },
+        {
+          "nativeId": "nested-drawers",
+          "title": "Nested drawers",
+          "url": "https://base-ui.com/react/components/drawer#nested-drawers"
+        },
+        {
+          "nativeId": "snap-points",
+          "title": "Snap points",
+          "url": "https://base-ui.com/react/components/drawer#snap-points"
+        },
+        {
+          "nativeId": "virtual-keyboard-aware",
+          "title": "Virtual keyboard aware",
+          "url": "https://base-ui.com/react/components/drawer#virtual-keyboard-aware"
+        },
+        {
+          "nativeId": "indent-effect",
+          "title": "Indent effect",
+          "url": "https://base-ui.com/react/components/drawer#indent-effect"
+        },
+        {
+          "nativeId": "non-modal",
+          "title": "Non-modal",
+          "url": "https://base-ui.com/react/components/drawer#non-modal"
+        },
+        {
+          "nativeId": "mobile-navigation",
+          "title": "Mobile navigation",
+          "url": "https://base-ui.com/react/components/drawer#mobile-navigation"
+        },
+        {
+          "nativeId": "swipe-to-open",
+          "title": "Swipe to open",
+          "url": "https://base-ui.com/react/components/drawer#swipe-to-open"
+        },
+        {
+          "nativeId": "close-confirmation",
+          "title": "Close confirmation",
+          "url": "https://base-ui.com/react/components/drawer#close-confirmation"
+        },
+        {
+          "nativeId": "action-sheet-with-separate-destructive-action",
+          "title": "Action sheet with separate destructive action",
+          "url": "https://base-ui.com/react/components/drawer#action-sheet-with-separate-destructive-action"
+        },
+        {
+          "nativeId": "detached-triggers",
+          "title": "Detached triggers",
+          "url": "https://base-ui.com/react/components/drawer#detached-triggers"
+        },
+        {
+          "nativeId": "stacking-and-animations",
+          "title": "Stacking and animations",
+          "url": "https://base-ui.com/react/components/drawer#stacking-and-animations"
+        }
+      ],
+      "relationships": [
+        {
+          "kind": "related-to",
+          "label": "Dialog",
+          "targetTitle": "Dialog",
+          "targetUrl": "https://base-ui.com/react/components/dialog"
+        }
+      ],
+      "sourcePath": "docs/src/app/(docs)/react/components/drawer/page.mdx"
+    },
+    {
+      "nativeId": "field",
+      "name": "Field",
+      "aliases": [],
+      "summary": {
+        "text": "A component that provides labeling and validation for form controls.",
+        "url": "https://base-ui.com/react/components/field"
+      },
+      "kind": "primitive",
+      "canonicalUrl": "https://base-ui.com/react/components/field",
+      "sections": [
+        {
+          "nativeId": "anatomy",
+          "title": "Anatomy",
+          "url": "https://base-ui.com/react/components/field#anatomy",
+          "content": null
+        },
+        {
+          "nativeId": "api-reference",
+          "title": "API reference",
+          "url": "https://base-ui.com/react/components/field#api-reference",
+          "content": null
+        }
+      ],
+      "links": [
+        {
+          "kind": "docs",
+          "label": null,
+          "url": "https://base-ui.com/react/components/field"
+        },
+        {
+          "kind": "code",
+          "label": null,
+          "url": "https://github.com/mui/base-ui/blob/bdcb685fadcca9d18b18f013c052795a53b6aa33/docs/src/app/(docs)/react/components/field/page.mdx"
+        }
+      ],
+      "examples": [],
+      "relationships": [],
+      "sourcePath": "docs/src/app/(docs)/react/components/field/page.mdx"
+    },
+    {
+      "nativeId": "fieldset",
+      "name": "Fieldset",
+      "aliases": [],
+      "summary": {
+        "text": "A native fieldset element with an easily stylable legend.",
+        "url": "https://base-ui.com/react/components/fieldset"
+      },
+      "kind": "primitive",
+      "canonicalUrl": "https://base-ui.com/react/components/fieldset",
+      "sections": [
+        {
+          "nativeId": "anatomy",
+          "title": "Anatomy",
+          "url": "https://base-ui.com/react/components/fieldset#anatomy",
+          "content": null
+        },
+        {
+          "nativeId": "api-reference",
+          "title": "API reference",
+          "url": "https://base-ui.com/react/components/fieldset#api-reference",
+          "content": null
+        }
+      ],
+      "links": [
+        {
+          "kind": "docs",
+          "label": null,
+          "url": "https://base-ui.com/react/components/fieldset"
+        },
+        {
+          "kind": "code",
+          "label": null,
+          "url": "https://github.com/mui/base-ui/blob/bdcb685fadcca9d18b18f013c052795a53b6aa33/docs/src/app/(docs)/react/components/fieldset/page.mdx"
+        }
+      ],
+      "examples": [],
+      "relationships": [],
+      "sourcePath": "docs/src/app/(docs)/react/components/fieldset/page.mdx"
+    },
+    {
+      "nativeId": "form",
+      "name": "Form",
+      "aliases": [],
+      "summary": {
+        "text": "A native form element with consolidated error handling.",
+        "url": "https://base-ui.com/react/components/form"
+      },
+      "kind": "primitive",
+      "canonicalUrl": "https://base-ui.com/react/components/form",
+      "sections": [
+        {
+          "nativeId": "anatomy",
+          "title": "Anatomy",
+          "url": "https://base-ui.com/react/components/form#anatomy",
+          "content": null
+        },
+        {
+          "nativeId": "examples",
+          "title": "Examples",
+          "url": "https://base-ui.com/react/components/form#examples",
+          "content": null
+        },
+        {
+          "nativeId": "api-reference",
+          "title": "API reference",
+          "url": "https://base-ui.com/react/components/form#api-reference",
+          "content": null
+        }
+      ],
+      "links": [
+        {
+          "kind": "docs",
+          "label": null,
+          "url": "https://base-ui.com/react/components/form"
+        },
+        {
+          "kind": "code",
+          "label": null,
+          "url": "https://github.com/mui/base-ui/blob/bdcb685fadcca9d18b18f013c052795a53b6aa33/docs/src/app/(docs)/react/components/form/page.mdx"
+        }
+      ],
+      "examples": [
+        {
+          "nativeId": "submit-with-a-server-function",
+          "title": "Submit with a Server Function",
+          "url": "https://base-ui.com/react/components/form#submit-with-a-server-function"
+        },
+        {
+          "nativeId": "submit-form-values-as-a-javascript-object",
+          "title": "Submit form values as a JavaScript object",
+          "url": "https://base-ui.com/react/components/form#submit-form-values-as-a-javascript-object"
+        },
+        {
+          "nativeId": "using-with-zod",
+          "title": "Using with Zod",
+          "url": "https://base-ui.com/react/components/form#using-with-zod"
+        }
+      ],
+      "relationships": [
+        {
+          "kind": "related-to",
+          "label": "Field",
+          "targetTitle": "Field",
+          "targetUrl": "https://base-ui.com/react/components/field"
+        }
+      ],
+      "sourcePath": "docs/src/app/(docs)/react/components/form/page.mdx"
+    },
+    {
+      "nativeId": "input",
+      "name": "Input",
+      "aliases": [],
+      "summary": {
+        "text": "A native input element that automatically works with [Field](/react/components/field).",
+        "url": "https://base-ui.com/react/components/input"
+      },
+      "kind": "primitive",
+      "canonicalUrl": "https://base-ui.com/react/components/input",
+      "sections": [
+        {
+          "nativeId": "usage-guidelines",
+          "title": "Usage guidelines",
+          "url": "https://base-ui.com/react/components/input#usage-guidelines",
+          "content": null
+        },
+        {
+          "nativeId": "anatomy",
+          "title": "Anatomy",
+          "url": "https://base-ui.com/react/components/input#anatomy",
+          "content": null
+        },
+        {
+          "nativeId": "api-reference",
+          "title": "API reference",
+          "url": "https://base-ui.com/react/components/input#api-reference",
+          "content": null
+        }
+      ],
+      "links": [
+        {
+          "kind": "docs",
+          "label": null,
+          "url": "https://base-ui.com/react/components/input"
+        },
+        {
+          "kind": "code",
+          "label": null,
+          "url": "https://github.com/mui/base-ui/blob/bdcb685fadcca9d18b18f013c052795a53b6aa33/docs/src/app/(docs)/react/components/input/page.mdx"
+        }
+      ],
+      "examples": [],
+      "relationships": [
+        {
+          "kind": "related-to",
+          "label": "Field",
+          "targetTitle": "Field",
+          "targetUrl": "https://base-ui.com/react/components/field"
+        }
+      ],
+      "sourcePath": "docs/src/app/(docs)/react/components/input/page.mdx"
+    },
+    {
+      "nativeId": "menu",
+      "name": "Menu",
+      "aliases": [],
+      "summary": {
+        "text": "A list of actions in a dropdown, enhanced with keyboard navigation.",
+        "url": "https://base-ui.com/react/components/menu"
+      },
+      "kind": "primitive",
+      "canonicalUrl": "https://base-ui.com/react/components/menu",
+      "sections": [
+        {
+          "nativeId": "anatomy",
+          "title": "Anatomy",
+          "url": "https://base-ui.com/react/components/menu#anatomy",
+          "content": null
+        },
+        {
+          "nativeId": "examples",
+          "title": "Examples",
+          "url": "https://base-ui.com/react/components/menu#examples",
+          "content": null
+        },
+        {
+          "nativeId": "api-reference",
+          "title": "API reference",
+          "url": "https://base-ui.com/react/components/menu#api-reference",
+          "content": null
+        },
+        {
+          "nativeId": "createhandle",
+          "title": "createHandle",
+          "url": "https://base-ui.com/react/components/menu#createhandle",
+          "content": null
+        }
+      ],
+      "links": [
+        {
+          "kind": "docs",
+          "label": null,
+          "url": "https://base-ui.com/react/components/menu"
+        },
+        {
+          "kind": "code",
+          "label": null,
+          "url": "https://github.com/mui/base-ui/blob/bdcb685fadcca9d18b18f013c052795a53b6aa33/docs/src/app/(docs)/react/components/menu/page.mdx"
+        }
+      ],
+      "examples": [
+        {
+          "nativeId": "open-on-hover",
+          "title": "Open on hover",
+          "url": "https://base-ui.com/react/components/menu#open-on-hover"
+        },
+        {
+          "nativeId": "checkbox-items",
+          "title": "Checkbox items",
+          "url": "https://base-ui.com/react/components/menu#checkbox-items"
+        },
+        {
+          "nativeId": "radio-items",
+          "title": "Radio items",
+          "url": "https://base-ui.com/react/components/menu#radio-items"
+        },
+        {
+          "nativeId": "close-on-click",
+          "title": "Close on click",
+          "url": "https://base-ui.com/react/components/menu#close-on-click"
+        },
+        {
+          "nativeId": "group-labels",
+          "title": "Group labels",
+          "url": "https://base-ui.com/react/components/menu#group-labels"
+        },
+        {
+          "nativeId": "nested-menu",
+          "title": "Nested menu",
+          "url": "https://base-ui.com/react/components/menu#nested-menu"
+        },
+        {
+          "nativeId": "navigate-to-another-page",
+          "title": "Navigate to another page",
+          "url": "https://base-ui.com/react/components/menu#navigate-to-another-page"
+        },
+        {
+          "nativeId": "open-a-dialog",
+          "title": "Open a dialog",
+          "url": "https://base-ui.com/react/components/menu#open-a-dialog"
+        },
+        {
+          "nativeId": "detached-triggers",
+          "title": "Detached triggers",
+          "url": "https://base-ui.com/react/components/menu#detached-triggers"
+        },
+        {
+          "nativeId": "multiple-triggers",
+          "title": "Multiple triggers",
+          "url": "https://base-ui.com/react/components/menu#multiple-triggers"
+        },
+        {
+          "nativeId": "controlled-mode-with-multiple-triggers",
+          "title": "Controlled mode with multiple triggers",
+          "url": "https://base-ui.com/react/components/menu#controlled-mode-with-multiple-triggers"
+        },
+        {
+          "nativeId": "arrow",
+          "title": "Arrow",
+          "url": "https://base-ui.com/react/components/menu#arrow"
+        },
+        {
+          "nativeId": "animating-the-menu",
+          "title": "Animating the Menu",
+          "url": "https://base-ui.com/react/components/menu#animating-the-menu"
+        }
+      ],
+      "relationships": [],
+      "sourcePath": "docs/src/app/(docs)/react/components/menu/page.mdx"
+    },
+    {
+      "nativeId": "menubar",
+      "name": "Menubar",
+      "aliases": [],
+      "summary": {
+        "text": "A menu bar providing commands and options for your application.",
+        "url": "https://base-ui.com/react/components/menubar"
+      },
+      "kind": "primitive",
+      "canonicalUrl": "https://base-ui.com/react/components/menubar",
+      "sections": [
+        {
+          "nativeId": "anatomy",
+          "title": "Anatomy",
+          "url": "https://base-ui.com/react/components/menubar#anatomy",
+          "content": null
+        },
+        {
+          "nativeId": "api-reference",
+          "title": "API reference",
+          "url": "https://base-ui.com/react/components/menubar#api-reference",
+          "content": null
+        }
+      ],
+      "links": [
+        {
+          "kind": "docs",
+          "label": null,
+          "url": "https://base-ui.com/react/components/menubar"
+        },
+        {
+          "kind": "code",
+          "label": null,
+          "url": "https://github.com/mui/base-ui/blob/bdcb685fadcca9d18b18f013c052795a53b6aa33/docs/src/app/(docs)/react/components/menubar/page.mdx"
+        }
+      ],
+      "examples": [],
+      "relationships": [],
+      "sourcePath": "docs/src/app/(docs)/react/components/menubar/page.mdx"
+    },
+    {
+      "nativeId": "meter",
+      "name": "Meter",
+      "aliases": [],
+      "summary": {
+        "text": "A graphical display of a numeric value within a range.",
+        "url": "https://base-ui.com/react/components/meter"
+      },
+      "kind": "primitive",
+      "canonicalUrl": "https://base-ui.com/react/components/meter",
+      "sections": [
+        {
+          "nativeId": "anatomy",
+          "title": "Anatomy",
+          "url": "https://base-ui.com/react/components/meter#anatomy",
+          "content": null
+        },
+        {
+          "nativeId": "api-reference",
+          "title": "API reference",
+          "url": "https://base-ui.com/react/components/meter#api-reference",
+          "content": null
+        }
+      ],
+      "links": [
+        {
+          "kind": "docs",
+          "label": null,
+          "url": "https://base-ui.com/react/components/meter"
+        },
+        {
+          "kind": "code",
+          "label": null,
+          "url": "https://github.com/mui/base-ui/blob/bdcb685fadcca9d18b18f013c052795a53b6aa33/docs/src/app/(docs)/react/components/meter/page.mdx"
+        }
+      ],
+      "examples": [],
+      "relationships": [],
+      "sourcePath": "docs/src/app/(docs)/react/components/meter/page.mdx"
+    },
+    {
+      "nativeId": "navigation-menu",
+      "name": "Navigation Menu",
+      "aliases": [],
+      "summary": {
+        "text": "A collection of links and menus for website navigation.",
+        "url": "https://base-ui.com/react/components/navigation-menu"
+      },
+      "kind": "primitive",
+      "canonicalUrl": "https://base-ui.com/react/components/navigation-menu",
+      "sections": [
+        {
+          "nativeId": "anatomy",
+          "title": "Anatomy",
+          "url": "https://base-ui.com/react/components/navigation-menu#anatomy",
+          "content": null
+        },
+        {
+          "nativeId": "examples",
+          "title": "Examples",
+          "url": "https://base-ui.com/react/components/navigation-menu#examples",
+          "content": null
+        },
+        {
+          "nativeId": "api-reference",
+          "title": "API reference",
+          "url": "https://base-ui.com/react/components/navigation-menu#api-reference",
+          "content": null
+        }
+      ],
+      "links": [
+        {
+          "kind": "docs",
+          "label": null,
+          "url": "https://base-ui.com/react/components/navigation-menu"
+        },
+        {
+          "kind": "code",
+          "label": null,
+          "url": "https://github.com/mui/base-ui/blob/bdcb685fadcca9d18b18f013c052795a53b6aa33/docs/src/app/(docs)/react/components/navigation-menu/page.mdx"
+        }
+      ],
+      "examples": [
+        {
+          "nativeId": "nested-submenus",
+          "title": "Nested submenus",
+          "url": "https://base-ui.com/react/components/navigation-menu#nested-submenus"
+        },
+        {
+          "nativeId": "nested-inline-submenus",
+          "title": "Nested inline submenus",
+          "url": "https://base-ui.com/react/components/navigation-menu#nested-inline-submenus"
+        },
+        {
+          "nativeId": "custom-links",
+          "title": "Custom links",
+          "url": "https://base-ui.com/react/components/navigation-menu#custom-links"
+        },
+        {
+          "nativeId": "large-menus",
+          "title": "Large menus",
+          "url": "https://base-ui.com/react/components/navigation-menu#large-menus"
+        }
+      ],
+      "relationships": [
+        {
+          "kind": "related-to",
+          "label": "Scroll Area",
+          "targetTitle": "Scroll Area",
+          "targetUrl": "https://base-ui.com/react/components/scroll-area"
+        }
+      ],
+      "sourcePath": "docs/src/app/(docs)/react/components/navigation-menu/page.mdx"
+    },
+    {
+      "nativeId": "number-field",
+      "name": "Number Field",
+      "aliases": [],
+      "summary": {
+        "text": "A numeric input element with increment and decrement buttons, and a scrub area.",
+        "url": "https://base-ui.com/react/components/number-field"
+      },
+      "kind": "primitive",
+      "canonicalUrl": "https://base-ui.com/react/components/number-field",
+      "sections": [
+        {
+          "nativeId": "usage-guidelines",
+          "title": "Usage guidelines",
+          "url": "https://base-ui.com/react/components/number-field#usage-guidelines",
+          "content": null
+        },
+        {
+          "nativeId": "anatomy",
+          "title": "Anatomy",
+          "url": "https://base-ui.com/react/components/number-field#anatomy",
+          "content": null
+        },
+        {
+          "nativeId": "api-reference",
+          "title": "API reference",
+          "url": "https://base-ui.com/react/components/number-field#api-reference",
+          "content": null
+        }
+      ],
+      "links": [
+        {
+          "kind": "docs",
+          "label": null,
+          "url": "https://base-ui.com/react/components/number-field"
+        },
+        {
+          "kind": "code",
+          "label": null,
+          "url": "https://github.com/mui/base-ui/blob/bdcb685fadcca9d18b18f013c052795a53b6aa33/docs/src/app/(docs)/react/components/number-field/page.mdx"
+        }
+      ],
+      "examples": [],
+      "relationships": [],
+      "sourcePath": "docs/src/app/(docs)/react/components/number-field/page.mdx"
+    },
+    {
+      "nativeId": "otp-field",
+      "name": "OTP Field",
+      "aliases": [],
+      "summary": {
+        "text": "A one-time password input composed of individual character slots.",
+        "url": "https://base-ui.com/react/components/otp-field"
+      },
+      "kind": "primitive",
+      "canonicalUrl": "https://base-ui.com/react/components/otp-field",
+      "sections": [
+        {
+          "nativeId": "usage-guidelines",
+          "title": "Usage guidelines",
+          "url": "https://base-ui.com/react/components/otp-field#usage-guidelines",
+          "content": null
+        },
+        {
+          "nativeId": "anatomy",
+          "title": "Anatomy",
+          "url": "https://base-ui.com/react/components/otp-field#anatomy",
+          "content": null
+        },
+        {
+          "nativeId": "examples",
+          "title": "Examples",
+          "url": "https://base-ui.com/react/components/otp-field#examples",
+          "content": null
+        },
+        {
+          "nativeId": "api-reference",
+          "title": "API reference",
+          "url": "https://base-ui.com/react/components/otp-field#api-reference",
+          "content": null
+        }
+      ],
+      "links": [
+        {
+          "kind": "docs",
+          "label": null,
+          "url": "https://base-ui.com/react/components/otp-field"
+        },
+        {
+          "kind": "code",
+          "label": null,
+          "url": "https://github.com/mui/base-ui/blob/bdcb685fadcca9d18b18f013c052795a53b6aa33/docs/src/app/(docs)/react/components/otp-field/page.mdx"
+        }
+      ],
+      "examples": [
+        {
+          "nativeId": "labeling-an-otp-field",
+          "title": "Labeling an OTP field",
+          "url": "https://base-ui.com/react/components/otp-field#labeling-an-otp-field"
+        },
+        {
+          "nativeId": "form-integration",
+          "title": "Form integration",
+          "url": "https://base-ui.com/react/components/otp-field#form-integration"
+        },
+        {
+          "nativeId": "alphanumeric-verification-codes",
+          "title": "Alphanumeric verification codes",
+          "url": "https://base-ui.com/react/components/otp-field#alphanumeric-verification-codes"
+        },
+        {
+          "nativeId": "grouped-layouts",
+          "title": "Grouped layouts",
+          "url": "https://base-ui.com/react/components/otp-field#grouped-layouts"
+        },
+        {
+          "nativeId": "placeholder-hints",
+          "title": "Placeholder hints",
+          "url": "https://base-ui.com/react/components/otp-field#placeholder-hints"
+        },
+        {
+          "nativeId": "custom-normalization",
+          "title": "Custom normalization",
+          "url": "https://base-ui.com/react/components/otp-field#custom-normalization"
+        },
+        {
+          "nativeId": "masked-entry",
+          "title": "Masked entry",
+          "url": "https://base-ui.com/react/components/otp-field#masked-entry"
+        }
+      ],
+      "relationships": [
+        {
+          "kind": "related-to",
+          "label": "Field",
+          "targetTitle": "Field",
+          "targetUrl": "https://base-ui.com/react/components/field"
+        }
+      ],
+      "sourcePath": "docs/src/app/(docs)/react/components/otp-field/page.mdx"
+    },
+    {
+      "nativeId": "popover",
+      "name": "Popover",
+      "aliases": [],
+      "summary": {
+        "text": "An accessible popup anchored to a button.",
+        "url": "https://base-ui.com/react/components/popover"
+      },
+      "kind": "primitive",
+      "canonicalUrl": "https://base-ui.com/react/components/popover",
+      "sections": [
+        {
+          "nativeId": "anatomy",
+          "title": "Anatomy",
+          "url": "https://base-ui.com/react/components/popover#anatomy",
+          "content": null
+        },
+        {
+          "nativeId": "examples",
+          "title": "Examples",
+          "url": "https://base-ui.com/react/components/popover#examples",
+          "content": null
+        },
+        {
+          "nativeId": "api-reference",
+          "title": "API reference",
+          "url": "https://base-ui.com/react/components/popover#api-reference",
+          "content": null
+        },
+        {
+          "nativeId": "createhandle",
+          "title": "createHandle",
+          "url": "https://base-ui.com/react/components/popover#createhandle",
+          "content": null
+        }
+      ],
+      "links": [
+        {
+          "kind": "docs",
+          "label": null,
+          "url": "https://base-ui.com/react/components/popover"
+        },
+        {
+          "kind": "code",
+          "label": null,
+          "url": "https://github.com/mui/base-ui/blob/bdcb685fadcca9d18b18f013c052795a53b6aa33/docs/src/app/(docs)/react/components/popover/page.mdx"
+        }
+      ],
+      "examples": [
+        {
+          "nativeId": "opening-on-hover",
+          "title": "Opening on hover",
+          "url": "https://base-ui.com/react/components/popover#opening-on-hover"
+        },
+        {
+          "nativeId": "detached-triggers",
+          "title": "Detached triggers",
+          "url": "https://base-ui.com/react/components/popover#detached-triggers"
+        },
+        {
+          "nativeId": "multiple-triggers",
+          "title": "Multiple triggers",
+          "url": "https://base-ui.com/react/components/popover#multiple-triggers"
+        },
+        {
+          "nativeId": "controlled-mode-with-multiple-triggers",
+          "title": "Controlled mode with multiple triggers",
+          "url": "https://base-ui.com/react/components/popover#controlled-mode-with-multiple-triggers"
+        },
+        {
+          "nativeId": "animating-the-popover",
+          "title": "Animating the Popover",
+          "url": "https://base-ui.com/react/components/popover#animating-the-popover"
+        }
+      ],
+      "relationships": [],
+      "sourcePath": "docs/src/app/(docs)/react/components/popover/page.mdx"
+    },
+    {
+      "nativeId": "preview-card",
+      "name": "Preview Card",
+      "aliases": [],
+      "summary": {
+        "text": "A popup that appears when a link is hovered, showing a preview for sighted users.",
+        "url": "https://base-ui.com/react/components/preview-card"
+      },
+      "kind": "primitive",
+      "canonicalUrl": "https://base-ui.com/react/components/preview-card",
+      "sections": [
+        {
+          "nativeId": "usage-guidelines",
+          "title": "Usage guidelines",
+          "url": "https://base-ui.com/react/components/preview-card#usage-guidelines",
+          "content": null
+        },
+        {
+          "nativeId": "anatomy",
+          "title": "Anatomy",
+          "url": "https://base-ui.com/react/components/preview-card#anatomy",
+          "content": null
+        },
+        {
+          "nativeId": "examples",
+          "title": "Examples",
+          "url": "https://base-ui.com/react/components/preview-card#examples",
+          "content": null
+        },
+        {
+          "nativeId": "api-reference",
+          "title": "API reference",
+          "url": "https://base-ui.com/react/components/preview-card#api-reference",
+          "content": null
+        },
+        {
+          "nativeId": "createhandle",
+          "title": "createHandle",
+          "url": "https://base-ui.com/react/components/preview-card#createhandle",
+          "content": null
+        }
+      ],
+      "links": [
+        {
+          "kind": "docs",
+          "label": null,
+          "url": "https://base-ui.com/react/components/preview-card"
+        },
+        {
+          "kind": "code",
+          "label": null,
+          "url": "https://github.com/mui/base-ui/blob/bdcb685fadcca9d18b18f013c052795a53b6aa33/docs/src/app/(docs)/react/components/preview-card/page.mdx"
+        }
+      ],
+      "examples": [
+        {
+          "nativeId": "detached-triggers",
+          "title": "Detached triggers",
+          "url": "https://base-ui.com/react/components/preview-card#detached-triggers"
+        },
+        {
+          "nativeId": "multiple-triggers",
+          "title": "Multiple triggers",
+          "url": "https://base-ui.com/react/components/preview-card#multiple-triggers"
+        },
+        {
+          "nativeId": "controlled-mode-with-multiple-triggers",
+          "title": "Controlled mode with multiple triggers",
+          "url": "https://base-ui.com/react/components/preview-card#controlled-mode-with-multiple-triggers"
+        },
+        {
+          "nativeId": "animating-the-preview-card",
+          "title": "Animating the Preview Card",
+          "url": "https://base-ui.com/react/components/preview-card#animating-the-preview-card"
+        }
+      ],
+      "relationships": [],
+      "sourcePath": "docs/src/app/(docs)/react/components/preview-card/page.mdx"
+    },
+    {
+      "nativeId": "progress",
+      "name": "Progress",
+      "aliases": [],
+      "summary": {
+        "text": "Displays the status of a task that takes a long time.",
+        "url": "https://base-ui.com/react/components/progress"
+      },
+      "kind": "primitive",
+      "canonicalUrl": "https://base-ui.com/react/components/progress",
+      "sections": [
+        {
+          "nativeId": "anatomy",
+          "title": "Anatomy",
+          "url": "https://base-ui.com/react/components/progress#anatomy",
+          "content": null
+        },
+        {
+          "nativeId": "api-reference",
+          "title": "API reference",
+          "url": "https://base-ui.com/react/components/progress#api-reference",
+          "content": null
+        }
+      ],
+      "links": [
+        {
+          "kind": "docs",
+          "label": null,
+          "url": "https://base-ui.com/react/components/progress"
+        },
+        {
+          "kind": "code",
+          "label": null,
+          "url": "https://github.com/mui/base-ui/blob/bdcb685fadcca9d18b18f013c052795a53b6aa33/docs/src/app/(docs)/react/components/progress/page.mdx"
+        }
+      ],
+      "examples": [],
+      "relationships": [],
+      "sourcePath": "docs/src/app/(docs)/react/components/progress/page.mdx"
+    },
+    {
+      "nativeId": "radio",
+      "name": "Radio",
+      "aliases": [],
+      "summary": {
+        "text": "An easily stylable radio button component.",
+        "url": "https://base-ui.com/react/components/radio"
+      },
+      "kind": "primitive",
+      "canonicalUrl": "https://base-ui.com/react/components/radio",
+      "sections": [
+        {
+          "nativeId": "usage-guidelines",
+          "title": "Usage guidelines",
+          "url": "https://base-ui.com/react/components/radio#usage-guidelines",
+          "content": null
+        },
+        {
+          "nativeId": "anatomy",
+          "title": "Anatomy",
+          "url": "https://base-ui.com/react/components/radio#anatomy",
+          "content": null
+        },
+        {
+          "nativeId": "examples",
+          "title": "Examples",
+          "url": "https://base-ui.com/react/components/radio#examples",
+          "content": null
+        },
+        {
+          "nativeId": "api-reference",
+          "title": "API reference",
+          "url": "https://base-ui.com/react/components/radio#api-reference",
+          "content": null
+        }
+      ],
+      "links": [
+        {
+          "kind": "docs",
+          "label": null,
+          "url": "https://base-ui.com/react/components/radio"
+        },
+        {
+          "kind": "code",
+          "label": null,
+          "url": "https://github.com/mui/base-ui/blob/bdcb685fadcca9d18b18f013c052795a53b6aa33/docs/src/app/(docs)/react/components/radio/page.mdx"
+        }
+      ],
+      "examples": [
+        {
+          "nativeId": "labeling-a-radio-group",
+          "title": "Labeling a radio group",
+          "url": "https://base-ui.com/react/components/radio#labeling-a-radio-group"
+        },
+        {
+          "nativeId": "rendering-as-a-native-button",
+          "title": "Rendering as a native button",
+          "url": "https://base-ui.com/react/components/radio#rendering-as-a-native-button"
+        },
+        {
+          "nativeId": "form-integration",
+          "title": "Form integration",
+          "url": "https://base-ui.com/react/components/radio#form-integration"
+        }
+      ],
+      "relationships": [
+        {
+          "kind": "related-to",
+          "label": "Field",
+          "targetTitle": "Field",
+          "targetUrl": "https://base-ui.com/react/components/field"
+        },
+        {
+          "kind": "related-to",
+          "label": "Fieldset",
+          "targetTitle": "Fieldset",
+          "targetUrl": "https://base-ui.com/react/components/fieldset"
+        }
+      ],
+      "sourcePath": "docs/src/app/(docs)/react/components/radio/page.mdx"
+    },
+    {
+      "nativeId": "scroll-area",
+      "name": "Scroll Area",
+      "aliases": [],
+      "summary": {
+        "text": "A native scroll container with custom scrollbars.",
+        "url": "https://base-ui.com/react/components/scroll-area"
+      },
+      "kind": "primitive",
+      "canonicalUrl": "https://base-ui.com/react/components/scroll-area",
+      "sections": [
+        {
+          "nativeId": "anatomy",
+          "title": "Anatomy",
+          "url": "https://base-ui.com/react/components/scroll-area#anatomy",
+          "content": null
+        },
+        {
+          "nativeId": "examples",
+          "title": "Examples",
+          "url": "https://base-ui.com/react/components/scroll-area#examples",
+          "content": null
+        },
+        {
+          "nativeId": "api-reference",
+          "title": "API reference",
+          "url": "https://base-ui.com/react/components/scroll-area#api-reference",
+          "content": null
+        }
+      ],
+      "links": [
+        {
+          "kind": "docs",
+          "label": null,
+          "url": "https://base-ui.com/react/components/scroll-area"
+        },
+        {
+          "kind": "code",
+          "label": null,
+          "url": "https://github.com/mui/base-ui/blob/bdcb685fadcca9d18b18f013c052795a53b6aa33/docs/src/app/(docs)/react/components/scroll-area/page.mdx"
+        }
+      ],
+      "examples": [
+        {
+          "nativeId": "both-scrollbars",
+          "title": "Both scrollbars",
+          "url": "https://base-ui.com/react/components/scroll-area#both-scrollbars"
+        },
+        {
+          "nativeId": "gradient-scroll-fade",
+          "title": "Gradient scroll fade",
+          "url": "https://base-ui.com/react/components/scroll-area#gradient-scroll-fade"
+        },
+        {
+          "nativeId": "combining-with-tabs",
+          "title": "Combining with Tabs",
+          "url": "https://base-ui.com/react/components/scroll-area#combining-with-tabs"
+        }
+      ],
+      "relationships": [],
+      "sourcePath": "docs/src/app/(docs)/react/components/scroll-area/page.mdx"
+    },
+    {
+      "nativeId": "select",
+      "name": "Select",
+      "aliases": [],
+      "summary": {
+        "text": "A common form component for choosing a predefined value in a dropdown menu.",
+        "url": "https://base-ui.com/react/components/select"
+      },
+      "kind": "primitive",
+      "canonicalUrl": "https://base-ui.com/react/components/select",
+      "sections": [
+        {
+          "nativeId": "usage-guidelines",
+          "title": "Usage guidelines",
+          "url": "https://base-ui.com/react/components/select#usage-guidelines",
+          "content": null
+        },
+        {
+          "nativeId": "anatomy",
+          "title": "Anatomy",
+          "url": "https://base-ui.com/react/components/select#anatomy",
+          "content": null
+        },
+        {
+          "nativeId": "positioning",
+          "title": "Positioning",
+          "url": "https://base-ui.com/react/components/select#positioning",
+          "content": null
+        },
+        {
+          "nativeId": "examples",
+          "title": "Examples",
+          "url": "https://base-ui.com/react/components/select#examples",
+          "content": null
+        },
+        {
+          "nativeId": "api-reference",
+          "title": "API reference",
+          "url": "https://base-ui.com/react/components/select#api-reference",
+          "content": null
+        }
+      ],
+      "links": [
+        {
+          "kind": "docs",
+          "label": null,
+          "url": "https://base-ui.com/react/components/select"
+        },
+        {
+          "kind": "code",
+          "label": null,
+          "url": "https://github.com/mui/base-ui/blob/bdcb685fadcca9d18b18f013c052795a53b6aa33/docs/src/app/(docs)/react/components/select/page.mdx"
+        }
+      ],
+      "examples": [
+        {
+          "nativeId": "typed-wrapper-component",
+          "title": "Typed wrapper component",
+          "url": "https://base-ui.com/react/components/select#typed-wrapper-component"
+        },
+        {
+          "nativeId": "formatting-the-value",
+          "title": "Formatting the value",
+          "url": "https://base-ui.com/react/components/select#formatting-the-value"
+        },
+        {
+          "nativeId": "labeling-a-select",
+          "title": "Labeling a select",
+          "url": "https://base-ui.com/react/components/select#labeling-a-select"
+        },
+        {
+          "nativeId": "placeholder-values",
+          "title": "Placeholder values",
+          "url": "https://base-ui.com/react/components/select#placeholder-values"
+        },
+        {
+          "nativeId": "multiple-selection",
+          "title": "Multiple selection",
+          "url": "https://base-ui.com/react/components/select#multiple-selection"
+        },
+        {
+          "nativeId": "object-values",
+          "title": "Object values",
+          "url": "https://base-ui.com/react/components/select#object-values"
+        },
+        {
+          "nativeId": "grouped",
+          "title": "Grouped",
+          "url": "https://base-ui.com/react/components/select#grouped"
+        }
+      ],
+      "relationships": [
+        {
+          "kind": "related-to",
+          "label": "Combobox",
+          "targetTitle": "Combobox",
+          "targetUrl": "https://base-ui.com/react/components/combobox"
+        }
+      ],
+      "sourcePath": "docs/src/app/(docs)/react/components/select/page.mdx"
+    },
+    {
+      "nativeId": "separator",
+      "name": "Separator",
+      "aliases": [],
+      "summary": {
+        "text": "A separator element accessible to screen readers.",
+        "url": "https://base-ui.com/react/components/separator"
+      },
+      "kind": "primitive",
+      "canonicalUrl": "https://base-ui.com/react/components/separator",
+      "sections": [
+        {
+          "nativeId": "anatomy",
+          "title": "Anatomy",
+          "url": "https://base-ui.com/react/components/separator#anatomy",
+          "content": null
+        },
+        {
+          "nativeId": "api-reference",
+          "title": "API reference",
+          "url": "https://base-ui.com/react/components/separator#api-reference",
+          "content": null
+        }
+      ],
+      "links": [
+        {
+          "kind": "docs",
+          "label": null,
+          "url": "https://base-ui.com/react/components/separator"
+        },
+        {
+          "kind": "code",
+          "label": null,
+          "url": "https://github.com/mui/base-ui/blob/bdcb685fadcca9d18b18f013c052795a53b6aa33/docs/src/app/(docs)/react/components/separator/page.mdx"
+        }
+      ],
+      "examples": [],
+      "relationships": [],
+      "sourcePath": "docs/src/app/(docs)/react/components/separator/page.mdx"
+    },
+    {
+      "nativeId": "slider",
+      "name": "Slider",
+      "aliases": [],
+      "summary": {
+        "text": "An easily stylable range input.",
+        "url": "https://base-ui.com/react/components/slider"
+      },
+      "kind": "primitive",
+      "canonicalUrl": "https://base-ui.com/react/components/slider",
+      "sections": [
+        {
+          "nativeId": "usage-guidelines",
+          "title": "Usage guidelines",
+          "url": "https://base-ui.com/react/components/slider#usage-guidelines",
+          "content": null
+        },
+        {
+          "nativeId": "anatomy",
+          "title": "Anatomy",
+          "url": "https://base-ui.com/react/components/slider#anatomy",
+          "content": null
+        },
+        {
+          "nativeId": "examples",
+          "title": "Examples",
+          "url": "https://base-ui.com/react/components/slider#examples",
+          "content": null
+        },
+        {
+          "nativeId": "api-reference",
+          "title": "API reference",
+          "url": "https://base-ui.com/react/components/slider#api-reference",
+          "content": null
+        }
+      ],
+      "links": [
+        {
+          "kind": "docs",
+          "label": null,
+          "url": "https://base-ui.com/react/components/slider"
+        },
+        {
+          "kind": "code",
+          "label": null,
+          "url": "https://github.com/mui/base-ui/blob/bdcb685fadcca9d18b18f013c052795a53b6aa33/docs/src/app/(docs)/react/components/slider/page.mdx"
+        }
+      ],
+      "examples": [
+        {
+          "nativeId": "range-slider",
+          "title": "Range slider",
+          "url": "https://base-ui.com/react/components/slider#range-slider"
+        },
+        {
+          "nativeId": "thumb-alignment",
+          "title": "Thumb alignment",
+          "url": "https://base-ui.com/react/components/slider#thumb-alignment"
+        },
+        {
+          "nativeId": "labeling-a-slider",
+          "title": "Labeling a slider",
+          "url": "https://base-ui.com/react/components/slider#labeling-a-slider"
+        },
+        {
+          "nativeId": "vertical",
+          "title": "Vertical",
+          "url": "https://base-ui.com/react/components/slider#vertical"
+        },
+        {
+          "nativeId": "form-integration",
+          "title": "Form integration",
+          "url": "https://base-ui.com/react/components/slider#form-integration"
+        }
+      ],
+      "relationships": [
+        {
+          "kind": "related-to",
+          "label": "Fieldset",
+          "targetTitle": "Fieldset",
+          "targetUrl": "https://base-ui.com/react/components/fieldset"
+        }
+      ],
+      "sourcePath": "docs/src/app/(docs)/react/components/slider/page.mdx"
+    },
+    {
+      "nativeId": "switch",
+      "name": "Switch",
+      "aliases": [],
+      "summary": {
+        "text": "A control that indicates whether a setting is on or off.",
+        "url": "https://base-ui.com/react/components/switch"
+      },
+      "kind": "primitive",
+      "canonicalUrl": "https://base-ui.com/react/components/switch",
+      "sections": [
+        {
+          "nativeId": "usage-guidelines",
+          "title": "Usage guidelines",
+          "url": "https://base-ui.com/react/components/switch#usage-guidelines",
+          "content": null
+        },
+        {
+          "nativeId": "anatomy",
+          "title": "Anatomy",
+          "url": "https://base-ui.com/react/components/switch#anatomy",
+          "content": null
+        },
+        {
+          "nativeId": "examples",
+          "title": "Examples",
+          "url": "https://base-ui.com/react/components/switch#examples",
+          "content": null
+        },
+        {
+          "nativeId": "api-reference",
+          "title": "API reference",
+          "url": "https://base-ui.com/react/components/switch#api-reference",
+          "content": null
+        }
+      ],
+      "links": [
+        {
+          "kind": "docs",
+          "label": null,
+          "url": "https://base-ui.com/react/components/switch"
+        },
+        {
+          "kind": "code",
+          "label": null,
+          "url": "https://github.com/mui/base-ui/blob/bdcb685fadcca9d18b18f013c052795a53b6aa33/docs/src/app/(docs)/react/components/switch/page.mdx"
+        }
+      ],
+      "examples": [
+        {
+          "nativeId": "labeling-a-switch",
+          "title": "Labeling a switch",
+          "url": "https://base-ui.com/react/components/switch#labeling-a-switch"
+        },
+        {
+          "nativeId": "rendering-as-a-native-button",
+          "title": "Rendering as a native button",
+          "url": "https://base-ui.com/react/components/switch#rendering-as-a-native-button"
+        },
+        {
+          "nativeId": "form-integration",
+          "title": "Form integration",
+          "url": "https://base-ui.com/react/components/switch#form-integration"
+        }
+      ],
+      "relationships": [
+        {
+          "kind": "related-to",
+          "label": "Field",
+          "targetTitle": "Field",
+          "targetUrl": "https://base-ui.com/react/components/field"
+        }
+      ],
+      "sourcePath": "docs/src/app/(docs)/react/components/switch/page.mdx"
+    },
+    {
+      "nativeId": "tabs",
+      "name": "Tabs",
+      "aliases": [],
+      "summary": {
+        "text": "A component for toggling between related panels on the same page.",
+        "url": "https://base-ui.com/react/components/tabs"
+      },
+      "kind": "primitive",
+      "canonicalUrl": "https://base-ui.com/react/components/tabs",
+      "sections": [
+        {
+          "nativeId": "anatomy",
+          "title": "Anatomy",
+          "url": "https://base-ui.com/react/components/tabs#anatomy",
+          "content": null
+        },
+        {
+          "nativeId": "examples",
+          "title": "Examples",
+          "url": "https://base-ui.com/react/components/tabs#examples",
+          "content": null
+        },
+        {
+          "nativeId": "api-reference",
+          "title": "API reference",
+          "url": "https://base-ui.com/react/components/tabs#api-reference",
+          "content": null
+        }
+      ],
+      "links": [
+        {
+          "kind": "docs",
+          "label": null,
+          "url": "https://base-ui.com/react/components/tabs"
+        },
+        {
+          "kind": "code",
+          "label": null,
+          "url": "https://github.com/mui/base-ui/blob/bdcb685fadcca9d18b18f013c052795a53b6aa33/docs/src/app/(docs)/react/components/tabs/page.mdx"
+        }
+      ],
+      "examples": [
+        {
+          "nativeId": "links",
+          "title": "Links",
+          "url": "https://base-ui.com/react/components/tabs#links"
+        }
+      ],
+      "relationships": [],
+      "sourcePath": "docs/src/app/(docs)/react/components/tabs/page.mdx"
+    },
+    {
+      "nativeId": "toast",
+      "name": "Toast",
+      "aliases": [],
+      "summary": {
+        "text": "Generates toast notifications.",
+        "url": "https://base-ui.com/react/components/toast"
+      },
+      "kind": "primitive",
+      "canonicalUrl": "https://base-ui.com/react/components/toast",
+      "sections": [
+        {
+          "nativeId": "anatomy",
+          "title": "Anatomy",
+          "url": "https://base-ui.com/react/components/toast#anatomy",
+          "content": null
+        },
+        {
+          "nativeId": "general-usage",
+          "title": "General usage",
+          "url": "https://base-ui.com/react/components/toast#general-usage",
+          "content": null
+        },
+        {
+          "nativeId": "global-manager",
+          "title": "Global manager",
+          "url": "https://base-ui.com/react/components/toast#global-manager",
+          "content": null
+        },
+        {
+          "nativeId": "stacking-and-animations",
+          "title": "Stacking and animations",
+          "url": "https://base-ui.com/react/components/toast#stacking-and-animations",
+          "content": null
+        },
+        {
+          "nativeId": "examples",
+          "title": "Examples",
+          "url": "https://base-ui.com/react/components/toast#examples",
+          "content": null
+        },
+        {
+          "nativeId": "api-reference",
+          "title": "API reference",
+          "url": "https://base-ui.com/react/components/toast#api-reference",
+          "content": null
+        },
+        {
+          "nativeId": "usetoastmanager",
+          "title": "useToastManager",
+          "url": "https://base-ui.com/react/components/toast#usetoastmanager",
+          "content": null
+        },
+        {
+          "nativeId": "additional-types",
+          "title": "Additional types",
+          "url": "https://base-ui.com/react/components/toast#additional-types",
+          "content": null
+        }
+      ],
+      "links": [
+        {
+          "kind": "docs",
+          "label": null,
+          "url": "https://base-ui.com/react/components/toast"
+        },
+        {
+          "kind": "code",
+          "label": null,
+          "url": "https://github.com/mui/base-ui/blob/bdcb685fadcca9d18b18f013c052795a53b6aa33/docs/src/app/(docs)/react/components/toast/page.mdx"
+        }
+      ],
+      "examples": [
+        {
+          "nativeId": "anchored-toasts",
+          "title": "Anchored toasts",
+          "url": "https://base-ui.com/react/components/toast#anchored-toasts"
+        },
+        {
+          "nativeId": "custom-position",
+          "title": "Custom position",
+          "url": "https://base-ui.com/react/components/toast#custom-position"
+        },
+        {
+          "nativeId": "undo-action",
+          "title": "Undo action",
+          "url": "https://base-ui.com/react/components/toast#undo-action"
+        },
+        {
+          "nativeId": "promise",
+          "title": "Promise",
+          "url": "https://base-ui.com/react/components/toast#promise"
+        },
+        {
+          "nativeId": "custom",
+          "title": "Custom",
+          "url": "https://base-ui.com/react/components/toast#custom"
+        },
+        {
+          "nativeId": "deduplicated-toast",
+          "title": "Deduplicated toast",
+          "url": "https://base-ui.com/react/components/toast#deduplicated-toast"
+        },
+        {
+          "nativeId": "varying-heights",
+          "title": "Varying heights",
+          "url": "https://base-ui.com/react/components/toast#varying-heights"
+        }
+      ],
+      "relationships": [],
+      "sourcePath": "docs/src/app/(docs)/react/components/toast/page.mdx"
+    },
+    {
+      "nativeId": "toggle",
+      "name": "Toggle",
+      "aliases": [],
+      "summary": {
+        "text": "A two-state button that can be on or off.",
+        "url": "https://base-ui.com/react/components/toggle"
+      },
+      "kind": "primitive",
+      "canonicalUrl": "https://base-ui.com/react/components/toggle",
+      "sections": [
+        {
+          "nativeId": "anatomy",
+          "title": "Anatomy",
+          "url": "https://base-ui.com/react/components/toggle#anatomy",
+          "content": null
+        },
+        {
+          "nativeId": "api-reference",
+          "title": "API reference",
+          "url": "https://base-ui.com/react/components/toggle#api-reference",
+          "content": null
+        }
+      ],
+      "links": [
+        {
+          "kind": "docs",
+          "label": null,
+          "url": "https://base-ui.com/react/components/toggle"
+        },
+        {
+          "kind": "code",
+          "label": null,
+          "url": "https://github.com/mui/base-ui/blob/bdcb685fadcca9d18b18f013c052795a53b6aa33/docs/src/app/(docs)/react/components/toggle/page.mdx"
+        }
+      ],
+      "examples": [],
+      "relationships": [],
+      "sourcePath": "docs/src/app/(docs)/react/components/toggle/page.mdx"
+    },
+    {
+      "nativeId": "toggle-group",
+      "name": "Toggle Group",
+      "aliases": [],
+      "summary": {
+        "text": "Provides a shared state to a series of toggle buttons.",
+        "url": "https://base-ui.com/react/components/toggle-group"
+      },
+      "kind": "primitive",
+      "canonicalUrl": "https://base-ui.com/react/components/toggle-group",
+      "sections": [
+        {
+          "nativeId": "anatomy",
+          "title": "Anatomy",
+          "url": "https://base-ui.com/react/components/toggle-group#anatomy",
+          "content": null
+        },
+        {
+          "nativeId": "examples",
+          "title": "Examples",
+          "url": "https://base-ui.com/react/components/toggle-group#examples",
+          "content": null
+        },
+        {
+          "nativeId": "api-reference",
+          "title": "API reference",
+          "url": "https://base-ui.com/react/components/toggle-group#api-reference",
+          "content": null
+        }
+      ],
+      "links": [
+        {
+          "kind": "docs",
+          "label": null,
+          "url": "https://base-ui.com/react/components/toggle-group"
+        },
+        {
+          "kind": "code",
+          "label": null,
+          "url": "https://github.com/mui/base-ui/blob/bdcb685fadcca9d18b18f013c052795a53b6aa33/docs/src/app/(docs)/react/components/toggle-group/page.mdx"
+        }
+      ],
+      "examples": [
+        {
+          "nativeId": "multiple",
+          "title": "Multiple",
+          "url": "https://base-ui.com/react/components/toggle-group#multiple"
+        }
+      ],
+      "relationships": [],
+      "sourcePath": "docs/src/app/(docs)/react/components/toggle-group/page.mdx"
+    },
+    {
+      "nativeId": "toolbar",
+      "name": "Toolbar",
+      "aliases": [],
+      "summary": {
+        "text": "A container for grouping a set of buttons and controls.",
+        "url": "https://base-ui.com/react/components/toolbar"
+      },
+      "kind": "primitive",
+      "canonicalUrl": "https://base-ui.com/react/components/toolbar",
+      "sections": [
+        {
+          "nativeId": "usage-guidelines",
+          "title": "Usage guidelines",
+          "url": "https://base-ui.com/react/components/toolbar#usage-guidelines",
+          "content": null
+        },
+        {
+          "nativeId": "anatomy",
+          "title": "Anatomy",
+          "url": "https://base-ui.com/react/components/toolbar#anatomy",
+          "content": null
+        },
+        {
+          "nativeId": "examples",
+          "title": "Examples",
+          "url": "https://base-ui.com/react/components/toolbar#examples",
+          "content": null
+        },
+        {
+          "nativeId": "api-reference",
+          "title": "API reference",
+          "url": "https://base-ui.com/react/components/toolbar#api-reference",
+          "content": null
+        }
+      ],
+      "links": [
+        {
+          "kind": "docs",
+          "label": null,
+          "url": "https://base-ui.com/react/components/toolbar"
+        },
+        {
+          "kind": "code",
+          "label": null,
+          "url": "https://github.com/mui/base-ui/blob/bdcb685fadcca9d18b18f013c052795a53b6aa33/docs/src/app/(docs)/react/components/toolbar/page.mdx"
+        }
+      ],
+      "examples": [
+        {
+          "nativeId": "using-with-menu",
+          "title": "Using with Menu",
+          "url": "https://base-ui.com/react/components/toolbar#using-with-menu"
+        },
+        {
+          "nativeId": "using-with-tooltip",
+          "title": "Using with Tooltip",
+          "url": "https://base-ui.com/react/components/toolbar#using-with-tooltip"
+        },
+        {
+          "nativeId": "using-with-numberfield",
+          "title": "Using with NumberField",
+          "url": "https://base-ui.com/react/components/toolbar#using-with-numberfield"
+        }
+      ],
+      "relationships": [],
+      "sourcePath": "docs/src/app/(docs)/react/components/toolbar/page.mdx"
+    },
+    {
+      "nativeId": "tooltip",
+      "name": "Tooltip",
+      "aliases": [],
+      "summary": {
+        "text": "A popup that appears when an element is hovered or focused, showing a hint for sighted users.",
+        "url": "https://base-ui.com/react/components/tooltip"
+      },
+      "kind": "primitive",
+      "canonicalUrl": "https://base-ui.com/react/components/tooltip",
+      "sections": [
+        {
+          "nativeId": "usage-guidelines",
+          "title": "Usage guidelines",
+          "url": "https://base-ui.com/react/components/tooltip#usage-guidelines",
+          "content": null
+        },
+        {
+          "nativeId": "anatomy",
+          "title": "Anatomy",
+          "url": "https://base-ui.com/react/components/tooltip#anatomy",
+          "content": null
+        },
+        {
+          "nativeId": "alternatives-to-tooltips",
+          "title": "Alternatives to tooltips",
+          "url": "https://base-ui.com/react/components/tooltip#alternatives-to-tooltips",
+          "content": null
+        },
+        {
+          "nativeId": "examples",
+          "title": "Examples",
+          "url": "https://base-ui.com/react/components/tooltip#examples",
+          "content": null
+        },
+        {
+          "nativeId": "api-reference",
+          "title": "API reference",
+          "url": "https://base-ui.com/react/components/tooltip#api-reference",
+          "content": null
+        },
+        {
+          "nativeId": "createhandle",
+          "title": "createHandle",
+          "url": "https://base-ui.com/react/components/tooltip#createhandle",
+          "content": null
+        }
+      ],
+      "links": [
+        {
+          "kind": "docs",
+          "label": null,
+          "url": "https://base-ui.com/react/components/tooltip"
+        },
+        {
+          "kind": "code",
+          "label": null,
+          "url": "https://github.com/mui/base-ui/blob/bdcb685fadcca9d18b18f013c052795a53b6aa33/docs/src/app/(docs)/react/components/tooltip/page.mdx"
+        }
+      ],
+      "examples": [
+        {
+          "nativeId": "detached-triggers",
+          "title": "Detached triggers",
+          "url": "https://base-ui.com/react/components/tooltip#detached-triggers"
+        },
+        {
+          "nativeId": "multiple-triggers",
+          "title": "Multiple triggers",
+          "url": "https://base-ui.com/react/components/tooltip#multiple-triggers"
+        },
+        {
+          "nativeId": "controlled-mode-with-multiple-triggers",
+          "title": "Controlled mode with multiple triggers",
+          "url": "https://base-ui.com/react/components/tooltip#controlled-mode-with-multiple-triggers"
+        },
+        {
+          "nativeId": "animating-the-tooltip",
+          "title": "Animating the Tooltip",
+          "url": "https://base-ui.com/react/components/tooltip#animating-the-tooltip"
+        }
+      ],
+      "relationships": [
+        {
+          "kind": "related-to",
+          "label": "Popover",
+          "targetTitle": "Popover",
+          "targetUrl": "https://base-ui.com/react/components/popover"
+        },
+        {
+          "kind": "related-to",
+          "label": "anchoring ability",
+          "targetTitle": "anchoring ability",
+          "targetUrl": "https://base-ui.com/react/components/toast"
+        }
+      ],
+      "sourcePath": "docs/src/app/(docs)/react/components/tooltip/page.mdx"
+    }
+  ]
+}

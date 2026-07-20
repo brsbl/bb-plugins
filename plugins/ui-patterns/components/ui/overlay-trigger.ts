@@ -1,7 +1,7 @@
 import type { MouseEvent } from "react";
 import { cn } from "../../lib/utils";
 
-const OVERLAY_TRIGGER_CLASS_NAME = "select-none";
+const OVERLAY_TRIGGER_CLASS_NAME = "cursor-pointer select-none";
 
 type OverlayTriggerClassNameResolver = (className?: string) => string;
 
