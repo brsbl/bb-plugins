@@ -2,9 +2,11 @@ import { describe, expect, it } from "vitest";
 
 import {
   deriveRunStatus,
+  GlobalRunSchema,
   isVisibleRun,
   parseJsonl,
   phaseTitlesFromEvents,
+  workflowDetailsFromSource,
 } from "./server";
 
 describe("Omegacode journal handling", () => {
@@ -60,5 +62,43 @@ describe("Omegacode journal handling", () => {
         heartbeatAgeMs: 0,
       }),
     ).toBe("cancelled");
+  });
+
+  it("keeps launch descriptions in the global run contract with workflow-meta fallback", () => {
+    expect(
+      workflowDetailsFromSource(
+        'export const meta = { name: "release-review", description: "Review the release before it ships." };',
+      ),
+    ).toEqual({
+      name: "release-review",
+      description: "Review the release before it ships.",
+    });
+
+    expect(
+      GlobalRunSchema.parse({
+        runId: "wf_global",
+        workflow: "release.workflow.js",
+        workflowName: "Release review",
+        description: "Review the release before it ships.",
+        phases: ["Audit"],
+        createdAt: 1,
+        status: "running",
+        updatedAt: 2,
+        heartbeatAgeMs: 3,
+        counts: {
+          total: 1,
+          running: 1,
+          queued: 0,
+          completed: 0,
+          failed: 0,
+          cancelled: 0,
+        },
+        agents: [],
+        owner: null,
+      }),
+    ).toMatchObject({
+      description: "Review the release before it ships.",
+      owner: null,
+    });
   });
 });

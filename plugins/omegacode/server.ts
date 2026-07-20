@@ -33,6 +33,7 @@ const RunSchema = z.object({
   runId: z.string(),
   workflow: z.string().nullable(),
   workflowName: z.string().nullable(),
+  description: z.string().nullable(),
   phases: z.array(z.string()),
   createdAt: z.number().nullable(),
   status: z.string(),
@@ -49,7 +50,7 @@ const RunSchema = z.object({
   agents: z.array(AgentSchema),
 });
 
-const GlobalRunSchema = RunSchema.extend({
+export const GlobalRunSchema = RunSchema.extend({
   owner: z
     .object({
       threadId: z.string(),
@@ -116,22 +117,43 @@ function safeMtime(p: string): number {
 // The workflow's clean meta.name (e.g. "rubric-sweep") lives in the .js file,
 // not the run journal. Read it once per file so the UI shows the NAME instead
 // of blasting the raw filename everywhere. Cache to avoid re-reading each poll.
-const nameCache = new Map<string, { mtime: number; name: string | null }>();
-function workflowName(file: string | undefined): string | null {
-  if (!file || !existsSync(file)) return null;
+type WorkflowDetails = { name: string | null; description: string | null };
+
+function stringField(value: unknown): string | null {
+  return typeof value === "string" && value.trim() !== "" ? value.trim() : null;
+}
+
+export function workflowDetailsFromSource(source: string): WorkflowDetails {
+  const fields = new Map<string, string>();
+  for (const match of source.matchAll(/\b(name|description)\s*:\s*(['"`])([^'"`]+)\2/g)) {
+    fields.set(match[1], match[3]);
+  }
+  return {
+    name: stringField(fields.get("name")),
+    description: stringField(fields.get("description")),
+  };
+}
+
+// Workflow meta is a durable, source-authored fallback. Launchers may include
+// a run-specific `description` in the journal meta record, which wins below.
+const workflowDetailsCache = new Map<
+  string,
+  { mtime: number; value: WorkflowDetails }
+>();
+function workflowDetails(file: string | undefined): WorkflowDetails {
+  if (!file || !existsSync(file)) return { name: null, description: null };
   const mtime = safeMtime(file);
-  const hit = nameCache.get(file);
-  if (hit && hit.mtime === mtime) return hit.name;
-  let name: string | null = null;
+  const hit = workflowDetailsCache.get(file);
+  if (hit && hit.mtime === mtime) return hit.value;
+  let value: WorkflowDetails = { name: null, description: null };
   try {
     const src = readFileSync(file, "utf8").slice(0, 2000);
-    const m = src.match(/name:\s*['"`]([^'"`]+)['"`]/);
-    if (m) name = m[1];
+    value = workflowDetailsFromSource(src);
   } catch {
-    name = null;
+    value = { name: null, description: null };
   }
-  nameCache.set(file, { mtime, name });
-  return name;
+  workflowDetailsCache.set(file, { mtime, value });
+  return value;
 }
 
 export function phaseTitlesFromEvents(
@@ -186,7 +208,8 @@ function readRun(runId: string) {
   const meta = journal.find((r) => r.type === "meta") ?? {};
   const workflowFile = typeof meta.workflowFile === "string" ? meta.workflowFile : undefined;
   const workflow = workflowFile ? (workflowFile.split("/").pop() ?? null) : null;
-  const name = workflowName(workflowFile);
+  const details = workflowDetails(workflowFile);
+  const description = stringField(meta.description) ?? details.description;
 
   const phases = phaseTitlesFromEvents(events);
 
@@ -276,7 +299,8 @@ function readRun(runId: string) {
   return {
     runId,
     workflow,
-    workflowName: name,
+    workflowName: details.name,
+    description,
     phases,
     createdAt:
       typeof meta.createdAt === "number" ? meta.createdAt : safeMtime(dir) || null,
