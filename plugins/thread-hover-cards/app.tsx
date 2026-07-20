@@ -17,7 +17,12 @@ import {
   SquareUnlock02Icon,
   ViewIcon,
 } from "./icons";
-import type { ThreadSummary, ThreadTiming } from "./server";
+import type {
+  RpcDiagnostics,
+  ThreadPullRequest,
+  ThreadSummary,
+  ThreadTiming,
+} from "./server";
 import { HOVER_CARD_CSS } from "./styles";
 import { markdownPreview } from "./markdown-preview";
 
@@ -27,11 +32,15 @@ const PLUGIN_CSS_SELECTOR =
   'link[data-bb-plugin-css="thread-hover-cards"]';
 const THREAD_TRIGGER_SELECTOR = "a[data-sidebar-thread-id]";
 const THREAD_ROW_SELECTOR = ".group\\/thread-row";
-const OPEN_DELAY_MS = 150;
-const PREFETCH_DELAY_MS = 50;
+const OPEN_DELAY_MS = 0;
 const CLOSE_DELAY_MS = 120;
-const CACHE_TTL_MS = 10_000;
+const ACTIVE_SUMMARY_CACHE_TTL_MS = 2_000;
+const IDLE_SUMMARY_CACHE_TTL_MS = 30_000;
+const ACTIVE_TIMING_CACHE_TTL_MS = 1_000;
+const IDLE_TIMING_CACHE_TTL_MS = 30_000;
+const PULL_REQUEST_CACHE_TTL_MS = 15_000;
 const CACHE_MAX_ENTRIES = 128;
+const TIMING_RECORD_MAX_ENTRIES = 200;
 const TABBABLE_SELECTOR = [
   "a[href]",
   "button:not([disabled])",
@@ -44,12 +53,61 @@ const TABBABLE_SELECTOR = [
 
 interface CachedSummary {
   fetchedAt: number;
+  pullRequestFetchedAt: number | null;
   summary: ThreadSummary;
   timingFetchedAt: number | null;
 }
 
+interface ClientTimingRecord {
+  cache?: "coalesced" | "fresh" | "miss" | "stale";
+  durationMs: number;
+  operation: "open" | "pullRequest" | "summary" | "timing";
+  outcome: "error" | "ok";
+  recordedAt: number;
+  server?: RpcDiagnostics;
+  threadId: string;
+}
+
 interface HoverCardController {
   dispose(): void;
+}
+
+const diagnosticsGlobal = globalThis as typeof globalThis & {
+  __bbThreadHoverCardTimings?: ClientTimingRecord[];
+};
+
+function monotonicNow(): number {
+  return typeof performance === "undefined" ? Date.now() : performance.now();
+}
+
+function elapsedMs(startedAt: number): number {
+  return Math.max(0, Math.round((monotonicNow() - startedAt) * 10) / 10);
+}
+
+function recordTiming(record: Omit<ClientTimingRecord, "recordedAt">): void {
+  const records =
+    diagnosticsGlobal.__bbThreadHoverCardTimings ??
+    (diagnosticsGlobal.__bbThreadHoverCardTimings = []);
+  records.push({ ...record, recordedAt: Date.now() });
+  if (records.length > TIMING_RECORD_MAX_ENTRIES) {
+    records.splice(0, records.length - TIMING_RECORD_MAX_ENTRIES);
+  }
+}
+
+function summaryCacheTtl(summary: ThreadSummary): number {
+  return summary.status === "active" ||
+    summary.status === "host-reconnecting" ||
+    summary.status === "provisioning" ||
+    summary.status === "starting" ||
+    summary.status === "stopping"
+    ? ACTIVE_SUMMARY_CACHE_TTL_MS
+    : IDLE_SUMMARY_CACHE_TTL_MS;
+}
+
+function timingCacheTtl(summary: ThreadSummary): number {
+  return summaryCacheTtl(summary) === ACTIVE_SUMMARY_CACHE_TTL_MS
+    ? ACTIVE_TIMING_CACHE_TTL_MS
+    : IDLE_TIMING_CACHE_TTL_MS;
 }
 
 const SVG_NAMESPACE = "http://www.w3.org/2000/svg";
@@ -171,14 +229,28 @@ function pullRequestTone(
   pullRequest: Extract<ThreadSummary["pullRequest"], { kind: "available" }>,
 ): "danger" | "merged" | "muted" | "success" {
   switch (pullRequest.state) {
-    case "open":
-      return "success";
     case "draft":
       return "muted";
     case "closed":
       return "danger";
     case "merged":
       return "merged";
+    case "open":
+      switch (pullRequest.signal.toLowerCase()) {
+        case "blocked":
+        case "checks failing":
+        case "changes requested":
+        case "conflicts":
+          return "danger";
+        case "checks passing":
+        case "ready to merge":
+          return "success";
+        case "checks pending":
+        case "open":
+        case "review requested":
+        default:
+          return "muted";
+      }
   }
 }
 
@@ -500,6 +572,29 @@ async function fetchTiming(threadId: string): Promise<ThreadTiming> {
   return envelope.result;
 }
 
+async function fetchPullRequest(threadId: string): Promise<ThreadPullRequest> {
+  const response = await fetch(
+    "/api/v1/plugins/thread-hover-cards/rpc/threadPullRequest",
+    {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ threadId }),
+    },
+  );
+  const envelope = (await response.json()) as
+    | { ok: true; result: ThreadPullRequest }
+    | { ok: false; error?: { message?: string } };
+
+  if (!response.ok || !envelope.ok) {
+    throw new Error(
+      envelope.ok
+        ? "Thread pull request failed."
+        : envelope.error?.message,
+    );
+  }
+  return envelope.result;
+}
+
 function renderLoading(card: HTMLElement): void {
   card.replaceChildren(
     element(
@@ -750,7 +845,6 @@ function installHoverCards(): HoverCardController {
   let activeTrigger: HTMLAnchorElement | null = null;
   let activeThreadId: string | null = null;
   let openTimer: ReturnType<typeof setTimeout> | null = null;
-  let prefetchTimer: ReturnType<typeof setTimeout> | null = null;
   let closeTimer: ReturnType<typeof setTimeout> | null = null;
   let timeTimer: ReturnType<typeof setInterval> | null = null;
   let disposed = false;
@@ -758,6 +852,7 @@ function installHoverCards(): HoverCardController {
   let forwardTabTarget: HTMLElement | null = null;
   const cache = new Map<string, CachedSummary>();
   const pending = new Map<string, Promise<ThreadSummary>>();
+  const pullRequestPending = new Map<string, Promise<ThreadPullRequest>>();
   const timingPending = new Map<string, Promise<ThreadTiming>>();
   const style = element("style", "");
   style.id = STYLE_ID;
@@ -815,10 +910,23 @@ function installHoverCards(): HoverCardController {
   }
 
   function cacheSummary(threadId: string, summary: ThreadSummary): void {
+    const previous = cache.get(threadId);
+    const shouldKeepPullRequest =
+      summary.pullRequest.kind === "pending" &&
+      previous !== undefined &&
+      previous.summary.pullRequest.kind !== "pending";
+    const cachedPullRequest = shouldKeepPullRequest
+      ? previous.summary.pullRequest
+      : summary.pullRequest;
     cache.delete(threadId);
     cache.set(threadId, {
       fetchedAt: Date.now(),
-      summary,
+      pullRequestFetchedAt: shouldKeepPullRequest
+        ? previous.pullRequestFetchedAt
+        : cachedPullRequest.kind === "pending"
+          ? null
+          : Date.now(),
+      summary: { ...summary, pullRequest: cachedPullRequest },
       timingFetchedAt: null,
     });
     while (cache.size > CACHE_MAX_ENTRIES) {
@@ -830,12 +938,56 @@ function installHoverCards(): HoverCardController {
 
   function requestSummary(threadId: string): Promise<ThreadSummary> {
     const existing = pending.get(threadId);
-    if (existing) return existing;
+    if (existing) {
+      const startedAt = monotonicNow();
+      return existing.then(
+        (summary) => {
+          recordTiming({
+            cache: "coalesced",
+            durationMs: elapsedMs(startedAt),
+            operation: "summary",
+            outcome: "ok",
+            server: summary.diagnostics,
+            threadId,
+          });
+          return summary;
+        },
+        (error) => {
+          recordTiming({
+            cache: "coalesced",
+            durationMs: elapsedMs(startedAt),
+            operation: "summary",
+            outcome: "error",
+            threadId,
+          });
+          throw error;
+        },
+      );
+    }
 
+    const startedAt = monotonicNow();
     const request = fetchSummary(threadId)
       .then((summary) => {
         cacheSummary(threadId, summary);
+        recordTiming({
+          cache: "miss",
+          durationMs: elapsedMs(startedAt),
+          operation: "summary",
+          outcome: "ok",
+          server: summary.diagnostics,
+          threadId,
+        });
         return summary;
+      })
+      .catch((error) => {
+        recordTiming({
+          cache: "miss",
+          durationMs: elapsedMs(startedAt),
+          operation: "summary",
+          outcome: "error",
+          threadId,
+        });
+        throw error;
       })
       .finally(() => pending.delete(threadId));
     pending.set(threadId, request);
@@ -844,19 +996,116 @@ function installHoverCards(): HoverCardController {
 
   function requestTiming(threadId: string): Promise<ThreadTiming> {
     const existing = timingPending.get(threadId);
-    if (existing) return existing;
+    if (existing) {
+      const startedAt = monotonicNow();
+      return existing.then(
+        (timing) => {
+          recordTiming({
+            cache: "coalesced",
+            durationMs: elapsedMs(startedAt),
+            operation: "timing",
+            outcome: "ok",
+            server: timing.diagnostics,
+            threadId,
+          });
+          return timing;
+        },
+        (error) => {
+          recordTiming({
+            cache: "coalesced",
+            durationMs: elapsedMs(startedAt),
+            operation: "timing",
+            outcome: "error",
+            threadId,
+          });
+          throw error;
+        },
+      );
+    }
 
-    const request = fetchTiming(threadId).finally(() =>
-      timingPending.delete(threadId),
-    );
+    const startedAt = monotonicNow();
+    const request = fetchTiming(threadId)
+      .then((timing) => {
+        recordTiming({
+          cache: "miss",
+          durationMs: elapsedMs(startedAt),
+          operation: "timing",
+          outcome: "ok",
+          server: timing.diagnostics,
+          threadId,
+        });
+        return timing;
+      })
+      .catch((error) => {
+        recordTiming({
+          cache: "miss",
+          durationMs: elapsedMs(startedAt),
+          operation: "timing",
+          outcome: "error",
+          threadId,
+        });
+        throw error;
+      })
+      .finally(() => timingPending.delete(threadId));
     timingPending.set(threadId, request);
     return request;
   }
 
-  function prefetchSummary(threadId: string): void {
-    const cached = cachedSummary(threadId);
-    if (cached && Date.now() - cached.fetchedAt < CACHE_TTL_MS) return;
-    void requestSummary(threadId).catch(() => undefined);
+  function requestPullRequest(threadId: string): Promise<ThreadPullRequest> {
+    const existing = pullRequestPending.get(threadId);
+    if (existing) {
+      const startedAt = monotonicNow();
+      return existing.then(
+        (pullRequest) => {
+          recordTiming({
+            cache: "coalesced",
+            durationMs: elapsedMs(startedAt),
+            operation: "pullRequest",
+            outcome: "ok",
+            server: pullRequest.diagnostics,
+            threadId,
+          });
+          return pullRequest;
+        },
+        (error) => {
+          recordTiming({
+            cache: "coalesced",
+            durationMs: elapsedMs(startedAt),
+            operation: "pullRequest",
+            outcome: "error",
+            threadId,
+          });
+          throw error;
+        },
+      );
+    }
+
+    const startedAt = monotonicNow();
+    const request = fetchPullRequest(threadId)
+      .then((pullRequest) => {
+        recordTiming({
+          cache: "miss",
+          durationMs: elapsedMs(startedAt),
+          operation: "pullRequest",
+          outcome: "ok",
+          server: pullRequest.diagnostics,
+          threadId,
+        });
+        return pullRequest;
+      })
+      .catch((error) => {
+        recordTiming({
+          cache: "miss",
+          durationMs: elapsedMs(startedAt),
+          operation: "pullRequest",
+          outcome: "error",
+          threadId,
+        });
+        throw error;
+      })
+      .finally(() => pullRequestPending.delete(threadId));
+    pullRequestPending.set(threadId, request);
+    return request;
   }
 
   function refreshTiming(
@@ -868,8 +1117,15 @@ function installHoverCards(): HoverCardController {
     if (
       cached?.timingFetchedAt !== null &&
       cached?.timingFetchedAt !== undefined &&
-      Date.now() - cached.timingFetchedAt < CACHE_TTL_MS
+      Date.now() - cached.timingFetchedAt < timingCacheTtl(cached.summary)
     ) {
+      recordTiming({
+        cache: "fresh",
+        durationMs: 0,
+        operation: "timing",
+        outcome: "ok",
+        threadId,
+      });
       return;
     }
 
@@ -886,6 +1142,63 @@ function installHoverCards(): HoverCardController {
           ...current,
           summary,
           timingFetchedAt: Date.now(),
+        });
+        if (
+          disposed ||
+          generation !== requestGeneration ||
+          activeThreadId !== threadId ||
+          !resolveActiveTrigger()
+        ) {
+          return;
+        }
+
+        const focusWasInsideCard =
+          document.activeElement instanceof Node &&
+          hoverCard.contains(document.activeElement);
+        renderSummary(hoverCard, summary);
+        if (focusWasInsideCard) {
+          const replacementPullRequestLink =
+            hoverCard.querySelector<HTMLAnchorElement>(
+              ".bb-thread-hover-card__pr-link",
+            );
+          (replacementPullRequestLink ?? resolveActiveTrigger())?.focus();
+        }
+        requestAnimationFrame(positionCard);
+      })
+      .catch(() => undefined);
+  }
+
+  function refreshPullRequest(
+    threadId: string,
+    generation: number,
+    hoverCard: HTMLDivElement,
+  ): void {
+    const cached = cache.get(threadId);
+    if (!cached?.summary.repository.isGitRepository) return;
+    if (
+      cached.pullRequestFetchedAt !== null &&
+      Date.now() - cached.pullRequestFetchedAt < PULL_REQUEST_CACHE_TTL_MS
+    ) {
+      recordTiming({
+        cache: "fresh",
+        durationMs: 0,
+        operation: "pullRequest",
+        outcome: "ok",
+        threadId,
+      });
+      return;
+    }
+
+    void requestPullRequest(threadId)
+      .then(({ pullRequest }) => {
+        const current = cache.get(threadId);
+        if (!current) return;
+        const summary = { ...current.summary, pullRequest };
+        cache.delete(threadId);
+        cache.set(threadId, {
+          ...current,
+          pullRequestFetchedAt: Date.now(),
+          summary,
         });
         if (
           disposed ||
@@ -978,7 +1291,10 @@ function installHoverCards(): HoverCardController {
     return candidates[(triggerIndex + 1) % candidates.length] ?? null;
   }
 
-  function showCard(trigger: HTMLAnchorElement): void {
+  function showCard(
+    trigger: HTMLAnchorElement,
+    requestedAt = monotonicNow(),
+  ): void {
     const threadId = threadIdFor(trigger);
     if (!threadId || disposed) return;
 
@@ -1002,10 +1318,21 @@ function installHoverCards(): HoverCardController {
     if (cached) renderSummary(hoverCard, cached.summary);
     else renderLoading(hoverCard);
     requestAnimationFrame(positionCard);
+    const cacheIsFresh =
+      cached !== undefined &&
+      Date.now() - cached.fetchedAt < summaryCacheTtl(cached.summary);
+    recordTiming({
+      cache: cached ? (cacheIsFresh ? "fresh" : "stale") : "miss",
+      durationMs: elapsedMs(requestedAt),
+      operation: "open",
+      outcome: "ok",
+      threadId,
+    });
 
-    if (cached && Date.now() - cached.fetchedAt < CACHE_TTL_MS) {
+    if (cached) {
       refreshTiming(threadId, generation, hoverCard);
-      return;
+      refreshPullRequest(threadId, generation, hoverCard);
+      if (cacheIsFresh) return;
     }
 
     void requestSummary(threadId)
@@ -1021,7 +1348,8 @@ function installHoverCards(): HoverCardController {
         const focusWasInsideCard =
           document.activeElement instanceof Node &&
           hoverCard.contains(document.activeElement);
-        renderSummary(hoverCard, summary);
+        const currentSummary = cache.get(threadId)?.summary ?? summary;
+        renderSummary(hoverCard, currentSummary);
         if (focusWasInsideCard) {
           const replacementPullRequestLink =
             hoverCard.querySelector<HTMLAnchorElement>(
@@ -1031,6 +1359,7 @@ function installHoverCards(): HoverCardController {
         }
         requestAnimationFrame(positionCard);
         refreshTiming(threadId, generation, hoverCard);
+        refreshPullRequest(threadId, generation, hoverCard);
       })
       .catch(() => {
         if (
@@ -1051,10 +1380,6 @@ function installHoverCards(): HoverCardController {
       clearTimeout(openTimer);
       openTimer = null;
     }
-    if (prefetchTimer) {
-      clearTimeout(prefetchTimer);
-      prefetchTimer = null;
-    }
   }
 
   function cancelClose(): void {
@@ -1067,16 +1392,14 @@ function installHoverCards(): HoverCardController {
     cancelOpen();
     cancelClose();
     if (activeTrigger === trigger && card && !card.hidden) return;
-    const threadId = threadIdFor(trigger);
-    if (threadId && delay > 0) {
-      prefetchTimer = setTimeout(() => {
-        prefetchTimer = null;
-        prefetchSummary(threadId);
-      }, Math.min(PREFETCH_DELAY_MS, delay));
+    const requestedAt = monotonicNow();
+    if (delay <= 0) {
+      showCard(trigger, requestedAt);
+      return;
     }
     openTimer = setTimeout(() => {
       openTimer = null;
-      showCard(trigger);
+      showCard(trigger, requestedAt);
     }, delay);
   }
 
@@ -1264,6 +1587,8 @@ function installHoverCards(): HoverCardController {
       style.remove();
       cache.clear();
       pending.clear();
+      pullRequestPending.clear();
+      timingPending.clear();
     },
   };
 }

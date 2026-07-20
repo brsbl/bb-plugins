@@ -35,6 +35,7 @@ Object.assign(globalThis, {
 
 const requestBodies = [];
 const timingRequestBodies = [];
+const pullRequestBodies = [];
 let delayedRefresh = null;
 let delayNextRefreshFor = null;
 globalThis.fetch = async (url, init) => {
@@ -43,6 +44,12 @@ globalThis.fetch = async (url, init) => {
   const hasNoPullRequest = request.threadId === "thr_no_pr";
   const pullRequestUnavailable = request.threadId === "thr_pr_unavailable";
   const isDraftPullRequest = request.threadId === "thr_draft_pr";
+  const isBlockedPullRequest = request.threadId === "thr_blocked_pr";
+  const isFailingPullRequest = request.threadId === "thr_failing_pr";
+  const isPendingPullRequest = request.threadId === "thr_pending_pr";
+  const isReadyPullRequest = request.threadId === "thr_ready_pr";
+  const isMergedPullRequest = request.threadId === "thr_merged_pr";
+  const isClosedPullRequest = request.threadId === "thr_closed_pr";
   const isDoneWithoutCompletion =
     request.threadId === "thr_done_without_completion";
   const isStateRace = request.threadId === "thr_state_race";
@@ -62,10 +69,78 @@ globalThis.fetch = async (url, init) => {
               : hasNoPullRequest
                 ? null
                 : now - 65_000,
+          diagnostics: {
+            startedAt: now,
+            stages: [
+              {
+                durationMs: 0.5,
+                name: "timeline",
+                outcome: "ok",
+              },
+            ],
+            totalMs: 0.5,
+          },
           status:
             isLocal || isDoneWithoutCompletion || isStateRace
               ? "idle"
               : "active",
+        },
+      }),
+      { headers: { "content-type": "application/json" }, status: 200 },
+    );
+  }
+
+  if (String(url).endsWith("/threadPullRequest")) {
+    pullRequestBodies.push(request);
+    return new Response(
+      JSON.stringify({
+        ok: true,
+        result: {
+          diagnostics: {
+            startedAt: now,
+            stages: [
+              {
+                cache: "miss",
+                durationMs: 1,
+                name: "pullRequest",
+                outcome: "ok",
+              },
+            ],
+            totalMs: 1,
+          },
+          pullRequest:
+            isLocal || hasNoPullRequest
+              ? { kind: "absent" }
+              : pullRequestUnavailable
+                ? { kind: "unavailable" }
+                : {
+                    kind: "available",
+                    number: 42,
+                    signal: isDraftPullRequest
+                      ? "Draft"
+                      : isBlockedPullRequest
+                        ? "Blocked"
+                        : isFailingPullRequest
+                          ? "Checks failing"
+                          : isPendingPullRequest
+                            ? "Checks pending"
+                            : isReadyPullRequest
+                              ? "Ready to merge"
+                              : isMergedPullRequest
+                                ? "Merged"
+                                : isClosedPullRequest
+                                  ? "Closed"
+                                  : "Checks passing",
+                    state: isDraftPullRequest
+                      ? "draft"
+                      : isMergedPullRequest
+                        ? "merged"
+                        : isClosedPullRequest
+                          ? "closed"
+                          : "open",
+                    title: "Thread previews",
+                    url: "https://github.com/acme/bb/pull/42",
+                  },
         },
       }),
       { headers: { "content-type": "application/json" }, status: 200 },
@@ -79,6 +154,23 @@ globalThis.fetch = async (url, init) => {
       result: {
         currentTurnCompletedAt: null,
         currentTurnStartedAt: null,
+        diagnostics: {
+          startedAt: now,
+          stages: [
+            {
+              durationMs: 1,
+              name: "thread",
+              outcome: "ok",
+            },
+            {
+              cache: "hit",
+              durationMs: 0,
+              name: "project",
+              outcome: "ok",
+            },
+          ],
+          totalMs: 1,
+        },
         latestAssistantMessage: isLocal
           ? "**Done**—hover cards are *ready* for foo_bar_baz, \\_literal\\_, and __tests__ with `Cmd+R`.\n\n## Canary\nIgnore this secondary section.\n\n| Work | PR | Status |\n| --- | --- | --- |\n| Hover cards | #42 | Ready |"
           : hasNoPullRequest
@@ -92,16 +184,7 @@ globalThis.fetch = async (url, init) => {
         pullRequest:
           isLocal || hasNoPullRequest
             ? { kind: "absent" }
-            : pullRequestUnavailable
-              ? { kind: "unavailable" }
-              : {
-                  kind: "available",
-                  number: 42,
-                  signal: isDraftPullRequest ? "Draft" : "Checks passing",
-                  state: isDraftPullRequest ? "draft" : "open",
-                  title: "Thread previews",
-                  url: "https://github.com/acme/bb/pull/42",
-                },
+            : { kind: "pending" },
         provider: {
           displayName: "Codex",
           id: "codex",
@@ -243,28 +326,28 @@ Object.defineProperties(pointerOver, {
   relatedTarget: { value: null },
 });
 trigger.dispatchEvent(pointerOver);
-await new Promise((resolve) => setTimeout(resolve, 70));
-
-assert.equal(window.document.getElementById("bb-thread-hover-card"), null);
+const card = window.document.getElementById("bb-thread-hover-card");
+assert.ok(card, "opens the hover card in the pointer event turn");
+assert.equal(card.hidden, false);
 assert.deepEqual(
   requestBodies,
   [{ threadId: "thr_1" }],
-  "prefetches after hover intent before the card opens",
+  "starts the summary request immediately",
 );
 assert.deepEqual(
   timingRequestBodies,
   [],
-  "defers expensive timing until the summary can render",
+  "does not block first paint on timing hydration",
 );
-await new Promise((resolve) => setTimeout(resolve, 110));
+assert.match(card.textContent, /Loading thread summary/);
+await new Promise((resolve) => setTimeout(resolve, 20));
 
-const card = window.document.getElementById("bb-thread-hover-card");
-assert.ok(card);
 assert.equal(card.hidden, false);
 assert.equal(card.dataset.bbPlugin, "thread-hover-cards");
 assert.equal(card.hasAttribute("data-bb-portaled-overlay"), true);
 assert.equal(trigger.getAttribute("aria-describedby"), "bb-thread-hover-card");
 assert.deepEqual(requestBodies, [{ threadId: "thr_1" }]);
+assert.deepEqual(pullRequestBodies, [{ threadId: "thr_1" }]);
 assert.doesNotMatch(card.textContent, /Agent working/);
 assert.equal(
   card.querySelector(".bb-thread-hover-card__runtime [data-time-value]")
@@ -445,6 +528,29 @@ assert.equal(
   "open",
 );
 
+const initialTimingRecords = globalThis.__bbThreadHoverCardTimings;
+assert.ok(initialTimingRecords);
+for (const operation of ["open", "summary", "timing", "pullRequest"]) {
+  assert.ok(
+    initialTimingRecords.some((record) => record.operation === operation),
+    `records ${operation} timing`,
+  );
+}
+const initialOpenTiming = initialTimingRecords.find(
+  (record) => record.operation === "open",
+);
+assert.equal(initialOpenTiming?.cache, "miss");
+assert.equal(initialOpenTiming?.outcome, "ok");
+assert.ok((initialOpenTiming?.durationMs ?? -1) >= 0);
+const summaryTiming = initialTimingRecords.find(
+  (record) => record.operation === "summary" && record.server,
+);
+assert.deepEqual(
+  summaryTiming?.server?.stages.map((stage) => stage.name),
+  ["thread", "project"],
+  "retains per-source server timings in the client diagnostic buffer",
+);
+
 trigger.focus();
 const focusedPointerOut = new window.Event("pointerout", { bubbles: true });
 Object.defineProperties(focusedPointerOut, {
@@ -608,6 +714,8 @@ refreshedPullRequestLink.dispatchEvent(
 );
 assert.equal(card.hidden, true);
 
+trigger.blur();
+threadRowSuccessor.focus();
 trigger.dataset.sidebarThreadId = "thr_2";
 const quickPointerOver = new window.Event("pointerover", { bubbles: true });
 Object.defineProperties(quickPointerOver, {
@@ -629,6 +737,7 @@ assert.equal(card.hidden, true);
 assert.deepEqual(requestBodies, [
   { threadId: "thr_1" },
   { threadId: "thr_1" },
+  { threadId: "thr_2" },
 ]);
 
 trigger.blur();
@@ -730,6 +839,7 @@ assert.equal(card.querySelector(".bb-thread-hover-card__status-icon"), null);
 assert.deepEqual(requestBodies, [
   { threadId: "thr_1" },
   { threadId: "thr_1" },
+  { threadId: "thr_2" },
   { threadId: "thr_local" },
 ]);
 
@@ -760,6 +870,7 @@ assert.deepEqual(
 assert.deepEqual(requestBodies, [
   { threadId: "thr_1" },
   { threadId: "thr_1" },
+  { threadId: "thr_2" },
   { threadId: "thr_local" },
   { threadId: "thr_no_pr" },
 ]);
@@ -776,6 +887,7 @@ assert.doesNotMatch(card.textContent, /PR unavailable/);
 assert.deepEqual(requestBodies, [
   { threadId: "thr_1" },
   { threadId: "thr_1" },
+  { threadId: "thr_2" },
   { threadId: "thr_local" },
   { threadId: "thr_no_pr" },
   { threadId: "thr_pr_unavailable" },
@@ -809,6 +921,7 @@ assert.ok(
 assert.deepEqual(requestBodies, [
   { threadId: "thr_1" },
   { threadId: "thr_1" },
+  { threadId: "thr_2" },
   { threadId: "thr_local" },
   { threadId: "thr_no_pr" },
   { threadId: "thr_pr_unavailable" },
@@ -841,10 +954,11 @@ Object.defineProperties(reloadPointerOver, {
   relatedTarget: { value: null },
 });
 trigger.dispatchEvent(reloadPointerOver);
-await new Promise((resolve) => setTimeout(resolve, 120));
-
-assert.equal(window.document.getElementById("bb-thread-hover-card"), null);
-await new Promise((resolve) => setTimeout(resolve, 60));
+assert.ok(
+  window.document.getElementById("bb-thread-hover-card"),
+  "keeps immediate opening after the plugin lifecycle reloads",
+);
+await new Promise((resolve) => setTimeout(resolve, 20));
 
 const reloadedCard = window.document.getElementById("bb-thread-hover-card");
 assert.ok(reloadedCard);
@@ -852,6 +966,7 @@ assert.equal(reloadedCard.hidden, false);
 assert.deepEqual(requestBodies, [
   { threadId: "thr_1" },
   { threadId: "thr_1" },
+  { threadId: "thr_2" },
   { threadId: "thr_local" },
   { threadId: "thr_no_pr" },
   { threadId: "thr_pr_unavailable" },
@@ -912,6 +1027,58 @@ assert.equal(
   undefined,
   "timing hydration updates status with its timestamps",
 );
+
+for (const expected of [
+  {
+    threadId: "thr_blocked_pr",
+    signal: "Blocked",
+    state: "open",
+    tone: "danger",
+  },
+  {
+    threadId: "thr_failing_pr",
+    signal: "Checks failing",
+    state: "open",
+    tone: "danger",
+  },
+  {
+    threadId: "thr_ready_pr",
+    signal: "Ready to merge",
+    state: "open",
+    tone: "success",
+  },
+  {
+    threadId: "thr_pending_pr",
+    signal: "Checks pending",
+    state: "open",
+    tone: "muted",
+  },
+  {
+    threadId: "thr_merged_pr",
+    signal: "Merged",
+    state: "merged",
+    tone: "merged",
+  },
+  {
+    threadId: "thr_closed_pr",
+    signal: "Closed",
+    state: "closed",
+    tone: "danger",
+  },
+]) {
+  trigger.blur();
+  await new Promise((resolve) => setTimeout(resolve, 140));
+  trigger.dataset.sidebarThreadId = expected.threadId;
+  trigger.focus();
+  await new Promise((resolve) => setTimeout(resolve, 80));
+
+  const status = reloadedCard.querySelector(
+    ".bb-thread-hover-card__pr-status",
+  );
+  assert.equal(status?.textContent, expected.signal);
+  assert.equal(status?.dataset.state, expected.state);
+  assert.equal(status?.dataset.tone, expected.tone);
+}
 
 const lruTriggers = [];
 for (const threadId of [
@@ -979,6 +1146,10 @@ assert.equal(
   oldRequestsBefore + 1,
 );
 
+assert.ok(
+  (globalThis.__bbThreadHoverCardTimings?.length ?? 0) <= 200,
+  "bounds the client timing history",
+);
 globalThis.__bbThreadHoverCards?.dispose();
 assert.equal(window.document.getElementById("bb-thread-hover-card-styles"), null);
 dom.window.close();

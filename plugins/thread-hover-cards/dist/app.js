@@ -1056,11 +1056,15 @@ var STYLE_ID = "bb-thread-hover-card-styles";
 var PLUGIN_CSS_SELECTOR = 'link[data-bb-plugin-css="thread-hover-cards"]';
 var THREAD_TRIGGER_SELECTOR = "a[data-sidebar-thread-id]";
 var THREAD_ROW_SELECTOR = ".group\\/thread-row";
-var OPEN_DELAY_MS = 150;
-var PREFETCH_DELAY_MS = 50;
+var OPEN_DELAY_MS = 0;
 var CLOSE_DELAY_MS = 120;
-var CACHE_TTL_MS = 1e4;
+var ACTIVE_SUMMARY_CACHE_TTL_MS = 2e3;
+var IDLE_SUMMARY_CACHE_TTL_MS = 3e4;
+var ACTIVE_TIMING_CACHE_TTL_MS = 1e3;
+var IDLE_TIMING_CACHE_TTL_MS = 3e4;
+var PULL_REQUEST_CACHE_TTL_MS = 15e3;
 var CACHE_MAX_ENTRIES = 128;
+var TIMING_RECORD_MAX_ENTRIES = 200;
 var TABBABLE_SELECTOR = [
   "a[href]",
   "button:not([disabled])",
@@ -1070,6 +1074,26 @@ var TABBABLE_SELECTOR = [
   '[contenteditable="true"]',
   "[tabindex]"
 ].join(",");
+var diagnosticsGlobal = globalThis;
+function monotonicNow() {
+  return typeof performance === "undefined" ? Date.now() : performance.now();
+}
+function elapsedMs(startedAt) {
+  return Math.max(0, Math.round((monotonicNow() - startedAt) * 10) / 10);
+}
+function recordTiming(record) {
+  const records = diagnosticsGlobal.__bbThreadHoverCardTimings ?? (diagnosticsGlobal.__bbThreadHoverCardTimings = []);
+  records.push({ ...record, recordedAt: Date.now() });
+  if (records.length > TIMING_RECORD_MAX_ENTRIES) {
+    records.splice(0, records.length - TIMING_RECORD_MAX_ENTRIES);
+  }
+}
+function summaryCacheTtl(summary) {
+  return summary.status === "active" || summary.status === "host-reconnecting" || summary.status === "provisioning" || summary.status === "starting" || summary.status === "stopping" ? ACTIVE_SUMMARY_CACHE_TTL_MS : IDLE_SUMMARY_CACHE_TTL_MS;
+}
+function timingCacheTtl(summary) {
+  return summaryCacheTtl(summary) === ACTIVE_SUMMARY_CACHE_TTL_MS ? ACTIVE_TIMING_CACHE_TTL_MS : IDLE_TIMING_CACHE_TTL_MS;
+}
 var SVG_NAMESPACE = "http://www.w3.org/2000/svg";
 var REASONING_LABELS = {
   none: "None",
@@ -1152,14 +1176,28 @@ function statusPresentation(status) {
 }
 function pullRequestTone(pullRequest) {
   switch (pullRequest.state) {
-    case "open":
-      return "success";
     case "draft":
       return "muted";
     case "closed":
       return "danger";
     case "merged":
       return "merged";
+    case "open":
+      switch (pullRequest.signal.toLowerCase()) {
+        case "blocked":
+        case "checks failing":
+        case "changes requested":
+        case "conflicts":
+          return "danger";
+        case "checks passing":
+        case "ready to merge":
+          return "success";
+        case "checks pending":
+        case "open":
+        case "review requested":
+        default:
+          return "muted";
+      }
   }
 }
 function compactLocalPath(path) {
@@ -1401,6 +1439,23 @@ async function fetchTiming(threadId) {
   }
   return envelope.result;
 }
+async function fetchPullRequest(threadId) {
+  const response = await fetch(
+    "/api/v1/plugins/thread-hover-cards/rpc/threadPullRequest",
+    {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ threadId })
+    }
+  );
+  const envelope = await response.json();
+  if (!response.ok || !envelope.ok) {
+    throw new Error(
+      envelope.ok ? "Thread pull request failed." : envelope.error?.message
+    );
+  }
+  return envelope.result;
+}
 function renderLoading(card) {
   card.replaceChildren(
     element(
@@ -1624,7 +1679,6 @@ function installHoverCards() {
   let activeTrigger = null;
   let activeThreadId = null;
   let openTimer = null;
-  let prefetchTimer = null;
   let closeTimer = null;
   let timeTimer = null;
   let disposed = false;
@@ -1632,6 +1686,7 @@ function installHoverCards() {
   let forwardTabTarget = null;
   const cache = /* @__PURE__ */ new Map();
   const pending = /* @__PURE__ */ new Map();
+  const pullRequestPending = /* @__PURE__ */ new Map();
   const timingPending = /* @__PURE__ */ new Map();
   const style = element("style", "");
   style.id = STYLE_ID;
@@ -1680,10 +1735,14 @@ function installHoverCards() {
     return cached;
   }
   function cacheSummary(threadId, summary) {
+    const previous = cache.get(threadId);
+    const shouldKeepPullRequest = summary.pullRequest.kind === "pending" && previous !== void 0 && previous.summary.pullRequest.kind !== "pending";
+    const cachedPullRequest = shouldKeepPullRequest ? previous.summary.pullRequest : summary.pullRequest;
     cache.delete(threadId);
     cache.set(threadId, {
       fetchedAt: Date.now(),
-      summary,
+      pullRequestFetchedAt: shouldKeepPullRequest ? previous.pullRequestFetchedAt : cachedPullRequest.kind === "pending" ? null : Date.now(),
+      summary: { ...summary, pullRequest: cachedPullRequest },
       timingFetchedAt: null
     });
     while (cache.size > CACHE_MAX_ENTRIES) {
@@ -1694,31 +1753,171 @@ function installHoverCards() {
   }
   function requestSummary(threadId) {
     const existing = pending.get(threadId);
-    if (existing) return existing;
+    if (existing) {
+      const startedAt2 = monotonicNow();
+      return existing.then(
+        (summary) => {
+          recordTiming({
+            cache: "coalesced",
+            durationMs: elapsedMs(startedAt2),
+            operation: "summary",
+            outcome: "ok",
+            server: summary.diagnostics,
+            threadId
+          });
+          return summary;
+        },
+        (error) => {
+          recordTiming({
+            cache: "coalesced",
+            durationMs: elapsedMs(startedAt2),
+            operation: "summary",
+            outcome: "error",
+            threadId
+          });
+          throw error;
+        }
+      );
+    }
+    const startedAt = monotonicNow();
     const request = fetchSummary(threadId).then((summary) => {
       cacheSummary(threadId, summary);
+      recordTiming({
+        cache: "miss",
+        durationMs: elapsedMs(startedAt),
+        operation: "summary",
+        outcome: "ok",
+        server: summary.diagnostics,
+        threadId
+      });
       return summary;
+    }).catch((error) => {
+      recordTiming({
+        cache: "miss",
+        durationMs: elapsedMs(startedAt),
+        operation: "summary",
+        outcome: "error",
+        threadId
+      });
+      throw error;
     }).finally(() => pending.delete(threadId));
     pending.set(threadId, request);
     return request;
   }
   function requestTiming(threadId) {
     const existing = timingPending.get(threadId);
-    if (existing) return existing;
-    const request = fetchTiming(threadId).finally(
-      () => timingPending.delete(threadId)
-    );
+    if (existing) {
+      const startedAt2 = monotonicNow();
+      return existing.then(
+        (timing) => {
+          recordTiming({
+            cache: "coalesced",
+            durationMs: elapsedMs(startedAt2),
+            operation: "timing",
+            outcome: "ok",
+            server: timing.diagnostics,
+            threadId
+          });
+          return timing;
+        },
+        (error) => {
+          recordTiming({
+            cache: "coalesced",
+            durationMs: elapsedMs(startedAt2),
+            operation: "timing",
+            outcome: "error",
+            threadId
+          });
+          throw error;
+        }
+      );
+    }
+    const startedAt = monotonicNow();
+    const request = fetchTiming(threadId).then((timing) => {
+      recordTiming({
+        cache: "miss",
+        durationMs: elapsedMs(startedAt),
+        operation: "timing",
+        outcome: "ok",
+        server: timing.diagnostics,
+        threadId
+      });
+      return timing;
+    }).catch((error) => {
+      recordTiming({
+        cache: "miss",
+        durationMs: elapsedMs(startedAt),
+        operation: "timing",
+        outcome: "error",
+        threadId
+      });
+      throw error;
+    }).finally(() => timingPending.delete(threadId));
     timingPending.set(threadId, request);
     return request;
   }
-  function prefetchSummary(threadId) {
-    const cached = cachedSummary(threadId);
-    if (cached && Date.now() - cached.fetchedAt < CACHE_TTL_MS) return;
-    void requestSummary(threadId).catch(() => void 0);
+  function requestPullRequest(threadId) {
+    const existing = pullRequestPending.get(threadId);
+    if (existing) {
+      const startedAt2 = monotonicNow();
+      return existing.then(
+        (pullRequest) => {
+          recordTiming({
+            cache: "coalesced",
+            durationMs: elapsedMs(startedAt2),
+            operation: "pullRequest",
+            outcome: "ok",
+            server: pullRequest.diagnostics,
+            threadId
+          });
+          return pullRequest;
+        },
+        (error) => {
+          recordTiming({
+            cache: "coalesced",
+            durationMs: elapsedMs(startedAt2),
+            operation: "pullRequest",
+            outcome: "error",
+            threadId
+          });
+          throw error;
+        }
+      );
+    }
+    const startedAt = monotonicNow();
+    const request = fetchPullRequest(threadId).then((pullRequest) => {
+      recordTiming({
+        cache: "miss",
+        durationMs: elapsedMs(startedAt),
+        operation: "pullRequest",
+        outcome: "ok",
+        server: pullRequest.diagnostics,
+        threadId
+      });
+      return pullRequest;
+    }).catch((error) => {
+      recordTiming({
+        cache: "miss",
+        durationMs: elapsedMs(startedAt),
+        operation: "pullRequest",
+        outcome: "error",
+        threadId
+      });
+      throw error;
+    }).finally(() => pullRequestPending.delete(threadId));
+    pullRequestPending.set(threadId, request);
+    return request;
   }
   function refreshTiming(threadId, generation, hoverCard) {
     const cached = cache.get(threadId);
-    if (cached?.timingFetchedAt !== null && cached?.timingFetchedAt !== void 0 && Date.now() - cached.timingFetchedAt < CACHE_TTL_MS) {
+    if (cached?.timingFetchedAt !== null && cached?.timingFetchedAt !== void 0 && Date.now() - cached.timingFetchedAt < timingCacheTtl(cached.summary)) {
+      recordTiming({
+        cache: "fresh",
+        durationMs: 0,
+        operation: "timing",
+        outcome: "ok",
+        threadId
+      });
       return;
     }
     void requestTiming(threadId).then((timing) => {
@@ -1733,6 +1932,43 @@ function installHoverCards() {
         ...current,
         summary,
         timingFetchedAt: Date.now()
+      });
+      if (disposed || generation !== requestGeneration || activeThreadId !== threadId || !resolveActiveTrigger()) {
+        return;
+      }
+      const focusWasInsideCard = document.activeElement instanceof Node && hoverCard.contains(document.activeElement);
+      renderSummary(hoverCard, summary);
+      if (focusWasInsideCard) {
+        const replacementPullRequestLink = hoverCard.querySelector(
+          ".bb-thread-hover-card__pr-link"
+        );
+        (replacementPullRequestLink ?? resolveActiveTrigger())?.focus();
+      }
+      requestAnimationFrame(positionCard);
+    }).catch(() => void 0);
+  }
+  function refreshPullRequest(threadId, generation, hoverCard) {
+    const cached = cache.get(threadId);
+    if (!cached?.summary.repository.isGitRepository) return;
+    if (cached.pullRequestFetchedAt !== null && Date.now() - cached.pullRequestFetchedAt < PULL_REQUEST_CACHE_TTL_MS) {
+      recordTiming({
+        cache: "fresh",
+        durationMs: 0,
+        operation: "pullRequest",
+        outcome: "ok",
+        threadId
+      });
+      return;
+    }
+    void requestPullRequest(threadId).then(({ pullRequest }) => {
+      const current = cache.get(threadId);
+      if (!current) return;
+      const summary = { ...current.summary, pullRequest };
+      cache.delete(threadId);
+      cache.set(threadId, {
+        ...current,
+        pullRequestFetchedAt: Date.now(),
+        summary
       });
       if (disposed || generation !== requestGeneration || activeThreadId !== threadId || !resolveActiveTrigger()) {
         return;
@@ -1787,7 +2023,7 @@ function installHoverCards() {
     if (triggerIndex < 0) return null;
     return candidates[(triggerIndex + 1) % candidates.length] ?? null;
   }
-  function showCard(trigger) {
+  function showCard(trigger, requestedAt = monotonicNow()) {
     const threadId = threadIdFor(trigger);
     if (!threadId || disposed) return;
     activeTrigger?.removeAttribute("aria-describedby");
@@ -1809,16 +2045,26 @@ function installHoverCards() {
     if (cached) renderSummary(hoverCard, cached.summary);
     else renderLoading(hoverCard);
     requestAnimationFrame(positionCard);
-    if (cached && Date.now() - cached.fetchedAt < CACHE_TTL_MS) {
+    const cacheIsFresh = cached !== void 0 && Date.now() - cached.fetchedAt < summaryCacheTtl(cached.summary);
+    recordTiming({
+      cache: cached ? cacheIsFresh ? "fresh" : "stale" : "miss",
+      durationMs: elapsedMs(requestedAt),
+      operation: "open",
+      outcome: "ok",
+      threadId
+    });
+    if (cached) {
       refreshTiming(threadId, generation, hoverCard);
-      return;
+      refreshPullRequest(threadId, generation, hoverCard);
+      if (cacheIsFresh) return;
     }
     void requestSummary(threadId).then((summary) => {
       if (disposed || generation !== requestGeneration || activeThreadId !== threadId || !resolveActiveTrigger()) {
         return;
       }
       const focusWasInsideCard = document.activeElement instanceof Node && hoverCard.contains(document.activeElement);
-      renderSummary(hoverCard, summary);
+      const currentSummary = cache.get(threadId)?.summary ?? summary;
+      renderSummary(hoverCard, currentSummary);
       if (focusWasInsideCard) {
         const replacementPullRequestLink = hoverCard.querySelector(
           ".bb-thread-hover-card__pr-link"
@@ -1827,6 +2073,7 @@ function installHoverCards() {
       }
       requestAnimationFrame(positionCard);
       refreshTiming(threadId, generation, hoverCard);
+      refreshPullRequest(threadId, generation, hoverCard);
     }).catch(() => {
       if (!cached && !disposed && generation === requestGeneration && activeThreadId === threadId && resolveActiveTrigger()) {
         renderError(hoverCard);
@@ -1839,10 +2086,6 @@ function installHoverCards() {
       clearTimeout(openTimer);
       openTimer = null;
     }
-    if (prefetchTimer) {
-      clearTimeout(prefetchTimer);
-      prefetchTimer = null;
-    }
   }
   function cancelClose() {
     if (!closeTimer) return;
@@ -1853,16 +2096,14 @@ function installHoverCards() {
     cancelOpen();
     cancelClose();
     if (activeTrigger === trigger && card && !card.hidden) return;
-    const threadId = threadIdFor(trigger);
-    if (threadId && delay > 0) {
-      prefetchTimer = setTimeout(() => {
-        prefetchTimer = null;
-        prefetchSummary(threadId);
-      }, Math.min(PREFETCH_DELAY_MS, delay));
+    const requestedAt = monotonicNow();
+    if (delay <= 0) {
+      showCard(trigger, requestedAt);
+      return;
     }
     openTimer = setTimeout(() => {
       openTimer = null;
-      showCard(trigger);
+      showCard(trigger, requestedAt);
     }, delay);
   }
   function closeCard() {
@@ -2001,6 +2242,8 @@ function installHoverCards() {
       style.remove();
       cache.clear();
       pending.clear();
+      pullRequestPending.clear();
+      timingPending.clear();
     }
   };
 }

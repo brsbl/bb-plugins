@@ -14548,11 +14548,25 @@ var pullRequestSummarySchema = external_exports.discriminatedUnion("kind", [
     url: external_exports.string().url()
   }).strict(),
   external_exports.object({ kind: external_exports.literal("absent") }).strict(),
+  external_exports.object({ kind: external_exports.literal("pending") }).strict(),
   external_exports.object({ kind: external_exports.literal("unavailable") }).strict()
 ]);
+var rpcDiagnosticsSchema = external_exports.object({
+  startedAt: external_exports.number(),
+  stages: external_exports.array(
+    external_exports.object({
+      cache: external_exports.enum(["coalesced", "hit", "miss", "none", "stale"]).optional(),
+      durationMs: external_exports.number().nonnegative(),
+      name: external_exports.string(),
+      outcome: external_exports.enum(["error", "ok", "skipped", "unavailable"])
+    }).strict()
+  ),
+  totalMs: external_exports.number().nonnegative()
+}).strict();
 var threadSummarySchema = external_exports.object({
   currentTurnCompletedAt: external_exports.number().nullable(),
   currentTurnStartedAt: external_exports.number().nullable(),
+  diagnostics: rpcDiagnosticsSchema,
   latestAssistantMessage: external_exports.string().nullable(),
   permissionMode: external_exports.enum([
     "accept-edits",
@@ -14589,7 +14603,12 @@ var threadSummarySchema = external_exports.object({
 var threadTimingSchema = external_exports.object({
   currentTurnCompletedAt: external_exports.number().nullable(),
   currentTurnStartedAt: external_exports.number().nullable(),
+  diagnostics: rpcDiagnosticsSchema,
   status: displayStatusSchema
+}).strict();
+var threadPullRequestSchema = external_exports.object({
+  diagnostics: rpcDiagnosticsSchema,
+  pullRequest: pullRequestSummarySchema
 }).strict();
 var rpcContract = defineRpcContract({
   threadSummary: {
@@ -14599,6 +14618,10 @@ var rpcContract = defineRpcContract({
   threadTiming: {
     input: external_exports.object({ threadId: external_exports.string().min(1) }).strict(),
     output: threadTimingSchema
+  },
+  threadPullRequest: {
+    input: external_exports.object({ threadId: external_exports.string().min(1) }).strict(),
+    output: threadPullRequestSchema
   }
 });
 async function safely(promise2) {
@@ -14647,8 +14670,90 @@ function isRunningStatus(status) {
 var SUMMARY_LOOKUP_TIMEOUT_MS = 2500;
 var ACTIVE_TURN_EVENT_WAIT_MS = "1";
 var STABLE_DESCRIPTOR_CACHE_TTL_MS = 6e4;
+var PULL_REQUEST_CACHE_TTL_MS = 15e3;
 var STABLE_DESCRIPTOR_CACHE_MAX_ENTRIES = 128;
+function monotonicNow() {
+  return typeof performance === "undefined" ? Date.now() : performance.now();
+}
+function roundedDuration(startedAt) {
+  return Math.max(0, Math.round((monotonicNow() - startedAt) * 10) / 10);
+}
+function createDiagnostics() {
+  return {
+    startedAt: Date.now(),
+    startedMonotonicAt: monotonicNow(),
+    stages: []
+  };
+}
+function finishDiagnostics(recorder) {
+  return {
+    startedAt: recorder.startedAt,
+    stages: recorder.stages,
+    totalMs: roundedDuration(recorder.startedMonotonicAt)
+  };
+}
+async function measureStage(recorder, name, load, options = {}) {
+  const startedAt = monotonicNow();
+  try {
+    const value = await load();
+    recorder.stages.push({
+      ...options.cache ? { cache: options.cache } : {},
+      durationMs: roundedDuration(startedAt),
+      name,
+      outcome: options.unavailableWhenNull && value === null ? "unavailable" : "ok"
+    });
+    return value;
+  } catch (error51) {
+    recorder.stages.push({
+      ...options.cache ? { cache: options.cache } : {},
+      durationMs: roundedDuration(startedAt),
+      name,
+      outcome: "error"
+    });
+    throw error51;
+  }
+}
+async function measureCachedStage(recorder, name, load) {
+  const startedAt = monotonicNow();
+  try {
+    const result = await load();
+    recorder.stages.push({
+      cache: result.source,
+      durationMs: roundedDuration(startedAt),
+      name,
+      outcome: result.value === null ? "unavailable" : "ok"
+    });
+    return result;
+  } catch (error51) {
+    recorder.stages.push({
+      cache: "miss",
+      durationMs: roundedDuration(startedAt),
+      name,
+      outcome: "error"
+    });
+    throw error51;
+  }
+}
+function recordSkippedStage(recorder, name) {
+  recorder.stages.push({
+    cache: "none",
+    durationMs: 0,
+    name,
+    outcome: "skipped"
+  });
+}
+function recordDiagnostics(bb, rpc, threadId, diagnostics) {
+  bb.log.debug(
+    `thread-hover-cards:timing ${JSON.stringify({ diagnostics, rpc, threadId })}`
+  );
+}
 var StableDescriptorCache = class {
+  constructor(ttlMs = STABLE_DESCRIPTOR_CACHE_TTL_MS, maxEntries = STABLE_DESCRIPTOR_CACHE_MAX_ENTRIES) {
+    this.ttlMs = ttlMs;
+    this.maxEntries = maxEntries;
+  }
+  ttlMs;
+  maxEntries;
   entries = /* @__PURE__ */ new Map();
   pending = /* @__PURE__ */ new Map();
   request(key, load) {
@@ -14657,10 +14762,10 @@ var StableDescriptorCache = class {
     const request = load().then((value) => {
       if (value !== null) {
         this.entries.set(key, {
-          expiresAt: Date.now() + STABLE_DESCRIPTOR_CACHE_TTL_MS,
+          expiresAt: Date.now() + this.ttlMs,
           value
         });
-        while (this.entries.size > STABLE_DESCRIPTOR_CACHE_MAX_ENTRIES) {
+        while (this.entries.size > this.maxEntries) {
           const oldestKey = this.entries.keys().next().value;
           if (oldestKey === void 0) break;
           this.entries.delete(oldestKey);
@@ -14680,28 +14785,43 @@ var StableDescriptorCache = class {
       this.entries.set(key, cached2);
       if (cached2.expiresAt <= Date.now()) {
         void this.request(key, load).catch(() => void 0);
+        return { source: "stale", value: cached2.value };
       }
-      return cached2.value;
+      return { source: "hit", value: cached2.value };
     }
-    return await this.request(key, load);
+    if (this.pending.has(key)) {
+      return { source: "coalesced", value: await this.request(key, load) };
+    }
+    return { source: "miss", value: await this.request(key, load) };
   }
 };
-async function currentTurnTiming(bb, threadId, status, signal) {
+async function currentTurnTiming(bb, threadId, status, signal, recorder) {
   if (!isRunningStatus(status) && status !== "idle") {
+    recordSkippedStage(recorder, "timeline");
+    recordSkippedStage(recorder, "turnStartedEvent");
     return { completedAt: null, startedAt: null };
   }
-  const timeline = await safely(
-    bb.sdk.threads.timeline(
-      status === "idle" ? { threadId, segmentLimit: "1", signal } : {
-        threadId,
-        segmentLimit: "1",
-        signal,
-        summaryOnly: "true"
-      }
-    )
+  const timeline = await measureStage(
+    recorder,
+    "timeline",
+    () => safely(
+      bb.sdk.threads.timeline(
+        status === "idle" ? { threadId, segmentLimit: "1", signal } : {
+          threadId,
+          segmentLimit: "1",
+          signal,
+          summaryOnly: "true"
+        }
+      )
+    ),
+    { unavailableWhenNull: true }
   );
-  if (!timeline) return { completedAt: null, startedAt: null };
+  if (!timeline) {
+    recordSkippedStage(recorder, "turnStartedEvent");
+    return { completedAt: null, startedAt: null };
+  }
   if (status === "idle") {
+    recordSkippedStage(recorder, "turnStartedEvent");
     for (let index = timeline.rows.length - 1; index >= 0; index -= 1) {
       const row = timeline.rows[index];
       if (row?.kind === "turn") {
@@ -14711,14 +14831,19 @@ async function currentTurnTiming(bb, threadId, status, signal) {
     return { completedAt: null, startedAt: null };
   }
   const anchorSeq = timeline.timelinePage.olderCursor?.anchorSeq ?? 1;
-  const started = await safely(
-    bb.sdk.threads.events.wait({
-      afterSeq: String(Math.max(0, anchorSeq - 1)),
-      signal,
-      threadId,
-      type: "turn/started",
-      waitMs: ACTIVE_TURN_EVENT_WAIT_MS
-    })
+  const started = await measureStage(
+    recorder,
+    "turnStartedEvent",
+    () => safely(
+      bb.sdk.threads.events.wait({
+        afterSeq: String(Math.max(0, anchorSeq - 1)),
+        signal,
+        threadId,
+        type: "turn/started",
+        waitMs: ACTIVE_TURN_EVENT_WAIT_MS
+      })
+    ),
+    { unavailableWhenNull: true }
   );
   const isRootTurn = started?.type === "turn/started" && started.data.parentToolCallId === void 0 && started.scope.kind === "turn";
   return {
@@ -14738,180 +14863,295 @@ var PULL_REQUEST_SIGNALS = {
   review_requested: "Review requested",
   ready_to_merge: "Ready to merge"
 };
+function providerDisplayName(providerId) {
+  switch (providerId) {
+    case "acp-cursor":
+      return "Cursor";
+    case "claude-code":
+      return "Claude";
+    case "codex":
+      return "Codex";
+    case "pi":
+      return "Pi";
+    default:
+      return providerId;
+  }
+}
 function plugin(bb) {
   const stableDescriptors = new StableDescriptorCache();
+  const pullRequests = new StableDescriptorCache(PULL_REQUEST_CACHE_TTL_MS);
   bb.rpc.register(rpcContract, {
     async threadSummary({ threadId }) {
+      const recorder = createDiagnostics();
       const deadlineAt = Date.now() + SUMMARY_LOOKUP_TIMEOUT_MS;
       const remainingMs = () => Math.max(1, deadlineAt - Date.now());
       const signal = AbortSignal.timeout(SUMMARY_LOOKUP_TIMEOUT_MS);
-      const thread = await within(
-        safely(bb.sdk.threads.get({ signal, threadId })),
-        remainingMs()
-      );
-      if (!thread) throw new Error("Thread summary unavailable.");
-      const providerScope = thread.environmentId ? `environment:${thread.environmentId}` : "host:default";
-      const projectPromise = stableDescriptors.get(
-        `project:${thread.projectId}`,
-        () => within(
-          safely(
-            bb.sdk.projects.get({ projectId: thread.projectId, signal })
-          ),
-          remainingMs()
-        )
-      );
-      const environmentPromise = thread.environmentId ? within(
-        safely(
-          bb.sdk.environments.get({
-            environmentId: thread.environmentId,
-            signal
-          })
-        ),
-        remainingMs()
-      ) : Promise.resolve(null);
-      const pullRequestPromise = Promise.all([
-        projectPromise,
-        environmentPromise
-      ]).then(([project2, environment2]) => {
-        const isGitRepository2 = environment2?.isGitRepo ?? project2?.gitRemoteUrl != null;
-        return thread.environmentId && isGitRepository2 ? within(
-          safely(
-            bb.sdk.environments.pullRequest({
-              environmentId: thread.environmentId,
-              signal
-            })
-          ),
-          remainingMs()
-        ) : null;
-      });
-      const [
-        project,
-        environment,
-        pullRequestResult,
-        executionOptions,
-        providers,
-        providerModels,
-        threadOutput
-      ] = await Promise.all([
-        projectPromise,
-        environmentPromise,
-        pullRequestPromise,
-        within(
-          safely(
-            bb.sdk.threads.defaultExecutionOptions({ signal, threadId })
-          ),
-          remainingMs()
-        ),
-        stableDescriptors.get(
-          `providers:${providerScope}`,
+      try {
+        const thread = await measureStage(
+          recorder,
+          "thread",
           () => within(
             safely(
-              bb.sdk.providers.list(
-                thread.environmentId ? { environmentId: thread.environmentId, signal } : { signal }
-              )
+              bb.sdk.threads.get({
+                include: "environment",
+                signal,
+                threadId
+              })
             ),
             remainingMs()
-          )
-        ),
-        stableDescriptors.get(
-          `provider-models:${providerScope}:${thread.providerId}`,
-          () => within(
-            safely(
-              bb.sdk.providers.models(
-                thread.environmentId ? {
+          ),
+          { unavailableWhenNull: true }
+        );
+        if (!thread) throw new Error("Thread summary unavailable.");
+        let environment = "environment" in thread ? thread.environment ?? null : null;
+        if (!("environment" in thread) && thread.environmentId) {
+          environment = await measureStage(
+            recorder,
+            "environment",
+            () => within(
+              safely(
+                bb.sdk.environments.get({
                   environmentId: thread.environmentId,
-                  providerId: thread.providerId,
                   signal
-                } : { providerId: thread.providerId, signal }
-              )
+                })
+              ),
+              remainingMs()
+            ),
+            { unavailableWhenNull: true }
+          );
+        } else {
+          recorder.stages.push({
+            cache: "none",
+            durationMs: 0,
+            name: "environment",
+            outcome: environment ? "ok" : "unavailable"
+          });
+        }
+        const projectPromise = measureCachedStage(
+          recorder,
+          "project",
+          () => stableDescriptors.get(
+            `project:${thread.projectId}`,
+            () => within(
+              safely(
+                bb.sdk.projects.get({
+                  projectId: thread.projectId,
+                  signal
+                })
+              ),
+              remainingMs()
+            )
+          )
+        );
+        const executionOptionsPromise = measureStage(
+          recorder,
+          "executionOptions",
+          () => within(
+            safely(
+              bb.sdk.threads.defaultExecutionOptions({ signal, threadId })
             ),
             remainingMs()
-          )
-        ),
-        within(
-          safely(bb.sdk.threads.output({ signal, threadId })),
-          remainingMs()
-        )
-      ]);
-      const isGitRepository = environment?.isGitRepo ?? project?.gitRemoteUrl != null;
-      const provider = providers?.find(
-        (candidate) => candidate.id === thread.providerId
-      );
-      const normalizedAssistantMessage = normalizeMessage(
-        threadOutput?.output ?? ""
-      );
-      const selectedModel = executionOptions?.model;
-      const model = [
-        ...providerModels?.models ?? [],
-        ...providerModels?.selectedOnlyModels ?? []
-      ].find(
-        (candidate) => candidate.model === selectedModel || candidate.id === selectedModel
-      );
-      let pullRequest;
-      if (!isGitRepository || pullRequestResult?.outcome === "absent") {
-        pullRequest = { kind: "absent" };
-      } else if (pullRequestResult?.outcome === "available") {
-        const source = pullRequestResult.pullRequest;
-        const signal2 = source.attention === "none" ? source.checks.state === "passing" ? "Checks passing" : source.state === "open" ? "Open" : source.state[0].toUpperCase() + source.state.slice(1) : PULL_REQUEST_SIGNALS[source.attention];
-        pullRequest = {
-          kind: "available",
-          number: source.number,
-          signal: signal2,
-          state: source.state,
-          title: source.title,
-          url: source.url
-        };
-      } else {
-        pullRequest = { kind: "unavailable" };
-      }
-      return {
-        currentTurnCompletedAt: null,
-        currentTurnStartedAt: null,
-        latestAssistantMessage: normalizedAssistantMessage || null,
-        permissionMode: executionOptions?.permissionMode ?? null,
-        pullRequest,
-        provider: {
-          displayName: provider?.displayName ?? thread.providerId,
-          id: thread.providerId,
-          logoUrl: provider?.logoUrl ?? null,
-          model: model?.displayName ?? selectedModel ?? "Model unavailable",
-          reasoningLevel: executionOptions?.reasoningLevel ?? null
-        },
-        repository: {
-          branch: environment?.branchName ?? null,
-          isGitRepository,
-          name: repositoryName(
-            project?.gitRemoteUrl ?? null,
-            project?.name ?? "Repository unavailable"
           ),
-          path: environment?.path ?? null
-        },
-        status: thread.runtime.displayStatus
-      };
+          { unavailableWhenNull: true }
+        );
+        const outputPromise = measureStage(
+          recorder,
+          "output",
+          () => within(
+            safely(bb.sdk.threads.output({ signal, threadId })),
+            remainingMs()
+          ),
+          { unavailableWhenNull: true }
+        );
+        const [projectResult, executionOptions, threadOutput] = await Promise.all([
+          projectPromise,
+          executionOptionsPromise,
+          outputPromise
+        ]);
+        const project = projectResult.value;
+        const isGitRepository = environment?.isGitRepo ?? project?.gitRemoteUrl != null;
+        const normalizedAssistantMessage = normalizeMessage(
+          threadOutput?.output ?? ""
+        );
+        const diagnostics = finishDiagnostics(recorder);
+        recordDiagnostics(bb, "threadSummary", threadId, diagnostics);
+        return {
+          currentTurnCompletedAt: null,
+          currentTurnStartedAt: null,
+          diagnostics,
+          latestAssistantMessage: normalizedAssistantMessage || null,
+          permissionMode: executionOptions?.permissionMode ?? null,
+          pullRequest: isGitRepository ? { kind: "pending" } : { kind: "absent" },
+          provider: {
+            displayName: providerDisplayName(thread.providerId),
+            id: thread.providerId,
+            logoUrl: null,
+            model: executionOptions?.model ?? "Model unavailable",
+            reasoningLevel: executionOptions?.reasoningLevel ?? null
+          },
+          repository: {
+            branch: environment?.branchName ?? null,
+            isGitRepository,
+            name: repositoryName(
+              project?.gitRemoteUrl ?? null,
+              project?.name ?? "Repository unavailable"
+            ),
+            path: environment?.path ?? null
+          },
+          status: thread.runtime.displayStatus
+        };
+      } catch (error51) {
+        recordDiagnostics(
+          bb,
+          "threadSummary",
+          threadId,
+          finishDiagnostics(recorder)
+        );
+        throw error51;
+      }
     },
     async threadTiming({ threadId }) {
+      const recorder = createDiagnostics();
       const deadlineAt = Date.now() + SUMMARY_LOOKUP_TIMEOUT_MS;
       const remainingMs = () => Math.max(1, deadlineAt - Date.now());
       const signal = AbortSignal.timeout(SUMMARY_LOOKUP_TIMEOUT_MS);
-      const thread = await within(
-        safely(bb.sdk.threads.get({ signal, threadId })),
-        remainingMs()
-      );
-      if (!thread) throw new Error("Thread timing unavailable.");
-      const timing = await within(
-        currentTurnTiming(
+      try {
+        const thread = await measureStage(
+          recorder,
+          "thread",
+          () => within(
+            safely(bb.sdk.threads.get({ signal, threadId })),
+            remainingMs()
+          ),
+          { unavailableWhenNull: true }
+        );
+        if (!thread) throw new Error("Thread timing unavailable.");
+        const timing = await within(
+          currentTurnTiming(
+            bb,
+            threadId,
+            thread.runtime.displayStatus,
+            signal,
+            recorder
+          ),
+          remainingMs()
+        );
+        const diagnostics = finishDiagnostics(recorder);
+        recordDiagnostics(bb, "threadTiming", threadId, diagnostics);
+        return {
+          currentTurnCompletedAt: timing?.completedAt ?? null,
+          currentTurnStartedAt: timing?.startedAt ?? null,
+          diagnostics,
+          status: thread.runtime.displayStatus
+        };
+      } catch (error51) {
+        recordDiagnostics(
           bb,
+          "threadTiming",
           threadId,
-          thread.runtime.displayStatus,
-          signal
-        ),
-        remainingMs()
-      );
-      return {
-        currentTurnCompletedAt: timing?.completedAt ?? null,
-        currentTurnStartedAt: timing?.startedAt ?? null,
-        status: thread.runtime.displayStatus
-      };
+          finishDiagnostics(recorder)
+        );
+        throw error51;
+      }
+    },
+    async threadPullRequest({ threadId }) {
+      const recorder = createDiagnostics();
+      const deadlineAt = Date.now() + SUMMARY_LOOKUP_TIMEOUT_MS;
+      const remainingMs = () => Math.max(1, deadlineAt - Date.now());
+      const signal = AbortSignal.timeout(SUMMARY_LOOKUP_TIMEOUT_MS);
+      try {
+        const thread = await measureStage(
+          recorder,
+          "thread",
+          () => within(
+            safely(
+              bb.sdk.threads.get({
+                include: "environment",
+                signal,
+                threadId
+              })
+            ),
+            remainingMs()
+          ),
+          { unavailableWhenNull: true }
+        );
+        if (!thread) throw new Error("Thread pull request unavailable.");
+        let environment = "environment" in thread ? thread.environment ?? null : null;
+        if (!("environment" in thread) && thread.environmentId) {
+          environment = await measureStage(
+            recorder,
+            "environment",
+            () => within(
+              safely(
+                bb.sdk.environments.get({
+                  environmentId: thread.environmentId,
+                  signal
+                })
+              ),
+              remainingMs()
+            ),
+            { unavailableWhenNull: true }
+          );
+        } else {
+          recorder.stages.push({
+            cache: "none",
+            durationMs: 0,
+            name: "environment",
+            outcome: environment ? "ok" : "unavailable"
+          });
+        }
+        if (!thread.environmentId || environment?.isGitRepo === false) {
+          recordSkippedStage(recorder, "pullRequest");
+          const diagnostics2 = finishDiagnostics(recorder);
+          recordDiagnostics(bb, "threadPullRequest", threadId, diagnostics2);
+          return { diagnostics: diagnostics2, pullRequest: { kind: "absent" } };
+        }
+        const pullRequestResult = await measureCachedStage(
+          recorder,
+          "pullRequest",
+          () => pullRequests.get(
+            `pull-request:${thread.environmentId}`,
+            () => within(
+              safely(
+                bb.sdk.environments.pullRequest({
+                  environmentId: thread.environmentId,
+                  signal
+                })
+              ),
+              remainingMs()
+            )
+          )
+        );
+        const result = pullRequestResult.value;
+        let pullRequest;
+        if (result?.outcome === "absent") {
+          pullRequest = { kind: "absent" };
+        } else if (result?.outcome === "available") {
+          const source = result.pullRequest;
+          const signalLabel = source.attention === "none" ? source.checks.state === "passing" ? "Checks passing" : source.state === "open" ? "Open" : source.state[0].toUpperCase() + source.state.slice(1) : PULL_REQUEST_SIGNALS[source.attention];
+          pullRequest = {
+            kind: "available",
+            number: source.number,
+            signal: signalLabel,
+            state: source.state,
+            title: source.title,
+            url: source.url
+          };
+        } else {
+          pullRequest = { kind: "unavailable" };
+        }
+        const diagnostics = finishDiagnostics(recorder);
+        recordDiagnostics(bb, "threadPullRequest", threadId, diagnostics);
+        return { diagnostics, pullRequest };
+      } catch (error51) {
+        recordDiagnostics(
+          bb,
+          "threadPullRequest",
+          threadId,
+          finishDiagnostics(recorder)
+        );
+        throw error51;
+      }
     }
   });
   bb.log.info("Thread hover cards loaded.");
@@ -14919,6 +15159,7 @@ function plugin(bb) {
 export {
   plugin as default,
   rpcContract,
+  threadPullRequestSchema,
   threadSummarySchema,
   threadTimingSchema
 };
