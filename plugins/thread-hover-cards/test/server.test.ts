@@ -185,6 +185,10 @@ const fakeBb = {
                   branchName: "feature/hover-cards",
                   isGitRepo: environmentIsGitRepository,
                   path: "/workspace/thread-hover-cards",
+                  workspaceProvisionType:
+                    input.threadId === "thr_local"
+                      ? "personal"
+                      : "managed-worktree",
                 },
               }
             : {}),
@@ -203,7 +207,7 @@ const fakeBb = {
       async timeline(input: { includeNestedRows?: string }) {
         if (timelineFails) throw new Error("Timeline lookup failed");
 
-        if (input.includeNestedRows === "true") {
+        if (input.includeNestedRows === "false") {
           summaryTimelineCalls += 1;
           return {
             maxSeq: 20,
@@ -485,6 +489,7 @@ const pullRequestCallsBeforeLocalSummary = pullRequestCalls;
 const localSummary = await summaryHandler({ threadId: "thr_local" });
 assert.equal(localSummary.repository.isGitRepository, false);
 assert.equal(localSummary.pullRequest.kind, "absent");
+assert.equal(stage(localSummary.diagnostics, "project").outcome, "skipped");
 assert.equal(
   pullRequestCalls,
   pullRequestCallsBeforeLocalSummary,

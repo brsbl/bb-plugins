@@ -14941,7 +14941,9 @@ function plugin(bb) {
             outcome: environment ? "ok" : "unavailable"
           });
         }
-        const projectPromise = measureCachedStage(
+        const skipProject = environment?.workspaceProvisionType === "personal" && !environment.isGitRepo;
+        if (skipProject) recordSkippedStage(recorder, "project");
+        const projectPromise = skipProject ? Promise.resolve({ source: "hit", value: null }) : measureCachedStage(
           recorder,
           "project",
           () => stableDescriptors.get(
@@ -14974,7 +14976,7 @@ function plugin(bb) {
           () => within(
             safely(
               bb.sdk.threads.timeline({
-                includeNestedRows: "true",
+                includeNestedRows: "false",
                 segmentLimit: "1",
                 signal,
                 threadId

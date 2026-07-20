@@ -579,22 +579,25 @@ export default function plugin(bb: BbPluginApi): void {
           });
         }
 
-        const projectPromise = measureCachedStage(
-          recorder,
-          "project",
-          () =>
-            stableDescriptors.get(`project:${thread.projectId}`, () =>
-              within(
-                safely(
-                  bb.sdk.projects.get({
-                    projectId: thread.projectId,
-                    signal,
-                  }),
+        const skipProject =
+          environment?.workspaceProvisionType === "personal" &&
+          !environment.isGitRepo;
+        if (skipProject) recordSkippedStage(recorder, "project");
+        const projectPromise = skipProject
+          ? Promise.resolve({ source: "hit" as const, value: null })
+          : measureCachedStage(recorder, "project", () =>
+              stableDescriptors.get(`project:${thread.projectId}`, () =>
+                within(
+                  safely(
+                    bb.sdk.projects.get({
+                      projectId: thread.projectId,
+                      signal,
+                    }),
+                  ),
+                  remainingMs(),
                 ),
-                remainingMs(),
               ),
-            ),
-        );
+            );
         const executionOptionsPromise = measureStage(
           recorder,
           "executionOptions",
@@ -614,7 +617,7 @@ export default function plugin(bb: BbPluginApi): void {
             within(
               safely(
                 bb.sdk.threads.timeline({
-                  includeNestedRows: "true",
+                  includeNestedRows: "false",
                   segmentLimit: "1",
                   signal,
                   threadId,
