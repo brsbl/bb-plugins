@@ -1,5 +1,5 @@
 import { spawnSync } from "node:child_process";
-import { mkdir, mkdtemp, readFile, readdir, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -48,6 +48,10 @@ function releaseManifest(sourceManifest) {
   const manifest = structuredClone(sourceManifest);
   delete manifest.devDependencies;
   delete manifest.scripts;
+  // bb currently recompiles frontend entries for direct git installs even
+  // when a valid prebuilt app is present. Point the release-only manifest at
+  // that self-contained bundle so installation never depends on node_modules.
+  if (manifest.bb?.app) manifest.bb.app = "./dist/app.js";
   for (const [name, version] of Object.entries(manifest.dependencies ?? {})) {
     if (String(version).startsWith("file:")) {
       throw new Error(`${manifest.name}: production dependency ${name} uses ${version}`);
@@ -188,9 +192,37 @@ async function verifyReleaseCommit(plugin, releaseCommit, bbVersion) {
       env: { GIT_INDEX_FILE: indexPath },
     });
 
-    const manifest = JSON.parse(await readFile(resolve(checkout, "package.json"), "utf8"));
+    const manifestPath = resolve(checkout, "package.json");
+    const manifestRaw = await readFile(manifestPath, "utf8");
+    const manifest = JSON.parse(manifestRaw);
     if (manifest.devDependencies || manifest.scripts) {
       throw new Error(`${plugin.installRef}: release manifest contains development-only fields`);
+    }
+    if (manifest.bb?.app && manifest.bb.app !== "./dist/app.js") {
+      throw new Error(`${plugin.installRef}: release app entry is not the prebuilt bundle`);
+    }
+    await validatePluginArtifacts(checkout, {
+      bbVersion,
+      expectedId: plugin.pluginId,
+      expectedName: plugin.name,
+      expectedScreenshot: plugin.screenshot,
+    });
+
+    // Mirror the build that bb performs for a git install before production
+    // dependencies are present. The temporary server entry keeps this probe
+    // focused on release artifacts; managed installs load the validated
+    // prebuilt server directly.
+    const buildManifest = structuredClone(manifest);
+    buildManifest.bb.server = "./dist/server.js";
+    await writeFile(manifestPath, `${JSON.stringify(buildManifest, null, 2)}\n`);
+    try {
+      run(
+        process.execPath,
+        [resolve(root, "node_modules/bb-app/dist/bb.js"), "plugin", "build", "."],
+        { cwd: checkout, env: { BB_CLI: "" } },
+      );
+    } finally {
+      await writeFile(manifestPath, manifestRaw);
     }
     run(
       "npm",
