@@ -1,0 +1,34 @@
+{
+  "contractVersion": 1,
+  "providerId": "w3c-aria-apg",
+  "provenance": {
+    "upstreamRevision": "18c1a2fca626f7aeb33270e23ae9b18833e2164d",
+    "retrievedAt": "2026-07-19T02:10:34Z",
+    "checksum": {
+      "algorithm": "sha256",
+      "value": "6f93f17270a140051e5633ad7acd502dd5ed48925b6bdf927a1b2d5bfe70a855"
+    }
+  },
+  "license": {
+    "id": "W3C-2015-Document-License",
+    "url": "https://www.w3.org/copyright/software-license-2015/",
+    "contentMode": "metadata-only"
+  },
+  "document": {
+    "stableId": "combobox",
+    "title": "Combobox Pattern",
+    "sections": [
+      "About This Pattern",
+      "Examples",
+      "Keyboard Interaction",
+      "WAI-ARIA Roles, States, and Properties"
+    ],
+    "tags": ["combobox", "listbox", "grid", "tree", "dialog"],
+    "aliases": []
+  },
+  "urls": {
+    "docs": "https://www.w3.org/WAI/ARIA/apg/patterns/combobox/",
+    "example": "https://www.w3.org/WAI/ARIA/apg/patterns/combobox/examples/combobox-autocomplete-list.html",
+    "code": "https://github.com/w3c/aria-practices/blob/18c1a2fca626f7aeb33270e23ae9b18833e2164d/content/patterns/combobox/combobox-pattern.html"
+  }
+}

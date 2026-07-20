@@ -1,0 +1,636 @@
+{
+  "schemaVersion": "1",
+  "revision": "b3536490dfea80a32968cf61e8b00d75530d80bd",
+  "documents": [
+    {
+      "path": "src/components/accordion/index.md",
+      "frontmatter": {
+        "title": "Accordion",
+        "description": "The accordion component lets users show and hide sections of related content on a page",
+        "section": "Components",
+        "aliases": null
+      }
+    },
+    {
+      "path": "src/components/back-link/index.md",
+      "frontmatter": {
+        "title": "Back link",
+        "description": "Use the back link component to help users go back to the previous page in a multi-page transaction",
+        "section": "Components",
+        "aliases": "return link, back button"
+      }
+    },
+    {
+      "path": "src/components/breadcrumbs/index.md",
+      "frontmatter": {
+        "title": "Breadcrumbs",
+        "description": "Help users orientate themselves and navigate pages within a hierarchical structure",
+        "section": "Components",
+        "aliases": "navigation path, cookie crumb"
+      }
+    },
+    {
+      "path": "src/components/button/index.md",
+      "frontmatter": {
+        "title": "Button",
+        "description": "Use the button component to help users carry out an action",
+        "section": "Components",
+        "aliases": null
+      }
+    },
+    {
+      "path": "src/components/character-count/index.md",
+      "frontmatter": {
+        "title": "Character count",
+        "description": "Tell users how many characters or words they can enter into a textarea",
+        "section": "Components",
+        "aliases": "word count"
+      }
+    },
+    {
+      "path": "src/components/checkboxes/index.md",
+      "frontmatter": {
+        "title": "Checkboxes",
+        "description": "Let users select one or more options by using the checkboxes component",
+        "section": "Components",
+        "aliases": "check boxes, tickboxes, tick boxes"
+      }
+    },
+    {
+      "path": "src/components/cookie-banner/index.md",
+      "frontmatter": {
+        "title": "Cookie banner",
+        "description": "Allow users to accept or reject cookies which are not essential to making your service work.",
+        "section": "Components",
+        "aliases": "Cookies banner, consent banner, GDPR banner, tracking banner, analytics banner"
+      }
+    },
+    {
+      "path": "src/components/date-input/index.md",
+      "frontmatter": {
+        "title": "Date input",
+        "description": "Use the date input component to help users enter a memorable date",
+        "section": "Components",
+        "aliases": null
+      }
+    },
+    {
+      "path": "src/components/details/index.md",
+      "frontmatter": {
+        "title": "Details",
+        "description": "Make a page easier to scan by letting users reveal more detailed information only if they need it",
+        "section": "Components",
+        "aliases": "reveal, progressive disclosure, hidden text, show and hide, ShowyHideyThing"
+      }
+    },
+    {
+      "path": "src/components/error-message/index.md",
+      "frontmatter": {
+        "title": "Error message",
+        "description": "When there's a validation error, use an error message to explain what went wrong and how to fix it",
+        "section": "Components",
+        "aliases": "validation message"
+      }
+    },
+    {
+      "path": "src/components/error-summary/index.md",
+      "frontmatter": {
+        "title": "Error summary",
+        "description": "Use an error summary when there is a validation error",
+        "section": "Components",
+        "aliases": null
+      }
+    },
+    {
+      "path": "src/components/exit-this-page/index.md",
+      "frontmatter": {
+        "title": "Exit this page",
+        "description": "Give users a way to quickly and safely exit a service, website or application.",
+        "section": "Components",
+        "aliases": null
+      }
+    },
+    {
+      "path": "src/components/fieldset/index.md",
+      "frontmatter": {
+        "title": "Fieldset",
+        "description": "Use the fieldset component to group related form inputs",
+        "section": "Components",
+        "aliases": null
+      }
+    },
+    {
+      "path": "src/components/file-upload/index.md",
+      "frontmatter": {
+        "title": "File upload",
+        "description": "Help users select and upload a file",
+        "section": "Components",
+        "aliases": null
+      }
+    },
+    {
+      "path": "src/components/footer/index.md",
+      "frontmatter": {
+        "title": "GOV.UK footer",
+        "description": "The footer provides copyright, licensing and other information about your service and department",
+        "section": "Components",
+        "aliases": "privacy notice, accessibility statement, terms and conditions"
+      }
+    },
+    {
+      "path": "src/components/generic-header/index.md",
+      "frontmatter": {
+        "title": "Generic header",
+        "description": "A generic header to help services not on GOV.UK",
+        "section": "Components",
+        "aliases": "Header (generic)"
+      }
+    },
+    {
+      "path": "src/components/header/index.md",
+      "frontmatter": {
+        "title": "GOV.UK header",
+        "description": "The GOV.UK header shows users that they are on GOV.UK",
+        "section": "Components",
+        "aliases": "GOV.UK masthead"
+      }
+    },
+    {
+      "path": "src/components/inset-text/index.md",
+      "frontmatter": {
+        "title": "Inset text",
+        "description": "Use the inset text component to differentiate a block of text from the content that surrounds it",
+        "section": "Components",
+        "aliases": "highlighted text, callout"
+      }
+    },
+    {
+      "path": "src/components/notification-banner/index.md",
+      "frontmatter": {
+        "title": "Notification banner",
+        "description": "Use a notification banner to tell the user about something they need to know about, but that’s not directly related to the page content",
+        "section": "Components",
+        "aliases": "alert, warning, success message, important message, flash message"
+      }
+    },
+    {
+      "path": "src/components/pagination/index.md",
+      "frontmatter": {
+        "title": "Pagination",
+        "description": "Help users navigate collections of numbered pages like search results",
+        "section": "Components",
+        "aliases": null
+      }
+    },
+    {
+      "path": "src/components/panel/index.md",
+      "frontmatter": {
+        "title": "Panel",
+        "description": "Use the Panel component to display important information in within confirmation and interruption pages",
+        "section": "Components",
+        "aliases": "confirmation box, results box, reference number, application complete, application number"
+      }
+    },
+    {
+      "path": "src/components/password-input/index.md",
+      "frontmatter": {
+        "title": "Password input",
+        "description": "Help users accessibly enter passwords",
+        "section": "Components",
+        "aliases": "pass word, pass phrase"
+      }
+    },
+    {
+      "path": "src/components/phase-banner/index.md",
+      "frontmatter": {
+        "title": "Phase banner",
+        "description": "Use the phase banner component to show users your service is still being worked on",
+        "section": "Components",
+        "aliases": "alpha banner, beta banner, prototype banner, status banner, feedback banner"
+      }
+    },
+    {
+      "path": "src/components/radios/index.md",
+      "frontmatter": {
+        "title": "Radios",
+        "description": "Let users select a single option from a list using the radios component",
+        "section": "Components",
+        "aliases": "radio buttons, option buttons"
+      }
+    },
+    {
+      "path": "src/components/select/index.md",
+      "frontmatter": {
+        "title": "Select",
+        "description": "Help users select an item from a list",
+        "section": "Components",
+        "aliases": "dropdown, list box, combo box, pop-up menu"
+      }
+    },
+    {
+      "path": "src/components/service-navigation/index.md",
+      "frontmatter": {
+        "title": "Service navigation",
+        "description": "Service navigation helps users understand that they’re using your service and lets them navigate around your service",
+        "section": "Components",
+        "aliases": "Primary navigation"
+      }
+    },
+    {
+      "path": "src/components/skip-link/index.md",
+      "frontmatter": {
+        "title": "Skip link",
+        "description": "Use the skip link component to help keyboard-only users skip to the main content on a page",
+        "section": "Components",
+        "aliases": "Skip navigation link"
+      }
+    },
+    {
+      "path": "src/components/summary-list/index.md",
+      "frontmatter": {
+        "title": "Summary list",
+        "description": "Use the summary list to summarise information, for example, a user’s responses at the end of a form.",
+        "section": "Components",
+        "aliases": "Summary card"
+      }
+    },
+    {
+      "path": "src/components/table/index.md",
+      "frontmatter": {
+        "title": "Table",
+        "description": "Use the table component to make information easier to compare and scan for users",
+        "section": "Components",
+        "aliases": null
+      }
+    },
+    {
+      "path": "src/components/tabs/index.md",
+      "frontmatter": {
+        "title": "Tabs",
+        "description": "Tabs can be a helpful way of letting users quickly switch between related information",
+        "section": "Components",
+        "aliases": null
+      }
+    },
+    {
+      "path": "src/components/tag/index.md",
+      "frontmatter": {
+        "title": "Tag",
+        "description": "The Tag component indicates the status of something, such as an item on a task list or a phase banner",
+        "section": "Components",
+        "aliases": "chip, badge, flag, token"
+      }
+    },
+    {
+      "path": "src/components/task-list/index.md",
+      "frontmatter": {
+        "title": "Task list",
+        "description": "The task list component displays all the tasks a user needs to do, and allows users to easily identify which ones are done and which they still need to do.",
+        "section": "Components",
+        "aliases": null
+      }
+    },
+    {
+      "path": "src/components/text-input/index.md",
+      "frontmatter": {
+        "title": "Text input",
+        "description": "Help users enter information with the text input component",
+        "section": "Components",
+        "aliases": "text box, text field, input field, text entry box"
+      }
+    },
+    {
+      "path": "src/components/textarea/index.md",
+      "frontmatter": {
+        "title": "Textarea",
+        "description": "Help users provide detailed information using the textarea component",
+        "section": "Components",
+        "aliases": "multi-line text box, multi-line text field"
+      }
+    },
+    {
+      "path": "src/components/warning-text/index.md",
+      "frontmatter": {
+        "title": "Warning text",
+        "description": "Use the warning text component when you need to warn users about something important, such as legal consequences of an action, or lack of action, that they might take",
+        "section": "Components",
+        "aliases": "important text, legal text"
+      }
+    },
+    {
+      "path": "src/patterns/addresses/index.md",
+      "frontmatter": {
+        "title": "Addresses",
+        "description": "Help users provide an address",
+        "section": "Patterns",
+        "aliases": "postcode"
+      }
+    },
+    {
+      "path": "src/patterns/bank-details/index.md",
+      "frontmatter": {
+        "title": "Bank details",
+        "description": "How to ask users for their bank details",
+        "section": "Patterns",
+        "aliases": null
+      }
+    },
+    {
+      "path": "src/patterns/check-a-service-is-suitable/index.md",
+      "frontmatter": {
+        "title": "Check a service is suitable",
+        "description": "Ask users questions to help them work out if they can or should use your service",
+        "section": "Patterns",
+        "aliases": null
+      }
+    },
+    {
+      "path": "src/patterns/check-answers/index.md",
+      "frontmatter": {
+        "title": "Check answers",
+        "description": "Let users check their answers before submitting information to a service",
+        "section": "Patterns",
+        "aliases": null
+      }
+    },
+    {
+      "path": "src/patterns/complete-multiple-tasks/index.md",
+      "frontmatter": {
+        "title": "Complete multiple tasks",
+        "description": "Task lists help users understand tasks involved in completing a transaction, the order they should complete tasks in and when they have completed tasks",
+        "section": "Patterns",
+        "aliases": null
+      }
+    },
+    {
+      "path": "src/patterns/confirm-a-phone-number/index.md",
+      "frontmatter": {
+        "title": "Confirm a phone number",
+        "description": "Identifying users when they sign in",
+        "section": "Patterns",
+        "aliases": "2FA, MFA, multi-factor authentication, security code, telephone number, phone number, text message, two-factor authentication"
+      }
+    },
+    {
+      "path": "src/patterns/confirm-an-email-address/index.md",
+      "frontmatter": {
+        "title": "Confirm an email address",
+        "description": "Use an email confirmation loop to check that a user has access to a specific email",
+        "section": "Patterns",
+        "aliases": null
+      }
+    },
+    {
+      "path": "src/patterns/confirmation-pages/index.md",
+      "frontmatter": {
+        "title": "Confirmation pages",
+        "description": "Let users know they’ve completed a transaction",
+        "section": "Patterns",
+        "aliases": "completion pages, receipts, finish pages"
+      }
+    },
+    {
+      "path": "src/patterns/contact-a-department-or-service-team/index.md",
+      "frontmatter": {
+        "title": "Contact a department or service team",
+        "description": "Contact a department or service team",
+        "section": "Patterns",
+        "aliases": null
+      }
+    },
+    {
+      "path": "src/patterns/cookies-page/index.md",
+      "frontmatter": {
+        "title": "Cookies page",
+        "description": "Tell users about the cookies you’re setting on their device and let them accept or reject different types of non-essential cookies.",
+        "section": "Patterns",
+        "aliases": "Privacy settings, Cookie settings, tracking settings"
+      }
+    },
+    {
+      "path": "src/patterns/create-a-username/index.md",
+      "frontmatter": {
+        "title": "Create a username",
+        "description": "Help users to create a unique and memorable username to sign into a service with",
+        "section": "Patterns",
+        "aliases": null
+      }
+    },
+    {
+      "path": "src/patterns/create-accounts/index.md",
+      "frontmatter": {
+        "title": "Create accounts",
+        "description": "Help users create an account for your service",
+        "section": "Patterns",
+        "aliases": null
+      }
+    },
+    {
+      "path": "src/patterns/dates/index.md",
+      "frontmatter": {
+        "title": "Dates",
+        "description": "Help users enter or select a date",
+        "section": "Patterns",
+        "aliases": null
+      }
+    },
+    {
+      "path": "src/patterns/email-addresses/index.md",
+      "frontmatter": {
+        "title": "Email addresses",
+        "description": "Help users enter a valid email address",
+        "section": "Patterns",
+        "aliases": null
+      }
+    },
+    {
+      "path": "src/patterns/equality-information/index.md",
+      "frontmatter": {
+        "title": "Equality information",
+        "description": "This pattern explains how to ask users for equality information",
+        "section": "Patterns",
+        "aliases": "protected characteristics, ethnic group, diversity, demographic, age, disability, marriage, civil partnership, religion, sex, gender identity, sexual orientation"
+      }
+    },
+    {
+      "path": "src/patterns/ethnic-group/index.md",
+      "frontmatter": {
+        "title": "Ethnic groups",
+        "description": null,
+        "section": null,
+        "aliases": null
+      }
+    },
+    {
+      "path": "src/patterns/exit-a-page-quickly/index.md",
+      "frontmatter": {
+        "title": "Exit a page quickly",
+        "description": "Give users a way to quickly and safely exit a service, website or application.",
+        "section": "Patterns",
+        "aliases": null
+      }
+    },
+    {
+      "path": "src/patterns/gender-or-sex/index.md",
+      "frontmatter": {
+        "title": "Gender or sex",
+        "description": null,
+        "section": null,
+        "aliases": null
+      }
+    },
+    {
+      "path": "src/patterns/interruption-pages/index.md",
+      "frontmatter": {
+        "title": "Interruption pages",
+        "description": "Pause the user journey to give them important information",
+        "section": "Patterns",
+        "aliases": null
+      }
+    },
+    {
+      "path": "src/patterns/names/index.md",
+      "frontmatter": {
+        "title": "Names",
+        "description": "Help users correctly enter their name",
+        "section": "Patterns",
+        "aliases": null
+      }
+    },
+    {
+      "path": "src/patterns/national-insurance-numbers/index.md",
+      "frontmatter": {
+        "title": "National Insurance numbers",
+        "description": "Ask users to provide their National Insurance number",
+        "section": "Patterns",
+        "aliases": null
+      }
+    },
+    {
+      "path": "src/patterns/navigate-a-service/index.md",
+      "frontmatter": {
+        "title": "Navigate a service",
+        "description": "Help users know they’re using your service and navigate around it",
+        "section": "Patterns",
+        "aliases": null
+      }
+    },
+    {
+      "path": "src/patterns/page-not-found-pages/index.md",
+      "frontmatter": {
+        "title": "Page not found pages",
+        "description": "A page not found tells someone we cannot find the page they were trying to view. They are also known as 404 pages.",
+        "section": "Patterns",
+        "aliases": "\"404\""
+      }
+    },
+    {
+      "path": "src/patterns/passwords/index.md",
+      "frontmatter": {
+        "title": "Passwords",
+        "description": "Help users to create and enter secure and memorable passwords",
+        "section": "Patterns",
+        "aliases": null
+      }
+    },
+    {
+      "path": "src/patterns/payment-card-details/index.md",
+      "frontmatter": {
+        "title": "Payment card details",
+        "description": "How to ask users for their payment card details",
+        "section": "Patterns",
+        "aliases": null
+      }
+    },
+    {
+      "path": "src/patterns/phone-numbers/index.md",
+      "frontmatter": {
+        "title": "Phone numbers",
+        "description": "Help users enter a valid phone number",
+        "section": "Patterns",
+        "aliases": "phone numbers, telephone"
+      }
+    },
+    {
+      "path": "src/patterns/problem-with-the-service-pages/index.md",
+      "frontmatter": {
+        "title": "There is a problem with the service pages",
+        "description": "This is a page that tells someone there is something wrong with the service. They are also known as 500 pages",
+        "section": "Patterns",
+        "aliases": "\"500\""
+      }
+    },
+    {
+      "path": "src/patterns/question-pages/index.md",
+      "frontmatter": {
+        "title": "Question pages",
+        "description": "Follow this pattern whenever you need to ask users questions within your service",
+        "section": "Patterns",
+        "aliases": null
+      }
+    },
+    {
+      "path": "src/patterns/service-unavailable-pages/index.md",
+      "frontmatter": {
+        "title": "Service unavailable pages",
+        "description": "This is a page that tells someone a service is unavailable. It should say when the service will be available or what to do if it is permanently closed",
+        "section": "Patterns",
+        "aliases": "\"503\""
+      }
+    },
+    {
+      "path": "src/patterns/start-pages/index.md",
+      "frontmatter": {
+        "title": "Start pages",
+        "description": null,
+        "section": null,
+        "aliases": null
+      }
+    },
+    {
+      "path": "src/patterns/start-using-a-service/index.md",
+      "frontmatter": {
+        "title": "Start using a service",
+        "description": "Create a starting point for your digital service on GOV.UK",
+        "section": "Patterns",
+        "aliases": "start page, start pages"
+      }
+    },
+    {
+      "path": "src/patterns/step-by-step-navigation/index.md",
+      "frontmatter": {
+        "title": "Step by step navigation",
+        "description": "A starting point for your digital service on GOV.UK",
+        "section": "Patterns",
+        "aliases": null
+      }
+    },
+    {
+      "path": "src/patterns/task-list-pages/index.md",
+      "frontmatter": {
+        "title": "Task list pages",
+        "description": null,
+        "section": null,
+        "aliases": null
+      }
+    },
+    {
+      "path": "src/patterns/understand-the-impact-of-an-emergency/index.md",
+      "frontmatter": {
+        "title": "Understand the impact of an emergency on your service",
+        "description": null,
+        "section": null,
+        "aliases": null
+      }
+    },
+    {
+      "path": "src/patterns/validation/index.md",
+      "frontmatter": {
+        "title": "Recover from validation errors",
+        "description": "Check the answers users give to make sure they’re valid - and if there’s an error, tell them what's wrong and how to fix it",
+        "section": "Patterns",
+        "aliases": null
+      }
+    }
+  ]
+}

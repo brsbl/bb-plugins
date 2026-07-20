@@ -1,0 +1,1954 @@
+{
+  "schemaVersion": "1",
+  "assembledAt": "2026-07-17T17:39:20.000Z",
+  "fingerprint": "16755ec6c0c62bbba5e01e6cdda1de467bd87026d498ad7daa4bfca077b13ae7",
+  "providers": [
+    {
+      "id": "govuk-design-system",
+      "name": "GOV.UK Design System",
+      "homepage": "https://design-system.service.gov.uk/",
+      "source": {
+        "adapter": "govuk-design-system",
+        "repository": "https://github.com/alphagov/govuk-design-system",
+        "revision": "b3536490dfea80a32968cf61e8b00d75530d80bd",
+        "observedAt": "2026-07-17T11:51:27+01:00",
+        "format": "Markdown frontmatter",
+        "inputPath": "providers/sources/govuk-design-system.json",
+        "sourcePaths": [
+          "src/components/*/index.md",
+          "src/patterns/*/index.md"
+        ]
+      },
+      "license": {
+        "expression": "MIT",
+        "url": "https://github.com/alphagov/govuk-design-system/blob/b3536490dfea80a32968cf61e8b00d75530d80bd/LICENSE",
+        "scope": "metadata-only",
+        "notice": "Copyright (c) 2017 Crown Copyright (Government Digital Service)."
+      },
+      "freshness": {
+        "staleAfterDays": 45
+      },
+      "build": {
+        "mode": "current",
+        "inputSha256": "c35023510a47416c7535c780ee6bc58124d60d9acb3a6d29819ba8d9ddca1f29",
+        "failure": null
+      },
+      "records": [
+        {
+          "nativeId": "accordion",
+          "name": "Accordion",
+          "summary": "The accordion component lets users show and hide sections of related content on a page",
+          "kind": "component",
+          "aliases": [],
+          "canonicalUrl": "https://design-system.service.gov.uk/components/accordion/",
+          "provenance": {
+            "providerId": "govuk-design-system",
+            "repository": "https://github.com/alphagov/govuk-design-system",
+            "revision": "b3536490dfea80a32968cf61e8b00d75530d80bd",
+            "sourcePath": "src/components/accordion/index.md"
+          }
+        },
+        {
+          "nativeId": "addresses",
+          "name": "Addresses",
+          "summary": "Help users provide an address",
+          "kind": "pattern",
+          "aliases": [
+            "postcode"
+          ],
+          "canonicalUrl": "https://design-system.service.gov.uk/patterns/addresses/",
+          "provenance": {
+            "providerId": "govuk-design-system",
+            "repository": "https://github.com/alphagov/govuk-design-system",
+            "revision": "b3536490dfea80a32968cf61e8b00d75530d80bd",
+            "sourcePath": "src/patterns/addresses/index.md"
+          }
+        },
+        {
+          "nativeId": "back-link",
+          "name": "Back link",
+          "summary": "Use the back link component to help users go back to the previous page in a multi-page transaction",
+          "kind": "component",
+          "aliases": [
+            "return link",
+            "back button"
+          ],
+          "canonicalUrl": "https://design-system.service.gov.uk/components/back-link/",
+          "provenance": {
+            "providerId": "govuk-design-system",
+            "repository": "https://github.com/alphagov/govuk-design-system",
+            "revision": "b3536490dfea80a32968cf61e8b00d75530d80bd",
+            "sourcePath": "src/components/back-link/index.md"
+          }
+        },
+        {
+          "nativeId": "bank-details",
+          "name": "Bank details",
+          "summary": "How to ask users for their bank details",
+          "kind": "pattern",
+          "aliases": [],
+          "canonicalUrl": "https://design-system.service.gov.uk/patterns/bank-details/",
+          "provenance": {
+            "providerId": "govuk-design-system",
+            "repository": "https://github.com/alphagov/govuk-design-system",
+            "revision": "b3536490dfea80a32968cf61e8b00d75530d80bd",
+            "sourcePath": "src/patterns/bank-details/index.md"
+          }
+        },
+        {
+          "nativeId": "breadcrumbs",
+          "name": "Breadcrumbs",
+          "summary": "Help users orientate themselves and navigate pages within a hierarchical structure",
+          "kind": "component",
+          "aliases": [
+            "navigation path",
+            "cookie crumb"
+          ],
+          "canonicalUrl": "https://design-system.service.gov.uk/components/breadcrumbs/",
+          "provenance": {
+            "providerId": "govuk-design-system",
+            "repository": "https://github.com/alphagov/govuk-design-system",
+            "revision": "b3536490dfea80a32968cf61e8b00d75530d80bd",
+            "sourcePath": "src/components/breadcrumbs/index.md"
+          }
+        },
+        {
+          "nativeId": "button",
+          "name": "Button",
+          "summary": "Use the button component to help users carry out an action",
+          "kind": "component",
+          "aliases": [],
+          "canonicalUrl": "https://design-system.service.gov.uk/components/button/",
+          "provenance": {
+            "providerId": "govuk-design-system",
+            "repository": "https://github.com/alphagov/govuk-design-system",
+            "revision": "b3536490dfea80a32968cf61e8b00d75530d80bd",
+            "sourcePath": "src/components/button/index.md"
+          }
+        },
+        {
+          "nativeId": "character-count",
+          "name": "Character count",
+          "summary": "Tell users how many characters or words they can enter into a textarea",
+          "kind": "component",
+          "aliases": [
+            "word count"
+          ],
+          "canonicalUrl": "https://design-system.service.gov.uk/components/character-count/",
+          "provenance": {
+            "providerId": "govuk-design-system",
+            "repository": "https://github.com/alphagov/govuk-design-system",
+            "revision": "b3536490dfea80a32968cf61e8b00d75530d80bd",
+            "sourcePath": "src/components/character-count/index.md"
+          }
+        },
+        {
+          "nativeId": "check-a-service-is-suitable",
+          "name": "Check a service is suitable",
+          "summary": "Ask users questions to help them work out if they can or should use your service",
+          "kind": "pattern",
+          "aliases": [],
+          "canonicalUrl": "https://design-system.service.gov.uk/patterns/check-a-service-is-suitable/",
+          "provenance": {
+            "providerId": "govuk-design-system",
+            "repository": "https://github.com/alphagov/govuk-design-system",
+            "revision": "b3536490dfea80a32968cf61e8b00d75530d80bd",
+            "sourcePath": "src/patterns/check-a-service-is-suitable/index.md"
+          }
+        },
+        {
+          "nativeId": "check-answers",
+          "name": "Check answers",
+          "summary": "Let users check their answers before submitting information to a service",
+          "kind": "pattern",
+          "aliases": [],
+          "canonicalUrl": "https://design-system.service.gov.uk/patterns/check-answers/",
+          "provenance": {
+            "providerId": "govuk-design-system",
+            "repository": "https://github.com/alphagov/govuk-design-system",
+            "revision": "b3536490dfea80a32968cf61e8b00d75530d80bd",
+            "sourcePath": "src/patterns/check-answers/index.md"
+          }
+        },
+        {
+          "nativeId": "checkboxes",
+          "name": "Checkboxes",
+          "summary": "Let users select one or more options by using the checkboxes component",
+          "kind": "component",
+          "aliases": [
+            "check boxes",
+            "tickboxes",
+            "tick boxes"
+          ],
+          "canonicalUrl": "https://design-system.service.gov.uk/components/checkboxes/",
+          "provenance": {
+            "providerId": "govuk-design-system",
+            "repository": "https://github.com/alphagov/govuk-design-system",
+            "revision": "b3536490dfea80a32968cf61e8b00d75530d80bd",
+            "sourcePath": "src/components/checkboxes/index.md"
+          }
+        },
+        {
+          "nativeId": "complete-multiple-tasks",
+          "name": "Complete multiple tasks",
+          "summary": "Task lists help users understand tasks involved in completing a transaction, the order they should complete tasks in and when they have completed tasks",
+          "kind": "pattern",
+          "aliases": [],
+          "canonicalUrl": "https://design-system.service.gov.uk/patterns/complete-multiple-tasks/",
+          "provenance": {
+            "providerId": "govuk-design-system",
+            "repository": "https://github.com/alphagov/govuk-design-system",
+            "revision": "b3536490dfea80a32968cf61e8b00d75530d80bd",
+            "sourcePath": "src/patterns/complete-multiple-tasks/index.md"
+          }
+        },
+        {
+          "nativeId": "confirm-a-phone-number",
+          "name": "Confirm a phone number",
+          "summary": "Identifying users when they sign in",
+          "kind": "pattern",
+          "aliases": [
+            "2FA",
+            "MFA",
+            "multi-factor authentication",
+            "security code",
+            "telephone number",
+            "phone number",
+            "text message",
+            "two-factor authentication"
+          ],
+          "canonicalUrl": "https://design-system.service.gov.uk/patterns/confirm-a-phone-number/",
+          "provenance": {
+            "providerId": "govuk-design-system",
+            "repository": "https://github.com/alphagov/govuk-design-system",
+            "revision": "b3536490dfea80a32968cf61e8b00d75530d80bd",
+            "sourcePath": "src/patterns/confirm-a-phone-number/index.md"
+          }
+        },
+        {
+          "nativeId": "confirm-an-email-address",
+          "name": "Confirm an email address",
+          "summary": "Use an email confirmation loop to check that a user has access to a specific email",
+          "kind": "pattern",
+          "aliases": [],
+          "canonicalUrl": "https://design-system.service.gov.uk/patterns/confirm-an-email-address/",
+          "provenance": {
+            "providerId": "govuk-design-system",
+            "repository": "https://github.com/alphagov/govuk-design-system",
+            "revision": "b3536490dfea80a32968cf61e8b00d75530d80bd",
+            "sourcePath": "src/patterns/confirm-an-email-address/index.md"
+          }
+        },
+        {
+          "nativeId": "confirmation-pages",
+          "name": "Confirmation pages",
+          "summary": "Let users know they’ve completed a transaction",
+          "kind": "pattern",
+          "aliases": [
+            "completion pages",
+            "receipts",
+            "finish pages"
+          ],
+          "canonicalUrl": "https://design-system.service.gov.uk/patterns/confirmation-pages/",
+          "provenance": {
+            "providerId": "govuk-design-system",
+            "repository": "https://github.com/alphagov/govuk-design-system",
+            "revision": "b3536490dfea80a32968cf61e8b00d75530d80bd",
+            "sourcePath": "src/patterns/confirmation-pages/index.md"
+          }
+        },
+        {
+          "nativeId": "contact-a-department-or-service-team",
+          "name": "Contact a department or service team",
+          "summary": "Contact a department or service team",
+          "kind": "pattern",
+          "aliases": [],
+          "canonicalUrl": "https://design-system.service.gov.uk/patterns/contact-a-department-or-service-team/",
+          "provenance": {
+            "providerId": "govuk-design-system",
+            "repository": "https://github.com/alphagov/govuk-design-system",
+            "revision": "b3536490dfea80a32968cf61e8b00d75530d80bd",
+            "sourcePath": "src/patterns/contact-a-department-or-service-team/index.md"
+          }
+        },
+        {
+          "nativeId": "cookie-banner",
+          "name": "Cookie banner",
+          "summary": "Allow users to accept or reject cookies which are not essential to making your service work.",
+          "kind": "component",
+          "aliases": [
+            "Cookies banner",
+            "consent banner",
+            "GDPR banner",
+            "tracking banner",
+            "analytics banner"
+          ],
+          "canonicalUrl": "https://design-system.service.gov.uk/components/cookie-banner/",
+          "provenance": {
+            "providerId": "govuk-design-system",
+            "repository": "https://github.com/alphagov/govuk-design-system",
+            "revision": "b3536490dfea80a32968cf61e8b00d75530d80bd",
+            "sourcePath": "src/components/cookie-banner/index.md"
+          }
+        },
+        {
+          "nativeId": "cookies-page",
+          "name": "Cookies page",
+          "summary": "Tell users about the cookies you’re setting on their device and let them accept or reject different types of non-essential cookies.",
+          "kind": "pattern",
+          "aliases": [
+            "Privacy settings",
+            "Cookie settings",
+            "tracking settings"
+          ],
+          "canonicalUrl": "https://design-system.service.gov.uk/patterns/cookies-page/",
+          "provenance": {
+            "providerId": "govuk-design-system",
+            "repository": "https://github.com/alphagov/govuk-design-system",
+            "revision": "b3536490dfea80a32968cf61e8b00d75530d80bd",
+            "sourcePath": "src/patterns/cookies-page/index.md"
+          }
+        },
+        {
+          "nativeId": "create-a-username",
+          "name": "Create a username",
+          "summary": "Help users to create a unique and memorable username to sign into a service with",
+          "kind": "pattern",
+          "aliases": [],
+          "canonicalUrl": "https://design-system.service.gov.uk/patterns/create-a-username/",
+          "provenance": {
+            "providerId": "govuk-design-system",
+            "repository": "https://github.com/alphagov/govuk-design-system",
+            "revision": "b3536490dfea80a32968cf61e8b00d75530d80bd",
+            "sourcePath": "src/patterns/create-a-username/index.md"
+          }
+        },
+        {
+          "nativeId": "create-accounts",
+          "name": "Create accounts",
+          "summary": "Help users create an account for your service",
+          "kind": "pattern",
+          "aliases": [],
+          "canonicalUrl": "https://design-system.service.gov.uk/patterns/create-accounts/",
+          "provenance": {
+            "providerId": "govuk-design-system",
+            "repository": "https://github.com/alphagov/govuk-design-system",
+            "revision": "b3536490dfea80a32968cf61e8b00d75530d80bd",
+            "sourcePath": "src/patterns/create-accounts/index.md"
+          }
+        },
+        {
+          "nativeId": "date-input",
+          "name": "Date input",
+          "summary": "Use the date input component to help users enter a memorable date",
+          "kind": "component",
+          "aliases": [],
+          "canonicalUrl": "https://design-system.service.gov.uk/components/date-input/",
+          "provenance": {
+            "providerId": "govuk-design-system",
+            "repository": "https://github.com/alphagov/govuk-design-system",
+            "revision": "b3536490dfea80a32968cf61e8b00d75530d80bd",
+            "sourcePath": "src/components/date-input/index.md"
+          }
+        },
+        {
+          "nativeId": "dates",
+          "name": "Dates",
+          "summary": "Help users enter or select a date",
+          "kind": "pattern",
+          "aliases": [],
+          "canonicalUrl": "https://design-system.service.gov.uk/patterns/dates/",
+          "provenance": {
+            "providerId": "govuk-design-system",
+            "repository": "https://github.com/alphagov/govuk-design-system",
+            "revision": "b3536490dfea80a32968cf61e8b00d75530d80bd",
+            "sourcePath": "src/patterns/dates/index.md"
+          }
+        },
+        {
+          "nativeId": "details",
+          "name": "Details",
+          "summary": "Make a page easier to scan by letting users reveal more detailed information only if they need it",
+          "kind": "component",
+          "aliases": [
+            "reveal",
+            "progressive disclosure",
+            "hidden text",
+            "show and hide",
+            "ShowyHideyThing"
+          ],
+          "canonicalUrl": "https://design-system.service.gov.uk/components/details/",
+          "provenance": {
+            "providerId": "govuk-design-system",
+            "repository": "https://github.com/alphagov/govuk-design-system",
+            "revision": "b3536490dfea80a32968cf61e8b00d75530d80bd",
+            "sourcePath": "src/components/details/index.md"
+          }
+        },
+        {
+          "nativeId": "email-addresses",
+          "name": "Email addresses",
+          "summary": "Help users enter a valid email address",
+          "kind": "pattern",
+          "aliases": [],
+          "canonicalUrl": "https://design-system.service.gov.uk/patterns/email-addresses/",
+          "provenance": {
+            "providerId": "govuk-design-system",
+            "repository": "https://github.com/alphagov/govuk-design-system",
+            "revision": "b3536490dfea80a32968cf61e8b00d75530d80bd",
+            "sourcePath": "src/patterns/email-addresses/index.md"
+          }
+        },
+        {
+          "nativeId": "equality-information",
+          "name": "Equality information",
+          "summary": "This pattern explains how to ask users for equality information",
+          "kind": "pattern",
+          "aliases": [
+            "protected characteristics",
+            "ethnic group",
+            "diversity",
+            "demographic",
+            "age",
+            "disability",
+            "marriage",
+            "civil partnership",
+            "religion",
+            "sex",
+            "gender identity",
+            "sexual orientation"
+          ],
+          "canonicalUrl": "https://design-system.service.gov.uk/patterns/equality-information/",
+          "provenance": {
+            "providerId": "govuk-design-system",
+            "repository": "https://github.com/alphagov/govuk-design-system",
+            "revision": "b3536490dfea80a32968cf61e8b00d75530d80bd",
+            "sourcePath": "src/patterns/equality-information/index.md"
+          }
+        },
+        {
+          "nativeId": "error-message",
+          "name": "Error message",
+          "summary": "When there's a validation error, use an error message to explain what went wrong and how to fix it",
+          "kind": "component",
+          "aliases": [
+            "validation message"
+          ],
+          "canonicalUrl": "https://design-system.service.gov.uk/components/error-message/",
+          "provenance": {
+            "providerId": "govuk-design-system",
+            "repository": "https://github.com/alphagov/govuk-design-system",
+            "revision": "b3536490dfea80a32968cf61e8b00d75530d80bd",
+            "sourcePath": "src/components/error-message/index.md"
+          }
+        },
+        {
+          "nativeId": "error-summary",
+          "name": "Error summary",
+          "summary": "Use an error summary when there is a validation error",
+          "kind": "component",
+          "aliases": [],
+          "canonicalUrl": "https://design-system.service.gov.uk/components/error-summary/",
+          "provenance": {
+            "providerId": "govuk-design-system",
+            "repository": "https://github.com/alphagov/govuk-design-system",
+            "revision": "b3536490dfea80a32968cf61e8b00d75530d80bd",
+            "sourcePath": "src/components/error-summary/index.md"
+          }
+        },
+        {
+          "nativeId": "ethnic-group",
+          "name": "Ethnic groups",
+          "summary": null,
+          "kind": "pattern",
+          "aliases": [],
+          "canonicalUrl": "https://design-system.service.gov.uk/patterns/ethnic-group/",
+          "provenance": {
+            "providerId": "govuk-design-system",
+            "repository": "https://github.com/alphagov/govuk-design-system",
+            "revision": "b3536490dfea80a32968cf61e8b00d75530d80bd",
+            "sourcePath": "src/patterns/ethnic-group/index.md"
+          }
+        },
+        {
+          "nativeId": "exit-a-page-quickly",
+          "name": "Exit a page quickly",
+          "summary": "Give users a way to quickly and safely exit a service, website or application.",
+          "kind": "pattern",
+          "aliases": [],
+          "canonicalUrl": "https://design-system.service.gov.uk/patterns/exit-a-page-quickly/",
+          "provenance": {
+            "providerId": "govuk-design-system",
+            "repository": "https://github.com/alphagov/govuk-design-system",
+            "revision": "b3536490dfea80a32968cf61e8b00d75530d80bd",
+            "sourcePath": "src/patterns/exit-a-page-quickly/index.md"
+          }
+        },
+        {
+          "nativeId": "exit-this-page",
+          "name": "Exit this page",
+          "summary": "Give users a way to quickly and safely exit a service, website or application.",
+          "kind": "component",
+          "aliases": [],
+          "canonicalUrl": "https://design-system.service.gov.uk/components/exit-this-page/",
+          "provenance": {
+            "providerId": "govuk-design-system",
+            "repository": "https://github.com/alphagov/govuk-design-system",
+            "revision": "b3536490dfea80a32968cf61e8b00d75530d80bd",
+            "sourcePath": "src/components/exit-this-page/index.md"
+          }
+        },
+        {
+          "nativeId": "fieldset",
+          "name": "Fieldset",
+          "summary": "Use the fieldset component to group related form inputs",
+          "kind": "component",
+          "aliases": [],
+          "canonicalUrl": "https://design-system.service.gov.uk/components/fieldset/",
+          "provenance": {
+            "providerId": "govuk-design-system",
+            "repository": "https://github.com/alphagov/govuk-design-system",
+            "revision": "b3536490dfea80a32968cf61e8b00d75530d80bd",
+            "sourcePath": "src/components/fieldset/index.md"
+          }
+        },
+        {
+          "nativeId": "file-upload",
+          "name": "File upload",
+          "summary": "Help users select and upload a file",
+          "kind": "component",
+          "aliases": [],
+          "canonicalUrl": "https://design-system.service.gov.uk/components/file-upload/",
+          "provenance": {
+            "providerId": "govuk-design-system",
+            "repository": "https://github.com/alphagov/govuk-design-system",
+            "revision": "b3536490dfea80a32968cf61e8b00d75530d80bd",
+            "sourcePath": "src/components/file-upload/index.md"
+          }
+        },
+        {
+          "nativeId": "footer",
+          "name": "GOV.UK footer",
+          "summary": "The footer provides copyright, licensing and other information about your service and department",
+          "kind": "component",
+          "aliases": [
+            "privacy notice",
+            "accessibility statement",
+            "terms and conditions"
+          ],
+          "canonicalUrl": "https://design-system.service.gov.uk/components/footer/",
+          "provenance": {
+            "providerId": "govuk-design-system",
+            "repository": "https://github.com/alphagov/govuk-design-system",
+            "revision": "b3536490dfea80a32968cf61e8b00d75530d80bd",
+            "sourcePath": "src/components/footer/index.md"
+          }
+        },
+        {
+          "nativeId": "gender-or-sex",
+          "name": "Gender or sex",
+          "summary": null,
+          "kind": "pattern",
+          "aliases": [],
+          "canonicalUrl": "https://design-system.service.gov.uk/patterns/gender-or-sex/",
+          "provenance": {
+            "providerId": "govuk-design-system",
+            "repository": "https://github.com/alphagov/govuk-design-system",
+            "revision": "b3536490dfea80a32968cf61e8b00d75530d80bd",
+            "sourcePath": "src/patterns/gender-or-sex/index.md"
+          }
+        },
+        {
+          "nativeId": "generic-header",
+          "name": "Generic header",
+          "summary": "A generic header to help services not on GOV.UK",
+          "kind": "component",
+          "aliases": [
+            "Header (generic)"
+          ],
+          "canonicalUrl": "https://design-system.service.gov.uk/components/generic-header/",
+          "provenance": {
+            "providerId": "govuk-design-system",
+            "repository": "https://github.com/alphagov/govuk-design-system",
+            "revision": "b3536490dfea80a32968cf61e8b00d75530d80bd",
+            "sourcePath": "src/components/generic-header/index.md"
+          }
+        },
+        {
+          "nativeId": "header",
+          "name": "GOV.UK header",
+          "summary": "The GOV.UK header shows users that they are on GOV.UK",
+          "kind": "component",
+          "aliases": [
+            "GOV.UK masthead"
+          ],
+          "canonicalUrl": "https://design-system.service.gov.uk/components/header/",
+          "provenance": {
+            "providerId": "govuk-design-system",
+            "repository": "https://github.com/alphagov/govuk-design-system",
+            "revision": "b3536490dfea80a32968cf61e8b00d75530d80bd",
+            "sourcePath": "src/components/header/index.md"
+          }
+        },
+        {
+          "nativeId": "inset-text",
+          "name": "Inset text",
+          "summary": "Use the inset text component to differentiate a block of text from the content that surrounds it",
+          "kind": "component",
+          "aliases": [
+            "highlighted text",
+            "callout"
+          ],
+          "canonicalUrl": "https://design-system.service.gov.uk/components/inset-text/",
+          "provenance": {
+            "providerId": "govuk-design-system",
+            "repository": "https://github.com/alphagov/govuk-design-system",
+            "revision": "b3536490dfea80a32968cf61e8b00d75530d80bd",
+            "sourcePath": "src/components/inset-text/index.md"
+          }
+        },
+        {
+          "nativeId": "interruption-pages",
+          "name": "Interruption pages",
+          "summary": "Pause the user journey to give them important information",
+          "kind": "pattern",
+          "aliases": [],
+          "canonicalUrl": "https://design-system.service.gov.uk/patterns/interruption-pages/",
+          "provenance": {
+            "providerId": "govuk-design-system",
+            "repository": "https://github.com/alphagov/govuk-design-system",
+            "revision": "b3536490dfea80a32968cf61e8b00d75530d80bd",
+            "sourcePath": "src/patterns/interruption-pages/index.md"
+          }
+        },
+        {
+          "nativeId": "names",
+          "name": "Names",
+          "summary": "Help users correctly enter their name",
+          "kind": "pattern",
+          "aliases": [],
+          "canonicalUrl": "https://design-system.service.gov.uk/patterns/names/",
+          "provenance": {
+            "providerId": "govuk-design-system",
+            "repository": "https://github.com/alphagov/govuk-design-system",
+            "revision": "b3536490dfea80a32968cf61e8b00d75530d80bd",
+            "sourcePath": "src/patterns/names/index.md"
+          }
+        },
+        {
+          "nativeId": "national-insurance-numbers",
+          "name": "National Insurance numbers",
+          "summary": "Ask users to provide their National Insurance number",
+          "kind": "pattern",
+          "aliases": [],
+          "canonicalUrl": "https://design-system.service.gov.uk/patterns/national-insurance-numbers/",
+          "provenance": {
+            "providerId": "govuk-design-system",
+            "repository": "https://github.com/alphagov/govuk-design-system",
+            "revision": "b3536490dfea80a32968cf61e8b00d75530d80bd",
+            "sourcePath": "src/patterns/national-insurance-numbers/index.md"
+          }
+        },
+        {
+          "nativeId": "navigate-a-service",
+          "name": "Navigate a service",
+          "summary": "Help users know they’re using your service and navigate around it",
+          "kind": "pattern",
+          "aliases": [],
+          "canonicalUrl": "https://design-system.service.gov.uk/patterns/navigate-a-service/",
+          "provenance": {
+            "providerId": "govuk-design-system",
+            "repository": "https://github.com/alphagov/govuk-design-system",
+            "revision": "b3536490dfea80a32968cf61e8b00d75530d80bd",
+            "sourcePath": "src/patterns/navigate-a-service/index.md"
+          }
+        },
+        {
+          "nativeId": "notification-banner",
+          "name": "Notification banner",
+          "summary": "Use a notification banner to tell the user about something they need to know about, but that’s not directly related to the page content",
+          "kind": "component",
+          "aliases": [
+            "alert",
+            "warning",
+            "success message",
+            "important message",
+            "flash message"
+          ],
+          "canonicalUrl": "https://design-system.service.gov.uk/components/notification-banner/",
+          "provenance": {
+            "providerId": "govuk-design-system",
+            "repository": "https://github.com/alphagov/govuk-design-system",
+            "revision": "b3536490dfea80a32968cf61e8b00d75530d80bd",
+            "sourcePath": "src/components/notification-banner/index.md"
+          }
+        },
+        {
+          "nativeId": "page-not-found-pages",
+          "name": "Page not found pages",
+          "summary": "A page not found tells someone we cannot find the page they were trying to view. They are also known as 404 pages.",
+          "kind": "pattern",
+          "aliases": [
+            "\"404\""
+          ],
+          "canonicalUrl": "https://design-system.service.gov.uk/patterns/page-not-found-pages/",
+          "provenance": {
+            "providerId": "govuk-design-system",
+            "repository": "https://github.com/alphagov/govuk-design-system",
+            "revision": "b3536490dfea80a32968cf61e8b00d75530d80bd",
+            "sourcePath": "src/patterns/page-not-found-pages/index.md"
+          }
+        },
+        {
+          "nativeId": "pagination",
+          "name": "Pagination",
+          "summary": "Help users navigate collections of numbered pages like search results",
+          "kind": "component",
+          "aliases": [],
+          "canonicalUrl": "https://design-system.service.gov.uk/components/pagination/",
+          "provenance": {
+            "providerId": "govuk-design-system",
+            "repository": "https://github.com/alphagov/govuk-design-system",
+            "revision": "b3536490dfea80a32968cf61e8b00d75530d80bd",
+            "sourcePath": "src/components/pagination/index.md"
+          }
+        },
+        {
+          "nativeId": "panel",
+          "name": "Panel",
+          "summary": "Use the Panel component to display important information in within confirmation and interruption pages",
+          "kind": "component",
+          "aliases": [
+            "confirmation box",
+            "results box",
+            "reference number",
+            "application complete",
+            "application number"
+          ],
+          "canonicalUrl": "https://design-system.service.gov.uk/components/panel/",
+          "provenance": {
+            "providerId": "govuk-design-system",
+            "repository": "https://github.com/alphagov/govuk-design-system",
+            "revision": "b3536490dfea80a32968cf61e8b00d75530d80bd",
+            "sourcePath": "src/components/panel/index.md"
+          }
+        },
+        {
+          "nativeId": "password-input",
+          "name": "Password input",
+          "summary": "Help users accessibly enter passwords",
+          "kind": "component",
+          "aliases": [
+            "pass word",
+            "pass phrase"
+          ],
+          "canonicalUrl": "https://design-system.service.gov.uk/components/password-input/",
+          "provenance": {
+            "providerId": "govuk-design-system",
+            "repository": "https://github.com/alphagov/govuk-design-system",
+            "revision": "b3536490dfea80a32968cf61e8b00d75530d80bd",
+            "sourcePath": "src/components/password-input/index.md"
+          }
+        },
+        {
+          "nativeId": "passwords",
+          "name": "Passwords",
+          "summary": "Help users to create and enter secure and memorable passwords",
+          "kind": "pattern",
+          "aliases": [],
+          "canonicalUrl": "https://design-system.service.gov.uk/patterns/passwords/",
+          "provenance": {
+            "providerId": "govuk-design-system",
+            "repository": "https://github.com/alphagov/govuk-design-system",
+            "revision": "b3536490dfea80a32968cf61e8b00d75530d80bd",
+            "sourcePath": "src/patterns/passwords/index.md"
+          }
+        },
+        {
+          "nativeId": "payment-card-details",
+          "name": "Payment card details",
+          "summary": "How to ask users for their payment card details",
+          "kind": "pattern",
+          "aliases": [],
+          "canonicalUrl": "https://design-system.service.gov.uk/patterns/payment-card-details/",
+          "provenance": {
+            "providerId": "govuk-design-system",
+            "repository": "https://github.com/alphagov/govuk-design-system",
+            "revision": "b3536490dfea80a32968cf61e8b00d75530d80bd",
+            "sourcePath": "src/patterns/payment-card-details/index.md"
+          }
+        },
+        {
+          "nativeId": "phase-banner",
+          "name": "Phase banner",
+          "summary": "Use the phase banner component to show users your service is still being worked on",
+          "kind": "component",
+          "aliases": [
+            "alpha banner",
+            "beta banner",
+            "prototype banner",
+            "status banner",
+            "feedback banner"
+          ],
+          "canonicalUrl": "https://design-system.service.gov.uk/components/phase-banner/",
+          "provenance": {
+            "providerId": "govuk-design-system",
+            "repository": "https://github.com/alphagov/govuk-design-system",
+            "revision": "b3536490dfea80a32968cf61e8b00d75530d80bd",
+            "sourcePath": "src/components/phase-banner/index.md"
+          }
+        },
+        {
+          "nativeId": "phone-numbers",
+          "name": "Phone numbers",
+          "summary": "Help users enter a valid phone number",
+          "kind": "pattern",
+          "aliases": [
+            "phone numbers",
+            "telephone"
+          ],
+          "canonicalUrl": "https://design-system.service.gov.uk/patterns/phone-numbers/",
+          "provenance": {
+            "providerId": "govuk-design-system",
+            "repository": "https://github.com/alphagov/govuk-design-system",
+            "revision": "b3536490dfea80a32968cf61e8b00d75530d80bd",
+            "sourcePath": "src/patterns/phone-numbers/index.md"
+          }
+        },
+        {
+          "nativeId": "problem-with-the-service-pages",
+          "name": "There is a problem with the service pages",
+          "summary": "This is a page that tells someone there is something wrong with the service. They are also known as 500 pages",
+          "kind": "pattern",
+          "aliases": [
+            "\"500\""
+          ],
+          "canonicalUrl": "https://design-system.service.gov.uk/patterns/problem-with-the-service-pages/",
+          "provenance": {
+            "providerId": "govuk-design-system",
+            "repository": "https://github.com/alphagov/govuk-design-system",
+            "revision": "b3536490dfea80a32968cf61e8b00d75530d80bd",
+            "sourcePath": "src/patterns/problem-with-the-service-pages/index.md"
+          }
+        },
+        {
+          "nativeId": "question-pages",
+          "name": "Question pages",
+          "summary": "Follow this pattern whenever you need to ask users questions within your service",
+          "kind": "pattern",
+          "aliases": [],
+          "canonicalUrl": "https://design-system.service.gov.uk/patterns/question-pages/",
+          "provenance": {
+            "providerId": "govuk-design-system",
+            "repository": "https://github.com/alphagov/govuk-design-system",
+            "revision": "b3536490dfea80a32968cf61e8b00d75530d80bd",
+            "sourcePath": "src/patterns/question-pages/index.md"
+          }
+        },
+        {
+          "nativeId": "radios",
+          "name": "Radios",
+          "summary": "Let users select a single option from a list using the radios component",
+          "kind": "component",
+          "aliases": [
+            "radio buttons",
+            "option buttons"
+          ],
+          "canonicalUrl": "https://design-system.service.gov.uk/components/radios/",
+          "provenance": {
+            "providerId": "govuk-design-system",
+            "repository": "https://github.com/alphagov/govuk-design-system",
+            "revision": "b3536490dfea80a32968cf61e8b00d75530d80bd",
+            "sourcePath": "src/components/radios/index.md"
+          }
+        },
+        {
+          "nativeId": "select",
+          "name": "Select",
+          "summary": "Help users select an item from a list",
+          "kind": "component",
+          "aliases": [
+            "dropdown",
+            "list box",
+            "combo box",
+            "pop-up menu"
+          ],
+          "canonicalUrl": "https://design-system.service.gov.uk/components/select/",
+          "provenance": {
+            "providerId": "govuk-design-system",
+            "repository": "https://github.com/alphagov/govuk-design-system",
+            "revision": "b3536490dfea80a32968cf61e8b00d75530d80bd",
+            "sourcePath": "src/components/select/index.md"
+          }
+        },
+        {
+          "nativeId": "service-navigation",
+          "name": "Service navigation",
+          "summary": "Service navigation helps users understand that they’re using your service and lets them navigate around your service",
+          "kind": "component",
+          "aliases": [
+            "Primary navigation"
+          ],
+          "canonicalUrl": "https://design-system.service.gov.uk/components/service-navigation/",
+          "provenance": {
+            "providerId": "govuk-design-system",
+            "repository": "https://github.com/alphagov/govuk-design-system",
+            "revision": "b3536490dfea80a32968cf61e8b00d75530d80bd",
+            "sourcePath": "src/components/service-navigation/index.md"
+          }
+        },
+        {
+          "nativeId": "service-unavailable-pages",
+          "name": "Service unavailable pages",
+          "summary": "This is a page that tells someone a service is unavailable. It should say when the service will be available or what to do if it is permanently closed",
+          "kind": "pattern",
+          "aliases": [
+            "\"503\""
+          ],
+          "canonicalUrl": "https://design-system.service.gov.uk/patterns/service-unavailable-pages/",
+          "provenance": {
+            "providerId": "govuk-design-system",
+            "repository": "https://github.com/alphagov/govuk-design-system",
+            "revision": "b3536490dfea80a32968cf61e8b00d75530d80bd",
+            "sourcePath": "src/patterns/service-unavailable-pages/index.md"
+          }
+        },
+        {
+          "nativeId": "skip-link",
+          "name": "Skip link",
+          "summary": "Use the skip link component to help keyboard-only users skip to the main content on a page",
+          "kind": "component",
+          "aliases": [
+            "Skip navigation link"
+          ],
+          "canonicalUrl": "https://design-system.service.gov.uk/components/skip-link/",
+          "provenance": {
+            "providerId": "govuk-design-system",
+            "repository": "https://github.com/alphagov/govuk-design-system",
+            "revision": "b3536490dfea80a32968cf61e8b00d75530d80bd",
+            "sourcePath": "src/components/skip-link/index.md"
+          }
+        },
+        {
+          "nativeId": "start-pages",
+          "name": "Start pages",
+          "summary": null,
+          "kind": "pattern",
+          "aliases": [],
+          "canonicalUrl": "https://design-system.service.gov.uk/patterns/start-pages/",
+          "provenance": {
+            "providerId": "govuk-design-system",
+            "repository": "https://github.com/alphagov/govuk-design-system",
+            "revision": "b3536490dfea80a32968cf61e8b00d75530d80bd",
+            "sourcePath": "src/patterns/start-pages/index.md"
+          }
+        },
+        {
+          "nativeId": "start-using-a-service",
+          "name": "Start using a service",
+          "summary": "Create a starting point for your digital service on GOV.UK",
+          "kind": "pattern",
+          "aliases": [
+            "start page",
+            "start pages"
+          ],
+          "canonicalUrl": "https://design-system.service.gov.uk/patterns/start-using-a-service/",
+          "provenance": {
+            "providerId": "govuk-design-system",
+            "repository": "https://github.com/alphagov/govuk-design-system",
+            "revision": "b3536490dfea80a32968cf61e8b00d75530d80bd",
+            "sourcePath": "src/patterns/start-using-a-service/index.md"
+          }
+        },
+        {
+          "nativeId": "step-by-step-navigation",
+          "name": "Step by step navigation",
+          "summary": "A starting point for your digital service on GOV.UK",
+          "kind": "pattern",
+          "aliases": [],
+          "canonicalUrl": "https://design-system.service.gov.uk/patterns/step-by-step-navigation/",
+          "provenance": {
+            "providerId": "govuk-design-system",
+            "repository": "https://github.com/alphagov/govuk-design-system",
+            "revision": "b3536490dfea80a32968cf61e8b00d75530d80bd",
+            "sourcePath": "src/patterns/step-by-step-navigation/index.md"
+          }
+        },
+        {
+          "nativeId": "summary-list",
+          "name": "Summary list",
+          "summary": "Use the summary list to summarise information, for example, a user’s responses at the end of a form.",
+          "kind": "component",
+          "aliases": [
+            "Summary card"
+          ],
+          "canonicalUrl": "https://design-system.service.gov.uk/components/summary-list/",
+          "provenance": {
+            "providerId": "govuk-design-system",
+            "repository": "https://github.com/alphagov/govuk-design-system",
+            "revision": "b3536490dfea80a32968cf61e8b00d75530d80bd",
+            "sourcePath": "src/components/summary-list/index.md"
+          }
+        },
+        {
+          "nativeId": "table",
+          "name": "Table",
+          "summary": "Use the table component to make information easier to compare and scan for users",
+          "kind": "component",
+          "aliases": [],
+          "canonicalUrl": "https://design-system.service.gov.uk/components/table/",
+          "provenance": {
+            "providerId": "govuk-design-system",
+            "repository": "https://github.com/alphagov/govuk-design-system",
+            "revision": "b3536490dfea80a32968cf61e8b00d75530d80bd",
+            "sourcePath": "src/components/table/index.md"
+          }
+        },
+        {
+          "nativeId": "tabs",
+          "name": "Tabs",
+          "summary": "Tabs can be a helpful way of letting users quickly switch between related information",
+          "kind": "component",
+          "aliases": [],
+          "canonicalUrl": "https://design-system.service.gov.uk/components/tabs/",
+          "provenance": {
+            "providerId": "govuk-design-system",
+            "repository": "https://github.com/alphagov/govuk-design-system",
+            "revision": "b3536490dfea80a32968cf61e8b00d75530d80bd",
+            "sourcePath": "src/components/tabs/index.md"
+          }
+        },
+        {
+          "nativeId": "tag",
+          "name": "Tag",
+          "summary": "The Tag component indicates the status of something, such as an item on a task list or a phase banner",
+          "kind": "component",
+          "aliases": [
+            "chip",
+            "badge",
+            "flag",
+            "token"
+          ],
+          "canonicalUrl": "https://design-system.service.gov.uk/components/tag/",
+          "provenance": {
+            "providerId": "govuk-design-system",
+            "repository": "https://github.com/alphagov/govuk-design-system",
+            "revision": "b3536490dfea80a32968cf61e8b00d75530d80bd",
+            "sourcePath": "src/components/tag/index.md"
+          }
+        },
+        {
+          "nativeId": "task-list",
+          "name": "Task list",
+          "summary": "The task list component displays all the tasks a user needs to do, and allows users to easily identify which ones are done and which they still need to do.",
+          "kind": "component",
+          "aliases": [],
+          "canonicalUrl": "https://design-system.service.gov.uk/components/task-list/",
+          "provenance": {
+            "providerId": "govuk-design-system",
+            "repository": "https://github.com/alphagov/govuk-design-system",
+            "revision": "b3536490dfea80a32968cf61e8b00d75530d80bd",
+            "sourcePath": "src/components/task-list/index.md"
+          }
+        },
+        {
+          "nativeId": "task-list-pages",
+          "name": "Task list pages",
+          "summary": null,
+          "kind": "pattern",
+          "aliases": [],
+          "canonicalUrl": "https://design-system.service.gov.uk/patterns/task-list-pages/",
+          "provenance": {
+            "providerId": "govuk-design-system",
+            "repository": "https://github.com/alphagov/govuk-design-system",
+            "revision": "b3536490dfea80a32968cf61e8b00d75530d80bd",
+            "sourcePath": "src/patterns/task-list-pages/index.md"
+          }
+        },
+        {
+          "nativeId": "text-input",
+          "name": "Text input",
+          "summary": "Help users enter information with the text input component",
+          "kind": "component",
+          "aliases": [
+            "text box",
+            "text field",
+            "input field",
+            "text entry box"
+          ],
+          "canonicalUrl": "https://design-system.service.gov.uk/components/text-input/",
+          "provenance": {
+            "providerId": "govuk-design-system",
+            "repository": "https://github.com/alphagov/govuk-design-system",
+            "revision": "b3536490dfea80a32968cf61e8b00d75530d80bd",
+            "sourcePath": "src/components/text-input/index.md"
+          }
+        },
+        {
+          "nativeId": "textarea",
+          "name": "Textarea",
+          "summary": "Help users provide detailed information using the textarea component",
+          "kind": "component",
+          "aliases": [
+            "multi-line text box",
+            "multi-line text field"
+          ],
+          "canonicalUrl": "https://design-system.service.gov.uk/components/textarea/",
+          "provenance": {
+            "providerId": "govuk-design-system",
+            "repository": "https://github.com/alphagov/govuk-design-system",
+            "revision": "b3536490dfea80a32968cf61e8b00d75530d80bd",
+            "sourcePath": "src/components/textarea/index.md"
+          }
+        },
+        {
+          "nativeId": "understand-the-impact-of-an-emergency",
+          "name": "Understand the impact of an emergency on your service",
+          "summary": null,
+          "kind": "pattern",
+          "aliases": [],
+          "canonicalUrl": "https://design-system.service.gov.uk/patterns/understand-the-impact-of-an-emergency/",
+          "provenance": {
+            "providerId": "govuk-design-system",
+            "repository": "https://github.com/alphagov/govuk-design-system",
+            "revision": "b3536490dfea80a32968cf61e8b00d75530d80bd",
+            "sourcePath": "src/patterns/understand-the-impact-of-an-emergency/index.md"
+          }
+        },
+        {
+          "nativeId": "validation",
+          "name": "Recover from validation errors",
+          "summary": "Check the answers users give to make sure they’re valid - and if there’s an error, tell them what's wrong and how to fix it",
+          "kind": "pattern",
+          "aliases": [],
+          "canonicalUrl": "https://design-system.service.gov.uk/patterns/validation/",
+          "provenance": {
+            "providerId": "govuk-design-system",
+            "repository": "https://github.com/alphagov/govuk-design-system",
+            "revision": "b3536490dfea80a32968cf61e8b00d75530d80bd",
+            "sourcePath": "src/patterns/validation/index.md"
+          }
+        },
+        {
+          "nativeId": "warning-text",
+          "name": "Warning text",
+          "summary": "Use the warning text component when you need to warn users about something important, such as legal consequences of an action, or lack of action, that they might take",
+          "kind": "component",
+          "aliases": [
+            "important text",
+            "legal text"
+          ],
+          "canonicalUrl": "https://design-system.service.gov.uk/components/warning-text/",
+          "provenance": {
+            "providerId": "govuk-design-system",
+            "repository": "https://github.com/alphagov/govuk-design-system",
+            "revision": "b3536490dfea80a32968cf61e8b00d75530d80bd",
+            "sourcePath": "src/components/warning-text/index.md"
+          }
+        }
+      ]
+    },
+    {
+      "id": "uswds",
+      "name": "U.S. Web Design System",
+      "homepage": "https://designsystem.digital.gov/",
+      "source": {
+        "adapter": "uswds",
+        "repository": "https://github.com/uswds/uswds",
+        "revision": "7e3a5076dc4ec1922a19bb17a17adc93bbeb5f1e",
+        "observedAt": "2026-07-17T13:39:20-04:00",
+        "format": "Storybook default-export metadata",
+        "inputPath": "providers/sources/uswds.json",
+        "sourcePaths": [
+          "packages/usa-*/src/*.stories.js"
+        ]
+      },
+      "license": {
+        "expression": "CC0-1.0",
+        "url": "https://github.com/uswds/uswds/blob/7e3a5076dc4ec1922a19bb17a17adc93bbeb5f1e/LICENSE.md",
+        "scope": "metadata-only",
+        "notice": "Only component names and Storybook grouping metadata are ingested; excluded font, icon, and third-party assets are not copied."
+      },
+      "freshness": {
+        "staleAfterDays": 45
+      },
+      "build": {
+        "mode": "current",
+        "inputSha256": "f938d2fc8df73f77634cf0f59e389c669da7ae0130537548ca5f0326e9a43d7c",
+        "failure": null
+      },
+      "records": [
+        {
+          "nativeId": "usa-accordion",
+          "name": "Accordion",
+          "summary": null,
+          "kind": "components",
+          "aliases": [],
+          "canonicalUrl": "https://github.com/uswds/uswds/blob/7e3a5076dc4ec1922a19bb17a17adc93bbeb5f1e/packages/usa-accordion/src/usa-accordion.stories.js",
+          "provenance": {
+            "providerId": "uswds",
+            "repository": "https://github.com/uswds/uswds",
+            "revision": "7e3a5076dc4ec1922a19bb17a17adc93bbeb5f1e",
+            "sourcePath": "packages/usa-accordion/src/usa-accordion.stories.js"
+          }
+        },
+        {
+          "nativeId": "usa-add-aspect",
+          "name": "Add Aspect",
+          "summary": null,
+          "kind": "components",
+          "aliases": [],
+          "canonicalUrl": "https://github.com/uswds/uswds/blob/7e3a5076dc4ec1922a19bb17a17adc93bbeb5f1e/packages/usa-add-aspect/src/usa-add-aspect.stories.js",
+          "provenance": {
+            "providerId": "uswds",
+            "repository": "https://github.com/uswds/uswds",
+            "revision": "7e3a5076dc4ec1922a19bb17a17adc93bbeb5f1e",
+            "sourcePath": "packages/usa-add-aspect/src/usa-add-aspect.stories.js"
+          }
+        },
+        {
+          "nativeId": "usa-alert",
+          "name": "Alert",
+          "summary": null,
+          "kind": "components",
+          "aliases": [],
+          "canonicalUrl": "https://github.com/uswds/uswds/blob/7e3a5076dc4ec1922a19bb17a17adc93bbeb5f1e/packages/usa-alert/src/usa-alert.stories.js",
+          "provenance": {
+            "providerId": "uswds",
+            "repository": "https://github.com/uswds/uswds",
+            "revision": "7e3a5076dc4ec1922a19bb17a17adc93bbeb5f1e",
+            "sourcePath": "packages/usa-alert/src/usa-alert.stories.js"
+          }
+        },
+        {
+          "nativeId": "usa-banner",
+          "name": "Banner",
+          "summary": null,
+          "kind": "components",
+          "aliases": [],
+          "canonicalUrl": "https://github.com/uswds/uswds/blob/7e3a5076dc4ec1922a19bb17a17adc93bbeb5f1e/packages/usa-banner/src/usa-banner.stories.js",
+          "provenance": {
+            "providerId": "uswds",
+            "repository": "https://github.com/uswds/uswds",
+            "revision": "7e3a5076dc4ec1922a19bb17a17adc93bbeb5f1e",
+            "sourcePath": "packages/usa-banner/src/usa-banner.stories.js"
+          }
+        },
+        {
+          "nativeId": "usa-breadcrumb",
+          "name": "Breadcrumb",
+          "summary": null,
+          "kind": "components",
+          "aliases": [],
+          "canonicalUrl": "https://github.com/uswds/uswds/blob/7e3a5076dc4ec1922a19bb17a17adc93bbeb5f1e/packages/usa-breadcrumb/src/usa-breadcrumb.stories.js",
+          "provenance": {
+            "providerId": "uswds",
+            "repository": "https://github.com/uswds/uswds",
+            "revision": "7e3a5076dc4ec1922a19bb17a17adc93bbeb5f1e",
+            "sourcePath": "packages/usa-breadcrumb/src/usa-breadcrumb.stories.js"
+          }
+        },
+        {
+          "nativeId": "usa-button",
+          "name": "Button",
+          "summary": null,
+          "kind": "components",
+          "aliases": [],
+          "canonicalUrl": "https://github.com/uswds/uswds/blob/7e3a5076dc4ec1922a19bb17a17adc93bbeb5f1e/packages/usa-button/src/usa-button.stories.js",
+          "provenance": {
+            "providerId": "uswds",
+            "repository": "https://github.com/uswds/uswds",
+            "revision": "7e3a5076dc4ec1922a19bb17a17adc93bbeb5f1e",
+            "sourcePath": "packages/usa-button/src/usa-button.stories.js"
+          }
+        },
+        {
+          "nativeId": "usa-button-group",
+          "name": "Button Group",
+          "summary": null,
+          "kind": "components",
+          "aliases": [],
+          "canonicalUrl": "https://github.com/uswds/uswds/blob/7e3a5076dc4ec1922a19bb17a17adc93bbeb5f1e/packages/usa-button-group/src/usa-button-group.stories.js",
+          "provenance": {
+            "providerId": "uswds",
+            "repository": "https://github.com/uswds/uswds",
+            "revision": "7e3a5076dc4ec1922a19bb17a17adc93bbeb5f1e",
+            "sourcePath": "packages/usa-button-group/src/usa-button-group.stories.js"
+          }
+        },
+        {
+          "nativeId": "usa-card",
+          "name": "Card",
+          "summary": null,
+          "kind": "components",
+          "aliases": [],
+          "canonicalUrl": "https://github.com/uswds/uswds/blob/7e3a5076dc4ec1922a19bb17a17adc93bbeb5f1e/packages/usa-card/src/usa-card.stories.js",
+          "provenance": {
+            "providerId": "uswds",
+            "repository": "https://github.com/uswds/uswds",
+            "revision": "7e3a5076dc4ec1922a19bb17a17adc93bbeb5f1e",
+            "sourcePath": "packages/usa-card/src/usa-card.stories.js"
+          }
+        },
+        {
+          "nativeId": "usa-character-count",
+          "name": "Character Count",
+          "summary": null,
+          "kind": "components",
+          "aliases": [],
+          "canonicalUrl": "https://github.com/uswds/uswds/blob/7e3a5076dc4ec1922a19bb17a17adc93bbeb5f1e/packages/usa-character-count/src/usa-character-count.stories.js",
+          "provenance": {
+            "providerId": "uswds",
+            "repository": "https://github.com/uswds/uswds",
+            "revision": "7e3a5076dc4ec1922a19bb17a17adc93bbeb5f1e",
+            "sourcePath": "packages/usa-character-count/src/usa-character-count.stories.js"
+          }
+        },
+        {
+          "nativeId": "usa-checkbox",
+          "name": "Checkbox",
+          "summary": null,
+          "kind": "components",
+          "aliases": [],
+          "canonicalUrl": "https://github.com/uswds/uswds/blob/7e3a5076dc4ec1922a19bb17a17adc93bbeb5f1e/packages/usa-checkbox/src/usa-checkbox.stories.js",
+          "provenance": {
+            "providerId": "uswds",
+            "repository": "https://github.com/uswds/uswds",
+            "revision": "7e3a5076dc4ec1922a19bb17a17adc93bbeb5f1e",
+            "sourcePath": "packages/usa-checkbox/src/usa-checkbox.stories.js"
+          }
+        },
+        {
+          "nativeId": "usa-checklist",
+          "name": "Checklist",
+          "summary": null,
+          "kind": "components",
+          "aliases": [],
+          "canonicalUrl": "https://github.com/uswds/uswds/blob/7e3a5076dc4ec1922a19bb17a17adc93bbeb5f1e/packages/usa-checklist/src/usa-checklist.stories.js",
+          "provenance": {
+            "providerId": "uswds",
+            "repository": "https://github.com/uswds/uswds",
+            "revision": "7e3a5076dc4ec1922a19bb17a17adc93bbeb5f1e",
+            "sourcePath": "packages/usa-checklist/src/usa-checklist.stories.js"
+          }
+        },
+        {
+          "nativeId": "usa-collection",
+          "name": "Collection",
+          "summary": null,
+          "kind": "components",
+          "aliases": [],
+          "canonicalUrl": "https://github.com/uswds/uswds/blob/7e3a5076dc4ec1922a19bb17a17adc93bbeb5f1e/packages/usa-collection/src/usa-collection.stories.js",
+          "provenance": {
+            "providerId": "uswds",
+            "repository": "https://github.com/uswds/uswds",
+            "revision": "7e3a5076dc4ec1922a19bb17a17adc93bbeb5f1e",
+            "sourcePath": "packages/usa-collection/src/usa-collection.stories.js"
+          }
+        },
+        {
+          "nativeId": "usa-combo-box",
+          "name": "Combo Box",
+          "summary": null,
+          "kind": "components",
+          "aliases": [],
+          "canonicalUrl": "https://github.com/uswds/uswds/blob/7e3a5076dc4ec1922a19bb17a17adc93bbeb5f1e/packages/usa-combo-box/src/usa-combo-box.stories.js",
+          "provenance": {
+            "providerId": "uswds",
+            "repository": "https://github.com/uswds/uswds",
+            "revision": "7e3a5076dc4ec1922a19bb17a17adc93bbeb5f1e",
+            "sourcePath": "packages/usa-combo-box/src/usa-combo-box.stories.js"
+          }
+        },
+        {
+          "nativeId": "usa-date-picker",
+          "name": "Date Picker",
+          "summary": null,
+          "kind": "components",
+          "aliases": [],
+          "canonicalUrl": "https://github.com/uswds/uswds/blob/7e3a5076dc4ec1922a19bb17a17adc93bbeb5f1e/packages/usa-date-picker/src/usa-date-picker.stories.js",
+          "provenance": {
+            "providerId": "uswds",
+            "repository": "https://github.com/uswds/uswds",
+            "revision": "7e3a5076dc4ec1922a19bb17a17adc93bbeb5f1e",
+            "sourcePath": "packages/usa-date-picker/src/usa-date-picker.stories.js"
+          }
+        },
+        {
+          "nativeId": "usa-date-range-picker",
+          "name": "Date Range Picker",
+          "summary": null,
+          "kind": "components",
+          "aliases": [],
+          "canonicalUrl": "https://github.com/uswds/uswds/blob/7e3a5076dc4ec1922a19bb17a17adc93bbeb5f1e/packages/usa-date-range-picker/src/date-range-picker.stories.js",
+          "provenance": {
+            "providerId": "uswds",
+            "repository": "https://github.com/uswds/uswds",
+            "revision": "7e3a5076dc4ec1922a19bb17a17adc93bbeb5f1e",
+            "sourcePath": "packages/usa-date-range-picker/src/date-range-picker.stories.js"
+          }
+        },
+        {
+          "nativeId": "usa-embed-container",
+          "name": "Embed Container",
+          "summary": null,
+          "kind": "components",
+          "aliases": [],
+          "canonicalUrl": "https://github.com/uswds/uswds/blob/7e3a5076dc4ec1922a19bb17a17adc93bbeb5f1e/packages/usa-embed-container/src/usa-embed-container.stories.js",
+          "provenance": {
+            "providerId": "uswds",
+            "repository": "https://github.com/uswds/uswds",
+            "revision": "7e3a5076dc4ec1922a19bb17a17adc93bbeb5f1e",
+            "sourcePath": "packages/usa-embed-container/src/usa-embed-container.stories.js"
+          }
+        },
+        {
+          "nativeId": "usa-file-input",
+          "name": "File Input",
+          "summary": null,
+          "kind": "components",
+          "aliases": [],
+          "canonicalUrl": "https://github.com/uswds/uswds/blob/7e3a5076dc4ec1922a19bb17a17adc93bbeb5f1e/packages/usa-file-input/src/usa-file-input.stories.js",
+          "provenance": {
+            "providerId": "uswds",
+            "repository": "https://github.com/uswds/uswds",
+            "revision": "7e3a5076dc4ec1922a19bb17a17adc93bbeb5f1e",
+            "sourcePath": "packages/usa-file-input/src/usa-file-input.stories.js"
+          }
+        },
+        {
+          "nativeId": "usa-fonts",
+          "name": "Fonts",
+          "summary": null,
+          "kind": "design tokens",
+          "aliases": [],
+          "canonicalUrl": "https://github.com/uswds/uswds/blob/7e3a5076dc4ec1922a19bb17a17adc93bbeb5f1e/packages/usa-fonts/src/usa-fonts.stories.js",
+          "provenance": {
+            "providerId": "uswds",
+            "repository": "https://github.com/uswds/uswds",
+            "revision": "7e3a5076dc4ec1922a19bb17a17adc93bbeb5f1e",
+            "sourcePath": "packages/usa-fonts/src/usa-fonts.stories.js"
+          }
+        },
+        {
+          "nativeId": "usa-footer",
+          "name": "Footer",
+          "summary": null,
+          "kind": "components",
+          "aliases": [],
+          "canonicalUrl": "https://github.com/uswds/uswds/blob/7e3a5076dc4ec1922a19bb17a17adc93bbeb5f1e/packages/usa-footer/src/usa-footer.stories.js",
+          "provenance": {
+            "providerId": "uswds",
+            "repository": "https://github.com/uswds/uswds",
+            "revision": "7e3a5076dc4ec1922a19bb17a17adc93bbeb5f1e",
+            "sourcePath": "packages/usa-footer/src/usa-footer.stories.js"
+          }
+        },
+        {
+          "nativeId": "usa-form",
+          "name": "Forms",
+          "summary": null,
+          "kind": "patterns",
+          "aliases": [],
+          "canonicalUrl": "https://github.com/uswds/uswds/blob/7e3a5076dc4ec1922a19bb17a17adc93bbeb5f1e/packages/usa-form/src/usa-form.stories.js",
+          "provenance": {
+            "providerId": "uswds",
+            "repository": "https://github.com/uswds/uswds",
+            "revision": "7e3a5076dc4ec1922a19bb17a17adc93bbeb5f1e",
+            "sourcePath": "packages/usa-form/src/usa-form.stories.js"
+          }
+        },
+        {
+          "nativeId": "usa-graphic-list",
+          "name": "Graphic List",
+          "summary": null,
+          "kind": "components",
+          "aliases": [],
+          "canonicalUrl": "https://github.com/uswds/uswds/blob/7e3a5076dc4ec1922a19bb17a17adc93bbeb5f1e/packages/usa-graphic-list/src/usa-graphic-list.stories.js",
+          "provenance": {
+            "providerId": "uswds",
+            "repository": "https://github.com/uswds/uswds",
+            "revision": "7e3a5076dc4ec1922a19bb17a17adc93bbeb5f1e",
+            "sourcePath": "packages/usa-graphic-list/src/usa-graphic-list.stories.js"
+          }
+        },
+        {
+          "nativeId": "usa-header",
+          "name": "Header",
+          "summary": null,
+          "kind": "components",
+          "aliases": [],
+          "canonicalUrl": "https://github.com/uswds/uswds/blob/7e3a5076dc4ec1922a19bb17a17adc93bbeb5f1e/packages/usa-header/src/usa-header.stories.js",
+          "provenance": {
+            "providerId": "uswds",
+            "repository": "https://github.com/uswds/uswds",
+            "revision": "7e3a5076dc4ec1922a19bb17a17adc93bbeb5f1e",
+            "sourcePath": "packages/usa-header/src/usa-header.stories.js"
+          }
+        },
+        {
+          "nativeId": "usa-hero",
+          "name": "Hero",
+          "summary": null,
+          "kind": "components",
+          "aliases": [],
+          "canonicalUrl": "https://github.com/uswds/uswds/blob/7e3a5076dc4ec1922a19bb17a17adc93bbeb5f1e/packages/usa-hero/src/usa-hero.stories.js",
+          "provenance": {
+            "providerId": "uswds",
+            "repository": "https://github.com/uswds/uswds",
+            "revision": "7e3a5076dc4ec1922a19bb17a17adc93bbeb5f1e",
+            "sourcePath": "packages/usa-hero/src/usa-hero.stories.js"
+          }
+        },
+        {
+          "nativeId": "usa-icon",
+          "name": "Icons",
+          "summary": null,
+          "kind": "design tokens",
+          "aliases": [],
+          "canonicalUrl": "https://github.com/uswds/uswds/blob/7e3a5076dc4ec1922a19bb17a17adc93bbeb5f1e/packages/usa-icon/src/usa-icon.stories.js",
+          "provenance": {
+            "providerId": "uswds",
+            "repository": "https://github.com/uswds/uswds",
+            "revision": "7e3a5076dc4ec1922a19bb17a17adc93bbeb5f1e",
+            "sourcePath": "packages/usa-icon/src/usa-icon.stories.js"
+          }
+        },
+        {
+          "nativeId": "usa-icon-list",
+          "name": "Icon List",
+          "summary": null,
+          "kind": "components",
+          "aliases": [],
+          "canonicalUrl": "https://github.com/uswds/uswds/blob/7e3a5076dc4ec1922a19bb17a17adc93bbeb5f1e/packages/usa-icon-list/src/usa-icon-list.stories.js",
+          "provenance": {
+            "providerId": "uswds",
+            "repository": "https://github.com/uswds/uswds",
+            "revision": "7e3a5076dc4ec1922a19bb17a17adc93bbeb5f1e",
+            "sourcePath": "packages/usa-icon-list/src/usa-icon-list.stories.js"
+          }
+        },
+        {
+          "nativeId": "usa-identifier",
+          "name": "Identifier",
+          "summary": null,
+          "kind": "components",
+          "aliases": [],
+          "canonicalUrl": "https://github.com/uswds/uswds/blob/7e3a5076dc4ec1922a19bb17a17adc93bbeb5f1e/packages/usa-identifier/src/usa-identifier.stories.js",
+          "provenance": {
+            "providerId": "uswds",
+            "repository": "https://github.com/uswds/uswds",
+            "revision": "7e3a5076dc4ec1922a19bb17a17adc93bbeb5f1e",
+            "sourcePath": "packages/usa-identifier/src/usa-identifier.stories.js"
+          }
+        },
+        {
+          "nativeId": "usa-in-page-navigation",
+          "name": "In-Page Navigation",
+          "summary": null,
+          "kind": "components",
+          "aliases": [],
+          "canonicalUrl": "https://github.com/uswds/uswds/blob/7e3a5076dc4ec1922a19bb17a17adc93bbeb5f1e/packages/usa-in-page-navigation/src/usa-in-page-navigation.stories.js",
+          "provenance": {
+            "providerId": "uswds",
+            "repository": "https://github.com/uswds/uswds",
+            "revision": "7e3a5076dc4ec1922a19bb17a17adc93bbeb5f1e",
+            "sourcePath": "packages/usa-in-page-navigation/src/usa-in-page-navigation.stories.js"
+          }
+        },
+        {
+          "nativeId": "usa-input",
+          "name": "Text Input",
+          "summary": null,
+          "kind": "components",
+          "aliases": [],
+          "canonicalUrl": "https://github.com/uswds/uswds/blob/7e3a5076dc4ec1922a19bb17a17adc93bbeb5f1e/packages/usa-input/src/usa-input.stories.js",
+          "provenance": {
+            "providerId": "uswds",
+            "repository": "https://github.com/uswds/uswds",
+            "revision": "7e3a5076dc4ec1922a19bb17a17adc93bbeb5f1e",
+            "sourcePath": "packages/usa-input/src/usa-input.stories.js"
+          }
+        },
+        {
+          "nativeId": "usa-input-mask",
+          "name": "Text Input Mask",
+          "summary": null,
+          "kind": "components",
+          "aliases": [],
+          "canonicalUrl": "https://github.com/uswds/uswds/blob/7e3a5076dc4ec1922a19bb17a17adc93bbeb5f1e/packages/usa-input-mask/src/usa-input-mask.stories.js",
+          "provenance": {
+            "providerId": "uswds",
+            "repository": "https://github.com/uswds/uswds",
+            "revision": "7e3a5076dc4ec1922a19bb17a17adc93bbeb5f1e",
+            "sourcePath": "packages/usa-input-mask/src/usa-input-mask.stories.js"
+          }
+        },
+        {
+          "nativeId": "usa-input-prefix-suffix",
+          "name": "Input Prefix or Suffix",
+          "summary": null,
+          "kind": "components",
+          "aliases": [],
+          "canonicalUrl": "https://github.com/uswds/uswds/blob/7e3a5076dc4ec1922a19bb17a17adc93bbeb5f1e/packages/usa-input-prefix-suffix/src/usa-input-prefix-suffix.stories.js",
+          "provenance": {
+            "providerId": "uswds",
+            "repository": "https://github.com/uswds/uswds",
+            "revision": "7e3a5076dc4ec1922a19bb17a17adc93bbeb5f1e",
+            "sourcePath": "packages/usa-input-prefix-suffix/src/usa-input-prefix-suffix.stories.js"
+          }
+        },
+        {
+          "nativeId": "usa-language-selector",
+          "name": "Language Selector",
+          "summary": null,
+          "kind": "components",
+          "aliases": [],
+          "canonicalUrl": "https://github.com/uswds/uswds/blob/7e3a5076dc4ec1922a19bb17a17adc93bbeb5f1e/packages/usa-language-selector/src/usa-language-selector.stories.js",
+          "provenance": {
+            "providerId": "uswds",
+            "repository": "https://github.com/uswds/uswds",
+            "revision": "7e3a5076dc4ec1922a19bb17a17adc93bbeb5f1e",
+            "sourcePath": "packages/usa-language-selector/src/usa-language-selector.stories.js"
+          }
+        },
+        {
+          "nativeId": "usa-link",
+          "name": "Link",
+          "summary": null,
+          "kind": "components",
+          "aliases": [],
+          "canonicalUrl": "https://github.com/uswds/uswds/blob/7e3a5076dc4ec1922a19bb17a17adc93bbeb5f1e/packages/usa-link/src/usa-link.stories.js",
+          "provenance": {
+            "providerId": "uswds",
+            "repository": "https://github.com/uswds/uswds",
+            "revision": "7e3a5076dc4ec1922a19bb17a17adc93bbeb5f1e",
+            "sourcePath": "packages/usa-link/src/usa-link.stories.js"
+          }
+        },
+        {
+          "nativeId": "usa-list",
+          "name": "List",
+          "summary": null,
+          "kind": "components",
+          "aliases": [],
+          "canonicalUrl": "https://github.com/uswds/uswds/blob/7e3a5076dc4ec1922a19bb17a17adc93bbeb5f1e/packages/usa-list/src/usa-list.stories.js",
+          "provenance": {
+            "providerId": "uswds",
+            "repository": "https://github.com/uswds/uswds",
+            "revision": "7e3a5076dc4ec1922a19bb17a17adc93bbeb5f1e",
+            "sourcePath": "packages/usa-list/src/usa-list.stories.js"
+          }
+        },
+        {
+          "nativeId": "usa-media-block",
+          "name": "Media Block",
+          "summary": null,
+          "kind": "components",
+          "aliases": [],
+          "canonicalUrl": "https://github.com/uswds/uswds/blob/7e3a5076dc4ec1922a19bb17a17adc93bbeb5f1e/packages/usa-media-block/src/usa-media-block.stories.js",
+          "provenance": {
+            "providerId": "uswds",
+            "repository": "https://github.com/uswds/uswds",
+            "revision": "7e3a5076dc4ec1922a19bb17a17adc93bbeb5f1e",
+            "sourcePath": "packages/usa-media-block/src/usa-media-block.stories.js"
+          }
+        },
+        {
+          "nativeId": "usa-memorable-date",
+          "name": "Memorable Date",
+          "summary": null,
+          "kind": "components",
+          "aliases": [],
+          "canonicalUrl": "https://github.com/uswds/uswds/blob/7e3a5076dc4ec1922a19bb17a17adc93bbeb5f1e/packages/usa-memorable-date/src/usa-memorable-date.stories.js",
+          "provenance": {
+            "providerId": "uswds",
+            "repository": "https://github.com/uswds/uswds",
+            "revision": "7e3a5076dc4ec1922a19bb17a17adc93bbeb5f1e",
+            "sourcePath": "packages/usa-memorable-date/src/usa-memorable-date.stories.js"
+          }
+        },
+        {
+          "nativeId": "usa-modal",
+          "name": "Modal",
+          "summary": null,
+          "kind": "components",
+          "aliases": [],
+          "canonicalUrl": "https://github.com/uswds/uswds/blob/7e3a5076dc4ec1922a19bb17a17adc93bbeb5f1e/packages/usa-modal/src/usa-modal.stories.js",
+          "provenance": {
+            "providerId": "uswds",
+            "repository": "https://github.com/uswds/uswds",
+            "revision": "7e3a5076dc4ec1922a19bb17a17adc93bbeb5f1e",
+            "sourcePath": "packages/usa-modal/src/usa-modal.stories.js"
+          }
+        },
+        {
+          "nativeId": "usa-pagination",
+          "name": "Pagination",
+          "summary": null,
+          "kind": "components",
+          "aliases": [],
+          "canonicalUrl": "https://github.com/uswds/uswds/blob/7e3a5076dc4ec1922a19bb17a17adc93bbeb5f1e/packages/usa-pagination/src/usa-pagination.stories.js",
+          "provenance": {
+            "providerId": "uswds",
+            "repository": "https://github.com/uswds/uswds",
+            "revision": "7e3a5076dc4ec1922a19bb17a17adc93bbeb5f1e",
+            "sourcePath": "packages/usa-pagination/src/usa-pagination.stories.js"
+          }
+        },
+        {
+          "nativeId": "usa-process-list",
+          "name": "Process List",
+          "summary": null,
+          "kind": "components",
+          "aliases": [],
+          "canonicalUrl": "https://github.com/uswds/uswds/blob/7e3a5076dc4ec1922a19bb17a17adc93bbeb5f1e/packages/usa-process-list/src/usa-process-list.stories.js",
+          "provenance": {
+            "providerId": "uswds",
+            "repository": "https://github.com/uswds/uswds",
+            "revision": "7e3a5076dc4ec1922a19bb17a17adc93bbeb5f1e",
+            "sourcePath": "packages/usa-process-list/src/usa-process-list.stories.js"
+          }
+        },
+        {
+          "nativeId": "usa-prose",
+          "name": "Prose",
+          "summary": null,
+          "kind": "components",
+          "aliases": [],
+          "canonicalUrl": "https://github.com/uswds/uswds/blob/7e3a5076dc4ec1922a19bb17a17adc93bbeb5f1e/packages/usa-prose/src/usa-prose.stories.js",
+          "provenance": {
+            "providerId": "uswds",
+            "repository": "https://github.com/uswds/uswds",
+            "revision": "7e3a5076dc4ec1922a19bb17a17adc93bbeb5f1e",
+            "sourcePath": "packages/usa-prose/src/usa-prose.stories.js"
+          }
+        },
+        {
+          "nativeId": "usa-radio",
+          "name": "Radio",
+          "summary": null,
+          "kind": "components",
+          "aliases": [],
+          "canonicalUrl": "https://github.com/uswds/uswds/blob/7e3a5076dc4ec1922a19bb17a17adc93bbeb5f1e/packages/usa-radio/src/usa-radio.stories.js",
+          "provenance": {
+            "providerId": "uswds",
+            "repository": "https://github.com/uswds/uswds",
+            "revision": "7e3a5076dc4ec1922a19bb17a17adc93bbeb5f1e",
+            "sourcePath": "packages/usa-radio/src/usa-radio.stories.js"
+          }
+        },
+        {
+          "nativeId": "usa-range",
+          "name": "Range",
+          "summary": null,
+          "kind": "components",
+          "aliases": [],
+          "canonicalUrl": "https://github.com/uswds/uswds/blob/7e3a5076dc4ec1922a19bb17a17adc93bbeb5f1e/packages/usa-range/src/usa-range.stories.js",
+          "provenance": {
+            "providerId": "uswds",
+            "repository": "https://github.com/uswds/uswds",
+            "revision": "7e3a5076dc4ec1922a19bb17a17adc93bbeb5f1e",
+            "sourcePath": "packages/usa-range/src/usa-range.stories.js"
+          }
+        },
+        {
+          "nativeId": "usa-search",
+          "name": "Search",
+          "summary": null,
+          "kind": "components",
+          "aliases": [],
+          "canonicalUrl": "https://github.com/uswds/uswds/blob/7e3a5076dc4ec1922a19bb17a17adc93bbeb5f1e/packages/usa-search/src/usa-search.stories.js",
+          "provenance": {
+            "providerId": "uswds",
+            "repository": "https://github.com/uswds/uswds",
+            "revision": "7e3a5076dc4ec1922a19bb17a17adc93bbeb5f1e",
+            "sourcePath": "packages/usa-search/src/usa-search.stories.js"
+          }
+        },
+        {
+          "nativeId": "usa-section",
+          "name": "Section",
+          "summary": null,
+          "kind": "components",
+          "aliases": [],
+          "canonicalUrl": "https://github.com/uswds/uswds/blob/7e3a5076dc4ec1922a19bb17a17adc93bbeb5f1e/packages/usa-section/src/usa-section.stories.js",
+          "provenance": {
+            "providerId": "uswds",
+            "repository": "https://github.com/uswds/uswds",
+            "revision": "7e3a5076dc4ec1922a19bb17a17adc93bbeb5f1e",
+            "sourcePath": "packages/usa-section/src/usa-section.stories.js"
+          }
+        },
+        {
+          "nativeId": "usa-select",
+          "name": "Select",
+          "summary": null,
+          "kind": "components",
+          "aliases": [],
+          "canonicalUrl": "https://github.com/uswds/uswds/blob/7e3a5076dc4ec1922a19bb17a17adc93bbeb5f1e/packages/usa-select/src/usa-select.stories.js",
+          "provenance": {
+            "providerId": "uswds",
+            "repository": "https://github.com/uswds/uswds",
+            "revision": "7e3a5076dc4ec1922a19bb17a17adc93bbeb5f1e",
+            "sourcePath": "packages/usa-select/src/usa-select.stories.js"
+          }
+        },
+        {
+          "nativeId": "usa-sidenav",
+          "name": "Side Navigation",
+          "summary": null,
+          "kind": "components",
+          "aliases": [],
+          "canonicalUrl": "https://github.com/uswds/uswds/blob/7e3a5076dc4ec1922a19bb17a17adc93bbeb5f1e/packages/usa-sidenav/src/usa-sidenav.stories.js",
+          "provenance": {
+            "providerId": "uswds",
+            "repository": "https://github.com/uswds/uswds",
+            "revision": "7e3a5076dc4ec1922a19bb17a17adc93bbeb5f1e",
+            "sourcePath": "packages/usa-sidenav/src/usa-sidenav.stories.js"
+          }
+        },
+        {
+          "nativeId": "usa-site-alert",
+          "name": "Site Alert",
+          "summary": null,
+          "kind": "components",
+          "aliases": [],
+          "canonicalUrl": "https://github.com/uswds/uswds/blob/7e3a5076dc4ec1922a19bb17a17adc93bbeb5f1e/packages/usa-site-alert/src/usa-site-alert.stories.js",
+          "provenance": {
+            "providerId": "uswds",
+            "repository": "https://github.com/uswds/uswds",
+            "revision": "7e3a5076dc4ec1922a19bb17a17adc93bbeb5f1e",
+            "sourcePath": "packages/usa-site-alert/src/usa-site-alert.stories.js"
+          }
+        },
+        {
+          "nativeId": "usa-site-title",
+          "name": "Site Title",
+          "summary": null,
+          "kind": "components",
+          "aliases": [],
+          "canonicalUrl": "https://github.com/uswds/uswds/blob/7e3a5076dc4ec1922a19bb17a17adc93bbeb5f1e/packages/usa-site-title/src/usa-site-title.stories.js",
+          "provenance": {
+            "providerId": "uswds",
+            "repository": "https://github.com/uswds/uswds",
+            "revision": "7e3a5076dc4ec1922a19bb17a17adc93bbeb5f1e",
+            "sourcePath": "packages/usa-site-title/src/usa-site-title.stories.js"
+          }
+        },
+        {
+          "nativeId": "usa-skipnav",
+          "name": "Skipnav",
+          "summary": null,
+          "kind": "components",
+          "aliases": [],
+          "canonicalUrl": "https://github.com/uswds/uswds/blob/7e3a5076dc4ec1922a19bb17a17adc93bbeb5f1e/packages/usa-skipnav/src/usa-skipnav.stories.js",
+          "provenance": {
+            "providerId": "uswds",
+            "repository": "https://github.com/uswds/uswds",
+            "revision": "7e3a5076dc4ec1922a19bb17a17adc93bbeb5f1e",
+            "sourcePath": "packages/usa-skipnav/src/usa-skipnav.stories.js"
+          }
+        },
+        {
+          "nativeId": "usa-step-indicator",
+          "name": "Step Indicator",
+          "summary": null,
+          "kind": "components",
+          "aliases": [],
+          "canonicalUrl": "https://github.com/uswds/uswds/blob/7e3a5076dc4ec1922a19bb17a17adc93bbeb5f1e/packages/usa-step-indicator/src/usa-step-indicator.stories.js",
+          "provenance": {
+            "providerId": "uswds",
+            "repository": "https://github.com/uswds/uswds",
+            "revision": "7e3a5076dc4ec1922a19bb17a17adc93bbeb5f1e",
+            "sourcePath": "packages/usa-step-indicator/src/usa-step-indicator.stories.js"
+          }
+        },
+        {
+          "nativeId": "usa-summary-box",
+          "name": "Summary Box",
+          "summary": null,
+          "kind": "components",
+          "aliases": [],
+          "canonicalUrl": "https://github.com/uswds/uswds/blob/7e3a5076dc4ec1922a19bb17a17adc93bbeb5f1e/packages/usa-summary-box/src/usa-summary-box.stories.js",
+          "provenance": {
+            "providerId": "uswds",
+            "repository": "https://github.com/uswds/uswds",
+            "revision": "7e3a5076dc4ec1922a19bb17a17adc93bbeb5f1e",
+            "sourcePath": "packages/usa-summary-box/src/usa-summary-box.stories.js"
+          }
+        },
+        {
+          "nativeId": "usa-table",
+          "name": "Table",
+          "summary": null,
+          "kind": "components",
+          "aliases": [],
+          "canonicalUrl": "https://github.com/uswds/uswds/blob/7e3a5076dc4ec1922a19bb17a17adc93bbeb5f1e/packages/usa-table/src/usa-table.stories.js",
+          "provenance": {
+            "providerId": "uswds",
+            "repository": "https://github.com/uswds/uswds",
+            "revision": "7e3a5076dc4ec1922a19bb17a17adc93bbeb5f1e",
+            "sourcePath": "packages/usa-table/src/usa-table.stories.js"
+          }
+        },
+        {
+          "nativeId": "usa-tag",
+          "name": "Tags",
+          "summary": null,
+          "kind": "components",
+          "aliases": [],
+          "canonicalUrl": "https://github.com/uswds/uswds/blob/7e3a5076dc4ec1922a19bb17a17adc93bbeb5f1e/packages/usa-tag/src/usa-tag.stories.js",
+          "provenance": {
+            "providerId": "uswds",
+            "repository": "https://github.com/uswds/uswds",
+            "revision": "7e3a5076dc4ec1922a19bb17a17adc93bbeb5f1e",
+            "sourcePath": "packages/usa-tag/src/usa-tag.stories.js"
+          }
+        },
+        {
+          "nativeId": "usa-time-picker",
+          "name": "Time Picker",
+          "summary": null,
+          "kind": "components",
+          "aliases": [],
+          "canonicalUrl": "https://github.com/uswds/uswds/blob/7e3a5076dc4ec1922a19bb17a17adc93bbeb5f1e/packages/usa-time-picker/src/usa-time-picker.stories.js",
+          "provenance": {
+            "providerId": "uswds",
+            "repository": "https://github.com/uswds/uswds",
+            "revision": "7e3a5076dc4ec1922a19bb17a17adc93bbeb5f1e",
+            "sourcePath": "packages/usa-time-picker/src/usa-time-picker.stories.js"
+          }
+        },
+        {
+          "nativeId": "usa-tooltip",
+          "name": "Tooltip",
+          "summary": null,
+          "kind": "components",
+          "aliases": [],
+          "canonicalUrl": "https://github.com/uswds/uswds/blob/7e3a5076dc4ec1922a19bb17a17adc93bbeb5f1e/packages/usa-tooltip/src/usa-tooltip.stories.js",
+          "provenance": {
+            "providerId": "uswds",
+            "repository": "https://github.com/uswds/uswds",
+            "revision": "7e3a5076dc4ec1922a19bb17a17adc93bbeb5f1e",
+            "sourcePath": "packages/usa-tooltip/src/usa-tooltip.stories.js"
+          }
+        },
+        {
+          "nativeId": "usa-validation",
+          "name": "Validation",
+          "summary": null,
+          "kind": "components",
+          "aliases": [],
+          "canonicalUrl": "https://github.com/uswds/uswds/blob/7e3a5076dc4ec1922a19bb17a17adc93bbeb5f1e/packages/usa-validation/src/usa-validation.stories.js",
+          "provenance": {
+            "providerId": "uswds",
+            "repository": "https://github.com/uswds/uswds",
+            "revision": "7e3a5076dc4ec1922a19bb17a17adc93bbeb5f1e",
+            "sourcePath": "packages/usa-validation/src/usa-validation.stories.js"
+          }
+        }
+      ]
+    }
+  ]
+}
