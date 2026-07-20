@@ -14544,26 +14544,55 @@ var pullRequestSummarySchema = external_exports.discriminatedUnion("kind", [
     number: external_exports.number().int().positive(),
     signal: external_exports.string(),
     state: external_exports.enum(["closed", "draft", "merged", "open"]),
-    title: external_exports.string()
+    title: external_exports.string(),
+    url: external_exports.string().url()
   }).strict(),
   external_exports.object({ kind: external_exports.literal("absent") }).strict(),
   external_exports.object({ kind: external_exports.literal("unavailable") }).strict()
 ]);
 var threadSummarySchema = external_exports.object({
-  latestUserMessage: external_exports.string().nullable(),
+  currentTurnCompletedAt: external_exports.number().nullable(),
+  currentTurnStartedAt: external_exports.number().nullable(),
+  latestAssistantMessage: external_exports.string().nullable(),
+  permissionMode: external_exports.enum(["full", "readonly", "workspace-write"]).nullable(),
   pullRequest: pullRequestSummarySchema,
+  provider: external_exports.object({
+    displayName: external_exports.string(),
+    id: external_exports.string(),
+    logoUrl: external_exports.string().nullable(),
+    model: external_exports.string(),
+    reasoningLevel: external_exports.enum([
+      "none",
+      "low",
+      "medium",
+      "high",
+      "xhigh",
+      "ultracode",
+      "max",
+      "ultra"
+    ]).nullable()
+  }).strict(),
   repository: external_exports.object({
     branch: external_exports.string().nullable(),
     isGitRepository: external_exports.boolean(),
-    name: external_exports.string()
+    name: external_exports.string(),
+    path: external_exports.string().nullable()
   }).strict(),
-  status: displayStatusSchema,
-  updatedAt: external_exports.number()
+  status: displayStatusSchema
+}).strict();
+var threadTimingSchema = external_exports.object({
+  currentTurnCompletedAt: external_exports.number().nullable(),
+  currentTurnStartedAt: external_exports.number().nullable(),
+  status: displayStatusSchema
 }).strict();
 var rpcContract = defineRpcContract({
   threadSummary: {
     input: external_exports.object({ threadId: external_exports.string().min(1) }).strict(),
     output: threadSummarySchema
+  },
+  threadTiming: {
+    input: external_exports.object({ threadId: external_exports.string().min(1) }).strict(),
+    output: threadTimingSchema
   }
 });
 async function safely(promise2) {
@@ -14573,18 +14602,18 @@ async function safely(promise2) {
     return null;
   }
 }
-function normalizeMessage(value) {
-  const normalized = value.replace(/\s+/g, " ").trim();
-  return normalized.length > 300 ? `${normalized.slice(0, 297).trimEnd()}\u2026` : normalized;
+async function within(promise2, timeoutMs) {
+  return await new Promise((resolve) => {
+    const timer = setTimeout(() => resolve(null), timeoutMs);
+    void promise2.then((value) => {
+      clearTimeout(timer);
+      resolve(value);
+    });
+  });
 }
-function latestVisibleMessage(history) {
-  const latest = [...history].sort((left, right) => right.createdAt - left.createdAt)[0];
-  if (!latest) return null;
-  const text = latest.input.flatMap(
-    (item) => item.type === "text" && item.visibility !== "agent-only" ? [item.text] : []
-  ).join(" ");
-  const normalized = normalizeMessage(text);
-  return normalized || null;
+function normalizeMessage(value) {
+  const normalized = value.replace(/\r\n?/g, "\n").split("\n").map((line) => line.replace(/[\t ]+/g, " ").trim()).join("\n").replace(/\n{3,}/g, "\n\n").trim();
+  return normalized.length > 1600 ? `${normalized.slice(0, 1599).trimEnd()}\u2026` : normalized;
 }
 function repositoryName(remoteUrl, fallback) {
   if (!remoteUrl) return fallback;
@@ -14600,6 +14629,91 @@ function repositoryName(remoteUrl, fallback) {
   const segments = path.replace(/\/+$/, "").replace(/\.git$/, "").split(/[/:]/).filter(Boolean);
   return segments.slice(-2).join("/") || fallback;
 }
+function isRunningStatus(status) {
+  return status === "active" || status === "host-reconnecting" || status === "provisioning" || status === "starting" || status === "stopping";
+}
+var SUMMARY_LOOKUP_TIMEOUT_MS = 2500;
+var ACTIVE_TURN_EVENT_WAIT_MS = "1";
+var STABLE_DESCRIPTOR_CACHE_TTL_MS = 6e4;
+var STABLE_DESCRIPTOR_CACHE_MAX_ENTRIES = 128;
+var StableDescriptorCache = class {
+  entries = /* @__PURE__ */ new Map();
+  pending = /* @__PURE__ */ new Map();
+  request(key, load) {
+    const pending = this.pending.get(key);
+    if (pending) return pending;
+    const request = load().then((value) => {
+      if (value !== null) {
+        this.entries.set(key, {
+          expiresAt: Date.now() + STABLE_DESCRIPTOR_CACHE_TTL_MS,
+          value
+        });
+        while (this.entries.size > STABLE_DESCRIPTOR_CACHE_MAX_ENTRIES) {
+          const oldestKey = this.entries.keys().next().value;
+          if (oldestKey === void 0) break;
+          this.entries.delete(oldestKey);
+        }
+      }
+      return value;
+    }).finally(() => {
+      if (this.pending.get(key) === request) this.pending.delete(key);
+    });
+    this.pending.set(key, request);
+    return request;
+  }
+  async get(key, load) {
+    const cached2 = this.entries.get(key);
+    if (cached2) {
+      this.entries.delete(key);
+      this.entries.set(key, cached2);
+      if (cached2.expiresAt <= Date.now()) {
+        void this.request(key, load).catch(() => void 0);
+      }
+      return cached2.value;
+    }
+    return await this.request(key, load);
+  }
+};
+async function currentTurnTiming(bb, threadId, status, signal) {
+  if (!isRunningStatus(status) && status !== "idle") {
+    return { completedAt: null, startedAt: null };
+  }
+  const timeline = await safely(
+    bb.sdk.threads.timeline(
+      status === "idle" ? { threadId, segmentLimit: "1", signal } : {
+        threadId,
+        segmentLimit: "1",
+        signal,
+        summaryOnly: "true"
+      }
+    )
+  );
+  if (!timeline) return { completedAt: null, startedAt: null };
+  if (status === "idle") {
+    for (let index = timeline.rows.length - 1; index >= 0; index -= 1) {
+      const row = timeline.rows[index];
+      if (row?.kind === "turn") {
+        return { completedAt: row.completedAt, startedAt: row.startedAt };
+      }
+    }
+    return { completedAt: null, startedAt: null };
+  }
+  const anchorSeq = timeline.timelinePage.olderCursor?.anchorSeq ?? 1;
+  const started = await safely(
+    bb.sdk.threads.events.wait({
+      afterSeq: String(Math.max(0, anchorSeq - 1)),
+      signal,
+      threadId,
+      type: "turn/started",
+      waitMs: ACTIVE_TURN_EVENT_WAIT_MS
+    })
+  );
+  const isRootTurn = started?.type === "turn/started" && started.data.parentToolCallId === void 0 && started.scope.kind === "turn";
+  return {
+    completedAt: null,
+    startedAt: isRootTurn ? started.createdAt : null
+  };
+}
 var PULL_REQUEST_SIGNALS = {
   blocked: "Blocked",
   checks_failed: "Checks failing",
@@ -14613,53 +14727,178 @@ var PULL_REQUEST_SIGNALS = {
   ready_to_merge: "Ready to merge"
 };
 function plugin(bb) {
+  const stableDescriptors = new StableDescriptorCache();
   bb.rpc.register(rpcContract, {
     async threadSummary({ threadId }) {
-      const thread = await bb.sdk.threads.get({ threadId });
-      const [history, project, environment, pullRequestResult] = await Promise.all([
-        safely(bb.sdk.threads.promptHistory({ threadId, limit: "1" })),
-        safely(bb.sdk.projects.get({ projectId: thread.projectId })),
-        thread.environmentId ? safely(
+      const deadlineAt = Date.now() + SUMMARY_LOOKUP_TIMEOUT_MS;
+      const remainingMs = () => Math.max(1, deadlineAt - Date.now());
+      const signal = AbortSignal.timeout(SUMMARY_LOOKUP_TIMEOUT_MS);
+      const thread = await within(
+        safely(bb.sdk.threads.get({ signal, threadId })),
+        remainingMs()
+      );
+      if (!thread) throw new Error("Thread summary unavailable.");
+      const providerScope = thread.environmentId ? `environment:${thread.environmentId}` : "host:default";
+      const projectPromise = stableDescriptors.get(
+        `project:${thread.projectId}`,
+        () => within(
+          safely(
+            bb.sdk.projects.get({ projectId: thread.projectId, signal })
+          ),
+          remainingMs()
+        )
+      );
+      const environmentPromise = thread.environmentId ? within(
+        safely(
           bb.sdk.environments.get({
-            environmentId: thread.environmentId
+            environmentId: thread.environmentId,
+            signal
           })
-        ) : Promise.resolve(null),
-        thread.environmentId ? safely(
-          bb.sdk.environments.pullRequest({
-            environmentId: thread.environmentId
-          })
-        ) : Promise.resolve(null)
+        ),
+        remainingMs()
+      ) : Promise.resolve(null);
+      const pullRequestPromise = Promise.all([
+        projectPromise,
+        environmentPromise
+      ]).then(([project2, environment2]) => {
+        const isGitRepository2 = environment2?.isGitRepo ?? project2?.gitRemoteUrl != null;
+        return thread.environmentId && isGitRepository2 ? within(
+          safely(
+            bb.sdk.environments.pullRequest({
+              environmentId: thread.environmentId,
+              signal
+            })
+          ),
+          remainingMs()
+        ) : null;
+      });
+      const [
+        project,
+        environment,
+        pullRequestResult,
+        executionOptions,
+        providers,
+        providerModels,
+        threadOutput
+      ] = await Promise.all([
+        projectPromise,
+        environmentPromise,
+        pullRequestPromise,
+        within(
+          safely(
+            bb.sdk.threads.defaultExecutionOptions({ signal, threadId })
+          ),
+          remainingMs()
+        ),
+        stableDescriptors.get(
+          `providers:${providerScope}`,
+          () => within(
+            safely(
+              bb.sdk.providers.list(
+                thread.environmentId ? { environmentId: thread.environmentId, signal } : { signal }
+              )
+            ),
+            remainingMs()
+          )
+        ),
+        stableDescriptors.get(
+          `provider-models:${providerScope}:${thread.providerId}`,
+          () => within(
+            safely(
+              bb.sdk.providers.models(
+                thread.environmentId ? {
+                  environmentId: thread.environmentId,
+                  providerId: thread.providerId,
+                  signal
+                } : { providerId: thread.providerId, signal }
+              )
+            ),
+            remainingMs()
+          )
+        ),
+        within(
+          safely(bb.sdk.threads.output({ signal, threadId })),
+          remainingMs()
+        )
       ]);
       const isGitRepository = environment?.isGitRepo ?? project?.gitRemoteUrl != null;
+      const provider = providers?.find(
+        (candidate) => candidate.id === thread.providerId
+      );
+      const normalizedAssistantMessage = normalizeMessage(
+        threadOutput?.output ?? ""
+      );
+      const selectedModel = executionOptions?.model;
+      const model = [
+        ...providerModels?.models ?? [],
+        ...providerModels?.selectedOnlyModels ?? []
+      ].find(
+        (candidate) => candidate.model === selectedModel || candidate.id === selectedModel
+      );
       let pullRequest;
       if (!isGitRepository || pullRequestResult?.outcome === "absent") {
         pullRequest = { kind: "absent" };
       } else if (pullRequestResult?.outcome === "available") {
         const source = pullRequestResult.pullRequest;
-        const signal = source.attention === "none" ? source.checks.state === "passing" ? "Checks passing" : source.state === "open" ? "Open" : source.state[0].toUpperCase() + source.state.slice(1) : PULL_REQUEST_SIGNALS[source.attention];
+        const signal2 = source.attention === "none" ? source.checks.state === "passing" ? "Checks passing" : source.state === "open" ? "Open" : source.state[0].toUpperCase() + source.state.slice(1) : PULL_REQUEST_SIGNALS[source.attention];
         pullRequest = {
           kind: "available",
           number: source.number,
-          signal,
+          signal: signal2,
           state: source.state,
-          title: source.title
+          title: source.title,
+          url: source.url
         };
       } else {
         pullRequest = { kind: "unavailable" };
       }
       return {
-        latestUserMessage: history ? latestVisibleMessage(history) : null,
+        currentTurnCompletedAt: null,
+        currentTurnStartedAt: null,
+        latestAssistantMessage: normalizedAssistantMessage || null,
+        permissionMode: executionOptions?.permissionMode ?? null,
         pullRequest,
+        provider: {
+          displayName: provider?.displayName ?? thread.providerId,
+          id: thread.providerId,
+          logoUrl: provider?.logoUrl ?? null,
+          model: model?.displayName ?? selectedModel ?? "Model unavailable",
+          reasoningLevel: executionOptions?.reasoningLevel ?? null
+        },
         repository: {
           branch: environment?.branchName ?? null,
           isGitRepository,
           name: repositoryName(
             project?.gitRemoteUrl ?? null,
             project?.name ?? "Repository unavailable"
-          )
+          ),
+          path: environment?.path ?? null
         },
-        status: thread.runtime.displayStatus,
-        updatedAt: thread.updatedAt
+        status: thread.runtime.displayStatus
+      };
+    },
+    async threadTiming({ threadId }) {
+      const deadlineAt = Date.now() + SUMMARY_LOOKUP_TIMEOUT_MS;
+      const remainingMs = () => Math.max(1, deadlineAt - Date.now());
+      const signal = AbortSignal.timeout(SUMMARY_LOOKUP_TIMEOUT_MS);
+      const thread = await within(
+        safely(bb.sdk.threads.get({ signal, threadId })),
+        remainingMs()
+      );
+      if (!thread) throw new Error("Thread timing unavailable.");
+      const timing = await within(
+        currentTurnTiming(
+          bb,
+          threadId,
+          thread.runtime.displayStatus,
+          signal
+        ),
+        remainingMs()
+      );
+      return {
+        currentTurnCompletedAt: timing?.completedAt ?? null,
+        currentTurnStartedAt: timing?.startedAt ?? null,
+        status: thread.runtime.displayStatus
       };
     }
   });
@@ -14668,6 +14907,7 @@ function plugin(bb) {
 export {
   plugin as default,
   rpcContract,
-  threadSummarySchema
+  threadSummarySchema,
+  threadTimingSchema
 };
 //# sourceMappingURL=server.js.map

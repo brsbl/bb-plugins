@@ -17,7 +17,7 @@
     "name": "Thread Hover Cards",
     "description": "Preview thread status, the latest request, and repository or PR context from the sidebar.",
     "branding": {
-      "icon": "InformationCircle"
+      "icon": "MessageSquare"
     },
     "server": "./server.ts",
     "app": "./app.tsx",
