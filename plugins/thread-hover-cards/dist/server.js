@@ -14608,11 +14608,19 @@ var threadTimingSchema = external_exports.object({
 }).strict();
 var threadPullRequestSchema = external_exports.object({
   diagnostics: rpcDiagnosticsSchema,
-  pullRequest: pullRequestSummarySchema
+  pullRequest: pullRequestSummarySchema,
+  repository: external_exports.object({
+    branch: external_exports.string().nullable(),
+    path: external_exports.string().nullable()
+  }).strict()
 }).strict();
 var rpcContract = defineRpcContract({
   threadSummary: {
-    input: external_exports.object({ threadId: external_exports.string().min(1) }).strict(),
+    input: external_exports.object({
+      clientId: external_exports.string().min(1).max(128).optional(),
+      generation: external_exports.number().int().nonnegative().optional(),
+      threadId: external_exports.string().min(1)
+    }).strict(),
     output: threadSummarySchema
   },
   threadTiming: {
@@ -14650,7 +14658,16 @@ function normalizeMessage(value) {
   const normalized = value.replace(/\r\n?/g, "\n").split("\n").map((line) => line.replace(/[\t ]+/g, " ").trim()).join("\n").replace(/\n{3,}/g, "\n\n").trim();
   return normalized.length > 1600 ? `${normalized.slice(0, 1599).trimEnd()}\u2026` : normalized;
 }
-function latestAssistantMessage(timeline) {
+function latestOutlineAssistantMessage(outline) {
+  for (let index = outline.items.length - 1; index >= 0; index -= 1) {
+    const item = outline.items[index];
+    if (item?.role === "assistant" && item.preview.trim().length > 0) {
+      return item.preview;
+    }
+  }
+  return null;
+}
+function latestTimelineAssistantMessage(timeline) {
   for (let rowIndex = timeline.rows.length - 1; rowIndex >= 0; rowIndex -= 1) {
     const row = timeline.rows[rowIndex];
     if (!row) continue;
@@ -14762,19 +14779,28 @@ function recordDiagnostics(bb, rpc, threadId, diagnostics) {
   );
 }
 var StableDescriptorCache = class {
-  constructor(ttlMs = STABLE_DESCRIPTOR_CACHE_TTL_MS, maxEntries = STABLE_DESCRIPTOR_CACHE_MAX_ENTRIES) {
+  constructor(ttlMs = STABLE_DESCRIPTOR_CACHE_TTL_MS, maxEntries = STABLE_DESCRIPTOR_CACHE_MAX_ENTRIES, stage = "descriptor", observeBackgroundRefresh) {
     this.ttlMs = ttlMs;
     this.maxEntries = maxEntries;
+    this.stage = stage;
+    this.observeBackgroundRefresh = observeBackgroundRefresh;
   }
   ttlMs;
   maxEntries;
+  stage;
+  observeBackgroundRefresh;
   entries = /* @__PURE__ */ new Map();
+  invalidatedPending = /* @__PURE__ */ new Set();
   pending = /* @__PURE__ */ new Map();
+  delete(key) {
+    this.entries.delete(key);
+    if (this.pending.has(key)) this.invalidatedPending.add(key);
+  }
   request(key, load) {
     const pending = this.pending.get(key);
     if (pending) return pending;
     const request = load().then((value) => {
-      if (value !== null) {
+      if (value !== null && !this.invalidatedPending.has(key)) {
         this.entries.set(key, {
           expiresAt: Date.now() + this.ttlMs,
           value
@@ -14787,7 +14813,10 @@ var StableDescriptorCache = class {
       }
       return value;
     }).finally(() => {
-      if (this.pending.get(key) === request) this.pending.delete(key);
+      if (this.pending.get(key) === request) {
+        this.pending.delete(key);
+        this.invalidatedPending.delete(key);
+      }
     });
     this.pending.set(key, request);
     return request;
@@ -14798,7 +14827,32 @@ var StableDescriptorCache = class {
       this.entries.delete(key);
       this.entries.set(key, cached2);
       if (cached2.expiresAt <= Date.now()) {
-        void this.request(key, load).catch(() => void 0);
+        const refreshIsPending = this.pending.has(key);
+        const startedAt = monotonicNow();
+        const startedAtEpoch = Date.now();
+        const refresh = this.request(key, load);
+        if (!refreshIsPending) {
+          void refresh.then(
+            (value) => {
+              this.observeBackgroundRefresh?.({
+                cache: "stale",
+                durationMs: roundedDuration(startedAt),
+                outcome: value === null ? "unavailable" : "ok",
+                stage: this.stage,
+                startedAt: startedAtEpoch
+              });
+            },
+            () => {
+              this.observeBackgroundRefresh?.({
+                cache: "stale",
+                durationMs: roundedDuration(startedAt),
+                outcome: "error",
+                stage: this.stage,
+                startedAt: startedAtEpoch
+              });
+            }
+          );
+        }
         return { source: "stale", value: cached2.value };
       }
       return { source: "hit", value: cached2.value };
@@ -14807,6 +14861,63 @@ var StableDescriptorCache = class {
       return { source: "coalesced", value: await this.request(key, load) };
     }
     return { source: "miss", value: await this.request(key, load) };
+  }
+};
+var LatestSummaryRequestGate = class {
+  constructor(concurrency, maxTrackedClients = 128) {
+    this.concurrency = concurrency;
+    this.maxTrackedClients = maxTrackedClients;
+  }
+  concurrency;
+  maxTrackedClients;
+  active = 0;
+  legacyRequest = 0;
+  latestGeneration = /* @__PURE__ */ new Map();
+  queue = [];
+  acquire(clientId, generation) {
+    const tracked = clientId !== void 0 && generation !== void 0;
+    const requestClientId = tracked ? clientId : `legacy-${this.legacyRequest += 1}`;
+    const requestGeneration = tracked ? generation : 0;
+    if (tracked) {
+      const latest = this.latestGeneration.get(requestClientId);
+      if (latest !== void 0 && requestGeneration < latest) {
+        return Promise.resolve(null);
+      }
+      this.latestGeneration.delete(requestClientId);
+      this.latestGeneration.set(requestClientId, requestGeneration);
+      while (this.latestGeneration.size > this.maxTrackedClients) {
+        const oldestClientId = this.latestGeneration.keys().next().value;
+        if (oldestClientId === void 0) break;
+        this.latestGeneration.delete(oldestClientId);
+      }
+    }
+    return new Promise((resolve) => {
+      this.queue.push({
+        clientId: requestClientId,
+        generation: requestGeneration,
+        resolve,
+        tracked
+      });
+      this.pump();
+    });
+  }
+  pump() {
+    while (this.active < this.concurrency) {
+      const request = this.queue.shift();
+      if (!request) return;
+      if (request.tracked && this.latestGeneration.get(request.clientId) !== request.generation) {
+        request.resolve(null);
+        continue;
+      }
+      this.active += 1;
+      let released = false;
+      request.resolve(() => {
+        if (released) return;
+        released = true;
+        this.active -= 1;
+        this.pump();
+      });
+    }
   }
 };
 async function currentTurnTiming(bb, threadId, status, signal, recorder) {
@@ -14892,15 +15003,45 @@ function providerDisplayName(providerId) {
   }
 }
 function plugin(bb) {
-  const stableDescriptors = new StableDescriptorCache();
-  const pullRequests = new StableDescriptorCache(PULL_REQUEST_CACHE_TTL_MS);
+  const recordBackgroundRefresh = (timing) => {
+    bb.log.debug(
+      `thread-hover-cards:cache-refresh ${JSON.stringify(timing)}`
+    );
+  };
+  const stableDescriptors = new StableDescriptorCache(
+    STABLE_DESCRIPTOR_CACHE_TTL_MS,
+    STABLE_DESCRIPTOR_CACHE_MAX_ENTRIES,
+    "project",
+    recordBackgroundRefresh
+  );
+  const pullRequests = new StableDescriptorCache(
+    PULL_REQUEST_CACHE_TTL_MS,
+    STABLE_DESCRIPTOR_CACHE_MAX_ENTRIES,
+    "pullRequest",
+    recordBackgroundRefresh
+  );
+  const summaryRequests = new LatestSummaryRequestGate(2);
   bb.rpc.register(rpcContract, {
-    async threadSummary({ threadId }) {
+    async threadSummary({ clientId, generation, threadId }) {
       const recorder = createDiagnostics();
       const deadlineAt = Date.now() + SUMMARY_LOOKUP_TIMEOUT_MS;
       const remainingMs = () => Math.max(1, deadlineAt - Date.now());
-      const signal = AbortSignal.timeout(SUMMARY_LOOKUP_TIMEOUT_MS);
+      const gateStartedAt = monotonicNow();
+      const releaseSummaryRequest = await summaryRequests.acquire(
+        clientId,
+        generation
+      );
+      recorder.stages.push({
+        cache: "none",
+        durationMs: roundedDuration(gateStartedAt),
+        name: "requestGate",
+        outcome: releaseSummaryRequest ? "ok" : "skipped"
+      });
+      const signal = AbortSignal.timeout(remainingMs());
       try {
+        if (!releaseSummaryRequest) {
+          throw new Error("Thread summary request superseded.");
+        }
         const thread = await measureStage(
           recorder,
           "thread",
@@ -14970,7 +15111,23 @@ function plugin(bb) {
           ),
           { unavailableWhenNull: true }
         );
-        const messageTimelinePromise = measureStage(
+        const loadOutlineMessage = (stageName) => measureStage(
+          recorder,
+          stageName,
+          () => within(
+            safely(
+              bb.sdk.threads.conversationOutline({
+                signal,
+                threadId
+              })
+            ),
+            remainingMs()
+          ),
+          { unavailableWhenNull: true }
+        ).then(
+          (outline) => outline ? latestOutlineAssistantMessage(outline) : null
+        );
+        const latestAssistantMessagePromise = isRunningStatus(thread.runtime.displayStatus) ? loadOutlineMessage("messageOutline") : measureStage(
           recorder,
           "messageTimeline",
           () => within(
@@ -14985,16 +15142,19 @@ function plugin(bb) {
             remainingMs()
           ),
           { unavailableWhenNull: true }
-        );
-        const [projectResult, executionOptions, messageTimeline] = await Promise.all([
+        ).then((timeline) => {
+          const latestMessage = timeline ? latestTimelineAssistantMessage(timeline) : null;
+          return latestMessage ?? loadOutlineMessage("messageOutlineFallback");
+        });
+        const [projectResult, executionOptions, latestAssistantMessage] = await Promise.all([
           projectPromise,
           executionOptionsPromise,
-          messageTimelinePromise
+          latestAssistantMessagePromise
         ]);
         const project = projectResult.value;
         const isGitRepository = environment?.isGitRepo ?? project?.gitRemoteUrl != null;
         const normalizedAssistantMessage = normalizeMessage(
-          messageTimeline ? latestAssistantMessage(messageTimeline) ?? "" : ""
+          latestAssistantMessage ?? ""
         );
         const diagnostics = finishDiagnostics(recorder);
         recordDiagnostics(bb, "threadSummary", threadId, diagnostics);
@@ -15031,6 +15191,8 @@ function plugin(bb) {
           finishDiagnostics(recorder)
         );
         throw error51;
+      } finally {
+        releaseSummaryRequest?.();
       }
     },
     async threadTiming({ threadId }) {
@@ -15127,27 +15289,81 @@ function plugin(bb) {
           recordSkippedStage(recorder, "pullRequest");
           const diagnostics2 = finishDiagnostics(recorder);
           recordDiagnostics(bb, "threadPullRequest", threadId, diagnostics2);
-          return { diagnostics: diagnostics2, pullRequest: { kind: "absent" } };
+          return {
+            diagnostics: diagnostics2,
+            pullRequest: { kind: "absent" },
+            repository: {
+              branch: environment?.branchName ?? null,
+              path: environment?.path ?? null
+            }
+          };
         }
+        const initialRepository = {
+          branch: environment?.branchName ?? null,
+          path: environment?.path ?? null
+        };
+        const pullRequestCacheKey = JSON.stringify([
+          "pull-request",
+          thread.environmentId,
+          initialRepository.path,
+          initialRepository.branch
+        ]);
         const pullRequestResult = await measureCachedStage(
           recorder,
           "pullRequest",
           () => pullRequests.get(
-            `pull-request:${thread.environmentId}`,
-            () => within(
-              safely(
-                bb.sdk.environments.pullRequest({
-                  environmentId: thread.environmentId,
-                  signal
-                })
-              ),
-              remainingMs()
-            )
+            pullRequestCacheKey,
+            async () => {
+              const result2 = await within(
+                safely(
+                  bb.sdk.environments.pullRequest({
+                    environmentId: thread.environmentId,
+                    signal
+                  })
+                ),
+                remainingMs()
+              );
+              const environmentAfterLookup = await within(
+                safely(
+                  bb.sdk.environments.get({
+                    environmentId: thread.environmentId,
+                    signal
+                  })
+                ),
+                remainingMs()
+              );
+              if (!environmentAfterLookup || environmentAfterLookup.branchName !== initialRepository.branch || environmentAfterLookup.path !== initialRepository.path) {
+                return null;
+              }
+              return result2;
+            }
           )
         );
-        const result = pullRequestResult.value;
+        const verifiedEnvironment = await measureStage(
+          recorder,
+          "environmentVerify",
+          () => within(
+            safely(
+              bb.sdk.environments.get({
+                environmentId: thread.environmentId,
+                signal
+              })
+            ),
+            remainingMs()
+          ),
+          { unavailableWhenNull: true }
+        );
+        const verifiedRepository = {
+          branch: verifiedEnvironment?.branchName ?? null,
+          path: verifiedEnvironment?.path ?? null
+        };
+        const repositoryIsVerified = verifiedEnvironment !== null && verifiedRepository.branch === initialRepository.branch && verifiedRepository.path === initialRepository.path;
+        if (!repositoryIsVerified) pullRequests.delete(pullRequestCacheKey);
+        const result = repositoryIsVerified ? pullRequestResult.value : null;
         let pullRequest;
-        if (result?.outcome === "absent") {
+        if (verifiedEnvironment?.isGitRepo === false) {
+          pullRequest = { kind: "absent" };
+        } else if (result?.outcome === "absent") {
           pullRequest = { kind: "absent" };
         } else if (result?.outcome === "available") {
           const source = result.pullRequest;
@@ -15165,7 +15381,11 @@ function plugin(bb) {
         }
         const diagnostics = finishDiagnostics(recorder);
         recordDiagnostics(bb, "threadPullRequest", threadId, diagnostics);
-        return { diagnostics, pullRequest };
+        return {
+          diagnostics,
+          pullRequest,
+          repository: verifiedEnvironment ? verifiedRepository : initialRepository
+        };
       } catch (error51) {
         recordDiagnostics(
           bb,

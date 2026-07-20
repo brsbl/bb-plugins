@@ -16,6 +16,11 @@ const dom = new JSDOM(
 );
 
 const { window } = dom;
+const realDateNow = Date.now;
+const realPerformance = globalThis.performance;
+let testNow = realDateNow();
+let testMonotonicNow = 0;
+Date.now = () => testNow;
 Object.assign(globalThis, {
   document: window.document,
   Element: window.Element,
@@ -26,6 +31,7 @@ Object.assign(globalThis, {
   MutationObserver: window.MutationObserver,
   Node: window.Node,
   PointerEvent: window.PointerEvent,
+  performance: { now: () => testMonotonicNow },
   window,
   requestAnimationFrame(callback) {
     callback(0);
@@ -34,12 +40,63 @@ Object.assign(globalThis, {
 });
 
 const requestBodies = [];
+const summaryRequestMetadata = [];
 const timingRequestBodies = [];
 const pullRequestBodies = [];
 let delayedRefresh = null;
 let delayNextRefreshFor = null;
-let delayedInitialSummary = null;
-let delayInitialSummary = true;
+const delayNextSummaryFor = new Set();
+const delayedSummaryResponses = new Map();
+const delayNextTimingFor = new Set();
+const delayedTimingResponses = new Map();
+const delayNextPullRequestFor = new Set();
+const delayedPullRequestResponses = new Map();
+const abortedSummaryThreadIds = [];
+let activeDelayedSummaryRequests = 0;
+let maxActiveDelayedSummaryRequests = 0;
+let idleRestartIsActive = false;
+let branchTestBranch = "branch-a";
+
+function deferResponse({
+  delayedThreads,
+  resolvers,
+  response,
+  signal,
+  threadId,
+  trackSummary = false,
+}) {
+  if (!delayedThreads.delete(threadId)) return null;
+  if (trackSummary) {
+    activeDelayedSummaryRequests += 1;
+    maxActiveDelayedSummaryRequests = Math.max(
+      maxActiveDelayedSummaryRequests,
+      activeDelayedSummaryRequests,
+    );
+  }
+
+  return new Promise((resolve, reject) => {
+    let settled = false;
+    const settle = (callback) => {
+      if (settled) return;
+      settled = true;
+      signal?.removeEventListener("abort", abort);
+      if (trackSummary) activeDelayedSummaryRequests -= 1;
+      resolvers.delete(threadId);
+      callback();
+    };
+    const abort = () => {
+      abortedSummaryThreadIds.push(threadId);
+      settle(() => reject(new DOMException("Aborted", "AbortError")));
+    };
+    if (signal?.aborted) {
+      abort();
+      return;
+    }
+    signal?.addEventListener("abort", abort, { once: true });
+    resolvers.set(threadId, () => settle(() => resolve(response)));
+  });
+}
+
 globalThis.fetch = async (url, init) => {
   const request = JSON.parse(init.body);
   const isLocal = request.threadId === "thr_local";
@@ -55,19 +112,25 @@ globalThis.fetch = async (url, init) => {
   const isDoneWithoutCompletion =
     request.threadId === "thr_done_without_completion";
   const isStateRace = request.threadId === "thr_state_race";
+  const isIdleRestart = request.threadId === "thr_idle_restart";
+  const isBranchIdentity = request.threadId === "thr_branch_identity";
   const now = Date.now();
   if (String(url).endsWith("/threadTiming")) {
     timingRequestBodies.push(request);
-    return new Response(
+    const response = new Response(
       JSON.stringify({
         ok: true,
         result: {
           currentTurnCompletedAt:
-            isLocal || isStateRace ? now - 65_000 : null,
+            isLocal || isStateRace || (isIdleRestart && !idleRestartIsActive)
+              ? now - 65_000
+              : null,
           currentTurnStartedAt: isLocal
             ? now - 185_000
             : isStateRace
               ? now - 125_000
+              : isIdleRestart
+                ? now - (idleRestartIsActive ? 30_000 : 125_000)
               : hasNoPullRequest
                 ? null
                 : now - 65_000,
@@ -85,16 +148,28 @@ globalThis.fetch = async (url, init) => {
           status:
             isLocal || isDoneWithoutCompletion || isStateRace
               ? "idle"
+              : isIdleRestart
+                ? idleRestartIsActive
+                  ? "active"
+                  : "idle"
               : "active",
         },
       }),
       { headers: { "content-type": "application/json" }, status: 200 },
     );
+    return (
+      deferResponse({
+        delayedThreads: delayNextTimingFor,
+        resolvers: delayedTimingResponses,
+        response,
+        threadId: request.threadId,
+      }) ?? response
+    );
   }
 
   if (String(url).endsWith("/threadPullRequest")) {
     pullRequestBodies.push(request);
-    return new Response(
+    const response = new Response(
       JSON.stringify({
         ok: true,
         result: {
@@ -117,7 +192,10 @@ globalThis.fetch = async (url, init) => {
                 ? { kind: "unavailable" }
                 : {
                     kind: "available",
-                    number: 42,
+                    number:
+                      isBranchIdentity && branchTestBranch === "branch-a"
+                        ? 41
+                        : 42,
                     signal: isDraftPullRequest
                       ? "Draft"
                       : isBlockedPullRequest
@@ -141,15 +219,34 @@ globalThis.fetch = async (url, init) => {
                           ? "closed"
                           : "open",
                     title: "Thread previews",
-                    url: "https://github.com/acme/bb/pull/42",
+                    url: `https://github.com/acme/bb/pull/${
+                      isBranchIdentity && branchTestBranch === "branch-a"
+                        ? 41
+                        : 42
+                    }`,
                   },
+          repository: {
+            branch: isBranchIdentity
+              ? branchTestBranch
+              : "feature/hover-cards",
+            path: "/workspace/acme/bb",
+          },
         },
       }),
       { headers: { "content-type": "application/json" }, status: 200 },
     );
+    return (
+      deferResponse({
+        delayedThreads: delayNextPullRequestFor,
+        resolvers: delayedPullRequestResponses,
+        response,
+        threadId: request.threadId,
+      }) ?? response
+    );
   }
 
-  requestBodies.push(request);
+  summaryRequestMetadata.push(request);
+  requestBodies.push({ threadId: request.threadId });
   const response = new Response(
     JSON.stringify({
       ok: true,
@@ -175,6 +272,13 @@ globalThis.fetch = async (url, init) => {
         },
         latestAssistantMessage: isLocal
           ? "**Done**—hover cards are *ready* for foo_bar_baz, \\_literal\\_, and __tests__ with `Cmd+R`.\n\n## Canary\nIgnore this secondary section.\n\n| Work | PR | Status |\n| --- | --- | --- |\n| Hover cards | #42 | Ready |"
+          : isIdleRestart
+            ? idleRestartIsActive
+              ? "Restarted agent update"
+              : "Finished agent update"
+            : request.threadId.startsWith("thr_fanout_") ||
+                request.threadId === "thr_first_content"
+              ? `Agent update for ${request.threadId}`
           : hasNoPullRequest
             ? null
             : "**Agent update**—implementing concise hover cards for foo_bar_baz and \\_literal\\_",
@@ -202,26 +306,38 @@ globalThis.fetch = async (url, init) => {
               path: "/Users/test/.bb/personal-workspaces/env_pmgnprh2j6",
             }
           : {
-              branch: "feature/hover-cards",
+              branch: isBranchIdentity
+                ? branchTestBranch
+                : "feature/hover-cards",
               isGitRepository: true,
               name: "acme/bb",
               path: "/workspace/acme/bb",
             },
-        status: isLocal || isDoneWithoutCompletion ? "idle" : "active",
+        status:
+          isLocal || isDoneWithoutCompletion
+            ? "idle"
+            : isIdleRestart
+              ? idleRestartIsActive
+                ? "active"
+                : "idle"
+              : "active",
       },
     }),
     { headers: { "content-type": "application/json" }, status: 200 },
   );
+  const delayedSummary = deferResponse({
+    delayedThreads: delayNextSummaryFor,
+    resolvers: delayedSummaryResponses,
+    response,
+    signal: init.signal,
+    threadId: request.threadId,
+    trackSummary: true,
+  });
+  if (delayedSummary) return delayedSummary;
   if (delayNextRefreshFor === request.threadId) {
     delayNextRefreshFor = null;
     return new Promise((resolve) => {
       delayedRefresh = () => resolve(response);
-    });
-  }
-  if (delayInitialSummary && request.threadId === "thr_1") {
-    delayInitialSummary = false;
-    return new Promise((resolve) => {
-      delayedInitialSummary = () => resolve(response);
     });
   }
   return response;
@@ -334,30 +450,22 @@ Object.defineProperties(pointerOver, {
   relatedTarget: { value: null },
 });
 trigger.dispatchEvent(pointerOver);
-assert.equal(
-  window.document.getElementById("bb-thread-hover-card"),
-  null,
-  "waits for deliberate pointer dwell before opening",
-);
-assert.deepEqual(requestBodies, [], "does not request on transient pointerover");
-await new Promise((resolve) => setTimeout(resolve, 140));
 const card = window.document.getElementById("bb-thread-hover-card");
-assert.ok(card, "opens the hover card after the pointer dwell");
+assert.ok(card, "opens the hover card in the pointer event turn");
 assert.equal(card.hidden, false);
 assert.deepEqual(
   requestBodies,
   [{ threadId: "thr_1" }],
-  "starts one summary request after the dwell",
+  "starts the summary request immediately",
 );
+assert.equal(typeof summaryRequestMetadata[0]?.clientId, "string");
+assert.equal(summaryRequestMetadata[0]?.generation, 1);
 assert.deepEqual(
   timingRequestBodies,
   [],
   "does not block first paint on timing hydration",
 );
 assert.match(card.textContent, /Loading thread summary/);
-assert.ok(delayedInitialSummary);
-delayedInitialSummary();
-delayedInitialSummary = null;
 await new Promise((resolve) => setTimeout(resolve, 20));
 
 assert.equal(card.hidden, false);
@@ -548,7 +656,13 @@ assert.equal(
 
 const initialTimingRecords = globalThis.__bbThreadHoverCardTimings;
 assert.ok(initialTimingRecords);
-for (const operation of ["open", "summary", "timing", "pullRequest"]) {
+for (const operation of [
+  "firstContent",
+  "open",
+  "summary",
+  "timing",
+  "pullRequest",
+]) {
   assert.ok(
     initialTimingRecords.some((record) => record.operation === operation),
     `records ${operation} timing`,
@@ -699,8 +813,7 @@ assert.equal(window.document.activeElement, trigger);
 await new Promise((resolve) => setTimeout(resolve, 20));
 assert.equal(card.hidden, true);
 
-const realDateNow = Date.now;
-Date.now = () => realDateNow() + 11_000;
+testNow += 11_000;
 delayNextRefreshFor = "thr_1";
 trigger.blur();
 trigger.focus();
@@ -725,19 +838,6 @@ const refreshedPullRequestLink = card.querySelector(
 assert.ok(refreshedPullRequestLink);
 assert.notEqual(refreshedPullRequestLink, stalePullRequestLink);
 assert.equal(window.document.activeElement, refreshedPullRequestLink);
-assert.equal(
-  card.querySelector(".bb-thread-hover-card__runtime [data-time-value]")
-    ?.textContent,
-  "1m",
-  "a later summary refresh preserves timing that already hydrated",
-);
-assert.ok(
-  card
-    .querySelector(".bb-thread-hover-card__runtime")
-    ?.querySelector('[data-icon="Loading03Icon"]'),
-  "the refreshed card keeps the hydrated active-turn status",
-);
-Date.now = realDateNow;
 delayedRefresh = null;
 refreshedPullRequestLink.dispatchEvent(
   new window.KeyboardEvent("keydown", { bubbles: true, key: "Escape" }),
@@ -767,7 +867,8 @@ assert.equal(card.hidden, true);
 assert.deepEqual(requestBodies, [
   { threadId: "thr_1" },
   { threadId: "thr_1" },
-], "pointerout cancels a drive-by hover before it requests");
+  { threadId: "thr_2" },
+]);
 
 trigger.blur();
 trigger.dataset.sidebarThreadId = "thr_local";
@@ -868,6 +969,7 @@ assert.equal(card.querySelector(".bb-thread-hover-card__status-icon"), null);
 assert.deepEqual(requestBodies, [
   { threadId: "thr_1" },
   { threadId: "thr_1" },
+  { threadId: "thr_2" },
   { threadId: "thr_local" },
 ]);
 
@@ -898,6 +1000,7 @@ assert.deepEqual(
 assert.deepEqual(requestBodies, [
   { threadId: "thr_1" },
   { threadId: "thr_1" },
+  { threadId: "thr_2" },
   { threadId: "thr_local" },
   { threadId: "thr_no_pr" },
 ]);
@@ -914,6 +1017,7 @@ assert.doesNotMatch(card.textContent, /PR unavailable/);
 assert.deepEqual(requestBodies, [
   { threadId: "thr_1" },
   { threadId: "thr_1" },
+  { threadId: "thr_2" },
   { threadId: "thr_local" },
   { threadId: "thr_no_pr" },
   { threadId: "thr_pr_unavailable" },
@@ -947,6 +1051,7 @@ assert.ok(
 assert.deepEqual(requestBodies, [
   { threadId: "thr_1" },
   { threadId: "thr_1" },
+  { threadId: "thr_2" },
   { threadId: "thr_local" },
   { threadId: "thr_no_pr" },
   { threadId: "thr_pr_unavailable" },
@@ -979,12 +1084,11 @@ Object.defineProperties(reloadPointerOver, {
   relatedTarget: { value: null },
 });
 trigger.dispatchEvent(reloadPointerOver);
-assert.equal(
+assert.ok(
   window.document.getElementById("bb-thread-hover-card"),
-  null,
-  "restores deliberate pointer dwell after the plugin lifecycle reloads",
+  "keeps immediate opening after the plugin lifecycle reloads",
 );
-await new Promise((resolve) => setTimeout(resolve, 140));
+await new Promise((resolve) => setTimeout(resolve, 20));
 
 const reloadedCard = window.document.getElementById("bb-thread-hover-card");
 assert.ok(reloadedCard);
@@ -992,6 +1096,7 @@ assert.equal(reloadedCard.hidden, false);
 assert.deepEqual(requestBodies, [
   { threadId: "thr_1" },
   { threadId: "thr_1" },
+  { threadId: "thr_2" },
   { threadId: "thr_local" },
   { threadId: "thr_no_pr" },
   { threadId: "thr_pr_unavailable" },
@@ -1051,6 +1156,227 @@ assert.equal(
   reloadedCard.querySelector(".bb-thread-hover-card__summary")?.dataset.working,
   undefined,
   "timing hydration updates status with its timestamps",
+);
+assert.equal(
+  timingRequestBodies.filter(({ threadId }) => threadId === "thr_state_race")
+    .length,
+  1,
+  "applies a newer status mismatch without retrying timing indefinitely",
+);
+
+async function closeAndOpenThread(threadId, settleMs = 20) {
+  trigger.blur();
+  threadRowSuccessor.focus();
+  await new Promise((resolve) => setTimeout(resolve, 140));
+  trigger.dataset.sidebarThreadId = threadId;
+  trigger.focus();
+  await new Promise((resolve) => setTimeout(resolve, settleMs));
+}
+
+delayNextSummaryFor.add("thr_first_content");
+const firstContentRecordCount =
+  globalThis.__bbThreadHoverCardTimings?.filter(
+    ({ operation, threadId }) =>
+      operation === "firstContent" && threadId === "thr_first_content",
+  ).length ?? 0;
+await closeAndOpenThread("thr_first_content", 0);
+assert.match(reloadedCard.textContent, /Loading thread summary/);
+assert.equal(
+  globalThis.__bbThreadHoverCardTimings?.filter(
+    ({ operation, threadId }) =>
+      operation === "firstContent" && threadId === "thr_first_content",
+  ).length ?? 0,
+  firstContentRecordCount,
+  "does not complete first-content timing while cold data is pending",
+);
+await new Promise((resolve) => setTimeout(resolve, 25));
+testMonotonicNow += 25;
+delayedSummaryResponses.get("thr_first_content")?.();
+await new Promise((resolve) => setTimeout(resolve, 20));
+const coldFirstContent = globalThis.__bbThreadHoverCardTimings
+  ?.filter(
+    ({ operation, threadId }) =>
+      operation === "firstContent" && threadId === "thr_first_content",
+  )
+  .at(-1);
+assert.equal(coldFirstContent?.cache, "miss");
+assert.equal(coldFirstContent?.outcome, "ok");
+assert.ok(
+  (coldFirstContent?.durationMs ?? 0) >= 20,
+  "measures hover-to-content latency across the delayed cold request",
+);
+await closeAndOpenThread("thr_first_content", 0);
+const cachedFirstContent = globalThis.__bbThreadHoverCardTimings
+  ?.filter(
+    ({ operation, threadId }) =>
+      operation === "firstContent" && threadId === "thr_first_content",
+  )
+  .at(-1);
+assert.equal(cachedFirstContent?.cache, "fresh");
+assert.ok((cachedFirstContent?.durationMs ?? 100) < 10);
+
+const fanoutTriggers = [];
+for (const threadId of ["thr_fanout_a", "thr_fanout_b", "thr_fanout_c"]) {
+  const row = window.document.createElement("div");
+  row.className = "group/thread-row";
+  const fanoutTrigger = window.document.createElement("a");
+  fanoutTrigger.dataset.sidebarThreadId = threadId;
+  fanoutTrigger.href = `/threads/${threadId}`;
+  fanoutTrigger.textContent = threadId;
+  row.append(fanoutTrigger);
+  window.document.body.insertBefore(row, threadRowSuccessor);
+  fanoutTriggers.push(fanoutTrigger);
+  delayNextSummaryFor.add(threadId);
+}
+trigger.blur();
+threadRowSuccessor.focus();
+await new Promise((resolve) => setTimeout(resolve, 140));
+activeDelayedSummaryRequests = 0;
+maxActiveDelayedSummaryRequests = 0;
+for (let index = 0; index < fanoutTriggers.length; index += 1) {
+  const pointerOver = new window.Event("pointerover", { bubbles: true });
+  Object.defineProperties(pointerOver, {
+    pointerType: { value: "mouse" },
+    relatedTarget: { value: fanoutTriggers[index - 1] ?? null },
+  });
+  fanoutTriggers[index].dispatchEvent(pointerOver);
+}
+assert.deepEqual(
+  abortedSummaryThreadIds.slice(-2),
+  ["thr_fanout_a", "thr_fanout_b"],
+  "aborts superseded cold summary requests",
+);
+assert.equal(maxActiveDelayedSummaryRequests, 1);
+assert.equal(activeDelayedSummaryRequests, 1);
+const fanoutMetadata = summaryRequestMetadata.filter(({ threadId }) =>
+  threadId.startsWith("thr_fanout_"),
+);
+assert.equal(fanoutMetadata.length, 3);
+assert.equal(new Set(fanoutMetadata.map(({ clientId }) => clientId)).size, 1);
+assert.deepEqual(
+  fanoutMetadata.map(({ generation }) => generation),
+  [...fanoutMetadata.map(({ generation }) => generation)].sort(
+    (left, right) => left - right,
+  ),
+  "sends monotonic generations so the server can discard queued requests",
+);
+delayedSummaryResponses.get("thr_fanout_c")?.();
+await new Promise((resolve) => setTimeout(resolve, 20));
+assert.match(reloadedCard.textContent, /Agent update for thr_fanout_c/);
+assert.equal(activeDelayedSummaryRequests, 0);
+
+await closeAndOpenThread("thr_summary_before_timing", 20);
+const summaryFirstTimingCount = timingRequestBodies.filter(
+  ({ threadId }) => threadId === "thr_summary_before_timing",
+).length;
+const summaryFirstRuntime = reloadedCard.querySelector(
+  ".bb-thread-hover-card__runtime",
+);
+assert.ok(summaryFirstRuntime);
+testNow += 2_100;
+delayNextTimingFor.add("thr_summary_before_timing");
+await closeAndOpenThread("thr_summary_before_timing", 10);
+assert.ok(delayedTimingResponses.has("thr_summary_before_timing"));
+assert.ok(
+  reloadedCard.querySelector(".bb-thread-hover-card__runtime"),
+  "keeps hydrated runtime while summary resolves before timing",
+);
+delayedTimingResponses.get("thr_summary_before_timing")?.();
+await new Promise((resolve) => setTimeout(resolve, 20));
+assert.ok(reloadedCard.querySelector(".bb-thread-hover-card__runtime"));
+assert.equal(
+  timingRequestBodies.filter(
+    ({ threadId }) => threadId === "thr_summary_before_timing",
+  ).length,
+  summaryFirstTimingCount + 1,
+  "issues one timing request when summary resolves first",
+);
+
+await closeAndOpenThread("thr_timing_before_summary", 20);
+const timingFirstRequestCount = timingRequestBodies.filter(
+  ({ threadId }) => threadId === "thr_timing_before_summary",
+).length;
+testNow += 1_100;
+delayNextTimingFor.add("thr_timing_before_summary");
+await closeAndOpenThread("thr_timing_before_summary", 10);
+assert.ok(delayedTimingResponses.has("thr_timing_before_summary"));
+trigger.blur();
+threadRowSuccessor.focus();
+await new Promise((resolve) => setTimeout(resolve, 140));
+testNow += 1_100;
+delayNextSummaryFor.add("thr_timing_before_summary");
+trigger.focus();
+await new Promise((resolve) => setTimeout(resolve, 0));
+assert.ok(delayedSummaryResponses.has("thr_timing_before_summary"));
+delayedTimingResponses.get("thr_timing_before_summary")?.();
+await new Promise((resolve) => setTimeout(resolve, 0));
+assert.ok(
+  reloadedCard.querySelector(".bb-thread-hover-card__runtime"),
+  "renders newer timing before the delayed summary settles",
+);
+delayedSummaryResponses.get("thr_timing_before_summary")?.();
+await new Promise((resolve) => setTimeout(resolve, 20));
+assert.ok(
+  reloadedCard.querySelector(".bb-thread-hover-card__runtime"),
+  "does not erase newer timing when the summary arrives later",
+);
+assert.equal(
+  timingRequestBodies.filter(
+    ({ threadId }) => threadId === "thr_timing_before_summary",
+  ).length,
+  timingFirstRequestCount + 2,
+  "retries an older timing snapshot once after the newer summary settles",
+);
+
+idleRestartIsActive = false;
+await closeAndOpenThread("thr_idle_restart", 20);
+assert.match(reloadedCard.textContent, /Finished agent update/);
+const idleRestartSummaryCount = requestBodies.filter(
+  ({ threadId }) => threadId === "thr_idle_restart",
+).length;
+idleRestartIsActive = true;
+testNow += 5_100;
+delayNextSummaryFor.add("thr_idle_restart");
+await closeAndOpenThread("thr_idle_restart", 0);
+assert.match(
+  reloadedCard.textContent,
+  /Finished agent update/,
+  "paints the stale idle card synchronously",
+);
+assert.ok(delayedSummaryResponses.has("thr_idle_restart"));
+assert.equal(
+  requestBodies.filter(({ threadId }) => threadId === "thr_idle_restart")
+    .length,
+  idleRestartSummaryCount + 1,
+  "starts one soft-TTL revalidation",
+);
+delayedSummaryResponses.get("thr_idle_restart")?.();
+await new Promise((resolve) => setTimeout(resolve, 20));
+assert.match(reloadedCard.textContent, /Restarted agent update/);
+assert.equal(
+  reloadedCard.querySelector(".bb-thread-hover-card__summary")?.dataset.working,
+  "true",
+);
+
+branchTestBranch = "branch-a";
+delayNextPullRequestFor.add("thr_branch_identity");
+await closeAndOpenThread("thr_branch_identity", 20);
+assert.match(reloadedCard.textContent, /branch-a/);
+assert.ok(delayedPullRequestResponses.has("thr_branch_identity"));
+branchTestBranch = "branch-b";
+testNow += 2_100;
+await closeAndOpenThread("thr_branch_identity", 20);
+assert.match(reloadedCard.textContent, /branch-b/);
+assert.match(reloadedCard.textContent, /#42/);
+assert.doesNotMatch(reloadedCard.textContent, /#41/);
+delayedPullRequestResponses.get("thr_branch_identity")?.();
+await new Promise((resolve) => setTimeout(resolve, 20));
+assert.match(reloadedCard.textContent, /branch-b/);
+assert.match(reloadedCard.textContent, /#42/);
+assert.doesNotMatch(
+  reloadedCard.textContent,
+  /#41/,
+  "ignores a late PR response for the previous branch",
 );
 
 for (const expected of [
@@ -1177,4 +1503,6 @@ assert.ok(
 );
 globalThis.__bbThreadHoverCards?.dispose();
 assert.equal(window.document.getElementById("bb-thread-hover-card-styles"), null);
+Date.now = realDateNow;
+globalThis.performance = realPerformance;
 dom.window.close();

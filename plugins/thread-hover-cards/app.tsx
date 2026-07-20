@@ -32,14 +32,12 @@ const PLUGIN_CSS_SELECTOR =
   'link[data-bb-plugin-css="thread-hover-cards"]';
 const THREAD_TRIGGER_SELECTOR = "a[data-sidebar-thread-id]";
 const THREAD_ROW_SELECTOR = ".group\\/thread-row";
-// A short pointer dwell prevents delegated pointer events from faning out RPCs
-// while the sidebar lays out. Keyboard focus remains immediate below.
-const OPEN_DELAY_MS = 120;
+const OPEN_DELAY_MS = 0;
 const CLOSE_DELAY_MS = 120;
 const ACTIVE_SUMMARY_CACHE_TTL_MS = 2_000;
-const IDLE_SUMMARY_CACHE_TTL_MS = 30_000;
+const IDLE_SUMMARY_CACHE_TTL_MS = 5_000;
 const ACTIVE_TIMING_CACHE_TTL_MS = 1_000;
-const IDLE_TIMING_CACHE_TTL_MS = 30_000;
+const IDLE_TIMING_CACHE_TTL_MS = 5_000;
 const PULL_REQUEST_CACHE_TTL_MS = 15_000;
 const CACHE_MAX_ENTRIES = 128;
 const TIMING_RECORD_MAX_ENTRIES = 200;
@@ -58,13 +56,24 @@ interface CachedSummary {
   pullRequestFetchedAt: number | null;
   summary: ThreadSummary;
   timingFetchedAt: number | null;
+  timingStartedAt: number | null;
+}
+
+interface PendingSummaryRequest {
+  controller: AbortController;
+  promise: Promise<ThreadSummary>;
 }
 
 interface ClientTimingRecord {
   cache?: "coalesced" | "fresh" | "miss" | "stale";
   durationMs: number;
-  operation: "open" | "pullRequest" | "summary" | "timing";
-  outcome: "error" | "ok";
+  operation:
+    | "firstContent"
+    | "open"
+    | "pullRequest"
+    | "summary"
+    | "timing";
+  outcome: "aborted" | "error" | "ok";
   recordedAt: number;
   server?: RpcDiagnostics;
   threadId: string;
@@ -110,6 +119,31 @@ function timingCacheTtl(summary: ThreadSummary): number {
   return summaryCacheTtl(summary) === ACTIVE_SUMMARY_CACHE_TTL_MS
     ? ACTIVE_TIMING_CACHE_TTL_MS
     : IDLE_TIMING_CACHE_TTL_MS;
+}
+
+function repositoryIdentity(summary: ThreadSummary): string {
+  const repository = summary.repository;
+  return JSON.stringify([
+    repository.isGitRepository,
+    repository.path,
+    repository.name,
+    repository.branch,
+  ]);
+}
+
+function pullRequestRepositoryIdentity(repository: {
+  branch: string | null;
+  path: string | null;
+}): string {
+  return JSON.stringify([repository.path, repository.branch]);
+}
+
+function isAbortError(error: unknown): boolean {
+  return (
+    error instanceof DOMException
+      ? error.name === "AbortError"
+      : error instanceof Error && error.name === "AbortError"
+  );
 }
 
 const SVG_NAMESPACE = "http://www.w3.org/2000/svg";
@@ -532,13 +566,19 @@ function providerIcon(
   return providerMark;
 }
 
-async function fetchSummary(threadId: string): Promise<ThreadSummary> {
+async function fetchSummary(
+  threadId: string,
+  signal: AbortSignal,
+  clientId: string,
+  generation: number,
+): Promise<ThreadSummary> {
   const response = await fetch(
     "/api/v1/plugins/thread-hover-cards/rpc/threadSummary",
     {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ threadId }),
+      body: JSON.stringify({ clientId, generation, threadId }),
+      signal,
     },
   );
   const envelope = (await response.json()) as
@@ -851,11 +891,16 @@ function installHoverCards(): HoverCardController {
   let timeTimer: ReturnType<typeof setInterval> | null = null;
   let disposed = false;
   let requestGeneration = 0;
+  const summaryClientId = `hover-card-${Date.now().toString(36)}-${Math.random()
+    .toString(36)
+    .slice(2)}`;
   let forwardTabTarget: HTMLElement | null = null;
   const cache = new Map<string, CachedSummary>();
-  const pending = new Map<string, Promise<ThreadSummary>>();
+  const pending = new Map<string, PendingSummaryRequest>();
   const pullRequestPending = new Map<string, Promise<ThreadPullRequest>>();
   const timingPending = new Map<string, Promise<ThreadTiming>>();
+  const timingRetriedForSummary = new Map<string, number>();
+  const timingRetryScheduled = new Set<string>();
   const style = element("style", "");
   style.id = STYLE_ID;
   style.textContent = HOVER_CARD_CSS;
@@ -913,19 +958,41 @@ function installHoverCards(): HoverCardController {
 
   function cacheSummary(threadId: string, summary: ThreadSummary): void {
     const previous = cache.get(threadId);
-    const statusChanged =
-      previous !== undefined && previous.summary.status !== summary.status;
-    const shouldKeepTiming =
-      previous?.timingFetchedAt !== null &&
-      previous?.timingFetchedAt !== undefined &&
-      !statusChanged;
+    const repositoryIsUnchanged =
+      previous !== undefined &&
+      repositoryIdentity(previous.summary) === repositoryIdentity(summary);
     const shouldKeepPullRequest =
       summary.pullRequest.kind === "pending" &&
       previous !== undefined &&
+      repositoryIsUnchanged &&
       previous.summary.pullRequest.kind !== "pending";
+    const hasHydratedTiming =
+      previous?.timingFetchedAt !== null &&
+      previous?.timingFetchedAt !== undefined;
+    const timingIsNewerThanSummary =
+      hasHydratedTiming &&
+      previous.timingStartedAt !== null &&
+      previous.timingStartedAt >= summary.diagnostics.startedAt;
+    const shouldKeepTimingValues =
+      hasHydratedTiming &&
+      (previous.summary.status === summary.status ||
+        timingIsNewerThanSummary);
     const cachedPullRequest = shouldKeepPullRequest
       ? previous.summary.pullRequest
       : summary.pullRequest;
+    const cachedSummaryValue: ThreadSummary = {
+      ...summary,
+      currentTurnCompletedAt: shouldKeepTimingValues
+        ? previous.summary.currentTurnCompletedAt
+        : summary.currentTurnCompletedAt,
+      currentTurnStartedAt: shouldKeepTimingValues
+        ? previous.summary.currentTurnStartedAt
+        : summary.currentTurnStartedAt,
+      pullRequest: cachedPullRequest,
+      status: timingIsNewerThanSummary
+        ? previous.summary.status
+        : summary.status,
+    };
     cache.delete(threadId);
     cache.set(threadId, {
       fetchedAt: Date.now(),
@@ -934,20 +1001,13 @@ function installHoverCards(): HoverCardController {
         : cachedPullRequest.kind === "pending"
           ? null
           : Date.now(),
-      summary: {
-        ...summary,
-        ...(shouldKeepTiming
-          ? {
-              currentTurnCompletedAt:
-                previous.summary.currentTurnCompletedAt,
-              currentTurnStartedAt: previous.summary.currentTurnStartedAt,
-            }
-          : {}),
-        pullRequest: cachedPullRequest,
-      },
-      timingFetchedAt: statusChanged
-        ? null
-        : previous?.timingFetchedAt ?? null,
+      summary: cachedSummaryValue,
+      timingFetchedAt: timingIsNewerThanSummary
+        ? previous.timingFetchedAt
+        : null,
+      timingStartedAt: shouldKeepTimingValues
+        ? previous.timingStartedAt
+        : null,
     });
     while (cache.size > CACHE_MAX_ENTRIES) {
       const oldestThreadId = cache.keys().next().value;
@@ -956,11 +1016,23 @@ function installHoverCards(): HoverCardController {
     }
   }
 
-  function requestSummary(threadId: string): Promise<ThreadSummary> {
+  function abortSupersededSummaryRequests(threadId: string): void {
+    for (const [pendingThreadId, request] of pending) {
+      if (pendingThreadId === threadId) continue;
+      pending.delete(pendingThreadId);
+      request.controller.abort();
+    }
+  }
+
+  function requestSummary(
+    threadId: string,
+    cacheSource: "miss" | "stale",
+    generation: number,
+  ): Promise<ThreadSummary> {
     const existing = pending.get(threadId);
     if (existing) {
       const startedAt = monotonicNow();
-      return existing.then(
+      return existing.promise.then(
         (summary) => {
           recordTiming({
             cache: "coalesced",
@@ -977,7 +1049,7 @@ function installHoverCards(): HoverCardController {
             cache: "coalesced",
             durationMs: elapsedMs(startedAt),
             operation: "summary",
-            outcome: "error",
+            outcome: isAbortError(error) ? "aborted" : "error",
             threadId,
           });
           throw error;
@@ -986,11 +1058,18 @@ function installHoverCards(): HoverCardController {
     }
 
     const startedAt = monotonicNow();
-    const request = fetchSummary(threadId)
+    const controller = new AbortController();
+    let request: Promise<ThreadSummary>;
+    request = fetchSummary(
+      threadId,
+      controller.signal,
+      summaryClientId,
+      generation,
+    )
       .then((summary) => {
         cacheSummary(threadId, summary);
         recordTiming({
-          cache: "miss",
+          cache: cacheSource,
           durationMs: elapsedMs(startedAt),
           operation: "summary",
           outcome: "ok",
@@ -1001,16 +1080,20 @@ function installHoverCards(): HoverCardController {
       })
       .catch((error) => {
         recordTiming({
-          cache: "miss",
+          cache: cacheSource,
           durationMs: elapsedMs(startedAt),
           operation: "summary",
-          outcome: "error",
+          outcome: isAbortError(error) ? "aborted" : "error",
           threadId,
         });
         throw error;
       })
-      .finally(() => pending.delete(threadId));
-    pending.set(threadId, request);
+      .finally(() => {
+        if (pending.get(threadId)?.promise === request) {
+          pending.delete(threadId);
+        }
+      });
+    pending.set(threadId, { controller, promise: request });
     return request;
   }
 
@@ -1071,8 +1154,12 @@ function installHoverCards(): HoverCardController {
     return request;
   }
 
-  function requestPullRequest(threadId: string): Promise<ThreadPullRequest> {
-    const existing = pullRequestPending.get(threadId);
+  function requestPullRequest(
+    threadId: string,
+    repositoryKey: string,
+  ): Promise<ThreadPullRequest> {
+    const requestKey = JSON.stringify([threadId, repositoryKey]);
+    const existing = pullRequestPending.get(requestKey);
     if (existing) {
       const startedAt = monotonicNow();
       return existing.then(
@@ -1123,8 +1210,12 @@ function installHoverCards(): HoverCardController {
         });
         throw error;
       })
-      .finally(() => pullRequestPending.delete(threadId));
-    pullRequestPending.set(threadId, request);
+      .finally(() => {
+        if (pullRequestPending.get(requestKey) === request) {
+          pullRequestPending.delete(requestKey);
+        }
+      });
+    pullRequestPending.set(requestKey, request);
     return request;
   }
 
@@ -1153,6 +1244,26 @@ function installHoverCards(): HoverCardController {
       .then((timing) => {
         const current = cache.get(threadId);
         if (!current) return;
+        const summaryStartedAt = current.summary.diagnostics.startedAt;
+        if (timing.diagnostics.startedAt < summaryStartedAt) {
+          if (
+            !disposed &&
+            generation === requestGeneration &&
+            activeThreadId === threadId &&
+            resolveActiveTrigger() &&
+            timingRetriedForSummary.get(threadId) !== summaryStartedAt &&
+            !timingRetryScheduled.has(threadId)
+          ) {
+            timingRetriedForSummary.set(threadId, summaryStartedAt);
+            timingRetryScheduled.add(threadId);
+            queueMicrotask(() => {
+              timingRetryScheduled.delete(threadId);
+              refreshTiming(threadId, generation, hoverCard);
+            });
+          }
+          return;
+        }
+        timingRetriedForSummary.delete(threadId);
         const summary = {
           ...current.summary,
           ...timing,
@@ -1162,6 +1273,7 @@ function installHoverCards(): HoverCardController {
           ...current,
           summary,
           timingFetchedAt: Date.now(),
+          timingStartedAt: timing.diagnostics.startedAt,
         });
         if (
           disposed ||
@@ -1195,6 +1307,9 @@ function installHoverCards(): HoverCardController {
   ): void {
     const cached = cache.get(threadId);
     if (!cached?.summary.repository.isGitRepository) return;
+    const repositoryKey = pullRequestRepositoryIdentity(
+      cached.summary.repository,
+    );
     if (
       cached.pullRequestFetchedAt !== null &&
       Date.now() - cached.pullRequestFetchedAt < PULL_REQUEST_CACHE_TTL_MS
@@ -1209,10 +1324,17 @@ function installHoverCards(): HoverCardController {
       return;
     }
 
-    void requestPullRequest(threadId)
-      .then(({ pullRequest }) => {
+    void requestPullRequest(threadId, repositoryKey)
+      .then(({ pullRequest, repository }) => {
         const current = cache.get(threadId);
-        if (!current) return;
+        if (
+          !current ||
+          pullRequestRepositoryIdentity(repository) !== repositoryKey ||
+          pullRequestRepositoryIdentity(current.summary.repository) !==
+            repositoryKey
+        ) {
+          return;
+        }
         const summary = { ...current.summary, pullRequest };
         cache.delete(threadId);
         cache.set(threadId, {
@@ -1324,6 +1446,7 @@ function installHoverCards(): HoverCardController {
     trigger.setAttribute("aria-describedby", CARD_ID);
     requestGeneration += 1;
     const generation = requestGeneration;
+    abortSupersededSummaryRequests(threadId);
     const hoverCard = ensureCard();
     hoverCard.hidden = false;
     hoverCard.classList.remove("is-visible");
@@ -1350,12 +1473,25 @@ function installHoverCards(): HoverCardController {
     });
 
     if (cached) {
-      refreshTiming(threadId, generation, hoverCard);
-      refreshPullRequest(threadId, generation, hoverCard);
-      if (cacheIsFresh) return;
+      recordTiming({
+        cache: cacheIsFresh ? "fresh" : "stale",
+        durationMs: elapsedMs(requestedAt),
+        operation: "firstContent",
+        outcome: "ok",
+        threadId,
+      });
+      if (cacheIsFresh) {
+        refreshTiming(threadId, generation, hoverCard);
+        refreshPullRequest(threadId, generation, hoverCard);
+        return;
+      }
     }
 
-    void requestSummary(threadId)
+    void requestSummary(
+      threadId,
+      cached ? "stale" : "miss",
+      generation,
+    )
       .then((summary) => {
         if (
           disposed ||
@@ -1370,6 +1506,16 @@ function installHoverCards(): HoverCardController {
           hoverCard.contains(document.activeElement);
         const currentSummary = cache.get(threadId)?.summary ?? summary;
         renderSummary(hoverCard, currentSummary);
+        if (!cached) {
+          recordTiming({
+            cache: "miss",
+            durationMs: elapsedMs(requestedAt),
+            operation: "firstContent",
+            outcome: "ok",
+            server: summary.diagnostics,
+            threadId,
+          });
+        }
         if (focusWasInsideCard) {
           const replacementPullRequestLink =
             hoverCard.querySelector<HTMLAnchorElement>(
@@ -1381,7 +1527,7 @@ function installHoverCards(): HoverCardController {
         refreshTiming(threadId, generation, hoverCard);
         refreshPullRequest(threadId, generation, hoverCard);
       })
-      .catch(() => {
+      .catch((error) => {
         if (
           !cached &&
           !disposed &&
@@ -1390,6 +1536,13 @@ function installHoverCards(): HoverCardController {
           resolveActiveTrigger()
         ) {
           renderError(hoverCard);
+          recordTiming({
+            cache: "miss",
+            durationMs: elapsedMs(requestedAt),
+            operation: "firstContent",
+            outcome: isAbortError(error) ? "aborted" : "error",
+            threadId,
+          });
           requestAnimationFrame(positionCard);
         }
       });
@@ -1606,9 +1759,12 @@ function installHoverCards(): HoverCardController {
       card = null;
       style.remove();
       cache.clear();
+      for (const request of pending.values()) request.controller.abort();
       pending.clear();
       pullRequestPending.clear();
       timingPending.clear();
+      timingRetriedForSummary.clear();
+      timingRetryScheduled.clear();
     },
   };
 }

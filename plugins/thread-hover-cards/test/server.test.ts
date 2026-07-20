@@ -8,6 +8,8 @@ import plugin, {
 } from "../server";
 
 type SummaryHandler = (input: {
+  clientId?: string;
+  generation?: number;
   threadId: string;
 }) => Promise<ThreadSummary>;
 type TimingHandler = (input: {
@@ -25,11 +27,13 @@ const debugMessages: string[] = [];
 let displayStatus: "active" | "idle" = "active";
 let projectId = "proj_1";
 let assistantOutput = "  **Finished**   the hover card \n- polish.  ";
+let latestSegmentHasAssistant = true;
 const nestedAssistantOutput =
   "Nested agent output returned by threads.output().";
 let threadGetFails = false;
 let timelineFails = false;
 let environmentIsGitRepository = true;
+let environmentBranchName = "feature/hover-cards";
 let turnStartedAt: number | null = 100;
 let turnCompletedAt: number | null = null;
 let environmentGetCalls = 0;
@@ -39,8 +43,16 @@ let projectCalls = 0;
 let providerListCalls = 0;
 let providerModelCalls = 0;
 let pullRequestCalls = 0;
+let pullRequestNumber = 42;
+let pullRequestFails = false;
+let delayPullRequest = false;
+let resolveDelayedPullRequest: (() => void) | null = null;
 let executionOptionsCalls = 0;
 const threadGetSignals: Array<AbortSignal | undefined> = [];
+const delayThreadGetFor = new Set<string>();
+const delayedThreadGetResolvers = new Map<string, () => void>();
+let activeDelayedThreadGets = 0;
+let maxActiveDelayedThreadGets = 0;
 const eventWaitInputs: Array<{
   afterSeq?: string;
   threadId: string;
@@ -76,24 +88,32 @@ const fakeBb = {
       async get() {
         environmentGetCalls += 1;
         return {
-          branchName: "feature/hover-cards",
+          branchName: environmentBranchName,
           isGitRepo: environmentIsGitRepository,
           path: "/workspace/thread-hover-cards",
         };
       },
       async pullRequest() {
         pullRequestCalls += 1;
-        return {
+        if (pullRequestFails) throw new Error("Pull request lookup failed");
+        const result = () => ({
           outcome: "available",
           pullRequest: {
             attention: "checks_failed",
             checks: { state: "failing" },
-            number: 42,
+            number: pullRequestNumber,
             state: "open",
             title: "Add thread hover cards",
-            url: "https://github.com/acme/bb-plugin-thread-hover-cards/pull/42",
+            url: `https://github.com/acme/bb-plugin-thread-hover-cards/pull/${pullRequestNumber}`,
           },
-        };
+        }) as const;
+        if (!delayPullRequest) return result();
+        return await new Promise<ReturnType<typeof result>>((resolve) => {
+          resolveDelayedPullRequest = () => {
+            resolveDelayedPullRequest = null;
+            resolve(result());
+          };
+        });
       },
     },
     projects: {
@@ -133,6 +153,20 @@ const fakeBb = {
       },
     },
     threads: {
+      async conversationOutline() {
+        summaryTimelineCalls += 1;
+        return {
+          items: [
+            {
+              attachmentSummary: null,
+              id: "root_assistant",
+              preview: assistantOutput,
+              role: "assistant" as const,
+            },
+          ],
+          maxSeq: 20,
+        };
+      },
       async defaultExecutionOptions() {
         executionOptionsCalls += 1;
         return {
@@ -178,11 +212,25 @@ const fakeBb = {
       }) {
         threadGetSignals.push(input.signal);
         if (threadGetFails) throw new Error("Thread lookup failed");
+        if (delayThreadGetFor.delete(input.threadId)) {
+          activeDelayedThreadGets += 1;
+          maxActiveDelayedThreadGets = Math.max(
+            maxActiveDelayedThreadGets,
+            activeDelayedThreadGets,
+          );
+          await new Promise<void>((resolve) => {
+            delayedThreadGetResolvers.set(input.threadId, () => {
+              delayedThreadGetResolvers.delete(input.threadId);
+              activeDelayedThreadGets -= 1;
+              resolve();
+            });
+          });
+        }
         return {
           ...(input.include === "environment"
             ? {
                 environment: {
-                  branchName: "feature/hover-cards",
+                  branchName: environmentBranchName,
                   isGitRepo: environmentIsGitRepository,
                   path: "/workspace/thread-hover-cards",
                   workspaceProvisionType:
@@ -193,7 +241,15 @@ const fakeBb = {
               }
             : {}),
           environmentId:
-            input.threadId === "thr_coalesced" ? "env_coalesced" : "env_1",
+            input.threadId === "thr_coalesced"
+              ? "env_coalesced"
+              : input.threadId === "thr_pr_identity_race"
+                ? "env_identity_race"
+                : input.threadId === "thr_pr_changed_during_lookup"
+                  ? "env_changed_during_lookup"
+                  : input.threadId === "thr_pr_stale_refresh_race"
+                    ? "env_stale_refresh_race"
+                  : "env_1",
           projectId,
           providerId: "codex",
           runtime: { displayStatus },
@@ -214,11 +270,17 @@ const fakeBb = {
             rows: [
               {
                 children: [
-                  {
-                    kind: "conversation" as const,
-                    role: "assistant" as const,
-                    text: assistantOutput,
-                  },
+                  latestSegmentHasAssistant
+                    ? {
+                        kind: "conversation" as const,
+                        role: "assistant" as const,
+                        text: assistantOutput,
+                      }
+                    : {
+                        kind: "conversation" as const,
+                        role: "user" as const,
+                        text: "Newest turn without an assistant response.",
+                      },
                   {
                     childRows: [
                       {
@@ -239,6 +301,7 @@ const fakeBb = {
             },
           };
         }
+
         return {
           contextWindowUsage: {
             estimated: false,
@@ -337,7 +400,7 @@ assert.equal(stage(summary.diagnostics, "thread").outcome, "ok");
 assert.equal(stage(summary.diagnostics, "environment").cache, "none");
 assert.equal(stage(summary.diagnostics, "project").cache, "miss");
 assert.equal(stage(summary.diagnostics, "executionOptions").outcome, "ok");
-assert.equal(stage(summary.diagnostics, "messageTimeline").outcome, "ok");
+assert.equal(stage(summary.diagnostics, "messageOutline").outcome, "ok");
 
 const pullRequest = await pullRequestHandler({ threadId: "thr_1" });
 assert.deepEqual(withoutDiagnostics(pullRequest), {
@@ -348,6 +411,10 @@ assert.deepEqual(withoutDiagnostics(pullRequest), {
     state: "open",
     title: "Add thread hover cards",
     url: "https://github.com/acme/bb-plugin-thread-hover-cards/pull/42",
+  },
+  repository: {
+    branch: "feature/hover-cards",
+    path: "/workspace/thread-hover-cards",
   },
 });
 assert.equal(pullRequestCalls, 1);
@@ -364,14 +431,30 @@ assert.equal(
   "hit",
 );
 
+environmentBranchName = "feature/other-branch";
+pullRequestNumber = 43;
+const otherBranchPullRequest = await pullRequestHandler({ threadId: "thr_1" });
+assert.equal(otherBranchPullRequest.pullRequest.kind, "available");
+if (otherBranchPullRequest.pullRequest.kind === "available") {
+  assert.equal(otherBranchPullRequest.pullRequest.number, 43);
+}
+assert.equal(
+  stage(otherBranchPullRequest.diagnostics, "pullRequest").cache,
+  "miss",
+  "scopes pull-request cache entries to the current branch",
+);
+assert.equal(pullRequestCalls, 2);
+environmentBranchName = "feature/hover-cards";
+pullRequestNumber = 42;
+
 const timing = await timingHandler({ threadId: "thr_1" });
 assert.deepEqual(withoutDiagnostics(timing), {
   currentTurnCompletedAt: null,
   currentTurnStartedAt: 100,
   status: "active",
 });
-assert.equal(threadGetSignals.length, 4);
-assert.ok(threadGetSignals[3] instanceof AbortSignal);
+assert.equal(threadGetSignals.length, 5);
+assert.ok(threadGetSignals[4] instanceof AbortSignal);
 assert.equal(stage(timing.diagnostics, "thread").outcome, "ok");
 assert.equal(stage(timing.diagnostics, "timeline").outcome, "ok");
 assert.equal(stage(timing.diagnostics, "turnStartedEvent").outcome, "ok");
@@ -399,8 +482,8 @@ assert.equal(longTurnSummary.currentTurnStartedAt, null);
 assert.equal(projectCalls, 1);
 assert.equal(providerListCalls, 0);
 assert.equal(providerModelCalls, 0);
-assert.equal(environmentGetCalls, 0);
-assert.equal(pullRequestCalls, 1);
+assert.equal(environmentGetCalls, 5);
+assert.equal(pullRequestCalls, 2);
 assert.equal(executionOptionsCalls, 2);
 assert.equal(outputCalls, 0);
 const longTurnTiming = await timingHandler({ threadId: "thr_1" });
@@ -434,6 +517,29 @@ assert.deepEqual(withoutDiagnostics(idleTiming), {
   currentTurnStartedAt: 100,
   status: "idle",
 });
+
+assistantOutput = "An earlier canonical assistant response.";
+latestSegmentHasAssistant = false;
+const assistantlessLatestTurnSummary = await summaryHandler({
+  threadId: "thr_1",
+});
+assert.equal(
+  assistantlessLatestTurnSummary.latestAssistantMessage,
+  "An earlier canonical assistant response.",
+  "falls back to the canonical outline when the newest turn has no assistant row",
+);
+assert.equal(
+  stage(
+    assistantlessLatestTurnSummary.diagnostics,
+    "messageOutlineFallback",
+  ).outcome,
+  "ok",
+);
+assert.notEqual(
+  assistantlessLatestTurnSummary.latestAssistantMessage,
+  nestedAssistantOutput,
+);
+latestSegmentHasAssistant = true;
 
 assistantOutput = " \n\t ";
 turnStartedAt = 300;
@@ -473,15 +579,188 @@ assert.deepEqual(
 );
 
 const dateNowBeforePullRequestRefresh = Date.now;
-Date.now = () => dateNowBeforePullRequestRefresh() + 15_001;
+let pullRequestNow = dateNowBeforePullRequestRefresh() + 15_001;
+Date.now = () => pullRequestNow;
+delayPullRequest = true;
+const refreshLogsBeforeSuccess = debugMessages.filter((message) =>
+  message.startsWith("thread-hover-cards:cache-refresh "),
+).length;
 const stalePullRequest = await pullRequestHandler({ threadId: "thr_1" });
 assert.equal(
   stage(stalePullRequest.diagnostics, "pullRequest").cache,
   "stale",
   "serves stale pull-request data while refreshing it",
 );
-await Promise.resolve();
+assert.ok(resolveDelayedPullRequest, "returns while the refresh is pending");
+assert.equal(
+  debugMessages.filter((message) =>
+    message.startsWith("thread-hover-cards:cache-refresh "),
+  ).length,
+  refreshLogsBeforeSuccess,
+  "does not report a detached refresh before it settles",
+);
+resolveDelayedPullRequest?.();
+await new Promise((resolve) => setTimeout(resolve, 0));
+const successfulRefreshLog = debugMessages
+  .filter((message) =>
+    message.startsWith("thread-hover-cards:cache-refresh "),
+  )
+  .at(-1);
+assert.ok(successfulRefreshLog);
+const successfulRefresh = JSON.parse(
+  successfulRefreshLog.slice(successfulRefreshLog.indexOf("{")),
+);
+assert.equal(successfulRefresh.cache, "stale");
+assert.ok(successfulRefresh.durationMs >= 0);
+assert.equal(successfulRefresh.outcome, "ok");
+assert.equal(successfulRefresh.stage, "pullRequest");
+assert.equal(successfulRefresh.startedAt, pullRequestNow);
+
+delayPullRequest = false;
+pullRequestNow += 15_001;
+pullRequestFails = true;
+const staleUnavailablePullRequest = await pullRequestHandler({
+  threadId: "thr_1",
+});
+assert.equal(
+  stage(staleUnavailablePullRequest.diagnostics, "pullRequest").cache,
+  "stale",
+);
+await new Promise((resolve) => setTimeout(resolve, 0));
+const unavailableRefreshLog = debugMessages
+  .filter((message) =>
+    message.startsWith("thread-hover-cards:cache-refresh "),
+  )
+  .at(-1);
+assert.ok(unavailableRefreshLog);
+const unavailableRefresh = JSON.parse(
+  unavailableRefreshLog.slice(unavailableRefreshLog.indexOf("{")),
+);
+assert.equal(unavailableRefresh.cache, "stale");
+assert.ok(unavailableRefresh.durationMs >= 0);
+assert.equal(unavailableRefresh.outcome, "unavailable");
+assert.equal(unavailableRefresh.stage, "pullRequest");
+pullRequestFails = false;
 Date.now = dateNowBeforePullRequestRefresh;
+
+environmentBranchName = "stale-branch-a";
+pullRequestNumber = 71;
+const primedStaleRacePullRequest = await pullRequestHandler({
+  threadId: "thr_pr_stale_refresh_race",
+});
+assert.equal(primedStaleRacePullRequest.pullRequest.kind, "available");
+if (primedStaleRacePullRequest.pullRequest.kind === "available") {
+  assert.equal(primedStaleRacePullRequest.pullRequest.number, 71);
+}
+const dateNowBeforeStaleRace = Date.now;
+const staleRaceNow = dateNowBeforeStaleRace() + 15_001;
+Date.now = () => staleRaceNow;
+delayPullRequest = true;
+const staleRacePullRequest = await pullRequestHandler({
+  threadId: "thr_pr_stale_refresh_race",
+});
+assert.equal(
+  stage(staleRacePullRequest.diagnostics, "pullRequest").cache,
+  "stale",
+);
+assert.ok(resolveDelayedPullRequest);
+environmentBranchName = "stale-branch-b";
+pullRequestNumber = 72;
+resolveDelayedPullRequest?.();
+await new Promise((resolve) => setTimeout(resolve, 0));
+
+delayPullRequest = false;
+environmentBranchName = "stale-branch-a";
+pullRequestNumber = 73;
+const staleAfterRejectedRefresh = await pullRequestHandler({
+  threadId: "thr_pr_stale_refresh_race",
+});
+assert.equal(staleAfterRejectedRefresh.pullRequest.kind, "available");
+if (staleAfterRejectedRefresh.pullRequest.kind === "available") {
+  assert.equal(
+    staleAfterRejectedRefresh.pullRequest.number,
+    71,
+    "does not cache a detached branch-B refresh under branch A",
+  );
+}
+assert.equal(
+  stage(staleAfterRejectedRefresh.diagnostics, "pullRequest").cache,
+  "stale",
+);
+await new Promise((resolve) => setTimeout(resolve, 0));
+const refreshedAfterRejectedRace = await pullRequestHandler({
+  threadId: "thr_pr_stale_refresh_race",
+});
+assert.equal(refreshedAfterRejectedRace.pullRequest.kind, "available");
+if (refreshedAfterRejectedRace.pullRequest.kind === "available") {
+  assert.equal(refreshedAfterRejectedRace.pullRequest.number, 73);
+}
+assert.equal(
+  stage(refreshedAfterRejectedRace.diagnostics, "pullRequest").cache,
+  "hit",
+);
+Date.now = dateNowBeforeStaleRace;
+
+environmentBranchName = "branch-a";
+pullRequestNumber = 41;
+delayThreadGetFor.add("thr_pr_identity_race");
+const racedPullRequestPromise = pullRequestHandler({
+  threadId: "thr_pr_identity_race",
+});
+assert.ok(delayedThreadGetResolvers.has("thr_pr_identity_race"));
+environmentBranchName = "branch-b";
+pullRequestNumber = 42;
+delayedThreadGetResolvers.get("thr_pr_identity_race")?.();
+const racedPullRequest = await racedPullRequestPromise;
+assert.deepEqual(racedPullRequest.repository, {
+  branch: "branch-b",
+  path: "/workspace/thread-hover-cards",
+});
+assert.equal(racedPullRequest.pullRequest.kind, "available");
+if (racedPullRequest.pullRequest.kind === "available") {
+  assert.equal(racedPullRequest.pullRequest.number, 42);
+}
+environmentBranchName = "feature/hover-cards";
+pullRequestNumber = 42;
+
+environmentBranchName = "branch-a";
+pullRequestNumber = 41;
+delayPullRequest = true;
+const pullRequestChangedDuringLookupPromise = pullRequestHandler({
+  threadId: "thr_pr_changed_during_lookup",
+});
+for (let attempt = 0; attempt < 10; attempt += 1) {
+  if (resolveDelayedPullRequest) break;
+  await Promise.resolve();
+}
+assert.ok(resolveDelayedPullRequest);
+environmentBranchName = "branch-b";
+pullRequestNumber = 42;
+resolveDelayedPullRequest?.();
+const pullRequestChangedDuringLookup =
+  await pullRequestChangedDuringLookupPromise;
+assert.deepEqual(pullRequestChangedDuringLookup.repository, {
+  branch: "branch-b",
+  path: "/workspace/thread-hover-cards",
+});
+assert.deepEqual(pullRequestChangedDuringLookup.pullRequest, {
+  kind: "unavailable",
+});
+delayPullRequest = false;
+const correctedBranchPullRequest = await pullRequestHandler({
+  threadId: "thr_pr_changed_during_lookup",
+});
+assert.equal(correctedBranchPullRequest.pullRequest.kind, "available");
+if (correctedBranchPullRequest.pullRequest.kind === "available") {
+  assert.equal(correctedBranchPullRequest.pullRequest.number, 42);
+}
+assert.equal(
+  stage(correctedBranchPullRequest.diagnostics, "pullRequest").cache,
+  "miss",
+  "does not cache a PR under a branch that changed during lookup",
+);
+environmentBranchName = "feature/hover-cards";
+pullRequestNumber = 42;
 
 environmentIsGitRepository = false;
 const pullRequestCallsBeforeLocalSummary = pullRequestCalls;
@@ -497,6 +776,10 @@ assert.equal(
 const localPullRequest = await pullRequestHandler({ threadId: "thr_local" });
 assert.deepEqual(withoutDiagnostics(localPullRequest), {
   pullRequest: { kind: "absent" },
+  repository: {
+    branch: "feature/hover-cards",
+    path: "/workspace/thread-hover-cards",
+  },
 });
 assert.equal(
   pullRequestCalls,
@@ -536,6 +819,51 @@ assert.equal(
   projectCallsBeforeLruFill + 129,
   "evicts the least-recently-used stable descriptor after 128 entries",
 );
+
+const gatedThreadIds = Array.from(
+  { length: 5 },
+  (_, index) => `thr_gated_${index + 1}`,
+);
+for (const threadId of gatedThreadIds) delayThreadGetFor.add(threadId);
+activeDelayedThreadGets = 0;
+maxActiveDelayedThreadGets = 0;
+const threadGetsBeforeGateTest = threadGetSignals.length;
+const gatedRequests = gatedThreadIds.map((threadId, index) =>
+  summaryHandler({
+    clientId: "hover-card-test",
+    generation: index + 1,
+    threadId,
+  }),
+);
+const gatedResultsPromise = Promise.allSettled(gatedRequests);
+await Promise.resolve();
+assert.equal(delayedThreadGetResolvers.size, 2);
+assert.equal(maxActiveDelayedThreadGets, 2);
+delayedThreadGetResolvers.get("thr_gated_1")?.();
+delayedThreadGetResolvers.get("thr_gated_2")?.();
+for (let attempt = 0; attempt < 20; attempt += 1) {
+  if (delayedThreadGetResolvers.has("thr_gated_5")) break;
+  await new Promise((resolve) => setTimeout(resolve, 0));
+}
+assert.deepEqual(
+  [...delayedThreadGetResolvers.keys()],
+  ["thr_gated_5"],
+  "skips superseded queued generations before SDK work starts",
+);
+delayedThreadGetResolvers.get("thr_gated_5")?.();
+const gatedResults = await gatedResultsPromise;
+assert.equal(
+  gatedResults.filter(({ status }) => status === "fulfilled").length,
+  3,
+);
+assert.equal(
+  gatedResults.filter(({ status }) => status === "rejected").length,
+  2,
+);
+assert.equal(threadGetSignals.length - threadGetsBeforeGateTest, 3);
+assert.equal(maxActiveDelayedThreadGets, 2);
+for (const threadId of gatedThreadIds) delayThreadGetFor.delete(threadId);
+
 threadGetFails = true;
 await assert.rejects(
   summaryHandler({ threadId: "thr_unavailable" }),

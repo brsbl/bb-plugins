@@ -1056,12 +1056,12 @@ var STYLE_ID = "bb-thread-hover-card-styles";
 var PLUGIN_CSS_SELECTOR = 'link[data-bb-plugin-css="thread-hover-cards"]';
 var THREAD_TRIGGER_SELECTOR = "a[data-sidebar-thread-id]";
 var THREAD_ROW_SELECTOR = ".group\\/thread-row";
-var OPEN_DELAY_MS = 120;
+var OPEN_DELAY_MS = 0;
 var CLOSE_DELAY_MS = 120;
 var ACTIVE_SUMMARY_CACHE_TTL_MS = 2e3;
-var IDLE_SUMMARY_CACHE_TTL_MS = 3e4;
+var IDLE_SUMMARY_CACHE_TTL_MS = 5e3;
 var ACTIVE_TIMING_CACHE_TTL_MS = 1e3;
-var IDLE_TIMING_CACHE_TTL_MS = 3e4;
+var IDLE_TIMING_CACHE_TTL_MS = 5e3;
 var PULL_REQUEST_CACHE_TTL_MS = 15e3;
 var CACHE_MAX_ENTRIES = 128;
 var TIMING_RECORD_MAX_ENTRIES = 200;
@@ -1093,6 +1093,21 @@ function summaryCacheTtl(summary) {
 }
 function timingCacheTtl(summary) {
   return summaryCacheTtl(summary) === ACTIVE_SUMMARY_CACHE_TTL_MS ? ACTIVE_TIMING_CACHE_TTL_MS : IDLE_TIMING_CACHE_TTL_MS;
+}
+function repositoryIdentity(summary) {
+  const repository = summary.repository;
+  return JSON.stringify([
+    repository.isGitRepository,
+    repository.path,
+    repository.name,
+    repository.branch
+  ]);
+}
+function pullRequestRepositoryIdentity(repository) {
+  return JSON.stringify([repository.path, repository.branch]);
+}
+function isAbortError(error) {
+  return error instanceof DOMException ? error.name === "AbortError" : error instanceof Error && error.name === "AbortError";
 }
 var SVG_NAMESPACE = "http://www.w3.org/2000/svg";
 var REASONING_LABELS = {
@@ -1405,13 +1420,14 @@ function providerIcon(provider) {
   providerMark.setAttribute("viewBox", providerDefinition.viewBox);
   return providerMark;
 }
-async function fetchSummary(threadId) {
+async function fetchSummary(threadId, signal, clientId, generation) {
   const response = await fetch(
     "/api/v1/plugins/thread-hover-cards/rpc/threadSummary",
     {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ threadId })
+      body: JSON.stringify({ clientId, generation, threadId }),
+      signal
     }
   );
   const envelope = await response.json();
@@ -1683,11 +1699,14 @@ function installHoverCards() {
   let timeTimer = null;
   let disposed = false;
   let requestGeneration = 0;
+  const summaryClientId = `hover-card-${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
   let forwardTabTarget = null;
   const cache = /* @__PURE__ */ new Map();
   const pending = /* @__PURE__ */ new Map();
   const pullRequestPending = /* @__PURE__ */ new Map();
   const timingPending = /* @__PURE__ */ new Map();
+  const timingRetriedForSummary = /* @__PURE__ */ new Map();
+  const timingRetryScheduled = /* @__PURE__ */ new Set();
   const style = element("style", "");
   style.id = STYLE_ID;
   style.textContent = HOVER_CARD_CSS;
@@ -1736,23 +1755,26 @@ function installHoverCards() {
   }
   function cacheSummary(threadId, summary) {
     const previous = cache.get(threadId);
-    const statusChanged = previous !== void 0 && previous.summary.status !== summary.status;
-    const shouldKeepTiming = previous?.timingFetchedAt !== null && previous?.timingFetchedAt !== void 0 && !statusChanged;
-    const shouldKeepPullRequest = summary.pullRequest.kind === "pending" && previous !== void 0 && previous.summary.pullRequest.kind !== "pending";
+    const repositoryIsUnchanged = previous !== void 0 && repositoryIdentity(previous.summary) === repositoryIdentity(summary);
+    const shouldKeepPullRequest = summary.pullRequest.kind === "pending" && previous !== void 0 && repositoryIsUnchanged && previous.summary.pullRequest.kind !== "pending";
+    const hasHydratedTiming = previous?.timingFetchedAt !== null && previous?.timingFetchedAt !== void 0;
+    const timingIsNewerThanSummary = hasHydratedTiming && previous.timingStartedAt !== null && previous.timingStartedAt >= summary.diagnostics.startedAt;
+    const shouldKeepTimingValues = hasHydratedTiming && (previous.summary.status === summary.status || timingIsNewerThanSummary);
     const cachedPullRequest = shouldKeepPullRequest ? previous.summary.pullRequest : summary.pullRequest;
+    const cachedSummaryValue = {
+      ...summary,
+      currentTurnCompletedAt: shouldKeepTimingValues ? previous.summary.currentTurnCompletedAt : summary.currentTurnCompletedAt,
+      currentTurnStartedAt: shouldKeepTimingValues ? previous.summary.currentTurnStartedAt : summary.currentTurnStartedAt,
+      pullRequest: cachedPullRequest,
+      status: timingIsNewerThanSummary ? previous.summary.status : summary.status
+    };
     cache.delete(threadId);
     cache.set(threadId, {
       fetchedAt: Date.now(),
       pullRequestFetchedAt: shouldKeepPullRequest ? previous.pullRequestFetchedAt : cachedPullRequest.kind === "pending" ? null : Date.now(),
-      summary: {
-        ...summary,
-        ...shouldKeepTiming ? {
-          currentTurnCompletedAt: previous.summary.currentTurnCompletedAt,
-          currentTurnStartedAt: previous.summary.currentTurnStartedAt
-        } : {},
-        pullRequest: cachedPullRequest
-      },
-      timingFetchedAt: statusChanged ? null : previous?.timingFetchedAt ?? null
+      summary: cachedSummaryValue,
+      timingFetchedAt: timingIsNewerThanSummary ? previous.timingFetchedAt : null,
+      timingStartedAt: shouldKeepTimingValues ? previous.timingStartedAt : null
     });
     while (cache.size > CACHE_MAX_ENTRIES) {
       const oldestThreadId = cache.keys().next().value;
@@ -1760,11 +1782,18 @@ function installHoverCards() {
       cache.delete(oldestThreadId);
     }
   }
-  function requestSummary(threadId) {
+  function abortSupersededSummaryRequests(threadId) {
+    for (const [pendingThreadId, request] of pending) {
+      if (pendingThreadId === threadId) continue;
+      pending.delete(pendingThreadId);
+      request.controller.abort();
+    }
+  }
+  function requestSummary(threadId, cacheSource, generation) {
     const existing = pending.get(threadId);
     if (existing) {
       const startedAt2 = monotonicNow();
-      return existing.then(
+      return existing.promise.then(
         (summary) => {
           recordTiming({
             cache: "coalesced",
@@ -1781,7 +1810,7 @@ function installHoverCards() {
             cache: "coalesced",
             durationMs: elapsedMs(startedAt2),
             operation: "summary",
-            outcome: "error",
+            outcome: isAbortError(error) ? "aborted" : "error",
             threadId
           });
           throw error;
@@ -1789,10 +1818,17 @@ function installHoverCards() {
       );
     }
     const startedAt = monotonicNow();
-    const request = fetchSummary(threadId).then((summary) => {
+    const controller = new AbortController();
+    let request;
+    request = fetchSummary(
+      threadId,
+      controller.signal,
+      summaryClientId,
+      generation
+    ).then((summary) => {
       cacheSummary(threadId, summary);
       recordTiming({
-        cache: "miss",
+        cache: cacheSource,
         durationMs: elapsedMs(startedAt),
         operation: "summary",
         outcome: "ok",
@@ -1802,15 +1838,19 @@ function installHoverCards() {
       return summary;
     }).catch((error) => {
       recordTiming({
-        cache: "miss",
+        cache: cacheSource,
         durationMs: elapsedMs(startedAt),
         operation: "summary",
-        outcome: "error",
+        outcome: isAbortError(error) ? "aborted" : "error",
         threadId
       });
       throw error;
-    }).finally(() => pending.delete(threadId));
-    pending.set(threadId, request);
+    }).finally(() => {
+      if (pending.get(threadId)?.promise === request) {
+        pending.delete(threadId);
+      }
+    });
+    pending.set(threadId, { controller, promise: request });
     return request;
   }
   function requestTiming(threadId) {
@@ -1865,8 +1905,9 @@ function installHoverCards() {
     timingPending.set(threadId, request);
     return request;
   }
-  function requestPullRequest(threadId) {
-    const existing = pullRequestPending.get(threadId);
+  function requestPullRequest(threadId, repositoryKey) {
+    const requestKey = JSON.stringify([threadId, repositoryKey]);
+    const existing = pullRequestPending.get(requestKey);
     if (existing) {
       const startedAt2 = monotonicNow();
       return existing.then(
@@ -1913,8 +1954,12 @@ function installHoverCards() {
         threadId
       });
       throw error;
-    }).finally(() => pullRequestPending.delete(threadId));
-    pullRequestPending.set(threadId, request);
+    }).finally(() => {
+      if (pullRequestPending.get(requestKey) === request) {
+        pullRequestPending.delete(requestKey);
+      }
+    });
+    pullRequestPending.set(requestKey, request);
     return request;
   }
   function refreshTiming(threadId, generation, hoverCard) {
@@ -1932,6 +1977,19 @@ function installHoverCards() {
     void requestTiming(threadId).then((timing) => {
       const current = cache.get(threadId);
       if (!current) return;
+      const summaryStartedAt = current.summary.diagnostics.startedAt;
+      if (timing.diagnostics.startedAt < summaryStartedAt) {
+        if (!disposed && generation === requestGeneration && activeThreadId === threadId && resolveActiveTrigger() && timingRetriedForSummary.get(threadId) !== summaryStartedAt && !timingRetryScheduled.has(threadId)) {
+          timingRetriedForSummary.set(threadId, summaryStartedAt);
+          timingRetryScheduled.add(threadId);
+          queueMicrotask(() => {
+            timingRetryScheduled.delete(threadId);
+            refreshTiming(threadId, generation, hoverCard);
+          });
+        }
+        return;
+      }
+      timingRetriedForSummary.delete(threadId);
       const summary = {
         ...current.summary,
         ...timing
@@ -1940,7 +1998,8 @@ function installHoverCards() {
       cache.set(threadId, {
         ...current,
         summary,
-        timingFetchedAt: Date.now()
+        timingFetchedAt: Date.now(),
+        timingStartedAt: timing.diagnostics.startedAt
       });
       if (disposed || generation !== requestGeneration || activeThreadId !== threadId || !resolveActiveTrigger()) {
         return;
@@ -1959,6 +2018,9 @@ function installHoverCards() {
   function refreshPullRequest(threadId, generation, hoverCard) {
     const cached = cache.get(threadId);
     if (!cached?.summary.repository.isGitRepository) return;
+    const repositoryKey = pullRequestRepositoryIdentity(
+      cached.summary.repository
+    );
     if (cached.pullRequestFetchedAt !== null && Date.now() - cached.pullRequestFetchedAt < PULL_REQUEST_CACHE_TTL_MS) {
       recordTiming({
         cache: "fresh",
@@ -1969,9 +2031,11 @@ function installHoverCards() {
       });
       return;
     }
-    void requestPullRequest(threadId).then(({ pullRequest }) => {
+    void requestPullRequest(threadId, repositoryKey).then(({ pullRequest, repository }) => {
       const current = cache.get(threadId);
-      if (!current) return;
+      if (!current || pullRequestRepositoryIdentity(repository) !== repositoryKey || pullRequestRepositoryIdentity(current.summary.repository) !== repositoryKey) {
+        return;
+      }
       const summary = { ...current.summary, pullRequest };
       cache.delete(threadId);
       cache.set(threadId, {
@@ -2041,6 +2105,7 @@ function installHoverCards() {
     trigger.setAttribute("aria-describedby", CARD_ID);
     requestGeneration += 1;
     const generation = requestGeneration;
+    abortSupersededSummaryRequests(threadId);
     const hoverCard = ensureCard();
     hoverCard.hidden = false;
     hoverCard.classList.remove("is-visible");
@@ -2063,17 +2128,40 @@ function installHoverCards() {
       threadId
     });
     if (cached) {
-      refreshTiming(threadId, generation, hoverCard);
-      refreshPullRequest(threadId, generation, hoverCard);
-      if (cacheIsFresh) return;
+      recordTiming({
+        cache: cacheIsFresh ? "fresh" : "stale",
+        durationMs: elapsedMs(requestedAt),
+        operation: "firstContent",
+        outcome: "ok",
+        threadId
+      });
+      if (cacheIsFresh) {
+        refreshTiming(threadId, generation, hoverCard);
+        refreshPullRequest(threadId, generation, hoverCard);
+        return;
+      }
     }
-    void requestSummary(threadId).then((summary) => {
+    void requestSummary(
+      threadId,
+      cached ? "stale" : "miss",
+      generation
+    ).then((summary) => {
       if (disposed || generation !== requestGeneration || activeThreadId !== threadId || !resolveActiveTrigger()) {
         return;
       }
       const focusWasInsideCard = document.activeElement instanceof Node && hoverCard.contains(document.activeElement);
       const currentSummary = cache.get(threadId)?.summary ?? summary;
       renderSummary(hoverCard, currentSummary);
+      if (!cached) {
+        recordTiming({
+          cache: "miss",
+          durationMs: elapsedMs(requestedAt),
+          operation: "firstContent",
+          outcome: "ok",
+          server: summary.diagnostics,
+          threadId
+        });
+      }
       if (focusWasInsideCard) {
         const replacementPullRequestLink = hoverCard.querySelector(
           ".bb-thread-hover-card__pr-link"
@@ -2083,9 +2171,16 @@ function installHoverCards() {
       requestAnimationFrame(positionCard);
       refreshTiming(threadId, generation, hoverCard);
       refreshPullRequest(threadId, generation, hoverCard);
-    }).catch(() => {
+    }).catch((error) => {
       if (!cached && !disposed && generation === requestGeneration && activeThreadId === threadId && resolveActiveTrigger()) {
         renderError(hoverCard);
+        recordTiming({
+          cache: "miss",
+          durationMs: elapsedMs(requestedAt),
+          operation: "firstContent",
+          outcome: isAbortError(error) ? "aborted" : "error",
+          threadId
+        });
         requestAnimationFrame(positionCard);
       }
     });
@@ -2250,9 +2345,12 @@ function installHoverCards() {
       card = null;
       style.remove();
       cache.clear();
+      for (const request of pending.values()) request.controller.abort();
       pending.clear();
       pullRequestPending.clear();
       timingPending.clear();
+      timingRetriedForSummary.clear();
+      timingRetryScheduled.clear();
     }
   };
 }
