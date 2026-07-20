@@ -114,6 +114,12 @@ export const threadPullRequestSchema = z
   .object({
     diagnostics: rpcDiagnosticsSchema,
     pullRequest: pullRequestSummarySchema,
+    repository: z
+      .object({
+        branch: z.string().nullable(),
+        path: z.string().nullable(),
+      })
+      .strict(),
   })
   .strict();
 
@@ -121,7 +127,13 @@ export type ThreadPullRequest = z.infer<typeof threadPullRequestSchema>;
 
 export const rpcContract = defineRpcContract({
   threadSummary: {
-    input: z.object({ threadId: z.string().min(1) }).strict(),
+    input: z
+      .object({
+        clientId: z.string().min(1).max(128).optional(),
+        generation: z.number().int().nonnegative().optional(),
+        threadId: z.string().min(1),
+      })
+      .strict(),
     output: threadSummarySchema,
   },
   threadTiming: {
@@ -174,15 +186,33 @@ function normalizeMessage(value: string): string {
     : normalized;
 }
 
+type ThreadConversationOutline = Awaited<
+  ReturnType<BbPluginApi["sdk"]["threads"]["conversationOutline"]>
+>;
 type ThreadTimeline = Awaited<
   ReturnType<BbPluginApi["sdk"]["threads"]["timeline"]>
 >;
 
-function latestAssistantMessage(timeline: ThreadTimeline): string | null {
+function latestOutlineAssistantMessage(
+  outline: ThreadConversationOutline,
+): string | null {
+  // conversationOutline is BB's unpaginated includeNestedRows:false timeline
+  // projection, so it preserves the canonical visible message order without
+  // constructing the timeline's much larger work-row payload.
+  for (let index = outline.items.length - 1; index >= 0; index -= 1) {
+    const item = outline.items[index];
+    if (item?.role === "assistant" && item.preview.trim().length > 0) {
+      return item.preview;
+    }
+  }
+
+  return null;
+}
+
+function latestTimelineAssistantMessage(timeline: ThreadTimeline): string | null {
   for (let rowIndex = timeline.rows.length - 1; rowIndex >= 0; rowIndex -= 1) {
     const row = timeline.rows[rowIndex];
     if (!row) continue;
-
     const visibleRows = row.kind === "turn" ? (row.children ?? []) : [row];
     for (
       let visibleIndex = visibleRows.length - 1;
@@ -199,7 +229,6 @@ function latestAssistantMessage(timeline: ThreadTimeline): string | null {
       }
     }
   }
-
   return null;
 }
 
@@ -359,17 +388,37 @@ interface CacheResult<T> {
   value: T | null;
 }
 
+interface BackgroundCacheRefreshTiming {
+  cache: "stale";
+  durationMs: number;
+  outcome: "error" | "ok" | "unavailable";
+  stage: string;
+  startedAt: number;
+}
+
+type BackgroundCacheRefreshObserver = (
+  timing: BackgroundCacheRefreshTiming,
+) => void;
+
 class StableDescriptorCache {
   private readonly entries = new Map<
     string,
     { expiresAt: number; value: unknown }
   >();
+  private readonly invalidatedPending = new Set<string>();
   private readonly pending = new Map<string, Promise<unknown | null>>();
 
   constructor(
     private readonly ttlMs = STABLE_DESCRIPTOR_CACHE_TTL_MS,
     private readonly maxEntries = STABLE_DESCRIPTOR_CACHE_MAX_ENTRIES,
+    private readonly stage = "descriptor",
+    private readonly observeBackgroundRefresh?: BackgroundCacheRefreshObserver,
   ) {}
+
+  delete(key: string): void {
+    this.entries.delete(key);
+    if (this.pending.has(key)) this.invalidatedPending.add(key);
+  }
 
   private request<T>(
     key: string,
@@ -380,7 +429,7 @@ class StableDescriptorCache {
 
     const request = load()
       .then((value) => {
-        if (value !== null) {
+        if (value !== null && !this.invalidatedPending.has(key)) {
           this.entries.set(key, {
             expiresAt: Date.now() + this.ttlMs,
             value,
@@ -396,7 +445,10 @@ class StableDescriptorCache {
         return value;
       })
       .finally(() => {
-        if (this.pending.get(key) === request) this.pending.delete(key);
+        if (this.pending.get(key) === request) {
+          this.pending.delete(key);
+          this.invalidatedPending.delete(key);
+        }
       });
     this.pending.set(key, request);
     return request;
@@ -408,7 +460,32 @@ class StableDescriptorCache {
       this.entries.delete(key);
       this.entries.set(key, cached);
       if (cached.expiresAt <= Date.now()) {
-        void this.request(key, load).catch(() => undefined);
+        const refreshIsPending = this.pending.has(key);
+        const startedAt = monotonicNow();
+        const startedAtEpoch = Date.now();
+        const refresh = this.request(key, load);
+        if (!refreshIsPending) {
+          void refresh.then(
+            (value) => {
+              this.observeBackgroundRefresh?.({
+                cache: "stale",
+                durationMs: roundedDuration(startedAt),
+                outcome: value === null ? "unavailable" : "ok",
+                stage: this.stage,
+                startedAt: startedAtEpoch,
+              });
+            },
+            () => {
+              this.observeBackgroundRefresh?.({
+                cache: "stale",
+                durationMs: roundedDuration(startedAt),
+                outcome: "error",
+                stage: this.stage,
+                startedAt: startedAtEpoch,
+              });
+            },
+          );
+        }
         return { source: "stale", value: cached.value as T };
       }
       return { source: "hit", value: cached.value as T };
@@ -418,6 +495,84 @@ class StableDescriptorCache {
       return { source: "coalesced", value: await this.request(key, load) };
     }
     return { source: "miss", value: await this.request(key, load) };
+  }
+}
+
+type SummaryGateRelease = () => void;
+
+interface QueuedSummaryRequest {
+  clientId: string;
+  generation: number;
+  resolve: (release: SummaryGateRelease | null) => void;
+  tracked: boolean;
+}
+
+class LatestSummaryRequestGate {
+  private active = 0;
+  private legacyRequest = 0;
+  private readonly latestGeneration = new Map<string, number>();
+  private readonly queue: QueuedSummaryRequest[] = [];
+
+  constructor(
+    private readonly concurrency: number,
+    private readonly maxTrackedClients = 128,
+  ) {}
+
+  acquire(
+    clientId: string | undefined,
+    generation: number | undefined,
+  ): Promise<SummaryGateRelease | null> {
+    const tracked = clientId !== undefined && generation !== undefined;
+    const requestClientId = tracked
+      ? clientId
+      : `legacy-${(this.legacyRequest += 1)}`;
+    const requestGeneration = tracked ? generation : 0;
+    if (tracked) {
+      const latest = this.latestGeneration.get(requestClientId);
+      if (latest !== undefined && requestGeneration < latest) {
+        return Promise.resolve(null);
+      }
+      this.latestGeneration.delete(requestClientId);
+      this.latestGeneration.set(requestClientId, requestGeneration);
+      while (this.latestGeneration.size > this.maxTrackedClients) {
+        const oldestClientId = this.latestGeneration.keys().next().value;
+        if (oldestClientId === undefined) break;
+        this.latestGeneration.delete(oldestClientId);
+      }
+    }
+
+    return new Promise((resolve) => {
+      this.queue.push({
+        clientId: requestClientId,
+        generation: requestGeneration,
+        resolve,
+        tracked,
+      });
+      this.pump();
+    });
+  }
+
+  private pump(): void {
+    while (this.active < this.concurrency) {
+      const request = this.queue.shift();
+      if (!request) return;
+      if (
+        request.tracked &&
+        this.latestGeneration.get(request.clientId) !== request.generation
+      ) {
+        request.resolve(null);
+        continue;
+      }
+
+      this.active += 1;
+      let released = false;
+      request.resolve(() => {
+        if (released) return;
+        released = true;
+        this.active -= 1;
+        this.pump();
+      });
+    }
   }
 }
 
@@ -524,16 +679,46 @@ function providerDisplayName(providerId: string): string {
 }
 
 export default function plugin(bb: BbPluginApi): void {
-  const stableDescriptors = new StableDescriptorCache();
-  const pullRequests = new StableDescriptorCache(PULL_REQUEST_CACHE_TTL_MS);
+  const recordBackgroundRefresh: BackgroundCacheRefreshObserver = (timing) => {
+    bb.log.debug(
+      `thread-hover-cards:cache-refresh ${JSON.stringify(timing)}`,
+    );
+  };
+  const stableDescriptors = new StableDescriptorCache(
+    STABLE_DESCRIPTOR_CACHE_TTL_MS,
+    STABLE_DESCRIPTOR_CACHE_MAX_ENTRIES,
+    "project",
+    recordBackgroundRefresh,
+  );
+  const pullRequests = new StableDescriptorCache(
+    PULL_REQUEST_CACHE_TTL_MS,
+    STABLE_DESCRIPTOR_CACHE_MAX_ENTRIES,
+    "pullRequest",
+    recordBackgroundRefresh,
+  );
+  const summaryRequests = new LatestSummaryRequestGate(2);
 
   bb.rpc.register(rpcContract, {
-    async threadSummary({ threadId }) {
+    async threadSummary({ clientId, generation, threadId }) {
       const recorder = createDiagnostics();
       const deadlineAt = Date.now() + SUMMARY_LOOKUP_TIMEOUT_MS;
       const remainingMs = (): number => Math.max(1, deadlineAt - Date.now());
-      const signal = AbortSignal.timeout(SUMMARY_LOOKUP_TIMEOUT_MS);
+      const gateStartedAt = monotonicNow();
+      const releaseSummaryRequest = await summaryRequests.acquire(
+        clientId,
+        generation,
+      );
+      recorder.stages.push({
+        cache: "none",
+        durationMs: roundedDuration(gateStartedAt),
+        name: "requestGate",
+        outcome: releaseSummaryRequest ? "ok" : "skipped",
+      });
+      const signal = AbortSignal.timeout(remainingMs());
       try {
+        if (!releaseSummaryRequest) {
+          throw new Error("Thread summary request superseded.");
+        }
         const thread = await measureStage(
           recorder,
           "thread",
@@ -610,36 +795,65 @@ export default function plugin(bb: BbPluginApi): void {
             ),
           { unavailableWhenNull: true },
         );
-        const messageTimelinePromise = measureStage(
-          recorder,
-          "messageTimeline",
-          () =>
-            within(
-              safely(
-                bb.sdk.threads.timeline({
-                  includeNestedRows: "false",
-                  segmentLimit: "1",
-                  signal,
-                  threadId,
-                }),
+        const loadOutlineMessage = (
+          stageName: "messageOutline" | "messageOutlineFallback",
+        ): Promise<string | null> =>
+          measureStage(
+            recorder,
+            stageName,
+            () =>
+              within(
+                safely(
+                  bb.sdk.threads.conversationOutline({
+                    signal,
+                    threadId,
+                  }),
+                ),
+                remainingMs(),
               ),
-              remainingMs(),
-            ),
-          { unavailableWhenNull: true },
-        );
-        const [projectResult, executionOptions, messageTimeline] =
+            { unavailableWhenNull: true },
+          ).then((outline) =>
+            outline ? latestOutlineAssistantMessage(outline) : null,
+          );
+        const latestAssistantMessagePromise: Promise<string | null> =
+          isRunningStatus(thread.runtime.displayStatus)
+            ? loadOutlineMessage("messageOutline")
+            : measureStage(
+                recorder,
+                "messageTimeline",
+                () =>
+                  within(
+                    safely(
+                      bb.sdk.threads.timeline({
+                        includeNestedRows: "false",
+                        segmentLimit: "1",
+                        signal,
+                        threadId,
+                      }),
+                    ),
+                    remainingMs(),
+                  ),
+                { unavailableWhenNull: true },
+              ).then((timeline) => {
+                const latestMessage = timeline
+                  ? latestTimelineAssistantMessage(timeline)
+                  : null;
+                return (
+                  latestMessage ??
+                  loadOutlineMessage("messageOutlineFallback")
+                );
+              });
+        const [projectResult, executionOptions, latestAssistantMessage] =
           await Promise.all([
             projectPromise,
             executionOptionsPromise,
-            messageTimelinePromise,
+            latestAssistantMessagePromise,
           ]);
         const project = projectResult.value;
         const isGitRepository =
           environment?.isGitRepo ?? project?.gitRemoteUrl != null;
         const normalizedAssistantMessage = normalizeMessage(
-          messageTimeline
-            ? (latestAssistantMessage(messageTimeline) ?? "")
-            : "",
+          latestAssistantMessage ?? "",
         );
         const diagnostics = finishDiagnostics(recorder);
         recordDiagnostics(bb, "threadSummary", threadId, diagnostics);
@@ -679,6 +893,8 @@ export default function plugin(bb: BbPluginApi): void {
           finishDiagnostics(recorder),
         );
         throw error;
+      } finally {
+        releaseSummaryRequest?.();
       }
     },
     async threadTiming({ threadId }) {
@@ -782,28 +998,94 @@ export default function plugin(bb: BbPluginApi): void {
           recordSkippedStage(recorder, "pullRequest");
           const diagnostics = finishDiagnostics(recorder);
           recordDiagnostics(bb, "threadPullRequest", threadId, diagnostics);
-          return { diagnostics, pullRequest: { kind: "absent" as const } };
+          return {
+            diagnostics,
+            pullRequest: { kind: "absent" as const },
+            repository: {
+              branch: environment?.branchName ?? null,
+              path: environment?.path ?? null,
+            },
+          };
         }
 
+        const initialRepository = {
+          branch: environment?.branchName ?? null,
+          path: environment?.path ?? null,
+        };
+        const pullRequestCacheKey = JSON.stringify([
+          "pull-request",
+          thread.environmentId,
+          initialRepository.path,
+          initialRepository.branch,
+        ]);
         const pullRequestResult = await measureCachedStage(
           recorder,
           "pullRequest",
           () =>
-            pullRequests.get(`pull-request:${thread.environmentId}`, () =>
-              within(
-                safely(
-                  bb.sdk.environments.pullRequest({
-                    environmentId: thread.environmentId!,
-                    signal,
-                  }),
-                ),
-                remainingMs(),
-              ),
+            pullRequests.get(
+              pullRequestCacheKey,
+              async () => {
+                const result = await within(
+                  safely(
+                    bb.sdk.environments.pullRequest({
+                      environmentId: thread.environmentId!,
+                      signal,
+                    }),
+                  ),
+                  remainingMs(),
+                );
+                const environmentAfterLookup = await within(
+                  safely(
+                    bb.sdk.environments.get({
+                      environmentId: thread.environmentId!,
+                      signal,
+                    }),
+                  ),
+                  remainingMs(),
+                );
+                if (
+                  !environmentAfterLookup ||
+                  environmentAfterLookup.branchName !==
+                    initialRepository.branch ||
+                  environmentAfterLookup.path !== initialRepository.path
+                ) {
+                  return null;
+                }
+                return result;
+              },
             ),
         );
-        const result = pullRequestResult.value;
+        const verifiedEnvironment = await measureStage(
+          recorder,
+          "environmentVerify",
+          () =>
+            within(
+              safely(
+                bb.sdk.environments.get({
+                  environmentId: thread.environmentId!,
+                  signal,
+                }),
+              ),
+              remainingMs(),
+            ),
+          { unavailableWhenNull: true },
+        );
+        const verifiedRepository = {
+          branch: verifiedEnvironment?.branchName ?? null,
+          path: verifiedEnvironment?.path ?? null,
+        };
+        const repositoryIsVerified =
+          verifiedEnvironment !== null &&
+          verifiedRepository.branch === initialRepository.branch &&
+          verifiedRepository.path === initialRepository.path;
+        if (!repositoryIsVerified) pullRequests.delete(pullRequestCacheKey);
+        const result = repositoryIsVerified
+          ? pullRequestResult.value
+          : null;
         let pullRequest: ThreadPullRequest["pullRequest"];
-        if (result?.outcome === "absent") {
+        if (verifiedEnvironment?.isGitRepo === false) {
+          pullRequest = { kind: "absent" };
+        } else if (result?.outcome === "absent") {
           pullRequest = { kind: "absent" };
         } else if (result?.outcome === "available") {
           const source = result.pullRequest;
@@ -828,7 +1110,13 @@ export default function plugin(bb: BbPluginApi): void {
         }
         const diagnostics = finishDiagnostics(recorder);
         recordDiagnostics(bb, "threadPullRequest", threadId, diagnostics);
-        return { diagnostics, pullRequest };
+        return {
+          diagnostics,
+          pullRequest,
+          repository: verifiedEnvironment
+            ? verifiedRepository
+            : initialRepository,
+        };
       } catch (error) {
         recordDiagnostics(
           bb,
