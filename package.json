@@ -9,5 +9,8 @@
   "workspaces": [
     "plugins/*",
     "packages/*"
-  ]
+  ],
+  "devDependencies": {
+    "bb-app": "0.0.32"
+  }
 }

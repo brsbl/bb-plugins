@@ -10,7 +10,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react
 import { createPortal } from "react-dom";
 import { WorkflowCircle03Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { definePluginApp, useRealtime, useRpc, useSettings } from "@bb/plugin-sdk/app";
+import { definePluginApp, useRealtime, useRpc } from "@bb/plugin-sdk/app";
 import type { rpcContract } from "./server";
 import {
   activityIconClass,
@@ -443,37 +443,28 @@ function useAboveComposerTarget(anchor: HTMLElement | null): HTMLElement | null 
   return target;
 }
 
-function OmegaBanner({ threadId }: { threadId: string | null }) {
+function OmegacodeBanner({ threadId }: { threadId: string | null }) {
   const rpc = useRpc<typeof rpcContract>();
-  const { values } = useSettings();
   const [runs, setRuns] = useState<Run[]>([]);
   const [, force] = useState(0);
   const [anchor, setAnchor] = useState<HTMLElement | null>(null);
 
-  const pinnedThreadId = typeof values?.threadId === "string" ? values.threadId : "";
-  const routeThreadId =
-    typeof window === "undefined"
-      ? null
-      : window.location.pathname.match(/\/threads\/([^/?#]+)/)?.[1] ?? null;
-  // Only render in the one pinned thread's composer — not above every prompt box.
-  const scoped =
-    pinnedThreadId !== "" &&
-    (threadId === pinnedThreadId || routeThreadId === pinnedThreadId);
+  const scoped = typeof threadId === "string" && threadId !== "";
 
   const load = useCallback(async () => {
     if (!scoped) return;
     try {
-      const res = await rpc.call("runs");
+      const res = await rpc.call("runs", { threadId });
       setRuns(res.runs as Run[]);
     } catch {
       /* keep last snapshot */
     }
-  }, [rpc, scoped]);
+  }, [rpc, scoped, threadId]);
 
   useEffect(() => {
     void load();
   }, [load]);
-  useRealtime("omega", () => void load());
+  useRealtime("omegacode", () => void load());
   useEffect(() => {
     if (!scoped) return;
     const t = setInterval(() => force((n) => n + 1), 1000);
@@ -496,7 +487,8 @@ function OmegaBanner({ threadId }: { threadId: string | null }) {
 
 
 export default definePluginApp((app) => {
-  // The plugin lives ONLY above the prompt box of the thread it's used in —
-  // no sidebar page.
-  app.slots.composerAccessory({ id: "omega-banner", component: OmegaBanner });
+  app.slots.composerAccessory({
+    id: "omegacode-banner",
+    component: OmegacodeBanner,
+  });
 });

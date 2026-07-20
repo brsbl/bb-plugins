@@ -29,6 +29,7 @@
   "include": [
     "server.ts",
     "app.tsx",
+    "react-dom.d.ts",
     "types",
     "components",
     "lib",

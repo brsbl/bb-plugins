@@ -8,6 +8,11 @@ import { z } from "zod";
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
+import {
+  readBbRunOwner,
+  runBelongsToScope,
+  type ThreadRunScope,
+} from "./ownership";
 
 const RUNS_DIR = join(homedir(), ".omegacode", "runs");
 
@@ -43,7 +48,7 @@ const RunSchema = z.object({
 
 export const rpcContract = defineRpcContract({
   runs: {
-    input: z.null(),
+    input: z.object({ threadId: z.string().min(1) }).strict(),
     output: z.object({ runs: z.array(RunSchema), scannedAt: z.number() }),
   },
 });
@@ -203,10 +208,12 @@ function readRun(runId: string) {
     heartbeatAgeMs,
     counts,
     agents,
+    owner: readBbRunOwner(meta),
+    workflowFile: workflowFile ?? null,
   };
 }
 
-function scanRuns(limit = 6) {
+function scanRuns(limit = 24) {
   if (!existsSync(RUNS_DIR)) return [];
   return readdirSync(RUNS_DIR)
     .filter((d) => d.startsWith("wf_"))
@@ -216,28 +223,50 @@ function scanRuns(limit = 6) {
     .map((x) => readRun(x.d));
 }
 
-export default async function plugin(bb: BbPluginApi) {
-  // Which thread the composer banner is pinned to. The banner only renders in
-  // this one thread's composer, not above every prompt box in the app.
-  bb.settings.define({
-    threadId: {
-      type: "string",
-      label: "Pinned thread id",
-      default: "thr_d44sg8wntr",
-    },
-  });
+async function resolveThreadScope(
+  bb: BbPluginApi,
+  threadId: string,
+): Promise<ThreadRunScope | null> {
+  try {
+    const thread = await bb.sdk.threads.get({ threadId });
+    if (!thread.environmentId) return null;
+    const environment = await bb.sdk.environments.get({
+      environmentId: thread.environmentId,
+    });
+    return {
+      threadId,
+      environmentId: thread.environmentId,
+      environmentPath: environment.path,
+    };
+  } catch (error) {
+    bb.log.warn(`could not resolve Omegacode run owner for ${threadId}: ${String(error)}`);
+    return null;
+  }
+}
 
+function isVisibleRun(run: ReturnType<typeof readRun>): boolean {
+  const heartbeat = run.heartbeatAgeMs;
+  if (heartbeat == null) return false;
+  if (heartbeat < 30_000) return true;
+  return heartbeat < 300_000 && run.counts.running > 0;
+}
+
+function publicRun(run: ReturnType<typeof readRun>) {
+  const { owner: _owner, workflowFile: _workflowFile, ...visible } = run;
+  return visible;
+}
+
+export default async function plugin(bb: BbPluginApi) {
   bb.rpc.register(rpcContract, {
-    runs() {
-      // Only surface genuinely-live runs (fresh heartbeat) plus ones that just
-      // died mid-flight — old finished/killed runs are dropped so the banner
-      // can never accumulate. scanRuns already caps the directory scan.
-      const runs = scanRuns().filter((r) => {
-        const hb = r.heartbeatAgeMs;
-        if (hb == null) return false;
-        if (hb < 30_000) return true; // live (running, or just finished)
-        return hb < 300_000 && r.counts.running > 0; // recently stalled mid-flight
-      });
+    async runs({ threadId }) {
+      const scope = await resolveThreadScope(bb, threadId);
+      const runs = scope
+        ? scanRuns()
+            .filter((run) => runBelongsToScope(run, scope))
+            .filter(isVisibleRun)
+            .slice(0, 6)
+            .map(publicRun)
+        : [];
       return { runs, scannedAt: Date.now() };
     },
   });
@@ -257,10 +286,10 @@ export default async function plugin(bb: BbPluginApi) {
             .join("|");
           if (fingerprint !== last) {
             last = fingerprint;
-            bb.realtime.publish("omega", { changedAt: Date.now() });
+            bb.realtime.publish("omegacode", { changedAt: Date.now() });
           }
         } catch (err) {
-          bb.log.warn(`omega watch: ${String(err)}`);
+          bb.log.warn(`Omegacode watch: ${String(err)}`);
         }
         await new Promise((r) => setTimeout(r, 2500));
       }
@@ -268,14 +297,31 @@ export default async function plugin(bb: BbPluginApi) {
   });
 
   bb.cli.register({
-    name: "omega",
-    summary: "omegacode run status",
+    name: "omegacode",
+    summary: "Omegacode workflow status",
     commands: [
-      { name: "status", summary: "Show recent omegacode runs", usage: "bb omega status" },
+      {
+        name: "status",
+        summary: "Show Omegacode runs owned by this bb thread",
+        usage: "bb omegacode status [--all]",
+      },
     ],
-    async run() {
-      const runs = scanRuns();
-      if (!runs.length) return { exitCode: 0, stdout: "no omegacode runs found\n" };
+    async run(argv, ctx) {
+      const showAll = argv.includes("--all") || !ctx.threadId;
+      const scope = !showAll && ctx.threadId
+        ? await resolveThreadScope(bb, ctx.threadId)
+        : null;
+      const runs = scanRuns().filter((run) =>
+        showAll ? true : scope ? runBelongsToScope(run, scope) : false,
+      );
+      if (!runs.length) {
+        return {
+          exitCode: 0,
+          stdout: showAll
+            ? "no Omegacode runs found\n"
+            : "no Omegacode runs found for this thread\n",
+        };
+      }
       const lines = runs.map((r) => {
         const c = r.counts;
         return `${r.runId}  ${r.status.padEnd(9)}  ${c.running} running / ${c.queued} queued / ${c.completed} done / ${c.failed} failed  (${r.workflow ?? "?"})`;
@@ -284,5 +330,5 @@ export default async function plugin(bb: BbPluginApi) {
     },
   });
 
-  bb.log.info(`omega command center ready (${RUNS_DIR})`);
+  bb.log.info(`Omegacode command center ready (${RUNS_DIR})`);
 }
