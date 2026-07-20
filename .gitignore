@@ -1,0 +1,7 @@
+.DS_Store
+node_modules/
+coverage/
+*.tgz
+
+# Production bundles are created and validated in CI.
+dist/

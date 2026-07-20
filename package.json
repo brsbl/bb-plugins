@@ -1,0 +1,13 @@
+{
+  "name": "bb-plugins",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "workspaces": [
+    "plugins/*",
+    "packages/*"
+  ]
+}
