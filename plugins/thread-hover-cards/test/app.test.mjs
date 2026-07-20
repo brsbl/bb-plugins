@@ -85,9 +85,9 @@ globalThis.fetch = async (url, init) => {
             ? null
             : "**Agent update**—implementing concise hover cards for foo_bar_baz and \\_literal\\_",
         permissionMode: isLocal
-          ? "readonly"
+          ? "auto"
           : isDraftPullRequest
-            ? "workspace-write"
+            ? "accept-edits"
             : "full",
         pullRequest:
           isLocal || hasNoPullRequest
@@ -715,7 +715,7 @@ assert.ok(card.querySelector('[data-icon="LaptopIcon"]'));
 assert.ok(card.querySelector('[data-icon="CheckmarkCircle02Icon"]'));
 assert.equal(
   card.querySelector(".bb-thread-hover-card__access")?.textContent,
-  "Read only",
+  "Auto",
 );
 assert.ok(
   card
@@ -799,7 +799,7 @@ assert.equal(
 );
 assert.equal(
   card.querySelector(".bb-thread-hover-card__access")?.textContent,
-  "Workspace write",
+  "Accept edits",
 );
 assert.ok(
   card

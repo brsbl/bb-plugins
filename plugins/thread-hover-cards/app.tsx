@@ -270,6 +270,8 @@ function formatModelLabel(value: string, providerId: string): string {
 function permissionLabel(
   permissionMode: ThreadSummary["permissionMode"],
 ): string | null {
+  if (permissionMode === "accept-edits") return "Accept edits";
+  if (permissionMode === "auto") return "Auto";
   if (permissionMode === "full") return "Full access";
   if (permissionMode === "workspace-write") return "Workspace write";
   if (permissionMode === "readonly") return "Read only";
@@ -286,7 +288,8 @@ function permissionMetadata(summary: ThreadSummary): HTMLSpanElement | null {
           definition: SquareUnlock02Icon,
           name: "SquareUnlock02Icon",
         }
-      : summary.permissionMode === "workspace-write"
+      : summary.permissionMode === "accept-edits" ||
+          summary.permissionMode === "workspace-write"
         ? { definition: FolderEditIcon, name: "FolderEditIcon" }
         : { definition: ViewIcon, name: "ViewIcon" };
   const access = element("span", "bb-thread-hover-card__access");

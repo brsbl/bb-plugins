@@ -2,18 +2,24 @@
   "name": "bb-plugin-omega",
   "version": "0.1.0",
   "type": "module",
+  "files": [
+    "dist",
+    "assets",
+    "README.md"
+  ],
   "scripts": {
+    "check": "npm run typecheck && npm run build && npm test",
     "build": "node ../../tooling/build-plugin.mjs",
     "test": "vitest run",
     "typecheck": "tsc --noEmit"
   },
   "engines": {
-    "bb": ">=0.0",
+    "bb": ">=0.0.32",
     "bbPluginSdk": "^0.4.0"
   },
   "bb": {
     "name": "Omegacode",
-    "description": "Show each bb thread's Omegacode workflow progress above its composer.",
+    "description": "Monitor Omegacode workflows globally and show owner-scoped progress above each bb composer.",
     "branding": {
       "icon": "Activity",
       "logo": {
@@ -34,12 +40,19 @@
     "tailwind-merge": "^3.4.0"
   },
   "devDependencies": {
+    "@bb/plugin-sdk": "file:../../tooling/vendor/bb-plugin-sdk-0.4.0.tgz",
     "@radix-ui/react-dialog": "^1.1.19",
+    "@testing-library/react": "^16.3.2",
     "@types/better-sqlite3": "^7.6.12",
     "@types/node": "^22.0.0",
     "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.2.3",
     "better-sqlite3": "^12.0.0",
+    "cron-parser": "^5.5.0",
     "hono": "^4.11.9",
+    "jsdom": "^29.1.1",
+    "react": "^19.2.7",
+    "react-dom": "^19.2.7",
     "typescript": "^5.7.0",
     "vaul": "^1.1.2",
     "vitest": "^4.1.8",

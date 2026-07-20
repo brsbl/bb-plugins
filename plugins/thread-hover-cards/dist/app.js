@@ -1223,6 +1223,8 @@ function formatModelLabel(value, providerId) {
   return formatted;
 }
 function permissionLabel(permissionMode) {
+  if (permissionMode === "accept-edits") return "Accept edits";
+  if (permissionMode === "auto") return "Auto";
   if (permissionMode === "full") return "Full access";
   if (permissionMode === "workspace-write") return "Workspace write";
   if (permissionMode === "readonly") return "Read only";
@@ -1234,7 +1236,7 @@ function permissionMetadata(summary) {
   const permissionIcon = summary.permissionMode === "full" ? {
     definition: SquareUnlock02Icon,
     name: "SquareUnlock02Icon"
-  } : summary.permissionMode === "workspace-write" ? { definition: FolderEditIcon, name: "FolderEditIcon" } : { definition: ViewIcon, name: "ViewIcon" };
+  } : summary.permissionMode === "accept-edits" || summary.permissionMode === "workspace-write" ? { definition: FolderEditIcon, name: "FolderEditIcon" } : { definition: ViewIcon, name: "ViewIcon" };
   const access = element("span", "bb-thread-hover-card__access");
   access.dataset.permissionMode = summary.permissionMode;
   access.setAttribute("aria-label", `Permission: ${label}`);

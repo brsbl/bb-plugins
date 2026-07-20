@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { mkdtemp, readFile, rm, symlink } from "node:fs/promises";
+import { createRequire } from "node:module";
+import { tmpdir } from "node:os";
 import { dirname, resolve } from "node:path";
 import test, { after } from "node:test";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -9,7 +11,18 @@ import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 
 const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-const temporaryDirectory = await mkdtemp(resolve(packageRoot, ".source-browser-contract-test-"));
+const require = createRequire(import.meta.url);
+const temporaryDirectory = await mkdtemp(
+  resolve(tmpdir(), "ui-patterns-source-browser-test-"),
+);
+after(async () => {
+  await rm(temporaryDirectory, { recursive: true, force: true });
+});
+await symlink(
+  dirname(dirname(require.resolve("react"))),
+  resolve(temporaryDirectory, "node_modules"),
+  "dir",
+);
 const outputFile = resolve(temporaryDirectory, "source-browser-model.mjs");
 const galleryOutputFile = resolve(temporaryDirectory, "gallery-shell.cjs");
 const previewOutputFile = resolve(temporaryDirectory, "live-previews.cjs");
@@ -48,15 +61,18 @@ await build({
   logLevel: "silent",
 });
 
+const previousAtlasRoot = process.env.UI_PATTERN_ATLAS_ROOT;
+process.env.UI_PATTERN_ATLAS_ROOT = packageRoot;
 const sourceBrowser = await import(`${pathToFileURL(outputFile).href}?contract=${Date.now()}`);
+if (previousAtlasRoot === undefined) {
+  delete process.env.UI_PATTERN_ATLAS_ROOT;
+} else {
+  process.env.UI_PATTERN_ATLAS_ROOT = previousAtlasRoot;
+}
 const { GalleryShell } = await import(`${pathToFileURL(galleryOutputFile).href}?contract=${Date.now()}`);
 const snapshot = sourceBrowser.getSourceBrowserSnapshot();
 const livePreviewSourceIds = sourceBrowser.livePreviewSourceIds;
 const galleryPreviewSourceIds = sourceBrowser.galleryPreviewSourceIds;
-
-after(async () => {
-  await rm(temporaryDirectory, { recursive: true, force: true });
-});
 
 test("the generated source browser exposes computed entries and attributable records", () => {
   assert.equal(Object.isFrozen(snapshot), true);

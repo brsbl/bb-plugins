@@ -33,8 +33,9 @@ async function createHarness(options?: {
   spawn?: () => Promise<{ id: string }>;
   get?: () => Promise<Record<string, unknown>>;
   defaultExecutionOptions?: () => Promise<Record<string, unknown> | null>;
+  initialKv?: Iterable<readonly [string, unknown]>;
 }) {
-  const kv = new Map<string, unknown>();
+  const kv = new Map<string, unknown>(options?.initialKv);
   const eventHandlers = new Map<string, Array<(payload: never) => unknown>>();
   let rpcHandlers: RpcHandlers | null = null;
   const threads = {
@@ -110,12 +111,37 @@ const START_INPUT = {
   sourceThreadId: null,
 };
 
-describe("Prompt Shaper cancellation", () => {
+describe("Improve Prompt cancellation", () => {
+  it("stops and archives an expired running helper during startup cleanup", async () => {
+    const harness = await createHarness({
+      initialKv: [
+        [
+          `request:${REQUEST_ID}`,
+          {
+            requestId: REQUEST_ID,
+            helperThreadId: "thr_stale",
+            status: "running",
+            createdAt: Date.now() - 25 * 60 * 60 * 1_000,
+          },
+        ],
+        ["thread:thr_stale", REQUEST_ID],
+      ],
+    });
+
+    expect(harness.threads.stop).toHaveBeenCalledWith({
+      threadId: "thr_stale",
+    });
+    expect(harness.threads.archive).toHaveBeenCalledWith({
+      threadId: "thr_stale",
+    });
+    expect([...harness.kv.keys()]).toEqual([]);
+  });
+
   it("stops and archives the helper, clears persisted work, and rejects a late result", async () => {
     const harness = await createHarness();
     await harness.rpc.startEnhancement(START_INPUT);
     expect(harness.threads.spawn).toHaveBeenCalledWith(
-      expect.objectContaining({ permissionMode: "workspace-write" }),
+      expect.objectContaining({ permissionMode: "accept-edits" }),
     );
 
     await expect(
@@ -195,7 +221,7 @@ describe("Prompt Shaper cancellation", () => {
   });
 });
 
-describe("Prompt Shaper side-chat helpers", () => {
+describe("Improve Prompt side-chat helpers", () => {
   it("falls back to an inspecting helper when a nested side-chat parent is invalid", async () => {
     const spawn = vi
       .fn<() => Promise<{ id: string }>>()

@@ -2,6 +2,8 @@
 node_modules/
 coverage/
 *.tgz
+!tooling/vendor/*.tgz
 
 # Production bundles are created and validated in CI.
 dist/
+plugins/.scaffold-smoke-*

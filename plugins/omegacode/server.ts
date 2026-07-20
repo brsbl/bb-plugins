@@ -33,6 +33,8 @@ const RunSchema = z.object({
   runId: z.string(),
   workflow: z.string().nullable(),
   workflowName: z.string().nullable(),
+  phases: z.array(z.string()),
+  createdAt: z.number().nullable(),
   status: z.string(),
   updatedAt: z.number().nullable(),
   heartbeatAgeMs: z.number().nullable(),
@@ -42,31 +44,57 @@ const RunSchema = z.object({
     queued: z.number(),
     completed: z.number(),
     failed: z.number(),
+    cancelled: z.number(),
   }),
   agents: z.array(AgentSchema),
 });
+
+const GlobalRunSchema = RunSchema.extend({
+  owner: z
+    .object({
+      threadId: z.string(),
+      environmentId: z.string(),
+      projectId: z.string().nullable(),
+      threadTitle: z.string().nullable(),
+      threadAvailable: z.boolean(),
+    })
+    .nullable(),
+});
+
+export type Run = z.infer<typeof RunSchema>;
+export type GlobalRun = z.infer<typeof GlobalRunSchema>;
 
 export const rpcContract = defineRpcContract({
   runs: {
     input: z.object({ threadId: z.string().min(1) }).strict(),
     output: z.object({ runs: z.array(RunSchema), scannedAt: z.number() }),
   },
+  allRuns: {
+    input: z.object({}).strict(),
+    output: z.object({ runs: z.array(GlobalRunSchema), scannedAt: z.number() }),
+  },
 });
 
-function readJsonl(path: string): Record<string, unknown>[] {
-  if (!existsSync(path)) return [];
+export function parseJsonl(contents: string): Record<string, unknown>[] {
   const out: Record<string, unknown>[] = [];
-  for (const line of readFileSync(path, "utf8").split("\n")) {
+  for (const line of contents.split("\n")) {
     const t = line.trim();
     if (!t) continue;
     // A live run may be mid-write; a torn trailing line is expected, not an error.
     try {
-      out.push(JSON.parse(t) as Record<string, unknown>);
+      const value: unknown = JSON.parse(t);
+      if (typeof value === "object" && value !== null && !Array.isArray(value)) {
+        out.push(value as Record<string, unknown>);
+      }
     } catch {
       /* skip partial line */
     }
   }
   return out;
+}
+
+function readJsonl(path: string): Record<string, unknown>[] {
+  return existsSync(path) ? parseJsonl(readFileSync(path, "utf8")) : [];
 }
 
 function safeSize(path: string): number {
@@ -106,15 +134,61 @@ function workflowName(file: string | undefined): string | null {
   return name;
 }
 
+export function phaseTitlesFromEvents(
+  events: readonly Record<string, unknown>[],
+): string[] {
+  const phaseTitles = new Map<number, string>();
+  for (const event of events) {
+    if (event.type !== "phase" || typeof event.index !== "number") continue;
+    if (typeof event.title === "string" && event.title.trim() !== "") {
+      phaseTitles.set(event.index, event.title.trim());
+    }
+  }
+  return [...phaseTitles.entries()]
+    .sort(([left], [right]) => left - right)
+    .map(([, title]) => title);
+}
+
+export function deriveRunStatus({
+  eventStatus,
+  counts,
+  heartbeatAgeMs,
+}: {
+  eventStatus: string | null;
+  counts: { total: number; running: number; queued: number; failed: number; cancelled: number };
+  heartbeatAgeMs: number | null;
+}): string {
+  const terminalStatus = /fail|error/i.test(eventStatus ?? "")
+    ? "failed"
+    : /cancel|interrupt|stopp?ed/i.test(eventStatus ?? "")
+      ? "cancelled"
+      : /complete|done|success/i.test(eventStatus ?? "")
+        ? "completed"
+        : null;
+  if (terminalStatus) return terminalStatus;
+  if (counts.total > 0 && counts.running === 0 && counts.queued === 0) {
+    if (counts.failed > 0) return "failed";
+    if (counts.cancelled > 0) return "cancelled";
+    return "completed";
+  }
+  if (heartbeatAgeMs !== null && heartbeatAgeMs > 120_000) return "stalled";
+  return counts.total > 0 ? "running" : "starting";
+}
+
 function readRun(runId: string) {
   const dir = join(RUNS_DIR, runId);
-  const events = readJsonl(join(dir, "events.jsonl"));
-  const journal = readJsonl(join(dir, "journal.jsonl"));
+  const eventsPath = join(dir, "events.jsonl");
+  const journalPath = join(dir, "journal.jsonl");
+  const heartbeatPath = join(dir, ".heartbeat");
+  const events = readJsonl(eventsPath);
+  const journal = readJsonl(journalPath);
 
   const meta = journal.find((r) => r.type === "meta") ?? {};
   const workflowFile = typeof meta.workflowFile === "string" ? meta.workflowFile : undefined;
   const workflow = workflowFile ? (workflowFile.split("/").pop() ?? null) : null;
   const name = workflowName(workflowFile);
+
+  const phases = phaseTitlesFromEvents(events);
 
   // Last event per agent index wins — that is its current state.
   const byIndex = new Map<number, Record<string, unknown>>();
@@ -176,35 +250,44 @@ function readRun(runId: string) {
   const counts = {
     total: agents.length,
     running: agents.filter((a) => a.state === "running").length,
-    queued: agents.filter((a) => a.state === "queued").length,
-    completed: agents.filter((a) => a.state === "completed").length,
+    queued: agents.filter((a) => /^(queued|pending)$/i.test(a.state)).length,
+    completed: agents.filter((a) => /^(completed|done|success|skipped)$/i.test(a.state))
+      .length,
     failed: agents.filter((a) => /fail|error/i.test(a.state)).length,
+    cancelled: agents.filter((a) => /cancel|interrupt|stopp?ed/i.test(a.state))
+      .length,
   };
 
   let heartbeatAgeMs: number | null = null;
   try {
-    const hb = join(dir, ".heartbeat");
-    if (existsSync(hb)) heartbeatAgeMs = Date.now() - statSync(hb).mtimeMs;
+    if (existsSync(heartbeatPath)) {
+      heartbeatAgeMs = Date.now() - statSync(heartbeatPath).mtimeMs;
+    }
   } catch {
     heartbeatAgeMs = null;
   }
 
-  const finished = counts.total > 0 && counts.running === 0 && counts.queued === 0;
-  const stale = heartbeatAgeMs != null && heartbeatAgeMs > 120_000;
-  const status = finished
-    ? "completed"
-    : stale
-      ? "stalled"
-      : counts.total
-        ? "running"
-        : "starting";
+  const runEvent = [...events]
+    .reverse()
+    .find((event) => event.type === "run" && typeof event.status === "string");
+  const eventStatus = typeof runEvent?.status === "string" ? runEvent.status : null;
+  const status = deriveRunStatus({ eventStatus, counts, heartbeatAgeMs });
 
   return {
     runId,
     workflow,
     workflowName: name,
+    phases,
+    createdAt:
+      typeof meta.createdAt === "number" ? meta.createdAt : safeMtime(dir) || null,
     status,
-    updatedAt: safeMtime(dir) || null,
+    updatedAt:
+      Math.max(
+        safeMtime(dir),
+        safeMtime(eventsPath),
+        safeMtime(journalPath),
+        safeMtime(heartbeatPath),
+      ) || null,
     heartbeatAgeMs,
     counts,
     agents,
@@ -213,13 +296,13 @@ function readRun(runId: string) {
   };
 }
 
-function scanRuns(limit = 24) {
+function scanRuns(limit?: number) {
   if (!existsSync(RUNS_DIR)) return [];
-  return readdirSync(RUNS_DIR)
+  const directories = readdirSync(RUNS_DIR)
     .filter((d) => d.startsWith("wf_"))
     .map((d) => ({ d, m: safeMtime(join(RUNS_DIR, d)) }))
-    .sort((a, b) => b.m - a.m)
-    .slice(0, limit)
+    .sort((a, b) => b.m - a.m);
+  return (limit === undefined ? directories : directories.slice(0, limit))
     .map((x) => readRun(x.d));
 }
 
@@ -230,13 +313,9 @@ async function resolveThreadScope(
   try {
     const thread = await bb.sdk.threads.get({ threadId });
     if (!thread.environmentId) return null;
-    const environment = await bb.sdk.environments.get({
-      environmentId: thread.environmentId,
-    });
     return {
       threadId,
       environmentId: thread.environmentId,
-      environmentPath: environment.path,
     };
   } catch (error) {
     bb.log.warn(`could not resolve Omegacode run owner for ${threadId}: ${String(error)}`);
@@ -244,7 +323,10 @@ async function resolveThreadScope(
   }
 }
 
-function isVisibleRun(run: ReturnType<typeof readRun>): boolean {
+export function isVisibleRun(run: {
+  heartbeatAgeMs: number | null;
+  counts: { running: number };
+}): boolean {
   const heartbeat = run.heartbeatAgeMs;
   if (heartbeat == null) return false;
   if (heartbeat < 30_000) return true;
@@ -254,6 +336,76 @@ function isVisibleRun(run: ReturnType<typeof readRun>): boolean {
 function publicRun(run: ReturnType<typeof readRun>) {
   const { owner: _owner, workflowFile: _workflowFile, ...visible } = run;
   return visible;
+}
+
+type ThreadLabel = { title: string | null; available: boolean };
+
+const threadLabelCache = new Map<
+  string,
+  { expiresAt: number; value: ThreadLabel }
+>();
+
+async function resolveThreadLabel(
+  bb: BbPluginApi,
+  threadId: string,
+): Promise<ThreadLabel> {
+  const cached = threadLabelCache.get(threadId);
+  if (cached && cached.expiresAt > Date.now()) return cached.value;
+
+  let value: ThreadLabel;
+  try {
+    const thread = await bb.sdk.threads.get({
+      threadId,
+      signal: AbortSignal.timeout(5_000),
+    });
+    value = {
+      title: thread.title ?? thread.titleFallback ?? null,
+      available: true,
+    };
+  } catch {
+    value = { title: null, available: false };
+  }
+  threadLabelCache.set(threadId, {
+    expiresAt: Date.now() + 60_000,
+    value,
+  });
+  return value;
+}
+
+async function publicGlobalRuns(
+  bb: BbPluginApi,
+  runs: ReturnType<typeof scanRuns>,
+) {
+  const labels = new Map<string, ThreadLabel>();
+  const threadIds = [
+    ...new Set(
+      runs
+        .map((run) => run.owner?.threadId)
+        .filter((threadId): threadId is string => threadId !== undefined),
+    ),
+  ];
+  await Promise.all(
+    threadIds.map(async (threadId) => {
+      labels.set(threadId, await resolveThreadLabel(bb, threadId));
+    }),
+  );
+
+  return runs.map((run) => {
+    const visible = publicRun(run);
+    if (!run.owner) return { ...visible, owner: null };
+    const label = labels.get(run.owner.threadId) ?? {
+      title: null,
+      available: false,
+    };
+    return {
+      ...visible,
+      owner: {
+        ...run.owner,
+        threadTitle: label.title,
+        threadAvailable: label.available,
+      },
+    };
+  });
 }
 
 export default async function plugin(bb: BbPluginApi) {
@@ -269,6 +421,12 @@ export default async function plugin(bb: BbPluginApi) {
         : [];
       return { runs, scannedAt: Date.now() };
     },
+    async allRuns() {
+      return {
+        runs: await publicGlobalRuns(bb, scanRuns()),
+        scannedAt: Date.now(),
+      };
+    },
   });
 
   // Poll the journals and signal the frontend only when something changed, so an
@@ -279,9 +437,15 @@ export default async function plugin(bb: BbPluginApi) {
       while (!signal.aborted) {
         try {
           const fingerprint = scanRuns()
+            .filter(isVisibleRun)
             .map(
               (r) =>
-                `${r.runId}:${r.status}:${r.counts.running}/${r.counts.queued}/${r.counts.completed}/${r.counts.failed}`,
+                `${r.runId}:${r.status}:${r.counts.running}/${r.counts.queued}/${r.counts.completed}/${r.counts.failed}/${r.counts.cancelled}:${r.agents
+                  .map(
+                    (agent) =>
+                      `${agent.index}:${agent.state}:${agent.bytes}:${agent.tokens}`,
+                  )
+                  .join(",")}`,
             )
             .join("|");
           if (fingerprint !== last) {
@@ -324,7 +488,7 @@ export default async function plugin(bb: BbPluginApi) {
       }
       const lines = runs.map((r) => {
         const c = r.counts;
-        return `${r.runId}  ${r.status.padEnd(9)}  ${c.running} running / ${c.queued} queued / ${c.completed} done / ${c.failed} failed  (${r.workflow ?? "?"})`;
+        return `${r.runId}  ${r.status.padEnd(9)}  ${c.running} running / ${c.queued} queued / ${c.completed} done / ${c.failed} failed / ${c.cancelled} cancelled  (${r.workflow ?? "?"})`;
       });
       return { exitCode: 0, stdout: `${lines.join("\n")}\n` };
     },

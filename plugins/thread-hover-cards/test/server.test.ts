@@ -19,6 +19,7 @@ let displayStatus: "active" | "idle" = "active";
 let projectId = "proj_1";
 let assistantOutput = "  **Finished**   the hover card \n- polish.  ";
 let threadGetFails = false;
+let timelineFails = false;
 let environmentIsGitRepository = true;
 let turnStartedAt: number | null = 100;
 let turnCompletedAt: number | null = null;
@@ -171,6 +172,7 @@ const fakeBb = {
         return { output: assistantOutput };
       },
       async timeline() {
+        if (timelineFails) throw new Error("Timeline lookup failed");
         return {
           contextWindowUsage: {
             estimated: false,
@@ -264,6 +266,15 @@ assert.deepEqual(eventWaitInputs, [
     waitMs: "1",
   },
 ]);
+
+timelineFails = true;
+const unavailableTiming = await timingHandler({ threadId: "thr_1" });
+assert.deepEqual(unavailableTiming, {
+  currentTurnCompletedAt: null,
+  currentTurnStartedAt: null,
+  status: "active",
+});
+timelineFails = false;
 
 turnStartedAt = 200;
 const longTurnSummary = await summaryHandler({ threadId: "thr_1" });

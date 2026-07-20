@@ -32,7 +32,7 @@ interface UndoState {
 const PENDING_STORAGE_PREFIX = "bb-plugin-prompt-shaper:pending:";
 const THREAD_ROW_STATUS = {
   icon: "AiContentGenerator01",
-  label: "Prompt Shaper improving prompt",
+  label: "Improve Prompt is improving the draft",
   effect: "shimmer",
   tone: "success",
 } as const;
@@ -272,22 +272,32 @@ function PromptShaperAction({
     [applyEnhancement, clearLoadingEffects, rpc, setPendingRequest],
   );
 
+  const reconcileResult = useCallback(
+    (requestId: string) => {
+      void consumeResult(requestId).catch(() => {
+        // Realtime and polling are reconciliation hints. Preserve the durable
+        // pending request so the next signal or poll can retry safely.
+      });
+    },
+    [consumeResult],
+  );
+
   useRealtime("enhancement-changed", (payload) => {
     const requestId = signalRequestId(payload);
-    if (requestId !== null) void consumeResult(requestId);
+    if (requestId !== null) reconcileResult(requestId);
   });
 
   useEffect(() => {
     if (!isRunning || pending === null) return;
     if (reconcileRecoveredPendingRef.current) {
       reconcileRecoveredPendingRef.current = false;
-      void consumeResult(pending.requestId);
+      reconcileResult(pending.requestId);
     }
     const timer = window.setInterval(() => {
-      void consumeResult(pending.requestId);
+      reconcileResult(pending.requestId);
     }, 2_000);
     return () => window.clearInterval(timer);
-  }, [consumeResult, isRunning, pending]);
+  }, [isRunning, pending, reconcileResult]);
 
   const enhance = useCallback(async () => {
     const draft = composer.text;

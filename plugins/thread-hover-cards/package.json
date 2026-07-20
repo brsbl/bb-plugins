@@ -3,19 +3,23 @@
   "version": "0.1.0",
   "description": "Concise status previews for BB sidebar threads.",
   "type": "module",
+  "files": [
+    "dist",
+    "README.md"
+  ],
   "scripts": {
-    "build": "ESBUILD_BINARY_PATH=node_modules/.bin/esbuild bb plugin build .",
+    "build": "node ../../tooling/build-plugin.mjs",
     "check": "npm run typecheck && npm run build && npm test",
     "test": "tsx --tsconfig test/tsconfig.json test/server.test.ts && node test/app.test.mjs",
     "typecheck": "tsc --noEmit"
   },
   "engines": {
-    "bb": ">=0.0",
+    "bb": ">=0.0.32",
     "bbPluginSdk": "^0.4.0"
   },
   "bb": {
     "name": "Thread Hover Cards",
-    "description": "Preview thread status, the latest request, and repository or PR context from the sidebar.",
+    "description": "Preview thread status, the latest agent update, and repository or PR context from the sidebar.",
     "branding": {
       "icon": "MessageSquare"
     },

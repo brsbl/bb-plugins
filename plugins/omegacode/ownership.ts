@@ -1,5 +1,3 @@
-import { resolve, sep } from "node:path";
-
 export type BbRunOwner = {
   threadId: string;
   environmentId: string;
@@ -9,12 +7,10 @@ export type BbRunOwner = {
 export type ThreadRunScope = {
   threadId: string;
   environmentId: string;
-  environmentPath: string | null;
 };
 
 export type RunOwnership = {
   owner: BbRunOwner | null;
-  workflowFile: string | null;
 };
 
 function stringField(value: unknown): string | null {
@@ -39,21 +35,9 @@ export function runBelongsToScope(
   run: RunOwnership,
   scope: ThreadRunScope,
 ): boolean {
-  if (run.owner) {
-    return (
-      run.owner.threadId === scope.threadId &&
-      run.owner.environmentId === scope.environmentId
-    );
-  }
-
-  // Migration fallback for journals created before Omegacode recorded BB context.
-  // A workflow file inside this thread's environment is unambiguous; other
-  // unowned runs stay out of composer banners.
-  if (!scope.environmentPath || !run.workflowFile) return false;
-  const environmentRoot = resolve(scope.environmentPath);
-  const workflowFile = resolve(run.workflowFile);
   return (
-    workflowFile === environmentRoot ||
-    workflowFile.startsWith(`${environmentRoot}${sep}`)
+    run.owner !== null &&
+    run.owner.threadId === scope.threadId &&
+    run.owner.environmentId === scope.environmentId
   );
 }

@@ -126,7 +126,7 @@ export default async function plugin(bb: BbPluginApi) {
       await bb.sdk.threads.archive({ threadId });
     } catch (error) {
       bb.log.warn(
-        `could not archive Prompt Shaper helper ${threadId}: ${errorMessage(error)}`,
+        `could not archive Improve Prompt helper ${threadId}: ${errorMessage(error)}`,
       );
     }
   }
@@ -136,7 +136,7 @@ export default async function plugin(bb: BbPluginApi) {
       await bb.sdk.threads.stop({ threadId });
     } catch (error) {
       bb.log.warn(
-        `could not stop Prompt Shaper helper ${threadId}: ${errorMessage(error)}`,
+        `could not stop Improve Prompt helper ${threadId}: ${errorMessage(error)}`,
       );
     }
     await archiveHelper(threadId);
@@ -214,9 +214,9 @@ export default async function plugin(bb: BbPluginApi) {
         projectId: input.projectId,
         prompt: buildWorkerPrompt({ draft: input.draft }),
         environment: { type: "project-default" },
-        permissionMode: "workspace-write",
+        permissionMode: "accept-edits",
         visibility: "hidden",
-        title: "Prompt Shaper",
+        title: "Improve Prompt",
       });
     }
 
@@ -244,11 +244,11 @@ export default async function plugin(bb: BbPluginApi) {
           model: execution.model,
           reasoningLevel: execution.reasoningLevel,
           serviceTier: execution.serviceTier,
-          permissionMode: "workspace-write",
+          permissionMode: "accept-edits",
           sourceThreadId: input.sourceThreadId,
           originKind: "side-chat",
           visibility: "hidden",
-          title: "Prompt Shaper",
+          title: "Improve Prompt",
         });
       } catch (error) {
         if (!canFallBackFromSideChat(error)) throw error;
@@ -274,9 +274,9 @@ export default async function plugin(bb: BbPluginApi) {
             reasoningLevel: execution.reasoningLevel,
             serviceTier: execution.serviceTier,
           }),
-      permissionMode: "workspace-write",
+      permissionMode: "accept-edits",
       visibility: "hidden",
-      title: "Prompt Shaper",
+      title: "Improve Prompt",
     });
   }
 
@@ -322,7 +322,7 @@ export default async function plugin(bb: BbPluginApi) {
             await clearRequest(input.requestId, helperThreadId);
           } catch (cleanupError) {
             bb.log.warn(
-              `could not clear failed Prompt Shaper request ${input.requestId}: ${errorMessage(cleanupError)}`,
+              `could not clear failed Improve Prompt request ${input.requestId}: ${errorMessage(cleanupError)}`,
             );
           }
           await cancelHelper(helperThreadId);
@@ -339,7 +339,7 @@ export default async function plugin(bb: BbPluginApi) {
           await reconcileHelper(record.helperThreadId);
         } catch (error) {
           bb.log.warn(
-            `could not reconcile Prompt Shaper helper ${record.helperThreadId}: ${errorMessage(error)}`,
+            `could not reconcile Improve Prompt helper ${record.helperThreadId}: ${errorMessage(error)}`,
           );
         }
       }
@@ -373,8 +373,10 @@ export default async function plugin(bb: BbPluginApi) {
     const requestId = key.slice(REQUEST_PREFIX.length);
     const record = await readRecord(requestId);
     if (record !== null && now - record.createdAt > REQUEST_TTL_MS) {
-      await bb.storage.kv.delete(key);
-      await bb.storage.kv.delete(threadKey(record.helperThreadId));
+      await clearRequest(requestId, record.helperThreadId);
+      if (record.status === "running") {
+        await cancelHelper(record.helperThreadId);
+      }
     }
   }
   for (const key of await bb.storage.kv.list(CANCELLATION_PREFIX)) {

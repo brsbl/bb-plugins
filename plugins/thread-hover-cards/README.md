@@ -1,38 +1,25 @@
-# BB Thread Hover Cards
+# Thread Hover Cards
 
-Thread Hover Cards is a plugin for [bb](https://getbb.app), the agentic IDE for running and managing coding agents across projects, threads, and environments. It turns the sidebar into a fast status overview: hover or keyboard-focus a thread to see what the agent last said and the context it is working in.
-
-bb plugins are full-trust TypeScript packages that can add app UI, server capabilities, commands, and background services to a running bb instance. This plugin uses bb's existing Plugin SDK and thread-row semantics; it does not require new bb APIs.
-
-## What it shows
-
-- Provider, model, reasoning level, and access mode.
-- Current thread status and turn runtime.
-- The latest completed agent message, with Markdown-aware truncation.
-- Project, branch, and linked pull-request state, or a compact local workspace path.
+Thread Hover Cards previews a sidebar thread's status, latest agent message, execution context, repository, and pull request.
 
 ## Install
 
-Enable **Plugins** under **Settings → Experiments**, then install the public, git-backed plugin:
-
 ```bash
-bb plugin install git:https://github.com/brsbl/bb-plugin-thread-hover-cards.git@main
+bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/thread-hover-cards --yes
 ```
 
-For local development, install the checkout instead:
+## Use
 
-```bash
-bb plugin install .
-```
+Hover or keyboard-focus a thread row in the bb sidebar. The card appears beside the row without changing threads.
 
-## Development
+The current Plugin SDK has no thread-row hover slot, so the small frontend bridge anchors to bb's `data-sidebar-thread-id` attribute.
+
+## Develop
+
+From the monorepo root:
 
 ```bash
 npm ci
-npm run check
-bb plugin reload thread-hover-cards
+npm run check --workspace=bb-plugin-thread-hover-cards
+bb plugin install "path:$PWD/plugins/thread-hover-cards" --yes
 ```
-
-## Compatibility
-
-BB Plugin SDK 0.4 has no thread-row hover slot. The frontend therefore anchors to BB's stable `data-sidebar-thread-id` attribute; typed RPC supplies all thread, repository, and PR data. A future native slot should replace only this small DOM bridge.

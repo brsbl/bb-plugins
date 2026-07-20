@@ -1,5 +1,5 @@
 import { createRequire } from "node:module";
-import { readFile, writeFile } from "node:fs/promises";
+import { access, readFile, writeFile } from "node:fs/promises";
 import { dirname, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { compile } from "@tailwindcss/node";
@@ -8,6 +8,27 @@ import { Scanner } from "@tailwindcss/oxide";
 const scriptDirectory = dirname(fileURLToPath(import.meta.url));
 const packageRoot = resolve(scriptDirectory, "..");
 const require = createRequire(import.meta.url);
+
+async function resolveDependencyFile(relativePath) {
+  let directory = packageRoot;
+  while (true) {
+    const candidate = resolve(directory, "node_modules", relativePath);
+    try {
+      await access(candidate);
+      return candidate;
+    } catch {
+      const parent = dirname(directory);
+      if (parent === directory) {
+        throw new Error(`Cannot resolve dependency file: ${relativePath}`);
+      }
+      directory = parent;
+    }
+  }
+}
+
+const twAnimateCssPath = await resolveDependencyFile(
+  "tw-animate-css/dist/tw-animate.css",
+);
 
 const [globalsCss, shadcnTailwindCss, styleNovaCss] = await Promise.all([
   readFile(resolve(packageRoot, "vendor/shadcn-ui/styles/globals.css"), "utf8"),
@@ -70,10 +91,7 @@ const compiler = await compile(input, {
       return require.resolve("tailwindcss/index.css");
     }
     if (id === "tw-animate-css") {
-      return resolve(
-        packageRoot,
-        "node_modules/tw-animate-css/dist/tw-animate.css",
-      );
+      return twAnimateCssPath;
     }
     try {
       return require.resolve(id, { paths: [base, packageRoot] });

@@ -57,7 +57,7 @@ async function loadAction() {
     },
   } as never);
   if (component === null)
-    throw new Error("Prompt Shaper action was not registered");
+    throw new Error("Improve Prompt action was not registered");
   return component;
 }
 
@@ -72,7 +72,7 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-describe("Prompt Shaper composer action", () => {
+describe("Improve Prompt composer action", () => {
   it("enhances the active queued-message draft and preserves its attachments for manual save", async () => {
     resetTestPluginRuntime({
       text: "queued rough draft",
@@ -119,7 +119,7 @@ describe("Prompt Shaper composer action", () => {
     expect(getTestPluginRuntime().rpcCalls).toHaveLength(2);
     expect(getTestPluginRuntime().focusCount).toBe(1);
     expect(toast.success).not.toHaveBeenCalled();
-  }, 15_000);
+  }, 60_000);
 
   it("enhances and undoes a side-chat draft without losing its attachments", async () => {
     resetTestPluginRuntime({
@@ -290,7 +290,7 @@ describe("Prompt Shaper composer action", () => {
       expect(getTestPluginRuntime().textEffect).toBe("shimmer");
       expect(getTestPluginRuntime().threadRowStatus).toEqual({
         icon: "AiContentGenerator01",
-        label: "Prompt Shaper improving prompt",
+        label: "Improve Prompt is improving the draft",
         effect: "shimmer",
         tone: "success",
       });

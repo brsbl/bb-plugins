@@ -1,13 +1,7 @@
 // @ts-nocheck
 
-import { readFileSync } from "node:fs";
-
-const providerIndex = JSON.parse(
-  readFileSync(new URL("./generated/provider-index.v2.json", import.meta.url), "utf8"),
-);
-const providerSnapshot = JSON.parse(
-  readFileSync(new URL("./generated/provider-snapshot.v2.json", import.meta.url), "utf8"),
-);
+import providerIndex from "./generated/provider-index.v2.json" with { type: "json" };
+import providerSnapshot from "./generated/provider-snapshot.v2.json" with { type: "json" };
 
 export const cliSchemaVersion = "5";
 export const cliEnvelopeVersion = "1";

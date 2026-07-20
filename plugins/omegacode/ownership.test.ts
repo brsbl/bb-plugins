@@ -4,7 +4,6 @@ import { readBbRunOwner, runBelongsToScope } from "./ownership";
 const scope = {
   threadId: "thr_current",
   environmentId: "env_current",
-  environmentPath: "/work/current",
 };
 
 describe("Omegacode run ownership", () => {
@@ -33,7 +32,6 @@ describe("Omegacode run ownership", () => {
             environmentId: "env_current",
             projectId: null,
           },
-          workflowFile: "/elsewhere/workflow.js",
         },
         scope,
       ),
@@ -47,25 +45,13 @@ describe("Omegacode run ownership", () => {
             environmentId: "env_current",
             projectId: null,
           },
-          workflowFile: "/work/current/workflow.js",
         },
         scope,
       ),
     ).toBe(false);
   });
 
-  it("uses the workflow path only for pre-ownership journals", () => {
-    expect(
-      runBelongsToScope(
-        { owner: null, workflowFile: "/work/current/.omegacode/a.workflow.js" },
-        scope,
-      ),
-    ).toBe(true);
-    expect(
-      runBelongsToScope(
-        { owner: null, workflowFile: "/work/current-other/a.workflow.js" },
-        scope,
-      ),
-    ).toBe(false);
+  it("hides journals that do not record an owning thread", () => {
+    expect(runBelongsToScope({ owner: null }, scope)).toBe(false);
   });
 });

@@ -11,9 +11,18 @@ const executable = resolve(
   process.platform === "win32" ? "bb.cmd" : "bb",
 );
 const { BB_CLI: _hostBbCli, ...environment } = process.env;
+const esbuild = resolve(
+  repositoryRoot,
+  "node_modules",
+  ".bin",
+  process.platform === "win32" ? "esbuild.cmd" : "esbuild",
+);
 const result = spawnSync(executable, ["plugin", "build", pluginPath], {
   cwd: pluginPath,
-  env: environment,
+  env: {
+    ...environment,
+    ESBUILD_BINARY_PATH: environment.ESBUILD_BINARY_PATH ?? esbuild,
+  },
   stdio: "inherit",
 });
 

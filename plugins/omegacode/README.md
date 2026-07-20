@@ -1,71 +1,25 @@
-# bb-plugin-omega
+# Omegacode
 
-A BB plugin.
-
-## UI components
-
-`components/ui/` is vendored source you own (the shadcn model): edit the
-files freely — they never update out from under you. Add more from the BB
-component registry (the full shadcn set, version-matched to your BB install
-via the pinned ref in `components.json`):
-
-```
-npx shadcn add @bb/dialog @bb/select
-```
-
-Run `npm install` once before `bb plugin build` — the vendored components'
-npm deps bundle into your dist. React, and BB-shimmed packages like the
-radix portal primitives and `sonner` (`import { toast } from "sonner"`
-reaches BB's own toaster), are provided by the BB app at runtime and never
-bundled. Ship `dist/` (npm tarball or committed for git installs) so
-people installing your plugin never need npm.
-
-## Manifest
-
-`package.json` is the plugin manifest. Notable fields:
-
-- `bb.server` — backend entry (required); optional `bb.app` for a frontend.
-- `bb.name` and `bb.description` — required human-facing identity.
-- `bb.branding` — required; declare `icon` or `logo.light` (and optional
-  `logo.dark`). Logo assets must be relative `.svg`, `.png`, or `.webp`
-  files.
-- `engines.bb` — supported bb app version range.
-- `engines.bbPluginSdk` — supported plugin SDK range (scaffold: `^0.4.0`).
-
-Run `bb plugin build` before publishing git/npm installs. It writes
-`dist/server.js` + `server.meta.json` (and, with `bb.app`, `app.js` /
-`app.css` / `app.meta.json`). Each `*.meta.json` stamps SDK major/version,
-`artifactFormatVersion`, `pluginId`, `pluginVersion`, and
-`builtWith` so managed installs can verify the artifacts.
+Omegacode shows every local workflow on one bb plugin page and live owner-scoped progress above the composer that launched each run.
 
 ## Install
 
-From this directory:
-
-```
-bb plugin install .
+```bash
+bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/omegacode --yes
 ```
 
-After editing sources, reload:
+## Use
 
+Open Omegacode from the bb sidebar to scan workflows across threads and jump to an owning thread. A compact banner also appears only above the composer that launched an active run. Use `bb omegacode status`; add `--all` for the machine-wide CLI view.
+
+Runs must record `BB_THREAD_ID` and `BB_ENVIRONMENT_ID` to appear in an owning composer. Journals without that context remain visible only on the global page and in the explicit `--all` CLI view.
+
+## Develop
+
+From the monorepo root:
+
+```bash
+npm ci
+npm run check --workspace=bb-plugin-omega
+bb plugin install "path:$PWD/plugins/omegacode" --yes
 ```
-bb plugin reload omega
-```
-
-## Configure
-
-```
-bb plugin config omega
-bb plugin config omega set greeting hi
-```
-
-## Types & API reference
-
-`types/bb-plugin-sdk.d.ts` (and `types/bb-plugin-sdk-app.d.ts` for the
-frontend) are the full, bundled BB plugin API — `tsconfig.json` maps
-`@bb/plugin-sdk` to them, so your editor and `tsc` see real types with no extra
-install. Ask BB to write plugins for you: the `bb-plugin-authoring` skill
-documents the whole surface with examples.
-
-Confused by the API, or need something the types don't explain? Clone the BB
-repo and read the source: <https://github.com/ymichael/bb>.

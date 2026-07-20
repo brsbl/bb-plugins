@@ -33,7 +33,13 @@ export const threadSummarySchema = z
     currentTurnStartedAt: z.number().nullable(),
     latestAssistantMessage: z.string().nullable(),
     permissionMode: z
-      .enum(["full", "readonly", "workspace-write"])
+      .enum([
+        "accept-edits",
+        "auto",
+        "full",
+        "readonly",
+        "workspace-write",
+      ])
       .nullable(),
     pullRequest: pullRequestSummarySchema,
     provider: z
@@ -105,10 +111,16 @@ async function within<T>(
 ): Promise<T | null> {
   return await new Promise((resolve) => {
     const timer = setTimeout(() => resolve(null), timeoutMs);
-    void promise.then((value) => {
-      clearTimeout(timer);
-      resolve(value);
-    });
+    void promise.then(
+      (value) => {
+        clearTimeout(timer);
+        resolve(value);
+      },
+      () => {
+        clearTimeout(timer);
+        resolve(null);
+      },
+    );
   });
 }
 

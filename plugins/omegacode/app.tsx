@@ -10,8 +10,14 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react
 import { createPortal } from "react-dom";
 import { WorkflowCircle03Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { definePluginApp, useRealtime, useRpc } from "@bb/plugin-sdk/app";
-import type { rpcContract } from "./server";
+import {
+  definePluginApp,
+  useRealtime,
+  useRealtimeConnectionState,
+  useRpc,
+} from "@bb/plugin-sdk/app";
+import { OmegacodeOverview } from "./global-page";
+import type { Run, rpcContract } from "./server";
 import {
   activityIconClass,
   activityMetaClass,
@@ -23,36 +29,8 @@ import { Icon } from "./vendor/icon";
 import {
   WorkflowPhaseStrip,
   WorkflowProgress,
-  type WorkflowProgressAgent,
-  type WorkflowProgressAgentState,
-  type WorkflowProgressSnapshot,
 } from "./vendor/workflow-progress";
-
-const AGENT_CAP = 16; // never render an unbounded agent list in the banner
-
-type Agent = {
-  index: number;
-  label: string;
-  phase: string | null;
-  provider: string | null;
-  model: string | null;
-  state: string;
-  startedAt: number | null;
-  bytes: number;
-  tokens: number;
-  durationMs: number;
-};
-
-type Run = {
-  runId: string;
-  workflow: string | null;
-  workflowName: string | null;
-  status: string;
-  updatedAt: number | null;
-  heartbeatAgeMs: number | null;
-  counts: { total: number; running: number; queued: number; completed: number; failed: number };
-  agents: Agent[];
-};
+import { workflowProgressForAgents } from "./presentation";
 
 function elapsed(from: number | null): string {
   if (!from) return "";
@@ -60,70 +38,6 @@ function elapsed(from: number | null): string {
   if (s < 60) return `${s}s`;
   const m = Math.floor(s / 60);
   return m < 60 ? `${m}m` : `${Math.floor(m / 60)}h${m % 60}m`;
-}
-
-const PHASES = [
-  { index: 0, title: "Build" },
-  { index: 1, title: "Verify" },
-] as const;
-
-const SECTION_LABELS = {
-  A: "Editor nodes",
-  B: "App chrome",
-  C: "Collaboration + cursors",
-  D: "Comments",
-  E: "Suggestions",
-  F: "History + versions",
-  G: "Auth + sharing",
-  H: "CLI + converter",
-  I: "Search + navigation",
-  J: "Deliverables",
-} as const;
-
-type SectionLetter = keyof typeof SECTION_LABELS;
-
-function agentSection(agent: Agent): SectionLetter | null {
-  const label = agent.label.replace(/^(build|verify):/, "");
-  const match = /^([A-J])(?:-|$)/i.exec(label);
-  if (!match) return null;
-  const letter = match[1]?.toUpperCase();
-  return letter && letter in SECTION_LABELS ? (letter as SectionLetter) : null;
-}
-
-function liveHeadline(run: Run, fallback: string): string {
-  const runningSection = run.agents
-    .filter((agent) => agent.state === "running" && agentSection(agent) !== null)
-    .sort((left, right) => left.index - right.index)
-    .map(agentSection)[0];
-  const section =
-    runningSection ??
-    run.agents
-      .filter(
-        (agent) => agent.startedAt !== null && agentSection(agent) !== null,
-      )
-      .sort(
-        (left, right) =>
-          (right.startedAt ?? 0) - (left.startedAt ?? 0) ||
-          right.index - left.index,
-      )
-      .map(agentSection)[0];
-  return section
-    ? `section ${section} — ${SECTION_LABELS[section]}`
-    : fallback;
-}
-
-function workflowAgentState(state: string): WorkflowProgressAgentState {
-  if (state === "running") return "running";
-  if (state === "completed") return "done";
-  if (/fail|error/i.test(state)) return "failed";
-  return "queued";
-}
-
-function agentSortPriority(state: string): number {
-  if (state === "running") return 0;
-  if (/fail|error/i.test(state)) return 1;
-  if (state === "queued") return 2;
-  return 3;
 }
 
 function verticalScrollContainer(element: HTMLElement | null): HTMLElement | null {
@@ -138,65 +52,46 @@ function verticalScrollContainer(element: HTMLElement | null): HTMLElement | nul
 
 function BannerCard({ runs }: { runs: Run[] }) {
   const [open, setOpen] = useState(false);
-  // With several live runs (build farm + verify side-runs), show the one with the
-  // most ACTIVE work, not the most recently created — a 2-agent side-run must not
-  // hide a 115-row sweep.
   const head = [...runs].sort(
-    (a, b) =>
-      b.counts.running + b.counts.queued - (a.counts.running + a.counts.queued),
+    (left, right) =>
+      (right.createdAt ?? 0) - (left.createdAt ?? 0) ||
+      right.runId.localeCompare(left.runId),
   )[0];
   if (!head) return null;
 
   const c = head.counts;
   const workflowName = head.workflowName ?? head.workflow?.replace(/\.workflow\.js$|\.js$/, "") ?? "workflow";
-  const name = liveHeadline(head, workflowName);
   const startedAt =
     head.agents
       .map((agent) => agent.startedAt)
       .filter((value): value is number => value !== null)
       .sort((left, right) => left - right)[0] ?? null;
-  const workerProvider = head.agents[0]?.provider || "codex";
-  const workerModel = head.agents[0]?.model || "gpt-5.6-sol";
-  const cappedAgents = PHASES.flatMap((phase) =>
-    head.agents
-      .filter((agent) =>
-        phase.index === 1 ? agent.phase === "Verify" : agent.phase !== "Verify",
-      )
-      .sort(
-        (left, right) =>
-          agentSortPriority(left.state) - agentSortPriority(right.state) ||
-          right.index - left.index,
-      )
-      .slice(0, AGENT_CAP),
-  );
-  const toProgressAgent = (agent: Agent): WorkflowProgressAgent => {
-    const section = agentSection(agent);
-    return {
-      index: agent.index,
-      label: agent.label.replace(/^(build|verify):/, ""),
-      description: section ? SECTION_LABELS[section] : undefined,
-      state: workflowAgentState(agent.state),
-      model: agent.model || "gpt-5.6-sol",
-      metadata: [
-        agent.provider || "codex",
-        agent.model || "gpt-5.6-sol",
-        "xhigh",
-      ],
-      phaseIndex: agent.phase === "Verify" ? 1 : 0,
-      attempt: 1,
-      cached: false,
-      lastProgressAt: agent.startedAt || Date.now(),
-      tokens: agent.tokens,
-      outputBytes: agent.bytes,
-      durationMs: agent.durationMs,
-    };
-  };
-  const agents = cappedAgents.map(toProgressAgent);
-  const snapshot: WorkflowProgressSnapshot = { phases: PHASES, agents };
-  const phaseSnapshot: WorkflowProgressSnapshot = {
-    phases: PHASES,
-    agents: head.agents.map(toProgressAgent),
-  };
+  const representativeAgent =
+    head.agents.find((agent) => agent.state === "running") ??
+    head.agents.find((agent) => agent.state === "queued") ??
+    head.agents[0];
+  const runContext = [
+    representativeAgent?.phase,
+    representativeAgent?.provider,
+    representativeAgent?.model,
+  ].filter((value): value is string => Boolean(value));
+  const { detail: snapshot, overview: phaseSnapshot } =
+    workflowProgressForAgents(head.agents, head.phases);
+  const settled = /^(completed|failed|cancelled)$/i.test(head.status);
+  const terminalState = /fail|error/i.test(head.status)
+    ? "failed"
+    : /cancel|interrupt/i.test(head.status)
+      ? "cancelled"
+      : settled
+        ? "completed"
+        : undefined;
+  const statusLabel = /fail|error/i.test(head.status)
+    ? "Workflow failed"
+    : /cancel|interrupt/i.test(head.status)
+      ? "Workflow cancelled"
+      : settled
+        ? "Workflow complete"
+        : "Running workflow";
   const toggleOpen = (button: HTMLButtonElement) => {
     const holder = button.closest("[data-omega-banner]") as HTMLElement | null;
     const promptBox = holder?.closest(".chat-prompt-box") as HTMLElement | null;
@@ -246,7 +141,7 @@ function BannerCard({ runs }: { runs: Run[] }) {
               "shrink-0 whitespace-nowrap text-sm font-semibold no-underline",
             )}
           >
-            Running workflow
+            {statusLabel}
           </span>
           <span
             aria-hidden="true"
@@ -256,9 +151,9 @@ function BannerCard({ runs }: { runs: Run[] }) {
           </span>
           <span
             className="min-w-0 truncate text-sm font-semibold text-foreground"
-            title={name}
+            title={workflowName}
           >
-            {name}
+            {workflowName}
           </span>
           {startedAt === null ? null : (
             <span
@@ -289,21 +184,25 @@ function BannerCard({ runs }: { runs: Run[] }) {
           >
             {c.total} workers
           </span>
-          <span
-            aria-hidden="true"
-            className="shrink-0 text-xs text-muted-foreground/40"
-          >
-            ·
-          </span>
-          <span
-            className={activityMetaClass(
-              "active",
-              "min-w-0 truncate whitespace-nowrap text-xs",
-            )}
-            title={`${workerProvider} · ${workerModel}`}
-          >
-            {workerProvider} · {workerModel}
-          </span>
+          {runContext.length > 0 ? (
+            <>
+              <span
+                aria-hidden="true"
+                className="shrink-0 text-xs text-muted-foreground/40"
+              >
+                ·
+              </span>
+              <span
+                className={activityMetaClass(
+                  "active",
+                  "min-w-0 truncate whitespace-nowrap text-xs",
+                )}
+                title={runContext.join(" · ")}
+              >
+                {runContext.join(" · ")}
+              </span>
+            </>
+          ) : null}
           <span
             className={activityMetaClass(
               "active",
@@ -321,12 +220,18 @@ function BannerCard({ runs }: { runs: Run[] }) {
             <span className={cn(c.failed > 0 && "text-destructive-text")}>
               {c.failed} failed
             </span>
+            {c.cancelled > 0 ? (
+              <>
+                <span aria-hidden="true">·</span>
+                <span>{c.cancelled} cancelled</span>
+              </>
+            ) : null}
           </span>
         </span>
       </button>
       <WorkflowPhaseStrip
         progress={phaseSnapshot}
-        settled={false}
+        settled={settled}
         className="px-3 pb-2"
       />
       {open ? (
@@ -338,7 +243,8 @@ function BannerCard({ runs }: { runs: Run[] }) {
             <WorkflowProgress
               collapsiblePhases
               progress={snapshot}
-              settled={false}
+              settled={settled}
+              terminalState={terminalState}
             />
           </div>
         </div>
@@ -418,6 +324,7 @@ function useAboveComposerTarget(anchor: HTMLElement | null): HTMLElement | null 
       }
     };
     mount();
+    setTarget(holder.isConnected ? holder : null);
     // The prompt stack is React-owned and may reconcile away foreign siblings
     // or replace the wrapper entirely. Coalesce subtree changes and restore the
     // scoped mount against the accessory's current ancestry.
@@ -427,10 +334,10 @@ function useAboveComposerTarget(anchor: HTMLElement | null): HTMLElement | null 
       frame = requestAnimationFrame(() => {
         frame = 0;
         mount();
+        setTarget(holder.isConnected ? holder : null);
       });
     });
     observer.observe(document.body, { childList: true, subtree: true });
-    setTarget(holder);
 
     return () => {
       observer.disconnect();
@@ -445,26 +352,66 @@ function useAboveComposerTarget(anchor: HTMLElement | null): HTMLElement | null 
 
 function OmegacodeBanner({ threadId }: { threadId: string | null }) {
   const rpc = useRpc<typeof rpcContract>();
-  const [runs, setRuns] = useState<Run[]>([]);
+  const realtimeState = useRealtimeConnectionState();
+  const [snapshot, setSnapshot] = useState<{
+    threadId: string;
+    runs: Run[];
+  } | null>(null);
+  const activeThreadId = useRef(threadId);
+  activeThreadId.current = threadId;
+  const requestSequence = useRef(0);
+  const loadingThreadId = useRef<string | null>(null);
+  const previousRealtimeState = useRef(realtimeState);
   const [, force] = useState(0);
   const [anchor, setAnchor] = useState<HTMLElement | null>(null);
 
   const scoped = typeof threadId === "string" && threadId !== "";
+  const runs = snapshot?.threadId === threadId ? snapshot.runs : [];
 
   const load = useCallback(async () => {
-    if (!scoped) return;
+    if (typeof threadId !== "string" || threadId === "") return;
+    const requestedThreadId = threadId;
+    if (loadingThreadId.current === requestedThreadId) return;
+    const sequence = ++requestSequence.current;
+    loadingThreadId.current = requestedThreadId;
     try {
-      const res = await rpc.call("runs", { threadId });
-      setRuns(res.runs as Run[]);
+      const res = await rpc.call("runs", { threadId: requestedThreadId });
+      if (
+        activeThreadId.current === requestedThreadId &&
+        requestSequence.current === sequence
+      ) {
+        setSnapshot({
+          threadId: requestedThreadId,
+          runs: res.runs as Run[],
+        });
+      }
     } catch {
-      /* keep last snapshot */
+      /* Keep a same-thread snapshot, but never expose it in another thread. */
+    } finally {
+      if (loadingThreadId.current === requestedThreadId) {
+        loadingThreadId.current = null;
+      }
     }
-  }, [rpc, scoped, threadId]);
+  }, [rpc, threadId]);
 
   useEffect(() => {
     void load();
   }, [load]);
   useRealtime("omegacode", () => void load());
+  useEffect(() => {
+    if (
+      previousRealtimeState.current !== "connected" &&
+      realtimeState === "connected"
+    ) {
+      void load();
+    }
+    previousRealtimeState.current = realtimeState;
+  }, [load, realtimeState]);
+  useEffect(() => {
+    if (!scoped) return;
+    const timer = window.setInterval(() => void load(), 5000);
+    return () => window.clearInterval(timer);
+  }, [load, scoped]);
   useEffect(() => {
     if (!scoped) return;
     const t = setInterval(() => force((n) => n + 1), 1000);
@@ -487,6 +434,13 @@ function OmegacodeBanner({ threadId }: { threadId: string | null }) {
 
 
 export default definePluginApp((app) => {
+  app.slots.navPanel({
+    id: "workflows",
+    title: "Omegacode",
+    icon: "Activity",
+    path: "omegacode",
+    component: OmegacodeOverview,
+  });
   app.slots.composerAccessory({
     id: "omegacode-banner",
     component: OmegacodeBanner,

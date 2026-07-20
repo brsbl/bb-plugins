@@ -10,7 +10,19 @@
     "plugins/*",
     "packages/*"
   ],
+  "scripts": {
+    "artifacts": "node tooling/validate-plugin-artifacts.mjs",
+    "build": "npm run build --workspaces --if-present",
+    "check": "npm run hygiene && npm run typecheck && npm run build && npm test && npm run test:built && npm run artifacts",
+    "hygiene": "node tooling/check-repository.mjs",
+    "new:plugin": "node tooling/create-plugin.mjs",
+    "scaffold:smoke": "node tooling/scaffold-smoke.mjs",
+    "test": "npm run test --workspaces --if-present && npm run scaffold:smoke",
+    "test:built": "npm run test:built --workspaces --if-present",
+    "typecheck": "npm run typecheck --workspaces --if-present"
+  },
   "devDependencies": {
+    "@bb/plugin-sdk": "file:tooling/vendor/bb-plugin-sdk-0.4.0.tgz",
     "bb-app": "0.0.32"
   }
 }

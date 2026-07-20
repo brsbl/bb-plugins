@@ -1,4 +1,4 @@
-/*! tailwindcss v4.3.0 | MIT License | https://tailwindcss.com */
+/*! tailwindcss v4.3.3 | MIT License | https://tailwindcss.com */
 @layer properties;
 @layer theme, utilities;
 @layer theme {
@@ -182,7 +182,7 @@
       position: static;
     }
     .inset-0 {
-      inset: calc(var(--spacing) * 0);
+      inset: 0px;
     }
     .-top-3 {
       top: calc(var(--spacing) * -3);
@@ -236,7 +236,7 @@
       margin-inline: auto;
     }
     .mt-1 {
-      margin-top: calc(var(--spacing) * 1);
+      margin-top: var(--spacing);
     }
     .mt-1\.5 {
       margin-top: calc(var(--spacing) * 1.5);
@@ -305,7 +305,7 @@
       height: 100%;
     }
     .min-h-0 {
-      min-height: calc(var(--spacing) * 0);
+      min-height: 0px;
     }
     .min-h-72 {
       min-height: calc(var(--spacing) * 72);
@@ -335,7 +335,7 @@
       max-width: var(--container-md);
     }
     .min-w-0 {
-      min-width: calc(var(--spacing) * 0);
+      min-width: 0px;
     }
     .flex-1 {
       flex: 1;
@@ -987,7 +987,7 @@
       padding-block: calc(var(--spacing) * 0.5);
     }
     .py-1 {
-      padding-block: calc(var(--spacing) * 1);
+      padding-block: var(--spacing);
     }
     .py-1\.5 {
       padding-block: calc(var(--spacing) * 1.5);

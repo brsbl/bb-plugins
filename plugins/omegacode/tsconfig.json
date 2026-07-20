@@ -29,6 +29,9 @@
   "include": [
     "server.ts",
     "app.tsx",
+    "global-page.tsx",
+    "*.test.ts",
+    "*.test.tsx",
     "react-dom.d.ts",
     "types",
     "components",
