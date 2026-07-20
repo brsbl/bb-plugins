@@ -1,6 +1,35 @@
 import assert from "node:assert/strict";
-import test from "node:test";
-import { cliCommandInfo, cliEnvelopeVersion, cliSchemaVersion, runAtlasCli } from "../atlas-cli-v5.js";
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { dirname, resolve } from "node:path";
+import test, { after } from "node:test";
+import { fileURLToPath, pathToFileURL } from "node:url";
+
+import { build } from "esbuild";
+
+const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+const temporaryDirectory = await mkdtemp(resolve(tmpdir(), "ui-patterns-cli-test-"));
+const outputFile = resolve(temporaryDirectory, "atlas-cli.mjs");
+process.env.UI_PATTERN_ATLAS_ROOT = packageRoot;
+await build({
+  entryPoints: [resolve(packageRoot, "atlas-cli-v5.ts")],
+  outfile: outputFile,
+  bundle: true,
+  format: "esm",
+  platform: "node",
+  target: "node22",
+  logLevel: "silent",
+});
+const {
+  cliCommandInfo,
+  cliEnvelopeVersion,
+  cliSchemaVersion,
+  runAtlasCli,
+} = await import(`${pathToFileURL(outputFile).href}?cli-test=${Date.now()}`);
+
+after(async () => {
+  await rm(temporaryDirectory, { recursive: true, force: true });
+});
 
 function jsonResult(argv) {
   const result = runAtlasCli(argv);

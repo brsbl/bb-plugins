@@ -13,6 +13,24 @@ describe("UI Patterns plugin contract", () => {
       0,
     );
     expect(harness.inspection.registrations.cli?.name).toBe("ui-patterns");
+
+    const rpc = await harness.behavior.callRpc("searchAtlasEntries", {
+      query: "combobox",
+    });
+    const cli = await harness.behavior.runCli([
+      "search",
+      "combobox",
+      "--json",
+    ]);
+    const cliPayload = JSON.parse(cli.stdout ?? "{}") as {
+      data?: { results?: Array<{ name: string }> };
+    };
+    expect(rpc).toMatchObject({ mode: "exact" });
+    expect(cliPayload.data?.results?.map(({ name }) => name)).toEqual(
+      (rpc as { entries: Array<{ name: string }> }).entries.map(({ name }) =>
+        name,
+      ),
+    );
     await harness.lifecycle.dispose();
   });
 });

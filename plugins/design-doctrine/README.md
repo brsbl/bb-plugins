@@ -2,6 +2,8 @@
 
 Design Doctrine turns repeated product-design feedback into rules that agents can browse and apply during design, implementation, and critique.
 
+![Design Doctrine rule library in bb](docs/screenshot.png)
+
 ## Install
 
 ```bash

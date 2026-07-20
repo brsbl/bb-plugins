@@ -14635,6 +14635,7 @@ function canFallBackFromSideChat(error51) {
   );
 }
 async function plugin(bb) {
+  const workspaceWritePermission = "workspace-write";
   async function readRecord(requestId) {
     const value = await bb.storage.kv.get(requestKey(requestId));
     if (value === void 0) return null;
@@ -14728,7 +14729,7 @@ async function plugin(bb) {
         projectId: input.projectId,
         prompt: buildWorkerPrompt({ draft: input.draft }),
         environment: { type: "project-default" },
-        permissionMode: "accept-edits",
+        permissionMode: workspaceWritePermission,
         visibility: "hidden",
         title: "Improve Prompt"
       });
@@ -14753,7 +14754,7 @@ async function plugin(bb) {
           model: execution.model,
           reasoningLevel: execution.reasoningLevel,
           serviceTier: execution.serviceTier,
-          permissionMode: "accept-edits",
+          permissionMode: workspaceWritePermission,
           sourceThreadId: input.sourceThreadId,
           originKind: "side-chat",
           visibility: "hidden",
@@ -14780,7 +14781,7 @@ async function plugin(bb) {
         reasoningLevel: execution.reasoningLevel,
         serviceTier: execution.serviceTier
       },
-      permissionMode: "accept-edits",
+      permissionMode: workspaceWritePermission,
       visibility: "hidden",
       title: "Improve Prompt"
     });

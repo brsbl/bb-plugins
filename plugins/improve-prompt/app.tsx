@@ -19,8 +19,10 @@ import type { rpcContract } from "./server";
 import { scopeKey } from "./core.js";
 
 interface PendingRequest {
+  createdAt: number;
   requestId: string;
   scopeKey: string;
+  startup: "acknowledged" | "starting";
 }
 
 interface UndoState {
@@ -29,7 +31,16 @@ interface UndoState {
   previousDraft: string;
 }
 
+type ReconcileOutcome = "absent" | "ignored" | "running" | "terminal";
+
+interface ConsumeResultOptions {
+  allowDuringCancellation?: boolean;
+  clearIfAbsent?: boolean;
+}
+
 const PENDING_STORAGE_PREFIX = "bb-plugin-prompt-shaper:pending:";
+const STARTUP_GRACE_MS = 30_000;
+const locallyStartingRequestIds = new Set<string>();
 const THREAD_ROW_STATUS = {
   icon: "AiContentGenerator01",
   label: "Improve Prompt is improving the draft",
@@ -37,16 +48,25 @@ const THREAD_ROW_STATUS = {
   tone: "success",
 } as const;
 
+export function resetLocallyStartingRequestsForTest(): void {
+  locallyStartingRequestIds.clear();
+}
+
 function pendingStorageKey(composerScopeKey: string): string {
   return `${PENDING_STORAGE_PREFIX}${composerScopeKey}`;
 }
 
-function loadPendingRequest(composerScopeKey: string): PendingRequest | null {
+interface PendingStorageState {
+  available: boolean;
+  request: PendingRequest | null;
+}
+
+function readPendingStorage(composerScopeKey: string): PendingStorageState {
   try {
     const raw = window.sessionStorage.getItem(
       pendingStorageKey(composerScopeKey),
     );
-    if (raw === null) return null;
+    if (raw === null) return { available: true, request: null };
     const value: unknown = JSON.parse(raw);
     if (
       typeof value === "object" &&
@@ -56,15 +76,36 @@ function loadPendingRequest(composerScopeKey: string): PendingRequest | null {
       "scopeKey" in value &&
       value.scopeKey === composerScopeKey
     ) {
+      const createdAt =
+        "createdAt" in value &&
+        typeof value.createdAt === "number" &&
+        Number.isFinite(value.createdAt) &&
+        value.createdAt >= 0
+          ? value.createdAt
+          : 0;
+      const startup =
+        "startup" in value && value.startup === "starting"
+          ? "starting"
+          : "acknowledged";
       return {
-        requestId: value.requestId,
-        scopeKey: value.scopeKey,
+        available: true,
+        request: {
+          createdAt,
+          requestId: value.requestId,
+          scopeKey: value.scopeKey,
+          startup,
+        },
       };
     }
   } catch {
     // Session storage is a recovery aid; enhancement still works without it.
+    return { available: false, request: null };
   }
-  return null;
+  return { available: true, request: null };
+}
+
+function loadPendingRequest(composerScopeKey: string): PendingRequest | null {
+  return readPendingStorage(composerScopeKey).request;
 }
 
 function savePendingRequest(request: PendingRequest): void {
@@ -115,6 +156,7 @@ function PromptShaperAction({
   );
   const reconcileRecoveredPendingRef = useRef(pending !== null);
   const pendingRef = useRef<PendingRequest | null>(pending);
+  const cancellingRequestIdRef = useRef<string | null>(null);
   const composerRef = useRef(composer);
   const composerScopeKeyRef = useRef(composerScopeKey);
   const previousComposerScopeKeyRef = useRef(composerScopeKey);
@@ -242,13 +284,56 @@ function PromptShaperAction({
   }, [undoState]);
 
   const consumeResult = useCallback(
-    async (requestId: string) => {
+    async (
+      requestId: string,
+      options: ConsumeResultOptions = {},
+    ): Promise<ReconcileOutcome> => {
       const active = pendingRef.current;
-      if (active === null || active.requestId !== requestId) return;
+      if (active === null || active.requestId !== requestId) return "ignored";
+      if (
+        cancellingRequestIdRef.current === requestId &&
+        !options.allowDuringCancellation
+      ) {
+        return "ignored";
+      }
 
       const record = await rpc.call("getEnhancement", { requestId });
-      if (pendingRef.current !== active) return;
-      if (record === null || record.status === "running") return;
+      if (pendingRef.current !== active) return "ignored";
+      if (
+        cancellingRequestIdRef.current === requestId &&
+        !options.allowDuringCancellation
+      ) {
+        return "ignored";
+      }
+      if (record === null) {
+        const stored = readPendingStorage(active.scopeKey);
+        const durable =
+          stored.request?.requestId === active.requestId
+            ? stored.request
+            : null;
+        const markerWasRemoved = stored.available && durable === null;
+        const startupWasAcknowledged =
+          (durable ?? active).startup === "acknowledged";
+        const startupGraceExpired =
+          Date.now() - (durable ?? active).createdAt >= STARTUP_GRACE_MS;
+        const startupIsLocallyInFlight =
+          locallyStartingRequestIds.has(active.requestId);
+        if (
+          options.clearIfAbsent ||
+          markerWasRemoved ||
+          startupWasAcknowledged ||
+          (startupGraceExpired && !startupIsLocallyInFlight)
+        ) {
+          if (active.scopeKey === composerScopeKeyRef.current) {
+            clearLoadingEffects();
+            setPendingRequest(null);
+          } else {
+            clearPendingRequest(active);
+          }
+        }
+        return "absent";
+      }
+      if (record.status === "running") return "running";
 
       // A composer change is visible during render before the passive scope
       // reconciliation effect moves pendingRef to the destination scope. Do
@@ -257,7 +342,7 @@ function PromptShaperAction({
       // non-thread scope changes are still cleared/cancelled by reconciliation.
       if (active.scopeKey !== composerScopeKeyRef.current) {
         clearLoadingEffects();
-        return;
+        return "ignored";
       }
 
       clearLoadingEffects();
@@ -265,9 +350,10 @@ function PromptShaperAction({
 
       if (record.status === "failed") {
         toast.error(record.error);
-        return;
+        return "terminal";
       }
       applyEnhancement(record.enhancedPrompt);
+      return "terminal";
     },
     [applyEnhancement, clearLoadingEffects, rpc, setPendingRequest],
   );
@@ -306,13 +392,16 @@ function PromptShaperAction({
     }
 
     const request: PendingRequest = {
+      createdAt: Date.now(),
       requestId: crypto.randomUUID(),
       scopeKey: composerScopeKey,
+      startup: "starting",
     };
     setUndoState(null);
     composer.setTextEffect?.("shimmer");
     composer.setThreadRowStatus?.(THREAD_ROW_STATUS);
     setPendingRequest(request);
+    locallyStartingRequestIds.add(request.requestId);
 
     try {
       await rpc.call("startEnhancement", {
@@ -321,7 +410,22 @@ function PromptShaperAction({
         projectId,
         sourceThreadId: threadId,
       });
+      locallyStartingRequestIds.delete(request.requestId);
+
+      const acknowledgedRequest: PendingRequest = {
+        ...request,
+        startup: "acknowledged",
+      };
+      const stored = loadPendingRequest(request.scopeKey);
+      if (stored?.requestId === request.requestId) {
+        savePendingRequest(acknowledgedRequest);
+      }
+      if (pendingRef.current === request) {
+        pendingRef.current = acknowledgedRequest;
+        setPending(acknowledgedRequest);
+      }
     } catch (error) {
+      locallyStartingRequestIds.delete(request.requestId);
       // Startup can fail after navigation has detached this component. Clear
       // the exact durable marker even when this instance no longer owns the
       // active composer, or returning would recover a request the server never
@@ -340,15 +444,10 @@ function PromptShaperAction({
 
     try {
       await consumeResult(request.requestId);
-    } catch (error) {
-      if (pendingRef.current !== request) return;
-      clearLoadingEffects();
-      setPendingRequest(null);
-      toast.error(
-        error instanceof Error
-          ? error.message
-          : "Could not enhance the prompt.",
-      );
+    } catch {
+      // Starting succeeded, so the request is durable even when this first
+      // read fails. Keep the marker and loading state; polling or realtime
+      // reconciliation will retry without spawning a second helper.
     }
   }, [
     composer,
@@ -366,21 +465,52 @@ function PromptShaperAction({
     if (active === null || active.scopeKey !== composerScopeKeyRef.current) {
       return;
     }
+    if (cancellingRequestIdRef.current === active.requestId) return;
 
-    clearLoadingEffects();
-    setPendingRequest(null);
+    cancellingRequestIdRef.current = active.requestId;
     try {
       await rpc.call("cancelEnhancement", {
         requestId: active.requestId,
       });
+      if (pendingRef.current === active) {
+        clearLoadingEffects();
+        setPendingRequest(null);
+      } else {
+        clearPendingRequest(active);
+      }
     } catch (error) {
-      toast.error(
-        error instanceof Error
-          ? error.message
-          : "Could not cancel prompt improvement.",
-      );
+      if (pendingRef.current !== active) return;
+
+      let outcome: ReconcileOutcome = "ignored";
+      try {
+        const startupIsLocallyInFlight = locallyStartingRequestIds.has(
+          active.requestId,
+        );
+        outcome = await consumeResult(active.requestId, {
+          allowDuringCancellation: true,
+          clearIfAbsent: !startupIsLocallyInFlight,
+        });
+      } catch {
+        // The request is still durable. Leave it visible so polling or a
+        // realtime signal can reconcile it when transport recovers.
+      }
+
+      if (
+        pendingRef.current === active &&
+        (outcome === "absent" || outcome === "ignored" || outcome === "running")
+      ) {
+        toast.error(
+          error instanceof Error
+            ? error.message
+            : "Could not cancel prompt improvement.",
+        );
+      }
+    } finally {
+      if (cancellingRequestIdRef.current === active.requestId) {
+        cancellingRequestIdRef.current = null;
+      }
     }
-  }, [clearLoadingEffects, rpc, setPendingRequest]);
+  }, [clearLoadingEffects, consumeResult, rpc, setPendingRequest]);
 
   const isDisabled =
     !isRunning && (projectId === null || composer.text.trim().length === 0);

@@ -13,6 +13,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { toast } from "sonner";
 
 import {
+  emitTestRealtime,
   getTestPluginRuntime,
   resetTestPluginRuntime,
   setTestComposerScope,
@@ -61,10 +62,12 @@ async function loadAction() {
   return component;
 }
 
-beforeEach(() => {
+beforeEach(async () => {
   window.sessionStorage.clear();
   vi.clearAllMocks();
   vi.spyOn(globalThis.crypto, "randomUUID").mockReturnValue(REQUEST_ID);
+  const { resetLocallyStartingRequestsForTest } = await import("./app");
+  resetLocallyStartingRequestsForTest();
 });
 
 afterEach(() => {
@@ -165,6 +168,208 @@ describe("Improve Prompt composer action", () => {
     expect(getTestPluginRuntime().text).toBe("rough side-chat draft");
     expect(getTestPluginRuntime().attachments).toEqual(["side-brief.png"]);
     expect(getTestPluginRuntime().focusCount).toBe(2);
+  });
+
+  it("keeps a durable request after the first result fetch fails and retries on realtime", async () => {
+    let getCalls = 0;
+    resetTestPluginRuntime({
+      text: "rough draft",
+      scope: { kind: "thread", threadId: "thr_source" },
+      rpc: {
+        startEnhancement: () => ({
+          requestId: REQUEST_ID,
+          helperThreadId: "thr_helper",
+        }),
+        getEnhancement: () => {
+          getCalls += 1;
+          if (getCalls === 1) throw new Error("temporary transport failure");
+          return {
+            requestId: REQUEST_ID,
+            helperThreadId: "thr_helper",
+            status: "complete" as const,
+            enhancedPrompt: "Improved after retry.",
+            assumptions: null,
+            createdAt: 1,
+            completedAt: 2,
+          };
+        },
+      },
+    });
+    const Action = await loadAction();
+    render(<Action projectId="proj_1" threadId="thr_source" />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Improve prompt" }));
+
+    await waitFor(() => {
+      expect(getCalls).toBe(1);
+      expect(window.sessionStorage.length).toBe(1);
+      expect(getTestPluginRuntime().textEffect).toBe("shimmer");
+      expect(
+        screen.getByRole("button", { name: "Cancel prompt improvement" }),
+      ).not.toBeNull();
+    });
+
+    act(() => {
+      emitTestRealtime("enhancement-changed", { requestId: REQUEST_ID });
+    });
+
+    await waitFor(() => {
+      expect(getCalls).toBe(2);
+      expect(getTestPluginRuntime().text).toBe("Improved after retry.");
+      expect(getTestPluginRuntime().textEffect).toBeNull();
+      expect(window.sessionStorage.length).toBe(0);
+    });
+    expect(toast.error).not.toHaveBeenCalled();
+  });
+
+  it("expires a recovered startup marker that the server never acknowledged", async () => {
+    window.sessionStorage.setItem(
+      "bb-plugin-prompt-shaper:pending:thread:thr_source",
+      JSON.stringify({
+        createdAt: Date.now() - 60_000,
+        requestId: REQUEST_ID,
+        scopeKey: "thread:thr_source",
+        startup: "starting",
+      }),
+    );
+    resetTestPluginRuntime({
+      text: "rough draft",
+      scope: { kind: "thread", threadId: "thr_source" },
+      rpc: {
+        getEnhancement: () => null,
+      },
+    });
+    const Action = await loadAction();
+    render(<Action projectId="proj_1" threadId="thr_source" />);
+
+    await waitFor(() => {
+      expect(window.sessionStorage.length).toBe(0);
+      expect(
+        screen.getByRole("button", { name: "Improve prompt" }),
+      ).not.toBeNull();
+      expect(getTestPluginRuntime().textEffect).toBeNull();
+    });
+  });
+
+  it("keeps a locally starting request past the grace period and an ordinary remount", async () => {
+    const start = deferred<void>();
+    let startupAcknowledged = false;
+    const now = Date.now();
+    const dateNow = vi.spyOn(Date, "now").mockReturnValue(now);
+    resetTestPluginRuntime({
+      text: "rough draft",
+      scope: { kind: "thread", threadId: "thr_source" },
+      rpc: {
+        startEnhancement: async () => {
+          await start.promise;
+          startupAcknowledged = true;
+          return { requestId: REQUEST_ID, helperThreadId: "thr_helper" };
+        },
+        getEnhancement: () =>
+          startupAcknowledged
+            ? {
+                requestId: REQUEST_ID,
+                helperThreadId: "thr_helper",
+                status: "complete" as const,
+                enhancedPrompt: "Improved after a slow startup.",
+                assumptions: null,
+                createdAt: 1,
+                completedAt: 2,
+              }
+            : null,
+      },
+    });
+    const Action = await loadAction();
+    const view = render(<Action projectId="proj_1" threadId="thr_source" />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Improve prompt" }));
+    await waitFor(() => expect(window.sessionStorage.length).toBe(1));
+
+    view.unmount();
+    render(<Action projectId="proj_1" threadId="thr_source" />);
+    await screen.findByRole("button", { name: "Cancel prompt improvement" });
+
+    dateNow.mockReturnValue(now + 31_000);
+    act(() => {
+      emitTestRealtime("enhancement-changed", { requestId: REQUEST_ID });
+    });
+    await waitFor(() => {
+      expect(window.sessionStorage.length).toBe(1);
+      expect(
+        screen.getByRole("button", { name: "Cancel prompt improvement" }),
+      ).not.toBeNull();
+    });
+
+    await act(async () => {
+      start.resolve();
+      await start.promise;
+      await Promise.resolve();
+      emitTestRealtime("enhancement-changed", { requestId: REQUEST_ID });
+    });
+    await waitFor(() => {
+      expect(getTestPluginRuntime().text).toBe(
+        "Improved after a slow startup.",
+      );
+      expect(window.sessionStorage.length).toBe(0);
+    });
+  });
+
+  it("keeps startup durable when cancellation transport fails before acknowledgement", async () => {
+    const start = deferred<void>();
+    let startupAcknowledged = false;
+    const cancelEnhancement = vi.fn(() => {
+      throw new Error("cancel transport rejected during startup");
+    });
+    resetTestPluginRuntime({
+      text: "keep this slow-starting draft",
+      scope: { kind: "thread", threadId: "thr_source" },
+      rpc: {
+        startEnhancement: async () => {
+          await start.promise;
+          startupAcknowledged = true;
+          return { requestId: REQUEST_ID, helperThreadId: "thr_helper" };
+        },
+        getEnhancement: () =>
+          startupAcknowledged
+            ? {
+                requestId: REQUEST_ID,
+                helperThreadId: "thr_helper",
+                status: "running" as const,
+                createdAt: 1,
+              }
+            : null,
+        cancelEnhancement,
+      },
+    });
+    const Action = await loadAction();
+    render(<Action projectId="proj_1" threadId="thr_source" />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Improve prompt" }));
+    const cancelButton = await screen.findByRole("button", {
+      name: "Cancel prompt improvement",
+    });
+    fireEvent.click(cancelButton);
+
+    await waitFor(() => {
+      expect(cancelEnhancement).toHaveBeenCalledWith({ requestId: REQUEST_ID });
+      expect(window.sessionStorage.length).toBe(1);
+      expect(getTestPluginRuntime().textEffect).toBe("shimmer");
+      expect(toast.error).toHaveBeenCalledWith(
+        "cancel transport rejected during startup",
+      );
+    });
+
+    await act(async () => {
+      start.resolve();
+      await start.promise;
+      await Promise.resolve();
+    });
+    await waitFor(() => {
+      expect(window.sessionStorage.length).toBe(1);
+      expect(
+        screen.getByRole("button", { name: "Cancel prompt improvement" }),
+      ).not.toBeNull();
+    });
   });
 
   it("invalidates and cancels a pending side-chat request when tab ownership changes", async () => {
@@ -685,6 +890,165 @@ describe("Improve Prompt composer action", () => {
     expect(toast.success).not.toHaveBeenCalled();
   });
 
+  it("keeps running work visible when cancellation is rejected", async () => {
+    let getCalls = 0;
+    const cancelEnhancement = vi.fn(() => {
+      throw new Error("cancel transport rejected");
+    });
+    resetTestPluginRuntime({
+      text: "keep improving this draft",
+      scope: { kind: "thread", threadId: "thr_source" },
+      rpc: {
+        startEnhancement: () => ({
+          requestId: REQUEST_ID,
+          helperThreadId: "thr_helper",
+        }),
+        getEnhancement: () => {
+          getCalls += 1;
+          return {
+            requestId: REQUEST_ID,
+            helperThreadId: "thr_helper",
+            status: "running" as const,
+            createdAt: 1,
+          };
+        },
+        cancelEnhancement,
+      },
+    });
+    const Action = await loadAction();
+    render(<Action projectId="proj_1" threadId="thr_source" />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Improve prompt" }));
+    await waitFor(() => expect(getCalls).toBe(1));
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Cancel prompt improvement" }),
+    );
+
+    await waitFor(() => {
+      expect(cancelEnhancement).toHaveBeenCalledWith({ requestId: REQUEST_ID });
+      expect(getCalls).toBe(2);
+      expect(window.sessionStorage.length).toBe(1);
+      expect(getTestPluginRuntime().textEffect).toBe("shimmer");
+      expect(getTestPluginRuntime().threadRowStatus).not.toBeNull();
+      expect(
+        screen.getByRole("button", { name: "Cancel prompt improvement" }),
+      ).not.toBeNull();
+      expect(toast.error).toHaveBeenCalledWith("cancel transport rejected");
+    });
+    expect(getTestPluginRuntime().text).toBe("keep improving this draft");
+  });
+
+  it("clears local cancellation state when the cancel response is lost but the request is absent", async () => {
+    let getCalls = 0;
+    const cancelEnhancement = vi.fn(() => {
+      throw new Error("cancel response lost");
+    });
+    resetTestPluginRuntime({
+      text: "keep this draft",
+      scope: { kind: "thread", threadId: "thr_source" },
+      rpc: {
+        startEnhancement: () => ({
+          requestId: REQUEST_ID,
+          helperThreadId: "thr_helper",
+        }),
+        getEnhancement: () => {
+          getCalls += 1;
+          return getCalls === 1
+            ? {
+                requestId: REQUEST_ID,
+                helperThreadId: "thr_helper",
+                status: "running" as const,
+                createdAt: 1,
+              }
+            : null;
+        },
+        cancelEnhancement,
+      },
+    });
+    const Action = await loadAction();
+    render(<Action projectId="proj_1" threadId="thr_source" />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Improve prompt" }));
+    await waitFor(() => expect(getCalls).toBe(1));
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Cancel prompt improvement" }),
+    );
+
+    await waitFor(() => {
+      expect(cancelEnhancement).toHaveBeenCalledWith({ requestId: REQUEST_ID });
+      expect(getCalls).toBe(2);
+      expect(window.sessionStorage.length).toBe(0);
+      expect(getTestPluginRuntime().textEffect).toBeNull();
+      expect(getTestPluginRuntime().threadRowStatus).toBeNull();
+      expect(
+        screen.getByRole("button", { name: "Improve prompt" }),
+      ).not.toBeNull();
+    });
+    expect(getTestPluginRuntime().text).toBe("keep this draft");
+    expect(toast.error).not.toHaveBeenCalled();
+  });
+
+  it("consumes a terminal result when cancellation fails after the helper finishes", async () => {
+    let getCalls = 0;
+    const cancelEnhancement = vi.fn(() => {
+      throw new Error("cancel raced with completion");
+    });
+    resetTestPluginRuntime({
+      text: "rough draft",
+      scope: { kind: "thread", threadId: "thr_source" },
+      rpc: {
+        startEnhancement: () => ({
+          requestId: REQUEST_ID,
+          helperThreadId: "thr_helper",
+        }),
+        getEnhancement: () => {
+          getCalls += 1;
+          return getCalls === 1
+            ? {
+                requestId: REQUEST_ID,
+                helperThreadId: "thr_helper",
+                status: "running" as const,
+                createdAt: 1,
+              }
+            : {
+                requestId: REQUEST_ID,
+                helperThreadId: "thr_helper",
+                status: "complete" as const,
+                enhancedPrompt: "Improved just before cancellation.",
+                assumptions: null,
+                createdAt: 1,
+                completedAt: 2,
+              };
+        },
+        cancelEnhancement,
+      },
+    });
+    const Action = await loadAction();
+    render(<Action projectId="proj_1" threadId="thr_source" />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Improve prompt" }));
+    await waitFor(() => expect(getCalls).toBe(1));
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Cancel prompt improvement" }),
+    );
+
+    await waitFor(() => {
+      expect(getCalls).toBe(2);
+      expect(getTestPluginRuntime().text).toBe(
+        "Improved just before cancellation.",
+      );
+      expect(window.sessionStorage.length).toBe(0);
+      expect(getTestPluginRuntime().textEffect).toBeNull();
+      expect(
+        screen.getByRole("button", { name: "Undo prompt" }),
+      ).not.toBeNull();
+    });
+    expect(toast.error).not.toHaveBeenCalled();
+  });
+
   it("reveals the cancel icon on hover and keyboard focus while preserving the loading icon otherwise", async () => {
     const start = deferred<never>();
     resetTestPluginRuntime({
@@ -905,7 +1269,7 @@ describe("Improve Prompt composer action", () => {
     ]);
   });
 
-  it("clears a detached pending marker when helper startup fails", async () => {
+  it("clears a remounted pending request when helper startup fails", async () => {
     let rejectStart!: (error: Error) => void;
     const start = new Promise<never>((_resolve, reject) => {
       rejectStart = reject;
@@ -927,6 +1291,14 @@ describe("Improve Prompt composer action", () => {
     await waitFor(() => expect(window.sessionStorage.length).toBe(1));
 
     view.unmount();
+    render(<Action projectId="proj_1" threadId="thr_source" />);
+    await waitFor(() => {
+      expect(
+        screen.getByRole("button", { name: "Cancel prompt improvement" }),
+      ).not.toBeNull();
+      expect(getTestPluginRuntime().textEffect).toBe("shimmer");
+    });
+
     await act(async () => {
       rejectStart(new Error("agent unavailable"));
       await Promise.resolve();
@@ -937,12 +1309,16 @@ describe("Improve Prompt composer action", () => {
       "draft whose helper cannot start",
     );
 
-    render(<Action projectId="proj_1" threadId="thr_source" />);
-    expect(
-      screen.getByRole("button", { name: "Improve prompt" }),
-    ).not.toBeNull();
-    expect(getTestPluginRuntime().textEffect).toBeNull();
-    expect(getTestPluginRuntime().threadRowStatus).toBeNull();
+    await waitFor(
+      () => {
+        expect(
+          screen.getByRole("button", { name: "Improve prompt" }),
+        ).not.toBeNull();
+        expect(getTestPluginRuntime().textEffect).toBeNull();
+        expect(getTestPluginRuntime().threadRowStatus).toBeNull();
+      },
+      { timeout: 4_000 },
+    );
   });
 
   it("keeps recovered pending work through StrictMode and a real unmount", async () => {

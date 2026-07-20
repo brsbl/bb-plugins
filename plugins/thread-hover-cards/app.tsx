@@ -32,7 +32,9 @@ const PLUGIN_CSS_SELECTOR =
   'link[data-bb-plugin-css="thread-hover-cards"]';
 const THREAD_TRIGGER_SELECTOR = "a[data-sidebar-thread-id]";
 const THREAD_ROW_SELECTOR = ".group\\/thread-row";
-const OPEN_DELAY_MS = 0;
+// A short pointer dwell prevents delegated pointer events from faning out RPCs
+// while the sidebar lays out. Keyboard focus remains immediate below.
+const OPEN_DELAY_MS = 120;
 const CLOSE_DELAY_MS = 120;
 const ACTIVE_SUMMARY_CACHE_TTL_MS = 2_000;
 const IDLE_SUMMARY_CACHE_TTL_MS = 30_000;
@@ -911,6 +913,12 @@ function installHoverCards(): HoverCardController {
 
   function cacheSummary(threadId: string, summary: ThreadSummary): void {
     const previous = cache.get(threadId);
+    const statusChanged =
+      previous !== undefined && previous.summary.status !== summary.status;
+    const shouldKeepTiming =
+      previous?.timingFetchedAt !== null &&
+      previous?.timingFetchedAt !== undefined &&
+      !statusChanged;
     const shouldKeepPullRequest =
       summary.pullRequest.kind === "pending" &&
       previous !== undefined &&
@@ -926,8 +934,20 @@ function installHoverCards(): HoverCardController {
         : cachedPullRequest.kind === "pending"
           ? null
           : Date.now(),
-      summary: { ...summary, pullRequest: cachedPullRequest },
-      timingFetchedAt: null,
+      summary: {
+        ...summary,
+        ...(shouldKeepTiming
+          ? {
+              currentTurnCompletedAt:
+                previous.summary.currentTurnCompletedAt,
+              currentTurnStartedAt: previous.summary.currentTurnStartedAt,
+            }
+          : {}),
+        pullRequest: cachedPullRequest,
+      },
+      timingFetchedAt: statusChanged
+        ? null
+        : previous?.timingFetchedAt ?? null,
     });
     while (cache.size > CACHE_MAX_ENTRIES) {
       const oldestThreadId = cache.keys().next().value;

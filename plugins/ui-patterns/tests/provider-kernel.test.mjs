@@ -113,6 +113,13 @@ test("offline search returns computed entries with provider filtering", () => {
   assert.throws(() =>
     kernel.atlasEntrySearchInputSchema.parse({ kind: "primitive" }),
   );
+  assert.throws(() =>
+    kernel.atlasEntrySearchResultSchema.parse({
+      mode: "expanded",
+      queryTerms: ["button"],
+      entries: [],
+    }),
+  );
 });
 
 test("offline search requires every query term", () => {

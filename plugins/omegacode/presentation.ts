@@ -28,6 +28,47 @@ export function agentDisplayLabel(agent: Agent): string {
   return agent.label;
 }
 
+function workerAction(agent: Agent): string {
+  const phase = agent.phase ? ` in ${agent.phase}` : "";
+  if (agent.state === "running") return `${agent.label} is working${phase}`;
+  if (/^(queued|pending)$/i.test(agent.state)) {
+    return `${agent.label} is queued${phase}`;
+  }
+  if (/fail|error/i.test(agent.state)) return `${agent.label} failed${phase}`;
+  if (/cancel|interrupt/i.test(agent.state)) {
+    return `${agent.label} was cancelled${phase}`;
+  }
+  if (/^(completed|done|success|skipped)$/i.test(agent.state)) {
+    return `${agent.label} finished${phase}`;
+  }
+  return `${agent.label} is waiting${phase}`;
+}
+
+function workerSummaryPriority(agent: Agent): number {
+  if (/^running$/i.test(agent.state)) return 0;
+  if (/fail|error/i.test(agent.state)) return 1;
+  if (/^(queued|pending)$/i.test(agent.state)) return 2;
+  if (/^(completed|done|success|skipped)$/i.test(agent.state)) return 4;
+  if (/cancel|interrupt/i.test(agent.state)) return 5;
+  return 3;
+}
+
+export function workerActivitySummary(agents: readonly Agent[]): string {
+  if (agents.length === 0) {
+    return "Worker details will appear when the run starts.";
+  }
+  const visible = [...agents]
+    .sort(
+      (left, right) =>
+        workerSummaryPriority(left) - workerSummaryPriority(right) ||
+        left.index - right.index,
+    )
+    .slice(0, 3)
+    .map(workerAction);
+  const remaining = agents.length - visible.length;
+  return `${visible.join("; ")}${remaining > 0 ? `; plus ${remaining} more` : ""}.`;
+}
+
 export function workflowAgentState(
   state: string,
 ): WorkflowProgressAgentState {

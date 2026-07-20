@@ -5,6 +5,7 @@ import type { PluginNavPanelProps } from "@bb/plugin-sdk";
 import { loadPluginApp, renderSlot } from "@bb/plugin-sdk/testing/app";
 import { afterEach, describe, expect, it } from "vitest";
 
+import { workerActivitySummary } from "./presentation";
 import type { GlobalRun, rpcContract } from "./server";
 
 function run(overrides: Partial<GlobalRun>): GlobalRun {
@@ -146,6 +147,91 @@ const RUNS: GlobalRun[] = [
 afterEach(() => cleanup());
 
 describe("Omegacode global workflow page", () => {
+  it("prioritizes current and failed work before completed worker history", () => {
+    const summary = workerActivitySummary(
+      run({
+        agents: [
+          {
+            index: 1,
+            label: "Finished inventory",
+            phase: "Inventory",
+            provider: "codex",
+            model: "gpt-test",
+            state: "completed",
+            startedAt: 10,
+            bytes: 10,
+            tokens: 5,
+            durationMs: 20,
+          },
+          {
+            index: 2,
+            label: "Finished docs",
+            phase: "Document",
+            provider: "codex",
+            model: "gpt-test",
+            state: "completed",
+            startedAt: 20,
+            bytes: 10,
+            tokens: 5,
+            durationMs: 20,
+          },
+          {
+            index: 3,
+            label: "Finished build",
+            phase: "Build",
+            provider: "codex",
+            model: "gpt-test",
+            state: "completed",
+            startedAt: 30,
+            bytes: 10,
+            tokens: 5,
+            durationMs: 20,
+          },
+          {
+            index: 4,
+            label: "Verify install",
+            phase: "Verify",
+            provider: null,
+            model: null,
+            state: "queued",
+            startedAt: null,
+            bytes: 0,
+            tokens: 0,
+            durationMs: 0,
+          },
+          {
+            index: 5,
+            label: "Implement migration",
+            phase: "Build",
+            provider: "codex",
+            model: "gpt-test",
+            state: "running",
+            startedAt: 40,
+            bytes: 10,
+            tokens: 5,
+            durationMs: 20,
+          },
+          {
+            index: 6,
+            label: "Audit package",
+            phase: "Audit",
+            provider: "codex",
+            model: "gpt-test",
+            state: "failed",
+            startedAt: 50,
+            bytes: 10,
+            tokens: 5,
+            durationMs: 20,
+          },
+        ],
+      }).agents,
+    );
+
+    expect(summary).toBe(
+      "Implement migration is working in Build; Audit package failed in Audit; Verify install is queued in Verify; plus 3 more.",
+    );
+  });
+
   it("separates live, attention, completed, and canceled workflows", async () => {
     const app = await loadPluginApp(() => import("./app"));
     expect(app.navPanels).toHaveLength(1);

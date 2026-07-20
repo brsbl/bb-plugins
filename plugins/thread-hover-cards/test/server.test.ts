@@ -25,6 +25,8 @@ const debugMessages: string[] = [];
 let displayStatus: "active" | "idle" = "active";
 let projectId = "proj_1";
 let assistantOutput = "  **Finished**   the hover card \n- polish.  ";
+const nestedAssistantOutput =
+  "Nested agent output returned by threads.output().";
 let threadGetFails = false;
 let timelineFails = false;
 let environmentIsGitRepository = true;
@@ -32,6 +34,7 @@ let turnStartedAt: number | null = 100;
 let turnCompletedAt: number | null = null;
 let environmentGetCalls = 0;
 let outputCalls = 0;
+let summaryTimelineCalls = 0;
 let projectCalls = 0;
 let providerListCalls = 0;
 let providerModelCalls = 0;
@@ -182,6 +185,10 @@ const fakeBb = {
                   branchName: "feature/hover-cards",
                   isGitRepo: environmentIsGitRepository,
                   path: "/workspace/thread-hover-cards",
+                  workspaceProvisionType:
+                    input.threadId === "thr_local"
+                      ? "personal"
+                      : "managed-worktree",
                 },
               }
             : {}),
@@ -195,10 +202,43 @@ const fakeBb = {
       },
       async output() {
         outputCalls += 1;
-        return { output: assistantOutput };
+        return { output: nestedAssistantOutput };
       },
-      async timeline() {
+      async timeline(input: { includeNestedRows?: string }) {
         if (timelineFails) throw new Error("Timeline lookup failed");
+
+        if (input.includeNestedRows === "false") {
+          summaryTimelineCalls += 1;
+          return {
+            maxSeq: 20,
+            rows: [
+              {
+                children: [
+                  {
+                    kind: "conversation" as const,
+                    role: "assistant" as const,
+                    text: assistantOutput,
+                  },
+                  {
+                    childRows: [
+                      {
+                        kind: "conversation" as const,
+                        role: "assistant" as const,
+                        text: nestedAssistantOutput,
+                      },
+                    ],
+                    kind: "work" as const,
+                    workKind: "delegation" as const,
+                  },
+                ],
+                kind: "turn" as const,
+              },
+            ],
+            timelinePage: {
+              olderCursor: { anchorId: "prompt_1", anchorSeq: 10 },
+            },
+          };
+        }
         return {
           contextWindowUsage: {
             estimated: false,
@@ -281,7 +321,9 @@ assert.deepEqual(withoutDiagnostics(summary), {
 assert.equal("permissionMode" in summary.provider, false);
 assert.equal(summary.permissionMode, "full");
 assert.equal("contextWindowUsage" in summary, false);
-assert.equal(outputCalls, 1);
+assert.notEqual(summary.latestAssistantMessage, nestedAssistantOutput);
+assert.equal(outputCalls, 0);
+assert.equal(summaryTimelineCalls, 1);
 assert.equal(threadGetSignals.length, 1);
 assert.ok(threadGetSignals[0] instanceof AbortSignal);
 assert.equal(projectCalls, 1);
@@ -295,7 +337,7 @@ assert.equal(stage(summary.diagnostics, "thread").outcome, "ok");
 assert.equal(stage(summary.diagnostics, "environment").cache, "none");
 assert.equal(stage(summary.diagnostics, "project").cache, "miss");
 assert.equal(stage(summary.diagnostics, "executionOptions").outcome, "ok");
-assert.equal(stage(summary.diagnostics, "output").outcome, "ok");
+assert.equal(stage(summary.diagnostics, "messageTimeline").outcome, "ok");
 
 const pullRequest = await pullRequestHandler({ threadId: "thr_1" });
 assert.deepEqual(withoutDiagnostics(pullRequest), {
@@ -360,7 +402,7 @@ assert.equal(providerModelCalls, 0);
 assert.equal(environmentGetCalls, 0);
 assert.equal(pullRequestCalls, 1);
 assert.equal(executionOptionsCalls, 2);
-assert.equal(outputCalls, 2);
+assert.equal(outputCalls, 0);
 const longTurnTiming = await timingHandler({ threadId: "thr_1" });
 assert.equal(longTurnTiming.currentTurnStartedAt, 200);
 assert.equal(longTurnTiming.status, "active");
@@ -384,7 +426,7 @@ assert.equal(
   "**Finished** the hover card\n- polish.",
 );
 assert.equal(idleSummary.status, "idle");
-assert.equal(outputCalls, 4);
+assert.equal(outputCalls, 0);
 assert.deepEqual(eventWaitInputs, []);
 const idleTiming = await timingHandler({ threadId: "thr_1" });
 assert.deepEqual(withoutDiagnostics(idleTiming), {
@@ -400,7 +442,7 @@ const blankIdleSummary = await summaryHandler({ threadId: "thr_1" });
 assert.equal(blankIdleSummary.latestAssistantMessage, null);
 assert.equal(blankIdleSummary.currentTurnStartedAt, null);
 assert.equal(blankIdleSummary.currentTurnCompletedAt, null);
-assert.equal(outputCalls, 5);
+assert.equal(outputCalls, 0);
 const blankIdleTiming = await timingHandler({ threadId: "thr_1" });
 assert.deepEqual(withoutDiagnostics(blankIdleTiming), {
   currentTurnCompletedAt: null,
@@ -446,6 +488,7 @@ const pullRequestCallsBeforeLocalSummary = pullRequestCalls;
 const localSummary = await summaryHandler({ threadId: "thr_local" });
 assert.equal(localSummary.repository.isGitRepository, false);
 assert.equal(localSummary.pullRequest.kind, "absent");
+assert.equal(stage(localSummary.diagnostics, "project").outcome, "skipped");
 assert.equal(
   pullRequestCalls,
   pullRequestCallsBeforeLocalSummary,

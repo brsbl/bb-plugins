@@ -174,6 +174,35 @@ function normalizeMessage(value: string): string {
     : normalized;
 }
 
+type ThreadTimeline = Awaited<
+  ReturnType<BbPluginApi["sdk"]["threads"]["timeline"]>
+>;
+
+function latestAssistantMessage(timeline: ThreadTimeline): string | null {
+  for (let rowIndex = timeline.rows.length - 1; rowIndex >= 0; rowIndex -= 1) {
+    const row = timeline.rows[rowIndex];
+    if (!row) continue;
+
+    const visibleRows = row.kind === "turn" ? (row.children ?? []) : [row];
+    for (
+      let visibleIndex = visibleRows.length - 1;
+      visibleIndex >= 0;
+      visibleIndex -= 1
+    ) {
+      const visibleRow = visibleRows[visibleIndex];
+      if (
+        visibleRow?.kind === "conversation" &&
+        visibleRow.role === "assistant" &&
+        visibleRow.text.trim().length > 0
+      ) {
+        return visibleRow.text;
+      }
+    }
+  }
+
+  return null;
+}
+
 function repositoryName(remoteUrl: string | null, fallback: string): string {
   if (!remoteUrl) return fallback;
 
@@ -550,22 +579,25 @@ export default function plugin(bb: BbPluginApi): void {
           });
         }
 
-        const projectPromise = measureCachedStage(
-          recorder,
-          "project",
-          () =>
-            stableDescriptors.get(`project:${thread.projectId}`, () =>
-              within(
-                safely(
-                  bb.sdk.projects.get({
-                    projectId: thread.projectId,
-                    signal,
-                  }),
+        const skipProject =
+          environment?.workspaceProvisionType === "personal" &&
+          !environment.isGitRepo;
+        if (skipProject) recordSkippedStage(recorder, "project");
+        const projectPromise = skipProject
+          ? Promise.resolve({ source: "hit" as const, value: null })
+          : measureCachedStage(recorder, "project", () =>
+              stableDescriptors.get(`project:${thread.projectId}`, () =>
+                within(
+                  safely(
+                    bb.sdk.projects.get({
+                      projectId: thread.projectId,
+                      signal,
+                    }),
+                  ),
+                  remainingMs(),
                 ),
-                remainingMs(),
               ),
-            ),
-        );
+            );
         const executionOptionsPromise = measureStage(
           recorder,
           "executionOptions",
@@ -578,27 +610,36 @@ export default function plugin(bb: BbPluginApi): void {
             ),
           { unavailableWhenNull: true },
         );
-        const outputPromise = measureStage(
+        const messageTimelinePromise = measureStage(
           recorder,
-          "output",
+          "messageTimeline",
           () =>
             within(
-              safely(bb.sdk.threads.output({ signal, threadId })),
+              safely(
+                bb.sdk.threads.timeline({
+                  includeNestedRows: "false",
+                  segmentLimit: "1",
+                  signal,
+                  threadId,
+                }),
+              ),
               remainingMs(),
             ),
           { unavailableWhenNull: true },
         );
-        const [projectResult, executionOptions, threadOutput] =
+        const [projectResult, executionOptions, messageTimeline] =
           await Promise.all([
             projectPromise,
             executionOptionsPromise,
-            outputPromise,
+            messageTimelinePromise,
           ]);
         const project = projectResult.value;
         const isGitRepository =
           environment?.isGitRepo ?? project?.gitRemoteUrl != null;
         const normalizedAssistantMessage = normalizeMessage(
-          threadOutput?.output ?? "",
+          messageTimeline
+            ? (latestAssistantMessage(messageTimeline) ?? "")
+            : "",
         );
         const diagnostics = finishDiagnostics(recorder);
         recordDiagnostics(bb, "threadSummary", threadId, diagnostics);

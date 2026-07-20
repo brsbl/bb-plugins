@@ -1056,7 +1056,7 @@ var STYLE_ID = "bb-thread-hover-card-styles";
 var PLUGIN_CSS_SELECTOR = 'link[data-bb-plugin-css="thread-hover-cards"]';
 var THREAD_TRIGGER_SELECTOR = "a[data-sidebar-thread-id]";
 var THREAD_ROW_SELECTOR = ".group\\/thread-row";
-var OPEN_DELAY_MS = 0;
+var OPEN_DELAY_MS = 120;
 var CLOSE_DELAY_MS = 120;
 var ACTIVE_SUMMARY_CACHE_TTL_MS = 2e3;
 var IDLE_SUMMARY_CACHE_TTL_MS = 3e4;
@@ -1736,14 +1736,23 @@ function installHoverCards() {
   }
   function cacheSummary(threadId, summary) {
     const previous = cache.get(threadId);
+    const statusChanged = previous !== void 0 && previous.summary.status !== summary.status;
+    const shouldKeepTiming = previous?.timingFetchedAt !== null && previous?.timingFetchedAt !== void 0 && !statusChanged;
     const shouldKeepPullRequest = summary.pullRequest.kind === "pending" && previous !== void 0 && previous.summary.pullRequest.kind !== "pending";
     const cachedPullRequest = shouldKeepPullRequest ? previous.summary.pullRequest : summary.pullRequest;
     cache.delete(threadId);
     cache.set(threadId, {
       fetchedAt: Date.now(),
       pullRequestFetchedAt: shouldKeepPullRequest ? previous.pullRequestFetchedAt : cachedPullRequest.kind === "pending" ? null : Date.now(),
-      summary: { ...summary, pullRequest: cachedPullRequest },
-      timingFetchedAt: null
+      summary: {
+        ...summary,
+        ...shouldKeepTiming ? {
+          currentTurnCompletedAt: previous.summary.currentTurnCompletedAt,
+          currentTurnStartedAt: previous.summary.currentTurnStartedAt
+        } : {},
+        pullRequest: cachedPullRequest
+      },
+      timingFetchedAt: statusChanged ? null : previous?.timingFetchedAt ?? null
     });
     while (cache.size > CACHE_MAX_ENTRIES) {
       const oldestThreadId = cache.keys().next().value;

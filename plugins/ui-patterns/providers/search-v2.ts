@@ -12,7 +12,7 @@ export interface ProviderSearchOptions {
   limit?: number;
 }
 
-type SearchMode = "browse" | "exact" | "prefix" | "expanded";
+type SearchMode = "browse" | "exact" | "prefix";
 
 const weights = {
   name: 1_000,

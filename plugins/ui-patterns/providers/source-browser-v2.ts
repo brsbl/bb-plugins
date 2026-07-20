@@ -43,7 +43,7 @@ export interface AtlasEntrySearchOptions {
   limit?: number;
 }
 
-export type AtlasEntrySearchMode = "browse" | "exact" | "prefix" | "expanded";
+export type AtlasEntrySearchMode = "browse" | "exact" | "prefix";
 
 export interface AtlasEntrySearchResult {
   mode: AtlasEntrySearchMode;
@@ -92,7 +92,7 @@ export const atlasEntrySearchInputSchema = z
 
 export const atlasEntrySearchResultSchema = z
   .object({
-    mode: z.enum(["browse", "exact", "prefix", "expanded"]),
+    mode: z.enum(["browse", "exact", "prefix"]),
     queryTerms: z.array(z.string()),
     entries: z.array(atlasEntrySchema),
   })

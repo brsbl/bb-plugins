@@ -29,6 +29,7 @@ import {
   galleryPreviewsForRecords,
   LiveComponentPreview,
 } from "./live-component-previews.js";
+import { StaticGalleryPreview } from "./static-gallery-preview.js";
 
 export interface GalleryNavigation {
   entryId: string | null;
@@ -217,10 +218,7 @@ function GalleryCard({
           aria-hidden="true"
         />
       </button>
-      <LiveComponentPreview
-        definition={implementation.preview}
-        size="card"
-      />
+      <StaticGalleryPreview entry={entry} />
     </article>
   );
 }

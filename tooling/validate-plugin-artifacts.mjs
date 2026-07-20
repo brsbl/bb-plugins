@@ -1,5 +1,5 @@
 import { spawnSync } from "node:child_process";
-import { readFile, stat } from "node:fs/promises";
+import { readFile, readdir, stat } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -46,6 +46,94 @@ async function validateMetadata(path, manifest, id, bbVersion) {
 
 function normalizePackagePath(path) {
   return path.replace(/^\.\//, "").replace(/\\/g, "/");
+}
+
+function normalizeManifestDirectory(path, label) {
+  if (typeof path !== "string") {
+    throw new Error(`${label} must contain only string paths`);
+  }
+  const normalized = normalizePackagePath(path).replace(/\/+$/, "");
+  if (
+    normalized === "" ||
+    normalized.startsWith("/") ||
+    normalized.split("/").some((segment) => segment === "." || segment === "..")
+  ) {
+    throw new Error(`${label} contains invalid path ${JSON.stringify(path)}`);
+  }
+  return normalized;
+}
+
+export function effectiveSkillsDirectories(manifest) {
+  const configured = manifest.bb?.skills;
+  if (configured === undefined) {
+    return { directories: ["skills"], implicit: true };
+  }
+  if (!Array.isArray(configured)) {
+    throw new Error(`${manifest.name}: bb.skills must be an array`);
+  }
+  const directories = configured.map((path) =>
+    normalizeManifestDirectory(path, `${manifest.name}: bb.skills`),
+  );
+  if (new Set(directories).size !== directories.length) {
+    throw new Error(`${manifest.name}: bb.skills contains duplicate paths`);
+  }
+  return { directories, implicit: false };
+}
+
+async function filesBelow(directory, prefix = "") {
+  const entries = await readdir(directory, { withFileTypes: true }).catch(
+    (error) => {
+      if (error?.code === "ENOENT") return [];
+      throw error;
+    },
+  );
+  const files = [];
+  for (const entry of entries) {
+    const relativePath = prefix ? `${prefix}/${entry.name}` : entry.name;
+    if (entry.isDirectory()) {
+      files.push(...(await filesBelow(resolve(directory, entry.name), relativePath)));
+    } else if (entry.isFile()) {
+      files.push(relativePath);
+    }
+  }
+  return files;
+}
+
+async function validateSkills(directory, manifest, packed) {
+  const skills = effectiveSkillsDirectories(manifest);
+
+  if (!skills.implicit && skills.directories.length === 0) {
+    const disabledSkillFiles = (await filesBelow(resolve(directory, "skills")))
+      .filter((path) => path === "SKILL.md" || path.endsWith("/SKILL.md"));
+    if (disabledSkillFiles.length > 0) {
+      throw new Error(
+        `${directory}: bb.skills opts out, but skills/${disabledSkillFiles[0]} exists`,
+      );
+    }
+  }
+
+  for (const skillsDirectory of skills.directories) {
+    const skillFiles = (await filesBelow(resolve(directory, skillsDirectory)))
+      .filter((path) => path === "SKILL.md" || path.endsWith("/SKILL.md"));
+    if (skills.implicit && skillFiles.length > 0) {
+      throw new Error(
+        `${directory}: ${skillsDirectory}/${skillFiles[0]} would be implicitly auto-imported by bb; declare bb.skills explicitly`,
+      );
+    }
+    if (!skills.implicit && skillFiles.length === 0) {
+      throw new Error(
+        `${directory}: bb.skills declares ${skillsDirectory}, but it contains no SKILL.md`,
+      );
+    }
+    for (const skillFile of skillFiles) {
+      const repositoryPath = `${skillsDirectory}/${skillFile}`;
+      if (!packed.has(repositoryPath)) {
+        throw new Error(
+          `${directory}: ${repositoryPath} is declared by bb but omitted by the package allowlist`,
+        );
+      }
+    }
+  }
 }
 
 function packedFiles(directory) {
@@ -115,12 +203,15 @@ export async function validatePluginArtifacts(pluginDirectory, options = {}) {
   for (const path of Object.values(manifest.bb.branding?.logo ?? {})) {
     requirePacked(files, path, directory);
   }
-  for (const skillsDirectory of manifest.bb.skills ?? []) {
-    const prefix = `${normalizePackagePath(skillsDirectory).replace(/\/$/, "")}/`;
-    if (![...files].some((path) => path.startsWith(prefix))) {
-      throw new Error(`${directory}: package omits skills under ${prefix}`);
-    }
+  if (options.expectedScreenshot) {
+    const screenshot = normalizeManifestDirectory(
+      options.expectedScreenshot,
+      `${manifest.name}: screenshot`,
+    );
+    await requireNonEmpty(resolve(directory, screenshot));
+    requirePacked(files, screenshot, directory);
   }
+  await validateSkills(directory, manifest, files);
   if ([...files].some((path) => path.endsWith("package-lock.json"))) {
     throw new Error(`${directory}: package contains a nested lockfile`);
   }
@@ -129,15 +220,22 @@ export async function validatePluginArtifacts(pluginDirectory, options = {}) {
 }
 
 async function main() {
+  const catalog = await readJson(resolve(repositoryRoot, "catalog/plugins.json"));
   const requested = process.argv.slice(2);
   const directories = requested.length
     ? requested
-    : (await readJson(resolve(repositoryRoot, "catalog/plugins.json"))).plugins.map(
-        ({ source }) => source,
-      );
+    : catalog.plugins.map(({ source }) => source);
 
   for (const directory of directories) {
-    const result = await validatePluginArtifacts(resolve(repositoryRoot, directory));
+    const absoluteDirectory = resolve(repositoryRoot, directory);
+    const entry = catalog.plugins.find(
+      ({ source }) => resolve(repositoryRoot, source) === absoluteDirectory,
+    );
+    const result = await validatePluginArtifacts(absoluteDirectory, {
+      expectedId: entry?.pluginId,
+      expectedName: entry?.name,
+      expectedScreenshot: entry?.screenshot,
+    });
     console.log(
       `validated ${result.id} (${result.name}), ${result.packedFileCount} packed files`,
     );

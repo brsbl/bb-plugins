@@ -91,6 +91,10 @@ export function getTestPluginRuntime(): Readonly<TestRuntime> {
   return runtime;
 }
 
+export function emitTestRealtime(channel: string, payload: unknown): void {
+  for (const handler of realtimeHandlers.get(channel) ?? []) handler(payload);
+}
+
 export function definePluginApp(setup: (app: unknown) => void) {
   return { __bbPluginApp: true as const, setup };
 }

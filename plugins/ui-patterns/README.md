@@ -2,6 +2,8 @@
 
 UI Patterns is a visual and agent-queryable browser for approved-source components and interaction guidance.
 
+![Interactive UI pattern examples in a bb thread panel](docs/screenshot.png)
+
 ## Install
 
 ```bash

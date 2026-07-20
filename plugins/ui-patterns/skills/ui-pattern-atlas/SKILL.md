@@ -26,7 +26,9 @@ Search for a concrete UI noun, inspect the computed entry and its source records
 5. Compare the returned `sourceRecords` only when their source-owned guidance differs in a way that matters to the task.
 6. Apply the guidance while preserving the product’s design system, platform conventions, accessibility requirements, and established terminology.
 
-Search covers entry names and aliases plus source-owned summaries, native IDs, sections, kinds, and relationships. `data.retrieval.mode` is `exact`, `prefix`, or `expanded`.
+Search covers entry names and aliases plus source-owned summaries, native IDs,
+sections, kinds, and relationships. `data.retrieval.mode` is `exact` or
+`prefix`.
 
 ## Inventory work
 

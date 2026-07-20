@@ -4899,31 +4899,47 @@ function scopeKey(scope) {
 
 // app.tsx
 var PENDING_STORAGE_PREFIX = "bb-plugin-prompt-shaper:pending:";
+var STARTUP_GRACE_MS = 3e4;
+var locallyStartingRequestIds = /* @__PURE__ */ new Set();
 var THREAD_ROW_STATUS = {
   icon: "AiContentGenerator01",
   label: "Improve Prompt is improving the draft",
   effect: "shimmer",
   tone: "success"
 };
+function resetLocallyStartingRequestsForTest() {
+  locallyStartingRequestIds.clear();
+}
 function pendingStorageKey(composerScopeKey) {
   return `${PENDING_STORAGE_PREFIX}${composerScopeKey}`;
 }
-function loadPendingRequest(composerScopeKey) {
+function readPendingStorage(composerScopeKey) {
   try {
     const raw = window.sessionStorage.getItem(
       pendingStorageKey(composerScopeKey)
     );
-    if (raw === null) return null;
+    if (raw === null) return { available: true, request: null };
     const value = JSON.parse(raw);
     if (typeof value === "object" && value !== null && "requestId" in value && typeof value.requestId === "string" && "scopeKey" in value && value.scopeKey === composerScopeKey) {
+      const createdAt = "createdAt" in value && typeof value.createdAt === "number" && Number.isFinite(value.createdAt) && value.createdAt >= 0 ? value.createdAt : 0;
+      const startup = "startup" in value && value.startup === "starting" ? "starting" : "acknowledged";
       return {
-        requestId: value.requestId,
-        scopeKey: value.scopeKey
+        available: true,
+        request: {
+          createdAt,
+          requestId: value.requestId,
+          scopeKey: value.scopeKey,
+          startup
+        }
       };
     }
   } catch {
+    return { available: false, request: null };
   }
-  return null;
+  return { available: true, request: null };
+}
+function loadPendingRequest(composerScopeKey) {
+  return readPendingStorage(composerScopeKey).request;
 }
 function savePendingRequest(request) {
   try {
@@ -4960,6 +4976,7 @@ function PromptShaperAction({
   );
   const reconcileRecoveredPendingRef = useRef(pending !== null);
   const pendingRef = useRef(pending);
+  const cancellingRequestIdRef = useRef(null);
   const composerRef = useRef(composer);
   const composerScopeKeyRef = useRef(composerScopeKey);
   const previousComposerScopeKeyRef = useRef(composerScopeKey);
@@ -5054,23 +5071,47 @@ function PromptShaperAction({
     if (restored) currentComposer.focus();
   }, [undoState]);
   const consumeResult = useCallback(
-    async (requestId) => {
+    async (requestId, options = {}) => {
       const active = pendingRef.current;
-      if (active === null || active.requestId !== requestId) return;
+      if (active === null || active.requestId !== requestId) return "ignored";
+      if (cancellingRequestIdRef.current === requestId && !options.allowDuringCancellation) {
+        return "ignored";
+      }
       const record = await rpc.call("getEnhancement", { requestId });
-      if (pendingRef.current !== active) return;
-      if (record === null || record.status === "running") return;
+      if (pendingRef.current !== active) return "ignored";
+      if (cancellingRequestIdRef.current === requestId && !options.allowDuringCancellation) {
+        return "ignored";
+      }
+      if (record === null) {
+        const stored = readPendingStorage(active.scopeKey);
+        const durable = stored.request?.requestId === active.requestId ? stored.request : null;
+        const markerWasRemoved = stored.available && durable === null;
+        const startupWasAcknowledged = (durable ?? active).startup === "acknowledged";
+        const startupGraceExpired = Date.now() - (durable ?? active).createdAt >= STARTUP_GRACE_MS;
+        const startupIsLocallyInFlight = locallyStartingRequestIds.has(active.requestId);
+        if (options.clearIfAbsent || markerWasRemoved || startupWasAcknowledged || startupGraceExpired && !startupIsLocallyInFlight) {
+          if (active.scopeKey === composerScopeKeyRef.current) {
+            clearLoadingEffects();
+            setPendingRequest(null);
+          } else {
+            clearPendingRequest(active);
+          }
+        }
+        return "absent";
+      }
+      if (record.status === "running") return "running";
       if (active.scopeKey !== composerScopeKeyRef.current) {
         clearLoadingEffects();
-        return;
+        return "ignored";
       }
       clearLoadingEffects();
       setPendingRequest(null);
       if (record.status === "failed") {
         toast.error(record.error);
-        return;
+        return "terminal";
       }
       applyEnhancement(record.enhancedPrompt);
+      return "terminal";
     },
     [applyEnhancement, clearLoadingEffects, rpc, setPendingRequest]
   );
@@ -5102,13 +5143,16 @@ function PromptShaperAction({
       return;
     }
     const request = {
+      createdAt: Date.now(),
       requestId: crypto.randomUUID(),
-      scopeKey: composerScopeKey
+      scopeKey: composerScopeKey,
+      startup: "starting"
     };
     setUndoState(null);
     composer.setTextEffect?.("shimmer");
     composer.setThreadRowStatus?.(THREAD_ROW_STATUS);
     setPendingRequest(request);
+    locallyStartingRequestIds.add(request.requestId);
     try {
       await rpc.call("startEnhancement", {
         requestId: request.requestId,
@@ -5116,7 +5160,21 @@ function PromptShaperAction({
         projectId,
         sourceThreadId: threadId
       });
+      locallyStartingRequestIds.delete(request.requestId);
+      const acknowledgedRequest = {
+        ...request,
+        startup: "acknowledged"
+      };
+      const stored = loadPendingRequest(request.scopeKey);
+      if (stored?.requestId === request.requestId) {
+        savePendingRequest(acknowledgedRequest);
+      }
+      if (pendingRef.current === request) {
+        pendingRef.current = acknowledgedRequest;
+        setPending(acknowledgedRequest);
+      }
     } catch (error) {
+      locallyStartingRequestIds.delete(request.requestId);
       clearPendingRequest(request);
       if (pendingRef.current !== request) return;
       clearLoadingEffects();
@@ -5128,13 +5186,7 @@ function PromptShaperAction({
     }
     try {
       await consumeResult(request.requestId);
-    } catch (error) {
-      if (pendingRef.current !== request) return;
-      clearLoadingEffects();
-      setPendingRequest(null);
-      toast.error(
-        error instanceof Error ? error.message : "Could not enhance the prompt."
-      );
+    } catch {
     }
   }, [
     composer,
@@ -5151,18 +5203,42 @@ function PromptShaperAction({
     if (active === null || active.scopeKey !== composerScopeKeyRef.current) {
       return;
     }
-    clearLoadingEffects();
-    setPendingRequest(null);
+    if (cancellingRequestIdRef.current === active.requestId) return;
+    cancellingRequestIdRef.current = active.requestId;
     try {
       await rpc.call("cancelEnhancement", {
         requestId: active.requestId
       });
+      if (pendingRef.current === active) {
+        clearLoadingEffects();
+        setPendingRequest(null);
+      } else {
+        clearPendingRequest(active);
+      }
     } catch (error) {
-      toast.error(
-        error instanceof Error ? error.message : "Could not cancel prompt improvement."
-      );
+      if (pendingRef.current !== active) return;
+      let outcome = "ignored";
+      try {
+        const startupIsLocallyInFlight = locallyStartingRequestIds.has(
+          active.requestId
+        );
+        outcome = await consumeResult(active.requestId, {
+          allowDuringCancellation: true,
+          clearIfAbsent: !startupIsLocallyInFlight
+        });
+      } catch {
+      }
+      if (pendingRef.current === active && (outcome === "absent" || outcome === "ignored" || outcome === "running")) {
+        toast.error(
+          error instanceof Error ? error.message : "Could not cancel prompt improvement."
+        );
+      }
+    } finally {
+      if (cancellingRequestIdRef.current === active.requestId) {
+        cancellingRequestIdRef.current = null;
+      }
     }
-  }, [clearLoadingEffects, rpc, setPendingRequest]);
+  }, [clearLoadingEffects, consumeResult, rpc, setPendingRequest]);
   const isDisabled = !isRunning && (projectId === null || composer.text.trim().length === 0);
   const actionLabel = isRunning ? "Cancel prompt improvement" : "Improve prompt";
   const controlLabel = canUndo ? "Undo prompt" : actionLabel;
@@ -5223,5 +5299,6 @@ var app_default = definePluginApp((app) => {
   });
 });
 export {
-  app_default as default
+  app_default as default,
+  resetLocallyStartingRequestsForTest
 };

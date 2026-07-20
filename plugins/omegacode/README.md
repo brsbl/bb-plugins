@@ -2,6 +2,8 @@
 
 Omegacode shows every local workflow on one bb plugin page and live owner-scoped progress above the composer that launched each run.
 
+![Omegacode workflow overview](docs/screenshot.png)
+
 ## Install
 
 ```bash

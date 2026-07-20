@@ -28,15 +28,15 @@
   "files": [
     "dist/",
     "server.ts",
-    "atlas-cli-v5.js",
+    "atlas-cli-v5.ts",
     "providers/",
     "generated/provider-snapshot.v2.json",
     "generated/provider-index.v2.json",
     "generated/preview-css.ts",
     "app.tsx",
     "assistant-ui-previews.tsx",
-    "base-ui-demo-previews.tsx",
     "shadcn-demo-previews.tsx",
+    "static-gallery-preview.tsx",
     "gallery-shell.tsx",
     "gallery-state.ts",
     "live-component-previews.tsx",
@@ -49,6 +49,7 @@
     "hooks/",
     "lib/",
     "skills/",
+    "docs/",
     "README.md"
   ],
   "scripts": {

@@ -183,12 +183,18 @@ async function runGit(root: string, args: string[]): Promise<string> {
   return result.stdout.trim();
 }
 
-async function readGit(root: string): Promise<z.infer<typeof gitSchema>> {
+export async function readGit(root: string): Promise<z.infer<typeof gitSchema>> {
   try {
     const [branch, fullCommit, porcelain] = await Promise.all([
       runGit(root, ["branch", "--show-current"]),
       runGit(root, ["rev-parse", "HEAD"]),
-      runGit(root, ["status", "--porcelain=v1", "--untracked-files=normal"]),
+      runGit(root, [
+        "status",
+        "--porcelain=v1",
+        "--untracked-files=normal",
+        "--",
+        ".",
+      ]),
     ]);
     const changedFiles = porcelain ? porcelain.split("\n").filter(Boolean).length : 0;
     return {
@@ -305,13 +311,29 @@ export function searchDoctrine(
     .map(({ rule }) => rule);
 }
 
+export async function gitStatusFingerprint(rootInput: string): Promise<string> {
+  const root = expandPath(rootInput);
+  try {
+    const [branch, fullCommit, porcelain] = await Promise.all([
+      runGit(root, ["branch", "--show-current"]),
+      runGit(root, ["rev-parse", "HEAD"]),
+      runGit(root, [
+        "status",
+        "--porcelain=v1",
+        "--untracked-files=normal",
+        "--",
+        ".",
+      ]),
+    ]);
+    return JSON.stringify({ branch, fullCommit, porcelain });
+  } catch {
+    return "git:unavailable";
+  }
+}
+
 async function watchFingerprint(rootInput: string): Promise<string> {
   const root = expandPath(rootInput);
-  const paths = [
-    ...(await listRuleFiles(root)),
-    join(root, ".git", "HEAD"),
-    join(root, ".git", "index"),
-  ];
+  const paths = await listRuleFiles(root);
   const values = await Promise.all(
     paths.map(async (path) => {
       try {
@@ -322,7 +344,7 @@ async function watchFingerprint(rootInput: string): Promise<string> {
       }
     }),
   );
-  return values.join("|");
+  return [...values, await gitStatusFingerprint(root)].join("|");
 }
 
 function sleep(ms: number, signal: AbortSignal): Promise<void> {

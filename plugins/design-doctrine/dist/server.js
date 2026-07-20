@@ -14684,7 +14684,13 @@ async function readGit(root) {
     const [branch, fullCommit, porcelain] = await Promise.all([
       runGit(root, ["branch", "--show-current"]),
       runGit(root, ["rev-parse", "HEAD"]),
-      runGit(root, ["status", "--porcelain=v1", "--untracked-files=normal"])
+      runGit(root, [
+        "status",
+        "--porcelain=v1",
+        "--untracked-files=normal",
+        "--",
+        "."
+      ])
     ]);
     const changedFiles = porcelain ? porcelain.split("\n").filter(Boolean).length : 0;
     return {
@@ -14786,13 +14792,28 @@ function searchDoctrine(rules, query, includeInactive = false) {
     return { rule, score: matches * 10 + confidence[rule.confidence] };
   }).filter(({ score }) => terms.length === 0 || score >= terms.length * 10).sort((left, right) => right.score - left.score || left.rule.id.localeCompare(right.rule.id)).slice(0, SEARCH_RESULT_LIMIT).map(({ rule }) => rule);
 }
+async function gitStatusFingerprint(rootInput) {
+  const root = expandPath(rootInput);
+  try {
+    const [branch, fullCommit, porcelain] = await Promise.all([
+      runGit(root, ["branch", "--show-current"]),
+      runGit(root, ["rev-parse", "HEAD"]),
+      runGit(root, [
+        "status",
+        "--porcelain=v1",
+        "--untracked-files=normal",
+        "--",
+        "."
+      ])
+    ]);
+    return JSON.stringify({ branch, fullCommit, porcelain });
+  } catch {
+    return "git:unavailable";
+  }
+}
 async function watchFingerprint(rootInput) {
   const root = expandPath(rootInput);
-  const paths = [
-    ...await listRuleFiles(root),
-    join(root, ".git", "HEAD"),
-    join(root, ".git", "index")
-  ];
+  const paths = await listRuleFiles(root);
   const values = await Promise.all(
     paths.map(async (path) => {
       try {
@@ -14803,7 +14824,7 @@ async function watchFingerprint(rootInput) {
       }
     })
   );
-  return values.join("|");
+  return [...values, await gitStatusFingerprint(root)].join("|");
 }
 function sleep(ms, signal) {
   if (signal.aborted) return Promise.resolve();
@@ -14949,7 +14970,9 @@ Repository: ${summary.root}
 }
 export {
   plugin as default,
+  gitStatusFingerprint,
   loadDoctrine,
+  readGit,
   rpcContract,
   searchDoctrine
 };

@@ -11,10 +11,6 @@ import { createRoot } from "react-dom/client";
 import type { SourceRecord } from "./providers/source-browser-v2.js";
 import { PREVIEW_CSS } from "./generated/preview-css.js";
 import {
-  baseUiDemoIds,
-  loadBaseUiDemo,
-} from "./base-ui-demo-previews.js";
-import {
   loadShadcnDemo,
   shadcnDemoIds,
 } from "./shadcn-demo-previews.js";
@@ -122,17 +118,8 @@ const shadcnPreviewDefinitions: readonly DeferredLivePreviewDefinition[] =
     loadComponent: () => loadShadcnDemo(sourceId),
   }));
 
-const baseUiPreviewDefinitions: readonly DeferredLivePreviewDefinition[] =
-  baseUiDemoIds.map((sourceId) => ({
-    sourceRecordId: `base-ui:${sourceId}`,
-    runtimeLabel: "@base-ui/react 1.6.0 · official Tailwind example",
-    delivery: "deferred",
-    loadComponent: () => loadBaseUiDemo(sourceId),
-  }));
-
 export const livePreviewDefinitions = Object.freeze([
   ...shadcnPreviewDefinitions,
-  ...baseUiPreviewDefinitions,
   {
     sourceRecordId: "assistant-ui:composer",
     runtimeLabel: "@assistant-ui/react 0.14.27",
@@ -342,10 +329,8 @@ if (typeof window !== "undefined") {
 
 export function LiveComponentPreview({
   definition,
-  size = "detail",
 }: {
   definition: LivePreviewDefinition;
-  size?: "card" | "detail";
 }) {
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const teardownRef = useRef<(() => void) | null>(null);
@@ -433,13 +418,11 @@ export function LiveComponentPreview({
       className="grid gap-2"
       data-live-component-preview=""
       data-source-record-id={definition.sourceRecordId}
-      data-preview-size={size}
+      data-preview-size="detail"
     >
       {frameFailed ? (
         <div
-          className={`grid place-items-center border border-dashed border-border p-4 text-center text-sm text-muted-foreground ${
-            size === "card" ? "h-60 rounded-none border-x-0 border-b-0" : "min-h-80 rounded-xl"
-          }`}
+          className="grid min-h-80 place-items-center rounded-xl border border-dashed border-border p-4 text-center text-sm text-muted-foreground"
         >
           This approved-source preview could not start. The rest of the library viewer is still available.
         </div>
@@ -448,20 +431,14 @@ export function LiveComponentPreview({
           <iframe
             ref={iframeRef}
             title={`${definition.sourceRecordId} interactive preview`}
-            loading={size === "card" ? "lazy" : "eager"}
-            className={
-              size === "card"
-                ? "h-60 w-full border-x-0 border-b-0 border-t border-border bg-background"
-                : "h-[clamp(22rem,58vh,40rem)] w-full rounded-xl border border-border bg-background"
-            }
+            loading="eager"
+            className="h-[clamp(22rem,58vh,40rem)] w-full rounded-xl border border-border bg-background"
             srcDoc="<!doctype html><html><head><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'><base target='_blank'></head><body></body></html>"
             onLoad={handleFrameLoad}
           />
           {!frameReady ? (
             <div
-              className={`pointer-events-none absolute inset-0 grid place-items-center border border-border bg-background text-sm text-muted-foreground ${
-                size === "card" ? "rounded-none border-x-0 border-b-0" : "rounded-xl"
-              }`}
+              className="pointer-events-none absolute inset-0 grid place-items-center rounded-xl border border-border bg-background text-sm text-muted-foreground"
               role="status"
             >
               Loading upstream component…

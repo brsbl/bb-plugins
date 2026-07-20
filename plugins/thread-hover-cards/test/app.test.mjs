@@ -38,6 +38,8 @@ const timingRequestBodies = [];
 const pullRequestBodies = [];
 let delayedRefresh = null;
 let delayNextRefreshFor = null;
+let delayedInitialSummary = null;
+let delayInitialSummary = true;
 globalThis.fetch = async (url, init) => {
   const request = JSON.parse(init.body);
   const isLocal = request.threadId === "thr_local";
@@ -216,6 +218,12 @@ globalThis.fetch = async (url, init) => {
       delayedRefresh = () => resolve(response);
     });
   }
+  if (delayInitialSummary && request.threadId === "thr_1") {
+    delayInitialSummary = false;
+    return new Promise((resolve) => {
+      delayedInitialSummary = () => resolve(response);
+    });
+  }
   return response;
 };
 
@@ -326,13 +334,20 @@ Object.defineProperties(pointerOver, {
   relatedTarget: { value: null },
 });
 trigger.dispatchEvent(pointerOver);
+assert.equal(
+  window.document.getElementById("bb-thread-hover-card"),
+  null,
+  "waits for deliberate pointer dwell before opening",
+);
+assert.deepEqual(requestBodies, [], "does not request on transient pointerover");
+await new Promise((resolve) => setTimeout(resolve, 140));
 const card = window.document.getElementById("bb-thread-hover-card");
-assert.ok(card, "opens the hover card in the pointer event turn");
+assert.ok(card, "opens the hover card after the pointer dwell");
 assert.equal(card.hidden, false);
 assert.deepEqual(
   requestBodies,
   [{ threadId: "thr_1" }],
-  "starts the summary request immediately",
+  "starts one summary request after the dwell",
 );
 assert.deepEqual(
   timingRequestBodies,
@@ -340,6 +355,9 @@ assert.deepEqual(
   "does not block first paint on timing hydration",
 );
 assert.match(card.textContent, /Loading thread summary/);
+assert.ok(delayedInitialSummary);
+delayedInitialSummary();
+delayedInitialSummary = null;
 await new Promise((resolve) => setTimeout(resolve, 20));
 
 assert.equal(card.hidden, false);
@@ -707,6 +725,18 @@ const refreshedPullRequestLink = card.querySelector(
 assert.ok(refreshedPullRequestLink);
 assert.notEqual(refreshedPullRequestLink, stalePullRequestLink);
 assert.equal(window.document.activeElement, refreshedPullRequestLink);
+assert.equal(
+  card.querySelector(".bb-thread-hover-card__runtime [data-time-value]")
+    ?.textContent,
+  "1m",
+  "a later summary refresh preserves timing that already hydrated",
+);
+assert.ok(
+  card
+    .querySelector(".bb-thread-hover-card__runtime")
+    ?.querySelector('[data-icon="Loading03Icon"]'),
+  "the refreshed card keeps the hydrated active-turn status",
+);
 Date.now = realDateNow;
 delayedRefresh = null;
 refreshedPullRequestLink.dispatchEvent(
@@ -737,8 +767,7 @@ assert.equal(card.hidden, true);
 assert.deepEqual(requestBodies, [
   { threadId: "thr_1" },
   { threadId: "thr_1" },
-  { threadId: "thr_2" },
-]);
+], "pointerout cancels a drive-by hover before it requests");
 
 trigger.blur();
 trigger.dataset.sidebarThreadId = "thr_local";
@@ -839,7 +868,6 @@ assert.equal(card.querySelector(".bb-thread-hover-card__status-icon"), null);
 assert.deepEqual(requestBodies, [
   { threadId: "thr_1" },
   { threadId: "thr_1" },
-  { threadId: "thr_2" },
   { threadId: "thr_local" },
 ]);
 
@@ -870,7 +898,6 @@ assert.deepEqual(
 assert.deepEqual(requestBodies, [
   { threadId: "thr_1" },
   { threadId: "thr_1" },
-  { threadId: "thr_2" },
   { threadId: "thr_local" },
   { threadId: "thr_no_pr" },
 ]);
@@ -887,7 +914,6 @@ assert.doesNotMatch(card.textContent, /PR unavailable/);
 assert.deepEqual(requestBodies, [
   { threadId: "thr_1" },
   { threadId: "thr_1" },
-  { threadId: "thr_2" },
   { threadId: "thr_local" },
   { threadId: "thr_no_pr" },
   { threadId: "thr_pr_unavailable" },
@@ -921,7 +947,6 @@ assert.ok(
 assert.deepEqual(requestBodies, [
   { threadId: "thr_1" },
   { threadId: "thr_1" },
-  { threadId: "thr_2" },
   { threadId: "thr_local" },
   { threadId: "thr_no_pr" },
   { threadId: "thr_pr_unavailable" },
@@ -954,11 +979,12 @@ Object.defineProperties(reloadPointerOver, {
   relatedTarget: { value: null },
 });
 trigger.dispatchEvent(reloadPointerOver);
-assert.ok(
+assert.equal(
   window.document.getElementById("bb-thread-hover-card"),
-  "keeps immediate opening after the plugin lifecycle reloads",
+  null,
+  "restores deliberate pointer dwell after the plugin lifecycle reloads",
 );
-await new Promise((resolve) => setTimeout(resolve, 20));
+await new Promise((resolve) => setTimeout(resolve, 140));
 
 const reloadedCard = window.document.getElementById("bb-thread-hover-card");
 assert.ok(reloadedCard);
@@ -966,7 +992,6 @@ assert.equal(reloadedCard.hidden, false);
 assert.deepEqual(requestBodies, [
   { threadId: "thr_1" },
   { threadId: "thr_1" },
-  { threadId: "thr_2" },
   { threadId: "thr_local" },
   { threadId: "thr_no_pr" },
   { threadId: "thr_pr_unavailable" },

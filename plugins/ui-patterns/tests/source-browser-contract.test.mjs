@@ -155,7 +155,7 @@ test("source-native deep links resolve their containing entry", () => {
 
 test("every live preview maps to a current approved source record", () => {
   const recordIds = new Set(snapshot.records.map(({ id }) => id));
-  assert.equal(livePreviewSourceIds.length, 115);
+  assert.equal(livePreviewSourceIds.length, 78);
   assert.equal(new Set(livePreviewSourceIds).size, livePreviewSourceIds.length);
   assert.equal(
     livePreviewSourceIds.every((id) => recordIds.has(id)),
@@ -163,7 +163,7 @@ test("every live preview maps to a current approved source record", () => {
   );
   assert.deepEqual(
     [...new Set(livePreviewSourceIds.map((id) => id.split(":")[0]))].sort(),
-    ["assistant-ui", "base-ui", "shadcn-ui"],
+    ["assistant-ui", "shadcn-ui"],
   );
   assert.equal(galleryPreviewSourceIds.length, 78);
   assert.deepEqual(
@@ -191,7 +191,7 @@ test("every mapped upstream preview imports and renders without warnings or fail
   );
 });
 
-test("the rendered browser is a card gallery of real visual implementations", () => {
+test("the rendered browser uses lightweight static cards with no gallery frames", () => {
   const markup = renderToStaticMarkup(
     React.createElement(GalleryShell, {
       snapshot,
@@ -202,9 +202,8 @@ test("the rendered browser is a card gallery of real visual implementations", ()
   assert.match(markup, /UI Pattern Atlas/);
   assert.match(markup, /aria-label="Components"/);
   assert.equal((markup.match(/data-gallery-card=""/g) ?? []).length, 78);
-  assert.match(markup, /data-live-component-preview=""/);
-  assert.match(markup, /data-source-record-id="shadcn-ui:accordion"/);
-  assert.match(markup, /data-preview-size="card"/);
+  assert.equal((markup.match(/data-static-gallery-preview=""/g) ?? []).length, 78);
+  assert.doesNotMatch(markup, /data-live-component-preview|<iframe/);
   assert.match(markup, /data-source-item-id="shadcn-ui:accordion"/);
   assert.match(markup, /data-source-item-id="shadcn-ui:button"/);
   assert.doesNotMatch(markup, /data-source-(?:item|record)-id="base-ui:/);
@@ -253,6 +252,7 @@ test("retained Base UI routes resolve to the paired visual implementation", () =
   );
 
   assert.match(markup, /data-source-record-id="shadcn-ui:button"/);
+  assert.equal((markup.match(/<iframe/g) ?? []).length, 1);
   assert.doesNotMatch(markup, /data-source-record-id="base-ui:button"/);
   assert.match(markup, new RegExp(`href="${shadcnButton.canonicalUrl}"`));
   assert.doesNotMatch(markup, />Base UI</);
@@ -285,6 +285,7 @@ test("every displayed entry has a focused detail route and every displayed previ
     assert.match(entryMarkup, new RegExp(`<h2[^>]*>${entry.name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}</h2>`));
     assert.match(entryMarkup, /aria-label="Source guidance and examples"/);
     assert.match(entryMarkup, /class="sticky top-0/);
+    assert.equal((entryMarkup.match(/<iframe/g) ?? []).length, 1, entry.name);
     assert.equal(
       (entryMarkup.match(/>Documentation</g) ?? []).length,
       1,
@@ -308,6 +309,11 @@ test("every displayed entry has a focused detail route and every displayed previ
     assert.match(
       implementationMarkup,
       new RegExp(`data-source-record-id="${sourceRecordId}"`),
+      sourceRecordId,
+    );
+    assert.equal(
+      (implementationMarkup.match(/<iframe/g) ?? []).length,
+      1,
       sourceRecordId,
     );
   }
@@ -384,6 +390,8 @@ test("the thread panel keeps the focused preview, sticky navigation, and one pri
 
   assert.match(markup, /Composer/);
   assert.match(markup, /data-source-record-id="assistant-ui:composer"/);
+  assert.match(markup, /data-preview-size="detail"/);
+  assert.equal((markup.match(/<iframe/g) ?? []).length, 1);
   assert.match(markup, /assistant-ui/);
   assert.match(markup, /About this assistant-ui implementation/);
   assert.match(markup, /class="sticky top-0/);

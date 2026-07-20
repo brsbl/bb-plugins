@@ -2,6 +2,8 @@
 
 Improve Prompt rewrites a rough bb composer draft into a concise, context-complete request without sending it.
 
+![An improved prompt ready for review in the bb composer](docs/screenshot.png)
+
 ## Install
 
 ```bash

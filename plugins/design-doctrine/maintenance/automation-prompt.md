@@ -9,12 +9,18 @@ agent output, including your own.
 
 ## Steps
 
-1. Read new feedback. The bounds are optional and default to
+1. Read new feedback and retain the returned `lease_id`. The command refuses to
+   start if `rules/` already contains tracked or untracked work, preserving it
+   for its owner. The lease prevents a second maintenance run from processing
+   the same messages concurrently. The bounds are optional and default to
    `--limit 200 --max-bytes 262144 --max-message-bytes 8192`.
 
    ```bash
    python3 scripts/scan-history.py scan
    ```
+
+   If `lease_id` is `null`, history is already caught up. Report that there is
+   no new feedback and stop; do not call `advance` or `release`.
 
 2. Reconstruct whole task episodes around the user's own messages. Ignore
    `[bb system]` and `[bb message ...]` relays, tool failures, and temporary
@@ -48,15 +54,24 @@ agent output, including your own.
 
    ```bash
    npm test && npm run typecheck && npm run build
-   git add rules && git commit -m "doctrine: <what changed>"
+   git add -- rules
+   python3 scripts/scan-history.py verify-staged
+   git commit --only -m "doctrine: <what changed>" -- rules
    ```
 
 7. Advance the cursor after either a successful commit or a no-change decision,
-   using the newest message from the scan:
+   using the returned `cursor_commit` and `lease_id`:
 
    ```bash
    python3 scripts/scan-history.py advance \
-     --created-at <created-at> --segment-id <segment-id>
+     --created-at <created-at> --segment-id <segment-id> --lease-id <lease-id>
+   ```
+
+   If the run cannot safely finish, release its lease without advancing so a
+   later run can retry the same feedback:
+
+   ```bash
+   python3 scripts/scan-history.py release --lease-id <lease-id>
    ```
 
 Report what changed, anything left conflicted and the question it needs, and the

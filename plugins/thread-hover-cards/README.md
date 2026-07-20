@@ -2,6 +2,8 @@
 
 Thread Hover Cards previews a sidebar thread's status, latest agent message, execution context, repository, and pull request.
 
+![A bb thread hover card showing live worker context](docs/screenshot.png)
+
 ## Install
 
 ```bash

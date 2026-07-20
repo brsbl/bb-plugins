@@ -13,7 +13,10 @@ import {
   useRpc,
 } from "@bb/plugin-sdk/app";
 
-import { workflowProgressForAgents } from "./presentation";
+import {
+  workerActivitySummary,
+  workflowProgressForAgents,
+} from "./presentation";
 import type { GlobalRun, rpcContract } from "./server";
 import { cn } from "./vendor/cn";
 import { Icon } from "./vendor/icon";
@@ -25,7 +28,6 @@ import {
 type RunGroup = "active" | "attention" | "completed" | "cancelled";
 
 type GroupedRuns = Record<RunGroup, GlobalRun[]>;
-type Agent = GlobalRun["agents"][number];
 
 function workflowName(run: GlobalRun): string {
   return (
@@ -72,25 +74,6 @@ function ownerLabel(run: GlobalRun): string {
 
 function sourceLabel(run: GlobalRun): string {
   return run.workflow ? `Source: ${run.workflow}` : "Workflow source unavailable";
-}
-
-function workerAction(agent: Agent): string {
-  const phase = agent.phase ? ` in ${agent.phase}` : "";
-  if (agent.state === "running") return `${agent.label} is working${phase}`;
-  if (/^(queued|pending)$/i.test(agent.state)) return `${agent.label} is queued${phase}`;
-  if (/fail|error/i.test(agent.state)) return `${agent.label} failed${phase}`;
-  if (/cancel|interrupt/i.test(agent.state)) return `${agent.label} was cancelled${phase}`;
-  if (/^(completed|done|success|skipped)$/i.test(agent.state)) {
-    return `${agent.label} finished${phase}`;
-  }
-  return `${agent.label} is waiting${phase}`;
-}
-
-export function workerActivitySummary(run: GlobalRun): string {
-  if (run.agents.length === 0) return "Worker details will appear when the run starts.";
-  const visible = run.agents.slice(0, 3).map(workerAction);
-  const remaining = run.agents.length - visible.length;
-  return `${visible.join("; ")}${remaining > 0 ? `; plus ${remaining} more` : ""}.`;
 }
 
 export function workflowDescription(run: GlobalRun): string {
@@ -199,7 +182,7 @@ function DetailedRunCard({
           </span>
           <span className="mt-1 block text-xs leading-5 text-muted-foreground">
             <span className="font-medium text-foreground">Workers: </span>
-            {workerActivitySummary(run)}
+            {workerActivitySummary(run.agents)}
           </span>
           <span className="mt-1 block truncate text-xs text-muted-foreground">
             <LaunchContext run={run} />

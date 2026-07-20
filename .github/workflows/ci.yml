@@ -14,6 +14,25 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  catalog:
+    runs-on: ubuntu-latest
+    outputs:
+      plugins: ${{ steps.matrix.outputs.plugins }}
+    steps:
+      - uses: actions/checkout@v6
+      - id: matrix
+        run: |
+          node --input-type=module <<'NODE' >> "$GITHUB_OUTPUT"
+          import { readFileSync } from "node:fs";
+          const { plugins } = JSON.parse(readFileSync("catalog/plugins.json", "utf8"));
+          const matrix = plugins.map(({ name, packageName, source }) => ({
+            name,
+            package: packageName,
+            path: source,
+          }));
+          console.log(`plugins=${JSON.stringify(matrix)}`);
+          NODE
+
   hygiene:
     runs-on: ubuntu-latest
     steps:
@@ -30,26 +49,12 @@ jobs:
       - run: git diff --exit-code
 
   plugins:
+    needs: catalog
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - name: Design Doctrine
-            package: bb-plugin-design-doctrine
-            path: plugins/design-doctrine
-          - name: Improve Prompt
-            package: bb-plugin-prompt-shaper
-            path: plugins/improve-prompt
-          - name: Omegacode
-            package: bb-plugin-omega
-            path: plugins/omegacode
-          - name: Thread Hover Cards
-            package: bb-plugin-thread-hover-cards
-            path: plugins/thread-hover-cards
-          - name: UI Patterns
-            package: bb-plugin-ui-patterns
-            path: plugins/ui-patterns
+        include: ${{ fromJSON(needs.catalog.outputs.plugins) }}
     name: ${{ matrix.name }}
     steps:
       - uses: actions/checkout@v6
@@ -67,7 +72,28 @@ jobs:
       - run: git diff --check -- ${{ matrix.path }}
       - run: git diff --exit-code -- ${{ matrix.path }}
 
-  install-refs:
+  install-refs-validation:
+    if: github.event_name == 'pull_request'
+    needs: [hygiene, plugins]
+    permissions:
+      contents: read
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22.22.0
+          cache: npm
+          cache-dependency-path: package-lock.json
+      - run: npm ci
+      - run: npm run build
+      - run: npm run artifacts
+      - run: node tooling/publish-install-refs.mjs
+
+  publish-install-refs:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     needs: [hygiene, plugins]
     permissions:
       contents: write
@@ -87,7 +113,4 @@ jobs:
       - run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-      - if: github.event_name == 'pull_request'
-        run: node tooling/publish-install-refs.mjs
-      - if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        run: node tooling/publish-install-refs.mjs --push
+      - run: node tooling/publish-install-refs.mjs --push

@@ -25,16 +25,28 @@ const livePreviews = await readFile(
   new URL("../live-component-previews.tsx", import.meta.url),
   "utf8",
 );
+const atlasCli = await readFile(
+  new URL("../atlas-cli-v5.ts", import.meta.url),
+  "utf8",
+);
+const providerRpc = await readFile(
+  new URL("../providers/rpc-v2.ts", import.meta.url),
+  "utf8",
+);
 const assistantPreviews = await readFile(
   new URL("../assistant-ui-previews.tsx", import.meta.url),
   "utf8",
 );
-const basePreviews = await readFile(
-  new URL("../base-ui-demo-previews.tsx", import.meta.url),
+const staticPreviews = await readFile(
+  new URL("../static-gallery-preview.tsx", import.meta.url),
   "utf8",
 );
 const shadcnBasePreviews = await readFile(
   new URL("../shadcn-demo-previews.tsx", import.meta.url),
+  "utf8",
+);
+const shadcnIconPlaceholder = await readFile(
+  new URL("../vendor/shadcn-ui/icon-placeholder.tsx", import.meta.url),
   "utf8",
 );
 const shadcnUpstream = JSON.parse(
@@ -58,15 +70,15 @@ const baseLicense = await readFile(
   "utf8",
 );
 
-test("the package ships approved-source live previews, not a bespoke Atlas design system", () => {
+test("the package ships static gallery cards and approved-source detail previews", () => {
   assert.ok(packageJson.files.includes("providers/"));
   assert.ok(packageJson.files.includes("source-browser-data.ts"));
   assert.ok(packageJson.files.includes("source-browser-model.ts"));
   assert.ok(packageJson.files.includes("live-component-previews.tsx"));
   assert.ok(packageJson.files.includes("preview-frame-context.tsx"));
   assert.ok(packageJson.files.includes("assistant-ui-previews.tsx"));
-  assert.ok(packageJson.files.includes("base-ui-demo-previews.tsx"));
   assert.ok(packageJson.files.includes("shadcn-demo-previews.tsx"));
+  assert.ok(packageJson.files.includes("static-gallery-preview.tsx"));
   assert.ok(packageJson.files.includes("vendor/base-ui/"));
   assert.ok(packageJson.files.includes("vendor/shadcn-ui/"));
   assert.equal(packageJson.files.includes("atlas-ds/"), false);
@@ -82,7 +94,7 @@ test("the package ships approved-source live previews, not a bespoke Atlas desig
   assert.equal(packageJson.dependencies["@assistant-ui/react"], "0.14.27");
   assert.match(livePreviews, /from "\.\/shadcn-demo-previews\.js"/);
   assert.match(livePreviews, /import\("\.\/assistant-ui-previews\.js"\)/);
-  assert.match(livePreviews, /from "\.\/base-ui-demo-previews\.js"/);
+  assert.doesNotMatch(livePreviews, /base-ui-demo-previews|vendor\/base-ui\/examples/);
   assert.match(livePreviews, /<PreviewFrameProvider container=\{documentBody\}>/);
   assert.match(livePreviews, /shadcn\/ui registry · d28738b/);
   assert.match(assistantPreviews, /from "@assistant-ui\/react"/);
@@ -100,7 +112,8 @@ test("the package ships approved-source live previews, not a bespoke Atlas desig
   );
   assert.match(livePreviews, /AssistantActionBarPreview/);
   assert.match(livePreviews, /AssistantMessagePreview/);
-  assert.match(basePreviews, /vendor\/base-ui\/examples\/accordion/);
+  assert.match(staticPreviews, /data-static-gallery-preview/);
+  assert.doesNotMatch(staticPreviews, /iframe|createRoot|import\(/);
   assert.match(
     shadcnBasePreviews,
     /vendor\/shadcn-ui\/examples\/base\/button-demo/,
@@ -134,6 +147,16 @@ test("the plugin is registered only as a thread side-panel", () => {
   );
 });
 
+test("CLI and RPC share the validated generated provider runtime", () => {
+  assert.doesNotMatch(atlasCli, /@ts-nocheck/);
+  assert.match(atlasCli, /from "\.\/providers\/generated-v2\.js"/);
+  assert.match(atlasCli, /from "\.\/providers\/search-v2\.js"/);
+  assert.match(atlasCli, /searchProviderIndex\(providerIndex/);
+  assert.doesNotMatch(atlasCli, /generated\/provider-(?:index|snapshot)\.v2\.json/);
+  assert.match(providerRpc, /from "\.\/generated-v2\.js"/);
+  assert.match(providerRpc, /searchAtlasEntries/);
+});
+
 test("the active browser uses sanctioned controls and attributable source detail", () => {
   assert.match(gallery, /from "\.\/components\/ui\/button\.js"/);
   assert.match(gallery, /from "\.\/components\/ui\/input\.js"/);
@@ -141,8 +164,9 @@ test("the active browser uses sanctioned controls and attributable source detail
   assert.match(gallery, /Accessibility guidance/);
   assert.match(gallery, /Examples/);
   assert.match(gallery, /LiveComponentPreview/);
+  assert.match(gallery, /StaticGalleryPreview/);
   assert.match(gallery, /data-gallery-card/);
-  assert.match(gallery, /size="card"/);
+  assert.doesNotMatch(gallery, /size="card"/);
   assert.match(gallery, /sticky top-0/);
   assert.match(gallery, /Source guidance and examples/);
   assert.match(gallery, /const query = event\.currentTarget\.value/);
@@ -151,6 +175,7 @@ test("the active browser uses sanctioned controls and attributable source detail
     /setFilters\(\(current\) => \(\{[^}]*event\.currentTarget\.value/,
   );
   assert.match(livePreviews, /queueMicrotask\(\(\) => \{\s*root\.unmount\(\)/);
+  assert.doesNotMatch(livePreviews, /size === "card"|loading=\{size/);
   assert.match(livePreviews, /<base target='_blank'>/);
   assert.match(
     livePreviews,
@@ -195,6 +220,43 @@ test("the vendored shadcn registry tree stays byte-for-byte pinned", async () =>
       name,
     );
   }
+});
+
+test("the curated shadcn Hugeicons map covers every shipped literal", async () => {
+  async function sourceFilesBelow(directory) {
+    const paths = [];
+    for (const entry of await readdir(directory, { withFileTypes: true })) {
+      const path = resolve(directory, entry.name);
+      if (entry.isDirectory()) paths.push(...(await sourceFilesBelow(path)));
+      else if (entry.isFile() && entry.name.endsWith(".tsx")) paths.push(path);
+    }
+    return paths;
+  }
+
+  const namesBlock = shadcnIconPlaceholder.match(
+    /export const SHADCN_HUGEICON_NAMES = \[([\s\S]*?)\] as const;/,
+  )?.[1];
+  assert.ok(namesBlock, "curated Hugeicons names are exported");
+  const configuredNames = [...namesBlock.matchAll(/"([A-Za-z0-9]+)"/g)]
+    .map((match) => match[1])
+    .sort();
+
+  const usedNames = new Set();
+  const vendorRoot = resolve(
+    new URL("../vendor/shadcn-ui", import.meta.url).pathname,
+  );
+  for (const path of await sourceFilesBelow(vendorRoot)) {
+    const source = await readFile(path, "utf8");
+    for (const match of source.matchAll(/hugeicons="([A-Za-z0-9]+)"/g)) {
+      usedNames.add(match[1]);
+    }
+  }
+
+  assert.deepEqual(configuredNames, [...usedNames].sort());
+  assert.doesNotMatch(
+    shadcnIconPlaceholder,
+    /import \* as .*@hugeicons\/core-free-icons/,
+  );
 });
 
 test("vendored example trees and licenses stay pinned", async () => {

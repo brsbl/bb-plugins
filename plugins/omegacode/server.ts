@@ -7,7 +7,7 @@ import { defineRpcContract, type BbPluginApi } from "@bb/plugin-sdk";
 import { z } from "zod";
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { homedir } from "node:os";
-import { join } from "node:path";
+import { join, relative } from "node:path";
 import {
   readBbRunOwner,
   runBelongsToScope,
@@ -94,8 +94,43 @@ export function parseJsonl(contents: string): Record<string, unknown>[] {
   return out;
 }
 
-function readJsonl(path: string): Record<string, unknown>[] {
-  return existsSync(path) ? parseJsonl(readFileSync(path, "utf8")) : [];
+type FileStamp = { mtimeMs: number; size: number };
+
+function safeFileStamp(path: string): FileStamp | null {
+  try {
+    const stat = statSync(path);
+    return { mtimeMs: stat.mtimeMs, size: stat.size };
+  } catch {
+    return null;
+  }
+}
+
+function sameFileStamp(left: FileStamp | null, right: FileStamp | null): boolean {
+  return left?.mtimeMs === right?.mtimeMs && left?.size === right?.size;
+}
+
+const jsonlCache = new Map<
+  string,
+  { stamp: FileStamp; records: Record<string, unknown>[] }
+>();
+
+function readJsonlWithStamp(
+  path: string,
+  stamp: FileStamp | null,
+): Record<string, unknown>[] {
+  if (!stamp) {
+    jsonlCache.delete(path);
+    return [];
+  }
+  const cached = jsonlCache.get(path);
+  if (cached && sameFileStamp(cached.stamp, stamp)) return cached.records;
+  const records = parseJsonl(readFileSync(path, "utf8"));
+  jsonlCache.set(path, { stamp, records });
+  return records;
+}
+
+export function readJsonl(path: string): Record<string, unknown>[] {
+  return readJsonlWithStamp(path, safeFileStamp(path));
 }
 
 function safeSize(path: string): number {
@@ -125,8 +160,11 @@ function stringField(value: unknown): string | null {
 
 export function workflowDetailsFromSource(source: string): WorkflowDetails {
   const fields = new Map<string, string>();
-  for (const match of source.matchAll(/\b(name|description)\s*:\s*(['"`])([^'"`]+)\2/g)) {
-    fields.set(match[1], match[3]);
+  const fieldPattern =
+    /\b(name|description)\s*:\s*(?:"((?:\\.|[^"\\])*)"|'((?:\\.|[^'\\])*)'|`((?:\\.|[^`\\])*)`)/g;
+  for (const match of source.matchAll(fieldPattern)) {
+    const literal = match[2] ?? match[3] ?? match[4] ?? "";
+    fields.set(match[1], literal.replace(/\\([\\'"`])/g, "$1"));
   }
   return {
     name: stringField(fields.get("name")),
@@ -197,19 +235,21 @@ export function deriveRunStatus({
   return counts.total > 0 ? "running" : "starting";
 }
 
-function readRun(runId: string) {
+function parseRun(
+  runId: string,
+  eventsStamp: FileStamp | null,
+  journalStamp: FileStamp | null,
+) {
   const dir = join(RUNS_DIR, runId);
   const eventsPath = join(dir, "events.jsonl");
   const journalPath = join(dir, "journal.jsonl");
-  const heartbeatPath = join(dir, ".heartbeat");
-  const events = readJsonl(eventsPath);
-  const journal = readJsonl(journalPath);
+  const events = readJsonlWithStamp(eventsPath, eventsStamp);
+  const journal = readJsonlWithStamp(journalPath, journalStamp);
 
   const meta = journal.find((r) => r.type === "meta") ?? {};
   const workflowFile = typeof meta.workflowFile === "string" ? meta.workflowFile : undefined;
   const workflow = workflowFile ? (workflowFile.split("/").pop() ?? null) : null;
-  const details = workflowDetails(workflowFile);
-  const description = stringField(meta.description) ?? details.description;
+  const journalDescription = stringField(meta.description);
 
   const phases = phaseTitlesFromEvents(events);
 
@@ -261,12 +301,7 @@ function readRun(runId: string) {
         // caught during the rubric sweep.
         bytes: safeSize(join(dir, "agents", `${index}.jsonl`)),
         tokens: typeof e.tokens === "number" ? e.tokens : 0,
-        durationMs:
-          state === "running" && startedAt !== null
-            ? Math.max(0, Date.now() - startedAt)
-            : typeof e.durationMs === "number"
-              ? e.durationMs
-              : 0,
+        durationMs: typeof e.durationMs === "number" ? e.durationMs : 0,
       };
     });
 
@@ -281,43 +316,117 @@ function readRun(runId: string) {
       .length,
   };
 
-  let heartbeatAgeMs: number | null = null;
-  try {
-    if (existsSync(heartbeatPath)) {
-      heartbeatAgeMs = Date.now() - statSync(heartbeatPath).mtimeMs;
-    }
-  } catch {
-    heartbeatAgeMs = null;
-  }
-
   const runEvent = [...events]
     .reverse()
     .find((event) => event.type === "run" && typeof event.status === "string");
   const eventStatus = typeof runEvent?.status === "string" ? runEvent.status : null;
-  const status = deriveRunStatus({ eventStatus, counts, heartbeatAgeMs });
 
   return {
-    runId,
-    workflow,
+    base: {
+      runId,
+      workflow,
+      phases,
+      createdAt:
+        typeof meta.createdAt === "number" ? meta.createdAt : safeMtime(dir) || null,
+      counts,
+      agents,
+      owner: readBbRunOwner(meta),
+      workflowFile: workflowFile ?? null,
+      journalDescription,
+    },
+    eventStatus,
+  };
+}
+
+type ParsedRun = ReturnType<typeof parseRun>;
+const runCache = new Map<
+  string,
+  {
+    eventsStamp: FileStamp | null;
+    journalStamp: FileStamp | null;
+    parsed: ParsedRun;
+  }
+>();
+
+function readRun(runId: string) {
+  const dir = join(RUNS_DIR, runId);
+  const eventsPath = join(dir, "events.jsonl");
+  const journalPath = join(dir, "journal.jsonl");
+  const heartbeatPath = join(dir, ".heartbeat");
+  const eventsStamp = safeFileStamp(eventsPath);
+  const journalStamp = safeFileStamp(journalPath);
+  const cached = runCache.get(runId);
+  const parsed =
+    cached &&
+    sameFileStamp(cached.eventsStamp, eventsStamp) &&
+    sameFileStamp(cached.journalStamp, journalStamp)
+      ? cached.parsed
+      : parseRun(runId, eventsStamp, journalStamp);
+  if (parsed !== cached?.parsed) {
+    runCache.set(runId, { eventsStamp, journalStamp, parsed });
+  }
+
+  const heartbeatStamp = safeFileStamp(heartbeatPath);
+  const now = Date.now();
+  const heartbeatAgeMs = heartbeatStamp
+    ? Math.max(0, now - heartbeatStamp.mtimeMs)
+    : null;
+  const agents = parsed.base.agents.map((agent) => ({
+    ...agent,
+    bytes: safeSize(join(dir, "agents", `${agent.index}.jsonl`)),
+    durationMs:
+      agent.state === "running" && agent.startedAt !== null
+        ? Math.max(0, now - agent.startedAt)
+        : agent.durationMs,
+  }));
+  const status = deriveRunStatus({
+    eventStatus: parsed.eventStatus,
+    counts: parsed.base.counts,
+    heartbeatAgeMs,
+  });
+  const details = workflowDetails(parsed.base.workflowFile ?? undefined);
+
+  return {
+    ...parsed.base,
     workflowName: details.name,
-    description,
-    phases,
-    createdAt:
-      typeof meta.createdAt === "number" ? meta.createdAt : safeMtime(dir) || null,
+    description: parsed.base.journalDescription ?? details.description,
     status,
     updatedAt:
       Math.max(
         safeMtime(dir),
-        safeMtime(eventsPath),
-        safeMtime(journalPath),
-        safeMtime(heartbeatPath),
+        eventsStamp?.mtimeMs ?? 0,
+        journalStamp?.mtimeMs ?? 0,
+        heartbeatStamp?.mtimeMs ?? 0,
       ) || null,
     heartbeatAgeMs,
-    counts,
     agents,
-    owner: readBbRunOwner(meta),
-    workflowFile: workflowFile ?? null,
   };
+}
+
+export function resetOmegacodeCachesForTest(): void {
+  jsonlCache.clear();
+  runCache.clear();
+  workflowDetailsCache.clear();
+}
+
+export function pruneRunCaches(
+  liveRunIds: ReadonlySet<string>,
+  runsDirectory = RUNS_DIR,
+): void {
+  for (const runId of runCache.keys()) {
+    if (!liveRunIds.has(runId)) runCache.delete(runId);
+  }
+  for (const path of jsonlCache.keys()) {
+    const parts = relative(runsDirectory, path).split(/[\\/]/);
+    if (
+      parts.length === 2 &&
+      parts[0]?.startsWith("wf_") &&
+      !liveRunIds.has(parts[0]) &&
+      (parts[1] === "events.jsonl" || parts[1] === "journal.jsonl")
+    ) {
+      jsonlCache.delete(path);
+    }
+  }
 }
 
 function scanRuns(limit?: number) {
@@ -326,6 +435,8 @@ function scanRuns(limit?: number) {
     .filter((d) => d.startsWith("wf_"))
     .map((d) => ({ d, m: safeMtime(join(RUNS_DIR, d)) }))
     .sort((a, b) => b.m - a.m);
+  const liveRunIds = new Set(directories.map(({ d }) => d));
+  pruneRunCaches(liveRunIds);
   return (limit === undefined ? directories : directories.slice(0, limit))
     .map((x) => readRun(x.d));
 }
@@ -358,7 +469,12 @@ export function isVisibleRun(run: {
 }
 
 function publicRun(run: ReturnType<typeof readRun>) {
-  const { owner: _owner, workflowFile: _workflowFile, ...visible } = run;
+  const {
+    owner: _owner,
+    workflowFile: _workflowFile,
+    journalDescription: _journalDescription,
+    ...visible
+  } = run;
   return visible;
 }
 
@@ -464,7 +580,7 @@ export default async function plugin(bb: BbPluginApi) {
             .filter(isVisibleRun)
             .map(
               (r) =>
-                `${r.runId}:${r.status}:${r.counts.running}/${r.counts.queued}/${r.counts.completed}/${r.counts.failed}/${r.counts.cancelled}:${r.agents
+                `${r.runId}:${r.workflowName ?? ""}:${r.description ?? ""}:${r.status}:${r.counts.running}/${r.counts.queued}/${r.counts.completed}/${r.counts.failed}/${r.counts.cancelled}:${r.agents
                   .map(
                     (agent) =>
                       `${agent.index}:${agent.state}:${agent.bytes}:${agent.tokens}`,
