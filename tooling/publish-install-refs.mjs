@@ -82,6 +82,24 @@ async function createReleaseCommit(plugin, sourceCommit, sourceRevision) {
 
   try {
     git(["read-tree", sourceCommit], { env: { GIT_INDEX_FILE: indexPath } });
+
+    // Install refs are release artifacts, not development branches. Keep the
+    // imported source history on main, and never ship repository automation in
+    // a root-shaped plugin ref: GitHub Actions intentionally cannot create or
+    // update workflow files with a contents-only token.
+    const repositoryFiles = git(["ls-files"], {
+      env: { GIT_INDEX_FILE: indexPath },
+    })
+      .split("\n")
+      .filter(Boolean);
+    for (const repositoryPath of repositoryFiles) {
+      if (repositoryPath === ".github" || repositoryPath.startsWith(".github/")) {
+        git(["update-index", "--force-remove", repositoryPath], {
+          env: { GIT_INDEX_FILE: indexPath },
+        });
+      }
+    }
+
     addBlob(indexPath, "package.json", releaseManifest(sourceManifest));
 
     for (const file of await filesBelow(resolve(pluginDirectory, "dist"))) {
@@ -94,8 +112,6 @@ async function createReleaseCommit(plugin, sourceCommit, sourceRevision) {
       [
         "commit-tree",
         tree,
-        "-p",
-        sourceCommit,
         "-m",
         `build: publish ${plugin.name} from ${sourceRevision}`,
       ],
