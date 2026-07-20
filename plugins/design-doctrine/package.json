@@ -1,0 +1,51 @@
+{
+  "name": "bb-plugin-design-doctrine",
+  "version": "0.2.0",
+  "description": "Learn, browse, and apply product-design rules from your bb feedback.",
+  "type": "module",
+  "license": "MIT",
+  "engines": {
+    "bb": ">=0.0.31",
+    "bbPluginSdk": "^0.4.0"
+  },
+  "bb": {
+    "name": "Design Doctrine",
+    "description": "Learn, browse, and apply product-design rules from your bb feedback.",
+    "branding": {
+      "icon": "Explore"
+    },
+    "server": "./server.ts",
+    "app": "./app.tsx",
+    "skills": [
+      "skills"
+    ]
+  },
+  "files": [
+    "dist",
+    "skills",
+    "governance.md",
+    "rules",
+    "maintenance/automation-prompt.md",
+    "maintenance/state.example.json",
+    "scripts/scan-history.py"
+  ],
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run server.test.ts",
+    "build": "NODE_PATH=./node_modules bb plugin build ."
+  },
+  "dependencies": {
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.12",
+    "@types/node": "^22.0.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.2.3",
+    "better-sqlite3": "^12.0.0",
+    "esbuild": "0.28.1",
+    "hono": "^4.11.9",
+    "typescript": "^5.7.0",
+    "vitest": "^4.0.0"
+  }
+}
