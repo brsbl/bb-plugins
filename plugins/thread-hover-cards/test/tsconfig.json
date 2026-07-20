@@ -1,0 +1,11 @@
+{
+  "compilerOptions": {
+    "baseUrl": "..",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "paths": {
+      "@bb/plugin-sdk": ["./test/plugin-sdk-runtime.ts"]
+    },
+    "target": "ES2022"
+  }
+}
