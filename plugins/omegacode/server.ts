@@ -403,12 +403,6 @@ function readRun(runId: string) {
   };
 }
 
-export function resetOmegacodeCachesForTest(): void {
-  jsonlCache.clear();
-  runCache.clear();
-  workflowDetailsCache.clear();
-}
-
 export function pruneRunCaches(
   liveRunIds: ReadonlySet<string>,
   runsDirectory = RUNS_DIR,
@@ -480,75 +474,190 @@ function publicRun(run: ReturnType<typeof readRun>) {
 
 type ThreadLabel = { title: string | null; available: boolean };
 
-const threadLabelCache = new Map<
-  string,
-  { expiresAt: number; value: ThreadLabel }
->();
+const unknownThreadLabel: ThreadLabel = { title: null, available: false };
+const MAX_WARMED_THREAD_LABELS = 12;
+const AVAILABLE_THREAD_LABEL_TTL_MS = 10 * 60_000;
+const UNAVAILABLE_THREAD_LABEL_TTL_MS = 60_000;
 
-async function resolveThreadLabel(
-  bb: BbPluginApi,
-  threadId: string,
-): Promise<ThreadLabel> {
-  const cached = threadLabelCache.get(threadId);
-  if (cached && cached.expiresAt > Date.now()) return cached.value;
-
-  let value: ThreadLabel;
-  try {
-    const thread = await bb.sdk.threads.get({
-      threadId,
-      signal: AbortSignal.timeout(5_000),
-    });
-    value = {
-      title: thread.title ?? thread.titleFallback ?? null,
-      available: true,
-    };
-  } catch {
-    value = { title: null, available: false };
-  }
-  threadLabelCache.set(threadId, {
-    expiresAt: Date.now() + 60_000,
-    value,
-  });
-  return value;
+function isTerminalHistoryStatus(status: string): boolean {
+  return /^(completed|done|success|cancel(?:led|ed)|interrupted)$/i.test(status);
 }
 
-async function publicGlobalRuns(
+export function createGlobalRunPresenter(
   bb: BbPluginApi,
-  runs: ReturnType<typeof scanRuns>,
-) {
-  const labels = new Map<string, ThreadLabel>();
-  const threadIds = [
-    ...new Set(
-      runs
-        .map((run) => run.owner?.threadId)
-        .filter((threadId): threadId is string => threadId !== undefined),
-    ),
-  ];
-  await Promise.all(
-    threadIds.map(async (threadId) => {
-      labels.set(threadId, await resolveThreadLabel(bb, threadId));
-    }),
-  );
+): {
+  present(runs: ReturnType<typeof scanRuns>): GlobalRun[];
+  dispose(): void;
+} {
+  const threadLabelCache = new Map<
+    string,
+    { expiresAt: number; value: ThreadLabel }
+  >();
+  const pendingThreadLabels = new Set<string>();
+  const threadLabelWarmQueue: string[] = [];
+  const lifecycle = new AbortController();
+  let isDisposed = false;
+  let isWarmingThreadLabel = false;
+  let threadLabelWarmTimer: ReturnType<typeof setTimeout> | null = null;
 
-  return runs.map((run) => {
-    const visible = publicRun(run);
-    if (!run.owner) return { ...visible, owner: null };
-    const label = labels.get(run.owner.threadId) ?? {
-      title: null,
-      available: false,
-    };
-    return {
-      ...visible,
-      owner: {
-        ...run.owner,
-        threadTitle: label.title,
-        threadAvailable: label.available,
-      },
-    };
-  });
+  async function fetchThreadLabel(threadId: string): Promise<ThreadLabel> {
+    try {
+      const thread = await bb.sdk.threads.get({
+        threadId,
+        signal: AbortSignal.any([
+          lifecycle.signal,
+          AbortSignal.timeout(5_000),
+        ]),
+      });
+      return {
+        title: thread.title ?? thread.titleFallback ?? null,
+        available: true,
+      };
+    } catch {
+      return unknownThreadLabel;
+    }
+  }
+
+  async function processThreadLabelWarmQueue(): Promise<void> {
+    if (isDisposed || isWarmingThreadLabel) return;
+    isWarmingThreadLabel = true;
+    let labelsChanged = false;
+    try {
+      while (!isDisposed && threadLabelWarmQueue.length > 0) {
+        const threadId = threadLabelWarmQueue.shift();
+        if (!threadId) continue;
+        const value = await fetchThreadLabel(threadId);
+        pendingThreadLabels.delete(threadId);
+        if (isDisposed) break;
+        threadLabelCache.set(threadId, {
+          expiresAt:
+            Date.now() +
+            (value.available
+              ? AVAILABLE_THREAD_LABEL_TTL_MS
+              : UNAVAILABLE_THREAD_LABEL_TTL_MS),
+          value,
+        });
+        labelsChanged = true;
+      }
+    } finally {
+      isWarmingThreadLabel = false;
+      if (!isDisposed && labelsChanged) {
+        try {
+          bb.realtime.publish("omegacode", {
+            changedAt: Date.now(),
+            ownerLabelsChanged: true,
+          });
+        } catch (error) {
+          bb.log.warn(
+            `could not publish refreshed Omegacode run owners: ${String(error)}`,
+          );
+        }
+      }
+      if (!isDisposed && threadLabelWarmQueue.length > 0) {
+        scheduleThreadLabelWarmQueue();
+      }
+    }
+  }
+
+  function scheduleThreadLabelWarmQueue(): void {
+    if (
+      isDisposed ||
+      isWarmingThreadLabel ||
+      threadLabelWarmTimer !== null
+    ) {
+      return;
+    }
+    threadLabelWarmTimer = setTimeout(() => {
+      threadLabelWarmTimer = null;
+      void processThreadLabelWarmQueue();
+    }, 0);
+  }
+
+  function warmThreadLabel(threadId: string): void {
+    if (isDisposed || pendingThreadLabels.has(threadId)) return;
+    const cached = threadLabelCache.get(threadId);
+    if (cached && cached.expiresAt > Date.now()) return;
+    pendingThreadLabels.add(threadId);
+    threadLabelWarmQueue.push(threadId);
+    scheduleThreadLabelWarmQueue();
+  }
+
+  function prioritizedThreadIds(
+    runs: ReturnType<typeof scanRuns>,
+  ): string[] {
+    const threadIds: string[] = [];
+    const seen = new Set<string>();
+    for (const terminal of [false, true]) {
+      for (const run of runs) {
+        if (isTerminalHistoryStatus(run.status) !== terminal) continue;
+        const threadId = run.owner?.threadId;
+        if (!threadId || seen.has(threadId)) continue;
+        seen.add(threadId);
+        threadIds.push(threadId);
+        if (threadIds.length === MAX_WARMED_THREAD_LABELS) return threadIds;
+      }
+    }
+    return threadIds;
+  }
+
+  function present(runs: ReturnType<typeof scanRuns>) {
+    const labels = new Map<string, ThreadLabel>();
+    for (const run of runs) {
+      const threadId = run.owner?.threadId;
+      if (!threadId || labels.has(threadId)) continue;
+      const cached = threadLabelCache.get(threadId);
+      const fresh = cached && cached.expiresAt > Date.now() ? cached.value : null;
+      labels.set(threadId, fresh ?? unknownThreadLabel);
+    }
+    for (const threadId of prioritizedThreadIds(runs)) {
+      if (labels.get(threadId) === unknownThreadLabel) warmThreadLabel(threadId);
+    }
+
+    return runs.map((run) => {
+      const base = publicRun(run);
+      // The global page keeps completed and canceled runs collapsed, where it
+      // renders only their summary. Omitting worker details keeps long history
+      // from dominating the RPC payload without changing the live/failed views.
+      const visible = isTerminalHistoryStatus(run.status)
+        ? { ...base, agents: [] }
+        : base;
+      if (!run.owner) return { ...visible, owner: null };
+      const label = labels.get(run.owner.threadId) ?? unknownThreadLabel;
+      return {
+        ...visible,
+        owner: {
+          ...run.owner,
+          threadTitle: label.title,
+          threadAvailable: label.available,
+        },
+      };
+    });
+  }
+
+  function dispose(): void {
+    if (isDisposed) return;
+    isDisposed = true;
+    lifecycle.abort();
+    if (threadLabelWarmTimer !== null) clearTimeout(threadLabelWarmTimer);
+    threadLabelWarmTimer = null;
+    threadLabelWarmQueue.length = 0;
+    pendingThreadLabels.clear();
+    threadLabelCache.clear();
+  }
+
+  return { present, dispose };
+}
+
+export function resetOmegacodeCachesForTest(): void {
+  jsonlCache.clear();
+  runCache.clear();
+  workflowDetailsCache.clear();
 }
 
 export default async function plugin(bb: BbPluginApi) {
+  const globalRuns = createGlobalRunPresenter(bb);
+  bb.onDispose(globalRuns.dispose);
+
   bb.rpc.register(rpcContract, {
     async runs({ threadId }) {
       const scope = await resolveThreadScope(bb, threadId);
@@ -563,7 +672,7 @@ export default async function plugin(bb: BbPluginApi) {
     },
     async allRuns() {
       return {
-        runs: await publicGlobalRuns(bb, scanRuns()),
+        runs: globalRuns.present(scanRuns()),
         scannedAt: Date.now(),
       };
     },

@@ -22,7 +22,7 @@
     "name": "Omegacode",
     "description": "Monitor Omegacode workflows globally and show owner-scoped progress above each bb composer.",
     "branding": {
-      "icon": "Activity",
+      "icon": "Omega",
       "logo": {
         "light": "./assets/logo.svg",
         "dark": "./assets/logo-dark.svg"

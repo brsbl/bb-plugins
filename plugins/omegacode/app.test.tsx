@@ -110,6 +110,19 @@ const RUNS: GlobalRun[] = [
     },
   }),
   run({
+    runId: "wf_owner_pending",
+    workflow: "owner.workflow.js",
+    workflowName: "Owner lookup",
+    agents: [],
+    owner: {
+      threadId: "thr_owner_pending",
+      environmentId: "env_owner",
+      projectId: "proj_owner",
+      threadTitle: null,
+      threadAvailable: false,
+    },
+  }),
+  run({
     runId: "wf_complete",
     workflow: "inventory.workflow.js",
     workflowName: "Inventory",
@@ -236,6 +249,7 @@ describe("Omegacode global workflow page", () => {
     const app = await loadPluginApp(() => import("./app"));
     expect(app.navPanels).toHaveLength(1);
     expect(app.navPanels[0]?.title).toBe("Omegacode");
+    expect(app.navPanels[0]?.icon).toBe("Omega");
     expect(app.composerAccessories).toHaveLength(1);
 
     const panel = app.navPanels[0]!;
@@ -256,6 +270,12 @@ describe("Omegacode global workflow page", () => {
     expect(screen.getByText("Review the release before it ships.")).not.toBeNull();
     expect(screen.getByText("Omegacode is coordinating 1 worker across Audit.")).not.toBeNull();
     expect(screen.getAllByText(/Audit package is working in Audit/)).toHaveLength(2);
+    expect(screen.getByText(/Started from bb · Source: owner.workflow.js/)).not.toBeNull();
+    expect(
+      screen.queryByRole("button", {
+        name: "Open Owner lookup's thread Started from bb",
+      }),
+    ).toBeNull();
     expect(screen.getByRole("button", { name: "Completed workflows" }).getAttribute("aria-expanded")).toBe("false");
     expect(screen.getByRole("button", { name: "Canceled workflows" }).getAttribute("aria-expanded")).toBe("false");
     expect(screen.queryByText("Inventory")).toBeNull();
