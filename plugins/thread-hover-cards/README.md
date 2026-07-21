@@ -16,7 +16,7 @@ Hover or keyboard-focus a thread row in the bb sidebar; the card appears beside 
 
 **Implementation note.** The current Plugin SDK has no thread-row hover slot, so a small frontend bridge anchors the card to bb's `data-sidebar-thread-id` attribute. That DOM dependency is the piece most likely to need attention if bb's sidebar markup changes.
 
-**Maintenance model.** Maintained by hand; it is not derived from bb thread history and has no automated maintenance pass. Imported from `brsbl/bb-plugin-thread-hover-cards` at its final green `main`.
+**Maintenance model.** Maintained by hand against bb's sidebar DOM contract and its on-demand thread-summary RPC, both described above.
 
 ## Develop
 

@@ -18,7 +18,7 @@ Open Omegacode from the bb sidebar to scan workflows across threads and jump to 
 
 **How it reads data.** The plugin reads Omegacode's append-only `journal.jsonl` and `events.jsonl` files under `~/.omegacode/runs`; it does not implement the runner. The owner-scoped banner needs `bbContext.threadId` and `bbContext.environmentId` in a run's metadata. The installed Omegacode 0.0.6 runner stamps that context when it is launched with `BB_THREAD_ID` and `BB_ENVIRONMENT_ID` set — which bb does — so a run started from a bb thread is owner-scoped, while a run started without those variables stays global-only.
 
-**Maintenance model.** Maintained by hand against Omegacode's on-disk format; it is not derived from bb thread history. Omegacode had no legacy remote to archive.
+**Maintenance model.** Maintained by hand against that on-disk format and the owner-scoping contract, with focused unit tests in `ownership.ts` and `presentation.ts` to update alongside any change to how runs are matched to threads or rendered.
 
 ## Develop
 

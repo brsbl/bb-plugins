@@ -23,7 +23,7 @@ The bundled `ui-pattern-atlas` skill lets agents pull vocabulary and attributed 
 
 **Where content comes from.** The Atlas is assembled only from pinned, approved revisions of shadcn/ui, Base UI, assistant-ui, and the WAI-ARIA Authoring Practices Guide. [`providers/upstreams.json`](providers/upstreams.json) records each repository, revision, allowed source paths, license, and attribution notice, and that attribution flows into the generated output. The plugin never fetches provider data at runtime.
 
-**Maintenance model.** Maintained by hand against those pins, not from bb thread history. Update a pin, then regenerate: `npm run update:providers` refreshes normalized source records and lock hashes, the build regenerates the snapshot, index, and preview CSS, and `check:providers` fails on drift. This plugin is marked experimental.
+**Maintenance model.** Maintained by hand against those pinned, approved revisions. Update a pin, then regenerate: `npm run update:providers` refreshes normalized source records and lock hashes, the build regenerates the snapshot, index, and preview CSS, and `check:providers` fails on drift. This plugin is marked experimental.
 
 ## Develop
 
