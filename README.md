@@ -6,9 +6,8 @@ Five personal plugins for product design engineering, kept together with the sma
 
 ## Plugins
 
-Each card is generated from `catalog/plugins.json`, the canonical inventory. The individual README explains what the plugin does and how it was built.
+Each plugin is an independent workspace under `plugins/`. Its README explains what it does and how it was built.
 
-<!-- plugin-catalog:start -->
 ### Design Doctrine
 
 Turns repeated product-design feedback into reusable rules.
@@ -58,13 +57,12 @@ Browses and queries approved-source UI components and interaction patterns.
 [Source](plugins/ui-patterns) · [README](plugins/ui-patterns/README.md)
 
 Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/ui-patterns --yes`
-<!-- plugin-catalog:end -->
 
 The `plugin/*` install refs are generated from `main` after CI passes. bb installs a git repository root, so each ref presents one plugin at the root of its checkout.
 
 ## Develop
 
-Shared tooling covers only the mechanics every plugin needs: catalog rendering, builds, repository checks, scaffolding, artifact validation, and install refs. Runtime code, tests, SDK declarations, and UI stay plugin-local.
+Shared tooling covers only the mechanics every plugin needs: workspace discovery, builds, repository checks, scaffolding, artifact validation, and install refs. Runtime code, tests, SDK declarations, and UI stay plugin-local.
 
 ```bash
 npm ci
@@ -74,4 +72,4 @@ npm run new:plugin -- --slug example --name "Example" --description "Adds an exa
 
 To work on one plugin, install its workspace directly: `bb plugin install "path:$PWD/plugins/<slug>" --yes`.
 
-See [contributor guidance](CONTRIBUTING.md), [repository tooling](tooling/README.md), and [import provenance](docs/provenance.md).
+See [contributor guidance](CONTRIBUTING.md) and [repository tooling](tooling/README.md).

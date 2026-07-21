@@ -27,8 +27,6 @@ The Atlas is assembled from pinned revisions of four approved upstream sources: 
 
 Source adapters normalize the approved material into generated records, a search index, and preview CSS. Attribution stays attached to the generated output, and the plugin does not fetch provider data at runtime. `npm run update:providers` refreshes those artifacts after a pin changes; `check:providers` detects drift.
 
-See [repository provenance](../../docs/provenance.md) for source and licensing details.
-
 ## Develop
 
 From the monorepo root:

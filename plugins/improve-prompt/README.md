@@ -22,8 +22,6 @@ The runtime plugin and the [`prompt-shaper` skill](skills/prompt-shaper/SKILL.md
 
 The skill was refined from observed prompt and handoff behavior in bb threads: missing context, ambiguous scope, unnecessary verbosity, and prompts that did not give an agent a clear stopping point. The stable plugin ID remains `prompt-shaper`; Improve Prompt is its display name.
 
-[Repository provenance](../../docs/provenance.md) records the standalone source and the rejected bb core experiment that was deliberately not imported.
-
 ## Develop
 
 From the monorepo root:

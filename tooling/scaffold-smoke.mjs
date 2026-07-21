@@ -23,40 +23,33 @@ function run(command, args, cwd) {
 }
 
 async function createFixtureRepository(directory) {
-  const rootManifest = JSON.parse(await readFile(resolve(root, "package.json"), "utf8"));
-  const sdkProvenance = JSON.parse(
+  const rootManifest = JSON.parse(
+    await readFile(resolve(root, "package.json"), "utf8"),
+  );
+  const sdkRecord = JSON.parse(
     await readFile(resolve(root, "tooling/vendor/sdk-provenance.json"), "utf8"),
   );
-  await mkdir(resolve(directory, "catalog"), { recursive: true });
-  await mkdir(resolve(directory, "docs"), { recursive: true });
   await mkdir(resolve(directory, "packages"), { recursive: true });
   await mkdir(resolve(directory, "plugins"), { recursive: true });
   await mkdir(resolve(directory, "tooling/vendor"), { recursive: true });
   await writeFile(
     resolve(directory, "package.json"),
-    `${JSON.stringify({
-      name: "bb-plugins-scaffold-smoke",
-      private: true,
-      type: "module",
-      workspaces: ["plugins/*", "packages/*"],
-      devDependencies: {
-        "@bb/plugin-sdk": "file:tooling/vendor/bb-plugin-sdk-0.4.0.tgz",
-        "bb-app": rootManifest.devDependencies["bb-app"],
+    `${JSON.stringify(
+      {
+        name: "bb-plugins-scaffold-smoke",
+        private: true,
+        type: "module",
+        workspaces: ["plugins/*", "packages/*"],
+        devDependencies: {
+          "@bb/plugin-sdk": "file:tooling/vendor/bb-plugin-sdk-0.4.0.tgz",
+          "bb-app": rootManifest.devDependencies["bb-app"],
+        },
       },
-    }, null, 2)}\n`,
+      null,
+      2,
+    )}\n`,
   );
-  await writeFile(
-    resolve(directory, "catalog/plugins.json"),
-    `${JSON.stringify({ schemaVersion: 1, plugins: [] }, null, 2)}\n`,
-  );
-  await writeFile(
-    resolve(directory, "README.md"),
-    "# Fixture\n\n## Plugins\n\n<!-- plugin-catalog:start -->\n| Plugin | Purpose and when to use it | Surfaces and visual | Install and source | CI and maintenance |\n| --- | --- | --- | --- | --- |\n<!-- plugin-catalog:end -->\n\n## Develop\n",
-  );
-  await writeFile(
-    resolve(directory, "docs/provenance.md"),
-    `# Fixture provenance\n\n| Plugin | Imported source | Source revision | Monorepo record | Notes |\n| --- | --- | --- | --- | --- |\n\nSDK source: ${sdkProvenance.sourceCommit}\n`,
-  );
+  await writeFile(resolve(directory, "README.md"), "# Fixture\n");
   await copyFile(
     resolve(root, "tooling/build-plugin.mjs"),
     resolve(directory, "tooling/build-plugin.mjs"),
@@ -66,12 +59,12 @@ async function createFixtureRepository(directory) {
     resolve(directory, "tooling/vendor/sdk-provenance.json"),
   );
   await copyFile(
-    resolve(root, "tooling/vendor", sdkProvenance.archive),
-    resolve(directory, "tooling/vendor", sdkProvenance.archive),
+    resolve(root, "tooling/vendor", sdkRecord.archive),
+    resolve(directory, "tooling/vendor", sdkRecord.archive),
   );
 }
 
-async function addScreenshotContract(repositoryRoot, directory, description) {
+async function addVisualIndex(repositoryRoot, directory, description) {
   const screenshot = "docs/screenshot.png";
   await mkdir(resolve(directory, "docs"));
   await writeFile(
@@ -96,13 +89,24 @@ async function addScreenshotContract(repositoryRoot, directory, description) {
       `${description}\n\n![Scaffold screenshot](${screenshot})\n\n`,
     ),
   );
+  await writeFile(
+    resolve(repositoryRoot, "README.md"),
+    `# Fixture
 
-  const catalogPath = resolve(repositoryRoot, "catalog/plugins.json");
-  const catalog = JSON.parse(await readFile(catalogPath, "utf8"));
-  const entry = catalog.plugins.find(({ slug }) => slug === "scaffold-smoke");
-  assert(entry, "scaffold-smoke catalog entry missing");
-  entry.screenshot = screenshot;
-  await writeFile(catalogPath, `${JSON.stringify(catalog, null, 2)}\n`);
+## Plugins
+
+### Scaffold Smoke
+
+${description}
+
+![Scaffold Smoke in bb](plugins/scaffold-smoke/${screenshot})
+
+[Source](plugins/scaffold-smoke) · [README](plugins/scaffold-smoke/README.md)
+
+Install: \`bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/scaffold-smoke --yes\`
+`,
+  );
+  return screenshot;
 }
 
 const fixtureRoot = await mkdtemp(resolve(tmpdir(), "bb-plugin-scaffold-smoke-"));
@@ -113,77 +117,38 @@ try {
   );
   await createFixtureRepository(fixtureRoot);
 
-  const visualDescription = "Verifies screenshot catalog preservation.";
-  const visualPlugin = await scaffoldPlugin({
+  const description = "Verifies the personal bb plugin scaffold.";
+  const generated = await scaffoldPlugin({
     slug: "scaffold-smoke",
     name: "Scaffold Smoke",
-    description: visualDescription,
+    description,
     repositoryRoot: fixtureRoot,
     bundledTypesDirectory,
     skipInstall: true,
     skipVerify: true,
-    surfaces: ["Server capability"],
   });
-  await addScreenshotContract(
+  const screenshot = await addVisualIndex(
     fixtureRoot,
-    visualPlugin.directory,
-    visualDescription,
+    generated.directory,
+    description,
   );
 
-  const generatedPlugin = await scaffoldPlugin({
-    slug: "catalog-smoke",
-    name: 'Catalog | "Smoke" \\ Tools',
-    description: "Verifies the personal bb plugin\nscaffold.",
-    repositoryRoot: fixtureRoot,
-    bundledTypesDirectory,
-    surfaces: ["Server capability"],
-  });
-
-  for (const directory of [visualPlugin.directory, generatedPlugin.directory]) {
-    for (const typeFile of ["bb-plugin-sdk.d.ts", "bb-plugin-sdk-app.d.ts"]) {
-      assert.equal(
-        await readFile(resolve(directory, "types", typeFile), "utf8"),
-        await readFile(resolve(bundledTypesDirectory, typeFile), "utf8"),
-      );
-    }
+  for (const typeFile of ["bb-plugin-sdk.d.ts", "bb-plugin-sdk-app.d.ts"]) {
+    assert.equal(
+      await readFile(resolve(generated.directory, "types", typeFile), "utf8"),
+      await readFile(resolve(bundledTypesDirectory, typeFile), "utf8"),
+    );
   }
 
-  let catalog = JSON.parse(
-    await readFile(resolve(fixtureRoot, "catalog/plugins.json"), "utf8"),
-  );
-  assert.deepEqual(
-    catalog.plugins.map(({ slug }) => slug),
-    ["catalog-smoke", "scaffold-smoke"],
-  );
-  assert.equal(
-    catalog.plugins.find(({ slug }) => slug === "scaffold-smoke")?.screenshot,
-    "docs/screenshot.png",
-  );
-  const rootReadme = await readFile(resolve(fixtureRoot, "README.md"), "utf8");
-  assert.match(
-    rootReadme,
-    /!\[Scaffold Smoke in bb\]\(plugins\/scaffold-smoke\/docs\/screenshot\.png\)/,
-  );
-  assert.match(rootReadme, /plugin\/catalog-smoke/);
-  assert.ok(rootReadme.includes('### Catalog \\| "Smoke" \\\\ Tools'));
-  assert.ok(
-    rootReadme.includes("[README](plugins/catalog-smoke/README.md)"),
-  );
-  assert.match(rootReadme, /Verifies the personal bb plugin scaffold\./);
-  assert.match(
-    await readFile(resolve(fixtureRoot, "docs/provenance.md"), "utf8"),
-    /Catalog \\\| "Smoke" \\ Tools/,
-  );
-
+  run("npm", ["install", "--no-audit", "--no-fund"], fixtureRoot);
   run(
     "npm",
     ["run", "check", "--workspace=bb-plugin-scaffold-smoke"],
     fixtureRoot,
   );
-  await validatePluginArtifacts(visualPlugin.directory, {
-    expectedScreenshot: "docs/screenshot.png",
+  await validatePluginArtifacts(generated.directory, {
+    expectedScreenshot: screenshot,
   });
-  await validatePluginArtifacts(generatedPlugin.directory);
   await checkRepository(fixtureRoot, { bundledTypesDirectory });
 
   await rm(resolve(fixtureRoot, "node_modules"), {
@@ -193,49 +158,43 @@ try {
   run("npm", ["ci", "--no-audit", "--no-fund"], fixtureRoot);
   run("npm", ["run", "check", "--workspaces", "--if-present"], fixtureRoot);
 
-  const accidentalSkill = resolve(generatedPlugin.directory, "skills/example-skill");
+  const accidentalSkill = resolve(generated.directory, "skills/example-skill");
   await mkdir(accidentalSkill, { recursive: true });
   await writeFile(resolve(accidentalSkill, "SKILL.md"), "# Accidental skill\n");
   await assert.rejects(
-    validatePluginArtifacts(generatedPlugin.directory),
+    validatePluginArtifacts(generated.directory),
     /bb\.skills opts out, but skills\/example-skill\/SKILL\.md exists/,
   );
-  const manifestPath = resolve(generatedPlugin.directory, "package.json");
+  const manifestPath = resolve(generated.directory, "package.json");
   const manifest = JSON.parse(await readFile(manifestPath, "utf8"));
   delete manifest.bb.skills;
   await writeFile(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
   await assert.rejects(
-    validatePluginArtifacts(generatedPlugin.directory),
+    validatePluginArtifacts(generated.directory),
     /would be implicitly auto-imported by bb; declare bb\.skills explicitly/,
   );
   manifest.bb.skills = [];
   await writeFile(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
-  await rm(resolve(generatedPlugin.directory, "skills"), {
+  await rm(resolve(generated.directory, "skills"), {
     recursive: true,
     force: true,
   });
 
-  const nestedWorkflows = resolve(generatedPlugin.directory, ".github/workflows");
+  const nestedWorkflows = resolve(generated.directory, ".github/workflows");
   await mkdir(nestedWorkflows, { recursive: true });
   await writeFile(resolve(nestedWorkflows, "ci.yml"), "name: accidental\n");
   await assert.rejects(
     checkRepository(fixtureRoot, { bundledTypesDirectory }),
     /nested plugin \.github\/workflows is not allowed/,
   );
-  await rm(resolve(generatedPlugin.directory, ".github"), {
+  await rm(resolve(generated.directory, ".github"), {
     recursive: true,
     force: true,
   });
 
-  catalog = JSON.parse(
-    await readFile(resolve(fixtureRoot, "catalog/plugins.json"), "utf8"),
-  );
-  await validatePluginArtifacts(visualPlugin.directory, {
-    expectedScreenshot: catalog.plugins.find(
-      ({ slug }) => slug === "scaffold-smoke",
-    )?.screenshot,
+  await validatePluginArtifacts(generated.directory, {
+    expectedScreenshot: screenshot,
   });
-  await validatePluginArtifacts(generatedPlugin.directory);
   await checkRepository(fixtureRoot, { bundledTypesDirectory });
   console.log("plugin scaffold smoke test passed after clean npm ci");
 } finally {

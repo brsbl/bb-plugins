@@ -8,18 +8,18 @@ The root tooling centralizes the build and repository mechanics every plugin sha
 | --- | --- |
 | `npm run check` | Runs repository hygiene and every plugin's typecheck, production build, tests, and artifact validation. |
 | `npm run check --workspace=<package>` | Runs the focused check declared by one plugin package. |
-| `npm run new:plugin -- --slug <slug> --name <name> --description <purpose>` | Generates and catalogs a plugin, installs dependencies, then typechecks, tests, and builds it. |
+| `npm run new:plugin -- --slug <slug> --name <name> --description <purpose>` | Generates a plugin, installs dependencies, then typechecks, tests, and builds it. |
 | `npm run scaffold:smoke` | Generates temporary plugins and proves the scaffold still passes a clean install and repository checks. |
 
 ## Shared scripts
 
 | Script | Purpose |
 | --- | --- |
-| [`catalog-renderer.mjs`](catalog-renderer.mjs) | Renders the root visual index from `catalog/plugins.json`. |
+| [`plugin-workspaces.mjs`](plugin-workspaces.mjs) | Reads plugin names and stable IDs from workspace manifests for CI and install refs. |
 | [`build-plugin.mjs`](build-plugin.mjs) | Runs the same `bb plugin build` contract for each workspace. |
-| [`check-repository.mjs`](check-repository.mjs) | Checks catalog, manifests, lockfiles, READMEs, screenshots, skills, workflows, and repository layout. |
+| [`check-repository.mjs`](check-repository.mjs) | Checks manifests, lockfiles, READMEs, screenshots, skills, workflows, and repository layout. |
 | [`validate-plugin-artifacts.mjs`](validate-plugin-artifacts.mjs) | Verifies production bundles and installable plugin artifacts. |
-| [`create-plugin.mjs`](create-plugin.mjs) | Creates a plugin with package scripts, local SDK declarations, a focused test, and a catalog entry. |
+| [`create-plugin.mjs`](create-plugin.mjs) | Creates a plugin with package scripts, local SDK declarations, and a focused test. |
 | [`scaffold-smoke.mjs`](scaffold-smoke.mjs) | Exercises the generator in a clean temporary repository. |
 | [`publish-install-refs.mjs`](publish-install-refs.mjs) | Publishes root-shaped `plugin/<slug>` refs after main passes CI. |
 

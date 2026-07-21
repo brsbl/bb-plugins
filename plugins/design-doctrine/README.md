@@ -25,7 +25,7 @@ The bundled `design-doctrine` skill brings the relevant rules into design work. 
 
 The rule library was distilled from repeated design feedback in bb thread history: direct requests, corrections, approvals, and rejections. Agent output is not treated as evidence, and repeated signals carry more weight than one-off preferences.
 
-Each rule is an ordinary Markdown file under `rules/<domain>/`, so its rationale and revisions stay inspectable in Git. [`governance.md`](governance.md) defines how evidence becomes a rule; [repository provenance](../../docs/provenance.md) records how the plugin entered this monorepo.
+Each rule is an ordinary Markdown file under `rules/<domain>/`, so its rationale and revisions stay inspectable in Git. [`governance.md`](governance.md) defines how evidence becomes a rule.
 
 ## Develop
 

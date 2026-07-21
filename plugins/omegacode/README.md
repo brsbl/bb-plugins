@@ -22,8 +22,6 @@ The plugin reads Omegacode's append-only `journal.jsonl` and `events.jsonl` file
 
 The owner-scoped surface is built around a strict runner contract: journals with both bb identifiers can belong to one composer, while journals without them remain global-only. Matching and presentation logic live in `ownership.ts` and `presentation.ts` with focused tests.
 
-See [repository provenance](../../docs/provenance.md) for attribution and import history.
-
 ## Develop
 
 From the monorepo root:

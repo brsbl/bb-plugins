@@ -3,10 +3,7 @@ import { readdir, readFile, stat } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import {
-  markdownTableText,
-  renderCatalogBlock,
-} from "./catalog-renderer.mjs";
+import { readPluginWorkspaces } from "./plugin-workspaces.mjs";
 
 const defaultRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -20,7 +17,10 @@ function assert(condition, message) {
 
 function normalizeRelativePath(path, label) {
   assert(typeof path === "string", `${label} must be a string`);
-  const normalized = path.replace(/\\/g, "/").replace(/^\.\//, "").replace(/\/+$/, "");
+  const normalized = path
+    .replace(/\\/g, "/")
+    .replace(/^\.\//, "")
+    .replace(/\/+$/, "");
   assert(
     normalized !== "" &&
       !normalized.startsWith("/") &&
@@ -33,13 +33,24 @@ function normalizeRelativePath(path, label) {
 function packageFilesInclude(manifestFiles, path) {
   return manifestFiles.some((entry) => {
     if (typeof entry !== "string") return false;
-    const normalized = entry.replace(/\\/g, "/").replace(/^\.\//, "").replace(/\/+$/, "");
+    const normalized = entry
+      .replace(/\\/g, "/")
+      .replace(/^\.\//, "")
+      .replace(/\/+$/, "");
     return normalized === path || path.startsWith(`${normalized}/`);
   });
 }
 
 function markdownImageTargets(markdown) {
-  return [...markdown.matchAll(/!\[[^\]]*\]\(([^)]+)\)/g)].map((match) => match[1]);
+  return [...markdown.matchAll(/!\[[^\]]*\]\(([^)]+)\)/g)].map(
+    (match) => match[1],
+  );
+}
+
+function localImageTargets(markdown) {
+  return markdownImageTargets(markdown).filter(
+    (target) => !/^(?:[a-z]+:|#)/i.test(target),
+  );
 }
 
 async function nestedLockfiles(directory) {
@@ -75,19 +86,14 @@ async function directoryContainsFiles(directory) {
 export async function checkRepository(repositoryRoot = defaultRoot, options = {}) {
   const root = resolve(repositoryRoot);
   const rootManifest = await readJson(resolve(root, "package.json"));
-  const catalog = await readJson(resolve(root, "catalog/plugins.json"));
   const readme = await readFile(resolve(root, "README.md"), "utf8");
-  const provenance = await readFile(resolve(root, "docs/provenance.md"), "utf8");
+  const rootImages = markdownImageTargets(readme);
+  const plugins = await readPluginWorkspaces(root);
   const bundledTypesDirectory = resolve(
     options.bundledTypesDirectory ??
       resolve(root, "node_modules/@bb/plugin-sdk/bundled-types"),
   );
 
-  assert(catalog.schemaVersion === 1, "unsupported catalog schema");
-  assert(
-    readme.includes(renderCatalogBlock(catalog)),
-    "README plugin index has drifted from catalog/plugins.json",
-  );
   assert(rootManifest.workspaces.includes("plugins/*"), "plugins workspace missing");
   assert(rootManifest.workspaces.includes("packages/*"), "packages workspace missing");
   assert(
@@ -95,132 +101,90 @@ export async function checkRepository(repositoryRoot = defaultRoot, options = {}
     "Design Loop is intentionally excluded",
   );
 
-  const slugs = new Set();
   const packageNames = new Set();
   const pluginIds = new Set();
-  for (const entry of catalog.plugins) {
-    assert(!slugs.has(entry.slug), `duplicate catalog slug ${entry.slug}`);
-    assert(!packageNames.has(entry.packageName), `duplicate package ${entry.packageName}`);
-    assert(!pluginIds.has(entry.pluginId), `duplicate plugin id ${entry.pluginId}`);
-    slugs.add(entry.slug);
-    packageNames.add(entry.packageName);
-    pluginIds.add(entry.pluginId);
+  const stableIds = new Map([
+    ["improve-prompt", "prompt-shaper"],
+    ["omegacode", "omega"],
+  ]);
 
-    assert(entry.source === `plugins/${entry.slug}`, `${entry.slug}: source mismatch`);
-    assert(entry.installRef === `plugin/${entry.slug}`, `${entry.slug}: install ref mismatch`);
-    assert(Object.hasOwn(entry, "screenshot"), `${entry.slug}: screenshot metadata missing`);
-    assert(
-      entry.screenshot === null || typeof entry.screenshot === "string",
-      `${entry.slug}: screenshot must be a relative path or null`,
-    );
-    assert(Array.isArray(entry.surfaces) && entry.surfaces.length > 0, `${entry.slug}: surfaces missing`);
-    for (const field of ["purpose", "whenToUse", "visual", "ci", "maintenance"]) {
-      assert(typeof entry[field] === "string" && entry[field].length > 0, `${entry.slug}: ${field} missing`);
+  for (const plugin of plugins) {
+    const { directory, installRef, manifest, name, packageName, pluginId, slug, source } =
+      plugin;
+    assert(!packageNames.has(packageName), `duplicate package ${packageName}`);
+    assert(!pluginIds.has(pluginId), `duplicate plugin id ${pluginId}`);
+    packageNames.add(packageName);
+    pluginIds.add(pluginId);
+    if (stableIds.has(slug)) {
+      assert(pluginId === stableIds.get(slug), `${slug}: stable plugin id drift`);
     }
 
-    const directory = resolve(root, entry.source);
-    const manifest = await readJson(resolve(directory, "package.json"));
     const pluginReadme = await readFile(resolve(directory, "README.md"), "utf8");
-    assert(manifest.name === entry.packageName, `${entry.slug}: package name drift`);
-    assert(manifest.bb.name === entry.name, `${entry.slug}: display name drift`);
-    assert(
-      manifest.name.slice("bb-plugin-".length) === entry.pluginId,
-      `${entry.slug}: stable plugin id drift`,
-    );
     for (const script of ["typecheck", "test", "build"]) {
-      assert(typeof manifest.scripts?.[script] === "string", `${entry.slug}: ${script} script missing`);
+      assert(typeof manifest.scripts?.[script] === "string", `${slug}: ${script} script missing`);
     }
-    assert(Array.isArray(manifest.files), `${entry.slug}: package files allowlist missing`);
+    assert(Array.isArray(manifest.files), `${slug}: package files allowlist missing`);
     assert(
       manifest.files.some((path) => path.replace(/\/$/, "") === "dist"),
-      `${entry.slug}: dist missing from package files`,
+      `${slug}: dist missing from package files`,
     );
-    assert(manifest.files.includes("README.md"), `${entry.slug}: README missing from package files`);
-    assert(manifest.engines?.bb === ">=0.0.32", `${entry.slug}: bb engine drift`);
-    assert(manifest.engines?.bbPluginSdk === "^0.4.0", `${entry.slug}: SDK engine drift`);
-    assert(pluginReadme.startsWith(`# ${entry.name}\n`), `${entry.slug}: README title drift`);
+    assert(manifest.files.includes("README.md"), `${slug}: README missing from package files`);
+    assert(manifest.engines?.bb === ">=0.0.32", `${slug}: bb engine drift`);
+    assert(manifest.engines?.bbPluginSdk === "^0.4.0", `${slug}: SDK engine drift`);
+    assert(pluginReadme.startsWith(`# ${name}\n`), `${slug}: README title drift`);
     for (const heading of ["## Install", "## Use", "## Develop"]) {
-      assert(pluginReadme.includes(heading), `${entry.slug}: README missing ${heading}`);
+      assert(pluginReadme.includes(heading), `${slug}: README missing ${heading}`);
     }
-    assert(readme.includes(`(${entry.source})`), `${entry.slug}: root source link missing`);
+    assert(readme.includes(`(${source})`), `${slug}: root source link missing`);
     assert(
-      readme.includes(`[README](${entry.source}/README.md)`),
-      `${entry.slug}: root README link missing`,
+      readme.includes(`[README](${source}/README.md)`),
+      `${slug}: root README link missing`,
     );
-    assert(readme.includes(`@${entry.installRef}`), `${entry.slug}: root install ref missing`);
-    assert(
-      provenance.includes(markdownTableText(entry.name)),
-      `${entry.slug}: provenance missing`,
+    assert(readme.includes(`@${installRef}`), `${slug}: root install ref missing`);
+
+    const screenshots = localImageTargets(pluginReadme).map((path) =>
+      normalizeRelativePath(path, `${slug}: screenshot`),
     );
-    if (entry.screenshot) {
-      const screenshot = normalizeRelativePath(
-        entry.screenshot,
-        `${entry.slug}: screenshot`,
-      );
+    assert(screenshots.length > 0, `${slug}: README screenshot missing`);
+    for (const screenshot of screenshots) {
+      const details = await stat(resolve(directory, screenshot)).catch(() => null);
       assert(
-        screenshot === entry.screenshot,
-        `${entry.slug}: screenshot path must be normalized`,
-      );
-      const screenshotDetails = await stat(resolve(directory, screenshot)).catch(
-        () => null,
-      );
-      assert(
-        screenshotDetails?.isFile() && screenshotDetails.size > 0,
-        `${entry.slug}: screenshot ${screenshot} is missing or empty`,
+        details?.isFile() && details.size > 0,
+        `${slug}: screenshot ${screenshot} is missing or empty`,
       );
       assert(
         packageFilesInclude(manifest.files, screenshot),
-        `${entry.slug}: screenshot ${screenshot} is omitted by package files`,
-      );
-      assert(
-        markdownImageTargets(pluginReadme).includes(screenshot),
-        `${entry.slug}: README must embed screenshot ${screenshot}`,
-      );
-      assert(
-        markdownImageTargets(readme).includes(`${entry.source}/${screenshot}`),
-        `${entry.slug}: root screenshot image missing`,
+        `${slug}: screenshot ${screenshot} is omitted by package files`,
       );
     }
     assert(
+      screenshots.some((screenshot) => rootImages.includes(`${source}/${screenshot}`)),
+      `${slug}: root representative screenshot missing`,
+    );
+    assert(
       !(await directoryContainsFiles(resolve(directory, ".github/workflows"))),
-      `${entry.slug}: nested plugin .github/workflows is not allowed`,
+      `${slug}: nested plugin .github/workflows is not allowed`,
     );
 
     for (const typeFile of ["bb-plugin-sdk.d.ts", "bb-plugin-sdk-app.d.ts"]) {
-      const localPath = resolve(directory, "types", typeFile);
-      const local = await readFile(localPath, "utf8");
+      const local = await readFile(resolve(directory, "types", typeFile), "utf8");
       const authoritative = await readFile(
         resolve(bundledTypesDirectory, typeFile),
         "utf8",
       );
-      assert(local === authoritative, `${entry.slug}: ${typeFile} is out of sync`);
+      assert(local === authoritative, `${slug}: ${typeFile} is out of sync`);
     }
   }
-
-  const pluginDirectories = (await readdir(resolve(root, "plugins"), {
-    withFileTypes: true,
-  }))
-    .filter((entry) => entry.isDirectory() && !entry.name.startsWith("."))
-    .map((entry) => entry.name)
-    .sort();
-  assert(
-    JSON.stringify(pluginDirectories) === JSON.stringify([...slugs].sort()),
-    `catalog/plugin directory mismatch: ${pluginDirectories.join(", ")}`,
-  );
 
   const locks = await nestedLockfiles(resolve(root, "plugins"));
   assert(locks.length === 0, `nested lockfiles found:\n${locks.join("\n")}`);
 
-  const sdkProvenance = await readJson(resolve(root, "tooling/vendor/sdk-provenance.json"));
-  assert(
-    provenance.includes(sdkProvenance.sourceCommit),
-    "SDK source commit missing from provenance",
-  );
-  const sdkArchive = await readFile(resolve(root, "tooling/vendor", sdkProvenance.archive));
+  const sdkRecord = await readJson(resolve(root, "tooling/vendor/sdk-provenance.json"));
+  const sdkArchive = await readFile(resolve(root, "tooling/vendor", sdkRecord.archive));
   const sdkHash = createHash("sha256").update(sdkArchive).digest("hex");
-  assert(sdkHash === sdkProvenance.sha256, "vendored plugin SDK hash mismatch");
+  assert(sdkHash === sdkRecord.sha256, "vendored plugin SDK hash mismatch");
 
-  return { pluginCount: catalog.plugins.length };
+  return { pluginCount: plugins.length };
 }
 
 if (resolve(process.argv[1] ?? "") === fileURLToPath(import.meta.url)) {

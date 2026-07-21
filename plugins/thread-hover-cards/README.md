@@ -20,8 +20,6 @@ A server RPC computes a bounded thread summary on demand. The frontend attaches 
 
 The bridge exists because the current Plugin SDK has no thread-row hover slot. The DOM anchor is intentionally small and covered by focused behavior tests so a sidebar markup change has one clear integration point.
 
-See [repository provenance](../../docs/provenance.md) for the standalone source and import revision.
-
 ## Develop
 
 From the monorepo root:
