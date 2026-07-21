@@ -80,7 +80,7 @@ function filesFor(options) {
       skills: [],
     },
     devDependencies: {
-      "@bb/plugin-sdk": "file:../../tooling/vendor/bb-plugin-sdk-0.4.0.tgz",
+      "@bb/plugin-sdk": "file:../../tooling/vendor/bb-plugin-sdk-0.4.1.tgz",
       "@types/better-sqlite3": "^7.6.12",
       "@types/node": "^22.0.0",
       "better-sqlite3": "^12.10.0",
@@ -193,6 +193,7 @@ async function addCatalogEntry(repositoryRoot, options) {
     name: options.name,
     packageName: `bb-plugin-${options.slug}`,
     pluginId: options.slug,
+    bbPluginSdk: "^0.4.0",
     purpose: options.description,
     whenToUse:
       options.when ?? `When ${options.name}'s focused capability is useful.`,

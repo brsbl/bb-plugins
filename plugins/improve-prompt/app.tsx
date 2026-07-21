@@ -206,9 +206,15 @@ function PromptShaperAction({
   }, [composerScopeKey, rpc]);
 
   useEffect(() => {
-    composer.setTextEffect?.(isRunning ? "shimmer" : null);
-    composer.setThreadRowStatus?.(isRunning ? THREAD_ROW_STATUS : null);
-  }, [composer.setTextEffect, composer.setThreadRowStatus, isRunning]);
+    composer.experimental_setTextEffect(isRunning ? "shimmer" : null);
+    composer.experimental_setThreadRowStatus(
+      isRunning ? THREAD_ROW_STATUS : null,
+    );
+  }, [
+    composer.experimental_setTextEffect,
+    composer.experimental_setThreadRowStatus,
+    isRunning,
+  ]);
 
   useEffect(() => {
     if (
@@ -222,10 +228,14 @@ function PromptShaperAction({
 
   useEffect(() => {
     return () => {
-      composer.setTextEffect?.(null);
-      composer.setThreadRowStatus?.(null);
+      composer.experimental_setTextEffect(null);
+      composer.experimental_setThreadRowStatus(null);
     };
-  }, [composer.setTextEffect, composer.setThreadRowStatus, composerScopeKey]);
+  }, [
+    composer.experimental_setTextEffect,
+    composer.experimental_setThreadRowStatus,
+    composerScopeKey,
+  ]);
 
   useEffect(() => {
     const recoveredRequest = loadPendingRequest(
@@ -245,8 +255,8 @@ function PromptShaperAction({
   }, []);
 
   const clearLoadingEffects = useCallback(() => {
-    composerRef.current.setTextEffect?.(null);
-    composerRef.current.setThreadRowStatus?.(null);
+    composerRef.current.experimental_setTextEffect(null);
+    composerRef.current.experimental_setThreadRowStatus(null);
   }, []);
 
   const applyEnhancement = useCallback((enhancedPrompt: string) => {
@@ -398,8 +408,8 @@ function PromptShaperAction({
       startup: "starting",
     };
     setUndoState(null);
-    composer.setTextEffect?.("shimmer");
-    composer.setThreadRowStatus?.(THREAD_ROW_STATUS);
+    composer.experimental_setTextEffect("shimmer");
+    composer.experimental_setThreadRowStatus(THREAD_ROW_STATUS);
     setPendingRequest(request);
     locallyStartingRequestIds.add(request.requestId);
 
