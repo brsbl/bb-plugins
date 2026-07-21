@@ -14,7 +14,7 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  catalog:
+  inventory:
     runs-on: ubuntu-latest
     outputs:
       plugins: ${{ steps.matrix.outputs.plugins }}
@@ -22,16 +22,7 @@ jobs:
       - uses: actions/checkout@v6
       - id: matrix
         run: |
-          node --input-type=module <<'NODE' >> "$GITHUB_OUTPUT"
-          import { readFileSync } from "node:fs";
-          const { plugins } = JSON.parse(readFileSync("catalog/plugins.json", "utf8"));
-          const matrix = plugins.map(({ name, packageName, source }) => ({
-            name,
-            package: packageName,
-            path: source,
-          }));
-          console.log(`plugins=${JSON.stringify(matrix)}`);
-          NODE
+          echo "plugins=$(node tooling/plugin-workspaces.mjs)" >> "$GITHUB_OUTPUT"
 
   hygiene:
     runs-on: ubuntu-latest
@@ -49,12 +40,12 @@ jobs:
       - run: git diff --exit-code
 
   plugins:
-    needs: catalog
+    needs: inventory
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        include: ${{ fromJSON(needs.catalog.outputs.plugins) }}
+        include: ${{ fromJSON(needs.inventory.outputs.plugins) }}
     name: ${{ matrix.name }}
     steps:
       - uses: actions/checkout@v6

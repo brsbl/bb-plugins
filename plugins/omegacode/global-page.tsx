@@ -69,7 +69,7 @@ function relativeTime(value: number | null): string {
 
 function ownerLabel(run: GlobalRun): string {
   if (!run.owner) return "Outside bb";
-  return run.owner.threadTitle ?? run.owner.threadId;
+  return run.owner.threadTitle ?? "Started from bb";
 }
 
 function sourceLabel(run: GlobalRun): string {

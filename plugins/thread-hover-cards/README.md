@@ -1,6 +1,6 @@
 # Thread Hover Cards
 
-Thread Hover Cards previews a sidebar thread's status, latest agent message, execution context, repository, and pull request.
+Busy sidebars make it hard to remember what every thread is doing. Thread Hover Cards gives you the useful context—status, latest agent message, execution details, repository, and pull request—without making you open each one.
 
 ![A bb thread hover card showing live worker context](docs/screenshot.png)
 
@@ -12,9 +12,7 @@ bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/thread-hove
 
 ## Use
 
-Hover or keyboard-focus a thread row in the bb sidebar. The card appears beside the row without changing threads.
-
-The current Plugin SDK has no thread-row hover slot, so the small frontend bridge anchors to bb's `data-sidebar-thread-id` attribute.
+Hover over a thread row, or focus it with the keyboard. Its card opens beside the row while your active thread stays put.
 
 ## Develop
 

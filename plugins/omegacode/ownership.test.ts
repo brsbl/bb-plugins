@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { readBbRunOwner, runBelongsToScope } from "./ownership";
+import {
+  inferThreadRunScope,
+  readBbRunOwner,
+  runBelongsToScope,
+} from "./ownership";
 
 const scope = {
   threadId: "thr_current",
@@ -53,5 +57,53 @@ describe("Omegacode run ownership", () => {
 
   it("hides journals that do not record an owning thread", () => {
     expect(runBelongsToScope({ owner: null }, scope)).toBe(false);
+  });
+
+  it("infers the exact journal-owned thread and environment pair", () => {
+    expect(
+      inferThreadRunScope(
+        [
+          {
+            owner: {
+              threadId: "thr_current",
+              environmentId: "env_current",
+              projectId: "proj_current",
+            },
+          },
+          {
+            owner: {
+              threadId: "thr_other",
+              environmentId: "env_other",
+              projectId: "proj_other",
+            },
+          },
+        ],
+        "thr_current",
+      ),
+    ).toEqual({ threadId: "thr_current", environmentId: "env_current" });
+  });
+
+  it("fails closed when journals disagree about a thread's environment", () => {
+    expect(
+      inferThreadRunScope(
+        [
+          {
+            owner: {
+              threadId: "thr_current",
+              environmentId: "env_first",
+              projectId: null,
+            },
+          },
+          {
+            owner: {
+              threadId: "thr_current",
+              environmentId: "env_second",
+              projectId: null,
+            },
+          },
+        ],
+        "thr_current",
+      ),
+    ).toBeNull();
   });
 });

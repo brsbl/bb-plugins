@@ -296,7 +296,7 @@ export default definePluginApp((app) => {
   app.slots.navPanel({
     id: "workflows",
     title: "Omegacode",
-    icon: "Activity",
+    icon: "Omega",
     path: "omegacode",
     component: OmegacodeOverview,
   });
