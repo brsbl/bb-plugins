@@ -1,7 +1,7 @@
 <!--
   Generated file: do not edit by hand.
   Source template: tooling/bootstrap/bootstrap-prompt.template.md
-  Parameters:      tooling/bootstrap/variants.json (improve-prompt)
+  Parameters:      catalog/plugins.json personalization entry (improve-prompt)
   Regenerate:      node tooling/bootstrap/render-bootstrap.mjs --write
   Repository hygiene fails if a committed variant drifts from this template.
 -->

@@ -15,7 +15,14 @@
       "installRef": "plugin/design-doctrine",
       "ci": "Monorepo CI",
       "maintenance": "active",
-      "legacyRepository": "https://github.com/brsbl/design-doctrine"
+      "legacyRepository": "https://github.com/brsbl/design-doctrine",
+      "personalization": {
+        "artifact": "its rule library",
+        "artifactTree": "the rules/ tree",
+        "maintenanceDoc": "plugins/design-doctrine/maintenance/automation-prompt.md",
+        "adaptInstruction": "Turn each durable signal into a versioned rule under rules/<domain>/ following governance.md, or clear rules/ first to grow doctrine from your own judgment. Leave the bundled design-doctrine skill in place; it reads whatever rules you keep. Rules carry short, anonymous evidence lines only.",
+        "automationName": "Design Doctrine refresh"
+      }
     },
     {
       "slug": "improve-prompt",
@@ -31,7 +38,14 @@
       "installRef": "plugin/improve-prompt",
       "ci": "Monorepo CI",
       "maintenance": "active",
-      "legacyRepository": "https://github.com/brsbl/bb-plugin-prompt-shaper"
+      "legacyRepository": "https://github.com/brsbl/bb-plugin-prompt-shaper",
+      "personalization": {
+        "artifact": "its prompt-shaper skill",
+        "artifactTree": "the skills/prompt-shaper/ tree",
+        "maintenanceDoc": "plugins/improve-prompt/maintenance/skill-tuning.md",
+        "adaptInstruction": "Fold each durable signal into skills/prompt-shaper/SKILL.md — tighten a role's include-when, add or narrow a rule, or fix a stopping convention. Do not touch the composer runtime; only the skill changes. The plugin runtime and the skill are separate parts.",
+        "automationName": "Prompt Shaper skill refresh"
+      }
     },
     {
       "slug": "omegacode",

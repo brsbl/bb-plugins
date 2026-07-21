@@ -1,7 +1,7 @@
 <!--
   Generated file: do not edit by hand.
   Source template: tooling/bootstrap/bootstrap-prompt.template.md
-  Parameters:      tooling/bootstrap/variants.json (design-doctrine)
+  Parameters:      catalog/plugins.json personalization entry (design-doctrine)
   Regenerate:      node tooling/bootstrap/render-bootstrap.mjs --write
   Repository hygiene fails if a committed variant drifts from this template.
 -->

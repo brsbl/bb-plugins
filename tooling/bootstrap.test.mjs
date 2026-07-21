@@ -5,16 +5,24 @@ import { fileURLToPath } from "node:url";
 import { test } from "node:test";
 
 import {
+  HISTORY_PERSONALIZABLE,
   checkBootstrapPrompts,
   loadConfig,
   renderTemplate,
   renderVariant,
   validateAutomationInterface,
+  validateCatalogPersonalization,
+  variantsFromCatalog,
 } from "./bootstrap/render-bootstrap.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(here, "..");
 const iface = JSON.parse(readFileSync(resolve(here, "bootstrap/automation-interface.json"), "utf8"));
+
+// A deep clone of the real catalog to mutate in negative tests.
+function cloneCatalog() {
+  return JSON.parse(readFileSync(resolve(repoRoot, "catalog/plugins.json"), "utf8"));
+}
 
 test("renderTemplate fills tokens and rejects missing ones", () => {
   assert.equal(renderTemplate("hi {{NAME}}", { NAME: "x" }), "hi x");
@@ -49,21 +57,54 @@ test("validateAutomationInterface catches stale modes and deprecated commands", 
   );
 });
 
-test("committed bootstrap variants are in sync with the template (drift guard)", () => {
+test("committed bootstrap variants are in sync with the catalog + template (drift guard)", () => {
   assert.doesNotThrow(() => checkBootstrapPrompts(repoRoot));
 });
 
-test("exactly the evidence-justified variants exist", () => {
-  const { variants } = loadConfig();
-  assert.deepEqual(
-    variants.variants.map((v) => v.key).sort(),
-    ["design-doctrine", "improve-prompt"],
-  );
+test("variants derive from the canonical catalog inventory, no second list", () => {
+  const { catalog } = loadConfig(repoRoot);
+  const variants = variantsFromCatalog(catalog);
+  assert.deepEqual(variants.map((v) => v.key).sort(), ["design-doctrine", "improve-prompt"]);
+  // Every variant value traces to a catalog field.
+  const dd = catalog.plugins.find((p) => p.slug === "design-doctrine");
+  const variant = variants.find((v) => v.key === "design-doctrine");
+  assert.equal(variant.values.PLUGIN_NAME, dd.name);
+  assert.equal(variant.values.PACKAGE_NAME, dd.packageName);
+  assert.equal(variant.values.PLUGIN_README, `${dd.source}/README.md`);
+  assert.equal(variant.output, `${dd.source}/maintenance/bootstrap-prompt.md`);
+});
+
+test("personalization sits on exactly the history-personalizable plugins", () => {
+  const { catalog } = loadConfig(repoRoot);
+  assert.doesNotThrow(() => validateCatalogPersonalization(catalog));
+  const carrying = catalog.plugins.filter((p) => p.personalization).map((p) => p.pluginId).sort();
+  assert.deepEqual(carrying, [...HISTORY_PERSONALIZABLE].sort());
+});
+
+test("a non-history plugin carrying personalization is rejected", () => {
+  const catalog = cloneCatalog();
+  const omega = catalog.plugins.find((p) => p.pluginId === "omega");
+  omega.personalization = {
+    artifact: "x", artifactTree: "x", maintenanceDoc: "x", adaptInstruction: "x", automationName: "x",
+  };
+  assert.throws(() => validateCatalogPersonalization(catalog), /omegacode carries personalization but is not history-personalizable/);
+});
+
+test("a missing history plugin's personalization is rejected", () => {
+  const catalog = cloneCatalog();
+  delete catalog.plugins.find((p) => p.pluginId === "prompt-shaper").personalization;
+  assert.throws(() => validateCatalogPersonalization(catalog), /must be on exactly/);
+});
+
+test("an incomplete personalization block is rejected", () => {
+  const catalog = cloneCatalog();
+  delete catalog.plugins.find((p) => p.pluginId === "design-doctrine").personalization.artifact;
+  assert.throws(() => validateCatalogPersonalization(catalog), /missing "artifact"/);
 });
 
 test("each rendered prompt instructs all required bootstrap steps", () => {
-  const { template, variants } = loadConfig();
-  for (const variant of variants.variants) {
+  const { template, catalog } = loadConfig(repoRoot);
+  for (const variant of variantsFromCatalog(catalog)) {
     const text = renderVariant(template, variant, iface);
     // 1 fork, 2 seed evidence, 3 adapt plugin + skill, 4 install/test, 5 ongoing automation,
     // 6 checkpoint/concurrency/dirty/report, 7 current commands+modes, 8 reference repo docs.

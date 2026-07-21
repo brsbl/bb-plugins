@@ -1,11 +1,14 @@
 #!/usr/bin/env node
 // Render the one canonical bootstrap-prompt template into per-plugin variants,
-// and validate that each generated variant uses current bb automation commands
-// and permission modes. Copied variants cannot silently drift: hygiene compares
-// the committed file against a fresh render, and this validator rejects stale
-// commands or modes.
+// deriving each variant from catalog/plugins.json — the single canonical
+// inventory — so there is no second plugin list. Only the plugins genuinely
+// personalizable from thread history carry a `personalization` block; this
+// validates that exactly those plugins carry it, that each block is complete,
+// and that the generated prompt uses current bb automation commands and
+// permission modes. Copied variants cannot silently drift: hygiene compares the
+// committed file against a fresh render.
 //
-//   node tooling/bootstrap/render-bootstrap.mjs          check (default): assert committed == rendered and interface is current
+//   node tooling/bootstrap/render-bootstrap.mjs          check (default): validate + assert committed == rendered
 //   node tooling/bootstrap/render-bootstrap.mjs --write  regenerate every variant file
 //
 // Validation is text-only: it never runs `bb automation ...`, so it cannot
@@ -18,20 +21,24 @@ import { fileURLToPath } from "node:url";
 const here = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(here, "..", "..");
 const templatePath = resolve(here, "bootstrap-prompt.template.md");
-const variantsPath = resolve(here, "variants.json");
 const interfacePath = resolve(here, "automation-interface.json");
+
+// The only plugins whose catalog entry may carry personalization metadata,
+// identified by stable plugin id. This is the non-inventory constant that
+// pins "exactly Design Doctrine + Improve Prompt".
+export const HISTORY_PERSONALIZABLE = ["design-doctrine", "prompt-shaper"];
+const PERSONALIZATION_FIELDS = ["artifact", "artifactTree", "maintenanceDoc", "adaptInstruction", "automationName"];
 
 const TOKEN = /\{\{([A-Z0-9_]+)\}\}/g;
 
-export function renderTemplate(template, values, extra = {}) {
-  const all = { ...values, ...extra };
+export function renderTemplate(template, values) {
   const missing = new Set();
   const rendered = template.replace(TOKEN, (_, key) => {
-    if (!Object.hasOwn(all, key)) {
+    if (!Object.hasOwn(values, key)) {
       missing.add(key);
       return `{{${key}}}`;
     }
-    return String(all[key]);
+    return String(values[key]);
   });
   if (missing.size) {
     throw new Error(`template has unfilled placeholders: ${[...missing].join(", ")}`);
@@ -63,15 +70,65 @@ export function validateAutomationInterface(text, iface) {
   return problems;
 }
 
-export function loadConfig() {
+// Assert the canonical inventory carries personalization on exactly the
+// history-personalizable plugins, and that each block is complete.
+export function validateCatalogPersonalization(catalog) {
+  const carrying = catalog.plugins.filter((entry) => entry.personalization != null);
+  for (const entry of carrying) {
+    if (!HISTORY_PERSONALIZABLE.includes(entry.pluginId)) {
+      throw new Error(
+        `catalog: ${entry.slug} carries personalization but is not history-personalizable (allowed: ${HISTORY_PERSONALIZABLE.join(", ")})`,
+      );
+    }
+    for (const field of PERSONALIZATION_FIELDS) {
+      const value = entry.personalization[field];
+      if (typeof value !== "string" || value.length === 0) {
+        throw new Error(`catalog: ${entry.slug} personalization is missing "${field}"`);
+      }
+    }
+  }
+  const present = carrying.map((entry) => entry.pluginId).sort();
+  const expected = [...HISTORY_PERSONALIZABLE].sort();
+  if (JSON.stringify(present) !== JSON.stringify(expected)) {
+    throw new Error(
+      `catalog: personalization must be on exactly [${expected.join(", ")}], found [${present.join(", ")}]`,
+    );
+  }
+}
+
+// Build one render job per history-personalizable catalog entry. Every value is
+// derived from the canonical inventory; nothing lives in a second plugin list.
+export function variantsFromCatalog(catalog) {
+  return catalog.plugins
+    .filter((entry) => entry.personalization != null)
+    .map((entry) => ({
+      key: entry.slug,
+      output: `${entry.source}/maintenance/bootstrap-prompt.md`,
+      values: {
+        VARIANT_KEY: entry.slug,
+        PLUGIN_NAME: entry.name,
+        PLUGIN_ID: entry.pluginId,
+        PACKAGE_NAME: entry.packageName,
+        PLUGIN_SOURCE: entry.source,
+        PLUGIN_README: `${entry.source}/README.md`,
+        ARTIFACT: entry.personalization.artifact,
+        ARTIFACT_TREE: entry.personalization.artifactTree,
+        MAINTENANCE_DOC: entry.personalization.maintenanceDoc,
+        ADAPT_INSTRUCTION: entry.personalization.adaptInstruction,
+        AUTOMATION_NAME: entry.personalization.automationName,
+      },
+    }));
+}
+
+export function loadConfig(root = repoRoot) {
   const template = readFileSync(templatePath, "utf8");
-  const variants = JSON.parse(readFileSync(variantsPath, "utf8"));
+  const catalog = JSON.parse(readFileSync(resolve(root, "catalog/plugins.json"), "utf8"));
   const iface = JSON.parse(readFileSync(interfacePath, "utf8"));
-  return { template, variants, iface };
+  return { template, catalog, iface };
 }
 
 export function renderVariant(template, variant, iface) {
-  const rendered = renderTemplate(template, variant.values, { VARIANT_KEY: variant.key });
+  const rendered = renderTemplate(template, variant.values);
   const problems = validateAutomationInterface(rendered, iface);
   if (problems.length) {
     throw new Error(`variant ${variant.key}: ${problems.join("; ")}`);
@@ -79,11 +136,13 @@ export function renderVariant(template, variant, iface) {
   return rendered;
 }
 
-// Assert every committed variant matches a fresh render and passes validation.
-// Throws on the first drift; returns the variant count otherwise.
+// Validate the catalog and assert every committed variant matches a fresh
+// render. Throws on the first problem; returns the variant count otherwise.
 export function checkBootstrapPrompts(root = repoRoot) {
-  const { template, variants, iface } = loadConfig();
-  for (const variant of variants.variants) {
+  const { template, catalog, iface } = loadConfig(root);
+  validateCatalogPersonalization(catalog);
+  const variants = variantsFromCatalog(catalog);
+  for (const variant of variants) {
     const rendered = renderVariant(template, variant, iface);
     const outputPath = resolve(root, variant.output);
     let committed;
@@ -99,12 +158,13 @@ export function checkBootstrapPrompts(root = repoRoot) {
       throw new Error(`${variant.output} has drifted from the template; run: node tooling/bootstrap/render-bootstrap.mjs --write`);
     }
   }
-  return { variantCount: variants.variants.length };
+  return { variantCount: variants.length };
 }
 
 function writeAll(root = repoRoot) {
-  const { template, variants, iface } = loadConfig();
-  for (const variant of variants.variants) {
+  const { template, catalog, iface } = loadConfig(root);
+  validateCatalogPersonalization(catalog);
+  for (const variant of variantsFromCatalog(catalog)) {
     const rendered = renderVariant(template, variant, iface);
     writeFileSync(resolve(root, variant.output), rendered);
     process.stdout.write(`wrote ${variant.output}\n`);

@@ -1,7 +1,7 @@
 <!--
   Generated file: do not edit by hand.
   Source template: tooling/bootstrap/bootstrap-prompt.template.md
-  Parameters:      tooling/bootstrap/variants.json ({{VARIANT_KEY}})
+  Parameters:      catalog/plugins.json personalization entry ({{VARIANT_KEY}})
   Regenerate:      node tooling/bootstrap/render-bootstrap.mjs --write
   Repository hygiene fails if a committed variant drifts from this template.
 -->
@@ -16,8 +16,8 @@ You are personalizing the {{PLUGIN_NAME}} bb plugin (package `{{PACKAGE_NAME}}`,
 1. Fork and branch. Fork and clone brsbl/bb-plugins and cut a working branch. Read {{PLUGIN_README}} and {{MAINTENANCE_DOC}} to learn how {{PLUGIN_NAME}} is structured and maintained. Keep the `{{PLUGIN_ID}}` package and plugin id and do not change plugin runtime behavior beyond {{ARTIFACT}}.
 
 2. Seed evidence from my bb threads. Collect my own direct feedback as redacted, previewable evidence — never paste raw transcripts:
-     node tooling/bb-history.mjs scan --state ./.bb-evidence-state.json {{EVIDENCE_FILTERS}} --format jsonl > {{EVIDENCE_FILE}}
-   The reader redacts emails, URLs, bb ids, secrets, and local paths by default and skips relayed [bb ...] messages. Review {{EVIDENCE_FILE}} and keep only durable signal that repeats; ignore one-offs and anything an agent produced.
+     node tooling/bb-history.mjs scan --state ./.bb-evidence-state.json --limit 200 --format jsonl > seed-evidence.jsonl
+   The reader redacts emails, URLs, bb ids, secrets, and local paths by default and skips relayed [bb ...] messages. Review seed-evidence.jsonl and keep only durable signal that repeats; ignore one-offs and anything an agent produced.
 
 3. Adapt the plugin and its companion skill. {{ADAPT_INSTRUCTION}}
 
@@ -30,7 +30,7 @@ You are personalizing the {{PLUGIN_NAME}} bb plugin (package `{{PACKAGE_NAME}}`,
 5. Make it ongoing with a bb automation. Create a first-party bb automation so newer history is ingested and {{ARTIFACT}} updated on a schedule, with no further manual passes from me:
      bb plugin run automations create --project <my-project-id> \
        --name "{{AUTOMATION_NAME}}" \
-       --cron "{{CRON}}" --timezone <my-timezone> \
+       --cron "0 9 * * 1" --timezone <my-timezone> \
        --provider <my-provider-id> --model <my-model> \
        --permission-mode full \
        --prompt "Run one incremental {{PLUGIN_NAME}} maintenance batch exactly as {{MAINTENANCE_DOC}} describes, then stop."
