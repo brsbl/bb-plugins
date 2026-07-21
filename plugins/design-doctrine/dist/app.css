@@ -156,7 +156,7 @@
   initial-value: 0;
 }
 @layer utilities {
-  @scope ([data-bb-plugin="design-doctrine"], [data-bb-plugin-root]:not([data-bb-plugin])) {
+  @scope ([data-bb-plugin="design-doctrine"], [data-bb-plugin-root]:not([data-bb-plugin]), [data-bb-plugin-decoration="design-doctrine"]) {
     .pointer-events-auto {
       pointer-events: auto;
     }

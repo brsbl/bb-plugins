@@ -29,6 +29,12 @@ async function createFixtureRepository(directory) {
   const sdkRecord = JSON.parse(
     await readFile(resolve(root, "tooling/vendor/sdk-provenance.json"), "utf8"),
   );
+  const pluginBuildRecord = JSON.parse(
+    await readFile(
+      resolve(root, "tooling/vendor/plugin-build-provenance.json"),
+      "utf8",
+    ),
+  );
   await mkdir(resolve(directory, "packages"), { recursive: true });
   await mkdir(resolve(directory, "plugins"), { recursive: true });
   await mkdir(resolve(directory, "tooling/vendor"), { recursive: true });
@@ -42,7 +48,10 @@ async function createFixtureRepository(directory) {
         workspaces: ["plugins/*", "packages/*"],
         devDependencies: {
           "@bb/plugin-sdk": "file:tooling/vendor/bb-plugin-sdk-0.4.0.tgz",
-          "bb-app": rootManifest.devDependencies["bb-app"],
+          "@tailwindcss/node": rootManifest.devDependencies["@tailwindcss/node"],
+          "@tailwindcss/oxide": rootManifest.devDependencies["@tailwindcss/oxide"],
+          esbuild: rootManifest.devDependencies.esbuild,
+          tailwindcss: rootManifest.devDependencies.tailwindcss,
         },
       },
       null,
@@ -61,6 +70,14 @@ async function createFixtureRepository(directory) {
   await copyFile(
     resolve(root, "tooling/vendor", sdkRecord.archive),
     resolve(directory, "tooling/vendor", sdkRecord.archive),
+  );
+  await copyFile(
+    resolve(root, "tooling/vendor/plugin-build-provenance.json"),
+    resolve(directory, "tooling/vendor/plugin-build-provenance.json"),
+  );
+  await copyFile(
+    resolve(root, "tooling/vendor", pluginBuildRecord.bundle),
+    resolve(directory, "tooling/vendor", pluginBuildRecord.bundle),
   );
 }
 

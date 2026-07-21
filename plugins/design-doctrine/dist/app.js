@@ -57,9 +57,12 @@ if (runtime2 == null || runtime2.pluginSdkApp == null) {
 var mod2 = runtime2.pluginSdkApp;
 var {
   definePluginApp,
+  experimental_Markdown,
+  experimental_ThreadChat,
   useBbContext,
   useBbNavigate,
   useComposer,
+  useComposerView,
   useRealtime,
   useRealtimeConnectionState,
   useRpc,

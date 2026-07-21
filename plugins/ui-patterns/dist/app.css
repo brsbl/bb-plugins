@@ -166,7 +166,7 @@
   initial-value: 0;
 }
 @layer utilities {
-  @scope ([data-bb-plugin="ui-patterns"], [data-bb-plugin-root]:not([data-bb-plugin])) {
+  @scope ([data-bb-plugin="ui-patterns"], [data-bb-plugin-root]:not([data-bb-plugin]), [data-bb-plugin-decoration="ui-patterns"]) {
     .\@container\/card-header {
       container-type: inline-size;
       container-name: card-header;

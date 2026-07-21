@@ -35,14 +35,17 @@ const REQUEST_ID = "00000000-0000-4000-8000-000000000001";
 interface Deferred<T> {
   promise: Promise<T>;
   resolve(value: T): void;
+  reject(error: unknown): void;
 }
 
 function deferred<T>(): Deferred<T> {
   let resolve!: (value: T) => void;
-  const promise = new Promise<T>((resolvePromise) => {
+  let reject!: (error: unknown) => void;
+  const promise = new Promise<T>((resolvePromise, rejectPromise) => {
     resolve = resolvePromise;
+    reject = rejectPromise;
   });
-  return { promise, resolve };
+  return { promise, reject, resolve };
 }
 
 async function loadAction() {
@@ -193,7 +196,7 @@ describe("Improve Prompt composer action", () => {
         projectId: "proj_1",
         parentThreadId: "thr_parent",
         tabId: "side-chat:one",
-        childThreadId: null,
+        childThreadId: "thr_side_chat",
       },
       rpc: {
         startEnhancement: () => ({
@@ -223,6 +226,10 @@ describe("Improve Prompt composer action", () => {
       ).not.toBeNull();
     });
     expect(actionSlot.inspection.composer.attachmentCount).toBe(1);
+    expect(actionSlot.inspection.rpcCalls[0]).toEqual({
+      method: "startEnhancement",
+      input: expect.objectContaining({ sourceThreadId: "thr_side_chat" }),
+    });
 
     fireEvent.click(screen.getByRole("button", { name: "Undo prompt" }));
     expect(actionSlot.inspection.composer.text).toBe("rough side-chat draft");
@@ -1027,6 +1034,63 @@ describe("Improve Prompt composer action", () => {
     expect(actionSlot.inspection.composer.text).toBe("keep improving this draft");
   });
 
+  it("retries cancellation after a rejected attempt", async () => {
+    let cancelCalls = 0;
+    const cancelEnhancement = vi.fn(() => {
+      cancelCalls += 1;
+      if (cancelCalls === 1) throw new Error("temporary cancel failure");
+      return { cancelled: true as const };
+    });
+    configureAction({
+      text: "draft waiting for cancellation",
+      scope: { kind: "thread", threadId: "thr_source" },
+      rpc: {
+        startEnhancement: () => ({
+          requestId: REQUEST_ID,
+          helperThreadId: "thr_helper",
+        }),
+        getEnhancement: () => ({
+          requestId: REQUEST_ID,
+          helperThreadId: "thr_helper",
+          status: "running" as const,
+          createdAt: 1,
+        }),
+        cancelEnhancement,
+      },
+    });
+    const Action = await loadAction();
+    mountAction(Action);
+
+    fireEvent.click(screen.getByRole("button", { name: "Improve prompt" }));
+    await screen.findByRole("button", {
+      name: "Cancel prompt improvement",
+    });
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Cancel prompt improvement" }),
+    );
+    await waitFor(() => {
+      expect(cancelEnhancement).toHaveBeenCalledTimes(1);
+      expect(toast.error).toHaveBeenCalledWith("temporary cancel failure");
+      expect(actionSlot.inspection.composer.inputLocked).toBe(true);
+      expect(window.sessionStorage.length).toBe(1);
+    });
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Cancel prompt improvement" }),
+    );
+    await waitFor(() => {
+      expect(cancelEnhancement).toHaveBeenCalledTimes(2);
+      expect(actionSlot.inspection.composer.inputLocked).toBe(false);
+      expect(actionSlot.inspection.composer.textEffect).toBeNull();
+      expect(actionSlot.inspection.composer.threadRowStatus).toBeNull();
+      expect(window.sessionStorage.length).toBe(0);
+      expect(
+        screen.getByRole("button", { name: "Improve prompt" }),
+      ).not.toBeNull();
+    });
+  });
+
   it("clears local cancellation state when the cancel response is lost but the request is absent", async () => {
     let getCalls = 0;
     const cancelEnhancement = vi.fn(() => {
@@ -1316,8 +1380,10 @@ describe("Improve Prompt composer action", () => {
 
     view.lifecycle.unmount();
 
-    expect(cancelEnhancement).toHaveBeenCalledWith({ requestId: REQUEST_ID });
-    expect(window.sessionStorage.length).toBe(0);
+    await waitFor(() => {
+      expect(cancelEnhancement).toHaveBeenCalledWith({ requestId: REQUEST_ID });
+      expect(window.sessionStorage.length).toBe(0);
+    });
     expect(actionSlot.inspection.composer.textEffect).toBeNull();
     expect(actionSlot.inspection.composer.threadRowStatus).toBeNull();
 
@@ -1345,6 +1411,188 @@ describe("Improve Prompt composer action", () => {
     );
     expect(screen.queryByRole("button", { name: "Undo prompt" })).toBeNull();
     expect(actionSlot.inspection.composer.attachmentCount).toBe(1);
+  });
+
+  it("retries an in-flight side-chat cancellation when its keyed action unmounts", async () => {
+    const firstCancellation = deferred<{ cancelled: true }>();
+    let cancelCalls = 0;
+    const cancelEnhancement = vi.fn(() => {
+      cancelCalls += 1;
+      return cancelCalls === 1
+        ? firstCancellation.promise
+        : { cancelled: true as const };
+    });
+    configureAction({
+      text: "side-chat draft during cancellation",
+      scope: {
+        kind: "side-chat",
+        projectId: "proj_1",
+        parentThreadId: "thr_parent",
+        tabId: "side-chat:one",
+        childThreadId: "thr_child",
+      },
+      rpc: {
+        startEnhancement: () => ({
+          requestId: REQUEST_ID,
+          helperThreadId: "thr_helper",
+        }),
+        getEnhancement: () => ({
+          requestId: REQUEST_ID,
+          helperThreadId: "thr_helper",
+          status: "running" as const,
+          createdAt: 1,
+        }),
+        cancelEnhancement,
+      },
+    });
+    const Action = await loadAction();
+    const view = mountAction(Action);
+
+    fireEvent.click(screen.getByRole("button", { name: "Improve prompt" }));
+    await screen.findByRole("button", {
+      name: "Cancel prompt improvement",
+    });
+    fireEvent.click(
+      screen.getByRole("button", { name: "Cancel prompt improvement" }),
+    );
+    await waitFor(() => expect(cancelEnhancement).toHaveBeenCalledTimes(1));
+
+    view.lifecycle.unmount();
+    await waitFor(() => {
+      expect(cancelEnhancement).toHaveBeenCalledTimes(2);
+      expect(window.sessionStorage.length).toBe(0);
+      expect(actionSlot.inspection.composer.textEffect).toBeNull();
+      expect(actionSlot.inspection.composer.threadRowStatus).toBeNull();
+    });
+
+    await act(async () => {
+      firstCancellation.reject(new Error("first cancellation lost"));
+      await firstCancellation.promise.catch(() => undefined);
+      await Promise.resolve();
+    });
+
+    expect(cancelEnhancement).toHaveBeenCalledTimes(2);
+    expect(toast.error).not.toHaveBeenCalled();
+  });
+
+  it("keeps detached work recoverable when bounded cancellation retries fail", async () => {
+    const cancelEnhancement = vi.fn(() => {
+      throw new Error("cancel transport unavailable");
+    });
+    configureAction({
+      text: "side-chat draft with unavailable cancellation",
+      scope: {
+        kind: "side-chat",
+        projectId: "proj_1",
+        parentThreadId: "thr_parent",
+        tabId: "side-chat:one",
+        childThreadId: "thr_child",
+      },
+      rpc: {
+        startEnhancement: () => ({
+          requestId: REQUEST_ID,
+          helperThreadId: "thr_helper",
+        }),
+        getEnhancement: () => ({
+          requestId: REQUEST_ID,
+          helperThreadId: "thr_helper",
+          status: "running" as const,
+          createdAt: 1,
+        }),
+        cancelEnhancement,
+      },
+    });
+    const Action = await loadAction();
+    const view = mountAction(Action);
+
+    fireEvent.click(screen.getByRole("button", { name: "Improve prompt" }));
+    await screen.findByRole("button", {
+      name: "Cancel prompt improvement",
+    });
+
+    view.lifecycle.unmount();
+    await waitFor(() => {
+      expect(cancelEnhancement).toHaveBeenCalledTimes(3);
+      expect(window.sessionStorage.length).toBe(1);
+    });
+    const storageKey = window.sessionStorage.key(0);
+    expect(storageKey).not.toBeNull();
+    expect(
+      JSON.parse(window.sessionStorage.getItem(storageKey!) ?? "null"),
+    ).toMatchObject({ cancellationRequested: true, requestId: REQUEST_ID });
+
+    mountAction(Action);
+    await waitFor(() => expect(cancelEnhancement).toHaveBeenCalledTimes(6));
+    expect(
+      screen.getByRole("button", { name: "Cancel prompt improvement" }),
+    ).not.toBeNull();
+    expect(
+      screen.queryByRole("button", { name: "Improve prompt" }),
+    ).toBeNull();
+    expect(window.sessionStorage.length).toBe(1);
+    expect(toast.error).not.toHaveBeenCalled();
+  });
+
+  it("clears cancellation state completed between remount render and recovery", async () => {
+    const storedCancellation = JSON.stringify({
+      cancellationRequested: true,
+      createdAt: 1,
+      requestId: REQUEST_ID,
+      scopeKey: "side-chat:proj_1:thr_parent:side-chat:one:thr_child",
+      startup: "acknowledged",
+    });
+    const getItem = vi
+      .spyOn(Storage.prototype, "getItem")
+      .mockReturnValueOnce(storedCancellation)
+      .mockReturnValueOnce(null);
+    const cancelEnhancement = vi.fn(() => ({ cancelled: true as const }));
+    configureAction({
+      text: "draft after completed detached cancellation",
+      scope: {
+        kind: "side-chat",
+        projectId: "proj_1",
+        parentThreadId: "thr_parent",
+        tabId: "side-chat:one",
+        childThreadId: "thr_child",
+      },
+      rpc: {
+        getEnhancement: () => null,
+        cancelEnhancement,
+      },
+    });
+    const Action = await loadAction();
+    mountAction(Action);
+
+    await waitFor(() => {
+      expect(
+        screen.getByRole("button", { name: "Improve prompt" }),
+      ).not.toBeNull();
+      expect(actionSlot.inspection.composer.inputLocked).toBe(false);
+    });
+    expect(getItem).toHaveBeenCalledTimes(2);
+    expect(cancelEnhancement).not.toHaveBeenCalled();
+  });
+
+  it("does not start an enhancement while the composer is submitting", async () => {
+    const { canStartEnhancement, shouldCancelForSubmission } = await import(
+      "./app"
+    );
+
+    expect(
+      canStartEnhancement({
+        draft: "draft already being submitted",
+        hasPendingRequest: false,
+        isSubmitting: true,
+        projectId: "proj_1",
+      }),
+    ).toBe(false);
+    expect(
+      shouldCancelForSubmission({
+        isSubmitting: true,
+        pendingScopeKey: "thread:thr_source",
+        scopeKey: "thread:thr_source",
+      }),
+    ).toBe(true);
   });
 
   it("clears a remounted pending request when helper startup fails", async () => {

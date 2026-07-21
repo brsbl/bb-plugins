@@ -64,7 +64,7 @@ function filesFor(options) {
       test: "vitest run",
       typecheck: "tsc --noEmit",
     },
-    engines: { bb: ">=0.0.32", bbPluginSdk: "^0.4.0" },
+    engines: { bb: ">=0.0.34", bbPluginSdk: "^0.4.0" },
     bb: {
       name: options.name,
       description: options.description,
