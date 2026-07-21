@@ -1,12 +1,12 @@
 # bb plugins
 
-Five personal plugins for product design engineering, plus the shared tooling that keeps them consistent. Each plugin is documented, forkable, and meant to be personalized. [![CI](https://github.com/brsbl/bb-plugins/actions/workflows/ci.yml/badge.svg)](https://github.com/brsbl/bb-plugins/actions/workflows/ci.yml)
+Five personal plugins for product design engineering, kept together with the small set of build and repository tools they share. [![CI](https://github.com/brsbl/bb-plugins/actions/workflows/ci.yml/badge.svg)](https://github.com/brsbl/bb-plugins/actions/workflows/ci.yml)
 
 [bb](https://getbb.app) is an agentic IDE for running coding agents across projects, threads, and environments. Plugins are full-trust packages that add focused UI, commands, skills, and server capabilities to it. This repository is their canonical source.
 
 ## Plugins
 
-Each card below is generated from `catalog/plugins.json`, the canonical inventory — edit the catalog, not the list. Follow a card's **README** for what the plugin does, how it is maintained, and how to fork and personalize it.
+Each card is generated from `catalog/plugins.json`, the canonical inventory. The individual README explains what the plugin does and how it was built.
 
 <!-- plugin-catalog:start -->
 ### Design Doctrine
@@ -60,11 +60,11 @@ Browses and queries approved-source UI components and interaction patterns.
 Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/ui-patterns --yes`
 <!-- plugin-catalog:end -->
 
-The `plugin/*` install refs are generated from `main` after CI passes. bb installs a git repository root, not a nested monorepo directory, so these refs provide valid root-shaped plugin checkouts without spawning more repositories.
+The `plugin/*` install refs are generated from `main` after CI passes. bb installs a git repository root, so each ref presents one plugin at the root of its checkout.
 
 ## Develop
 
-Every plugin follows one build, validation, scaffolding, and publishing contract while owning its own runtime code. The shared tooling under `tooling/` enforces it.
+Shared tooling covers only the mechanics every plugin needs: catalog rendering, builds, repository checks, scaffolding, artifact validation, and install refs. Runtime code, tests, SDK declarations, and UI stay plugin-local.
 
 ```bash
 npm ci
@@ -72,6 +72,6 @@ npm run check
 npm run new:plugin -- --slug example --name "Example" --description "Adds an example capability."
 ```
 
-`npm run check` runs repository hygiene, then each plugin's typecheck, build, and tests; `npm run new:plugin` scaffolds and catalogs a new plugin. To iterate on one plugin, install its workspace directly: `bb plugin install "path:$PWD/plugins/<slug>" --yes`.
+To work on one plugin, install its workspace directly: `bb plugin install "path:$PWD/plugins/<slug>" --yes`.
 
 See [contributor guidance](CONTRIBUTING.md), [repository tooling](tooling/README.md), and [import provenance](docs/provenance.md).

@@ -1,6 +1,6 @@
 # Omegacode
 
-[Omegacode](https://github.com/SawyerHood/omegacode) is the underlying agent-workflow runner. This bb plugin surfaces its runs: every machine-local run on one page, plus an owner-scoped progress banner above the composer for runs that record which bb thread launched them. Use it to scan workflows across threads, or to follow the run your current thread owns.
+[Omegacode](https://github.com/SawyerHood/omegacode) is the underlying agent-workflow runner. This bb plugin shows its machine-local runs on one page and the current thread's owned run above the composer.
 
 ![Omegacode global page with a live workflow and worker](docs/screenshot-global.png)
 
@@ -14,11 +14,15 @@ bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/omegacode -
 
 ## Use
 
-Open Omegacode from the bb sidebar to scan workflows across threads and jump to an owning thread. The compact banner appears only in the thread and environment a run recorded. From the CLI, `bb omegacode status` shows the owning run; add `--all` for the machine-wide view.
+Open Omegacode from the bb sidebar to scan workflows across threads and jump to an owning thread. From the CLI, `bb omegacode status` shows the current thread's run; add `--all` for the machine-wide view.
 
-**How it reads data.** The plugin reads Omegacode's append-only `journal.jsonl` and `events.jsonl` files under `~/.omegacode/runs`; it does not implement the runner. The owner-scoped banner needs `bbContext.threadId` and `bbContext.environmentId` in a run's metadata. The installed Omegacode 0.0.6 runner stamps that context when it is launched with `BB_THREAD_ID` and `BB_ENVIRONMENT_ID` set — which bb does — so a run started from a bb thread is owner-scoped, while a run started without those variables stays global-only.
+## How it was built
 
-**Maintenance model.** Maintained by hand against that on-disk format and the owner-scoping contract, with focused unit tests in `ownership.ts` and `presentation.ts` to update alongside any change to how runs are matched to threads or rendered.
+The plugin reads Omegacode's append-only `journal.jsonl` and `events.jsonl` files under `~/.omegacode/runs`; it does not implement the workflow runner. The global page summarizes every local journal, while the compact composer status requires matching `bbContext.threadId` and `bbContext.environmentId` metadata.
+
+The owner-scoped surface is built around a strict runner contract: journals with both bb identifiers can belong to one composer, while journals without them remain global-only. Matching and presentation logic live in `ownership.ts` and `presentation.ts` with focused tests.
+
+See [repository provenance](../../docs/provenance.md) for attribution and import history.
 
 ## Develop
 
@@ -29,7 +33,3 @@ npm ci
 npm run check --workspace=bb-plugin-omega
 bb plugin install "path:$PWD/plugins/omegacode" --yes
 ```
-
-**Adapt it.** Fork the repo and point the reader at your own `~/.omegacode/runs`, or edit `ownership.ts` and `presentation.ts` to change how runs are matched to threads and rendered above the composer. Both have focused unit tests (`ownership.test.ts`, `presentation.test.ts`) to adapt alongside.
-
-See [import provenance](../../docs/provenance.md).
