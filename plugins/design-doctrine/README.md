@@ -35,11 +35,7 @@ npm run check --workspace=bb-plugin-design-doctrine
 bb plugin install "path:$PWD/plugins/design-doctrine" --yes
 ```
 
-**Adapt it to your own history.** [`maintenance/bootstrap-prompt.md`](maintenance/bootstrap-prompt.md) is one copy/paste prompt that forks the repo, seeds evidence from your bb threads, rebuilds `rules/` from your own feedback, and schedules the recurring refresh. To preview that evidence first, the shared reader emits best-effort-redacted, checkpointed history to inspect before you decide what anonymous signal to keep:
-
-```bash
-node ../../tooling/bb-history.mjs scan --state ./.bb-evidence-state.json --format jsonl
-```
+**Adapt it to your own history.** [`maintenance/bootstrap-prompt.md`](maintenance/bootstrap-prompt.md) is one copy/paste prompt that forks the repo, previews best-effort-redacted evidence from your bb threads through the maintenance checkpoint, rebuilds `rules/` from your own feedback, and schedules the recurring refresh.
 
 `scan-history.py` is Design Doctrine's own checkpointed reader over bb's local database (`~/.bb/bb.db`, overridable with `BB_DB_PATH` or `BB_DATA_DIR`) — every direct user message across your threads, not just this project. It and [`tooling/bb-history.mjs`](../../tooling/bb-history.mjs) share one cursor-and-lease contract; see [repository tooling](../../tooling/README.md).
 
