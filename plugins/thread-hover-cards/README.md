@@ -14,12 +14,6 @@ bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/thread-hove
 
 Hover over a thread row, or focus it with the keyboard. Its card opens beside the row while your active thread stays put.
 
-## How it was built
-
-The card asks a server RPC for a small thread summary only when it needs one. On the frontend, it finds the matching sidebar row through bb's `data-sidebar-thread-id` attribute and positions itself alongside it.
-
-That DOM bridge is necessary because the Plugin SDK does not yet offer a thread-row hover slot. It is deliberately narrow and covered by focused tests, leaving one obvious place to update if the sidebar markup changes.
-
 ## Develop
 
 From the monorepo root:

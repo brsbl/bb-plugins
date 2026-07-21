@@ -18,7 +18,7 @@ Open Omegacode from the bb sidebar to scan workflows across threads or jump back
 
 ## How it was built
 
-There is no second workflow runner hiding in the plugin. It reads Omegacode's append-only `journal.jsonl` and `events.jsonl` files under `~/.omegacode/runs` and turns them into bb UI.
+The plugin reads Omegacode's append-only `journal.jsonl` and `events.jsonl` files under `~/.omegacode/runs` and turns them into bb UI.
 
 The global page can summarize every local journal. A run appears above a composer only when its journal carries matching `bbContext.threadId` and `bbContext.environmentId` metadata; unowned runs stay global. The matching and presentation rules live in `ownership.ts` and `presentation.ts`, with focused tests around both.
 

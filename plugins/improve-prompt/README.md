@@ -20,7 +20,7 @@ Write as roughly as you like, then choose **Improve prompt**. The revised text c
 
 Two pieces make the experience work. The runtime plugin handles the composer action, helper thread, progress, result insertion, and undo. The [`prompt-shaper` skill](skills/prompt-shaper/SKILL.md) decides how to improve the draft, using the current thread and linked context each time.
 
-The skill's guidance comes from prompt and handoff problems that showed up repeatedly in bb threads: missing context, fuzzy scope, unnecessary detail, and no clear stopping point. The stable plugin ID remains `prompt-shaper`; Improve Prompt is its display name.
+The skill's guidance comes from prompt and handoff problems that showed up repeatedly in bb threads: missing context, fuzzy scope, unnecessary detail, and no clear stopping point.
 
 ## Develop
 
