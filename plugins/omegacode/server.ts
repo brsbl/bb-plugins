@@ -9,9 +9,9 @@ import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { homedir } from "node:os";
 import { join, relative } from "node:path";
 import {
+  inferThreadRunScope,
   readBbRunOwner,
   runBelongsToScope,
-  type ThreadRunScope,
 } from "./ownership";
 
 const RUNS_DIR = join(homedir(), ".omegacode", "runs");
@@ -435,21 +435,47 @@ function scanRuns(limit?: number) {
     .map((x) => readRun(x.d));
 }
 
-async function resolveThreadScope(
-  bb: BbPluginApi,
-  threadId: string,
-): Promise<ThreadRunScope | null> {
+function safeDirectoryEntries(path: string): string[] {
   try {
-    const thread = await bb.sdk.threads.get({ threadId });
-    if (!thread.environmentId) return null;
-    return {
-      threadId,
-      environmentId: thread.environmentId,
-    };
-  } catch (error) {
-    bb.log.warn(`could not resolve Omegacode run owner for ${threadId}: ${String(error)}`);
-    return null;
+    return readdirSync(path);
+  } catch {
+    return [];
   }
+}
+
+function stampFingerprint(path: string): string {
+  const stamp = safeFileStamp(path);
+  return stamp ? `${stamp.mtimeMs}:${stamp.size}` : "-";
+}
+
+/**
+ * Cheap watcher input: file names and stat stamps only. RPC reads still do the
+ * full cached journal hydration, but the 2.5-second background tick never does.
+ */
+export function journalCorpusFingerprint(
+  runsDirectory = RUNS_DIR,
+): string {
+  return safeDirectoryEntries(runsDirectory)
+    .filter((runId) => runId.startsWith("wf_"))
+    .sort()
+    .map((runId) => {
+      const runDirectory = join(runsDirectory, runId);
+      const agentDirectory = join(runDirectory, "agents");
+      const agents = safeDirectoryEntries(agentDirectory)
+        .filter((name) => name.endsWith(".jsonl"))
+        .sort()
+        .map((name) => `${name}@${stampFingerprint(join(agentDirectory, name))}`)
+        .join(",");
+      return [
+        runId,
+        stampFingerprint(runDirectory),
+        stampFingerprint(join(runDirectory, "events.jsonl")),
+        stampFingerprint(join(runDirectory, "journal.jsonl")),
+        stampFingerprint(join(runDirectory, ".heartbeat")),
+        agents,
+      ].join("|");
+    })
+    .join(";");
 }
 
 export function isVisibleRun(run: {
@@ -660,11 +686,11 @@ export default async function plugin(bb: BbPluginApi) {
 
   bb.rpc.register(rpcContract, {
     async runs({ threadId }) {
-      const scope = await resolveThreadScope(bb, threadId);
+      const visibleRuns = scanRuns().filter(isVisibleRun);
+      const scope = inferThreadRunScope(visibleRuns, threadId);
       const runs = scope
-        ? scanRuns()
+        ? visibleRuns
             .filter((run) => runBelongsToScope(run, scope))
-            .filter(isVisibleRun)
             .slice(0, 6)
             .map(publicRun)
         : [];
@@ -685,18 +711,7 @@ export default async function plugin(bb: BbPluginApi) {
       let last = "";
       while (!signal.aborted) {
         try {
-          const fingerprint = scanRuns()
-            .filter(isVisibleRun)
-            .map(
-              (r) =>
-                `${r.runId}:${r.workflowName ?? ""}:${r.description ?? ""}:${r.status}:${r.counts.running}/${r.counts.queued}/${r.counts.completed}/${r.counts.failed}/${r.counts.cancelled}:${r.agents
-                  .map(
-                    (agent) =>
-                      `${agent.index}:${agent.state}:${agent.bytes}:${agent.tokens}`,
-                  )
-                  .join(",")}`,
-            )
-            .join("|");
+          const fingerprint = journalCorpusFingerprint();
           if (fingerprint !== last) {
             last = fingerprint;
             bb.realtime.publish("omegacode", { changedAt: Date.now() });
@@ -721,10 +736,11 @@ export default async function plugin(bb: BbPluginApi) {
     ],
     async run(argv, ctx) {
       const showAll = argv.includes("--all") || !ctx.threadId;
+      const scannedRuns = scanRuns();
       const scope = !showAll && ctx.threadId
-        ? await resolveThreadScope(bb, ctx.threadId)
+        ? inferThreadRunScope(scannedRuns, ctx.threadId)
         : null;
-      const runs = scanRuns().filter((run) =>
+      const runs = scannedRuns.filter((run) =>
         showAll ? true : scope ? runBelongsToScope(run, scope) : false,
       );
       if (!runs.length) {

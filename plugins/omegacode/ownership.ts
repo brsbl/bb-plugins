@@ -41,3 +41,23 @@ export function runBelongsToScope(
     run.owner.environmentId === scope.environmentId
   );
 }
+
+/**
+ * Infer the one exact owner scope represented by journals for a thread.
+ * Thread ids are globally unique in bb, while the environment id carried by
+ * each journal keeps the final selection fail-closed if the corpus disagrees.
+ */
+export function inferThreadRunScope(
+  runs: readonly RunOwnership[],
+  threadId: string,
+): ThreadRunScope | null {
+  const environmentIds = new Set<string>();
+  for (const run of runs) {
+    if (run.owner?.threadId === threadId) {
+      environmentIds.add(run.owner.environmentId);
+    }
+  }
+  if (environmentIds.size !== 1) return null;
+  const environmentId = environmentIds.values().next().value;
+  return environmentId ? { threadId, environmentId } : null;
+}

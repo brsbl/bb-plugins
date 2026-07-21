@@ -1,14 +1,25 @@
 import { createFakePluginHost } from "@bb/plugin-sdk/testing";
+import {
+  appendFileSync,
+  mkdirSync,
+  mkdtempSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import plugin, {
   createGlobalRunPresenter,
+  journalCorpusFingerprint,
   resetOmegacodeCachesForTest,
 } from "./server";
 
 type GlobalRunPresenter = ReturnType<typeof createGlobalRunPresenter>;
 
 const presenters: GlobalRunPresenter[] = [];
+const temporaryDirectories: string[] = [];
 
 function presenterFor(bb: Parameters<typeof createGlobalRunPresenter>[0]) {
   const presenter = createGlobalRunPresenter(bb);
@@ -81,6 +92,9 @@ const completedRunWithWorkerHistory = {
 
 afterEach(() => {
   for (const presenter of presenters.splice(0)) presenter.dispose();
+  for (const directory of temporaryDirectories.splice(0)) {
+    rmSync(directory, { force: true, recursive: true });
+  }
   resetOmegacodeCachesForTest();
   vi.useRealTimers();
 });
@@ -244,6 +258,30 @@ describe("Omegacode plugin contract", () => {
     }
   });
 
+  it("fingerprints journal changes without parsing the run corpus", () => {
+    const runsDirectory = mkdtempSync(join(tmpdir(), "omegacode-watch-"));
+    temporaryDirectories.push(runsDirectory);
+    const runDirectory = join(runsDirectory, "wf_watch_contract");
+    const agentDirectory = join(runDirectory, "agents");
+    mkdirSync(agentDirectory, { recursive: true });
+    writeFileSync(join(runDirectory, "events.jsonl"), "not json\n");
+    writeFileSync(join(runDirectory, "journal.jsonl"), "still not json\n");
+    writeFileSync(join(runDirectory, ".heartbeat"), "");
+    writeFileSync(join(agentDirectory, "1.jsonl"), "worker\n");
+    const parse = vi.spyOn(JSON, "parse");
+
+    const initial = journalCorpusFingerprint(runsDirectory);
+    appendFileSync(join(runDirectory, "journal.jsonl"), "more\n");
+    const journalChanged = journalCorpusFingerprint(runsDirectory);
+    appendFileSync(join(agentDirectory, "1.jsonl"), "progress\n");
+    const workerChanged = journalCorpusFingerprint(runsDirectory);
+
+    expect(journalChanged).not.toBe(initial);
+    expect(workerChanged).not.toBe(journalChanged);
+    expect(parse).not.toHaveBeenCalled();
+    parse.mockRestore();
+  });
+
   it("registers thread-scoped status surfaces", async () => {
     const { bb, harness } = createFakePluginHost({ pluginId: "omega" });
 
@@ -257,6 +295,22 @@ describe("Omegacode plugin contract", () => {
     expect(
       harness.inspection.registrations.services.map(({ name }) => name),
     ).toContain("watch");
+    await harness.lifecycle.dispose();
+  });
+
+  it("selects thread-owned runs without consulting the thread SDK", async () => {
+    const threadsGet = vi.fn(() => {
+      throw new Error("thread lookup must not block scoped workflow visibility");
+    });
+    const { bb, harness } = createFakePluginHost({
+      pluginId: "omega",
+      sdk: { threads: { get: threadsGet } },
+    });
+
+    await plugin(bb);
+    await harness.behavior.callRpc("runs", { threadId: "thr_scoped" });
+
+    expect(threadsGet).not.toHaveBeenCalled();
     await harness.lifecycle.dispose();
   });
 });
