@@ -1,8 +1,10 @@
 # Omegacode
 
-Omegacode shows every local workflow on one bb plugin page and live owner-scoped progress above the composer that launched each run.
+[Omegacode](https://github.com/SawyerHood/omegacode) is the underlying agent-workflow system. This bb plugin shows every machine-local run on one page and owner-scoped progress above the composer for runs that record bb ownership.
 
-![Omegacode workflow overview](docs/screenshot.png)
+![Omegacode global page with a real active workflow and worker](docs/screenshot-global.png)
+
+![An owner-scoped Omegacode banner with workflow phases and workers in a bb thread](docs/screenshot-thread.png)
 
 ## Install
 
@@ -12,9 +14,9 @@ bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/omegacode -
 
 ## Use
 
-Open Omegacode from the bb sidebar to scan workflows across threads and jump to an owning thread. A compact banner also appears only above the composer that launched an active run. Use `bb omegacode status`; add `--all` for the machine-wide CLI view.
+Open Omegacode from the bb sidebar to scan workflows across threads and jump to an owning thread. A compact banner appears only in the thread and environment recorded by a run. Use `bb omegacode status`; add `--all` for the machine-wide CLI view.
 
-Runs must record `BB_THREAD_ID` and `BB_ENVIRONMENT_ID` to appear in an owning composer. Journals without that context remain visible only on the global page and in the explicit `--all` CLI view.
+The plugin reads Omegacode's append-only `journal.jsonl` and `events.jsonl` files under `~/.omegacode/runs`; it does not implement the workflow runner. Run metadata must contain `bbContext.threadId` and `bbContext.environmentId` to appear in an owning composer. Journals without that context remain global-only. The published upstream Omegacode 0.0.6 package does not yet write this bb context itself, so the launcher integration remains upstream work.
 
 ## Develop
 

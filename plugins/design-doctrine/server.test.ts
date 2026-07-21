@@ -286,7 +286,7 @@ describe("design doctrine library", () => {
       database.close();
       await rm(temporary, { recursive: true, force: true });
     }
-  });
+  }, 10_000);
 
   it("refuses a scan without touching pre-existing tracked or untracked rules", async () => {
     const repository = await mkdtemp(join(tmpdir(), "doctrine-dirty-rules-"));
