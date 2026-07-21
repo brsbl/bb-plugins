@@ -200,6 +200,10 @@ export async function validatePluginArtifacts(pluginDirectory, options = {}) {
       requirePacked(files, path, directory);
     }
   }
+  const compactIcon = manifest.bb.branding?.icon;
+  if (typeof compactIcon === "string" && compactIcon.startsWith("./")) {
+    requirePacked(files, compactIcon, directory);
+  }
   for (const path of Object.values(manifest.bb.branding?.logo ?? {})) {
     requirePacked(files, path, directory);
   }

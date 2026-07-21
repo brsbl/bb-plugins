@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { cleanup, fireEvent, screen } from "@testing-library/react";
+import { cleanup, fireEvent, screen, within } from "@testing-library/react";
 import type { PluginNavPanelProps } from "@bb/plugin-sdk";
 import { loadPluginApp, renderSlot } from "@bb/plugin-sdk/testing/app";
 import { afterEach, describe, expect, it } from "vitest";
@@ -160,6 +160,48 @@ const RUNS: GlobalRun[] = [
 afterEach(() => cleanup());
 
 describe("Omegacode global workflow page", () => {
+  it("registers the owner-scoped banner only in the host composer-status slot", async () => {
+    const app = await loadPluginApp(() => import("./app"));
+    expect(app.composerAccessories).toHaveLength(0);
+    expect(app.experimental_composerStatuses).toHaveLength(1);
+
+    const status = app.experimental_composerStatuses[0]!;
+    const threadSlot = renderSlot(
+      status,
+      { projectId: "proj_owner", threadId: "thr_owner" },
+      {
+        rpc: {
+          allRuns: () => ({ runs: [], scannedAt: 300 }),
+          runs: () => ({ runs: [RUNS[0]!], scannedAt: 300 }),
+        },
+      },
+    );
+    expect(
+      await within(threadSlot.container).findByText("Running workflow"),
+    ).toBeDefined();
+    expect(threadSlot.inspection.rpcCalls).toContainEqual({
+      method: "runs",
+      input: { threadId: "thr_owner" },
+    });
+    threadSlot.lifecycle.unmount();
+
+    const unscopedSlot = renderSlot(
+      status,
+      { projectId: "proj_owner", threadId: null },
+      {
+        rpc: {
+          allRuns: () => ({ runs: [], scannedAt: 300 }),
+          runs: () => {
+            throw new Error("unscoped status must not load runs");
+          },
+        },
+      },
+    );
+    expect(unscopedSlot.container.textContent).toBe("");
+    expect(unscopedSlot.inspection.rpcCalls).toEqual([]);
+    unscopedSlot.lifecycle.unmount();
+  });
+
   it("prioritizes current and failed work before completed worker history", () => {
     const summary = workerActivitySummary(
       run({
@@ -250,7 +292,8 @@ describe("Omegacode global workflow page", () => {
     expect(app.navPanels).toHaveLength(1);
     expect(app.navPanels[0]?.title).toBe("Omegacode");
     expect(app.navPanels[0]?.icon).toBe("Omega");
-    expect(app.composerAccessories).toHaveLength(1);
+    expect(app.composerAccessories).toHaveLength(0);
+    expect(app.experimental_composerStatuses).toHaveLength(1);
 
     const panel = app.navPanels[0]!;
     const rendered = renderSlot<PluginNavPanelProps, typeof rpcContract>(

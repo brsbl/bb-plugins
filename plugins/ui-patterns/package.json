@@ -91,7 +91,7 @@
     "zod": "^4.3.6"
   },
   "devDependencies": {
-    "@bb/plugin-sdk": "file:../../tooling/vendor/bb-plugin-sdk-0.4.0.tgz",
+    "@bb/plugin-sdk": "file:../../tooling/vendor/bb-plugin-sdk-0.4.1.tgz",
     "@radix-ui/react-dialog": "^1.1.19",
     "@tailwindcss/node": "4.3.0",
     "@tailwindcss/oxide": "4.3.0",

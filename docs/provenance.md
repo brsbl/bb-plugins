@@ -12,4 +12,4 @@ All five installed or recovered personal plugins were copied into this repositor
 
 Design Loop was excluded because it was stale local source and was not installed. The Design Doctrine, Improve Prompt, and Thread Hover Cards repositories now remain as read-only GitHub archives with migration pointers to this monorepo. No local checkout was deleted. Omegacode and UI Patterns had no legacy remote repository to archive.
 
-The vendored `@bb/plugin-sdk` testing archive comes from official bb `main` commit `6e72cd0276947b400b4e5862668d855051ba2060`; its exact archive hash is recorded in `tooling/vendor/sdk-provenance.json`.
+The vendored `@bb/plugin-sdk` testing archive comes from official bb commit `86dab37a706db82cd8a1e6015703b917de8c0e5f`; its exact archive hash is recorded in `tooling/vendor/sdk-provenance.json`.

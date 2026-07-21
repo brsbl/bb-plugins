@@ -20,6 +20,7 @@ type ThreadRowStatus = {
   icon: string;
   label: string;
   effect: "shimmer" | null;
+  tone: "default" | "success";
 } | null;
 type RpcHandler = (input: unknown) => unknown | Promise<unknown>;
 
@@ -125,11 +126,11 @@ export function useComposer() {
       runtime.text = "";
       notify();
     },
-    setTextEffect(effect: TextEffect) {
+    experimental_setTextEffect(effect: TextEffect) {
       runtime.textEffect = effect;
       runtime.textEffectCalls.push(effect);
     },
-    setThreadRowStatus(status: ThreadRowStatus) {
+    experimental_setThreadRowStatus(status: ThreadRowStatus) {
       runtime.threadRowStatus = status;
       runtime.threadRowStatusCalls.push(status);
     },

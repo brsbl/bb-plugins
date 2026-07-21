@@ -16,13 +16,13 @@
   },
   "engines": {
     "bb": ">=0.0.32",
-    "bbPluginSdk": "^0.4.0"
+    "bbPluginSdk": "^0.4.1"
   },
   "bb": {
     "name": "Omegacode",
     "description": "Monitor Omegacode workflows globally and show owner-scoped progress above each bb composer.",
     "branding": {
-      "icon": "Omega",
+      "icon": "./assets/icon.svg",
       "logo": {
         "light": "./assets/logo.svg",
         "dark": "./assets/logo-dark.svg"
@@ -41,7 +41,7 @@
     "tailwind-merge": "^3.4.0"
   },
   "devDependencies": {
-    "@bb/plugin-sdk": "file:../../tooling/vendor/bb-plugin-sdk-0.4.0.tgz",
+    "@bb/plugin-sdk": "file:../../tooling/vendor/bb-plugin-sdk-0.4.1.tgz",
     "@radix-ui/react-dialog": "^1.1.19",
     "@testing-library/react": "^16.3.2",
     "@types/better-sqlite3": "^7.6.12",

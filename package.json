@@ -22,7 +22,7 @@
     "typecheck": "npm run typecheck --workspaces --if-present"
   },
   "devDependencies": {
-    "@bb/plugin-sdk": "file:tooling/vendor/bb-plugin-sdk-0.4.0.tgz",
+    "@bb/plugin-sdk": "file:tooling/vendor/bb-plugin-sdk-0.4.1.tgz",
     "bb-app": "0.0.32"
   }
 }

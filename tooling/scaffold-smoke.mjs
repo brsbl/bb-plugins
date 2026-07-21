@@ -40,7 +40,7 @@ async function createFixtureRepository(directory) {
       type: "module",
       workspaces: ["plugins/*", "packages/*"],
       devDependencies: {
-        "@bb/plugin-sdk": "file:tooling/vendor/bb-plugin-sdk-0.4.0.tgz",
+        "@bb/plugin-sdk": "file:tooling/vendor/bb-plugin-sdk-0.4.1.tgz",
         "bb-app": rootManifest.devDependencies["bb-app"],
       },
     }, null, 2)}\n`,

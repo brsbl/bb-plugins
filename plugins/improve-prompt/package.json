@@ -10,7 +10,7 @@
   ],
   "engines": {
     "bb": ">=0.0.32",
-    "bbPluginSdk": "^0.4.0"
+    "bbPluginSdk": "^0.4.1"
   },
   "bb": {
     "name": "Improve Prompt",
@@ -33,7 +33,7 @@
     "tailwind-merge": "^3.4.0"
   },
   "devDependencies": {
-    "@bb/plugin-sdk": "file:../../tooling/vendor/bb-plugin-sdk-0.4.0.tgz",
+    "@bb/plugin-sdk": "file:../../tooling/vendor/bb-plugin-sdk-0.4.1.tgz",
     "@testing-library/react": "^16.3.2",
     "@types/better-sqlite3": "^7.6.12",
     "@types/node": "^22.0.0",

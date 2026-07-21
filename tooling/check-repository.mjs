@@ -106,6 +106,11 @@ export async function checkRepository(repositoryRoot = defaultRoot, options = {}
     packageNames.add(entry.packageName);
     pluginIds.add(entry.pluginId);
 
+    assert(
+      typeof entry.bbPluginSdk === "string" && entry.bbPluginSdk.length > 0,
+      `${entry.slug}: SDK engine metadata missing`,
+    );
+
     assert(entry.source === `plugins/${entry.slug}`, `${entry.slug}: source mismatch`);
     assert(entry.installRef === `plugin/${entry.slug}`, `${entry.slug}: install ref mismatch`);
     assert(Object.hasOwn(entry, "screenshot"), `${entry.slug}: screenshot metadata missing`);
@@ -137,7 +142,10 @@ export async function checkRepository(repositoryRoot = defaultRoot, options = {}
     );
     assert(manifest.files.includes("README.md"), `${entry.slug}: README missing from package files`);
     assert(manifest.engines?.bb === ">=0.0.32", `${entry.slug}: bb engine drift`);
-    assert(manifest.engines?.bbPluginSdk === "^0.4.0", `${entry.slug}: SDK engine drift`);
+    assert(
+      manifest.engines?.bbPluginSdk === entry.bbPluginSdk,
+      `${entry.slug}: SDK engine drift`,
+    );
     assert(pluginReadme.startsWith(`# ${entry.name}\n`), `${entry.slug}: README title drift`);
     for (const heading of ["## Install", "## Use", "## Develop"]) {
       assert(pluginReadme.includes(heading), `${entry.slug}: README missing ${heading}`);
