@@ -1,6 +1,6 @@
 # Omegacode
 
-[Omegacode](https://github.com/SawyerHood/omegacode) is the underlying agent-workflow runner. This bb plugin shows its machine-local runs on one page and the current thread's owned run above the composer.
+[Omegacode](https://github.com/SawyerHood/omegacode) workflows can outlive the thread where they started. This plugin gives bb one place to see every local run, plus a compact view of the current thread's run above its composer.
 
 ![Omegacode global page with a live workflow and worker](docs/screenshot-global.png)
 
@@ -14,13 +14,13 @@ bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/omegacode -
 
 ## Use
 
-Open Omegacode from the bb sidebar to scan workflows across threads and jump to an owning thread. From the CLI, `bb omegacode status` shows the current thread's run; add `--all` for the machine-wide view.
+Open Omegacode from the bb sidebar to scan workflows across threads or jump back to the thread that owns one. In the CLI, `bb omegacode status` shows the current thread's run; add `--all` to see everything on the machine.
 
 ## How it was built
 
-The plugin reads Omegacode's append-only `journal.jsonl` and `events.jsonl` files under `~/.omegacode/runs`; it does not implement the workflow runner. The global page summarizes every local journal, while the compact composer status requires matching `bbContext.threadId` and `bbContext.environmentId` metadata.
+There is no second workflow runner hiding in the plugin. It reads Omegacode's append-only `journal.jsonl` and `events.jsonl` files under `~/.omegacode/runs` and turns them into bb UI.
 
-The owner-scoped surface is built around a strict runner contract: journals with both bb identifiers can belong to one composer, while journals without them remain global-only. Matching and presentation logic live in `ownership.ts` and `presentation.ts` with focused tests.
+The global page can summarize every local journal. A run appears above a composer only when its journal carries matching `bbContext.threadId` and `bbContext.environmentId` metadata; unowned runs stay global. The matching and presentation rules live in `ownership.ts` and `presentation.ts`, with focused tests around both.
 
 ## Develop
 

@@ -1,6 +1,6 @@
 # Design Doctrine
 
-Design Doctrine turns repeated product-design feedback into rules that agents can browse and apply while they design, build, and critique.
+Design Doctrine keeps the lessons that recur in design reviews from getting lost in old threads. It gives agents a set of rules they can search and apply while they design, build, or critique.
 
 ![Design Doctrine rule library in bb's sidebar](docs/screenshot.png)
 
@@ -12,20 +12,20 @@ bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/design-doct
 
 ## Use
 
-Open **Design Doctrine** from the bb sidebar, ask an agent to apply the doctrine, or query the library directly:
+Open **Design Doctrine** from the bb sidebar when you want to browse the rules. Agents can apply the doctrine on their own, or query it directly:
 
 ```bash
 bb doctrine search "<task and surface>"
 bb doctrine show ddr_001
 ```
 
-The bundled `design-doctrine` skill brings the relevant rules into design work. It complements product requirements, accessibility guidance, and platform conventions rather than replacing them.
+The bundled `design-doctrine` skill brings the right rules into the work at hand. The doctrine adds personal design judgment; it does not replace product requirements, accessibility guidance, or platform conventions.
 
 ## How it was built
 
-The rule library was distilled from repeated design feedback in bb thread history: direct requests, corrections, approvals, and rejections. Agent output is not treated as evidence, and repeated signals carry more weight than one-off preferences.
+The library grew out of feedback I kept giving in bb threads: direct requests, corrections, approvals, and rejections. Agent output is not evidence by itself, and a pattern repeated across threads matters more than a one-off preference.
 
-Each rule is an ordinary Markdown file under `rules/<domain>/`, so its rationale and revisions stay inspectable in Git. [`governance.md`](governance.md) defines how evidence becomes a rule.
+Rules are plain Markdown files under `rules/<domain>/`, so their reasoning and revisions remain easy to inspect in Git. [`governance.md`](governance.md) explains what qualifies as evidence and when it should become a rule.
 
 ## Develop
 

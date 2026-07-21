@@ -1,6 +1,6 @@
 # Improve Prompt
 
-Improve Prompt rewrites a rough bb composer draft into a concise, context-complete request without sending it.
+Improve Prompt gives a rough bb composer draft one focused editing pass. It returns a clearer, context-complete request for you to review, without sending anything.
 
 ![Improve Prompt working on a draft in the bb composer](docs/screenshot-running.png)
 
@@ -14,13 +14,13 @@ bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/improve-pro
 
 ## Use
 
-Write a draft, choose **Improve prompt**, review the replacement in place, and send when ready. Attachments stay attached, and the text change can be undone.
+Write as roughly as you like, then choose **Improve prompt**. The revised text comes back in place for review; attachments stay attached, and you can undo the change.
 
 ## How it was built
 
-The runtime plugin and the [`prompt-shaper` skill](skills/prompt-shaper/SKILL.md) have separate jobs. The plugin owns the composer action, hidden helper thread, progress state, result insertion, and undo. The skill owns the shaping instructions and reads the current thread and linked context for each rewrite.
+Two pieces make the experience work. The runtime plugin handles the composer action, helper thread, progress, result insertion, and undo. The [`prompt-shaper` skill](skills/prompt-shaper/SKILL.md) decides how to improve the draft, using the current thread and linked context each time.
 
-The skill was refined from observed prompt and handoff behavior in bb threads: missing context, ambiguous scope, unnecessary verbosity, and prompts that did not give an agent a clear stopping point. The stable plugin ID remains `prompt-shaper`; Improve Prompt is its display name.
+The skill's guidance comes from prompt and handoff problems that showed up repeatedly in bb threads: missing context, fuzzy scope, unnecessary detail, and no clear stopping point. The stable plugin ID remains `prompt-shaper`; Improve Prompt is its display name.
 
 ## Develop
 
