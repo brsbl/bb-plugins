@@ -1,38 +1,40 @@
 const START_MARKER = "<!-- plugin-catalog:start -->";
 const END_MARKER = "<!-- plugin-catalog:end -->";
 
-function titleCase(value) {
-  return value.charAt(0).toUpperCase() + value.slice(1);
+function normalizedText(value) {
+  return String(value).replace(/\s+/g, " ").trim();
 }
 
 export function markdownTableText(value) {
-  return String(value).replace(/\s+/g, " ").trim().replace(/\|/g, "\\|");
+  return normalizedText(value).replace(/\|/g, "\\|");
 }
 
-export function renderCatalogTable(catalog) {
-  const lines = [
-    "| Plugin | Purpose and when to use it | Surfaces and visual | Install and source | CI and maintenance |",
-    "| --- | --- | --- | --- | --- |",
-  ];
-  for (const entry of catalog.plugins) {
-    const screenshot = entry.screenshot
-      ? ` [Screenshot](${entry.source}/${entry.screenshot})`
-      : "";
-    const name = markdownTableText(entry.name);
-    const purpose = markdownTableText(entry.purpose);
-    const whenToUse = markdownTableText(entry.whenToUse);
-    const surfaces = entry.surfaces.map(markdownTableText).join("; ");
-    const visual = markdownTableText(entry.visual);
-    const maintenance = markdownTableText(titleCase(entry.maintenance));
-    lines.push(
-      `| **${name}** | ${purpose} ${whenToUse} | ${surfaces}. ${visual}.${screenshot} | \`bb plugin install git:https://github.com/brsbl/bb-plugins.git@${entry.installRef} --yes\` · [Source](${entry.source}) | [CI](https://github.com/brsbl/bb-plugins/actions/workflows/ci.yml) · ${maintenance} |`,
-    );
-  }
-  return lines.join("\n");
+function markdownInlineText(value) {
+  return normalizedText(value).replace(/([\\`*_[\]<>#|])/g, "\\$1");
+}
+
+export function renderCatalogIndex(catalog) {
+  return catalog.plugins
+    .map((entry) => {
+      const name = markdownInlineText(entry.name);
+      const purpose = normalizedText(entry.purpose);
+      const screenshot = entry.screenshot
+        ? `![${name} in bb](${entry.source}/${entry.screenshot})`
+        : "_No visual surface._";
+      const install = `bb plugin install git:https://github.com/brsbl/bb-plugins.git@${entry.installRef} --yes`;
+      return [
+        `### ${name}`,
+        purpose,
+        screenshot,
+        `[Source](${entry.source}) · [README](${entry.source}/README.md)`,
+        `Install: \`${install}\``,
+      ].join("\n\n");
+    })
+    .join("\n\n");
 }
 
 export function renderCatalogBlock(catalog) {
-  return `${START_MARKER}\n${renderCatalogTable(catalog)}\n${END_MARKER}`;
+  return `${START_MARKER}\n${renderCatalogIndex(catalog)}\n${END_MARKER}`;
 }
 
 export function replaceCatalogBlock(markdown, catalog) {

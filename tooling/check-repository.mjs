@@ -86,7 +86,7 @@ export async function checkRepository(repositoryRoot = defaultRoot, options = {}
   assert(catalog.schemaVersion === 1, "unsupported catalog schema");
   assert(
     readme.includes(renderCatalogBlock(catalog)),
-    "README plugin table has drifted from catalog/plugins.json",
+    "README plugin index has drifted from catalog/plugins.json",
   );
   assert(rootManifest.workspaces.includes("plugins/*"), "plugins workspace missing");
   assert(rootManifest.workspaces.includes("packages/*"), "packages workspace missing");
@@ -143,6 +143,10 @@ export async function checkRepository(repositoryRoot = defaultRoot, options = {}
       assert(pluginReadme.includes(heading), `${entry.slug}: README missing ${heading}`);
     }
     assert(readme.includes(`(${entry.source})`), `${entry.slug}: root source link missing`);
+    assert(
+      readme.includes(`[README](${entry.source}/README.md)`),
+      `${entry.slug}: root README link missing`,
+    );
     assert(readme.includes(`@${entry.installRef}`), `${entry.slug}: root install ref missing`);
     assert(
       provenance.includes(markdownTableText(entry.name)),
@@ -173,8 +177,8 @@ export async function checkRepository(repositoryRoot = defaultRoot, options = {}
         `${entry.slug}: README must embed screenshot ${screenshot}`,
       );
       assert(
-        readme.includes(`[Screenshot](${entry.source}/${screenshot})`),
-        `${entry.slug}: root screenshot link missing`,
+        markdownImageTargets(readme).includes(`${entry.source}/${screenshot}`),
+        `${entry.slug}: root screenshot image missing`,
       );
     }
     assert(

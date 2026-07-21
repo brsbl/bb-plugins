@@ -162,10 +162,13 @@ try {
   const rootReadme = await readFile(resolve(fixtureRoot, "README.md"), "utf8");
   assert.match(
     rootReadme,
-    /\[Screenshot\]\(plugins\/scaffold-smoke\/docs\/screenshot\.png\)/,
+    /!\[Scaffold Smoke in bb\]\(plugins\/scaffold-smoke\/docs\/screenshot\.png\)/,
   );
   assert.match(rootReadme, /plugin\/catalog-smoke/);
-  assert.ok(rootReadme.includes('**Catalog \\| "Smoke" \\ Tools**'));
+  assert.ok(rootReadme.includes('### Catalog \\| "Smoke" \\\\ Tools'));
+  assert.ok(
+    rootReadme.includes("[README](plugins/catalog-smoke/README.md)"),
+  );
   assert.match(rootReadme, /Verifies the personal bb plugin scaffold\./);
   assert.match(
     await readFile(resolve(fixtureRoot, "docs/provenance.md"), "utf8"),
