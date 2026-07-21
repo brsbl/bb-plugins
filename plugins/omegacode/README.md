@@ -1,8 +1,8 @@
 # Omegacode
 
-[Omegacode](https://github.com/SawyerHood/omegacode) is the underlying agent-workflow system. This bb plugin shows every machine-local run on one page and owner-scoped progress above the composer for runs that record bb ownership.
+[Omegacode](https://github.com/SawyerHood/omegacode) workflows can outlive the thread where they started. This plugin gives bb one place to see every local run, plus a compact view of the current thread's run above its composer.
 
-![Omegacode global page with a real active workflow and worker](docs/screenshot-global.png)
+![Omegacode global page with a live workflow and worker](docs/screenshot-global.png)
 
 ![An owner-scoped Omegacode banner with workflow phases and workers in a bb thread](docs/screenshot-thread.png)
 
@@ -14,9 +14,13 @@ bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/omegacode -
 
 ## Use
 
-Open Omegacode from the bb sidebar to scan workflows across threads and jump to an owning thread. A compact banner appears only in the thread and environment recorded by a run. Use `bb omegacode status`; add `--all` for the machine-wide CLI view.
+Open Omegacode from the bb sidebar to scan workflows across threads or jump back to the thread that owns one. In the CLI, `bb omegacode status` shows the current thread's run; add `--all` to see everything on the machine.
 
-The plugin reads Omegacode's append-only `journal.jsonl` and `events.jsonl` files under `~/.omegacode/runs`; it does not implement the workflow runner. Run metadata must contain `bbContext.threadId` and `bbContext.environmentId` to appear in an owning composer. Journals without that context remain global-only. The published upstream Omegacode 0.0.6 package does not yet write this bb context itself, so the launcher integration remains upstream work.
+## How it was built
+
+The plugin reads Omegacode's append-only `journal.jsonl` and `events.jsonl` files under `~/.omegacode/runs` and turns them into bb UI.
+
+The global page can summarize every local journal. A run appears above a composer only when its journal carries matching `bbContext.threadId` and `bbContext.environmentId` metadata; unowned runs stay global. The matching and presentation rules live in `ownership.ts` and `presentation.ts`, with focused tests around both.
 
 ## Develop
 

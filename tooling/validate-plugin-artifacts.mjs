@@ -3,6 +3,8 @@ import { readFile, readdir, stat } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { readPluginWorkspaces } from "./plugin-workspaces.mjs";
+
 const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
 async function readJson(path) {
@@ -220,22 +222,14 @@ export async function validatePluginArtifacts(pluginDirectory, options = {}) {
 }
 
 async function main() {
-  const catalog = await readJson(resolve(repositoryRoot, "catalog/plugins.json"));
   const requested = process.argv.slice(2);
   const directories = requested.length
     ? requested
-    : catalog.plugins.map(({ source }) => source);
+    : (await readPluginWorkspaces(repositoryRoot)).map(({ source }) => source);
 
   for (const directory of directories) {
     const absoluteDirectory = resolve(repositoryRoot, directory);
-    const entry = catalog.plugins.find(
-      ({ source }) => resolve(repositoryRoot, source) === absoluteDirectory,
-    );
-    const result = await validatePluginArtifacts(absoluteDirectory, {
-      expectedId: entry?.pluginId,
-      expectedName: entry?.name,
-      expectedScreenshot: entry?.screenshot,
-    });
+    const result = await validatePluginArtifacts(absoluteDirectory);
     console.log(
       `validated ${result.id} (${result.name}), ${result.packedFileCount} packed files`,
     );

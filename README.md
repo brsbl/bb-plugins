@@ -1,24 +1,68 @@
 # bb plugins
 
-[bb](https://getbb.app) is an agentic IDE for running coding agents across projects, threads, and environments. bb plugins are full-trust packages that add focused UI, commands, skills, and server capabilities.
+Five bb plugins I use for product design work, kept together with the few build and repository tools they share. [![CI](https://github.com/brsbl/bb-plugins/actions/workflows/ci.yml/badge.svg)](https://github.com/brsbl/bb-plugins/actions/workflows/ci.yml)
 
-This repository is the canonical source for my personal plugins and their shared development tooling. [![CI](https://github.com/brsbl/bb-plugins/actions/workflows/ci.yml/badge.svg)](https://github.com/brsbl/bb-plugins/actions/workflows/ci.yml)
+[bb](https://getbb.app) is an agentic IDE for running coding agents across projects, threads, and environments. Its plugins can add UI, commands, skills, and server capabilities; this repository is where I build and maintain mine.
 
 ## Plugins
 
-<!-- plugin-catalog:start -->
-| Plugin | Purpose and when to use it | Surfaces and visual | Install and source | CI and maintenance |
-| --- | --- | --- | --- | --- |
-| **Design Doctrine** | Turns repeated product-design feedback into reusable rules. When designing, building, or reviewing product UI against personal design judgment. | Sidebar panel; bb doctrine; Agent skill. Rule cards in a sidebar panel. [Screenshot](plugins/design-doctrine/docs/screenshot.png) | `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/design-doctrine --yes` · [Source](plugins/design-doctrine) | [CI](https://github.com/brsbl/bb-plugins/actions/workflows/ci.yml) · Active |
-| **Improve Prompt** | Rewrites a rough composer draft into a context-complete prompt. When a request is underspecified or needs a clearer handoff before sending. | Composer action; Hidden helper thread; Agent skill. Improve action with an in-composer progress shimmer. [Screenshot](plugins/improve-prompt/docs/screenshot-result.png) | `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/improve-prompt --yes` · [Source](plugins/improve-prompt) | [CI](https://github.com/brsbl/bb-plugins/actions/workflows/ci.yml) · Active |
-| **Omegacode** | Monitors Omegacode workflows globally while keeping live composer progress owner-scoped. When scanning workflows across threads or following the run owned by the current thread. | Sidebar plugin page; Composer banner; bb omegacode. Global workflow list plus a live phase and worker card above the owning composer. [Screenshot](plugins/omegacode/docs/screenshot-global.png) | `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/omegacode --yes` · [Source](plugins/omegacode) | [CI](https://github.com/brsbl/bb-plugins/actions/workflows/ci.yml) · Active |
-| **Thread Hover Cards** | Previews thread status and repository context from the sidebar. When scanning several active threads without opening each one. | Sidebar thread rows; Thread summary RPC. Hover card beside a sidebar thread row. [Screenshot](plugins/thread-hover-cards/docs/screenshot.png) | `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/thread-hover-cards --yes` · [Source](plugins/thread-hover-cards) | [CI](https://github.com/brsbl/bb-plugins/actions/workflows/ci.yml) · Active |
-| **UI Patterns** | Browses and queries approved-source UI components and interaction patterns. When choosing, comparing, or citing established UI patterns. | Thread panel; bb ui-patterns; Agent skill. Interactive component cards in a thread panel. [Screenshot](plugins/ui-patterns/docs/screenshot.png) | `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/ui-patterns --yes` · [Source](plugins/ui-patterns) | [CI](https://github.com/brsbl/bb-plugins/actions/workflows/ci.yml) · Experimental |
-<!-- plugin-catalog:end -->
+Each plugin has its own workspace under `plugins/` and a short README with the story behind it.
 
-The `plugin/*` refs are generated from `main` after CI passes. bb currently installs a git repository root, not a nested monorepo directory, so these refs provide valid root-shaped plugin checkouts without creating more repositories.
+### Design Doctrine
+
+Keeps the design lessons that come up again and again in reviews as reusable rules.
+
+![Design Doctrine in bb](plugins/design-doctrine/docs/screenshot.png)
+
+[Source](plugins/design-doctrine) · [README](plugins/design-doctrine/README.md)
+
+Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/design-doctrine --yes`
+
+### Improve Prompt
+
+Turns a rough composer draft into a clearer, context-complete prompt before you send it.
+
+![Improve Prompt in bb](plugins/improve-prompt/docs/screenshot-result.png)
+
+[Source](plugins/improve-prompt) · [README](plugins/improve-prompt/README.md)
+
+Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/improve-prompt --yes`
+
+### Omegacode
+
+Makes Omegacode workflows easy to follow, both across bb and inside the thread that started them.
+
+![Omegacode in bb](plugins/omegacode/docs/screenshot-global.png)
+
+[Source](plugins/omegacode) · [README](plugins/omegacode/README.md)
+
+Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/omegacode --yes`
+
+### Thread Hover Cards
+
+Lets you peek at a thread's status and repository context without leaving the sidebar.
+
+![Thread Hover Cards in bb](plugins/thread-hover-cards/docs/screenshot.png)
+
+[Source](plugins/thread-hover-cards) · [README](plugins/thread-hover-cards/README.md)
+
+Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/thread-hover-cards --yes`
+
+### UI Patterns
+
+Puts proven UI components and interaction guidance within reach of both designers and agents.
+
+![UI Patterns in bb](plugins/ui-patterns/docs/screenshot.png)
+
+[Source](plugins/ui-patterns) · [README](plugins/ui-patterns/README.md)
+
+Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/ui-patterns --yes`
+
+Each `plugin/*` install ref is generated from `main` after CI passes. The separate refs are necessary because bb installs from the root of a git checkout.
 
 ## Develop
+
+The root tooling handles the unglamorous shared work: finding plugin workspaces, building them, checking the repository, validating artifacts, and publishing install refs. Runtime code, tests, SDK declarations, and UI stay with the plugin that owns them.
 
 ```bash
 npm ci
@@ -26,6 +70,6 @@ npm run check
 npm run new:plugin -- --slug example --name "Example" --description "Adds an example capability."
 ```
 
-For local use, install a workspace directly: `bb plugin install "path:$PWD/plugins/<slug>" --yes`.
+To work on one plugin, install its workspace directly: `bb plugin install "path:$PWD/plugins/<slug>" --yes`.
 
-See [contributor guidance](CONTRIBUTING.md), [repository tooling](tooling/README.md), and [import provenance](docs/provenance.md).
+See [contributor guidance](CONTRIBUTING.md) and [repository tooling](tooling/README.md).

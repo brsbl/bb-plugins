@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { readPluginWorkspaces } from "./plugin-workspaces.mjs";
 import { validatePluginArtifacts } from "./validate-plugin-artifacts.mjs";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
@@ -205,7 +206,6 @@ async function verifyReleaseCommit(plugin, releaseCommit, bbVersion) {
       bbVersion,
       expectedId: plugin.pluginId,
       expectedName: plugin.name,
-      expectedScreenshot: plugin.screenshot,
     });
 
     // Mirror the build that bb performs for a git install before production
@@ -240,7 +240,6 @@ async function verifyReleaseCommit(plugin, releaseCommit, bbVersion) {
       bbVersion,
       expectedId: plugin.pluginId,
       expectedName: plugin.name,
-      expectedScreenshot: plugin.screenshot,
     });
   } finally {
     await rm(checkoutRoot, { recursive: true, force: true });
@@ -249,21 +248,18 @@ async function verifyReleaseCommit(plugin, releaseCommit, bbVersion) {
 
 export async function publishInstallRefs(options = {}) {
   const push = options.push ?? false;
-  const catalog = JSON.parse(
-    await readFile(resolve(root, "catalog/plugins.json"), "utf8"),
-  );
+  const plugins = await readPluginWorkspaces(root);
   if (push) assertPublishWorktreeClean();
   const rootManifest = JSON.parse(await readFile(resolve(root, "package.json"), "utf8"));
   const bbVersion = rootManifest.devDependencies["bb-app"];
   const sourceRevision = git(["rev-parse", "HEAD"]);
 
-  for (const plugin of catalog.plugins) {
+  for (const plugin of plugins) {
     const pluginDirectory = resolve(root, plugin.source);
     await validatePluginArtifacts(pluginDirectory, {
       bbVersion,
       expectedId: plugin.pluginId,
       expectedName: plugin.name,
-      expectedScreenshot: plugin.screenshot,
     });
 
     const sourceCommit = git([
