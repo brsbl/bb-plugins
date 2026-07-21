@@ -3,6 +3,7 @@ import { readdir, readFile, stat } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { checkBootstrapPrompts } from "./bootstrap/render-bootstrap.mjs";
 import {
   markdownTableText,
   renderCatalogBlock,
@@ -225,5 +226,11 @@ export async function checkRepository(repositoryRoot = defaultRoot, options = {}
 
 if (resolve(process.argv[1] ?? "") === fileURLToPath(import.meta.url)) {
   const result = await checkRepository();
-  console.log(`repository hygiene passed for ${result.pluginCount} plugins`);
+  // Real-repo-only: generated bootstrap prompts must match the template + params
+  // and use current bb automation commands and permission modes. Kept out of
+  // checkRepository() so the scaffold-smoke clean room (an empty fixture) is unaffected.
+  const { variantCount } = checkBootstrapPrompts();
+  console.log(
+    `repository hygiene passed for ${result.pluginCount} plugins and ${variantCount} bootstrap prompts`,
+  );
 }

@@ -44,6 +44,7 @@ jobs:
           cache-dependency-path: package-lock.json
       - run: npm ci
       - run: npm run hygiene
+      - run: npm run test:tooling
       - run: npm run scaffold:smoke
       - run: git diff --check
       - run: git diff --exit-code

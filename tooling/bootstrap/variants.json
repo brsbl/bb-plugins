@@ -1,0 +1,44 @@
+{
+  "schemaVersion": 1,
+  "note": "Parameters for the shared bootstrap-prompt template. Add a variant only for a plugin genuinely personalizable from thread history (currently Design Doctrine and Improve Prompt). Each `output` file is generated; hygiene fails if it drifts from the template + these values.",
+  "variants": [
+    {
+      "key": "design-doctrine",
+      "output": "plugins/design-doctrine/maintenance/bootstrap-prompt.md",
+      "values": {
+        "PLUGIN_NAME": "Design Doctrine",
+        "PLUGIN_ID": "design-doctrine",
+        "PACKAGE_NAME": "bb-plugin-design-doctrine",
+        "PLUGIN_SOURCE": "plugins/design-doctrine",
+        "PLUGIN_README": "plugins/design-doctrine/README.md",
+        "MAINTENANCE_DOC": "plugins/design-doctrine/maintenance/automation-prompt.md",
+        "ARTIFACT": "its rule library",
+        "ARTIFACT_TREE": "the rules/ tree",
+        "ADAPT_INSTRUCTION": "Turn each durable signal into a versioned rule under rules/<domain>/ following governance.md, or clear rules/ first to grow doctrine from your own judgment. Leave the bundled design-doctrine skill in place; it reads whatever rules you keep. Rules carry short, anonymous evidence lines only.",
+        "EVIDENCE_FILTERS": "--limit 200",
+        "EVIDENCE_FILE": "seed-evidence.jsonl",
+        "AUTOMATION_NAME": "Design Doctrine refresh",
+        "CRON": "0 9 * * 1"
+      }
+    },
+    {
+      "key": "improve-prompt",
+      "output": "plugins/improve-prompt/maintenance/bootstrap-prompt.md",
+      "values": {
+        "PLUGIN_NAME": "Improve Prompt",
+        "PLUGIN_ID": "prompt-shaper",
+        "PACKAGE_NAME": "bb-plugin-prompt-shaper",
+        "PLUGIN_SOURCE": "plugins/improve-prompt",
+        "PLUGIN_README": "plugins/improve-prompt/README.md",
+        "MAINTENANCE_DOC": "plugins/improve-prompt/maintenance/skill-tuning.md",
+        "ARTIFACT": "its prompt-shaper skill",
+        "ARTIFACT_TREE": "the skills/prompt-shaper/ tree",
+        "ADAPT_INSTRUCTION": "Fold each durable signal into skills/prompt-shaper/SKILL.md — tighten a role's include-when, add or narrow a rule, or fix a stopping convention. Do not touch the composer runtime; only the skill changes. The plugin runtime and the skill are separate parts.",
+        "EVIDENCE_FILTERS": "--limit 200",
+        "EVIDENCE_FILE": "seed-evidence.jsonl",
+        "AUTOMATION_NAME": "Prompt Shaper skill refresh",
+        "CRON": "0 9 * * 1"
+      }
+    }
+  ]
+}
