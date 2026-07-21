@@ -1,5 +1,5 @@
 import { spawnSync } from "node:child_process";
-import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, readdir, rm, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -8,6 +8,9 @@ import { readPluginWorkspaces } from "./plugin-workspaces.mjs";
 import { validatePluginArtifacts } from "./validate-plugin-artifacts.mjs";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+const releaseAppEntry = "./dist/install-app.mjs";
+const releaseAppCss = "dist/install-app.css";
+
 function run(command, args, options = {}) {
   const result = spawnSync(command, args, {
     cwd: options.cwd ?? root,
@@ -31,6 +34,14 @@ function git(args, options = {}) {
   return run("git", args, options);
 }
 
+function concreteBbVersion(manifest) {
+  const version = manifest.engines?.bb?.match(/\d+\.\d+\.\d+/)?.[0];
+  if (!version) {
+    throw new Error(`${manifest.name}: engines.bb has no concrete minimum version`);
+  }
+  return version;
+}
+
 async function filesBelow(directory, prefix = "") {
   const files = [];
   for (const entry of await readdir(directory, { withFileTypes: true })) {
@@ -49,10 +60,11 @@ function releaseManifest(sourceManifest) {
   const manifest = structuredClone(sourceManifest);
   delete manifest.devDependencies;
   delete manifest.scripts;
-  // bb currently recompiles frontend entries for direct git installs even
-  // when a valid prebuilt app is present. Point the release-only manifest at
-  // that self-contained bundle so installation never depends on node_modules.
-  if (manifest.bb?.app) manifest.bb.app = "./dist/app.js";
+  // bb recompiles frontend entries for direct git installs. Point the
+  // release-only manifest at a self-contained wrapper around the prebuilt app
+  // so installation never depends on development node_modules. The wrapper
+  // also carries plugin-authored CSS through that second build.
+  if (manifest.bb?.app) manifest.bb.app = releaseAppEntry;
   for (const [name, version] of Object.entries(manifest.dependencies ?? {})) {
     if (String(version).startsWith("file:")) {
       throw new Error(`${manifest.name}: production dependency ${name} uses ${version}`);
@@ -99,12 +111,34 @@ async function createReleaseTree(plugin, sourceCommit) {
       }
     }
 
-    addBlob(indexPath, "package.json", releaseManifest(sourceManifest));
-
     for (const file of await filesBelow(resolve(pluginDirectory, "dist"))) {
       const contents = await readFile(file.absolutePath);
       addBlob(indexPath, `dist/${file.relativePath}`, contents);
     }
+
+    if (sourceManifest.bb?.app) {
+      const authoredCss = await readFile(resolve(pluginDirectory, "app.css"), "utf8").catch(
+        (error) => {
+          if (error?.code === "ENOENT") return null;
+          throw error;
+        },
+      );
+      const wrapper = [
+        'export { default } from "./app.js";',
+        'export * from "./app.js";',
+      ];
+      if (authoredCss !== null) {
+        wrapper.push('import "./install-app.css";');
+        addBlob(
+          indexPath,
+          releaseAppCss,
+          `[data-bb-plugin-release-style="${plugin.pluginId}"] { --bb-plugin-release-style: 1; }\n${authoredCss}`,
+        );
+      }
+      addBlob(indexPath, releaseAppEntry.replace(/^\.\//, ""), `${wrapper.join("\n")}\n`);
+    }
+
+    addBlob(indexPath, "package.json", releaseManifest(sourceManifest));
 
     return git(["write-tree"], { env: { GIT_INDEX_FILE: indexPath } });
   } finally {
@@ -199,8 +233,8 @@ async function verifyReleaseCommit(plugin, releaseCommit, bbVersion) {
     if (manifest.devDependencies || manifest.scripts) {
       throw new Error(`${plugin.installRef}: release manifest contains development-only fields`);
     }
-    if (manifest.bb?.app && manifest.bb.app !== "./dist/app.js") {
-      throw new Error(`${plugin.installRef}: release app entry is not the prebuilt bundle`);
+    if (manifest.bb?.app && manifest.bb.app !== releaseAppEntry) {
+      throw new Error(`${plugin.installRef}: release app entry is not the prebuilt wrapper`);
     }
     await validatePluginArtifacts(checkout, {
       bbVersion,
@@ -208,21 +242,32 @@ async function verifyReleaseCommit(plugin, releaseCommit, bbVersion) {
       expectedName: plugin.name,
     });
 
-    // Mirror the build that bb performs for a git install before production
-    // dependencies are present. The temporary server entry keeps this probe
-    // focused on release artifacts; managed installs load the validated
-    // prebuilt server directly.
-    const buildManifest = structuredClone(manifest);
-    buildManifest.bb.server = "./dist/server.js";
-    await writeFile(manifestPath, `${JSON.stringify(buildManifest, null, 2)}\n`);
-    try {
+    // Managed installs load the validated prebuilt server directly. Syntax
+    // check it, but do not feed that bundle back through the server builder:
+    // its Node ESM compatibility banner is intentionally not re-entrant.
+    run(process.execPath, ["--check", resolve(checkout, "dist/server.js")]);
+
+    // Direct git installs rebuild frontend entries before production
+    // dependencies are present. Rebuild only the release wrapper to mirror
+    // that host path without mutating the already-valid server artifact.
+    const hasAuthoredCss = await stat(resolve(checkout, releaseAppCss))
+      .then((details) => details.isFile())
+      .catch((error) => {
+        if (error?.code === "ENOENT") return false;
+        throw error;
+      });
+    if (manifest.bb?.app) {
       run(
         process.execPath,
-        [resolve(root, "node_modules/bb-app/dist/bb.js"), "plugin", "build", "."],
-        { cwd: checkout, env: { BB_CLI: "" } },
+        [resolve(root, "tooling/build-plugin.mjs"), "--app-only", checkout],
+        { cwd: root },
       );
-    } finally {
-      await writeFile(manifestPath, manifestRaw);
+    }
+    if (hasAuthoredCss) {
+      const rebuiltCss = await readFile(resolve(checkout, "dist/app.css"), "utf8");
+      if (!rebuiltCss.includes("bb-plugin-release-style")) {
+        throw new Error(`${plugin.installRef}: install build dropped plugin-authored CSS`);
+      }
     }
     run(
       "npm",
@@ -250,12 +295,11 @@ export async function publishInstallRefs(options = {}) {
   const push = options.push ?? false;
   const plugins = await readPluginWorkspaces(root);
   if (push) assertPublishWorktreeClean();
-  const rootManifest = JSON.parse(await readFile(resolve(root, "package.json"), "utf8"));
-  const bbVersion = rootManifest.devDependencies["bb-app"];
   const sourceRevision = git(["rev-parse", "HEAD"]);
 
   for (const plugin of plugins) {
     const pluginDirectory = resolve(root, plugin.source);
+    const bbVersion = concreteBbVersion(plugin.manifest);
     await validatePluginArtifacts(pluginDirectory, {
       bbVersion,
       expectedId: plugin.pluginId,

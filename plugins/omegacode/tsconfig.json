@@ -5,23 +5,12 @@
     "module": "ESNext",
     "moduleResolution": "bundler",
     "jsx": "react-jsx",
-    "lib": [
-      "ES2022",
-      "DOM"
-    ],
-    "types": [
-      "node"
-    ],
+    "lib": ["ES2022", "DOM"],
+    "types": ["node"],
     "paths": {
-      "@bb/plugin-sdk": [
-        "./types/bb-plugin-sdk.d.ts"
-      ],
-      "@bb/plugin-sdk/app": [
-        "./types/bb-plugin-sdk-app.d.ts"
-      ],
-      "@/*": [
-        "./*"
-      ]
+      "@bb/plugin-sdk": ["./types/bb-plugin-sdk.d.ts"],
+      "@bb/plugin-sdk/app": ["./types/bb-plugin-sdk-app.d.ts"],
+      "@/*": ["./*"]
     },
     "noEmit": true,
     "skipLibCheck": false
@@ -32,7 +21,6 @@
     "global-page.tsx",
     "*.test.ts",
     "*.test.tsx",
-    "react-dom.d.ts",
     "types",
     "components",
     "lib",

@@ -1,17 +1,13 @@
 // bb-plugin-omega — omegacode command center.
 //
-// The banner renders ABOVE the composer (like the host's "Running background
-// command" banner). The plugin API only exposes a composer-FOOTER accessory
-// slot, so the accessory mounts an anchor there, walks up to find its own
-// composer box, and portals the banner in as that box's previous sibling.
-// If the anchor can't be found (host layout changed), it falls back to
-// rendering inline in the footer — never blank.
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
-import { createPortal } from "react-dom";
+// The workflow banner is mounted in bb's composer banner stack. The host owns
+// its card chrome, placement, measurement, and scroll anchoring.
+import { useCallback, useEffect, useRef, useState } from "react";
 import { WorkflowCircle03Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import {
   definePluginApp,
+  useComposer,
   useRealtime,
   useRealtimeConnectionState,
   useRpc,
@@ -40,16 +36,6 @@ function elapsed(from: number | null): string {
   return m < 60 ? `${m}m` : `${Math.floor(m / 60)}h${m % 60}m`;
 }
 
-function verticalScrollContainer(element: HTMLElement | null): HTMLElement | null {
-  let current = element?.parentElement ?? null;
-  while (current) {
-    const overflowY = getComputedStyle(current).overflowY;
-    if (overflowY === "auto" || overflowY === "scroll") return current;
-    current = current.parentElement;
-  }
-  return null;
-}
-
 function BannerCard({ runs }: { runs: Run[] }) {
   const [open, setOpen] = useState(false);
   const head = [...runs].sort(
@@ -60,7 +46,10 @@ function BannerCard({ runs }: { runs: Run[] }) {
   if (!head) return null;
 
   const c = head.counts;
-  const workflowName = head.workflowName ?? head.workflow?.replace(/\.workflow\.js$|\.js$/, "") ?? "workflow";
+  const workflowName =
+    head.workflowName ??
+    head.workflow?.replace(/\.workflow\.js$|\.js$/, "") ??
+    "workflow";
   const startedAt =
     head.agents
       .map((agent) => agent.startedAt)
@@ -92,36 +81,12 @@ function BannerCard({ runs }: { runs: Run[] }) {
       : settled
         ? "Workflow complete"
         : "Running workflow";
-  const toggleOpen = (button: HTMLButtonElement) => {
-    const holder = button.closest("[data-omega-banner]") as HTMLElement | null;
-    const promptBox = holder?.closest(".chat-prompt-box") as HTMLElement | null;
-    const scrollContainer = verticalScrollContainer(promptBox);
-    const beforeGap =
-      promptBox && scrollContainer
-        ? scrollContainer.getBoundingClientRect().bottom -
-          promptBox.getBoundingClientRect().bottom
-        : null;
-
-    setOpen((value) => !value);
-    if (!promptBox || !scrollContainer || beforeGap === null) return;
-
-    const restoreBottomGap = () => {
-      const afterGap =
-        scrollContainer.getBoundingClientRect().bottom -
-        promptBox.getBoundingClientRect().bottom;
-      const drift = afterGap - beforeGap;
-      if (Math.abs(drift) > 1) scrollContainer.scrollTop -= drift;
-    };
-    requestAnimationFrame(() => requestAnimationFrame(restoreBottomGap));
-    window.setTimeout(restoreBottomGap, 220);
-  };
-
   return (
-    <div className="w-full overflow-hidden rounded-lg border border-border bg-surface-raised-solid text-sm">
+    <div className="w-full overflow-hidden text-sm">
       <button
         type="button"
         aria-expanded={open}
-        onClick={(event) => toggleOpen(event.currentTarget)}
+        onClick={() => setOpen((value) => !value)}
         className={activityRowClass(
           "active",
           "flex min-h-11 w-full min-w-0 cursor-pointer flex-col items-stretch gap-1 rounded-none px-3 py-1.5 text-foreground shadow-none ring-0 transition-colors hover:bg-background/80",
@@ -253,104 +218,10 @@ function BannerCard({ runs }: { runs: Run[] }) {
   );
 }
 
-/**
- * Find THIS accessory's composer box (nearest ancestor that also contains the
- * prompt input), and return a host-inserted div that sits just before it — i.e.
- * above the composer. Returns null until found; the caller falls back to inline.
- */
-function useAboveComposerTarget(anchor: HTMLElement | null): HTMLElement | null {
-  const [target, setTarget] = useState<HTMLElement | null>(null);
-
-  useLayoutEffect(() => {
-    if (!anchor) return;
-    // Match bb's prompt-stack placement: the workflow card is a standalone
-    // sibling immediately above the composer, outside its managed height.
-    const holder = document.createElement("div");
-    holder.dataset.omegaBanner = "1";
-    holder.style.width = "100%";
-    holder.style.marginBottom = "8px";
-    const mount = () => {
-      let el: HTMLElement | null = anchor;
-      let composerBox: HTMLElement | null = null;
-      let inputAncestor: HTMLElement | null = null;
-      // Re-resolve from THIS accessory each time: bb may replace the composer
-      // or its stack wrapper during autosize/provider updates. Prefer bb's
-      // semantic promptbox form, not an inner overflow/editor wrapper.
-      while (el && el.parentElement) {
-        el = el.parentElement;
-        if (el.querySelector("textarea, [contenteditable='true']")) {
-          inputAncestor ??= el;
-          if (el.tagName === "FORM") {
-            composerBox = el;
-            break;
-          }
-        }
-      }
-      composerBox ??= inputAncestor;
-      if (!composerBox) return;
-
-      // bb keeps native context cards and the composer unit under a spaced
-      // prompt-stack layout. Mount before the direct composer unit so the
-      // expanded card contributes to stack height instead of overflowing the
-      // composer's constrained z-20 wrapper.
-      let composerUnit = composerBox;
-      let stack = composerBox.parentElement;
-      while (stack && stack !== document.body) {
-        if (stack.classList.contains("space-y-2")) break;
-        composerUnit = stack;
-        stack = stack.parentElement;
-      }
-      if (!stack || stack === document.body) {
-        stack = composerBox.parentElement;
-        composerUnit = composerBox;
-      }
-      if (!stack) return;
-      const nativeCardStack = Array.from(stack.children).find(
-        (child): child is HTMLElement =>
-          child instanceof HTMLElement &&
-          child !== composerUnit &&
-          child.classList.contains("space-y-2"),
-      );
-      const mountParent = nativeCardStack ?? stack;
-      const mountBefore = nativeCardStack ? null : composerUnit;
-      holder.style.marginBottom = mountParent.classList.contains("space-y-2")
-        ? "0px"
-        : "8px";
-      if (
-        holder.parentElement !== mountParent ||
-        holder.nextSibling !== mountBefore
-      ) {
-        mountParent.insertBefore(holder, mountBefore);
-      }
-    };
-    mount();
-    setTarget(holder.isConnected ? holder : null);
-    // The prompt stack is React-owned and may reconcile away foreign siblings
-    // or replace the wrapper entirely. Coalesce subtree changes and restore the
-    // scoped mount against the accessory's current ancestry.
-    let frame = 0;
-    const observer = new MutationObserver(() => {
-      if (frame !== 0) return;
-      frame = requestAnimationFrame(() => {
-        frame = 0;
-        mount();
-        setTarget(holder.isConnected ? holder : null);
-      });
-    });
-    observer.observe(document.body, { childList: true, subtree: true });
-
-    return () => {
-      observer.disconnect();
-      if (frame !== 0) cancelAnimationFrame(frame);
-      holder.remove();
-      setTarget(null);
-    };
-  }, [anchor]);
-
-  return target;
-}
-
-function OmegacodeBanner({ threadId }: { threadId: string | null }) {
+function WorkflowBanner() {
+  const composer = useComposer();
+  const threadId =
+    composer.scope.kind === "thread" ? composer.scope.threadId : null;
   const rpc = useRpc<typeof rpcContract>();
   const realtimeState = useRealtimeConnectionState();
   const [snapshot, setSnapshot] = useState<{
@@ -363,7 +234,6 @@ function OmegacodeBanner({ threadId }: { threadId: string | null }) {
   const loadingThreadId = useRef<string | null>(null);
   const previousRealtimeState = useRef(realtimeState);
   const [, force] = useState(0);
-  const [anchor, setAnchor] = useState<HTMLElement | null>(null);
 
   const scoped = typeof threadId === "string" && threadId !== "";
   const runs = snapshot?.threadId === threadId ? snapshot.runs : [];
@@ -418,20 +288,9 @@ function OmegacodeBanner({ threadId }: { threadId: string | null }) {
     return () => clearInterval(t);
   }, [scoped]);
 
-  const target = useAboveComposerTarget(scoped ? anchor : null);
-
   if (!scoped) return null;
-  const card = <BannerCard runs={runs} />;
-
-  // Invisible footer anchor; the visible card is portaled above THIS composer.
-  // Falls back to inline (footer) if the composer box can't be located.
-  return (
-    <span ref={setAnchor} className="contents">
-      {target ? createPortal(card, target) : card}
-    </span>
-  );
+  return <BannerCard runs={runs} />;
 }
-
 
 export default definePluginApp((app) => {
   app.slots.navPanel({
@@ -441,8 +300,15 @@ export default definePluginApp((app) => {
     path: "omegacode",
     component: OmegacodeOverview,
   });
-  app.slots.composerAccessory({
+  app.composer.customize({
     id: "omegacode-banner",
-    component: OmegacodeBanner,
+    scopes: ["thread"],
+    banners: [
+      {
+        id: "workflow",
+        chrome: "card",
+        component: WorkflowBanner,
+      },
+    ],
   });
 });

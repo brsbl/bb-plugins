@@ -1,0 +1,8 @@
+{
+  "builder": "bb plugin build@0.0.34",
+  "sourceRepository": "https://github.com/ymichael/bb",
+  "sourceCommit": "50b7502301573ef296fbf0e2bfaa2ffad9678aaa",
+  "sourcePath": "packages/plugin-build",
+  "bundle": "bb-plugin-build-0.0.34.mjs",
+  "sha256": "ed3fb80f909ff5183b54bded30360dd7d6c36e34fd8f4aab0acec056c21d6ea4"
+}

@@ -1,10 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   definePluginApp,
+  useBbContext,
   useComposer,
+  useComposerView,
   useRealtime,
   useRpc,
 } from "@bb/plugin-sdk/app";
+import "./app.css";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -19,6 +22,7 @@ import type { rpcContract } from "./server";
 import { scopeKey } from "./core.js";
 
 interface PendingRequest {
+  cancellationRequested: boolean;
   createdAt: number;
   requestId: string;
   scopeKey: string;
@@ -40,11 +44,14 @@ interface ConsumeResultOptions {
 
 const PENDING_STORAGE_PREFIX = "bb-plugin-prompt-shaper:pending:";
 const STARTUP_GRACE_MS = 30_000;
+const DETACHED_CANCEL_ATTEMPTS = 3;
 const locallyStartingRequestIds = new Set<string>();
+const PROMPT_SHIMMER_EFFECT = {
+  className: "bb-improve-prompt-shimmer",
+} as const;
 const THREAD_ROW_STATUS = {
   icon: "AiContentGenerator01",
   label: "Improve Prompt is improving the draft",
-  effect: "shimmer",
   tone: "success",
 } as const;
 
@@ -87,9 +94,13 @@ function readPendingStorage(composerScopeKey: string): PendingStorageState {
         "startup" in value && value.startup === "starting"
           ? "starting"
           : "acknowledged";
+      const cancellationRequested =
+        "cancellationRequested" in value &&
+        value.cancellationRequested === true;
       return {
         available: true,
         request: {
+          cancellationRequested,
           createdAt,
           requestId: value.requestId,
           scopeKey: value.scopeKey,
@@ -141,15 +152,60 @@ function signalRequestId(payload: unknown): string | null {
   return null;
 }
 
-function PromptShaperAction({
-  projectId,
-  threadId,
-}: {
+export function canStartEnhancement(input: {
+  draft: string;
+  hasPendingRequest: boolean;
+  isSubmitting: boolean;
   projectId: string | null;
-  threadId: string | null;
-}) {
+}): boolean {
+  return (
+    input.projectId !== null &&
+    input.draft.trim().length > 0 &&
+    !input.hasPendingRequest &&
+    !input.isSubmitting
+  );
+}
+
+export function shouldCancelForSubmission(input: {
+  isSubmitting: boolean;
+  pendingScopeKey: string | null;
+  scopeKey: string;
+}): boolean {
+  return input.isSubmitting && input.pendingScopeKey === input.scopeKey;
+}
+
+async function cancelDetachedRequest(
+  request: PendingRequest,
+  cancel: () => Promise<unknown>,
+): Promise<boolean> {
+  for (let attempt = 0; attempt < DETACHED_CANCEL_ATTEMPTS; attempt += 1) {
+    try {
+      await cancel();
+      clearPendingRequest(request);
+      return true;
+    } catch {
+      // Retry a bounded number of times. If transport stays unavailable, keep
+      // the durable marker so remount/reconciliation can recover the request.
+    }
+  }
+  return false;
+}
+
+function PromptShaperAction() {
   const composer = useComposer();
-  const composerScopeKey = scopeKey(composer.scope);
+  const view = useComposerView();
+  const context = useBbContext();
+  const composerScopeKey = scopeKey(view.scope);
+  const projectId =
+    view.scope.kind === "side-chat" || view.scope.kind === "new-thread"
+      ? view.scope.projectId
+      : context.projectId;
+  const threadId =
+    view.scope.kind === "thread" || view.scope.kind === "queued-message"
+      ? view.scope.threadId
+      : view.scope.kind === "side-chat"
+        ? (view.scope.childThreadId ?? view.scope.parentThreadId)
+        : null;
   const rpc = useRpc<typeof rpcContract>();
   const [pending, setPending] = useState<PendingRequest | null>(() =>
     loadPendingRequest(composerScopeKey),
@@ -159,12 +215,15 @@ function PromptShaperAction({
   const cancellingRequestIdRef = useRef<string | null>(null);
   const composerRef = useRef(composer);
   const composerScopeKeyRef = useRef(composerScopeKey);
-  const previousComposerScopeKeyRef = useRef(composerScopeKey);
+  const mountedComposerScopeKindRef = useRef(view.scope.kind);
+  const rpcRef = useRef(rpc);
+  const isSubmittingRef = useRef(view.run.isSubmitting);
   const [isHovered, setIsHovered] = useState(false);
   const [isKeyboardFocused, setIsKeyboardFocused] = useState(false);
   const [undoState, setUndoState] = useState<UndoState | null>(null);
   composerRef.current = composer;
   composerScopeKeyRef.current = composerScopeKey;
+  isSubmittingRef.current = view.run.isSubmitting;
   const isRunning = pending?.scopeKey === composerScopeKey;
   const canUndo =
     !isRunning &&
@@ -181,34 +240,15 @@ function PromptShaperAction({
   }, []);
 
   useEffect(() => {
-    if (previousComposerScopeKeyRef.current === composerScopeKey) return;
-    const previousComposerScopeKey = previousComposerScopeKeyRef.current;
-    previousComposerScopeKeyRef.current = composerScopeKey;
-    const staleRequest = pendingRef.current;
-    const isThreadNavigation =
-      previousComposerScopeKey.startsWith("thread:") &&
-      composerScopeKey.startsWith("thread:");
-
-    if (staleRequest !== null && !isThreadNavigation) {
-      clearPendingRequest(staleRequest);
-      void rpc
-        .call("cancelEnhancement", { requestId: staleRequest.requestId })
-        .catch(() => {
-          // The old scope is already invalidated locally even if the helper
-          // has exited or cancellation transport is unavailable.
-        });
-    }
-
-    const recoveredRequest = loadPendingRequest(composerScopeKey);
-    pendingRef.current = recoveredRequest;
-    reconcileRecoveredPendingRef.current = recoveredRequest !== null;
-    setPending(recoveredRequest);
-  }, [composerScopeKey, rpc]);
-
-  useEffect(() => {
-    composer.setTextEffect?.(isRunning ? "shimmer" : null);
-    composer.setThreadRowStatus?.(isRunning ? THREAD_ROW_STATUS : null);
-  }, [composer.setTextEffect, composer.setThreadRowStatus, isRunning]);
+    composer.setTextEffect(isRunning ? PROMPT_SHIMMER_EFFECT : null);
+    composer.setInputLock(isRunning);
+    composer.setThreadRowStatus(isRunning ? THREAD_ROW_STATUS : null);
+  }, [
+    composer.setInputLock,
+    composer.setTextEffect,
+    composer.setThreadRowStatus,
+    isRunning,
+  ]);
 
   useEffect(() => {
     if (
@@ -222,40 +262,115 @@ function PromptShaperAction({
 
   useEffect(() => {
     return () => {
-      composer.setTextEffect?.(null);
-      composer.setThreadRowStatus?.(null);
+      composer.setInputLock(false);
+      composer.setTextEffect(null);
+      composer.setThreadRowStatus(null);
     };
-  }, [composer.setTextEffect, composer.setThreadRowStatus, composerScopeKey]);
+  }, [
+    composer.setInputLock,
+    composer.setTextEffect,
+    composer.setThreadRowStatus,
+    composerScopeKey,
+  ]);
+
+  const clearLoadingEffects = useCallback(() => {
+    composerRef.current.setInputLock(false);
+    composerRef.current.setTextEffect(null);
+    composerRef.current.setThreadRowStatus(null);
+  }, []);
+
+  const cancelInBackground = useCallback(
+    (request: PendingRequest) => {
+      void cancelDetachedRequest(request, () =>
+        rpcRef.current.call("cancelEnhancement", {
+          requestId: request.requestId,
+        }),
+      ).then((cancelled) => {
+        if (
+          !cancelled ||
+          pendingRef.current?.requestId !== request.requestId
+        ) {
+          return;
+        }
+        clearLoadingEffects();
+        setPendingRequest(null);
+      });
+    },
+    [clearLoadingEffects, setPendingRequest],
+  );
 
   useEffect(() => {
-    const recoveredRequest = loadPendingRequest(
-      composerScopeKeyRef.current,
-    );
-    if (pendingRef.current === null && recoveredRequest !== null) {
+    const recoveredState = readPendingStorage(composerScopeKeyRef.current);
+    const recoveredRequest = recoveredState.request;
+    if (recoveredRequest?.cancellationRequested) {
+      reconcileRecoveredPendingRef.current = false;
+      cancelInBackground(recoveredRequest);
+    } else if (
+      recoveredState.available &&
+      recoveredRequest === null &&
+      pendingRef.current?.cancellationRequested
+    ) {
+      // Another mounted instance can finish cancellation after this render's
+      // state initializer reads the marker but before this effect runs.
+      reconcileRecoveredPendingRef.current = false;
+      pendingRef.current = null;
+      setPending(null);
+      clearLoadingEffects();
+    } else if (pendingRef.current === null && recoveredRequest !== null) {
       pendingRef.current = recoveredRequest;
       setPending(recoveredRequest);
     }
     return () => {
-      // Detach this component instance from any in-flight async work without
-      // cancelling the durable request. Navigating away and ordinary host
-      // remounts both unmount composer accessories; the next instance for the
-      // same scope recovers the request from session storage and reconciles it.
+      const detachedRequest = pendingRef.current;
       pendingRef.current = null;
-    };
-  }, []);
 
-  const clearLoadingEffects = useCallback(() => {
-    composerRef.current.setTextEffect?.(null);
-    composerRef.current.setThreadRowStatus?.(null);
-  }, []);
+      // Thread requests intentionally survive keyed navigation so returning
+      // to the thread can recover and reconcile them. Every other composer
+      // scope is ephemeral: the host's full-scope key unmounts this action
+      // when its owner changes, so invalidate and cancel from this cleanup.
+      if (
+        detachedRequest === null ||
+        mountedComposerScopeKindRef.current === "thread"
+      ) {
+        return;
+      }
+      const cancellationRequest = {
+        ...detachedRequest,
+        cancellationRequested: true,
+      };
+      savePendingRequest(cancellationRequest);
+      cancelInBackground(cancellationRequest);
+    };
+  }, [cancelInBackground, clearLoadingEffects]);
+
+  useEffect(() => {
+    const active = pendingRef.current;
+    if (
+      !shouldCancelForSubmission({
+        isSubmitting: view.run.isSubmitting,
+        pendingScopeKey: active?.scopeKey ?? null,
+        scopeKey: composerScopeKey,
+      }) ||
+      active === null ||
+      active.cancellationRequested
+    ) {
+      return;
+    }
+
+    const cancellationRequest = {
+      ...active,
+      cancellationRequested: true,
+    };
+    savePendingRequest(cancellationRequest);
+    pendingRef.current = cancellationRequest;
+    setPending(cancellationRequest);
+    cancelInBackground(cancellationRequest);
+  }, [cancelInBackground, composerScopeKey, view.run.isSubmitting]);
 
   const applyEnhancement = useCallback((enhancedPrompt: string) => {
     const activeComposer = composerRef.current;
-    let previousDraft = activeComposer.text;
-    activeComposer.updateText((current) => {
-      previousDraft = current;
-      return enhancedPrompt;
-    });
+    const previousDraft = activeComposer.text;
+    activeComposer.setText(enhancedPrompt);
     setUndoState({
       scopeKey: composerScopeKeyRef.current,
       enhancedPrompt,
@@ -290,6 +405,9 @@ function PromptShaperAction({
     ): Promise<ReconcileOutcome> => {
       const active = pendingRef.current;
       if (active === null || active.requestId !== requestId) return "ignored";
+      if (active.cancellationRequested || isSubmittingRef.current) {
+        return "ignored";
+      }
       if (
         cancellingRequestIdRef.current === requestId &&
         !options.allowDuringCancellation
@@ -299,6 +417,7 @@ function PromptShaperAction({
 
       const record = await rpc.call("getEnhancement", { requestId });
       if (pendingRef.current !== active) return "ignored";
+      if (isSubmittingRef.current) return "ignored";
       if (
         cancellingRequestIdRef.current === requestId &&
         !options.allowDuringCancellation
@@ -316,8 +435,9 @@ function PromptShaperAction({
           (durable ?? active).startup === "acknowledged";
         const startupGraceExpired =
           Date.now() - (durable ?? active).createdAt >= STARTUP_GRACE_MS;
-        const startupIsLocallyInFlight =
-          locallyStartingRequestIds.has(active.requestId);
+        const startupIsLocallyInFlight = locallyStartingRequestIds.has(
+          active.requestId,
+        );
         if (
           options.clearIfAbsent ||
           markerWasRemoved ||
@@ -335,11 +455,9 @@ function PromptShaperAction({
       }
       if (record.status === "running") return "running";
 
-      // A composer change is visible during render before the passive scope
-      // reconciliation effect moves pendingRef to the destination scope. Do
-      // not delete the source scope's durable request in that window. Thread
-      // navigation can recover and consume the terminal result on return;
-      // non-thread scope changes are still cleared/cancelled by reconciliation.
+      // The keyed host lifecycle normally detaches pendingRef before a new
+      // scope mounts. Keep this guard for test harnesses or alternate hosts
+      // that can expose a new composer before unmount cleanup runs.
       if (active.scopeKey !== composerScopeKeyRef.current) {
         clearLoadingEffects();
         return "ignored";
@@ -387,19 +505,29 @@ function PromptShaperAction({
 
   const enhance = useCallback(async () => {
     const draft = composer.text;
-    if (projectId === null || draft.trim().length === 0 || pendingRef.current) {
+    if (
+      projectId === null ||
+      !canStartEnhancement({
+        draft,
+        hasPendingRequest: pendingRef.current !== null,
+        isSubmitting: view.run.isSubmitting,
+        projectId,
+      })
+    ) {
       return;
     }
 
     const request: PendingRequest = {
+      cancellationRequested: false,
       createdAt: Date.now(),
       requestId: crypto.randomUUID(),
       scopeKey: composerScopeKey,
       startup: "starting",
     };
     setUndoState(null);
-    composer.setTextEffect?.("shimmer");
-    composer.setThreadRowStatus?.(THREAD_ROW_STATUS);
+    composer.setTextEffect(PROMPT_SHIMMER_EFFECT);
+    composer.setInputLock(true);
+    composer.setThreadRowStatus(THREAD_ROW_STATUS);
     setPendingRequest(request);
     locallyStartingRequestIds.add(request.requestId);
 
@@ -412,11 +540,15 @@ function PromptShaperAction({
       });
       locallyStartingRequestIds.delete(request.requestId);
 
+      const stored = loadPendingRequest(request.scopeKey);
       const acknowledgedRequest: PendingRequest = {
         ...request,
+        cancellationRequested:
+          stored?.requestId === request.requestId
+            ? stored.cancellationRequested
+            : false,
         startup: "acknowledged",
       };
-      const stored = loadPendingRequest(request.scopeKey);
       if (stored?.requestId === request.requestId) {
         savePendingRequest(acknowledgedRequest);
       }
@@ -426,11 +558,16 @@ function PromptShaperAction({
       }
     } catch (error) {
       locallyStartingRequestIds.delete(request.requestId);
-      // Startup can fail after navigation has detached this component. Clear
-      // the exact durable marker even when this instance no longer owns the
-      // active composer, or returning would recover a request the server never
-      // created and leave the action running indefinitely.
-      clearPendingRequest(request);
+      // Startup can fail after this instance has detached. Preserve a durable
+      // cancellation intent until the cancellation RPC acknowledges it;
+      // otherwise clear a request that the server never created.
+      const durable = loadPendingRequest(request.scopeKey);
+      if (
+        durable?.requestId !== request.requestId ||
+        !durable.cancellationRequested
+      ) {
+        clearPendingRequest(request);
+      }
       if (pendingRef.current !== request) return;
       clearLoadingEffects();
       setPendingRequest(null);
@@ -458,6 +595,7 @@ function PromptShaperAction({
     rpc,
     setPendingRequest,
     threadId,
+    view.run.isSubmitting,
   ]);
 
   const cancel = useCallback(async () => {
@@ -513,17 +651,22 @@ function PromptShaperAction({
   }, [clearLoadingEffects, consumeResult, rpc, setPendingRequest]);
 
   const isDisabled =
-    !isRunning && (projectId === null || composer.text.trim().length === 0);
+    !isRunning &&
+    !canStartEnhancement({
+      draft: view.draft.text,
+      hasPendingRequest: pendingRef.current !== null,
+      isSubmitting: view.run.isSubmitting,
+      projectId,
+    });
   const actionLabel = isRunning
     ? "Cancel prompt improvement"
     : "Improve prompt";
   const controlLabel = canUndo ? "Undo prompt" : actionLabel;
-  const iconName =
-    isRunning
-      ? showCancelIcon
-        ? "X"
-        : "AiContentGenerator01"
-      : "AiContentGenerator01";
+  const iconName = isRunning
+    ? showCancelIcon
+      ? "X"
+      : "AiContentGenerator01"
+    : "AiContentGenerator01";
 
   return (
     <TooltipProvider delayDuration={300}>
@@ -538,8 +681,8 @@ function PromptShaperAction({
                 canUndo
                   ? "h-7 w-auto gap-1 px-1.5 text-muted-foreground"
                   : isRunning && !showCancelIcon
-                  ? "size-7 text-success"
-                  : "size-7 text-muted-foreground"
+                    ? "size-7 text-success"
+                    : "size-7 text-muted-foreground"
               }
               disabled={isDisabled}
               aria-busy={isRunning}
@@ -562,7 +705,11 @@ function PromptShaperAction({
                   undo();
                   return;
                 }
-                void (isRunning ? cancel() : enhance());
+                if (isRunning) {
+                  void cancel();
+                  return;
+                }
+                void enhance();
               }}
             >
               {canUndo ? (
@@ -601,8 +748,8 @@ function PromptShaperAction({
 }
 
 export default definePluginApp((app) => {
-  app.slots.composerAccessory({
-    id: "enhance-prompt",
-    component: PromptShaperAction,
+  app.composer.customize({
+    id: "improve-prompt",
+    actions: [{ id: "improve", component: PromptShaperAction }],
   });
 });

@@ -129,7 +129,7 @@ export async function checkRepository(repositoryRoot = defaultRoot, options = {}
       `${slug}: dist missing from package files`,
     );
     assert(manifest.files.includes("README.md"), `${slug}: README missing from package files`);
-    assert(manifest.engines?.bb === ">=0.0.32", `${slug}: bb engine drift`);
+    assert(manifest.engines?.bb === ">=0.0.34", `${slug}: bb engine drift`);
     assert(manifest.engines?.bbPluginSdk === "^0.4.0", `${slug}: SDK engine drift`);
     assert(pluginReadme.startsWith(`# ${name}\n`), `${slug}: README title drift`);
     for (const heading of ["## Install", "## Use", "## Develop"]) {
@@ -183,6 +183,20 @@ export async function checkRepository(repositoryRoot = defaultRoot, options = {}
   const sdkArchive = await readFile(resolve(root, "tooling/vendor", sdkRecord.archive));
   const sdkHash = createHash("sha256").update(sdkArchive).digest("hex");
   assert(sdkHash === sdkRecord.sha256, "vendored plugin SDK hash mismatch");
+
+  const pluginBuildProvenance = await readJson(
+    resolve(root, "tooling/vendor/plugin-build-provenance.json"),
+  );
+  const pluginBuildBundle = await readFile(
+    resolve(root, "tooling/vendor", pluginBuildProvenance.bundle),
+  );
+  const pluginBuildHash = createHash("sha256")
+    .update(pluginBuildBundle)
+    .digest("hex");
+  assert(
+    pluginBuildHash === pluginBuildProvenance.sha256,
+    "vendored plugin builder hash mismatch",
+  );
 
   return { pluginCount: plugins.length };
 }

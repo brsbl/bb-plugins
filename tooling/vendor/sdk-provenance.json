@@ -1,8 +1,8 @@
 {
   "package": "@bb/plugin-sdk@0.4.0",
   "sourceRepository": "https://github.com/ymichael/bb",
-  "sourceCommit": "6e72cd0276947b400b4e5862668d855051ba2060",
+  "sourceCommit": "50b7502301573ef296fbf0e2bfaa2ffad9678aaa",
   "sourcePath": "packages/plugin-sdk",
   "archive": "bb-plugin-sdk-0.4.0.tgz",
-  "sha256": "e77c2dcc0d21601dec22364b8438f0157a30f3eeeda28c722932775249ee5fa0"
+  "sha256": "609a14cded3a096939a91cb280d7549a67511d8ba979290f8dff79ba1ad751a9"
 }

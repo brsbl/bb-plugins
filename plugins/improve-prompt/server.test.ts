@@ -141,7 +141,7 @@ describe("Improve Prompt cancellation", () => {
     const harness = await createHarness();
     await harness.rpc.startEnhancement(START_INPUT);
     expect(harness.threads.spawn).toHaveBeenCalledWith(
-      expect.objectContaining({ permissionMode: "workspace-write" }),
+      expect.objectContaining({ permissionMode: "auto" }),
     );
 
     await expect(

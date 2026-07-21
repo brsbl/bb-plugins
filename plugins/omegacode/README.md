@@ -14,7 +14,7 @@ bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/omegacode -
 
 ## Use
 
-Open Omegacode from the bb sidebar to scan workflows across threads or jump back to the thread that owns one. In the CLI, `bb omegacode status` shows the current thread's run; add `--all` to see everything on the machine.
+Open Omegacode from the bb sidebar to scan workflows across threads and jump to an owning thread. A compact banner appears in bb's composer card stack only for the thread that launched an active run. BB owns the card chrome and stack layout, while the plugin supplies the live workflow content and expandable worker details. Use `bb omegacode status`; add `--all` for the machine-wide CLI view.
 
 ## How it was built
 
