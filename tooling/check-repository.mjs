@@ -136,7 +136,11 @@ export async function checkRepository(repositoryRoot = defaultRoot, options = {}
       `${entry.slug}: dist missing from package files`,
     );
     assert(manifest.files.includes("README.md"), `${entry.slug}: README missing from package files`);
-    assert(manifest.engines?.bb === ">=0.0.32", `${entry.slug}: bb engine drift`);
+    const expectedBbEngine =
+      entry.slug === "improve-prompt" || entry.slug === "omegacode"
+        ? ">=0.0.34"
+        : ">=0.0.32";
+    assert(manifest.engines?.bb === expectedBbEngine, `${entry.slug}: bb engine drift`);
     assert(manifest.engines?.bbPluginSdk === "^0.4.0", `${entry.slug}: SDK engine drift`);
     assert(pluginReadme.startsWith(`# ${entry.name}\n`), `${entry.slug}: README title drift`);
     for (const heading of ["## Install", "## Use", "## Develop"]) {
@@ -182,14 +186,19 @@ export async function checkRepository(repositoryRoot = defaultRoot, options = {}
       `${entry.slug}: nested plugin .github/workflows is not allowed`,
     );
 
-    for (const typeFile of ["bb-plugin-sdk.d.ts", "bb-plugin-sdk-app.d.ts"]) {
-      const localPath = resolve(directory, "types", typeFile);
-      const local = await readFile(localPath, "utf8");
-      const authoritative = await readFile(
-        resolve(bundledTypesDirectory, typeFile),
-        "utf8",
-      );
-      assert(local === authoritative, `${entry.slug}: ${typeFile} is out of sync`);
+    if (manifest.engines.bb === ">=0.0.34") {
+      for (const typeFile of ["bb-plugin-sdk.d.ts", "bb-plugin-sdk-app.d.ts"]) {
+        const localPath = resolve(directory, "types", typeFile);
+        const local = await readFile(localPath, "utf8");
+        const authoritative = await readFile(
+          resolve(bundledTypesDirectory, typeFile),
+          "utf8",
+        );
+        assert(
+          local === authoritative,
+          `${entry.slug}: ${typeFile} is out of sync`,
+        );
+      }
     }
   }
 
@@ -215,6 +224,24 @@ export async function checkRepository(repositoryRoot = defaultRoot, options = {}
   const sdkArchive = await readFile(resolve(root, "tooling/vendor", sdkProvenance.archive));
   const sdkHash = createHash("sha256").update(sdkArchive).digest("hex");
   assert(sdkHash === sdkProvenance.sha256, "vendored plugin SDK hash mismatch");
+
+  const pluginBuildProvenance = await readJson(
+    resolve(root, "tooling/vendor/plugin-build-provenance.json"),
+  );
+  assert(
+    provenance.includes(pluginBuildProvenance.sourceCommit),
+    "plugin builder source commit missing from provenance",
+  );
+  const pluginBuildBundle = await readFile(
+    resolve(root, "tooling/vendor", pluginBuildProvenance.bundle),
+  );
+  const pluginBuildHash = createHash("sha256")
+    .update(pluginBuildBundle)
+    .digest("hex");
+  assert(
+    pluginBuildHash === pluginBuildProvenance.sha256,
+    "vendored plugin builder hash mismatch",
+  );
 
   return { pluginCount: catalog.plugins.length };
 }

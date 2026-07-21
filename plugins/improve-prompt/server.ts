@@ -91,12 +91,6 @@ function canFallBackFromSideChat(error: unknown): boolean {
 }
 
 export default async function plugin(bb: BbPluginApi) {
-  // bb's current wire contract uses `workspace-write`; the pinned 0.4 SDK
-  // declarations still expose the older internal permission names.
-  const workspaceWritePermission = "workspace-write" as unknown as NonNullable<
-    Parameters<typeof bb.sdk.threads.spawn>[0]["permissionMode"]
-  >;
-
   async function readRecord(
     requestId: string,
   ): Promise<EnhancementRecord | null> {
@@ -220,7 +214,7 @@ export default async function plugin(bb: BbPluginApi) {
         projectId: input.projectId,
         prompt: buildWorkerPrompt({ draft: input.draft }),
         environment: { type: "project-default" },
-        permissionMode: workspaceWritePermission,
+        permissionMode: "auto",
         visibility: "hidden",
         title: "Improve Prompt",
       });
@@ -250,7 +244,7 @@ export default async function plugin(bb: BbPluginApi) {
           model: execution.model,
           reasoningLevel: execution.reasoningLevel,
           serviceTier: execution.serviceTier,
-          permissionMode: workspaceWritePermission,
+          permissionMode: "auto",
           sourceThreadId: input.sourceThreadId,
           originKind: "side-chat",
           visibility: "hidden",
@@ -280,7 +274,7 @@ export default async function plugin(bb: BbPluginApi) {
             reasoningLevel: execution.reasoningLevel,
             serviceTier: execution.serviceTier,
           }),
-      permissionMode: workspaceWritePermission,
+      permissionMode: "auto",
       visibility: "hidden",
       title: "Improve Prompt",
     });

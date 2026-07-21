@@ -5,7 +5,7 @@
   "pluginId": "prompt-shaper",
   "pluginVersion": "0.1.0",
   "builtWith": {
-    "bbVersion": "0.0.32",
+    "bbVersion": "0.0.0-dev",
     "pluginSdkVersion": "0.4.0"
   }
 }

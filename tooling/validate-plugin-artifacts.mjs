@@ -162,9 +162,12 @@ function requirePacked(files, path, directory) {
 export async function validatePluginArtifacts(pluginDirectory, options = {}) {
   const directory = resolve(pluginDirectory);
   const manifest = await readJson(resolve(directory, "package.json"));
-  const rootManifest = await readJson(resolve(repositoryRoot, "package.json"));
   const id = expectedPluginId(manifest.name);
-  const bbVersion = options.bbVersion ?? rootManifest.devDependencies["bb-app"];
+  const bbVersion =
+    options.bbVersion ?? manifest.engines.bb.match(/\d+\.\d+\.\d+/)?.[0];
+  if (bbVersion === undefined) {
+    throw new Error(`${directory}: engines.bb has no concrete minimum version`);
+  }
 
   if (options.expectedId && id !== options.expectedId) {
     throw new Error(`${directory}: expected plugin id ${options.expectedId}`);

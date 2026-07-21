@@ -5,9 +5,6 @@ export default defineConfig({
   resolve: {
     alias: {
       "@": fileURLToPath(new URL(".", import.meta.url)),
-      "@bb/plugin-sdk/app": fileURLToPath(
-        new URL("./test/plugin-sdk-app.ts", import.meta.url),
-      ),
     },
   },
 });

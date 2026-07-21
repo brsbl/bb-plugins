@@ -23,6 +23,9 @@
   },
   "devDependencies": {
     "@bb/plugin-sdk": "file:tooling/vendor/bb-plugin-sdk-0.4.0.tgz",
-    "bb-app": "0.0.32"
+    "@tailwindcss/node": "^4.3.0",
+    "@tailwindcss/oxide": "^4.3.0",
+    "esbuild": "^0.28.0",
+    "tailwindcss": "^4.3.0"
   }
 }

@@ -1,12 +1,12 @@
 // @vitest-environment jsdom
 
-import { cleanup, fireEvent, screen } from "@testing-library/react";
+import { cleanup, fireEvent, screen, waitFor } from "@testing-library/react";
 import type { PluginNavPanelProps } from "@bb/plugin-sdk";
 import { loadPluginApp, renderSlot } from "@bb/plugin-sdk/testing/app";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { workerActivitySummary } from "./presentation";
-import type { GlobalRun, rpcContract } from "./server";
+import type { GlobalRun, Run, rpcContract } from "./server";
 
 function run(overrides: Partial<GlobalRun>): GlobalRun {
   return {
@@ -144,6 +144,11 @@ const RUNS: GlobalRun[] = [
   }),
 ];
 
+function threadRun(globalRun: GlobalRun): Run {
+  const { owner: _owner, ...run } = globalRun;
+  return run;
+}
+
 afterEach(() => cleanup());
 
 describe("Omegacode global workflow page", () => {
@@ -236,7 +241,12 @@ describe("Omegacode global workflow page", () => {
     const app = await loadPluginApp(() => import("./app"));
     expect(app.navPanels).toHaveLength(1);
     expect(app.navPanels[0]?.title).toBe("Omegacode");
-    expect(app.composerAccessories).toHaveLength(1);
+    expect(app.composerCustomizations).toHaveLength(1);
+    expect(app.composerCustomizations[0]).toMatchObject({
+      id: "omegacode-banner",
+      scopes: ["thread"],
+      banners: [{ id: "workflow", chrome: "card" }],
+    });
 
     const panel = app.navPanels[0]!;
     const rendered = renderSlot<PluginNavPanelProps, typeof rpcContract>(
@@ -250,34 +260,127 @@ describe("Omegacode global workflow page", () => {
       },
     );
 
-    expect(await screen.findByRole("heading", { name: "Across threads" })).not.toBeNull();
+    expect(
+      await screen.findByRole("heading", { name: "Across threads" }),
+    ).not.toBeNull();
     expect(screen.getByRole("heading", { name: "Active" })).not.toBeNull();
-    expect(screen.getByRole("heading", { name: "Needs attention" })).not.toBeNull();
-    expect(screen.getByText("Review the release before it ships.")).not.toBeNull();
-    expect(screen.getByText("Omegacode is coordinating 1 worker across Audit.")).not.toBeNull();
-    expect(screen.getAllByText(/Audit package is working in Audit/)).toHaveLength(2);
-    expect(screen.getByRole("button", { name: "Completed workflows" }).getAttribute("aria-expanded")).toBe("false");
-    expect(screen.getByRole("button", { name: "Canceled workflows" }).getAttribute("aria-expanded")).toBe("false");
+    expect(
+      screen.getByRole("heading", { name: "Needs attention" }),
+    ).not.toBeNull();
+    expect(
+      screen.getByText("Review the release before it ships."),
+    ).not.toBeNull();
+    expect(
+      screen.getByText("Omegacode is coordinating 1 worker across Audit."),
+    ).not.toBeNull();
+    expect(
+      screen.getAllByText(/Audit package is working in Audit/),
+    ).toHaveLength(2);
+    expect(
+      screen
+        .getByRole("button", { name: "Completed workflows" })
+        .getAttribute("aria-expanded"),
+    ).toBe("false");
+    expect(
+      screen
+        .getByRole("button", { name: "Canceled workflows" })
+        .getAttribute("aria-expanded"),
+    ).toBe("false");
     expect(screen.queryByText("Inventory")).toBeNull();
     expect(screen.queryByText("Cleanup")).toBeNull();
 
-    fireEvent.click(screen.getByRole("button", { name: "Completed workflows" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Completed workflows" }),
+    );
     expect(screen.getByText("Inventory")).not.toBeNull();
-    expect(screen.getByText(/Outside bb · launched from local Omegacode · Source: inventory.workflow.js/)).not.toBeNull();
-    expect(screen.queryByRole("button", { name: "Show details for Inventory" })).toBeNull();
+    expect(
+      screen.getByText(
+        /Outside bb · launched from local Omegacode · Source: inventory.workflow.js/,
+      ),
+    ).not.toBeNull();
+    expect(
+      screen.queryByRole("button", { name: "Show details for Inventory" }),
+    ).toBeNull();
 
     fireEvent.click(screen.getByRole("button", { name: "Canceled workflows" }));
     expect(screen.getByText("Cleanup")).not.toBeNull();
 
-    fireEvent.click(screen.getByRole("button", { name: "Open Release review's thread Plugin consolidation" }));
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Open Release review's thread Plugin consolidation",
+      }),
+    );
     expect(rendered.inspection.navigateCalls).toContainEqual({
       method: "toThread",
       threadId: "thr_owner",
     });
 
-    fireEvent.click(screen.getByRole("button", { name: "Show details for Release review" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Show details for Release review" }),
+    );
     expect(screen.getByText("Verify install")).not.toBeNull();
 
     rendered.lifecycle.unmount();
   }, 120_000);
+});
+
+describe("Omegacode composer workflow banner", () => {
+  it("registers card chrome and renders the owner-scoped workflow", async () => {
+    const app = await loadPluginApp(() => import("./app"));
+    const banner = app.composerCustomizations[0]?.banners?.[0];
+    expect(banner).toBeDefined();
+    if (!banner) throw new Error("workflow banner was not registered");
+
+    const rendered = renderSlot<Record<string, never>, typeof rpcContract>(
+      banner,
+      {},
+      {
+        composer: {
+          scope: { kind: "thread", threadId: "thr_owner" },
+        },
+        rpc: {
+          runs: ({ threadId }) => {
+            expect(threadId).toBe("thr_owner");
+            return { runs: [threadRun(RUNS[0]!)], scannedAt: 300 };
+          },
+          allRuns: () => ({ runs: RUNS, scannedAt: 300 }),
+        },
+      },
+    );
+
+    expect(await screen.findByText("Running workflow")).not.toBeNull();
+    expect(screen.getByText("Release review")).not.toBeNull();
+    expect(rendered.inspection.rpcCalls[0]).toEqual({
+      method: "runs",
+      input: { threadId: "thr_owner" },
+    });
+
+    fireEvent.click(screen.getByRole("button", { expanded: false }));
+    expect(screen.getByText("Verify install")).not.toBeNull();
+    rendered.lifecycle.unmount();
+  });
+
+  it("renders nothing when the thread has no active workflow", async () => {
+    const app = await loadPluginApp(() => import("./app"));
+    const banner = app.composerCustomizations[0]?.banners?.[0];
+    if (!banner) throw new Error("workflow banner was not registered");
+
+    const rendered = renderSlot<Record<string, never>, typeof rpcContract>(
+      banner,
+      {},
+      {
+        composer: {
+          scope: { kind: "thread", threadId: "thr_idle" },
+        },
+        rpc: {
+          runs: () => ({ runs: [], scannedAt: 300 }),
+          allRuns: () => ({ runs: RUNS, scannedAt: 300 }),
+        },
+      },
+    );
+
+    await waitFor(() => expect(rendered.inspection.rpcCalls).toHaveLength(1));
+    expect(rendered.container.textContent).toBe("");
+    rendered.lifecycle.unmount();
+  });
 });
