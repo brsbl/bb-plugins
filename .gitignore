@@ -13,4 +13,5 @@ plugins/.scaffold-smoke-*
 **/maintenance/*.lock
 .bb-evidence-state.json
 .bb-evidence-state.json.lock
+seed-evidence.json
 seed-evidence.jsonl

@@ -35,7 +35,7 @@ npm run check --workspace=bb-plugin-design-doctrine
 bb plugin install "path:$PWD/plugins/design-doctrine" --yes
 ```
 
-**Adapt it to your own history.** [`maintenance/bootstrap-prompt.md`](maintenance/bootstrap-prompt.md) is one copy/paste prompt that forks the repo, seeds evidence from your bb threads, rebuilds `rules/` from your own feedback, and schedules the recurring refresh. To preview that evidence first, the shared reader emits redacted, checkpointed history you can inspect before committing anything:
+**Adapt it to your own history.** [`maintenance/bootstrap-prompt.md`](maintenance/bootstrap-prompt.md) is one copy/paste prompt that forks the repo, seeds evidence from your bb threads, rebuilds `rules/` from your own feedback, and schedules the recurring refresh. To preview that evidence first, the shared reader emits best-effort-redacted, checkpointed history to inspect before you decide what anonymous signal to keep:
 
 ```bash
 node ../../tooling/bb-history.mjs scan --state ./.bb-evidence-state.json --format jsonl

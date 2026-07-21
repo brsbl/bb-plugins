@@ -21,9 +21,12 @@ Only your own messages are evidence — never agent output, including your own.
      --require-clean skills/prompt-shaper
    ```
 
-   The reader redacts identifiers, URLs, secrets, and local paths and skips
-   relayed `[bb ...]` messages. If it returns no messages, history is caught up:
-   report that and stop; do not call `advance`.
+   The reader's redaction of identifiers, URLs, secrets, and local paths is
+   best-effort, and relayed `[bb ...]` messages are skipped. Stop only when
+   `lease_id` is null — that means history is caught up. A non-null `lease_id`
+   with zero messages is a no-change batch: skipped relays still moved the
+   cursor, so make no edits and advance it (step 5) as a verified no-change
+   decision rather than stalling on the relays.
 
 2. Keep only durable signal. Count a signal only if it repeats — a correction
    you made more than once, or a shape you consistently accept or reject. Ignore

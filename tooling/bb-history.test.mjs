@@ -193,9 +193,23 @@ test("ensureCleanTree refuses to run over uncommitted artifact work", () => {
   assert.throws(() => ensureCleanTree(["rules-wip.md"], dir), /uncommitted work/);
 });
 
-test("scan refuses to reuse a stale in-file cursor as evidence (no cursor regression)", () => {
+test("lease-id semantics: no new rows means caught up (null lease, cursor unchanged)", () => {
   const state = { version: 1, cursor: { created_at: 4000, segment_id: "seg_0005" } };
   const { envelope } = buildScan(rows, state, { now: 1 });
   assert.equal(envelope.message_count, 0);
+  assert.equal(envelope.lease_id, null); // caught up: stop signal
   assert.deepEqual(envelope.cursor_commit, state.cursor);
+});
+
+test("lease-id semantics: an all-relay batch advances the cursor with a non-null lease and zero messages", () => {
+  // Skipped relays must still move the cursor, so message_count 0 does NOT mean
+  // caught up — the lease is non-null and the cursor advances past the relays.
+  const relayRows = [
+    { id: "r1", thread_id: "t", source_kind: "user_message", created_at: 10, text: "[bb message from thread:thr_x] continue", project_id: "p", title: "T" },
+    { id: "r2", thread_id: "t", source_kind: "user_message", created_at: 20, text: "[bb system] note", project_id: "p", title: "T" },
+  ];
+  const { envelope } = buildScan(relayRows, { version: 1, cursor: null }, { now: 1 });
+  assert.equal(envelope.message_count, 0);
+  assert.notEqual(envelope.lease_id, null); // a no-change batch to advance, not caught up
+  assert.deepEqual(envelope.cursor_commit, { created_at: 20, segment_id: "r2" });
 });

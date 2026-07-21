@@ -19,7 +19,11 @@ const here = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(here, "..");
 const iface = JSON.parse(readFileSync(resolve(here, "bootstrap/automation-interface.json"), "utf8"));
 
-// A deep clone of the real catalog to mutate in negative tests.
+// A snippet that exercises the whole current interface (create form + working
+// help form + valid mode), the way a real generated prompt does.
+const GOOD =
+  'bb plugin run automations create --permission-mode full ... bb plugin run automations help --project <id>';
+
 function cloneCatalog() {
   return JSON.parse(readFileSync(resolve(repoRoot, "catalog/plugins.json"), "utf8"));
 }
@@ -30,30 +34,46 @@ test("renderTemplate fills tokens and rejects missing ones", () => {
 });
 
 test("validateAutomationInterface accepts the current interface", () => {
-  assert.deepEqual(validateAutomationInterface("bb plugin run automations create --permission-mode full", iface), []);
-  assert.deepEqual(validateAutomationInterface("bb plugin run automations create --permission-mode accept-edits", iface), []);
+  assert.deepEqual(validateAutomationInterface(GOOD, iface), []);
+  assert.deepEqual(
+    validateAutomationInterface(GOOD.replace("--permission-mode full", "--permission-mode accept-edits"), iface),
+    [],
+  );
 });
 
 test("validateAutomationInterface catches stale modes and deprecated commands", () => {
   assert.match(
-    validateAutomationInterface("bb plugin run automations create --permission-mode workspace-write", iface).join(),
+    validateAutomationInterface(GOOD.replace("full", "workspace-write"), iface).join(),
     /legacy permission mode "workspace-write"/,
   );
   assert.match(
-    validateAutomationInterface("bb plugin run automations create --permission-mode readonly", iface).join(),
+    validateAutomationInterface(GOOD.replace("full", "readonly"), iface).join(),
     /legacy permission mode "readonly"/,
   );
   assert.match(
-    validateAutomationInterface("bb plugin run automations create --permission-mode nope", iface).join(),
+    validateAutomationInterface(GOOD.replace("full", "nope"), iface).join(),
     /unknown permission mode "nope"/,
   );
   assert.match(
-    validateAutomationInterface("bb automations create --permission-mode full", iface).join(),
+    validateAutomationInterface(`bb automations create --permission-mode full ${iface.command.helpForm}`, iface).join(),
     /deprecated command "bb automations create"/,
   );
   assert.match(
-    validateAutomationInterface("bb plugin run automations create --provider x", iface).join(),
+    validateAutomationInterface(`${iface.command.createForm} --provider x ${iface.command.helpForm}`, iface).join(),
     /no --permission-mode/,
+  );
+});
+
+test("validateAutomationInterface requires the working help form and rejects the broken one", () => {
+  // Missing the working `help --project` form.
+  assert.match(
+    validateAutomationInterface("bb plugin run automations create --permission-mode full", iface).join(),
+    /missing working help form "bb plugin run automations help --project"/,
+  );
+  // Uses the 0.0.32-broken `create --help` form.
+  assert.match(
+    validateAutomationInterface(`${GOOD} bb plugin run automations create --help`, iface).join(),
+    /non-working help form "bb plugin run automations create --help"/,
   );
 });
 
@@ -61,16 +81,30 @@ test("committed bootstrap variants are in sync with the catalog + template (drif
   assert.doesNotThrow(() => checkBootstrapPrompts(repoRoot));
 });
 
+test("the seed evidence file each prompt writes is gitignored", () => {
+  const { template, catalog } = loadConfig(repoRoot);
+  const ignored = new Set(
+    readFileSync(resolve(repoRoot, ".gitignore"), "utf8")
+      .split("\n")
+      .map((line) => line.trim()),
+  );
+  for (const variant of variantsFromCatalog(catalog)) {
+    const text = renderVariant(template, variant, iface);
+    const match = text.match(/>\s*(seed-evidence\.\S+)/);
+    assert.ok(match, `${variant.key}: seed writes an evidence file`);
+    assert.ok(ignored.has(match[1]), `${variant.key}: ${match[1]} must be listed in .gitignore`);
+  }
+});
+
 test("variants derive from the canonical catalog inventory, no second list", () => {
   const { catalog } = loadConfig(repoRoot);
   const variants = variantsFromCatalog(catalog);
   assert.deepEqual(variants.map((v) => v.key).sort(), ["design-doctrine", "improve-prompt"]);
-  // Every variant value traces to a catalog field.
   const dd = catalog.plugins.find((p) => p.slug === "design-doctrine");
   const variant = variants.find((v) => v.key === "design-doctrine");
   assert.equal(variant.values.PLUGIN_NAME, dd.name);
-  assert.equal(variant.values.PACKAGE_NAME, dd.packageName);
-  assert.equal(variant.values.PLUGIN_README, `${dd.source}/README.md`);
+  assert.equal(variant.values.STATE_PATH, dd.personalization.statePath);
+  assert.equal(variant.values.ARTIFACT_PATH, dd.personalization.artifactPath);
   assert.equal(variant.output, `${dd.source}/maintenance/bootstrap-prompt.md`);
 });
 
@@ -85,7 +119,7 @@ test("a non-history plugin carrying personalization is rejected", () => {
   const catalog = cloneCatalog();
   const omega = catalog.plugins.find((p) => p.pluginId === "omega");
   omega.personalization = {
-    artifact: "x", artifactTree: "x", maintenanceDoc: "x", adaptInstruction: "x", automationName: "x",
+    artifact: "x", artifactTree: "x", artifactPath: "x", maintenanceDoc: "x", statePath: "x", adaptInstruction: "x", automationName: "x",
   };
   assert.throws(() => validateCatalogPersonalization(catalog), /omegacode carries personalization but is not history-personalizable/);
 });
@@ -96,26 +130,47 @@ test("a missing history plugin's personalization is rejected", () => {
   assert.throws(() => validateCatalogPersonalization(catalog), /must be on exactly/);
 });
 
-test("an incomplete personalization block is rejected", () => {
+test("an incomplete personalization block is rejected (statePath required)", () => {
   const catalog = cloneCatalog();
-  delete catalog.plugins.find((p) => p.pluginId === "design-doctrine").personalization.artifact;
-  assert.throws(() => validateCatalogPersonalization(catalog), /missing "artifact"/);
+  delete catalog.plugins.find((p) => p.pluginId === "design-doctrine").personalization.statePath;
+  assert.throws(() => validateCatalogPersonalization(catalog), /missing "statePath"/);
 });
 
-test("each rendered prompt instructs all required bootstrap steps", () => {
+test("each rendered prompt instructs all required bootstrap steps and workflow fixes", () => {
   const { template, catalog } = loadConfig(repoRoot);
   for (const variant of variantsFromCatalog(catalog)) {
     const text = renderVariant(template, variant, iface);
-    // 1 fork, 2 seed evidence, 3 adapt plugin + skill, 4 install/test, 5 ongoing automation,
-    // 6 checkpoint/concurrency/dirty/report, 7 current commands+modes, 8 reference repo docs.
+    const p = catalog.plugins.find((x) => x.slug === variant.key).personalization;
+    // 1 fork, 2 seed via the maintenance checkpoint, 3 adapt, 4 install/test,
+    // 5 initial commit+advance/release, 6 ongoing automation, 7 safety, 8 reference.
     assert.match(text, /Fork and clone brsbl\/bb-plugins/, `${variant.key}: fork`);
-    assert.match(text, /tooling\/bb-history\.mjs scan/, `${variant.key}: seed evidence`);
     assert.match(text, /Adapt the plugin and its companion skill/, `${variant.key}: adapt`);
     assert.match(text, /npm run check --workspace=/, `${variant.key}: install/test`);
-    assert.match(text, /bb plugin run automations create/, `${variant.key}: ongoing automation`);
-    assert.match(text, /saved cursor|lease|uncommitted work|advance the cursor only after/, `${variant.key}: checkpoint safety`);
-    assert.match(text, /--permission-mode full/, `${variant.key}: current permission mode`);
     assert.match(text, /tooling\/README\.md, and docs\/provenance\.md/, `${variant.key}: reference docs`);
     assert.doesNotMatch(text, /\{\{[A-Z0-9_]+\}\}/, `${variant.key}: no leftover tokens`);
+
+    // 1) Persistent --environment on the automation.
+    assert.match(text, /--environment "\$PWD"/, `${variant.key}: persistent environment`);
+
+    // 2) Seed uses the exact maintenance checkpoint, not a root scratch file.
+    assert.match(
+      text,
+      new RegExp(`bb-history\\.mjs scan --state ${p.statePath.replace(/[.]/g, "\\.")}`),
+      `${variant.key}: seed uses maintenance checkpoint`,
+    );
+    assert.doesNotMatch(text, /\.bb-evidence-state\.json/, `${variant.key}: no root scratch checkpoint`);
+
+    // 3) Stage (new untracked files) + commit the plugin-owned artifact, then advance/release.
+    assert.match(text, new RegExp(`git add -- ${p.artifactPath.replace(/[/]/g, "\\/")}`), `${variant.key}: git add artifact before commit`);
+    assert.match(text, new RegExp(`git commit --only[^\\n]*-- ${p.artifactPath.replace(/[/]/g, "\\/")}`), `${variant.key}: initial artifact commit`);
+    assert.match(text, /bb-history\.mjs advance --state /, `${variant.key}: advance seed cursor`);
+    assert.match(text, /bb-history\.mjs release --state /, `${variant.key}: release on failure`);
+    assert.match(text, /null lease_id/, `${variant.key}: null-lease caught-up rule`);
+    assert.match(text, /verified no-change batch[^]*skip the add and commit but still advance/, `${variant.key}: no-change skips commit but advances`);
+
+    // 5/7) Current commands + working help form, no broken help form or legacy mode.
+    assert.match(text, /--permission-mode full/, `${variant.key}: current permission mode`);
+    assert.match(text, /bb plugin run automations help --project/, `${variant.key}: working help form`);
+    assert.doesNotMatch(text, /bb plugin run automations create --help/, `${variant.key}: no broken help form`);
   }
 });

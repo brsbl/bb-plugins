@@ -28,7 +28,7 @@ The root tooling makes every plugin follow the same build, validation, scaffoldi
 
 ## History personalization
 
-Two plugins are personalizable from bb thread history — Design Doctrine (its rule library) and Improve Prompt (its `prompt-shaper` skill). They share one repository-owned reader and one bootstrap-prompt template so history is a practical, safe input instead of forked query and checkpoint logic.
+Two plugins are personalizable from bb thread history — Design Doctrine (its rule library) and Improve Prompt (its `prompt-shaper` skill). They share one repository-owned reader and one bootstrap-prompt template so history is a practical input instead of forked query and checkpoint logic.
 
 [`bb-history.mjs`](bb-history.mjs) reads bb's local database (or a `--fixture` JSONL file) read-only and prints new history as previewable JSON or JSONL:
 
@@ -37,7 +37,7 @@ Two plugins are personalizable from bb thread history — Design Doctrine (its r
 | Incremental queries | A saved `--state` checkpoint with a `(created_at, segment_id)` cursor. |
 | Project / thread / time filters | `--project`, `--thread`, `--since`, `--until`. |
 | Concurrency protection | A lease in the state plus a state lock, so two refreshes never advance the same cursor. |
-| Redaction | On by default: emails, URLs, bb ids, secrets, and local usernames are removed and identifiers hashed, so output is safe to preview or commit. |
+| Redaction | On by default and best-effort: emails, URLs, bb ids, secrets, and local usernames are removed and identifiers hashed. Preview the output and decide what anonymous evidence to keep — it is not a guarantee. |
 | Preserve in-progress work | `--require-clean <path>` refuses to run while an artifact tree has uncommitted changes. |
 | Safe advancement | `scan` takes a lease but never moves the cursor; `advance` commits it only after a successful run; `release` drops a lease without advancing. |
 

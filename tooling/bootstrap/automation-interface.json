@@ -1,20 +1,27 @@
 {
   "schemaVersion": 1,
-  "note": "Verified bb automation interface used to keep generated bootstrap prompts on current commands and permission modes. Update this only after re-checking `bb plugin run automations create --help` and the automations plugin source. Validation is text-only and never creates or mutates a live automation.",
+  "note": "Verified bb automation interface used to keep generated bootstrap prompts on current commands and permission modes. Update this only after re-checking the read-only help form and the automations plugin source. Validation is text-only and never creates or mutates a live automation.",
   "verifiedAgainst": {
-    "installedCli": "bb-app 0.0.32 (permissionModeSchema = enum[full, workspace-write, readonly])",
+    "installedCli": "bb-app 0.0.32 (permissionModeSchema = enum[full, workspace-write, readonly]; honors --environment/--new-environment/--base-branch/--target-thread)",
     "hostSource": "automations plugin rpc-types.ts (permissionModeSchema = enum[accept-edits, auto, full]); data.ts migrates workspace-write/readonly -> accept-edits",
-    "helpCommand": "bb plugin run automations create --help"
+    "helpCommand": "bb plugin run automations help --project <id>",
+    "helpCaveat": "On 0.0.32 `bb plugin run automations create --help` errors with 'Missing required option --project' before printing help; use the `help --project <id>` form."
   },
   "command": {
     "canonicalPrefix": "bb plugin run automations",
     "createForm": "bb plugin run automations create",
-    "deprecatedForms": ["bb automations create", "bb automation add", "bb create-automation"]
+    "helpForm": "bb plugin run automations help --project",
+    "deprecatedForms": ["bb automations create", "bb automation add", "bb create-automation"],
+    "brokenHelpForms": ["bb plugin run automations create --help", "bb plugin run automations create --project <id> --help"]
   },
   "permissionModes": {
     "recommended": "full",
     "current": ["accept-edits", "auto", "full"],
     "legacy": ["workspace-write", "readonly"],
     "rationale": "full is valid on both the installed release and current host builds and is what an unattended edit-and-commit maintenance run needs. workspace-write/readonly are legacy and being folded into accept-edits, so a generated prompt must not hard-code them."
+  },
+  "environment": {
+    "flag": "--environment \"$PWD\"",
+    "rationale": "A scheduled maintenance run must reuse the same fork checkout so it sees the same artifact tree and the same (gitignored) checkpoint state. Passing the fork root as an unmanaged workspace path keeps every run on one checkout and cursor."
   }
 }

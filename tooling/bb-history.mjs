@@ -84,9 +84,10 @@ export function stableHash(value) {
   return createHash("sha256").update(String(value)).digest("hex").slice(0, 12);
 }
 
-// Redaction suitable for committed or previewed evidence. Removes the classes
-// of data governance forbids in evidence: identifiers, addresses, secrets,
-// and local usernames.
+// Best-effort redaction for previewing evidence before deciding what anonymous
+// signal to keep. Removes common classes of data governance forbids in
+// evidence — identifiers, addresses, secrets, local usernames — but is a
+// convenience, not a guarantee; the reader still expects a human to review.
 export function redactText(input) {
   let text = String(input);
   text = text.replace(/\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b/g, "[redacted-email]");

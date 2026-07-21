@@ -27,7 +27,7 @@ const interfacePath = resolve(here, "automation-interface.json");
 // identified by stable plugin id. This is the non-inventory constant that
 // pins "exactly Design Doctrine + Improve Prompt".
 export const HISTORY_PERSONALIZABLE = ["design-doctrine", "prompt-shaper"];
-const PERSONALIZATION_FIELDS = ["artifact", "artifactTree", "maintenanceDoc", "adaptInstruction", "automationName"];
+const PERSONALIZATION_FIELDS = ["artifact", "artifactTree", "artifactPath", "maintenanceDoc", "statePath", "adaptInstruction", "automationName"];
 
 const TOKEN = /\{\{([A-Z0-9_]+)\}\}/g;
 
@@ -52,6 +52,12 @@ export function validateAutomationInterface(text, iface) {
   const problems = [];
   if (!text.includes(iface.command.createForm)) {
     problems.push(`missing canonical command "${iface.command.createForm}"`);
+  }
+  if (!text.includes(iface.command.helpForm)) {
+    problems.push(`missing working help form "${iface.command.helpForm}"`);
+  }
+  for (const form of iface.command.brokenHelpForms ?? []) {
+    if (text.includes(form)) problems.push(`uses non-working help form "${form}"`);
   }
   for (const form of iface.command.deprecatedForms) {
     if (text.includes(form)) problems.push(`uses deprecated command "${form}"`);
@@ -113,7 +119,9 @@ export function variantsFromCatalog(catalog) {
         PLUGIN_README: `${entry.source}/README.md`,
         ARTIFACT: entry.personalization.artifact,
         ARTIFACT_TREE: entry.personalization.artifactTree,
+        ARTIFACT_PATH: entry.personalization.artifactPath,
         MAINTENANCE_DOC: entry.personalization.maintenanceDoc,
+        STATE_PATH: entry.personalization.statePath,
         ADAPT_INSTRUCTION: entry.personalization.adaptInstruction,
         AUTOMATION_NAME: entry.personalization.automationName,
       },
