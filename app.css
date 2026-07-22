@@ -1,0 +1,29 @@
+@keyframes bb-improve-prompt-shimmer {
+  from {
+    background-position: 200% 0;
+  }
+  to {
+    background-position: -200% 0;
+  }
+}
+
+.bb-improve-prompt-shimmer {
+  color: transparent;
+  background-image: linear-gradient(
+    100deg,
+    color-mix(in oklab, var(--ink) 55%, transparent) 20%,
+    var(--ink) 48%,
+    color-mix(in oklab, var(--ink) 55%, transparent) 76%
+  );
+  background-position: 200% 0;
+  background-size: 200% 100%;
+  background-clip: text;
+  -webkit-background-clip: text;
+  animation: bb-improve-prompt-shimmer 1.5s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bb-improve-prompt-shimmer {
+    animation: none;
+  }
+}

@@ -1,0 +1,9 @@
+{
+  "name": "@brsbl/bb-thread-history-maintenance",
+  "version": "0.1.0",
+  "type": "module",
+  "files": [
+    "index.ts"
+  ],
+  "exports": "./index.ts"
+}
