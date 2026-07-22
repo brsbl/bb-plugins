@@ -107,20 +107,18 @@ async function removeMigratedStateFile(
 
 export function createHistoryMaintenance(
   bb: BbPluginApi,
-  resolvePluginRoot: () => Promise<string>,
+  resolveDoctrineRoot: () => Promise<string>,
+  installedPluginRoot: string,
 ) {
   const history = createThreadHistoryMaintenance(bb, {
-    beforeScan: async () => ensureCleanRules(await resolvePluginRoot()),
+    beforeScan: async () => ensureCleanRules(await resolveDoctrineRoot()),
     legacyStateKeys: [LEGACY_HISTORY_STATE_KEY],
   });
   let migrationQueue: Promise<unknown> = Promise.resolve();
 
   function withLegacyStateMigration<T>(operation: () => Promise<T>): Promise<T> {
     const result = migrationQueue.then(async () => {
-      const statePath = await importLegacyStateFile(
-        bb,
-        await resolvePluginRoot(),
-      );
+      const statePath = await importLegacyStateFile(bb, installedPluginRoot);
       const output = await operation();
       await removeMigratedStateFile(bb, statePath);
       return output;

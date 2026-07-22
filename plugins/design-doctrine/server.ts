@@ -447,8 +447,10 @@ export default async function plugin(bb: BbPluginApi) {
     }
   }
 
-  const historyMaintenance = createHistoryMaintenance(bb, async () =>
-    expandPath((await settings.get()).doctrinePath),
+  const historyMaintenance = createHistoryMaintenance(
+    bb,
+    async () => expandPath((await settings.get()).doctrinePath),
+    DEFAULT_DOCTRINE_PATH,
   );
   bb.events.on("thread.created", async ({ thread }) => {
     await historyMaintenance.observeCreated(thread);

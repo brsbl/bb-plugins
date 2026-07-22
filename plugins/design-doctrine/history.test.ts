@@ -53,7 +53,7 @@ describe("Design Doctrine legacy history migration", () => {
         },
       },
     });
-    const history = createHistoryMaintenance(bb, async () => root);
+    const history = createHistoryMaintenance(bb, async () => root, root);
 
     try {
       await expect(history.prepare()).rejects.toThrow("inventory unavailable");
@@ -99,7 +99,7 @@ describe("Design Doctrine legacy history migration", () => {
       pluginId: "design-doctrine",
       sdk: { threads: { list: async () => [] } },
     });
-    const history = createHistoryMaintenance(bb, async () => root);
+    const history = createHistoryMaintenance(bb, async () => root, root);
 
     try {
       await expect(history.prepare()).rejects.toThrow(
@@ -117,6 +117,54 @@ describe("Design Doctrine legacy history migration", () => {
     } finally {
       await harness.lifecycle.dispose();
       await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it("migrates installed-plugin state when the doctrine path is customized", async () => {
+    const installedPluginRoot = await createPluginRoot();
+    const doctrineRoot = await createPluginRoot();
+    const statePath = join(
+      installedPluginRoot,
+      "maintenance",
+      "state.json",
+    );
+    await writeFile(
+      statePath,
+      `${JSON.stringify({
+        version: 1,
+        cursor: { created_at: 1_725_000_000_000, segment_id: "seg_1" },
+        lease: null,
+      })}\n`,
+    );
+    const { bb, harness } = createFakePluginHost({
+      pluginId: "design-doctrine",
+      sdk: { threads: { list: async () => [] } },
+    });
+    const history = createHistoryMaintenance(
+      bb,
+      async () => doctrineRoot,
+      installedPluginRoot,
+    );
+
+    try {
+      await expect(history.prepare()).resolves.toEqual({
+        inventory_reconciled: true,
+      });
+      await expect(readFile(statePath, "utf8")).rejects.toMatchObject({
+        code: "ENOENT",
+      });
+      await expect(bb.storage.kv.get(LEGACY_KEY)).resolves.toBeUndefined();
+
+      await writeFile(join(doctrineRoot, "rules", "uncommitted.md"), "draft\n");
+      await expect(history.scan(scanOptions())).rejects.toThrow(
+        "rules tree has pre-existing work",
+      );
+    } finally {
+      await harness.lifecycle.dispose();
+      await Promise.all([
+        rm(installedPluginRoot, { recursive: true, force: true }),
+        rm(doctrineRoot, { recursive: true, force: true }),
+      ]);
     }
   });
 });

@@ -22,7 +22,12 @@ function httpError(status: number, code: string | null) {
   });
 }
 
-function userRow(id: string, sequence: number, createdAt: number, text: string) {
+function userRow(
+  id: string,
+  sequence: number,
+  createdAt: number,
+  text: string,
+) {
   return {
     id,
     threadId: "thr_test",
@@ -194,7 +199,14 @@ describe("idle-episode thread history maintenance", () => {
     const createdAt = Date.now() + 1;
     const idleThread = harness.setCreatedThread(createdAt, createdAt + 2);
     harness.setTimeline(
-      [userRow("msg_missed_create", 1, createdAt + 1, "Learn the missed thread.")],
+      [
+        userRow(
+          "msg_missed_create",
+          1,
+          createdAt + 1,
+          "Learn the missed thread.",
+        ),
+      ],
       1,
     );
 
@@ -300,10 +312,7 @@ describe("idle-episode thread history maintenance", () => {
       episodes: [
         {
           checkpoint_before: { sequence: 2, updated_at: 21 },
-          messages: [
-            { source_key: "msg_3" },
-            { source_key: "msg_4" },
-          ],
+          messages: [{ source_key: "msg_3" }, { source_key: "msg_4" }],
         },
       ],
     });
@@ -316,10 +325,7 @@ describe("idle-episode thread history maintenance", () => {
     await maintenance.scan(scanOptions);
 
     const firstIdle = harness.setThread(21);
-    harness.setTimeline(
-      [userRow("msg_1", 1, 20, "First correction.")],
-      1,
-    );
+    harness.setTimeline([userRow("msg_1", 1, 20, "First correction.")], 1);
     await maintenance.observeThread(firstIdle);
     const first = await maintenance.scan(scanOptions);
 
@@ -361,9 +367,7 @@ describe("idle-episode thread history maintenance", () => {
     expect(harness.list).toHaveBeenCalledTimes(4);
     expect(scanned).toMatchObject({
       inventory_reconciled: true,
-      episodes: [
-        { messages: [{ text: "Recovered after downtime." }] },
-      ],
+      episodes: [{ messages: [{ text: "Recovered after downtime." }] }],
     });
     await afterRestart.release(scanned.lease_id!);
     await harness.harness.lifecycle.dispose();
@@ -391,21 +395,27 @@ describe("idle-episode thread history maintenance", () => {
       pending_thread_count: 0,
     });
     expect(
-      db.prepare(
-        "SELECT COUNT(*) AS count FROM thread_history_threads WHERE thread_id = ?",
-      ).get("thr_test"),
+      db
+        .prepare(
+          "SELECT COUNT(*) AS count FROM thread_history_threads WHERE thread_id = ?",
+        )
+        .get("thr_test"),
     ).toEqual({ count: 0 });
     expect(
-      db.prepare(
-        "SELECT COUNT(*) AS count FROM thread_history_lease_items WHERE thread_id = ?",
-      ).get("thr_test"),
+      db
+        .prepare(
+          "SELECT COUNT(*) AS count FROM thread_history_lease_items WHERE thread_id = ?",
+        )
+        .get("thr_test"),
     ).toEqual({ count: 0 });
     await harness.harness.lifecycle.dispose();
   });
 
   it("prunes a candidate on thread_not_found but propagates transient lookup errors", async () => {
     const missingHarness = createHarness();
-    const missingMaintenance = createThreadHistoryMaintenance(missingHarness.bb);
+    const missingMaintenance = createThreadHistoryMaintenance(
+      missingHarness.bb,
+    );
     await missingMaintenance.scan(scanOptions);
     await missingMaintenance.observeThread(missingHarness.setThread(21));
     missingHarness.get.mockRejectedValueOnce(
@@ -505,86 +515,67 @@ describe("idle-episode thread history maintenance", () => {
     await harness.harness.lifecycle.dispose();
   });
 
-  it("bounds timeline hydration and resumes without skipping unseen messages", async () => {
+  it("drains an unchanged multi-page timeline without skipping or looping", async () => {
     const harness = createHarness();
     const maintenance = createThreadHistoryMaintenance(harness.bb);
     await maintenance.scan(scanOptions);
     await maintenance.observeThread(harness.setThread(21));
 
-    let pageCall = 0;
     harness.getTimeline.mockImplementation(async (args) => {
-      pageCall += 1;
-      if (pageCall <= 4) {
-        const anchorSeq = 100 - pageCall * 10;
-        return timeline(
-          [
-            userRow(
-              `msg_late_${pageCall}`,
-              anchorSeq + 1,
-              100 + anchorSeq,
-              `Later message ${pageCall}`,
-            ),
-          ],
-          200,
-          {
-            hasOlderRows: true,
-            olderCursor: {
-              anchorSeq,
-              anchorId: `anchor_${anchorSeq}`,
-            },
-            kind: args?.beforeAnchorSeq === undefined ? "latest" : "older",
-          },
-        );
-      }
-      expect(args?.beforeAnchorSeq).toBe("60");
+      const beforeSequence = Number(args?.beforeAnchorSeq ?? "12");
+      const sequence = beforeSequence - 1;
       return timeline(
         [
-          userRow("msg_before_checkpoint", 1, 9, "Already learned."),
-          userRow("msg_earliest_unseen", 2, 11, "Earliest unseen message."),
+          userRow(
+            `msg_${sequence}`,
+            sequence,
+            sequence === 1 ? 9 : 9 + sequence,
+            sequence === 1 ? "Already learned." : `Unseen message ${sequence}`,
+          ),
         ],
-        200,
-        { kind: "older" },
+        11,
+        {
+          hasOlderRows: sequence > 1,
+          olderCursor:
+            sequence > 1
+              ? { anchorSeq: sequence, anchorId: `msg_${sequence}` }
+              : null,
+          kind: args?.beforeAnchorSeq === undefined ? "latest" : "older",
+        },
       );
     });
 
-    await expect(maintenance.scan(scanOptions)).resolves.toMatchObject({
-      lease_id: null,
-      episodes: [],
-      deferred_thread_count: 1,
-      pending_thread_count: 1,
-    });
-    expect(harness.getTimeline).toHaveBeenCalledTimes(4);
+    const learnedIds: string[] = [];
+    let pendingThreadCount = 1;
+    for (
+      let scanCount = 0;
+      scanCount < 20 && pendingThreadCount > 0;
+      scanCount += 1
+    ) {
+      const callsBefore = harness.getTimeline.mock.calls.length;
+      const scanned = await maintenance.scan(scanOptions);
+      expect(
+        harness.getTimeline.mock.calls.length - callsBefore,
+      ).toBeLessThanOrEqual(4);
+      for (const episode of scanned.episodes) {
+        learnedIds.push(
+          ...episode.messages.map((message) => message.source_key),
+        );
+      }
+      if (scanned.lease_id !== null) {
+        const advanced = await maintenance.advance({
+          leaseId: scanned.lease_id,
+        });
+        pendingThreadCount = advanced.pending_thread_count;
+      } else {
+        pendingThreadCount = scanned.pending_thread_count;
+      }
+    }
 
-    const hydrated = await maintenance.scan(scanOptions);
-    expect(hydrated).toMatchObject({
-      episode_count: 1,
-      episodes: [
-        {
-          complete: false,
-          checkpoint_commit: { sequence: 2 },
-          messages: [{ source_key: "msg_earliest_unseen" }],
-        },
-      ],
-    });
-    expect(harness.getTimeline).toHaveBeenCalledTimes(5);
-    await expect(
-      maintenance.advance({ leaseId: hydrated.lease_id! }),
-    ).resolves.toMatchObject({ pending_thread_count: 1 });
-
-    harness.getTimeline.mockResolvedValueOnce(
-      timeline(
-        [
-          userRow("msg_earliest_unseen", 2, 11, "Earliest unseen message."),
-          userRow("msg_next", 3, 12, "Next unseen message."),
-        ],
-        3,
-      ),
+    expect(pendingThreadCount).toBe(0);
+    expect(learnedIds).toEqual(
+      Array.from({ length: 10 }, (_, index) => `msg_${index + 2}`),
     );
-    const resumed = await maintenance.scan(scanOptions);
-    expect(resumed).toMatchObject({
-      episodes: [{ messages: [{ source_key: "msg_next" }] }],
-    });
-    await maintenance.release(resumed.lease_id!);
     await harness.harness.lifecycle.dispose();
   });
 
@@ -609,9 +600,7 @@ describe("idle-episode thread history maintenance", () => {
     const scanned = await maintenance.scan(scanOptions);
     expect(scanned).toMatchObject({
       baseline_established: true,
-      episodes: [
-        { messages: [{ source_key: "msg_new" }] },
-      ],
+      episodes: [{ messages: [{ source_key: "msg_new" }] }],
     });
     expect(await harness.bb.storage.kv.get("legacy:v1")).toBeUndefined();
     await maintenance.release(scanned.lease_id!);

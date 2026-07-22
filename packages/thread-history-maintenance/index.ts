@@ -227,8 +227,13 @@ async function loadEpisode(
   let targetSequence = state.checkpoint_sequence ?? 0;
   let reachedCheckpoint = false;
   let nextCursor: TimelineCursor | null = null;
+  let overlapCursor: TimelineCursor | null = null;
 
   for (let pageIndex = 0; pageIndex < TIMELINE_PAGE_LIMIT; pageIndex += 1) {
+    overlapCursor =
+      beforeAnchorSeq === undefined
+        ? null
+        : { anchorSeq: beforeAnchorSeq, anchorId: beforeAnchorId! };
     const timeline = await bb.sdk.threads.timeline({
       threadId: state.thread_id,
       includeNestedRows: "false",
@@ -285,7 +290,7 @@ async function loadEpisode(
       targetSequence: state.checkpoint_sequence ?? 0,
       targetAt: state.checkpoint_at,
       complete: false,
-      hydrationCursor: nextCursor,
+      hydrationCursor: overlapCursor ?? nextCursor,
       retrievalDeferred: true,
     };
   }
@@ -409,25 +414,29 @@ export function createThreadHistoryMaintenance(
     if (lease === null) return null;
     if (lease.expires_at > now) return lease;
     const clear = db.transaction(() => {
-      db.prepare("DELETE FROM thread_history_lease_items WHERE lease_id = ?").run(
+      db.prepare(
+        "DELETE FROM thread_history_lease_items WHERE lease_id = ?",
+      ).run(lease.id);
+      db.prepare("DELETE FROM thread_history_leases WHERE id = ?").run(
         lease.id,
       );
-      db.prepare("DELETE FROM thread_history_leases WHERE id = ?").run(lease.id);
     });
     clear();
     return null;
   }
 
   function repairStalePrebaselineRows(): number {
-    const result = db.prepare(
-      `UPDATE thread_history_threads SET
+    const result = db
+      .prepare(
+        `UPDATE thread_history_threads SET
         checkpoint_at = latest_thread_updated_at,
         pending = 0,
         pending_since = NULL
       WHERE checkpoint_sequence IS NULL
         AND checkpoint_at = 0
         AND created_observed = 0`,
-    ).run();
+      )
+      .run();
     return result.changes;
   }
 
@@ -481,10 +490,7 @@ export function createThreadHistoryMaintenance(
     return { established: threads.length > 0, reconciled: true };
   }
 
-  async function reconcile(
-    now: number,
-    signal?: AbortSignal,
-  ): Promise<void> {
+  async function reconcile(now: number, signal?: AbortSignal): Promise<void> {
     const threads = await listAllThreads(bb, signal);
     const upsert = db.prepare(
       `INSERT INTO thread_history_threads (
@@ -509,9 +515,7 @@ export function createThreadHistoryMaintenance(
         last_seen_at = excluded.last_seen_at`,
     );
     const write = db.transaction(() => {
-      db.prepare(
-        "UPDATE thread_history_threads SET last_seen_at = -1",
-      ).run();
+      db.prepare("UPDATE thread_history_threads SET last_seen_at = -1").run();
       for (const thread of threads) {
         upsert.run(
           thread.id,
@@ -549,9 +553,7 @@ export function createThreadHistoryMaintenance(
       .prepare(
         "SELECT latest_thread_updated_at FROM thread_history_threads WHERE thread_id = ?",
       )
-      .get(target.threadId) as
-      | { latest_thread_updated_at: number }
-      | undefined;
+      .get(target.threadId) as { latest_thread_updated_at: number } | undefined;
     if (current === undefined) return;
     const stillPending =
       !target.complete ||
@@ -575,7 +577,9 @@ export function createThreadHistoryMaintenance(
 
   function pendingCount(): number {
     const row = db
-      .prepare("SELECT COUNT(*) AS count FROM thread_history_threads WHERE pending = 1")
+      .prepare(
+        "SELECT COUNT(*) AS count FROM thread_history_threads WHERE pending = 1",
+      )
       .get() as { count: number };
     return row.count;
   }
@@ -1042,9 +1046,9 @@ export function createThreadHistoryMaintenance(
               complete: item.complete === 1,
             });
           }
-          db.prepare("DELETE FROM thread_history_lease_items WHERE lease_id = ?").run(
-            input.leaseId,
-          );
+          db.prepare(
+            "DELETE FROM thread_history_lease_items WHERE lease_id = ?",
+          ).run(input.leaseId);
           db.prepare("DELETE FROM thread_history_leases WHERE id = ?").run(
             input.leaseId,
           );
@@ -1066,10 +1070,12 @@ export function createThreadHistoryMaintenance(
           throw new Error("maintenance lease does not match this run");
         }
         const clear = db.transaction(() => {
-          db.prepare("DELETE FROM thread_history_lease_items WHERE lease_id = ?").run(
+          db.prepare(
+            "DELETE FROM thread_history_lease_items WHERE lease_id = ?",
+          ).run(leaseId);
+          db.prepare("DELETE FROM thread_history_leases WHERE id = ?").run(
             leaseId,
           );
-          db.prepare("DELETE FROM thread_history_leases WHERE id = ?").run(leaseId);
         });
         clear();
         return { released: leaseId, pending_thread_count: pendingCount() };

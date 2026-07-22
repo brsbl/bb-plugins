@@ -10,6 +10,8 @@ import { scaffoldPlugin } from "./create-plugin.mjs";
 import {
   assertPublishWorktreeClean,
   releaseManifest,
+  resolveRetiredInstallRefs,
+  retiredInstallRefPushArgs,
 } from "./publish-install-refs.mjs";
 import { validatePluginArtifacts } from "./validate-plugin-artifacts.mjs";
 
@@ -134,6 +136,29 @@ try {
   assert.throws(
     () => assertPublishWorktreeClean(" M tooling/publish-install-refs.mjs"),
     /refusing to push install refs from a dirty worktree/,
+  );
+  assert.deepEqual(
+    resolveRetiredInstallRefs(["plugin/design-doctrine", "plugin/improve-prompt"]),
+    ["plugin/omegacode"],
+  );
+  assert.throws(
+    () => resolveRetiredInstallRefs(["plugin/omegacode"]),
+    /cannot retire active plugin install ref/,
+  );
+  const retiredCommit = "a".repeat(40);
+  assert.deepEqual(retiredInstallRefPushArgs("plugin/omegacode", retiredCommit), [
+    "push",
+    `--force-with-lease=refs/heads/plugin/omegacode:${retiredCommit}`,
+    "origin",
+    ":refs/heads/plugin/omegacode",
+  ]);
+  assert.throws(
+    () => retiredInstallRefPushArgs("main", retiredCommit),
+    /invalid plugin install ref/,
+  );
+  assert.throws(
+    () => retiredInstallRefPushArgs("plugin/omegacode", "not-a-commit"),
+    /invalid expected commit/,
   );
   const releasedManifest = JSON.parse(
     releaseManifest(

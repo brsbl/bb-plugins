@@ -63,9 +63,23 @@ jobs:
       - run: git diff --check -- ${{ matrix.path }}
       - run: git diff --exit-code -- ${{ matrix.path }}
 
+  thread-history-maintenance:
+    name: Thread History Maintenance
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22.22.0
+          cache: npm
+          cache-dependency-path: package-lock.json
+      - run: npm ci
+      - run: npm run typecheck --workspace=@brsbl/bb-thread-history-maintenance
+      - run: npm test --workspace=@brsbl/bb-thread-history-maintenance
+
   install-refs-validation:
     if: github.event_name == 'pull_request'
-    needs: [hygiene, plugins]
+    needs: [hygiene, plugins, thread-history-maintenance]
     permissions:
       contents: read
     runs-on: ubuntu-latest
@@ -85,7 +99,7 @@ jobs:
 
   publish-install-refs:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    needs: [hygiene, plugins]
+    needs: [hygiene, plugins, thread-history-maintenance]
     permissions:
       contents: write
     runs-on: ubuntu-latest

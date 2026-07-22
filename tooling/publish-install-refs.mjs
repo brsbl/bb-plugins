@@ -15,6 +15,7 @@ const productionDependencyFields = [
   "optionalDependencies",
   "peerDependencies",
 ];
+const explicitlyRetiredInstallRefs = Object.freeze(["plugin/omegacode"]);
 
 function run(command, args, options = {}) {
   const result = spawnSync(command, args, {
@@ -37,6 +38,37 @@ function run(command, args, options = {}) {
 
 function git(args, options = {}) {
   return run("git", args, options);
+}
+
+function fullInstallRef(installRef) {
+  if (!/^plugin\/[a-z0-9]+(?:-[a-z0-9]+)*$/.test(installRef)) {
+    throw new Error(`invalid plugin install ref: ${installRef}`);
+  }
+  return `refs/heads/${installRef}`;
+}
+
+export function resolveRetiredInstallRefs(activeInstallRefs) {
+  const active = new Set(activeInstallRefs);
+  for (const installRef of explicitlyRetiredInstallRefs) {
+    fullInstallRef(installRef);
+    if (active.has(installRef)) {
+      throw new Error(`cannot retire active plugin install ref: ${installRef}`);
+    }
+  }
+  return [...explicitlyRetiredInstallRefs];
+}
+
+export function retiredInstallRefPushArgs(installRef, expectedCommit) {
+  const ref = fullInstallRef(installRef);
+  if (!/^[0-9a-f]{40}$/i.test(expectedCommit)) {
+    throw new Error(`invalid expected commit for ${installRef}: ${expectedCommit}`);
+  }
+  return [
+    "push",
+    `--force-with-lease=${ref}:${expectedCommit}`,
+    "origin",
+    `:${ref}`,
+  ];
 }
 
 function concreteBbVersion(manifest) {
@@ -213,8 +245,8 @@ function hasOrigin() {
   return git(["remote", "get-url", "origin"], { allowFailure: true }) !== null;
 }
 
-function remoteRefCommit(plugin) {
-  const ref = `refs/heads/${plugin.installRef}`;
+function remoteInstallRefCommit(installRef) {
+  const ref = fullInstallRef(installRef);
   const output = git(["ls-remote", "--heads", "origin", ref], {
     allowFailure: true,
   });
@@ -226,7 +258,7 @@ function remoteRefCommit(plugin) {
     "--quiet",
     "--no-tags",
     "origin",
-    `+${ref}:refs/remotes/origin/${plugin.installRef}`,
+    `+${ref}:refs/remotes/origin/${installRef}`,
   ]);
   return commit;
 }
@@ -235,13 +267,37 @@ function currentReleaseCommit(plugin, push) {
   const ref = `refs/heads/${plugin.installRef}`;
   if (push) {
     if (!hasOrigin()) throw new Error("cannot push install refs without an origin remote");
-    return remoteRefCommit(plugin);
+    return remoteInstallRefCommit(plugin.installRef);
   }
   return (
     localRefCommit(ref) ??
     localRefCommit(`refs/remotes/origin/${plugin.installRef}`) ??
-    (hasOrigin() ? remoteRefCommit(plugin) : null)
+    (hasOrigin() ? remoteInstallRefCommit(plugin.installRef) : null)
   );
+}
+
+function retireInstallRefs(plugins, push) {
+  const retiredInstallRefs = resolveRetiredInstallRefs(
+    plugins.map((plugin) => plugin.installRef),
+  );
+  if (push && !hasOrigin()) {
+    throw new Error("cannot retire install refs without an origin remote");
+  }
+  for (const installRef of retiredInstallRefs) {
+    const currentCommit = hasOrigin()
+      ? remoteInstallRefCommit(installRef)
+      : localRefCommit(`refs/remotes/origin/${installRef}`);
+    if (!currentCommit) {
+      console.log(`${installRef} already retired`);
+      continue;
+    }
+    if (!push) {
+      console.log(`${installRef} ${currentCommit} pending retirement`);
+      continue;
+    }
+    git(retiredInstallRefPushArgs(installRef, currentCommit));
+    console.log(`${installRef} ${currentCommit} retired`);
+  }
 }
 
 export function assertPublishWorktreeClean(
@@ -389,6 +445,8 @@ export async function publishInstallRefs(options = {}) {
       `${plugin.installRef} ${releaseCommit} verified${push ? " and pushed" : ""}`,
     );
   }
+
+  retireInstallRefs(plugins, push);
 }
 
 if (resolve(process.argv[1] ?? "") === fileURLToPath(import.meta.url)) {
