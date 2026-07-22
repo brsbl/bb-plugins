@@ -2,44 +2,31 @@
 
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-
-const composerState = vi.hoisted(() => ({
-  current: {} as Record<string, unknown>,
-}));
-
-vi.mock("@bb/plugin-sdk/app", () => ({
-  useComposer: () => composerState.current,
-}));
-
-const { UiPatternsComposerAction } = await import("./composer-action.js");
+import { UiPatternsComposerAction } from "./composer-action.js";
 
 afterEach(() => {
-  composerState.current = {};
   cleanup();
   vi.clearAllMocks();
 });
 
 describe("UI Patterns composer action", () => {
   it("opens the registered UI Patterns thread panel", () => {
-    const experimentalOpenThreadPanel = vi.fn(() => true);
-    composerState.current = {
-      experimental_openThreadPanel: experimentalOpenThreadPanel,
-    };
+    const openThreadPanel = vi.fn(() => true);
 
-    render(<UiPatternsComposerAction />);
-    fireEvent.click(
-      screen.getByRole("button", { name: "Open UI Patterns" }),
-    );
+    render(<UiPatternsComposerAction openThreadPanel={openThreadPanel} />);
+    fireEvent.click(screen.getByRole("button", { name: "Open UI Patterns" }));
 
-    expect(experimentalOpenThreadPanel).toHaveBeenCalledTimes(1);
-    expect(experimentalOpenThreadPanel).toHaveBeenCalledWith({
+    expect(openThreadPanel).toHaveBeenCalledTimes(1);
+    expect(openThreadPanel).toHaveBeenCalledWith({
       actionId: "library-panel",
       title: "UI Patterns",
     });
   });
 
-  it("omits the action when the experimental host bridge is unavailable", () => {
-    const { container } = render(<UiPatternsComposerAction />);
+  it("omits the action when the host panel opener is unavailable", () => {
+    const { container } = render(
+      <UiPatternsComposerAction openThreadPanel={null} />,
+    );
 
     expect(container.innerHTML).toBe("");
   });

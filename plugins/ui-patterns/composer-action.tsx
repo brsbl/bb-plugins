@@ -1,4 +1,4 @@
-import { useComposer } from "@bb/plugin-sdk/app";
+import type { PluginMessageDirectiveOpenThreadPanel } from "@bb/plugin-sdk/app";
 import { Button } from "./components/ui/button.js";
 import { Icon } from "./components/ui/icon.js";
 import {
@@ -8,18 +8,14 @@ import {
   TooltipTrigger,
 } from "./components/ui/tooltip.js";
 
-interface ExperimentalComposerThreadPanelApi {
-  experimental_openThreadPanel?: (options: {
-    actionId: string;
-    title?: string;
-  }) => boolean;
+interface UiPatternsComposerActionProps {
+  openThreadPanel?: PluginMessageDirectiveOpenThreadPanel | null;
 }
 
-export function UiPatternsComposerAction() {
-  const composer = useComposer() as ReturnType<typeof useComposer> &
-    ExperimentalComposerThreadPanelApi;
-
-  if (typeof composer.experimental_openThreadPanel !== "function") return null;
+export function UiPatternsComposerAction({
+  openThreadPanel,
+}: UiPatternsComposerActionProps) {
+  if (typeof openThreadPanel !== "function") return null;
 
   return (
     <TooltipProvider delayDuration={300}>
@@ -33,7 +29,7 @@ export function UiPatternsComposerAction() {
             aria-label="Open UI Patterns"
             onMouseDown={(event) => event.preventDefault()}
             onClick={() =>
-              composer.experimental_openThreadPanel?.({
+              openThreadPanel({
                 actionId: "library-panel",
                 title: "UI Patterns",
               })
