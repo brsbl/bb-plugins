@@ -1,4 +1,4 @@
-import type { PluginMessageDirectiveOpenThreadPanel } from "@bb/plugin-sdk/app";
+import { useBbNavigate } from "@bb/plugin-sdk/app";
 import { Button } from "./components/ui/button.js";
 import { Icon } from "./components/ui/icon.js";
 import {
@@ -8,14 +8,8 @@ import {
   TooltipTrigger,
 } from "./components/ui/tooltip.js";
 
-interface UiPatternsComposerActionProps {
-  openThreadPanel?: PluginMessageDirectiveOpenThreadPanel | null;
-}
-
-export function UiPatternsComposerAction({
-  openThreadPanel,
-}: UiPatternsComposerActionProps) {
-  if (typeof openThreadPanel !== "function") return null;
+export function UiPatternsComposerAction() {
+  const navigate = useBbNavigate();
 
   return (
     <TooltipProvider delayDuration={300}>
@@ -29,7 +23,7 @@ export function UiPatternsComposerAction({
             aria-label="Open UI Patterns"
             onMouseDown={(event) => event.preventDefault()}
             onClick={() =>
-              openThreadPanel({
+              navigate.experimental_openThreadPanel({
                 actionId: "library-panel",
                 title: "UI Patterns",
               })

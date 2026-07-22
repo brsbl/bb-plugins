@@ -4,6 +4,16 @@ import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { UiPatternsComposerAction } from "./composer-action.js";
 
+const navigation = vi.hoisted(() => ({
+  openThreadPanel: vi.fn(() => true),
+}));
+
+vi.mock("@bb/plugin-sdk/app", () => ({
+  useBbNavigate: () => ({
+    experimental_openThreadPanel: navigation.openThreadPanel,
+  }),
+}));
+
 afterEach(() => {
   cleanup();
   vi.clearAllMocks();
@@ -11,23 +21,22 @@ afterEach(() => {
 
 describe("UI Patterns composer action", () => {
   it("opens the registered UI Patterns thread panel", () => {
-    const openThreadPanel = vi.fn(() => true);
-
-    render(<UiPatternsComposerAction openThreadPanel={openThreadPanel} />);
+    render(<UiPatternsComposerAction />);
     fireEvent.click(screen.getByRole("button", { name: "Open UI Patterns" }));
 
-    expect(openThreadPanel).toHaveBeenCalledTimes(1);
-    expect(openThreadPanel).toHaveBeenCalledWith({
+    expect(navigation.openThreadPanel).toHaveBeenCalledTimes(1);
+    expect(navigation.openThreadPanel).toHaveBeenCalledWith({
       actionId: "library-panel",
       title: "UI Patterns",
     });
   });
 
-  it("omits the action when the host panel opener is unavailable", () => {
-    const { container } = render(
-      <UiPatternsComposerAction openThreadPanel={null} />,
-    );
+  it("keeps the action visible when the current surface declines navigation", () => {
+    navigation.openThreadPanel.mockReturnValueOnce(false);
 
-    expect(container.innerHTML).toBe("");
+    render(<UiPatternsComposerAction />);
+    fireEvent.click(screen.getByRole("button", { name: "Open UI Patterns" }));
+
+    expect(navigation.openThreadPanel).toHaveBeenCalledTimes(1);
   });
 });

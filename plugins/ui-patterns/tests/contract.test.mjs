@@ -146,11 +146,12 @@ test("the thread composer action opens the UI Patterns side-panel", () => {
   assert.match(app, /scopes: \["thread"\]/);
   assert.match(app, /id: "open-library"/);
   assert.match(app, /component: UiPatternsComposerAction/);
-  assert.match(composerAction, /openThreadPanel\(\{/);
-  assert.match(builtApp, /openThreadPanel/);
+  assert.match(composerAction, /useBbNavigate\(\)/);
+  assert.match(builtApp, /useBbNavigate/);
   assert.match(composerAction, /actionId: "library-panel"/);
-  assert.doesNotMatch(composerAction, /experimental_openThreadPanel/);
-  assert.doesNotMatch(builtApp, /experimental_openThreadPanel/);
+  assert.match(composerAction, /navigate\.experimental_openThreadPanel\(\{/);
+  assert.match(builtApp, /experimental_openThreadPanel/);
+  assert.doesNotMatch(composerAction, /PluginMessageDirectiveOpenThreadPanel/);
   assert.match(app, /run: \(\{ openPanel \}\) => \{/);
   assert.match(app, /openPanel\(\{ title: "UI Patterns" \}\)/);
   assert.doesNotMatch(app, /app\.slots\.composerAccessory\(\{/);
