@@ -9,23 +9,33 @@ agent output, including your own.
 
 ## Steps
 
-1. Read new feedback and retain the returned `lease_id`. The command refuses to
-   start if `rules/` already contains tracked or untracked work, preserving it
-   for its owner. The lease prevents a second maintenance run from processing
-   the same messages concurrently. The bounds are optional and default to
-   `--limit 200 --max-bytes 262144 --max-message-bytes 8192`.
+1. Read completed, queued episodes through the plugin's thread-history API and
+   retain the returned `lease_id`. The command refuses to start if `rules/`
+   already contains tracked or untracked work. Per-thread checkpoints prevent
+   rereading old episodes, and the lease prevents concurrent runs from
+   processing the same batch. The bounds shown are the defaults.
 
    ```bash
-   python3 scripts/scan-history.py scan
+   bb doctrine history scan \
+     --limit 200 \
+     --max-bytes 262144 \
+     --max-message-bytes 8192
    ```
 
-   If `lease_id` is `null`, history is already caught up. Report that there is
-   no new feedback and stop; do not call `advance` or `release`.
+   A fresh install establishes a current baseline and does not replay feedback
+   already represented by the existing doctrine. The plugin normally queues
+   visible user threads as they become idle; a startup and monthly inventory
+   reconciliation recovers idle events missed during downtime. If `lease_id`
+   is `null`, history is caught up. Report that there is no new feedback and
+   stop; do not call `advance` or `release`.
 
-2. Reconstruct whole task episodes around the user's own messages. Ignore
-   `[bb system]` and `[bb message ...]` relays, tool failures, and temporary
-   constraints. A relay repeating an instruction is the same episode, not a
-   second one.
+2. Review the returned `episodes` directly. Each episode contains the unseen
+   user and assistant conversation rows after that thread's checkpoint, ending
+   at an idle boundary. User messages can be evidence; assistant messages are
+   context for the attempted result and outcome, never evidence by themselves.
+   Do not reopen the whole thread log. Ignore tool failures and temporary
+   constraints. When an episode has `complete: false`, assess only the returned
+   slice; the next pass will receive the remainder after a successful advance.
 
 3. For each durable signal, take the smallest action that fits:
 
@@ -50,28 +60,34 @@ agent output, including your own.
    what the user asked for or corrected. Never paste transcripts, credentials,
    private URLs, thread IDs, or message IDs.
 
-6. If nothing changed, skip to step 7. Otherwise check the result and commit:
+6. If nothing changed, skip to step 7. Otherwise validate the personalized
+   corpus through the running plugin, then commit only the rule files:
 
    ```bash
-   npm test && npm run typecheck && npm run build
+   git diff --check -- rules
+   bb doctrine validate
    git add -- rules
-   python3 scripts/scan-history.py verify-staged
    git commit --only -m "doctrine: <what changed>" -- rules
    ```
 
-7. Advance the cursor after either a successful commit or a no-change decision,
-   using the returned `cursor_commit` and `lease_id`:
+   `git commit --only -- rules` leaves unrelated staged or working-tree changes
+   untouched. The scan already refuses to start when `rules/` contains any
+   pre-existing work. Rule-only maintenance does not rebuild or test plugin
+   code; `bb doctrine validate` parses every rule and enforces the live schema,
+   evidence counts, relations, and lifecycle constraints.
+
+7. Advance every per-thread checkpoint in the leased batch after either a
+   successful commit or a no-change decision:
 
    ```bash
-   python3 scripts/scan-history.py advance \
-     --created-at <created-at> --segment-id <segment-id> --lease-id <lease-id>
+   bb doctrine history advance --lease-id <lease-id>
    ```
 
    If the run cannot safely finish, release its lease without advancing so a
    later run can retry the same feedback:
 
    ```bash
-   python3 scripts/scan-history.py release --lease-id <lease-id>
+   bb doctrine history release --lease-id <lease-id>
    ```
 
 Report what changed, anything left conflicted and the question it needs, and the

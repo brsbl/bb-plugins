@@ -6,6 +6,7 @@ import {
   parseShaperOutput,
   type ParsedShaperOutput,
 } from "./core.js";
+import { createHistoryMaintenance } from "./history.js";
 
 const REQUEST_TTL_MS = 24 * 60 * 60 * 1_000;
 const REQUEST_PREFIX = "request:";
@@ -84,10 +85,36 @@ function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
-function canFallBackFromSideChat(error: unknown): boolean {
-  return /cannot fork|cannot spawn child|hierarchy|parent thread is invalid|source has no active session/i.test(
-    errorMessage(error),
-  );
+function optionValue(argv: string[], name: string): string | undefined {
+  const index = argv.indexOf(name);
+  if (index < 0) return undefined;
+  const value = argv[index + 1];
+  if (!value || value.startsWith("--")) {
+    throw new Error(`${name} requires a value`);
+  }
+  return value;
+}
+
+function integerOption(
+  argv: string[],
+  name: string,
+  fallback: number,
+  minimum: number,
+  maximum: number,
+): number {
+  const raw = optionValue(argv, name);
+  if (raw === undefined) return fallback;
+  const value = Number(raw);
+  if (!Number.isInteger(value) || value < minimum || value > maximum) {
+    throw new Error(`${name} must be an integer from ${minimum} to ${maximum}`);
+  }
+  return value;
+}
+
+function requiredOption(argv: string[], name: string): string {
+  const value = optionValue(argv, name);
+  if (value === undefined) throw new Error(`${name} is required`);
+  return value;
 }
 
 export default async function plugin(bb: BbPluginApi) {
@@ -233,38 +260,9 @@ export default async function plugin(bb: BbPluginApi) {
       source.environmentId === null
         ? ({ type: "project-default" } as const)
         : ({ type: "reuse", environmentId: source.environmentId } as const);
-
-    if (source.canSpawnChild && execution !== null) {
-      try {
-        return await bb.sdk.threads.spawn({
-          projectId: input.projectId,
-          prompt: buildWorkerPrompt({ draft: input.draft }),
-          environment,
-          providerId: source.providerId,
-          model: execution.model,
-          reasoningLevel: execution.reasoningLevel,
-          serviceTier: execution.serviceTier,
-          permissionMode: "auto",
-          sourceThreadId: input.sourceThreadId,
-          originKind: "side-chat",
-          visibility: "hidden",
-          title: "Improve Prompt",
-        });
-      } catch (error) {
-        if (!canFallBackFromSideChat(error)) throw error;
-        bb.log.info(
-          `side-chat unavailable for ${input.sourceThreadId}; using an inspecting helper`,
-        );
-      }
-    }
-
     return bb.sdk.threads.spawn({
       projectId: input.projectId,
-      prompt: buildWorkerPrompt({
-        draft: input.draft,
-        sourceThreadId: input.sourceThreadId,
-        inspectSourceThread: true,
-      }),
+      prompt: buildWorkerPrompt({ draft: input.draft }),
       environment,
       providerId: source.providerId,
       ...(execution === null
@@ -279,6 +277,93 @@ export default async function plugin(bb: BbPluginApi) {
       title: "Improve Prompt",
     });
   }
+
+  const historyMaintenance = createHistoryMaintenance(bb);
+  await historyMaintenance.prepare();
+  bb.events.on("thread.created", async ({ thread }) => {
+    await historyMaintenance.observeCreated(thread);
+  });
+  bb.events.on("thread.idle", async ({ thread }) => {
+    await historyMaintenance.observeThread(thread);
+  });
+  bb.events.on("thread.deleted", async ({ thread }) => {
+    await historyMaintenance.forgetThread(thread.id);
+  });
+  bb.cli.register({
+    name: "prompt-shaper",
+    summary: "Maintain Prompt Shaper from incremental bb thread history",
+    commands: [
+      {
+        name: "history",
+        summary: "Scan new user-authored thread history through the SDK",
+        usage: "bb prompt-shaper history <scan|advance|release> [options]",
+      },
+    ],
+    async run(argv, context) {
+      try {
+        if (argv[0] !== "history") {
+          return {
+            exitCode: 2,
+            stderr:
+              "Usage: bb prompt-shaper history <scan|advance|release> [options]\n",
+          };
+        }
+        const action = argv[1];
+        if (action === "scan") {
+          const maxBytes = integerOption(
+            argv,
+            "--max-bytes",
+            262_144,
+            1,
+            900_000,
+          );
+          const result = await historyMaintenance.scan({
+            limit: integerOption(argv, "--limit", 200, 1, 1_000),
+            maxBytes,
+            maxMessageBytes: integerOption(
+              argv,
+              "--max-message-bytes",
+              8_192,
+              1,
+              maxBytes,
+            ),
+            leaseSeconds: integerOption(
+              argv,
+              "--lease-seconds",
+              6 * 60 * 60,
+              60,
+              86_400,
+            ),
+            forceReconcile: argv.includes("--reconcile"),
+            signal: context.signal,
+          });
+          return {
+            exitCode: 0,
+            stdout: `${JSON.stringify(result, null, 2)}\n`,
+          };
+        }
+        if (action === "advance") {
+          const result = await historyMaintenance.advance({
+            leaseId: requiredOption(argv, "--lease-id"),
+          });
+          return { exitCode: 0, stdout: `${JSON.stringify(result)}\n` };
+        }
+        if (action === "release") {
+          const result = await historyMaintenance.release(
+            requiredOption(argv, "--lease-id"),
+          );
+          return { exitCode: 0, stdout: `${JSON.stringify(result)}\n` };
+        }
+        return {
+          exitCode: 2,
+          stderr:
+            "Usage: bb prompt-shaper history <scan|advance|release> [options]\n",
+        };
+      } catch (error) {
+        return { exitCode: 1, stderr: `${errorMessage(error)}\n` };
+      }
+    },
+  });
 
   bb.rpc.register(rpcContract, {
     async startEnhancement(input) {

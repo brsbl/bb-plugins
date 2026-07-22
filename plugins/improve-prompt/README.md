@@ -20,11 +20,24 @@ While the rewrite is running, the composer is locked to prevent conflicting edit
 
 The behavior comes from the installed `prompt-shaper` skill; the stable plugin ID remains `prompt-shaper` for compatibility.
 
-## How it was built
+## How it works
 
-Two pieces make the experience work. The runtime plugin handles the composer action, helper thread, progress, result insertion, and undo. The [`prompt-shaper` skill](skills/prompt-shaper/SKILL.md) decides how to improve the draft, using the current thread and linked context each time.
+Prompt shaping and history learning are separate paths:
 
-The skill's guidance comes from prompt and handoff problems that showed up repeatedly in bb threads: missing context, fuzzy scope, unnecessary detail, and no clear stopping point.
+- **Composer path:** the plugin sends only the current draft to a standalone hidden helper. It may reuse the source thread's environment and execution settings, but it never reads or inherits that thread's transcript.
+- **Maintenance path:** the plugin queues visible user threads when they become idle. `bb prompt-shaper history scan` reads only the unseen part of each queued episode through bb's timeline API, and a monthly maintenance agent updates the personal `prompt-shaper` skill only when a useful pattern recurs. A startup and monthly inventory check catches episodes missed while the plugin was offline.
+
+bb gives the personal skill in `~/.bb/skills/prompt-shaper/` precedence over this plugin's bundled default, so future helpers automatically use the learned guidance without receiving raw history on every click.
+
+The maintenance commands are bounded and resumable:
+
+```bash
+bb prompt-shaper history scan
+bb prompt-shaper history advance --lease-id <id>
+bb prompt-shaper history release --lease-id <id>
+```
+
+Add `--reconcile` to `history scan` to force an immediate inventory catch-up.
 
 The UI is registered through `app.composer.customize(...)` as the `improve` composer action. Its component uses the context-bound `useComposer()` and `useComposerView()` hooks, so thread, queued-message, side-chat, and new-thread drafts are handled by their mounted composer instance.
 

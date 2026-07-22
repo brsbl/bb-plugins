@@ -1,6 +1,6 @@
 ---
 name: design-doctrine
-description: Mandatory personal-judgment companion for product, UX, UI, visual-design, design-system, and AI-interaction work. Load it with architect, design, crit, product-design audit, prototype, UI Pattern Atlas, and implementation skills—even when the user does not mention doctrine—so work follows the active rules derived from concrete user design feedback. Also use for preference questions, taste checks, reviews against prior feedback, and learning new rules from bb history.
+description: Mandatory personal-judgment companion for product, UX, UI, visual-design, design-system, and AI-interaction work. Load it with architect, design, crit, product-design audit, prototype, UI Pattern Atlas, and implementation skills—even when the user does not mention doctrine—so work follows active rules derived from concrete user feedback. Also use for preference questions, taste checks, reviews against prior feedback, and whenever the user asks to learn, maintain, or update Design Doctrine from bb thread history; this skill owns that maintenance workflow.
 ---
 
 # Design Doctrine
@@ -8,6 +8,25 @@ description: Mandatory personal-judgment companion for product, UX, UI, visual-d
 Rules learned from the user's design feedback. Use them as a judgment layer on
 normal design work — they don't replace product requirements, accessibility,
 platform conventions, the Pattern Atlas, or what the user just told you.
+
+## Maintain from bb feedback
+
+When the user asks to learn, maintain, or update doctrine from thread history,
+this skill is authoritative; do not substitute the generic bb-usage skill's
+cross-thread inventory workflow. Skip the normal retrieval flow and follow
+`maintenance/automation-prompt.md`.
+Begin one bounded API-backed pass with:
+
+```bash
+bb doctrine history scan --limit 200 --max-bytes 262144 --max-message-bytes 8192
+```
+
+The plugin queues visible user threads when they become idle and this command
+returns only timeline rows after each thread's own checkpoint. Do not query
+`bb.db`, reopen whole thread logs, call `bb thread history` as a transcript
+substitute, or treat inherited agent context as the maintenance history source.
+Retain the returned lease exactly; the maintenance prompt owns advance and
+release.
 
 ## Retrieve
 
@@ -60,10 +79,6 @@ rehash of those.
 Prefer hard task constraints, then exceptions, then the more specific rule, then
 direct feedback over inferred, then confidence. Never average two rules. If it's
 still unresolved, ask — that's the one case that needs the user.
-
-## Learning new rules
-
-Follow `maintenance/automation-prompt.md`.
 
 ## Don't
 

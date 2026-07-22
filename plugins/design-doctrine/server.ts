@@ -8,6 +8,8 @@ import { promisify } from "node:util";
 import type { BbPluginApi } from "@bb/plugin-sdk";
 import { z } from "zod";
 
+import { createHistoryMaintenance } from "./history.js";
+
 const execFileAsync = promisify(execFile);
 const MODULE_DIR = dirname(fileURLToPath(import.meta.url));
 const DEFAULT_DOCTRINE_PATH =
@@ -380,6 +382,38 @@ function formatRule(rule: DoctrineRule): string {
   ].join("\n");
 }
 
+function optionValue(argv: string[], name: string): string | undefined {
+  const index = argv.indexOf(name);
+  if (index < 0) return undefined;
+  const value = argv[index + 1];
+  if (!value || value.startsWith("--")) {
+    throw new Error(`${name} requires a value`);
+  }
+  return value;
+}
+
+function integerOption(
+  argv: string[],
+  name: string,
+  fallback: number,
+  minimum: number,
+  maximum: number,
+): number {
+  const raw = optionValue(argv, name);
+  if (raw === undefined) return fallback;
+  const value = Number(raw);
+  if (!Number.isInteger(value) || value < minimum || value > maximum) {
+    throw new Error(`${name} must be an integer from ${minimum} to ${maximum}`);
+  }
+  return value;
+}
+
+function requiredOption(argv: string[], name: string): string {
+  const value = optionValue(argv, name);
+  if (value === undefined) throw new Error(`${name} is required`);
+  return value;
+}
+
 export default async function plugin(bb: BbPluginApi) {
   const settings = bb.settings.define({
     doctrinePath: {
@@ -413,6 +447,20 @@ export default async function plugin(bb: BbPluginApi) {
     }
   }
 
+  const historyMaintenance = createHistoryMaintenance(bb, async () =>
+    expandPath((await settings.get()).doctrinePath),
+  );
+  await historyMaintenance.prepare();
+  bb.events.on("thread.created", async ({ thread }) => {
+    await historyMaintenance.observeCreated(thread);
+  });
+  bb.events.on("thread.idle", async ({ thread }) => {
+    await historyMaintenance.observeThread(thread);
+  });
+  bb.events.on("thread.deleted", async ({ thread }) => {
+    await historyMaintenance.forgetThread(thread.id);
+  });
+
   bb.rpc.register(rpcContract, { getLibrary: currentLibrary });
   bb.cli.register({
     name: "doctrine",
@@ -421,12 +469,81 @@ export default async function plugin(bb: BbPluginApi) {
       { name: "status", summary: "Show rule and Git status", usage: "bb doctrine status [--json]" },
       { name: "search", summary: "Search current rules", usage: "bb doctrine search <query> [--all] [--json]" },
       { name: "show", summary: "Show one rule", usage: "bb doctrine show <rule-id> [--json]" },
+      { name: "history", summary: "Scan bb thread history through the SDK", usage: "bb doctrine history <scan|advance|release> [options]" },
+      { name: "validate", summary: "Validate the personalized rule corpus", usage: "bb doctrine validate" },
     ],
-    async run(argv) {
+    async run(argv, context) {
       try {
-        const library = await currentLibrary();
         const command = argv[0] ?? "status";
         const json = argv.includes("--json");
+        if (command === "history") {
+          const action = argv[1];
+          if (action === "scan") {
+            const maxBytes = integerOption(
+              argv,
+              "--max-bytes",
+              262_144,
+              1,
+              900_000,
+            );
+            const maxMessageBytes = integerOption(
+              argv,
+              "--max-message-bytes",
+              8_192,
+              1,
+              maxBytes,
+            );
+            const result = await historyMaintenance.scan({
+              limit: integerOption(argv, "--limit", 200, 1, 1_000),
+              maxBytes,
+              maxMessageBytes,
+              leaseSeconds: integerOption(
+                argv,
+                "--lease-seconds",
+                6 * 60 * 60,
+                60,
+                86_400,
+              ),
+              forceReconcile: argv.includes("--reconcile"),
+              signal: context.signal,
+            });
+            return { exitCode: 0, stdout: `${JSON.stringify(result, null, 2)}\n` };
+          }
+          if (action === "advance") {
+            const result = await historyMaintenance.advance({
+              leaseId: requiredOption(argv, "--lease-id"),
+            });
+            return { exitCode: 0, stdout: `${JSON.stringify(result)}\n` };
+          }
+          if (action === "release") {
+            const result = await historyMaintenance.release(
+              requiredOption(argv, "--lease-id"),
+            );
+            return { exitCode: 0, stdout: `${JSON.stringify(result)}\n` };
+          }
+          return {
+            exitCode: 2,
+            stderr: "Usage: bb doctrine history <scan|advance|release> [options]\n",
+          };
+        }
+        if (command === "validate") {
+          const library = await loadDoctrine(
+            expandPath((await settings.get()).doctrinePath),
+          );
+          return {
+            exitCode: 0,
+            stdout: `${JSON.stringify(
+              {
+                root: library.root,
+                rules: library.rules.length,
+                statuses: library.status_counts,
+              },
+              null,
+              2,
+            )}\n`,
+          };
+        }
+        const library = await currentLibrary();
         if (command === "status") {
           const summary = {
             root: library.root,
@@ -459,7 +576,7 @@ export default async function plugin(bb: BbPluginApi) {
           if (!rule) return { exitCode: 1, stderr: `Rule not found: ${argv[1] ?? ""}\n` };
           return { exitCode: 0, stdout: json ? `${JSON.stringify(rule, null, 2)}\n` : `${formatRule(rule)}\n` };
         }
-        return { exitCode: 2, stderr: "Usage: bb doctrine <status|search|show>\n" };
+        return { exitCode: 2, stderr: "Usage: bb doctrine <status|search|show|history|validate>\n" };
       } catch (error) {
         return { exitCode: 1, stderr: `${error instanceof Error ? error.message : String(error)}\n` };
       }

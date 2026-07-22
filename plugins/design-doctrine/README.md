@@ -23,7 +23,7 @@ The bundled `design-doctrine` skill brings the right rules into the work at hand
 
 ## How it was built
 
-The library grew out of feedback I kept giving in bb threads: direct requests, corrections, approvals, and rejections. Agent output is not evidence by itself, and a pattern repeated across threads matters more than a one-off preference.
+The library grew out of feedback I kept giving in bb threads: direct requests, corrections, approvals, and rejections. The plugin queues visible user threads when they become idle, then its weekly maintenance pass reads only the unseen part of each episode through bb's timeline API. Agent output is not evidence by itself, and a pattern repeated across threads matters more than a one-off preference.
 
 Rules are plain Markdown files under `rules/<domain>/`, so their reasoning and revisions remain easy to inspect in Git. [`governance.md`](governance.md) explains what qualifies as evidence and when it should become a rule.
 
