@@ -12,9 +12,9 @@ var __export = (target, all) => {
 
 // server.ts
 import { execFile as execFile2 } from "node:child_process";
-import { readdir, readFile, stat } from "node:fs/promises";
+import { readdir, readFile as readFile2, stat } from "node:fs/promises";
 import { homedir } from "node:os";
-import { basename, dirname, join, relative, resolve } from "node:path";
+import { basename, dirname, join as join2, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { promisify as promisify2 } from "node:util";
 
@@ -14534,12 +14534,15 @@ config(en_default());
 
 // history.ts
 import { execFile } from "node:child_process";
+import { readFile, unlink } from "node:fs/promises";
+import { join } from "node:path";
 import { promisify } from "node:util";
 
 // ../../packages/thread-history-maintenance/index.ts
 import { randomUUID } from "node:crypto";
 var THREAD_PAGE_SIZE = 1e3;
 var TIMELINE_SEGMENT_LIMIT = "100";
+var TIMELINE_PAGE_LIMIT = 4;
 var TIMELINE_CONCURRENCY = 8;
 var DEFAULT_RECONCILE_INTERVAL_MS = 30 * 24 * 60 * 60 * 1e3;
 var STARTUP_RECONCILE_GAP_MS = 5 * 60 * 1e3;
@@ -14548,6 +14551,9 @@ var META_LAST_RECONCILED_AT = "last_reconciled_at";
 var META_LAST_PREPARED_AT = "last_prepared_at";
 function isEligibleThread(thread) {
   return thread.visibility === "visible" && thread.originPluginId === null;
+}
+function isThreadNotFoundError(error51) {
+  return error51 instanceof Error && "status" in error51 && error51.status === 404 && "code" in error51 && error51.code === "thread_not_found";
 }
 function utf8Length(value) {
   return new TextEncoder().encode(value).length;
@@ -14612,20 +14618,28 @@ function messageFromRow(row, maxMessageBytes) {
     truncated: text !== row.text
   };
 }
-async function loadEpisode(bb, state, maxMessageBytes, signal) {
+async function loadEpisode(bb, state, observedThreadUpdatedAt, maxMessageBytes, signal) {
   const rows = /* @__PURE__ */ new Map();
-  let beforeAnchorSeq;
-  let beforeAnchorId;
+  const startedFromHydration = state.hydration_before_anchor_seq !== null;
+  let beforeAnchorSeq = state.hydration_before_anchor_seq ?? void 0;
+  let beforeAnchorId = state.hydration_before_anchor_id ?? void 0;
   let targetSequence = state.checkpoint_sequence ?? 0;
-  while (true) {
+  let reachedCheckpoint = false;
+  let nextCursor = null;
+  for (let pageIndex = 0; pageIndex < TIMELINE_PAGE_LIMIT; pageIndex += 1) {
     const timeline = await bb.sdk.threads.timeline({
       threadId: state.thread_id,
       includeNestedRows: "false",
       segmentLimit: TIMELINE_SEGMENT_LIMIT,
       signal,
-      ...beforeAnchorSeq === void 0 ? {} : { beforeAnchorSeq, beforeAnchorId }
+      ...beforeAnchorSeq === void 0 ? {} : {
+        beforeAnchorSeq: String(beforeAnchorSeq),
+        beforeAnchorId
+      }
     });
-    if (beforeAnchorSeq === void 0) targetSequence = timeline.maxSeq;
+    if (!startedFromHydration && pageIndex === 0) {
+      targetSequence = timeline.maxSeq;
+    }
     for (const row of timeline.rows) {
       const isNew = state.checkpoint_sequence === null ? row.createdAt >= state.checkpoint_at : row.sourceSeqEnd > state.checkpoint_sequence;
       if (isNew) rows.set(row.id, row);
@@ -14638,22 +14652,44 @@ async function loadEpisode(bb, state, maxMessageBytes, signal) {
       (oldest, row) => Math.min(oldest, row.sourceSeqStart),
       Number.POSITIVE_INFINITY
     );
-    const reachedCheckpoint = state.checkpoint_sequence === null ? oldestCreatedAt < state.checkpoint_at : oldestSequence <= state.checkpoint_sequence;
+    reachedCheckpoint = state.checkpoint_sequence === null ? oldestCreatedAt < state.checkpoint_at : oldestSequence <= state.checkpoint_sequence;
     const olderCursor = timeline.timelinePage.olderCursor;
+    nextCursor = olderCursor;
     if (reachedCheckpoint || !timeline.timelinePage.hasOlderRows || olderCursor === null) {
       break;
     }
-    beforeAnchorSeq = String(olderCursor.anchorSeq);
+    beforeAnchorSeq = olderCursor.anchorSeq;
     beforeAnchorId = olderCursor.anchorId;
+  }
+  if (!reachedCheckpoint && nextCursor !== null) {
+    return {
+      state,
+      messages: [],
+      targetSequence: state.checkpoint_sequence ?? 0,
+      targetAt: state.checkpoint_at,
+      complete: false,
+      hydrationCursor: nextCursor,
+      retrievalDeferred: true
+    };
   }
   const messages = [...rows.values()].sort(
     (left, right) => left.sourceSeqStart - right.sourceSeqStart || left.id.localeCompare(right.id)
   ).map((row) => messageFromRow(row, maxMessageBytes)).filter((message) => message !== null);
+  const lastRetrievedRow = [...rows.values()].sort(
+    (left, right) => right.sourceSeqEnd - left.sourceSeqEnd || right.id.localeCompare(left.id)
+  )[0];
+  const complete = !startedFromHydration;
+  if (!complete && lastRetrievedRow !== void 0) {
+    targetSequence = lastRetrievedRow.sourceSeqEnd;
+  }
   return {
     state,
     messages,
     targetSequence,
-    targetAt: state.latest_thread_updated_at
+    targetAt: complete ? observedThreadUpdatedAt : lastRetrievedRow?.createdAt ?? state.checkpoint_at,
+    complete,
+    hydrationCursor: null,
+    retrievalDeferred: false
   };
 }
 function createThreadHistoryMaintenance(bb, options = {}) {
@@ -14691,7 +14727,11 @@ function createThreadHistoryMaintenance(bb, options = {}) {
       PRIMARY KEY (lease_id, thread_id)
     )`,
     `ALTER TABLE thread_history_threads
-      ADD COLUMN created_observed INTEGER NOT NULL DEFAULT 0`
+      ADD COLUMN created_observed INTEGER NOT NULL DEFAULT 0`,
+    `ALTER TABLE thread_history_threads
+      ADD COLUMN hydration_before_anchor_seq INTEGER`,
+    `ALTER TABLE thread_history_threads
+      ADD COLUMN hydration_before_anchor_id TEXT`
   ]);
   const reconcileIntervalMs = options.reconcileIntervalMs ?? DEFAULT_RECONCILE_INTERVAL_MS;
   let startupReconcileRequired = true;
@@ -14813,6 +14853,9 @@ function createThreadHistoryMaintenance(bb, options = {}) {
         last_seen_at = excluded.last_seen_at`
     );
     const write = db.transaction(() => {
+      db.prepare(
+        "UPDATE thread_history_threads SET last_seen_at = -1"
+      ).run();
       for (const thread of threads) {
         upsert.run(
           thread.id,
@@ -14823,6 +14866,22 @@ function createThreadHistoryMaintenance(bb, options = {}) {
           now
         );
       }
+      db.prepare(
+        `DELETE FROM thread_history_lease_items
+         WHERE thread_id IN (
+           SELECT thread_id FROM thread_history_threads WHERE last_seen_at = -1
+         )`
+      ).run();
+      db.prepare(
+        "DELETE FROM thread_history_threads WHERE last_seen_at = -1"
+      ).run();
+      db.prepare(
+        `DELETE FROM thread_history_leases
+         WHERE NOT EXISTS (
+           SELECT 1 FROM thread_history_lease_items
+           WHERE lease_id = thread_history_leases.id
+         )`
+      ).run();
       setMeta(META_LAST_RECONCILED_AT, now);
     });
     write();
@@ -14853,6 +14912,32 @@ function createThreadHistoryMaintenance(bb, options = {}) {
   function pendingCount() {
     const row = db.prepare("SELECT COUNT(*) AS count FROM thread_history_threads WHERE pending = 1").get();
     return row.count;
+  }
+  function pruneStoredThread(threadId) {
+    const prune = db.transaction(() => {
+      db.prepare(
+        "DELETE FROM thread_history_lease_items WHERE thread_id = ?"
+      ).run(threadId);
+      db.prepare("DELETE FROM thread_history_threads WHERE thread_id = ?").run(
+        threadId
+      );
+      db.prepare(
+        `DELETE FROM thread_history_leases
+         WHERE NOT EXISTS (
+           SELECT 1 FROM thread_history_lease_items
+           WHERE lease_id = thread_history_leases.id
+         )`
+      ).run();
+    });
+    prune();
+  }
+  function storeHydrationCursor(threadId, cursor) {
+    db.prepare(
+      `UPDATE thread_history_threads SET
+        hydration_before_anchor_seq = ?,
+        hydration_before_anchor_id = ?
+      WHERE thread_id = ?`
+    ).run(cursor?.anchorSeq ?? null, cursor?.anchorId ?? null, threadId);
   }
   return {
     prepare() {
@@ -14900,21 +14985,25 @@ function createThreadHistoryMaintenance(bb, options = {}) {
           "SELECT thread_id FROM thread_history_threads WHERE thread_id = ?"
         ).get(thread.id);
         if (existing === void 0) {
+          const initializedAt = meta3(META_INITIALIZED_AT);
+          const createdAfterBaseline = initializedAt !== null && thread.createdAt >= initializedAt;
           db.prepare(
             `INSERT INTO thread_history_threads (
               thread_id, project_id, title, checkpoint_sequence, checkpoint_at,
               latest_thread_updated_at, pending, pending_since, last_seen_at,
               created_observed
-            ) VALUES (?, ?, ?, NULL, ?, ?, 0, NULL, ?, 0)`
+            ) VALUES (?, ?, ?, NULL, ?, ?, ?, ?, ?, 0)`
           ).run(
             thread.id,
             thread.projectId,
             titleFor(thread),
+            createdAfterBaseline ? thread.createdAt : thread.updatedAt,
             thread.updatedAt,
-            thread.updatedAt,
+            createdAfterBaseline ? 1 : 0,
+            createdAfterBaseline ? now : null,
             now
           );
-          return { queued: false };
+          return { queued: createdAfterBaseline };
         }
         db.prepare(
           `UPDATE thread_history_threads SET
@@ -14938,11 +15027,9 @@ function createThreadHistoryMaintenance(bb, options = {}) {
     },
     forgetThread(threadId) {
       return exclusive(async () => {
-        db.prepare("DELETE FROM thread_history_lease_items WHERE thread_id = ?").run(
-          threadId
-        );
-        const result = db.prepare("DELETE FROM thread_history_threads WHERE thread_id = ?").run(threadId);
-        return { forgotten: result.changes > 0 };
+        const existed = db.prepare("SELECT 1 FROM thread_history_threads WHERE thread_id = ?").get(threadId);
+        pruneStoredThread(threadId);
+        return { forgotten: existed !== void 0 };
       });
     },
     scan(scanOptions) {
@@ -14966,7 +15053,8 @@ function createThreadHistoryMaintenance(bb, options = {}) {
         const candidateLimit = Math.min(Math.max(scanOptions.limit, 8), 1e3);
         const candidates = db.prepare(
           `SELECT thread_id, project_id, title, checkpoint_sequence,
-              checkpoint_at, latest_thread_updated_at, pending, pending_since
+              checkpoint_at, latest_thread_updated_at, pending, pending_since,
+              hydration_before_anchor_seq, hydration_before_anchor_id
             FROM thread_history_threads
             WHERE pending = 1
             ORDER BY pending_since, thread_id
@@ -14982,33 +15070,89 @@ function createThreadHistoryMaintenance(bb, options = {}) {
         for (let start = 0; start < candidates.length && !hitBound; start += TIMELINE_CONCURRENCY) {
           const loaded = await Promise.all(
             candidates.slice(start, start + TIMELINE_CONCURRENCY).map(async (candidate) => {
-              const thread = await bb.sdk.threads.get({
-                threadId: candidate.thread_id,
-                signal: scanOptions.signal
-              });
-              if (thread.status !== "idle" && thread.status !== "error") {
-                return null;
+              let before;
+              try {
+                before = await bb.sdk.threads.get({
+                  threadId: candidate.thread_id,
+                  signal: scanOptions.signal
+                });
+              } catch (error51) {
+                if (isThreadNotFoundError(error51)) {
+                  return { kind: "pruned", candidate };
+                }
+                throw error51;
               }
-              return loadEpisode(
-                bb,
-                candidate,
-                scanOptions.maxMessageBytes,
-                scanOptions.signal
-              );
+              if (!isEligibleThread(before)) {
+                return { kind: "pruned", candidate };
+              }
+              if (before.status !== "idle" && before.status !== "error") {
+                return { kind: "deferred", candidate };
+              }
+              let episode;
+              try {
+                episode = await loadEpisode(
+                  bb,
+                  candidate,
+                  before.updatedAt,
+                  scanOptions.maxMessageBytes,
+                  scanOptions.signal
+                );
+              } catch (error51) {
+                if (isThreadNotFoundError(error51)) {
+                  return { kind: "pruned", candidate };
+                }
+                throw error51;
+              }
+              let after;
+              try {
+                after = await bb.sdk.threads.get({
+                  threadId: candidate.thread_id,
+                  signal: scanOptions.signal
+                });
+              } catch (error51) {
+                if (isThreadNotFoundError(error51)) {
+                  return { kind: "pruned", candidate };
+                }
+                throw error51;
+              }
+              if (!isEligibleThread(after)) {
+                return { kind: "pruned", candidate };
+              }
+              if (after.status !== "idle" && after.status !== "error" || after.updatedAt !== before.updatedAt) {
+                return { kind: "deferred", candidate };
+              }
+              if (episode.retrievalDeferred) {
+                return { kind: "hydrating", candidate, episode };
+              }
+              return { kind: "episode", candidate, episode };
             })
           );
-          for (const episode of loaded) {
-            if (episode === null) {
+          for (const result of loaded) {
+            if (result.kind === "pruned") {
+              pruneStoredThread(result.candidate.thread_id);
+              continue;
+            }
+            if (result.kind === "deferred") {
               deferredThreadCount += 1;
               continue;
             }
+            if (result.kind === "hydrating") {
+              storeHydrationCursor(
+                result.candidate.thread_id,
+                result.episode.hydrationCursor
+              );
+              deferredThreadCount += 1;
+              continue;
+            }
+            const episode = result.episode;
+            storeHydrationCursor(result.candidate.thread_id, null);
             if (episode.messages.length === 0) {
               automaticTargets.push({
                 threadId: episode.state.thread_id,
                 targetSequence: episode.targetSequence,
                 targetAt: episode.targetAt,
-                observedThreadUpdatedAt: episode.state.latest_thread_updated_at,
-                complete: true
+                observedThreadUpdatedAt: episode.targetAt,
+                complete: episode.complete
               });
               continue;
             }
@@ -15019,7 +15163,7 @@ function createThreadHistoryMaintenance(bb, options = {}) {
               0
             );
             let selected = episode.messages;
-            let complete = true;
+            let complete = episode.complete;
             if (selected.length > remainingCount || fullBytes > remainingBytes) {
               if (episodes.length > 0) {
                 hitBound = true;
@@ -15035,7 +15179,7 @@ function createThreadHistoryMaintenance(bb, options = {}) {
                 selected.push(message);
                 selectedBytes2 += bytes;
               }
-              complete = selected.length === episode.messages.length;
+              complete = episode.complete && selected.length === episode.messages.length;
             }
             if (selected.length === 0) {
               hitBound = true;
@@ -15067,7 +15211,7 @@ function createThreadHistoryMaintenance(bb, options = {}) {
               threadId: episode.state.thread_id,
               targetSequence,
               targetAt,
-              observedThreadUpdatedAt: episode.state.latest_thread_updated_at,
+              observedThreadUpdatedAt: episode.targetAt,
               complete
             });
             messageCount += selected.length;
@@ -15196,6 +15340,7 @@ function createThreadHistoryMaintenance(bb, options = {}) {
 // history.ts
 var execFileAsync = promisify(execFile);
 var LEGACY_HISTORY_STATE_KEY = "maintenance:thread-history:v2";
+var LEGACY_HISTORY_STATE_PATH = join("maintenance", "state.json");
 async function ensureCleanRules(pluginRoot) {
   const result = await execFileAsync(
     "git",
@@ -15216,11 +15361,83 @@ async function ensureCleanRules(pluginRoot) {
     );
   }
 }
+function normalizeEpochMilliseconds(value) {
+  if (typeof value !== "number" || !Number.isFinite(value)) return value;
+  return value < 1e10 ? value * 1e3 : value;
+}
+function normalizeLegacyState(value) {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    throw new Error("legacy maintenance state must be a JSON object");
+  }
+  const state = value;
+  const lease = state.lease;
+  if (typeof lease !== "object" || lease === null || Array.isArray(lease)) {
+    return state;
+  }
+  const leaseRecord = lease;
+  return {
+    ...state,
+    lease: {
+      ...leaseRecord,
+      acquired_at: normalizeEpochMilliseconds(leaseRecord.acquired_at),
+      expires_at: normalizeEpochMilliseconds(leaseRecord.expires_at)
+    }
+  };
+}
+function isMissingFile(error51) {
+  return typeof error51 === "object" && error51 !== null && "code" in error51 && error51.code === "ENOENT";
+}
+async function importLegacyStateFile(bb, pluginRoot) {
+  const statePath = join(pluginRoot, LEGACY_HISTORY_STATE_PATH);
+  let source;
+  try {
+    source = await readFile(statePath, "utf8");
+  } catch (error51) {
+    if (isMissingFile(error51)) return null;
+    throw error51;
+  }
+  const state = normalizeLegacyState(JSON.parse(source));
+  await bb.storage.kv.set(LEGACY_HISTORY_STATE_KEY, state);
+  return statePath;
+}
+async function removeMigratedStateFile(bb, statePath) {
+  if (statePath === null) return;
+  if (await bb.storage.kv.get(LEGACY_HISTORY_STATE_KEY) !== void 0) {
+    return;
+  }
+  try {
+    await unlink(statePath);
+  } catch (error51) {
+    if (!isMissingFile(error51)) throw error51;
+  }
+}
 function createHistoryMaintenance(bb, resolvePluginRoot) {
-  return createThreadHistoryMaintenance(bb, {
+  const history = createThreadHistoryMaintenance(bb, {
     beforeScan: async () => ensureCleanRules(await resolvePluginRoot()),
     legacyStateKeys: [LEGACY_HISTORY_STATE_KEY]
   });
+  let migrationQueue = Promise.resolve();
+  function withLegacyStateMigration(operation) {
+    const result = migrationQueue.then(async () => {
+      const statePath = await importLegacyStateFile(
+        bb,
+        await resolvePluginRoot()
+      );
+      const output = await operation();
+      await removeMigratedStateFile(bb, statePath);
+      return output;
+    });
+    migrationQueue = result.then(
+      () => void 0,
+      () => void 0
+    );
+    return result;
+  }
+  return {
+    ...history,
+    prepare: () => withLegacyStateMigration(() => history.prepare()),
+    scan: (options) => withLegacyStateMigration(() => history.scan(options))
+  };
 }
 
 // server.ts
@@ -15281,16 +15498,16 @@ var rpcContract = defineRpcContract({
 });
 function expandPath(input) {
   if (input === "~") return homedir();
-  if (input.startsWith("~/")) return join(homedir(), input.slice(2));
+  if (input.startsWith("~/")) return join2(homedir(), input.slice(2));
   return resolve(input);
 }
 async function listRuleFiles(root) {
-  const rulesRoot = join(root, "rules");
+  const rulesRoot = join2(root, "rules");
   const domains = await readdir(rulesRoot, { withFileTypes: true });
   const files = await Promise.all(
     domains.filter((entry) => entry.isDirectory()).map(async (domain2) => {
-      const directory = join(rulesRoot, domain2.name);
-      return (await readdir(directory, { withFileTypes: true })).filter((entry) => entry.isFile() && entry.name.endsWith(".md")).map((entry) => join(directory, entry.name));
+      const directory = join2(rulesRoot, domain2.name);
+      return (await readdir(directory, { withFileTypes: true })).filter((entry) => entry.isFile() && entry.name.endsWith(".md")).map((entry) => join2(directory, entry.name));
     })
   );
   return files.flat().sort();
@@ -15332,7 +15549,7 @@ function sectionList(sections, name) {
   return (sections.get(name) ?? []).filter((line) => line.startsWith("- ")).map((line) => line.slice(2).trim()).filter(Boolean);
 }
 async function parseRule(path, root) {
-  const source = await readFile(path, "utf8");
+  const source = await readFile2(path, "utf8");
   const match = source.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n([\s\S]+)$/);
   if (!match) throw new Error(`${relative(root, path)}: missing frontmatter`);
   const metadata = {};
@@ -15605,7 +15822,6 @@ async function plugin(bb) {
     bb,
     async () => expandPath((await settings.get()).doctrinePath)
   );
-  await historyMaintenance.prepare();
   bb.events.on("thread.created", async ({ thread }) => {
     await historyMaintenance.observeCreated(thread);
   });
@@ -15767,6 +15983,11 @@ Repository: ${summary.root}
   settings.onChange(() => {
     invalidate();
     bb.realtime.publish("rules-changed", { changed_at: (/* @__PURE__ */ new Date()).toISOString() });
+  });
+  void historyMaintenance.prepare().catch((error51) => {
+    bb.log.warn(
+      `could not prepare incremental thread history: ${error51 instanceof Error ? error51.message : String(error51)}; the next history scan will retry`
+    );
   });
 }
 export {

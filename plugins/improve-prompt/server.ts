@@ -279,7 +279,6 @@ export default async function plugin(bb: BbPluginApi) {
   }
 
   const historyMaintenance = createHistoryMaintenance(bb);
-  await historyMaintenance.prepare();
   bb.events.on("thread.created", async ({ thread }) => {
     await historyMaintenance.observeCreated(thread);
   });
@@ -452,6 +451,12 @@ export default async function plugin(bb: BbPluginApi) {
       error: error?.trim() || "The shaping agent failed.",
     }),
   );
+
+  void historyMaintenance.prepare().catch((error) => {
+    bb.log.warn(
+      `could not prepare incremental thread history: ${errorMessage(error)}; the next history scan will retry`,
+    );
+  });
 
   const now = Date.now();
   for (const key of await bb.storage.kv.list(REQUEST_PREFIX)) {

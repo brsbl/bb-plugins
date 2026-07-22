@@ -450,7 +450,6 @@ export default async function plugin(bb: BbPluginApi) {
   const historyMaintenance = createHistoryMaintenance(bb, async () =>
     expandPath((await settings.get()).doctrinePath),
   );
-  await historyMaintenance.prepare();
   bb.events.on("thread.created", async ({ thread }) => {
     await historyMaintenance.observeCreated(thread);
   });
@@ -604,5 +603,11 @@ export default async function plugin(bb: BbPluginApi) {
   settings.onChange(() => {
     invalidate();
     bb.realtime.publish("rules-changed", { changed_at: new Date().toISOString() });
+  });
+
+  void historyMaintenance.prepare().catch((error) => {
+    bb.log.warn(
+      `could not prepare incremental thread history: ${error instanceof Error ? error.message : String(error)}; the next history scan will retry`,
+    );
   });
 }

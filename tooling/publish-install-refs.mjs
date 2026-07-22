@@ -10,6 +10,11 @@ import { validatePluginArtifacts } from "./validate-plugin-artifacts.mjs";
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const releaseAppEntry = "./dist/install-app.mjs";
 const releaseAppCss = "dist/install-app.css";
+const productionDependencyFields = [
+  "dependencies",
+  "optionalDependencies",
+  "peerDependencies",
+];
 
 function run(command, args, options = {}) {
   const result = spawnSync(command, args, {
@@ -56,7 +61,7 @@ async function filesBelow(directory, prefix = "") {
   return files;
 }
 
-function releaseManifest(sourceManifest) {
+export function releaseManifest(sourceManifest, bundledPackageNames = new Set()) {
   const manifest = structuredClone(sourceManifest);
   delete manifest.devDependencies;
   delete manifest.scripts;
@@ -65,12 +70,43 @@ function releaseManifest(sourceManifest) {
   // so installation never depends on development node_modules. The wrapper
   // also carries plugin-authored CSS through that second build.
   if (manifest.bb?.app) manifest.bb.app = releaseAppEntry;
-  for (const [name, version] of Object.entries(manifest.dependencies ?? {})) {
-    if (String(version).startsWith("file:")) {
-      throw new Error(`${manifest.name}: production dependency ${name} uses ${version}`);
+  for (const field of productionDependencyFields) {
+    const dependencies = manifest[field];
+    if (!dependencies) continue;
+    for (const [name, version] of Object.entries(dependencies)) {
+      if (bundledPackageNames.has(name)) {
+        delete dependencies[name];
+        continue;
+      }
+      if (String(version).startsWith("file:")) {
+        throw new Error(`${manifest.name}: production dependency ${name} uses ${version}`);
+      }
     }
+    if (Object.keys(dependencies).length === 0) delete manifest[field];
   }
   return `${JSON.stringify(manifest, null, 2)}\n`;
+}
+
+async function readBundledPackageNames() {
+  const packagesDirectory = resolve(root, "packages");
+  const entries = await readdir(packagesDirectory, { withFileTypes: true }).catch(
+    (error) => {
+      if (error?.code === "ENOENT") return [];
+      throw error;
+    },
+  );
+  const names = new Set();
+  for (const entry of entries) {
+    if (!entry.isDirectory() || entry.name.startsWith(".")) continue;
+    const manifest = JSON.parse(
+      await readFile(resolve(packagesDirectory, entry.name, "package.json"), "utf8"),
+    );
+    if (!manifest.name) {
+      throw new Error(`packages/${entry.name}/package.json has no package name`);
+    }
+    names.add(manifest.name);
+  }
+  return names;
 }
 
 function addBlob(indexPath, repositoryPath, input) {
@@ -81,7 +117,7 @@ function addBlob(indexPath, repositoryPath, input) {
   );
 }
 
-async function createReleaseTree(plugin, sourceCommit) {
+async function createReleaseTree(plugin, sourceCommit, bundledPackageNames) {
   const pluginDirectory = resolve(root, plugin.source);
   const sourceManifest = JSON.parse(
     await readFile(resolve(pluginDirectory, "package.json"), "utf8"),
@@ -138,7 +174,11 @@ async function createReleaseTree(plugin, sourceCommit) {
       addBlob(indexPath, releaseAppEntry.replace(/^\.\//, ""), `${wrapper.join("\n")}\n`);
     }
 
-    addBlob(indexPath, "package.json", releaseManifest(sourceManifest));
+    addBlob(
+      indexPath,
+      "package.json",
+      releaseManifest(sourceManifest, bundledPackageNames),
+    );
 
     return git(["write-tree"], { env: { GIT_INDEX_FILE: indexPath } });
   } finally {
@@ -294,6 +334,7 @@ async function verifyReleaseCommit(plugin, releaseCommit, bbVersion) {
 export async function publishInstallRefs(options = {}) {
   const push = options.push ?? false;
   const plugins = await readPluginWorkspaces(root);
+  const bundledPackageNames = await readBundledPackageNames();
   if (push) assertPublishWorktreeClean();
   const sourceRevision = git(["rev-parse", "HEAD"]);
 
@@ -316,7 +357,11 @@ export async function publishInstallRefs(options = {}) {
       .at(-1);
     if (!sourceCommit) throw new Error(`no subtree commit produced for ${plugin.slug}`);
 
-    const candidateTree = await createReleaseTree(plugin, sourceCommit);
+    const candidateTree = await createReleaseTree(
+      plugin,
+      sourceCommit,
+      bundledPackageNames,
+    );
     const currentCommit = currentReleaseCommit(plugin, push);
     const currentTree = currentCommit
       ? git(["rev-parse", `${currentCommit}^{tree}`])

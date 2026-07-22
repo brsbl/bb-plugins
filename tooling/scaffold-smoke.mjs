@@ -7,7 +7,10 @@ import { fileURLToPath } from "node:url";
 
 import { checkRepository } from "./check-repository.mjs";
 import { scaffoldPlugin } from "./create-plugin.mjs";
-import { assertPublishWorktreeClean } from "./publish-install-refs.mjs";
+import {
+  assertPublishWorktreeClean,
+  releaseManifest,
+} from "./publish-install-refs.mjs";
 import { validatePluginArtifacts } from "./validate-plugin-artifacts.mjs";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
@@ -131,6 +134,46 @@ try {
   assert.throws(
     () => assertPublishWorktreeClean(" M tooling/publish-install-refs.mjs"),
     /refusing to push install refs from a dirty worktree/,
+  );
+  const releasedManifest = JSON.parse(
+    releaseManifest(
+      {
+        name: "bb-plugin-release-smoke",
+        dependencies: {
+          "@fixture/bundled-helper": "0.1.0",
+          "external-runtime": "^2.0.0",
+        },
+        optionalDependencies: {
+          "@fixture/optional-bundled-helper": "0.1.0",
+        },
+        peerDependencies: {
+          "external-peer": "^3.0.0",
+        },
+        devDependencies: { typescript: "^5.7.0" },
+        scripts: { check: "tsc --noEmit" },
+      },
+      new Set([
+        "@fixture/bundled-helper",
+        "@fixture/optional-bundled-helper",
+      ]),
+    ),
+  );
+  assert.deepEqual(releasedManifest.dependencies, {
+    "external-runtime": "^2.0.0",
+  });
+  assert.equal(releasedManifest.optionalDependencies, undefined);
+  assert.deepEqual(releasedManifest.peerDependencies, {
+    "external-peer": "^3.0.0",
+  });
+  assert.equal(releasedManifest.devDependencies, undefined);
+  assert.equal(releasedManifest.scripts, undefined);
+  assert.throws(
+    () =>
+      releaseManifest({
+        name: "bb-plugin-release-smoke",
+        dependencies: { accidental: "file:../accidental" },
+      }),
+    /production dependency accidental uses file:/,
   );
   await createFixtureRepository(fixtureRoot);
 

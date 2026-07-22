@@ -13,6 +13,15 @@ const scanOptions = {
   maxMessageBytes: 8_192,
 };
 
+function httpError(status: number, code: string | null) {
+  return Object.assign(new Error(`HTTP ${status}`), {
+    name: "BbHttpError",
+    body: null,
+    code,
+    status,
+  });
+}
+
 function userRow(id: string, sequence: number, createdAt: number, text: string) {
   return {
     id,
@@ -57,16 +66,24 @@ function assistantRow(
   };
 }
 
-function timeline(rows: unknown[], maxSeq: number) {
+function timeline(
+  rows: unknown[],
+  maxSeq: number,
+  page: {
+    hasOlderRows?: boolean;
+    olderCursor?: { anchorSeq: number; anchorId: string } | null;
+    kind?: "latest" | "older";
+  } = {},
+) {
   return {
     rows,
     maxSeq,
     timelinePage: {
-      kind: "latest",
+      kind: page.kind ?? "latest",
       segmentLimit: 100,
       returnedSegmentCount: rows.length,
-      hasOlderRows: false,
-      olderCursor: null,
+      hasOlderRows: page.hasOlderRows ?? false,
+      olderCursor: page.olderCursor ?? null,
     },
     activePromptMode: null,
     activeThinking: null,
@@ -87,10 +104,13 @@ function createHarness() {
     updatedAt: 10,
   });
   let currentTimeline = timeline([], 0);
+  let listed = true;
   const list = vi.fn(async (args?: { archived?: boolean }) =>
-    args?.archived ? [] : [thread],
+    args?.archived || !listed ? [] : [thread],
   );
-  const getTimeline = vi.fn(async () => currentTimeline);
+  const getTimeline = vi.fn(
+    async (_args?: { beforeAnchorSeq?: string }) => currentTimeline,
+  );
   const get = vi.fn(async () => thread);
   const host = createFakePluginHost({
     pluginId: "history-test",
@@ -105,6 +125,18 @@ function createHarness() {
     setThread(updatedAt: number, status: "active" | "idle" = "idle") {
       thread = makeThreadResponse({ ...thread, status, updatedAt });
       return thread;
+    },
+    setCreatedThread(createdAt: number, updatedAt: number) {
+      thread = makeThreadResponse({
+        ...thread,
+        createdAt,
+        status: "idle",
+        updatedAt,
+      });
+      return thread;
+    },
+    setListed(value: boolean) {
+      listed = value;
     },
     setTimeline(rows: unknown[], maxSeq: number) {
       currentTimeline = timeline(rows, maxSeq);
@@ -147,6 +179,36 @@ describe("idle-episode thread history maintenance", () => {
       episode_count: 1,
       episodes: [
         { messages: [{ role: "user", text: "Learn this first episode." }] },
+      ],
+    });
+    await maintenance.release(scanned.lease_id!);
+    await harness.harness.lifecycle.dispose();
+  });
+
+  it("queues an unknown idle thread created after the established baseline", async () => {
+    const harness = createHarness();
+    const maintenance = createThreadHistoryMaintenance(harness.bb);
+    await maintenance.scan(scanOptions);
+    await maintenance.forgetThread("thr_test");
+
+    const createdAt = Date.now() + 1;
+    const idleThread = harness.setCreatedThread(createdAt, createdAt + 2);
+    harness.setTimeline(
+      [userRow("msg_missed_create", 1, createdAt + 1, "Learn the missed thread.")],
+      1,
+    );
+
+    await expect(maintenance.observeThread(idleThread)).resolves.toEqual({
+      queued: true,
+    });
+    const scanned = await maintenance.scan(scanOptions);
+    expect(scanned).toMatchObject({
+      episode_count: 1,
+      episodes: [
+        {
+          checkpoint_before: { sequence: null, updated_at: createdAt },
+          messages: [{ source_key: "msg_missed_create" }],
+        },
       ],
     });
     await maintenance.release(scanned.lease_id!);
@@ -304,6 +366,225 @@ describe("idle-episode thread history maintenance", () => {
       ],
     });
     await afterRestart.release(scanned.lease_id!);
+    await harness.harness.lifecycle.dispose();
+  });
+
+  it("prunes absent threads and their lease items during reconciliation", async () => {
+    const harness = createHarness();
+    const maintenance = createThreadHistoryMaintenance(harness.bb);
+    await maintenance.scan(scanOptions);
+    await maintenance.observeThread(harness.setThread(21));
+
+    const db = harness.bb.storage.database();
+    db.prepare(
+      `INSERT INTO thread_history_lease_items (
+        lease_id, thread_id, target_sequence, target_at,
+        observed_thread_updated_at, complete
+      ) VALUES (?, ?, ?, ?, ?, ?)`,
+    ).run("orphaned_lease", "thr_test", 1, 21, 21, 1);
+    harness.setListed(false);
+
+    await expect(
+      maintenance.scan({ ...scanOptions, forceReconcile: true }),
+    ).resolves.toMatchObject({
+      inventory_reconciled: true,
+      pending_thread_count: 0,
+    });
+    expect(
+      db.prepare(
+        "SELECT COUNT(*) AS count FROM thread_history_threads WHERE thread_id = ?",
+      ).get("thr_test"),
+    ).toEqual({ count: 0 });
+    expect(
+      db.prepare(
+        "SELECT COUNT(*) AS count FROM thread_history_lease_items WHERE thread_id = ?",
+      ).get("thr_test"),
+    ).toEqual({ count: 0 });
+    await harness.harness.lifecycle.dispose();
+  });
+
+  it("prunes a candidate on thread_not_found but propagates transient lookup errors", async () => {
+    const missingHarness = createHarness();
+    const missingMaintenance = createThreadHistoryMaintenance(missingHarness.bb);
+    await missingMaintenance.scan(scanOptions);
+    await missingMaintenance.observeThread(missingHarness.setThread(21));
+    missingHarness.get.mockRejectedValueOnce(
+      httpError(404, "thread_not_found"),
+    );
+
+    await expect(missingMaintenance.scan(scanOptions)).resolves.toMatchObject({
+      lease_id: null,
+      pending_thread_count: 0,
+    });
+    expect(missingHarness.getTimeline).not.toHaveBeenCalled();
+    await missingHarness.harness.lifecycle.dispose();
+
+    const transientHarness = createHarness();
+    const transientMaintenance = createThreadHistoryMaintenance(
+      transientHarness.bb,
+    );
+    await transientMaintenance.scan(scanOptions);
+    await transientMaintenance.observeThread(transientHarness.setThread(21));
+    transientHarness.get.mockRejectedValueOnce(
+      httpError(503, "host_unavailable"),
+    );
+
+    await expect(transientMaintenance.scan(scanOptions)).rejects.toMatchObject({
+      status: 503,
+      code: "host_unavailable",
+    });
+    await transientHarness.harness.lifecycle.dispose();
+  });
+
+  it("revalidates after loading and defers an idle thread updated mid-read", async () => {
+    const harness = createHarness();
+    const maintenance = createThreadHistoryMaintenance(harness.bb);
+    await maintenance.scan(scanOptions);
+    await maintenance.observeThread(harness.setThread(21));
+    harness.getTimeline.mockImplementationOnce(async () => {
+      harness.setThread(22, "idle");
+      return timeline(
+        [userRow("msg_race", 1, 20, "Do not learn this incomplete turn.")],
+        1,
+      );
+    });
+
+    await expect(maintenance.scan(scanOptions)).resolves.toMatchObject({
+      lease_id: null,
+      episodes: [],
+      deferred_thread_count: 1,
+      pending_thread_count: 1,
+    });
+    expect(harness.get).toHaveBeenCalledTimes(2);
+    await harness.harness.lifecycle.dispose();
+  });
+
+  it("revalidates after loading and defers a thread that becomes active", async () => {
+    const harness = createHarness();
+    const maintenance = createThreadHistoryMaintenance(harness.bb);
+    await maintenance.scan(scanOptions);
+    await maintenance.observeThread(harness.setThread(21));
+    harness.getTimeline.mockImplementationOnce(async () => {
+      harness.setThread(21, "active");
+      return timeline(
+        [userRow("msg_active_race", 1, 20, "This turn resumed.")],
+        1,
+      );
+    });
+
+    await expect(maintenance.scan(scanOptions)).resolves.toMatchObject({
+      lease_id: null,
+      episodes: [],
+      deferred_thread_count: 1,
+      pending_thread_count: 1,
+    });
+    expect(harness.get).toHaveBeenCalledTimes(2);
+    await harness.harness.lifecycle.dispose();
+  });
+
+  it("prunes a thread deleted between timeline load and revalidation", async () => {
+    const harness = createHarness();
+    const maintenance = createThreadHistoryMaintenance(harness.bb);
+    await maintenance.scan(scanOptions);
+    const idle = harness.setThread(21);
+    await maintenance.observeThread(idle);
+    harness.setTimeline(
+      [userRow("msg_deleted", 1, 20, "This thread disappears.")],
+      1,
+    );
+    harness.get
+      .mockResolvedValueOnce(idle)
+      .mockRejectedValueOnce(httpError(404, "thread_not_found"));
+
+    await expect(maintenance.scan(scanOptions)).resolves.toMatchObject({
+      lease_id: null,
+      episodes: [],
+      pending_thread_count: 0,
+    });
+    expect(harness.getTimeline).toHaveBeenCalledTimes(1);
+    await harness.harness.lifecycle.dispose();
+  });
+
+  it("bounds timeline hydration and resumes without skipping unseen messages", async () => {
+    const harness = createHarness();
+    const maintenance = createThreadHistoryMaintenance(harness.bb);
+    await maintenance.scan(scanOptions);
+    await maintenance.observeThread(harness.setThread(21));
+
+    let pageCall = 0;
+    harness.getTimeline.mockImplementation(async (args) => {
+      pageCall += 1;
+      if (pageCall <= 4) {
+        const anchorSeq = 100 - pageCall * 10;
+        return timeline(
+          [
+            userRow(
+              `msg_late_${pageCall}`,
+              anchorSeq + 1,
+              100 + anchorSeq,
+              `Later message ${pageCall}`,
+            ),
+          ],
+          200,
+          {
+            hasOlderRows: true,
+            olderCursor: {
+              anchorSeq,
+              anchorId: `anchor_${anchorSeq}`,
+            },
+            kind: args?.beforeAnchorSeq === undefined ? "latest" : "older",
+          },
+        );
+      }
+      expect(args?.beforeAnchorSeq).toBe("60");
+      return timeline(
+        [
+          userRow("msg_before_checkpoint", 1, 9, "Already learned."),
+          userRow("msg_earliest_unseen", 2, 11, "Earliest unseen message."),
+        ],
+        200,
+        { kind: "older" },
+      );
+    });
+
+    await expect(maintenance.scan(scanOptions)).resolves.toMatchObject({
+      lease_id: null,
+      episodes: [],
+      deferred_thread_count: 1,
+      pending_thread_count: 1,
+    });
+    expect(harness.getTimeline).toHaveBeenCalledTimes(4);
+
+    const hydrated = await maintenance.scan(scanOptions);
+    expect(hydrated).toMatchObject({
+      episode_count: 1,
+      episodes: [
+        {
+          complete: false,
+          checkpoint_commit: { sequence: 2 },
+          messages: [{ source_key: "msg_earliest_unseen" }],
+        },
+      ],
+    });
+    expect(harness.getTimeline).toHaveBeenCalledTimes(5);
+    await expect(
+      maintenance.advance({ leaseId: hydrated.lease_id! }),
+    ).resolves.toMatchObject({ pending_thread_count: 1 });
+
+    harness.getTimeline.mockResolvedValueOnce(
+      timeline(
+        [
+          userRow("msg_earliest_unseen", 2, 11, "Earliest unseen message."),
+          userRow("msg_next", 3, 12, "Next unseen message."),
+        ],
+        3,
+      ),
+    );
+    const resumed = await maintenance.scan(scanOptions);
+    expect(resumed).toMatchObject({
+      episodes: [{ messages: [{ source_key: "msg_next" }] }],
+    });
+    await maintenance.release(resumed.lease_id!);
     await harness.harness.lifecycle.dispose();
   });
 

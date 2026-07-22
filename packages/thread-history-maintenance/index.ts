@@ -4,6 +4,7 @@ import type { BbPluginApi } from "@bb/plugin-sdk";
 
 const THREAD_PAGE_SIZE = 1_000;
 const TIMELINE_SEGMENT_LIMIT = "100";
+const TIMELINE_PAGE_LIMIT = 4;
 const TIMELINE_CONCURRENCY = 8;
 const DEFAULT_RECONCILE_INTERVAL_MS = 30 * 24 * 60 * 60 * 1_000;
 const STARTUP_RECONCILE_GAP_MS = 5 * 60 * 1_000;
@@ -57,6 +58,8 @@ interface StoredThread {
   latest_thread_updated_at: number;
   pending: number;
   pending_since: number | null;
+  hydration_before_anchor_seq: number | null;
+  hydration_before_anchor_id: string | null;
 }
 
 interface StoredLease {
@@ -87,6 +90,14 @@ interface LoadedEpisode {
   messages: HistoryMessage[];
   targetSequence: number;
   targetAt: number;
+  complete: boolean;
+  hydrationCursor: TimelineCursor | null;
+  retrievalDeferred: boolean;
+}
+
+interface TimelineCursor {
+  anchorSeq: number;
+  anchorId: string;
 }
 
 interface LeaseTarget {
@@ -99,6 +110,16 @@ interface LeaseTarget {
 
 function isEligibleThread(thread: HistoryThread): boolean {
   return thread.visibility === "visible" && thread.originPluginId === null;
+}
+
+function isThreadNotFoundError(error: unknown): boolean {
+  return (
+    error instanceof Error &&
+    "status" in error &&
+    error.status === 404 &&
+    "code" in error &&
+    error.code === "thread_not_found"
+  );
 }
 
 function utf8Length(value: string): number {
@@ -195,15 +216,19 @@ function messageFromRow(
 async function loadEpisode(
   bb: BbPluginApi,
   state: StoredThread,
+  observedThreadUpdatedAt: number,
   maxMessageBytes: number,
   signal?: AbortSignal,
 ): Promise<LoadedEpisode> {
   const rows = new Map<string, ThreadTimeline["rows"][number]>();
-  let beforeAnchorSeq: string | undefined;
-  let beforeAnchorId: string | undefined;
+  const startedFromHydration = state.hydration_before_anchor_seq !== null;
+  let beforeAnchorSeq = state.hydration_before_anchor_seq ?? undefined;
+  let beforeAnchorId = state.hydration_before_anchor_id ?? undefined;
   let targetSequence = state.checkpoint_sequence ?? 0;
+  let reachedCheckpoint = false;
+  let nextCursor: TimelineCursor | null = null;
 
-  while (true) {
+  for (let pageIndex = 0; pageIndex < TIMELINE_PAGE_LIMIT; pageIndex += 1) {
     const timeline = await bb.sdk.threads.timeline({
       threadId: state.thread_id,
       includeNestedRows: "false",
@@ -211,9 +236,14 @@ async function loadEpisode(
       signal,
       ...(beforeAnchorSeq === undefined
         ? {}
-        : { beforeAnchorSeq, beforeAnchorId }),
+        : {
+            beforeAnchorSeq: String(beforeAnchorSeq),
+            beforeAnchorId: beforeAnchorId!,
+          }),
     });
-    if (beforeAnchorSeq === undefined) targetSequence = timeline.maxSeq;
+    if (!startedFromHydration && pageIndex === 0) {
+      targetSequence = timeline.maxSeq;
+    }
 
     for (const row of timeline.rows) {
       const isNew =
@@ -231,11 +261,12 @@ async function loadEpisode(
       (oldest, row) => Math.min(oldest, row.sourceSeqStart),
       Number.POSITIVE_INFINITY,
     );
-    const reachedCheckpoint =
+    reachedCheckpoint =
       state.checkpoint_sequence === null
         ? oldestCreatedAt < state.checkpoint_at
         : oldestSequence <= state.checkpoint_sequence;
     const olderCursor = timeline.timelinePage.olderCursor;
+    nextCursor = olderCursor;
     if (
       reachedCheckpoint ||
       !timeline.timelinePage.hasOlderRows ||
@@ -243,8 +274,20 @@ async function loadEpisode(
     ) {
       break;
     }
-    beforeAnchorSeq = String(olderCursor.anchorSeq);
+    beforeAnchorSeq = olderCursor.anchorSeq;
     beforeAnchorId = olderCursor.anchorId;
+  }
+
+  if (!reachedCheckpoint && nextCursor !== null) {
+    return {
+      state,
+      messages: [],
+      targetSequence: state.checkpoint_sequence ?? 0,
+      targetAt: state.checkpoint_at,
+      complete: false,
+      hydrationCursor: nextCursor,
+      retrievalDeferred: true,
+    };
   }
 
   const messages = [...rows.values()]
@@ -256,11 +299,25 @@ async function loadEpisode(
     .map((row) => messageFromRow(row, maxMessageBytes))
     .filter((message): message is HistoryMessage => message !== null);
 
+  const lastRetrievedRow = [...rows.values()].sort(
+    (left, right) =>
+      right.sourceSeqEnd - left.sourceSeqEnd || right.id.localeCompare(left.id),
+  )[0];
+  const complete = !startedFromHydration;
+  if (!complete && lastRetrievedRow !== undefined) {
+    targetSequence = lastRetrievedRow.sourceSeqEnd;
+  }
+
   return {
     state,
     messages,
     targetSequence,
-    targetAt: state.latest_thread_updated_at,
+    targetAt: complete
+      ? observedThreadUpdatedAt
+      : (lastRetrievedRow?.createdAt ?? state.checkpoint_at),
+    complete,
+    hydrationCursor: null,
+    retrievalDeferred: false,
   };
 }
 
@@ -303,6 +360,10 @@ export function createThreadHistoryMaintenance(
     )`,
     `ALTER TABLE thread_history_threads
       ADD COLUMN created_observed INTEGER NOT NULL DEFAULT 0`,
+    `ALTER TABLE thread_history_threads
+      ADD COLUMN hydration_before_anchor_seq INTEGER`,
+    `ALTER TABLE thread_history_threads
+      ADD COLUMN hydration_before_anchor_id TEXT`,
   ]);
 
   const reconcileIntervalMs =
@@ -448,6 +509,9 @@ export function createThreadHistoryMaintenance(
         last_seen_at = excluded.last_seen_at`,
     );
     const write = db.transaction(() => {
+      db.prepare(
+        "UPDATE thread_history_threads SET last_seen_at = -1",
+      ).run();
       for (const thread of threads) {
         upsert.run(
           thread.id,
@@ -458,6 +522,22 @@ export function createThreadHistoryMaintenance(
           now,
         );
       }
+      db.prepare(
+        `DELETE FROM thread_history_lease_items
+         WHERE thread_id IN (
+           SELECT thread_id FROM thread_history_threads WHERE last_seen_at = -1
+         )`,
+      ).run();
+      db.prepare(
+        "DELETE FROM thread_history_threads WHERE last_seen_at = -1",
+      ).run();
+      db.prepare(
+        `DELETE FROM thread_history_leases
+         WHERE NOT EXISTS (
+           SELECT 1 FROM thread_history_lease_items
+           WHERE lease_id = thread_history_leases.id
+         )`,
+      ).run();
       setMeta(META_LAST_RECONCILED_AT, now);
     });
     write();
@@ -498,6 +578,37 @@ export function createThreadHistoryMaintenance(
       .prepare("SELECT COUNT(*) AS count FROM thread_history_threads WHERE pending = 1")
       .get() as { count: number };
     return row.count;
+  }
+
+  function pruneStoredThread(threadId: string): void {
+    const prune = db.transaction(() => {
+      db.prepare(
+        "DELETE FROM thread_history_lease_items WHERE thread_id = ?",
+      ).run(threadId);
+      db.prepare("DELETE FROM thread_history_threads WHERE thread_id = ?").run(
+        threadId,
+      );
+      db.prepare(
+        `DELETE FROM thread_history_leases
+         WHERE NOT EXISTS (
+           SELECT 1 FROM thread_history_lease_items
+           WHERE lease_id = thread_history_leases.id
+         )`,
+      ).run();
+    });
+    prune();
+  }
+
+  function storeHydrationCursor(
+    threadId: string,
+    cursor: TimelineCursor | null,
+  ): void {
+    db.prepare(
+      `UPDATE thread_history_threads SET
+        hydration_before_anchor_seq = ?,
+        hydration_before_anchor_id = ?
+      WHERE thread_id = ?`,
+    ).run(cursor?.anchorSeq ?? null, cursor?.anchorId ?? null, threadId);
   }
 
   return {
@@ -550,21 +661,26 @@ export function createThreadHistoryMaintenance(
           )
           .get(thread.id) as { thread_id: string } | undefined;
         if (existing === undefined) {
+          const initializedAt = meta(META_INITIALIZED_AT);
+          const createdAfterBaseline =
+            initializedAt !== null && thread.createdAt >= initializedAt;
           db.prepare(
             `INSERT INTO thread_history_threads (
               thread_id, project_id, title, checkpoint_sequence, checkpoint_at,
               latest_thread_updated_at, pending, pending_since, last_seen_at,
               created_observed
-            ) VALUES (?, ?, ?, NULL, ?, ?, 0, NULL, ?, 0)`,
+            ) VALUES (?, ?, ?, NULL, ?, ?, ?, ?, ?, 0)`,
           ).run(
             thread.id,
             thread.projectId,
             titleFor(thread),
+            createdAfterBaseline ? thread.createdAt : thread.updatedAt,
             thread.updatedAt,
-            thread.updatedAt,
+            createdAfterBaseline ? 1 : 0,
+            createdAfterBaseline ? now : null,
             now,
           );
-          return { queued: false };
+          return { queued: createdAfterBaseline };
         }
         db.prepare(
           `UPDATE thread_history_threads SET
@@ -589,13 +705,11 @@ export function createThreadHistoryMaintenance(
 
     forgetThread(threadId: string) {
       return exclusive(async () => {
-        db.prepare("DELETE FROM thread_history_lease_items WHERE thread_id = ?").run(
-          threadId,
-        );
-        const result = db
-          .prepare("DELETE FROM thread_history_threads WHERE thread_id = ?")
-          .run(threadId);
-        return { forgotten: result.changes > 0 };
+        const existed = db
+          .prepare("SELECT 1 FROM thread_history_threads WHERE thread_id = ?")
+          .get(threadId);
+        pruneStoredThread(threadId);
+        return { forgotten: existed !== undefined };
       });
     },
 
@@ -628,7 +742,8 @@ export function createThreadHistoryMaintenance(
         const candidates = db
           .prepare(
             `SELECT thread_id, project_id, title, checkpoint_sequence,
-              checkpoint_at, latest_thread_updated_at, pending, pending_since
+              checkpoint_at, latest_thread_updated_at, pending, pending_since,
+              hydration_before_anchor_seq, hydration_before_anchor_id
             FROM thread_history_threads
             WHERE pending = 1
             ORDER BY pending_since, thread_id
@@ -652,39 +767,104 @@ export function createThreadHistoryMaintenance(
         let hitBound = false;
         let deferredThreadCount = 0;
 
-        for (let start = 0; start < candidates.length && !hitBound; start += TIMELINE_CONCURRENCY) {
+        for (
+          let start = 0;
+          start < candidates.length && !hitBound;
+          start += TIMELINE_CONCURRENCY
+        ) {
           const loaded = await Promise.all(
             candidates
               .slice(start, start + TIMELINE_CONCURRENCY)
               .map(async (candidate) => {
-                const thread = await bb.sdk.threads.get({
-                  threadId: candidate.thread_id,
-                  signal: scanOptions.signal,
-                });
-                if (thread.status !== "idle" && thread.status !== "error") {
-                  return null;
+                let before;
+                try {
+                  before = await bb.sdk.threads.get({
+                    threadId: candidate.thread_id,
+                    signal: scanOptions.signal,
+                  });
+                } catch (error) {
+                  if (isThreadNotFoundError(error)) {
+                    return { kind: "pruned" as const, candidate };
+                  }
+                  throw error;
                 }
-                return loadEpisode(
-                  bb,
-                  candidate,
-                  scanOptions.maxMessageBytes,
-                  scanOptions.signal,
-                );
+                if (!isEligibleThread(before)) {
+                  return { kind: "pruned" as const, candidate };
+                }
+                if (before.status !== "idle" && before.status !== "error") {
+                  return { kind: "deferred" as const, candidate };
+                }
+
+                let episode;
+                try {
+                  episode = await loadEpisode(
+                    bb,
+                    candidate,
+                    before.updatedAt,
+                    scanOptions.maxMessageBytes,
+                    scanOptions.signal,
+                  );
+                } catch (error) {
+                  if (isThreadNotFoundError(error)) {
+                    return { kind: "pruned" as const, candidate };
+                  }
+                  throw error;
+                }
+
+                let after;
+                try {
+                  after = await bb.sdk.threads.get({
+                    threadId: candidate.thread_id,
+                    signal: scanOptions.signal,
+                  });
+                } catch (error) {
+                  if (isThreadNotFoundError(error)) {
+                    return { kind: "pruned" as const, candidate };
+                  }
+                  throw error;
+                }
+                if (!isEligibleThread(after)) {
+                  return { kind: "pruned" as const, candidate };
+                }
+                if (
+                  (after.status !== "idle" && after.status !== "error") ||
+                  after.updatedAt !== before.updatedAt
+                ) {
+                  return { kind: "deferred" as const, candidate };
+                }
+                if (episode.retrievalDeferred) {
+                  return { kind: "hydrating" as const, candidate, episode };
+                }
+                return { kind: "episode" as const, candidate, episode };
               }),
           );
 
-          for (const episode of loaded) {
-            if (episode === null) {
+          for (const result of loaded) {
+            if (result.kind === "pruned") {
+              pruneStoredThread(result.candidate.thread_id);
+              continue;
+            }
+            if (result.kind === "deferred") {
               deferredThreadCount += 1;
               continue;
             }
+            if (result.kind === "hydrating") {
+              storeHydrationCursor(
+                result.candidate.thread_id,
+                result.episode.hydrationCursor,
+              );
+              deferredThreadCount += 1;
+              continue;
+            }
+            const episode = result.episode;
+            storeHydrationCursor(result.candidate.thread_id, null);
             if (episode.messages.length === 0) {
               automaticTargets.push({
                 threadId: episode.state.thread_id,
                 targetSequence: episode.targetSequence,
                 targetAt: episode.targetAt,
-                observedThreadUpdatedAt: episode.state.latest_thread_updated_at,
-                complete: true,
+                observedThreadUpdatedAt: episode.targetAt,
+                complete: episode.complete,
               });
               continue;
             }
@@ -696,7 +876,7 @@ export function createThreadHistoryMaintenance(
               0,
             );
             let selected = episode.messages;
-            let complete = true;
+            let complete = episode.complete;
             if (
               selected.length > remainingCount ||
               fullBytes > remainingBytes
@@ -718,7 +898,8 @@ export function createThreadHistoryMaintenance(
                 selected.push(message);
                 selectedBytes += bytes;
               }
-              complete = selected.length === episode.messages.length;
+              complete =
+                episode.complete && selected.length === episode.messages.length;
             }
 
             if (selected.length === 0) {
@@ -755,7 +936,7 @@ export function createThreadHistoryMaintenance(
               threadId: episode.state.thread_id,
               targetSequence,
               targetAt,
-              observedThreadUpdatedAt: episode.state.latest_thread_updated_at,
+              observedThreadUpdatedAt: episode.targetAt,
               complete,
             });
             messageCount += selected.length;
