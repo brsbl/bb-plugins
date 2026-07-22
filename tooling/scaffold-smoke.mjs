@@ -184,9 +184,13 @@ try {
     ),
   );
   assert.deepEqual(releasedManifest.dependencies, {
+    "@fixture/bundled-helper": "file:vendor/@fixture/bundled-helper",
     "external-runtime": "^2.0.0",
   });
-  assert.equal(releasedManifest.optionalDependencies, undefined);
+  assert.deepEqual(releasedManifest.optionalDependencies, {
+    "@fixture/optional-bundled-helper":
+      "file:vendor/@fixture/optional-bundled-helper",
+  });
   assert.deepEqual(releasedManifest.peerDependencies, {
     "external-peer": "^3.0.0",
   });
