@@ -2,7 +2,19 @@
 
 Timeline Comments keeps review notes attached to the exact part of a bb conversation they refer to.
 
-![Timeline Comments in bb](docs/screenshot.png)
+## Screenshots
+
+Select message text to add a comment without leaving the timeline.
+
+![Comment action in the floating text-selection menu](docs/selection-action.png)
+
+Comments stay attached through an underline and a compact nearest-gutter thread.
+
+![An anchored comment thread with a reply](docs/screenshot.png)
+
+**Send to agent** opens a fresh thread composer with the comment ready to edit.
+
+![A timeline comment copied into a new thread composer](docs/send-to-agent.png)
 
 ## Use
 
