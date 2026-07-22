@@ -10,6 +10,12 @@ import { validatePluginArtifacts } from "./validate-plugin-artifacts.mjs";
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const releaseAppEntry = "./dist/install-app.mjs";
 const releaseAppCss = "dist/install-app.css";
+const productionDependencyFields = [
+  "dependencies",
+  "optionalDependencies",
+  "peerDependencies",
+];
+const explicitlyRetiredInstallRefs = Object.freeze(["plugin/omegacode"]);
 
 function run(command, args, options = {}) {
   const result = spawnSync(command, args, {
@@ -34,6 +40,37 @@ function git(args, options = {}) {
   return run("git", args, options);
 }
 
+function fullInstallRef(installRef) {
+  if (!/^plugin\/[a-z0-9]+(?:-[a-z0-9]+)*$/.test(installRef)) {
+    throw new Error(`invalid plugin install ref: ${installRef}`);
+  }
+  return `refs/heads/${installRef}`;
+}
+
+export function resolveRetiredInstallRefs(activeInstallRefs) {
+  const active = new Set(activeInstallRefs);
+  for (const installRef of explicitlyRetiredInstallRefs) {
+    fullInstallRef(installRef);
+    if (active.has(installRef)) {
+      throw new Error(`cannot retire active plugin install ref: ${installRef}`);
+    }
+  }
+  return [...explicitlyRetiredInstallRefs];
+}
+
+export function retiredInstallRefPushArgs(installRef, expectedCommit) {
+  const ref = fullInstallRef(installRef);
+  if (!/^[0-9a-f]{40}$/i.test(expectedCommit)) {
+    throw new Error(`invalid expected commit for ${installRef}: ${expectedCommit}`);
+  }
+  return [
+    "push",
+    `--force-with-lease=${ref}:${expectedCommit}`,
+    "origin",
+    `:${ref}`,
+  ];
+}
+
 function concreteBbVersion(manifest) {
   const version = manifest.engines?.bb?.match(/\d+\.\d+\.\d+/)?.[0];
   if (!version) {
@@ -56,7 +93,7 @@ async function filesBelow(directory, prefix = "") {
   return files;
 }
 
-function releaseManifest(sourceManifest) {
+export function releaseManifest(sourceManifest, bundledPackageNames = new Set()) {
   const manifest = structuredClone(sourceManifest);
   delete manifest.devDependencies;
   delete manifest.scripts;
@@ -65,12 +102,43 @@ function releaseManifest(sourceManifest) {
   // so installation never depends on development node_modules. The wrapper
   // also carries plugin-authored CSS through that second build.
   if (manifest.bb?.app) manifest.bb.app = releaseAppEntry;
-  for (const [name, version] of Object.entries(manifest.dependencies ?? {})) {
-    if (String(version).startsWith("file:")) {
-      throw new Error(`${manifest.name}: production dependency ${name} uses ${version}`);
+  for (const field of productionDependencyFields) {
+    const dependencies = manifest[field];
+    if (!dependencies) continue;
+    for (const [name, version] of Object.entries(dependencies)) {
+      if (bundledPackageNames.has(name)) {
+        delete dependencies[name];
+        continue;
+      }
+      if (String(version).startsWith("file:")) {
+        throw new Error(`${manifest.name}: production dependency ${name} uses ${version}`);
+      }
     }
+    if (Object.keys(dependencies).length === 0) delete manifest[field];
   }
   return `${JSON.stringify(manifest, null, 2)}\n`;
+}
+
+async function readBundledPackageNames() {
+  const packagesDirectory = resolve(root, "packages");
+  const entries = await readdir(packagesDirectory, { withFileTypes: true }).catch(
+    (error) => {
+      if (error?.code === "ENOENT") return [];
+      throw error;
+    },
+  );
+  const names = new Set();
+  for (const entry of entries) {
+    if (!entry.isDirectory() || entry.name.startsWith(".")) continue;
+    const manifest = JSON.parse(
+      await readFile(resolve(packagesDirectory, entry.name, "package.json"), "utf8"),
+    );
+    if (!manifest.name) {
+      throw new Error(`packages/${entry.name}/package.json has no package name`);
+    }
+    names.add(manifest.name);
+  }
+  return names;
 }
 
 function addBlob(indexPath, repositoryPath, input) {
@@ -81,7 +149,7 @@ function addBlob(indexPath, repositoryPath, input) {
   );
 }
 
-async function createReleaseTree(plugin, sourceCommit) {
+async function createReleaseTree(plugin, sourceCommit, bundledPackageNames) {
   const pluginDirectory = resolve(root, plugin.source);
   const sourceManifest = JSON.parse(
     await readFile(resolve(pluginDirectory, "package.json"), "utf8"),
@@ -138,7 +206,11 @@ async function createReleaseTree(plugin, sourceCommit) {
       addBlob(indexPath, releaseAppEntry.replace(/^\.\//, ""), `${wrapper.join("\n")}\n`);
     }
 
-    addBlob(indexPath, "package.json", releaseManifest(sourceManifest));
+    addBlob(
+      indexPath,
+      "package.json",
+      releaseManifest(sourceManifest, bundledPackageNames),
+    );
 
     return git(["write-tree"], { env: { GIT_INDEX_FILE: indexPath } });
   } finally {
@@ -173,8 +245,8 @@ function hasOrigin() {
   return git(["remote", "get-url", "origin"], { allowFailure: true }) !== null;
 }
 
-function remoteRefCommit(plugin) {
-  const ref = `refs/heads/${plugin.installRef}`;
+function remoteInstallRefCommit(installRef) {
+  const ref = fullInstallRef(installRef);
   const output = git(["ls-remote", "--heads", "origin", ref], {
     allowFailure: true,
   });
@@ -186,7 +258,7 @@ function remoteRefCommit(plugin) {
     "--quiet",
     "--no-tags",
     "origin",
-    `+${ref}:refs/remotes/origin/${plugin.installRef}`,
+    `+${ref}:refs/remotes/origin/${installRef}`,
   ]);
   return commit;
 }
@@ -195,13 +267,37 @@ function currentReleaseCommit(plugin, push) {
   const ref = `refs/heads/${plugin.installRef}`;
   if (push) {
     if (!hasOrigin()) throw new Error("cannot push install refs without an origin remote");
-    return remoteRefCommit(plugin);
+    return remoteInstallRefCommit(plugin.installRef);
   }
   return (
     localRefCommit(ref) ??
     localRefCommit(`refs/remotes/origin/${plugin.installRef}`) ??
-    (hasOrigin() ? remoteRefCommit(plugin) : null)
+    (hasOrigin() ? remoteInstallRefCommit(plugin.installRef) : null)
   );
+}
+
+function retireInstallRefs(plugins, push) {
+  const retiredInstallRefs = resolveRetiredInstallRefs(
+    plugins.map((plugin) => plugin.installRef),
+  );
+  if (push && !hasOrigin()) {
+    throw new Error("cannot retire install refs without an origin remote");
+  }
+  for (const installRef of retiredInstallRefs) {
+    const currentCommit = hasOrigin()
+      ? remoteInstallRefCommit(installRef)
+      : localRefCommit(`refs/remotes/origin/${installRef}`);
+    if (!currentCommit) {
+      console.log(`${installRef} already retired`);
+      continue;
+    }
+    if (!push) {
+      console.log(`${installRef} ${currentCommit} pending retirement`);
+      continue;
+    }
+    git(retiredInstallRefPushArgs(installRef, currentCommit));
+    console.log(`${installRef} ${currentCommit} retired`);
+  }
 }
 
 export function assertPublishWorktreeClean(
@@ -294,6 +390,7 @@ async function verifyReleaseCommit(plugin, releaseCommit, bbVersion) {
 export async function publishInstallRefs(options = {}) {
   const push = options.push ?? false;
   const plugins = await readPluginWorkspaces(root);
+  const bundledPackageNames = await readBundledPackageNames();
   if (push) assertPublishWorktreeClean();
   const sourceRevision = git(["rev-parse", "HEAD"]);
 
@@ -316,7 +413,11 @@ export async function publishInstallRefs(options = {}) {
       .at(-1);
     if (!sourceCommit) throw new Error(`no subtree commit produced for ${plugin.slug}`);
 
-    const candidateTree = await createReleaseTree(plugin, sourceCommit);
+    const candidateTree = await createReleaseTree(
+      plugin,
+      sourceCommit,
+      bundledPackageNames,
+    );
     const currentCommit = currentReleaseCommit(plugin, push);
     const currentTree = currentCommit
       ? git(["rev-parse", `${currentCommit}^{tree}`])
@@ -344,6 +445,8 @@ export async function publishInstallRefs(options = {}) {
       `${plugin.installRef} ${releaseCommit} verified${push ? " and pushed" : ""}`,
     );
   }
+
+  retireInstallRefs(plugins, push);
 }
 
 if (resolve(process.argv[1] ?? "") === fileURLToPath(import.meta.url)) {

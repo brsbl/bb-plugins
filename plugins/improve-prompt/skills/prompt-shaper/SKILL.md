@@ -10,8 +10,10 @@ Return one paste-ready prompt that lets a bb agent take the right next action, v
 ## Shape The Current Task
 
 1. Identify the active task: its requested action, target, boundary, and finish line.
-2. Read the surrounding thread and any available linked thread, file, branch, PR, spec, screenshot, story, or live UI. Treat authoritative inherited context as input; do not make the user repeat it.
-3. Resolve history into the instructions silently:
+2. Use context according to the invocation:
+   - In composer-enhancement mode, shape only the supplied draft. The plugin maintains this skill separately from recurring thread-history patterns; do not fetch, inherit, or infer the current thread transcript.
+   - In a normal bb thread, use the visible request and any explicitly named thread, file, branch, PR, spec, screenshot, story, or live UI that materially affects the rewrite. Query an authoritative source directly when needed; do not treat inherited or forked context as proof.
+3. Resolve available context into the instructions silently:
    - retain the latest approved decision, current state, and evidence that affect this task;
    - replace stale or superseded directions with the current decision when that prevents a wrong turn;
    - convert a prior failure into a specific boundary, gate, or proof requirement only when it is relevant now;
@@ -20,7 +22,7 @@ Return one paste-ready prompt that lets a bb agent take the right next action, v
 5. Rewrite the result as one coherent instruction. Keep reference material separate from the work to do now.
 6. Remove duplicated context, generic process language, and details outside the active task boundary.
 
-Do not turn thread history into a diagnosis, post-mortem, or research report. Use it to make the instruction more correct, not longer.
+Do not turn context into a diagnosis, post-mortem, or research report. Use it to make the instruction more correct, not longer.
 
 ## Include Context Selectively
 
