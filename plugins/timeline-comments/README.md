@@ -12,16 +12,14 @@ Comments stay attached through an underline and a compact nearest-gutter thread.
 
 ![An anchored comment thread with a reply](docs/screenshot.png)
 
-**Send to agent** opens a fresh thread composer with the comment ready to edit.
-
-![A timeline comment copied into a new thread composer](docs/send-to-agent.png)
+**Send to agent** opens a fresh thread composer with the comment and its selected source ready to edit.
 
 ## Use
 
 - Adds **Comment** to the floating menu when you select user or agent message text.
 - Keeps open comment threads visible through a quiet underline and the nearest gutter marker.
 - Provides replies, inline editing, deletion, resolve/reopen controls, and a thread-scoped Comments panel.
-- Sends one comment to a new agent draft or adds every open comment to the current thread's draft without submitting it.
+- Sends one comment plus visible source context to a new agent draft, or adds every open comment to the current thread's draft without submitting it.
 
 Comments are stored in plugin-owned SQLite on the bb server. Missing or ambiguous source text remains manageable as **Unanchored** and is never attached to a guess.
 

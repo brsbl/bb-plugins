@@ -108,9 +108,23 @@ describe("gutter layout", () => {
       desiredY: 20,
     }));
     const placements = layoutGutterMarkers(markers, 0, 80, 24, 4);
-    expect(placements).toHaveLength(3);
+    expect(placements).toHaveLength(1);
     expect(placements.flatMap(({ ids }) => ids)).toHaveLength(5);
-    expect(placements[1]!.y - placements[0]!.y).toBeGreaterThanOrEqual(28);
     expect(placements.at(-1)!.y + 24).toBeLessThanOrEqual(80);
+  });
+
+  it("keeps separated markers distinct while clustering local collisions", () => {
+    const placements = layoutGutterMarkers(
+      [
+        { id: "a", desiredY: 20 },
+        { id: "b", desiredY: 40 },
+        { id: "c", desiredY: 90 },
+      ],
+      0,
+      140,
+      24,
+      4,
+    );
+    expect(placements.map(({ ids }) => ids)).toEqual([["a", "b"], ["c"]]);
   });
 });

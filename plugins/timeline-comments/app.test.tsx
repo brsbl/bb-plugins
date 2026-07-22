@@ -144,7 +144,7 @@ describe("timeline comments app", () => {
     expect(panel.inspection.composer.text).toContain("Keep this draft");
   });
 
-  it("reveals panel rows and sends exactly one comment to a new composer", async () => {
+  it("reveals panel rows and sends one contextual comment to a new composer", async () => {
     const app = await loadPluginApp(() => import("./app.js"));
     const revealMessage = vi.fn(async () => "revealed" as const);
     const updateComment = vi.fn(() => ({
@@ -200,7 +200,11 @@ describe("timeline comments app", () => {
     expect(panel.inspection.navigateCalls).toEqual([
       {
         method: "toCompose",
-        options: { initialPrompt: "Make the API explicit.", focusPrompt: true },
+        options: {
+          initialPrompt:
+            "Make the API explicit.\n\nContext from the timeline:\n> source",
+          focusPrompt: true,
+        },
       },
     ]);
 

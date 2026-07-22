@@ -137,8 +137,8 @@ export interface MarkerPlacement {
 }
 
 /**
- * De-overlap one gutter. When the available rail cannot fit every marker,
- * adjacent candidates collapse into the smallest possible overflow groups.
+ * De-overlap one gutter. Locally colliding candidates cluster immediately;
+ * any remaining rail overflow collapses into the smallest possible group.
  */
 export function layoutGutterMarkers(
   candidates: readonly MarkerCandidate[],
@@ -155,14 +155,28 @@ export function layoutGutterMarkers(
     1,
     Math.floor((bottom - top + gap) / (markerSize + gap)),
   );
-  const groups: MarkerCandidate[][] = [];
-  if (sorted.length <= capacity) {
-    for (const candidate of sorted) groups.push([candidate]);
-  } else {
-    for (const candidate of sorted.slice(0, capacity - 1))
-      groups.push([candidate]);
-    groups.push(sorted.slice(capacity - 1));
+  const proximityGroups: MarkerCandidate[][] = [];
+  for (const candidate of sorted) {
+    const previous = proximityGroups.at(-1);
+    const previousDesiredY = previous?.at(-1)?.desiredY;
+    if (
+      previous !== undefined &&
+      previousDesiredY !== undefined &&
+      candidate.desiredY - previousDesiredY < markerSize + gap
+    ) {
+      previous.push(candidate);
+    } else {
+      proximityGroups.push([candidate]);
+    }
   }
+
+  const groups =
+    proximityGroups.length <= capacity
+      ? proximityGroups
+      : [
+          ...proximityGroups.slice(0, capacity - 1),
+          proximityGroups.slice(capacity - 1).flat(),
+        ];
 
   const placements = groups.map((group) => ({
     ids: group.map(({ id }) => id),

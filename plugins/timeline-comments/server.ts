@@ -2,11 +2,11 @@ import { randomBytes } from "node:crypto";
 import { Buffer } from "node:buffer";
 import { defineRpcContract, type BbPluginApi } from "@bb/plugin-sdk";
 import { z } from "zod";
+import { COMMENT_BODY_CODE_POINT_LIMIT } from "./comment-body.js";
 
 const ROOT_PAGE_SIZE = 50;
 const COMMENT_PAGE_SIZE = 100;
 const ANCHOR_PAGE_SIZE = 200;
-const BODY_CODE_POINT_LIMIT = 10_000;
 const HANDOFF_CODE_POINT_LIMIT = 64_000;
 
 const idSchema = z.string().min(1).max(256);
@@ -15,8 +15,8 @@ const bodySchema = z
   .transform((body) => body.trim())
   .refine((body) => body.length > 0, "Comment body is required")
   .refine(
-    (body) => Array.from(body).length <= BODY_CODE_POINT_LIMIT,
-    `Comment body must be at most ${BODY_CODE_POINT_LIMIT.toLocaleString("en-US")} Unicode code points`,
+    (body) => Array.from(body).length <= COMMENT_BODY_CODE_POINT_LIMIT,
+    `Comment body must be at most ${COMMENT_BODY_CODE_POINT_LIMIT.toLocaleString("en-US")} Unicode code points`,
   );
 export const commentBodySchema = bodySchema;
 const utf16ContextSchema = z
@@ -705,6 +705,12 @@ export default function timelineCommentsPlugin(bb: BbPluginApi): void {
       commentThreadId,
     });
   };
+
+  bb.events.on("thread.deleted", ({ thread }) => {
+    db.prepare("DELETE FROM comment_threads WHERE bb_thread_id = ?").run(
+      thread.id,
+    );
+  });
 
   bb.rpc.register(timelineCommentsRpcContract, {
     listOpenAnchors(input) {

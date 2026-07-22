@@ -26,6 +26,8 @@ import {
   getTimelineCommentAnchorHealth,
   subscribeTimelineCommentAnchorHealth,
 } from "./bridge.js";
+import { commentBodyError } from "./comment-body.js";
+import { createIndividualHandoffPrompt } from "./handoff.js";
 import { mountTimelineCommentsController } from "./controller.js";
 import "./app.css";
 
@@ -381,6 +383,7 @@ function CommentPanel({ threadId, revealMessage }: PluginThreadPanelProps) {
                           <textarea
                             aria-label="Edit comment"
                             autoFocus
+                            maxLength={20_000}
                             value={editingComment.body}
                             onChange={(event) =>
                               setEditingComment({
@@ -399,7 +402,9 @@ function CommentPanel({ threadId, revealMessage }: PluginThreadPanelProps) {
                             <button
                               type="submit"
                               disabled={
-                                busy || editingComment.body.trim() === ""
+                                busy ||
+                                editingComment.body === comment.body ||
+                                commentBodyError(editingComment.body) !== null
                               }
                             >
                               Save
@@ -414,7 +419,10 @@ function CommentPanel({ threadId, revealMessage }: PluginThreadPanelProps) {
                               type="button"
                               onClick={() =>
                                 navigate.toCompose({
-                                  initialPrompt: comment.body,
+                                  initialPrompt: createIndividualHandoffPrompt(
+                                    comment.body,
+                                    itemDetail.thread.selector.exact,
+                                  ),
                                   focusPrompt: true,
                                 })
                               }
@@ -434,6 +442,7 @@ function CommentPanel({ threadId, revealMessage }: PluginThreadPanelProps) {
                             </button>
                             <button
                               type="button"
+                              className="bb-comments-destructive"
                               onClick={() => deleteComment(comment)}
                             >
                               Delete
@@ -531,12 +540,13 @@ function ReplyForm({
       <textarea
         value={body}
         placeholder="Reply…"
+        maxLength={20_000}
         onChange={(event) => setBody(event.target.value)}
       />
       <button
         type="submit"
         className="bb-comments-primary"
-        disabled={disabled || body.trim() === ""}
+        disabled={disabled || commentBodyError(body) !== null}
       >
         Reply
       </button>

@@ -19,6 +19,7 @@ const phrases = [
   "Eighth exact browser anchor",
 ];
 const now = Date.now();
+let handoffPrompt: string | null = null;
 const summaries = phrases.map((exact, index) => {
   const start = text.indexOf(exact);
   return {
@@ -76,7 +77,11 @@ const context = {
     getConnectionState: () => "connected" as const,
     subscribeConnectionState: () => () => {},
   },
-  navigate: { toCompose: () => {} },
+  navigate: {
+    toCompose(options: { initialPrompt?: string }) {
+      handoffPrompt = options.initialPrompt ?? null;
+    },
+  },
 } as unknown as PluginContentScriptContext;
 
 mountTimelineCommentsController(context);
@@ -101,13 +106,11 @@ void (async () => {
     const markers = [
       ...document.querySelectorAll<HTMLButtonElement>(".bb-comments-marker"),
     ];
-    if (markers.length !== 4)
-      throw new Error(
-        `Expected 4 de-overlapped markers, got ${markers.length}`,
-      );
-    const overflow = markers.find((marker) => marker.textContent === "5");
+    if (markers.length !== 1)
+      throw new Error(`Expected 1 local cluster, got ${markers.length}`);
+    const overflow = markers.find((marker) => marker.textContent === "8");
     if (overflow === undefined)
-      throw new Error("Expected one 5-thread overflow marker");
+      throw new Error("Expected one 8-thread collision marker");
     const tops = markers.map((marker) => marker.getBoundingClientRect().top);
     if (new Set(tops).size !== markers.length)
       throw new Error("Markers overlap vertically");
@@ -115,19 +118,35 @@ void (async () => {
     overflow.click();
     await wait(30);
     const cluster = document.querySelector<HTMLElement>(".bb-comments-cluster");
-    if (cluster === null || cluster.querySelectorAll("button").length !== 5) {
+    if (cluster === null || cluster.querySelectorAll("button").length !== 8) {
       throw new Error("Overflow marker did not expose all grouped threads");
     }
     if (!withinViewport(cluster.getBoundingClientRect()))
       throw new Error("Cluster escaped the viewport");
+    if (document.activeElement !== cluster.querySelector("button"))
+      throw new Error("Cluster did not focus its first thread");
 
-    markers[0]!.click();
+    cluster.querySelector<HTMLButtonElement>("button")!.click();
     await wait(80);
     const popover = document.querySelector<HTMLElement>(".bb-comments-thread");
     if (popover === null)
       throw new Error("Thread marker did not open its popover");
     if (!withinViewport(popover.getBoundingClientRect()))
       throw new Error("Thread popover escaped the viewport");
+    if (document.activeElement !== popover)
+      throw new Error("Thread popover did not receive focus");
+    const reply = popover.querySelector<HTMLTextAreaElement>(
+      ".bb-comments-reply-input",
+    );
+    const replyButton = [
+      ...popover.querySelectorAll<HTMLButtonElement>("button"),
+    ].find((button) => button.textContent === "Reply");
+    if (reply === null || replyButton?.disabled !== true)
+      throw new Error("Blank reply was not disabled");
+    reply.value = "Ready";
+    reply.dispatchEvent(new InputEvent("input", { bubbles: true }));
+    if (replyButton.disabled)
+      throw new Error("Valid reply did not enable submission");
     if (CSS.highlights.get("bb-timeline-comments")?.size !== 8) {
       throw new Error("Custom Highlight registry did not retain every anchor");
     }
@@ -145,11 +164,33 @@ void (async () => {
       throw new Error("Popover dismissal did not restore marker focus");
     }
     markers[0]!.click();
+    document
+      .querySelector<HTMLButtonElement>(".bb-comments-cluster button")
+      ?.click();
     await wait(80);
+    const agent = [
+      ...document.querySelectorAll<HTMLButtonElement>("button"),
+    ].find((button) => button.textContent === "Send to agent");
+    agent?.click();
+    if (document.querySelector(".bb-comments-thread") !== null)
+      throw new Error("Agent handoff left a detached comment popover");
+    if (
+      handoffPrompt === null ||
+      !handoffPrompt.includes("Context from the timeline:")
+    )
+      throw new Error("Agent handoff omitted the selected source context");
+
+    markers[0]!.click();
+    document
+      .querySelector<HTMLButtonElement>(".bb-comments-cluster button")
+      ?.click();
+    await wait(80);
+    if (document.querySelector(".bb-comments-thread") === null)
+      throw new Error("Thread popover did not reopen after agent handoff");
 
     document.body.dataset.testStatus = "passed";
     result.value =
-      "Passed: real Chrome laid out 8 highlights, 4 non-overlapping gutter targets, a 5-thread overflow menu, and a bounded thread popover.";
+      "Passed: real Chrome laid out 8 highlights, one local collision cluster, an 8-thread chooser, and a bounded thread popover.";
   } catch (error) {
     document.body.dataset.testStatus = "failed";
     result.value = error instanceof Error ? error.message : String(error);

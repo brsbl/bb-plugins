@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import {
   createFakePluginHost,
+  makeThreadResponse,
   type FakePluginHost,
 } from "@bb/plugin-sdk/testing";
 import { z } from "zod";
@@ -301,6 +302,30 @@ describe("timeline comments backend", () => {
     });
     const refreshed = await provider.resolve("thr_1");
     expect(refreshed.context).not.toContain("second source");
+  });
+
+  it("removes plugin-owned comments when their BB thread is deleted", async () => {
+    const host = await loadPlugin();
+    await createComment(host, "Delete with the thread");
+    await createComment(host, "Keep another thread", {
+      bbThreadId: "thr_2",
+    });
+
+    await host.harness.emitThreadEvent("thread.deleted", {
+      thread: makeThreadResponse({ id: "thr_1" }),
+    });
+
+    const db = host.bb.storage.database();
+    expect(
+      db
+        .prepare(
+          "SELECT bb_thread_id AS bbThreadId, COUNT(*) AS count FROM comment_threads GROUP BY bb_thread_id",
+        )
+        .all(),
+    ).toEqual([{ bbThreadId: "thr_2", count: 1 }]);
+    expect(db.prepare("SELECT COUNT(*) AS count FROM comments").get()).toEqual({
+      count: 1,
+    });
   });
 
   it("rejects bulk handoff before insertion and at mention resolution above 64k code points", async () => {
