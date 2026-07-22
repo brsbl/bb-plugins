@@ -1,6 +1,6 @@
 # bb plugins
 
-Four bb plugins I use for product design work, kept together with the few build and repository tools they share. [![CI](https://github.com/brsbl/bb-plugins/actions/workflows/ci.yml/badge.svg)](https://github.com/brsbl/bb-plugins/actions/workflows/ci.yml)
+Five bb plugins I use for product design work, kept together with the few build and repository tools they share. [![CI](https://github.com/brsbl/bb-plugins/actions/workflows/ci.yml/badge.svg)](https://github.com/brsbl/bb-plugins/actions/workflows/ci.yml)
 
 [bb](https://getbb.app) is an agentic IDE for running coding agents across projects, threads, and environments. Its plugins can add UI, commands, skills, and server capabilities; this repository is where I build and maintain mine.
 
@@ -37,6 +37,16 @@ Lets you peek at a thread's status and repository context without leaving the si
 [Source](plugins/thread-hover-cards) · [README](plugins/thread-hover-cards/README.md)
 
 Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/thread-hover-cards --yes`
+
+### Timeline Comments
+
+Keeps comments and comment threads attached to exact text in bb timelines.
+
+![Timeline Comments in bb](plugins/timeline-comments/docs/screenshot.png)
+
+[Source](plugins/timeline-comments) · [README](plugins/timeline-comments/README.md)
+
+Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/timeline-comments --yes`
 
 ### UI Patterns
 

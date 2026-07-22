@@ -1,0 +1,51 @@
+{
+  "name": "bb-plugin-timeline-comments",
+  "version": "0.1.0",
+  "description": "Attach durable comment threads to selected text in bb timelines.",
+  "type": "module",
+  "license": "UNLICENSED",
+  "files": [
+    "dist",
+    "docs",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "node ../../tooling/build-plugin.mjs",
+    "check": "npm run typecheck && npm run build && npm test",
+    "test": "vitest run",
+    "test:browser": "node ./browser-check/run.mjs",
+    "typecheck": "tsc --noEmit"
+  },
+  "engines": {
+    "bb": ">=0.0.34",
+    "bbPluginSdk": "^0.4.0"
+  },
+  "bb": {
+    "name": "Timeline Comments",
+    "description": "Attach durable comment threads to selected text in bb timelines.",
+    "branding": {
+      "icon": "Comment01"
+    },
+    "server": "./server.ts",
+    "app": "./app.tsx",
+    "skills": []
+  },
+  "devDependencies": {
+    "@bb/plugin-sdk": "file:../../tooling/vendor/bb-plugin-sdk-0.4.0.tgz",
+    "@testing-library/react": "^16.3.2",
+    "@types/better-sqlite3": "^7.6.12",
+    "@types/node": "^22.0.0",
+    "@types/react": "^19.0.0",
+    "better-sqlite3": "^12.10.0",
+    "cron-parser": "^5.5.0",
+    "esbuild": "^0.28.0",
+    "hono": "^4.11.9",
+    "jsdom": "^29.0.1",
+    "playwright": "^1.55.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "typescript": "^5.7.0",
+    "vitest": "^4.1.8",
+    "zod": "^4.3.6"
+  }
+}
