@@ -34,6 +34,7 @@
     "generated/provider-index.v2.json",
     "generated/preview-css.ts",
     "app.tsx",
+    "composer-action.tsx",
     "assistant-ui-previews.tsx",
     "shadcn-demo-previews.tsx",
     "static-gallery-preview.tsx",
@@ -60,7 +61,7 @@
     "check:providers": "node scripts/build-provider-snapshot.mjs --check",
     "build:preview-css": "node scripts/build-preview-css.mjs",
     "build": "node scripts/build.mjs",
-    "test": "node --test tests/contract.test.mjs tests/source-browser-contract.test.mjs tests/provider-kernel.test.mjs tests/cli.test.mjs && vitest run server.harness.test.ts",
+    "test": "node --test tests/contract.test.mjs tests/source-browser-contract.test.mjs tests/provider-kernel.test.mjs tests/cli.test.mjs && vitest run server.harness.test.ts composer-action.test.tsx",
     "test:built": "vitest run built-server.test.ts",
     "prepack": "npm run build"
   },
@@ -93,6 +94,7 @@
   "devDependencies": {
     "@bb/plugin-sdk": "file:../../tooling/vendor/bb-plugin-sdk-0.4.0.tgz",
     "@radix-ui/react-dialog": "^1.1.19",
+    "@testing-library/react": "^16.3.2",
     "@tailwindcss/node": "4.3.0",
     "@tailwindcss/oxide": "4.3.0",
     "@types/better-sqlite3": "^7.6.12",
@@ -103,6 +105,7 @@
     "cron-parser": "^5.5.0",
     "esbuild": "^0.28.1",
     "hono": "^4.11.9",
+    "jsdom": "^29.0.1",
     "react": "^19.2.7",
     "react-dom": "^19.2.3",
     "tailwindcss": "4.3.0",

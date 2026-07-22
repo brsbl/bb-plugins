@@ -34,6 +34,8 @@
     "server.ts",
     "atlas-cli-v5.ts",
     "app.tsx",
+    "composer-action.tsx",
+    "composer-action.test.tsx",
     "assistant-ui-previews.tsx",
     "gallery-shell.tsx",
     "gallery-state.ts",
