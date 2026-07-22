@@ -27,9 +27,7 @@
     "skills",
     "governance.md",
     "rules",
-    "maintenance/automation-prompt.md",
-    "maintenance/state.example.json",
-    "scripts/scan-history.py"
+    "maintenance/automation-prompt.md"
   ],
   "scripts": {
     "check": "npm run typecheck && npm run build && npm test",
@@ -38,6 +36,7 @@
     "build": "node ../../tooling/build-plugin.mjs"
   },
   "dependencies": {
+    "@brsbl/bb-thread-history-maintenance": "0.1.0",
     "zod": "^4.3.6"
   },
   "devDependencies": {

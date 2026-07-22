@@ -1,4 +1,5 @@
 import type { BbPluginApi } from "@bb/plugin-sdk";
+import Database from "better-sqlite3";
 import { describe, expect, it, vi } from "vitest";
 
 import promptShaper, { rpcContract } from "./server";
@@ -14,6 +15,13 @@ interface RpcHandlers {
   }): Promise<{ requestId: string; helperThreadId: string }>;
   getEnhancement(input: { requestId: string }): Promise<unknown>;
   cancelEnhancement(input: { requestId: string }): Promise<{ cancelled: true }>;
+}
+
+interface CliRegistration {
+  run(
+    argv: string[],
+    context: { signal?: AbortSignal },
+  ): Promise<{ exitCode: number; stdout?: string; stderr?: string }>;
 }
 
 interface Deferred<T> {
@@ -33,16 +41,27 @@ async function createHarness(options?: {
   spawn?: () => Promise<{ id: string }>;
   get?: () => Promise<Record<string, unknown>>;
   defaultExecutionOptions?: () => Promise<Record<string, unknown> | null>;
+  timeline?: () => Promise<Record<string, unknown>>;
   initialKv?: Iterable<readonly [string, unknown]>;
 }) {
   const kv = new Map<string, unknown>(options?.initialKv);
+  const database = new Database(":memory:");
   const eventHandlers = new Map<string, Array<(payload: never) => unknown>>();
   let rpcHandlers: RpcHandlers | null = null;
+  let cliRegistration: CliRegistration | null = null;
   const threads = {
     spawn: vi.fn(options?.spawn ?? (async () => ({ id: "thr_helper" }))),
     get: vi.fn(options?.get ?? (async () => ({ status: "active" }))),
     defaultExecutionOptions: vi.fn(
       options?.defaultExecutionOptions ?? (async () => null),
+    ),
+    list: vi.fn(async () => []),
+    timeline: vi.fn(
+      options?.timeline ??
+        (async () => ({
+          rows: [],
+          timelinePage: { hasOlderRows: false, olderCursor: null },
+        })),
     ),
     output: vi.fn(async () => ({ output: null })),
     stop: vi.fn(async () => ({ ok: true })),
@@ -51,6 +70,15 @@ async function createHarness(options?: {
   const publish = vi.fn();
   const bb = {
     storage: {
+      database() {
+        return database;
+      },
+      migrate(
+        target: Database.Database,
+        statements: readonly string[],
+      ) {
+        for (const statement of statements) target.exec(statement);
+      },
       kv: {
         async get(key: string) {
           return kv.get(key);
@@ -67,6 +95,11 @@ async function createHarness(options?: {
       },
     },
     sdk: { threads },
+    cli: {
+      register(registration: CliRegistration) {
+        cliRegistration = registration;
+      },
+    },
     rpc: {
       register(_contract: typeof rpcContract, handlers: RpcHandlers) {
         rpcHandlers = handlers;
@@ -90,10 +123,12 @@ async function createHarness(options?: {
 
   await promptShaper(bb);
   if (rpcHandlers === null) throw new Error("RPC handlers were not registered");
+  if (cliRegistration === null) throw new Error("CLI was not registered");
 
   return {
     kv,
     rpc: rpcHandlers,
+    cli: cliRegistration,
     threads,
     publish,
     async emit(event: string, payload: unknown) {
@@ -221,20 +256,18 @@ describe("Improve Prompt cancellation", () => {
   });
 });
 
-describe("Improve Prompt side-chat helpers", () => {
-  it("falls back to an inspecting helper when a nested side-chat parent is invalid", async () => {
-    const spawn = vi
-      .fn<() => Promise<{ id: string }>>()
-      .mockRejectedValueOnce(new Error("Parent thread is invalid"))
-      .mockResolvedValueOnce({ id: "thr_fallback" });
+describe("Improve Prompt runtime context", () => {
+  it("reuses execution settings without reading or inheriting source history", async () => {
+    const spawn = vi.fn<() => Promise<{ id: string }>>().mockResolvedValue({
+      id: "thr_helper",
+    });
     const harness = await createHarness({
       spawn,
       get: async () => ({
-        id: "thr_side_chat",
+        id: "thr_source",
         projectId: "proj_1",
         environmentId: "env_1",
         providerId: "codex",
-        canSpawnChild: true,
         status: "idle",
       }),
       defaultExecutionOptions: async () => ({
@@ -247,30 +280,26 @@ describe("Improve Prompt side-chat helpers", () => {
     await expect(
       harness.rpc.startEnhancement({
         ...START_INPUT,
-        sourceThreadId: "thr_side_chat",
+        sourceThreadId: "thr_source",
       }),
     ).resolves.toEqual({
       requestId: REQUEST_ID,
-      helperThreadId: "thr_fallback",
+      helperThreadId: "thr_helper",
     });
 
-    expect(spawn).toHaveBeenCalledTimes(2);
-    expect(spawn).toHaveBeenNthCalledWith(
-      1,
-      expect.objectContaining({
-        sourceThreadId: "thr_side_chat",
-        originKind: "side-chat",
-      }),
-    );
-    expect(spawn).toHaveBeenNthCalledWith(
-      2,
+    expect(harness.threads.timeline).not.toHaveBeenCalled();
+    expect(spawn).toHaveBeenCalledWith(
       expect.objectContaining({
         environment: { type: "reuse", environmentId: "env_1" },
-        prompt: expect.stringContaining(
-          "inspect bb thread thr_side_chat with the available bb tools",
-        ),
+        providerId: "codex",
+        model: "gpt-5.5",
+        prompt: expect.stringContaining('"rough draft"'),
       }),
     );
-    expect(spawn.mock.calls[1]?.[0]).not.toHaveProperty("sourceThreadId");
+    const spawnInput = spawn.mock.calls[0]?.[0];
+    expect(spawnInput).not.toHaveProperty("sourceThreadId");
+    expect(spawnInput).not.toHaveProperty("originKind");
+    expect(spawnInput?.prompt).not.toContain("thr_source");
+    expect(spawnInput?.prompt).not.toContain("history snapshot");
   });
 });

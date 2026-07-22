@@ -105,7 +105,6 @@ export async function checkRepository(repositoryRoot = defaultRoot, options = {}
   const pluginIds = new Set();
   const stableIds = new Map([
     ["improve-prompt", "prompt-shaper"],
-    ["omegacode", "omega"],
   ]);
 
   for (const plugin of plugins) {

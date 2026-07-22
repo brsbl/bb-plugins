@@ -7,7 +7,12 @@ import { fileURLToPath } from "node:url";
 
 import { checkRepository } from "./check-repository.mjs";
 import { scaffoldPlugin } from "./create-plugin.mjs";
-import { assertPublishWorktreeClean } from "./publish-install-refs.mjs";
+import {
+  assertPublishWorktreeClean,
+  releaseManifest,
+  resolveRetiredInstallRefs,
+  retiredInstallRefPushArgs,
+} from "./publish-install-refs.mjs";
 import { validatePluginArtifacts } from "./validate-plugin-artifacts.mjs";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
@@ -131,6 +136,69 @@ try {
   assert.throws(
     () => assertPublishWorktreeClean(" M tooling/publish-install-refs.mjs"),
     /refusing to push install refs from a dirty worktree/,
+  );
+  assert.deepEqual(
+    resolveRetiredInstallRefs(["plugin/design-doctrine", "plugin/improve-prompt"]),
+    ["plugin/omegacode"],
+  );
+  assert.throws(
+    () => resolveRetiredInstallRefs(["plugin/omegacode"]),
+    /cannot retire active plugin install ref/,
+  );
+  const retiredCommit = "a".repeat(40);
+  assert.deepEqual(retiredInstallRefPushArgs("plugin/omegacode", retiredCommit), [
+    "push",
+    `--force-with-lease=refs/heads/plugin/omegacode:${retiredCommit}`,
+    "origin",
+    ":refs/heads/plugin/omegacode",
+  ]);
+  assert.throws(
+    () => retiredInstallRefPushArgs("main", retiredCommit),
+    /invalid plugin install ref/,
+  );
+  assert.throws(
+    () => retiredInstallRefPushArgs("plugin/omegacode", "not-a-commit"),
+    /invalid expected commit/,
+  );
+  const releasedManifest = JSON.parse(
+    releaseManifest(
+      {
+        name: "bb-plugin-release-smoke",
+        dependencies: {
+          "@fixture/bundled-helper": "0.1.0",
+          "external-runtime": "^2.0.0",
+        },
+        optionalDependencies: {
+          "@fixture/optional-bundled-helper": "0.1.0",
+        },
+        peerDependencies: {
+          "external-peer": "^3.0.0",
+        },
+        devDependencies: { typescript: "^5.7.0" },
+        scripts: { check: "tsc --noEmit" },
+      },
+      new Set([
+        "@fixture/bundled-helper",
+        "@fixture/optional-bundled-helper",
+      ]),
+    ),
+  );
+  assert.deepEqual(releasedManifest.dependencies, {
+    "external-runtime": "^2.0.0",
+  });
+  assert.equal(releasedManifest.optionalDependencies, undefined);
+  assert.deepEqual(releasedManifest.peerDependencies, {
+    "external-peer": "^3.0.0",
+  });
+  assert.equal(releasedManifest.devDependencies, undefined);
+  assert.equal(releasedManifest.scripts, undefined);
+  assert.throws(
+    () =>
+      releaseManifest({
+        name: "bb-plugin-release-smoke",
+        dependencies: { accidental: "file:../accidental" },
+      }),
+    /production dependency accidental uses file:/,
   );
   await createFixtureRepository(fixtureRoot);
 
