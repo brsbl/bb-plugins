@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { definePluginApp } from "@bb/plugin-sdk/app";
+import { UiPatternsComposerAction } from "./composer-action.js";
 import { GalleryShell, type GalleryNavigation } from "./gallery-shell.js";
 import { useSourceBrowserData } from "./source-browser-data.js";
 
@@ -37,6 +38,17 @@ function UiPatternsThreadPanel() {
 }
 
 export default definePluginApp((app) => {
+  app.composer.customize({
+    id: "ui-patterns",
+    scopes: ["thread"],
+    actions: [
+      {
+        id: "open-library",
+        component: UiPatternsComposerAction,
+      },
+    ],
+  });
+
   app.slots.threadPanelAction({
     id: "library-panel",
     title: "UI Patterns",

@@ -8,6 +8,14 @@ const packageJson = JSON.parse(
   await readFile(new URL("../package.json", import.meta.url), "utf8"),
 );
 const app = await readFile(new URL("../app.tsx", import.meta.url), "utf8");
+const composerAction = await readFile(
+  new URL("../composer-action.tsx", import.meta.url),
+  "utf8",
+);
+const builtApp = await readFile(
+  new URL("../dist/app.js", import.meta.url),
+  "utf8",
+);
 const gallery = await readFile(
   new URL("../gallery-shell.tsx", import.meta.url),
   "utf8",
@@ -73,6 +81,7 @@ const baseLicense = await readFile(
 test("the package ships static gallery cards and approved-source detail previews", () => {
   assert.ok(packageJson.files.includes("providers/"));
   assert.ok(packageJson.files.includes("source-browser-data.ts"));
+  assert.ok(packageJson.files.includes("composer-action.tsx"));
   assert.ok(packageJson.files.includes("source-browser-model.ts"));
   assert.ok(packageJson.files.includes("live-component-previews.tsx"));
   assert.ok(packageJson.files.includes("preview-frame-context.tsx"));
@@ -130,13 +139,20 @@ test("the package ships static gallery cards and approved-source detail previews
   assert.doesNotMatch(readme, /Atlas DS/);
 });
 
-test("the plugin is registered only as a thread side-panel", () => {
+test("the thread composer action opens the UI Patterns side-panel", () => {
   assert.doesNotMatch(app, /app\.slots\.navPanel\(\{/);
   assert.match(app, /app\.slots\.threadPanelAction\(\{/);
+  assert.match(app, /app\.composer\.customize\(\{/);
+  assert.match(app, /scopes: \["thread"\]/);
+  assert.match(app, /id: "open-library"/);
+  assert.match(app, /component: UiPatternsComposerAction/);
+  assert.match(composerAction, /composer\.experimental_openThreadPanel\?\.\(\{/);
+  assert.match(builtApp, /experimental_openThreadPanel/);
+  assert.match(composerAction, /actionId: "library-panel"/);
+  assert.doesNotMatch(composerAction, /composer\.openThreadPanel\?\.\(\{/);
   assert.match(app, /run: \(\{ openPanel \}\) => \{/);
   assert.match(app, /openPanel\(\{ title: "UI Patterns" \}\)/);
   assert.doesNotMatch(app, /app\.slots\.composerAccessory\(\{/);
-  assert.doesNotMatch(app, /openThreadPanel\(\{/);
   assert.match(app, /useSourceBrowserData/);
   assert.match(app, /className="h-full min-h-0 overflow-hidden"/);
   assert.doesNotMatch(app, /sourceBrowserFixture/);
