@@ -149,7 +149,12 @@ test("the thread composer action opens the UI Patterns side-panel", () => {
   assert.match(composerAction, /useBbNavigate\(\)/);
   assert.match(builtApp, /useBbNavigate/);
   assert.match(composerAction, /actionId: "library-panel"/);
-  assert.match(composerAction, /navigate\.experimental_openThreadPanel\(\{/);
+  assert.match(
+    composerAction,
+    /const openThreadPanel = navigate\.experimental_openThreadPanel/,
+  );
+  assert.match(composerAction, /typeof openThreadPanel !== "function"/);
+  assert.match(composerAction, /openThreadPanel\(\{/);
   assert.match(builtApp, /experimental_openThreadPanel/);
   assert.doesNotMatch(composerAction, /PluginMessageDirectiveOpenThreadPanel/);
   assert.match(app, /run: \(\{ openPanel \}\) => \{/);

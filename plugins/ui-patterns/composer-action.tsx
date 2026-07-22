@@ -10,6 +10,9 @@ import {
 
 export function UiPatternsComposerAction() {
   const navigate = useBbNavigate();
+  const openThreadPanel = navigate.experimental_openThreadPanel;
+
+  if (typeof openThreadPanel !== "function") return null;
 
   return (
     <TooltipProvider delayDuration={300}>
@@ -23,7 +26,7 @@ export function UiPatternsComposerAction() {
             aria-label="Open UI Patterns"
             onMouseDown={(event) => event.preventDefault()}
             onClick={() =>
-              navigate.experimental_openThreadPanel({
+              openThreadPanel({
                 actionId: "library-panel",
                 title: "UI Patterns",
               })
