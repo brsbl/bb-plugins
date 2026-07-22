@@ -1,0 +1,28 @@
+{
+  "name": "bb-plugin-thread-hover-cards",
+  "version": "0.1.0",
+  "description": "Concise status previews for BB sidebar threads.",
+  "type": "module",
+  "files": [
+    "dist",
+    "docs",
+    "README.md"
+  ],
+  "engines": {
+    "bb": ">=0.0.34",
+    "bbPluginSdk": "^0.4.0"
+  },
+  "bb": {
+    "name": "Thread Hover Cards",
+    "description": "Preview thread status, the latest agent update, and repository or PR context from the sidebar.",
+    "branding": {
+      "icon": "MessageSquare"
+    },
+    "server": "./server.ts",
+    "app": "./dist/install-app.mjs",
+    "skills": []
+  },
+  "dependencies": {
+    "zod": "^4.3.6"
+  }
+}
