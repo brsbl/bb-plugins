@@ -1,0 +1,36 @@
+{
+  "name": "bb-plugin-design-doctrine",
+  "version": "0.2.0",
+  "description": "Learn, browse, and apply product-design rules from your bb feedback.",
+  "type": "module",
+  "license": "MIT",
+  "engines": {
+    "bb": ">=0.0.34",
+    "bbPluginSdk": "^0.4.0"
+  },
+  "bb": {
+    "name": "Design Doctrine",
+    "description": "Learn, browse, and apply product-design rules from your bb feedback.",
+    "branding": {
+      "icon": "Explore"
+    },
+    "server": "./server.ts",
+    "app": "./dist/install-app.mjs",
+    "skills": [
+      "skills"
+    ]
+  },
+  "files": [
+    "dist",
+    "docs",
+    "README.md",
+    "skills",
+    "governance.md",
+    "rules",
+    "maintenance/automation-prompt.md"
+  ],
+  "dependencies": {
+    "@brsbl/bb-thread-history-maintenance": "file:vendor/@brsbl/bb-thread-history-maintenance",
+    "zod": "^4.3.6"
+  }
+}
