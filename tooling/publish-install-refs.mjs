@@ -71,14 +71,6 @@ export function retiredInstallRefPushArgs(installRef, expectedCommit) {
   ];
 }
 
-function concreteBbVersion(manifest) {
-  const version = manifest.engines?.bb?.match(/\d+\.\d+\.\d+/)?.[0];
-  if (!version) {
-    throw new Error(`${manifest.name}: engines.bb has no concrete minimum version`);
-  }
-  return version;
-}
-
 async function filesBelow(directory, prefix = "") {
   const files = [];
   for (const entry of await readdir(directory, { withFileTypes: true })) {
@@ -424,7 +416,7 @@ async function verifyBundledRuntimePackage(plugin, directory, name, location) {
   }
 }
 
-async function verifyReleaseCommit(plugin, releaseCommit, bbVersion, bundledPackageNames) {
+async function verifyReleaseCommit(plugin, releaseCommit, bundledPackageNames) {
   const checkoutRoot = await mkdtemp(
     resolve(tmpdir(), `bb-plugin-install-${plugin.slug}-`),
   );
@@ -475,7 +467,6 @@ async function verifyReleaseCommit(plugin, releaseCommit, bbVersion, bundledPack
       );
     }
     await validatePluginArtifacts(checkout, {
-      bbVersion,
       expectedId: plugin.pluginId,
       expectedName: plugin.name,
     });
@@ -528,7 +519,6 @@ async function verifyReleaseCommit(plugin, releaseCommit, bbVersion, bundledPack
       );
     }
     await validatePluginArtifacts(checkout, {
-      bbVersion,
       expectedId: plugin.pluginId,
       expectedName: plugin.name,
     });
@@ -547,9 +537,7 @@ export async function publishInstallRefs(options = {}) {
 
   for (const plugin of plugins) {
     const pluginDirectory = resolve(root, plugin.source);
-    const bbVersion = concreteBbVersion(plugin.manifest);
     await validatePluginArtifacts(pluginDirectory, {
-      bbVersion,
       expectedId: plugin.pluginId,
       expectedName: plugin.name,
     });
@@ -574,14 +562,14 @@ export async function publishInstallRefs(options = {}) {
       ? git(["rev-parse", `${currentCommit}^{tree}`])
       : null;
     if (currentCommit && currentTree === candidateTree) {
-      await verifyReleaseCommit(plugin, currentCommit, bbVersion, bundledPackageNames);
+      await verifyReleaseCommit(plugin, currentCommit, bundledPackageNames);
       console.log(`${plugin.installRef} ${currentCommit} unchanged and verified`);
       continue;
     }
 
     const releaseCommit = createReleaseCommit(plugin, candidateTree, sourceRevision);
     const ref = `refs/heads/${plugin.installRef}`;
-    await verifyReleaseCommit(plugin, releaseCommit, bbVersion, bundledPackageNames);
+    await verifyReleaseCommit(plugin, releaseCommit, bundledPackageNames);
     git(["update-ref", ref, releaseCommit]);
 
     if (push) {

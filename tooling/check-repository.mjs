@@ -106,6 +106,9 @@ export async function checkRepository(repositoryRoot = defaultRoot, options = {}
   const stableIds = new Map([
     ["improve-prompt", "prompt-shaper"],
   ]);
+  const minimumBbEngines = new Map([
+    ["ui-patterns", ">=0.34.0"],
+  ]);
 
   for (const plugin of plugins) {
     const { directory, installRef, manifest, name, packageName, pluginId, slug, source } =
@@ -128,7 +131,10 @@ export async function checkRepository(repositoryRoot = defaultRoot, options = {}
       `${slug}: dist missing from package files`,
     );
     assert(manifest.files.includes("README.md"), `${slug}: README missing from package files`);
-    assert(manifest.engines?.bb === ">=0.0.34", `${slug}: bb engine drift`);
+    assert(
+      manifest.engines?.bb === (minimumBbEngines.get(slug) ?? ">=0.0.34"),
+      `${slug}: bb engine drift`,
+    );
     assert(manifest.engines?.bbPluginSdk === "^0.4.0", `${slug}: SDK engine drift`);
     assert(pluginReadme.startsWith(`# ${name}\n`), `${slug}: README title drift`);
     for (const heading of ["## Install", "## Use", "## Develop"]) {

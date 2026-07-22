@@ -16,6 +16,9 @@ const builtApp = await readFile(
   new URL("../dist/app.js", import.meta.url),
   "utf8",
 );
+const appMetadata = JSON.parse(
+  await readFile(new URL("../dist/app.meta.json", import.meta.url), "utf8"),
+);
 const gallery = await readFile(
   new URL("../gallery-shell.tsx", import.meta.url),
   "utf8",
@@ -140,6 +143,8 @@ test("the package ships static gallery cards and approved-source detail previews
 });
 
 test("the thread composer action opens the UI Patterns side-panel", () => {
+  assert.equal(packageJson.engines.bb, ">=0.34.0");
+  assert.equal(appMetadata.builtWith.bbVersion, "0.0.34");
   assert.doesNotMatch(app, /app\.slots\.navPanel\(\{/);
   assert.match(app, /app\.slots\.threadPanelAction\(\{/);
   assert.match(app, /app\.composer\.customize\(\{/);
