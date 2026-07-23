@@ -1,0 +1,25 @@
+{
+  "name": "bb-plugin-thread-organizer",
+  "version": "0.1.0",
+  "description": "Organizes new bb threads into existing sections while preserving manual changes.",
+  "type": "module",
+  "license": "UNLICENSED",
+  "files": [
+    "dist",
+    "docs",
+    "README.md"
+  ],
+  "engines": {
+    "bb": ">=0.0.34",
+    "bbPluginSdk": "^0.4.0"
+  },
+  "bb": {
+    "name": "Thread Organizer",
+    "description": "Organizes new bb threads into existing sections while preserving manual changes.",
+    "branding": {
+      "icon": "FolderTree"
+    },
+    "server": "./server.ts",
+    "skills": []
+  }
+}
