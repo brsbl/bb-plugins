@@ -5,7 +5,7 @@
   "pluginId": "thread-organizer",
   "pluginVersion": "0.1.0",
   "builtWith": {
-    "bbVersion": "0.0.34",
+    "bbVersion": "0.33.0",
     "pluginSdkVersion": "0.4.0"
   }
 }

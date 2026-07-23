@@ -27,6 +27,7 @@ interface ThreadState {
   createdAt: number;
   hasAppliedSection: boolean;
   hasAppliedTitle: boolean;
+  inboxPinned: boolean;
   lastAppliedSectionId: string | null;
   lastAppliedTitle: string | null;
   lastCompletedSeq: number;
@@ -48,6 +49,7 @@ function initialState(thread: Thread): ThreadState {
     createdAt: thread.createdAt,
     hasAppliedSection: false,
     hasAppliedTitle: false,
+    inboxPinned: false,
     lastAppliedSectionId: null,
     lastAppliedTitle: null,
     lastCompletedSeq: 0,
@@ -69,6 +71,8 @@ function isThreadState(value: unknown): value is ThreadState {
     typeof state.createdAt === "number" &&
     typeof state.hasAppliedSection === "boolean" &&
     typeof state.hasAppliedTitle === "boolean" &&
+    (typeof state.inboxPinned === "boolean" ||
+      state.inboxPinned === undefined) &&
     (typeof state.lastAppliedSectionId === "string" ||
       state.lastAppliedSectionId === null) &&
     (typeof state.lastAppliedTitle === "string" ||
@@ -81,6 +85,13 @@ function isThreadState(value: unknown): value is ThreadState {
     typeof state.sectionLocked === "boolean" &&
     typeof state.titleLocked === "boolean"
   );
+}
+
+function normalizeThreadState(state: ThreadState): ThreadState {
+  return {
+    ...state,
+    inboxPinned: state.inboxPinned ?? false,
+  };
 }
 
 function syncManualLocks(state: ThreadState, thread: Thread): boolean {
@@ -162,7 +173,7 @@ export default function plugin(bb: BbPluginApi): void {
   async function readState(threadId: string): Promise<ThreadState | null> {
     const stored = await bb.storage.kv.get<unknown>(stateKey(threadId));
     if (stored === undefined) return null;
-    if (isThreadState(stored)) return stored;
+    if (isThreadState(stored)) return normalizeThreadState(stored);
     bb.log.warn(`thread=${threadId} action=ignore-invalid-state`);
     return null;
   }
@@ -215,6 +226,49 @@ export default function plugin(bb: BbPluginApi): void {
       await delay(attempt === 0 ? 150 : 600);
     }
     return loaded;
+  }
+
+  async function reconcileInbox(
+    threadId: string,
+    state: ThreadState,
+    phase: "active" | "failed" | "idle",
+  ): Promise<void> {
+    const { mode } = await settings.get();
+    const thread = (await bb.sdk.threads.get({ threadId })) as Thread;
+    const shouldBeInInbox = phase !== "active";
+
+    if (shouldBeInInbox) {
+      if (thread.pinnedAt !== null) return;
+      if (mode !== "apply") {
+        bb.log.info(
+          `thread=${threadId} phase=${phase} mode=observe action=propose-inbox-pin`,
+        );
+        return;
+      }
+      await bb.sdk.threads.pin({ threadId });
+      state.inboxPinned = true;
+      bb.log.info(
+        `thread=${threadId} phase=${phase} mode=apply action=inbox-pinned`,
+      );
+      return;
+    }
+
+    if (!state.inboxPinned) return;
+    if (thread.pinnedAt === null) {
+      state.inboxPinned = false;
+      return;
+    }
+    if (mode !== "apply") {
+      bb.log.info(
+        `thread=${threadId} phase=${phase} mode=observe action=propose-inbox-unpin`,
+      );
+      return;
+    }
+    await bb.sdk.threads.unpin({ threadId });
+    state.inboxPinned = false;
+    bb.log.info(
+      `thread=${threadId} phase=${phase} mode=apply action=inbox-unpinned`,
+    );
   }
 
   async function applySection(
@@ -477,7 +531,10 @@ export default function plugin(bb: BbPluginApi): void {
 
   bb.events.on("thread.active", ({ thread }) =>
     enqueue(thread.id, async () => {
-      if ((await readState(thread.id)) === null) return;
+      const state = await readState(thread.id);
+      if (state === null) return;
+      await reconcileInbox(thread.id, state, "active");
+      await saveState(thread.id, state);
       await evaluate(thread.id, "active");
     }),
   );
@@ -501,8 +558,18 @@ export default function plugin(bb: BbPluginApi): void {
           state.completedTurns,
         );
       }
+      await reconcileInbox(thread.id, state, "idle");
       await saveState(thread.id, state);
       if (due) await evaluate(thread.id, "turn");
+    }),
+  );
+
+  bb.events.on("thread.failed", ({ thread }) =>
+    enqueue(thread.id, async () => {
+      const state = await readState(thread.id);
+      if (state === null) return;
+      await reconcileInbox(thread.id, state, "failed");
+      await saveState(thread.id, state);
     }),
   );
 
