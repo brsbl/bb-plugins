@@ -31,6 +31,7 @@ interface RestoredThread {
   side: "left" | "right";
   desiredY: number;
   window: HTMLElement;
+  prose: HTMLElement;
 }
 
 const OWNED = "data-bb-timeline-comments-owned";
@@ -38,6 +39,8 @@ const NORMAL_HIGHLIGHT = "bb-timeline-comments";
 const ACTIVE_HIGHLIGHT = "bb-timeline-comments-active";
 const DRAFT_TTL = 24 * 60 * 60 * 1_000;
 const PLUGIN_DECORATION = "data-bb-plugin-decoration";
+const MARKER_SIZE = 24;
+const MARKER_TEXT_GAP = 8;
 
 function readDraft(key: string): string | null {
   const saved = sessionStorage.getItem(key);
@@ -432,10 +435,12 @@ class TimelineCommentsController {
       );
       const fallback = restored.range.getBoundingClientRect();
       const rects = fragments.length > 0 ? fragments : [fallback];
-      const side = chooseNearestGutter(
-        rects,
-        windowNode.getBoundingClientRect(),
-      );
+      const proseRect = prose.getBoundingClientRect();
+      const side = chooseNearestGutter(rects, {
+        left: proseRect.left,
+        right: proseRect.right,
+        width: windowNode.getBoundingClientRect().width,
+      });
       const desiredY =
         rects.reduce((sum, rect) => sum + rect.top + rect.height / 2, 0) /
         rects.length;
@@ -446,6 +451,7 @@ class TimelineCommentsController {
         side,
         desiredY,
         window: windowNode,
+        prose,
       });
     }
     publishTimelineCommentAnchorHealth(health);
@@ -507,10 +513,12 @@ class TimelineCommentsController {
       restored.desiredY =
         fragments.reduce((sum, rect) => sum + rect.top + rect.height / 2, 0) /
         fragments.length;
-      restored.side = chooseNearestGutter(
-        fragments,
-        restored.window.getBoundingClientRect(),
-      );
+      const proseRect = restored.prose.getBoundingClientRect();
+      restored.side = chooseNearestGutter(fragments, {
+        left: proseRect.left,
+        right: proseRect.right,
+        width: restored.window.getBoundingClientRect().width,
+      });
       restored.marker = null;
     }
     const groups = new Map<string, RestoredThread[]>();
@@ -539,7 +547,20 @@ class TimelineCommentsController {
         marker.type = "button";
         marker.dataset.bbCommentGutter = threads[0]!.side;
         marker.style.top = `${placement.y}px`;
-        marker.style.left = `${threads[0]!.side === "left" ? Math.max(8, windowRect.left + 6) : Math.min(window.innerWidth - 32, windowRect.right - 30)}px`;
+        const proseRects = threads.map(({ prose }) =>
+          prose.getBoundingClientRect(),
+        );
+        const gutterX =
+          threads[0]!.side === "left"
+            ? Math.min(...proseRects.map(({ left }) => left)) -
+              MARKER_SIZE -
+              MARKER_TEXT_GAP
+            : Math.max(...proseRects.map(({ right }) => right)) +
+              MARKER_TEXT_GAP;
+        marker.style.left = `${Math.max(
+          8,
+          Math.min(window.innerWidth - MARKER_SIZE - 8, gutterX),
+        )}px`;
         marker.setAttribute(
           "aria-label",
           threads.length === 1

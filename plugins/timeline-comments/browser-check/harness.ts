@@ -119,6 +119,10 @@ void (async () => {
     const overflow = markers.find((marker) => marker.textContent === "8");
     if (overflow === undefined)
       throw new Error("Expected one 8-thread collision marker");
+    const markerRect = overflow.getBoundingClientRect();
+    const proseRect = prose.getBoundingClientRect();
+    if (Math.abs(proseRect.left - markerRect.right - 8) > 1)
+      throw new Error("Gutter marker is not 8px from the message text");
     const tops = markers.map((marker) => marker.getBoundingClientRect().top);
     if (new Set(tops).size !== markers.length)
       throw new Error("Markers overlap vertically");
