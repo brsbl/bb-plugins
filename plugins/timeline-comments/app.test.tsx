@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent } from "@testing-library/react";
+import { act, cleanup, fireEvent } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { PluginThreadPanelProps } from "@bb/plugin-sdk/app";
 import {
@@ -156,6 +156,76 @@ describe("timeline comments app", () => {
     );
     expect(action.queryByRole("alert")).toBeNull();
     expect(getThreadHandoffSummary).toHaveBeenCalledTimes(2);
+  });
+
+  it("does not add a handoff from a composer scope that changed in flight", async () => {
+    const staleSummary = deferred<{
+      threadCount: number;
+      commentCount: number;
+      codePointSize: number;
+    }>();
+    const getThreadHandoffSummary = vi
+      .fn()
+      .mockReturnValueOnce(staleSummary.promise)
+      .mockResolvedValueOnce({
+        threadCount: 1,
+        commentCount: 2,
+        codePointSize: 100,
+      });
+    const app = await loadPluginApp(() => import("./app.js"));
+    const action = renderSlot(
+      app.composerCustomizations[0]!.actions![0]!,
+      {},
+      {
+        context: { threadId: "thr_1" },
+        composer: {
+          text: "",
+          scope: { kind: "thread", threadId: "thr_1" },
+        },
+        rpc: { getThreadHandoffSummary },
+      },
+    );
+
+    fireEvent.click(
+      action.getByRole("button", { name: "Add comments to chat" }),
+    );
+    await vi.waitFor(() =>
+      expect(getThreadHandoffSummary).toHaveBeenCalledWith({
+        bbThreadId: "thr_1",
+      }),
+    );
+    await action.behavior.setComposerScope({
+      kind: "thread",
+      threadId: "thr_2",
+    });
+    await act(async () => {
+      staleSummary.resolve({
+        threadCount: 1,
+        commentCount: 1,
+        codePointSize: 100,
+      });
+      await staleSummary.promise;
+    });
+    expect(
+      (
+        action.getByRole("button", {
+          name: "Add comments to chat",
+        }) as HTMLButtonElement
+      ).disabled,
+    ).toBe(false);
+    expect(action.inspection.composer.mentions).toHaveLength(0);
+    expect(action.queryByRole("alert")).toBeNull();
+
+    fireEvent.click(
+      action.getByRole("button", { name: "Add comments to chat" }),
+    );
+    await vi.waitFor(() =>
+      expect(action.inspection.composer.mentions).toHaveLength(1),
+    );
+    expect(action.inspection.composer.mentions[0]?.id).toBe("thr_2");
+    expect(getThreadHandoffSummary).toHaveBeenLastCalledWith({
+      bbThreadId: "thr_2",
+    });
   });
 
   it("removes every content-script node and tolerates repeated disposal", async () => {

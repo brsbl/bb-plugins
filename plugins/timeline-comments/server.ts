@@ -287,6 +287,7 @@ const cursorSchema = z
     method: z.enum(["anchors", "threads", "comments"]),
     scope: z.string(),
     filter: z.string(),
+    parentRank: z.number().int().min(0).max(1).optional(),
     createdAt: z.number().int().nonnegative(),
     id: z.string(),
   })
@@ -428,19 +429,32 @@ function getCommentThread(
     scope: `${input.bbThreadId}:${input.commentThreadId}`,
     filter: "chronological",
   });
+  const cursorParentRank = cursor?.parentRank ?? 1;
   const rows = db
     .prepare(
       `SELECT id, thread_id AS threadId, parent_id AS parentId, body, version,
         created_at AS createdAt, updated_at AS updatedAt
        FROM comments
        WHERE thread_id = ?
-         AND (? IS NULL OR created_at > ? OR (created_at = ? AND id > ?))
-       ORDER BY created_at ASC, id ASC
+         AND (
+           ? IS NULL
+           OR (CASE WHEN parent_id IS NULL THEN 0 ELSE 1 END) > ?
+           OR (
+             (CASE WHEN parent_id IS NULL THEN 0 ELSE 1 END) = ?
+             AND (created_at > ? OR (created_at = ? AND id > ?))
+           )
+         )
+       ORDER BY
+         CASE WHEN parent_id IS NULL THEN 0 ELSE 1 END ASC,
+         created_at ASC,
+         id ASC
        LIMIT ?`,
     )
     .all(
       input.commentThreadId,
       cursor?.id ?? null,
+      cursorParentRank,
+      cursorParentRank,
       cursor?.createdAt ?? 0,
       cursor?.createdAt ?? 0,
       cursor?.id ?? "",
@@ -459,6 +473,7 @@ function getCommentThread(
             method: "comments",
             scope: `${input.bbThreadId}:${input.commentThreadId}`,
             filter: "chronological",
+            parentRank: last.parentId === null ? 0 : 1,
             createdAt: last.createdAt,
             id: last.id,
           })
@@ -582,53 +597,107 @@ interface SerializedHandoff {
   codePointSize: number;
 }
 
-function serializeOpenComments(
+const handoffRowSchema = z.object({
+  commentThreadId: z.string(),
+  selectorExact: z.string(),
+  commentId: z.string(),
+  parentId: z.string().nullable(),
+  body: z.string(),
+});
+
+function handoffLimitError(): Error {
+  return new Error(
+    `Open comments exceed the ${HANDOFF_CODE_POINT_LIMIT.toLocaleString("en-US")}-code-point handoff limit`,
+  );
+}
+
+function readOpenComments(
   db: Database,
   bbThreadId: string,
+  includeContext: boolean,
 ): SerializedHandoff {
-  const threadRows = db
+  const rows = db
     .prepare(
-      `${THREAD_SELECT}
+      `SELECT
+         t.id AS commentThreadId,
+         t.selector_exact AS selectorExact,
+         c.id AS commentId,
+         c.parent_id AS parentId,
+         c.body
+       FROM comment_threads t
+       JOIN comments c ON c.thread_id = t.id
        WHERE t.bb_thread_id = ? AND t.resolved_at IS NULL
-       ORDER BY t.created_at ASC, t.id ASC`,
+       ORDER BY
+         t.created_at ASC,
+         t.id ASC,
+         CASE WHEN c.parent_id IS NULL THEN 0 ELSE 1 END ASC,
+         c.created_at ASC,
+         c.id ASC`,
     )
-    .all(bbThreadId)
-    .map((row) => threadRowSchema.parse(row));
-  if (threadRows.length === 0) {
+    .iterate(bbThreadId);
+  const sections: string[] = [];
+  let sectionCount = 0;
+  let codePointSize = 0;
+  let threadCount = 0;
+  let commentCount = 0;
+  let currentThreadId: string | null = null;
+
+  const addSection = (section: string) => {
+    if (sectionCount > 0) codePointSize += 2;
+    codePointSize += Array.from(section).length;
+    if (codePointSize > HANDOFF_CODE_POINT_LIMIT) throw handoffLimitError();
+    sectionCount += 1;
+    if (includeContext) sections.push(section);
+  };
+
+  for (const rawRow of rows) {
+    const row = handoffRowSchema.parse(rawRow);
+    if (currentThreadId === null) {
+      addSection(`# Open timeline comments for BB thread ${bbThreadId}`);
+    }
+    if (row.commentThreadId !== currentThreadId) {
+      currentThreadId = row.commentThreadId;
+      threadCount += 1;
+      addSection(`## Source: “${row.selectorExact}”`);
+    }
+    commentCount += 1;
+    addSection(`${row.parentId === null ? "Comment" : "Reply"}: ${row.body}`);
+  }
+
+  if (currentThreadId === null) {
     const context = `No open comments remain for BB thread ${bbThreadId}.`;
     return {
-      context,
+      context: includeContext ? context : "",
       threadCount: 0,
       commentCount: 0,
       codePointSize: Array.from(context).length,
     };
   }
-  const sections: string[] = [
-    `# Open timeline comments for BB thread ${bbThreadId}`,
-  ];
-  let commentCount = 0;
-  for (const row of threadRows) {
-    const comments = db
-      .prepare(
-        `SELECT id, thread_id AS threadId, parent_id AS parentId, body, version,
-          created_at AS createdAt, updated_at AS updatedAt
-         FROM comments WHERE thread_id = ? ORDER BY created_at ASC, id ASC`,
-      )
-      .all(row.id)
-      .map((comment) => commentRowSchema.parse(comment));
-    commentCount += comments.length;
-    sections.push(`## Source: “${row.selectorExact}”`);
-    for (const [index, comment] of comments.entries()) {
-      sections.push(`${index === 0 ? "Comment" : "Reply"}: ${comment.body}`);
-    }
-  }
-  const context = sections.join("\n\n");
   return {
-    context,
-    threadCount: threadRows.length,
+    context: includeContext ? sections.join("\n\n") : "",
+    threadCount,
     commentCount,
-    codePointSize: Array.from(context).length,
+    codePointSize,
   };
+}
+
+function serializeOpenComments(
+  db: Database,
+  bbThreadId: string,
+): SerializedHandoff {
+  return readOpenComments(db, bbThreadId, true);
+}
+
+function summarizeOpenComments(
+  db: Database,
+  bbThreadId: string,
+): Omit<SerializedHandoff, "context"> {
+  const { context: _context, ...summary } = readOpenComments(
+    db,
+    bbThreadId,
+    false,
+  );
+  return summary;
 }
 
 function countOpenComments(
@@ -653,14 +722,6 @@ function countOpenComments(
     .parse(row);
 }
 
-function assertHandoffSize(serialized: SerializedHandoff): void {
-  if (serialized.codePointSize > HANDOFF_CODE_POINT_LIMIT) {
-    throw new Error(
-      `Open comments exceed the ${HANDOFF_CODE_POINT_LIMIT.toLocaleString("en-US")}-code-point handoff limit`,
-    );
-  }
-}
-
 function parseCli(argv: string[]): {
   command: "list" | "get";
   threadId: string | undefined;
@@ -670,50 +731,80 @@ function parseCli(argv: string[]): {
   cursor: string | undefined;
   limit: number;
 } {
-  const [rawCommand, rawCommentThreadId, ...rest] = argv;
-  const command = rawCommand === "get" ? "get" : "list";
-  const args = command === "get" ? rest : argv.slice(1);
+  const rawCommand = argv[0];
+  if (rawCommand !== "list" && rawCommand !== "get") {
+    throw new Error(
+      rawCommand === undefined
+        ? "A command is required: list or get"
+        : `Unknown comments command: ${rawCommand}`,
+    );
+  }
+  const command = rawCommand;
+  let index = 1;
+  let commentThreadId: string | undefined;
+  if (command === "get") {
+    const candidate = argv[index];
+    if (candidate === undefined || candidate.startsWith("--")) {
+      throw new Error("get requires a comment-thread-id");
+    }
+    commentThreadId = candidate;
+    index += 1;
+  }
   let threadId: string | undefined;
   let filter: "open" | "resolved" | "all" = "open";
   let json = false;
   let cursor: string | undefined;
   const maxLimit = command === "get" ? COMMENT_PAGE_SIZE : ROOT_PAGE_SIZE;
   let limit = maxLimit;
-  for (let index = 0; index < args.length; index += 1) {
-    const arg = args[index];
-    if (arg === "--json") json = true;
-    if (arg === "--thread") {
-      threadId = args[index + 1];
+  const takeValue = (flag: string): string => {
+    const value = argv[index + 1];
+    if (value === undefined || value.startsWith("--")) {
+      throw new Error(`${flag} requires a value`);
+    }
+    index += 2;
+    return value;
+  };
+  while (index < argv.length) {
+    const arg = argv[index]!;
+    if (arg === "--json") {
+      json = true;
       index += 1;
+      continue;
+    }
+    if (arg === "--thread") {
+      threadId = takeValue(arg);
+      continue;
     }
     if (arg === "--cursor") {
-      cursor = args[index + 1];
-      if (cursor === undefined) throw new Error("--cursor requires a value");
-      index += 1;
+      cursor = takeValue(arg);
+      continue;
     }
     if (arg === "--limit") {
-      const rawLimit = args[index + 1];
-      if (rawLimit === undefined) throw new Error("--limit requires a value");
+      const rawLimit = takeValue(arg);
       limit = Number(rawLimit);
       if (!Number.isInteger(limit) || limit < 1 || limit > maxLimit) {
         throw new Error(`--limit must be an integer from 1 to ${maxLimit}`);
       }
-      index += 1;
+      continue;
     }
-    if (arg === "--state") {
-      const state = args[index + 1];
-      if (state === "open" || state === "resolved" || state === "all") {
-        filter = state;
-      } else {
+    if (arg === "--state" && command === "list") {
+      const state = takeValue(arg);
+      if (state !== "open" && state !== "resolved" && state !== "all") {
         throw new Error("--state must be open, resolved, or all");
       }
-      index += 1;
+      filter = state;
+      continue;
     }
+    throw new Error(
+      arg.startsWith("--")
+        ? `Unknown option for ${command}: ${arg}`
+        : `Unexpected argument for ${command}: ${arg}`,
+    );
   }
   return {
     command,
     threadId,
-    commentThreadId: command === "get" ? rawCommentThreadId : undefined,
+    commentThreadId,
     json,
     filter,
     cursor,
@@ -821,12 +912,11 @@ export default function timelineCommentsPlugin(bb: BbPluginApi): void {
       return getCommentThread(db, input);
     },
     getThreadHandoffSummary({ bbThreadId }) {
-      const serialized = serializeOpenComments(db, bbThreadId);
-      assertHandoffSize(serialized);
+      const summary = summarizeOpenComments(db, bbThreadId);
       return {
-        threadCount: serialized.threadCount,
-        commentCount: serialized.commentCount,
-        codePointSize: serialized.codePointSize,
+        threadCount: summary.threadCount,
+        commentCount: summary.commentCount,
+        codePointSize: summary.codePointSize,
       };
     },
     createThread(input) {
@@ -1023,7 +1113,6 @@ export default function timelineCommentsPlugin(bb: BbPluginApi): void {
     },
     resolve(bbThreadId) {
       const serialized = serializeOpenComments(db, bbThreadId);
-      assertHandoffSize(serialized);
       return { context: serialized.context };
     },
   });
@@ -1079,11 +1168,12 @@ export default function timelineCommentsPlugin(bb: BbPluginApi): void {
                   method: "comments",
                   scope: `${bbThreadId}:${parsed.commentThreadId}`,
                   filter: "chronological",
+                  parentRank: comment.parentId === null ? 0 : 1,
                   createdAt: comment.createdAt,
                   id: comment.id,
                 }),
-              renderHuman: (comment, index) =>
-                `${comment.parentId === null && parsed.cursor === undefined && index === 0 ? "Comment" : "Reply"}: ${comment.body}`,
+              renderHuman: (comment) =>
+                `${comment.parentId === null ? "Comment" : "Reply"}: ${comment.body}`,
               renderJson: (comments, nextCursor) =>
                 JSON.stringify({ ...detail, comments, nextCursor }),
               json: parsed.json,

@@ -948,6 +948,7 @@ class TimelineCommentsController {
     popover: HTMLElement,
   ): HTMLElement {
     const row = element("article", "bb-comments-comment");
+    row.dataset.bbCommentId = comment.id;
     const buildHeader = (action: HTMLElement): HTMLElement => {
       const header = element("header", "bb-comments-message-header");
       const byline = element("div");
@@ -973,6 +974,39 @@ class TimelineCommentsController {
     actionsTrigger.append(icon(EllipsisVertical));
     const actionsMenu = element("div", "bb-comments-actions-popover");
     actionsMenu.setAttribute("role", "menu");
+    const menuItems = () =>
+      [...actionsMenu.querySelectorAll<HTMLButtonElement>('[role="menuitem"]')]
+        .filter((item) => !item.disabled);
+    actionsMenu.addEventListener("keydown", (event) => {
+      const items = menuItems();
+      const current = items.indexOf(document.activeElement as HTMLButtonElement);
+      let next: HTMLButtonElement | undefined;
+      if (event.key === "ArrowDown")
+        next = items[(current + 1 + items.length) % items.length];
+      if (event.key === "ArrowUp")
+        next = items[(current - 1 + items.length) % items.length];
+      if (event.key === "Home") next = items[0];
+      if (event.key === "End") next = items.at(-1);
+      if (next !== undefined) {
+        event.preventDefault();
+        next.focus({ preventScroll: true });
+        return;
+      }
+      if (event.key !== "Tab") return;
+      event.preventDefault();
+      this.focusAdjacentToActionsTrigger(actionsTrigger, event.shiftKey);
+      this.closeActionsMenu();
+    });
+    actionsMenu.addEventListener("focusout", () => {
+      queueMicrotask(() => {
+        if (
+          this.#actionsMenu === actionsMenu &&
+          !actionsMenu.contains(document.activeElement)
+        ) {
+          this.closeActionsMenu();
+        }
+      });
+    });
     actionsTrigger.addEventListener("click", () => {
       if (this.#actionsTrigger === actionsTrigger) {
         this.closeActionsMenu();
@@ -982,6 +1016,7 @@ class TimelineCommentsController {
     });
     const edit = element("button") as HTMLButtonElement;
     edit.type = "button";
+    edit.tabIndex = -1;
     edit.setAttribute("role", "menuitem");
     edit.append(icon(Pencil), document.createTextNode("Edit"));
     edit.addEventListener("click", () => {
@@ -1017,6 +1052,12 @@ class TimelineCommentsController {
       const cancelEdit = () => {
         sessionStorage.removeItem(draftKey);
         this.renderThreadPopover(popover, detail);
+        popover
+          .querySelector<HTMLButtonElement>(
+            `[data-bb-comment-id="${escapeSelector(comment.id)}"] ` +
+              '.bb-comments-actions-menu > button[aria-label="Comment actions"]',
+          )
+          ?.focus({ preventScroll: true });
       };
       textarea.addEventListener("input", () => {
         if (textarea.value === comment.body) sessionStorage.removeItem(draftKey);
@@ -1072,6 +1113,7 @@ class TimelineCommentsController {
       "bb-comments-destructive",
     ) as HTMLButtonElement;
     remove.type = "button";
+    remove.tabIndex = -1;
     remove.setAttribute("role", "menuitem");
     remove.append(icon(Trash2), document.createTextNode("Delete"));
     remove.addEventListener("click", () => {
@@ -1105,6 +1147,25 @@ class TimelineCommentsController {
     actions.append(actionsTrigger);
     row.append(buildHeader(actions), body);
     return row;
+  }
+
+  private focusAdjacentToActionsTrigger(
+    trigger: HTMLButtonElement,
+    backwards: boolean,
+  ): void {
+    const popover = trigger.closest(".bb-comments-thread");
+    if (popover === null) {
+      trigger.focus({ preventScroll: true });
+      return;
+    }
+    const focusable = [
+      ...popover.querySelectorAll<HTMLElement>(
+        'button:not(:disabled), textarea:not(:disabled), input:not(:disabled), [href], [tabindex]:not([tabindex="-1"])',
+      ),
+    ].filter((node) => node.getClientRects().length > 0);
+    const current = focusable.indexOf(trigger);
+    const adjacent = focusable[current + (backwards ? -1 : 1)] ?? trigger;
+    adjacent.focus({ preventScroll: true });
   }
 
   private openActionsMenu(
@@ -1142,20 +1203,36 @@ class TimelineCommentsController {
       return;
     }
     const triggerRect = trigger.getBoundingClientRect();
+    const scrollViewport = trigger.closest<HTMLElement>(
+      ".bb-comments-thread-comments",
+    );
+    if (scrollViewport !== null) {
+      const viewportRect = scrollViewport.getBoundingClientRect();
+      if (
+        triggerRect.top < viewportRect.top ||
+        triggerRect.bottom > viewportRect.bottom
+      ) {
+        this.closeActionsMenu();
+        return;
+      }
+    }
     const menuRect = menu.getBoundingClientRect();
     const gap = 4;
+    const maxLeft = Math.max(8, window.innerWidth - menuRect.width - 8);
     const left = Math.max(
       8,
       Math.min(
-        window.innerWidth - menuRect.width - 8,
+        maxLeft,
         triggerRect.right - menuRect.width,
       ),
     );
     const below = triggerRect.bottom + gap;
-    const top =
+    const candidateTop =
       below + menuRect.height <= window.innerHeight - 8
         ? below
-        : Math.max(8, triggerRect.top - menuRect.height - gap);
+        : triggerRect.top - menuRect.height - gap;
+    const maxTop = Math.max(8, window.innerHeight - menuRect.height - 8);
+    const top = Math.max(8, Math.min(maxTop, candidateTop));
     menu.style.left = `${left}px`;
     menu.style.top = `${top}px`;
   }
@@ -1291,6 +1368,12 @@ class TimelineCommentsController {
 
   private closePopover(clearOpen = true): void {
     const invoker = this.#popoverInvoker;
+    const currentMarker =
+      this.#openThreadId === null
+        ? null
+        : (this.#restored.get(this.#openThreadId)?.marker ?? null);
+    const focusTarget =
+      invoker?.isConnected === true ? invoker : currentMarker;
     this.closeActionsMenu();
     this.removePopoverDismissal();
     this.#popoverInvoker = null;
@@ -1298,8 +1381,8 @@ class TimelineCommentsController {
     this.#popover = null;
     if (clearOpen) this.#openThreadId = null;
     this.setActive([]);
-    if (clearOpen && invoker?.isConnected === true) {
-      invoker.focus({ preventScroll: true });
+    if (clearOpen && focusTarget?.isConnected === true) {
+      focusTarget.focus({ preventScroll: true });
     }
   }
 

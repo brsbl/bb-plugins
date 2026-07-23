@@ -97,6 +97,7 @@ try {
     .locator(
       '.bb-comments-actions-menu > button[aria-label="Comment actions"]',
     )
+    .first()
     .click();
   await page
     .locator(".bb-comments-actions-popover button", { hasText: "Edit" })

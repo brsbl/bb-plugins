@@ -1,6 +1,7 @@
 import {
   useCallback,
   useEffect,
+  useLayoutEffect,
   useRef,
   useState,
   useSyncExternalStore,
@@ -42,18 +43,36 @@ function AddCommentsAction() {
   const composer = useComposer();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const requestGeneration = useRef(0);
   const threadId =
     composer.scope.kind === "thread" ? composer.scope.threadId : null;
+  const currentThreadId = useRef(threadId);
+
+  useLayoutEffect(() => {
+    currentThreadId.current = threadId;
+    requestGeneration.current += 1;
+    setBusy(false);
+    setError(null);
+    return () => {
+      currentThreadId.current = null;
+      requestGeneration.current += 1;
+    };
+  }, [threadId]);
 
   if (threadId === null) return null;
 
   const addComments = async () => {
+    const generation = ++requestGeneration.current;
+    const isCurrentRequest = () =>
+      generation === requestGeneration.current &&
+      currentThreadId.current === threadId;
     setBusy(true);
     setError(null);
     try {
       const summary = await rpc.call("getThreadHandoffSummary", {
         bbThreadId: threadId,
       });
+      if (!isCurrentRequest()) return;
       if (summary.threadCount === 0) return;
       composer.insertMention({
         provider: "thread-comments",
@@ -62,9 +81,9 @@ function AddCommentsAction() {
       });
       composer.focus();
     } catch (caught) {
-      setError(errorMessage(caught));
+      if (isCurrentRequest()) setError(errorMessage(caught));
     } finally {
-      setBusy(false);
+      if (isCurrentRequest()) setBusy(false);
     }
   };
 
@@ -111,13 +130,20 @@ function CommentPanel({ threadId, revealMessage }: PluginThreadPanelProps) {
   const loadGeneration = useRef(0);
   const [filter, setFilter] = useState<Filter>("open");
   const loadScope = useRef({ filter, threadId });
-  loadScope.current = { filter, threadId };
   const [threads, setThreads] = useState<TimelineCommentThreadSummary[]>([]);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [unanchored, setUnanchored] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  useLayoutEffect(() => {
+    loadScope.current = { filter, threadId };
+    loadGeneration.current += 1;
+    return () => {
+      loadGeneration.current += 1;
+    };
+  }, [filter, threadId]);
 
   const loadThreads = useCallback(
     async (append = false) => {
@@ -171,7 +197,6 @@ function CommentPanel({ threadId, revealMessage }: PluginThreadPanelProps) {
   useEffect(
     () => () => {
       revealRequest.current += 1;
-      loadGeneration.current += 1;
     },
     [threadId],
   );

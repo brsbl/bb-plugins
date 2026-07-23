@@ -445,6 +445,9 @@
   z-index: 56;
   display: grid;
   min-width: 132px;
+  max-width: calc(100vw - 16px);
+  max-height: calc(100vh - 16px);
+  overflow: auto;
   padding: 4px;
   border: 1px solid var(--border);
   border-radius: 7px;

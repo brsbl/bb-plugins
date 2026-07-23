@@ -62,9 +62,18 @@ const context = {
           createdAt: now,
           updatedAt: now,
         };
+        const replies = Array.from({ length: 12 }, (_, index) => ({
+          id: `comment_reply_${index}`,
+          threadId: summary.id,
+          parentId: rootComment.id,
+          body: `Reply ${index + 1} keeps this thread long enough to scroll.`,
+          version: 1,
+          createdAt: now + index + 1,
+          updatedAt: now + index + 1,
+        }));
         return {
-          thread: { ...summary, rootComment },
-          comments: [rootComment],
+          thread: { ...summary, rootComment, replyCount: replies.length },
+          comments: [rootComment, ...replies],
           nextCursor: null,
         };
       }
@@ -260,6 +269,101 @@ void (async () => {
       !deleteButton.contains(visibleAtDelete)
     )
       throw new Error("Comment actions menu is clipped by the thread chrome");
+
+    const menuItems = [
+      ...actionsMenu.querySelectorAll<HTMLButtonElement>('[role="menuitem"]'),
+    ];
+    if (document.activeElement !== menuItems[0])
+      throw new Error("Comment actions menu did not focus its first item");
+    menuItems[0]!.dispatchEvent(
+      new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true }),
+    );
+    if (document.activeElement !== menuItems[1])
+      throw new Error("ArrowDown did not move to the next comment action");
+    menuItems[1]!.dispatchEvent(
+      new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true }),
+    );
+    if (document.activeElement !== menuItems[0])
+      throw new Error("ArrowDown did not wrap comment action focus");
+    menuItems[0]!.dispatchEvent(
+      new KeyboardEvent("keydown", { key: "End", bubbles: true }),
+    );
+    if (document.activeElement !== menuItems.at(-1))
+      throw new Error("End did not focus the final comment action");
+    menuItems.at(-1)!.dispatchEvent(
+      new KeyboardEvent("keydown", { key: "Home", bubbles: true }),
+    );
+    if (document.activeElement !== menuItems[0])
+      throw new Error("Home did not focus the first comment action");
+    menuItems[0]!.dispatchEvent(
+      new KeyboardEvent("keydown", { key: "ArrowUp", bubbles: true }),
+    );
+    if (document.activeElement !== menuItems.at(-1))
+      throw new Error("ArrowUp did not wrap comment action focus");
+    menuItems.at(-1)!.dispatchEvent(
+      new KeyboardEvent("keydown", { key: "Tab", bubbles: true }),
+    );
+    await wait(0);
+    if (
+      document.querySelector(".bb-comments-actions-popover") !== null ||
+      document.activeElement === document.body
+    ) {
+      throw new Error("Tab did not dismiss the menu and preserve focus");
+    }
+
+    popover
+      .querySelector<HTMLButtonElement>(
+        '.bb-comments-actions-menu > button[aria-label="Comment actions"]',
+      )
+      ?.click();
+    document.activeElement?.dispatchEvent(
+      new KeyboardEvent("keydown", {
+        key: "Tab",
+        shiftKey: true,
+        bubbles: true,
+      }),
+    );
+    await wait(0);
+    if (
+      document.querySelector(".bb-comments-actions-popover") !== null ||
+      document.activeElement === document.body
+    ) {
+      throw new Error("Shift+Tab did not dismiss the menu and preserve focus");
+    }
+
+    popover
+      .querySelector<HTMLButtonElement>(
+        '.bb-comments-actions-menu > button[aria-label="Comment actions"]',
+      )
+      ?.click();
+    popover.focus({ preventScroll: true });
+    await wait(0);
+    if (document.querySelector(".bb-comments-actions-popover") !== null)
+      throw new Error("Moving focus outside did not dismiss the actions menu");
+
+    const commentsScroller = popover.querySelector<HTMLElement>(
+      ".bb-comments-thread-comments",
+    )!;
+    commentsScroller.scrollTop = 0;
+    popover
+      .querySelector<HTMLButtonElement>(
+        '.bb-comments-actions-menu > button[aria-label="Comment actions"]',
+      )
+      ?.click();
+    commentsScroller.scrollTop = commentsScroller.scrollHeight;
+    commentsScroller.dispatchEvent(new Event("scroll"));
+    await wait(30);
+    if (document.querySelector(".bb-comments-actions-popover") !== null)
+      throw new Error("Scrolling its trigger out of view did not dismiss menu");
+    commentsScroller.scrollTop = 0;
+    commentsScroller.dispatchEvent(new Event("scroll"));
+    await wait(30);
+
+    popover
+      .querySelector<HTMLButtonElement>(
+        '.bb-comments-actions-menu > button[aria-label="Comment actions"]',
+      )
+      ?.click();
     document.dispatchEvent(
       new KeyboardEvent("keydown", { key: "Escape", bubbles: true }),
     );
@@ -316,6 +420,12 @@ void (async () => {
     ) {
       throw new Error("Escape did not cancel editing in place");
     }
+    const restoredCommentAction = popover.querySelector<HTMLButtonElement>(
+      `[data-bb-comment-id="comment_root"] ` +
+        '.bb-comments-actions-menu > button[aria-label="Comment actions"]',
+    );
+    if (document.activeElement !== restoredCommentAction)
+      throw new Error("Cancelling edit did not restore comment action focus");
 
     document.dispatchEvent(
       new KeyboardEvent("keydown", { key: "Escape", bubbles: true }),
@@ -323,10 +433,12 @@ void (async () => {
     if (document.querySelector(".bb-comments-thread") !== null) {
       throw new Error("Escape did not dismiss the thread popover");
     }
-    if (document.activeElement !== markers[0]) {
+    if (!document.activeElement?.classList.contains("bb-comments-marker")) {
       throw new Error("Popover dismissal did not restore marker focus");
     }
-    markers[0]!.click();
+    document
+      .querySelector<HTMLButtonElement>(".bb-comments-marker")
+      ?.click();
     document
       .querySelector<HTMLButtonElement>(".bb-comments-cluster button")
       ?.click();

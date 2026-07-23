@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   createFakePluginHost,
   makeThreadResponse,
@@ -10,6 +10,8 @@ import plugin, {
   commentThreadDetailSchema,
   renderedTextSelectorSchema,
 } from "./server.js";
+
+afterEach(() => vi.restoreAllMocks());
 
 const threadPageSchema = z.object({
   threads: z.array(commentThreadDetailSchema.shape.thread),
@@ -304,6 +306,10 @@ describe("timeline comments backend", () => {
       }),
     );
     expect(firstComments.comments).toHaveLength(100);
+    expect(firstComments.comments[0]?.parentId).toBeNull();
+    expect(
+      firstComments.comments.slice(1).every(({ parentId }) => parentId !== null),
+    ).toBe(true);
     expect(firstComments.nextCursor).not.toBeNull();
     const secondComments = commentThreadDetailSchema.parse(
       await host.harness.callRpc("getCommentThread", {
@@ -313,6 +319,65 @@ describe("timeline comments backend", () => {
       }),
     );
     expect(secondComments.comments).toHaveLength(1);
+    expect(secondComments.comments[0]?.parentId).not.toBeNull();
+    const allComments = [
+      ...firstComments.comments,
+      ...secondComments.comments,
+    ];
+    expect(allComments).toHaveLength(101);
+    expect(new Set(allComments.map(({ id }) => id)).size).toBe(101);
+    expect(
+      allComments.filter(({ parentId }) => parentId === null),
+    ).toHaveLength(1);
+
+    const firstCliPage = await host.harness.runCli(
+      ["get", target.id, "--limit", "1", "--json"],
+      { threadId: "thr_1" },
+    );
+    const firstCliComment = JSON.parse(firstCliPage.stdout ?? "").comments[0];
+    expect(firstCliComment.parentId).toBeNull();
+    const firstHumanCliPage = await host.harness.runCli(
+      ["get", target.id, "--limit", "1"],
+      { threadId: "thr_1" },
+    );
+    expect(firstHumanCliPage.stdout).toContain(
+      `Comment: ${target.rootComment.body}`,
+    );
+    const secondCliPage = await host.harness.runCli(
+      [
+        "get",
+        target.id,
+        "--limit",
+        "1",
+        "--cursor",
+        JSON.parse(firstCliPage.stdout ?? "").nextCursor,
+        "--json",
+      ],
+      { threadId: "thr_1" },
+    );
+    const secondCliResult = JSON.parse(secondCliPage.stdout ?? "");
+    expect(secondCliResult.comments[0].parentId).not.toBeNull();
+    const secondHumanCliPage = await host.harness.runCli(
+      [
+        "get",
+        target.id,
+        "--limit",
+        "1",
+        "--cursor",
+        JSON.parse(firstCliPage.stdout ?? "").nextCursor,
+      ],
+      { threadId: "thr_1" },
+    );
+    expect(secondHumanCliPage.stdout).toContain(
+      `Reply: ${secondCliResult.comments[0].body}`,
+    );
+
+    const context = (
+      await host.harness.registrations.mentionProviders[0]!.resolve("thr_1")
+    ).context;
+    expect(context.indexOf(`Comment: ${target.rootComment.body}`)).toBeLessThan(
+      context.indexOf("Reply: "),
+    );
   });
 
   it("serializes every currently open comment for mention resolution and omits resolved threads", async () => {
@@ -336,6 +401,26 @@ describe("timeline comments backend", () => {
     expect(summary).toMatchObject({ threadCount: 2, commentCount: 3 });
 
     const provider = host.harness.registrations.mentionProviders[0]!;
+    const db = host.bb.storage.database();
+    const prepare = vi.spyOn(db, "prepare");
+    prepare.mockClear();
+    await host.harness.callRpc("getThreadHandoffSummary", {
+      bbThreadId: "thr_1",
+    });
+    expect(
+      prepare.mock.calls.filter(([sql]) =>
+        String(sql).includes("JOIN comments c ON c.thread_id = t.id"),
+      ),
+    ).toHaveLength(1);
+    prepare.mockClear();
+    provider.resolve("thr_1");
+    expect(
+      prepare.mock.calls.filter(([sql]) =>
+        String(sql).includes("JOIN comments c ON c.thread_id = t.id"),
+      ),
+    ).toHaveLength(1);
+    prepare.mockRestore();
+
     expect(
       provider.search({
         trigger: "@",
@@ -402,6 +487,21 @@ describe("timeline comments backend", () => {
         body,
       });
     }
+    host.bb.storage
+      .database()
+      .prepare(
+        `INSERT INTO comments (
+           id, thread_id, parent_id, body, version, created_at, updated_at
+         ) VALUES (?, ?, ?, ?, 1, ?, ?)`,
+      )
+      .run(
+        "invalid_after_limit",
+        created.thread.id,
+        created.thread.rootComment.id,
+        Buffer.from([1]),
+        9_999_999_999_999,
+        9_999_999_999_999,
+      );
     await expect(
       host.harness.callRpc("getThreadHandoffSummary", { bbThreadId: "thr_1" }),
     ).rejects.toThrow("64,000-code-point handoff limit");
@@ -475,6 +575,47 @@ describe("timeline comments backend", () => {
     );
     expect(invalidLimit).toMatchObject({ exitCode: 1 });
     expect(invalidLimit.stderr).toContain("integer from 1 to 100");
+  });
+
+  it("rejects unknown CLI commands, options, arguments, and missing option values", async () => {
+    const host = await loadPlugin();
+    const cases: Array<{ argv: string[]; message: string }> = [
+      { argv: [], message: "A command is required" },
+      { argv: ["ls"], message: "Unknown comments command" },
+      { argv: ["list", "extra"], message: "Unexpected argument for list" },
+      { argv: ["list", "--wat"], message: "Unknown option for list" },
+      { argv: ["get", "--json"], message: "comment-thread-id" },
+      {
+        argv: ["get", "comment_1", "--state", "open"],
+        message: "Unknown option for get",
+      },
+      { argv: ["list", "--thread"], message: "--thread requires a value" },
+      {
+        argv: ["list", "--thread", "--json"],
+        message: "--thread requires a value",
+      },
+      { argv: ["list", "--cursor"], message: "--cursor requires a value" },
+      {
+        argv: ["list", "--cursor", "--json"],
+        message: "--cursor requires a value",
+      },
+      { argv: ["list", "--limit"], message: "--limit requires a value" },
+      {
+        argv: ["list", "--limit", "--json"],
+        message: "--limit requires a value",
+      },
+      { argv: ["list", "--state"], message: "--state requires a value" },
+      {
+        argv: ["list", "--state", "--json"],
+        message: "--state requires a value",
+      },
+    ];
+
+    for (const { argv, message } of cases) {
+      const result = await host.harness.runCli(argv, { threadId: "thr_1" });
+      expect(result.exitCode, argv.join(" ")).toBe(1);
+      expect(result.stderr, argv.join(" ")).toContain(message);
+    }
   });
 
   it("keeps Unicode-heavy CLI pages below the host limit and fails clearly for one oversized record", async () => {
