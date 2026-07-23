@@ -4,6 +4,7 @@ import {
   useRef,
   useState,
   useSyncExternalStore,
+  type ReactNode,
 } from "react";
 import {
   definePluginApp,
@@ -41,6 +42,62 @@ function excerpt(value: string, length: number): string {
   return value.length > length ? `${value.slice(0, length - 1)}…` : value;
 }
 
+function relativeTime(value: number): string {
+  const elapsed = Math.max(0, Date.now() - value);
+  if (elapsed < 60_000) return "now";
+  if (elapsed < 3_600_000) return `${Math.floor(elapsed / 60_000)}m`;
+  if (elapsed < 86_400_000) return `${Math.floor(elapsed / 3_600_000)}h`;
+  if (elapsed < 604_800_000) return `${Math.floor(elapsed / 86_400_000)}d`;
+  return new Intl.DateTimeFormat(undefined, {
+    month: "short",
+    day: "numeric",
+  }).format(value);
+}
+
+type CommentIconName =
+  | "check"
+  | "close"
+  | "comment"
+  | "more"
+  | "send";
+
+function CommentIcon({ name }: { name: CommentIconName }) {
+  const paths: Record<CommentIconName, ReactNode> = {
+    check: <path d="m5 12 4 4L19 6M3 7l3 3M13 16l2 2 6-7" />,
+    close: <path d="m7 7 10 10M17 7 7 17" />,
+    comment: (
+      <>
+        <path d="M7.5 18.5 4 20v-4.3a7.5 7.5 0 1 1 3.5 2.8Z" />
+        <path d="M8 10h8M8 14h5" />
+      </>
+    ),
+    more: (
+      <>
+        <circle cx="6" cy="12" r="1" fill="currentColor" stroke="none" />
+        <circle cx="12" cy="12" r="1" fill="currentColor" stroke="none" />
+        <circle cx="18" cy="12" r="1" fill="currentColor" stroke="none" />
+      </>
+    ),
+    send: <path d="m4 4 16 8-16 8 3-8-3-8Zm3 8h13" />,
+  };
+
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      width="16"
+      height="16"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.7"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      {paths[name]}
+    </svg>
+  );
+}
+
 function OpenCommentsAction() {
   const navigate = useBbNavigate();
   const openThreadPanel = navigate.experimental_openThreadPanel;
@@ -61,20 +118,7 @@ function OpenCommentsAction() {
         })
       }
     >
-      <svg
-        viewBox="0 0 24 24"
-        width="16"
-        height="16"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.7"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        aria-hidden="true"
-      >
-        <path d="M7.5 18.5 4 20v-4.3a7.5 7.5 0 1 1 3.5 2.8Z" />
-        <path d="M8 10h8M8 14h5" />
-      </svg>
+      <CommentIcon name="comment" />
     </button>
   );
 }
@@ -408,14 +452,139 @@ function CommentPanel({ threadId, revealMessage }: PluginThreadPanelProps) {
               </button>
               {itemDetail !== null ? (
                 <div className="bb-comments-panel-thread">
+                  <div className="bb-comments-panel-thread-header">
+                    <span>
+                      “{excerpt(itemDetail.thread.selector.exact, 100)}”
+                    </span>
+                    <button
+                      type="button"
+                      className="bb-comments-icon-control"
+                      aria-label={
+                        itemDetail.thread.resolvedAt === null
+                          ? "Resolve thread"
+                          : "Reopen thread"
+                      }
+                      title={
+                        itemDetail.thread.resolvedAt === null
+                          ? "Resolve thread"
+                          : "Reopen thread"
+                      }
+                      disabled={busy}
+                      aria-pressed={itemDetail.thread.resolvedAt !== null}
+                      onClick={() =>
+                        void mutate(async () => {
+                          const updated = await rpc.call("setThreadResolved", {
+                            bbThreadId: threadId,
+                            commentThreadId: item.id,
+                            expectedVersion: itemDetail.thread.version,
+                            resolved: itemDetail.thread.resolvedAt === null,
+                          });
+                          setDetail(updated);
+                        })
+                      }
+                    >
+                      <CommentIcon name="check" />
+                    </button>
+                  </div>
                   {itemDetail.comments.map((comment) => (
-                    <div className="bb-comments-panel-comment" key={comment.id}>
+                    <article
+                      className="bb-comments-panel-comment"
+                      data-editing={
+                        editingComment?.id === comment.id ? "true" : undefined
+                      }
+                      key={comment.id}
+                    >
+                      <header className="bb-comments-message-header">
+                        <div>
+                          <strong>You</strong>
+                          <time
+                            dateTime={new Date(comment.createdAt).toISOString()}
+                            title={new Date(comment.createdAt).toLocaleString()}
+                          >
+                            {relativeTime(comment.createdAt)}
+                          </time>
+                        </div>
+                        {editingComment?.id === comment.id ? (
+                          <button
+                            type="button"
+                            className="bb-comments-icon-control"
+                            aria-label="Cancel comment edit"
+                            title="Cancel edit"
+                            onClick={() => setEditingComment(null)}
+                          >
+                            <CommentIcon name="close" />
+                          </button>
+                        ) : (
+                          <details className="bb-comments-actions-menu">
+                            <summary
+                              className="bb-comments-icon-control"
+                              role="button"
+                              aria-label="Comment actions"
+                              title="Comment actions"
+                            >
+                              <CommentIcon name="more" />
+                            </summary>
+                            <div role="menu">
+                              <button
+                                type="button"
+                                role="menuitem"
+                                onClick={() =>
+                                  setEditingComment({
+                                    id: comment.id,
+                                    body: comment.body,
+                                  })
+                                }
+                              >
+                                Edit
+                              </button>
+                              <button
+                                type="button"
+                                role="menuitem"
+                                onClick={() =>
+                                  navigate.toCompose({
+                                    initialPrompt:
+                                      createIndividualHandoffPrompt(
+                                        comment.body,
+                                        itemDetail.thread.selector.exact,
+                                      ),
+                                    focusPrompt: true,
+                                  })
+                                }
+                              >
+                                Send to agent
+                              </button>
+                              <button
+                                type="button"
+                                role="menuitem"
+                                className="bb-comments-destructive"
+                                onClick={() => deleteComment(comment)}
+                              >
+                                Delete
+                              </button>
+                            </div>
+                          </details>
+                        )}
+                      </header>
                       {editingComment?.id === comment.id ? (
                         <form
                           className="bb-comments-panel-edit"
                           onSubmit={(event) => {
                             event.preventDefault();
                             void saveEditedComment(comment);
+                          }}
+                          onKeyDown={(event) => {
+                            if (event.key === "Escape") {
+                              event.preventDefault();
+                              setEditingComment(null);
+                              return;
+                            }
+                            if (
+                              event.key === "Enter" &&
+                              (event.metaKey || event.ctrlKey)
+                            ) {
+                              event.preventDefault();
+                              event.currentTarget.requestSubmit();
+                            }
                           }}
                         >
                           <textarea
@@ -430,15 +599,12 @@ function CommentPanel({ threadId, revealMessage }: PluginThreadPanelProps) {
                               })
                             }
                           />
-                          <div>
-                            <button
-                              type="button"
-                              onClick={() => setEditingComment(null)}
-                            >
-                              Cancel
-                            </button>
+                          <footer>
+                            <span>⌘/Ctrl Enter</span>
                             <button
                               type="submit"
+                              className="bb-comments-primary"
+                              aria-label="Save comment"
                               disabled={
                                 busy ||
                                 editingComment.body === comment.body ||
@@ -447,48 +613,12 @@ function CommentPanel({ threadId, revealMessage }: PluginThreadPanelProps) {
                             >
                               Save
                             </button>
-                          </div>
+                          </footer>
                         </form>
                       ) : (
-                        <>
-                          <p>{comment.body}</p>
-                          <div>
-                            <button
-                              type="button"
-                              onClick={() =>
-                                navigate.toCompose({
-                                  initialPrompt: createIndividualHandoffPrompt(
-                                    comment.body,
-                                    itemDetail.thread.selector.exact,
-                                  ),
-                                  focusPrompt: true,
-                                })
-                              }
-                            >
-                              Send to agent
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() =>
-                                setEditingComment({
-                                  id: comment.id,
-                                  body: comment.body,
-                                })
-                              }
-                            >
-                              Edit
-                            </button>
-                            <button
-                              type="button"
-                              className="bb-comments-destructive"
-                              onClick={() => deleteComment(comment)}
-                            >
-                              Delete
-                            </button>
-                          </div>
-                        </>
+                        <p>{comment.body}</p>
                       )}
-                    </div>
+                    </article>
                   ))}
                   {itemDetail.nextCursor !== null ? (
                     <button
@@ -504,7 +634,8 @@ function CommentPanel({ threadId, revealMessage }: PluginThreadPanelProps) {
                       Load more replies
                     </button>
                   ) : null}
-                  {itemDetail.thread.resolvedAt === null ? (
+                  {itemDetail.thread.resolvedAt === null &&
+                  editingComment === null ? (
                     <ReplyForm
                       disabled={busy}
                       onReply={(body) =>
@@ -519,26 +650,6 @@ function CommentPanel({ threadId, revealMessage }: PluginThreadPanelProps) {
                       }
                     />
                   ) : null}
-                  <button
-                    type="button"
-                    className="bb-comments-resolve"
-                    disabled={busy}
-                    onClick={() =>
-                      void mutate(async () => {
-                        const updated = await rpc.call("setThreadResolved", {
-                          bbThreadId: threadId,
-                          commentThreadId: item.id,
-                          expectedVersion: itemDetail.thread.version,
-                          resolved: itemDetail.thread.resolvedAt === null,
-                        });
-                        setDetail(updated);
-                      })
-                    }
-                  >
-                    {itemDetail.thread.resolvedAt === null
-                      ? "Resolve thread"
-                      : "Reopen thread"}
-                  </button>
                 </div>
               ) : null}
             </article>
@@ -574,6 +685,15 @@ function ReplyForm({
         event.preventDefault();
         void onReply(body).then(() => setBody(""));
       }}
+      onKeyDown={(event) => {
+        if (
+          event.key === "Enter" &&
+          (event.metaKey || event.ctrlKey)
+        ) {
+          event.preventDefault();
+          event.currentTarget.requestSubmit();
+        }
+      }}
     >
       <textarea
         value={body}
@@ -583,10 +703,12 @@ function ReplyForm({
       />
       <button
         type="submit"
-        className="bb-comments-primary"
+        className="bb-comments-icon-control"
+        aria-label="Reply"
+        title="Reply · ⌘/Ctrl Enter"
         disabled={disabled || commentBodyError(body) !== null}
       >
-        Reply
+        <CommentIcon name="send" />
       </button>
     </form>
   );

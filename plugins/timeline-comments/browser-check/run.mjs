@@ -75,6 +75,15 @@ try {
   }
   await page.setViewportSize({ width: 900, height: 600 });
   await page.waitForTimeout(100);
+  await page
+    .locator(
+      '.bb-comments-actions-menu > summary[aria-label="Comment actions"]',
+    )
+    .click();
+  await page
+    .locator(".bb-comments-actions-menu button", { hasText: "Edit" })
+    .click();
+  await page.waitForTimeout(50);
   await page.screenshot({ path: screenshot });
 } finally {
   await browser.close();

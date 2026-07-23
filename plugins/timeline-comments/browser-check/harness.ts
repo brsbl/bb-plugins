@@ -156,9 +156,9 @@ void (async () => {
     const reply = popover.querySelector<HTMLTextAreaElement>(
       ".bb-comments-reply-input",
     );
-    const replyButton = [
-      ...popover.querySelectorAll<HTMLButtonElement>("button"),
-    ].find((button) => button.textContent === "Reply");
+    const replyButton = popover.querySelector<HTMLButtonElement>(
+      'button[aria-label="Reply"]',
+    );
     if (reply === null || replyButton?.disabled !== true)
       throw new Error("Blank reply was not disabled");
     reply.value = "Ready";
@@ -170,6 +170,36 @@ void (async () => {
     }
     if (CSS.highlights.get("bb-timeline-comments-active")?.size !== 1) {
       throw new Error("Open thread did not strengthen exactly one highlight");
+    }
+
+    popover
+      .querySelector<HTMLElement>(
+        '.bb-comments-actions-menu > summary[aria-label="Comment actions"]',
+      )
+      ?.click();
+    const editButton = [
+      ...popover.querySelectorAll<HTMLButtonElement>(
+        ".bb-comments-actions-menu button",
+      ),
+    ].find((button) => button.textContent === "Edit");
+    editButton?.click();
+    const editInput = popover.querySelector<HTMLTextAreaElement>(
+      ".bb-comments-edit-input",
+    );
+    if (
+      editInput === null ||
+      editInput.value !== "Verify the real browser geometry before shipping."
+    ) {
+      throw new Error("Comment edit did not replace the message body");
+    }
+    editInput.dispatchEvent(
+      new KeyboardEvent("keydown", { key: "Escape", bubbles: true }),
+    );
+    if (
+      document.querySelector(".bb-comments-thread") === null ||
+      document.querySelector(".bb-comments-edit-input") !== null
+    ) {
+      throw new Error("Escape did not cancel editing in place");
     }
 
     document.dispatchEvent(

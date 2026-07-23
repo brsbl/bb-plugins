@@ -112,6 +112,64 @@ function formatTime(value: number): string {
   }).format(value);
 }
 
+function relativeTime(value: number): string {
+  const elapsed = Math.max(0, Date.now() - value);
+  if (elapsed < 60_000) return "now";
+  if (elapsed < 3_600_000) return `${Math.floor(elapsed / 60_000)}m`;
+  if (elapsed < 86_400_000) return `${Math.floor(elapsed / 3_600_000)}h`;
+  if (elapsed < 604_800_000) return `${Math.floor(elapsed / 86_400_000)}d`;
+  return new Intl.DateTimeFormat(undefined, {
+    month: "short",
+    day: "numeric",
+  }).format(value);
+}
+
+type IconName = "check" | "close" | "more" | "send";
+
+function icon(name: IconName): SVGSVGElement {
+  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  svg.setAttribute(OWNED, "");
+  svg.setAttribute("viewBox", "0 0 24 24");
+  svg.setAttribute("width", "16");
+  svg.setAttribute("height", "16");
+  svg.setAttribute("fill", "none");
+  svg.setAttribute("stroke", "currentColor");
+  svg.setAttribute("stroke-width", "1.7");
+  svg.setAttribute("stroke-linecap", "round");
+  svg.setAttribute("stroke-linejoin", "round");
+  svg.setAttribute("aria-hidden", "true");
+  const definitions: Record<IconName, string[]> = {
+    check: ["M5 12l4 4L19 6", "M3 7l3 3", "M13 16l2 2 6-7"],
+    close: ["M7 7l10 10", "M17 7 7 17"],
+    more: [],
+    send: ["M4 4l16 8-16 8 3-8-3-8Z", "M7 12h13"],
+  };
+  if (name === "more") {
+    for (const cx of ["6", "12", "18"]) {
+      const circle = document.createElementNS(
+        "http://www.w3.org/2000/svg",
+        "circle",
+      );
+      circle.setAttribute("cx", cx);
+      circle.setAttribute("cy", "12");
+      circle.setAttribute("r", "1");
+      circle.setAttribute("fill", "currentColor");
+      circle.setAttribute("stroke", "none");
+      svg.append(circle);
+    }
+    return svg;
+  }
+  for (const definition of definitions[name]) {
+    const path = document.createElementNS(
+      "http://www.w3.org/2000/svg",
+      "path",
+    );
+    path.setAttribute("d", definition);
+    svg.append(path);
+  }
+  return svg;
+}
+
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : "Something went wrong";
 }
@@ -679,6 +737,7 @@ class TimelineCommentsController {
     popover: HTMLElement,
     detail: TimelineCommentThreadDetail,
   ): void {
+    delete popover.dataset.editing;
     popover.replaceChildren();
     const header = element("header", "bb-comments-thread-header");
     const source = element(
@@ -689,10 +748,20 @@ class TimelineCommentsController {
     const headerActions = element("div", "bb-comments-header-actions");
     const resolve = element(
       "button",
-      "bb-comments-quiet",
-      detail.thread.resolvedAt === null ? "Resolve" : "Reopen",
+      "bb-comments-icon-control",
     ) as HTMLButtonElement;
     resolve.type = "button";
+    resolve.setAttribute(
+      "aria-label",
+      detail.thread.resolvedAt === null ? "Resolve thread" : "Reopen thread",
+    );
+    resolve.title =
+      detail.thread.resolvedAt === null ? "Resolve thread" : "Reopen thread";
+    resolve.setAttribute(
+      "aria-pressed",
+      String(detail.thread.resolvedAt !== null),
+    );
+    resolve.append(icon("check"));
     resolve.addEventListener("click", () => {
       resolve.disabled = true;
       void this.#rpc
@@ -713,11 +782,12 @@ class TimelineCommentsController {
     });
     const close = element(
       "button",
-      "bb-comments-icon-button",
-      "×",
+      "bb-comments-icon-control",
     ) as HTMLButtonElement;
     close.type = "button";
     close.setAttribute("aria-label", "Close comment thread");
+    close.title = "Close";
+    close.append(icon("close"));
     close.addEventListener("click", () => this.closePopover());
     headerActions.append(resolve, close);
     header.append(source, headerActions);
@@ -740,10 +810,12 @@ class TimelineCommentsController {
       textarea.value = readDraft(draftKey) ?? "";
       const send = element(
         "button",
-        "bb-comments-primary",
-        "Reply",
+        "bb-comments-icon-control",
       ) as HTMLButtonElement;
       send.type = "submit";
+      send.setAttribute("aria-label", "Reply");
+      send.title = "Reply · ⌘/Ctrl Enter";
+      send.append(icon("send"));
       const error = element("div", "bb-comments-error");
       error.setAttribute("role", "status");
       const validate = () => {
@@ -756,6 +828,15 @@ class TimelineCommentsController {
       textarea.addEventListener("input", () => {
         writeDraft(draftKey, textarea.value);
         validate();
+      });
+      textarea.addEventListener("keydown", (event) => {
+        if (
+          event.key === "Enter" &&
+          (event.metaKey || event.ctrlKey)
+        ) {
+          event.preventDefault();
+          reply.requestSubmit();
+        }
       });
       reply.append(textarea, send, error);
       reply.addEventListener("submit", (event) => {
@@ -788,19 +869,36 @@ class TimelineCommentsController {
     popover: HTMLElement,
   ): HTMLElement {
     const row = element("article", "bb-comments-comment");
-    const meta = element(
-      "div",
-      "bb-comments-comment-meta",
-      `${comment.parentId === null ? "Comment" : "Reply"} · ${formatTime(comment.createdAt)}`,
-    );
+    const buildHeader = (action: HTMLElement): HTMLElement => {
+      const header = element("header", "bb-comments-message-header");
+      const byline = element("div");
+      byline.append(element("strong", undefined, "You"));
+      const timestamp = element("time", undefined, relativeTime(comment.createdAt));
+      timestamp.dateTime = new Date(comment.createdAt).toISOString();
+      timestamp.title = formatTime(comment.createdAt);
+      byline.append(timestamp);
+      header.append(byline, action);
+      return header;
+    };
     const body = element("p", "bb-comments-comment-body", comment.body);
-    const actions = element("div", "bb-comments-comment-actions");
+    const actions = element("details", "bb-comments-actions-menu");
+    const actionsTrigger = element(
+      "summary",
+      "bb-comments-icon-control",
+    ) as HTMLElement;
+    actionsTrigger.setAttribute("role", "button");
+    actionsTrigger.setAttribute("aria-label", "Comment actions");
+    actionsTrigger.title = "Comment actions";
+    actionsTrigger.append(icon("more"));
+    const actionsMenu = element("div");
+    actionsMenu.setAttribute("role", "menu");
     const agent = element(
       "button",
-      "bb-comments-quiet",
+      undefined,
       "Send to agent",
     ) as HTMLButtonElement;
     agent.type = "button";
+    agent.setAttribute("role", "menuitem");
     agent.addEventListener("click", () => {
       const prompt = createIndividualHandoffPrompt(
         comment.body,
@@ -814,25 +912,31 @@ class TimelineCommentsController {
     });
     const edit = element(
       "button",
-      "bb-comments-quiet",
+      undefined,
       "Edit",
     ) as HTMLButtonElement;
     edit.type = "button";
+    edit.setAttribute("role", "menuitem");
     edit.addEventListener("click", () => {
       const draftKey = `bb.timeline-comments.edit:${comment.id}`;
+      popover.dataset.editing = "true";
+      row.dataset.editing = "true";
       const textarea = element(
         "textarea",
         "bb-comments-edit-input",
       ) as HTMLTextAreaElement;
       textarea.maxLength = 20_000;
       textarea.value = readDraft(draftKey) ?? comment.body;
-      const editActions = element("div", "bb-comments-edit-actions");
+      const editActions = element("footer", "bb-comments-edit-actions");
+      editActions.append(element("span", "bb-comments-hint", "⌘/Ctrl Enter"));
       const cancel = element(
         "button",
-        "bb-comments-quiet",
-        "Cancel",
+        "bb-comments-icon-control",
       ) as HTMLButtonElement;
       cancel.type = "button";
+      cancel.setAttribute("aria-label", "Cancel comment edit");
+      cancel.title = "Cancel edit";
+      cancel.append(icon("close"));
       const save = element(
         "button",
         "bb-comments-primary",
@@ -859,9 +963,17 @@ class TimelineCommentsController {
         validate();
       });
       textarea.addEventListener("keydown", (event) => {
-        if (event.key !== "Escape") return;
-        event.preventDefault();
-        cancelEdit();
+        if (event.key === "Escape") {
+          event.preventDefault();
+          cancelEdit();
+        }
+        if (
+          event.key === "Enter" &&
+          (event.metaKey || event.ctrlKey)
+        ) {
+          event.preventDefault();
+          save.click();
+        }
       });
       save.addEventListener("click", () => {
         if (validate() !== null) return;
@@ -882,17 +994,18 @@ class TimelineCommentsController {
             this.handlePopoverMutationError(popover, detail, caught);
           });
       });
-      editActions.append(cancel, save);
-      row.replaceChildren(meta, textarea, error, editActions);
+      editActions.append(save);
+      row.replaceChildren(buildHeader(cancel), textarea, error, editActions);
       validate();
       textarea.focus();
     });
     const remove = element(
       "button",
-      "bb-comments-quiet bb-comments-destructive",
+      "bb-comments-destructive",
       "Delete",
     ) as HTMLButtonElement;
     remove.type = "button";
+    remove.setAttribute("role", "menuitem");
     remove.addEventListener("click", () => {
       if (
         !window.confirm(
@@ -919,8 +1032,9 @@ class TimelineCommentsController {
           this.handlePopoverMutationError(popover, detail, caught);
         });
     });
-    actions.append(agent, edit, remove);
-    row.append(meta, body, actions);
+    actionsMenu.append(edit, agent, remove);
+    actions.append(actionsTrigger, actionsMenu);
+    row.append(buildHeader(actions), body);
     return row;
   }
 
@@ -962,6 +1076,12 @@ class TimelineCommentsController {
     };
     this.#popoverKeydown = (event) => {
       if (event.key !== "Escape") return;
+      if (
+        event.target instanceof Element &&
+        event.target.closest(".bb-comments-edit-input") !== null
+      ) {
+        return;
+      }
       event.preventDefault();
       this.closePopover();
     };

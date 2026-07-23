@@ -225,9 +225,11 @@ describe("timeline comments app", () => {
       },
     );
     fireEvent.click(await panel.findByRole("button", { name: /source/i }));
-    await panel.findByText("Send to agent");
+    fireEvent.click(
+      await panel.findByRole("button", { name: "Comment actions" }),
+    );
     expect(revealMessage).toHaveBeenCalledWith("msg_1");
-    fireEvent.click(panel.getByRole("button", { name: "Send to agent" }));
+    fireEvent.click(panel.getByRole("menuitem", { name: "Send to agent" }));
     expect(panel.inspection.navigateCalls).toEqual([
       {
         method: "toCompose",
@@ -239,12 +241,20 @@ describe("timeline comments app", () => {
       },
     ]);
 
-    fireEvent.click(panel.getByRole("button", { name: "Edit" }));
-    const editor = panel.getByRole("textbox", { name: "Edit comment" });
+    fireEvent.click(panel.getByRole("menuitem", { name: "Edit" }));
+    let editor = panel.getByRole("textbox", { name: "Edit comment" });
+    expect(panel.queryByRole("button", { name: "Reply" })).toBeNull();
+    fireEvent.keyDown(editor, { key: "Escape" });
+    expect(panel.queryByRole("textbox", { name: "Edit comment" })).toBeNull();
+    expect(panel.getByRole("button", { name: "Reply" })).toBeDefined();
+
+    fireEvent.click(panel.getByRole("button", { name: "Comment actions" }));
+    fireEvent.click(panel.getByRole("menuitem", { name: "Edit" }));
+    editor = panel.getByRole("textbox", { name: "Edit comment" });
     fireEvent.change(editor, {
       target: { value: "Make the contract explicit." },
     });
-    fireEvent.click(panel.getByRole("button", { name: "Save" }));
+    fireEvent.click(panel.getByRole("button", { name: "Save comment" }));
     await vi.waitFor(() =>
       expect(updateComment).toHaveBeenCalledWith({
         bbThreadId: "thr_1",
