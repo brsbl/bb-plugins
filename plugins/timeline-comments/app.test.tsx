@@ -66,7 +66,7 @@ describe("timeline comments app", () => {
     });
     expect(
       document.querySelectorAll("[data-bb-timeline-comments-owned]"),
-    ).toHaveLength(2);
+    ).toHaveLength(3);
     await scripts.lifecycle.dispose();
     await scripts.lifecycle.dispose();
     expect(

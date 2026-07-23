@@ -103,6 +103,14 @@ void (async () => {
   const result = document.querySelector<HTMLOutputElement>("#result")!;
   try {
     await wait(300);
+    const overlay = document.querySelector<HTMLElement>(
+      ".bb-comments-overlay",
+    );
+    if (
+      overlay?.parentElement?.dataset.bbPluginDecoration !== "timeline-comments"
+    ) {
+      throw new Error("Overlay is outside the plugin CSS ownership boundary");
+    }
     const markers = [
       ...document.querySelectorAll<HTMLButtonElement>(".bb-comments-marker"),
     ];
@@ -131,6 +139,12 @@ void (async () => {
     const popover = document.querySelector<HTMLElement>(".bb-comments-thread");
     if (popover === null)
       throw new Error("Thread marker did not open its popover");
+    if (
+      popover.parentElement?.dataset.bbPluginDecoration !== "timeline-comments"
+    )
+      throw new Error(
+        "Thread popover is outside the plugin CSS ownership boundary",
+      );
     if (!withinViewport(popover.getBoundingClientRect()))
       throw new Error("Thread popover escaped the viewport");
     if (document.activeElement !== popover)

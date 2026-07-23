@@ -37,6 +37,8 @@ const OWNED = "data-bb-timeline-comments-owned";
 const NORMAL_HIGHLIGHT = "bb-timeline-comments";
 const ACTIVE_HIGHLIGHT = "bb-timeline-comments-active";
 const DRAFT_TTL = 24 * 60 * 60 * 1_000;
+const PLUGIN_DECORATION = "data-bb-plugin-decoration";
+
 function readDraft(key: string): string | null {
   const saved = sessionStorage.getItem(key);
   if (saved === null) return null;
@@ -82,6 +84,12 @@ function element<K extends keyof HTMLElementTagNameMap>(
   return node;
 }
 
+/** BB scopes plugin CSS to descendants of this ownership boundary. */
+function decorateRoot<T extends HTMLElement>(node: T): T {
+  node.setAttribute(PLUGIN_DECORATION, "timeline-comments");
+  return node;
+}
+
 function escapeSelector(value: string): string {
   return (
     globalThis.CSS?.escape?.(value) ?? value.replace(/[^a-zA-Z0-9_-]/gu, "\\$&")
@@ -118,6 +126,7 @@ function isRelevantMutation(record: MutationRecord): boolean {
 class TimelineCommentsController {
   readonly #rpc: Rpc;
   readonly #navigate: PluginContentScriptContext["navigate"];
+  readonly #portal = decorateRoot(element("div", "bb-comments-portal"));
   readonly #overlay = element("div", "bb-comments-overlay");
   readonly #highlightStyle = element("style");
   readonly #anchors = new Map<string, TimelineCommentThreadSummary>();
@@ -160,7 +169,8 @@ class TimelineCommentsController {
         text-underline-offset: 3px;
       }
     `;
-    document.body.append(this.#highlightStyle, this.#overlay);
+    this.#portal.append(this.#overlay);
+    document.body.append(this.#highlightStyle, this.#portal);
 
     this.#observer = new MutationObserver((records) => {
       if (records.some(isRelevantMutation)) this.scheduleRefresh();
@@ -289,7 +299,7 @@ class TimelineCommentsController {
     });
     validate();
     this.#composer = shell;
-    document.body.append(shell);
+    this.#portal.append(shell);
     this.#outsideComposer = (event) => {
       if (event.target instanceof Node && shell.contains(event.target)) return;
       persist();
@@ -582,7 +592,7 @@ class TimelineCommentsController {
       menu.append(button);
     }
     this.#popover = menu;
-    document.body.append(menu);
+    this.#portal.append(menu);
     this.installPopoverDismissal(marker);
     this.positionNear(marker, menu);
     first?.focus({ preventScroll: true });
@@ -605,7 +615,7 @@ class TimelineCommentsController {
     popover.tabIndex = -1;
     popover.append(element("div", "bb-comments-loading", "Loading…"));
     this.#popover = popover;
-    document.body.append(popover);
+    this.#portal.append(popover);
     this.installPopoverDismissal(
       this.#restored.get(commentThreadId)?.marker ?? null,
     );
@@ -1015,7 +1025,7 @@ class TimelineCommentsController {
     for (const dispose of this.#disposers.splice(0).reverse()) dispose();
     this.closeComposer();
     this.closePopover();
-    this.#overlay.remove();
+    this.#portal.remove();
     this.#highlightStyle.remove();
     publishTimelineCommentAnchorHealth(new Map());
     globalThis.CSS?.highlights?.delete(NORMAL_HIGHLIGHT);
