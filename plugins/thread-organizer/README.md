@@ -51,7 +51,7 @@ New placements require at least `0.85` confidence with a `0.20` lead over the ne
 
 Only visible, ordinary user root threads are tracked. Hidden workers, children, forks, side chats, plugin-originated threads, archived threads, and deleted threads are excluded.
 
-An explicit creation-time title or section is locked. After the plugin writes a field, any different value is treated as a manual or external override and locks that field permanently. Native BB titles therefore win, section changes are never cleared automatically, and threads pinned manually are never unpinned by the plugin.
+An explicit creation-time title or section is locked. After the plugin writes a field, any different value is treated as a manual or external override and locks that field permanently. Native BB titles therefore win, and section changes are never cleared automatically. Pinning is reserved for the inbox lifecycle, so every active thread is unpinned even if it was pinned manually.
 
 Section collapse state belongs to each BB client and remains unchanged when a thread moves through the pinned inbox.
 
