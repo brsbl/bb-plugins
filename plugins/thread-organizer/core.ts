@@ -161,7 +161,7 @@ export function isSubstantiveText(value: string): boolean {
   return !/^(?:https?:\/\/\S+|@[a-z0-9:_-]+)$/i.test(normalized);
 }
 
-export function isEligibleThread(thread: OrganizableThread): boolean {
+export function isManageableThread(thread: OrganizableThread): boolean {
   return (
     thread.visibility === "visible" &&
     thread.parentThreadId === null &&
@@ -170,7 +170,13 @@ export function isEligibleThread(thread: OrganizableThread): boolean {
     thread.childOrigin === null &&
     thread.originPluginId === null &&
     thread.archivedAt === null &&
-    thread.deletedAt === null &&
+    thread.deletedAt === null
+  );
+}
+
+export function isEligibleThread(thread: OrganizableThread): boolean {
+  return (
+    isManageableThread(thread) &&
     thread.status !== "error" &&
     thread.status !== "stopping"
   );

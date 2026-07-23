@@ -1,7 +1,7 @@
 {
   "name": "bb-plugin-thread-organizer",
   "version": "0.1.0",
-  "description": "Organizes new bb threads into existing sections while preserving manual changes.",
+  "description": "Uses pinned threads as an inbox and organizes active work into semantic sections.",
   "type": "module",
   "license": "UNLICENSED",
   "files": [
@@ -21,7 +21,7 @@
   },
   "bb": {
     "name": "Thread Organizer",
-    "description": "Organizes new bb threads into existing sections while preserving manual changes.",
+    "description": "Uses pinned threads as an inbox and organizes active work into semantic sections.",
     "branding": {
       "icon": "FolderTree"
     },

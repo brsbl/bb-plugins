@@ -5,6 +5,7 @@ import {
   classifySection,
   deriveTaskTitle,
   isEligibleThread,
+  isManageableThread,
   isSubstantiveText,
   resolveSectionId,
   type SectionClassification,
@@ -18,8 +19,10 @@ const MOVE_SECTION_CONFIDENCE = 0.92;
 const MOVE_SECTION_MARGIN = 0.25;
 const TITLE_CONFIDENCE = 0.9;
 const MAX_COMPLETED_EVENT_DRAIN = 100;
+const THREAD_LIST_PAGE_SIZE = 100;
 
 type Thread = Awaited<ReturnType<BbPluginApi["sdk"]["threads"]["update"]>>;
+type ThreadSeed = Pick<Thread, "createdAt" | "sectionId" | "title">;
 type EvaluationPhase = "active" | "created" | "settings" | "turn";
 
 interface ThreadState {
@@ -42,7 +45,7 @@ function stateKey(threadId: string): string {
   return `${STATE_PREFIX}${threadId}`;
 }
 
-function initialState(thread: Thread): ThreadState {
+function initialState(thread: ThreadSeed): ThreadState {
   return {
     completedTurns: 0,
     createdAt: thread.createdAt,
@@ -151,12 +154,13 @@ export default function plugin(bb: BbPluginApi): void {
       type: "select",
       label: "Mode",
       description:
-        "Observe logs recommendations without changing threads. Apply enables high-confidence updates.",
+        "Apply organizes threads automatically. Observe only logs proposed changes.",
       options: ["observe", "apply"],
-      default: "observe",
+      default: "apply",
     },
   });
   const queues = new Map<string, Promise<void>>();
+  let acceptingWork = true;
   let disposed = false;
 
   async function readState(threadId: string): Promise<ThreadState | null> {
@@ -175,6 +179,7 @@ export default function plugin(bb: BbPluginApi): void {
   }
 
   function enqueue(threadId: string, work: () => Promise<void>): Promise<void> {
+    if (!acceptingWork) return Promise.resolve();
     const previous = queues.get(threadId) ?? Promise.resolve();
     const current = previous
       .catch(() => undefined)
@@ -215,6 +220,43 @@ export default function plugin(bb: BbPluginApi): void {
       await delay(attempt === 0 ? 150 : 600);
     }
     return loaded;
+  }
+
+  async function reconcileInbox(
+    threadId: string,
+    state: ThreadState,
+    phase: "active" | "failed" | "idle",
+  ): Promise<void> {
+    const { mode } = await settings.get();
+    const thread = (await bb.sdk.threads.get({ threadId })) as Thread;
+    const shouldBeInInbox = phase !== "active";
+
+    if (shouldBeInInbox) {
+      if (thread.pinnedAt !== null) return;
+      if (mode !== "apply") {
+        bb.log.info(
+          `thread=${threadId} phase=${phase} mode=observe action=propose-inbox-pin`,
+        );
+        return;
+      }
+      await bb.sdk.threads.pin({ threadId });
+      bb.log.info(
+        `thread=${threadId} phase=${phase} mode=apply action=inbox-pinned`,
+      );
+      return;
+    }
+
+    if (thread.pinnedAt === null) return;
+    if (mode !== "apply") {
+      bb.log.info(
+        `thread=${threadId} phase=${phase} mode=observe action=propose-inbox-unpin`,
+      );
+      return;
+    }
+    await bb.sdk.threads.unpin({ threadId });
+    bb.log.info(
+      `thread=${threadId} phase=${phase} mode=apply action=inbox-unpinned`,
+    );
   }
 
   async function applySection(
@@ -466,6 +508,57 @@ export default function plugin(bb: BbPluginApi): void {
     }
   }
 
+  async function reconcileExistingThreads(signal?: AbortSignal): Promise<void> {
+    let offset = 0;
+    const threads: Awaited<ReturnType<BbPluginApi["sdk"]["threads"]["list"]>> =
+      [];
+    while (!disposed && !signal?.aborted) {
+      const page = await bb.sdk.threads.list({
+        excludeSideChats: true,
+        limit: THREAD_LIST_PAGE_SIZE,
+        offset,
+        ...(signal === undefined ? {} : { signal }),
+      });
+      threads.push(...page);
+      if (page.length < THREAD_LIST_PAGE_SIZE) break;
+      offset += THREAD_LIST_PAGE_SIZE;
+    }
+    if (signal?.aborted) return;
+    await Promise.all(
+      threads.map((thread) =>
+        enqueue(thread.id, async () => {
+          if (!isManageableThread(thread)) return;
+          const fresh = (await bb.sdk.threads.get({
+            threadId: thread.id,
+          })) as Thread;
+          if (!isManageableThread(fresh)) {
+            await bb.storage.kv.delete(stateKey(thread.id));
+            return;
+          }
+          let state = await readState(thread.id);
+          const adopted = state === null;
+          if (state === null) {
+            state = initialState(fresh);
+            await saveState(thread.id, state);
+          }
+          await reconcileInbox(
+            thread.id,
+            state,
+            fresh.status === "idle"
+              ? "idle"
+              : fresh.status === "error"
+                ? "failed"
+                : "active",
+          );
+          await saveState(thread.id, state);
+          if (adopted && isEligibleThread(fresh)) {
+            await evaluate(thread.id, "settings");
+          }
+        }),
+      ),
+    );
+  }
+
   bb.events.on("thread.created", ({ thread }) =>
     enqueue(thread.id, async () => {
       if (!isEligibleThread(thread)) return;
@@ -477,7 +570,10 @@ export default function plugin(bb: BbPluginApi): void {
 
   bb.events.on("thread.active", ({ thread }) =>
     enqueue(thread.id, async () => {
-      if ((await readState(thread.id)) === null) return;
+      const state = await readState(thread.id);
+      if (state === null) return;
+      await reconcileInbox(thread.id, state, "active");
+      await saveState(thread.id, state);
       await evaluate(thread.id, "active");
     }),
   );
@@ -501,8 +597,18 @@ export default function plugin(bb: BbPluginApi): void {
           state.completedTurns,
         );
       }
+      await reconcileInbox(thread.id, state, "idle");
       await saveState(thread.id, state);
       if (due) await evaluate(thread.id, "turn");
+    }),
+  );
+
+  bb.events.on("thread.failed", ({ thread }) =>
+    enqueue(thread.id, async () => {
+      const state = await readState(thread.id);
+      if (state === null) return;
+      await reconcileInbox(thread.id, state, "failed");
+      await saveState(thread.id, state);
     }),
   );
 
@@ -522,9 +628,25 @@ export default function plugin(bb: BbPluginApi): void {
       .then((keys) =>
         Promise.all(
           keys.map((key) =>
-            enqueue(key.slice(STATE_PREFIX.length), () =>
-              evaluate(key.slice(STATE_PREFIX.length), "settings"),
-            ),
+            enqueue(key.slice(STATE_PREFIX.length), async () => {
+              const threadId = key.slice(STATE_PREFIX.length);
+              const state = await readState(threadId);
+              if (state === null) return;
+              const thread = (await bb.sdk.threads.get({
+                threadId,
+              })) as Thread;
+              await reconcileInbox(
+                threadId,
+                state,
+                thread.status === "idle"
+                  ? "idle"
+                  : thread.status === "error"
+                    ? "failed"
+                    : "active",
+              );
+              await saveState(threadId, state);
+              await evaluate(threadId, "settings");
+            }),
           ),
         ),
       )
@@ -534,7 +656,13 @@ export default function plugin(bb: BbPluginApi): void {
       });
   });
 
-  bb.onDispose(() => {
+  bb.background.service("startup-reconciliation", {
+    start: (signal) => reconcileExistingThreads(signal),
+  });
+
+  bb.onDispose(async () => {
+    acceptingWork = false;
+    await Promise.allSettled([...queues.values()]);
     disposed = true;
   });
   void settings
