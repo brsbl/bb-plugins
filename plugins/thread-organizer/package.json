@@ -1,0 +1,42 @@
+{
+  "name": "bb-plugin-thread-organizer",
+  "version": "0.1.0",
+  "description": "Organizes new bb threads into existing sections while preserving manual changes.",
+  "type": "module",
+  "license": "UNLICENSED",
+  "files": [
+    "dist",
+    "docs",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "node ../../tooling/build-plugin.mjs",
+    "check": "npm run typecheck && npm run build && npm test",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "engines": {
+    "bb": ">=0.0.34",
+    "bbPluginSdk": "^0.4.0"
+  },
+  "bb": {
+    "name": "Thread Organizer",
+    "description": "Organizes new bb threads into existing sections while preserving manual changes.",
+    "branding": {
+      "icon": "FolderTree"
+    },
+    "server": "./server.ts",
+    "skills": []
+  },
+  "devDependencies": {
+    "@bb/plugin-sdk": "file:../../tooling/vendor/bb-plugin-sdk-0.4.0.tgz",
+    "@types/better-sqlite3": "^7.6.12",
+    "@types/node": "^22.0.0",
+    "better-sqlite3": "^12.10.0",
+    "cron-parser": "^5.5.0",
+    "hono": "^4.11.9",
+    "typescript": "^5.7.0",
+    "vitest": "^4.1.8",
+    "zod": "^4.3.6"
+  }
+}
