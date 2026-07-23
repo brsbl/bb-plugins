@@ -69,6 +69,10 @@ async function createFixtureRepository(directory) {
     resolve(directory, "tooling/build-plugin.mjs"),
   );
   await copyFile(
+    resolve(root, "tooling/plugin-build-provenance.mjs"),
+    resolve(directory, "tooling/plugin-build-provenance.mjs"),
+  );
+  await copyFile(
     resolve(root, "tooling/vendor/sdk-provenance.json"),
     resolve(directory, "tooling/vendor/sdk-provenance.json"),
   );

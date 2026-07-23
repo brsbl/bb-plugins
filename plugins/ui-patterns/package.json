@@ -10,7 +10,7 @@
   ],
   "license": "UNLICENSED",
   "engines": {
-    "bb": ">=0.0.34",
+    "bb": ">=0.34.0",
     "bbPluginSdk": "^0.4.0"
   },
   "bb": {

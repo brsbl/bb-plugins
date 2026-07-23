@@ -4,6 +4,7 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { readPluginWorkspaces } from "./plugin-workspaces.mjs";
+import { pluginBuildBbVersion } from "./plugin-build-provenance.mjs";
 
 const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -165,11 +166,7 @@ export async function validatePluginArtifacts(pluginDirectory, options = {}) {
   const directory = resolve(pluginDirectory);
   const manifest = await readJson(resolve(directory, "package.json"));
   const id = expectedPluginId(manifest.name);
-  const bbVersion =
-    options.bbVersion ?? manifest.engines.bb.match(/\d+\.\d+\.\d+/)?.[0];
-  if (bbVersion === undefined) {
-    throw new Error(`${directory}: engines.bb has no concrete minimum version`);
-  }
+  const buildBbVersion = options.buildBbVersion ?? pluginBuildBbVersion;
 
   if (options.expectedId && id !== options.expectedId) {
     throw new Error(`${directory}: expected plugin id ${options.expectedId}`);
@@ -183,7 +180,7 @@ export async function validatePluginArtifacts(pluginDirectory, options = {}) {
     resolve(directory, "dist/server.meta.json"),
     manifest,
     id,
-    bbVersion,
+    buildBbVersion,
   );
 
   if (manifest.bb.app) {
@@ -192,7 +189,7 @@ export async function validatePluginArtifacts(pluginDirectory, options = {}) {
       resolve(directory, "dist/app.meta.json"),
       manifest,
       id,
-      bbVersion,
+      buildBbVersion,
     );
   }
 

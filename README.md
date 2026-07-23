@@ -48,6 +48,16 @@ Keeps comments and comment threads attached to exact text in bb timelines.
 
 Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/timeline-comments --yes`
 
+### Thread Organizer
+
+Files new threads into the right existing work section while preserving native titles and every manual override.
+
+![Thread Organizer settings in bb](plugins/thread-organizer/docs/screenshot.png)
+
+[Source](plugins/thread-organizer) · [README](plugins/thread-organizer/README.md)
+
+Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/thread-organizer --yes`
+
 ### UI Patterns
 
 Puts proven UI components and interaction guidance within reach of both designers and agents.
