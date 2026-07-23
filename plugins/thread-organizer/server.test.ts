@@ -154,6 +154,29 @@ describe("Thread Organizer plugin", () => {
     await harness.lifecycle.dispose();
   });
 
+  it("classifies personal-workspace threads without a project GET", async () => {
+    const { bb, harness, currentThread } = createHarness({
+      thread: { projectId: "proj_personal" },
+    });
+    plugin(bb);
+
+    await harness.behavior.emitThreadEvent("thread.created", {
+      thread: currentThread(),
+    });
+
+    expect(
+      harness.inspection.sdk.callsTo("projects.get"),
+    ).toHaveLength(0);
+    expect(harness.inspection.logEntries).toContainEqual(
+      expect.objectContaining({
+        message: expect.stringContaining(
+          "mode=observe action=propose-section target=extensions",
+        ),
+      }),
+    );
+    await harness.lifecycle.dispose();
+  });
+
   it("places a new unsectioned plugin thread in Extensions in apply mode", async () => {
     const { bb, harness, currentThread, update } = createHarness({
       mode: "apply",

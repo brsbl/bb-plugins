@@ -11,6 +11,7 @@ import {
 } from "./core.js";
 
 const STATE_PREFIX = "thread:v1:";
+const PERSONAL_PROJECT_ID = "proj_personal";
 const NEW_SECTION_CONFIDENCE = 0.85;
 const NEW_SECTION_MARGIN = 0.2;
 const MOVE_SECTION_CONFIDENCE = 0.92;
@@ -353,11 +354,16 @@ export default function plugin(bb: BbPluginApi): void {
 
     if (!state.sectionLocked) {
       try {
-        const project = await bb.sdk.projects.get({
-          projectId: thread.projectId,
-        });
+        const projectName =
+          thread.projectId === PERSONAL_PROJECT_ID
+            ? "Personal"
+            : (
+                await bb.sdk.projects.get({
+                  projectId: thread.projectId,
+                })
+              ).name;
         const decision = classifySection({
-          projectName: project.name,
+          projectName,
           texts,
         });
         if (decision !== null) {
