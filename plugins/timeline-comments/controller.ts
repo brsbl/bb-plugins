@@ -251,6 +251,9 @@ class TimelineCommentsController {
   #outsidePopover: ((event: PointerEvent) => void) | null = null;
   #popoverKeydown: ((event: KeyboardEvent) => void) | null = null;
   #popoverInvoker: HTMLElement | null = null;
+  #actionsMenu: HTMLElement | null = null;
+  #actionsTrigger: HTMLButtonElement | null = null;
+  #outsideActionsMenu: ((event: PointerEvent) => void) | null = null;
 
   constructor(context: PluginContentScriptContext) {
     this.#rpc = context.rpc as Rpc;
@@ -485,11 +488,13 @@ class TimelineCommentsController {
           threadIds,
           ...(cursor !== undefined ? { cursor } : {}),
         });
+        if (this.#destroyed) return;
         for (const anchor of page.anchors)
           this.#anchors.set(anchor.id, anchor as TimelineCommentThreadSummary);
         cursor = page.nextCursor ?? undefined;
       } while (cursor !== undefined && !this.#destroyed);
     }
+    if (this.#destroyed) return;
     this.restoreAll();
   }
 
@@ -600,6 +605,7 @@ class TimelineCommentsController {
       this.#frame = null;
       this.layoutMarkers();
       this.positionPopover();
+      this.positionActionsMenu();
     });
   }
 
@@ -788,6 +794,7 @@ class TimelineCommentsController {
     popover: HTMLElement,
     detail: TimelineCommentThreadDetail,
   ): void {
+    this.closeActionsMenu();
     delete popover.dataset.editing;
     popover.replaceChildren();
     const header = element("header", "bb-comments-thread-header");
@@ -846,6 +853,7 @@ class TimelineCommentsController {
           bbThreadId: detail.thread.bbThreadId,
           commentId: root.id,
           expectedVersion: root.version,
+          expectedThreadVersion: detail.thread.version,
         })
         .then(() => {
           this.closePopover();
@@ -952,29 +960,25 @@ class TimelineCommentsController {
       return header;
     };
     const body = element("p", "bb-comments-comment-body", comment.body);
-    const actions = element("details", "bb-comments-actions-menu");
+    const actions = element("div", "bb-comments-actions-menu");
     const actionsTrigger = element(
-      "summary",
+      "button",
       "bb-comments-icon-control",
-    ) as HTMLElement;
-    actionsTrigger.setAttribute("role", "button");
+    ) as HTMLButtonElement;
+    actionsTrigger.type = "button";
     actionsTrigger.setAttribute("aria-label", "Comment actions");
+    actionsTrigger.setAttribute("aria-haspopup", "menu");
+    actionsTrigger.setAttribute("aria-expanded", "false");
     actionsTrigger.title = "Comment actions";
     actionsTrigger.append(icon(EllipsisVertical));
-    const actionsMenu = element("div");
+    const actionsMenu = element("div", "bb-comments-actions-popover");
     actionsMenu.setAttribute("role", "menu");
-    actions.addEventListener("toggle", () => {
-      if (actions.open) {
-        for (const other of popover.querySelectorAll<HTMLDetailsElement>(
-          ".bb-comments-actions-menu[open]",
-        )) {
-          if (other !== actions) other.open = false;
-        }
-        popover.dataset.actionsOpen = "true";
+    actionsTrigger.addEventListener("click", () => {
+      if (this.#actionsTrigger === actionsTrigger) {
+        this.closeActionsMenu();
         return;
       }
-      if (popover.querySelector(".bb-comments-actions-menu[open]") === null)
-        delete popover.dataset.actionsOpen;
+      this.openActionsMenu(actionsTrigger, actionsMenu);
     });
     const edit = element("button") as HTMLButtonElement;
     edit.type = "button";
@@ -984,7 +988,7 @@ class TimelineCommentsController {
       const draftKey = `bb.timeline-comments.edit:${comment.id}`;
       popover.dataset.editing = "true";
       row.dataset.editing = "true";
-      actions.open = false;
+      this.closeActionsMenu();
       const textarea = element(
         "textarea",
         "bb-comments-edit-input",
@@ -1085,6 +1089,7 @@ class TimelineCommentsController {
           bbThreadId: detail.thread.bbThreadId,
           commentId: comment.id,
           expectedVersion: comment.version,
+          expectedThreadVersion: detail.thread.version,
         })
         .then((result) => {
           if (result.deletedThreadId !== null) this.closePopover();
@@ -1097,9 +1102,80 @@ class TimelineCommentsController {
         });
     });
     actionsMenu.append(edit, remove);
-    actions.append(actionsTrigger, actionsMenu);
+    actions.append(actionsTrigger);
     row.append(buildHeader(actions), body);
     return row;
+  }
+
+  private openActionsMenu(
+    trigger: HTMLButtonElement,
+    menu: HTMLElement,
+  ): void {
+    this.closeActionsMenu();
+    this.#actionsMenu = menu;
+    this.#actionsTrigger = trigger;
+    trigger.setAttribute("aria-expanded", "true");
+    this.#portal.append(menu);
+    this.positionActionsMenu();
+
+    this.#outsideActionsMenu = (event) => {
+      if (
+        event.target instanceof Node &&
+        (menu.contains(event.target) || trigger.contains(event.target))
+      ) {
+        return;
+      }
+      this.closeActionsMenu();
+    };
+    document.addEventListener("pointerdown", this.#outsideActionsMenu, true);
+    menu.querySelector<HTMLButtonElement>("button")?.focus({
+      preventScroll: true,
+    });
+  }
+
+  private positionActionsMenu(): void {
+    const menu = this.#actionsMenu;
+    const trigger = this.#actionsTrigger;
+    if (menu === null || trigger === null) return;
+    if (!trigger.isConnected) {
+      this.closeActionsMenu();
+      return;
+    }
+    const triggerRect = trigger.getBoundingClientRect();
+    const menuRect = menu.getBoundingClientRect();
+    const gap = 4;
+    const left = Math.max(
+      8,
+      Math.min(
+        window.innerWidth - menuRect.width - 8,
+        triggerRect.right - menuRect.width,
+      ),
+    );
+    const below = triggerRect.bottom + gap;
+    const top =
+      below + menuRect.height <= window.innerHeight - 8
+        ? below
+        : Math.max(8, triggerRect.top - menuRect.height - gap);
+    menu.style.left = `${left}px`;
+    menu.style.top = `${top}px`;
+  }
+
+  private closeActionsMenu(restoreFocus = false): void {
+    const trigger = this.#actionsTrigger;
+    if (this.#outsideActionsMenu !== null) {
+      document.removeEventListener(
+        "pointerdown",
+        this.#outsideActionsMenu,
+        true,
+      );
+      this.#outsideActionsMenu = null;
+    }
+    this.#actionsMenu?.remove();
+    this.#actionsMenu = null;
+    this.#actionsTrigger = null;
+    trigger?.setAttribute("aria-expanded", "false");
+    if (restoreFocus && trigger?.isConnected === true)
+      trigger.focus({ preventScroll: true });
   }
 
   private showPopoverError(popover: HTMLElement, error: unknown): void {
@@ -1132,7 +1208,8 @@ class TimelineCommentsController {
       if (
         event.target instanceof Node &&
         (this.#popover?.contains(event.target) === true ||
-          this.#popoverInvoker?.contains(event.target) === true)
+          this.#popoverInvoker?.contains(event.target) === true ||
+          this.#actionsMenu?.contains(event.target) === true)
       ) {
         return;
       }
@@ -1140,6 +1217,11 @@ class TimelineCommentsController {
     };
     this.#popoverKeydown = (event) => {
       if (event.key !== "Escape") return;
+      if (this.#actionsMenu !== null) {
+        event.preventDefault();
+        this.closeActionsMenu(true);
+        return;
+      }
       if (
         event.target instanceof Element &&
         event.target.closest(".bb-comments-edit-input") !== null
@@ -1209,6 +1291,7 @@ class TimelineCommentsController {
 
   private closePopover(clearOpen = true): void {
     const invoker = this.#popoverInvoker;
+    this.closeActionsMenu();
     this.removePopoverDismissal();
     this.#popoverInvoker = null;
     this.#popover?.remove();

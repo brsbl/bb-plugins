@@ -179,7 +179,16 @@ void (async () => {
     reply.dispatchEvent(new InputEvent("input", { bubbles: true }));
     if (replyComposer.getAnimations().length === 0)
       throw new Error("Multiline reply expansion did not animate");
-    await wait(180);
+    await wait(130);
+    const replyNearTerminalHeight = replyComposer.getBoundingClientRect().height;
+    await wait(70);
+    const replyTerminalHeight = replyComposer.getBoundingClientRect().height;
+    if (
+      Math.abs(replyTerminalHeight - replyNearTerminalHeight) > 2 ||
+      replyComposer.getAnimations().length !== 0
+    ) {
+      throw new Error("Multiline reply snapped after its height animation");
+    }
     if (reply.getBoundingClientRect().height <= emptyReplyHeight)
       throw new Error("Multiline reply input did not grow with its content");
     if (replyComposer.dataset.multiline !== "true")
@@ -209,15 +218,29 @@ void (async () => {
 
     popover
       .querySelector<HTMLElement>(
-        '.bb-comments-actions-menu > summary[aria-label="Comment actions"]',
+        '.bb-comments-actions-menu > button[aria-label="Comment actions"]',
       )
       ?.click();
     await wait(0);
-    const actionsMenu = popover.querySelector<HTMLElement>(
-      ".bb-comments-actions-menu[open] > div",
+    const actionsMenu = document.querySelector<HTMLElement>(
+      ".bb-comments-actions-popover",
     );
     if (actionsMenu === null)
       throw new Error("Comment actions menu did not open");
+    if (
+      popover.contains(actionsMenu) ||
+      actionsMenu.parentElement?.dataset.bbPluginDecoration !==
+        "timeline-comments"
+    ) {
+      throw new Error("Comment actions menu was not rendered in its portal");
+    }
+    if (
+      getComputedStyle(
+        popover.querySelector<HTMLElement>(".bb-comments-thread-comments")!,
+      ).overflowY !== "auto"
+    ) {
+      throw new Error("Opening comment actions disabled comment scrolling");
+    }
     const actionsRect = actionsMenu.getBoundingClientRect();
     const deleteButton = [...actionsMenu.querySelectorAll("button")].find(
       (button) => button.textContent === "Delete",
@@ -237,12 +260,28 @@ void (async () => {
       !deleteButton.contains(visibleAtDelete)
     )
       throw new Error("Comment actions menu is clipped by the thread chrome");
+    document.dispatchEvent(
+      new KeyboardEvent("keydown", { key: "Escape", bubbles: true }),
+    );
+    if (
+      document.querySelector(".bb-comments-actions-popover") !== null ||
+      document.querySelector(".bb-comments-thread") === null
+    ) {
+      throw new Error("Escape did not dismiss only the comment actions menu");
+    }
+    popover
+      .querySelector<HTMLButtonElement>(
+        '.bb-comments-actions-menu > button[aria-label="Comment actions"]',
+      )
+      ?.click();
     const editButton = [
-      ...popover.querySelectorAll<HTMLButtonElement>(
-        ".bb-comments-actions-menu button",
+      ...document.querySelectorAll<HTMLButtonElement>(
+        ".bb-comments-actions-popover button",
       ),
     ].find((button) => button.textContent === "Edit");
     editButton?.click();
+    if (document.querySelector(".bb-comments-actions-popover") !== null)
+      throw new Error("Comment action did not dismiss its portal menu");
     const editInput = popover.querySelector<HTMLTextAreaElement>(
       ".bb-comments-edit-input",
     );

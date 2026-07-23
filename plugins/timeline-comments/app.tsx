@@ -41,6 +41,7 @@ function AddCommentsAction() {
   const rpc = useRpc<typeof timelineCommentsRpcContract>();
   const composer = useComposer();
   const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const threadId =
     composer.scope.kind === "thread" ? composer.scope.threadId : null;
 
@@ -48,6 +49,7 @@ function AddCommentsAction() {
 
   const addComments = async () => {
     setBusy(true);
+    setError(null);
     try {
       const summary = await rpc.call("getThreadHandoffSummary", {
         bbThreadId: threadId,
@@ -59,23 +61,40 @@ function AddCommentsAction() {
         label: `${summary.commentCount} ${summary.commentCount === 1 ? "comment" : "comments"} from ${summary.threadCount} open ${summary.threadCount === 1 ? "thread" : "threads"}`,
       });
       composer.focus();
+    } catch (caught) {
+      setError(errorMessage(caught));
     } finally {
       setBusy(false);
     }
   };
 
   return (
-    <button
-      type="button"
-      className="bb-comments-composer-action"
-      aria-label="Add comments to chat"
-      title="Add comments to chat"
-      disabled={busy}
-      onMouseDown={(event) => event.preventDefault()}
-      onClick={() => void addComments()}
-    >
-      <MessageSquareText aria-hidden="true" size={16} strokeWidth={1.5} />
-    </button>
+    <span className="bb-comments-composer-action-wrap">
+      {error !== null ? (
+        <span className="bb-comments-composer-action-error" role="alert">
+          Couldn’t add comments
+        </span>
+      ) : null}
+      <button
+        type="button"
+        className="bb-comments-composer-action"
+        aria-label={
+          error === null
+            ? "Add comments to chat"
+            : "Retry adding comments to chat"
+        }
+        title={
+          error === null
+            ? "Add comments to chat"
+            : `Retry adding comments to chat: ${error}`
+        }
+        disabled={busy}
+        onMouseDown={(event) => event.preventDefault()}
+        onClick={() => void addComments()}
+      >
+        <MessageSquareText aria-hidden="true" size={16} strokeWidth={1.5} />
+      </button>
+    </span>
   );
 }
 
@@ -89,7 +108,10 @@ function CommentPanel({ threadId, revealMessage }: PluginThreadPanelProps) {
   );
   const previousConnection = useRef(connection);
   const revealRequest = useRef(0);
+  const loadGeneration = useRef(0);
   const [filter, setFilter] = useState<Filter>("open");
+  const loadScope = useRef({ filter, threadId });
+  loadScope.current = { filter, threadId };
   const [threads, setThreads] = useState<TimelineCommentThreadSummary[]>([]);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [activeId, setActiveId] = useState<string | null>(null);
@@ -99,23 +121,39 @@ function CommentPanel({ threadId, revealMessage }: PluginThreadPanelProps) {
 
   const loadThreads = useCallback(
     async (append = false) => {
+      if (
+        loadScope.current.threadId !== threadId ||
+        loadScope.current.filter !== filter
+      )
+        return;
+      const generation = ++loadGeneration.current;
+      const cursor = append ? nextCursor : null;
+      const isCurrentLoad = () =>
+        generation === loadGeneration.current &&
+        loadScope.current.threadId === threadId &&
+        loadScope.current.filter === filter;
       setLoading(true);
       setError(null);
+      if (!append) {
+        setThreads([]);
+        setNextCursor(null);
+      }
       try {
-        const cursor = append ? nextCursor : null;
         const page = await rpc.call("listCommentThreads", {
           bbThreadId: threadId,
           filter,
           ...(cursor !== null ? { cursor } : {}),
         });
+        if (!isCurrentLoad()) return;
         setThreads((current) =>
           append ? [...current, ...page.threads] : page.threads,
         );
         setNextCursor(page.nextCursor);
       } catch (caught) {
+        if (!isCurrentLoad()) return;
         setError(errorMessage(caught));
       } finally {
-        setLoading(false);
+        if (isCurrentLoad()) setLoading(false);
       }
     },
     [filter, nextCursor, rpc, threadId],
@@ -133,6 +171,7 @@ function CommentPanel({ threadId, revealMessage }: PluginThreadPanelProps) {
   useEffect(
     () => () => {
       revealRequest.current += 1;
+      loadGeneration.current += 1;
     },
     [threadId],
   );

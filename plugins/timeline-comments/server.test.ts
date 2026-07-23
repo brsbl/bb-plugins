@@ -184,6 +184,7 @@ describe("timeline comments backend", () => {
       bbThreadId: "thr_1",
       commentId: editedReply.id,
       expectedVersion: editedReply.version,
+      expectedThreadVersion: reopened.thread.version,
     });
     expect(afterReplyDelete).toMatchObject({
       deletedThreadId: null,
@@ -200,6 +201,7 @@ describe("timeline comments backend", () => {
       bbThreadId: "thr_1",
       commentId: latest.thread.rootComment.id,
       expectedVersion: latest.thread.rootComment.version,
+      expectedThreadVersion: latest.thread.version,
     });
     const db = host.bb.storage.database();
     expect(
@@ -208,6 +210,51 @@ describe("timeline comments backend", () => {
     expect(db.prepare("SELECT COUNT(*) AS count FROM comments").get()).toEqual({
       count: 0,
     });
+  });
+
+  it("rejects a stale root deletion after a concurrent reply changes the thread", async () => {
+    const host = await loadPlugin();
+    const created = await createComment(host, "Root");
+    const replied = commentThreadDetailSchema.parse(
+      await host.harness.callRpc("reply", {
+        bbThreadId: "thr_1",
+        commentThreadId: created.thread.id,
+        body: "Concurrent reply",
+      }),
+    );
+
+    await expect(
+      host.harness.callRpc("deleteComment", {
+        bbThreadId: "thr_1",
+        commentId: created.thread.rootComment.id,
+        expectedVersion: created.thread.rootComment.version,
+        expectedThreadVersion: created.thread.version,
+      }),
+    ).rejects.toThrow("Comment thread changed");
+
+    const retained = commentThreadDetailSchema.parse(
+      await host.harness.callRpc("getCommentThread", {
+        bbThreadId: "thr_1",
+        commentThreadId: created.thread.id,
+      }),
+    );
+    expect(retained.comments.map((comment) => comment.body)).toEqual([
+      "Root",
+      "Concurrent reply",
+    ]);
+
+    await host.harness.callRpc("deleteComment", {
+      bbThreadId: "thr_1",
+      commentId: retained.thread.rootComment.id,
+      expectedVersion: retained.thread.rootComment.version,
+      expectedThreadVersion: replied.thread.version,
+    });
+    await expect(
+      host.harness.callRpc("getCommentThread", {
+        bbThreadId: "thr_1",
+        commentThreadId: created.thread.id,
+      }),
+    ).rejects.toThrow("not found");
   });
 
   it("keeps root and reply pagination independent and cursor-bound", async () => {
@@ -289,6 +336,14 @@ describe("timeline comments backend", () => {
     expect(summary).toMatchObject({ threadCount: 2, commentCount: 3 });
 
     const provider = host.harness.registrations.mentionProviders[0]!;
+    expect(
+      provider.search({
+        trigger: "@",
+        query: "comments",
+        projectId: "proj_1",
+        threadId: "thr_1",
+      }),
+    ).toMatchObject([{ title: "3 comments from 2 open threads" }]);
     const resolved = await provider.resolve("thr_1");
     expect(resolved.context).toContain("first source");
     expect(resolved.context).toContain("First reply");
@@ -300,6 +355,14 @@ describe("timeline comments backend", () => {
       expectedVersion: second.thread.version,
       resolved: true,
     });
+    expect(
+      provider.search({
+        trigger: "@",
+        query: "comments",
+        projectId: "proj_1",
+        threadId: "thr_1",
+      }),
+    ).toMatchObject([{ title: "2 comments from 1 open threads" }]);
     const refreshed = await provider.resolve("thr_1");
     expect(refreshed.context).not.toContain("second source");
   });
@@ -350,16 +413,126 @@ describe("timeline comments backend", () => {
   it("exposes bounded read-only CLI discovery for agents", async () => {
     const host = await loadPlugin();
     const created = await createComment(host, "Read me");
+    await createComment(host, "Read me next", { messageId: "msg_2" });
+    const listed = await host.harness.runCli(
+      ["list", "--limit", "1", "--json"],
+      {
+        threadId: "thr_1",
+      },
+    );
+    expect(listed.exitCode).toBe(0);
+    const firstListPage = JSON.parse(listed.stdout ?? "");
+    expect(firstListPage.threads).toHaveLength(1);
+    expect(firstListPage.nextCursor).toEqual(expect.any(String));
+    const nextListed = await host.harness.runCli(
+      ["list", "--limit", "1", "--cursor", firstListPage.nextCursor, "--json"],
+      { threadId: "thr_1" },
+    );
+    expect(JSON.parse(nextListed.stdout ?? "").threads).toHaveLength(1);
+
+    await host.harness.callRpc("reply", {
+      bbThreadId: "thr_1",
+      commentThreadId: created.thread.id,
+      body: "Reply",
+    });
+    const fetched = await host.harness.runCli(
+      ["get", created.thread.id, "--limit", "1", "--json"],
+      { threadId: "thr_1" },
+    );
+    expect(fetched.exitCode).toBe(0);
+    const firstCommentPage = JSON.parse(fetched.stdout ?? "");
+    expect(firstCommentPage.comments).toHaveLength(1);
+    expect(firstCommentPage.nextCursor).toEqual(expect.any(String));
+    const nextFetched = await host.harness.runCli(
+      [
+        "get",
+        created.thread.id,
+        "--limit",
+        "1",
+        "--cursor",
+        firstCommentPage.nextCursor,
+        "--json",
+      ],
+      { threadId: "thr_1" },
+    );
+    const secondCommentPage = JSON.parse(nextFetched.stdout ?? "");
+    expect(
+      [
+        firstCommentPage.comments[0].body,
+        secondCommentPage.comments[0].body,
+      ].sort(),
+    ).toEqual(["Read me", "Reply"]);
+
+    const humanList = await host.harness.runCli(["list", "--limit", "1"], {
+      threadId: "thr_1",
+    });
+    expect(humanList.stdout).toContain(
+      "More results available. Continue with --cursor ",
+    );
+    const invalidLimit = await host.harness.runCli(
+      ["get", created.thread.id, "--limit", "101"],
+      { threadId: "thr_1" },
+    );
+    expect(invalidLimit).toMatchObject({ exitCode: 1 });
+    expect(invalidLimit.stderr).toContain("integer from 1 to 100");
+  });
+
+  it("keeps Unicode-heavy CLI pages below the host limit and fails clearly for one oversized record", async () => {
+    const host = await loadPlugin();
+    const body = "😀".repeat(10_000);
+    for (let index = 0; index < 30; index += 1) {
+      await createComment(host, body, { messageId: `msg_${index}` });
+    }
+
     const listed = await host.harness.runCli(["list", "--json"], {
       threadId: "thr_1",
     });
     expect(listed.exitCode).toBe(0);
-    expect(JSON.parse(listed.stdout ?? "").threads).toHaveLength(1);
+    expect(Buffer.byteLength(listed.stdout ?? "", "utf8")).toBeLessThan(
+      1_048_576,
+    );
+    const page = JSON.parse(listed.stdout ?? "");
+    expect(page.threads.length).toBeGreaterThan(0);
+    expect(page.threads.length).toBeLessThan(30);
+    expect(page.nextCursor).toEqual(expect.any(String));
+
+    const oversized = page.threads[0];
+    for (let index = 0; index < 24; index += 1) {
+      await host.harness.callRpc("reply", {
+        bbThreadId: "thr_1",
+        commentThreadId: oversized.id,
+        body,
+      });
+    }
     const fetched = await host.harness.runCli(
-      ["get", created.thread.id, "--json"],
+      ["get", oversized.id, "--json"],
       { threadId: "thr_1" },
     );
     expect(fetched.exitCode).toBe(0);
-    expect(JSON.parse(fetched.stdout ?? "").comments[0].body).toBe("Read me");
+    expect(Buffer.byteLength(fetched.stdout ?? "", "utf8")).toBeLessThan(
+      1_048_576,
+    );
+    const commentPage = JSON.parse(fetched.stdout ?? "");
+    expect(commentPage.comments.length).toBeGreaterThan(0);
+    expect(commentPage.comments.length).toBeLessThan(25);
+    expect(commentPage.nextCursor).toEqual(expect.any(String));
+
+    const exact = "😀".repeat(240_000);
+    host.bb.storage
+      .database()
+      .prepare(
+        `UPDATE comment_threads
+         SET selector_start = 0, selector_end = ?, selector_exact = ?
+         WHERE id = ?`,
+      )
+      .run(exact.length, exact, oversized.id);
+    const oneRecord = await host.harness.runCli(
+      ["list", "--limit", "1", "--json"],
+      { threadId: "thr_1" },
+    );
+    expect(oneRecord.exitCode).toBe(1);
+    expect(oneRecord.stderr).toContain(
+      "A single comment thread exceeds the CLI output size limit",
+    );
   });
 });

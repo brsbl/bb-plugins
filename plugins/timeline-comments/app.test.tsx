@@ -11,6 +11,16 @@ import type { timelineCommentsRpcContract } from "./server.js";
 
 afterEach(cleanup);
 
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  let reject!: (reason?: unknown) => void;
+  const promise = new Promise<T>((resolvePromise, rejectPromise) => {
+    resolve = resolvePromise;
+    reject = rejectPromise;
+  });
+  return { promise, resolve, reject };
+}
+
 const thread = {
   id: "comment_thread_1",
   bbThreadId: "thr_1",
@@ -105,6 +115,47 @@ describe("timeline comments app", () => {
     });
     expect(action.inspection.composer.text).toContain("Keep this draft");
     expect(action.inspection.navigateCalls).toEqual([]);
+  });
+
+  it("shows a compact error and recovers when adding comments is retried", async () => {
+    const getThreadHandoffSummary = vi
+      .fn()
+      .mockRejectedValueOnce(new Error("Summary unavailable"))
+      .mockResolvedValueOnce({
+        threadCount: 1,
+        commentCount: 2,
+        codePointSize: 100,
+      });
+    const app = await loadPluginApp(() => import("./app.js"));
+    const action = renderSlot(
+      app.composerCustomizations[0]!.actions![0]!,
+      {},
+      {
+        context: { threadId: "thr_1" },
+        composer: {
+          text: "",
+          scope: { kind: "thread", threadId: "thr_1" },
+        },
+        rpc: { getThreadHandoffSummary },
+      },
+    );
+
+    fireEvent.click(
+      action.getByRole("button", { name: "Add comments to chat" }),
+    );
+    expect((await action.findByRole("alert")).textContent).toBe(
+      "Couldn’t add comments",
+    );
+    expect(action.inspection.composer.mentions).toHaveLength(0);
+
+    fireEvent.click(
+      action.getByRole("button", { name: "Retry adding comments to chat" }),
+    );
+    await vi.waitFor(() =>
+      expect(action.inspection.composer.mentions).toHaveLength(1),
+    );
+    expect(action.queryByRole("alert")).toBeNull();
+    expect(getThreadHandoffSummary).toHaveBeenCalledTimes(2);
   });
 
   it("removes every content-script node and tolerates repeated disposal", async () => {
@@ -237,5 +288,118 @@ describe("timeline comments app", () => {
       panel.queryByRole("button", { name: "Comment actions" }),
     ).toBeNull();
     expect(panel.inspection.navigateCalls).toEqual([]);
+  });
+
+  it("keeps the newest filter response when an older load resolves later", async () => {
+    const firstPage = deferred<{
+      threads: typeof thread[];
+      nextCursor: string | null;
+    }>();
+    const stalePage = deferred<{
+      threads: typeof thread[];
+      nextCursor: string | null;
+    }>();
+    const newestPage = deferred<{
+      threads: typeof thread[];
+      nextCursor: string | null;
+    }>();
+    const listCommentThreads = vi
+      .fn()
+      .mockReturnValueOnce(firstPage.promise)
+      .mockReturnValueOnce(stalePage.promise)
+      .mockReturnValueOnce(newestPage.promise);
+    const app = await loadPluginApp(() => import("./app.js"));
+    const panel = renderSlot<
+      PluginThreadPanelProps,
+      typeof timelineCommentsRpcContract
+    >(
+      app.threadPanelActions[0]!,
+      {
+        threadId: "thr_1",
+        params: null,
+        revealMessage: vi.fn(async () => "revealed" as const),
+      },
+      {
+        context: { threadId: "thr_1" },
+        rpc: {
+          listCommentThreads,
+          getThreadHandoffSummary: () => ({
+            threadCount: 1,
+            commentCount: 1,
+            codePointSize: 100,
+          }),
+          getCommentThread: () => ({
+            thread,
+            comments: [thread.rootComment],
+            nextCursor: null,
+          }),
+          createThread: () => ({
+            thread,
+            comments: [thread.rootComment],
+            nextCursor: null,
+          }),
+          reply: () => ({
+            thread,
+            comments: [thread.rootComment],
+            nextCursor: null,
+          }),
+          updateComment: () => ({
+            thread,
+            comments: [thread.rootComment],
+            nextCursor: null,
+          }),
+          deleteComment: () => ({ deletedThreadId: null, thread: null }),
+          setThreadResolved: () => ({
+            thread,
+            comments: [thread.rootComment],
+            nextCursor: null,
+          }),
+          listOpenAnchors: () => ({ anchors: [], nextCursor: null }),
+        },
+      },
+    );
+
+    firstPage.resolve({ threads: [thread], nextCursor: null });
+    expect(await panel.findByText("Make the API explicit.")).not.toBeNull();
+
+    fireEvent.click(panel.getByRole("button", { name: "Resolved" }));
+    await vi.waitFor(() => expect(listCommentThreads).toHaveBeenCalledTimes(2));
+    expect(panel.queryByText("Make the API explicit.")).toBeNull();
+
+    fireEvent.click(panel.getByRole("button", { name: "All" }));
+    await vi.waitFor(() => expect(listCommentThreads).toHaveBeenCalledTimes(3));
+    const newestThread = {
+      ...thread,
+      id: "comment_thread_newest",
+      rootComment: {
+        ...thread.rootComment,
+        id: "comment_newest",
+        threadId: "comment_thread_newest",
+        body: "Newest response",
+      },
+    };
+    newestPage.resolve({ threads: [newestThread], nextCursor: "newest-cursor" });
+    expect(await panel.findByText("Newest response")).not.toBeNull();
+
+    stalePage.resolve({
+      threads: [
+        {
+          ...thread,
+          id: "comment_thread_stale",
+          rootComment: {
+            ...thread.rootComment,
+            id: "comment_stale",
+            threadId: "comment_thread_stale",
+            body: "Stale response",
+          },
+        },
+      ],
+      nextCursor: "stale-cursor",
+    });
+    await vi.waitFor(() =>
+      expect(panel.queryByText("Stale response")).toBeNull(),
+    );
+    expect(panel.getByText("Newest response")).not.toBeNull();
+    expect(panel.getByRole("button", { name: "Load more" })).not.toBeNull();
   });
 });

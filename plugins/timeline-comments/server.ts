@@ -1,6 +1,10 @@
 import { randomBytes } from "node:crypto";
 import { Buffer } from "node:buffer";
-import { defineRpcContract, type BbPluginApi } from "@bb/plugin-sdk";
+import {
+  defineRpcContract,
+  PLUGIN_CLI_OUTPUT_MAX_BYTES,
+  type BbPluginApi,
+} from "@bb/plugin-sdk";
 import { z } from "zod";
 import { COMMENT_BODY_CODE_POINT_LIMIT } from "./comment-body.js";
 
@@ -8,6 +12,10 @@ const ROOT_PAGE_SIZE = 50;
 const COMMENT_PAGE_SIZE = 100;
 const ANCHOR_PAGE_SIZE = 200;
 const HANDOFF_CODE_POINT_LIMIT = 64_000;
+const CLI_OUTPUT_BUDGET_BYTES = Math.min(
+  900_000,
+  PLUGIN_CLI_OUTPUT_MAX_BYTES - 64 * 1_024,
+);
 
 const idSchema = z.string().min(1).max(256);
 const bodySchema = z
@@ -215,6 +223,7 @@ export const timelineCommentsRpcContract = defineRpcContract({
         bbThreadId: idSchema,
         commentId: idSchema,
         expectedVersion: z.number().int().positive(),
+        expectedThreadVersion: z.number().int().positive(),
       })
       .strict(),
     output: z
@@ -407,8 +416,10 @@ function getCommentThread(
     bbThreadId: string;
     commentThreadId: string;
     cursor?: string;
+    limit?: number;
   },
 ): z.infer<typeof commentThreadDetailSchema> {
+  const pageSize = input.limit ?? COMMENT_PAGE_SIZE;
   const thread = mapThread(
     getThreadRow(db, input.bbThreadId, input.commentThreadId),
   );
@@ -433,11 +444,11 @@ function getCommentThread(
       cursor?.createdAt ?? 0,
       cursor?.createdAt ?? 0,
       cursor?.id ?? "",
-      COMMENT_PAGE_SIZE + 1,
+      pageSize + 1,
     )
     .map((row) => commentRowSchema.parse(row));
-  const hasNext = rows.length > COMMENT_PAGE_SIZE;
-  const page = rows.slice(0, COMMENT_PAGE_SIZE);
+  const hasNext = rows.length > pageSize;
+  const page = rows.slice(0, pageSize);
   const last = page.at(-1);
   return commentThreadDetailSchema.parse({
     thread,
@@ -461,11 +472,13 @@ function listCommentThreads(
     bbThreadId: string;
     filter: "open" | "resolved" | "all";
     cursor?: string;
+    limit?: number;
   },
 ): {
   threads: z.infer<typeof commentThreadSummarySchema>[];
   nextCursor: string | null;
 } {
+  const pageSize = input.limit ?? ROOT_PAGE_SIZE;
   const cursor = decodeCursor(input.cursor, {
     method: "threads",
     scope: input.bbThreadId,
@@ -491,11 +504,11 @@ function listCommentThreads(
       cursor?.createdAt ?? 0,
       cursor?.createdAt ?? 0,
       cursor?.id ?? "",
-      ROOT_PAGE_SIZE + 1,
+      pageSize + 1,
     )
     .map((row) => threadRowSchema.parse(row));
-  const hasNext = rows.length > ROOT_PAGE_SIZE;
-  const page = rows.slice(0, ROOT_PAGE_SIZE);
+  const hasNext = rows.length > pageSize;
+  const page = rows.slice(0, pageSize);
   const last = page.at(-1);
   return {
     threads: page.map(mapThread),
@@ -618,6 +631,28 @@ function serializeOpenComments(
   };
 }
 
+function countOpenComments(
+  db: Database,
+  bbThreadId: string,
+): { threadCount: number; commentCount: number } {
+  const row = db
+    .prepare(
+      `SELECT
+         COUNT(DISTINCT t.id) AS threadCount,
+         COUNT(c.id) AS commentCount
+       FROM comment_threads t
+       LEFT JOIN comments c ON c.thread_id = t.id
+       WHERE t.bb_thread_id = ? AND t.resolved_at IS NULL`,
+    )
+    .get(bbThreadId);
+  return z
+    .object({
+      threadCount: z.number().int().nonnegative(),
+      commentCount: z.number().int().nonnegative(),
+    })
+    .parse(row);
+}
+
 function assertHandoffSize(serialized: SerializedHandoff): void {
   if (serialized.codePointSize > HANDOFF_CODE_POINT_LIMIT) {
     throw new Error(
@@ -632,6 +667,8 @@ function parseCli(argv: string[]): {
   commentThreadId: string | undefined;
   json: boolean;
   filter: "open" | "resolved" | "all";
+  cursor: string | undefined;
+  limit: number;
 } {
   const [rawCommand, rawCommentThreadId, ...rest] = argv;
   const command = rawCommand === "get" ? "get" : "list";
@@ -639,10 +676,30 @@ function parseCli(argv: string[]): {
   let threadId: string | undefined;
   let filter: "open" | "resolved" | "all" = "open";
   let json = false;
+  let cursor: string | undefined;
+  const maxLimit = command === "get" ? COMMENT_PAGE_SIZE : ROOT_PAGE_SIZE;
+  let limit = maxLimit;
   for (let index = 0; index < args.length; index += 1) {
     const arg = args[index];
     if (arg === "--json") json = true;
-    if (arg === "--thread") threadId = args[index + 1];
+    if (arg === "--thread") {
+      threadId = args[index + 1];
+      index += 1;
+    }
+    if (arg === "--cursor") {
+      cursor = args[index + 1];
+      if (cursor === undefined) throw new Error("--cursor requires a value");
+      index += 1;
+    }
+    if (arg === "--limit") {
+      const rawLimit = args[index + 1];
+      if (rawLimit === undefined) throw new Error("--limit requires a value");
+      limit = Number(rawLimit);
+      if (!Number.isInteger(limit) || limit < 1 || limit > maxLimit) {
+        throw new Error(`--limit must be an integer from 1 to ${maxLimit}`);
+      }
+      index += 1;
+    }
     if (arg === "--state") {
       const state = args[index + 1];
       if (state === "open" || state === "resolved" || state === "all") {
@@ -650,6 +707,7 @@ function parseCli(argv: string[]): {
       } else {
         throw new Error("--state must be open, resolved, or all");
       }
+      index += 1;
     }
   }
   return {
@@ -658,7 +716,47 @@ function parseCli(argv: string[]): {
     commentThreadId: command === "get" ? rawCommentThreadId : undefined,
     json,
     filter,
+    cursor,
+    limit,
   };
+}
+
+function utf8Size(value: string): number {
+  return Buffer.byteLength(value, "utf8");
+}
+
+function renderCliPage<T>(input: {
+  records: T[];
+  inheritedNextCursor: string | null;
+  cursorFor: (record: T) => string;
+  renderHuman: (record: T, index: number) => string;
+  renderJson: (records: T[], nextCursor: string | null) => string;
+  json: boolean;
+  oversizedLabel: string;
+}): string {
+  const render = (records: T[], nextCursor: string | null): string => {
+    if (input.json) return `${input.renderJson(records, nextCursor)}\n`;
+    const rows = records.map(input.renderHuman).join("\n");
+    const continuation =
+      nextCursor === null
+        ? ""
+        : `${rows.length > 0 ? "\n" : ""}More results available. Continue with --cursor ${nextCursor}`;
+    return `${rows}${continuation}${rows.length > 0 || continuation.length > 0 ? "\n" : ""}`;
+  };
+
+  const complete = render(input.records, input.inheritedNextCursor);
+  if (utf8Size(complete) <= CLI_OUTPUT_BUDGET_BYTES) return complete;
+
+  for (let length = input.records.length - 1; length >= 1; length -= 1) {
+    const records = input.records.slice(0, length);
+    const nextCursor = input.cursorFor(records.at(-1)!);
+    const candidate = render(records, nextCursor);
+    if (utf8Size(candidate) <= CLI_OUTPUT_BUDGET_BYTES) return candidate;
+  }
+
+  throw new Error(
+    `A single ${input.oversizedLabel} exceeds the CLI output size limit; request a smaller record`,
+  );
 }
 
 export default function timelineCommentsPlugin(bb: BbPluginApi): void {
@@ -823,28 +921,55 @@ export default function timelineCommentsPlugin(bb: BbPluginApi): void {
     deleteComment(input) {
       const comment = getCommentRow(db, input.commentId);
       const current = getThreadRow(db, input.bbThreadId, comment.threadId);
-      if (comment.version !== input.expectedVersion) {
-        throw new Error("Comment changed; refresh and retry");
-      }
       if (comment.parentId === null) {
         const change = db.transaction(() =>
           db
             .prepare(
-              "DELETE FROM comment_threads WHERE id = ? AND bb_thread_id = ?",
+              `DELETE FROM comment_threads
+               WHERE id = ? AND bb_thread_id = ? AND version = ?
+                 AND EXISTS (
+                   SELECT 1 FROM comments
+                   WHERE comments.id = ? AND comments.thread_id = comment_threads.id
+                     AND comments.parent_id IS NULL AND comments.version = ?
+                 )`,
             )
-            .run(current.id, input.bbThreadId),
+            .run(
+              current.id,
+              input.bbThreadId,
+              input.expectedThreadVersion,
+              comment.id,
+              input.expectedVersion,
+            ),
         )();
-        if (change.changes !== 1) throw new Error("Comment thread not found");
+        if (change.changes !== 1) {
+          throw new Error("Comment thread changed; refresh and retry");
+        }
         publishChanged(input.bbThreadId, current.id);
         return { deletedThreadId: current.id, thread: null };
       }
       const now = Date.now();
       db.transaction(() => {
-        db.prepare("DELETE FROM comments WHERE id = ?").run(comment.id);
-        db.prepare(
-          `UPDATE comment_threads
-           SET version = version + 1, updated_at = ? WHERE id = ?`,
-        ).run(now, current.id);
+        const threadChange = db
+          .prepare(
+            `UPDATE comment_threads
+             SET version = version + 1, updated_at = ?
+             WHERE id = ? AND bb_thread_id = ? AND version = ?`,
+          )
+          .run(
+            now,
+            current.id,
+            input.bbThreadId,
+            input.expectedThreadVersion,
+          );
+        if (threadChange.changes !== 1) {
+          throw new Error("Comment thread changed; refresh and retry");
+        }
+        const commentChange = db
+          .prepare("DELETE FROM comments WHERE id = ? AND version = ?")
+          .run(comment.id, input.expectedVersion);
+        if (commentChange.changes !== 1) {
+          throw new Error("Comment changed; refresh and retry");
+        }
       })();
       const result = getCommentThread(db, {
         bbThreadId: input.bbThreadId,
@@ -887,11 +1012,11 @@ export default function timelineCommentsPlugin(bb: BbPluginApi): void {
       if (threadId === null || !"comments".includes(query.toLowerCase())) {
         return [];
       }
-      const serialized = serializeOpenComments(db, threadId);
+      const counts = countOpenComments(db, threadId);
       return [
         {
           id: threadId,
-          title: `${serialized.commentCount} comments from ${serialized.threadCount} open threads`,
+          title: `${counts.commentCount} comments from ${counts.threadCount} open threads`,
           subtitle: "Local timeline comments",
         },
       ];
@@ -911,12 +1036,13 @@ export default function timelineCommentsPlugin(bb: BbPluginApi): void {
         name: "list",
         summary: "List comment threads",
         usage:
-          "bb comments list [--thread <id>] [--state open|resolved|all] [--json]",
+          "bb comments list [--thread <id>] [--state open|resolved|all] [--cursor <cursor>] [--limit 1-50] [--json]",
       },
       {
         name: "get",
         summary: "Read one comment thread",
-        usage: "bb comments get <comment-thread-id> [--thread <id>] [--json]",
+        usage:
+          "bb comments get <comment-thread-id> [--thread <id>] [--cursor <cursor>] [--limit 1-100] [--json]",
       },
     ],
     run(argv, context) {
@@ -934,39 +1060,63 @@ export default function timelineCommentsPlugin(bb: BbPluginApi): void {
             return {
               exitCode: 2,
               stderr:
-                "Usage: bb comments get <comment-thread-id> [--thread <id>] [--json]\n",
+                "Usage: bb comments get <comment-thread-id> [--thread <id>] [--cursor <cursor>] [--limit 1-100] [--json]\n",
             };
           }
           const detail = getCommentThread(db, {
             bbThreadId,
             commentThreadId: parsed.commentThreadId,
+            cursor: parsed.cursor,
+            limit: parsed.limit,
           });
           return {
             exitCode: 0,
-            stdout: parsed.json
-              ? `${JSON.stringify(detail)}\n`
-              : detail.comments
-                  .map(
-                    (comment, index) =>
-                      `${index === 0 ? "Comment" : "Reply"}: ${comment.body}`,
-                  )
-                  .join("\n"),
+            stdout: renderCliPage({
+              records: detail.comments,
+              inheritedNextCursor: detail.nextCursor,
+              cursorFor: (comment) =>
+                encodeCursor({
+                  method: "comments",
+                  scope: `${bbThreadId}:${parsed.commentThreadId}`,
+                  filter: "chronological",
+                  createdAt: comment.createdAt,
+                  id: comment.id,
+                }),
+              renderHuman: (comment, index) =>
+                `${comment.parentId === null && parsed.cursor === undefined && index === 0 ? "Comment" : "Reply"}: ${comment.body}`,
+              renderJson: (comments, nextCursor) =>
+                JSON.stringify({ ...detail, comments, nextCursor }),
+              json: parsed.json,
+              oversizedLabel: "comment",
+            }),
           };
         }
         const result = listCommentThreads(db, {
           bbThreadId,
           filter: parsed.filter,
+          cursor: parsed.cursor,
+          limit: parsed.limit,
         });
         return {
           exitCode: 0,
-          stdout: parsed.json
-            ? `${JSON.stringify(result)}\n`
-            : result.threads
-                .map(
-                  (thread) =>
-                    `${thread.id}\t${thread.resolvedAt === null ? "open" : "resolved"}\t${thread.selector.exact}\t${thread.rootComment.body}`,
-                )
-                .join("\n"),
+          stdout: renderCliPage({
+            records: result.threads,
+            inheritedNextCursor: result.nextCursor,
+            cursorFor: (thread) =>
+              encodeCursor({
+                method: "threads",
+                scope: bbThreadId,
+                filter: parsed.filter,
+                createdAt: thread.createdAt,
+                id: thread.id,
+              }),
+            renderHuman: (thread) =>
+              `${thread.id}\t${thread.resolvedAt === null ? "open" : "resolved"}\t${thread.selector.exact}\t${thread.rootComment.body}`,
+            renderJson: (threads, nextCursor) =>
+              JSON.stringify({ threads, nextCursor }),
+            json: parsed.json,
+            oversizedLabel: "comment thread",
+          }),
         };
       } catch (error) {
         return {

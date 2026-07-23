@@ -54,6 +54,17 @@
   outline: none;
 }
 
+.bb-comments-composer-action-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.bb-comments-composer-action-error {
+  color: var(--destructive-text, var(--muted-foreground));
+  font-size: 10px;
+  line-height: 1;
+  white-space: nowrap;
+}
 .bb-comments-composer-action {
   display: grid;
   width: 28px;
@@ -284,10 +295,6 @@
   min-height: 0;
   overflow-y: auto;
 }
-.bb-comments-thread[data-actions-open="true"],
-.bb-comments-thread[data-actions-open="true"] .bb-comments-thread-comments {
-  overflow: visible;
-}
 .bb-comments-comment {
   position: relative;
   padding: 14px 14px 10px;
@@ -391,7 +398,6 @@
 .bb-comments-inline-composer
   :is(.bb-comments-reply-input, .bb-comments-edit-input) {
   padding-right: 41px;
-  transition: padding-right 150ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 .bb-comments-inline-composer[data-multiline="true"] {
   padding-bottom: 32px;
@@ -432,20 +438,11 @@
   opacity: 0.3;
 }
 .bb-comments-actions-menu {
-  position: relative;
   flex: 0 0 auto;
 }
-.bb-comments-actions-menu > summary {
-  list-style: none;
-}
-.bb-comments-actions-menu > summary::-webkit-details-marker {
-  display: none;
-}
-.bb-comments-actions-menu > div {
-  position: absolute;
-  z-index: 3;
-  top: 28px;
-  right: 0;
+.bb-comments-actions-popover {
+  position: fixed;
+  z-index: 56;
   display: grid;
   min-width: 132px;
   padding: 4px;
@@ -455,7 +452,7 @@
   box-shadow: 0 8px 24px
     color-mix(in oklab, var(--foreground) 14%, transparent);
 }
-.bb-comments-actions-menu > div button {
+.bb-comments-actions-popover button {
   display: flex;
   min-height: 28px;
   align-items: center;
@@ -468,12 +465,12 @@
   font-size: 11px;
   text-align: left;
 }
-.bb-comments-actions-menu > div button svg {
+.bb-comments-actions-popover button svg {
   width: 13px;
   height: 13px;
   color: var(--muted-foreground);
 }
-.bb-comments-actions-menu > div button:hover {
+.bb-comments-actions-popover button:hover {
   background: var(--surface-recessed);
 }
 .bb-comments-loading {
