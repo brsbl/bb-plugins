@@ -35,6 +35,7 @@ function completedEvent(seq: number) {
 }
 
 function createHarness(input?: {
+  existingThreads?: boolean;
   mode?: "apply" | "observe";
   projectName?: string;
   prompt?: string;
@@ -107,6 +108,7 @@ function createHarness(input?: {
           },
         },
         get: async () => thread,
+        list: async () => (input?.existingThreads ? [thread] : []),
         pin,
         promptHistory: async () => promptHistory,
         unpin,
@@ -141,12 +143,12 @@ function createHarness(input?: {
 }
 
 describe("Thread Organizer plugin", () => {
-  it("registers a headless observe-mode lifecycle", async () => {
+  it("registers a headless apply-mode lifecycle", async () => {
     const { bb, harness } = createHarness();
     plugin(bb);
 
     expect(harness.inspection.registrations.settingsDescriptors).toMatchObject({
-      mode: { default: "observe", options: ["observe", "apply"] },
+      mode: { default: "apply", options: ["observe", "apply"] },
     });
     expect(harness.inspection.registrations.threadEventHandlers).toMatchObject({
       "thread.active": 1,
@@ -247,6 +249,21 @@ describe("Thread Organizer plugin", () => {
     expect(organizer.unpin).toHaveBeenCalledWith({ threadId: "thr_test" });
     expect(organizer.currentThread().pinnedAt).toBeNull();
     expect(organizer.currentThread().sectionId).toBe("sec_extensions");
+    await organizer.harness.lifecycle.dispose();
+  });
+
+  it("adopts an existing idle thread into the inbox on startup", async () => {
+    const organizer = createHarness({
+      existingThreads: true,
+      mode: "apply",
+      thread: { status: "idle" },
+    });
+    plugin(organizer.bb);
+
+    await vi.waitFor(() => {
+      expect(organizer.pin).toHaveBeenCalledWith({ threadId: "thr_test" });
+    });
+    expect(organizer.currentThread().pinnedAt).not.toBeNull();
     await organizer.harness.lifecycle.dispose();
   });
 

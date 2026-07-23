@@ -258,6 +258,7 @@ var MOVE_SECTION_CONFIDENCE = 0.92;
 var MOVE_SECTION_MARGIN = 0.25;
 var TITLE_CONFIDENCE = 0.9;
 var MAX_COMPLETED_EVENT_DRAIN = 100;
+var THREAD_LIST_PAGE_SIZE = 100;
 function stateKey(threadId) {
   return `${STATE_PREFIX}${threadId}`;
 }
@@ -338,9 +339,9 @@ function plugin(bb) {
     mode: {
       type: "select",
       label: "Mode",
-      description: "Observe logs recommendations without changing threads. Apply enables high-confidence updates.",
+      description: "Apply organizes threads automatically. Observe only logs proposed changes.",
       options: ["observe", "apply"],
-      default: "observe"
+      default: "apply"
     }
   });
   const queues = /* @__PURE__ */ new Map();
@@ -606,6 +607,44 @@ function plugin(bb) {
       );
     }
   }
+  async function reconcileExistingThreads() {
+    let offset = 0;
+    while (!disposed) {
+      const threads = await bb.sdk.threads.list({
+        excludeSideChats: true,
+        includeHidden: false,
+        limit: THREAD_LIST_PAGE_SIZE,
+        offset
+      });
+      await Promise.all(
+        threads.map(
+          (thread) => enqueue(thread.id, async () => {
+            if (!isEligibleThread(thread)) return;
+            let state = await readState(thread.id);
+            const adopted = state === null;
+            if (state === null) {
+              state = initialState(thread);
+              await saveState(thread.id, state);
+            }
+            const fresh = await bb.sdk.threads.get({
+              threadId: thread.id
+            });
+            await reconcileInbox(
+              thread.id,
+              state,
+              fresh.status === "idle" ? "idle" : "active"
+            );
+            await saveState(thread.id, state);
+            if (adopted) {
+              await evaluate(thread.id, "settings");
+            }
+          })
+        )
+      );
+      if (threads.length < THREAD_LIST_PAGE_SIZE) break;
+      offset += THREAD_LIST_PAGE_SIZE;
+    }
+  }
   bb.events.on(
     "thread.created",
     ({ thread }) => enqueue(thread.id, async () => {
@@ -688,6 +727,10 @@ function plugin(bb) {
   void settings.get().then(({ mode }) => bb.log.info(`Thread Organizer loaded mode=${mode}`)).catch((error) => {
     const message = error instanceof Error ? error.message : String(error);
     bb.log.warn(`action=mode-read-failed error=${message}`);
+  });
+  void reconcileExistingThreads().catch((error) => {
+    const message = error instanceof Error ? error.message : String(error);
+    bb.log.error(`action=existing-thread-reconciliation-failed error=${message}`);
   });
 }
 export {
