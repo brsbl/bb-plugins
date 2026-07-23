@@ -453,9 +453,7 @@ function CommentPanel({ threadId, revealMessage }: PluginThreadPanelProps) {
               {itemDetail !== null ? (
                 <div className="bb-comments-panel-thread">
                   <div className="bb-comments-panel-thread-header">
-                    <span>
-                      “{excerpt(itemDetail.thread.selector.exact, 100)}”
-                    </span>
+                    <span>Comment</span>
                     <button
                       type="button"
                       className="bb-comments-icon-control"
@@ -504,18 +502,7 @@ function CommentPanel({ threadId, revealMessage }: PluginThreadPanelProps) {
                             {relativeTime(comment.createdAt)}
                           </time>
                         </div>
-                        {editingComment?.id === comment.id ? (
-                          <button
-                            type="button"
-                            className="bb-comments-icon-control"
-                            aria-label="Cancel comment edit"
-                            title="Cancel edit"
-                            onClick={() => setEditingComment(null)}
-                          >
-                            <CommentIcon name="close" />
-                          </button>
-                        ) : (
-                          <details className="bb-comments-actions-menu">
+                        <details className="bb-comments-actions-menu">
                             <summary
                               className="bb-comments-icon-control"
                               role="button"
@@ -562,12 +549,11 @@ function CommentPanel({ threadId, revealMessage }: PluginThreadPanelProps) {
                                 Delete
                               </button>
                             </div>
-                          </details>
-                        )}
+                        </details>
                       </header>
                       {editingComment?.id === comment.id ? (
                         <form
-                          className="bb-comments-panel-edit"
+                          className="bb-comments-panel-edit bb-comments-inline-composer"
                           onSubmit={(event) => {
                             event.preventDefault();
                             void saveEditedComment(comment);
@@ -599,21 +585,19 @@ function CommentPanel({ threadId, revealMessage }: PluginThreadPanelProps) {
                               })
                             }
                           />
-                          <footer>
-                            <span>⌘/Ctrl Enter</span>
-                            <button
-                              type="submit"
-                              className="bb-comments-primary"
-                              aria-label="Save comment"
-                              disabled={
-                                busy ||
-                                editingComment.body === comment.body ||
-                                commentBodyError(editingComment.body) !== null
-                              }
-                            >
-                              Save
-                            </button>
-                          </footer>
+                          <button
+                            type="submit"
+                            className="bb-comments-submit-shortcut"
+                            aria-label="Save comment"
+                            title="Save comment · ⌘/Ctrl Enter"
+                            disabled={
+                              busy ||
+                              editingComment.body === comment.body ||
+                              commentBodyError(editingComment.body) !== null
+                            }
+                          >
+                            ⌘ ↵
+                          </button>
                         </form>
                       ) : (
                         <p>{comment.body}</p>
@@ -695,21 +679,23 @@ function ReplyForm({
         }
       }}
     >
-      <textarea
-        value={body}
-        placeholder="Reply…"
-        maxLength={20_000}
-        onChange={(event) => setBody(event.target.value)}
-      />
-      <button
-        type="submit"
-        className="bb-comments-icon-control"
-        aria-label="Reply"
-        title="Reply · ⌘/Ctrl Enter"
-        disabled={disabled || commentBodyError(body) !== null}
-      >
-        <CommentIcon name="send" />
-      </button>
+      <div className="bb-comments-inline-composer">
+        <textarea
+          value={body}
+          placeholder="Reply…"
+          maxLength={20_000}
+          onChange={(event) => setBody(event.target.value)}
+        />
+        <button
+          type="submit"
+          className="bb-comments-submit-shortcut"
+          aria-label="Reply"
+          title="Reply · ⌘/Ctrl Enter"
+          disabled={disabled || commentBodyError(body) !== null}
+        >
+          ⌘ ↵
+        </button>
+      </div>
     </form>
   );
 }
