@@ -21,6 +21,7 @@ const MAX_COMPLETED_EVENT_DRAIN = 100;
 const THREAD_LIST_PAGE_SIZE = 100;
 
 type Thread = Awaited<ReturnType<BbPluginApi["sdk"]["threads"]["update"]>>;
+type ThreadSeed = Pick<Thread, "createdAt" | "sectionId" | "title">;
 type EvaluationPhase = "active" | "created" | "settings" | "turn";
 
 interface ThreadState {
@@ -44,7 +45,7 @@ function stateKey(threadId: string): string {
   return `${STATE_PREFIX}${threadId}`;
 }
 
-function initialState(thread: Thread): ThreadState {
+function initialState(thread: ThreadSeed): ThreadState {
   return {
     completedTurns: 0,
     createdAt: thread.createdAt,
@@ -524,12 +525,11 @@ export default function plugin(bb: BbPluginApi): void {
   async function reconcileExistingThreads(): Promise<void> {
     let offset = 0;
     while (!disposed) {
-      const threads = (await bb.sdk.threads.list({
+      const threads = await bb.sdk.threads.list({
         excludeSideChats: true,
-        includeHidden: false,
         limit: THREAD_LIST_PAGE_SIZE,
         offset,
-      })) as Thread[];
+      });
       await Promise.all(
         threads.map((thread) =>
           enqueue(thread.id, async () => {

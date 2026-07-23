@@ -612,7 +612,6 @@ function plugin(bb) {
     while (!disposed) {
       const threads = await bb.sdk.threads.list({
         excludeSideChats: true,
-        includeHidden: false,
         limit: THREAD_LIST_PAGE_SIZE,
         offset
       });
