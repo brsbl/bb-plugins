@@ -9,7 +9,6 @@ import {
   CornerDownLeft,
   EllipsisVertical,
   Pencil,
-  Send,
   StickyNote,
   Trash2,
   createElement as createLucideElement,
@@ -26,7 +25,6 @@ import {
   layoutGutterMarkers,
   restoreSelector,
 } from "./anchors.js";
-import { createIndividualHandoffPrompt } from "./handoff.js";
 import { commentBodyError } from "./comment-body.js";
 import {
   installTimelineCommentsController,
@@ -610,8 +608,17 @@ class TimelineCommentsController {
             ? `Open comment thread${threads[0]!.anchor.replyCount > 0 ? ` with ${threads[0]!.anchor.replyCount} ${threads[0]!.anchor.replyCount === 1 ? "reply" : "replies"}` : ""}`
             : `Open ${threads.length} comment threads`,
         );
-        if (threads.length === 1) marker.append(icon(StickyNote));
-        else marker.textContent = String(threads.length);
+        marker.append(icon(StickyNote));
+        if (threads.length > 1) {
+          marker.classList.add("bb-comments-marker-cluster");
+          marker.append(
+            element(
+              "span",
+              "bb-comments-marker-count",
+              String(threads.length),
+            ),
+          );
+        }
         marker.addEventListener("mouseenter", () =>
           this.setActive(placement.ids),
         );
@@ -763,22 +770,6 @@ class TimelineCommentsController {
           this.handlePopoverMutationError(popover, detail, caught);
         });
     });
-    const agent = element(
-      "button",
-      "bb-comments-icon-control",
-    ) as HTMLButtonElement;
-    agent.type = "button";
-    agent.setAttribute("aria-label", "Send thread to agent");
-    agent.title = "Send thread to agent";
-    agent.append(icon(Send));
-    agent.addEventListener("click", () => {
-      const prompt = createIndividualHandoffPrompt(
-        detail.comments.map(({ body }) => body).join("\n\n"),
-        detail.thread.selector.exact,
-      );
-      this.closePopover();
-      this.#navigate.toCompose({ initialPrompt: prompt, focusPrompt: true });
-    });
     const removeThread = element(
       "button",
       "bb-comments-icon-control bb-comments-destructive",
@@ -807,7 +798,7 @@ class TimelineCommentsController {
           this.handlePopoverMutationError(popover, detail, caught);
         });
     });
-    headerActions.append(resolve, agent, removeThread);
+    headerActions.append(resolve, removeThread);
     header.append(source, headerActions);
     popover.append(header);
 
@@ -912,21 +903,6 @@ class TimelineCommentsController {
     actionsTrigger.append(icon(EllipsisVertical));
     const actionsMenu = element("div");
     actionsMenu.setAttribute("role", "menu");
-    const agent = element("button") as HTMLButtonElement;
-    agent.type = "button";
-    agent.setAttribute("role", "menuitem");
-    agent.append(icon(Send), document.createTextNode("Send to agent"));
-    agent.addEventListener("click", () => {
-      const prompt = createIndividualHandoffPrompt(
-        comment.body,
-        detail.thread.selector.exact,
-      );
-      this.closePopover();
-      this.#navigate.toCompose({
-        initialPrompt: prompt,
-        focusPrompt: true,
-      });
-    });
     const edit = element("button") as HTMLButtonElement;
     edit.type = "button";
     edit.setAttribute("role", "menuitem");
@@ -1040,7 +1016,7 @@ class TimelineCommentsController {
           this.handlePopoverMutationError(popover, detail, caught);
         });
     });
-    actionsMenu.append(edit, agent, remove);
+    actionsMenu.append(edit, remove);
     actions.append(actionsTrigger, actionsMenu);
     row.append(buildHeader(actions), body);
     return row;

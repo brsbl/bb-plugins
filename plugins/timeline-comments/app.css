@@ -29,6 +29,21 @@
   width: 20px;
   height: 20px;
 }
+.bb-comments-marker-cluster {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+}
+.bb-comments-marker-cluster svg {
+  width: 16px;
+  height: 16px;
+}
+.bb-comments-marker-count {
+  min-width: 6px;
+  font-size: 9px;
+  line-height: 1;
+}
 .bb-comments-marker:hover,
 .bb-comments-marker:focus-visible {
   background: var(--surface-recessed);

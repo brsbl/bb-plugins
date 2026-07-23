@@ -52,7 +52,12 @@ describe("timeline comments app", () => {
       },
     ]);
     expect(app.threadPanelActions).toMatchObject([
-      { id: "comments", title: "Comments", layout: "flush" },
+      {
+        id: "comments",
+        title: "Comments",
+        icon: "MessageSquare",
+        layout: "flush",
+      },
     ]);
     expect(app.composerCustomizations).toMatchObject([
       {
@@ -161,8 +166,9 @@ describe("timeline comments app", () => {
       },
     );
     const button = await panel.findByRole("button", {
-      name: "Add all to chat",
+      name: "Add to chat",
     });
+    expect(panel.queryByText("1 open comment")).toBeNull();
     fireEvent.click(button);
     await vi.waitFor(() =>
       expect(panel.inspection.composer.mentions).toHaveLength(1),

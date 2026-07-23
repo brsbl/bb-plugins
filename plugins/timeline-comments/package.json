@@ -24,7 +24,7 @@
     "name": "Timeline Comments",
     "description": "Attach durable comment threads to selected text in bb timelines.",
     "branding": {
-      "icon": "Comment01"
+      "icon": "MessageSquare"
     },
     "server": "./server.ts",
     "app": "./app.tsx",

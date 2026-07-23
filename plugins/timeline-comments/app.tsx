@@ -211,13 +211,7 @@ function CommentPanel({ threadId, revealMessage }: PluginThreadPanelProps) {
   return (
     <section className="bb-comments-panel" aria-label="Timeline comments">
       <header className="bb-comments-panel-header">
-        <div>
-          <h2>Comments</h2>
-          <p>
-            {summary.commentCount} open{" "}
-            {summary.commentCount === 1 ? "comment" : "comments"}
-          </p>
-        </div>
+        <h2>Comments</h2>
         {summary.threadCount > 0 ? (
           <button
             type="button"
@@ -225,7 +219,7 @@ function CommentPanel({ threadId, revealMessage }: PluginThreadPanelProps) {
             disabled={busy}
             onClick={() => void addAll()}
           >
-            Add all to chat
+            Add to chat
           </button>
         ) : null}
       </header>
@@ -317,14 +311,14 @@ export default definePluginApp((app) => {
   app.slots.threadPanelAction({
     id: "comments",
     title: "Comments",
-    icon: "Comment01",
+    icon: "MessageSquare",
     component: CommentPanel,
     layout: "flush",
   });
   app.slots.experimental_messageAction({
     id: "comment-selection",
     title: "Comment",
-    icon: "Comment01",
+    icon: "MessageSquare",
     placements: ["selection-menu"],
     run(context) {
       beginTimelineComment(context);

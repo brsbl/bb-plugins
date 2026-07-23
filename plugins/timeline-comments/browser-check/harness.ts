@@ -19,7 +19,6 @@ const phrases = [
   "Eighth exact browser anchor",
 ];
 const now = Date.now();
-let handoffPrompt: string | null = null;
 const summaries = phrases.map((exact, index) => {
   const start = text.indexOf(exact);
   return {
@@ -77,11 +76,7 @@ const context = {
     getConnectionState: () => "connected" as const,
     subscribeConnectionState: () => () => {},
   },
-  navigate: {
-    toCompose(options: { initialPrompt?: string }) {
-      handoffPrompt = options.initialPrompt ?? null;
-    },
-  },
+  navigate: {},
 } as unknown as PluginContentScriptContext;
 
 mountTimelineCommentsController(context);
@@ -119,6 +114,8 @@ void (async () => {
     const overflow = markers.find((marker) => marker.textContent === "8");
     if (overflow === undefined)
       throw new Error("Expected one 8-thread collision marker");
+    if (overflow.querySelector("svg") === null)
+      throw new Error("Collision marker omitted its comment icon");
     const markerRect = overflow.getBoundingClientRect();
     const proseRect = prose.getBoundingClientRect();
     if (Math.abs(proseRect.left - markerRect.right - 8) > 1)
@@ -221,25 +218,14 @@ void (async () => {
       .querySelector<HTMLButtonElement>(".bb-comments-cluster button")
       ?.click();
     await wait(80);
-    const agent = [
-      ...document.querySelectorAll<HTMLButtonElement>("button"),
-    ].find((button) => button.textContent === "Send to agent");
-    agent?.click();
-    if (document.querySelector(".bb-comments-thread") !== null)
-      throw new Error("Agent handoff left a detached comment popover");
-    if (
-      handoffPrompt === null ||
-      !handoffPrompt.includes("Context from the timeline:")
-    )
-      throw new Error("Agent handoff omitted the selected source context");
-
-    markers[0]!.click();
-    document
-      .querySelector<HTMLButtonElement>(".bb-comments-cluster button")
-      ?.click();
-    await wait(80);
     if (document.querySelector(".bb-comments-thread") === null)
-      throw new Error("Thread popover did not reopen after agent handoff");
+      throw new Error("Thread popover did not reopen");
+    if (
+      [...document.querySelectorAll("button")].some((button) =>
+        button.textContent?.includes("Send to agent"),
+      )
+    )
+      throw new Error("Removed agent handoff action is still visible");
 
     document.body.dataset.testStatus = "passed";
     result.value =
