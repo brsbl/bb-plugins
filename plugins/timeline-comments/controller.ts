@@ -157,6 +157,19 @@ function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : "Something went wrong";
 }
 
+function syncInlineComposerLayout(
+  textarea: HTMLTextAreaElement,
+  composer: HTMLElement,
+): void {
+  const styles = getComputedStyle(textarea);
+  const lineHeight = Number.parseFloat(styles.lineHeight) || 20;
+  const verticalPadding =
+    (Number.parseFloat(styles.paddingTop) || 0) +
+    (Number.parseFloat(styles.paddingBottom) || 0);
+  composer.dataset.multiline =
+    textarea.scrollHeight - verticalPadding > lineHeight + 1 ? "true" : "false";
+}
+
 function isRelevantMutation(record: MutationRecord): boolean {
   const selector =
     "[data-bb-thread-window], [data-bb-conversation-message-id], [data-bb-message-prose-root]";
@@ -837,6 +850,7 @@ class TimelineCommentsController {
       };
       textarea.addEventListener("input", () => {
         writeDraft(draftKey, textarea.value);
+        syncInlineComposerLayout(textarea, replyComposer);
         validate();
       });
       textarea.addEventListener("keydown", (event) => {
@@ -871,6 +885,7 @@ class TimelineCommentsController {
       });
       validate();
       popover.append(reply);
+      syncInlineComposerLayout(textarea, replyComposer);
     }
   }
 
@@ -957,6 +972,7 @@ class TimelineCommentsController {
       textarea.addEventListener("input", () => {
         if (textarea.value === comment.body) sessionStorage.removeItem(draftKey);
         else writeDraft(draftKey, textarea.value);
+        syncInlineComposerLayout(textarea, editComposer);
         validate();
       });
       textarea.addEventListener("keydown", (event) => {
@@ -998,6 +1014,7 @@ class TimelineCommentsController {
       });
       editComposer.append(textarea, save);
       row.replaceChildren(buildHeader(actions), editComposer, error);
+      syncInlineComposerLayout(textarea, editComposer);
       validate();
       textarea.focus();
     });

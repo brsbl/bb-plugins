@@ -176,10 +176,14 @@ void (async () => {
     reply.dispatchEvent(new InputEvent("input", { bubbles: true }));
     if (reply.getBoundingClientRect().height <= emptyReplyHeight)
       throw new Error("Multiline reply input did not grow with its content");
+    if (reply.closest(".bb-comments-inline-composer")?.dataset.multiline !== "true")
+      throw new Error("Multiline reply did not switch composer layout");
     reply.value = "Ready";
     reply.dispatchEvent(new InputEvent("input", { bubbles: true }));
     if (replyButton.disabled)
       throw new Error("Valid reply did not enable submission");
+    if (reply.closest(".bb-comments-inline-composer")?.dataset.multiline !== "false")
+      throw new Error("Single-line reply did not restore inline layout");
     if (CSS.highlights.get("bb-timeline-comments")?.size !== 8) {
       throw new Error("Custom Highlight registry did not retain every anchor");
     }
@@ -237,6 +241,17 @@ void (async () => {
     );
     if (saveEdit?.disabled !== false)
       throw new Error("Unchanged comment cannot exit editing like Moss");
+    const editComposer = editInput.closest<HTMLElement>(
+      ".bb-comments-inline-composer",
+    );
+    const editRect = editInput.getBoundingClientRect();
+    const saveRect = saveEdit.getBoundingClientRect();
+    if (
+      editComposer?.dataset.multiline !== "true" ||
+      saveRect.top < editRect.bottom
+    ) {
+      throw new Error("Multiline edit did not move actions below the text");
+    }
     editInput.dispatchEvent(
       new KeyboardEvent("keydown", { key: "Escape", bubbles: true }),
     );
