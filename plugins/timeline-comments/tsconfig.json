@@ -1,0 +1,33 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": [
+      "DOM",
+      "DOM.Iterable",
+      "ES2022"
+    ],
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "jsx": "react-jsx",
+    "baseUrl": ".",
+    "paths": {
+      "@bb/plugin-sdk": [
+        "./types/bb-plugin-sdk.d.ts"
+      ],
+      "@bb/plugin-sdk/app": [
+        "./types/bb-plugin-sdk-app.d.ts"
+      ]
+    },
+    "strict": true,
+    "noEmit": true,
+    "skipLibCheck": true,
+    "types": [
+      "node",
+      "vitest/globals"
+    ]
+  },
+  "include": [
+    "*.ts",
+    "*.tsx"
+  ]
+}

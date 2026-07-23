@@ -38,6 +38,16 @@ Lets you peek at a thread's status and repository context without leaving the si
 
 Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/thread-hover-cards --yes`
 
+### Timeline Comments
+
+Keeps comments and comment threads attached to exact text in bb timelines.
+
+![Timeline Comments in bb](plugins/timeline-comments/docs/screenshot.png)
+
+[Source](plugins/timeline-comments) · [README](plugins/timeline-comments/README.md)
+
+Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/timeline-comments --yes`
+
 ### Thread Organizer
 
 Files new threads into the right existing work section while preserving native titles and every manual override.
