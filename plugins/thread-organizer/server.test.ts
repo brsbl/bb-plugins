@@ -35,6 +35,8 @@ function completedEvent(seq: number) {
 }
 
 function createHarness(input?: {
+  archiveAfterList?: boolean;
+  existingThreads?: boolean;
   mode?: "apply" | "observe";
   projectName?: string;
   prompt?: string;
@@ -72,6 +74,22 @@ function createHarness(input?: {
       return thread;
     },
   );
+  const pin = vi.fn(async () => {
+    thread = makeThreadResponse({
+      ...thread,
+      pinnedAt: thread.updatedAt + 1,
+      updatedAt: thread.updatedAt + 1,
+    });
+    return thread;
+  });
+  const unpin = vi.fn(async () => {
+    thread = makeThreadResponse({
+      ...thread,
+      pinnedAt: null,
+      updatedAt: thread.updatedAt + 1,
+    });
+    return thread;
+  });
   const host = createFakePluginHost({
     pluginId: "thread-organizer",
     settings: { mode: input?.mode ?? "observe" },
@@ -91,7 +109,20 @@ function createHarness(input?: {
           },
         },
         get: async () => thread,
+        list: async () => {
+          if (!input?.existingThreads) return [];
+          const listed = thread;
+          if (input.archiveAfterList) {
+            thread = makeThreadResponse({
+              ...thread,
+              archivedAt: thread.updatedAt + 1,
+            });
+          }
+          return [listed];
+        },
+        pin,
         promptHistory: async () => promptHistory,
+        unpin,
         update,
       },
     },
@@ -116,23 +147,26 @@ function createHarness(input?: {
     ): void {
       thread = makeThreadResponse({ ...thread, ...changes });
     },
+    pin,
+    unpin,
     update,
   };
 }
 
 describe("Thread Organizer plugin", () => {
-  it("registers a headless observe-mode lifecycle", async () => {
+  it("registers a headless apply-mode lifecycle", async () => {
     const { bb, harness } = createHarness();
     plugin(bb);
 
     expect(harness.inspection.registrations.settingsDescriptors).toMatchObject({
-      mode: { default: "observe", options: ["observe", "apply"] },
+      mode: { default: "apply", options: ["observe", "apply"] },
     });
     expect(harness.inspection.registrations.threadEventHandlers).toMatchObject({
       "thread.active": 1,
       "thread.archived": 1,
       "thread.created": 1,
       "thread.deleted": 1,
+      "thread.failed": 1,
       "thread.idle": 1,
     });
     expect(harness.inspection.registrations.cli).toBeNull();
@@ -198,6 +232,170 @@ describe("Thread Organizer plugin", () => {
       sectionId: "sec_extensions",
     });
     await harness.lifecycle.dispose();
+  });
+
+  it("uses the pinned area as an inbox while preserving the semantic section", async () => {
+    const organizer = createHarness({ mode: "apply" });
+    plugin(organizer.bb);
+    await organizer.harness.behavior.emitThreadEvent("thread.created", {
+      thread: organizer.currentThread(),
+    });
+    expect(organizer.currentThread().sectionId).toBe("sec_extensions");
+
+    organizer.setThread({ status: "idle" });
+    await organizer.harness.behavior.emitThreadEvent("thread.idle", {
+      lastAssistantText: "Done.",
+      thread: organizer.currentThread(),
+    });
+
+    expect(organizer.pin).toHaveBeenCalledWith({ threadId: "thr_test" });
+    expect(organizer.currentThread().pinnedAt).not.toBeNull();
+    expect(organizer.currentThread().sectionId).toBe("sec_extensions");
+
+    organizer.setThread({ status: "active" });
+    await organizer.harness.behavior.emitThreadEvent("thread.active", {
+      thread: organizer.currentThread(),
+    });
+
+    expect(organizer.unpin).toHaveBeenCalledWith({ threadId: "thr_test" });
+    expect(organizer.currentThread().pinnedAt).toBeNull();
+    expect(organizer.currentThread().sectionId).toBe("sec_extensions");
+    await organizer.harness.lifecycle.dispose();
+  });
+
+  it("adopts an existing idle thread into the inbox on startup", async () => {
+    const organizer = createHarness({
+      existingThreads: true,
+      mode: "apply",
+      thread: { status: "idle" },
+    });
+    plugin(organizer.bb);
+
+    await organizer.harness.behavior.runService("startup-reconciliation").done;
+
+    expect(organizer.pin).toHaveBeenCalledWith({ threadId: "thr_test" });
+    expect(organizer.currentThread().pinnedAt).not.toBeNull();
+    await organizer.harness.lifecycle.dispose();
+  });
+
+  it("adopts an existing failed thread into the inbox on startup", async () => {
+    const organizer = createHarness({
+      existingThreads: true,
+      mode: "apply",
+      thread: { status: "error" },
+    });
+    plugin(organizer.bb);
+
+    await organizer.harness.behavior.runService("startup-reconciliation").done;
+
+    expect(organizer.pin).toHaveBeenCalledWith({ threadId: "thr_test" });
+    await organizer.harness.lifecycle.dispose();
+  });
+
+  it("skips a thread archived while startup reconciliation is running", async () => {
+    const organizer = createHarness({
+      archiveAfterList: true,
+      existingThreads: true,
+      mode: "apply",
+      thread: { status: "idle" },
+    });
+    plugin(organizer.bb);
+
+    await organizer.harness.behavior.runService("startup-reconciliation").done;
+
+    expect(organizer.pin).not.toHaveBeenCalled();
+    expect(await organizer.bb.storage.kv.list("thread:")).toEqual([]);
+    await organizer.harness.lifecycle.dispose();
+  });
+
+  it("does not unpin a thread that was pinned manually", async () => {
+    const organizer = createHarness({
+      mode: "apply",
+      thread: { pinnedAt: 10 },
+    });
+    plugin(organizer.bb);
+    await organizer.harness.behavior.emitThreadEvent("thread.created", {
+      thread: organizer.currentThread(),
+    });
+
+    organizer.setThread({ status: "idle" });
+    await organizer.harness.behavior.emitThreadEvent("thread.idle", {
+      lastAssistantText: "Done.",
+      thread: organizer.currentThread(),
+    });
+    organizer.setThread({ status: "active" });
+    await organizer.harness.behavior.emitThreadEvent("thread.active", {
+      thread: organizer.currentThread(),
+    });
+
+    expect(organizer.pin).not.toHaveBeenCalled();
+    expect(organizer.unpin).not.toHaveBeenCalled();
+    expect(organizer.currentThread().pinnedAt).toBe(10);
+    await organizer.harness.lifecycle.dispose();
+  });
+
+  it("does not reclaim a plugin pin after a manual unpin and re-pin", async () => {
+    const organizer = createHarness({ mode: "apply" });
+    plugin(organizer.bb);
+    await organizer.harness.behavior.emitThreadEvent("thread.created", {
+      thread: organizer.currentThread(),
+    });
+
+    organizer.setThread({ status: "idle" });
+    await organizer.harness.behavior.emitThreadEvent("thread.idle", {
+      lastAssistantText: "Done.",
+      thread: organizer.currentThread(),
+    });
+    organizer.setThread({
+      pinnedAt: 100,
+      status: "active",
+    });
+    await organizer.harness.behavior.emitThreadEvent("thread.active", {
+      thread: organizer.currentThread(),
+    });
+
+    expect(organizer.unpin).not.toHaveBeenCalled();
+    expect(organizer.currentThread().pinnedAt).toBe(100);
+    await organizer.harness.lifecycle.dispose();
+  });
+
+  it("pins failed work into the inbox", async () => {
+    const organizer = createHarness({ mode: "apply" });
+    plugin(organizer.bb);
+    await organizer.harness.behavior.emitThreadEvent("thread.created", {
+      thread: organizer.currentThread(),
+    });
+
+    organizer.setThread({ status: "error" });
+    await organizer.harness.behavior.emitThreadEvent("thread.failed", {
+      error: "Provider failed",
+      thread: organizer.currentThread(),
+    });
+
+    expect(organizer.pin).toHaveBeenCalledWith({ threadId: "thr_test" });
+    expect(organizer.currentThread().pinnedAt).not.toBeNull();
+    await organizer.harness.lifecycle.dispose();
+  });
+
+  it("reconciles the inbox immediately when apply mode is enabled", async () => {
+    const organizer = createHarness({ mode: "observe" });
+    plugin(organizer.bb);
+    await organizer.harness.behavior.emitThreadEvent("thread.created", {
+      thread: organizer.currentThread(),
+    });
+    organizer.setThread({ status: "idle" });
+    await organizer.harness.behavior.emitThreadEvent("thread.idle", {
+      lastAssistantText: "Done.",
+      thread: organizer.currentThread(),
+    });
+    expect(organizer.pin).not.toHaveBeenCalled();
+
+    await organizer.harness.behavior.setSettings({ mode: "apply" });
+
+    await vi.waitFor(() => {
+      expect(organizer.pin).toHaveBeenCalledWith({ threadId: "thr_test" });
+    });
+    await organizer.harness.lifecycle.dispose();
   });
 
   it("never changes an explicit creation-time section", async () => {
