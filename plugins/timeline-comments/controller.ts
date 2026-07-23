@@ -3,6 +3,18 @@ import type {
   PluginMessageActionContext,
   PluginRpcClient,
 } from "@bb/plugin-sdk/app";
+import {
+  CheckCheck,
+  Command,
+  CornerDownLeft,
+  EllipsisVertical,
+  Pencil,
+  Send,
+  StickyNote,
+  Trash2,
+  createElement as createLucideElement,
+  type IconNode,
+} from "lucide";
 import type {
   TimelineComment,
   TimelineCommentThreadDetail,
@@ -114,72 +126,32 @@ function formatTime(value: number): string {
 
 function relativeTime(value: number): string {
   const elapsed = Math.max(0, Date.now() - value);
-  if (elapsed < 60_000) return "now";
-  if (elapsed < 3_600_000) return `${Math.floor(elapsed / 60_000)}m`;
-  if (elapsed < 86_400_000) return `${Math.floor(elapsed / 3_600_000)}h`;
-  if (elapsed < 604_800_000) return `${Math.floor(elapsed / 86_400_000)}d`;
+  if (elapsed < 60_000) return "just now";
+  if (elapsed < 3_600_000) {
+    const minutes = Math.floor(elapsed / 60_000);
+    return `${minutes} ${minutes === 1 ? "minute" : "minutes"} ago`;
+  }
+  if (elapsed < 86_400_000) {
+    const hours = Math.floor(elapsed / 3_600_000);
+    return `${hours} ${hours === 1 ? "hour" : "hours"} ago`;
+  }
+  if (elapsed < 604_800_000) {
+    const days = Math.floor(elapsed / 86_400_000);
+    return `${days} ${days === 1 ? "day" : "days"} ago`;
+  }
   return new Intl.DateTimeFormat(undefined, {
     month: "short",
     day: "numeric",
   }).format(value);
 }
 
-type IconName = "check" | "close" | "more" | "note" | "send" | "trash";
-
-function icon(name: IconName): SVGSVGElement {
-  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+function icon(node: IconNode): SVGElement {
+  const svg = createLucideElement(node);
   svg.setAttribute(OWNED, "");
-  svg.setAttribute("viewBox", "0 0 24 24");
   svg.setAttribute("width", "16");
   svg.setAttribute("height", "16");
-  svg.setAttribute("fill", "none");
-  svg.setAttribute("stroke", "currentColor");
-  svg.setAttribute("stroke-width", "1.7");
-  svg.setAttribute("stroke-linecap", "round");
-  svg.setAttribute("stroke-linejoin", "round");
+  svg.setAttribute("stroke-width", "1.5");
   svg.setAttribute("aria-hidden", "true");
-  const definitions: Record<IconName, string[]> = {
-    check: ["M5 12l4 4L19 6", "M3 7l3 3", "M13 16l2 2 6-7"],
-    close: ["M7 7l10 10", "M17 7 7 17"],
-    more: [],
-    note: [
-      "M6.5 3.5h8.8L19.5 7.7v12.8h-13z",
-      "M15 3.5v4.4h4.5",
-      "M9.5 12h7",
-      "M9.5 15.5h4.5",
-    ],
-    send: ["M4 4l16 8-16 8 3-8-3-8Z", "M7 12h13"],
-    trash: [
-      "M4 7h16",
-      "M9 7V4h6v3",
-      "m6 4-.5 7",
-      "m10-7 .5 7",
-      "M6 7l1 14h10l1-14",
-    ],
-  };
-  if (name === "more") {
-    for (const cx of ["6", "12", "18"]) {
-      const circle = document.createElementNS(
-        "http://www.w3.org/2000/svg",
-        "circle",
-      );
-      circle.setAttribute("cx", cx);
-      circle.setAttribute("cy", "12");
-      circle.setAttribute("r", "1");
-      circle.setAttribute("fill", "currentColor");
-      circle.setAttribute("stroke", "none");
-      svg.append(circle);
-    }
-    return svg;
-  }
-  for (const definition of definitions[name]) {
-    const path = document.createElementNS(
-      "http://www.w3.org/2000/svg",
-      "path",
-    );
-    path.setAttribute("d", definition);
-    svg.append(path);
-  }
   return svg;
 }
 
@@ -638,7 +610,7 @@ class TimelineCommentsController {
             ? `Open comment thread${threads[0]!.anchor.replyCount > 0 ? ` with ${threads[0]!.anchor.replyCount} ${threads[0]!.anchor.replyCount === 1 ? "reply" : "replies"}` : ""}`
             : `Open ${threads.length} comment threads`,
         );
-        if (threads.length === 1) marker.append(icon("note"));
+        if (threads.length === 1) marker.append(icon(StickyNote));
         else marker.textContent = String(threads.length);
         marker.addEventListener("mouseenter", () =>
           this.setActive(placement.ids),
@@ -754,7 +726,8 @@ class TimelineCommentsController {
     delete popover.dataset.editing;
     popover.replaceChildren();
     const header = element("header", "bb-comments-thread-header");
-    const source = element("div", "bb-comments-thread-source", "Comment");
+    const source = element("div", "bb-comments-thread-source");
+    source.append(icon(StickyNote), document.createTextNode("Comment"));
     const headerActions = element("div", "bb-comments-header-actions");
     const resolve = element(
       "button",
@@ -771,7 +744,7 @@ class TimelineCommentsController {
       "aria-pressed",
       String(detail.thread.resolvedAt !== null),
     );
-    resolve.append(icon("check"));
+    resolve.append(icon(CheckCheck));
     resolve.addEventListener("click", () => {
       resolve.disabled = true;
       void this.#rpc
@@ -797,7 +770,7 @@ class TimelineCommentsController {
     agent.type = "button";
     agent.setAttribute("aria-label", "Send thread to agent");
     agent.title = "Send thread to agent";
-    agent.append(icon("send"));
+    agent.append(icon(Send));
     agent.addEventListener("click", () => {
       const prompt = createIndividualHandoffPrompt(
         detail.comments.map(({ body }) => body).join("\n\n"),
@@ -813,7 +786,7 @@ class TimelineCommentsController {
     removeThread.type = "button";
     removeThread.setAttribute("aria-label", "Delete thread");
     removeThread.title = "Delete thread";
-    removeThread.append(icon("trash"));
+    removeThread.append(icon(Trash2));
     removeThread.addEventListener("click", () => {
       if (!window.confirm("Delete this comment thread?")) return;
       const root = detail.comments.find(({ parentId }) => parentId === null);
@@ -851,17 +824,17 @@ class TimelineCommentsController {
         "textarea",
         "bb-comments-reply-input",
       ) as HTMLTextAreaElement;
-      textarea.placeholder = "Reply…";
+      textarea.placeholder = "Reply...";
       textarea.maxLength = 20_000;
       textarea.value = readDraft(draftKey) ?? "";
       const send = element(
         "button",
-        "bb-comments-icon-control",
+        "bb-comments-submit-shortcut",
       ) as HTMLButtonElement;
       send.type = "submit";
       send.setAttribute("aria-label", "Reply");
       send.title = "Reply · ⌘/Ctrl Enter";
-      send.append(icon("send"));
+      send.append(icon(Command), icon(CornerDownLeft));
       const error = element("div", "bb-comments-error");
       error.setAttribute("role", "status");
       const validate = () => {
@@ -919,7 +892,7 @@ class TimelineCommentsController {
     const buildHeader = (action: HTMLElement): HTMLElement => {
       const header = element("header", "bb-comments-message-header");
       const byline = element("div");
-      byline.append(element("strong", undefined, "You"));
+      byline.append(element("strong", undefined, "Me"));
       const timestamp = element("time", undefined, relativeTime(comment.createdAt));
       timestamp.dateTime = new Date(comment.createdAt).toISOString();
       timestamp.title = formatTime(comment.createdAt);
@@ -936,16 +909,13 @@ class TimelineCommentsController {
     actionsTrigger.setAttribute("role", "button");
     actionsTrigger.setAttribute("aria-label", "Comment actions");
     actionsTrigger.title = "Comment actions";
-    actionsTrigger.append(icon("more"));
+    actionsTrigger.append(icon(EllipsisVertical));
     const actionsMenu = element("div");
     actionsMenu.setAttribute("role", "menu");
-    const agent = element(
-      "button",
-      undefined,
-      "Send to agent",
-    ) as HTMLButtonElement;
+    const agent = element("button") as HTMLButtonElement;
     agent.type = "button";
     agent.setAttribute("role", "menuitem");
+    agent.append(icon(Send), document.createTextNode("Send to agent"));
     agent.addEventListener("click", () => {
       const prompt = createIndividualHandoffPrompt(
         comment.body,
@@ -957,13 +927,10 @@ class TimelineCommentsController {
         focusPrompt: true,
       });
     });
-    const edit = element(
-      "button",
-      undefined,
-      "Edit",
-    ) as HTMLButtonElement;
+    const edit = element("button") as HTMLButtonElement;
     edit.type = "button";
     edit.setAttribute("role", "menuitem");
+    edit.append(icon(Pencil), document.createTextNode("Edit"));
     edit.addEventListener("click", () => {
       const draftKey = `bb.timeline-comments.edit:${comment.id}`;
       popover.dataset.editing = "true";
@@ -980,9 +947,9 @@ class TimelineCommentsController {
       const save = element(
         "button",
         "bb-comments-submit-shortcut",
-        "⌘ ↵",
       ) as HTMLButtonElement;
       save.type = "button";
+      save.append(icon(Command), icon(CornerDownLeft));
       save.setAttribute("aria-label", "Save comment");
       save.title = "Save comment · ⌘/Ctrl Enter";
       const error = element("div", "bb-comments-error");
@@ -1043,10 +1010,10 @@ class TimelineCommentsController {
     const remove = element(
       "button",
       "bb-comments-destructive",
-      "Delete",
     ) as HTMLButtonElement;
     remove.type = "button";
     remove.setAttribute("role", "menuitem");
+    remove.append(icon(Trash2), document.createTextNode("Delete"));
     remove.addEventListener("click", () => {
       if (
         !window.confirm(

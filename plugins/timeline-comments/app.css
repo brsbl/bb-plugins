@@ -75,7 +75,7 @@
 }
 
 .bb-comments-composer {
-  width: 320px;
+  width: 288px;
   overflow: hidden;
   padding: 0;
 }
@@ -198,8 +198,9 @@
 
 .bb-comments-thread {
   display: flex;
-  width: 320px;
-  max-height: min(520px, calc(100vh - 16px));
+  width: 384px;
+  max-width: calc(100vw - 32px);
+  max-height: min(82vh, calc(100vh - 72px));
   flex-direction: column;
   overflow: hidden;
   border-radius: 12px;
@@ -217,6 +218,9 @@
   );
 }
 .bb-comments-thread-source {
+  display: flex;
+  align-items: center;
+  gap: 5px;
   min-width: 0;
   margin-right: 4px;
   overflow: hidden;
@@ -225,6 +229,11 @@
   font-weight: 500;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+.bb-comments-thread-source svg {
+  width: 13px;
+  height: 13px;
+  color: var(--muted-foreground);
 }
 .bb-comments-quiet,
 .bb-comments-icon-button {
@@ -352,8 +361,12 @@
   border-color: var(--border);
 }
 .bb-comments-submit-shortcut {
+  display: flex;
   min-width: 36px;
   height: 24px;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
   padding: 0 5px;
   border: 0;
   border-radius: 6px;
@@ -362,6 +375,10 @@
   font: inherit;
   font-size: 10px;
   cursor: pointer;
+}
+.bb-comments-submit-shortcut svg {
+  width: 13px;
+  height: 13px;
 }
 .bb-comments-submit-shortcut:hover:not(:disabled) {
   background: var(--surface-recessed);
@@ -396,7 +413,10 @@
     color-mix(in oklab, var(--foreground) 14%, transparent);
 }
 .bb-comments-actions-menu > div button {
+  display: flex;
   min-height: 28px;
+  align-items: center;
+  gap: 7px;
   padding: 0 8px;
   border: 0;
   border-radius: 5px;
@@ -404,6 +424,11 @@
   color: var(--foreground);
   font-size: 11px;
   text-align: left;
+}
+.bb-comments-actions-menu > div button svg {
+  width: 13px;
+  height: 13px;
+  color: var(--muted-foreground);
 }
 .bb-comments-actions-menu > div button:hover {
   background: var(--surface-recessed);
@@ -498,6 +523,13 @@
 .bb-comments-panel-row {
   border-bottom: 1px solid
     color-mix(in oklab, var(--border-seam, var(--border)) 68%, transparent);
+}
+.bb-comments-panel-row[data-active="true"] {
+  background: color-mix(
+    in oklab,
+    var(--surface-recessed) 72%,
+    transparent
+  );
 }
 .bb-comments-row-summary {
   display: grid;

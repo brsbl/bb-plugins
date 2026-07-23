@@ -175,14 +175,9 @@ describe("timeline comments app", () => {
     expect(panel.inspection.composer.text).toContain("Keep this draft");
   });
 
-  it("reveals panel rows and sends one contextual comment to a new composer", async () => {
+  it("uses panel rows only to reveal the anchored thread popover", async () => {
     const app = await loadPluginApp(() => import("./app.js"));
     const revealMessage = vi.fn(async () => "revealed" as const);
-    const updateComment = vi.fn(() => ({
-      thread,
-      comments: [thread.rootComment],
-      nextCursor: null,
-    }));
     const panel = renderSlot<
       PluginThreadPanelProps,
       typeof timelineCommentsRpcContract
@@ -213,7 +208,11 @@ describe("timeline comments app", () => {
             comments: [thread.rootComment],
             nextCursor: null,
           }),
-          updateComment,
+          updateComment: () => ({
+            thread,
+            comments: [thread.rootComment],
+            nextCursor: null,
+          }),
           deleteComment: () => ({ deletedThreadId: null, thread: null }),
           setThreadResolved: () => ({
             thread,
@@ -224,44 +223,15 @@ describe("timeline comments app", () => {
         },
       },
     );
-    fireEvent.click(await panel.findByRole("button", { name: /source/i }));
-    fireEvent.click(
-      await panel.findByRole("button", { name: "Comment actions" }),
-    );
-    expect(revealMessage).toHaveBeenCalledWith("msg_1");
-    fireEvent.click(panel.getByRole("menuitem", { name: "Send to agent" }));
-    expect(panel.inspection.navigateCalls).toEqual([
-      {
-        method: "toCompose",
-        options: {
-          initialPrompt:
-            "Make the API explicit.\n\nContext from the timeline:\n> source",
-          focusPrompt: true,
-        },
-      },
-    ]);
-
-    fireEvent.click(panel.getByRole("menuitem", { name: "Edit" }));
-    let editor = panel.getByRole("textbox", { name: "Edit comment" });
-    expect(panel.queryByRole("button", { name: "Reply" })).toBeNull();
-    fireEvent.keyDown(editor, { key: "Escape" });
-    expect(panel.queryByRole("textbox", { name: "Edit comment" })).toBeNull();
-    expect(panel.getByRole("button", { name: "Reply" })).toBeDefined();
-
-    fireEvent.click(panel.getByRole("button", { name: "Comment actions" }));
-    fireEvent.click(panel.getByRole("menuitem", { name: "Edit" }));
-    editor = panel.getByRole("textbox", { name: "Edit comment" });
-    fireEvent.change(editor, {
-      target: { value: "Make the contract explicit." },
-    });
-    fireEvent.click(panel.getByRole("button", { name: "Save comment" }));
+    const row = await panel.findByRole("button", { name: /source/i });
+    fireEvent.click(row);
     await vi.waitFor(() =>
-      expect(updateComment).toHaveBeenCalledWith({
-        bbThreadId: "thr_1",
-        commentId: "comment_1",
-        expectedVersion: 1,
-        body: "Make the contract explicit.",
-      }),
+      expect(revealMessage).toHaveBeenCalledWith("msg_1"),
     );
+    expect(row.closest("article")?.dataset.active).toBe("true");
+    expect(
+      panel.queryByRole("button", { name: "Comment actions" }),
+    ).toBeNull();
+    expect(panel.inspection.navigateCalls).toEqual([]);
   });
 });

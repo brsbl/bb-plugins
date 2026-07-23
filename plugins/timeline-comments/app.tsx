@@ -4,8 +4,8 @@ import {
   useRef,
   useState,
   useSyncExternalStore,
-  type ReactNode,
 } from "react";
+import { MessageSquareText } from "lucide-react";
 import {
   definePluginApp,
   useBbNavigate,
@@ -16,8 +16,6 @@ import {
   type PluginThreadPanelProps,
 } from "@bb/plugin-sdk/app";
 import type {
-  TimelineComment,
-  TimelineCommentThreadDetail,
   TimelineCommentThreadSummary,
   timelineCommentsRpcContract,
 } from "./server.js";
@@ -27,8 +25,6 @@ import {
   getTimelineCommentAnchorHealth,
   subscribeTimelineCommentAnchorHealth,
 } from "./bridge.js";
-import { commentBodyError } from "./comment-body.js";
-import { createIndividualHandoffPrompt } from "./handoff.js";
 import { mountTimelineCommentsController } from "./controller.js";
 import "./app.css";
 
@@ -40,62 +36,6 @@ function errorMessage(error: unknown): string {
 
 function excerpt(value: string, length: number): string {
   return value.length > length ? `${value.slice(0, length - 1)}…` : value;
-}
-
-function relativeTime(value: number): string {
-  const elapsed = Math.max(0, Date.now() - value);
-  if (elapsed < 60_000) return "now";
-  if (elapsed < 3_600_000) return `${Math.floor(elapsed / 60_000)}m`;
-  if (elapsed < 86_400_000) return `${Math.floor(elapsed / 3_600_000)}h`;
-  if (elapsed < 604_800_000) return `${Math.floor(elapsed / 86_400_000)}d`;
-  return new Intl.DateTimeFormat(undefined, {
-    month: "short",
-    day: "numeric",
-  }).format(value);
-}
-
-type CommentIconName =
-  | "check"
-  | "close"
-  | "comment"
-  | "more"
-  | "send";
-
-function CommentIcon({ name }: { name: CommentIconName }) {
-  const paths: Record<CommentIconName, ReactNode> = {
-    check: <path d="m5 12 4 4L19 6M3 7l3 3M13 16l2 2 6-7" />,
-    close: <path d="m7 7 10 10M17 7 7 17" />,
-    comment: (
-      <>
-        <path d="M7.5 18.5 4 20v-4.3a7.5 7.5 0 1 1 3.5 2.8Z" />
-        <path d="M8 10h8M8 14h5" />
-      </>
-    ),
-    more: (
-      <>
-        <circle cx="6" cy="12" r="1" fill="currentColor" stroke="none" />
-        <circle cx="12" cy="12" r="1" fill="currentColor" stroke="none" />
-        <circle cx="18" cy="12" r="1" fill="currentColor" stroke="none" />
-      </>
-    ),
-    send: <path d="m4 4 16 8-16 8 3-8-3-8Zm3 8h13" />,
-  };
-
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      width="16"
-      height="16"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.7"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-    >
-      {paths[name]}
-    </svg>
-  );
 }
 
 function OpenCommentsAction() {
@@ -118,7 +58,7 @@ function OpenCommentsAction() {
         })
       }
     >
-      <CommentIcon name="comment" />
+      <MessageSquareText aria-hidden="true" size={16} strokeWidth={1.5} />
     </button>
   );
 }
@@ -126,7 +66,6 @@ function OpenCommentsAction() {
 function CommentPanel({ threadId, revealMessage }: PluginThreadPanelProps) {
   const rpc = useRpc<typeof timelineCommentsRpcContract>();
   const composer = useComposer();
-  const navigate = useBbNavigate();
   const connection = useRealtimeConnectionState();
   const anchorHealth = useSyncExternalStore(
     subscribeTimelineCommentAnchorHealth,
@@ -138,14 +77,7 @@ function CommentPanel({ threadId, revealMessage }: PluginThreadPanelProps) {
   const [filter, setFilter] = useState<Filter>("open");
   const [threads, setThreads] = useState<TimelineCommentThreadSummary[]>([]);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
-  const [expandedId, setExpandedId] = useState<string | null>(null);
-  const [detail, setDetail] = useState<TimelineCommentThreadDetail | null>(
-    null,
-  );
-  const [editingComment, setEditingComment] = useState<{
-    id: string;
-    body: string;
-  } | null>(null);
+  const [activeId, setActiveId] = useState<string | null>(null);
   const [unanchored, setUnanchored] = useState<Set<string>>(new Set());
   const [summary, setSummary] = useState({ threadCount: 0, commentCount: 0 });
   const [loading, setLoading] = useState(true);
@@ -190,39 +122,12 @@ function CommentPanel({ threadId, revealMessage }: PluginThreadPanelProps) {
     [filter, nextCursor, rpc, threadId],
   );
 
-  const loadDetail = useCallback(
-    async (commentThreadId: string, cursor?: string) => {
-      const page = await rpc.call("getCommentThread", {
-        bbThreadId: threadId,
-        commentThreadId,
-        ...(cursor !== undefined ? { cursor } : {}),
-      });
-      setDetail((current) =>
-        cursor !== undefined && current?.thread.id === commentThreadId
-          ? { ...page, comments: [...current.comments, ...page.comments] }
-          : page,
-      );
-      return page;
-    },
-    [rpc, threadId],
-  );
-
   const reconcile = useCallback(async () => {
     await Promise.all([loadThreads(false), loadSummary()]);
-    if (expandedId !== null) {
-      try {
-        await loadDetail(expandedId);
-      } catch {
-        setExpandedId(null);
-        setDetail(null);
-      }
-    }
-  }, [expandedId, loadDetail, loadSummary, loadThreads]);
+  }, [loadSummary, loadThreads]);
 
   useEffect(() => {
-    setExpandedId(null);
-    setDetail(null);
-    setEditingComment(null);
+    setActiveId(null);
     void Promise.all([loadThreads(false), loadSummary()]);
   }, [filter, threadId]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -252,11 +157,9 @@ function CommentPanel({ threadId, revealMessage }: PluginThreadPanelProps) {
 
   const activate = async (item: TimelineCommentThreadSummary) => {
     const request = ++revealRequest.current;
-    setExpandedId(item.id);
+    setActiveId(item.id);
     setError(null);
     try {
-      await loadDetail(item.id);
-      if (request !== revealRequest.current) return;
       const revealed = await revealMessage(item.messageId);
       if (request !== revealRequest.current) return;
       const anchored =
@@ -270,20 +173,6 @@ function CommentPanel({ threadId, revealMessage }: PluginThreadPanelProps) {
       });
     } catch (caught) {
       if (request === revealRequest.current) setError(errorMessage(caught));
-    }
-  };
-
-  const mutate = async (operation: () => Promise<unknown>) => {
-    setBusy(true);
-    setError(null);
-    try {
-      await operation();
-      await reconcile();
-    } catch (caught) {
-      setError(errorMessage(caught));
-      if (/changed/iu.test(errorMessage(caught))) await reconcile();
-    } finally {
-      setBusy(false);
     }
   };
 
@@ -317,60 +206,6 @@ function CommentPanel({ threadId, revealMessage }: PluginThreadPanelProps) {
     } finally {
       setBusy(false);
     }
-  };
-
-  const saveEditedComment = async (comment: TimelineComment) => {
-    if (editingComment?.id !== comment.id) return;
-    if (editingComment.body === comment.body) {
-      setEditingComment(null);
-      return;
-    }
-    setBusy(true);
-    setError(null);
-    try {
-      const updated = await rpc.call("updateComment", {
-        bbThreadId: threadId,
-        commentId: comment.id,
-        expectedVersion: comment.version,
-        body: editingComment.body,
-      });
-      setDetail(updated);
-      setEditingComment(null);
-      await reconcile();
-    } catch (caught) {
-      const message = errorMessage(caught);
-      setError(message);
-      if (/changed/iu.test(message)) {
-        await reconcile();
-        setEditingComment(null);
-      }
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const deleteComment = (comment: TimelineComment) => {
-    if (
-      !window.confirm(
-        comment.parentId === null
-          ? "Delete this comment thread?"
-          : "Delete this reply?",
-      )
-    )
-      return;
-    void mutate(async () => {
-      const result = await rpc.call("deleteComment", {
-        bbThreadId: threadId,
-        commentId: comment.id,
-        expectedVersion: comment.version,
-      });
-      if (result.deletedThreadId !== null) {
-        setExpandedId(null);
-        setDetail(null);
-      } else {
-        setDetail(result.thread);
-      }
-    });
   };
 
   return (
@@ -424,11 +259,12 @@ function CommentPanel({ threadId, revealMessage }: PluginThreadPanelProps) {
           </div>
         ) : null}
         {threads.map((item) => {
-          const isExpanded = expandedId === item.id;
-          const itemDetail =
-            isExpanded && detail?.thread.id === item.id ? detail : null;
           return (
-            <article className="bb-comments-panel-row" key={item.id}>
+            <article
+              className="bb-comments-panel-row"
+              data-active={activeId === item.id ? "true" : undefined}
+              key={item.id}
+            >
               <button
                 type="button"
                 className="bb-comments-row-summary"
@@ -450,192 +286,6 @@ function CommentPanel({ threadId, revealMessage }: PluginThreadPanelProps) {
                     : ""}
                 </span>
               </button>
-              {itemDetail !== null ? (
-                <div className="bb-comments-panel-thread">
-                  <div className="bb-comments-panel-thread-header">
-                    <span>Comment</span>
-                    <button
-                      type="button"
-                      className="bb-comments-icon-control"
-                      aria-label={
-                        itemDetail.thread.resolvedAt === null
-                          ? "Resolve thread"
-                          : "Reopen thread"
-                      }
-                      title={
-                        itemDetail.thread.resolvedAt === null
-                          ? "Resolve thread"
-                          : "Reopen thread"
-                      }
-                      disabled={busy}
-                      aria-pressed={itemDetail.thread.resolvedAt !== null}
-                      onClick={() =>
-                        void mutate(async () => {
-                          const updated = await rpc.call("setThreadResolved", {
-                            bbThreadId: threadId,
-                            commentThreadId: item.id,
-                            expectedVersion: itemDetail.thread.version,
-                            resolved: itemDetail.thread.resolvedAt === null,
-                          });
-                          setDetail(updated);
-                        })
-                      }
-                    >
-                      <CommentIcon name="check" />
-                    </button>
-                  </div>
-                  {itemDetail.comments.map((comment) => (
-                    <article
-                      className="bb-comments-panel-comment"
-                      data-editing={
-                        editingComment?.id === comment.id ? "true" : undefined
-                      }
-                      key={comment.id}
-                    >
-                      <header className="bb-comments-message-header">
-                        <div>
-                          <strong>You</strong>
-                          <time
-                            dateTime={new Date(comment.createdAt).toISOString()}
-                            title={new Date(comment.createdAt).toLocaleString()}
-                          >
-                            {relativeTime(comment.createdAt)}
-                          </time>
-                        </div>
-                        <details className="bb-comments-actions-menu">
-                            <summary
-                              className="bb-comments-icon-control"
-                              role="button"
-                              aria-label="Comment actions"
-                              title="Comment actions"
-                            >
-                              <CommentIcon name="more" />
-                            </summary>
-                            <div role="menu">
-                              <button
-                                type="button"
-                                role="menuitem"
-                                onClick={() =>
-                                  setEditingComment({
-                                    id: comment.id,
-                                    body: comment.body,
-                                  })
-                                }
-                              >
-                                Edit
-                              </button>
-                              <button
-                                type="button"
-                                role="menuitem"
-                                onClick={() =>
-                                  navigate.toCompose({
-                                    initialPrompt:
-                                      createIndividualHandoffPrompt(
-                                        comment.body,
-                                        itemDetail.thread.selector.exact,
-                                      ),
-                                    focusPrompt: true,
-                                  })
-                                }
-                              >
-                                Send to agent
-                              </button>
-                              <button
-                                type="button"
-                                role="menuitem"
-                                className="bb-comments-destructive"
-                                onClick={() => deleteComment(comment)}
-                              >
-                                Delete
-                              </button>
-                            </div>
-                        </details>
-                      </header>
-                      {editingComment?.id === comment.id ? (
-                        <form
-                          className="bb-comments-panel-edit bb-comments-inline-composer"
-                          onSubmit={(event) => {
-                            event.preventDefault();
-                            void saveEditedComment(comment);
-                          }}
-                          onKeyDown={(event) => {
-                            if (event.key === "Escape") {
-                              event.preventDefault();
-                              setEditingComment(null);
-                              return;
-                            }
-                            if (
-                              event.key === "Enter" &&
-                              (event.metaKey || event.ctrlKey)
-                            ) {
-                              event.preventDefault();
-                              event.currentTarget.requestSubmit();
-                            }
-                          }}
-                        >
-                          <textarea
-                            aria-label="Edit comment"
-                            autoFocus
-                            maxLength={20_000}
-                            value={editingComment.body}
-                            onChange={(event) =>
-                              setEditingComment({
-                                id: comment.id,
-                                body: event.target.value,
-                              })
-                            }
-                          />
-                          <button
-                            type="submit"
-                            className="bb-comments-submit-shortcut"
-                            aria-label="Save comment"
-                            title="Save comment · ⌘/Ctrl Enter"
-                            disabled={
-                              busy ||
-                              editingComment.body === comment.body ||
-                              commentBodyError(editingComment.body) !== null
-                            }
-                          >
-                            ⌘ ↵
-                          </button>
-                        </form>
-                      ) : (
-                        <p>{comment.body}</p>
-                      )}
-                    </article>
-                  ))}
-                  {itemDetail.nextCursor !== null ? (
-                    <button
-                      type="button"
-                      className="bb-comments-load-more"
-                      onClick={() =>
-                        void loadDetail(
-                          item.id,
-                          itemDetail.nextCursor ?? undefined,
-                        )
-                      }
-                    >
-                      Load more replies
-                    </button>
-                  ) : null}
-                  {itemDetail.thread.resolvedAt === null &&
-                  editingComment === null ? (
-                    <ReplyForm
-                      disabled={busy}
-                      onReply={(body) =>
-                        mutate(async () => {
-                          const updated = await rpc.call("reply", {
-                            bbThreadId: threadId,
-                            commentThreadId: item.id,
-                            body,
-                          });
-                          setDetail(updated);
-                        })
-                      }
-                    />
-                  ) : null}
-                </div>
-              ) : null}
             </article>
           );
         })}
@@ -651,52 +301,6 @@ function CommentPanel({ threadId, revealMessage }: PluginThreadPanelProps) {
         ) : null}
       </div>
     </section>
-  );
-}
-
-function ReplyForm({
-  disabled,
-  onReply,
-}: {
-  disabled: boolean;
-  onReply(body: string): Promise<unknown>;
-}) {
-  const [body, setBody] = useState("");
-  return (
-    <form
-      className="bb-comments-panel-reply"
-      onSubmit={(event) => {
-        event.preventDefault();
-        void onReply(body).then(() => setBody(""));
-      }}
-      onKeyDown={(event) => {
-        if (
-          event.key === "Enter" &&
-          (event.metaKey || event.ctrlKey)
-        ) {
-          event.preventDefault();
-          event.currentTarget.requestSubmit();
-        }
-      }}
-    >
-      <div className="bb-comments-inline-composer">
-        <textarea
-          value={body}
-          placeholder="Reply…"
-          maxLength={20_000}
-          onChange={(event) => setBody(event.target.value)}
-        />
-        <button
-          type="submit"
-          className="bb-comments-submit-shortcut"
-          aria-label="Reply"
-          title="Reply · ⌘/Ctrl Enter"
-          disabled={disabled || commentBodyError(body) !== null}
-        >
-          ⌘ ↵
-        </button>
-      </div>
-    </form>
   );
 }
 
