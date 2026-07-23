@@ -284,6 +284,10 @@
   min-height: 0;
   overflow-y: auto;
 }
+.bb-comments-thread[data-actions-open="true"],
+.bb-comments-thread[data-actions-open="true"] .bb-comments-thread-comments {
+  overflow: visible;
+}
 .bb-comments-comment {
   position: relative;
   padding: 14px 14px 10px;

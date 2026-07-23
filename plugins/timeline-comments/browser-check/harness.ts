@@ -192,6 +192,31 @@ void (async () => {
         '.bb-comments-actions-menu > summary[aria-label="Comment actions"]',
       )
       ?.click();
+    await wait(0);
+    const actionsMenu = popover.querySelector<HTMLElement>(
+      ".bb-comments-actions-menu[open] > div",
+    );
+    if (actionsMenu === null)
+      throw new Error("Comment actions menu did not open");
+    const actionsRect = actionsMenu.getBoundingClientRect();
+    const deleteButton = [...actionsMenu.querySelectorAll("button")].find(
+      (button) => button.textContent === "Delete",
+    );
+    const deleteRect = deleteButton?.getBoundingClientRect();
+    const visibleAtDelete =
+      deleteRect === undefined
+        ? null
+        : document.elementFromPoint(
+            deleteRect.left + deleteRect.width / 2,
+            deleteRect.top + deleteRect.height / 2,
+          );
+    if (
+      deleteButton === undefined ||
+      deleteRect === undefined ||
+      !withinViewport(actionsRect) ||
+      !deleteButton.contains(visibleAtDelete)
+    )
+      throw new Error("Comment actions menu is clipped by the thread chrome");
     const editButton = [
       ...popover.querySelectorAll<HTMLButtonElement>(
         ".bb-comments-actions-menu button",
@@ -207,6 +232,11 @@ void (async () => {
     ) {
       throw new Error("Comment edit did not replace the message body");
     }
+    const saveEdit = popover.querySelector<HTMLButtonElement>(
+      'button[aria-label="Save comment"]',
+    );
+    if (saveEdit?.disabled !== false)
+      throw new Error("Unchanged comment cannot exit editing like Moss");
     editInput.dispatchEvent(
       new KeyboardEvent("keydown", { key: "Escape", bubbles: true }),
     );

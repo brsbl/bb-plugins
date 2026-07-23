@@ -903,6 +903,19 @@ class TimelineCommentsController {
     actionsTrigger.append(icon(EllipsisVertical));
     const actionsMenu = element("div");
     actionsMenu.setAttribute("role", "menu");
+    actions.addEventListener("toggle", () => {
+      if (actions.open) {
+        for (const other of popover.querySelectorAll<HTMLDetailsElement>(
+          ".bb-comments-actions-menu[open]",
+        )) {
+          if (other !== actions) other.open = false;
+        }
+        popover.dataset.actionsOpen = "true";
+        return;
+      }
+      if (popover.querySelector(".bb-comments-actions-menu[open]") === null)
+        delete popover.dataset.actionsOpen;
+    });
     const edit = element("button") as HTMLButtonElement;
     edit.type = "button";
     edit.setAttribute("role", "menuitem");
@@ -932,7 +945,7 @@ class TimelineCommentsController {
       error.setAttribute("role", "status");
       const validate = () => {
         const message = commentBodyError(textarea.value);
-        save.disabled = message !== null || textarea.value === comment.body;
+        save.disabled = message !== null;
         error.textContent =
           message !== null && textarea.value.trim() !== "" ? message : "";
         return message;
@@ -961,13 +974,18 @@ class TimelineCommentsController {
       });
       save.addEventListener("click", () => {
         if (validate() !== null) return;
+        const body = textarea.value.trim();
+        if (body === comment.body) {
+          cancelEdit();
+          return;
+        }
         save.disabled = true;
         void this.#rpc
           .call("updateComment", {
             bbThreadId: detail.thread.bbThreadId,
             commentId: comment.id,
             expectedVersion: comment.version,
-            body: textarea.value,
+            body,
           })
           .then(() => {
             sessionStorage.removeItem(draftKey);
