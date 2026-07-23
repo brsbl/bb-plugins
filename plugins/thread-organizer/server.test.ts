@@ -319,6 +319,10 @@ describe("Thread Organizer plugin", () => {
       initialPrompt,
       "Create a bb plugin for automatic thread organization.",
     );
+    organizer.setThread({ status: "active" });
+    await organizer.harness.behavior.emitThreadEvent("thread.active", {
+      thread: organizer.currentThread(),
+    });
     organizer.addCompletedTurn(10);
     await organizer.harness.behavior.emitThreadEvent("thread.idle", {
       lastAssistantText: "Done.",
@@ -327,6 +331,10 @@ describe("Thread Organizer plugin", () => {
     expect(organizer.currentThread().sectionId).toBe("sec_writing");
 
     for (let turn = 2; turn <= 5; turn += 1) {
+      organizer.setThread({ status: "active" });
+      await organizer.harness.behavior.emitThreadEvent("thread.active", {
+        thread: organizer.currentThread(),
+      });
       organizer.addCompletedTurn(turn * 10);
       await organizer.harness.behavior.emitThreadEvent("thread.idle", {
         lastAssistantText: "Done.",
@@ -383,6 +391,74 @@ describe("Thread Organizer plugin", () => {
     ).toEqual([
       [{ threadId: "thr_test", sectionId: "sec_writing" }],
     ]);
+    await organizer.harness.lifecycle.dispose();
+  });
+
+  it("preserves a pending move across an unclassifiable active phase", async () => {
+    const organizer = createHarness({
+      mode: "apply",
+      projectName: "Personal",
+      prompt: "Plan quarterly work.",
+      thread: {
+        projectId: "proj_personal",
+        title: "Quarterly Plan",
+      },
+    });
+    plugin(organizer.bb);
+    await organizer.harness.behavior.emitThreadEvent("thread.created", {
+      thread: organizer.currentThread(),
+    });
+    expect(organizer.currentThread().sectionId).toBeNull();
+
+    organizer.setPromptHistory(
+      "Create a bb plugin for automatic thread organization.",
+    );
+    organizer.setThread({ status: "active" });
+    await organizer.harness.behavior.emitThreadEvent("thread.active", {
+      thread: organizer.currentThread(),
+    });
+    expect(organizer.currentThread().sectionId).toBe("sec_extensions");
+
+    organizer.addCompletedTurn(10);
+    await organizer.harness.behavior.emitThreadEvent("thread.idle", {
+      lastAssistantText: "Done.",
+      thread: organizer.currentThread(),
+    });
+
+    organizer.setPromptHistory("Write a blog post about bb workflows.");
+    for (let turn = 2; turn <= 5; turn += 1) {
+      organizer.setThread({ status: "active" });
+      await organizer.harness.behavior.emitThreadEvent("thread.active", {
+        thread: organizer.currentThread(),
+      });
+      organizer.addCompletedTurn(turn * 10);
+      await organizer.harness.behavior.emitThreadEvent("thread.idle", {
+        lastAssistantText: "Done.",
+        thread: organizer.currentThread(),
+      });
+    }
+    expect(organizer.currentThread().sectionId).toBe("sec_extensions");
+
+    organizer.setPromptHistory("ok");
+    organizer.setThread({ status: "active" });
+    await organizer.harness.behavior.emitThreadEvent("thread.active", {
+      thread: organizer.currentThread(),
+    });
+
+    organizer.setPromptHistory("Write a blog post about bb workflows.");
+    for (let turn = 6; turn <= 15; turn += 1) {
+      organizer.setThread({ status: "active" });
+      await organizer.harness.behavior.emitThreadEvent("thread.active", {
+        thread: organizer.currentThread(),
+      });
+      organizer.addCompletedTurn(turn * 10);
+      await organizer.harness.behavior.emitThreadEvent("thread.idle", {
+        lastAssistantText: "Done.",
+        thread: organizer.currentThread(),
+      });
+    }
+
+    expect(organizer.currentThread().sectionId).toBe("sec_writing");
     await organizer.harness.lifecycle.dispose();
   });
 

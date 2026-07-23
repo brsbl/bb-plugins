@@ -228,6 +228,12 @@ export default function plugin(bb: BbPluginApi): void {
     if (state.sectionLocked) return;
 
     const movingManagedSection = thread.sectionId !== null;
+    if (
+      movingManagedSection &&
+      (!state.hasAppliedSection || phase !== "turn")
+    ) {
+      return;
+    }
     const minimumConfidence = movingManagedSection
       ? MOVE_SECTION_CONFIDENCE
       : NEW_SECTION_CONFIDENCE;
@@ -249,7 +255,6 @@ export default function plugin(bb: BbPluginApi): void {
     }
 
     if (movingManagedSection) {
-      if (!state.hasAppliedSection || phase !== "turn") return;
       if (state.pendingSectionId === targetSectionId) {
         state.pendingSectionStreak += 1;
       } else {
@@ -368,8 +373,13 @@ export default function plugin(bb: BbPluginApi): void {
           : [latestPromptText]
         : texts;
     const { mode } = await settings.get();
+    const movingManagedSection =
+      state.hasAppliedSection && thread.sectionId !== null;
 
-    if (!state.sectionLocked) {
+    if (
+      !state.sectionLocked &&
+      (!movingManagedSection || phase === "turn")
+    ) {
       try {
         const projectName =
           thread.projectId === PERSONAL_PROJECT_ID
