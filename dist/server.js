@@ -649,15 +649,19 @@ function plugin(bb) {
       threads.map(
         (thread) => enqueue(thread.id, async () => {
           if (!isManageableThread(thread)) return;
-          let state = await readState(thread.id);
-          const adopted = state === null;
-          if (state === null) {
-            state = initialState(thread);
-            await saveState(thread.id, state);
-          }
           const fresh = await bb.sdk.threads.get({
             threadId: thread.id
           });
+          if (!isManageableThread(fresh)) {
+            await bb.storage.kv.delete(stateKey(thread.id));
+            return;
+          }
+          let state = await readState(thread.id);
+          const adopted = state === null;
+          if (state === null) {
+            state = initialState(fresh);
+            await saveState(thread.id, state);
+          }
           await reconcileInbox(
             thread.id,
             state,

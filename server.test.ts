@@ -35,6 +35,7 @@ function completedEvent(seq: number) {
 }
 
 function createHarness(input?: {
+  archiveAfterList?: boolean;
   existingThreads?: boolean;
   mode?: "apply" | "observe";
   projectName?: string;
@@ -108,7 +109,17 @@ function createHarness(input?: {
           },
         },
         get: async () => thread,
-        list: async () => (input?.existingThreads ? [thread] : []),
+        list: async () => {
+          if (!input?.existingThreads) return [];
+          const listed = thread;
+          if (input.archiveAfterList) {
+            thread = makeThreadResponse({
+              ...thread,
+              archivedAt: thread.updatedAt + 1,
+            });
+          }
+          return [listed];
+        },
         pin,
         promptHistory: async () => promptHistory,
         unpin,
@@ -278,6 +289,22 @@ describe("Thread Organizer plugin", () => {
     await organizer.harness.behavior.runService("startup-reconciliation").done;
 
     expect(organizer.pin).toHaveBeenCalledWith({ threadId: "thr_test" });
+    await organizer.harness.lifecycle.dispose();
+  });
+
+  it("skips a thread archived while startup reconciliation is running", async () => {
+    const organizer = createHarness({
+      archiveAfterList: true,
+      existingThreads: true,
+      mode: "apply",
+      thread: { status: "idle" },
+    });
+    plugin(organizer.bb);
+
+    await organizer.harness.behavior.runService("startup-reconciliation").done;
+
+    expect(organizer.pin).not.toHaveBeenCalled();
+    expect(await organizer.bb.storage.kv.list("thread:")).toEqual([]);
     await organizer.harness.lifecycle.dispose();
   });
 
