@@ -308,7 +308,7 @@ describe("Thread Organizer plugin", () => {
     await organizer.harness.lifecycle.dispose();
   });
 
-  it("does not unpin a thread that was pinned manually", async () => {
+  it("unpins an active thread even when it was pinned manually", async () => {
     const organizer = createHarness({
       mode: "apply",
       thread: { pinnedAt: 10 },
@@ -318,23 +318,18 @@ describe("Thread Organizer plugin", () => {
       thread: organizer.currentThread(),
     });
 
-    organizer.setThread({ status: "idle" });
-    await organizer.harness.behavior.emitThreadEvent("thread.idle", {
-      lastAssistantText: "Done.",
-      thread: organizer.currentThread(),
-    });
     organizer.setThread({ status: "active" });
     await organizer.harness.behavior.emitThreadEvent("thread.active", {
       thread: organizer.currentThread(),
     });
 
     expect(organizer.pin).not.toHaveBeenCalled();
-    expect(organizer.unpin).not.toHaveBeenCalled();
-    expect(organizer.currentThread().pinnedAt).toBe(10);
+    expect(organizer.unpin).toHaveBeenCalledWith({ threadId: "thr_test" });
+    expect(organizer.currentThread().pinnedAt).toBeNull();
     await organizer.harness.lifecycle.dispose();
   });
 
-  it("does not reclaim a plugin pin after a manual unpin and re-pin", async () => {
+  it("unpins active work after a manual unpin and re-pin", async () => {
     const organizer = createHarness({ mode: "apply" });
     plugin(organizer.bb);
     await organizer.harness.behavior.emitThreadEvent("thread.created", {
@@ -354,8 +349,8 @@ describe("Thread Organizer plugin", () => {
       thread: organizer.currentThread(),
     });
 
-    expect(organizer.unpin).not.toHaveBeenCalled();
-    expect(organizer.currentThread().pinnedAt).toBe(100);
+    expect(organizer.unpin).toHaveBeenCalledWith({ threadId: "thr_test" });
+    expect(organizer.currentThread().pinnedAt).toBeNull();
     await organizer.harness.lifecycle.dispose();
   });
 

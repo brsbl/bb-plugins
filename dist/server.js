@@ -271,9 +271,6 @@ function initialState(thread) {
     createdAt: thread.createdAt,
     hasAppliedSection: false,
     hasAppliedTitle: false,
-    inboxLocked: false,
-    inboxPinned: false,
-    lastInboxPinnedAt: null,
     lastAppliedSectionId: null,
     lastAppliedTitle: null,
     lastCompletedSeq: 0,
@@ -288,14 +285,7 @@ function initialState(thread) {
 function isThreadState(value) {
   if (typeof value !== "object" || value === null) return false;
   const state = value;
-  return state.version === 1 && typeof state.completedTurns === "number" && typeof state.createdAt === "number" && typeof state.hasAppliedSection === "boolean" && typeof state.hasAppliedTitle === "boolean" && (typeof state.inboxLocked === "boolean" || state.inboxLocked === void 0) && (typeof state.inboxPinned === "boolean" || state.inboxPinned === void 0) && (typeof state.lastInboxPinnedAt === "number" || state.lastInboxPinnedAt === null || state.lastInboxPinnedAt === void 0) && (typeof state.lastAppliedSectionId === "string" || state.lastAppliedSectionId === null) && (typeof state.lastAppliedTitle === "string" || state.lastAppliedTitle === null) && typeof state.lastCompletedSeq === "number" && typeof state.nextEvaluationTurn === "number" && (typeof state.pendingSectionId === "string" || state.pendingSectionId === null) && typeof state.pendingSectionStreak === "number" && typeof state.sectionLocked === "boolean" && typeof state.titleLocked === "boolean";
-}
-function normalizeThreadState(state) {
-  return {
-    ...state,
-    inboxLocked: state.inboxLocked ?? false,
-    inboxPinned: state.inboxPinned ?? false
-  };
+  return state.version === 1 && typeof state.completedTurns === "number" && typeof state.createdAt === "number" && typeof state.hasAppliedSection === "boolean" && typeof state.hasAppliedTitle === "boolean" && (typeof state.lastAppliedSectionId === "string" || state.lastAppliedSectionId === null) && (typeof state.lastAppliedTitle === "string" || state.lastAppliedTitle === null) && typeof state.lastCompletedSeq === "number" && typeof state.nextEvaluationTurn === "number" && (typeof state.pendingSectionId === "string" || state.pendingSectionId === null) && typeof state.pendingSectionStreak === "number" && typeof state.sectionLocked === "boolean" && typeof state.titleLocked === "boolean";
 }
 function syncManualLocks(state, thread) {
   let changed = false;
@@ -356,7 +346,7 @@ function plugin(bb) {
   async function readState(threadId) {
     const stored = await bb.storage.kv.get(stateKey(threadId));
     if (stored === void 0) return null;
-    if (isThreadState(stored)) return normalizeThreadState(stored);
+    if (isThreadState(stored)) return stored;
     bb.log.warn(`thread=${threadId} action=ignore-invalid-state`);
     return null;
   }
@@ -402,19 +392,6 @@ function plugin(bb) {
     const { mode } = await settings.get();
     const thread = await bb.sdk.threads.get({ threadId });
     const shouldBeInInbox = phase !== "active";
-    if (state.inboxPinned) {
-      const legacyFingerprint = state.lastInboxPinnedAt === void 0;
-      if (legacyFingerprint && thread.pinnedAt !== null) {
-        state.lastInboxPinnedAt = thread.pinnedAt;
-      } else if (thread.pinnedAt !== state.lastInboxPinnedAt) {
-        state.inboxPinned = false;
-        state.lastInboxPinnedAt = null;
-        state.inboxLocked = true;
-        bb.log.info(`thread=${threadId} action=manual-lock inbox=true`);
-        return;
-      }
-    }
-    if (state.inboxLocked) return;
     if (shouldBeInInbox) {
       if (thread.pinnedAt !== null) return;
       if (mode !== "apply") {
@@ -423,19 +400,13 @@ function plugin(bb) {
         );
         return;
       }
-      const updated = await bb.sdk.threads.pin({ threadId });
-      state.inboxPinned = true;
-      state.lastInboxPinnedAt = updated.pinnedAt;
+      await bb.sdk.threads.pin({ threadId });
       bb.log.info(
         `thread=${threadId} phase=${phase} mode=apply action=inbox-pinned`
       );
       return;
     }
-    if (!state.inboxPinned) return;
-    if (thread.pinnedAt === null) {
-      state.inboxPinned = false;
-      return;
-    }
+    if (thread.pinnedAt === null) return;
     if (mode !== "apply") {
       bb.log.info(
         `thread=${threadId} phase=${phase} mode=observe action=propose-inbox-unpin`
@@ -443,8 +414,6 @@ function plugin(bb) {
       return;
     }
     await bb.sdk.threads.unpin({ threadId });
-    state.inboxPinned = false;
-    state.lastInboxPinnedAt = null;
     bb.log.info(
       `thread=${threadId} phase=${phase} mode=apply action=inbox-unpinned`
     );
