@@ -60,17 +60,34 @@ try {
     const markers = [...document.querySelectorAll(".bb-comments-marker")];
     const popover = document.querySelector(".bb-comments-thread");
     const popoverRect = popover?.getBoundingClientRect();
+    const cluster = markers.find(
+      (marker) => marker.querySelector(".bb-comments-marker-count") !== null,
+    );
+    const clusterIconRect = cluster
+      ?.querySelector("svg")
+      ?.getBoundingClientRect();
+    const clusterCountRect = cluster
+      ?.querySelector(".bb-comments-marker-count")
+      ?.getBoundingClientRect();
     return {
       usesRightRail: markers.every(
         (marker) => marker.dataset.bbCommentGutter === "right",
       ),
+      countIsGutterSide:
+        clusterIconRect !== undefined &&
+        clusterCountRect !== undefined &&
+        clusterCountRect.left >= clusterIconRect.right,
       popoverBounded:
         popoverRect !== undefined &&
         popoverRect.left >= 0 &&
         popoverRect.right <= window.innerWidth,
     };
   });
-  if (!narrow.usesRightRail || !narrow.popoverBounded) {
+  if (
+    !narrow.usesRightRail ||
+    !narrow.countIsGutterSide ||
+    !narrow.popoverBounded
+  ) {
     throw new Error("Narrow viewport did not retain a bounded right gutter");
   }
   await page.setViewportSize({ width: 900, height: 600 });

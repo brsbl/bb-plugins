@@ -116,6 +116,17 @@ void (async () => {
       throw new Error("Expected one 8-thread collision marker");
     if (overflow.querySelector("svg") === null)
       throw new Error("Collision marker omitted its comment icon");
+    const clusterIconRect = overflow
+      .querySelector("svg")!
+      .getBoundingClientRect();
+    const clusterCountRect = overflow
+      .querySelector(".bb-comments-marker-count")!
+      .getBoundingClientRect();
+    if (
+      overflow.dataset.bbCommentGutter === "left" &&
+      clusterCountRect.right > clusterIconRect.left
+    )
+      throw new Error("Left-gutter cluster count is not gutter-side");
     const markerRect = overflow.getBoundingClientRect();
     const proseRect = prose.getBoundingClientRect();
     if (Math.abs(proseRect.left - markerRect.right - 8) > 1)

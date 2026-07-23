@@ -8,7 +8,6 @@ import {
 import { MessageSquareText } from "lucide-react";
 import {
   definePluginApp,
-  useBbNavigate,
   useComposer,
   useRealtime,
   useRealtimeConnectionState,
@@ -38,25 +37,42 @@ function excerpt(value: string, length: number): string {
   return value.length > length ? `${value.slice(0, length - 1)}…` : value;
 }
 
-function OpenCommentsAction() {
-  const navigate = useBbNavigate();
-  const openThreadPanel = navigate.experimental_openThreadPanel;
+function AddCommentsAction() {
+  const rpc = useRpc<typeof timelineCommentsRpcContract>();
+  const composer = useComposer();
+  const [busy, setBusy] = useState(false);
+  const threadId =
+    composer.scope.kind === "thread" ? composer.scope.threadId : null;
 
-  if (typeof openThreadPanel !== "function") return null;
+  if (threadId === null) return null;
+
+  const addComments = async () => {
+    setBusy(true);
+    try {
+      const summary = await rpc.call("getThreadHandoffSummary", {
+        bbThreadId: threadId,
+      });
+      if (summary.threadCount === 0) return;
+      composer.insertMention({
+        provider: "thread-comments",
+        id: threadId,
+        label: `${summary.commentCount} ${summary.commentCount === 1 ? "comment" : "comments"} from ${summary.threadCount} open ${summary.threadCount === 1 ? "thread" : "threads"}`,
+      });
+      composer.focus();
+    } finally {
+      setBusy(false);
+    }
+  };
 
   return (
     <button
       type="button"
       className="bb-comments-composer-action"
-      aria-label="Open comments"
-      title="Open comments"
+      aria-label="Add comments to chat"
+      title="Add comments to chat"
+      disabled={busy}
       onMouseDown={(event) => event.preventDefault()}
-      onClick={() =>
-        openThreadPanel({
-          actionId: "comments",
-          title: "Comments",
-        })
-      }
+      onClick={() => void addComments()}
     >
       <MessageSquareText aria-hidden="true" size={16} strokeWidth={1.5} />
     </button>
@@ -65,7 +81,6 @@ function OpenCommentsAction() {
 
 function CommentPanel({ threadId, revealMessage }: PluginThreadPanelProps) {
   const rpc = useRpc<typeof timelineCommentsRpcContract>();
-  const composer = useComposer();
   const connection = useRealtimeConnectionState();
   const anchorHealth = useSyncExternalStore(
     subscribeTimelineCommentAnchorHealth,
@@ -79,24 +94,8 @@ function CommentPanel({ threadId, revealMessage }: PluginThreadPanelProps) {
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [unanchored, setUnanchored] = useState<Set<string>>(new Set());
-  const [summary, setSummary] = useState({ threadCount: 0, commentCount: 0 });
   const [loading, setLoading] = useState(true);
-  const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  const loadSummary = useCallback(async () => {
-    try {
-      const result = await rpc.call("getThreadHandoffSummary", {
-        bbThreadId: threadId,
-      });
-      setSummary({
-        threadCount: result.threadCount,
-        commentCount: result.commentCount,
-      });
-    } catch (caught) {
-      setError(errorMessage(caught));
-    }
-  }, [rpc, threadId]);
 
   const loadThreads = useCallback(
     async (append = false) => {
@@ -123,12 +122,12 @@ function CommentPanel({ threadId, revealMessage }: PluginThreadPanelProps) {
   );
 
   const reconcile = useCallback(async () => {
-    await Promise.all([loadThreads(false), loadSummary()]);
-  }, [loadSummary, loadThreads]);
+    await loadThreads(false);
+  }, [loadThreads]);
 
   useEffect(() => {
     setActiveId(null);
-    void Promise.all([loadThreads(false), loadSummary()]);
+    void loadThreads(false);
   }, [filter, threadId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(
@@ -176,54 +175,8 @@ function CommentPanel({ threadId, revealMessage }: PluginThreadPanelProps) {
     }
   };
 
-  const addAll = async () => {
-    setBusy(true);
-    setError(null);
-    try {
-      const latest = await rpc.call("getThreadHandoffSummary", {
-        bbThreadId: threadId,
-      });
-      if (latest.threadCount === 0)
-        throw new Error("There are no open comments to add");
-      if (
-        composer.scope.kind !== "thread" ||
-        composer.scope.threadId !== threadId
-      ) {
-        throw new Error("The current thread composer is not available");
-      }
-      composer.insertMention({
-        provider: "thread-comments",
-        id: threadId,
-        label: `${latest.commentCount} comments from ${latest.threadCount} open ${latest.threadCount === 1 ? "thread" : "threads"}`,
-      });
-      composer.focus();
-      setSummary({
-        threadCount: latest.threadCount,
-        commentCount: latest.commentCount,
-      });
-    } catch (caught) {
-      setError(errorMessage(caught));
-    } finally {
-      setBusy(false);
-    }
-  };
-
   return (
     <section className="bb-comments-panel" aria-label="Timeline comments">
-      <header className="bb-comments-panel-header">
-        <h2>Comments</h2>
-        {summary.threadCount > 0 ? (
-          <button
-            type="button"
-            className="bb-comments-primary"
-            disabled={busy}
-            onClick={() => void addAll()}
-          >
-            Add to chat
-          </button>
-        ) : null}
-      </header>
-
       <div
         className="bb-comments-filters"
         role="group"
@@ -306,7 +259,7 @@ export default definePluginApp((app) => {
   app.composer.customize({
     id: "timeline-comments",
     scopes: ["thread"],
-    actions: [{ id: "open-comments", component: OpenCommentsAction }],
+    actions: [{ id: "add-comments", component: AddCommentsAction }],
   });
   app.slots.threadPanelAction({
     id: "comments",

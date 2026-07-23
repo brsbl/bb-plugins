@@ -35,6 +35,9 @@
   justify-content: center;
   gap: 2px;
 }
+[data-bb-comment-gutter="left"].bb-comments-marker-cluster {
+  flex-direction: row-reverse;
+}
 .bb-comments-marker-cluster svg {
   width: 16px;
   height: 16px;
@@ -491,23 +494,6 @@
     13px/1.45 ui-sans-serif,
     system-ui,
     sans-serif;
-}
-.bb-comments-panel-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 10px 12px;
-  border-bottom: 1px solid var(--border-seam, var(--border));
-}
-.bb-comments-panel-header h2 {
-  margin: 0;
-  font-size: 14px;
-}
-.bb-comments-panel-header p {
-  margin: 2px 0 0;
-  color: var(--muted-foreground);
-  font-size: 10px;
 }
 .bb-comments-filters {
   display: flex;

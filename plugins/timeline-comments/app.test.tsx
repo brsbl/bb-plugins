@@ -63,7 +63,7 @@ describe("timeline comments app", () => {
       {
         id: "timeline-comments",
         scopes: ["thread"],
-        actions: [{ id: "open-comments" }],
+        actions: [{ id: "add-comments" }],
       },
     ]);
     expect(app.contentScripts.map(({ id }) => id)).toEqual([
@@ -71,28 +71,40 @@ describe("timeline comments app", () => {
     ]);
   });
 
-  it("opens the Comments panel from the thread composer action", async () => {
+  it("adds open comments to the draft from the thread composer action", async () => {
     const app = await loadPluginApp(() => import("./app.js"));
     const action = renderSlot(
       app.composerCustomizations[0]!.actions![0]!,
       {},
       {
         context: { threadId: "thr_1" },
-        composer: { scope: { kind: "thread", threadId: "thr_1" } },
-        openThreadPanel: () => true,
+        composer: {
+          text: "Keep this draft",
+          scope: { kind: "thread", threadId: "thr_1" },
+        },
+        rpc: {
+          getThreadHandoffSummary: () => ({
+            threadCount: 1,
+            commentCount: 1,
+            codePointSize: 100,
+          }),
+        },
       },
     );
 
     fireEvent.click(
-      action.getByRole("button", { name: "Open comments" }),
+      action.getByRole("button", { name: "Add comments to chat" }),
     );
-
-    expect(action.inspection.navigateCalls).toEqual([
-      {
-        method: "experimental_openThreadPanel",
-        options: { actionId: "comments", title: "Comments" },
-      },
-    ]);
+    await vi.waitFor(() =>
+      expect(action.inspection.composer.mentions).toHaveLength(1),
+    );
+    expect(action.inspection.composer.mentions[0]).toEqual({
+      provider: "thread-comments",
+      id: "thr_1",
+      label: "1 comment from 1 open thread",
+    });
+    expect(action.inspection.composer.text).toContain("Keep this draft");
+    expect(action.inspection.navigateCalls).toEqual([]);
   });
 
   it("removes every content-script node and tolerates repeated disposal", async () => {
@@ -110,7 +122,7 @@ describe("timeline comments app", () => {
     ).toHaveLength(0);
   });
 
-  it("adds a fresh bulk mention without replacing the existing draft", async () => {
+  it("shows the comment list without a duplicate title or chat action", async () => {
     const app = await loadPluginApp(() => import("./app.js"));
     const panel = renderSlot<
       PluginThreadPanelProps,
@@ -124,10 +136,6 @@ describe("timeline comments app", () => {
       },
       {
         context: { threadId: "thr_1" },
-        composer: {
-          text: "Keep this draft",
-          scope: { kind: "thread", threadId: "thr_1" },
-        },
         rpc: {
           listCommentThreads: () => ({ threads: [thread], nextCursor: null }),
           getThreadHandoffSummary: () => ({
@@ -165,20 +173,10 @@ describe("timeline comments app", () => {
         },
       },
     );
-    const button = await panel.findByRole("button", {
-      name: "Add to chat",
-    });
+    expect(panel.queryByRole("heading", { name: "Comments" })).toBeNull();
+    expect(panel.queryByRole("button", { name: "Add to chat" })).toBeNull();
     expect(panel.queryByText("1 open comment")).toBeNull();
-    fireEvent.click(button);
-    await vi.waitFor(() =>
-      expect(panel.inspection.composer.mentions).toHaveLength(1),
-    );
-    expect(panel.inspection.composer.mentions[0]).toEqual({
-      provider: "thread-comments",
-      id: "thr_1",
-      label: "1 comments from 1 open thread",
-    });
-    expect(panel.inspection.composer.text).toContain("Keep this draft");
+    expect(await panel.findByRole("button", { name: /source/i })).not.toBeNull();
   });
 
   it("uses panel rows only to reveal the anchored thread popover", async () => {
