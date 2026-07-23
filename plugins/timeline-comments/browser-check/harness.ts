@@ -359,6 +359,54 @@ void (async () => {
     commentsScroller.dispatchEvent(new Event("scroll"));
     await wait(30);
 
+    const clippedTrigger = popover.querySelector<HTMLButtonElement>(
+      `[data-bb-comment-id="comment_root"] ` +
+        '.bb-comments-actions-menu > button[aria-label="Comment actions"]',
+    )!;
+    const scrollerRect = commentsScroller.getBoundingClientRect();
+    const triggerRect = clippedTrigger.getBoundingClientRect();
+    commentsScroller.scrollTop +=
+      triggerRect.top -
+      scrollerRect.top +
+      triggerRect.height / 2;
+    commentsScroller.dispatchEvent(new Event("scroll"));
+    await wait(30);
+    const clippedRect = clippedTrigger.getBoundingClientRect();
+    if (
+      clippedRect.top >= scrollerRect.top ||
+      clippedRect.bottom <= scrollerRect.top
+    ) {
+      throw new Error("Browser fixture did not partially clip action trigger");
+    }
+    const originalAddEventListener = document.addEventListener;
+    let pointerdownListenerAdds = 0;
+    document.addEventListener = ((
+      type: string,
+      listener: EventListenerOrEventListenerObject,
+      options?: boolean | AddEventListenerOptions,
+    ) => {
+      if (type === "pointerdown") pointerdownListenerAdds += 1;
+      originalAddEventListener.call(document, type, listener, options);
+    }) as typeof document.addEventListener;
+    clippedTrigger.focus({ preventScroll: true });
+    try {
+      clippedTrigger.click();
+    } finally {
+      document.addEventListener = originalAddEventListener;
+    }
+    if (
+      document.querySelector(".bb-comments-actions-popover") !== null ||
+      clippedTrigger.getAttribute("aria-expanded") !== "false" ||
+      pointerdownListenerAdds !== 0
+    ) {
+      throw new Error(
+        "Partially clipped trigger left a menu or dismissal listener open",
+      );
+    }
+    commentsScroller.scrollTop = 0;
+    commentsScroller.dispatchEvent(new Event("scroll"));
+    await wait(30);
+
     popover
       .querySelector<HTMLButtonElement>(
         '.bb-comments-actions-menu > button[aria-label="Comment actions"]',

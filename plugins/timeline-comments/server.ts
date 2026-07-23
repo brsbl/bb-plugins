@@ -743,12 +743,21 @@ function parseCli(argv: string[]): {
   let index = 1;
   let commentThreadId: string | undefined;
   if (command === "get") {
-    const candidate = argv[index];
-    if (candidate === undefined || candidate.startsWith("--")) {
-      throw new Error("get requires a comment-thread-id");
+    if (argv[index] === "--") {
+      const candidate = argv[index + 1];
+      if (candidate === undefined) {
+        throw new Error("get requires a comment-thread-id");
+      }
+      commentThreadId = candidate;
+      index += 2;
+    } else {
+      const candidate = argv[index];
+      if (candidate === undefined || candidate.startsWith("--")) {
+        throw new Error("get requires a comment-thread-id");
+      }
+      commentThreadId = candidate;
+      index += 1;
     }
-    commentThreadId = candidate;
-    index += 1;
   }
   let threadId: string | undefined;
   let filter: "open" | "resolved" | "all" = "open";

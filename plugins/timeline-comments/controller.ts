@@ -1178,6 +1178,7 @@ class TimelineCommentsController {
     trigger.setAttribute("aria-expanded", "true");
     this.#portal.append(menu);
     this.positionActionsMenu();
+    if (this.#actionsMenu !== menu) return;
 
     this.#outsideActionsMenu = (event) => {
       if (

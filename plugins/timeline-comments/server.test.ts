@@ -618,6 +618,53 @@ describe("timeline comments backend", () => {
     }
   });
 
+  it("accepts an escaped generated comment-thread ID that begins with dashes", async () => {
+    const host = await loadPlugin();
+    const created = await createComment(host, "Escaped ID");
+    const escapedId = "--generated-comment-thread";
+    const db = host.bb.storage.database();
+    db.transaction(() => {
+      db.prepare(
+        `INSERT INTO comment_threads (
+           id, bb_thread_id, message_id, message_role,
+           selector_version, selector_start, selector_end, selector_exact,
+           selector_prefix, selector_suffix, version, created_at, updated_at,
+           resolved_at
+         )
+         SELECT
+           ?, bb_thread_id, message_id, message_role,
+           selector_version, selector_start, selector_end, selector_exact,
+           selector_prefix, selector_suffix, version, created_at, updated_at,
+           resolved_at
+         FROM comment_threads
+         WHERE id = ?`,
+      ).run(escapedId, created.thread.id);
+      db.prepare("UPDATE comments SET thread_id = ? WHERE thread_id = ?").run(
+        escapedId,
+        created.thread.id,
+      );
+      db.prepare("DELETE FROM comment_threads WHERE id = ?").run(
+        created.thread.id,
+      );
+    })();
+
+    const fetched = await host.harness.runCli(
+      ["get", "--", escapedId, "--json"],
+      { threadId: "thr_1" },
+    );
+    expect(fetched.exitCode).toBe(0);
+    expect(JSON.parse(fetched.stdout ?? "")).toMatchObject({
+      thread: { id: escapedId },
+      comments: [{ body: "Escaped ID" }],
+    });
+
+    const unescapedFlag = await host.harness.runCli(["get", "--json"], {
+      threadId: "thr_1",
+    });
+    expect(unescapedFlag.exitCode).toBe(1);
+    expect(unescapedFlag.stderr).toContain("comment-thread-id");
+  });
+
   it("keeps Unicode-heavy CLI pages below the host limit and fails clearly for one oversized record", async () => {
     const host = await loadPlugin();
     const body = "😀".repeat(10_000);
