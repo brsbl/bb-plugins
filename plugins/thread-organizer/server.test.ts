@@ -52,6 +52,7 @@ function createHarness(input?: {
     ...input?.thread,
   });
   const events: ReturnType<typeof completedEvent>[] = [];
+  let promptHistory = [promptEntry(prompt)];
   const update = vi.fn(
     async (args: {
       sectionId?: string | null;
@@ -90,7 +91,7 @@ function createHarness(input?: {
           },
         },
         get: async () => thread,
-        promptHistory: async () => [promptEntry(prompt)],
+        promptHistory: async () => promptHistory,
         update,
       },
     },
@@ -104,6 +105,11 @@ function createHarness(input?: {
     },
     currentThread() {
       return thread;
+    },
+    setPromptHistory(...texts: string[]): void {
+      promptHistory = texts.map((text, index) =>
+        promptEntry(text, index + 1),
+      );
     },
     setThread(
       changes: Partial<ReturnType<typeof makeThreadResponse>>,
@@ -289,6 +295,94 @@ describe("Thread Organizer plugin", () => {
         message.includes("action=propose-section"),
     );
     expect(turnProposals).toHaveLength(2);
+    await organizer.harness.lifecycle.dispose();
+  });
+
+  it("moves a managed section after two due evaluations of clear recent intent", async () => {
+    const initialPrompt = "Write a blog post about organizing bb threads.";
+    const organizer = createHarness({
+      mode: "apply",
+      projectName: "Personal",
+      prompt: initialPrompt,
+      thread: {
+        projectId: "proj_personal",
+        title: "Write Thread Organization Blog Post",
+      },
+    });
+    plugin(organizer.bb);
+    await organizer.harness.behavior.emitThreadEvent("thread.created", {
+      thread: organizer.currentThread(),
+    });
+    expect(organizer.currentThread().sectionId).toBe("sec_writing");
+
+    organizer.setPromptHistory(
+      initialPrompt,
+      "Create a bb plugin for automatic thread organization.",
+    );
+    organizer.addCompletedTurn(10);
+    await organizer.harness.behavior.emitThreadEvent("thread.idle", {
+      lastAssistantText: "Done.",
+      thread: organizer.currentThread(),
+    });
+    expect(organizer.currentThread().sectionId).toBe("sec_writing");
+
+    for (let turn = 2; turn <= 5; turn += 1) {
+      organizer.addCompletedTurn(turn * 10);
+      await organizer.harness.behavior.emitThreadEvent("thread.idle", {
+        lastAssistantText: "Done.",
+        thread: organizer.currentThread(),
+      });
+    }
+
+    expect(organizer.currentThread().sectionId).toBe("sec_extensions");
+    expect(
+      organizer.update.mock.calls.filter(
+        ([args]) => args.sectionId !== undefined,
+      ),
+    ).toEqual([
+      [{ threadId: "thr_test", sectionId: "sec_writing" }],
+      [{ threadId: "thr_test", sectionId: "sec_extensions" }],
+    ]);
+    await organizer.harness.lifecycle.dispose();
+  });
+
+  it("abstains from moving on mixed recent section intent", async () => {
+    const initialPrompt = "Write a blog post about organizing bb threads.";
+    const organizer = createHarness({
+      mode: "apply",
+      projectName: "Personal",
+      prompt: initialPrompt,
+    });
+    plugin(organizer.bb);
+    await organizer.harness.behavior.emitThreadEvent("thread.created", {
+      thread: organizer.currentThread(),
+    });
+
+    organizer.setPromptHistory(
+      initialPrompt,
+      "Write a blog post about creating a bb plugin.",
+    );
+    organizer.addCompletedTurn(10);
+    await organizer.harness.behavior.emitThreadEvent("thread.idle", {
+      lastAssistantText: "Done.",
+      thread: organizer.currentThread(),
+    });
+    for (let turn = 2; turn <= 5; turn += 1) {
+      organizer.addCompletedTurn(turn * 10);
+      await organizer.harness.behavior.emitThreadEvent("thread.idle", {
+        lastAssistantText: "Done.",
+        thread: organizer.currentThread(),
+      });
+    }
+
+    expect(organizer.currentThread().sectionId).toBe("sec_writing");
+    expect(
+      organizer.update.mock.calls.filter(
+        ([args]) => args.sectionId !== undefined,
+      ),
+    ).toEqual([
+      [{ threadId: "thr_test", sectionId: "sec_writing" }],
+    ]);
     await organizer.harness.lifecycle.dispose();
   });
 

@@ -124,6 +124,14 @@ function promptTexts(
     );
 }
 
+function mostRecentSubstantiveText(texts: string[]): string | null {
+  for (let index = texts.length - 1; index >= 0; index -= 1) {
+    const text = texts[index]!;
+    if (isSubstantiveText(text)) return text;
+  }
+  return null;
+}
+
 function classificationSummary(decision: SectionClassification): string {
   return [
     `target=${decision.target}`,
@@ -350,6 +358,15 @@ export default function plugin(bb: BbPluginApi): void {
       ...(thread.titleFallback === null ? [] : [thread.titleFallback]),
       ...historyTexts,
     ];
+    const latestPromptText = mostRecentSubstantiveText(historyTexts);
+    const sectionTexts =
+      phase === "turn" &&
+      state.hasAppliedSection &&
+      thread.sectionId !== null
+        ? latestPromptText === null
+          ? []
+          : [latestPromptText]
+        : texts;
     const { mode } = await settings.get();
 
     if (!state.sectionLocked) {
@@ -364,7 +381,7 @@ export default function plugin(bb: BbPluginApi): void {
               ).name;
         const decision = classifySection({
           projectName,
-          texts,
+          texts: sectionTexts,
         });
         if (decision !== null) {
           const sectionId = resolveSectionId(
