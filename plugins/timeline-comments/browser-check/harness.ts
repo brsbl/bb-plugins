@@ -122,6 +122,8 @@ void (async () => {
     const clusterCountRect = overflow
       .querySelector(".bb-comments-marker-count")!
       .getBoundingClientRect();
+    if (clusterIconRect.width !== 20 || clusterIconRect.height !== 20)
+      throw new Error("Cluster icon does not match the single-marker icon size");
     if (
       overflow.dataset.bbCommentGutter === "left" &&
       clusterCountRect.right > clusterIconRect.left
