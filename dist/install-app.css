@@ -1,0 +1,676 @@
+[data-bb-plugin-release-style="timeline-comments"] { --bb-plugin-release-style: 1; }
+.bb-comments-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 52;
+  pointer-events: none;
+}
+
+.bb-comments-marker {
+  position: fixed;
+  display: grid;
+  width: 32px;
+  height: 32px;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  box-shadow: none;
+  color: var(--muted-foreground);
+  font:
+    600 10px/1 ui-sans-serif,
+    system-ui,
+    sans-serif;
+  pointer-events: auto;
+  cursor: pointer;
+}
+
+.bb-comments-marker svg {
+  width: 20px;
+  height: 20px;
+}
+.bb-comments-marker-cluster {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+}
+[data-bb-comment-gutter="left"].bb-comments-marker-cluster {
+  flex-direction: row-reverse;
+}
+.bb-comments-marker-cluster svg {
+  width: 20px;
+  height: 20px;
+}
+.bb-comments-marker-count {
+  min-width: 6px;
+  font-size: 9px;
+  line-height: 1;
+}
+.bb-comments-marker:hover,
+.bb-comments-marker:focus-visible {
+  background: var(--surface-recessed);
+  color: var(--foreground);
+  outline: none;
+}
+
+.bb-comments-composer-action-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.bb-comments-composer-action-error {
+  color: var(--destructive-text, var(--muted-foreground));
+  font-size: 10px;
+  line-height: 1;
+  white-space: nowrap;
+}
+.bb-comments-composer-action {
+  display: grid;
+  width: 28px;
+  height: 28px;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted-foreground);
+  cursor: pointer;
+}
+.bb-comments-composer-action:hover {
+  background: var(--surface-recessed);
+  color: var(--foreground);
+}
+.bb-comments-composer-action:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 1px;
+}
+
+.bb-comments-composer,
+.bb-comments-popover {
+  position: fixed;
+  z-index: 54;
+  border: 1px solid var(--border);
+  border-radius: 11px;
+  background: var(--popover);
+  box-shadow: 0 8px 24px
+    color-mix(in oklab, var(--foreground) 12%, transparent);
+  color: var(--popover-foreground);
+  outline: none;
+  font:
+    13px/1.45 ui-sans-serif,
+    system-ui,
+    sans-serif;
+}
+
+.bb-comments-composer {
+  width: 288px;
+  overflow: hidden;
+  padding: 0;
+}
+.bb-comments-textarea,
+.bb-comments-reply-input,
+.bb-comments-edit-input,
+.bb-comments-panel textarea {
+  width: 100%;
+  box-sizing: border-box;
+  resize: vertical;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--background);
+  color: var(--foreground);
+  font: inherit;
+  outline: none;
+}
+.bb-comments-textarea {
+  min-height: 64px;
+  padding: 10px 12px;
+  border: 0;
+  background: transparent;
+  resize: none;
+}
+.bb-comments-textarea:focus,
+.bb-comments-reply-input:focus,
+.bb-comments-edit-input:focus,
+.bb-comments-panel textarea:focus {
+  box-shadow: 0 0 0 1px var(--ring);
+}
+.bb-comments-edit-input:focus,
+.bb-comments-panel-edit textarea:focus {
+  box-shadow: none;
+}
+.bb-comments-composer-footer,
+.bb-comments-thread-header,
+.bb-comments-comment-actions,
+.bb-comments-header-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+.bb-comments-composer-footer {
+  min-height: 38px;
+  padding: 6px 8px 6px 12px;
+  border-top: 1px solid var(--border-seam, var(--border));
+  background: color-mix(
+    in oklab,
+    var(--surface-recessed) 42%,
+    var(--popover)
+  );
+}
+.bb-comments-composer > .bb-comments-error {
+  padding-right: 12px;
+  padding-left: 12px;
+}
+.bb-comments-hint {
+  color: var(--muted-foreground);
+  font-size: 10px;
+}
+.bb-comments-primary,
+.bb-comments-quiet,
+.bb-comments-icon-button,
+.bb-comments-icon-control,
+.bb-comments-cluster-row,
+.bb-comments-panel button {
+  font: inherit;
+  cursor: pointer;
+}
+.bb-comments-primary {
+  min-height: 28px;
+  padding: 0 9px;
+  border: 0;
+  border-radius: 6px;
+  background: var(--primary);
+  color: var(--primary-foreground);
+  font-size: 11px;
+  font-weight: 600;
+}
+.bb-comments-primary:disabled {
+  cursor: default;
+  opacity: 0.45;
+}
+.bb-comments-icon-control {
+  display: grid;
+  width: 24px;
+  height: 24px;
+  flex: 0 0 24px;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--muted-foreground);
+}
+.bb-comments-icon-control:hover,
+.bb-comments-icon-control[aria-pressed="true"] {
+  background: var(--surface-recessed);
+  color: var(--foreground);
+}
+.bb-comments-icon-control:focus-visible {
+  outline: 1px solid var(--ring);
+  outline-offset: 1px;
+}
+.bb-comments-icon-control:disabled {
+  cursor: default;
+  opacity: 0.4;
+}
+.bb-comments-icon-control svg {
+  width: 14px;
+  height: 14px;
+}
+.bb-comments-error,
+.bb-comments-panel-error {
+  padding: 6px 0;
+  color: var(--destructive-text, var(--foreground));
+  font-size: 11px;
+}
+
+.bb-comments-thread {
+  display: flex;
+  width: 384px;
+  max-width: calc(100vw - 32px);
+  max-height: min(82vh, calc(100vh - 72px));
+  flex-direction: column;
+  overflow: hidden;
+  border-radius: 12px;
+}
+.bb-comments-thread-header {
+  min-height: 34px;
+  box-sizing: border-box;
+  flex: 0 0 auto;
+  padding: 8px 10px 8px 12px;
+  border-bottom: 1px solid var(--border-seam, var(--border));
+  background: color-mix(
+    in oklab,
+    var(--surface-recessed) 58%,
+    var(--popover)
+  );
+}
+.bb-comments-thread-source {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+  margin-right: 4px;
+  overflow: hidden;
+  color: var(--foreground);
+  font-size: 12px;
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.bb-comments-thread-source svg {
+  width: 13px;
+  height: 13px;
+  color: var(--muted-foreground);
+}
+.bb-comments-quiet,
+.bb-comments-icon-button {
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted-foreground);
+  font-size: 11px;
+}
+.bb-comments-quiet {
+  min-height: 28px;
+  padding: 0 6px;
+  white-space: nowrap;
+}
+.bb-comments-quiet:hover,
+.bb-comments-icon-button:hover {
+  background: var(--surface-recessed);
+  color: var(--foreground);
+}
+.bb-comments-destructive:hover,
+.bb-comments-destructive:focus-visible {
+  color: var(--destructive-text, var(--foreground));
+}
+.bb-comments-icon-button {
+  width: 24px;
+  height: 24px;
+  font-size: 18px;
+}
+.bb-comments-thread-comments {
+  min-height: 0;
+  overflow-y: auto;
+}
+.bb-comments-comment {
+  position: relative;
+  padding: 14px 14px 10px;
+  border-bottom: 1px solid
+    color-mix(in oklab, var(--border-seam, var(--border)) 55%, transparent);
+}
+.bb-comments-comment[data-editing="true"] { background: transparent; }
+.bb-comments-comment-meta {
+  color: var(--muted-foreground);
+  font-size: 10px;
+}
+.bb-comments-message-header {
+  display: flex;
+  min-height: 20px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 0;
+}
+.bb-comments-message-header > div:first-child {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 6px;
+}
+.bb-comments-message-header strong {
+  color: var(--foreground);
+  font-size: 10px;
+  font-weight: 600;
+}
+.bb-comments-message-header time {
+  color: var(--muted-foreground);
+  font-size: 10px;
+  font-weight: 300;
+}
+.bb-comments-comment-body {
+  margin: 6px 0 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  line-height: 1.55;
+}
+.bb-comments-comment-actions {
+  gap: 2px;
+  justify-content: flex-end;
+}
+.bb-comments-reply {
+  display: block;
+  padding: 10px 12px;
+  border-top: 1px solid var(--border-seam, var(--border));
+  background: color-mix(
+    in oklab,
+    var(--surface-recessed) 42%,
+    var(--popover)
+  );
+}
+.bb-comments-thread[data-editing="true"] .bb-comments-reply {
+  display: none;
+}
+.bb-comments-reply .bb-comments-error {
+  grid-column: 1 / -1;
+  padding: 0;
+}
+.bb-comments-reply-input {
+  field-sizing: content;
+  min-height: 24px;
+  max-height: 128px;
+  padding: 2px 0;
+  border: 0;
+  background: transparent;
+  line-height: 1.5;
+  resize: none;
+}
+.bb-comments-edit-input {
+  field-sizing: content;
+  min-height: 24px;
+  max-height: 128px;
+  padding: 2px 0;
+  border: 0;
+  background: transparent;
+  line-height: 1.5;
+  resize: none;
+}
+.bb-comments-inline-composer {
+  position: relative;
+  display: block;
+  box-sizing: border-box;
+  min-height: 38px;
+  margin-top: 8px;
+  padding: 4px 8px;
+  border: 1px solid color-mix(in oklab, var(--border) 55%, transparent);
+  border-radius: 12px;
+  background: color-mix(in oklab, var(--surface-recessed) 44%, var(--popover));
+  transition: border-color 120ms ease;
+}
+.bb-comments-reply .bb-comments-inline-composer {
+  margin-top: 0;
+}
+.bb-comments-inline-composer:focus-within {
+  border-color: var(--border);
+}
+.bb-comments-inline-composer
+  :is(.bb-comments-reply-input, .bb-comments-edit-input) {
+  padding-right: 41px;
+}
+.bb-comments-inline-composer[data-multiline="true"] {
+  padding-bottom: 32px;
+}
+.bb-comments-inline-composer[data-multiline="true"]
+  :is(.bb-comments-reply-input, .bb-comments-edit-input) {
+  padding-right: 0;
+}
+.bb-comments-submit-shortcut {
+  position: absolute;
+  right: 8px;
+  bottom: 6px;
+  display: flex;
+  min-width: 36px;
+  height: 24px;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+  padding: 0 5px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted-foreground);
+  font: inherit;
+  font-size: 10px;
+  cursor: pointer;
+}
+.bb-comments-submit-shortcut svg {
+  width: 13px;
+  height: 13px;
+}
+.bb-comments-submit-shortcut:hover:not(:disabled) {
+  background: var(--surface-recessed);
+  color: var(--foreground);
+}
+.bb-comments-submit-shortcut:disabled {
+  cursor: default;
+  opacity: 0.3;
+}
+.bb-comments-actions-menu {
+  flex: 0 0 auto;
+}
+.bb-comments-actions-popover {
+  position: fixed;
+  z-index: 56;
+  display: grid;
+  min-width: 132px;
+  max-width: calc(100vw - 16px);
+  max-height: calc(100vh - 16px);
+  overflow: auto;
+  padding: 4px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--popover);
+  box-shadow: 0 8px 24px
+    color-mix(in oklab, var(--foreground) 14%, transparent);
+}
+.bb-comments-actions-popover button {
+  display: flex;
+  min-height: 28px;
+  align-items: center;
+  gap: 7px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--foreground);
+  font-size: 11px;
+  text-align: left;
+}
+.bb-comments-actions-popover button svg {
+  width: 13px;
+  height: 13px;
+  color: var(--muted-foreground);
+}
+.bb-comments-actions-popover button:hover {
+  background: var(--surface-recessed);
+}
+.bb-comments-loading {
+  padding: 14px;
+  color: var(--muted-foreground);
+  text-align: center;
+}
+.bb-comments-cluster {
+  padding: 4px;
+}
+.bb-comments-cluster-row {
+  display: block;
+  width: 100%;
+  padding: 7px 8px;
+  overflow: hidden;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--foreground);
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.bb-comments-cluster-row:hover {
+  background: var(--surface-recessed);
+}
+
+.bb-comments-panel {
+  display: flex;
+  height: 100%;
+  min-height: 0;
+  flex-direction: column;
+  background: var(--background);
+  color: var(--foreground);
+  font:
+    13px/1.45 ui-sans-serif,
+    system-ui,
+    sans-serif;
+}
+.bb-comments-filters {
+  display: flex;
+  gap: 3px;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--border-seam, var(--border));
+  background: color-mix(
+    in oklab,
+    var(--surface-recessed) 45%,
+    transparent
+  );
+}
+.bb-comments-filters button {
+  min-height: 26px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted-foreground);
+  font-size: 11px;
+}
+.bb-comments-filters button[aria-pressed="true"] {
+  background: var(--surface-recessed);
+  color: var(--foreground);
+}
+.bb-comments-panel-error {
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border);
+}
+.bb-comments-panel-list {
+  min-height: 0;
+  flex: 1;
+  overflow-y: auto;
+}
+.bb-comments-panel-row {
+  border-bottom: 1px solid
+    color-mix(in oklab, var(--border-seam, var(--border)) 68%, transparent);
+}
+.bb-comments-panel-row[data-active="true"] {
+  background: color-mix(
+    in oklab,
+    var(--surface-recessed) 72%,
+    transparent
+  );
+}
+.bb-comments-row-summary {
+  display: grid;
+  width: 100%;
+  gap: 2px;
+  padding: 9px 12px;
+  border: 0;
+  background: transparent;
+  color: var(--foreground);
+  text-align: left;
+}
+.bb-comments-row-summary:hover {
+  background: var(--surface-recessed);
+}
+.bb-comments-row-source {
+  overflow: hidden;
+  color: var(--muted-foreground);
+  font-size: 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.bb-comments-row-body {
+  font-size: 12px;
+  line-height: 1.45;
+}
+.bb-comments-row-meta {
+  color: var(--muted-foreground);
+  font-size: 10px;
+}
+.bb-comments-panel-thread {
+  margin: 0 8px 8px;
+  overflow: visible;
+  border: 1px solid var(--border-seam, var(--border));
+  border-radius: 12px;
+  background: var(--popover);
+}
+.bb-comments-panel-thread-header {
+  display: flex;
+  min-height: 34px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 5px 7px 5px 10px;
+  border-bottom: 1px solid var(--border-seam, var(--border));
+  background: color-mix(
+    in oklab,
+    var(--surface-recessed) 55%,
+    var(--popover)
+  );
+}
+.bb-comments-panel-thread-header > span {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--foreground);
+  font-size: 12px;
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.bb-comments-panel-comment {
+  position: relative;
+  padding: 14px 14px 10px;
+  border-bottom: 1px solid
+    color-mix(in oklab, var(--border-seam, var(--border)) 55%, transparent);
+}
+.bb-comments-panel-comment[data-editing="true"] { background: transparent; }
+.bb-comments-panel-comment p {
+  margin: 6px 0 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  line-height: 1.55;
+}
+.bb-comments-panel-edit {
+  display: grid;
+  margin-top: 8px;
+}
+.bb-comments-panel-edit textarea {
+  field-sizing: content;
+  min-height: 34px;
+  max-height: 180px;
+  padding: 4px 6px;
+  border: 0;
+  background: transparent;
+  resize: none;
+}
+.bb-comments-panel-reply {
+  display: block;
+  padding: 10px 12px;
+  background: color-mix(
+    in oklab,
+    var(--surface-recessed) 42%,
+    var(--popover)
+  );
+}
+.bb-comments-panel-reply textarea {
+  min-height: 28px;
+  max-height: 112px;
+  padding: 4px 6px;
+  border: 0;
+  background: transparent;
+  resize: none;
+}
+.bb-comments-load-more {
+  display: block;
+  margin: 10px auto;
+  padding: 5px 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--background);
+  color: var(--muted-foreground);
+  font-size: 11px;
+}
+.bb-comments-empty {
+  padding: 28px 16px;
+  color: var(--muted-foreground);
+  text-align: center;
+}
