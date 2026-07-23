@@ -329,33 +329,41 @@
   padding: 0;
 }
 .bb-comments-reply-input {
-  min-height: 28px;
-  max-height: 112px;
-  padding: 4px 6px;
+  field-sizing: content;
+  height: 24px;
+  min-height: 24px;
+  max-height: 128px;
+  padding: 2px 0;
   border: 0;
   background: transparent;
+  line-height: 1.5;
   resize: none;
 }
 .bb-comments-edit-input {
   field-sizing: content;
-  min-height: 34px;
-  max-height: 160px;
-  padding: 4px 6px;
+  min-height: 24px;
+  max-height: 128px;
+  padding: 2px 0;
   border: 0;
   background: transparent;
+  line-height: 1.5;
   resize: none;
 }
 .bb-comments-inline-composer {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
-  align-items: end;
+  min-height: 38px;
+  align-items: center;
   gap: 4px;
   margin-top: 8px;
-  padding: 4px 5px;
+  padding: 4px 8px;
   border: 1px solid color-mix(in oklab, var(--border) 55%, transparent);
-  border-radius: 10px;
+  border-radius: 12px;
   background: color-mix(in oklab, var(--surface-recessed) 44%, var(--popover));
   transition: border-color 120ms ease;
+}
+.bb-comments-reply .bb-comments-inline-composer {
+  margin-top: 0;
 }
 .bb-comments-inline-composer:focus-within {
   border-color: var(--border);
