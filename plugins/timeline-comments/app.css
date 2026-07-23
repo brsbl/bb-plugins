@@ -371,11 +371,10 @@
   resize: none;
 }
 .bb-comments-inline-composer {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  position: relative;
+  display: block;
+  box-sizing: border-box;
   min-height: 38px;
-  align-items: center;
-  gap: 4px;
   margin-top: 8px;
   padding: 4px 8px;
   border: 1px solid color-mix(in oklab, var(--border) 55%, transparent);
@@ -389,22 +388,22 @@
 .bb-comments-inline-composer:focus-within {
   border-color: var(--border);
 }
+.bb-comments-inline-composer
+  :is(.bb-comments-reply-input, .bb-comments-edit-input) {
+  padding-right: 41px;
+  transition: padding-right 150ms cubic-bezier(0.22, 1, 0.36, 1);
+}
 .bb-comments-inline-composer[data-multiline="true"] {
-  grid-template-rows: auto auto;
-  align-items: center;
-  row-gap: 0;
+  padding-bottom: 32px;
 }
 .bb-comments-inline-composer[data-multiline="true"]
   :is(.bb-comments-reply-input, .bb-comments-edit-input) {
-  grid-column: 1 / -1;
-}
-.bb-comments-inline-composer[data-multiline="true"]
-  .bb-comments-submit-shortcut {
-  grid-row: 2;
-  grid-column: 2;
-  justify-self: end;
+  padding-right: 0;
 }
 .bb-comments-submit-shortcut {
+  position: absolute;
+  right: 8px;
+  bottom: 6px;
   display: flex;
   min-width: 36px;
   height: 24px;

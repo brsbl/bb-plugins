@@ -157,17 +157,62 @@ function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : "Something went wrong";
 }
 
+const inlineComposerAnimations = new WeakMap<HTMLElement, Animation>();
+const inlineComposerNaturalHeights = new WeakMap<HTMLElement, number>();
+
 function syncInlineComposerLayout(
   textarea: HTMLTextAreaElement,
   composer: HTMLElement,
+  animate = true,
 ): void {
   const styles = getComputedStyle(textarea);
   const lineHeight = Number.parseFloat(styles.lineHeight) || 20;
   const verticalPadding =
     (Number.parseFloat(styles.paddingTop) || 0) +
     (Number.parseFloat(styles.paddingBottom) || 0);
-  composer.dataset.multiline =
-    textarea.scrollHeight - verticalPadding > lineHeight + 1 ? "true" : "false";
+  const currentMultiline = composer.dataset.multiline === "true";
+  const hasText = textarea.value.trim() !== "";
+  const requestsMultiline =
+    textarea.value.includes("\n") ||
+    textarea.scrollHeight - verticalPadding > lineHeight + 1;
+  const nextMultiline =
+    hasText && (currentMultiline || requestsMultiline);
+  const running = inlineComposerAnimations.get(composer);
+  const startHeight =
+    running === undefined
+      ? (inlineComposerNaturalHeights.get(composer) ??
+        composer.getBoundingClientRect().height)
+      : composer.getBoundingClientRect().height;
+  running?.cancel();
+  inlineComposerAnimations.delete(composer);
+  composer.style.removeProperty("overflow");
+  composer.dataset.multiline = nextMultiline ? "true" : "false";
+  const endHeight = composer.getBoundingClientRect().height;
+  inlineComposerNaturalHeights.set(composer, endHeight);
+  if (
+    !animate ||
+    Math.abs(endHeight - startHeight) < 0.5 ||
+    typeof composer.animate !== "function" ||
+    matchMedia("(prefers-reduced-motion: reduce)").matches
+  ) {
+    return;
+  }
+  composer.style.overflow = "hidden";
+  const animation = composer.animate(
+    [{ height: `${startHeight}px` }, { height: `${endHeight}px` }],
+    {
+      duration: 150,
+      easing: "cubic-bezier(0.22, 1, 0.36, 1)",
+    },
+  );
+  inlineComposerAnimations.set(composer, animation);
+  const finish = () => {
+    if (inlineComposerAnimations.get(composer) !== animation) return;
+    inlineComposerAnimations.delete(composer);
+    composer.style.removeProperty("overflow");
+  };
+  animation.addEventListener("finish", finish, { once: true });
+  animation.addEventListener("cancel", finish, { once: true });
 }
 
 function isRelevantMutation(record: MutationRecord): boolean {
@@ -885,7 +930,7 @@ class TimelineCommentsController {
       });
       validate();
       popover.append(reply);
-      syncInlineComposerLayout(textarea, replyComposer);
+      syncInlineComposerLayout(textarea, replyComposer, false);
     }
   }
 
@@ -1014,7 +1059,7 @@ class TimelineCommentsController {
       });
       editComposer.append(textarea, save);
       row.replaceChildren(buildHeader(actions), editComposer, error);
-      syncInlineComposerLayout(textarea, editComposer);
+      syncInlineComposerLayout(textarea, editComposer, false);
       validate();
       textarea.focus();
     });

@@ -172,18 +172,34 @@ void (async () => {
     if (reply === null || replyButton?.disabled !== true)
       throw new Error("Blank reply was not disabled");
     const emptyReplyHeight = reply.getBoundingClientRect().height;
+    const replyComposer = reply.closest<HTMLElement>(
+      ".bb-comments-inline-composer",
+    )!;
     reply.value = "First line\nSecond line\nThird line";
     reply.dispatchEvent(new InputEvent("input", { bubbles: true }));
+    if (replyComposer.getAnimations().length === 0)
+      throw new Error("Multiline reply expansion did not animate");
+    await wait(180);
     if (reply.getBoundingClientRect().height <= emptyReplyHeight)
       throw new Error("Multiline reply input did not grow with its content");
-    if (reply.closest(".bb-comments-inline-composer")?.dataset.multiline !== "true")
+    if (replyComposer.dataset.multiline !== "true")
       throw new Error("Multiline reply did not switch composer layout");
     reply.value = "Ready";
     reply.dispatchEvent(new InputEvent("input", { bubbles: true }));
+    await wait(180);
     if (replyButton.disabled)
       throw new Error("Valid reply did not enable submission");
-    if (reply.closest(".bb-comments-inline-composer")?.dataset.multiline !== "false")
-      throw new Error("Single-line reply did not restore inline layout");
+    if (replyComposer.dataset.multiline !== "true")
+      throw new Error("Expanded reply layout did not stay latched like Moss");
+    reply.value = "";
+    reply.dispatchEvent(new InputEvent("input", { bubbles: true }));
+    if (replyComposer.getAnimations().length === 0)
+      throw new Error("Reply collapse did not animate");
+    await wait(180);
+    if (replyComposer.dataset.multiline !== "false")
+      throw new Error("Cleared reply did not restore inline layout");
+    reply.value = "Ready";
+    reply.dispatchEvent(new InputEvent("input", { bubbles: true }));
     if (CSS.highlights.get("bb-timeline-comments")?.size !== 8) {
       throw new Error("Custom Highlight registry did not retain every anchor");
     }
