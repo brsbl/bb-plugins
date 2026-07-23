@@ -330,7 +330,6 @@
 }
 .bb-comments-reply-input {
   field-sizing: content;
-  height: 24px;
   min-height: 24px;
   max-height: 128px;
   padding: 2px 0;

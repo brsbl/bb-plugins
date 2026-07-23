@@ -161,6 +161,11 @@ void (async () => {
     );
     if (reply === null || replyButton?.disabled !== true)
       throw new Error("Blank reply was not disabled");
+    const emptyReplyHeight = reply.getBoundingClientRect().height;
+    reply.value = "First line\nSecond line\nThird line";
+    reply.dispatchEvent(new InputEvent("input", { bubbles: true }));
+    if (reply.getBoundingClientRect().height <= emptyReplyHeight)
+      throw new Error("Multiline reply input did not grow with its content");
     reply.value = "Ready";
     reply.dispatchEvent(new InputEvent("input", { bubbles: true }));
     if (replyButton.disabled)
