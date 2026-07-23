@@ -110,8 +110,11 @@ function isSubstantiveText(value) {
   if (normalized.length < 4 || LOW_INFORMATION.has(normalized)) return false;
   return !/^(?:https?:\/\/\S+|@[a-z0-9:_-]+)$/i.test(normalized);
 }
+function isManageableThread(thread) {
+  return thread.visibility === "visible" && thread.parentThreadId === null && thread.sourceThreadId === null && thread.originKind === null && thread.childOrigin === null && thread.originPluginId === null && thread.archivedAt === null && thread.deletedAt === null;
+}
 function isEligibleThread(thread) {
-  return thread.visibility === "visible" && thread.parentThreadId === null && thread.sourceThreadId === null && thread.originKind === null && thread.childOrigin === null && thread.originPluginId === null && thread.archivedAt === null && thread.deletedAt === null && thread.status !== "error" && thread.status !== "stopping";
+  return isManageableThread(thread) && thread.status !== "error" && thread.status !== "stopping";
 }
 function setScore(scores, target, confidence, reason) {
   const current = scores.get(target);
@@ -268,7 +271,9 @@ function initialState(thread) {
     createdAt: thread.createdAt,
     hasAppliedSection: false,
     hasAppliedTitle: false,
+    inboxLocked: false,
     inboxPinned: false,
+    lastInboxPinnedAt: null,
     lastAppliedSectionId: null,
     lastAppliedTitle: null,
     lastCompletedSeq: 0,
@@ -283,11 +288,12 @@ function initialState(thread) {
 function isThreadState(value) {
   if (typeof value !== "object" || value === null) return false;
   const state = value;
-  return state.version === 1 && typeof state.completedTurns === "number" && typeof state.createdAt === "number" && typeof state.hasAppliedSection === "boolean" && typeof state.hasAppliedTitle === "boolean" && (typeof state.inboxPinned === "boolean" || state.inboxPinned === void 0) && (typeof state.lastAppliedSectionId === "string" || state.lastAppliedSectionId === null) && (typeof state.lastAppliedTitle === "string" || state.lastAppliedTitle === null) && typeof state.lastCompletedSeq === "number" && typeof state.nextEvaluationTurn === "number" && (typeof state.pendingSectionId === "string" || state.pendingSectionId === null) && typeof state.pendingSectionStreak === "number" && typeof state.sectionLocked === "boolean" && typeof state.titleLocked === "boolean";
+  return state.version === 1 && typeof state.completedTurns === "number" && typeof state.createdAt === "number" && typeof state.hasAppliedSection === "boolean" && typeof state.hasAppliedTitle === "boolean" && (typeof state.inboxLocked === "boolean" || state.inboxLocked === void 0) && (typeof state.inboxPinned === "boolean" || state.inboxPinned === void 0) && (typeof state.lastInboxPinnedAt === "number" || state.lastInboxPinnedAt === null || state.lastInboxPinnedAt === void 0) && (typeof state.lastAppliedSectionId === "string" || state.lastAppliedSectionId === null) && (typeof state.lastAppliedTitle === "string" || state.lastAppliedTitle === null) && typeof state.lastCompletedSeq === "number" && typeof state.nextEvaluationTurn === "number" && (typeof state.pendingSectionId === "string" || state.pendingSectionId === null) && typeof state.pendingSectionStreak === "number" && typeof state.sectionLocked === "boolean" && typeof state.titleLocked === "boolean";
 }
 function normalizeThreadState(state) {
   return {
     ...state,
+    inboxLocked: state.inboxLocked ?? false,
     inboxPinned: state.inboxPinned ?? false
   };
 }
@@ -345,6 +351,7 @@ function plugin(bb) {
     }
   });
   const queues = /* @__PURE__ */ new Map();
+  let acceptingWork = true;
   let disposed = false;
   async function readState(threadId) {
     const stored = await bb.storage.kv.get(stateKey(threadId));
@@ -357,6 +364,7 @@ function plugin(bb) {
     await bb.storage.kv.set(stateKey(threadId), state);
   }
   function enqueue(threadId, work) {
+    if (!acceptingWork) return Promise.resolve();
     const previous = queues.get(threadId) ?? Promise.resolve();
     const current = previous.catch(() => void 0).then(async () => {
       if (!disposed) await work();
@@ -394,6 +402,19 @@ function plugin(bb) {
     const { mode } = await settings.get();
     const thread = await bb.sdk.threads.get({ threadId });
     const shouldBeInInbox = phase !== "active";
+    if (state.inboxPinned) {
+      const legacyFingerprint = state.lastInboxPinnedAt === void 0;
+      if (legacyFingerprint && thread.pinnedAt !== null) {
+        state.lastInboxPinnedAt = thread.pinnedAt;
+      } else if (thread.pinnedAt !== state.lastInboxPinnedAt) {
+        state.inboxPinned = false;
+        state.lastInboxPinnedAt = null;
+        state.inboxLocked = true;
+        bb.log.info(`thread=${threadId} action=manual-lock inbox=true`);
+        return;
+      }
+    }
+    if (state.inboxLocked) return;
     if (shouldBeInInbox) {
       if (thread.pinnedAt !== null) return;
       if (mode !== "apply") {
@@ -402,8 +423,9 @@ function plugin(bb) {
         );
         return;
       }
-      await bb.sdk.threads.pin({ threadId });
+      const updated = await bb.sdk.threads.pin({ threadId });
       state.inboxPinned = true;
+      state.lastInboxPinnedAt = updated.pinnedAt;
       bb.log.info(
         `thread=${threadId} phase=${phase} mode=apply action=inbox-pinned`
       );
@@ -422,6 +444,7 @@ function plugin(bb) {
     }
     await bb.sdk.threads.unpin({ threadId });
     state.inboxPinned = false;
+    state.lastInboxPinnedAt = null;
     bb.log.info(
       `thread=${threadId} phase=${phase} mode=apply action=inbox-unpinned`
     );
@@ -607,42 +630,46 @@ function plugin(bb) {
       );
     }
   }
-  async function reconcileExistingThreads() {
+  async function reconcileExistingThreads(signal) {
     let offset = 0;
-    while (!disposed) {
-      const threads = await bb.sdk.threads.list({
+    const threads = [];
+    while (!disposed && !signal?.aborted) {
+      const page = await bb.sdk.threads.list({
         excludeSideChats: true,
         limit: THREAD_LIST_PAGE_SIZE,
-        offset
+        offset,
+        ...signal === void 0 ? {} : { signal }
       });
-      await Promise.all(
-        threads.map(
-          (thread) => enqueue(thread.id, async () => {
-            if (!isEligibleThread(thread)) return;
-            let state = await readState(thread.id);
-            const adopted = state === null;
-            if (state === null) {
-              state = initialState(thread);
-              await saveState(thread.id, state);
-            }
-            const fresh = await bb.sdk.threads.get({
-              threadId: thread.id
-            });
-            await reconcileInbox(
-              thread.id,
-              state,
-              fresh.status === "idle" ? "idle" : "active"
-            );
-            await saveState(thread.id, state);
-            if (adopted) {
-              await evaluate(thread.id, "settings");
-            }
-          })
-        )
-      );
-      if (threads.length < THREAD_LIST_PAGE_SIZE) break;
+      threads.push(...page);
+      if (page.length < THREAD_LIST_PAGE_SIZE) break;
       offset += THREAD_LIST_PAGE_SIZE;
     }
+    if (signal?.aborted) return;
+    await Promise.all(
+      threads.map(
+        (thread) => enqueue(thread.id, async () => {
+          if (!isManageableThread(thread)) return;
+          let state = await readState(thread.id);
+          const adopted = state === null;
+          if (state === null) {
+            state = initialState(thread);
+            await saveState(thread.id, state);
+          }
+          const fresh = await bb.sdk.threads.get({
+            threadId: thread.id
+          });
+          await reconcileInbox(
+            thread.id,
+            state,
+            fresh.status === "idle" ? "idle" : fresh.status === "error" ? "failed" : "active"
+          );
+          await saveState(thread.id, state);
+          if (adopted && isEligibleThread(fresh)) {
+            await evaluate(thread.id, "settings");
+          }
+        })
+      )
+    );
   }
   bb.events.on(
     "thread.created",
@@ -709,10 +736,21 @@ function plugin(bb) {
     void bb.storage.kv.list(STATE_PREFIX).then(
       (keys) => Promise.all(
         keys.map(
-          (key) => enqueue(
-            key.slice(STATE_PREFIX.length),
-            () => evaluate(key.slice(STATE_PREFIX.length), "settings")
-          )
+          (key) => enqueue(key.slice(STATE_PREFIX.length), async () => {
+            const threadId = key.slice(STATE_PREFIX.length);
+            const state = await readState(threadId);
+            if (state === null) return;
+            const thread = await bb.sdk.threads.get({
+              threadId
+            });
+            await reconcileInbox(
+              threadId,
+              state,
+              thread.status === "idle" ? "idle" : thread.status === "error" ? "failed" : "active"
+            );
+            await saveState(threadId, state);
+            await evaluate(threadId, "settings");
+          })
         )
       )
     ).catch((error) => {
@@ -720,16 +758,17 @@ function plugin(bb) {
       bb.log.error(`action=apply-mode-evaluation-failed error=${message}`);
     });
   });
-  bb.onDispose(() => {
+  bb.background.service("startup-reconciliation", {
+    start: (signal) => reconcileExistingThreads(signal)
+  });
+  bb.onDispose(async () => {
+    acceptingWork = false;
+    await Promise.allSettled([...queues.values()]);
     disposed = true;
   });
   void settings.get().then(({ mode }) => bb.log.info(`Thread Organizer loaded mode=${mode}`)).catch((error) => {
     const message = error instanceof Error ? error.message : String(error);
     bb.log.warn(`action=mode-read-failed error=${message}`);
-  });
-  void reconcileExistingThreads().catch((error) => {
-    const message = error instanceof Error ? error.message : String(error);
-    bb.log.error(`action=existing-thread-reconciliation-failed error=${message}`);
   });
 }
 export {
