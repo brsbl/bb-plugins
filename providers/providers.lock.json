@@ -1,0 +1,9 @@
+{
+  "schemaVersion": "2",
+  "inputs": {
+    "aria-apg": "b93c214dfd921831c4755de86c418226f1043cd92680233541bcc24418ac0c9d",
+    "assistant-ui": "d06fb88cde25316298ce874dede502b889386ecf8faf0fae5b44577807a1ad87",
+    "base-ui": "3dd313fe593136aef3d89ef6e7ed5aca2ffc1e301e859c0c3b3cf61d0eafb2f3",
+    "shadcn-ui": "adb049596a7c1f7f06a51887d76eb51d5f57ad63adca95ffe668f1d595d77d14"
+  }
+}

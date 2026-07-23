@@ -1,0 +1,1295 @@
+{
+  "schemaVersion": "1",
+  "revision": "9d75e20461bb9ca9742b7f2cc476d3eebe6b74c6",
+  "records": [
+    {
+      "nativeId": "action-bar",
+      "name": "ActionBar",
+      "aliases": [
+        "ActionBarPrimitive"
+      ],
+      "summary": {
+        "text": "Build message action buttons with auto-hide, copy state, and intelligent disabling.",
+        "url": "https://www.assistant-ui.com/docs/primitives/action-bar"
+      },
+      "kind": "primitive",
+      "canonicalUrl": "https://www.assistant-ui.com/docs/primitives/action-bar",
+      "sections": [
+        {
+          "nativeId": "quick-start",
+          "title": "Quick Start",
+          "url": "https://www.assistant-ui.com/docs/primitives/action-bar#quick-start",
+          "content": null
+        },
+        {
+          "nativeId": "core-concepts",
+          "title": "Core Concepts",
+          "url": "https://www.assistant-ui.com/docs/primitives/action-bar#core-concepts",
+          "content": null
+        },
+        {
+          "nativeId": "parts",
+          "title": "Parts",
+          "url": "https://www.assistant-ui.com/docs/primitives/action-bar#parts",
+          "content": null
+        },
+        {
+          "nativeId": "patterns",
+          "title": "Patterns",
+          "url": "https://www.assistant-ui.com/docs/primitives/action-bar#patterns",
+          "content": null
+        },
+        {
+          "nativeId": "overflow-menu-actionbarmoreprimitive",
+          "title": "Overflow Menu (ActionBarMorePrimitive)",
+          "url": "https://www.assistant-ui.com/docs/primitives/action-bar#overflow-menu-actionbarmoreprimitive",
+          "content": null
+        },
+        {
+          "nativeId": "relationship-to-components",
+          "title": "Relationship to Components",
+          "url": "https://www.assistant-ui.com/docs/primitives/action-bar#relationship-to-components",
+          "content": null
+        },
+        {
+          "nativeId": "api-reference",
+          "title": "API Reference",
+          "url": "https://www.assistant-ui.com/docs/primitives/action-bar#api-reference",
+          "content": null
+        },
+        {
+          "nativeId": "api-reference:anatomy",
+          "title": "Anatomy",
+          "url": "https://www.assistant-ui.com/docs/api-reference/primitives/action-bar#anatomy",
+          "content": null
+        },
+        {
+          "nativeId": "api-reference:api-reference",
+          "title": "API Reference",
+          "url": "https://www.assistant-ui.com/docs/api-reference/primitives/action-bar#api-reference",
+          "content": null
+        }
+      ],
+      "links": [
+        {
+          "kind": "docs",
+          "label": null,
+          "url": "https://www.assistant-ui.com/docs/primitives/action-bar"
+        },
+        {
+          "kind": "docs",
+          "label": "API reference",
+          "url": "https://www.assistant-ui.com/docs/api-reference/primitives/action-bar"
+        },
+        {
+          "kind": "code",
+          "label": null,
+          "url": "https://github.com/assistant-ui/assistant-ui/blob/9d75e20461bb9ca9742b7f2cc476d3eebe6b74c6/apps/docs/content/docs/primitives/action-bar.mdx"
+        }
+      ],
+      "examples": [],
+      "relationships": [
+        {
+          "kind": "related-to",
+          "label": "BranchPicker",
+          "targetTitle": "BranchPicker",
+          "targetUrl": "https://www.assistant-ui.com/docs/primitives/branch-picker"
+        }
+      ],
+      "sourcePath": "apps/docs/content/docs/primitives/action-bar.mdx"
+    },
+    {
+      "nativeId": "action-bar-more",
+      "name": "ActionBarMorePrimitive",
+      "aliases": [],
+      "summary": {
+        "text": "Overflow menu primitives for grouping secondary assistant message actions in a custom React UI.",
+        "url": "https://www.assistant-ui.com/docs/api-reference/primitives/action-bar-more"
+      },
+      "kind": "primitive",
+      "canonicalUrl": "https://www.assistant-ui.com/docs/api-reference/primitives/action-bar-more",
+      "sections": [
+        {
+          "nativeId": "api-reference:anatomy",
+          "title": "Anatomy",
+          "url": "https://www.assistant-ui.com/docs/api-reference/primitives/action-bar-more#anatomy",
+          "content": null
+        },
+        {
+          "nativeId": "api-reference:api-reference",
+          "title": "API Reference",
+          "url": "https://www.assistant-ui.com/docs/api-reference/primitives/action-bar-more#api-reference",
+          "content": null
+        }
+      ],
+      "links": [
+        {
+          "kind": "docs",
+          "label": null,
+          "url": "https://www.assistant-ui.com/docs/api-reference/primitives/action-bar-more"
+        },
+        {
+          "kind": "code",
+          "label": null,
+          "url": "https://github.com/assistant-ui/assistant-ui/blob/9d75e20461bb9ca9742b7f2cc476d3eebe6b74c6/apps/docs/content/docs/(reference)/api-reference/primitives/action-bar-more.mdx"
+        }
+      ],
+      "examples": [],
+      "relationships": [],
+      "sourcePath": "apps/docs/content/docs/(reference)/api-reference/primitives/action-bar-more.mdx"
+    },
+    {
+      "nativeId": "assistant-if",
+      "name": "AuiIf",
+      "aliases": [],
+      "summary": {
+        "text": "Conditional rendering primitive for showing React UI from assistant-ui thread, message, composer, and runtime state.",
+        "url": "https://www.assistant-ui.com/docs/api-reference/primitives/assistant-if"
+      },
+      "kind": "primitive",
+      "canonicalUrl": "https://www.assistant-ui.com/docs/api-reference/primitives/assistant-if",
+      "sections": [
+        {
+          "nativeId": "api-reference:anatomy",
+          "title": "Anatomy",
+          "url": "https://www.assistant-ui.com/docs/api-reference/primitives/assistant-if#anatomy",
+          "content": null
+        },
+        {
+          "nativeId": "api-reference:overview",
+          "title": "Overview",
+          "url": "https://www.assistant-ui.com/docs/api-reference/primitives/assistant-if#overview",
+          "content": null
+        },
+        {
+          "nativeId": "api-reference:assistantstate",
+          "title": "AssistantState",
+          "url": "https://www.assistant-ui.com/docs/api-reference/primitives/assistant-if#assistantstate",
+          "content": null
+        },
+        {
+          "nativeId": "api-reference:examples",
+          "title": "Examples",
+          "url": "https://www.assistant-ui.com/docs/api-reference/primitives/assistant-if#examples",
+          "content": null
+        },
+        {
+          "nativeId": "api-reference:type-export",
+          "title": "Type Export",
+          "url": "https://www.assistant-ui.com/docs/api-reference/primitives/assistant-if#type-export",
+          "content": null
+        },
+        {
+          "nativeId": "api-reference:migration-from-deprecated-components",
+          "title": "Migration from Deprecated Components",
+          "url": "https://www.assistant-ui.com/docs/api-reference/primitives/assistant-if#migration-from-deprecated-components",
+          "content": null
+        },
+        {
+          "nativeId": "api-reference:api-reference",
+          "title": "API Reference",
+          "url": "https://www.assistant-ui.com/docs/api-reference/primitives/assistant-if#api-reference",
+          "content": null
+        }
+      ],
+      "links": [
+        {
+          "kind": "docs",
+          "label": null,
+          "url": "https://www.assistant-ui.com/docs/api-reference/primitives/assistant-if"
+        },
+        {
+          "kind": "code",
+          "label": null,
+          "url": "https://github.com/assistant-ui/assistant-ui/blob/9d75e20461bb9ca9742b7f2cc476d3eebe6b74c6/apps/docs/content/docs/(reference)/api-reference/primitives/assistant-if.mdx"
+        }
+      ],
+      "examples": [],
+      "relationships": [],
+      "sourcePath": "apps/docs/content/docs/(reference)/api-reference/primitives/assistant-if.mdx"
+    },
+    {
+      "nativeId": "assistant-modal",
+      "name": "AssistantModal",
+      "aliases": [
+        "AssistantModalPrimitive"
+      ],
+      "summary": {
+        "text": "A floating chat popover with a fixed-position trigger button that opens a chat panel.",
+        "url": "https://www.assistant-ui.com/docs/primitives/assistant-modal"
+      },
+      "kind": "primitive",
+      "canonicalUrl": "https://www.assistant-ui.com/docs/primitives/assistant-modal",
+      "sections": [
+        {
+          "nativeId": "quick-start",
+          "title": "Quick Start",
+          "url": "https://www.assistant-ui.com/docs/primitives/assistant-modal#quick-start",
+          "content": null
+        },
+        {
+          "nativeId": "core-concepts",
+          "title": "Core Concepts",
+          "url": "https://www.assistant-ui.com/docs/primitives/assistant-modal#core-concepts",
+          "content": null
+        },
+        {
+          "nativeId": "parts",
+          "title": "Parts",
+          "url": "https://www.assistant-ui.com/docs/primitives/assistant-modal#parts",
+          "content": null
+        },
+        {
+          "nativeId": "patterns",
+          "title": "Patterns",
+          "url": "https://www.assistant-ui.com/docs/primitives/assistant-modal#patterns",
+          "content": null
+        },
+        {
+          "nativeId": "relationship-to-components",
+          "title": "Relationship to Components",
+          "url": "https://www.assistant-ui.com/docs/primitives/assistant-modal#relationship-to-components",
+          "content": null
+        },
+        {
+          "nativeId": "api-reference",
+          "title": "API Reference",
+          "url": "https://www.assistant-ui.com/docs/primitives/assistant-modal#api-reference",
+          "content": null
+        },
+        {
+          "nativeId": "api-reference:anatomy",
+          "title": "Anatomy",
+          "url": "https://www.assistant-ui.com/docs/api-reference/primitives/assistant-modal#anatomy",
+          "content": null
+        },
+        {
+          "nativeId": "api-reference:api-reference",
+          "title": "API Reference",
+          "url": "https://www.assistant-ui.com/docs/api-reference/primitives/assistant-modal#api-reference",
+          "content": null
+        }
+      ],
+      "links": [
+        {
+          "kind": "docs",
+          "label": null,
+          "url": "https://www.assistant-ui.com/docs/primitives/assistant-modal"
+        },
+        {
+          "kind": "docs",
+          "label": "API reference",
+          "url": "https://www.assistant-ui.com/docs/api-reference/primitives/assistant-modal"
+        },
+        {
+          "kind": "code",
+          "label": null,
+          "url": "https://github.com/assistant-ui/assistant-ui/blob/9d75e20461bb9ca9742b7f2cc476d3eebe6b74c6/apps/docs/content/docs/primitives/assistant-modal.mdx"
+        }
+      ],
+      "examples": [],
+      "relationships": [
+        {
+          "kind": "related-to",
+          "label": "ThreadPrimitive",
+          "targetTitle": "ThreadPrimitive",
+          "targetUrl": "https://www.assistant-ui.com/docs/primitives/thread"
+        },
+        {
+          "kind": "related-to",
+          "label": "ComposerPrimitive",
+          "targetTitle": "ComposerPrimitive",
+          "targetUrl": "https://www.assistant-ui.com/docs/primitives/composer"
+        }
+      ],
+      "sourcePath": "apps/docs/content/docs/primitives/assistant-modal.mdx"
+    },
+    {
+      "nativeId": "attachment",
+      "name": "Attachment",
+      "aliases": [
+        "AttachmentPrimitive"
+      ],
+      "summary": {
+        "text": "File and image attachment rendering for the composer and messages.",
+        "url": "https://www.assistant-ui.com/docs/primitives/attachment"
+      },
+      "kind": "primitive",
+      "canonicalUrl": "https://www.assistant-ui.com/docs/primitives/attachment",
+      "sections": [
+        {
+          "nativeId": "quick-start",
+          "title": "Quick Start",
+          "url": "https://www.assistant-ui.com/docs/primitives/attachment#quick-start",
+          "content": null
+        },
+        {
+          "nativeId": "core-concepts",
+          "title": "Core Concepts",
+          "url": "https://www.assistant-ui.com/docs/primitives/attachment#core-concepts",
+          "content": null
+        },
+        {
+          "nativeId": "parts",
+          "title": "Parts",
+          "url": "https://www.assistant-ui.com/docs/primitives/attachment#parts",
+          "content": null
+        },
+        {
+          "nativeId": "patterns",
+          "title": "Patterns",
+          "url": "https://www.assistant-ui.com/docs/primitives/attachment#patterns",
+          "content": null
+        },
+        {
+          "nativeId": "relationship-to-components",
+          "title": "Relationship to Components",
+          "url": "https://www.assistant-ui.com/docs/primitives/attachment#relationship-to-components",
+          "content": null
+        },
+        {
+          "nativeId": "api-reference",
+          "title": "API Reference",
+          "url": "https://www.assistant-ui.com/docs/primitives/attachment#api-reference",
+          "content": null
+        },
+        {
+          "nativeId": "api-reference:anatomy",
+          "title": "Anatomy",
+          "url": "https://www.assistant-ui.com/docs/api-reference/primitives/attachment#anatomy",
+          "content": null
+        },
+        {
+          "nativeId": "api-reference:api-reference",
+          "title": "API Reference",
+          "url": "https://www.assistant-ui.com/docs/api-reference/primitives/attachment#api-reference",
+          "content": null
+        }
+      ],
+      "links": [
+        {
+          "kind": "docs",
+          "label": null,
+          "url": "https://www.assistant-ui.com/docs/primitives/attachment"
+        },
+        {
+          "kind": "docs",
+          "label": "API reference",
+          "url": "https://www.assistant-ui.com/docs/api-reference/primitives/attachment"
+        },
+        {
+          "kind": "code",
+          "label": null,
+          "url": "https://github.com/assistant-ui/assistant-ui/blob/9d75e20461bb9ca9742b7f2cc476d3eebe6b74c6/apps/docs/content/docs/primitives/attachment.mdx"
+        }
+      ],
+      "examples": [],
+      "relationships": [],
+      "sourcePath": "apps/docs/content/docs/primitives/attachment.mdx"
+    },
+    {
+      "nativeId": "branch-picker",
+      "name": "BranchPicker",
+      "aliases": [
+        "BranchPickerPrimitive"
+      ],
+      "summary": {
+        "text": "Navigate between message branches, which are alternative responses the user can flip through.",
+        "url": "https://www.assistant-ui.com/docs/primitives/branch-picker"
+      },
+      "kind": "primitive",
+      "canonicalUrl": "https://www.assistant-ui.com/docs/primitives/branch-picker",
+      "sections": [
+        {
+          "nativeId": "quick-start",
+          "title": "Quick Start",
+          "url": "https://www.assistant-ui.com/docs/primitives/branch-picker#quick-start",
+          "content": null
+        },
+        {
+          "nativeId": "core-concepts",
+          "title": "Core Concepts",
+          "url": "https://www.assistant-ui.com/docs/primitives/branch-picker#core-concepts",
+          "content": null
+        },
+        {
+          "nativeId": "parts",
+          "title": "Parts",
+          "url": "https://www.assistant-ui.com/docs/primitives/branch-picker#parts",
+          "content": null
+        },
+        {
+          "nativeId": "patterns",
+          "title": "Patterns",
+          "url": "https://www.assistant-ui.com/docs/primitives/branch-picker#patterns",
+          "content": null
+        },
+        {
+          "nativeId": "relationship-to-components",
+          "title": "Relationship to Components",
+          "url": "https://www.assistant-ui.com/docs/primitives/branch-picker#relationship-to-components",
+          "content": null
+        },
+        {
+          "nativeId": "api-reference",
+          "title": "API Reference",
+          "url": "https://www.assistant-ui.com/docs/primitives/branch-picker#api-reference",
+          "content": null
+        },
+        {
+          "nativeId": "api-reference:anatomy",
+          "title": "Anatomy",
+          "url": "https://www.assistant-ui.com/docs/api-reference/primitives/branch-picker#anatomy",
+          "content": null
+        },
+        {
+          "nativeId": "api-reference:api-reference",
+          "title": "API Reference",
+          "url": "https://www.assistant-ui.com/docs/api-reference/primitives/branch-picker#api-reference",
+          "content": null
+        }
+      ],
+      "links": [
+        {
+          "kind": "docs",
+          "label": null,
+          "url": "https://www.assistant-ui.com/docs/primitives/branch-picker"
+        },
+        {
+          "kind": "docs",
+          "label": "API reference",
+          "url": "https://www.assistant-ui.com/docs/api-reference/primitives/branch-picker"
+        },
+        {
+          "kind": "code",
+          "label": null,
+          "url": "https://github.com/assistant-ui/assistant-ui/blob/9d75e20461bb9ca9742b7f2cc476d3eebe6b74c6/apps/docs/content/docs/primitives/branch-picker.mdx"
+        }
+      ],
+      "examples": [],
+      "relationships": [],
+      "sourcePath": "apps/docs/content/docs/primitives/branch-picker.mdx"
+    },
+    {
+      "nativeId": "chain-of-thought",
+      "name": "ChainOfThought",
+      "aliases": [
+        "ChainOfThoughtPrimitive"
+      ],
+      "summary": {
+        "text": "Collapsible accordion for grouping reasoning steps and tool calls.",
+        "url": "https://www.assistant-ui.com/docs/primitives/chain-of-thought"
+      },
+      "kind": "primitive",
+      "canonicalUrl": "https://www.assistant-ui.com/docs/primitives/chain-of-thought",
+      "sections": [
+        {
+          "nativeId": "recommended-groupedparts",
+          "title": "Recommended: GroupedParts",
+          "url": "https://www.assistant-ui.com/docs/primitives/chain-of-thought#recommended-groupedparts",
+          "content": null
+        },
+        {
+          "nativeId": "legacy-chainofthoughtprimitive",
+          "title": "Legacy: ChainOfThoughtPrimitive",
+          "url": "https://www.assistant-ui.com/docs/primitives/chain-of-thought#legacy-chainofthoughtprimitive",
+          "content": null
+        },
+        {
+          "nativeId": "api-reference:api-reference",
+          "title": "API Reference",
+          "url": "https://www.assistant-ui.com/docs/api-reference/primitives/chain-of-thought#api-reference",
+          "content": null
+        }
+      ],
+      "links": [
+        {
+          "kind": "docs",
+          "label": null,
+          "url": "https://www.assistant-ui.com/docs/primitives/chain-of-thought"
+        },
+        {
+          "kind": "docs",
+          "label": "API reference",
+          "url": "https://www.assistant-ui.com/docs/api-reference/primitives/chain-of-thought"
+        },
+        {
+          "kind": "code",
+          "label": null,
+          "url": "https://github.com/assistant-ui/assistant-ui/blob/9d75e20461bb9ca9742b7f2cc476d3eebe6b74c6/apps/docs/content/docs/primitives/chain-of-thought.mdx"
+        }
+      ],
+      "examples": [],
+      "relationships": [
+        {
+          "kind": "related-to",
+          "label": "MessagePrimitive",
+          "targetTitle": "MessagePrimitive",
+          "targetUrl": "https://www.assistant-ui.com/docs/primitives/message"
+        }
+      ],
+      "sourcePath": "apps/docs/content/docs/primitives/chain-of-thought.mdx"
+    },
+    {
+      "nativeId": "composer",
+      "name": "Composer",
+      "aliases": [
+        "ComposerPrimitive"
+      ],
+      "summary": {
+        "text": "Build custom message input UIs with full control over layout and behavior.",
+        "url": "https://www.assistant-ui.com/docs/primitives/composer"
+      },
+      "kind": "primitive",
+      "canonicalUrl": "https://www.assistant-ui.com/docs/primitives/composer",
+      "sections": [
+        {
+          "nativeId": "quick-start",
+          "title": "Quick Start",
+          "url": "https://www.assistant-ui.com/docs/primitives/composer#quick-start",
+          "content": null
+        },
+        {
+          "nativeId": "core-concepts",
+          "title": "Core Concepts",
+          "url": "https://www.assistant-ui.com/docs/primitives/composer#core-concepts",
+          "content": null
+        },
+        {
+          "nativeId": "parts",
+          "title": "Parts",
+          "url": "https://www.assistant-ui.com/docs/primitives/composer#parts",
+          "content": null
+        },
+        {
+          "nativeId": "patterns",
+          "title": "Patterns",
+          "url": "https://www.assistant-ui.com/docs/primitives/composer#patterns",
+          "content": null
+        },
+        {
+          "nativeId": "relationship-to-components",
+          "title": "Relationship to Components",
+          "url": "https://www.assistant-ui.com/docs/primitives/composer#relationship-to-components",
+          "content": null
+        },
+        {
+          "nativeId": "api-reference",
+          "title": "API Reference",
+          "url": "https://www.assistant-ui.com/docs/primitives/composer#api-reference",
+          "content": null
+        },
+        {
+          "nativeId": "api-reference:anatomy",
+          "title": "Anatomy",
+          "url": "https://www.assistant-ui.com/docs/api-reference/primitives/composer#anatomy",
+          "content": null
+        },
+        {
+          "nativeId": "api-reference:api-reference",
+          "title": "API Reference",
+          "url": "https://www.assistant-ui.com/docs/api-reference/primitives/composer#api-reference",
+          "content": null
+        }
+      ],
+      "links": [
+        {
+          "kind": "docs",
+          "label": null,
+          "url": "https://www.assistant-ui.com/docs/primitives/composer"
+        },
+        {
+          "kind": "docs",
+          "label": "API reference",
+          "url": "https://www.assistant-ui.com/docs/api-reference/primitives/composer"
+        },
+        {
+          "kind": "code",
+          "label": null,
+          "url": "https://github.com/assistant-ui/assistant-ui/blob/9d75e20461bb9ca9742b7f2cc476d3eebe6b74c6/apps/docs/content/docs/primitives/composer.mdx"
+        }
+      ],
+      "examples": [],
+      "relationships": [
+        {
+          "kind": "related-to",
+          "label": "ThreadPrimitive",
+          "targetTitle": "ThreadPrimitive",
+          "targetUrl": "https://www.assistant-ui.com/docs/primitives/thread"
+        },
+        {
+          "kind": "related-to",
+          "label": "AttachmentPrimitive",
+          "targetTitle": "AttachmentPrimitive",
+          "targetUrl": "https://www.assistant-ui.com/docs/primitives/attachment"
+        }
+      ],
+      "sourcePath": "apps/docs/content/docs/primitives/composer.mdx"
+    },
+    {
+      "nativeId": "error",
+      "name": "Error",
+      "aliases": [
+        "ErrorPrimitive"
+      ],
+      "summary": {
+        "text": "Accessible error display for messages with automatic error text extraction.",
+        "url": "https://www.assistant-ui.com/docs/primitives/error"
+      },
+      "kind": "primitive",
+      "canonicalUrl": "https://www.assistant-ui.com/docs/primitives/error",
+      "sections": [
+        {
+          "nativeId": "quick-start",
+          "title": "Quick Start",
+          "url": "https://www.assistant-ui.com/docs/primitives/error#quick-start",
+          "content": null
+        },
+        {
+          "nativeId": "core-concepts",
+          "title": "Core Concepts",
+          "url": "https://www.assistant-ui.com/docs/primitives/error#core-concepts",
+          "content": null
+        },
+        {
+          "nativeId": "parts",
+          "title": "Parts",
+          "url": "https://www.assistant-ui.com/docs/primitives/error#parts",
+          "content": null
+        },
+        {
+          "nativeId": "patterns",
+          "title": "Patterns",
+          "url": "https://www.assistant-ui.com/docs/primitives/error#patterns",
+          "content": null
+        },
+        {
+          "nativeId": "relationship-to-components",
+          "title": "Relationship to Components",
+          "url": "https://www.assistant-ui.com/docs/primitives/error#relationship-to-components",
+          "content": null
+        },
+        {
+          "nativeId": "api-reference",
+          "title": "API Reference",
+          "url": "https://www.assistant-ui.com/docs/primitives/error#api-reference",
+          "content": null
+        },
+        {
+          "nativeId": "api-reference:anatomy",
+          "title": "Anatomy",
+          "url": "https://www.assistant-ui.com/docs/api-reference/primitives/error#anatomy",
+          "content": null
+        },
+        {
+          "nativeId": "api-reference:api-reference",
+          "title": "API Reference",
+          "url": "https://www.assistant-ui.com/docs/api-reference/primitives/error#api-reference",
+          "content": null
+        }
+      ],
+      "links": [
+        {
+          "kind": "docs",
+          "label": null,
+          "url": "https://www.assistant-ui.com/docs/primitives/error"
+        },
+        {
+          "kind": "docs",
+          "label": "API reference",
+          "url": "https://www.assistant-ui.com/docs/api-reference/primitives/error"
+        },
+        {
+          "kind": "code",
+          "label": null,
+          "url": "https://github.com/assistant-ui/assistant-ui/blob/9d75e20461bb9ca9742b7f2cc476d3eebe6b74c6/apps/docs/content/docs/primitives/error.mdx"
+        }
+      ],
+      "examples": [],
+      "relationships": [],
+      "sourcePath": "apps/docs/content/docs/primitives/error.mdx"
+    },
+    {
+      "nativeId": "message",
+      "name": "Message",
+      "aliases": [
+        "MessagePrimitive"
+      ],
+      "summary": {
+        "text": "Build custom message rendering with content parts, attachments, and hover state.",
+        "url": "https://www.assistant-ui.com/docs/primitives/message"
+      },
+      "kind": "primitive",
+      "canonicalUrl": "https://www.assistant-ui.com/docs/primitives/message",
+      "sections": [
+        {
+          "nativeId": "quick-start",
+          "title": "Quick Start",
+          "url": "https://www.assistant-ui.com/docs/primitives/message#quick-start",
+          "content": null
+        },
+        {
+          "nativeId": "core-concepts",
+          "title": "Core Concepts",
+          "url": "https://www.assistant-ui.com/docs/primitives/message#core-concepts",
+          "content": null
+        },
+        {
+          "nativeId": "parts",
+          "title": "Parts",
+          "url": "https://www.assistant-ui.com/docs/primitives/message#parts",
+          "content": null
+        },
+        {
+          "nativeId": "patterns",
+          "title": "Patterns",
+          "url": "https://www.assistant-ui.com/docs/primitives/message#patterns",
+          "content": null
+        },
+        {
+          "nativeId": "relationship-to-components",
+          "title": "Relationship to Components",
+          "url": "https://www.assistant-ui.com/docs/primitives/message#relationship-to-components",
+          "content": null
+        },
+        {
+          "nativeId": "api-reference",
+          "title": "API Reference",
+          "url": "https://www.assistant-ui.com/docs/primitives/message#api-reference",
+          "content": null
+        },
+        {
+          "nativeId": "api-reference:anatomy",
+          "title": "Anatomy",
+          "url": "https://www.assistant-ui.com/docs/api-reference/primitives/message#anatomy",
+          "content": null
+        },
+        {
+          "nativeId": "api-reference:api-reference",
+          "title": "API Reference",
+          "url": "https://www.assistant-ui.com/docs/api-reference/primitives/message#api-reference",
+          "content": null
+        }
+      ],
+      "links": [
+        {
+          "kind": "docs",
+          "label": null,
+          "url": "https://www.assistant-ui.com/docs/primitives/message"
+        },
+        {
+          "kind": "docs",
+          "label": "API reference",
+          "url": "https://www.assistant-ui.com/docs/api-reference/primitives/message"
+        },
+        {
+          "kind": "code",
+          "label": null,
+          "url": "https://github.com/assistant-ui/assistant-ui/blob/9d75e20461bb9ca9742b7f2cc476d3eebe6b74c6/apps/docs/content/docs/primitives/message.mdx"
+        }
+      ],
+      "examples": [],
+      "relationships": [
+        {
+          "kind": "related-to",
+          "label": "ActionBar",
+          "targetTitle": "ActionBar",
+          "targetUrl": "https://www.assistant-ui.com/docs/primitives/action-bar"
+        },
+        {
+          "kind": "related-to",
+          "label": "BranchPicker",
+          "targetTitle": "BranchPicker",
+          "targetUrl": "https://www.assistant-ui.com/docs/primitives/branch-picker"
+        }
+      ],
+      "sourcePath": "apps/docs/content/docs/primitives/message.mdx"
+    },
+    {
+      "nativeId": "message-part",
+      "name": "MessagePartPrimitive",
+      "aliases": [],
+      "summary": {
+        "text": "Message part primitives for rendering text, tool calls, data parts, reasoning, source content, and custom assistant output.",
+        "url": "https://www.assistant-ui.com/docs/api-reference/primitives/message-part"
+      },
+      "kind": "primitive",
+      "canonicalUrl": "https://www.assistant-ui.com/docs/api-reference/primitives/message-part",
+      "sections": [
+        {
+          "nativeId": "api-reference:anatomy",
+          "title": "Anatomy",
+          "url": "https://www.assistant-ui.com/docs/api-reference/primitives/message-part#anatomy",
+          "content": null
+        },
+        {
+          "nativeId": "api-reference:api-reference",
+          "title": "API Reference",
+          "url": "https://www.assistant-ui.com/docs/api-reference/primitives/message-part#api-reference",
+          "content": null
+        }
+      ],
+      "links": [
+        {
+          "kind": "docs",
+          "label": null,
+          "url": "https://www.assistant-ui.com/docs/api-reference/primitives/message-part"
+        },
+        {
+          "kind": "code",
+          "label": null,
+          "url": "https://github.com/assistant-ui/assistant-ui/blob/9d75e20461bb9ca9742b7f2cc476d3eebe6b74c6/apps/docs/content/docs/(reference)/api-reference/primitives/message-part.mdx"
+        }
+      ],
+      "examples": [],
+      "relationships": [],
+      "sourcePath": "apps/docs/content/docs/(reference)/api-reference/primitives/message-part.mdx"
+    },
+    {
+      "nativeId": "queue-item",
+      "name": "QueueItemPrimitive",
+      "aliases": [],
+      "summary": {
+        "text": "Queue item primitives for rendering pending assistant-ui thread operations, optimistic work, and runtime queue state.",
+        "url": "https://www.assistant-ui.com/docs/api-reference/primitives/queue-item"
+      },
+      "kind": "primitive",
+      "canonicalUrl": "https://www.assistant-ui.com/docs/api-reference/primitives/queue-item",
+      "sections": [
+        {
+          "nativeId": "api-reference:api-reference",
+          "title": "API Reference",
+          "url": "https://www.assistant-ui.com/docs/api-reference/primitives/queue-item#api-reference",
+          "content": null
+        }
+      ],
+      "links": [
+        {
+          "kind": "docs",
+          "label": null,
+          "url": "https://www.assistant-ui.com/docs/api-reference/primitives/queue-item"
+        },
+        {
+          "kind": "code",
+          "label": null,
+          "url": "https://github.com/assistant-ui/assistant-ui/blob/9d75e20461bb9ca9742b7f2cc476d3eebe6b74c6/apps/docs/content/docs/(reference)/api-reference/primitives/queue-item.mdx"
+        }
+      ],
+      "examples": [],
+      "relationships": [],
+      "sourcePath": "apps/docs/content/docs/(reference)/api-reference/primitives/queue-item.mdx"
+    },
+    {
+      "nativeId": "selection-toolbar",
+      "name": "SelectionToolbar",
+      "aliases": [
+        "SelectionToolbarPrimitive"
+      ],
+      "summary": {
+        "text": "A floating toolbar that appears when text is selected within a message.",
+        "url": "https://www.assistant-ui.com/docs/primitives/selection-toolbar"
+      },
+      "kind": "primitive",
+      "canonicalUrl": "https://www.assistant-ui.com/docs/primitives/selection-toolbar",
+      "sections": [
+        {
+          "nativeId": "quick-start",
+          "title": "Quick Start",
+          "url": "https://www.assistant-ui.com/docs/primitives/selection-toolbar#quick-start",
+          "content": null
+        },
+        {
+          "nativeId": "core-concepts",
+          "title": "Core Concepts",
+          "url": "https://www.assistant-ui.com/docs/primitives/selection-toolbar#core-concepts",
+          "content": null
+        },
+        {
+          "nativeId": "parts",
+          "title": "Parts",
+          "url": "https://www.assistant-ui.com/docs/primitives/selection-toolbar#parts",
+          "content": null
+        },
+        {
+          "nativeId": "patterns",
+          "title": "Patterns",
+          "url": "https://www.assistant-ui.com/docs/primitives/selection-toolbar#patterns",
+          "content": null
+        },
+        {
+          "nativeId": "relationship-to-components",
+          "title": "Relationship to Components",
+          "url": "https://www.assistant-ui.com/docs/primitives/selection-toolbar#relationship-to-components",
+          "content": null
+        },
+        {
+          "nativeId": "api-reference",
+          "title": "API Reference",
+          "url": "https://www.assistant-ui.com/docs/primitives/selection-toolbar#api-reference",
+          "content": null
+        },
+        {
+          "nativeId": "api-reference:anatomy",
+          "title": "Anatomy",
+          "url": "https://www.assistant-ui.com/docs/api-reference/primitives/selection-toolbar#anatomy",
+          "content": null
+        },
+        {
+          "nativeId": "api-reference:api-reference",
+          "title": "API Reference",
+          "url": "https://www.assistant-ui.com/docs/api-reference/primitives/selection-toolbar#api-reference",
+          "content": null
+        }
+      ],
+      "links": [
+        {
+          "kind": "docs",
+          "label": null,
+          "url": "https://www.assistant-ui.com/docs/primitives/selection-toolbar"
+        },
+        {
+          "kind": "docs",
+          "label": "API reference",
+          "url": "https://www.assistant-ui.com/docs/api-reference/primitives/selection-toolbar"
+        },
+        {
+          "kind": "code",
+          "label": null,
+          "url": "https://github.com/assistant-ui/assistant-ui/blob/9d75e20461bb9ca9742b7f2cc476d3eebe6b74c6/apps/docs/content/docs/primitives/selection-toolbar.mdx"
+        }
+      ],
+      "examples": [],
+      "relationships": [],
+      "sourcePath": "apps/docs/content/docs/primitives/selection-toolbar.mdx"
+    },
+    {
+      "nativeId": "suggestion",
+      "name": "Suggestion",
+      "aliases": [
+        "SuggestionPrimitive"
+      ],
+      "summary": {
+        "text": "Suggested prompts that users can click to quickly send or populate the composer.",
+        "url": "https://www.assistant-ui.com/docs/primitives/suggestion"
+      },
+      "kind": "primitive",
+      "canonicalUrl": "https://www.assistant-ui.com/docs/primitives/suggestion",
+      "sections": [
+        {
+          "nativeId": "quick-start",
+          "title": "Quick Start",
+          "url": "https://www.assistant-ui.com/docs/primitives/suggestion#quick-start",
+          "content": null
+        },
+        {
+          "nativeId": "core-concepts",
+          "title": "Core Concepts",
+          "url": "https://www.assistant-ui.com/docs/primitives/suggestion#core-concepts",
+          "content": null
+        },
+        {
+          "nativeId": "parts",
+          "title": "Parts",
+          "url": "https://www.assistant-ui.com/docs/primitives/suggestion#parts",
+          "content": null
+        },
+        {
+          "nativeId": "patterns",
+          "title": "Patterns",
+          "url": "https://www.assistant-ui.com/docs/primitives/suggestion#patterns",
+          "content": null
+        },
+        {
+          "nativeId": "relationship-to-components",
+          "title": "Relationship to Components",
+          "url": "https://www.assistant-ui.com/docs/primitives/suggestion#relationship-to-components",
+          "content": null
+        },
+        {
+          "nativeId": "api-reference",
+          "title": "API Reference",
+          "url": "https://www.assistant-ui.com/docs/primitives/suggestion#api-reference",
+          "content": null
+        },
+        {
+          "nativeId": "api-reference:api-reference",
+          "title": "API Reference",
+          "url": "https://www.assistant-ui.com/docs/api-reference/primitives/suggestion#api-reference",
+          "content": null
+        }
+      ],
+      "links": [
+        {
+          "kind": "docs",
+          "label": null,
+          "url": "https://www.assistant-ui.com/docs/primitives/suggestion"
+        },
+        {
+          "kind": "docs",
+          "label": "API reference",
+          "url": "https://www.assistant-ui.com/docs/api-reference/primitives/suggestion"
+        },
+        {
+          "kind": "code",
+          "label": null,
+          "url": "https://github.com/assistant-ui/assistant-ui/blob/9d75e20461bb9ca9742b7f2cc476d3eebe6b74c6/apps/docs/content/docs/primitives/suggestion.mdx"
+        }
+      ],
+      "examples": [],
+      "relationships": [],
+      "sourcePath": "apps/docs/content/docs/primitives/suggestion.mdx"
+    },
+    {
+      "nativeId": "thread",
+      "name": "Thread",
+      "aliases": [
+        "ThreadPrimitive"
+      ],
+      "summary": {
+        "text": "Build custom scrollable message containers with auto-scroll, empty states, and message rendering.",
+        "url": "https://www.assistant-ui.com/docs/primitives/thread"
+      },
+      "kind": "primitive",
+      "canonicalUrl": "https://www.assistant-ui.com/docs/primitives/thread",
+      "sections": [
+        {
+          "nativeId": "quick-start",
+          "title": "Quick Start",
+          "url": "https://www.assistant-ui.com/docs/primitives/thread#quick-start",
+          "content": null
+        },
+        {
+          "nativeId": "core-concepts",
+          "title": "Core Concepts",
+          "url": "https://www.assistant-ui.com/docs/primitives/thread#core-concepts",
+          "content": null
+        },
+        {
+          "nativeId": "parts",
+          "title": "Parts",
+          "url": "https://www.assistant-ui.com/docs/primitives/thread#parts",
+          "content": null
+        },
+        {
+          "nativeId": "patterns",
+          "title": "Patterns",
+          "url": "https://www.assistant-ui.com/docs/primitives/thread#patterns",
+          "content": null
+        },
+        {
+          "nativeId": "relationship-to-components",
+          "title": "Relationship to Components",
+          "url": "https://www.assistant-ui.com/docs/primitives/thread#relationship-to-components",
+          "content": null
+        },
+        {
+          "nativeId": "api-reference",
+          "title": "API Reference",
+          "url": "https://www.assistant-ui.com/docs/primitives/thread#api-reference",
+          "content": null
+        },
+        {
+          "nativeId": "api-reference:anatomy",
+          "title": "Anatomy",
+          "url": "https://www.assistant-ui.com/docs/api-reference/primitives/thread#anatomy",
+          "content": null
+        },
+        {
+          "nativeId": "api-reference:api-reference",
+          "title": "API Reference",
+          "url": "https://www.assistant-ui.com/docs/api-reference/primitives/thread#api-reference",
+          "content": null
+        }
+      ],
+      "links": [
+        {
+          "kind": "docs",
+          "label": null,
+          "url": "https://www.assistant-ui.com/docs/primitives/thread"
+        },
+        {
+          "kind": "docs",
+          "label": "API reference",
+          "url": "https://www.assistant-ui.com/docs/api-reference/primitives/thread"
+        },
+        {
+          "kind": "code",
+          "label": null,
+          "url": "https://github.com/assistant-ui/assistant-ui/blob/9d75e20461bb9ca9742b7f2cc476d3eebe6b74c6/apps/docs/content/docs/primitives/thread.mdx"
+        }
+      ],
+      "examples": [],
+      "relationships": [],
+      "sourcePath": "apps/docs/content/docs/primitives/thread.mdx"
+    },
+    {
+      "nativeId": "thread-list",
+      "name": "ThreadList",
+      "aliases": [
+        "ThreadListPrimitive"
+      ],
+      "summary": {
+        "text": "Multi-thread management for listing, creating, switching, archiving, and deleting conversations.",
+        "url": "https://www.assistant-ui.com/docs/primitives/thread-list"
+      },
+      "kind": "primitive",
+      "canonicalUrl": "https://www.assistant-ui.com/docs/primitives/thread-list",
+      "sections": [
+        {
+          "nativeId": "quick-start",
+          "title": "Quick Start",
+          "url": "https://www.assistant-ui.com/docs/primitives/thread-list#quick-start",
+          "content": null
+        },
+        {
+          "nativeId": "core-concepts",
+          "title": "Core Concepts",
+          "url": "https://www.assistant-ui.com/docs/primitives/thread-list#core-concepts",
+          "content": null
+        },
+        {
+          "nativeId": "accessibility",
+          "title": "Accessibility",
+          "url": "https://www.assistant-ui.com/docs/primitives/thread-list#accessibility",
+          "content": null
+        },
+        {
+          "nativeId": "parts",
+          "title": "Parts",
+          "url": "https://www.assistant-ui.com/docs/primitives/thread-list#parts",
+          "content": null
+        },
+        {
+          "nativeId": "patterns",
+          "title": "Patterns",
+          "url": "https://www.assistant-ui.com/docs/primitives/thread-list#patterns",
+          "content": null
+        },
+        {
+          "nativeId": "relationship-to-components",
+          "title": "Relationship to Components",
+          "url": "https://www.assistant-ui.com/docs/primitives/thread-list#relationship-to-components",
+          "content": null
+        },
+        {
+          "nativeId": "api-reference",
+          "title": "API Reference",
+          "url": "https://www.assistant-ui.com/docs/primitives/thread-list#api-reference",
+          "content": null
+        },
+        {
+          "nativeId": "api-reference:anatomy",
+          "title": "Anatomy",
+          "url": "https://www.assistant-ui.com/docs/api-reference/primitives/thread-list#anatomy",
+          "content": null
+        },
+        {
+          "nativeId": "api-reference:api-reference",
+          "title": "API Reference",
+          "url": "https://www.assistant-ui.com/docs/api-reference/primitives/thread-list#api-reference",
+          "content": null
+        }
+      ],
+      "links": [
+        {
+          "kind": "docs",
+          "label": null,
+          "url": "https://www.assistant-ui.com/docs/primitives/thread-list"
+        },
+        {
+          "kind": "docs",
+          "label": "API reference",
+          "url": "https://www.assistant-ui.com/docs/api-reference/primitives/thread-list"
+        },
+        {
+          "kind": "code",
+          "label": null,
+          "url": "https://github.com/assistant-ui/assistant-ui/blob/9d75e20461bb9ca9742b7f2cc476d3eebe6b74c6/apps/docs/content/docs/primitives/thread-list.mdx"
+        }
+      ],
+      "examples": [],
+      "relationships": [],
+      "sourcePath": "apps/docs/content/docs/primitives/thread-list.mdx"
+    },
+    {
+      "nativeId": "thread-list-item",
+      "name": "ThreadListItemPrimitive",
+      "aliases": [],
+      "summary": {
+        "text": "Thread list item primitives for rendering selectable conversation rows with titles, archive controls, delete actions, and menus.",
+        "url": "https://www.assistant-ui.com/docs/api-reference/primitives/thread-list-item"
+      },
+      "kind": "primitive",
+      "canonicalUrl": "https://www.assistant-ui.com/docs/api-reference/primitives/thread-list-item",
+      "sections": [
+        {
+          "nativeId": "api-reference:anatomy",
+          "title": "Anatomy",
+          "url": "https://www.assistant-ui.com/docs/api-reference/primitives/thread-list-item#anatomy",
+          "content": null
+        },
+        {
+          "nativeId": "api-reference:api-reference",
+          "title": "API Reference",
+          "url": "https://www.assistant-ui.com/docs/api-reference/primitives/thread-list-item#api-reference",
+          "content": null
+        }
+      ],
+      "links": [
+        {
+          "kind": "docs",
+          "label": null,
+          "url": "https://www.assistant-ui.com/docs/api-reference/primitives/thread-list-item"
+        },
+        {
+          "kind": "code",
+          "label": null,
+          "url": "https://github.com/assistant-ui/assistant-ui/blob/9d75e20461bb9ca9742b7f2cc476d3eebe6b74c6/apps/docs/content/docs/(reference)/api-reference/primitives/thread-list-item.mdx"
+        }
+      ],
+      "examples": [],
+      "relationships": [],
+      "sourcePath": "apps/docs/content/docs/(reference)/api-reference/primitives/thread-list-item.mdx"
+    },
+    {
+      "nativeId": "thread-list-item-more",
+      "name": "ThreadListItemMorePrimitive",
+      "aliases": [],
+      "summary": {
+        "text": "Overflow menu primitives for secondary thread list item actions in custom assistant-ui sidebars.",
+        "url": "https://www.assistant-ui.com/docs/api-reference/primitives/thread-list-item-more"
+      },
+      "kind": "primitive",
+      "canonicalUrl": "https://www.assistant-ui.com/docs/api-reference/primitives/thread-list-item-more",
+      "sections": [
+        {
+          "nativeId": "api-reference:anatomy",
+          "title": "Anatomy",
+          "url": "https://www.assistant-ui.com/docs/api-reference/primitives/thread-list-item-more#anatomy",
+          "content": null
+        },
+        {
+          "nativeId": "api-reference:api-reference",
+          "title": "API Reference",
+          "url": "https://www.assistant-ui.com/docs/api-reference/primitives/thread-list-item-more#api-reference",
+          "content": null
+        }
+      ],
+      "links": [
+        {
+          "kind": "docs",
+          "label": null,
+          "url": "https://www.assistant-ui.com/docs/api-reference/primitives/thread-list-item-more"
+        },
+        {
+          "kind": "code",
+          "label": null,
+          "url": "https://github.com/assistant-ui/assistant-ui/blob/9d75e20461bb9ca9742b7f2cc476d3eebe6b74c6/apps/docs/content/docs/(reference)/api-reference/primitives/thread-list-item-more.mdx"
+        }
+      ],
+      "examples": [],
+      "relationships": [],
+      "sourcePath": "apps/docs/content/docs/(reference)/api-reference/primitives/thread-list-item-more.mdx"
+    }
+  ]
+}

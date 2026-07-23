@@ -1,0 +1,2120 @@
+{
+  "schemaVersion": "1",
+  "revision": "18c1a2fca626f7aeb33270e23ae9b18833e2164d",
+  "records": [
+    {
+      "nativeId": "accordion",
+      "name": "Accordion Pattern (Sections With Show/Hide Functionality)",
+      "aliases": [],
+      "summary": {
+        "text": "An accordion is a vertically stacked set of interactive headings that each contain a title, content snippet, or thumbnail representing a section of content. The headings function as controls that enable users to reveal or hide their associated sections of content. Accordions are commonly used to reduce the need to scroll when presenting multiple sections of content on a single page.",
+        "url": "https://www.w3.org/WAI/ARIA/apg/patterns/accordion/#about"
+      },
+      "kind": "pattern",
+      "canonicalUrl": "https://www.w3.org/WAI/ARIA/apg/patterns/accordion/",
+      "sections": [
+        {
+          "nativeId": "about",
+          "title": "About This Pattern",
+          "url": "https://www.w3.org/WAI/ARIA/apg/patterns/accordion/#about",
+          "content": null
+        },
+        {
+          "nativeId": "examples",
+          "title": "Example",
+          "url": "https://www.w3.org/WAI/ARIA/apg/patterns/accordion/#examples",
+          "content": null
+        },
+        {
+          "nativeId": "keyboard_interaction",
+          "title": "Keyboard Interaction",
+          "url": "https://www.w3.org/WAI/ARIA/apg/patterns/accordion/#keyboard_interaction",
+          "content": "• Enter or Space :\n• When focus is on the accordion header for a collapsed panel, expands the associated panel.\nIf the implementation allows only one panel to be expanded, and if another panel is expanded, collapses that panel.\n• When focus is on the accordion header for an expanded panel, collapses the panel if the implementation supports collapsing.\nSome implementations require one panel to be expanded at all times and allow only one panel to be expanded; so, they do not support a collapse function.\n• Tab : Moves focus to the next focusable element; all focusable elements in the accordion are included in the page Tab sequence.\n• Shift + Tab : Moves focus to the previous focusable element; all focusable elements in the accordion are included in the page Tab sequence."
+        },
+        {
+          "nativeId": "roles_states_properties",
+          "title": "WAI-ARIA Roles, States, and Properties",
+          "url": "https://www.w3.org/WAI/ARIA/apg/patterns/accordion/#roles_states_properties",
+          "content": "• The title of each accordion header is contained in an element with role button .\n• Each accordion header button is wrapped in an element with role heading that has a value set for aria-level that is appropriate for the information architecture of the page.\n• If the native host language has an element with an implicit heading and aria-level , such as an HTML heading tag, a native host language element may be used.\n• The button element is the only element inside the heading element. That is, if there are other visually persistent elements, they are not included inside the heading element.\n• If the accordion panel associated with an accordion header is visible, the header button element has aria-expanded set to true . If the panel is not visible, aria-expanded is set to false .\n• The accordion header button element has aria-controls set to the ID of the element containing the accordion panel content.\n• If the accordion panel associated with an accordion header is visible, and if the accordion does not permit the panel to be collapsed, the header button element has aria-disabled set to true .\n• Optionally, each element that serves as a container for panel content has role region and aria-labelledby with a value that refers to the button that controls display of the panel.\n• Avoid using the region role in circumstances that create landmark region proliferation, e.g., in an accordion that contains more than approximately 6 panels that can be expanded at the same time.\n• Role region is especially helpful to the perception of structure by screen reader users when panels contain heading elements or a nested accordion."
+        }
+      ],
+      "links": [
+        {
+          "kind": "docs",
+          "label": null,
+          "url": "https://www.w3.org/WAI/ARIA/apg/patterns/accordion/"
+        },
+        {
+          "kind": "code",
+          "label": null,
+          "url": "https://github.com/w3c/aria-practices/blob/18c1a2fca626f7aeb33270e23ae9b18833e2164d/content/patterns/accordion/accordion-pattern.html"
+        }
+      ],
+      "examples": [
+        {
+          "nativeId": "accordion",
+          "title": "Accordion Example",
+          "url": "https://www.w3.org/WAI/ARIA/apg/patterns/accordion/examples/accordion.html"
+        }
+      ],
+      "relationships": [],
+      "sourcePath": "content/patterns/accordion/accordion-pattern.html"
+    },
+    {
+      "nativeId": "alert",
+      "name": "Alert",
+      "aliases": [],
+      "summary": {
+        "text": "An alert is an element that displays a brief, important message in a way that attracts the user's attention without interrupting the user's task. Dynamically rendered alerts are automatically announced by most screen readers, and in some operating systems, they may trigger an alert sound. It is important to note that, at this time, screen readers do not inform users of alerts that are present on the page before page load completes.",
+        "url": "https://www.w3.org/WAI/ARIA/apg/patterns/alert/#about"
+      },
+      "kind": "pattern",
+      "canonicalUrl": "https://www.w3.org/WAI/ARIA/apg/patterns/alert/",
+      "sections": [
+        {
+          "nativeId": "about",
+          "title": "About This Pattern",
+          "url": "https://www.w3.org/WAI/ARIA/apg/patterns/alert/#about",
+          "content": null
+        },
+        {
+          "nativeId": "examples",
+          "title": "Example",
+          "url": "https://www.w3.org/WAI/ARIA/apg/patterns/alert/#examples",
+          "content": null
+        },
+        {
+          "nativeId": "keyboard_interaction",
+          "title": "Keyboard Interaction",
+          "url": "https://www.w3.org/WAI/ARIA/apg/patterns/alert/#keyboard_interaction",
+          "content": "Not applicable."
+        },
+        {
+          "nativeId": "roles_states_properties",
+          "title": "WAI-ARIA Roles, States, and Properties",
+          "url": "https://www.w3.org/WAI/ARIA/apg/patterns/alert/#roles_states_properties",
+          "content": "The widget has a role of alert ."
+        }
+      ],
+      "links": [
+        {
+          "kind": "docs",
+          "label": null,
+          "url": "https://www.w3.org/WAI/ARIA/apg/patterns/alert/"
+        },
+        {
+          "kind": "code",
+          "label": null,
+          "url": "https://github.com/w3c/aria-practices/blob/18c1a2fca626f7aeb33270e23ae9b18833e2164d/content/patterns/alert/alert-pattern.html"
+        }
+      ],
+      "examples": [
+        {
+          "nativeId": "alert",
+          "title": "Alert Example",
+          "url": "https://www.w3.org/WAI/ARIA/apg/patterns/alert/examples/alert.html"
+        }
+      ],
+      "relationships": [
+        {
+          "kind": "related-to",
+          "label": "Alert Dialog",
+          "targetTitle": "Alert Dialog",
+          "targetUrl": "https://www.w3.org/WAI/ARIA/apg/patterns/alertdialog/"
+        }
+      ],
+      "sourcePath": "content/patterns/alert/alert-pattern.html"
+    },
+    {
+      "nativeId": "alertdialog",
+      "name": "Alert and Message Dialogs",
+      "aliases": [],
+      "summary": {
+        "text": "An alert dialog is a modal dialog that interrupts the user's workflow to communicate an important message and acquire a response. Examples include action confirmation prompts and error message confirmations. The alertdialog role enables assistive technologies and browsers to distinguish alert dialogs from other dialogs so they have the option of giving alert dialogs special treatment, such as playing a system alert sound.",
+        "url": "https://www.w3.org/WAI/ARIA/apg/patterns/alertdialog/#about"
+      },
+      "kind": "pattern",
+      "canonicalUrl": "https://www.w3.org/WAI/ARIA/apg/patterns/alertdialog/",
+      "sections": [
+        {
+          "nativeId": "about",
+          "title": "About This Pattern",
+          "url": "https://www.w3.org/WAI/ARIA/apg/patterns/alertdialog/#about",
+          "content": null
+        },
+        {
+          "nativeId": "examples",
+          "title": "Example",
+          "url": "https://www.w3.org/WAI/ARIA/apg/patterns/alertdialog/#examples",
+          "content": null
+        },
+        {
+          "nativeId": "keyboard_interaction",
+          "title": "Keyboard Interaction",
+          "url": "https://www.w3.org/WAI/ARIA/apg/patterns/alertdialog/#keyboard_interaction",
+          "content": "See the keyboard interaction section for the modal dialog pattern ."
+        },
+        {
+          "nativeId": "roles_states_properties",
+          "title": "WAI-ARIA Roles, States, and Properties",
+          "url": "https://www.w3.org/WAI/ARIA/apg/patterns/alertdialog/#roles_states_properties",
+          "content": "• The element that contains all elements of the dialog, including the alert message and any dialog buttons, has role alertdialog .\n• The dialog container element has aria-modal set to true .\n• The element with role alertdialog has either:\n• A value for aria-labelledby that refers to the element containing the title of the dialog if the dialog has a visible label.\n• A value for aria-label if the dialog does not have a visible label.\n• The element with role alertdialog has a value set for aria-describedby that refers to the element containing the alert message.\nNote\n• Because marking a dialog modal by setting aria-modal to true can prevent users of some assistive technologies from perceiving content outside the dialog, users of those technologies will experience severe negative ramifications if a dialog is marked modal but does not behave as a modal for other users.\nSo, mark a dialog modal only when both:\n• Application code prevents all users from interacting in any way with content outside of it.\n• Visual styling obscures the content outside of it.\n• The aria-modal property introduced by ARIA 1.1 replaces aria-hidden for informing assistive technologies that content outside a dialog is inert.\nHowever, in legacy dialog implementations where aria-hidden is used to make content outside a dialog inert for assistive technology users, it is important that:\n• aria-hidden is set to true on each element containing a portion of the inert layer.\n• The dialog element is not a descendant of any element that has aria-hidden set to true ."
+        }
+      ],
+      "links": [
+        {
+          "kind": "docs",
+          "label": null,
+          "url": "https://www.w3.org/WAI/ARIA/apg/patterns/alertdialog/"
+        },
+        {
+          "kind": "code",
+          "label": null,
+          "url": "https://github.com/w3c/aria-practices/blob/18c1a2fca626f7aeb33270e23ae9b18833e2164d/content/patterns/alertdialog/alertdialog-pattern.html"
+        }
+      ],
+      "examples": [
+        {
+          "nativeId": "alertdialog",
+          "title": "Alert Dialog Example",
+          "url": "https://www.w3.org/WAI/ARIA/apg/patterns/alertdialog/examples/alertdialog.html"
+        }
+      ],
+      "relationships": [
+        {
+          "kind": "related-to",
+          "label": "modal dialog",
+          "targetTitle": "modal dialog",
+          "targetUrl": "https://www.w3.org/WAI/ARIA/apg/patterns/dialog-modal/"
+        }
+      ],
+      "sourcePath": "content/patterns/alertdialog/alertdialog-pattern.html"
+    },
+    {
+      "nativeId": "breadcrumb",
+      "name": "Breadcrumb",
+      "aliases": [],
+      "summary": {
+        "text": "A breadcrumb trail consists of a list of links to the parent pages of the current page in hierarchical order. It helps users find their place within a website or web application. Breadcrumbs are often placed horizontally before a page's main content.",
+        "url": "https://www.w3.org/WAI/ARIA/apg/patterns/breadcrumb/#about"
+      },
+      "kind": "pattern",
+      "canonicalUrl": "https://www.w3.org/WAI/ARIA/apg/patterns/breadcrumb/",
+      "sections": [
+        {
+          "nativeId": "about",
+          "title": "About This Pattern",
+          "url": "https://www.w3.org/WAI/ARIA/apg/patterns/breadcrumb/#about",
+          "content": null
+        },
+        {
+          "nativeId": "examples",
+          "title": "Example",
+          "url": "https://www.w3.org/WAI/ARIA/apg/patterns/breadcrumb/#examples",
+          "content": null
+        },
+        {
+          "nativeId": "keyboard_interaction",
+          "title": "Keyboard Interaction",
+          "url": "https://www.w3.org/WAI/ARIA/apg/patterns/breadcrumb/#keyboard_interaction",
+          "content": "Not applicable."
+        },
+        {
+          "nativeId": "roles_states_properties",
+          "title": "WAI-ARIA Roles, States, and Properties",
+          "url": "https://www.w3.org/WAI/ARIA/apg/patterns/breadcrumb/#roles_states_properties",
+          "content": "• Breadcrumb trail is contained within a navigation landmark region.\n• The landmark region is labelled via aria-label or aria-labelledby .\n• The link to the current page has aria-current set to page .\nIf the element representing the current page is not a link, aria-current is optional."
+        }
+      ],
+      "links": [
+        {
+          "kind": "docs",
+          "label": null,
+          "url": "https://www.w3.org/WAI/ARIA/apg/patterns/breadcrumb/"
+        },
+        {
+          "kind": "code",
+          "label": null,
+          "url": "https://github.com/w3c/aria-practices/blob/18c1a2fca626f7aeb33270e23ae9b18833e2164d/content/patterns/breadcrumb/breadcrumb-pattern.html"
+        }
+      ],
+      "examples": [
+        {
+          "nativeId": "breadcrumb",
+          "title": "Breadcrumb design pattern example",
+          "url": "https://www.w3.org/WAI/ARIA/apg/patterns/breadcrumb/examples/breadcrumb.html"
+        }
+      ],
+      "relationships": [],
+      "sourcePath": "content/patterns/breadcrumb/breadcrumb-pattern.html"
+    },
+    {
+      "nativeId": "button",
+      "name": "Button",
+      "aliases": [],
+      "summary": {
+        "text": "A button is a widget that enables users to trigger an action or event, such as submitting a form, opening a dialog, canceling an action, or performing a delete operation. A common convention for informing users that a button launches a dialog is to append \"&#8230;\" (ellipsis) to the button label, e.g., \"Save as&#8230;\".",
+        "url": "https://www.w3.org/WAI/ARIA/apg/patterns/button/#about"
+      },
+      "kind": "pattern",
+      "canonicalUrl": "https://www.w3.org/WAI/ARIA/apg/patterns/button/",
+      "sections": [
+        {
+          "nativeId": "about",
+          "title": "About This Pattern",
+          "url": "https://www.w3.org/WAI/ARIA/apg/patterns/button/#about",
+          "content": null
+        },
+        {
+          "nativeId": "examples",
+          "title": "Examples",
+          "url": "https://www.w3.org/WAI/ARIA/apg/patterns/button/#examples",
+          "content": null
+        },
+        {
+          "nativeId": "keyboard_interaction",
+          "title": "Keyboard Interaction",
+          "url": "https://www.w3.org/WAI/ARIA/apg/patterns/button/#keyboard_interaction",
+          "content": "When the button has focus:\n• Space : Activates the button.\n• Enter : Activates the button.\n• Following button activation, focus is set depending on the type of action the button performs. For example:\n• If activating the button opens a dialog, the focus moves inside the dialog.\n(see dialog pattern )\n• If activating the button closes a dialog, focus typically returns to the button that opened the dialog unless the function performed in the dialog context logically leads to a different element.\nFor example, activating a cancel button in a dialog returns focus to the button that opened the dialog.\nHowever, if the dialog were confirming the action of deleting the page from which it was opened, the focus would logically move to a new context.\n• If activating the button does not dismiss the current context, then focus typically remains on the button after activation, e.g., an Apply or Recalculate button.\n• If the button action indicates a context change, such as move to next step in a wizard or add another search criteria, then it is often appropriate to move focus to the starting point for that action.\n• If the button is activated with a shortcut key, the focus usually remains in the context from which the shortcut key was activated.\nFor example, if Alt + U were assigned to an \"Up\" button that moves the currently focused item in a list one position higher in the list, pressing Alt + U when the focus is in the list would not move the focus from the list."
+        },
+        {
+          "nativeId": "roles_states_properties",
+          "title": "WAI-ARIA Roles, States, and Properties",
+          "url": "https://www.w3.org/WAI/ARIA/apg/patterns/button/#roles_states_properties",
+          "content": "• The button has role of button .\n• The button has an accessible label.\nBy default, the accessible name is computed from any text content inside the button element.\nHowever, it can also be provided with aria-labelledby or aria-label .\n• If a description of the button's function is present, the button element has aria-describedby set to the ID of the element containing the description.\n• When the action associated with a button is unavailable, the button has aria-disabled set to true .\n• If the button is a toggle button, it has an aria-pressed state.\nWhen the button is toggled on, the value of this state is true , and when toggled off, the state is false ."
+        }
+      ],
+      "links": [
+        {
+          "kind": "docs",
+          "label": null,
+          "url": "https://www.w3.org/WAI/ARIA/apg/patterns/button/"
+        },
+        {
+          "kind": "code",
+          "label": null,
+          "url": "https://github.com/w3c/aria-practices/blob/18c1a2fca626f7aeb33270e23ae9b18833e2164d/content/patterns/button/button-pattern.html"
+        }
+      ],
+      "examples": [
+        {
+          "nativeId": "button",
+          "title": "Button Examples",
+          "url": "https://www.w3.org/WAI/ARIA/apg/patterns/button/examples/button.html"
+        },
+        {
+          "nativeId": "button_idl",
+          "title": "Button Examples (IDL)",
+          "url": "https://www.w3.org/WAI/ARIA/apg/patterns/button/examples/button_idl.html"
+        }
+      ],
+      "relationships": [
+        {
+          "kind": "related-to",
+          "label": "menu button pattern",
+          "targetTitle": "menu button pattern",
+          "targetUrl": "https://www.w3.org/WAI/ARIA/apg/patterns/menu-button/"
+        },
+        {
+          "kind": "related-to",
+          "label": "link pattern",
+          "targetTitle": "link pattern",
+          "targetUrl": "https://www.w3.org/WAI/ARIA/apg/patterns/link/"
+        },
+        {
+          "kind": "related-to",
+          "label": "dialog pattern",
+          "targetTitle": "dialog pattern",
+          "targetUrl": "https://www.w3.org/WAI/ARIA/apg/patterns/dialog-modal/"
+        }
+      ],
+      "sourcePath": "content/patterns/button/button-pattern.html"
+    },
+    {
+      "nativeId": "carousel",
+      "name": "Carousel (Slide Show or Image Rotator)",
+      "aliases": [],
+      "summary": {
+        "text": "A carousel presents a set of items, referred to as slides, by sequentially displaying a subset of one or more slides. Typically, one slide is displayed at a time, and users can activate a next or previous slide control that hides the current slide and \"rotates\" the next or previous slide into view. In some implementations, rotation automatically starts when the page loads, and it may also automatically stop once all the slides have been displayed. While a slide may contain any type of content, image carousels where each slide contains nothing more than a single image are common.",
+        "url": "https://www.w3.org/WAI/ARIA/apg/patterns/carousel/#about"
+      },
+      "kind": "pattern",
+      "canonicalUrl": "https://www.w3.org/WAI/ARIA/apg/patterns/carousel/",
+      "sections": [
+        {
+          "nativeId": "about",
+          "title": "About This Pattern",
+          "url": "https://www.w3.org/WAI/ARIA/apg/patterns/carousel/#about",
+          "content": null
+        },
+        {
+          "nativeId": "examples",
+          "title": "Examples",
+          "url": "https://www.w3.org/WAI/ARIA/apg/patterns/carousel/#examples",
+          "content": null
+        },
+        {
+          "nativeId": "terms",
+          "title": "Terms",
+          "url": "https://www.w3.org/WAI/ARIA/apg/patterns/carousel/#terms",
+          "content": null
+        },
+        {
+          "nativeId": "keyboard_interaction",
+          "title": "Keyboard Interaction",
+          "url": "https://www.w3.org/WAI/ARIA/apg/patterns/carousel/#keyboard_interaction",
+          "content": "• If the carousel has an auto-rotate feature, automatic slide rotation stops when any element in the carousel receives keyboard focus.\nIt does not resume unless the user activates the rotation control.\n• Tab and Shift + Tab : Move focus through the interactive elements of the carousel as specified by the page tab sequence -- scripting for Tab is not necessary.\n• Button elements implement the keyboard interaction defined in the button pattern .\nNote: Activating the rotation control, next slide, and previous slide do not move focus, so users may easily repetitively activate them as many times as desired.\n• If present, the rotation control is the first element in the Tab sequence inside the carousel.\nIt is essential that it precede the rotating content so it can be easily located.\n• If tab elements are used for slide picker controls, they implement the keyboard interaction defined in the Tabs Pattern."
+        },
+        {
+          "nativeId": "roles_states_properties",
+          "title": "WAI-ARIA Roles, States, and Properties",
+          "url": "https://www.w3.org/WAI/ARIA/apg/patterns/carousel/#roles_states_properties",
+          "content": "This section describes the element composition for three styles of carousels:\n• Basic: Has rotation, previous slide, and next slide controls but no slide picker controls.\n• Tabbed: Has basic controls plus a single tab stop for slide picker controls implemented using the tabs pattern.\n• Grouped: Has basic controls plus a series of tab stops in a group of slide picker controls where each control implements the button pattern.\nBecause each slide selector button adds an element to the page tab sequence, this style is the least friendly for keyboard users.\nBasic carousel elements\n• A carousel container element that encompasses all components of the carousel, including both carousel controls and slides, has either role region or role group.\nThe most appropriate role for the carousel container depends on the information architecture of the page.\nSee the\nLandmark Regions Practice\nto determine whether the carousel warrants being designated as a landmark region.\n• The carousel container has the aria-roledescription property set to carousel .\n• If the carousel has a visible label, its accessible label is provided by the property aria-labelledby on the carousel container set to the ID of the element containing the visible label.\nOtherwise, an accessible label is provided by the property aria-label set on the carousel container.\nNote that since the aria-roledescription is set to \"carousel\", the label does not contain the word \"carousel\".\n• The rotation control, next slide control, and previous slide control are either native button elements (recommended) or implement the button pattern .\n• The rotation control has an accessible label provided by either its inner text or aria-label .\nThe label changes to match the action the button will perform, e.g., \"Stop slide rotation\" or \"Start slide rotation\".\nA label that changes when the button is activated clearly communicates both that slide content can change automatically and when it is doing so.\nNote that since the label changes, the rotation control does not have any states, e.g., aria-pressed , specified.\n• Each slide container has role group with the property aria-roledescription set to slide .\n• Each slide has an accessible name:\n• If a slide has a visible label, its accessible label is provided by the property aria-labelledby on the slide container set to the ID of the element containing the visible label.\n• Otherwise, an accessible label is provided by the property aria-label set on the slide container.\n• If unique names that identify the slide content are not available, a number and set size can serve as a meaningful alternative, e.g., \"3 of 10\". Note: Normally, including set position and size information in an accessible name is not appropriate. An exception is helpful in this implementation because group elements do not support aria-setsize or aria-posinset . The tabbed carousel implementation pattern does not have this limitation.\n• Note that since the aria-roledescription is set to \"slide\", the label does not contain the word \"slide.\"\n• Optionally, an element wrapping the set of slide elements has aria-atomic set to false and aria-live set to:\n• off : if the carousel is automatically rotating.\n• polite : if the carousel is NOT automatically rotating.\nTabbed Carousel Elements\nThe structure of a tabbed carousel is the same as a basic carousel except that:\n• Each slide container has role tabpanel in lieu of group , and it does not have the aria-roledescription property.\n• It has slide picker controls implemented using the tabs pattern where:\n• Each control is a tab element, so activating a tab displays the slide associated with that tab.\n• The accessible name of each tab indicates which slide it will display by including the name or number of the slide, e.g., \"Slide 3\".\nSlide names are preferable if each slide has a unique name.\n• The set of controls is grouped in a tablist element with an accessible name provided by the value of aria-label that identifies the purpose of the tabs, e.g., \"Choose slide to display.\"\n• The tab , tablist , and tabpanel implement the properties specified in the tabs pattern .\nGrouped Carousel Elements\nA grouped carousel has the same structure as a basic carousel, but it also includes slide picker controls where:\n• The set of slide picker controls is contained in an element with role group .\n• The group containing the picker controls has an accessible label provided by the value of aria-label that identifies the purpose of the controls, e.g., \"Choose slide to display.\"\n• Each picker control is a native button element (recommended) or implements the button pattern.\n• The accessible name of each picker button matches the name of the slide it displays.\nOne technique for accomplishing this is to set aria-labelledby to a value that references the slide group element.\n• The picker button representing the currently displayed slide has the property aria-disabled set to true .\nNote: aria-disabled is preferable to the HTML disabled attribute because this is a circumstance where screen reader users benefit from the disabled button being included in the page Tab sequence."
+        }
+      ],
+      "links": [
+        {
+          "kind": "docs",
+          "label": null,
+          "url": "https://www.w3.org/WAI/ARIA/apg/patterns/carousel/"
+        },
+        {
+          "kind": "code",
+          "label": null,
+          "url": "https://github.com/w3c/aria-practices/blob/18c1a2fca626f7aeb33270e23ae9b18833e2164d/content/patterns/carousel/carousel-pattern.html"
+        }
+      ],
+      "examples": [
+        {
+          "nativeId": "carousel-1-prev-next",
+          "title": "Auto-Rotating Image Carousel with Buttons for Slide Control:",
+          "url": "https://www.w3.org/WAI/ARIA/apg/patterns/carousel/examples/carousel-1-prev-next.html"
+        },
+        {
+          "nativeId": "carousel-2-tablist",
+          "title": "Auto-Rotating Image Carousel with Tabs for Slide Control:",
+          "url": "https://www.w3.org/WAI/ARIA/apg/patterns/carousel/examples/carousel-2-tablist.html"
+        }
+      ],
+      "relationships": [
+        {
+          "kind": "related-to",
+          "label": "button pattern",
+          "targetTitle": "button pattern",
+          "targetUrl": "https://www.w3.org/WAI/ARIA/apg/patterns/button/"
+        },
+        {
+          "kind": "related-to",
+          "label": "Tabs Pattern.",
+          "targetTitle": "Tabs Pattern.",
+          "targetUrl": "https://www.w3.org/WAI/ARIA/apg/patterns/tabs/"
+        }
+      ],
+      "sourcePath": "content/patterns/carousel/carousel-pattern.html"
+    },
+    {
+      "nativeId": "checkbox",
+      "name": "Checkbox",
+      "aliases": [],
+      "summary": {
+        "text": "WAI-ARIA supports two types of checkbox widgets: dual-state checkboxes toggle between two choices -- checked and not checked -- and tri-state checkboxes, which allow an additional third state known as partially checked.",
+        "url": "https://www.w3.org/WAI/ARIA/apg/patterns/checkbox/#about"
+      },
+      "kind": "pattern",
+      "canonicalUrl": "https://www.w3.org/WAI/ARIA/apg/patterns/checkbox/",
+      "sections": [
+        {
+          "nativeId": "about",
+          "title": "About This Pattern",
+          "url": "https://www.w3.org/WAI/ARIA/apg/patterns/checkbox/#about",
+          "content": null
+        },
+        {
+          "nativeId": "examples",
+          "title": "Examples",
+          "url": "https://www.w3.org/WAI/ARIA/apg/patterns/checkbox/#examples",
+          "content": null
+        },
+        {
+          "nativeId": "keyboard_interaction",
+          "title": "Keyboard Interaction",
+          "url": "https://www.w3.org/WAI/ARIA/apg/patterns/checkbox/#keyboard_interaction",
+          "content": "When the checkbox has focus, pressing the Space key changes the state of the checkbox."
+        },
+        {
+          "nativeId": "roles_states_properties",
+          "title": "WAI-ARIA Roles, States, and Properties",
+          "url": "https://www.w3.org/WAI/ARIA/apg/patterns/checkbox/#roles_states_properties",
+          "content": "• The checkbox has role checkbox .\n• The checkbox has an accessible label provided by one of the following:\n• Visible text content contained within the element with role checkbox .\n• A visible label referenced by the value of aria-labelledby set on the element with role checkbox .\n• aria-label set on the element with role checkbox .\n• When checked, the checkbox element has state aria-checked set to true .\n• When not checked, it has state aria-checked set to false .\n• When partially checked, it has state aria-checked set to mixed .\n• If a set of checkboxes is presented as a logical group with a visible label, the checkboxes are included in an element with role group that has the property aria-labelledby set to the ID of the element containing the label.\n• If the presentation includes additional descriptive static text relevant to a checkbox or checkbox group, the checkbox or checkbox group has the property aria-describedby set to the ID of the element containing the description."
+        }
+      ],
+      "links": [
+        {
+          "kind": "docs",
+          "label": null,
+          "url": "https://www.w3.org/WAI/ARIA/apg/patterns/checkbox/"
+        },
+        {
+          "kind": "code",
+          "label": null,
+          "url": "https://github.com/w3c/aria-practices/blob/18c1a2fca626f7aeb33270e23ae9b18833e2164d/content/patterns/checkbox/checkbox-pattern.html"
+        }
+      ],
+      "examples": [
+        {
+          "nativeId": "checkbox",
+          "title": "Checkbox (Two-State) Example",
+          "url": "https://www.w3.org/WAI/ARIA/apg/patterns/checkbox/examples/checkbox.html"
+        },
+        {
+          "nativeId": "checkbox-mixed",
+          "title": "Checkbox (Mixed-State) Example",
+          "url": "https://www.w3.org/WAI/ARIA/apg/patterns/checkbox/examples/checkbox-mixed.html"
+        }
+      ],
+      "relationships": [],
+      "sourcePath": "content/patterns/checkbox/checkbox-pattern.html"
+    },
+    {
+      "nativeId": "combobox",
+      "name": "Combobox",
+      "aliases": [],
+      "summary": {
+        "text": "A combobox is an input widget that has an associated popup. The popup enables users to choose a value for the input from a collection. The popup may be a listbox , grid , tree , or dialog.",
+        "url": "https://www.w3.org/WAI/ARIA/apg/patterns/combobox/#about"
+      },
+      "kind": "pattern",
+      "canonicalUrl": "https://www.w3.org/WAI/ARIA/apg/patterns/combobox/",
+      "sections": [
+        {
+          "nativeId": "about",
+          "title": "About This Pattern",
+          "url": "https://www.w3.org/WAI/ARIA/apg/patterns/combobox/#about",
+          "content": null
+        },
+        {
+          "nativeId": "examples",
+          "title": "Examples",
+          "url": "https://www.w3.org/WAI/ARIA/apg/patterns/combobox/#examples",
+          "content": null
+        },
+        {
+          "nativeId": "keyboard_interaction",
+          "title": "Keyboard Interaction",
+          "url": "https://www.w3.org/WAI/ARIA/apg/patterns/combobox/#keyboard_interaction",
+          "content": "• Tab : The combobox is in the page Tab sequence.\n• Note: The popup indicator icon or button (if present), the popup, and the popup descendants are excluded from the page Tab sequence.\nCombobox Keyboard Interaction\nWhen focus is in the combobox:\n• Down Arrow : If the popup is available, moves focus into the popup:\n• If the autocomplete behavior automatically selected a suggestion before Down Arrow was pressed, focus is placed on the suggestion following the automatically selected suggestion.\n• Otherwise, places focus on the first focusable element in the popup.\n• Up Arrow (Optional): If the popup is available, places focus on the last focusable element in the popup.\n• Escape : Dismisses the popup if it is visible.\nOptionally, if the popup is hidden before Escape is pressed, clears the combobox.\n• Enter : If the combobox is editable and an autocomplete suggestion is selected in the popup, accepts the suggestion either by placing the input cursor at the end of the accepted value in the combobox or by performing a default action on the value.\nFor example, in a messaging application, the default action may be to add the accepted value to a list of message recipients and then clear the combobox so the user can add another recipient.\n• Printable Characters:\n• If the combobox is editable, type characters in the combobox.\nNote that some implementations may regard certain characters as invalid and prevent their input.\n• If the combobox is not editable, optionally moves focus to a value that starts with the typed characters.\n• If the combobox is editable, it supports standard single line text editing keys appropriate for the device platform (see note below).\n• Alt + Down Arrow (Optional): If the popup is available but not displayed, displays the popup without moving focus.\n• Alt + Up Arrow (Optional): If the popup is displayed:\n• If the popup contains focus, returns focus to the combobox.\n• Closes the popup.\nNote\nStandard single line text editing keys appropriate for the device platform:\n• include keys for input, cursor movement, selection, and text manipulation.\n• Standard key assignments for editing functions depend on the device operating system.\n• The most robust approach for providing text editing functions is to rely on browsers, which supply them for HTML inputs with type text and for elements with the contenteditable HTML attribute.\n• IMPORTANT: Ensure JavaScript does not interfere with browser-provided text editing functions by capturing key events for the keys used to perform them.\nListbox Popup Keyboard Interaction\nWhen focus is in a listbox popup:\n• Enter : Accepts the focused option in the listbox by closing the popup, placing the accepted value in the combobox, and if the combobox is editable, placing the input cursor at the end of the value.\n• Escape : Closes the popup and returns focus to the combobox.\nOptionally, if the combobox is editable, clears the contents of the combobox.\n• Down Arrow : Moves focus to and selects the next option.\nIf focus is on the last option, either returns focus to the combobox or does nothing.\n• Up Arrow : Moves focus to and selects the previous option.\nIf focus is on the first option, either returns focus to the combobox or does nothing.\n• Right Arrow : If the combobox is editable, returns focus to the combobox without closing the popup and moves the input cursor one character to the right.\nIf the input cursor is on the right-most character, the cursor does not move.\n• Left Arrow : If the combobox is editable, returns focus to the combobox without closing the popup and moves the input cursor one character to the left.\nIf the input cursor is on the left-most character, the cursor does not move.\n• Home (Optional): Either moves focus to and selects the first option or, if the combobox is editable, returns focus to the combobox and places the cursor on the first character.\n• End (Optional): Either moves focus to the last option or, if the combobox is editable, returns focus to the combobox and places the cursor after the last character.\n• Any printable character:\n• If the combobox is editable, returns the focus to the combobox without closing the popup and types the character.\n• Otherwise, moves focus to the next option with a name that starts with the characters typed.\n• Backspace (Optional): If the combobox is editable, returns focus to the combobox and deletes the character prior to the cursor.\n• Delete (Optional): If the combobox is editable, returns focus to the combobox, removes the selected state if a suggestion was selected, and removes the inline autocomplete string if present.\nNote\n• DOM Focus is maintained on the combobox and the assistive technology focus is moved within the listbox using aria-activedescendant as described in\nManaging Focus in Composites Using aria-activedescendant .\n• Selection follows focus in the listbox; the listbox allows only one suggested value to be selected at a time for the combobox value.\nGrid Popup Keyboard Interaction\nIn a grid popup, each suggested value may be represented by either a single cell or an entire row.\nSee notes below for how this aspect of grid design effects the keyboard interaction design and the way that selection moves in response to focus movements.\n• Enter : Accepts the currently selected suggested value by closing the popup, placing the selected value in the combobox, and if the combobox is editable, placing the input cursor at the end of the value.\n• Escape : Closes the popup and returns focus to the combobox.\nOptionally, if the combobox is editable, clears the contents of the combobox.\n• Right Arrow : Moves focus one cell to the right.\nOptionally, if focus is on the right-most cell in the row, focus may move to the first cell in the following row.\nIf focus is on the last cell in the grid, either does nothing or returns focus to the combobox.\n• Left Arrow : Moves focus one cell to the left.\nOptionally, if focus is on the left-most cell in the row, focus may move to the last cell in the previous row.\nIf focus is on the first cell in the grid, either does nothing or returns focus to the combobox.\n• Down Arrow : Moves focus one cell down.\nIf focus is in the last row of the grid, either does nothing or returns focus to the combobox.\n• Up Arrow : Moves focus one cell up.\nIf focus is in the first row of the grid, either does nothing or returns focus to the combobox.\n• Page Down (Optional): Moves focus down an author-determined number of rows, typically scrolling so the bottom row in the currently visible set of rows becomes one of the first visible rows.\nIf focus is in the last row of the grid, focus does not move.\n• Page Up (Optional): Moves focus up an author-determined number of rows, typically scrolling so the top row in the currently visible set of rows becomes one of the last visible rows.\nIf focus is in the first row of the grid, focus does not move.\n• Home (Optional): Either:\n• Moves focus to the first cell in the row that contains focus.\nOr, if the grid has fewer than three cells per row or multiple suggested values per row, focus may move to the first cell in the grid.\n• If the combobox is editable, returns focus to the combobox and places the cursor on the first character.\n• End (Optional): Either:\n• Moves focus to the last cell in the row that contains focus.\nOr, if the grid has fewer than three cells per row or multiple suggested values per row, focus may move to the last cell in the grid.\n• If the combobox is editable, returns focus to the combobox and places the cursor after the last character.\n• Control + Home (optional): moves focus to the first row.\n• Control + End (Optional): moves focus to the last row.\n• Any printable character: If the combobox is editable, returns the focus to the combobox without closing the popup and types the character.\n• Backspace (Optional): If the combobox is editable, returns focus to the combobox and deletes the character prior to the cursor.\n• Delete (Optional): If the combobox is editable, returns focus to the combobox, removes the selected state if a suggestion was selected, and removes the inline autocomplete string if present.\nNote\n• DOM Focus is maintained on the combobox and the assistive technology focus is moved within the grid using aria-activedescendant as described in\nManaging Focus in Composites Using aria-activedescendant .\n• The grid allows only one suggested value to be selected at a time for the combobox value.\n• In a grid popup, each suggested value may be represented by either a single cell or an entire row.\nThis aspect of design effects focus and selection movement:\n• If every cell contains a different suggested value:\n• Selection follows focus so that the cell containing focus is selected.\n• Horizontal arrow key navigation typically wraps from one row to another.\n• Vertical arrow key navigation typically wraps from one column to another.\n• If all cells in a row contain information about the same suggested value:\n• Either the row containing focus is selected or a cell containing a suggested value is selected when any cell in the same row contains focus.\n• Horizontal key navigation may wrap from one row to another.\n• Vertical arrow key navigation does not wrap from one column to another.\nTree Popup Keyboard Interaction\nIn some implementations of tree popups, some or all parent nodes may serve as suggestion category labels so may not be selectable values.\nSee notes below for how this aspect of the design effects the way selection moves in response to focus movements.\nWhen focus is in a vertically oriented tree popup:\n• Enter : Accepts the currently selected suggested value by closing the popup, placing the selected value in the combobox, and if the combobox is editable, placing the input cursor at the end of the value.\n• Escape : Closes the popup and returns focus to the combobox.\nOptionally, clears the contents of the combobox.\n• Right arrow :\n• When focus is on a closed node, opens the node; focus and selection do not move.\n• When focus is on a open node, moves focus to the first child node and selects it if it is selectable.\n• When focus is on an end node, does nothing.\n• Left arrow :\n• When focus is on an open node, closes the node.\n• When focus is on a child node that is also either an end node or a closed node, moves focus to its parent node and selects it if it is selectable.\n• When focus is on a root node that is also either an end node or a closed node, does nothing.\n• Down Arrow : Moves focus to the next node that is focusable without opening or closing a node and selects it if it is selectable.\n• Up Arrow : Moves focus to the previous node that is focusable without opening or closing a node and selects it if it is selectable.\n• Home : Moves focus to the first focusable node in the tree without opening or closing a node and selects it if it is selectable.\n• End : Moves focus to the last focusable node in the tree without opening or closing a node and selects it if it is selectable.\n• Any printable character:\n• If the combobox is editable, returns the focus to the combobox without closing the popup and types the character.\n• Otherwise, moves focus to the next suggested value with a name that starts with the characters typed.\nNote\n• DOM Focus is maintained on the combobox and the assistive technology focus is moved within the tree using aria-activedescendant as described in\nManaging Focus in Composites Using aria-activedescendant .\n• The tree allows only one suggested value to be selected at a time for the combobox value.\n• In a tree popup, some or all parent nodes may not be selectable values; they may serve as category labels for suggested values.\nIf focus moves to a node that is not a selectable value, either:\n• The previously selected node, if any, remains selected until focus moves to a node that is selectable.\n• There is no selected value.\n• In either case, focus is visually distinct from selection so users can readily see if a value is selected or not.\n• If nodes in the tree are arranged horizontally ( aria-orientation is set to horizontal ):\n• Down Arrow performs as Right Arrow is described above, and vice versa.\n• Up Arrow performs as Left Arrow is described above, and vice versa.\nDialog Popup Keyboard Interaction\nWhen focus is in a dialog popup:\n• There are two ways to close the popup and return focus to the combobox:\n• Perform an action in the dialog, such as activate a button, that specifies a value for the combobox.\n• Cancel out of the dialog, e.g., press Escape or activate the cancel button in the dialog.\nCanceling either returns focus to the text box without changing the combobox value or returns focus to the combobox and clears the combobox.\n• The dialog implements the keyboard interaction defined in the modal dialog pattern.\nNote\nUnlike other combobox popups, dialogs do not support aria-activedescendant so DOM focus moves into the dialog from the combobox."
+        },
+        {
+          "nativeId": "roles_states_properties",
+          "title": "WAI-ARIA Roles, States, and Properties",
+          "url": "https://www.w3.org/WAI/ARIA/apg/patterns/combobox/#roles_states_properties",
+          "content": "• The element that serves as an input and displays the combobox value has role combobox .\n• The combobox element has aria-controls set to a value that refers to the element that serves as the popup.\nNote that aria-controls only needs to be set when the popup is visible.\nHowever, it is valid to reference an element that is not visible.\n• The popup is an element that has role listbox , tree , grid , or dialog .\n• If the popup has a role other than listbox , the element with role combobox has aria-haspopup set to a value that corresponds to the popup type.\nThat is, aria-haspopup is set to grid , tree , or dialog .\nNote that elements with role combobox have an implicit aria-haspopup value of listbox .\n• When the combobox popup is not visible, the element with role combobox has aria-expanded set to false .\nWhen the popup element is visible, aria-expanded is set to true .\nNote that elements with role combobox have a default value for aria-expanded of false .\n• When a combobox receives focus, DOM focus is placed on the combobox element.\n• When a descendant of a listbox, grid, or tree popup is focused, DOM focus remains on the combobox and the combobox has aria-activedescendant set to a value that refers to the focused element within the popup.\n• For a combobox that controls a listbox, grid, or tree popup, when a suggested value is visually indicated as the currently selected value, the option , gridcell , row , or treeitem containing that value has aria-selected set to true .\n• If the combobox has a visible label and the combobox element is an HTML element that can be labelled using the HTML label element (e.g., the input element), it is labeled using the label element.\nOtherwise, if it has a visible label, the combobox element has aria-labelledby set to a value that refers to the labelling element.\nOtherwise, the combobox element has a label provided by aria-label .\n• The combobox element has aria-autocomplete set to a value that corresponds to its autocomplete behavior:\n• none : When the popup is displayed, the suggested values it contains are the same regardless of the characters typed in the combobox.\n• list : When the popup is triggered, it presents suggested values.\nIf the combobox is editable, the values complete or logically correspond to the characters typed in the combobox.\n• both : When the popup is triggered, it presents suggested values that complete or logically correspond to the characters typed in the combobox.\nIn addition, the portion of the selected suggestion that has not been typed by the user, known as the completion string , appears inline after the input cursor in the combobox.\nThe inline completion string is visually highlighted and has a selected state.\nNote\n• In ARIA 1.0, the combobox referenced its popup with aria-owns instead of aria-controls .\nWhile user agents might support comboboxes with aria-owns for backwards compatibility with legacy content, it is strongly recommended that authors use aria-controls .\n• When referring to the roles, states, and properties documentation for the below list of patterns used for popups, keep in mind that a combobox is a single-select widget where selection follows focus in the popup.\n• The roles, states, and properties for popup elements are defined in their respective design patterns:\n• Listbox Roles, States, and Properties\n• Grid Roles, States, and Properties\n• Tree Roles, States, and Properties\n• Dialog Roles, States, and Properties"
+        }
+      ],
+      "links": [
+        {
+          "kind": "docs",
+          "label": null,
+          "url": "https://www.w3.org/WAI/ARIA/apg/patterns/combobox/"
+        },
+        {
+          "kind": "code",
+          "label": null,
+          "url": "https://github.com/w3c/aria-practices/blob/18c1a2fca626f7aeb33270e23ae9b18833e2164d/content/patterns/combobox/combobox-pattern.html"
+        }
+      ],
+      "examples": [
+        {
+          "nativeId": "combobox-select-only",
+          "title": "Select-Only Combobox",
+          "url": "https://www.w3.org/WAI/ARIA/apg/patterns/combobox/examples/combobox-select-only.html"
+        },
+        {
+          "nativeId": "combobox-autocomplete-both",
+          "title": "Editable Combobox with Both List and Inline Autocomplete",
+          "url": "https://www.w3.org/WAI/ARIA/apg/patterns/combobox/examples/combobox-autocomplete-both.html"
+        },
+        {
+          "nativeId": "combobox-autocomplete-list",
+          "title": "Editable Combobox with List Autocomplete",
+          "url": "https://www.w3.org/WAI/ARIA/apg/patterns/combobox/examples/combobox-autocomplete-list.html"
+        },
+        {
+          "nativeId": "combobox-autocomplete-none",
+          "title": "Editable Combobox Without Autocomplete",
+          "url": "https://www.w3.org/WAI/ARIA/apg/patterns/combobox/examples/combobox-autocomplete-none.html"
+        },
+        {
+          "nativeId": "grid-combo",
+          "title": "Editable Combobox with Grid Popup",
+          "url": "https://www.w3.org/WAI/ARIA/apg/patterns/combobox/examples/grid-combo.html"
+        },
+        {
+          "nativeId": "combobox-datepicker",
+          "title": "Date Picker Combobox",
+          "url": "https://www.w3.org/WAI/ARIA/apg/patterns/combobox/examples/combobox-datepicker.html"
+        }
+      ],
+      "relationships": [
+        {
+          "kind": "related-to",
+          "label": "listbox",
+          "targetTitle": "listbox",
+          "targetUrl": "https://www.w3.org/WAI/ARIA/apg/patterns/listbox/"
+        },
+        {
+          "kind": "related-to",
+          "label": "grid",
+          "targetTitle": "grid",
+          "targetUrl": "https://www.w3.org/WAI/ARIA/apg/patterns/grid/"
+        },
+        {
+          "kind": "related-to",
+          "label": "tree",
+          "targetTitle": "tree",
+          "targetUrl": "https://www.w3.org/WAI/ARIA/apg/patterns/treeview/"
+        },
+        {
+          "kind": "related-to",
+          "label": "dialog.",
+          "targetTitle": "dialog.",
+          "targetUrl": "https://www.w3.org/WAI/ARIA/apg/patterns/dialog-modal/"
+        },
+        {
+          "kind": "related-to",
+          "label": "menu button",
+          "targetTitle": "menu button",
+          "targetUrl": "https://www.w3.org/WAI/ARIA/apg/patterns/menu-button/"
+        }
+      ],
+      "sourcePath": "content/patterns/combobox/combobox-pattern.html"
+    },
+    {
+      "nativeId": "dialog-modal",
+      "name": "Dialog (Modal)",
+      "aliases": [],
+      "summary": {
+        "text": "A dialog is a window overlaid on either the primary window or another dialog window. Windows under a modal dialog are inert. That is, users cannot interact with content outside an active dialog window. Inert content outside an active dialog is typically visually obscured or dimmed so it is difficult to discern, and in some implementations, attempts to interact with the inert content cause the dialog to close.",
+        "url": "https://www.w3.org/WAI/ARIA/apg/patterns/dialog-modal/#about"
+      },
+      "kind": "pattern",
+      "canonicalUrl": "https://www.w3.org/WAI/ARIA/apg/patterns/dialog-modal/",
+      "sections": [
+        {
+          "nativeId": "about",
+          "title": "About This Pattern",
+          "url": "https://www.w3.org/WAI/ARIA/apg/patterns/dialog-modal/#about",
+          "content": null
+        },
+        {
+          "nativeId": "examples",
+          "title": "Examples",
+          "url": "https://www.w3.org/WAI/ARIA/apg/patterns/dialog-modal/#examples",
+          "content": null
+        },
+        {
+          "nativeId": "keyboard_interaction",
+          "title": "Keyboard Interaction",
+          "url": "https://www.w3.org/WAI/ARIA/apg/patterns/dialog-modal/#keyboard_interaction",
+          "content": "In the following description, the term tabbable element refers to any element with a tabindex value of zero or greater.\nNote that values greater than 0 are strongly discouraged.\n• When a dialog opens, focus moves to an element inside the dialog.\nSee notes below regarding initial focus placement.\n• Tab :\n• Moves focus to the next tabbable element inside the dialog.\n• If focus is on the last tabbable element inside the dialog, moves focus to the first tabbable element inside the dialog.\n• Shift + Tab :\n• Moves focus to the previous tabbable element inside the dialog.\n• If focus is on the first tabbable element inside the dialog, moves focus to the last tabbable element inside the dialog.\n• Escape : Closes the dialog.\nNote\n• When a dialog opens, focus moves to an element contained in the dialog.\nGenerally, focus is initially set on the first focusable element.\nHowever, the most appropriate focus placement will depend on the nature and size of the content.\nExamples include:\n• If the dialog content includes semantic structures, such as lists, tables, or multiple paragraphs, that need to be perceived in order to easily understand the content, i.e., if the content would be difficult to understand when announced as a single unbroken string, then it is advisable to add tabindex=\"-1\" to a static element at the start of the content and initially focus that element.\nThis makes it easier for assistive technology users to read the content by navigating the semantic structures.\nAdditionally, it is advisable to omit applying aria-describedby to the dialog container in this scenario.\n• If content is large enough that focusing the first interactive element could cause the beginning of content to scroll out of view, it is advisable to add tabindex=\"-1\" to a static element at the top of the dialog, such as the dialog title or first paragraph, and initially focus that element.\n• If a dialog contains the final step in a process that is not easily reversible, such as deleting data or completing a financial transaction, it may be advisable to set focus on the least destructive action, especially if undoing the action is difficult or impossible.\nThe Alert Dialog Pattern is often employed in such circumstances.\n• If a dialog is limited to interactions that either provide additional information or continue processing, it may be advisable to set focus to the element that is likely to be most frequently used, such as an OK or Continue button.\n• When a dialog closes, focus returns to the element that invoked the dialog unless either:\n• The invoking element no longer exists.\nThen, focus is set on another element that provides logical work flow.\n• The work flow design includes the following conditions that can occasionally make focusing a different element a more logical choice:\n• It is very unlikely users need to immediately re-invoke the dialog.\n• The task completed in the dialog is directly related to a subsequent step in the work flow.\nFor example, a grid has an associated toolbar with a button for adding rows.\nThe Add Rows button opens a dialog that prompts for the number of rows.\nAfter the dialog closes, focus is placed in the first cell of the first new row.\n• It is strongly recommended that the tab sequence of all dialogs include a visible element with role button that closes the dialog, such as a close icon or cancel button."
+        },
+        {
+          "nativeId": "roles_states_properties",
+          "title": "WAI-ARIA Roles, States, and Properties",
+          "url": "https://www.w3.org/WAI/ARIA/apg/patterns/dialog-modal/#roles_states_properties",
+          "content": "• The element that serves as the dialog container has a role of dialog .\n• All elements required to operate the dialog are descendants of the element that has role dialog .\n• The dialog container element has aria-modal set to true .\n• The dialog has either:\n• A value set for the aria-labelledby property that refers to a visible dialog title.\n• A label specified by aria-label .\n• Optionally, the aria-describedby property is set on the element with the dialog role to indicate which element or elements in the dialog contain content that describes the primary purpose or message of the dialog.\nSpecifying descriptive elements enables screen readers to announce the description along with the dialog title and initially focused element when the dialog opens, which is typically helpful only when the descriptive content is simple and can easily be understood without structural information.\nIt is advisable to omit specifying aria-describedby if the dialog content includes semantic structures, such as lists, tables, or multiple paragraphs, that need to be perceived in order to easily understand the content, i.e., if the content would be difficult to understand when announced as a single unbroken string.\nNote\n• Because marking a dialog modal by setting aria-modal to true can prevent users of some assistive technologies from perceiving content outside the dialog, users of those technologies will experience severe negative ramifications if a dialog is marked modal but does not behave as a modal for other users.\nSo, mark a dialog modal only when both:\n• Application code prevents all users from interacting in any way with content outside of it.\n• Visual styling obscures the content outside of it.\n• The aria-modal property introduced by ARIA 1.1 replaces aria-hidden for informing assistive technologies that content outside a dialog is inert.\nHowever, in legacy dialog implementations where aria-hidden is used to make content outside a dialog inert for assistive technology users, it is important that:\n• aria-hidden is set to true on each element containing a portion of the inert layer.\n• The dialog element is not a descendant of any element that has aria-hidden set to true ."
+        }
+      ],
+      "links": [
+        {
+          "kind": "docs",
+          "label": null,
+          "url": "https://www.w3.org/WAI/ARIA/apg/patterns/dialog-modal/"
+        },
+        {
+          "kind": "code",
+          "label": null,
+          "url": "https://github.com/w3c/aria-practices/blob/18c1a2fca626f7aeb33270e23ae9b18833e2164d/content/patterns/dialog-modal/dialog-modal-pattern.html"
+        }
+      ],
+      "examples": [
+        {
+          "nativeId": "dialog",
+          "title": "Modal Dialog Example",
+          "url": "https://www.w3.org/WAI/ARIA/apg/patterns/dialog-modal/examples/dialog.html"
+        },
+        {
+          "nativeId": "datepicker-dialog",
+          "title": "Date Picker Dialog Example",
+          "url": "https://www.w3.org/WAI/ARIA/apg/patterns/dialog-modal/examples/datepicker-dialog.html"
+        }
+      ],
+      "relationships": [
+        {
+          "kind": "related-to",
+          "label": "Alert Dialog",
+          "targetTitle": "Alert Dialog",
+          "targetUrl": "https://www.w3.org/WAI/ARIA/apg/patterns/alertdialog/"
+        }
+      ],
+      "sourcePath": "content/patterns/dialog-modal/dialog-modal-pattern.html"
+    },
+    {
+      "nativeId": "disclosure",
+      "name": "Disclosure (Show/Hide)",
+      "aliases": [],
+      "summary": {
+        "text": "A disclosure is a widget that enables content to be either collapsed (hidden) or expanded (visible). It has two elements: a disclosure button and a section of content whose visibility is controlled by the button. When the controlled content is hidden, the button is often styled as a typical push button with a right-pointing arrow or triangle to hint that activating the button will display additional content. When the content is visible, the arrow or triangle typically points down.",
+        "url": "https://www.w3.org/WAI/ARIA/apg/patterns/disclosure/#about"
+      },
+      "kind": "pattern",
+      "canonicalUrl": "https://www.w3.org/WAI/ARIA/apg/patterns/disclosure/",
+      "sections": [
+        {
+          "nativeId": "about",
+          "title": "About This Pattern",
+          "url": "https://www.w3.org/WAI/ARIA/apg/patterns/disclosure/#about",
+          "content": null
+        },
+        {
+          "nativeId": "examples",
+          "title": "Examples",
+          "url": "https://www.w3.org/WAI/ARIA/apg/patterns/disclosure/#examples",
+          "content": null
+        },
+        {
+          "nativeId": "keyboard_interaction",
+          "title": "Keyboard Interaction",
+          "url": "https://www.w3.org/WAI/ARIA/apg/patterns/disclosure/#keyboard_interaction",
+          "content": "When the disclosure control has focus:\n• Enter : activates the disclosure control and toggles the visibility of the disclosure content.\n• Space : activates the disclosure control and toggles the visibility of the disclosure content."
+        },
+        {
+          "nativeId": "roles_states_properties",
+          "title": "WAI-ARIA Roles, States, and Properties",
+          "url": "https://www.w3.org/WAI/ARIA/apg/patterns/disclosure/#roles_states_properties",
+          "content": "• The element that shows and hides the content has role button .\n• When the content is visible, the element with role button has aria-expanded set to true .\nWhen the content area is hidden, it is set to false .\n• Optionally, the element with role button has a value specified for aria-controls that refers to the element that contains all the content that is shown or hidden."
+        }
+      ],
+      "links": [
+        {
+          "kind": "docs",
+          "label": null,
+          "url": "https://www.w3.org/WAI/ARIA/apg/patterns/disclosure/"
+        },
+        {
+          "kind": "code",
+          "label": null,
+          "url": "https://github.com/w3c/aria-practices/blob/18c1a2fca626f7aeb33270e23ae9b18833e2164d/content/patterns/disclosure/disclosure-pattern.html"
+        }
+      ],
+      "examples": [
+        {
+          "nativeId": "disclosure-image-description",
+          "title": "Disclosure (Show/Hide) of Image Description",
+          "url": "https://www.w3.org/WAI/ARIA/apg/patterns/disclosure/examples/disclosure-image-description.html"
+        },
+        {
+          "nativeId": "disclosure-faq",
+          "title": "Disclosure (Show/Hide) of Answers to Frequently Asked Questions",
+          "url": "https://www.w3.org/WAI/ARIA/apg/patterns/disclosure/examples/disclosure-faq.html"
+        },
+        {
+          "nativeId": "disclosure-navigation",
+          "title": "Disclosure (Show/Hide) Navigation Menu",
+          "url": "https://www.w3.org/WAI/ARIA/apg/patterns/disclosure/examples/disclosure-navigation.html"
+        },
+        {
+          "nativeId": "disclosure-navigation-hybrid",
+          "title": "Disclosure (Show/Hide) Navigation Menu with Top-Level Links",
+          "url": "https://www.w3.org/WAI/ARIA/apg/patterns/disclosure/examples/disclosure-navigation-hybrid.html"
+        },
+        {
+          "nativeId": "disclosure-card",
+          "title": "Disclosure (Show/Hide) Card",
+          "url": "https://www.w3.org/WAI/ARIA/apg/patterns/disclosure/examples/disclosure-card.html"
+        }
+      ],
+      "relationships": [
+        {
+          "kind": "related-to",
+          "label": "button",
+          "targetTitle": "button",
+          "targetUrl": "https://www.w3.org/WAI/ARIA/apg/patterns/button/"
+        }
+      ],
+      "sourcePath": "content/patterns/disclosure/disclosure-pattern.html"
+    },
+    {
+      "nativeId": "feed",
+      "name": "Feed",
+      "aliases": [],
+      "summary": {
+        "text": "A feed is a section of a page that automatically loads new sections of content as the user scrolls. The sections of content in a feed are presented in article elements. So, a feed can be thought of as a dynamic list of articles that often appears to scroll infinitely.",
+        "url": "https://www.w3.org/WAI/ARIA/apg/patterns/feed/#about"
+      },
+      "kind": "pattern",
+      "canonicalUrl": "https://www.w3.org/WAI/ARIA/apg/patterns/feed/",
+      "sections": [
+        {
+          "nativeId": "about",
+          "title": "About This Pattern",
+          "url": "https://www.w3.org/WAI/ARIA/apg/patterns/feed/#about",
+          "content": null
+        },
+        {
+          "nativeId": "examples",
+          "title": "Example",
+          "url": "https://www.w3.org/WAI/ARIA/apg/patterns/feed/#examples",
+          "content": null
+        },
+        {
+          "nativeId": "keyboard_interaction",
+          "title": "Keyboard Interaction",
+          "url": "https://www.w3.org/WAI/ARIA/apg/patterns/feed/#keyboard_interaction",
+          "content": "The feed pattern is not based on a desktop GUI widget so the feed role is not associated with any well-established keyboard conventions.\nSupporting the following, or a similar, interface is recommended.\nWhen focus is inside the feed:\n• Page Down : Move focus to next article.\n• Page Up : Move focus to previous article.\n• Control + End : Move focus to the first focusable element after the feed.\n• Control + Home : Move focus to the first focusable element before the feed.\nNote\n• Due to the lack of convention, providing easily discoverable keyboard interface documentation is especially important.\n• In some cases, a feed may contain a nested feed.\nFor example, an article in a social media feed may contain a feed of comments on that article.\nTo navigate the nested feed, users first move focus inside the nested feed.\nOptions for supporting nested feed navigation include:\n• Users move focus into the nested feed from the content of the containing article with Tab .\nThis may be slow if the article contains a significant number of links, buttons, or other widgets.\n• Provide a key for moving focus from the elements in the containing article to the first item in the nested feed, e.g., Alt + Page Down .\n• To continue reading the outer feed, Control + End moves focus to the next article in the outer feed.\n• In the rare circumstance that a feed article contains a widget that uses the above suggested keys, the feed navigation key will operate the contained widget, and the user needs to move focus to an element that does not utilize the feed navigation keys in order to navigate the feed."
+        },
+        {
+          "nativeId": "roles_states_properties",
+          "title": "WAI-ARIA Roles, States, and Properties",
+          "url": "https://www.w3.org/WAI/ARIA/apg/patterns/feed/#roles_states_properties",
+          "content": "• The element that contains the set of feed articles has role feed .\n• If the feed has a visible label, the feed element has aria-labelledby referring to the element containing the title.\nOtherwise, the feed element has a label specified with aria-label .\n• Each unit of content in a feed is contained in an element with role article .\nAll content inside the feed is contained in an article element.\n• Each article element has aria-labelledby referring to elements inside the article that can serve as a distinguishing label.\n• It is optional but strongly recommended for each article element to have aria-describedby referring to one or more elements inside the article that serve as the primary content of the article.\n• Each article element has aria-posinset set to a value that represents its position in the feed.\n• Each article element has aria-setsize set to a value that represents either the total number of articles that have been loaded or the total number in the feed, depending on which value is deemed more helpful to users.\nIf the total number in the feed is undetermined, it can be represented by a aria-setsize value of -1 .\n• When article elements are being added to or removed from the feed container, and if the operation requires multiple DOM operations, the feed element has aria-busy set to true during the update operation.\nNote that it is extremely important that aria-busy is set to false when the operation is complete or the changes may not become visible to some assistive technology users."
+        }
+      ],
+      "links": [
+        {
+          "kind": "docs",
+          "label": null,
+          "url": "https://www.w3.org/WAI/ARIA/apg/patterns/feed/"
+        },
+        {
+          "kind": "code",
+          "label": null,
+          "url": "https://github.com/w3c/aria-practices/blob/18c1a2fca626f7aeb33270e23ae9b18833e2164d/content/patterns/feed/feed-pattern.html"
+        }
+      ],
+      "examples": [
+        {
+          "nativeId": "feed",
+          "title": "Infinite Scrolling Feed Example",
+          "url": "https://www.w3.org/WAI/ARIA/apg/patterns/feed/examples/feed.html"
+        }
+      ],
+      "relationships": [
+        {
+          "kind": "related-to",
+          "label": "grid",
+          "targetTitle": "grid",
+          "targetUrl": "https://www.w3.org/WAI/ARIA/apg/patterns/grid/"
+        }
+      ],
+      "sourcePath": "content/patterns/feed/feed-pattern.html"
+    },
+    {
+      "nativeId": "grid",
+      "name": "Grid (Interactive Tabular Data and Layout Containers)",
+      "aliases": [],
+      "summary": {
+        "text": "A grid widget is a container that enables users to navigate the information or interactive elements it contains using directional navigation keys, such as arrow keys, Home , and End . As a generic container widget that offers flexible keyboard navigation, it can serve a wide variety of needs. It can be used for purposes as simple as grouping a collection of checkboxes or navigation links or as complex as creating a full-featured spreadsheet application. While the words \"row\" and \"column\" are used in the names of WAI-ARIA attributes and by assistive technologies when describing and presenting the logical structure of elements with the grid role, using the grid role on an element does not necessarily imply that its visual presentation is tabular.",
+        "url": "https://www.w3.org/WAI/ARIA/apg/patterns/grid/#about"
+      },
+      "kind": "pattern",
+      "canonicalUrl": "https://www.w3.org/WAI/ARIA/apg/patterns/grid/",
+      "sections": [
+        {
+          "nativeId": "about",
+          "title": "About This Pattern",
+          "url": "https://www.w3.org/WAI/ARIA/apg/patterns/grid/#about",
+          "content": null
+        },
+        {
+          "nativeId": "examples",
+          "title": "Examples",
+          "url": "https://www.w3.org/WAI/ARIA/apg/patterns/grid/#examples",
+          "content": null
+        },
+        {
+          "nativeId": "dataGrid",
+          "title": "Data Grids For Presenting Tabular Information",
+          "url": "https://www.w3.org/WAI/ARIA/apg/patterns/grid/#dataGrid",
+          "content": null
+        },
+        {
+          "nativeId": "layoutGrid",
+          "title": "Layout Grids for Grouping Widgets",
+          "url": "https://www.w3.org/WAI/ARIA/apg/patterns/grid/#layoutGrid",
+          "content": null
+        },
+        {
+          "nativeId": "gridNav",
+          "title": "Keyboard Interaction - Setting Focus and Navigating Inside Cells",
+          "url": "https://www.w3.org/WAI/ARIA/apg/patterns/grid/#gridNav",
+          "content": null
+        },
+        {
+          "nativeId": "roles_states_properties",
+          "title": "WAI-ARIA Roles, States, and Properties",
+          "url": "https://www.w3.org/WAI/ARIA/apg/patterns/grid/#roles_states_properties",
+          "content": "• The grid container has role grid .\n• Each row container has role row and is either a DOM descendant of or owned by the grid element or an element with role rowgroup .\n• Each cell is either a DOM descendant of or owned by a row element and has one of the following roles:\n• columnheader if the cell contains a title or header information for the column.\n• rowheader if the cell contains title or header information for the row.\n• gridcell if the cell does not contain column or row header information.\n• If there is an element in the user interface that serves as a label for the grid, aria-labelledby is set on the grid element with a value that refers to the labelling element.\nOtherwise, a label is specified for the grid element using aria-label .\n• If the grid has a caption or description, aria-describedby is set on the grid element with a value referring to the element containing the description.\n• If the grid provides sort functions, aria-sort is set to an appropriate value on the header cell element for the sorted column or row as described in the\nGrid and Table Properties Practice .\n• If the grid supports selection, when a cell or row is selected, the selected element has aria-selected set true .\nIf the grid supports column selection and a column is selected, all cells in the column have aria-selected set to true .\n• If the grid provides content editing functionality and contains cells that may have edit capabilities disabled in certain conditions, aria-readonly may be set true on cells where editing is disabled.\nIf edit functions are disabled for all cells, aria-readonly may be set true on the grid element.\nGrids that do not provide editing functions do not include the aria-readonly attribute on any of their elements.\n• If there are conditions where some rows or columns are hidden or not present in the DOM, e.g., data is dynamically loaded when scrolling or the grid provides functions for hiding rows or columns, the following properties are applied as described in the\nGrid and Table Properties Practice .\n• aria-colcount or aria-rowcount is set to the total number of columns or rows, respectively.\n• aria-colindex or aria-rowindex is set to the position of a cell within a row or column, respectively.\n• If the grid includes cells that span multiple rows or multiple columns, and if the grid role is NOT applied to an HTML table element, then aria-rowspan or aria-colspan is applied as described in the\nGrid and Table Properties Practice .\nNote\n• If the element with the grid role is an HTML table element, then it is not necessary to use ARIA roles for rows and cells because the HTML elements have implied ARIA semantics.\nFor example, an HTML <TR> has an implied ARIA role of row .\nA grid built from an HTML table that includes cells that span multiple rows or columns must use HTML rowspan and colspan and must not use aria-rowspan or aria-colspan .\n• If rows or cells are included in a grid via aria-owns , they will be presented to assistive technologies after the DOM descendants of the grid element unless the DOM descendants are also included in the aria-owns attribute."
+        }
+      ],
+      "links": [
+        {
+          "kind": "docs",
+          "label": null,
+          "url": "https://www.w3.org/WAI/ARIA/apg/patterns/grid/"
+        },
+        {
+          "kind": "code",
+          "label": null,
+          "url": "https://github.com/w3c/aria-practices/blob/18c1a2fca626f7aeb33270e23ae9b18833e2164d/content/patterns/grid/grid-pattern.html"
+        }
+      ],
+      "examples": [
+        {
+          "nativeId": "layout-grids",
+          "title": "Layout Grid Examples",
+          "url": "https://www.w3.org/WAI/ARIA/apg/patterns/grid/examples/layout-grids.html"
+        },
+        {
+          "nativeId": "data-grids",
+          "title": "Data Grid Examples",
+          "url": "https://www.w3.org/WAI/ARIA/apg/patterns/grid/examples/data-grids.html"
+        },
+        {
+          "nativeId": "advanced-data-grid",
+          "title": "Advanced Data Grid Example",
+          "url": "https://www.w3.org/WAI/ARIA/apg/patterns/grid/examples/advanced-data-grid.html"
+        }
+      ],
+      "relationships": [
+        {
+          "kind": "related-to",
+          "label": "table",
+          "targetTitle": "table",
+          "targetUrl": "https://www.w3.org/WAI/ARIA/apg/patterns/table/"
+        },
+        {
+          "kind": "related-to",
+          "label": "listbox",
+          "targetTitle": "listbox",
+          "targetUrl": "https://www.w3.org/WAI/ARIA/apg/patterns/listbox/"
+        }
+      ],
+      "sourcePath": "content/patterns/grid/grid-pattern.html"
+    },
+    {
+      "nativeId": "landmarks",
+      "name": "Landmarks",
+      "aliases": [],
+      "summary": {
+        "text": "Landmarks are a set of eight roles that identify the major sections of a page. Each landmark role enables assistive technology users to perceive the start and end of a feature of the high-level page structure that is usually conveyed visually with placement, spacing, color, or borders. For example, the main landmark designates the section that contains the main content of the page. In addition to conveying structure, landmarks enable browsers and assistive technologies to facilitate efficient keyboard navigation among sections of a page.",
+        "url": "https://www.w3.org/WAI/ARIA/apg/patterns/landmarks/#about"
+      },
+      "kind": "pattern",
+      "canonicalUrl": "https://www.w3.org/WAI/ARIA/apg/patterns/landmarks/",
+      "sections": [
+        {
+          "nativeId": "about",
+          "title": "About This Pattern",
+          "url": "https://www.w3.org/WAI/ARIA/apg/patterns/landmarks/#about",
+          "content": null
+        },
+        {
+          "nativeId": "examples",
+          "title": "Examples",
+          "url": "https://www.w3.org/WAI/ARIA/apg/patterns/landmarks/#examples",
+          "content": null
+        },
+        {
+          "nativeId": "keyboard_interaction",
+          "title": "Keyboard Interaction",
+          "url": "https://www.w3.org/WAI/ARIA/apg/patterns/landmarks/#keyboard_interaction",
+          "content": "Not applicable."
+        },
+        {
+          "nativeId": "roles_states_properties",
+          "title": "WAI-ARIA Roles, States, and Properties",
+          "url": "https://www.w3.org/WAI/ARIA/apg/patterns/landmarks/#roles_states_properties",
+          "content": "The Landmark Regions Practice describes the HTML elements, roles, properties, and usage guidelines for each of the landmark region roles."
+        }
+      ],
+      "links": [
+        {
+          "kind": "docs",
+          "label": null,
+          "url": "https://www.w3.org/WAI/ARIA/apg/patterns/landmarks/"
+        },
+        {
+          "kind": "code",
+          "label": null,
+          "url": "https://github.com/w3c/aria-practices/blob/18c1a2fca626f7aeb33270e23ae9b18833e2164d/content/patterns/landmarks/landmarks-pattern.html"
+        }
+      ],
+      "examples": [
+        {
+          "nativeId": "main",
+          "title": "Main Landmark Example",
+          "url": "https://www.w3.org/WAI/ARIA/apg/patterns/landmarks/examples/main.html"
+        },
+        {
+          "nativeId": "navigation",
+          "title": "Navigation Landmark Example",
+          "url": "https://www.w3.org/WAI/ARIA/apg/patterns/landmarks/examples/navigation.html"
+        },
+        {
+          "nativeId": "search",
+          "title": "Search Landmark Example",
+          "url": "https://www.w3.org/WAI/ARIA/apg/patterns/landmarks/examples/search.html"
+        },
+        {
+          "nativeId": "banner",
+          "title": "Banner Landmark Example",
+          "url": "https://www.w3.org/WAI/ARIA/apg/patterns/landmarks/examples/banner.html"
+        },
+        {
+          "nativeId": "contentinfo",
+          "title": "Contentinfo Landmark Example",
+          "url": "https://www.w3.org/WAI/ARIA/apg/patterns/landmarks/examples/contentinfo.html"
+        },
+        {
+          "nativeId": "complementary",
+          "title": "Complementary Landmark Example",
+          "url": "https://www.w3.org/WAI/ARIA/apg/patterns/landmarks/examples/complementary.html"
+        },
+        {
+          "nativeId": "form",
+          "title": "Form Landmark Example",
+          "url": "https://www.w3.org/WAI/ARIA/apg/patterns/landmarks/examples/form.html"
+        },
+        {
+          "nativeId": "region",
+          "title": "Region Landmark Example",
+          "url": "https://www.w3.org/WAI/ARIA/apg/patterns/landmarks/examples/region.html"
+        }
+      ],
+      "relationships": [],
+      "sourcePath": "content/patterns/landmarks/landmarks-pattern.html"
+    },
+    {
+      "nativeId": "link",
+      "name": "Link",
+      "aliases": [],
+      "summary": {
+        "text": "A link widget provides an interactive reference to a resource. The target resource can be either external or local, i.e., either outside or within the current page or application.",
+        "url": "https://www.w3.org/WAI/ARIA/apg/patterns/link/#about"
+      },
+      "kind": "pattern",
+      "canonicalUrl": "https://www.w3.org/WAI/ARIA/apg/patterns/link/",
+      "sections": [
+        {
+          "nativeId": "about",
+          "title": "About This Pattern",
+          "url": "https://www.w3.org/WAI/ARIA/apg/patterns/link/#about",
+          "content": null
+        },
+        {
+          "nativeId": "examples",
+          "title": "Examples",
+          "url": "https://www.w3.org/WAI/ARIA/apg/patterns/link/#examples",
+          "content": null
+        },
+        {
+          "nativeId": "keyboard_interaction",
+          "title": "Keyboard Interaction",
+          "url": "https://www.w3.org/WAI/ARIA/apg/patterns/link/#keyboard_interaction",
+          "content": "• Enter : Executes the link and moves focus to the link target.\n• Shift + F10 (Optional): Opens a context menu for the link."
+        },
+        {
+          "nativeId": "roles_states_properties",
+          "title": "WAI-ARIA Roles, States, and Properties",
+          "url": "https://www.w3.org/WAI/ARIA/apg/patterns/link/#roles_states_properties",
+          "content": "The element containing the link text or graphic has role of link ."
+        }
+      ],
+      "links": [
+        {
+          "kind": "docs",
+          "label": null,
+          "url": "https://www.w3.org/WAI/ARIA/apg/patterns/link/"
+        },
+        {
+          "kind": "code",
+          "label": null,
+          "url": "https://github.com/w3c/aria-practices/blob/18c1a2fca626f7aeb33270e23ae9b18833e2164d/content/patterns/link/link-pattern.html"
+        }
+      ],
+      "examples": [
+        {
+          "nativeId": "link",
+          "title": "Link Examples",
+          "url": "https://www.w3.org/WAI/ARIA/apg/patterns/link/examples/link.html"
+        }
+      ],
+      "relationships": [],
+      "sourcePath": "content/patterns/link/link-pattern.html"
+    },
+    {
+      "nativeId": "listbox",
+      "name": "Listbox",
+      "aliases": [],
+      "summary": {
+        "text": "A listbox widget presents a list of options and allows a user to select one or more of them. A listbox that allows a single option to be chosen is a single-select listbox; one that allows multiple options to be selected is a multi-select listbox.",
+        "url": "https://www.w3.org/WAI/ARIA/apg/patterns/listbox/#about"
+      },
+      "kind": "pattern",
+      "canonicalUrl": "https://www.w3.org/WAI/ARIA/apg/patterns/listbox/",
+      "sections": [
+        {
+          "nativeId": "about",
+          "title": "About This Pattern",
+          "url": "https://www.w3.org/WAI/ARIA/apg/patterns/listbox/#about",
+          "content": null
+        },
+        {
+          "nativeId": "examples",
+          "title": "Examples",
+          "url": "https://www.w3.org/WAI/ARIA/apg/patterns/listbox/#examples",
+          "content": null
+        },
+        {
+          "nativeId": "keyboard_interaction",
+          "title": "Keyboard Interaction",
+          "url": "https://www.w3.org/WAI/ARIA/apg/patterns/listbox/#keyboard_interaction",
+          "content": "For a vertically oriented listbox:\n• When a single-select listbox receives focus:\n• If none of the options are selected before the listbox receives focus, the first option receives focus.\nOptionally, the first option may be automatically selected.\n• If an option is selected before the listbox receives focus, focus is set on the selected option.\n• When a multi-select listbox receives focus:\n• If none of the options are selected before the listbox receives focus, focus is set on the first option and there is no automatic change in the selection state.\n• If one or more options are selected before the listbox receives focus, focus is set on the first option in the list that is selected.\n• Down Arrow : Moves focus to the next option.\nOptionally, in a single-select listbox, selection may also move with focus.\n• Up Arrow : Moves focus to the previous option.\nOptionally, in a single-select listbox, selection may also move with focus.\n• Home (Optional): Moves focus to first option.\nOptionally, in a single-select listbox, selection may also move with focus.\nSupporting this key is strongly recommended for lists with more than five options.\n• End (Optional): Moves focus to last option.\nOptionally, in a single-select listbox, selection may also move with focus.\nSupporting this key is strongly recommended for lists with more than five options.\n• Type-ahead is recommended for all listboxes, especially those with more than seven options:\n• Type a character: focus moves to the next item with a name that starts with the typed character.\n• Type multiple characters in rapid succession: focus moves to the next item with a name that starts with the string of characters typed.\n• Multiple Selection : Authors may implement either of two interaction models to support multiple selection: a recommended model that does not require the user to hold a modifier key, such as Shift or Control , while navigating the list or an alternative model that does require modifier keys to be held while navigating in order to avoid losing selection states.\n• Recommended selection model -- holding modifier keys is not necessary:\n• Space : changes the selection state of the focused option.\n• Shift + Down Arrow (Optional): Moves focus to and toggles the selected state of the next option.\n• Shift + Up Arrow (Optional): Moves focus to and toggles the selected state of the previous option.\n• Shift + Space (Optional): Selects contiguous items from the most recently selected item to the focused item.\n• Control + Shift + Home (Optional): Selects the focused option and all options up to the first option.\nOptionally, moves focus to the first option.\n• Control + Shift + End (Optional): Selects the focused option and all options down to the last option.\nOptionally, moves focus to the last option.\n• Control + A (Optional): Selects all options in the list.\nOptionally, if all options are selected, it may also unselect all options.\n• Alternative selection model -- moving focus without holding a Shift or Control modifier unselects all selected options except the focused option:\n• Shift + Down Arrow : Moves focus to and toggles the selection state of the next option.\n• Shift + Up Arrow : Moves focus to and toggles the selection state of the previous option.\n• Control + Down Arrow : Moves focus to the next option without changing its selection state.\n• Control + Up Arrow : Moves focus to the previous option without changing its selection state.\n• Control + Space Changes the selection state of the focused option.\n• Shift + Space (Optional): Selects contiguous items from the most recently selected item to the focused item.\n• Control + Shift + Home (Optional): Selects the focused option and all options up to the first option.\nOptionally, moves focus to the first option.\n• Control + Shift + End (Optional): Selects the focused option and all options down to the last option.\nOptionally, moves focus to the last option.\n• Control + A (Optional): Selects all options in the list.\nOptionally, if all options are selected, it may also unselect all options.\nNote\n• DOM focus (the active element) is functionally distinct from the selected state.\nFor more details, see this description of differences between focus and selection .\n• The listbox role supports the aria-activedescendant property, which provides an alternative to moving DOM focus among option elements when implementing keyboard navigation. For details, see\nManaging Focus in Composites Using aria-activedescendant .\n• In a single-select listbox, moving focus may optionally unselect the previously selected option and select the newly focused option.\nThis model of selection is known as \"selection follows focus\".\nHaving selection follow focus can be very helpful in some circumstances and can severely degrade accessibility in others.\nFor additional guidance, see Deciding When to Make Selection Automatically Follow Focus .\n• If selecting or unselecting all options is an important function, implementing separate controls for these actions, such as buttons for \"Select All\" and \"Unselect All\", significantly improves accessibility.\n• If the options in a listbox are arranged horizontally:\n• Down Arrow performs as Right Arrow is described above, and vice versa.\n• Up Arrow performs as Left Arrow is described above, and vice versa."
+        },
+        {
+          "nativeId": "roles_states_properties",
+          "title": "WAI-ARIA Roles, States, and Properties",
+          "url": "https://www.w3.org/WAI/ARIA/apg/patterns/listbox/#roles_states_properties",
+          "content": "• An element that contains or owns all the listbox options has role listbox .\n• Each option in the listbox has role option and is contained in or owned by either:\n• The element with role listbox .\n• An element with role group that is contained in or owned by the element with role listbox .\n• Options contained in a group are referred to as grouped options and form what is called an option group.\nIf a listbox contains grouped options, then:\n• All option groups contain at least one option.\n• Each option group has an accessible name provided via aria-label or aria-labelledby .\n• If the element with role listbox is not part of another widget, such as a combobox, then it has either a visible label referenced by aria-labelledby or a value specified for aria-label .\n• If the listbox supports selection of more than one option, the element with role listbox has aria-multiselectable set to true .\nOtherwise, aria-multiselectable is either set to false or the default value of false is implied.\n• The selection state of each selectable option is indicated with either aria-selected or aria-checked :\n• If the selection state is indicated with aria-selected , then aria-checked is not specified for any options.\nAlternatively, if the selection state is indicated with aria-checked , then aria-selected is not specified for any options.\nSee notes below regarding considerations for which property to use and for details of the unusual conditions that might allow for both properties in the same listbox.\n• If any options are selected, each selected option has either aria-selected or aria-checked set to true .\nNo more than one option is selected at a time if the element with role listbox does not have aria-multiselectable set to true .\n• All options that are selectable but not selected have either aria-selected or aria-checked set to false .\n• Note that except in listboxes where selection follows focus, the selected state is distinct from focus.\nFor more details, see this description of differences between focus and selection\nand Deciding When to Make Selection Automatically Follow Focus .\n• If the complete set of available options is not present in the DOM due to dynamic loading as the user scrolls, their aria-setsize and aria-posinset attributes are set appropriately.\n• If options are arranged horizontally, the element with role listbox has aria-orientation set to horizontal .\nThe default value of aria-orientation for listbox is vertical .\nNote\n• Some factors to consider when choosing whether to indicate selection with aria-selected or aria-checked are:\n• Some design systems use aria-selected for single-select widgets and aria-checked for multi-select widgets.\nIn the absence of factors that would make an alternative convention more appropriate, this is a recommended convention.\n• The language of instructions and the appearance of the interface might suggest one attribute is more appropriate than the other.\nFor instance, do instructions say to select items?\nOr, is the visual indicator of selection a check mark?\n• It is important to adopt a consistent convention for selection models across a site or app.\n• Conditions that would permit a listbox to include both aria-selected and aria-checked are extremely rare.\nIt is strongly recommended to avoid designing a listbox widget that would have the need for more than one type of state.\nIf both states were to be used within a listbox, all the following conditions need to be satisfied:\n• The meaning and purpose of aria-selected is different from the meaning and purpose of aria-checked in the user interface.\n• The user interface makes the meaning and purpose of each state apparent.\n• The user interface provides a separate method for controlling each state.\n• If aria-owns is set on the listbox element to include elements that are not DOM children of the container, those elements will appear in the reading order in the sequence they are referenced and after any items that are DOM children.\nScripts that manage focus need to ensure the visual focus order matches this assistive technology reading order."
+        }
+      ],
+      "links": [
+        {
+          "kind": "docs",
+          "label": null,
+          "url": "https://www.w3.org/WAI/ARIA/apg/patterns/listbox/"
+        },
+        {
+          "kind": "code",
+          "label": null,
+          "url": "https://github.com/w3c/aria-practices/blob/18c1a2fca626f7aeb33270e23ae9b18833e2164d/content/patterns/listbox/listbox-pattern.html"
+        }
+      ],
+      "examples": [
+        {
+          "nativeId": "listbox-scrollable",
+          "title": "Scrollable Listbox Example",
+          "url": "https://www.w3.org/WAI/ARIA/apg/patterns/listbox/examples/listbox-scrollable.html"
+        },
+        {
+          "nativeId": "listbox-rearrangeable",
+          "title": "Example Listboxes with Rearrangeable Options",
+          "url": "https://www.w3.org/WAI/ARIA/apg/patterns/listbox/examples/listbox-rearrangeable.html"
+        },
+        {
+          "nativeId": "listbox-grouped",
+          "title": "Listbox Example with Grouped Options",
+          "url": "https://www.w3.org/WAI/ARIA/apg/patterns/listbox/examples/listbox-grouped.html"
+        }
+      ],
+      "relationships": [
+        {
+          "kind": "related-to",
+          "label": "Grid",
+          "targetTitle": "Grid",
+          "targetUrl": "https://www.w3.org/WAI/ARIA/apg/patterns/grid/"
+        }
+      ],
+      "sourcePath": "content/patterns/listbox/listbox-pattern.html"
+    },
+    {
+      "nativeId": "menu-button",
+      "name": "Menu Button",
+      "aliases": [],
+      "summary": {
+        "text": "A menu button is a button that opens a menu as described in the Menu and Menubar Pattern . It is often styled as a typical push button with a downward pointing arrow or triangle to hint that activating the button will display a menu.",
+        "url": "https://www.w3.org/WAI/ARIA/apg/patterns/menu-button/#about"
+      },
+      "kind": "pattern",
+      "canonicalUrl": "https://www.w3.org/WAI/ARIA/apg/patterns/menu-button/",
+      "sections": [
+        {
+          "nativeId": "about",
+          "title": "About This Pattern",
+          "url": "https://www.w3.org/WAI/ARIA/apg/patterns/menu-button/#about",
+          "content": null
+        },
+        {
+          "nativeId": "examples",
+          "title": "Examples",
+          "url": "https://www.w3.org/WAI/ARIA/apg/patterns/menu-button/#examples",
+          "content": null
+        },
+        {
+          "nativeId": "keyboard_interaction",
+          "title": "Keyboard Interaction",
+          "url": "https://www.w3.org/WAI/ARIA/apg/patterns/menu-button/#keyboard_interaction",
+          "content": "• With focus on the button:\n• Enter : opens the menu and places focus on the first menu item.\n• Space : Opens the menu and places focus on the first menu item.\n• (Optional) Down Arrow : opens the menu and moves focus to the first menu item.\n• (Optional) Up Arrow : opens the menu and moves focus to the last menu item.\n• The keyboard behaviors needed after the menu is open are described in the Menu and Menubar Pattern ."
+        },
+        {
+          "nativeId": "roles_states_properties",
+          "title": "WAI-ARIA Roles, States, and Properties",
+          "url": "https://www.w3.org/WAI/ARIA/apg/patterns/menu-button/#roles_states_properties",
+          "content": "• The element that opens the menu has role button .\n• The element with role button has aria-haspopup set to either menu or true .\n• When the menu is displayed, the element with role button has aria-expanded set to true .\nWhen the menu is hidden, aria-expanded is set to false .\n• The element that contains the menu items displayed by activating the button has role menu .\n• Optionally, the element with role button has a value specified for aria-controls that refers to the element with role menu .\n• Additional roles, states, and properties needed for the menu element are described in the Menu and Menubar Pattern ."
+        }
+      ],
+      "links": [
+        {
+          "kind": "docs",
+          "label": null,
+          "url": "https://www.w3.org/WAI/ARIA/apg/patterns/menu-button/"
+        },
+        {
+          "kind": "code",
+          "label": null,
+          "url": "https://github.com/w3c/aria-practices/blob/18c1a2fca626f7aeb33270e23ae9b18833e2164d/content/patterns/menu-button/menu-button-pattern.html"
+        }
+      ],
+      "examples": [
+        {
+          "nativeId": "menu-button-actions-active-descendant",
+          "title": "Action Menu Button Example Using aria-activedescendant",
+          "url": "https://www.w3.org/WAI/ARIA/apg/patterns/menu-button/examples/menu-button-actions-active-descendant.html"
+        },
+        {
+          "nativeId": "menu-button-actions",
+          "title": "Action Menu Button Example Using element.focus()",
+          "url": "https://www.w3.org/WAI/ARIA/apg/patterns/menu-button/examples/menu-button-actions.html"
+        },
+        {
+          "nativeId": "menu-button-links",
+          "title": "Navigation Menu Button",
+          "url": "https://www.w3.org/WAI/ARIA/apg/patterns/menu-button/examples/menu-button-links.html"
+        }
+      ],
+      "relationships": [
+        {
+          "kind": "related-to",
+          "label": "button",
+          "targetTitle": "button",
+          "targetUrl": "https://www.w3.org/WAI/ARIA/apg/patterns/button/"
+        },
+        {
+          "kind": "related-to",
+          "label": "Menu and Menubar",
+          "targetTitle": "Menu and Menubar",
+          "targetUrl": "https://www.w3.org/WAI/ARIA/apg/patterns/menubar/"
+        }
+      ],
+      "sourcePath": "content/patterns/menu-button/menu-button-pattern.html"
+    },
+    {
+      "nativeId": "menubar",
+      "name": "Menu and Menubar",
+      "aliases": [],
+      "summary": {
+        "text": "A menu is a widget that offers a list of choices to the user, such as a set of actions or functions. Menu widgets behave like native operating system menus, such as the menus that pull down from the menubars commonly found at the top of many desktop application windows. A menu is usually opened, or made visible, by activating a menu button , choosing an item in a menu that opens a sub menu, or by invoking a command, such as Shift + F10 in Windows, that opens a context specific menu. When a user activates a choice in a menu, the menu usually closes unless the choice opened a submenu.",
+        "url": "https://www.w3.org/WAI/ARIA/apg/patterns/menubar/#about"
+      },
+      "kind": "pattern",
+      "canonicalUrl": "https://www.w3.org/WAI/ARIA/apg/patterns/menubar/",
+      "sections": [
+        {
+          "nativeId": "about",
+          "title": "About This Pattern",
+          "url": "https://www.w3.org/WAI/ARIA/apg/patterns/menubar/#about",
+          "content": null
+        },
+        {
+          "nativeId": "examples",
+          "title": "Examples",
+          "url": "https://www.w3.org/WAI/ARIA/apg/patterns/menubar/#examples",
+          "content": null
+        },
+        {
+          "nativeId": "keyboard_interaction",
+          "title": "Keyboard Interaction",
+          "url": "https://www.w3.org/WAI/ARIA/apg/patterns/menubar/#keyboard_interaction",
+          "content": "The following description of keyboard behaviors assumes:\n• A horizontal menubar containing several menuitem , menuitemradio , or menuitemcheckbox elements.\n• Some menuitem elements in the menubar have child submenus that contain vertically arranged items.\n• Some of the menuitem elements in the submenus have child submenus with items that are also vertically arranged.\nWhen reading the following descriptions, also keep in mind that:\n• Focusable elements, which may have role menuitem , menuitemradio , or menuitemcheckbox , are referred to as items.\n• If a behavior applies to only certain types of items, e.g., menuitem elements, the specific role name is used.\n• Submenus, also known as popup menus, are elements with role menu .\n• Except where noted, menus opened from a menubutton behave the same as menus opened from a menubar.\nWhen a menu opens, or when a menubar receives focus, keyboard focus is placed on the first item.\nBecause menubar and menu elements are composite widgets as described in the practice for\nKeyboard Navigation Inside Components ,\nTab and Shift + Tab do not move focus among the items in the menu.\nInstead, the keyboard commands described in this section enable users to move focus among the elements in a menubar or menu .\n• Tab and Shift + Tab :\n• Move focus into a menubar :\n• If focus is moving into the menubar for the first time, focus is set on the first menuitem .\n• If the menubar has previously contained focus, focus is optionally set on the menuitem that last had focus.\nOtherwise, it is set on the first menuitem that is not disabled.\n• When focus is on a menuitem in a menu or menubar , move focus out of the menu or menubar , and close all menus and submenus.\n• Note that Tab and Shift + Tab do not move focus into a menu .\nUnlike a menubar , a menu is not visually persistent, and authors are responsible for ensuring focus moves to an item inside of a menu when the menu opens.\n• Enter :\n• When focus is on a menuitem that has a submenu, opens the submenu and places focus on its first item.\n• Otherwise, activates the item and closes the menu.\n• Space :\n• (Optional): When focus is on a menuitemcheckbox , changes the state without closing the menu.\n• (Optional): When focus is on a menuitemradio that is not checked, without closing the menu, checks the focused menuitemradio and unchecks any other checked menuitemradio element in the same group.\n• (Optional): When focus is on a menuitem that has a submenu, opens the submenu and places focus on its first item.\n• (Optional): When focus is on a menuitem that does not have a submenu, activates the menuitem and closes the menu.\n• Down Arrow :\n• When focus is on a menuitem in a menubar , and that menuitem has a submenu, opens the submenu and places focus on the first item in the submenu.\n• When focus is in a menu , moves focus to the next item, optionally wrapping from the last to the first.\n• Up Arrow :\n• When focus is in a menu , moves focus to the previous item, optionally wrapping from the first to the last.\n• (Optional): When focus is on a menuitem in a menubar , and that menuitem has a submenu, opens the submenu and places focus on the last item in the submenu.\n• Right Arrow :\n• When focus is in a menubar , moves focus to the next item, optionally wrapping from the last to the first.\n• When focus is in a menu and on a menuitem that has a submenu, opens the submenu and places focus on its first item.\n• When focus is in a menu and on an item that does not have a submenu, performs the following 3 actions:\n• Closes the submenu and any parent menus.\n• Moves focus to the next item in the menubar .\n• If focus is now on a menuitem with a submenu, either: (Recommended) opens the submenu of that menuitem without moving focus into the submenu, or opens the submenu of that menuitem and places focus on the first item in the submenu.\nNote that if the menubar were not present, e.g., the menus were opened from a menubutton, Right Arrow would not do anything when focus is on an item that does not have a submenu.\n• Left Arrow :\n• When focus is in a menubar , moves focus to the previous item, optionally wrapping from the first to the last.\n• When focus is in a submenu of an item in a menu , closes the submenu and returns focus to the parent menuitem .\n• When focus is in a submenu of an item in a menubar , performs the following 3 actions:\n• Closes the submenu.\n• Moves focus to the previous item in the menubar .\n• If focus is now on a menuitem with a submenu, either: (Recommended) opens the submenu of that menuitem without moving focus into the submenu, or opens the submenu of that menuitem and places focus on the first item in the submenu.\n• Home : If arrow key wrapping is not supported, moves focus to the first item in the current menu or menubar .\n• End : If arrow key wrapping is not supported, moves focus to the last item in the current menu or menubar .\n• Any key that corresponds to a printable character (Optional): Move focus to the next item in the current menu whose label begins with that printable character.\n• Escape : Close the menu that contains focus and return focus to the element or context, e.g., menu button or parent menuitem , from which the menu was opened.\nNote\n• Disabled menu items are focusable but cannot be activated.\n• A separator in a menu is not focusable or interactive.\n• If a menu is opened or a menubar receives focus as a result of a context action, Escape or Enter may return focus to the invoking context.\nFor example, a rich text editor may have a menubar that receives focus when a shortcut key, e.g., alt + F10 , is pressed while editing.\nIn this case, pressing Escape or activating a command from the menu may return focus to the editor.\n• Although it is recommended that authors avoid doing so, some implementations of navigation menubars may have menuitem elements that both perform a function and open a submenu.\nIn such implementations, Enter and Space perform a navigation function, e.g., load new content, while Down Arrow , in a horizontal menubar, opens the submenu associated with that same menuitem .\n• When items in a menubar are arranged vertically and items in menu containers are arranged horizontally:\n• Down Arrow performs as Right Arrow is described above, and vice versa.\n• Up Arrow performs as Left Arrow is described above, and vice versa."
+        },
+        {
+          "nativeId": "roles_states_properties",
+          "title": "WAI-ARIA Roles, States, and Properties",
+          "url": "https://www.w3.org/WAI/ARIA/apg/patterns/menubar/#roles_states_properties",
+          "content": "• A menu is a container of items that represent choices.\nThe element serving as the menu has a role of either menu or menubar .\n• The items contained in a menu are child elements of the containing menu or menubar and have any of the following roles:\n• menuitem\n• menuitemcheckbox\n• menuitemradio\n• If activating a menuitem opens a submenu, the menuitem is known as a parent menuitem.\nA submenu's menu element is:\n• Contained inside the same menu element as its parent menuitem .\n• Is the sibling element immediately following its parent menuitem .\n• A parent menuitem has aria-haspopup set to either menu or true .\n• A parent menuitem has aria-expanded set to false when its child menu is not visible and set to true when the child menu is visible.\n• One of the following approaches is used to enable scripts to move focus among items in a menu as described in the practice for\nKeyboard Navigation Inside Components :\n• The menu container has tabindex set to -1 or 0 and aria-activedescendant set to the ID of the focused item.\n• Each item in the menu has tabindex set to -1 , except in a menubar, where the first item has tabindex set to 0 .\n• When a menuitemcheckbox or menuitemradio is checked, aria-checked is set to true .\n• When a menu item is disabled, aria-disabled is set to true .\n• Items in a menu may be divided into groups by placing an element with a role of separator between groups.\nFor example, this technique should be used when a menu contains a set of menuitemradio items.\n• All separators should have aria-orientation consistent with the separator's orientation.\n• If a menubar has a visible label, the element with role menubar has aria-labelledby set to a value that refers to the labelling element.\nOtherwise, the menubar element has a label provided by aria-label .\n• If a menubar is vertically oriented, it has aria-orientation set to vertical .\nThe default value of aria-orientation for a menubar is horizontal .\n• An element with role menu either has:\n• aria-labelledby set to a value that refers to the menuitem or button that controls its display.\n• A label provided by aria-label .\n• If a menu is horizontally oriented, it has aria-orientation set to horizontal .\nThe default value of aria-orientation for a menu is vertical .\nNote\nIf aria-owns is set on the menu container to include elements that are not DOM children of the container, those elements will appear in the reading order in the sequence they are referenced and after any items that are DOM children.\nScripts that manage focus need to ensure the visual focus order matches this assistive technology reading order."
+        }
+      ],
+      "links": [
+        {
+          "kind": "docs",
+          "label": null,
+          "url": "https://www.w3.org/WAI/ARIA/apg/patterns/menubar/"
+        },
+        {
+          "kind": "code",
+          "label": null,
+          "url": "https://github.com/w3c/aria-practices/blob/18c1a2fca626f7aeb33270e23ae9b18833e2164d/content/patterns/menubar/menu-and-menubar-pattern.html"
+        }
+      ],
+      "examples": [
+        {
+          "nativeId": "menubar-editor",
+          "title": "Editor Menubar Example",
+          "url": "https://www.w3.org/WAI/ARIA/apg/patterns/menubar/examples/menubar-editor.html"
+        },
+        {
+          "nativeId": "menubar-navigation",
+          "title": "Navigation Menubar Example",
+          "url": "https://www.w3.org/WAI/ARIA/apg/patterns/menubar/examples/menubar-navigation.html"
+        }
+      ],
+      "relationships": [
+        {
+          "kind": "related-to",
+          "label": "menu button",
+          "targetTitle": "menu button",
+          "targetUrl": "https://www.w3.org/WAI/ARIA/apg/patterns/menu-button/"
+        }
+      ],
+      "sourcePath": "content/patterns/menubar/menu-and-menubar-pattern.html"
+    },
+    {
+      "nativeId": "meter",
+      "name": "Meter",
+      "aliases": [],
+      "summary": {
+        "text": "A meter is a graphical display of a numeric value that varies within a defined range. For example, a meter could be used to depict a device's current battery percentage or a car's fuel level.",
+        "url": "https://www.w3.org/WAI/ARIA/apg/patterns/meter/#about"
+      },
+      "kind": "pattern",
+      "canonicalUrl": "https://www.w3.org/WAI/ARIA/apg/patterns/meter/",
+      "sections": [
+        {
+          "nativeId": "about",
+          "title": "About This Pattern",
+          "url": "https://www.w3.org/WAI/ARIA/apg/patterns/meter/#about",
+          "content": null
+        },
+        {
+          "nativeId": "examples",
+          "title": "Example",
+          "url": "https://www.w3.org/WAI/ARIA/apg/patterns/meter/#examples",
+          "content": null
+        },
+        {
+          "nativeId": "keyboard_interaction",
+          "title": "Keyboard Interaction",
+          "url": "https://www.w3.org/WAI/ARIA/apg/patterns/meter/#keyboard_interaction",
+          "content": "Not applicable."
+        },
+        {
+          "nativeId": "roles_states_properties",
+          "title": "WAI-ARIA Roles, States, and Properties",
+          "url": "https://www.w3.org/WAI/ARIA/apg/patterns/meter/#roles_states_properties",
+          "content": "• The element serving as the meter has a role of meter .\n• The meter has aria-valuenow set to a decimal value between aria-valuemin and aria-valuemax representing the current value of the meter.\n• The meter has aria-valuemin set to a decimal value less than aria-valuemax .\n• The meter has aria-valuemax set to a decimal value greater than aria-valuemin .\n• Assistive technologies often present aria-valuenow as a percentage.\nIf conveying the value of the meter only in terms of a percentage would not be user friendly, the aria-valuetext property is set to a string that makes the meter value understandable.\nFor example, a battery meter value might be conveyed as aria-valuetext=\"50% (6 hours) remaining\" .\n• If the meter has a visible label, it is referenced by aria-labelledby on the element with role meter .\nOtherwise, the element with role meter has a label provided by aria-label ."
+        }
+      ],
+      "links": [
+        {
+          "kind": "docs",
+          "label": null,
+          "url": "https://www.w3.org/WAI/ARIA/apg/patterns/meter/"
+        },
+        {
+          "kind": "code",
+          "label": null,
+          "url": "https://github.com/w3c/aria-practices/blob/18c1a2fca626f7aeb33270e23ae9b18833e2164d/content/patterns/meter/meter-pattern.html"
+        }
+      ],
+      "examples": [
+        {
+          "nativeId": "meter",
+          "title": "Meter Example",
+          "url": "https://www.w3.org/WAI/ARIA/apg/patterns/meter/examples/meter.html"
+        }
+      ],
+      "relationships": [],
+      "sourcePath": "content/patterns/meter/meter-pattern.html"
+    },
+    {
+      "nativeId": "radio",
+      "name": "Radio Group",
+      "aliases": [],
+      "summary": {
+        "text": "A radio group is a set of checkable buttons, known as radio buttons, where no more than one of the buttons can be checked at a time. Some implementations may initialize the set with all buttons in the unchecked state in order to force the user to check one of the buttons before moving past a certain point in the workflow.",
+        "url": "https://www.w3.org/WAI/ARIA/apg/patterns/radio/#about"
+      },
+      "kind": "pattern",
+      "canonicalUrl": "https://www.w3.org/WAI/ARIA/apg/patterns/radio/",
+      "sections": [
+        {
+          "nativeId": "about",
+          "title": "About This Pattern",
+          "url": "https://www.w3.org/WAI/ARIA/apg/patterns/radio/#about",
+          "content": null
+        },
+        {
+          "nativeId": "examples",
+          "title": "Examples",
+          "url": "https://www.w3.org/WAI/ARIA/apg/patterns/radio/#examples",
+          "content": null
+        },
+        {
+          "nativeId": "keyboard_interaction",
+          "title": "Keyboard Interaction",
+          "url": "https://www.w3.org/WAI/ARIA/apg/patterns/radio/#keyboard_interaction",
+          "content": "For Radio Groups Not Contained in a Toolbar\nThis section describes the keyboard interaction implemented for most radio groups.\nFor the special case of a radio group nested inside a toolbar , use the keyboard interaction described in the following section.\n• Tab and Shift + Tab : Move focus into and out of the radio group.\nWhen focus moves into a radio group:\n• If a radio button is checked, focus is set on the checked button.\n• If none of the radio buttons are checked, focus is set on the first radio button in the group.\n• Space : checks the focused radio button if it is not already checked.\n• Right Arrow and Down Arrow : move focus to the next radio button in the group, uncheck the previously focused button, and check the newly focused button.\nIf focus is on the last button, focus moves to the first button.\n• Left Arrow and Up Arrow : move focus to the previous radio button in the group, uncheck the previously focused button, and check the newly focused button.\nIf focus is on the first button, focus moves to the last button.\nNote\nThe initial focus behavior described above differs slightly from the behavior provided by some browsers for native HTML radio groups.\nIn some browsers, if none of the radio buttons are selected, moving focus into the radio group with Shift + Tab will place focus on the last radio button instead of the first radio button."
+        },
+        {
+          "nativeId": "roles_states_properties",
+          "title": "WAI-ARIA Roles, States, and Properties",
+          "url": "https://www.w3.org/WAI/ARIA/apg/patterns/radio/#roles_states_properties",
+          "content": "• The radio buttons are contained in or owned by an element with role radiogroup .\n• Each radio button element has role radio .\n• If a radio button is checked, the radio element has aria-checked set to true .\nIf it is not checked, it has aria-checked set to false .\n• Each radio element is labelled by its content, has a visible label referenced by aria-labelledby , or has a label specified with aria-label .\n• The radiogroup element has a visible label referenced by aria-labelledby or has a label specified with aria-label .\n• If elements providing additional information about either the radio group or each radio button are present, those elements are referenced by the radiogroup element or radio elements with the aria-describedby property."
+        }
+      ],
+      "links": [
+        {
+          "kind": "docs",
+          "label": null,
+          "url": "https://www.w3.org/WAI/ARIA/apg/patterns/radio/"
+        },
+        {
+          "kind": "code",
+          "label": null,
+          "url": "https://github.com/w3c/aria-practices/blob/18c1a2fca626f7aeb33270e23ae9b18833e2164d/content/patterns/radio/radio-group-pattern.html"
+        }
+      ],
+      "examples": [
+        {
+          "nativeId": "radio",
+          "title": "Radio Group Example Using Roving tabindex",
+          "url": "https://www.w3.org/WAI/ARIA/apg/patterns/radio/examples/radio.html"
+        },
+        {
+          "nativeId": "radio-activedescendant",
+          "title": "Radio Group Example Using aria-activedescendant",
+          "url": "https://www.w3.org/WAI/ARIA/apg/patterns/radio/examples/radio-activedescendant.html"
+        },
+        {
+          "nativeId": "radio-rating",
+          "title": "Rating Radio Group Example",
+          "url": "https://www.w3.org/WAI/ARIA/apg/patterns/radio/examples/radio-rating.html"
+        }
+      ],
+      "relationships": [
+        {
+          "kind": "related-to",
+          "label": "toolbar",
+          "targetTitle": "toolbar",
+          "targetUrl": "https://www.w3.org/WAI/ARIA/apg/patterns/toolbar/"
+        }
+      ],
+      "sourcePath": "content/patterns/radio/radio-group-pattern.html"
+    },
+    {
+      "nativeId": "slider",
+      "name": "Slider",
+      "aliases": [],
+      "summary": {
+        "text": "A slider is an input where the user selects a value from within a given range. Sliders typically have a slider thumb that can be moved along a bar, rail, or track to change the value of the slider.",
+        "url": "https://www.w3.org/WAI/ARIA/apg/patterns/slider/#about"
+      },
+      "kind": "pattern",
+      "canonicalUrl": "https://www.w3.org/WAI/ARIA/apg/patterns/slider/",
+      "sections": [
+        {
+          "nativeId": "about",
+          "title": "About This Pattern",
+          "url": "https://www.w3.org/WAI/ARIA/apg/patterns/slider/#about",
+          "content": null
+        },
+        {
+          "nativeId": "examples",
+          "title": "Examples",
+          "url": "https://www.w3.org/WAI/ARIA/apg/patterns/slider/#examples",
+          "content": null
+        },
+        {
+          "nativeId": "keyboard_interaction",
+          "title": "Keyboard Interaction",
+          "url": "https://www.w3.org/WAI/ARIA/apg/patterns/slider/#keyboard_interaction",
+          "content": "• Right Arrow : Increase the value of the slider by one step.\n• Up Arrow : Increase the value of the slider by one step.\n• Left Arrow : Decrease the value of the slider by one step.\n• Down Arrow : Decrease the value of the slider by one step.\n• Home : Set the slider to the first allowed value in its range.\n• End : Set the slider to the last allowed value in its range.\n• Page Up (Optional): Increase the slider value by an amount larger than the step change made by Up Arrow .\n• Page Down (Optional): Decrease the slider value by an amount larger than the step change made by Down Arrow .\nNote\n• Focus is placed on the slider (the visual object that the mouse user would move, also known as the thumb.\n• In some circumstances, reversing the direction of the value change for the keys specified above, e.g., having Up Arrow decrease the value, could create a more intuitive experience."
+        },
+        {
+          "nativeId": "roles_states_properties",
+          "title": "WAI-ARIA Roles, States, and Properties",
+          "url": "https://www.w3.org/WAI/ARIA/apg/patterns/slider/#roles_states_properties",
+          "content": "• The element serving as the focusable slider control has role slider .\n• The slider element has the aria-valuenow property set to a decimal value representing the current value of the slider.\n• The slider element has the aria-valuemin property set to a decimal value representing the minimum allowed value of the slider.\n• The slider element has the aria-valuemax property set to a decimal value representing the maximum allowed value of the slider.\n• If the value of aria-valuenow is not user-friendly, e.g., the day of the week is represented by a number, the aria-valuetext property is set to a string that makes the slider value understandable, e.g., \"Monday\".\n• If the slider has a visible label, it is referenced by aria-labelledby on the slider element.\nOtherwise, the slider element has a label provided by aria-label .\n• If the slider is vertically oriented, it has aria-orientation set to vertical .\nThe default value of aria-orientation for a slider is horizontal ."
+        }
+      ],
+      "links": [
+        {
+          "kind": "docs",
+          "label": null,
+          "url": "https://www.w3.org/WAI/ARIA/apg/patterns/slider/"
+        },
+        {
+          "kind": "code",
+          "label": null,
+          "url": "https://github.com/w3c/aria-practices/blob/18c1a2fca626f7aeb33270e23ae9b18833e2164d/content/patterns/slider/slider-pattern.html"
+        }
+      ],
+      "examples": [
+        {
+          "nativeId": "slider-color-viewer",
+          "title": "Color Viewer Slider Example",
+          "url": "https://www.w3.org/WAI/ARIA/apg/patterns/slider/examples/slider-color-viewer.html"
+        },
+        {
+          "nativeId": "slider-temperature",
+          "title": "Vertical Temperature Slider Example",
+          "url": "https://www.w3.org/WAI/ARIA/apg/patterns/slider/examples/slider-temperature.html"
+        },
+        {
+          "nativeId": "slider-rating",
+          "title": "Rating Slider Example",
+          "url": "https://www.w3.org/WAI/ARIA/apg/patterns/slider/examples/slider-rating.html"
+        },
+        {
+          "nativeId": "slider-seek",
+          "title": "Media Seek Slider Example",
+          "url": "https://www.w3.org/WAI/ARIA/apg/patterns/slider/examples/slider-seek.html"
+        }
+      ],
+      "relationships": [],
+      "sourcePath": "content/patterns/slider/slider-pattern.html"
+    },
+    {
+      "nativeId": "slider-multithumb",
+      "name": "Slider (Multi-Thumb)",
+      "aliases": [],
+      "summary": {
+        "text": "A multi-thumb slider implements the Slider Pattern but includes two or more thumbs, often on a single rail. Each thumb sets one of the values in a group of related values. For example, in a product search, a two-thumb slider could be used to enable users to set the minimum and maximum price limits for the search. In many two-thumb sliders, the thumbs are not allowed to pass one another, such as when the slider sets the minimum and maximum values for a range. For example, in a price range selector, the maximum value of the thumb that sets the lower end of the range is limited by the current value of the thumb that sets the upper end of the range. Conversely, the minimum value of the upper end thumb is limited by the current value of the lower end thumb. However, in some multi-thumb sliders, each thumb sets a value that does not depend on the other thumb values.",
+        "url": "https://www.w3.org/WAI/ARIA/apg/patterns/slider-multithumb/#about"
+      },
+      "kind": "pattern",
+      "canonicalUrl": "https://www.w3.org/WAI/ARIA/apg/patterns/slider-multithumb/",
+      "sections": [
+        {
+          "nativeId": "about",
+          "title": "About This Pattern",
+          "url": "https://www.w3.org/WAI/ARIA/apg/patterns/slider-multithumb/#about",
+          "content": null
+        },
+        {
+          "nativeId": "examples",
+          "title": "Example",
+          "url": "https://www.w3.org/WAI/ARIA/apg/patterns/slider-multithumb/#examples",
+          "content": null
+        },
+        {
+          "nativeId": "keyboard_interaction",
+          "title": "Keyboard Interaction",
+          "url": "https://www.w3.org/WAI/ARIA/apg/patterns/slider-multithumb/#keyboard_interaction",
+          "content": "• Each thumb is in the page tab sequence and has the keyboard interactions described in the\nSlider Pattern .\n• The tab order remains constant regardless of thumb value and visual position within the slider.\nFor example, if the value of a thumb changes such that it moves past one of the other thumbs, the tab order does not change."
+        },
+        {
+          "nativeId": "roles_states_properties",
+          "title": "WAI-ARIA Roles, States, and Properties",
+          "url": "https://www.w3.org/WAI/ARIA/apg/patterns/slider-multithumb/#roles_states_properties",
+          "content": "• Each element serving as a focusable slider thumb has role slider .\n• Each slider element has the aria-valuenow property set to a decimal value representing the current value of the slider.\n• Each slider element has the aria-valuemin property set to a decimal value representing the minimum allowed value of the slider.\n• Each slider element has the aria-valuemax property set to a decimal value representing the maximum allowed value of the slider.\n• When the range (e.g. minimum and/or maximum value) of another slider is dependent on the current value of a slider, the values of aria-valuemin or aria-valuemax of the dependent sliders are updated when the value changes.\n• If a value of aria-valuenow is not user-friendly, e.g., the day of the week is represented by a number, the aria-valuetext property is set to a string that makes the slider value understandable, e.g., \"Monday\".\n• If a slider has a visible label, it is referenced by aria-labelledby on the slider element.\nOtherwise, the slider element has a label provided by aria-label .\n• If a slider is vertically oriented, it has aria-orientation set to vertical .\nThe default value of aria-orientation for a slider is horizontal ."
+        }
+      ],
+      "links": [
+        {
+          "kind": "docs",
+          "label": null,
+          "url": "https://www.w3.org/WAI/ARIA/apg/patterns/slider-multithumb/"
+        },
+        {
+          "kind": "code",
+          "label": null,
+          "url": "https://github.com/w3c/aria-practices/blob/18c1a2fca626f7aeb33270e23ae9b18833e2164d/content/patterns/slider-multithumb/slider-multithumb-pattern.html"
+        }
+      ],
+      "examples": [
+        {
+          "nativeId": "slider-multithumb",
+          "title": "Horizontal Multi-Thumb Slider Example",
+          "url": "https://www.w3.org/WAI/ARIA/apg/patterns/slider-multithumb/examples/slider-multithumb.html"
+        }
+      ],
+      "relationships": [
+        {
+          "kind": "related-to",
+          "label": "Slider",
+          "targetTitle": "Slider",
+          "targetUrl": "https://www.w3.org/WAI/ARIA/apg/patterns/slider/"
+        }
+      ],
+      "sourcePath": "content/patterns/slider-multithumb/slider-multithumb-pattern.html"
+    },
+    {
+      "nativeId": "spinbutton",
+      "name": "Spinbutton",
+      "aliases": [],
+      "summary": {
+        "text": "A spinbutton is an input widget that restricts its value to a set or range of discrete values. For example, in a widget that enables users to set an alarm, a spinbutton could allow users to select a number from 0 to 59 for the minute of an hour.",
+        "url": "https://www.w3.org/WAI/ARIA/apg/patterns/spinbutton/#about"
+      },
+      "kind": "pattern",
+      "canonicalUrl": "https://www.w3.org/WAI/ARIA/apg/patterns/spinbutton/",
+      "sections": [
+        {
+          "nativeId": "about",
+          "title": "About This Pattern",
+          "url": "https://www.w3.org/WAI/ARIA/apg/patterns/spinbutton/#about",
+          "content": null
+        },
+        {
+          "nativeId": "examples",
+          "title": "Example",
+          "url": "https://www.w3.org/WAI/ARIA/apg/patterns/spinbutton/#examples",
+          "content": null
+        },
+        {
+          "nativeId": "keyboard_interaction",
+          "title": "Keyboard Interaction",
+          "url": "https://www.w3.org/WAI/ARIA/apg/patterns/spinbutton/#keyboard_interaction",
+          "content": "• Up Arrow : Increases the value.\n• Down Arrow : Decreases the value.\n• Home : If the spinbutton has a minimum value, sets the value to its minimum.\n• End : If the spinbutton has a maximum value, sets the value to its maximum.\n• Page Up (Optional): Increases the value by a larger step than Up Arrow .\n• Page Down (Optional): Decreases the value by a larger step than Down Arrow .\n• If the spinbutton text field allows directly editing the value, the following keys are supported:\n• Standard single line text editing keys appropriate for the device platform (see note below).\n• Printable Characters: Type characters in the textbox.\nNote that many implementations allow only certain characters as part of the value and prevent input of any other characters.\nFor example, an hour-and-minute spinner would allow only integer values from 0 to 59, the colon ':', and the letters 'AM' and 'PM'. Any other character input does not change the contents of the text field nor the value of the spinbutton.\nNote\n• Focus remains on the text field during operation.\n• Standard single line text editing keys appropriate for the device platform:\n• include keys for input, cursor movement, selection, and text manipulation.\n• Standard key assignments for editing functions depend on the device operating system.\n• The most robust approach for providing text editing functions is to rely on browsers, which supply them for HTML inputs with type text and for elements with the contenteditable HTML attribute.\n• IMPORTANT: Be sure that JavaScript does not interfere with browser-provided text editing functions by capturing key events for the keys used to perform them."
+        },
+        {
+          "nativeId": "roles_states_properties",
+          "title": "WAI-ARIA Roles, States, and Properties",
+          "url": "https://www.w3.org/WAI/ARIA/apg/patterns/spinbutton/#roles_states_properties",
+          "content": "• The focusable element serving as the spinbutton has role spinbutton .\nThis is typically an element that supports text input.\n• The spinbutton element has the aria-valuenow property set to a decimal value representing the current value of the spinbutton.\n• The spinbutton element has the aria-valuemin property set to a decimal value representing the minimum allowed value of the spinbutton if it has a known minimum value.\n• The spinbutton element has the aria-valuemax property set to a decimal value representing the maximum allowed value of the spinbutton if it has a known maximum value.\n• If the value of aria-valuenow is not user-friendly, e.g., the day of the week is represented by a number, the aria-valuetext property is set on the spinbutton element to a string that makes the spinbutton value understandable, e.g., \"Monday\".\n• If the spinbutton has a visible label, it is referenced by aria-labelledby on the spinbutton element.\nOtherwise, the spinbutton element has a label provided by aria-label .\n• The spinbutton element has aria-invalid set to true if the value is outside the allowed range.\nNote that most implementations prevent input of invalid values, but in some scenarios, blocking all invalid input may not be practical."
+        }
+      ],
+      "links": [
+        {
+          "kind": "docs",
+          "label": null,
+          "url": "https://www.w3.org/WAI/ARIA/apg/patterns/spinbutton/"
+        },
+        {
+          "kind": "code",
+          "label": null,
+          "url": "https://github.com/w3c/aria-practices/blob/18c1a2fca626f7aeb33270e23ae9b18833e2164d/content/patterns/spinbutton/spinbutton-pattern.html"
+        }
+      ],
+      "examples": [
+        {
+          "nativeId": "quantity-spinbutton",
+          "title": "Quantity Spin Button Example:",
+          "url": "https://www.w3.org/WAI/ARIA/apg/patterns/spinbutton/examples/quantity-spinbutton.html"
+        }
+      ],
+      "relationships": [],
+      "sourcePath": "content/patterns/spinbutton/spinbutton-pattern.html"
+    },
+    {
+      "nativeId": "switch",
+      "name": "Switch",
+      "aliases": [],
+      "summary": {
+        "text": "A switch is an input widget that allows users to choose one of two values: on or off . Switches are similar to checkboxes and toggle buttons , which can also serve as binary inputs. One difference, however, is that switches can only be used for binary input while checkboxes and toggle buttons allow implementations the option of supporting a third middle state. Checkboxes can be checked or not checked and can optionally also allow for a partially checked state. Toggle buttons can be pressed or not pressed and can optionally allow for a partially pressed state.",
+        "url": "https://www.w3.org/WAI/ARIA/apg/patterns/switch/#about"
+      },
+      "kind": "pattern",
+      "canonicalUrl": "https://www.w3.org/WAI/ARIA/apg/patterns/switch/",
+      "sections": [
+        {
+          "nativeId": "about",
+          "title": "About This Pattern",
+          "url": "https://www.w3.org/WAI/ARIA/apg/patterns/switch/#about",
+          "content": null
+        },
+        {
+          "nativeId": "examples",
+          "title": "Examples",
+          "url": "https://www.w3.org/WAI/ARIA/apg/patterns/switch/#examples",
+          "content": null
+        },
+        {
+          "nativeId": "keyboard_interaction",
+          "title": "Keyboard Interaction",
+          "url": "https://www.w3.org/WAI/ARIA/apg/patterns/switch/#keyboard_interaction",
+          "content": "• Space : When focus is on the switch, changes the state of the switch.\n• Enter (Optional): When focus is on the switch, changes the state of the switch."
+        },
+        {
+          "nativeId": "roles_states_properties",
+          "title": "WAI-ARIA Roles, States, and Properties",
+          "url": "https://www.w3.org/WAI/ARIA/apg/patterns/switch/#roles_states_properties",
+          "content": "• The switch has role switch .\n• The switch has an accessible label provided by one of the following:\n• Visible text content contained within the element with role switch .\n• A visible label referenced by the value of aria-labelledby set on the element with role switch .\n• aria-label set on the element with role switch .\n• When on , the switch element has state aria-checked set to true .\n• When off , the switch element has state aria-checked set to false .\n• If the switch element is an HTML input[type=\"checkbox\"] , it uses the HTML checked attribute instead of the aria-checked property.\n• If a set of switches is presented as a logical group with a visible label, either:\n• The switches are included in an element with role group that has the property aria-labelledby set to the ID of the element containing the group label.\n• The set is contained in an HTML fieldset and the label for the set is contained in an HTML legend element.\n• If the presentation includes additional descriptive static text relevant to a switch or switch group, the switch or switch group has the property aria-describedby set to the ID of the element containing the description."
+        }
+      ],
+      "links": [
+        {
+          "kind": "docs",
+          "label": null,
+          "url": "https://www.w3.org/WAI/ARIA/apg/patterns/switch/"
+        },
+        {
+          "kind": "code",
+          "label": null,
+          "url": "https://github.com/w3c/aria-practices/blob/18c1a2fca626f7aeb33270e23ae9b18833e2164d/content/patterns/switch/switch-pattern.html"
+        }
+      ],
+      "examples": [
+        {
+          "nativeId": "switch",
+          "title": "Switch Example",
+          "url": "https://www.w3.org/WAI/ARIA/apg/patterns/switch/examples/switch.html"
+        },
+        {
+          "nativeId": "switch-button",
+          "title": "Switch Example Using HTML Button",
+          "url": "https://www.w3.org/WAI/ARIA/apg/patterns/switch/examples/switch-button.html"
+        },
+        {
+          "nativeId": "switch-checkbox",
+          "title": "Switch Example Using HTML Checkbox Input",
+          "url": "https://www.w3.org/WAI/ARIA/apg/patterns/switch/examples/switch-checkbox.html"
+        }
+      ],
+      "relationships": [
+        {
+          "kind": "related-to",
+          "label": "checkboxes",
+          "targetTitle": "checkboxes",
+          "targetUrl": "https://www.w3.org/WAI/ARIA/apg/patterns/checkbox/"
+        },
+        {
+          "kind": "related-to",
+          "label": "toggle buttons",
+          "targetTitle": "toggle buttons",
+          "targetUrl": "https://www.w3.org/WAI/ARIA/apg/patterns/button/"
+        }
+      ],
+      "sourcePath": "content/patterns/switch/switch-pattern.html"
+    },
+    {
+      "nativeId": "table",
+      "name": "Table",
+      "aliases": [],
+      "summary": {
+        "text": "Like an HTML table element, a WAI-ARIA table is a static tabular structure containing one or more rows that each contain one or more cells; it is not an interactive widget. Thus, its cells are not focusable or selectable. The grid pattern is used to make an interactive widget that has a tabular structure.",
+        "url": "https://www.w3.org/WAI/ARIA/apg/patterns/table/#about"
+      },
+      "kind": "pattern",
+      "canonicalUrl": "https://www.w3.org/WAI/ARIA/apg/patterns/table/",
+      "sections": [
+        {
+          "nativeId": "about",
+          "title": "About This Pattern",
+          "url": "https://www.w3.org/WAI/ARIA/apg/patterns/table/#about",
+          "content": null
+        },
+        {
+          "nativeId": "examples",
+          "title": "Examples",
+          "url": "https://www.w3.org/WAI/ARIA/apg/patterns/table/#examples",
+          "content": null
+        },
+        {
+          "nativeId": "keyboard_interaction",
+          "title": "Keyboard Interaction",
+          "url": "https://www.w3.org/WAI/ARIA/apg/patterns/table/#keyboard_interaction",
+          "content": "Not applicable."
+        },
+        {
+          "nativeId": "roles_states_properties",
+          "title": "WAI-ARIA Roles, States, and Properties",
+          "url": "https://www.w3.org/WAI/ARIA/apg/patterns/table/#roles_states_properties",
+          "content": "• The table container has role table .\n• Each row container has role row and is either a DOM descendant of or owned by the table element or an element with role rowgroup .\n• Each cell is either a DOM descendant of or owned by a row element and has one of the following roles:\n• columnheader if the cell contains a title or header information for the column.\n• rowheader if the cell contains title or header information for the row.\n• cell if the cell does not contain column or row header information.\n• If there is an element in the user interface that serves as a label for the table, aria-labelledby is set on the table element with a value that refers to the labelling element.\nOtherwise, a label is specified for the table element using aria-label .\n• If the table has a caption or description, aria-describedby is set on the table element with a value referring to the element containing the description.\n• If the table contains sortable columns or rows, aria-sort is set to an appropriate value on the header cell element for the sorted column or row as described in the\nGrid and Table Properties Practice .\n• If there are conditions where some rows or columns are hidden or not present in the DOM, e.g., there are widgets on the page for hiding rows or columns, the following properties are applied as described in the\nGrid and Table Properties Practice .\n• aria-colcount or aria-rowcount is set to the total number of columns or rows, respectively.\n• aria-colindex or aria-rowindex is set to the position of a cell within a row or column, respectively.\n• If the table includes cells that span multiple rows or multiple columns, then aria-rowspan or aria-colspan is applied as described in the\nGrid and Table Properties Practice .\nNote\nIf rows or cells are included in a table via aria-owns , they will be presented to assistive technologies after the DOM descendants of the table element unless the DOM descendants are also included in the aria-owns attribute."
+        }
+      ],
+      "links": [
+        {
+          "kind": "docs",
+          "label": null,
+          "url": "https://www.w3.org/WAI/ARIA/apg/patterns/table/"
+        },
+        {
+          "kind": "code",
+          "label": null,
+          "url": "https://github.com/w3c/aria-practices/blob/18c1a2fca626f7aeb33270e23ae9b18833e2164d/content/patterns/table/table-pattern.html"
+        }
+      ],
+      "examples": [
+        {
+          "nativeId": "table",
+          "title": "Table Example",
+          "url": "https://www.w3.org/WAI/ARIA/apg/patterns/table/examples/table.html"
+        },
+        {
+          "nativeId": "sortable-table",
+          "title": "Sortable Table Example",
+          "url": "https://www.w3.org/WAI/ARIA/apg/patterns/table/examples/sortable-table.html"
+        }
+      ],
+      "relationships": [
+        {
+          "kind": "related-to",
+          "label": "grid pattern",
+          "targetTitle": "grid pattern",
+          "targetUrl": "https://www.w3.org/WAI/ARIA/apg/patterns/grid/"
+        }
+      ],
+      "sourcePath": "content/patterns/table/table-pattern.html"
+    },
+    {
+      "nativeId": "tabs",
+      "name": "Tabs",
+      "aliases": [],
+      "summary": {
+        "text": "Tabs are a set of layered sections of content, known as tab panels, that display one panel of content at a time. Each tab panel has an associated tab element, that when activated, displays the panel. The list of tab elements is arranged along one edge of the currently displayed panel, most commonly the top edge.",
+        "url": "https://www.w3.org/WAI/ARIA/apg/patterns/tabs/#about"
+      },
+      "kind": "pattern",
+      "canonicalUrl": "https://www.w3.org/WAI/ARIA/apg/patterns/tabs/",
+      "sections": [
+        {
+          "nativeId": "about",
+          "title": "About This Pattern",
+          "url": "https://www.w3.org/WAI/ARIA/apg/patterns/tabs/#about",
+          "content": null
+        },
+        {
+          "nativeId": "examples",
+          "title": "Examples",
+          "url": "https://www.w3.org/WAI/ARIA/apg/patterns/tabs/#examples",
+          "content": null
+        },
+        {
+          "nativeId": "keyboard_interaction",
+          "title": "Keyboard Interaction",
+          "url": "https://www.w3.org/WAI/ARIA/apg/patterns/tabs/#keyboard_interaction",
+          "content": "For the tab list:\n• Tab :\n• When focus moves into the tab list, places focus on the active tab element.\n• When the tab list contains the focus, moves focus to the next element in the page tab sequence outside the tablist, which is the tabpanel unless the first element containing meaningful content inside the tabpanel is focusable.\n• When focus is on a tab element in a horizontal tab list:\n• Left Arrow : moves focus to the previous tab.\nIf focus is on the first tab, moves focus to the last tab.\nOptionally, activates the newly focused tab (See note below).\n• Right Arrow : Moves focus to the next tab.\nIf focus is on the last tab element, moves focus to the first tab.\nOptionally, activates the newly focused tab (See note below).\n• When focus is on a tab in a tablist with either horizontal or vertical orientation:\n• Space or Enter : Activates the tab if it was not activated automatically on focus.\n• Home (Optional): Moves focus to the first tab.\nOptionally, activates the newly focused tab (See note below).\n• End (Optional): Moves focus to the last tab.\nOptionally, activates the newly focused tab (See note below).\n• Shift + F10 : If the tab has an associated popup menu, opens the menu.\n• Delete (Optional): If deletion is allowed, deletes (closes) the current tab element and its associated tab panel, sets focus on the tab following the tab that was closed, and optionally activates the newly focused tab.\nIf there is not a tab that followed the tab that was deleted, e.g., the deleted tab was the right-most tab in a left-to-right horizontal tab list, sets focus on and optionally activates the tab that preceded the deleted tab.\nIf the application allows all tabs to be deleted, and the user deletes the last remaining tab in the tab list, the application moves focus to another element that provides a logical work flow.\nAs an alternative to Delete , or in addition to supporting Delete , the delete function is available in a context menu.\nNote\n• It is recommended that tabs activate automatically when they receive focus as long as their associated tab panels are displayed without noticeable latency.\nThis typically requires tab panel content to be preloaded.\nOtherwise, automatic activation slows focus movement, which significantly hampers users' ability to navigate efficiently across the tab list.\nFor additional guidance, see Deciding When to Make Selection Automatically Follow Focus .\n• When a tab list has its aria-orientation set to vertical :\n• Down Arrow performs as Right Arrow is described above.\n• Up Arrow performs as Left Arrow is described above.\n• If the tab list is horizontal, it does not listen for Down Arrow or Up Arrow so those keys can provide their normal browser scrolling functions even when focus is inside the tab list.\n• When the tabpanel does not contain any focusable elements or the first element with content is not focusable, the tabpanel should set tabindex=\"0\" to include it in the tab sequence of the page."
+        },
+        {
+          "nativeId": "roles_states_properties",
+          "title": "WAI-ARIA Roles, States, and Properties",
+          "url": "https://www.w3.org/WAI/ARIA/apg/patterns/tabs/#roles_states_properties",
+          "content": "• The element that serves as the container for the set of tabs has role tablist .\n• Each element that serves as a tab has role tab and is contained within the element with role tablist .\n• Each element that contains the content panel for a tab has role tabpanel .\n• If the tab list has a visible label, the element with role tablist has aria-labelledby set to a value that refers to the labelling element.\nOtherwise, the tablist element has a label provided by aria-label .\n• Each element with role tab has the property aria-controls referring to its associated tabpanel element.\n• The active tab element has the state aria-selected set to true and all other tab elements have it set to false .\n• Each element with role tabpanel has the property aria-labelledby referring to its associated tab element.\n• If a tab element has a popup menu, it has the property aria-haspopup set to either menu or true .\n• If the tablist element is vertically oriented, it has the property aria-orientation set to vertical .\nThe default value of aria-orientation for a tablist element is horizontal ."
+        }
+      ],
+      "links": [
+        {
+          "kind": "docs",
+          "label": null,
+          "url": "https://www.w3.org/WAI/ARIA/apg/patterns/tabs/"
+        },
+        {
+          "kind": "code",
+          "label": null,
+          "url": "https://github.com/w3c/aria-practices/blob/18c1a2fca626f7aeb33270e23ae9b18833e2164d/content/patterns/tabs/tabs-pattern.html"
+        }
+      ],
+      "examples": [
+        {
+          "nativeId": "tabs-automatic",
+          "title": "Tabs With Automatic Activation",
+          "url": "https://www.w3.org/WAI/ARIA/apg/patterns/tabs/examples/tabs-automatic.html"
+        },
+        {
+          "nativeId": "tabs-manual",
+          "title": "Tabs With Manual Activation",
+          "url": "https://www.w3.org/WAI/ARIA/apg/patterns/tabs/examples/tabs-manual.html"
+        }
+      ],
+      "relationships": [],
+      "sourcePath": "content/patterns/tabs/tabs-pattern.html"
+    },
+    {
+      "nativeId": "toolbar",
+      "name": "Toolbar",
+      "aliases": [],
+      "summary": {
+        "text": "A toolbar is a container for grouping a set of controls, such as buttons, menubuttons, or checkboxes.",
+        "url": "https://www.w3.org/WAI/ARIA/apg/patterns/toolbar/#about"
+      },
+      "kind": "pattern",
+      "canonicalUrl": "https://www.w3.org/WAI/ARIA/apg/patterns/toolbar/",
+      "sections": [
+        {
+          "nativeId": "about",
+          "title": "About This Pattern",
+          "url": "https://www.w3.org/WAI/ARIA/apg/patterns/toolbar/#about",
+          "content": null
+        },
+        {
+          "nativeId": "examples",
+          "title": "Example",
+          "url": "https://www.w3.org/WAI/ARIA/apg/patterns/toolbar/#examples",
+          "content": null
+        },
+        {
+          "nativeId": "keyboard_interaction",
+          "title": "Keyboard Interaction",
+          "url": "https://www.w3.org/WAI/ARIA/apg/patterns/toolbar/#keyboard_interaction",
+          "content": "• Tab and Shift + Tab : Move focus into and out of the toolbar.\nWhen focus moves into a toolbar:\n• If focus is moving into the toolbar for the first time, focus is set on the first control that is not disabled.\n• If the toolbar has previously contained focus, focus is optionally set on the control that last had focus.\nOtherwise, it is set on the first control that is not disabled.\n• For a horizontal toolbar (the default):\n• Left Arrow : Moves focus to the previous control.\nOptionally, focus movement may wrap from the first element to the last element.\n• Right Arrow : Moves focus to the next control.\nOptionally, focus movement may wrap from the last element to the first element.\n• Home (Optional): Moves focus to first element.\n• End (Optional): Moves focus to last element.\nNote\n• If the items in a toolbar are arranged vertically:\n• Down Arrow performs as Right Arrow is described above.\n• Up Arrow performs as Left Arrow is described above.\n• Typically, disabled elements are not focusable when navigating with a keyboard.\nHowever, in circumstances where discoverability of a function is crucial, it may be helpful if disabled controls are focusable so screen reader users are more likely to be aware of their presence.\nFor additional guidance, see Focusability of disabled controls .\n• In applications where quick access to a toolbar is important, such as accessing an editor's toolbar from its text area, a documented shortcut key for moving focus from the relevant context to its corresponding toolbar is recommended."
+        },
+        {
+          "nativeId": "roles_states_properties",
+          "title": "WAI-ARIA Roles, States, and Properties",
+          "url": "https://www.w3.org/WAI/ARIA/apg/patterns/toolbar/#roles_states_properties",
+          "content": "• The element that serves as the toolbar container has role toolbar .\n• If the toolbar has a visible label, it is referenced by aria-labelledby on the toolbar element.\nOtherwise, the toolbar element has a label provided by aria-label .\n• If the controls are arranged vertically, the toolbar element has aria-orientation set to vertical .\nThe default orientation is horizontal."
+        }
+      ],
+      "links": [
+        {
+          "kind": "docs",
+          "label": null,
+          "url": "https://www.w3.org/WAI/ARIA/apg/patterns/toolbar/"
+        },
+        {
+          "kind": "code",
+          "label": null,
+          "url": "https://github.com/w3c/aria-practices/blob/18c1a2fca626f7aeb33270e23ae9b18833e2164d/content/patterns/toolbar/toolbar-pattern.html"
+        }
+      ],
+      "examples": [
+        {
+          "nativeId": "toolbar",
+          "title": "Toolbar Example",
+          "url": "https://www.w3.org/WAI/ARIA/apg/patterns/toolbar/examples/toolbar.html"
+        }
+      ],
+      "relationships": [],
+      "sourcePath": "content/patterns/toolbar/toolbar-pattern.html"
+    },
+    {
+      "nativeId": "tooltip",
+      "name": "Tooltip",
+      "aliases": [],
+      "summary": {
+        "text": "NOTE: This design pattern is work in progress; it does not yet have task force consensus. Progress and discussions are captured in issue 128.",
+        "url": "https://www.w3.org/WAI/ARIA/apg/patterns/tooltip/#about"
+      },
+      "kind": "pattern",
+      "canonicalUrl": "https://www.w3.org/WAI/ARIA/apg/patterns/tooltip/",
+      "sections": [
+        {
+          "nativeId": "about",
+          "title": "About This Pattern",
+          "url": "https://www.w3.org/WAI/ARIA/apg/patterns/tooltip/#about",
+          "content": null
+        },
+        {
+          "nativeId": "examples",
+          "title": "Example",
+          "url": "https://www.w3.org/WAI/ARIA/apg/patterns/tooltip/#examples",
+          "content": null
+        },
+        {
+          "nativeId": "keyboard_interaction",
+          "title": "Keyboard Interaction",
+          "url": "https://www.w3.org/WAI/ARIA/apg/patterns/tooltip/#keyboard_interaction",
+          "content": "Escape : Dismisses the Tooltip.\nNote\n• Focus stays on the triggering element while the tooltip is displayed.\n• If the tooltip is invoked when the trigger element receives focus, then it is dismissed when it no longer has focus (onBlur).\n• If the tooltip is invoked when a pointing cursor moves over the trigger element, then it remains open as long as the cursor is over the trigger or the tooltip."
+        },
+        {
+          "nativeId": "roles_states_properties",
+          "title": "WAI-ARIA Roles, States, and Properties",
+          "url": "https://www.w3.org/WAI/ARIA/apg/patterns/tooltip/#roles_states_properties",
+          "content": "• The element that serves as the tooltip container has role tooltip .\n• The element that triggers the tooltip references the tooltip element with aria-describedby ."
+        }
+      ],
+      "links": [
+        {
+          "kind": "docs",
+          "label": null,
+          "url": "https://www.w3.org/WAI/ARIA/apg/patterns/tooltip/"
+        },
+        {
+          "kind": "code",
+          "label": null,
+          "url": "https://github.com/w3c/aria-practices/blob/18c1a2fca626f7aeb33270e23ae9b18833e2164d/content/patterns/tooltip/tooltip-pattern.html"
+        }
+      ],
+      "examples": [],
+      "relationships": [],
+      "sourcePath": "content/patterns/tooltip/tooltip-pattern.html"
+    },
+    {
+      "nativeId": "treegrid",
+      "name": "Treegrid",
+      "aliases": [],
+      "summary": {
+        "text": "A treegrid widget presents a hierarchical data grid consisting of tabular information that is editable or interactive. Any row in the hierarchy may have child rows, and rows with children may be expanded or collapsed to show or hide the children. For example, in a treegrid used to display messages and message responses for a e-mail discussion list, messages with responses would be in rows that can be expanded to reveal the response messages.",
+        "url": "https://www.w3.org/WAI/ARIA/apg/patterns/treegrid/#about"
+      },
+      "kind": "pattern",
+      "canonicalUrl": "https://www.w3.org/WAI/ARIA/apg/patterns/treegrid/",
+      "sections": [
+        {
+          "nativeId": "about",
+          "title": "About This Pattern",
+          "url": "https://www.w3.org/WAI/ARIA/apg/patterns/treegrid/#about",
+          "content": null
+        },
+        {
+          "nativeId": "examples",
+          "title": "Example",
+          "url": "https://www.w3.org/WAI/ARIA/apg/patterns/treegrid/#examples",
+          "content": null
+        },
+        {
+          "nativeId": "keyboard_interaction",
+          "title": "Keyboard Interaction",
+          "url": "https://www.w3.org/WAI/ARIA/apg/patterns/treegrid/#keyboard_interaction",
+          "content": "The following keys provide treegrid navigation by moving focus among rows and cells of the grid.\nImplementations of treegrid make these key commands available when an element in the grid has received focus, e.g., after a user has moved focus to the grid with Tab .\nMoving focus into the grid may result in the first cell or the first row being focused.\nWhether focus goes to a cell or the row depends on author preferences and whether row focus is supported, since some implementations of treegrid may not provide focus to rows.\n• Enter : If cell-only focus is enabled and focus is on the first cell with the aria-expanded property, opens or closes the child rows.,Otherwise, performs the default action for the cell.\n• Tab : If the row containing focus contains focusable elements (e.g., inputs, buttons, links, etc.), moves focus to the next input in the row.\nIf focus is on the last focusable element in the row, moves focus out of the treegrid widget to the next focusable element.\n• Right Arrow :\n• If focus is on a collapsed row, expands the row.\n• If focus is on an expanded row or is on a row that does not have child rows, moves focus to the first cell in the row.\n• If focus is on the right-most cell in a row, focus does not move.\n• If focus is on any other cell, moves focus one cell to the right.\n• Left Arrow :\n• If focus is on an expanded row, collapses the row.\n• If focus is on a collapsed row or on a row that does not have child rows, focus does not move.\n• If focus is on the first cell in a row and row focus is supported, moves focus to the row.\n• If focus is on the first cell in a row and row focus is not supported, focus does not move.\n• If focus is on any other cell, moves focus one cell to the left.\n• Down Arrow :\n• If focus is on a row, moves focus one row down.\nIf focus is on the last row, focus does not move.\n• If focus is on a cell, moves focus one cell down.\nIf focus is on the bottom cell in the column, focus does not move.\n• Up Arrow :\n• If focus is on a row, moves focus one row up.\nIf focus is on the first row, focus does not move.\n• If focus is on a cell, moves focus one cell up.\nIf focus is on the top cell in the column, focus does not move.\n• Page Down :\n• If focus is on a row, moves focus down an author-determined number of rows, typically scrolling so the bottom row in the currently visible set of rows becomes one of the first visible rows.\nIf focus is in the last row, focus does not move.\n• If focus is on a cell, moves focus down an author-determined number of cells, typically scrolling so the bottom row in the currently visible set of rows becomes one of the first visible rows.\nIf focus is in the last row, focus does not move.\n• Page Up :\n• If focus is on a row, moves focus up an author-determined number of rows, typically scrolling so the top row in the currently visible set of rows becomes one of the last visible rows.\nIf focus is in the first row, focus does not move.\n• If focus is on a cell, moves focus up an author-determined number of cells, typically scrolling so the top row in the currently visible set of rows becomes one of the last visible rows.\nIf focus is in the first row, focus does not move.\n• Home :\n• If focus is on a row, moves focus to the first row.\nIf focus is in the first row, focus does not move.\n• If focus is on a cell, moves focus to the first cell in the row.\nIf focus is in the first cell of the row, focus does not move.\n• End :\n• If focus is on a row, moves focus to the last row.\nIf focus is in the last row, focus does not move.\n• If focus is on a cell, moves focus to the last cell in the row.\nIf focus is in the last cell of the row, focus does not move.\n• Control + Home :\n• If focus is on a row, moves focus to the first row.\nIf focus is in the first row, focus does not move.\n• If focus is on a cell, moves focus to the cell in the first row in the same column as the cell that had focus.\nIf focus is in the first row, focus does not move.\n• Control + End :\n• If focus is on a row, moves focus to the last row.\nIf focus is in the last row, focus does not move.\n• If focus is on a cell, moves focus to the cell in the last row in the same column as the cell that had focus.\nIf focus is in the last row, focus does not move.\nNote\n• When the above treegrid navigation keys move focus, whether the focus is set on an element inside the cell or on the cell depends on cell content.\nSee Whether to Focus on a Cell or an Element Inside It .\n• While navigation keys, such as arrow keys, are moving focus from cell to cell, they are not available to do something like operate a combobox or move an editing caret inside of a cell.\nIf this functionality is needed, see Editing and Navigating Inside a Cell .\n• If navigation functions can dynamically add more rows or columns to the DOM, key events that move focus to the beginning or end of the grid, such as control + End , may move focus to the last row in the DOM rather than the last available row in the back-end data.\nIf a treegrid supports selection of cells, rows, or columns, the following keys are commonly used for these functions.\n• Control + Space :\n• If focus is on a row, selects all cells.\n• If focus is on a cell, selects the column that contains the focus.\n• Shift + Space :\n• If focus is on a row, selects the row.\n• If focus is on a cell, selects the row that contains the focus.\nIf the treegrid includes a column with checkboxes for selecting rows, this key can serve as a shortcut for checking the box when focus is not on the checkbox.\n• Control + A : Selects all cells.\n• Shift + Right Arrow :\n• If focus is on a row, does not change selection.\n• if focus is on a cell, extends selection one cell to the right.\n• Shift + Left Arrow :\n• If focus is on a row, does not change selection.\n• if focus is on a cell, extends selection one cell to the left.\n• Shift + Down Arrow :\n• If focus is on a row, extends selection to all the cells in the next row.\n• If focus is on a cell, extends selection one cell down.\n• Shift + Up Arrow :\n• If focus is on a row, extends selection to all the cells in the previous row.\n• If focus is on a cell, extends selection one cell up.\nNote\nSee Key Assignment Conventions for Common Functions for cut, copy, and paste key assignments."
+        },
+        {
+          "nativeId": "roles_states_properties",
+          "title": "WAI-ARIA Roles, States, and Properties",
+          "url": "https://www.w3.org/WAI/ARIA/apg/patterns/treegrid/#roles_states_properties",
+          "content": "• The treegrid container has role treegrid .\n• Each row container has role row and is either a DOM descendant of or owned by the treegrid element or an element with role rowgroup .\n• Each cell is either a DOM descendant of or owned by a row element and has one of the following roles:\n• columnheader if the cell contains a title or header information for the column.\n• rowheader if the cell contains title or header information for the row.\n• gridcell if the cell does not contain column or row header information.\n• A row that can be expanded or collapsed to show or hide a set of child rows is a parent row.\nEach parent row has the aria-expanded state set on either the row element or on a cell contained in the row .\nThe aria-expanded state is set to false when the child rows are not displayed and set to true when the child rows are displayed.\nRows that do not control display of child rows do not have the aria-expanded attribute because, if they were to have it, they would be incorrectly described to assistive technologies as parent rows.\n• If the treegrid supports selection of more than one row or cell, it is a multi-select treegrid and the element with role treegrid has aria-multiselectable set to true .\nOtherwise, it is a single-select treegrid, and aria-multiselectable is either set to false or the default value of false is implied.\n• If the treegrid is a single-select treegrid, aria-selected is set to true on the selected row or cell, and it is not present on any other row or cell in the treegrid.\n• if the treegrid is a multi-select treegrid:\n• All selected rows or cells have aria-selected set to true .\n• All rows and cells that are not selected have aria-selected set to false .\n• If there is an element in the user interface that serves as a label for the treegrid, aria-labelledby is set on the grid element with a value that refers to the labelling element.\nOtherwise, a label is specified for the grid element using aria-label .\n• If the treegrid has a caption or description, aria-describedby is set on the grid element with a value referring to the element containing the description.\n• If the treegrid provides sort functions, aria-sort is set to an appropriate value on the header cell element for the sorted column or row as described in the\nGrid and Table Properties Practice .\n• If the treegrid provides content editing functionality and contains cells that may have edit capabilities disabled in certain conditions, aria-readonly is set to true on cells where editing is disabled.\nIf edit functions are disabled for all cells, instead of setting aria-readonly to true on every cell, aria-readonly may be set to true on the treegrid element.\nTreegrids that do not provide cell content editing functions do not include the aria-readonly attribute on any of their elements.\n• If there are conditions where some rows or columns are hidden or not present in the DOM, e.g., data is dynamically loaded when scrolling or the treegrid provides functions for hiding rows or columns, the following properties are applied as described in the\nGrid and Table Properties Practice .\n• aria-colcount or aria-rowcount is set to the total number of columns or rows, respectively.\n• aria-colindex or aria-rowindex is set to the position of a cell within a row or column, respectively.\n• If the treegrid includes cells that span multiple rows or multiple columns, and if the treegrid role is NOT applied to an HTML table element, then aria-rowspan or aria-colspan is applied as described in the\nGrid and Table Properties Practice .\nNote\n• A treegrid built from an HTML table that includes cells that span multiple rows or columns must use HTML rowspan and colspan and must not use aria-rowspan or aria-colspan .\n• If rows or cells are included in a treegrid via aria-owns , they will be presented to assistive technologies after the DOM descendants of the treegrid element unless the DOM descendants are also included in the aria-owns attribute."
+        }
+      ],
+      "links": [
+        {
+          "kind": "docs",
+          "label": null,
+          "url": "https://www.w3.org/WAI/ARIA/apg/patterns/treegrid/"
+        },
+        {
+          "kind": "code",
+          "label": null,
+          "url": "https://github.com/w3c/aria-practices/blob/18c1a2fca626f7aeb33270e23ae9b18833e2164d/content/patterns/treegrid/treegrid-pattern.html"
+        }
+      ],
+      "examples": [
+        {
+          "nativeId": "treegrid-1",
+          "title": "E-mail Inbox treegrid Example",
+          "url": "https://www.w3.org/WAI/ARIA/apg/patterns/treegrid/examples/treegrid-1.html"
+        }
+      ],
+      "relationships": [],
+      "sourcePath": "content/patterns/treegrid/treegrid-pattern.html"
+    },
+    {
+      "nativeId": "treeview",
+      "name": "Tree View",
+      "aliases": [],
+      "summary": {
+        "text": "A tree view widget presents a hierarchical list. Any item in the hierarchy may have child items, and items that have children may be expanded or collapsed to show or hide the children. For example, in a file system navigator that uses a tree view to display folders and files, an item representing a folder can be expanded to reveal the contents of the folder, which may be files, folders, or both.",
+        "url": "https://www.w3.org/WAI/ARIA/apg/patterns/treeview/#about"
+      },
+      "kind": "pattern",
+      "canonicalUrl": "https://www.w3.org/WAI/ARIA/apg/patterns/treeview/",
+      "sections": [
+        {
+          "nativeId": "about",
+          "title": "About This Pattern",
+          "url": "https://www.w3.org/WAI/ARIA/apg/patterns/treeview/#about",
+          "content": null
+        },
+        {
+          "nativeId": "examples",
+          "title": "Examples",
+          "url": "https://www.w3.org/WAI/ARIA/apg/patterns/treeview/#examples",
+          "content": null
+        },
+        {
+          "nativeId": "terms",
+          "title": "Terms",
+          "url": "https://www.w3.org/WAI/ARIA/apg/patterns/treeview/#terms",
+          "content": null
+        },
+        {
+          "nativeId": "keyboard_interaction",
+          "title": "Keyboard Interaction",
+          "url": "https://www.w3.org/WAI/ARIA/apg/patterns/treeview/#keyboard_interaction",
+          "content": "For a vertically oriented tree:\n• When a single-select tree receives focus:\n• If none of the nodes are selected before the tree receives focus, focus is set on the first node.\n• If a node is selected before the tree receives focus, focus is set on the selected node.\n• When a multi-select tree receives focus:\n• If none of the nodes are selected before the tree receives focus, focus is set on the first node.\n• If one or more nodes are selected before the tree receives focus, focus is set on the first selected node.\n• Right arrow :\n• When focus is on a closed node, opens the node; focus does not move.\n• When focus is on a open node, moves focus to the first child node.\n• When focus is on an end node, does nothing.\n• Left arrow :\n• When focus is on an open node, closes the node.\n• When focus is on a child node that is also either an end node or a closed node, moves focus to its parent node.\n• When focus is on a root node that is also either an end node or a closed node, does nothing.\n• Down Arrow : Moves focus to the next node that is focusable without opening or closing a node.\n• Up Arrow : Moves focus to the previous node that is focusable without opening or closing a node.\n• Home : Moves focus to the first node in the tree without opening or closing a node.\n• End : Moves focus to the last node in the tree that is focusable without opening a node.\n• Enter : activates a node, i.e., performs its default action.\nFor parent nodes, one possible default action is to open or close the node.\nIn single-select trees where selection does not follow focus (see note below), the default action is typically to select the focused node.\n• Type-ahead is recommended for all trees, especially for trees with more than 7 root nodes:\n• Type a character: focus moves to the next node with a name that starts with the typed character.\n• Type multiple characters in rapid succession: focus moves to the next node with a name that starts with the string of characters typed.\n• (Optional): Expands all siblings that are at the same level as the current node.\n• Selection in multi-select trees: Authors may implement either of two interaction models to support multiple selection: a recommended model that does not require the user to hold a modifier key, such as Shift or Control , while navigating the list or an alternative model that does require modifier keys to be held while navigating in order to avoid losing selection states.\n• Recommended selection model -- holding a modifier key while moving focus is not necessary:\n• Space : Toggles the selection state of the focused node.\n• Shift + Down Arrow (Optional): Moves focus to and toggles the selection state of the next node.\n• Shift + Up Arrow (Optional): Moves focus to and toggles the selection state of the previous node.\n• Shift + Space (Optional): Selects contiguous nodes from the most recently selected node to the current node.\n• Control + Shift + Home (Optional): Selects the node with focus and all nodes up to the first node.\nOptionally, moves focus to the first node.\n• Control + Shift + End (Optional): Selects the node with focus and all nodes down to the last node.\nOptionally, moves focus to the last node.\n• Control + A (Optional): Selects all nodes in the tree.\nOptionally, if all nodes are selected, it can also unselect all nodes.\n• Alternative selection model -- Moving focus without holding the Shift or Control modifier unselects all selected nodes except for the focused node:\n• Shift + Down Arrow : Moves focus to and toggles the selection state of the next node.\n• Shift + Up Arrow : Moves focus to and toggles the selection state of the previous node.\n• Control + Down Arrow : Without changing the selection state, moves focus to the next node.\n• Control + Up Arrow : Without changing the selection state, moves focus to the previous node.\n• Control + Space : Toggles the selection state of the focused node.\n• Shift + Space (Optional): Selects contiguous nodes from the most recently selected node to the current node.\n• Control + Shift + Home (Optional): Selects the node with focus and all nodes up to the first node.\nOptionally, moves focus to the first node.\n• Control + Shift + End (Optional): Selects the node with focus and all nodes down to the last node.\nOptionally, moves focus to the last node.\n• Control + A (Optional): Selects all nodes in the tree.\nOptionally, if all nodes are selected, it can also unselect all nodes.\nNote\n• DOM focus (the active element) is functionally distinct from the selected state.\nFor more details, see this description of differences between focus and selection .\n• The tree role supports the aria-activedescendant property, which provides an alternative to moving DOM focus among treeitem elements when implementing keyboard navigation.\nFor details, see Managing Focus in Composites Using aria-activedescendant .\n• In a single-select tree, moving focus may optionally unselect the previously selected node and select the newly focused node.\nThis model of selection is known as \"selection follows focus\".\nHaving selection follow focus can be very helpful in some circumstances and can severely degrade accessibility in others.\nFor additional guidance, see Deciding When to Make Selection Automatically Follow Focus .\n• If selecting or unselecting all nodes is an important function, implementing separate controls for these actions, such as buttons for \"Select All\" and \"Unselect All\", significantly improves accessibility.\n• If the nodes in a tree are arranged horizontally:\n• Down Arrow performs as Right Arrow is described above, and vice versa.\n• Up Arrow performs as Left Arrow is described above, and vice versa."
+        },
+        {
+          "nativeId": "roles_states_properties",
+          "title": "WAI-ARIA Roles, States, and Properties",
+          "url": "https://www.w3.org/WAI/ARIA/apg/patterns/treeview/#roles_states_properties",
+          "content": "• All tree nodes are contained in or owned by an element with role tree .\n• Each element serving as a tree node has role treeitem .\n• Each root node is contained in the element with role tree or referenced by an aria-owns property set on the tree element.\n• Each parent node contains or owns an element with role group .\n• Each child node is contained in or owned by an element with role group that is contained in or owned by the node that serves as the parent of that child.\n• Each element with role treeitem that serves as a parent node has aria-expanded set to false when the node is in a closed state and set to true when the node is in an open state.\nEnd nodes do not have the aria-expanded attribute because, if they were to have it, they would be incorrectly described to assistive technologies as parent nodes.\n• If the tree supports selection of more than one node, the element with role tree has aria-multiselectable set to true .\nOtherwise, aria-multiselectable is either set to false or the default value of false is implied.\n• The selection state of each selectable node is indicated with either aria-selected or aria-checked :\n• If the selection state is indicated with aria-selected , then aria-checked is not specified for any nodes.\nAlternatively, if the selection state is indicated with aria-checked , then aria-selected is not specified for any nodes.\nSee notes below regarding considerations for which property to use and for details of the unusual conditions that might allow for both properties in the same tree.\n• If any nodes are selected, each selected node has either aria-selected or aria-checked set to true .\nNo more than one node is selected at a time if the element with role tree does not have aria-multiselectable set to true .\n• All nodes that are selectable but not selected have either aria-selected or aria-checked set to false .\n• If the tree contains nodes that are not selectable, neither aria-selected nor aria-checked is present on those nodes.\n• Note that except in trees where selection follows focus, the selected state is distinct from focus.\nFor more details, see this description of differences between focus and selection\nand Deciding When to Make Selection Automatically Follow Focus .\n• The element with role tree has either a visible label referenced by aria-labelledby or a value specified for aria-label .\n• If the complete set of available nodes is not present in the DOM due to dynamic loading as the user moves focus in or scrolls the tree, each node has aria-level , aria-setsize , and aria-posinset specified.\n• If the tree element is horizontally oriented, it has aria-orientation set to horizontal .\nThe default value of aria-orientation for a tree is vertical .\nNote\n• Some factors to consider when choosing whether to indicate selection with aria-selected or aria-checked are:\n• Some design systems use aria-selected for single-select widgets and aria-checked for multi-select widgets.\nIn the absence of factors that would make an alternative convention more appropriate, this is a recommended convention.\n• The language of instructions and the appearance of the interface might suggest one attribute is more appropriate than the other.\nFor instance, do instructions say to select items? Or, is the visual indicator of selection a check mark?\n• It is important to adopt a consistent convention for selection models across a site or app.\n• Conditions that would permit a tree to include both aria-selected and aria-checked are extremely rare.\nIt is strongly recommended to avoid designing a tree widget that would have the need for more than one type of state.\nIf both states were to be used within a tree, all the following conditions need to be satisfied:\n• The meaning and purpose of aria-selected is different from the meaning and purpose of aria-checked in the user interface.\n• The user interface makes the meaning and purpose of each state apparent.\n• The user interface provides a separate method for controlling each state.\n• If aria-owns is set on the tree container to include elements that are not DOM children of the container, those elements will appear in the reading order in the sequence they are referenced and after any items that are DOM children.\nScripts that manage focus need to ensure the visual focus order matches this assistive technology reading order."
+        }
+      ],
+      "links": [
+        {
+          "kind": "docs",
+          "label": null,
+          "url": "https://www.w3.org/WAI/ARIA/apg/patterns/treeview/"
+        },
+        {
+          "kind": "code",
+          "label": null,
+          "url": "https://github.com/w3c/aria-practices/blob/18c1a2fca626f7aeb33270e23ae9b18833e2164d/content/patterns/treeview/treeview-pattern.html"
+        }
+      ],
+      "examples": [
+        {
+          "nativeId": "treeview-1a",
+          "title": "File Directory Treeview Example Using Computed Properties",
+          "url": "https://www.w3.org/WAI/ARIA/apg/patterns/treeview/examples/treeview-1a.html"
+        },
+        {
+          "nativeId": "treeview-1b",
+          "title": "File Directory Treeview Example Using Declared Properties",
+          "url": "https://www.w3.org/WAI/ARIA/apg/patterns/treeview/examples/treeview-1b.html"
+        },
+        {
+          "nativeId": "treeview-navigation",
+          "title": "Navigation Treeview Example",
+          "url": "https://www.w3.org/WAI/ARIA/apg/patterns/treeview/examples/treeview-navigation.html"
+        }
+      ],
+      "relationships": [],
+      "sourcePath": "content/patterns/treeview/treeview-pattern.html"
+    },
+    {
+      "nativeId": "windowsplitter",
+      "name": "Window Splitter",
+      "aliases": [],
+      "summary": {
+        "text": "NOTE: ARIA 1.1 introduced changes to the separator role so it behaves as a widget when focusable. While this pattern has been revised to match the ARIA 1.1 specification, the task force will not complete its review until a functional example that matches the ARIA 1.1 specification is complete. Progress on this pattern is tracked by issue 129.",
+        "url": "https://www.w3.org/WAI/ARIA/apg/patterns/windowsplitter/#about"
+      },
+      "kind": "pattern",
+      "canonicalUrl": "https://www.w3.org/WAI/ARIA/apg/patterns/windowsplitter/",
+      "sections": [
+        {
+          "nativeId": "about",
+          "title": "About This Pattern",
+          "url": "https://www.w3.org/WAI/ARIA/apg/patterns/windowsplitter/#about",
+          "content": null
+        },
+        {
+          "nativeId": "example",
+          "title": "Example",
+          "url": "https://www.w3.org/WAI/ARIA/apg/patterns/windowsplitter/#example",
+          "content": null
+        },
+        {
+          "nativeId": "keyboard_interaction",
+          "title": "Keyboard Interaction",
+          "url": "https://www.w3.org/WAI/ARIA/apg/patterns/windowsplitter/#keyboard_interaction",
+          "content": "• Left Arrow : Moves a vertical splitter to the left.\n• Right Arrow : Moves a vertical splitter to the right.\n• Up Arrow : Moves a horizontal splitter up.\n• Down Arrow : Moves a horizontal splitter down.\n• Enter : If the primary pane is not collapsed, collapses the pane.\nIf the pane is collapsed, restores the splitter to its previous position.\n• Home (Optional): Moves splitter to the position that gives the primary pane its smallest allowed size.\nThis may completely collapse the primary pane.\n• End (Optional): Moves splitter to the position that gives the primary pane its largest allowed size.\nThis may completely collapse the secondary pane.\n• F6 (Optional): Cycle through window panes.\nNote\nA fixed size splitter omits implementation of the arrow keys."
+        },
+        {
+          "nativeId": "roles_states_properties",
+          "title": "WAI-ARIA Roles, States, and Properties",
+          "url": "https://www.w3.org/WAI/ARIA/apg/patterns/windowsplitter/#roles_states_properties",
+          "content": "• The element that serves as the focusable splitter has role separator .\n• The separator element has the aria-valuenow property set to a decimal value representing the current position of the separator.\n• The separator element has the aria-valuemin property set to a decimal value that represents the position where the primary pane has its minimum size.\nThis is typically 0 .\n• The separator element has the aria-valuemax property set to a decimal value that represents the position where the primary pane has its maximum size.\nThis is typically 100 .\n• If the primary pane has a visible label, it is referenced by aria-labelledby on the separator element.\nOtherwise, the separator element has a label provided by aria-label .\n• The separator element has aria-controls referring to the primary pane."
+        }
+      ],
+      "links": [
+        {
+          "kind": "docs",
+          "label": null,
+          "url": "https://www.w3.org/WAI/ARIA/apg/patterns/windowsplitter/"
+        },
+        {
+          "kind": "code",
+          "label": null,
+          "url": "https://github.com/w3c/aria-practices/blob/18c1a2fca626f7aeb33270e23ae9b18833e2164d/content/patterns/windowsplitter/windowsplitter-pattern.html"
+        }
+      ],
+      "examples": [],
+      "relationships": [],
+      "sourcePath": "content/patterns/windowsplitter/windowsplitter-pattern.html"
+    }
+  ]
+}
