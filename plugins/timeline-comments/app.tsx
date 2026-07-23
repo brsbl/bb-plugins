@@ -41,6 +41,44 @@ function excerpt(value: string, length: number): string {
   return value.length > length ? `${value.slice(0, length - 1)}…` : value;
 }
 
+function OpenCommentsAction() {
+  const navigate = useBbNavigate();
+  const openThreadPanel = navigate.experimental_openThreadPanel;
+
+  if (typeof openThreadPanel !== "function") return null;
+
+  return (
+    <button
+      type="button"
+      className="bb-comments-composer-action"
+      aria-label="Open comments"
+      title="Open comments"
+      onMouseDown={(event) => event.preventDefault()}
+      onClick={() =>
+        openThreadPanel({
+          actionId: "comments",
+          title: "Comments",
+        })
+      }
+    >
+      <svg
+        viewBox="0 0 24 24"
+        width="16"
+        height="16"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.7"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        aria-hidden="true"
+      >
+        <path d="M7.5 18.5 4 20v-4.3a7.5 7.5 0 1 1 3.5 2.8Z" />
+        <path d="M8 10h8M8 14h5" />
+      </svg>
+    </button>
+  );
+}
+
 function CommentPanel({ threadId, revealMessage }: PluginThreadPanelProps) {
   const rpc = useRpc<typeof timelineCommentsRpcContract>();
   const composer = useComposer();
@@ -558,6 +596,11 @@ export default definePluginApp((app) => {
   app.experimental_contentScripts.register({
     id: "timeline-comment-anchors",
     mount: mountTimelineCommentsController,
+  });
+  app.composer.customize({
+    id: "timeline-comments",
+    scopes: ["thread"],
+    actions: [{ id: "open-comments", component: OpenCommentsAction }],
   });
   app.slots.threadPanelAction({
     id: "comments",

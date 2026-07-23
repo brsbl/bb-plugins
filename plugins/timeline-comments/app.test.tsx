@@ -42,7 +42,7 @@ const thread = {
 };
 
 describe("timeline comments app", () => {
-  it("registers a selection-only action, the Comments panel, and one content script", async () => {
+  it("registers a selection action, composer action, Comments panel, and one content script", async () => {
     const app = await loadPluginApp(() => import("./app.js"));
     expect(app.messageActions).toMatchObject([
       {
@@ -54,8 +54,39 @@ describe("timeline comments app", () => {
     expect(app.threadPanelActions).toMatchObject([
       { id: "comments", title: "Comments", layout: "flush" },
     ]);
+    expect(app.composerCustomizations).toMatchObject([
+      {
+        id: "timeline-comments",
+        scopes: ["thread"],
+        actions: [{ id: "open-comments" }],
+      },
+    ]);
     expect(app.contentScripts.map(({ id }) => id)).toEqual([
       "timeline-comment-anchors",
+    ]);
+  });
+
+  it("opens the Comments panel from the thread composer action", async () => {
+    const app = await loadPluginApp(() => import("./app.js"));
+    const action = renderSlot(
+      app.composerCustomizations[0]!.actions![0]!,
+      {},
+      {
+        context: { threadId: "thr_1" },
+        composer: { scope: { kind: "thread", threadId: "thr_1" } },
+        openThreadPanel: () => true,
+      },
+    );
+
+    fireEvent.click(
+      action.getByRole("button", { name: "Open comments" }),
+    );
+
+    expect(action.inspection.navigateCalls).toEqual([
+      {
+        method: "experimental_openThreadPanel",
+        options: { actionId: "comments", title: "Comments" },
+      },
     ]);
   });
 
