@@ -75,6 +75,32 @@ describe("section classification", () => {
       title: "Rewrite doctrine docs",
     },
     {
+      expected: "moss",
+      projectName: "moss",
+      texts: ["Update the Claude Code version shipped in Moss."],
+      title: "Moss engineering work",
+    },
+    {
+      expected: "moss",
+      projectName: "Personal",
+      texts: ["Debug sync persistence in the Moss desktop app."],
+      title: "Personal Moss work",
+    },
+    {
+      expected: "qa",
+      projectName: "bb plugins",
+      texts: [
+        "Review-only: audit the plugin PR for regressions and missing tests.",
+      ],
+      title: "Explicit QA plugin work",
+    },
+    {
+      expected: "bb",
+      projectName: "Personal",
+      texts: ["Prototype a nicer JSON timeline display in bb."],
+      title: "Personal bb product work",
+    },
+    {
       expected: "design",
       projectName: "UI Pattern Atlas",
       texts: ["Take over the UI Patterns work."],
@@ -123,16 +149,16 @@ describe("section classification", () => {
     ).toBeNull();
   });
 
-  it("surfaces a low margin instead of hiding mixed bb design intent", () => {
+  it("lets explicit design intent override a repository default", () => {
     const decision = classifySection({
       projectName: "bb",
       texts: ["Design a durable UI pattern system."],
     });
     expect(decision).toMatchObject({
-      runnerUp: "bb",
+      runnerUp: null,
       target: "design",
     });
-    expect(decision?.margin).toBeCloseTo(0.05);
+    expect(decision?.margin).toBeCloseTo(0.95);
   });
 });
 
@@ -161,10 +187,12 @@ describe("existing section resolution", () => {
     ).toBeNull();
   });
 
-  it("never treats QA as a target alias", () => {
-    expect(
-      resolveSectionId([{ id: "sec_qa", name: "QA" }], "design"),
-    ).toBeNull();
+  it.each([
+    ["extensions", "bb Extensions", "sec_extensions"],
+    ["moss", "moss", "sec_moss"],
+    ["qa", "QA", "sec_qa"],
+  ] as const)("resolves %s through the live %s section", (target, name, id) => {
+    expect(resolveSectionId([{ id, name }], target)).toBe(id);
   });
 });
 

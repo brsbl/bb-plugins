@@ -1,7 +1,7 @@
 {
   "name": "bb-plugin-thread-organizer",
   "version": "0.1.0",
-  "description": "Organizes new bb threads into existing sections while preserving manual changes.",
+  "description": "Uses pinned threads as an inbox and organizes active work into semantic sections.",
   "type": "module",
   "license": "UNLICENSED",
   "files": [
@@ -21,11 +21,12 @@
   },
   "bb": {
     "name": "Thread Organizer",
-    "description": "Organizes new bb threads into existing sections while preserving manual changes.",
+    "description": "Uses pinned threads as an inbox and organizes active work into semantic sections.",
     "branding": {
       "icon": "FolderTree"
     },
     "server": "./server.ts",
+    "app": "./app.ts",
     "skills": []
   },
   "devDependencies": {
@@ -35,6 +36,7 @@
     "better-sqlite3": "^12.10.0",
     "cron-parser": "^5.5.0",
     "hono": "^4.11.9",
+    "jsdom": "^29.0.1",
     "typescript": "^5.7.0",
     "vitest": "^4.1.8",
     "zod": "^4.3.6"
