@@ -37,6 +37,8 @@ function completedEvent(seq: number) {
 function createHarness(input?: {
   archiveAfterList?: boolean;
   existingThreads?: boolean;
+  getFailures?: number;
+  legacyModeOnly?: boolean;
   mode?: "apply" | "observe";
   projectName?: string;
   prompt?: string;
@@ -54,6 +56,7 @@ function createHarness(input?: {
     ...input?.thread,
   });
   const events: ReturnType<typeof completedEvent>[] = [];
+  let remainingGetFailures = input?.getFailures ?? 0;
   let promptHistory = [promptEntry(prompt)];
   const update = vi.fn(
     async (args: {
@@ -92,7 +95,9 @@ function createHarness(input?: {
   });
   const host = createFakePluginHost({
     pluginId: "thread-organizer",
-    settings: { mode: input?.mode ?? "observe" },
+    settings: input?.legacyModeOnly
+      ? { mode: input?.mode ?? "observe" }
+      : { inboxMode: input?.mode ?? "observe" },
     sdk: {
       projects: {
         get: async () => ({
@@ -108,7 +113,13 @@ function createHarness(input?: {
             return events.find((event) => event.seq > after) ?? null;
           },
         },
-        get: async () => thread,
+        get: async () => {
+          if (remainingGetFailures > 0) {
+            remainingGetFailures -= 1;
+            throw new Error("transient get failure");
+          }
+          return thread;
+        },
         list: async () => {
           if (!input?.existingThreads) return [];
           const listed = thread;
@@ -159,7 +170,7 @@ describe("Thread Organizer plugin", () => {
     plugin(bb);
 
     expect(harness.inspection.registrations.settingsDescriptors).toMatchObject({
-      mode: { default: "apply", options: ["observe", "apply"] },
+      inboxMode: { default: "apply", options: ["observe", "apply"] },
     });
     expect(harness.inspection.registrations.threadEventHandlers).toMatchObject({
       "thread.active": 1,
@@ -172,6 +183,32 @@ describe("Thread Organizer plugin", () => {
     expect(harness.inspection.registrations.cli).toBeNull();
     expect(harness.inspection.registrations.rpcMethods).toEqual([]);
     await harness.lifecycle.dispose();
+  });
+
+  it("uses the new apply default instead of a stored legacy observe value", async () => {
+    const organizer = createHarness({
+      existingThreads: true,
+      legacyModeOnly: true,
+      mode: "observe",
+      thread: { status: "idle" },
+    });
+    plugin(organizer.bb);
+
+    const service = organizer.harness.behavior.runService(
+      "inbox-reconciliation",
+    );
+    await vi.waitFor(() => {
+      expect(organizer.pin).toHaveBeenCalledWith({ threadId: "thr_test" });
+    });
+    service.controller.abort();
+    await service.done;
+
+    expect(organizer.harness.inspection.logEntries).toContainEqual(
+      expect.objectContaining({
+        message: expect.stringContaining("Thread Organizer loaded mode=apply"),
+      }),
+    );
+    await organizer.harness.lifecycle.dispose();
   });
 
   it("logs a recommendation without changing a thread in observe mode", async () => {
@@ -271,9 +308,14 @@ describe("Thread Organizer plugin", () => {
     });
     plugin(organizer.bb);
 
-    await organizer.harness.behavior.runService("startup-reconciliation").done;
-
-    expect(organizer.pin).toHaveBeenCalledWith({ threadId: "thr_test" });
+    const service = organizer.harness.behavior.runService(
+      "inbox-reconciliation",
+    );
+    await vi.waitFor(() => {
+      expect(organizer.pin).toHaveBeenCalledWith({ threadId: "thr_test" });
+    });
+    service.controller.abort();
+    await service.done;
     expect(organizer.currentThread().pinnedAt).not.toBeNull();
     await organizer.harness.lifecycle.dispose();
   });
@@ -286,9 +328,14 @@ describe("Thread Organizer plugin", () => {
     });
     plugin(organizer.bb);
 
-    await organizer.harness.behavior.runService("startup-reconciliation").done;
-
-    expect(organizer.pin).toHaveBeenCalledWith({ threadId: "thr_test" });
+    const service = organizer.harness.behavior.runService(
+      "inbox-reconciliation",
+    );
+    await vi.waitFor(() => {
+      expect(organizer.pin).toHaveBeenCalledWith({ threadId: "thr_test" });
+    });
+    service.controller.abort();
+    await service.done;
     await organizer.harness.lifecycle.dispose();
   });
 
@@ -301,11 +348,212 @@ describe("Thread Organizer plugin", () => {
     });
     plugin(organizer.bb);
 
-    await organizer.harness.behavior.runService("startup-reconciliation").done;
-
+    const service = organizer.harness.behavior.runService(
+      "inbox-reconciliation",
+    );
+    await vi.waitFor(() => {
+      expect(
+        organizer.harness.inspection.sdk.callsTo("threads.get"),
+      ).toHaveLength(1);
+    });
+    service.controller.abort();
+    await service.done;
     expect(organizer.pin).not.toHaveBeenCalled();
     expect(await organizer.bb.storage.kv.list("thread:")).toEqual([]);
     await organizer.harness.lifecycle.dispose();
+  });
+
+  it("keeps reconciliation alive and unpins active work on the next cycle", async () => {
+    vi.useFakeTimers();
+    try {
+      const organizer = createHarness({
+        existingThreads: true,
+        mode: "apply",
+        thread: { status: "active" },
+      });
+      plugin(organizer.bb);
+
+      const service = organizer.harness.behavior.runService(
+        "inbox-reconciliation",
+      );
+      let settled = false;
+      void service.done.then(() => {
+        settled = true;
+      });
+      await vi.advanceTimersByTimeAsync(0);
+      expect(settled).toBe(false);
+
+      organizer.setThread({ pinnedAt: 100, status: "active" });
+      await vi.advanceTimersByTimeAsync(5_000);
+
+      expect(organizer.unpin).toHaveBeenCalledWith({
+        threadId: "thr_test",
+      });
+      service.controller.abort();
+      await service.done;
+      await organizer.harness.lifecycle.dispose();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("retries a transient reconciliation failure without a reload", async () => {
+    const organizer = createHarness({
+      existingThreads: true,
+      getFailures: 1,
+      mode: "apply",
+      thread: { status: "idle" },
+    });
+    plugin(organizer.bb);
+
+    const service = organizer.harness.behavior.runService(
+      "inbox-reconciliation",
+    );
+    await vi.waitFor(() => {
+      expect(organizer.pin).toHaveBeenCalledWith({ threadId: "thr_test" });
+    });
+    service.controller.abort();
+    await service.done;
+
+    expect(organizer.harness.inspection.logEntries).toContainEqual(
+      expect.objectContaining({
+        message: expect.stringContaining(
+          "action=reconciliation-retry attempt=1 error=transient get failure",
+        ),
+      }),
+    );
+    await organizer.harness.lifecycle.dispose();
+  });
+
+  it("surfaces an exhausted reconciliation failure to the service host", async () => {
+    vi.useFakeTimers();
+    try {
+      const organizer = createHarness({
+        existingThreads: true,
+        getFailures: 3,
+        mode: "apply",
+        thread: { status: "idle" },
+      });
+      plugin(organizer.bb);
+
+      const service = organizer.harness.behavior.runService(
+        "inbox-reconciliation",
+      );
+      const outcome = service.done.catch((error: unknown) => error);
+      await vi.advanceTimersByTimeAsync(600);
+
+      await expect(outcome).resolves.toEqual(
+        expect.objectContaining({ message: "transient get failure" }),
+      );
+      expect(organizer.pin).not.toHaveBeenCalled();
+      await organizer.harness.lifecycle.dispose();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("bounds reconciliation workers and admits no mutation after abort", async () => {
+    const threads = Array.from({ length: 8 }, (_, index) =>
+      makeThreadResponse({
+        id: `thr_${index}`,
+        projectId: "proj_test",
+        status: "error",
+        titleFallback: `Thread ${index}`,
+      }),
+    );
+    let releaseGets: () => void = () => undefined;
+    const getGate = new Promise<void>((resolve) => {
+      releaseGets = resolve;
+    });
+    let getCalls = 0;
+    const pin = vi.fn();
+    const host = createFakePluginHost({
+      pluginId: "thread-organizer",
+      settings: { inboxMode: "apply" },
+      sdk: {
+        threads: {
+          get: async ({ threadId }) => {
+            getCalls += 1;
+            await getGate;
+            return threads.find((thread) => thread.id === threadId)!;
+          },
+          list: async () => threads,
+          pin,
+        },
+      },
+    });
+    plugin(host.bb);
+
+    const service = host.harness.behavior.runService(
+      "inbox-reconciliation",
+    );
+    await vi.waitFor(() => {
+      expect(getCalls).toBe(4);
+    });
+    service.controller.abort();
+    releaseGets();
+    await service.done;
+
+    expect(getCalls).toBe(4);
+    expect(pin).not.toHaveBeenCalled();
+    await host.harness.lifecycle.dispose();
+  });
+
+  it("repeats discovery to close a pin-order pagination gap", async () => {
+    const threads = Array.from({ length: 101 }, (_, index) =>
+      makeThreadResponse({
+        id: `thr_${index}`,
+        projectId: "proj_test",
+        status: "error",
+        titleFallback: `Thread ${index}`,
+      }),
+    );
+    const byId = new Map(threads.map((thread) => [thread.id, thread]));
+    const pinned = new Set<string>();
+    let pass = 0;
+    const host = createFakePluginHost({
+      pluginId: "thread-organizer",
+      settings: { inboxMode: "apply" },
+      sdk: {
+        threads: {
+          get: async ({ threadId }) => byId.get(threadId)!,
+          list: async (args) => {
+            const offset = args?.offset ?? 0;
+            if (offset === 0) {
+              return pass === 0
+                ? threads.slice(0, 100)
+                : threads.slice(1, 101);
+            }
+            const duplicate = threads[pass === 0 ? 99 : 100]!;
+            pass += 1;
+            return [duplicate];
+          },
+          pin: async ({ threadId }) => {
+            pinned.add(threadId);
+            const thread = byId.get(threadId)!;
+            const updated = makeThreadResponse({
+              ...thread,
+              pinnedAt: thread.updatedAt + 1,
+            });
+            byId.set(threadId, updated);
+            return updated;
+          },
+        },
+      },
+    });
+    plugin(host.bb);
+
+    const service = host.harness.behavior.runService(
+      "inbox-reconciliation",
+    );
+    await vi.waitFor(() => {
+      expect(pinned.size).toBe(101);
+    });
+    service.controller.abort();
+    await service.done;
+
+    expect(pinned).toEqual(new Set(threads.map((thread) => thread.id)));
+    await host.harness.lifecycle.dispose();
   });
 
   it("unpins an active thread even when it was pinned manually", async () => {
@@ -385,11 +633,31 @@ describe("Thread Organizer plugin", () => {
     });
     expect(organizer.pin).not.toHaveBeenCalled();
 
-    await organizer.harness.behavior.setSettings({ mode: "apply" });
+    await organizer.harness.behavior.setSettings({ inboxMode: "apply" });
 
     await vi.waitFor(() => {
       expect(organizer.pin).toHaveBeenCalledWith({ threadId: "thr_test" });
     });
+    await organizer.harness.lifecycle.dispose();
+  });
+
+  it("removes archived stored state before applying inbox changes", async () => {
+    const organizer = createHarness({ mode: "observe" });
+    plugin(organizer.bb);
+    await organizer.harness.behavior.emitThreadEvent("thread.created", {
+      thread: organizer.currentThread(),
+    });
+    expect(
+      await organizer.bb.storage.kv.list("thread:"),
+    ).toHaveLength(1);
+
+    organizer.setThread({ archivedAt: 100, status: "idle" });
+    await organizer.harness.behavior.setSettings({ inboxMode: "apply" });
+    await vi.waitFor(async () => {
+      expect(await organizer.bb.storage.kv.list("thread:")).toEqual([]);
+    });
+
+    expect(organizer.pin).not.toHaveBeenCalled();
     await organizer.harness.lifecycle.dispose();
   });
 
