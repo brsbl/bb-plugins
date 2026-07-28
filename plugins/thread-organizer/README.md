@@ -60,7 +60,7 @@ Pin ownership is tracked separately from pin visibility. Thread Organizer only r
 
 Section decisions are persisted with the classifier version, completed-turn count, confidence, margin, reasons, and evaluation time. Pinning and unpinning reuse that record instead of rerunning categorization; new conversational evidence and classifier upgrades are the only automatic reevaluation triggers. New decisions are written to the plugin log.
 
-Every non-pinned sidebar section starts collapsed. If BB expands a destination while moving an unpinned thread, the plugin collapses it again; a section the user deliberately expands remains open.
+Every sidebar section, including the inbox, starts collapsed. If BB expands a destination while moving an unpinned thread, the plugin collapses it again; a section the user deliberately expands remains open.
 
 ## Develop
 

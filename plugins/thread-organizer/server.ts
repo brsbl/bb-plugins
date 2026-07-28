@@ -21,7 +21,7 @@ const TITLE_CONFIDENCE = 0.9;
 const MAX_COMPLETED_EVENT_DRAIN = 100;
 const THREAD_LIST_PAGE_SIZE = 100;
 const RECONCILIATION_CONCURRENCY = 4;
-const RECONCILIATION_INTERVAL_MS = 5_000;
+const RECONCILIATION_INTERVAL_MS = 5 * 60_000;
 const RECONCILIATION_RETRY_DELAYS_MS = [100, 500] as const;
 const SECTION_CLASSIFIER_VERSION = 2;
 
@@ -44,6 +44,9 @@ interface ThreadState {
   hasAppliedTitle: boolean;
   inboxManagedPinnedAt: number | null;
   inboxObservedPinned: boolean;
+  inboxPendingPin: boolean;
+  inboxPendingUnpin: boolean;
+  inboxLastPhase: "active" | "failed" | "idle" | null;
   inboxSnoozed: boolean;
   lastAppliedSectionId: string | null;
   lastAppliedTitle: string | null;
@@ -69,6 +72,9 @@ function initialState(thread: ThreadSeed): ThreadState {
     hasAppliedTitle: false,
     inboxManagedPinnedAt: null,
     inboxObservedPinned: false,
+    inboxPendingPin: false,
+    inboxPendingUnpin: false,
+    inboxLastPhase: null,
     inboxSnoozed: false,
     lastAppliedSectionId: null,
     lastAppliedTitle: null,
@@ -97,6 +103,15 @@ function isThreadState(value: unknown): value is ThreadState {
       state.inboxManagedPinnedAt === undefined) &&
     (typeof state.inboxObservedPinned === "boolean" ||
       state.inboxObservedPinned === undefined) &&
+    (typeof state.inboxPendingPin === "boolean" ||
+      state.inboxPendingPin === undefined) &&
+    (typeof state.inboxPendingUnpin === "boolean" ||
+      state.inboxPendingUnpin === undefined) &&
+    (state.inboxLastPhase === "active" ||
+      state.inboxLastPhase === "failed" ||
+      state.inboxLastPhase === "idle" ||
+      state.inboxLastPhase === null ||
+      state.inboxLastPhase === undefined) &&
     (typeof state.inboxSnoozed === "boolean" ||
       state.inboxSnoozed === undefined) &&
     (typeof state.lastAppliedSectionId === "string" ||
@@ -127,6 +142,9 @@ function normalizeThreadState(state: ThreadState): ThreadState {
     ...state,
     inboxManagedPinnedAt: state.inboxManagedPinnedAt ?? null,
     inboxObservedPinned: state.inboxObservedPinned ?? false,
+    inboxPendingPin: state.inboxPendingPin ?? false,
+    inboxPendingUnpin: state.inboxPendingUnpin ?? false,
+    inboxLastPhase: state.inboxLastPhase ?? null,
     inboxSnoozed: state.inboxSnoozed ?? false,
     sectionClassification: state.sectionClassification ?? null,
   };
@@ -300,10 +318,68 @@ export default function plugin(bb: BbPluginApi): void {
     state: ThreadState,
     phase: "active" | "failed" | "idle",
     signal?: AbortSignal,
+    runStartPinnedAt?: number | null,
   ): Promise<void> {
     const { inboxMode } = await settings.get();
     if (signal?.aborted) return;
     const threadId = thread.id;
+    const startedNewRun =
+      phase === "active" && state.inboxLastPhase !== "active";
+    if (
+      startedNewRun &&
+      thread.pinnedAt === null &&
+      state.inboxObservedPinned &&
+      runStartPinnedAt === undefined
+    ) {
+      bb.log.debug(
+        `thread=${threadId} phase=${phase} action=await-run-start-pin-observation`,
+      );
+      return;
+    }
+    state.inboxLastPhase = phase;
+    if (startedNewRun) state.inboxSnoozed = false;
+
+    if (state.inboxPendingPin && thread.pinnedAt !== null) {
+      state.inboxManagedPinnedAt = thread.pinnedAt;
+      state.inboxObservedPinned = true;
+      state.inboxPendingPin = false;
+      bb.log.info(
+        `thread=${threadId} phase=${phase} action=inbox-pin-adopted`,
+      );
+    }
+
+    let recoveredManagedUnpin = false;
+    if (state.inboxPendingUnpin && thread.pinnedAt === null) {
+      state.inboxManagedPinnedAt = null;
+      state.inboxObservedPinned = false;
+      state.inboxPendingUnpin = false;
+      recoveredManagedUnpin = true;
+      bb.log.info(
+        `thread=${threadId} phase=${phase} action=inbox-unpin-adopted`,
+      );
+    }
+
+    if (
+      thread.pinnedAt === null &&
+      state.inboxObservedPinned &&
+      !recoveredManagedUnpin
+    ) {
+      state.inboxManagedPinnedAt = null;
+      state.inboxObservedPinned = false;
+      state.inboxPendingPin = false;
+      state.inboxPendingUnpin = false;
+      if (startedNewRun && runStartPinnedAt === null) {
+        bb.log.info(
+          `thread=${threadId} phase=${phase} action=prior-run-unpin-observed`,
+        );
+      } else {
+        state.inboxSnoozed = true;
+        bb.log.info(
+          `thread=${threadId} phase=${phase} action=inbox-snoozed`,
+        );
+      }
+    }
+
     if (phase !== "active") {
       if (thread.pinnedAt !== null) {
         if (
@@ -315,15 +391,6 @@ export default function plugin(bb: BbPluginApi): void {
         state.inboxObservedPinned = true;
         return;
       }
-      if (state.inboxObservedPinned) {
-        state.inboxManagedPinnedAt = null;
-        state.inboxObservedPinned = false;
-        state.inboxSnoozed = true;
-        bb.log.info(
-          `thread=${threadId} phase=${phase} action=inbox-snoozed`,
-        );
-        return;
-      }
       if (state.inboxSnoozed) return;
       if (inboxMode !== "apply") {
         bb.log.info(
@@ -332,19 +399,41 @@ export default function plugin(bb: BbPluginApi): void {
         return;
       }
       if (signal?.aborted) return;
-      const pinned = await bb.sdk.threads.pin({ threadId });
+      if (!state.inboxPendingPin) {
+        state.inboxPendingPin = true;
+        await saveState(threadId, state);
+      }
+      if (signal?.aborted) return;
+      let pinned: Thread;
+      try {
+        pinned = await bb.sdk.threads.pin({ threadId });
+      } catch (error: unknown) {
+        const fresh = (await bb.sdk.threads.get({ threadId })) as Thread;
+        state.inboxPendingPin = false;
+        if (fresh.pinnedAt === null) {
+          state.inboxManagedPinnedAt = null;
+          state.inboxObservedPinned = false;
+        } else {
+          state.inboxManagedPinnedAt = null;
+          state.inboxObservedPinned = true;
+        }
+        await saveState(threadId, state);
+        throw error;
+      }
       state.inboxManagedPinnedAt = pinned.pinnedAt;
       state.inboxObservedPinned = true;
+      state.inboxPendingPin = false;
       bb.log.info(
         `thread=${threadId} phase=${phase} mode=apply action=inbox-pinned`,
       );
       return;
     }
 
-    state.inboxSnoozed = false;
     if (thread.pinnedAt === null) {
       state.inboxManagedPinnedAt = null;
       state.inboxObservedPinned = false;
+      state.inboxPendingPin = false;
+      state.inboxPendingUnpin = false;
       return;
     }
     state.inboxObservedPinned = true;
@@ -359,9 +448,32 @@ export default function plugin(bb: BbPluginApi): void {
       return;
     }
     if (signal?.aborted) return;
-    await bb.sdk.threads.unpin({ threadId });
+    if (!state.inboxPendingUnpin) {
+      state.inboxPendingUnpin = true;
+      await saveState(threadId, state);
+    }
+    if (signal?.aborted) return;
+    try {
+      await bb.sdk.threads.unpin({ threadId });
+    } catch (error: unknown) {
+      const fresh = (await bb.sdk.threads.get({ threadId })) as Thread;
+      state.inboxPendingUnpin = false;
+      if (fresh.pinnedAt === null) {
+        state.inboxManagedPinnedAt = null;
+        state.inboxObservedPinned = false;
+        state.inboxSnoozed = true;
+      } else {
+        if (fresh.pinnedAt !== state.inboxManagedPinnedAt) {
+          state.inboxManagedPinnedAt = null;
+        }
+        state.inboxObservedPinned = true;
+      }
+      await saveState(threadId, state);
+      throw error;
+    }
     state.inboxManagedPinnedAt = null;
     state.inboxObservedPinned = false;
+    state.inboxPendingUnpin = false;
     bb.log.info(
       `thread=${threadId} phase=${phase} mode=apply action=inbox-unpinned`,
     );
@@ -702,7 +814,9 @@ export default function plugin(bb: BbPluginApi): void {
       let offset = 0;
       while (!disposed && !signal.aborted) {
         const page = await bb.sdk.threads.list({
+          archived: false,
           excludeSideChats: true,
+          hasParent: false,
           limit: THREAD_LIST_PAGE_SIZE,
           offset,
           signal,
@@ -796,7 +910,13 @@ export default function plugin(bb: BbPluginApi): void {
         await bb.storage.kv.delete(stateKey(thread.id));
         return;
       }
-      await reconcileInbox(fresh, state, "active");
+      await reconcileInbox(
+        fresh,
+        state,
+        inboxPhase(fresh),
+        undefined,
+        thread.pinnedAt,
+      );
       await saveState(thread.id, state);
     }),
   );
@@ -827,7 +947,7 @@ export default function plugin(bb: BbPluginApi): void {
         await bb.storage.kv.delete(stateKey(thread.id));
         return;
       }
-      await reconcileInbox(fresh, state, "idle");
+      await reconcileInbox(fresh, state, inboxPhase(fresh));
       await saveState(thread.id, state);
       if (due) await evaluate(thread.id, "turn");
     }),
@@ -844,7 +964,7 @@ export default function plugin(bb: BbPluginApi): void {
         await bb.storage.kv.delete(stateKey(thread.id));
         return;
       }
-      await reconcileInbox(fresh, state, "failed");
+      await reconcileInbox(fresh, state, inboxPhase(fresh));
       await saveState(thread.id, state);
     }),
   );
@@ -855,6 +975,27 @@ export default function plugin(bb: BbPluginApi): void {
     });
   bb.events.on("thread.archived", ({ thread }) => forget(thread.id));
   bb.events.on("thread.deleted", ({ thread }) => forget(thread.id));
+
+  let unsubscribeThreadChanges: () => void = () => undefined;
+  try {
+    unsubscribeThreadChanges = bb.sdk.subscribe({
+      event: "thread:changed",
+      callback(event) {
+        const threadId = event.id;
+        if (
+          threadId === undefined ||
+          (!event.changes.includes("pin-state-changed") &&
+            !event.changes.includes("status-changed"))
+        ) {
+          return;
+        }
+        void enqueue(threadId, () => reconcileManagedThread(threadId));
+      },
+    });
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : String(error);
+    bb.log.warn(`action=realtime-subscribe-failed error=${message}`);
+  }
 
   settings.onChange((next, previous) => {
     if (next.inboxMode === previous.inboxMode) return;
@@ -901,6 +1042,7 @@ export default function plugin(bb: BbPluginApi): void {
 
   bb.onDispose(async () => {
     acceptingWork = false;
+    unsubscribeThreadChanges();
     await Promise.allSettled([...queues.values()]);
     disposed = true;
   });
