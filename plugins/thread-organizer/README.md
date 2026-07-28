@@ -29,10 +29,11 @@ The setting takes effect immediately.
 | Existing section | Automatic use |
 | --- | --- |
 | `bb` or `bb quick fixes` | bb engineering work |
-| `Extensions` | Plugins, skills, automations, and agent tooling |
+| `bb Extensions` or `Extensions` | Plugins, skills, automations, and agent tooling |
 | `Design` | Design systems, UI patterns, information architecture, and API-surface work |
+| `moss` | Moss product and engineering work that is not more specifically design, writing, QA, or extension work |
+| `QA` | Explicit code review, regression, test, coverage, and release-audit work |
 | `Writing` | Articles, positioning, copy, and editorial work |
-| `QA` | Never; reserved for manual phase management |
 
 Threads that do not clear the confidence threshold stay unsectioned. The plugin never creates sections.
 
@@ -42,10 +43,10 @@ Threads that do not clear the confidence threshold stay unsectioned. The plugin 
 | --- | --- |
 | Startup and every five seconds | Adopts visible root threads and reconciles their current state |
 | Creation | Uses project identity and the prompt-derived title fallback for an early section proposal |
-| Activation | Removes an organizer-owned inbox pin and returns the thread to its semantic section |
+| Activation | Applies any missing semantic section before removing an organizer-owned inbox pin |
 | Idle or failed | Pins the thread into the top inbox area without clearing its semantic section |
 | Manual pin | Preserves the pin until the user removes it |
-| Manual unpin | Keeps the idle thread out of the inbox until its next run completes |
+| Manual unpin | Keeps the idle thread out of the inbox until its next run completes and collapses its destination section |
 | First completed turn | Refines the section and repairs a still-missing title |
 | Later turns | Re-evaluates at turns 5, 15, 25, and every ten completed turns thereafter |
 
@@ -57,7 +58,9 @@ An explicit creation-time title or section is locked. After the plugin writes a 
 
 Pin ownership is tracked separately from pin visibility. Thread Organizer only removes pins it created; a manual pin or re-pin is preserved. Recurring reconciliation also detects manual unpins that do not emit a thread lifecycle event.
 
-When a pinned thread becomes unpinned, its destination sidebar section is collapsed once. Expanding it afterward remains a normal user-controlled action.
+Section decisions are persisted with the classifier version, completed-turn count, confidence, margin, reasons, and evaluation time. Pinning and unpinning reuse that record instead of rerunning categorization; new conversational evidence and classifier upgrades are the only automatic reevaluation triggers. New decisions are written to the plugin log.
+
+Every non-pinned sidebar section starts collapsed. If BB expands a destination while moving an unpinned thread, the plugin collapses it again; a section the user deliberately expands remains open.
 
 ## Develop
 

@@ -9,7 +9,8 @@ import plugin from "./server.js";
 const sections = [
   { id: "sec_bb", name: "bb" },
   { id: "sec_design", name: "Design" },
-  { id: "sec_extensions", name: "Extensions" },
+  { id: "sec_extensions", name: "bb Extensions" },
+  { id: "sec_moss", name: "moss" },
   { id: "sec_qa", name: "QA" },
   { id: "sec_writing", name: "Writing" },
 ];
@@ -297,6 +298,48 @@ describe("Thread Organizer plugin", () => {
     expect(organizer.unpin).toHaveBeenCalledWith({ threadId: "thr_test" });
     expect(organizer.currentThread().pinnedAt).toBeNull();
     expect(organizer.currentThread().sectionId).toBe("sec_extensions");
+    await organizer.harness.lifecycle.dispose();
+  });
+
+  it("reuses its durable section decision during pin lifecycle changes", async () => {
+    const organizer = createHarness({ mode: "apply" });
+    plugin(organizer.bb);
+    await organizer.harness.behavior.emitThreadEvent("thread.created", {
+      thread: organizer.currentThread(),
+    });
+    const promptHistoryCalls =
+      organizer.harness.inspection.sdk.callsTo("threads.promptHistory").length;
+    const projectCalls =
+      organizer.harness.inspection.sdk.callsTo("projects.get").length;
+    const sectionListCalls =
+      organizer.harness.inspection.sdk.callsTo("threadSections.list").length;
+
+    organizer.setThread({ status: "idle" });
+    await organizer.harness.behavior.emitThreadEvent("thread.idle", {
+      lastAssistantText: "Done.",
+      thread: organizer.currentThread(),
+    });
+    organizer.setThread({ status: "active" });
+    await organizer.harness.behavior.emitThreadEvent("thread.active", {
+      thread: organizer.currentThread(),
+    });
+
+    expect(
+      organizer.harness.inspection.sdk.callsTo("threads.promptHistory"),
+    ).toHaveLength(promptHistoryCalls);
+    expect(
+      organizer.harness.inspection.sdk.callsTo("projects.get"),
+    ).toHaveLength(projectCalls);
+    expect(
+      organizer.harness.inspection.sdk.callsTo("threadSections.list"),
+    ).toHaveLength(sectionListCalls);
+    expect(
+      await organizer.bb.storage.kv.get("thread:v1:thr_test"),
+    ).toMatchObject({
+      sectionClassification: {
+        decision: { target: "extensions" },
+      },
+    });
     await organizer.harness.lifecycle.dispose();
   });
 

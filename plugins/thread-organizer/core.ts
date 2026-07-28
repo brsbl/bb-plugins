@@ -2,6 +2,8 @@ export const SECTION_TARGETS = [
   "bb",
   "extensions",
   "design",
+  "moss",
+  "qa",
   "writing",
 ] as const;
 
@@ -40,7 +42,9 @@ export interface TitleCandidate {
 const SECTION_ALIASES: Record<SectionTarget, readonly string[]> = {
   bb: ["bb", "bb quick fixes"],
   design: ["design"],
-  extensions: ["extensions"],
+  extensions: ["extensions", "bb extensions"],
+  moss: ["moss"],
+  qa: ["qa", "quality assurance"],
   writing: ["writing"],
 };
 
@@ -237,26 +241,88 @@ export function classifySection(input: {
   }
 
   if (
-    ["bb plugins", "prompt shaper"].includes(project) ||
-    (project !== "bb" &&
-      matches(
-        corpus,
-        /\b(bb\s+plugin|plugin|skill|automation|agent tool|agent tooling)\b/i,
-      ))
+    matches(
+      corpus,
+      /\b(review-only|code review|qa|quality assurance|regression (?:review|test|coverage)|test audit|coverage audit|audit (?:a |the )?(?:pull request|pr|release|tests?))\b/i,
+    )
+  ) {
+    setScore(scores, "qa", 0.98, "explicit verification intent");
+  }
+
+  const hasCrossCuttingIntent =
+    scores.has("design") || scores.has("qa") || scores.has("writing");
+  if (
+    !hasCrossCuttingIntent &&
+    ([
+      "bb plugins",
+      "design doctrine",
+      "loop-machine",
+      "moss-skills",
+      "ottonomous",
+      "prompt shaper",
+    ].includes(project) ||
+      (project !== "bb" &&
+        matches(
+          corpus,
+          /\b(bb\s+plugin|plugin|skill|automation|agent tool|agent tooling)\b/i,
+        )))
   ) {
     setScore(
       scores,
       "extensions",
-      project === "bb plugins" || project === "prompt shaper" ? 0.98 : 0.96,
-      project === "bb plugins" || project === "prompt shaper"
+      [
+        "bb plugins",
+        "design doctrine",
+        "loop-machine",
+        "moss-skills",
+        "ottonomous",
+        "prompt shaper",
+      ].includes(project)
+        ? 0.98
+        : 0.96,
+      [
+        "bb plugins",
+        "design doctrine",
+        "loop-machine",
+        "moss-skills",
+        "ottonomous",
+        "prompt shaper",
+      ].includes(project)
         ? "extension project identity"
         : "explicit extension intent",
     );
-  } else if (project === "design doctrine") {
-    setScore(scores, "extensions", 0.9, "extension project identity");
   }
 
-  if (project === "bb") {
+  const hasSpecificIntent = [...scores.keys()].some((target) =>
+    ["design", "extensions", "qa", "writing"].includes(target),
+  );
+  if (
+    !hasSpecificIntent &&
+    (["moss", "moss collab recovery", "moss-collab"].includes(project) ||
+      matches(corpus, /\bmoss(?:-collab)?\b/i))
+  ) {
+    setScore(
+      scores,
+      "moss",
+      ["moss", "moss collab recovery", "moss-collab"].includes(project)
+        ? 0.97
+        : 0.94,
+      ["moss", "moss collab recovery", "moss-collab"].includes(project)
+        ? "moss project identity"
+        : "explicit moss product intent",
+    );
+  }
+
+  if (
+    project !== "bb" &&
+    !hasSpecificIntent &&
+    !scores.has("extensions") &&
+    matches(corpus, /\bbb\b/i)
+  ) {
+    setScore(scores, "bb", 0.94, "explicit bb product intent");
+  }
+
+  if (project === "bb" && !hasCrossCuttingIntent) {
     setScore(scores, "bb", 0.9, "bb project identity");
     if (
       matches(

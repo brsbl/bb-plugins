@@ -40,6 +40,22 @@ function threadIds(group: Element): Set<string> {
   );
 }
 
+function sectionKey(button: HTMLButtonElement): string | null {
+  const label = button.getAttribute("aria-label");
+  if (label === null) return null;
+  const match = /^(?:Collapse|Expand) (.+) section$/.exec(label);
+  return match?.[1] ?? null;
+}
+
+function groupToggle(group: Element): HTMLButtonElement | null {
+  for (const button of group.querySelectorAll<HTMLButtonElement>(
+    'button[aria-expanded][aria-label$=" section"]',
+  )) {
+    if (button.closest(STICKY_GROUP_SELECTOR) === group) return button;
+  }
+  return null;
+}
+
 function destinationCollapseToggle(row: Element): HTMLButtonElement | null {
   let group = row.closest(STICKY_GROUP_SELECTOR);
   while (group) {
@@ -73,6 +89,8 @@ function mountSidebarCollapser(
   const initialPinnedGroup = pinnedGroup(sidebar);
   let knownPinnedIds =
     initialPinnedGroup === null ? new Set<string>() : threadIds(initialPinnedGroup);
+  const expandedBySection = new Map<string, boolean>();
+  const userExpandedSections = new Set<string>();
   let scheduled = false;
 
   const reconcile = () => {
@@ -102,6 +120,24 @@ function mountSidebarCollapser(
       if (control) controls.add(control);
     }
 
+    for (const group of sidebar.querySelectorAll(STICKY_GROUP_SELECTOR)) {
+      if (group === currentPinnedGroup) continue;
+      const toggle = groupToggle(group);
+      if (toggle === null) continue;
+      const key = sectionKey(toggle);
+      if (key === null) continue;
+      const expanded = toggle.getAttribute("aria-expanded") === "true";
+      const wasExpanded = expandedBySection.get(key);
+      const userExpanded = userExpandedSections.delete(key);
+      if (
+        expanded &&
+        !userExpanded &&
+        (wasExpanded === undefined || wasExpanded === false)
+      ) {
+        controls.add(toggle);
+      }
+    }
+
     if (currentPinnedGroup && pinnedIsExpanded) {
       knownPinnedIds = threadIds(currentPinnedGroup);
     }
@@ -114,7 +150,37 @@ function mountSidebarCollapser(
         control.click();
       }
     }
+
+    for (const group of sidebar.querySelectorAll(STICKY_GROUP_SELECTOR)) {
+      if (group === currentPinnedGroup) continue;
+      const toggle = groupToggle(group);
+      const key = toggle === null ? null : sectionKey(toggle);
+      if (toggle !== null && key !== null) {
+        expandedBySection.set(
+          key,
+          toggle.getAttribute("aria-expanded") === "true",
+        );
+      }
+    }
   };
+
+  const recordUserExpansion = (event: Event) => {
+    const target = event.target;
+    if (!(target instanceof Element)) return;
+    const button = target.closest<HTMLButtonElement>(
+      'button[aria-expanded][aria-label$=" section"]',
+    );
+    if (
+      button === null ||
+      button.getAttribute("aria-expanded") === "true" ||
+      button.closest(STICKY_GROUP_SELECTOR) === pinnedGroup(sidebar)
+    ) {
+      return;
+    }
+    const key = sectionKey(button);
+    if (key !== null) userExpandedSections.add(key);
+  };
+  sidebar.addEventListener("click", recordUserExpansion, true);
 
   const scheduleReconcile = () => {
     if (scheduled || signal.aborted) return;
@@ -122,10 +188,26 @@ function mountSidebarCollapser(
     queueMicrotask(reconcile);
   };
   const observer = new MutationObserver(scheduleReconcile);
-  observer.observe(sidebar, { childList: true, subtree: true });
-  signal.addEventListener("abort", () => observer.disconnect(), { once: true });
+  observer.observe(sidebar, {
+    attributeFilter: ["aria-expanded", "aria-label"],
+    attributes: true,
+    childList: true,
+    subtree: true,
+  });
+  reconcile();
+  signal.addEventListener(
+    "abort",
+    () => {
+      observer.disconnect();
+      sidebar.removeEventListener("click", recordUserExpansion, true);
+    },
+    { once: true },
+  );
 
-  return () => observer.disconnect();
+  return () => {
+    observer.disconnect();
+    sidebar.removeEventListener("click", recordUserExpansion, true);
+  };
 }
 
 export function mountInboxSectionCollapser({

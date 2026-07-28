@@ -16,6 +16,14 @@ function section(
     "aria-label",
     `${expanded ? "Collapse" : "Expand"} ${label} section`,
   );
+  button.addEventListener("click", () => {
+    const nextExpanded = button.getAttribute("aria-expanded") !== "true";
+    button.setAttribute("aria-expanded", String(nextExpanded));
+    button.setAttribute(
+      "aria-label",
+      `${nextExpanded ? "Collapse" : "Expand"} ${label} section`,
+    );
+  });
   group.append(button);
   if (expanded) {
     for (const id of threadIds) {
@@ -45,6 +53,15 @@ afterEach(() => {
 });
 
 describe("inbox section collapser", () => {
+  it("collapses every non-pinned section when the sidebar mounts", () => {
+    const { controller, destination } = setup();
+
+    expect(
+      destination.querySelector("button")?.getAttribute("aria-expanded"),
+    ).toBe("false");
+    controller.abort();
+  });
+
   it("collapses the destination section after a pinned thread is unpinned", async () => {
     const { controller, destination, pinned } = setup();
     const collapse = destination.querySelector("button")!;
@@ -53,16 +70,20 @@ describe("inbox section collapser", () => {
       '[data-sidebar-thread-id="thr_active"]',
     )!;
 
+    collapse.setAttribute("aria-expanded", "true");
+    collapse.setAttribute("aria-label", "Collapse Engineering section");
     destination.append(row);
 
     await vi.waitFor(() => expect(click).toHaveBeenCalledOnce());
+    expect(collapse.getAttribute("aria-expanded")).toBe("false");
     controller.abort();
   });
 
-  it("does not collapse a section when an ordinary thread is added", async () => {
+  it("preserves a section the user deliberately expands", async () => {
     const { controller, destination } = setup();
-    const collapse = destination.querySelector("button")!;
-    const click = vi.spyOn(collapse, "click");
+    const toggle = destination.querySelector("button")!;
+    toggle.click();
+    const click = vi.spyOn(toggle, "click");
     const row = document.createElement("a");
     row.dataset.sidebarThreadId = "thr_new";
 
@@ -70,10 +91,11 @@ describe("inbox section collapser", () => {
     await new Promise((resolve) => setTimeout(resolve, 0));
 
     expect(click).not.toHaveBeenCalled();
+    expect(toggle.getAttribute("aria-expanded")).toBe("true");
     controller.abort();
   });
 
-  it("remembers pinned threads while the Pinned section is collapsed", async () => {
+  it("re-collapses a native destination expansion when Pinned is collapsed", async () => {
     const { controller, destination, pinned } = setup();
     const collapseDestination = destination.querySelector("button")!;
     const click = vi.spyOn(collapseDestination, "click");
@@ -82,13 +104,18 @@ describe("inbox section collapser", () => {
     )!;
     const pinnedToggle = pinned.querySelector("button")!;
 
-    pinnedToggle.setAttribute("aria-expanded", "false");
-    pinnedToggle.setAttribute("aria-label", "Expand Pinned section");
+    pinnedToggle.click();
     row.remove();
     await new Promise((resolve) => setTimeout(resolve, 0));
+    collapseDestination.setAttribute("aria-expanded", "true");
+    collapseDestination.setAttribute(
+      "aria-label",
+      "Collapse Engineering section",
+    );
     destination.append(row);
 
     await vi.waitFor(() => expect(click).toHaveBeenCalledOnce());
+    expect(collapseDestination.getAttribute("aria-expanded")).toBe("false");
     controller.abort();
   });
 

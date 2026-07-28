@@ -23,10 +23,19 @@ const THREAD_LIST_PAGE_SIZE = 100;
 const RECONCILIATION_CONCURRENCY = 4;
 const RECONCILIATION_INTERVAL_MS = 5_000;
 const RECONCILIATION_RETRY_DELAYS_MS = [100, 500] as const;
+const SECTION_CLASSIFIER_VERSION = 2;
 
 type Thread = Awaited<ReturnType<BbPluginApi["sdk"]["threads"]["update"]>>;
 type ThreadSeed = Pick<Thread, "createdAt" | "sectionId" | "title">;
 type EvaluationPhase = "active" | "created" | "settings" | "turn";
+
+interface SectionClassificationCache {
+  classifierVersion: number;
+  completedTurns: number;
+  contextAvailable: boolean;
+  decision: SectionClassification | null;
+  evaluatedAt: number;
+}
 
 interface ThreadState {
   completedTurns: number;
@@ -42,6 +51,7 @@ interface ThreadState {
   nextEvaluationTurn: number;
   pendingSectionId: string | null;
   pendingSectionStreak: number;
+  sectionClassification: SectionClassificationCache | null;
   sectionLocked: boolean;
   titleLocked: boolean;
   version: 1;
@@ -66,6 +76,7 @@ function initialState(thread: ThreadSeed): ThreadState {
     nextEvaluationTurn: 1,
     pendingSectionId: null,
     pendingSectionStreak: 0,
+    sectionClassification: null,
     sectionLocked: thread.sectionId !== null,
     titleLocked: thread.title !== null,
     version: 1,
@@ -97,6 +108,15 @@ function isThreadState(value: unknown): value is ThreadState {
     (typeof state.pendingSectionId === "string" ||
       state.pendingSectionId === null) &&
     typeof state.pendingSectionStreak === "number" &&
+    (state.sectionClassification === undefined ||
+      state.sectionClassification === null ||
+      (typeof state.sectionClassification === "object" &&
+        typeof state.sectionClassification.classifierVersion === "number" &&
+        typeof state.sectionClassification.completedTurns === "number" &&
+        typeof state.sectionClassification.contextAvailable === "boolean" &&
+        (state.sectionClassification.decision === null ||
+          typeof state.sectionClassification.decision === "object") &&
+        typeof state.sectionClassification.evaluatedAt === "number")) &&
     typeof state.sectionLocked === "boolean" &&
     typeof state.titleLocked === "boolean"
   );
@@ -108,6 +128,7 @@ function normalizeThreadState(state: ThreadState): ThreadState {
     inboxManagedPinnedAt: state.inboxManagedPinnedAt ?? null,
     inboxObservedPinned: state.inboxObservedPinned ?? false,
     inboxSnoozed: state.inboxSnoozed ?? false,
+    sectionClassification: state.sectionClassification ?? null,
   };
 }
 
@@ -488,8 +509,30 @@ export default function plugin(bb: BbPluginApi): void {
       return;
     }
 
-    const attempts = phase === "active" ? 3 : 1;
-    const historyTexts = await loadContextTexts(thread, attempts);
+    const { inboxMode } = await settings.get();
+    if (signal?.aborted) return;
+    const movingManagedSection =
+      state.hasAppliedSection && thread.sectionId !== null;
+    const canManageSection =
+      !state.sectionLocked &&
+      (!movingManagedSection || phase === "turn");
+    const cachedClassification = state.sectionClassification;
+    const needsClassification =
+      canManageSection &&
+      (cachedClassification === null ||
+        cachedClassification.classifierVersion !== SECTION_CLASSIFIER_VERSION ||
+        (phase === "active" &&
+          (!cachedClassification.contextAvailable ||
+            cachedClassification.decision === null)) ||
+        (phase === "turn" &&
+          cachedClassification.completedTurns < state.completedTurns));
+    const needsHistory = needsClassification || phase === "turn";
+    const historyTexts = needsHistory
+      ? await loadContextTexts(
+          thread,
+          phase === "active" || phase === "created" ? 3 : 1,
+        )
+      : [];
     if (signal?.aborted) return;
     const texts = [
       ...(thread.title === null ? [] : [thread.title]),
@@ -505,28 +548,40 @@ export default function plugin(bb: BbPluginApi): void {
           ? []
           : [latestPromptText]
         : texts;
-    const { inboxMode } = await settings.get();
-    if (signal?.aborted) return;
-    const movingManagedSection =
-      state.hasAppliedSection && thread.sectionId !== null;
 
-    if (
-      !state.sectionLocked &&
-      (!movingManagedSection || phase === "turn")
-    ) {
+    if (canManageSection) {
       try {
-        const projectName =
-          thread.projectId === PERSONAL_PROJECT_ID
-            ? "Personal"
-            : (
-                await bb.sdk.projects.get({
-                  projectId: thread.projectId,
-                })
-              ).name;
-        const decision = classifySection({
-          projectName,
-          texts: sectionTexts,
-        });
+        let decision = cachedClassification?.decision ?? null;
+        if (needsClassification) {
+          const projectName =
+            thread.projectId === PERSONAL_PROJECT_ID
+              ? "Personal"
+              : (
+                  await bb.sdk.projects.get({
+                    projectId: thread.projectId,
+                  })
+                ).name;
+          decision = classifySection({
+            projectName,
+            texts: sectionTexts,
+          });
+          state.sectionClassification = {
+            classifierVersion: SECTION_CLASSIFIER_VERSION,
+            completedTurns: state.completedTurns,
+            contextAvailable: sectionTexts.some(isSubstantiveText),
+            decision,
+            evaluatedAt: Date.now(),
+          };
+          bb.log.info(
+            decision === null
+              ? `thread=${threadId} phase=${phase} action=section-classified target=none`
+              : `thread=${threadId} phase=${phase} action=section-classified ${classificationSummary(decision)}`,
+          );
+        } else {
+          bb.log.debug(
+            `thread=${threadId} phase=${phase} action=section-cache-hit target=${decision?.target ?? "none"}`,
+          );
+        }
         if (decision !== null) {
           const sectionId = resolveSectionId(
             await bb.sdk.threadSections.list(),
@@ -629,7 +684,12 @@ export default function plugin(bb: BbPluginApi): void {
     await reconcileInbox(fresh, state, inboxPhase(fresh), signal);
     if (signal?.aborted) return;
     await saveState(threadId, state);
-    if (adopted && isEligibleThread(fresh)) {
+    if (
+      isEligibleThread(fresh) &&
+      (adopted ||
+        state.sectionClassification?.classifierVersion !==
+          SECTION_CLASSIFIER_VERSION)
+    ) {
       await evaluate(threadId, "settings", signal);
     }
   }
@@ -726,6 +786,7 @@ export default function plugin(bb: BbPluginApi): void {
 
   bb.events.on("thread.active", ({ thread }) =>
     enqueue(thread.id, async () => {
+      await evaluate(thread.id, "active");
       const state = await readState(thread.id);
       if (state === null) return;
       const fresh = (await bb.sdk.threads.get({
@@ -737,7 +798,6 @@ export default function plugin(bb: BbPluginApi): void {
       }
       await reconcileInbox(fresh, state, "active");
       await saveState(thread.id, state);
-      await evaluate(thread.id, "active");
     }),
   );
 
