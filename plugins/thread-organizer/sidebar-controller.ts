@@ -20,6 +20,23 @@ function groupToggle(group: Element): HTMLButtonElement | null {
   return null;
 }
 
+function isNativePinnedGroup(group: Element): boolean {
+  const toggle = groupToggle(group);
+  if (
+    !/^(?:Expand|Collapse) Pinned section$/.test(
+      toggle?.getAttribute("aria-label") ?? "",
+    )
+  ) {
+    return false;
+  }
+  for (const button of group.querySelectorAll<HTMLButtonElement>(
+    SECTION_ROW_TOGGLE_SELECTOR,
+  )) {
+    if (button.closest(STICKY_GROUP_SELECTOR) === group) return false;
+  }
+  return true;
+}
+
 function visibleThreadGroups(sidebar: Element): Map<string, Element> {
   const groups = new Map<string, Element>();
   for (const row of sidebar.querySelectorAll<HTMLElement>(THREAD_SELECTOR)) {
@@ -34,13 +51,16 @@ function addExpandedGroupAndAncestors(
   controls: Set<HTMLButtonElement>,
   group: Element,
   userExpandedGroups: WeakSet<Element>,
+  pendingUserExpandedGroups: WeakSet<Element>,
 ): void {
   let current: Element | null = group;
   while (current) {
     const toggle = groupToggle(current);
     if (
+      !isNativePinnedGroup(current) &&
       toggle?.getAttribute("aria-expanded") === "true" &&
-      !userExpandedGroups.has(current)
+      !userExpandedGroups.has(current) &&
+      !pendingUserExpandedGroups.has(current)
     ) {
       controls.add(toggle);
     }
@@ -55,6 +75,9 @@ function mountSidebarCollapser(
 ): () => void {
   const expandedByGroup = new WeakMap<Element, boolean>();
   const userExpandedGroups = new WeakSet<Element>();
+  const pendingUserExpandedGroups = new WeakSet<Element>();
+  const controllerCollapseControls = new WeakSet<HTMLButtonElement>();
+  const pendingExpansionTimers = new Set<ReturnType<typeof setTimeout>>();
   const knownThreadGroups = visibleThreadGroups(sidebar);
   let scheduled = false;
 
@@ -67,13 +90,14 @@ function mountSidebarCollapser(
 
     for (const group of sidebar.querySelectorAll(STICKY_GROUP_SELECTOR)) {
       const toggle = groupToggle(group);
-      if (toggle === null) continue;
+      if (toggle === null || isNativePinnedGroup(group)) continue;
       const expanded = toggle.getAttribute("aria-expanded") === "true";
       const wasExpanded = expandedByGroup.get(group);
       if (!expanded) userExpandedGroups.delete(group);
       if (
         expanded &&
         !userExpandedGroups.has(group) &&
+        !pendingUserExpandedGroups.has(group) &&
         (wasExpanded === undefined || wasExpanded === false)
       ) {
         controls.add(toggle);
@@ -87,6 +111,7 @@ function mountSidebarCollapser(
           controls,
           currentGroup,
           userExpandedGroups,
+          pendingUserExpandedGroups,
         );
       }
       knownThreadGroups.set(id, currentGroup);
@@ -97,7 +122,12 @@ function mountSidebarCollapser(
         control.isConnected &&
         control.getAttribute("aria-expanded") === "true"
       ) {
-        control.click();
+        controllerCollapseControls.add(control);
+        try {
+          control.click();
+        } finally {
+          controllerCollapseControls.delete(control);
+        }
       }
     }
 
@@ -119,20 +149,29 @@ function mountSidebarCollapser(
       `${SECTION_TOGGLE_SELECTOR}, ${SECTION_ROW_TOGGLE_SELECTOR}`,
     );
     if (button === null) return;
+    if (controllerCollapseControls.has(button)) return;
     const group = button.closest(STICKY_GROUP_SELECTOR);
     if (group === null) return;
     const toggle = groupToggle(group);
-    if (toggle?.getAttribute("aria-expanded") === "false") {
-      queueMicrotask(() => {
+    if (toggle?.getAttribute("aria-expanded") === "true") {
+      userExpandedGroups.add(group);
+      return;
+    }
+    if (toggle !== null) {
+      pendingUserExpandedGroups.add(group);
+      const timer = setTimeout(() => {
+        pendingExpansionTimers.delete(timer);
+        pendingUserExpandedGroups.delete(group);
         if (
           !signal.aborted &&
           group.isConnected &&
           groupToggle(group)?.getAttribute("aria-expanded") === "true"
         ) {
           userExpandedGroups.add(group);
-          scheduleReconcile();
         }
-      });
+        scheduleReconcile();
+      }, 0);
+      pendingExpansionTimers.add(timer);
     }
   };
   sidebar.addEventListener("click", recordUserExpansion, true);
@@ -154,6 +193,8 @@ function mountSidebarCollapser(
     "abort",
     () => {
       observer.disconnect();
+      for (const timer of pendingExpansionTimers) clearTimeout(timer);
+      pendingExpansionTimers.clear();
       sidebar.removeEventListener("click", recordUserExpansion, true);
     },
     { once: true },
@@ -161,6 +202,8 @@ function mountSidebarCollapser(
 
   return () => {
     observer.disconnect();
+    for (const timer of pendingExpansionTimers) clearTimeout(timer);
+    pendingExpansionTimers.clear();
     sidebar.removeEventListener("click", recordUserExpansion, true);
   };
 }

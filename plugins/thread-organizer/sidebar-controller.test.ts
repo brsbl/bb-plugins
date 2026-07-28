@@ -7,6 +7,8 @@ function section(
   label: string,
   expanded: boolean,
   threadIds: string[],
+  commit: "sync" | "microtask" = "sync",
+  hasFullRowToggle = true,
 ): HTMLElement {
   const group = document.createElement("div");
   group.dataset.sidebarStickyGroup = "";
@@ -22,13 +24,22 @@ function section(
     );
   };
   setExpanded(expanded);
+  const toggleExpanded = () => {
+    const nextExpanded = button.getAttribute("aria-expanded") !== "true";
+    if (commit === "microtask") {
+      queueMicrotask(() => setExpanded(nextExpanded));
+    } else {
+      setExpanded(nextExpanded);
+    }
+  };
   button.addEventListener("click", () => {
-    setExpanded(button.getAttribute("aria-expanded") !== "true");
+    toggleExpanded();
   });
   rowToggle.addEventListener("click", () => {
-    setExpanded(button.getAttribute("aria-expanded") !== "true");
+    toggleExpanded();
   });
-  group.append(button, rowToggle);
+  group.append(button);
+  if (hasFullRowToggle) group.append(rowToggle);
   for (const id of threadIds) {
     const row = document.createElement("a");
     row.dataset.sidebarThreadId = id;
@@ -45,7 +56,7 @@ function sidebar(...groups: HTMLElement[]): HTMLElement {
 }
 
 function setup() {
-  const pinned = section("Pinned", true, ["thr_active"]);
+  const pinned = section("Pinned", true, ["thr_active"], "sync", false);
   const destination = section("Engineering", true, []);
   const root = sidebar(pinned, destination);
   document.body.append(root);
@@ -68,11 +79,11 @@ afterEach(() => {
 });
 
 describe("inbox section collapser", () => {
-  it("collapses every section, including the inbox, when the sidebar mounts", () => {
+  it("collapses sections on mount without collapsing the native Pinned inbox", () => {
     const { controller, destination, pinned } = setup();
 
     expect(toggle(destination).getAttribute("aria-expanded")).toBe("false");
-    expect(toggle(pinned).getAttribute("aria-expanded")).toBe("false");
+    expect(toggle(pinned).getAttribute("aria-expanded")).toBe("true");
     controller.abort();
   });
 
@@ -90,6 +101,24 @@ describe("inbox section collapser", () => {
 
     await vi.waitFor(() => expect(click).toHaveBeenCalledOnce());
     expect(collapse.getAttribute("aria-expanded")).toBe("false");
+    controller.abort();
+  });
+
+  it("never collapses the native Pinned inbox after a thread moves into it", async () => {
+    const { controller, destination, pinned } = setup();
+    const pinnedToggle = toggle(pinned);
+    const click = vi.spyOn(pinnedToggle, "click");
+    const row = pinned.querySelector<HTMLElement>(
+      '[data-sidebar-thread-id="thr_active"]',
+    )!;
+
+    destination.append(row);
+    await mutationsSettled();
+    pinned.append(row);
+    await mutationsSettled();
+
+    expect(click).not.toHaveBeenCalled();
+    expect(pinnedToggle.getAttribute("aria-expanded")).toBe("true");
     controller.abort();
   });
 
@@ -124,6 +153,49 @@ describe("inbox section collapser", () => {
     await mutationsSettled();
 
     expect(click).not.toHaveBeenCalled();
+    expect(sectionToggle.getAttribute("aria-expanded")).toBe("true");
+    controller.abort();
+  });
+
+  it("preserves a deliberate expansion when the native state commit is deferred", async () => {
+    const destination = section("Engineering", false, [], "microtask");
+    const root = sidebar(destination);
+    document.body.append(root);
+    const controller = new AbortController();
+    mountInboxSectionCollapser({ document, signal: controller.signal });
+    const sectionToggle = toggle(destination);
+
+    sectionToggle.click();
+    await mutationsSettled();
+
+    expect(sectionToggle.getAttribute("aria-expanded")).toBe("true");
+    controller.abort();
+  });
+
+  it("records a deliberate expansion when native handling runs first", async () => {
+    const destination = section("Engineering", false, []);
+    const originalToggle = toggle(destination);
+    const sectionToggle = originalToggle.cloneNode(true) as HTMLButtonElement;
+    originalToggle.replaceWith(sectionToggle);
+    const root = sidebar(destination);
+    root.addEventListener(
+      "click",
+      () => {
+        sectionToggle.setAttribute("aria-expanded", "true");
+        sectionToggle.setAttribute(
+          "aria-label",
+          "Collapse Engineering section",
+        );
+      },
+      true,
+    );
+    document.body.append(root);
+    const controller = new AbortController();
+    mountInboxSectionCollapser({ document, signal: controller.signal });
+
+    sectionToggle.click();
+    await mutationsSettled();
+
     expect(sectionToggle.getAttribute("aria-expanded")).toBe("true");
     controller.abort();
   });
