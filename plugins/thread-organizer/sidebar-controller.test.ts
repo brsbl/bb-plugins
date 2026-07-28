@@ -122,6 +122,42 @@ describe("inbox section collapser", () => {
     controller.abort();
   });
 
+  it("collapses a top-level custom section named Pinned", async () => {
+    const nativePinned = section(
+      "Pinned",
+      true,
+      ["thr_active"],
+      "sync",
+      false,
+    );
+    const customPinned = section("Pinned", true, [], "sync", false);
+    const action = document.createElement("button");
+    action.setAttribute("aria-label", "New thread in Pinned");
+    customPinned.append(action);
+    const root = sidebar(nativePinned, customPinned);
+    document.body.append(root);
+    const controller = new AbortController();
+    mountInboxSectionCollapser({ document, signal: controller.signal });
+    const nativeToggle = toggle(nativePinned);
+    const customToggle = toggle(customPinned);
+
+    expect(nativeToggle.getAttribute("aria-expanded")).toBe("true");
+    expect(customToggle.getAttribute("aria-expanded")).toBe("false");
+
+    const customClick = vi.spyOn(customToggle, "click");
+    const row = nativePinned.querySelector<HTMLElement>(
+      '[data-sidebar-thread-id="thr_active"]',
+    )!;
+    customToggle.setAttribute("aria-expanded", "true");
+    customToggle.setAttribute("aria-label", "Collapse Pinned section");
+    customPinned.append(row);
+
+    await vi.waitFor(() => expect(customClick).toHaveBeenCalledOnce());
+    expect(customToggle.getAttribute("aria-expanded")).toBe("false");
+    expect(nativeToggle.getAttribute("aria-expanded")).toBe("true");
+    controller.abort();
+  });
+
   it("remembers a thread while collapsed section contents are unmounted", async () => {
     const { controller, destination, pinned } = setup();
     const collapse = toggle(destination);
@@ -315,6 +351,34 @@ describe("inbox section collapser", () => {
     mountInboxSectionCollapser({ document, signal: controller.signal });
 
     expect(toggle(customPinned).getAttribute("aria-expanded")).toBe("false");
+    controller.abort();
+  });
+
+  it("retries a controller collapse once when drag-click suppression swallows it", async () => {
+    const destination = section("Engineering", true, []);
+    let suppressNextClick = true;
+    destination.addEventListener(
+      "click",
+      (event) => {
+        if (!suppressNextClick) return;
+        suppressNextClick = false;
+        event.preventDefault();
+        event.stopPropagation();
+      },
+      true,
+    );
+    const root = sidebar(destination);
+    document.body.append(root);
+    const sectionToggle = toggle(destination);
+    const click = vi.spyOn(sectionToggle, "click");
+    const controller = new AbortController();
+
+    mountInboxSectionCollapser({ document, signal: controller.signal });
+
+    await vi.waitFor(() =>
+      expect(sectionToggle.getAttribute("aria-expanded")).toBe("false"),
+    );
+    expect(click).toHaveBeenCalledTimes(2);
     controller.abort();
   });
 

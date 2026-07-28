@@ -30,7 +30,7 @@ function isNativePinnedGroup(group: Element): boolean {
     return false;
   }
   for (const button of group.querySelectorAll<HTMLButtonElement>(
-    SECTION_ROW_TOGGLE_SELECTOR,
+    `${SECTION_ROW_TOGGLE_SELECTOR}, button[aria-label="Pinned section actions"], button[aria-label="New thread in Pinned"]`,
   )) {
     if (button.closest(STICKY_GROUP_SELECTOR) === group) return false;
   }
@@ -122,12 +122,28 @@ function mountSidebarCollapser(
         control.isConnected &&
         control.getAttribute("aria-expanded") === "true"
       ) {
-        controllerCollapseControls.add(control);
-        try {
-          control.click();
-        } finally {
-          controllerCollapseControls.delete(control);
-        }
+        const collapse = (remainingAttempts: number) => {
+          if (
+            signal.aborted ||
+            !control.isConnected ||
+            control.getAttribute("aria-expanded") !== "true"
+          ) {
+            return;
+          }
+          controllerCollapseControls.add(control);
+          try {
+            control.click();
+          } finally {
+            controllerCollapseControls.delete(control);
+          }
+          if (
+            remainingAttempts > 1 &&
+            control.getAttribute("aria-expanded") === "true"
+          ) {
+            queueMicrotask(() => collapse(remainingAttempts - 1));
+          }
+        };
+        collapse(2);
       }
     }
 
