@@ -397,6 +397,48 @@ describe("Thread Organizer plugin", () => {
     }
   });
 
+  it("snoozes a manually unpinned idle thread until its next completed run", async () => {
+    vi.useFakeTimers();
+    try {
+      const organizer = createHarness({
+        existingThreads: true,
+        mode: "apply",
+        thread: { status: "idle" },
+      });
+      plugin(organizer.bb);
+
+      const service = organizer.harness.behavior.runService(
+        "inbox-reconciliation",
+      );
+      await vi.advanceTimersByTimeAsync(0);
+      expect(organizer.pin).toHaveBeenCalledTimes(1);
+
+      organizer.setThread({ pinnedAt: null, status: "idle" });
+      await vi.advanceTimersByTimeAsync(5_000);
+
+      expect(organizer.pin).toHaveBeenCalledTimes(1);
+      expect(organizer.currentThread().pinnedAt).toBeNull();
+
+      organizer.setThread({ status: "active" });
+      await organizer.harness.behavior.emitThreadEvent("thread.active", {
+        thread: organizer.currentThread(),
+      });
+      organizer.setThread({ status: "idle" });
+      await organizer.harness.behavior.emitThreadEvent("thread.idle", {
+        lastAssistantText: "Done.",
+        thread: organizer.currentThread(),
+      });
+
+      expect(organizer.pin).toHaveBeenCalledTimes(2);
+      expect(organizer.currentThread().pinnedAt).not.toBeNull();
+      service.controller.abort();
+      await service.done;
+      await organizer.harness.lifecycle.dispose();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("retries a transient reconciliation failure without a reload", async () => {
     const organizer = createHarness({
       existingThreads: true,

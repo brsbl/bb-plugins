@@ -33,6 +33,8 @@ interface ThreadState {
   createdAt: number;
   hasAppliedSection: boolean;
   hasAppliedTitle: boolean;
+  inboxObservedPinned: boolean;
+  inboxSnoozed: boolean;
   lastAppliedSectionId: string | null;
   lastAppliedTitle: string | null;
   lastCompletedSeq: number;
@@ -54,6 +56,8 @@ function initialState(thread: ThreadSeed): ThreadState {
     createdAt: thread.createdAt,
     hasAppliedSection: false,
     hasAppliedTitle: false,
+    inboxObservedPinned: false,
+    inboxSnoozed: false,
     lastAppliedSectionId: null,
     lastAppliedTitle: null,
     lastCompletedSeq: 0,
@@ -75,6 +79,10 @@ function isThreadState(value: unknown): value is ThreadState {
     typeof state.createdAt === "number" &&
     typeof state.hasAppliedSection === "boolean" &&
     typeof state.hasAppliedTitle === "boolean" &&
+    (typeof state.inboxObservedPinned === "boolean" ||
+      state.inboxObservedPinned === undefined) &&
+    (typeof state.inboxSnoozed === "boolean" ||
+      state.inboxSnoozed === undefined) &&
     (typeof state.lastAppliedSectionId === "string" ||
       state.lastAppliedSectionId === null) &&
     (typeof state.lastAppliedTitle === "string" ||
@@ -87,6 +95,14 @@ function isThreadState(value: unknown): value is ThreadState {
     typeof state.sectionLocked === "boolean" &&
     typeof state.titleLocked === "boolean"
   );
+}
+
+function normalizeThreadState(state: ThreadState): ThreadState {
+  return {
+    ...state,
+    inboxObservedPinned: state.inboxObservedPinned ?? false,
+    inboxSnoozed: state.inboxSnoozed ?? false,
+  };
 }
 
 function syncManualLocks(state: ThreadState, thread: Thread): boolean {
@@ -186,7 +202,7 @@ export default function plugin(bb: BbPluginApi): void {
   async function readState(threadId: string): Promise<ThreadState | null> {
     const stored = await bb.storage.kv.get<unknown>(stateKey(threadId));
     if (stored === undefined) return null;
-    if (isThreadState(stored)) return stored;
+    if (isThreadState(stored)) return normalizeThreadState(stored);
     bb.log.warn(`thread=${threadId} action=ignore-invalid-state`);
     return null;
   }
@@ -254,16 +270,27 @@ export default function plugin(bb: BbPluginApi): void {
 
   async function reconcileInbox(
     thread: Thread,
+    state: ThreadState,
     phase: "active" | "failed" | "idle",
     signal?: AbortSignal,
   ): Promise<void> {
     const { inboxMode } = await settings.get();
     if (signal?.aborted) return;
     const threadId = thread.id;
-    const shouldBeInInbox = phase !== "active";
-
-    if (shouldBeInInbox) {
-      if (thread.pinnedAt !== null) return;
+    if (phase !== "active") {
+      if (thread.pinnedAt !== null) {
+        state.inboxObservedPinned = true;
+        return;
+      }
+      if (state.inboxObservedPinned) {
+        state.inboxObservedPinned = false;
+        state.inboxSnoozed = true;
+        bb.log.info(
+          `thread=${threadId} phase=${phase} action=inbox-snoozed`,
+        );
+        return;
+      }
+      if (state.inboxSnoozed) return;
       if (inboxMode !== "apply") {
         bb.log.info(
           `thread=${threadId} phase=${phase} mode=observe action=propose-inbox-pin`,
@@ -272,13 +299,19 @@ export default function plugin(bb: BbPluginApi): void {
       }
       if (signal?.aborted) return;
       await bb.sdk.threads.pin({ threadId });
+      state.inboxObservedPinned = true;
       bb.log.info(
         `thread=${threadId} phase=${phase} mode=apply action=inbox-pinned`,
       );
       return;
     }
 
-    if (thread.pinnedAt === null) return;
+    state.inboxSnoozed = false;
+    if (thread.pinnedAt === null) {
+      state.inboxObservedPinned = false;
+      return;
+    }
+    state.inboxObservedPinned = true;
     if (inboxMode !== "apply") {
       bb.log.info(
         `thread=${threadId} phase=${phase} mode=observe action=propose-inbox-unpin`,
@@ -287,6 +320,7 @@ export default function plugin(bb: BbPluginApi): void {
     }
     if (signal?.aborted) return;
     await bb.sdk.threads.unpin({ threadId });
+    state.inboxObservedPinned = false;
     bb.log.info(
       `thread=${threadId} phase=${phase} mode=apply action=inbox-unpinned`,
     );
@@ -572,11 +606,9 @@ export default function plugin(bb: BbPluginApi): void {
       state = initialState(fresh);
     }
     if (signal?.aborted) return;
-    await reconcileInbox(fresh, inboxPhase(fresh), signal);
+    await reconcileInbox(fresh, state, inboxPhase(fresh), signal);
     if (signal?.aborted) return;
-    if (adopted) {
-      await saveState(threadId, state);
-    }
+    await saveState(threadId, state);
     if (adopted && isEligibleThread(fresh)) {
       await evaluate(threadId, "settings", signal);
     }
@@ -683,7 +715,8 @@ export default function plugin(bb: BbPluginApi): void {
         await bb.storage.kv.delete(stateKey(thread.id));
         return;
       }
-      await reconcileInbox(fresh, "active");
+      await reconcileInbox(fresh, state, "active");
+      await saveState(thread.id, state);
       await evaluate(thread.id, "active");
     }),
   );
@@ -714,7 +747,7 @@ export default function plugin(bb: BbPluginApi): void {
         await bb.storage.kv.delete(stateKey(thread.id));
         return;
       }
-      await reconcileInbox(fresh, "idle");
+      await reconcileInbox(fresh, state, "idle");
       await saveState(thread.id, state);
       if (due) await evaluate(thread.id, "turn");
     }),
@@ -731,7 +764,8 @@ export default function plugin(bb: BbPluginApi): void {
         await bb.storage.kv.delete(stateKey(thread.id));
         return;
       }
-      await reconcileInbox(fresh, "failed");
+      await reconcileInbox(fresh, state, "failed");
+      await saveState(thread.id, state);
     }),
   );
 
@@ -763,7 +797,8 @@ export default function plugin(bb: BbPluginApi): void {
               await bb.storage.kv.delete(stateKey(threadId));
               return;
             }
-            await reconcileInbox(thread, inboxPhase(thread));
+            await reconcileInbox(thread, state, inboxPhase(thread));
+            await saveState(threadId, state);
             await evaluate(threadId, "settings");
           });
         }

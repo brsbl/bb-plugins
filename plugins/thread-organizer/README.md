@@ -44,6 +44,7 @@ Threads that do not clear the confidence threshold stay unsectioned. The plugin 
 | Creation | Uses project identity and the prompt-derived title fallback for an early section proposal |
 | Activation | Removes inbox pinning and returns the thread to its semantic section |
 | Idle or failed | Pins the thread into the top inbox area without clearing its semantic section |
+| Manual unpin | Keeps the idle thread out of the inbox until its next run completes |
 | First completed turn | Refines the section and repairs a still-missing title |
 | Later turns | Re-evaluates at turns 5, 15, 25, and every ten completed turns thereafter |
 
