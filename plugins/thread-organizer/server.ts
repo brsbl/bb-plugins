@@ -33,6 +33,7 @@ interface ThreadState {
   createdAt: number;
   hasAppliedSection: boolean;
   hasAppliedTitle: boolean;
+  inboxManagedPinnedAt: number | null;
   inboxObservedPinned: boolean;
   inboxSnoozed: boolean;
   lastAppliedSectionId: string | null;
@@ -56,6 +57,7 @@ function initialState(thread: ThreadSeed): ThreadState {
     createdAt: thread.createdAt,
     hasAppliedSection: false,
     hasAppliedTitle: false,
+    inboxManagedPinnedAt: null,
     inboxObservedPinned: false,
     inboxSnoozed: false,
     lastAppliedSectionId: null,
@@ -79,6 +81,9 @@ function isThreadState(value: unknown): value is ThreadState {
     typeof state.createdAt === "number" &&
     typeof state.hasAppliedSection === "boolean" &&
     typeof state.hasAppliedTitle === "boolean" &&
+    (typeof state.inboxManagedPinnedAt === "number" ||
+      state.inboxManagedPinnedAt === null ||
+      state.inboxManagedPinnedAt === undefined) &&
     (typeof state.inboxObservedPinned === "boolean" ||
       state.inboxObservedPinned === undefined) &&
     (typeof state.inboxSnoozed === "boolean" ||
@@ -100,6 +105,7 @@ function isThreadState(value: unknown): value is ThreadState {
 function normalizeThreadState(state: ThreadState): ThreadState {
   return {
     ...state,
+    inboxManagedPinnedAt: state.inboxManagedPinnedAt ?? null,
     inboxObservedPinned: state.inboxObservedPinned ?? false,
     inboxSnoozed: state.inboxSnoozed ?? false,
   };
@@ -279,10 +285,17 @@ export default function plugin(bb: BbPluginApi): void {
     const threadId = thread.id;
     if (phase !== "active") {
       if (thread.pinnedAt !== null) {
+        if (
+          state.inboxManagedPinnedAt !== null &&
+          state.inboxManagedPinnedAt !== thread.pinnedAt
+        ) {
+          state.inboxManagedPinnedAt = null;
+        }
         state.inboxObservedPinned = true;
         return;
       }
       if (state.inboxObservedPinned) {
+        state.inboxManagedPinnedAt = null;
         state.inboxObservedPinned = false;
         state.inboxSnoozed = true;
         bb.log.info(
@@ -298,7 +311,8 @@ export default function plugin(bb: BbPluginApi): void {
         return;
       }
       if (signal?.aborted) return;
-      await bb.sdk.threads.pin({ threadId });
+      const pinned = await bb.sdk.threads.pin({ threadId });
+      state.inboxManagedPinnedAt = pinned.pinnedAt;
       state.inboxObservedPinned = true;
       bb.log.info(
         `thread=${threadId} phase=${phase} mode=apply action=inbox-pinned`,
@@ -308,10 +322,15 @@ export default function plugin(bb: BbPluginApi): void {
 
     state.inboxSnoozed = false;
     if (thread.pinnedAt === null) {
+      state.inboxManagedPinnedAt = null;
       state.inboxObservedPinned = false;
       return;
     }
     state.inboxObservedPinned = true;
+    if (state.inboxManagedPinnedAt !== thread.pinnedAt) {
+      state.inboxManagedPinnedAt = null;
+      return;
+    }
     if (inboxMode !== "apply") {
       bb.log.info(
         `thread=${threadId} phase=${phase} mode=observe action=propose-inbox-unpin`,
@@ -320,6 +339,7 @@ export default function plugin(bb: BbPluginApi): void {
     }
     if (signal?.aborted) return;
     await bb.sdk.threads.unpin({ threadId });
+    state.inboxManagedPinnedAt = null;
     state.inboxObservedPinned = false;
     bb.log.info(
       `thread=${threadId} phase=${phase} mode=apply action=inbox-unpinned`,

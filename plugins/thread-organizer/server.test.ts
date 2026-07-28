@@ -300,6 +300,34 @@ describe("Thread Organizer plugin", () => {
     await organizer.harness.lifecycle.dispose();
   });
 
+  it("remembers organizer-owned pins across reloads", async () => {
+    const organizer = createHarness({ mode: "apply" });
+    plugin(organizer.bb);
+    await organizer.harness.behavior.emitThreadEvent("thread.created", {
+      thread: organizer.currentThread(),
+    });
+    organizer.setThread({ status: "idle" });
+    await organizer.harness.behavior.emitThreadEvent("thread.idle", {
+      lastAssistantText: "Done.",
+      thread: organizer.currentThread(),
+    });
+    expect(
+      await organizer.bb.storage.kv.get("thread:v1:thr_test"),
+    ).toMatchObject({
+      inboxManagedPinnedAt: organizer.currentThread().pinnedAt,
+    });
+
+    const reloaded = await organizer.harness.lifecycle.reload(plugin);
+    organizer.setThread({ status: "active" });
+    await reloaded.harness.behavior.emitThreadEvent("thread.active", {
+      thread: organizer.currentThread(),
+    });
+
+    expect(organizer.unpin).toHaveBeenCalledWith({ threadId: "thr_test" });
+    expect(organizer.currentThread().pinnedAt).toBeNull();
+    await reloaded.harness.lifecycle.dispose();
+  });
+
   it("adopts an existing idle thread into the inbox on startup", async () => {
     const organizer = createHarness({
       existingThreads: true,
@@ -369,7 +397,7 @@ describe("Thread Organizer plugin", () => {
       const organizer = createHarness({
         existingThreads: true,
         mode: "apply",
-        thread: { status: "active" },
+        thread: { status: "idle" },
       });
       plugin(organizer.bb);
 
@@ -382,8 +410,9 @@ describe("Thread Organizer plugin", () => {
       });
       await vi.advanceTimersByTimeAsync(0);
       expect(settled).toBe(false);
+      expect(organizer.pin).toHaveBeenCalledWith({ threadId: "thr_test" });
 
-      organizer.setThread({ pinnedAt: 100, status: "active" });
+      organizer.setThread({ status: "active" });
       await vi.advanceTimersByTimeAsync(5_000);
 
       expect(organizer.unpin).toHaveBeenCalledWith({
@@ -598,7 +627,7 @@ describe("Thread Organizer plugin", () => {
     await host.harness.lifecycle.dispose();
   });
 
-  it("unpins an active thread even when it was pinned manually", async () => {
+  it("preserves a manually pinned active thread", async () => {
     const organizer = createHarness({
       mode: "apply",
       thread: { pinnedAt: 10 },
@@ -614,12 +643,12 @@ describe("Thread Organizer plugin", () => {
     });
 
     expect(organizer.pin).not.toHaveBeenCalled();
-    expect(organizer.unpin).toHaveBeenCalledWith({ threadId: "thr_test" });
-    expect(organizer.currentThread().pinnedAt).toBeNull();
+    expect(organizer.unpin).not.toHaveBeenCalled();
+    expect(organizer.currentThread().pinnedAt).toBe(10);
     await organizer.harness.lifecycle.dispose();
   });
 
-  it("unpins active work after a manual unpin and re-pin", async () => {
+  it("preserves a manual re-pin of an organizer-managed thread", async () => {
     const organizer = createHarness({ mode: "apply" });
     plugin(organizer.bb);
     await organizer.harness.behavior.emitThreadEvent("thread.created", {
@@ -632,6 +661,14 @@ describe("Thread Organizer plugin", () => {
       thread: organizer.currentThread(),
     });
     organizer.setThread({
+      pinnedAt: null,
+      status: "idle",
+    });
+    await organizer.harness.behavior.emitThreadEvent("thread.idle", {
+      lastAssistantText: "Still done.",
+      thread: organizer.currentThread(),
+    });
+    organizer.setThread({
       pinnedAt: 100,
       status: "active",
     });
@@ -639,8 +676,8 @@ describe("Thread Organizer plugin", () => {
       thread: organizer.currentThread(),
     });
 
-    expect(organizer.unpin).toHaveBeenCalledWith({ threadId: "thr_test" });
-    expect(organizer.currentThread().pinnedAt).toBeNull();
+    expect(organizer.unpin).not.toHaveBeenCalled();
+    expect(organizer.currentThread().pinnedAt).toBe(100);
     await organizer.harness.lifecycle.dispose();
   });
 
