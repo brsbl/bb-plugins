@@ -316,7 +316,7 @@ function CommentPanel({ threadId, revealMessage }: PluginThreadPanelProps) {
 }
 
 export default definePluginApp((app) => {
-  app.experimental_contentScripts.register({
+  app.contentScripts.register({
     id: "timeline-comment-anchors",
     mount: mountTimelineCommentsController,
   });
@@ -332,7 +332,7 @@ export default definePluginApp((app) => {
     component: CommentPanel,
     layout: "flush",
   });
-  app.slots.experimental_messageAction({
+  app.slots.messageAction({
     id: "comment-selection",
     title: "Comment",
     icon: "MessageSquare",

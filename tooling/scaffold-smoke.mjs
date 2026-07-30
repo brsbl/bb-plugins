@@ -52,7 +52,7 @@ async function createFixtureRepository(directory) {
         type: "module",
         workspaces: ["plugins/*", "packages/*"],
         devDependencies: {
-          "@bb/plugin-sdk": "file:tooling/vendor/bb-plugin-sdk-0.4.0.tgz",
+          "@bb/plugin-sdk": rootManifest.devDependencies["@bb/plugin-sdk"],
           "@tailwindcss/node": rootManifest.devDependencies["@tailwindcss/node"],
           "@tailwindcss/oxide": rootManifest.devDependencies["@tailwindcss/oxide"],
           esbuild: rootManifest.devDependencies.esbuild,
@@ -243,6 +243,26 @@ try {
     expectedScreenshot: screenshot,
   });
   await checkRepository(fixtureRoot, { bundledTypesDirectory });
+
+  const serverMetaPath = resolve(generated.directory, "dist/server.meta.json");
+  const serverMetaRaw = await readFile(serverMetaPath, "utf8");
+  const serverMeta = JSON.parse(serverMetaRaw);
+  serverMeta.builtWith.pluginSdkVersion = "0.4.999";
+  await writeFile(serverMetaPath, `${JSON.stringify(serverMeta, null, 2)}\n`);
+  await assert.rejects(
+    validatePluginArtifacts(generated.directory),
+    /expected builtWith\.pluginSdkVersion=/,
+  );
+  await writeFile(serverMetaPath, serverMetaRaw);
+
+  const serverBundlePath = resolve(generated.directory, "dist/server.js");
+  const serverBundle = await readFile(serverBundlePath, "utf8");
+  await writeFile(serverBundlePath, `${serverBundle}\nimport "zod";\n`);
+  await assert.rejects(
+    validatePluginArtifacts(generated.directory),
+    /server bundle has unmanaged runtime import "zod"/,
+  );
+  await writeFile(serverBundlePath, serverBundle);
 
   await rm(resolve(fixtureRoot, "node_modules"), {
     recursive: true,

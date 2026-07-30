@@ -10,7 +10,7 @@ import {
 
 export function UiPatternsComposerAction() {
   const navigate = useBbNavigate();
-  const openThreadPanel = navigate.experimental_openThreadPanel;
+  const openThreadPanel = navigate.openThreadPanel;
 
   if (typeof openThreadPanel !== "function") return null;
 

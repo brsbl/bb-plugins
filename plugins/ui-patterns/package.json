@@ -11,7 +11,7 @@
   "license": "UNLICENSED",
   "engines": {
     "bb": ">=0.34.0",
-    "bbPluginSdk": "^0.4.0"
+    "bbPluginSdk": "^0.4.1"
   },
   "bb": {
     "name": "UI Patterns",
@@ -92,7 +92,7 @@
     "zod": "^4.3.6"
   },
   "devDependencies": {
-    "@bb/plugin-sdk": "file:../../tooling/vendor/bb-plugin-sdk-0.4.0.tgz",
+    "@bb/plugin-sdk": "file:../../tooling/vendor/bb-plugin-sdk-0.4.1.tgz",
     "@radix-ui/react-dialog": "^1.1.19",
     "@testing-library/react": "^16.3.2",
     "@tailwindcss/node": "4.3.0",

@@ -169,7 +169,7 @@ describe("Improve Prompt composer action", () => {
     expect(document.querySelector("style")).toBeNull();
     const builtCss = await readFile(resolve("dist/app.css"), "utf8");
     expect(builtCss).toContain(".bb-improve-prompt-shimmer");
-    expect(builtCss).toContain('[data-bb-plugin-decoration="prompt-shaper"]');
+    expect(builtCss).toContain('@scope ([data-bb-plugin="prompt-shaper"]');
     expect((improveButton as HTMLButtonElement).disabled).toBe(false);
     expect(fireEvent.mouseDown(improveButton)).toBe(false);
     fireEvent.click(improveButton);

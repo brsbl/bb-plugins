@@ -85,7 +85,7 @@ async function filesBelow(directory, prefix = "") {
   return files;
 }
 
-export function releaseManifest(sourceManifest, bundledPackageNames = new Set()) {
+export function releaseManifest(sourceManifest) {
   const manifest = structuredClone(sourceManifest);
   delete manifest.devDependencies;
   delete manifest.scripts;
@@ -95,90 +95,9 @@ export function releaseManifest(sourceManifest, bundledPackageNames = new Set())
   // also carries plugin-authored CSS through that second build.
   if (manifest.bb?.app) manifest.bb.app = releaseAppEntry;
   for (const field of productionDependencyFields) {
-    const dependencies = manifest[field];
-    if (!dependencies) continue;
-    for (const [name, version] of Object.entries(dependencies)) {
-      if (bundledPackageNames.has(name)) {
-        dependencies[name] = `file:${bundledPackageVendorPath(name)}`;
-        continue;
-      }
-      if (String(version).startsWith("file:")) {
-        throw new Error(`${manifest.name}: production dependency ${name} uses ${version}`);
-      }
-    }
-    if (Object.keys(dependencies).length === 0) delete manifest[field];
+    delete manifest[field];
   }
   return `${JSON.stringify(manifest, null, 2)}\n`;
-}
-
-function bundledPackageVendorPath(name) {
-  if (!/^(?:@[a-z0-9][a-z0-9._-]*\/)?[a-z0-9][a-z0-9._-]*$/.test(name)) {
-    throw new Error(`invalid bundled package name: ${name}`);
-  }
-  return `vendor/${name}`;
-}
-
-function bundledPackageInstallPath(name) {
-  bundledPackageVendorPath(name);
-  return `node_modules/${name}`;
-}
-
-function bundledPackageRuntimeManifest(sourceManifest) {
-  const manifest = structuredClone(sourceManifest);
-  delete manifest.devDependencies;
-  delete manifest.scripts;
-  delete manifest.private;
-  return `${JSON.stringify(manifest, null, 2)}\n`;
-}
-
-function normalizeBundledPackageFilePath(entry) {
-  if (typeof entry !== "string") {
-    throw new Error(`invalid bundled package file path: ${String(entry)}`);
-  }
-  const normalized = entry.replace(/\\/g, "/").replace(/^\.\//, "").replace(/\/+$/, "");
-  if (
-    normalized === "" ||
-    normalized.startsWith("/") ||
-    normalized.split("/").some((segment) => segment === "." || segment === "..")
-  ) {
-    throw new Error(`invalid bundled package file path: ${entry}`);
-  }
-  return normalized;
-}
-
-function bundledPackageFileIncluded(relativePath, manifestFiles) {
-  return manifestFiles.some((entry) => {
-    const normalized = normalizeBundledPackageFilePath(entry);
-    return relativePath === normalized || relativePath.startsWith(`${normalized}/`);
-  });
-}
-
-async function readBundledPackages() {
-  const packagesDirectory = resolve(root, "packages");
-  const entries = await readdir(packagesDirectory, {
-    withFileTypes: true,
-  }).catch((error) => {
-    if (error?.code === "ENOENT") return [];
-    throw error;
-  });
-  const packages = new Map();
-  for (const entry of entries) {
-    if (!entry.isDirectory() || entry.name.startsWith(".")) continue;
-    const directory = resolve(packagesDirectory, entry.name);
-    const manifest = JSON.parse(await readFile(resolve(directory, "package.json"), "utf8"));
-    if (!manifest.name) {
-      throw new Error(`packages/${entry.name}/package.json has no package name`);
-    }
-    if (!Array.isArray(manifest.files) || manifest.files.length === 0) {
-      throw new Error(`packages/${entry.name}/package.json has no runtime files allowlist`);
-    }
-    bundledPackageVendorPath(manifest.name);
-    for (const runtimePath of manifest.files) {
-      normalizeBundledPackageFilePath(runtimePath);
-    }
-    packages.set(manifest.name, { directory, manifest });
-  }
-  return packages;
 }
 
 function addBlob(indexPath, repositoryPath, input) {
@@ -189,7 +108,15 @@ function addBlob(indexPath, repositoryPath, input) {
   );
 }
 
-async function createReleaseTree(plugin, sourceCommit, bundledPackages) {
+function addBlobFile(indexPath, repositoryPath, sourcePath) {
+  const blob = git(["hash-object", "-w", sourcePath]);
+  git(
+    ["update-index", "--add", "--cacheinfo", `100644,${blob},${repositoryPath}`],
+    { env: { GIT_INDEX_FILE: indexPath } },
+  );
+}
+
+async function createReleaseTree(plugin, sourceCommit) {
   const pluginDirectory = resolve(root, plugin.source);
   const sourceManifest = JSON.parse(
     await readFile(resolve(pluginDirectory, "package.json"), "utf8"),
@@ -220,34 +147,7 @@ async function createReleaseTree(plugin, sourceCommit, bundledPackages) {
     }
 
     for (const file of await filesBelow(resolve(pluginDirectory, "dist"))) {
-      const contents = await readFile(file.absolutePath);
-      addBlob(indexPath, `dist/${file.relativePath}`, contents);
-    }
-
-    const bundledPackageNames = new Set(bundledPackages.keys());
-    for (const field of productionDependencyFields) {
-      const dependencies = sourceManifest[field];
-      if (!dependencies) continue;
-      for (const name of Object.keys(dependencies)) {
-        const bundledPackage = bundledPackages.get(name);
-        if (!bundledPackage) continue;
-        const vendorPath = bundledPackageVendorPath(name);
-        const packagePaths = [vendorPath, bundledPackageInstallPath(name)];
-        const runtimeManifest = bundledPackageRuntimeManifest(bundledPackage.manifest);
-        for (const packagePath of packagePaths) {
-          addBlob(indexPath, `${packagePath}/package.json`, runtimeManifest);
-        }
-        for (const file of await filesBelow(bundledPackage.directory)) {
-          if (file.relativePath === "package.json") continue;
-          if (!bundledPackageFileIncluded(file.relativePath, bundledPackage.manifest.files)) {
-            continue;
-          }
-          const contents = await readFile(file.absolutePath);
-          for (const packagePath of packagePaths) {
-            addBlob(indexPath, `${packagePath}/${file.relativePath}`, contents);
-          }
-        }
-      }
+      addBlobFile(indexPath, `dist/${file.relativePath}`, file.absolutePath);
     }
 
     if (sourceManifest.bb?.app) {
@@ -275,7 +175,7 @@ async function createReleaseTree(plugin, sourceCommit, bundledPackages) {
     addBlob(
       indexPath,
       "package.json",
-      releaseManifest(sourceManifest, bundledPackageNames),
+      releaseManifest(sourceManifest),
     );
 
     return git(["write-tree"], { env: { GIT_INDEX_FILE: indexPath } });
@@ -376,47 +276,7 @@ export function assertPublishWorktreeClean(
   }
 }
 
-function bundledPluginDependencyNames(plugin, bundledPackageNames) {
-  const names = new Set();
-  for (const field of productionDependencyFields) {
-    for (const name of Object.keys(plugin.manifest[field] ?? {})) {
-      if (bundledPackageNames.has(name)) names.add(name);
-    }
-  }
-  return [...names];
-}
-
-async function verifyBundledRuntimePackage(plugin, directory, name, location) {
-  const bundledManifest = JSON.parse(
-    await readFile(resolve(directory, "package.json"), "utf8").catch((error) => {
-      if (error?.code === "ENOENT") {
-        throw new Error(
-          `${plugin.installRef}: ${location} omits bundled runtime package ${name}`,
-        );
-      }
-      throw error;
-    }),
-  );
-  if (bundledManifest.name !== name) {
-    throw new Error(
-      `${plugin.installRef}: ${location} runtime package ${name} has mismatched manifest name`,
-    );
-  }
-  for (const runtimePath of bundledManifest.files ?? []) {
-    const normalized = normalizeBundledPackageFilePath(runtimePath);
-    const details = await stat(resolve(directory, normalized)).catch((error) => {
-      if (error?.code === "ENOENT") return null;
-      throw error;
-    });
-    if (details === null) {
-      throw new Error(
-        `${plugin.installRef}: ${location} runtime package ${name} omits ${normalized}`,
-      );
-    }
-  }
-}
-
-async function verifyReleaseCommit(plugin, releaseCommit, bundledPackageNames) {
+async function verifyReleaseCommit(plugin, releaseCommit) {
   const checkoutRoot = await mkdtemp(
     resolve(tmpdir(), `bb-plugin-install-${plugin.slug}-`),
   );
@@ -435,37 +295,17 @@ async function verifyReleaseCommit(plugin, releaseCommit, bundledPackageNames) {
     if (manifest.devDependencies || manifest.scripts) {
       throw new Error(`${plugin.installRef}: release manifest contains development-only fields`);
     }
+    for (const field of productionDependencyFields) {
+      if (manifest[field] !== undefined) {
+        throw new Error(
+          `${plugin.installRef}: release manifest contains ${field}`,
+        );
+      }
+    }
     if (manifest.bb?.app && manifest.bb.app !== releaseAppEntry) {
       throw new Error(`${plugin.installRef}: release app entry is not the prebuilt wrapper`);
     }
 
-    const bundledDependencyNames = bundledPluginDependencyNames(
-      plugin,
-      bundledPackageNames,
-    );
-    for (const name of bundledDependencyNames) {
-      const vendorPath = bundledPackageVendorPath(name);
-      const sourceField = productionDependencyFields.find(
-        (field) => plugin.manifest[field]?.[name] !== undefined,
-      );
-      if (manifest[sourceField]?.[name] !== `file:${vendorPath}`) {
-        throw new Error(
-          `${plugin.installRef}: release manifest does not install bundled runtime package ${name}`,
-        );
-      }
-      await verifyBundledRuntimePackage(
-        plugin,
-        resolve(checkout, vendorPath),
-        name,
-        "release vendor",
-      );
-      await verifyBundledRuntimePackage(
-        plugin,
-        resolve(checkout, bundledPackageInstallPath(name)),
-        name,
-        "release checkout",
-      );
-    }
     await validatePluginArtifacts(checkout, {
       expectedId: plugin.pluginId,
       expectedName: plugin.name,
@@ -510,14 +350,6 @@ async function verifyReleaseCommit(plugin, releaseCommit, bundledPackageNames) {
       ],
       { cwd: checkout },
     );
-    for (const name of bundledDependencyNames) {
-      await verifyBundledRuntimePackage(
-        plugin,
-        resolve(checkout, "node_modules", name),
-        name,
-        "production install",
-      );
-    }
     await validatePluginArtifacts(checkout, {
       expectedId: plugin.pluginId,
       expectedName: plugin.name,
@@ -530,8 +362,6 @@ async function verifyReleaseCommit(plugin, releaseCommit, bundledPackageNames) {
 export async function publishInstallRefs(options = {}) {
   const push = options.push ?? false;
   const plugins = await readPluginWorkspaces(root);
-  const bundledPackages = await readBundledPackages();
-  const bundledPackageNames = new Set(bundledPackages.keys());
   if (push) assertPublishWorktreeClean();
   const sourceRevision = git(["rev-parse", "HEAD"]);
 
@@ -552,24 +382,20 @@ export async function publishInstallRefs(options = {}) {
       .at(-1);
     if (!sourceCommit) throw new Error(`no subtree commit produced for ${plugin.slug}`);
 
-    const candidateTree = await createReleaseTree(
-      plugin,
-      sourceCommit,
-      bundledPackages,
-    );
+    const candidateTree = await createReleaseTree(plugin, sourceCommit);
     const currentCommit = currentReleaseCommit(plugin, push);
     const currentTree = currentCommit
       ? git(["rev-parse", `${currentCommit}^{tree}`])
       : null;
     if (currentCommit && currentTree === candidateTree) {
-      await verifyReleaseCommit(plugin, currentCommit, bundledPackageNames);
+      await verifyReleaseCommit(plugin, currentCommit);
       console.log(`${plugin.installRef} ${currentCommit} unchanged and verified`);
       continue;
     }
 
     const releaseCommit = createReleaseCommit(plugin, candidateTree, sourceRevision);
     const ref = `refs/heads/${plugin.installRef}`;
-    await verifyReleaseCommit(plugin, releaseCommit, bundledPackageNames);
+    await verifyReleaseCommit(plugin, releaseCommit);
     git(["update-ref", ref, releaseCommit]);
 
     if (push) {
