@@ -1,6 +1,6 @@
 # bb plugins
 
-Five bb plugins I use for product design work, kept together with the few build and repository tools they share. [![CI](https://github.com/brsbl/bb-plugins/actions/workflows/ci.yml/badge.svg)](https://github.com/brsbl/bb-plugins/actions/workflows/ci.yml)
+Seven bb plugins I use for product design work, kept together with the few build and repository tools they share. [![CI](https://github.com/brsbl/bb-plugins/actions/workflows/ci.yml/badge.svg)](https://github.com/brsbl/bb-plugins/actions/workflows/ci.yml)
 
 [bb](https://getbb.app) is an agentic IDE for running coding agents across projects, threads, and environments. Its plugins can add UI, commands, skills, and server capabilities; this repository is where I build and maintain mine.
 
@@ -27,6 +27,16 @@ Turns a rough composer draft into a clearer, context-complete prompt before you 
 [Source](plugins/improve-prompt) · [README](plugins/improve-prompt/README.md)
 
 Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/improve-prompt --yes`
+
+### Moss Notes
+
+Keeps each bb thread synchronized with its corresponding workspace folder in Moss.
+
+![Moss Notes in bb](plugins/moss-notes/docs/screenshot.png)
+
+[Source](plugins/moss-notes) · [README](plugins/moss-notes/README.md)
+
+Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/moss-notes --yes`
 
 ### Thread Hover Cards
 

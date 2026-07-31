@@ -982,7 +982,7 @@ describe("Thread Organizer plugin", () => {
     await organizer.harness.lifecycle.dispose();
   });
 
-  it("recovers organizer pin ownership after the post-pin state save fails", async () => {
+  it("preserves ambiguous pin ownership after the post-pin state save fails", async () => {
     const organizer = createHarness({ mode: "apply" });
     plugin(organizer.bb);
     await organizer.harness.behavior.emitThreadEvent("thread.created", {
@@ -1022,7 +1022,8 @@ describe("Thread Organizer plugin", () => {
       expect(
         await reloaded.bb.storage.kv.get("thread:v1:thr_test"),
       ).toMatchObject({
-        inboxManagedPinnedAt: organizer.currentThread().pinnedAt,
+        inboxManagedPinnedAt: null,
+        inboxObservedPinned: true,
         inboxPendingPin: false,
       });
     });
@@ -1031,9 +1032,52 @@ describe("Thread Organizer plugin", () => {
     await reloaded.harness.behavior.emitThreadEvent("thread.active", {
       thread: organizer.currentThread(),
     });
-    expect(organizer.unpin).toHaveBeenCalledWith({
-      threadId: "thr_test",
+    expect(organizer.unpin).not.toHaveBeenCalled();
+    expect(organizer.currentThread().pinnedAt).not.toBeNull();
+    await reloaded.harness.lifecycle.dispose();
+  });
+
+  it("does not adopt a manual re-pin after the post-pin state save fails", async () => {
+    const organizer = createHarness({ mode: "apply" });
+    plugin(organizer.bb);
+    await organizer.harness.behavior.emitThreadEvent("thread.created", {
+      thread: organizer.currentThread(),
     });
+
+    const originalSet = organizer.bb.storage.kv.set.bind(
+      organizer.bb.storage.kv,
+    );
+    let failPostPinSave = true;
+    vi.spyOn(organizer.bb.storage.kv, "set").mockImplementation(
+      async (key, value) => {
+        if (
+          failPostPinSave &&
+          organizer.currentThread().pinnedAt !== null
+        ) {
+          failPostPinSave = false;
+          throw new Error("post-pin save failed");
+        }
+        await originalSet(key, value);
+      },
+    );
+
+    organizer.setThread({ status: "idle" });
+    await organizer.harness.behavior.emitThreadEvent("thread.idle", {
+      lastAssistantText: "Done.",
+      thread: organizer.currentThread(),
+    });
+    expect(
+      await organizer.bb.storage.kv.get("thread:v1:thr_test"),
+    ).toMatchObject({ inboxPendingPin: true });
+
+    const reloaded = await organizer.harness.lifecycle.reload(plugin);
+    organizer.setThread({ pinnedAt: 100, status: "active" });
+    await reloaded.harness.behavior.emitThreadEvent("thread.active", {
+      thread: organizer.currentThread(),
+    });
+
+    expect(organizer.unpin).not.toHaveBeenCalled();
+    expect(organizer.currentThread().pinnedAt).toBe(100);
     await reloaded.harness.lifecycle.dispose();
   });
 

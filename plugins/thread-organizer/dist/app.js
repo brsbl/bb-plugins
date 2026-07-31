@@ -223,7 +223,11 @@ function mountInboxSectionCollapser({
 
 // app.ts
 var app_default = definePluginApp((app) => {
-  app.contentScripts.register({
+  const contentScripts = app.contentScripts ?? app.experimental_contentScripts;
+  if (contentScripts === void 0) {
+    throw new Error("BB does not expose the content scripts plugin API");
+  }
+  contentScripts.register({
     id: "collapse-unpinned-destination",
     mount: ({ signal }) => mountInboxSectionCollapser({ signal })
   });

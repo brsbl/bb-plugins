@@ -483,11 +483,11 @@ function plugin(bb) {
     state.inboxLastPhase = phase;
     if (startedNewRun) state.inboxSnoozed = false;
     if (state.inboxPendingPin && thread.pinnedAt !== null) {
-      state.inboxManagedPinnedAt = thread.pinnedAt;
+      state.inboxManagedPinnedAt = null;
       state.inboxObservedPinned = true;
       state.inboxPendingPin = false;
-      bb.log.info(
-        `thread=${threadId} phase=${phase} action=inbox-pin-adopted`
+      bb.log.warn(
+        `thread=${threadId} phase=${phase} action=inbox-pin-ownership-ambiguous`
       );
     }
     let recoveredManagedUnpin = false;
