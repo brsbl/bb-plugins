@@ -21,6 +21,10 @@ import {
 } from "@bb/plugin-sdk/testing/app";
 
 import type { rpcContract } from "./server";
+import {
+  installPromptThreadStatusController,
+  THREAD_ROW_STATUS,
+} from "./thread-status.js";
 
 vi.mock("sonner", () => ({
   toast: {
@@ -235,6 +239,61 @@ describe("Improve Prompt composer action", () => {
     expect(actionSlot.inspection.composer.text).toBe("rough side-chat draft");
     expect(actionSlot.inspection.composer.attachmentCount).toBe(1);
     expect(actionSlot.inspection.composer.focusCount).toBe(2);
+  });
+
+  it("decorates the visible parent thread while enhancing a side-chat child", async () => {
+    const setThreadRowStatus = vi.fn();
+    const disposeThreadStatus = installPromptThreadStatusController(
+      setThreadRowStatus,
+    );
+    configureAction({
+      text: "rough side-chat draft",
+      scope: {
+        kind: "side-chat",
+        projectId: "proj_1",
+        parentThreadId: "thr_parent",
+        tabId: "side-chat:one",
+        childThreadId: "thr_child",
+      },
+      rpc: {
+        startEnhancement: () => ({
+          requestId: REQUEST_ID,
+          helperThreadId: "thr_helper",
+        }),
+        getEnhancement: () => ({
+          requestId: REQUEST_ID,
+          helperThreadId: "thr_helper",
+          status: "running",
+          createdAt: 1,
+        }),
+        cancelEnhancement: () => ({ cancelled: true }),
+      },
+    });
+
+    try {
+      const Action = await loadAction();
+      mountAction(Action);
+      fireEvent.click(screen.getByRole("button", { name: "Improve prompt" }));
+
+      await waitFor(() => {
+        expect(actionSlot.inspection.rpcCalls).toContainEqual({
+          method: "startEnhancement",
+          input: expect.objectContaining({
+            sourceThreadId: "thr_child",
+          }),
+        });
+        expect(setThreadRowStatus).toHaveBeenCalledWith(
+          "thr_parent",
+          THREAD_ROW_STATUS,
+        );
+      });
+      expect(setThreadRowStatus).not.toHaveBeenCalledWith(
+        "thr_child",
+        THREAD_ROW_STATUS,
+      );
+    } finally {
+      disposeThreadStatus();
+    }
   });
 
   it("keeps a durable request after the first result fetch fails and retries on realtime", async () => {
@@ -600,7 +659,7 @@ describe("Improve Prompt composer action", () => {
       expect(actionSlot.inspection.composer.threadRowStatus).toEqual({
         icon: "AiContentGenerator01",
         label: "Improve Prompt is improving the draft",
-        tone: "success",
+        tone: "running",
       });
     });
 
