@@ -595,7 +595,6 @@ describe("Improve Prompt composer action", () => {
         });
         expect(actionSlot.inspection.composer.textEffect).toBeNull();
         expect(actionSlot.inspection.composer.inputLocked).toBe(false);
-        expect(actionSlot.inspection.composer.threadRowStatus).toBeNull();
         expect(window.sessionStorage.length).toBe(0);
         expect(
           screen.getByRole("button", { name: "Improve prompt" }),
@@ -656,11 +655,6 @@ describe("Improve Prompt composer action", () => {
       expect(actionSlot.inspection.composer.textEffect).toEqual({
         className: "bb-improve-prompt-shimmer",
       });
-      expect(actionSlot.inspection.composer.threadRowStatus).toEqual({
-        icon: "AiContentGenerator01",
-        label: "Improve Prompt is improving the draft",
-        tone: "running",
-      });
     });
 
     await driveComposerText("edited while enhancement was running");
@@ -682,7 +676,6 @@ describe("Improve Prompt composer action", () => {
         "Enhanced prompt with the missing guardrail.",
       );
       expect(actionSlot.inspection.composer.textEffect).toBeNull();
-      expect(actionSlot.inspection.composer.threadRowStatus).toBeNull();
     });
     expect(actionSlot.inspection.composer.attachmentCount).toBe(1);
     expect(screen.queryByRole("dialog")).toBeNull();
@@ -766,7 +759,6 @@ describe("Improve Prompt composer action", () => {
         screen.getByRole("button", { name: "Improve prompt" }),
       ).not.toBeNull();
       expect(actionSlot.inspection.composer.textEffect).toBeNull();
-      expect(actionSlot.inspection.composer.threadRowStatus).toBeNull();
     });
     expect(cancelEnhancement).not.toHaveBeenCalled();
     expect(window.sessionStorage.length).toBe(1);
@@ -1001,7 +993,6 @@ describe("Improve Prompt composer action", () => {
       expect(
         icon?.parentElement?.classList.contains("motion-safe:animate-pulse"),
       ).toBe(true);
-      expect(actionSlot.inspection.composer.threadRowStatus).not.toBeNull();
       expect(
         actionSlot.inspection.rpcCalls.map((call) => call.method),
       ).toContain("getEnhancement");
@@ -1017,7 +1008,6 @@ describe("Improve Prompt composer action", () => {
       });
       expect(actionSlot.inspection.composer.textEffect).toBeNull();
       expect(actionSlot.inspection.composer.inputLocked).toBe(false);
-      expect(actionSlot.inspection.composer.threadRowStatus).toBeNull();
       expect(window.sessionStorage.length).toBe(0);
     });
     expect(actionSlot.inspection.composer.text).toBe("keep this draft");
@@ -1084,7 +1074,6 @@ describe("Improve Prompt composer action", () => {
       expect(actionSlot.inspection.composer.textEffect).toEqual({
         className: "bb-improve-prompt-shimmer",
       });
-      expect(actionSlot.inspection.composer.threadRowStatus).not.toBeNull();
       expect(
         screen.getByRole("button", { name: "Cancel prompt improvement" }),
       ).not.toBeNull();
@@ -1142,7 +1131,6 @@ describe("Improve Prompt composer action", () => {
       expect(cancelEnhancement).toHaveBeenCalledTimes(2);
       expect(actionSlot.inspection.composer.inputLocked).toBe(false);
       expect(actionSlot.inspection.composer.textEffect).toBeNull();
-      expect(actionSlot.inspection.composer.threadRowStatus).toBeNull();
       expect(window.sessionStorage.length).toBe(0);
       expect(
         screen.getByRole("button", { name: "Improve prompt" }),
@@ -1192,7 +1180,6 @@ describe("Improve Prompt composer action", () => {
       expect(getCalls).toBe(2);
       expect(window.sessionStorage.length).toBe(0);
       expect(actionSlot.inspection.composer.textEffect).toBeNull();
-      expect(actionSlot.inspection.composer.threadRowStatus).toBeNull();
       expect(
         screen.getByRole("button", { name: "Improve prompt" }),
       ).not.toBeNull();
@@ -1331,7 +1318,6 @@ describe("Improve Prompt composer action", () => {
       expect(actionSlot.inspection.composer.textEffect).toEqual({
         className: "bb-improve-prompt-shimmer",
       });
-      expect(actionSlot.inspection.composer.threadRowStatus).not.toBeNull();
     });
 
     await driveComposerScope({
@@ -1341,7 +1327,6 @@ describe("Improve Prompt composer action", () => {
 
     await waitFor(() => {
       expect(actionSlot.inspection.composer.textEffect).toBeNull();
-      expect(actionSlot.inspection.composer.threadRowStatus).toBeNull();
     });
     expect(actionSlot.inspection.composer.text).toBe("rough draft");
   });
@@ -1364,12 +1349,10 @@ describe("Improve Prompt composer action", () => {
       expect(actionSlot.inspection.composer.textEffect).toEqual({
         className: "bb-improve-prompt-shimmer",
       });
-      expect(actionSlot.inspection.composer.threadRowStatus).not.toBeNull();
     });
 
     view.lifecycle.unmount();
     expect(actionSlot.inspection.composer.textEffect).toBeNull();
-    expect(actionSlot.inspection.composer.threadRowStatus).toBeNull();
 
     window.sessionStorage.clear();
     configureAction({
@@ -1387,7 +1370,6 @@ describe("Improve Prompt composer action", () => {
 
     await waitFor(() => {
       expect(actionSlot.inspection.composer.textEffect).toBeNull();
-      expect(actionSlot.inspection.composer.threadRowStatus).toBeNull();
       expect(toast.error).toHaveBeenCalledWith("agent unavailable");
     });
     expect(actionSlot.inspection.composer.textEffectCalls).toContainEqual({
@@ -1444,7 +1426,6 @@ describe("Improve Prompt composer action", () => {
       expect(window.sessionStorage.length).toBe(0);
     });
     expect(actionSlot.inspection.composer.textEffect).toBeNull();
-    expect(actionSlot.inspection.composer.threadRowStatus).toBeNull();
 
     await act(async () => {
       result.resolve({
@@ -1521,7 +1502,6 @@ describe("Improve Prompt composer action", () => {
       expect(cancelEnhancement).toHaveBeenCalledTimes(2);
       expect(window.sessionStorage.length).toBe(0);
       expect(actionSlot.inspection.composer.textEffect).toBeNull();
-      expect(actionSlot.inspection.composer.threadRowStatus).toBeNull();
     });
 
     await act(async () => {
@@ -1698,7 +1678,6 @@ describe("Improve Prompt composer action", () => {
           screen.getByRole("button", { name: "Improve prompt" }),
         ).not.toBeNull();
         expect(actionSlot.inspection.composer.textEffect).toBeNull();
-        expect(actionSlot.inspection.composer.threadRowStatus).toBeNull();
       },
       { timeout: 4_000 },
     );
@@ -1744,6 +1723,5 @@ describe("Improve Prompt composer action", () => {
     expect(cancelEnhancement).not.toHaveBeenCalled();
     expect(window.sessionStorage.length).toBe(1);
     expect(actionSlot.inspection.composer.textEffect).toBeNull();
-    expect(actionSlot.inspection.composer.threadRowStatus).toBeNull();
   });
 });

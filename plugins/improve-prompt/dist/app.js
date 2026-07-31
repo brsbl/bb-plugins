@@ -5151,11 +5151,9 @@ function PromptShaperAction() {
   useEffect(() => {
     composer.setTextEffect(isRunning ? PROMPT_SHIMMER_EFFECT : null);
     composer.setInputLock(isRunning);
-    composer.setThreadRowStatus(isRunning ? THREAD_ROW_STATUS : null);
   }, [
     composer.setInputLock,
     composer.setTextEffect,
-    composer.setThreadRowStatus,
     isRunning
   ]);
   useEffect(() => {
@@ -5167,18 +5165,15 @@ function PromptShaperAction() {
     return () => {
       composer.setInputLock(false);
       composer.setTextEffect(null);
-      composer.setThreadRowStatus(null);
     };
   }, [
     composer.setInputLock,
     composer.setTextEffect,
-    composer.setThreadRowStatus,
     composerScopeKey
   ]);
   const clearLoadingEffects = useCallback(() => {
     composerRef.current.setInputLock(false);
     composerRef.current.setTextEffect(null);
-    composerRef.current.setThreadRowStatus(null);
   }, []);
   const cancelInBackground = useCallback(
     (request) => {
@@ -5362,7 +5357,6 @@ function PromptShaperAction() {
     setUndoState(null);
     composer.setTextEffect(PROMPT_SHIMMER_EFFECT);
     composer.setInputLock(true);
-    composer.setThreadRowStatus(THREAD_ROW_STATUS);
     setPendingRequest(request);
     trackThreadStatus(request);
     locallyStartingRequestIds.add(request.requestId);
