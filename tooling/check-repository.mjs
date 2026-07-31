@@ -4,6 +4,10 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { readPluginWorkspaces } from "./plugin-workspaces.mjs";
+import {
+  pluginSdkArchive,
+  pluginSdkVersion,
+} from "./plugin-sdk-provenance.mjs";
 
 const defaultRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -97,6 +101,11 @@ export async function checkRepository(repositoryRoot = defaultRoot, options = {}
   assert(rootManifest.workspaces.includes("plugins/*"), "plugins workspace missing");
   assert(rootManifest.workspaces.includes("packages/*"), "packages workspace missing");
   assert(
+    rootManifest.devDependencies?.["@bb/plugin-sdk"] ===
+      `file:tooling/vendor/${pluginSdkArchive}`,
+    "root plugin SDK dependency drift",
+  );
+  assert(
     !(await stat(resolve(root, "plugins/design-loop")).catch(() => null)),
     "Design Loop is intentionally excluded",
   );
@@ -135,7 +144,17 @@ export async function checkRepository(repositoryRoot = defaultRoot, options = {}
       manifest.engines?.bb === (minimumBbEngines.get(slug) ?? ">=0.0.34"),
       `${slug}: bb engine drift`,
     );
-    assert(manifest.engines?.bbPluginSdk === "^0.4.0", `${slug}: SDK engine drift`);
+    assert(
+      manifest.engines?.bbPluginSdk === `^${pluginSdkVersion}`,
+      `${slug}: SDK engine drift`,
+    );
+    if (manifest.devDependencies?.["@bb/plugin-sdk"] !== undefined) {
+      assert(
+        manifest.devDependencies["@bb/plugin-sdk"] ===
+          `file:../../tooling/vendor/${pluginSdkArchive}`,
+        `${slug}: plugin SDK dependency drift`,
+      );
+    }
     assert(pluginReadme.startsWith(`# ${name}\n`), `${slug}: README title drift`);
     for (const heading of ["## Install", "## Use", "## Develop"]) {
       assert(pluginReadme.includes(heading), `${slug}: README missing ${heading}`);

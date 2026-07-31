@@ -348,8 +348,8 @@ var testPluginSdkApp = {
       [composer, version]
     );
   },
-  experimental_ThreadChat: TestThreadChat,
-  experimental_Markdown: TestMarkdown,
+  ThreadChat: TestThreadChat,
+  Markdown: TestMarkdown,
   useComposerView() {
     const composer = useSlotEnv("useComposerView").composer;
     const version = useSyncExternalStore(
@@ -536,8 +536,8 @@ function collectRegistrations(definition) {
           component: requireComponent(kind, registration.component)
         });
       },
-      experimental_messageAction(registration) {
-        const kind = "slots.experimental_messageAction";
+      messageAction(registration) {
+        const kind = "slots.messageAction";
         const id = requireSlotId(kind, registration?.id);
         requireUniqueId(kind, seenIds.messageAction, id);
         if (typeof registration.run !== "function") {
@@ -587,9 +587,9 @@ function collectRegistrations(definition) {
         }
       }
     },
-    experimental_contentScripts: {
+    contentScripts: {
       register(registration) {
-        const kind = "experimental_contentScripts.register";
+        const kind = "contentScripts.register";
         const id = requireSlotId(kind, registration?.id);
         requireUniqueId(kind, seenIds.contentScript, id);
         if (typeof registration.mount !== "function") {
@@ -826,9 +826,9 @@ function renderSlot(registration, props, options = {}) {
         ...composeOptions !== void 0 ? { options: composeOptions } : {}
       });
     },
-    experimental_openThreadPanel(panelOptions) {
+    openThreadPanel(panelOptions) {
       navigateCalls.push({
-        method: "experimental_openThreadPanel",
+        method: "openThreadPanel",
         options: panelOptions
       });
       return options.openThreadPanel?.(panelOptions) ?? false;

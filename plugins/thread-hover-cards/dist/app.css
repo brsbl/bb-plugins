@@ -107,7 +107,7 @@
   initial-value: 0;
 }
 @layer utilities {
-  @scope ([data-bb-plugin="thread-hover-cards"], [data-bb-plugin-root]:not([data-bb-plugin]), [data-bb-plugin-decoration="thread-hover-cards"]) {
+  @scope ([data-bb-plugin="thread-hover-cards"], [data-bb-plugin-root]:not([data-bb-plugin])) {
     .collapse {
       visibility: collapse;
     }
@@ -149,6 +149,9 @@
     }
     .flex {
       display: flex;
+    }
+    .grid {
+      display: grid;
     }
     .hidden {
       display: none;

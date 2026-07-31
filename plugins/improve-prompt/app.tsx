@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   definePluginApp,
+  type PluginAppComposer,
+  type PluginAppContentScripts,
   useBbContext,
   useComposer,
   useComposerView,
@@ -20,6 +22,11 @@ import {
 } from "@/components/ui/tooltip";
 import type { rpcContract } from "./server";
 import { scopeKey } from "./core.js";
+import {
+  clearPromptRun,
+  installPromptThreadStatusController,
+  trackPromptRun,
+} from "./thread-status.js";
 
 interface PendingRequest {
   cancellationRequested: boolean;
@@ -49,11 +56,12 @@ const locallyStartingRequestIds = new Set<string>();
 const PROMPT_SHIMMER_EFFECT = {
   className: "bb-improve-prompt-shimmer",
 } as const;
-const THREAD_ROW_STATUS = {
-  icon: "AiContentGenerator01",
-  label: "Improve Prompt is improving the draft",
-  tone: "success",
-} as const;
+
+interface ContentScriptCompatibleApp {
+  readonly composer: PluginAppComposer;
+  readonly contentScripts?: PluginAppContentScripts;
+  readonly experimental_contentScripts?: PluginAppContentScripts;
+}
 
 export function resetLocallyStartingRequestsForTest(): void {
   locallyStartingRequestIds.clear();
@@ -133,11 +141,12 @@ function savePendingRequest(request: PendingRequest): void {
 function clearPendingRequest(request: PendingRequest): void {
   try {
     const stored = loadPendingRequest(request.scopeKey);
-    if (stored?.requestId !== request.requestId) return;
+    if (stored !== null && stored.requestId !== request.requestId) return;
     window.sessionStorage.removeItem(pendingStorageKey(request.scopeKey));
   } catch {
     // Session storage is a recovery aid; enhancement still works without it.
   }
+  clearPromptRun(request.requestId);
 }
 
 function signalRequestId(payload: unknown): string | null {
@@ -200,11 +209,17 @@ function PromptShaperAction() {
     view.scope.kind === "side-chat" || view.scope.kind === "new-thread"
       ? view.scope.projectId
       : context.projectId;
-  const threadId =
+  const sourceThreadId =
     view.scope.kind === "thread" || view.scope.kind === "queued-message"
       ? view.scope.threadId
       : view.scope.kind === "side-chat"
         ? (view.scope.childThreadId ?? view.scope.parentThreadId)
+        : null;
+  const statusThreadId =
+    view.scope.kind === "thread" || view.scope.kind === "queued-message"
+      ? view.scope.threadId
+      : view.scope.kind === "side-chat"
+        ? view.scope.parentThreadId
         : null;
   const rpc = useRpc<typeof rpcContract>();
   const [pending, setPending] = useState<PendingRequest | null>(() =>
@@ -239,14 +254,53 @@ function PromptShaperAction() {
     setPending(next);
   }, []);
 
+  const trackThreadStatus = useCallback(
+    (request: PendingRequest) => {
+      if (statusThreadId === null) return;
+      trackPromptRun({
+        requestId: request.requestId,
+        threadId: statusThreadId,
+        getState: async () => {
+          const record = await rpcRef.current.call("getEnhancement", {
+            requestId: request.requestId,
+          });
+          if (record?.status === "running") return "running";
+          if (record !== null) return "terminal";
+
+          const stored = readPendingStorage(request.scopeKey);
+          const durable =
+            stored.request?.requestId === request.requestId
+              ? stored.request
+              : null;
+          const markerWasRemoved = stored.available && durable === null;
+          const startupWasAcknowledged =
+            (durable ?? request).startup === "acknowledged";
+          const startupGraceExpired =
+            Date.now() - (durable ?? request).createdAt >= STARTUP_GRACE_MS;
+          const startupIsLocallyInFlight = locallyStartingRequestIds.has(
+            request.requestId,
+          );
+          return markerWasRemoved ||
+            startupWasAcknowledged ||
+            (startupGraceExpired && !startupIsLocallyInFlight)
+            ? "terminal"
+            : "running";
+        },
+      });
+    },
+    [statusThreadId],
+  );
+
+  useEffect(() => {
+    if (isRunning && pending !== null) trackThreadStatus(pending);
+  }, [isRunning, pending, trackThreadStatus]);
+
   useEffect(() => {
     composer.setTextEffect(isRunning ? PROMPT_SHIMMER_EFFECT : null);
     composer.setInputLock(isRunning);
-    composer.setThreadRowStatus(isRunning ? THREAD_ROW_STATUS : null);
   }, [
     composer.setInputLock,
     composer.setTextEffect,
-    composer.setThreadRowStatus,
     isRunning,
   ]);
 
@@ -264,19 +318,16 @@ function PromptShaperAction() {
     return () => {
       composer.setInputLock(false);
       composer.setTextEffect(null);
-      composer.setThreadRowStatus(null);
     };
   }, [
     composer.setInputLock,
     composer.setTextEffect,
-    composer.setThreadRowStatus,
     composerScopeKey,
   ]);
 
   const clearLoadingEffects = useCallback(() => {
     composerRef.current.setInputLock(false);
     composerRef.current.setTextEffect(null);
-    composerRef.current.setThreadRowStatus(null);
   }, []);
 
   const cancelInBackground = useCallback(
@@ -527,8 +578,8 @@ function PromptShaperAction() {
     setUndoState(null);
     composer.setTextEffect(PROMPT_SHIMMER_EFFECT);
     composer.setInputLock(true);
-    composer.setThreadRowStatus(THREAD_ROW_STATUS);
     setPendingRequest(request);
+    trackThreadStatus(request);
     locallyStartingRequestIds.add(request.requestId);
 
     try {
@@ -536,7 +587,7 @@ function PromptShaperAction() {
         requestId: request.requestId,
         draft,
         projectId,
-        sourceThreadId: threadId,
+        sourceThreadId,
       });
       locallyStartingRequestIds.delete(request.requestId);
 
@@ -594,7 +645,8 @@ function PromptShaperAction() {
     projectId,
     rpc,
     setPendingRequest,
-    threadId,
+    sourceThreadId,
+    trackThreadStatus,
     view.run.isSubmitting,
   ]);
 
@@ -747,9 +799,22 @@ function PromptShaperAction() {
   );
 }
 
-export default definePluginApp((app) => {
+export function registerPromptPluginApp(app: ContentScriptCompatibleApp): void {
+  const contentScripts =
+    app.contentScripts ?? app.experimental_contentScripts;
+  contentScripts?.register({
+    id: "thread-status",
+    mount({ experimental_setThreadRowStatus }) {
+      if (experimental_setThreadRowStatus === undefined) return;
+      return installPromptThreadStatusController(
+        experimental_setThreadRowStatus,
+      );
+    },
+  });
   app.composer.customize({
     id: "improve-prompt",
     actions: [{ id: "improve", component: PromptShaperAction }],
   });
-});
+}
+
+export default definePluginApp((app) => registerPromptPluginApp(app));

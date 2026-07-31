@@ -126708,9 +126708,9 @@ if (runtime2 == null || runtime2.pluginSdkApp == null) {
 }
 var mod2 = runtime2.pluginSdkApp;
 var {
+  Markdown,
+  ThreadChat,
   definePluginApp,
-  experimental_Markdown,
-  experimental_ThreadChat,
   useBbContext,
   useBbNavigate,
   useComposer,
@@ -126822,7 +126822,7 @@ TooltipContent2.displayName = Content.displayName;
 init_jsx_runtime();
 function UiPatternsComposerAction() {
   const navigate = useBbNavigate();
-  const openThreadPanel = navigate.experimental_openThreadPanel;
+  const openThreadPanel = navigate.openThreadPanel;
   if (typeof openThreadPanel !== "function") return null;
   return /* @__PURE__ */ jsx(TooltipProvider2, { delayDuration: 300, children: /* @__PURE__ */ jsxs(Tooltip2, { children: [
     /* @__PURE__ */ jsx(TooltipTrigger2, { asChild: true, children: /* @__PURE__ */ jsx(

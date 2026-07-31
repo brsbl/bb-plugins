@@ -52,7 +52,7 @@ async function createFixtureRepository(directory) {
         type: "module",
         workspaces: ["plugins/*", "packages/*"],
         devDependencies: {
-          "@bb/plugin-sdk": "file:tooling/vendor/bb-plugin-sdk-0.4.0.tgz",
+          "@bb/plugin-sdk": rootManifest.devDependencies["@bb/plugin-sdk"],
           "@tailwindcss/node": rootManifest.devDependencies["@tailwindcss/node"],
           "@tailwindcss/oxide": rootManifest.devDependencies["@tailwindcss/oxide"],
           esbuild: rootManifest.devDependencies.esbuild,
@@ -165,49 +165,27 @@ try {
     /invalid expected commit/,
   );
   const releasedManifest = JSON.parse(
-    releaseManifest(
-      {
-        name: "bb-plugin-release-smoke",
-        dependencies: {
-          "@fixture/bundled-helper": "0.1.0",
-          "external-runtime": "^2.0.0",
-        },
-        optionalDependencies: {
-          "@fixture/optional-bundled-helper": "0.1.0",
-        },
-        peerDependencies: {
-          "external-peer": "^3.0.0",
-        },
-        devDependencies: { typescript: "^5.7.0" },
-        scripts: { check: "tsc --noEmit" },
+    releaseManifest({
+      name: "bb-plugin-release-smoke",
+      dependencies: {
+        "@fixture/bundled-helper": "0.1.0",
+        "external-runtime": "^2.0.0",
       },
-      new Set([
-        "@fixture/bundled-helper",
-        "@fixture/optional-bundled-helper",
-      ]),
-    ),
+      optionalDependencies: {
+        "@fixture/optional-bundled-helper": "0.1.0",
+      },
+      peerDependencies: {
+        "external-peer": "^3.0.0",
+      },
+      devDependencies: { typescript: "^5.7.0" },
+      scripts: { check: "tsc --noEmit" },
+    }),
   );
-  assert.deepEqual(releasedManifest.dependencies, {
-    "@fixture/bundled-helper": "file:vendor/@fixture/bundled-helper",
-    "external-runtime": "^2.0.0",
-  });
-  assert.deepEqual(releasedManifest.optionalDependencies, {
-    "@fixture/optional-bundled-helper":
-      "file:vendor/@fixture/optional-bundled-helper",
-  });
-  assert.deepEqual(releasedManifest.peerDependencies, {
-    "external-peer": "^3.0.0",
-  });
+  assert.equal(releasedManifest.dependencies, undefined);
+  assert.equal(releasedManifest.optionalDependencies, undefined);
+  assert.equal(releasedManifest.peerDependencies, undefined);
   assert.equal(releasedManifest.devDependencies, undefined);
   assert.equal(releasedManifest.scripts, undefined);
-  assert.throws(
-    () =>
-      releaseManifest({
-        name: "bb-plugin-release-smoke",
-        dependencies: { accidental: "file:../accidental" },
-      }),
-    /production dependency accidental uses file:/,
-  );
   await createFixtureRepository(fixtureRoot);
 
   const description = "Verifies the personal bb plugin scaffold.";
@@ -243,6 +221,26 @@ try {
     expectedScreenshot: screenshot,
   });
   await checkRepository(fixtureRoot, { bundledTypesDirectory });
+
+  const serverMetaPath = resolve(generated.directory, "dist/server.meta.json");
+  const serverMetaRaw = await readFile(serverMetaPath, "utf8");
+  const serverMeta = JSON.parse(serverMetaRaw);
+  serverMeta.builtWith.pluginSdkVersion = "0.4.999";
+  await writeFile(serverMetaPath, `${JSON.stringify(serverMeta, null, 2)}\n`);
+  await assert.rejects(
+    validatePluginArtifacts(generated.directory),
+    /expected builtWith\.pluginSdkVersion=/,
+  );
+  await writeFile(serverMetaPath, serverMetaRaw);
+
+  const serverBundlePath = resolve(generated.directory, "dist/server.js");
+  const serverBundle = await readFile(serverBundlePath, "utf8");
+  await writeFile(serverBundlePath, `${serverBundle}\nimport "zod";\n`);
+  await assert.rejects(
+    validatePluginArtifacts(generated.directory),
+    /server bundle has unmanaged runtime import "zod"/,
+  );
+  await writeFile(serverBundlePath, serverBundle);
 
   await rm(resolve(fixtureRoot, "node_modules"), {
     recursive: true,

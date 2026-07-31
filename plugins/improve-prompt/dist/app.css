@@ -119,7 +119,7 @@
   initial-value: 0;
 }
 @layer utilities {
-  @scope ([data-bb-plugin="prompt-shaper"], [data-bb-plugin-root]:not([data-bb-plugin]), [data-bb-plugin-decoration="prompt-shaper"]) {
+  @scope ([data-bb-plugin="prompt-shaper"], [data-bb-plugin-root]:not([data-bb-plugin])) {
     .collapse {
       visibility: collapse;
     }
@@ -1434,7 +1434,6 @@
     }
   }
 }
-@scope ([data-bb-plugin="prompt-shaper"], [data-bb-plugin-root]:not([data-bb-plugin]), [data-bb-plugin-decoration="prompt-shaper"]) {
 /* app.css */
 @keyframes bb-improve-prompt-shimmer {
   from {
@@ -1462,6 +1461,4 @@
   .bb-improve-prompt-shimmer {
     animation: none;
   }
-}
-
 }

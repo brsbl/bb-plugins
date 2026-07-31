@@ -3,6 +3,11 @@ import { dirname, resolve } from "node:path";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
+import {
+  pluginSdkArchive,
+  pluginSdkVersion,
+} from "./plugin-sdk-provenance.mjs";
+
 const defaultRepositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
 function command(executable, args, repositoryRoot) {
@@ -64,7 +69,7 @@ function filesFor(options) {
       test: "vitest run",
       typecheck: "tsc --noEmit",
     },
-    engines: { bb: ">=0.0.34", bbPluginSdk: "^0.4.0" },
+    engines: { bb: ">=0.0.34", bbPluginSdk: `^${pluginSdkVersion}` },
     bb: {
       name: options.name,
       description: options.description,
@@ -73,7 +78,7 @@ function filesFor(options) {
       skills: [],
     },
     devDependencies: {
-      "@bb/plugin-sdk": "file:../../tooling/vendor/bb-plugin-sdk-0.4.0.tgz",
+      "@bb/plugin-sdk": `file:../../tooling/vendor/${pluginSdkArchive}`,
       "@types/better-sqlite3": "^7.6.12",
       "@types/node": "^22.0.0",
       "better-sqlite3": "^12.10.0",

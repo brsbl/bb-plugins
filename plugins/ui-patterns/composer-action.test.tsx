@@ -12,7 +12,7 @@ const navigation = vi.hoisted(() => ({
 vi.mock("@bb/plugin-sdk/app", () => ({
   useBbNavigate: () =>
     navigation.supported
-      ? { experimental_openThreadPanel: navigation.openThreadPanel }
+      ? { openThreadPanel: navigation.openThreadPanel }
       : {},
 }));
 
