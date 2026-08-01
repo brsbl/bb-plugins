@@ -197,12 +197,12 @@ export const HOVER_CARD_CSS = String.raw`
 
 .bb-thread-hover-card__footer {
   position: relative;
-  background: var(--muted);
+  background: color-mix(in srgb, var(--muted) 10%, transparent);
   color: var(--muted-foreground);
   margin-inline: -0.75rem;
   margin-bottom: -0.75rem;
   padding-inline: 0.75rem;
-  padding-top: 0.5rem;
+  padding-top: 0.25rem;
   padding-bottom: 0.75rem;
 }
 
@@ -211,7 +211,11 @@ export const HOVER_CARD_CSS = String.raw`
   top: -0.75rem;
   inset-inline: 0;
   height: 0.75rem;
-  background: linear-gradient(to bottom, transparent, var(--muted));
+  background: linear-gradient(
+    to bottom,
+    transparent,
+    color-mix(in srgb, var(--muted) 10%, transparent)
+  );
   content: "";
   pointer-events: none;
 }

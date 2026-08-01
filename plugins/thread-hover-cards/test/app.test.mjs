@@ -409,11 +409,11 @@ assert.doesNotMatch(style.textContent, /--font-mono/);
 assert.match(style.textContent, /\.bb-thread-hover-card__context/);
 assert.match(
   style.textContent,
-  /\.bb-thread-hover-card__footer \{[\s\S]*?background: var\(--muted\);[\s\S]*?margin-inline: -0\.75rem;[\s\S]*?padding-inline: 0\.75rem;[\s\S]*?padding-top: 0\.5rem;/,
+  /\.bb-thread-hover-card__footer \{[\s\S]*?background: color-mix\(in srgb, var\(--muted\) 10%, transparent\);[\s\S]*?margin-inline: -0\.75rem;[\s\S]*?padding-inline: 0\.75rem;[\s\S]*?padding-top: 0\.25rem;/,
 );
 assert.match(
   style.textContent,
-  /\.bb-thread-hover-card__footer::before \{[\s\S]*?top: -0\.75rem;[\s\S]*?height: 0\.75rem;[\s\S]*?background: linear-gradient\(to bottom, transparent, var\(--muted\)\);[\s\S]*?pointer-events: none;/,
+  /\.bb-thread-hover-card__footer::before \{[\s\S]*?top: -0\.75rem;[\s\S]*?height: 0\.75rem;[\s\S]*?background: linear-gradient\([\s\S]*?transparent,[\s\S]*?color-mix\(in srgb, var\(--muted\) 10%, transparent\)[\s\S]*?\);[\s\S]*?pointer-events: none;/,
 );
 assert.match(
   style.textContent,
