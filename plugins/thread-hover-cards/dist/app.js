@@ -689,6 +689,27 @@ var HOVER_CARD_CSS = String.raw`
   color: var(--muted-foreground);
 }
 
+.bb-thread-hover-card__footer {
+  position: relative;
+  background: var(--muted);
+  color: var(--muted-foreground);
+  margin-inline: -0.75rem;
+  margin-bottom: -0.75rem;
+  padding-inline: 0.75rem;
+  padding-top: 0.5rem;
+  padding-bottom: 0.75rem;
+}
+
+.bb-thread-hover-card__footer::before {
+  position: absolute;
+  top: -0.75rem;
+  inset-inline: 0;
+  height: 0.75rem;
+  background: linear-gradient(to bottom, transparent, var(--muted));
+  content: "";
+  pointer-events: none;
+}
+
 .bb-thread-hover-card__context {
   width: 100%;
   flex-wrap: nowrap;
@@ -736,11 +757,6 @@ var HOVER_CARD_CSS = String.raw`
 .bb-thread-hover-card__branch-name,
 .bb-thread-hover-card__local-path {
   flex: 1 1 auto;
-}
-
-.bb-thread-hover-card__project-name,
-.bb-thread-hover-card__branch-name {
-  color: color-mix(in srgb, var(--muted-foreground) 78%, transparent);
 }
 
 .bb-thread-hover-card__local {
@@ -1588,6 +1604,7 @@ function renderSummary(card, summary) {
   }
   if (times.childElementCount > 0) header.append(times);
   const content = [header];
+  const footer = element("footer", "bb-thread-hover-card__footer");
   const summaryMessage = summary.latestAssistantMessage;
   if (summaryMessage) {
     const request = element("section", "bb-thread-hover-card__summary");
@@ -1670,7 +1687,7 @@ function renderSummary(card, summary) {
       pullRequest.append(pullRequestLink);
       context.append(pullRequest);
     }
-    content.push(context);
+    footer.append(context);
   }
   if (!summary.repository.isGitRepository) {
     const localContext = summary.repository.path?.trim() || (summary.repository.name === "Repository unavailable" ? "Local" : summary.repository.name);
@@ -1693,8 +1710,9 @@ function renderSummary(card, summary) {
       ),
       localPath
     );
-    content.push(local);
+    footer.append(local);
   }
+  if (footer.childElementCount > 0) content.push(footer);
   card.replaceChildren(...content);
   refreshRunTime(card);
 }

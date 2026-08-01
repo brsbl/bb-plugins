@@ -195,6 +195,27 @@ export const HOVER_CARD_CSS = String.raw`
   color: var(--muted-foreground);
 }
 
+.bb-thread-hover-card__footer {
+  position: relative;
+  background: var(--muted);
+  color: var(--muted-foreground);
+  margin-inline: -0.75rem;
+  margin-bottom: -0.75rem;
+  padding-inline: 0.75rem;
+  padding-top: 0.5rem;
+  padding-bottom: 0.75rem;
+}
+
+.bb-thread-hover-card__footer::before {
+  position: absolute;
+  top: -0.75rem;
+  inset-inline: 0;
+  height: 0.75rem;
+  background: linear-gradient(to bottom, transparent, var(--muted));
+  content: "";
+  pointer-events: none;
+}
+
 .bb-thread-hover-card__context {
   width: 100%;
   flex-wrap: nowrap;
@@ -242,11 +263,6 @@ export const HOVER_CARD_CSS = String.raw`
 .bb-thread-hover-card__branch-name,
 .bb-thread-hover-card__local-path {
   flex: 1 1 auto;
-}
-
-.bb-thread-hover-card__project-name,
-.bb-thread-hover-card__branch-name {
-  color: color-mix(in srgb, var(--muted-foreground) 78%, transparent);
 }
 
 .bb-thread-hover-card__local {

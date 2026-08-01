@@ -756,6 +756,7 @@ function renderSummary(card: HTMLElement, summary: ThreadSummary): void {
   if (times.childElementCount > 0) header.append(times);
 
   const content: HTMLElement[] = [header];
+  const footer = element("footer", "bb-thread-hover-card__footer");
   const summaryMessage = summary.latestAssistantMessage;
 
   if (summaryMessage) {
@@ -847,7 +848,7 @@ function renderSummary(card: HTMLElement, summary: ThreadSummary): void {
       pullRequest.append(pullRequestLink);
       context.append(pullRequest);
     }
-    content.push(context);
+    footer.append(context);
   }
 
   if (!summary.repository.isGitRepository) {
@@ -875,8 +876,10 @@ function renderSummary(card: HTMLElement, summary: ThreadSummary): void {
       ),
       localPath,
     );
-    content.push(local);
+    footer.append(local);
   }
+
+  if (footer.childElementCount > 0) content.push(footer);
 
   card.replaceChildren(...content);
   refreshRunTime(card);

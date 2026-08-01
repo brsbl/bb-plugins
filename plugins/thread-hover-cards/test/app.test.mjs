@@ -409,6 +409,14 @@ assert.doesNotMatch(style.textContent, /--font-mono/);
 assert.match(style.textContent, /\.bb-thread-hover-card__context/);
 assert.match(
   style.textContent,
+  /\.bb-thread-hover-card__footer \{[\s\S]*?background: var\(--muted\);[\s\S]*?margin-inline: -0\.75rem;[\s\S]*?padding-inline: 0\.75rem;[\s\S]*?padding-top: 0\.5rem;/,
+);
+assert.match(
+  style.textContent,
+  /\.bb-thread-hover-card__footer::before \{[\s\S]*?top: -0\.75rem;[\s\S]*?height: 0\.75rem;[\s\S]*?background: linear-gradient\(to bottom, transparent, var\(--muted\)\);[\s\S]*?pointer-events: none;/,
+);
+assert.match(
+  style.textContent,
   /\.bb-thread-hover-card__context \{[\s\S]*?width: 100%;[\s\S]*?flex-wrap: nowrap;/,
 );
 assert.match(
@@ -564,8 +572,16 @@ assert.deepEqual(
   [
     "bb-thread-hover-card__header",
     "bb-thread-hover-card__summary",
-    "bb-thread-hover-card__context",
+    "bb-thread-hover-card__footer",
   ],
+);
+assert.equal(
+  card.querySelector(".bb-thread-hover-card__footer")?.tagName,
+  "FOOTER",
+);
+assert.equal(
+  card.querySelector(".bb-thread-hover-card__context")?.parentElement,
+  card.querySelector(".bb-thread-hover-card__footer"),
 );
 assert.equal(
   card.querySelector(".bb-thread-hover-card__summary")?.dataset.working,
@@ -932,6 +948,14 @@ assert.deepEqual(
   [
     "bb-thread-hover-card__header",
     "bb-thread-hover-card__summary",
+    "bb-thread-hover-card__footer",
+  ],
+);
+assert.deepEqual(
+  Array.from(
+    card.querySelector(".bb-thread-hover-card__footer")?.children ?? [],
+  ).map((child) => child.className),
+  [
     "bb-thread-hover-card__context",
     "bb-thread-hover-card__local",
   ],
@@ -994,7 +1018,7 @@ assert.deepEqual(
   Array.from(card.children).map((child) => child.className),
   [
     "bb-thread-hover-card__header",
-    "bb-thread-hover-card__context",
+    "bb-thread-hover-card__footer",
   ],
 );
 assert.deepEqual(requestBodies, [
