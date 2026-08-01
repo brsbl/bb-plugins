@@ -244,6 +244,11 @@ export const HOVER_CARD_CSS = String.raw`
   flex: 1 1 auto;
 }
 
+.bb-thread-hover-card__project-name,
+.bb-thread-hover-card__branch-name {
+  color: color-mix(in srgb, var(--muted-foreground) 78%, transparent);
+}
+
 .bb-thread-hover-card__local {
   width: 100%;
   flex-wrap: nowrap;
@@ -312,7 +317,7 @@ export const HOVER_CARD_CSS = String.raw`
   align-items: center;
   gap: 0.1875rem;
   border-radius: 0.25rem;
-  color: var(--foreground);
+  color: var(--muted-foreground);
   outline: none;
   text-decoration: none;
 }
