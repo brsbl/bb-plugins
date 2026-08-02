@@ -197,7 +197,7 @@ export const HOVER_CARD_CSS = String.raw`
 
 .bb-thread-hover-card__footer {
   position: relative;
-  background: color-mix(in srgb, var(--muted) 10%, transparent);
+  background: color-mix(in srgb, var(--muted) 40%, transparent);
   color: var(--muted-foreground);
   margin-inline: -0.75rem;
   margin-bottom: -0.75rem;
@@ -214,7 +214,7 @@ export const HOVER_CARD_CSS = String.raw`
   background: linear-gradient(
     to bottom,
     transparent,
-    color-mix(in srgb, var(--muted) 10%, transparent)
+    color-mix(in srgb, var(--muted) 40%, transparent)
   );
   content: "";
   pointer-events: none;
