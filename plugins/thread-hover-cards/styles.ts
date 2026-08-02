@@ -465,3 +465,83 @@ export const HOVER_CARD_CSS = String.raw`
   }
 }
 `;
+
+/**
+ * The section card reuses the thread card's shell and header rhythm; only the
+ * parts with no thread-card equivalent — the rollup and the thread list — get
+ * their own rules.
+ */
+export const SECTION_CARD_CSS = String.raw`
+.bb-thread-hover-card[data-bb-card="section"] {
+  width: min(17rem, calc(100vw - 1rem));
+}
+
+.bb-section-hover-card__header {
+  display: flex;
+  min-width: 0;
+  align-items: baseline;
+  gap: 0;
+}
+
+.bb-section-hover-card__count {
+  flex: none;
+  color: var(--foreground);
+  font-size: 0.8125rem;
+  font-variant-numeric: tabular-nums;
+  font-weight: 400;
+}
+
+.bb-section-hover-card__attention {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--destructive);
+  font-size: 0.8125rem;
+  font-variant-numeric: tabular-nums;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.bb-section-hover-card__attention::before {
+  color: var(--muted-foreground);
+  content: " · ";
+}
+
+.bb-section-hover-card__threads {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  margin: 0.5rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.bb-section-hover-card__thread {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 0.375rem;
+  color: color-mix(in srgb, var(--foreground) 88%, transparent);
+  font-size: 0.78125rem;
+  font-weight: 350;
+  line-height: 1.35;
+}
+
+.bb-section-hover-card__thread-title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.bb-section-hover-card__more {
+  margin: 0.375rem 0 0;
+  color: var(--muted-foreground);
+  font-size: 0.65625rem;
+}
+
+.bb-section-hover-card__empty {
+  margin: 0;
+  color: var(--muted-foreground);
+  font-size: 0.75rem;
+}
+`;

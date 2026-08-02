@@ -959,6 +959,80 @@ var HOVER_CARD_CSS = String.raw`
   }
 }
 `;
+var SECTION_CARD_CSS = String.raw`
+.bb-thread-hover-card[data-bb-card="section"] {
+  width: min(17rem, calc(100vw - 1rem));
+}
+
+.bb-section-hover-card__header {
+  display: flex;
+  min-width: 0;
+  align-items: baseline;
+  gap: 0;
+}
+
+.bb-section-hover-card__count {
+  flex: none;
+  color: var(--foreground);
+  font-size: 0.8125rem;
+  font-variant-numeric: tabular-nums;
+  font-weight: 400;
+}
+
+.bb-section-hover-card__attention {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--destructive);
+  font-size: 0.8125rem;
+  font-variant-numeric: tabular-nums;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.bb-section-hover-card__attention::before {
+  color: var(--muted-foreground);
+  content: " · ";
+}
+
+.bb-section-hover-card__threads {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  margin: 0.5rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.bb-section-hover-card__thread {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 0.375rem;
+  color: color-mix(in srgb, var(--foreground) 88%, transparent);
+  font-size: 0.78125rem;
+  font-weight: 350;
+  line-height: 1.35;
+}
+
+.bb-section-hover-card__thread-title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.bb-section-hover-card__more {
+  margin: 0.375rem 0 0;
+  color: var(--muted-foreground);
+  font-size: 0.65625rem;
+}
+
+.bb-section-hover-card__empty {
+  margin: 0;
+  color: var(--muted-foreground);
+  font-size: 0.75rem;
+}
+`;
 
 // markdown-preview.ts
 function tableCells(line) {
@@ -1057,8 +1131,15 @@ function markdownPreview(source) {
 var CARD_ID = "bb-thread-hover-card";
 var STYLE_ID = "bb-thread-hover-card-styles";
 var PLUGIN_CSS_SELECTOR = 'link[data-bb-plugin-css="thread-hover-cards"]';
+var SECTION_CARD_ID = "bb-section-hover-card";
+var SECTION_STYLE_ID = "bb-section-hover-card-styles";
 var THREAD_TRIGGER_SELECTOR = "a[data-sidebar-thread-id]";
 var THREAD_ROW_SELECTOR = ".group\\/thread-row";
+var SECTION_TOGGLE_SELECTOR = 'button[aria-expanded][aria-label$=" section"]';
+var STICKY_GROUP_SELECTOR = "[data-sidebar-sticky-group]";
+var PROJECT_ITEM_SELECTOR = "[data-sidebar-sticky-project-item]";
+var SECTION_SUMMARY_CACHE_TTL_MS = 4e3;
+var SECTION_CACHE_MAX_ENTRIES = 32;
 var OPEN_DELAY_MS = 0;
 var CLOSE_DELAY_MS = 120;
 var ACTIVE_SUMMARY_CACHE_TTL_MS = 2e3;
@@ -1239,6 +1320,42 @@ function findThreadTrigger(target) {
   if (direct) return direct;
   const row = target.closest(THREAD_ROW_SELECTOR);
   return row?.querySelector(THREAD_TRIGGER_SELECTOR) ?? null;
+}
+function sectionLabelOf(toggle) {
+  return /^(?:Expand|Collapse) (.+) section$/.exec(
+    toggle.getAttribute("aria-label") ?? ""
+  )?.[1] ?? null;
+}
+function sectionToggleOwnedBy(row) {
+  const toggle = row.querySelector(SECTION_TOGGLE_SELECTOR);
+  return toggle?.parentElement?.parentElement === row ? toggle : null;
+}
+function isProjectHeaderRow(row) {
+  return row.closest(STICKY_GROUP_SELECTOR)?.parentElement?.matches(
+    PROJECT_ITEM_SELECTOR
+  ) === true;
+}
+function enclosingProjectName(row) {
+  const projectItem = row.closest(PROJECT_ITEM_SELECTOR);
+  const projectToggle = projectItem?.querySelector(SECTION_TOGGLE_SELECTOR);
+  return projectToggle == null ? null : sectionLabelOf(projectToggle);
+}
+function findSectionTrigger(target) {
+  let candidate = target instanceof Element ? target : null;
+  while (candidate) {
+    const toggle = sectionToggleOwnedBy(candidate);
+    if (toggle) {
+      const name = sectionLabelOf(toggle);
+      if (name === null || isProjectHeaderRow(candidate)) return null;
+      return {
+        name,
+        projectName: enclosingProjectName(candidate),
+        row: candidate
+      };
+    }
+    candidate = candidate.parentElement;
+  }
+  return null;
 }
 function threadIdFor(trigger) {
   const value = trigger.dataset.sidebarThreadId?.trim();
@@ -1475,6 +1592,22 @@ async function fetchPullRequest(threadId) {
   }
   return envelope.result;
 }
+function placeCardNear(card, anchor) {
+  const anchorRect = anchor.getBoundingClientRect();
+  const cardRect = card.getBoundingClientRect();
+  const margin = 8;
+  const gap = 8;
+  let left = anchorRect.right + gap;
+  if (left + cardRect.width > window.innerWidth - margin) {
+    left = Math.max(margin, anchorRect.left - gap - cardRect.width);
+  }
+  const top = Math.min(
+    Math.max(margin, anchorRect.top - 4),
+    Math.max(margin, window.innerHeight - cardRect.height - margin)
+  );
+  card.style.left = `${Math.round(left)}px`;
+  card.style.top = `${Math.round(top)}px`;
+}
 function renderLoading(card) {
   card.replaceChildren(
     element(
@@ -1693,7 +1826,70 @@ function renderSummary(card, summary) {
   card.replaceChildren(...content);
   refreshRunTime(card);
 }
-function installHoverCards() {
+function threadCountLabel(total) {
+  return total === 1 ? "1 thread" : `${total} threads`;
+}
+function renderSectionSummary(card, summary) {
+  if (summary.total === 0) {
+    card.replaceChildren(
+      element("p", "bb-section-hover-card__empty", "No threads yet")
+    );
+    return;
+  }
+  const header = element("div", "bb-section-hover-card__header");
+  header.append(
+    element(
+      "span",
+      "bb-section-hover-card__count",
+      threadCountLabel(summary.total)
+    )
+  );
+  if (summary.rollup.attention > 0) {
+    header.append(
+      element(
+        "span",
+        "bb-section-hover-card__attention",
+        `${summary.rollup.attention} need you`
+      )
+    );
+  }
+  const list = element("ul", "bb-section-hover-card__threads");
+  for (const thread of summary.preview) {
+    const row = element("li", "bb-section-hover-card__thread");
+    const presentation = statusPresentation(thread.status);
+    const needsAttention = thread.hasPendingInteraction || thread.status === "error";
+    if ((needsAttention || presentation.animated) && presentation.icon && presentation.iconName) {
+      const statusIcon = icon(
+        presentation.icon,
+        presentation.iconName,
+        "bb-thread-hover-card__icon bb-thread-hover-card__time-icon"
+      );
+      statusIcon.dataset.tone = needsAttention ? "danger" : presentation.tone;
+      if (presentation.animated) statusIcon.dataset.animated = "true";
+      statusIcon.removeAttribute("aria-hidden");
+      statusIcon.setAttribute("role", "img");
+      statusIcon.setAttribute("aria-label", presentation.label);
+      row.append(statusIcon);
+    }
+    const title = element(
+      "span",
+      "bb-section-hover-card__thread-title",
+      thread.title
+    );
+    title.title = thread.title;
+    row.append(title);
+    list.append(row);
+  }
+  const content = [header, list];
+  const remaining = summary.total - summary.preview.length;
+  if (remaining > 0) {
+    content.push(
+      element("p", "bb-section-hover-card__more", `+${remaining} more`)
+    );
+  }
+  card.replaceChildren(...content);
+}
+function installHoverCards({ onOpen }) {
   let card = null;
   let activeTrigger = null;
   let activeThreadId = null;
@@ -1733,21 +1929,7 @@ function installHoverCards() {
   function positionCard() {
     const trigger = resolveActiveTrigger();
     if (!card || !trigger || card.hidden) return;
-    const anchor = trigger.closest(THREAD_ROW_SELECTOR) ?? trigger;
-    const anchorRect = anchor.getBoundingClientRect();
-    const cardRect = card.getBoundingClientRect();
-    const margin = 8;
-    const gap = 8;
-    let left = anchorRect.right + gap;
-    if (left + cardRect.width > window.innerWidth - margin) {
-      left = Math.max(margin, anchorRect.left - gap - cardRect.width);
-    }
-    const top = Math.min(
-      Math.max(margin, anchorRect.top - 4),
-      Math.max(margin, window.innerHeight - cardRect.height - margin)
-    );
-    card.style.left = `${Math.round(left)}px`;
-    card.style.top = `${Math.round(top)}px`;
+    placeCardNear(card, trigger.closest(THREAD_ROW_SELECTOR) ?? trigger);
   }
   function cachedSummary(threadId) {
     const cached = cache.get(threadId);
@@ -2102,6 +2284,7 @@ function installHoverCards() {
   function showCard(trigger, requestedAt = monotonicNow()) {
     const threadId = threadIdFor(trigger);
     if (!threadId || disposed) return;
+    onOpen();
     activeTrigger?.removeAttribute("aria-describedby");
     activeTrigger = trigger;
     activeThreadId = threadId;
@@ -2354,20 +2537,229 @@ function installHoverCards() {
       timingPending.clear();
       timingRetriedForSummary.clear();
       timingRetryScheduled.clear();
+    },
+    closeCard
+  };
+}
+async function fetchSectionSummary(name, projectName, signal) {
+  const response = await fetch(
+    "/api/v1/plugins/thread-hover-cards/rpc/sectionSummary",
+    {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ name, projectName }),
+      signal
     }
+  );
+  const envelope = await response.json();
+  if (!response.ok || !envelope.ok) {
+    throw new Error(
+      envelope.ok ? "Section summary request failed." : envelope.error?.message
+    );
+  }
+  return envelope.result;
+}
+function installSectionHoverCards({
+  onOpen
+}) {
+  let card = null;
+  let active = null;
+  let closeTimer = null;
+  let generation = 0;
+  let disposed = false;
+  const cache = /* @__PURE__ */ new Map();
+  const pending = /* @__PURE__ */ new Map();
+  const unknownSections = /* @__PURE__ */ new Set();
+  const style = element("style", "");
+  style.id = SECTION_STYLE_ID;
+  style.textContent = SECTION_CARD_CSS;
+  document.getElementById(SECTION_STYLE_ID)?.remove();
+  document.head.append(style);
+  const keyOf = (target) => JSON.stringify([target.name, target.projectName]);
+  function ensureCard() {
+    if (card) return card;
+    card = element("div", "bb-thread-hover-card");
+    card.id = SECTION_CARD_ID;
+    card.hidden = true;
+    card.dataset.bbCard = "section";
+    card.setAttribute("data-bb-plugin", "thread-hover-cards");
+    card.setAttribute("data-bb-plugin-root", "");
+    card.setAttribute("data-bb-portaled-overlay", "");
+    card.setAttribute("role", "group");
+    card.setAttribute("aria-label", "Section summary");
+    card.addEventListener("pointerenter", cancelClose);
+    card.addEventListener("pointerleave", scheduleClose);
+    document.body.append(card);
+    return card;
+  }
+  function position() {
+    if (!card || card.hidden || !active?.row.isConnected) return;
+    placeCardNear(card, active.row);
+  }
+  function closeCard() {
+    cancelClose();
+    generation += 1;
+    active?.row.removeAttribute("aria-describedby");
+    active = null;
+    if (card) {
+      card.hidden = true;
+      card.classList.remove("is-visible");
+    }
+  }
+  function cancelClose() {
+    if (!closeTimer) return;
+    clearTimeout(closeTimer);
+    closeTimer = null;
+  }
+  function scheduleClose() {
+    cancelClose();
+    closeTimer = setTimeout(() => {
+      closeTimer = null;
+      const focused = document.activeElement;
+      if (focused instanceof Node && card?.contains(focused)) return;
+      closeCard();
+    }, CLOSE_DELAY_MS);
+  }
+  function requestSummary(target) {
+    const key = keyOf(target);
+    pending.get(key)?.abort();
+    const controller = new AbortController();
+    pending.set(key, controller);
+    return fetchSectionSummary(
+      target.name,
+      target.projectName,
+      controller.signal
+    ).then((summary) => {
+      if (!summary.known) {
+        unknownSections.add(key);
+        return summary;
+      }
+      cache.delete(key);
+      cache.set(key, { fetchedAt: Date.now(), summary });
+      while (cache.size > SECTION_CACHE_MAX_ENTRIES) {
+        const oldest = cache.keys().next().value;
+        if (oldest === void 0) break;
+        cache.delete(oldest);
+      }
+      return summary;
+    }).finally(() => {
+      if (pending.get(key) === controller) pending.delete(key);
+    });
+  }
+  function showCard(target) {
+    if (disposed || unknownSections.has(keyOf(target))) return;
+    onOpen();
+    cancelClose();
+    active?.row.removeAttribute("aria-describedby");
+    active = target;
+    target.row.setAttribute("aria-describedby", SECTION_CARD_ID);
+    generation += 1;
+    const requestGeneration = generation;
+    const hoverCard = ensureCard();
+    hoverCard.hidden = false;
+    hoverCard.classList.remove("is-visible");
+    void hoverCard.offsetWidth;
+    hoverCard.classList.add("is-visible");
+    const key = keyOf(target);
+    const cached = cache.get(key);
+    if (cached) renderSectionSummary(hoverCard, cached.summary);
+    else renderLoading(hoverCard);
+    requestAnimationFrame(position);
+    if (cached && Date.now() - cached.fetchedAt < SECTION_SUMMARY_CACHE_TTL_MS) {
+      return;
+    }
+    void requestSummary(target).then((summary) => {
+      if (!summary.known) {
+        if (!disposed && requestGeneration === generation) closeCard();
+        return;
+      }
+      if (disposed || requestGeneration !== generation) return;
+      renderSectionSummary(hoverCard, summary);
+      requestAnimationFrame(position);
+    }).catch((error) => {
+      if (disposed || requestGeneration !== generation || cached) return;
+      if (isAbortError(error)) return;
+      renderError(hoverCard);
+      requestAnimationFrame(position);
+    });
+  }
+  function onPointerOver(event) {
+    if (event.pointerType === "touch") return;
+    const target = findSectionTrigger(event.target);
+    if (!target) return;
+    if (active?.row === target.row && card && !card.hidden) {
+      cancelClose();
+      return;
+    }
+    showCard(target);
+  }
+  function onPointerOut(event) {
+    if (!findSectionTrigger(event.target)) return;
+    if (findSectionTrigger(event.relatedTarget)?.row === active?.row) return;
+    if (event.relatedTarget instanceof Node && card?.contains(event.relatedTarget)) {
+      return;
+    }
+    scheduleClose();
+  }
+  function onFocusIn(event) {
+    const target = findSectionTrigger(event.target);
+    if (target) showCard(target);
+    else if (active && !(event.target instanceof Node && card?.contains(event.target))) {
+      scheduleClose();
+    }
+  }
+  function onKeyDown(event) {
+    if (event.key === "Escape" && active) closeCard();
+  }
+  function onClick(event) {
+    if (findSectionTrigger(event.target)) closeCard();
+  }
+  document.addEventListener("pointerover", onPointerOver);
+  document.addEventListener("pointerout", onPointerOut);
+  document.addEventListener("focusin", onFocusIn);
+  document.addEventListener("keydown", onKeyDown);
+  document.addEventListener("click", onClick);
+  window.addEventListener("resize", position);
+  window.addEventListener("scroll", position, true);
+  return {
+    dispose() {
+      disposed = true;
+      closeCard();
+      document.removeEventListener("pointerover", onPointerOver);
+      document.removeEventListener("pointerout", onPointerOut);
+      document.removeEventListener("focusin", onFocusIn);
+      document.removeEventListener("keydown", onKeyDown);
+      document.removeEventListener("click", onClick);
+      window.removeEventListener("resize", position);
+      window.removeEventListener("scroll", position, true);
+      card?.remove();
+      card = null;
+      style.remove();
+      cache.clear();
+      for (const controller of pending.values()) controller.abort();
+      pending.clear();
+    },
+    closeCard
   };
 }
 function installHoverCardLifecycle() {
-  let controller = null;
+  let controllers = [];
   let disposed = false;
   function reconcile() {
     if (disposed) return;
     const pluginIsActive = document.querySelector(PLUGIN_CSS_SELECTOR) !== null;
-    if (pluginIsActive && !controller) {
-      controller = installHoverCards();
-    } else if (!pluginIsActive && controller) {
-      controller.dispose();
-      controller = null;
+    if (pluginIsActive && controllers.length === 0) {
+      let sections = null;
+      const threads = installHoverCards({
+        onOpen: () => sections?.closeCard?.()
+      });
+      sections = installSectionHoverCards({
+        onOpen: () => threads.closeCard?.()
+      });
+      controllers = [threads, sections];
+    } else if (!pluginIsActive && controllers.length > 0) {
+      for (const controller of controllers) controller.dispose();
+      controllers = [];
     }
   }
   const observer = new MutationObserver(reconcile);
@@ -2377,8 +2769,8 @@ function installHoverCardLifecycle() {
     dispose() {
       disposed = true;
       observer.disconnect();
-      controller?.dispose();
-      controller = null;
+      for (const controller of controllers) controller.dispose();
+      controllers = [];
     }
   };
 }
@@ -2403,5 +2795,8 @@ if (typeof document !== "undefined") {
 var app_default = definePluginApp(() => {
 });
 export {
-  app_default as default
+  app_default as default,
+  findSectionTrigger,
+  renderSectionSummary,
+  sectionLabelOf
 };

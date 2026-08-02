@@ -14614,6 +14614,30 @@ var threadPullRequestSchema = external_exports.object({
     path: external_exports.string().nullable()
   }).strict()
 }).strict();
+var sectionSummarySchema = external_exports.object({
+  diagnostics: rpcDiagnosticsSchema,
+  /**
+   * False for a row that looks like a section but is not one bb stores —
+   * Pinned, Unorganized, and the other built-in groups. The card stays shut
+   * rather than reporting an error for a row that never had a summary.
+   */
+  known: external_exports.boolean(),
+  /** Section threads, most recently active first, capped for the preview. */
+  preview: external_exports.array(
+    external_exports.object({
+      hasPendingInteraction: external_exports.boolean(),
+      id: external_exports.string(),
+      status: displayStatusSchema,
+      title: external_exports.string()
+    }).strict()
+  ),
+  rollup: external_exports.object({
+    attention: external_exports.number().int().nonnegative(),
+    idle: external_exports.number().int().nonnegative(),
+    working: external_exports.number().int().nonnegative()
+  }).strict(),
+  total: external_exports.number().int().nonnegative()
+}).strict();
 var rpcContract = defineRpcContract({
   threadSummary: {
     input: external_exports.object({
@@ -14630,6 +14654,14 @@ var rpcContract = defineRpcContract({
   threadPullRequest: {
     input: external_exports.object({ threadId: external_exports.string().min(1) }).strict(),
     output: threadPullRequestSchema
+  },
+  sectionSummary: {
+    input: external_exports.object({
+      name: external_exports.string().min(1).max(256),
+      /** Set when the sidebar nests the section under a project row. */
+      projectName: external_exports.string().min(1).max(256).nullable().optional()
+    }).strict(),
+    output: sectionSummarySchema
   }
 });
 async function safely(promise2) {
@@ -14703,6 +14735,8 @@ var ACTIVE_TURN_EVENT_WAIT_MS = "1";
 var STABLE_DESCRIPTOR_CACHE_TTL_MS = 6e4;
 var PULL_REQUEST_CACHE_TTL_MS = 15e3;
 var STABLE_DESCRIPTOR_CACHE_MAX_ENTRIES = 128;
+var SECTION_DIRECTORY_CACHE_TTL_MS = 3e4;
+var SECTION_PREVIEW_LIMIT = 5;
 function monotonicNow() {
   return typeof performance === "undefined" ? Date.now() : performance.now();
 }
@@ -14988,6 +15022,31 @@ var PULL_REQUEST_SIGNALS = {
   review_requested: "Review requested",
   ready_to_merge: "Ready to merge"
 };
+function isSidebarSectionThread(thread) {
+  return thread.visibility === "visible" && thread.parentThreadId === null && thread.archivedAt === null && thread.deletedAt === null && thread.originKind !== "side-chat" && thread.childOrigin !== "side-chat";
+}
+function summarizeSectionThreads(threads, previewLimit = SECTION_PREVIEW_LIMIT) {
+  const rollup = { attention: 0, idle: 0, working: 0 };
+  for (const thread of threads) {
+    const status = thread.runtime.displayStatus;
+    if (thread.hasPendingInteraction || status === "error") rollup.attention += 1;
+    else if (isRunningStatus(status)) rollup.working += 1;
+    else rollup.idle += 1;
+  }
+  const ranked = [...threads].sort(
+    (left, right) => right.latestAttentionAt - left.latestAttentionAt || right.updatedAt - left.updatedAt
+  );
+  return {
+    preview: ranked.slice(0, previewLimit).map((thread) => ({
+      hasPendingInteraction: thread.hasPendingInteraction,
+      id: thread.id,
+      status: thread.runtime.displayStatus,
+      title: thread.title?.trim() || thread.titleFallback?.trim() || "Untitled"
+    })),
+    rollup,
+    total: threads.length
+  };
+}
 function providerDisplayName(providerId) {
   switch (providerId) {
     case "acp-cursor":
@@ -15018,6 +15077,12 @@ function plugin(bb) {
     PULL_REQUEST_CACHE_TTL_MS,
     STABLE_DESCRIPTOR_CACHE_MAX_ENTRIES,
     "pullRequest",
+    recordBackgroundRefresh
+  );
+  const sectionDirectory = new StableDescriptorCache(
+    SECTION_DIRECTORY_CACHE_TTL_MS,
+    STABLE_DESCRIPTOR_CACHE_MAX_ENTRIES,
+    "sectionDirectory",
     recordBackgroundRefresh
   );
   const summaryRequests = new LatestSummaryRequestGate(2);
@@ -15395,13 +15460,95 @@ function plugin(bb) {
         );
         throw error51;
       }
+    },
+    async sectionSummary({ name, projectName = null }) {
+      const recorder = createDiagnostics();
+      const deadlineAt = Date.now() + SUMMARY_LOOKUP_TIMEOUT_MS;
+      const remainingMs = () => Math.max(1, deadlineAt - Date.now());
+      const signal = AbortSignal.timeout(SUMMARY_LOOKUP_TIMEOUT_MS);
+      try {
+        const [sections, projects] = await Promise.all([
+          measureCachedStage(
+            recorder,
+            "sections",
+            () => sectionDirectory.get(
+              "sections",
+              () => within(safely(bb.sdk.threadSections.list({ signal })), remainingMs())
+            )
+          ),
+          measureCachedStage(
+            recorder,
+            "projects",
+            () => sectionDirectory.get(
+              "projects",
+              () => within(
+                safely(bb.sdk.projects.list({ includePersonal: true, signal })),
+                remainingMs()
+              )
+            )
+          )
+        ]);
+        if (sections.value === null) throw new Error("Section summary unavailable.");
+        const projectNameById = new Map(
+          (projects.value ?? []).map((project) => [project.id, project.name])
+        );
+        const sectionIds = sections.value.filter((section) => section.name === name).map((section) => section.id);
+        if (sectionIds.length === 0) {
+          const diagnostics2 = finishDiagnostics(recorder);
+          recordDiagnostics(bb, "sectionSummary", name, diagnostics2);
+          return {
+            diagnostics: diagnostics2,
+            known: false,
+            preview: [],
+            rollup: { attention: 0, idle: 0, working: 0 },
+            total: 0
+          };
+        }
+        const pages = await measureStage(
+          recorder,
+          "threads",
+          () => Promise.all(
+            sectionIds.map(
+              (sectionId) => within(
+                safely(
+                  bb.sdk.threads.list({
+                    archived: false,
+                    excludeSideChats: true,
+                    hasParent: false,
+                    includeHidden: false,
+                    sectionId,
+                    signal
+                  })
+                ),
+                remainingMs()
+              )
+            )
+          )
+        );
+        const threads = pages.flatMap((page) => page ?? []).filter(isSidebarSectionThread).filter(
+          (thread) => projectName === null || projectNameById.get(thread.projectId) === projectName
+        );
+        const diagnostics = finishDiagnostics(recorder);
+        recordDiagnostics(bb, "sectionSummary", name, diagnostics);
+        return {
+          ...summarizeSectionThreads(threads),
+          diagnostics,
+          known: true
+        };
+      } catch (error51) {
+        recordDiagnostics(bb, "sectionSummary", name, finishDiagnostics(recorder));
+        throw error51;
+      }
     }
   });
   bb.log.info("Thread hover cards loaded.");
 }
 export {
   plugin as default,
+  isSidebarSectionThread,
   rpcContract,
+  sectionSummarySchema,
+  summarizeSectionThreads,
   threadPullRequestSchema,
   threadSummarySchema,
   threadTimingSchema

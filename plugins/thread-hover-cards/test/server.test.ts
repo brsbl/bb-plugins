@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import { markdownPreview } from "../markdown-preview";
 import plugin, {
+  isSidebarSectionThread,
+  summarizeSectionThreads,
   type RpcDiagnostics,
   type ThreadPullRequest,
   type ThreadSummary,
@@ -889,3 +891,110 @@ assert.deepEqual(markdownPreview("- First result\n- Second result\n- Extra"), {
   inline: "First result · Second result",
   kind: "list",
 });
+
+// Section summaries: bucketing, ranking, and project rollup.
+function sectionThread(
+  overrides: Partial<{
+    displayStatus: "active" | "error" | "idle";
+    hasPendingInteraction: boolean;
+    id: string;
+    latestAttentionAt: number;
+    projectId: string;
+    title: string | null;
+    titleFallback: string | null;
+  }> = {},
+) {
+  const {
+    displayStatus = "idle",
+    hasPendingInteraction = false,
+    id = "thr_x",
+    latestAttentionAt = 0,
+    projectId: threadProjectId = "proj_1",
+    title = "Thread",
+    titleFallback = null,
+  } = overrides;
+  return {
+    archivedAt: null,
+    childOrigin: null,
+    deletedAt: null,
+    hasPendingInteraction,
+    id,
+    latestAttentionAt,
+    originKind: null,
+    parentThreadId: null,
+    projectId: threadProjectId,
+    runtime: { displayStatus },
+    title,
+    titleFallback,
+    updatedAt: latestAttentionAt,
+    visibility: "visible",
+  } as never;
+}
+
+const sectionRollup = summarizeSectionThreads(
+  [
+    sectionThread({ displayStatus: "active", id: "a", latestAttentionAt: 30 }),
+    sectionThread({ displayStatus: "error", id: "b", latestAttentionAt: 20 }),
+    sectionThread({
+      hasPendingInteraction: true,
+      id: "c",
+      latestAttentionAt: 40,
+    }),
+    sectionThread({ id: "d", latestAttentionAt: 10, projectId: "proj_2" }),
+  ],
+);
+assert.deepEqual(sectionRollup.rollup, { attention: 2, idle: 1, working: 1 });
+assert.equal(sectionRollup.total, 4);
+assert.deepEqual(
+  sectionRollup.preview.map(({ id }) => id),
+  ["c", "a", "b", "d"],
+  "orders the preview by most recent attention",
+);
+const truncated = summarizeSectionThreads(
+  [
+    sectionThread({ id: "a", latestAttentionAt: 3 }),
+    sectionThread({ id: "b", latestAttentionAt: 2 }),
+    sectionThread({ id: "c", latestAttentionAt: 1 }),
+  ],
+  2,
+);
+assert.deepEqual(
+  truncated.preview.map(({ id }) => id),
+  ["a", "b"],
+  "caps the preview so the card stays short",
+);
+assert.equal(truncated.total, 3, "keeps the full count behind the cap");
+
+assert.equal(
+  summarizeSectionThreads(
+    [sectionThread({ title: null, titleFallback: "  Derived title  " })],
+  ).preview[0]!.title,
+  "Derived title",
+  "falls back to the derived title",
+);
+assert.equal(
+  summarizeSectionThreads(
+    [sectionThread({ title: null, titleFallback: null })],
+  ).preview[0]!.title,
+  "Untitled",
+);
+assert.deepEqual(summarizeSectionThreads([]), {
+  preview: [],
+  rollup: { attention: 0, idle: 0, working: 0 },
+  total: 0,
+});
+
+assert.equal(isSidebarSectionThread(sectionThread()), true);
+for (const excluded of [
+  { archivedAt: 1 },
+  { deletedAt: 1 },
+  { originKind: "side-chat" },
+  { parentThreadId: "thr_parent" },
+  { visibility: "hidden" },
+]) {
+  assert.equal(
+    isSidebarSectionThread({ ...(sectionThread() as object), ...excluded } as never),
+    false,
+    `excludes ${JSON.stringify(excluded)}`,
+  );
+}

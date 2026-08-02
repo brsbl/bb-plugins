@@ -125,6 +125,39 @@ export const threadPullRequestSchema = z
 
 export type ThreadPullRequest = z.infer<typeof threadPullRequestSchema>;
 
+export const sectionSummarySchema = z
+  .object({
+    diagnostics: rpcDiagnosticsSchema,
+    /**
+     * False for a row that looks like a section but is not one bb stores —
+     * Pinned, Unorganized, and the other built-in groups. The card stays shut
+     * rather than reporting an error for a row that never had a summary.
+     */
+    known: z.boolean(),
+    /** Section threads, most recently active first, capped for the preview. */
+    preview: z.array(
+      z
+        .object({
+          hasPendingInteraction: z.boolean(),
+          id: z.string(),
+          status: displayStatusSchema,
+          title: z.string(),
+        })
+        .strict(),
+    ),
+    rollup: z
+      .object({
+        attention: z.number().int().nonnegative(),
+        idle: z.number().int().nonnegative(),
+        working: z.number().int().nonnegative(),
+      })
+      .strict(),
+    total: z.number().int().nonnegative(),
+  })
+  .strict();
+
+export type SectionSummary = z.infer<typeof sectionSummarySchema>;
+
 export const rpcContract = defineRpcContract({
   threadSummary: {
     input: z
@@ -143,6 +176,16 @@ export const rpcContract = defineRpcContract({
   threadPullRequest: {
     input: z.object({ threadId: z.string().min(1) }).strict(),
     output: threadPullRequestSchema,
+  },
+  sectionSummary: {
+    input: z
+      .object({
+        name: z.string().min(1).max(256),
+        /** Set when the sidebar nests the section under a project row. */
+        projectName: z.string().min(1).max(256).nullable().optional(),
+      })
+      .strict(),
+    output: sectionSummarySchema,
   },
 });
 
@@ -273,6 +316,9 @@ const ACTIVE_TURN_EVENT_WAIT_MS = "1";
 const STABLE_DESCRIPTOR_CACHE_TTL_MS = 60_000;
 const PULL_REQUEST_CACHE_TTL_MS = 15_000;
 const STABLE_DESCRIPTOR_CACHE_MAX_ENTRIES = 128;
+/** Sections and projects are small, slow-changing tables; one lookup covers a hover run. */
+const SECTION_DIRECTORY_CACHE_TTL_MS = 30_000;
+const SECTION_PREVIEW_LIMIT = 5;
 
 type CacheSource = "coalesced" | "hit" | "miss" | "none" | "stale";
 
@@ -374,7 +420,12 @@ function recordSkippedStage(
 
 function recordDiagnostics(
   bb: BbPluginApi,
-  rpc: "threadPullRequest" | "threadSummary" | "threadTiming",
+  rpc:
+    | "sectionSummary"
+    | "threadPullRequest"
+    | "threadSummary"
+    | "threadTiming",
+  /** A thread id, or the section name for `sectionSummary`. */
   threadId: string,
   diagnostics: RpcDiagnostics,
 ): void {
@@ -663,6 +714,55 @@ const PULL_REQUEST_SIGNALS = {
   ready_to_merge: "Ready to merge",
 } as const;
 
+type SidebarThread = Awaited<
+  ReturnType<BbPluginApi["sdk"]["threads"]["list"]>
+>[number];
+
+/** Matches the sidebar: visible, unarchived root threads, side chats excluded. */
+export function isSidebarSectionThread(thread: SidebarThread): boolean {
+  return (
+    thread.visibility === "visible" &&
+    thread.parentThreadId === null &&
+    thread.archivedAt === null &&
+    thread.deletedAt === null &&
+    thread.originKind !== "side-chat" &&
+    thread.childOrigin !== "side-chat"
+  );
+}
+
+export function summarizeSectionThreads(
+  threads: readonly SidebarThread[],
+  previewLimit = SECTION_PREVIEW_LIMIT,
+): Omit<SectionSummary, "diagnostics" | "known"> {
+  const rollup = { attention: 0, idle: 0, working: 0 };
+
+  for (const thread of threads) {
+    const status = thread.runtime.displayStatus;
+    // One thread contributes to exactly one bucket; attention wins because it
+    // is the only one that asks the user to do something.
+    if (thread.hasPendingInteraction || status === "error") rollup.attention += 1;
+    else if (isRunningStatus(status)) rollup.working += 1;
+    else rollup.idle += 1;
+  }
+
+  const ranked = [...threads].sort(
+    (left, right) =>
+      right.latestAttentionAt - left.latestAttentionAt ||
+      right.updatedAt - left.updatedAt,
+  );
+
+  return {
+    preview: ranked.slice(0, previewLimit).map((thread) => ({
+      hasPendingInteraction: thread.hasPendingInteraction,
+      id: thread.id,
+      status: thread.runtime.displayStatus,
+      title: thread.title?.trim() || thread.titleFallback?.trim() || "Untitled",
+    })),
+    rollup,
+    total: threads.length,
+  };
+}
+
 function providerDisplayName(providerId: string): string {
   switch (providerId) {
     case "acp-cursor":
@@ -694,6 +794,12 @@ export default function plugin(bb: BbPluginApi): void {
     PULL_REQUEST_CACHE_TTL_MS,
     STABLE_DESCRIPTOR_CACHE_MAX_ENTRIES,
     "pullRequest",
+    recordBackgroundRefresh,
+  );
+  const sectionDirectory = new StableDescriptorCache(
+    SECTION_DIRECTORY_CACHE_TTL_MS,
+    STABLE_DESCRIPTOR_CACHE_MAX_ENTRIES,
+    "sectionDirectory",
     recordBackgroundRefresh,
   );
   const summaryRequests = new LatestSummaryRequestGate(2);
@@ -1124,6 +1230,89 @@ export default function plugin(bb: BbPluginApi): void {
           threadId,
           finishDiagnostics(recorder),
         );
+        throw error;
+      }
+    },
+    async sectionSummary({ name, projectName = null }) {
+      const recorder = createDiagnostics();
+      const deadlineAt = Date.now() + SUMMARY_LOOKUP_TIMEOUT_MS;
+      const remainingMs = (): number => Math.max(1, deadlineAt - Date.now());
+      const signal = AbortSignal.timeout(SUMMARY_LOOKUP_TIMEOUT_MS);
+      try {
+        const [sections, projects] = await Promise.all([
+          measureCachedStage(recorder, "sections", () =>
+            sectionDirectory.get("sections", () =>
+              within(safely(bb.sdk.threadSections.list({ signal })), remainingMs()),
+            ),
+          ),
+          measureCachedStage(recorder, "projects", () =>
+            sectionDirectory.get("projects", () =>
+              within(
+                safely(bb.sdk.projects.list({ includePersonal: true, signal })),
+                remainingMs(),
+              ),
+            ),
+          ),
+        ]);
+        if (sections.value === null) throw new Error("Section summary unavailable.");
+
+        const projectNameById = new Map(
+          (projects.value ?? []).map((project) => [project.id, project.name]),
+        );
+        // A section name is what the sidebar row carries; ids are not in the DOM.
+        // Same-named sections are read as the one section the user sees.
+        const sectionIds = sections.value
+          .filter((section) => section.name === name)
+          .map((section) => section.id);
+        if (sectionIds.length === 0) {
+          const diagnostics = finishDiagnostics(recorder);
+          recordDiagnostics(bb, "sectionSummary", name, diagnostics);
+          return {
+            diagnostics,
+            known: false,
+            preview: [],
+            rollup: { attention: 0, idle: 0, working: 0 },
+            total: 0,
+          };
+        }
+
+        const pages = await measureStage(recorder, "threads", () =>
+          Promise.all(
+            sectionIds.map((sectionId) =>
+              within(
+                safely(
+                  bb.sdk.threads.list({
+                    archived: false,
+                    excludeSideChats: true,
+                    hasParent: false,
+                    includeHidden: false,
+                    sectionId,
+                    signal,
+                  }),
+                ),
+                remainingMs(),
+              ),
+            ),
+          ),
+        );
+        const threads = pages
+          .flatMap((page) => page ?? [])
+          .filter(isSidebarSectionThread)
+          .filter(
+            (thread) =>
+              projectName === null ||
+              projectNameById.get(thread.projectId) === projectName,
+          );
+
+        const diagnostics = finishDiagnostics(recorder);
+        recordDiagnostics(bb, "sectionSummary", name, diagnostics);
+        return {
+          ...summarizeSectionThreads(threads),
+          diagnostics,
+          known: true,
+        };
+      } catch (error) {
+        recordDiagnostics(bb, "sectionSummary", name, finishDiagnostics(recorder));
         throw error;
       }
     },

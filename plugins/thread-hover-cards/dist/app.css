@@ -123,6 +123,9 @@
     .static {
       position: static;
     }
+    .sticky {
+      position: sticky;
+    }
     .container {
       width: 100%;
       @media (width >= 40rem) {
