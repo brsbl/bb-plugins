@@ -8,7 +8,6 @@ import {
   Folder01Icon,
   FolderEditIcon,
   GitBranchIcon,
-  HelpCircleIcon,
   LaptopIcon,
   LinkSquare01Icon,
   Loading03Icon,
@@ -21,7 +20,6 @@ import {
 import type {
   RpcDiagnostics,
   SectionSummary,
-  SectionThreadBucket,
   ThreadPullRequest,
   ThreadSummary,
   ThreadTiming,
@@ -983,56 +981,28 @@ function threadCountLabel(total: number): string {
   return total === 1 ? "1 thread" : `${total} threads`;
 }
 
-function attentionLabel(attention: number): string {
-  return attention === 1 ? "1 needs you" : `${attention} need you`;
+/** Coarse on purpose: at a section's scale, "3h" and "12d" are the decisions. */
+export function elapsedLabel(since: number, now = Date.now()): string {
+  const minutes = Math.max(0, Math.floor((now - since) / 60_000));
+  if (minutes < 1) return "just now";
+  if (minutes < 60) return `${minutes}m`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h`;
+  // Days stay days for a month: at this scale "12d" is the signal and "1w"
+  // throws away the part that tells you how far gone the section is.
+  const days = Math.floor(hours / 24);
+  return days < 30 ? `${days}d` : `${Math.floor(days / 30)}mo`;
+}
+
+function line(className: string): HTMLElement {
+  return element("div", `bb-section-hover-card__line ${className}`);
 }
 
 /**
- * Per-bucket presentation. Attention gets its own glyph rather than borrowing
- * the thread status one: a blocked thread is usually `idle`, so reusing the
- * status glyph drew a green "Agent finished" checkmark on the very rows the
- * card is flagging.
- */
-const BUCKET_GLYPH: Record<
-  SectionThreadBucket,
-  {
-    animated: boolean;
-    icon: HugeiconDefinition;
-    iconName: string;
-    label: string;
-    tone: string;
-  } | null
-> = {
-  blocked: {
-    animated: false,
-    icon: HelpCircleIcon,
-    iconName: "HelpCircleIcon",
-    label: "Thread needs user input",
-    tone: "danger",
-  },
-  failed: {
-    animated: false,
-    icon: CancelCircleIcon,
-    iconName: "CancelCircleIcon",
-    label: "Thread failed",
-    tone: "danger",
-  },
-  working: {
-    animated: true,
-    icon: Loading03Icon,
-    iconName: "Loading03Icon",
-    label: "Agent working",
-    tone: "working",
-  },
-  // Quiet is the common case; marking it would drown out the two that matter.
-  idle: null,
-};
-
-/**
- * When something wants you, that leads and the total follows — the card is
- * being read to decide whether to act, not to audit a number. The threads
- * needing action are already sorted to the top server-side, and each row's
- * glyph trails on the right the way the sidebar's own rows place theirs.
+ * Only what reading the whole section would tell you. The titles and the
+ * spinners are one click and one glance away respectively, so the card spends
+ * its space on the aggregates nothing else surfaces: how long the blocked work
+ * has been blocked, how much is unread, how long the quietest thread has sat.
  */
 export function renderSectionSummary(
   card: HTMLElement,
@@ -1045,68 +1015,69 @@ export function renderSectionSummary(
     return;
   }
 
-  const header = element("div", "bb-section-hover-card__header");
-  const needsAttention = summary.rollup.attention > 0;
-  if (needsAttention) {
-    header.append(
-      element(
-        "span",
-        "bb-section-hover-card__attention",
-        attentionLabel(summary.rollup.attention),
-      ),
-      element(
-        "span",
-        "bb-section-hover-card__count",
-        threadCountLabel(summary.total),
-      ),
-    );
-  } else {
-    header.append(
-      element(
-        "span",
-        "bb-section-hover-card__count bb-section-hover-card__count--lead",
-        threadCountLabel(summary.total),
-      ),
-    );
-  }
+  const content: HTMLElement[] = [];
 
-  const list = element("ul", "bb-section-hover-card__threads");
-  for (const thread of summary.preview) {
-    const row = element("li", "bb-section-hover-card__thread");
-    row.dataset.bucket = thread.bucket;
-    const title = element(
-      "span",
-      "bb-section-hover-card__thread-title",
-      thread.title,
+  if (summary.attention > 0) {
+    const attention = line("bb-section-hover-card__attention");
+    attention.append(
+      element(
+        "span",
+        "bb-section-hover-card__attention-count",
+        summary.attention === 1
+          ? "1 needs you"
+          : `${summary.attention} need you`,
+      ),
     );
-    title.title = thread.title;
-    row.append(title);
-
-    const glyph = BUCKET_GLYPH[thread.bucket];
-    if (glyph) {
-      const statusIcon = icon(
-        glyph.icon,
-        glyph.iconName,
-        "bb-thread-hover-card__icon bb-thread-hover-card__time-icon bb-section-hover-card__thread-glyph",
-      );
-      statusIcon.dataset.tone = glyph.tone;
-      if (glyph.animated) statusIcon.dataset.animated = "true";
-      statusIcon.removeAttribute("aria-hidden");
-      statusIcon.setAttribute("role", "img");
-      statusIcon.setAttribute("aria-label", glyph.label);
-      row.append(statusIcon);
+    if (summary.waitingSince !== null) {
+      const waiting = element("span", "bb-section-hover-card__elapsed");
+      waiting.dataset.since = String(summary.waitingSince);
+      waiting.dataset.prefix = "waiting ";
+      waiting.textContent = `waiting ${elapsedLabel(summary.waitingSince)}`;
+      attention.append(waiting);
     }
-    list.append(row);
+    content.push(attention);
   }
 
-  const content: HTMLElement[] = [header, list];
-  const remaining = summary.total - summary.preview.length;
-  if (remaining > 0) {
-    content.push(
-      element("p", "bb-section-hover-card__more", `+${remaining} more`),
+  const totals = line("bb-section-hover-card__totals");
+  totals.append(
+    element(
+      "span",
+      "bb-section-hover-card__count",
+      threadCountLabel(summary.total),
+    ),
+  );
+  if (summary.unread > 0) {
+    totals.append(
+      element(
+        "span",
+        "bb-section-hover-card__unread",
+        `${summary.unread} unread`,
+      ),
     );
   }
+  content.push(totals);
+
+  if (summary.oldestUntouchedAt !== null) {
+    const stale = line("bb-section-hover-card__stale");
+    const value = element("span", "bb-section-hover-card__elapsed");
+    value.dataset.since = String(summary.oldestUntouchedAt);
+    value.dataset.prefix = "oldest untouched ";
+    value.textContent = `oldest untouched ${elapsedLabel(summary.oldestUntouchedAt)}`;
+    stale.append(value);
+    content.push(stale);
+  }
+
   card.replaceChildren(...content);
+}
+
+/** Keeps the relative times honest while the card sits open. */
+function refreshSectionElapsed(card: HTMLElement): void {
+  card.querySelectorAll<HTMLElement>("[data-since]").forEach((node) => {
+    const since = Number(node.dataset.since);
+    if (Number.isFinite(since)) {
+      node.textContent = `${node.dataset.prefix ?? ""}${elapsedLabel(since)}`;
+    }
+  });
 }
 
 interface ThreadHoverCardOptions {
@@ -2026,6 +1997,7 @@ function installSectionHoverCards({
   let card: HTMLDivElement | null = null;
   let active: SectionTrigger | null = null;
   let closeTimer: ReturnType<typeof setTimeout> | null = null;
+  let elapsedTimer: ReturnType<typeof setInterval> | null = null;
   let generation = 0;
   let disposed = false;
   const cache = new Map<string, { fetchedAt: number; summary: SectionSummary }>();
@@ -2068,6 +2040,10 @@ function installSectionHoverCards({
 
   function closeCard(): void {
     cancelClose();
+    if (elapsedTimer) {
+      clearInterval(elapsedTimer);
+      elapsedTimer = null;
+    }
     generation += 1;
     active?.row.removeAttribute("aria-describedby");
     active = null;
@@ -2143,6 +2119,10 @@ function installSectionHoverCards({
     hoverCard.classList.remove("is-visible");
     void hoverCard.offsetWidth;
     hoverCard.classList.add("is-visible");
+    if (elapsedTimer) clearInterval(elapsedTimer);
+    elapsedTimer = setInterval(() => {
+      if (card && !card.hidden) refreshSectionElapsed(card);
+    }, 30_000);
 
     const key = keyOf(target);
     const cached = cache.get(key);
@@ -2240,6 +2220,10 @@ function installSectionHoverCards({
       card?.remove();
       card = null;
       style.remove();
+      if (elapsedTimer) {
+        clearInterval(elapsedTimer);
+        elapsedTimer = null;
+      }
       cache.clear();
       unknownSections.clear();
       for (const controller of pending.values()) controller.abort();

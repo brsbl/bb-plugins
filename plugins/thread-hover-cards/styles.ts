@@ -472,18 +472,25 @@ export const HOVER_CARD_CSS = String.raw`
  * their own rules.
  */
 export const SECTION_CARD_CSS = String.raw`
+/* Aggregates are short; the card hugs them instead of reserving thread-card width. */
 .bb-thread-hover-card[data-bb-card="section"] {
-  width: min(17rem, calc(100vw - 1rem));
+  width: max-content;
+  max-width: min(17rem, calc(100vw - 1rem));
+  padding: 0.625rem 0.75rem;
 }
 
-.bb-section-hover-card__header {
+.bb-section-hover-card__line {
   display: flex;
   min-width: 0;
   align-items: baseline;
   gap: 0.375rem;
 }
 
-.bb-section-hover-card__attention {
+.bb-section-hover-card__line + .bb-section-hover-card__line {
+  margin-top: 0.1875rem;
+}
+
+.bb-section-hover-card__attention-count {
   flex: none;
   color: var(--destructive-text, var(--destructive));
   font-size: 0.8125rem;
@@ -491,66 +498,33 @@ export const SECTION_CARD_CSS = String.raw`
   font-weight: 450;
 }
 
-/* Demoted to context once something is asking for action. */
 .bb-section-hover-card__count {
+  flex: none;
+  color: var(--foreground);
+  font-size: 0.8125rem;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Once something is asking for action it owns the headline weight. */
+.bb-section-hover-card__attention + .bb-section-hover-card__totals
+  .bb-section-hover-card__count {
+  color: var(--muted-foreground);
+  font-size: 0.75rem;
+}
+
+.bb-section-hover-card__unread,
+.bb-section-hover-card__elapsed {
   min-width: 0;
   overflow: hidden;
   color: var(--muted-foreground);
-  font-size: 0.6875rem;
+  font-size: 0.75rem;
   font-variant-numeric: tabular-nums;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.bb-section-hover-card__count--lead {
-  color: var(--foreground);
-  font-size: 0.8125rem;
-}
-
-.bb-section-hover-card__threads {
-  display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
-  margin: 0.5rem 0 0;
-  padding: 0;
-  list-style: none;
-}
-
-.bb-section-hover-card__thread {
-  display: flex;
-  min-width: 0;
-  align-items: center;
-  gap: 0.5rem;
-  color: color-mix(in srgb, var(--foreground) 88%, transparent);
-  font-size: 0.78125rem;
-  font-weight: 350;
-  line-height: 1.35;
-}
-
-/* A thread wanting action carries full weight; the rest recede behind it. */
-.bb-section-hover-card__thread[data-bucket="blocked"],
-.bb-section-hover-card__thread[data-bucket="failed"] {
-  color: var(--foreground);
-}
-
-.bb-section-hover-card__thread-title {
-  min-width: 0;
-  flex: 1 1 auto;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-/* Trailing, so the glyphs line up in a column the way the sidebar's do. */
-.bb-section-hover-card__thread-glyph {
-  flex: none;
-  margin-left: auto;
-}
-
-.bb-section-hover-card__more {
-  margin: 0.375rem 0 0;
-  color: var(--muted-foreground);
-  font-size: 0.65625rem;
+.bb-section-hover-card__stale .bb-section-hover-card__elapsed {
+  font-size: 0.6875rem;
 }
 
 .bb-section-hover-card__empty {

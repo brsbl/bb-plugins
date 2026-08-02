@@ -14614,13 +14614,9 @@ var threadPullRequestSchema = external_exports.object({
     path: external_exports.string().nullable()
   }).strict()
 }).strict();
-var sectionThreadBucketSchema = external_exports.enum([
-  "blocked",
-  "failed",
-  "idle",
-  "working"
-]);
 var sectionSummarySchema = external_exports.object({
+  /** Threads wanting something from the reader: blocked on input, or failed. */
+  attention: external_exports.number().int().nonnegative(),
   diagnostics: rpcDiagnosticsSchema,
   /**
    * False for a row that looks like a section but is not one bb stores —
@@ -14628,16 +14624,13 @@ var sectionSummarySchema = external_exports.object({
    * rather than reporting an error for a row that never had a summary.
    */
   known: external_exports.boolean(),
-  /** Section threads, the ones wanting attention first, capped for the preview. */
-  preview: external_exports.array(
-    external_exports.object({ bucket: sectionThreadBucketSchema, title: external_exports.string() }).strict()
-  ),
-  rollup: external_exports.object({
-    attention: external_exports.number().int().nonnegative(),
-    idle: external_exports.number().int().nonnegative(),
-    working: external_exports.number().int().nonnegative()
-  }).strict(),
-  total: external_exports.number().int().nonnegative()
+  /** Oldest `updatedAt` in the section: how long the quietest work has sat. */
+  oldestUntouchedAt: external_exports.number().nullable(),
+  total: external_exports.number().int().nonnegative(),
+  /** Unread by bb's own rule, so the card agrees with the app. */
+  unread: external_exports.number().int().nonnegative(),
+  /** When the longest-waiting attention thread started waiting. */
+  waitingSince: external_exports.number().nullable()
 }).strict();
 var rpcContract = defineRpcContract({
   threadSummary: {
@@ -14665,6 +14658,17 @@ var rpcContract = defineRpcContract({
     output: sectionSummarySchema
   }
 });
+function wait(ms, signal) {
+  return new Promise((resolve) => {
+    const timer = setTimeout(finish, ms);
+    signal.addEventListener("abort", finish, { once: true });
+    function finish() {
+      clearTimeout(timer);
+      signal.removeEventListener("abort", finish);
+      resolve();
+    }
+  });
+}
 async function safely(promise2) {
   try {
     return await promise2;
@@ -14736,9 +14740,10 @@ var ACTIVE_TURN_EVENT_WAIT_MS = "1";
 var STABLE_DESCRIPTOR_CACHE_TTL_MS = 6e4;
 var PULL_REQUEST_CACHE_TTL_MS = 15e3;
 var STABLE_DESCRIPTOR_CACHE_MAX_ENTRIES = 128;
-var SECTION_DIRECTORY_CACHE_TTL_MS = 3e4;
-var SECTION_DIRECTORY_BUDGET_MS = 1200;
-var SECTION_PREVIEW_LIMIT = 5;
+var SECTION_DIRECTORY_CACHE_TTL_MS = 10 * 6e4;
+var SECTION_DIRECTORY_REFRESH_MS = 5 * 6e4;
+var SECTION_THREADS_FLOOR_MS = 1200;
+var SECTION_THREADS_CACHE_TTL_MS = 2e3;
 function monotonicNow() {
   return typeof performance === "undefined" ? Date.now() : performance.now();
 }
@@ -15027,42 +15032,34 @@ var PULL_REQUEST_SIGNALS = {
 function isSidebarSectionThread(thread) {
   return thread.visibility === "visible" && thread.parentThreadId === null && thread.archivedAt === null && thread.deletedAt === null && thread.pinnedAt === null && thread.originKind !== "side-chat" && thread.childOrigin !== "side-chat";
 }
-function isBusyThread(thread) {
-  const activity = thread.activity;
-  return isRunningStatus(thread.runtime.displayStatus) || activity.activeWorkflowCount > 0 || activity.activeBackgroundAgentCount > 0 || activity.activeBackgroundCommandCount > 0 || activity.activePlanModeCount > 0 || activity.activeGoalCount > 0;
+function isUnread(thread) {
+  return (thread.lastReadAt ?? 0) < thread.latestAttentionAt;
 }
-function classify(thread) {
-  if (thread.hasPendingInteraction) return "blocked";
-  if (thread.runtime.displayStatus === "error") return "failed";
-  return isBusyThread(thread) ? "working" : "idle";
+function wantsAttention(thread) {
+  return thread.hasPendingInteraction || thread.runtime.displayStatus === "error";
 }
-function wantsAttention(bucket) {
-  return bucket === "blocked" || bucket === "failed";
-}
-var BUCKET_ORDER = {
-  blocked: 0,
-  failed: 1,
-  working: 2,
-  idle: 3
-};
-function summarizeSectionThreads(threads, previewLimit = SECTION_PREVIEW_LIMIT) {
-  const rollup = { attention: 0, idle: 0, working: 0 };
+function summarizeSectionThreads(threads) {
+  let attention = 0;
+  let unread = 0;
+  let waitingSince = null;
+  let oldestUntouchedAt = null;
   for (const thread of threads) {
-    const bucket = classify(thread);
-    if (wantsAttention(bucket)) rollup.attention += 1;
-    else if (bucket === "working") rollup.working += 1;
-    else rollup.idle += 1;
+    if (isUnread(thread)) unread += 1;
+    if (wantsAttention(thread)) {
+      attention += 1;
+      const since = thread.latestAttentionAt;
+      if (waitingSince === null || since < waitingSince) waitingSince = since;
+    }
+    if (oldestUntouchedAt === null || thread.updatedAt < oldestUntouchedAt) {
+      oldestUntouchedAt = thread.updatedAt;
+    }
   }
-  const ranked = [...threads].sort(
-    (left, right) => BUCKET_ORDER[classify(left)] - BUCKET_ORDER[classify(right)] || right.latestAttentionAt - left.latestAttentionAt || right.updatedAt - left.updatedAt
-  );
   return {
-    preview: ranked.slice(0, previewLimit).map((thread) => ({
-      bucket: classify(thread),
-      title: thread.title?.trim() || thread.titleFallback?.trim() || "Untitled"
-    })),
-    rollup,
-    total: threads.length
+    attention,
+    oldestUntouchedAt,
+    total: threads.length,
+    unread,
+    waitingSince
   };
 }
 function providerDisplayName(providerId) {
@@ -15099,8 +15096,14 @@ function plugin(bb) {
   );
   const sectionDirectory = new StableDescriptorCache(
     SECTION_DIRECTORY_CACHE_TTL_MS,
-    STABLE_DESCRIPTOR_CACHE_MAX_ENTRIES,
+    4,
     "sectionDirectory",
+    recordBackgroundRefresh
+  );
+  const sectionThreads = new StableDescriptorCache(
+    SECTION_THREADS_CACHE_TTL_MS,
+    STABLE_DESCRIPTOR_CACHE_MAX_ENTRIES,
+    "sectionThreads",
     recordBackgroundRefresh
   );
   const summaryRequests = new LatestSummaryRequestGate(2);
@@ -15483,7 +15486,7 @@ function plugin(bb) {
       const recorder = createDiagnostics();
       const deadlineAt = Date.now() + SUMMARY_LOOKUP_TIMEOUT_MS;
       const remainingMs = () => Math.max(1, deadlineAt - Date.now());
-      const sectionsBudgetMs = () => Math.max(1, Math.min(remainingMs(), SECTION_DIRECTORY_BUDGET_MS));
+      const directoryBudgetMs = () => Math.max(1, remainingMs() - SECTION_THREADS_FLOOR_MS);
       const signal = AbortSignal.timeout(SUMMARY_LOOKUP_TIMEOUT_MS);
       try {
         const readSections = () => measureCachedStage(
@@ -15491,7 +15494,7 @@ function plugin(bb) {
           "sections",
           () => sectionDirectory.get(
             "sections",
-            () => within(safely(bb.sdk.threadSections.list({ signal })), sectionsBudgetMs())
+            () => within(safely(bb.sdk.threadSections.list({ signal })), directoryBudgetMs())
           )
         );
         let sections = await readSections();
@@ -15500,17 +15503,22 @@ function plugin(bb) {
         if (section === null && sections.source !== "miss") {
           sectionDirectory.delete("sections");
           sections = await readSections();
-          section = sections.value?.find((row) => row.name === name) ?? null;
+          if (sections.value === null) {
+            throw new Error("Section summary unavailable.");
+          }
+          section = sections.value.find((row) => row.name === name) ?? null;
         }
         if (section === null) {
           const diagnostics2 = finishDiagnostics(recorder);
           recordDiagnostics(bb, "sectionSummary", name, diagnostics2);
           return {
+            attention: 0,
             diagnostics: diagnostics2,
             known: false,
-            preview: [],
-            rollup: { attention: 0, idle: 0, working: 0 },
-            total: 0
+            oldestUntouchedAt: null,
+            total: 0,
+            unread: 0,
+            waitingSince: null
           };
         }
         let projectNameById = /* @__PURE__ */ new Map();
@@ -15522,7 +15530,7 @@ function plugin(bb) {
               "projects",
               () => within(
                 safely(bb.sdk.projects.list({ includePersonal: true, signal })),
-                remainingMs()
+                directoryBudgetMs()
               )
             )
           );
@@ -15533,24 +15541,27 @@ function plugin(bb) {
             projects.value.map((project) => [project.id, project.name])
           );
         }
-        const page = await measureStage(
+        const sectionId = section.id;
+        const page = await measureCachedStage(
           recorder,
           "threads",
-          () => within(
-            safely(
-              bb.sdk.threads.list({
-                archived: false,
-                excludeSideChats: true,
-                hasParent: false,
-                includeHidden: false,
-                sectionId: section.id,
-                signal
-              })
-            ),
-            remainingMs()
-          ),
-          { unavailableWhenNull: true }
-        );
+          () => sectionThreads.get(
+            sectionId,
+            () => within(
+              safely(
+                bb.sdk.threads.list({
+                  archived: false,
+                  excludeSideChats: true,
+                  hasParent: false,
+                  includeHidden: false,
+                  sectionId,
+                  signal
+                })
+              ),
+              remainingMs()
+            )
+          )
+        ).then((result) => result.value);
         if (page === null) throw new Error("Section summary unavailable.");
         const threads = page.filter(isSidebarSectionThread).filter(
           (thread) => projectName === null || projectNameById.get(thread.projectId) === projectName
@@ -15565,6 +15576,26 @@ function plugin(bb) {
       } catch (error51) {
         recordDiagnostics(bb, "sectionSummary", name, finishDiagnostics(recorder));
         throw error51;
+      }
+    }
+  });
+  bb.background.service("section-directory-warm", {
+    async start(signal) {
+      while (!signal.aborted) {
+        const startedAt = monotonicNow();
+        sectionDirectory.delete("sections");
+        const sections = await sectionDirectory.get(
+          "sections",
+          () => within(safely(bb.sdk.threadSections.list({ signal })), 1e4)
+        );
+        if (signal.aborted) return;
+        bb.log.debug(
+          `thread-hover-cards:section-directory ${JSON.stringify({
+            durationMs: roundedDuration(startedAt),
+            sections: sections.value?.length ?? null
+          })}`
+        );
+        await wait(SECTION_DIRECTORY_REFRESH_MS, signal);
       }
     }
   });

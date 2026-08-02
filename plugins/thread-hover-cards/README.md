@@ -23,7 +23,17 @@ Section headers get their own card, which is the only way to see inside a sectio
 | Thread row | What is this thread doing right now? |
 | Section header | How much is in here, and does any of it need me? |
 
-The section card is a count and a list: how many threads are in there, how many of them are waiting on you when any are, and the most recently active ones by name. Threads that are working or stuck carry a glyph; quiet ones do not, so the marks stay legible. A section nested under a project counts only that project's threads. Built-in groups such as Pinned and Unorganized reuse the same header markup but are not sections, so they get no card.
+The section card only carries what reading the whole section would tell you. Thread titles are one click away and the row already shows its own activity glyph, so neither is repeated here; what you get instead are the aggregates nothing else surfaces.
+
+| Line | Answers |
+| --- | --- |
+| `2 need you · waiting 3h` | Is something blocked, and how long has it been blocked? |
+| `13 threads · 4 unread` | How much is in here, and how much have I not seen? |
+| `oldest untouched 12d` | How far has the quiet end of this section drifted? |
+
+Unread follows bb's own rule, so the count agrees with the app. Lines that would read as zero are omitted rather than shown empty. A section nested under a project counts only that project's threads. Built-in groups such as Pinned and Unorganized reuse the same header markup but are not sections, so they get no card.
+
+Resolving a section name costs bb's `/sidebar-bootstrap`, so a background service keeps that directory warm and the hover never pays for it — a section hover is one scoped thread query, around 15ms.
 
 Both cards are a sighted-pointer convenience layered over information the sidebar already gives you another way, and only one is ever open at a time.
 

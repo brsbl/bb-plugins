@@ -490,43 +490,6 @@ var CursorIcon = [
     }
   ]
 ];
-var HelpCircleIcon = [
-  [
-    "circle",
-    {
-      cx: "12",
-      cy: "12",
-      r: "10",
-      stroke: "currentColor",
-      strokeLinecap: "round",
-      strokeLinejoin: "round",
-      strokeWidth: "1.5",
-      key: "0"
-    }
-  ],
-  [
-    "path",
-    {
-      d: "M9.5 9.5C9.5 8.11929 10.6193 7 12 7C13.3807 7 14.5 8.11929 14.5 9.5C14.5 10.3569 14.0689 11.1131 13.4117 11.5636C12.7283 12.0319 12 12.6716 12 13.5",
-      stroke: "currentColor",
-      strokeLinecap: "round",
-      strokeLinejoin: "round",
-      strokeWidth: "1.5",
-      key: "1"
-    }
-  ],
-  [
-    "path",
-    {
-      d: "M12.125 16.75H12M12.25 16.75C12.25 16.8881 12.1381 17 12 17C11.8619 17 11.75 16.8881 11.75 16.75C11.75 16.6119 11.8619 16.5 12 16.5C12.1381 16.5 12.25 16.6119 12.25 16.75Z",
-      stroke: "currentColor",
-      strokeLinecap: "round",
-      strokeLinejoin: "round",
-      strokeWidth: "1.5",
-      key: "2"
-    }
-  ]
-];
 
 // styles.ts
 var HOVER_CARD_CSS = String.raw`
@@ -997,18 +960,25 @@ var HOVER_CARD_CSS = String.raw`
 }
 `;
 var SECTION_CARD_CSS = String.raw`
+/* Aggregates are short; the card hugs them instead of reserving thread-card width. */
 .bb-thread-hover-card[data-bb-card="section"] {
-  width: min(17rem, calc(100vw - 1rem));
+  width: max-content;
+  max-width: min(17rem, calc(100vw - 1rem));
+  padding: 0.625rem 0.75rem;
 }
 
-.bb-section-hover-card__header {
+.bb-section-hover-card__line {
   display: flex;
   min-width: 0;
   align-items: baseline;
   gap: 0.375rem;
 }
 
-.bb-section-hover-card__attention {
+.bb-section-hover-card__line + .bb-section-hover-card__line {
+  margin-top: 0.1875rem;
+}
+
+.bb-section-hover-card__attention-count {
   flex: none;
   color: var(--destructive-text, var(--destructive));
   font-size: 0.8125rem;
@@ -1016,66 +986,33 @@ var SECTION_CARD_CSS = String.raw`
   font-weight: 450;
 }
 
-/* Demoted to context once something is asking for action. */
 .bb-section-hover-card__count {
+  flex: none;
+  color: var(--foreground);
+  font-size: 0.8125rem;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Once something is asking for action it owns the headline weight. */
+.bb-section-hover-card__attention + .bb-section-hover-card__totals
+  .bb-section-hover-card__count {
+  color: var(--muted-foreground);
+  font-size: 0.75rem;
+}
+
+.bb-section-hover-card__unread,
+.bb-section-hover-card__elapsed {
   min-width: 0;
   overflow: hidden;
   color: var(--muted-foreground);
-  font-size: 0.6875rem;
+  font-size: 0.75rem;
   font-variant-numeric: tabular-nums;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.bb-section-hover-card__count--lead {
-  color: var(--foreground);
-  font-size: 0.8125rem;
-}
-
-.bb-section-hover-card__threads {
-  display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
-  margin: 0.5rem 0 0;
-  padding: 0;
-  list-style: none;
-}
-
-.bb-section-hover-card__thread {
-  display: flex;
-  min-width: 0;
-  align-items: center;
-  gap: 0.5rem;
-  color: color-mix(in srgb, var(--foreground) 88%, transparent);
-  font-size: 0.78125rem;
-  font-weight: 350;
-  line-height: 1.35;
-}
-
-/* A thread wanting action carries full weight; the rest recede behind it. */
-.bb-section-hover-card__thread[data-bucket="blocked"],
-.bb-section-hover-card__thread[data-bucket="failed"] {
-  color: var(--foreground);
-}
-
-.bb-section-hover-card__thread-title {
-  min-width: 0;
-  flex: 1 1 auto;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-/* Trailing, so the glyphs line up in a column the way the sidebar's do. */
-.bb-section-hover-card__thread-glyph {
-  flex: none;
-  margin-left: auto;
-}
-
-.bb-section-hover-card__more {
-  margin: 0.375rem 0 0;
-  color: var(--muted-foreground);
-  font-size: 0.65625rem;
+.bb-section-hover-card__stale .bb-section-hover-card__elapsed {
+  font-size: 0.6875rem;
 }
 
 .bb-section-hover-card__empty {
@@ -1086,11 +1023,11 @@ var SECTION_CARD_CSS = String.raw`
 `;
 
 // markdown-preview.ts
-function tableCells(line) {
-  return line.trim().replace(/^\|/, "").replace(/\|$/, "").split("|").map((cell) => cell.trim());
+function tableCells(line2) {
+  return line2.trim().replace(/^\|/, "").replace(/\|$/, "").split("|").map((cell) => cell.trim());
 }
-function isTableDivider(line) {
-  const cells = tableCells(line);
+function isTableDivider(line2) {
+  const cells = tableCells(line2);
   return cells.length > 0 && cells.every((cell) => /^:?-{3,}:?$/.test(cell.replace(/\s+/g, "")));
 }
 function cleanBlockText(value) {
@@ -1112,15 +1049,15 @@ function tablePreview(lines, start2) {
 }
 function markdownPreview(source) {
   let lines = source.replace(/\r\n?/g, "\n").split("\n");
-  let start2 = lines.findIndex((line) => line.trim().length > 0);
+  let start2 = lines.findIndex((line2) => line2.trim().length > 0);
   if (start2 < 0) return null;
   if (lines[start2]?.trim() === "---") {
     const frontmatterEnd = lines.findIndex(
-      (line, index) => index > start2 && line.trim() === "---"
+      (line2, index) => index > start2 && line2.trim() === "---"
     );
     if (frontmatterEnd > start2) {
       lines = lines.slice(frontmatterEnd + 1);
-      start2 = lines.findIndex((line) => line.trim().length > 0);
+      start2 = lines.findIndex((line2) => line2.trim().length > 0);
       if (start2 < 0) return null;
     }
   }
@@ -1131,9 +1068,9 @@ function markdownPreview(source) {
   if (fence) {
     const codeLines = [];
     for (let index = start2 + 1; index < lines.length; index += 1) {
-      const line = lines[index];
-      if (line.trim().startsWith(fence[1])) break;
-      if (line.trim() || codeLines.length > 0) codeLines.push(line.trim());
+      const line2 = lines[index];
+      if (line2.trim().startsWith(fence[1])) break;
+      if (line2.trim() || codeLines.length > 0) codeLines.push(line2.trim());
     }
     const inline2 = cleanBlockText(codeLines.join(" "));
     return inline2 ? { inline: inline2, kind: "code" } : null;
@@ -1166,13 +1103,13 @@ function markdownPreview(source) {
   }
   const paragraph = [];
   for (let index = start2; index < lines.length; index += 1) {
-    const line = lines[index].trim();
-    if (!line) break;
+    const line2 = lines[index].trim();
+    if (!line2) break;
     if (index > start2 && tablePreview(lines, index)) break;
-    if (index > start2 && /^(?:#{1,6}\s|```|~~~|>|[-+*]\s|\d+[.)]\s)/.test(line)) {
+    if (index > start2 && /^(?:#{1,6}\s|```|~~~|>|[-+*]\s|\d+[.)]\s)/.test(line2)) {
       break;
     }
-    paragraph.push(line);
+    paragraph.push(line2);
   }
   const inline = cleanBlockText(paragraph.join(" "));
   return inline ? { inline, kind: "paragraph" } : null;
@@ -1879,34 +1816,18 @@ function renderSummary(card, summary) {
 function threadCountLabel(total) {
   return total === 1 ? "1 thread" : `${total} threads`;
 }
-function attentionLabel(attention) {
-  return attention === 1 ? "1 needs you" : `${attention} need you`;
+function elapsedLabel(since, now = Date.now()) {
+  const minutes = Math.max(0, Math.floor((now - since) / 6e4));
+  if (minutes < 1) return "just now";
+  if (minutes < 60) return `${minutes}m`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h`;
+  const days = Math.floor(hours / 24);
+  return days < 30 ? `${days}d` : `${Math.floor(days / 30)}mo`;
 }
-var BUCKET_GLYPH = {
-  blocked: {
-    animated: false,
-    icon: HelpCircleIcon,
-    iconName: "HelpCircleIcon",
-    label: "Thread needs user input",
-    tone: "danger"
-  },
-  failed: {
-    animated: false,
-    icon: CancelCircleIcon,
-    iconName: "CancelCircleIcon",
-    label: "Thread failed",
-    tone: "danger"
-  },
-  working: {
-    animated: true,
-    icon: Loading03Icon,
-    iconName: "Loading03Icon",
-    label: "Agent working",
-    tone: "working"
-  },
-  // Quiet is the common case; marking it would drown out the two that matter.
-  idle: null
-};
+function line(className) {
+  return element("div", `bb-section-hover-card__line ${className}`);
+}
 function renderSectionSummary(card, summary) {
   if (summary.total === 0) {
     card.replaceChildren(
@@ -1914,65 +1835,61 @@ function renderSectionSummary(card, summary) {
     );
     return;
   }
-  const header = element("div", "bb-section-hover-card__header");
-  const needsAttention = summary.rollup.attention > 0;
-  if (needsAttention) {
-    header.append(
+  const content = [];
+  if (summary.attention > 0) {
+    const attention = line("bb-section-hover-card__attention");
+    attention.append(
       element(
         "span",
-        "bb-section-hover-card__attention",
-        attentionLabel(summary.rollup.attention)
-      ),
-      element(
-        "span",
-        "bb-section-hover-card__count",
-        threadCountLabel(summary.total)
+        "bb-section-hover-card__attention-count",
+        summary.attention === 1 ? "1 needs you" : `${summary.attention} need you`
       )
     );
-  } else {
-    header.append(
-      element(
-        "span",
-        "bb-section-hover-card__count bb-section-hover-card__count--lead",
-        threadCountLabel(summary.total)
-      )
-    );
-  }
-  const list = element("ul", "bb-section-hover-card__threads");
-  for (const thread of summary.preview) {
-    const row = element("li", "bb-section-hover-card__thread");
-    row.dataset.bucket = thread.bucket;
-    const title = element(
-      "span",
-      "bb-section-hover-card__thread-title",
-      thread.title
-    );
-    title.title = thread.title;
-    row.append(title);
-    const glyph = BUCKET_GLYPH[thread.bucket];
-    if (glyph) {
-      const statusIcon = icon(
-        glyph.icon,
-        glyph.iconName,
-        "bb-thread-hover-card__icon bb-thread-hover-card__time-icon bb-section-hover-card__thread-glyph"
-      );
-      statusIcon.dataset.tone = glyph.tone;
-      if (glyph.animated) statusIcon.dataset.animated = "true";
-      statusIcon.removeAttribute("aria-hidden");
-      statusIcon.setAttribute("role", "img");
-      statusIcon.setAttribute("aria-label", glyph.label);
-      row.append(statusIcon);
+    if (summary.waitingSince !== null) {
+      const waiting = element("span", "bb-section-hover-card__elapsed");
+      waiting.dataset.since = String(summary.waitingSince);
+      waiting.dataset.prefix = "waiting ";
+      waiting.textContent = `waiting ${elapsedLabel(summary.waitingSince)}`;
+      attention.append(waiting);
     }
-    list.append(row);
+    content.push(attention);
   }
-  const content = [header, list];
-  const remaining = summary.total - summary.preview.length;
-  if (remaining > 0) {
-    content.push(
-      element("p", "bb-section-hover-card__more", `+${remaining} more`)
+  const totals = line("bb-section-hover-card__totals");
+  totals.append(
+    element(
+      "span",
+      "bb-section-hover-card__count",
+      threadCountLabel(summary.total)
+    )
+  );
+  if (summary.unread > 0) {
+    totals.append(
+      element(
+        "span",
+        "bb-section-hover-card__unread",
+        `${summary.unread} unread`
+      )
     );
+  }
+  content.push(totals);
+  if (summary.oldestUntouchedAt !== null) {
+    const stale = line("bb-section-hover-card__stale");
+    const value = element("span", "bb-section-hover-card__elapsed");
+    value.dataset.since = String(summary.oldestUntouchedAt);
+    value.dataset.prefix = "oldest untouched ";
+    value.textContent = `oldest untouched ${elapsedLabel(summary.oldestUntouchedAt)}`;
+    stale.append(value);
+    content.push(stale);
   }
   card.replaceChildren(...content);
+}
+function refreshSectionElapsed(card) {
+  card.querySelectorAll("[data-since]").forEach((node) => {
+    const since = Number(node.dataset.since);
+    if (Number.isFinite(since)) {
+      node.textContent = `${node.dataset.prefix ?? ""}${elapsedLabel(since)}`;
+    }
+  });
 }
 function installHoverCards({ onOpen }) {
   let card = null;
@@ -2650,6 +2567,7 @@ function installSectionHoverCards({
   let card = null;
   let active = null;
   let closeTimer = null;
+  let elapsedTimer = null;
   let generation = 0;
   let disposed = false;
   const cache = /* @__PURE__ */ new Map();
@@ -2683,6 +2601,10 @@ function installSectionHoverCards({
   }
   function closeCard() {
     cancelClose();
+    if (elapsedTimer) {
+      clearInterval(elapsedTimer);
+      elapsedTimer = null;
+    }
     generation += 1;
     active?.row.removeAttribute("aria-describedby");
     active = null;
@@ -2748,6 +2670,10 @@ function installSectionHoverCards({
     hoverCard.classList.remove("is-visible");
     void hoverCard.offsetWidth;
     hoverCard.classList.add("is-visible");
+    if (elapsedTimer) clearInterval(elapsedTimer);
+    elapsedTimer = setInterval(() => {
+      if (card && !card.hidden) refreshSectionElapsed(card);
+    }, 3e4);
     const key = keyOf(target);
     const cached = cache.get(key);
     if (cached) renderSectionSummary(hoverCard, cached.summary);
@@ -2828,6 +2754,10 @@ function installSectionHoverCards({
       card?.remove();
       card = null;
       style.remove();
+      if (elapsedTimer) {
+        clearInterval(elapsedTimer);
+        elapsedTimer = null;
+      }
       cache.clear();
       unknownSections.clear();
       for (const controller of pending.values()) controller.abort();
@@ -2890,6 +2820,7 @@ var app_default = definePluginApp(() => {
 });
 export {
   app_default as default,
+  elapsedLabel,
   findSectionTrigger,
   renderSectionSummary,
   sectionLabelOf

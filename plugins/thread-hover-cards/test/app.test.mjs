@@ -42,40 +42,42 @@ Object.assign(globalThis, {
 const requestBodies = [];
 const sectionRequestBodies = [];
 const emptyDiagnostics = { startedAt: 0, stages: [], totalMs: 0 };
+const SECTION_NOW = testNow;
 const sectionSummaries = new Map([
   [
     "Design",
     {
+      attention: 2,
       diagnostics: emptyDiagnostics,
-      preview: [
-        { bucket: "blocked", title: "Audit the sidebar spacing" },
-        { bucket: "working", title: "Rework the section card" },
-        { bucket: "idle", title: "Quiet thread" },
-      ],
       known: true,
-      rollup: { attention: 1, idle: 2, working: 1 },
-      total: 4,
+      oldestUntouchedAt: SECTION_NOW - 12 * 24 * 3_600_000,
+      total: 13,
+      unread: 4,
+      waitingSince: SECTION_NOW - 3 * 3_600_000,
     },
   ],
   [
     "Writing",
     {
+      attention: 0,
       diagnostics: emptyDiagnostics,
-      preview: [],
-      projects: [],
       known: true,
-      rollup: { attention: 0, idle: 0, working: 0 },
+      oldestUntouchedAt: null,
       total: 0,
+      unread: 0,
+      waitingSince: null,
     },
   ],
   [
     "Pinned",
     {
+      attention: 0,
       diagnostics: emptyDiagnostics,
       known: false,
-      preview: [],
-      rollup: { attention: 0, idle: 0, working: 0 },
+      oldestUntouchedAt: null,
       total: 0,
+      unread: 0,
+      waitingSince: null,
     },
   ],
 ]);
@@ -1608,74 +1610,46 @@ assert.deepEqual(sectionRequestBodies.at(-1), {
   projectName: null,
 });
 assert.equal(
+  sectionCard.querySelector(".bb-section-hover-card__attention-count")
+    .textContent,
+  "2 need you",
+);
+assert.equal(
+  sectionCard.querySelector(
+    ".bb-section-hover-card__attention .bb-section-hover-card__elapsed",
+  ).textContent,
+  "waiting 3h",
+  "says how long the blocked work has been blocked",
+);
+assert.equal(
+  sectionCard.firstElementChild.className,
+  "bb-section-hover-card__line bb-section-hover-card__attention",
+  "what needs action leads the card",
+);
+assert.equal(
   sectionCard.querySelector(".bb-section-hover-card__count").textContent,
-  "4 threads",
+  "13 threads",
 );
 assert.equal(
-  sectionCard.querySelector(".bb-section-hover-card__attention").textContent,
-  "1 needs you",
-  "uses the singular and leads with what wants action",
+  sectionCard.querySelector(".bb-section-hover-card__unread").textContent,
+  "4 unread",
 );
 assert.equal(
-  sectionCard.firstElementChild.firstElementChild.className,
-  "bb-section-hover-card__attention",
-  "the attention count is the first thing in the card",
+  sectionCard.querySelector(
+    ".bb-section-hover-card__stale .bb-section-hover-card__elapsed",
+  ).textContent,
+  "oldest untouched 12d",
 );
-assert.deepEqual(
-  [...sectionCard.querySelectorAll(".bb-section-hover-card__thread-title")].map(
-    (node) => node.textContent,
-  ),
-  ["Audit the sidebar spacing", "Rework the section card", "Quiet thread"],
-  "renders the server's attention-first order",
-);
-for (const row of sectionCard.querySelectorAll(
-  ".bb-section-hover-card__thread",
-)) {
-  const glyph = row.querySelector("[data-icon]");
-  if (glyph === null) continue;
-  assert.equal(
-    row.lastElementChild,
-    glyph,
-    "the status glyph trails the title",
-  );
-}
+// Nothing the sidebar already gives away for free.
 assert.equal(
-  sectionCard
-    .querySelector('[data-bucket="blocked"] [data-icon]')
-    .getAttribute("data-icon"),
-  "HelpCircleIcon",
-  "a blocked thread uses bb's own needs-input glyph, not a checkmark",
-);
-assert.equal(
-  sectionCard
-    .querySelector('[data-bucket="blocked"] [data-icon]')
-    .getAttribute("aria-label"),
-  "Thread needs user input",
-);
-assert.equal(
-  sectionCard.querySelector('[data-bucket="idle"] [data-icon]'),
+  sectionCard.querySelector(".bb-section-hover-card__thread-title"),
   null,
-  "quiet threads stay unmarked",
+  "no thread titles: expanding the section already lists them",
 );
 assert.equal(
-  sectionCard.querySelector(".bb-section-hover-card__more").textContent,
-  "+1 more",
-);
-
-assert.equal(
-  sectionCard.querySelector(".bb-thread-hover-card__project"),
+  sectionCard.querySelector("[data-icon]"),
   null,
-  "carries no project breakdown",
-);
-assert.equal(
-  sectionCard.querySelectorAll(".bb-section-hover-card__more").length,
-  1,
-  "uses one '+N more' so the token has a single meaning",
-);
-assert.equal(
-  sectionCard.textContent.includes("Design"),
-  false,
-  "does not restate the section name the pointer is already on",
+  "no status glyphs: the sidebar row already carries one",
 );
 
 // The thread card and the section card are never open at the same time.
