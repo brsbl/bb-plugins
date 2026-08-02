@@ -125,6 +125,17 @@ export const threadPullRequestSchema = z
 
 export type ThreadPullRequest = z.infer<typeof threadPullRequestSchema>;
 
+// `blocked` and `failed` both count toward "needs you"; they are kept apart so
+// each row can carry the glyph bb uses for that state.
+const sectionThreadBucketSchema = z.enum([
+  "blocked",
+  "failed",
+  "idle",
+  "working",
+]);
+
+export type SectionThreadBucket = z.infer<typeof sectionThreadBucketSchema>;
+
 export const sectionSummarySchema = z
   .object({
     diagnostics: rpcDiagnosticsSchema,
@@ -134,16 +145,9 @@ export const sectionSummarySchema = z
      * rather than reporting an error for a row that never had a summary.
      */
     known: z.boolean(),
-    /** Section threads, most recently active first, capped for the preview. */
+    /** Section threads, the ones wanting attention first, capped for the preview. */
     preview: z.array(
-      z
-        .object({
-          hasPendingInteraction: z.boolean(),
-          id: z.string(),
-          status: displayStatusSchema,
-          title: z.string(),
-        })
-        .strict(),
+      z.object({ bucket: sectionThreadBucketSchema, title: z.string() }).strict(),
     ),
     rollup: z
       .object({
@@ -318,6 +322,8 @@ const PULL_REQUEST_CACHE_TTL_MS = 15_000;
 const STABLE_DESCRIPTOR_CACHE_MAX_ENTRIES = 128;
 /** Sections and projects are small, slow-changing tables; one lookup covers a hover run. */
 const SECTION_DIRECTORY_CACHE_TTL_MS = 30_000;
+/** Ceiling on the directory read so the thread query always keeps a real budget. */
+const SECTION_DIRECTORY_BUDGET_MS = 1_200;
 const SECTION_PREVIEW_LIMIT = 5;
 
 type CacheSource = "coalesced" | "hit" | "miss" | "none" | "stale";
@@ -426,11 +432,11 @@ function recordDiagnostics(
     | "threadSummary"
     | "threadTiming",
   /** A thread id, or the section name for `sectionSummary`. */
-  threadId: string,
+  subject: string,
   diagnostics: RpcDiagnostics,
 ): void {
   bb.log.debug(
-    `thread-hover-cards:timing ${JSON.stringify({ diagnostics, rpc, threadId })}`,
+    `thread-hover-cards:timing ${JSON.stringify({ diagnostics, rpc, subject })}`,
   );
 }
 
@@ -717,45 +723,94 @@ const PULL_REQUEST_SIGNALS = {
 type SidebarThread = Awaited<
   ReturnType<BbPluginApi["sdk"]["threads"]["list"]>
 >[number];
+type ThreadSectionRow = Awaited<
+  ReturnType<BbPluginApi["sdk"]["threadSections"]["list"]>
+>[number];
+type ProjectRow = Awaited<
+  ReturnType<BbPluginApi["sdk"]["projects"]["list"]>
+>[number];
 
-/** Matches the sidebar: visible, unarchived root threads, side chats excluded. */
+/**
+ * Matches the rows a section actually renders: visible, unarchived roots, side
+ * chats excluded — and not pinned, because bb lifts pinned threads out of their
+ * section into the Pinned group (apps/app/src/components/sidebar/ProjectList.tsx)
+ * so counting them here would overstate what the section shows.
+ */
 export function isSidebarSectionThread(thread: SidebarThread): boolean {
   return (
     thread.visibility === "visible" &&
     thread.parentThreadId === null &&
     thread.archivedAt === null &&
     thread.deletedAt === null &&
+    thread.pinnedAt === null &&
     thread.originKind !== "side-chat" &&
     thread.childOrigin !== "side-chat"
   );
 }
+
+/**
+ * Mirrors bb's own `isBusyThread`: a thread with no running status can still be
+ * driving a workflow, background agent, or plan, and the sidebar shows it busy.
+ */
+function isBusyThread(thread: SidebarThread): boolean {
+  const activity = thread.activity;
+  return (
+    isRunningStatus(thread.runtime.displayStatus) ||
+    activity.activeWorkflowCount > 0 ||
+    activity.activeBackgroundAgentCount > 0 ||
+    activity.activeBackgroundCommandCount > 0 ||
+    activity.activePlanModeCount > 0 ||
+    activity.activeGoalCount > 0
+  );
+}
+
+/**
+ * One bucket per thread. Attention wins because it is the only state that asks
+ * the reader to do something; the client renders what it is told rather than
+ * re-deriving the rule on the other side of the wire.
+ */
+function classify(thread: SidebarThread): SectionThreadBucket {
+  if (thread.hasPendingInteraction) return "blocked";
+  if (thread.runtime.displayStatus === "error") return "failed";
+  return isBusyThread(thread) ? "working" : "idle";
+}
+
+function wantsAttention(bucket: SectionThreadBucket): boolean {
+  return bucket === "blocked" || bucket === "failed";
+}
+
+const BUCKET_ORDER: Record<SectionThreadBucket, number> = {
+  blocked: 0,
+  failed: 1,
+  working: 2,
+  idle: 3,
+};
 
 export function summarizeSectionThreads(
   threads: readonly SidebarThread[],
   previewLimit = SECTION_PREVIEW_LIMIT,
 ): Omit<SectionSummary, "diagnostics" | "known"> {
   const rollup = { attention: 0, idle: 0, working: 0 };
-
   for (const thread of threads) {
-    const status = thread.runtime.displayStatus;
-    // One thread contributes to exactly one bucket; attention wins because it
-    // is the only one that asks the user to do something.
-    if (thread.hasPendingInteraction || status === "error") rollup.attention += 1;
-    else if (isRunningStatus(status)) rollup.working += 1;
+    const bucket = classify(thread);
+    if (wantsAttention(bucket)) rollup.attention += 1;
+    else if (bucket === "working") rollup.working += 1;
     else rollup.idle += 1;
   }
 
+  // Threads that want something lead the preview. Sorting purely by recency
+  // buried the actionable ones mid-list, which is the opposite of useful when
+  // the card is the thing telling you action is needed.
   const ranked = [...threads].sort(
     (left, right) =>
+      BUCKET_ORDER[classify(left)] - BUCKET_ORDER[classify(right)] ||
       right.latestAttentionAt - left.latestAttentionAt ||
       right.updatedAt - left.updatedAt,
   );
 
   return {
     preview: ranked.slice(0, previewLimit).map((thread) => ({
-      hasPendingInteraction: thread.hasPendingInteraction,
-      id: thread.id,
-      status: thread.runtime.displayStatus,
+      bucket: classify(thread),
       title: thread.title?.trim() || thread.titleFallback?.trim() || "Untitled",
     })),
     rollup,
@@ -1237,34 +1292,35 @@ export default function plugin(bb: BbPluginApi): void {
       const recorder = createDiagnostics();
       const deadlineAt = Date.now() + SUMMARY_LOOKUP_TIMEOUT_MS;
       const remainingMs = (): number => Math.max(1, deadlineAt - Date.now());
+      // threadSections.list is served by the heavy /sidebar-bootstrap fetch. Left
+      // to the shared deadline it can consume all of it and leave the query this
+      // card actually needs with nothing.
+      const sectionsBudgetMs = (): number =>
+        Math.max(1, Math.min(remainingMs(), SECTION_DIRECTORY_BUDGET_MS));
       const signal = AbortSignal.timeout(SUMMARY_LOOKUP_TIMEOUT_MS);
       try {
-        const [sections, projects] = await Promise.all([
+        const readSections = (): Promise<CacheResult<ThreadSectionRow[]>> =>
           measureCachedStage(recorder, "sections", () =>
-            sectionDirectory.get("sections", () =>
-              within(safely(bb.sdk.threadSections.list({ signal })), remainingMs()),
+            sectionDirectory.get<ThreadSectionRow[]>("sections", () =>
+              within(safely(bb.sdk.threadSections.list({ signal })), sectionsBudgetMs()),
             ),
-          ),
-          measureCachedStage(recorder, "projects", () =>
-            sectionDirectory.get("projects", () =>
-              within(
-                safely(bb.sdk.projects.list({ includePersonal: true, signal })),
-                remainingMs(),
-              ),
-            ),
-          ),
-        ]);
+          );
+        let sections = await readSections();
         if (sections.value === null) throw new Error("Section summary unavailable.");
 
-        const projectNameById = new Map(
-          (projects.value ?? []).map((project) => [project.id, project.name]),
-        );
-        // A section name is what the sidebar row carries; ids are not in the DOM.
-        // Same-named sections are read as the one section the user sees.
-        const sectionIds = sections.value
-          .filter((section) => section.name === name)
-          .map((section) => section.id);
-        if (sectionIds.length === 0) {
+        // Section names are unique in bb (thread_sections has a unique index on
+        // name), so at most one row can match.
+        let section = sections.value.find((row) => row.name === name) ?? null;
+        if (section === null && sections.source !== "miss") {
+          // A miss against a possibly-stale directory is indistinguishable from
+          // a built-in group like Pinned. Re-read once before saying "not a
+          // section", so a just-created or just-renamed section is not written
+          // off — the client caches that answer.
+          sectionDirectory.delete("sections");
+          sections = await readSections();
+          section = sections.value?.find((row) => row.name === name) ?? null;
+        }
+        if (section === null) {
           const diagnostics = finishDiagnostics(recorder);
           recordDiagnostics(bb, "sectionSummary", name, diagnostics);
           return {
@@ -1276,27 +1332,53 @@ export default function plugin(bb: BbPluginApi): void {
           };
         }
 
-        const pages = await measureStage(recorder, "threads", () =>
-          Promise.all(
-            sectionIds.map((sectionId) =>
+        // Only paid for when the sidebar actually nests this section under a
+        // project. Today's bb renders sections at top level, so this normally
+        // costs nothing and leaves the whole remaining budget to the threads.
+        let projectNameById = new Map<string, string>();
+        if (projectName !== null) {
+          const projects = await measureCachedStage(recorder, "projects", () =>
+            sectionDirectory.get<ProjectRow[]>("projects", () =>
               within(
-                safely(
-                  bb.sdk.threads.list({
-                    archived: false,
-                    excludeSideChats: true,
-                    hasParent: false,
-                    includeHidden: false,
-                    sectionId,
-                    signal,
-                  }),
-                ),
+                safely(bb.sdk.projects.list({ includePersonal: true, signal })),
                 remainingMs(),
               ),
             ),
-          ),
+          );
+          // Failing open here would filter every thread out and render a
+          // confident "No threads yet" for a populated section.
+          if (projects.value === null) {
+            throw new Error("Section summary unavailable.");
+          }
+          projectNameById = new Map(
+            projects.value.map((project) => [project.id, project.name]),
+          );
+        }
+
+        const page = await measureStage(
+          recorder,
+          "threads",
+          () =>
+            within(
+              safely(
+                bb.sdk.threads.list({
+                  archived: false,
+                  excludeSideChats: true,
+                  hasParent: false,
+                  includeHidden: false,
+                  sectionId: section.id,
+                  signal,
+                }),
+              ),
+              remainingMs(),
+            ),
+          { unavailableWhenNull: true },
         );
-        const threads = pages
-          .flatMap((page) => page ?? [])
+        // A lost page would silently under-report the count as authoritative.
+        // The card exists to state a number; better none than a wrong one.
+        if (page === null) throw new Error("Section summary unavailable.");
+
+        const threads = page
           .filter(isSidebarSectionThread)
           .filter(
             (thread) =>

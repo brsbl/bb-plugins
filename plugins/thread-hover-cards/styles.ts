@@ -480,30 +480,31 @@ export const SECTION_CARD_CSS = String.raw`
   display: flex;
   min-width: 0;
   align-items: baseline;
-  gap: 0;
-}
-
-.bb-section-hover-card__count {
-  flex: none;
-  color: var(--foreground);
-  font-size: 0.8125rem;
-  font-variant-numeric: tabular-nums;
-  font-weight: 400;
+  gap: 0.375rem;
 }
 
 .bb-section-hover-card__attention {
+  flex: none;
+  color: var(--destructive-text, var(--destructive));
+  font-size: 0.8125rem;
+  font-variant-numeric: tabular-nums;
+  font-weight: 450;
+}
+
+/* Demoted to context once something is asking for action. */
+.bb-section-hover-card__count {
   min-width: 0;
   overflow: hidden;
-  color: var(--destructive);
-  font-size: 0.8125rem;
+  color: var(--muted-foreground);
+  font-size: 0.6875rem;
   font-variant-numeric: tabular-nums;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.bb-section-hover-card__attention::before {
-  color: var(--muted-foreground);
-  content: " · ";
+.bb-section-hover-card__count--lead {
+  color: var(--foreground);
+  font-size: 0.8125rem;
 }
 
 .bb-section-hover-card__threads {
@@ -519,18 +520,31 @@ export const SECTION_CARD_CSS = String.raw`
   display: flex;
   min-width: 0;
   align-items: center;
-  gap: 0.375rem;
+  gap: 0.5rem;
   color: color-mix(in srgb, var(--foreground) 88%, transparent);
   font-size: 0.78125rem;
   font-weight: 350;
   line-height: 1.35;
 }
 
+/* A thread wanting action carries full weight; the rest recede behind it. */
+.bb-section-hover-card__thread[data-bucket="blocked"],
+.bb-section-hover-card__thread[data-bucket="failed"] {
+  color: var(--foreground);
+}
+
 .bb-section-hover-card__thread-title {
   min-width: 0;
+  flex: 1 1 auto;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* Trailing, so the glyphs line up in a column the way the sidebar's do. */
+.bb-section-hover-card__thread-glyph {
+  flex: none;
+  margin-left: auto;
 }
 
 .bb-section-hover-card__more {

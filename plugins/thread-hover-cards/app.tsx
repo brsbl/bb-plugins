@@ -8,6 +8,7 @@ import {
   Folder01Icon,
   FolderEditIcon,
   GitBranchIcon,
+  HelpCircleIcon,
   LaptopIcon,
   LinkSquare01Icon,
   Loading03Icon,
@@ -20,6 +21,7 @@ import {
 import type {
   RpcDiagnostics,
   SectionSummary,
+  SectionThreadBucket,
   ThreadPullRequest,
   ThreadSummary,
   ThreadTiming,
@@ -41,6 +43,8 @@ const STICKY_GROUP_SELECTOR = "[data-sidebar-sticky-group]";
 const PROJECT_ITEM_SELECTOR = "[data-sidebar-sticky-project-item]";
 const SECTION_SUMMARY_CACHE_TTL_MS = 4_000;
 const SECTION_CACHE_MAX_ENTRIES = 32;
+/** Comfortably past the server's section-directory TTL, so a wrong "no" heals. */
+const SECTION_UNKNOWN_TTL_MS = 60_000;
 const OPEN_DELAY_MS = 0;
 const CLOSE_DELAY_MS = 120;
 const ACTIVE_SUMMARY_CACHE_TTL_MS = 2_000;
@@ -381,8 +385,13 @@ function enclosingProjectName(row: Element): string | null {
 export function findSectionTrigger(
   target: EventTarget | null,
 ): SectionTrigger | null {
-  let candidate = target instanceof Element ? target : null;
-  while (candidate) {
+  // Pointer events fire document-wide, so bail before the walk on anything
+  // outside a sidebar group rather than scanning up to <html> every time.
+  const root =
+    target instanceof Element ? target.closest(STICKY_GROUP_SELECTOR) : null;
+  if (root === null) return null;
+  let candidate: Element | null = target as Element;
+  while (candidate && candidate !== root.parentElement) {
     const toggle = sectionToggleOwnedBy(candidate);
     if (toggle) {
       const name = sectionLabelOf(toggle);
@@ -729,13 +738,9 @@ function placeCardNear(card: HTMLElement, anchor: HTMLElement): void {
   card.style.top = `${Math.round(top)}px`;
 }
 
-function renderLoading(card: HTMLElement): void {
+function renderLoading(card: HTMLElement, subject = "thread"): void {
   card.replaceChildren(
-    element(
-      "p",
-      "bb-thread-hover-card__loading",
-      "Loading thread summary…",
-    ),
+    element("p", "bb-thread-hover-card__loading", `Loading ${subject} summary…`),
   );
 }
 
@@ -978,10 +983,56 @@ function threadCountLabel(total: number): string {
   return total === 1 ? "1 thread" : `${total} threads`;
 }
 
+function attentionLabel(attention: number): string {
+  return attention === 1 ? "1 needs you" : `${attention} need you`;
+}
+
 /**
- * One headline and one list. The count leads because it is the question the
- * card exists to answer; the threads under it say what the count is made of.
- * Anything a reader would have to decode instead of read has been left out.
+ * Per-bucket presentation. Attention gets its own glyph rather than borrowing
+ * the thread status one: a blocked thread is usually `idle`, so reusing the
+ * status glyph drew a green "Agent finished" checkmark on the very rows the
+ * card is flagging.
+ */
+const BUCKET_GLYPH: Record<
+  SectionThreadBucket,
+  {
+    animated: boolean;
+    icon: HugeiconDefinition;
+    iconName: string;
+    label: string;
+    tone: string;
+  } | null
+> = {
+  blocked: {
+    animated: false,
+    icon: HelpCircleIcon,
+    iconName: "HelpCircleIcon",
+    label: "Thread needs user input",
+    tone: "danger",
+  },
+  failed: {
+    animated: false,
+    icon: CancelCircleIcon,
+    iconName: "CancelCircleIcon",
+    label: "Thread failed",
+    tone: "danger",
+  },
+  working: {
+    animated: true,
+    icon: Loading03Icon,
+    iconName: "Loading03Icon",
+    label: "Agent working",
+    tone: "working",
+  },
+  // Quiet is the common case; marking it would drown out the two that matter.
+  idle: null,
+};
+
+/**
+ * When something wants you, that leads and the total follows — the card is
+ * being read to decide whether to act, not to audit a number. The threads
+ * needing action are already sorted to the top server-side, and each row's
+ * glyph trails on the right the way the sidebar's own rows place theirs.
  */
 export function renderSectionSummary(
   card: HTMLElement,
@@ -995,21 +1046,26 @@ export function renderSectionSummary(
   }
 
   const header = element("div", "bb-section-hover-card__header");
-  header.append(
-    element(
-      "span",
-      "bb-section-hover-card__count",
-      threadCountLabel(summary.total),
-    ),
-  );
-  // Idle and working are already spoken for by the row's own status glyph.
-  // What the sidebar cannot say is how much of this is waiting on you.
-  if (summary.rollup.attention > 0) {
+  const needsAttention = summary.rollup.attention > 0;
+  if (needsAttention) {
     header.append(
       element(
         "span",
         "bb-section-hover-card__attention",
-        `${summary.rollup.attention} need you`,
+        attentionLabel(summary.rollup.attention),
+      ),
+      element(
+        "span",
+        "bb-section-hover-card__count",
+        threadCountLabel(summary.total),
+      ),
+    );
+  } else {
+    header.append(
+      element(
+        "span",
+        "bb-section-hover-card__count bb-section-hover-card__count--lead",
+        threadCountLabel(summary.total),
       ),
     );
   }
@@ -1017,28 +1073,7 @@ export function renderSectionSummary(
   const list = element("ul", "bb-section-hover-card__threads");
   for (const thread of summary.preview) {
     const row = element("li", "bb-section-hover-card__thread");
-    const presentation = statusPresentation(thread.status);
-    const needsAttention =
-      thread.hasPendingInteraction || thread.status === "error";
-    // An idle thread carries no glyph: quiet is the common case, so marking it
-    // would drown out the two states that matter.
-    if (
-      (needsAttention || presentation.animated) &&
-      presentation.icon &&
-      presentation.iconName
-    ) {
-      const statusIcon = icon(
-        presentation.icon,
-        presentation.iconName,
-        "bb-thread-hover-card__icon bb-thread-hover-card__time-icon",
-      );
-      statusIcon.dataset.tone = needsAttention ? "danger" : presentation.tone;
-      if (presentation.animated) statusIcon.dataset.animated = "true";
-      statusIcon.removeAttribute("aria-hidden");
-      statusIcon.setAttribute("role", "img");
-      statusIcon.setAttribute("aria-label", presentation.label);
-      row.append(statusIcon);
-    }
+    row.dataset.bucket = thread.bucket;
     const title = element(
       "span",
       "bb-section-hover-card__thread-title",
@@ -1046,6 +1081,21 @@ export function renderSectionSummary(
     );
     title.title = thread.title;
     row.append(title);
+
+    const glyph = BUCKET_GLYPH[thread.bucket];
+    if (glyph) {
+      const statusIcon = icon(
+        glyph.icon,
+        glyph.iconName,
+        "bb-thread-hover-card__icon bb-thread-hover-card__time-icon bb-section-hover-card__thread-glyph",
+      );
+      statusIcon.dataset.tone = glyph.tone;
+      if (glyph.animated) statusIcon.dataset.animated = "true";
+      statusIcon.removeAttribute("aria-hidden");
+      statusIcon.setAttribute("role", "img");
+      statusIcon.setAttribute("aria-label", glyph.label);
+      row.append(statusIcon);
+    }
     list.append(row);
   }
 
@@ -1980,9 +2030,11 @@ function installSectionHoverCards({
   let disposed = false;
   const cache = new Map<string, { fetchedAt: number; summary: SectionSummary }>();
   const pending = new Map<string, AbortController>();
-  // Built-in groups (Pinned, Unorganized, …) reuse the section header markup.
-  // One answer from the server is enough to stop offering them a card at all.
-  const unknownSections = new Set<string>();
+  // Built-in groups (Pinned, Unorganized, …) reuse the section header markup,
+  // so one answer stops us offering them a card. The verdict expires because a
+  // section created or renamed a moment ago can also answer "not a section",
+  // and that must not be permanent.
+  const unknownSections = new Map<string, number>();
   const style = element("style", "");
   style.id = SECTION_STYLE_ID;
   style.textContent = SECTION_CARD_CSS;
@@ -2053,7 +2105,7 @@ function installSectionHoverCards({
     )
       .then((summary) => {
         if (!summary.known) {
-          unknownSections.add(key);
+          unknownSections.set(key, Date.now());
           return summary;
         }
         cache.delete(key);
@@ -2071,7 +2123,14 @@ function installSectionHoverCards({
   }
 
   function showCard(target: SectionTrigger): void {
-    if (disposed || unknownSections.has(keyOf(target))) return;
+    const knownUnknownAt = unknownSections.get(keyOf(target));
+    if (
+      disposed ||
+      (knownUnknownAt !== undefined &&
+        Date.now() - knownUnknownAt < SECTION_UNKNOWN_TTL_MS)
+    ) {
+      return;
+    }
     onOpen();
     cancelClose();
     active?.row.removeAttribute("aria-describedby");
@@ -2088,7 +2147,7 @@ function installSectionHoverCards({
     const key = keyOf(target);
     const cached = cache.get(key);
     if (cached) renderSectionSummary(hoverCard, cached.summary);
-    else renderLoading(hoverCard);
+    else renderLoading(hoverCard, "section");
     requestAnimationFrame(position);
     if (cached && Date.now() - cached.fetchedAt < SECTION_SUMMARY_CACHE_TTL_MS) {
       return;
@@ -2137,8 +2196,13 @@ function installSectionHoverCards({
 
   function onFocusIn(event: FocusEvent): void {
     const target = findSectionTrigger(event.target);
-    if (target) showCard(target);
-    else if (
+    if (target) {
+      if (active?.row === target.row && card && !card.hidden) {
+        cancelClose();
+        return;
+      }
+      showCard(target);
+    } else if (
       active &&
       !(event.target instanceof Node && card?.contains(event.target))
     ) {
@@ -2177,6 +2241,7 @@ function installSectionHoverCards({
       card = null;
       style.remove();
       cache.clear();
+      unknownSections.clear();
       for (const controller of pending.values()) controller.abort();
       pending.clear();
     },

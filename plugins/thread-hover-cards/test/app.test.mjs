@@ -48,24 +48,9 @@ const sectionSummaries = new Map([
     {
       diagnostics: emptyDiagnostics,
       preview: [
-        {
-          hasPendingInteraction: false,
-          id: "thr_s1",
-          status: "active",
-          title: "Rework the section card",
-        },
-        {
-          hasPendingInteraction: true,
-          id: "thr_s2",
-          status: "idle",
-          title: "Audit the sidebar spacing",
-        },
-        {
-          hasPendingInteraction: false,
-          id: "thr_s3",
-          status: "idle",
-          title: "Quiet thread",
-        },
+        { bucket: "blocked", title: "Audit the sidebar spacing" },
+        { bucket: "working", title: "Rework the section card" },
+        { bucket: "idle", title: "Quiet thread" },
       ],
       known: true,
       rollup: { attention: 1, idle: 2, working: 1 },
@@ -1628,24 +1613,55 @@ assert.equal(
 );
 assert.equal(
   sectionCard.querySelector(".bb-section-hover-card__attention").textContent,
-  "1 need you",
+  "1 needs you",
+  "uses the singular and leads with what wants action",
+);
+assert.equal(
+  sectionCard.firstElementChild.firstElementChild.className,
+  "bb-section-hover-card__attention",
+  "the attention count is the first thing in the card",
 );
 assert.deepEqual(
   [...sectionCard.querySelectorAll(".bb-section-hover-card__thread-title")].map(
     (node) => node.textContent,
   ),
-  ["Rework the section card", "Audit the sidebar spacing", "Quiet thread"],
+  ["Audit the sidebar spacing", "Rework the section card", "Quiet thread"],
+  "renders the server's attention-first order",
+);
+for (const row of sectionCard.querySelectorAll(
+  ".bb-section-hover-card__thread",
+)) {
+  const glyph = row.querySelector("[data-icon]");
+  if (glyph === null) continue;
+  assert.equal(
+    row.lastElementChild,
+    glyph,
+    "the status glyph trails the title",
+  );
+}
+assert.equal(
+  sectionCard
+    .querySelector('[data-bucket="blocked"] [data-icon]')
+    .getAttribute("data-icon"),
+  "HelpCircleIcon",
+  "a blocked thread uses bb's own needs-input glyph, not a checkmark",
+);
+assert.equal(
+  sectionCard
+    .querySelector('[data-bucket="blocked"] [data-icon]')
+    .getAttribute("aria-label"),
+  "Thread needs user input",
+);
+assert.equal(
+  sectionCard.querySelector('[data-bucket="idle"] [data-icon]'),
+  null,
+  "quiet threads stay unmarked",
 );
 assert.equal(
   sectionCard.querySelector(".bb-section-hover-card__more").textContent,
   "+1 more",
 );
-assert.equal(
-  sectionCard.querySelectorAll(".bb-section-hover-card__thread [data-icon]")
-    .length,
-  2,
-  "glyphs only the working and attention threads",
-);
+
 assert.equal(
   sectionCard.querySelector(".bb-thread-hover-card__project"),
   null,

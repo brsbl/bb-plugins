@@ -490,6 +490,43 @@ var CursorIcon = [
     }
   ]
 ];
+var HelpCircleIcon = [
+  [
+    "circle",
+    {
+      cx: "12",
+      cy: "12",
+      r: "10",
+      stroke: "currentColor",
+      strokeLinecap: "round",
+      strokeLinejoin: "round",
+      strokeWidth: "1.5",
+      key: "0"
+    }
+  ],
+  [
+    "path",
+    {
+      d: "M9.5 9.5C9.5 8.11929 10.6193 7 12 7C13.3807 7 14.5 8.11929 14.5 9.5C14.5 10.3569 14.0689 11.1131 13.4117 11.5636C12.7283 12.0319 12 12.6716 12 13.5",
+      stroke: "currentColor",
+      strokeLinecap: "round",
+      strokeLinejoin: "round",
+      strokeWidth: "1.5",
+      key: "1"
+    }
+  ],
+  [
+    "path",
+    {
+      d: "M12.125 16.75H12M12.25 16.75C12.25 16.8881 12.1381 17 12 17C11.8619 17 11.75 16.8881 11.75 16.75C11.75 16.6119 11.8619 16.5 12 16.5C12.1381 16.5 12.25 16.6119 12.25 16.75Z",
+      stroke: "currentColor",
+      strokeLinecap: "round",
+      strokeLinejoin: "round",
+      strokeWidth: "1.5",
+      key: "2"
+    }
+  ]
+];
 
 // styles.ts
 var HOVER_CARD_CSS = String.raw`
@@ -968,30 +1005,31 @@ var SECTION_CARD_CSS = String.raw`
   display: flex;
   min-width: 0;
   align-items: baseline;
-  gap: 0;
-}
-
-.bb-section-hover-card__count {
-  flex: none;
-  color: var(--foreground);
-  font-size: 0.8125rem;
-  font-variant-numeric: tabular-nums;
-  font-weight: 400;
+  gap: 0.375rem;
 }
 
 .bb-section-hover-card__attention {
+  flex: none;
+  color: var(--destructive-text, var(--destructive));
+  font-size: 0.8125rem;
+  font-variant-numeric: tabular-nums;
+  font-weight: 450;
+}
+
+/* Demoted to context once something is asking for action. */
+.bb-section-hover-card__count {
   min-width: 0;
   overflow: hidden;
-  color: var(--destructive);
-  font-size: 0.8125rem;
+  color: var(--muted-foreground);
+  font-size: 0.6875rem;
   font-variant-numeric: tabular-nums;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.bb-section-hover-card__attention::before {
-  color: var(--muted-foreground);
-  content: " · ";
+.bb-section-hover-card__count--lead {
+  color: var(--foreground);
+  font-size: 0.8125rem;
 }
 
 .bb-section-hover-card__threads {
@@ -1007,18 +1045,31 @@ var SECTION_CARD_CSS = String.raw`
   display: flex;
   min-width: 0;
   align-items: center;
-  gap: 0.375rem;
+  gap: 0.5rem;
   color: color-mix(in srgb, var(--foreground) 88%, transparent);
   font-size: 0.78125rem;
   font-weight: 350;
   line-height: 1.35;
 }
 
+/* A thread wanting action carries full weight; the rest recede behind it. */
+.bb-section-hover-card__thread[data-bucket="blocked"],
+.bb-section-hover-card__thread[data-bucket="failed"] {
+  color: var(--foreground);
+}
+
 .bb-section-hover-card__thread-title {
   min-width: 0;
+  flex: 1 1 auto;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* Trailing, so the glyphs line up in a column the way the sidebar's do. */
+.bb-section-hover-card__thread-glyph {
+  flex: none;
+  margin-left: auto;
 }
 
 .bb-section-hover-card__more {
@@ -1140,6 +1191,7 @@ var STICKY_GROUP_SELECTOR = "[data-sidebar-sticky-group]";
 var PROJECT_ITEM_SELECTOR = "[data-sidebar-sticky-project-item]";
 var SECTION_SUMMARY_CACHE_TTL_MS = 4e3;
 var SECTION_CACHE_MAX_ENTRIES = 32;
+var SECTION_UNKNOWN_TTL_MS = 6e4;
 var OPEN_DELAY_MS = 0;
 var CLOSE_DELAY_MS = 120;
 var ACTIVE_SUMMARY_CACHE_TTL_MS = 2e3;
@@ -1341,8 +1393,10 @@ function enclosingProjectName(row) {
   return projectToggle == null ? null : sectionLabelOf(projectToggle);
 }
 function findSectionTrigger(target) {
-  let candidate = target instanceof Element ? target : null;
-  while (candidate) {
+  const root = target instanceof Element ? target.closest(STICKY_GROUP_SELECTOR) : null;
+  if (root === null) return null;
+  let candidate = target;
+  while (candidate && candidate !== root.parentElement) {
     const toggle = sectionToggleOwnedBy(candidate);
     if (toggle) {
       const name = sectionLabelOf(toggle);
@@ -1608,13 +1662,9 @@ function placeCardNear(card, anchor) {
   card.style.left = `${Math.round(left)}px`;
   card.style.top = `${Math.round(top)}px`;
 }
-function renderLoading(card) {
+function renderLoading(card, subject = "thread") {
   card.replaceChildren(
-    element(
-      "p",
-      "bb-thread-hover-card__loading",
-      "Loading thread summary\u2026"
-    )
+    element("p", "bb-thread-hover-card__loading", `Loading ${subject} summary\u2026`)
   );
 }
 function renderError(card) {
@@ -1829,6 +1879,34 @@ function renderSummary(card, summary) {
 function threadCountLabel(total) {
   return total === 1 ? "1 thread" : `${total} threads`;
 }
+function attentionLabel(attention) {
+  return attention === 1 ? "1 needs you" : `${attention} need you`;
+}
+var BUCKET_GLYPH = {
+  blocked: {
+    animated: false,
+    icon: HelpCircleIcon,
+    iconName: "HelpCircleIcon",
+    label: "Thread needs user input",
+    tone: "danger"
+  },
+  failed: {
+    animated: false,
+    icon: CancelCircleIcon,
+    iconName: "CancelCircleIcon",
+    label: "Thread failed",
+    tone: "danger"
+  },
+  working: {
+    animated: true,
+    icon: Loading03Icon,
+    iconName: "Loading03Icon",
+    label: "Agent working",
+    tone: "working"
+  },
+  // Quiet is the common case; marking it would drown out the two that matter.
+  idle: null
+};
 function renderSectionSummary(card, summary) {
   if (summary.total === 0) {
     card.replaceChildren(
@@ -1837,40 +1915,33 @@ function renderSectionSummary(card, summary) {
     return;
   }
   const header = element("div", "bb-section-hover-card__header");
-  header.append(
-    element(
-      "span",
-      "bb-section-hover-card__count",
-      threadCountLabel(summary.total)
-    )
-  );
-  if (summary.rollup.attention > 0) {
+  const needsAttention = summary.rollup.attention > 0;
+  if (needsAttention) {
     header.append(
       element(
         "span",
         "bb-section-hover-card__attention",
-        `${summary.rollup.attention} need you`
+        attentionLabel(summary.rollup.attention)
+      ),
+      element(
+        "span",
+        "bb-section-hover-card__count",
+        threadCountLabel(summary.total)
+      )
+    );
+  } else {
+    header.append(
+      element(
+        "span",
+        "bb-section-hover-card__count bb-section-hover-card__count--lead",
+        threadCountLabel(summary.total)
       )
     );
   }
   const list = element("ul", "bb-section-hover-card__threads");
   for (const thread of summary.preview) {
     const row = element("li", "bb-section-hover-card__thread");
-    const presentation = statusPresentation(thread.status);
-    const needsAttention = thread.hasPendingInteraction || thread.status === "error";
-    if ((needsAttention || presentation.animated) && presentation.icon && presentation.iconName) {
-      const statusIcon = icon(
-        presentation.icon,
-        presentation.iconName,
-        "bb-thread-hover-card__icon bb-thread-hover-card__time-icon"
-      );
-      statusIcon.dataset.tone = needsAttention ? "danger" : presentation.tone;
-      if (presentation.animated) statusIcon.dataset.animated = "true";
-      statusIcon.removeAttribute("aria-hidden");
-      statusIcon.setAttribute("role", "img");
-      statusIcon.setAttribute("aria-label", presentation.label);
-      row.append(statusIcon);
-    }
+    row.dataset.bucket = thread.bucket;
     const title = element(
       "span",
       "bb-section-hover-card__thread-title",
@@ -1878,6 +1949,20 @@ function renderSectionSummary(card, summary) {
     );
     title.title = thread.title;
     row.append(title);
+    const glyph = BUCKET_GLYPH[thread.bucket];
+    if (glyph) {
+      const statusIcon = icon(
+        glyph.icon,
+        glyph.iconName,
+        "bb-thread-hover-card__icon bb-thread-hover-card__time-icon bb-section-hover-card__thread-glyph"
+      );
+      statusIcon.dataset.tone = glyph.tone;
+      if (glyph.animated) statusIcon.dataset.animated = "true";
+      statusIcon.removeAttribute("aria-hidden");
+      statusIcon.setAttribute("role", "img");
+      statusIcon.setAttribute("aria-label", glyph.label);
+      row.append(statusIcon);
+    }
     list.append(row);
   }
   const content = [header, list];
@@ -2569,7 +2654,7 @@ function installSectionHoverCards({
   let disposed = false;
   const cache = /* @__PURE__ */ new Map();
   const pending = /* @__PURE__ */ new Map();
-  const unknownSections = /* @__PURE__ */ new Set();
+  const unknownSections = /* @__PURE__ */ new Map();
   const style = element("style", "");
   style.id = SECTION_STYLE_ID;
   style.textContent = SECTION_CARD_CSS;
@@ -2631,7 +2716,7 @@ function installSectionHoverCards({
       controller.signal
     ).then((summary) => {
       if (!summary.known) {
-        unknownSections.add(key);
+        unknownSections.set(key, Date.now());
         return summary;
       }
       cache.delete(key);
@@ -2647,7 +2732,10 @@ function installSectionHoverCards({
     });
   }
   function showCard(target) {
-    if (disposed || unknownSections.has(keyOf(target))) return;
+    const knownUnknownAt = unknownSections.get(keyOf(target));
+    if (disposed || knownUnknownAt !== void 0 && Date.now() - knownUnknownAt < SECTION_UNKNOWN_TTL_MS) {
+      return;
+    }
     onOpen();
     cancelClose();
     active?.row.removeAttribute("aria-describedby");
@@ -2663,7 +2751,7 @@ function installSectionHoverCards({
     const key = keyOf(target);
     const cached = cache.get(key);
     if (cached) renderSectionSummary(hoverCard, cached.summary);
-    else renderLoading(hoverCard);
+    else renderLoading(hoverCard, "section");
     requestAnimationFrame(position);
     if (cached && Date.now() - cached.fetchedAt < SECTION_SUMMARY_CACHE_TTL_MS) {
       return;
@@ -2703,8 +2791,13 @@ function installSectionHoverCards({
   }
   function onFocusIn(event) {
     const target = findSectionTrigger(event.target);
-    if (target) showCard(target);
-    else if (active && !(event.target instanceof Node && card?.contains(event.target))) {
+    if (target) {
+      if (active?.row === target.row && card && !card.hidden) {
+        cancelClose();
+        return;
+      }
+      showCard(target);
+    } else if (active && !(event.target instanceof Node && card?.contains(event.target))) {
       scheduleClose();
     }
   }
@@ -2736,6 +2829,7 @@ function installSectionHoverCards({
       card = null;
       style.remove();
       cache.clear();
+      unknownSections.clear();
       for (const controller of pending.values()) controller.abort();
       pending.clear();
     },

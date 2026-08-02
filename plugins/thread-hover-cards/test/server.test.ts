@@ -4,6 +4,7 @@ import plugin, {
   isSidebarSectionThread,
   summarizeSectionThreads,
   type RpcDiagnostics,
+  type SectionSummary,
   type ThreadPullRequest,
   type ThreadSummary,
   type ThreadTiming,
@@ -20,10 +21,22 @@ type TimingHandler = (input: {
 type PullRequestHandler = (input: {
   threadId: string;
 }) => Promise<ThreadPullRequest>;
+type SectionSummaryHandler = (input: {
+  name: string;
+  projectName?: string | null;
+}) => Promise<SectionSummary>;
 
 let summaryHandler: SummaryHandler | undefined;
 let timingHandler: TimingHandler | undefined;
 let pullRequestHandler: PullRequestHandler | undefined;
+let sectionSummaryHandler: SectionSummaryHandler | undefined;
+let sectionRows: { id: string; name: string }[] = [
+  { id: "sec_design", name: "Design" },
+];
+let sectionListCalls = 0;
+let projectListFails = false;
+let sectionThreadsFail = false;
+let sectionThreadRows: unknown[] = [];
 const logMessages: string[] = [];
 const debugMessages: string[] = [];
 let displayStatus: "active" | "idle" = "active";
@@ -78,11 +91,13 @@ const fakeBb = {
         threadSummary: SummaryHandler;
         threadTiming: TimingHandler;
         threadPullRequest: PullRequestHandler;
+        sectionSummary: SectionSummaryHandler;
       },
     ) {
       summaryHandler = handlers.threadSummary;
       timingHandler = handlers.threadTiming;
       pullRequestHandler = handlers.threadPullRequest;
+      sectionSummaryHandler = handlers.sectionSummary;
     },
   },
   sdk: {
@@ -118,7 +133,20 @@ const fakeBb = {
         });
       },
     },
+    threadSections: {
+      async list() {
+        sectionListCalls += 1;
+        return sectionRows;
+      },
+    },
     projects: {
+      async list() {
+        if (projectListFails) throw new Error("projects unavailable");
+        return [
+          { id: "proj_1", name: "bb" },
+          { id: "proj_2", name: "moss" },
+        ];
+      },
       async get() {
         projectCalls += 1;
         return {
@@ -155,6 +183,10 @@ const fakeBb = {
       },
     },
     threads: {
+      async list() {
+        if (sectionThreadsFail) throw new Error("threads unavailable");
+        return sectionThreadRows;
+      },
       async conversationOutline() {
         summaryTimelineCalls += 1;
         return {
@@ -895,6 +927,7 @@ assert.deepEqual(markdownPreview("- First result\n- Second result\n- Extra"), {
 // Section summaries: bucketing, ranking, and project rollup.
 function sectionThread(
   overrides: Partial<{
+    activeBackgroundAgentCount: number;
     displayStatus: "active" | "error" | "idle";
     hasPendingInteraction: boolean;
     id: string;
@@ -902,9 +935,11 @@ function sectionThread(
     projectId: string;
     title: string | null;
     titleFallback: string | null;
+    updatedAt: number;
   }> = {},
 ) {
   const {
+    activeBackgroundAgentCount = 0,
     displayStatus = "idle",
     hasPendingInteraction = false,
     id = "thr_x",
@@ -912,8 +947,16 @@ function sectionThread(
     projectId: threadProjectId = "proj_1",
     title = "Thread",
     titleFallback = null,
+    updatedAt = latestAttentionAt,
   } = overrides;
   return {
+    activity: {
+      activeBackgroundAgentCount,
+      activeBackgroundCommandCount: 0,
+      activeGoalCount: 0,
+      activePlanModeCount: 0,
+      activeWorkflowCount: 0,
+    },
     archivedAt: null,
     childOrigin: null,
     deletedAt: null,
@@ -922,11 +965,12 @@ function sectionThread(
     latestAttentionAt,
     originKind: null,
     parentThreadId: null,
+    pinnedAt: null,
     projectId: threadProjectId,
     runtime: { displayStatus },
     title,
     titleFallback,
-    updatedAt: latestAttentionAt,
+    updatedAt,
     visibility: "visible",
   } as never;
 }
@@ -946,9 +990,13 @@ const sectionRollup = summarizeSectionThreads(
 assert.deepEqual(sectionRollup.rollup, { attention: 2, idle: 1, working: 1 });
 assert.equal(sectionRollup.total, 4);
 assert.deepEqual(
-  sectionRollup.preview.map(({ id }) => id),
-  ["c", "a", "b", "d"],
-  "orders the preview by most recent attention",
+  sectionRollup.preview.map(({ bucket }) => bucket),
+  ["blocked", "failed", "working", "idle"],
+  "puts the threads wanting action at the top of the preview",
+);
+assert.deepEqual(
+  sectionRollup.preview.map(({ title }) => title),
+  ["Thread", "Thread", "Thread", "Thread"],
 );
 const truncated = summarizeSectionThreads(
   [
@@ -958,9 +1006,9 @@ const truncated = summarizeSectionThreads(
   ],
   2,
 );
-assert.deepEqual(
-  truncated.preview.map(({ id }) => id),
-  ["a", "b"],
+assert.equal(
+  truncated.preview.length,
+  2,
   "caps the preview so the card stays short",
 );
 assert.equal(truncated.total, 3, "keeps the full count behind the cap");
@@ -978,6 +1026,22 @@ assert.equal(
   ).preview[0]!.title,
   "Untitled",
 );
+// A busy background agent counts as working even at displayStatus "idle",
+// matching bb's own isBusyThread.
+assert.deepEqual(
+  summarizeSectionThreads([
+    sectionThread({ activeBackgroundAgentCount: 1 }),
+  ]).rollup,
+  { attention: 0, idle: 0, working: 1 },
+);
+// The updatedAt tie-break decides when latestAttentionAt matches.
+assert.deepEqual(
+  summarizeSectionThreads([
+    sectionThread({ latestAttentionAt: 5, title: "older", updatedAt: 1 }),
+    sectionThread({ latestAttentionAt: 5, title: "newer", updatedAt: 9 }),
+  ]).preview.map(({ title }) => title),
+  ["newer", "older"],
+);
 assert.deepEqual(summarizeSectionThreads([]), {
   preview: [],
   rollup: { attention: 0, idle: 0, working: 0 },
@@ -988,7 +1052,9 @@ assert.equal(isSidebarSectionThread(sectionThread()), true);
 for (const excluded of [
   { archivedAt: 1 },
   { deletedAt: 1 },
+  { childOrigin: "side-chat" },
   { originKind: "side-chat" },
+  { pinnedAt: 1 },
   { parentThreadId: "thr_parent" },
   { visibility: "hidden" },
 ]) {
@@ -998,3 +1064,83 @@ for (const excluded of [
     `excludes ${JSON.stringify(excluded)}`,
   );
 }
+
+// The sectionSummary handler — every P1 from review lived in here.
+assert.ok(sectionSummaryHandler, "registers the sectionSummary handler");
+
+sectionThreadRows = [
+  sectionThread({ id: "a", latestAttentionAt: 3 }),
+  sectionThread({ hasPendingInteraction: true, id: "b", latestAttentionAt: 1 }),
+  sectionThread({ id: "c", latestAttentionAt: 2, projectId: "proj_2" }),
+];
+const designSummary = await sectionSummaryHandler({ name: "Design" });
+assert.equal(designSummary.known, true);
+assert.equal(designSummary.total, 3);
+assert.deepEqual(designSummary.rollup, { attention: 1, idle: 2, working: 0 });
+assert.equal(
+  designSummary.preview[0]!.bucket,
+  "blocked",
+  "the thread wanting action leads the preview",
+);
+
+// A failed project lookup must not silently empty a project-scoped section.
+// Runs before any successful lookup, while the projects cache is still cold.
+projectListFails = true;
+await assert.rejects(
+  sectionSummaryHandler({ name: "Design", projectName: "bb" }),
+  /Section summary unavailable\./,
+);
+assert.equal(
+  (await sectionSummaryHandler({ name: "Design" })).known,
+  true,
+  "an unscoped hover does not need the project list at all",
+);
+projectListFails = false;
+
+// Project scoping really filters, rather than failing open to everything.
+assert.equal(
+  (await sectionSummaryHandler({ name: "Design", projectName: "moss" })).total,
+  1,
+);
+
+// A pinned thread belongs to the Pinned group, not the section count.
+sectionThreadRows = [
+  sectionThread({ id: "a" }),
+  { ...(sectionThread({ id: "b" }) as object), pinnedAt: 1 },
+];
+assert.equal(
+  (await sectionSummaryHandler({ name: "Design" })).total,
+  1,
+  "excludes pinned threads the sidebar lifts out of the section",
+);
+
+// A lost thread page must not be reported as an authoritative zero.
+sectionThreadRows = [];
+sectionThreadsFail = true;
+await assert.rejects(
+  sectionSummaryHandler({ name: "Design" }),
+  /Section summary unavailable\./,
+  "fails loudly rather than claiming the section is empty",
+);
+sectionThreadsFail = false;
+
+// A built-in group is genuinely not a section.
+assert.equal((await sectionSummaryHandler({ name: "Pinned" })).known, false);
+
+// A section created after the directory was cached must not be written off.
+sectionRows = [
+  { id: "sec_design", name: "Design" },
+  { id: "sec_new", name: "Just Created" },
+];
+sectionThreadRows = [sectionThread({ id: "a" })];
+const callsBeforeRefresh = sectionListCalls;
+const refreshed = await sectionSummaryHandler({ name: "Just Created" });
+assert.equal(
+  refreshed.known,
+  true,
+  "re-reads the section directory before answering not-a-section",
+);
+assert.ok(
+  sectionListCalls > callsBeforeRefresh,
+  "the re-read actually bypassed the cache",
+);

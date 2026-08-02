@@ -14614,6 +14614,12 @@ var threadPullRequestSchema = external_exports.object({
     path: external_exports.string().nullable()
   }).strict()
 }).strict();
+var sectionThreadBucketSchema = external_exports.enum([
+  "blocked",
+  "failed",
+  "idle",
+  "working"
+]);
 var sectionSummarySchema = external_exports.object({
   diagnostics: rpcDiagnosticsSchema,
   /**
@@ -14622,14 +14628,9 @@ var sectionSummarySchema = external_exports.object({
    * rather than reporting an error for a row that never had a summary.
    */
   known: external_exports.boolean(),
-  /** Section threads, most recently active first, capped for the preview. */
+  /** Section threads, the ones wanting attention first, capped for the preview. */
   preview: external_exports.array(
-    external_exports.object({
-      hasPendingInteraction: external_exports.boolean(),
-      id: external_exports.string(),
-      status: displayStatusSchema,
-      title: external_exports.string()
-    }).strict()
+    external_exports.object({ bucket: sectionThreadBucketSchema, title: external_exports.string() }).strict()
   ),
   rollup: external_exports.object({
     attention: external_exports.number().int().nonnegative(),
@@ -14736,6 +14737,7 @@ var STABLE_DESCRIPTOR_CACHE_TTL_MS = 6e4;
 var PULL_REQUEST_CACHE_TTL_MS = 15e3;
 var STABLE_DESCRIPTOR_CACHE_MAX_ENTRIES = 128;
 var SECTION_DIRECTORY_CACHE_TTL_MS = 3e4;
+var SECTION_DIRECTORY_BUDGET_MS = 1200;
 var SECTION_PREVIEW_LIMIT = 5;
 function monotonicNow() {
   return typeof performance === "undefined" ? Date.now() : performance.now();
@@ -14807,9 +14809,9 @@ function recordSkippedStage(recorder, name) {
     outcome: "skipped"
   });
 }
-function recordDiagnostics(bb, rpc, threadId, diagnostics) {
+function recordDiagnostics(bb, rpc, subject, diagnostics) {
   bb.log.debug(
-    `thread-hover-cards:timing ${JSON.stringify({ diagnostics, rpc, threadId })}`
+    `thread-hover-cards:timing ${JSON.stringify({ diagnostics, rpc, subject })}`
   );
 }
 var StableDescriptorCache = class {
@@ -15023,24 +15025,40 @@ var PULL_REQUEST_SIGNALS = {
   ready_to_merge: "Ready to merge"
 };
 function isSidebarSectionThread(thread) {
-  return thread.visibility === "visible" && thread.parentThreadId === null && thread.archivedAt === null && thread.deletedAt === null && thread.originKind !== "side-chat" && thread.childOrigin !== "side-chat";
+  return thread.visibility === "visible" && thread.parentThreadId === null && thread.archivedAt === null && thread.deletedAt === null && thread.pinnedAt === null && thread.originKind !== "side-chat" && thread.childOrigin !== "side-chat";
 }
+function isBusyThread(thread) {
+  const activity = thread.activity;
+  return isRunningStatus(thread.runtime.displayStatus) || activity.activeWorkflowCount > 0 || activity.activeBackgroundAgentCount > 0 || activity.activeBackgroundCommandCount > 0 || activity.activePlanModeCount > 0 || activity.activeGoalCount > 0;
+}
+function classify(thread) {
+  if (thread.hasPendingInteraction) return "blocked";
+  if (thread.runtime.displayStatus === "error") return "failed";
+  return isBusyThread(thread) ? "working" : "idle";
+}
+function wantsAttention(bucket) {
+  return bucket === "blocked" || bucket === "failed";
+}
+var BUCKET_ORDER = {
+  blocked: 0,
+  failed: 1,
+  working: 2,
+  idle: 3
+};
 function summarizeSectionThreads(threads, previewLimit = SECTION_PREVIEW_LIMIT) {
   const rollup = { attention: 0, idle: 0, working: 0 };
   for (const thread of threads) {
-    const status = thread.runtime.displayStatus;
-    if (thread.hasPendingInteraction || status === "error") rollup.attention += 1;
-    else if (isRunningStatus(status)) rollup.working += 1;
+    const bucket = classify(thread);
+    if (wantsAttention(bucket)) rollup.attention += 1;
+    else if (bucket === "working") rollup.working += 1;
     else rollup.idle += 1;
   }
   const ranked = [...threads].sort(
-    (left, right) => right.latestAttentionAt - left.latestAttentionAt || right.updatedAt - left.updatedAt
+    (left, right) => BUCKET_ORDER[classify(left)] - BUCKET_ORDER[classify(right)] || right.latestAttentionAt - left.latestAttentionAt || right.updatedAt - left.updatedAt
   );
   return {
     preview: ranked.slice(0, previewLimit).map((thread) => ({
-      hasPendingInteraction: thread.hasPendingInteraction,
-      id: thread.id,
-      status: thread.runtime.displayStatus,
+      bucket: classify(thread),
       title: thread.title?.trim() || thread.titleFallback?.trim() || "Untitled"
     })),
     rollup,
@@ -15465,35 +15483,26 @@ function plugin(bb) {
       const recorder = createDiagnostics();
       const deadlineAt = Date.now() + SUMMARY_LOOKUP_TIMEOUT_MS;
       const remainingMs = () => Math.max(1, deadlineAt - Date.now());
+      const sectionsBudgetMs = () => Math.max(1, Math.min(remainingMs(), SECTION_DIRECTORY_BUDGET_MS));
       const signal = AbortSignal.timeout(SUMMARY_LOOKUP_TIMEOUT_MS);
       try {
-        const [sections, projects] = await Promise.all([
-          measureCachedStage(
-            recorder,
+        const readSections = () => measureCachedStage(
+          recorder,
+          "sections",
+          () => sectionDirectory.get(
             "sections",
-            () => sectionDirectory.get(
-              "sections",
-              () => within(safely(bb.sdk.threadSections.list({ signal })), remainingMs())
-            )
-          ),
-          measureCachedStage(
-            recorder,
-            "projects",
-            () => sectionDirectory.get(
-              "projects",
-              () => within(
-                safely(bb.sdk.projects.list({ includePersonal: true, signal })),
-                remainingMs()
-              )
-            )
+            () => within(safely(bb.sdk.threadSections.list({ signal })), sectionsBudgetMs())
           )
-        ]);
-        if (sections.value === null) throw new Error("Section summary unavailable.");
-        const projectNameById = new Map(
-          (projects.value ?? []).map((project) => [project.id, project.name])
         );
-        const sectionIds = sections.value.filter((section) => section.name === name).map((section) => section.id);
-        if (sectionIds.length === 0) {
+        let sections = await readSections();
+        if (sections.value === null) throw new Error("Section summary unavailable.");
+        let section = sections.value.find((row) => row.name === name) ?? null;
+        if (section === null && sections.source !== "miss") {
+          sectionDirectory.delete("sections");
+          sections = await readSections();
+          section = sections.value?.find((row) => row.name === name) ?? null;
+        }
+        if (section === null) {
           const diagnostics2 = finishDiagnostics(recorder);
           recordDiagnostics(bb, "sectionSummary", name, diagnostics2);
           return {
@@ -15504,28 +15513,46 @@ function plugin(bb) {
             total: 0
           };
         }
-        const pages = await measureStage(
-          recorder,
-          "threads",
-          () => Promise.all(
-            sectionIds.map(
-              (sectionId) => within(
-                safely(
-                  bb.sdk.threads.list({
-                    archived: false,
-                    excludeSideChats: true,
-                    hasParent: false,
-                    includeHidden: false,
-                    sectionId,
-                    signal
-                  })
-                ),
+        let projectNameById = /* @__PURE__ */ new Map();
+        if (projectName !== null) {
+          const projects = await measureCachedStage(
+            recorder,
+            "projects",
+            () => sectionDirectory.get(
+              "projects",
+              () => within(
+                safely(bb.sdk.projects.list({ includePersonal: true, signal })),
                 remainingMs()
               )
             )
-          )
+          );
+          if (projects.value === null) {
+            throw new Error("Section summary unavailable.");
+          }
+          projectNameById = new Map(
+            projects.value.map((project) => [project.id, project.name])
+          );
+        }
+        const page = await measureStage(
+          recorder,
+          "threads",
+          () => within(
+            safely(
+              bb.sdk.threads.list({
+                archived: false,
+                excludeSideChats: true,
+                hasParent: false,
+                includeHidden: false,
+                sectionId: section.id,
+                signal
+              })
+            ),
+            remainingMs()
+          ),
+          { unavailableWhenNull: true }
         );
-        const threads = pages.flatMap((page) => page ?? []).filter(isSidebarSectionThread).filter(
+        if (page === null) throw new Error("Section summary unavailable.");
+        const threads = page.filter(isSidebarSectionThread).filter(
           (thread) => projectName === null || projectNameById.get(thread.projectId) === projectName
         );
         const diagnostics = finishDiagnostics(recorder);
