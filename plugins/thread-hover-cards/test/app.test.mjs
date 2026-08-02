@@ -409,11 +409,19 @@ assert.doesNotMatch(style.textContent, /--font-mono/);
 assert.match(style.textContent, /\.bb-thread-hover-card__context/);
 assert.match(
   style.textContent,
-  /\.bb-thread-hover-card__footer \{[\s\S]*?background: color-mix\(in srgb, var\(--muted\) 40%, transparent\);[\s\S]*?margin-inline: -0\.75rem;[\s\S]*?padding-inline: 0\.75rem;[\s\S]*?padding-top: 0\.25rem;/,
+  /\.bb-thread-hover-card__footer \{[\s\S]*?background: color-mix\(in srgb, var\(--muted\) 60%, transparent\);[\s\S]*?margin-inline: -0\.75rem;[\s\S]*?padding-inline: 0\.75rem;[\s\S]*?padding-top: 0\.25rem;/,
 );
 assert.match(
   style.textContent,
-  /\.bb-thread-hover-card__footer::before \{[\s\S]*?top: -0\.75rem;[\s\S]*?height: 0\.75rem;[\s\S]*?background: linear-gradient\([\s\S]*?transparent,[\s\S]*?color-mix\(in srgb, var\(--muted\) 40%, transparent\)[\s\S]*?\);[\s\S]*?pointer-events: none;/,
+  /\.bb-thread-hover-card__footer::before \{[\s\S]*?top: -0\.75rem;[\s\S]*?height: 0\.75rem;[\s\S]*?background: linear-gradient\([\s\S]*?transparent,[\s\S]*?color-mix\(in srgb, var\(--muted\) 60%, transparent\)[\s\S]*?\);[\s\S]*?pointer-events: none;/,
+);
+assert.match(
+  style.textContent,
+  /:is\(\.dark, \[data-theme="dark"\]\) \.bb-thread-hover-card \{[\s\S]*?border-color:[\s\S]*?var\(--warning-text, var\(--warning\)\)[\s\S]*?radial-gradient\([\s\S]*?linear-gradient\([\s\S]*?box-shadow:[\s\S]*?var\(--warning-text, var\(--warning\)\)/,
+);
+assert.doesNotMatch(
+  style.textContent,
+  /:is\(\.dark, \[data-theme="dark"\]\) \.bb-thread-hover-card \{[\s\S]*?0 0 1\.75rem/,
 );
 assert.match(
   style.textContent,

@@ -521,6 +521,52 @@ var HOVER_CARD_CSS = String.raw`
   user-select: text;
 }
 
+:is(.dark, [data-theme="dark"]) .bb-thread-hover-card {
+  border-color:
+    color-mix(
+      in oklab,
+      var(--warning-text, var(--warning)) 24%,
+      transparent
+    );
+  background:
+    radial-gradient(
+      ellipse at 18% -12%,
+      color-mix(
+        in oklab,
+        var(--warning-text, var(--warning)) 16%,
+        transparent
+      ),
+      transparent 48%
+    ),
+    linear-gradient(
+      115deg,
+      color-mix(
+          in oklab,
+          var(--warning-text, var(--warning)) 9%,
+          transparent
+        )
+        0%,
+      transparent 34%,
+      color-mix(
+          in oklab,
+          var(--warning-text, var(--warning)) 6%,
+          transparent
+        )
+        55%,
+      transparent 72%
+    ),
+    color-mix(in srgb, var(--popover) 92%, transparent);
+  box-shadow:
+    0 0.75rem 2.5rem
+      color-mix(in srgb, var(--foreground) 16%, transparent),
+    inset 0 1px 0
+      color-mix(
+        in oklab,
+        var(--warning-text, var(--warning)) 20%,
+        transparent
+      );
+}
+
 .bb-thread-hover-card.is-visible {
   animation: bb-thread-hover-card-in 120ms ease-out both;
 }
@@ -691,7 +737,7 @@ var HOVER_CARD_CSS = String.raw`
 
 .bb-thread-hover-card__footer {
   position: relative;
-  background: color-mix(in srgb, var(--muted) 40%, transparent);
+  background: color-mix(in srgb, var(--muted) 60%, transparent);
   color: var(--muted-foreground);
   margin-inline: -0.75rem;
   margin-bottom: -0.75rem;
@@ -708,7 +754,7 @@ var HOVER_CARD_CSS = String.raw`
   background: linear-gradient(
     to bottom,
     transparent,
-    color-mix(in srgb, var(--muted) 40%, transparent)
+    color-mix(in srgb, var(--muted) 60%, transparent)
   );
   content: "";
   pointer-events: none;
