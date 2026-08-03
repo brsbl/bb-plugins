@@ -537,17 +537,6 @@ describe("Improve Prompt composer action", () => {
         queuedMessageId: "qmsg_2",
       },
     },
-    {
-      name: "new-thread project",
-      sourceScope: {
-        kind: "new-thread" as const,
-        projectId: "proj_1",
-      },
-      destinationScope: {
-        kind: "new-thread" as const,
-        projectId: "proj_2",
-      },
-    },
   ])(
     "cancels a pending request across a keyed $name unmount/remount",
     async ({ sourceScope, destinationScope }) => {
@@ -624,6 +613,85 @@ describe("Improve Prompt composer action", () => {
       ).toBeNull();
     },
   );
+
+  it("keeps a new-thread enhancement running while navigating away and back", async () => {
+    const result = deferred<{
+      requestId: string;
+      helperThreadId: string;
+      status: "complete";
+      enhancedPrompt: string;
+      assumptions: null;
+      createdAt: number;
+      completedAt: number;
+    }>();
+    const cancelEnhancement = vi.fn(() => ({ cancelled: true as const }));
+    configureAction({
+      text: "rough new-thread draft",
+      attachmentCount: 1,
+      scope: { kind: "new-thread", projectId: "proj_1" },
+      rpc: {
+        startEnhancement: () => ({
+          requestId: REQUEST_ID,
+          helperThreadId: "thr_helper",
+        }),
+        getEnhancement: () => result.promise,
+        cancelEnhancement,
+      },
+    });
+    const Action = await loadAction();
+    const source = mountAction(Action);
+
+    fireEvent.click(screen.getByRole("button", { name: "Improve prompt" }));
+    await waitFor(() => {
+      expect(actionSlot.inspection.composer.textEffect).toEqual({
+        className: "bb-improve-prompt-shimmer",
+      });
+      expect(window.sessionStorage.length).toBe(1);
+    });
+
+    source.lifecycle.unmount();
+    await driveComposerScope({ kind: "thread", threadId: "thr_other" });
+    await driveComposerText("other thread draft");
+    const destination = mountAction(Action);
+    await waitFor(() => {
+      expect(
+        screen.getByRole("button", { name: "Improve prompt" }),
+      ).not.toBeNull();
+      expect(actionSlot.inspection.composer.textEffect).toBeNull();
+    });
+    expect(cancelEnhancement).not.toHaveBeenCalled();
+    expect(window.sessionStorage.length).toBe(1);
+
+    destination.lifecycle.unmount();
+    await driveComposerScope({ kind: "new-thread", projectId: "proj_1" });
+    await driveComposerText("rough new-thread draft");
+    mountAction(Action);
+    await screen.findByRole("button", {
+      name: "Cancel prompt improvement",
+    });
+    expect(cancelEnhancement).not.toHaveBeenCalled();
+
+    await act(async () => {
+      result.resolve({
+        requestId: REQUEST_ID,
+        helperThreadId: "thr_helper",
+        status: "complete",
+        enhancedPrompt: "Enhanced after new-thread navigation.",
+        assumptions: null,
+        createdAt: 1,
+        completedAt: 2,
+      });
+      await result.promise;
+    });
+
+    await waitFor(() => {
+      expect(actionSlot.inspection.composer.text).toBe(
+        "Enhanced after new-thread navigation.",
+      );
+      expect(window.sessionStorage.length).toBe(0);
+    });
+    expect(actionSlot.inspection.composer.attachmentCount).toBe(1);
+  });
 
   it("replaces the latest edited draft and restores it through inline Undo", async () => {
     const result = deferred<{

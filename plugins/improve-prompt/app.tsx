@@ -375,13 +375,15 @@ function PromptShaperAction() {
       const detachedRequest = pendingRef.current;
       pendingRef.current = null;
 
-      // Thread requests intentionally survive keyed navigation so returning
-      // to the thread can recover and reconcile them. Every other composer
-      // scope is ephemeral: the host's full-scope key unmounts this action
-      // when its owner changes, so invalidate and cancel from this cleanup.
+      // Thread and new-thread requests intentionally survive navigation so
+      // returning to their durable scope can recover and reconcile them.
+      // Side-chat and queued-message scopes are ephemeral: the host's
+      // full-scope key unmounts this action when their owner changes, so
+      // invalidate and cancel those requests from this cleanup.
       if (
         detachedRequest === null ||
-        mountedComposerScopeKindRef.current === "thread"
+        mountedComposerScopeKindRef.current === "thread" ||
+        mountedComposerScopeKindRef.current === "new-thread"
       ) {
         return;
       }

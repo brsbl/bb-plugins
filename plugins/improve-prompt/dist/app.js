@@ -5210,7 +5210,7 @@ function PromptShaperAction() {
     return () => {
       const detachedRequest = pendingRef.current;
       pendingRef.current = null;
-      if (detachedRequest === null || mountedComposerScopeKindRef.current === "thread") {
+      if (detachedRequest === null || mountedComposerScopeKindRef.current === "thread" || mountedComposerScopeKindRef.current === "new-thread") {
         return;
       }
       const cancellationRequest = {
