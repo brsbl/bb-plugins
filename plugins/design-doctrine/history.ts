@@ -1,5 +1,7 @@
+import { execFile } from "node:child_process";
 import { readFile, unlink } from "node:fs/promises";
 import { join } from "node:path";
+import { promisify } from "node:util";
 
 import type { BbPluginApi } from "@bb/plugin-sdk";
 import {
@@ -8,10 +10,32 @@ import {
   type HistoryScanOptions,
 } from "@brsbl/bb-thread-history-maintenance";
 
+const execFileAsync = promisify(execFile);
 const LEGACY_HISTORY_STATE_KEY = "maintenance:thread-history:v2";
 const LEGACY_HISTORY_STATE_PATH = join("maintenance", "state.json");
 
 export type { HistoryAdvanceInput, HistoryScanOptions };
+
+async function ensureCleanRules(pluginRoot: string): Promise<void> {
+  const result = await execFileAsync(
+    "git",
+    [
+      "-C",
+      pluginRoot,
+      "status",
+      "--porcelain=v1",
+      "--untracked-files=all",
+      "--",
+      "rules",
+    ],
+    { encoding: "utf8" },
+  );
+  if (result.stdout.length > 0) {
+    throw new Error(
+      "rules tree has pre-existing work; commit, stash, or move it before scanning",
+    );
+  }
+}
 
 function normalizeEpochMilliseconds(value: unknown): unknown {
   if (typeof value !== "number" || !Number.isFinite(value)) return value;
@@ -87,6 +111,7 @@ export function createHistoryMaintenance(
   installedPluginRoot: string,
 ) {
   const history = createThreadHistoryMaintenance(bb, {
+    beforeScan: async () => ensureCleanRules(await resolveDoctrineRoot()),
     legacyStateKeys: [LEGACY_HISTORY_STATE_KEY],
   });
   let migrationQueue: Promise<unknown> = Promise.resolve();
