@@ -10,10 +10,9 @@ agent output, including your own.
 ## Steps
 
 1. Read completed, queued episodes through the plugin's thread-history API and
-   retain the returned `lease_id`. The command refuses to start if `rules/`
-   already contains tracked or untracked work. Per-thread checkpoints prevent
-   rereading old episodes, and the lease prevents concurrent runs from
-   processing the same batch. The bounds shown are the defaults.
+   retain the returned `lease_id`. Per-thread checkpoints prevent rereading old
+   episodes, and the lease prevents concurrent runs from processing the same
+   batch. The bounds shown are the defaults.
 
    ```bash
    bb doctrine history scan \
@@ -71,9 +70,8 @@ agent output, including your own.
    ```
 
    `git commit --only -- rules` leaves unrelated staged or working-tree changes
-   untouched. The scan already refuses to start when `rules/` contains any
-   pre-existing work. Rule-only maintenance does not rebuild or test plugin
-   code; `bb doctrine validate` parses every rule and enforces the live schema,
+   untouched. Rule-only maintenance does not rebuild or test plugin code;
+   `bb doctrine validate` parses every rule and enforces the live schema,
    evidence counts, relations, and lifecycle constraints.
 
 7. Advance every per-thread checkpoint in the leased batch after either a
