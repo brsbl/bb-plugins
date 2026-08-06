@@ -74,7 +74,7 @@ Say what should happen when a check fails — fix, stop, or report. Worth rememb
 
 ## Output
 
-Return:
+Return only:
 
 ```markdown
 ## Enhanced prompt
