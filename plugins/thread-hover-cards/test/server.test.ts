@@ -32,10 +32,14 @@ let pullRequestHandler: PullRequestHandler | undefined;
 let sectionSummaryHandler: SectionSummaryHandler | undefined;
 let sectionRows: { id: string; name: string }[] = [
   { id: "sec_design", name: "Design" },
+  { id: "sec_duplicate_project", name: "Duplicate Project" },
   { id: "sec_pinned_case", name: "Pinned Case" },
   { id: "sec_lost_page", name: "Lost Page" },
+  { id: "sec_stale_count", name: "Stale Count" },
 ];
 let sectionListCalls = 0;
+let delaySectionList = false;
+let resolveDelayedSectionList: (() => void) | null = null;
 let projectListFails = false;
 let sectionThreadsFail = false;
 const sectionThreadsById = new Map<string, unknown[]>();
@@ -147,6 +151,11 @@ const fakeBb = {
     threadSections: {
       async list() {
         sectionListCalls += 1;
+        if (delaySectionList) {
+          await new Promise<void>((resolve) => {
+            resolveDelayedSectionList = resolve;
+          });
+        }
         return sectionRows;
       },
     },
@@ -156,6 +165,8 @@ const fakeBb = {
         return [
           { id: "proj_1", name: "bb" },
           { id: "proj_2", name: "moss" },
+          { id: "proj_same_1", name: "Same" },
+          { id: "proj_same_2", name: "Same" },
         ];
       },
       async get() {
@@ -1096,6 +1107,30 @@ await assert.rejects(
 );
 projectListFails = false;
 
+// A foreground summary must keep its own directory deadline even when the
+// warmer already owns the cache key with its longer background budget.
+delaySectionList = true;
+const warmController = new AbortController();
+const warmService = Promise.resolve(
+  backgroundServices.get("section-directory-warm")?.start(warmController.signal),
+);
+const delayedDirectory = setTimeout(() => {
+  delaySectionList = false;
+  resolveDelayedSectionList?.();
+  resolveDelayedSectionList = null;
+}, 1_600);
+await assert.rejects(
+  sectionSummaryHandler({ name: "Design" }),
+  /Section summary unavailable\./,
+  "does not inherit the warmer's longer cache request deadline",
+);
+clearTimeout(delayedDirectory);
+delaySectionList = false;
+resolveDelayedSectionList?.();
+resolveDelayedSectionList = null;
+warmController.abort();
+await warmService;
+
 sectionThreadsById.set("sec_design", [
   sectionThread({ id: "a", latestAttentionAt: 3 }),
   sectionThread({ hasPendingInteraction: true, id: "b", latestAttentionAt: 1 }),
@@ -1116,6 +1151,38 @@ assert.equal(
   (await sectionSummaryHandler({ name: "Design", projectName: "moss" })).total,
   1,
 );
+
+sectionThreadsById.set("sec_duplicate_project", [
+  sectionThread({ id: "same-a", projectId: "proj_same_1" }),
+  sectionThread({ id: "same-b", projectId: "proj_same_2" }),
+]);
+await assert.rejects(
+  sectionSummaryHandler({ name: "Duplicate Project", projectName: "Same" }),
+  /Section summary unavailable\./,
+  "fails closed when a display name cannot identify one project",
+);
+
+const sectionRealDateNow = Date.now;
+let fakeNow = sectionRealDateNow();
+Date.now = () => fakeNow;
+sectionThreadsById.set("sec_stale_count", [sectionThread({ id: "stale-a" })]);
+assert.equal((await sectionSummaryHandler({ name: "Stale Count" })).total, 1);
+fakeNow += 2_100;
+sectionThreadsFail = true;
+assert.equal(
+  (await sectionSummaryHandler({ name: "Stale Count" })).total,
+  1,
+  "may serve the expired count once while revalidating",
+);
+await Promise.resolve();
+await Promise.resolve();
+await assert.rejects(
+  sectionSummaryHandler({ name: "Stale Count" }),
+  /Section summary unavailable\./,
+  "does not keep serving a count after its refresh failed",
+);
+sectionThreadsFail = false;
+Date.now = sectionRealDateNow;
 
 // A pinned thread belongs to the Pinned group, not the section count.
 sectionThreadsById.set("sec_pinned_case", [

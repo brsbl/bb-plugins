@@ -452,6 +452,15 @@ interface CacheResult<T> {
   value: T | null;
 }
 
+async function withinCached<T>(
+  promise: Promise<CacheResult<T>>,
+  timeoutMs: number,
+): Promise<CacheResult<T>> {
+  return (
+    (await within(promise, timeoutMs)) ?? { source: "miss", value: null }
+  );
+}
+
 interface BackgroundCacheRefreshTiming {
   cache: "stale";
   durationMs: number;
@@ -477,6 +486,7 @@ class StableDescriptorCache {
     private readonly maxEntries = STABLE_DESCRIPTOR_CACHE_MAX_ENTRIES,
     private readonly stage = "descriptor",
     private readonly observeBackgroundRefresh?: BackgroundCacheRefreshObserver,
+    private readonly invalidateOnLoadFailure = false,
   ) {}
 
   delete(key: string): void {
@@ -493,7 +503,9 @@ class StableDescriptorCache {
 
     const request = load()
       .then((value) => {
-        if (value !== null && !this.invalidatedPending.has(key)) {
+        if (value === null) {
+          if (this.invalidateOnLoadFailure) this.entries.delete(key);
+        } else if (!this.invalidatedPending.has(key)) {
           this.entries.set(key, {
             expiresAt: Date.now() + this.ttlMs,
             value,
@@ -507,6 +519,10 @@ class StableDescriptorCache {
           }
         }
         return value;
+      })
+      .catch((error: unknown) => {
+        if (this.invalidateOnLoadFailure) this.entries.delete(key);
+        throw error;
       })
       .finally(() => {
         if (this.pending.get(key) === request) {
@@ -866,6 +882,7 @@ export default function plugin(bb: BbPluginApi): void {
     STABLE_DESCRIPTOR_CACHE_MAX_ENTRIES,
     "sectionThreads",
     recordBackgroundRefresh,
+    true,
   );
   const summaryRequests = new LatestSummaryRequestGate(2);
 
@@ -1311,8 +1328,11 @@ export default function plugin(bb: BbPluginApi): void {
       try {
         const readSections = (): Promise<CacheResult<ThreadSectionRow[]>> =>
           measureCachedStage(recorder, "sections", () =>
-            sectionDirectory.get<ThreadSectionRow[]>("sections", () =>
-              within(safely(bb.sdk.threadSections.list({ signal })), directoryBudgetMs()),
+            withinCached(
+              sectionDirectory.get<ThreadSectionRow[]>("sections", () =>
+                safely(bb.sdk.threadSections.list({ signal })),
+              ),
+              directoryBudgetMs(),
             ),
           );
         let sections = await readSections();
@@ -1353,11 +1373,11 @@ export default function plugin(bb: BbPluginApi): void {
         // The card names the projects the section spans, so this is needed on
         // every hover. The warming service keeps it a cache hit.
         const projects = await measureCachedStage(recorder, "projects", () =>
-          sectionDirectory.get<ProjectRow[]>("projects", () =>
-            within(
+          withinCached(
+            sectionDirectory.get<ProjectRow[]>("projects", () =>
               safely(bb.sdk.projects.list({ includePersonal: true, signal })),
-              directoryBudgetMs(),
             ),
+            directoryBudgetMs(),
           ),
         );
         // Failing open would filter every thread out on a project-scoped hover
@@ -1368,6 +1388,14 @@ export default function plugin(bb: BbPluginApi): void {
         const projectNameById = new Map(
           projects.value.map((project) => [project.id, project.name]),
         );
+        const scopedProject =
+          projectName === null
+            ? null
+            : projects.value.filter((project) => project.name === projectName);
+        if (scopedProject !== null && scopedProject.length !== 1) {
+          throw new Error("Section summary unavailable.");
+        }
+        const scopedProjectId = scopedProject?.[0]?.id ?? null;
 
         const sectionId = section.id;
         const page = await measureCachedStage(recorder, "threads", () =>
@@ -1395,8 +1423,7 @@ export default function plugin(bb: BbPluginApi): void {
           .filter(isSidebarSectionThread)
           .filter(
             (thread) =>
-              projectName === null ||
-              projectNameById.get(thread.projectId) === projectName,
+              scopedProjectId === null || thread.projectId === scopedProjectId,
           );
 
         const diagnostics = finishDiagnostics(recorder);

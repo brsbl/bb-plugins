@@ -1618,9 +1618,11 @@ const sectionCard = window.document.getElementById("bb-section-hover-card");
 assert.ok(sectionCard, "opens a card from the section header row");
 assert.equal(sectionCard.hidden, false);
 assert.equal(
-  designHeader.row.getAttribute("aria-describedby"),
+  designHeader.toggle.getAttribute("aria-describedby"),
   "bb-section-hover-card",
+  "describes the keyboard-focusable section toggle",
 );
+assert.equal(designHeader.row.hasAttribute("aria-describedby"), false);
 assert.deepEqual(sectionRequestBodies.at(-1), {
   name: "Design",
   projectName: null,

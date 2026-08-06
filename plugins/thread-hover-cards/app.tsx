@@ -345,6 +345,7 @@ export interface SectionTrigger {
   name: string;
   projectName: string | null;
   row: HTMLElement;
+  toggle: HTMLElement;
 }
 
 export function sectionLabelOf(toggle: Element): string | null {
@@ -399,6 +400,7 @@ export function findSectionTrigger(
         name,
         projectName: enclosingProjectName(candidate),
         row: candidate as HTMLElement,
+        toggle: toggle as HTMLElement,
       };
     }
     candidate = candidate.parentElement;
@@ -2060,7 +2062,7 @@ function installSectionHoverCards({
   function closeCard(): void {
     cancelClose();
     generation += 1;
-    active?.row.removeAttribute("aria-describedby");
+    active?.toggle.removeAttribute("aria-describedby");
     active = null;
     if (card) {
       card.hidden = true;
@@ -2124,9 +2126,9 @@ function installSectionHoverCards({
     }
     onOpen();
     cancelClose();
-    active?.row.removeAttribute("aria-describedby");
+    active?.toggle.removeAttribute("aria-describedby");
     active = target;
-    target.row.setAttribute("aria-describedby", SECTION_CARD_ID);
+    target.toggle.setAttribute("aria-describedby", SECTION_CARD_ID);
     generation += 1;
     const requestGeneration = generation;
     const hoverCard = ensureCard();

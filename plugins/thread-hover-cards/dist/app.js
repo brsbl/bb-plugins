@@ -5,9 +5,9 @@ if (runtime == null || runtime.pluginSdkApp == null) {
 }
 var mod = runtime.pluginSdkApp;
 var {
-  Markdown,
-  ThreadChat,
   definePluginApp,
+  experimental_Markdown,
+  experimental_ThreadChat,
   useBbContext,
   useBbNavigate,
   useComposer,
@@ -1432,7 +1432,8 @@ function findSectionTrigger(target) {
       return {
         name,
         projectName: enclosingProjectName(candidate),
-        row: candidate
+        row: candidate,
+        toggle
       };
     }
     candidate = candidate.parentElement;
@@ -2706,7 +2707,7 @@ function installSectionHoverCards({
   function closeCard() {
     cancelClose();
     generation += 1;
-    active?.row.removeAttribute("aria-describedby");
+    active?.toggle.removeAttribute("aria-describedby");
     active = null;
     if (card) {
       card.hidden = true;
@@ -2760,9 +2761,9 @@ function installSectionHoverCards({
     }
     onOpen();
     cancelClose();
-    active?.row.removeAttribute("aria-describedby");
+    active?.toggle.removeAttribute("aria-describedby");
     active = target;
-    target.row.setAttribute("aria-describedby", SECTION_CARD_ID);
+    target.toggle.setAttribute("aria-describedby", SECTION_CARD_ID);
     generation += 1;
     const requestGeneration = generation;
     const hoverCard = ensureCard();
