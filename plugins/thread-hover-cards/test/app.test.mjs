@@ -1697,6 +1697,13 @@ assert.equal(
   "HelpCircleIcon",
   "a question uses bb's own pending glyph",
 );
+assert.equal(
+  sectionCard
+    .querySelector(".bb-section-hover-card__chip--question [data-icon]")
+    .getAttribute("aria-hidden"),
+  "true",
+  "the decorative glyph does not repeat the adjacent count for assistive technology",
+);
 
 // Band 3: counts in fixed order.
 assert.deepEqual(

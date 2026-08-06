@@ -998,9 +998,6 @@ function attentionChip(
     glyphName,
     "bb-thread-hover-card__icon bb-section-hover-card__chip-icon",
   );
-  mark.removeAttribute("aria-hidden");
-  mark.setAttribute("role", "img");
-  mark.setAttribute("aria-label", text);
   chip.append(mark, element("span", "", text));
   return chip;
 }
