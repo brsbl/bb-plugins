@@ -4,6 +4,7 @@ import {
   chooseNearestGutter,
   layoutGutterMarkers,
   restoreSelector,
+  selectorForRange,
 } from "./anchors.js";
 
 const selector = (
@@ -20,6 +21,22 @@ const selector = (
 });
 
 describe("restoreSelector", () => {
+  it("captures a nested rendered selection in the same coordinate space", () => {
+    const root = document.createElement("div");
+    root.append("alpha ");
+    const strong = document.createElement("strong");
+    strong.append("nested ");
+    root.append(strong, "😀 omega");
+    const range = document.createRange();
+    range.setStart(strong.firstChild!, 0);
+    range.setEnd(root.lastChild!, 2);
+    const captured = selectorForRange(root, range);
+    expect(captured).toEqual(selector());
+    expect(restoreSelector(root, captured!)?.range.toString()).toBe(
+      "nested 😀",
+    );
+  });
+
   it("restores UTF-16 offsets across nested rendered nodes", () => {
     const root = document.createElement("div");
     root.append("alpha ");

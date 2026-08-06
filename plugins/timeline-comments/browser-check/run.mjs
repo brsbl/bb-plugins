@@ -44,7 +44,12 @@ try {
   if (address === null || typeof address === "string") {
     throw new Error("Browser check server did not bind a TCP port");
   }
-  browser = await chromium.launch({ headless: true });
+  browser = await chromium.launch({
+    headless: true,
+    ...(process.env.BB_CHROME_EXECUTABLE_PATH
+      ? { executablePath: process.env.BB_CHROME_EXECUTABLE_PATH }
+      : {}),
+  });
   const page = await browser.newPage({ viewport: { width: 900, height: 600 } });
   await page.goto(`http://127.0.0.1:${address.port}/harness.html`);
   await page.waitForFunction(
