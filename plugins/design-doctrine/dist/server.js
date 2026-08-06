@@ -16057,6 +16057,11 @@ async function plugin(bb) {
       );
     }
   });
+  try {
+    await currentLibrary();
+  } catch (error51) {
+    bb.log.warn(error51 instanceof Error ? error51.message : String(error51));
+  }
   bb.agents.configure(({ thread }) => {
     const instructions = automaticDoctrineGuidance(
       automaticRules,
@@ -16067,9 +16072,6 @@ async function plugin(bb) {
       skills: ["design-doctrine"],
       ...instructions ? { instructions } : {}
     };
-  });
-  void currentLibrary().catch((error51) => {
-    bb.log.warn(error51 instanceof Error ? error51.message : String(error51));
   });
   bb.cli.register({
     name: "doctrine",

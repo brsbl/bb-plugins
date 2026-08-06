@@ -93,12 +93,12 @@ describe("Design Doctrine plugin contract", () => {
     });
     await plugin(bb);
 
+    const configuration = await harness.behavior.resolveAgentConfiguration(
+      agentContext("Redesign the compact utility toolbar"),
+    );
     const toolResult = await harness.behavior.callAgentTool(
       "design_doctrine_search",
       { query: "compact utility toolbar", limit: 3 },
-    );
-    const configuration = await harness.behavior.resolveAgentConfiguration(
-      agentContext("Redesign the compact utility toolbar"),
     );
 
     expect(configuration.skills).toEqual(["design-doctrine"]);

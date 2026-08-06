@@ -695,6 +695,11 @@ export default async function plugin(bb: BbPluginApi) {
       );
     },
   });
+  try {
+    await currentLibrary();
+  } catch (error) {
+    bb.log.warn(error instanceof Error ? error.message : String(error));
+  }
   bb.agents.configure(({ thread }) => {
     const instructions = automaticDoctrineGuidance(
       automaticRules,
@@ -705,9 +710,6 @@ export default async function plugin(bb: BbPluginApi) {
       skills: ["design-doctrine"],
       ...(instructions ? { instructions } : {}),
     };
-  });
-  void currentLibrary().catch((error) => {
-    bb.log.warn(error instanceof Error ? error.message : String(error));
   });
   bb.cli.register({
     name: "doctrine",
