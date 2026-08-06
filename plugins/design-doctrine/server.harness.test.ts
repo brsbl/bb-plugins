@@ -1,7 +1,15 @@
+import { execFile } from "node:child_process";
+import { mkdir, mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { promisify } from "node:util";
+
 import { createFakePluginHost } from "@bb/plugin-sdk/testing";
 import { describe, expect, it, vi } from "vitest";
 
 import plugin from "./server";
+
+const execFileAsync = promisify(execFile);
 
 function deferred<T>(): {
   promise: Promise<T>;
@@ -98,6 +106,11 @@ describe("Design Doctrine plugin contract", () => {
   });
 
   it("registers its core surfaces before history preparation completes", async () => {
+    const maintenanceRoot = await mkdtemp(
+      join(tmpdir(), "doctrine-harness-history-"),
+    );
+    await mkdir(join(maintenanceRoot, "rules"));
+    await execFileAsync("git", ["-C", maintenanceRoot, "init"]);
     const inventory = deferred<never[]>();
     let inventoryCalls = 0;
     let registrationsAtInventoryStart: {
@@ -142,10 +155,12 @@ describe("Design Doctrine plugin contract", () => {
         }),
       );
     });
+    await harness.behavior.setSettings({ doctrinePath: maintenanceRoot });
     await expect(
       harness.behavior.runCli(["history", "scan"]),
     ).resolves.toMatchObject({ exitCode: 0 });
     expect(inventoryCalls).toBe(3);
     await harness.lifecycle.dispose();
+    await rm(maintenanceRoot, { recursive: true, force: true });
   });
 });
