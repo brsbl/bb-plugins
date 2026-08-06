@@ -177,6 +177,60 @@ describe("timeline comments app", () => {
     uninstallController();
   });
 
+  it("binds an overflow action to its embedded trigger instead of the focused main pane", async () => {
+    document.body.innerHTML = `
+      <div data-split-pane-id="pane_main" data-focused="true">
+        <div id="main-window" data-thread-window></div>
+      </div>
+      <div id="embedded-window" data-thread-window>
+        <button
+          aria-label="More plugin actions"
+          aria-expanded="true"
+          aria-controls="embedded-overflow"
+        ></button>
+      </div>
+      <div
+        id="embedded-overflow"
+        data-plugin-composer-action-overflow
+      ></div>
+    `;
+    const registerThreadWindow = vi.fn(() => () => {});
+    const uninstallController = installTimelineCommentsController({
+      beginComment: vi.fn(),
+      focusThread: vi.fn(async () => false),
+      registerThreadWindow,
+      refreshAnchors: vi.fn(),
+    });
+    const app = await loadPluginApp(() => import("./app.js"));
+    const action = renderSlot(
+      app.composerCustomizations[0]!.actions![0]!,
+      {},
+      {
+        context: { threadId: "thr_initial" },
+        composer: {
+          scope: { kind: "thread", threadId: "thr_initial" },
+        },
+      },
+    );
+    document.querySelector("#embedded-overflow")!.append(action.container);
+    registerThreadWindow.mockClear();
+
+    await action.behavior.setComposerScope({
+      kind: "thread",
+      threadId: "thr_embedded",
+    });
+
+    expect(registerThreadWindow).toHaveBeenCalledWith(
+      "thr_embedded",
+      document.querySelector("#embedded-window"),
+    );
+    expect(registerThreadWindow).not.toHaveBeenCalledWith(
+      "thr_embedded",
+      document.querySelector("#main-window"),
+    );
+    uninstallController();
+  });
+
   it("shows a compact error and recovers when adding comments is retried", async () => {
     const getThreadHandoffSummary = vi
       .fn()

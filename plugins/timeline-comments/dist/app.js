@@ -1750,10 +1750,25 @@ function AddCommentsAction() {
     const visibleWindows = document.querySelectorAll(
       "[data-thread-window]"
     );
-    const focusedWindow = document.querySelector(
-      '[data-split-pane-id][data-focused="true"] [data-thread-window]'
+    const overflowContent = actionRoot.current?.closest(
+      "[data-plugin-composer-action-overflow]"
     );
-    const threadWindow = closestWindow ?? focusedWindow ?? (visibleWindows.length === 1 ? visibleWindows[0] : null);
+    const controlledTrigger = overflowContent?.id === void 0 || overflowContent.id === "" ? null : [...document.querySelectorAll("[aria-controls]")].find(
+      (node) => node.getAttribute("aria-controls") === overflowContent.id
+    ) ?? null;
+    const openOverflowTriggers = [
+      ...document.querySelectorAll(
+        '[aria-label="More plugin actions"][aria-expanded="true"]'
+      )
+    ];
+    const overflowTrigger = controlledTrigger ?? (openOverflowTriggers.length === 1 ? openOverflowTriggers[0] : null);
+    const overflowWindow = overflowTrigger?.closest(
+      "[data-thread-window]"
+    );
+    const focusedWindow = overflowContent === void 0 || overflowContent === null ? document.querySelector(
+      '[data-split-pane-id][data-focused="true"] [data-thread-window]'
+    ) : null;
+    const threadWindow = closestWindow ?? overflowWindow ?? focusedWindow ?? (overflowContent === void 0 || overflowContent === null ? visibleWindows.length === 1 ? visibleWindows[0] : null : null);
     if (threadWindow === void 0 || threadWindow === null) return;
     return registerTimelineCommentThreadWindow(threadId, threadWindow);
   }, [threadId]);
