@@ -6,7 +6,7 @@ import type { PluginContentScriptContext } from "@bb/plugin-sdk/app";
 const threadId = "thr_browser";
 const messageId = "msg_browser";
 const prose = document.querySelector<HTMLElement>(
-  "[data-no-sidebar-swipe]",
+  "[data-sidebar-swipe-selectable]",
 )!;
 const text = prose.textContent ?? "";
 const phrases = [

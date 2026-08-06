@@ -458,6 +458,7 @@ var DRAFT_TTL = 24 * 60 * 60 * 1e3;
 var PLUGIN_DECORATION = "data-bb-plugin-decoration";
 var MARKER_SIZE = 32;
 var MARKER_TEXT_GAP = 8;
+var MESSAGE_PROSE_SELECTOR = "[data-sidebar-swipe-selectable], [data-no-sidebar-swipe]";
 function readDraft(key) {
   const saved = sessionStorage.getItem(key);
   if (saved === null) return null;
@@ -581,7 +582,7 @@ function syncInlineComposerLayout(textarea, composer, animate = true) {
   animation.addEventListener("cancel", finish, { once: true });
 }
 function isRelevantMutation(record) {
-  const selector = "[data-thread-window], [data-timeline-row-id], [data-no-sidebar-swipe]";
+  const selector = `[data-thread-window], [data-timeline-row-id], ${MESSAGE_PROSE_SELECTOR}`;
   return [...record.addedNodes, ...record.removedNodes].some(
     (node) => node instanceof Element && (node.matches(selector) || node.querySelector(selector) !== null)
   );
@@ -815,7 +816,7 @@ var TimelineCommentsController = class {
     const range = selection.getRangeAt(0).cloneRange();
     const startElement = range.startContainer instanceof Element ? range.startContainer : range.startContainer.parentElement;
     const prose = startElement?.closest(
-      "[data-no-sidebar-swipe]"
+      MESSAGE_PROSE_SELECTOR
     );
     if (prose === void 0 || prose === null || !prose.contains(range.endContainer))
       return null;
@@ -928,7 +929,7 @@ var TimelineCommentsController = class {
     );
     if (row === void 0 || row === null) return null;
     for (const candidate of row.querySelectorAll(
-      "[data-no-sidebar-swipe]"
+      MESSAGE_PROSE_SELECTOR
     )) {
       if (candidate.matches("button, input, textarea, select, a")) continue;
       if (restoreSelector(candidate, selector) !== null) return candidate;

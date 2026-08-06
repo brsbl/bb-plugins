@@ -24,7 +24,7 @@ describe("timeline comments controller teardown", () => {
       <div data-thread-window>
         <div class="thread-scrollbar">
           <div data-timeline-row-id="msg_1">
-            <div data-no-sidebar-swipe>source text</div>
+            <div data-sidebar-swipe-selectable>source text</div>
           </div>
         </div>
       </div>
@@ -53,7 +53,7 @@ describe("timeline comments controller teardown", () => {
       generation: 1,
       signal: controller.signal,
     });
-    const text = document.querySelector("[data-no-sidebar-swipe]")!
+    const text = document.querySelector("[data-sidebar-swipe-selectable]")!
       .firstChild!;
     const range = document.createRange();
     range.setStart(text, 0);
@@ -93,7 +93,7 @@ describe("timeline comments controller teardown", () => {
       <div data-thread-window>
         <div class="thread-scrollbar">
           <div data-timeline-row-id="msg_1">
-            <div data-no-sidebar-swipe><p>source</p><p>text</p></div>
+            <div data-sidebar-swipe-selectable><p>source</p><p>text</p></div>
           </div>
         </div>
       </div>
@@ -122,7 +122,9 @@ describe("timeline comments controller teardown", () => {
       generation: 1,
       signal: controller.signal,
     });
-    const blocks = document.querySelectorAll("[data-no-sidebar-swipe] p");
+    const blocks = document.querySelectorAll(
+      "[data-sidebar-swipe-selectable] p",
+    );
     const range = document.createRange();
     range.setStart(blocks[0]!.firstChild!, 0);
     range.setEnd(blocks[1]!.firstChild!, 4);
@@ -224,7 +226,7 @@ describe("timeline comments controller teardown", () => {
       <div data-thread-window>
         <div class="thread-scrollbar">
           <div data-timeline-row-id="msg_1">
-            <div data-no-sidebar-swipe>source text</div>
+            <div data-sidebar-swipe-selectable>source text</div>
           </div>
         </div>
       </div>
@@ -349,7 +351,7 @@ describe("timeline comments controller teardown", () => {
       <div data-thread-window>
         <div class="thread-scrollbar">
           <div data-timeline-row-id="msg_1">
-            <div data-no-sidebar-swipe>source</div>
+            <div data-sidebar-swipe-selectable>source</div>
           </div>
         </div>
       </div>

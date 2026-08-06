@@ -90,6 +90,8 @@ const DRAFT_TTL = 24 * 60 * 60 * 1_000;
 const PLUGIN_DECORATION = "data-bb-plugin-decoration";
 const MARKER_SIZE = 32;
 const MARKER_TEXT_GAP = 8;
+const MESSAGE_PROSE_SELECTOR =
+  "[data-sidebar-swipe-selectable], [data-no-sidebar-swipe]";
 
 function readDraft(key: string): string | null {
   const saved = sessionStorage.getItem(key);
@@ -261,8 +263,7 @@ function syncInlineComposerLayout(
 }
 
 function isRelevantMutation(record: MutationRecord): boolean {
-  const selector =
-    "[data-thread-window], [data-timeline-row-id], [data-no-sidebar-swipe]";
+  const selector = `[data-thread-window], [data-timeline-row-id], ${MESSAGE_PROSE_SELECTOR}`;
   return [...record.addedNodes, ...record.removedNodes].some(
     (node) =>
       node instanceof Element &&
@@ -541,7 +542,7 @@ class TimelineCommentsController {
         ? range.startContainer
         : range.startContainer.parentElement;
     const prose = startElement?.closest<HTMLElement>(
-      "[data-no-sidebar-swipe]",
+      MESSAGE_PROSE_SELECTOR,
     );
     if (
       prose === undefined ||
@@ -674,7 +675,7 @@ class TimelineCommentsController {
     );
     if (row === undefined || row === null) return null;
     for (const candidate of row.querySelectorAll<HTMLElement>(
-      "[data-no-sidebar-swipe]",
+      MESSAGE_PROSE_SELECTOR,
     )) {
       if (candidate.matches("button, input, textarea, select, a")) continue;
       if (restoreSelector(candidate, selector) !== null) return candidate;
