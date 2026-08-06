@@ -1,8 +1,11 @@
 import type { PluginMessageActionContext } from "@bb/plugin-sdk/app";
+import type { TimelineCommentThreadSummary } from "./server.js";
 
 export interface TimelineCommentsControllerBridge {
   beginComment(context: PluginMessageActionContext): void;
-  focusThread(commentThreadId: string): Promise<boolean>;
+  focusThread(anchor: TimelineCommentThreadSummary): Promise<boolean>;
+  registerThreadWindow(threadId: string, window: HTMLElement): () => void;
+  refreshAnchors(): void;
 }
 
 let activeController: TimelineCommentsControllerBridge | null = null;
@@ -51,7 +54,18 @@ export function beginTimelineComment(
 }
 
 export async function focusTimelineComment(
-  commentThreadId: string,
+  anchor: TimelineCommentThreadSummary,
 ): Promise<boolean> {
-  return (await activeController?.focusThread(commentThreadId)) ?? false;
+  return (await activeController?.focusThread(anchor)) ?? false;
+}
+
+export function registerTimelineCommentThreadWindow(
+  threadId: string,
+  window: HTMLElement,
+): () => void {
+  return activeController?.registerThreadWindow(threadId, window) ?? (() => {});
+}
+
+export function refreshTimelineCommentAnchors(): void {
+  activeController?.refreshAnchors();
 }

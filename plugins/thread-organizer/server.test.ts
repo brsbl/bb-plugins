@@ -624,14 +624,16 @@ describe("Thread Organizer plugin", () => {
       releaseGets = resolve;
     });
     let getCalls = 0;
+    const getSignals: Array<AbortSignal | undefined> = [];
     const pin = vi.fn();
     const host = createFakePluginHost({
       pluginId: "thread-organizer",
       settings: { inboxMode: "apply" },
       sdk: {
         threads: {
-          get: async ({ threadId }) => {
+          get: async ({ signal, threadId }) => {
             getCalls += 1;
+            getSignals.push(signal);
             await getGate;
             return threads.find((thread) => thread.id === threadId)!;
           },
@@ -648,6 +650,10 @@ describe("Thread Organizer plugin", () => {
     await vi.waitFor(() => {
       expect(getCalls).toBe(4);
     });
+    expect(getSignals).toHaveLength(4);
+    expect(getSignals.every((signal) => signal instanceof AbortSignal)).toBe(
+      true,
+    );
     service.controller.abort();
     releaseGets();
     await service.done;

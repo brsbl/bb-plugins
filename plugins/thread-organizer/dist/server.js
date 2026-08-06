@@ -825,7 +825,7 @@ function plugin(bb) {
   }
   async function reconcileManagedThread(threadId, signal) {
     if (signal?.aborted) return;
-    const fresh = await bb.sdk.threads.get({ threadId });
+    const fresh = await bb.sdk.threads.get({ threadId, signal });
     if (signal?.aborted) return;
     if (!isManageableThread(fresh)) {
       if (!signal?.aborted) {

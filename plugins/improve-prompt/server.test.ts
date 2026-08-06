@@ -40,6 +40,7 @@ function deferred<T>(): Deferred<T> {
 async function createHarness(options?: {
   spawn?: () => Promise<{ id: string }>;
   get?: () => Promise<Record<string, unknown>>;
+  output?: () => Promise<{ output: string | null }>;
   defaultExecutionOptions?: () => Promise<Record<string, unknown> | null>;
   timeline?: () => Promise<Record<string, unknown>>;
   initialKv?: Iterable<readonly [string, unknown]>;
@@ -63,7 +64,7 @@ async function createHarness(options?: {
           timelinePage: { hasOlderRows: false, olderCursor: null },
         })),
     ),
-    output: vi.fn(async () => ({ output: null })),
+    output: vi.fn(options?.output ?? (async () => ({ output: null }))),
     stop: vi.fn(async () => ({ ok: true })),
     archive: vi.fn(async () => ({ ok: true })),
   };
@@ -131,6 +132,7 @@ async function createHarness(options?: {
     cli: cliRegistration,
     threads,
     publish,
+    log: bb.log,
     async emit(event: string, payload: unknown) {
       for (const handler of eventHandlers.get(event) ?? []) {
         await handler(payload as never);
@@ -257,6 +259,55 @@ describe("Improve Prompt cancellation", () => {
 });
 
 describe("Improve Prompt runtime context", () => {
+  it("coalesces polling and retries a transient helper status failure", async () => {
+    const firstStatus = deferred<void>();
+    let getCalls = 0;
+    const harness = await createHarness({
+      initialKv: [
+        [
+          `request:${REQUEST_ID}`,
+          {
+            requestId: REQUEST_ID,
+            helperThreadId: "thr_helper",
+            status: "running",
+            createdAt: Date.now(),
+          },
+        ],
+        ["thread:thr_helper", REQUEST_ID],
+      ],
+      get: async () => {
+        getCalls += 1;
+        if (getCalls === 1) {
+          await firstStatus.promise;
+          throw new Error("fetch failed");
+        }
+        return { status: "idle" };
+      },
+      output: async () => ({
+        output: "## Enhanced prompt\n\n> A complete, improved prompt.",
+      }),
+    });
+
+    const polls = [
+      harness.rpc.getEnhancement({ requestId: REQUEST_ID }),
+      harness.rpc.getEnhancement({ requestId: REQUEST_ID }),
+    ];
+    await vi.waitFor(() => {
+      expect(harness.threads.get).toHaveBeenCalledTimes(1);
+    });
+    firstStatus.resolve();
+
+    await expect(Promise.all(polls)).resolves.toEqual([
+      expect.objectContaining({ status: "complete" }),
+      expect.objectContaining({ status: "complete" }),
+    ]);
+    expect(harness.threads.get).toHaveBeenCalledTimes(2);
+    expect(harness.threads.output).toHaveBeenCalledTimes(1);
+    expect(harness.log.warn).not.toHaveBeenCalledWith(
+      expect.stringContaining("could not reconcile Improve Prompt helper"),
+    );
+  });
+
   it("reuses execution settings without reading or inheriting source history", async () => {
     const spawn = vi.fn<() => Promise<{ id: string }>>().mockResolvedValue({
       id: "thr_helper",
