@@ -59,6 +59,7 @@ async function createFixtureRepository(directory) {
           esbuild: rootManifest.devDependencies.esbuild,
           tailwindcss: rootManifest.devDependencies.tailwindcss,
         },
+        optionalDependencies: rootManifest.optionalDependencies,
       },
       null,
       2,

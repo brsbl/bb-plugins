@@ -10,6 +10,12 @@ import {
 } from "./plugin-sdk-provenance.mjs";
 
 const defaultRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+const linuxNativeOptionalDependencies = Object.freeze({
+  "@esbuild/linux-x64": "0.28.1",
+  "@rolldown/binding-linux-x64-gnu": "1.1.5",
+  "@tailwindcss/oxide-linux-x64-gnu": "4.3.3",
+  "lightningcss-linux-x64-gnu": "1.33.0",
+});
 
 async function readJson(path) {
   return JSON.parse(await readFile(path, "utf8"));
@@ -105,6 +111,14 @@ export async function checkRepository(repositoryRoot = defaultRoot, options = {}
       `file:tooling/vendor/${pluginSdkArchive}`,
     "root plugin SDK dependency drift",
   );
+  for (const [packageName, version] of Object.entries(
+    linuxNativeOptionalDependencies,
+  )) {
+    assert(
+      rootManifest.optionalDependencies?.[packageName] === version,
+      `root Linux native dependency drift: ${packageName}`,
+    );
+  }
   assert(
     !(await stat(resolve(root, "plugins/design-loop")).catch(() => null)),
     "Design Loop is intentionally excluded",

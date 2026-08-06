@@ -27,5 +27,11 @@
     "@tailwindcss/oxide": "^4.3.0",
     "esbuild": "^0.28.0",
     "tailwindcss": "^4.3.0"
+  },
+  "optionalDependencies": {
+    "@esbuild/linux-x64": "0.28.1",
+    "@rolldown/binding-linux-x64-gnu": "1.1.5",
+    "@tailwindcss/oxide-linux-x64-gnu": "4.3.3",
+    "lightningcss-linux-x64-gnu": "1.33.0"
   }
 }
