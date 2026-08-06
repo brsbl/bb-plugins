@@ -5,9 +5,9 @@ if (runtime == null || runtime.pluginSdkApp == null) {
 }
 var mod = runtime.pluginSdkApp;
 var {
+  Markdown,
+  ThreadChat,
   definePluginApp,
-  experimental_Markdown,
-  experimental_ThreadChat,
   useBbContext,
   useBbNavigate,
   useComposer,
