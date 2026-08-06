@@ -45,6 +45,7 @@ function AddCommentsAction() {
   const composer = useComposer();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
   const actionRoot = useRef<HTMLSpanElement>(null);
   const requestGeneration = useRef(0);
   const threadId =
@@ -56,6 +57,7 @@ function AddCommentsAction() {
     requestGeneration.current += 1;
     setBusy(false);
     setError(null);
+    setNotice(null);
     return () => {
       currentThreadId.current = null;
       requestGeneration.current += 1;
@@ -68,6 +70,7 @@ function AddCommentsAction() {
       payload !== null &&
       (payload as { bbThreadId?: unknown }).bbThreadId === threadId
     ) {
+      setNotice(null);
       refreshTimelineCommentAnchors();
     }
   });
@@ -129,12 +132,16 @@ function AddCommentsAction() {
       currentThreadId.current === threadId;
     setBusy(true);
     setError(null);
+    setNotice(null);
     try {
       const summary = await rpc.call("getThreadHandoffSummary", {
         bbThreadId: threadId,
       });
       if (!isCurrentRequest()) return;
-      if (summary.threadCount === 0) return;
+      if (summary.threadCount === 0) {
+        setNotice("No open comments");
+        return;
+      }
       composer.insertMention({
         provider: "thread-comments",
         id: threadId,
@@ -153,6 +160,11 @@ function AddCommentsAction() {
       {error !== null ? (
         <span className="bb-comments-composer-action-error" role="alert">
           Couldn’t add comments
+        </span>
+      ) : null}
+      {notice !== null ? (
+        <span className="bb-comments-composer-action-status" role="status">
+          {notice}
         </span>
       ) : null}
       <button

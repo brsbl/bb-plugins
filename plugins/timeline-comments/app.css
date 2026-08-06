@@ -65,6 +65,12 @@
   line-height: 1;
   white-space: nowrap;
 }
+.bb-comments-composer-action-status {
+  color: var(--muted-foreground);
+  font-size: 10px;
+  line-height: 1;
+  white-space: nowrap;
+}
 .bb-comments-composer-action {
   display: grid;
   width: 28px;

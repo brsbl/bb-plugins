@@ -1727,6 +1727,7 @@ function AddCommentsAction() {
   const composer = useComposer();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
+  const [notice, setNotice] = useState(null);
   const actionRoot = useRef(null);
   const requestGeneration = useRef(0);
   const threadId = composer.scope.kind === "thread" ? composer.scope.threadId : null;
@@ -1736,6 +1737,7 @@ function AddCommentsAction() {
     requestGeneration.current += 1;
     setBusy(false);
     setError(null);
+    setNotice(null);
     return () => {
       currentThreadId.current = null;
       requestGeneration.current += 1;
@@ -1743,6 +1745,7 @@ function AddCommentsAction() {
   }, [threadId]);
   useRealtime("comments-changed", (payload) => {
     if (typeof payload === "object" && payload !== null && payload.bbThreadId === threadId) {
+      setNotice(null);
       refreshTimelineCommentAnchors();
     }
   });
@@ -1782,12 +1785,16 @@ function AddCommentsAction() {
     const isCurrentRequest = () => generation === requestGeneration.current && currentThreadId.current === threadId;
     setBusy(true);
     setError(null);
+    setNotice(null);
     try {
       const summary = await rpc.call("getThreadHandoffSummary", {
         bbThreadId: threadId
       });
       if (!isCurrentRequest()) return;
-      if (summary.threadCount === 0) return;
+      if (summary.threadCount === 0) {
+        setNotice("No open comments");
+        return;
+      }
       composer.insertMention({
         provider: "thread-comments",
         id: threadId,
@@ -1802,6 +1809,7 @@ function AddCommentsAction() {
   };
   return /* @__PURE__ */ jsxs("span", { ref: actionRoot, className: "bb-comments-composer-action-wrap", children: [
     error !== null ? /* @__PURE__ */ jsx("span", { className: "bb-comments-composer-action-error", role: "alert", children: "Couldn\u2019t add comments" }) : null,
+    notice !== null ? /* @__PURE__ */ jsx("span", { className: "bb-comments-composer-action-status", role: "status", children: notice }) : null,
     /* @__PURE__ */ jsx(
       "button",
       {

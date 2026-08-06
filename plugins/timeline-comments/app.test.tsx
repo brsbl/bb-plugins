@@ -177,6 +177,45 @@ describe("timeline comments app", () => {
     uninstallController();
   });
 
+  it("reports when the thread has no open comments to add", async () => {
+    const app = await loadPluginApp(() => import("./app.js"));
+    const action = renderSlot(
+      app.composerCustomizations[0]!.actions![0]!,
+      {},
+      {
+        context: { threadId: "thr_1" },
+        composer: {
+          text: "Keep this draft",
+          scope: { kind: "thread", threadId: "thr_1" },
+        },
+        rpc: {
+          getThreadHandoffSummary: () => ({
+            threadCount: 0,
+            commentCount: 0,
+            codePointSize: 0,
+          }),
+        },
+      },
+    );
+
+    fireEvent.click(
+      action.getByRole("button", { name: "Add comments to chat" }),
+    );
+
+    expect((await action.findByRole("status")).textContent).toBe(
+      "No open comments",
+    );
+    expect(action.inspection.composer.mentions).toHaveLength(0);
+    expect(action.inspection.composer.text).toBe("Keep this draft");
+    expect(
+      (
+        action.getByRole("button", {
+          name: "Add comments to chat",
+        }) as HTMLButtonElement
+      ).disabled,
+    ).toBe(false);
+  });
+
   it("binds an overflow action to its embedded trigger instead of the focused main pane", async () => {
     document.body.innerHTML = `
       <div data-split-pane-id="pane_main" data-focused="true">
