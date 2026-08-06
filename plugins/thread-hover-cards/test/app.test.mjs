@@ -40,6 +40,89 @@ Object.assign(globalThis, {
 });
 
 const requestBodies = [];
+const sectionRequestBodies = [];
+const emptyDiagnostics = { startedAt: 0, stages: [], totalMs: 0 };
+const SECTION_NOW = testNow;
+const sectionSummaries = new Map([
+  [
+    "Design",
+    {
+      diagnostics: emptyDiagnostics,
+      failed: 1,
+      known: true,
+      projects: ["bb", "moss", "ottonomous", "loop-machine"],
+      questions: 2,
+      total: 13,
+      unread: 4,
+      working: 3,
+    },
+  ],
+  [
+    "Writing",
+    {
+      diagnostics: emptyDiagnostics,
+      failed: 0,
+      known: true,
+      projects: [],
+      questions: 0,
+      total: 0,
+      unread: 0,
+      working: 0,
+    },
+  ],
+  [
+    "Quiet",
+    {
+      diagnostics: emptyDiagnostics,
+      failed: 0,
+      known: true,
+      projects: ["Personal"],
+      questions: 0,
+      total: 6,
+      unread: 0,
+      working: 0,
+    },
+  ],
+  [
+    "Pinned",
+    {
+      diagnostics: emptyDiagnostics,
+      failed: 0,
+      known: false,
+      projects: [],
+      questions: 0,
+      total: 0,
+      unread: 0,
+      working: 0,
+    },
+  ],
+  [
+    "Delayed A",
+    {
+      diagnostics: emptyDiagnostics,
+      failed: 0,
+      known: true,
+      projects: [],
+      questions: 0,
+      total: 1,
+      unread: 0,
+      working: 0,
+    },
+  ],
+  [
+    "Delayed B",
+    {
+      diagnostics: emptyDiagnostics,
+      failed: 0,
+      known: true,
+      projects: [],
+      questions: 0,
+      total: 2,
+      unread: 0,
+      working: 0,
+    },
+  ],
+]);
 const summaryRequestMetadata = [];
 const timingRequestBodies = [];
 const pullRequestBodies = [];
@@ -51,7 +134,10 @@ const delayNextTimingFor = new Set();
 const delayedTimingResponses = new Map();
 const delayNextPullRequestFor = new Set();
 const delayedPullRequestResponses = new Map();
+const delayNextSectionFor = new Set();
+const delayedSectionResponses = new Map();
 const abortedSummaryThreadIds = [];
+const abortedSectionNames = [];
 let activeDelayedSummaryRequests = 0;
 let maxActiveDelayedSummaryRequests = 0;
 let idleRestartIsActive = false;
@@ -64,6 +150,7 @@ function deferResponse({
   signal,
   threadId,
   trackSummary = false,
+  abortedIds = abortedSummaryThreadIds,
 }) {
   if (!delayedThreads.delete(threadId)) return null;
   if (trackSummary) {
@@ -85,7 +172,7 @@ function deferResponse({
       callback();
     };
     const abort = () => {
-      abortedSummaryThreadIds.push(threadId);
+      abortedIds.push(threadId);
       settle(() => reject(new DOMException("Aborted", "AbortError")));
     };
     if (signal?.aborted) {
@@ -99,6 +186,30 @@ function deferResponse({
 
 globalThis.fetch = async (url, init) => {
   const request = JSON.parse(init.body);
+  if (String(url).endsWith("/sectionSummary")) {
+    sectionRequestBodies.push(request);
+    const summary = sectionSummaries.get(request.name);
+    if (!summary) {
+      return new Response(
+        JSON.stringify({ ok: false, error: { message: "Unknown section." } }),
+        { status: 404 },
+      );
+    }
+    const response = new Response(
+      JSON.stringify({ ok: true, result: summary }),
+      { status: 200 },
+    );
+    return (
+      deferResponse({
+        abortedIds: abortedSectionNames,
+        delayedThreads: delayNextSectionFor,
+        resolvers: delayedSectionResponses,
+        response,
+        signal: init.signal,
+        threadId: request.name,
+      }) ?? response
+    );
+  }
   const isLocal = request.threadId === "thr_local";
   const hasNoPullRequest = request.threadId === "thr_no_pr";
   const pullRequestUnavailable = request.threadId === "thr_pr_unavailable";
@@ -1501,8 +1612,302 @@ assert.ok(
   (globalThis.__bbThreadHoverCardTimings?.length ?? 0) <= 200,
   "bounds the client timing history",
 );
+
+// Section hover cards.
+function sectionHeaderRow(label) {
+  const row = window.document.createElement("div");
+  row.dataset.sidebarStickyTier = "label";
+  const titleGroup = window.document.createElement("span");
+  const title = window.document.createElement("span");
+  title.textContent = label;
+  const toggle = window.document.createElement("button");
+  toggle.setAttribute("aria-expanded", "true");
+  toggle.setAttribute("aria-label", `Collapse ${label} section`);
+  titleGroup.append(title, toggle);
+  row.append(titleGroup);
+  return { row, title, toggle };
+}
+
+function hoverOver(node) {
+  node.dispatchEvent(
+    new window.PointerEvent("pointerover", {
+      bubbles: true,
+      pointerType: "mouse",
+    }),
+  );
+}
+
+const sectionStyle = window.document.getElementById(
+  "bb-section-hover-card-styles",
+);
+assert.ok(sectionStyle, "installs the section card stylesheet");
+assert.match(
+  sectionStyle.textContent,
+  /\.bb-thread-hover-card\[data-bb-card="section"\]/,
+);
+
+const sectionGroup = window.document.createElement("div");
+sectionGroup.dataset.sidebarStickyGroup = "";
+const designHeader = sectionHeaderRow("Design");
+sectionGroup.append(designHeader.row);
+window.document.body.append(sectionGroup);
+
+hoverOver(designHeader.title);
+await new Promise((resolve) => setTimeout(resolve, 20));
+
+const sectionCard = window.document.getElementById("bb-section-hover-card");
+assert.ok(sectionCard, "opens a card from the section header row");
+assert.equal(sectionCard.hidden, false);
+assert.equal(
+  designHeader.toggle.getAttribute("aria-describedby"),
+  "bb-section-hover-card",
+  "describes the keyboard-focusable section toggle",
+);
+assert.equal(designHeader.row.hasAttribute("aria-describedby"), false);
+assert.deepEqual(sectionRequestBodies.at(-1), {
+  name: "Design",
+  projectName: null,
+});
+// Band 1: the projects the section spans, two names then +N.
+assert.deepEqual(
+  [...sectionCard.querySelectorAll(".bb-section-hover-card__project")].map(
+    (node) => node.textContent,
+  ),
+  ["bb", "moss"],
+);
+assert.equal(
+  sectionCard.querySelector(".bb-section-hover-card__more").textContent,
+  "+2",
+);
+
+// Band 2: questions and failures read as separate states.
+assert.equal(
+  sectionCard.querySelector(".bb-section-hover-card__chip--question")
+    .textContent,
+  "2 questions",
+);
+assert.equal(
+  sectionCard.querySelector(".bb-section-hover-card__chip--failed").textContent,
+  "1 failed",
+);
+assert.equal(
+  sectionCard
+    .querySelector(".bb-section-hover-card__chip--question [data-icon]")
+    .getAttribute("data-icon"),
+  "HelpCircleIcon",
+  "a question uses bb's own pending glyph",
+);
+assert.equal(
+  sectionCard
+    .querySelector(".bb-section-hover-card__chip--question [data-icon]")
+    .getAttribute("aria-hidden"),
+  "true",
+  "the decorative glyph does not repeat the adjacent count for assistive technology",
+);
+
+// Band 3: counts in fixed order.
+assert.deepEqual(
+  [...sectionCard.querySelectorAll(".bb-section-hover-card__count")].map(
+    (node) => node.textContent,
+  ),
+  ["13 threads", "3 working", "4 unread"],
+);
+
+// Nothing the sidebar already gives away for free.
+assert.equal(
+  sectionCard.querySelector(".bb-section-hover-card__thread-title"),
+  null,
+  "no thread titles: expanding the section already lists them",
+);
+
+// Switching sections aborts the full summary request for the superseded row.
+const delayedAHeader = sectionHeaderRow("Delayed A");
+const delayedBHeader = sectionHeaderRow("Delayed B");
+sectionGroup.append(delayedAHeader.row, delayedBHeader.row);
+hoverOver(delayedBHeader.title);
+await new Promise((resolve) => setTimeout(resolve, 20));
+assert.match(sectionCard.textContent, /2 threads/);
+delayNextSectionFor.add("Delayed A");
+hoverOver(delayedAHeader.title);
+await new Promise((resolve) => setTimeout(resolve, 0));
+assert.ok(delayedSectionResponses.has("Delayed A"));
+hoverOver(delayedBHeader.title);
+await new Promise((resolve) => setTimeout(resolve, 20));
+assert.ok(
+  abortedSectionNames.includes("Delayed A"),
+  "a cached section still aborts the superseded summary request",
+);
+assert.match(sectionCard.textContent, /2 threads/);
+
+// Pointer movement must not dismiss a card whose toggle still owns focus.
+designHeader.toggle.focus();
+await new Promise((resolve) => setTimeout(resolve, 20));
+designHeader.toggle.dispatchEvent(
+  new window.PointerEvent("pointerout", {
+    bubbles: true,
+    pointerType: "mouse",
+    relatedTarget: window.document.body,
+  }),
+);
+await new Promise((resolve) => setTimeout(resolve, 140));
+assert.equal(sectionCard.hidden, false);
+assert.equal(
+  designHeader.toggle.getAttribute("aria-describedby"),
+  "bb-section-hover-card",
+  "keeps the focused toggle associated with its card after pointer leave",
+);
+threadRowSuccessor.focus();
+await new Promise((resolve) => setTimeout(resolve, 140));
+assert.equal(sectionCard.hidden, true);
+assert.equal(designHeader.toggle.hasAttribute("aria-describedby"), false);
+
+// The thread card and the section card are never open at the same time.
+assert.equal(window.document.getElementById("bb-thread-hover-card").hidden, true);
+
+// An empty section states the absence instead of rendering an empty shell.
+const writingHeader = sectionHeaderRow("Writing");
+sectionGroup.append(writingHeader.row);
+hoverOver(writingHeader.title);
+await new Promise((resolve) => setTimeout(resolve, 20));
+assert.equal(
+  sectionCard.querySelector(".bb-section-hover-card__empty").textContent,
+  "No threads yet",
+);
+assert.equal(
+  sectionCard.querySelector(".bb-section-hover-card__headline"),
+  null,
+  "no headline when nothing wants action — absent, not a reassurance line",
+);
+
+// A section nested under a project reports only that project's threads.
+const projectItem = window.document.createElement("div");
+projectItem.dataset.sidebarStickyProjectItem = "";
+const projectGroup = window.document.createElement("div");
+projectGroup.dataset.sidebarStickyGroup = "";
+const projectHeader = sectionHeaderRow("bb");
+const nestedGroup = window.document.createElement("div");
+nestedGroup.dataset.sidebarStickyGroup = "";
+const nestedHeader = sectionHeaderRow("Design");
+nestedGroup.append(nestedHeader.row);
+projectGroup.append(projectHeader.row, nestedGroup);
+projectItem.append(projectGroup);
+window.document.body.append(projectItem);
+
+hoverOver(nestedHeader.title);
+await new Promise((resolve) => setTimeout(resolve, 20));
+assert.deepEqual(sectionRequestBodies.at(-1), {
+  name: "Design",
+  projectName: "bb",
+});
+
+// A project row reuses the section header markup but is not a section.
+const requestsBeforeProjectHover = sectionRequestBodies.length;
+hoverOver(projectHeader.title);
+await new Promise((resolve) => setTimeout(resolve, 20));
+assert.equal(
+  sectionRequestBodies.length,
+  requestsBeforeProjectHover,
+  "never opens a card for a project row",
+);
+
+// Hovering a thread inside an expanded section leaves the section card alone.
+const nestedThreadRow = window.document.createElement("div");
+nestedThreadRow.className = "group/thread-row";
+const nestedThread = window.document.createElement("a");
+nestedThread.dataset.sidebarThreadId = "thr_1";
+nestedThread.href = "/threads/thr_1";
+nestedThread.textContent = "Nested thread";
+nestedThreadRow.append(nestedThread);
+nestedGroup.append(nestedThreadRow);
+const requestsBeforeThreadHover = sectionRequestBodies.length;
+hoverOver(nestedThread);
+await new Promise((resolve) => setTimeout(resolve, 20));
+assert.equal(
+  sectionRequestBodies.length,
+  requestsBeforeThreadHover,
+  "hovering a thread row does not open its section's card",
+);
+
+// A populated section with nothing wanting action: no headline, counts dimmed.
+const quietHeader = sectionHeaderRow("Quiet");
+sectionGroup.append(quietHeader.row);
+hoverOver(quietHeader.title);
+await new Promise((resolve) => setTimeout(resolve, 20));
+assert.equal(
+  sectionCard.querySelector(".bb-section-hover-card__headline"),
+  null,
+  "the headline is absent, not an empty reassurance line",
+);
+assert.deepEqual(
+  [...sectionCard.querySelectorAll(".bb-section-hover-card__count")].map(
+    (node) => node.textContent,
+  ),
+  ["6 threads", "0 working", "0 unread"],
+  "zero counts keep their positions",
+);
+assert.deepEqual(
+  [...sectionCard.querySelectorAll(".bb-section-hover-card__count")].map(
+    (node) => node.dataset.zero ?? null,
+  ),
+  [null, "true", "true"],
+  "zero counts dim rather than disappear",
+);
+
+// A built-in group is not a stored section: the card closes and stops asking.
+const pinnedHeader = sectionHeaderRow("Pinned");
+sectionGroup.append(pinnedHeader.row);
+hoverOver(pinnedHeader.title);
+await new Promise((resolve) => setTimeout(resolve, 20));
+assert.equal(
+  sectionCard.hidden,
+  true,
+  "closes rather than showing an error for a built-in group",
+);
+const requestsAfterFirstPinnedHover = sectionRequestBodies.length;
+hoverOver(pinnedHeader.title);
+await new Promise((resolve) => setTimeout(resolve, 20));
+assert.equal(
+  sectionRequestBodies.length,
+  requestsAfterFirstPinnedHover,
+  "does not re-ask about a group already known not to be a section",
+);
+assert.equal(sectionCard.hidden, true);
+
+delayNextSectionFor.add("Delayed A");
+hoverOver(delayedAHeader.title);
+await new Promise((resolve) => setTimeout(resolve, 0));
+const delayedAAbortCount = abortedSectionNames.filter(
+  (name) => name === "Delayed A",
+).length;
+hoverOver(pinnedHeader.title);
+await new Promise((resolve) => setTimeout(resolve, 20));
+assert.equal(
+  abortedSectionNames.filter((name) => name === "Delayed A").length,
+  delayedAAbortCount + 1,
+  "a cached non-section verdict closes and aborts the previous section",
+);
+assert.equal(sectionCard.hidden, true);
+
+// Moving from a section header onto a thread row swaps the cards.
+hoverOver(designHeader.title);
+await new Promise((resolve) => setTimeout(resolve, 20));
+assert.equal(sectionCard.hidden, false);
+hoverOver(nestedThread);
+await new Promise((resolve) => setTimeout(resolve, 20));
+assert.equal(
+  sectionCard.hidden,
+  true,
+  "opening a thread card closes the section card",
+);
+assert.equal(
+  window.document.getElementById("bb-thread-hover-card").hidden,
+  false,
+);
+
 globalThis.__bbThreadHoverCards?.dispose();
 assert.equal(window.document.getElementById("bb-thread-hover-card-styles"), null);
+assert.equal(window.document.getElementById("bb-section-hover-card-styles"), null);
+assert.equal(window.document.getElementById("bb-section-hover-card"), null);
 Date.now = realDateNow;
 globalThis.performance = realPerformance;
 dom.window.close();
