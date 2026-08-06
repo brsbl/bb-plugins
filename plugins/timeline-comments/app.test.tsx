@@ -6,7 +6,8 @@ import {
   loadPluginApp,
   mountPluginContentScripts,
   renderSlot,
-} from "./test/plugin-sdk-app-harness.js";
+} from "@bb/plugin-sdk/testing/app";
+import { installTimelineCommentsController } from "./bridge.js";
 import type { timelineCommentsRpcContract } from "./server.js";
 
 afterEach(cleanup);
@@ -58,9 +59,9 @@ describe("timeline comments app", () => {
       {
         id: "comment-selection",
         title: "Comment",
-        placements: ["selection-menu"],
       },
     ]);
+    expect(app.messageActions[0]).not.toHaveProperty("placements");
     expect(app.threadPanelActions).toMatchObject([
       {
         id: "comments",
@@ -79,6 +80,41 @@ describe("timeline comments app", () => {
     expect(app.contentScripts.map(({ id }) => id)).toEqual([
       "timeline-comment-anchors",
     ]);
+
+    const message = {
+      id: "msg_1",
+      threadId: "thr_1",
+      role: "assistant" as const,
+      text: "source",
+      sourceSeqEnd: 1,
+    };
+    const openPanel = vi.fn(() => true);
+    await app.messageActions[0]!.run({
+      threadId: "thr_1",
+      message,
+      openPanel,
+    });
+    expect(openPanel).toHaveBeenCalledWith({
+      actionId: "comments",
+      title: "Comments",
+    });
+
+    const beginComment = vi.fn();
+    const uninstallController = installTimelineCommentsController({
+      beginComment,
+      focusThread: vi.fn(async () => false),
+      refreshAnchors: vi.fn(),
+    });
+    await app.messageActions[0]!.run({
+      threadId: "thr_1",
+      message,
+      selectedText: "source",
+      openPanel,
+    });
+    expect(beginComment).toHaveBeenCalledWith(
+      expect.objectContaining({ selectedText: "source" }),
+    );
+    uninstallController();
   });
 
   it("adds open comments to the draft from the thread composer action", async () => {
@@ -253,7 +289,6 @@ describe("timeline comments app", () => {
       {
         threadId: "thr_1",
         params: null,
-        revealMessage: vi.fn(async () => "revealed" as const),
       },
       {
         context: { threadId: "thr_1" },
@@ -300,15 +335,20 @@ describe("timeline comments app", () => {
     expect(await panel.findByRole("button", { name: /source/i })).not.toBeNull();
   });
 
-  it("uses panel rows only to reveal the anchored thread popover", async () => {
+  it("uses panel rows only to focus the anchored thread popover", async () => {
     const app = await loadPluginApp(() => import("./app.js"));
-    const revealMessage = vi.fn(async () => "revealed" as const);
+    const focusThread = vi.fn(async () => true);
+    const uninstallController = installTimelineCommentsController({
+      beginComment: vi.fn(),
+      focusThread,
+      refreshAnchors: vi.fn(),
+    });
     const panel = renderSlot<
       PluginThreadPanelProps,
       typeof timelineCommentsRpcContract
     >(
       app.threadPanelActions[0]!,
-      { threadId: "thr_1", params: null, revealMessage },
+      { threadId: "thr_1", params: null },
       {
         context: { threadId: "thr_1" },
         rpc: {
@@ -351,13 +391,14 @@ describe("timeline comments app", () => {
     const row = await panel.findByRole("button", { name: /source/i });
     fireEvent.click(row);
     await vi.waitFor(() =>
-      expect(revealMessage).toHaveBeenCalledWith("msg_1"),
+      expect(focusThread).toHaveBeenCalledWith("comment_thread_1"),
     );
     expect(row.closest("article")?.dataset.active).toBe("true");
     expect(
       panel.queryByRole("button", { name: "Comment actions" }),
     ).toBeNull();
     expect(panel.inspection.navigateCalls).toEqual([]);
+    uninstallController();
   });
 
   it("keeps the newest filter response when an older load resolves later", async () => {
@@ -387,7 +428,6 @@ describe("timeline comments app", () => {
       {
         threadId: "thr_1",
         params: null,
-        revealMessage: vi.fn(async () => "revealed" as const),
       },
       {
         context: { threadId: "thr_1" },

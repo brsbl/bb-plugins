@@ -15,7 +15,7 @@ const nativeLoaderLockPaths = Object.freeze([
   "node_modules/@tailwindcss/oxide",
   "node_modules/rolldown",
   "node_modules/lightningcss",
-  "node_modules/vite/node_modules/lightningcss",
+  "node_modules/@tailwindcss/node/node_modules/lightningcss",
 ]);
 
 async function readJson(path) {
@@ -120,6 +120,7 @@ export async function checkRepository(repositoryRoot = defaultRoot, options = {}
     }
   }
   for (const [packagePath, lockEntry] of Object.entries(rootLock.packages)) {
+    assert(!lockEntry.extraneous, `${packagePath}: extraneous lock entry`);
     if (
       !packagePath.startsWith("node_modules/") ||
       lockEntry.link ||

@@ -3,6 +3,7 @@ import type { PluginMessageActionContext } from "@bb/plugin-sdk/app";
 export interface TimelineCommentsControllerBridge {
   beginComment(context: PluginMessageActionContext): void;
   focusThread(commentThreadId: string): Promise<boolean>;
+  refreshAnchors(): void;
 }
 
 let activeController: TimelineCommentsControllerBridge | null = null;
@@ -54,4 +55,8 @@ export async function focusTimelineComment(
   commentThreadId: string,
 ): Promise<boolean> {
   return (await activeController?.focusThread(commentThreadId)) ?? false;
+}
+
+export function refreshTimelineCommentAnchors(): void {
+  activeController?.refreshAnchors();
 }

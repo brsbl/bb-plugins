@@ -24,6 +24,8 @@ import {
   chooseNearestGutter,
   layoutGutterMarkers,
   restoreSelector,
+  selectorForRange,
+  type StoredSelector,
 } from "./anchors.js";
 import { commentBodyError } from "./comment-body.js";
 import {
@@ -33,6 +35,41 @@ import {
 } from "./bridge.js";
 
 type Rpc = PluginRpcClient<typeof timelineCommentsRpcContract>;
+
+interface CapturedSelection {
+  bbThreadId: string;
+  messageId: string;
+  range: Range;
+  rects: Array<{ x: number; y: number; width: number; height: number }>;
+  selector: StoredSelector;
+}
+
+function contentScriptRpcClient(signal: AbortSignal): Rpc {
+  return {
+    async call(method, input) {
+      const response = await fetch(
+        `/api/v1/plugins/timeline-comments/rpc/${String(method)}`,
+        {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify(input ?? null),
+          signal,
+        },
+      );
+      const envelope = (await response.json()) as
+        | { ok: true; result: unknown }
+        | { ok: false; error?: { message?: string } };
+      if (!response.ok || !envelope.ok) {
+        throw new Error(
+          envelope.ok
+            ? "Timeline comments request failed."
+            : (envelope.error?.message ?? "Timeline comments request failed."),
+        );
+      }
+      return envelope.result;
+    },
+  } as Rpc;
+}
 
 interface RestoredThread {
   anchor: TimelineCommentThreadSummary;
@@ -227,7 +264,6 @@ function isRelevantMutation(record: MutationRecord): boolean {
 
 class TimelineCommentsController {
   readonly #rpc: Rpc;
-  readonly #navigate: PluginContentScriptContext["navigate"];
   readonly #portal = decorateRoot(element("div", "bb-comments-portal"));
   readonly #overlay = element("div", "bb-comments-overlay");
   readonly #highlightStyle = element("style");
@@ -245,7 +281,7 @@ class TimelineCommentsController {
   #provisionalRange: Range | null = null;
   #openThreadId: string | null = null;
   #destroyed = false;
-  #sawConnected = false;
+  #selectionSnapshot: CapturedSelection | null = null;
   #focusNonce = 0;
   #outsideComposer: ((event: PointerEvent) => void) | null = null;
   #outsidePopover: ((event: PointerEvent) => void) | null = null;
@@ -256,8 +292,7 @@ class TimelineCommentsController {
   #outsideActionsMenu: ((event: PointerEvent) => void) | null = null;
 
   constructor(context: PluginContentScriptContext) {
-    this.#rpc = context.rpc as Rpc;
-    this.#navigate = context.navigate;
+    this.#rpc = contentScriptRpcClient(context.signal);
     this.#overlay.setAttribute("aria-live", "polite");
     this.#highlightStyle.textContent = `
       ::highlight(${NORMAL_HIGHLIGHT}) {
@@ -295,35 +330,50 @@ class TimelineCommentsController {
     this.#disposers.push(() =>
       window.removeEventListener("resize", onViewportChange),
     );
-    this.#disposers.push(
-      context.realtime.subscribe("comments-changed", () =>
-        this.scheduleRefresh(),
-      ),
+    const rememberSelection = () => {
+      const captured = this.captureCurrentSelection();
+      if (captured !== null) this.#selectionSnapshot = captured;
+    };
+    const refreshVisible = () => {
+      if (document.visibilityState === "visible") this.scheduleRefresh();
+    };
+    document.addEventListener("selectionchange", rememberSelection);
+    document.addEventListener("visibilitychange", refreshVisible);
+    window.addEventListener("focus", refreshVisible);
+    this.#disposers.push(() =>
+      document.removeEventListener("selectionchange", rememberSelection),
     );
-    this.#disposers.push(
-      context.realtime.subscribeConnectionState((state) => {
-        if (state === "connected") {
-          if (this.#sawConnected) this.scheduleRefresh();
-          this.#sawConnected = true;
-        }
-      }),
+    this.#disposers.push(() =>
+      document.removeEventListener("visibilitychange", refreshVisible),
     );
-    this.#sawConnected = context.realtime.getConnectionState() === "connected";
+    this.#disposers.push(() =>
+      window.removeEventListener("focus", refreshVisible),
+    );
     this.#disposers.push(installTimelineCommentsController(this));
     this.scheduleRefresh();
   }
 
   beginComment(context: PluginMessageActionContext): void {
-    if (context.selection === undefined || context.selectedText === undefined)
+    if (context.selectedText === undefined) return;
+    const current = this.captureCurrentSelection();
+    if (current !== null) this.#selectionSnapshot = current;
+    const captured = current ?? this.#selectionSnapshot;
+    if (
+      captured === null ||
+      captured.bbThreadId !== context.threadId ||
+      captured.messageId !== context.message.id ||
+      captured.selector.exact !== context.selectedText
+    ) {
       return;
+    }
     this.closeComposer();
     const root = this.findProse(context.threadId, context.message.id);
     const restored =
-      root === null ? null : restoreSelector(root, context.selection);
-    this.#provisionalRange = restored?.range ?? null;
+      root === null ? null : restoreSelector(root, captured.selector);
+    this.#provisionalRange = restored?.range ?? captured.range.cloneRange();
     this.rebuildHighlights();
 
-    const key = `bb.timeline-comments.draft:${context.threadId}:${context.message.id}:${context.selection.start}:${context.selection.end}`;
+    const key = `bb.timeline-comments.draft:${context.threadId}:${context.message.id}:${captured.selector.start}:${captured.selector.end}`;
     const shell = element("form", "bb-comments-composer");
     shell.setAttribute("role", "dialog");
     shell.setAttribute("aria-label", "Add comment");
@@ -347,9 +397,9 @@ class TimelineCommentsController {
     error.setAttribute("role", "status");
     shell.append(textarea, error, footer);
 
-    const firstRect = context.selection.rects[0];
+    const firstRect = captured.rects[0];
     const x = firstRect?.x ?? window.innerWidth / 2;
-    const y = context.selection.rects.at(-1)?.y ?? window.innerHeight / 2;
+    const y = captured.rects.at(-1)?.y ?? window.innerHeight / 2;
     shell.style.left = `${Math.max(8, Math.min(window.innerWidth - 328, x))}px`;
     shell.style.top = `${Math.max(8, Math.min(window.innerHeight - 180, y + 22))}px`;
     const validate = () => {
@@ -385,8 +435,8 @@ class TimelineCommentsController {
           bbThreadId: context.threadId,
           message: context.message,
           selector: {
-            ...context.selection!,
-            rects: context.selection!.rects.map((rect) => ({ ...rect })),
+            ...captured.selector,
+            rects: captured.rects.map((rect) => ({ ...rect })),
           },
           body: textarea.value,
         })
@@ -412,6 +462,55 @@ class TimelineCommentsController {
     };
     document.addEventListener("pointerdown", this.#outsideComposer, true);
     requestAnimationFrame(() => textarea.focus());
+  }
+
+  refreshAnchors(): void {
+    this.scheduleRefresh();
+  }
+
+  private captureCurrentSelection(): CapturedSelection | null {
+    const selection = document.getSelection();
+    if (
+      selection === null ||
+      selection.rangeCount !== 1 ||
+      selection.isCollapsed
+    )
+      return null;
+    const range = selection.getRangeAt(0).cloneRange();
+    const startElement =
+      range.startContainer instanceof Element
+        ? range.startContainer
+        : range.startContainer.parentElement;
+    const prose = startElement?.closest<HTMLElement>(
+      "[data-bb-message-prose-root]",
+    );
+    if (
+      prose === undefined ||
+      prose === null ||
+      !prose.contains(range.endContainer)
+    )
+      return null;
+    const message = prose.closest<HTMLElement>(
+      "[data-bb-conversation-message-id]",
+    );
+    const threadWindow = prose.closest<HTMLElement>("[data-bb-thread-window]");
+    const messageId = message?.dataset.bbConversationMessageId;
+    const bbThreadId = threadWindow?.dataset.bbThreadWindow;
+    const selector = selectorForRange(prose, range);
+    if (
+      messageId === undefined ||
+      bbThreadId === undefined ||
+      selector === null
+    )
+      return null;
+    const rects = [...range.getClientRects()].map(({ x, y, width, height }) => ({
+      x,
+      y,
+      width,
+      height,
+    }));
+    if (rects.length === 0) return null;
+    return { bbThreadId, messageId, range, rects, selector };
   }
 
   async focusThread(commentThreadId: string): Promise<boolean> {

@@ -169,6 +169,9 @@ function beginTimelineComment(context) {
 async function focusTimelineComment(commentThreadId) {
   return await activeController?.focusThread(commentThreadId) ?? false;
 }
+function refreshTimelineCommentAnchors() {
+  activeController?.refreshAnchors();
+}
 
 // ../../node_modules/lucide/dist/esm/createElement.js
 var createElement2 = (tag, attrs, children = []) => {
@@ -276,6 +279,28 @@ var Trash2 = [
 ];
 
 // anchors.ts
+function selectorForRange(root, range, contextLength = 32) {
+  if (range.collapsed || !root.contains(range.startContainer) || !root.contains(range.endContainer)) {
+    return null;
+  }
+  const { text } = indexText(root);
+  const before = document.createRange();
+  before.selectNodeContents(root);
+  before.setEnd(range.startContainer, range.startOffset);
+  const start = before.toString().length;
+  const exact = range.toString();
+  const end = start + exact.length;
+  if (exact === "" || text.slice(start, end) !== exact) return null;
+  return {
+    version: 1,
+    coordinateSpace: "rendered-text-utf16",
+    start,
+    end,
+    exact,
+    prefix: text.slice(Math.max(0, start - contextLength), start),
+    suffix: text.slice(end, end + contextLength)
+  };
+}
 function indexText(root) {
   const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
   const segments = [];
@@ -400,6 +425,28 @@ function commentBodyError(value) {
 }
 
 // controller.ts
+function contentScriptRpcClient(signal) {
+  return {
+    async call(method, input) {
+      const response = await fetch(
+        `/api/v1/plugins/timeline-comments/rpc/${String(method)}`,
+        {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify(input ?? null),
+          signal
+        }
+      );
+      const envelope = await response.json();
+      if (!response.ok || !envelope.ok) {
+        throw new Error(
+          envelope.ok ? "Timeline comments request failed." : envelope.error?.message ?? "Timeline comments request failed."
+        );
+      }
+      return envelope.result;
+    }
+  };
+}
 var OWNED = "data-bb-timeline-comments-owned";
 var NORMAL_HIGHLIGHT = "bb-timeline-comments";
 var ACTIVE_HIGHLIGHT = "bb-timeline-comments-active";
@@ -533,7 +580,6 @@ function isRelevantMutation(record) {
 }
 var TimelineCommentsController = class {
   #rpc;
-  #navigate;
   #portal = decorateRoot(element("div", "bb-comments-portal"));
   #overlay = element("div", "bb-comments-overlay");
   #highlightStyle = element("style");
@@ -551,7 +597,7 @@ var TimelineCommentsController = class {
   #provisionalRange = null;
   #openThreadId = null;
   #destroyed = false;
-  #sawConnected = false;
+  #selectionSnapshot = null;
   #focusNonce = 0;
   #outsideComposer = null;
   #outsidePopover = null;
@@ -561,8 +607,7 @@ var TimelineCommentsController = class {
   #actionsTrigger = null;
   #outsideActionsMenu = null;
   constructor(context) {
-    this.#rpc = context.rpc;
-    this.#navigate = context.navigate;
+    this.#rpc = contentScriptRpcClient(context.signal);
     this.#overlay.setAttribute("aria-live", "polite");
     this.#highlightStyle.textContent = `
       ::highlight(${NORMAL_HIGHLIGHT}) {
@@ -595,33 +640,42 @@ var TimelineCommentsController = class {
     this.#disposers.push(
       () => window.removeEventListener("resize", onViewportChange)
     );
+    const rememberSelection = () => {
+      const captured = this.captureCurrentSelection();
+      if (captured !== null) this.#selectionSnapshot = captured;
+    };
+    const refreshVisible = () => {
+      if (document.visibilityState === "visible") this.scheduleRefresh();
+    };
+    document.addEventListener("selectionchange", rememberSelection);
+    document.addEventListener("visibilitychange", refreshVisible);
+    window.addEventListener("focus", refreshVisible);
     this.#disposers.push(
-      context.realtime.subscribe(
-        "comments-changed",
-        () => this.scheduleRefresh()
-      )
+      () => document.removeEventListener("selectionchange", rememberSelection)
     );
     this.#disposers.push(
-      context.realtime.subscribeConnectionState((state) => {
-        if (state === "connected") {
-          if (this.#sawConnected) this.scheduleRefresh();
-          this.#sawConnected = true;
-        }
-      })
+      () => document.removeEventListener("visibilitychange", refreshVisible)
     );
-    this.#sawConnected = context.realtime.getConnectionState() === "connected";
+    this.#disposers.push(
+      () => window.removeEventListener("focus", refreshVisible)
+    );
     this.#disposers.push(installTimelineCommentsController(this));
     this.scheduleRefresh();
   }
   beginComment(context) {
-    if (context.selection === void 0 || context.selectedText === void 0)
+    if (context.selectedText === void 0) return;
+    const current = this.captureCurrentSelection();
+    if (current !== null) this.#selectionSnapshot = current;
+    const captured = current ?? this.#selectionSnapshot;
+    if (captured === null || captured.bbThreadId !== context.threadId || captured.messageId !== context.message.id || captured.selector.exact !== context.selectedText) {
       return;
+    }
     this.closeComposer();
     const root = this.findProse(context.threadId, context.message.id);
-    const restored = root === null ? null : restoreSelector(root, context.selection);
-    this.#provisionalRange = restored?.range ?? null;
+    const restored = root === null ? null : restoreSelector(root, captured.selector);
+    this.#provisionalRange = restored?.range ?? captured.range.cloneRange();
     this.rebuildHighlights();
-    const key = `bb.timeline-comments.draft:${context.threadId}:${context.message.id}:${context.selection.start}:${context.selection.end}`;
+    const key = `bb.timeline-comments.draft:${context.threadId}:${context.message.id}:${captured.selector.start}:${captured.selector.end}`;
     const shell = element("form", "bb-comments-composer");
     shell.setAttribute("role", "dialog");
     shell.setAttribute("aria-label", "Add comment");
@@ -644,9 +698,9 @@ var TimelineCommentsController = class {
     const error = element("div", "bb-comments-error");
     error.setAttribute("role", "status");
     shell.append(textarea, error, footer);
-    const firstRect = context.selection.rects[0];
+    const firstRect = captured.rects[0];
     const x = firstRect?.x ?? window.innerWidth / 2;
-    const y = context.selection.rects.at(-1)?.y ?? window.innerHeight / 2;
+    const y = captured.rects.at(-1)?.y ?? window.innerHeight / 2;
     shell.style.left = `${Math.max(8, Math.min(window.innerWidth - 328, x))}px`;
     shell.style.top = `${Math.max(8, Math.min(window.innerHeight - 180, y + 22))}px`;
     const validate = () => {
@@ -680,8 +734,8 @@ var TimelineCommentsController = class {
         bbThreadId: context.threadId,
         message: context.message,
         selector: {
-          ...context.selection,
-          rects: context.selection.rects.map((rect) => ({ ...rect }))
+          ...captured.selector,
+          rects: captured.rects.map((rect) => ({ ...rect }))
         },
         body: textarea.value
       }).then((detail) => {
@@ -704,6 +758,38 @@ var TimelineCommentsController = class {
     };
     document.addEventListener("pointerdown", this.#outsideComposer, true);
     requestAnimationFrame(() => textarea.focus());
+  }
+  refreshAnchors() {
+    this.scheduleRefresh();
+  }
+  captureCurrentSelection() {
+    const selection = document.getSelection();
+    if (selection === null || selection.rangeCount !== 1 || selection.isCollapsed)
+      return null;
+    const range = selection.getRangeAt(0).cloneRange();
+    const startElement = range.startContainer instanceof Element ? range.startContainer : range.startContainer.parentElement;
+    const prose = startElement?.closest(
+      "[data-bb-message-prose-root]"
+    );
+    if (prose === void 0 || prose === null || !prose.contains(range.endContainer))
+      return null;
+    const message = prose.closest(
+      "[data-bb-conversation-message-id]"
+    );
+    const threadWindow = prose.closest("[data-bb-thread-window]");
+    const messageId = message?.dataset.bbConversationMessageId;
+    const bbThreadId = threadWindow?.dataset.bbThreadWindow;
+    const selector = selectorForRange(prose, range);
+    if (messageId === void 0 || bbThreadId === void 0 || selector === null)
+      return null;
+    const rects = [...range.getClientRects()].map(({ x, y, width, height }) => ({
+      x,
+      y,
+      width,
+      height
+    }));
+    if (rects.length === 0) return null;
+    return { bbThreadId, messageId, range, rects, selector };
   }
   async focusThread(commentThreadId) {
     const request = ++this.#focusNonce;
@@ -1591,6 +1677,11 @@ function AddCommentsAction() {
       requestGeneration.current += 1;
     };
   }, [threadId]);
+  useRealtime("comments-changed", (payload) => {
+    if (typeof payload === "object" && payload !== null && payload.bbThreadId === threadId) {
+      refreshTimelineCommentAnchors();
+    }
+  });
   if (threadId === null) return null;
   const addComments = async () => {
     const generation = ++requestGeneration.current;
@@ -1632,7 +1723,7 @@ function AddCommentsAction() {
     )
   ] });
 }
-function CommentPanel({ threadId, revealMessage }) {
+function CommentPanel({ threadId }) {
   const rpc = useRpc();
   const connection = useRealtimeConnectionState();
   const anchorHealth = useSyncExternalStore(
@@ -1720,9 +1811,7 @@ function CommentPanel({ threadId, revealMessage }) {
     setActiveId(item.id);
     setError(null);
     try {
-      const revealed = await revealMessage(item.messageId);
-      if (request !== revealRequest.current) return;
-      const anchored = revealed === "revealed" && await focusTimelineComment(item.id);
+      const anchored = await focusTimelineComment(item.id);
       if (request !== revealRequest.current) return;
       setUnanchored((current) => {
         const next = new Set(current);
@@ -1827,9 +1916,12 @@ var app_default = definePluginApp((app) => {
     id: "comment-selection",
     title: "Comment",
     icon: "MessageSquare",
-    placements: ["selection-menu"],
     run(context) {
-      beginTimelineComment(context);
+      if (context.selectedText === void 0) {
+        context.openPanel({ actionId: "comments", title: "Comments" });
+      } else {
+        beginTimelineComment(context);
+      }
     }
   });
 });
