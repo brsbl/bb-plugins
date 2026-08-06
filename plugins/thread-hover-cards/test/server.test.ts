@@ -1,7 +1,10 @@
 import assert from "node:assert/strict";
 import { markdownPreview } from "../markdown-preview";
 import plugin, {
+  isSidebarSectionThread,
+  summarizeSectionThreads,
   type RpcDiagnostics,
+  type SectionSummary,
   type ThreadPullRequest,
   type ThreadSummary,
   type ThreadTiming,
@@ -18,10 +21,32 @@ type TimingHandler = (input: {
 type PullRequestHandler = (input: {
   threadId: string;
 }) => Promise<ThreadPullRequest>;
+type SectionSummaryHandler = (input: {
+  name: string;
+  projectName?: string | null;
+}) => Promise<SectionSummary>;
 
 let summaryHandler: SummaryHandler | undefined;
 let timingHandler: TimingHandler | undefined;
 let pullRequestHandler: PullRequestHandler | undefined;
+let sectionSummaryHandler: SectionSummaryHandler | undefined;
+let sectionRows: { id: string; name: string }[] = [
+  { id: "sec_design", name: "Design" },
+  { id: "sec_duplicate_project", name: "Duplicate Project" },
+  { id: "sec_pinned_case", name: "Pinned Case" },
+  { id: "sec_lost_page", name: "Lost Page" },
+  { id: "sec_stale_count", name: "Stale Count" },
+];
+let sectionListCalls = 0;
+let delaySectionList = false;
+let resolveDelayedSectionList: (() => void) | null = null;
+let projectListFails = false;
+let sectionThreadsFail = false;
+const sectionThreadsById = new Map<string, unknown[]>();
+const backgroundServices = new Map<
+  string,
+  { start(signal: AbortSignal): unknown }
+>();
 const logMessages: string[] = [];
 const debugMessages: string[] = [];
 let displayStatus: "active" | "idle" = "active";
@@ -69,6 +94,11 @@ const fakeBb = {
       logMessages.push(message);
     },
   },
+  background: {
+    service(name: string, service: { start(signal: AbortSignal): unknown }) {
+      backgroundServices.set(name, service);
+    },
+  },
   rpc: {
     register(
       _contract: unknown,
@@ -76,11 +106,13 @@ const fakeBb = {
         threadSummary: SummaryHandler;
         threadTiming: TimingHandler;
         threadPullRequest: PullRequestHandler;
+        sectionSummary: SectionSummaryHandler;
       },
     ) {
       summaryHandler = handlers.threadSummary;
       timingHandler = handlers.threadTiming;
       pullRequestHandler = handlers.threadPullRequest;
+      sectionSummaryHandler = handlers.sectionSummary;
     },
   },
   sdk: {
@@ -116,7 +148,27 @@ const fakeBb = {
         });
       },
     },
+    threadSections: {
+      async list() {
+        sectionListCalls += 1;
+        if (delaySectionList) {
+          await new Promise<void>((resolve) => {
+            resolveDelayedSectionList = resolve;
+          });
+        }
+        return sectionRows;
+      },
+    },
     projects: {
+      async list() {
+        if (projectListFails) throw new Error("projects unavailable");
+        return [
+          { id: "proj_1", name: "bb" },
+          { id: "proj_2", name: "moss" },
+          { id: "proj_same_1", name: "Same" },
+          { id: "proj_same_2", name: "Same" },
+        ];
+      },
       async get() {
         projectCalls += 1;
         return {
@@ -153,6 +205,10 @@ const fakeBb = {
       },
     },
     threads: {
+      async list({ sectionId }: { sectionId?: string } = {}) {
+        if (sectionThreadsFail) throw new Error("threads unavailable");
+        return sectionThreadsById.get(sectionId ?? "") ?? [];
+      },
       async conversationOutline() {
         summaryTimelineCalls += 1;
         return {
@@ -889,3 +945,279 @@ assert.deepEqual(markdownPreview("- First result\n- Second result\n- Extra"), {
   inline: "First result · Second result",
   kind: "list",
 });
+
+// Section summaries: bucketing, ranking, and project rollup.
+function sectionThread(
+  overrides: Partial<{
+    activeBackgroundAgentCount: number;
+    displayStatus: "active" | "error" | "idle";
+    hasPendingInteraction: boolean;
+    id: string;
+    lastReadAt: number | null;
+    latestAttentionAt: number;
+    projectId: string;
+    title: string | null;
+    titleFallback: string | null;
+    updatedAt: number;
+  }> = {},
+) {
+  const {
+    activeBackgroundAgentCount = 0,
+    displayStatus = "idle",
+    hasPendingInteraction = false,
+    id = "thr_x",
+    lastReadAt = null,
+    latestAttentionAt = 0,
+    projectId: threadProjectId = "proj_1",
+    title = "Thread",
+    titleFallback = null,
+    updatedAt = latestAttentionAt,
+  } = overrides;
+  return {
+    activity: {
+      activeBackgroundAgentCount,
+      activeBackgroundCommandCount: 0,
+      activeGoalCount: 0,
+      activePlanModeCount: 0,
+      activeWorkflowCount: 0,
+    },
+    archivedAt: null,
+    childOrigin: null,
+    deletedAt: null,
+    hasPendingInteraction,
+    id,
+    lastReadAt,
+    latestAttentionAt,
+    originKind: null,
+    parentThreadId: null,
+    pinnedAt: null,
+    projectId: threadProjectId,
+    runtime: { displayStatus },
+    title,
+    titleFallback,
+    updatedAt,
+    visibility: "visible",
+  } as never;
+}
+
+const projectNames = new Map([
+  ["proj_1", "bb"],
+  ["proj_2", "moss"],
+]);
+
+const aggregates = summarizeSectionThreads(
+  [
+    sectionThread({ hasPendingInteraction: true, id: "a", latestAttentionAt: 300 }),
+    sectionThread({ displayStatus: "error", id: "b", latestAttentionAt: 100 }),
+    sectionThread({ displayStatus: "active", id: "c", latestAttentionAt: 200 }),
+    sectionThread({ id: "d", lastReadAt: 700, latestAttentionAt: 500, projectId: "proj_2" }),
+  ],
+  projectNames,
+);
+assert.equal(aggregates.total, 4);
+assert.equal(aggregates.questions, 1, "blocked threads count as questions");
+assert.equal(aggregates.failed, 1, "failures are counted apart from questions");
+assert.equal(aggregates.working, 1);
+assert.equal(
+  aggregates.unread,
+  3,
+  "unread follows bb's rule: lastReadAt older than latestAttentionAt",
+);
+assert.deepEqual(
+  aggregates.projects,
+  ["bb", "moss"],
+  "names the projects the section spans, busiest first",
+);
+
+// A failed thread that is also blocked is a question: answering comes first.
+assert.deepEqual(
+  summarizeSectionThreads([
+    sectionThread({
+      displayStatus: "error",
+      hasPendingInteraction: true,
+      latestAttentionAt: 5,
+    }),
+  ]),
+  {
+    failed: 0,
+    projects: [],
+    questions: 1,
+    total: 1,
+    unread: 1,
+    working: 0,
+  },
+);
+
+// A busy background agent counts as working even at displayStatus "idle",
+// matching bb's own isBusyThread.
+assert.equal(
+  summarizeSectionThreads([sectionThread({ activeBackgroundAgentCount: 1 })])
+    .working,
+  1,
+);
+
+const quiet = summarizeSectionThreads([
+  sectionThread({ lastReadAt: 10, latestAttentionAt: 5 }),
+]);
+assert.deepEqual(quiet, {
+  failed: 0,
+  projects: [],
+  questions: 0,
+  total: 1,
+  unread: 0,
+  working: 0,
+});
+
+assert.deepEqual(summarizeSectionThreads([]), {
+  failed: 0,
+  projects: [],
+  questions: 0,
+  total: 0,
+  unread: 0,
+  working: 0,
+});
+
+assert.equal(isSidebarSectionThread(sectionThread()), true);
+for (const excluded of [
+  { archivedAt: 1 },
+  { deletedAt: 1 },
+  { childOrigin: "side-chat" },
+  { originKind: "side-chat" },
+  { pinnedAt: 1 },
+  { parentThreadId: "thr_parent" },
+  { visibility: "hidden" },
+]) {
+  assert.equal(
+    isSidebarSectionThread({ ...(sectionThread() as object), ...excluded } as never),
+    false,
+    `excludes ${JSON.stringify(excluded)}`,
+  );
+}
+
+// The sectionSummary handler — every P1 from review lived in here.
+assert.ok(sectionSummaryHandler, "registers the sectionSummary handler");
+
+// The card names projects on every hover, so a failed lookup is fatal rather
+// than filtering every thread away into a confident empty state. Runs first,
+// while the projects cache is still cold.
+projectListFails = true;
+await assert.rejects(
+  sectionSummaryHandler({ name: "Design" }),
+  /Section summary unavailable\./,
+);
+projectListFails = false;
+
+// A foreground summary must keep its own directory deadline even when the
+// warmer already owns the cache key with its longer background budget.
+delaySectionList = true;
+const warmController = new AbortController();
+const warmService = Promise.resolve(
+  backgroundServices.get("section-directory-warm")?.start(warmController.signal),
+);
+const delayedDirectory = setTimeout(() => {
+  delaySectionList = false;
+  resolveDelayedSectionList?.();
+  resolveDelayedSectionList = null;
+}, 1_600);
+await assert.rejects(
+  sectionSummaryHandler({ name: "Design" }),
+  /Section summary unavailable\./,
+  "does not inherit the warmer's longer cache request deadline",
+);
+clearTimeout(delayedDirectory);
+delaySectionList = false;
+resolveDelayedSectionList?.();
+resolveDelayedSectionList = null;
+warmController.abort();
+await warmService;
+
+sectionThreadsById.set("sec_design", [
+  sectionThread({ id: "a", latestAttentionAt: 3 }),
+  sectionThread({ hasPendingInteraction: true, id: "b", latestAttentionAt: 1 }),
+  sectionThread({ id: "c", latestAttentionAt: 2, projectId: "proj_2" }),
+]);
+const designSummary = await sectionSummaryHandler({ name: "Design" });
+assert.equal(designSummary.known, true);
+assert.equal(designSummary.total, 3);
+assert.equal(designSummary.questions, 1);
+assert.deepEqual(
+  designSummary.projects,
+  ["bb", "moss"],
+  "the handler resolves project names for the context band",
+);
+
+// Project scoping really filters, rather than failing open to everything.
+assert.equal(
+  (await sectionSummaryHandler({ name: "Design", projectName: "moss" })).total,
+  1,
+);
+
+sectionThreadsById.set("sec_duplicate_project", [
+  sectionThread({ id: "same-a", projectId: "proj_same_1" }),
+  sectionThread({ id: "same-b", projectId: "proj_same_2" }),
+]);
+await assert.rejects(
+  sectionSummaryHandler({ name: "Duplicate Project", projectName: "Same" }),
+  /Section summary unavailable\./,
+  "fails closed when a display name cannot identify one project",
+);
+
+const sectionRealDateNow = Date.now;
+let fakeNow = sectionRealDateNow();
+Date.now = () => fakeNow;
+sectionThreadsById.set("sec_stale_count", [sectionThread({ id: "stale-a" })]);
+assert.equal((await sectionSummaryHandler({ name: "Stale Count" })).total, 1);
+fakeNow += 2_100;
+sectionThreadsFail = true;
+assert.equal(
+  (await sectionSummaryHandler({ name: "Stale Count" })).total,
+  1,
+  "may serve the expired count once while revalidating",
+);
+await Promise.resolve();
+await Promise.resolve();
+await assert.rejects(
+  sectionSummaryHandler({ name: "Stale Count" }),
+  /Section summary unavailable\./,
+  "does not keep serving a count after its refresh failed",
+);
+sectionThreadsFail = false;
+Date.now = sectionRealDateNow;
+
+// A pinned thread belongs to the Pinned group, not the section count.
+sectionThreadsById.set("sec_pinned_case", [
+  sectionThread({ id: "a" }),
+  { ...(sectionThread({ id: "b" }) as object), pinnedAt: 1 },
+]);
+assert.equal(
+  (await sectionSummaryHandler({ name: "Pinned Case" })).total,
+  1,
+  "excludes pinned threads the sidebar lifts out of the section",
+);
+
+// A lost thread page must not be reported as an authoritative zero.
+sectionThreadsFail = true;
+await assert.rejects(
+  sectionSummaryHandler({ name: "Lost Page" }),
+  /Section summary unavailable\./,
+  "fails loudly rather than claiming the section is empty",
+);
+sectionThreadsFail = false;
+
+// A built-in group is genuinely not a section.
+assert.equal((await sectionSummaryHandler({ name: "Pinned" })).known, false);
+
+// A section created after the directory was cached must not be written off.
+sectionRows = [...sectionRows, { id: "sec_new", name: "Just Created" }];
+sectionThreadsById.set("sec_new", [sectionThread({ id: "a" })]);
+const callsBeforeRefresh = sectionListCalls;
+const refreshed = await sectionSummaryHandler({ name: "Just Created" });
+assert.equal(
+  refreshed.known,
+  true,
+  "re-reads the section directory before answering not-a-section",
+);
+assert.ok(
+  sectionListCalls > callsBeforeRefresh,
+  "the re-read actually bypassed the cache",
+);

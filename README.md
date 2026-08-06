@@ -40,7 +40,7 @@ Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/m
 
 ### Thread Hover Cards
 
-Lets you peek at a thread's status and repository context without leaving the sidebar.
+Lets you peek at a thread's status and repository context, or at what a collapsed section holds, without leaving the sidebar.
 
 ![Thread Hover Cards in bb](plugins/thread-hover-cards/docs/screenshot.png)
 
