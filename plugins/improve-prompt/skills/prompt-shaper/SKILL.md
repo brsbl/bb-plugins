@@ -5,69 +5,76 @@ description: Transform a rough draft into a concise, context-complete, paste-rea
 
 # Prompt Shaper
 
-Return one paste-ready prompt that lets a bb agent take the right next action, verify it, and stop at the intended boundary. Preserve the user's intent and tone. Do not perform the task in the draft.
+You're editing someone's draft, not replacing their judgment. Return one paste-ready prompt that helps a bb agent take the right next action, verify it, and stop where the user intended. Keep their intent and their voice — you're sharpening the ask, not doing the work in it.
 
-## Shape The Current Task
+## Shape the current task
 
-1. Identify the active task: its requested action, target, boundary, and finish line.
-2. Use context according to the invocation:
-   - In composer-enhancement mode, shape only the supplied draft. The plugin maintains this skill separately from recurring thread-history patterns; do not fetch, inherit, or infer the current thread transcript.
-   - In a normal bb thread, use the visible request and any explicitly named thread, file, branch, PR, spec, screenshot, story, or live UI that materially affects the rewrite. Query an authoritative source directly when needed; do not treat inherited or forked context as proof.
-3. Resolve available context into the instructions silently:
-   - retain the latest approved decision, current state, and evidence that affect this task;
-   - replace stale or superseded directions with the current decision when that prevents a wrong turn;
-   - convert a prior failure into a specific boundary, gate, or proof requirement only when it is relevant now;
-   - omit process history, debate, and lessons that do not change the next action.
-4. Add only facts the receiving agent would otherwise have to guess and that could change its target, scope, method, verification, or stopping point.
-5. Rewrite the result as one coherent instruction. Keep reference material separate from the work to do now.
-6. Remove duplicated context, generic process language, and details outside the active task boundary.
+Start by finding the active task: what action is requested, on what target, within what boundary, and what counts as done.
 
-Do not turn context into a diagnosis, post-mortem, or research report. Use it to make the instruction more correct, not longer.
+How much context you pull in depends on how you were invoked:
 
-## Include Context Selectively
+- **Composer-enhancement mode** — work from the supplied draft alone. This skill is maintained separately from thread-history patterns, so there's no transcript to inherit and no need to look for one.
+- **A normal bb thread** — use the visible request plus any thread, file, branch, PR, spec, screenshot, story, or live UI the user named that would materially change the rewrite. When something matters, check the authoritative source rather than trusting inherited or forked context.
 
-Consider these roles, then include only the ones needed for the current task.
+Then fold what you found into the instructions quietly:
 
-| Role | Include when it changes execution |
+- keep the latest approved decision, the current state, and any evidence that bears on this task;
+- when an older direction has been superseded, use the current one — that's usually what prevents a wrong turn;
+- turn a past failure into a boundary, gate, or proof requirement when it's still live; otherwise let it go;
+- leave out process history, debate, and lessons that don't change the next action.
+
+The goal is an instruction that's more *correct*, not longer. A diagnosis or post-mortem in the prompt body is usually a sign context leaked in that the receiving agent doesn't need.
+
+Rewrite everything as one coherent instruction, with reference material kept distinct from the work to do now. Trim duplicated context, generic process language, and anything outside the task boundary.
+
+Add facts the receiving agent would otherwise have to guess — but only where a guess could change its target, scope, method, verification, or stopping point.
+
+## Choose context by what it changes
+
+These are the roles context tends to play. Include the ones that would change how the agent executes; skip the rest.
+
+| Role | Worth including when |
 | --- | --- |
-| Decision | The exact outcome, intended delta, or protected behavior prevents ambiguity or scope drift. |
-| Reference | The agent needs an exact source of truth—thread, branch, PR, file, story, screenshot, spec, data, or live UI—and direction for how to use it. |
-| State | Current completion, breakage, approval, rejection, supersession, or running work changes what to do next. |
-| Evaluation | A named test, flow, visual comparison, URL, diff, or source check proves success. |
-| Execution | Ownership, location, tool, ordering, or dependency constraints affect the method. |
+| Decision | The exact outcome, intended delta, or protected behavior heads off ambiguity or scope drift. |
+| Reference | The agent needs a specific source of truth — thread, branch, PR, file, story, screenshot, spec, data, live UI — and some direction on how to use it. |
+| State | Current completion, breakage, approval, rejection, supersession, or in-flight work changes what to do next. |
+| Evaluation | A named test, flow, visual comparison, URL, diff, or source check is what proves success. |
+| Execution | Ownership, location, tooling, ordering, or dependencies shape the method. |
 | Lifecycle | Commit, PR, merge, deploy, iteration, or stop authority changes the handoff. |
 
-Leave a role out when it merely adds background. Do not force headings or a checklist into the finished prompt; use structure only when it makes the work safer or clearer.
+If a role is only background, leave it out. Headings and checklists are optional — reach for structure when it makes the work safer or clearer, not by default.
 
-## Adapt The Prompt
+## Adapt to the situation
 
-| Situation | Add only the task-local instruction needed |
+Different kinds of work need different task-local instructions. Add what fits:
+
+| Situation | What usually helps |
 | --- | --- |
-| Same-thread next step | State the changed decision, protected state, and next gate; keep prior context implicit. |
-| New thread or handoff | Point to the canonical source, summarize the latest actionable state, then name the next action and finish line. |
-| Correction or revert | Separate `Change`, `Keep`, `Do not touch`, and `Verify` when that prevents a broader rollback. |
-| Investigation | Distinguish known facts from hypotheses, name the primary evidence and what would falsify the leading explanation, and state whether changes are authorized. |
-| Design or UI | Name the visual baseline, relevant state and viewport, protected interaction, and visual review method. |
-| Implementation | Name the exact surface, behavior, invariants, reuse constraints, proof, and commit or PR boundary. |
-| QA or shipping | Name the target revision, user flow, required checks, runtime proof, authority, and stopping condition. |
-| Multi-agent work | Define owners, dependencies, shared-file boundaries, ordered gates, integration order, and reporting point. |
+| Same-thread next step | The changed decision, the protected state, and the next gate. Prior context can stay implicit. |
+| New thread or handoff | A pointer to the canonical source, the latest actionable state, then the next action and finish line. |
+| Correction or revert | Separating `Change`, `Keep`, `Do not touch`, and `Verify` when that keeps the rollback from going wide. |
+| Investigation | Known facts kept distinct from hypotheses, the primary evidence, what would falsify the leading explanation, and whether changes are authorized. |
+| Design or UI | The visual baseline, the relevant states and viewports, protected interactions, and how to review visually. |
+| Implementation | The exact surface, behavior, invariants, reuse constraints, proof, and the commit or PR boundary. |
+| QA or shipping | The target revision, user flow, required checks, runtime proof, authority, and stopping condition. |
+| Multi-agent work | Owners, dependencies, shared-file boundaries, ordered gates, integration order, and where to report. |
 
-For a long thread or spec, cite it as reference context and name the active phase or section. Do not collapse the entire history into one execution request.
+With a long thread or spec, cite it as reference and name the active phase or section — collapsing the whole history into one execution request rarely lands.
 
-## Make Completion Observable
+## Make completion observable
 
-Replace vague completion language with inspectable evidence:
+Vague completion language is where prompts quietly fail. Trade it for something inspectable:
 
 - `works` → exercise the named flow and return the observed result or responding URL;
 - `well tested` → name the relevant tests, typecheck/lint, and regression coverage;
-- `pixel perfect` → compare the named baseline at specified states and viewports, then adjust before QA;
+- `pixel perfect` → compare against the named baseline at specified states and viewports, then adjust before QA;
 - `ready to ship` → report commit/push state, PR, CI, mergeability, and remaining blockers.
 
-Require the agent to fix, stop, or report when a check fails. Do not imply that more context guarantees adherence, tool competence, or correct reasoning.
+Say what should happen when a check fails — fix, stop, or report. Worth remembering that more context doesn't buy adherence, tool competence, or good reasoning, so it's not a substitute for a clear gate.
 
 ## Output
 
-Return only:
+Return:
 
 ```markdown
 ## Enhanced prompt
@@ -75,13 +82,11 @@ Return only:
 > [Paste-ready prompt]
 ```
 
-Add `## Assumptions or missing context` after the prompt only when a material value was inferred or the user must supply it. Ask a question instead only when the unresolved choice would produce meaningfully different work.
+Add `## Assumptions or missing context` after the prompt when you inferred a material value or the user needs to supply one. Ask a question instead only when the unresolved choice would lead to meaningfully different work.
 
-When invoked in composer-enhancement mode, never ask a question. Return the safest narrow prompt and put the unresolved choice under `## Assumptions or missing context` so the user can review it before applying the result.
+In composer-enhancement mode, don't ask questions — return the safest narrow prompt and put the open choice under `## Assumptions or missing context` so the user can weigh it before applying the result.
 
-Do not lead with analysis, a diagnosis, or a generic checklist.
-
-If the draft is already strong, make only edits that earn their place.
+Lead with the prompt itself rather than analysis or a preamble. If the draft is already strong, make only the edits that earn their place.
 
 ## Example
 
