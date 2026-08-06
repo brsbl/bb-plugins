@@ -1,13 +1,13 @@
 ---
 name: design-doctrine
-description: Mandatory personal-judgment companion for product, UX, UI, visual-design, design-system, and AI-interaction work. Load it with architect, design, crit, product-design audit, prototype, UI Pattern Atlas, and implementation skills—even when the user does not mention doctrine—so work follows active rules derived from concrete user feedback. Also use for preference questions, taste checks, reviews against prior feedback, and whenever the user asks to learn, maintain, or update Design Doctrine from bb thread history; this skill owns that maintenance workflow.
+description: Mandatory personal-judgment companion for product, UX, UI, visual-design, design-system, and AI-interaction work. Load it with architect, design, crit, product-design audit, prototype, and implementation skills—even when the user does not mention doctrine—so work follows active rules derived from concrete user feedback. Also use for preference questions, taste checks, reviews against prior feedback, and whenever the user asks to learn, maintain, or update Design Doctrine from bb thread history; this skill owns that maintenance workflow.
 ---
 
 # Design Doctrine
 
 Rules learned from the user's design feedback. Use them as a judgment layer on
 normal design work — they don't replace product requirements, accessibility,
-platform conventions, the Pattern Atlas, or what the user just told you.
+platform conventions, or what the user just told you.
 
 ## Maintain from bb feedback
 
@@ -30,7 +30,13 @@ release.
 
 ## Retrieve
 
-Search rather than reading the whole corpus:
+BB may provide a few rule candidates inferred from the thread title. Treat that
+as a bounded shortlist, not proof that every rule applies. Check each rule's
+scope against the exact current request.
+
+For the exact task, use the native `design_doctrine_search` tool with a natural
+description of the work and surface. It returns ranked active rules with their
+applicability, exceptions, and checks. If the tool is unavailable, use the CLI:
 
 ```bash
 bb doctrine search "<task and surface>"
@@ -70,9 +76,8 @@ durable preference.
 
 Pull the applicable rules first, then look at the actual artifact, working from
 each rule's own Check list. For every finding: rule ID and title, what you see,
-why it matters, and the smallest fix. Use `crit` for general design quality and
-Pattern Atlas for component names — the doctrine adds personal judgment, not a
-rehash of those.
+why it matters, and the smallest fix. Use `crit` for general design quality —
+the doctrine adds personal judgment rather than replacing the broader review.
 
 ## When rules disagree
 

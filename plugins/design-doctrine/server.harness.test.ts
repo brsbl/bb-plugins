@@ -19,6 +19,7 @@ describe("Design Doctrine plugin contract", () => {
     const { bb, harness } = createFakePluginHost({
       pluginId: "design-doctrine",
       sdk: { threads: { list: async () => [] } },
+      agentSkillIds: ["design-doctrine"],
     });
 
     await plugin(bb);
@@ -27,6 +28,12 @@ describe("Design Doctrine plugin contract", () => {
       "getLibrary",
     ]);
     expect(harness.inspection.registrations.cli?.name).toBe("doctrine");
+    expect(
+      harness.inspection.registrations.agentTools.map(({ name }) => name),
+    ).toContain("design_doctrine_search");
+    expect(
+      harness.inspection.registrations.agentConfigurationProvider,
+    ).not.toBeNull();
     expect(
       harness.inspection.registrations.services.map(({ name }) => name),
     ).toContain("rule-watch");
@@ -39,6 +46,54 @@ describe("Design Doctrine plugin contract", () => {
     expect(
       harness.inspection.registrations.threadEventHandlers["thread.deleted"],
     ).toBe(1);
+    await harness.lifecycle.dispose();
+  });
+
+  it("automatically configures bounded guidance and an exact-task search tool", async () => {
+    const { bb, harness } = createFakePluginHost({
+      pluginId: "design-doctrine",
+      sdk: { threads: { list: async () => [] } },
+      agentSkillIds: ["design-doctrine"],
+    });
+    await plugin(bb);
+
+    const configuration = await harness.behavior.resolveAgentConfiguration({
+      thread: {
+        id: "thread-test",
+        title: "Redesign the compact utility toolbar",
+        parentThreadId: null,
+        sourceThreadId: null,
+      },
+      project: {
+        id: "project-test",
+        kind: "standard",
+        name: "bb",
+        gitRemoteUrl: null,
+      },
+      environment: {
+        id: "environment-test",
+        name: null,
+        path: process.cwd(),
+        workspaceProvisionType: "managed-worktree",
+        branchName: "test",
+      },
+      host: { id: "host-test", name: "Test host" },
+      provider: { id: "codex", model: "test" },
+      sideChat: false,
+      origin: { kind: null, pluginId: null },
+    });
+    const toolResult = await harness.behavior.callAgentTool(
+      "design_doctrine_search",
+      { query: "compact utility toolbar", limit: 3 },
+    );
+
+    expect(configuration.skills).toEqual(["design-doctrine"]);
+    expect(configuration.tools.map(({ name }) => name)).toEqual([
+      "design_doctrine_search",
+    ]);
+    expect(configuration.instructions).toContain("ddr_001");
+    expect(toolResult).toContain("ddr_001");
+    expect(toolResult).toContain("Use when:");
     await harness.lifecycle.dispose();
   });
 

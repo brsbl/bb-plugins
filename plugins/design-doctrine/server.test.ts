@@ -19,6 +19,7 @@ import {
   toggledRulePath,
 } from "./app-logic";
 import {
+  automaticDoctrineGuidance,
   gitStatusFingerprint,
   loadDoctrine,
   readGit,
@@ -49,11 +50,41 @@ describe("design doctrine library", () => {
     expect(library.domains).toContain("interaction");
   });
 
-  it("searches rule content with AND semantics", async () => {
+  it("ranks exact multi-word matches", async () => {
     const library = await loadDoctrine(process.cwd());
     const results = searchDoctrine(library.rules, "compact utilities");
 
     expect(results.map((rule) => rule.id)).toContain("ddr_001");
+  });
+
+  it("ranks useful rules for natural task language with unmatched words", async () => {
+    const library = await loadDoctrine(process.cwd());
+    const results = searchDoctrine(
+      library.rules,
+      "redesign the sidebar cards with clearer hierarchy and less visual weight",
+    );
+
+    expect(results.slice(0, 2).map((rule) => rule.id)).toEqual([
+      "ddr_002",
+      "ddr_015",
+    ]);
+  });
+
+  it("preselects a bounded rule set only for design-oriented thread titles", async () => {
+    const library = await loadDoctrine(process.cwd());
+
+    expect(
+      automaticDoctrineGuidance(
+        library.rules,
+        "Redesign the compact utility toolbar",
+      ),
+    ).toContain("ddr_001");
+    expect(
+      automaticDoctrineGuidance(
+        library.rules,
+        "Repair Linux dependency publishing",
+      ),
+    ).toBeUndefined();
   });
 
   it("uses scoped single-episode rules without an approval queue", async () => {
