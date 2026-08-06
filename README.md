@@ -28,16 +28,6 @@ Turns a rough composer draft into a clearer, context-complete prompt before you 
 
 Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/improve-prompt --yes`
 
-### Moss Notes
-
-Keeps each bb thread synchronized with its corresponding workspace folder in Moss.
-
-![Moss Notes in bb](plugins/moss-notes/docs/screenshot.png)
-
-[Source](plugins/moss-notes) · [README](plugins/moss-notes/README.md)
-
-Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/moss-notes --yes`
-
 ### Thread Hover Cards
 
 Lets you peek at a thread's status and repository context without leaving the sidebar.
@@ -57,28 +47,6 @@ Keeps comments and comment threads attached to exact text in bb timelines.
 [Source](plugins/timeline-comments) · [README](plugins/timeline-comments/README.md)
 
 Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/timeline-comments --yes`
-
-### Thread Organizer
-
-Files new threads into the right existing work section while preserving native titles and every manual override.
-
-![Thread Organizer settings in bb](plugins/thread-organizer/docs/screenshot.png)
-
-[Source](plugins/thread-organizer) · [README](plugins/thread-organizer/README.md)
-
-Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/thread-organizer --yes`
-
-### UI Patterns
-
-Puts proven UI components and interaction guidance within reach of both designers and agents.
-
-![UI Patterns in bb](plugins/ui-patterns/docs/screenshot.png)
-
-[Source](plugins/ui-patterns) · [README](plugins/ui-patterns/README.md)
-
-Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/ui-patterns --yes`
-
-Each `plugin/*` install ref is generated from `main` after CI passes. The separate refs are necessary because bb installs from the root of a git checkout.
 
 ## Develop
 
