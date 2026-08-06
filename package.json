@@ -1,0 +1,26 @@
+{
+  "name": "bb-plugin-moss-notes",
+  "version": "0.1.0",
+  "description": "Keep one Moss workspace folder for every local bb thread.",
+  "type": "module",
+  "license": "UNLICENSED",
+  "files": [
+    "dist",
+    "docs",
+    "README.md"
+  ],
+  "engines": {
+    "bb": ">=0.0.34",
+    "bbPluginSdk": "^0.4.1"
+  },
+  "bb": {
+    "name": "Moss Notes",
+    "description": "Keep one Moss workspace folder for every local bb thread.",
+    "branding": {
+      "icon": "Folder"
+    },
+    "server": "./dist/install-server.mjs",
+    "app": "./dist/install-app.mjs",
+    "skills": []
+  }
+}
