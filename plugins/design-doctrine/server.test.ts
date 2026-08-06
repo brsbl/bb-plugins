@@ -68,6 +68,12 @@ describe("design doctrine library", () => {
       "ddr_002",
       "ddr_015",
     ]);
+
+    expect(
+      searchDoctrine(library.rules, "Improve modal accessibility")
+        .slice(0, 2)
+        .map((rule) => rule.id),
+    ).toEqual(["ddr_028", "ddr_026"]);
   });
 
   it("preselects a bounded rule set only for design-oriented thread titles", async () => {
@@ -79,6 +85,9 @@ describe("design doctrine library", () => {
         "Redesign the compact utility toolbar",
       ),
     ).toContain("ddr_001");
+    expect(
+      automaticDoctrineGuidance(library.rules, "Redesign the login flow"),
+    ).toContain("Design Doctrine candidates inferred from the thread title");
     expect(
       automaticDoctrineGuidance(
         library.rules,

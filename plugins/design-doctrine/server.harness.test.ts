@@ -22,6 +22,34 @@ function deferred<T>(): {
   return { promise, reject };
 }
 
+function agentContext(title: string) {
+  return {
+    thread: {
+      id: "thread-test",
+      title,
+      parentThreadId: null,
+      sourceThreadId: null,
+    },
+    project: {
+      id: "project-test",
+      kind: "standard" as const,
+      name: "bb",
+      gitRemoteUrl: null,
+    },
+    environment: {
+      id: "environment-test",
+      name: null,
+      path: process.cwd(),
+      workspaceProvisionType: "managed-worktree" as const,
+      branchName: "test",
+    },
+    host: { id: "host-test", name: "Test host" },
+    provider: { id: "codex", model: "test" },
+    sideChat: false,
+    origin: { kind: null, pluginId: null },
+  };
+}
+
 describe("Design Doctrine plugin contract", () => {
   it("registers its RPC, CLI, and watcher through the bb harness", async () => {
     const { bb, harness } = createFakePluginHost({
@@ -65,34 +93,12 @@ describe("Design Doctrine plugin contract", () => {
     });
     await plugin(bb);
 
-    const configuration = await harness.behavior.resolveAgentConfiguration({
-      thread: {
-        id: "thread-test",
-        title: "Redesign the compact utility toolbar",
-        parentThreadId: null,
-        sourceThreadId: null,
-      },
-      project: {
-        id: "project-test",
-        kind: "standard",
-        name: "bb",
-        gitRemoteUrl: null,
-      },
-      environment: {
-        id: "environment-test",
-        name: null,
-        path: process.cwd(),
-        workspaceProvisionType: "managed-worktree",
-        branchName: "test",
-      },
-      host: { id: "host-test", name: "Test host" },
-      provider: { id: "codex", model: "test" },
-      sideChat: false,
-      origin: { kind: null, pluginId: null },
-    });
     const toolResult = await harness.behavior.callAgentTool(
       "design_doctrine_search",
       { query: "compact utility toolbar", limit: 3 },
+    );
+    const configuration = await harness.behavior.resolveAgentConfiguration(
+      agentContext("Redesign the compact utility toolbar"),
     );
 
     expect(configuration.skills).toEqual(["design-doctrine"]);
@@ -102,6 +108,52 @@ describe("Design Doctrine plugin contract", () => {
     expect(configuration.instructions).toContain("ddr_001");
     expect(toolResult).toContain("ddr_001");
     expect(toolResult).toContain("Use when:");
+
+    await harness.behavior.setSettings({
+      doctrinePath: join(tmpdir(), "missing-design-doctrine"),
+    });
+    const unavailableConfiguration =
+      await harness.behavior.resolveAgentConfiguration(
+        agentContext("Redesign the compact utility toolbar"),
+      );
+    expect(unavailableConfiguration.instructions).toBeNull();
+    expect(unavailableConfiguration.skills).toEqual(["design-doctrine"]);
+    expect(unavailableConfiguration.tools.map(({ name }) => name)).toEqual([
+      "design_doctrine_search",
+    ]);
+    await harness.lifecycle.dispose();
+  });
+
+  it("keeps diagnostic surfaces available when the initial corpus is unavailable", async () => {
+    const { bb, harness } = createFakePluginHost({
+      pluginId: "design-doctrine",
+      settings: {
+        doctrinePath: join(tmpdir(), "missing-design-doctrine-at-startup"),
+      },
+      sdk: { threads: { list: async () => [] } },
+      agentSkillIds: ["design-doctrine"],
+    });
+
+    await expect(plugin(bb)).resolves.toBeUndefined();
+    expect(harness.inspection.registrations.rpcMethods).toEqual([
+      "getLibrary",
+    ]);
+    expect(harness.inspection.registrations.cli?.name).toBe("doctrine");
+    expect(
+      harness.inspection.registrations.agentTools.map(({ name }) => name),
+    ).toContain("design_doctrine_search");
+    const configuration = await harness.behavior.resolveAgentConfiguration(
+      agentContext("Redesign the compact utility toolbar"),
+    );
+    expect(configuration.instructions).toBeNull();
+    await vi.waitFor(() => {
+      expect(harness.inspection.logEntries).toContainEqual(
+        expect.objectContaining({
+          level: "warn",
+          message: expect.stringContaining("ENOENT"),
+        }),
+      );
+    });
     await harness.lifecycle.dispose();
   });
 
@@ -110,7 +162,13 @@ describe("Design Doctrine plugin contract", () => {
       join(tmpdir(), "doctrine-harness-history-"),
     );
     await mkdir(join(maintenanceRoot, "rules"));
-    await execFileAsync("git", ["-C", maintenanceRoot, "init"]);
+    await execFileAsync("git", [
+      "-C",
+      maintenanceRoot,
+      "init",
+      "-b",
+      "doctrine-maintenance",
+    ]);
     const inventory = deferred<never[]>();
     let inventoryCalls = 0;
     let registrationsAtInventoryStart: {

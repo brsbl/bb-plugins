@@ -12,11 +12,13 @@ import { createHistoryMaintenance } from "./history";
 const execFileAsync = promisify(execFile);
 const LEGACY_KEY = "maintenance:thread-history:v2";
 
-async function createPluginRoot(): Promise<string> {
+async function createPluginRoot(
+  branch = "doctrine-maintenance",
+): Promise<string> {
   const root = await mkdtemp(join(tmpdir(), "doctrine-history-"));
   await mkdir(join(root, "maintenance"), { recursive: true });
   await mkdir(join(root, "rules"), { recursive: true });
-  await execFileAsync("git", ["-C", root, "init"]);
+  await execFileAsync("git", ["-C", root, "init", "-b", branch]);
   return root;
 }
 
@@ -54,7 +56,25 @@ describe("Design Doctrine legacy history migration", () => {
 
     try {
       await expect(history.scan(scanOptions())).rejects.toThrow(
-        "maintenance requires doctrinePath to point to an editable branch checkout",
+        "maintenance requires doctrinePath to point to a dedicated non-default branch checkout",
+      );
+    } finally {
+      await harness.lifecycle.dispose();
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it("refuses maintenance scans from a primary branch checkout", async () => {
+    const root = await createPluginRoot("main");
+    const { bb, harness } = createFakePluginHost({
+      pluginId: "design-doctrine",
+      sdk: { threads: { list: async () => [] } },
+    });
+    const history = createHistoryMaintenance(bb, async () => root, root);
+
+    try {
+      await expect(history.scan(scanOptions())).rejects.toThrow(
+        "maintenance refuses primary branch main",
       );
     } finally {
       await harness.lifecycle.dispose();

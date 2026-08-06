@@ -21,10 +21,15 @@ bb doctrine show ddr_001
 
 The bundled `design-doctrine` skill validates each candidate against its applicability and exceptions before use. The doctrine adds personal design judgment; it does not replace product requirements, accessibility guidance, or platform conventions.
 
-Maintenance needs an editable branch checkout because it validates and commits rule files. Point `doctrinePath` at that checkout—not BB's detached managed-install cache—and run the maintenance automation in the same repository:
+Maintenance validates and commits rule files, so give it a dedicated non-default branch/worktree. The scanner rejects detached installs and primary branches (`main`, `master`, or `trunk`) to keep the normal checkout clean:
 
 ```bash
-bb plugin config design-doctrine set doctrinePath /path/to/bb-plugins/plugins/design-doctrine
+git -C /path/to/bb-plugins worktree add \
+  -b doctrine-maintenance \
+  /path/to/bb-plugins-doctrine-maintenance \
+  origin/main
+bb plugin config design-doctrine set doctrinePath \
+  /path/to/bb-plugins-doctrine-maintenance/plugins/design-doctrine
 ```
 
 ## How it was built

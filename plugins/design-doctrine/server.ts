@@ -17,6 +17,20 @@ const DEFAULT_DOCTRINE_PATH =
 const WATCH_INTERVAL_MS = 2_500;
 const SEARCH_RESULT_LIMIT = 24;
 const AUTOMATIC_RULE_LIMIT = 4;
+const SEARCH_STOP_TOKENS = new Set([
+  "build",
+  "change",
+  "create",
+  "fix",
+  "improve",
+  "make",
+  "update",
+]);
+const TOKEN_ALIASES = new Map([
+  ["flow", "workflow"],
+  ["improving", "improve"],
+  ["redesign", "design"],
+]);
 const DESIGN_CONTEXT_TOKENS = new Set([
   "accessibility",
   "affordance",
@@ -354,7 +368,7 @@ function normalizeToken(token: string): string {
   if (normalized.length > 5 && normalized.endsWith("ly")) {
     normalized = normalized.slice(0, -2);
   }
-  return normalized;
+  return TOKEN_ALIASES.get(normalized) ?? normalized;
 }
 
 function tokenize(value: string): string[] {
@@ -404,7 +418,9 @@ export function searchDoctrine(
   const candidates = rules.filter(
     (rule) => includeInactive || rule.status === "active",
   );
-  const terms = [...new Set(tokenize(query))];
+  const terms = [
+    ...new Set(tokenize(query).filter((token) => !SEARCH_STOP_TOKENS.has(token))),
+  ];
   if (terms.length === 0) {
     return candidates
       .sort(
@@ -622,6 +638,7 @@ export default async function plugin(bb: BbPluginApi) {
     cacheGeneration += 1;
     cached = null;
     loading = null;
+    automaticRules = [];
   }
 
   async function currentLibrary(): Promise<LibraryPayload> {
@@ -629,16 +646,17 @@ export default async function plugin(bb: BbPluginApi) {
     if (cached?.root === root) return cached.value;
     if (loading) return loading;
     const generation = cacheGeneration;
-    loading = loadDoctrine(root);
+    const request = loadDoctrine(root);
+    loading = request;
     try {
-      const value = await loading;
+      const value = await request;
       if (generation === cacheGeneration) {
         cached = { root, value };
         automaticRules = value.rules;
       }
       return value;
     } finally {
-      loading = null;
+      if (loading === request) loading = null;
     }
   }
 
@@ -657,7 +675,6 @@ export default async function plugin(bb: BbPluginApi) {
     await historyMaintenance.forgetThread(thread.id);
   });
 
-  await currentLibrary();
   bb.rpc.register(rpcContract, { getLibrary: currentLibrary });
   bb.agents.registerTool({
     name: "design_doctrine_search",
@@ -686,6 +703,9 @@ export default async function plugin(bb: BbPluginApi) {
       skills: ["design-doctrine"],
       ...(instructions ? { instructions } : {}),
     };
+  });
+  void currentLibrary().catch((error) => {
+    bb.log.warn(error instanceof Error ? error.message : String(error));
   });
   bb.cli.register({
     name: "doctrine",

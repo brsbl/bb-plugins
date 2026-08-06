@@ -15347,17 +15347,25 @@ function createThreadHistoryMaintenance(bb, options = {}) {
 var execFileAsync = promisify(execFile);
 var LEGACY_HISTORY_STATE_KEY = "maintenance:thread-history:v2";
 var LEGACY_HISTORY_STATE_PATH = join("maintenance", "state.json");
+var PRIMARY_BRANCH_NAMES = /* @__PURE__ */ new Set(["main", "master", "trunk"]);
 async function ensureMaintenanceCheckout(pluginRoot) {
+  let branchName;
   try {
     const branch = await execFileAsync(
       "git",
       ["-C", pluginRoot, "symbolic-ref", "--quiet", "--short", "HEAD"],
       { encoding: "utf8" }
     );
-    if (branch.stdout.trim().length === 0) throw new Error("missing branch");
+    branchName = branch.stdout.trim();
+    if (branchName.length === 0) throw new Error("missing branch");
   } catch {
     throw new Error(
-      "maintenance requires doctrinePath to point to an editable branch checkout, not a detached managed install; configure it with `bb plugin config design-doctrine set doctrinePath /path/to/bb-plugins/plugins/design-doctrine`"
+      "maintenance requires doctrinePath to point to a dedicated non-default branch checkout, not a detached managed install; configure it with `bb plugin config design-doctrine set doctrinePath /path/to/bb-plugins-doctrine-maintenance/plugins/design-doctrine`"
+    );
+  }
+  if (PRIMARY_BRANCH_NAMES.has(branchName)) {
+    throw new Error(
+      `maintenance refuses primary branch ${branchName}; use a dedicated non-default branch/worktree and point doctrinePath at its plugins/design-doctrine folder`
     );
   }
   const result = await execFileAsync(
@@ -15462,6 +15470,20 @@ var DEFAULT_DOCTRINE_PATH = basename(MODULE_DIR) === "dist" ? dirname(MODULE_DIR
 var WATCH_INTERVAL_MS = 2500;
 var SEARCH_RESULT_LIMIT = 24;
 var AUTOMATIC_RULE_LIMIT = 4;
+var SEARCH_STOP_TOKENS = /* @__PURE__ */ new Set([
+  "build",
+  "change",
+  "create",
+  "fix",
+  "improve",
+  "make",
+  "update"
+]);
+var TOKEN_ALIASES = /* @__PURE__ */ new Map([
+  ["flow", "workflow"],
+  ["improving", "improve"],
+  ["redesign", "design"]
+]);
 var DESIGN_CONTEXT_TOKENS = /* @__PURE__ */ new Set([
   "accessibility",
   "affordance",
@@ -15760,7 +15782,7 @@ function normalizeToken(token) {
   if (normalized.length > 5 && normalized.endsWith("ly")) {
     normalized = normalized.slice(0, -2);
   }
-  return normalized;
+  return TOKEN_ALIASES.get(normalized) ?? normalized;
 }
 function tokenize(value) {
   return (value.normalize("NFKD").match(/[a-zA-Z0-9]+/g) ?? []).map(normalizeToken).filter((token) => token.length > 1);
@@ -15797,7 +15819,9 @@ function searchDoctrine(rules, query, includeInactive = false) {
   const candidates = rules.filter(
     (rule) => includeInactive || rule.status === "active"
   );
-  const terms = [...new Set(tokenize(query))];
+  const terms = [
+    ...new Set(tokenize(query).filter((token) => !SEARCH_STOP_TOKENS.has(token)))
+  ];
   if (terms.length === 0) {
     return candidates.sort(
       (left, right) => confidenceScore(right) - confidenceScore(left) || left.id.localeCompare(right.id)
@@ -15981,22 +16005,24 @@ async function plugin(bb) {
     cacheGeneration += 1;
     cached2 = null;
     loading = null;
+    automaticRules = [];
   }
   async function currentLibrary() {
     const root = expandPath((await settings.get()).doctrinePath);
     if (cached2?.root === root) return cached2.value;
     if (loading) return loading;
     const generation = cacheGeneration;
-    loading = loadDoctrine(root);
+    const request = loadDoctrine(root);
+    loading = request;
     try {
-      const value = await loading;
+      const value = await request;
       if (generation === cacheGeneration) {
         cached2 = { root, value };
         automaticRules = value.rules;
       }
       return value;
     } finally {
-      loading = null;
+      if (loading === request) loading = null;
     }
   }
   const historyMaintenance = createHistoryMaintenance(
@@ -16013,7 +16039,6 @@ async function plugin(bb) {
   bb.events.on("thread.deleted", async ({ thread }) => {
     await historyMaintenance.forgetThread(thread.id);
   });
-  await currentLibrary();
   bb.rpc.register(rpcContract, { getLibrary: currentLibrary });
   bb.agents.registerTool({
     name: "design_doctrine_search",
@@ -16040,6 +16065,9 @@ async function plugin(bb) {
       skills: ["design-doctrine"],
       ...instructions ? { instructions } : {}
     };
+  });
+  void currentLibrary().catch((error51) => {
+    bb.log.warn(error51 instanceof Error ? error51.message : String(error51));
   });
   bb.cli.register({
     name: "doctrine",
