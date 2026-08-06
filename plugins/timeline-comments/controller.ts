@@ -196,6 +196,12 @@ function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : "Something went wrong";
 }
 
+function selectionTextMatches(rangeText: string, hostText: string): boolean {
+  const canonicalize = (value: string) =>
+    value.replace(/[\r\n\t]/g, "").trim();
+  return canonicalize(rangeText) === canonicalize(hostText);
+}
+
 const inlineComposerAnimations = new WeakMap<HTMLElement, Animation>();
 const inlineComposerNaturalHeights = new WeakMap<HTMLElement, number>();
 
@@ -366,7 +372,7 @@ class TimelineCommentsController {
       (captured.bbThreadId !== null &&
         captured.bbThreadId !== context.threadId) ||
       captured.messageId !== context.message.id ||
-      captured.selector.exact !== context.selectedText
+      !selectionTextMatches(captured.selector.exact, context.selectedText)
     ) {
       return;
     }

@@ -88,6 +88,78 @@ describe("timeline comments controller teardown", () => {
     vi.unstubAllGlobals();
   });
 
+  it("opens the composer for a selection spanning rendered blocks", () => {
+    document.body.innerHTML = `
+      <div data-thread-window>
+        <div class="thread-scrollbar">
+          <div data-timeline-row-id="msg_1">
+            <div data-no-sidebar-swipe><p>source</p><p>text</p></div>
+          </div>
+        </div>
+      </div>
+    `;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => ({
+        ok: true,
+        async json() {
+          return { ok: true, result: { anchors: [], nextCursor: null } };
+        },
+        status: 200,
+      })),
+    );
+    const originalClientRects = Object.getOwnPropertyDescriptor(
+      Range.prototype,
+      "getClientRects",
+    );
+    Object.defineProperty(Range.prototype, "getClientRects", {
+      configurable: true,
+      value: () => [{ x: 20, y: 30, width: 60, height: 36 }],
+    });
+    const controller = new AbortController();
+    const dispose = mountTimelineCommentsController({
+      pluginId: "timeline-comments",
+      generation: 1,
+      signal: controller.signal,
+    });
+    const blocks = document.querySelectorAll("[data-no-sidebar-swipe] p");
+    const range = document.createRange();
+    range.setStart(blocks[0]!.firstChild!, 0);
+    range.setEnd(blocks[1]!.firstChild!, 4);
+    document.getSelection()!.removeAllRanges();
+    document.getSelection()!.addRange(range);
+
+    // Chromium serializes block boundaries in Selection.toString(), while
+    // Range.toString() and the plugin's rendered-text offsets do not.
+    beginTimelineComment({
+      threadId: "thr_1",
+      message: {
+        id: "msg_1",
+        threadId: "thr_1",
+        role: "assistant",
+        text: "source\n\ntext",
+        sourceSeqEnd: 1,
+      },
+      selectedText: "source\n\ntext",
+      openPanel: () => true,
+    });
+
+    expect(document.querySelector(".bb-comments-composer")).not.toBeNull();
+    controller.abort();
+    dispose();
+    document.getSelection()!.removeAllRanges();
+    if (originalClientRects === undefined) {
+      delete (Range.prototype as Partial<Range>).getClientRects;
+    } else {
+      Object.defineProperty(
+        Range.prototype,
+        "getClientRects",
+        originalClientRects,
+      );
+    }
+    vi.unstubAllGlobals();
+  });
+
   it("keeps a connected window association across overlapping composer cleanup", async () => {
     document.body.innerHTML = `<div data-thread-window></div>`;
     const fetchRequest = vi.fn(async (_url: string, _init: RequestInit) => ({

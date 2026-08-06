@@ -538,6 +538,10 @@ function icon(node) {
 function errorMessage(error) {
   return error instanceof Error ? error.message : "Something went wrong";
 }
+function selectionTextMatches(rangeText, hostText) {
+  const canonicalize = (value) => value.replace(/[\r\n\t]/g, "").trim();
+  return canonicalize(rangeText) === canonicalize(hostText);
+}
 var inlineComposerAnimations = /* @__PURE__ */ new WeakMap();
 var inlineComposerNaturalHeights = /* @__PURE__ */ new WeakMap();
 function syncInlineComposerLayout(textarea, composer, animate = true) {
@@ -672,7 +676,7 @@ var TimelineCommentsController = class {
     const current = this.captureCurrentSelection();
     if (current !== null) this.#selectionSnapshot = current;
     const captured = current ?? this.#selectionSnapshot;
-    if (captured === null || captured.bbThreadId !== null && captured.bbThreadId !== context.threadId || captured.messageId !== context.message.id || captured.selector.exact !== context.selectedText) {
+    if (captured === null || captured.bbThreadId !== null && captured.bbThreadId !== context.threadId || captured.messageId !== context.message.id || !selectionTextMatches(captured.selector.exact, context.selectedText)) {
       return;
     }
     this.rememberThreadWindow(context.threadId, captured.threadWindow);
