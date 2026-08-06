@@ -96,6 +96,32 @@ const sectionSummaries = new Map([
       working: 0,
     },
   ],
+  [
+    "Delayed A",
+    {
+      diagnostics: emptyDiagnostics,
+      failed: 0,
+      known: true,
+      projects: [],
+      questions: 0,
+      total: 1,
+      unread: 0,
+      working: 0,
+    },
+  ],
+  [
+    "Delayed B",
+    {
+      diagnostics: emptyDiagnostics,
+      failed: 0,
+      known: true,
+      projects: [],
+      questions: 0,
+      total: 2,
+      unread: 0,
+      working: 0,
+    },
+  ],
 ]);
 const summaryRequestMetadata = [];
 const timingRequestBodies = [];
@@ -108,7 +134,10 @@ const delayNextTimingFor = new Set();
 const delayedTimingResponses = new Map();
 const delayNextPullRequestFor = new Set();
 const delayedPullRequestResponses = new Map();
+const delayNextSectionFor = new Set();
+const delayedSectionResponses = new Map();
 const abortedSummaryThreadIds = [];
+const abortedSectionNames = [];
 let activeDelayedSummaryRequests = 0;
 let maxActiveDelayedSummaryRequests = 0;
 let idleRestartIsActive = false;
@@ -121,6 +150,7 @@ function deferResponse({
   signal,
   threadId,
   trackSummary = false,
+  abortedIds = abortedSummaryThreadIds,
 }) {
   if (!delayedThreads.delete(threadId)) return null;
   if (trackSummary) {
@@ -142,7 +172,7 @@ function deferResponse({
       callback();
     };
     const abort = () => {
-      abortedSummaryThreadIds.push(threadId);
+      abortedIds.push(threadId);
       settle(() => reject(new DOMException("Aborted", "AbortError")));
     };
     if (signal?.aborted) {
@@ -165,9 +195,20 @@ globalThis.fetch = async (url, init) => {
         { status: 404 },
       );
     }
-    return new Response(JSON.stringify({ ok: true, result: summary }), {
-      status: 200,
-    });
+    const response = new Response(
+      JSON.stringify({ ok: true, result: summary }),
+      { status: 200 },
+    );
+    return (
+      deferResponse({
+        abortedIds: abortedSectionNames,
+        delayedThreads: delayNextSectionFor,
+        resolvers: delayedSectionResponses,
+        response,
+        signal: init.signal,
+        threadId: request.name,
+      }) ?? response
+    );
   }
   const isLocal = request.threadId === "thr_local";
   const hasNoPullRequest = request.threadId === "thr_no_pr";
@@ -1671,6 +1712,44 @@ assert.equal(
   null,
   "no thread titles: expanding the section already lists them",
 );
+
+// Switching sections aborts the full summary request for the superseded row.
+const delayedAHeader = sectionHeaderRow("Delayed A");
+const delayedBHeader = sectionHeaderRow("Delayed B");
+sectionGroup.append(delayedAHeader.row, delayedBHeader.row);
+delayNextSectionFor.add("Delayed A");
+hoverOver(delayedAHeader.title);
+await new Promise((resolve) => setTimeout(resolve, 0));
+assert.ok(delayedSectionResponses.has("Delayed A"));
+hoverOver(delayedBHeader.title);
+await new Promise((resolve) => setTimeout(resolve, 20));
+assert.ok(
+  abortedSectionNames.includes("Delayed A"),
+  "aborts a superseded section summary instead of fanning requests out",
+);
+assert.match(sectionCard.textContent, /2 threads/);
+
+// Pointer movement must not dismiss a card whose toggle still owns focus.
+designHeader.toggle.focus();
+await new Promise((resolve) => setTimeout(resolve, 20));
+designHeader.toggle.dispatchEvent(
+  new window.PointerEvent("pointerout", {
+    bubbles: true,
+    pointerType: "mouse",
+    relatedTarget: window.document.body,
+  }),
+);
+await new Promise((resolve) => setTimeout(resolve, 140));
+assert.equal(sectionCard.hidden, false);
+assert.equal(
+  designHeader.toggle.getAttribute("aria-describedby"),
+  "bb-section-hover-card",
+  "keeps the focused toggle associated with its card after pointer leave",
+);
+threadRowSuccessor.focus();
+await new Promise((resolve) => setTimeout(resolve, 140));
+assert.equal(sectionCard.hidden, true);
+assert.equal(designHeader.toggle.hasAttribute("aria-describedby"), false);
 
 // The thread card and the section card are never open at the same time.
 assert.equal(window.document.getElementById("bb-thread-hover-card").hidden, true);

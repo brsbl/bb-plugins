@@ -2704,9 +2704,14 @@ function installSectionHoverCards({
     if (!card || card.hidden || !active?.row.isConnected) return;
     placeCardNear(card, active.row);
   }
+  function abortPendingRequests() {
+    for (const controller of pending.values()) controller.abort();
+    pending.clear();
+  }
   function closeCard() {
     cancelClose();
     generation += 1;
+    abortPendingRequests();
     active?.toggle.removeAttribute("aria-describedby");
     active = null;
     if (card) {
@@ -2724,13 +2729,15 @@ function installSectionHoverCards({
     closeTimer = setTimeout(() => {
       closeTimer = null;
       const focused = document.activeElement;
-      if (focused instanceof Node && card?.contains(focused)) return;
+      if (focused === active?.toggle || focused instanceof Node && card?.contains(focused)) {
+        return;
+      }
       closeCard();
     }, CLOSE_DELAY_MS);
   }
   function requestSummary(target) {
     const key = keyOf(target);
-    pending.get(key)?.abort();
+    abortPendingRequests();
     const controller = new AbortController();
     pending.set(key, controller);
     return fetchSectionSummary(
