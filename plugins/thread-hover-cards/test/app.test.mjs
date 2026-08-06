@@ -1717,6 +1717,9 @@ assert.equal(
 const delayedAHeader = sectionHeaderRow("Delayed A");
 const delayedBHeader = sectionHeaderRow("Delayed B");
 sectionGroup.append(delayedAHeader.row, delayedBHeader.row);
+hoverOver(delayedBHeader.title);
+await new Promise((resolve) => setTimeout(resolve, 20));
+assert.match(sectionCard.textContent, /2 threads/);
 delayNextSectionFor.add("Delayed A");
 hoverOver(delayedAHeader.title);
 await new Promise((resolve) => setTimeout(resolve, 0));
@@ -1725,7 +1728,7 @@ hoverOver(delayedBHeader.title);
 await new Promise((resolve) => setTimeout(resolve, 20));
 assert.ok(
   abortedSectionNames.includes("Delayed A"),
-  "aborts a superseded section summary instead of fanning requests out",
+  "a cached section still aborts the superseded summary request",
 );
 assert.match(sectionCard.textContent, /2 threads/);
 
@@ -1860,6 +1863,21 @@ assert.equal(
   sectionRequestBodies.length,
   requestsAfterFirstPinnedHover,
   "does not re-ask about a group already known not to be a section",
+);
+assert.equal(sectionCard.hidden, true);
+
+delayNextSectionFor.add("Delayed A");
+hoverOver(delayedAHeader.title);
+await new Promise((resolve) => setTimeout(resolve, 0));
+const delayedAAbortCount = abortedSectionNames.filter(
+  (name) => name === "Delayed A",
+).length;
+hoverOver(pinnedHeader.title);
+await new Promise((resolve) => setTimeout(resolve, 20));
+assert.equal(
+  abortedSectionNames.filter((name) => name === "Delayed A").length,
+  delayedAAbortCount + 1,
+  "a cached non-section verdict closes and aborts the previous section",
 );
 assert.equal(sectionCard.hidden, true);
 

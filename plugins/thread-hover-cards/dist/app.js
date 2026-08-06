@@ -2763,11 +2763,14 @@ function installSectionHoverCards({
   }
   function showCard(target) {
     const knownUnknownAt = unknownSections.get(keyOf(target));
-    if (disposed || knownUnknownAt !== void 0 && Date.now() - knownUnknownAt < SECTION_UNKNOWN_TTL_MS) {
+    if (disposed) return;
+    if (knownUnknownAt !== void 0 && Date.now() - knownUnknownAt < SECTION_UNKNOWN_TTL_MS) {
+      closeCard();
       return;
     }
     onOpen();
     cancelClose();
+    abortPendingRequests();
     active?.toggle.removeAttribute("aria-describedby");
     active = target;
     target.toggle.setAttribute("aria-describedby", SECTION_CARD_ID);

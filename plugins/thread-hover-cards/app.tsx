@@ -2128,15 +2128,17 @@ function installSectionHoverCards({
 
   function showCard(target: SectionTrigger): void {
     const knownUnknownAt = unknownSections.get(keyOf(target));
+    if (disposed) return;
     if (
-      disposed ||
-      (knownUnknownAt !== undefined &&
-        Date.now() - knownUnknownAt < SECTION_UNKNOWN_TTL_MS)
+      knownUnknownAt !== undefined &&
+      Date.now() - knownUnknownAt < SECTION_UNKNOWN_TTL_MS
     ) {
+      closeCard();
       return;
     }
     onOpen();
     cancelClose();
+    abortPendingRequests();
     active?.toggle.removeAttribute("aria-describedby");
     active = target;
     target.toggle.setAttribute("aria-describedby", SECTION_CARD_ID);
