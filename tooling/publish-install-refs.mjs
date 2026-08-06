@@ -8,9 +8,17 @@ import { readPluginWorkspaces } from "./plugin-workspaces.mjs";
 import { validatePluginArtifacts } from "./validate-plugin-artifacts.mjs";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-const releaseServerEntry = "./dist/server.js";
+const releaseServerEntry = "./dist/install-server.mjs";
 const releaseAppEntry = "./dist/install-app.mjs";
 const releaseAppCss = "dist/install-app.css";
+const serverBundleBanner = `${[
+  'import { createRequire as __createRequire } from "node:module";',
+  'import { dirname as __pathDirname } from "node:path";',
+  'import { fileURLToPath as __fileURLToPath } from "node:url";',
+  "const require = __createRequire(import.meta.url);",
+  "var __filename = __fileURLToPath(import.meta.url);",
+  "var __dirname = __pathDirname(__filename);",
+].join("\n")}\n`;
 const productionDependencyFields = [
   "dependencies",
   "optionalDependencies",
@@ -93,9 +101,9 @@ export function releaseManifest(sourceManifest) {
   const manifest = structuredClone(sourceManifest);
   delete manifest.devDependencies;
   delete manifest.scripts;
-  // Server bundles are self-contained release artifacts. Managed git installs
-  // must load that bundle rather than recompiling the authored TypeScript after
-  // production dependencies have deliberately been stripped from the ref.
+  // Git installs rebuild their declared server entry. Point them at the
+  // self-contained release entry generated from the prebuilt bundle instead
+  // of authored TypeScript whose development dependencies are not shipped.
   if (manifest.bb?.server) manifest.bb.server = releaseServerEntry;
   // bb recompiles frontend entries for direct git installs. Point the
   // release-only manifest at a self-contained wrapper around the prebuilt app
@@ -106,6 +114,16 @@ export function releaseManifest(sourceManifest) {
     delete manifest[field];
   }
   return `${JSON.stringify(manifest, null, 2)}\n`;
+}
+
+export function releaseServerBundle(source) {
+  if (!source.startsWith(serverBundleBanner)) {
+    throw new Error("prebuilt server bundle is missing the expected Node ESM banner");
+  }
+  // The git installer adds the same compatibility banner when it rebuilds the
+  // release entry. Strip the authored-build copy so the installed bundle
+  // declares require/__filename/__dirname exactly once.
+  return source.slice(serverBundleBanner.length);
 }
 
 function addBlob(indexPath, repositoryPath, input) {
@@ -156,6 +174,18 @@ async function createReleaseTree(plugin, sourceCommit) {
 
     for (const file of await filesBelow(resolve(pluginDirectory, "dist"))) {
       addBlobFile(indexPath, `dist/${file.relativePath}`, file.absolutePath);
+    }
+
+    if (sourceManifest.bb?.server) {
+      const serverBundle = await readFile(
+        resolve(pluginDirectory, "dist/server.js"),
+        "utf8",
+      );
+      addBlob(
+        indexPath,
+        releaseServerEntry.replace(/^\.\//, ""),
+        releaseServerBundle(serverBundle),
+      );
     }
 
     if (sourceManifest.bb?.app) {
@@ -322,26 +352,29 @@ async function verifyReleaseCommit(plugin, releaseCommit) {
       expectedName: plugin.name,
     });
 
-    // Managed installs load the validated prebuilt server directly. Syntax
-    // check it, but do not feed that bundle back through the server builder:
-    // its Node ESM compatibility banner is intentionally not re-entrant.
+    // Check both the canonical artifact and the release-only server entry
+    // before exercising the same rebuild that a direct git install performs.
     run(process.execPath, ["--check", resolve(checkout, "dist/server.js")]);
+    run(process.execPath, ["--check", resolve(checkout, releaseServerEntry)]);
 
-    // Direct git installs rebuild frontend entries before production
-    // dependencies are present. Rebuild only the release wrapper to mirror
-    // that host path without mutating the already-valid server artifact.
+    // Direct git installs rebuild both declared entries. The release wrappers
+    // are self-contained, so this mirrors the host path without development
+    // node_modules.
     const hasAuthoredCss = await stat(resolve(checkout, releaseAppCss))
       .then((details) => details.isFile())
       .catch((error) => {
         if (error?.code === "ENOENT") return false;
         throw error;
       });
-    if (manifest.bb?.app) {
-      run(
-        process.execPath,
-        [resolve(root, "tooling/build-plugin.mjs"), "--app-only", checkout],
-        { cwd: root },
-      );
+    run(process.execPath, [resolve(root, "tooling/build-plugin.mjs"), checkout], {
+      cwd: root,
+    });
+    const rebuiltServer = await readFile(resolve(checkout, "dist/server.js"), "utf8");
+    const bannerDeclarations = rebuiltServer.match(
+      /import \{ createRequire as __createRequire \} from "node:module";/gu,
+    );
+    if (bannerDeclarations?.length !== 1) {
+      throw new Error(`${plugin.installRef}: install build duplicated the server banner`);
     }
     if (hasAuthoredCss) {
       const rebuiltCss = await readFile(resolve(checkout, "dist/app.css"), "utf8");

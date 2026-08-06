@@ -10,6 +10,7 @@ import { scaffoldPlugin } from "./create-plugin.mjs";
 import {
   assertPublishWorktreeClean,
   releaseManifest,
+  releaseServerBundle,
   resolveRetiredInstallRefs,
   retiredInstallRefPushArgs,
 } from "./publish-install-refs.mjs";
@@ -189,13 +190,29 @@ try {
       },
     }),
   );
-  assert.equal(releasedManifest.bb.server, "./dist/server.js");
+  assert.equal(releasedManifest.bb.server, "./dist/install-server.mjs");
   assert.equal(releasedManifest.bb.app, "./dist/install-app.mjs");
   assert.equal(releasedManifest.dependencies, undefined);
   assert.equal(releasedManifest.optionalDependencies, undefined);
   assert.equal(releasedManifest.peerDependencies, undefined);
   assert.equal(releasedManifest.devDependencies, undefined);
   assert.equal(releasedManifest.scripts, undefined);
+  const serverBanner = [
+    'import { createRequire as __createRequire } from "node:module";',
+    'import { dirname as __pathDirname } from "node:path";',
+    'import { fileURLToPath as __fileURLToPath } from "node:url";',
+    "const require = __createRequire(import.meta.url);",
+    "var __filename = __fileURLToPath(import.meta.url);",
+    "var __dirname = __pathDirname(__filename);",
+  ].join("\n");
+  assert.equal(
+    releaseServerBundle(`${serverBanner}\nexport default function plugin() {}\n`),
+    "export default function plugin() {}\n",
+  );
+  assert.throws(
+    () => releaseServerBundle("export default function plugin() {}\n"),
+    /missing the expected Node ESM banner/,
+  );
   await createFixtureRepository(fixtureRoot);
 
   const description = "Verifies the personal bb plugin scaffold.";
