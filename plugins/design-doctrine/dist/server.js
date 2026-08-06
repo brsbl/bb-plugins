@@ -15819,9 +15819,11 @@ function searchDoctrine(rules, query, includeInactive = false) {
   const candidates = rules.filter(
     (rule) => includeInactive || rule.status === "active"
   );
+  const rawTerms = [...new Set(tokenize(query))];
   const terms = [
-    ...new Set(tokenize(query).filter((token) => !SEARCH_STOP_TOKENS.has(token)))
+    ...rawTerms.filter((token) => !SEARCH_STOP_TOKENS.has(token))
   ];
+  if (rawTerms.length > 0 && terms.length === 0) return [];
   if (terms.length === 0) {
     return candidates.sort(
       (left, right) => confidenceScore(right) - confidenceScore(left) || left.id.localeCompare(right.id)

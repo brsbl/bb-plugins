@@ -74,6 +74,7 @@ describe("design doctrine library", () => {
         .slice(0, 2)
         .map((rule) => rule.id),
     ).toEqual(["ddr_028", "ddr_026"]);
+    expect(searchDoctrine(library.rules, "improve")).toEqual([]);
   });
 
   it("preselects a bounded rule set only for design-oriented thread titles", async () => {

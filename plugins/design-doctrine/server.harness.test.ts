@@ -108,6 +108,15 @@ describe("Design Doctrine plugin contract", () => {
     expect(configuration.instructions).toContain("ddr_001");
     expect(toolResult).toContain("ddr_001");
     expect(toolResult).toContain("Use when:");
+    await expect(
+      harness.behavior.callAgentTool("design_doctrine_search", {
+        query: "improve",
+        limit: 3,
+      }),
+    ).resolves.toBe("No applicable active Design Doctrine rules found.");
+    await expect(
+      harness.behavior.runCli(["search", "improve"]),
+    ).resolves.toMatchObject({ exitCode: 0, stdout: "No matching rules.\n" });
 
     await harness.behavior.setSettings({
       doctrinePath: join(tmpdir(), "missing-design-doctrine"),
