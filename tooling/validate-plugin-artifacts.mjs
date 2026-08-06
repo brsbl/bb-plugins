@@ -1,9 +1,12 @@
 import { spawnSync } from "node:child_process";
 import { readFile, readdir, stat } from "node:fs/promises";
+import { builtinModules } from "node:module";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { readPluginWorkspaces } from "./plugin-workspaces.mjs";
+import { pluginBuildBbVersion } from "./plugin-build-provenance.mjs";
+import { pluginSdkVersion } from "./plugin-sdk-provenance.mjs";
 
 const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -27,7 +30,6 @@ function expectedPluginId(packageName) {
 
 async function validateMetadata(path, manifest, id, bbVersion) {
   const metadata = await readJson(path);
-  const expectedSdk = manifest.engines.bbPluginSdk.match(/\d+\.\d+\.\d+/)?.[0];
   const expected = {
     artifactFormatVersion: 1,
     pluginId: id,
@@ -38,11 +40,55 @@ async function validateMetadata(path, manifest, id, bbVersion) {
       throw new Error(`${path}: expected ${key}=${JSON.stringify(value)}`);
     }
   }
-  if (metadata.sdkVersion !== expectedSdk) {
-    throw new Error(`${path}: expected sdkVersion=${expectedSdk}`);
+  if (metadata.sdkVersion !== pluginSdkVersion) {
+    throw new Error(`${path}: expected sdkVersion=${pluginSdkVersion}`);
   }
   if (metadata.builtWith?.bbVersion !== bbVersion) {
     throw new Error(`${path}: expected bb ${bbVersion} build metadata`);
+  }
+  if (metadata.builtWith?.pluginSdkVersion !== pluginSdkVersion) {
+    throw new Error(
+      `${path}: expected builtWith.pluginSdkVersion=${pluginSdkVersion}`,
+    );
+  }
+}
+
+const builtinModuleNames = new Set(
+  builtinModules.flatMap((name) => [name, `node:${name}`]),
+);
+const managedServerRuntimeImports = new Set([
+  "@bb/plugin-sdk",
+  "better-sqlite3",
+]);
+
+function serverRuntimeImports(source) {
+  const imports = new Set();
+  for (const match of source.matchAll(/(?:^|\n)import\s+[^;]+;/gu)) {
+    const specifier =
+      /^import\s*["']([^"']+)["']/u.exec(match[0].trim())?.[1] ??
+      /\bfrom\s+["']([^"']+)["']/u.exec(match[0])?.[1];
+    if (specifier !== undefined) imports.add(specifier);
+  }
+  for (const match of source.matchAll(
+    /\b(?:import|require)\s*\(\s*["']([^"']+)["']\s*\)/gu,
+  )) {
+    imports.add(match[1]);
+  }
+  return imports;
+}
+
+async function validateManagedServerBundle(path) {
+  const source = await readFile(path, "utf8");
+  for (const specifier of serverRuntimeImports(source)) {
+    if (
+      builtinModuleNames.has(specifier) ||
+      managedServerRuntimeImports.has(specifier)
+    ) {
+      continue;
+    }
+    throw new Error(
+      `${path}: server bundle has unmanaged runtime import ${JSON.stringify(specifier)}`,
+    );
   }
 }
 
@@ -165,11 +211,7 @@ export async function validatePluginArtifacts(pluginDirectory, options = {}) {
   const directory = resolve(pluginDirectory);
   const manifest = await readJson(resolve(directory, "package.json"));
   const id = expectedPluginId(manifest.name);
-  const bbVersion =
-    options.bbVersion ?? manifest.engines.bb.match(/\d+\.\d+\.\d+/)?.[0];
-  if (bbVersion === undefined) {
-    throw new Error(`${directory}: engines.bb has no concrete minimum version`);
-  }
+  const buildBbVersion = options.buildBbVersion ?? pluginBuildBbVersion;
 
   if (options.expectedId && id !== options.expectedId) {
     throw new Error(`${directory}: expected plugin id ${options.expectedId}`);
@@ -177,13 +219,20 @@ export async function validatePluginArtifacts(pluginDirectory, options = {}) {
   if (options.expectedName && manifest.bb.name !== options.expectedName) {
     throw new Error(`${directory}: expected display name ${options.expectedName}`);
   }
+  if (manifest.engines?.bbPluginSdk !== `^${pluginSdkVersion}`) {
+    throw new Error(
+      `${directory}: expected engines.bbPluginSdk=^${pluginSdkVersion}`,
+    );
+  }
 
-  await requireNonEmpty(resolve(directory, "dist/server.js"));
+  const serverBundlePath = resolve(directory, "dist/server.js");
+  await requireNonEmpty(serverBundlePath);
+  await validateManagedServerBundle(serverBundlePath);
   await validateMetadata(
     resolve(directory, "dist/server.meta.json"),
     manifest,
     id,
-    bbVersion,
+    buildBbVersion,
   );
 
   if (manifest.bb.app) {
@@ -192,7 +241,7 @@ export async function validatePluginArtifacts(pluginDirectory, options = {}) {
       resolve(directory, "dist/app.meta.json"),
       manifest,
       id,
-      bbVersion,
+      buildBbVersion,
     );
   }
 

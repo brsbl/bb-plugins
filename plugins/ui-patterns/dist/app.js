@@ -8612,10 +8612,10 @@ var init_accordion_demo = __esm({
   }
 });
 
-// node_modules/lucide-react/dist/esm/shared/src/utils.js
+// ../../node_modules/lucide-react/dist/esm/shared/src/utils.js
 var toKebabCase, mergeClasses;
 var init_utils3 = __esm({
-  "node_modules/lucide-react/dist/esm/shared/src/utils.js"() {
+  "../../node_modules/lucide-react/dist/esm/shared/src/utils.js"() {
     toKebabCase = (string) => string.replace(/([a-z0-9])([A-Z])/g, "$1-$2").toLowerCase();
     mergeClasses = (...classes) => classes.filter((className, index4, array) => {
       return Boolean(className) && className.trim() !== "" && array.indexOf(className) === index4;
@@ -8623,10 +8623,10 @@ var init_utils3 = __esm({
   }
 });
 
-// node_modules/lucide-react/dist/esm/defaultAttributes.js
+// ../../node_modules/lucide-react/dist/esm/defaultAttributes.js
 var defaultAttributes2;
 var init_defaultAttributes = __esm({
-  "node_modules/lucide-react/dist/esm/defaultAttributes.js"() {
+  "../../node_modules/lucide-react/dist/esm/defaultAttributes.js"() {
     defaultAttributes2 = {
       xmlns: "http://www.w3.org/2000/svg",
       width: 24,
@@ -8641,10 +8641,10 @@ var init_defaultAttributes = __esm({
   }
 });
 
-// node_modules/lucide-react/dist/esm/Icon.js
+// ../../node_modules/lucide-react/dist/esm/Icon.js
 var Icon2;
 var init_Icon = __esm({
-  "node_modules/lucide-react/dist/esm/Icon.js"() {
+  "../../node_modules/lucide-react/dist/esm/Icon.js"() {
     init_react();
     init_defaultAttributes();
     init_utils3();
@@ -8681,10 +8681,10 @@ var init_Icon = __esm({
   }
 });
 
-// node_modules/lucide-react/dist/esm/createLucideIcon.js
+// ../../node_modules/lucide-react/dist/esm/createLucideIcon.js
 var createLucideIcon;
 var init_createLucideIcon = __esm({
-  "node_modules/lucide-react/dist/esm/createLucideIcon.js"() {
+  "../../node_modules/lucide-react/dist/esm/createLucideIcon.js"() {
     init_react();
     init_utils3();
     init_Icon();
@@ -8703,10 +8703,10 @@ var init_createLucideIcon = __esm({
   }
 });
 
-// node_modules/lucide-react/dist/esm/icons/archive.js
+// ../../node_modules/lucide-react/dist/esm/icons/archive.js
 var __iconNode, Archive;
 var init_archive = __esm({
-  "node_modules/lucide-react/dist/esm/icons/archive.js"() {
+  "../../node_modules/lucide-react/dist/esm/icons/archive.js"() {
     init_createLucideIcon();
     __iconNode = [
       ["rect", { width: "20", height: "5", x: "2", y: "3", rx: "1", key: "1wp1u1" }],
@@ -8717,10 +8717,10 @@ var init_archive = __esm({
   }
 });
 
-// node_modules/lucide-react/dist/esm/icons/arrow-left.js
+// ../../node_modules/lucide-react/dist/esm/icons/arrow-left.js
 var __iconNode2, ArrowLeft;
 var init_arrow_left = __esm({
-  "node_modules/lucide-react/dist/esm/icons/arrow-left.js"() {
+  "../../node_modules/lucide-react/dist/esm/icons/arrow-left.js"() {
     init_createLucideIcon();
     __iconNode2 = [
       ["path", { d: "m12 19-7-7 7-7", key: "1l729n" }],
@@ -8730,10 +8730,10 @@ var init_arrow_left = __esm({
   }
 });
 
-// node_modules/lucide-react/dist/esm/icons/arrow-up-down.js
+// ../../node_modules/lucide-react/dist/esm/icons/arrow-up-down.js
 var __iconNode3, ArrowUpDown;
 var init_arrow_up_down = __esm({
-  "node_modules/lucide-react/dist/esm/icons/arrow-up-down.js"() {
+  "../../node_modules/lucide-react/dist/esm/icons/arrow-up-down.js"() {
     init_createLucideIcon();
     __iconNode3 = [
       ["path", { d: "m21 16-4 4-4-4", key: "f6ql7i" }],
@@ -8745,10 +8745,10 @@ var init_arrow_up_down = __esm({
   }
 });
 
-// node_modules/lucide-react/dist/esm/icons/arrow-up-right.js
+// ../../node_modules/lucide-react/dist/esm/icons/arrow-up-right.js
 var __iconNode4, ArrowUpRight;
 var init_arrow_up_right = __esm({
-  "node_modules/lucide-react/dist/esm/icons/arrow-up-right.js"() {
+  "../../node_modules/lucide-react/dist/esm/icons/arrow-up-right.js"() {
     init_createLucideIcon();
     __iconNode4 = [
       ["path", { d: "M7 7h10v10", key: "1tivn9" }],
@@ -8758,10 +8758,10 @@ var init_arrow_up_right = __esm({
   }
 });
 
-// node_modules/lucide-react/dist/esm/icons/arrow-up.js
+// ../../node_modules/lucide-react/dist/esm/icons/arrow-up.js
 var __iconNode5, ArrowUp;
 var init_arrow_up = __esm({
-  "node_modules/lucide-react/dist/esm/icons/arrow-up.js"() {
+  "../../node_modules/lucide-react/dist/esm/icons/arrow-up.js"() {
     init_createLucideIcon();
     __iconNode5 = [
       ["path", { d: "m5 12 7-7 7 7", key: "hav0vg" }],
@@ -8771,10 +8771,10 @@ var init_arrow_up = __esm({
   }
 });
 
-// node_modules/lucide-react/dist/esm/icons/audio-waveform.js
+// ../../node_modules/lucide-react/dist/esm/icons/audio-waveform.js
 var __iconNode6, AudioWaveform;
 var init_audio_waveform = __esm({
-  "node_modules/lucide-react/dist/esm/icons/audio-waveform.js"() {
+  "../../node_modules/lucide-react/dist/esm/icons/audio-waveform.js"() {
     init_createLucideIcon();
     __iconNode6 = [
       [
@@ -8789,10 +8789,10 @@ var init_audio_waveform = __esm({
   }
 });
 
-// node_modules/lucide-react/dist/esm/icons/badge-check.js
+// ../../node_modules/lucide-react/dist/esm/icons/badge-check.js
 var __iconNode7, BadgeCheck;
 var init_badge_check = __esm({
-  "node_modules/lucide-react/dist/esm/icons/badge-check.js"() {
+  "../../node_modules/lucide-react/dist/esm/icons/badge-check.js"() {
     init_createLucideIcon();
     __iconNode7 = [
       [
@@ -8808,10 +8808,10 @@ var init_badge_check = __esm({
   }
 });
 
-// node_modules/lucide-react/dist/esm/icons/bell.js
+// ../../node_modules/lucide-react/dist/esm/icons/bell.js
 var __iconNode8, Bell;
 var init_bell = __esm({
-  "node_modules/lucide-react/dist/esm/icons/bell.js"() {
+  "../../node_modules/lucide-react/dist/esm/icons/bell.js"() {
     init_createLucideIcon();
     __iconNode8 = [
       ["path", { d: "M10.268 21a2 2 0 0 0 3.464 0", key: "vwvbt9" }],
@@ -8827,10 +8827,10 @@ var init_bell = __esm({
   }
 });
 
-// node_modules/lucide-react/dist/esm/icons/bold.js
+// ../../node_modules/lucide-react/dist/esm/icons/bold.js
 var __iconNode9, Bold;
 var init_bold = __esm({
-  "node_modules/lucide-react/dist/esm/icons/bold.js"() {
+  "../../node_modules/lucide-react/dist/esm/icons/bold.js"() {
     init_createLucideIcon();
     __iconNode9 = [
       [
@@ -8842,10 +8842,10 @@ var init_bold = __esm({
   }
 });
 
-// node_modules/lucide-react/dist/esm/icons/book-open.js
+// ../../node_modules/lucide-react/dist/esm/icons/book-open.js
 var __iconNode10, BookOpen;
 var init_book_open = __esm({
-  "node_modules/lucide-react/dist/esm/icons/book-open.js"() {
+  "../../node_modules/lucide-react/dist/esm/icons/book-open.js"() {
     init_createLucideIcon();
     __iconNode10 = [
       ["path", { d: "M12 7v14", key: "1akyts" }],
@@ -8861,10 +8861,10 @@ var init_book_open = __esm({
   }
 });
 
-// node_modules/lucide-react/dist/esm/icons/bookmark.js
+// ../../node_modules/lucide-react/dist/esm/icons/bookmark.js
 var __iconNode11, Bookmark;
 var init_bookmark = __esm({
-  "node_modules/lucide-react/dist/esm/icons/bookmark.js"() {
+  "../../node_modules/lucide-react/dist/esm/icons/bookmark.js"() {
     init_createLucideIcon();
     __iconNode11 = [
       ["path", { d: "m19 21-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16z", key: "1fy3hk" }]
@@ -8873,10 +8873,10 @@ var init_bookmark = __esm({
   }
 });
 
-// node_modules/lucide-react/dist/esm/icons/bot.js
+// ../../node_modules/lucide-react/dist/esm/icons/bot.js
 var __iconNode12, Bot;
 var init_bot = __esm({
-  "node_modules/lucide-react/dist/esm/icons/bot.js"() {
+  "../../node_modules/lucide-react/dist/esm/icons/bot.js"() {
     init_createLucideIcon();
     __iconNode12 = [
       ["path", { d: "M12 8V4H8", key: "hb8ula" }],
@@ -8890,10 +8890,10 @@ var init_bot = __esm({
   }
 });
 
-// node_modules/lucide-react/dist/esm/icons/calculator.js
+// ../../node_modules/lucide-react/dist/esm/icons/calculator.js
 var __iconNode13, Calculator;
 var init_calculator = __esm({
-  "node_modules/lucide-react/dist/esm/icons/calculator.js"() {
+  "../../node_modules/lucide-react/dist/esm/icons/calculator.js"() {
     init_createLucideIcon();
     __iconNode13 = [
       ["rect", { width: "16", height: "20", x: "4", y: "2", rx: "2", key: "1nb95v" }],
@@ -8911,10 +8911,10 @@ var init_calculator = __esm({
   }
 });
 
-// node_modules/lucide-react/dist/esm/icons/calendar-plus.js
+// ../../node_modules/lucide-react/dist/esm/icons/calendar-plus.js
 var __iconNode14, CalendarPlus;
 var init_calendar_plus = __esm({
-  "node_modules/lucide-react/dist/esm/icons/calendar-plus.js"() {
+  "../../node_modules/lucide-react/dist/esm/icons/calendar-plus.js"() {
     init_createLucideIcon();
     __iconNode14 = [
       ["path", { d: "M8 2v4", key: "1cmpym" }],
@@ -8928,10 +8928,10 @@ var init_calendar_plus = __esm({
   }
 });
 
-// node_modules/lucide-react/dist/esm/icons/calendar.js
+// ../../node_modules/lucide-react/dist/esm/icons/calendar.js
 var __iconNode15, Calendar;
 var init_calendar = __esm({
-  "node_modules/lucide-react/dist/esm/icons/calendar.js"() {
+  "../../node_modules/lucide-react/dist/esm/icons/calendar.js"() {
     init_createLucideIcon();
     __iconNode15 = [
       ["path", { d: "M8 2v4", key: "1cmpym" }],
@@ -8943,10 +8943,10 @@ var init_calendar = __esm({
   }
 });
 
-// node_modules/lucide-react/dist/esm/icons/chart-pie.js
+// ../../node_modules/lucide-react/dist/esm/icons/chart-pie.js
 var __iconNode16, ChartPie;
 var init_chart_pie = __esm({
-  "node_modules/lucide-react/dist/esm/icons/chart-pie.js"() {
+  "../../node_modules/lucide-react/dist/esm/icons/chart-pie.js"() {
     init_createLucideIcon();
     __iconNode16 = [
       [
@@ -8962,30 +8962,30 @@ var init_chart_pie = __esm({
   }
 });
 
-// node_modules/lucide-react/dist/esm/icons/chevron-down.js
+// ../../node_modules/lucide-react/dist/esm/icons/chevron-down.js
 var __iconNode17, ChevronDown;
 var init_chevron_down = __esm({
-  "node_modules/lucide-react/dist/esm/icons/chevron-down.js"() {
+  "../../node_modules/lucide-react/dist/esm/icons/chevron-down.js"() {
     init_createLucideIcon();
     __iconNode17 = [["path", { d: "m6 9 6 6 6-6", key: "qrunsl" }]];
     ChevronDown = createLucideIcon("ChevronDown", __iconNode17);
   }
 });
 
-// node_modules/lucide-react/dist/esm/icons/chevron-right.js
+// ../../node_modules/lucide-react/dist/esm/icons/chevron-right.js
 var __iconNode18, ChevronRight;
 var init_chevron_right = __esm({
-  "node_modules/lucide-react/dist/esm/icons/chevron-right.js"() {
+  "../../node_modules/lucide-react/dist/esm/icons/chevron-right.js"() {
     init_createLucideIcon();
     __iconNode18 = [["path", { d: "m9 18 6-6-6-6", key: "mthhwq" }]];
     ChevronRight = createLucideIcon("ChevronRight", __iconNode18);
   }
 });
 
-// node_modules/lucide-react/dist/esm/icons/chevrons-up-down.js
+// ../../node_modules/lucide-react/dist/esm/icons/chevrons-up-down.js
 var __iconNode19, ChevronsUpDown;
 var init_chevrons_up_down = __esm({
-  "node_modules/lucide-react/dist/esm/icons/chevrons-up-down.js"() {
+  "../../node_modules/lucide-react/dist/esm/icons/chevrons-up-down.js"() {
     init_createLucideIcon();
     __iconNode19 = [
       ["path", { d: "m7 15 5 5 5-5", key: "1hf1tw" }],
@@ -8995,10 +8995,10 @@ var init_chevrons_up_down = __esm({
   }
 });
 
-// node_modules/lucide-react/dist/esm/icons/circle-alert.js
+// ../../node_modules/lucide-react/dist/esm/icons/circle-alert.js
 var __iconNode20, CircleAlert;
 var init_circle_alert = __esm({
-  "node_modules/lucide-react/dist/esm/icons/circle-alert.js"() {
+  "../../node_modules/lucide-react/dist/esm/icons/circle-alert.js"() {
     init_createLucideIcon();
     __iconNode20 = [
       ["circle", { cx: "12", cy: "12", r: "10", key: "1mglay" }],
@@ -9009,10 +9009,10 @@ var init_circle_alert = __esm({
   }
 });
 
-// node_modules/lucide-react/dist/esm/icons/circle-check.js
+// ../../node_modules/lucide-react/dist/esm/icons/circle-check.js
 var __iconNode21, CircleCheck;
 var init_circle_check = __esm({
-  "node_modules/lucide-react/dist/esm/icons/circle-check.js"() {
+  "../../node_modules/lucide-react/dist/esm/icons/circle-check.js"() {
     init_createLucideIcon();
     __iconNode21 = [
       ["circle", { cx: "12", cy: "12", r: "10", key: "1mglay" }],
@@ -9022,10 +9022,10 @@ var init_circle_check = __esm({
   }
 });
 
-// node_modules/lucide-react/dist/esm/icons/circle-dashed.js
+// ../../node_modules/lucide-react/dist/esm/icons/circle-dashed.js
 var __iconNode22, CircleDashed;
 var init_circle_dashed = __esm({
-  "node_modules/lucide-react/dist/esm/icons/circle-dashed.js"() {
+  "../../node_modules/lucide-react/dist/esm/icons/circle-dashed.js"() {
     init_createLucideIcon();
     __iconNode22 = [
       ["path", { d: "M10.1 2.182a10 10 0 0 1 3.8 0", key: "5ilxe3" }],
@@ -9041,10 +9041,10 @@ var init_circle_dashed = __esm({
   }
 });
 
-// node_modules/lucide-react/dist/esm/icons/clock.js
+// ../../node_modules/lucide-react/dist/esm/icons/clock.js
 var __iconNode23, Clock;
 var init_clock = __esm({
-  "node_modules/lucide-react/dist/esm/icons/clock.js"() {
+  "../../node_modules/lucide-react/dist/esm/icons/clock.js"() {
     init_createLucideIcon();
     __iconNode23 = [
       ["circle", { cx: "12", cy: "12", r: "10", key: "1mglay" }],
@@ -9054,10 +9054,10 @@ var init_clock = __esm({
   }
 });
 
-// node_modules/lucide-react/dist/esm/icons/command.js
+// ../../node_modules/lucide-react/dist/esm/icons/command.js
 var __iconNode24, Command;
 var init_command = __esm({
-  "node_modules/lucide-react/dist/esm/icons/command.js"() {
+  "../../node_modules/lucide-react/dist/esm/icons/command.js"() {
     init_createLucideIcon();
     __iconNode24 = [
       [
@@ -9069,10 +9069,10 @@ var init_command = __esm({
   }
 });
 
-// node_modules/lucide-react/dist/esm/icons/credit-card.js
+// ../../node_modules/lucide-react/dist/esm/icons/credit-card.js
 var __iconNode25, CreditCard;
 var init_credit_card = __esm({
-  "node_modules/lucide-react/dist/esm/icons/credit-card.js"() {
+  "../../node_modules/lucide-react/dist/esm/icons/credit-card.js"() {
     init_createLucideIcon();
     __iconNode25 = [
       ["rect", { width: "20", height: "14", x: "2", y: "5", rx: "2", key: "ynyp8z" }],
@@ -9082,10 +9082,10 @@ var init_credit_card = __esm({
   }
 });
 
-// node_modules/lucide-react/dist/esm/icons/ellipsis.js
+// ../../node_modules/lucide-react/dist/esm/icons/ellipsis.js
 var __iconNode26, Ellipsis;
 var init_ellipsis = __esm({
-  "node_modules/lucide-react/dist/esm/icons/ellipsis.js"() {
+  "../../node_modules/lucide-react/dist/esm/icons/ellipsis.js"() {
     init_createLucideIcon();
     __iconNode26 = [
       ["circle", { cx: "12", cy: "12", r: "1", key: "41hilf" }],
@@ -9096,10 +9096,10 @@ var init_ellipsis = __esm({
   }
 });
 
-// node_modules/lucide-react/dist/esm/icons/file-code.js
+// ../../node_modules/lucide-react/dist/esm/icons/file-code.js
 var __iconNode27, FileCode;
 var init_file_code = __esm({
-  "node_modules/lucide-react/dist/esm/icons/file-code.js"() {
+  "../../node_modules/lucide-react/dist/esm/icons/file-code.js"() {
     init_createLucideIcon();
     __iconNode27 = [
       ["path", { d: "M10 12.5 8 15l2 2.5", key: "1tg20x" }],
@@ -9111,10 +9111,10 @@ var init_file_code = __esm({
   }
 });
 
-// node_modules/lucide-react/dist/esm/icons/folder.js
+// ../../node_modules/lucide-react/dist/esm/icons/folder.js
 var __iconNode28, Folder;
 var init_folder = __esm({
-  "node_modules/lucide-react/dist/esm/icons/folder.js"() {
+  "../../node_modules/lucide-react/dist/esm/icons/folder.js"() {
     init_createLucideIcon();
     __iconNode28 = [
       [
@@ -9129,10 +9129,10 @@ var init_folder = __esm({
   }
 });
 
-// node_modules/lucide-react/dist/esm/icons/forward.js
+// ../../node_modules/lucide-react/dist/esm/icons/forward.js
 var __iconNode29, Forward;
 var init_forward = __esm({
-  "node_modules/lucide-react/dist/esm/icons/forward.js"() {
+  "../../node_modules/lucide-react/dist/esm/icons/forward.js"() {
     init_createLucideIcon();
     __iconNode29 = [
       ["polyline", { points: "15 17 20 12 15 7", key: "1w3sku" }],
@@ -9142,10 +9142,10 @@ var init_forward = __esm({
   }
 });
 
-// node_modules/lucide-react/dist/esm/icons/frame.js
+// ../../node_modules/lucide-react/dist/esm/icons/frame.js
 var __iconNode30, Frame;
 var init_frame = __esm({
-  "node_modules/lucide-react/dist/esm/icons/frame.js"() {
+  "../../node_modules/lucide-react/dist/esm/icons/frame.js"() {
     init_createLucideIcon();
     __iconNode30 = [
       ["line", { x1: "22", x2: "2", y1: "6", y2: "6", key: "15w7dq" }],
@@ -9157,10 +9157,10 @@ var init_frame = __esm({
   }
 });
 
-// node_modules/lucide-react/dist/esm/icons/gallery-vertical-end.js
+// ../../node_modules/lucide-react/dist/esm/icons/gallery-vertical-end.js
 var __iconNode31, GalleryVerticalEnd;
 var init_gallery_vertical_end = __esm({
-  "node_modules/lucide-react/dist/esm/icons/gallery-vertical-end.js"() {
+  "../../node_modules/lucide-react/dist/esm/icons/gallery-vertical-end.js"() {
     init_createLucideIcon();
     __iconNode31 = [
       ["path", { d: "M7 2h10", key: "nczekb" }],
@@ -9171,10 +9171,10 @@ var init_gallery_vertical_end = __esm({
   }
 });
 
-// node_modules/lucide-react/dist/esm/icons/git-branch.js
+// ../../node_modules/lucide-react/dist/esm/icons/git-branch.js
 var __iconNode32, GitBranch;
 var init_git_branch = __esm({
-  "node_modules/lucide-react/dist/esm/icons/git-branch.js"() {
+  "../../node_modules/lucide-react/dist/esm/icons/git-branch.js"() {
     init_createLucideIcon();
     __iconNode32 = [
       ["line", { x1: "6", x2: "6", y1: "3", y2: "15", key: "17qcm7" }],
@@ -9186,10 +9186,10 @@ var init_git_branch = __esm({
   }
 });
 
-// node_modules/lucide-react/dist/esm/icons/info.js
+// ../../node_modules/lucide-react/dist/esm/icons/info.js
 var __iconNode33, Info;
 var init_info = __esm({
-  "node_modules/lucide-react/dist/esm/icons/info.js"() {
+  "../../node_modules/lucide-react/dist/esm/icons/info.js"() {
     init_createLucideIcon();
     __iconNode33 = [
       ["circle", { cx: "12", cy: "12", r: "10", key: "1mglay" }],
@@ -9200,10 +9200,10 @@ var init_info = __esm({
   }
 });
 
-// node_modules/lucide-react/dist/esm/icons/italic.js
+// ../../node_modules/lucide-react/dist/esm/icons/italic.js
 var __iconNode34, Italic;
 var init_italic = __esm({
-  "node_modules/lucide-react/dist/esm/icons/italic.js"() {
+  "../../node_modules/lucide-react/dist/esm/icons/italic.js"() {
     init_createLucideIcon();
     __iconNode34 = [
       ["line", { x1: "19", x2: "10", y1: "4", y2: "4", key: "15jd3p" }],
@@ -9214,10 +9214,10 @@ var init_italic = __esm({
   }
 });
 
-// node_modules/lucide-react/dist/esm/icons/list-filter.js
+// ../../node_modules/lucide-react/dist/esm/icons/list-filter.js
 var __iconNode35, ListFilter;
 var init_list_filter = __esm({
-  "node_modules/lucide-react/dist/esm/icons/list-filter.js"() {
+  "../../node_modules/lucide-react/dist/esm/icons/list-filter.js"() {
     init_createLucideIcon();
     __iconNode35 = [
       ["path", { d: "M3 6h18", key: "d0wm0j" }],
@@ -9228,10 +9228,10 @@ var init_list_filter = __esm({
   }
 });
 
-// node_modules/lucide-react/dist/esm/icons/log-out.js
+// ../../node_modules/lucide-react/dist/esm/icons/log-out.js
 var __iconNode36, LogOut;
 var init_log_out = __esm({
-  "node_modules/lucide-react/dist/esm/icons/log-out.js"() {
+  "../../node_modules/lucide-react/dist/esm/icons/log-out.js"() {
     init_createLucideIcon();
     __iconNode36 = [
       ["path", { d: "M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4", key: "1uf3rs" }],
@@ -9242,10 +9242,10 @@ var init_log_out = __esm({
   }
 });
 
-// node_modules/lucide-react/dist/esm/icons/mail-check.js
+// ../../node_modules/lucide-react/dist/esm/icons/mail-check.js
 var __iconNode37, MailCheck;
 var init_mail_check = __esm({
-  "node_modules/lucide-react/dist/esm/icons/mail-check.js"() {
+  "../../node_modules/lucide-react/dist/esm/icons/mail-check.js"() {
     init_createLucideIcon();
     __iconNode37 = [
       ["path", { d: "M22 13V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v12c0 1.1.9 2 2 2h8", key: "12jkf8" }],
@@ -9256,10 +9256,10 @@ var init_mail_check = __esm({
   }
 });
 
-// node_modules/lucide-react/dist/esm/icons/map.js
+// ../../node_modules/lucide-react/dist/esm/icons/map.js
 var __iconNode38, Map2;
 var init_map = __esm({
-  "node_modules/lucide-react/dist/esm/icons/map.js"() {
+  "../../node_modules/lucide-react/dist/esm/icons/map.js"() {
     init_createLucideIcon();
     __iconNode38 = [
       [
@@ -9276,10 +9276,10 @@ var init_map = __esm({
   }
 });
 
-// node_modules/lucide-react/dist/esm/icons/plus.js
+// ../../node_modules/lucide-react/dist/esm/icons/plus.js
 var __iconNode39, Plus;
 var init_plus = __esm({
-  "node_modules/lucide-react/dist/esm/icons/plus.js"() {
+  "../../node_modules/lucide-react/dist/esm/icons/plus.js"() {
     init_createLucideIcon();
     __iconNode39 = [
       ["path", { d: "M5 12h14", key: "1ays0h" }],
@@ -9289,10 +9289,10 @@ var init_plus = __esm({
   }
 });
 
-// node_modules/lucide-react/dist/esm/icons/search.js
+// ../../node_modules/lucide-react/dist/esm/icons/search.js
 var __iconNode40, Search;
 var init_search = __esm({
-  "node_modules/lucide-react/dist/esm/icons/search.js"() {
+  "../../node_modules/lucide-react/dist/esm/icons/search.js"() {
     init_createLucideIcon();
     __iconNode40 = [
       ["circle", { cx: "11", cy: "11", r: "8", key: "4ej97u" }],
@@ -9302,10 +9302,10 @@ var init_search = __esm({
   }
 });
 
-// node_modules/lucide-react/dist/esm/icons/settings-2.js
+// ../../node_modules/lucide-react/dist/esm/icons/settings-2.js
 var __iconNode41, Settings2;
 var init_settings_2 = __esm({
-  "node_modules/lucide-react/dist/esm/icons/settings-2.js"() {
+  "../../node_modules/lucide-react/dist/esm/icons/settings-2.js"() {
     init_createLucideIcon();
     __iconNode41 = [
       ["path", { d: "M20 7h-9", key: "3s1dr2" }],
@@ -9317,10 +9317,10 @@ var init_settings_2 = __esm({
   }
 });
 
-// node_modules/lucide-react/dist/esm/icons/settings.js
+// ../../node_modules/lucide-react/dist/esm/icons/settings.js
 var __iconNode42, Settings;
 var init_settings = __esm({
-  "node_modules/lucide-react/dist/esm/icons/settings.js"() {
+  "../../node_modules/lucide-react/dist/esm/icons/settings.js"() {
     init_createLucideIcon();
     __iconNode42 = [
       [
@@ -9336,10 +9336,10 @@ var init_settings = __esm({
   }
 });
 
-// node_modules/lucide-react/dist/esm/icons/smile.js
+// ../../node_modules/lucide-react/dist/esm/icons/smile.js
 var __iconNode43, Smile;
 var init_smile = __esm({
-  "node_modules/lucide-react/dist/esm/icons/smile.js"() {
+  "../../node_modules/lucide-react/dist/esm/icons/smile.js"() {
     init_createLucideIcon();
     __iconNode43 = [
       ["circle", { cx: "12", cy: "12", r: "10", key: "1mglay" }],
@@ -9351,10 +9351,10 @@ var init_smile = __esm({
   }
 });
 
-// node_modules/lucide-react/dist/esm/icons/sparkles.js
+// ../../node_modules/lucide-react/dist/esm/icons/sparkles.js
 var __iconNode44, Sparkles;
 var init_sparkles = __esm({
-  "node_modules/lucide-react/dist/esm/icons/sparkles.js"() {
+  "../../node_modules/lucide-react/dist/esm/icons/sparkles.js"() {
     init_createLucideIcon();
     __iconNode44 = [
       [
@@ -9373,10 +9373,10 @@ var init_sparkles = __esm({
   }
 });
 
-// node_modules/lucide-react/dist/esm/icons/square-terminal.js
+// ../../node_modules/lucide-react/dist/esm/icons/square-terminal.js
 var __iconNode45, SquareTerminal;
 var init_square_terminal = __esm({
-  "node_modules/lucide-react/dist/esm/icons/square-terminal.js"() {
+  "../../node_modules/lucide-react/dist/esm/icons/square-terminal.js"() {
     init_createLucideIcon();
     __iconNode45 = [
       ["path", { d: "m7 11 2-2-2-2", key: "1lz0vl" }],
@@ -9387,10 +9387,10 @@ var init_square_terminal = __esm({
   }
 });
 
-// node_modules/lucide-react/dist/esm/icons/tag.js
+// ../../node_modules/lucide-react/dist/esm/icons/tag.js
 var __iconNode46, Tag;
 var init_tag = __esm({
-  "node_modules/lucide-react/dist/esm/icons/tag.js"() {
+  "../../node_modules/lucide-react/dist/esm/icons/tag.js"() {
     init_createLucideIcon();
     __iconNode46 = [
       [
@@ -9406,10 +9406,10 @@ var init_tag = __esm({
   }
 });
 
-// node_modules/lucide-react/dist/esm/icons/trash-2.js
+// ../../node_modules/lucide-react/dist/esm/icons/trash-2.js
 var __iconNode47, Trash2;
 var init_trash_2 = __esm({
-  "node_modules/lucide-react/dist/esm/icons/trash-2.js"() {
+  "../../node_modules/lucide-react/dist/esm/icons/trash-2.js"() {
     init_createLucideIcon();
     __iconNode47 = [
       ["path", { d: "M3 6h18", key: "d0wm0j" }],
@@ -9422,10 +9422,10 @@ var init_trash_2 = __esm({
   }
 });
 
-// node_modules/lucide-react/dist/esm/icons/underline.js
+// ../../node_modules/lucide-react/dist/esm/icons/underline.js
 var __iconNode48, Underline;
 var init_underline = __esm({
-  "node_modules/lucide-react/dist/esm/icons/underline.js"() {
+  "../../node_modules/lucide-react/dist/esm/icons/underline.js"() {
     init_createLucideIcon();
     __iconNode48 = [
       ["path", { d: "M6 4v6a6 6 0 0 0 12 0V4", key: "9kb039" }],
@@ -9435,10 +9435,10 @@ var init_underline = __esm({
   }
 });
 
-// node_modules/lucide-react/dist/esm/icons/user.js
+// ../../node_modules/lucide-react/dist/esm/icons/user.js
 var __iconNode49, User;
 var init_user = __esm({
-  "node_modules/lucide-react/dist/esm/icons/user.js"() {
+  "../../node_modules/lucide-react/dist/esm/icons/user.js"() {
     init_createLucideIcon();
     __iconNode49 = [
       ["path", { d: "M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2", key: "975kel" }],
@@ -9448,10 +9448,10 @@ var init_user = __esm({
   }
 });
 
-// node_modules/lucide-react/dist/esm/icons/x.js
+// ../../node_modules/lucide-react/dist/esm/icons/x.js
 var __iconNode50, X;
 var init_x = __esm({
-  "node_modules/lucide-react/dist/esm/icons/x.js"() {
+  "../../node_modules/lucide-react/dist/esm/icons/x.js"() {
     init_createLucideIcon();
     __iconNode50 = [
       ["path", { d: "M18 6 6 18", key: "1bl5f8" }],
@@ -9461,9 +9461,9 @@ var init_x = __esm({
   }
 });
 
-// node_modules/lucide-react/dist/esm/lucide-react.js
+// ../../node_modules/lucide-react/dist/esm/lucide-react.js
 var init_lucide_react = __esm({
-  "node_modules/lucide-react/dist/esm/lucide-react.js"() {
+  "../../node_modules/lucide-react/dist/esm/lucide-react.js"() {
     init_badge_check();
     init_chart_pie();
     init_circle_alert();
@@ -126708,9 +126708,9 @@ if (runtime2 == null || runtime2.pluginSdkApp == null) {
 }
 var mod2 = runtime2.pluginSdkApp;
 var {
+  Markdown,
+  ThreadChat,
   definePluginApp,
-  experimental_Markdown,
-  experimental_ThreadChat,
   useBbContext,
   useBbNavigate,
   useComposer,
@@ -126822,7 +126822,7 @@ TooltipContent2.displayName = Content.displayName;
 init_jsx_runtime();
 function UiPatternsComposerAction() {
   const navigate = useBbNavigate();
-  const openThreadPanel = navigate.experimental_openThreadPanel;
+  const openThreadPanel = navigate.openThreadPanel;
   if (typeof openThreadPanel !== "function") return null;
   return /* @__PURE__ */ jsx(TooltipProvider2, { delayDuration: 300, children: /* @__PURE__ */ jsxs(Tooltip2, { children: [
     /* @__PURE__ */ jsx(TooltipTrigger2, { asChild: true, children: /* @__PURE__ */ jsx(

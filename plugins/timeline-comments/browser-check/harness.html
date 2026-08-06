@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Timeline comments browser check</title>
+    <link rel="stylesheet" href="./harness.css" />
+    <style>
+      :root {
+        --background: #f7f7f5;
+        --foreground: #242522;
+        --popover: #fff;
+        --popover-foreground: #242522;
+        --primary: #50564c;
+        --primary-foreground: #fff;
+        --muted-foreground: #71746c;
+        --border: #d6d8d1;
+        --border-seam: #e4e5e0;
+        --surface-selected: #e7ebe2;
+        --surface-recessed: #f0f1ed;
+        --ring: #66705f;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        background: var(--background);
+        color: var(--foreground);
+        font:
+          14px/1.5 system-ui,
+          sans-serif;
+      }
+      #fixture {
+        position: fixed;
+        inset: 36px 20px auto 360px;
+        height: 120px;
+        overflow: hidden;
+        border: 1px solid var(--border);
+        border-radius: 14px;
+        background: #fff;
+      }
+      [data-bb-thread-scroll-root] {
+        height: 100%;
+        overflow: auto;
+        padding: 10px 58px;
+      }
+      [data-bb-conversation-message-id] {
+        width: 100%;
+      }
+      [data-bb-message-prose-root] {
+        width: 420px;
+      }
+      [data-bb-message-prose-root] span {
+        display: block;
+        width: fit-content;
+        min-height: 22px;
+      }
+      #result {
+        position: fixed;
+        left: 80px;
+        bottom: 34px;
+        color: var(--muted-foreground);
+        font-size: 12px;
+      }
+    </style>
+  </head>
+  <body data-test-status="running">
+    <main id="fixture" data-bb-thread-window="thr_browser">
+      <div data-bb-thread-scroll-root="thr_browser">
+        <article
+          data-bb-conversation-message-id="msg_browser"
+          data-bb-message-role="assistant"
+        >
+          <div data-bb-message-prose-root>
+            <span>First exact browser anchor</span>
+            <span>Second exact browser anchor</span>
+            <span>Third exact browser anchor</span>
+            <span>Fourth exact browser anchor</span>
+            <span>Fifth exact browser anchor</span>
+            <span>Sixth exact browser anchor</span>
+            <span>Seventh exact browser anchor</span>
+            <span>Eighth exact browser anchor</span>
+          </div>
+        </article>
+      </div>
+    </main>
+    <output id="result">Running browser geometry check…</output>
+    <script type="module" src="./harness.js"></script>
+  </body>
+</html>

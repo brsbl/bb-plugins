@@ -5,6 +5,7 @@ import {
   buildPluginApp,
   buildPluginServer,
 } from "./vendor/bb-plugin-build-0.0.34.mjs";
+import { pluginBuildBbVersion } from "./plugin-build-provenance.mjs";
 
 const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const arguments_ = process.argv.slice(2);
@@ -22,17 +23,16 @@ const esbuild = resolve(
 );
 process.env.ESBUILD_BINARY_PATH ??= esbuild;
 
-const bbVersion = "0.0.34";
 const files = [];
 if (!appOnly) {
-  const server = await buildPluginServer(pluginPath, bbVersion);
+  const server = await buildPluginServer(pluginPath, pluginBuildBbVersion);
   files.push(server.jsPath, server.mapPath, server.metaPath);
 }
 const manifest = JSON.parse(
   await readFile(resolve(pluginPath, "package.json"), "utf8"),
 );
 if (typeof manifest.bb?.app === "string") {
-  const app = await buildPluginApp(pluginPath, bbVersion);
+  const app = await buildPluginApp(pluginPath, pluginBuildBbVersion);
   files.push(app.jsPath, app.cssPath, app.metaPath);
 } else if (appOnly) {
   throw new Error(`${manifest.name}: --app-only requires bb.app`);

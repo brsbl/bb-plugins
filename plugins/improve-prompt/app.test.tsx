@@ -21,6 +21,10 @@ import {
 } from "@bb/plugin-sdk/testing/app";
 
 import type { rpcContract } from "./server";
+import {
+  installPromptThreadStatusController,
+  THREAD_ROW_STATUS,
+} from "./thread-status.js";
 
 vi.mock("sonner", () => ({
   toast: {
@@ -169,7 +173,7 @@ describe("Improve Prompt composer action", () => {
     expect(document.querySelector("style")).toBeNull();
     const builtCss = await readFile(resolve("dist/app.css"), "utf8");
     expect(builtCss).toContain(".bb-improve-prompt-shimmer");
-    expect(builtCss).toContain('[data-bb-plugin-decoration="prompt-shaper"]');
+    expect(builtCss).toContain('@scope ([data-bb-plugin="prompt-shaper"]');
     expect((improveButton as HTMLButtonElement).disabled).toBe(false);
     expect(fireEvent.mouseDown(improveButton)).toBe(false);
     fireEvent.click(improveButton);
@@ -235,6 +239,61 @@ describe("Improve Prompt composer action", () => {
     expect(actionSlot.inspection.composer.text).toBe("rough side-chat draft");
     expect(actionSlot.inspection.composer.attachmentCount).toBe(1);
     expect(actionSlot.inspection.composer.focusCount).toBe(2);
+  });
+
+  it("decorates the visible parent thread while enhancing a side-chat child", async () => {
+    const setThreadRowStatus = vi.fn();
+    const disposeThreadStatus = installPromptThreadStatusController(
+      setThreadRowStatus,
+    );
+    configureAction({
+      text: "rough side-chat draft",
+      scope: {
+        kind: "side-chat",
+        projectId: "proj_1",
+        parentThreadId: "thr_parent",
+        tabId: "side-chat:one",
+        childThreadId: "thr_child",
+      },
+      rpc: {
+        startEnhancement: () => ({
+          requestId: REQUEST_ID,
+          helperThreadId: "thr_helper",
+        }),
+        getEnhancement: () => ({
+          requestId: REQUEST_ID,
+          helperThreadId: "thr_helper",
+          status: "running",
+          createdAt: 1,
+        }),
+        cancelEnhancement: () => ({ cancelled: true }),
+      },
+    });
+
+    try {
+      const Action = await loadAction();
+      mountAction(Action);
+      fireEvent.click(screen.getByRole("button", { name: "Improve prompt" }));
+
+      await waitFor(() => {
+        expect(actionSlot.inspection.rpcCalls).toContainEqual({
+          method: "startEnhancement",
+          input: expect.objectContaining({
+            sourceThreadId: "thr_child",
+          }),
+        });
+        expect(setThreadRowStatus).toHaveBeenCalledWith(
+          "thr_parent",
+          THREAD_ROW_STATUS,
+        );
+      });
+      expect(setThreadRowStatus).not.toHaveBeenCalledWith(
+        "thr_child",
+        THREAD_ROW_STATUS,
+      );
+    } finally {
+      disposeThreadStatus();
+    }
   });
 
   it("keeps a durable request after the first result fetch fails and retries on realtime", async () => {
@@ -478,17 +537,6 @@ describe("Improve Prompt composer action", () => {
         queuedMessageId: "qmsg_2",
       },
     },
-    {
-      name: "new-thread project",
-      sourceScope: {
-        kind: "new-thread" as const,
-        projectId: "proj_1",
-      },
-      destinationScope: {
-        kind: "new-thread" as const,
-        projectId: "proj_2",
-      },
-    },
   ])(
     "cancels a pending request across a keyed $name unmount/remount",
     async ({ sourceScope, destinationScope }) => {
@@ -536,7 +584,6 @@ describe("Improve Prompt composer action", () => {
         });
         expect(actionSlot.inspection.composer.textEffect).toBeNull();
         expect(actionSlot.inspection.composer.inputLocked).toBe(false);
-        expect(actionSlot.inspection.composer.threadRowStatus).toBeNull();
         expect(window.sessionStorage.length).toBe(0);
         expect(
           screen.getByRole("button", { name: "Improve prompt" }),
@@ -566,6 +613,85 @@ describe("Improve Prompt composer action", () => {
       ).toBeNull();
     },
   );
+
+  it("keeps a new-thread enhancement running while navigating away and back", async () => {
+    const result = deferred<{
+      requestId: string;
+      helperThreadId: string;
+      status: "complete";
+      enhancedPrompt: string;
+      assumptions: null;
+      createdAt: number;
+      completedAt: number;
+    }>();
+    const cancelEnhancement = vi.fn(() => ({ cancelled: true as const }));
+    configureAction({
+      text: "rough new-thread draft",
+      attachmentCount: 1,
+      scope: { kind: "new-thread", projectId: "proj_1" },
+      rpc: {
+        startEnhancement: () => ({
+          requestId: REQUEST_ID,
+          helperThreadId: "thr_helper",
+        }),
+        getEnhancement: () => result.promise,
+        cancelEnhancement,
+      },
+    });
+    const Action = await loadAction();
+    const source = mountAction(Action);
+
+    fireEvent.click(screen.getByRole("button", { name: "Improve prompt" }));
+    await waitFor(() => {
+      expect(actionSlot.inspection.composer.textEffect).toEqual({
+        className: "bb-improve-prompt-shimmer",
+      });
+      expect(window.sessionStorage.length).toBe(1);
+    });
+
+    source.lifecycle.unmount();
+    await driveComposerScope({ kind: "thread", threadId: "thr_other" });
+    await driveComposerText("other thread draft");
+    const destination = mountAction(Action);
+    await waitFor(() => {
+      expect(
+        screen.getByRole("button", { name: "Improve prompt" }),
+      ).not.toBeNull();
+      expect(actionSlot.inspection.composer.textEffect).toBeNull();
+    });
+    expect(cancelEnhancement).not.toHaveBeenCalled();
+    expect(window.sessionStorage.length).toBe(1);
+
+    destination.lifecycle.unmount();
+    await driveComposerScope({ kind: "new-thread", projectId: "proj_1" });
+    await driveComposerText("rough new-thread draft");
+    mountAction(Action);
+    await screen.findByRole("button", {
+      name: "Cancel prompt improvement",
+    });
+    expect(cancelEnhancement).not.toHaveBeenCalled();
+
+    await act(async () => {
+      result.resolve({
+        requestId: REQUEST_ID,
+        helperThreadId: "thr_helper",
+        status: "complete",
+        enhancedPrompt: "Enhanced after new-thread navigation.",
+        assumptions: null,
+        createdAt: 1,
+        completedAt: 2,
+      });
+      await result.promise;
+    });
+
+    await waitFor(() => {
+      expect(actionSlot.inspection.composer.text).toBe(
+        "Enhanced after new-thread navigation.",
+      );
+      expect(window.sessionStorage.length).toBe(0);
+    });
+    expect(actionSlot.inspection.composer.attachmentCount).toBe(1);
+  });
 
   it("replaces the latest edited draft and restores it through inline Undo", async () => {
     const result = deferred<{
@@ -597,11 +723,6 @@ describe("Improve Prompt composer action", () => {
       expect(actionSlot.inspection.composer.textEffect).toEqual({
         className: "bb-improve-prompt-shimmer",
       });
-      expect(actionSlot.inspection.composer.threadRowStatus).toEqual({
-        icon: "AiContentGenerator01",
-        label: "Improve Prompt is improving the draft",
-        tone: "success",
-      });
     });
 
     await driveComposerText("edited while enhancement was running");
@@ -623,7 +744,6 @@ describe("Improve Prompt composer action", () => {
         "Enhanced prompt with the missing guardrail.",
       );
       expect(actionSlot.inspection.composer.textEffect).toBeNull();
-      expect(actionSlot.inspection.composer.threadRowStatus).toBeNull();
     });
     expect(actionSlot.inspection.composer.attachmentCount).toBe(1);
     expect(screen.queryByRole("dialog")).toBeNull();
@@ -707,7 +827,6 @@ describe("Improve Prompt composer action", () => {
         screen.getByRole("button", { name: "Improve prompt" }),
       ).not.toBeNull();
       expect(actionSlot.inspection.composer.textEffect).toBeNull();
-      expect(actionSlot.inspection.composer.threadRowStatus).toBeNull();
     });
     expect(cancelEnhancement).not.toHaveBeenCalled();
     expect(window.sessionStorage.length).toBe(1);
@@ -942,7 +1061,6 @@ describe("Improve Prompt composer action", () => {
       expect(
         icon?.parentElement?.classList.contains("motion-safe:animate-pulse"),
       ).toBe(true);
-      expect(actionSlot.inspection.composer.threadRowStatus).not.toBeNull();
       expect(
         actionSlot.inspection.rpcCalls.map((call) => call.method),
       ).toContain("getEnhancement");
@@ -958,7 +1076,6 @@ describe("Improve Prompt composer action", () => {
       });
       expect(actionSlot.inspection.composer.textEffect).toBeNull();
       expect(actionSlot.inspection.composer.inputLocked).toBe(false);
-      expect(actionSlot.inspection.composer.threadRowStatus).toBeNull();
       expect(window.sessionStorage.length).toBe(0);
     });
     expect(actionSlot.inspection.composer.text).toBe("keep this draft");
@@ -1025,7 +1142,6 @@ describe("Improve Prompt composer action", () => {
       expect(actionSlot.inspection.composer.textEffect).toEqual({
         className: "bb-improve-prompt-shimmer",
       });
-      expect(actionSlot.inspection.composer.threadRowStatus).not.toBeNull();
       expect(
         screen.getByRole("button", { name: "Cancel prompt improvement" }),
       ).not.toBeNull();
@@ -1083,7 +1199,6 @@ describe("Improve Prompt composer action", () => {
       expect(cancelEnhancement).toHaveBeenCalledTimes(2);
       expect(actionSlot.inspection.composer.inputLocked).toBe(false);
       expect(actionSlot.inspection.composer.textEffect).toBeNull();
-      expect(actionSlot.inspection.composer.threadRowStatus).toBeNull();
       expect(window.sessionStorage.length).toBe(0);
       expect(
         screen.getByRole("button", { name: "Improve prompt" }),
@@ -1133,7 +1248,6 @@ describe("Improve Prompt composer action", () => {
       expect(getCalls).toBe(2);
       expect(window.sessionStorage.length).toBe(0);
       expect(actionSlot.inspection.composer.textEffect).toBeNull();
-      expect(actionSlot.inspection.composer.threadRowStatus).toBeNull();
       expect(
         screen.getByRole("button", { name: "Improve prompt" }),
       ).not.toBeNull();
@@ -1272,7 +1386,6 @@ describe("Improve Prompt composer action", () => {
       expect(actionSlot.inspection.composer.textEffect).toEqual({
         className: "bb-improve-prompt-shimmer",
       });
-      expect(actionSlot.inspection.composer.threadRowStatus).not.toBeNull();
     });
 
     await driveComposerScope({
@@ -1282,7 +1395,6 @@ describe("Improve Prompt composer action", () => {
 
     await waitFor(() => {
       expect(actionSlot.inspection.composer.textEffect).toBeNull();
-      expect(actionSlot.inspection.composer.threadRowStatus).toBeNull();
     });
     expect(actionSlot.inspection.composer.text).toBe("rough draft");
   });
@@ -1305,12 +1417,10 @@ describe("Improve Prompt composer action", () => {
       expect(actionSlot.inspection.composer.textEffect).toEqual({
         className: "bb-improve-prompt-shimmer",
       });
-      expect(actionSlot.inspection.composer.threadRowStatus).not.toBeNull();
     });
 
     view.lifecycle.unmount();
     expect(actionSlot.inspection.composer.textEffect).toBeNull();
-    expect(actionSlot.inspection.composer.threadRowStatus).toBeNull();
 
     window.sessionStorage.clear();
     configureAction({
@@ -1328,7 +1438,6 @@ describe("Improve Prompt composer action", () => {
 
     await waitFor(() => {
       expect(actionSlot.inspection.composer.textEffect).toBeNull();
-      expect(actionSlot.inspection.composer.threadRowStatus).toBeNull();
       expect(toast.error).toHaveBeenCalledWith("agent unavailable");
     });
     expect(actionSlot.inspection.composer.textEffectCalls).toContainEqual({
@@ -1385,7 +1494,6 @@ describe("Improve Prompt composer action", () => {
       expect(window.sessionStorage.length).toBe(0);
     });
     expect(actionSlot.inspection.composer.textEffect).toBeNull();
-    expect(actionSlot.inspection.composer.threadRowStatus).toBeNull();
 
     await act(async () => {
       result.resolve({
@@ -1462,7 +1570,6 @@ describe("Improve Prompt composer action", () => {
       expect(cancelEnhancement).toHaveBeenCalledTimes(2);
       expect(window.sessionStorage.length).toBe(0);
       expect(actionSlot.inspection.composer.textEffect).toBeNull();
-      expect(actionSlot.inspection.composer.threadRowStatus).toBeNull();
     });
 
     await act(async () => {
@@ -1639,7 +1746,6 @@ describe("Improve Prompt composer action", () => {
           screen.getByRole("button", { name: "Improve prompt" }),
         ).not.toBeNull();
         expect(actionSlot.inspection.composer.textEffect).toBeNull();
-        expect(actionSlot.inspection.composer.threadRowStatus).toBeNull();
       },
       { timeout: 4_000 },
     );
@@ -1685,6 +1791,5 @@ describe("Improve Prompt composer action", () => {
     expect(cancelEnhancement).not.toHaveBeenCalled();
     expect(window.sessionStorage.length).toBe(1);
     expect(actionSlot.inspection.composer.textEffect).toBeNull();
-    expect(actionSlot.inspection.composer.threadRowStatus).toBeNull();
   });
 });

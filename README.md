@@ -1,6 +1,6 @@
 # bb plugins
 
-Four bb plugins I use for product design work, kept together with the few build and repository tools they share. [![CI](https://github.com/brsbl/bb-plugins/actions/workflows/ci.yml/badge.svg)](https://github.com/brsbl/bb-plugins/actions/workflows/ci.yml)
+Seven bb plugins I use for product design work, kept together with the few build and repository tools they share. [![CI](https://github.com/brsbl/bb-plugins/actions/workflows/ci.yml/badge.svg)](https://github.com/brsbl/bb-plugins/actions/workflows/ci.yml)
 
 [bb](https://getbb.app) is an agentic IDE for running coding agents across projects, threads, and environments. Its plugins can add UI, commands, skills, and server capabilities; this repository is where I build and maintain mine.
 
@@ -28,6 +28,16 @@ Turns a rough composer draft into a clearer, context-complete prompt before you 
 
 Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/improve-prompt --yes`
 
+### Moss Notes
+
+Keeps each bb thread synchronized with its corresponding workspace folder in Moss.
+
+![Moss Notes in bb](plugins/moss-notes/docs/screenshot.png)
+
+[Source](plugins/moss-notes) · [README](plugins/moss-notes/README.md)
+
+Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/moss-notes --yes`
+
 ### Thread Hover Cards
 
 Lets you peek at a thread's status and repository context without leaving the sidebar.
@@ -37,6 +47,26 @@ Lets you peek at a thread's status and repository context without leaving the si
 [Source](plugins/thread-hover-cards) · [README](plugins/thread-hover-cards/README.md)
 
 Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/thread-hover-cards --yes`
+
+### Timeline Comments
+
+Keeps comments and comment threads attached to exact text in bb timelines.
+
+![Timeline Comments in bb](plugins/timeline-comments/docs/screenshot.png)
+
+[Source](plugins/timeline-comments) · [README](plugins/timeline-comments/README.md)
+
+Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/timeline-comments --yes`
+
+### Thread Organizer
+
+Files new threads into the right existing work section while preserving native titles and every manual override.
+
+![Thread Organizer settings in bb](plugins/thread-organizer/docs/screenshot.png)
+
+[Source](plugins/thread-organizer) · [README](plugins/thread-organizer/README.md)
+
+Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/thread-organizer --yes`
 
 ### UI Patterns
 

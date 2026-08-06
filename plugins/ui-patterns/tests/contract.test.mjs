@@ -16,6 +16,9 @@ const builtApp = await readFile(
   new URL("../dist/app.js", import.meta.url),
   "utf8",
 );
+const appMetadata = JSON.parse(
+  await readFile(new URL("../dist/app.meta.json", import.meta.url), "utf8"),
+);
 const gallery = await readFile(
   new URL("../gallery-shell.tsx", import.meta.url),
   "utf8",
@@ -140,6 +143,8 @@ test("the package ships static gallery cards and approved-source detail previews
 });
 
 test("the thread composer action opens the UI Patterns side-panel", () => {
+  assert.equal(packageJson.engines.bb, ">=0.34.0");
+  assert.equal(appMetadata.builtWith.bbVersion, "0.0.34");
   assert.doesNotMatch(app, /app\.slots\.navPanel\(\{/);
   assert.match(app, /app\.slots\.threadPanelAction\(\{/);
   assert.match(app, /app\.composer\.customize\(\{/);
@@ -151,11 +156,15 @@ test("the thread composer action opens the UI Patterns side-panel", () => {
   assert.match(composerAction, /actionId: "library-panel"/);
   assert.match(
     composerAction,
-    /const openThreadPanel = navigate\.experimental_openThreadPanel/,
+    /const openThreadPanel = navigate\.openThreadPanel/,
   );
   assert.match(composerAction, /typeof openThreadPanel !== "function"/);
   assert.match(composerAction, /openThreadPanel\(\{/);
-  assert.match(builtApp, /experimental_openThreadPanel/);
+  assert.match(
+    builtApp,
+    /const openThreadPanel = navigate\.openThreadPanel/,
+  );
+  assert.doesNotMatch(builtApp, /experimental_openThreadPanel/);
   assert.doesNotMatch(composerAction, /PluginMessageDirectiveOpenThreadPanel/);
   assert.match(app, /run: \(\{ openPanel \}\) => \{/);
   assert.match(app, /openPanel\(\{ title: "UI Patterns" \}\)/);
