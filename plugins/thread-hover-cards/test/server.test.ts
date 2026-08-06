@@ -989,44 +989,81 @@ function sectionThread(
   } as never;
 }
 
-const aggregates = summarizeSectionThreads([
-  sectionThread({ hasPendingInteraction: true, id: "a", latestAttentionAt: 300, updatedAt: 900 }),
-  sectionThread({ displayStatus: "error", id: "b", latestAttentionAt: 100, updatedAt: 800 }),
-  sectionThread({ id: "c", lastReadAt: 700, latestAttentionAt: 500, updatedAt: 200 }),
-  sectionThread({ id: "d", lastReadAt: 0, latestAttentionAt: 400, updatedAt: 950 }),
+const projectNames = new Map([
+  ["proj_1", "bb"],
+  ["proj_2", "moss"],
 ]);
-assert.equal(aggregates.total, 4);
-assert.equal(aggregates.attention, 2, "counts blocked and failed threads");
-assert.equal(
-  aggregates.waitingSince,
-  100,
-  "reports the attention thread that has been waiting longest",
+
+const aggregates = summarizeSectionThreads(
+  [
+    sectionThread({ hasPendingInteraction: true, id: "a", latestAttentionAt: 300 }),
+    sectionThread({ displayStatus: "error", id: "b", latestAttentionAt: 100 }),
+    sectionThread({ displayStatus: "active", id: "c", latestAttentionAt: 200 }),
+    sectionThread({ id: "d", lastReadAt: 700, latestAttentionAt: 500, projectId: "proj_2" }),
+  ],
+  projectNames,
 );
+assert.equal(aggregates.total, 4);
+assert.equal(aggregates.questions, 1, "blocked threads count as questions");
+assert.equal(aggregates.failed, 1, "failures are counted apart from questions");
+assert.equal(aggregates.working, 1);
 assert.equal(
   aggregates.unread,
   3,
   "unread follows bb's rule: lastReadAt older than latestAttentionAt",
 );
+assert.deepEqual(
+  aggregates.projects,
+  ["bb", "moss"],
+  "names the projects the section spans, busiest first",
+);
+
+// A failed thread that is also blocked is a question: answering comes first.
+assert.deepEqual(
+  summarizeSectionThreads([
+    sectionThread({
+      displayStatus: "error",
+      hasPendingInteraction: true,
+      latestAttentionAt: 5,
+    }),
+  ]),
+  {
+    failed: 0,
+    projects: [],
+    questions: 1,
+    total: 1,
+    unread: 1,
+    working: 0,
+  },
+);
+
+// A busy background agent counts as working even at displayStatus "idle",
+// matching bb's own isBusyThread.
 assert.equal(
-  aggregates.oldestUntouchedAt,
-  200,
-  "reports the least recently touched thread in the section",
+  summarizeSectionThreads([sectionThread({ activeBackgroundAgentCount: 1 })])
+    .working,
+  1,
 );
 
 const quiet = summarizeSectionThreads([
-  sectionThread({ id: "a", lastReadAt: 10, latestAttentionAt: 5, updatedAt: 42 }),
+  sectionThread({ lastReadAt: 10, latestAttentionAt: 5 }),
 ]);
-assert.equal(quiet.attention, 0);
-assert.equal(quiet.waitingSince, null, "no waiting time when nothing waits");
-assert.equal(quiet.unread, 0);
-assert.equal(quiet.oldestUntouchedAt, 42);
+assert.deepEqual(quiet, {
+  failed: 0,
+  projects: [],
+  questions: 0,
+  total: 1,
+  unread: 0,
+  working: 0,
+});
 
 assert.deepEqual(summarizeSectionThreads([]), {
-  attention: 0,
-  oldestUntouchedAt: null,
+  failed: 0,
+  projects: [],
+  questions: 0,
   total: 0,
   unread: 0,
-  waitingSince: null,
+  working: 0,
 });
 
 assert.equal(isSidebarSectionThread(sectionThread()), true);
@@ -1049,6 +1086,16 @@ for (const excluded of [
 // The sectionSummary handler — every P1 from review lived in here.
 assert.ok(sectionSummaryHandler, "registers the sectionSummary handler");
 
+// The card names projects on every hover, so a failed lookup is fatal rather
+// than filtering every thread away into a confident empty state. Runs first,
+// while the projects cache is still cold.
+projectListFails = true;
+await assert.rejects(
+  sectionSummaryHandler({ name: "Design" }),
+  /Section summary unavailable\./,
+);
+projectListFails = false;
+
 sectionThreadsById.set("sec_design", [
   sectionThread({ id: "a", latestAttentionAt: 3 }),
   sectionThread({ hasPendingInteraction: true, id: "b", latestAttentionAt: 1 }),
@@ -1057,22 +1104,12 @@ sectionThreadsById.set("sec_design", [
 const designSummary = await sectionSummaryHandler({ name: "Design" });
 assert.equal(designSummary.known, true);
 assert.equal(designSummary.total, 3);
-assert.equal(designSummary.attention, 1);
-assert.equal(designSummary.waitingSince, 1);
-
-// A failed project lookup must not silently empty a project-scoped section.
-// Runs before any successful lookup, while the projects cache is still cold.
-projectListFails = true;
-await assert.rejects(
-  sectionSummaryHandler({ name: "Design", projectName: "bb" }),
-  /Section summary unavailable\./,
+assert.equal(designSummary.questions, 1);
+assert.deepEqual(
+  designSummary.projects,
+  ["bb", "moss"],
+  "the handler resolves project names for the context band",
 );
-assert.equal(
-  (await sectionSummaryHandler({ name: "Design" })).known,
-  true,
-  "an unscoped hover does not need the project list at all",
-);
-projectListFails = false;
 
 // Project scoping really filters, rather than failing open to everything.
 assert.equal(

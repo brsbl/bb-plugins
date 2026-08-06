@@ -14615,22 +14615,23 @@ var threadPullRequestSchema = external_exports.object({
   }).strict()
 }).strict();
 var sectionSummarySchema = external_exports.object({
-  /** Threads wanting something from the reader: blocked on input, or failed. */
-  attention: external_exports.number().int().nonnegative(),
   diagnostics: rpcDiagnosticsSchema,
+  /** Threads that failed. Separate from questions: debugging is not answering. */
+  failed: external_exports.number().int().nonnegative(),
   /**
    * False for a row that looks like a section but is not one bb stores —
    * Pinned, Unorganized, and the other built-in groups. The card stays shut
    * rather than reporting an error for a row that never had a summary.
    */
   known: external_exports.boolean(),
-  /** Oldest `updatedAt` in the section: how long the quietest work has sat. */
-  oldestUntouchedAt: external_exports.number().nullable(),
+  /** Projects the section spans, busiest first; a section is not project-scoped. */
+  projects: external_exports.array(external_exports.string()),
+  /** Threads blocked on the user answering something. */
+  questions: external_exports.number().int().nonnegative(),
   total: external_exports.number().int().nonnegative(),
   /** Unread by bb's own rule, so the card agrees with the app. */
   unread: external_exports.number().int().nonnegative(),
-  /** When the longest-waiting attention thread started waiting. */
-  waitingSince: external_exports.number().nullable()
+  working: external_exports.number().int().nonnegative()
 }).strict();
 var rpcContract = defineRpcContract({
   threadSummary: {
@@ -15035,31 +15036,38 @@ function isSidebarSectionThread(thread) {
 function isUnread(thread) {
   return (thread.lastReadAt ?? 0) < thread.latestAttentionAt;
 }
-function wantsAttention(thread) {
-  return thread.hasPendingInteraction || thread.runtime.displayStatus === "error";
+function isBusyThread(thread) {
+  const activity = thread.activity;
+  return isRunningStatus(thread.runtime.displayStatus) || activity.activeWorkflowCount > 0 || activity.activeBackgroundAgentCount > 0 || activity.activeBackgroundCommandCount > 0 || activity.activePlanModeCount > 0 || activity.activeGoalCount > 0;
 }
-function summarizeSectionThreads(threads) {
-  let attention = 0;
+function summarizeSectionThreads(threads, projectNameById = /* @__PURE__ */ new Map()) {
+  let failed = 0;
+  let questions = 0;
   let unread = 0;
-  let waitingSince = null;
-  let oldestUntouchedAt = null;
+  let working = 0;
+  const threadsByProject = /* @__PURE__ */ new Map();
   for (const thread of threads) {
     if (isUnread(thread)) unread += 1;
-    if (wantsAttention(thread)) {
-      attention += 1;
-      const since = thread.latestAttentionAt;
-      if (waitingSince === null || since < waitingSince) waitingSince = since;
-    }
-    if (oldestUntouchedAt === null || thread.updatedAt < oldestUntouchedAt) {
-      oldestUntouchedAt = thread.updatedAt;
+    if (thread.hasPendingInteraction) questions += 1;
+    else if (thread.runtime.displayStatus === "error") failed += 1;
+    else if (isBusyThread(thread)) working += 1;
+    const projectName = projectNameById.get(thread.projectId);
+    if (projectName !== void 0) {
+      threadsByProject.set(
+        projectName,
+        (threadsByProject.get(projectName) ?? 0) + 1
+      );
     }
   }
   return {
-    attention,
-    oldestUntouchedAt,
+    failed,
+    projects: [...threadsByProject].sort(
+      (left, right) => right[1] - left[1] || left[0].localeCompare(right[0])
+    ).map(([name]) => name),
+    questions,
     total: threads.length,
     unread,
-    waitingSince
+    working
   };
 }
 function providerDisplayName(providerId) {
@@ -15512,35 +15520,33 @@ function plugin(bb) {
           const diagnostics2 = finishDiagnostics(recorder);
           recordDiagnostics(bb, "sectionSummary", name, diagnostics2);
           return {
-            attention: 0,
             diagnostics: diagnostics2,
+            failed: 0,
             known: false,
-            oldestUntouchedAt: null,
+            projects: [],
+            questions: 0,
             total: 0,
             unread: 0,
-            waitingSince: null
+            working: 0
           };
         }
-        let projectNameById = /* @__PURE__ */ new Map();
-        if (projectName !== null) {
-          const projects = await measureCachedStage(
-            recorder,
+        const projects = await measureCachedStage(
+          recorder,
+          "projects",
+          () => sectionDirectory.get(
             "projects",
-            () => sectionDirectory.get(
-              "projects",
-              () => within(
-                safely(bb.sdk.projects.list({ includePersonal: true, signal })),
-                directoryBudgetMs()
-              )
+            () => within(
+              safely(bb.sdk.projects.list({ includePersonal: true, signal })),
+              directoryBudgetMs()
             )
-          );
-          if (projects.value === null) {
-            throw new Error("Section summary unavailable.");
-          }
-          projectNameById = new Map(
-            projects.value.map((project) => [project.id, project.name])
-          );
+          )
+        );
+        if (projects.value === null) {
+          throw new Error("Section summary unavailable.");
         }
+        const projectNameById = new Map(
+          projects.value.map((project) => [project.id, project.name])
+        );
         const sectionId = section.id;
         const page = await measureCachedStage(
           recorder,
@@ -15569,7 +15575,7 @@ function plugin(bb) {
         const diagnostics = finishDiagnostics(recorder);
         recordDiagnostics(bb, "sectionSummary", name, diagnostics);
         return {
-          ...summarizeSectionThreads(threads),
+          ...summarizeSectionThreads(threads, projectNameById),
           diagnostics,
           known: true
         };
@@ -15584,14 +15590,25 @@ function plugin(bb) {
       while (!signal.aborted) {
         const startedAt = monotonicNow();
         sectionDirectory.delete("sections");
-        const sections = await sectionDirectory.get(
-          "sections",
-          () => within(safely(bb.sdk.threadSections.list({ signal })), 1e4)
-        );
+        sectionDirectory.delete("projects");
+        const [sections, projects] = await Promise.all([
+          sectionDirectory.get(
+            "sections",
+            () => within(safely(bb.sdk.threadSections.list({ signal })), 1e4)
+          ),
+          sectionDirectory.get(
+            "projects",
+            () => within(
+              safely(bb.sdk.projects.list({ includePersonal: true, signal })),
+              1e4
+            )
+          )
+        ]);
         if (signal.aborted) return;
         bb.log.debug(
           `thread-hover-cards:section-directory ${JSON.stringify({
             durationMs: roundedDuration(startedAt),
+            projects: projects.value?.length ?? null,
             sections: sections.value?.length ?? null
           })}`
         );

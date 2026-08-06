@@ -47,37 +47,53 @@ const sectionSummaries = new Map([
   [
     "Design",
     {
-      attention: 2,
       diagnostics: emptyDiagnostics,
+      failed: 1,
       known: true,
-      oldestUntouchedAt: SECTION_NOW - 12 * 24 * 3_600_000,
+      projects: ["bb", "moss", "ottonomous", "loop-machine"],
+      questions: 2,
       total: 13,
       unread: 4,
-      waitingSince: SECTION_NOW - 3 * 3_600_000,
+      working: 3,
     },
   ],
   [
     "Writing",
     {
-      attention: 0,
       diagnostics: emptyDiagnostics,
+      failed: 0,
       known: true,
-      oldestUntouchedAt: null,
+      projects: [],
+      questions: 0,
       total: 0,
       unread: 0,
-      waitingSince: null,
+      working: 0,
+    },
+  ],
+  [
+    "Quiet",
+    {
+      diagnostics: emptyDiagnostics,
+      failed: 0,
+      known: true,
+      projects: ["Personal"],
+      questions: 0,
+      total: 6,
+      unread: 0,
+      working: 0,
     },
   ],
   [
     "Pinned",
     {
-      attention: 0,
       diagnostics: emptyDiagnostics,
+      failed: 0,
       known: false,
-      oldestUntouchedAt: null,
+      projects: [],
+      questions: 0,
       total: 0,
       unread: 0,
-      waitingSince: null,
+      working: 0,
     },
   ],
 ]);
@@ -1609,47 +1625,49 @@ assert.deepEqual(sectionRequestBodies.at(-1), {
   name: "Design",
   projectName: null,
 });
+// Band 1: the projects the section spans, two names then +N.
+assert.deepEqual(
+  [...sectionCard.querySelectorAll(".bb-section-hover-card__project")].map(
+    (node) => node.textContent,
+  ),
+  ["bb", "moss"],
+);
 assert.equal(
-  sectionCard.querySelector(".bb-section-hover-card__attention-count")
+  sectionCard.querySelector(".bb-section-hover-card__more").textContent,
+  "+2",
+);
+
+// Band 2: questions and failures read as separate states.
+assert.equal(
+  sectionCard.querySelector(".bb-section-hover-card__chip--question")
     .textContent,
-  "2 need you",
+  "2 questions",
 );
 assert.equal(
-  sectionCard.querySelector(
-    ".bb-section-hover-card__attention .bb-section-hover-card__elapsed",
-  ).textContent,
-  "waiting 3h",
-  "says how long the blocked work has been blocked",
+  sectionCard.querySelector(".bb-section-hover-card__chip--failed").textContent,
+  "1 failed",
 );
 assert.equal(
-  sectionCard.firstElementChild.className,
-  "bb-section-hover-card__line bb-section-hover-card__attention",
-  "what needs action leads the card",
+  sectionCard
+    .querySelector(".bb-section-hover-card__chip--question [data-icon]")
+    .getAttribute("data-icon"),
+  "HelpCircleIcon",
+  "a question uses bb's own pending glyph",
 );
-assert.equal(
-  sectionCard.querySelector(".bb-section-hover-card__count").textContent,
-  "13 threads",
+
+// Band 3: counts in fixed order.
+assert.deepEqual(
+  [...sectionCard.querySelectorAll(".bb-section-hover-card__count")].map(
+    (node) => node.textContent,
+  ),
+  ["13 threads", "3 working", "4 unread"],
 );
-assert.equal(
-  sectionCard.querySelector(".bb-section-hover-card__unread").textContent,
-  "4 unread",
-);
-assert.equal(
-  sectionCard.querySelector(
-    ".bb-section-hover-card__stale .bb-section-hover-card__elapsed",
-  ).textContent,
-  "oldest untouched 12d",
-);
+
 // Nothing the sidebar already gives away for free.
 assert.equal(
   sectionCard.querySelector(".bb-section-hover-card__thread-title"),
   null,
   "no thread titles: expanding the section already lists them",
-);
-assert.equal(
-  sectionCard.querySelector("[data-icon]"),
-  null,
-  "no status glyphs: the sidebar row already carries one",
 );
 
 // The thread card and the section card are never open at the same time.
@@ -1663,6 +1681,11 @@ await new Promise((resolve) => setTimeout(resolve, 20));
 assert.equal(
   sectionCard.querySelector(".bb-section-hover-card__empty").textContent,
   "No threads yet",
+);
+assert.equal(
+  sectionCard.querySelector(".bb-section-hover-card__headline"),
+  null,
+  "no headline when nothing wants action — absent, not a reassurance line",
 );
 
 // A section nested under a project reports only that project's threads.
@@ -1712,6 +1735,31 @@ assert.equal(
   sectionRequestBodies.length,
   requestsBeforeThreadHover,
   "hovering a thread row does not open its section's card",
+);
+
+// A populated section with nothing wanting action: no headline, counts dimmed.
+const quietHeader = sectionHeaderRow("Quiet");
+sectionGroup.append(quietHeader.row);
+hoverOver(quietHeader.title);
+await new Promise((resolve) => setTimeout(resolve, 20));
+assert.equal(
+  sectionCard.querySelector(".bb-section-hover-card__headline"),
+  null,
+  "the headline is absent, not an empty reassurance line",
+);
+assert.deepEqual(
+  [...sectionCard.querySelectorAll(".bb-section-hover-card__count")].map(
+    (node) => node.textContent,
+  ),
+  ["6 threads", "0 working", "0 unread"],
+  "zero counts keep their positions",
+);
+assert.deepEqual(
+  [...sectionCard.querySelectorAll(".bb-section-hover-card__count")].map(
+    (node) => node.dataset.zero ?? null,
+  ),
+  [null, "true", "true"],
+  "zero counts dim rather than disappear",
 );
 
 // A built-in group is not a stored section: the card closes and stops asking.

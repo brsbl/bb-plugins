@@ -23,15 +23,17 @@ Section headers get their own card, which is the only way to see inside a sectio
 | Thread row | What is this thread doing right now? |
 | Section header | How much is in here, and does any of it need me? |
 
-The section card only carries what reading the whole section would tell you. Thread titles are one click away and the row already shows its own activity glyph, so neither is repeated here; what you get instead are the aggregates nothing else surfaces.
+The section card only carries what reading the whole section would tell you. Thread titles are one click away and the row already shows its own activity glyph, so neither is repeated here. Every figure on it has to answer a question and trigger an action, which is what rules out anything time-based.
 
-| Line | Answers |
-| --- | --- |
-| `2 need you · waiting 3h` | Is something blocked, and how long has it been blocked? |
-| `13 threads · 4 unread` | How much is in here, and how much have I not seen? |
-| `oldest untouched 12d` | How far has the quiet end of this section drifted? |
+| Band | Carries | Answers |
+| --- | --- | --- |
+| Context | `moss · Personal +3` | Where does this work actually live? A section is not scoped to one project. |
+| Headline | `2 questions` `1 failed` | Is something waiting on me, and is it an answer or a fix? |
+| Counts | `9 threads` `1 working` `0 unread` | How much is here, how much is moving, how much have I not seen? |
 
-Unread follows bb's own rule, so the count agrees with the app. Lines that would read as zero are omitted rather than shown empty. A section nested under a project counts only that project's threads. Built-in groups such as Pinned and Unorganized reuse the same header markup but are not sections, so they get no card.
+The headline is **absent** when nothing wants action — not replaced with a reassurance line. Questions take foreground weight with a muted glyph and only failures are red, matching bb's own sidebar, so a routine prompt does not read as an incident. Counts hold fixed positions and dim at zero rather than disappearing, so the row can be read by position.
+
+Unread follows bb's own rule, so the count agrees with the app. A section nested under a project counts only that project's threads. Built-in groups such as Pinned and Unorganized reuse the same header markup but are not sections, so they get no card.
 
 Resolving a section name costs bb's `/sidebar-bootstrap`, so a background service keeps that directory warm and the hover never pays for it — a section hover is one scoped thread query, around 15ms.
 
