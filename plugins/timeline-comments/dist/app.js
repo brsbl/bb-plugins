@@ -777,10 +777,8 @@ var TimelineCommentsController = class {
       };
     }
     this.rememberThreadWindow(threadId, windowNode);
-    let registered = true;
     return () => {
-      if (!registered) return;
-      registered = false;
+      if (windowNode.isConnected) return;
       const windows = this.#threadWindows.get(threadId);
       windows?.delete(windowNode);
       if (windows?.size === 0) this.#threadWindows.delete(threadId);
@@ -788,11 +786,17 @@ var TimelineCommentsController = class {
     };
   }
   rememberThreadWindow(threadId, windowNode) {
+    let changed = false;
+    for (const [otherThreadId, windows2] of this.#threadWindows) {
+      if (otherThreadId === threadId || !windows2.delete(windowNode)) continue;
+      changed = true;
+      if (windows2.size === 0) this.#threadWindows.delete(otherThreadId);
+    }
     const windows = this.#threadWindows.get(threadId) ?? /* @__PURE__ */ new Set();
     const size = windows.size;
     windows.add(windowNode);
     this.#threadWindows.set(threadId, windows);
-    if (windows.size !== size) this.scheduleRefresh();
+    if (changed || windows.size !== size) this.scheduleRefresh();
   }
   threadIdForWindow(windowNode) {
     for (const [threadId, windows] of this.#threadWindows) {

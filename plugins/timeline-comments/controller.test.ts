@@ -4,6 +4,7 @@ import type { PluginContentScriptContext } from "@bb/plugin-sdk/app";
 import {
   beginTimelineComment,
   focusTimelineComment,
+  refreshTimelineCommentAnchors,
   registerTimelineCommentThreadWindow,
   subscribeTimelineCommentAnchorHealth,
 } from "./bridge.js";
@@ -84,6 +85,65 @@ describe("timeline comments controller teardown", () => {
         originalClientRects,
       );
     }
+    vi.unstubAllGlobals();
+  });
+
+  it("keeps a connected window association across overlapping composer cleanup", async () => {
+    document.body.innerHTML = `<div data-thread-window></div>`;
+    const fetchRequest = vi.fn(async (_url: string, _init: RequestInit) => ({
+      ok: true,
+      async json() {
+        return { ok: true, result: { anchors: [], nextCursor: null } };
+      },
+      status: 200,
+    }));
+    vi.stubGlobal("fetch", fetchRequest);
+    const dispose = mountTimelineCommentsController({
+      pluginId: "timeline-comments",
+      generation: 1,
+      signal: new AbortController().signal,
+    });
+    const windowNode =
+      document.querySelector<HTMLElement>("[data-thread-window]")!;
+    const unregisterFirst = registerTimelineCommentThreadWindow(
+      "thr_1",
+      windowNode,
+    );
+    const unregisterSecond = registerTimelineCommentThreadWindow(
+      "thr_1",
+      windowNode,
+    );
+    await vi.waitFor(() => expect(fetchRequest).toHaveBeenCalled());
+
+    unregisterFirst();
+    const callsBeforeRefresh = fetchRequest.mock.calls.length;
+    refreshTimelineCommentAnchors();
+    await vi.waitFor(() =>
+      expect(fetchRequest.mock.calls.length).toBeGreaterThan(callsBeforeRefresh),
+    );
+    expect(
+      JSON.parse(String(fetchRequest.mock.calls.at(-1)?.[1].body)),
+    ).toEqual({ threadIds: ["thr_1"] });
+
+    const unregisterReassigned = registerTimelineCommentThreadWindow(
+      "thr_2",
+      windowNode,
+    );
+    unregisterSecond();
+    const callsBeforeReassignment = fetchRequest.mock.calls.length;
+    refreshTimelineCommentAnchors();
+    await vi.waitFor(() =>
+      expect(fetchRequest.mock.calls.length).toBeGreaterThan(
+        callsBeforeReassignment,
+      ),
+    );
+    expect(
+      JSON.parse(String(fetchRequest.mock.calls.at(-1)?.[1].body)),
+    ).toEqual({ threadIds: ["thr_2"] });
+
+    windowNode.remove();
+    unregisterReassigned();
+    dispose();
     vi.unstubAllGlobals();
   });
 

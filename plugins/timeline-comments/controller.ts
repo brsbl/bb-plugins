@@ -483,10 +483,13 @@ class TimelineCommentsController {
       return () => {};
     }
     this.rememberThreadWindow(threadId, windowNode);
-    let registered = true;
     return () => {
-      if (!registered) return;
-      registered = false;
+      // A thread window can contain multiple composer-action mounts, and BB
+      // temporarily removes all composer actions for pending interactions.
+      // Keep the last known association for the lifetime of the connected
+      // window; a later registration reassigns a reused window, while refresh
+      // pruning removes disconnected windows.
+      if (windowNode.isConnected) return;
       const windows = this.#threadWindows.get(threadId);
       windows?.delete(windowNode);
       if (windows?.size === 0) this.#threadWindows.delete(threadId);
@@ -498,11 +501,17 @@ class TimelineCommentsController {
     threadId: string,
     windowNode: HTMLElement,
   ): void {
+    let changed = false;
+    for (const [otherThreadId, windows] of this.#threadWindows) {
+      if (otherThreadId === threadId || !windows.delete(windowNode)) continue;
+      changed = true;
+      if (windows.size === 0) this.#threadWindows.delete(otherThreadId);
+    }
     const windows = this.#threadWindows.get(threadId) ?? new Set<HTMLElement>();
     const size = windows.size;
     windows.add(windowNode);
     this.#threadWindows.set(threadId, windows);
-    if (windows.size !== size) this.scheduleRefresh();
+    if (changed || windows.size !== size) this.scheduleRefresh();
   }
 
   private threadIdForWindow(windowNode: HTMLElement): string | null {
