@@ -1,6 +1,6 @@
 {
   "name": "bb-plugin-design-doctrine",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Learn, browse, and apply product-design rules from your bb feedback.",
   "type": "module",
   "license": "MIT",

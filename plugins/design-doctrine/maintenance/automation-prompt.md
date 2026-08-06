@@ -7,6 +7,12 @@ Limits: change at most five rule files per run. Don't touch plugin code, the
 skill, or `governance.md`. Only the user's own messages are evidence — never
 agent output, including your own.
 
+Run from the dedicated non-default branch/worktree whose
+`plugins/design-doctrine` folder is configured as the plugin's `doctrinePath`.
+The scanner rejects detached installs and primary branches (`main`, `master`,
+or `trunk`) before leasing history, so rule commits cannot dirty the normal
+checkout.
+
 ## Steps
 
 1. Read completed, queued episodes through the plugin's thread-history API and

@@ -15347,7 +15347,27 @@ function createThreadHistoryMaintenance(bb, options = {}) {
 var execFileAsync = promisify(execFile);
 var LEGACY_HISTORY_STATE_KEY = "maintenance:thread-history:v2";
 var LEGACY_HISTORY_STATE_PATH = join("maintenance", "state.json");
-async function ensureCleanRules(pluginRoot) {
+var PRIMARY_BRANCH_NAMES = /* @__PURE__ */ new Set(["main", "master", "trunk"]);
+async function ensureMaintenanceCheckout(pluginRoot) {
+  let branchName;
+  try {
+    const branch = await execFileAsync(
+      "git",
+      ["-C", pluginRoot, "symbolic-ref", "--quiet", "--short", "HEAD"],
+      { encoding: "utf8" }
+    );
+    branchName = branch.stdout.trim();
+    if (branchName.length === 0) throw new Error("missing branch");
+  } catch {
+    throw new Error(
+      "maintenance requires doctrinePath to point to a dedicated non-default branch checkout, not a detached managed install; configure it with `bb plugin config design-doctrine set doctrinePath /path/to/bb-plugins-doctrine-maintenance/plugins/design-doctrine`"
+    );
+  }
+  if (PRIMARY_BRANCH_NAMES.has(branchName)) {
+    throw new Error(
+      `maintenance refuses primary branch ${branchName}; use a dedicated non-default branch/worktree and point doctrinePath at its plugins/design-doctrine folder`
+    );
+  }
   const result = await execFileAsync(
     "git",
     [
@@ -15419,7 +15439,7 @@ async function removeMigratedStateFile(bb, statePath) {
 }
 function createHistoryMaintenance(bb, resolveDoctrineRoot, installedPluginRoot) {
   const history = createThreadHistoryMaintenance(bb, {
-    beforeScan: async () => ensureCleanRules(await resolveDoctrineRoot()),
+    beforeScan: async () => ensureMaintenanceCheckout(await resolveDoctrineRoot()),
     legacyStateKeys: [LEGACY_HISTORY_STATE_KEY]
   });
   let migrationQueue = Promise.resolve();
@@ -15449,6 +15469,62 @@ var MODULE_DIR = dirname(fileURLToPath(import.meta.url));
 var DEFAULT_DOCTRINE_PATH = basename(MODULE_DIR) === "dist" ? dirname(MODULE_DIR) : MODULE_DIR;
 var WATCH_INTERVAL_MS = 2500;
 var SEARCH_RESULT_LIMIT = 24;
+var AUTOMATIC_RULE_LIMIT = 4;
+var SEARCH_STOP_TOKENS = /* @__PURE__ */ new Set([
+  "build",
+  "change",
+  "create",
+  "fix",
+  "improve",
+  "make",
+  "update"
+]);
+var TOKEN_ALIASES = /* @__PURE__ */ new Map([
+  ["flow", "workflow"],
+  ["improving", "improve"],
+  ["redesign", "design"]
+]);
+var DESIGN_CONTEXT_TOKENS = /* @__PURE__ */ new Set([
+  "accessibility",
+  "affordance",
+  "animation",
+  "border",
+  "button",
+  "card",
+  "color",
+  "component",
+  "composer",
+  "design",
+  "dialog",
+  "drawer",
+  "empty",
+  "figma",
+  "form",
+  "frontend",
+  "header",
+  "hover",
+  "icon",
+  "interaction",
+  "interface",
+  "layout",
+  "menu",
+  "modal",
+  "nav",
+  "navigation",
+  "panel",
+  "popover",
+  "prototype",
+  "screen",
+  "sidebar",
+  "style",
+  "theme",
+  "toolbar",
+  "typography",
+  "ui",
+  "ux",
+  "visual",
+  "wireframe"
+]);
 function defineRpcContract(contract) {
   return contract;
 }
@@ -15694,14 +15770,138 @@ function searchableText(rule) {
     ...rule.checks
   ].join("\n").toLocaleLowerCase();
 }
+function normalizeToken(token) {
+  let normalized = token.toLocaleLowerCase();
+  if (normalized.length > 5 && normalized.endsWith("ies")) {
+    normalized = `${normalized.slice(0, -3)}y`;
+  } else if (normalized.length > 5 && /(ches|shes|sses|xes|zes)$/.test(normalized)) {
+    normalized = normalized.slice(0, -2);
+  } else if (normalized.length > 4 && normalized.endsWith("s") && !normalized.endsWith("ss")) {
+    normalized = normalized.slice(0, -1);
+  }
+  if (normalized.length > 5 && normalized.endsWith("ly")) {
+    normalized = normalized.slice(0, -2);
+  }
+  return TOKEN_ALIASES.get(normalized) ?? normalized;
+}
+function tokenize(value) {
+  return (value.normalize("NFKD").match(/[a-zA-Z0-9]+/g) ?? []).map(normalizeToken).filter((token) => token.length > 1);
+}
+function weightedSearchFields(rule) {
+  return [
+    { text: rule.title, weight: 9 },
+    { text: rule.statement, weight: 7 },
+    { text: rule.use_when.join(" "), weight: 7 },
+    { text: rule.surfaces.join(" "), weight: 6 },
+    { text: rule.domain, weight: 6 },
+    { text: rule.prefer.join(" "), weight: 5 },
+    { text: rule.avoid.join(" "), weight: 5 },
+    { text: rule.checks.join(" "), weight: 4 },
+    { text: rule.not_when.join(" "), weight: 4 },
+    { text: rule.exceptions.join(" "), weight: 4 },
+    {
+      text: [
+        rule.kind,
+        rule.strength,
+        ...rule.products,
+        ...rule.activities,
+        ...rule.artifacts
+      ].join(" "),
+      weight: 3
+    },
+    { text: `${rule.why} ${rule.evidence.join(" ")}`, weight: 2 }
+  ];
+}
+function confidenceScore(rule) {
+  return { high: 3, medium: 2, low: 1 }[rule.confidence];
+}
 function searchDoctrine(rules, query, includeInactive = false) {
-  const terms = query.trim().toLocaleLowerCase().split(/\s+/).filter(Boolean);
-  const confidence = { high: 3, medium: 2, low: 1 };
-  return rules.filter((rule) => includeInactive || rule.status === "active").map((rule) => {
-    const text = searchableText(rule);
-    const matches = terms.filter((term) => text.includes(term)).length;
-    return { rule, score: matches * 10 + confidence[rule.confidence] };
-  }).filter(({ score }) => terms.length === 0 || score >= terms.length * 10).sort((left, right) => right.score - left.score || left.rule.id.localeCompare(right.rule.id)).slice(0, SEARCH_RESULT_LIMIT).map(({ rule }) => rule);
+  const candidates = rules.filter(
+    (rule) => includeInactive || rule.status === "active"
+  );
+  const rawTerms = [...new Set(tokenize(query))];
+  const terms = [
+    ...rawTerms.filter((token) => !SEARCH_STOP_TOKENS.has(token))
+  ];
+  if (rawTerms.length > 0 && terms.length === 0) return [];
+  if (terms.length === 0) {
+    return candidates.sort(
+      (left, right) => confidenceScore(right) - confidenceScore(left) || left.id.localeCompare(right.id)
+    ).slice(0, SEARCH_RESULT_LIMIT);
+  }
+  const documentFrequency = /* @__PURE__ */ new Map();
+  for (const rule of candidates) {
+    const tokens = new Set(tokenize(searchableText(rule)));
+    for (const term of terms) {
+      if (tokens.has(term)) {
+        documentFrequency.set(term, (documentFrequency.get(term) ?? 0) + 1);
+      }
+    }
+  }
+  return candidates.map((rule) => {
+    const fields = weightedSearchFields(rule).map(({ text, weight }) => ({
+      tokens: new Set(tokenize(text)),
+      weight
+    }));
+    let matchedTerms = 0;
+    let score = confidenceScore(rule) * 0.1;
+    for (const term of terms) {
+      const bestFieldWeight = fields.reduce(
+        (best, field) => field.tokens.has(term) ? Math.max(best, field.weight) : best,
+        0
+      );
+      if (bestFieldWeight === 0) continue;
+      matchedTerms += 1;
+      const frequency = documentFrequency.get(term) ?? 0;
+      const inverseFrequency = Math.log(
+        (candidates.length + 1) / (frequency + 1)
+      ) + 1;
+      score += bestFieldWeight * inverseFrequency;
+    }
+    score += matchedTerms / terms.length * 8;
+    return { rule, score, matchedTerms };
+  }).filter(({ matchedTerms }) => matchedTerms > 0).sort(
+    (left, right) => right.score - left.score || left.rule.id.localeCompare(right.rule.id)
+  ).slice(0, SEARCH_RESULT_LIMIT).map(({ rule }) => rule);
+}
+function formatAgentSearchResults(rules) {
+  if (rules.length === 0) {
+    return "No applicable active Design Doctrine rules found.";
+  }
+  return rules.map((rule) => {
+    const lines = [
+      `${rule.id} \xB7 ${rule.strength} \xB7 ${rule.confidence} confidence \xB7 ${rule.title}`,
+      rule.statement,
+      `Use when: ${rule.use_when.join("; ")}`
+    ];
+    if (rule.not_when.length > 0) {
+      lines.push(`Do not use when: ${rule.not_when.join("; ")}`);
+    }
+    if (rule.exceptions.length > 0) {
+      lines.push(`Exceptions: ${rule.exceptions.join("; ")}`);
+    }
+    lines.push(`Check: ${rule.checks.join("; ")}`);
+    return lines.join("\n");
+  }).join("\n\n");
+}
+function automaticDoctrineGuidance(rules, threadTitle) {
+  if (!threadTitle) return void 0;
+  const titleTokens = new Set(tokenize(threadTitle));
+  if (![...titleTokens].some((token) => DESIGN_CONTEXT_TOKENS.has(token))) {
+    return void 0;
+  }
+  const matches = searchDoctrine(rules, threadTitle).slice(
+    0,
+    AUTOMATIC_RULE_LIMIT
+  );
+  if (matches.length === 0) return void 0;
+  return [
+    "Design Doctrine candidates inferred from the thread title:",
+    ...matches.map(
+      (rule) => `- ${rule.id} (${rule.strength}): ${rule.title} \u2014 ${rule.statement}`
+    ),
+    "Validate each rule's Use when and exceptions against the current request. Current user instructions and hard product constraints win. Use design_doctrine_search when the exact task needs different guidance; cite IDs only when they materially affect a decision."
+  ].join("\n");
 }
 async function gitStatusFingerprint(rootInput) {
   const root = expandPath(rootInput);
@@ -15802,23 +16002,29 @@ async function plugin(bb) {
   let cacheGeneration = 0;
   let cached2 = null;
   let loading = null;
+  let automaticRules = [];
   function invalidate() {
     cacheGeneration += 1;
     cached2 = null;
     loading = null;
+    automaticRules = [];
   }
   async function currentLibrary() {
     const root = expandPath((await settings.get()).doctrinePath);
     if (cached2?.root === root) return cached2.value;
     if (loading) return loading;
     const generation = cacheGeneration;
-    loading = loadDoctrine(root);
+    const request = loadDoctrine(root);
+    loading = request;
     try {
-      const value = await loading;
-      if (generation === cacheGeneration) cached2 = { root, value };
+      const value = await request;
+      if (generation === cacheGeneration) {
+        cached2 = { root, value };
+        automaticRules = value.rules;
+      }
       return value;
     } finally {
-      loading = null;
+      if (loading === request) loading = null;
     }
   }
   const historyMaintenance = createHistoryMaintenance(
@@ -15836,6 +16042,37 @@ async function plugin(bb) {
     await historyMaintenance.forgetThread(thread.id);
   });
   bb.rpc.register(rpcContract, { getLibrary: currentLibrary });
+  bb.agents.registerTool({
+    name: "design_doctrine_search",
+    description: "Search the user's active Design Doctrine rules for a product, UX, UI, visual-design, design-system, or AI-interaction task.",
+    instructions: "Use this when automatic Design Doctrine guidance does not cover the exact task. Apply only rules whose Use when fits; current user instructions and hard constraints outrank doctrine.",
+    parameters: external_exports.object({
+      query: external_exports.string().trim().min(2).max(500),
+      limit: external_exports.number().int().min(1).max(8).default(6)
+    }),
+    async execute({ query, limit }) {
+      const library = await currentLibrary();
+      return formatAgentSearchResults(
+        searchDoctrine(library.rules, query).slice(0, limit)
+      );
+    }
+  });
+  try {
+    await currentLibrary();
+  } catch (error51) {
+    bb.log.warn(error51 instanceof Error ? error51.message : String(error51));
+  }
+  bb.agents.configure(({ thread }) => {
+    const instructions = automaticDoctrineGuidance(
+      automaticRules,
+      thread.title
+    );
+    return {
+      tools: ["design_doctrine_search"],
+      skills: ["design-doctrine"],
+      ...instructions ? { instructions } : {}
+    };
+  });
   bb.cli.register({
     name: "doctrine",
     summary: "Browse and search product-design rules",
@@ -15979,6 +16216,11 @@ Repository: ${summary.root}
         if (next !== fingerprint) {
           fingerprint = next;
           invalidate();
+          try {
+            await currentLibrary();
+          } catch (error51) {
+            bb.log.warn(error51 instanceof Error ? error51.message : String(error51));
+          }
           bb.realtime.publish("rules-changed", { changed_at: (/* @__PURE__ */ new Date()).toISOString() });
         }
       }
@@ -15986,6 +16228,9 @@ Repository: ${summary.root}
   });
   settings.onChange(() => {
     invalidate();
+    void currentLibrary().catch((error51) => {
+      bb.log.warn(error51 instanceof Error ? error51.message : String(error51));
+    });
     bb.realtime.publish("rules-changed", { changed_at: (/* @__PURE__ */ new Date()).toISOString() });
   });
   void historyMaintenance.prepare().catch((error51) => {
@@ -15995,7 +16240,9 @@ Repository: ${summary.root}
   });
 }
 export {
+  automaticDoctrineGuidance,
   plugin as default,
+  formatAgentSearchResults,
   gitStatusFingerprint,
   loadDoctrine,
   readGit,
