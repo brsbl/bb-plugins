@@ -51,7 +51,6 @@
 .bb-comments-marker:focus-visible {
   background: var(--surface-recessed);
   color: var(--foreground);
-  outline: none;
 }
 
 .bb-comments-composer-action-wrap {
@@ -87,11 +86,6 @@
   background: var(--surface-recessed);
   color: var(--foreground);
 }
-.bb-comments-composer-action:focus-visible {
-  outline: 2px solid var(--ring);
-  outline-offset: 1px;
-}
-
 .bb-comments-composer,
 .bb-comments-popover {
   position: fixed;
@@ -103,10 +97,9 @@
     color-mix(in oklab, var(--foreground) 12%, transparent);
   color: var(--popover-foreground);
   outline: none;
-  font:
-    13px/1.45 ui-sans-serif,
-    system-ui,
-    sans-serif;
+  font-family: inherit;
+  font-size: 14px;
+  line-height: 1.5;
 }
 
 .bb-comments-composer {
@@ -139,7 +132,8 @@
 .bb-comments-reply-input:focus,
 .bb-comments-edit-input:focus,
 .bb-comments-panel textarea:focus {
-  box-shadow: 0 0 0 1px var(--ring);
+  box-shadow: inset 0 0 0 1px
+    color-mix(in oklab, var(--foreground) 15%, transparent);
 }
 .bb-comments-edit-input:focus,
 .bb-comments-panel-edit textarea:focus {
@@ -212,10 +206,6 @@
   background: var(--surface-recessed);
   color: var(--foreground);
 }
-.bb-comments-icon-control:focus-visible {
-  outline: 1px solid var(--ring);
-  outline-offset: 1px;
-}
 .bb-comments-icon-control:disabled {
   cursor: default;
   opacity: 0.4;
@@ -233,7 +223,7 @@
 
 .bb-comments-thread {
   display: flex;
-  width: 384px;
+  width: 352px;
   max-width: calc(100vw - 32px);
   max-height: min(82vh, calc(100vh - 72px));
   flex-direction: column;
@@ -241,10 +231,10 @@
   border-radius: 12px;
 }
 .bb-comments-thread-header {
-  min-height: 34px;
+  min-height: 36px;
   box-sizing: border-box;
   flex: 0 0 auto;
-  padding: 8px 10px 8px 12px;
+  padding: 6px 8px;
   border-bottom: 1px solid var(--border-seam, var(--border));
   background: color-mix(
     in oklab,
@@ -259,9 +249,9 @@
   min-width: 0;
   margin-right: 4px;
   overflow: hidden;
-  color: var(--foreground);
+  color: var(--muted-foreground);
   font-size: 12px;
-  font-weight: 500;
+  font-weight: 400;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -303,14 +293,15 @@
 }
 .bb-comments-comment {
   position: relative;
-  padding: 14px 14px 10px;
+  padding: 8px 12px;
   border-bottom: 1px solid
     color-mix(in oklab, var(--border-seam, var(--border)) 55%, transparent);
 }
 .bb-comments-comment[data-editing="true"] { background: transparent; }
 .bb-comments-comment-meta {
   color: var(--muted-foreground);
-  font-size: 10px;
+  font-size: 12px;
+  line-height: 1.4;
 }
 .bb-comments-message-header {
   display: flex;
@@ -328,19 +319,22 @@
 }
 .bb-comments-message-header strong {
   color: var(--foreground);
-  font-size: 10px;
-  font-weight: 600;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.4;
 }
 .bb-comments-message-header time {
   color: var(--muted-foreground);
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 300;
+  line-height: 1.4;
 }
 .bb-comments-comment-body {
-  margin: 6px 0 0;
+  margin: 4px 0 0;
+  font-size: 14px;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
-  line-height: 1.55;
+  line-height: 1.5;
 }
 .bb-comments-comment-actions {
   gap: 2px;
@@ -514,10 +508,9 @@
   flex-direction: column;
   background: var(--background);
   color: var(--foreground);
-  font:
-    13px/1.45 ui-sans-serif,
-    system-ui,
-    sans-serif;
+  font-family: inherit;
+  font-size: 14px;
+  line-height: 1.5;
 }
 .bb-comments-filters {
   display: flex;
@@ -579,17 +572,17 @@
 .bb-comments-row-source {
   overflow: hidden;
   color: var(--muted-foreground);
-  font-size: 10px;
+  font-size: 12px;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 .bb-comments-row-body {
-  font-size: 12px;
-  line-height: 1.45;
+  font-size: 14px;
+  line-height: 1.5;
 }
 .bb-comments-row-meta {
   color: var(--muted-foreground);
-  font-size: 10px;
+  font-size: 12px;
 }
 .bb-comments-panel-thread {
   margin: 0 8px 8px;
@@ -623,16 +616,17 @@
 }
 .bb-comments-panel-comment {
   position: relative;
-  padding: 14px 14px 10px;
+  padding: 8px 12px;
   border-bottom: 1px solid
     color-mix(in oklab, var(--border-seam, var(--border)) 55%, transparent);
 }
 .bb-comments-panel-comment[data-editing="true"] { background: transparent; }
 .bb-comments-panel-comment p {
-  margin: 6px 0 0;
+  margin: 4px 0 0;
+  font-size: 14px;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
-  line-height: 1.55;
+  line-height: 1.5;
 }
 .bb-comments-panel-edit {
   display: grid;
@@ -678,4 +672,22 @@
   padding: 28px 16px;
   color: var(--muted-foreground);
   text-align: center;
+}
+
+.bb-comments-marker:focus-visible,
+.bb-comments-composer-action:focus-visible,
+.bb-comments-primary:focus-visible,
+.bb-comments-quiet:focus-visible,
+.bb-comments-icon-button:focus-visible,
+.bb-comments-icon-control:focus-visible,
+.bb-comments-submit-shortcut:focus-visible,
+.bb-comments-actions-popover button:focus-visible,
+.bb-comments-cluster-row:focus-visible,
+.bb-comments-filters button:focus-visible,
+.bb-comments-row-summary:focus-visible,
+.bb-comments-panel button:focus-visible,
+.bb-comments-load-more:focus-visible {
+  outline: 1px solid
+    color-mix(in oklab, var(--foreground) 15%, transparent);
+  outline-offset: 2px;
 }
