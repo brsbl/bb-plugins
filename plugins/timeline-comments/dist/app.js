@@ -1750,7 +1750,10 @@ function AddCommentsAction() {
     const visibleWindows = document.querySelectorAll(
       "[data-thread-window]"
     );
-    const threadWindow = closestWindow ?? (visibleWindows.length === 1 ? visibleWindows[0] : null);
+    const focusedWindow = document.querySelector(
+      '[data-split-pane-id][data-focused="true"] [data-thread-window]'
+    );
+    const threadWindow = closestWindow ?? focusedWindow ?? (visibleWindows.length === 1 ? visibleWindows[0] : null);
     if (threadWindow === void 0 || threadWindow === null) return;
     return registerTimelineCommentThreadWindow(threadId, threadWindow);
   }, [threadId]);

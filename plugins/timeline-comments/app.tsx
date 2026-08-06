@@ -80,8 +80,13 @@ function AddCommentsAction() {
     const visibleWindows = document.querySelectorAll<HTMLElement>(
       "[data-thread-window]",
     );
+    const focusedWindow = document.querySelector<HTMLElement>(
+      '[data-split-pane-id][data-focused="true"] [data-thread-window]',
+    );
     const threadWindow =
-      closestWindow ?? (visibleWindows.length === 1 ? visibleWindows[0] : null);
+      closestWindow ??
+      focusedWindow ??
+      (visibleWindows.length === 1 ? visibleWindows[0] : null);
     if (threadWindow === undefined || threadWindow === null) return;
     return registerTimelineCommentThreadWindow(threadId, threadWindow);
   }, [threadId]);

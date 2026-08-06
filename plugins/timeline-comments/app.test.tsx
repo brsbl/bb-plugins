@@ -122,7 +122,14 @@ describe("timeline comments app", () => {
   });
 
   it("adds open comments to the draft from the thread composer action", async () => {
-    document.body.innerHTML = `<div data-thread-window></div>`;
+    document.body.innerHTML = `
+      <div data-split-pane-id="pane_other" data-focused="false">
+        <div id="other-window" data-thread-window></div>
+      </div>
+      <div data-split-pane-id="pane_focused" data-focused="true">
+        <div id="focused-window" data-thread-window></div>
+      </div>
+    `;
     const registerThreadWindow = vi.fn(() => () => {});
     const uninstallController = installTimelineCommentsController({
       beginComment: vi.fn(),
@@ -165,7 +172,7 @@ describe("timeline comments app", () => {
     expect(action.inspection.navigateCalls).toEqual([]);
     expect(registerThreadWindow).toHaveBeenCalledWith(
       "thr_1",
-      document.querySelector("[data-thread-window]"),
+      document.querySelector("#focused-window"),
     );
     uninstallController();
   });
