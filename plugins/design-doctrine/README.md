@@ -21,6 +21,12 @@ bb doctrine show ddr_001
 
 The bundled `design-doctrine` skill validates each candidate against its applicability and exceptions before use. The doctrine adds personal design judgment; it does not replace product requirements, accessibility guidance, or platform conventions.
 
+Maintenance needs an editable branch checkout because it validates and commits rule files. Point `doctrinePath` at that checkout—not BB's detached managed-install cache—and run the maintenance automation in the same repository:
+
+```bash
+bb plugin config design-doctrine set doctrinePath /path/to/bb-plugins/plugins/design-doctrine
+```
+
 ## How it was built
 
 The library grew out of feedback I kept giving in bb threads: direct requests, corrections, approvals, and rejections. The plugin queues visible user threads when they become idle, then its weekly maintenance pass reads only the unseen part of each episode through bb's timeline API. Agent output is not evidence by itself, and a pattern repeated across threads matters more than a one-off preference.

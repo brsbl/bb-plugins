@@ -16,7 +16,19 @@ const LEGACY_HISTORY_STATE_PATH = join("maintenance", "state.json");
 
 export type { HistoryAdvanceInput, HistoryScanOptions };
 
-async function ensureCleanRules(pluginRoot: string): Promise<void> {
+async function ensureMaintenanceCheckout(pluginRoot: string): Promise<void> {
+  try {
+    const branch = await execFileAsync(
+      "git",
+      ["-C", pluginRoot, "symbolic-ref", "--quiet", "--short", "HEAD"],
+      { encoding: "utf8" },
+    );
+    if (branch.stdout.trim().length === 0) throw new Error("missing branch");
+  } catch {
+    throw new Error(
+      "maintenance requires doctrinePath to point to an editable branch checkout, not a detached managed install; configure it with `bb plugin config design-doctrine set doctrinePath /path/to/bb-plugins/plugins/design-doctrine`",
+    );
+  }
   const result = await execFileAsync(
     "git",
     [
@@ -111,7 +123,8 @@ export function createHistoryMaintenance(
   installedPluginRoot: string,
 ) {
   const history = createThreadHistoryMaintenance(bb, {
-    beforeScan: async () => ensureCleanRules(await resolveDoctrineRoot()),
+    beforeScan: async () =>
+      ensureMaintenanceCheckout(await resolveDoctrineRoot()),
     legacyStateKeys: [LEGACY_HISTORY_STATE_KEY],
   });
   let migrationQueue: Promise<unknown> = Promise.resolve();

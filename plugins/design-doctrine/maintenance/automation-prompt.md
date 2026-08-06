@@ -7,6 +7,11 @@ Limits: change at most five rule files per run. Don't touch plugin code, the
 skill, or `governance.md`. Only the user's own messages are evidence — never
 agent output, including your own.
 
+Run from the editable branch checkout whose `plugins/design-doctrine` folder is
+configured as the plugin's `doctrinePath`. A detached managed-install cache is
+read-only source material, not a maintenance workspace; the scanner rejects it
+before leasing history.
+
 ## Steps
 
 1. Read completed, queued episodes through the plugin's thread-history API and

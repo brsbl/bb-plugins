@@ -15,6 +15,9 @@ When the user asks to learn, maintain, or update doctrine from thread history,
 this skill is authoritative; do not substitute the generic bb-usage skill's
 cross-thread inventory workflow. Skip the normal retrieval flow and follow
 `maintenance/automation-prompt.md`.
+Maintenance must run in the same editable branch checkout configured as the
+plugin's `doctrinePath`; the scanner rejects detached managed-install caches so
+rule commits cannot be stranded there.
 Begin one bounded API-backed pass with:
 
 ```bash

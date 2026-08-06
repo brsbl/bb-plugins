@@ -30,6 +30,38 @@ function scanOptions() {
 }
 
 describe("Design Doctrine legacy history migration", () => {
+  it("refuses maintenance scans from a detached managed checkout", async () => {
+    const root = await createPluginRoot();
+    await writeFile(join(root, "rules", "existing.md"), "existing\n");
+    await execFileAsync("git", ["-C", root, "add", "rules/existing.md"]);
+    await execFileAsync("git", [
+      "-C",
+      root,
+      "-c",
+      "user.name=Design Doctrine Test",
+      "-c",
+      "user.email=doctrine-test@example.com",
+      "commit",
+      "-m",
+      "seed rules",
+    ]);
+    await execFileAsync("git", ["-C", root, "checkout", "--detach"]);
+    const { bb, harness } = createFakePluginHost({
+      pluginId: "design-doctrine",
+      sdk: { threads: { list: async () => [] } },
+    });
+    const history = createHistoryMaintenance(bb, async () => root, root);
+
+    try {
+      await expect(history.scan(scanOptions())).rejects.toThrow(
+        "maintenance requires doctrinePath to point to an editable branch checkout",
+      );
+    } finally {
+      await harness.lifecycle.dispose();
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
   it("keeps state.json until the shared baseline migration succeeds", async () => {
     const root = await createPluginRoot();
     const statePath = join(root, "maintenance", "state.json");
