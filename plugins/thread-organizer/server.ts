@@ -778,7 +778,7 @@ export default function plugin(bb: BbPluginApi): void {
     signal?: AbortSignal,
   ): Promise<void> {
     if (signal?.aborted) return;
-    const fresh = (await bb.sdk.threads.get({ threadId })) as Thread;
+    const fresh = (await bb.sdk.threads.get({ threadId, signal })) as Thread;
     if (signal?.aborted) return;
     if (!isManageableThread(fresh)) {
       if (!signal?.aborted) {

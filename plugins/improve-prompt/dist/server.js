@@ -15385,6 +15385,7 @@ var REQUEST_TTL_MS = 24 * 60 * 60 * 1e3;
 var REQUEST_PREFIX = "request:";
 var THREAD_PREFIX = "thread:";
 var CANCELLATION_PREFIX = "cancellation:";
+var RECONCILIATION_RETRY_DELAY_MS = 50;
 var requestIdSchema = external_exports.string().uuid();
 var enhancementBaseSchema = external_exports.object({
   requestId: requestIdSchema,
@@ -15466,6 +15467,7 @@ function requiredOption(argv, name) {
   return value;
 }
 async function plugin(bb) {
+  const reconciliationRequests = /* @__PURE__ */ new Map();
   async function readRecord(requestId) {
     const value = await bb.storage.kv.get(requestKey(requestId));
     if (value === void 0) return null;
@@ -15544,7 +15546,7 @@ async function plugin(bb) {
     }
     await finish(threadId, parsed);
   }
-  async function reconcileHelper(threadId) {
+  async function reconcileHelperOnce(threadId) {
     const thread = await bb.sdk.threads.get({ threadId });
     if (thread.status === "idle") {
       const { output } = await bb.sdk.threads.output({ threadId });
@@ -15552,6 +15554,26 @@ async function plugin(bb) {
     } else if (thread.status === "error") {
       await finish(threadId, { error: "The shaping agent failed." });
     }
+  }
+  function reconcileHelper(threadId) {
+    const pending = reconciliationRequests.get(threadId);
+    if (pending) return pending;
+    const request = (async () => {
+      try {
+        await reconcileHelperOnce(threadId);
+      } catch {
+        await new Promise(
+          (resolve) => setTimeout(resolve, RECONCILIATION_RETRY_DELAY_MS)
+        );
+        await reconcileHelperOnce(threadId);
+      }
+    })().finally(() => {
+      if (reconciliationRequests.get(threadId) === request) {
+        reconciliationRequests.delete(threadId);
+      }
+    });
+    reconciliationRequests.set(threadId, request);
+    return request;
   }
   async function spawnHelper(input) {
     if (input.sourceThreadId === null) {

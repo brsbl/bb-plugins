@@ -143,10 +143,14 @@ try {
   );
   assert.deepEqual(
     resolveRetiredInstallRefs(["plugin/design-doctrine", "plugin/improve-prompt"]),
-    ["plugin/omegacode"],
+    ["plugin/omegacode", "plugin/ui-patterns"],
   );
   assert.throws(
     () => resolveRetiredInstallRefs(["plugin/omegacode"]),
+    /cannot retire active plugin install ref/,
+  );
+  assert.throws(
+    () => resolveRetiredInstallRefs(["plugin/ui-patterns"]),
     /cannot retire active plugin install ref/,
   );
   const retiredCommit = "a".repeat(40);
@@ -179,8 +183,14 @@ try {
       },
       devDependencies: { typescript: "^5.7.0" },
       scripts: { check: "tsc --noEmit" },
+      bb: {
+        server: "./server.ts",
+        app: "./app.tsx",
+      },
     }),
   );
+  assert.equal(releasedManifest.bb.server, "./dist/server.js");
+  assert.equal(releasedManifest.bb.app, "./dist/install-app.mjs");
   assert.equal(releasedManifest.dependencies, undefined);
   assert.equal(releasedManifest.optionalDependencies, undefined);
   assert.equal(releasedManifest.peerDependencies, undefined);

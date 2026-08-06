@@ -8,6 +8,7 @@ import { readPluginWorkspaces } from "./plugin-workspaces.mjs";
 import { validatePluginArtifacts } from "./validate-plugin-artifacts.mjs";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+const releaseServerEntry = "./dist/server.js";
 const releaseAppEntry = "./dist/install-app.mjs";
 const releaseAppCss = "dist/install-app.css";
 const productionDependencyFields = [
@@ -15,7 +16,10 @@ const productionDependencyFields = [
   "optionalDependencies",
   "peerDependencies",
 ];
-const explicitlyRetiredInstallRefs = Object.freeze(["plugin/omegacode"]);
+const explicitlyRetiredInstallRefs = Object.freeze([
+  "plugin/omegacode",
+  "plugin/ui-patterns",
+]);
 
 function run(command, args, options = {}) {
   const result = spawnSync(command, args, {
@@ -89,6 +93,10 @@ export function releaseManifest(sourceManifest) {
   const manifest = structuredClone(sourceManifest);
   delete manifest.devDependencies;
   delete manifest.scripts;
+  // Server bundles are self-contained release artifacts. Managed git installs
+  // must load that bundle rather than recompiling the authored TypeScript after
+  // production dependencies have deliberately been stripped from the ref.
+  if (manifest.bb?.server) manifest.bb.server = releaseServerEntry;
   // bb recompiles frontend entries for direct git installs. Point the
   // release-only manifest at a self-contained wrapper around the prebuilt app
   // so installation never depends on development node_modules. The wrapper
@@ -304,6 +312,9 @@ async function verifyReleaseCommit(plugin, releaseCommit) {
     }
     if (manifest.bb?.app && manifest.bb.app !== releaseAppEntry) {
       throw new Error(`${plugin.installRef}: release app entry is not the prebuilt wrapper`);
+    }
+    if (manifest.bb?.server && manifest.bb.server !== releaseServerEntry) {
+      throw new Error(`${plugin.installRef}: release server entry is not the prebuilt bundle`);
     }
 
     await validatePluginArtifacts(checkout, {
