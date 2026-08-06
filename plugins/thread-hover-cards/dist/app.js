@@ -490,6 +490,43 @@ var CursorIcon = [
     }
   ]
 ];
+var HelpCircleIcon = [
+  [
+    "circle",
+    {
+      cx: "12",
+      cy: "12",
+      r: "10",
+      stroke: "currentColor",
+      strokeLinecap: "round",
+      strokeLinejoin: "round",
+      strokeWidth: "1.5",
+      key: "0"
+    }
+  ],
+  [
+    "path",
+    {
+      d: "M9.5 9.5C9.5 8.11929 10.6193 7 12 7C13.3807 7 14.5 8.11929 14.5 9.5C14.5 10.3569 14.0689 11.1131 13.4117 11.5636C12.7283 12.0319 12 12.6716 12 13.5",
+      stroke: "currentColor",
+      strokeLinecap: "round",
+      strokeLinejoin: "round",
+      strokeWidth: "1.5",
+      key: "1"
+    }
+  ],
+  [
+    "path",
+    {
+      d: "M12.125 16.75H12M12.25 16.75C12.25 16.8881 12.1381 17 12 17C11.8619 17 11.75 16.8881 11.75 16.75C11.75 16.6119 11.8619 16.5 12 16.5C12.1381 16.5 12.25 16.6119 12.25 16.75Z",
+      stroke: "currentColor",
+      strokeLinecap: "round",
+      strokeLinejoin: "round",
+      strokeWidth: "1.5",
+      key: "2"
+    }
+  ]
+];
 
 // styles.ts
 var HOVER_CARD_CSS = String.raw`
@@ -959,6 +996,122 @@ var HOVER_CARD_CSS = String.raw`
   }
 }
 `;
+var SECTION_CARD_CSS = String.raw`
+/* Aggregates are short; the card hugs them instead of reserving thread-card width. */
+/* Counts are short; the card hugs them rather than reserving thread-card width. */
+.bb-thread-hover-card[data-bb-card="section"] {
+  width: max-content;
+  max-width: min(20rem, calc(100vw - 1rem));
+  padding: 0.625rem 0.75rem;
+}
+
+/* Band 1 — the projects this section spans. */
+.bb-section-hover-card__band {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 0.375rem;
+  overflow: hidden;
+  color: var(--muted-foreground);
+  font-size: 0.6875rem;
+  white-space: nowrap;
+}
+
+.bb-section-hover-card__project {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.bb-section-hover-card__sep {
+  flex: none;
+  opacity: 0.45;
+}
+
+.bb-section-hover-card__more {
+  flex: none;
+  opacity: 0.7;
+}
+
+/* Band 2 — present only when something wants action. */
+.bb-section-hover-card__headline {
+  display: flex;
+  min-width: 0;
+  align-items: baseline;
+  gap: 0.875rem;
+  margin-top: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.bb-section-hover-card__chip {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 0.3125rem;
+  font-size: 0.8125rem;
+  font-variant-numeric: tabular-nums;
+  font-weight: 450;
+}
+
+.bb-section-hover-card__chip-icon {
+  width: 0.8125rem;
+  height: 0.8125rem;
+}
+
+/*
+ * A question is a routine prompt, not an incident: bb renders its own pending
+ * glyph muted and saves destructive for failures. Colouring both red would
+ * stop the one that is actually broken from standing out.
+ */
+.bb-section-hover-card__chip--question {
+  color: var(--foreground);
+}
+
+.bb-section-hover-card__chip--question .bb-section-hover-card__chip-icon {
+  color: var(--subtle-foreground, var(--muted-foreground));
+}
+
+.bb-section-hover-card__chip--failed {
+  color: var(--destructive-text, var(--destructive));
+}
+
+.bb-section-hover-card__chip--failed .bb-section-hover-card__chip-icon {
+  color: var(--destructive-text, var(--destructive));
+}
+
+/* Band 3 — fixed positions, so the row is read rather than scanned. */
+.bb-section-hover-card__counts {
+  display: flex;
+  align-items: baseline;
+  gap: 0.875rem;
+  margin-top: 0.5rem;
+  padding-top: 0.4375rem;
+  border-top: 1px solid color-mix(in srgb, var(--foreground) 7%, transparent);
+  color: var(--muted-foreground);
+  font-size: 0.6875rem;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.bb-section-hover-card__count {
+  flex: none;
+}
+
+.bb-section-hover-card__count-value {
+  color: var(--foreground);
+  font-weight: 500;
+}
+
+.bb-section-hover-card__count[data-zero="true"] {
+  opacity: 0.4;
+}
+
+.bb-section-hover-card__empty {
+  margin: 0;
+  color: var(--muted-foreground);
+  font-size: 0.75rem;
+}
+`;
 
 // markdown-preview.ts
 function tableCells(line) {
@@ -1057,8 +1210,16 @@ function markdownPreview(source) {
 var CARD_ID = "bb-thread-hover-card";
 var STYLE_ID = "bb-thread-hover-card-styles";
 var PLUGIN_CSS_SELECTOR = 'link[data-bb-plugin-css="thread-hover-cards"]';
+var SECTION_CARD_ID = "bb-section-hover-card";
+var SECTION_STYLE_ID = "bb-section-hover-card-styles";
 var THREAD_TRIGGER_SELECTOR = "a[data-sidebar-thread-id]";
 var THREAD_ROW_SELECTOR = ".group\\/thread-row";
+var SECTION_TOGGLE_SELECTOR = 'button[aria-expanded][aria-label$=" section"]';
+var STICKY_GROUP_SELECTOR = "[data-sidebar-sticky-group]";
+var PROJECT_ITEM_SELECTOR = "[data-sidebar-sticky-project-item]";
+var SECTION_SUMMARY_CACHE_TTL_MS = 4e3;
+var SECTION_CACHE_MAX_ENTRIES = 32;
+var SECTION_UNKNOWN_TTL_MS = 6e4;
 var OPEN_DELAY_MS = 0;
 var CLOSE_DELAY_MS = 120;
 var ACTIVE_SUMMARY_CACHE_TTL_MS = 2e3;
@@ -1239,6 +1400,45 @@ function findThreadTrigger(target) {
   if (direct) return direct;
   const row = target.closest(THREAD_ROW_SELECTOR);
   return row?.querySelector(THREAD_TRIGGER_SELECTOR) ?? null;
+}
+function sectionLabelOf(toggle) {
+  return /^(?:Expand|Collapse) (.+) section$/.exec(
+    toggle.getAttribute("aria-label") ?? ""
+  )?.[1] ?? null;
+}
+function sectionToggleOwnedBy(row) {
+  const toggle = row.querySelector(SECTION_TOGGLE_SELECTOR);
+  return toggle?.parentElement?.parentElement === row ? toggle : null;
+}
+function isProjectHeaderRow(row) {
+  return row.closest(STICKY_GROUP_SELECTOR)?.parentElement?.matches(
+    PROJECT_ITEM_SELECTOR
+  ) === true;
+}
+function enclosingProjectName(row) {
+  const projectItem = row.closest(PROJECT_ITEM_SELECTOR);
+  const projectToggle = projectItem?.querySelector(SECTION_TOGGLE_SELECTOR);
+  return projectToggle == null ? null : sectionLabelOf(projectToggle);
+}
+function findSectionTrigger(target) {
+  const root = target instanceof Element ? target.closest(STICKY_GROUP_SELECTOR) : null;
+  if (root === null) return null;
+  let candidate = target;
+  while (candidate && candidate !== root.parentElement) {
+    const toggle = sectionToggleOwnedBy(candidate);
+    if (toggle) {
+      const name = sectionLabelOf(toggle);
+      if (name === null || isProjectHeaderRow(candidate)) return null;
+      return {
+        name,
+        projectName: enclosingProjectName(candidate),
+        row: candidate,
+        toggle
+      };
+    }
+    candidate = candidate.parentElement;
+  }
+  return null;
 }
 function threadIdFor(trigger) {
   const value = trigger.dataset.sidebarThreadId?.trim();
@@ -1475,13 +1675,25 @@ async function fetchPullRequest(threadId) {
   }
   return envelope.result;
 }
-function renderLoading(card) {
+function placeCardNear(card, anchor) {
+  const anchorRect = anchor.getBoundingClientRect();
+  const cardRect = card.getBoundingClientRect();
+  const margin = 8;
+  const gap = 8;
+  let left = anchorRect.right + gap;
+  if (left + cardRect.width > window.innerWidth - margin) {
+    left = Math.max(margin, anchorRect.left - gap - cardRect.width);
+  }
+  const top = Math.min(
+    Math.max(margin, anchorRect.top - 4),
+    Math.max(margin, window.innerHeight - cardRect.height - margin)
+  );
+  card.style.left = `${Math.round(left)}px`;
+  card.style.top = `${Math.round(top)}px`;
+}
+function renderLoading(card, subject = "thread") {
   card.replaceChildren(
-    element(
-      "p",
-      "bb-thread-hover-card__loading",
-      "Loading thread summary\u2026"
-    )
+    element("p", "bb-thread-hover-card__loading", `Loading ${subject} summary\u2026`)
   );
 }
 function renderError(card) {
@@ -1693,7 +1905,96 @@ function renderSummary(card, summary) {
   card.replaceChildren(...content);
   refreshRunTime(card);
 }
-function installHoverCards() {
+var SECTION_PROJECT_NAMES = 2;
+function countLabel(value, singular, plural = `${singular}s`) {
+  return `${value} ${value === 1 ? singular : plural}`;
+}
+function attentionChip(className, glyph, glyphName, text) {
+  const chip = element("span", `bb-section-hover-card__chip ${className}`);
+  const mark = icon(
+    glyph,
+    glyphName,
+    "bb-thread-hover-card__icon bb-section-hover-card__chip-icon"
+  );
+  chip.append(mark, element("span", "", text));
+  return chip;
+}
+function countCell(value, label) {
+  const cell = element("span", "bb-section-hover-card__count");
+  if (value === 0) cell.dataset.zero = "true";
+  const word = label === "thread" ? value === 1 ? "thread" : "threads" : label;
+  cell.append(
+    element("b", "bb-section-hover-card__count-value", String(value)),
+    element("span", "", ` ${word}`)
+  );
+  return cell;
+}
+function renderSectionSummary(card, summary) {
+  if (summary.total === 0) {
+    card.replaceChildren(
+      element("p", "bb-section-hover-card__empty", "No threads yet")
+    );
+    return;
+  }
+  const content = [];
+  if (summary.projects.length > 0) {
+    const band = element("div", "bb-section-hover-card__band");
+    band.append(
+      icon(
+        Folder01Icon,
+        "Folder01Icon",
+        "bb-thread-hover-card__icon bb-thread-hover-card__meta-icon"
+      )
+    );
+    const named = summary.projects.slice(0, SECTION_PROJECT_NAMES);
+    named.forEach((project, index) => {
+      if (index > 0) {
+        band.append(element("span", "bb-section-hover-card__sep", "\xB7"));
+      }
+      band.append(element("span", "bb-section-hover-card__project", project));
+    });
+    const remaining = summary.projects.length - named.length;
+    if (remaining > 0) {
+      band.append(
+        element("span", "bb-section-hover-card__more", `+${remaining}`)
+      );
+    }
+    content.push(band);
+  }
+  if (summary.questions > 0 || summary.failed > 0) {
+    const headline = element("div", "bb-section-hover-card__headline");
+    if (summary.questions > 0) {
+      headline.append(
+        attentionChip(
+          "bb-section-hover-card__chip--question",
+          HelpCircleIcon,
+          "HelpCircleIcon",
+          countLabel(summary.questions, "question")
+        )
+      );
+    }
+    if (summary.failed > 0) {
+      headline.append(
+        attentionChip(
+          "bb-section-hover-card__chip--failed",
+          CancelCircleIcon,
+          "CancelCircleIcon",
+          `${summary.failed} failed`
+        )
+      );
+    }
+    content.push(headline);
+  }
+  const counts = element("div", "bb-section-hover-card__counts");
+  counts.append(
+    countCell(summary.total, "thread"),
+    countCell(summary.working, "working"),
+    countCell(summary.unread, "unread")
+  );
+  content.push(counts);
+  card.replaceChildren(...content);
+}
+function installHoverCards({ onOpen }) {
   let card = null;
   let activeTrigger = null;
   let activeThreadId = null;
@@ -1733,21 +2034,7 @@ function installHoverCards() {
   function positionCard() {
     const trigger = resolveActiveTrigger();
     if (!card || !trigger || card.hidden) return;
-    const anchor = trigger.closest(THREAD_ROW_SELECTOR) ?? trigger;
-    const anchorRect = anchor.getBoundingClientRect();
-    const cardRect = card.getBoundingClientRect();
-    const margin = 8;
-    const gap = 8;
-    let left = anchorRect.right + gap;
-    if (left + cardRect.width > window.innerWidth - margin) {
-      left = Math.max(margin, anchorRect.left - gap - cardRect.width);
-    }
-    const top = Math.min(
-      Math.max(margin, anchorRect.top - 4),
-      Math.max(margin, window.innerHeight - cardRect.height - margin)
-    );
-    card.style.left = `${Math.round(left)}px`;
-    card.style.top = `${Math.round(top)}px`;
+    placeCardNear(card, trigger.closest(THREAD_ROW_SELECTOR) ?? trigger);
   }
   function cachedSummary(threadId) {
     const cached = cache.get(threadId);
@@ -2102,6 +2389,7 @@ function installHoverCards() {
   function showCard(trigger, requestedAt = monotonicNow()) {
     const threadId = threadIdFor(trigger);
     if (!threadId || disposed) return;
+    onOpen();
     activeTrigger?.removeAttribute("aria-describedby");
     activeTrigger = trigger;
     activeThreadId = threadId;
@@ -2354,20 +2642,248 @@ function installHoverCards() {
       timingPending.clear();
       timingRetriedForSummary.clear();
       timingRetryScheduled.clear();
+    },
+    closeCard
+  };
+}
+async function fetchSectionSummary(name, projectName, signal) {
+  const response = await fetch(
+    "/api/v1/plugins/thread-hover-cards/rpc/sectionSummary",
+    {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ name, projectName }),
+      signal
     }
+  );
+  const envelope = await response.json();
+  if (!response.ok || !envelope.ok) {
+    throw new Error(
+      envelope.ok ? "Section summary request failed." : envelope.error?.message
+    );
+  }
+  return envelope.result;
+}
+function installSectionHoverCards({
+  onOpen
+}) {
+  let card = null;
+  let active = null;
+  let closeTimer = null;
+  let generation = 0;
+  let disposed = false;
+  const cache = /* @__PURE__ */ new Map();
+  const pending = /* @__PURE__ */ new Map();
+  const unknownSections = /* @__PURE__ */ new Map();
+  const style = element("style", "");
+  style.id = SECTION_STYLE_ID;
+  style.textContent = SECTION_CARD_CSS;
+  document.getElementById(SECTION_STYLE_ID)?.remove();
+  document.head.append(style);
+  const keyOf = (target) => JSON.stringify([target.name, target.projectName]);
+  function ensureCard() {
+    if (card) return card;
+    card = element("div", "bb-thread-hover-card");
+    card.id = SECTION_CARD_ID;
+    card.hidden = true;
+    card.dataset.bbCard = "section";
+    card.setAttribute("data-bb-plugin", "thread-hover-cards");
+    card.setAttribute("data-bb-plugin-root", "");
+    card.setAttribute("data-bb-portaled-overlay", "");
+    card.setAttribute("role", "group");
+    card.setAttribute("aria-label", "Section summary");
+    card.addEventListener("pointerenter", cancelClose);
+    card.addEventListener("pointerleave", scheduleClose);
+    document.body.append(card);
+    return card;
+  }
+  function position() {
+    if (!card || card.hidden || !active?.row.isConnected) return;
+    placeCardNear(card, active.row);
+  }
+  function abortPendingRequests() {
+    for (const controller of pending.values()) controller.abort();
+    pending.clear();
+  }
+  function closeCard() {
+    cancelClose();
+    generation += 1;
+    abortPendingRequests();
+    active?.toggle.removeAttribute("aria-describedby");
+    active = null;
+    if (card) {
+      card.hidden = true;
+      card.classList.remove("is-visible");
+    }
+  }
+  function cancelClose() {
+    if (!closeTimer) return;
+    clearTimeout(closeTimer);
+    closeTimer = null;
+  }
+  function scheduleClose() {
+    cancelClose();
+    closeTimer = setTimeout(() => {
+      closeTimer = null;
+      const focused = document.activeElement;
+      if (focused === active?.toggle || focused instanceof Node && card?.contains(focused)) {
+        return;
+      }
+      closeCard();
+    }, CLOSE_DELAY_MS);
+  }
+  function requestSummary(target) {
+    const key = keyOf(target);
+    abortPendingRequests();
+    const controller = new AbortController();
+    pending.set(key, controller);
+    return fetchSectionSummary(
+      target.name,
+      target.projectName,
+      controller.signal
+    ).then((summary) => {
+      if (!summary.known) {
+        unknownSections.set(key, Date.now());
+        return summary;
+      }
+      cache.delete(key);
+      cache.set(key, { fetchedAt: Date.now(), summary });
+      while (cache.size > SECTION_CACHE_MAX_ENTRIES) {
+        const oldest = cache.keys().next().value;
+        if (oldest === void 0) break;
+        cache.delete(oldest);
+      }
+      return summary;
+    }).finally(() => {
+      if (pending.get(key) === controller) pending.delete(key);
+    });
+  }
+  function showCard(target) {
+    const knownUnknownAt = unknownSections.get(keyOf(target));
+    if (disposed) return;
+    if (knownUnknownAt !== void 0 && Date.now() - knownUnknownAt < SECTION_UNKNOWN_TTL_MS) {
+      closeCard();
+      return;
+    }
+    onOpen();
+    cancelClose();
+    abortPendingRequests();
+    active?.toggle.removeAttribute("aria-describedby");
+    active = target;
+    target.toggle.setAttribute("aria-describedby", SECTION_CARD_ID);
+    generation += 1;
+    const requestGeneration = generation;
+    const hoverCard = ensureCard();
+    hoverCard.hidden = false;
+    hoverCard.classList.remove("is-visible");
+    void hoverCard.offsetWidth;
+    hoverCard.classList.add("is-visible");
+    const key = keyOf(target);
+    const cached = cache.get(key);
+    if (cached) renderSectionSummary(hoverCard, cached.summary);
+    else renderLoading(hoverCard, "section");
+    requestAnimationFrame(position);
+    if (cached && Date.now() - cached.fetchedAt < SECTION_SUMMARY_CACHE_TTL_MS) {
+      return;
+    }
+    void requestSummary(target).then((summary) => {
+      if (!summary.known) {
+        if (!disposed && requestGeneration === generation) closeCard();
+        return;
+      }
+      if (disposed || requestGeneration !== generation) return;
+      renderSectionSummary(hoverCard, summary);
+      requestAnimationFrame(position);
+    }).catch((error) => {
+      if (disposed || requestGeneration !== generation || cached) return;
+      if (isAbortError(error)) return;
+      renderError(hoverCard);
+      requestAnimationFrame(position);
+    });
+  }
+  function onPointerOver(event) {
+    if (event.pointerType === "touch") return;
+    const target = findSectionTrigger(event.target);
+    if (!target) return;
+    if (active?.row === target.row && card && !card.hidden) {
+      cancelClose();
+      return;
+    }
+    showCard(target);
+  }
+  function onPointerOut(event) {
+    if (!findSectionTrigger(event.target)) return;
+    if (findSectionTrigger(event.relatedTarget)?.row === active?.row) return;
+    if (event.relatedTarget instanceof Node && card?.contains(event.relatedTarget)) {
+      return;
+    }
+    scheduleClose();
+  }
+  function onFocusIn(event) {
+    const target = findSectionTrigger(event.target);
+    if (target) {
+      if (active?.row === target.row && card && !card.hidden) {
+        cancelClose();
+        return;
+      }
+      showCard(target);
+    } else if (active && !(event.target instanceof Node && card?.contains(event.target))) {
+      scheduleClose();
+    }
+  }
+  function onKeyDown(event) {
+    if (event.key === "Escape" && active) closeCard();
+  }
+  function onClick(event) {
+    if (findSectionTrigger(event.target)) closeCard();
+  }
+  document.addEventListener("pointerover", onPointerOver);
+  document.addEventListener("pointerout", onPointerOut);
+  document.addEventListener("focusin", onFocusIn);
+  document.addEventListener("keydown", onKeyDown);
+  document.addEventListener("click", onClick);
+  window.addEventListener("resize", position);
+  window.addEventListener("scroll", position, true);
+  return {
+    dispose() {
+      disposed = true;
+      closeCard();
+      document.removeEventListener("pointerover", onPointerOver);
+      document.removeEventListener("pointerout", onPointerOut);
+      document.removeEventListener("focusin", onFocusIn);
+      document.removeEventListener("keydown", onKeyDown);
+      document.removeEventListener("click", onClick);
+      window.removeEventListener("resize", position);
+      window.removeEventListener("scroll", position, true);
+      card?.remove();
+      card = null;
+      style.remove();
+      cache.clear();
+      unknownSections.clear();
+      for (const controller of pending.values()) controller.abort();
+      pending.clear();
+    },
+    closeCard
   };
 }
 function installHoverCardLifecycle() {
-  let controller = null;
+  let controllers = [];
   let disposed = false;
   function reconcile() {
     if (disposed) return;
     const pluginIsActive = document.querySelector(PLUGIN_CSS_SELECTOR) !== null;
-    if (pluginIsActive && !controller) {
-      controller = installHoverCards();
-    } else if (!pluginIsActive && controller) {
-      controller.dispose();
-      controller = null;
+    if (pluginIsActive && controllers.length === 0) {
+      let sections = null;
+      const threads = installHoverCards({
+        onOpen: () => sections?.closeCard?.()
+      });
+      sections = installSectionHoverCards({
+        onOpen: () => threads.closeCard?.()
+      });
+      controllers = [threads, sections];
+    } else if (!pluginIsActive && controllers.length > 0) {
+      for (const controller of controllers) controller.dispose();
+      controllers = [];
     }
   }
   const observer = new MutationObserver(reconcile);
@@ -2377,8 +2893,8 @@ function installHoverCardLifecycle() {
     dispose() {
       disposed = true;
       observer.disconnect();
-      controller?.dispose();
-      controller = null;
+      for (const controller of controllers) controller.dispose();
+      controllers = [];
     }
   };
 }
@@ -2403,5 +2919,8 @@ if (typeof document !== "undefined") {
 var app_default = definePluginApp(() => {
 });
 export {
-  app_default as default
+  app_default as default,
+  findSectionTrigger,
+  renderSectionSummary,
+  sectionLabelOf
 };
