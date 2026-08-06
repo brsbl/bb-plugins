@@ -14,7 +14,8 @@ Comments stay attached through an underline and a compact nearest-gutter thread.
 
 ## Use
 
-- Adds **Comment** to the floating menu when you select user or agent message text.
+- Adds **Comment** to the floating menu when you select agent message text.
+- Opens the thread-scoped Comments panel from any user or agent message action bar.
 - Keeps open comment threads visible through a quiet underline and the nearest gutter marker.
 - Provides replies, inline editing, deletion, resolve/reopen controls, and a thread-scoped Comments panel.
 - Adds every open comment to the current thread's draft without submitting it.

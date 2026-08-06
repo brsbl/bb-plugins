@@ -3,6 +3,8 @@ import { describe, expect, it, vi } from "vitest";
 import type { PluginContentScriptContext } from "@bb/plugin-sdk/app";
 import {
   beginTimelineComment,
+  focusTimelineComment,
+  registerTimelineCommentThreadWindow,
   subscribeTimelineCommentAnchorHealth,
 } from "./bridge.js";
 import { mountTimelineCommentsController } from "./controller.js";
@@ -18,10 +20,10 @@ function deferred<T>() {
 describe("timeline comments controller teardown", () => {
   it("mounts on the real content-script contract and captures a DOM selection", () => {
     document.body.innerHTML = `
-      <div data-bb-thread-window="thr_1">
-        <div data-bb-thread-scroll-root>
-          <div data-bb-conversation-message-id="msg_1">
-            <div data-bb-message-prose-root>source text</div>
+      <div data-thread-window>
+        <div class="thread-scrollbar">
+          <div data-timeline-row-id="msg_1">
+            <div data-no-sidebar-swipe>source text</div>
           </div>
         </div>
       </div>
@@ -50,7 +52,7 @@ describe("timeline comments controller teardown", () => {
       generation: 1,
       signal: controller.signal,
     });
-    const text = document.querySelector("[data-bb-message-prose-root]")!
+    const text = document.querySelector("[data-no-sidebar-swipe]")!
       .firstChild!;
     const range = document.createRange();
     range.setStart(text, 0);
@@ -85,12 +87,137 @@ describe("timeline comments controller teardown", () => {
     vi.unstubAllGlobals();
   });
 
+  it("restores and opens a resolved panel row even though open anchors omit it", async () => {
+    document.body.innerHTML = `
+      <div data-thread-window>
+        <div class="thread-scrollbar">
+          <div data-timeline-row-id="msg_1">
+            <div data-no-sidebar-swipe>source text</div>
+          </div>
+        </div>
+      </div>
+    `;
+    const resolvedThread = {
+      id: "comment_thread_resolved",
+      bbThreadId: "thr_1",
+      messageId: "msg_1",
+      messageRole: "assistant" as const,
+      selector: {
+        version: 1 as const,
+        coordinateSpace: "rendered-text-utf16" as const,
+        start: 0,
+        end: 6,
+        exact: "source",
+        prefix: "",
+        suffix: " text",
+      },
+      version: 2,
+      createdAt: 1,
+      updatedAt: 2,
+      resolvedAt: 2,
+      rootComment: {
+        id: "comment_1",
+        threadId: "comment_thread_resolved",
+        parentId: null,
+        body: "Resolved review note",
+        version: 1,
+        createdAt: 1,
+        updatedAt: 1,
+      },
+      replyCount: 0,
+    };
+    const fetchRequest = vi.fn(async (url: string) => {
+      const result = url.endsWith("/listOpenAnchors")
+        ? { anchors: [], nextCursor: null }
+        : {
+            thread: resolvedThread,
+            comments: [resolvedThread.rootComment],
+            nextCursor: null,
+          };
+      return {
+        ok: true,
+        async json() {
+          return { ok: true, result };
+        },
+        status: 200,
+      };
+    });
+    vi.stubGlobal("fetch", fetchRequest);
+    const originalClientRects = Object.getOwnPropertyDescriptor(
+      Range.prototype,
+      "getClientRects",
+    );
+    const originalBoundingRect = Object.getOwnPropertyDescriptor(
+      Range.prototype,
+      "getBoundingClientRect",
+    );
+    const originalScrollIntoView = Object.getOwnPropertyDescriptor(
+      HTMLElement.prototype,
+      "scrollIntoView",
+    );
+    const rect = {
+      x: 20,
+      y: 30,
+      top: 30,
+      right: 80,
+      bottom: 48,
+      left: 20,
+      width: 60,
+      height: 18,
+      toJSON: () => ({}),
+    } as DOMRect;
+    Object.defineProperty(Range.prototype, "getClientRects", {
+      configurable: true,
+      value: () => [rect],
+    });
+    Object.defineProperty(Range.prototype, "getBoundingClientRect", {
+      configurable: true,
+      value: () => rect,
+    });
+    const scrollIntoView = vi.fn();
+    Object.defineProperty(HTMLElement.prototype, "scrollIntoView", {
+      configurable: true,
+      value: scrollIntoView,
+    });
+    const dispose = mountTimelineCommentsController({
+      pluginId: "timeline-comments",
+      generation: 1,
+      signal: new AbortController().signal,
+    });
+    const unregisterWindow = registerTimelineCommentThreadWindow(
+      "thr_1",
+      document.querySelector<HTMLElement>("[data-thread-window]")!,
+    );
+
+    await expect(focusTimelineComment(resolvedThread)).resolves.toBe(true);
+    expect(scrollIntoView).toHaveBeenCalledWith({
+      block: "center",
+      behavior: "smooth",
+    });
+    expect(document.querySelector(".bb-comments-thread")).not.toBeNull();
+    await vi.waitFor(() =>
+      expect(document.body.textContent).toContain("Resolved review note"),
+    );
+
+    unregisterWindow();
+    dispose();
+    for (const [prototype, property, descriptor] of [
+      [Range.prototype, "getClientRects", originalClientRects],
+      [Range.prototype, "getBoundingClientRect", originalBoundingRect],
+      [HTMLElement.prototype, "scrollIntoView", originalScrollIntoView],
+    ] as const) {
+      if (descriptor === undefined) Reflect.deleteProperty(prototype, property);
+      else Object.defineProperty(prototype, property, descriptor);
+    }
+    vi.unstubAllGlobals();
+  });
+
   it("does not restore or republish anchors after a deferred load resolves", async () => {
     document.body.innerHTML = `
-      <div data-bb-thread-window="thr_1">
-        <div data-bb-thread-scroll-root>
-          <div data-bb-conversation-message-id="msg_1">
-            <div data-bb-message-prose-root>source</div>
+      <div data-thread-window>
+        <div class="thread-scrollbar">
+          <div data-timeline-row-id="msg_1">
+            <div data-no-sidebar-swipe>source</div>
           </div>
         </div>
       </div>
@@ -131,6 +258,10 @@ describe("timeline comments controller teardown", () => {
       generation: 1,
       signal: new AbortController().signal,
     } as PluginContentScriptContext);
+    const unregisterWindow = registerTimelineCommentThreadWindow(
+      "thr_1",
+      document.querySelector<HTMLElement>("[data-thread-window]")!,
+    );
     await vi.waitFor(() => expect(fetchRequest).toHaveBeenCalled());
     expect(fetchRequest.mock.calls[0]?.[0]).toBe(
       "/api/v1/plugins/timeline-comments/rpc/listOpenAnchors",
@@ -176,6 +307,7 @@ describe("timeline comments controller teardown", () => {
       document.querySelector("[data-bb-plugin-decoration='timeline-comments']"),
     ).toBeNull();
     unsubscribe();
+    unregisterWindow();
     vi.unstubAllGlobals();
   });
 });

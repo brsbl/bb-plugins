@@ -10,7 +10,10 @@ import {
 import { installTimelineCommentsController } from "./bridge.js";
 import type { timelineCommentsRpcContract } from "./server.js";
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  document.body.replaceChildren();
+});
 
 function deferred<T>() {
   let resolve!: (value: T) => void;
@@ -103,6 +106,7 @@ describe("timeline comments app", () => {
     const uninstallController = installTimelineCommentsController({
       beginComment,
       focusThread: vi.fn(async () => false),
+      registerThreadWindow: vi.fn(() => () => {}),
       refreshAnchors: vi.fn(),
     });
     await app.messageActions[0]!.run({
@@ -118,6 +122,14 @@ describe("timeline comments app", () => {
   });
 
   it("adds open comments to the draft from the thread composer action", async () => {
+    document.body.innerHTML = `<div data-thread-window></div>`;
+    const registerThreadWindow = vi.fn(() => () => {});
+    const uninstallController = installTimelineCommentsController({
+      beginComment: vi.fn(),
+      focusThread: vi.fn(async () => false),
+      registerThreadWindow,
+      refreshAnchors: vi.fn(),
+    });
     const app = await loadPluginApp(() => import("./app.js"));
     const action = renderSlot(
       app.composerCustomizations[0]!.actions![0]!,
@@ -151,6 +163,11 @@ describe("timeline comments app", () => {
     });
     expect(action.inspection.composer.text).toContain("Keep this draft");
     expect(action.inspection.navigateCalls).toEqual([]);
+    expect(registerThreadWindow).toHaveBeenCalledWith(
+      "thr_1",
+      document.querySelector("[data-thread-window]"),
+    );
+    uninstallController();
   });
 
   it("shows a compact error and recovers when adding comments is retried", async () => {
@@ -341,6 +358,7 @@ describe("timeline comments app", () => {
     const uninstallController = installTimelineCommentsController({
       beginComment: vi.fn(),
       focusThread,
+      registerThreadWindow: vi.fn(() => () => {}),
       refreshAnchors: vi.fn(),
     });
     const panel = renderSlot<
@@ -391,7 +409,7 @@ describe("timeline comments app", () => {
     const row = await panel.findByRole("button", { name: /source/i });
     fireEvent.click(row);
     await vi.waitFor(() =>
-      expect(focusThread).toHaveBeenCalledWith("comment_thread_1"),
+      expect(focusThread).toHaveBeenCalledWith(thread),
     );
     expect(row.closest("article")?.dataset.active).toBe("true");
     expect(

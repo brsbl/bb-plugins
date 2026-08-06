@@ -24,6 +24,7 @@ import {
   focusTimelineComment,
   getTimelineCommentAnchorHealth,
   refreshTimelineCommentAnchors,
+  registerTimelineCommentThreadWindow,
   subscribeTimelineCommentAnchorHealth,
 } from "./bridge.js";
 import { mountTimelineCommentsController } from "./controller.js";
@@ -44,6 +45,7 @@ function AddCommentsAction() {
   const composer = useComposer();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const actionRoot = useRef<HTMLSpanElement>(null);
   const requestGeneration = useRef(0);
   const threadId =
     composer.scope.kind === "thread" ? composer.scope.threadId : null;
@@ -69,6 +71,20 @@ function AddCommentsAction() {
       refreshTimelineCommentAnchors();
     }
   });
+
+  useLayoutEffect(() => {
+    if (threadId === null) return;
+    const closestWindow = actionRoot.current?.closest<HTMLElement>(
+      "[data-thread-window]",
+    );
+    const visibleWindows = document.querySelectorAll<HTMLElement>(
+      "[data-thread-window]",
+    );
+    const threadWindow =
+      closestWindow ?? (visibleWindows.length === 1 ? visibleWindows[0] : null);
+    if (threadWindow === undefined || threadWindow === null) return;
+    return registerTimelineCommentThreadWindow(threadId, threadWindow);
+  }, [threadId]);
 
   if (threadId === null) return null;
 
@@ -99,7 +115,7 @@ function AddCommentsAction() {
   };
 
   return (
-    <span className="bb-comments-composer-action-wrap">
+    <span ref={actionRoot} className="bb-comments-composer-action-wrap">
       {error !== null ? (
         <span className="bb-comments-composer-action-error" role="alert">
           Couldn’t add comments
@@ -234,7 +250,7 @@ function CommentPanel({ threadId }: PluginThreadPanelProps) {
     setActiveId(item.id);
     setError(null);
     try {
-      const anchored = await focusTimelineComment(item.id);
+      const anchored = await focusTimelineComment(item);
       if (request !== revealRequest.current) return;
       setUnanchored((current) => {
         const next = new Set(current);

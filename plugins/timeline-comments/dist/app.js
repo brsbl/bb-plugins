@@ -166,8 +166,12 @@ function installTimelineCommentsController(controller) {
 function beginTimelineComment(context) {
   activeController?.beginComment(context);
 }
-async function focusTimelineComment(commentThreadId) {
-  return await activeController?.focusThread(commentThreadId) ?? false;
+async function focusTimelineComment(anchor) {
+  return await activeController?.focusThread(anchor) ?? false;
+}
+function registerTimelineCommentThreadWindow(threadId, window2) {
+  return activeController?.registerThreadWindow(threadId, window2) ?? (() => {
+  });
 }
 function refreshTimelineCommentAnchors() {
   activeController?.refreshAnchors();
@@ -573,7 +577,7 @@ function syncInlineComposerLayout(textarea, composer, animate = true) {
   animation.addEventListener("cancel", finish, { once: true });
 }
 function isRelevantMutation(record) {
-  const selector = "[data-bb-thread-window], [data-bb-conversation-message-id], [data-bb-message-prose-root]";
+  const selector = "[data-thread-window], [data-timeline-row-id], [data-no-sidebar-swipe]";
   return [...record.addedNodes, ...record.removedNodes].some(
     (node) => node instanceof Element && (node.matches(selector) || node.querySelector(selector) !== null)
   );
@@ -585,6 +589,7 @@ var TimelineCommentsController = class {
   #highlightStyle = element("style");
   #anchors = /* @__PURE__ */ new Map();
   #restored = /* @__PURE__ */ new Map();
+  #threadWindows = /* @__PURE__ */ new Map();
   #disposers = [];
   #observer;
   #resizeObserver;
@@ -667,12 +672,16 @@ var TimelineCommentsController = class {
     const current = this.captureCurrentSelection();
     if (current !== null) this.#selectionSnapshot = current;
     const captured = current ?? this.#selectionSnapshot;
-    if (captured === null || captured.bbThreadId !== context.threadId || captured.messageId !== context.message.id || captured.selector.exact !== context.selectedText) {
+    if (captured === null || captured.bbThreadId !== null && captured.bbThreadId !== context.threadId || captured.messageId !== context.message.id || captured.selector.exact !== context.selectedText) {
       return;
     }
+    this.rememberThreadWindow(context.threadId, captured.threadWindow);
+    this.#selectionSnapshot = {
+      ...captured,
+      bbThreadId: context.threadId
+    };
     this.closeComposer();
-    const root = this.findProse(context.threadId, context.message.id);
-    const restored = root === null ? null : restoreSelector(root, captured.selector);
+    const restored = captured.prose.isConnected ? restoreSelector(captured.prose, captured.selector) : null;
     this.#provisionalRange = restored?.range ?? captured.range.cloneRange();
     this.rebuildHighlights();
     const key = `bb.timeline-comments.draft:${context.threadId}:${context.message.id}:${captured.selector.start}:${captured.selector.end}`;
@@ -762,6 +771,35 @@ var TimelineCommentsController = class {
   refreshAnchors() {
     this.scheduleRefresh();
   }
+  registerThreadWindow(threadId, windowNode) {
+    if (threadId === "" || !windowNode.matches("[data-thread-window]")) {
+      return () => {
+      };
+    }
+    this.rememberThreadWindow(threadId, windowNode);
+    let registered = true;
+    return () => {
+      if (!registered) return;
+      registered = false;
+      const windows = this.#threadWindows.get(threadId);
+      windows?.delete(windowNode);
+      if (windows?.size === 0) this.#threadWindows.delete(threadId);
+      this.scheduleRefresh();
+    };
+  }
+  rememberThreadWindow(threadId, windowNode) {
+    const windows = this.#threadWindows.get(threadId) ?? /* @__PURE__ */ new Set();
+    const size = windows.size;
+    windows.add(windowNode);
+    this.#threadWindows.set(threadId, windows);
+    if (windows.size !== size) this.scheduleRefresh();
+  }
+  threadIdForWindow(windowNode) {
+    for (const [threadId, windows] of this.#threadWindows) {
+      if (windows.has(windowNode)) return threadId;
+    }
+    return null;
+  }
   captureCurrentSelection() {
     const selection = document.getSelection();
     if (selection === null || selection.rangeCount !== 1 || selection.isCollapsed)
@@ -769,18 +807,15 @@ var TimelineCommentsController = class {
     const range = selection.getRangeAt(0).cloneRange();
     const startElement = range.startContainer instanceof Element ? range.startContainer : range.startContainer.parentElement;
     const prose = startElement?.closest(
-      "[data-bb-message-prose-root]"
+      "[data-no-sidebar-swipe]"
     );
     if (prose === void 0 || prose === null || !prose.contains(range.endContainer))
       return null;
-    const message = prose.closest(
-      "[data-bb-conversation-message-id]"
-    );
-    const threadWindow = prose.closest("[data-bb-thread-window]");
-    const messageId = message?.dataset.bbConversationMessageId;
-    const bbThreadId = threadWindow?.dataset.bbThreadWindow;
+    const message = prose.closest("[data-timeline-row-id]");
+    const threadWindow = prose.closest("[data-thread-window]");
+    const messageId = message?.dataset.timelineRowId;
     const selector = selectorForRange(prose, range);
-    if (messageId === void 0 || bbThreadId === void 0 || selector === null)
+    if (messageId === void 0 || threadWindow === null || selector === null)
       return null;
     const rects = [...range.getClientRects()].map(({ x, y, width, height }) => ({
       x,
@@ -789,33 +824,39 @@ var TimelineCommentsController = class {
       height
     }));
     if (rects.length === 0) return null;
-    return { bbThreadId, messageId, range, rects, selector };
+    return {
+      bbThreadId: this.threadIdForWindow(threadWindow),
+      messageId,
+      prose,
+      range,
+      rects,
+      selector,
+      threadWindow
+    };
   }
-  async focusThread(commentThreadId) {
+  async focusThread(anchor) {
     const request = ++this.#focusNonce;
-    this.#openThreadId = commentThreadId;
+    this.#openThreadId = anchor.id;
     await this.refresh();
     if (request !== this.#focusNonce || this.#destroyed) return false;
-    const restored = this.#restored.get(commentThreadId);
+    if (!this.#restored.has(anchor.id)) {
+      this.#anchors.set(anchor.id, anchor);
+      this.restoreAll();
+    }
+    const restored = this.#restored.get(anchor.id);
     if (restored === void 0) return false;
-    const scrollRoot = restored.window.querySelector(
-      "[data-bb-thread-scroll-root]"
-    );
-    if (scrollRoot === null) return false;
-    const rangeRect = restored.range.getBoundingClientRect();
-    const scrollRect = scrollRoot.getBoundingClientRect();
-    scrollRoot.scrollBy({
-      top: rangeRect.top + rangeRect.height / 2 - (scrollRect.top + scrollRect.height / 2),
+    restored.prose.scrollIntoView({
+      block: "center",
       behavior: "smooth"
     });
-    this.setActive([commentThreadId]);
+    this.setActive([anchor.id]);
     await new Promise(
       (resolve) => requestAnimationFrame(() => resolve())
     );
     if (request !== this.#focusNonce || this.#destroyed) return false;
     this.scheduleLayout();
     restored.marker?.focus({ preventScroll: true });
-    await this.openThread(commentThreadId);
+    await this.openThread(anchor.id, anchor);
     return true;
   }
   scheduleRefresh() {
@@ -844,9 +885,7 @@ var TimelineCommentsController = class {
     if (nonce !== this.#refreshNonce && !this.#destroyed) await this.refresh();
   }
   async loadAnchors() {
-    const threadIds = [
-      ...document.querySelectorAll("[data-bb-thread-window]")
-    ].map((node) => node.dataset.bbThreadWindow).filter((id) => typeof id === "string" && id !== "").filter((id, index, all) => all.indexOf(id) === index).slice(0, 20);
+    const threadIds = [...this.#threadWindows.keys()].filter((threadId) => this.findWindow(threadId) !== null).slice(0, 20);
     this.#anchors.clear();
     if (threadIds.length > 0) {
       let cursor;
@@ -865,16 +904,28 @@ var TimelineCommentsController = class {
     this.restoreAll();
   }
   findWindow(threadId) {
-    return document.querySelector(
-      `[data-bb-thread-window="${escapeSelector(threadId)}"]`
-    );
+    const windows = this.#threadWindows.get(threadId);
+    if (windows === void 0) return null;
+    for (const windowNode of windows) {
+      if (windowNode.isConnected) return windowNode;
+      windows.delete(windowNode);
+    }
+    if (windows.size === 0) this.#threadWindows.delete(threadId);
+    return null;
   }
-  findProse(threadId, messageId) {
+  findProse(threadId, messageId, selector) {
     const windowNode = this.findWindow(threadId);
     const row = windowNode?.querySelector(
-      `[data-bb-conversation-message-id="${escapeSelector(messageId)}"]`
+      `[data-timeline-row-id="${escapeSelector(messageId)}"]`
     );
-    return row?.querySelector("[data-bb-message-prose-root]") ?? null;
+    if (row === void 0 || row === null) return null;
+    for (const candidate of row.querySelectorAll(
+      "[data-no-sidebar-swipe]"
+    )) {
+      if (candidate.matches("button, input, textarea, select, a")) continue;
+      if (restoreSelector(candidate, selector) !== null) return candidate;
+    }
+    return null;
   }
   restoreAll() {
     this.#restored.clear();
@@ -883,7 +934,11 @@ var TimelineCommentsController = class {
     const health = /* @__PURE__ */ new Map();
     for (const anchor of this.#anchors.values()) {
       const windowNode = this.findWindow(anchor.bbThreadId);
-      const prose = this.findProse(anchor.bbThreadId, anchor.messageId);
+      const prose = this.findProse(
+        anchor.bbThreadId,
+        anchor.messageId,
+        anchor.selector
+      );
       if (windowNode === null || prose === null) {
         health.set(anchor.id, "not-mounted");
         continue;
@@ -1069,8 +1124,8 @@ var TimelineCommentsController = class {
     this.positionNear(marker, menu);
     first?.focus({ preventScroll: true });
   }
-  async openThread(commentThreadId) {
-    const anchor = this.#anchors.get(commentThreadId) ?? this.#restored.get(commentThreadId)?.anchor;
+  async openThread(commentThreadId, fallbackAnchor) {
+    const anchor = this.#anchors.get(commentThreadId) ?? this.#restored.get(commentThreadId)?.anchor ?? fallbackAnchor;
     if (anchor === void 0) return;
     this.#openThreadId = commentThreadId;
     this.closePopover(false);
@@ -1664,6 +1719,7 @@ function AddCommentsAction() {
   const composer = useComposer();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
+  const actionRoot = useRef(null);
   const requestGeneration = useRef(0);
   const threadId = composer.scope.kind === "thread" ? composer.scope.threadId : null;
   const currentThreadId = useRef(threadId);
@@ -1682,6 +1738,18 @@ function AddCommentsAction() {
       refreshTimelineCommentAnchors();
     }
   });
+  useLayoutEffect(() => {
+    if (threadId === null) return;
+    const closestWindow = actionRoot.current?.closest(
+      "[data-thread-window]"
+    );
+    const visibleWindows = document.querySelectorAll(
+      "[data-thread-window]"
+    );
+    const threadWindow = closestWindow ?? (visibleWindows.length === 1 ? visibleWindows[0] : null);
+    if (threadWindow === void 0 || threadWindow === null) return;
+    return registerTimelineCommentThreadWindow(threadId, threadWindow);
+  }, [threadId]);
   if (threadId === null) return null;
   const addComments = async () => {
     const generation = ++requestGeneration.current;
@@ -1706,7 +1774,7 @@ function AddCommentsAction() {
       if (isCurrentRequest()) setBusy(false);
     }
   };
-  return /* @__PURE__ */ jsxs("span", { className: "bb-comments-composer-action-wrap", children: [
+  return /* @__PURE__ */ jsxs("span", { ref: actionRoot, className: "bb-comments-composer-action-wrap", children: [
     error !== null ? /* @__PURE__ */ jsx("span", { className: "bb-comments-composer-action-error", role: "alert", children: "Couldn\u2019t add comments" }) : null,
     /* @__PURE__ */ jsx(
       "button",
@@ -1811,7 +1879,7 @@ function CommentPanel({ threadId }) {
     setActiveId(item.id);
     setError(null);
     try {
-      const anchored = await focusTimelineComment(item.id);
+      const anchored = await focusTimelineComment(item);
       if (request !== revealRequest.current) return;
       setUnanchored((current) => {
         const next = new Set(current);

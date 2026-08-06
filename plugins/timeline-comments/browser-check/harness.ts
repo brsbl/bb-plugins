@@ -1,11 +1,12 @@
 import "../app.css";
+import { registerTimelineCommentThreadWindow } from "../bridge.js";
 import { mountTimelineCommentsController } from "../controller.js";
 import type { PluginContentScriptContext } from "@bb/plugin-sdk/app";
 
 const threadId = "thr_browser";
 const messageId = "msg_browser";
 const prose = document.querySelector<HTMLElement>(
-  "[data-bb-message-prose-root]",
+  "[data-no-sidebar-swipe]",
 )!;
 const text = prose.textContent ?? "";
 const phrases = [
@@ -94,6 +95,10 @@ const context: PluginContentScriptContext = {
 };
 
 mountTimelineCommentsController(context);
+registerTimelineCommentThreadWindow(
+  threadId,
+  document.querySelector<HTMLElement>("[data-thread-window]")!,
+);
 
 function wait(ms: number): Promise<void> {
   return new Promise((resolve) => window.setTimeout(resolve, ms));
