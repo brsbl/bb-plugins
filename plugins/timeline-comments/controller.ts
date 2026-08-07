@@ -32,8 +32,13 @@ import { commentBodyError } from "./comment-body.js";
 import {
   installTimelineCommentsController,
   publishTimelineCommentAnchorHealth,
+  requestTimelineCommentHandoff,
   type TimelineCommentAnchorHealth,
 } from "./bridge.js";
+import {
+  mountMossCommentComposer,
+  mountMossCommentPopover,
+} from "./comment-components.js";
 
 type Rpc = PluginRpcClient<typeof timelineCommentsRpcContract>;
 
@@ -92,7 +97,7 @@ const PLUGIN_DECORATION = "data-bb-plugin-decoration";
 const MARKER_SIZE = 24;
 const MARKER_TEXT_GAP = 8;
 const COMPOSER_WIDTH = 216;
-const POPOVER_WIDTH = 255;
+const POPOVER_WIDTH = 264;
 const MESSAGE_PROSE_SELECTOR =
   "[data-sidebar-swipe-selectable], [data-no-sidebar-swipe]";
 
@@ -394,7 +399,9 @@ class TimelineCommentsController {
   #refreshing: Promise<void> | null = null;
   #frame: number | null = null;
   #popover: HTMLElement | null = null;
+  #threadUiCleanup: (() => void) | null = null;
   #composer: HTMLElement | null = null;
+  #composerUiCleanup: (() => void) | null = null;
   #composerThreadId: string | null = null;
   #popoverThreadIds = new Set<string>();
   #activeIds = new Set<string>();
@@ -518,93 +525,51 @@ class TimelineCommentsController {
     const shell = element("form", "bb-comments-composer");
     shell.setAttribute("role", "dialog");
     shell.setAttribute("aria-label", "Add comment");
-    const textarea = element(
-      "textarea",
-      "bb-comments-textarea",
-    ) as HTMLTextAreaElement;
-    textarea.placeholder = "Add a comment…";
-    textarea.maxLength = 20_000;
-    textarea.value = readDraft(key) ?? "";
-    const submit = element(
-      "button",
-      "bb-comments-submit-shortcut bb-comments-create-submit",
-    ) as HTMLButtonElement;
-    submit.type = "submit";
-    submit.setAttribute("aria-label", "Comment");
-    submit.title = "Comment · ⌘/Ctrl Enter";
-    submit.append(icon(Command), icon(CornerDownLeft));
-    const error = element("div", "bb-comments-error");
-    error.setAttribute("role", "status");
-    shell.append(textarea, submit, error);
+    const initialValue = readDraft(key) ?? "";
 
     const firstRect = captured.rects[0];
     const x = firstRect?.x ?? window.innerWidth / 2;
     const y = captured.rects.at(-1)?.y ?? window.innerHeight / 2;
     shell.style.left = `${Math.max(8, Math.min(window.innerWidth - COMPOSER_WIDTH - 8, x))}px`;
     shell.style.top = `${Math.max(8, Math.min(window.innerHeight - 144, y + 17))}px`;
-    const validate = () => {
-      const message = commentBodyError(textarea.value);
-      submit.disabled = message !== null;
-      error.textContent =
-        message !== null && textarea.value.trim() !== "" ? message : "";
-      return message;
-    };
-    const persist = () => writeDraft(key, textarea.value);
-    textarea.addEventListener("input", () => {
-      persist();
-      syncInlineComposerLayout(textarea, shell);
-      validate();
-    });
-    textarea.addEventListener("keydown", (event) => {
-      if (event.key === "Escape") {
-        event.preventDefault();
+    let draftValue = initialValue;
+    const persist = () => writeDraft(key, draftValue);
+    this.#composerUiCleanup = mountMossCommentComposer(shell, {
+      initialValue,
+      onChange: (value) => {
+        draftValue = value;
+        persist();
+      },
+      onCancel: () => {
         persist();
         this.closeComposer();
-      }
-      if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) {
-        event.preventDefault();
-        shell.requestSubmit();
-      }
-    });
-    shell.addEventListener("submit", (event) => {
-      event.preventDefault();
-      if (validate() !== null) return;
-      submit.disabled = true;
-      error.textContent = "";
-      void this.#rpc
-        .call("createThread", {
+      },
+      onSubmit: async (body) => {
+        const detail = await this.#rpc.call("createThread", {
           bbThreadId: context.threadId,
           message: context.message,
           selector: {
             ...captured.selector,
             rects: captured.rects.map((rect) => ({ ...rect })),
           },
-          body: textarea.value,
-        })
-        .then((detail) => {
-          sessionStorage.removeItem(key);
-          this.closeComposer();
-          this.#openThreadId = detail.thread.id;
-          return this.refresh();
-        })
-        .then(() => this.openThread(detailId(this.#openThreadId)))
-        .catch((caught) => {
-          submit.disabled = false;
-          error.textContent = errorMessage(caught);
+          body,
         });
+        sessionStorage.removeItem(key);
+        this.closeComposer();
+        this.#openThreadId = detail.thread.id;
+        await this.refresh();
+        await this.openThread(detailId(this.#openThreadId));
+      },
     });
-    validate();
     this.#composer = shell;
     this.#composerThreadId = context.threadId;
     this.#portal.append(shell);
-    syncInlineComposerLayout(textarea, shell, false);
     this.#outsideComposer = (event) => {
       if (event.target instanceof Node && shell.contains(event.target)) return;
       persist();
       this.closeComposer();
     };
     document.addEventListener("pointerdown", this.#outsideComposer, true);
-    requestAnimationFrame(() => textarea.focus());
   }
 
   refreshAnchors(): void {
@@ -1139,6 +1104,27 @@ class TimelineCommentsController {
   }
 
   private renderThreadPopover(
+    popover: HTMLElement,
+    detail: TimelineCommentThreadDetail,
+  ): void {
+    this.#threadUiCleanup?.();
+    this.#threadUiCleanup = null;
+    this.closeActionsMenu();
+    delete popover.dataset.editing;
+    popover.replaceChildren();
+    this.#threadUiCleanup = mountMossCommentPopover(popover, {
+      rpc: this.#rpc,
+      detail,
+      onClose: () => this.closePopover(),
+      onChanged: () => this.scheduleRefresh(),
+      onSendToAgent: () => {
+        requestTimelineCommentHandoff(detail.thread.bbThreadId);
+        this.closePopover();
+      },
+    });
+  }
+
+  private renderLegacyThreadPopover(
     popover: HTMLElement,
     detail: TimelineCommentThreadDetail,
   ): void {
@@ -1729,7 +1715,10 @@ class TimelineCommentsController {
         event.target instanceof Node &&
         (this.#popover?.contains(event.target) === true ||
           this.#popoverInvoker?.contains(event.target) === true ||
-          this.#actionsMenu?.contains(event.target) === true)
+          this.#actionsMenu?.contains(event.target) === true ||
+          this.#portal
+            .querySelector(".bb-comments-actions-popover")
+            ?.contains(event.target) === true)
       ) {
         return;
       }
@@ -1737,6 +1726,19 @@ class TimelineCommentsController {
     };
     this.#popoverKeydown = (event) => {
       if (event.key !== "Escape") return;
+      const componentMenu = this.#portal.querySelector(
+        ".bb-comments-actions-popover",
+      );
+      if (componentMenu !== null) {
+        event.preventDefault();
+        event.stopPropagation();
+        this.#popover
+          ?.querySelector<HTMLButtonElement>(
+            'button[aria-label="Comment actions"][aria-expanded="true"]',
+          )
+          ?.click();
+        return;
+      }
       if (this.#actionsMenu !== null) {
         event.preventDefault();
         this.closeActionsMenu(true);
@@ -1745,7 +1747,10 @@ class TimelineCommentsController {
       const cancelEdit = this.#popover?.querySelector<HTMLButtonElement>(
         'button[aria-label="Cancel comment edit"]',
       );
-      if (this.#popover?.dataset.editing !== undefined && cancelEdit != null) {
+      if (
+        this.#popover?.querySelector('[data-comment-editing="true"]') !== null &&
+        cancelEdit != null
+      ) {
         event.preventDefault();
         event.stopPropagation();
         cancelEdit.click();
@@ -1806,6 +1811,8 @@ class TimelineCommentsController {
       document.removeEventListener("pointerdown", this.#outsideComposer, true);
       this.#outsideComposer = null;
     }
+    this.#composerUiCleanup?.();
+    this.#composerUiCleanup = null;
     this.#composer?.remove();
     this.#composer = null;
     this.#composerThreadId = null;
@@ -1823,6 +1830,8 @@ class TimelineCommentsController {
       invoker?.isConnected === true ? invoker : currentMarker;
     this.closeActionsMenu();
     this.removePopoverDismissal();
+    this.#threadUiCleanup?.();
+    this.#threadUiCleanup = null;
     this.#popoverInvoker = null;
     this.#popover?.remove();
     this.#popover = null;

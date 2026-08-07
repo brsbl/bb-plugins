@@ -26,6 +26,7 @@ import {
   refreshTimelineCommentAnchors,
   registerTimelineCommentThreadWindow,
   subscribeTimelineCommentAnchorHealth,
+  subscribeTimelineCommentHandoff,
 } from "./bridge.js";
 import { mountTimelineCommentsController } from "./controller.js";
 import "./app.css";
@@ -125,7 +126,7 @@ function AddCommentsAction() {
 
   if (threadId === null) return null;
 
-  const addComments = async () => {
+  const addComments = useCallback(async () => {
     const generation = ++requestGeneration.current;
     const isCurrentRequest = () =>
       generation === requestGeneration.current &&
@@ -153,7 +154,15 @@ function AddCommentsAction() {
     } finally {
       if (isCurrentRequest()) setBusy(false);
     }
-  };
+  }, [composer, rpc, threadId]);
+
+  useEffect(
+    () =>
+      subscribeTimelineCommentHandoff((requestedThreadId) => {
+        if (requestedThreadId === threadId) void addComments();
+      }),
+    [addComments, threadId],
+  );
 
   return (
     <span ref={actionRoot} className="bb-comments-composer-action-wrap">

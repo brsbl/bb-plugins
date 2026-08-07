@@ -16,6 +16,7 @@ export type TimelineCommentAnchorHealth =
 let anchorHealthSnapshot: ReadonlyMap<string, TimelineCommentAnchorHealth> =
   new Map();
 const anchorHealthListeners = new Set<() => void>();
+const handoffListeners = new Set<(threadId: string) => void>();
 
 export function publishTimelineCommentAnchorHealth(
   health: ReadonlyMap<string, TimelineCommentAnchorHealth>,
@@ -68,4 +69,15 @@ export function registerTimelineCommentThreadWindow(
 
 export function refreshTimelineCommentAnchors(): void {
   activeController?.refreshAnchors();
+}
+
+export function requestTimelineCommentHandoff(threadId: string): void {
+  for (const listener of handoffListeners) listener(threadId);
+}
+
+export function subscribeTimelineCommentHandoff(
+  listener: (threadId: string) => void,
+): () => void {
+  handoffListeners.add(listener);
+  return () => handoffListeners.delete(listener);
 }

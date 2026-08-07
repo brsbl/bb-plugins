@@ -133,6 +133,14 @@ function withinViewport(rect: DOMRect): boolean {
   );
 }
 
+function setTextareaValue(textarea: HTMLTextAreaElement, value: string): void {
+  Object.getOwnPropertyDescriptor(
+    HTMLTextAreaElement.prototype,
+    "value",
+  )?.set?.call(textarea, value);
+  textarea.dispatchEvent(new InputEvent("input", { bubbles: true }));
+}
+
 void (async () => {
   const result = document.querySelector<HTMLOutputElement>("#result")!;
   try {
@@ -205,17 +213,17 @@ void (async () => {
     const reply = popover.querySelector<HTMLTextAreaElement>(
       ".bb-comments-reply-input",
     );
-    const replyButton = popover.querySelector<HTMLButtonElement>(
-      'button[aria-label="Reply"]',
+    let replyButton = popover.querySelector<HTMLButtonElement>(
+      'button[aria-label="Submit comment"]',
     );
     if (reply === null || replyButton?.disabled !== true)
       throw new Error("Blank reply was not disabled");
     const emptyReplyHeight = reply.getBoundingClientRect().height;
     const replyComposer = reply.closest<HTMLElement>(
-      ".bb-comments-inline-composer",
+      ".bb-comments-mention-input",
     )!;
-    reply.value = "First line\nSecond line\nThird line";
-    reply.dispatchEvent(new InputEvent("input", { bubbles: true }));
+    setTextareaValue(reply, "First line\nSecond line\nThird line");
+    await wait(30);
     if (replyComposer.getAnimations().length === 0)
       throw new Error("Multiline reply expansion did not animate");
     await wait(130);
@@ -230,24 +238,25 @@ void (async () => {
     }
     if (reply.getBoundingClientRect().height <= emptyReplyHeight)
       throw new Error("Multiline reply input did not grow with its content");
-    if (replyComposer.dataset.multiline !== "true")
+    if (replyComposer.dataset.mentionInputExpanded !== "true")
       throw new Error("Multiline reply did not switch composer layout");
-    reply.value = "Ready";
-    reply.dispatchEvent(new InputEvent("input", { bubbles: true }));
+    setTextareaValue(reply, "Ready");
     await wait(180);
+    replyButton = popover.querySelector<HTMLButtonElement>(
+      'button[aria-label="Submit comment"]',
+    );
     if (replyButton.disabled)
       throw new Error("Valid reply did not enable submission");
-    if (replyComposer.dataset.multiline !== "true")
+    if (replyComposer.dataset.mentionInputExpanded !== "true")
       throw new Error("Expanded reply layout did not stay latched like Moss");
-    reply.value = "";
-    reply.dispatchEvent(new InputEvent("input", { bubbles: true }));
+    setTextareaValue(reply, "");
+    await wait(30);
     if (replyComposer.getAnimations().length === 0)
       throw new Error("Reply collapse did not animate");
     await wait(180);
-    if (replyComposer.dataset.multiline !== "false")
+    if (replyComposer.dataset.mentionInputExpanded !== "false")
       throw new Error("Cleared reply did not restore inline layout");
-    reply.value = "Ready";
-    reply.dispatchEvent(new InputEvent("input", { bubbles: true }));
+    setTextareaValue(reply, "Ready");
     if (CSS.highlights.get("bb-timeline-comments")?.size !== 8) {
       throw new Error("Custom Highlight registry did not retain every anchor");
     }
@@ -282,7 +291,7 @@ void (async () => {
     }
     const actionsRect = actionsMenu.getBoundingClientRect();
     const deleteButton = [...actionsMenu.querySelectorAll("button")].find(
-      (button) => button.textContent === "Delete",
+      (button) => button.textContent?.trim() === "Delete",
     );
     const deleteRect = deleteButton?.getBoundingClientRect();
     const visibleAtDelete =
@@ -298,7 +307,9 @@ void (async () => {
       !withinViewport(actionsRect) ||
       !deleteButton.contains(visibleAtDelete)
     )
-      throw new Error("Comment actions menu is clipped by the thread chrome");
+      throw new Error(
+        `Comment actions menu is clipped by the thread chrome: menu=${JSON.stringify(actionsRect.toJSON())} delete=${deleteRect ? JSON.stringify(deleteRect.toJSON()) : "missing"} visible=${visibleAtDelete?.className ?? visibleAtDelete?.nodeName ?? "none"}`,
+      );
 
     const menuItems = [
       ...actionsMenu.querySelectorAll<HTMLButtonElement>('[role="menuitem"]'),
@@ -346,6 +357,7 @@ void (async () => {
         '.bb-comments-actions-menu > button[aria-label="Comment actions"]',
       )
       ?.click();
+    await wait(0);
     document.activeElement?.dispatchEvent(
       new KeyboardEvent("keydown", {
         key: "Tab",
@@ -366,6 +378,7 @@ void (async () => {
         '.bb-comments-actions-menu > button[aria-label="Comment actions"]',
       )
       ?.click();
+    await wait(0);
     popover.focus({ preventScroll: true });
     await wait(0);
     if (document.querySelector(".bb-comments-actions-popover") !== null)
@@ -442,9 +455,11 @@ void (async () => {
         '.bb-comments-actions-menu > button[aria-label="Comment actions"]',
       )
       ?.click();
-    document.dispatchEvent(
+    await wait(0);
+    document.activeElement?.dispatchEvent(
       new KeyboardEvent("keydown", { key: "Escape", bubbles: true }),
     );
+    await wait(0);
     if (
       document.querySelector(".bb-comments-actions-popover") !== null ||
       document.querySelector(".bb-comments-thread") === null
@@ -464,14 +479,15 @@ void (async () => {
     );
     if (originalBody === null || originalReplyInput === null)
       throw new Error("Thread fixture omitted persistent edit surfaces");
-    originalReplyInput.value = "Preserve this reply draft";
-    originalReplyInput.dispatchEvent(new Event("input", { bubbles: true }));
+    const originalEditingRow = originalBody.closest(".bb-comments-comment");
+    setTextareaValue(originalReplyInput, "Preserve this reply draft");
     const editButton = [
       ...document.querySelectorAll<HTMLButtonElement>(
         ".bb-comments-actions-popover button",
       ),
-    ].find((button) => button.textContent === "Edit");
+    ].find((button) => button.textContent?.trim() === "Edit");
     editButton?.click();
+    await wait(0);
     if (document.querySelector(".bb-comments-actions-popover") !== null)
       throw new Error("Comment action did not dismiss its portal menu");
     const editInput = popover.querySelector<HTMLTextAreaElement>(
@@ -492,10 +508,7 @@ void (async () => {
       !editingRow.getAnimations().some(({ effect }) => effect !== null) ||
       cancelEditButton === null ||
       getComputedStyle(cancelEditButton).display === "none" ||
-      originalBody !==
-        popover.querySelector(
-          '[data-bb-comment-id="comment_root"] .bb-comments-comment-body',
-        )
+      originalEditingRow !== editingRow
     ) {
       throw new Error("Comment edit rebuilt the row or omitted its height animation");
     }
@@ -507,12 +520,12 @@ void (async () => {
       throw new Error("Editing above replies did not incrementally collapse them");
     }
     const saveEdit = popover.querySelector<HTMLButtonElement>(
-      'button[aria-label="Save comment"]',
+      '[data-bb-comment-id="comment_root"] button[aria-label="Submit comment"]',
     );
     if (saveEdit?.disabled !== false)
       throw new Error("Unchanged comment cannot exit editing like Moss");
     const localFooter = editingRow.querySelector(
-      ".bb-comments-local-edit-footer-host > .bb-comments-edit-footer",
+      ".bb-comments-edit-footer",
     );
     if (localFooter === null)
       throw new Error("Earlier-comment edit footer did not stay under its comment");
@@ -520,6 +533,7 @@ void (async () => {
     saveEdit.dispatchEvent(
       new KeyboardEvent("keydown", { key: "Escape", bubbles: true }),
     );
+    await wait(0);
     if (
       document.querySelector(".bb-comments-thread") === null ||
       editingRow.dataset.editing === "true" ||
@@ -541,7 +555,7 @@ void (async () => {
         bubbles: true,
       }),
     );
-    await wait(0);
+    await wait(30);
     const insertedReply = [...popover.querySelectorAll(".bb-comments-comment")]
       .find((row) => row.textContent?.includes("Preserve this reply draft"));
     if (

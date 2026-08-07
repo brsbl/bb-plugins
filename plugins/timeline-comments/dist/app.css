@@ -1,4 +1,4 @@
-/*! tailwindcss v4.3.0 | MIT License | https://tailwindcss.com */
+/*! tailwindcss v4.3.3 | MIT License | https://tailwindcss.com */
 @layer properties;
 @layer theme, utilities;
 @layer theme {
@@ -395,7 +395,7 @@
     }
   }
 }
-/* Code/bb-plugins/plugins/timeline-comments/app.css */
+/* app.css */
 .bb-comments-overlay {
   position: fixed;
   inset: 0;
@@ -594,15 +594,21 @@
 }
 .bb-comments-thread {
   display: flex;
-  width: 255px;
+  width: 264px;
   max-width: calc(100vw - 24px);
   max-height: min(82vh, calc(100vh - 56px));
   flex-direction: column;
   overflow: hidden;
-  border-radius: 9px;
+  border-radius: 12px;
+}
+.bb-comments-thread-inner {
+  display: flex;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
 }
 .bb-comments-thread-header {
-  min-height: 27px;
+  min-height: 30px;
   box-sizing: border-box;
   flex: 0 0 auto;
   padding: 4px 6px;
@@ -612,19 +618,19 @@
 .bb-comments-thread-source {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 5px;
   min-width: 0;
   margin-right: 3px;
   overflow: hidden;
   color: var(--muted-foreground);
-  font-size: 10px;
+  font-size: 10.5px;
   font-weight: 400;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 .bb-comments-thread-source svg {
-  width: 11px;
-  height: 11px;
+  width: 12px;
+  height: 12px;
   color: var(--muted-foreground);
 }
 .bb-comments-quiet,
@@ -660,12 +666,11 @@
 }
 .bb-comments-comment {
   position: relative;
-  padding: 6px 9px;
-  border-bottom: 1px solid color-mix(in oklab, var(--border-seam, var(--border)) 55%, transparent);
+  padding: 0;
+  border-bottom: 1px solid color-mix(in oklab, var(--border-seam, var(--border)) 30%, transparent);
   transition: background-color 150ms ease-out;
 }
 .bb-comments-comment[data-editing=true] {
-  padding-bottom: 0;
   background: color-mix(in oklab, var(--surface-recessed) 42%, var(--popover));
 }
 .bb-comments-comment-meta {
@@ -679,7 +684,7 @@
   align-items: center;
   justify-content: space-between;
   gap: 6px;
-  padding: 0;
+  padding: 6px 9px 0;
 }
 .bb-comments-message-header > div:first-child {
   display: flex;
@@ -689,19 +694,19 @@
 }
 .bb-comments-message-header strong {
   color: var(--foreground);
-  font-size: 10px;
+  font-size: 9px;
   font-weight: 500;
   line-height: 1.4;
 }
 .bb-comments-message-header time {
   color: var(--muted-foreground);
-  font-size: 10px;
+  font-size: 9px;
   font-weight: 300;
   line-height: 1.4;
 }
 .bb-comments-comment-body {
-  margin: 3px 0 0;
-  font-size: 11px;
+  margin: 3px 9px 6px;
+  font-size: 10.5px;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
   line-height: 1.45;
@@ -724,15 +729,15 @@
   position: relative;
   min-height: 0;
   overflow: hidden;
+  border-top: 1px solid var(--border-seam, var(--border));
 }
 .bb-comments-reply .bb-comments-inline-composer {
   margin: 0;
-  padding: 3px 6px;
-  transition: border-color 120ms ease, opacity 150ms ease-out;
-}
-.bb-comments-reply-inner {
-  padding: 7px 9px;
-  border-top: 1px solid var(--border-seam, var(--border));
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  transition: opacity 150ms ease-out;
 }
 .bb-comments-reply[data-last-editing=true] [data-bb-comment-reply-composer] {
   pointer-events: none;
@@ -755,11 +760,12 @@
 }
 .bb-comments-reply-input {
   field-sizing: content;
-  min-height: 20px;
-  max-height: 104px;
-  padding: 1px 0;
+  min-height: 18px;
+  max-height: 96px;
+  padding: 3px 0;
   border: 0;
   background: transparent;
+  font-size: 10.5px;
   line-height: 1.45;
   resize: none;
 }
@@ -774,13 +780,6 @@
   resize: none;
 }
 .bb-comments-edit-composer {
-  display: none;
-  margin: 0 -9px;
-}
-.bb-comments-comment[data-editing=true] .bb-comments-comment-body {
-  display: none;
-}
-.bb-comments-comment[data-editing=true] .bb-comments-edit-composer {
   display: block;
 }
 .bb-comments-edit-cancel {
@@ -794,11 +793,11 @@
 }
 .bb-comments-edit-footer {
   display: flex;
-  height: 30px;
+  min-height: 30px;
   box-sizing: border-box;
   align-items: center;
-  justify-content: flex-end;
-  padding: 0 9px;
+  justify-content: space-between;
+  padding: 4px 7px;
   border-top: 1px solid var(--border-seam, var(--border));
   background: color-mix(in oklab, var(--surface-recessed) 42%, var(--popover));
 }
@@ -834,24 +833,16 @@
   position: relative;
   display: block;
   box-sizing: border-box;
-  min-height: 29px;
-  margin-top: 6px;
-  padding: 3px 6px;
-  border: 1px solid color-mix(in oklab, var(--border) 55%, transparent);
-  border-radius: 9px;
-  background: color-mix(in oklab, var(--surface-recessed) 44%, var(--popover));
-  transition: border-color 120ms ease;
+  min-height: 30px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
 }
 .bb-comments-inline-composer:focus-within {
-  border-color: color-mix(in oklab, var(--foreground) 18%, var(--border));
   outline: none;
   box-shadow: none;
-}
-.bb-comments-inline-composer :is(.bb-comments-reply-input, .bb-comments-edit-input) {
-  padding-right: 35px;
-}
-.bb-comments-inline-composer[data-multiline=true] {
-  padding-bottom: 26px;
 }
 .bb-comments-composer[data-multiline=true] {
   padding-bottom: 26px;
@@ -863,9 +854,7 @@
   padding-right: 3px;
 }
 .bb-comments-submit-shortcut {
-  position: absolute;
-  right: 6px;
-  bottom: 5px;
+  position: static;
   display: flex;
   min-width: 27px;
   height: 18px;
@@ -880,6 +869,43 @@
   font: inherit;
   font-size: 9px;
   cursor: pointer;
+}
+.bb-comments-mention-input {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+}
+.bb-comments-input-surface {
+  min-width: 0;
+  flex: 1;
+  padding: 0 9px;
+}
+.bb-comments-input-row {
+  display: flex;
+  min-height: 30px;
+  align-items: center;
+  gap: 5px;
+}
+.bb-comments-context-control {
+  display: grid;
+  width: 18px;
+  height: 18px;
+  flex: 0 0 18px;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--muted-foreground);
+}
+.bb-comments-context-control:hover {
+  background: var(--surface-recessed);
+  color: var(--foreground);
+}
+.bb-comments-context-control svg {
+  width: 11px;
+  height: 11px;
 }
 .bb-comments-submit-shortcut svg {
   width: 10px;
@@ -906,6 +932,7 @@
   }
 }
 .bb-comments-actions-menu {
+  position: relative;
   flex: 0 0 auto;
 }
 .bb-comments-actions-popover {

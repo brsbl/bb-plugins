@@ -78,14 +78,13 @@ describe("timeline comments controller teardown", () => {
     expect(composer).not.toBeNull();
     expect(composer.querySelector(".bb-comments-composer-footer")).toBeNull();
     expect(
-      composer.querySelector('button[aria-label="Comment"] svg'),
+      composer.querySelector('button[aria-label="Submit comment"] svg'),
     ).not.toBeNull();
     const textarea = composer.querySelector<HTMLTextAreaElement>(
-      ".bb-comments-textarea",
+      ".bb-comments-reply-input",
     )!;
-    textarea.value = "first line\nsecond line";
-    textarea.dispatchEvent(new InputEvent("input", { bubbles: true }));
-    expect(composer.dataset.multiline).toBe("true");
+    expect(composer.querySelector('[data-comment-new-composer="true"]')).not.toBeNull();
+    expect(textarea.getAttribute("aria-label")).toBe("Add a comment");
     controller.abort();
     dispose();
     document.getSelection()!.removeAllRanges();
