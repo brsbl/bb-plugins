@@ -15,6 +15,7 @@ import {
 import { createPortal, flushSync } from "react-dom";
 import { createRoot, type Root } from "react-dom/client";
 import {
+  AtSign,
   CheckCheck,
   Command,
   CornerDownLeft,
@@ -171,43 +172,312 @@ function CommentTextInput({
   onCancel,
 }: CommentTextInputProps) {
   const rootRef = useRef<HTMLDivElement | null>(null);
+  const inputContentRef = useRef<HTMLDivElement | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
-  const previousExpandedRef = useRef(false);
-  const startHeightRef = useRef<number | null>(null);
-  const animationRef = useRef<Animation | null>(null);
+  const previousFooterVisibleRef = useRef(false);
+  const compactHeightRef = useRef<number | null>(null);
+  const compactContentOffsetRef = useRef<number | null>(null);
+  const expandedHeightRef = useRef<number | null>(null);
+  const responsiveHeightAnimationRef = useRef<Animation | null>(null);
+  const responsiveContentAnimationRef = useRef<Animation | null>(null);
+  const responsiveAnimationCleanupTimerRef = useRef<number | null>(null);
+  const responsiveMeasurementFrameRef = useRef<number | null>(null);
   const [responsiveFooterLatched, setResponsiveFooterLatched] = useState(false);
-  const expanded =
-    persistentFooter || value.includes("\n") || responsiveFooterLatched;
+  const hasExplicitLineBreak = value.includes("\n");
+  const responsiveExpansionRequested =
+    hasExplicitLineBreak || responsiveFooterLatched;
+  const footerVisible = persistentFooter || responsiveExpansionRequested;
+  const responsiveCompact = !persistentFooter && !footerVisible;
   const error = value.trim() === "" ? null : commentBodyError(value);
   const submitDisabled = commentBodyError(value) !== null;
 
-  useLayoutEffect(() => {
+  const animateResponsiveHeightToNaturalSize = useCallback(() => {
     const root = rootRef.current;
-    if (!root || previousExpandedRef.current === expanded) return;
-    previousExpandedRef.current = expanded;
-    const startHeight = startHeightRef.current;
-    startHeightRef.current = null;
-    if (startHeight === null || typeof root.animate !== "function" || reducedMotion())
+    const previousNaturalHeight = expandedHeightRef.current;
+    if (!root || previousNaturalHeight === null) return;
+
+    const naturalHeight = Array.from(root.children).reduce((height, child) => {
+      if (
+        !(child instanceof HTMLElement) ||
+        window.getComputedStyle(child).position === "absolute"
+      ) {
+        return height;
+      }
+      return height + child.getBoundingClientRect().height;
+    }, 0);
+    if (Math.abs(naturalHeight - previousNaturalHeight) < 0.5) return;
+    expandedHeightRef.current = naturalHeight;
+
+    const runningAnimation = responsiveHeightAnimationRef.current;
+    const startHeight = runningAnimation
+      ? root.getBoundingClientRect().height
+      : previousNaturalHeight;
+    responsiveHeightAnimationRef.current = null;
+    runningAnimation?.cancel();
+    if (responsiveAnimationCleanupTimerRef.current !== null) {
+      window.clearTimeout(responsiveAnimationCleanupTimerRef.current);
+      responsiveAnimationCleanupTimerRef.current = null;
+    }
+
+    if (
+      typeof root.animate !== "function" ||
+      reducedMotion() ||
+      Math.abs(naturalHeight - startHeight) < 0.5
+    ) {
+      root.style.removeProperty("overflow");
       return;
-    const endHeight = root.getBoundingClientRect().height;
-    if (Math.abs(endHeight - startHeight) < 0.5) return;
-    animationRef.current?.cancel();
+    }
+
     root.style.overflow = "hidden";
-    const animation = root.animate(
+    const heightAnimation = root.animate(
+      [{ height: `${startHeight}px` }, { height: `${naturalHeight}px` }],
+      MODE_TRANSITION,
+    );
+    responsiveHeightAnimationRef.current = heightAnimation;
+    const finishTransition = () => {
+      if (responsiveHeightAnimationRef.current !== heightAnimation) return;
+      responsiveHeightAnimationRef.current = null;
+      if (responsiveAnimationCleanupTimerRef.current !== null) {
+        window.clearTimeout(responsiveAnimationCleanupTimerRef.current);
+        responsiveAnimationCleanupTimerRef.current = null;
+      }
+      root.style.removeProperty("overflow");
+    };
+    heightAnimation.addEventListener("finish", finishTransition, { once: true });
+    responsiveAnimationCleanupTimerRef.current = window.setTimeout(() => {
+      if (responsiveHeightAnimationRef.current === heightAnimation) {
+        responsiveHeightAnimationRef.current = null;
+        heightAnimation.cancel();
+        root.style.removeProperty("overflow");
+      }
+      responsiveAnimationCleanupTimerRef.current = null;
+    }, 200);
+  }, []);
+
+  useLayoutEffect(() => {
+    if (persistentFooter) {
+      previousFooterVisibleRef.current = footerVisible;
+      return;
+    }
+    const root = rootRef.current;
+    const content = inputContentRef.current;
+    const row = root?.querySelector<HTMLElement>('[data-mention-input-row="true"]');
+    if (!root || !content || !row) return;
+
+    const wasVisible = previousFooterVisibleRef.current;
+    previousFooterVisibleRef.current = footerVisible;
+    const currentNaturalHeight =
+      root.offsetHeight || root.getBoundingClientRect().height;
+    const currentContentOffset =
+      Number.parseFloat(window.getComputedStyle(row).paddingLeft) || 0;
+
+    if (wasVisible === footerVisible) {
+      if (!footerVisible) {
+        const previousCompactHeight = compactHeightRef.current;
+        if (
+          previousCompactHeight === null ||
+          currentNaturalHeight <= previousCompactHeight + 0.5
+        ) {
+          compactHeightRef.current = currentNaturalHeight;
+          compactContentOffsetRef.current = currentContentOffset;
+        }
+      } else if (!responsiveHeightAnimationRef.current) {
+        expandedHeightRef.current = currentNaturalHeight;
+      }
+      return;
+    }
+
+    const runningHeightAnimation = responsiveHeightAnimationRef.current;
+    const animatedStartHeight = runningHeightAnimation
+      ? root.getBoundingClientRect().height
+      : null;
+    responsiveHeightAnimationRef.current = null;
+    runningHeightAnimation?.cancel();
+    responsiveContentAnimationRef.current?.cancel();
+    responsiveContentAnimationRef.current = null;
+    if (responsiveAnimationCleanupTimerRef.current !== null) {
+      window.clearTimeout(responsiveAnimationCleanupTimerRef.current);
+      responsiveAnimationCleanupTimerRef.current = null;
+    }
+    root.style.removeProperty("overflow");
+
+    const endHeight = root.offsetHeight || root.getBoundingClientRect().height;
+    const startHeight =
+      animatedStartHeight ??
+      (footerVisible ? compactHeightRef.current : expandedHeightRef.current) ??
+      endHeight;
+    if (footerVisible) expandedHeightRef.current = endHeight;
+    else {
+      compactHeightRef.current = endHeight;
+      compactContentOffsetRef.current = currentContentOffset;
+    }
+
+    if (
+      typeof root.animate !== "function" ||
+      reducedMotion() ||
+      Math.abs(endHeight - startHeight) < 0.5
+    ) return;
+
+    root.style.overflow = "hidden";
+    const heightAnimation = root.animate(
       [{ height: `${startHeight}px` }, { height: `${endHeight}px` }],
       MODE_TRANSITION,
     );
-    animationRef.current = animation;
-    animation.addEventListener(
-      "finish",
-      () => {
-        if (animationRef.current !== animation) return;
-        animationRef.current = null;
+    responsiveHeightAnimationRef.current = heightAnimation;
+
+    if (footerVisible) {
+      const compactContentOffset = compactContentOffsetRef.current;
+      const contentOffset =
+        compactContentOffset === null
+          ? 0
+          : compactContentOffset - currentContentOffset;
+      if (Math.abs(contentOffset) >= 0.5) {
+        const contentAnimation = content.animate(
+          [
+            { transform: `translateX(${contentOffset}px)` },
+            { transform: "translateX(0)" },
+          ],
+          MODE_TRANSITION,
+        );
+        responsiveContentAnimationRef.current = contentAnimation;
+        contentAnimation.addEventListener(
+          "finish",
+          () => {
+            if (responsiveContentAnimationRef.current === contentAnimation)
+              responsiveContentAnimationRef.current = null;
+          },
+          { once: true },
+        );
+      }
+    }
+
+    const finishTransition = () => {
+      if (responsiveHeightAnimationRef.current !== heightAnimation) return;
+      responsiveHeightAnimationRef.current = null;
+      if (responsiveAnimationCleanupTimerRef.current !== null) {
+        window.clearTimeout(responsiveAnimationCleanupTimerRef.current);
+        responsiveAnimationCleanupTimerRef.current = null;
+      }
+      root.style.removeProperty("overflow");
+    };
+    heightAnimation.addEventListener("finish", finishTransition, { once: true });
+    responsiveAnimationCleanupTimerRef.current = window.setTimeout(() => {
+      if (responsiveHeightAnimationRef.current === heightAnimation) {
+        responsiveHeightAnimationRef.current = null;
+        heightAnimation.cancel();
         root.style.removeProperty("overflow");
-      },
-      { once: true },
+      }
+      responsiveAnimationCleanupTimerRef.current = null;
+    }, 200);
+  }, [footerVisible, persistentFooter]);
+
+  useEffect(
+    () => () => {
+      if (responsiveMeasurementFrameRef.current !== null)
+        window.cancelAnimationFrame(responsiveMeasurementFrameRef.current);
+      if (responsiveAnimationCleanupTimerRef.current !== null)
+        window.clearTimeout(responsiveAnimationCleanupTimerRef.current);
+      responsiveHeightAnimationRef.current?.cancel();
+      responsiveContentAnimationRef.current?.cancel();
+      responsiveHeightAnimationRef.current = null;
+      responsiveContentAnimationRef.current = null;
+      rootRef.current?.style.removeProperty("overflow");
+    },
+    [],
+  );
+
+  const shouldExpandResponsiveFooter = useCallback(() => {
+    const element = textareaRef.current;
+    if (!element) return false;
+    const computedLineHeight = Number.parseFloat(
+      window.getComputedStyle(element).lineHeight,
     );
-  }, [expanded]);
+    const singleLineHeight = Number.isFinite(computedLineHeight)
+      ? computedLineHeight
+      : 20;
+    const contentHeight = Math.max(
+      element.scrollHeight,
+      element.getBoundingClientRect().height,
+    );
+    const singleLineOverflow = element.scrollWidth > element.clientWidth + 0.5;
+    return (
+      Boolean(element.value.trim()) &&
+      (singleLineOverflow || contentHeight > singleLineHeight * 1.5)
+    );
+  }, []);
+
+  const cancelResponsiveFooterMeasurement = useCallback(() => {
+    if (responsiveMeasurementFrameRef.current === null) return;
+    window.cancelAnimationFrame(responsiveMeasurementFrameRef.current);
+    responsiveMeasurementFrameRef.current = null;
+  }, []);
+
+  const scheduleResponsiveFooterMeasurement = useCallback(() => {
+    if (responsiveMeasurementFrameRef.current !== null) return;
+    responsiveMeasurementFrameRef.current = window.requestAnimationFrame(() => {
+      responsiveMeasurementFrameRef.current = null;
+      if (shouldExpandResponsiveFooter()) setResponsiveFooterLatched(true);
+    });
+  }, [shouldExpandResponsiveFooter]);
+
+  useLayoutEffect(() => {
+    if (persistentFooter) {
+      cancelResponsiveFooterMeasurement();
+      return;
+    }
+    if (!value.trim()) {
+      cancelResponsiveFooterMeasurement();
+      setResponsiveFooterLatched(false);
+      return;
+    }
+    if (responsiveFooterLatched) {
+      cancelResponsiveFooterMeasurement();
+      return;
+    }
+    if (hasExplicitLineBreak) {
+      cancelResponsiveFooterMeasurement();
+      setResponsiveFooterLatched(true);
+      return;
+    }
+    scheduleResponsiveFooterMeasurement();
+  }, [
+    cancelResponsiveFooterMeasurement,
+    hasExplicitLineBreak,
+    persistentFooter,
+    responsiveFooterLatched,
+    scheduleResponsiveFooterMeasurement,
+    value,
+  ]);
+
+  useLayoutEffect(() => {
+    if (persistentFooter || typeof ResizeObserver === "undefined") return;
+    const element = textareaRef.current;
+    if (!element) return;
+    const handleResize = () => {
+      if (responsiveFooterLatched) animateResponsiveHeightToNaturalSize();
+      else scheduleResponsiveFooterMeasurement();
+    };
+    const resizeObserver = new ResizeObserver(handleResize);
+    const mutationObserver =
+      responsiveFooterLatched || typeof MutationObserver === "undefined"
+        ? null
+        : new MutationObserver(scheduleResponsiveFooterMeasurement);
+    resizeObserver.observe(element);
+    mutationObserver?.observe(element, {
+      childList: true,
+      characterData: true,
+      subtree: true,
+    });
+    return () => {
+      resizeObserver.disconnect();
+      mutationObserver?.disconnect();
+    };
+  }, [
+    animateResponsiveHeightToNaturalSize,
+    persistentFooter,
+    responsiveFooterLatched,
+    scheduleResponsiveFooterMeasurement,
+  ]);
 
   useEffect(() => {
     if (!autoFocus) return;
@@ -215,13 +485,18 @@ function CommentTextInput({
     return () => cancelAnimationFrame(frame);
   }, [autoFocus]);
 
-  useEffect(() => {
-    if (!persistentFooter && value.trim() === "") setResponsiveFooterLatched(false);
-  }, [persistentFooter, value]);
-
-  const beginResponsiveTransition = () => {
-    if (rootRef.current) startHeightRef.current = rootRef.current.getBoundingClientRect().height;
-  };
+  const insertMentionTrigger = useCallback(() => {
+    const textarea = textareaRef.current;
+    if (!textarea) return;
+    const start = textarea.selectionStart;
+    const end = textarea.selectionEnd;
+    const nextValue = `${value.slice(0, start)}@${value.slice(end)}`;
+    onChange(nextValue);
+    window.requestAnimationFrame(() => {
+      textarea.focus({ preventScroll: true });
+      textarea.setSelectionRange(start + 1, start + 1);
+    });
+  }, [onChange, value]);
 
   const submit = (
     <button
@@ -242,16 +517,17 @@ function CommentTextInput({
     <div
       className="bb-comments-edit-footer"
       data-mention-input-footer="true"
+      data-mention-input-footer-state="expanded"
       data-persistent-footer="true"
     >
       <button
         type="button"
         className="bb-comments-context-control"
-        aria-label="Add comment context"
+        aria-label="Mention context"
         onMouseDown={(event) => event.preventDefault()}
-        onClick={() => textareaRef.current?.focus()}
+        onClick={insertMentionTrigger}
       >
-        <Plus aria-hidden="true" />
+        <AtSign aria-hidden="true" />
       </button>
       {submit}
     </div>
@@ -261,66 +537,113 @@ function CommentTextInput({
     <div
       ref={rootRef}
       className="bb-comments-mention-input"
-      data-mention-input-expanded={expanded ? "true" : "false"}
+      data-mention-input-expanded={footerVisible ? "true" : "false"}
     >
       <div className="bb-comments-input-surface" data-mention-input-surface="true">
-        <div className="bb-comments-input-row" data-mention-input-row="true">
-          {!expanded ? (
-            <button
-              type="button"
-              className="bb-comments-context-control"
-              aria-label="Add comment context"
-              onMouseDown={(event) => event.preventDefault()}
-              onClick={() => textareaRef.current?.focus()}
-            >
-              <Plus aria-hidden="true" />
-            </button>
-          ) : null}
-          <textarea
-            ref={textareaRef}
-            className={
-              persistentFooter
-                ? "bb-comments-edit-input"
-                : "bb-comments-reply-input"
-            }
-            aria-label={ariaLabel}
-            placeholder={placeholder}
-            maxLength={20_000}
-            value={value}
-            onChange={(event) => {
-              beginResponsiveTransition();
-              if (
-                !persistentFooter &&
-                event.currentTarget.value.trim() !== "" &&
-                (event.currentTarget.value.includes("\n") ||
-                  event.currentTarget.scrollHeight >
-                    event.currentTarget.clientHeight + 1)
-              ) {
-                setResponsiveFooterLatched(true);
+        <div
+          className="bb-comments-input-row"
+          data-mention-input-row="true"
+          data-responsive-compact={responsiveCompact ? "true" : "false"}
+        >
+          <div
+            ref={inputContentRef}
+            className="bb-comments-input-content"
+            data-mention-input-content="true"
+          >
+            <textarea
+              ref={textareaRef}
+              className={
+                persistentFooter
+                  ? "bb-comments-edit-input"
+                  : "bb-comments-reply-input"
               }
-              onChange(event.currentTarget.value);
-            }}
-            onKeyDown={(event) => {
-              if (event.key === "Escape" && onCancel) {
-                event.preventDefault();
-                onCancel();
-                return;
-              }
-              if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) {
-                event.preventDefault();
-                if (!submitDisabled) onSubmit(value);
-              }
-            }}
-          />
-          {!expanded ? submit : null}
+              aria-label={ariaLabel}
+              placeholder={placeholder}
+              maxLength={20_000}
+              value={value}
+              onChange={(event) => onChange(event.currentTarget.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Escape" && onCancel) {
+                  event.preventDefault();
+                  onCancel();
+                  return;
+                }
+                if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) {
+                  event.preventDefault();
+                  if (!submitDisabled) onSubmit(value);
+                }
+              }}
+            />
+          </div>
         </div>
         {error ? <div className="bb-comments-error" role="status">{error}</div> : null}
       </div>
-      {expanded
+      {persistentFooter
         ? footerPortalTarget
           ? createPortal(footer, footerPortalTarget)
           : footer
-        : null}
+        : (
+          <>
+            <div
+              className="bb-comments-responsive-footer"
+              aria-hidden="true"
+              data-mention-input-footer="true"
+              data-mention-input-footer-state={
+                footerVisible ? "expanded" : "collapsed"
+              }
+            >
+              <div
+                className="bb-comments-responsive-footer-divider"
+                data-mention-input-footer-divider="true"
+              />
+            </div>
+            <div
+              className="bb-comments-responsive-actions"
+              data-mention-input-responsive-actions="true"
+            >
+              <div className="bb-comments-responsive-action-switcher">
+                <div
+                  className="bb-comments-compact-actions"
+                  aria-hidden={footerVisible}
+                  inert={footerVisible || undefined}
+                  data-mention-input-compact-actions="true"
+                >
+                  <button
+                    type="button"
+                    className="bb-comments-context-control"
+                    aria-label="Add comment context"
+                    onMouseDown={(event) => event.preventDefault()}
+                    onClick={insertMentionTrigger}
+                  >
+                    <Plus aria-hidden="true" />
+                  </button>
+                </div>
+                <div
+                  className="bb-comments-expanded-actions"
+                  aria-hidden={!footerVisible}
+                  inert={!footerVisible || undefined}
+                  data-mention-input-expanded-actions="true"
+                >
+                  <button
+                    type="button"
+                    className="bb-comments-context-control"
+                    aria-label="Mention context"
+                    onMouseDown={(event) => event.preventDefault()}
+                    onClick={insertMentionTrigger}
+                  >
+                    <AtSign aria-hidden="true" />
+                  </button>
+                </div>
+              </div>
+              <div
+                className="bb-comments-responsive-submit"
+                data-mention-input-responsive-submit="true"
+              >
+                {submit}
+              </div>
+            </div>
+          </>
+        )}
     </div>
   );
 }

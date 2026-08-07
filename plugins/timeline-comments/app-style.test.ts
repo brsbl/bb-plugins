@@ -7,7 +7,8 @@ describe("timeline comments visual contract", () => {
   it("uses one compact scale across Moss comment components", () => {
     expect(css).toMatch(/\.bb-comments-marker \{[\s\S]*width: 24px;[\s\S]*height: 24px;/u);
     expect(css).toMatch(/\.bb-comments-marker svg \{[\s\S]*width: 15px;[\s\S]*height: 15px;/u);
-    expect(css).toMatch(/\.bb-comments-composer-action \{[\s\S]*width: 22px;[\s\S]*height: 22px;/u);
+    expect(css).toMatch(/\.bb-comments-composer-action \{[\s\S]*width: 28px;[\s\S]*height: 28px;/u);
+    expect(css).toMatch(/\.bb-comments-composer-action-icon \{[\s\S]*width: 16px;[\s\S]*height: 16px;/u);
     expect(css).toContain("width: 264px;");
     expect(css).toMatch(/\.bb-comments-comment \{[\s\S]*padding: 0;/u);
     expect(css).toMatch(/\.bb-comments-comment-body \{[\s\S]*font-size: 10\.5px;/u);
@@ -18,7 +19,8 @@ describe("timeline comments visual contract", () => {
 
   it("keeps the new-comment composer compact until content needs more room", () => {
     expect(css).toMatch(/\.bb-comments-composer \{[\s\S]*width: 216px;[\s\S]*min-height: 30px;/u);
-    expect(css).toMatch(/\.bb-comments-input-row \{[\s\S]*min-height: 30px;/u);
+    expect(css).toMatch(/\.bb-comments-mention-input\[data-mention-input-expanded="false"\] \{[\s\S]*height: 30px;/u);
+    expect(css).toMatch(/\.bb-comments-input-row \{[\s\S]*min-height: 24px;/u);
     expect(css).toMatch(/\.bb-comments-context-control \{[\s\S]*width: 18px;/u);
   });
 
@@ -31,6 +33,12 @@ describe("timeline comments visual contract", () => {
     );
     expect(css).toMatch(
       /\.bb-comments-edit-footer-host \{[\s\S]*opacity 150ms ease-out;/u,
+    );
+    expect(css).toMatch(
+      /\.bb-comments-compact-actions,[\s\S]*\.bb-comments-expanded-actions \{[\s\S]*opacity 150ms ease-out;/u,
+    );
+    expect(css).toMatch(
+      /\.bb-comments-reply\[data-last-editing="true"\] \.bb-comments-reply-inner \{[\s\S]*height: 31px;/u,
     );
     expect(css).toContain("@media (prefers-reduced-motion: reduce)");
   });

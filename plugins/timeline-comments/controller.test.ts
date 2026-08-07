@@ -344,19 +344,33 @@ describe("timeline comments controller teardown", () => {
       configurable: true,
       value: () => rect,
     });
+    let narrowMessageGutter = false;
     Object.defineProperty(HTMLElement.prototype, "getBoundingClientRect", {
       configurable: true,
-      value: () => ({
-        ...rect,
-        x: 0,
-        y: 0,
-        top: 0,
-        right: 500,
-        bottom: 700,
-        left: 0,
-        width: 500,
-        height: 700,
-      }),
+      value: function (this: HTMLElement) {
+        if (this.matches("[data-sidebar-swipe-selectable]")) {
+          const left = narrowMessageGutter ? 10 : 60;
+          const right = narrowMessageGutter ? 790 : 740;
+          return {
+            ...rect,
+            x: left,
+            left,
+            right,
+            width: right - left,
+          };
+        }
+        return {
+          ...rect,
+          x: 0,
+          y: 0,
+          top: 0,
+          right: 800,
+          bottom: 700,
+          left: 0,
+          width: 800,
+          height: 700,
+        };
+      },
     });
     const dispose = mountTimelineCommentsController({
       pluginId: "timeline-comments",
@@ -374,6 +388,16 @@ describe("timeline comments controller teardown", () => {
       windows[1]!,
     );
 
+    await vi.waitFor(() =>
+      expect(document.querySelector(".bb-comments-marker")).not.toBeNull(),
+    );
+    narrowMessageGutter = true;
+    window.dispatchEvent(new Event("resize"));
+    await vi.waitFor(() =>
+      expect(document.querySelector(".bb-comments-marker")).toBeNull(),
+    );
+    narrowMessageGutter = false;
+    window.dispatchEvent(new Event("resize"));
     await vi.waitFor(() =>
       expect(document.querySelector(".bb-comments-marker")).not.toBeNull(),
     );

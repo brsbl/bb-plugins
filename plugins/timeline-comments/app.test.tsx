@@ -62,6 +62,7 @@ describe("timeline comments app", () => {
       {
         id: "comment-selection",
         title: "Comment",
+        icon: "ChatFeedback",
       },
     ]);
     expect(app.messageActions[0]).not.toHaveProperty("placements");
@@ -69,7 +70,7 @@ describe("timeline comments app", () => {
       {
         id: "comments",
         title: "Comments",
-        icon: "MessageSquare",
+        icon: "ChatFeedback",
         layout: "flush",
       },
     ]);
@@ -156,6 +157,10 @@ describe("timeline comments app", () => {
         },
       },
     );
+
+    expect(
+      action.container.querySelector('[data-icon="ChatFeedback"]'),
+    ).not.toBeNull();
 
     fireEvent.click(
       action.getByRole("button", { name: "Add comments to chat" }),

@@ -83,6 +83,47 @@ describe("Moss comment component port", () => {
     unmount();
   });
 
+  it("moves responsive side controls into a footer for multiline comments", async () => {
+    const host = document.body.appendChild(document.createElement("section"));
+    const unmount = mountMossCommentPopover(host, {
+      rpc: { call: vi.fn() } as unknown as PluginRpcClient<
+        typeof timelineCommentsRpcContract
+      >,
+      detail,
+      onClose: vi.fn(),
+      onChanged: vi.fn(),
+      onSendToAgent: vi.fn(),
+    });
+    const input = host.querySelector<HTMLTextAreaElement>(
+      '[aria-label="Reply to comment thread"]',
+    )!;
+    fireEvent.change(input, { target: { value: "First line\nSecond line" } });
+
+    await waitFor(() =>
+      expect(
+        host
+          .querySelector(".bb-comments-mention-input")
+          ?.getAttribute("data-mention-input-expanded"),
+      ).toBe("true"),
+    );
+    expect(
+      host
+        .querySelector("[data-mention-input-footer]")
+        ?.getAttribute("data-mention-input-footer-state"),
+    ).toBe("expanded");
+    expect(
+      host
+        .querySelector("[data-mention-input-compact-actions]")
+        ?.getAttribute("aria-hidden"),
+    ).toBe("true");
+    expect(
+      host
+        .querySelector("[data-mention-input-expanded-actions]")
+        ?.getAttribute("aria-hidden"),
+    ).toBe("false");
+    unmount();
+  });
+
   it("moves the last comment's edit footer into the stable reply region", async () => {
     const host = document.body.appendChild(document.createElement("section"));
     host.dataset.bbPluginDecoration = "timeline-comments";
@@ -106,6 +147,11 @@ describe("Moss comment component port", () => {
     );
     const replyRegion = host.querySelector("[data-comment-reply-region]")!;
     expect(replyRegion.getAttribute("data-last-editing")).toBe("true");
+    expect(
+      replyRegion
+        .querySelector("[data-comment-reply-composer]")
+        ?.getAttribute("aria-hidden"),
+    ).toBe("true");
     expect(
       replyRegion.querySelector(
         "[data-comment-edit-footer-host] [data-mention-input-footer]",

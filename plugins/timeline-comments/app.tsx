@@ -6,7 +6,8 @@ import {
   useState,
   useSyncExternalStore,
 } from "react";
-import { MessageSquareText } from "lucide-react";
+import { ChatFeedback01Icon } from "@hugeicons/core-free-icons";
+import { HugeiconsIcon } from "@hugeicons/react";
 import {
   definePluginApp,
   useComposer,
@@ -193,7 +194,13 @@ function AddCommentsAction() {
         onMouseDown={(event) => event.preventDefault()}
         onClick={() => void addComments()}
       >
-        <MessageSquareText aria-hidden="true" size={12} strokeWidth={1.5} />
+        <span className="bb-comments-composer-action-icon">
+          <HugeiconsIcon
+            icon={ChatFeedback01Icon}
+            aria-hidden="true"
+            data-icon="ChatFeedback"
+          />
+        </span>
       </button>
     </span>
   );
@@ -407,14 +414,14 @@ export default definePluginApp((app) => {
   app.slots.threadPanelAction({
     id: "comments",
     title: "Comments",
-    icon: "MessageSquare",
+    icon: "ChatFeedback",
     component: CommentPanel,
     layout: "flush",
   });
   app.slots.messageAction({
     id: "comment-selection",
     title: "Comment",
-    icon: "MessageSquare",
+    icon: "ChatFeedback",
     run(context) {
       if (context.selectedText === undefined) {
         context.openPanel({ actionId: "comments", title: "Comments" });

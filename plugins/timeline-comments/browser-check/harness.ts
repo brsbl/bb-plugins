@@ -226,7 +226,7 @@ void (async () => {
     await wait(30);
     if (replyComposer.getAnimations().length === 0)
       throw new Error("Multiline reply expansion did not animate");
-    await wait(130);
+    await wait(250);
     const replyNearTerminalHeight = replyComposer.getBoundingClientRect().height;
     await wait(170);
     const replyTerminalHeight = replyComposer.getBoundingClientRect().height;
@@ -234,14 +234,16 @@ void (async () => {
       Math.abs(replyTerminalHeight - replyNearTerminalHeight) > 2 ||
       replyComposer.getAnimations().length !== 0
     ) {
-      throw new Error("Multiline reply snapped after its height animation");
+      throw new Error(
+        `Multiline reply snapped after its height animation: near=${replyNearTerminalHeight} terminal=${replyTerminalHeight} animations=${replyComposer.getAnimations().length}`,
+      );
     }
     if (reply.getBoundingClientRect().height <= emptyReplyHeight)
       throw new Error("Multiline reply input did not grow with its content");
     if (replyComposer.dataset.mentionInputExpanded !== "true")
       throw new Error("Multiline reply did not switch composer layout");
     setTextareaValue(reply, "Ready");
-    await wait(180);
+    await wait(250);
     replyButton = popover.querySelector<HTMLButtonElement>(
       'button[aria-label="Submit comment"]',
     );
@@ -253,7 +255,7 @@ void (async () => {
     await wait(30);
     if (replyComposer.getAnimations().length === 0)
       throw new Error("Reply collapse did not animate");
-    await wait(180);
+    await wait(250);
     if (replyComposer.dataset.mentionInputExpanded !== "false")
       throw new Error("Cleared reply did not restore inline layout");
     setTextareaValue(reply, "Ready");
