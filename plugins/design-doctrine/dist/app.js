@@ -748,7 +748,7 @@ var app_default = definePluginApp((app) => {
   app.slots.navPanel({
     id: "library",
     title: "Design Doctrine",
-    icon: "Explore",
+    icon: "Palette",
     path: "library",
     component: DoctrineLibrary
   });

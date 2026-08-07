@@ -12,7 +12,7 @@
     "name": "Design Doctrine",
     "description": "Learn, browse, and apply product-design rules from your bb feedback.",
     "branding": {
-      "icon": "Explore"
+      "icon": "Palette"
     },
     "server": "./server.ts",
     "app": "./app.tsx",
