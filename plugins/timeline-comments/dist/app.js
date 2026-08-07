@@ -466,8 +466,10 @@ var NORMAL_HIGHLIGHT = "bb-timeline-comments";
 var ACTIVE_HIGHLIGHT = "bb-timeline-comments-active";
 var DRAFT_TTL = 24 * 60 * 60 * 1e3;
 var PLUGIN_DECORATION = "data-bb-plugin-decoration";
-var MARKER_SIZE = 32;
+var MARKER_SIZE = 28;
 var MARKER_TEXT_GAP = 8;
+var COMPOSER_WIDTH = 240;
+var POPOVER_WIDTH = 288;
 var MESSAGE_PROSE_SELECTOR = "[data-sidebar-swipe-selectable], [data-no-sidebar-swipe]";
 function readDraft(key) {
   const saved = sessionStorage.getItem(key);
@@ -819,8 +821,8 @@ var TimelineCommentsController = class {
     const firstRect = captured.rects[0];
     const x = firstRect?.x ?? window.innerWidth / 2;
     const y = captured.rects.at(-1)?.y ?? window.innerHeight / 2;
-    shell.style.left = `${Math.max(8, Math.min(window.innerWidth - 328, x))}px`;
-    shell.style.top = `${Math.max(8, Math.min(window.innerHeight - 180, y + 22))}px`;
+    shell.style.left = `${Math.max(8, Math.min(window.innerWidth - COMPOSER_WIDTH - 8, x))}px`;
+    shell.style.top = `${Math.max(8, Math.min(window.innerHeight - 156, y + 18))}px`;
     const validate = () => {
       const message = commentBodyError(textarea.value);
       submit.disabled = message !== null;
@@ -1193,7 +1195,8 @@ var TimelineCommentsController = class {
       for (const placement of layoutGutterMarkers(
         list.map(({ anchor, desiredY }) => ({ id: anchor.id, desiredY })),
         top,
-        bottom
+        bottom,
+        MARKER_SIZE
       )) {
         const threads = placement.ids.map((id) => this.#restored.get(id)).filter(Boolean);
         const marker = element(
@@ -1885,7 +1888,7 @@ var TimelineCommentsController = class {
   }
   positionNear(anchor, popover) {
     const rect = anchor.getBoundingClientRect();
-    const width = Math.min(340, window.innerWidth - 16);
+    const width = Math.min(POPOVER_WIDTH, window.innerWidth - 16);
     popover.style.width = `${width}px`;
     const leftOption = rect.left - width - 8;
     const rightOption = rect.right + 8;
@@ -2070,7 +2073,7 @@ function AddCommentsAction() {
         disabled: busy,
         onMouseDown: (event) => event.preventDefault(),
         onClick: () => void addComments(),
-        children: /* @__PURE__ */ jsx(MessageSquareText, { "aria-hidden": "true", size: 16, strokeWidth: 1.5 })
+        children: /* @__PURE__ */ jsx(MessageSquareText, { "aria-hidden": "true", size: 13, strokeWidth: 1.5 })
       }
     )
   ] });

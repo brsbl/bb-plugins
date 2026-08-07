@@ -89,8 +89,10 @@ const NORMAL_HIGHLIGHT = "bb-timeline-comments";
 const ACTIVE_HIGHLIGHT = "bb-timeline-comments-active";
 const DRAFT_TTL = 24 * 60 * 60 * 1_000;
 const PLUGIN_DECORATION = "data-bb-plugin-decoration";
-const MARKER_SIZE = 32;
+const MARKER_SIZE = 28;
 const MARKER_TEXT_GAP = 8;
+const COMPOSER_WIDTH = 240;
+const POPOVER_WIDTH = 288;
 const MESSAGE_PROSE_SELECTOR =
   "[data-sidebar-swipe-selectable], [data-no-sidebar-swipe]";
 
@@ -538,8 +540,8 @@ class TimelineCommentsController {
     const firstRect = captured.rects[0];
     const x = firstRect?.x ?? window.innerWidth / 2;
     const y = captured.rects.at(-1)?.y ?? window.innerHeight / 2;
-    shell.style.left = `${Math.max(8, Math.min(window.innerWidth - 328, x))}px`;
-    shell.style.top = `${Math.max(8, Math.min(window.innerHeight - 180, y + 22))}px`;
+    shell.style.left = `${Math.max(8, Math.min(window.innerWidth - COMPOSER_WIDTH - 8, x))}px`;
+    shell.style.top = `${Math.max(8, Math.min(window.innerHeight - 156, y + 18))}px`;
     const validate = () => {
       const message = commentBodyError(textarea.value);
       submit.disabled = message !== null;
@@ -978,6 +980,7 @@ class TimelineCommentsController {
         list.map(({ anchor, desiredY }) => ({ id: anchor.id, desiredY })),
         top,
         bottom,
+        MARKER_SIZE,
       )) {
         const threads = placement.ids
           .map((id) => this.#restored.get(id)!)
@@ -1775,7 +1778,7 @@ class TimelineCommentsController {
 
   private positionNear(anchor: HTMLElement, popover: HTMLElement): void {
     const rect = anchor.getBoundingClientRect();
-    const width = Math.min(340, window.innerWidth - 16);
+    const width = Math.min(POPOVER_WIDTH, window.innerWidth - 16);
     popover.style.width = `${width}px`;
     const leftOption = rect.left - width - 8;
     const rightOption = rect.right + 8;

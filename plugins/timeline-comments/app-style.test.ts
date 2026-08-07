@@ -4,18 +4,23 @@ import { describe, expect, it } from "vitest";
 const css = readFileSync(new URL("./app.css", import.meta.url), "utf8");
 
 describe("timeline comments visual contract", () => {
-  it("adapts Moss comment hierarchy to BB thread typography", () => {
-    expect(css).toContain("width: 352px;");
-    expect(css).toMatch(/\.bb-comments-comment \{[\s\S]*padding: 8px 12px;/u);
-    expect(css).toMatch(/\.bb-comments-comment-body \{[\s\S]*font-size: 13px;/u);
-    expect(css).toMatch(/\.bb-comments-message-header strong \{[\s\S]*font-size: 11px;/u);
+  it("uses one compact scale across comment surfaces", () => {
+    expect(css).toMatch(/\.bb-comments-marker \{[\s\S]*width: 28px;[\s\S]*height: 28px;/u);
+    expect(css).toMatch(/\.bb-comments-marker svg \{[\s\S]*width: 16px;[\s\S]*height: 16px;/u);
+    expect(css).toMatch(/\.bb-comments-composer-action \{[\s\S]*width: 24px;[\s\S]*height: 24px;/u);
+    expect(css).toContain("width: 288px;");
+    expect(css).toMatch(/\.bb-comments-comment \{[\s\S]*padding: 6px 9px;/u);
+    expect(css).toMatch(/\.bb-comments-comment-body \{[\s\S]*font-size: 12px;/u);
+    expect(css).toMatch(/\.bb-comments-message-header strong \{[\s\S]*font-size: 10px;/u);
+    expect(css).toMatch(/\.bb-comments-panel \{[\s\S]*font-size: 12px;/u);
+    expect(css).toMatch(/\.bb-comments-row-summary \{[\s\S]*padding: 7px 9px;/u);
   });
 
   it("keeps the new-comment composer compact until content needs more room", () => {
-    expect(css).toMatch(/\.bb-comments-composer \{[\s\S]*min-height: 40px;/u);
-    expect(css).toMatch(/\.bb-comments-textarea \{[\s\S]*min-height: 24px;/u);
+    expect(css).toMatch(/\.bb-comments-composer \{[\s\S]*width: 240px;[\s\S]*min-height: 34px;/u);
+    expect(css).toMatch(/\.bb-comments-textarea \{[\s\S]*min-height: 20px;/u);
     expect(css).toMatch(
-      /\.bb-comments-composer\[data-multiline="true"\] \{[\s\S]*padding-bottom: 32px;/u,
+      /\.bb-comments-composer\[data-multiline="true"\] \{[\s\S]*padding-bottom: 26px;/u,
     );
   });
 

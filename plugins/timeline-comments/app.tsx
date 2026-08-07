@@ -184,7 +184,7 @@ function AddCommentsAction() {
         onMouseDown={(event) => event.preventDefault()}
         onClick={() => void addComments()}
       >
-        <MessageSquareText aria-hidden="true" size={16} strokeWidth={1.5} />
+        <MessageSquareText aria-hidden="true" size={13} strokeWidth={1.5} />
       </button>
     </span>
   );
