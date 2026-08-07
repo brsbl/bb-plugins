@@ -234,6 +234,289 @@ describe("timeline comments controller teardown", () => {
     vi.unstubAllGlobals();
   });
 
+  it("removes portalled comment UI when its mounted thread pane becomes hidden", async () => {
+    document.body.innerHTML = `
+      <div data-split-pane-id="pane-1">
+        <div data-thread-window>
+          <div data-timeline-row-id="msg_1">
+            <div data-sidebar-swipe-selectable>source text</div>
+          </div>
+        </div>
+      </div>
+      <div data-split-pane-id="pane-2">
+        <div data-thread-window></div>
+      </div>
+    `;
+    const rootComment = {
+      id: "comment_1",
+      threadId: "comment_thread_1",
+      parentId: null,
+      body: "Visible comment",
+      version: 1,
+      createdAt: 1,
+      updatedAt: 1,
+    };
+    const thread = {
+      id: "comment_thread_1",
+      bbThreadId: "thr_1",
+      messageId: "msg_1",
+      messageRole: "assistant" as const,
+      selector: {
+        version: 1 as const,
+        coordinateSpace: "rendered-text-utf16" as const,
+        start: 0,
+        end: 6,
+        exact: "source",
+        prefix: "",
+        suffix: " text",
+      },
+      version: 1,
+      createdAt: 1,
+      updatedAt: 1,
+      resolvedAt: null,
+      rootComment,
+      replyCount: 0,
+    };
+    const listRequests: string[][] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string, init: RequestInit) => {
+        const input = JSON.parse(String(init.body ?? "null")) as {
+          threadIds?: string[];
+        };
+        if (url.endsWith("/listOpenAnchors")) {
+          const threadIds = input.threadIds ?? [];
+          listRequests.push(threadIds);
+          const { rootComment: _rootComment, ...anchor } = thread;
+          return {
+            ok: true,
+            async json() {
+              return {
+                ok: true,
+                result: {
+                  anchors: threadIds.includes("thr_1") ? [anchor] : [],
+                  nextCursor: null,
+                },
+              };
+            },
+            status: 200,
+          };
+        }
+        return {
+          ok: true,
+          async json() {
+            return {
+              ok: true,
+              result: { thread, comments: [rootComment], nextCursor: null },
+            };
+          },
+          status: 200,
+        };
+      }),
+    );
+    const originalClientRects = Object.getOwnPropertyDescriptor(
+      Range.prototype,
+      "getClientRects",
+    );
+    const originalBoundingRect = Object.getOwnPropertyDescriptor(
+      Range.prototype,
+      "getBoundingClientRect",
+    );
+    const originalElementBoundingRect = Object.getOwnPropertyDescriptor(
+      HTMLElement.prototype,
+      "getBoundingClientRect",
+    );
+    const rect = {
+      x: 20,
+      y: 30,
+      top: 30,
+      right: 80,
+      bottom: 48,
+      left: 20,
+      width: 60,
+      height: 18,
+      toJSON: () => ({}),
+    } as DOMRect;
+    Object.defineProperty(Range.prototype, "getClientRects", {
+      configurable: true,
+      value: () => [rect],
+    });
+    Object.defineProperty(Range.prototype, "getBoundingClientRect", {
+      configurable: true,
+      value: () => rect,
+    });
+    Object.defineProperty(HTMLElement.prototype, "getBoundingClientRect", {
+      configurable: true,
+      value: () => ({
+        ...rect,
+        x: 0,
+        y: 0,
+        top: 0,
+        right: 500,
+        bottom: 700,
+        left: 0,
+        width: 500,
+        height: 700,
+      }),
+    });
+    const dispose = mountTimelineCommentsController({
+      pluginId: "timeline-comments",
+      generation: 1,
+      signal: new AbortController().signal,
+    });
+    const panes = document.querySelectorAll<HTMLElement>("[data-split-pane-id]");
+    const windows = document.querySelectorAll<HTMLElement>("[data-thread-window]");
+    const unregisterFirst = registerTimelineCommentThreadWindow(
+      "thr_1",
+      windows[0]!,
+    );
+    const unregisterSecond = registerTimelineCommentThreadWindow(
+      "thr_2",
+      windows[1]!,
+    );
+
+    await vi.waitFor(() =>
+      expect(document.querySelector(".bb-comments-marker")).not.toBeNull(),
+    );
+    document
+      .querySelector<HTMLButtonElement>(".bb-comments-marker")!
+      .click();
+    await vi.waitFor(() =>
+      expect(document.body.textContent).toContain("Visible comment"),
+    );
+
+    panes[0]!.setAttribute("aria-hidden", "true");
+    await vi.waitFor(() => {
+      expect(document.querySelector(".bb-comments-marker")).toBeNull();
+      expect(document.querySelector(".bb-comments-thread")).toBeNull();
+      expect(listRequests.at(-1)).toEqual(["thr_2"]);
+    });
+
+    panes[0]!.removeAttribute("aria-hidden");
+    await vi.waitFor(() => {
+      expect(document.querySelector(".bb-comments-marker")).not.toBeNull();
+      expect(listRequests.at(-1)).toEqual(["thr_1", "thr_2"]);
+    });
+    document
+      .querySelector<HTMLButtonElement>(".bb-comments-marker")!
+      .click();
+    await vi.waitFor(() =>
+      expect(document.body.textContent).toContain("Visible comment"),
+    );
+
+    panes[1]!.setAttribute("aria-hidden", "true");
+    await vi.waitFor(() => {
+      expect(document.querySelector(".bb-comments-marker")).not.toBeNull();
+      expect(document.querySelector(".bb-comments-thread")).not.toBeNull();
+      expect(listRequests.at(-1)).toEqual(["thr_1"]);
+    });
+
+    panes[1]!.removeAttribute("aria-hidden");
+    await vi.waitFor(() =>
+      expect(listRequests.at(-1)).toEqual(["thr_1", "thr_2"]),
+    );
+    panes[0]!.remove();
+    await vi.waitFor(() => {
+      expect(document.querySelector(".bb-comments-marker")).toBeNull();
+      expect(document.querySelector(".bb-comments-thread")).toBeNull();
+      expect(listRequests.at(-1)).toEqual(["thr_2"]);
+    });
+
+    unregisterSecond();
+    unregisterFirst();
+    dispose();
+    for (const [prototype, property, descriptor] of [
+      [Range.prototype, "getClientRects", originalClientRects],
+      [Range.prototype, "getBoundingClientRect", originalBoundingRect],
+      [
+        HTMLElement.prototype,
+        "getBoundingClientRect",
+        originalElementBoundingRect,
+      ],
+    ] as const) {
+      if (descriptor === undefined) Reflect.deleteProperty(prototype, property);
+      else Object.defineProperty(prototype, property, descriptor);
+    }
+    vi.unstubAllGlobals();
+  });
+
+  it("closes the selection composer when its parent thread stops rendering", async () => {
+    document.body.innerHTML = `
+      <div data-split-pane-id="pane-1">
+        <div data-thread-window>
+          <div data-timeline-row-id="msg_1">
+            <div data-sidebar-swipe-selectable>source text</div>
+          </div>
+        </div>
+      </div>
+    `;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => ({
+        ok: true,
+        async json() {
+          return { ok: true, result: { anchors: [], nextCursor: null } };
+        },
+        status: 200,
+      })),
+    );
+    const originalClientRects = Object.getOwnPropertyDescriptor(
+      Range.prototype,
+      "getClientRects",
+    );
+    Object.defineProperty(Range.prototype, "getClientRects", {
+      configurable: true,
+      value: () => [{ x: 20, y: 30, width: 60, height: 18 }],
+    });
+    const dispose = mountTimelineCommentsController({
+      pluginId: "timeline-comments",
+      generation: 1,
+      signal: new AbortController().signal,
+    });
+    const windowNode =
+      document.querySelector<HTMLElement>("[data-thread-window]")!;
+    const unregister = registerTimelineCommentThreadWindow("thr_1", windowNode);
+    const text = document.querySelector("[data-sidebar-swipe-selectable]")!
+      .firstChild!;
+    const range = document.createRange();
+    range.setStart(text, 0);
+    range.setEnd(text, 6);
+    document.getSelection()!.removeAllRanges();
+    document.getSelection()!.addRange(range);
+    beginTimelineComment({
+      threadId: "thr_1",
+      message: {
+        id: "msg_1",
+        threadId: "thr_1",
+        role: "assistant",
+        text: "source text",
+        sourceSeqEnd: 1,
+      },
+      selectedText: "source",
+      openPanel: () => true,
+    });
+    expect(document.querySelector(".bb-comments-composer")).not.toBeNull();
+
+    document.querySelector<HTMLElement>("[data-split-pane-id]")!.hidden = true;
+    await vi.waitFor(() =>
+      expect(document.querySelector(".bb-comments-composer")).toBeNull(),
+    );
+
+    unregister();
+    dispose();
+    document.getSelection()!.removeAllRanges();
+    if (originalClientRects === undefined) {
+      delete (Range.prototype as Partial<Range>).getClientRects;
+    } else {
+      Object.defineProperty(
+        Range.prototype,
+        "getClientRects",
+        originalClientRects,
+      );
+    }
+    vi.unstubAllGlobals();
+  });
+
   it("restores and opens a resolved panel row even though open anchors omit it", async () => {
     document.body.innerHTML = `
       <div data-thread-window>

@@ -356,6 +356,27 @@ function isRelevantMutation(record: MutationRecord): boolean {
   );
 }
 
+function isThreadWindowRendered(windowNode: HTMLElement): boolean {
+  if (!windowNode.isConnected) return false;
+  if (windowNode.closest('[aria-hidden="true"], [hidden], [inert]') !== null) {
+    return false;
+  }
+  const checkVisibility = (
+    windowNode as HTMLElement & {
+      checkVisibility?: (options?: {
+        contentVisibilityAuto?: boolean;
+        visibilityProperty?: boolean;
+      }) => boolean;
+    }
+  ).checkVisibility;
+  return (
+    checkVisibility?.call(windowNode, {
+      contentVisibilityAuto: true,
+      visibilityProperty: true,
+    }) ?? true
+  );
+}
+
 class TimelineCommentsController {
   readonly #rpc: Rpc;
   readonly #portal = decorateRoot(element("div", "bb-comments-portal"));
@@ -372,6 +393,8 @@ class TimelineCommentsController {
   #frame: number | null = null;
   #popover: HTMLElement | null = null;
   #composer: HTMLElement | null = null;
+  #composerThreadId: string | null = null;
+  #popoverThreadIds = new Set<string>();
   #activeIds = new Set<string>();
   #provisionalRange: Range | null = null;
   #openThreadId: string | null = null;
@@ -408,9 +431,23 @@ class TimelineCommentsController {
     document.body.append(this.#highlightStyle, this.#portal);
 
     this.#observer = new MutationObserver((records) => {
-      if (records.some(isRelevantMutation)) this.scheduleRefresh();
+      const visibilityChanged = records.some((record) =>
+        this.isThreadVisibilityMutation(record),
+      );
+      if (visibilityChanged) {
+        this.syncAttachedUiVisibility();
+        this.restoreAll();
+      }
+      if (visibilityChanged || records.some(isRelevantMutation)) {
+        this.scheduleRefresh();
+      }
     });
-    this.#observer.observe(document.body, { childList: true, subtree: true });
+    this.#observer.observe(document.body, {
+      childList: true,
+      subtree: true,
+      attributes: true,
+      attributeFilter: ["aria-hidden", "class", "hidden", "inert", "style"],
+    });
     this.#resizeObserver =
       typeof ResizeObserver === "undefined"
         ? null
@@ -556,6 +593,7 @@ class TimelineCommentsController {
     });
     validate();
     this.#composer = shell;
+    this.#composerThreadId = context.threadId;
     this.#portal.append(shell);
     syncInlineComposerLayout(textarea, shell, false);
     this.#outsideComposer = (event) => {
@@ -612,6 +650,42 @@ class TimelineCommentsController {
       if (windows.has(windowNode)) return threadId;
     }
     return null;
+  }
+
+  private isThreadVisibilityMutation(record: MutationRecord): boolean {
+    if (record.type !== "attributes" || !(record.target instanceof Element)) {
+      return false;
+    }
+    for (const windows of this.#threadWindows.values()) {
+      for (const windowNode of windows) {
+        if (record.target === windowNode || record.target.contains(windowNode)) {
+          return true;
+        }
+      }
+    }
+    return false;
+  }
+
+  private syncAttachedUiVisibility(): void {
+    const visibleThreadIds = new Set(
+      [...this.#threadWindows.keys()].filter(
+        (threadId) => this.findWindow(threadId) !== null,
+      ),
+    );
+    if (
+      this.#composerThreadId !== null &&
+      !visibleThreadIds.has(this.#composerThreadId)
+    ) {
+      this.closeComposer();
+    }
+    if (
+      this.#popoverThreadIds.size > 0 &&
+      [...this.#popoverThreadIds].some(
+        (threadId) => !visibleThreadIds.has(threadId),
+      )
+    ) {
+      this.closePopover();
+    }
   }
 
   private captureCurrentSelection(): CapturedSelection | null {
@@ -718,6 +792,7 @@ class TimelineCommentsController {
   }
 
   private async loadAnchors(): Promise<void> {
+    this.syncAttachedUiVisibility();
     const threadIds = [...this.#threadWindows.keys()]
       .filter((threadId) => this.findWindow(threadId) !== null)
       .slice(0, 20);
@@ -743,8 +818,11 @@ class TimelineCommentsController {
     const windows = this.#threadWindows.get(threadId);
     if (windows === undefined) return null;
     for (const windowNode of windows) {
-      if (windowNode.isConnected) return windowNode;
-      windows.delete(windowNode);
+      if (!windowNode.isConnected) {
+        windows.delete(windowNode);
+        continue;
+      }
+      if (isThreadWindowRendered(windowNode)) return windowNode;
     }
     if (windows.size === 0) this.#threadWindows.delete(threadId);
     return null;
@@ -987,6 +1065,9 @@ class TimelineCommentsController {
       menu.append(button);
     }
     this.#popover = menu;
+    this.#popoverThreadIds = new Set(
+      threads.map(({ anchor }) => anchor.bbThreadId),
+    );
     this.#portal.append(menu);
     this.installPopoverDismissal(marker);
     this.positionNear(marker, menu);
@@ -1014,6 +1095,7 @@ class TimelineCommentsController {
     popover.tabIndex = -1;
     popover.append(element("div", "bb-comments-loading", "Loading…"));
     this.#popover = popover;
+    this.#popoverThreadIds = new Set([anchor.bbThreadId]);
     this.#portal.append(popover);
     this.installPopoverDismissal(
       this.#restored.get(commentThreadId)?.marker ?? null,
@@ -1723,6 +1805,7 @@ class TimelineCommentsController {
     }
     this.#composer?.remove();
     this.#composer = null;
+    this.#composerThreadId = null;
     this.#provisionalRange = null;
     this.rebuildHighlights();
   }
@@ -1740,6 +1823,7 @@ class TimelineCommentsController {
     this.#popoverInvoker = null;
     this.#popover?.remove();
     this.#popover = null;
+    this.#popoverThreadIds.clear();
     if (clearOpen) this.#openThreadId = null;
     this.setActive([]);
     if (clearOpen && focusTarget?.isConnected === true) {
