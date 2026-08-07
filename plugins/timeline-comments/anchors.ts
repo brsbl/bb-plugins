@@ -19,6 +19,38 @@ interface TextSegment {
   end: number;
 }
 
+/** Capture one exact rendered-text selection relative to its message root. */
+export function selectorForRange(
+  root: Element,
+  range: Range,
+  contextLength = 32,
+): StoredSelector | null {
+  if (
+    range.collapsed ||
+    !root.contains(range.startContainer) ||
+    !root.contains(range.endContainer)
+  ) {
+    return null;
+  }
+  const { text } = indexText(root);
+  const before = document.createRange();
+  before.selectNodeContents(root);
+  before.setEnd(range.startContainer, range.startOffset);
+  const start = before.toString().length;
+  const exact = range.toString();
+  const end = start + exact.length;
+  if (exact === "" || text.slice(start, end) !== exact) return null;
+  return {
+    version: 1,
+    coordinateSpace: "rendered-text-utf16",
+    start,
+    end,
+    exact,
+    prefix: text.slice(Math.max(0, start - contextLength), start),
+    suffix: text.slice(end, end + contextLength),
+  };
+}
+
 function indexText(root: Element): { text: string; segments: TextSegment[] } {
   const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
   const segments: TextSegment[] = [];

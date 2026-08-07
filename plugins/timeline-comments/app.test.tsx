@@ -6,10 +6,14 @@ import {
   loadPluginApp,
   mountPluginContentScripts,
   renderSlot,
-} from "./test/plugin-sdk-app-harness.js";
+} from "@bb/plugin-sdk/testing/app";
+import { installTimelineCommentsController } from "./bridge.js";
 import type { timelineCommentsRpcContract } from "./server.js";
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  document.body.replaceChildren();
+});
 
 function deferred<T>() {
   let resolve!: (value: T) => void;
@@ -58,9 +62,9 @@ describe("timeline comments app", () => {
       {
         id: "comment-selection",
         title: "Comment",
-        placements: ["selection-menu"],
       },
     ]);
+    expect(app.messageActions[0]).not.toHaveProperty("placements");
     expect(app.threadPanelActions).toMatchObject([
       {
         id: "comments",
@@ -79,9 +83,60 @@ describe("timeline comments app", () => {
     expect(app.contentScripts.map(({ id }) => id)).toEqual([
       "timeline-comment-anchors",
     ]);
+
+    const message = {
+      id: "msg_1",
+      threadId: "thr_1",
+      role: "assistant" as const,
+      text: "source",
+      sourceSeqEnd: 1,
+    };
+    const openPanel = vi.fn(() => true);
+    await app.messageActions[0]!.run({
+      threadId: "thr_1",
+      message,
+      openPanel,
+    });
+    expect(openPanel).toHaveBeenCalledWith({
+      actionId: "comments",
+      title: "Comments",
+    });
+
+    const beginComment = vi.fn();
+    const uninstallController = installTimelineCommentsController({
+      beginComment,
+      focusThread: vi.fn(async () => false),
+      registerThreadWindow: vi.fn(() => () => {}),
+      refreshAnchors: vi.fn(),
+    });
+    await app.messageActions[0]!.run({
+      threadId: "thr_1",
+      message,
+      selectedText: "source",
+      openPanel,
+    });
+    expect(beginComment).toHaveBeenCalledWith(
+      expect.objectContaining({ selectedText: "source" }),
+    );
+    uninstallController();
   });
 
   it("adds open comments to the draft from the thread composer action", async () => {
+    document.body.innerHTML = `
+      <div data-split-pane-id="pane_other" data-focused="false">
+        <div id="other-window" data-thread-window></div>
+      </div>
+      <div data-split-pane-id="pane_focused" data-focused="true">
+        <div id="focused-window" data-thread-window></div>
+      </div>
+    `;
+    const registerThreadWindow = vi.fn(() => () => {});
+    const uninstallController = installTimelineCommentsController({
+      beginComment: vi.fn(),
+      focusThread: vi.fn(async () => false),
+      registerThreadWindow,
+      refreshAnchors: vi.fn(),
+    });
     const app = await loadPluginApp(() => import("./app.js"));
     const action = renderSlot(
       app.composerCustomizations[0]!.actions![0]!,
@@ -115,6 +170,104 @@ describe("timeline comments app", () => {
     });
     expect(action.inspection.composer.text).toContain("Keep this draft");
     expect(action.inspection.navigateCalls).toEqual([]);
+    expect(registerThreadWindow).toHaveBeenCalledWith(
+      "thr_1",
+      document.querySelector("#focused-window"),
+    );
+    uninstallController();
+  });
+
+  it("reports when the thread has no open comments to add", async () => {
+    const app = await loadPluginApp(() => import("./app.js"));
+    const action = renderSlot(
+      app.composerCustomizations[0]!.actions![0]!,
+      {},
+      {
+        context: { threadId: "thr_1" },
+        composer: {
+          text: "Keep this draft",
+          scope: { kind: "thread", threadId: "thr_1" },
+        },
+        rpc: {
+          getThreadHandoffSummary: () => ({
+            threadCount: 0,
+            commentCount: 0,
+            codePointSize: 0,
+          }),
+        },
+      },
+    );
+
+    fireEvent.click(
+      action.getByRole("button", { name: "Add comments to chat" }),
+    );
+
+    expect((await action.findByRole("status")).textContent).toBe(
+      "No open comments",
+    );
+    expect(action.inspection.composer.mentions).toHaveLength(0);
+    expect(action.inspection.composer.text).toBe("Keep this draft");
+    expect(
+      (
+        action.getByRole("button", {
+          name: "Add comments to chat",
+        }) as HTMLButtonElement
+      ).disabled,
+    ).toBe(false);
+  });
+
+  it("binds an overflow action to its embedded trigger instead of the focused main pane", async () => {
+    document.body.innerHTML = `
+      <div data-split-pane-id="pane_main" data-focused="true">
+        <div id="main-window" data-thread-window></div>
+      </div>
+      <div id="embedded-window" data-thread-window>
+        <button
+          aria-label="More plugin actions"
+          aria-expanded="true"
+          aria-controls="embedded-overflow"
+        ></button>
+      </div>
+      <div
+        id="embedded-overflow"
+        data-plugin-composer-action-overflow
+      ></div>
+    `;
+    const registerThreadWindow = vi.fn(() => () => {});
+    const uninstallController = installTimelineCommentsController({
+      beginComment: vi.fn(),
+      focusThread: vi.fn(async () => false),
+      registerThreadWindow,
+      refreshAnchors: vi.fn(),
+    });
+    const app = await loadPluginApp(() => import("./app.js"));
+    const action = renderSlot(
+      app.composerCustomizations[0]!.actions![0]!,
+      {},
+      {
+        context: { threadId: "thr_initial" },
+        composer: {
+          scope: { kind: "thread", threadId: "thr_initial" },
+        },
+      },
+    );
+    document.querySelector("#embedded-overflow")!.append(action.container);
+    registerThreadWindow.mockClear();
+
+    await action.behavior.setComposerScope({
+      kind: "thread",
+      threadId: "thr_embedded",
+    });
+
+    expect(registerThreadWindow).toHaveBeenCalledWith(
+      "thr_embedded",
+      document.querySelector("#embedded-window"),
+    );
+    expect(registerThreadWindow).not.toHaveBeenCalledWith(
+      "thr_embedded",
+      document.querySelector("#main-window"),
+    );
+    uninstallController();
   });
 
   it("shows a compact error and recovers when adding comments is retried", async () => {
@@ -253,7 +406,6 @@ describe("timeline comments app", () => {
       {
         threadId: "thr_1",
         params: null,
-        revealMessage: vi.fn(async () => "revealed" as const),
       },
       {
         context: { threadId: "thr_1" },
@@ -300,15 +452,21 @@ describe("timeline comments app", () => {
     expect(await panel.findByRole("button", { name: /source/i })).not.toBeNull();
   });
 
-  it("uses panel rows only to reveal the anchored thread popover", async () => {
+  it("uses panel rows only to focus the anchored thread popover", async () => {
     const app = await loadPluginApp(() => import("./app.js"));
-    const revealMessage = vi.fn(async () => "revealed" as const);
+    const focusThread = vi.fn(async () => true);
+    const uninstallController = installTimelineCommentsController({
+      beginComment: vi.fn(),
+      focusThread,
+      registerThreadWindow: vi.fn(() => () => {}),
+      refreshAnchors: vi.fn(),
+    });
     const panel = renderSlot<
       PluginThreadPanelProps,
       typeof timelineCommentsRpcContract
     >(
       app.threadPanelActions[0]!,
-      { threadId: "thr_1", params: null, revealMessage },
+      { threadId: "thr_1", params: null },
       {
         context: { threadId: "thr_1" },
         rpc: {
@@ -351,13 +509,14 @@ describe("timeline comments app", () => {
     const row = await panel.findByRole("button", { name: /source/i });
     fireEvent.click(row);
     await vi.waitFor(() =>
-      expect(revealMessage).toHaveBeenCalledWith("msg_1"),
+      expect(focusThread).toHaveBeenCalledWith(thread),
     );
     expect(row.closest("article")?.dataset.active).toBe("true");
     expect(
       panel.queryByRole("button", { name: "Comment actions" }),
     ).toBeNull();
     expect(panel.inspection.navigateCalls).toEqual([]);
+    uninstallController();
   });
 
   it("keeps the newest filter response when an older load resolves later", async () => {
@@ -387,7 +546,6 @@ describe("timeline comments app", () => {
       {
         threadId: "thr_1",
         params: null,
-        revealMessage: vi.fn(async () => "revealed" as const),
       },
       {
         context: { threadId: "thr_1" },

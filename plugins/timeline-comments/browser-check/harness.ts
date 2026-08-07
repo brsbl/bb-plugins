@@ -1,11 +1,12 @@
 import "../app.css";
+import { registerTimelineCommentThreadWindow } from "../bridge.js";
 import { mountTimelineCommentsController } from "../controller.js";
 import type { PluginContentScriptContext } from "@bb/plugin-sdk/app";
 
 const threadId = "thr_browser";
 const messageId = "msg_browser";
 const prose = document.querySelector<HTMLElement>(
-  "[data-bb-message-prose-root]",
+  "[data-sidebar-swipe-selectable]",
 )!;
 const text = prose.textContent ?? "";
 const phrases = [
@@ -43,52 +44,61 @@ const summaries = phrases.map((exact, index) => {
   };
 });
 
-const context = {
+const nativeFetch = window.fetch.bind(window);
+window.fetch = async (input, init) => {
+  const url = String(input);
+  const method = url.split("/").at(-1);
+  if (url.startsWith("/api/v1/plugins/timeline-comments/rpc/")) {
+    let result: unknown;
+    if (method === "listOpenAnchors") {
+      result = { anchors: summaries, nextCursor: null };
+    } else if (method === "getCommentThread") {
+      const summary = summaries[0]!;
+      const rootComment = {
+        id: "comment_root",
+        threadId: summary.id,
+        parentId: null,
+        body: "Verify the real browser geometry before shipping.",
+        version: 1,
+        createdAt: now,
+        updatedAt: now,
+      };
+      const replies = Array.from({ length: 12 }, (_, index) => ({
+        id: `comment_reply_${index}`,
+        threadId: summary.id,
+        parentId: rootComment.id,
+        body: `Reply ${index + 1} keeps this thread long enough to scroll.`,
+        version: 1,
+        createdAt: now + index + 1,
+        updatedAt: now + index + 1,
+      }));
+      result = {
+        thread: { ...summary, rootComment, replyCount: replies.length },
+        comments: [rootComment, ...replies],
+        nextCursor: null,
+      };
+    } else {
+      throw new Error(`Unexpected RPC ${method}`);
+    }
+    return new Response(JSON.stringify({ ok: true, result }), {
+      status: 200,
+      headers: { "content-type": "application/json" },
+    });
+  }
+  return nativeFetch(input, init);
+};
+
+const context: PluginContentScriptContext = {
   pluginId: "timeline-comments",
   generation: 1,
   signal: new AbortController().signal,
-  rpc: {
-    async call(method: string) {
-      if (method === "listOpenAnchors")
-        return { anchors: summaries, nextCursor: null };
-      if (method === "getCommentThread") {
-        const summary = summaries[0]!;
-        const rootComment = {
-          id: "comment_root",
-          threadId: summary.id,
-          parentId: null,
-          body: "Verify the real browser geometry before shipping.",
-          version: 1,
-          createdAt: now,
-          updatedAt: now,
-        };
-        const replies = Array.from({ length: 12 }, (_, index) => ({
-          id: `comment_reply_${index}`,
-          threadId: summary.id,
-          parentId: rootComment.id,
-          body: `Reply ${index + 1} keeps this thread long enough to scroll.`,
-          version: 1,
-          createdAt: now + index + 1,
-          updatedAt: now + index + 1,
-        }));
-        return {
-          thread: { ...summary, rootComment, replyCount: replies.length },
-          comments: [rootComment, ...replies],
-          nextCursor: null,
-        };
-      }
-      throw new Error(`Unexpected RPC ${method}`);
-    },
-  },
-  realtime: {
-    subscribe: () => () => {},
-    getConnectionState: () => "connected" as const,
-    subscribeConnectionState: () => () => {},
-  },
-  navigate: {},
-} as unknown as PluginContentScriptContext;
+};
 
 mountTimelineCommentsController(context);
+registerTimelineCommentThreadWindow(
+  threadId,
+  document.querySelector<HTMLElement>("[data-thread-window]")!,
+);
 
 function wait(ms: number): Promise<void> {
   return new Promise((resolve) => window.setTimeout(resolve, ms));
@@ -190,7 +200,7 @@ void (async () => {
       throw new Error("Multiline reply expansion did not animate");
     await wait(130);
     const replyNearTerminalHeight = replyComposer.getBoundingClientRect().height;
-    await wait(70);
+    await wait(170);
     const replyTerminalHeight = replyComposer.getBoundingClientRect().height;
     if (
       Math.abs(replyTerminalHeight - replyNearTerminalHeight) > 2 ||

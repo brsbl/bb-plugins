@@ -23,6 +23,8 @@ import {
   beginTimelineComment,
   focusTimelineComment,
   getTimelineCommentAnchorHealth,
+  refreshTimelineCommentAnchors,
+  registerTimelineCommentThreadWindow,
   subscribeTimelineCommentAnchorHealth,
 } from "./bridge.js";
 import { mountTimelineCommentsController } from "./controller.js";
@@ -43,6 +45,8 @@ function AddCommentsAction() {
   const composer = useComposer();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+  const actionRoot = useRef<HTMLSpanElement>(null);
   const requestGeneration = useRef(0);
   const threadId =
     composer.scope.kind === "thread" ? composer.scope.threadId : null;
@@ -53,10 +57,70 @@ function AddCommentsAction() {
     requestGeneration.current += 1;
     setBusy(false);
     setError(null);
+    setNotice(null);
     return () => {
       currentThreadId.current = null;
       requestGeneration.current += 1;
     };
+  }, [threadId]);
+
+  useRealtime("comments-changed", (payload) => {
+    if (
+      typeof payload === "object" &&
+      payload !== null &&
+      (payload as { bbThreadId?: unknown }).bbThreadId === threadId
+    ) {
+      setNotice(null);
+      refreshTimelineCommentAnchors();
+    }
+  });
+
+  useLayoutEffect(() => {
+    if (threadId === null) return;
+    const closestWindow = actionRoot.current?.closest<HTMLElement>(
+      "[data-thread-window]",
+    );
+    const visibleWindows = document.querySelectorAll<HTMLElement>(
+      "[data-thread-window]",
+    );
+    const overflowContent = actionRoot.current?.closest<HTMLElement>(
+      "[data-plugin-composer-action-overflow]",
+    );
+    const controlledTrigger =
+      overflowContent?.id === undefined || overflowContent.id === ""
+        ? null
+        : [...document.querySelectorAll<HTMLElement>("[aria-controls]")].find(
+            (node) =>
+              node.getAttribute("aria-controls") === overflowContent.id,
+          ) ?? null;
+    const openOverflowTriggers = [
+      ...document.querySelectorAll<HTMLElement>(
+        '[aria-label="More plugin actions"][aria-expanded="true"]',
+      ),
+    ];
+    const overflowTrigger =
+      controlledTrigger ??
+      (openOverflowTriggers.length === 1 ? openOverflowTriggers[0] : null);
+    const overflowWindow = overflowTrigger?.closest<HTMLElement>(
+      "[data-thread-window]",
+    );
+    const focusedWindow =
+      overflowContent === undefined || overflowContent === null
+        ? document.querySelector<HTMLElement>(
+            '[data-split-pane-id][data-focused="true"] [data-thread-window]',
+          )
+        : null;
+    const threadWindow =
+      closestWindow ??
+      overflowWindow ??
+      focusedWindow ??
+      (overflowContent === undefined || overflowContent === null
+        ? visibleWindows.length === 1
+          ? visibleWindows[0]
+          : null
+        : null);
+    if (threadWindow === undefined || threadWindow === null) return;
+    return registerTimelineCommentThreadWindow(threadId, threadWindow);
   }, [threadId]);
 
   if (threadId === null) return null;
@@ -68,12 +132,16 @@ function AddCommentsAction() {
       currentThreadId.current === threadId;
     setBusy(true);
     setError(null);
+    setNotice(null);
     try {
       const summary = await rpc.call("getThreadHandoffSummary", {
         bbThreadId: threadId,
       });
       if (!isCurrentRequest()) return;
-      if (summary.threadCount === 0) return;
+      if (summary.threadCount === 0) {
+        setNotice("No open comments");
+        return;
+      }
       composer.insertMention({
         provider: "thread-comments",
         id: threadId,
@@ -88,10 +156,15 @@ function AddCommentsAction() {
   };
 
   return (
-    <span className="bb-comments-composer-action-wrap">
+    <span ref={actionRoot} className="bb-comments-composer-action-wrap">
       {error !== null ? (
         <span className="bb-comments-composer-action-error" role="alert">
           Couldn’t add comments
+        </span>
+      ) : null}
+      {notice !== null ? (
+        <span className="bb-comments-composer-action-status" role="status">
+          {notice}
         </span>
       ) : null}
       <button
@@ -117,7 +190,7 @@ function AddCommentsAction() {
   );
 }
 
-function CommentPanel({ threadId, revealMessage }: PluginThreadPanelProps) {
+function CommentPanel({ threadId }: PluginThreadPanelProps) {
   const rpc = useRpc<typeof timelineCommentsRpcContract>();
   const connection = useRealtimeConnectionState();
   const anchorHealth = useSyncExternalStore(
@@ -223,10 +296,7 @@ function CommentPanel({ threadId, revealMessage }: PluginThreadPanelProps) {
     setActiveId(item.id);
     setError(null);
     try {
-      const revealed = await revealMessage(item.messageId);
-      if (request !== revealRequest.current) return;
-      const anchored =
-        revealed === "revealed" && (await focusTimelineComment(item.id));
+      const anchored = await focusTimelineComment(item);
       if (request !== revealRequest.current) return;
       setUnanchored((current) => {
         const next = new Set(current);
@@ -336,9 +406,12 @@ export default definePluginApp((app) => {
     id: "comment-selection",
     title: "Comment",
     icon: "MessageSquare",
-    placements: ["selection-menu"],
     run(context) {
-      beginTimelineComment(context);
+      if (context.selectedText === undefined) {
+        context.openPanel({ actionId: "comments", title: "Comments" });
+      } else {
+        beginTimelineComment(context);
+      }
     },
   });
 });

@@ -1,6 +1,6 @@
 # bb plugins
 
-Seven bb plugins I use for product design work, kept together with the few build and repository tools they share. [![CI](https://github.com/brsbl/bb-plugins/actions/workflows/ci.yml/badge.svg)](https://github.com/brsbl/bb-plugins/actions/workflows/ci.yml)
+Five bb plugins I use for product design work, kept together with the few build and repository tools they share. [![CI](https://github.com/brsbl/bb-plugins/actions/workflows/ci.yml/badge.svg)](https://github.com/brsbl/bb-plugins/actions/workflows/ci.yml)
 
 [bb](https://getbb.app) is an agentic IDE for running coding agents across projects, threads, and environments. Its plugins can add UI, commands, skills, and server capabilities; this repository is where I build and maintain mine.
 
@@ -30,7 +30,7 @@ Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/i
 
 ### Thread Hover Cards
 
-Lets you peek at a thread's status and repository context without leaving the sidebar.
+Lets you peek at a thread's status and repository context, or at what a collapsed section holds, without leaving the sidebar.
 
 ![Thread Hover Cards in bb](plugins/thread-hover-cards/docs/screenshot.png)
 
@@ -47,6 +47,18 @@ Keeps comments and comment threads attached to exact text in bb timelines.
 [Source](plugins/timeline-comments) · [README](plugins/timeline-comments/README.md)
 
 Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/timeline-comments --yes`
+
+### Thread Organizer
+
+Files new threads into the right existing work section while preserving native titles and every manual override.
+
+![Thread Organizer in bb](plugins/thread-organizer/docs/screenshot.png)
+
+[Source](plugins/thread-organizer) · [README](plugins/thread-organizer/README.md)
+
+Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/thread-organizer --yes`
+
+Each `plugin/*` install ref is generated from `main` after CI passes. The separate refs are necessary because bb installs from the root of a git checkout.
 
 ## Develop
 

@@ -10,6 +10,13 @@ import {
 } from "./plugin-sdk-provenance.mjs";
 
 const defaultRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+const nativeLoaderLockPaths = Object.freeze([
+  "node_modules/esbuild",
+  "node_modules/@tailwindcss/oxide",
+  "node_modules/rolldown",
+  "node_modules/lightningcss",
+  "node_modules/@tailwindcss/node/node_modules/lightningcss",
+]);
 
 async function readJson(path) {
   return JSON.parse(await readFile(path, "utf8"));
@@ -90,6 +97,7 @@ async function directoryContainsFiles(directory) {
 export async function checkRepository(repositoryRoot = defaultRoot, options = {}) {
   const root = resolve(repositoryRoot);
   const rootManifest = await readJson(resolve(root, "package.json"));
+  const rootLock = await readJson(resolve(root, "package-lock.json"));
   const readme = await readFile(resolve(root, "README.md"), "utf8");
   const rootImages = markdownImageTargets(readme);
   const plugins = await readPluginWorkspaces(root);
@@ -105,6 +113,50 @@ export async function checkRepository(repositoryRoot = defaultRoot, options = {}
       `file:tooling/vendor/${pluginSdkArchive}`,
     "root plugin SDK dependency drift",
   );
+  const bundledLockPaths = new Set();
+  for (const [packagePath, lockEntry] of Object.entries(rootLock.packages)) {
+    for (const packageName of lockEntry.bundleDependencies ?? []) {
+      bundledLockPaths.add(`${packagePath}/node_modules/${packageName}`);
+    }
+  }
+  for (const [packagePath, lockEntry] of Object.entries(rootLock.packages)) {
+    assert(!lockEntry.extraneous, `${packagePath}: extraneous lock entry`);
+    if (
+      !packagePath.startsWith("node_modules/") ||
+      lockEntry.link ||
+      bundledLockPaths.has(packagePath)
+    ) {
+      continue;
+    }
+    assert(lockEntry.resolved, `${packagePath}: lock resolution missing`);
+    assert(lockEntry.integrity, `${packagePath}: lock integrity missing`);
+  }
+  for (const loaderPath of nativeLoaderLockPaths) {
+    const loader = rootLock.packages[loaderPath];
+    if (!loader) continue;
+    for (const [packageName, version] of Object.entries(
+      loader.optionalDependencies ?? {},
+    )) {
+      const loaderSegments = loaderPath.split("/");
+      const nodeModulesIndex = loaderSegments.lastIndexOf("node_modules");
+      const dependencyBase = loaderSegments
+        .slice(0, nodeModulesIndex + 1)
+        .join("/");
+      const nestedPath = `${dependencyBase}/${packageName}`;
+      const rootPath = `node_modules/${packageName}`;
+      const dependencyPath = rootLock.packages[nestedPath] ? nestedPath : rootPath;
+      const dependency = rootLock.packages[dependencyPath];
+      assert(dependency, `${loaderPath}: native binding missing: ${packageName}`);
+      assert(
+        dependency.version === version,
+        `${loaderPath}: native binding version drift: ${packageName}`,
+      );
+      assert(
+        dependency.resolved && dependency.integrity,
+        `${loaderPath}: native binding provenance missing: ${packageName}`,
+      );
+    }
+  }
   assert(
     !(await stat(resolve(root, "plugins/design-loop")).catch(() => null)),
     "Design Loop is intentionally excluded",
@@ -115,10 +167,6 @@ export async function checkRepository(repositoryRoot = defaultRoot, options = {}
   const stableIds = new Map([
     ["improve-prompt", "prompt-shaper"],
   ]);
-  const minimumBbEngines = new Map([
-    ["ui-patterns", ">=0.34.0"],
-  ]);
-
   for (const plugin of plugins) {
     const { directory, installRef, manifest, name, packageName, pluginId, slug, source } =
       plugin;
@@ -141,7 +189,7 @@ export async function checkRepository(repositoryRoot = defaultRoot, options = {}
     );
     assert(manifest.files.includes("README.md"), `${slug}: README missing from package files`);
     assert(
-      manifest.engines?.bb === (minimumBbEngines.get(slug) ?? ">=0.0.34"),
+      manifest.engines?.bb === ">=0.0.34",
       `${slug}: bb engine drift`,
     );
     assert(

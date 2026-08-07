@@ -166,8 +166,15 @@ function installTimelineCommentsController(controller) {
 function beginTimelineComment(context) {
   activeController?.beginComment(context);
 }
-async function focusTimelineComment(commentThreadId) {
-  return await activeController?.focusThread(commentThreadId) ?? false;
+async function focusTimelineComment(anchor) {
+  return await activeController?.focusThread(anchor) ?? false;
+}
+function registerTimelineCommentThreadWindow(threadId, window2) {
+  return activeController?.registerThreadWindow(threadId, window2) ?? (() => {
+  });
+}
+function refreshTimelineCommentAnchors() {
+  activeController?.refreshAnchors();
 }
 
 // ../../node_modules/lucide/dist/esm/createElement.js
@@ -276,6 +283,28 @@ var Trash2 = [
 ];
 
 // anchors.ts
+function selectorForRange(root, range, contextLength = 32) {
+  if (range.collapsed || !root.contains(range.startContainer) || !root.contains(range.endContainer)) {
+    return null;
+  }
+  const { text } = indexText(root);
+  const before = document.createRange();
+  before.selectNodeContents(root);
+  before.setEnd(range.startContainer, range.startOffset);
+  const start = before.toString().length;
+  const exact = range.toString();
+  const end = start + exact.length;
+  if (exact === "" || text.slice(start, end) !== exact) return null;
+  return {
+    version: 1,
+    coordinateSpace: "rendered-text-utf16",
+    start,
+    end,
+    exact,
+    prefix: text.slice(Math.max(0, start - contextLength), start),
+    suffix: text.slice(end, end + contextLength)
+  };
+}
 function indexText(root) {
   const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
   const segments = [];
@@ -400,6 +429,28 @@ function commentBodyError(value) {
 }
 
 // controller.ts
+function contentScriptRpcClient(signal) {
+  return {
+    async call(method, input) {
+      const response = await fetch(
+        `/api/v1/plugins/timeline-comments/rpc/${String(method)}`,
+        {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify(input ?? null),
+          signal
+        }
+      );
+      const envelope = await response.json();
+      if (!response.ok || !envelope.ok) {
+        throw new Error(
+          envelope.ok ? "Timeline comments request failed." : envelope.error?.message ?? "Timeline comments request failed."
+        );
+      }
+      return envelope.result;
+    }
+  };
+}
 var OWNED = "data-bb-timeline-comments-owned";
 var NORMAL_HIGHLIGHT = "bb-timeline-comments";
 var ACTIVE_HIGHLIGHT = "bb-timeline-comments-active";
@@ -407,6 +458,7 @@ var DRAFT_TTL = 24 * 60 * 60 * 1e3;
 var PLUGIN_DECORATION = "data-bb-plugin-decoration";
 var MARKER_SIZE = 32;
 var MARKER_TEXT_GAP = 8;
+var MESSAGE_PROSE_SELECTOR = "[data-sidebar-swipe-selectable], [data-no-sidebar-swipe]";
 function readDraft(key) {
   const saved = sessionStorage.getItem(key);
   if (saved === null) return null;
@@ -487,6 +539,10 @@ function icon(node) {
 function errorMessage(error) {
   return error instanceof Error ? error.message : "Something went wrong";
 }
+function selectionTextMatches(rangeText, hostText) {
+  const canonicalize = (value) => value.replace(/[\r\n\t]/g, "").trim();
+  return canonicalize(rangeText) === canonicalize(hostText);
+}
 var inlineComposerAnimations = /* @__PURE__ */ new WeakMap();
 var inlineComposerNaturalHeights = /* @__PURE__ */ new WeakMap();
 function syncInlineComposerLayout(textarea, composer, animate = true) {
@@ -526,19 +582,19 @@ function syncInlineComposerLayout(textarea, composer, animate = true) {
   animation.addEventListener("cancel", finish, { once: true });
 }
 function isRelevantMutation(record) {
-  const selector = "[data-bb-thread-window], [data-bb-conversation-message-id], [data-bb-message-prose-root]";
+  const selector = `[data-thread-window], [data-timeline-row-id], ${MESSAGE_PROSE_SELECTOR}`;
   return [...record.addedNodes, ...record.removedNodes].some(
     (node) => node instanceof Element && (node.matches(selector) || node.querySelector(selector) !== null)
   );
 }
 var TimelineCommentsController = class {
   #rpc;
-  #navigate;
   #portal = decorateRoot(element("div", "bb-comments-portal"));
   #overlay = element("div", "bb-comments-overlay");
   #highlightStyle = element("style");
   #anchors = /* @__PURE__ */ new Map();
   #restored = /* @__PURE__ */ new Map();
+  #threadWindows = /* @__PURE__ */ new Map();
   #disposers = [];
   #observer;
   #resizeObserver;
@@ -551,7 +607,7 @@ var TimelineCommentsController = class {
   #provisionalRange = null;
   #openThreadId = null;
   #destroyed = false;
-  #sawConnected = false;
+  #selectionSnapshot = null;
   #focusNonce = 0;
   #outsideComposer = null;
   #outsidePopover = null;
@@ -561,8 +617,7 @@ var TimelineCommentsController = class {
   #actionsTrigger = null;
   #outsideActionsMenu = null;
   constructor(context) {
-    this.#rpc = context.rpc;
-    this.#navigate = context.navigate;
+    this.#rpc = contentScriptRpcClient(context.signal);
     this.#overlay.setAttribute("aria-live", "polite");
     this.#highlightStyle.textContent = `
       ::highlight(${NORMAL_HIGHLIGHT}) {
@@ -595,33 +650,46 @@ var TimelineCommentsController = class {
     this.#disposers.push(
       () => window.removeEventListener("resize", onViewportChange)
     );
+    const rememberSelection = () => {
+      const captured = this.captureCurrentSelection();
+      if (captured !== null) this.#selectionSnapshot = captured;
+    };
+    const refreshVisible = () => {
+      if (document.visibilityState === "visible") this.scheduleRefresh();
+    };
+    document.addEventListener("selectionchange", rememberSelection);
+    document.addEventListener("visibilitychange", refreshVisible);
+    window.addEventListener("focus", refreshVisible);
     this.#disposers.push(
-      context.realtime.subscribe(
-        "comments-changed",
-        () => this.scheduleRefresh()
-      )
+      () => document.removeEventListener("selectionchange", rememberSelection)
     );
     this.#disposers.push(
-      context.realtime.subscribeConnectionState((state) => {
-        if (state === "connected") {
-          if (this.#sawConnected) this.scheduleRefresh();
-          this.#sawConnected = true;
-        }
-      })
+      () => document.removeEventListener("visibilitychange", refreshVisible)
     );
-    this.#sawConnected = context.realtime.getConnectionState() === "connected";
+    this.#disposers.push(
+      () => window.removeEventListener("focus", refreshVisible)
+    );
     this.#disposers.push(installTimelineCommentsController(this));
     this.scheduleRefresh();
   }
   beginComment(context) {
-    if (context.selection === void 0 || context.selectedText === void 0)
+    if (context.selectedText === void 0) return;
+    const current = this.captureCurrentSelection();
+    if (current !== null) this.#selectionSnapshot = current;
+    const captured = current ?? this.#selectionSnapshot;
+    if (captured === null || captured.bbThreadId !== null && captured.bbThreadId !== context.threadId || captured.messageId !== context.message.id || !selectionTextMatches(captured.selector.exact, context.selectedText)) {
       return;
+    }
+    this.rememberThreadWindow(context.threadId, captured.threadWindow);
+    this.#selectionSnapshot = {
+      ...captured,
+      bbThreadId: context.threadId
+    };
     this.closeComposer();
-    const root = this.findProse(context.threadId, context.message.id);
-    const restored = root === null ? null : restoreSelector(root, context.selection);
-    this.#provisionalRange = restored?.range ?? null;
+    const restored = captured.prose.isConnected ? restoreSelector(captured.prose, captured.selector) : null;
+    this.#provisionalRange = restored?.range ?? captured.range.cloneRange();
     this.rebuildHighlights();
-    const key = `bb.timeline-comments.draft:${context.threadId}:${context.message.id}:${context.selection.start}:${context.selection.end}`;
+    const key = `bb.timeline-comments.draft:${context.threadId}:${context.message.id}:${captured.selector.start}:${captured.selector.end}`;
     const shell = element("form", "bb-comments-composer");
     shell.setAttribute("role", "dialog");
     shell.setAttribute("aria-label", "Add comment");
@@ -644,9 +712,9 @@ var TimelineCommentsController = class {
     const error = element("div", "bb-comments-error");
     error.setAttribute("role", "status");
     shell.append(textarea, error, footer);
-    const firstRect = context.selection.rects[0];
+    const firstRect = captured.rects[0];
     const x = firstRect?.x ?? window.innerWidth / 2;
-    const y = context.selection.rects.at(-1)?.y ?? window.innerHeight / 2;
+    const y = captured.rects.at(-1)?.y ?? window.innerHeight / 2;
     shell.style.left = `${Math.max(8, Math.min(window.innerWidth - 328, x))}px`;
     shell.style.top = `${Math.max(8, Math.min(window.innerHeight - 180, y + 22))}px`;
     const validate = () => {
@@ -680,8 +748,8 @@ var TimelineCommentsController = class {
         bbThreadId: context.threadId,
         message: context.message,
         selector: {
-          ...context.selection,
-          rects: context.selection.rects.map((rect) => ({ ...rect }))
+          ...captured.selector,
+          rects: captured.rects.map((rect) => ({ ...rect }))
         },
         body: textarea.value
       }).then((detail) => {
@@ -705,31 +773,99 @@ var TimelineCommentsController = class {
     document.addEventListener("pointerdown", this.#outsideComposer, true);
     requestAnimationFrame(() => textarea.focus());
   }
-  async focusThread(commentThreadId) {
+  refreshAnchors() {
+    this.scheduleRefresh();
+  }
+  registerThreadWindow(threadId, windowNode) {
+    if (threadId === "" || !windowNode.matches("[data-thread-window]")) {
+      return () => {
+      };
+    }
+    this.rememberThreadWindow(threadId, windowNode);
+    return () => {
+      if (windowNode.isConnected) return;
+      const windows = this.#threadWindows.get(threadId);
+      windows?.delete(windowNode);
+      if (windows?.size === 0) this.#threadWindows.delete(threadId);
+      this.scheduleRefresh();
+    };
+  }
+  rememberThreadWindow(threadId, windowNode) {
+    let changed = false;
+    for (const [otherThreadId, windows2] of this.#threadWindows) {
+      if (otherThreadId === threadId || !windows2.delete(windowNode)) continue;
+      changed = true;
+      if (windows2.size === 0) this.#threadWindows.delete(otherThreadId);
+    }
+    const windows = this.#threadWindows.get(threadId) ?? /* @__PURE__ */ new Set();
+    const size = windows.size;
+    windows.add(windowNode);
+    this.#threadWindows.set(threadId, windows);
+    if (changed || windows.size !== size) this.scheduleRefresh();
+  }
+  threadIdForWindow(windowNode) {
+    for (const [threadId, windows] of this.#threadWindows) {
+      if (windows.has(windowNode)) return threadId;
+    }
+    return null;
+  }
+  captureCurrentSelection() {
+    const selection = document.getSelection();
+    if (selection === null || selection.rangeCount !== 1 || selection.isCollapsed)
+      return null;
+    const range = selection.getRangeAt(0).cloneRange();
+    const startElement = range.startContainer instanceof Element ? range.startContainer : range.startContainer.parentElement;
+    const prose = startElement?.closest(
+      MESSAGE_PROSE_SELECTOR
+    );
+    if (prose === void 0 || prose === null || !prose.contains(range.endContainer))
+      return null;
+    const message = prose.closest("[data-timeline-row-id]");
+    const threadWindow = prose.closest("[data-thread-window]");
+    const messageId = message?.dataset.timelineRowId;
+    const selector = selectorForRange(prose, range);
+    if (messageId === void 0 || threadWindow === null || selector === null)
+      return null;
+    const rects = [...range.getClientRects()].map(({ x, y, width, height }) => ({
+      x,
+      y,
+      width,
+      height
+    }));
+    if (rects.length === 0) return null;
+    return {
+      bbThreadId: this.threadIdForWindow(threadWindow),
+      messageId,
+      prose,
+      range,
+      rects,
+      selector,
+      threadWindow
+    };
+  }
+  async focusThread(anchor) {
     const request = ++this.#focusNonce;
-    this.#openThreadId = commentThreadId;
+    this.#openThreadId = anchor.id;
     await this.refresh();
     if (request !== this.#focusNonce || this.#destroyed) return false;
-    const restored = this.#restored.get(commentThreadId);
+    if (!this.#restored.has(anchor.id)) {
+      this.#anchors.set(anchor.id, anchor);
+      this.restoreAll();
+    }
+    const restored = this.#restored.get(anchor.id);
     if (restored === void 0) return false;
-    const scrollRoot = restored.window.querySelector(
-      "[data-bb-thread-scroll-root]"
-    );
-    if (scrollRoot === null) return false;
-    const rangeRect = restored.range.getBoundingClientRect();
-    const scrollRect = scrollRoot.getBoundingClientRect();
-    scrollRoot.scrollBy({
-      top: rangeRect.top + rangeRect.height / 2 - (scrollRect.top + scrollRect.height / 2),
+    restored.prose.scrollIntoView({
+      block: "center",
       behavior: "smooth"
     });
-    this.setActive([commentThreadId]);
+    this.setActive([anchor.id]);
     await new Promise(
       (resolve) => requestAnimationFrame(() => resolve())
     );
     if (request !== this.#focusNonce || this.#destroyed) return false;
     this.scheduleLayout();
     restored.marker?.focus({ preventScroll: true });
-    await this.openThread(commentThreadId);
+    await this.openThread(anchor.id, anchor);
     return true;
   }
   scheduleRefresh() {
@@ -758,9 +894,7 @@ var TimelineCommentsController = class {
     if (nonce !== this.#refreshNonce && !this.#destroyed) await this.refresh();
   }
   async loadAnchors() {
-    const threadIds = [
-      ...document.querySelectorAll("[data-bb-thread-window]")
-    ].map((node) => node.dataset.bbThreadWindow).filter((id) => typeof id === "string" && id !== "").filter((id, index, all) => all.indexOf(id) === index).slice(0, 20);
+    const threadIds = [...this.#threadWindows.keys()].filter((threadId) => this.findWindow(threadId) !== null).slice(0, 20);
     this.#anchors.clear();
     if (threadIds.length > 0) {
       let cursor;
@@ -779,16 +913,28 @@ var TimelineCommentsController = class {
     this.restoreAll();
   }
   findWindow(threadId) {
-    return document.querySelector(
-      `[data-bb-thread-window="${escapeSelector(threadId)}"]`
-    );
+    const windows = this.#threadWindows.get(threadId);
+    if (windows === void 0) return null;
+    for (const windowNode of windows) {
+      if (windowNode.isConnected) return windowNode;
+      windows.delete(windowNode);
+    }
+    if (windows.size === 0) this.#threadWindows.delete(threadId);
+    return null;
   }
-  findProse(threadId, messageId) {
+  findProse(threadId, messageId, selector) {
     const windowNode = this.findWindow(threadId);
     const row = windowNode?.querySelector(
-      `[data-bb-conversation-message-id="${escapeSelector(messageId)}"]`
+      `[data-timeline-row-id="${escapeSelector(messageId)}"]`
     );
-    return row?.querySelector("[data-bb-message-prose-root]") ?? null;
+    if (row === void 0 || row === null) return null;
+    for (const candidate of row.querySelectorAll(
+      MESSAGE_PROSE_SELECTOR
+    )) {
+      if (candidate.matches("button, input, textarea, select, a")) continue;
+      if (restoreSelector(candidate, selector) !== null) return candidate;
+    }
+    return null;
   }
   restoreAll() {
     this.#restored.clear();
@@ -797,7 +943,11 @@ var TimelineCommentsController = class {
     const health = /* @__PURE__ */ new Map();
     for (const anchor of this.#anchors.values()) {
       const windowNode = this.findWindow(anchor.bbThreadId);
-      const prose = this.findProse(anchor.bbThreadId, anchor.messageId);
+      const prose = this.findProse(
+        anchor.bbThreadId,
+        anchor.messageId,
+        anchor.selector
+      );
       if (windowNode === null || prose === null) {
         health.set(anchor.id, "not-mounted");
         continue;
@@ -983,8 +1133,8 @@ var TimelineCommentsController = class {
     this.positionNear(marker, menu);
     first?.focus({ preventScroll: true });
   }
-  async openThread(commentThreadId) {
-    const anchor = this.#anchors.get(commentThreadId) ?? this.#restored.get(commentThreadId)?.anchor;
+  async openThread(commentThreadId, fallbackAnchor) {
+    const anchor = this.#anchors.get(commentThreadId) ?? this.#restored.get(commentThreadId)?.anchor ?? fallbackAnchor;
     if (anchor === void 0) return;
     this.#openThreadId = commentThreadId;
     this.closePopover(false);
@@ -1578,6 +1728,8 @@ function AddCommentsAction() {
   const composer = useComposer();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
+  const [notice, setNotice] = useState(null);
+  const actionRoot = useRef(null);
   const requestGeneration = useRef(0);
   const threadId = composer.scope.kind === "thread" ? composer.scope.threadId : null;
   const currentThreadId = useRef(threadId);
@@ -1586,10 +1738,47 @@ function AddCommentsAction() {
     requestGeneration.current += 1;
     setBusy(false);
     setError(null);
+    setNotice(null);
     return () => {
       currentThreadId.current = null;
       requestGeneration.current += 1;
     };
+  }, [threadId]);
+  useRealtime("comments-changed", (payload) => {
+    if (typeof payload === "object" && payload !== null && payload.bbThreadId === threadId) {
+      setNotice(null);
+      refreshTimelineCommentAnchors();
+    }
+  });
+  useLayoutEffect(() => {
+    if (threadId === null) return;
+    const closestWindow = actionRoot.current?.closest(
+      "[data-thread-window]"
+    );
+    const visibleWindows = document.querySelectorAll(
+      "[data-thread-window]"
+    );
+    const overflowContent = actionRoot.current?.closest(
+      "[data-plugin-composer-action-overflow]"
+    );
+    const controlledTrigger = overflowContent?.id === void 0 || overflowContent.id === "" ? null : [...document.querySelectorAll("[aria-controls]")].find(
+      (node) => node.getAttribute("aria-controls") === overflowContent.id
+    ) ?? null;
+    const openOverflowTriggers = [
+      ...document.querySelectorAll(
+        '[aria-label="More plugin actions"][aria-expanded="true"]'
+      )
+    ];
+    const overflowTrigger = controlledTrigger ?? (openOverflowTriggers.length === 1 ? openOverflowTriggers[0] : null);
+    const overflowWindow = overflowTrigger?.closest(
+      "[data-thread-window]"
+    );
+    const focusedWindow = overflowContent === void 0 || overflowContent === null ? document.querySelector(
+      '[data-split-pane-id][data-focused="true"] [data-thread-window]'
+    ) : null;
+    const threadWindow = closestWindow ?? overflowWindow ?? focusedWindow ?? (overflowContent === void 0 || overflowContent === null ? visibleWindows.length === 1 ? visibleWindows[0] : null : null);
+    if (threadWindow === void 0 || threadWindow === null) return;
+    return registerTimelineCommentThreadWindow(threadId, threadWindow);
   }, [threadId]);
   if (threadId === null) return null;
   const addComments = async () => {
@@ -1597,12 +1786,16 @@ function AddCommentsAction() {
     const isCurrentRequest = () => generation === requestGeneration.current && currentThreadId.current === threadId;
     setBusy(true);
     setError(null);
+    setNotice(null);
     try {
       const summary = await rpc.call("getThreadHandoffSummary", {
         bbThreadId: threadId
       });
       if (!isCurrentRequest()) return;
-      if (summary.threadCount === 0) return;
+      if (summary.threadCount === 0) {
+        setNotice("No open comments");
+        return;
+      }
       composer.insertMention({
         provider: "thread-comments",
         id: threadId,
@@ -1615,8 +1808,9 @@ function AddCommentsAction() {
       if (isCurrentRequest()) setBusy(false);
     }
   };
-  return /* @__PURE__ */ jsxs("span", { className: "bb-comments-composer-action-wrap", children: [
+  return /* @__PURE__ */ jsxs("span", { ref: actionRoot, className: "bb-comments-composer-action-wrap", children: [
     error !== null ? /* @__PURE__ */ jsx("span", { className: "bb-comments-composer-action-error", role: "alert", children: "Couldn\u2019t add comments" }) : null,
+    notice !== null ? /* @__PURE__ */ jsx("span", { className: "bb-comments-composer-action-status", role: "status", children: notice }) : null,
     /* @__PURE__ */ jsx(
       "button",
       {
@@ -1632,7 +1826,7 @@ function AddCommentsAction() {
     )
   ] });
 }
-function CommentPanel({ threadId, revealMessage }) {
+function CommentPanel({ threadId }) {
   const rpc = useRpc();
   const connection = useRealtimeConnectionState();
   const anchorHealth = useSyncExternalStore(
@@ -1720,9 +1914,7 @@ function CommentPanel({ threadId, revealMessage }) {
     setActiveId(item.id);
     setError(null);
     try {
-      const revealed = await revealMessage(item.messageId);
-      if (request !== revealRequest.current) return;
-      const anchored = revealed === "revealed" && await focusTimelineComment(item.id);
+      const anchored = await focusTimelineComment(item);
       if (request !== revealRequest.current) return;
       setUnanchored((current) => {
         const next = new Set(current);
@@ -1827,9 +2019,12 @@ var app_default = definePluginApp((app) => {
     id: "comment-selection",
     title: "Comment",
     icon: "MessageSquare",
-    placements: ["selection-menu"],
     run(context) {
-      beginTimelineComment(context);
+      if (context.selectedText === void 0) {
+        context.openPanel({ actionId: "comments", title: "Comments" });
+      } else {
+        beginTimelineComment(context);
+      }
     }
   });
 });

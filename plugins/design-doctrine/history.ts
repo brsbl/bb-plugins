@@ -13,10 +13,30 @@ import {
 const execFileAsync = promisify(execFile);
 const LEGACY_HISTORY_STATE_KEY = "maintenance:thread-history:v2";
 const LEGACY_HISTORY_STATE_PATH = join("maintenance", "state.json");
+const PRIMARY_BRANCH_NAMES = new Set(["main", "master", "trunk"]);
 
 export type { HistoryAdvanceInput, HistoryScanOptions };
 
-async function ensureCleanRules(pluginRoot: string): Promise<void> {
+async function ensureMaintenanceCheckout(pluginRoot: string): Promise<void> {
+  let branchName: string;
+  try {
+    const branch = await execFileAsync(
+      "git",
+      ["-C", pluginRoot, "symbolic-ref", "--quiet", "--short", "HEAD"],
+      { encoding: "utf8" },
+    );
+    branchName = branch.stdout.trim();
+    if (branchName.length === 0) throw new Error("missing branch");
+  } catch {
+    throw new Error(
+      "maintenance requires doctrinePath to point to a dedicated non-default branch checkout, not a detached managed install; configure it with `bb plugin config design-doctrine set doctrinePath /path/to/bb-plugins-doctrine-maintenance/plugins/design-doctrine`",
+    );
+  }
+  if (PRIMARY_BRANCH_NAMES.has(branchName)) {
+    throw new Error(
+      `maintenance refuses primary branch ${branchName}; use a dedicated non-default branch/worktree and point doctrinePath at its plugins/design-doctrine folder`,
+    );
+  }
   const result = await execFileAsync(
     "git",
     [
@@ -111,7 +131,8 @@ export function createHistoryMaintenance(
   installedPluginRoot: string,
 ) {
   const history = createThreadHistoryMaintenance(bb, {
-    beforeScan: async () => ensureCleanRules(await resolveDoctrineRoot()),
+    beforeScan: async () =>
+      ensureMaintenanceCheckout(await resolveDoctrineRoot()),
     legacyStateKeys: [LEGACY_HISTORY_STATE_KEY],
   });
   let migrationQueue: Promise<unknown> = Promise.resolve();

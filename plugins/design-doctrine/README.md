@@ -12,14 +12,25 @@ bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/design-doct
 
 ## Use
 
-Open **Design Doctrine** from the bb sidebar when you want to browse the rules. Agents can apply the doctrine on their own, or query it directly:
+Open **Design Doctrine** from the bb sidebar when you want to browse the rules. Agents receive a small set of candidates inferred from the thread title and can use the native Doctrine search tool for the exact task. The same ranked search is available directly:
 
 ```bash
 bb doctrine search "<task and surface>"
 bb doctrine show ddr_001
 ```
 
-The bundled `design-doctrine` skill brings the right rules into the work at hand. The doctrine adds personal design judgment; it does not replace product requirements, accessibility guidance, or platform conventions.
+The bundled `design-doctrine` skill validates each candidate against its applicability and exceptions before use. The doctrine adds personal design judgment; it does not replace product requirements, accessibility guidance, or platform conventions.
+
+Maintenance validates and commits rule files, so give it a dedicated non-default branch/worktree. The scanner rejects detached installs and primary branches (`main`, `master`, or `trunk`) to keep the normal checkout clean:
+
+```bash
+git -C /path/to/bb-plugins worktree add \
+  -b doctrine-maintenance \
+  /path/to/bb-plugins-doctrine-maintenance \
+  origin/main
+bb plugin config design-doctrine set doctrinePath \
+  /path/to/bb-plugins-doctrine-maintenance/plugins/design-doctrine
+```
 
 ## How it was built
 

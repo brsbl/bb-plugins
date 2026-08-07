@@ -2,7 +2,7 @@
 
 Thread Organizer turns BB’s pinned area into an inbox and files active work into semantic sections. Idle and failed threads rise to the inbox; resumed work returns to its preserved section.
 
-![Thread Organizer settings in bb](docs/screenshot.png)
+![Thread Organizer filing active work into BB sidebar sections](docs/screenshot.png)
 
 ## Install
 

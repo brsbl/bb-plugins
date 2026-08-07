@@ -125,6 +125,30 @@ export const threadPullRequestSchema = z
 
 export type ThreadPullRequest = z.infer<typeof threadPullRequestSchema>;
 
+export const sectionSummarySchema = z
+  .object({
+    diagnostics: rpcDiagnosticsSchema,
+    /** Threads that failed. Separate from questions: debugging is not answering. */
+    failed: z.number().int().nonnegative(),
+    /**
+     * False for a row that looks like a section but is not one bb stores —
+     * Pinned, Unorganized, and the other built-in groups. The card stays shut
+     * rather than reporting an error for a row that never had a summary.
+     */
+    known: z.boolean(),
+    /** Projects the section spans, busiest first; a section is not project-scoped. */
+    projects: z.array(z.string()),
+    /** Threads blocked on the user answering something. */
+    questions: z.number().int().nonnegative(),
+    total: z.number().int().nonnegative(),
+    /** Unread by bb's own rule, so the card agrees with the app. */
+    unread: z.number().int().nonnegative(),
+    working: z.number().int().nonnegative(),
+  })
+  .strict();
+
+export type SectionSummary = z.infer<typeof sectionSummarySchema>;
+
 export const rpcContract = defineRpcContract({
   threadSummary: {
     input: z
@@ -144,7 +168,29 @@ export const rpcContract = defineRpcContract({
     input: z.object({ threadId: z.string().min(1) }).strict(),
     output: threadPullRequestSchema,
   },
+  sectionSummary: {
+    input: z
+      .object({
+        name: z.string().min(1).max(256),
+        /** Set when the sidebar nests the section under a project row. */
+        projectName: z.string().min(1).max(256).nullable().optional(),
+      })
+      .strict(),
+    output: sectionSummarySchema,
+  },
 });
+
+function wait(ms: number, signal: AbortSignal): Promise<void> {
+  return new Promise((resolve) => {
+    const timer = setTimeout(finish, ms);
+    signal.addEventListener("abort", finish, { once: true });
+    function finish(): void {
+      clearTimeout(timer);
+      signal.removeEventListener("abort", finish);
+      resolve();
+    }
+  });
+}
 
 async function safely<T>(promise: Promise<T>): Promise<T | null> {
   try {
@@ -273,6 +319,19 @@ const ACTIVE_TURN_EVENT_WAIT_MS = "1";
 const STABLE_DESCRIPTOR_CACHE_TTL_MS = 60_000;
 const PULL_REQUEST_CACHE_TTL_MS = 15_000;
 const STABLE_DESCRIPTOR_CACHE_MAX_ENTRIES = 128;
+/**
+ * The section directory is resolved from bb's /sidebar-bootstrap, which carries
+ * every project and its threads — far too heavy to sit on a hover. A background
+ * service keeps it warm, so the TTL only has to outlast the refresh interval and
+ * a hover reads it from memory.
+ */
+const SECTION_DIRECTORY_CACHE_TTL_MS = 10 * 60_000;
+const SECTION_DIRECTORY_REFRESH_MS = 5 * 60_000;
+/** The thread query is the one the card actually needs; it always keeps this much. */
+const SECTION_THREADS_FLOOR_MS = 1_200;
+/** Collapses a sweep back and forth over the same rows into one query. */
+const SECTION_THREADS_CACHE_TTL_MS = 2_000;
+const SECTION_PREVIEW_LIMIT = 5;
 
 type CacheSource = "coalesced" | "hit" | "miss" | "none" | "stale";
 
@@ -374,18 +433,32 @@ function recordSkippedStage(
 
 function recordDiagnostics(
   bb: BbPluginApi,
-  rpc: "threadPullRequest" | "threadSummary" | "threadTiming",
-  threadId: string,
+  rpc:
+    | "sectionSummary"
+    | "threadPullRequest"
+    | "threadSummary"
+    | "threadTiming",
+  /** A thread id, or the section name for `sectionSummary`. */
+  subject: string,
   diagnostics: RpcDiagnostics,
 ): void {
   bb.log.debug(
-    `thread-hover-cards:timing ${JSON.stringify({ diagnostics, rpc, threadId })}`,
+    `thread-hover-cards:timing ${JSON.stringify({ diagnostics, rpc, subject })}`,
   );
 }
 
 interface CacheResult<T> {
   source: Exclude<CacheSource, "none">;
   value: T | null;
+}
+
+async function withinCached<T>(
+  promise: Promise<CacheResult<T>>,
+  timeoutMs: number,
+): Promise<CacheResult<T>> {
+  return (
+    (await within(promise, timeoutMs)) ?? { source: "miss", value: null }
+  );
 }
 
 interface BackgroundCacheRefreshTiming {
@@ -413,6 +486,7 @@ class StableDescriptorCache {
     private readonly maxEntries = STABLE_DESCRIPTOR_CACHE_MAX_ENTRIES,
     private readonly stage = "descriptor",
     private readonly observeBackgroundRefresh?: BackgroundCacheRefreshObserver,
+    private readonly invalidateOnLoadFailure = false,
   ) {}
 
   delete(key: string): void {
@@ -429,7 +503,9 @@ class StableDescriptorCache {
 
     const request = load()
       .then((value) => {
-        if (value !== null && !this.invalidatedPending.has(key)) {
+        if (value === null) {
+          if (this.invalidateOnLoadFailure) this.entries.delete(key);
+        } else if (!this.invalidatedPending.has(key)) {
           this.entries.set(key, {
             expiresAt: Date.now() + this.ttlMs,
             value,
@@ -443,6 +519,10 @@ class StableDescriptorCache {
           }
         }
         return value;
+      })
+      .catch((error: unknown) => {
+        if (this.invalidateOnLoadFailure) this.entries.delete(key);
+        throw error;
       })
       .finally(() => {
         if (this.pending.get(key) === request) {
@@ -663,6 +743,101 @@ const PULL_REQUEST_SIGNALS = {
   ready_to_merge: "Ready to merge",
 } as const;
 
+type SidebarThread = Awaited<
+  ReturnType<BbPluginApi["sdk"]["threads"]["list"]>
+>[number];
+type ThreadSectionRow = Awaited<
+  ReturnType<BbPluginApi["sdk"]["threadSections"]["list"]>
+>[number];
+type ProjectRow = Awaited<
+  ReturnType<BbPluginApi["sdk"]["projects"]["list"]>
+>[number];
+
+/**
+ * Matches the rows a section actually renders: visible, unarchived roots, side
+ * chats excluded — and not pinned, because bb lifts pinned threads out of their
+ * section into the Pinned group (apps/app/src/components/sidebar/ProjectList.tsx)
+ * so counting them here would overstate what the section shows.
+ */
+export function isSidebarSectionThread(thread: SidebarThread): boolean {
+  return (
+    thread.visibility === "visible" &&
+    thread.parentThreadId === null &&
+    thread.archivedAt === null &&
+    thread.deletedAt === null &&
+    thread.pinnedAt === null &&
+    thread.originKind !== "side-chat" &&
+    thread.childOrigin !== "side-chat"
+  );
+}
+
+/** bb's own rule (apps/app/src/lib/thread-read-state.ts), so the counts agree. */
+function isUnread(thread: SidebarThread): boolean {
+  return (thread.lastReadAt ?? 0) < thread.latestAttentionAt;
+}
+
+/**
+ * Mirrors bb's own `isBusyThread`: a thread with no running status can still be
+ * driving a workflow, background agent, or plan, and the sidebar shows it busy.
+ */
+function isBusyThread(thread: SidebarThread): boolean {
+  const activity = thread.activity;
+  return (
+    isRunningStatus(thread.runtime.displayStatus) ||
+    activity.activeWorkflowCount > 0 ||
+    activity.activeBackgroundAgentCount > 0 ||
+    activity.activeBackgroundCommandCount > 0 ||
+    activity.activePlanModeCount > 0 ||
+    activity.activeGoalCount > 0
+  );
+}
+
+/**
+ * Counts only. Every figure here takes reading the whole section to know, which
+ * is the bar for earning a place on the card: what a glance at the row or one
+ * click already gives is deliberately absent.
+ */
+export function summarizeSectionThreads(
+  threads: readonly SidebarThread[],
+  projectNameById: ReadonlyMap<string, string> = new Map(),
+): Omit<SectionSummary, "diagnostics" | "known"> {
+  let failed = 0;
+  let questions = 0;
+  let unread = 0;
+  let working = 0;
+  const threadsByProject = new Map<string, number>();
+
+  for (const thread of threads) {
+    if (isUnread(thread)) unread += 1;
+    // A blocked thread wants an answer; a failed one wants debugging. Counting
+    // them together would hide which kind of work the section is asking for.
+    if (thread.hasPendingInteraction) questions += 1;
+    else if (thread.runtime.displayStatus === "error") failed += 1;
+    else if (isBusyThread(thread)) working += 1;
+
+    const projectName = projectNameById.get(thread.projectId);
+    if (projectName !== undefined) {
+      threadsByProject.set(
+        projectName,
+        (threadsByProject.get(projectName) ?? 0) + 1,
+      );
+    }
+  }
+
+  return {
+    failed,
+    projects: [...threadsByProject]
+      .sort(
+        (left, right) => right[1] - left[1] || left[0].localeCompare(right[0]),
+      )
+      .map(([name]) => name),
+    questions,
+    total: threads.length,
+    unread,
+    working,
+  };
+}
+
 function providerDisplayName(providerId: string): string {
   switch (providerId) {
     case "acp-cursor":
@@ -695,6 +870,19 @@ export default function plugin(bb: BbPluginApi): void {
     STABLE_DESCRIPTOR_CACHE_MAX_ENTRIES,
     "pullRequest",
     recordBackgroundRefresh,
+  );
+  const sectionDirectory = new StableDescriptorCache(
+    SECTION_DIRECTORY_CACHE_TTL_MS,
+    4,
+    "sectionDirectory",
+    recordBackgroundRefresh,
+  );
+  const sectionThreads = new StableDescriptorCache(
+    SECTION_THREADS_CACHE_TTL_MS,
+    STABLE_DESCRIPTOR_CACHE_MAX_ENTRIES,
+    "sectionThreads",
+    recordBackgroundRefresh,
+    true,
   );
   const summaryRequests = new LatestSummaryRequestGate(2);
 
@@ -1125,6 +1313,162 @@ export default function plugin(bb: BbPluginApi): void {
           finishDiagnostics(recorder),
         );
         throw error;
+      }
+    },
+    async sectionSummary({ name, projectName = null }) {
+      const recorder = createDiagnostics();
+      const deadlineAt = Date.now() + SUMMARY_LOOKUP_TIMEOUT_MS;
+      const remainingMs = (): number => Math.max(1, deadlineAt - Date.now());
+      // Directory reads are normally cache hits kept warm by the background
+      // service. When one does go to the wire it must still leave the thread
+      // query — the only lookup this card actually needs — a real budget.
+      const directoryBudgetMs = (): number =>
+        Math.max(1, remainingMs() - SECTION_THREADS_FLOOR_MS);
+      const signal = AbortSignal.timeout(SUMMARY_LOOKUP_TIMEOUT_MS);
+      try {
+        const readSections = (): Promise<CacheResult<ThreadSectionRow[]>> =>
+          measureCachedStage(recorder, "sections", () =>
+            withinCached(
+              sectionDirectory.get<ThreadSectionRow[]>("sections", () =>
+                safely(bb.sdk.threadSections.list({ signal })),
+              ),
+              directoryBudgetMs(),
+            ),
+          );
+        let sections = await readSections();
+        if (sections.value === null) throw new Error("Section summary unavailable.");
+
+        // Section names are unique in bb (thread_sections has a unique index on
+        // name), so at most one row can match.
+        let section = sections.value.find((row) => row.name === name) ?? null;
+        if (section === null && sections.source !== "miss") {
+          // A miss against a possibly-stale directory is indistinguishable from
+          // a built-in group like Pinned. Re-read once before saying "not a
+          // section", so a just-created or just-renamed section is not written
+          // off — the client caches that answer.
+          sectionDirectory.delete("sections");
+          sections = await readSections();
+          // An unavailable directory is a failure, not proof of absence — the
+          // client caches "not a section", so a wrong no must never be cheap.
+          if (sections.value === null) {
+            throw new Error("Section summary unavailable.");
+          }
+          section = sections.value.find((row) => row.name === name) ?? null;
+        }
+        if (section === null) {
+          const diagnostics = finishDiagnostics(recorder);
+          recordDiagnostics(bb, "sectionSummary", name, diagnostics);
+          return {
+            diagnostics,
+            failed: 0,
+            known: false,
+            projects: [],
+            questions: 0,
+            total: 0,
+            unread: 0,
+            working: 0,
+          };
+        }
+
+        // The card names the projects the section spans, so this is needed on
+        // every hover. The warming service keeps it a cache hit.
+        const projects = await measureCachedStage(recorder, "projects", () =>
+          withinCached(
+            sectionDirectory.get<ProjectRow[]>("projects", () =>
+              safely(bb.sdk.projects.list({ includePersonal: true, signal })),
+            ),
+            directoryBudgetMs(),
+          ),
+        );
+        // Failing open would filter every thread out on a project-scoped hover
+        // and render a confident empty state for a populated section.
+        if (projects.value === null) {
+          throw new Error("Section summary unavailable.");
+        }
+        const projectNameById = new Map(
+          projects.value.map((project) => [project.id, project.name]),
+        );
+        const scopedProject =
+          projectName === null
+            ? null
+            : projects.value.filter((project) => project.name === projectName);
+        if (scopedProject !== null && scopedProject.length !== 1) {
+          throw new Error("Section summary unavailable.");
+        }
+        const scopedProjectId = scopedProject?.[0]?.id ?? null;
+
+        const sectionId = section.id;
+        const page = await measureCachedStage(recorder, "threads", () =>
+          sectionThreads.get<SidebarThread[]>(sectionId, () =>
+            within(
+              safely(
+                bb.sdk.threads.list({
+                  archived: false,
+                  excludeSideChats: true,
+                  hasParent: false,
+                  includeHidden: false,
+                  sectionId,
+                  signal,
+                }),
+              ),
+              remainingMs(),
+            ),
+          ),
+        ).then((result) => result.value);
+        // A lost page would silently under-report the count as authoritative.
+        // The card exists to state a number; better none than a wrong one.
+        if (page === null) throw new Error("Section summary unavailable.");
+
+        const threads = page
+          .filter(isSidebarSectionThread)
+          .filter(
+            (thread) =>
+              scopedProjectId === null || thread.projectId === scopedProjectId,
+          );
+
+        const diagnostics = finishDiagnostics(recorder);
+        recordDiagnostics(bb, "sectionSummary", name, diagnostics);
+        return {
+          ...summarizeSectionThreads(threads, projectNameById),
+          diagnostics,
+          known: true,
+        };
+      } catch (error) {
+        recordDiagnostics(bb, "sectionSummary", name, finishDiagnostics(recorder));
+        throw error;
+      }
+    },
+  });
+
+  // Resolving a section name costs a /sidebar-bootstrap fetch. Paying it here,
+  // on a slow loop, keeps it off every hover: the handler reads the directory
+  // from memory and spends its whole budget on the one query it needs.
+  bb.background.service("section-directory-warm", {
+    async start(signal) {
+      while (!signal.aborted) {
+        const startedAt = monotonicNow();
+        sectionDirectory.delete("sections");
+        sectionDirectory.delete("projects");
+        const [sections, projects] = await Promise.all([
+          sectionDirectory.get("sections", () =>
+            within(safely(bb.sdk.threadSections.list({ signal })), 10_000),
+          ),
+          sectionDirectory.get("projects", () =>
+            within(
+              safely(bb.sdk.projects.list({ includePersonal: true, signal })),
+              10_000,
+            ),
+          ),
+        ]);
+        if (signal.aborted) return;
+        bb.log.debug(
+          `thread-hover-cards:section-directory ${JSON.stringify({
+            durationMs: roundedDuration(startedAt),
+            projects: projects.value?.length ?? null,
+            sections: sections.value?.length ?? null,
+          })}`,
+        );
+        await wait(SECTION_DIRECTORY_REFRESH_MS, signal);
       }
     },
   });

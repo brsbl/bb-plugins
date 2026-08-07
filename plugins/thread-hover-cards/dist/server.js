@@ -14614,6 +14614,25 @@ var threadPullRequestSchema = external_exports.object({
     path: external_exports.string().nullable()
   }).strict()
 }).strict();
+var sectionSummarySchema = external_exports.object({
+  diagnostics: rpcDiagnosticsSchema,
+  /** Threads that failed. Separate from questions: debugging is not answering. */
+  failed: external_exports.number().int().nonnegative(),
+  /**
+   * False for a row that looks like a section but is not one bb stores —
+   * Pinned, Unorganized, and the other built-in groups. The card stays shut
+   * rather than reporting an error for a row that never had a summary.
+   */
+  known: external_exports.boolean(),
+  /** Projects the section spans, busiest first; a section is not project-scoped. */
+  projects: external_exports.array(external_exports.string()),
+  /** Threads blocked on the user answering something. */
+  questions: external_exports.number().int().nonnegative(),
+  total: external_exports.number().int().nonnegative(),
+  /** Unread by bb's own rule, so the card agrees with the app. */
+  unread: external_exports.number().int().nonnegative(),
+  working: external_exports.number().int().nonnegative()
+}).strict();
 var rpcContract = defineRpcContract({
   threadSummary: {
     input: external_exports.object({
@@ -14630,8 +14649,27 @@ var rpcContract = defineRpcContract({
   threadPullRequest: {
     input: external_exports.object({ threadId: external_exports.string().min(1) }).strict(),
     output: threadPullRequestSchema
+  },
+  sectionSummary: {
+    input: external_exports.object({
+      name: external_exports.string().min(1).max(256),
+      /** Set when the sidebar nests the section under a project row. */
+      projectName: external_exports.string().min(1).max(256).nullable().optional()
+    }).strict(),
+    output: sectionSummarySchema
   }
 });
+function wait(ms, signal) {
+  return new Promise((resolve) => {
+    const timer = setTimeout(finish, ms);
+    signal.addEventListener("abort", finish, { once: true });
+    function finish() {
+      clearTimeout(timer);
+      signal.removeEventListener("abort", finish);
+      resolve();
+    }
+  });
+}
 async function safely(promise2) {
   try {
     return await promise2;
@@ -14703,6 +14741,10 @@ var ACTIVE_TURN_EVENT_WAIT_MS = "1";
 var STABLE_DESCRIPTOR_CACHE_TTL_MS = 6e4;
 var PULL_REQUEST_CACHE_TTL_MS = 15e3;
 var STABLE_DESCRIPTOR_CACHE_MAX_ENTRIES = 128;
+var SECTION_DIRECTORY_CACHE_TTL_MS = 10 * 6e4;
+var SECTION_DIRECTORY_REFRESH_MS = 5 * 6e4;
+var SECTION_THREADS_FLOOR_MS = 1200;
+var SECTION_THREADS_CACHE_TTL_MS = 2e3;
 function monotonicNow() {
   return typeof performance === "undefined" ? Date.now() : performance.now();
 }
@@ -14773,22 +14815,27 @@ function recordSkippedStage(recorder, name) {
     outcome: "skipped"
   });
 }
-function recordDiagnostics(bb, rpc, threadId, diagnostics) {
+function recordDiagnostics(bb, rpc, subject, diagnostics) {
   bb.log.debug(
-    `thread-hover-cards:timing ${JSON.stringify({ diagnostics, rpc, threadId })}`
+    `thread-hover-cards:timing ${JSON.stringify({ diagnostics, rpc, subject })}`
   );
 }
+async function withinCached(promise2, timeoutMs) {
+  return await within(promise2, timeoutMs) ?? { source: "miss", value: null };
+}
 var StableDescriptorCache = class {
-  constructor(ttlMs = STABLE_DESCRIPTOR_CACHE_TTL_MS, maxEntries = STABLE_DESCRIPTOR_CACHE_MAX_ENTRIES, stage = "descriptor", observeBackgroundRefresh) {
+  constructor(ttlMs = STABLE_DESCRIPTOR_CACHE_TTL_MS, maxEntries = STABLE_DESCRIPTOR_CACHE_MAX_ENTRIES, stage = "descriptor", observeBackgroundRefresh, invalidateOnLoadFailure = false) {
     this.ttlMs = ttlMs;
     this.maxEntries = maxEntries;
     this.stage = stage;
     this.observeBackgroundRefresh = observeBackgroundRefresh;
+    this.invalidateOnLoadFailure = invalidateOnLoadFailure;
   }
   ttlMs;
   maxEntries;
   stage;
   observeBackgroundRefresh;
+  invalidateOnLoadFailure;
   entries = /* @__PURE__ */ new Map();
   invalidatedPending = /* @__PURE__ */ new Set();
   pending = /* @__PURE__ */ new Map();
@@ -14800,7 +14847,9 @@ var StableDescriptorCache = class {
     const pending = this.pending.get(key);
     if (pending) return pending;
     const request = load().then((value) => {
-      if (value !== null && !this.invalidatedPending.has(key)) {
+      if (value === null) {
+        if (this.invalidateOnLoadFailure) this.entries.delete(key);
+      } else if (!this.invalidatedPending.has(key)) {
         this.entries.set(key, {
           expiresAt: Date.now() + this.ttlMs,
           value
@@ -14812,6 +14861,9 @@ var StableDescriptorCache = class {
         }
       }
       return value;
+    }).catch((error51) => {
+      if (this.invalidateOnLoadFailure) this.entries.delete(key);
+      throw error51;
     }).finally(() => {
       if (this.pending.get(key) === request) {
         this.pending.delete(key);
@@ -14988,6 +15040,46 @@ var PULL_REQUEST_SIGNALS = {
   review_requested: "Review requested",
   ready_to_merge: "Ready to merge"
 };
+function isSidebarSectionThread(thread) {
+  return thread.visibility === "visible" && thread.parentThreadId === null && thread.archivedAt === null && thread.deletedAt === null && thread.pinnedAt === null && thread.originKind !== "side-chat" && thread.childOrigin !== "side-chat";
+}
+function isUnread(thread) {
+  return (thread.lastReadAt ?? 0) < thread.latestAttentionAt;
+}
+function isBusyThread(thread) {
+  const activity = thread.activity;
+  return isRunningStatus(thread.runtime.displayStatus) || activity.activeWorkflowCount > 0 || activity.activeBackgroundAgentCount > 0 || activity.activeBackgroundCommandCount > 0 || activity.activePlanModeCount > 0 || activity.activeGoalCount > 0;
+}
+function summarizeSectionThreads(threads, projectNameById = /* @__PURE__ */ new Map()) {
+  let failed = 0;
+  let questions = 0;
+  let unread = 0;
+  let working = 0;
+  const threadsByProject = /* @__PURE__ */ new Map();
+  for (const thread of threads) {
+    if (isUnread(thread)) unread += 1;
+    if (thread.hasPendingInteraction) questions += 1;
+    else if (thread.runtime.displayStatus === "error") failed += 1;
+    else if (isBusyThread(thread)) working += 1;
+    const projectName = projectNameById.get(thread.projectId);
+    if (projectName !== void 0) {
+      threadsByProject.set(
+        projectName,
+        (threadsByProject.get(projectName) ?? 0) + 1
+      );
+    }
+  }
+  return {
+    failed,
+    projects: [...threadsByProject].sort(
+      (left, right) => right[1] - left[1] || left[0].localeCompare(right[0])
+    ).map(([name]) => name),
+    questions,
+    total: threads.length,
+    unread,
+    working
+  };
+}
 function providerDisplayName(providerId) {
   switch (providerId) {
     case "acp-cursor":
@@ -15019,6 +15111,19 @@ function plugin(bb) {
     STABLE_DESCRIPTOR_CACHE_MAX_ENTRIES,
     "pullRequest",
     recordBackgroundRefresh
+  );
+  const sectionDirectory = new StableDescriptorCache(
+    SECTION_DIRECTORY_CACHE_TTL_MS,
+    4,
+    "sectionDirectory",
+    recordBackgroundRefresh
+  );
+  const sectionThreads = new StableDescriptorCache(
+    SECTION_THREADS_CACHE_TTL_MS,
+    STABLE_DESCRIPTOR_CACHE_MAX_ENTRIES,
+    "sectionThreads",
+    recordBackgroundRefresh,
+    true
   );
   const summaryRequests = new LatestSummaryRequestGate(2);
   bb.rpc.register(rpcContract, {
@@ -15395,13 +15500,149 @@ function plugin(bb) {
         );
         throw error51;
       }
+    },
+    async sectionSummary({ name, projectName = null }) {
+      const recorder = createDiagnostics();
+      const deadlineAt = Date.now() + SUMMARY_LOOKUP_TIMEOUT_MS;
+      const remainingMs = () => Math.max(1, deadlineAt - Date.now());
+      const directoryBudgetMs = () => Math.max(1, remainingMs() - SECTION_THREADS_FLOOR_MS);
+      const signal = AbortSignal.timeout(SUMMARY_LOOKUP_TIMEOUT_MS);
+      try {
+        const readSections = () => measureCachedStage(
+          recorder,
+          "sections",
+          () => withinCached(
+            sectionDirectory.get(
+              "sections",
+              () => safely(bb.sdk.threadSections.list({ signal }))
+            ),
+            directoryBudgetMs()
+          )
+        );
+        let sections = await readSections();
+        if (sections.value === null) throw new Error("Section summary unavailable.");
+        let section = sections.value.find((row) => row.name === name) ?? null;
+        if (section === null && sections.source !== "miss") {
+          sectionDirectory.delete("sections");
+          sections = await readSections();
+          if (sections.value === null) {
+            throw new Error("Section summary unavailable.");
+          }
+          section = sections.value.find((row) => row.name === name) ?? null;
+        }
+        if (section === null) {
+          const diagnostics2 = finishDiagnostics(recorder);
+          recordDiagnostics(bb, "sectionSummary", name, diagnostics2);
+          return {
+            diagnostics: diagnostics2,
+            failed: 0,
+            known: false,
+            projects: [],
+            questions: 0,
+            total: 0,
+            unread: 0,
+            working: 0
+          };
+        }
+        const projects = await measureCachedStage(
+          recorder,
+          "projects",
+          () => withinCached(
+            sectionDirectory.get(
+              "projects",
+              () => safely(bb.sdk.projects.list({ includePersonal: true, signal }))
+            ),
+            directoryBudgetMs()
+          )
+        );
+        if (projects.value === null) {
+          throw new Error("Section summary unavailable.");
+        }
+        const projectNameById = new Map(
+          projects.value.map((project) => [project.id, project.name])
+        );
+        const scopedProject = projectName === null ? null : projects.value.filter((project) => project.name === projectName);
+        if (scopedProject !== null && scopedProject.length !== 1) {
+          throw new Error("Section summary unavailable.");
+        }
+        const scopedProjectId = scopedProject?.[0]?.id ?? null;
+        const sectionId = section.id;
+        const page = await measureCachedStage(
+          recorder,
+          "threads",
+          () => sectionThreads.get(
+            sectionId,
+            () => within(
+              safely(
+                bb.sdk.threads.list({
+                  archived: false,
+                  excludeSideChats: true,
+                  hasParent: false,
+                  includeHidden: false,
+                  sectionId,
+                  signal
+                })
+              ),
+              remainingMs()
+            )
+          )
+        ).then((result) => result.value);
+        if (page === null) throw new Error("Section summary unavailable.");
+        const threads = page.filter(isSidebarSectionThread).filter(
+          (thread) => scopedProjectId === null || thread.projectId === scopedProjectId
+        );
+        const diagnostics = finishDiagnostics(recorder);
+        recordDiagnostics(bb, "sectionSummary", name, diagnostics);
+        return {
+          ...summarizeSectionThreads(threads, projectNameById),
+          diagnostics,
+          known: true
+        };
+      } catch (error51) {
+        recordDiagnostics(bb, "sectionSummary", name, finishDiagnostics(recorder));
+        throw error51;
+      }
+    }
+  });
+  bb.background.service("section-directory-warm", {
+    async start(signal) {
+      while (!signal.aborted) {
+        const startedAt = monotonicNow();
+        sectionDirectory.delete("sections");
+        sectionDirectory.delete("projects");
+        const [sections, projects] = await Promise.all([
+          sectionDirectory.get(
+            "sections",
+            () => within(safely(bb.sdk.threadSections.list({ signal })), 1e4)
+          ),
+          sectionDirectory.get(
+            "projects",
+            () => within(
+              safely(bb.sdk.projects.list({ includePersonal: true, signal })),
+              1e4
+            )
+          )
+        ]);
+        if (signal.aborted) return;
+        bb.log.debug(
+          `thread-hover-cards:section-directory ${JSON.stringify({
+            durationMs: roundedDuration(startedAt),
+            projects: projects.value?.length ?? null,
+            sections: sections.value?.length ?? null
+          })}`
+        );
+        await wait(SECTION_DIRECTORY_REFRESH_MS, signal);
+      }
     }
   });
   bb.log.info("Thread hover cards loaded.");
 }
 export {
   plugin as default,
+  isSidebarSectionThread,
   rpcContract,
+  sectionSummarySchema,
+  summarizeSectionThreads,
   threadPullRequestSchema,
   threadSummarySchema,
   threadTimingSchema
