@@ -72,7 +72,20 @@ describe("timeline comments controller teardown", () => {
       selectedText: "source",
       openPanel: () => true,
     });
-    expect(document.querySelector(".bb-comments-composer")).not.toBeNull();
+    const composer = document.querySelector<HTMLElement>(
+      ".bb-comments-composer",
+    )!;
+    expect(composer).not.toBeNull();
+    expect(composer.querySelector(".bb-comments-composer-footer")).toBeNull();
+    expect(
+      composer.querySelector('button[aria-label="Comment"] svg'),
+    ).not.toBeNull();
+    const textarea = composer.querySelector<HTMLTextAreaElement>(
+      ".bb-comments-textarea",
+    )!;
+    textarea.value = "first line\nsecond line";
+    textarea.dispatchEvent(new InputEvent("input", { bubbles: true }));
+    expect(composer.dataset.multiline).toBe("true");
     controller.abort();
     dispose();
     document.getSelection()!.removeAllRanges();

@@ -11,6 +11,7 @@ import {
   Pencil,
   StickyNote,
   Trash2,
+  X,
   createElement as createLucideElement,
   type IconNode,
 } from "lucide";
@@ -206,6 +207,90 @@ function selectionTextMatches(rangeText: string, hostText: string): boolean {
 
 const inlineComposerAnimations = new WeakMap<HTMLElement, Animation>();
 const inlineComposerNaturalHeights = new WeakMap<HTMLElement, number>();
+const modeTransitionAnimations = new WeakMap<HTMLElement, Animation>();
+
+function runMeasuredModeTransition(
+  element: HTMLElement,
+  update: () => void,
+): void {
+  const scrollRegion = element.closest<HTMLElement>(
+    ".bb-comments-thread-comments",
+  );
+  const scrollTop = scrollRegion?.scrollTop;
+  const running = modeTransitionAnimations.get(element);
+  const startHeight = element.getBoundingClientRect().height;
+  running?.cancel();
+  modeTransitionAnimations.delete(element);
+  element.style.removeProperty("overflow");
+  update();
+  if (scrollRegion !== null && scrollTop !== undefined) {
+    scrollRegion.scrollTop = scrollTop;
+    requestAnimationFrame(() => {
+      if (scrollRegion.isConnected) scrollRegion.scrollTop = scrollTop;
+    });
+  }
+  const endHeight = element.getBoundingClientRect().height;
+  if (
+    Math.abs(endHeight - startHeight) < 0.5 ||
+    typeof element.animate !== "function" ||
+    matchMedia("(prefers-reduced-motion: reduce)").matches
+  ) {
+    return;
+  }
+  element.style.overflow = "hidden";
+  const animation = element.animate(
+    [{ height: `${startHeight}px` }, { height: `${endHeight}px` }],
+    {
+      duration: 150,
+      easing: "cubic-bezier(0.22, 1, 0.36, 1)",
+    },
+  );
+  modeTransitionAnimations.set(element, animation);
+  const finish = () => {
+    if (modeTransitionAnimations.get(element) !== animation) return;
+    modeTransitionAnimations.delete(element);
+    element.style.removeProperty("overflow");
+  };
+  animation.addEventListener("finish", finish, { once: true });
+  animation.addEventListener("cancel", finish, { once: true });
+}
+
+function removeWithTransition(element: HTMLElement, remove: () => void): void {
+  if (
+    typeof element.animate !== "function" ||
+    matchMedia("(prefers-reduced-motion: reduce)").matches
+  ) {
+    remove();
+    return;
+  }
+  const height = element.getBoundingClientRect().height;
+  element.style.overflow = "hidden";
+  const animation = element.animate(
+    [
+      { height: `${height}px`, opacity: 1 },
+      { height: "0px", opacity: 0 },
+    ],
+    { duration: 150, easing: "cubic-bezier(0.22, 1, 0.36, 1)" },
+  );
+  animation.addEventListener("finish", remove, { once: true });
+  animation.addEventListener("cancel", remove, { once: true });
+}
+
+function animateInsertion(element: HTMLElement): void {
+  if (
+    typeof element.animate !== "function" ||
+    matchMedia("(prefers-reduced-motion: reduce)").matches
+  ) {
+    return;
+  }
+  element.animate(
+    [
+      { opacity: 0, transform: "translateY(-4px)" },
+      { opacity: 1, transform: "translateY(0)" },
+    ],
+    { duration: 150, easing: "cubic-bezier(0.22, 1, 0.36, 1)" },
+  );
+}
 
 function syncInlineComposerLayout(
   textarea: HTMLTextAreaElement,
@@ -401,18 +486,17 @@ class TimelineCommentsController {
     textarea.placeholder = "Add a comment…";
     textarea.maxLength = 20_000;
     textarea.value = readDraft(key) ?? "";
-    const footer = element("div", "bb-comments-composer-footer");
-    footer.append(element("span", "bb-comments-hint", "⌘/Ctrl Enter"));
     const submit = element(
       "button",
-      "bb-comments-primary",
-      "Comment",
+      "bb-comments-submit-shortcut bb-comments-create-submit",
     ) as HTMLButtonElement;
     submit.type = "submit";
-    footer.append(submit);
+    submit.setAttribute("aria-label", "Comment");
+    submit.title = "Comment · ⌘/Ctrl Enter";
+    submit.append(icon(Command), icon(CornerDownLeft));
     const error = element("div", "bb-comments-error");
     error.setAttribute("role", "status");
-    shell.append(textarea, error, footer);
+    shell.append(textarea, submit, error);
 
     const firstRect = captured.rects[0];
     const x = firstRect?.x ?? window.innerWidth / 2;
@@ -429,6 +513,7 @@ class TimelineCommentsController {
     const persist = () => writeDraft(key, textarea.value);
     textarea.addEventListener("input", () => {
       persist();
+      syncInlineComposerLayout(textarea, shell);
       validate();
     });
     textarea.addEventListener("keydown", (event) => {
@@ -472,6 +557,7 @@ class TimelineCommentsController {
     validate();
     this.#composer = shell;
     this.#portal.append(shell);
+    syncInlineComposerLayout(textarea, shell, false);
     this.#outsideComposer = (event) => {
       if (event.target instanceof Node && shell.contains(event.target)) return;
       persist();
@@ -1052,7 +1138,16 @@ class TimelineCommentsController {
 
     if (detail.thread.resolvedAt === null) {
       const reply = element("form", "bb-comments-reply");
+      reply.dataset.editing = "false";
+      reply.dataset.lastEditing = "false";
+      const replyInner = element("div", "bb-comments-reply-inner");
       const replyComposer = element("div", "bb-comments-inline-composer");
+      replyComposer.dataset.bbCommentReplyComposer = "true";
+      const editFooterHost = element(
+        "div",
+        "bb-comments-edit-footer-host",
+      );
+      editFooterHost.dataset.bbCommentEditFooterHost = "true";
       const draftKey = `bb.timeline-comments.reply:${detail.thread.id}`;
       const textarea = element(
         "textarea",
@@ -1093,7 +1188,8 @@ class TimelineCommentsController {
         }
       });
       replyComposer.append(textarea, send);
-      reply.append(replyComposer, error);
+      replyInner.append(replyComposer, error, editFooterHost);
+      reply.append(replyInner);
       reply.addEventListener("submit", (event) => {
         event.preventDefault();
         if (validate() !== null) return;
@@ -1104,9 +1200,23 @@ class TimelineCommentsController {
             commentThreadId: detail.thread.id,
             body: textarea.value,
           })
-          .then(() => {
+          .then((result) => {
+            if (this.#popover !== popover) return;
+            const fresh = result as TimelineCommentThreadDetail;
+            const knownIds = new Set(detail.comments.map(({ id }) => id));
+            Object.assign(detail.thread, fresh.thread);
+            detail.comments.splice(0, detail.comments.length, ...fresh.comments);
             sessionStorage.removeItem(draftKey);
-            return this.openThread(detail.thread.id);
+            textarea.value = "";
+            syncInlineComposerLayout(textarea, replyComposer);
+            validate();
+            for (const freshComment of fresh.comments) {
+              if (knownIds.has(freshComment.id)) continue;
+              const freshRow = this.renderComment(detail, freshComment, popover);
+              comments.append(freshRow);
+              animateInsertion(freshRow);
+            }
+            this.scheduleRefresh();
           })
           .catch((caught) => {
             send.disabled = false;
@@ -1126,18 +1236,23 @@ class TimelineCommentsController {
   ): HTMLElement {
     const row = element("article", "bb-comments-comment");
     row.dataset.bbCommentId = comment.id;
+    let currentComment = comment;
     const buildHeader = (action: HTMLElement): HTMLElement => {
       const header = element("header", "bb-comments-message-header");
       const byline = element("div");
       byline.append(element("strong", undefined, "Me"));
-      const timestamp = element("time", undefined, relativeTime(comment.createdAt));
-      timestamp.dateTime = new Date(comment.createdAt).toISOString();
-      timestamp.title = formatTime(comment.createdAt);
+      const timestamp = element(
+        "time",
+        undefined,
+        relativeTime(currentComment.createdAt),
+      );
+      timestamp.dateTime = new Date(currentComment.createdAt).toISOString();
+      timestamp.title = formatTime(currentComment.createdAt);
       byline.append(timestamp);
       header.append(byline, action);
       return header;
     };
-    const body = element("p", "bb-comments-comment-body", comment.body);
+    const body = element("p", "bb-comments-comment-body", currentComment.body);
     const actions = element("div", "bb-comments-actions-menu");
     const actionsTrigger = element(
       "button",
@@ -1149,6 +1264,14 @@ class TimelineCommentsController {
     actionsTrigger.setAttribute("aria-expanded", "false");
     actionsTrigger.title = "Comment actions";
     actionsTrigger.append(icon(EllipsisVertical));
+    const cancel = element(
+      "button",
+      "bb-comments-icon-control bb-comments-edit-cancel",
+    ) as HTMLButtonElement;
+    cancel.type = "button";
+    cancel.setAttribute("aria-label", "Cancel comment edit");
+    cancel.title = "Cancel edit";
+    cancel.append(icon(X));
     const actionsMenu = element("div", "bb-comments-actions-popover");
     actionsMenu.setAttribute("role", "menu");
     const menuItems = () =>
@@ -1196,94 +1319,142 @@ class TimelineCommentsController {
     edit.tabIndex = -1;
     edit.setAttribute("role", "menuitem");
     edit.append(icon(Pencil), document.createTextNode("Edit"));
-    edit.addEventListener("click", () => {
-      const draftKey = `bb.timeline-comments.edit:${comment.id}`;
-      popover.dataset.editing = "true";
-      row.dataset.editing = "true";
-      this.closeActionsMenu();
-      const textarea = element(
-        "textarea",
-        "bb-comments-edit-input",
-      ) as HTMLTextAreaElement;
-      textarea.setAttribute("aria-label", "Edit comment");
-      textarea.maxLength = 20_000;
-      textarea.value = readDraft(draftKey) ?? comment.body;
-      const editComposer = element("div", "bb-comments-inline-composer");
-      const save = element(
-        "button",
-        "bb-comments-submit-shortcut",
-      ) as HTMLButtonElement;
-      save.type = "button";
-      save.append(icon(Command), icon(CornerDownLeft));
-      save.setAttribute("aria-label", "Save comment");
-      save.title = "Save comment · ⌘/Ctrl Enter";
-      const error = element("div", "bb-comments-error");
-      error.setAttribute("role", "status");
-      const validate = () => {
-        const message = commentBodyError(textarea.value);
-        save.disabled = message !== null;
-        error.textContent =
-          message !== null && textarea.value.trim() !== "" ? message : "";
-        return message;
-      };
-      const cancelEdit = () => {
+    const draftKey = `bb.timeline-comments.edit:${comment.id}`;
+    const textarea = element(
+      "textarea",
+      "bb-comments-edit-input",
+    ) as HTMLTextAreaElement;
+    textarea.setAttribute("aria-label", "Edit comment");
+    textarea.maxLength = 20_000;
+    const editComposer = element("div", "bb-comments-edit-composer");
+    const localFooterHost = element(
+      "div",
+      "bb-comments-local-edit-footer-host",
+    );
+    const editFooter = element("div", "bb-comments-edit-footer");
+    const save = element(
+      "button",
+      "bb-comments-edit-submit",
+    ) as HTMLButtonElement;
+    save.type = "button";
+    save.append(icon(Command), icon(CornerDownLeft));
+    save.setAttribute("aria-label", "Save comment");
+    save.title = "Save comment · ⌘/Ctrl Enter";
+    editFooter.append(save);
+    localFooterHost.append(editFooter);
+    const error = element("div", "bb-comments-error");
+    error.setAttribute("role", "status");
+    editComposer.append(textarea, error, localFooterHost);
+    const validate = () => {
+      const message = commentBodyError(textarea.value);
+      save.disabled = message !== null;
+      error.textContent =
+        message !== null && textarea.value.trim() !== "" ? message : "";
+      return message;
+    };
+    const resetReplyRegion = () => {
+      const reply = popover.querySelector<HTMLElement>(".bb-comments-reply");
+      if (reply === null) return;
+      reply.dataset.editing = "false";
+      reply.dataset.lastEditing = "false";
+      reply.removeAttribute("aria-hidden");
+      reply.removeAttribute("inert");
+      const replyComposer = reply.querySelector<HTMLElement>(
+        "[data-bb-comment-reply-composer]",
+      );
+      replyComposer?.removeAttribute("aria-hidden");
+      replyComposer?.removeAttribute("inert");
+      localFooterHost.append(editFooter);
+    };
+    const finishEdit = (focusTrigger: boolean) => {
+      runMeasuredModeTransition(row, () => {
+        delete popover.dataset.editing;
+        delete row.dataset.editing;
+        resetReplyRegion();
+      });
+      if (focusTrigger) actionsTrigger.focus({ preventScroll: true });
+    };
+    const cancelEdit = () => {
+      sessionStorage.removeItem(draftKey);
+      finishEdit(true);
+    };
+    cancel.addEventListener("click", cancelEdit);
+    textarea.addEventListener("input", () => {
+      if (textarea.value === currentComment.body)
         sessionStorage.removeItem(draftKey);
-        this.renderThreadPopover(popover, detail);
-        popover
-          .querySelector<HTMLButtonElement>(
-            `[data-bb-comment-id="${escapeSelector(comment.id)}"] ` +
-              '.bb-comments-actions-menu > button[aria-label="Comment actions"]',
-          )
-          ?.focus({ preventScroll: true });
-      };
-      textarea.addEventListener("input", () => {
-        if (textarea.value === comment.body) sessionStorage.removeItem(draftKey);
-        else writeDraft(draftKey, textarea.value);
-        syncInlineComposerLayout(textarea, editComposer);
-        validate();
-      });
-      textarea.addEventListener("keydown", (event) => {
-        if (event.key === "Escape") {
-          event.preventDefault();
-          cancelEdit();
-        }
-        if (
-          event.key === "Enter" &&
-          (event.metaKey || event.ctrlKey)
-        ) {
-          event.preventDefault();
-          save.click();
-        }
-      });
-      save.addEventListener("click", () => {
-        if (validate() !== null) return;
-        const body = textarea.value.trim();
-        if (body === comment.body) {
-          cancelEdit();
-          return;
-        }
-        save.disabled = true;
-        void this.#rpc
-          .call("updateComment", {
-            bbThreadId: detail.thread.bbThreadId,
-            commentId: comment.id,
-            expectedVersion: comment.version,
-            body,
-          })
-          .then(() => {
-            sessionStorage.removeItem(draftKey);
-            return this.openThread(detail.thread.id);
-          })
-          .catch((caught) => {
-            save.disabled = false;
-            this.handlePopoverMutationError(popover, detail, caught);
-          });
-      });
-      editComposer.append(textarea, save);
-      row.replaceChildren(buildHeader(actions), editComposer, error);
-      syncInlineComposerLayout(textarea, editComposer, false);
+      else writeDraft(draftKey, textarea.value);
       validate();
-      textarea.focus();
+    });
+    textarea.addEventListener("keydown", (event) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        cancelEdit();
+      }
+      if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) {
+        event.preventDefault();
+        save.click();
+      }
+    });
+    save.addEventListener("click", () => {
+      if (validate() !== null) return;
+      const nextBody = textarea.value.trim();
+      if (nextBody === currentComment.body) {
+        cancelEdit();
+        return;
+      }
+      save.disabled = true;
+      void this.#rpc
+        .call("updateComment", {
+          bbThreadId: detail.thread.bbThreadId,
+          commentId: currentComment.id,
+          expectedVersion: currentComment.version,
+          body: nextBody,
+        })
+        .then((result) => {
+          if (this.#popover !== popover) return;
+          const fresh = result as TimelineCommentThreadDetail;
+          const updated = fresh.comments.find(({ id }) => id === currentComment.id);
+          if (updated !== undefined) currentComment = updated;
+          Object.assign(detail.thread, fresh.thread);
+          body.textContent = currentComment.body;
+          sessionStorage.removeItem(draftKey);
+          finishEdit(false);
+          this.scheduleRefresh();
+        })
+        .catch((caught) => {
+          save.disabled = false;
+          this.handlePopoverMutationError(popover, detail, caught);
+        });
+    });
+    edit.addEventListener("click", () => {
+      if (popover.dataset.editing !== undefined) return;
+      this.closeActionsMenu();
+      textarea.value = readDraft(draftKey) ?? currentComment.body;
+      const isLastComment = detail.comments.at(-1)?.id === currentComment.id;
+      const reply = popover.querySelector<HTMLElement>(".bb-comments-reply");
+      runMeasuredModeTransition(row, () => {
+        popover.dataset.editing = currentComment.id;
+        row.dataset.editing = "true";
+        if (reply !== null) {
+          if (isLastComment) {
+            reply.dataset.lastEditing = "true";
+            const replyComposer = reply.querySelector<HTMLElement>(
+              "[data-bb-comment-reply-composer]",
+            );
+            replyComposer?.setAttribute("aria-hidden", "true");
+            replyComposer?.setAttribute("inert", "");
+            reply
+              .querySelector<HTMLElement>("[data-bb-comment-edit-footer-host]")
+              ?.append(editFooter);
+          } else {
+            reply.dataset.editing = "true";
+            reply.setAttribute("aria-hidden", "true");
+            reply.setAttribute("inert", "");
+          }
+        }
+      });
+      validate();
+      textarea.focus({ preventScroll: true });
     });
     const remove = element(
       "button",
@@ -1296,7 +1467,7 @@ class TimelineCommentsController {
     remove.addEventListener("click", () => {
       if (
         !window.confirm(
-          comment.parentId === null
+          currentComment.parentId === null
             ? "Delete this comment thread?"
             : "Delete this reply?",
         )
@@ -1306,13 +1477,22 @@ class TimelineCommentsController {
       void this.#rpc
         .call("deleteComment", {
           bbThreadId: detail.thread.bbThreadId,
-          commentId: comment.id,
-          expectedVersion: comment.version,
+          commentId: currentComment.id,
+          expectedVersion: currentComment.version,
           expectedThreadVersion: detail.thread.version,
         })
         .then((result) => {
-          if (result.deletedThreadId !== null) this.closePopover();
-          else void this.openThread(detail.thread.id);
+          if (result.deletedThreadId !== null) {
+            this.closePopover();
+          } else if (result.thread !== null) {
+            Object.assign(detail.thread, result.thread.thread);
+            detail.comments.splice(
+              0,
+              detail.comments.length,
+              ...result.thread.comments,
+            );
+            removeWithTransition(row, () => row.remove());
+          }
           this.scheduleRefresh();
         })
         .catch((caught) => {
@@ -1321,8 +1501,8 @@ class TimelineCommentsController {
         });
     });
     actionsMenu.append(edit, remove);
-    actions.append(actionsTrigger);
-    row.append(buildHeader(actions), body);
+    actions.append(actionsTrigger, cancel);
+    row.append(buildHeader(actions), body, editComposer);
     return row;
   }
 
@@ -1477,10 +1657,13 @@ class TimelineCommentsController {
         this.closeActionsMenu(true);
         return;
       }
-      if (
-        event.target instanceof Element &&
-        event.target.closest(".bb-comments-edit-input") !== null
-      ) {
+      const cancelEdit = this.#popover?.querySelector<HTMLButtonElement>(
+        'button[aria-label="Cancel comment edit"]',
+      );
+      if (this.#popover?.dataset.editing !== undefined && cancelEdit != null) {
+        event.preventDefault();
+        event.stopPropagation();
+        cancelEdit.click();
         return;
       }
       event.preventDefault();
