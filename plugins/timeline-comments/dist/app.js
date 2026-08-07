@@ -49,13 +49,13 @@ var {
   version
 } = mod;
 
-// ../../node_modules/lucide-react/dist/esm/shared/src/utils.js
+// Code/bb-plugins/node_modules/lucide-react/dist/esm/shared/src/utils.js
 var toKebabCase = (string) => string.replace(/([a-z0-9])([A-Z])/g, "$1-$2").toLowerCase();
 var mergeClasses = (...classes) => classes.filter((className, index, array) => {
   return Boolean(className) && className.trim() !== "" && array.indexOf(className) === index;
 }).join(" ").trim();
 
-// ../../node_modules/lucide-react/dist/esm/defaultAttributes.js
+// Code/bb-plugins/node_modules/lucide-react/dist/esm/defaultAttributes.js
 var defaultAttributes = {
   xmlns: "http://www.w3.org/2000/svg",
   width: 24,
@@ -68,7 +68,7 @@ var defaultAttributes = {
   strokeLinejoin: "round"
 };
 
-// ../../node_modules/lucide-react/dist/esm/Icon.js
+// Code/bb-plugins/node_modules/lucide-react/dist/esm/Icon.js
 var Icon = forwardRef(
   ({
     color = "currentColor",
@@ -100,7 +100,7 @@ var Icon = forwardRef(
   }
 );
 
-// ../../node_modules/lucide-react/dist/esm/createLucideIcon.js
+// Code/bb-plugins/node_modules/lucide-react/dist/esm/createLucideIcon.js
 var createLucideIcon = (iconName, iconNode) => {
   const Component2 = forwardRef(
     ({ className, ...props }, ref) => createElement(Icon, {
@@ -114,7 +114,7 @@ var createLucideIcon = (iconName, iconNode) => {
   return Component2;
 };
 
-// ../../node_modules/lucide-react/dist/esm/icons/message-square-text.js
+// Code/bb-plugins/node_modules/lucide-react/dist/esm/icons/message-square-text.js
 var __iconNode = [
   ["path", { d: "M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z", key: "1lielz" }],
   ["path", { d: "M13 8H7", key: "14i4kc" }],
@@ -132,6 +132,11 @@ var {
   Markdown,
   ThreadChat,
   definePluginApp,
+  experimental_NewThreadComposer,
+  experimental_useSidebarThreadActions,
+  experimental_useSidebarThreadPullRequest,
+  experimental_useSidebarThreadSplit,
+  experimental_useSidebarThreads,
   useBbContext,
   useBbNavigate,
   useComposer,
@@ -142,7 +147,7 @@ var {
   useSettings
 } = mod2;
 
-// bridge.ts
+// Code/bb-plugins/plugins/timeline-comments/bridge.ts
 var activeController = null;
 var anchorHealthSnapshot = /* @__PURE__ */ new Map();
 var anchorHealthListeners = /* @__PURE__ */ new Set();
@@ -177,7 +182,7 @@ function refreshTimelineCommentAnchors() {
   activeController?.refreshAnchors();
 }
 
-// ../../node_modules/lucide/dist/esm/createElement.js
+// Code/bb-plugins/node_modules/lucide/dist/esm/createElement.js
 var createElement2 = (tag, attrs, children = []) => {
   const element2 = document.createElementNS("http://www.w3.org/2000/svg", tag);
   Object.keys(attrs).forEach((name) => {
@@ -193,7 +198,7 @@ var createElement2 = (tag, attrs, children = []) => {
 };
 var createElement$1 = ([tag, attrs, children]) => createElement2(tag, attrs, children);
 
-// ../../node_modules/lucide/dist/esm/defaultAttributes.js
+// Code/bb-plugins/node_modules/lucide/dist/esm/defaultAttributes.js
 var defaultAttributes2 = {
   xmlns: "http://www.w3.org/2000/svg",
   width: 24,
@@ -206,7 +211,7 @@ var defaultAttributes2 = {
   "stroke-linejoin": "round"
 };
 
-// ../../node_modules/lucide/dist/esm/icons/check-check.js
+// Code/bb-plugins/node_modules/lucide/dist/esm/icons/check-check.js
 var CheckCheck = [
   "svg",
   defaultAttributes2,
@@ -216,14 +221,14 @@ var CheckCheck = [
   ]
 ];
 
-// ../../node_modules/lucide/dist/esm/icons/command.js
+// Code/bb-plugins/node_modules/lucide/dist/esm/icons/command.js
 var Command = [
   "svg",
   defaultAttributes2,
   [["path", { d: "M15 6v12a3 3 0 1 0 3-3H6a3 3 0 1 0 3 3V6a3 3 0 1 0-3 3h12a3 3 0 1 0-3-3" }]]
 ];
 
-// ../../node_modules/lucide/dist/esm/icons/corner-down-left.js
+// Code/bb-plugins/node_modules/lucide/dist/esm/icons/corner-down-left.js
 var CornerDownLeft = [
   "svg",
   defaultAttributes2,
@@ -233,7 +238,7 @@ var CornerDownLeft = [
   ]
 ];
 
-// ../../node_modules/lucide/dist/esm/icons/ellipsis-vertical.js
+// Code/bb-plugins/node_modules/lucide/dist/esm/icons/ellipsis-vertical.js
 var EllipsisVertical = [
   "svg",
   defaultAttributes2,
@@ -244,7 +249,7 @@ var EllipsisVertical = [
   ]
 ];
 
-// ../../node_modules/lucide/dist/esm/icons/pencil.js
+// Code/bb-plugins/node_modules/lucide/dist/esm/icons/pencil.js
 var Pencil = [
   "svg",
   defaultAttributes2,
@@ -259,7 +264,7 @@ var Pencil = [
   ]
 ];
 
-// ../../node_modules/lucide/dist/esm/icons/sticky-note.js
+// Code/bb-plugins/node_modules/lucide/dist/esm/icons/sticky-note.js
 var StickyNote = [
   "svg",
   defaultAttributes2,
@@ -269,7 +274,7 @@ var StickyNote = [
   ]
 ];
 
-// ../../node_modules/lucide/dist/esm/icons/trash-2.js
+// Code/bb-plugins/node_modules/lucide/dist/esm/icons/trash-2.js
 var Trash2 = [
   "svg",
   defaultAttributes2,
@@ -282,7 +287,7 @@ var Trash2 = [
   ]
 ];
 
-// ../../node_modules/lucide/dist/esm/icons/x.js
+// Code/bb-plugins/node_modules/lucide/dist/esm/icons/x.js
 var X = [
   "svg",
   defaultAttributes2,
@@ -292,7 +297,7 @@ var X = [
   ]
 ];
 
-// anchors.ts
+// Code/bb-plugins/plugins/timeline-comments/anchors.ts
 function selectorForRange(root, range, contextLength = 32) {
   if (range.collapsed || !root.contains(range.startContainer) || !root.contains(range.endContainer)) {
     return null;
@@ -429,7 +434,7 @@ function layoutGutterMarkers(candidates, top, bottom, markerSize = 24, gap = 4) 
   return placements;
 }
 
-// comment-body.ts
+// Code/bb-plugins/plugins/timeline-comments/comment-body.ts
 var COMMENT_BODY_CODE_POINT_LIMIT = 1e4;
 function commentBodyError(value) {
   if (value.trim() === "") return "Comment body is required";
@@ -438,7 +443,7 @@ function commentBodyError(value) {
   return null;
 }
 
-// controller.ts
+// Code/bb-plugins/plugins/timeline-comments/controller.ts
 function contentScriptRpcClient(signal) {
   return {
     async call(method, input) {
@@ -466,10 +471,10 @@ var NORMAL_HIGHLIGHT = "bb-timeline-comments";
 var ACTIVE_HIGHLIGHT = "bb-timeline-comments-active";
 var DRAFT_TTL = 24 * 60 * 60 * 1e3;
 var PLUGIN_DECORATION = "data-bb-plugin-decoration";
-var MARKER_SIZE = 28;
+var MARKER_SIZE = 24;
 var MARKER_TEXT_GAP = 8;
-var COMPOSER_WIDTH = 240;
-var POPOVER_WIDTH = 288;
+var COMPOSER_WIDTH = 216;
+var POPOVER_WIDTH = 255;
 var MESSAGE_PROSE_SELECTOR = "[data-sidebar-swipe-selectable], [data-no-sidebar-swipe]";
 function readDraft(key) {
   const saved = sessionStorage.getItem(key);
@@ -822,7 +827,7 @@ var TimelineCommentsController = class {
     const x = firstRect?.x ?? window.innerWidth / 2;
     const y = captured.rects.at(-1)?.y ?? window.innerHeight / 2;
     shell.style.left = `${Math.max(8, Math.min(window.innerWidth - COMPOSER_WIDTH - 8, x))}px`;
-    shell.style.top = `${Math.max(8, Math.min(window.innerHeight - 156, y + 18))}px`;
+    shell.style.top = `${Math.max(8, Math.min(window.innerHeight - 144, y + 17))}px`;
     const validate = () => {
       const message = commentBodyError(textarea.value);
       submit.disabled = message !== null;
@@ -1968,7 +1973,7 @@ var {
   jsxs
 } = mod3;
 
-// app.tsx
+// Code/bb-plugins/plugins/timeline-comments/app.tsx
 function errorMessage2(error) {
   return error instanceof Error ? error.message : "Something went wrong";
 }
@@ -2073,7 +2078,7 @@ function AddCommentsAction() {
         disabled: busy,
         onMouseDown: (event) => event.preventDefault(),
         onClick: () => void addComments(),
-        children: /* @__PURE__ */ jsx(MessageSquareText, { "aria-hidden": "true", size: 13, strokeWidth: 1.5 })
+        children: /* @__PURE__ */ jsx(MessageSquareText, { "aria-hidden": "true", size: 12, strokeWidth: 1.5 })
       }
     )
   ] });

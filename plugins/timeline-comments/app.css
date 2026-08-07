@@ -8,8 +8,8 @@
 .bb-comments-marker {
   position: fixed;
   display: grid;
-  width: 28px;
-  height: 28px;
+  width: 24px;
+  height: 24px;
   place-items: center;
   padding: 0;
   border: 0;
@@ -18,7 +18,7 @@
   box-shadow: none;
   color: var(--muted-foreground);
   font:
-    600 9px/1 ui-sans-serif,
+    600 8px/1 ui-sans-serif,
     system-ui,
     sans-serif;
   pointer-events: auto;
@@ -26,8 +26,8 @@
 }
 
 .bb-comments-marker svg {
-  width: 16px;
-  height: 16px;
+  width: 15px;
+  height: 15px;
 }
 .bb-comments-marker-cluster {
   display: flex;
@@ -39,12 +39,12 @@
   flex-direction: row-reverse;
 }
 .bb-comments-marker-cluster svg {
-  width: 16px;
-  height: 16px;
+  width: 15px;
+  height: 15px;
 }
 .bb-comments-marker-count {
-  min-width: 5px;
-  font-size: 8px;
+  min-width: 4px;
+  font-size: 7px;
   line-height: 1;
 }
 .bb-comments-marker:hover,
@@ -72,8 +72,8 @@
 }
 .bb-comments-composer-action {
   display: grid;
-  width: 24px;
-  height: 24px;
+  width: 22px;
+  height: 22px;
   place-items: center;
   padding: 0;
   border: 0;
@@ -98,14 +98,14 @@
   color: var(--popover-foreground);
   outline: none;
   font-family: inherit;
-  font-size: 12px;
+  font-size: 11px;
   line-height: 1.45;
 }
 
 .bb-comments-composer {
   position: fixed;
-  width: 240px;
-  min-height: 34px;
+  width: 216px;
+  min-height: 30px;
   box-sizing: border-box;
   padding: 5px 6px;
   overflow: visible;
@@ -127,24 +127,24 @@
 }
 .bb-comments-textarea {
   field-sizing: content;
-  min-height: 20px;
-  max-height: 104px;
-  padding: 1px 34px 1px 3px;
+  min-height: 18px;
+  max-height: 96px;
+  padding: 1px 30px 1px 3px;
   border: 0;
   background: transparent;
   resize: none;
   line-height: 1.45;
 }
 .bb-comments-textarea:focus,
+.bb-comments-textarea:focus-visible,
 .bb-comments-reply-input:focus,
+.bb-comments-reply-input:focus-visible,
 .bb-comments-edit-input:focus,
-.bb-comments-panel textarea:focus {
-  box-shadow: inset 0 0 0 1px
-    color-mix(in oklab, var(--foreground) 15%, transparent);
-}
-.bb-comments-edit-input:focus,
-.bb-comments-panel-edit textarea:focus {
-  box-shadow: none;
+.bb-comments-edit-input:focus-visible,
+.bb-comments-panel textarea:focus,
+.bb-comments-panel textarea:focus-visible {
+  outline: none !important;
+  box-shadow: none !important;
 }
 .bb-comments-thread-header,
 .bb-comments-comment-actions,
@@ -170,9 +170,9 @@
 }
 .bb-comments-icon-control {
   display: grid;
-  width: 20px;
-  height: 20px;
-  flex: 0 0 20px;
+  width: 18px;
+  height: 18px;
+  flex: 0 0 18px;
   place-items: center;
   padding: 0;
   border: 0;
@@ -190,8 +190,8 @@
   opacity: 0.4;
 }
 .bb-comments-icon-control svg {
-  width: 12px;
-  height: 12px;
+  width: 11px;
+  height: 11px;
 }
 .bb-comments-error,
 .bb-comments-panel-error {
@@ -202,7 +202,7 @@
 
 .bb-comments-thread {
   display: flex;
-  width: 288px;
+  width: 255px;
   max-width: calc(100vw - 24px);
   max-height: min(82vh, calc(100vh - 56px));
   flex-direction: column;
@@ -210,7 +210,7 @@
   border-radius: 9px;
 }
 .bb-comments-thread-header {
-  min-height: 30px;
+  min-height: 27px;
   box-sizing: border-box;
   flex: 0 0 auto;
   padding: 4px 6px;
@@ -248,7 +248,7 @@
   font-size: 10px;
 }
 .bb-comments-quiet {
-  min-height: 22px;
+  min-height: 21px;
   padding: 0 5px;
   white-space: nowrap;
 }
@@ -262,9 +262,9 @@
   color: var(--destructive-text, var(--foreground));
 }
 .bb-comments-icon-button {
-  width: 20px;
-  height: 20px;
-  font-size: 15px;
+  width: 18px;
+  height: 18px;
+  font-size: 14px;
 }
 .bb-comments-thread-comments {
   min-height: 0;
@@ -319,7 +319,7 @@
 }
 .bb-comments-comment-body {
   margin: 3px 0 0;
-  font-size: 12px;
+  font-size: 11px;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
   line-height: 1.45;
@@ -421,7 +421,7 @@
 }
 .bb-comments-edit-footer {
   display: flex;
-  height: 32px;
+  height: 30px;
   box-sizing: border-box;
   align-items: center;
   justify-content: flex-end;
@@ -435,8 +435,8 @@
 }
 .bb-comments-edit-submit {
   display: flex;
-  min-width: 30px;
-  height: 20px;
+  min-width: 27px;
+  height: 18px;
   align-items: center;
   justify-content: center;
   gap: 1px;
@@ -450,8 +450,8 @@
   cursor: pointer;
 }
 .bb-comments-edit-submit svg {
-  width: 11px;
-  height: 11px;
+  width: 10px;
+  height: 10px;
 }
 .bb-comments-edit-submit:hover:not(:disabled) {
   background: var(--surface-recessed);
@@ -465,7 +465,7 @@
   position: relative;
   display: block;
   box-sizing: border-box;
-  min-height: 32px;
+  min-height: 29px;
   margin-top: 6px;
   padding: 3px 6px;
   border: 1px solid color-mix(in oklab, var(--border) 55%, transparent);
@@ -474,7 +474,9 @@
   transition: border-color 120ms ease;
 }
 .bb-comments-inline-composer:focus-within {
-  border-color: var(--border);
+  border-color: color-mix(in oklab, var(--foreground) 18%, var(--border));
+  outline: none;
+  box-shadow: none;
 }
 .bb-comments-inline-composer
   :is(.bb-comments-reply-input, .bb-comments-edit-input) {
@@ -498,8 +500,8 @@
   right: 6px;
   bottom: 5px;
   display: flex;
-  min-width: 30px;
-  height: 20px;
+  min-width: 27px;
+  height: 18px;
   align-items: center;
   justify-content: center;
   gap: 1px;
@@ -513,8 +515,8 @@
   cursor: pointer;
 }
 .bb-comments-submit-shortcut svg {
-  width: 11px;
-  height: 11px;
+  width: 10px;
+  height: 10px;
 }
 .bb-comments-submit-shortcut:hover:not(:disabled) {
   background: var(--surface-recessed);
@@ -543,7 +545,7 @@
   position: fixed;
   z-index: 56;
   display: grid;
-  min-width: 112px;
+  min-width: 99px;
   max-width: calc(100vw - 16px);
   max-height: calc(100vh - 16px);
   overflow: auto;
@@ -556,7 +558,7 @@
 }
 .bb-comments-actions-popover button {
   display: flex;
-  min-height: 24px;
+  min-height: 21px;
   align-items: center;
   gap: 5px;
   padding: 0 6px;
@@ -608,7 +610,7 @@
   background: var(--background);
   color: var(--foreground);
   font-family: inherit;
-  font-size: 12px;
+  font-size: 11px;
   line-height: 1.45;
 }
 .bb-comments-filters {
@@ -623,7 +625,7 @@
   );
 }
 .bb-comments-filters button {
-  min-height: 22px;
+  min-height: 20px;
   padding: 0 6px;
   border: 0;
   border-radius: 5px;
@@ -676,7 +678,7 @@
   white-space: nowrap;
 }
 .bb-comments-row-body {
-  font-size: 12px;
+  font-size: 11px;
   line-height: 1.45;
 }
 .bb-comments-row-meta {
@@ -692,7 +694,7 @@
 }
 .bb-comments-panel-thread-header {
   display: flex;
-  min-height: 29px;
+  min-height: 26px;
   align-items: center;
   justify-content: space-between;
   gap: 6px;
@@ -722,7 +724,7 @@
 .bb-comments-panel-comment[data-editing="true"] { background: transparent; }
 .bb-comments-panel-comment p {
   margin: 3px 0 0;
-  font-size: 12px;
+  font-size: 11px;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
   line-height: 1.45;

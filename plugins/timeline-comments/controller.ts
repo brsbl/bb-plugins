@@ -89,10 +89,10 @@ const NORMAL_HIGHLIGHT = "bb-timeline-comments";
 const ACTIVE_HIGHLIGHT = "bb-timeline-comments-active";
 const DRAFT_TTL = 24 * 60 * 60 * 1_000;
 const PLUGIN_DECORATION = "data-bb-plugin-decoration";
-const MARKER_SIZE = 28;
+const MARKER_SIZE = 24;
 const MARKER_TEXT_GAP = 8;
-const COMPOSER_WIDTH = 240;
-const POPOVER_WIDTH = 288;
+const COMPOSER_WIDTH = 216;
+const POPOVER_WIDTH = 255;
 const MESSAGE_PROSE_SELECTOR =
   "[data-sidebar-swipe-selectable], [data-no-sidebar-swipe]";
 
@@ -541,7 +541,7 @@ class TimelineCommentsController {
     const x = firstRect?.x ?? window.innerWidth / 2;
     const y = captured.rects.at(-1)?.y ?? window.innerHeight / 2;
     shell.style.left = `${Math.max(8, Math.min(window.innerWidth - COMPOSER_WIDTH - 8, x))}px`;
-    shell.style.top = `${Math.max(8, Math.min(window.innerHeight - 156, y + 18))}px`;
+    shell.style.top = `${Math.max(8, Math.min(window.innerHeight - 144, y + 17))}px`;
     const validate = () => {
       const message = commentBodyError(textarea.value);
       submit.disabled = message !== null;
