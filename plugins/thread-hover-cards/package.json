@@ -22,7 +22,7 @@
     "name": "Thread Hover Cards",
     "description": "Preview thread status, the latest agent update, and repository or PR context from the sidebar.",
     "branding": {
-      "icon": "Eye"
+      "icon": "ZoomIn"
     },
     "server": "./server.ts",
     "app": "./app.tsx",
