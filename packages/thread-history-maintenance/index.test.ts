@@ -232,17 +232,17 @@ describe("idle-episode thread history maintenance", () => {
       }
 
       await expect(maintenance.scan(scanOptions)).resolves.toMatchObject({
-        episode_count: 1,
+        episode_count: 8,
         pending_thread_count: 12,
       });
-      expect(getTimeline).toHaveBeenCalledTimes(1);
+      expect(getTimeline).toHaveBeenCalledTimes(8);
       expect(maxConcurrentTimelineReads).toBe(1);
     } finally {
       await harness.lifecycle.dispose();
     }
   });
 
-  it("defers a timeline that exceeds the server query limit and continues", async () => {
+  it("skips a deferred timeline and returns ready work in the same scan", async () => {
     const threads = ["thr_a", "thr_b"].map((id, index) =>
       makeThreadResponse({
         id,
@@ -287,12 +287,15 @@ describe("idle-episode thread history maintenance", () => {
       }
 
       await expect(maintenance.scan(scanOptions)).resolves.toMatchObject({
-        episode_count: 0,
+        episode_count: 1,
         deferred_thread_count: 1,
         pending_thread_count: 2,
-      });
-      await expect(maintenance.scan(scanOptions)).resolves.toMatchObject({
-        episode_count: 1,
+        episodes: [
+          {
+            thread_id: "thr_b",
+            messages: [{ text: "Learn this feedback." }],
+          },
+        ],
       });
     } finally {
       await harness.lifecycle.dispose();
