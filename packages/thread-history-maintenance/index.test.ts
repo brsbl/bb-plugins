@@ -150,6 +150,122 @@ function createHarness() {
 }
 
 describe("idle-episode thread history maintenance", () => {
+  it("bounds a scan to a small number of candidate threads", async () => {
+    const threads = Array.from({ length: 12 }, (_, index) =>
+      makeThreadResponse({
+        id: `thr_${index}`,
+        projectId: "proj_test",
+        title: `Episode ${index}`,
+        createdAt: index + 1,
+        updatedAt: 100 + index,
+        status: "idle",
+      }),
+    );
+    let listed: typeof threads = [];
+    let activeTimelineReads = 0;
+    let maxConcurrentTimelineReads = 0;
+    const getTimeline = vi.fn(async () => {
+      activeTimelineReads += 1;
+      maxConcurrentTimelineReads = Math.max(
+        maxConcurrentTimelineReads,
+        activeTimelineReads,
+      );
+      await new Promise((resolve) => setTimeout(resolve, 1));
+      activeTimelineReads -= 1;
+      return timeline([userRow("msg", 1, 100, "Learn this feedback.")], 1);
+    });
+    const { bb, harness } = createFakePluginHost({
+      pluginId: "history-test",
+      sdk: {
+        threads: {
+          list: async () => listed,
+          get: async ({ threadId }: { threadId: string }) => {
+            const thread = threads.find((item) => item.id === threadId);
+            if (!thread) throw new Error(`Missing ${threadId}`);
+            return thread;
+          },
+          timeline: getTimeline,
+        },
+      },
+    });
+    const maintenance = createThreadHistoryMaintenance(bb);
+
+    try {
+      await maintenance.scan(scanOptions);
+      listed = threads;
+      for (const thread of threads) {
+        await maintenance.observeCreated(thread);
+        await maintenance.observeThread(thread);
+      }
+
+      await expect(maintenance.scan(scanOptions)).resolves.toMatchObject({
+        episode_count: 1,
+        pending_thread_count: 12,
+      });
+      expect(getTimeline).toHaveBeenCalledTimes(1);
+      expect(maxConcurrentTimelineReads).toBe(1);
+    } finally {
+      await harness.lifecycle.dispose();
+    }
+  });
+
+  it("defers a timeline that exceeds the server query limit and continues", async () => {
+    const threads = ["thr_a", "thr_b"].map((id, index) =>
+      makeThreadResponse({
+        id,
+        projectId: "proj_test",
+        title: `Episode ${index}`,
+        createdAt: index + 1,
+        updatedAt: 100 + index,
+        status: "idle",
+      }),
+    );
+    let listed: typeof threads = [];
+    const { bb, harness } = createFakePluginHost({
+      pluginId: "history-test",
+      sdk: {
+        threads: {
+          list: async () => listed,
+          get: async ({ threadId }: { threadId: string }) => {
+            const thread = threads.find((item) => item.id === threadId);
+            if (!thread) throw new Error(`Missing ${threadId}`);
+            return thread;
+          },
+          timeline: async ({ threadId }: { threadId: string }) => {
+            if (threadId === "thr_a") {
+              throw Object.assign(
+                new Error("HTTP 500"),
+                { status: 500 },
+              );
+            }
+            return timeline([userRow("msg", 1, 100, "Learn this feedback.")], 1);
+          },
+        },
+      },
+    });
+    const maintenance = createThreadHistoryMaintenance(bb);
+
+    try {
+      await maintenance.scan(scanOptions);
+      listed = threads;
+      for (const thread of threads) {
+        await maintenance.observeCreated(thread);
+        await maintenance.observeThread(thread);
+      }
+
+      await expect(maintenance.scan(scanOptions)).resolves.toMatchObject({
+        episode_count: 0,
+        deferred_thread_count: 1,
+        pending_thread_count: 2,
+      });
+      await expect(maintenance.scan(scanOptions)).resolves.toMatchObject({
+        episode_count: 1,
+      });
+    } finally {
+      await harness.lifecycle.dispose();
+    }
+  });
+
   it("does not replay stale lifecycle events delivered before the baseline", async () => {
     const harness = createHarness();
     const maintenance = createThreadHistoryMaintenance(harness.bb);

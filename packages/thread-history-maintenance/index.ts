@@ -5,7 +5,9 @@ import type { BbPluginApi } from "@bb/plugin-sdk";
 const THREAD_PAGE_SIZE = 1_000;
 const TIMELINE_SEGMENT_LIMIT = "100";
 const TIMELINE_PAGE_LIMIT = 4;
-const TIMELINE_CONCURRENCY = 8;
+const TIMELINE_CONCURRENCY = 1;
+const MAX_CANDIDATES_PER_SCAN = 1;
+const TIMELINE_QUERY_RETRY_DELAY_MS = 6 * 60 * 60 * 1_000;
 const DEFAULT_RECONCILE_INTERVAL_MS = 30 * 24 * 60 * 60 * 1_000;
 const STARTUP_RECONCILE_GAP_MS = 5 * 60 * 1_000;
 
@@ -60,6 +62,7 @@ interface StoredThread {
   pending_since: number | null;
   hydration_before_anchor_seq: number | null;
   hydration_before_anchor_id: string | null;
+  timeline_retry_after: number | null;
 }
 
 interface StoredLease {
@@ -120,6 +123,23 @@ function isThreadNotFoundError(error: unknown): boolean {
     "code" in error &&
     error.code === "thread_not_found"
   );
+}
+
+function isRetryableTimelineError(error: unknown): boolean {
+  if (typeof error !== "object" || error === null) return false;
+  const record = error as Record<string, unknown>;
+  if (record.status === 500) return true;
+  const values = [record.message, record.body];
+  const text = values
+    .map((value) =>
+      typeof value === "string"
+        ? value
+        : typeof value === "object" && value !== null && "message" in value
+          ? String((value as { message: unknown }).message)
+          : "",
+    )
+    .join(" ");
+  return text.includes("Expression tree is too large");
 }
 
 function utf8Length(value: string): number {
@@ -369,6 +389,8 @@ export function createThreadHistoryMaintenance(
       ADD COLUMN hydration_before_anchor_seq INTEGER`,
     `ALTER TABLE thread_history_threads
       ADD COLUMN hydration_before_anchor_id TEXT`,
+    `ALTER TABLE thread_history_threads
+      ADD COLUMN timeline_retry_after INTEGER`,
   ]);
 
   const reconcileIntervalMs =
@@ -508,6 +530,9 @@ export function createThreadHistoryMaintenance(
           WHEN excluded.latest_thread_updated_at > thread_history_threads.latest_thread_updated_at
           THEN COALESCE(thread_history_threads.pending_since, excluded.pending_since)
           ELSE thread_history_threads.pending_since END,
+        timeline_retry_after = CASE
+          WHEN excluded.latest_thread_updated_at > thread_history_threads.latest_thread_updated_at
+          THEN NULL ELSE thread_history_threads.timeline_retry_after END,
         latest_thread_updated_at = MAX(
           thread_history_threads.latest_thread_updated_at,
           excluded.latest_thread_updated_at
@@ -564,6 +589,7 @@ export function createThreadHistoryMaintenance(
         checkpoint_at = ?,
         pending = ?,
         pending_since = CASE WHEN ? = 1 THEN COALESCE(pending_since, ?) ELSE NULL END
+        , timeline_retry_after = NULL
       WHERE thread_id = ?`,
     ).run(
       target.targetSequence,
@@ -610,9 +636,16 @@ export function createThreadHistoryMaintenance(
     db.prepare(
       `UPDATE thread_history_threads SET
         hydration_before_anchor_seq = ?,
-        hydration_before_anchor_id = ?
+        hydration_before_anchor_id = ?,
+        timeline_retry_after = NULL
       WHERE thread_id = ?`,
     ).run(cursor?.anchorSeq ?? null, cursor?.anchorId ?? null, threadId);
+  }
+
+  function deferTimelineQuery(threadId: string): void {
+    db.prepare(
+      "UPDATE thread_history_threads SET timeline_retry_after = ? WHERE thread_id = ?",
+    ).run(Date.now() + TIMELINE_QUERY_RETRY_DELAY_MS, threadId);
   }
 
   return {
@@ -693,6 +726,7 @@ export function createThreadHistoryMaintenance(
             latest_thread_updated_at = MAX(latest_thread_updated_at, ?),
             pending = 1,
             pending_since = COALESCE(pending_since, ?),
+            timeline_retry_after = NULL,
             last_seen_at = ?
           WHERE thread_id = ?`,
         ).run(
@@ -742,7 +776,13 @@ export function createThreadHistoryMaintenance(
           inventoryReconciled = true;
         }
 
-        const candidateLimit = Math.min(Math.max(scanOptions.limit, 8), 1_000);
+        // Timeline projection can synchronously block the BB server for large
+        // threads. Keep each lease-sized pass small; unvisited candidates stay
+        // pending for the next scan.
+        const candidateLimit = Math.min(
+          Math.max(scanOptions.limit, 1),
+          MAX_CANDIDATES_PER_SCAN,
+        );
         const candidates = db
           .prepare(
             `SELECT thread_id, project_id, title, checkpoint_sequence,
@@ -750,10 +790,11 @@ export function createThreadHistoryMaintenance(
               hydration_before_anchor_seq, hydration_before_anchor_id
             FROM thread_history_threads
             WHERE pending = 1
+              AND (timeline_retry_after IS NULL OR timeline_retry_after <= ?)
             ORDER BY pending_since, thread_id
             LIMIT ?`,
           )
-          .all(candidateLimit) as StoredThread[];
+          .all(now, candidateLimit) as StoredThread[];
 
         const episodes: Array<{
           thread_id: string;
@@ -790,6 +831,9 @@ export function createThreadHistoryMaintenance(
                   if (isThreadNotFoundError(error)) {
                     return { kind: "pruned" as const, candidate };
                   }
+                  if (isRetryableTimelineError(error)) {
+                    return { kind: "retry_later" as const, candidate };
+                  }
                   throw error;
                 }
                 if (!isEligibleThread(before)) {
@@ -811,6 +855,9 @@ export function createThreadHistoryMaintenance(
                 } catch (error) {
                   if (isThreadNotFoundError(error)) {
                     return { kind: "pruned" as const, candidate };
+                  }
+                  if (isRetryableTimelineError(error)) {
+                    return { kind: "retry_later" as const, candidate };
                   }
                   throw error;
                 }
@@ -849,6 +896,11 @@ export function createThreadHistoryMaintenance(
               continue;
             }
             if (result.kind === "deferred") {
+              deferredThreadCount += 1;
+              continue;
+            }
+            if (result.kind === "retry_later") {
+              deferTimelineQuery(result.candidate.thread_id);
               deferredThreadCount += 1;
               continue;
             }
