@@ -3,7 +3,8 @@ import { randomUUID } from "node:crypto";
 import type { BbPluginApi } from "@bb/plugin-sdk";
 
 const THREAD_PAGE_SIZE = 1_000;
-const TIMELINE_SEGMENT_LIMIT = "100";
+// Larger windows can make BB's whole-item query exceed SQLite's expression depth.
+const TIMELINE_SEGMENT_LIMIT = "1";
 const TIMELINE_PAGE_LIMIT = 4;
 const TIMELINE_CONCURRENCY = 1;
 const MAX_CANDIDATES_PER_SCAN = 1;

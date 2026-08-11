@@ -114,7 +114,8 @@ function createHarness() {
     args?.archived || !listed ? [] : [thread],
   );
   const getTimeline = vi.fn(
-    async (_args?: { beforeAnchorSeq?: string }) => currentTimeline,
+    async (_args?: { beforeAnchorSeq?: string; segmentLimit?: string }) =>
+      currentTimeline,
   );
   const get = vi.fn(async () => thread);
   const host = createFakePluginHost({
@@ -150,6 +151,38 @@ function createHarness() {
 }
 
 describe("idle-episode thread history maintenance", () => {
+  it("reads timelines one segment at a time to stay within the server query depth", async () => {
+    const harness = createHarness();
+    const maintenance = createThreadHistoryMaintenance(harness.bb);
+    await maintenance.scan(scanOptions);
+    harness.setTimeline(
+      [userRow("msg_1", 1, 20, "Learn this without overloading SQLite.")],
+      1,
+    );
+    await maintenance.observeThread(harness.setThread(21));
+    harness.getTimeline.mockImplementation(async (args) => {
+      if (args?.segmentLimit !== "1") {
+        throw Object.assign(
+          new Error("Expression tree is too large (maximum depth 1000)"),
+          { status: 500 },
+        );
+      }
+      return timeline(
+        [userRow("msg_1", 1, 20, "Learn this without overloading SQLite.")],
+        1,
+      );
+    });
+
+    await expect(maintenance.scan(scanOptions)).resolves.toMatchObject({
+      episode_count: 1,
+      deferred_thread_count: 0,
+    });
+    expect(harness.getTimeline).toHaveBeenCalledWith(
+      expect.objectContaining({ segmentLimit: "1" }),
+    );
+    await harness.harness.lifecycle.dispose();
+  });
+
   it("bounds a scan to a small number of candidate threads", async () => {
     const threads = Array.from({ length: 12 }, (_, index) =>
       makeThreadResponse({
