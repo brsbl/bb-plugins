@@ -15878,6 +15878,7 @@ function searchDoctrine(rules, query, includeInactive = false) {
       }
     }
   }
+  const minimumMatchedTerms = terms.length >= 3 ? 2 : 1;
   return candidates.map((rule) => {
     const fields = weightedSearchFields(rule).map(({ text, weight }) => ({
       tokens: new Set(tokenize(text)),
@@ -15900,7 +15901,7 @@ function searchDoctrine(rules, query, includeInactive = false) {
     }
     score += matchedTerms / terms.length * 8;
     return { rule, score, matchedTerms };
-  }).filter(({ matchedTerms }) => matchedTerms > 0).sort(
+  }).filter(({ matchedTerms }) => matchedTerms >= minimumMatchedTerms).sort(
     (left, right) => right.score - left.score || left.rule.id.localeCompare(right.rule.id)
   ).slice(0, SEARCH_RESULT_LIMIT).map(({ rule }) => rule);
 }

@@ -77,6 +77,14 @@ describe("design doctrine library", () => {
     expect(searchDoctrine(library.rules, "improve")).toEqual([]);
   });
 
+  it("does not return doctrine for an unrelated multi-word query", async () => {
+    const library = await loadDoctrine(process.cwd());
+
+    expect(
+      searchDoctrine(library.rules, "database migration retry logic"),
+    ).toEqual([]);
+  });
+
   it("preselects a bounded rule set only for design-oriented thread titles", async () => {
     const library = await loadDoctrine(process.cwd());
 

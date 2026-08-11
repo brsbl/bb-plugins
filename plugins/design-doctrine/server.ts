@@ -441,6 +441,7 @@ export function searchDoctrine(
       }
     }
   }
+  const minimumMatchedTerms = terms.length >= 3 ? 2 : 1;
   return candidates
     .map((rule) => {
       const fields = weightedSearchFields(rule).map(({ text, weight }) => ({
@@ -466,7 +467,7 @@ export function searchDoctrine(
       score += (matchedTerms / terms.length) * 8;
       return { rule, score, matchedTerms };
     })
-    .filter(({ matchedTerms }) => matchedTerms > 0)
+    .filter(({ matchedTerms }) => matchedTerms >= minimumMatchedTerms)
     .sort(
       (left, right) =>
         right.score - left.score || left.rule.id.localeCompare(right.rule.id),
