@@ -242,6 +242,62 @@ describe("idle-episode thread history maintenance", () => {
     }
   });
 
+  it("rotates a bounded batch of active threads behind unvisited ready work", async () => {
+    const threads = Array.from({ length: 9 }, (_, index) =>
+      makeThreadResponse({
+        id: `thr_${String(index).padStart(2, "0")}`,
+        projectId: "proj_test",
+        title: `Episode ${index}`,
+        createdAt: index + 1,
+        updatedAt: 100 + index,
+        status: index < 8 ? "active" : "idle",
+      }),
+    );
+    let listed: typeof threads = [];
+    const getTimeline = vi.fn(async () =>
+      timeline([userRow("msg", 1, 100, "Learn this ready feedback.")], 1),
+    );
+    const { bb, harness } = createFakePluginHost({
+      pluginId: "history-test",
+      sdk: {
+        threads: {
+          list: async () => listed,
+          get: async ({ threadId }: { threadId: string }) => {
+            const thread = threads.find((item) => item.id === threadId);
+            if (!thread) throw new Error(`Missing ${threadId}`);
+            return thread;
+          },
+          timeline: getTimeline,
+        },
+      },
+    });
+    const maintenance = createThreadHistoryMaintenance(bb);
+
+    try {
+      await maintenance.scan(scanOptions);
+      listed = threads;
+      for (const thread of threads) {
+        await maintenance.observeCreated(thread);
+        await maintenance.observeThread(thread);
+      }
+
+      await expect(maintenance.scan(scanOptions)).resolves.toMatchObject({
+        episode_count: 0,
+        deferred_thread_count: 8,
+        pending_thread_count: 9,
+      });
+      expect(getTimeline).not.toHaveBeenCalled();
+
+      await expect(maintenance.scan(scanOptions)).resolves.toMatchObject({
+        episode_count: 1,
+        episodes: [{ thread_id: "thr_08" }],
+      });
+      expect(getTimeline).toHaveBeenCalledTimes(1);
+    } finally {
+      await harness.lifecycle.dispose();
+    }
+  });
+
   it("skips a deferred timeline and returns ready work in the same scan", async () => {
     const threads = ["thr_a", "thr_b"].map((id, index) =>
       makeThreadResponse({
@@ -642,6 +698,59 @@ describe("idle-episode thread history maintenance", () => {
     });
     expect(harness.get).toHaveBeenCalledTimes(2);
     await harness.harness.lifecycle.dispose();
+  });
+
+  it("defers a retryable revalidation failure without discarding earlier work", async () => {
+    const threads = ["thr_a", "thr_b"].map((id, index) =>
+      makeThreadResponse({
+        id,
+        projectId: "proj_test",
+        title: `Episode ${index}`,
+        createdAt: index + 1,
+        updatedAt: 100 + index,
+        status: "idle",
+      }),
+    );
+    let listed: typeof threads = [];
+    const getCounts = new Map<string, number>();
+    const { bb, harness } = createFakePluginHost({
+      pluginId: "history-test",
+      sdk: {
+        threads: {
+          list: async () => listed,
+          get: async ({ threadId }: { threadId: string }) => {
+            const count = (getCounts.get(threadId) ?? 0) + 1;
+            getCounts.set(threadId, count);
+            if (threadId === "thr_b" && count === 2) {
+              throw httpError(500, "internal_error");
+            }
+            const thread = threads.find((item) => item.id === threadId);
+            if (!thread) throw new Error(`Missing ${threadId}`);
+            return thread;
+          },
+          timeline: async () =>
+            timeline([userRow("msg", 1, 100, "Learn this feedback.")], 1),
+        },
+      },
+    });
+    const maintenance = createThreadHistoryMaintenance(bb);
+
+    try {
+      await maintenance.scan(scanOptions);
+      listed = threads;
+      for (const thread of threads) {
+        await maintenance.observeCreated(thread);
+        await maintenance.observeThread(thread);
+      }
+
+      await expect(maintenance.scan(scanOptions)).resolves.toMatchObject({
+        episode_count: 1,
+        deferred_thread_count: 1,
+        episodes: [{ thread_id: "thr_a" }],
+      });
+    } finally {
+      await harness.lifecycle.dispose();
+    }
   });
 
   it("prunes a thread deleted between timeline load and revalidation", async () => {

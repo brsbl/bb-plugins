@@ -83,6 +83,35 @@ describe("design doctrine library", () => {
     expect(
       searchDoctrine(library.rules, "database migration retry logic"),
     ).toEqual([]);
+    expect(searchDoctrine(library.rules, "database retry")).toEqual([]);
+  });
+
+  it("keeps a recognized design signal when neutral query words do not match", async () => {
+    const library = await loadDoctrine(process.cwd());
+
+    expect(
+      searchDoctrine(
+        library.rules,
+        "accessibility frobnicate someday",
+      ).map((rule) => rule.id),
+    ).toContain("ddr_028");
+    expect(
+      searchDoctrine(
+        library.rules,
+        "hierarchy frobnicate someday",
+      ).map((rule) => rule.id),
+    ).toContain("ddr_015");
+  });
+
+  it("does not qualify a rule through a weak incidental field match", async () => {
+    const library = await loadDoctrine(process.cwd());
+
+    expect(searchDoctrine(library.rules, "server crash")).toEqual([]);
+    expect(
+      searchDoctrine(library.rules, "modal server crash").map(
+        (rule) => rule.id,
+      ),
+    ).not.toContain("ddr_031");
   });
 
   it("preselects a bounded rule set only for design-oriented thread titles", async () => {

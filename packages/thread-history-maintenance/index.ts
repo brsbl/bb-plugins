@@ -649,6 +649,18 @@ export function createThreadHistoryMaintenance(
     ).run(Date.now() + TIMELINE_QUERY_RETRY_DELAY_MS, threadId);
   }
 
+  function rotatePendingCandidate(threadId: string): void {
+    const row = db
+      .prepare(
+        "SELECT MAX(pending_since) AS latest FROM thread_history_threads WHERE pending = 1",
+      )
+      .get() as { latest: number | null };
+    const nextPendingSince = Math.max(Date.now(), row.latest ?? 0) + 1;
+    db.prepare(
+      "UPDATE thread_history_threads SET pending_since = ? WHERE thread_id = ? AND pending = 1",
+    ).run(nextPendingSince, threadId);
+  }
+
   return {
     prepare() {
       return exclusive(async () => {
@@ -873,6 +885,9 @@ export function createThreadHistoryMaintenance(
                   if (isThreadNotFoundError(error)) {
                     return { kind: "pruned" as const, candidate };
                   }
+                  if (isRetryableTimelineError(error)) {
+                    return { kind: "retry_later" as const, candidate };
+                  }
                   throw error;
                 }
                 if (!isEligibleThread(after)) {
@@ -897,11 +912,13 @@ export function createThreadHistoryMaintenance(
               continue;
             }
             if (result.kind === "deferred") {
+              rotatePendingCandidate(result.candidate.thread_id);
               deferredThreadCount += 1;
               continue;
             }
             if (result.kind === "retry_later") {
               deferTimelineQuery(result.candidate.thread_id);
+              rotatePendingCandidate(result.candidate.thread_id);
               deferredThreadCount += 1;
               continue;
             }
@@ -910,6 +927,7 @@ export function createThreadHistoryMaintenance(
                 result.candidate.thread_id,
                 result.episode.hydrationCursor,
               );
+              rotatePendingCandidate(result.candidate.thread_id);
               deferredThreadCount += 1;
               continue;
             }

@@ -14967,6 +14967,15 @@ function createThreadHistoryMaintenance(bb, options = {}) {
       "UPDATE thread_history_threads SET timeline_retry_after = ? WHERE thread_id = ?"
     ).run(Date.now() + TIMELINE_QUERY_RETRY_DELAY_MS, threadId);
   }
+  function rotatePendingCandidate(threadId) {
+    const row = db.prepare(
+      "SELECT MAX(pending_since) AS latest FROM thread_history_threads WHERE pending = 1"
+    ).get();
+    const nextPendingSince = Math.max(Date.now(), row.latest ?? 0) + 1;
+    db.prepare(
+      "UPDATE thread_history_threads SET pending_since = ? WHERE thread_id = ? AND pending = 1"
+    ).run(nextPendingSince, threadId);
+  }
   return {
     prepare() {
       return exclusive(async () => {
@@ -15152,6 +15161,9 @@ function createThreadHistoryMaintenance(bb, options = {}) {
                 if (isThreadNotFoundError(error51)) {
                   return { kind: "pruned", candidate };
                 }
+                if (isRetryableTimelineError(error51)) {
+                  return { kind: "retry_later", candidate };
+                }
                 throw error51;
               }
               if (!isEligibleThread(after)) {
@@ -15172,11 +15184,13 @@ function createThreadHistoryMaintenance(bb, options = {}) {
               continue;
             }
             if (result.kind === "deferred") {
+              rotatePendingCandidate(result.candidate.thread_id);
               deferredThreadCount += 1;
               continue;
             }
             if (result.kind === "retry_later") {
               deferTimelineQuery(result.candidate.thread_id);
+              rotatePendingCandidate(result.candidate.thread_id);
               deferredThreadCount += 1;
               continue;
             }
@@ -15185,6 +15199,7 @@ function createThreadHistoryMaintenance(bb, options = {}) {
                 result.candidate.thread_id,
                 result.episode.hydrationCursor
               );
+              rotatePendingCandidate(result.candidate.thread_id);
               deferredThreadCount += 1;
               continue;
             }
@@ -15878,13 +15893,14 @@ function searchDoctrine(rules, query, includeInactive = false) {
       }
     }
   }
-  const minimumMatchedTerms = terms.length >= 3 ? 2 : 1;
   return candidates.map((rule) => {
     const fields = weightedSearchFields(rule).map(({ text, weight }) => ({
       tokens: new Set(tokenize(text)),
       weight
     }));
     let matchedTerms = 0;
+    let matchedDesignContext = false;
+    let strongestFieldWeight = 0;
     let score = confidenceScore(rule) * 0.1;
     for (const term of terms) {
       const bestFieldWeight = fields.reduce(
@@ -15893,6 +15909,11 @@ function searchDoctrine(rules, query, includeInactive = false) {
       );
       if (bestFieldWeight === 0) continue;
       matchedTerms += 1;
+      matchedDesignContext ||= DESIGN_CONTEXT_TOKENS.has(term);
+      strongestFieldWeight = Math.max(
+        strongestFieldWeight,
+        bestFieldWeight
+      );
       const frequency = documentFrequency.get(term) ?? 0;
       const inverseFrequency = Math.log(
         (candidates.length + 1) / (frequency + 1)
@@ -15900,8 +15921,16 @@ function searchDoctrine(rules, query, includeInactive = false) {
       score += bestFieldWeight * inverseFrequency;
     }
     score += matchedTerms / terms.length * 8;
-    return { rule, score, matchedTerms };
-  }).filter(({ matchedTerms }) => matchedTerms >= minimumMatchedTerms).sort(
+    return {
+      rule,
+      score,
+      matchedTerms,
+      matchedDesignContext,
+      strongestFieldWeight
+    };
+  }).filter(
+    ({ matchedTerms, matchedDesignContext, strongestFieldWeight }) => matchedTerms >= 2 || matchedDesignContext || strongestFieldWeight >= 6
+  ).sort(
     (left, right) => right.score - left.score || left.rule.id.localeCompare(right.rule.id)
   ).slice(0, SEARCH_RESULT_LIMIT).map(({ rule }) => rule);
 }
