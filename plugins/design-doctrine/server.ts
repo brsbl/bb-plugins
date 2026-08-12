@@ -448,6 +448,8 @@ export function searchDoctrine(
         weight,
       }));
       let matchedTerms = 0;
+      let matchedDesignContext = false;
+      let strongestFieldWeight = 0;
       let score = confidenceScore(rule) * 0.1;
       for (const term of terms) {
         const bestFieldWeight = fields.reduce(
@@ -457,6 +459,11 @@ export function searchDoctrine(
         );
         if (bestFieldWeight === 0) continue;
         matchedTerms += 1;
+        matchedDesignContext ||= DESIGN_CONTEXT_TOKENS.has(term);
+        strongestFieldWeight = Math.max(
+          strongestFieldWeight,
+          bestFieldWeight,
+        );
         const frequency = documentFrequency.get(term) ?? 0;
         const inverseFrequency = Math.log(
           (candidates.length + 1) / (frequency + 1),
@@ -464,9 +471,20 @@ export function searchDoctrine(
         score += bestFieldWeight * inverseFrequency;
       }
       score += (matchedTerms / terms.length) * 8;
-      return { rule, score, matchedTerms };
+      return {
+        rule,
+        score,
+        matchedTerms,
+        matchedDesignContext,
+        strongestFieldWeight,
+      };
     })
-    .filter(({ matchedTerms }) => matchedTerms > 0)
+    .filter(
+      ({ matchedTerms, matchedDesignContext, strongestFieldWeight }) =>
+        matchedTerms >= 2 ||
+        matchedDesignContext ||
+        strongestFieldWeight >= 6,
+    )
     .sort(
       (left, right) =>
         right.score - left.score || left.rule.id.localeCompare(right.rule.id),
