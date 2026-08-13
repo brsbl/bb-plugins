@@ -57,6 +57,8 @@ describe("GitHub Activity panel", () => {
     const updatedTime = screen.getAllByLabelText(/^Updated /u)[0]!;
     expect(updatedTime.getAttribute("title")).toMatch(/^Updated /u);
     expect(updatedTime.querySelector("svg")).not.toBeNull();
+    expect(updatedTime.className).not.toContain("rounded");
+    expect(updatedTime.className).not.toContain("bg-muted");
     expect(screen.getByText("get-bb/bb")).toBeDefined();
     expect(screen.getByText("Scannable activity")).toBeDefined();
     const link = screen.getByRole("link", { name: /Pull request get-bb\/bb number 42/u });

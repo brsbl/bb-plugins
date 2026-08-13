@@ -215,7 +215,7 @@ function UpdatedTime({ value }: { value: string }) {
   const fullDate = new Date(value).toLocaleString();
   return (
     <span
-      className="inline-flex items-center gap-1.5 rounded-md bg-muted/65 px-2 py-1 text-xs font-medium tabular-nums text-muted-foreground"
+      className="inline-flex items-center gap-1.5 whitespace-nowrap text-xs tabular-nums text-muted-foreground"
       title={`Updated ${fullDate}`}
       aria-label={`Updated ${fullDate}`}
     >
