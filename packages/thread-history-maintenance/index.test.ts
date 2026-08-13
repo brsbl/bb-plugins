@@ -114,7 +114,8 @@ function createHarness() {
     args?.archived || !listed ? [] : [thread],
   );
   const getTimeline = vi.fn(
-    async (_args?: { beforeAnchorSeq?: string }) => currentTimeline,
+    async (_args?: { beforeAnchorSeq?: string; segmentLimit?: string }) =>
+      currentTimeline,
   );
   const get = vi.fn(async () => thread);
   const host = createFakePluginHost({
@@ -150,6 +151,213 @@ function createHarness() {
 }
 
 describe("idle-episode thread history maintenance", () => {
+  it("reads timelines one segment at a time to stay within the server query depth", async () => {
+    const harness = createHarness();
+    const maintenance = createThreadHistoryMaintenance(harness.bb);
+    await maintenance.scan(scanOptions);
+    harness.setTimeline(
+      [userRow("msg_1", 1, 20, "Learn this without overloading SQLite.")],
+      1,
+    );
+    await maintenance.observeThread(harness.setThread(21));
+    harness.getTimeline.mockImplementation(async (args) => {
+      if (args?.segmentLimit !== "1") {
+        throw Object.assign(
+          new Error("Expression tree is too large (maximum depth 1000)"),
+          { status: 500 },
+        );
+      }
+      return timeline(
+        [userRow("msg_1", 1, 20, "Learn this without overloading SQLite.")],
+        1,
+      );
+    });
+
+    await expect(maintenance.scan(scanOptions)).resolves.toMatchObject({
+      episode_count: 1,
+      deferred_thread_count: 0,
+    });
+    expect(harness.getTimeline).toHaveBeenCalledWith(
+      expect.objectContaining({ segmentLimit: "1" }),
+    );
+    await harness.harness.lifecycle.dispose();
+  });
+
+  it("bounds a scan to a small number of candidate threads", async () => {
+    const threads = Array.from({ length: 12 }, (_, index) =>
+      makeThreadResponse({
+        id: `thr_${index}`,
+        projectId: "proj_test",
+        title: `Episode ${index}`,
+        createdAt: index + 1,
+        updatedAt: 100 + index,
+        status: "idle",
+      }),
+    );
+    let listed: typeof threads = [];
+    let activeTimelineReads = 0;
+    let maxConcurrentTimelineReads = 0;
+    const getTimeline = vi.fn(async () => {
+      activeTimelineReads += 1;
+      maxConcurrentTimelineReads = Math.max(
+        maxConcurrentTimelineReads,
+        activeTimelineReads,
+      );
+      await new Promise((resolve) => setTimeout(resolve, 1));
+      activeTimelineReads -= 1;
+      return timeline([userRow("msg", 1, 100, "Learn this feedback.")], 1);
+    });
+    const { bb, harness } = createFakePluginHost({
+      pluginId: "history-test",
+      sdk: {
+        threads: {
+          list: async () => listed,
+          get: async ({ threadId }: { threadId: string }) => {
+            const thread = threads.find((item) => item.id === threadId);
+            if (!thread) throw new Error(`Missing ${threadId}`);
+            return thread;
+          },
+          timeline: getTimeline,
+        },
+      },
+    });
+    const maintenance = createThreadHistoryMaintenance(bb);
+
+    try {
+      await maintenance.scan(scanOptions);
+      listed = threads;
+      for (const thread of threads) {
+        await maintenance.observeCreated(thread);
+        await maintenance.observeThread(thread);
+      }
+
+      await expect(maintenance.scan(scanOptions)).resolves.toMatchObject({
+        episode_count: 8,
+        pending_thread_count: 12,
+      });
+      expect(getTimeline).toHaveBeenCalledTimes(8);
+      expect(maxConcurrentTimelineReads).toBe(1);
+    } finally {
+      await harness.lifecycle.dispose();
+    }
+  });
+
+  it("rotates a bounded batch of active threads behind unvisited ready work", async () => {
+    const threads = Array.from({ length: 9 }, (_, index) =>
+      makeThreadResponse({
+        id: `thr_${String(index).padStart(2, "0")}`,
+        projectId: "proj_test",
+        title: `Episode ${index}`,
+        createdAt: index + 1,
+        updatedAt: 100 + index,
+        status: index < 8 ? "active" : "idle",
+      }),
+    );
+    let listed: typeof threads = [];
+    const getTimeline = vi.fn(async () =>
+      timeline([userRow("msg", 1, 100, "Learn this ready feedback.")], 1),
+    );
+    const { bb, harness } = createFakePluginHost({
+      pluginId: "history-test",
+      sdk: {
+        threads: {
+          list: async () => listed,
+          get: async ({ threadId }: { threadId: string }) => {
+            const thread = threads.find((item) => item.id === threadId);
+            if (!thread) throw new Error(`Missing ${threadId}`);
+            return thread;
+          },
+          timeline: getTimeline,
+        },
+      },
+    });
+    const maintenance = createThreadHistoryMaintenance(bb);
+
+    try {
+      await maintenance.scan(scanOptions);
+      listed = threads;
+      for (const thread of threads) {
+        await maintenance.observeCreated(thread);
+        await maintenance.observeThread(thread);
+      }
+
+      await expect(maintenance.scan(scanOptions)).resolves.toMatchObject({
+        episode_count: 0,
+        deferred_thread_count: 8,
+        pending_thread_count: 9,
+      });
+      expect(getTimeline).not.toHaveBeenCalled();
+
+      await expect(maintenance.scan(scanOptions)).resolves.toMatchObject({
+        episode_count: 1,
+        episodes: [{ thread_id: "thr_08" }],
+      });
+      expect(getTimeline).toHaveBeenCalledTimes(1);
+    } finally {
+      await harness.lifecycle.dispose();
+    }
+  });
+
+  it("skips a deferred timeline and returns ready work in the same scan", async () => {
+    const threads = ["thr_a", "thr_b"].map((id, index) =>
+      makeThreadResponse({
+        id,
+        projectId: "proj_test",
+        title: `Episode ${index}`,
+        createdAt: index + 1,
+        updatedAt: 100 + index,
+        status: "idle",
+      }),
+    );
+    let listed: typeof threads = [];
+    const { bb, harness } = createFakePluginHost({
+      pluginId: "history-test",
+      sdk: {
+        threads: {
+          list: async () => listed,
+          get: async ({ threadId }: { threadId: string }) => {
+            const thread = threads.find((item) => item.id === threadId);
+            if (!thread) throw new Error(`Missing ${threadId}`);
+            return thread;
+          },
+          timeline: async ({ threadId }: { threadId: string }) => {
+            if (threadId === "thr_a") {
+              throw Object.assign(
+                new Error("HTTP 500"),
+                { status: 500 },
+              );
+            }
+            return timeline([userRow("msg", 1, 100, "Learn this feedback.")], 1);
+          },
+        },
+      },
+    });
+    const maintenance = createThreadHistoryMaintenance(bb);
+
+    try {
+      await maintenance.scan(scanOptions);
+      listed = threads;
+      for (const thread of threads) {
+        await maintenance.observeCreated(thread);
+        await maintenance.observeThread(thread);
+      }
+
+      await expect(maintenance.scan(scanOptions)).resolves.toMatchObject({
+        episode_count: 1,
+        deferred_thread_count: 1,
+        pending_thread_count: 2,
+        episodes: [
+          {
+            thread_id: "thr_b",
+            messages: [{ text: "Learn this feedback." }],
+          },
+        ],
+      });
+    } finally {
+      await harness.lifecycle.dispose();
+    }
+  });
+
   it("does not replay stale lifecycle events delivered before the baseline", async () => {
     const harness = createHarness();
     const maintenance = createThreadHistoryMaintenance(harness.bb);
@@ -490,6 +698,59 @@ describe("idle-episode thread history maintenance", () => {
     });
     expect(harness.get).toHaveBeenCalledTimes(2);
     await harness.harness.lifecycle.dispose();
+  });
+
+  it("defers a retryable revalidation failure without discarding earlier work", async () => {
+    const threads = ["thr_a", "thr_b"].map((id, index) =>
+      makeThreadResponse({
+        id,
+        projectId: "proj_test",
+        title: `Episode ${index}`,
+        createdAt: index + 1,
+        updatedAt: 100 + index,
+        status: "idle",
+      }),
+    );
+    let listed: typeof threads = [];
+    const getCounts = new Map<string, number>();
+    const { bb, harness } = createFakePluginHost({
+      pluginId: "history-test",
+      sdk: {
+        threads: {
+          list: async () => listed,
+          get: async ({ threadId }: { threadId: string }) => {
+            const count = (getCounts.get(threadId) ?? 0) + 1;
+            getCounts.set(threadId, count);
+            if (threadId === "thr_b" && count === 2) {
+              throw httpError(500, "internal_error");
+            }
+            const thread = threads.find((item) => item.id === threadId);
+            if (!thread) throw new Error(`Missing ${threadId}`);
+            return thread;
+          },
+          timeline: async () =>
+            timeline([userRow("msg", 1, 100, "Learn this feedback.")], 1),
+        },
+      },
+    });
+    const maintenance = createThreadHistoryMaintenance(bb);
+
+    try {
+      await maintenance.scan(scanOptions);
+      listed = threads;
+      for (const thread of threads) {
+        await maintenance.observeCreated(thread);
+        await maintenance.observeThread(thread);
+      }
+
+      await expect(maintenance.scan(scanOptions)).resolves.toMatchObject({
+        episode_count: 1,
+        deferred_thread_count: 1,
+        episodes: [{ thread_id: "thr_a" }],
+      });
+    } finally {
+      await harness.lifecycle.dispose();
+    }
   });
 
   it("prunes a thread deleted between timeline load and revalidation", async () => {

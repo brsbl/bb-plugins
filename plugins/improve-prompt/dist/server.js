@@ -14570,9 +14570,11 @@ function buildWorkerPrompt(input) {
 // ../../packages/thread-history-maintenance/index.ts
 import { randomUUID } from "node:crypto";
 var THREAD_PAGE_SIZE = 1e3;
-var TIMELINE_SEGMENT_LIMIT = "100";
+var TIMELINE_SEGMENT_LIMIT = "1";
 var TIMELINE_PAGE_LIMIT = 4;
-var TIMELINE_CONCURRENCY = 8;
+var TIMELINE_CONCURRENCY = 1;
+var MAX_CANDIDATES_PER_SCAN = 8;
+var TIMELINE_QUERY_RETRY_DELAY_MS = 6 * 60 * 60 * 1e3;
 var DEFAULT_RECONCILE_INTERVAL_MS = 30 * 24 * 60 * 60 * 1e3;
 var STARTUP_RECONCILE_GAP_MS = 5 * 60 * 1e3;
 var META_INITIALIZED_AT = "initialized_at";
@@ -14583,6 +14585,16 @@ function isEligibleThread(thread) {
 }
 function isThreadNotFoundError(error51) {
   return error51 instanceof Error && "status" in error51 && error51.status === 404 && "code" in error51 && error51.code === "thread_not_found";
+}
+function isRetryableTimelineError(error51) {
+  if (typeof error51 !== "object" || error51 === null) return false;
+  const record2 = error51;
+  if (record2.status === 500) return true;
+  const values = [record2.message, record2.body];
+  const text = values.map(
+    (value) => typeof value === "string" ? value : typeof value === "object" && value !== null && "message" in value ? String(value.message) : ""
+  ).join(" ");
+  return text.includes("Expression tree is too large");
 }
 function utf8Length(value) {
   return new TextEncoder().encode(value).length;
@@ -14762,7 +14774,9 @@ function createThreadHistoryMaintenance(bb, options = {}) {
     `ALTER TABLE thread_history_threads
       ADD COLUMN hydration_before_anchor_seq INTEGER`,
     `ALTER TABLE thread_history_threads
-      ADD COLUMN hydration_before_anchor_id TEXT`
+      ADD COLUMN hydration_before_anchor_id TEXT`,
+    `ALTER TABLE thread_history_threads
+      ADD COLUMN timeline_retry_after INTEGER`
   ]);
   const reconcileIntervalMs = options.reconcileIntervalMs ?? DEFAULT_RECONCILE_INTERVAL_MS;
   let startupReconcileRequired = true;
@@ -14879,6 +14893,9 @@ function createThreadHistoryMaintenance(bb, options = {}) {
           WHEN excluded.latest_thread_updated_at > thread_history_threads.latest_thread_updated_at
           THEN COALESCE(thread_history_threads.pending_since, excluded.pending_since)
           ELSE thread_history_threads.pending_since END,
+        timeline_retry_after = CASE
+          WHEN excluded.latest_thread_updated_at > thread_history_threads.latest_thread_updated_at
+          THEN NULL ELSE thread_history_threads.timeline_retry_after END,
         latest_thread_updated_at = MAX(
           thread_history_threads.latest_thread_updated_at,
           excluded.latest_thread_updated_at
@@ -14930,6 +14947,7 @@ function createThreadHistoryMaintenance(bb, options = {}) {
         checkpoint_at = ?,
         pending = ?,
         pending_since = CASE WHEN ? = 1 THEN COALESCE(pending_since, ?) ELSE NULL END
+        , timeline_retry_after = NULL
       WHERE thread_id = ?`
     ).run(
       target.targetSequence,
@@ -14968,9 +14986,24 @@ function createThreadHistoryMaintenance(bb, options = {}) {
     db.prepare(
       `UPDATE thread_history_threads SET
         hydration_before_anchor_seq = ?,
-        hydration_before_anchor_id = ?
+        hydration_before_anchor_id = ?,
+        timeline_retry_after = NULL
       WHERE thread_id = ?`
     ).run(cursor?.anchorSeq ?? null, cursor?.anchorId ?? null, threadId);
+  }
+  function deferTimelineQuery(threadId) {
+    db.prepare(
+      "UPDATE thread_history_threads SET timeline_retry_after = ? WHERE thread_id = ?"
+    ).run(Date.now() + TIMELINE_QUERY_RETRY_DELAY_MS, threadId);
+  }
+  function rotatePendingCandidate(threadId) {
+    const row = db.prepare(
+      "SELECT MAX(pending_since) AS latest FROM thread_history_threads WHERE pending = 1"
+    ).get();
+    const nextPendingSince = Math.max(Date.now(), row.latest ?? 0) + 1;
+    db.prepare(
+      "UPDATE thread_history_threads SET pending_since = ? WHERE thread_id = ? AND pending = 1"
+    ).run(nextPendingSince, threadId);
   }
   return {
     prepare() {
@@ -15045,6 +15078,7 @@ function createThreadHistoryMaintenance(bb, options = {}) {
             latest_thread_updated_at = MAX(latest_thread_updated_at, ?),
             pending = 1,
             pending_since = COALESCE(pending_since, ?),
+            timeline_retry_after = NULL,
             last_seen_at = ?
           WHERE thread_id = ?`
         ).run(
@@ -15083,16 +15117,20 @@ function createThreadHistoryMaintenance(bb, options = {}) {
           await reconcile(now, scanOptions.signal);
           inventoryReconciled = true;
         }
-        const candidateLimit = Math.min(Math.max(scanOptions.limit, 8), 1e3);
+        const candidateLimit = Math.min(
+          Math.max(scanOptions.limit, 1),
+          MAX_CANDIDATES_PER_SCAN
+        );
         const candidates = db.prepare(
           `SELECT thread_id, project_id, title, checkpoint_sequence,
               checkpoint_at, latest_thread_updated_at, pending, pending_since,
               hydration_before_anchor_seq, hydration_before_anchor_id
             FROM thread_history_threads
             WHERE pending = 1
+              AND (timeline_retry_after IS NULL OR timeline_retry_after <= ?)
             ORDER BY pending_since, thread_id
             LIMIT ?`
-        ).all(candidateLimit);
+        ).all(now, candidateLimit);
         const episodes = [];
         const leaseTargets = [];
         const automaticTargets = [];
@@ -15112,6 +15150,9 @@ function createThreadHistoryMaintenance(bb, options = {}) {
               } catch (error51) {
                 if (isThreadNotFoundError(error51)) {
                   return { kind: "pruned", candidate };
+                }
+                if (isRetryableTimelineError(error51)) {
+                  return { kind: "retry_later", candidate };
                 }
                 throw error51;
               }
@@ -15134,6 +15175,9 @@ function createThreadHistoryMaintenance(bb, options = {}) {
                 if (isThreadNotFoundError(error51)) {
                   return { kind: "pruned", candidate };
                 }
+                if (isRetryableTimelineError(error51)) {
+                  return { kind: "retry_later", candidate };
+                }
                 throw error51;
               }
               let after;
@@ -15145,6 +15189,9 @@ function createThreadHistoryMaintenance(bb, options = {}) {
               } catch (error51) {
                 if (isThreadNotFoundError(error51)) {
                   return { kind: "pruned", candidate };
+                }
+                if (isRetryableTimelineError(error51)) {
+                  return { kind: "retry_later", candidate };
                 }
                 throw error51;
               }
@@ -15166,6 +15213,13 @@ function createThreadHistoryMaintenance(bb, options = {}) {
               continue;
             }
             if (result.kind === "deferred") {
+              rotatePendingCandidate(result.candidate.thread_id);
+              deferredThreadCount += 1;
+              continue;
+            }
+            if (result.kind === "retry_later") {
+              deferTimelineQuery(result.candidate.thread_id);
+              rotatePendingCandidate(result.candidate.thread_id);
               deferredThreadCount += 1;
               continue;
             }
@@ -15174,6 +15228,7 @@ function createThreadHistoryMaintenance(bb, options = {}) {
                 result.candidate.thread_id,
                 result.episode.hydrationCursor
               );
+              rotatePendingCandidate(result.candidate.thread_id);
               deferredThreadCount += 1;
               continue;
             }

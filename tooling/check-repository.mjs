@@ -164,6 +164,7 @@ export async function checkRepository(repositoryRoot = defaultRoot, options = {}
 
   const packageNames = new Set();
   const pluginIds = new Set();
+  const pluginIcons = new Map();
   const stableIds = new Map([
     ["improve-prompt", "prompt-shaper"],
   ]);
@@ -174,6 +175,16 @@ export async function checkRepository(repositoryRoot = defaultRoot, options = {}
     assert(!pluginIds.has(pluginId), `duplicate plugin id ${pluginId}`);
     packageNames.add(packageName);
     pluginIds.add(pluginId);
+    const pluginIcon = manifest.bb?.branding?.icon;
+    assert(
+      typeof pluginIcon === "string" && pluginIcon.trim() !== "",
+      `${slug}: branding icon missing`,
+    );
+    assert(
+      !pluginIcons.has(pluginIcon),
+      `${slug}: branding icon ${pluginIcon} duplicates ${pluginIcons.get(pluginIcon)}`,
+    );
+    pluginIcons.set(pluginIcon, slug);
     if (stableIds.has(slug)) {
       assert(pluginId === stableIds.get(slug), `${slug}: stable plugin id drift`);
     }
