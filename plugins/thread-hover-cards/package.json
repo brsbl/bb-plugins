@@ -16,7 +16,7 @@
   },
   "engines": {
     "bb": ">=0.0.34",
-    "bbPluginSdk": "^0.4.1"
+    "bbPluginSdk": "^0.5.0"
   },
   "bb": {
     "name": "Thread Hover Cards",

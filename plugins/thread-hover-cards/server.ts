@@ -130,11 +130,7 @@ export const sectionSummarySchema = z
     diagnostics: rpcDiagnosticsSchema,
     /** Threads that failed. Separate from questions: debugging is not answering. */
     failed: z.number().int().nonnegative(),
-    /**
-     * False for a row that looks like a section but is not one bb stores —
-     * Pinned, Unorganized, and the other built-in groups. The card stays shut
-     * rather than reporting an error for a row that never had a summary.
-     */
+    /** True when the stable sidebar section id produced a summary. */
     known: z.boolean(),
     /** Projects the section spans, busiest first; a section is not project-scoped. */
     projects: z.array(z.string()),
@@ -171,26 +167,15 @@ export const rpcContract = defineRpcContract({
   sectionSummary: {
     input: z
       .object({
-        name: z.string().min(1).max(256),
-        /** Set when the sidebar nests the section under a project row. */
-        projectName: z.string().min(1).max(256).nullable().optional(),
+        /** Stable id from the sidebar's section row. */
+        sectionId: z.string().min(1),
+        /** Stable id from a containing project row; null for global sections. */
+        projectId: z.string().min(1).nullable(),
       })
       .strict(),
     output: sectionSummarySchema,
   },
 });
-
-function wait(ms: number, signal: AbortSignal): Promise<void> {
-  return new Promise((resolve) => {
-    const timer = setTimeout(finish, ms);
-    signal.addEventListener("abort", finish, { once: true });
-    function finish(): void {
-      clearTimeout(timer);
-      signal.removeEventListener("abort", finish);
-      resolve();
-    }
-  });
-}
 
 async function safely<T>(promise: Promise<T>): Promise<T | null> {
   try {
@@ -232,28 +217,9 @@ function normalizeMessage(value: string): string {
     : normalized;
 }
 
-type ThreadConversationOutline = Awaited<
-  ReturnType<BbPluginApi["sdk"]["threads"]["conversationOutline"]>
->;
 type ThreadTimeline = Awaited<
   ReturnType<BbPluginApi["sdk"]["threads"]["timeline"]>
 >;
-
-function latestOutlineAssistantMessage(
-  outline: ThreadConversationOutline,
-): string | null {
-  // conversationOutline is BB's unpaginated includeNestedRows:false timeline
-  // projection, so it preserves the canonical visible message order without
-  // constructing the timeline's much larger work-row payload.
-  for (let index = outline.items.length - 1; index >= 0; index -= 1) {
-    const item = outline.items[index];
-    if (item?.role === "assistant" && item.preview.trim().length > 0) {
-      return item.preview;
-    }
-  }
-
-  return null;
-}
 
 function latestTimelineAssistantMessage(timeline: ThreadTimeline): string | null {
   for (let rowIndex = timeline.rows.length - 1; rowIndex >= 0; rowIndex -= 1) {
@@ -319,16 +285,6 @@ const ACTIVE_TURN_EVENT_WAIT_MS = "1";
 const STABLE_DESCRIPTOR_CACHE_TTL_MS = 60_000;
 const PULL_REQUEST_CACHE_TTL_MS = 15_000;
 const STABLE_DESCRIPTOR_CACHE_MAX_ENTRIES = 128;
-/**
- * The section directory is resolved from bb's /sidebar-bootstrap, which carries
- * every project and its threads — far too heavy to sit on a hover. A background
- * service keeps it warm, so the TTL only has to outlast the refresh interval and
- * a hover reads it from memory.
- */
-const SECTION_DIRECTORY_CACHE_TTL_MS = 10 * 60_000;
-const SECTION_DIRECTORY_REFRESH_MS = 5 * 60_000;
-/** The thread query is the one the card actually needs; it always keeps this much. */
-const SECTION_THREADS_FLOOR_MS = 1_200;
 /** Collapses a sweep back and forth over the same rows into one query. */
 const SECTION_THREADS_CACHE_TTL_MS = 2_000;
 const SECTION_PREVIEW_LIMIT = 5;
@@ -746,13 +702,6 @@ const PULL_REQUEST_SIGNALS = {
 type SidebarThread = Awaited<
   ReturnType<BbPluginApi["sdk"]["threads"]["list"]>
 >[number];
-type ThreadSectionRow = Awaited<
-  ReturnType<BbPluginApi["sdk"]["threadSections"]["list"]>
->[number];
-type ProjectRow = Awaited<
-  ReturnType<BbPluginApi["sdk"]["projects"]["list"]>
->[number];
-
 /**
  * Matches the rows a section actually renders: visible, unarchived roots, side
  * chats excluded — and not pinned, because bb lifts pinned threads out of their
@@ -766,9 +715,15 @@ export function isSidebarSectionThread(thread: SidebarThread): boolean {
     thread.archivedAt === null &&
     thread.deletedAt === null &&
     thread.pinnedAt === null &&
-    thread.originKind !== "side-chat" &&
-    thread.childOrigin !== "side-chat"
+    // The 0.5 SDK types no longer admit "side-chat" origins, but legacy rows
+    // can still carry them at runtime, so the guard compares wide on purpose.
+    !isSideChatOrigin(thread.originKind) &&
+    !isSideChatOrigin(thread.childOrigin)
   );
+}
+
+function isSideChatOrigin(value: string | null | undefined): boolean {
+  return value === "side-chat";
 }
 
 /** bb's own rule (apps/app/src/lib/thread-read-state.ts), so the counts agree. */
@@ -869,12 +824,6 @@ export default function plugin(bb: BbPluginApi): void {
     PULL_REQUEST_CACHE_TTL_MS,
     STABLE_DESCRIPTOR_CACHE_MAX_ENTRIES,
     "pullRequest",
-    recordBackgroundRefresh,
-  );
-  const sectionDirectory = new StableDescriptorCache(
-    SECTION_DIRECTORY_CACHE_TTL_MS,
-    4,
-    "sectionDirectory",
     recordBackgroundRefresh,
   );
   const sectionThreads = new StableDescriptorCache(
@@ -983,54 +932,25 @@ export default function plugin(bb: BbPluginApi): void {
             ),
           { unavailableWhenNull: true },
         );
-        const loadOutlineMessage = (
-          stageName: "messageOutline" | "messageOutlineFallback",
-        ): Promise<string | null> =>
-          measureStage(
-            recorder,
-            stageName,
-            () =>
-              within(
-                safely(
-                  bb.sdk.threads.conversationOutline({
-                    signal,
-                    threadId,
-                  }),
-                ),
-                remainingMs(),
+        const latestAssistantMessagePromise = measureStage(
+          recorder,
+          "messageTimeline",
+          () =>
+            within(
+              safely(
+                bb.sdk.threads.timeline({
+                  includeNestedRows: "false",
+                  segmentLimit: "1",
+                  signal,
+                  threadId,
+                }),
               ),
-            { unavailableWhenNull: true },
-          ).then((outline) =>
-            outline ? latestOutlineAssistantMessage(outline) : null,
-          );
-        const latestAssistantMessagePromise: Promise<string | null> =
-          isRunningStatus(thread.runtime.displayStatus)
-            ? loadOutlineMessage("messageOutline")
-            : measureStage(
-                recorder,
-                "messageTimeline",
-                () =>
-                  within(
-                    safely(
-                      bb.sdk.threads.timeline({
-                        includeNestedRows: "false",
-                        segmentLimit: "1",
-                        signal,
-                        threadId,
-                      }),
-                    ),
-                    remainingMs(),
-                  ),
-                { unavailableWhenNull: true },
-              ).then((timeline) => {
-                const latestMessage = timeline
-                  ? latestTimelineAssistantMessage(timeline)
-                  : null;
-                return (
-                  latestMessage ??
-                  loadOutlineMessage("messageOutlineFallback")
-                );
-              });
+              remainingMs(),
+            ),
+          { unavailableWhenNull: true },
+        ).then((timeline) =>
+          timeline ? latestTimelineAssistantMessage(timeline) : null,
+        );
         const [projectResult, executionOptions, latestAssistantMessage] =
           await Promise.all([
             projectPromise,
@@ -1315,98 +1235,32 @@ export default function plugin(bb: BbPluginApi): void {
         throw error;
       }
     },
-    async sectionSummary({ name, projectName = null }) {
+    async sectionSummary({ projectId, sectionId }) {
       const recorder = createDiagnostics();
       const deadlineAt = Date.now() + SUMMARY_LOOKUP_TIMEOUT_MS;
       const remainingMs = (): number => Math.max(1, deadlineAt - Date.now());
-      // Directory reads are normally cache hits kept warm by the background
-      // service. When one does go to the wire it must still leave the thread
-      // query — the only lookup this card actually needs — a real budget.
-      const directoryBudgetMs = (): number =>
-        Math.max(1, remainingMs() - SECTION_THREADS_FLOOR_MS);
       const signal = AbortSignal.timeout(SUMMARY_LOOKUP_TIMEOUT_MS);
       try {
-        const readSections = (): Promise<CacheResult<ThreadSectionRow[]>> =>
-          measureCachedStage(recorder, "sections", () =>
-            withinCached(
-              sectionDirectory.get<ThreadSectionRow[]>("sections", () =>
-                safely(bb.sdk.threadSections.list({ signal })),
-              ),
-              directoryBudgetMs(),
-            ),
-          );
-        let sections = await readSections();
-        if (sections.value === null) throw new Error("Section summary unavailable.");
-
-        // Section names are unique in bb (thread_sections has a unique index on
-        // name), so at most one row can match.
-        let section = sections.value.find((row) => row.name === name) ?? null;
-        if (section === null && sections.source !== "miss") {
-          // A miss against a possibly-stale directory is indistinguishable from
-          // a built-in group like Pinned. Re-read once before saying "not a
-          // section", so a just-created or just-renamed section is not written
-          // off — the client caches that answer.
-          sectionDirectory.delete("sections");
-          sections = await readSections();
-          // An unavailable directory is a failure, not proof of absence — the
-          // client caches "not a section", so a wrong no must never be cheap.
-          if (sections.value === null) {
-            throw new Error("Section summary unavailable.");
-          }
-          section = sections.value.find((row) => row.name === name) ?? null;
-        }
-        if (section === null) {
-          const diagnostics = finishDiagnostics(recorder);
-          recordDiagnostics(bb, "sectionSummary", name, diagnostics);
-          return {
-            diagnostics,
-            failed: 0,
-            known: false,
-            projects: [],
-            questions: 0,
-            total: 0,
-            unread: 0,
-            working: 0,
-          };
-        }
-
-        // The card names the projects the section spans, so this is needed on
-        // every hover. The warming service keeps it a cache hit.
-        const projects = await measureCachedStage(recorder, "projects", () =>
-          withinCached(
-            sectionDirectory.get<ProjectRow[]>("projects", () =>
+        const projectsPromise = measureStage(
+          recorder,
+          "projects",
+          () =>
+            within(
               safely(bb.sdk.projects.list({ includePersonal: true, signal })),
+              remainingMs(),
             ),
-            directoryBudgetMs(),
-          ),
+          { unavailableWhenNull: true },
         );
-        // Failing open would filter every thread out on a project-scoped hover
-        // and render a confident empty state for a populated section.
-        if (projects.value === null) {
-          throw new Error("Section summary unavailable.");
-        }
-        const projectNameById = new Map(
-          projects.value.map((project) => [project.id, project.name]),
-        );
-        const scopedProject =
-          projectName === null
-            ? null
-            : projects.value.filter((project) => project.name === projectName);
-        if (scopedProject !== null && scopedProject.length !== 1) {
-          throw new Error("Section summary unavailable.");
-        }
-        const scopedProjectId = scopedProject?.[0]?.id ?? null;
-
-        const sectionId = section.id;
-        const page = await measureCachedStage(recorder, "threads", () =>
-          sectionThreads.get<SidebarThread[]>(sectionId, () =>
+        const threadCacheKey = JSON.stringify([sectionId, projectId]);
+        const pagePromise = measureCachedStage(recorder, "threads", () =>
+          sectionThreads.get<SidebarThread[]>(threadCacheKey, () =>
             within(
               safely(
                 bb.sdk.threads.list({
                   archived: false,
-                  excludeSideChats: true,
                   hasParent: false,
                   includeHidden: false,
+                  ...(projectId === null ? {} : { projectId }),
                   sectionId,
                   signal,
                 }),
@@ -1415,60 +1269,38 @@ export default function plugin(bb: BbPluginApi): void {
             ),
           ),
         ).then((result) => result.value);
+        const [projects, page] = await Promise.all([
+          projectsPromise,
+          pagePromise,
+        ]);
+        if (projects === null) throw new Error("Section summary unavailable.");
+        const projectNameById = new Map(
+          projects.map((project) => [project.id, project.name]),
+        );
+        if (projectId !== null && !projectNameById.has(projectId)) {
+          throw new Error("Section summary unavailable.");
+        }
         // A lost page would silently under-report the count as authoritative.
         // The card exists to state a number; better none than a wrong one.
         if (page === null) throw new Error("Section summary unavailable.");
 
-        const threads = page
-          .filter(isSidebarSectionThread)
-          .filter(
-            (thread) =>
-              scopedProjectId === null || thread.projectId === scopedProjectId,
-          );
+        const threads = page.filter(isSidebarSectionThread);
 
         const diagnostics = finishDiagnostics(recorder);
-        recordDiagnostics(bb, "sectionSummary", name, diagnostics);
+        recordDiagnostics(bb, "sectionSummary", sectionId, diagnostics);
         return {
           ...summarizeSectionThreads(threads, projectNameById),
           diagnostics,
           known: true,
         };
       } catch (error) {
-        recordDiagnostics(bb, "sectionSummary", name, finishDiagnostics(recorder));
-        throw error;
-      }
-    },
-  });
-
-  // Resolving a section name costs a /sidebar-bootstrap fetch. Paying it here,
-  // on a slow loop, keeps it off every hover: the handler reads the directory
-  // from memory and spends its whole budget on the one query it needs.
-  bb.background.service("section-directory-warm", {
-    async start(signal) {
-      while (!signal.aborted) {
-        const startedAt = monotonicNow();
-        sectionDirectory.delete("sections");
-        sectionDirectory.delete("projects");
-        const [sections, projects] = await Promise.all([
-          sectionDirectory.get("sections", () =>
-            within(safely(bb.sdk.threadSections.list({ signal })), 10_000),
-          ),
-          sectionDirectory.get("projects", () =>
-            within(
-              safely(bb.sdk.projects.list({ includePersonal: true, signal })),
-              10_000,
-            ),
-          ),
-        ]);
-        if (signal.aborted) return;
-        bb.log.debug(
-          `thread-hover-cards:section-directory ${JSON.stringify({
-            durationMs: roundedDuration(startedAt),
-            projects: projects.value?.length ?? null,
-            sections: sections.value?.length ?? null,
-          })}`,
+        recordDiagnostics(
+          bb,
+          "sectionSummary",
+          sectionId,
+          finishDiagnostics(recorder),
         );
-        await wait(SECTION_DIRECTORY_REFRESH_MS, signal);
+        throw error;
       }
     },
   });

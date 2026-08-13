@@ -418,7 +418,6 @@ describe("Thread Organizer plugin", () => {
       organizer.harness.inspection.sdk.callsTo("threads.list")[0]?.[0],
     ).toMatchObject({
       archived: false,
-      excludeSideChats: true,
       hasParent: false,
     });
     await organizer.harness.lifecycle.dispose();

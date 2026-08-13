@@ -856,7 +856,6 @@ function plugin(bb) {
       while (!disposed && !signal.aborted) {
         const page = await bb.sdk.threads.list({
           archived: false,
-          excludeSideChats: true,
           hasParent: false,
           limit: THREAD_LIST_PAGE_SIZE,
           offset,

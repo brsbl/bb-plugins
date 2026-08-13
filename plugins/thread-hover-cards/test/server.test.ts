@@ -22,27 +22,26 @@ type PullRequestHandler = (input: {
   threadId: string;
 }) => Promise<ThreadPullRequest>;
 type SectionSummaryHandler = (input: {
-  name: string;
-  projectName?: string | null;
+  projectId: string | null;
+  sectionId: string;
 }) => Promise<SectionSummary>;
 
 let summaryHandler: SummaryHandler | undefined;
 let timingHandler: TimingHandler | undefined;
 let pullRequestHandler: PullRequestHandler | undefined;
 let sectionSummaryHandler: SectionSummaryHandler | undefined;
-let sectionRows: { id: string; name: string }[] = [
-  { id: "sec_design", name: "Design" },
-  { id: "sec_duplicate_project", name: "Duplicate Project" },
-  { id: "sec_pinned_case", name: "Pinned Case" },
-  { id: "sec_lost_page", name: "Lost Page" },
-  { id: "sec_stale_count", name: "Stale Count" },
-];
 let sectionListCalls = 0;
-let delaySectionList = false;
-let resolveDelayedSectionList: (() => void) | null = null;
 let projectListFails = false;
 let sectionThreadsFail = false;
 const sectionThreadsById = new Map<string, unknown[]>();
+const sectionThreadListInputs: Array<{
+  archived?: boolean;
+  hasParent?: boolean;
+  includeHidden?: boolean;
+  projectId?: string;
+  sectionId?: string;
+  signal?: AbortSignal;
+}> = [];
 const backgroundServices = new Map<
   string,
   { start(signal: AbortSignal): unknown }
@@ -63,7 +62,13 @@ let turnStartedAt: number | null = 100;
 let turnCompletedAt: number | null = null;
 let environmentGetCalls = 0;
 let outputCalls = 0;
-let summaryTimelineCalls = 0;
+let outlineCalls = 0;
+const summaryTimelineInputs: Array<{
+  includeNestedRows?: string;
+  segmentLimit?: string;
+  signal?: AbortSignal;
+  threadId?: string;
+}> = [];
 let projectCalls = 0;
 let providerListCalls = 0;
 let providerModelCalls = 0;
@@ -151,12 +156,7 @@ const fakeBb = {
     threadSections: {
       async list() {
         sectionListCalls += 1;
-        if (delaySectionList) {
-          await new Promise<void>((resolve) => {
-            resolveDelayedSectionList = resolve;
-          });
-        }
-        return sectionRows;
+        return [];
       },
     },
     projects: {
@@ -205,12 +205,26 @@ const fakeBb = {
       },
     },
     threads: {
-      async list({ sectionId }: { sectionId?: string } = {}) {
+      async list(input: {
+        archived?: boolean;
+        hasParent?: boolean;
+        includeHidden?: boolean;
+        projectId?: string;
+        sectionId?: string;
+        signal?: AbortSignal;
+      } = {}) {
+        sectionThreadListInputs.push(input);
         if (sectionThreadsFail) throw new Error("threads unavailable");
-        return sectionThreadsById.get(sectionId ?? "") ?? [];
+        const threads = sectionThreadsById.get(input.sectionId ?? "") ?? [];
+        return input.projectId === undefined
+          ? threads
+          : threads.filter(
+              (thread) =>
+                (thread as { projectId?: string }).projectId === input.projectId,
+            );
       },
       async conversationOutline() {
-        summaryTimelineCalls += 1;
+        outlineCalls += 1;
         return {
           items: [
             {
@@ -316,11 +330,16 @@ const fakeBb = {
         outputCalls += 1;
         return { output: nestedAssistantOutput };
       },
-      async timeline(input: { includeNestedRows?: string }) {
+      async timeline(input: {
+        includeNestedRows?: string;
+        segmentLimit?: string;
+        signal?: AbortSignal;
+        threadId?: string;
+      }) {
         if (timelineFails) throw new Error("Timeline lookup failed");
 
         if (input.includeNestedRows === "false") {
-          summaryTimelineCalls += 1;
+          summaryTimelineInputs.push(input);
           return {
             maxSeq: 20,
             rows: [
@@ -442,7 +461,18 @@ assert.equal(summary.permissionMode, "full");
 assert.equal("contextWindowUsage" in summary, false);
 assert.notEqual(summary.latestAssistantMessage, nestedAssistantOutput);
 assert.equal(outputCalls, 0);
-assert.equal(summaryTimelineCalls, 1);
+assert.equal(outlineCalls, 0);
+assert.equal(summaryTimelineInputs.length, 1);
+assert.deepEqual(
+  { ...summaryTimelineInputs[0], signal: undefined },
+  {
+    includeNestedRows: "false",
+    segmentLimit: "1",
+    signal: undefined,
+    threadId: "thr_1",
+  },
+);
+assert.ok(summaryTimelineInputs[0]?.signal instanceof AbortSignal);
 assert.equal(threadGetSignals.length, 1);
 assert.ok(threadGetSignals[0] instanceof AbortSignal);
 assert.equal(projectCalls, 1);
@@ -456,7 +486,7 @@ assert.equal(stage(summary.diagnostics, "thread").outcome, "ok");
 assert.equal(stage(summary.diagnostics, "environment").cache, "none");
 assert.equal(stage(summary.diagnostics, "project").cache, "miss");
 assert.equal(stage(summary.diagnostics, "executionOptions").outcome, "ok");
-assert.equal(stage(summary.diagnostics, "messageOutline").outcome, "ok");
+assert.equal(stage(summary.diagnostics, "messageTimeline").outcome, "ok");
 
 const pullRequest = await pullRequestHandler({ threadId: "thr_1" });
 assert.deepEqual(withoutDiagnostics(pullRequest), {
@@ -566,6 +596,17 @@ assert.equal(
 );
 assert.equal(idleSummary.status, "idle");
 assert.equal(outputCalls, 0);
+assert.equal(outlineCalls, 0);
+assert.deepEqual(
+  { ...summaryTimelineInputs.at(-1), signal: undefined },
+  {
+    includeNestedRows: "false",
+    segmentLimit: "1",
+    signal: undefined,
+    threadId: "thr_1",
+  },
+  "idle summaries use the same bounded, non-nested query",
+);
 assert.deepEqual(eventWaitInputs, []);
 const idleTiming = await timingHandler({ threadId: "thr_1" });
 assert.deepEqual(withoutDiagnostics(idleTiming), {
@@ -579,17 +620,14 @@ latestSegmentHasAssistant = false;
 const assistantlessLatestTurnSummary = await summaryHandler({
   threadId: "thr_1",
 });
+assert.equal(assistantlessLatestTurnSummary.latestAssistantMessage, null);
+assert.equal(outlineCalls, 0, "never projects the full conversation outline");
 assert.equal(
-  assistantlessLatestTurnSummary.latestAssistantMessage,
-  "An earlier canonical assistant response.",
-  "falls back to the canonical outline when the newest turn has no assistant row",
-);
-assert.equal(
-  stage(
-    assistantlessLatestTurnSummary.diagnostics,
-    "messageOutlineFallback",
-  ).outcome,
-  "ok",
+  assistantlessLatestTurnSummary.diagnostics.stages.some((candidate) =>
+    candidate.name.includes("Outline"),
+  ),
+  false,
+  "does not fall back to an unbounded query",
 );
 assert.notEqual(
   assistantlessLatestTurnSummary.latestAssistantMessage,
@@ -1094,49 +1132,34 @@ for (const excluded of [
   );
 }
 
-// The sectionSummary handler — every P1 from review lived in here.
 assert.ok(sectionSummaryHandler, "registers the sectionSummary handler");
-
-// The card names projects on every hover, so a failed lookup is fatal rather
-// than filtering every thread away into a confident empty state. Runs first,
-// while the projects cache is still cold.
-projectListFails = true;
-await assert.rejects(
-  sectionSummaryHandler({ name: "Design" }),
-  /Section summary unavailable\./,
+assert.equal(
+  backgroundServices.size,
+  0,
+  "does not register a sidebar-bootstrap warming service",
 );
-projectListFails = false;
-
-// A foreground summary must keep its own directory deadline even when the
-// warmer already owns the cache key with its longer background budget.
-delaySectionList = true;
-const warmController = new AbortController();
-const warmService = Promise.resolve(
-  backgroundServices.get("section-directory-warm")?.start(warmController.signal),
+assert.equal(
+  sectionListCalls,
+  0,
+  "does not read sections through threadSections.list",
 );
-const delayedDirectory = setTimeout(() => {
-  delaySectionList = false;
-  resolveDelayedSectionList?.();
-  resolveDelayedSectionList = null;
-}, 1_600);
-await assert.rejects(
-  sectionSummaryHandler({ name: "Design" }),
-  /Section summary unavailable\./,
-  "does not inherit the warmer's longer cache request deadline",
-);
-clearTimeout(delayedDirectory);
-delaySectionList = false;
-resolveDelayedSectionList?.();
-resolveDelayedSectionList = null;
-warmController.abort();
-await warmService;
 
 sectionThreadsById.set("sec_design", [
   sectionThread({ id: "a", latestAttentionAt: 3 }),
   sectionThread({ hasPendingInteraction: true, id: "b", latestAttentionAt: 1 }),
   sectionThread({ id: "c", latestAttentionAt: 2, projectId: "proj_2" }),
 ]);
-const designSummary = await sectionSummaryHandler({ name: "Design" });
+projectListFails = true;
+await assert.rejects(
+  sectionSummaryHandler({ projectId: null, sectionId: "sec_design" }),
+  /Section summary unavailable\./,
+);
+projectListFails = false;
+
+const designSummary = await sectionSummaryHandler({
+  projectId: null,
+  sectionId: "sec_design",
+});
 assert.equal(designSummary.known, true);
 assert.equal(designSummary.total, 3);
 assert.equal(designSummary.questions, 1);
@@ -1145,39 +1168,113 @@ assert.deepEqual(
   ["bb", "moss"],
   "the handler resolves project names for the context band",
 );
+assert.deepEqual(sectionThreadListInputs.at(-1), {
+  archived: false,
+  hasParent: false,
+  includeHidden: false,
+  sectionId: "sec_design",
+  signal: sectionThreadListInputs.at(-1)?.signal,
+});
 
-// Project scoping really filters, rather than failing open to everything.
 assert.equal(
-  (await sectionSummaryHandler({ name: "Design", projectName: "moss" })).total,
+  (
+    await sectionSummaryHandler({
+      projectId: "proj_2",
+      sectionId: "sec_design",
+    })
+  ).total,
   1,
+);
+assert.deepEqual(
+  { ...sectionThreadListInputs.at(-1), signal: undefined },
+  {
+    archived: false,
+    hasParent: false,
+    includeHidden: false,
+    projectId: "proj_2",
+    sectionId: "sec_design",
+    signal: undefined,
+  },
 );
 
 sectionThreadsById.set("sec_duplicate_project", [
   sectionThread({ id: "same-a", projectId: "proj_same_1" }),
   sectionThread({ id: "same-b", projectId: "proj_same_2" }),
 ]);
+assert.equal(
+  (
+    await sectionSummaryHandler({
+      projectId: "proj_same_1",
+      sectionId: "sec_duplicate_project",
+    })
+  ).total,
+  1,
+  "a stable id selects the first of two same-named projects",
+);
+assert.equal(
+  (
+    await sectionSummaryHandler({
+      projectId: "proj_same_2",
+      sectionId: "sec_duplicate_project",
+    })
+  ).total,
+  1,
+  "a stable id selects the second of two same-named projects",
+);
+
+sectionThreadsById.set("sec_custom_pinned", [sectionThread({ id: "a" })]);
+assert.equal(
+  (
+    await sectionSummaryHandler({
+      projectId: null,
+      sectionId: "sec_custom_pinned",
+    })
+  ).total,
+  1,
+  "a custom section named Pinned remains identifiable by its stable id",
+);
+
 await assert.rejects(
-  sectionSummaryHandler({ name: "Duplicate Project", projectName: "Same" }),
+  sectionSummaryHandler({
+    projectId: "proj_missing",
+    sectionId: "sec_design",
+  }),
   /Section summary unavailable\./,
-  "fails closed when a display name cannot identify one project",
+  "rejects a stale or invalid project id instead of returning a misleading zero",
 );
 
 const sectionRealDateNow = Date.now;
 let fakeNow = sectionRealDateNow();
 Date.now = () => fakeNow;
 sectionThreadsById.set("sec_stale_count", [sectionThread({ id: "stale-a" })]);
-assert.equal((await sectionSummaryHandler({ name: "Stale Count" })).total, 1);
+assert.equal(
+  (
+    await sectionSummaryHandler({
+      projectId: null,
+      sectionId: "sec_stale_count",
+    })
+  ).total,
+  1,
+);
 fakeNow += 2_100;
 sectionThreadsFail = true;
 assert.equal(
-  (await sectionSummaryHandler({ name: "Stale Count" })).total,
+  (
+    await sectionSummaryHandler({
+      projectId: null,
+      sectionId: "sec_stale_count",
+    })
+  ).total,
   1,
   "may serve the expired count once while revalidating",
 );
 await Promise.resolve();
 await Promise.resolve();
 await assert.rejects(
-  sectionSummaryHandler({ name: "Stale Count" }),
+  sectionSummaryHandler({
+    projectId: null,
+    sectionId: "sec_stale_count",
+  }),
   /Section summary unavailable\./,
   "does not keep serving a count after its refresh failed",
 );
@@ -1190,7 +1287,12 @@ sectionThreadsById.set("sec_pinned_case", [
   { ...(sectionThread({ id: "b" }) as object), pinnedAt: 1 },
 ]);
 assert.equal(
-  (await sectionSummaryHandler({ name: "Pinned Case" })).total,
+  (
+    await sectionSummaryHandler({
+      projectId: null,
+      sectionId: "sec_pinned_case",
+    })
+  ).total,
   1,
   "excludes pinned threads the sidebar lifts out of the section",
 );
@@ -1198,26 +1300,9 @@ assert.equal(
 // A lost thread page must not be reported as an authoritative zero.
 sectionThreadsFail = true;
 await assert.rejects(
-  sectionSummaryHandler({ name: "Lost Page" }),
+  sectionSummaryHandler({ projectId: null, sectionId: "sec_lost_page" }),
   /Section summary unavailable\./,
   "fails loudly rather than claiming the section is empty",
 );
 sectionThreadsFail = false;
-
-// A built-in group is genuinely not a section.
-assert.equal((await sectionSummaryHandler({ name: "Pinned" })).known, false);
-
-// A section created after the directory was cached must not be written off.
-sectionRows = [...sectionRows, { id: "sec_new", name: "Just Created" }];
-sectionThreadsById.set("sec_new", [sectionThread({ id: "a" })]);
-const callsBeforeRefresh = sectionListCalls;
-const refreshed = await sectionSummaryHandler({ name: "Just Created" });
-assert.equal(
-  refreshed.known,
-  true,
-  "re-reads the section directory before answering not-a-section",
-);
-assert.ok(
-  sectionListCalls > callsBeforeRefresh,
-  "the re-read actually bypassed the cache",
-);
+assert.equal(sectionListCalls, 0);
