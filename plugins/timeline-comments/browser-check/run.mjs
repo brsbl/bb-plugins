@@ -66,47 +66,76 @@ try {
     const markers = [...document.querySelectorAll(".bb-comments-marker")];
     const popover = document.querySelector(".bb-comments-thread");
     const popoverRect = popover?.getBoundingClientRect();
-    const cluster = markers.find(
-      (marker) => marker.querySelector(".bb-comments-marker-count") !== null,
-    );
-    const clusterIconRect = cluster
-      ?.querySelector("svg")
-      ?.getBoundingClientRect();
-    const clusterCountRect = cluster
-      ?.querySelector(".bb-comments-marker-count")
-      ?.getBoundingClientRect();
     return {
-      usesRightRail: markers.every(
-        (marker) => marker.dataset.bbCommentGutter === "right",
-      ),
-      countIsGutterSide:
-        clusterIconRect !== undefined &&
-        clusterCountRect !== undefined &&
-        clusterCountRect.left >= clusterIconRect.right,
-      popoverBounded:
-        popoverRect !== undefined &&
-        popoverRect.left >= 0 &&
-        popoverRect.right <= window.innerWidth,
+      markerCount: markers.length,
+      popoverHidden: popoverRect === undefined,
     };
   });
-  if (
-    !narrow.usesRightRail ||
-    !narrow.countIsGutterSide ||
-    !narrow.popoverBounded
-  ) {
-    throw new Error("Narrow viewport did not retain a bounded right gutter");
+  if (narrow.markerCount !== 0 || !narrow.popoverHidden) {
+    throw new Error(
+      `Narrow viewport did not hide gutter comments cleanly: ${JSON.stringify(narrow)}`,
+    );
   }
   await page.setViewportSize({ width: 900, height: 600 });
-  await page.waitForTimeout(100);
+  const restoredMarker = page.locator(".bb-comments-marker").first();
+  await restoredMarker.waitFor({ state: "visible" });
+  await restoredMarker.click();
+  await page.waitForFunction(
+    () =>
+      document.querySelector(".bb-comments-cluster") !== null ||
+      document.querySelector(".bb-comments-thread") !== null,
+  );
+  const restoredCluster = page.locator(
+    '.bb-comments-cluster[aria-label="Comment threads"]',
+  );
+  if (await restoredCluster.isVisible()) {
+    await restoredCluster.locator(".bb-comments-cluster-row").first().click();
+  }
+  await page.locator(".bb-comments-thread").waitFor({ state: "visible" });
+  await page.waitForFunction(() => {
+    const scroller = document.querySelector(".bb-comments-thread-comments");
+    if (!(scroller instanceof HTMLElement)) return false;
+    const viewport = scroller.getBoundingClientRect();
+    return [
+      ...scroller.querySelectorAll(
+        '.bb-comments-actions-menu > button[aria-label="Comment actions"]',
+      ),
+    ].some((candidate) => {
+      const rect = candidate.getBoundingClientRect();
+      return rect.top >= viewport.top && rect.bottom <= viewport.bottom;
+    });
+  });
+  const openedActions = await page.evaluate(() => {
+    const scroller = document.querySelector(".bb-comments-thread-comments");
+    if (!(scroller instanceof HTMLElement)) return false;
+    const viewport = scroller.getBoundingClientRect();
+    const trigger = [
+      ...scroller.querySelectorAll(
+        '.bb-comments-actions-menu > button[aria-label="Comment actions"]',
+      ),
+    ].find((candidate) => {
+      const rect = candidate.getBoundingClientRect();
+      return rect.top >= viewport.top && rect.bottom <= viewport.bottom;
+    });
+    if (!(trigger instanceof HTMLButtonElement)) return false;
+    trigger.click();
+    return true;
+  });
+  if (!openedActions) {
+    throw new Error("Responsive re-entry did not restore a visible comment action");
+  }
+  await page.locator(".bb-comments-actions-popover").waitFor({ state: "visible" });
+  const startedEdit = await page.evaluate(() => {
+    const edit = [...document.querySelectorAll(".bb-comments-actions-popover button")]
+      .find((button) => button.textContent?.trim() === "Edit");
+    if (!(edit instanceof HTMLButtonElement)) return false;
+    edit.click();
+    return true;
+  });
+  if (!startedEdit) throw new Error("Responsive re-entry did not restore editing");
   await page
-    .locator(
-      '.bb-comments-actions-menu > button[aria-label="Comment actions"]',
-    )
-    .first()
-    .click();
-  await page
-    .locator(".bb-comments-actions-popover button", { hasText: "Edit" })
-    .click();
+    .locator('[data-comment-editing="true"]')
+    .waitFor({ state: "visible" });
   await page.waitForTimeout(50);
   await page.screenshot({ path: screenshot });
 } finally {

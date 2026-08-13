@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { describe, expect, it } from "vitest";
 import {
+  chooseAvailableGutter,
   chooseNearestGutter,
   layoutGutterMarkers,
   restoreSelector,
@@ -117,6 +118,26 @@ describe("gutter layout", () => {
     expect(
       chooseNearestGutter([{ left: 102, right: 200 }], { ...rail, width: 480 }),
     ).toBe("right");
+  });
+
+  it("only chooses a gutter that can contain the marker and text gap", () => {
+    const fragments = [{ left: 130, right: 200 }];
+    expect(
+      chooseAvailableGutter(
+        fragments,
+        { left: 120, right: 680 },
+        { left: 100, right: 700, width: 600 },
+        32,
+      ),
+    ).toBeNull();
+    expect(
+      chooseAvailableGutter(
+        fragments,
+        { left: 140, right: 680 },
+        { left: 100, right: 700, width: 600 },
+        32,
+      ),
+    ).toBe("left");
   });
 
   it("de-overlaps markers and groups visual overflow", () => {

@@ -49,78 +49,62 @@ var {
   version
 } = mod;
 
-// ../../node_modules/lucide-react/dist/esm/shared/src/utils.js
-var toKebabCase = (string) => string.replace(/([a-z0-9])([A-Z])/g, "$1-$2").toLowerCase();
-var mergeClasses = (...classes) => classes.filter((className, index, array) => {
-  return Boolean(className) && className.trim() !== "" && array.indexOf(className) === index;
-}).join(" ").trim();
+// ../../node_modules/@hugeicons/core-free-icons/dist/esm/ChatFeedback01Icon.js
+var ChatFeedback01Icon = [
+  ["path", { d: "M7.5 8.5H16.5M7.5 12.5H13", stroke: "currentColor", strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: "1.5", key: "0" }],
+  ["path", { d: "M22 10.5C22 9.72921 21.9865 8.97679 21.9609 8.2503C21.8772 5.87683 21.8353 4.69009 20.8699 3.71745C19.9046 2.74481 18.6843 2.6926 16.2438 2.58819C14.9048 2.5309 13.4791 2.5 12 2.5C10.5209 2.5 9.09517 2.5309 7.7562 2.58819C5.3157 2.6926 4.09545 2.74481 3.13007 3.71745C2.16469 4.69009 2.12282 5.87683 2.03909 8.2503C2.01346 8.97679 2 9.72921 2 10.5C2 11.2708 2.01346 12.0232 2.03909 12.7497C2.12282 15.1232 2.16469 16.3099 3.13007 17.2826C4.09545 18.2552 5.31573 18.3074 7.7563 18.4118C8.4902 18.4432 9.25016 18.4667 10.0307 18.4815C10.7718 18.4955 11.1424 18.5026 11.468 18.6266C11.7936 18.7506 12.0675 18.9855 12.6155 19.4553L14.795 21.3242C14.9273 21.4376 15.0958 21.5 15.2701 21.5C15.6732 21.5 16 21.1732 16 20.7701V18.4219C16.0816 18.4186 16.1629 18.4153 16.2438 18.4118C18.6843 18.3074 19.9046 18.2552 20.8699 17.2825C21.8353 16.3099 21.8772 15.1232 21.9609 12.7497C21.9865 12.0232 22 11.2708 22 10.5Z", stroke: "currentColor", strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: "1.5", key: "1" }]
+];
 
-// ../../node_modules/lucide-react/dist/esm/defaultAttributes.js
+// ../../node_modules/@hugeicons/react/dist/esm/HugeiconsIcon.js
 var defaultAttributes = {
   xmlns: "http://www.w3.org/2000/svg",
   width: 24,
   height: 24,
   viewBox: "0 0 24 24",
-  fill: "none",
-  stroke: "currentColor",
-  strokeWidth: 2,
-  strokeLinecap: "round",
-  strokeLinejoin: "round"
+  fill: "none"
 };
-
-// ../../node_modules/lucide-react/dist/esm/Icon.js
-var Icon = forwardRef(
-  ({
-    color = "currentColor",
-    size = 24,
-    strokeWidth = 2,
-    absoluteStrokeWidth,
-    className = "",
-    children,
-    iconNode,
+var HugeiconsIcon = forwardRef(({ color = "currentColor", size = 24, strokeWidth, absoluteStrokeWidth = false, className = "", altIcon, showAlt = false, icon: icon2, primaryColor, secondaryColor, disableSecondaryOpacity = false, ...rest }, ref) => {
+  const calculatedStrokeWidth = strokeWidth !== void 0 ? absoluteStrokeWidth ? Number(strokeWidth) * 24 / Number(size) : strokeWidth : void 0;
+  const strokeProps = calculatedStrokeWidth !== void 0 ? {
+    strokeWidth: calculatedStrokeWidth,
+    stroke: "currentColor"
+  } : {};
+  const elementProps = {
+    ref,
+    ...defaultAttributes,
+    width: size,
+    height: size,
+    color: primaryColor || color,
+    className,
+    ...strokeProps,
     ...rest
-  }, ref) => {
-    return createElement(
-      "svg",
-      {
-        ref,
-        ...defaultAttributes,
-        width: size,
-        height: size,
-        stroke: color,
-        strokeWidth: absoluteStrokeWidth ? Number(strokeWidth) * 24 / Number(size) : strokeWidth,
-        className: mergeClasses("lucide", className),
-        ...rest
-      },
-      [
-        ...iconNode.map(([tag, attrs]) => createElement(tag, attrs)),
-        ...Array.isArray(children) ? children : [children]
-      ]
-    );
-  }
-);
-
-// ../../node_modules/lucide-react/dist/esm/createLucideIcon.js
-var createLucideIcon = (iconName, iconNode) => {
-  const Component2 = forwardRef(
-    ({ className, ...props }, ref) => createElement(Icon, {
-      ref,
-      iconNode,
-      className: mergeClasses(`lucide-${toKebabCase(iconName)}`, className),
-      ...props
-    })
-  );
-  Component2.displayName = `${iconName}`;
-  return Component2;
-};
-
-// ../../node_modules/lucide-react/dist/esm/icons/message-square-text.js
-var __iconNode = [
-  ["path", { d: "M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z", key: "1lielz" }],
-  ["path", { d: "M13 8H7", key: "14i4kc" }],
-  ["path", { d: "M17 12H7", key: "16if0g" }]
-];
-var MessageSquareText = createLucideIcon("MessageSquareText", __iconNode);
+  };
+  const currentIcon = showAlt && altIcon ? altIcon : icon2;
+  const svgChildren = [...currentIcon].sort(([, a], [, b]) => {
+    const hasOpacityA = a.opacity !== void 0;
+    const hasOpacityB = b.opacity !== void 0;
+    return hasOpacityB ? 1 : hasOpacityA ? -1 : 0;
+  }).map(([tag, attrs]) => {
+    const isSecondaryPath = attrs.opacity !== void 0;
+    const pathOpacity = isSecondaryPath && !disableSecondaryOpacity ? attrs.opacity : void 0;
+    const fillProps = secondaryColor ? {
+      ...attrs.stroke !== void 0 ? {
+        stroke: isSecondaryPath ? secondaryColor : primaryColor || color
+      } : {
+        fill: isSecondaryPath ? secondaryColor : primaryColor || color
+      }
+    } : {};
+    return createElement(tag, {
+      ...attrs,
+      ...strokeProps,
+      ...fillProps,
+      opacity: pathOpacity,
+      key: attrs.key
+    });
+  });
+  return createElement("svg", elementProps, svgChildren);
+});
+HugeiconsIcon.displayName = "HugeiconsIcon";
 
 // bb-plugin-runtime-shim:@bb/plugin-sdk/app
 var runtime2 = globalThis.__bbPluginRuntime;
@@ -146,6 +130,7 @@ var {
 var activeController = null;
 var anchorHealthSnapshot = /* @__PURE__ */ new Map();
 var anchorHealthListeners = /* @__PURE__ */ new Set();
+var handoffTargets = /* @__PURE__ */ new Set();
 function publishTimelineCommentAnchorHealth(health) {
   anchorHealthSnapshot = new Map(health);
   for (const listener of anchorHealthListeners) listener();
@@ -175,6 +160,34 @@ function registerTimelineCommentThreadWindow(threadId, window2) {
 }
 function refreshTimelineCommentAnchors() {
   activeController?.refreshAnchors();
+}
+function isRendered(node) {
+  if (node === null || !node.isConnected) return false;
+  if (node.closest('[aria-hidden="true"], [hidden], [inert]') !== null) {
+    return false;
+  }
+  const checkVisibility = node.checkVisibility;
+  return checkVisibility?.call(node, {
+    contentVisibilityAuto: true,
+    visibilityProperty: true
+  }) ?? true;
+}
+async function requestTimelineCommentHandoff(threadId) {
+  const candidates = [...handoffTargets].filter((target2) => {
+    return target2.threadId === threadId && isRendered(target2.getThreadWindow());
+  });
+  if (candidates.length === 0) return false;
+  const activeWindow = document.activeElement instanceof Element ? document.activeElement.closest("[data-thread-window]") : null;
+  const target = candidates.find(
+    (candidate) => candidate.getThreadWindow() === activeWindow
+  ) ?? candidates.find(
+    (candidate) => candidate.getThreadWindow()?.closest('[data-split-pane-id][data-focused="true"]') !== null
+  ) ?? candidates[0];
+  return target.accept();
+}
+function subscribeTimelineCommentHandoff(target) {
+  handoffTargets.add(target);
+  return () => handoffTargets.delete(target);
 }
 
 // ../../node_modules/lucide/dist/esm/createElement.js
@@ -282,6 +295,16 @@ var Trash2 = [
   ]
 ];
 
+// ../../node_modules/lucide/dist/esm/icons/x.js
+var X = [
+  "svg",
+  defaultAttributes2,
+  [
+    ["path", { d: "M18 6 6 18" }],
+    ["path", { d: "m6 6 12 12" }]
+  ]
+];
+
 // anchors.ts
 function selectorForRange(root, range, contextLength = 32) {
   if (range.collapsed || !root.contains(range.startContainer) || !root.contains(range.endContainer)) {
@@ -373,6 +396,21 @@ function chooseNearestGutter(fragments, rail) {
   );
   return leftDistance < rightDistance ? "left" : "right";
 }
+function chooseAvailableGutter(fragments, content, container, requiredSpace) {
+  if (container.width < 520) return null;
+  const spaces = {
+    left: content.left - container.left,
+    right: container.right - content.right
+  };
+  const preferred = chooseNearestGutter(fragments, {
+    left: content.left,
+    right: content.right,
+    width: container.width
+  });
+  if (spaces[preferred] >= requiredSpace) return preferred;
+  const alternate = preferred === "left" ? "right" : "left";
+  return spaces[alternate] >= requiredSpace ? alternate : null;
+}
 function layoutGutterMarkers(candidates, top, bottom, markerSize = 24, gap = 4) {
   if (candidates.length === 0 || bottom <= top) return [];
   const sorted = [...candidates].sort(
@@ -428,6 +466,1369 @@ function commentBodyError(value) {
   return null;
 }
 
+// bb-plugin-runtime-shim:react-dom
+var runtime3 = globalThis.__bbPluginRuntime;
+if (runtime3 == null || runtime3.reactDom == null) {
+  throw new Error('Cannot load "react-dom": this bundle must be loaded by the BB app, which provides the shared plugin runtime (globalThis.__bbPluginRuntime).');
+}
+var mod3 = runtime3.reactDom;
+var {
+  createPortal,
+  flushSync,
+  preconnect,
+  prefetchDNS,
+  preinit,
+  preinitModule,
+  preload,
+  preloadModule,
+  requestFormReset,
+  unstable_batchedUpdates,
+  useFormState,
+  useFormStatus,
+  version: version2
+} = mod3;
+
+// bb-plugin-runtime-shim:react-dom/client
+var runtime4 = globalThis.__bbPluginRuntime;
+if (runtime4 == null || runtime4.reactDomClient == null) {
+  throw new Error('Cannot load "react-dom/client": this bundle must be loaded by the BB app, which provides the shared plugin runtime (globalThis.__bbPluginRuntime).');
+}
+var mod4 = runtime4.reactDomClient;
+var {
+  createRoot,
+  hydrateRoot,
+  version: version3
+} = mod4;
+
+// ../../node_modules/lucide-react/dist/esm/shared/src/utils.js
+var toKebabCase = (string) => string.replace(/([a-z0-9])([A-Z])/g, "$1-$2").toLowerCase();
+var mergeClasses = (...classes) => classes.filter((className, index, array) => {
+  return Boolean(className) && className.trim() !== "" && array.indexOf(className) === index;
+}).join(" ").trim();
+
+// ../../node_modules/lucide-react/dist/esm/defaultAttributes.js
+var defaultAttributes3 = {
+  xmlns: "http://www.w3.org/2000/svg",
+  width: 24,
+  height: 24,
+  viewBox: "0 0 24 24",
+  fill: "none",
+  stroke: "currentColor",
+  strokeWidth: 2,
+  strokeLinecap: "round",
+  strokeLinejoin: "round"
+};
+
+// ../../node_modules/lucide-react/dist/esm/Icon.js
+var Icon = forwardRef(
+  ({
+    color = "currentColor",
+    size = 24,
+    strokeWidth = 2,
+    absoluteStrokeWidth,
+    className = "",
+    children,
+    iconNode,
+    ...rest
+  }, ref) => {
+    return createElement(
+      "svg",
+      {
+        ref,
+        ...defaultAttributes3,
+        width: size,
+        height: size,
+        stroke: color,
+        strokeWidth: absoluteStrokeWidth ? Number(strokeWidth) * 24 / Number(size) : strokeWidth,
+        className: mergeClasses("lucide", className),
+        ...rest
+      },
+      [
+        ...iconNode.map(([tag, attrs]) => createElement(tag, attrs)),
+        ...Array.isArray(children) ? children : [children]
+      ]
+    );
+  }
+);
+
+// ../../node_modules/lucide-react/dist/esm/createLucideIcon.js
+var createLucideIcon = (iconName, iconNode) => {
+  const Component2 = forwardRef(
+    ({ className, ...props }, ref) => createElement(Icon, {
+      ref,
+      iconNode,
+      className: mergeClasses(`lucide-${toKebabCase(iconName)}`, className),
+      ...props
+    })
+  );
+  Component2.displayName = `${iconName}`;
+  return Component2;
+};
+
+// ../../node_modules/lucide-react/dist/esm/icons/at-sign.js
+var __iconNode = [
+  ["circle", { cx: "12", cy: "12", r: "4", key: "4exip2" }],
+  ["path", { d: "M16 8v5a3 3 0 0 0 6 0v-1a10 10 0 1 0-4 8", key: "7n84p3" }]
+];
+var AtSign = createLucideIcon("AtSign", __iconNode);
+
+// ../../node_modules/lucide-react/dist/esm/icons/check-check.js
+var __iconNode2 = [
+  ["path", { d: "M18 6 7 17l-5-5", key: "116fxf" }],
+  ["path", { d: "m22 10-7.5 7.5L13 16", key: "ke71qq" }]
+];
+var CheckCheck2 = createLucideIcon("CheckCheck", __iconNode2);
+
+// ../../node_modules/lucide-react/dist/esm/icons/command.js
+var __iconNode3 = [
+  [
+    "path",
+    { d: "M15 6v12a3 3 0 1 0 3-3H6a3 3 0 1 0 3 3V6a3 3 0 1 0-3 3h12a3 3 0 1 0-3-3", key: "11bfej" }
+  ]
+];
+var Command2 = createLucideIcon("Command", __iconNode3);
+
+// ../../node_modules/lucide-react/dist/esm/icons/corner-down-left.js
+var __iconNode4 = [
+  ["polyline", { points: "9 10 4 15 9 20", key: "r3jprv" }],
+  ["path", { d: "M20 4v7a4 4 0 0 1-4 4H4", key: "6o5b7l" }]
+];
+var CornerDownLeft2 = createLucideIcon("CornerDownLeft", __iconNode4);
+
+// ../../node_modules/lucide-react/dist/esm/icons/ellipsis.js
+var __iconNode5 = [
+  ["circle", { cx: "12", cy: "12", r: "1", key: "41hilf" }],
+  ["circle", { cx: "19", cy: "12", r: "1", key: "1wjl8i" }],
+  ["circle", { cx: "5", cy: "12", r: "1", key: "1pcz8c" }]
+];
+var Ellipsis = createLucideIcon("Ellipsis", __iconNode5);
+
+// ../../node_modules/lucide-react/dist/esm/icons/message-square-text.js
+var __iconNode6 = [
+  ["path", { d: "M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z", key: "1lielz" }],
+  ["path", { d: "M13 8H7", key: "14i4kc" }],
+  ["path", { d: "M17 12H7", key: "16if0g" }]
+];
+var MessageSquareText = createLucideIcon("MessageSquareText", __iconNode6);
+
+// ../../node_modules/lucide-react/dist/esm/icons/pencil.js
+var __iconNode7 = [
+  [
+    "path",
+    {
+      d: "M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z",
+      key: "1a8usu"
+    }
+  ],
+  ["path", { d: "m15 5 4 4", key: "1mk7zo" }]
+];
+var Pencil2 = createLucideIcon("Pencil", __iconNode7);
+
+// ../../node_modules/lucide-react/dist/esm/icons/plus.js
+var __iconNode8 = [
+  ["path", { d: "M5 12h14", key: "1ays0h" }],
+  ["path", { d: "M12 5v14", key: "s699le" }]
+];
+var Plus = createLucideIcon("Plus", __iconNode8);
+
+// ../../node_modules/lucide-react/dist/esm/icons/send.js
+var __iconNode9 = [
+  [
+    "path",
+    {
+      d: "M14.536 21.686a.5.5 0 0 0 .937-.024l6.5-19a.496.496 0 0 0-.635-.635l-19 6.5a.5.5 0 0 0-.024.937l7.93 3.18a2 2 0 0 1 1.112 1.11z",
+      key: "1ffxy3"
+    }
+  ],
+  ["path", { d: "m21.854 2.147-10.94 10.939", key: "12cjpa" }]
+];
+var Send = createLucideIcon("Send", __iconNode9);
+
+// ../../node_modules/lucide-react/dist/esm/icons/trash-2.js
+var __iconNode10 = [
+  ["path", { d: "M3 6h18", key: "d0wm0j" }],
+  ["path", { d: "M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6", key: "4alrt4" }],
+  ["path", { d: "M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2", key: "v07s0e" }],
+  ["line", { x1: "10", x2: "10", y1: "11", y2: "17", key: "1uufr5" }],
+  ["line", { x1: "14", x2: "14", y1: "11", y2: "17", key: "xtxkd" }]
+];
+var Trash22 = createLucideIcon("Trash2", __iconNode10);
+
+// ../../node_modules/lucide-react/dist/esm/icons/x.js
+var __iconNode11 = [
+  ["path", { d: "M18 6 6 18", key: "1bl5f8" }],
+  ["path", { d: "m6 6 12 12", key: "d8bk6v" }]
+];
+var X2 = createLucideIcon("X", __iconNode11);
+
+// bb-plugin-runtime-shim:react/jsx-runtime
+var runtime5 = globalThis.__bbPluginRuntime;
+if (runtime5 == null || runtime5.jsxRuntime == null) {
+  throw new Error('Cannot load "react/jsx-runtime": this bundle must be loaded by the BB app, which provides the shared plugin runtime (globalThis.__bbPluginRuntime).');
+}
+var mod5 = runtime5.jsxRuntime;
+var {
+  Fragment: Fragment2,
+  jsx,
+  jsxs
+} = mod5;
+
+// comment-components.tsx
+var MODE_TRANSITION = {
+  duration: 150,
+  easing: "cubic-bezier(0.22, 1, 0.36, 1)"
+};
+var DRAFT_TTL = 24 * 60 * 60 * 1e3;
+function readDraft(key) {
+  const saved = sessionStorage.getItem(key);
+  if (saved === null) return null;
+  try {
+    const parsed = JSON.parse(saved);
+    if (typeof parsed.body === "string" && typeof parsed.expiresAt === "number" && parsed.expiresAt > Date.now()) {
+      return parsed.body;
+    }
+  } catch {
+  }
+  sessionStorage.removeItem(key);
+  return null;
+}
+function writeDraft(key, body) {
+  if (body.trim() === "") {
+    sessionStorage.removeItem(key);
+    return;
+  }
+  sessionStorage.setItem(
+    key,
+    JSON.stringify({ body, expiresAt: Date.now() + DRAFT_TTL })
+  );
+}
+function focusAdjacentToActionsTrigger(trigger, backwards) {
+  const focusable = [
+    ...document.querySelectorAll(
+      'button:not(:disabled), textarea:not(:disabled), input:not(:disabled), [href], [tabindex]:not([tabindex="-1"])'
+    )
+  ].filter(
+    (node) => node.getClientRects().length > 0 && node.closest('[aria-hidden="true"], [inert], [hidden]') === null && node.closest(".bb-comments-actions-popover") === null
+  );
+  const current = focusable.indexOf(trigger);
+  const adjacent = focusable[current + (backwards ? -1 : 1)];
+  if (adjacent === void 0) return false;
+  adjacent.focus({ preventScroll: true });
+  return true;
+}
+function actionsTriggerIsFullyVisible(trigger) {
+  const scrollViewport = trigger.closest(
+    ".bb-comments-thread-comments"
+  );
+  if (scrollViewport === null) return true;
+  const triggerRect = trigger.getBoundingClientRect();
+  const viewportRect = scrollViewport.getBoundingClientRect();
+  return triggerRect.top >= viewportRect.top && triggerRect.bottom <= viewportRect.bottom;
+}
+function reducedMotion() {
+  return typeof window.matchMedia === "function" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+}
+function relativeTime(value) {
+  const elapsed = Math.max(0, Date.now() - value);
+  if (elapsed < 6e4) return "just now";
+  if (elapsed < 36e5) {
+    const minutes = Math.floor(elapsed / 6e4);
+    return `${minutes} ${minutes === 1 ? "minute" : "minutes"} ago`;
+  }
+  if (elapsed < 864e5) {
+    const hours = Math.floor(elapsed / 36e5);
+    return `${hours} ${hours === 1 ? "hour" : "hours"} ago`;
+  }
+  const days = Math.floor(elapsed / 864e5);
+  return `${days} ${days === 1 ? "day" : "days"} ago`;
+}
+function absoluteTime(value) {
+  return new Intl.DateTimeFormat(void 0, {
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit"
+  }).format(value);
+}
+function useMeasuredModeTransition(elementRef, active) {
+  const startHeightRef = useRef(null);
+  const animationRef = useRef(null);
+  const cleanupTimerRef = useRef(null);
+  const run = useCallback(
+    (update) => {
+      const element2 = elementRef.current;
+      if (!element2 || typeof element2.animate !== "function" || reducedMotion()) {
+        update();
+        return;
+      }
+      if (cleanupTimerRef.current !== null) {
+        window.clearTimeout(cleanupTimerRef.current);
+        cleanupTimerRef.current = null;
+      }
+      animationRef.current?.cancel();
+      animationRef.current = null;
+      element2.style.removeProperty("overflow");
+      startHeightRef.current = element2.getBoundingClientRect().height;
+      update();
+    },
+    [elementRef]
+  );
+  useLayoutEffect(() => {
+    const startHeight = startHeightRef.current;
+    startHeightRef.current = null;
+    const element2 = elementRef.current;
+    if (startHeight === null || !element2) return;
+    const endHeight = element2.getBoundingClientRect().height;
+    if (Math.abs(endHeight - startHeight) < 0.5) return;
+    element2.style.overflow = "hidden";
+    const animation = element2.animate(
+      [{ height: `${startHeight}px` }, { height: `${endHeight}px` }],
+      MODE_TRANSITION
+    );
+    animationRef.current = animation;
+    const finish = () => {
+      if (animationRef.current !== animation) return;
+      animationRef.current = null;
+      if (cleanupTimerRef.current !== null) {
+        window.clearTimeout(cleanupTimerRef.current);
+        cleanupTimerRef.current = null;
+      }
+      element2.style.removeProperty("overflow");
+    };
+    animation.addEventListener("finish", finish, { once: true });
+    cleanupTimerRef.current = window.setTimeout(() => {
+      if (animationRef.current === animation) {
+        animationRef.current = null;
+        animation.cancel();
+        element2.style.removeProperty("overflow");
+      }
+      cleanupTimerRef.current = null;
+    }, 200);
+  }, [active, elementRef]);
+  useEffect(
+    () => () => {
+      startHeightRef.current = null;
+      if (cleanupTimerRef.current !== null)
+        window.clearTimeout(cleanupTimerRef.current);
+      animationRef.current?.cancel();
+      elementRef.current?.style.removeProperty("overflow");
+    },
+    [elementRef]
+  );
+  return run;
+}
+function CommentTextInput({
+  value,
+  onChange,
+  onSubmit,
+  placeholder,
+  ariaLabel,
+  persistentFooter = false,
+  footerPortalTarget,
+  autoFocus = false,
+  onCancel,
+  submitPending = false
+}) {
+  const rootRef = useRef(null);
+  const inputContentRef = useRef(null);
+  const textareaRef = useRef(null);
+  const previousFooterVisibleRef = useRef(false);
+  const compactHeightRef = useRef(null);
+  const compactContentOffsetRef = useRef(null);
+  const expandedHeightRef = useRef(null);
+  const responsiveHeightAnimationRef = useRef(null);
+  const responsiveContentAnimationRef = useRef(null);
+  const responsiveAnimationCleanupTimerRef = useRef(null);
+  const responsiveMeasurementFrameRef = useRef(null);
+  const [responsiveFooterLatched, setResponsiveFooterLatched] = useState(false);
+  const hasExplicitLineBreak = value.includes("\n");
+  const responsiveExpansionRequested = hasExplicitLineBreak || responsiveFooterLatched;
+  const footerVisible = persistentFooter || responsiveExpansionRequested;
+  const responsiveCompact = !persistentFooter && !footerVisible;
+  const error = value.trim() === "" ? null : commentBodyError(value);
+  const submitDisabled = commentBodyError(value) !== null;
+  const animateResponsiveHeightToNaturalSize = useCallback(() => {
+    const root = rootRef.current;
+    const previousNaturalHeight = expandedHeightRef.current;
+    if (!root || previousNaturalHeight === null) return;
+    const naturalHeight = Array.from(root.children).reduce((height, child) => {
+      if (!(child instanceof HTMLElement) || window.getComputedStyle(child).position === "absolute") {
+        return height;
+      }
+      return height + child.getBoundingClientRect().height;
+    }, 0);
+    if (Math.abs(naturalHeight - previousNaturalHeight) < 0.5) return;
+    expandedHeightRef.current = naturalHeight;
+    const runningAnimation = responsiveHeightAnimationRef.current;
+    const startHeight = runningAnimation ? root.getBoundingClientRect().height : previousNaturalHeight;
+    responsiveHeightAnimationRef.current = null;
+    runningAnimation?.cancel();
+    if (responsiveAnimationCleanupTimerRef.current !== null) {
+      window.clearTimeout(responsiveAnimationCleanupTimerRef.current);
+      responsiveAnimationCleanupTimerRef.current = null;
+    }
+    if (typeof root.animate !== "function" || reducedMotion() || Math.abs(naturalHeight - startHeight) < 0.5) {
+      root.style.removeProperty("overflow");
+      return;
+    }
+    root.style.overflow = "hidden";
+    const heightAnimation = root.animate(
+      [{ height: `${startHeight}px` }, { height: `${naturalHeight}px` }],
+      MODE_TRANSITION
+    );
+    responsiveHeightAnimationRef.current = heightAnimation;
+    const finishTransition = () => {
+      if (responsiveHeightAnimationRef.current !== heightAnimation) return;
+      responsiveHeightAnimationRef.current = null;
+      if (responsiveAnimationCleanupTimerRef.current !== null) {
+        window.clearTimeout(responsiveAnimationCleanupTimerRef.current);
+        responsiveAnimationCleanupTimerRef.current = null;
+      }
+      root.style.removeProperty("overflow");
+    };
+    heightAnimation.addEventListener("finish", finishTransition, { once: true });
+    responsiveAnimationCleanupTimerRef.current = window.setTimeout(() => {
+      if (responsiveHeightAnimationRef.current === heightAnimation) {
+        responsiveHeightAnimationRef.current = null;
+        heightAnimation.cancel();
+        root.style.removeProperty("overflow");
+      }
+      responsiveAnimationCleanupTimerRef.current = null;
+    }, 200);
+  }, []);
+  useLayoutEffect(() => {
+    if (persistentFooter) {
+      previousFooterVisibleRef.current = footerVisible;
+      return;
+    }
+    const root = rootRef.current;
+    const content = inputContentRef.current;
+    const row = root?.querySelector('[data-mention-input-row="true"]');
+    if (!root || !content || !row) return;
+    const wasVisible = previousFooterVisibleRef.current;
+    previousFooterVisibleRef.current = footerVisible;
+    const currentNaturalHeight = root.offsetHeight || root.getBoundingClientRect().height;
+    const currentContentOffset = Number.parseFloat(window.getComputedStyle(row).paddingLeft) || 0;
+    if (wasVisible === footerVisible) {
+      if (!footerVisible) {
+        const previousCompactHeight = compactHeightRef.current;
+        if (previousCompactHeight === null || currentNaturalHeight <= previousCompactHeight + 0.5) {
+          compactHeightRef.current = currentNaturalHeight;
+          compactContentOffsetRef.current = currentContentOffset;
+        }
+      } else if (!responsiveHeightAnimationRef.current) {
+        expandedHeightRef.current = currentNaturalHeight;
+      }
+      return;
+    }
+    const runningHeightAnimation = responsiveHeightAnimationRef.current;
+    const animatedStartHeight = runningHeightAnimation ? root.getBoundingClientRect().height : null;
+    responsiveHeightAnimationRef.current = null;
+    runningHeightAnimation?.cancel();
+    responsiveContentAnimationRef.current?.cancel();
+    responsiveContentAnimationRef.current = null;
+    if (responsiveAnimationCleanupTimerRef.current !== null) {
+      window.clearTimeout(responsiveAnimationCleanupTimerRef.current);
+      responsiveAnimationCleanupTimerRef.current = null;
+    }
+    root.style.removeProperty("overflow");
+    const endHeight = root.offsetHeight || root.getBoundingClientRect().height;
+    const startHeight = animatedStartHeight ?? (footerVisible ? compactHeightRef.current : expandedHeightRef.current) ?? endHeight;
+    if (footerVisible) expandedHeightRef.current = endHeight;
+    else {
+      compactHeightRef.current = endHeight;
+      compactContentOffsetRef.current = currentContentOffset;
+    }
+    if (typeof root.animate !== "function" || reducedMotion() || Math.abs(endHeight - startHeight) < 0.5) return;
+    root.style.overflow = "hidden";
+    const heightAnimation = root.animate(
+      [{ height: `${startHeight}px` }, { height: `${endHeight}px` }],
+      MODE_TRANSITION
+    );
+    responsiveHeightAnimationRef.current = heightAnimation;
+    if (footerVisible) {
+      const compactContentOffset = compactContentOffsetRef.current;
+      const contentOffset = compactContentOffset === null ? 0 : compactContentOffset - currentContentOffset;
+      if (Math.abs(contentOffset) >= 0.5) {
+        const contentAnimation = content.animate(
+          [
+            { transform: `translateX(${contentOffset}px)` },
+            { transform: "translateX(0)" }
+          ],
+          MODE_TRANSITION
+        );
+        responsiveContentAnimationRef.current = contentAnimation;
+        contentAnimation.addEventListener(
+          "finish",
+          () => {
+            if (responsiveContentAnimationRef.current === contentAnimation)
+              responsiveContentAnimationRef.current = null;
+          },
+          { once: true }
+        );
+      }
+    }
+    const finishTransition = () => {
+      if (responsiveHeightAnimationRef.current !== heightAnimation) return;
+      responsiveHeightAnimationRef.current = null;
+      if (responsiveAnimationCleanupTimerRef.current !== null) {
+        window.clearTimeout(responsiveAnimationCleanupTimerRef.current);
+        responsiveAnimationCleanupTimerRef.current = null;
+      }
+      root.style.removeProperty("overflow");
+    };
+    heightAnimation.addEventListener("finish", finishTransition, { once: true });
+    responsiveAnimationCleanupTimerRef.current = window.setTimeout(() => {
+      if (responsiveHeightAnimationRef.current === heightAnimation) {
+        responsiveHeightAnimationRef.current = null;
+        heightAnimation.cancel();
+        root.style.removeProperty("overflow");
+      }
+      responsiveAnimationCleanupTimerRef.current = null;
+    }, 200);
+  }, [footerVisible, persistentFooter]);
+  useEffect(
+    () => () => {
+      if (responsiveMeasurementFrameRef.current !== null)
+        window.cancelAnimationFrame(responsiveMeasurementFrameRef.current);
+      if (responsiveAnimationCleanupTimerRef.current !== null)
+        window.clearTimeout(responsiveAnimationCleanupTimerRef.current);
+      responsiveHeightAnimationRef.current?.cancel();
+      responsiveContentAnimationRef.current?.cancel();
+      responsiveHeightAnimationRef.current = null;
+      responsiveContentAnimationRef.current = null;
+      rootRef.current?.style.removeProperty("overflow");
+    },
+    []
+  );
+  const shouldExpandResponsiveFooter = useCallback(() => {
+    const element2 = textareaRef.current;
+    if (!element2) return false;
+    const computedLineHeight = Number.parseFloat(
+      window.getComputedStyle(element2).lineHeight
+    );
+    const singleLineHeight = Number.isFinite(computedLineHeight) ? computedLineHeight : 20;
+    const contentHeight = Math.max(
+      element2.scrollHeight,
+      element2.getBoundingClientRect().height
+    );
+    const singleLineOverflow = element2.scrollWidth > element2.clientWidth + 0.5;
+    return Boolean(element2.value.trim()) && (singleLineOverflow || contentHeight > singleLineHeight * 1.5);
+  }, []);
+  const cancelResponsiveFooterMeasurement = useCallback(() => {
+    if (responsiveMeasurementFrameRef.current === null) return;
+    window.cancelAnimationFrame(responsiveMeasurementFrameRef.current);
+    responsiveMeasurementFrameRef.current = null;
+  }, []);
+  const scheduleResponsiveFooterMeasurement = useCallback(() => {
+    if (responsiveMeasurementFrameRef.current !== null) return;
+    responsiveMeasurementFrameRef.current = window.requestAnimationFrame(() => {
+      responsiveMeasurementFrameRef.current = null;
+      if (shouldExpandResponsiveFooter()) setResponsiveFooterLatched(true);
+    });
+  }, [shouldExpandResponsiveFooter]);
+  useLayoutEffect(() => {
+    if (persistentFooter) {
+      cancelResponsiveFooterMeasurement();
+      return;
+    }
+    if (!value.trim()) {
+      cancelResponsiveFooterMeasurement();
+      setResponsiveFooterLatched(false);
+      return;
+    }
+    if (responsiveFooterLatched) {
+      cancelResponsiveFooterMeasurement();
+      return;
+    }
+    if (hasExplicitLineBreak) {
+      cancelResponsiveFooterMeasurement();
+      setResponsiveFooterLatched(true);
+      return;
+    }
+    scheduleResponsiveFooterMeasurement();
+  }, [
+    cancelResponsiveFooterMeasurement,
+    hasExplicitLineBreak,
+    persistentFooter,
+    responsiveFooterLatched,
+    scheduleResponsiveFooterMeasurement,
+    value
+  ]);
+  useLayoutEffect(() => {
+    if (persistentFooter || typeof ResizeObserver === "undefined") return;
+    const element2 = textareaRef.current;
+    if (!element2) return;
+    const handleResize = () => {
+      if (responsiveFooterLatched) animateResponsiveHeightToNaturalSize();
+      else scheduleResponsiveFooterMeasurement();
+    };
+    const resizeObserver = new ResizeObserver(handleResize);
+    const mutationObserver = responsiveFooterLatched || typeof MutationObserver === "undefined" ? null : new MutationObserver(scheduleResponsiveFooterMeasurement);
+    resizeObserver.observe(element2);
+    mutationObserver?.observe(element2, {
+      childList: true,
+      characterData: true,
+      subtree: true
+    });
+    return () => {
+      resizeObserver.disconnect();
+      mutationObserver?.disconnect();
+    };
+  }, [
+    animateResponsiveHeightToNaturalSize,
+    persistentFooter,
+    responsiveFooterLatched,
+    scheduleResponsiveFooterMeasurement
+  ]);
+  useEffect(() => {
+    if (!autoFocus) return;
+    const frame = requestAnimationFrame(() => textareaRef.current?.focus());
+    return () => cancelAnimationFrame(frame);
+  }, [autoFocus]);
+  const insertMentionTrigger = useCallback(() => {
+    const textarea = textareaRef.current;
+    if (!textarea) return;
+    const start = textarea.selectionStart;
+    const end = textarea.selectionEnd;
+    const nextValue = `${value.slice(0, start)}@${value.slice(end)}`;
+    onChange(nextValue);
+    window.requestAnimationFrame(() => {
+      textarea.focus({ preventScroll: true });
+      textarea.setSelectionRange(start + 1, start + 1);
+    });
+  }, [onChange, value]);
+  const submit = /* @__PURE__ */ jsxs(
+    "button",
+    {
+      type: "button",
+      className: "bb-comments-submit-shortcut",
+      disabled: submitPending || submitDisabled,
+      "aria-label": "Submit comment",
+      title: "Submit comment \xB7 \u2318/Ctrl Enter",
+      onMouseDown: (event) => event.preventDefault(),
+      onClick: () => {
+        if (!submitPending) onSubmit(value);
+      },
+      children: [
+        /* @__PURE__ */ jsx(Command2, { "aria-hidden": "true" }),
+        /* @__PURE__ */ jsx(CornerDownLeft2, { "aria-hidden": "true" })
+      ]
+    }
+  );
+  const footer = /* @__PURE__ */ jsxs(
+    "div",
+    {
+      className: "bb-comments-edit-footer",
+      "data-mention-input-footer": "true",
+      "data-mention-input-footer-state": "expanded",
+      "data-persistent-footer": "true",
+      children: [
+        /* @__PURE__ */ jsx(
+          "button",
+          {
+            type: "button",
+            className: "bb-comments-context-control",
+            "aria-label": "Mention context",
+            disabled: submitPending,
+            onMouseDown: (event) => event.preventDefault(),
+            onClick: insertMentionTrigger,
+            children: /* @__PURE__ */ jsx(AtSign, { "aria-hidden": "true" })
+          }
+        ),
+        submit
+      ]
+    }
+  );
+  return /* @__PURE__ */ jsxs(
+    "div",
+    {
+      ref: rootRef,
+      className: "bb-comments-mention-input",
+      "data-mention-input-expanded": footerVisible ? "true" : "false",
+      "aria-busy": submitPending || void 0,
+      children: [
+        /* @__PURE__ */ jsxs("div", { className: "bb-comments-input-surface", "data-mention-input-surface": "true", children: [
+          /* @__PURE__ */ jsx(
+            "div",
+            {
+              className: "bb-comments-input-row",
+              "data-mention-input-row": "true",
+              "data-responsive-compact": responsiveCompact ? "true" : "false",
+              children: /* @__PURE__ */ jsx(
+                "div",
+                {
+                  ref: inputContentRef,
+                  className: "bb-comments-input-content",
+                  "data-mention-input-content": "true",
+                  children: /* @__PURE__ */ jsx(
+                    "textarea",
+                    {
+                      ref: textareaRef,
+                      className: persistentFooter ? "bb-comments-edit-input" : "bb-comments-reply-input",
+                      "aria-label": ariaLabel,
+                      placeholder,
+                      maxLength: 2e4,
+                      readOnly: submitPending,
+                      "aria-disabled": submitPending || void 0,
+                      value,
+                      onChange: (event) => onChange(event.currentTarget.value),
+                      onKeyDown: (event) => {
+                        if (event.key === "Escape" && onCancel && !submitPending) {
+                          event.preventDefault();
+                          onCancel();
+                          return;
+                        }
+                        if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) {
+                          event.preventDefault();
+                          if (!submitPending && !submitDisabled) onSubmit(value);
+                        }
+                      }
+                    }
+                  )
+                }
+              )
+            }
+          ),
+          error ? /* @__PURE__ */ jsx("div", { className: "bb-comments-error", role: "status", children: error }) : null
+        ] }),
+        persistentFooter ? footerPortalTarget ? createPortal(footer, footerPortalTarget) : footer : /* @__PURE__ */ jsxs(Fragment2, { children: [
+          /* @__PURE__ */ jsx(
+            "div",
+            {
+              className: "bb-comments-responsive-footer",
+              "aria-hidden": "true",
+              "data-mention-input-footer": "true",
+              "data-mention-input-footer-state": footerVisible ? "expanded" : "collapsed",
+              children: /* @__PURE__ */ jsx(
+                "div",
+                {
+                  className: "bb-comments-responsive-footer-divider",
+                  "data-mention-input-footer-divider": "true"
+                }
+              )
+            }
+          ),
+          /* @__PURE__ */ jsxs(
+            "div",
+            {
+              className: "bb-comments-responsive-actions",
+              "data-mention-input-responsive-actions": "true",
+              children: [
+                /* @__PURE__ */ jsxs("div", { className: "bb-comments-responsive-action-switcher", children: [
+                  /* @__PURE__ */ jsx(
+                    "div",
+                    {
+                      className: "bb-comments-compact-actions",
+                      "aria-hidden": footerVisible,
+                      inert: footerVisible || void 0,
+                      "data-mention-input-compact-actions": "true",
+                      children: /* @__PURE__ */ jsx(
+                        "button",
+                        {
+                          type: "button",
+                          className: "bb-comments-context-control",
+                          "aria-label": "Add comment context",
+                          disabled: submitPending,
+                          onMouseDown: (event) => event.preventDefault(),
+                          onClick: insertMentionTrigger,
+                          children: /* @__PURE__ */ jsx(Plus, { "aria-hidden": "true" })
+                        }
+                      )
+                    }
+                  ),
+                  /* @__PURE__ */ jsx(
+                    "div",
+                    {
+                      className: "bb-comments-expanded-actions",
+                      "aria-hidden": !footerVisible,
+                      inert: !footerVisible || void 0,
+                      "data-mention-input-expanded-actions": "true",
+                      children: /* @__PURE__ */ jsx(
+                        "button",
+                        {
+                          type: "button",
+                          className: "bb-comments-context-control",
+                          "aria-label": "Mention context",
+                          disabled: submitPending,
+                          onMouseDown: (event) => event.preventDefault(),
+                          onClick: insertMentionTrigger,
+                          children: /* @__PURE__ */ jsx(AtSign, { "aria-hidden": "true" })
+                        }
+                      )
+                    }
+                  )
+                ] }),
+                /* @__PURE__ */ jsx(
+                  "div",
+                  {
+                    className: "bb-comments-responsive-submit",
+                    "data-mention-input-responsive-submit": "true",
+                    children: submit
+                  }
+                )
+              ]
+            }
+          )
+        ] })
+      ]
+    }
+  );
+}
+function CommentMessage({
+  comment,
+  isLast,
+  isEditing,
+  editFooterPortalTarget,
+  submitPending,
+  onStartEdit,
+  onCancelEdit,
+  onSaveEdit,
+  onDelete
+}) {
+  const rowRef = useRef(null);
+  const editDraftKey = `bb.timeline-comments.edit:${comment.id}`;
+  const [editText, setEditText] = useState(
+    () => readDraft(editDraftKey) ?? comment.body
+  );
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuTriggerRef = useRef(null);
+  const menuRef = useRef(null);
+  const [menuPosition, setMenuPosition] = useState({ top: 0, left: 0 });
+  const runModeTransition = useMeasuredModeTransition(rowRef, isEditing);
+  const wasEditingRef = useRef(isEditing);
+  const cancelEdit = useCallback(() => {
+    sessionStorage.removeItem(editDraftKey);
+    setEditText(comment.body);
+    onCancelEdit();
+  }, [comment.body, editDraftKey, onCancelEdit]);
+  useLayoutEffect(() => {
+    if (wasEditingRef.current && !isEditing) {
+      menuTriggerRef.current?.focus({ preventScroll: true });
+    }
+    wasEditingRef.current = isEditing;
+  }, [isEditing]);
+  useLayoutEffect(() => {
+    const row = rowRef.current;
+    if (!row || typeof row.animate !== "function" || reducedMotion()) return;
+    row.animate(
+      [
+        { opacity: 0, transform: "translateY(-4px)" },
+        { opacity: 1, transform: "translateY(0)" }
+      ],
+      MODE_TRANSITION
+    );
+  }, []);
+  useEffect(
+    () => setEditText(readDraft(editDraftKey) ?? comment.body),
+    [comment.body, editDraftKey]
+  );
+  useLayoutEffect(() => {
+    if (!menuOpen) return;
+    const close = (event) => {
+      if (event.target instanceof Node && (rowRef.current?.contains(event.target) || menuRef.current?.contains(event.target))) return;
+      setMenuOpen(false);
+    };
+    const closeOnFocus = (event) => {
+      if (event.target instanceof Node && (rowRef.current?.contains(event.target) || menuRef.current?.contains(event.target))) return;
+      setMenuOpen(false);
+    };
+    const closeOnScroll = () => setMenuOpen(false);
+    const closeOnEscape = (event) => {
+      if (event.key !== "Escape") return;
+      event.preventDefault();
+      event.stopPropagation();
+      setMenuOpen(false);
+      menuTriggerRef.current?.focus({ preventScroll: true });
+    };
+    document.addEventListener("pointerdown", close, true);
+    document.addEventListener("focusin", closeOnFocus, true);
+    document.addEventListener("keydown", closeOnEscape, true);
+    window.addEventListener("scroll", closeOnScroll, true);
+    return () => {
+      document.removeEventListener("pointerdown", close, true);
+      document.removeEventListener("focusin", closeOnFocus, true);
+      document.removeEventListener("keydown", closeOnEscape, true);
+      window.removeEventListener("scroll", closeOnScroll, true);
+    };
+  }, [menuOpen]);
+  useLayoutEffect(() => {
+    if (!menuOpen) return;
+    const trigger = menuTriggerRef.current;
+    const menu = menuRef.current;
+    if (!trigger || !menu) return;
+    const rect = trigger.getBoundingClientRect();
+    const menuRect = menu.getBoundingClientRect();
+    setMenuPosition({
+      top: Math.min(window.innerHeight - menuRect.height - 8, rect.bottom + 4),
+      left: Math.max(8, Math.min(window.innerWidth - menuRect.width - 8, rect.right - menuRect.width))
+    });
+    menu.querySelector('[role="menuitem"]')?.focus({
+      preventScroll: true
+    });
+  }, [menuOpen]);
+  const onMenuKeyDown = (event) => {
+    const items = [...event.currentTarget.querySelectorAll('[role="menuitem"]')];
+    if (items.length === 0) return;
+    const current = Math.max(0, items.indexOf(document.activeElement));
+    let next = null;
+    if (event.key === "ArrowDown") next = (current + 1) % items.length;
+    if (event.key === "ArrowUp") next = (current - 1 + items.length) % items.length;
+    if (event.key === "Home") next = 0;
+    if (event.key === "End") next = items.length - 1;
+    if (event.key === "Escape") {
+      event.preventDefault();
+      setMenuOpen(false);
+      menuTriggerRef.current?.focus({ preventScroll: true });
+      return;
+    }
+    if (event.key === "Tab") {
+      const moved = menuTriggerRef.current !== null && focusAdjacentToActionsTrigger(menuTriggerRef.current, event.shiftKey);
+      if (moved) {
+        event.preventDefault();
+      }
+      setMenuOpen(false);
+      return;
+    }
+    if (next !== null) {
+      event.preventDefault();
+      items[next]?.focus({ preventScroll: true });
+    }
+  };
+  const menuPortalTarget = rowRef.current?.closest(
+    '[data-bb-plugin-decoration="timeline-comments"]'
+  );
+  return /* @__PURE__ */ jsxs(
+    "article",
+    {
+      ref: rowRef,
+      className: "bb-comments-comment comment-edit-surface",
+      "data-bb-comment-id": comment.id,
+      "data-comment-message": "true",
+      "data-comment-editing": isEditing ? "true" : void 0,
+      "data-editing": isEditing ? "true" : void 0,
+      children: [
+        /* @__PURE__ */ jsxs("header", { className: "bb-comments-message-header", "data-comment-message-header": "true", children: [
+          /* @__PURE__ */ jsxs("div", { children: [
+            /* @__PURE__ */ jsx("strong", { children: "Me" }),
+            /* @__PURE__ */ jsx("time", { dateTime: new Date(comment.createdAt).toISOString(), title: absoluteTime(comment.createdAt), children: relativeTime(comment.createdAt) })
+          ] }),
+          /* @__PURE__ */ jsxs("div", { className: "bb-comments-actions-menu", children: [
+            isEditing ? /* @__PURE__ */ jsx(
+              "button",
+              {
+                type: "button",
+                className: "bb-comments-icon-control bb-comments-edit-cancel",
+                "aria-label": "Cancel comment edit",
+                disabled: submitPending,
+                onClick: () => runModeTransition(cancelEdit),
+                children: /* @__PURE__ */ jsx(X2, { "aria-hidden": "true" })
+              }
+            ) : /* @__PURE__ */ jsx(
+              "button",
+              {
+                ref: menuTriggerRef,
+                type: "button",
+                className: "bb-comments-icon-control",
+                "aria-label": "Comment actions",
+                "aria-haspopup": "menu",
+                "aria-expanded": menuOpen,
+                onClick: () => {
+                  const trigger = menuTriggerRef.current;
+                  if (!menuOpen && trigger && !actionsTriggerIsFullyVisible(trigger)) {
+                    return;
+                  }
+                  flushSync(() => setMenuOpen((open) => !open));
+                },
+                children: /* @__PURE__ */ jsx(Ellipsis, { "aria-hidden": "true" })
+              }
+            ),
+            menuOpen && menuPortalTarget ? createPortal(
+              /* @__PURE__ */ jsxs(
+                "div",
+                {
+                  ref: menuRef,
+                  className: "bb-comments-actions-popover",
+                  role: "menu",
+                  style: { top: menuPosition.top, left: menuPosition.left },
+                  onKeyDown: onMenuKeyDown,
+                  children: [
+                    /* @__PURE__ */ jsxs(
+                      "button",
+                      {
+                        type: "button",
+                        role: "menuitem",
+                        onClick: () => {
+                          setMenuOpen(false);
+                          runModeTransition(onStartEdit);
+                        },
+                        children: [
+                          /* @__PURE__ */ jsx(Pencil2, { "aria-hidden": "true" }),
+                          " Edit"
+                        ]
+                      }
+                    ),
+                    /* @__PURE__ */ jsxs("button", { type: "button", role: "menuitem", className: "bb-comments-destructive", onClick: onDelete, children: [
+                      /* @__PURE__ */ jsx(Trash22, { "aria-hidden": "true" }),
+                      " Delete"
+                    ] })
+                  ]
+                }
+              ),
+              menuPortalTarget
+            ) : null
+          ] })
+        ] }),
+        /* @__PURE__ */ jsx(
+          "div",
+          {
+            className: "bb-comments-edit-composer",
+            "data-comment-edit-composer": isEditing ? "true" : void 0,
+            "data-comment-view-content": isEditing ? void 0 : "true",
+            children: isEditing ? /* @__PURE__ */ jsx(
+              CommentTextInput,
+              {
+                value: editText,
+                onChange: (value) => {
+                  setEditText(value);
+                  if (value === comment.body) sessionStorage.removeItem(editDraftKey);
+                  else writeDraft(editDraftKey, value);
+                },
+                onSubmit: (body) => runModeTransition(() => onSaveEdit(body)),
+                placeholder: "Edit comment\u2026",
+                ariaLabel: "Edit comment",
+                persistentFooter: true,
+                footerPortalTarget: isLast ? editFooterPortalTarget : null,
+                autoFocus: true,
+                onCancel: () => runModeTransition(cancelEdit),
+                submitPending
+              }
+            ) : /* @__PURE__ */ jsx("p", { className: "bb-comments-comment-body", children: comment.body })
+          }
+        )
+      ]
+    }
+  );
+}
+function MossCommentPopover({
+  rpc,
+  initialDetail,
+  onClose,
+  onChanged,
+  onSendToAgent
+}) {
+  const [detail, setDetail] = useState(initialDetail);
+  const [editingId, setEditingId] = useState(null);
+  const replyDraftKey = `bb.timeline-comments.reply:${initialDetail.thread.id}`;
+  const [replyText, setReplyText] = useState(
+    () => readDraft(replyDraftKey) ?? ""
+  );
+  const [error, setError] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const busyRef = useRef(false);
+  const replyRegionRef = useRef(null);
+  const [editFooterHost, setEditFooterHost] = useState(null);
+  const replyStartHeightRef = useRef(null);
+  const replyAnimationRef = useRef(null);
+  const lastCommentId = detail.comments.at(-1)?.id ?? null;
+  const isEditingLast = editingId !== null && editingId === lastCommentId;
+  const beginReplyRegionTransition = useCallback(() => {
+    const region = replyRegionRef.current;
+    if (!region) return;
+    replyAnimationRef.current?.cancel();
+    replyAnimationRef.current = null;
+    region.style.removeProperty("height");
+    region.style.removeProperty("overflow");
+    replyStartHeightRef.current = region.getBoundingClientRect().height;
+  }, []);
+  useLayoutEffect(() => {
+    const region = replyRegionRef.current;
+    const startHeight = replyStartHeightRef.current;
+    replyStartHeightRef.current = null;
+    if (!region || startHeight === null || reducedMotion() || typeof region.animate !== "function") return;
+    const endHeight = region.getBoundingClientRect().height;
+    if (Math.abs(endHeight - startHeight) < 0.5) return;
+    region.style.overflow = "hidden";
+    const animation = region.animate(
+      [{ height: `${startHeight}px` }, { height: `${endHeight}px` }],
+      MODE_TRANSITION
+    );
+    replyAnimationRef.current = animation;
+    animation.addEventListener(
+      "finish",
+      () => {
+        if (replyAnimationRef.current !== animation) return;
+        replyAnimationRef.current = null;
+        region.style.removeProperty("overflow");
+      },
+      { once: true }
+    );
+  }, [isEditingLast]);
+  const mutate = async (operation) => {
+    if (busyRef.current) return null;
+    busyRef.current = true;
+    setBusy(true);
+    setError(null);
+    try {
+      const fresh = await operation();
+      setDetail(fresh);
+      onChanged();
+      return fresh;
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Something went wrong");
+      return null;
+    } finally {
+      busyRef.current = false;
+      setBusy(false);
+    }
+  };
+  const removeComment = async (comment) => {
+    if (busyRef.current) return;
+    busyRef.current = true;
+    setBusy(true);
+    setError(null);
+    try {
+      const result = await rpc.call("deleteComment", {
+        bbThreadId: detail.thread.bbThreadId,
+        commentId: comment.id,
+        expectedVersion: comment.version,
+        expectedThreadVersion: detail.thread.version
+      });
+      if (result.thread === null) onClose();
+      else setDetail(result.thread);
+      onChanged();
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Something went wrong");
+    } finally {
+      busyRef.current = false;
+      setBusy(false);
+    }
+  };
+  const startEdit = (comment) => {
+    if (comment.id === lastCommentId) beginReplyRegionTransition();
+    setEditingId(comment.id);
+  };
+  const finishEdit = () => {
+    if (editingId === lastCommentId) beginReplyRegionTransition();
+    setEditingId(null);
+  };
+  return /* @__PURE__ */ jsxs("div", { className: "bb-comments-thread-inner moss-comment-popover", children: [
+    /* @__PURE__ */ jsxs("header", { className: "bb-comments-thread-header", "data-comment-thread-header": "true", children: [
+      /* @__PURE__ */ jsxs("div", { className: "bb-comments-thread-source", children: [
+        /* @__PURE__ */ jsx(MessageSquareText, { "aria-hidden": "true" }),
+        /* @__PURE__ */ jsx("span", { children: "Comment" })
+      ] }),
+      /* @__PURE__ */ jsxs("div", { className: "bb-comments-header-actions", "data-comment-thread-actions": "true", children: [
+        /* @__PURE__ */ jsx(
+          "button",
+          {
+            type: "button",
+            className: "bb-comments-icon-control",
+            "aria-label": detail.thread.resolvedAt === null ? "Resolve thread" : "Reopen thread",
+            "aria-pressed": detail.thread.resolvedAt !== null,
+            disabled: busy,
+            onClick: () => void mutate(
+              () => rpc.call("setThreadResolved", {
+                bbThreadId: detail.thread.bbThreadId,
+                commentThreadId: detail.thread.id,
+                expectedVersion: detail.thread.version,
+                resolved: detail.thread.resolvedAt === null
+              })
+            ),
+            children: /* @__PURE__ */ jsx(CheckCheck2, { "aria-hidden": "true" })
+          }
+        ),
+        /* @__PURE__ */ jsx("button", { type: "button", className: "bb-comments-icon-control", "aria-label": "Send thread to agent", onClick: onSendToAgent, children: /* @__PURE__ */ jsx(Send, { "aria-hidden": "true" }) }),
+        /* @__PURE__ */ jsx(
+          "button",
+          {
+            type: "button",
+            className: "bb-comments-icon-control bb-comments-destructive",
+            "aria-label": "Delete thread",
+            disabled: busy,
+            onClick: () => {
+              if (!window.confirm("Delete this comment thread?")) return;
+              const rootComment = detail.comments.find((comment) => comment.parentId === null);
+              if (!rootComment) return;
+              void removeComment(rootComment);
+            },
+            children: /* @__PURE__ */ jsx(Trash22, { "aria-hidden": "true" })
+          }
+        )
+      ] })
+    ] }),
+    /* @__PURE__ */ jsx("div", { className: "bb-comments-thread-comments comment-thread-scroll", children: detail.comments.map((comment) => /* @__PURE__ */ jsx(
+      CommentMessage,
+      {
+        comment,
+        isLast: comment.id === lastCommentId,
+        isEditing: editingId === comment.id,
+        editFooterPortalTarget: editFooterHost,
+        submitPending: busy,
+        onStartEdit: () => startEdit(comment),
+        onCancelEdit: finishEdit,
+        onSaveEdit: (body) => {
+          const nextBody = body.trim();
+          if (commentBodyError(nextBody) !== null || nextBody === comment.body) {
+            sessionStorage.removeItem(
+              `bb.timeline-comments.edit:${comment.id}`
+            );
+            finishEdit();
+            return;
+          }
+          void mutate(
+            () => rpc.call("updateComment", {
+              bbThreadId: detail.thread.bbThreadId,
+              commentId: comment.id,
+              expectedVersion: comment.version,
+              body: nextBody
+            })
+          ).then((fresh) => {
+            if (fresh) {
+              sessionStorage.removeItem(
+                `bb.timeline-comments.edit:${comment.id}`
+              );
+              finishEdit();
+            }
+          });
+        },
+        onDelete: () => {
+          if (!window.confirm(comment.parentId === null ? "Delete this comment thread?" : "Delete this reply?")) return;
+          void removeComment(comment);
+        }
+      },
+      comment.id
+    )) }),
+    detail.thread.resolvedAt === null ? /* @__PURE__ */ jsx(
+      "form",
+      {
+        ref: replyRegionRef,
+        className: "bb-comments-reply comment-reply-region",
+        "data-comment-reply-region": "true",
+        "data-editing": editingId && !isEditingLast ? "true" : "false",
+        "data-last-editing": isEditingLast ? "true" : "false",
+        "aria-hidden": editingId && !isEditingLast ? true : void 0,
+        inert: editingId && !isEditingLast ? true : void 0,
+        onSubmit: (event) => event.preventDefault(),
+        children: /* @__PURE__ */ jsxs("div", { className: "bb-comments-reply-inner comment-reply-region-inner", children: [
+          /* @__PURE__ */ jsx(
+            "div",
+            {
+              className: "bb-comments-inline-composer",
+              "data-bb-comment-reply-composer": "true",
+              "data-comment-reply-composer": "true",
+              "aria-hidden": editingId ? true : void 0,
+              inert: editingId ? true : void 0,
+              children: /* @__PURE__ */ jsx(
+                CommentTextInput,
+                {
+                  value: replyText,
+                  onChange: (value) => {
+                    setReplyText(value);
+                    writeDraft(replyDraftKey, value);
+                  },
+                  onSubmit: (body) => {
+                    const nextBody = body.trim();
+                    if (commentBodyError(nextBody) !== null) return;
+                    void mutate(
+                      () => rpc.call("reply", {
+                        bbThreadId: detail.thread.bbThreadId,
+                        commentThreadId: detail.thread.id,
+                        body: nextBody
+                      })
+                    ).then((fresh) => {
+                      if (fresh) {
+                        sessionStorage.removeItem(replyDraftKey);
+                        setReplyText("");
+                      }
+                    });
+                  },
+                  placeholder: "Reply...",
+                  ariaLabel: "Reply to comment thread",
+                  submitPending: busy
+                }
+              )
+            }
+          ),
+          /* @__PURE__ */ jsx(
+            "div",
+            {
+              ref: setEditFooterHost,
+              className: "bb-comments-edit-footer-host",
+              "data-bb-comment-edit-footer-host": "true",
+              "data-comment-edit-footer-host": "true"
+            }
+          )
+        ] })
+      }
+    ) : null,
+    error ? /* @__PURE__ */ jsx("div", { className: "bb-comments-error", role: "status", children: error }) : null
+  ] });
+}
+function mountMossCommentPopover(host, options) {
+  let root = createRoot(host);
+  flushSync(() => {
+    root?.render(/* @__PURE__ */ jsx(MossCommentPopover, { initialDetail: options.detail, ...options }));
+  });
+  return () => {
+    root?.unmount();
+    root = null;
+  };
+}
+function MossNewCommentComposer({
+  initialValue,
+  onChange,
+  onCancel,
+  onSubmit
+}) {
+  const [value, setValue] = useState(initialValue);
+  const [busy, setBusy] = useState(false);
+  const busyRef = useRef(false);
+  const [error, setError] = useState(null);
+  return /* @__PURE__ */ jsxs("div", { className: "bb-comments-new-comment-input", "data-comment-new-composer": "true", children: [
+    /* @__PURE__ */ jsx(
+      CommentTextInput,
+      {
+        value,
+        onChange: (next) => {
+          setValue(next);
+          onChange(next);
+        },
+        onCancel,
+        onSubmit: (body) => {
+          if (busyRef.current || commentBodyError(body) !== null) return;
+          busyRef.current = true;
+          setBusy(true);
+          setError(null);
+          void onSubmit(body).catch(
+            (caught) => setError(
+              caught instanceof Error ? caught.message : "Something went wrong"
+            )
+          ).finally(() => {
+            busyRef.current = false;
+            setBusy(false);
+          });
+        },
+        placeholder: "Add a comment\u2026",
+        ariaLabel: "Add a comment",
+        autoFocus: true,
+        submitPending: busy
+      }
+    ),
+    error ? /* @__PURE__ */ jsx("div", { className: "bb-comments-error", role: "status", children: error }) : null
+  ] });
+}
+function mountMossCommentComposer(host, options) {
+  let root = createRoot(host);
+  flushSync(() => {
+    root?.render(/* @__PURE__ */ jsx(MossNewCommentComposer, { ...options }));
+  });
+  return () => {
+    root?.unmount();
+    root = null;
+  };
+}
+
 // controller.ts
 function contentScriptRpcClient(signal) {
   return {
@@ -454,12 +1855,14 @@ function contentScriptRpcClient(signal) {
 var OWNED = "data-bb-timeline-comments-owned";
 var NORMAL_HIGHLIGHT = "bb-timeline-comments";
 var ACTIVE_HIGHLIGHT = "bb-timeline-comments-active";
-var DRAFT_TTL = 24 * 60 * 60 * 1e3;
+var DRAFT_TTL2 = 24 * 60 * 60 * 1e3;
 var PLUGIN_DECORATION = "data-bb-plugin-decoration";
-var MARKER_SIZE = 32;
+var MARKER_SIZE = 24;
 var MARKER_TEXT_GAP = 8;
+var COMPOSER_WIDTH = 216;
+var POPOVER_WIDTH = 264;
 var MESSAGE_PROSE_SELECTOR = "[data-sidebar-swipe-selectable], [data-no-sidebar-swipe]";
-function readDraft(key) {
+function readDraft2(key) {
   const saved = sessionStorage.getItem(key);
   if (saved === null) return null;
   try {
@@ -472,14 +1875,14 @@ function readDraft(key) {
   sessionStorage.removeItem(key);
   return null;
 }
-function writeDraft(key, body) {
+function writeDraft2(key, body) {
   if (body.trim() === "") {
     sessionStorage.removeItem(key);
     return;
   }
   sessionStorage.setItem(
     key,
-    JSON.stringify({ body, expiresAt: Date.now() + DRAFT_TTL })
+    JSON.stringify({ body, expiresAt: Date.now() + DRAFT_TTL2 })
   );
 }
 function element(tag, className, text) {
@@ -507,7 +1910,7 @@ function formatTime(value) {
     minute: "2-digit"
   }).format(value);
 }
-function relativeTime(value) {
+function relativeTime2(value) {
   const elapsed = Math.max(0, Date.now() - value);
   if (elapsed < 6e4) return "just now";
   if (elapsed < 36e5) {
@@ -545,6 +1948,74 @@ function selectionTextMatches(rangeText, hostText) {
 }
 var inlineComposerAnimations = /* @__PURE__ */ new WeakMap();
 var inlineComposerNaturalHeights = /* @__PURE__ */ new WeakMap();
+var modeTransitionAnimations = /* @__PURE__ */ new WeakMap();
+function runMeasuredModeTransition(element2, update) {
+  const scrollRegion = element2.closest(
+    ".bb-comments-thread-comments"
+  );
+  const scrollTop = scrollRegion?.scrollTop;
+  const running = modeTransitionAnimations.get(element2);
+  const startHeight = element2.getBoundingClientRect().height;
+  running?.cancel();
+  modeTransitionAnimations.delete(element2);
+  element2.style.removeProperty("overflow");
+  update();
+  if (scrollRegion !== null && scrollTop !== void 0) {
+    scrollRegion.scrollTop = scrollTop;
+    requestAnimationFrame(() => {
+      if (scrollRegion.isConnected) scrollRegion.scrollTop = scrollTop;
+    });
+  }
+  const endHeight = element2.getBoundingClientRect().height;
+  if (Math.abs(endHeight - startHeight) < 0.5 || typeof element2.animate !== "function" || matchMedia("(prefers-reduced-motion: reduce)").matches) {
+    return;
+  }
+  element2.style.overflow = "hidden";
+  const animation = element2.animate(
+    [{ height: `${startHeight}px` }, { height: `${endHeight}px` }],
+    {
+      duration: 150,
+      easing: "cubic-bezier(0.22, 1, 0.36, 1)"
+    }
+  );
+  modeTransitionAnimations.set(element2, animation);
+  const finish = () => {
+    if (modeTransitionAnimations.get(element2) !== animation) return;
+    modeTransitionAnimations.delete(element2);
+    element2.style.removeProperty("overflow");
+  };
+  animation.addEventListener("finish", finish, { once: true });
+  animation.addEventListener("cancel", finish, { once: true });
+}
+function removeWithTransition(element2, remove) {
+  if (typeof element2.animate !== "function" || matchMedia("(prefers-reduced-motion: reduce)").matches) {
+    remove();
+    return;
+  }
+  const height = element2.getBoundingClientRect().height;
+  element2.style.overflow = "hidden";
+  const animation = element2.animate(
+    [
+      { height: `${height}px`, opacity: 1 },
+      { height: "0px", opacity: 0 }
+    ],
+    { duration: 150, easing: "cubic-bezier(0.22, 1, 0.36, 1)" }
+  );
+  animation.addEventListener("finish", remove, { once: true });
+  animation.addEventListener("cancel", remove, { once: true });
+}
+function animateInsertion(element2) {
+  if (typeof element2.animate !== "function" || matchMedia("(prefers-reduced-motion: reduce)").matches) {
+    return;
+  }
+  element2.animate(
+    [
+      { opacity: 0, transform: "translateY(-4px)" },
+      { opacity: 1, transform: "translateY(0)" }
+    ],
+    { duration: 150, easing: "cubic-bezier(0.22, 1, 0.36, 1)" }
+  );
+}
 function syncInlineComposerLayout(textarea, composer, animate = true) {
   const styles = getComputedStyle(textarea);
   const lineHeight = Number.parseFloat(styles.lineHeight) || 20;
@@ -587,6 +2058,17 @@ function isRelevantMutation(record) {
     (node) => node instanceof Element && (node.matches(selector) || node.querySelector(selector) !== null)
   );
 }
+function isThreadWindowRendered(windowNode) {
+  if (!windowNode.isConnected) return false;
+  if (windowNode.closest('[aria-hidden="true"], [hidden], [inert]') !== null) {
+    return false;
+  }
+  const checkVisibility = windowNode.checkVisibility;
+  return checkVisibility?.call(windowNode, {
+    contentVisibilityAuto: true,
+    visibilityProperty: true
+  }) ?? true;
+}
 var TimelineCommentsController = class {
   #rpc;
   #portal = decorateRoot(element("div", "bb-comments-portal"));
@@ -595,14 +2077,22 @@ var TimelineCommentsController = class {
   #anchors = /* @__PURE__ */ new Map();
   #restored = /* @__PURE__ */ new Map();
   #threadWindows = /* @__PURE__ */ new Map();
+  #threadWindowVisibility = /* @__PURE__ */ new Map();
   #disposers = [];
   #observer;
   #resizeObserver;
   #refreshNonce = 0;
   #refreshing = null;
+  #refreshQueued = false;
   #frame = null;
   #popover = null;
+  #threadUiCleanup = null;
   #composer = null;
+  #composerUiCleanup = null;
+  #composerThreadId = null;
+  #composerWindow = null;
+  #popoverThreadIds = /* @__PURE__ */ new Set();
+  #popoverWindows = /* @__PURE__ */ new Set();
   #activeIds = /* @__PURE__ */ new Set();
   #provisionalRange = null;
   #openThreadId = null;
@@ -637,9 +2127,21 @@ var TimelineCommentsController = class {
     this.#portal.append(this.#overlay);
     document.body.append(this.#highlightStyle, this.#portal);
     this.#observer = new MutationObserver((records) => {
-      if (records.some(isRelevantMutation)) this.scheduleRefresh();
+      const visibilityChanged = this.reconcileThreadWindowVisibility();
+      if (visibilityChanged) {
+        this.syncAttachedUiVisibility();
+        this.restoreAll();
+      }
+      if (visibilityChanged || records.some(isRelevantMutation)) {
+        this.scheduleRefresh();
+      }
     });
-    this.#observer.observe(document.body, { childList: true, subtree: true });
+    this.#observer.observe(document.body, {
+      childList: true,
+      subtree: true,
+      attributes: true,
+      attributeFilter: ["aria-hidden", "class", "hidden", "inert", "style"]
+    });
     this.#resizeObserver = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(() => this.scheduleLayout());
     const onViewportChange = () => this.scheduleLayout();
     document.addEventListener("scroll", onViewportChange, true);
@@ -693,77 +2195,44 @@ var TimelineCommentsController = class {
     const shell = element("form", "bb-comments-composer");
     shell.setAttribute("role", "dialog");
     shell.setAttribute("aria-label", "Add comment");
-    const textarea = element(
-      "textarea",
-      "bb-comments-textarea"
-    );
-    textarea.placeholder = "Add a comment\u2026";
-    textarea.maxLength = 2e4;
-    textarea.value = readDraft(key) ?? "";
-    const footer = element("div", "bb-comments-composer-footer");
-    footer.append(element("span", "bb-comments-hint", "\u2318/Ctrl Enter"));
-    const submit = element(
-      "button",
-      "bb-comments-primary",
-      "Comment"
-    );
-    submit.type = "submit";
-    footer.append(submit);
-    const error = element("div", "bb-comments-error");
-    error.setAttribute("role", "status");
-    shell.append(textarea, error, footer);
+    const initialValue = readDraft2(key) ?? "";
     const firstRect = captured.rects[0];
     const x = firstRect?.x ?? window.innerWidth / 2;
     const y = captured.rects.at(-1)?.y ?? window.innerHeight / 2;
-    shell.style.left = `${Math.max(8, Math.min(window.innerWidth - 328, x))}px`;
-    shell.style.top = `${Math.max(8, Math.min(window.innerHeight - 180, y + 22))}px`;
-    const validate = () => {
-      const message = commentBodyError(textarea.value);
-      submit.disabled = message !== null;
-      error.textContent = message !== null && textarea.value.trim() !== "" ? message : "";
-      return message;
-    };
-    const persist = () => writeDraft(key, textarea.value);
-    textarea.addEventListener("input", () => {
-      persist();
-      validate();
-    });
-    textarea.addEventListener("keydown", (event) => {
-      if (event.key === "Escape") {
-        event.preventDefault();
+    shell.style.left = `${Math.max(8, Math.min(window.innerWidth - COMPOSER_WIDTH - 8, x))}px`;
+    shell.style.top = `${Math.max(8, Math.min(window.innerHeight - 144, y + 17))}px`;
+    let draftValue = initialValue;
+    const persist = () => writeDraft2(key, draftValue);
+    this.#composerUiCleanup = mountMossCommentComposer(shell, {
+      initialValue,
+      onChange: (value) => {
+        draftValue = value;
+        persist();
+      },
+      onCancel: () => {
         persist();
         this.closeComposer();
-      }
-      if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) {
-        event.preventDefault();
-        shell.requestSubmit();
-      }
-    });
-    shell.addEventListener("submit", (event) => {
-      event.preventDefault();
-      if (validate() !== null) return;
-      submit.disabled = true;
-      error.textContent = "";
-      void this.#rpc.call("createThread", {
-        bbThreadId: context.threadId,
-        message: context.message,
-        selector: {
-          ...captured.selector,
-          rects: captured.rects.map((rect) => ({ ...rect }))
-        },
-        body: textarea.value
-      }).then((detail) => {
+      },
+      onSubmit: async (body) => {
+        const detail = await this.#rpc.call("createThread", {
+          bbThreadId: context.threadId,
+          message: context.message,
+          selector: {
+            ...captured.selector,
+            rects: captured.rects.map((rect) => ({ ...rect }))
+          },
+          body
+        });
         sessionStorage.removeItem(key);
         this.closeComposer();
         this.#openThreadId = detail.thread.id;
-        return this.refresh();
-      }).then(() => this.openThread(detailId(this.#openThreadId))).catch((caught) => {
-        submit.disabled = false;
-        error.textContent = errorMessage(caught);
-      });
+        await this.refresh();
+        await this.openThread(detailId(this.#openThreadId));
+      }
     });
-    validate();
     this.#composer = shell;
+    this.#composerThreadId = context.threadId;
+    this.#composerWindow = captured.threadWindow;
     this.#portal.append(shell);
     this.#outsideComposer = (event) => {
       if (event.target instanceof Node && shell.contains(event.target)) return;
@@ -771,7 +2240,6 @@ var TimelineCommentsController = class {
       this.closeComposer();
     };
     document.addEventListener("pointerdown", this.#outsideComposer, true);
-    requestAnimationFrame(() => textarea.focus());
   }
   refreshAnchors() {
     this.scheduleRefresh();
@@ -787,6 +2255,11 @@ var TimelineCommentsController = class {
       const windows = this.#threadWindows.get(threadId);
       windows?.delete(windowNode);
       if (windows?.size === 0) this.#threadWindows.delete(threadId);
+      if (![...this.#threadWindows.values()].some(
+        (registered) => registered.has(windowNode)
+      )) {
+        this.#threadWindowVisibility.delete(windowNode);
+      }
       this.scheduleRefresh();
     };
   }
@@ -801,6 +2274,10 @@ var TimelineCommentsController = class {
     const size = windows.size;
     windows.add(windowNode);
     this.#threadWindows.set(threadId, windows);
+    this.#threadWindowVisibility.set(
+      windowNode,
+      isThreadWindowRendered(windowNode)
+    );
     if (changed || windows.size !== size) this.scheduleRefresh();
   }
   threadIdForWindow(windowNode) {
@@ -808,6 +2285,35 @@ var TimelineCommentsController = class {
       if (windows.has(windowNode)) return threadId;
     }
     return null;
+  }
+  reconcileThreadWindowVisibility() {
+    let changed = false;
+    for (const windows of this.#threadWindows.values()) {
+      for (const windowNode of windows) {
+        const rendered = isThreadWindowRendered(windowNode);
+        const previous = this.#threadWindowVisibility.get(windowNode);
+        this.#threadWindowVisibility.set(windowNode, rendered);
+        if (previous !== void 0 && previous !== rendered) changed = true;
+      }
+    }
+    return changed;
+  }
+  syncAttachedUiVisibility() {
+    const visibleThreadIds = new Set(
+      [...this.#threadWindows.keys()].filter(
+        (threadId) => this.findWindow(threadId) !== null
+      )
+    );
+    if (this.#composerWindow !== null && !isThreadWindowRendered(this.#composerWindow) || this.#composerWindow === null && this.#composerThreadId !== null && !visibleThreadIds.has(this.#composerThreadId)) {
+      this.closeComposer();
+    }
+    if (this.#popoverWindows.size > 0 && [...this.#popoverWindows].some(
+      (windowNode) => !isThreadWindowRendered(windowNode)
+    ) || this.#popoverWindows.size === 0 && this.#popoverThreadIds.size > 0 && [...this.#popoverThreadIds].some(
+      (threadId) => !visibleThreadIds.has(threadId)
+    )) {
+      this.closePopover(true, false);
+    }
   }
   captureCurrentSelection() {
     const selection = document.getSelection();
@@ -853,7 +2359,9 @@ var TimelineCommentsController = class {
       this.restoreAll();
     }
     const restored = this.#restored.get(anchor.id);
-    if (restored === void 0) return false;
+    if (restored === void 0 || !isThreadWindowRendered(restored.window)) {
+      return false;
+    }
     restored.prose.scrollIntoView({
       block: "center",
       behavior: "smooth"
@@ -870,7 +2378,10 @@ var TimelineCommentsController = class {
   }
   scheduleRefresh() {
     this.#refreshNonce += 1;
+    if (this.#refreshQueued || this.#refreshing !== null) return;
+    this.#refreshQueued = true;
     queueMicrotask(() => {
+      this.#refreshQueued = false;
       void this.refresh().catch((error) => {
         if (!this.#destroyed)
           console.error("timeline-comments refresh failed", error);
@@ -880,20 +2391,23 @@ var TimelineCommentsController = class {
   async refresh() {
     if (this.#destroyed) return;
     if (this.#refreshing !== null) {
-      await this.#refreshing;
-      if (!this.#destroyed) return this.refresh();
-      return;
+      return this.#refreshing;
     }
-    const nonce = this.#refreshNonce;
-    this.#refreshing = this.loadAnchors();
+    this.#refreshing = (async () => {
+      let nonce;
+      do {
+        nonce = this.#refreshNonce;
+        await this.loadAnchors();
+      } while (nonce !== this.#refreshNonce && !this.#destroyed);
+    })();
     try {
       await this.#refreshing;
     } finally {
       this.#refreshing = null;
     }
-    if (nonce !== this.#refreshNonce && !this.#destroyed) await this.refresh();
   }
   async loadAnchors() {
+    this.syncAttachedUiVisibility();
     const threadIds = [...this.#threadWindows.keys()].filter((threadId) => this.findWindow(threadId) !== null).slice(0, 20);
     this.#anchors.clear();
     if (threadIds.length > 0) {
@@ -916,8 +2430,16 @@ var TimelineCommentsController = class {
     const windows = this.#threadWindows.get(threadId);
     if (windows === void 0) return null;
     for (const windowNode of windows) {
-      if (windowNode.isConnected) return windowNode;
-      windows.delete(windowNode);
+      if (!windowNode.isConnected) {
+        windows.delete(windowNode);
+        if (![...this.#threadWindows.values()].some(
+          (registered) => registered.has(windowNode)
+        )) {
+          this.#threadWindowVisibility.delete(windowNode);
+        }
+        continue;
+      }
+      if (isThreadWindowRendered(windowNode)) return windowNode;
     }
     if (windows.size === 0) this.#threadWindows.delete(threadId);
     return null;
@@ -966,11 +2488,12 @@ var TimelineCommentsController = class {
       const fallback = restored.range.getBoundingClientRect();
       const rects = fragments.length > 0 ? fragments : [fallback];
       const proseRect = prose.getBoundingClientRect();
-      const side = chooseNearestGutter(rects, {
-        left: proseRect.left,
-        right: proseRect.right,
-        width: windowNode.getBoundingClientRect().width
-      });
+      const side = chooseAvailableGutter(
+        rects,
+        proseRect,
+        windowNode.getBoundingClientRect(),
+        MARKER_SIZE + MARKER_TEXT_GAP
+      );
       const desiredY = rects.reduce((sum, rect) => sum + rect.top + rect.height / 2, 0) / rects.length;
       this.#restored.set(anchor.id, {
         anchor,
@@ -1033,15 +2556,17 @@ var TimelineCommentsController = class {
       const fragments = rects.length > 0 ? rects : [bounding];
       restored.desiredY = fragments.reduce((sum, rect) => sum + rect.top + rect.height / 2, 0) / fragments.length;
       const proseRect = restored.prose.getBoundingClientRect();
-      restored.side = chooseNearestGutter(fragments, {
-        left: proseRect.left,
-        right: proseRect.right,
-        width: restored.window.getBoundingClientRect().width
-      });
+      restored.side = chooseAvailableGutter(
+        fragments,
+        proseRect,
+        restored.window.getBoundingClientRect(),
+        MARKER_SIZE + MARKER_TEXT_GAP
+      );
       restored.marker = null;
     }
     const groups = /* @__PURE__ */ new Map();
     for (const restored of this.#restored.values()) {
+      if (restored.side === null) continue;
       const key = `${restored.anchor.bbThreadId}:${restored.side}`;
       const list = groups.get(key) ?? [];
       list.push(restored);
@@ -1054,20 +2579,23 @@ var TimelineCommentsController = class {
       for (const placement of layoutGutterMarkers(
         list.map(({ anchor, desiredY }) => ({ id: anchor.id, desiredY })),
         top,
-        bottom
+        bottom,
+        MARKER_SIZE
       )) {
         const threads = placement.ids.map((id) => this.#restored.get(id)).filter(Boolean);
+        const side = threads[0]?.side;
+        if (side === null || side === void 0) continue;
         const marker = element(
           "button",
           "bb-comments-marker"
         );
         marker.type = "button";
-        marker.dataset.bbCommentGutter = threads[0].side;
+        marker.dataset.bbCommentGutter = side;
         marker.style.top = `${placement.y}px`;
         const proseRects = threads.map(
           ({ prose }) => prose.getBoundingClientRect()
         );
-        const gutterX = threads[0].side === "left" ? Math.min(...proseRects.map(({ left }) => left)) - MARKER_SIZE - MARKER_TEXT_GAP : Math.max(...proseRects.map(({ right }) => right)) + MARKER_TEXT_GAP;
+        const gutterX = side === "left" ? Math.min(...proseRects.map(({ left }) => left)) - MARKER_SIZE - MARKER_TEXT_GAP : Math.max(...proseRects.map(({ right }) => right)) + MARKER_TEXT_GAP;
         marker.style.left = `${Math.max(
           8,
           Math.min(window.innerWidth - MARKER_SIZE - 8, gutterX)
@@ -1102,6 +2630,9 @@ var TimelineCommentsController = class {
         for (const thread of threads) thread.marker = marker;
       }
     }
+    if (this.#openThreadId !== null && this.#restored.get(this.#openThreadId)?.marker === null) {
+      this.closePopover();
+    }
   }
   setActive(ids) {
     this.#activeIds = new Set(ids);
@@ -1128,6 +2659,10 @@ var TimelineCommentsController = class {
       menu.append(button);
     }
     this.#popover = menu;
+    this.#popoverThreadIds = new Set(
+      threads.map(({ anchor }) => anchor.bbThreadId)
+    );
+    this.#popoverWindows = new Set(threads.map(({ window: window2 }) => window2));
     this.#portal.append(menu);
     this.installPopoverDismissal(marker);
     this.positionNear(marker, menu);
@@ -1136,6 +2671,9 @@ var TimelineCommentsController = class {
   async openThread(commentThreadId, fallbackAnchor) {
     const anchor = this.#anchors.get(commentThreadId) ?? this.#restored.get(commentThreadId)?.anchor ?? fallbackAnchor;
     if (anchor === void 0) return;
+    const restored = this.#restored.get(commentThreadId);
+    const parentWindow = restored?.window ?? this.findWindow(anchor.bbThreadId);
+    if (parentWindow === null || !isThreadWindowRendered(parentWindow)) return;
     this.#openThreadId = commentThreadId;
     this.closePopover(false);
     this.setActive([commentThreadId]);
@@ -1148,6 +2686,9 @@ var TimelineCommentsController = class {
     popover.tabIndex = -1;
     popover.append(element("div", "bb-comments-loading", "Loading\u2026"));
     this.#popover = popover;
+    this.#popoverThreadIds = /* @__PURE__ */ new Set([anchor.bbThreadId]);
+    const restoredWindow = restored?.window ?? parentWindow;
+    this.#popoverWindows = restoredWindow === void 0 ? /* @__PURE__ */ new Set() : /* @__PURE__ */ new Set([restoredWindow]);
     this.#portal.append(popover);
     this.installPopoverDismissal(
       this.#restored.get(commentThreadId)?.marker ?? null
@@ -1180,6 +2721,28 @@ var TimelineCommentsController = class {
     return detail;
   }
   renderThreadPopover(popover, detail) {
+    this.#threadUiCleanup?.();
+    this.#threadUiCleanup = null;
+    this.closeActionsMenu();
+    delete popover.dataset.editing;
+    popover.replaceChildren();
+    this.#threadUiCleanup = mountMossCommentPopover(popover, {
+      rpc: this.#rpc,
+      detail,
+      onClose: () => this.closePopover(),
+      onChanged: () => this.scheduleRefresh(),
+      onSendToAgent: () => {
+        void requestTimelineCommentHandoff(detail.thread.bbThreadId).then(
+          (accepted) => {
+            if (accepted && this.#popover === popover) {
+              this.closePopover(true, false);
+            }
+          }
+        );
+      }
+    });
+  }
+  renderLegacyThreadPopover(popover, detail) {
     this.closeActionsMenu();
     delete popover.dataset.editing;
     popover.replaceChildren();
@@ -1252,7 +2815,16 @@ var TimelineCommentsController = class {
     popover.append(comments);
     if (detail.thread.resolvedAt === null) {
       const reply = element("form", "bb-comments-reply");
+      reply.dataset.editing = "false";
+      reply.dataset.lastEditing = "false";
+      const replyInner = element("div", "bb-comments-reply-inner");
       const replyComposer = element("div", "bb-comments-inline-composer");
+      replyComposer.dataset.bbCommentReplyComposer = "true";
+      const editFooterHost = element(
+        "div",
+        "bb-comments-edit-footer-host"
+      );
+      editFooterHost.dataset.bbCommentEditFooterHost = "true";
       const draftKey = `bb.timeline-comments.reply:${detail.thread.id}`;
       const textarea = element(
         "textarea",
@@ -1260,7 +2832,7 @@ var TimelineCommentsController = class {
       );
       textarea.placeholder = "Reply...";
       textarea.maxLength = 2e4;
-      textarea.value = readDraft(draftKey) ?? "";
+      textarea.value = readDraft2(draftKey) ?? "";
       const send = element(
         "button",
         "bb-comments-submit-shortcut"
@@ -1278,7 +2850,7 @@ var TimelineCommentsController = class {
         return message;
       };
       textarea.addEventListener("input", () => {
-        writeDraft(draftKey, textarea.value);
+        writeDraft2(draftKey, textarea.value);
         syncInlineComposerLayout(textarea, replyComposer);
         validate();
       });
@@ -1289,7 +2861,8 @@ var TimelineCommentsController = class {
         }
       });
       replyComposer.append(textarea, send);
-      reply.append(replyComposer, error);
+      replyInner.append(replyComposer, error, editFooterHost);
+      reply.append(replyInner);
       reply.addEventListener("submit", (event) => {
         event.preventDefault();
         if (validate() !== null) return;
@@ -1298,9 +2871,23 @@ var TimelineCommentsController = class {
           bbThreadId: detail.thread.bbThreadId,
           commentThreadId: detail.thread.id,
           body: textarea.value
-        }).then(() => {
+        }).then((result) => {
+          if (this.#popover !== popover) return;
+          const fresh = result;
+          const knownIds = new Set(detail.comments.map(({ id }) => id));
+          Object.assign(detail.thread, fresh.thread);
+          detail.comments.splice(0, detail.comments.length, ...fresh.comments);
           sessionStorage.removeItem(draftKey);
-          return this.openThread(detail.thread.id);
+          textarea.value = "";
+          syncInlineComposerLayout(textarea, replyComposer);
+          validate();
+          for (const freshComment of fresh.comments) {
+            if (knownIds.has(freshComment.id)) continue;
+            const freshRow = this.renderComment(detail, freshComment, popover);
+            comments.append(freshRow);
+            animateInsertion(freshRow);
+          }
+          this.scheduleRefresh();
         }).catch((caught) => {
           send.disabled = false;
           this.handlePopoverMutationError(popover, detail, caught);
@@ -1314,18 +2901,23 @@ var TimelineCommentsController = class {
   renderComment(detail, comment, popover) {
     const row = element("article", "bb-comments-comment");
     row.dataset.bbCommentId = comment.id;
+    let currentComment = comment;
     const buildHeader = (action) => {
       const header = element("header", "bb-comments-message-header");
       const byline = element("div");
       byline.append(element("strong", void 0, "Me"));
-      const timestamp = element("time", void 0, relativeTime(comment.createdAt));
-      timestamp.dateTime = new Date(comment.createdAt).toISOString();
-      timestamp.title = formatTime(comment.createdAt);
+      const timestamp = element(
+        "time",
+        void 0,
+        relativeTime2(currentComment.createdAt)
+      );
+      timestamp.dateTime = new Date(currentComment.createdAt).toISOString();
+      timestamp.title = formatTime(currentComment.createdAt);
       byline.append(timestamp);
       header.append(byline, action);
       return header;
     };
-    const body = element("p", "bb-comments-comment-body", comment.body);
+    const body = element("p", "bb-comments-comment-body", currentComment.body);
     const actions = element("div", "bb-comments-actions-menu");
     const actionsTrigger = element(
       "button",
@@ -1337,6 +2929,14 @@ var TimelineCommentsController = class {
     actionsTrigger.setAttribute("aria-expanded", "false");
     actionsTrigger.title = "Comment actions";
     actionsTrigger.append(icon(EllipsisVertical));
+    const cancel = element(
+      "button",
+      "bb-comments-icon-control bb-comments-edit-cancel"
+    );
+    cancel.type = "button";
+    cancel.setAttribute("aria-label", "Cancel comment edit");
+    cancel.title = "Cancel edit";
+    cancel.append(icon(X));
     const actionsMenu = element("div", "bb-comments-actions-popover");
     actionsMenu.setAttribute("role", "menu");
     const menuItems = () => [...actionsMenu.querySelectorAll('[role="menuitem"]')].filter((item) => !item.disabled);
@@ -1379,84 +2979,136 @@ var TimelineCommentsController = class {
     edit.tabIndex = -1;
     edit.setAttribute("role", "menuitem");
     edit.append(icon(Pencil), document.createTextNode("Edit"));
-    edit.addEventListener("click", () => {
-      const draftKey = `bb.timeline-comments.edit:${comment.id}`;
-      popover.dataset.editing = "true";
-      row.dataset.editing = "true";
-      this.closeActionsMenu();
-      const textarea = element(
-        "textarea",
-        "bb-comments-edit-input"
+    const draftKey = `bb.timeline-comments.edit:${comment.id}`;
+    const textarea = element(
+      "textarea",
+      "bb-comments-edit-input"
+    );
+    textarea.setAttribute("aria-label", "Edit comment");
+    textarea.maxLength = 2e4;
+    const editComposer = element("div", "bb-comments-edit-composer");
+    const localFooterHost = element(
+      "div",
+      "bb-comments-local-edit-footer-host"
+    );
+    const editFooter = element("div", "bb-comments-edit-footer");
+    const save = element(
+      "button",
+      "bb-comments-edit-submit"
+    );
+    save.type = "button";
+    save.append(icon(Command), icon(CornerDownLeft));
+    save.setAttribute("aria-label", "Save comment");
+    save.title = "Save comment \xB7 \u2318/Ctrl Enter";
+    editFooter.append(save);
+    localFooterHost.append(editFooter);
+    const error = element("div", "bb-comments-error");
+    error.setAttribute("role", "status");
+    editComposer.append(textarea, error, localFooterHost);
+    const validate = () => {
+      const message = commentBodyError(textarea.value);
+      save.disabled = message !== null;
+      error.textContent = message !== null && textarea.value.trim() !== "" ? message : "";
+      return message;
+    };
+    const resetReplyRegion = () => {
+      const reply = popover.querySelector(".bb-comments-reply");
+      if (reply === null) return;
+      reply.dataset.editing = "false";
+      reply.dataset.lastEditing = "false";
+      reply.removeAttribute("aria-hidden");
+      reply.removeAttribute("inert");
+      const replyComposer = reply.querySelector(
+        "[data-bb-comment-reply-composer]"
       );
-      textarea.setAttribute("aria-label", "Edit comment");
-      textarea.maxLength = 2e4;
-      textarea.value = readDraft(draftKey) ?? comment.body;
-      const editComposer = element("div", "bb-comments-inline-composer");
-      const save = element(
-        "button",
-        "bb-comments-submit-shortcut"
-      );
-      save.type = "button";
-      save.append(icon(Command), icon(CornerDownLeft));
-      save.setAttribute("aria-label", "Save comment");
-      save.title = "Save comment \xB7 \u2318/Ctrl Enter";
-      const error = element("div", "bb-comments-error");
-      error.setAttribute("role", "status");
-      const validate = () => {
-        const message = commentBodyError(textarea.value);
-        save.disabled = message !== null;
-        error.textContent = message !== null && textarea.value.trim() !== "" ? message : "";
-        return message;
-      };
-      const cancelEdit = () => {
+      replyComposer?.removeAttribute("aria-hidden");
+      replyComposer?.removeAttribute("inert");
+      localFooterHost.append(editFooter);
+    };
+    const finishEdit = (focusTrigger) => {
+      runMeasuredModeTransition(row, () => {
+        delete popover.dataset.editing;
+        delete row.dataset.editing;
+        resetReplyRegion();
+      });
+      if (focusTrigger) actionsTrigger.focus({ preventScroll: true });
+    };
+    const cancelEdit = () => {
+      sessionStorage.removeItem(draftKey);
+      finishEdit(true);
+    };
+    cancel.addEventListener("click", cancelEdit);
+    textarea.addEventListener("input", () => {
+      if (textarea.value === currentComment.body)
         sessionStorage.removeItem(draftKey);
-        this.renderThreadPopover(popover, detail);
-        popover.querySelector(
-          `[data-bb-comment-id="${escapeSelector(comment.id)}"] .bb-comments-actions-menu > button[aria-label="Comment actions"]`
-        )?.focus({ preventScroll: true });
-      };
-      textarea.addEventListener("input", () => {
-        if (textarea.value === comment.body) sessionStorage.removeItem(draftKey);
-        else writeDraft(draftKey, textarea.value);
-        syncInlineComposerLayout(textarea, editComposer);
-        validate();
-      });
-      textarea.addEventListener("keydown", (event) => {
-        if (event.key === "Escape") {
-          event.preventDefault();
-          cancelEdit();
-        }
-        if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) {
-          event.preventDefault();
-          save.click();
-        }
-      });
-      save.addEventListener("click", () => {
-        if (validate() !== null) return;
-        const body2 = textarea.value.trim();
-        if (body2 === comment.body) {
-          cancelEdit();
-          return;
-        }
-        save.disabled = true;
-        void this.#rpc.call("updateComment", {
-          bbThreadId: detail.thread.bbThreadId,
-          commentId: comment.id,
-          expectedVersion: comment.version,
-          body: body2
-        }).then(() => {
-          sessionStorage.removeItem(draftKey);
-          return this.openThread(detail.thread.id);
-        }).catch((caught) => {
-          save.disabled = false;
-          this.handlePopoverMutationError(popover, detail, caught);
-        });
-      });
-      editComposer.append(textarea, save);
-      row.replaceChildren(buildHeader(actions), editComposer, error);
-      syncInlineComposerLayout(textarea, editComposer, false);
+      else writeDraft2(draftKey, textarea.value);
       validate();
-      textarea.focus();
+    });
+    textarea.addEventListener("keydown", (event) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        cancelEdit();
+      }
+      if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) {
+        event.preventDefault();
+        save.click();
+      }
+    });
+    save.addEventListener("click", () => {
+      if (validate() !== null) return;
+      const nextBody = textarea.value.trim();
+      if (nextBody === currentComment.body) {
+        cancelEdit();
+        return;
+      }
+      save.disabled = true;
+      void this.#rpc.call("updateComment", {
+        bbThreadId: detail.thread.bbThreadId,
+        commentId: currentComment.id,
+        expectedVersion: currentComment.version,
+        body: nextBody
+      }).then((result) => {
+        if (this.#popover !== popover) return;
+        const fresh = result;
+        const updated = fresh.comments.find(({ id }) => id === currentComment.id);
+        if (updated !== void 0) currentComment = updated;
+        Object.assign(detail.thread, fresh.thread);
+        body.textContent = currentComment.body;
+        sessionStorage.removeItem(draftKey);
+        finishEdit(false);
+        this.scheduleRefresh();
+      }).catch((caught) => {
+        save.disabled = false;
+        this.handlePopoverMutationError(popover, detail, caught);
+      });
+    });
+    edit.addEventListener("click", () => {
+      if (popover.dataset.editing !== void 0) return;
+      this.closeActionsMenu();
+      textarea.value = readDraft2(draftKey) ?? currentComment.body;
+      const isLastComment = detail.comments.at(-1)?.id === currentComment.id;
+      const reply = popover.querySelector(".bb-comments-reply");
+      runMeasuredModeTransition(row, () => {
+        popover.dataset.editing = currentComment.id;
+        row.dataset.editing = "true";
+        if (reply !== null) {
+          if (isLastComment) {
+            reply.dataset.lastEditing = "true";
+            const replyComposer = reply.querySelector(
+              "[data-bb-comment-reply-composer]"
+            );
+            replyComposer?.setAttribute("aria-hidden", "true");
+            replyComposer?.setAttribute("inert", "");
+            reply.querySelector("[data-bb-comment-edit-footer-host]")?.append(editFooter);
+          } else {
+            reply.dataset.editing = "true";
+            reply.setAttribute("aria-hidden", "true");
+            reply.setAttribute("inert", "");
+          }
+        }
+      });
+      validate();
+      textarea.focus({ preventScroll: true });
     });
     const remove = element(
       "button",
@@ -1468,18 +3120,27 @@ var TimelineCommentsController = class {
     remove.append(icon(Trash2), document.createTextNode("Delete"));
     remove.addEventListener("click", () => {
       if (!window.confirm(
-        comment.parentId === null ? "Delete this comment thread?" : "Delete this reply?"
+        currentComment.parentId === null ? "Delete this comment thread?" : "Delete this reply?"
       ))
         return;
       remove.disabled = true;
       void this.#rpc.call("deleteComment", {
         bbThreadId: detail.thread.bbThreadId,
-        commentId: comment.id,
-        expectedVersion: comment.version,
+        commentId: currentComment.id,
+        expectedVersion: currentComment.version,
         expectedThreadVersion: detail.thread.version
       }).then((result) => {
-        if (result.deletedThreadId !== null) this.closePopover();
-        else void this.openThread(detail.thread.id);
+        if (result.deletedThreadId !== null) {
+          this.closePopover();
+        } else if (result.thread !== null) {
+          Object.assign(detail.thread, result.thread.thread);
+          detail.comments.splice(
+            0,
+            detail.comments.length,
+            ...result.thread.comments
+          );
+          removeWithTransition(row, () => row.remove());
+        }
         this.scheduleRefresh();
       }).catch((caught) => {
         remove.disabled = false;
@@ -1487,8 +3148,8 @@ var TimelineCommentsController = class {
       });
     });
     actionsMenu.append(edit, remove);
-    actions.append(actionsTrigger);
-    row.append(buildHeader(actions), body);
+    actions.append(actionsTrigger, cancel);
+    row.append(buildHeader(actions), body, editComposer);
     return row;
   }
   focusAdjacentToActionsTrigger(trigger, backwards) {
@@ -1599,19 +3260,36 @@ var TimelineCommentsController = class {
     this.removePopoverDismissal();
     this.#popoverInvoker = invoker;
     this.#outsidePopover = (event) => {
-      if (event.target instanceof Node && (this.#popover?.contains(event.target) === true || this.#popoverInvoker?.contains(event.target) === true || this.#actionsMenu?.contains(event.target) === true)) {
+      if (event.target instanceof Node && (this.#popover?.contains(event.target) === true || this.#popoverInvoker?.contains(event.target) === true || this.#actionsMenu?.contains(event.target) === true || this.#portal.querySelector(".bb-comments-actions-popover")?.contains(event.target) === true)) {
         return;
       }
       this.closePopover();
     };
     this.#popoverKeydown = (event) => {
       if (event.key !== "Escape") return;
+      const componentMenu = this.#portal.querySelector(
+        ".bb-comments-actions-popover"
+      );
+      if (componentMenu !== null) {
+        event.preventDefault();
+        event.stopPropagation();
+        this.#popover?.querySelector(
+          'button[aria-label="Comment actions"][aria-expanded="true"]'
+        )?.click();
+        return;
+      }
       if (this.#actionsMenu !== null) {
         event.preventDefault();
         this.closeActionsMenu(true);
         return;
       }
-      if (event.target instanceof Element && event.target.closest(".bb-comments-edit-input") !== null) {
+      const cancelEdit = this.#popover?.querySelector(
+        'button[aria-label="Cancel comment edit"]'
+      );
+      if (this.#popover?.querySelector('[data-comment-editing="true"]') !== null && cancelEdit != null) {
+        event.preventDefault();
+        event.stopPropagation();
+        cancelEdit.click();
         return;
       }
       event.preventDefault();
@@ -1638,7 +3316,7 @@ var TimelineCommentsController = class {
   }
   positionNear(anchor, popover) {
     const rect = anchor.getBoundingClientRect();
-    const width = Math.min(340, window.innerWidth - 16);
+    const width = Math.min(POPOVER_WIDTH, window.innerWidth - 16);
     popover.style.width = `${width}px`;
     const leftOption = rect.left - width - 8;
     const rightOption = rect.right + 8;
@@ -1658,23 +3336,31 @@ var TimelineCommentsController = class {
       document.removeEventListener("pointerdown", this.#outsideComposer, true);
       this.#outsideComposer = null;
     }
+    this.#composerUiCleanup?.();
+    this.#composerUiCleanup = null;
     this.#composer?.remove();
     this.#composer = null;
+    this.#composerThreadId = null;
+    this.#composerWindow = null;
     this.#provisionalRange = null;
     this.rebuildHighlights();
   }
-  closePopover(clearOpen = true) {
+  closePopover(clearOpen = true, restoreFocus = true) {
     const invoker = this.#popoverInvoker;
     const currentMarker = this.#openThreadId === null ? null : this.#restored.get(this.#openThreadId)?.marker ?? null;
     const focusTarget = invoker?.isConnected === true ? invoker : currentMarker;
     this.closeActionsMenu();
     this.removePopoverDismissal();
+    this.#threadUiCleanup?.();
+    this.#threadUiCleanup = null;
     this.#popoverInvoker = null;
     this.#popover?.remove();
     this.#popover = null;
+    this.#popoverThreadIds.clear();
+    this.#popoverWindows.clear();
     if (clearOpen) this.#openThreadId = null;
     this.setActive([]);
-    if (clearOpen && focusTarget?.isConnected === true) {
+    if (restoreFocus && clearOpen && focusTarget?.isConnected === true) {
       focusTarget.focus({ preventScroll: true });
     }
   }
@@ -1704,18 +3390,6 @@ function mountTimelineCommentsController(context) {
   return () => controller.destroy();
 }
 
-// bb-plugin-runtime-shim:react/jsx-runtime
-var runtime3 = globalThis.__bbPluginRuntime;
-if (runtime3 == null || runtime3.jsxRuntime == null) {
-  throw new Error('Cannot load "react/jsx-runtime": this bundle must be loaded by the BB app, which provides the shared plugin runtime (globalThis.__bbPluginRuntime).');
-}
-var mod3 = runtime3.jsxRuntime;
-var {
-  Fragment: Fragment2,
-  jsx,
-  jsxs
-} = mod3;
-
 // app.tsx
 function errorMessage2(error) {
   return error instanceof Error ? error.message : "Something went wrong";
@@ -1723,13 +3397,77 @@ function errorMessage2(error) {
 function excerpt(value, length) {
   return value.length > length ? `${value.slice(0, length - 1)}\u2026` : value;
 }
+function threadWindowForNode(node) {
+  return node?.closest("[data-thread-window]") ?? document.querySelector(
+    '[data-split-pane-id][data-focused="true"] [data-thread-window]'
+  ) ?? (document.querySelectorAll("[data-thread-window]").length === 1 ? document.querySelector("[data-thread-window]") : null);
+}
+function TimelineCommentHandoffBridge() {
+  const rpc = useRpc();
+  const composer = useComposer();
+  const composerRef = useRef(composer);
+  const root = useRef(null);
+  const requestGeneration = useRef(0);
+  const requestPending = useRef(false);
+  const threadId = composer.scope.kind === "thread" ? composer.scope.threadId : null;
+  useLayoutEffect(() => {
+    composerRef.current = composer;
+  }, [composer]);
+  useLayoutEffect(() => {
+    if (threadId === null) return;
+    const generation = ++requestGeneration.current;
+    let mounted = true;
+    const threadWindow = threadWindowForNode(root.current);
+    if (threadWindow === null) return;
+    const unregisterWindow = registerTimelineCommentThreadWindow(
+      threadId,
+      threadWindow
+    );
+    const unregisterHandoff = subscribeTimelineCommentHandoff({
+      threadId,
+      getThreadWindow: () => threadWindow,
+      accept: async () => {
+        if (requestPending.current) return false;
+        requestPending.current = true;
+        try {
+          const summary = await rpc.call("getThreadHandoffSummary", {
+            bbThreadId: threadId
+          });
+          if (!mounted || generation !== requestGeneration.current || summary.threadCount === 0) {
+            return false;
+          }
+          composerRef.current.insertMention({
+            provider: "thread-comments",
+            id: threadId,
+            label: `${summary.commentCount} ${summary.commentCount === 1 ? "comment" : "comments"} from ${summary.threadCount} open ${summary.threadCount === 1 ? "thread" : "threads"}`
+          });
+          composerRef.current.focus();
+          return true;
+        } catch {
+          return false;
+        } finally {
+          if (generation === requestGeneration.current) {
+            requestPending.current = false;
+          }
+        }
+      }
+    });
+    return () => {
+      mounted = false;
+      requestGeneration.current += 1;
+      requestPending.current = false;
+      unregisterHandoff();
+      unregisterWindow();
+    };
+  }, [rpc, threadId]);
+  return /* @__PURE__ */ jsx("span", { ref: root, hidden: true, "aria-hidden": "true" });
+}
 function AddCommentsAction() {
   const rpc = useRpc();
   const composer = useComposer();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
   const [notice, setNotice] = useState(null);
-  const actionRoot = useRef(null);
   const requestGeneration = useRef(0);
   const threadId = composer.scope.kind === "thread" ? composer.scope.threadId : null;
   const currentThreadId = useRef(threadId);
@@ -1750,38 +3488,8 @@ function AddCommentsAction() {
       refreshTimelineCommentAnchors();
     }
   });
-  useLayoutEffect(() => {
+  const addComments = useCallback(async () => {
     if (threadId === null) return;
-    const closestWindow = actionRoot.current?.closest(
-      "[data-thread-window]"
-    );
-    const visibleWindows = document.querySelectorAll(
-      "[data-thread-window]"
-    );
-    const overflowContent = actionRoot.current?.closest(
-      "[data-plugin-composer-action-overflow]"
-    );
-    const controlledTrigger = overflowContent?.id === void 0 || overflowContent.id === "" ? null : [...document.querySelectorAll("[aria-controls]")].find(
-      (node) => node.getAttribute("aria-controls") === overflowContent.id
-    ) ?? null;
-    const openOverflowTriggers = [
-      ...document.querySelectorAll(
-        '[aria-label="More plugin actions"][aria-expanded="true"]'
-      )
-    ];
-    const overflowTrigger = controlledTrigger ?? (openOverflowTriggers.length === 1 ? openOverflowTriggers[0] : null);
-    const overflowWindow = overflowTrigger?.closest(
-      "[data-thread-window]"
-    );
-    const focusedWindow = overflowContent === void 0 || overflowContent === null ? document.querySelector(
-      '[data-split-pane-id][data-focused="true"] [data-thread-window]'
-    ) : null;
-    const threadWindow = closestWindow ?? overflowWindow ?? focusedWindow ?? (overflowContent === void 0 || overflowContent === null ? visibleWindows.length === 1 ? visibleWindows[0] : null : null);
-    if (threadWindow === void 0 || threadWindow === null) return;
-    return registerTimelineCommentThreadWindow(threadId, threadWindow);
-  }, [threadId]);
-  if (threadId === null) return null;
-  const addComments = async () => {
     const generation = ++requestGeneration.current;
     const isCurrentRequest = () => generation === requestGeneration.current && currentThreadId.current === threadId;
     setBusy(true);
@@ -1807,8 +3515,9 @@ function AddCommentsAction() {
     } finally {
       if (isCurrentRequest()) setBusy(false);
     }
-  };
-  return /* @__PURE__ */ jsxs("span", { ref: actionRoot, className: "bb-comments-composer-action-wrap", children: [
+  }, [composer, rpc, threadId]);
+  if (threadId === null) return null;
+  return /* @__PURE__ */ jsxs("span", { className: "bb-comments-composer-action-wrap", children: [
     error !== null ? /* @__PURE__ */ jsx("span", { className: "bb-comments-composer-action-error", role: "alert", children: "Couldn\u2019t add comments" }) : null,
     notice !== null ? /* @__PURE__ */ jsx("span", { className: "bb-comments-composer-action-status", role: "status", children: notice }) : null,
     /* @__PURE__ */ jsx(
@@ -1821,7 +3530,14 @@ function AddCommentsAction() {
         disabled: busy,
         onMouseDown: (event) => event.preventDefault(),
         onClick: () => void addComments(),
-        children: /* @__PURE__ */ jsx(MessageSquareText, { "aria-hidden": "true", size: 16, strokeWidth: 1.5 })
+        children: /* @__PURE__ */ jsx("span", { className: "bb-comments-composer-action-icon", children: /* @__PURE__ */ jsx(
+          HugeiconsIcon,
+          {
+            icon: ChatFeedback01Icon,
+            "aria-hidden": "true",
+            "data-icon": "ChatFeedback"
+          }
+        ) })
       }
     )
   ] });
@@ -2006,19 +3722,26 @@ var app_default = definePluginApp((app) => {
   app.composer.customize({
     id: "timeline-comments",
     scopes: ["thread"],
-    actions: [{ id: "add-comments", component: AddCommentsAction }]
+    actions: [{ id: "add-comments", component: AddCommentsAction }],
+    banners: [
+      {
+        id: "comment-handoff-bridge",
+        chrome: "bare",
+        component: TimelineCommentHandoffBridge
+      }
+    ]
   });
   app.slots.threadPanelAction({
     id: "comments",
     title: "Comments",
-    icon: "MessageSquare",
+    icon: "ChatFeedback",
     component: CommentPanel,
     layout: "flush"
   });
   app.slots.messageAction({
     id: "comment-selection",
     title: "Comment",
-    icon: "MessageSquare",
+    icon: "ChatFeedback",
     run(context) {
       if (context.selectedText === void 0) {
         context.openPanel({ actionId: "comments", title: "Comments" });
@@ -2033,19 +3756,6 @@ export {
 };
 /*! Bundled license information:
 
-lucide-react/dist/esm/shared/src/utils.js:
-lucide-react/dist/esm/defaultAttributes.js:
-lucide-react/dist/esm/Icon.js:
-lucide-react/dist/esm/createLucideIcon.js:
-lucide-react/dist/esm/icons/message-square-text.js:
-lucide-react/dist/esm/lucide-react.js:
-  (**
-   * @license lucide-react v0.474.0 - ISC
-   *
-   * This source code is licensed under the ISC license.
-   * See the LICENSE file in the root directory of this source tree.
-   *)
-
 lucide/dist/esm/createElement.js:
 lucide/dist/esm/defaultAttributes.js:
 lucide/dist/esm/icons/check-check.js:
@@ -2055,9 +3765,33 @@ lucide/dist/esm/icons/ellipsis-vertical.js:
 lucide/dist/esm/icons/pencil.js:
 lucide/dist/esm/icons/sticky-note.js:
 lucide/dist/esm/icons/trash-2.js:
+lucide/dist/esm/icons/x.js:
 lucide/dist/esm/lucide.js:
   (**
    * @license lucide v0.474.0 - ISC
+   *
+   * This source code is licensed under the ISC license.
+   * See the LICENSE file in the root directory of this source tree.
+   *)
+
+lucide-react/dist/esm/shared/src/utils.js:
+lucide-react/dist/esm/defaultAttributes.js:
+lucide-react/dist/esm/Icon.js:
+lucide-react/dist/esm/createLucideIcon.js:
+lucide-react/dist/esm/icons/at-sign.js:
+lucide-react/dist/esm/icons/check-check.js:
+lucide-react/dist/esm/icons/command.js:
+lucide-react/dist/esm/icons/corner-down-left.js:
+lucide-react/dist/esm/icons/ellipsis.js:
+lucide-react/dist/esm/icons/message-square-text.js:
+lucide-react/dist/esm/icons/pencil.js:
+lucide-react/dist/esm/icons/plus.js:
+lucide-react/dist/esm/icons/send.js:
+lucide-react/dist/esm/icons/trash-2.js:
+lucide-react/dist/esm/icons/x.js:
+lucide-react/dist/esm/lucide-react.js:
+  (**
+   * @license lucide-react v0.474.0 - ISC
    *
    * This source code is licensed under the ISC license.
    * See the LICENSE file in the root directory of this source tree.

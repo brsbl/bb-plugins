@@ -6,7 +6,8 @@ import {
   useState,
   useSyncExternalStore,
 } from "react";
-import { MessageSquareText } from "lucide-react";
+import { ChatFeedback01Icon } from "@hugeicons/core-free-icons";
+import { HugeiconsIcon } from "@hugeicons/react";
 import {
   definePluginApp,
   useComposer,
@@ -26,6 +27,7 @@ import {
   refreshTimelineCommentAnchors,
   registerTimelineCommentThreadWindow,
   subscribeTimelineCommentAnchorHealth,
+  subscribeTimelineCommentHandoff,
 } from "./bridge.js";
 import { mountTimelineCommentsController } from "./controller.js";
 import "./app.css";
@@ -40,13 +42,92 @@ function excerpt(value: string, length: number): string {
   return value.length > length ? `${value.slice(0, length - 1)}…` : value;
 }
 
+function threadWindowForNode(node: HTMLElement | null): HTMLElement | null {
+  return (
+    node?.closest<HTMLElement>("[data-thread-window]") ??
+    document.querySelector<HTMLElement>(
+      '[data-split-pane-id][data-focused="true"] [data-thread-window]',
+    ) ??
+    (document.querySelectorAll<HTMLElement>("[data-thread-window]").length === 1
+      ? document.querySelector<HTMLElement>("[data-thread-window]")
+      : null)
+  );
+}
+
+function TimelineCommentHandoffBridge() {
+  const rpc = useRpc<typeof timelineCommentsRpcContract>();
+  const composer = useComposer();
+  const composerRef = useRef(composer);
+  const root = useRef<HTMLSpanElement>(null);
+  const requestGeneration = useRef(0);
+  const requestPending = useRef(false);
+  const threadId =
+    composer.scope.kind === "thread" ? composer.scope.threadId : null;
+  useLayoutEffect(() => {
+    composerRef.current = composer;
+  }, [composer]);
+
+  useLayoutEffect(() => {
+    if (threadId === null) return;
+    const generation = ++requestGeneration.current;
+    let mounted = true;
+    const threadWindow = threadWindowForNode(root.current);
+    if (threadWindow === null) return;
+    const unregisterWindow = registerTimelineCommentThreadWindow(
+      threadId,
+      threadWindow,
+    );
+    const unregisterHandoff = subscribeTimelineCommentHandoff({
+      threadId,
+      getThreadWindow: () => threadWindow,
+      accept: async () => {
+        if (requestPending.current) return false;
+        requestPending.current = true;
+        try {
+          const summary = await rpc.call("getThreadHandoffSummary", {
+            bbThreadId: threadId,
+          });
+          if (
+            !mounted ||
+            generation !== requestGeneration.current ||
+            summary.threadCount === 0
+          ) {
+            return false;
+          }
+          composerRef.current.insertMention({
+            provider: "thread-comments",
+            id: threadId,
+            label: `${summary.commentCount} ${summary.commentCount === 1 ? "comment" : "comments"} from ${summary.threadCount} open ${summary.threadCount === 1 ? "thread" : "threads"}`,
+          });
+          composerRef.current.focus();
+          return true;
+        } catch {
+          return false;
+        } finally {
+          if (generation === requestGeneration.current) {
+            requestPending.current = false;
+          }
+        }
+      },
+    });
+    return () => {
+      mounted = false;
+      requestGeneration.current += 1;
+      requestPending.current = false;
+      unregisterHandoff();
+      unregisterWindow();
+    };
+  }, [rpc, threadId]);
+
+  return <span ref={root} hidden aria-hidden="true" />;
+}
+
 function AddCommentsAction() {
   const rpc = useRpc<typeof timelineCommentsRpcContract>();
   const composer = useComposer();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
-  const actionRoot = useRef<HTMLSpanElement>(null);
   const requestGeneration = useRef(0);
   const threadId =
     composer.scope.kind === "thread" ? composer.scope.threadId : null;
@@ -75,57 +156,8 @@ function AddCommentsAction() {
     }
   });
 
-  useLayoutEffect(() => {
+  const addComments = useCallback(async () => {
     if (threadId === null) return;
-    const closestWindow = actionRoot.current?.closest<HTMLElement>(
-      "[data-thread-window]",
-    );
-    const visibleWindows = document.querySelectorAll<HTMLElement>(
-      "[data-thread-window]",
-    );
-    const overflowContent = actionRoot.current?.closest<HTMLElement>(
-      "[data-plugin-composer-action-overflow]",
-    );
-    const controlledTrigger =
-      overflowContent?.id === undefined || overflowContent.id === ""
-        ? null
-        : [...document.querySelectorAll<HTMLElement>("[aria-controls]")].find(
-            (node) =>
-              node.getAttribute("aria-controls") === overflowContent.id,
-          ) ?? null;
-    const openOverflowTriggers = [
-      ...document.querySelectorAll<HTMLElement>(
-        '[aria-label="More plugin actions"][aria-expanded="true"]',
-      ),
-    ];
-    const overflowTrigger =
-      controlledTrigger ??
-      (openOverflowTriggers.length === 1 ? openOverflowTriggers[0] : null);
-    const overflowWindow = overflowTrigger?.closest<HTMLElement>(
-      "[data-thread-window]",
-    );
-    const focusedWindow =
-      overflowContent === undefined || overflowContent === null
-        ? document.querySelector<HTMLElement>(
-            '[data-split-pane-id][data-focused="true"] [data-thread-window]',
-          )
-        : null;
-    const threadWindow =
-      closestWindow ??
-      overflowWindow ??
-      focusedWindow ??
-      (overflowContent === undefined || overflowContent === null
-        ? visibleWindows.length === 1
-          ? visibleWindows[0]
-          : null
-        : null);
-    if (threadWindow === undefined || threadWindow === null) return;
-    return registerTimelineCommentThreadWindow(threadId, threadWindow);
-  }, [threadId]);
-
-  if (threadId === null) return null;
-
-  const addComments = async () => {
     const generation = ++requestGeneration.current;
     const isCurrentRequest = () =>
       generation === requestGeneration.current &&
@@ -153,10 +185,12 @@ function AddCommentsAction() {
     } finally {
       if (isCurrentRequest()) setBusy(false);
     }
-  };
+  }, [composer, rpc, threadId]);
+
+  if (threadId === null) return null;
 
   return (
-    <span ref={actionRoot} className="bb-comments-composer-action-wrap">
+    <span className="bb-comments-composer-action-wrap">
       {error !== null ? (
         <span className="bb-comments-composer-action-error" role="alert">
           Couldn’t add comments
@@ -184,7 +218,13 @@ function AddCommentsAction() {
         onMouseDown={(event) => event.preventDefault()}
         onClick={() => void addComments()}
       >
-        <MessageSquareText aria-hidden="true" size={16} strokeWidth={1.5} />
+        <span className="bb-comments-composer-action-icon">
+          <HugeiconsIcon
+            icon={ChatFeedback01Icon}
+            aria-hidden="true"
+            data-icon="ChatFeedback"
+          />
+        </span>
       </button>
     </span>
   );
@@ -394,18 +434,25 @@ export default definePluginApp((app) => {
     id: "timeline-comments",
     scopes: ["thread"],
     actions: [{ id: "add-comments", component: AddCommentsAction }],
+    banners: [
+      {
+        id: "comment-handoff-bridge",
+        chrome: "bare",
+        component: TimelineCommentHandoffBridge,
+      },
+    ],
   });
   app.slots.threadPanelAction({
     id: "comments",
     title: "Comments",
-    icon: "MessageSquare",
+    icon: "ChatFeedback",
     component: CommentPanel,
     layout: "flush",
   });
   app.slots.messageAction({
     id: "comment-selection",
     title: "Comment",
-    icon: "MessageSquare",
+    icon: "ChatFeedback",
     run(context) {
       if (context.selectedText === undefined) {
         context.openPanel({ actionId: "comments", title: "Comments" });

@@ -7,7 +7,10 @@ import {
   mountPluginContentScripts,
   renderSlot,
 } from "@bb/plugin-sdk/testing/app";
-import { installTimelineCommentsController } from "./bridge.js";
+import {
+  installTimelineCommentsController,
+  requestTimelineCommentHandoff,
+} from "./bridge.js";
 import type { timelineCommentsRpcContract } from "./server.js";
 
 afterEach(() => {
@@ -62,6 +65,7 @@ describe("timeline comments app", () => {
       {
         id: "comment-selection",
         title: "Comment",
+        icon: "ChatFeedback",
       },
     ]);
     expect(app.messageActions[0]).not.toHaveProperty("placements");
@@ -69,7 +73,7 @@ describe("timeline comments app", () => {
       {
         id: "comments",
         title: "Comments",
-        icon: "MessageSquare",
+        icon: "ChatFeedback",
         layout: "flush",
       },
     ]);
@@ -138,6 +142,16 @@ describe("timeline comments app", () => {
       refreshAnchors: vi.fn(),
     });
     const app = await loadPluginApp(() => import("./app.js"));
+    const bridge = renderSlot(
+      app.composerCustomizations[0]!.banners![0]!,
+      {},
+      {
+        context: { threadId: "thr_1" },
+        composer: { scope: { kind: "thread", threadId: "thr_1" } },
+        rpc: { getThreadHandoffSummary: vi.fn() },
+      },
+    );
+    document.querySelector("#focused-window")!.append(bridge.container);
     const action = renderSlot(
       app.composerCustomizations[0]!.actions![0]!,
       {},
@@ -157,6 +171,10 @@ describe("timeline comments app", () => {
       },
     );
 
+    expect(
+      action.container.querySelector('[data-icon="ChatFeedback"]'),
+    ).not.toBeNull();
+
     fireEvent.click(
       action.getByRole("button", { name: "Add comments to chat" }),
     );
@@ -175,6 +193,153 @@ describe("timeline comments app", () => {
       document.querySelector("#focused-window"),
     );
     uninstallController();
+  });
+
+  it("delivers a popover handoff to exactly one visible focused thread instance", async () => {
+    document.body.innerHTML = `
+      <div data-split-pane-id="pane_other" data-focused="false">
+        <div id="other-window" data-thread-window></div>
+      </div>
+      <div data-split-pane-id="pane_focused" data-focused="true">
+        <div id="focused-window" data-thread-window></div>
+      </div>
+    `;
+    const app = await loadPluginApp(() => import("./app.js"));
+    const bridge = app.composerCustomizations[0]!.banners![0]!;
+    const otherSummary = vi.fn(() => ({
+      threadCount: 1,
+      commentCount: 1,
+      codePointSize: 100,
+    }));
+    const focusedSummary = vi.fn(() => ({
+      threadCount: 1,
+      commentCount: 2,
+      codePointSize: 100,
+    }));
+    const other = renderSlot(bridge, {}, {
+      context: { threadId: "thr_initial_other" },
+      composer: { scope: { kind: "thread", threadId: "thr_initial_other" } },
+      rpc: { getThreadHandoffSummary: otherSummary },
+    });
+    const focused = renderSlot(bridge, {}, {
+      context: { threadId: "thr_initial_focused" },
+      composer: {
+        scope: { kind: "thread", threadId: "thr_initial_focused" },
+      },
+      rpc: { getThreadHandoffSummary: focusedSummary },
+    });
+    document.querySelector("#other-window")!.append(other.container);
+    document.querySelector("#focused-window")!.append(focused.container);
+    await other.behavior.setComposerScope({
+      kind: "thread",
+      threadId: "thr_1",
+    });
+    await focused.behavior.setComposerScope({
+      kind: "thread",
+      threadId: "thr_1",
+    });
+
+    await expect(requestTimelineCommentHandoff("thr_1")).resolves.toBe(true);
+    await vi.waitFor(() => expect(focusedSummary).toHaveBeenCalledTimes(1));
+    expect(otherSummary).not.toHaveBeenCalled();
+
+    document
+      .querySelector("[data-split-pane-id='pane_focused']")!
+      .setAttribute("aria-hidden", "true");
+    await expect(requestTimelineCommentHandoff("thr_1")).resolves.toBe(true);
+    await vi.waitFor(() => expect(otherSummary).toHaveBeenCalledTimes(1));
+    expect(focusedSummary).toHaveBeenCalledTimes(1);
+    expect(focused.inspection.composer.mentions).toHaveLength(1);
+
+    document
+      .querySelector("[data-split-pane-id='pane_other']")!
+      .setAttribute("aria-hidden", "true");
+    await expect(requestTimelineCommentHandoff("thr_1")).resolves.toBe(false);
+    expect(otherSummary).toHaveBeenCalledTimes(1);
+    expect(focusedSummary).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps handoff unacknowledged on failure, empty state, or scope teardown", async () => {
+    document.body.innerHTML = `
+      <div data-split-pane-id="pane" data-focused="true">
+        <div id="thread-window" data-thread-window></div>
+      </div>
+    `;
+    const staleSummary = deferred<{
+      threadCount: number;
+      commentCount: number;
+      codePointSize: number;
+    }>();
+    const getThreadHandoffSummary = vi
+      .fn()
+      .mockRejectedValueOnce(new Error("offline"))
+      .mockResolvedValueOnce({
+        threadCount: 0,
+        commentCount: 0,
+        codePointSize: 0,
+      })
+      .mockReturnValueOnce(staleSummary.promise);
+    const app = await loadPluginApp(() => import("./app.js"));
+    const bridge = app.composerCustomizations[0]!.banners![0]!;
+    const mounted = renderSlot(bridge, {}, {
+      context: { threadId: "thr_1" },
+      composer: { scope: { kind: "thread", threadId: "thr_1" } },
+      rpc: { getThreadHandoffSummary },
+    });
+    document.querySelector("#thread-window")!.append(mounted.container);
+
+    await expect(requestTimelineCommentHandoff("thr_1")).resolves.toBe(false);
+    await expect(requestTimelineCommentHandoff("thr_1")).resolves.toBe(false);
+    const pending = requestTimelineCommentHandoff("thr_1");
+    await mounted.behavior.setComposerScope({
+      kind: "thread",
+      threadId: "thr_2",
+    });
+    staleSummary.resolve({
+      threadCount: 1,
+      commentCount: 1,
+      codePointSize: 100,
+    });
+
+    await expect(pending).resolves.toBe(false);
+    expect(mounted.inspection.composer.mentions).toHaveLength(0);
+    expect(getThreadHandoffSummary).toHaveBeenCalledTimes(3);
+  });
+
+  it("keeps a handoff valid while the same composer draft changes", async () => {
+    document.body.innerHTML = `
+      <div data-split-pane-id="pane" data-focused="true">
+        <div id="thread-window" data-thread-window></div>
+      </div>
+    `;
+    const summary = deferred<{
+      threadCount: number;
+      commentCount: number;
+      codePointSize: number;
+    }>();
+    const app = await loadPluginApp(() => import("./app.js"));
+    const bridge = app.composerCustomizations[0]!.banners![0]!;
+    const mounted = renderSlot(bridge, {}, {
+      context: { threadId: "thr_1" },
+      composer: {
+        text: "Initial draft",
+        scope: { kind: "thread", threadId: "thr_1" },
+      },
+      rpc: { getThreadHandoffSummary: () => summary.promise },
+    });
+    document.querySelector("#thread-window")!.append(mounted.container);
+
+    const pending = requestTimelineCommentHandoff("thr_1");
+    await mounted.behavior.setComposerText("Edited during handoff");
+    summary.resolve({
+      threadCount: 1,
+      commentCount: 1,
+      codePointSize: 100,
+    });
+
+    await expect(pending).resolves.toBe(true);
+    expect(mounted.inspection.composer.mentions).toHaveLength(1);
+    expect(mounted.inspection.composer.text).toContain("Edited during handoff");
   });
 
   it("reports when the thread has no open comments to add", async () => {
@@ -216,22 +381,13 @@ describe("timeline comments app", () => {
     ).toBe(false);
   });
 
-  it("binds an overflow action to its embedded trigger instead of the focused main pane", async () => {
+  it("binds the persistent bridge to its containing thread window", async () => {
     document.body.innerHTML = `
       <div data-split-pane-id="pane_main" data-focused="true">
         <div id="main-window" data-thread-window></div>
       </div>
       <div id="embedded-window" data-thread-window>
-        <button
-          aria-label="More plugin actions"
-          aria-expanded="true"
-          aria-controls="embedded-overflow"
-        ></button>
       </div>
-      <div
-        id="embedded-overflow"
-        data-plugin-composer-action-overflow
-      ></div>
     `;
     const registerThreadWindow = vi.fn(() => () => {});
     const uninstallController = installTimelineCommentsController({
@@ -241,8 +397,8 @@ describe("timeline comments app", () => {
       refreshAnchors: vi.fn(),
     });
     const app = await loadPluginApp(() => import("./app.js"));
-    const action = renderSlot(
-      app.composerCustomizations[0]!.actions![0]!,
+    const bridge = renderSlot(
+      app.composerCustomizations[0]!.banners![0]!,
       {},
       {
         context: { threadId: "thr_initial" },
@@ -251,10 +407,10 @@ describe("timeline comments app", () => {
         },
       },
     );
-    document.querySelector("#embedded-overflow")!.append(action.container);
+    document.querySelector("#embedded-window")!.append(bridge.container);
     registerThreadWindow.mockClear();
 
-    await action.behavior.setComposerScope({
+    await bridge.behavior.setComposerScope({
       kind: "thread",
       threadId: "thr_embedded",
     });
@@ -379,6 +535,19 @@ describe("timeline comments app", () => {
     expect(getThreadHandoffSummary).toHaveBeenLastCalledWith({
       bbThreadId: "thr_2",
     });
+
+    await action.behavior.setComposerScope({
+      kind: "new-thread",
+      projectId: null,
+    });
+    expect(action.queryByRole("button", { name: "Add comments to chat" })).toBeNull();
+    await action.behavior.setComposerScope({
+      kind: "thread",
+      threadId: "thr_2",
+    });
+    expect(
+      action.getByRole("button", { name: "Add comments to chat" }),
+    ).not.toBeNull();
   });
 
   it("removes every content-script node and tolerates repeated disposal", async () => {

@@ -158,6 +158,27 @@ export function chooseNearestGutter(
   return leftDistance < rightDistance ? "left" : "right";
 }
 
+export function chooseAvailableGutter(
+  fragments: readonly Pick<DOMRect, "left" | "right">[],
+  content: Pick<DOMRect, "left" | "right">,
+  container: Pick<DOMRect, "left" | "right" | "width">,
+  requiredSpace: number,
+): GutterSide | null {
+  if (container.width < 520) return null;
+  const spaces: Record<GutterSide, number> = {
+    left: content.left - container.left,
+    right: container.right - content.right,
+  };
+  const preferred = chooseNearestGutter(fragments, {
+    left: content.left,
+    right: content.right,
+    width: container.width,
+  });
+  if (spaces[preferred] >= requiredSpace) return preferred;
+  const alternate = preferred === "left" ? "right" : "left";
+  return spaces[alternate] >= requiredSpace ? alternate : null;
+}
+
 export interface MarkerCandidate {
   id: string;
   desiredY: number;

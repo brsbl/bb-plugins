@@ -43,6 +43,24 @@ const summaries = phrases.map((exact, index) => {
     replyCount: 0,
   };
 });
+const rootComment = {
+  id: "comment_root",
+  threadId: summaries[0]!.id,
+  parentId: null,
+  body: "Verify the real browser geometry before shipping.",
+  version: 1,
+  createdAt: now,
+  updatedAt: now,
+};
+const replies = Array.from({ length: 12 }, (_, index) => ({
+  id: `comment_reply_${index}`,
+  threadId: summaries[0]!.id,
+  parentId: rootComment.id,
+  body: `Reply ${index + 1} keeps this thread long enough to scroll.`,
+  version: 1,
+  createdAt: now + index + 1,
+  updatedAt: now + index + 1,
+}));
 
 const nativeFetch = window.fetch.bind(window);
 window.fetch = async (input, init) => {
@@ -54,27 +72,29 @@ window.fetch = async (input, init) => {
       result = { anchors: summaries, nextCursor: null };
     } else if (method === "getCommentThread") {
       const summary = summaries[0]!;
-      const rootComment = {
-        id: "comment_root",
-        threadId: summary.id,
-        parentId: null,
-        body: "Verify the real browser geometry before shipping.",
-        version: 1,
-        createdAt: now,
-        updatedAt: now,
-      };
-      const replies = Array.from({ length: 12 }, (_, index) => ({
-        id: `comment_reply_${index}`,
-        threadId: summary.id,
-        parentId: rootComment.id,
-        body: `Reply ${index + 1} keeps this thread long enough to scroll.`,
-        version: 1,
-        createdAt: now + index + 1,
-        updatedAt: now + index + 1,
-      }));
       result = {
         thread: { ...summary, rootComment, replyCount: replies.length },
         comments: [rootComment, ...replies],
+        nextCursor: null,
+      };
+    } else if (method === "reply") {
+      const insertedReply = {
+        id: "comment_reply_incremental",
+        threadId: summaries[0]!.id,
+        parentId: rootComment.id,
+        body: "Preserve this reply draft",
+        version: 1,
+        createdAt: now + replies.length + 1,
+        updatedAt: now + replies.length + 1,
+      };
+      result = {
+        thread: {
+          ...summaries[0]!,
+          version: 2,
+          rootComment,
+          replyCount: replies.length + 1,
+        },
+        comments: [rootComment, ...replies, insertedReply],
         nextCursor: null,
       };
     } else {
@@ -104,6 +124,18 @@ function wait(ms: number): Promise<void> {
   return new Promise((resolve) => window.setTimeout(resolve, ms));
 }
 
+async function waitUntil(
+  predicate: () => boolean,
+  message: string,
+  timeout = 2_000,
+): Promise<void> {
+  const deadline = performance.now() + timeout;
+  while (!predicate()) {
+    if (performance.now() >= deadline) throw new Error(message);
+    await wait(16);
+  }
+}
+
 function withinViewport(rect: DOMRect): boolean {
   return (
     rect.left >= 0 &&
@@ -111,6 +143,14 @@ function withinViewport(rect: DOMRect): boolean {
     rect.right <= window.innerWidth &&
     rect.bottom <= window.innerHeight
   );
+}
+
+function setTextareaValue(textarea: HTMLTextAreaElement, value: string): void {
+  Object.getOwnPropertyDescriptor(
+    HTMLTextAreaElement.prototype,
+    "value",
+  )?.set?.call(textarea, value);
+  textarea.dispatchEvent(new InputEvent("input", { bubbles: true }));
 }
 
 void (async () => {
@@ -141,7 +181,7 @@ void (async () => {
     const clusterCountRect = overflow
       .querySelector(".bb-comments-marker-count")!
       .getBoundingClientRect();
-    if (clusterIconRect.width !== 20 || clusterIconRect.height !== 20)
+    if (clusterIconRect.width !== 15 || clusterIconRect.height !== 15)
       throw new Error("Cluster icon does not match the single-marker icon size");
     if (
       overflow.dataset.bbCommentGutter === "left" &&
@@ -185,20 +225,20 @@ void (async () => {
     const reply = popover.querySelector<HTMLTextAreaElement>(
       ".bb-comments-reply-input",
     );
-    const replyButton = popover.querySelector<HTMLButtonElement>(
-      'button[aria-label="Reply"]',
+    let replyButton = popover.querySelector<HTMLButtonElement>(
+      'button[aria-label="Submit comment"]',
     );
     if (reply === null || replyButton?.disabled !== true)
       throw new Error("Blank reply was not disabled");
     const emptyReplyHeight = reply.getBoundingClientRect().height;
     const replyComposer = reply.closest<HTMLElement>(
-      ".bb-comments-inline-composer",
+      ".bb-comments-mention-input",
     )!;
-    reply.value = "First line\nSecond line\nThird line";
-    reply.dispatchEvent(new InputEvent("input", { bubbles: true }));
+    setTextareaValue(reply, "First line\nSecond line\nThird line");
+    await wait(30);
     if (replyComposer.getAnimations().length === 0)
       throw new Error("Multiline reply expansion did not animate");
-    await wait(130);
+    await wait(250);
     const replyNearTerminalHeight = replyComposer.getBoundingClientRect().height;
     await wait(170);
     const replyTerminalHeight = replyComposer.getBoundingClientRect().height;
@@ -206,28 +246,31 @@ void (async () => {
       Math.abs(replyTerminalHeight - replyNearTerminalHeight) > 2 ||
       replyComposer.getAnimations().length !== 0
     ) {
-      throw new Error("Multiline reply snapped after its height animation");
+      throw new Error(
+        `Multiline reply snapped after its height animation: near=${replyNearTerminalHeight} terminal=${replyTerminalHeight} animations=${replyComposer.getAnimations().length}`,
+      );
     }
     if (reply.getBoundingClientRect().height <= emptyReplyHeight)
       throw new Error("Multiline reply input did not grow with its content");
-    if (replyComposer.dataset.multiline !== "true")
+    if (replyComposer.dataset.mentionInputExpanded !== "true")
       throw new Error("Multiline reply did not switch composer layout");
-    reply.value = "Ready";
-    reply.dispatchEvent(new InputEvent("input", { bubbles: true }));
-    await wait(180);
+    setTextareaValue(reply, "Ready");
+    await wait(250);
+    replyButton = popover.querySelector<HTMLButtonElement>(
+      'button[aria-label="Submit comment"]',
+    );
     if (replyButton.disabled)
       throw new Error("Valid reply did not enable submission");
-    if (replyComposer.dataset.multiline !== "true")
+    if (replyComposer.dataset.mentionInputExpanded !== "true")
       throw new Error("Expanded reply layout did not stay latched like Moss");
-    reply.value = "";
-    reply.dispatchEvent(new InputEvent("input", { bubbles: true }));
+    setTextareaValue(reply, "");
+    await wait(30);
     if (replyComposer.getAnimations().length === 0)
       throw new Error("Reply collapse did not animate");
-    await wait(180);
-    if (replyComposer.dataset.multiline !== "false")
+    await wait(250);
+    if (replyComposer.dataset.mentionInputExpanded !== "false")
       throw new Error("Cleared reply did not restore inline layout");
-    reply.value = "Ready";
-    reply.dispatchEvent(new InputEvent("input", { bubbles: true }));
+    setTextareaValue(reply, "Ready");
     if (CSS.highlights.get("bb-timeline-comments")?.size !== 8) {
       throw new Error("Custom Highlight registry did not retain every anchor");
     }
@@ -240,7 +283,7 @@ void (async () => {
         '.bb-comments-actions-menu > button[aria-label="Comment actions"]',
       )
       ?.click();
-    await wait(0);
+    await wait(30);
     const actionsMenu = document.querySelector<HTMLElement>(
       ".bb-comments-actions-popover",
     );
@@ -262,7 +305,7 @@ void (async () => {
     }
     const actionsRect = actionsMenu.getBoundingClientRect();
     const deleteButton = [...actionsMenu.querySelectorAll("button")].find(
-      (button) => button.textContent === "Delete",
+      (button) => button.textContent?.trim() === "Delete",
     );
     const deleteRect = deleteButton?.getBoundingClientRect();
     const visibleAtDelete =
@@ -278,7 +321,9 @@ void (async () => {
       !withinViewport(actionsRect) ||
       !deleteButton.contains(visibleAtDelete)
     )
-      throw new Error("Comment actions menu is clipped by the thread chrome");
+      throw new Error(
+        `Comment actions menu is clipped by the thread chrome: menu=${JSON.stringify(actionsRect.toJSON())} delete=${deleteRect ? JSON.stringify(deleteRect.toJSON()) : "missing"} visible=${visibleAtDelete?.className ?? visibleAtDelete?.nodeName ?? "none"}`,
+      );
 
     const menuItems = [
       ...actionsMenu.querySelectorAll<HTMLButtonElement>('[role="menuitem"]'),
@@ -326,6 +371,7 @@ void (async () => {
         '.bb-comments-actions-menu > button[aria-label="Comment actions"]',
       )
       ?.click();
+    await wait(0);
     document.activeElement?.dispatchEvent(
       new KeyboardEvent("keydown", {
         key: "Tab",
@@ -346,6 +392,7 @@ void (async () => {
         '.bb-comments-actions-menu > button[aria-label="Comment actions"]',
       )
       ?.click();
+    await wait(0);
     popover.focus({ preventScroll: true });
     await wait(0);
     if (document.querySelector(".bb-comments-actions-popover") !== null)
@@ -422,9 +469,11 @@ void (async () => {
         '.bb-comments-actions-menu > button[aria-label="Comment actions"]',
       )
       ?.click();
-    document.dispatchEvent(
+    await wait(0);
+    document.activeElement?.dispatchEvent(
       new KeyboardEvent("keydown", { key: "Escape", bubbles: true }),
     );
+    await wait(0);
     if (
       document.querySelector(".bb-comments-actions-popover") !== null ||
       document.querySelector(".bb-comments-thread") === null
@@ -436,47 +485,119 @@ void (async () => {
         '.bb-comments-actions-menu > button[aria-label="Comment actions"]',
       )
       ?.click();
+    const originalBody = popover.querySelector<HTMLElement>(
+      '[data-bb-comment-id="comment_root"] .bb-comments-comment-body',
+    );
+    const originalReplyInput = popover.querySelector<HTMLTextAreaElement>(
+      ".bb-comments-reply-input",
+    );
+    if (originalBody === null || originalReplyInput === null)
+      throw new Error("Thread fixture omitted persistent edit surfaces");
+    const originalEditingRow = originalBody.closest(".bb-comments-comment");
+    setTextareaValue(originalReplyInput, "Preserve this reply draft");
     const editButton = [
       ...document.querySelectorAll<HTMLButtonElement>(
         ".bb-comments-actions-popover button",
       ),
-    ].find((button) => button.textContent === "Edit");
+    ].find((button) => button.textContent?.trim() === "Edit");
     editButton?.click();
+    await wait(0);
     if (document.querySelector(".bb-comments-actions-popover") !== null)
       throw new Error("Comment action did not dismiss its portal menu");
     const editInput = popover.querySelector<HTMLTextAreaElement>(
-      ".bb-comments-edit-input",
+      '[data-bb-comment-id="comment_root"] .bb-comments-edit-input',
     );
     if (
       editInput === null ||
       editInput.value !== "Verify the real browser geometry before shipping."
     ) {
-      throw new Error("Comment edit did not replace the message body");
+      throw new Error("Comment edit did not expose its incremental editor");
+    }
+    const editingRow = editInput.closest<HTMLElement>(".bb-comments-comment")!;
+    const cancelEditButton = editingRow.querySelector<HTMLButtonElement>(
+      'button[aria-label="Cancel comment edit"]',
+    );
+    if (
+      editingRow.dataset.editing !== "true" ||
+      !editingRow.getAnimations().some(({ effect }) => effect !== null) ||
+      cancelEditButton === null ||
+      getComputedStyle(cancelEditButton).display === "none" ||
+      originalEditingRow !== editingRow
+    ) {
+      throw new Error("Comment edit rebuilt the row or omitted its height animation");
+    }
+    const replyRegion = popover.querySelector<HTMLElement>(".bb-comments-reply");
+    if (
+      replyRegion?.dataset.editing !== "true" ||
+      replyRegion.getAttribute("inert") === null
+    ) {
+      throw new Error("Editing above replies did not incrementally collapse them");
     }
     const saveEdit = popover.querySelector<HTMLButtonElement>(
-      'button[aria-label="Save comment"]',
+      '[data-bb-comment-id="comment_root"] button[aria-label="Submit comment"]',
     );
     if (saveEdit?.disabled !== false)
       throw new Error("Unchanged comment cannot exit editing like Moss");
-    const editComposer = editInput.closest<HTMLElement>(
-      ".bb-comments-inline-composer",
+    const localFooter = editingRow.querySelector(
+      ".bb-comments-edit-footer",
     );
-    const editRect = editInput.getBoundingClientRect();
-    const saveRect = saveEdit.getBoundingClientRect();
-    if (
-      editComposer?.dataset.multiline !== "true" ||
-      saveRect.top < editRect.bottom
-    ) {
-      throw new Error("Multiline edit did not move actions below the text");
-    }
-    editInput.dispatchEvent(
+    if (localFooter === null)
+      throw new Error("Earlier-comment edit footer did not stay under its comment");
+    saveEdit.focus();
+    saveEdit.dispatchEvent(
       new KeyboardEvent("keydown", { key: "Escape", bubbles: true }),
     );
+    await wait(0);
     if (
       document.querySelector(".bb-comments-thread") === null ||
-      document.querySelector(".bb-comments-edit-input") !== null
+      editingRow.dataset.editing === "true" ||
+      replyRegion?.dataset.editing !== "false"
     ) {
       throw new Error("Escape did not cancel editing in place");
+    }
+    if (
+      originalReplyInput !==
+        popover.querySelector<HTMLTextAreaElement>(".bb-comments-reply-input") ||
+      originalReplyInput.value !== "Preserve this reply draft"
+    ) {
+      throw new Error("Editing rebuilt or cleared the mounted reply composer");
+    }
+    originalReplyInput.dispatchEvent(
+      new KeyboardEvent("keydown", {
+        key: "Enter",
+        metaKey: true,
+        bubbles: true,
+      }),
+    );
+    await waitUntil(
+      () =>
+        originalReplyInput.value === "" &&
+        [...popover.querySelectorAll(".bb-comments-comment")].some((row) =>
+          row.textContent?.includes("Preserve this reply draft"),
+        ),
+      "Reply RPC did not settle and render its inserted reply",
+    );
+    const insertedReply = [...popover.querySelectorAll(".bb-comments-comment")]
+      .find((row) => row.textContent?.includes("Preserve this reply draft"));
+    if (
+      document.querySelector(".bb-comments-thread") !== popover ||
+      originalReplyInput !==
+        popover.querySelector<HTMLTextAreaElement>(".bb-comments-reply-input") ||
+      originalReplyInput.value !== "" ||
+      insertedReply === undefined ||
+      insertedReply.getAnimations().length === 0
+    ) {
+      throw new Error(
+        `Reply did not insert incrementally into the open thread: ${JSON.stringify({
+          threadPreserved: document.querySelector(".bb-comments-thread") === popover,
+          inputPreserved:
+            originalReplyInput ===
+            popover.querySelector<HTMLTextAreaElement>(".bb-comments-reply-input"),
+          inputValue: originalReplyInput.value,
+          inserted: insertedReply !== undefined,
+          animations: insertedReply?.getAnimations().length ?? 0,
+        })}`,
+      );
     }
     const restoredCommentAction = popover.querySelector<HTMLButtonElement>(
       `[data-bb-comment-id="comment_root"] ` +
