@@ -11,14 +11,15 @@ import {
   CheckCircle2,
   ChevronDown,
   ChevronsUpDown,
-  Clock3,
+  Circle,
   CircleDot,
   CircleX,
-  Eye,
   GitPullRequest,
   MessageSquare,
+  MessageSquareMore,
   RefreshCw,
   Search,
+  UserRound,
   type LucideIcon,
 } from "lucide-react";
 import { definePluginApp, useRpc } from "@bb/plugin-sdk/app";
@@ -65,7 +66,7 @@ export function filterAndSortNotifications(args: {
   const valueFor = (item: GithubNotificationItem): string | number => {
     switch (args.sort) {
       case "activity":
-        return `${item.activity} ${item.actor ?? ""}`;
+        return `${item.actor ?? ""} ${item.activity}`;
       case "resource":
         return `${item.title} ${item.repo} ${item.resourceKind} ${item.number}`;
       case "updated":
@@ -107,35 +108,35 @@ function updatePresentation(kind: GithubNotificationItem["activityKind"]): {
     case "approved":
       return {
         icon: CheckCircle2,
-        iconClass: "bg-success/10 text-success",
+        iconClass: "text-success",
         label: "Approved",
         verb: "approved",
       };
     case "changes-requested":
       return {
         icon: CircleX,
-        iconClass: "bg-destructive/10 text-destructive-text",
+        iconClass: "text-destructive-text",
         label: "Changes requested",
         verb: "requested changes",
       };
     case "mention":
       return {
         icon: AtSign,
-        iconClass: "bg-warning/10 text-warning-text",
+        iconClass: "text-warning-text",
         label: "Mention",
         verb: "mentioned you",
       };
     case "review":
       return {
-        icon: Eye,
-        iconClass: "bg-accent text-foreground",
+        icon: MessageSquareMore,
+        iconClass: "text-foreground",
         label: "Review",
         verb: "reviewed",
       };
     case "comment":
       return {
         icon: MessageSquare,
-        iconClass: "bg-muted text-muted-foreground",
+        iconClass: "text-muted-foreground",
         label: "Comment",
         verb: "commented",
       };
@@ -154,7 +155,11 @@ function NotificationLink({ item }: { item: GithubNotificationItem }) {
       className="group block min-w-0 rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
       aria-label={`${item.resourceKind === "pr" ? "Pull request" : "Issue"} ${item.repo} number ${item.number}: ${item.title}. ${actor} ${update.verb}`}
     >
-      <span className="line-clamp-2 min-w-0 text-sm font-medium leading-5 text-foreground group-hover:underline">
+      <span
+        className={`line-clamp-2 min-w-0 text-sm font-medium leading-5 group-hover:underline ${
+          item.resolved ? "text-muted-foreground" : "text-foreground"
+        }`}
+      >
         {item.title}
       </span>
       <span className="mt-0.5 flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground">
@@ -172,25 +177,51 @@ function NotificationLink({ item }: { item: GithubNotificationItem }) {
 function LatestUpdate({ item }: { item: GithubNotificationItem }) {
   const update = updatePresentation(item.activityKind);
   const UpdateIcon = update.icon;
+  const actor = item.actor ? `@${item.actor}` : "Someone";
   return (
     <div className="flex min-w-0 items-center gap-2 text-sm">
+      <span className="inline-flex max-w-40 shrink items-center gap-1 rounded-full bg-muted/35 py-0.5 pl-0.5 pr-1.5 text-xs font-normal text-muted-foreground">
+        <ActorAvatar avatarUrl={item.avatarUrl} />
+        <span className="truncate">{actor}</span>
+      </span>
       <span
-        className={`group/status relative grid size-6 shrink-0 place-content-center rounded-md ${update.iconClass}`}
+        className={`group/status relative inline-flex shrink-0 items-center ${update.iconClass}`}
         aria-label={update.label}
+        role="img"
+        tabIndex={0}
+        title={update.label}
       >
-        <UpdateIcon aria-hidden="true" className="size-3.5" strokeWidth={1.75} />
+        <UpdateIcon aria-hidden="true" className="size-4" strokeWidth={1.75} />
         <span
           aria-hidden="true"
-          className="pointer-events-none absolute left-1/2 top-full z-20 mt-1 -translate-x-1/2 whitespace-nowrap rounded-md bg-foreground px-2 py-1 text-xs font-medium text-background opacity-0 shadow-sm transition-opacity group-hover/status:opacity-100"
+          className="pointer-events-none absolute left-1/2 top-full z-20 mt-1 -translate-x-1/2 whitespace-nowrap rounded-md bg-foreground px-2 py-1 text-xs font-medium text-background opacity-0 shadow-sm transition-opacity group-hover/status:opacity-100 group-focus/status:opacity-100"
         >
           {update.label}
         </span>
       </span>
-      <span className="max-w-36 shrink truncate rounded-full bg-muted/75 px-2 py-0.5 text-xs font-medium text-foreground">
-        {item.actor ? `@${item.actor}` : "Someone"}
-      </span>
-      <span className="min-w-0 truncate text-muted-foreground">{update.verb}</span>
     </div>
+  );
+}
+
+function ActorAvatar({ avatarUrl }: { avatarUrl: string | null }) {
+  const [failed, setFailed] = useState(false);
+  return (
+    <span className="grid size-5 shrink-0 place-content-center overflow-hidden rounded-full bg-muted/70">
+      {avatarUrl && !failed ? (
+        <img
+          src={avatarUrl}
+          alt=""
+          className="aspect-square size-full object-cover"
+          onError={() => setFailed(true)}
+        />
+      ) : (
+        <UserRound
+          aria-hidden="true"
+          className="size-3 text-muted-foreground"
+          strokeWidth={1.75}
+        />
+      )}
+    </span>
   );
 }
 
@@ -198,13 +229,46 @@ function UpdatedTime({ value }: { value: string }) {
   const fullDate = new Date(value).toLocaleString();
   return (
     <span
-      className="inline-flex items-center gap-1.5 whitespace-nowrap text-xs tabular-nums text-muted-foreground"
+      className="block whitespace-nowrap text-right text-xs tabular-nums text-muted-foreground"
       title={`Updated ${fullDate}`}
       aria-label={`Updated ${fullDate}`}
     >
-      <Clock3 aria-hidden="true" className="size-3.5" strokeWidth={1.75} />
       {relativeTime(value)}
     </span>
+  );
+}
+
+function ResolveButton({
+  disabled,
+  item,
+  onToggle,
+}: {
+  disabled: boolean;
+  item: GithubNotificationItem;
+  onToggle(): void;
+}) {
+  const label = item.resolved ? "Mark unresolved" : "Mark resolved";
+  const ResolveIcon = item.resolved ? CheckCircle2 : Circle;
+  return (
+    <button
+      type="button"
+      aria-label={`${label}: ${item.title}`}
+      aria-pressed={item.resolved}
+      disabled={disabled}
+      onClick={onToggle}
+      title={label}
+      className={`group/resolve relative grid size-7 place-content-center rounded-md transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50 ${
+        item.resolved ? "text-success" : "text-muted-foreground"
+      }`}
+    >
+      <ResolveIcon aria-hidden="true" className="size-4" strokeWidth={1.75} />
+      <span
+        aria-hidden="true"
+        className="pointer-events-none absolute right-0 top-full z-20 mt-1 whitespace-nowrap rounded-md bg-foreground px-2 py-1 text-xs font-medium text-background opacity-0 shadow-sm transition-opacity group-hover/resolve:opacity-100 group-focus-visible/resolve:opacity-100"
+      >
+        {label}
+      </span>
+    </button>
   );
 }
 
@@ -244,7 +308,11 @@ function GitHubActivityPanel() {
   const rpc = useRpc<typeof rpcContract>();
   const [payload, setPayload] = useState<NotificationsPayload | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [resolveError, setResolveError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [pendingResolvedIds, setPendingResolvedIds] = useState<Set<string>>(
+    () => new Set(),
+  );
   const [query, setQuery] = useState("");
   const [resourceFilter, setResourceFilter] = useState<ResourceFilter>("all");
   const [activityFilter, setActivityFilter] = useState<ActivityFilter>("all");
@@ -293,6 +361,47 @@ function GitHubActivityPanel() {
     setQuery("");
     setResourceFilter("all");
     setActivityFilter("all");
+  };
+  const toggleResolved = async (item: GithubNotificationItem) => {
+    if (pendingResolvedIds.has(item.id)) return;
+    const resolved = !item.resolved;
+    setResolveError(null);
+    setPendingResolvedIds((current) => new Set(current).add(item.id));
+    setPayload((current) =>
+      current === null
+        ? current
+        : {
+            ...current,
+            items: current.items.map((candidate) =>
+              candidate.id === item.id
+                ? { ...candidate, resolved }
+                : candidate,
+            ),
+          },
+    );
+    try {
+      await rpc.call("setNotificationResolved", { id: item.id, resolved });
+    } catch {
+      setPayload((current) =>
+        current === null
+          ? current
+          : {
+              ...current,
+              items: current.items.map((candidate) =>
+                candidate.id === item.id
+                  ? { ...candidate, resolved: item.resolved }
+                  : candidate,
+              ),
+            },
+      );
+      setResolveError("Couldn’t update resolved state. Try again.");
+    } finally {
+      setPendingResolvedIds((current) => {
+        const next = new Set(current);
+        next.delete(item.id);
+        return next;
+      });
+    }
   };
   return (
     <main className="h-full overflow-y-auto bg-background p-4 md:p-5">
@@ -360,6 +469,12 @@ function GitHubActivityPanel() {
           </span>
         </div>
 
+        {resolveError ? (
+          <p role="alert" className="mb-3 text-sm text-destructive-text">
+            {resolveError}
+          </p>
+        ) : null}
+
         {error ? (
           <div className="rounded-xl border border-destructive/25 bg-destructive/5 p-4">
             <p className="text-sm font-medium text-destructive">Couldn’t load GitHub activity</p>
@@ -387,11 +502,12 @@ function GitHubActivityPanel() {
         ) : (
           <div className="overflow-hidden rounded-lg border border-border bg-card">
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[680px] table-fixed border-collapse text-left">
+              <table className="w-full min-w-[620px] table-fixed border-collapse text-left">
                 <colgroup>
-                  <col className="w-[52%]" />
-                  <col className="w-[36%]" />
-                  <col className="w-[12%]" />
+                  <col className="w-[50%]" />
+                  <col className="w-[30%]" />
+                  <col className="w-[14%]" />
+                  <col className="w-[6%]" />
                 </colgroup>
                 <thead className="border-b border-border bg-muted/35 text-xs">
                   <tr>
@@ -399,18 +515,19 @@ function GitHubActivityPanel() {
                       <SortHeader label="Item" active={sort === "resource"} direction={direction} onSort={() => setSortKey("resource")} />
                     </th>
                     <th scope="col" className="px-3 py-2.5">
-                      <SortHeader label="Latest update" active={sort === "activity"} direction={direction} onSort={() => setSortKey("activity")} />
+                      <SortHeader label="Activity" active={sort === "activity"} direction={direction} onSort={() => setSortKey("activity")} />
                     </th>
-                    <th scope="col" className="px-3 py-2.5">
-                      <SortHeader label="Updated" active={sort === "updated"} direction={direction} onSort={() => setSortKey("updated")} />
+                    <th scope="col" className="px-3 py-2.5 text-right">
+                      <SortHeader label="Last updated" active={sort === "updated"} direction={direction} onSort={() => setSortKey("updated")} />
                     </th>
+                    <th scope="col" aria-label="Resolved" className="px-3 py-2.5" />
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border">
                   {loading && payload === null
                     ? [0, 1, 2, 3, 4].map((index) => (
                         <tr key={index} aria-label="Loading GitHub activity">
-                          {[0, 1, 2].map((cell) => (
+                          {[0, 1, 2, 3].map((cell) => (
                             <td key={cell} className="px-3 py-3">
                               <div className="h-4 animate-pulse rounded bg-muted" />
                             </td>
@@ -418,7 +535,13 @@ function GitHubActivityPanel() {
                         </tr>
                       ))
                     : items.map((item) => (
-                        <tr key={item.id} className="align-top transition-colors hover:bg-accent/30">
+                        <tr
+                          key={item.id}
+                          data-resolved={item.resolved ? "true" : "false"}
+                          className={`align-top transition-colors hover:bg-accent/30 ${
+                            item.resolved ? "bg-muted/15" : ""
+                          }`}
+                        >
                           <td className="px-3 py-3">
                             <NotificationLink item={item} />
                           </td>
@@ -427,6 +550,13 @@ function GitHubActivityPanel() {
                           </td>
                           <td className="px-3 py-3">
                             <UpdatedTime value={item.updatedAt} />
+                          </td>
+                          <td className="px-3 py-2.5 text-right">
+                            <ResolveButton
+                              disabled={pendingResolvedIds.has(item.id)}
+                              item={item}
+                              onToggle={() => void toggleResolved(item)}
+                            />
                           </td>
                         </tr>
                       ))}

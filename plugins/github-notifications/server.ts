@@ -20,6 +20,7 @@ const OWNERSHIP_BATCH_SIZE = 50;
 const ACTIVITY_BATCH_SIZE = 20;
 const GH_CONCURRENCY = 3;
 const GH_HINT = "Install the GitHub CLI and run `gh auth login`, then retry.";
+const RESOLVED_IDS_KEY = "resolved-notification-ids";
 
 const notificationItemSchema = z
   .object({
@@ -36,6 +37,7 @@ const notificationItemSchema = z
     avatarUrl: z.string().url().nullable(),
     number: z.number().int().positive(),
     repo: z.string(),
+    resolved: z.boolean(),
     resourceKind: z.enum(["issue", "pr"]),
     title: z.string(),
     unread: z.boolean(),
@@ -67,6 +69,14 @@ export const rpcContract = defineRpcContract({
         items: z.array(notificationItemSchema),
         login: z.string().min(1),
       })
+      .strict(),
+  },
+  setNotificationResolved: {
+    input: z
+      .object({ id: z.string().min(1), resolved: z.boolean() })
+      .strict(),
+    output: z
+      .object({ id: z.string().min(1), resolved: z.boolean() })
       .strict(),
   },
 });
@@ -225,6 +235,14 @@ export function createGithubNotificationsPlugin(runGh: RunGh) {
       null;
     let activeRefresh: Promise<NotificationsPayload> | null = null;
 
+    async function loadResolvedIds(): Promise<Set<string>> {
+      const stored = await bb.storage.kv.get<unknown>(RESOLVED_IDS_KEY);
+      if (!Array.isArray(stored)) return new Set();
+      return new Set(
+        stored.filter((id): id is string => typeof id === "string"),
+      );
+    }
+
     async function refresh(): Promise<NotificationsPayload> {
       const previous = cache;
       const refreshedAtMs = Date.now();
@@ -345,7 +363,7 @@ export function createGithubNotificationsPlugin(runGh: RunGh) {
         rows,
       });
       const changedIds = new Set(rows.map((row) => row.id));
-      const items =
+      const refreshedItems =
         previous === null
           ? projected.items
           : [
@@ -357,6 +375,11 @@ export function createGithubNotificationsPlugin(runGh: RunGh) {
               (left, right) =>
                 Date.parse(right.updatedAt) - Date.parse(left.updatedAt),
             );
+      const resolvedIds = await loadResolvedIds();
+      const items = refreshedItems.map((item) => ({
+        ...item,
+        resolved: resolvedIds.has(item.id),
+      }));
       const payload = {
         fetchedAt: new Date(refreshedAtMs).toISOString(),
         items,
@@ -387,6 +410,24 @@ export function createGithubNotificationsPlugin(runGh: RunGh) {
             activeRefresh = null;
           });
         return activeRefresh;
+      },
+      async setNotificationResolved({ id, resolved }) {
+        const resolvedIds = await loadResolvedIds();
+        if (resolved) resolvedIds.add(id);
+        else resolvedIds.delete(id);
+        await bb.storage.kv.set(RESOLVED_IDS_KEY, [...resolvedIds].sort());
+        if (cache !== null) {
+          cache = {
+            ...cache,
+            payload: {
+              ...cache.payload,
+              items: cache.payload.items.map((item) =>
+                item.id === id ? { ...item, resolved } : item,
+              ),
+            },
+          };
+        }
+        return { id, resolved };
       },
     });
     bb.log.info("GitHub Activity loaded");

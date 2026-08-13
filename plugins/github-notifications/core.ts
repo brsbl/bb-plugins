@@ -51,6 +51,7 @@ export interface GithubNotificationItem {
   avatarUrl: string | null;
   number: number;
   repo: string;
+  resolved: boolean;
   resourceKind: ResourceKind;
   title: string;
   unread: boolean;
@@ -404,6 +405,7 @@ export function projectOwnedNotifications(args: {
       avatarUrl: activity.avatarUrl,
       number,
       repo: row.repository,
+      resolved: false,
       resourceKind: lookup.resourceKind,
       title,
       unread: row.unread,

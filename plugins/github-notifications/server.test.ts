@@ -70,6 +70,7 @@ describe("GitHub Activity plugin", () => {
 
     expect(harness.inspection.registrations.rpcMethods).toEqual([
       "listNotifications",
+      "setNotificationResolved",
     ]);
     await expect(
       harness.behavior.callRpc("listNotifications", { force: false }),
@@ -79,11 +80,28 @@ describe("GitHub Activity plugin", () => {
         items: [
           expect.objectContaining({
             activity: "Changes requested",
+            resolved: false,
             resourceKind: "pr",
           }),
         ],
       }),
     );
+    await expect(
+      harness.behavior.callRpc("setNotificationResolved", {
+        id: "n41",
+        resolved: true,
+      }),
+    ).resolves.toEqual({ id: "n41", resolved: true });
+    await expect(
+      harness.behavior.callRpc("listNotifications", { force: false }),
+    ).resolves.toEqual(
+      expect.objectContaining({
+        items: [expect.objectContaining({ id: "n41", resolved: true })],
+      }),
+    );
+    await expect(
+      bb.storage.kv.get("resolved-notification-ids"),
+    ).resolves.toEqual(["n41"]);
     await harness.lifecycle.dispose();
   });
 
