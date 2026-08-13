@@ -161,13 +161,92 @@ describe("GitHub Activity plugin", () => {
     const activityQueries = graphqlQueries.filter((query) =>
       query.includes("query GithubNotificationActivity"),
     );
-    expect(ownershipQueries).toHaveLength(3);
+    expect(ownershipQueries).toHaveLength(2);
     expect(
       ownershipQueries.every((query) => !query.includes("comments(")),
     ).toBe(true);
     expect(activityQueries).toHaveLength(1);
     expect(activityQueries[0]).toContain("notification50");
     expect(activityQueries[0]).not.toContain("notification0:");
+    await harness.lifecycle.dispose();
+  });
+
+  it("fetches the exact inline review comment identified by notification metadata", async () => {
+    const inlineNotification = notification(41, {
+      subject: {
+        latest_comment_url:
+          "https://api.github.example.test/repos/get-bb/bb/pulls/comments/501",
+        title: "Inline feedback",
+        type: "PullRequest",
+        url: "https://api.github.example.test/repos/get-bb/bb/pulls/42",
+      },
+    });
+    const runGh = vi.fn<RunGh>(async (args) => {
+      if (args.includes("notifications")) return [inlineNotification];
+      if (
+        args.includes(
+          "https://api.github.example.test/repos/get-bb/bb/pulls/comments/501",
+        )
+      ) {
+        return {
+          body: "Inline note",
+          created_at: "2026-08-12T11:30:00Z",
+          id: 501,
+          user: {
+            avatar_url: "https://github.example.test/avatars/reviewer",
+            login: "reviewer",
+          },
+        };
+      }
+      const query = queryFrom(args);
+      if (query.includes("query GithubNotifications")) {
+        return {
+          data: {
+            viewer: { login: "brsbl" },
+            notification0: {
+              resource: {
+                author: { login: "brsbl" },
+                number: 42,
+                title: "Inline feedback",
+                url: "https://github.example.test/get-bb/bb/pull/42",
+              },
+            },
+          },
+        };
+      }
+      return {
+        data: {
+          notification0: {
+            resource: {
+              comments: { nodes: [] },
+              reviews: { nodes: [] },
+            },
+          },
+        },
+      };
+    });
+    const { bb, harness } = createFakePluginHost({
+      pluginId: "github-notifications",
+    });
+    createGithubNotificationsPlugin(runGh)(bb);
+
+    await expect(
+      harness.behavior.callRpc("listNotifications", { force: false }),
+    ).resolves.toEqual(
+      expect.objectContaining({
+        items: [
+          expect.objectContaining({
+            actor: "reviewer",
+            avatarUrl: "https://github.example.test/avatars/reviewer",
+            updatedAt: "2026-08-12T11:30:00Z",
+          }),
+        ],
+      }),
+    );
+    expect(runGh).toHaveBeenCalledWith([
+      "api",
+      "https://api.github.example.test/repos/get-bb/bb/pulls/comments/501",
+    ]);
     await harness.lifecycle.dispose();
   });
 
@@ -199,6 +278,121 @@ describe("GitHub Activity plugin", () => {
       expect.objectContaining({ items: [], login: "brsbl" }),
     ]);
     expect(runGh).toHaveBeenCalledTimes(2);
+    await harness.lifecycle.dispose();
+  });
+
+  it("uses incremental notification data after the initial load", async () => {
+    const runGh = vi.fn<RunGh>(async (args) => {
+      if (args.includes("notifications")) return [];
+      return { data: { viewer: { login: "brsbl" } } };
+    });
+    const { bb, harness } = createFakePluginHost({
+      pluginId: "github-notifications",
+    });
+    createGithubNotificationsPlugin(runGh)(bb);
+
+    await harness.behavior.callRpc("listNotifications", { force: false });
+    await harness.behavior.callRpc("listNotifications", { force: true });
+
+    const notificationCalls = runGh.mock.calls
+      .map(([args]) => args)
+      .filter((args) => args.includes("notifications"));
+    expect(notificationCalls).toHaveLength(2);
+    expect(notificationCalls[0]!.some((arg) => arg.startsWith("since="))).toBe(
+      false,
+    );
+    expect(notificationCalls[1]!.some((arg) => arg.startsWith("since="))).toBe(
+      true,
+    );
+    await harness.lifecycle.dispose();
+  });
+
+  it("bounds concurrent GraphQL batches while avoiding serial owned-resource fetches", async () => {
+    const rows = Array.from({ length: 100 }, (_, index) => notification(index));
+    let activeGraphql = 0;
+    let maxActiveGraphql = 0;
+    const graphqlQueries: string[] = [];
+    const runGh = vi.fn<RunGh>(async (args) => {
+      if (args.includes("notifications")) {
+        if (args.includes("page=1")) return rows.slice(0, 50);
+        if (args.includes("page=2")) return rows.slice(50);
+        return [];
+      }
+      const query = queryFrom(args);
+      graphqlQueries.push(query);
+      activeGraphql += 1;
+      maxActiveGraphql = Math.max(maxActiveGraphql, activeGraphql);
+      await new Promise((resolve) => setTimeout(resolve, 5));
+      activeGraphql -= 1;
+      const aliases = [
+        ...query.matchAll(/(notification\d+): repository/gu),
+      ].map((match) => match[1]!);
+      if (query.includes("query GithubNotifications")) {
+        return {
+          data: Object.fromEntries([
+            ["viewer", { login: "brsbl" }],
+            ...aliases.map((alias) => {
+              const index = Number(alias.replace("notification", ""));
+              return [
+                alias,
+                {
+                  resource: {
+                    author: { login: "brsbl" },
+                    number: index + 1,
+                    title: `Notification ${index}`,
+                    url: `https://github.com/get-bb/bb/pull/${index + 1}`,
+                  },
+                },
+              ];
+            }),
+          ]),
+        };
+      }
+      return {
+        data: Object.fromEntries(
+          aliases.map((alias) => [
+            alias,
+            {
+              resource: {
+                comments: {
+                  nodes: [
+                    {
+                      author: { login: "alice", avatarUrl: null },
+                      bodyText: "comment",
+                      createdAt: "2026-08-12T11:00:00Z",
+                      databaseId: 1,
+                    },
+                  ],
+                },
+                reviews: { nodes: [] },
+              },
+            },
+          ]),
+        ),
+      };
+    });
+    const { bb, harness } = createFakePluginHost({
+      pluginId: "github-notifications",
+    });
+    createGithubNotificationsPlugin(runGh)(bb);
+
+    const result = (await harness.behavior.callRpc("listNotifications", {
+      force: false,
+    })) as NotificationsPayload;
+
+    expect(result.items).toHaveLength(100);
+    expect(maxActiveGraphql).toBeGreaterThan(1);
+    expect(maxActiveGraphql).toBeLessThanOrEqual(3);
+    expect(
+      graphqlQueries.filter((query) =>
+        query.includes("query GithubNotifications"),
+      ),
+    ).toHaveLength(2);
+    expect(
+      graphqlQueries.filter((query) =>
+        query.includes("query GithubNotificationActivity"),
+      ),
+    ).toHaveLength(5);
     await harness.lifecycle.dispose();
   });
 });

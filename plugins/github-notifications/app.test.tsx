@@ -1,6 +1,11 @@
 // @vitest-environment jsdom
 
-import { cleanup, fireEvent, screen, waitFor } from "@testing-library/react";
+import {
+  cleanup,
+  fireEvent,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import { loadPluginApp, renderSlot } from "@bb/plugin-sdk/testing/app";
 import { afterEach, describe, expect, it } from "vitest";
 
@@ -21,6 +26,7 @@ describe("GitHub Activity panel", () => {
               activity: "Approved",
               activityKind: "approved",
               actor: "alice",
+              avatarUrl: "https://ghe.example.test/avatars/alice",
               number: 42,
               repo: "get-bb/bb",
               resourceKind: "pr",
@@ -34,6 +40,7 @@ describe("GitHub Activity panel", () => {
               activity: "New comment",
               activityKind: "comment",
               actor: "bob",
+              avatarUrl: null,
               number: 7,
               repo: "brsbl/moss",
               resourceKind: "issue",

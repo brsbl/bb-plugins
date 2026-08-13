@@ -15,6 +15,7 @@ export interface GithubNotificationRow {
 }
 
 interface GithubActor {
+  avatarUrl?: unknown;
   login?: unknown;
 }
 
@@ -35,6 +36,7 @@ export interface GithubResourceNode {
   author?: GithubActor | null;
   comments?: { nodes?: unknown } | null;
   number?: unknown;
+  reviewThreads?: { nodes?: unknown } | null;
   reviews?: { nodes?: unknown } | null;
   title?: unknown;
   updatedAt?: unknown;
@@ -46,6 +48,7 @@ export interface GithubNotificationItem {
   activity: string;
   activityKind: ActivityKind;
   actor: string | null;
+  avatarUrl: string | null;
   number: number;
   repo: string;
   resourceKind: ResourceKind;
@@ -193,18 +196,13 @@ export function buildActivityQuery(args: {
       lookup.resourceKind === "pr" ? "pullRequest" : "issue";
     const rowIndex = rowIndexFromAlias(lookup.alias);
     const row = rowIndex === null ? undefined : args.rows[rowIndex];
-    const needsMentionBody =
-      row !== undefined &&
-      (row.reason === "mention" || row.reason === "team_mention") &&
-      latestCommentDatabaseId(row.latestCommentUrl) === null;
-    const bodyField = needsMentionBody ? " bodyText" : "";
     const reviews =
       lookup.resourceKind === "pr"
-        ? "reviews(last: 20) { nodes { author { login } state submittedAt } }"
+        ? "reviews(last: 20) { nodes { author { login avatarUrl } state submittedAt } }"
         : "";
     return `${lookup.alias}: repository(owner: ${JSON.stringify(lookup.owner)}, name: ${JSON.stringify(lookup.repoName)}) {
       resource: ${resourceField}(number: ${lookup.number}) {
-        comments(last: 20) { nodes { author { login } createdAt databaseId${bodyField} } }
+        comments(last: 20) { nodes { author { login avatarUrl } bodyText createdAt databaseId } }
         ${reviews}
       }
     }`;
@@ -239,8 +237,10 @@ export function selectOwnedLookups(args: {
 interface ActivityCandidate {
   actor: string;
   at: string;
+  avatarUrl: string | null;
   kind: ActivityKind;
   label: string;
+  matchesLatestComment: boolean;
 }
 
 function dateValue(value: unknown): string | null {
@@ -254,17 +254,17 @@ function includesMention(body: string, viewer: string): boolean {
   return body.toLocaleLowerCase().includes(`@${viewer.toLocaleLowerCase()}`);
 }
 
-function commentCandidates(
-  node: GithubResourceNode,
+function candidatesFromComments(
+  rawNodes: unknown,
   viewer: string,
   row: GithubNotificationRow,
 ): ActivityCandidate[] {
-  const rawNodes = node.comments?.nodes;
   if (!Array.isArray(rawNodes)) return [];
   return rawNodes.flatMap((entry): ActivityCandidate[] => {
     if (!isRecord(entry)) return [];
     const comment = entry as GithubCommentNode;
     const actor = stringValue(comment.author?.login);
+    const avatarUrl = stringValue(comment.author?.avatarUrl);
     const at = dateValue(comment.createdAt);
     if (actor === null || at === null || actor === viewer) return [];
     const body = typeof comment.bodyText === "string" ? comment.bodyText : "";
@@ -274,18 +274,39 @@ function commentCandidates(
         ? comment.databaseId
         : null;
     const expectedMentionId = latestCommentDatabaseId(row.latestCommentUrl);
-    const mention =
-      (expectedMentionId !== null && databaseId === expectedMentionId) ||
-      (expectedMentionId === null && includesMention(body, viewer));
+    const mention = includesMention(body, viewer);
     return [
       {
         actor,
         at,
+        avatarUrl,
         kind: mention ? "mention" : "comment",
         label: mention ? "Mention" : "New comment",
+        matchesLatestComment:
+          expectedMentionId !== null && databaseId === expectedMentionId,
       },
     ];
   });
+}
+
+function commentCandidates(
+  node: GithubResourceNode,
+  viewer: string,
+  row: GithubNotificationRow,
+): ActivityCandidate[] {
+  const issueComments = candidatesFromComments(
+    node.comments?.nodes,
+    viewer,
+    row,
+  );
+  const threadNodes = node.reviewThreads?.nodes;
+  if (!Array.isArray(threadNodes)) return issueComments;
+  const reviewComments = threadNodes.flatMap((thread) =>
+    isRecord(thread) && isRecord(thread.comments)
+      ? candidatesFromComments(thread.comments.nodes, viewer, row)
+      : [],
+  );
+  return [...issueComments, ...reviewComments];
 }
 
 function reviewCandidates(
@@ -298,18 +319,44 @@ function reviewCandidates(
     if (!isRecord(entry)) return [];
     const review = entry as GithubReviewNode;
     const actor = stringValue(review.author?.login);
+    const avatarUrl = stringValue(review.author?.avatarUrl);
     const at = dateValue(review.submittedAt);
     const state = stringValue(review.state)?.toLocaleUpperCase();
     if (actor === null || at === null || actor === viewer) return [];
     if (state === "APPROVED") {
-      return [{ actor, at, kind: "approved", label: "Approved" }];
+      return [
+        {
+          actor,
+          at,
+          avatarUrl,
+          kind: "approved",
+          label: "Approved",
+          matchesLatestComment: false,
+        },
+      ];
     }
     if (state === "CHANGES_REQUESTED") {
       return [
-        { actor, at, kind: "changes-requested", label: "Changes requested" },
+        {
+          actor,
+          at,
+          avatarUrl,
+          kind: "changes-requested",
+          label: "Changes requested",
+          matchesLatestComment: false,
+        },
       ];
     }
-    return [{ actor, at, kind: "review", label: "New review" }];
+    return [
+      {
+        actor,
+        at,
+        avatarUrl,
+        kind: "review",
+        label: "New review",
+        matchesLatestComment: false,
+      },
+    ];
   });
 }
 
@@ -340,19 +387,9 @@ export function projectOwnedNotifications(args: {
       ...commentCandidates(resource, viewer, row),
       ...reviewCandidates(resource, viewer),
     ].sort((left, right) => Date.parse(right.at) - Date.parse(left.at));
-    const isMentionReason =
-      row.reason === "mention" || row.reason === "team_mention";
-    let activity = isMentionReason
-      ? candidates.find((candidate) => candidate.kind === "mention")
-      : candidates[0];
-    if (activity === undefined && isMentionReason) {
-      activity = {
-        actor: "",
-        at: row.updatedAt,
-        kind: "mention",
-        label: "Mention",
-      };
-    }
+    const activity =
+      candidates.find((candidate) => candidate.matchesLatestComment) ??
+      candidates[0];
     if (activity === undefined) continue;
     const number =
       typeof resource.number === "number" ? resource.number : lookup.number;
@@ -364,6 +401,7 @@ export function projectOwnedNotifications(args: {
       activity: activity.label,
       activityKind: activity.kind,
       actor: activity.actor || null,
+      avatarUrl: activity.avatarUrl,
       number,
       repo: row.repository,
       resourceKind: lookup.resourceKind,
