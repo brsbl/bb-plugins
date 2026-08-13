@@ -46,7 +46,7 @@ jobs:
       fail-fast: false
       matrix:
         include: ${{ fromJSON(needs.inventory.outputs.plugins) }}
-    name: ${{ matrix.name }}
+    name: ${{ matrix.package == 'bb-plugin-prompt-shaper' && 'Improve Prompt' || matrix.name }}
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-node@v6
