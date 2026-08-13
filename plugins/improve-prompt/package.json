@@ -13,7 +13,7 @@
     "bbPluginSdk": "^0.5.0"
   },
   "bb": {
-    "name": "Improve Prompt",
+    "name": "Prompt Shaper",
     "description": "Adds an Improve prompt action to the composer that sends your rough draft to a hidden helper agent, which applies the prompt-shaper skill to rewrite it into a clear, complete prompt and returns it in place for review before you send.",
     "branding": {
       "icon": "AiContentGenerator01"
