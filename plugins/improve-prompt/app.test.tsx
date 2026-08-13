@@ -170,7 +170,15 @@ describe("Improve Prompt composer action", () => {
     const improveButton = screen.getByRole("button", {
       name: "Improve prompt",
     });
-    expect(document.querySelector("style")).toBeNull();
+    // vaul (host-shimmed at runtime, external to the plugin bundle) injects
+    // its drawer keyframes on import here; the plugin's own modules must not
+    // inject styles — plugin CSS ships only through the built app.css.
+    const injectedStyles = Array.from(
+      document.querySelectorAll("style"),
+    ).filter((style) => !style.textContent?.includes("data-vaul"));
+    expect(injectedStyles).toHaveLength(0);
+    const builtJs = await readFile(resolve("dist/app.js"), "utf8");
+    expect(builtJs).not.toContain("data-vaul-drawer");
     const builtCss = await readFile(resolve("dist/app.css"), "utf8");
     expect(builtCss).toContain(".bb-improve-prompt-shimmer");
     expect(builtCss).toContain('@scope ([data-bb-plugin="prompt-shaper"]');

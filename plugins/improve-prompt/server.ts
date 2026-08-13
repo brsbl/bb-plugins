@@ -6,7 +6,6 @@ import {
   parseShaperOutput,
   type ParsedShaperOutput,
 } from "./core.js";
-import { createHistoryMaintenance } from "./history.js";
 
 const REQUEST_TTL_MS = 24 * 60 * 60 * 1_000;
 const REQUEST_PREFIX = "request:";
@@ -40,6 +39,41 @@ const cancellationRecordSchema = z.object({
   createdAt: z.number().int().nonnegative(),
 });
 
+/**
+ * Which provider/model the hidden helper runs with.
+ * - "default": unset — the helper matches the composer's thread when one
+ *   exists, otherwise the project's spawn defaults (the pre-setting behavior).
+ * - "thread": explicitly inherit the current thread's provider and model.
+ *   Behaves like "default" today, but records the user's intent so the two can
+ *   diverge if the default ever changes.
+ * - "fixed": always run with `providerId` (and optionally `model`).
+ * `providerId`/`model` are only meaningful for "fixed"; the schema enforces it.
+ */
+const HELPER_EXECUTION_KEY = "helper-execution";
+const helperExecutionSchema = z.discriminatedUnion("mode", [
+  z.object({
+    mode: z.literal("default"),
+    providerId: z.null(),
+    model: z.null(),
+  }),
+  z.object({
+    mode: z.literal("thread"),
+    providerId: z.null(),
+    model: z.null(),
+  }),
+  z.object({
+    mode: z.literal("fixed"),
+    providerId: z.string().min(1),
+    model: z.string().min(1).nullable(),
+  }),
+]);
+type HelperExecution = z.infer<typeof helperExecutionSchema>;
+const UNSET_HELPER_EXECUTION: HelperExecution = {
+  mode: "default",
+  providerId: null,
+  model: null,
+};
+
 type EnhancementRecord = z.infer<typeof enhancementRecordSchema>;
 type RunningRecord = Extract<EnhancementRecord, { status: "running" }>;
 
@@ -68,6 +102,34 @@ export const rpcContract = {
     input: z.object({ requestId: requestIdSchema }),
     output: z.object({ cancelled: z.literal(true) }),
   },
+  getHelperExecution: {
+    input: z.object({}),
+    output: helperExecutionSchema,
+  },
+  setHelperExecution: {
+    input: helperExecutionSchema,
+    output: z.object({ saved: z.literal(true) }),
+  },
+  listHelperProviders: {
+    input: z.object({}),
+    output: z.object({
+      providers: z.array(
+        z.object({
+          id: z.string(),
+          displayName: z.string(),
+          available: z.boolean(),
+        }),
+      ),
+    }),
+  },
+  listHelperModels: {
+    input: z.object({ providerId: z.string().min(1) }),
+    output: z.object({
+      models: z.array(
+        z.object({ model: z.string(), displayName: z.string() }),
+      ),
+    }),
+  },
 } as const;
 
 function requestKey(requestId: string): string {
@@ -86,40 +148,15 @@ function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
-function optionValue(argv: string[], name: string): string | undefined {
-  const index = argv.indexOf(name);
-  if (index < 0) return undefined;
-  const value = argv[index + 1];
-  if (!value || value.startsWith("--")) {
-    throw new Error(`${name} requires a value`);
-  }
-  return value;
-}
-
-function integerOption(
-  argv: string[],
-  name: string,
-  fallback: number,
-  minimum: number,
-  maximum: number,
-): number {
-  const raw = optionValue(argv, name);
-  if (raw === undefined) return fallback;
-  const value = Number(raw);
-  if (!Number.isInteger(value) || value < minimum || value > maximum) {
-    throw new Error(`${name} must be an integer from ${minimum} to ${maximum}`);
-  }
-  return value;
-}
-
-function requiredOption(argv: string[], name: string): string {
-  const value = optionValue(argv, name);
-  if (value === undefined) throw new Error(`${name} is required`);
-  return value;
-}
-
 export default async function plugin(bb: BbPluginApi) {
   const reconciliationRequests = new Map<string, Promise<void>>();
+
+  async function readHelperExecution(): Promise<HelperExecution> {
+    const value = await bb.storage.kv.get<unknown>(HELPER_EXECUTION_KEY);
+    if (value === undefined) return UNSET_HELPER_EXECUTION;
+    const parsed = helperExecutionSchema.safeParse(value);
+    return parsed.success ? parsed.data : UNSET_HELPER_EXECUTION;
+  }
 
   async function readRecord(
     requestId: string,
@@ -261,11 +298,25 @@ export default async function plugin(bb: BbPluginApi) {
     projectId: string;
     sourceThreadId: string | null;
   }) {
+    // A fixed helper execution beats inheritance: the user asked for a
+    // specific provider (and optionally model) for every enhancement run.
+    // "default" and "thread" both take the inheritance path below — match the
+    // composer's thread, or fall back to the project's spawn defaults.
+    const configured = await readHelperExecution();
+    const configuredExecution =
+      configured.mode !== "fixed"
+        ? null
+        : {
+            providerId: configured.providerId,
+            ...(configured.model === null ? {} : { model: configured.model }),
+          };
+
     if (input.sourceThreadId === null) {
       return bb.sdk.threads.spawn({
         projectId: input.projectId,
         prompt: buildWorkerPrompt({ draft: input.draft }),
         environment: { type: "project-default" },
+        ...(configuredExecution ?? {}),
         permissionMode: "auto",
         visibility: "hidden",
         title: "Improve Prompt",
@@ -278,13 +329,24 @@ export default async function plugin(bb: BbPluginApi) {
     if (source.projectId !== input.projectId) {
       throw new Error("Source thread does not belong to this composer project");
     }
-    const execution = await bb.sdk.threads.defaultExecutionOptions({
-      threadId: input.sourceThreadId,
-    });
     const environment =
       source.environmentId === null
         ? ({ type: "project-default" } as const)
         : ({ type: "reuse", environmentId: source.environmentId } as const);
+    if (configuredExecution !== null) {
+      return bb.sdk.threads.spawn({
+        projectId: input.projectId,
+        prompt: buildWorkerPrompt({ draft: input.draft }),
+        environment,
+        ...configuredExecution,
+        permissionMode: "auto",
+        visibility: "hidden",
+        title: "Improve Prompt",
+      });
+    }
+    const execution = await bb.sdk.threads.defaultExecutionOptions({
+      threadId: input.sourceThreadId,
+    });
     return bb.sdk.threads.spawn({
       projectId: input.projectId,
       prompt: buildWorkerPrompt({ draft: input.draft }),
@@ -303,93 +365,39 @@ export default async function plugin(bb: BbPluginApi) {
     });
   }
 
-  const historyMaintenance = createHistoryMaintenance(bb);
-  bb.events.on("thread.created", async ({ thread }) => {
-    await historyMaintenance.observeCreated(thread);
-  });
-  bb.events.on("thread.idle", async ({ thread }) => {
-    await historyMaintenance.observeThread(thread);
-  });
-  bb.events.on("thread.deleted", async ({ thread }) => {
-    await historyMaintenance.forgetThread(thread.id);
-  });
-  bb.cli.register({
-    name: "prompt-shaper",
-    summary: "Maintain Prompt Shaper from incremental bb thread history",
-    commands: [
-      {
-        name: "history",
-        summary: "Scan new user-authored thread history through the SDK",
-        usage: "bb prompt-shaper history <scan|advance|release> [options]",
-      },
-    ],
-    async run(argv, context) {
-      try {
-        if (argv[0] !== "history") {
-          return {
-            exitCode: 2,
-            stderr:
-              "Usage: bb prompt-shaper history <scan|advance|release> [options]\n",
-          };
-        }
-        const action = argv[1];
-        if (action === "scan") {
-          const maxBytes = integerOption(
-            argv,
-            "--max-bytes",
-            262_144,
-            1,
-            900_000,
-          );
-          const result = await historyMaintenance.scan({
-            limit: integerOption(argv, "--limit", 200, 1, 1_000),
-            maxBytes,
-            maxMessageBytes: integerOption(
-              argv,
-              "--max-message-bytes",
-              8_192,
-              1,
-              maxBytes,
-            ),
-            leaseSeconds: integerOption(
-              argv,
-              "--lease-seconds",
-              6 * 60 * 60,
-              60,
-              86_400,
-            ),
-            forceReconcile: argv.includes("--reconcile"),
-            signal: context.signal,
-          });
-          return {
-            exitCode: 0,
-            stdout: `${JSON.stringify(result, null, 2)}\n`,
-          };
-        }
-        if (action === "advance") {
-          const result = await historyMaintenance.advance({
-            leaseId: requiredOption(argv, "--lease-id"),
-          });
-          return { exitCode: 0, stdout: `${JSON.stringify(result)}\n` };
-        }
-        if (action === "release") {
-          const result = await historyMaintenance.release(
-            requiredOption(argv, "--lease-id"),
-          );
-          return { exitCode: 0, stdout: `${JSON.stringify(result)}\n` };
-        }
-        return {
-          exitCode: 2,
-          stderr:
-            "Usage: bb prompt-shaper history <scan|advance|release> [options]\n",
-        };
-      } catch (error) {
-        return { exitCode: 1, stderr: `${errorMessage(error)}\n` };
-      }
-    },
-  });
-
   bb.rpc.register(rpcContract, {
+    async getHelperExecution() {
+      return readHelperExecution();
+    },
+    async setHelperExecution(input) {
+      if (input.mode === "default") {
+        await bb.storage.kv.delete(HELPER_EXECUTION_KEY);
+      } else {
+        await bb.storage.kv.set(HELPER_EXECUTION_KEY, input);
+      }
+      return { saved: true as const };
+    },
+    async listHelperProviders() {
+      const providers = await bb.sdk.providers.list();
+      return {
+        providers: providers.map((provider) => ({
+          id: provider.id,
+          displayName: provider.displayName,
+          available: provider.available,
+        })),
+      };
+    },
+    async listHelperModels(input) {
+      const options = await bb.sdk.providers.models({
+        providerId: input.providerId,
+      });
+      return {
+        models: options.models.map((model) => ({
+          model: model.model,
+          displayName: model.displayName,
+        })),
+      };
+    },
     async startEnhancement(input) {
       let helperThreadId: string | null = null;
       try {
@@ -476,12 +484,6 @@ export default async function plugin(bb: BbPluginApi) {
       error: error?.trim() || "The shaping agent failed.",
     }),
   );
-
-  void historyMaintenance.prepare().catch((error) => {
-    bb.log.warn(
-      `could not prepare incremental thread history: ${errorMessage(error)}; the next history scan will retry`,
-    );
-  });
 
   const now = Date.now();
   for (const key of await bb.storage.kv.list(REQUEST_PREFIX)) {

@@ -22,22 +22,9 @@ The behavior comes from the installed `prompt-shaper` skill; the stable plugin I
 
 ## How it works
 
-Prompt shaping and history learning are separate paths:
+The plugin sends only the current draft to a standalone hidden helper thread. The helper applies the `prompt-shaper` skill to rewrite the draft into one paste-ready prompt, and the result replaces the draft in place. The helper may reuse the source thread's environment and execution settings, but it never reads or inherits that thread's transcript.
 
-- **Composer path:** the plugin sends only the current draft to a standalone hidden helper. It may reuse the source thread's environment and execution settings, but it never reads or inherits that thread's transcript.
-- **Maintenance path:** the plugin queues visible user threads when they become idle. `bb prompt-shaper history scan` reads only the unseen part of each queued episode through bb's timeline API, and a monthly maintenance agent updates the personal `prompt-shaper` skill only when a useful pattern recurs. A startup and monthly inventory check catches episodes missed while the plugin was offline.
-
-bb gives the personal skill in `~/.bb/skills/prompt-shaper/` precedence over this plugin's bundled default, so future helpers automatically use the learned guidance without receiving raw history on every click.
-
-The maintenance commands are bounded and resumable:
-
-```bash
-bb prompt-shaper history scan
-bb prompt-shaper history advance --lease-id <id>
-bb prompt-shaper history release --lease-id <id>
-```
-
-Add `--reconcile` to `history scan` to force an immediate inventory catch-up.
+bb gives a personal skill in `~/.bb/skills/prompt-shaper/` precedence over this plugin's bundled default, so you can tune the rewriting guidance without forking the plugin.
 
 The UI is registered through `app.composer.customize(...)` as the `improve` composer action. Its component uses the context-bound `useComposer()` and `useComposerView()` hooks, so thread, queued-message, side-chat, and new-thread drafts are handled by their mounted composer instance.
 

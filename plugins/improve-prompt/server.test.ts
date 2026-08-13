@@ -17,13 +17,6 @@ interface RpcHandlers {
   cancelEnhancement(input: { requestId: string }): Promise<{ cancelled: true }>;
 }
 
-interface CliRegistration {
-  run(
-    argv: string[],
-    context: { signal?: AbortSignal },
-  ): Promise<{ exitCode: number; stdout?: string; stderr?: string }>;
-}
-
 interface Deferred<T> {
   promise: Promise<T>;
   resolve(value: T): void;
@@ -49,14 +42,12 @@ async function createHarness(options?: {
   const database = new Database(":memory:");
   const eventHandlers = new Map<string, Array<(payload: never) => unknown>>();
   let rpcHandlers: RpcHandlers | null = null;
-  let cliRegistration: CliRegistration | null = null;
   const threads = {
     spawn: vi.fn(options?.spawn ?? (async () => ({ id: "thr_helper" }))),
     get: vi.fn(options?.get ?? (async () => ({ status: "active" }))),
     defaultExecutionOptions: vi.fn(
       options?.defaultExecutionOptions ?? (async () => null),
     ),
-    list: vi.fn(async () => []),
     timeline: vi.fn(
       options?.timeline ??
         (async () => ({
@@ -96,11 +87,6 @@ async function createHarness(options?: {
       },
     },
     sdk: { threads },
-    cli: {
-      register(registration: CliRegistration) {
-        cliRegistration = registration;
-      },
-    },
     rpc: {
       register(_contract: typeof rpcContract, handlers: RpcHandlers) {
         rpcHandlers = handlers;
@@ -124,12 +110,10 @@ async function createHarness(options?: {
 
   await promptShaper(bb);
   if (rpcHandlers === null) throw new Error("RPC handlers were not registered");
-  if (cliRegistration === null) throw new Error("CLI was not registered");
 
   return {
     kv,
     rpc: rpcHandlers,
-    cli: cliRegistration,
     threads,
     publish,
     log: bb.log,
