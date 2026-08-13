@@ -2734,7 +2734,9 @@ var TimelineCommentsController = class {
       onSendToAgent: () => {
         void requestTimelineCommentHandoff(detail.thread.bbThreadId).then(
           (accepted) => {
-            if (accepted && this.#popover === popover) this.closePopover();
+            if (accepted && this.#popover === popover) {
+              this.closePopover(true, false);
+            }
           }
         );
       }
@@ -3403,10 +3405,14 @@ function threadWindowForNode(node) {
 function TimelineCommentHandoffBridge() {
   const rpc = useRpc();
   const composer = useComposer();
+  const composerRef = useRef(composer);
   const root = useRef(null);
   const requestGeneration = useRef(0);
   const requestPending = useRef(false);
   const threadId = composer.scope.kind === "thread" ? composer.scope.threadId : null;
+  useLayoutEffect(() => {
+    composerRef.current = composer;
+  }, [composer]);
   useLayoutEffect(() => {
     if (threadId === null) return;
     const generation = ++requestGeneration.current;
@@ -3430,12 +3436,12 @@ function TimelineCommentHandoffBridge() {
           if (!mounted || generation !== requestGeneration.current || summary.threadCount === 0) {
             return false;
           }
-          composer.insertMention({
+          composerRef.current.insertMention({
             provider: "thread-comments",
             id: threadId,
             label: `${summary.commentCount} ${summary.commentCount === 1 ? "comment" : "comments"} from ${summary.threadCount} open ${summary.threadCount === 1 ? "thread" : "threads"}`
           });
-          composer.focus();
+          composerRef.current.focus();
           return true;
         } catch {
           return false;
@@ -3453,7 +3459,7 @@ function TimelineCommentHandoffBridge() {
       unregisterHandoff();
       unregisterWindow();
     };
-  }, [composer, rpc, threadId]);
+  }, [rpc, threadId]);
   return /* @__PURE__ */ jsx("span", { ref: root, hidden: true, "aria-hidden": "true" });
 }
 function AddCommentsAction() {
