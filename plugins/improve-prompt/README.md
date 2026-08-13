@@ -1,4 +1,4 @@
-# Improve Prompt
+# Prompt Improver
 
 Improve Prompt gives a rough bb composer draft one focused editing pass. It returns a clearer, context-complete request for you to review, without sending anything.
 
