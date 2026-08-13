@@ -145,7 +145,7 @@ function updatePresentation(kind: GithubNotificationItem["activityKind"]): {
 
 function NotificationLink({ item }: { item: GithubNotificationItem }) {
   const navigate = useBbNavigate() as ReturnType<typeof useBbNavigate> & {
-    openBrowserTab?: (options: { url: string }) => boolean;
+    experimental_openBrowserTab?: (options: { url: string }) => boolean;
   };
   const update = updatePresentation(item.activityKind);
   const actor = item.actor ? `@${item.actor}` : "Someone";
@@ -157,7 +157,7 @@ function NotificationLink({ item }: { item: GithubNotificationItem }) {
       !event.ctrlKey &&
       !event.shiftKey &&
       !event.altKey &&
-      navigate.openBrowserTab?.({ url: item.url })
+      navigate.experimental_openBrowserTab?.({ url: item.url })
     ) {
       event.preventDefault();
     }
