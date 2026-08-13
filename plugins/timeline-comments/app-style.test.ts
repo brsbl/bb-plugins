@@ -46,11 +46,9 @@ describe("timeline comments visual contract", () => {
   it("uses a neutral ink focus treatment instead of the host accent ring", () => {
     expect(css).not.toContain("var(--ring)");
     expect(css).toMatch(
-      /\.bb-comments-textarea:focus-visible,[\s\S]*outline: none !important;[\s\S]*box-shadow: none !important;/u,
+      /\.bb-comments-mention-input:has\([\s\S]*:focus-visible[\s\S]*\) \{[\s\S]*outline: 2px solid[\s\S]*color-mix\(in oklab, var\(--foreground\) 55%, transparent\)/u,
     );
-    expect(css).toMatch(
-      /\.bb-comments-inline-composer:focus-within \{[\s\S]*outline: none;[\s\S]*box-shadow: none;/u,
-    );
+    expect(css).toContain("outline-offset: -2px;");
     expect(css).toMatch(
       /\.bb-comments-composer-action:focus-visible,[\s\S]*color-mix\(in oklab, var\(--foreground\) 15%, transparent\)/u,
     );

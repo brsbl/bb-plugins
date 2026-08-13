@@ -41,6 +41,74 @@ const MODE_TRANSITION = {
   duration: 150,
   easing: "cubic-bezier(0.22, 1, 0.36, 1)",
 } as const;
+const DRAFT_TTL = 24 * 60 * 60 * 1_000;
+
+function readDraft(key: string): string | null {
+  const saved = sessionStorage.getItem(key);
+  if (saved === null) return null;
+  try {
+    const parsed = JSON.parse(saved) as {
+      body?: unknown;
+      expiresAt?: unknown;
+    };
+    if (
+      typeof parsed.body === "string" &&
+      typeof parsed.expiresAt === "number" &&
+      parsed.expiresAt > Date.now()
+    ) {
+      return parsed.body;
+    }
+  } catch {
+    // Invalid or expired drafts are discarded below.
+  }
+  sessionStorage.removeItem(key);
+  return null;
+}
+
+function writeDraft(key: string, body: string): void {
+  if (body.trim() === "") {
+    sessionStorage.removeItem(key);
+    return;
+  }
+  sessionStorage.setItem(
+    key,
+    JSON.stringify({ body, expiresAt: Date.now() + DRAFT_TTL }),
+  );
+}
+
+function focusAdjacentToActionsTrigger(
+  trigger: HTMLButtonElement,
+  backwards: boolean,
+): boolean {
+  const focusable = [
+    ...document.querySelectorAll<HTMLElement>(
+      'button:not(:disabled), textarea:not(:disabled), input:not(:disabled), [href], [tabindex]:not([tabindex="-1"])',
+    ),
+  ].filter(
+    (node) =>
+      node.getClientRects().length > 0 &&
+      node.closest('[aria-hidden="true"], [inert], [hidden]') === null &&
+      node.closest(".bb-comments-actions-popover") === null,
+  );
+  const current = focusable.indexOf(trigger);
+  const adjacent = focusable[current + (backwards ? -1 : 1)];
+  if (adjacent === undefined) return false;
+  adjacent.focus({ preventScroll: true });
+  return true;
+}
+
+function actionsTriggerIsFullyVisible(trigger: HTMLButtonElement): boolean {
+  const scrollViewport = trigger.closest<HTMLElement>(
+    ".bb-comments-thread-comments",
+  );
+  if (scrollViewport === null) return true;
+  const triggerRect = trigger.getBoundingClientRect();
+  const viewportRect = scrollViewport.getBoundingClientRect();
+  return (
+    triggerRect.top >= viewportRect.top &&
+    triggerRect.bottom <= viewportRect.bottom
+  );
+}
 
 function reducedMotion(): boolean {
   return (
@@ -158,6 +226,7 @@ interface CommentTextInputProps {
   footerPortalTarget?: HTMLElement | null;
   autoFocus?: boolean;
   onCancel?: () => void;
+  submitPending?: boolean;
 }
 
 function CommentTextInput({
@@ -170,6 +239,7 @@ function CommentTextInput({
   footerPortalTarget,
   autoFocus = false,
   onCancel,
+  submitPending = false,
 }: CommentTextInputProps) {
   const rootRef = useRef<HTMLDivElement | null>(null);
   const inputContentRef = useRef<HTMLDivElement | null>(null);
@@ -502,11 +572,13 @@ function CommentTextInput({
     <button
       type="button"
       className="bb-comments-submit-shortcut"
-      disabled={submitDisabled}
+      disabled={submitPending || submitDisabled}
       aria-label="Submit comment"
       title="Submit comment · ⌘/Ctrl Enter"
       onMouseDown={(event) => event.preventDefault()}
-      onClick={() => onSubmit(value)}
+      onClick={() => {
+        if (!submitPending) onSubmit(value);
+      }}
     >
       <Command aria-hidden="true" />
       <CornerDownLeft aria-hidden="true" />
@@ -524,6 +596,7 @@ function CommentTextInput({
         type="button"
         className="bb-comments-context-control"
         aria-label="Mention context"
+        disabled={submitPending}
         onMouseDown={(event) => event.preventDefault()}
         onClick={insertMentionTrigger}
       >
@@ -538,6 +611,7 @@ function CommentTextInput({
       ref={rootRef}
       className="bb-comments-mention-input"
       data-mention-input-expanded={footerVisible ? "true" : "false"}
+      aria-busy={submitPending || undefined}
     >
       <div className="bb-comments-input-surface" data-mention-input-surface="true">
         <div
@@ -560,17 +634,19 @@ function CommentTextInput({
               aria-label={ariaLabel}
               placeholder={placeholder}
               maxLength={20_000}
+              readOnly={submitPending}
+              aria-disabled={submitPending || undefined}
               value={value}
               onChange={(event) => onChange(event.currentTarget.value)}
               onKeyDown={(event) => {
-                if (event.key === "Escape" && onCancel) {
+                if (event.key === "Escape" && onCancel && !submitPending) {
                   event.preventDefault();
                   onCancel();
                   return;
                 }
                 if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) {
                   event.preventDefault();
-                  if (!submitDisabled) onSubmit(value);
+                  if (!submitPending && !submitDisabled) onSubmit(value);
                 }
               }}
             />
@@ -612,6 +688,7 @@ function CommentTextInput({
                     type="button"
                     className="bb-comments-context-control"
                     aria-label="Add comment context"
+                    disabled={submitPending}
                     onMouseDown={(event) => event.preventDefault()}
                     onClick={insertMentionTrigger}
                   >
@@ -628,6 +705,7 @@ function CommentTextInput({
                     type="button"
                     className="bb-comments-context-control"
                     aria-label="Mention context"
+                    disabled={submitPending}
                     onMouseDown={(event) => event.preventDefault()}
                     onClick={insertMentionTrigger}
                   >
@@ -653,6 +731,7 @@ interface CommentMessageProps {
   isLast: boolean;
   isEditing: boolean;
   editFooterPortalTarget: HTMLElement | null;
+  submitPending: boolean;
   onStartEdit: () => void;
   onCancelEdit: () => void;
   onSaveEdit: (body: string) => void;
@@ -664,19 +743,28 @@ function CommentMessage({
   isLast,
   isEditing,
   editFooterPortalTarget,
+  submitPending,
   onStartEdit,
   onCancelEdit,
   onSaveEdit,
   onDelete,
 }: CommentMessageProps) {
   const rowRef = useRef<HTMLElement | null>(null);
-  const [editText, setEditText] = useState(comment.body);
+  const editDraftKey = `bb.timeline-comments.edit:${comment.id}`;
+  const [editText, setEditText] = useState(
+    () => readDraft(editDraftKey) ?? comment.body,
+  );
   const [menuOpen, setMenuOpen] = useState(false);
   const menuTriggerRef = useRef<HTMLButtonElement | null>(null);
   const menuRef = useRef<HTMLDivElement | null>(null);
   const [menuPosition, setMenuPosition] = useState({ top: 0, left: 0 });
   const runModeTransition = useMeasuredModeTransition(rowRef, isEditing);
   const wasEditingRef = useRef(isEditing);
+  const cancelEdit = useCallback(() => {
+    sessionStorage.removeItem(editDraftKey);
+    setEditText(comment.body);
+    onCancelEdit();
+  }, [comment.body, editDraftKey, onCancelEdit]);
 
   useLayoutEffect(() => {
     if (wasEditingRef.current && !isEditing) {
@@ -697,8 +785,11 @@ function CommentMessage({
     );
   }, []);
 
-  useEffect(() => setEditText(comment.body), [comment.body]);
-  useEffect(() => {
+  useEffect(
+    () => setEditText(readDraft(editDraftKey) ?? comment.body),
+    [comment.body, editDraftKey],
+  );
+  useLayoutEffect(() => {
     if (!menuOpen) return;
     const close = (event: PointerEvent) => {
       if (
@@ -766,9 +857,13 @@ function CommentMessage({
       return;
     }
     if (event.key === "Tab") {
-      event.preventDefault();
+      const moved =
+        menuTriggerRef.current !== null &&
+        focusAdjacentToActionsTrigger(menuTriggerRef.current, event.shiftKey);
+      if (moved) {
+        event.preventDefault();
+      }
       setMenuOpen(false);
-      menuTriggerRef.current?.focus({ preventScroll: true });
       return;
     }
     if (next !== null) {
@@ -803,7 +898,8 @@ function CommentMessage({
               type="button"
               className="bb-comments-icon-control bb-comments-edit-cancel"
               aria-label="Cancel comment edit"
-              onClick={() => runModeTransition(onCancelEdit)}
+              disabled={submitPending}
+              onClick={() => runModeTransition(cancelEdit)}
             >
               <X aria-hidden="true" />
             </button>
@@ -815,7 +911,15 @@ function CommentMessage({
               aria-label="Comment actions"
               aria-haspopup="menu"
               aria-expanded={menuOpen}
-              onClick={() => setMenuOpen((open) => !open)}
+              onClick={() => {
+                const trigger = menuTriggerRef.current;
+                if (!menuOpen && trigger && !actionsTriggerIsFullyVisible(trigger)) {
+                  return;
+                }
+                // Commit the portal and its layout-effect dismissal listeners
+                // before native scrolling can run in the same interaction turn.
+                flushSync(() => setMenuOpen((open) => !open));
+              }}
             >
               <MoreHorizontal aria-hidden="true" />
             </button>
@@ -854,13 +958,19 @@ function CommentMessage({
         {isEditing ? (
           <CommentTextInput
             value={editText}
-            onChange={setEditText}
+            onChange={(value) => {
+              setEditText(value);
+              if (value === comment.body) sessionStorage.removeItem(editDraftKey);
+              else writeDraft(editDraftKey, value);
+            }}
             onSubmit={(body) => runModeTransition(() => onSaveEdit(body))}
             placeholder="Edit comment…"
             ariaLabel="Edit comment"
             persistentFooter
             footerPortalTarget={isLast ? editFooterPortalTarget : null}
             autoFocus
+            onCancel={() => runModeTransition(cancelEdit)}
+            submitPending={submitPending}
           />
         ) : (
           <p className="bb-comments-comment-body">{comment.body}</p>
@@ -887,9 +997,13 @@ function MossCommentPopover({
 }: MossCommentPopoverProps) {
   const [detail, setDetail] = useState(initialDetail);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [replyText, setReplyText] = useState("");
+  const replyDraftKey = `bb.timeline-comments.reply:${initialDetail.thread.id}`;
+  const [replyText, setReplyText] = useState(
+    () => readDraft(replyDraftKey) ?? "",
+  );
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const busyRef = useRef(false);
   const replyRegionRef = useRef<HTMLFormElement | null>(null);
   const [editFooterHost, setEditFooterHost] = useState<HTMLDivElement | null>(null);
   const replyStartHeightRef = useRef<number | null>(null);
@@ -932,6 +1046,8 @@ function MossCommentPopover({
   }, [isEditingLast]);
 
   const mutate = async (operation: () => Promise<TimelineCommentThreadDetail>) => {
+    if (busyRef.current) return null;
+    busyRef.current = true;
     setBusy(true);
     setError(null);
     try {
@@ -943,6 +1059,30 @@ function MossCommentPopover({
       setError(caught instanceof Error ? caught.message : "Something went wrong");
       return null;
     } finally {
+      busyRef.current = false;
+      setBusy(false);
+    }
+  };
+
+  const removeComment = async (comment: TimelineComment) => {
+    if (busyRef.current) return;
+    busyRef.current = true;
+    setBusy(true);
+    setError(null);
+    try {
+      const result = await rpc.call("deleteComment", {
+        bbThreadId: detail.thread.bbThreadId,
+        commentId: comment.id,
+        expectedVersion: comment.version,
+        expectedThreadVersion: detail.thread.version,
+      });
+      if (result.thread === null) onClose();
+      else setDetail(result.thread);
+      onChanged();
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Something went wrong");
+    } finally {
+      busyRef.current = false;
       setBusy(false);
     }
   };
@@ -995,20 +1135,7 @@ function MossCommentPopover({
               if (!window.confirm("Delete this comment thread?")) return;
               const rootComment = detail.comments.find((comment) => comment.parentId === null);
               if (!rootComment) return;
-              setBusy(true);
-              void rpc
-                .call("deleteComment", {
-                  bbThreadId: detail.thread.bbThreadId,
-                  commentId: rootComment.id,
-                  expectedVersion: rootComment.version,
-                  expectedThreadVersion: detail.thread.version,
-                })
-                .then(() => {
-                  onChanged();
-                  onClose();
-                })
-                .catch((caught) => setError(caught instanceof Error ? caught.message : "Something went wrong"))
-                .finally(() => setBusy(false));
+              void removeComment(rootComment);
             }}
           >
             <Trash2 aria-hidden="true" />
@@ -1023,11 +1150,15 @@ function MossCommentPopover({
             isLast={comment.id === lastCommentId}
             isEditing={editingId === comment.id}
             editFooterPortalTarget={editFooterHost}
+            submitPending={busy}
             onStartEdit={() => startEdit(comment)}
             onCancelEdit={finishEdit}
             onSaveEdit={(body) => {
               const nextBody = body.trim();
               if (commentBodyError(nextBody) !== null || nextBody === comment.body) {
+                sessionStorage.removeItem(
+                  `bb.timeline-comments.edit:${comment.id}`,
+                );
                 finishEdit();
                 return;
               }
@@ -1039,24 +1170,17 @@ function MossCommentPopover({
                   body: nextBody,
                 }),
               ).then((fresh) => {
-                if (fresh) finishEdit();
+                if (fresh) {
+                  sessionStorage.removeItem(
+                    `bb.timeline-comments.edit:${comment.id}`,
+                  );
+                  finishEdit();
+                }
               });
             }}
             onDelete={() => {
               if (!window.confirm(comment.parentId === null ? "Delete this comment thread?" : "Delete this reply?")) return;
-              void rpc
-                .call("deleteComment", {
-                  bbThreadId: detail.thread.bbThreadId,
-                  commentId: comment.id,
-                  expectedVersion: comment.version,
-                  expectedThreadVersion: detail.thread.version,
-                })
-                .then((result) => {
-                  if (result.thread === null) onClose();
-                  else setDetail(result.thread);
-                  onChanged();
-                })
-                .catch((caught) => setError(caught instanceof Error ? caught.message : "Something went wrong"));
+              void removeComment(comment);
             }}
           />
         ))}
@@ -1082,7 +1206,10 @@ function MossCommentPopover({
             >
               <CommentTextInput
                 value={replyText}
-                onChange={setReplyText}
+                onChange={(value) => {
+                  setReplyText(value);
+                  writeDraft(replyDraftKey, value);
+                }}
                 onSubmit={(body) => {
                   const nextBody = body.trim();
                   if (commentBodyError(nextBody) !== null) return;
@@ -1093,11 +1220,15 @@ function MossCommentPopover({
                       body: nextBody,
                     }),
                   ).then((fresh) => {
-                    if (fresh) setReplyText("");
+                    if (fresh) {
+                      sessionStorage.removeItem(replyDraftKey);
+                      setReplyText("");
+                    }
                   });
                 }}
                 placeholder="Reply..."
                 ariaLabel="Reply to comment thread"
+                submitPending={busy}
               />
             </div>
             <div
@@ -1151,6 +1282,7 @@ function MossNewCommentComposer({
 }: MountMossCommentComposerOptions) {
   const [value, setValue] = useState(initialValue);
   const [busy, setBusy] = useState(false);
+  const busyRef = useRef(false);
   const [error, setError] = useState<string | null>(null);
   return (
     <div className="bb-comments-new-comment-input" data-comment-new-composer="true">
@@ -1162,7 +1294,8 @@ function MossNewCommentComposer({
         }}
         onCancel={onCancel}
         onSubmit={(body) => {
-          if (busy || commentBodyError(body) !== null) return;
+          if (busyRef.current || commentBodyError(body) !== null) return;
+          busyRef.current = true;
           setBusy(true);
           setError(null);
           void onSubmit(body)
@@ -1171,11 +1304,15 @@ function MossNewCommentComposer({
                 caught instanceof Error ? caught.message : "Something went wrong",
               ),
             )
-            .finally(() => setBusy(false));
+            .finally(() => {
+              busyRef.current = false;
+              setBusy(false);
+            });
         }}
         placeholder="Add a comment…"
         ariaLabel="Add a comment"
         autoFocus
+        submitPending={busy}
       />
       {error ? <div className="bb-comments-error" role="status">{error}</div> : null}
     </div>
