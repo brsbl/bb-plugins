@@ -124,6 +124,18 @@ function wait(ms: number): Promise<void> {
   return new Promise((resolve) => window.setTimeout(resolve, ms));
 }
 
+async function waitUntil(
+  predicate: () => boolean,
+  message: string,
+  timeout = 2_000,
+): Promise<void> {
+  const deadline = performance.now() + timeout;
+  while (!predicate()) {
+    if (performance.now() >= deadline) throw new Error(message);
+    await wait(16);
+  }
+}
+
 function withinViewport(rect: DOMRect): boolean {
   return (
     rect.left >= 0 &&
@@ -557,7 +569,14 @@ void (async () => {
         bubbles: true,
       }),
     );
-    await wait(30);
+    await waitUntil(
+      () =>
+        originalReplyInput.value === "" &&
+        [...popover.querySelectorAll(".bb-comments-comment")].some((row) =>
+          row.textContent?.includes("Preserve this reply draft"),
+        ),
+      "Reply RPC did not settle and render its inserted reply",
+    );
     const insertedReply = [...popover.querySelectorAll(".bb-comments-comment")]
       .find((row) => row.textContent?.includes("Preserve this reply draft"));
     if (

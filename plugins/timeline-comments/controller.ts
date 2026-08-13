@@ -392,18 +392,22 @@ class TimelineCommentsController {
   readonly #anchors = new Map<string, TimelineCommentThreadSummary>();
   readonly #restored = new Map<string, RestoredThread>();
   readonly #threadWindows = new Map<string, Set<HTMLElement>>();
+  readonly #threadWindowVisibility = new Map<HTMLElement, boolean>();
   readonly #disposers: Array<() => void> = [];
   readonly #observer: MutationObserver;
   readonly #resizeObserver: ResizeObserver | null;
   #refreshNonce = 0;
   #refreshing: Promise<void> | null = null;
+  #refreshQueued = false;
   #frame: number | null = null;
   #popover: HTMLElement | null = null;
   #threadUiCleanup: (() => void) | null = null;
   #composer: HTMLElement | null = null;
   #composerUiCleanup: (() => void) | null = null;
   #composerThreadId: string | null = null;
+  #composerWindow: HTMLElement | null = null;
   #popoverThreadIds = new Set<string>();
+  #popoverWindows = new Set<HTMLElement>();
   #activeIds = new Set<string>();
   #provisionalRange: Range | null = null;
   #openThreadId: string | null = null;
@@ -440,11 +444,12 @@ class TimelineCommentsController {
     document.body.append(this.#highlightStyle, this.#portal);
 
     this.#observer = new MutationObserver((records) => {
-      const visibilityChanged = records.some((record) =>
-        this.isThreadVisibilityMutation(record),
-      );
+      const visibilityChanged = this.reconcileThreadWindowVisibility();
       if (visibilityChanged) {
         this.syncAttachedUiVisibility();
+        // Visibility is host-owned state. Reconcile cached anchors now so
+        // portalled markers and highlights disappear in the same DOM turn,
+        // even when the following RPC refresh is slow or fails.
         this.restoreAll();
       }
       if (visibilityChanged || records.some(isRelevantMutation)) {
@@ -563,6 +568,7 @@ class TimelineCommentsController {
     });
     this.#composer = shell;
     this.#composerThreadId = context.threadId;
+    this.#composerWindow = captured.threadWindow;
     this.#portal.append(shell);
     this.#outsideComposer = (event) => {
       if (event.target instanceof Node && shell.contains(event.target)) return;
@@ -591,6 +597,13 @@ class TimelineCommentsController {
       const windows = this.#threadWindows.get(threadId);
       windows?.delete(windowNode);
       if (windows?.size === 0) this.#threadWindows.delete(threadId);
+      if (
+        ![...this.#threadWindows.values()].some((registered) =>
+          registered.has(windowNode),
+        )
+      ) {
+        this.#threadWindowVisibility.delete(windowNode);
+      }
       this.scheduleRefresh();
     };
   }
@@ -609,6 +622,10 @@ class TimelineCommentsController {
     const size = windows.size;
     windows.add(windowNode);
     this.#threadWindows.set(threadId, windows);
+    this.#threadWindowVisibility.set(
+      windowNode,
+      isThreadWindowRendered(windowNode),
+    );
     if (changed || windows.size !== size) this.scheduleRefresh();
   }
 
@@ -619,18 +636,17 @@ class TimelineCommentsController {
     return null;
   }
 
-  private isThreadVisibilityMutation(record: MutationRecord): boolean {
-    if (record.type !== "attributes" || !(record.target instanceof Element)) {
-      return false;
-    }
+  private reconcileThreadWindowVisibility(): boolean {
+    let changed = false;
     for (const windows of this.#threadWindows.values()) {
       for (const windowNode of windows) {
-        if (record.target === windowNode || record.target.contains(windowNode)) {
-          return true;
-        }
+        const rendered = isThreadWindowRendered(windowNode);
+        const previous = this.#threadWindowVisibility.get(windowNode);
+        this.#threadWindowVisibility.set(windowNode, rendered);
+        if (previous !== undefined && previous !== rendered) changed = true;
       }
     }
-    return false;
+    return changed;
   }
 
   private syncAttachedUiVisibility(): void {
@@ -640,18 +656,26 @@ class TimelineCommentsController {
       ),
     );
     if (
-      this.#composerThreadId !== null &&
-      !visibleThreadIds.has(this.#composerThreadId)
+      (this.#composerWindow !== null &&
+        !isThreadWindowRendered(this.#composerWindow)) ||
+      (this.#composerWindow === null &&
+        this.#composerThreadId !== null &&
+        !visibleThreadIds.has(this.#composerThreadId))
     ) {
       this.closeComposer();
     }
     if (
-      this.#popoverThreadIds.size > 0 &&
-      [...this.#popoverThreadIds].some(
-        (threadId) => !visibleThreadIds.has(threadId),
-      )
+      (this.#popoverWindows.size > 0 &&
+        [...this.#popoverWindows].some(
+          (windowNode) => !isThreadWindowRendered(windowNode),
+        )) ||
+      (this.#popoverWindows.size === 0 &&
+        this.#popoverThreadIds.size > 0 &&
+        [...this.#popoverThreadIds].some(
+          (threadId) => !visibleThreadIds.has(threadId),
+        ))
     ) {
-      this.closePopover();
+      this.closePopover(true, false);
     }
   }
 
@@ -715,7 +739,12 @@ class TimelineCommentsController {
       this.restoreAll();
     }
     const restored = this.#restored.get(anchor.id);
-    if (restored === undefined) return false;
+    if (
+      restored === undefined ||
+      !isThreadWindowRendered(restored.window)
+    ) {
+      return false;
+    }
     restored.prose.scrollIntoView({
       block: "center",
       behavior: "smooth",
@@ -733,7 +762,10 @@ class TimelineCommentsController {
 
   scheduleRefresh(): void {
     this.#refreshNonce += 1;
+    if (this.#refreshQueued || this.#refreshing !== null) return;
+    this.#refreshQueued = true;
     queueMicrotask(() => {
+      this.#refreshQueued = false;
       void this.refresh().catch((error: unknown) => {
         if (!this.#destroyed)
           console.error("timeline-comments refresh failed", error);
@@ -744,18 +776,20 @@ class TimelineCommentsController {
   async refresh(): Promise<void> {
     if (this.#destroyed) return;
     if (this.#refreshing !== null) {
-      await this.#refreshing;
-      if (!this.#destroyed) return this.refresh();
-      return;
+      return this.#refreshing;
     }
-    const nonce = this.#refreshNonce;
-    this.#refreshing = this.loadAnchors();
+    this.#refreshing = (async () => {
+      let nonce: number;
+      do {
+        nonce = this.#refreshNonce;
+        await this.loadAnchors();
+      } while (nonce !== this.#refreshNonce && !this.#destroyed);
+    })();
     try {
       await this.#refreshing;
     } finally {
       this.#refreshing = null;
     }
-    if (nonce !== this.#refreshNonce && !this.#destroyed) await this.refresh();
   }
 
   private async loadAnchors(): Promise<void> {
@@ -787,6 +821,13 @@ class TimelineCommentsController {
     for (const windowNode of windows) {
       if (!windowNode.isConnected) {
         windows.delete(windowNode);
+        if (
+          ![...this.#threadWindows.values()].some((registered) =>
+            registered.has(windowNode),
+          )
+        ) {
+          this.#threadWindowVisibility.delete(windowNode);
+        }
         continue;
       }
       if (isThreadWindowRendered(windowNode)) return windowNode;
@@ -1047,6 +1088,7 @@ class TimelineCommentsController {
     this.#popoverThreadIds = new Set(
       threads.map(({ anchor }) => anchor.bbThreadId),
     );
+    this.#popoverWindows = new Set(threads.map(({ window }) => window));
     this.#portal.append(menu);
     this.installPopoverDismissal(marker);
     this.positionNear(marker, menu);
@@ -1062,6 +1104,9 @@ class TimelineCommentsController {
       this.#restored.get(commentThreadId)?.anchor ??
       fallbackAnchor;
     if (anchor === undefined) return;
+    const restored = this.#restored.get(commentThreadId);
+    const parentWindow = restored?.window ?? this.findWindow(anchor.bbThreadId);
+    if (parentWindow === null || !isThreadWindowRendered(parentWindow)) return;
     this.#openThreadId = commentThreadId;
     this.closePopover(false);
     this.setActive([commentThreadId]);
@@ -1075,6 +1120,11 @@ class TimelineCommentsController {
     popover.append(element("div", "bb-comments-loading", "Loading…"));
     this.#popover = popover;
     this.#popoverThreadIds = new Set([anchor.bbThreadId]);
+    const restoredWindow = restored?.window ?? parentWindow;
+    this.#popoverWindows =
+      restoredWindow === undefined
+        ? new Set<HTMLElement>()
+        : new Set([restoredWindow]);
     this.#portal.append(popover);
     this.installPopoverDismissal(
       this.#restored.get(commentThreadId)?.marker ?? null,
@@ -1129,8 +1179,13 @@ class TimelineCommentsController {
       onClose: () => this.closePopover(),
       onChanged: () => this.scheduleRefresh(),
       onSendToAgent: () => {
-        requestTimelineCommentHandoff(detail.thread.bbThreadId);
-        this.closePopover();
+        void requestTimelineCommentHandoff(detail.thread.bbThreadId).then(
+          (accepted) => {
+            if (accepted && this.#popover === popover) {
+              this.closePopover(true, false);
+            }
+          },
+        );
       },
     });
   }
@@ -1827,11 +1882,12 @@ class TimelineCommentsController {
     this.#composer?.remove();
     this.#composer = null;
     this.#composerThreadId = null;
+    this.#composerWindow = null;
     this.#provisionalRange = null;
     this.rebuildHighlights();
   }
 
-  private closePopover(clearOpen = true): void {
+  private closePopover(clearOpen = true, restoreFocus = true): void {
     const invoker = this.#popoverInvoker;
     const currentMarker =
       this.#openThreadId === null
@@ -1847,9 +1903,10 @@ class TimelineCommentsController {
     this.#popover?.remove();
     this.#popover = null;
     this.#popoverThreadIds.clear();
+    this.#popoverWindows.clear();
     if (clearOpen) this.#openThreadId = null;
     this.setActive([]);
-    if (clearOpen && focusTarget?.isConnected === true) {
+    if (restoreFocus && clearOpen && focusTarget?.isConnected === true) {
       focusTarget.focus({ preventScroll: true });
     }
   }

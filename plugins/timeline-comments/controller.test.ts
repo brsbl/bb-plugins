@@ -6,6 +6,7 @@ import {
   focusTimelineComment,
   refreshTimelineCommentAnchors,
   registerTimelineCommentThreadWindow,
+  subscribeTimelineCommentHandoff,
   subscribeTimelineCommentAnchorHealth,
 } from "./bridge.js";
 import { mountTimelineCommentsController } from "./controller.js";
@@ -245,6 +246,13 @@ describe("timeline comments controller teardown", () => {
       <div data-split-pane-id="pane-2">
         <div data-thread-window></div>
       </div>
+      <div data-split-pane-id="pane-3">
+        <div data-thread-window>
+          <div data-timeline-row-id="msg_1">
+            <div data-sidebar-swipe-selectable>source text</div>
+          </div>
+        </div>
+      </div>
     `;
     const rootComment = {
       id: "comment_1",
@@ -277,6 +285,8 @@ describe("timeline comments controller teardown", () => {
       replyCount: 0,
     };
     const listRequests: string[][] = [];
+    let delayListResponse = false;
+    const delayedListResponse = deferred<void>();
     vi.stubGlobal(
       "fetch",
       vi.fn(async (url: string, init: RequestInit) => {
@@ -290,6 +300,7 @@ describe("timeline comments controller teardown", () => {
           return {
             ok: true,
             async json() {
+              if (delayListResponse) await delayedListResponse.promise;
               return {
                 ok: true,
                 result: {
@@ -387,6 +398,10 @@ describe("timeline comments controller teardown", () => {
       "thr_2",
       windows[1]!,
     );
+    const unregisterDuplicate = registerTimelineCommentThreadWindow(
+      "thr_1",
+      windows[2]!,
+    );
 
     await vi.waitFor(() =>
       expect(document.querySelector(".bb-comments-marker")).not.toBeNull(),
@@ -408,12 +423,55 @@ describe("timeline comments controller teardown", () => {
       expect(document.body.textContent).toContain("Visible comment"),
     );
 
+    document
+      .querySelector<HTMLButtonElement>(
+        'button[aria-label="Send thread to agent"]',
+      )!
+      .click();
+    expect(document.querySelector(".bb-comments-thread")).not.toBeNull();
+
+    const markerBeforeHandoff = document.querySelector<HTMLButtonElement>(
+      ".bb-comments-marker",
+    )!;
+    const restoreHandoffMarkerFocus = vi.spyOn(markerBeforeHandoff, "focus");
+    const unregisterHandoff = subscribeTimelineCommentHandoff({
+      threadId: "thr_1",
+      getThreadWindow: () => windows[0]!,
+      accept: async () => true,
+    });
+    document
+      .querySelector<HTMLButtonElement>(
+        'button[aria-label="Send thread to agent"]',
+      )!
+      .click();
+    await vi.waitFor(() =>
+      expect(document.querySelector(".bb-comments-thread")).toBeNull(),
+    );
+    expect(restoreHandoffMarkerFocus).not.toHaveBeenCalled();
+    unregisterHandoff();
+
+    markerBeforeHandoff.click();
+    await vi.waitFor(() =>
+      expect(document.body.textContent).toContain("Visible comment"),
+    );
+
+    const markerBeforeHide = document.querySelector<HTMLButtonElement>(
+      ".bb-comments-marker",
+    )!;
+    const restoreHiddenMarkerFocus = vi.spyOn(markerBeforeHide, "focus");
+    const requestsBeforeNonVisibilityMutation = listRequests.length;
+    panes[0]!.classList.add("fullscreen-layout-transition");
+    panes[0]!.style.setProperty("--transition-progress", "0.5");
+    await new Promise((resolve) => setTimeout(resolve, 30));
+    expect(listRequests).toHaveLength(requestsBeforeNonVisibilityMutation);
+
     panes[0]!.setAttribute("aria-hidden", "true");
     await vi.waitFor(() => {
-      expect(document.querySelector(".bb-comments-marker")).toBeNull();
+      expect(document.querySelector(".bb-comments-marker")).not.toBeNull();
       expect(document.querySelector(".bb-comments-thread")).toBeNull();
-      expect(listRequests.at(-1)).toEqual(["thr_2"]);
+      expect(listRequests.at(-1)).toEqual(["thr_1", "thr_2"]);
     });
+    expect(restoreHiddenMarkerFocus).not.toHaveBeenCalled();
 
     panes[0]!.removeAttribute("aria-hidden");
     await vi.waitFor(() => {
@@ -423,6 +481,18 @@ describe("timeline comments controller teardown", () => {
     document
       .querySelector<HTMLButtonElement>(".bb-comments-marker")!
       .click();
+    await vi.waitFor(() =>
+      expect(document.body.textContent).toContain("Visible comment"),
+    );
+
+    const visibleMarker = document.querySelector<HTMLButtonElement>(
+      ".bb-comments-marker",
+    )!;
+    const restoreVisibleMarkerFocus = vi.spyOn(visibleMarker, "focus");
+    document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }));
+    expect(document.querySelector(".bb-comments-thread")).toBeNull();
+    expect(restoreVisibleMarkerFocus).toHaveBeenCalledTimes(1);
+    visibleMarker.click();
     await vi.waitFor(() =>
       expect(document.body.textContent).toContain("Visible comment"),
     );
@@ -438,13 +508,17 @@ describe("timeline comments controller teardown", () => {
     await vi.waitFor(() =>
       expect(listRequests.at(-1)).toEqual(["thr_1", "thr_2"]),
     );
+    delayListResponse = true;
+    panes[2]!.setAttribute("aria-hidden", "true");
     panes[0]!.remove();
     await vi.waitFor(() => {
+      expect(listRequests.at(-1)).toEqual(["thr_2"]);
       expect(document.querySelector(".bb-comments-marker")).toBeNull();
       expect(document.querySelector(".bb-comments-thread")).toBeNull();
-      expect(listRequests.at(-1)).toEqual(["thr_2"]);
     });
+    delayedListResponse.resolve();
 
+    unregisterDuplicate();
     unregisterSecond();
     unregisterFirst();
     dispose();
@@ -463,6 +537,52 @@ describe("timeline comments controller teardown", () => {
     vi.unstubAllGlobals();
   });
 
+  it("coalesces refresh requests that arrive during an active anchor load", async () => {
+    document.body.innerHTML = `<div data-thread-window></div>`;
+    const firstResponse = deferred<void>();
+    let requestCount = 0;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => {
+        requestCount += 1;
+        const current = requestCount;
+        return {
+          ok: true,
+          async json() {
+            if (current === 1) await firstResponse.promise;
+            return {
+              ok: true,
+              result: { anchors: [], nextCursor: null },
+            };
+          },
+          status: 200,
+        };
+      }),
+    );
+    const dispose = mountTimelineCommentsController({
+      pluginId: "timeline-comments",
+      generation: 1,
+      signal: new AbortController().signal,
+    });
+    const unregister = registerTimelineCommentThreadWindow(
+      "thr_1",
+      document.querySelector<HTMLElement>("[data-thread-window]")!,
+    );
+    await vi.waitFor(() => expect(requestCount).toBe(1));
+
+    refreshTimelineCommentAnchors();
+    refreshTimelineCommentAnchors();
+    refreshTimelineCommentAnchors();
+    firstResponse.resolve();
+
+    await vi.waitFor(() => expect(requestCount).toBe(2));
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(requestCount).toBe(2);
+    unregister();
+    dispose();
+    vi.unstubAllGlobals();
+  });
+
   it("closes the selection composer when its parent thread stops rendering", async () => {
     document.body.innerHTML = `
       <div data-split-pane-id="pane-1">
@@ -471,6 +591,9 @@ describe("timeline comments controller teardown", () => {
             <div data-sidebar-swipe-selectable>source text</div>
           </div>
         </div>
+      </div>
+      <div data-split-pane-id="pane-2">
+        <div data-thread-window></div>
       </div>
     `;
     vi.stubGlobal(
@@ -496,9 +619,16 @@ describe("timeline comments controller teardown", () => {
       generation: 1,
       signal: new AbortController().signal,
     });
-    const windowNode =
-      document.querySelector<HTMLElement>("[data-thread-window]")!;
-    const unregister = registerTimelineCommentThreadWindow("thr_1", windowNode);
+    const windowNodes =
+      document.querySelectorAll<HTMLElement>("[data-thread-window]");
+    const unregister = registerTimelineCommentThreadWindow(
+      "thr_1",
+      windowNodes[0]!,
+    );
+    const unregisterDuplicate = registerTimelineCommentThreadWindow(
+      "thr_1",
+      windowNodes[1]!,
+    );
     const text = document.querySelector("[data-sidebar-swipe-selectable]")!
       .firstChild!;
     const range = document.createRange();
@@ -526,6 +656,7 @@ describe("timeline comments controller teardown", () => {
     );
 
     unregister();
+    unregisterDuplicate();
     dispose();
     document.getSelection()!.removeAllRanges();
     if (originalClientRects === undefined) {

@@ -130,7 +130,7 @@ var {
 var activeController = null;
 var anchorHealthSnapshot = /* @__PURE__ */ new Map();
 var anchorHealthListeners = /* @__PURE__ */ new Set();
-var handoffListeners = /* @__PURE__ */ new Set();
+var handoffTargets = /* @__PURE__ */ new Set();
 function publishTimelineCommentAnchorHealth(health) {
   anchorHealthSnapshot = new Map(health);
   for (const listener of anchorHealthListeners) listener();
@@ -161,12 +161,33 @@ function registerTimelineCommentThreadWindow(threadId, window2) {
 function refreshTimelineCommentAnchors() {
   activeController?.refreshAnchors();
 }
-function requestTimelineCommentHandoff(threadId) {
-  for (const listener of handoffListeners) listener(threadId);
+function isRendered(node) {
+  if (node === null || !node.isConnected) return false;
+  if (node.closest('[aria-hidden="true"], [hidden], [inert]') !== null) {
+    return false;
+  }
+  const checkVisibility = node.checkVisibility;
+  return checkVisibility?.call(node, {
+    contentVisibilityAuto: true,
+    visibilityProperty: true
+  }) ?? true;
 }
-function subscribeTimelineCommentHandoff(listener) {
-  handoffListeners.add(listener);
-  return () => handoffListeners.delete(listener);
+async function requestTimelineCommentHandoff(threadId) {
+  const candidates = [...handoffTargets].filter((target2) => {
+    return target2.threadId === threadId && isRendered(target2.getThreadWindow());
+  });
+  if (candidates.length === 0) return false;
+  const activeWindow = document.activeElement instanceof Element ? document.activeElement.closest("[data-thread-window]") : null;
+  const target = candidates.find(
+    (candidate) => candidate.getThreadWindow() === activeWindow
+  ) ?? candidates.find(
+    (candidate) => candidate.getThreadWindow()?.closest('[data-split-pane-id][data-focused="true"]') !== null
+  ) ?? candidates[0];
+  return target.accept();
+}
+function subscribeTimelineCommentHandoff(target) {
+  handoffTargets.add(target);
+  return () => handoffTargets.delete(target);
 }
 
 // ../../node_modules/lucide/dist/esm/createElement.js
@@ -657,6 +678,53 @@ var MODE_TRANSITION = {
   duration: 150,
   easing: "cubic-bezier(0.22, 1, 0.36, 1)"
 };
+var DRAFT_TTL = 24 * 60 * 60 * 1e3;
+function readDraft(key) {
+  const saved = sessionStorage.getItem(key);
+  if (saved === null) return null;
+  try {
+    const parsed = JSON.parse(saved);
+    if (typeof parsed.body === "string" && typeof parsed.expiresAt === "number" && parsed.expiresAt > Date.now()) {
+      return parsed.body;
+    }
+  } catch {
+  }
+  sessionStorage.removeItem(key);
+  return null;
+}
+function writeDraft(key, body) {
+  if (body.trim() === "") {
+    sessionStorage.removeItem(key);
+    return;
+  }
+  sessionStorage.setItem(
+    key,
+    JSON.stringify({ body, expiresAt: Date.now() + DRAFT_TTL })
+  );
+}
+function focusAdjacentToActionsTrigger(trigger, backwards) {
+  const focusable = [
+    ...document.querySelectorAll(
+      'button:not(:disabled), textarea:not(:disabled), input:not(:disabled), [href], [tabindex]:not([tabindex="-1"])'
+    )
+  ].filter(
+    (node) => node.getClientRects().length > 0 && node.closest('[aria-hidden="true"], [inert], [hidden]') === null && node.closest(".bb-comments-actions-popover") === null
+  );
+  const current = focusable.indexOf(trigger);
+  const adjacent = focusable[current + (backwards ? -1 : 1)];
+  if (adjacent === void 0) return false;
+  adjacent.focus({ preventScroll: true });
+  return true;
+}
+function actionsTriggerIsFullyVisible(trigger) {
+  const scrollViewport = trigger.closest(
+    ".bb-comments-thread-comments"
+  );
+  if (scrollViewport === null) return true;
+  const triggerRect = trigger.getBoundingClientRect();
+  const viewportRect = scrollViewport.getBoundingClientRect();
+  return triggerRect.top >= viewportRect.top && triggerRect.bottom <= viewportRect.bottom;
+}
 function reducedMotion() {
   return typeof window.matchMedia === "function" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 }
@@ -758,7 +826,8 @@ function CommentTextInput({
   persistentFooter = false,
   footerPortalTarget,
   autoFocus = false,
-  onCancel
+  onCancel,
+  submitPending = false
 }) {
   const rootRef = useRef(null);
   const inputContentRef = useRef(null);
@@ -1034,11 +1103,13 @@ function CommentTextInput({
     {
       type: "button",
       className: "bb-comments-submit-shortcut",
-      disabled: submitDisabled,
+      disabled: submitPending || submitDisabled,
       "aria-label": "Submit comment",
       title: "Submit comment \xB7 \u2318/Ctrl Enter",
       onMouseDown: (event) => event.preventDefault(),
-      onClick: () => onSubmit(value),
+      onClick: () => {
+        if (!submitPending) onSubmit(value);
+      },
       children: [
         /* @__PURE__ */ jsx(Command2, { "aria-hidden": "true" }),
         /* @__PURE__ */ jsx(CornerDownLeft2, { "aria-hidden": "true" })
@@ -1059,6 +1130,7 @@ function CommentTextInput({
             type: "button",
             className: "bb-comments-context-control",
             "aria-label": "Mention context",
+            disabled: submitPending,
             onMouseDown: (event) => event.preventDefault(),
             onClick: insertMentionTrigger,
             children: /* @__PURE__ */ jsx(AtSign, { "aria-hidden": "true" })
@@ -1074,6 +1146,7 @@ function CommentTextInput({
       ref: rootRef,
       className: "bb-comments-mention-input",
       "data-mention-input-expanded": footerVisible ? "true" : "false",
+      "aria-busy": submitPending || void 0,
       children: [
         /* @__PURE__ */ jsxs("div", { className: "bb-comments-input-surface", "data-mention-input-surface": "true", children: [
           /* @__PURE__ */ jsx(
@@ -1096,17 +1169,19 @@ function CommentTextInput({
                       "aria-label": ariaLabel,
                       placeholder,
                       maxLength: 2e4,
+                      readOnly: submitPending,
+                      "aria-disabled": submitPending || void 0,
                       value,
                       onChange: (event) => onChange(event.currentTarget.value),
                       onKeyDown: (event) => {
-                        if (event.key === "Escape" && onCancel) {
+                        if (event.key === "Escape" && onCancel && !submitPending) {
                           event.preventDefault();
                           onCancel();
                           return;
                         }
                         if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) {
                           event.preventDefault();
-                          if (!submitDisabled) onSubmit(value);
+                          if (!submitPending && !submitDisabled) onSubmit(value);
                         }
                       }
                     }
@@ -1154,6 +1229,7 @@ function CommentTextInput({
                           type: "button",
                           className: "bb-comments-context-control",
                           "aria-label": "Add comment context",
+                          disabled: submitPending,
                           onMouseDown: (event) => event.preventDefault(),
                           onClick: insertMentionTrigger,
                           children: /* @__PURE__ */ jsx(Plus, { "aria-hidden": "true" })
@@ -1174,6 +1250,7 @@ function CommentTextInput({
                           type: "button",
                           className: "bb-comments-context-control",
                           "aria-label": "Mention context",
+                          disabled: submitPending,
                           onMouseDown: (event) => event.preventDefault(),
                           onClick: insertMentionTrigger,
                           children: /* @__PURE__ */ jsx(AtSign, { "aria-hidden": "true" })
@@ -1203,19 +1280,28 @@ function CommentMessage({
   isLast,
   isEditing,
   editFooterPortalTarget,
+  submitPending,
   onStartEdit,
   onCancelEdit,
   onSaveEdit,
   onDelete
 }) {
   const rowRef = useRef(null);
-  const [editText, setEditText] = useState(comment.body);
+  const editDraftKey = `bb.timeline-comments.edit:${comment.id}`;
+  const [editText, setEditText] = useState(
+    () => readDraft(editDraftKey) ?? comment.body
+  );
   const [menuOpen, setMenuOpen] = useState(false);
   const menuTriggerRef = useRef(null);
   const menuRef = useRef(null);
   const [menuPosition, setMenuPosition] = useState({ top: 0, left: 0 });
   const runModeTransition = useMeasuredModeTransition(rowRef, isEditing);
   const wasEditingRef = useRef(isEditing);
+  const cancelEdit = useCallback(() => {
+    sessionStorage.removeItem(editDraftKey);
+    setEditText(comment.body);
+    onCancelEdit();
+  }, [comment.body, editDraftKey, onCancelEdit]);
   useLayoutEffect(() => {
     if (wasEditingRef.current && !isEditing) {
       menuTriggerRef.current?.focus({ preventScroll: true });
@@ -1233,8 +1319,11 @@ function CommentMessage({
       MODE_TRANSITION
     );
   }, []);
-  useEffect(() => setEditText(comment.body), [comment.body]);
-  useEffect(() => {
+  useEffect(
+    () => setEditText(readDraft(editDraftKey) ?? comment.body),
+    [comment.body, editDraftKey]
+  );
+  useLayoutEffect(() => {
     if (!menuOpen) return;
     const close = (event) => {
       if (event.target instanceof Node && (rowRef.current?.contains(event.target) || menuRef.current?.contains(event.target))) return;
@@ -1294,9 +1383,11 @@ function CommentMessage({
       return;
     }
     if (event.key === "Tab") {
-      event.preventDefault();
+      const moved = menuTriggerRef.current !== null && focusAdjacentToActionsTrigger(menuTriggerRef.current, event.shiftKey);
+      if (moved) {
+        event.preventDefault();
+      }
       setMenuOpen(false);
-      menuTriggerRef.current?.focus({ preventScroll: true });
       return;
     }
     if (next !== null) {
@@ -1329,7 +1420,8 @@ function CommentMessage({
                 type: "button",
                 className: "bb-comments-icon-control bb-comments-edit-cancel",
                 "aria-label": "Cancel comment edit",
-                onClick: () => runModeTransition(onCancelEdit),
+                disabled: submitPending,
+                onClick: () => runModeTransition(cancelEdit),
                 children: /* @__PURE__ */ jsx(X2, { "aria-hidden": "true" })
               }
             ) : /* @__PURE__ */ jsx(
@@ -1341,7 +1433,13 @@ function CommentMessage({
                 "aria-label": "Comment actions",
                 "aria-haspopup": "menu",
                 "aria-expanded": menuOpen,
-                onClick: () => setMenuOpen((open) => !open),
+                onClick: () => {
+                  const trigger = menuTriggerRef.current;
+                  if (!menuOpen && trigger && !actionsTriggerIsFullyVisible(trigger)) {
+                    return;
+                  }
+                  flushSync(() => setMenuOpen((open) => !open));
+                },
                 children: /* @__PURE__ */ jsx(Ellipsis, { "aria-hidden": "true" })
               }
             ),
@@ -1391,13 +1489,19 @@ function CommentMessage({
               CommentTextInput,
               {
                 value: editText,
-                onChange: setEditText,
+                onChange: (value) => {
+                  setEditText(value);
+                  if (value === comment.body) sessionStorage.removeItem(editDraftKey);
+                  else writeDraft(editDraftKey, value);
+                },
                 onSubmit: (body) => runModeTransition(() => onSaveEdit(body)),
                 placeholder: "Edit comment\u2026",
                 ariaLabel: "Edit comment",
                 persistentFooter: true,
                 footerPortalTarget: isLast ? editFooterPortalTarget : null,
-                autoFocus: true
+                autoFocus: true,
+                onCancel: () => runModeTransition(cancelEdit),
+                submitPending
               }
             ) : /* @__PURE__ */ jsx("p", { className: "bb-comments-comment-body", children: comment.body })
           }
@@ -1415,9 +1519,13 @@ function MossCommentPopover({
 }) {
   const [detail, setDetail] = useState(initialDetail);
   const [editingId, setEditingId] = useState(null);
-  const [replyText, setReplyText] = useState("");
+  const replyDraftKey = `bb.timeline-comments.reply:${initialDetail.thread.id}`;
+  const [replyText, setReplyText] = useState(
+    () => readDraft(replyDraftKey) ?? ""
+  );
   const [error, setError] = useState(null);
   const [busy, setBusy] = useState(false);
+  const busyRef = useRef(false);
   const replyRegionRef = useRef(null);
   const [editFooterHost, setEditFooterHost] = useState(null);
   const replyStartHeightRef = useRef(null);
@@ -1457,6 +1565,8 @@ function MossCommentPopover({
     );
   }, [isEditingLast]);
   const mutate = async (operation) => {
+    if (busyRef.current) return null;
+    busyRef.current = true;
     setBusy(true);
     setError(null);
     try {
@@ -1468,6 +1578,29 @@ function MossCommentPopover({
       setError(caught instanceof Error ? caught.message : "Something went wrong");
       return null;
     } finally {
+      busyRef.current = false;
+      setBusy(false);
+    }
+  };
+  const removeComment = async (comment) => {
+    if (busyRef.current) return;
+    busyRef.current = true;
+    setBusy(true);
+    setError(null);
+    try {
+      const result = await rpc.call("deleteComment", {
+        bbThreadId: detail.thread.bbThreadId,
+        commentId: comment.id,
+        expectedVersion: comment.version,
+        expectedThreadVersion: detail.thread.version
+      });
+      if (result.thread === null) onClose();
+      else setDetail(result.thread);
+      onChanged();
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Something went wrong");
+    } finally {
+      busyRef.current = false;
       setBusy(false);
     }
   };
@@ -1517,16 +1650,7 @@ function MossCommentPopover({
               if (!window.confirm("Delete this comment thread?")) return;
               const rootComment = detail.comments.find((comment) => comment.parentId === null);
               if (!rootComment) return;
-              setBusy(true);
-              void rpc.call("deleteComment", {
-                bbThreadId: detail.thread.bbThreadId,
-                commentId: rootComment.id,
-                expectedVersion: rootComment.version,
-                expectedThreadVersion: detail.thread.version
-              }).then(() => {
-                onChanged();
-                onClose();
-              }).catch((caught) => setError(caught instanceof Error ? caught.message : "Something went wrong")).finally(() => setBusy(false));
+              void removeComment(rootComment);
             },
             children: /* @__PURE__ */ jsx(Trash22, { "aria-hidden": "true" })
           }
@@ -1540,11 +1664,15 @@ function MossCommentPopover({
         isLast: comment.id === lastCommentId,
         isEditing: editingId === comment.id,
         editFooterPortalTarget: editFooterHost,
+        submitPending: busy,
         onStartEdit: () => startEdit(comment),
         onCancelEdit: finishEdit,
         onSaveEdit: (body) => {
           const nextBody = body.trim();
           if (commentBodyError(nextBody) !== null || nextBody === comment.body) {
+            sessionStorage.removeItem(
+              `bb.timeline-comments.edit:${comment.id}`
+            );
             finishEdit();
             return;
           }
@@ -1556,21 +1684,17 @@ function MossCommentPopover({
               body: nextBody
             })
           ).then((fresh) => {
-            if (fresh) finishEdit();
+            if (fresh) {
+              sessionStorage.removeItem(
+                `bb.timeline-comments.edit:${comment.id}`
+              );
+              finishEdit();
+            }
           });
         },
         onDelete: () => {
           if (!window.confirm(comment.parentId === null ? "Delete this comment thread?" : "Delete this reply?")) return;
-          void rpc.call("deleteComment", {
-            bbThreadId: detail.thread.bbThreadId,
-            commentId: comment.id,
-            expectedVersion: comment.version,
-            expectedThreadVersion: detail.thread.version
-          }).then((result) => {
-            if (result.thread === null) onClose();
-            else setDetail(result.thread);
-            onChanged();
-          }).catch((caught) => setError(caught instanceof Error ? caught.message : "Something went wrong"));
+          void removeComment(comment);
         }
       },
       comment.id
@@ -1599,7 +1723,10 @@ function MossCommentPopover({
                 CommentTextInput,
                 {
                   value: replyText,
-                  onChange: setReplyText,
+                  onChange: (value) => {
+                    setReplyText(value);
+                    writeDraft(replyDraftKey, value);
+                  },
                   onSubmit: (body) => {
                     const nextBody = body.trim();
                     if (commentBodyError(nextBody) !== null) return;
@@ -1610,11 +1737,15 @@ function MossCommentPopover({
                         body: nextBody
                       })
                     ).then((fresh) => {
-                      if (fresh) setReplyText("");
+                      if (fresh) {
+                        sessionStorage.removeItem(replyDraftKey);
+                        setReplyText("");
+                      }
                     });
                   },
                   placeholder: "Reply...",
-                  ariaLabel: "Reply to comment thread"
+                  ariaLabel: "Reply to comment thread",
+                  submitPending: busy
                 }
               )
             }
@@ -1652,6 +1783,7 @@ function MossNewCommentComposer({
 }) {
   const [value, setValue] = useState(initialValue);
   const [busy, setBusy] = useState(false);
+  const busyRef = useRef(false);
   const [error, setError] = useState(null);
   return /* @__PURE__ */ jsxs("div", { className: "bb-comments-new-comment-input", "data-comment-new-composer": "true", children: [
     /* @__PURE__ */ jsx(
@@ -1664,18 +1796,23 @@ function MossNewCommentComposer({
         },
         onCancel,
         onSubmit: (body) => {
-          if (busy || commentBodyError(body) !== null) return;
+          if (busyRef.current || commentBodyError(body) !== null) return;
+          busyRef.current = true;
           setBusy(true);
           setError(null);
           void onSubmit(body).catch(
             (caught) => setError(
               caught instanceof Error ? caught.message : "Something went wrong"
             )
-          ).finally(() => setBusy(false));
+          ).finally(() => {
+            busyRef.current = false;
+            setBusy(false);
+          });
         },
         placeholder: "Add a comment\u2026",
         ariaLabel: "Add a comment",
-        autoFocus: true
+        autoFocus: true,
+        submitPending: busy
       }
     ),
     error ? /* @__PURE__ */ jsx("div", { className: "bb-comments-error", role: "status", children: error }) : null
@@ -1718,14 +1855,14 @@ function contentScriptRpcClient(signal) {
 var OWNED = "data-bb-timeline-comments-owned";
 var NORMAL_HIGHLIGHT = "bb-timeline-comments";
 var ACTIVE_HIGHLIGHT = "bb-timeline-comments-active";
-var DRAFT_TTL = 24 * 60 * 60 * 1e3;
+var DRAFT_TTL2 = 24 * 60 * 60 * 1e3;
 var PLUGIN_DECORATION = "data-bb-plugin-decoration";
 var MARKER_SIZE = 24;
 var MARKER_TEXT_GAP = 8;
 var COMPOSER_WIDTH = 216;
 var POPOVER_WIDTH = 264;
 var MESSAGE_PROSE_SELECTOR = "[data-sidebar-swipe-selectable], [data-no-sidebar-swipe]";
-function readDraft(key) {
+function readDraft2(key) {
   const saved = sessionStorage.getItem(key);
   if (saved === null) return null;
   try {
@@ -1738,14 +1875,14 @@ function readDraft(key) {
   sessionStorage.removeItem(key);
   return null;
 }
-function writeDraft(key, body) {
+function writeDraft2(key, body) {
   if (body.trim() === "") {
     sessionStorage.removeItem(key);
     return;
   }
   sessionStorage.setItem(
     key,
-    JSON.stringify({ body, expiresAt: Date.now() + DRAFT_TTL })
+    JSON.stringify({ body, expiresAt: Date.now() + DRAFT_TTL2 })
   );
 }
 function element(tag, className, text) {
@@ -1940,18 +2077,22 @@ var TimelineCommentsController = class {
   #anchors = /* @__PURE__ */ new Map();
   #restored = /* @__PURE__ */ new Map();
   #threadWindows = /* @__PURE__ */ new Map();
+  #threadWindowVisibility = /* @__PURE__ */ new Map();
   #disposers = [];
   #observer;
   #resizeObserver;
   #refreshNonce = 0;
   #refreshing = null;
+  #refreshQueued = false;
   #frame = null;
   #popover = null;
   #threadUiCleanup = null;
   #composer = null;
   #composerUiCleanup = null;
   #composerThreadId = null;
+  #composerWindow = null;
   #popoverThreadIds = /* @__PURE__ */ new Set();
+  #popoverWindows = /* @__PURE__ */ new Set();
   #activeIds = /* @__PURE__ */ new Set();
   #provisionalRange = null;
   #openThreadId = null;
@@ -1986,9 +2127,7 @@ var TimelineCommentsController = class {
     this.#portal.append(this.#overlay);
     document.body.append(this.#highlightStyle, this.#portal);
     this.#observer = new MutationObserver((records) => {
-      const visibilityChanged = records.some(
-        (record) => this.isThreadVisibilityMutation(record)
-      );
+      const visibilityChanged = this.reconcileThreadWindowVisibility();
       if (visibilityChanged) {
         this.syncAttachedUiVisibility();
         this.restoreAll();
@@ -2056,14 +2195,14 @@ var TimelineCommentsController = class {
     const shell = element("form", "bb-comments-composer");
     shell.setAttribute("role", "dialog");
     shell.setAttribute("aria-label", "Add comment");
-    const initialValue = readDraft(key) ?? "";
+    const initialValue = readDraft2(key) ?? "";
     const firstRect = captured.rects[0];
     const x = firstRect?.x ?? window.innerWidth / 2;
     const y = captured.rects.at(-1)?.y ?? window.innerHeight / 2;
     shell.style.left = `${Math.max(8, Math.min(window.innerWidth - COMPOSER_WIDTH - 8, x))}px`;
     shell.style.top = `${Math.max(8, Math.min(window.innerHeight - 144, y + 17))}px`;
     let draftValue = initialValue;
-    const persist = () => writeDraft(key, draftValue);
+    const persist = () => writeDraft2(key, draftValue);
     this.#composerUiCleanup = mountMossCommentComposer(shell, {
       initialValue,
       onChange: (value) => {
@@ -2093,6 +2232,7 @@ var TimelineCommentsController = class {
     });
     this.#composer = shell;
     this.#composerThreadId = context.threadId;
+    this.#composerWindow = captured.threadWindow;
     this.#portal.append(shell);
     this.#outsideComposer = (event) => {
       if (event.target instanceof Node && shell.contains(event.target)) return;
@@ -2115,6 +2255,11 @@ var TimelineCommentsController = class {
       const windows = this.#threadWindows.get(threadId);
       windows?.delete(windowNode);
       if (windows?.size === 0) this.#threadWindows.delete(threadId);
+      if (![...this.#threadWindows.values()].some(
+        (registered) => registered.has(windowNode)
+      )) {
+        this.#threadWindowVisibility.delete(windowNode);
+      }
       this.scheduleRefresh();
     };
   }
@@ -2129,6 +2274,10 @@ var TimelineCommentsController = class {
     const size = windows.size;
     windows.add(windowNode);
     this.#threadWindows.set(threadId, windows);
+    this.#threadWindowVisibility.set(
+      windowNode,
+      isThreadWindowRendered(windowNode)
+    );
     if (changed || windows.size !== size) this.scheduleRefresh();
   }
   threadIdForWindow(windowNode) {
@@ -2137,18 +2286,17 @@ var TimelineCommentsController = class {
     }
     return null;
   }
-  isThreadVisibilityMutation(record) {
-    if (record.type !== "attributes" || !(record.target instanceof Element)) {
-      return false;
-    }
+  reconcileThreadWindowVisibility() {
+    let changed = false;
     for (const windows of this.#threadWindows.values()) {
       for (const windowNode of windows) {
-        if (record.target === windowNode || record.target.contains(windowNode)) {
-          return true;
-        }
+        const rendered = isThreadWindowRendered(windowNode);
+        const previous = this.#threadWindowVisibility.get(windowNode);
+        this.#threadWindowVisibility.set(windowNode, rendered);
+        if (previous !== void 0 && previous !== rendered) changed = true;
       }
     }
-    return false;
+    return changed;
   }
   syncAttachedUiVisibility() {
     const visibleThreadIds = new Set(
@@ -2156,13 +2304,15 @@ var TimelineCommentsController = class {
         (threadId) => this.findWindow(threadId) !== null
       )
     );
-    if (this.#composerThreadId !== null && !visibleThreadIds.has(this.#composerThreadId)) {
+    if (this.#composerWindow !== null && !isThreadWindowRendered(this.#composerWindow) || this.#composerWindow === null && this.#composerThreadId !== null && !visibleThreadIds.has(this.#composerThreadId)) {
       this.closeComposer();
     }
-    if (this.#popoverThreadIds.size > 0 && [...this.#popoverThreadIds].some(
+    if (this.#popoverWindows.size > 0 && [...this.#popoverWindows].some(
+      (windowNode) => !isThreadWindowRendered(windowNode)
+    ) || this.#popoverWindows.size === 0 && this.#popoverThreadIds.size > 0 && [...this.#popoverThreadIds].some(
       (threadId) => !visibleThreadIds.has(threadId)
     )) {
-      this.closePopover();
+      this.closePopover(true, false);
     }
   }
   captureCurrentSelection() {
@@ -2209,7 +2359,9 @@ var TimelineCommentsController = class {
       this.restoreAll();
     }
     const restored = this.#restored.get(anchor.id);
-    if (restored === void 0) return false;
+    if (restored === void 0 || !isThreadWindowRendered(restored.window)) {
+      return false;
+    }
     restored.prose.scrollIntoView({
       block: "center",
       behavior: "smooth"
@@ -2226,7 +2378,10 @@ var TimelineCommentsController = class {
   }
   scheduleRefresh() {
     this.#refreshNonce += 1;
+    if (this.#refreshQueued || this.#refreshing !== null) return;
+    this.#refreshQueued = true;
     queueMicrotask(() => {
+      this.#refreshQueued = false;
       void this.refresh().catch((error) => {
         if (!this.#destroyed)
           console.error("timeline-comments refresh failed", error);
@@ -2236,18 +2391,20 @@ var TimelineCommentsController = class {
   async refresh() {
     if (this.#destroyed) return;
     if (this.#refreshing !== null) {
-      await this.#refreshing;
-      if (!this.#destroyed) return this.refresh();
-      return;
+      return this.#refreshing;
     }
-    const nonce = this.#refreshNonce;
-    this.#refreshing = this.loadAnchors();
+    this.#refreshing = (async () => {
+      let nonce;
+      do {
+        nonce = this.#refreshNonce;
+        await this.loadAnchors();
+      } while (nonce !== this.#refreshNonce && !this.#destroyed);
+    })();
     try {
       await this.#refreshing;
     } finally {
       this.#refreshing = null;
     }
-    if (nonce !== this.#refreshNonce && !this.#destroyed) await this.refresh();
   }
   async loadAnchors() {
     this.syncAttachedUiVisibility();
@@ -2275,6 +2432,11 @@ var TimelineCommentsController = class {
     for (const windowNode of windows) {
       if (!windowNode.isConnected) {
         windows.delete(windowNode);
+        if (![...this.#threadWindows.values()].some(
+          (registered) => registered.has(windowNode)
+        )) {
+          this.#threadWindowVisibility.delete(windowNode);
+        }
         continue;
       }
       if (isThreadWindowRendered(windowNode)) return windowNode;
@@ -2500,6 +2662,7 @@ var TimelineCommentsController = class {
     this.#popoverThreadIds = new Set(
       threads.map(({ anchor }) => anchor.bbThreadId)
     );
+    this.#popoverWindows = new Set(threads.map(({ window: window2 }) => window2));
     this.#portal.append(menu);
     this.installPopoverDismissal(marker);
     this.positionNear(marker, menu);
@@ -2508,6 +2671,9 @@ var TimelineCommentsController = class {
   async openThread(commentThreadId, fallbackAnchor) {
     const anchor = this.#anchors.get(commentThreadId) ?? this.#restored.get(commentThreadId)?.anchor ?? fallbackAnchor;
     if (anchor === void 0) return;
+    const restored = this.#restored.get(commentThreadId);
+    const parentWindow = restored?.window ?? this.findWindow(anchor.bbThreadId);
+    if (parentWindow === null || !isThreadWindowRendered(parentWindow)) return;
     this.#openThreadId = commentThreadId;
     this.closePopover(false);
     this.setActive([commentThreadId]);
@@ -2521,6 +2687,8 @@ var TimelineCommentsController = class {
     popover.append(element("div", "bb-comments-loading", "Loading\u2026"));
     this.#popover = popover;
     this.#popoverThreadIds = /* @__PURE__ */ new Set([anchor.bbThreadId]);
+    const restoredWindow = restored?.window ?? parentWindow;
+    this.#popoverWindows = restoredWindow === void 0 ? /* @__PURE__ */ new Set() : /* @__PURE__ */ new Set([restoredWindow]);
     this.#portal.append(popover);
     this.installPopoverDismissal(
       this.#restored.get(commentThreadId)?.marker ?? null
@@ -2564,8 +2732,11 @@ var TimelineCommentsController = class {
       onClose: () => this.closePopover(),
       onChanged: () => this.scheduleRefresh(),
       onSendToAgent: () => {
-        requestTimelineCommentHandoff(detail.thread.bbThreadId);
-        this.closePopover();
+        void requestTimelineCommentHandoff(detail.thread.bbThreadId).then(
+          (accepted) => {
+            if (accepted && this.#popover === popover) this.closePopover();
+          }
+        );
       }
     });
   }
@@ -2659,7 +2830,7 @@ var TimelineCommentsController = class {
       );
       textarea.placeholder = "Reply...";
       textarea.maxLength = 2e4;
-      textarea.value = readDraft(draftKey) ?? "";
+      textarea.value = readDraft2(draftKey) ?? "";
       const send = element(
         "button",
         "bb-comments-submit-shortcut"
@@ -2677,7 +2848,7 @@ var TimelineCommentsController = class {
         return message;
       };
       textarea.addEventListener("input", () => {
-        writeDraft(draftKey, textarea.value);
+        writeDraft2(draftKey, textarea.value);
         syncInlineComposerLayout(textarea, replyComposer);
         validate();
       });
@@ -2868,7 +3039,7 @@ var TimelineCommentsController = class {
     textarea.addEventListener("input", () => {
       if (textarea.value === currentComment.body)
         sessionStorage.removeItem(draftKey);
-      else writeDraft(draftKey, textarea.value);
+      else writeDraft2(draftKey, textarea.value);
       validate();
     });
     textarea.addEventListener("keydown", (event) => {
@@ -2912,7 +3083,7 @@ var TimelineCommentsController = class {
     edit.addEventListener("click", () => {
       if (popover.dataset.editing !== void 0) return;
       this.closeActionsMenu();
-      textarea.value = readDraft(draftKey) ?? currentComment.body;
+      textarea.value = readDraft2(draftKey) ?? currentComment.body;
       const isLastComment = detail.comments.at(-1)?.id === currentComment.id;
       const reply = popover.querySelector(".bb-comments-reply");
       runMeasuredModeTransition(row, () => {
@@ -3168,10 +3339,11 @@ var TimelineCommentsController = class {
     this.#composer?.remove();
     this.#composer = null;
     this.#composerThreadId = null;
+    this.#composerWindow = null;
     this.#provisionalRange = null;
     this.rebuildHighlights();
   }
-  closePopover(clearOpen = true) {
+  closePopover(clearOpen = true, restoreFocus = true) {
     const invoker = this.#popoverInvoker;
     const currentMarker = this.#openThreadId === null ? null : this.#restored.get(this.#openThreadId)?.marker ?? null;
     const focusTarget = invoker?.isConnected === true ? invoker : currentMarker;
@@ -3183,9 +3355,10 @@ var TimelineCommentsController = class {
     this.#popover?.remove();
     this.#popover = null;
     this.#popoverThreadIds.clear();
+    this.#popoverWindows.clear();
     if (clearOpen) this.#openThreadId = null;
     this.setActive([]);
-    if (clearOpen && focusTarget?.isConnected === true) {
+    if (restoreFocus && clearOpen && focusTarget?.isConnected === true) {
       focusTarget.focus({ preventScroll: true });
     }
   }
@@ -3222,13 +3395,73 @@ function errorMessage2(error) {
 function excerpt(value, length) {
   return value.length > length ? `${value.slice(0, length - 1)}\u2026` : value;
 }
+function threadWindowForNode(node) {
+  return node?.closest("[data-thread-window]") ?? document.querySelector(
+    '[data-split-pane-id][data-focused="true"] [data-thread-window]'
+  ) ?? (document.querySelectorAll("[data-thread-window]").length === 1 ? document.querySelector("[data-thread-window]") : null);
+}
+function TimelineCommentHandoffBridge() {
+  const rpc = useRpc();
+  const composer = useComposer();
+  const root = useRef(null);
+  const requestGeneration = useRef(0);
+  const requestPending = useRef(false);
+  const threadId = composer.scope.kind === "thread" ? composer.scope.threadId : null;
+  useLayoutEffect(() => {
+    if (threadId === null) return;
+    const generation = ++requestGeneration.current;
+    let mounted = true;
+    const threadWindow = threadWindowForNode(root.current);
+    if (threadWindow === null) return;
+    const unregisterWindow = registerTimelineCommentThreadWindow(
+      threadId,
+      threadWindow
+    );
+    const unregisterHandoff = subscribeTimelineCommentHandoff({
+      threadId,
+      getThreadWindow: () => threadWindow,
+      accept: async () => {
+        if (requestPending.current) return false;
+        requestPending.current = true;
+        try {
+          const summary = await rpc.call("getThreadHandoffSummary", {
+            bbThreadId: threadId
+          });
+          if (!mounted || generation !== requestGeneration.current || summary.threadCount === 0) {
+            return false;
+          }
+          composer.insertMention({
+            provider: "thread-comments",
+            id: threadId,
+            label: `${summary.commentCount} ${summary.commentCount === 1 ? "comment" : "comments"} from ${summary.threadCount} open ${summary.threadCount === 1 ? "thread" : "threads"}`
+          });
+          composer.focus();
+          return true;
+        } catch {
+          return false;
+        } finally {
+          if (generation === requestGeneration.current) {
+            requestPending.current = false;
+          }
+        }
+      }
+    });
+    return () => {
+      mounted = false;
+      requestGeneration.current += 1;
+      requestPending.current = false;
+      unregisterHandoff();
+      unregisterWindow();
+    };
+  }, [composer, rpc, threadId]);
+  return /* @__PURE__ */ jsx("span", { ref: root, hidden: true, "aria-hidden": "true" });
+}
 function AddCommentsAction() {
   const rpc = useRpc();
   const composer = useComposer();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
   const [notice, setNotice] = useState(null);
-  const actionRoot = useRef(null);
   const requestGeneration = useRef(0);
   const threadId = composer.scope.kind === "thread" ? composer.scope.threadId : null;
   const currentThreadId = useRef(threadId);
@@ -3249,38 +3482,8 @@ function AddCommentsAction() {
       refreshTimelineCommentAnchors();
     }
   });
-  useLayoutEffect(() => {
-    if (threadId === null) return;
-    const closestWindow = actionRoot.current?.closest(
-      "[data-thread-window]"
-    );
-    const visibleWindows = document.querySelectorAll(
-      "[data-thread-window]"
-    );
-    const overflowContent = actionRoot.current?.closest(
-      "[data-plugin-composer-action-overflow]"
-    );
-    const controlledTrigger = overflowContent?.id === void 0 || overflowContent.id === "" ? null : [...document.querySelectorAll("[aria-controls]")].find(
-      (node) => node.getAttribute("aria-controls") === overflowContent.id
-    ) ?? null;
-    const openOverflowTriggers = [
-      ...document.querySelectorAll(
-        '[aria-label="More plugin actions"][aria-expanded="true"]'
-      )
-    ];
-    const overflowTrigger = controlledTrigger ?? (openOverflowTriggers.length === 1 ? openOverflowTriggers[0] : null);
-    const overflowWindow = overflowTrigger?.closest(
-      "[data-thread-window]"
-    );
-    const focusedWindow = overflowContent === void 0 || overflowContent === null ? document.querySelector(
-      '[data-split-pane-id][data-focused="true"] [data-thread-window]'
-    ) : null;
-    const threadWindow = closestWindow ?? overflowWindow ?? focusedWindow ?? (overflowContent === void 0 || overflowContent === null ? visibleWindows.length === 1 ? visibleWindows[0] : null : null);
-    if (threadWindow === void 0 || threadWindow === null) return;
-    return registerTimelineCommentThreadWindow(threadId, threadWindow);
-  }, [threadId]);
-  if (threadId === null) return null;
   const addComments = useCallback(async () => {
+    if (threadId === null) return;
     const generation = ++requestGeneration.current;
     const isCurrentRequest = () => generation === requestGeneration.current && currentThreadId.current === threadId;
     setBusy(true);
@@ -3307,13 +3510,8 @@ function AddCommentsAction() {
       if (isCurrentRequest()) setBusy(false);
     }
   }, [composer, rpc, threadId]);
-  useEffect(
-    () => subscribeTimelineCommentHandoff((requestedThreadId) => {
-      if (requestedThreadId === threadId) void addComments();
-    }),
-    [addComments, threadId]
-  );
-  return /* @__PURE__ */ jsxs("span", { ref: actionRoot, className: "bb-comments-composer-action-wrap", children: [
+  if (threadId === null) return null;
+  return /* @__PURE__ */ jsxs("span", { className: "bb-comments-composer-action-wrap", children: [
     error !== null ? /* @__PURE__ */ jsx("span", { className: "bb-comments-composer-action-error", role: "alert", children: "Couldn\u2019t add comments" }) : null,
     notice !== null ? /* @__PURE__ */ jsx("span", { className: "bb-comments-composer-action-status", role: "status", children: notice }) : null,
     /* @__PURE__ */ jsx(
@@ -3518,7 +3716,14 @@ var app_default = definePluginApp((app) => {
   app.composer.customize({
     id: "timeline-comments",
     scopes: ["thread"],
-    actions: [{ id: "add-comments", component: AddCommentsAction }]
+    actions: [{ id: "add-comments", component: AddCommentsAction }],
+    banners: [
+      {
+        id: "comment-handoff-bridge",
+        chrome: "bare",
+        component: TimelineCommentHandoffBridge
+      }
+    ]
   });
   app.slots.threadPanelAction({
     id: "comments",
