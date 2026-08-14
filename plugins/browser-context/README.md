@@ -12,7 +12,7 @@ bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/browser-con
 
 ## Use
 
-Open a Browser tab and click the Browser Context action to enter selection mode. Click an element or drag over a region, then add an optional comment. Choose **Add to prompt** to preserve the existing draft, attach the screenshot, and append quoted DOM context followed by the comment. The standard Send or Queue flow remains in control.
+Open a Browser tab and click the Browser Context action to enter selection mode. Click an element or drag over a region, then add an optional comment. Choose **Add to prompt** to preserve the existing draft, attach the screenshot, and append the comment followed by a compact quoted summary of the page, target, DOM, relevant styles, and available framework or accessibility hints. The user request stays primary while supporting context can collapse naturally, and the standard Send or Queue flow remains in control.
 
 ## Develop
 
