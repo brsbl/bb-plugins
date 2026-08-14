@@ -8,10 +8,10 @@ import {
   AtSign,
   ArrowDown,
   ArrowUp,
+  Check,
   CheckCircle2,
   ChevronDown,
   ChevronsUpDown,
-  Circle,
   CircleDot,
   CircleX,
   GitPullRequest,
@@ -247,8 +247,8 @@ function ResolveButton({
   item: GithubNotificationItem;
   onToggle(): void;
 }) {
-  const label = item.resolved ? "Mark unresolved" : "Mark resolved";
-  const ResolveIcon = item.resolved ? CheckCircle2 : Circle;
+  const label = item.resolved ? "Reopen" : "Resolve";
+  const ResolveIcon = item.resolved ? CheckCircle2 : Check;
   return (
     <button
       type="button"
@@ -258,7 +258,9 @@ function ResolveButton({
       onClick={onToggle}
       title={label}
       className={`group/resolve relative grid size-7 place-content-center rounded-md transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50 ${
-        item.resolved ? "text-success" : "text-muted-foreground"
+        item.resolved
+          ? "text-success"
+          : "text-muted-foreground hover:text-success"
       }`}
     >
       <ResolveIcon aria-hidden="true" className="size-4" strokeWidth={1.75} />
@@ -504,13 +506,16 @@ function GitHubActivityPanel() {
             <div className="overflow-x-auto">
               <table className="w-full min-w-[620px] table-fixed border-collapse text-left">
                 <colgroup>
-                  <col className="w-[50%]" />
-                  <col className="w-[30%]" />
+                  <col className="w-[10%]" />
+                  <col className="w-[48%]" />
+                  <col className="w-[28%]" />
                   <col className="w-[14%]" />
-                  <col className="w-[6%]" />
                 </colgroup>
                 <thead className="border-b border-border bg-muted/35 text-xs">
                   <tr>
+                    <th scope="col" className="px-3 py-2.5 text-muted-foreground">
+                      Status
+                    </th>
                     <th scope="col" className="px-3 py-2.5">
                       <SortHeader label="Item" active={sort === "resource"} direction={direction} onSort={() => setSortKey("resource")} />
                     </th>
@@ -520,7 +525,6 @@ function GitHubActivityPanel() {
                     <th scope="col" className="px-3 py-2.5 text-right">
                       <SortHeader label="Last updated" active={sort === "updated"} direction={direction} onSort={() => setSortKey("updated")} />
                     </th>
-                    <th scope="col" aria-label="Resolved" className="px-3 py-2.5" />
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border">
@@ -542,6 +546,13 @@ function GitHubActivityPanel() {
                             item.resolved ? "bg-muted/15" : ""
                           }`}
                         >
+                          <td className="px-3 py-2.5">
+                            <ResolveButton
+                              disabled={pendingResolvedIds.has(item.id)}
+                              item={item}
+                              onToggle={() => void toggleResolved(item)}
+                            />
+                          </td>
                           <td className="px-3 py-3">
                             <NotificationLink item={item} />
                           </td>
@@ -550,13 +561,6 @@ function GitHubActivityPanel() {
                           </td>
                           <td className="px-3 py-3">
                             <UpdatedTime value={item.updatedAt} />
-                          </td>
-                          <td className="px-3 py-2.5 text-right">
-                            <ResolveButton
-                              disabled={pendingResolvedIds.has(item.id)}
-                              item={item}
-                              onToggle={() => void toggleResolved(item)}
-                            />
                           </td>
                         </tr>
                       ))}

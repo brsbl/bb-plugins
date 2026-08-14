@@ -123,16 +123,21 @@ describe("GitHub Activity panel", () => {
     expect(screen.getByRole("columnheader", { name: /Item/u })).toBeDefined();
     expect(screen.getByRole("columnheader", { name: /Activity/u })).toBeDefined();
     expect(screen.getByRole("columnheader", { name: /Last updated/u })).toBeDefined();
+    expect(screen.getByRole("columnheader", { name: "Status" })).toBeDefined();
 
     const markResolved = screen.getByRole("button", {
-      name: "Mark resolved: Scannable activity",
+      name: "Resolve: Scannable activity",
     });
     expect(markResolved.getAttribute("aria-pressed")).toBe("false");
-    expect(markResolved.getAttribute("title")).toBe("Mark resolved");
+    expect(markResolved.getAttribute("title")).toBe("Resolve");
+    expect(markResolved.querySelector("svg")?.className.baseVal).toContain(
+      "lucide-check",
+    );
     const markUnresolved = screen.getByRole("button", {
-      name: "Mark unresolved: Keep links local",
+      name: "Reopen: Keep links local",
     });
     expect(markUnresolved.getAttribute("aria-pressed")).toBe("true");
+    expect(markUnresolved.getAttribute("title")).toBe("Reopen");
     expect(markUnresolved.className).toContain("text-success");
     fireEvent.click(markResolved);
     await waitFor(() => {
@@ -142,7 +147,7 @@ describe("GitHub Activity panel", () => {
       });
       expect(
         screen.getByRole("button", {
-          name: "Mark unresolved: Scannable activity",
+          name: "Reopen: Scannable activity",
         }),
       ).toBeDefined();
     });
