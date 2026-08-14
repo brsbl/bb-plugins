@@ -10,6 +10,10 @@
     background: transparent;
     color: var(--muted-foreground, #667085);
     cursor: pointer;
+    transition:
+      background-color 140ms ease,
+      box-shadow 140ms ease,
+      color 140ms ease;
   }
 
   .bb-browser-context-action:hover:not(:disabled),
@@ -19,7 +23,8 @@
   }
 
   .bb-browser-context-action[aria-pressed="true"] {
-    box-shadow: inset 0 0 0 1px var(--ring, #4c76e8);
+    box-shadow: inset 0 0 0 1px
+      color-mix(in srgb, var(--ring, #4c76e8) 68%, transparent);
     color: var(--ring, #4c76e8);
   }
 
@@ -38,8 +43,9 @@
     height: 17px;
   }
 
-  .bb-browser-context-spin {
-    animation: bb-browser-context-spin 1s linear infinite;
+  .bb-browser-context-action[aria-pressed="true"] svg {
+    animation: bb-browser-context-activate 220ms ease-out;
+    transform-origin: center;
   }
 
   .bb-browser-context-status {
@@ -114,8 +120,8 @@
   .bb-browser-context-target-badge,
   .bb-browser-context-comment-index {
     display: inline-flex;
-    width: 22px;
-    height: 22px;
+    width: 20px;
+    height: 20px;
     align-items: center;
     justify-content: center;
     border-radius: 999px;
@@ -164,12 +170,12 @@
   .bb-browser-context-comment-card {
     position: absolute;
     z-index: 3;
-    top: 14px;
-    right: 14px;
+    top: 10px;
+    right: 10px;
     display: grid;
-    width: min(340px, calc(100% - 28px));
-    gap: 9px;
-    padding: 14px;
+    width: min(300px, calc(100% - 20px));
+    gap: 7px;
+    padding: 10px;
     border: 1px solid var(--border, #d0d5dd);
     border-radius: 12px;
     background: color-mix(in srgb, var(--popover, #fff) 96%, transparent);
@@ -179,14 +185,37 @@
 
   .bb-browser-context-comment-card-left {
     right: auto;
-    left: 14px;
+    left: 10px;
+  }
+
+  .bb-browser-context-comment-toolbar {
+    display: flex;
+    min-width: 0;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 6px;
   }
 
   .bb-browser-context-comment-heading {
     display: flex;
+    flex: 1;
     min-width: 0;
     align-items: center;
-    gap: 9px;
+    gap: 7px;
+    cursor: grab;
+    touch-action: none;
+    user-select: none;
+  }
+
+  .bb-browser-context-comment-heading:active {
+    cursor: grabbing;
+  }
+
+  .bb-browser-context-comment-heading > svg {
+    width: 12px;
+    height: 16px;
+    flex: none;
+    color: var(--muted-foreground, #667085);
   }
 
   .bb-browser-context-comment-heading > span:last-child {
@@ -195,7 +224,7 @@
   }
 
   .bb-browser-context-comment-heading strong {
-    font-size: 13px;
+    font-size: 12px;
     font-weight: 650;
   }
 
@@ -207,14 +236,42 @@
     white-space: nowrap;
   }
 
-  .bb-browser-context-comment-card label {
-    margin-top: 2px;
-    font-size: 11px;
-    font-weight: 650;
+  .bb-browser-context-cancel {
+    display: inline-flex;
+    width: 26px;
+    height: 26px;
+    flex: none;
+    align-items: center;
+    justify-content: center;
+    border: 0;
+    border-radius: 6px;
+    background: transparent;
+    color: var(--muted-foreground, #667085);
+    cursor: pointer;
+  }
+
+  .bb-browser-context-cancel:hover:not(:disabled) {
+    background: var(--state-hover, #f2f4f7);
+    color: var(--foreground, #101828);
+  }
+
+  .bb-browser-context-cancel:focus-visible {
+    outline: 2px solid var(--ring, #4c76e8);
+    outline-offset: 1px;
+  }
+
+  .bb-browser-context-cancel:disabled {
+    cursor: wait;
+    opacity: 0.5;
+  }
+
+  .bb-browser-context-cancel svg {
+    width: 14px;
+    height: 14px;
   }
 
   .bb-browser-context-comment-card textarea {
-    min-height: 92px;
+    min-height: 72px;
     resize: vertical;
     padding: 9px 10px;
     border: 1px solid var(--border, #d0d5dd);
@@ -231,14 +288,9 @@
       color-mix(in srgb, var(--ring, #4c76e8) 24%, transparent);
   }
 
-  .bb-browser-context-help,
   .bb-browser-context-error {
     margin: 0;
     font-size: 11px;
-  }
-
-  .bb-browser-context-help {
-    color: var(--muted-foreground, #667085);
   }
 
   .bb-browser-context-error {
@@ -292,8 +344,22 @@
   }
 }
 
-@keyframes bb-browser-context-spin {
-  to {
-    transform: rotate(360deg);
+@keyframes bb-browser-context-activate {
+  0% {
+    opacity: 0.62;
+    transform: scale(0.88);
+  }
+
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-bb-plugin="browser-context"]
+    .bb-browser-context-action[aria-pressed="true"]
+    svg {
+    animation: none;
   }
 }

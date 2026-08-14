@@ -145,6 +145,14 @@ describe("Browser Context action", () => {
       name: "Browser context preview",
     });
     expect(review).toBeDefined();
+    expect(
+      screen.queryByText(
+        "Hover the numbered target to verify this comment and selection stay together.",
+      ),
+    ).toBeNull();
+    expect(screen.queryByRole("button", { name: "Retake" })).toBeNull();
+    const cancel = screen.getByRole("button", { name: "Cancel annotation" });
+    expect(cancel.getAttribute("title")).toBe("Cancel annotation");
     expect(slot.inspection.composer.attachmentCount).toBe(0);
     expect(props.experimental_setOverlayOpen).toHaveBeenCalledWith(true);
 
@@ -242,41 +250,87 @@ describe("Browser Context action", () => {
     await waitFor(() => expect(observedSignal?.aborted).toBe(true));
     selectingSlot.lifecycle.unmount();
 
-    const previewProps = actionProps();
+    const previewInspect = vi.fn(async () => capture);
+    const previewProps = actionProps({
+      experimental_inspectPage: previewInspect,
+    });
     const previewSlot = renderSlot(registration, previewProps);
     fireEvent.click(
       screen.getByRole("button", { name: "Select page context" }),
     );
     await screen.findByRole("region", { name: "Browser context preview" });
-    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Cancel annotation" }),
+    );
     expect(previewProps.experimental_setOverlayOpen).toHaveBeenLastCalledWith(
       false,
     );
     expect(previewSlot.inspection.composer.attachmentCount).toBe(0);
+    fireEvent.click(
+      screen.getByRole("button", { name: "Select page context" }),
+    );
+    await screen.findByRole("region", { name: "Browser context preview" });
+    expect(previewInspect).toHaveBeenCalledTimes(2);
   });
 
-  it("retakes a selection from the review surface", async () => {
+  it("moves the compact annotation panel without changing the selection", async () => {
     const registration = await loadAction();
-    const inspect = vi
-      .fn<PluginBrowserActionProps["experimental_inspectPage"]>()
-      .mockResolvedValueOnce(capture)
-      .mockResolvedValueOnce(regionCapture);
-    renderSlot(
-      registration,
-      actionProps({ experimental_inspectPage: inspect }),
-    );
+    renderSlot(registration, actionProps());
 
     fireEvent.click(
       screen.getByRole("button", { name: "Select page context" }),
     );
-    await screen.findByRole("button", {
+    const target = await screen.findByRole("button", {
       name: "Selected element: button#save",
     });
-    fireEvent.click(screen.getByRole("button", { name: "Retake" }));
-    await screen.findByRole("button", {
-      name: "Selected region: 1 elements in region",
+    const review = screen.getByRole("region", {
+      name: "Browser context preview",
     });
-    expect(inspect).toHaveBeenCalledTimes(2);
+    const panel = review.querySelector("aside");
+    if (!(panel instanceof HTMLElement)) throw new Error("Panel missing");
+    vi.spyOn(review, "getBoundingClientRect").mockReturnValue({
+      bottom: 600,
+      height: 600,
+      left: 0,
+      right: 800,
+      top: 0,
+      width: 800,
+      x: 0,
+      y: 0,
+      toJSON: () => ({}),
+    });
+    vi.spyOn(panel, "getBoundingClientRect").mockReturnValue({
+      bottom: 210,
+      height: 200,
+      left: 490,
+      right: 790,
+      top: 10,
+      width: 300,
+      x: 490,
+      y: 10,
+      toJSON: () => ({}),
+    });
+    Object.defineProperties(panel, {
+      offsetHeight: { configurable: true, value: 200 },
+      offsetWidth: { configurable: true, value: 300 },
+    });
+    const handle = screen.getByTitle("Drag annotation");
+    fireEvent.pointerDown(handle, {
+      button: 0,
+      clientX: 510,
+      clientY: 30,
+      pointerId: 7,
+    });
+    fireEvent.pointerMove(handle, {
+      clientX: 220,
+      clientY: 240,
+      pointerId: 7,
+    });
+    fireEvent.pointerUp(handle, { pointerId: 7 });
+
+    expect(panel.style.left).toBe("200px");
+    expect(panel.style.top).toBe("220px");
+    expect(target).toBeDefined();
   });
 
   it("does not stage a capture after the action unmounts during preparation", async () => {

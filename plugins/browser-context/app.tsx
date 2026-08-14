@@ -1,4 +1,10 @@
-import { useEffect, useRef, useState } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  type CSSProperties,
+  type PointerEvent as ReactPointerEvent,
+} from "react";
 import { createPortal } from "react-dom";
 import {
   definePluginApp,
@@ -22,11 +28,10 @@ function errorMessage(error: unknown): string {
     : "Browser Context could not complete that request.";
 }
 
-function CrosshairIcon({ busy = false }: { busy?: boolean }) {
+function SelectionIcon() {
   return (
     <svg
       aria-hidden="true"
-      className={busy ? "bb-browser-context-spin" : undefined}
       viewBox="0 0 24 24"
       fill="none"
       stroke="currentColor"
@@ -34,9 +39,36 @@ function CrosshairIcon({ busy = false }: { busy?: boolean }) {
       strokeLinecap="round"
       strokeLinejoin="round"
     >
-      <circle cx="12" cy="12" r="5.5" />
-      <path d="M12 2v4M12 18v4M2 12h4M18 12h4" />
-      <path d="M10 10h4v4h-4z" />
+      <path d="M4 8V4h4M16 4h4v4M20 16v4h-4M8 20H4v-4" />
+      <path d="m9 8 7 6-3.2.7-1.4 3.1L9 8Z" fill="currentColor" />
+    </svg>
+  );
+}
+
+function CloseIcon() {
+  return (
+    <svg
+      aria-hidden="true"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+    >
+      <path d="m7 7 10 10M17 7 7 17" />
+    </svg>
+  );
+}
+
+function DragHandleIcon() {
+  return (
+    <svg aria-hidden="true" viewBox="0 0 16 16" fill="currentColor">
+      <circle cx="5" cy="4" r="1" />
+      <circle cx="11" cy="4" r="1" />
+      <circle cx="5" cy="8" r="1" />
+      <circle cx="11" cy="8" r="1" />
+      <circle cx="5" cy="12" r="1" />
+      <circle cx="11" cy="12" r="1" />
     </svg>
   );
 }
@@ -80,7 +112,6 @@ interface CaptureReviewProps {
   onAddToPrompt(): void;
   onCancel(): void;
   onCommentChange(comment: string): void;
-  onRetake(): void;
 }
 
 function CaptureReview({
@@ -91,9 +122,19 @@ function CaptureReview({
   onAddToPrompt,
   onCancel,
   onCommentChange,
-  onRetake,
 }: CaptureReviewProps) {
   const [hoveringTarget, setHoveringTarget] = useState(false);
+  const [panelPosition, setPanelPosition] = useState<{
+    x: number;
+    y: number;
+  } | null>(null);
+  const reviewRef = useRef<HTMLElement>(null);
+  const panelRef = useRef<HTMLElement>(null);
+  const dragRef = useRef<{
+    pointerId: number;
+    offsetX: number;
+    offsetY: number;
+  } | null>(null);
   const viewport = capture.page.viewport;
   const rectStyle = {
     left: percent(capture.rect.x, viewport.width),
@@ -109,9 +150,69 @@ function CaptureReview({
     capture.rect.x + capture.rect.width / 2 > viewport.width / 2
       ? "bb-browser-context-comment-card bb-browser-context-comment-card-left"
       : "bb-browser-context-comment-card";
+  const commentCardStyle: CSSProperties | undefined =
+    panelPosition === null
+      ? undefined
+      : {
+          left: `${panelPosition.x}px`,
+          right: "auto",
+          top: `${panelPosition.y}px`,
+        };
+
+  const beginPanelDrag = (event: ReactPointerEvent<HTMLDivElement>) => {
+    if (event.button !== 0 || staging) return;
+    const panel = panelRef.current;
+    const review = reviewRef.current;
+    if (panel === null || review === null) return;
+    const panelRect = panel.getBoundingClientRect();
+    dragRef.current = {
+      pointerId: event.pointerId,
+      offsetX: event.clientX - panelRect.left,
+      offsetY: event.clientY - panelRect.top,
+    };
+    event.currentTarget.setPointerCapture?.(event.pointerId);
+    event.preventDefault();
+  };
+
+  const movePanel = (event: ReactPointerEvent<HTMLDivElement>) => {
+    const drag = dragRef.current;
+    const panel = panelRef.current;
+    const review = reviewRef.current;
+    if (
+      drag === null ||
+      drag.pointerId !== event.pointerId ||
+      panel === null ||
+      review === null
+    ) {
+      return;
+    }
+    const reviewRect = review.getBoundingClientRect();
+    const inset = 8;
+    const maxX = Math.max(inset, reviewRect.width - panel.offsetWidth - inset);
+    const maxY = Math.max(inset, reviewRect.height - panel.offsetHeight - inset);
+    setPanelPosition({
+      x: Math.max(
+        inset,
+        Math.min(maxX, event.clientX - reviewRect.left - drag.offsetX),
+      ),
+      y: Math.max(
+        inset,
+        Math.min(maxY, event.clientY - reviewRect.top - drag.offsetY),
+      ),
+    });
+  };
+
+  const endPanelDrag = (event: ReactPointerEvent<HTMLDivElement>) => {
+    if (dragRef.current?.pointerId !== event.pointerId) return;
+    dragRef.current = null;
+    if (event.currentTarget.hasPointerCapture?.(event.pointerId) === true) {
+      event.currentTarget.releasePointerCapture?.(event.pointerId);
+    }
+  };
 
   return (
     <section
+      ref={reviewRef}
       className="bb-browser-context-review"
       role="region"
       aria-label="Browser context preview"
@@ -142,39 +243,55 @@ function CaptureReview({
         </button>
       </div>
 
-      <aside className={commentCardClassName}>
-        <div className="bb-browser-context-comment-heading">
-          <span className="bb-browser-context-comment-index">1</span>
-          <span>
-            <strong>{capture.kind === "element" ? "Element" : "Region"}</strong>
-            <small>{targetLabel}</small>
-          </span>
+      <aside
+        ref={panelRef}
+        className={commentCardClassName}
+        style={commentCardStyle}
+      >
+        <div className="bb-browser-context-comment-toolbar">
+          <div
+            className="bb-browser-context-comment-heading"
+            onPointerDown={beginPanelDrag}
+            onPointerMove={movePanel}
+            onPointerUp={endPanelDrag}
+            onPointerCancel={endPanelDrag}
+            title="Drag annotation"
+          >
+            <DragHandleIcon />
+            <span className="bb-browser-context-comment-index">1</span>
+            <span>
+              <strong>
+                {capture.kind === "element" ? "Element" : "Region"}
+              </strong>
+              <small>{targetLabel}</small>
+            </span>
+          </div>
+          <button
+            type="button"
+            className="bb-browser-context-cancel"
+            onClick={onCancel}
+            disabled={staging}
+            aria-label="Cancel annotation"
+            title="Cancel annotation"
+          >
+            <CloseIcon />
+          </button>
         </div>
-        <label htmlFor="bb-browser-context-comment">Comment</label>
         <textarea
           id="bb-browser-context-comment"
+          aria-label="Comment"
           value={comment}
           onChange={(event) => onCommentChange(event.target.value)}
           placeholder="What should change here?"
           maxLength={4_000}
           autoFocus
         />
-        <p className="bb-browser-context-help">
-          Hover the numbered target to verify this comment and selection stay
-          together.
-        </p>
         {error !== null ? (
           <p className="bb-browser-context-error" role="alert">
             {error}
           </p>
         ) : null}
         <div className="bb-browser-context-review-actions">
-          <button type="button" onClick={onCancel} disabled={staging}>
-            Cancel
-          </button>
-          <button type="button" onClick={onRetake} disabled={staging}>
-            Retake
-          </button>
           <button
             type="button"
             className="bb-browser-context-primary"
@@ -345,7 +462,11 @@ function BrowserContextAction(props: PluginBrowserActionProps) {
           void startSelection();
         }}
       >
-        <CrosshairIcon busy={operation !== null} />
+        {capture !== null || operation === "selecting" ? (
+          <CloseIcon />
+        ) : (
+          <SelectionIcon />
+        )}
       </button>
 
       {capture !== null && overlayRoot !== null
@@ -359,10 +480,6 @@ function BrowserContextAction(props: PluginBrowserActionProps) {
                 onAddToPrompt={() => void addToPrompt()}
                 onCancel={closeReview}
                 onCommentChange={setComment}
-                onRetake={() => {
-                  closeReview();
-                  void startSelection();
-                }}
               />
             </div>,
             overlayRoot,
