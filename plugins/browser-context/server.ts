@@ -160,12 +160,22 @@ export const browserCaptureSchema = z
 
 type BrowserCapture = z.infer<typeof browserCaptureSchema>;
 
+function escapeHtml(value: string): string {
+  return value
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;");
+}
+
 function quoteInline(value: string): string {
-  return `"${value
-    .replaceAll("\\", "\\\\")
-    .replaceAll('"', '\\"')
-    .replaceAll("\r", "\\r")
-    .replaceAll("\n", "\\n")}"`;
+  const escaped = escapeHtml(
+    value
+      .replaceAll("\\", "\\\\")
+      .replaceAll('"', '\\"')
+      .replaceAll("\r", "\\r")
+      .replaceAll("\n", "\\n"),
+  );
+  return `"${escaped}"`;
 }
 
 function formatNumber(value: number): string {
@@ -205,14 +215,12 @@ export function serializeBrowserContextMarkdown(
   capture: BrowserCapture,
   comment: string,
 ): string {
-  const lines = [
-    "# Browser selection",
+  const contextLines = [
+    "### Browser DOM context",
     "",
-    "## Comment",
+    UNTRUSTED_PAGE_CONTEXT_NOTICE,
     "",
-    comment.trim() || "_No comment provided._",
-    "",
-    "## Target",
+    "### Target",
     "",
     "- Annotation: 1",
     `- Kind: ${capture.kind}`,
@@ -221,75 +229,77 @@ export function serializeBrowserContextMarkdown(
     `- Viewport (CSS px): width=${formatNumber(capture.page.viewport.width)}, height=${formatNumber(capture.page.viewport.height)}`,
     `- Scroll (CSS px): x=${formatNumber(capture.page.scroll.x)}, y=${formatNumber(capture.page.scroll.y)}`,
     `- Selection bounds (CSS px): ${formatRect(capture.rect)}`,
-    "- Screenshot: browser-context-capture.png (full visible viewport)",
+    "- Screenshot: Attached image (full visible viewport)",
     `- Image scale: x=${formatNumber(capture.screenshot.cssToImageScale.x)}, y=${formatNumber(capture.screenshot.cssToImageScale.y)}`,
     "",
-    `> ${UNTRUSTED_PAGE_CONTEXT_NOTICE}`,
-    "",
-    "## Captured page data",
+    "### Captured page data",
     "",
   ];
 
   if (capture.kind === "region" && capture.region !== null) {
     if (capture.region.elements.length === 0) {
-      lines.push("No matching elements were found inside the selected region.");
+      contextLines.push(
+        "No matching elements were found inside the selected region.",
+      );
     } else {
       capture.region.elements.forEach((element, index) => {
-        lines.push(
+        contextLines.push(
           ...serializeDescriptor(element, `${index + 1}. ${element.tag}`),
           "",
         );
       });
     }
-    return `${lines.join("\n").trimEnd()}\n`;
-  }
-
-  if (capture.element === null) {
-    return `${lines.join("\n").trimEnd()}\n`;
-  }
-
-  lines.push(
-    ...serializeDescriptor(capture.element, capture.element.tag),
-    "",
-    "### DOM",
-    "",
-    indentedCode(capture.element.dom),
-    "",
-    "### Computed styles",
-    "",
-  );
-  const styles = Object.entries(capture.element.styles);
-  if (styles.length === 0) {
-    lines.push("None captured.");
-  } else {
-    for (const [name, value] of styles) {
-      lines.push(`- ${name}: ${quoteInline(value)}`);
+  } else if (capture.element !== null) {
+    contextLines.push(
+      ...serializeDescriptor(capture.element, capture.element.tag),
+      "",
+      "### DOM",
+      "",
+      indentedCode(capture.element.dom),
+      "",
+      "### Computed styles",
+      "",
+    );
+    const styles = Object.entries(capture.element.styles);
+    if (styles.length === 0) {
+      contextLines.push("None captured.");
+    } else {
+      for (const [name, value] of styles) {
+        contextLines.push(`- ${name}: ${quoteInline(value)}`);
+      }
+    }
+    contextLines.push(
+      "",
+      "### Accessibility",
+      "",
+      `- Role hint: ${capture.element.accessibility.roleHint === null ? "None" : quoteInline(capture.element.accessibility.roleHint)}`,
+      `- Name hint: ${capture.element.accessibility.nameHint === null ? "None" : quoteInline(capture.element.accessibility.nameHint)}`,
+    );
+    const ariaAttributes = Object.entries(
+      capture.element.accessibility.attributes,
+    );
+    for (const [name, value] of ariaAttributes) {
+      contextLines.push(`- ${name}: ${quoteInline(value)}`);
+    }
+    contextLines.push("", "### React components", "");
+    if (
+      capture.element.reactComponentStack === null ||
+      capture.element.reactComponentStack.length === 0
+    ) {
+      contextLines.push("None detected.");
+    } else {
+      capture.element.reactComponentStack.forEach((name, index) => {
+        contextLines.push(`${index + 1}. ${quoteInline(name)}`);
+      });
     }
   }
-  lines.push(
-    "",
-    "### Accessibility",
-    "",
-    `- Role hint: ${capture.element.accessibility.roleHint === null ? "None" : quoteInline(capture.element.accessibility.roleHint)}`,
-    `- Name hint: ${capture.element.accessibility.nameHint === null ? "None" : quoteInline(capture.element.accessibility.nameHint)}`,
+
+  const quotedContext = contextLines.map((line) =>
+    line.length === 0 ? ">" : `> ${line}`,
   );
-  const ariaAttributes = Object.entries(
-    capture.element.accessibility.attributes,
-  );
-  for (const [name, value] of ariaAttributes) {
-    lines.push(`- ${name}: ${quoteInline(value)}`);
-  }
-  lines.push("", "### React components", "");
-  if (
-    capture.element.reactComponentStack === null ||
-    capture.element.reactComponentStack.length === 0
-  ) {
-    lines.push("None detected.");
-  } else {
-    capture.element.reactComponentStack.forEach((name, index) => {
-      lines.push(`${index + 1}. ${quoteInline(name)}`);
-    });
-  }
+  const lines = [...quotedContext];
+  const trimmedComment = comment.trim();
+  if (trimmedComment.length > 0) lines.push("", trimmedComment);
   return `${lines.join("\n").trimEnd()}\n`;
 }
 
@@ -327,11 +337,12 @@ export const rpcContract = defineRpcContract({
     input: prepareCaptureInputSchema,
     output: z
       .object({
+        promptText: z.string().min(1).max(MAX_STRUCTURED_BYTES),
         attachments: z
           .array(
             z
               .object({
-                type: z.enum(["localImage", "localFile"]),
+                type: z.literal("localImage"),
                 path: z.string().min(1),
                 name: z.string().min(1),
                 mimeType: z.string().optional(),
@@ -339,7 +350,7 @@ export const rpcContract = defineRpcContract({
               })
               .strict(),
           )
-          .length(2),
+          .length(1),
       })
       .strict(),
   },
@@ -367,20 +378,9 @@ export default function plugin(bb: BbPluginApi): void {
         filename: "browser-context-capture.png",
         mimeType: "image/png",
       });
-      const metadata = await bb.sdk.projects.attachments.upload({
-        projectId,
-        clientFile: new TextEncoder().encode(
-          serializeBrowserContextMarkdown(capture, comment),
-        ),
-        filename: "browser-context.md",
-        mimeType: "text/markdown",
-      });
-
       return {
-        attachments: [
-          { ...screenshot, type: "localImage" as const },
-          { ...metadata, type: "localFile" as const },
-        ],
+        promptText: serializeBrowserContextMarkdown(capture, comment),
+        attachments: [{ ...screenshot, type: "localImage" as const }],
       };
     },
   });

@@ -415,6 +415,12 @@ function BrowserContextAction(props: PluginBrowserActionProps) {
       for (const attachment of prepared.attachments) {
         stageAttachment(attachment);
       }
+      composer.updateText((current) => {
+        const prefix = current.trimEnd();
+        return prefix.length === 0
+          ? prepared.promptText
+          : `${prefix}\n\n${prepared.promptText}`;
+      });
       composer.focus();
       setCapture(null);
       setComment("");
