@@ -240,35 +240,123 @@ describe("Browser Context prepareCapture", () => {
     );
   });
 
-  it("summarizes large regions without hiding how much was omitted", () => {
-    const base = capture();
-    const regionElements = Array.from({ length: 20 }, (_, index) => ({
-      selector: `main > section:nth-of-type(${index + 1}) > ${"div > ".repeat(50)}button`,
-      tag: "button",
-      id: null,
-      classNames: ["row-action"],
-      text: `Action ${index + 1} ${"description ".repeat(20)}`,
-      rect:
-        index === 19
-          ? { x: 0, y: 0, width: 5_000, height: 5_000 }
-          : { x: 20, y: 40 + index * 32, width: 240, height: 28 },
-    }));
+  it("targets a region by semantic container and ranked descendants", () => {
+    const descriptor = (
+      selector: string,
+      tag: string,
+      classNames: string[],
+      text: string,
+      rect: { x: number; y: number; width: number; height: number },
+    ) => ({ selector, tag, id: null, classNames, text, rect });
+    const tableSelector =
+      "html > body > main > section.card > div.member-table";
+    const regionElements = [
+      descriptor("html", "html", [], "Team members", {
+        x: 0,
+        y: 0,
+        width: 1_200,
+        height: 2_000,
+      }),
+      descriptor("html > body", "body", [], "Team members", {
+        x: 0,
+        y: 0,
+        width: 1_200,
+        height: 2_000,
+      }),
+      descriptor("html > body > main", "main", [], "Team members", {
+        x: 20,
+        y: 20,
+        width: 1_000,
+        height: 900,
+      }),
+      descriptor(
+        "html > body > main > section.card",
+        "section",
+        ["card"],
+        "Team members",
+        {
+          x: 80,
+          y: 80,
+          width: 720,
+          height: 520,
+        },
+      ),
+      descriptor(tableSelector, "div", ["member-table"], "Daniel Maya Priya", {
+        x: 100,
+        y: 180,
+        width: 620,
+        height: 210,
+      }),
+      ...["Daniel Lee", "Maya Webb", "Priya Nair"].flatMap((name, index) => {
+        const rowSelector = `${tableSelector} > div.member:nth-of-type(${index + 1})`;
+        const y = 190 + index * 60;
+        const email = `${name.split(" ")[0]?.toLowerCase()}@acme.dev`;
+        const activity = ["Now", "2h ago", "Yesterday"][index]!;
+        return [
+          descriptor(
+            rowSelector,
+            "div",
+            ["member"],
+            `${name}${email}Member${activity}`,
+            {
+              x: 110,
+              y,
+              width: 600,
+              height: 52,
+            },
+          ),
+          descriptor(`${rowSelector} > strong`, "strong", [], name, {
+            x: 110,
+            y: y + 8,
+            width: 120,
+            height: 20,
+          }),
+          descriptor(`${rowSelector} > span.email`, "span", ["email"], email, {
+            x: 260,
+            y: y + 8,
+            width: 150,
+            height: 20,
+          }),
+          descriptor(`${rowSelector} > span.role`, "span", ["role"], "Member", {
+            x: 520,
+            y: y + 8,
+            width: 80,
+            height: 20,
+          }),
+        ];
+      }),
+    ];
     const serialized = serializeBrowserContextMarkdown(
       capture({
         kind: "region",
         element: null,
+        rect: { x: 100, y: 180, width: 620, height: 210 },
         region: { elements: regionElements },
       }),
       "Tighten this group",
     );
 
-    expect(serialized).toContain("> Elements · 4 of 19 relevant");
-    expect(serialized).toContain('1. <button> "Action 1');
-    expect(serialized).toContain('4. <button> "Action 19');
     expect(serialized).toContain(
-      "> 15 more relevant; 1 broad ancestor omitted; see screenshot.",
+      `> Container · <div.member-table> · "${tableSelector}" · rect 100,180 · 620×210`,
     );
-    expect(serialized).not.toContain("> 5. <button>");
+    expect(serialized).toContain("> Contains · 3 representative elements");
+    expect(serialized).toContain(
+      '1. <div.member> "Daniel Lee · daniel@acme.dev · Member · Now"',
+    );
+    expect(serialized).toContain(
+      '2. <div.member> "Maya Webb · maya@acme.dev · Member · 2h ago"',
+    );
+    expect(serialized).toContain(
+      '3. <div.member> "Priya Nair · priya@acme.dev · Member · Yesterday"',
+    );
+    expect(serialized).toContain('":scope > div.member:nth-of-type(1)" · rect');
+    expect(serialized.split(tableSelector)).toHaveLength(2);
+    expect(serialized).toContain(
+      "> +9 additional elements; screenshot attached.",
+    );
+    expect(serialized).not.toContain("<strong>");
+    expect(serialized).not.toContain("<html>");
+    expect(serialized).not.toContain("<body>");
     expect(serialized.length).toBeLessThan(4_096);
     expect(
       serialized.startsWith("Tighten this group\n\n> Browser context"),
