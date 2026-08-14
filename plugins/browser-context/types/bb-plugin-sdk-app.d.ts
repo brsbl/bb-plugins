@@ -468,6 +468,14 @@ interface PluginBrowserActionProps {
         signal: AbortSignal;
     }): Promise<ExperimentalBrowserInspectionResult | null>;
     /**
+     * Host-owned layer covering the Browser viewport. Portal an interactive
+     * capture preview here after taking an overlay lease. `null` means the
+     * running app predates Browser overlay hosting.
+     *
+     * Experimental: this is renderer-local UI state and is never serialized.
+     */
+    experimental_overlayRoot?: HTMLElement | null;
+    /**
      * Hide the native Browser view while a portalled menu or dialog is open.
      * Calls are idempotent; the host also releases the lease on every slot
      * lifecycle edge.

@@ -1,13 +1,10 @@
-import {
-  useEffect,
-  useRef,
-  useState,
-} from "react";
+import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import {
   definePluginApp,
   useComposer,
   useRpc,
+  type ExperimentalBrowserInspectionResult,
   type PluginAppSlots,
   type PluginBrowserActionProps,
 } from "@bb/plugin-sdk/app";
@@ -44,124 +41,335 @@ function CrosshairIcon({ busy = false }: { busy?: boolean }) {
   );
 }
 
+function cloneCapture(capture: ExperimentalBrowserInspectionResult) {
+  return {
+    ...capture,
+    element:
+      capture.element === null
+        ? null
+        : {
+            ...capture.element,
+            classNames: [...capture.element.classNames],
+            reactComponentStack:
+              capture.element.reactComponentStack === null
+                ? null
+                : [...capture.element.reactComponentStack],
+          },
+    region:
+      capture.region === null
+        ? null
+        : {
+            elements: capture.region.elements.map((element) => ({
+              ...element,
+              classNames: [...element.classNames],
+            })),
+          },
+  };
+}
+
+function percent(value: number, total: number): string {
+  if (total <= 0) return "0%";
+  return `${Math.max(0, Math.min(100, (value / total) * 100))}%`;
+}
+
+interface CaptureReviewProps {
+  capture: ExperimentalBrowserInspectionResult;
+  comment: string;
+  error: string | null;
+  staging: boolean;
+  onAddToPrompt(): void;
+  onCancel(): void;
+  onCommentChange(comment: string): void;
+  onRetake(): void;
+}
+
+function CaptureReview({
+  capture,
+  comment,
+  error,
+  staging,
+  onAddToPrompt,
+  onCancel,
+  onCommentChange,
+  onRetake,
+}: CaptureReviewProps) {
+  const [hoveringTarget, setHoveringTarget] = useState(false);
+  const viewport = capture.page.viewport;
+  const rectStyle = {
+    left: percent(capture.rect.x, viewport.width),
+    top: percent(capture.rect.y, viewport.height),
+    width: percent(capture.rect.width, viewport.width),
+    height: percent(capture.rect.height, viewport.height),
+  };
+  const targetLabel =
+    capture.kind === "element"
+      ? `${capture.element?.tag ?? "element"}${capture.element?.id ? `#${capture.element.id}` : ""}`
+      : `${capture.region?.elements.length ?? 0} elements in region`;
+  const commentCardClassName =
+    capture.rect.x + capture.rect.width / 2 > viewport.width / 2
+      ? "bb-browser-context-comment-card bb-browser-context-comment-card-left"
+      : "bb-browser-context-comment-card";
+
+  return (
+    <section
+      className="bb-browser-context-review"
+      role="region"
+      aria-label="Browser context preview"
+    >
+      <div className="bb-browser-context-canvas">
+        <img
+          src={capture.screenshot.dataUrl}
+          alt={`Captured preview of ${capture.page.title ?? capture.page.url}`}
+          draggable={false}
+        />
+        <button
+          type="button"
+          className="bb-browser-context-target"
+          style={rectStyle}
+          aria-label={`Selected ${capture.kind}: ${targetLabel}`}
+          onMouseEnter={() => setHoveringTarget(true)}
+          onMouseLeave={() => setHoveringTarget(false)}
+          onFocus={() => setHoveringTarget(true)}
+          onBlur={() => setHoveringTarget(false)}
+        >
+          <span className="bb-browser-context-target-badge">1</span>
+          {hoveringTarget ? (
+            <span className="bb-browser-context-target-tooltip">
+              <strong>{targetLabel}</strong>
+              <span>{comment.trim() || "No comment yet"}</span>
+            </span>
+          ) : null}
+        </button>
+      </div>
+
+      <aside className={commentCardClassName}>
+        <div className="bb-browser-context-comment-heading">
+          <span className="bb-browser-context-comment-index">1</span>
+          <span>
+            <strong>{capture.kind === "element" ? "Element" : "Region"}</strong>
+            <small>{targetLabel}</small>
+          </span>
+        </div>
+        <label htmlFor="bb-browser-context-comment">Comment</label>
+        <textarea
+          id="bb-browser-context-comment"
+          value={comment}
+          onChange={(event) => onCommentChange(event.target.value)}
+          placeholder="What should change here?"
+          maxLength={4_000}
+          autoFocus
+        />
+        <p className="bb-browser-context-help">
+          Hover the numbered target to verify this comment and selection stay
+          together.
+        </p>
+        {error !== null ? (
+          <p className="bb-browser-context-error" role="alert">
+            {error}
+          </p>
+        ) : null}
+        <div className="bb-browser-context-review-actions">
+          <button type="button" onClick={onCancel} disabled={staging}>
+            Cancel
+          </button>
+          <button type="button" onClick={onRetake} disabled={staging}>
+            Retake
+          </button>
+          <button
+            type="button"
+            className="bb-browser-context-primary"
+            onClick={onAddToPrompt}
+            disabled={staging}
+          >
+            {staging ? "Adding…" : "Add to prompt"}
+          </button>
+        </div>
+      </aside>
+    </section>
+  );
+}
+
 function BrowserContextAction(props: PluginBrowserActionProps) {
   const rpc = useRpc<typeof rpcContract>();
   const composer = useComposer();
   const addAttachment = composer.experimental_addAttachment;
-  const [selecting, setSelecting] = useState(false);
+  const [capture, setCapture] =
+    useState<ExperimentalBrowserInspectionResult | null>(null);
+  const [comment, setComment] = useState("");
+  const [operation, setOperation] = useState<"selecting" | "staging" | null>(
+    null,
+  );
   const [error, setError] = useState<string | null>(null);
-  const selectionRef = useRef<AbortController | null>(null);
+  const operationRef = useRef<AbortController | null>(null);
 
+  const overlayRoot = props.experimental_overlayRoot ?? null;
   const hasThread = props.threadId !== null && props.projectId !== null;
   const supported =
-    props.experimental_inspectionAvailable && addAttachment !== undefined;
+    props.experimental_inspectionAvailable &&
+    addAttachment !== undefined &&
+    overlayRoot !== null;
   const canStart = supported && hasThread && props.url.length > 0;
   const disabledReason = !supported
-    ? "Browser page inspection requires a newer BB desktop app."
+    ? "Browser annotations require a newer BB desktop app."
     : !hasThread
       ? "Open the Browser from a thread to add page context to its composer."
       : props.url.length === 0
         ? "Open a page before selecting context."
         : null;
 
+  const closeReview = () => {
+    operationRef.current?.abort();
+    operationRef.current = null;
+    setOperation(null);
+    setCapture(null);
+    setComment("");
+    setError(null);
+    props.experimental_setOverlayOpen(false);
+  };
+
   useEffect(
     () => () => {
-      selectionRef.current?.abort();
+      operationRef.current?.abort();
+      props.experimental_setOverlayOpen(false);
     },
-    [],
+    [props.experimental_setOverlayOpen],
   );
 
   useEffect(() => {
-    selectionRef.current?.abort();
-    selectionRef.current = null;
-    setSelecting(false);
+    operationRef.current?.abort();
+    operationRef.current = null;
+    setOperation(null);
+    setCapture(null);
+    setComment("");
+    props.experimental_setOverlayOpen(false);
   }, [props.projectId, props.tabId, props.threadId]);
 
   const startSelection = async () => {
-    const stageAttachment = addAttachment;
-    if (stageAttachment === undefined || !canStart) return;
+    if (!canStart) return;
     const controller = new AbortController();
-    selectionRef.current?.abort();
-    selectionRef.current = controller;
-    setSelecting(true);
+    operationRef.current?.abort();
+    operationRef.current = controller;
+    setOperation("selecting");
+    setCapture(null);
+    setComment("");
     setError(null);
+    props.experimental_setOverlayOpen(false);
     try {
       const result = await props.experimental_inspectPage(
         { kind: "auto" },
         { signal: controller.signal },
       );
       if (controller.signal.aborted || result === null) return;
-      if (props.threadId === null || props.projectId === null) return;
+      props.experimental_setOverlayOpen(true);
+      setCapture(result);
+    } catch (selectionError) {
+      if (!controller.signal.aborted) setError(errorMessage(selectionError));
+    } finally {
+      if (operationRef.current === controller) {
+        operationRef.current = null;
+        setOperation(null);
+      }
+    }
+  };
+
+  const addToPrompt = async () => {
+    const stageAttachment = addAttachment;
+    if (
+      capture === null ||
+      stageAttachment === undefined ||
+      props.threadId === null ||
+      props.projectId === null
+    ) {
+      return;
+    }
+    const controller = new AbortController();
+    operationRef.current?.abort();
+    operationRef.current = controller;
+    setOperation("staging");
+    setError(null);
+    try {
       const prepared = await rpc.call("prepareCapture", {
         threadId: props.threadId,
         projectId: props.projectId,
-        capture: {
-          ...result,
-          element:
-            result.element === null
-              ? null
-              : {
-                  ...result.element,
-                  classNames: [...result.element.classNames],
-                  reactComponentStack:
-                    result.element.reactComponentStack === null
-                      ? null
-                      : [...result.element.reactComponentStack],
-                },
-          region:
-            result.region === null
-              ? null
-              : {
-                  elements: result.region.elements.map((element) => ({
-                    ...element,
-                    classNames: [...element.classNames],
-                  })),
-                },
-        },
+        comment,
+        capture: cloneCapture(capture),
       });
       if (controller.signal.aborted) return;
       for (const attachment of prepared.attachments) {
         stageAttachment(attachment);
       }
       composer.focus();
-    } catch (selectionError) {
-      if (!controller.signal.aborted) setError(errorMessage(selectionError));
+      setCapture(null);
+      setComment("");
+      props.experimental_setOverlayOpen(false);
+    } catch (stageError) {
+      if (!controller.signal.aborted) setError(errorMessage(stageError));
     } finally {
-      if (selectionRef.current === controller) {
-        selectionRef.current = null;
-        setSelecting(false);
+      if (operationRef.current === controller) {
+        operationRef.current = null;
+        setOperation(null);
       }
     }
   };
 
   const cancelSelection = () => {
-    selectionRef.current?.abort();
-    selectionRef.current = null;
-    setSelecting(false);
+    if (capture !== null) {
+      closeReview();
+      return;
+    }
+    operationRef.current?.abort();
+    operationRef.current = null;
+    setOperation(null);
   };
 
-  const label = selecting ? "Cancel page selection" : "Select page context";
+  const label =
+    capture !== null
+      ? "Close page context preview"
+      : operation === "selecting"
+        ? "Cancel page selection"
+        : "Select page context";
   return (
     <>
       <button
         type="button"
         className="bb-browser-context-action"
         aria-label={label}
-        aria-pressed={selecting}
-        disabled={!canStart && !selecting}
+        aria-pressed={capture !== null || operation === "selecting"}
+        disabled={!canStart && capture === null && operation !== "selecting"}
         title={disabledReason ?? label}
         onClick={() => {
-          if (selecting) {
+          if (capture !== null || operation === "selecting") {
             cancelSelection();
             return;
           }
           void startSelection();
         }}
       >
-        <CrosshairIcon busy={selecting} />
+        <CrosshairIcon busy={operation !== null} />
       </button>
 
-      {error !== null
+      {capture !== null && overlayRoot !== null
+        ? createPortal(
+            <div data-bb-plugin="browser-context">
+              <CaptureReview
+                capture={capture}
+                comment={comment}
+                error={error}
+                staging={operation === "staging"}
+                onAddToPrompt={() => void addToPrompt()}
+                onCancel={closeReview}
+                onCommentChange={setComment}
+                onRetake={() => {
+                  closeReview();
+                  void startSelection();
+                }}
+              />
+            </div>,
+            overlayRoot,
+          )
+        : null}
+
+      {error !== null && capture === null
         ? createPortal(
             <div data-bb-plugin="browser-context">
               <span className="bb-browser-context-status" role="status">

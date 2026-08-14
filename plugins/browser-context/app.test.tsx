@@ -1,7 +1,6 @@
 // @vitest-environment jsdom
 
 import { cleanup, fireEvent, screen, waitFor } from "@testing-library/react";
-import { createElement } from "react";
 import type {
   ExperimentalBrowserInspectionResult,
   PluginBrowserActionProps,
@@ -70,6 +69,25 @@ const regionCapture: ExperimentalBrowserInspectionResult = {
   },
 };
 
+const preparedAttachments = {
+  attachments: [
+    {
+      type: "localImage" as const,
+      path: "uploads/browser-context.png",
+      name: "browser-context.png",
+      mimeType: "image/png",
+      sizeBytes: 4,
+    },
+    {
+      type: "localFile" as const,
+      path: "uploads/browser-context.md",
+      name: "browser-context.md",
+      mimeType: "text/markdown",
+      sizeBytes: 512,
+    },
+  ],
+};
+
 afterEach(() => {
   cleanup();
   vi.restoreAllMocks();
@@ -82,9 +100,13 @@ async function loadAction() {
   return registration;
 }
 
+type BrowserActionTestProps = PluginBrowserActionProps & {
+  experimental_overlayRoot: HTMLElement | null;
+};
+
 function actionProps(
-  overrides: Partial<PluginBrowserActionProps> = {},
-): PluginBrowserActionProps {
+  overrides: Partial<BrowserActionTestProps> = {},
+): BrowserActionTestProps {
   return {
     tabId: "browser:one",
     threadId: "thr_1",
@@ -93,32 +115,16 @@ function actionProps(
     experimental_inspectionAvailable: true,
     experimental_inspectPage: vi.fn(async () => capture),
     experimental_setOverlayOpen: vi.fn(),
+    experimental_overlayRoot: document.body,
     ...overrides,
   };
 }
 
 describe("Browser Context action", () => {
-  it("adds selected element context to the existing composer without sending", async () => {
+  it("reviews a clicked element with a hoverable comment before adding it to the prompt", async () => {
     const registration = await loadAction();
     const props = actionProps();
-    const prepareCapture = vi.fn(async () => ({
-      attachments: [
-        {
-          type: "localImage" as const,
-          path: "uploads/browser-context.png",
-          name: "browser-context.png",
-          mimeType: "image/png",
-          sizeBytes: 4,
-        },
-        {
-          type: "localFile" as const,
-          path: "uploads/browser-context.json",
-          name: "browser-context.json",
-          mimeType: "application/json",
-          sizeBytes: 512,
-        },
-      ],
-    }));
+    const prepareCapture = vi.fn(async () => preparedAttachments);
     const handlers: PluginRpcTestHandlers<typeof rpcContract> = {
       prepareCapture,
     };
@@ -135,23 +141,42 @@ describe("Browser Context action", () => {
       { signal: expect.any(AbortSignal) },
     );
 
+    const review = await screen.findByRole("region", {
+      name: "Browser context preview",
+    });
+    expect(review).toBeDefined();
+    expect(slot.inspection.composer.attachmentCount).toBe(0);
+    expect(props.experimental_setOverlayOpen).toHaveBeenCalledWith(true);
+
+    fireEvent.change(screen.getByLabelText("Comment"), {
+      target: { value: "Make this action more prominent" },
+    });
+    const target = screen.getByRole("button", {
+      name: "Selected element: button#save",
+    });
+    fireEvent.mouseEnter(target);
+    expect(target.textContent).toContain("Make this action more prominent");
+
+    fireEvent.click(screen.getByRole("button", { name: "Add to prompt" }));
     await waitFor(() => expect(prepareCapture).toHaveBeenCalledOnce());
     expect(slot.inspection.rpcCalls[0]).toEqual({
       method: "prepareCapture",
       input: {
         threadId: "thr_1",
         projectId: "prj_1",
+        comment: "Make this action more prominent",
         capture,
       },
     });
-    expect(props.experimental_setOverlayOpen).not.toHaveBeenCalled();
-    expect(slot.inspection.composer.mentions).toEqual([]);
     expect(slot.inspection.composer.text).toBe("Make this clearer");
-    expect(slot.inspection.composer.attachmentCount).toBe(2);
-    expect(slot.inspection.composer.attachments.map(({ type }) => type)).toEqual(
-      ["localImage", "localFile"],
+    expect(slot.inspection.composer.mentions).toEqual([]);
+    expect(slot.inspection.composer.attachments).toEqual(
+      preparedAttachments.attachments,
     );
     expect(slot.inspection.composer.focusCount).toBe(1);
+    expect(
+      screen.queryByRole("region", { name: "Browser context preview" }),
+    ).toBeNull();
 
     await slot.behavior.setComposerText("Make this clearer and more compact");
     expect(slot.inspection.composer.text).toBe(
@@ -160,189 +185,38 @@ describe("Browser Context action", () => {
     expect(slot.inspection.composer.attachmentCount).toBe(2);
   });
 
-  it("reports a staging error without mutating or sending the composer", async () => {
-    const registration = await loadAction();
-    const props = actionProps();
-    const slot = renderSlot(registration, props, {
-      rpc: {
-        prepareCapture: async () => {
-          throw new Error("Thread is temporarily unavailable");
-        },
-      },
-    });
-
-    fireEvent.click(
-      screen.getByRole("button", { name: "Select page context" }),
-    );
-    expect((await screen.findByRole("status")).textContent).toContain(
-      "Thread is temporarily unavailable",
-    );
-    expect(slot.inspection.composer.mentions).toHaveLength(0);
-    expect(slot.inspection.composer.attachmentCount).toBe(0);
-  });
-
-  it("does not stage a capture after the Browser action unmounts", async () => {
-    const registration = await loadAction();
-    let finish:
-      | ((value: {
-          attachments: [
-            {
-              type: "localImage";
-              path: string;
-              name: string;
-              sizeBytes: number;
-            },
-            {
-              type: "localFile";
-              path: string;
-              name: string;
-              sizeBytes: number;
-            },
-          ];
-        }) => void)
-      | undefined;
-    const slot = renderSlot(registration, actionProps(), {
-      rpc: {
-        prepareCapture: () =>
-          new Promise((resolve) => {
-            finish = resolve;
-          }),
-      },
-    });
-
-    fireEvent.click(
-      screen.getByRole("button", { name: "Select page context" }),
-    );
-    await waitFor(() => expect(finish).toBeDefined());
-    slot.lifecycle.unmount();
-    finish?.({
-      attachments: [
-        {
-          type: "localImage",
-          path: "uploads/stale.png",
-          name: "stale.png",
-          sizeBytes: 4,
-        },
-        {
-          type: "localFile",
-          path: "uploads/stale.json",
-          name: "stale.json",
-          sizeBytes: 512,
-        },
-      ],
-    });
-    await Promise.resolve();
-
-    expect(slot.inspection.composer.mentions).toHaveLength(0);
-    expect(slot.inspection.composer.attachmentCount).toBe(0);
-  });
-
-  it("does not stage a capture after the thread scope changes", async () => {
-    const registration = await loadAction();
-    let finish:
-      | ((value: {
-          attachments: [
-            {
-              type: "localImage";
-              path: string;
-              name: string;
-              sizeBytes: number;
-            },
-            {
-              type: "localFile";
-              path: string;
-              name: string;
-              sizeBytes: number;
-            },
-          ];
-        }) => void)
-      | undefined;
-    const props = actionProps();
-    const slot = renderSlot(registration, props, {
-      rpc: {
-        prepareCapture: () =>
-          new Promise((resolve) => {
-            finish = resolve;
-          }),
-      },
-    });
-
-    fireEvent.click(
-      screen.getByRole("button", { name: "Select page context" }),
-    );
-    await waitFor(() => expect(finish).toBeDefined());
-    slot.lifecycle.rerender(
-      createElement(registration.component, {
-        ...props,
-        threadId: "thr_2",
-      }),
-    );
-    finish?.({
-      attachments: [
-        {
-          type: "localImage",
-          path: "uploads/stale.png",
-          name: "stale.png",
-          sizeBytes: 4,
-        },
-        {
-          type: "localFile",
-          path: "uploads/stale.json",
-          name: "stale.json",
-          sizeBytes: 512,
-        },
-      ],
-    });
-    await Promise.resolve();
-
-    expect(slot.inspection.composer.attachmentCount).toBe(0);
-  });
-
-  it("adds marked region context to the same composer", async () => {
+  it("reviews a dragged region and keeps its comment associated", async () => {
     const registration = await loadAction();
     const props = actionProps({
       experimental_inspectPage: vi.fn(async () => regionCapture),
     });
+    const prepareCapture = vi.fn(async () => preparedAttachments);
     const slot = renderSlot(registration, props, {
-      rpc: {
-        prepareCapture: async () => ({
-          attachments: [
-            {
-              type: "localImage" as const,
-              path: "uploads/region.png",
-              name: "region.png",
-              mimeType: "image/png",
-              sizeBytes: 4,
-            },
-            {
-              type: "localFile" as const,
-              path: "uploads/region.json",
-              name: "region.json",
-              mimeType: "application/json",
-              sizeBytes: 512,
-            },
-          ],
-        }),
-      },
+      rpc: { prepareCapture },
     });
 
     fireEvent.click(
       screen.getByRole("button", { name: "Select page context" }),
     );
+    await screen.findByRole("button", {
+      name: "Selected region: 1 elements in region",
+    });
+    fireEvent.change(screen.getByLabelText("Comment"), {
+      target: { value: "Reduce the spacing in this group" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Add to prompt" }));
 
-    await waitFor(() =>
-      expect(slot.inspection.composer.attachmentCount).toBe(2),
-    );
-    expect(props.experimental_inspectPage).toHaveBeenCalledWith(
-      { kind: "auto" },
-      { signal: expect.any(AbortSignal) },
-    );
-    expect(slot.inspection.composer.mentions).toEqual([]);
-    expect(slot.inspection.composer.focusCount).toBe(1);
-    expect(screen.queryByRole("dialog")).toBeNull();
+    await waitFor(() => expect(prepareCapture).toHaveBeenCalledOnce());
+    expect(prepareCapture).toHaveBeenCalledWith({
+      threadId: "thr_1",
+      projectId: "prj_1",
+      comment: "Reduce the spacing in this group",
+      capture: regionCapture,
+    });
+    expect(slot.inspection.composer.attachmentCount).toBe(2);
   });
 
-  it("aborts an active selection and disables unsupported or unscoped hosts", async () => {
+  it("exits active selection and a completed preview without staging", async () => {
     const registration = await loadAction();
     let observedSignal: AbortSignal | null = null;
     const inspect = vi.fn(
@@ -355,7 +229,39 @@ describe("Browser Context action", () => {
         });
       },
     );
-    const slot = renderSlot(
+    const selectingSlot = renderSlot(
+      registration,
+      actionProps({ experimental_inspectPage: inspect }),
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "Select page context" }),
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "Cancel page selection" }),
+    );
+    await waitFor(() => expect(observedSignal?.aborted).toBe(true));
+    selectingSlot.lifecycle.unmount();
+
+    const previewProps = actionProps();
+    const previewSlot = renderSlot(registration, previewProps);
+    fireEvent.click(
+      screen.getByRole("button", { name: "Select page context" }),
+    );
+    await screen.findByRole("region", { name: "Browser context preview" });
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(previewProps.experimental_setOverlayOpen).toHaveBeenLastCalledWith(
+      false,
+    );
+    expect(previewSlot.inspection.composer.attachmentCount).toBe(0);
+  });
+
+  it("retakes a selection from the review surface", async () => {
+    const registration = await loadAction();
+    const inspect = vi
+      .fn<PluginBrowserActionProps["experimental_inspectPage"]>()
+      .mockResolvedValueOnce(capture)
+      .mockResolvedValueOnce(regionCapture);
+    renderSlot(
       registration,
       actionProps({ experimental_inspectPage: inspect }),
     );
@@ -363,27 +269,67 @@ describe("Browser Context action", () => {
     fireEvent.click(
       screen.getByRole("button", { name: "Select page context" }),
     );
-    expect(
-      screen
-        .getByRole("button", { name: "Cancel page selection" })
-        .getAttribute("aria-pressed"),
-    ).toBe("true");
-    fireEvent.click(
-      screen.getByRole("button", { name: "Cancel page selection" }),
-    );
-    await waitFor(() => expect(observedSignal?.aborted).toBe(true));
+    await screen.findByRole("button", {
+      name: "Selected element: button#save",
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Retake" }));
+    await screen.findByRole("button", {
+      name: "Selected region: 1 elements in region",
+    });
+    expect(inspect).toHaveBeenCalledTimes(2);
+  });
 
-    slot.lifecycle.unmount();
-    renderSlot(
-      registration,
-      actionProps({ experimental_inspectionAvailable: false }),
+  it("does not stage a capture after the action unmounts during preparation", async () => {
+    const registration = await loadAction();
+    let finish: ((value: typeof preparedAttachments) => void) | undefined;
+    const slot = renderSlot(registration, actionProps(), {
+      rpc: {
+        prepareCapture: () =>
+          new Promise((resolve) => {
+            finish = resolve;
+          }),
+      },
+    });
+    fireEvent.click(
+      screen.getByRole("button", { name: "Select page context" }),
     );
+    await screen.findByRole("region", { name: "Browser context preview" });
+    fireEvent.click(screen.getByRole("button", { name: "Add to prompt" }));
+    await waitFor(() => expect(finish).toBeDefined());
+    slot.lifecycle.unmount();
+    finish?.(preparedAttachments);
+    await Promise.resolve();
+
+    expect(slot.inspection.composer.attachmentCount).toBe(0);
+  });
+
+  it("shows staging errors in the review and disables unsupported hosts", async () => {
+    const registration = await loadAction();
+    const slot = renderSlot(registration, actionProps(), {
+      rpc: {
+        prepareCapture: async () => {
+          throw new Error("Thread is temporarily unavailable");
+        },
+      },
+    });
+    fireEvent.click(
+      screen.getByRole("button", { name: "Select page context" }),
+    );
+    await screen.findByRole("region", { name: "Browser context preview" });
+    fireEvent.click(screen.getByRole("button", { name: "Add to prompt" }));
+    expect((await screen.findByRole("alert")).textContent).toContain(
+      "Thread is temporarily unavailable",
+    );
+    expect(slot.inspection.composer.attachmentCount).toBe(0);
+    slot.lifecycle.unmount();
+
+    renderSlot(registration, actionProps({ experimental_overlayRoot: null }));
     const unsupported = screen.getByRole("button", {
       name: "Select page context",
     });
     expect((unsupported as HTMLButtonElement).disabled).toBe(true);
     expect(unsupported.getAttribute("title")).toBe(
-      "Browser page inspection requires a newer BB desktop app.",
+      "Browser annotations require a newer BB desktop app.",
     );
   });
 });

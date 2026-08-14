@@ -1,10 +1,10 @@
 {
   "package": "@bb/plugin-sdk@0.5.0",
   "sourceRepository": "https://github.com/ymichael/bb",
-  "sourceCommit": "d6afe42849e7b50b2b864133c9b97ac0cf1552b6",
+  "sourceCommit": "4fad02cef4cf3fad87688b2a10d09f56b77aa759",
   "compatibilityBaseCommit": "24a3211a8f3062c2ac1de580e6ca9a9434ed1aad",
   "compatibilityOverlay": "Preserve the established root server declarations while vendoring the experimental app and app-testing surfaces.",
   "sourcePath": "packages/plugin-sdk",
   "archive": "bb-plugin-sdk-0.5.0.tgz",
-  "sha256": "f959249a1c8d3a8a08f33ef2e67c27c6195a9f9d2048e56a98a1b60672bb0f11"
+  "sha256": "caf8e0fbbc5504b555e5ff648ecdbef6e1058d95ab1eece517a87a6a7ec1ceba"
 }

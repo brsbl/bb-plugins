@@ -10,7 +10,7 @@ Each plugin has its own workspace under `plugins/` and a short README with the s
 
 ### Browser Context
 
-Selects an element or marks a region in BB's Browser, then stages its screenshot and structured context in the current thread composer.
+Selects and annotates an element or region in BB's Browser, then stages its screenshot and editable Markdown context in the current thread composer.
 
 ![Browser Context capture preview in bb](plugins/browser-context/docs/screenshot.png)
 
