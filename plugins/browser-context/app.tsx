@@ -166,6 +166,7 @@ function cloneCapture(capture: ExperimentalBrowserInspectionResult) {
             })),
             omittedTargetCount: capture.region.omittedTargetCount,
             omittedGroupCount: capture.region.omittedGroupCount,
+            scanTruncated: capture.region.scanTruncated,
           },
   };
 }

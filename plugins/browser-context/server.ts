@@ -172,7 +172,7 @@ const pngDataUrlSchema = z
 
 export const browserCaptureSchema = z
   .object({
-    version: z.literal(1),
+    version: z.literal(2),
     kind: z.enum(["element", "region"]),
     page: z
       .object({
@@ -209,6 +209,7 @@ export const browserCaptureSchema = z
         groups: z.array(regionGroupSchema).max(24),
         omittedTargetCount: z.number().int().nonnegative().max(10_000_000),
         omittedGroupCount: z.number().int().nonnegative().max(10_000_000),
+        scanTruncated: z.boolean(),
       })
       .strict()
       .nullable(),

@@ -14,7 +14,7 @@ const PNG_DATA_URL = "data:image/png;base64,iVBORw==";
 
 function capture(overrides: Record<string, unknown> = {}) {
   return {
-    version: 1 as const,
+    version: 2 as const,
     kind: "element" as const,
     page: {
       url: "https://example.com/settings",
@@ -336,6 +336,7 @@ describe("Browser Context prepareCapture", () => {
         ],
         omittedTargetCount: 0,
         omittedGroupCount: 0,
+        scanTruncated: false,
       },
     });
     const serialized = serializeBrowserContextMarkdown(
@@ -429,6 +430,7 @@ describe("Browser Context prepareCapture", () => {
           groups: [],
           omittedTargetCount: 136,
           omittedGroupCount: 1,
+          scanTruncated: true,
         },
       }),
       "Simplify these actions",

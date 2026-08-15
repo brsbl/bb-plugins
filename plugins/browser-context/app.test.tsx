@@ -15,7 +15,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import type { rpcContract } from "./server.js";
 
 const capture: ExperimentalBrowserInspectionResult = {
-  version: 1,
+  version: 2,
   kind: "element",
   page: {
     url: "https://example.com/settings",
@@ -80,6 +80,7 @@ const regionCapture: ExperimentalBrowserInspectionResult = {
     groups: [],
     omittedTargetCount: 0,
     omittedGroupCount: 0,
+    scanTruncated: false,
   },
 };
 
