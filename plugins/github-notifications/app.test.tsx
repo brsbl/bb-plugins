@@ -125,20 +125,21 @@ describe("GitHub Activity panel", () => {
     expect(screen.getByRole("columnheader", { name: /Last updated/u })).toBeDefined();
     expect(screen.getByRole("columnheader", { name: "Status" })).toBeDefined();
 
-    const markResolved = screen.getByRole("button", {
+    const markResolved = screen.getByRole("checkbox", {
       name: "Resolve: Scannable activity",
-    });
-    expect(markResolved.getAttribute("aria-pressed")).toBe("false");
+    }) as HTMLInputElement;
+    expect(markResolved.checked).toBe(false);
     expect(markResolved.getAttribute("title")).toBe("Resolve");
-    expect(markResolved.querySelector("svg")?.className.baseVal).toContain(
-      "lucide-check",
+    expect(markResolved.className).toContain("border-muted-foreground/50");
+    expect(markResolved.parentElement?.querySelector("span")?.className).toContain(
+      "left-0",
     );
-    const markUnresolved = screen.getByRole("button", {
+    const markUnresolved = screen.getByRole("checkbox", {
       name: "Reopen: Keep links local",
-    });
-    expect(markUnresolved.getAttribute("aria-pressed")).toBe("true");
+    }) as HTMLInputElement;
+    expect(markUnresolved.checked).toBe(true);
     expect(markUnresolved.getAttribute("title")).toBe("Reopen");
-    expect(markUnresolved.className).toContain("text-success");
+    expect(markUnresolved.className).toContain("checked:bg-success");
     fireEvent.click(markResolved);
     await waitFor(() => {
       expect(slot.inspection.rpcCalls).toContainEqual({
@@ -146,10 +147,27 @@ describe("GitHub Activity panel", () => {
         input: { id: "n1", resolved: true },
       });
       expect(
-        screen.getByRole("button", {
-          name: "Reopen: Scannable activity",
-        }),
-      ).toBeDefined();
+        (
+          screen.getByRole("checkbox", {
+            name: "Reopen: Scannable activity",
+          }) as HTMLInputElement
+        ).checked,
+      ).toBe(true);
+    });
+
+    fireEvent.click(markUnresolved);
+    await waitFor(() => {
+      expect(slot.inspection.rpcCalls).toContainEqual({
+        method: "setNotificationResolved",
+        input: { id: "n2", resolved: false },
+      });
+      expect(
+        (
+          screen.getByRole("checkbox", {
+            name: "Resolve: Keep links local",
+          }) as HTMLInputElement
+        ).checked,
+      ).toBe(false);
     });
 
     fireEvent.change(screen.getByRole("combobox", { name: "Filter by resource type" }), {

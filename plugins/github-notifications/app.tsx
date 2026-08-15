@@ -238,7 +238,7 @@ function UpdatedTime({ value }: { value: string }) {
   );
 }
 
-function ResolveButton({
+function ResolveCheckbox({
   disabled,
   item,
   onToggle,
@@ -248,29 +248,33 @@ function ResolveButton({
   onToggle(): void;
 }) {
   const label = item.resolved ? "Reopen" : "Resolve";
-  const ResolveIcon = item.resolved ? CheckCircle2 : Check;
   return (
-    <button
-      type="button"
-      aria-label={`${label}: ${item.title}`}
-      aria-pressed={item.resolved}
-      disabled={disabled}
-      onClick={onToggle}
-      title={label}
-      className={`group/resolve relative grid size-7 place-content-center rounded-md transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50 ${
-        item.resolved
-          ? "text-success"
-          : "text-muted-foreground hover:text-success"
+    <label
+      className={`group/resolve relative grid size-7 place-content-center rounded-md transition-colors hover:bg-accent ${
+        disabled ? "cursor-not-allowed opacity-50" : "cursor-pointer"
       }`}
     >
-      <ResolveIcon aria-hidden="true" className="size-4" strokeWidth={1.75} />
+      <input
+        type="checkbox"
+        aria-label={`${label}: ${item.title}`}
+        checked={item.resolved}
+        disabled={disabled}
+        onChange={onToggle}
+        title={label}
+        className="peer size-4 cursor-inherit appearance-none rounded-[4px] border border-muted-foreground/50 bg-background transition-colors hover:border-foreground/60 checked:border-success checked:bg-success focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 focus-visible:ring-offset-background"
+      />
+      <Check
+        aria-hidden="true"
+        className="pointer-events-none absolute left-1/2 top-1/2 size-3 -translate-x-1/2 -translate-y-1/2 text-background opacity-0 transition-opacity peer-checked:opacity-100"
+        strokeWidth={2.5}
+      />
       <span
         aria-hidden="true"
-        className="pointer-events-none absolute right-0 top-full z-20 mt-1 whitespace-nowrap rounded-md bg-foreground px-2 py-1 text-xs font-medium text-background opacity-0 shadow-sm transition-opacity group-hover/resolve:opacity-100 group-focus-visible/resolve:opacity-100"
+        className="pointer-events-none absolute left-0 top-full z-20 mt-1 whitespace-nowrap rounded-md bg-foreground px-2 py-1 text-xs font-medium text-background opacity-0 shadow-sm transition-opacity group-hover/resolve:opacity-100 group-focus-visible/resolve:opacity-100"
       >
         {label}
       </span>
-    </button>
+    </label>
   );
 }
 
@@ -547,7 +551,7 @@ function GitHubActivityPanel() {
                           }`}
                         >
                           <td className="px-3 py-2.5">
-                            <ResolveButton
+                            <ResolveCheckbox
                               disabled={pendingResolvedIds.has(item.id)}
                               item={item}
                               onToggle={() => void toggleResolved(item)}
