@@ -73,7 +73,41 @@ function DragHandleIcon() {
   );
 }
 
+function PlusIcon() {
+  return (
+    <svg
+      aria-hidden="true"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+    >
+      <path d="M12 5v14M5 12h14" />
+    </svg>
+  );
+}
+
+function RemoveIcon() {
+  return (
+    <svg
+      aria-hidden="true"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M5 12h14" />
+    </svg>
+  );
+}
+
 function cloneCapture(capture: ExperimentalBrowserInspectionResult) {
+  const cloneLocator = (locator: { selectors: readonly string[] }) => ({
+    selectors: [...locator.selectors],
+  });
   return {
     ...capture,
     element:
@@ -91,10 +125,47 @@ function cloneCapture(capture: ExperimentalBrowserInspectionResult) {
       capture.region === null
         ? null
         : {
-            elements: capture.region.elements.map((element) => ({
-              ...element,
-              classNames: [...element.classNames],
+            commonAncestor:
+              capture.region.commonAncestor === null
+                ? null
+                : {
+                    ...capture.region.commonAncestor,
+                    absoluteLocator: cloneLocator(
+                      capture.region.commonAncestor.absoluteLocator,
+                    ),
+                  },
+            targets: capture.region.targets.map((target) => ({
+              absoluteLocator: cloneLocator(target.absoluteLocator),
+              relativeLocator: cloneLocator(target.relativeLocator),
+              text: target.text,
+              rect: { ...target.rect },
+              ...(target.accessibility === undefined
+                ? {}
+                : {
+                    accessibility: {
+                      ...target.accessibility,
+                      attributes: { ...target.accessibility.attributes },
+                    },
+                  }),
+              ...(target.react === undefined
+                ? {}
+                : {
+                    react: {
+                      componentStack: [...target.react.componentStack],
+                      ...(target.react.source === undefined
+                        ? {}
+                        : { source: { ...target.react.source } }),
+                    },
+                  }),
             })),
+            groups: capture.region.groups.map((group) => ({
+              absoluteLocator: cloneLocator(group.absoluteLocator),
+              relativeLocator: cloneLocator(group.relativeLocator),
+              count: group.count,
+              rect: { ...group.rect },
+            })),
+            omittedTargetCount: capture.region.omittedTargetCount,
+            omittedGroupCount: capture.region.omittedGroupCount,
           },
   };
 }
@@ -104,26 +175,65 @@ function percent(value: number, total: number): string {
   return `${Math.max(0, Math.min(100, (value / total) * 100))}%`;
 }
 
-interface CaptureReviewProps {
+interface PendingAnnotation {
+  id: number;
   capture: ExperimentalBrowserInspectionResult;
   comment: string;
+}
+
+function captureTargetLabel(
+  capture: ExperimentalBrowserInspectionResult,
+): string {
+  const regionTargetCount =
+    capture.region === null
+      ? 0
+      : capture.region.targets.length + capture.region.omittedTargetCount;
+  if (capture.kind === "element") {
+    return `${capture.element?.tag ?? "element"}${capture.element?.id ? `#${capture.element.id}` : ""}`;
+  }
+  if (regionTargetCount === 0) return "empty region";
+  return `${regionTargetCount} target${regionTargetCount === 1 ? "" : "s"} in region`;
+}
+
+function sharesPreview(
+  left: ExperimentalBrowserInspectionResult,
+  right: ExperimentalBrowserInspectionResult,
+): boolean {
+  return (
+    left.page.url === right.page.url &&
+    left.page.viewport.width === right.page.viewport.width &&
+    left.page.viewport.height === right.page.viewport.height &&
+    left.page.scroll.x === right.page.scroll.x &&
+    left.page.scroll.y === right.page.scroll.y
+  );
+}
+
+interface CaptureReviewProps {
+  annotations: readonly PendingAnnotation[];
+  activeId: number;
   error: string | null;
   staging: boolean;
   onAddToPrompt(): void;
   onCancel(): void;
-  onCommentChange(comment: string): void;
+  onCommentChange(id: number, comment: string): void;
+  onRemove(id: number): void;
+  onSelect(id: number): void;
+  onSelectAnother(): void;
 }
 
 function CaptureReview({
-  capture,
-  comment,
+  annotations,
+  activeId,
   error,
   staging,
   onAddToPrompt,
   onCancel,
   onCommentChange,
+  onRemove,
+  onSelect,
+  onSelectAnother,
 }: CaptureReviewProps) {
-  const [hoveringTarget, setHoveringTarget] = useState(false);
+  const [hoveringTargetId, setHoveringTargetId] = useState<number | null>(null);
   const [panelPosition, setPanelPosition] = useState<{
     x: number;
     y: number;
@@ -135,17 +245,17 @@ function CaptureReview({
     offsetX: number;
     offsetY: number;
   } | null>(null);
+  const activeIndex = Math.max(
+    0,
+    annotations.findIndex((annotation) => annotation.id === activeId),
+  );
+  const active = annotations[activeIndex] ?? annotations[0]!;
+  const capture = active.capture;
   const viewport = capture.page.viewport;
-  const rectStyle = {
-    left: percent(capture.rect.x, viewport.width),
-    top: percent(capture.rect.y, viewport.height),
-    width: percent(capture.rect.width, viewport.width),
-    height: percent(capture.rect.height, viewport.height),
-  };
-  const targetLabel =
-    capture.kind === "element"
-      ? `${capture.element?.tag ?? "element"}${capture.element?.id ? `#${capture.element.id}` : ""}`
-      : `${capture.region?.elements.length ?? 0} elements in region`;
+  const targetLabel = captureTargetLabel(capture);
+  const previewAnnotations = annotations.filter((annotation) =>
+    sharesPreview(annotation.capture, capture),
+  );
   const commentCardClassName =
     capture.rect.x + capture.rect.width / 2 > viewport.width / 2
       ? "bb-browser-context-comment-card bb-browser-context-comment-card-left"
@@ -189,7 +299,10 @@ function CaptureReview({
     const reviewRect = review.getBoundingClientRect();
     const inset = 8;
     const maxX = Math.max(inset, reviewRect.width - panel.offsetWidth - inset);
-    const maxY = Math.max(inset, reviewRect.height - panel.offsetHeight - inset);
+    const maxY = Math.max(
+      inset,
+      reviewRect.height - panel.offsetHeight - inset,
+    );
     setPanelPosition({
       x: Math.max(
         inset,
@@ -223,24 +336,48 @@ function CaptureReview({
           alt={`Captured preview of ${capture.page.title ?? capture.page.url}`}
           draggable={false}
         />
-        <button
-          type="button"
-          className="bb-browser-context-target"
-          style={rectStyle}
-          aria-label={`Selected ${capture.kind}: ${targetLabel}`}
-          onMouseEnter={() => setHoveringTarget(true)}
-          onMouseLeave={() => setHoveringTarget(false)}
-          onFocus={() => setHoveringTarget(true)}
-          onBlur={() => setHoveringTarget(false)}
-        >
-          <span className="bb-browser-context-target-badge">1</span>
-          {hoveringTarget ? (
-            <span className="bb-browser-context-target-tooltip">
-              <strong>{targetLabel}</strong>
-              <span>{comment.trim() || "No comment yet"}</span>
-            </span>
-          ) : null}
-        </button>
+        {previewAnnotations.map((annotation) => {
+          const annotationIndex = annotations.indexOf(annotation);
+          const annotationLabel = captureTargetLabel(annotation.capture);
+          const isActive = annotation.id === active.id;
+          const rectStyle = {
+            left: percent(annotation.capture.rect.x, viewport.width),
+            top: percent(annotation.capture.rect.y, viewport.height),
+            width: percent(annotation.capture.rect.width, viewport.width),
+            height: percent(annotation.capture.rect.height, viewport.height),
+          };
+          return (
+            <button
+              key={annotation.id}
+              type="button"
+              className="bb-browser-context-target"
+              data-active={isActive ? "true" : "false"}
+              style={rectStyle}
+              aria-label={`Selection ${annotationIndex + 1}: ${annotationLabel}`}
+              onClick={() => onSelect(annotation.id)}
+              onMouseEnter={() => {
+                setHoveringTargetId(annotation.id);
+                onSelect(annotation.id);
+              }}
+              onMouseLeave={() => setHoveringTargetId(null)}
+              onFocus={() => {
+                setHoveringTargetId(annotation.id);
+                onSelect(annotation.id);
+              }}
+              onBlur={() => setHoveringTargetId(null)}
+            >
+              <span className="bb-browser-context-target-badge">
+                {annotationIndex + 1}
+              </span>
+              {hoveringTargetId === annotation.id ? (
+                <span className="bb-browser-context-target-tooltip">
+                  <strong>{annotationLabel}</strong>
+                  <span>{annotation.comment.trim() || "No comment yet"}</span>
+                </span>
+              ) : null}
+            </button>
+          );
+        })}
       </div>
 
       <aside
@@ -258,7 +395,9 @@ function CaptureReview({
             title="Drag annotation"
           >
             <DragHandleIcon />
-            <span className="bb-browser-context-comment-index">1</span>
+            <span className="bb-browser-context-comment-index">
+              {activeIndex + 1}
+            </span>
             <span>
               <strong>
                 {capture.kind === "element" ? "Element" : "Region"}
@@ -277,11 +416,58 @@ function CaptureReview({
             <CloseIcon />
           </button>
         </div>
+        {annotations.length > 1 ? (
+          <ol
+            className="bb-browser-context-selection-list"
+            aria-label="Selections"
+          >
+            {annotations.map((annotation, index) => {
+              const label = captureTargetLabel(annotation.capture);
+              const selected = annotation.id === active.id;
+              return (
+                <li
+                  key={annotation.id}
+                  data-active={selected ? "true" : "false"}
+                >
+                  <button
+                    type="button"
+                    className="bb-browser-context-selection-row"
+                    aria-label={`Edit selection ${index + 1}: ${label}`}
+                    aria-current={selected ? "true" : undefined}
+                    onClick={() => onSelect(annotation.id)}
+                    onMouseEnter={() => onSelect(annotation.id)}
+                    onFocus={() => onSelect(annotation.id)}
+                  >
+                    <span className="bb-browser-context-comment-index">
+                      {index + 1}
+                    </span>
+                    <span>
+                      <strong>{label}</strong>
+                      <small>
+                        {annotation.comment.trim() || "No comment yet"}
+                      </small>
+                    </span>
+                  </button>
+                  <button
+                    type="button"
+                    className="bb-browser-context-remove"
+                    aria-label={`Remove selection ${index + 1}`}
+                    title="Remove selection"
+                    disabled={staging}
+                    onClick={() => onRemove(annotation.id)}
+                  >
+                    <RemoveIcon />
+                  </button>
+                </li>
+              );
+            })}
+          </ol>
+        ) : null}
         <textarea
           id="bb-browser-context-comment"
-          aria-label="Comment"
-          value={comment}
-          onChange={(event) => onCommentChange(event.target.value)}
+          aria-label={`Comment for selection ${activeIndex + 1}`}
+          value={active.comment}
+          onChange={(event) => onCommentChange(active.id, event.target.value)}
           placeholder="What should change here?"
           maxLength={4_000}
           autoFocus
@@ -292,6 +478,15 @@ function CaptureReview({
           </p>
         ) : null}
         <div className="bb-browser-context-review-actions">
+          <button
+            type="button"
+            className="bb-browser-context-secondary"
+            onClick={onSelectAnother}
+            disabled={staging}
+          >
+            <PlusIcon />
+            Select another
+          </button>
           <button
             type="button"
             className="bb-browser-context-primary"
@@ -309,22 +504,24 @@ function CaptureReview({
 function BrowserContextAction(props: PluginBrowserActionProps) {
   const rpc = useRpc<typeof rpcContract>();
   const composer = useComposer();
-  const addAttachment = composer.experimental_addAttachment;
-  const [capture, setCapture] =
-    useState<ExperimentalBrowserInspectionResult | null>(null);
-  const [comment, setComment] = useState("");
+  const [annotations, setAnnotations] = useState<PendingAnnotation[]>([]);
+  const [activeId, setActiveId] = useState<number | null>(null);
   const [operation, setOperation] = useState<"selecting" | "staging" | null>(
     null,
   );
   const [error, setError] = useState<string | null>(null);
   const operationRef = useRef<AbortController | null>(null);
+  const annotationsRef = useRef<PendingAnnotation[]>([]);
+  const nextIdRef = useRef(1);
+
+  useEffect(() => {
+    annotationsRef.current = annotations;
+  }, [annotations]);
 
   const overlayRoot = props.experimental_overlayRoot ?? null;
   const hasThread = props.threadId !== null && props.projectId !== null;
   const supported =
-    props.experimental_inspectionAvailable &&
-    addAttachment !== undefined &&
-    overlayRoot !== null;
+    props.experimental_inspectionAvailable && overlayRoot !== null;
   const canStart = supported && hasThread && props.url.length > 0;
   const disabledReason = !supported
     ? "Browser annotations require a newer BB desktop app."
@@ -338,8 +535,9 @@ function BrowserContextAction(props: PluginBrowserActionProps) {
     operationRef.current?.abort();
     operationRef.current = null;
     setOperation(null);
-    setCapture(null);
-    setComment("");
+    annotationsRef.current = [];
+    setAnnotations([]);
+    setActiveId(null);
     setError(null);
     props.experimental_setOverlayOpen(false);
   };
@@ -356,8 +554,9 @@ function BrowserContextAction(props: PluginBrowserActionProps) {
     operationRef.current?.abort();
     operationRef.current = null;
     setOperation(null);
-    setCapture(null);
-    setComment("");
+    annotationsRef.current = [];
+    setAnnotations([]);
+    setActiveId(null);
     props.experimental_setOverlayOpen(false);
   }, [props.projectId, props.tabId, props.threadId]);
 
@@ -367,8 +566,6 @@ function BrowserContextAction(props: PluginBrowserActionProps) {
     operationRef.current?.abort();
     operationRef.current = controller;
     setOperation("selecting");
-    setCapture(null);
-    setComment("");
     setError(null);
     props.experimental_setOverlayOpen(false);
     try {
@@ -376,11 +573,31 @@ function BrowserContextAction(props: PluginBrowserActionProps) {
         { kind: "auto" },
         { signal: controller.signal },
       );
-      if (controller.signal.aborted || result === null) return;
+      if (controller.signal.aborted || result === null) {
+        if (annotationsRef.current.length > 0) {
+          props.experimental_setOverlayOpen(true);
+        }
+        return;
+      }
+      const annotation: PendingAnnotation = {
+        id: nextIdRef.current++,
+        capture: result,
+        comment: "",
+      };
+      setAnnotations((current) => {
+        const next = [...current, annotation];
+        annotationsRef.current = next;
+        return next;
+      });
+      setActiveId(annotation.id);
       props.experimental_setOverlayOpen(true);
-      setCapture(result);
     } catch (selectionError) {
-      if (!controller.signal.aborted) setError(errorMessage(selectionError));
+      if (!controller.signal.aborted) {
+        setError(errorMessage(selectionError));
+        if (annotationsRef.current.length > 0) {
+          props.experimental_setOverlayOpen(true);
+        }
+      }
     } finally {
       if (operationRef.current === controller) {
         operationRef.current = null;
@@ -390,10 +607,9 @@ function BrowserContextAction(props: PluginBrowserActionProps) {
   };
 
   const addToPrompt = async () => {
-    const stageAttachment = addAttachment;
+    const pending = annotationsRef.current;
     if (
-      capture === null ||
-      stageAttachment === undefined ||
+      pending.length === 0 ||
       props.threadId === null ||
       props.projectId === null
     ) {
@@ -405,26 +621,35 @@ function BrowserContextAction(props: PluginBrowserActionProps) {
     setOperation("staging");
     setError(null);
     try {
-      const prepared = await rpc.call("prepareCapture", {
+      const prepared = await rpc.call("createCaptureMentions", {
         threadId: props.threadId,
         projectId: props.projectId,
-        comment,
-        capture: cloneCapture(capture),
+        annotations: pending.map((annotation) => ({
+          comment: annotation.comment,
+          capture: cloneCapture(annotation.capture),
+        })),
       });
       if (controller.signal.aborted) return;
-      for (const attachment of prepared.attachments) {
-        stageAttachment(attachment);
-      }
       composer.updateText((current) => {
-        const prefix = current.trimEnd();
-        return prefix.length === 0
-          ? prepared.promptText
-          : `${prefix}\n\n${prepared.promptText}`;
+        if (current.length === 0 || current.endsWith("\n\n")) return current;
+        return current.endsWith("\n") ? `${current}\n` : `${current}\n\n`;
+      });
+      prepared.mentions.forEach((mention, index) => {
+        composer.insertMention({
+          provider: "captures",
+          id: mention.id,
+          label: mention.label,
+          preview: mention.preview,
+          experimental_inspectable: true,
+        });
+        const comment = pending[index]?.comment.trim() ?? "";
+        composer.updateText(
+          (current) =>
+            `${current}${comment}${index === prepared.mentions.length - 1 ? "" : "\n"}`,
+        );
       });
       composer.focus();
-      setCapture(null);
-      setComment("");
-      props.experimental_setOverlayOpen(false);
+      closeReview();
     } catch (stageError) {
       if (!controller.signal.aborted) setError(errorMessage(stageError));
     } finally {
@@ -436,17 +661,44 @@ function BrowserContextAction(props: PluginBrowserActionProps) {
   };
 
   const cancelSelection = () => {
-    if (capture !== null) {
+    if (annotationsRef.current.length > 0 && operation !== "selecting") {
       closeReview();
       return;
     }
     operationRef.current?.abort();
     operationRef.current = null;
     setOperation(null);
+    if (annotationsRef.current.length > 0) {
+      props.experimental_setOverlayOpen(true);
+    }
+  };
+
+  const updateComment = (id: number, comment: string) => {
+    setAnnotations((current) => {
+      const next = current.map((annotation) =>
+        annotation.id === id ? { ...annotation, comment } : annotation,
+      );
+      annotationsRef.current = next;
+      return next;
+    });
+  };
+
+  const removeAnnotation = (id: number) => {
+    setAnnotations((current) => {
+      const index = current.findIndex((annotation) => annotation.id === id);
+      const next = current.filter((annotation) => annotation.id !== id);
+      annotationsRef.current = next;
+      if (next.length === 0) {
+        queueMicrotask(closeReview);
+      } else if (id === activeId) {
+        setActiveId(next[Math.min(index, next.length - 1)]!.id);
+      }
+      return next;
+    });
   };
 
   const label =
-    capture !== null
+    annotations.length > 0 && operation !== "selecting"
       ? "Close page context preview"
       : operation === "selecting"
         ? "Cancel page selection"
@@ -457,42 +709,50 @@ function BrowserContextAction(props: PluginBrowserActionProps) {
         type="button"
         className="bb-browser-context-action"
         aria-label={label}
-        aria-pressed={capture !== null || operation === "selecting"}
-        disabled={!canStart && capture === null && operation !== "selecting"}
+        aria-pressed={annotations.length > 0 || operation === "selecting"}
+        disabled={
+          !canStart && annotations.length === 0 && operation !== "selecting"
+        }
         title={disabledReason ?? label}
         onClick={() => {
-          if (capture !== null || operation === "selecting") {
+          if (annotations.length > 0 || operation === "selecting") {
             cancelSelection();
             return;
           }
           void startSelection();
         }}
       >
-        {capture !== null || operation === "selecting" ? (
+        {annotations.length > 0 || operation === "selecting" ? (
           <CloseIcon />
         ) : (
           <SelectionIcon />
         )}
       </button>
 
-      {capture !== null && overlayRoot !== null
+      {annotations.length > 0 &&
+      activeId !== null &&
+      operation !== "selecting" &&
+      overlayRoot !== null
         ? createPortal(
             <div data-bb-plugin="browser-context">
               <CaptureReview
-                capture={capture}
-                comment={comment}
+                annotations={annotations}
+                activeId={activeId}
                 error={error}
                 staging={operation === "staging"}
                 onAddToPrompt={() => void addToPrompt()}
                 onCancel={closeReview}
-                onCommentChange={setComment}
+                onCommentChange={updateComment}
+                onRemove={removeAnnotation}
+                onSelect={setActiveId}
+                onSelectAnother={() => void startSelection()}
               />
             </div>,
             overlayRoot,
           )
         : null}
 
-      {error !== null && capture === null
+      {error !== null && annotations.length === 0
         ? createPortal(
             <div data-bb-plugin="browser-context">
               <span className="bb-browser-context-status" role="status">

@@ -1,7 +1,7 @@
 {
   "name": "bb-plugin-browser-context",
   "version": "0.1.0",
-  "description": "Select and annotate Browser elements or regions, then stage screenshot-backed DOM context in the composer.",
+  "description": "Select and annotate Browser elements or regions, then stage deterministic DOM context in the composer.",
   "type": "module",
   "license": "UNLICENSED",
   "files": [
@@ -12,7 +12,7 @@
   "scripts": {
     "build": "node ../../tooling/build-plugin.mjs",
     "check": "npm run typecheck && npm run build && npm test",
-    "test": "vitest run",
+    "test": "vitest run --maxWorkers=1",
     "typecheck": "tsc --noEmit"
   },
   "engines": {
@@ -21,7 +21,7 @@
   },
   "bb": {
     "name": "Browser Context",
-    "description": "Select and annotate Browser elements or regions, then stage screenshot-backed DOM context in the composer.",
+    "description": "Select and annotate Browser elements or regions, then stage deterministic DOM context in the composer.",
     "branding": {
       "icon": "Scan"
     },

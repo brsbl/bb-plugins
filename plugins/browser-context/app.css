@@ -106,15 +106,23 @@
       0 3px 12px rgb(16 24 40 / 24%);
     cursor: help;
     outline: none;
+    opacity: 0.68;
+    transition:
+      background-color 120ms ease,
+      border-color 120ms ease,
+      box-shadow 120ms ease,
+      opacity 120ms ease;
   }
 
   .bb-browser-context-target:hover,
-  .bb-browser-context-target:focus-visible {
+  .bb-browser-context-target:focus-visible,
+  .bb-browser-context-target[data-active="true"] {
     border-color: #1747c8;
     background: rgb(56 103 232 / 23%);
     box-shadow:
       0 0 0 2px rgb(255 255 255 / 92%),
       0 4px 16px rgb(16 24 40 / 30%);
+    opacity: 1;
   }
 
   .bb-browser-context-target-badge,
@@ -282,6 +290,103 @@
     outline: none;
   }
 
+  .bb-browser-context-selection-list {
+    display: grid;
+    max-height: 148px;
+    gap: 3px;
+    overflow-y: auto;
+    margin: 0;
+    padding: 2px 0;
+    list-style: none;
+  }
+
+  .bb-browser-context-selection-list li {
+    display: flex;
+    min-width: 0;
+    align-items: center;
+    border-radius: 7px;
+  }
+
+  .bb-browser-context-selection-list li[data-active="true"] {
+    background: var(--state-hover, rgb(0 0 0 / 6%));
+  }
+
+  .bb-browser-context-selection-row {
+    display: flex;
+    min-width: 0;
+    flex: 1;
+    align-items: center;
+    gap: 7px;
+    padding: 5px 4px 5px 6px;
+    border: 0;
+    background: transparent;
+    color: var(--foreground, #101828);
+    cursor: pointer;
+    text-align: left;
+  }
+
+  .bb-browser-context-selection-row > span:last-child {
+    display: grid;
+    min-width: 0;
+  }
+
+  .bb-browser-context-selection-row strong,
+  .bb-browser-context-selection-row small {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .bb-browser-context-selection-row strong {
+    font-size: 11px;
+    font-weight: 650;
+  }
+
+  .bb-browser-context-selection-row small {
+    color: var(--muted-foreground, #667085);
+    font-size: 10px;
+  }
+
+  .bb-browser-context-selection-row:focus-visible,
+  .bb-browser-context-remove:focus-visible {
+    outline: 2px solid var(--ring, #4c76e8);
+    outline-offset: -1px;
+  }
+
+  .bb-browser-context-remove {
+    display: inline-flex;
+    width: 25px;
+    height: 25px;
+    flex: none;
+    align-items: center;
+    justify-content: center;
+    margin-right: 2px;
+    border: 0;
+    border-radius: 6px;
+    background: transparent;
+    color: var(--muted-foreground, #667085);
+    cursor: pointer;
+  }
+
+  .bb-browser-context-remove:hover:not(:disabled) {
+    background: color-mix(
+      in srgb,
+      var(--destructive, #b42318) 10%,
+      transparent
+    );
+    color: var(--destructive, #b42318);
+  }
+
+  .bb-browser-context-remove:disabled {
+    cursor: wait;
+    opacity: 0.5;
+  }
+
+  .bb-browser-context-remove svg {
+    width: 13px;
+    height: 13px;
+  }
+
   .bb-browser-context-comment-card textarea:focus-visible {
     border-color: var(--ring, #4c76e8);
     box-shadow: 0 0 0 2px
@@ -299,12 +404,17 @@
 
   .bb-browser-context-review-actions {
     display: flex;
-    justify-content: flex-end;
+    align-items: center;
+    justify-content: space-between;
     gap: 6px;
     margin-top: 2px;
   }
 
   .bb-browser-context-review-actions button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
     height: 30px;
     padding: 0 10px;
     border: 1px solid var(--border, #d0d5dd);
@@ -316,6 +426,17 @@
       600 11px/1 Inter,
       system-ui,
       sans-serif;
+  }
+
+  .bb-browser-context-review-actions button svg {
+    width: 13px;
+    height: 13px;
+  }
+
+  .bb-browser-context-review-actions .bb-browser-context-secondary {
+    border-color: transparent;
+    background: transparent;
+    color: var(--muted-foreground, #667085);
   }
 
   .bb-browser-context-review-actions button:hover:not(:disabled) {

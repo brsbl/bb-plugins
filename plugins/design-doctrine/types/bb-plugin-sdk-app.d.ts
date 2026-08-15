@@ -145,6 +145,8 @@ declare const promptInputSchema: z.ZodDiscriminatedUnion<[z.ZodObject<{
             icon: z.ZodOptional<z.ZodNullable<z.ZodString>>;
             itemId: z.ZodString;
             label: z.ZodString;
+            preview: z.ZodOptional<z.ZodString>;
+            experimentalInspectability: z.ZodOptional<z.ZodLiteral<true>>;
         }, z.core.$strip>], "kind">>;
     }, z.core.$strip>>>;
 }, z.core.$strip>, z.ZodObject<{
@@ -376,6 +378,14 @@ interface ExperimentalBrowserInspectionElementDescriptor {
     text: string;
     rect: ExperimentalBrowserInspectionRect;
 }
+/**
+ * A locator starts in the document (absolute) or exact region common ancestor
+ * (relative). Each selector except the last must resolve to one open shadow
+ * host; resolution continues in that host's shadow root.
+ */
+interface ExperimentalBrowserInspectionLocator {
+    selectors: readonly string[];
+}
 interface ExperimentalBrowserInspectionStyles {
     display?: string;
     position?: string;
@@ -419,6 +429,32 @@ interface ExperimentalBrowserInspectionElementContext extends Omit<ExperimentalB
     };
     reactComponentStack: readonly string[] | null;
 }
+interface ExperimentalBrowserInspectionRegionTarget {
+    absoluteLocator: ExperimentalBrowserInspectionLocator;
+    relativeLocator: ExperimentalBrowserInspectionLocator;
+    text: string;
+    rect: ExperimentalBrowserInspectionRect;
+    accessibility?: {
+        source: "dom-hint";
+        roleHint: string | null;
+        nameHint: string | null;
+        attributes: ExperimentalBrowserInspectionAriaAttributes;
+    };
+    react?: {
+        componentStack: readonly string[];
+        source?: {
+            fileName: string;
+            lineNumber: number;
+            columnNumber: number | null;
+        };
+    };
+}
+interface ExperimentalBrowserInspectionRegionGroup {
+    absoluteLocator: ExperimentalBrowserInspectionLocator;
+    relativeLocator: ExperimentalBrowserInspectionLocator;
+    count: number;
+    rect: ExperimentalBrowserInspectionRect;
+}
 interface ExperimentalBrowserInspectionResult {
     version: 1;
     kind: "element" | "region";
@@ -431,7 +467,23 @@ interface ExperimentalBrowserInspectionResult {
     rect: ExperimentalBrowserInspectionRect;
     element: ExperimentalBrowserInspectionElementContext | null;
     region: {
-        elements: readonly ExperimentalBrowserInspectionElementDescriptor[];
+        commonAncestor: {
+            /**
+             * `element` and `shadow-root` are true DOM LCAs. For a shadow root,
+             * `absoluteLocator` resolves its host and relative locators start in the
+             * host's open shadow root. `composed-element` is explicit when selected
+             * targets cross DOM roots and therefore have no true DOM LCA. It is the
+             * nearest composed-tree element from which every relative locator can be
+             * resolved, widening across a slot boundary when CSS cannot address an
+             * assigned light-DOM node from inside the shadow tree.
+             */
+            kind: "element" | "shadow-root" | "composed-element";
+            absoluteLocator: ExperimentalBrowserInspectionLocator;
+        } | null;
+        targets: readonly ExperimentalBrowserInspectionRegionTarget[];
+        groups: readonly ExperimentalBrowserInspectionRegionGroup[];
+        omittedTargetCount: number;
+        omittedGroupCount: number;
     } | null;
     screenshot: {
         dataUrl: string;
@@ -1239,6 +1291,9 @@ interface ComposerStructuredDraft {
         provider: string;
         id: string;
         label: string;
+        /** Human-readable preview carried by a plugin mention, when provided. */
+        preview?: string;
+        experimental_inspectable?: boolean;
     }[];
 }
 /** Host-rendered paint applied to the editable composer text. */
@@ -1266,14 +1321,10 @@ interface PluginComposerMention {
     id: string;
     /** Pill text shown in the composer. */
     label: string;
-}
-/** A project attachment already uploaded through a plugin backend. */
-interface ExperimentalPluginComposerAttachment {
-    type: "localImage" | "localFile";
-    path: string;
-    name: string;
-    mimeType?: string;
-    sizeBytes: number;
+    /** Optional human-readable content shown when the pill is hovered or focused. */
+    preview?: string;
+    /** Activate this mention's optional provider inspector. Experimental. */
+    experimental_inspectable?: boolean;
 }
 /**
  * Programmatic access to the chat composer draft — the same shared draft the
@@ -1325,11 +1376,6 @@ interface PluginComposerApi {
      * content should be fetched fresh when the message is sent.
      */
     insertMention(mention: PluginComposerMention): void;
-    /**
-     * Add an already-uploaded project attachment without changing draft text.
-     * Duplicate paths are ignored. Experimental: see docs/api_to_audit.md.
-     */
-    experimental_addAttachment?(attachment: ExperimentalPluginComposerAttachment): void;
     /** Focus the composer caret at the end of the draft. */
     focus(): void;
 }
@@ -1669,4 +1715,4 @@ declare const experimental_useSidebarThreadPullRequest: (threadId: string) => Pl
 declare const experimental_useSidebarThreadSplit: (threadId: string) => PluginSidebarThreadSplit;
 
 export { Markdown, ThreadChat, definePluginApp, experimental_NewThreadComposer, experimental_useSidebarThreadActions, experimental_useSidebarThreadPullRequest, experimental_useSidebarThreadSplit, experimental_useSidebarThreads, useBbContext, useBbNavigate, useComposer, useComposerView, useRealtime, useRealtimeConnectionState, useRpc, useSettings };
-export type { BbContext, BbNavigate, ComposerCustomization, ComposerPlusMenuItem, ComposerRichTextSpec, ComposerStructuredDraft, ComposerView, ExperimentalBrowserInspectionAriaAttributes, ExperimentalBrowserInspectionElementContext, ExperimentalBrowserInspectionElementDescriptor, ExperimentalBrowserInspectionPoint, ExperimentalBrowserInspectionRect, ExperimentalBrowserInspectionRequest, ExperimentalBrowserInspectionResult, ExperimentalBrowserInspectionSize, ExperimentalBrowserInspectionStyles, ExperimentalPluginComposerAttachment, JsonValue, MarkdownProps, NewThreadComposerProps, NewThreadRequest, PluginAppBuilder, PluginAppComposer, PluginAppContentScripts, PluginAppDefinition, PluginAppSetup, PluginAppSlots, PluginBrowserActionProps, PluginBrowserActionRegistration, PluginComposerApi, PluginComposerMention, PluginComposerScope, PluginComposerTextEffect, PluginComposerThreadRowStatus, PluginContentScriptContext, PluginContentScriptDisposer, PluginContentScriptRegistration, PluginFileOpenerProps, PluginFileOpenerRegistration, PluginFileOpenerSource, PluginHomepageSectionProps, PluginHomepageSectionRegistration, PluginMessageActionContext, PluginMessageActionRegistration, PluginMessageActionThreadPanelOptions, PluginMessageDirectiveMessage, PluginMessageDirectiveOpenWorkspaceFile, PluginMessageDirectiveProps, PluginMessageDirectiveRegistration, PluginNavPanelProps, PluginNavPanelRegistration, PluginNewThreadPanelActionContext, PluginNewThreadPanelActionRegistration, PluginNewThreadPanelProps, PluginPendingInteractionProps, PluginPendingInteractionRegistration, PluginPendingInteractionView, PluginRealtimeConnectionState, PluginRpcCallArgs, PluginRpcClient, PluginRpcContract, PluginRpcError, PluginRpcErrorCode, PluginRpcHandlers, PluginRpcIssuePathSegment, PluginRpcMethodContract, PluginRpcResult, PluginRpcValidationIssue, PluginSdkApp, PluginSettingsSectionProps, PluginSettingsSectionRegistration, PluginSettingsState, PluginSidebarFooterActionContext, PluginSidebarFooterActionProps, PluginSidebarFooterActionRegistration, PluginSidebarProject, PluginSidebarPullRequest, PluginSidebarSplitPane, PluginSidebarThread, PluginSidebarThreadActions, PluginSidebarThreadActivity, PluginSidebarThreadIndicator, PluginSidebarThreadPullRequestState, PluginSidebarThreadSplit, PluginSidebarThreadsState, PluginSidebarWorkspaceKind, PluginThreadHeaderActionProps, PluginThreadHeaderActionRegistration, PluginThreadListProps, PluginThreadListRegistration, PluginThreadPanelActionContext, PluginThreadPanelActionRegistration, PluginThreadPanelProps, StandardSchemaV1, StandardSchemaV1InferInput, StandardSchemaV1InferOutput, StandardSchemaV1Issue, StandardSchemaV1Result, ThreadChatMessageAction, ThreadChatMessageReference, ThreadChatProps };
+export type { BbContext, BbNavigate, ComposerCustomization, ComposerPlusMenuItem, ComposerRichTextSpec, ComposerStructuredDraft, ComposerView, ExperimentalBrowserInspectionAriaAttributes, ExperimentalBrowserInspectionElementContext, ExperimentalBrowserInspectionElementDescriptor, ExperimentalBrowserInspectionLocator, ExperimentalBrowserInspectionPoint, ExperimentalBrowserInspectionRect, ExperimentalBrowserInspectionRegionGroup, ExperimentalBrowserInspectionRegionTarget, ExperimentalBrowserInspectionRequest, ExperimentalBrowserInspectionResult, ExperimentalBrowserInspectionSize, ExperimentalBrowserInspectionStyles, JsonValue, MarkdownProps, NewThreadComposerProps, NewThreadRequest, PluginAppBuilder, PluginAppComposer, PluginAppContentScripts, PluginAppDefinition, PluginAppSetup, PluginAppSlots, PluginBrowserActionProps, PluginBrowserActionRegistration, PluginComposerApi, PluginComposerMention, PluginComposerScope, PluginComposerTextEffect, PluginComposerThreadRowStatus, PluginContentScriptContext, PluginContentScriptDisposer, PluginContentScriptRegistration, PluginFileOpenerProps, PluginFileOpenerRegistration, PluginFileOpenerSource, PluginHomepageSectionProps, PluginHomepageSectionRegistration, PluginMessageActionContext, PluginMessageActionRegistration, PluginMessageActionThreadPanelOptions, PluginMessageDirectiveMessage, PluginMessageDirectiveOpenWorkspaceFile, PluginMessageDirectiveProps, PluginMessageDirectiveRegistration, PluginNavPanelProps, PluginNavPanelRegistration, PluginNewThreadPanelActionContext, PluginNewThreadPanelActionRegistration, PluginNewThreadPanelProps, PluginPendingInteractionProps, PluginPendingInteractionRegistration, PluginPendingInteractionView, PluginRealtimeConnectionState, PluginRpcCallArgs, PluginRpcClient, PluginRpcContract, PluginRpcError, PluginRpcErrorCode, PluginRpcHandlers, PluginRpcIssuePathSegment, PluginRpcMethodContract, PluginRpcResult, PluginRpcValidationIssue, PluginSdkApp, PluginSettingsSectionProps, PluginSettingsSectionRegistration, PluginSettingsState, PluginSidebarFooterActionContext, PluginSidebarFooterActionProps, PluginSidebarFooterActionRegistration, PluginSidebarProject, PluginSidebarPullRequest, PluginSidebarSplitPane, PluginSidebarThread, PluginSidebarThreadActions, PluginSidebarThreadActivity, PluginSidebarThreadIndicator, PluginSidebarThreadPullRequestState, PluginSidebarThreadSplit, PluginSidebarThreadsState, PluginSidebarWorkspaceKind, PluginThreadHeaderActionProps, PluginThreadHeaderActionRegistration, PluginThreadListProps, PluginThreadListRegistration, PluginThreadPanelActionContext, PluginThreadPanelActionRegistration, PluginThreadPanelProps, StandardSchemaV1, StandardSchemaV1InferInput, StandardSchemaV1InferOutput, StandardSchemaV1Issue, StandardSchemaV1Result, ThreadChatMessageAction, ThreadChatMessageReference, ThreadChatProps };

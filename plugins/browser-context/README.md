@@ -1,8 +1,8 @@
 # Browser Context
 
-Select an element or drag over a region in BB's Browser, annotate the captured preview, then add it to the current thread composer.
+Select elements or drag over regions in BB's Browser, annotate the numbered captures, then add the batch to the current thread composer.
 
-![Browser context staged in the current bb composer](docs/screenshot.png)
+![Inspectable Browser Context mention in bb](docs/screenshot.png)
 
 ## Install
 
@@ -12,7 +12,7 @@ bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/browser-con
 
 ## Use
 
-Open a Browser tab and click the Browser Context action to enter selection mode. Click an element or drag over a region, then add an optional comment. Choose **Add to prompt** to preserve the existing draft, attach the screenshot, and append the comment followed by a compact quoted summary of the page, target, DOM, relevant styles, and available framework or accessibility hints. The user request stays primary while supporting context can collapse naturally, and the standard Send or Queue flow remains in control.
+Open a Browser tab and click the Browser Context action to enter selection mode. Click an element or drag over a region, add an optional comment, and use **Select another** to build a numbered batch. Hover or focus a staged row to return its target to the live preview, edit any comment in place, or remove one selection without affecting the rest. Choose **Add to prompt** once to preserve the existing draft and append one inspectable mention pill followed by its ordinary editable comment for every selection. Activate a pill to reopen its capture preview and exact metadata. Screenshots remain preview-only and are never sent; immutable DOM, React, accessibility, and geometry metadata resolves into hidden agent context at send time. The standard Send or Queue flow remains in control.
 
 ## Develop
 
