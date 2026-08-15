@@ -270,7 +270,7 @@ function ResolveCheckbox({
       />
       <span
         aria-hidden="true"
-        className="pointer-events-none absolute left-0 top-full z-20 mt-1 whitespace-nowrap rounded-md bg-foreground px-2 py-1 text-xs font-medium text-background opacity-0 shadow-sm transition-opacity group-hover/resolve:opacity-100 group-focus-visible/resolve:opacity-100"
+        className="pointer-events-none absolute left-0 top-full z-20 mt-1 whitespace-nowrap rounded-md bg-foreground px-2 py-1 text-xs font-medium text-background opacity-0 shadow-sm transition-opacity group-hover/resolve:opacity-100 peer-focus-visible:opacity-100"
       >
         {label}
       </span>

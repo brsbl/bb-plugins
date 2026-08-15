@@ -134,6 +134,9 @@ describe("GitHub Activity panel", () => {
     expect(markResolved.parentElement?.querySelector("span")?.className).toContain(
       "left-0",
     );
+    expect(markResolved.parentElement?.querySelector("span")?.className).toContain(
+      "peer-focus-visible:opacity-100",
+    );
     const markUnresolved = screen.getByRole("checkbox", {
       name: "Reopen: Keep links local",
     }) as HTMLInputElement;
