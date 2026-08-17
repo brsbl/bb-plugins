@@ -7,6 +7,3 @@ coverage/
 # Production bundles are created and validated in CI.
 dist/
 plugins/.scaffold-smoke-*
-
-# Plugin build toolchain scratch dirs (resolved on demand, never committed).
-toolchain-*/

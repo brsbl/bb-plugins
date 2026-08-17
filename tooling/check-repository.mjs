@@ -208,30 +208,11 @@ export async function checkRepository(repositoryRoot = defaultRoot, options = {}
       `${slug}: SDK engine drift`,
     );
     if (manifest.devDependencies?.["@bb/plugin-sdk"] !== undefined) {
-      // Plugins may vendor the SDK archive next to their sources so a
-      // pinned-commit install is standalone; that copy must stay byte-equal
-      // to the shared tooling archive.
-      const sdkDependency = manifest.devDependencies["@bb/plugin-sdk"];
-      const vendoredSpecifier = `file:./vendor/${pluginSdkArchive}`;
       assert(
-        sdkDependency === `file:../../tooling/vendor/${pluginSdkArchive}` ||
-          sdkDependency === vendoredSpecifier,
+        manifest.devDependencies["@bb/plugin-sdk"] ===
+          `file:../../tooling/vendor/${pluginSdkArchive}`,
         `${slug}: plugin SDK dependency drift`,
       );
-      if (sdkDependency === vendoredSpecifier) {
-        const shared = await readFile(
-          resolve(root, "tooling/vendor", pluginSdkArchive),
-        );
-        const vendored = await readFile(
-          resolve(directory, "vendor", pluginSdkArchive),
-        ).catch(() => null);
-        assert(vendored !== null, `${slug}: vendored SDK archive missing`);
-        assert(
-          createHash("sha256").update(shared).digest("hex") ===
-            createHash("sha256").update(vendored).digest("hex"),
-          `${slug}: vendored SDK archive drift`,
-        );
-      }
     }
     assert(pluginReadme.startsWith(`# ${name}\n`), `${slug}: README title drift`);
     for (const heading of ["## Install", "## Use", "## Develop"]) {
