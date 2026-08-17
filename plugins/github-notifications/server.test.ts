@@ -15,6 +15,7 @@ function notification(index: number, overrides: Record<string, unknown> = {}) {
     updated_at: "2026-08-12T12:00:00Z",
     repository: { full_name: "get-bb/bb" },
     subject: {
+      latest_comment_url: `https://api.github.com/repos/get-bb/bb/issues/comments/${index + 1}`,
       title: `Notification ${index}`,
       type: "PullRequest",
       url: `https://api.github.com/repos/get-bb/bb/pulls/${index + 1}`,
@@ -61,7 +62,16 @@ describe("GitHub Activity plugin", () => {
         data: {
           notification0: {
             resource: {
-              comments: { nodes: [] },
+              comments: {
+                nodes: [
+                  {
+                    author: { login: "alice" },
+                    bodyText: "Please take a look",
+                    createdAt: "2026-08-12T10:00:00Z",
+                    databaseId: 1,
+                  },
+                ],
+              },
               reviews: {
                 nodes: [
                   {
@@ -92,7 +102,8 @@ describe("GitHub Activity plugin", () => {
         login: "brsbl",
         items: [
           expect.objectContaining({
-            activity: "Changes requested",
+            activity: "New comment",
+            activityKind: "comment",
             resolved: false,
             resourceKind: "pr",
           }),
@@ -124,7 +135,7 @@ describe("GitHub Activity plugin", () => {
       cursors: {
         n41: expect.objectContaining({
           eventKey: expect.any(String),
-          updatedAt: "2026-08-12T11:00:00Z",
+          updatedAt: "2026-08-12T10:00:00Z",
         }),
       },
       pendingLegacyIds: [],

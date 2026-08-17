@@ -5,6 +5,7 @@ import {
   useState,
 } from "react";
 import {
+  AtSign,
   ArrowDown,
   ArrowUp,
   Check,
@@ -17,6 +18,7 @@ import {
   RefreshCw,
   Search,
   UserRound,
+  type LucideIcon,
 } from "lucide-react";
 import { definePluginApp, useRpc } from "@bb/plugin-sdk/app";
 
@@ -30,12 +32,9 @@ type SortKey = "resource" | "updated";
 type SortDirection = "asc" | "desc";
 
 const ACTIVITY_FILTERS: readonly { value: ActivityFilter; label: string }[] = [
-  { value: "all", label: "All updates" },
+  { value: "all", label: "All activity" },
   { value: "comment", label: "Comments" },
   { value: "mention", label: "Mentions" },
-  { value: "review", label: "Reviews" },
-  { value: "approved", label: "Approvals" },
-  { value: "changes-requested", label: "Changes requested" },
 ];
 
 export function filterAndSortNotifications(args: {
@@ -96,50 +95,76 @@ function relativeTime(value: string): string {
   );
 }
 
-function updatePresentation(kind: GithubNotificationItem["activityKind"]): {
-  verb: string;
-  verbClass: string;
+function activityPresentation(kind: GithubNotificationItem["activityKind"]): {
+  className: string;
+  icon: LucideIcon;
+  label: string;
 } {
   switch (kind) {
-    case "approved":
-      return {
-        verb: "approved",
-        verbClass: "text-success",
-      };
-    case "changes-requested":
-      return {
-        verb: "requested changes",
-        verbClass: "text-destructive-text",
-      };
     case "mention":
       return {
-        verb: "mentioned you",
-        verbClass: "text-warning-text",
-      };
-    case "review":
-      return {
-        verb: "reviewed",
-        verbClass: "text-foreground",
+        className: "text-warning-text",
+        icon: AtSign,
+        label: "Mention",
       };
     case "comment":
       return {
-        verb: "commented",
-        verbClass: "text-muted-foreground",
+        className: "text-muted-foreground",
+        icon: MessageSquare,
+        label: "Comment",
       };
   }
 }
 
+function resourcePresentation(kind: ResourceKind): {
+  className: string;
+  icon: LucideIcon;
+  label: string;
+} {
+  return kind === "pr"
+    ? { className: "text-foreground", icon: GitPullRequest, label: "Pull request" }
+    : { className: "text-muted-foreground", icon: CircleDot, label: "Issue" };
+}
+
+function TaxonomyIcon({
+  className,
+  icon: Icon,
+  label,
+}: {
+  className: string;
+  icon: LucideIcon;
+  label: string;
+}) {
+  return (
+    <span
+      className={`group/taxonomy relative inline-flex items-center rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${className}`}
+      aria-label={label}
+      role="img"
+      tabIndex={0}
+      title={label}
+    >
+      <Icon aria-hidden="true" className="size-4" strokeWidth={1.75} />
+      <span
+        aria-hidden="true"
+        className="pointer-events-none absolute left-1/2 top-full z-20 mt-1 -translate-x-1/2 whitespace-nowrap rounded-md bg-foreground px-2 py-1 text-xs font-medium text-background opacity-0 shadow-sm transition-opacity group-hover/taxonomy:opacity-100 group-focus/taxonomy:opacity-100"
+      >
+        {label}
+      </span>
+    </span>
+  );
+}
+
 function NotificationLink({ item }: { item: GithubNotificationItem }) {
-  const update = updatePresentation(item.activityKind);
+  const activity = activityPresentation(item.activityKind);
   const actor = item.actor ? `@${item.actor}` : "Someone";
-  const ResourceIcon = item.resourceKind === "pr" ? GitPullRequest : CircleDot;
+  const resource = resourcePresentation(item.resourceKind);
   return (
     <a
       href={item.url}
       target="_blank"
       rel="noopener noreferrer"
       className="group block min-w-0 rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-      aria-label={`${item.resourceKind === "pr" ? "Pull request" : "Issue"} ${item.repo} number ${item.number}: ${item.title}. ${actor} ${update.verb}`}
+      aria-label={`${resource.label} ${item.repo} number ${item.number}: ${item.title}. ${activity.label} by ${actor}`}
     >
       <span
         className={`line-clamp-2 min-w-0 text-sm font-medium leading-5 group-hover:underline ${
@@ -149,10 +174,7 @@ function NotificationLink({ item }: { item: GithubNotificationItem }) {
         {item.title}
       </span>
       <span className="mt-0.5 flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground">
-        <ResourceIcon aria-hidden="true" className="size-3.5 shrink-0" strokeWidth={1.75} />
-        <span className="font-medium text-foreground">
-          {item.resourceKind === "pr" ? "PR" : "Issue"} #{item.number}
-        </span>
+        <span className="font-medium text-foreground">#{item.number}</span>
         <span aria-hidden>·</span>
         <span className="truncate">{item.repo}</span>
       </span>
@@ -162,7 +184,6 @@ function NotificationLink({ item }: { item: GithubNotificationItem }) {
 }
 
 function LatestUpdate({ item }: { item: GithubNotificationItem }) {
-  const update = updatePresentation(item.activityKind);
   const actor = item.actor ? `@${item.actor}` : "Someone";
   return (
     <div className="mt-1.5 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-xs">
@@ -170,7 +191,6 @@ function LatestUpdate({ item }: { item: GithubNotificationItem }) {
         <ActorAvatar avatarUrl={item.avatarUrl} />
         <span className="truncate">{actor}</span>
       </span>
-      <span className={`font-medium ${update.verbClass}`}>{update.verb}</span>
       <UpdatedTime value={item.updatedAt} />
     </div>
   );
@@ -396,7 +416,7 @@ function GitHubActivityPanel() {
         <div className="mb-5 flex items-start gap-3">
           <div className="min-w-0 flex-1">
             <p className="text-sm text-muted-foreground">
-              Comments and reviews on PRs and issues you authored{payload ? ` as @${payload.login}` : ""}.
+              Comments and mentions on PRs and issues you authored{payload ? ` as @${payload.login}` : ""}.
             </p>
           </div>
           <button
@@ -506,12 +526,12 @@ function GitHubActivityPanel() {
         ) : payload !== null && items.length === 0 ? (
           <div className="rounded-xl border border-dashed border-border p-6 text-center">
             <p className="text-sm font-medium text-foreground">
-              {hasFilters ? "No matching activity" : "No comments or reviews to triage"}
+              {hasFilters ? "No matching activity" : "No comments or mentions to triage"}
             </p>
             <p className="mt-1 text-sm text-muted-foreground">
               {hasFilters
                 ? "Try a different search or clear the filters."
-                : "New activity on GitHub PRs and issues you authored will appear here."}
+                : "New comments and mentions on GitHub PRs and issues you authored will appear here."}
             </p>
             {hasFilters ? (
               <button type="button" className="mt-3 rounded-md border border-border px-2.5 py-1.5 text-sm font-medium text-foreground hover:bg-accent" onClick={clearFilters}>
@@ -524,6 +544,8 @@ function GitHubActivityPanel() {
             <div>
               <table className="github-activity-table w-full table-fixed border-collapse text-left">
                 <colgroup className="github-activity-colgroup">
+                  <col className="w-[3.75rem]" />
+                  <col className="w-[4.25rem]" />
                   <col className="w-16" />
                   <col />
                 </colgroup>
@@ -531,6 +553,12 @@ function GitHubActivityPanel() {
                   <tr className="github-activity-header-row">
                     <th scope="col" className="github-activity-status-header px-3 py-2.5 text-muted-foreground">
                       Status
+                    </th>
+                    <th scope="col" className="github-activity-resource-header px-2 py-2.5 text-center text-muted-foreground">
+                      Resource
+                    </th>
+                    <th scope="col" className="github-activity-update-header px-2 py-2.5 text-center text-muted-foreground">
+                      Activity
                     </th>
                     <th scope="col" className="github-activity-item-header px-3 py-2.5">
                       <div className="flex items-center justify-between gap-3">
@@ -550,10 +578,18 @@ function GitHubActivityPanel() {
                   {loading && payload === null
                     ? [0, 1, 2, 3, 4].map((index) => (
                         <tr key={index} aria-label="Loading GitHub activity" className="github-activity-row">
-                          {[0, 1].map((cell) => (
+                          {[0, 1, 2, 3].map((cell) => (
                             <td
                               key={cell}
-                              className={`px-3 py-3 ${cell === 0 ? "github-activity-status-cell" : "github-activity-item-cell"}`}
+                              className={`px-3 py-3 ${
+                                cell === 0
+                                  ? "github-activity-status-cell"
+                                  : cell === 1
+                                    ? "github-activity-resource-cell"
+                                    : cell === 2
+                                      ? "github-activity-update-cell"
+                                      : "github-activity-item-cell"
+                              }`}
                             >
                               <div className="h-4 animate-pulse rounded bg-muted" />
                             </td>
@@ -574,6 +610,12 @@ function GitHubActivityPanel() {
                               item={item}
                               onToggle={() => void toggleResolved(item)}
                             />
+                          </td>
+                          <td className="github-activity-resource-cell px-2 py-3 text-center">
+                            <TaxonomyIcon {...resourcePresentation(item.resourceKind)} />
+                          </td>
+                          <td className="github-activity-update-cell px-2 py-3 text-center">
+                            <TaxonomyIcon {...activityPresentation(item.activityKind)} />
                           </td>
                           <td className="github-activity-item-cell px-3 py-3">
                             <NotificationLink item={item} />

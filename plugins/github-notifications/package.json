@@ -1,7 +1,7 @@
 {
   "name": "bb-plugin-github-notifications",
   "version": "0.1.0",
-  "description": "Shows comments and reviews on GitHub pull requests and issues you authored.",
+  "description": "Shows comments and mentions on GitHub pull requests and issues you authored.",
   "type": "module",
   "license": "UNLICENSED",
   "files": [
@@ -21,7 +21,7 @@
   },
   "bb": {
     "name": "GitHub Activity",
-    "description": "Shows comments and reviews on GitHub pull requests and issues you authored.",
+    "description": "Shows comments and mentions on GitHub pull requests and issues you authored.",
     "branding": {
       "icon": "Github"
     },

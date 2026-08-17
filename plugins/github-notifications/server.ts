@@ -40,13 +40,7 @@ const notificationItemSchema = z
   .object({
     id: z.string(),
     activity: z.string(),
-    activityKind: z.enum([
-      "approved",
-      "changes-requested",
-      "comment",
-      "mention",
-      "review",
-    ]),
+    activityKind: z.enum(["comment", "mention"]),
     actor: z.string().nullable(),
     avatarUrl: z.string().url().nullable(),
     eventKey: z.string().nullable().optional(),

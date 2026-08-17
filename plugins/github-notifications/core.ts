@@ -1,6 +1,5 @@
 export type ResourceKind = "issue" | "pr";
-export type ActivityKind =
-  "approved" | "changes-requested" | "comment" | "mention" | "review";
+export type ActivityKind = "comment" | "mention";
 
 export interface GithubNotificationRow {
   id: string;
@@ -27,19 +26,11 @@ export interface GithubCommentNode {
   databaseId?: unknown;
 }
 
-export interface GithubReviewNode {
-  author?: GithubActor | null;
-  databaseId?: unknown;
-  state?: unknown;
-  submittedAt?: unknown;
-}
-
 export interface GithubResourceNode {
   author?: GithubActor | null;
   comments?: { nodes?: unknown } | null;
   number?: unknown;
   reviewThreads?: { nodes?: unknown } | null;
-  reviews?: { nodes?: unknown } | null;
   title?: unknown;
   updatedAt?: unknown;
   url?: unknown;
@@ -85,6 +76,17 @@ function parseNumberFromSubjectUrl(url: string): number | null {
   return Number.isSafeInteger(number) && number > 0 ? number : null;
 }
 
+function isCommentActivity(reason: string, latestCommentUrl: string | null): boolean {
+  if (reason === "comment" || reason === "mention" || reason === "team_mention") {
+    return true;
+  }
+  return (
+    reason === "author" &&
+    latestCommentUrl !== null &&
+    /\/comments\/\d+$/u.test(latestCommentUrl)
+  );
+}
+
 export function parseNotificationRows(raw: unknown): GithubNotificationRow[] {
   if (!Array.isArray(raw)) {
     throw new Error("GitHub returned an invalid notifications response.");
@@ -112,6 +114,7 @@ export function parseNotificationRows(raw: unknown): GithubNotificationRow[] {
       subjectUrl === null ||
       title === null ||
       updatedAt === null ||
+      !isCommentActivity(reason, latestCommentUrl) ||
       (subjectType !== "Issue" && subjectType !== "PullRequest")
     ) {
       return [];
@@ -178,11 +181,6 @@ export function buildOwnershipQuery(
   };
 }
 
-function rowIndexFromAlias(alias: string): number | null {
-  const index = Number(alias.replace("notification", ""));
-  return Number.isSafeInteger(index) && index >= 0 ? index : null;
-}
-
 function latestCommentDatabaseId(url: string | null): number | null {
   if (url === null) return null;
   const match = url.match(/\/comments\/(\d+)$/u);
@@ -198,16 +196,9 @@ export function buildActivityQuery(args: {
   const fields = args.lookups.map((lookup) => {
     const resourceField =
       lookup.resourceKind === "pr" ? "pullRequest" : "issue";
-    const rowIndex = rowIndexFromAlias(lookup.alias);
-    const row = rowIndex === null ? undefined : args.rows[rowIndex];
-    const reviews =
-      lookup.resourceKind === "pr"
-        ? "reviews(last: 20) { nodes { author { login avatarUrl } databaseId state submittedAt } }"
-        : "";
     return `${lookup.alias}: repository(owner: ${JSON.stringify(lookup.owner)}, name: ${JSON.stringify(lookup.repoName)}) {
       resource: ${resourceField}(number: ${lookup.number}) {
         comments(last: 20) { nodes { author { login avatarUrl } body createdAt databaseId } }
-        ${reviews}
       }
     }`;
   });
@@ -380,69 +371,6 @@ function commentCandidates(
   return [...issueComments, ...reviewComments];
 }
 
-function reviewCandidates(
-  node: GithubResourceNode,
-  viewer: string,
-): ActivityCandidate[] {
-  const rawNodes = node.reviews?.nodes;
-  if (!Array.isArray(rawNodes)) return [];
-  return rawNodes.flatMap((entry): ActivityCandidate[] => {
-    if (!isRecord(entry)) return [];
-    const review = entry as GithubReviewNode;
-    const actor = stringValue(review.author?.login);
-    const avatarUrl = stringValue(review.author?.avatarUrl);
-    const at = dateValue(review.submittedAt);
-    const state = stringValue(review.state)?.toLocaleUpperCase();
-    const databaseId =
-      typeof review.databaseId === "number" &&
-      Number.isSafeInteger(review.databaseId)
-        ? review.databaseId
-        : null;
-    const eventKey =
-      databaseId === null
-        ? `review:${at}:${actor}:${state ?? "COMMENTED"}`
-        : `review:${databaseId}`;
-    if (actor === null || at === null || actor === viewer) return [];
-    if (state === "APPROVED") {
-      return [
-        {
-          actor,
-          at,
-          avatarUrl,
-          eventKey,
-          kind: "approved",
-          label: "Approved",
-          matchesLatestComment: false,
-        },
-      ];
-    }
-    if (state === "CHANGES_REQUESTED") {
-      return [
-        {
-          actor,
-          at,
-          avatarUrl,
-          eventKey,
-          kind: "changes-requested",
-          label: "Changes requested",
-          matchesLatestComment: false,
-        },
-      ];
-    }
-    return [
-      {
-        actor,
-        at,
-        avatarUrl,
-        eventKey,
-        kind: "review",
-        label: "New review",
-        matchesLatestComment: false,
-      },
-    ];
-  });
-}
-
 export function projectOwnedNotifications(args: {
   data: Record<string, unknown>;
   lookups: GraphqlLookup[];
@@ -466,10 +394,9 @@ export function projectOwnedNotifications(args: {
     const rowIndex = Number(alias.replace("notification", ""));
     const row = args.rows[rowIndex];
     if (row === undefined) continue;
-    const candidates = [
-      ...commentCandidates(resource, viewer, row),
-      ...reviewCandidates(resource, viewer),
-    ].sort((left, right) => Date.parse(right.at) - Date.parse(left.at));
+    const candidates = commentCandidates(resource, viewer, row).sort(
+      (left, right) => Date.parse(right.at) - Date.parse(left.at),
+    );
     const activity =
       candidates.find((candidate) => candidate.matchesLatestComment) ??
       candidates[0];
