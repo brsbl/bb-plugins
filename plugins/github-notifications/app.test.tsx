@@ -94,6 +94,13 @@ describe("GitHub Activity panel", () => {
     const link = screen.getByRole("link", { name: /Pull request get-bb\/bb number 42/u });
     expect(link.getAttribute("href")).toBe("https://github.com/get-bb/bb/pull/42");
     expect(link.getAttribute("target")).toBe("_blank");
+    expect(link.className).toContain("lg:flex");
+    expect(link.className).toContain("lg:items-center");
+    expect(screen.getByText("Scannable activity").className).toContain(
+      "lg:line-clamp-1",
+    );
+    expect(updatedTime.parentElement?.className).toContain("lg:mt-0");
+    expect(updatedTime.parentElement?.className).toContain("lg:flex-nowrap");
     expect(pullRequestType.closest("td")).not.toBe(link.closest("td"));
     expect(mentionActivity.closest("td")).not.toBe(link.closest("td"));
     expect(screen.getByRole("columnheader", { name: "Resource" })).toBeDefined();

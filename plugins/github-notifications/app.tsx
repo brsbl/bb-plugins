@@ -163,20 +163,22 @@ function NotificationLink({ item }: { item: GithubNotificationItem }) {
       href={item.url}
       target="_blank"
       rel="noopener noreferrer"
-      className="group block min-w-0 rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      className="group block min-w-0 rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring lg:flex lg:items-center lg:gap-3"
       aria-label={`${resource.label} ${item.repo} number ${item.number}: ${item.title}. ${activity.label} by ${actor}`}
     >
-      <span
-        className={`line-clamp-2 min-w-0 text-sm font-medium leading-5 group-hover:underline ${
-          item.resolved ? "text-muted-foreground" : "text-foreground"
-        }`}
-      >
-        {item.title}
-      </span>
-      <span className="mt-0.5 flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground">
-        <span className="font-medium text-foreground">#{item.number}</span>
-        <span aria-hidden>·</span>
-        <span className="truncate">{item.repo}</span>
+      <span className="min-w-0 lg:flex lg:flex-1 lg:items-center lg:gap-2">
+        <span
+          className={`line-clamp-2 min-w-0 text-sm font-medium leading-5 group-hover:underline lg:line-clamp-1 lg:flex-1 ${
+            item.resolved ? "text-muted-foreground" : "text-foreground"
+          }`}
+        >
+          {item.title}
+        </span>
+        <span className="mt-0.5 flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground lg:mt-0 lg:shrink-0">
+          <span className="font-medium text-foreground">#{item.number}</span>
+          <span aria-hidden>·</span>
+          <span className="truncate">{item.repo}</span>
+        </span>
       </span>
       <LatestUpdate item={item} />
     </a>
@@ -186,7 +188,7 @@ function NotificationLink({ item }: { item: GithubNotificationItem }) {
 function LatestUpdate({ item }: { item: GithubNotificationItem }) {
   const actor = item.actor ? `@${item.actor}` : "Someone";
   return (
-    <div className="mt-1.5 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-xs">
+    <div className="mt-1.5 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-xs lg:mt-0 lg:shrink-0 lg:flex-nowrap">
       <span className="inline-flex max-w-40 shrink items-center gap-1 rounded-full bg-muted/35 py-0.5 pl-0.5 pr-1.5 font-normal text-muted-foreground">
         <ActorAvatar avatarUrl={item.avatarUrl} />
         <span className="truncate">{actor}</span>
