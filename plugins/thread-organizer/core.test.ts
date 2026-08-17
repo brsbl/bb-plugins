@@ -30,6 +30,8 @@ describe("thread eligibility", () => {
     { ...eligible, parentThreadId: "thr_parent" },
     { ...eligible, sourceThreadId: "thr_source" },
     { ...eligible, originKind: "fork" as const },
+    { ...eligible, childOrigin: "fork" },
+    { ...eligible, childOrigin: "side-chat" },
     { ...eligible, originPluginId: "automations" },
     { ...eligible, status: "error" as const },
     { ...eligible, visibility: "hidden" as const },

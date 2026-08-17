@@ -1117,6 +1117,7 @@ assert.deepEqual(summarizeSectionThreads([]), {
 assert.equal(isSidebarSectionThread(sectionThread()), true);
 for (const excluded of [
   { archivedAt: 1 },
+  { childOrigin: "side-chat" },
   { deletedAt: 1 },
   { originKind: "side-chat" },
   { pinnedAt: 1 },

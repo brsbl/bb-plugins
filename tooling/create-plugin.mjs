@@ -3,10 +3,8 @@ import { dirname, resolve } from "node:path";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
-import {
-  pluginSdkArchive,
-  pluginSdkVersion,
-} from "./plugin-sdk-provenance.mjs";
+import { pluginSdkEngineRange } from "./plugin-sdk-contract.mjs";
+import { pluginSdkArchive } from "./plugin-sdk-provenance.mjs";
 
 const defaultRepositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -69,7 +67,7 @@ function filesFor(options) {
       test: "vitest run",
       typecheck: "tsc --noEmit",
     },
-    engines: { bb: ">=0.0.34", bbPluginSdk: `^${pluginSdkVersion}` },
+    engines: { bb: ">=0.0.34", bbPluginSdk: pluginSdkEngineRange },
     bb: {
       name: options.name,
       description: options.description,

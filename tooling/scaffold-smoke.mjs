@@ -28,23 +28,17 @@ function run(command, args, cwd) {
   if (result.status !== 0) throw new Error(`${command} exited ${result.status}`);
 }
 
-function assertPreviousScaffoldUpgradeCompatibility(manifest, sdkVersion) {
-  const rangeMatch = /^\^(\d+)\.(\d+)\.(\d+)$/u.exec(
-    manifest.engines?.bbPluginSdk ?? "",
-  );
-  const versionMatch = /^(\d+)\.(\d+)\.(\d+)$/u.exec(sdkVersion);
-  assert.notEqual(rangeMatch, null, "previous scaffold SDK range changed");
-  assert.notEqual(versionMatch, null, "current SDK version is not concrete");
-  const [, floorMajor, floorMinor, floorPatch] = rangeMatch;
-  const [, versionMajor, versionMinor, versionPatch] = versionMatch;
-  assert.equal(floorMajor, "0", "fixture must preserve a pre-1.0 SDK range");
-  assert.equal(versionMajor, floorMajor, "current SDK major rejects the fixture");
-  assert.equal(versionMinor, floorMinor, "current SDK minor rejects the fixture");
-  assert.ok(
-    Number(versionPatch) >= Number(floorPatch),
-    "current SDK patch rejects the fixture",
-  );
-}
+const previousScaffoldManifest = JSON.parse(
+  await readFile(
+    resolve(root, "tooling/fixtures/scaffold-0.4.1-manifest.json"),
+    "utf8",
+  ),
+);
+assert.equal(
+  previousScaffoldManifest.devDependencies?.["@bb/plugin-sdk"],
+  "file:../../tooling/vendor/bb-plugin-sdk-0.4.1.tgz",
+  "fixture no longer represents the previously shipped scaffold",
+);
 
 async function createFixtureRepository(directory) {
   const rootManifest = JSON.parse(
@@ -58,21 +52,6 @@ async function createFixtureRepository(directory) {
       resolve(root, "tooling/vendor/plugin-build-provenance.json"),
       "utf8",
     ),
-  );
-  const previousScaffoldManifest = JSON.parse(
-    await readFile(
-      resolve(root, "tooling/fixtures/scaffold-0.4.1-manifest.json"),
-      "utf8",
-    ),
-  );
-  assert.equal(
-    previousScaffoldManifest.devDependencies?.["@bb/plugin-sdk"],
-    "file:../../tooling/vendor/bb-plugin-sdk-0.4.1.tgz",
-    "fixture no longer represents the previously shipped scaffold",
-  );
-  assertPreviousScaffoldUpgradeCompatibility(
-    previousScaffoldManifest,
-    sdkRecord.package.replace(/^@get-bb\/plugin-sdk@/u, ""),
   );
   await mkdir(resolve(directory, "packages"), { recursive: true });
   await mkdir(resolve(directory, "plugins"), { recursive: true });
@@ -259,6 +238,14 @@ try {
     skipInstall: true,
     skipVerify: true,
   });
+  const generatedManifest = JSON.parse(
+    await readFile(resolve(generated.directory, "package.json"), "utf8"),
+  );
+  assert.equal(
+    generatedManifest.engines?.bbPluginSdk,
+    previousScaffoldManifest.engines?.bbPluginSdk,
+    "new scaffolds must preserve the previously shipped SDK engine contract",
+  );
   const screenshot = await addVisualIndex(
     fixtureRoot,
     generated.directory,

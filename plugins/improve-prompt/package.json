@@ -10,7 +10,7 @@
   ],
   "engines": {
     "bb": ">=0.0.34",
-    "bbPluginSdk": "^0.4.6"
+    "bbPluginSdk": "^0.4.1"
   },
   "bb": {
     "name": "Prompt Improver",

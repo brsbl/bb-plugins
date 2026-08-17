@@ -702,6 +702,7 @@ const PULL_REQUEST_SIGNALS = {
 type SidebarThread = Awaited<
   ReturnType<BbPluginApi["sdk"]["threads"]["list"]>
 >[number];
+type LegacySidebarThread = SidebarThread & { childOrigin?: unknown };
 /**
  * Matches the rows a section actually renders: visible, unarchived roots, side
  * chats excluded — and not pinned, because bb lifts pinned threads out of their
@@ -717,11 +718,12 @@ export function isSidebarSectionThread(thread: SidebarThread): boolean {
     thread.pinnedAt === null &&
     // Side chats are hidden on current hosts. Keep this wide guard for legacy
     // rows that can still carry the pre-hidden-thread origin value at runtime.
-    !isSideChatOrigin(thread.originKind)
+    !isSideChatOrigin(thread.originKind) &&
+    !isSideChatOrigin((thread as LegacySidebarThread).childOrigin)
   );
 }
 
-function isSideChatOrigin(value: string | null | undefined): boolean {
+function isSideChatOrigin(value: unknown): boolean {
   return value === "side-chat";
 }
 

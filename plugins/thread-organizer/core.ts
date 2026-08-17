@@ -20,6 +20,15 @@ export interface OrganizableThread {
   visibility: "hidden" | "visible";
 }
 
+type LegacyOriginFields = {
+  childOrigin?: unknown;
+};
+
+function hasLegacyChildOrigin(thread: OrganizableThread): boolean {
+  const { childOrigin } = thread as OrganizableThread & LegacyOriginFields;
+  return childOrigin === "fork" || childOrigin === "side-chat";
+}
+
 export interface SectionClassification {
   confidence: number;
   margin: number;
@@ -170,6 +179,7 @@ export function isManageableThread(thread: OrganizableThread): boolean {
     thread.parentThreadId === null &&
     thread.sourceThreadId === null &&
     thread.originKind === null &&
+    !hasLegacyChildOrigin(thread) &&
     thread.originPluginId === null &&
     thread.archivedAt === null &&
     thread.deletedAt === null

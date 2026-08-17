@@ -706,6 +706,38 @@ var MODE_TRANSITION = {
   easing: "cubic-bezier(0.22, 1, 0.36, 1)"
 };
 var DRAFT_TTL = 24 * 60 * 60 * 1e3;
+function errorMessage(error) {
+  return error instanceof Error ? error.message : "Something went wrong";
+}
+function isChangedStateError(error) {
+  return /\bchanged\b/iu.test(errorMessage(error));
+}
+async function reloadCompleteThread(rpc, current) {
+  let listCursor;
+  let found = false;
+  do {
+    const page = await rpc.call("listCommentThreads", {
+      bbThreadId: current.thread.bbThreadId,
+      filter: "all",
+      ...listCursor === void 0 ? {} : { cursor: listCursor }
+    });
+    found = page.threads.some(({ id }) => id === current.thread.id);
+    listCursor = page.nextCursor ?? void 0;
+  } while (!found && listCursor !== void 0);
+  if (!found) return null;
+  let detail = null;
+  let commentCursor;
+  do {
+    const page = await rpc.call("getCommentThread", {
+      bbThreadId: current.thread.bbThreadId,
+      commentThreadId: current.thread.id,
+      ...commentCursor === void 0 ? {} : { cursor: commentCursor }
+    });
+    detail = detail === null ? page : { ...page, comments: [...detail.comments, ...page.comments] };
+    commentCursor = page.nextCursor ?? void 0;
+  } while (commentCursor !== void 0);
+  return detail;
+}
 function readDraft(key) {
   const saved = sessionStorage.getItem(key);
   if (saved === null) return null;
@@ -1559,6 +1591,25 @@ function MossCommentPopover({
   const replyAnimationRef = useRef(null);
   const lastCommentId = detail.comments.at(-1)?.id ?? null;
   const isEditingLast = editingId !== null && editingId === lastCommentId;
+  const recoverChangedState = async (caught) => {
+    setError(errorMessage(caught));
+    if (!isChangedStateError(caught)) return;
+    try {
+      const fresh = await reloadCompleteThread(rpc, detail);
+      if (fresh === null) {
+        onClose();
+        onChanged();
+        return;
+      }
+      setDetail(fresh);
+      setEditingId(
+        (current) => current !== null && fresh.comments.some(({ id }) => id === current) ? current : null
+      );
+      onChanged();
+    } catch (refreshError) {
+      setError(errorMessage(refreshError));
+    }
+  };
   const beginReplyRegionTransition = useCallback(() => {
     const region = replyRegionRef.current;
     if (!region) return;
@@ -1602,7 +1653,7 @@ function MossCommentPopover({
       onChanged();
       return fresh;
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "Something went wrong");
+      await recoverChangedState(caught);
       return null;
     } finally {
       busyRef.current = false;
@@ -1625,7 +1676,7 @@ function MossCommentPopover({
       else setDetail(result.thread);
       onChanged();
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "Something went wrong");
+      await recoverChangedState(caught);
     } finally {
       busyRef.current = false;
       setBusy(false);
@@ -1966,7 +2017,7 @@ function icon(node) {
   svg.setAttribute("aria-hidden", "true");
   return svg;
 }
-function errorMessage(error) {
+function errorMessage2(error) {
   return error instanceof Error ? error.message : "Something went wrong";
 }
 function selectionTextMatches(rangeText, hostText) {
@@ -2729,7 +2780,7 @@ var TimelineCommentsController = class {
       this.positionPopover();
     } catch (caught) {
       popover.replaceChildren(
-        element("div", "bb-comments-error", errorMessage(caught))
+        element("div", "bb-comments-error", errorMessage2(caught))
       );
     }
   }
@@ -3269,12 +3320,12 @@ var TimelineCommentsController = class {
   showPopoverError(popover, error) {
     const existing = popover.querySelector(".bb-comments-error");
     const node = existing ?? element("div", "bb-comments-error");
-    node.textContent = errorMessage(error);
+    node.textContent = errorMessage2(error);
     if (existing === null) popover.append(node);
   }
   handlePopoverMutationError(popover, detail, error) {
     this.showPopoverError(popover, error);
-    if (!/changed/iu.test(errorMessage(error))) return;
+    if (!/changed/iu.test(errorMessage2(error))) return;
     void this.loadThread(detail.thread.bbThreadId, detail.thread.id).then(
       (fresh) => {
         if (this.#popover !== popover) return;
@@ -3418,7 +3469,7 @@ function mountTimelineCommentsController(context) {
 }
 
 // app.tsx
-function errorMessage2(error) {
+function errorMessage3(error) {
   return error instanceof Error ? error.message : "Something went wrong";
 }
 function excerpt(value, length) {
@@ -3538,7 +3589,7 @@ function AddCommentsAction() {
       });
       composer.focus();
     } catch (caught) {
-      if (isCurrentRequest()) setError(errorMessage2(caught));
+      if (isCurrentRequest()) setError(errorMessage3(caught));
     } finally {
       if (isCurrentRequest()) setBusy(false);
     }
@@ -3634,7 +3685,7 @@ function CommentPanel({ threadId }) {
         setNextCursor(page.nextCursor);
       } catch (caught) {
         if (!isCurrentLoad()) return;
-        setError(errorMessage2(caught));
+        setError(errorMessage3(caught));
       } finally {
         if (isCurrentLoad()) setLoading(false);
       }
@@ -3679,7 +3730,7 @@ function CommentPanel({ threadId }) {
         return next;
       });
     } catch (caught) {
-      if (request === revealRequest.current) setError(errorMessage2(caught));
+      if (request === revealRequest.current) setError(errorMessage3(caught));
     }
   };
   return /* @__PURE__ */ jsxs("section", { className: "bb-comments-panel", "aria-label": "Timeline comments", children: [
@@ -3784,7 +3835,7 @@ var app_default = definePluginApp((app) => {
     icon: "ChatFeedback",
     run(context) {
       if (context.selectedText === void 0) {
-        context.openPanel({ actionId: "comments", title: "Comments" });
+        context.openPanel({ actionId: "comments", title: "Comments List" });
       } else {
         beginTimelineComment(context);
       }

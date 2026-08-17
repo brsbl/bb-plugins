@@ -6,6 +6,10 @@ var __filename = __fileURLToPath(import.meta.url);
 var __dirname = __pathDirname(__filename);
 
 // core.ts
+function hasLegacyChildOrigin(thread) {
+  const { childOrigin } = thread;
+  return childOrigin === "fork" || childOrigin === "side-chat";
+}
 var SECTION_ALIASES = {
   bb: ["bb", "bb quick fixes"],
   design: ["design"],
@@ -113,7 +117,7 @@ function isSubstantiveText(value) {
   return !/^(?:https?:\/\/\S+|@[a-z0-9:_-]+)$/i.test(normalized);
 }
 function isManageableThread(thread) {
-  return thread.visibility === "visible" && thread.parentThreadId === null && thread.sourceThreadId === null && thread.originKind === null && thread.originPluginId === null && thread.archivedAt === null && thread.deletedAt === null;
+  return thread.visibility === "visible" && thread.parentThreadId === null && thread.sourceThreadId === null && thread.originKind === null && !hasLegacyChildOrigin(thread) && thread.originPluginId === null && thread.archivedAt === null && thread.deletedAt === null;
 }
 function isEligibleThread(thread) {
   return isManageableThread(thread) && thread.status !== "error" && thread.status !== "stopping";

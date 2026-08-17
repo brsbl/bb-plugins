@@ -470,7 +470,7 @@ export default definePluginApp((app) => {
     icon: "ChatFeedback",
     run(context) {
       if (context.selectedText === undefined) {
-        context.openPanel({ actionId: "comments", title: "Comments" });
+        context.openPanel({ actionId: "comments", title: "Comments List" });
       } else {
         beginTimelineComment(context);
       }

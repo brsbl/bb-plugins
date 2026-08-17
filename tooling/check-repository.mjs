@@ -4,10 +4,8 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { readPluginWorkspaces } from "./plugin-workspaces.mjs";
-import {
-  pluginSdkArchive,
-  pluginSdkVersion,
-} from "./plugin-sdk-provenance.mjs";
+import { pluginSdkEngineRange } from "./plugin-sdk-contract.mjs";
+import { pluginSdkArchive } from "./plugin-sdk-provenance.mjs";
 
 const defaultRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const nativeLoaderLockPaths = Object.freeze([
@@ -204,7 +202,7 @@ export async function checkRepository(repositoryRoot = defaultRoot, options = {}
       `${slug}: bb engine drift`,
     );
     assert(
-      manifest.engines?.bbPluginSdk === `^${pluginSdkVersion}`,
+      manifest.engines?.bbPluginSdk === pluginSdkEngineRange,
       `${slug}: SDK engine drift`,
     );
     if (manifest.devDependencies?.["@get-bb/plugin-sdk"] !== undefined) {

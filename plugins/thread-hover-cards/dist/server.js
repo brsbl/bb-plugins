@@ -15014,7 +15014,7 @@ var PULL_REQUEST_SIGNALS = {
 function isSidebarSectionThread(thread) {
   return thread.visibility === "visible" && thread.parentThreadId === null && thread.archivedAt === null && thread.deletedAt === null && thread.pinnedAt === null && // Side chats are hidden on current hosts. Keep this wide guard for legacy
   // rows that can still carry the pre-hidden-thread origin value at runtime.
-  !isSideChatOrigin(thread.originKind);
+  !isSideChatOrigin(thread.originKind) && !isSideChatOrigin(thread.childOrigin);
 }
 function isSideChatOrigin(value) {
   return value === "side-chat";

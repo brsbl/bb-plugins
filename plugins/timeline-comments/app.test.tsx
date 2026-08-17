@@ -103,7 +103,7 @@ describe("timeline comments app", () => {
     });
     expect(openPanel).toHaveBeenCalledWith({
       actionId: "comments",
-      title: "Comments",
+      title: "Comments List",
     });
 
     const beginComment = vi.fn();
