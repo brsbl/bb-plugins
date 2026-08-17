@@ -23,11 +23,17 @@ const ACTIVITY_BATCH_SIZE = 20;
 const GH_CONCURRENCY = 3;
 const GH_HINT = "Install the GitHub CLI and run `gh auth login`, then retry.";
 const RESOLVED_IDS_KEY_PREFIX = "resolved-notification-ids:";
+const RESOLVED_THROUGH_KEY_PREFIX = "resolved-notification-through:";
 
 interface GithubIdentity {
   host: string;
   key: string;
   login: string;
+}
+
+interface ResolvedCursor {
+  eventKey: string | null;
+  updatedAt: string;
 }
 
 const notificationItemSchema = z
@@ -43,6 +49,7 @@ const notificationItemSchema = z
     ]),
     actor: z.string().nullable(),
     avatarUrl: z.string().url().nullable(),
+    eventKey: z.string().nullable().optional(),
     number: z.number().int().positive(),
     repo: z.string(),
     resolved: z.boolean(),
@@ -261,6 +268,10 @@ function resolvedIdsKey(identity: GithubIdentity): string {
   return `${RESOLVED_IDS_KEY_PREFIX}${identity.key}`;
 }
 
+function resolvedThroughKey(identity: GithubIdentity): string {
+  return `${RESOLVED_THROUGH_KEY_PREFIX}${identity.key}`;
+}
+
 export function createGithubNotificationsPlugin(runGh: RunGh) {
   return function githubNotificationsPlugin(bb: BbPluginApi): void {
     let cache: {
@@ -282,6 +293,134 @@ export function createGithubNotificationsPlugin(runGh: RunGh) {
       return new Set(
         stored.filter((id): id is string => typeof id === "string"),
       );
+    }
+
+    async function loadResolvedState(identity: GithubIdentity): Promise<{
+      cursors: Map<string, ResolvedCursor>;
+      exists: boolean;
+      pendingLegacyIds: Set<string>;
+    }> {
+      const stored = await bb.storage.kv.get<unknown>(
+        resolvedThroughKey(identity),
+      );
+      if (stored === undefined) {
+        return {
+          cursors: new Map(),
+          exists: false,
+          pendingLegacyIds: new Set(),
+        };
+      }
+      if (typeof stored !== "object" || stored === null || Array.isArray(stored)) {
+        return {
+          cursors: new Map(),
+          exists: true,
+          pendingLegacyIds: new Set(),
+        };
+      }
+      const record = stored as Record<string, unknown>;
+      const rawCursors =
+        record.version === 1 &&
+        typeof record.cursors === "object" &&
+        record.cursors !== null &&
+        !Array.isArray(record.cursors)
+          ? (record.cursors as Record<string, unknown>)
+          : record;
+      const pendingLegacyIds =
+        record.version === 1 && Array.isArray(record.pendingLegacyIds)
+          ? new Set(
+              record.pendingLegacyIds.filter(
+                (id): id is string => typeof id === "string",
+              ),
+            )
+          : new Set<string>();
+      const cursors = new Map<string, ResolvedCursor>();
+      for (const [id, value] of Object.entries(rawCursors)) {
+        if (typeof value === "string" && Number.isFinite(Date.parse(value))) {
+          cursors.set(id, { eventKey: null, updatedAt: value });
+          continue;
+        }
+        if (
+          typeof value === "object" &&
+          value !== null &&
+          !Array.isArray(value) &&
+          "updatedAt" in value &&
+          typeof value.updatedAt === "string" &&
+          Number.isFinite(Date.parse(value.updatedAt)) &&
+          "eventKey" in value &&
+          (typeof value.eventKey === "string" || value.eventKey === null)
+        ) {
+          cursors.set(id, {
+            eventKey: value.eventKey,
+            updatedAt: value.updatedAt,
+          });
+        }
+      }
+      return { cursors, exists: true, pendingLegacyIds };
+    }
+
+    async function storeResolvedState(
+      identity: GithubIdentity,
+      cursors: Map<string, ResolvedCursor>,
+      pendingLegacyIds: Set<string>,
+    ): Promise<void> {
+      await bb.storage.kv.set(
+        resolvedThroughKey(identity),
+        {
+          cursors: Object.fromEntries(
+            [...cursors.entries()].sort(([left], [right]) =>
+              left.localeCompare(right),
+            ),
+          ),
+          pendingLegacyIds: [...pendingLegacyIds].sort(),
+          version: 1,
+        },
+      );
+    }
+
+    async function applyResolvedState(
+      identity: GithubIdentity,
+      items: NotificationsPayload["items"],
+    ): Promise<NotificationsPayload["items"]> {
+      const resolvedState = await loadResolvedState(identity);
+      const pendingLegacyIds = resolvedState.exists
+        ? resolvedState.pendingLegacyIds
+        : await loadResolvedIds(identity);
+      const cursors = resolvedState.cursors;
+      let stateChanged = !resolvedState.exists;
+      const nextItems = items.map((item) => {
+        let cursor = cursors.get(item.id);
+        if (cursor === undefined && pendingLegacyIds.has(item.id)) {
+          // Legacy state knew only the notification id. Snapshot the current
+          // event once so all later activity can reopen the thread.
+          cursor = {
+            eventKey: item.eventKey ?? null,
+            updatedAt: item.updatedAt,
+          };
+          cursors.set(item.id, cursor);
+          pendingLegacyIds.delete(item.id);
+          stateChanged = true;
+        }
+        const timestampOrder =
+          cursor === undefined
+            ? 1
+            : Date.parse(item.updatedAt) - Date.parse(cursor.updatedAt);
+        const sameEvent =
+          cursor !== undefined &&
+          timestampOrder === 0 &&
+          (cursor.eventKey === null ||
+            cursor.eventKey === (item.eventKey ?? null));
+        const resolved =
+          cursor !== undefined && (timestampOrder < 0 || sameEvent);
+        if (!resolved && cursor !== undefined) {
+          cursors.delete(item.id);
+          stateChanged = true;
+        }
+        return { ...item, resolved };
+      });
+      if (stateChanged) {
+        await storeResolvedState(identity, cursors, pendingLegacyIds);
+      }
+      return nextItems;
     }
 
     function withResolvedState<T>(run: () => Promise<T>): Promise<T> {
@@ -315,14 +454,13 @@ export function createGithubNotificationsPlugin(runGh: RunGh) {
           return refresh(confirmedIdentity, identityRetries + 1);
         }
         return withResolvedState(async () => {
-          const resolvedIds = await loadResolvedIds(identity);
           const payload = {
             ...previous.payload,
             fetchedAt: new Date(refreshedAtMs).toISOString(),
-            items: previous.payload.items.map((item) => ({
-              ...item,
-              resolved: resolvedIds.has(item.id),
-            })),
+            items: await applyResolvedState(
+              identity,
+              previous.payload.items,
+            ),
             login: identity.login,
           };
           cache = { identity, payload, fetchedAtMs: refreshedAtMs };
@@ -470,11 +608,7 @@ export function createGithubNotificationsPlugin(runGh: RunGh) {
                 Date.parse(right.updatedAt) - Date.parse(left.updatedAt),
             );
       return withResolvedState(async () => {
-        const resolvedIds = await loadResolvedIds(identity);
-        const items = refreshedItems.map((item) => ({
-          ...item,
-          resolved: resolvedIds.has(item.id),
-        }));
+        const items = await applyResolvedState(identity, refreshedItems);
         const payload = {
           fetchedAt: new Date(refreshedAtMs).toISOString(),
           items,
@@ -532,13 +666,18 @@ export function createGithubNotificationsPlugin(runGh: RunGh) {
             throw new Error("Load GitHub activity before updating its state.");
           }
           const identity = cache.identity;
-          const resolvedIds = await loadResolvedIds(identity);
-          if (resolved) resolvedIds.add(id);
-          else resolvedIds.delete(id);
-          await bb.storage.kv.set(
-            resolvedIdsKey(identity),
-            [...resolvedIds].sort(),
-          );
+          const item = cache.payload.items.find((candidate) => candidate.id === id);
+          const { cursors, pendingLegacyIds } = await loadResolvedState(identity);
+          pendingLegacyIds.delete(id);
+          if (resolved) {
+            cursors.set(id, {
+              eventKey: item?.eventKey ?? null,
+              updatedAt: item?.updatedAt ?? new Date().toISOString(),
+            });
+          } else {
+            cursors.delete(id);
+          }
+          await storeResolvedState(identity, cursors, pendingLegacyIds);
           if (cache.identity.key === identity.key) {
             cache = {
               ...cache,

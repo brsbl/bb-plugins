@@ -29,6 +29,7 @@ export interface GithubCommentNode {
 
 export interface GithubReviewNode {
   author?: GithubActor | null;
+  databaseId?: unknown;
   state?: unknown;
   submittedAt?: unknown;
 }
@@ -50,6 +51,7 @@ export interface GithubNotificationItem {
   activityKind: ActivityKind;
   actor: string | null;
   avatarUrl: string | null;
+  eventKey?: string | null;
   number: number;
   repo: string;
   resolved: boolean;
@@ -200,7 +202,7 @@ export function buildActivityQuery(args: {
     const row = rowIndex === null ? undefined : args.rows[rowIndex];
     const reviews =
       lookup.resourceKind === "pr"
-        ? "reviews(last: 20) { nodes { author { login avatarUrl } state submittedAt } }"
+        ? "reviews(last: 20) { nodes { author { login avatarUrl } databaseId state submittedAt } }"
         : "";
     return `${lookup.alias}: repository(owner: ${JSON.stringify(lookup.owner)}, name: ${JSON.stringify(lookup.repoName)}) {
       resource: ${resourceField}(number: ${lookup.number}) {
@@ -240,6 +242,7 @@ interface ActivityCandidate {
   actor: string;
   at: string;
   avatarUrl: string | null;
+  eventKey: string;
   kind: ActivityKind;
   label: string;
   matchesLatestComment: boolean;
@@ -344,6 +347,10 @@ function candidatesFromComments(
         actor,
         at,
         avatarUrl,
+        eventKey:
+          databaseId === null
+            ? `comment:${at}:${actor}`
+            : `comment:${databaseId}`,
         kind: mention ? "mention" : "comment",
         label: mention ? "Mention" : "New comment",
         matchesLatestComment:
@@ -386,6 +393,15 @@ function reviewCandidates(
     const avatarUrl = stringValue(review.author?.avatarUrl);
     const at = dateValue(review.submittedAt);
     const state = stringValue(review.state)?.toLocaleUpperCase();
+    const databaseId =
+      typeof review.databaseId === "number" &&
+      Number.isSafeInteger(review.databaseId)
+        ? review.databaseId
+        : null;
+    const eventKey =
+      databaseId === null
+        ? `review:${at}:${actor}:${state ?? "COMMENTED"}`
+        : `review:${databaseId}`;
     if (actor === null || at === null || actor === viewer) return [];
     if (state === "APPROVED") {
       return [
@@ -393,6 +409,7 @@ function reviewCandidates(
           actor,
           at,
           avatarUrl,
+          eventKey,
           kind: "approved",
           label: "Approved",
           matchesLatestComment: false,
@@ -405,6 +422,7 @@ function reviewCandidates(
           actor,
           at,
           avatarUrl,
+          eventKey,
           kind: "changes-requested",
           label: "Changes requested",
           matchesLatestComment: false,
@@ -416,6 +434,7 @@ function reviewCandidates(
         actor,
         at,
         avatarUrl,
+        eventKey,
         kind: "review",
         label: "New review",
         matchesLatestComment: false,
@@ -466,6 +485,7 @@ export function projectOwnedNotifications(args: {
       activityKind: activity.kind,
       actor: activity.actor || null,
       avatarUrl: activity.avatarUrl,
+      eventKey: activity.eventKey,
       number,
       repo: row.repository,
       resolved: false,

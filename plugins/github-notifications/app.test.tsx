@@ -126,6 +126,14 @@ describe("GitHub Activity panel", () => {
     expect(screen.queryByRole("columnheader", { name: /Last updated/u })).toBeNull();
     expect(screen.getByRole("columnheader", { name: "Status" })).toBeDefined();
     expect(screen.getAllByRole("columnheader")).toHaveLength(3);
+    expect(
+      screen.getByRole("combobox", { name: "Filter by status" }),
+    ).toBeDefined();
+    expect(screen.getByRole("table").className).not.toContain("min-w-[620px]");
+    expect(link.closest("tr")?.className).toContain("@max-[36rem]:grid");
+    expect(updatedTime.closest("td")?.className).toContain(
+      "@max-[36rem]:row-start-2",
+    );
 
     const activitySort = screen.getByRole("button", {
       name: "Sort Activity by time, descending",
@@ -162,35 +170,53 @@ describe("GitHub Activity panel", () => {
     expect(markUnresolved.checked).toBe(true);
     expect(markUnresolved.getAttribute("title")).toBe("Reopen");
     expect(markUnresolved.className).toContain("checked:bg-success");
+    fireEvent.change(
+      screen.getByRole("combobox", { name: "Filter by status" }),
+      { target: { value: "open" } },
+    );
     fireEvent.click(markResolved);
     await waitFor(() => {
       expect(slot.inspection.rpcCalls).toContainEqual({
         method: "setNotificationResolved",
         input: { id: "n1", resolved: true },
       });
-      expect(
-        (
-          screen.getByRole("checkbox", {
-            name: "Reopen: Scannable activity",
-          }) as HTMLInputElement
-        ).checked,
-      ).toBe(true);
+      expect(screen.queryByText("Scannable activity")).toBeNull();
     });
 
-    fireEvent.click(markUnresolved);
+    fireEvent.change(
+      screen.getByRole("combobox", { name: "Filter by status" }),
+      { target: { value: "resolved" } },
+    );
+    expect(
+      (
+        screen.getByRole("checkbox", {
+          name: "Reopen: Scannable activity",
+        }) as HTMLInputElement
+      ).checked,
+    ).toBe(true);
+
+    fireEvent.click(
+      screen.getByRole("checkbox", { name: "Reopen: Keep links local" }),
+    );
     await waitFor(() => {
       expect(slot.inspection.rpcCalls).toContainEqual({
         method: "setNotificationResolved",
         input: { id: "n2", resolved: false },
       });
-      expect(
-        (
-          screen.getByRole("checkbox", {
-            name: "Resolve: Keep links local",
-          }) as HTMLInputElement
-        ).checked,
-      ).toBe(false);
+      expect(screen.queryByText("Keep links local")).toBeNull();
     });
+
+    fireEvent.change(
+      screen.getByRole("combobox", { name: "Filter by status" }),
+      { target: { value: "open" } },
+    );
+    expect(
+      (
+        screen.getByRole("checkbox", {
+          name: "Resolve: Keep links local",
+        }) as HTMLInputElement
+      ).checked,
+    ).toBe(false);
 
     fireEvent.change(screen.getByRole("combobox", { name: "Filter by resource type" }), {
       target: { value: "issue" },
@@ -213,6 +239,50 @@ describe("GitHub Activity panel", () => {
     await waitFor(() => {
       expect(slot.inspection.rpcCalls.at(-1)).toEqual({ method: "listNotifications", input: { force: true } });
     });
+    slot.lifecycle.unmount();
+  });
+  it("keeps cached activity visible when a refresh fails", async () => {
+    const app = await loadPluginApp(() => import("./app"));
+    const panel = app.navPanels[0]!;
+    let calls = 0;
+    const slot = renderSlot(panel, { subPath: "" }, {
+      rpc: {
+        listNotifications: () => {
+          calls += 1;
+          if (calls > 1) throw new Error("GitHub is temporarily unavailable");
+          return {
+            fetchedAt: "2026-08-12T12:00:00Z",
+            login: "brsbl",
+            items: [
+              {
+                id: "n1",
+                activity: "New comment",
+                activityKind: "comment" as const,
+                actor: "alice",
+                avatarUrl: null,
+                number: 42,
+                repo: "get-bb/bb",
+                resolved: false,
+                resourceKind: "pr" as const,
+                title: "Keep stale activity visible",
+                unread: true,
+                updatedAt: "2026-08-12T12:00:00Z",
+                url: "https://github.com/get-bb/bb/pull/42",
+              },
+            ],
+          };
+        },
+        setNotificationResolved: (input) => input,
+      },
+    });
+
+    expect(await slot.findByText("Keep stale activity visible")).toBeDefined();
+    fireEvent.click(screen.getByRole("button", { name: "Refresh GitHub activity" }));
+    expect((await screen.findByRole("alert")).textContent).toContain(
+      "Couldn’t refresh GitHub activity",
+    );
+    expect(screen.getByText("Keep stale activity visible")).toBeDefined();
+    expect(screen.queryByText("Couldn’t load GitHub activity")).toBeNull();
     slot.lifecycle.unmount();
   });
 });
