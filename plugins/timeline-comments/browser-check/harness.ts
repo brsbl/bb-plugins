@@ -197,9 +197,9 @@ void (async () => {
     )
       throw new Error("Left-gutter cluster count is not gutter-side");
     const markerRect = overflow.getBoundingClientRect();
-    const proseRect = prose.getBoundingClientRect();
-    if (Math.abs(proseRect.left - markerRect.right - 8) > 1)
-      throw new Error("Gutter marker is not 8px from the message text");
+    const tableRect = prose.querySelector("table")!.getBoundingClientRect();
+    if (Math.abs(markerRect.left - tableRect.right - 8) > 1)
+      throw new Error("Gutter marker did not account for the table width");
     const tops = markers.map((marker) => marker.getBoundingClientRect().top);
     if (new Set(tops).size !== markers.length)
       throw new Error("Markers overlap vertically");
