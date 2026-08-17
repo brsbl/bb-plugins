@@ -151,6 +151,16 @@ try {
       `Edit input did not keep the browser-native focus outline: ${JSON.stringify(focusedEditInput)}`,
     );
   }
+  await page.locator('button[aria-label="Cancel comment edit"]').click();
+  const replyInput = page.locator(
+    'textarea[aria-label="Reply to comment thread"]',
+  );
+  await replyInput.waitFor({ state: "visible" });
+  await replyInput.fill("");
+  await page.locator('button[aria-label="Add comment context"]').click();
+  await page
+    .locator('.bb-comments-mention-menu[role="listbox"]')
+    .waitFor({ state: "visible" });
   await page.screenshot({ path: screenshot });
 } finally {
   await browser?.close();

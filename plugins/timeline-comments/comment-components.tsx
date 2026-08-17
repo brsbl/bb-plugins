@@ -19,6 +19,8 @@ import {
   CheckCheck,
   Command,
   CornerDownLeft,
+  File,
+  Folder,
   MessageSquareText,
   MoreHorizontal,
   Pencil,
@@ -30,6 +32,7 @@ import {
 import type { PluginRpcClient } from "@bb/plugin-sdk/app";
 import type {
   TimelineComment,
+  TimelineContextMention,
   TimelineCommentThreadDetail,
   timelineCommentsRpcContract,
 } from "./server.js";
@@ -269,6 +272,10 @@ interface CommentTextInputProps {
   autoFocus?: boolean;
   onCancel?: () => void;
   submitPending?: boolean;
+  searchMentions: (query: string) => Promise<{
+    items: TimelineContextMention[];
+    truncated: boolean;
+  }>;
 }
 
 function CommentTextInput({
@@ -282,6 +289,7 @@ function CommentTextInput({
   autoFocus = false,
   onCancel,
   submitPending = false,
+  searchMentions,
 }: CommentTextInputProps) {
   const rootRef = useRef<HTMLDivElement | null>(null);
   const inputContentRef = useRef<HTMLDivElement | null>(null);
@@ -295,6 +303,21 @@ function CommentTextInput({
   const responsiveAnimationCleanupTimerRef = useRef<number | null>(null);
   const responsiveMeasurementFrameRef = useRef<number | null>(null);
   const [responsiveFooterLatched, setResponsiveFooterLatched] = useState(false);
+  const [mentionRange, setMentionRange] = useState<{
+    start: number;
+    end: number;
+    query: string;
+  } | null>(null);
+  const [mentionItems, setMentionItems] = useState<TimelineContextMention[]>([]);
+  const [mentionLoading, setMentionLoading] = useState(false);
+  const [mentionError, setMentionError] = useState(false);
+  const [activeMentionIndex, setActiveMentionIndex] = useState(0);
+  const [mentionMenuPosition, setMentionMenuPosition] = useState({
+    bottom: 8,
+    left: 8,
+    width: 280,
+  });
+  const mentionRequestRef = useRef(0);
   const hasExplicitLineBreak = value.includes("\n");
   const responsiveExpansionRequested =
     hasExplicitLineBreak || responsiveFooterLatched;
@@ -597,6 +620,109 @@ function CommentTextInput({
     return () => cancelAnimationFrame(frame);
   }, [autoFocus]);
 
+  useEffect(() => {
+    if (mentionRange === null) return;
+    const request = mentionRequestRef.current + 1;
+    mentionRequestRef.current = request;
+    setMentionLoading(true);
+    setMentionError(false);
+    void searchMentions(mentionRange.query)
+      .then(({ items }) => {
+        if (mentionRequestRef.current !== request) return;
+        setMentionItems(items);
+        setActiveMentionIndex(0);
+      })
+      .catch(() => {
+        if (mentionRequestRef.current !== request) return;
+        setMentionItems([]);
+        setMentionError(true);
+      })
+      .finally(() => {
+        if (mentionRequestRef.current === request) setMentionLoading(false);
+      });
+  }, [mentionRange?.query, searchMentions]);
+
+  useLayoutEffect(() => {
+    if (mentionRange === null) return;
+    const updatePosition = () => {
+      const textarea = textareaRef.current;
+      if (!textarea) return;
+      const rect = textarea.getBoundingClientRect();
+      const width = Math.max(240, Math.min(360, rect.width));
+      setMentionMenuPosition({
+        bottom: Math.max(8, window.innerHeight - rect.top + 4),
+        left: Math.max(8, Math.min(window.innerWidth - width - 8, rect.left)),
+        width,
+      });
+    };
+    updatePosition();
+    window.addEventListener("resize", updatePosition);
+    window.addEventListener("scroll", updatePosition, true);
+    return () => {
+      window.removeEventListener("resize", updatePosition);
+      window.removeEventListener("scroll", updatePosition, true);
+    };
+  }, [mentionRange !== null]);
+
+  const closeMentionMenu = useCallback(() => {
+    mentionRequestRef.current += 1;
+    setMentionRange(null);
+    setMentionItems([]);
+    setMentionLoading(false);
+    setMentionError(false);
+  }, []);
+
+  useEffect(() => {
+    if (mentionRange === null) return;
+    const closeOnOutsidePointer = (event: PointerEvent) => {
+      if (!(event.target instanceof Element)) return;
+      if (
+        rootRef.current?.contains(event.target) ||
+        event.target.closest(".bb-comments-mention-menu") !== null
+      ) {
+        return;
+      }
+      closeMentionMenu();
+    };
+    document.addEventListener("pointerdown", closeOnOutsidePointer, true);
+    return () =>
+      document.removeEventListener("pointerdown", closeOnOutsidePointer, true);
+  }, [closeMentionMenu, mentionRange]);
+
+  const updateMentionFromValue = useCallback(
+    (nextValue: string, caret: number) => {
+      const prefix = nextValue.slice(0, caret);
+      const match = /(?:^|\s)@([^\s@]*)$/u.exec(prefix);
+      if (!match) {
+        closeMentionMenu();
+        return;
+      }
+      const query = match[1] ?? "";
+      setMentionRange({
+        start: caret - query.length - 1,
+        end: caret,
+        query,
+      });
+    },
+    [closeMentionMenu],
+  );
+
+  const selectMention = useCallback(
+    (mention: TimelineContextMention) => {
+      if (mentionRange === null) return;
+      const inserted = `@${mention.path} `;
+      const nextValue = `${value.slice(0, mentionRange.start)}${inserted}${value.slice(mentionRange.end)}`;
+      const nextCaret = mentionRange.start + inserted.length;
+      onChange(nextValue);
+      closeMentionMenu();
+      window.requestAnimationFrame(() => {
+        textareaRef.current?.focus({ preventScroll: true });
+        textareaRef.current?.setSelectionRange(nextCaret, nextCaret);
+      });
+    },
+    [closeMentionMenu, mentionRange, onChange, value],
+  );
+
   const insertMentionTrigger = useCallback(() => {
     const textarea = textareaRef.current;
     if (!textarea) return;
@@ -604,6 +730,7 @@ function CommentTextInput({
     const end = textarea.selectionEnd;
     const nextValue = `${value.slice(0, start)}@${value.slice(end)}`;
     onChange(nextValue);
+    setMentionRange({ start, end: start + 1, query: "" });
     window.requestAnimationFrame(() => {
       textarea.focus({ preventScroll: true });
       textarea.setSelectionRange(start + 1, start + 1);
@@ -678,9 +805,40 @@ function CommentTextInput({
               maxLength={20_000}
               readOnly={submitPending}
               aria-disabled={submitPending || undefined}
+              aria-autocomplete="list"
+              aria-expanded={mentionRange !== null}
+              aria-haspopup="listbox"
               value={value}
-              onChange={(event) => onChange(event.currentTarget.value)}
+              onChange={(event) => {
+                const nextValue = event.currentTarget.value;
+                const caret = event.currentTarget.selectionStart;
+                onChange(nextValue);
+                updateMentionFromValue(nextValue, caret);
+              }}
               onKeyDown={(event) => {
+                if (mentionRange !== null) {
+                  if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+                    event.preventDefault();
+                    const direction = event.key === "ArrowDown" ? 1 : -1;
+                    setActiveMentionIndex((current) =>
+                      mentionItems.length === 0
+                        ? 0
+                        : (current + direction + mentionItems.length) %
+                          mentionItems.length,
+                    );
+                    return;
+                  }
+                  if (event.key === "Enter" && mentionItems.length > 0) {
+                    event.preventDefault();
+                    selectMention(mentionItems[activeMentionIndex] ?? mentionItems[0]!);
+                    return;
+                  }
+                  if (event.key === "Escape") {
+                    event.preventDefault();
+                    closeMentionMenu();
+                    return;
+                  }
+                }
                 if (event.key === "Escape" && onCancel && !submitPending) {
                   event.preventDefault();
                   onCancel();
@@ -692,6 +850,49 @@ function CommentTextInput({
                 }
               }}
             />
+            {mentionRange !== null ? createPortal(
+              <div
+                className="bb-comments-mention-menu"
+                role="listbox"
+                aria-label="Workspace files and folders"
+                style={mentionMenuPosition}
+              >
+                {mentionItems.map((mention, index) => (
+                  <button
+                    key={`${mention.kind}:${mention.path}`}
+                    type="button"
+                    role="option"
+                    aria-selected={index === activeMentionIndex}
+                    data-mention-path={mention.path}
+                    onMouseDown={(event) => event.preventDefault()}
+                    onMouseEnter={() => setActiveMentionIndex(index)}
+                    onClick={() => selectMention(mention)}
+                  >
+                    {mention.kind === "directory" ? (
+                      <Folder aria-hidden="true" />
+                    ) : (
+                      <File aria-hidden="true" />
+                    )}
+                    <span>{mention.name}</span>
+                    <small>{mention.path}</small>
+                  </button>
+                ))}
+                {mentionLoading ? (
+                  <div className="bb-comments-mention-status" role="status">
+                    Searching…
+                  </div>
+                ) : mentionError ? (
+                  <div className="bb-comments-mention-status" role="status">
+                    Couldn’t load workspace paths
+                  </div>
+                ) : mentionItems.length === 0 ? (
+                  <div className="bb-comments-mention-status" role="status">
+                    No matching files or folders
+                  </div>
+                ) : null}
+              </div>,
+              document.body,
+            ) : null}
           </div>
         </div>
         {error ? <div className="bb-comments-error" role="status">{error}</div> : null}
@@ -778,6 +979,7 @@ interface CommentMessageProps {
   onCancelEdit: () => void;
   onSaveEdit: (body: string) => void;
   onDelete: () => void;
+  searchMentions: CommentTextInputProps["searchMentions"];
 }
 
 function CommentMessage({
@@ -790,6 +992,7 @@ function CommentMessage({
   onCancelEdit,
   onSaveEdit,
   onDelete,
+  searchMentions,
 }: CommentMessageProps) {
   const rowRef = useRef<HTMLElement | null>(null);
   const editDraftKey = `bb.timeline-comments.edit:${comment.id}`;
@@ -1013,6 +1216,7 @@ function CommentMessage({
             autoFocus
             onCancel={() => runModeTransition(cancelEdit)}
             submitPending={submitPending}
+            searchMentions={searchMentions}
           />
         ) : (
           <p className="bb-comments-comment-body">{comment.body}</p>
@@ -1038,6 +1242,14 @@ function MossCommentPopover({
   onSendToAgent,
 }: MossCommentPopoverProps) {
   const [detail, setDetail] = useState(initialDetail);
+  const searchMentions = useCallback(
+    (query: string) =>
+      rpc.call("searchContextMentions", {
+        bbThreadId: detail.thread.bbThreadId,
+        query,
+      }),
+    [detail.thread.bbThreadId, rpc],
+  );
   const [editingId, setEditingId] = useState<string | null>(null);
   const replyDraftKey = `bb.timeline-comments.reply:${initialDetail.thread.id}`;
   const [replyText, setReplyText] = useState(
@@ -1246,6 +1458,7 @@ function MossCommentPopover({
               if (!window.confirm(comment.parentId === null ? "Delete this comment thread?" : "Delete this reply?")) return;
               void removeComment(comment);
             }}
+            searchMentions={searchMentions}
           />
         ))}
       </div>
@@ -1293,6 +1506,7 @@ function MossCommentPopover({
                 placeholder="Reply..."
                 ariaLabel="Reply to comment thread"
                 submitPending={busy}
+                searchMentions={searchMentions}
               />
             </div>
             <div
@@ -1332,6 +1546,8 @@ export function mountMossCommentPopover(
 }
 
 export interface MountMossCommentComposerOptions {
+  rpc: Rpc;
+  bbThreadId: string;
   initialValue: string;
   onChange: (value: string) => void;
   onCancel: () => void;
@@ -1339,6 +1555,8 @@ export interface MountMossCommentComposerOptions {
 }
 
 function MossNewCommentComposer({
+  rpc,
+  bbThreadId,
   initialValue,
   onChange,
   onCancel,
@@ -1348,6 +1566,11 @@ function MossNewCommentComposer({
   const [busy, setBusy] = useState(false);
   const busyRef = useRef(false);
   const [error, setError] = useState<string | null>(null);
+  const searchMentions = useCallback(
+    (query: string) =>
+      rpc.call("searchContextMentions", { bbThreadId, query }),
+    [bbThreadId, rpc],
+  );
   return (
     <div className="bb-comments-new-comment-input" data-comment-new-composer="true">
       <CommentTextInput
@@ -1377,6 +1600,7 @@ function MossNewCommentComposer({
         ariaLabel="Add a comment"
         autoFocus
         submitPending={busy}
+        searchMentions={searchMentions}
       />
       {error ? <div className="bb-comments-error" role="status">{error}</div> : null}
     </div>

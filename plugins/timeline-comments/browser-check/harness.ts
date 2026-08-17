@@ -70,6 +70,14 @@ window.fetch = async (input, init) => {
     let result: unknown;
     if (method === "listOpenAnchors") {
       result = { anchors: summaries, nextCursor: null };
+    } else if (method === "searchContextMentions") {
+      result = {
+        items: [
+          { kind: "file", name: "app.tsx", path: "src/app.tsx" },
+          { kind: "directory", name: "components", path: "src/components" },
+        ],
+        truncated: false,
+      };
     } else if (method === "getCommentThread") {
       const summary = summaries[0]!;
       result = {
@@ -277,6 +285,30 @@ void (async () => {
     await wait(250);
     if (replyComposer.dataset.mentionInputExpanded !== "false")
       throw new Error("Cleared reply did not restore inline layout");
+    popover
+      .querySelector<HTMLButtonElement>(
+        'button[aria-label="Add comment context"]',
+      )
+      ?.click();
+    await wait(80);
+    const mentionMenu = document.querySelector<HTMLElement>(
+      ".bb-comments-mention-menu",
+    );
+    const mentionOption = mentionMenu?.querySelector<HTMLButtonElement>(
+      '[role="option"][data-mention-path="src/app.tsx"]',
+    );
+    if (
+      mentionMenu === null ||
+      mentionOption === null ||
+      popover.contains(mentionMenu) ||
+      !withinViewport(mentionMenu.getBoundingClientRect())
+    ) {
+      throw new Error("Workspace mention picker did not open as a visible portal");
+    }
+    mentionOption.click();
+    await wait(30);
+    if (reply.value !== "@src/app.tsx ")
+      throw new Error("Workspace mention picker did not insert the selected path");
     setTextareaValue(reply, "Ready");
     if (CSS.highlights.get("bb-timeline-comments")?.size !== 8) {
       throw new Error("Custom Highlight registry did not retain every anchor");

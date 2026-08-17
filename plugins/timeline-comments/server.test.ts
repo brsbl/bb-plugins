@@ -64,6 +64,69 @@ async function createComment(
 }
 
 describe("timeline comments backend", () => {
+  it("searches the current thread workspace for mentionable files and folders", async () => {
+    const host = createFakePluginHost({
+      pluginId: "timeline-comments",
+      sdk: {
+        threads: {
+          get: () =>
+            makeThreadResponse({
+              id: "thr_1",
+              projectId: "proj_1",
+              environmentId: "env_1",
+            }),
+        },
+        projects: {
+          paths: () => ({
+            paths: [
+              {
+                kind: "directory" as const,
+                name: "components",
+                path: "src/components",
+                score: 1,
+                positions: [0],
+              },
+              {
+                kind: "file" as const,
+                name: "app.tsx",
+                path: "src/app.tsx",
+                score: 0.9,
+                positions: [4],
+              },
+            ],
+            truncated: false,
+          }),
+        },
+      },
+    });
+    await plugin(host.bb);
+
+    await expect(
+      host.harness.callRpc("searchContextMentions", {
+        bbThreadId: "thr_1",
+        query: "app",
+      }),
+    ).resolves.toEqual({
+      items: [
+        { kind: "directory", name: "components", path: "src/components" },
+        { kind: "file", name: "app.tsx", path: "src/app.tsx" },
+      ],
+      truncated: false,
+    });
+    expect(host.harness.sdk.callsTo("projects.paths")).toEqual([
+      [
+        {
+          projectId: "proj_1",
+          environmentId: "env_1",
+          includeFiles: "true",
+          includeDirectories: "true",
+          limit: "20",
+          query: "app",
+        },
+      ],
+    ]);
+  });
+
   it("enforces foreign keys and creates a scoped root thread before publishing", async () => {
     const host = await loadPlugin();
     const db = host.bb.storage.database();
