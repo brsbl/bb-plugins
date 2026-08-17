@@ -1216,10 +1216,10 @@ var THREAD_TRIGGER_SELECTOR = "a[data-sidebar-thread-id]";
 var THREAD_ROW_SELECTOR = ".group\\/thread-row";
 var SECTION_TOGGLE_SELECTOR = 'button[aria-expanded][aria-label$=" section"]';
 var STICKY_GROUP_SELECTOR = "[data-sidebar-sticky-group]";
-var SECTION_ID_SELECTOR = "[data-sidebar-section-id]";
-var PROJECT_ID_SELECTOR = "[data-sidebar-project-id]";
+var PROJECT_ITEM_SELECTOR = "[data-sidebar-sticky-project-item]";
 var SECTION_SUMMARY_CACHE_TTL_MS = 4e3;
 var SECTION_CACHE_MAX_ENTRIES = 32;
+var SECTION_UNKNOWN_TTL_MS = 6e4;
 var OPEN_DELAY_MS = 0;
 var CLOSE_DELAY_MS = 120;
 var ACTIVE_SUMMARY_CACHE_TTL_MS = 2e3;
@@ -1401,62 +1401,42 @@ function findThreadTrigger(target) {
   const row = target.closest(THREAD_ROW_SELECTOR);
   return row?.querySelector(THREAD_TRIGGER_SELECTOR) ?? null;
 }
+function sectionLabelOf(toggle) {
+  return /^(?:Expand|Collapse) (.+) section$/.exec(
+    toggle.getAttribute("aria-label") ?? ""
+  )?.[1] ?? null;
+}
 function sectionToggleOwnedBy(row) {
   const toggle = row.querySelector(SECTION_TOGGLE_SELECTOR);
   return toggle?.parentElement?.parentElement === row ? toggle : null;
 }
-function isSidebarHeaderTarget(target) {
-  if (!(target instanceof Element)) return false;
-  const root = target.closest(STICKY_GROUP_SELECTOR);
-  if (!root) return false;
-  let candidate = target;
-  while (candidate && candidate !== root.parentElement) {
-    if (sectionToggleOwnedBy(candidate)) return true;
-    candidate = candidate.parentElement;
-  }
-  return false;
+function isProjectHeaderRow(row) {
+  return row.closest(STICKY_GROUP_SELECTOR)?.parentElement?.matches(
+    PROJECT_ITEM_SELECTOR
+  ) === true;
 }
-function projectIdFor(row) {
-  const value = row.closest(PROJECT_ID_SELECTOR)?.dataset.sidebarProjectId?.trim();
-  return value || null;
+function enclosingProjectName(row) {
+  const projectItem = row.closest(PROJECT_ITEM_SELECTOR);
+  const projectToggle = projectItem?.querySelector(SECTION_TOGGLE_SELECTOR);
+  return projectToggle == null ? null : sectionLabelOf(projectToggle);
 }
 function findSectionTrigger(target) {
   const root = target instanceof Element ? target.closest(STICKY_GROUP_SELECTOR) : null;
-  const sectionId = root instanceof HTMLElement ? root.dataset.sidebarSectionId?.trim() : null;
-  if (!(root instanceof HTMLElement) || !sectionId) return null;
+  if (root === null) return null;
   let candidate = target;
   while (candidate && candidate !== root.parentElement) {
     const toggle = sectionToggleOwnedBy(candidate);
     if (toggle) {
+      const name = sectionLabelOf(toggle);
+      if (name === null || isProjectHeaderRow(candidate)) return null;
       return {
-        projectId: projectIdFor(candidate),
+        name,
+        projectName: enclosingProjectName(candidate),
         row: candidate,
-        sectionId,
         toggle
       };
     }
     candidate = candidate.parentElement;
-  }
-  return null;
-}
-function findCurrentSectionTrigger(sectionId, projectId) {
-  for (const group of Array.from(
-    document.querySelectorAll(SECTION_ID_SELECTOR)
-  )) {
-    if (group.dataset.sidebarSectionId?.trim() !== sectionId) continue;
-    if (projectIdFor(group) !== projectId) continue;
-    const row = Array.from(group.children).find(
-      (child) => child instanceof HTMLElement && sectionToggleOwnedBy(child) !== null
-    );
-    if (!row) continue;
-    const toggle = sectionToggleOwnedBy(row);
-    if (!toggle) continue;
-    return {
-      projectId,
-      row,
-      sectionId,
-      toggle
-    };
   }
   return null;
 }
@@ -2666,13 +2646,13 @@ function installHoverCards({ onOpen }) {
     closeCard
   };
 }
-async function fetchSectionSummary(sectionId, projectId, signal) {
+async function fetchSectionSummary(name, projectName, signal) {
   const response = await fetch(
     "/api/v1/plugins/thread-hover-cards/rpc/sectionSummary",
     {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ projectId, sectionId }),
+      body: JSON.stringify({ name, projectName }),
       signal
     }
   );
@@ -2694,13 +2674,13 @@ function installSectionHoverCards({
   let disposed = false;
   const cache = /* @__PURE__ */ new Map();
   const pending = /* @__PURE__ */ new Map();
+  const unknownSections = /* @__PURE__ */ new Map();
   const style = element("style", "");
   style.id = SECTION_STYLE_ID;
   style.textContent = SECTION_CARD_CSS;
   document.getElementById(SECTION_STYLE_ID)?.remove();
   document.head.append(style);
-  const keyOf = (target) => JSON.stringify([target.sectionId, target.projectId]);
-  const sameIdentity = (left, right) => left !== null && right !== null && left.sectionId === right.sectionId && left.projectId === right.projectId;
+  const keyOf = (target) => JSON.stringify([target.name, target.projectName]);
   function ensureCard() {
     if (card) return card;
     card = element("div", "bb-thread-hover-card");
@@ -2717,25 +2697,8 @@ function installSectionHoverCards({
     document.body.append(card);
     return card;
   }
-  function refreshActiveAnchor() {
-    if (!active) return false;
-    const current = findCurrentSectionTrigger(
-      active.sectionId,
-      active.projectId
-    );
-    if (!current) {
-      closeCard();
-      return false;
-    }
-    if (current.row !== active.row || current.toggle !== active.toggle) {
-      active.toggle.removeAttribute("aria-describedby");
-      active = current;
-      active.toggle.setAttribute("aria-describedby", SECTION_CARD_ID);
-    }
-    return true;
-  }
   function position() {
-    if (!card || card.hidden || !refreshActiveAnchor() || !active) return;
+    if (!card || card.hidden || !active?.row.isConnected) return;
     placeCardNear(card, active.row);
   }
   function abortPendingRequests() {
@@ -2775,10 +2738,14 @@ function installSectionHoverCards({
     const controller = new AbortController();
     pending.set(key, controller);
     return fetchSectionSummary(
-      target.sectionId,
-      target.projectId,
+      target.name,
+      target.projectName,
       controller.signal
     ).then((summary) => {
+      if (!summary.known) {
+        unknownSections.set(key, Date.now());
+        return summary;
+      }
       cache.delete(key);
       cache.set(key, { fetchedAt: Date.now(), summary });
       while (cache.size > SECTION_CACHE_MAX_ENTRIES) {
@@ -2792,7 +2759,12 @@ function installSectionHoverCards({
     });
   }
   function showCard(target) {
+    const knownUnknownAt = unknownSections.get(keyOf(target));
     if (disposed) return;
+    if (knownUnknownAt !== void 0 && Date.now() - knownUnknownAt < SECTION_UNKNOWN_TTL_MS) {
+      closeCard();
+      return;
+    }
     onOpen();
     cancelClose();
     abortPendingRequests();
@@ -2815,6 +2787,10 @@ function installSectionHoverCards({
       return;
     }
     void requestSummary(target).then((summary) => {
+      if (!summary.known) {
+        if (!disposed && requestGeneration === generation) closeCard();
+        return;
+      }
       if (disposed || requestGeneration !== generation) return;
       renderSectionSummary(hoverCard, summary);
       requestAnimationFrame(position);
@@ -2828,17 +2804,8 @@ function installSectionHoverCards({
   function onPointerOver(event) {
     if (event.pointerType === "touch") return;
     const target = findSectionTrigger(event.target);
-    if (!target) {
-      if (isSidebarHeaderTarget(event.target)) closeCard();
-      return;
-    }
-    if (sameIdentity(active, target) && card && !card.hidden) {
-      if (active?.toggle !== target.toggle) {
-        active?.toggle.removeAttribute("aria-describedby");
-        active = target;
-        active.toggle.setAttribute("aria-describedby", SECTION_CARD_ID);
-        requestAnimationFrame(position);
-      }
+    if (!target) return;
+    if (active?.row === target.row && card && !card.hidden) {
       cancelClose();
       return;
     }
@@ -2846,7 +2813,7 @@ function installSectionHoverCards({
   }
   function onPointerOut(event) {
     if (!findSectionTrigger(event.target)) return;
-    if (sameIdentity(findSectionTrigger(event.relatedTarget), active)) return;
+    if (findSectionTrigger(event.relatedTarget)?.row === active?.row) return;
     if (event.relatedTarget instanceof Node && card?.contains(event.relatedTarget)) {
       return;
     }
@@ -2855,13 +2822,7 @@ function installSectionHoverCards({
   function onFocusIn(event) {
     const target = findSectionTrigger(event.target);
     if (target) {
-      if (sameIdentity(active, target) && card && !card.hidden) {
-        if (active?.toggle !== target.toggle) {
-          active?.toggle.removeAttribute("aria-describedby");
-          active = target;
-          active.toggle.setAttribute("aria-describedby", SECTION_CARD_ID);
-          requestAnimationFrame(position);
-        }
+      if (active?.row === target.row && card && !card.hidden) {
         cancelClose();
         return;
       }
@@ -2883,11 +2844,6 @@ function installSectionHoverCards({
   document.addEventListener("click", onClick);
   window.addEventListener("resize", position);
   window.addEventListener("scroll", position, true);
-  const anchorObserver = new MutationObserver(() => {
-    if (!active || !card || card.hidden) return;
-    if (refreshActiveAnchor()) requestAnimationFrame(position);
-  });
-  anchorObserver.observe(document.body, { childList: true, subtree: true });
   return {
     dispose() {
       disposed = true;
@@ -2899,11 +2855,11 @@ function installSectionHoverCards({
       document.removeEventListener("click", onClick);
       window.removeEventListener("resize", position);
       window.removeEventListener("scroll", position, true);
-      anchorObserver.disconnect();
       card?.remove();
       card = null;
       style.remove();
       cache.clear();
+      unknownSections.clear();
       for (const controller of pending.values()) controller.abort();
       pending.clear();
     },
@@ -2965,5 +2921,6 @@ var app_default = definePluginApp(() => {
 export {
   app_default as default,
   findSectionTrigger,
-  renderSectionSummary
+  renderSectionSummary,
+  sectionLabelOf
 };

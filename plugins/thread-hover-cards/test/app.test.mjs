@@ -45,7 +45,7 @@ const emptyDiagnostics = { startedAt: 0, stages: [], totalMs: 0 };
 const SECTION_NOW = testNow;
 const sectionSummaries = new Map([
   [
-      "sec_design",
+    "Design",
     {
       diagnostics: emptyDiagnostics,
       failed: 1,
@@ -58,7 +58,7 @@ const sectionSummaries = new Map([
     },
   ],
   [
-      "sec_writing",
+    "Writing",
     {
       diagnostics: emptyDiagnostics,
       failed: 0,
@@ -71,7 +71,7 @@ const sectionSummaries = new Map([
     },
   ],
   [
-      "sec_quiet",
+    "Quiet",
     {
       diagnostics: emptyDiagnostics,
       failed: 0,
@@ -84,20 +84,20 @@ const sectionSummaries = new Map([
     },
   ],
   [
-      "sec_custom_pinned",
+    "Pinned",
     {
       diagnostics: emptyDiagnostics,
       failed: 0,
-        known: true,
-        projects: ["Personal"],
+      known: false,
+      projects: [],
       questions: 0,
-        total: 1,
+      total: 0,
       unread: 0,
       working: 0,
     },
   ],
   [
-      "sec_delayed_a",
+    "Delayed A",
     {
       diagnostics: emptyDiagnostics,
       failed: 0,
@@ -110,7 +110,7 @@ const sectionSummaries = new Map([
     },
   ],
   [
-      "sec_delayed_b",
+    "Delayed B",
     {
       diagnostics: emptyDiagnostics,
       failed: 0,
@@ -118,19 +118,6 @@ const sectionSummaries = new Map([
       projects: [],
       questions: 0,
       total: 2,
-      unread: 0,
-      working: 0,
-    },
-  ],
-  [
-    "sec_rebind",
-    {
-      diagnostics: emptyDiagnostics,
-      failed: 0,
-      known: true,
-      projects: ["bb"],
-      questions: 0,
-      total: 1,
       unread: 0,
       working: 0,
     },
@@ -150,7 +137,7 @@ const delayedPullRequestResponses = new Map();
 const delayNextSectionFor = new Set();
 const delayedSectionResponses = new Map();
 const abortedSummaryThreadIds = [];
-const abortedSectionIds = [];
+const abortedSectionNames = [];
 let activeDelayedSummaryRequests = 0;
 let maxActiveDelayedSummaryRequests = 0;
 let idleRestartIsActive = false;
@@ -201,7 +188,7 @@ globalThis.fetch = async (url, init) => {
   const request = JSON.parse(init.body);
   if (String(url).endsWith("/sectionSummary")) {
     sectionRequestBodies.push(request);
-    const summary = sectionSummaries.get(request.sectionId);
+    const summary = sectionSummaries.get(request.name);
     if (!summary) {
       return new Response(
         JSON.stringify({ ok: false, error: { message: "Unknown section." } }),
@@ -214,12 +201,12 @@ globalThis.fetch = async (url, init) => {
     );
     return (
       deferResponse({
-        abortedIds: abortedSectionIds,
+        abortedIds: abortedSectionNames,
         delayedThreads: delayNextSectionFor,
         resolvers: delayedSectionResponses,
         response,
         signal: init.signal,
-        threadId: request.sectionId,
+        threadId: request.name,
       }) ?? response
     );
   }
@@ -1627,12 +1614,9 @@ assert.ok(
 );
 
 // Section hover cards.
-function sectionHeaderRow(label, sectionId = null, stickyTier = "label") {
-  const group = window.document.createElement("div");
-  group.dataset.sidebarStickyGroup = "";
-  if (sectionId !== null) group.dataset.sidebarSectionId = sectionId;
+function sectionHeaderRow(label) {
   const row = window.document.createElement("div");
-  if (stickyTier !== null) row.dataset.sidebarStickyTier = stickyTier;
+  row.dataset.sidebarStickyTier = "label";
   const titleGroup = window.document.createElement("span");
   const title = window.document.createElement("span");
   title.textContent = label;
@@ -1641,8 +1625,7 @@ function sectionHeaderRow(label, sectionId = null, stickyTier = "label") {
   toggle.setAttribute("aria-label", `Collapse ${label} section`);
   titleGroup.append(title, toggle);
   row.append(titleGroup);
-  group.append(row);
-  return { group, row, title, toggle };
+  return { row, title, toggle };
 }
 
 function hoverOver(node) {
@@ -1665,9 +1648,14 @@ assert.match(
 
 const sectionGroup = window.document.createElement("div");
 sectionGroup.dataset.sidebarStickyGroup = "";
-const designHeader = sectionHeaderRow("Design", "sec_design");
-sectionGroup.append(designHeader.group);
+const designHeader = sectionHeaderRow("Design");
+sectionGroup.append(designHeader.row);
 window.document.body.append(sectionGroup);
+assert.equal(
+  sectionGroup.querySelector("[data-sidebar-section-id], [data-sidebar-project-id]"),
+  null,
+  "models the 0.0.34 sidebar DOM without stable section or project ids",
+);
 
 hoverOver(designHeader.title);
 await new Promise((resolve) => setTimeout(resolve, 20));
@@ -1682,8 +1670,8 @@ assert.equal(
 );
 assert.equal(designHeader.row.hasAttribute("aria-describedby"), false);
 assert.deepEqual(sectionRequestBodies.at(-1), {
-  projectId: null,
-  sectionId: "sec_design",
+  name: "Design",
+  projectName: null,
 });
 // Band 1: the projects the section spans, two names then +N.
 assert.deepEqual(
@@ -1738,20 +1726,20 @@ assert.equal(
 );
 
 // Switching sections aborts the full summary request for the superseded row.
-const delayedAHeader = sectionHeaderRow("Delayed A", "sec_delayed_a");
-const delayedBHeader = sectionHeaderRow("Delayed B", "sec_delayed_b");
-sectionGroup.append(delayedAHeader.group, delayedBHeader.group);
+const delayedAHeader = sectionHeaderRow("Delayed A");
+const delayedBHeader = sectionHeaderRow("Delayed B");
+sectionGroup.append(delayedAHeader.row, delayedBHeader.row);
 hoverOver(delayedBHeader.title);
 await new Promise((resolve) => setTimeout(resolve, 20));
 assert.match(sectionCard.textContent, /2 threads/);
-delayNextSectionFor.add("sec_delayed_a");
+delayNextSectionFor.add("Delayed A");
 hoverOver(delayedAHeader.title);
 await new Promise((resolve) => setTimeout(resolve, 0));
-assert.ok(delayedSectionResponses.has("sec_delayed_a"));
+assert.ok(delayedSectionResponses.has("Delayed A"));
 hoverOver(delayedBHeader.title);
 await new Promise((resolve) => setTimeout(resolve, 20));
 assert.ok(
-  abortedSectionIds.includes("sec_delayed_a"),
+  abortedSectionNames.includes("Delayed A"),
   "a cached section still aborts the superseded summary request",
 );
 assert.match(sectionCard.textContent, /2 threads/);
@@ -1782,8 +1770,8 @@ assert.equal(designHeader.toggle.hasAttribute("aria-describedby"), false);
 assert.equal(window.document.getElementById("bb-thread-hover-card").hidden, true);
 
 // An empty section states the absence instead of rendering an empty shell.
-const writingHeader = sectionHeaderRow("Writing", "sec_writing");
-sectionGroup.append(writingHeader.group);
+const writingHeader = sectionHeaderRow("Writing");
+sectionGroup.append(writingHeader.row);
 hoverOver(writingHeader.title);
 await new Promise((resolve) => setTimeout(resolve, 20));
 assert.equal(
@@ -1799,44 +1787,22 @@ assert.equal(
 // A section nested under a project reports only that project's threads.
 const projectItem = window.document.createElement("div");
 projectItem.dataset.sidebarStickyProjectItem = "";
-projectItem.dataset.sidebarProjectId = "proj_bb_one";
 const projectGroup = window.document.createElement("div");
 projectGroup.dataset.sidebarStickyGroup = "";
 const projectHeader = sectionHeaderRow("bb");
 const nestedGroup = window.document.createElement("div");
 nestedGroup.dataset.sidebarStickyGroup = "";
-const nestedHeader = sectionHeaderRow("Design", "sec_design", "parent");
-projectGroup.append(projectHeader.row, nestedHeader.group);
+const nestedHeader = sectionHeaderRow("Design");
+nestedGroup.append(nestedHeader.row);
+projectGroup.append(projectHeader.row, nestedGroup);
 projectItem.append(projectGroup);
 window.document.body.append(projectItem);
 
 hoverOver(nestedHeader.title);
 await new Promise((resolve) => setTimeout(resolve, 20));
 assert.deepEqual(sectionRequestBodies.at(-1), {
-  projectId: "proj_bb_one",
-  sectionId: "sec_design",
-});
-assert.equal(sectionCard.hidden, false);
-
-// Equal project display names remain distinct because identity comes from IDs.
-const duplicateProjectItem = window.document.createElement("div");
-duplicateProjectItem.dataset.sidebarStickyProjectItem = "";
-duplicateProjectItem.dataset.sidebarProjectId = "proj_bb_two";
-const duplicateProjectGroup = window.document.createElement("div");
-duplicateProjectGroup.dataset.sidebarStickyGroup = "";
-const duplicateProjectHeader = sectionHeaderRow("bb");
-const duplicateNestedHeader = sectionHeaderRow("Design", "sec_design", null);
-duplicateProjectGroup.append(
-  duplicateProjectHeader.row,
-  duplicateNestedHeader.group,
-);
-duplicateProjectItem.append(duplicateProjectGroup);
-window.document.body.append(duplicateProjectItem);
-hoverOver(duplicateNestedHeader.title);
-await new Promise((resolve) => setTimeout(resolve, 20));
-assert.deepEqual(sectionRequestBodies.at(-1), {
-  projectId: "proj_bb_two",
-  sectionId: "sec_design",
+  name: "Design",
+  projectName: "bb",
 });
 
 // A project row reuses the section header markup but is not a section.
@@ -1857,7 +1823,7 @@ nestedThread.dataset.sidebarThreadId = "thr_1";
 nestedThread.href = "/threads/thr_1";
 nestedThread.textContent = "Nested thread";
 nestedThreadRow.append(nestedThread);
-nestedHeader.group.append(nestedThreadRow);
+nestedGroup.append(nestedThreadRow);
 const requestsBeforeThreadHover = sectionRequestBodies.length;
 hoverOver(nestedThread);
 await new Promise((resolve) => setTimeout(resolve, 20));
@@ -1868,8 +1834,8 @@ assert.equal(
 );
 
 // A populated section with nothing wanting action: no headline, counts dimmed.
-const quietHeader = sectionHeaderRow("Quiet", "sec_quiet");
-sectionGroup.append(quietHeader.group);
+const quietHeader = sectionHeaderRow("Quiet");
+sectionGroup.append(quietHeader.row);
 hoverOver(quietHeader.title);
 await new Promise((resolve) => setTimeout(resolve, 20));
 assert.equal(
@@ -1892,73 +1858,40 @@ assert.deepEqual(
   "zero counts dim rather than disappear",
 );
 
-// A custom stored section may reuse a built-in display name without ambiguity.
-const customPinnedHeader = sectionHeaderRow("Pinned", "sec_custom_pinned");
-sectionGroup.append(customPinnedHeader.group);
-hoverOver(customPinnedHeader.title);
-await new Promise((resolve) => setTimeout(resolve, 20));
-assert.equal(sectionCard.hidden, false);
-assert.deepEqual(sectionRequestBodies.at(-1), {
-  projectId: null,
-  sectionId: "sec_custom_pinned",
-});
-assert.match(sectionCard.textContent, /1 thread/);
-
-// A built-in group has no persisted section ID and never issues an RPC.
+// A built-in group is not a stored section: the card closes and stops asking.
 const pinnedHeader = sectionHeaderRow("Pinned");
-sectionGroup.append(pinnedHeader.group);
-const requestsBeforePinnedHover = sectionRequestBodies.length;
+sectionGroup.append(pinnedHeader.row);
 hoverOver(pinnedHeader.title);
 await new Promise((resolve) => setTimeout(resolve, 20));
 assert.equal(
   sectionCard.hidden,
   true,
-  "closes when moving from a stored section to a built-in group",
+  "closes rather than showing an error for a built-in group",
 );
+const requestsAfterFirstPinnedHover = sectionRequestBodies.length;
+hoverOver(pinnedHeader.title);
+await new Promise((resolve) => setTimeout(resolve, 20));
 assert.equal(
   sectionRequestBodies.length,
-  requestsBeforePinnedHover,
-  "does not ask the server to identify a built-in group",
+  requestsAfterFirstPinnedHover,
+  "does not re-ask about a group already known not to be a section",
 );
+assert.equal(sectionCard.hidden, true);
 
-delayNextSectionFor.add("sec_delayed_a");
+delayNextSectionFor.add("Delayed A");
 hoverOver(delayedAHeader.title);
 await new Promise((resolve) => setTimeout(resolve, 0));
-const delayedAAbortCount = abortedSectionIds.filter(
-  (sectionId) => sectionId === "sec_delayed_a",
+const delayedAAbortCount = abortedSectionNames.filter(
+  (name) => name === "Delayed A",
 ).length;
 hoverOver(pinnedHeader.title);
 await new Promise((resolve) => setTimeout(resolve, 20));
 assert.equal(
-  abortedSectionIds.filter((sectionId) => sectionId === "sec_delayed_a").length,
+  abortedSectionNames.filter((name) => name === "Delayed A").length,
   delayedAAbortCount + 1,
-  "a built-in group closes and aborts the previous section request",
+  "a cached non-section verdict closes and aborts the previous section",
 );
 assert.equal(sectionCard.hidden, true);
-
-// A row rerender keeps the card attached by ID; permanent removal closes it.
-const rebindHeader = sectionHeaderRow("Rebind", "sec_rebind");
-sectionGroup.append(rebindHeader.group);
-hoverOver(rebindHeader.title);
-await new Promise((resolve) => setTimeout(resolve, 20));
-assert.equal(sectionCard.hidden, false);
-assert.equal(
-  rebindHeader.toggle.getAttribute("aria-describedby"),
-  "bb-section-hover-card",
-);
-const replacementHeader = sectionHeaderRow("Rebind", "sec_rebind");
-rebindHeader.group.replaceWith(replacementHeader.group);
-await new Promise((resolve) => setTimeout(resolve, 0));
-assert.equal(rebindHeader.toggle.hasAttribute("aria-describedby"), false);
-assert.equal(
-  replacementHeader.toggle.getAttribute("aria-describedby"),
-  "bb-section-hover-card",
-);
-assert.equal(sectionCard.hidden, false);
-replacementHeader.group.remove();
-await new Promise((resolve) => setTimeout(resolve, 0));
-assert.equal(sectionCard.hidden, true, "closes when the section is removed");
-assert.equal(replacementHeader.toggle.hasAttribute("aria-describedby"), false);
 
 // Moving from a section header onto a thread row swaps the cards.
 hoverOver(designHeader.title);
