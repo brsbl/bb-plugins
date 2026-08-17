@@ -1,7 +1,7 @@
 import {
   definePluginApp,
   type PluginAppContentScripts,
-} from "@get-bb/plugin-sdk/app";
+} from "@bb/plugin-sdk/app";
 
 import { mountInboxSectionCollapser } from "./sidebar-controller.js";
 

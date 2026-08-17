@@ -1,4 +1,4 @@
-import { installTestPluginRuntime } from "@get-bb/plugin-sdk/testing/app";
+import { installTestPluginRuntime } from "@bb/plugin-sdk/testing/app";
 import { describe, expect, it, vi } from "vitest";
 
 async function loadApp() {

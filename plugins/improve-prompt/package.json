@@ -34,7 +34,7 @@
     "zod": "^4.3.6"
   },
   "devDependencies": {
-    "@get-bb/plugin-sdk": "file:./vendor/get-bb-plugin-sdk-0.4.6.tgz",
+    "@bb/plugin-sdk": "file:../../tooling/vendor/bb-plugin-sdk-0.4.1.tgz",
     "@radix-ui/react-dialog": "^1.1.19",
     "@radix-ui/react-popover": "^1.1.23",
     "@radix-ui/react-tooltip": "^1.2.12",

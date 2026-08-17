@@ -27,7 +27,7 @@ import {
   Trash2,
   X,
 } from "lucide-react";
-import type { PluginRpcClient } from "@get-bb/plugin-sdk/app";
+import type { PluginRpcClient } from "@bb/plugin-sdk/app";
 import type {
   TimelineComment,
   TimelineCommentThreadDetail,

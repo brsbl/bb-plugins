@@ -14,7 +14,7 @@ import {
   useComposerView,
   useRealtime,
   useRpc,
-} from "@get-bb/plugin-sdk/app";
+} from "@bb/plugin-sdk/app";
 import "./app.css";
 import { toast } from "sonner";
 

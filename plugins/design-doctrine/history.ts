@@ -3,7 +3,7 @@ import { readFile, unlink } from "node:fs/promises";
 import { join } from "node:path";
 import { promisify } from "node:util";
 
-import type { BbPluginApi } from "@get-bb/plugin-sdk";
+import type { BbPluginApi } from "@bb/plugin-sdk";
 import {
   createThreadHistoryMaintenance,
   type HistoryAdvanceInput,

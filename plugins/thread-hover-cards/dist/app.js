@@ -1,18 +1,13 @@
-// bb-plugin-runtime-shim:@get-bb/plugin-sdk/app
+// bb-plugin-runtime-shim:@bb/plugin-sdk/app
 var runtime = globalThis.__bbPluginRuntime;
 if (runtime == null || runtime.pluginSdkApp == null) {
-  throw new Error('Cannot load "@get-bb/plugin-sdk/app": this bundle must be loaded by the BB app, which provides the shared plugin runtime (globalThis.__bbPluginRuntime).');
+  throw new Error('Cannot load "@bb/plugin-sdk/app": this bundle must be loaded by the BB app, which provides the shared plugin runtime (globalThis.__bbPluginRuntime).');
 }
 var mod = runtime.pluginSdkApp;
 var {
   Markdown,
   ThreadChat,
   definePluginApp,
-  experimental_NewThreadComposer,
-  experimental_useSidebarThreadActions,
-  experimental_useSidebarThreadPullRequest,
-  experimental_useSidebarThreadSplit,
-  experimental_useSidebarThreads,
   useBbContext,
   useBbNavigate,
   useComposer,

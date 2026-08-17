@@ -32,9 +32,9 @@ var __toESM = (mod, isNodeMode, target) => (target = mod != null ? __create(__ge
   mod
 ));
 
-// node_modules/.pnpm/xmlchars@2.2.0/node_modules/xmlchars/xml/1.0/ed5.js
+// ../env_ag7ffajzdy/bb/node_modules/.pnpm/xmlchars@2.2.0/node_modules/xmlchars/xml/1.0/ed5.js
 var require_ed5 = __commonJS({
-  "node_modules/.pnpm/xmlchars@2.2.0/node_modules/xmlchars/xml/1.0/ed5.js"(exports) {
+  "../env_ag7ffajzdy/bb/node_modules/.pnpm/xmlchars@2.2.0/node_modules/xmlchars/xml/1.0/ed5.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.CHAR = "	\n\r -\uD7FF\uE000-\uFFFD\u{10000}-\u{10FFFF}";
@@ -71,9 +71,9 @@ var require_ed5 = __commonJS({
   }
 });
 
-// node_modules/.pnpm/xmlchars@2.2.0/node_modules/xmlchars/xml/1.1/ed2.js
+// ../env_ag7ffajzdy/bb/node_modules/.pnpm/xmlchars@2.2.0/node_modules/xmlchars/xml/1.1/ed2.js
 var require_ed2 = __commonJS({
-  "node_modules/.pnpm/xmlchars@2.2.0/node_modules/xmlchars/xml/1.1/ed2.js"(exports) {
+  "../env_ag7ffajzdy/bb/node_modules/.pnpm/xmlchars@2.2.0/node_modules/xmlchars/xml/1.1/ed2.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.CHAR = "-\uD7FF\uE000-\uFFFD\u{10000}-\u{10FFFF}";
@@ -120,9 +120,9 @@ var require_ed2 = __commonJS({
   }
 });
 
-// node_modules/.pnpm/xmlchars@2.2.0/node_modules/xmlchars/xmlns/1.0/ed3.js
+// ../env_ag7ffajzdy/bb/node_modules/.pnpm/xmlchars@2.2.0/node_modules/xmlchars/xmlns/1.0/ed3.js
 var require_ed3 = __commonJS({
-  "node_modules/.pnpm/xmlchars@2.2.0/node_modules/xmlchars/xmlns/1.0/ed3.js"(exports) {
+  "../env_ag7ffajzdy/bb/node_modules/.pnpm/xmlchars@2.2.0/node_modules/xmlchars/xmlns/1.0/ed3.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.NC_NAME_START_CHAR = "A-Z_a-z\xC0-\xD6\xD8-\xF6\xF8-\u02FF\u0370-\u037D\u037F-\u1FFF\u200C-\u200D\u2070-\u218F\u2C00-\u2FEF\u3001-\uD7FF\uF900-\uFDCF\uFDF0-\uFFFD\u{10000}-\u{EFFFF}";
@@ -141,9 +141,9 @@ var require_ed3 = __commonJS({
   }
 });
 
-// node_modules/.pnpm/saxes@6.0.0/node_modules/saxes/saxes.js
+// ../env_ag7ffajzdy/bb/node_modules/.pnpm/saxes@6.0.0/node_modules/saxes/saxes.js
 var require_saxes = __commonJS({
-  "node_modules/.pnpm/saxes@6.0.0/node_modules/saxes/saxes.js"(exports) {
+  "../env_ag7ffajzdy/bb/node_modules/.pnpm/saxes@6.0.0/node_modules/saxes/saxes.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.SaxesParser = exports.EVENTS = void 0;
@@ -1940,7 +1940,7 @@ var require_saxes = __commonJS({
   }
 });
 
-// packages/plugin-build/src/build-plugin-app.ts
+// ../env_ag7ffajzdy/bb/packages/plugin-build/src/build-plugin-app.ts
 import {
   mkdir,
   mkdtemp,
@@ -1950,10 +1950,10 @@ import {
   stat as stat2,
   writeFile
 } from "node:fs/promises";
-import { existsSync } from "node:fs";
+import { createRequire } from "node:module";
 import { dirname, isAbsolute as isAbsolute2, join, resolve as resolve2 } from "node:path";
 
-// node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/classic/external.js
+// ../env_ag7ffajzdy/bb/node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/classic/external.js
 var external_exports = {};
 __export(external_exports, {
   $brand: () => $brand,
@@ -2194,7 +2194,7 @@ __export(external_exports, {
   xor: () => xor
 });
 
-// node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/core/index.js
+// ../env_ag7ffajzdy/bb/node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/core/index.js
 var core_exports2 = {};
 __export(core_exports2, {
   $ZodAny: () => $ZodAny,
@@ -2472,7 +2472,7 @@ __export(core_exports2, {
   version: () => version
 });
 
-// node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/core/core.js
+// ../env_ag7ffajzdy/bb/node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/core/core.js
 var NEVER = Object.freeze({
   status: "aborted"
 });
@@ -2547,7 +2547,7 @@ function config(newConfig) {
   return globalConfig;
 }
 
-// node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/core/util.js
+// ../env_ag7ffajzdy/bb/node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/core/util.js
 var util_exports = {};
 __export(util_exports, {
   BIGINT_FORMAT_RANGES: () => BIGINT_FORMAT_RANGES,
@@ -3226,7 +3226,7 @@ var Class = class {
   }
 };
 
-// node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/core/errors.js
+// ../env_ag7ffajzdy/bb/node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/core/errors.js
 var initializer = (inst, def) => {
   inst.name = "$ZodError";
   Object.defineProperty(inst, "_zod", {
@@ -3362,7 +3362,7 @@ function prettifyError(error48) {
   return lines.join("\n");
 }
 
-// node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/core/parse.js
+// ../env_ag7ffajzdy/bb/node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/core/parse.js
 var _parse = (_Err) => (schema, value, _ctx, _params) => {
   const ctx = _ctx ? Object.assign(_ctx, { async: false }) : { async: false };
   const result = schema._zod.run({ value, issues: [] }, ctx);
@@ -3450,7 +3450,7 @@ var _safeDecodeAsync = (_Err) => async (schema, value, _ctx) => {
 };
 var safeDecodeAsync = /* @__PURE__ */ _safeDecodeAsync($ZodRealError);
 
-// node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/core/regexes.js
+// ../env_ag7ffajzdy/bb/node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/core/regexes.js
 var regexes_exports = {};
 __export(regexes_exports, {
   base64: () => base64,
@@ -3607,7 +3607,7 @@ var sha512_hex = /^[0-9a-fA-F]{128}$/;
 var sha512_base64 = /* @__PURE__ */ fixedBase64(86, "==");
 var sha512_base64url = /* @__PURE__ */ fixedBase64url(86);
 
-// node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/core/checks.js
+// ../env_ag7ffajzdy/bb/node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/core/checks.js
 var $ZodCheck = /* @__PURE__ */ $constructor("$ZodCheck", (inst, def) => {
   var _a2;
   inst._zod ?? (inst._zod = {});
@@ -4155,7 +4155,7 @@ var $ZodCheckOverwrite = /* @__PURE__ */ $constructor("$ZodCheckOverwrite", (ins
   };
 });
 
-// node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/core/doc.js
+// ../env_ag7ffajzdy/bb/node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/core/doc.js
 var Doc = class {
   constructor(args = []) {
     this.content = [];
@@ -4191,14 +4191,14 @@ var Doc = class {
   }
 };
 
-// node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/core/versions.js
+// ../env_ag7ffajzdy/bb/node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/core/versions.js
 var version = {
   major: 4,
   minor: 3,
   patch: 6
 };
 
-// node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/core/schemas.js
+// ../env_ag7ffajzdy/bb/node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/core/schemas.js
 var $ZodType = /* @__PURE__ */ $constructor("$ZodType", (inst, def) => {
   var _a2;
   inst ?? (inst = {});
@@ -6169,7 +6169,7 @@ function handleRefineResult(result, payload, input, inst) {
   }
 }
 
-// node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/index.js
+// ../env_ag7ffajzdy/bb/node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/index.js
 var locales_exports = {};
 __export(locales_exports, {
   ar: () => ar_default,
@@ -6223,7 +6223,7 @@ __export(locales_exports, {
   zhTW: () => zh_TW_default
 });
 
-// node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/ar.js
+// ../env_ag7ffajzdy/bb/node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/ar.js
 var error = () => {
   const Sizable = {
     string: { unit: "\u062D\u0631\u0641", verb: "\u0623\u0646 \u064A\u062D\u0648\u064A" },
@@ -6330,7 +6330,7 @@ function ar_default() {
   };
 }
 
-// node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/az.js
+// ../env_ag7ffajzdy/bb/node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/az.js
 var error2 = () => {
   const Sizable = {
     string: { unit: "simvol", verb: "olmal\u0131d\u0131r" },
@@ -6436,7 +6436,7 @@ function az_default() {
   };
 }
 
-// node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/be.js
+// ../env_ag7ffajzdy/bb/node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/be.js
 function getBelarusianPlural(count, one, few, many) {
   const absCount = Math.abs(count);
   const lastDigit = absCount % 10;
@@ -6593,7 +6593,7 @@ function be_default() {
   };
 }
 
-// node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/bg.js
+// ../env_ag7ffajzdy/bb/node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/bg.js
 var error4 = () => {
   const Sizable = {
     string: { unit: "\u0441\u0438\u043C\u0432\u043E\u043B\u0430", verb: "\u0434\u0430 \u0441\u044A\u0434\u044A\u0440\u0436\u0430" },
@@ -6714,7 +6714,7 @@ function bg_default() {
   };
 }
 
-// node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/ca.js
+// ../env_ag7ffajzdy/bb/node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/ca.js
 var error5 = () => {
   const Sizable = {
     string: { unit: "car\xE0cters", verb: "contenir" },
@@ -6823,7 +6823,7 @@ function ca_default() {
   };
 }
 
-// node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/cs.js
+// ../env_ag7ffajzdy/bb/node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/cs.js
 var error6 = () => {
   const Sizable = {
     string: { unit: "znak\u016F", verb: "m\xEDt" },
@@ -6935,7 +6935,7 @@ function cs_default() {
   };
 }
 
-// node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/da.js
+// ../env_ag7ffajzdy/bb/node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/da.js
 var error7 = () => {
   const Sizable = {
     string: { unit: "tegn", verb: "havde" },
@@ -7051,7 +7051,7 @@ function da_default() {
   };
 }
 
-// node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/de.js
+// ../env_ag7ffajzdy/bb/node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/de.js
 var error8 = () => {
   const Sizable = {
     string: { unit: "Zeichen", verb: "zu haben" },
@@ -7160,7 +7160,7 @@ function de_default() {
   };
 }
 
-// node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/en.js
+// ../env_ag7ffajzdy/bb/node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/en.js
 var error9 = () => {
   const Sizable = {
     string: { unit: "characters", verb: "to have" },
@@ -7269,7 +7269,7 @@ function en_default() {
   };
 }
 
-// node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/eo.js
+// ../env_ag7ffajzdy/bb/node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/eo.js
 var error10 = () => {
   const Sizable = {
     string: { unit: "karaktrojn", verb: "havi" },
@@ -7379,7 +7379,7 @@ function eo_default() {
   };
 }
 
-// node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/es.js
+// ../env_ag7ffajzdy/bb/node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/es.js
 var error11 = () => {
   const Sizable = {
     string: { unit: "caracteres", verb: "tener" },
@@ -7512,7 +7512,7 @@ function es_default() {
   };
 }
 
-// node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/fa.js
+// ../env_ag7ffajzdy/bb/node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/fa.js
 var error12 = () => {
   const Sizable = {
     string: { unit: "\u06A9\u0627\u0631\u0627\u06A9\u062A\u0631", verb: "\u062F\u0627\u0634\u062A\u0647 \u0628\u0627\u0634\u062F" },
@@ -7627,7 +7627,7 @@ function fa_default() {
   };
 }
 
-// node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/fi.js
+// ../env_ag7ffajzdy/bb/node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/fi.js
 var error13 = () => {
   const Sizable = {
     string: { unit: "merkki\xE4", subject: "merkkijonon" },
@@ -7740,7 +7740,7 @@ function fi_default() {
   };
 }
 
-// node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/fr.js
+// ../env_ag7ffajzdy/bb/node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/fr.js
 var error14 = () => {
   const Sizable = {
     string: { unit: "caract\xE8res", verb: "avoir" },
@@ -7849,7 +7849,7 @@ function fr_default() {
   };
 }
 
-// node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/fr-CA.js
+// ../env_ag7ffajzdy/bb/node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/fr-CA.js
 var error15 = () => {
   const Sizable = {
     string: { unit: "caract\xE8res", verb: "avoir" },
@@ -7957,7 +7957,7 @@ function fr_CA_default() {
   };
 }
 
-// node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/he.js
+// ../env_ag7ffajzdy/bb/node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/he.js
 var error16 = () => {
   const TypeNames = {
     string: { label: "\u05DE\u05D7\u05E8\u05D5\u05D6\u05EA", gender: "f" },
@@ -8152,7 +8152,7 @@ function he_default() {
   };
 }
 
-// node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/hu.js
+// ../env_ag7ffajzdy/bb/node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/hu.js
 var error17 = () => {
   const Sizable = {
     string: { unit: "karakter", verb: "legyen" },
@@ -8261,7 +8261,7 @@ function hu_default() {
   };
 }
 
-// node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/hy.js
+// ../env_ag7ffajzdy/bb/node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/hy.js
 function getArmenianPlural(count, one, many) {
   return Math.abs(count) === 1 ? one : many;
 }
@@ -8409,7 +8409,7 @@ function hy_default() {
   };
 }
 
-// node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/id.js
+// ../env_ag7ffajzdy/bb/node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/id.js
 var error19 = () => {
   const Sizable = {
     string: { unit: "karakter", verb: "memiliki" },
@@ -8516,7 +8516,7 @@ function id_default() {
   };
 }
 
-// node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/is.js
+// ../env_ag7ffajzdy/bb/node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/is.js
 var error20 = () => {
   const Sizable = {
     string: { unit: "stafi", verb: "a\xF0 hafa" },
@@ -8626,7 +8626,7 @@ function is_default() {
   };
 }
 
-// node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/it.js
+// ../env_ag7ffajzdy/bb/node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/it.js
 var error21 = () => {
   const Sizable = {
     string: { unit: "caratteri", verb: "avere" },
@@ -8735,7 +8735,7 @@ function it_default() {
   };
 }
 
-// node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/ja.js
+// ../env_ag7ffajzdy/bb/node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/ja.js
 var error22 = () => {
   const Sizable = {
     string: { unit: "\u6587\u5B57", verb: "\u3067\u3042\u308B" },
@@ -8843,7 +8843,7 @@ function ja_default() {
   };
 }
 
-// node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/ka.js
+// ../env_ag7ffajzdy/bb/node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/ka.js
 var error23 = () => {
   const Sizable = {
     string: { unit: "\u10E1\u10D8\u10DB\u10D1\u10DD\u10DA\u10DD", verb: "\u10E3\u10DC\u10D3\u10D0 \u10E8\u10D4\u10D8\u10EA\u10D0\u10D5\u10D3\u10D4\u10E1" },
@@ -8956,7 +8956,7 @@ function ka_default() {
   };
 }
 
-// node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/km.js
+// ../env_ag7ffajzdy/bb/node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/km.js
 var error24 = () => {
   const Sizable = {
     string: { unit: "\u178F\u17BD\u17A2\u1780\u17D2\u179F\u179A", verb: "\u1782\u17BD\u179A\u1798\u17B6\u1793" },
@@ -9067,12 +9067,12 @@ function km_default() {
   };
 }
 
-// node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/kh.js
+// ../env_ag7ffajzdy/bb/node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/kh.js
 function kh_default() {
   return km_default();
 }
 
-// node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/ko.js
+// ../env_ag7ffajzdy/bb/node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/ko.js
 var error25 = () => {
   const Sizable = {
     string: { unit: "\uBB38\uC790", verb: "to have" },
@@ -9184,7 +9184,7 @@ function ko_default() {
   };
 }
 
-// node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/lt.js
+// ../env_ag7ffajzdy/bb/node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/lt.js
 var capitalizeFirstCharacter = (text) => {
   return text.charAt(0).toUpperCase() + text.slice(1);
 };
@@ -9388,7 +9388,7 @@ function lt_default() {
   };
 }
 
-// node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/mk.js
+// ../env_ag7ffajzdy/bb/node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/mk.js
 var error27 = () => {
   const Sizable = {
     string: { unit: "\u0437\u043D\u0430\u0446\u0438", verb: "\u0434\u0430 \u0438\u043C\u0430\u0430\u0442" },
@@ -9498,7 +9498,7 @@ function mk_default() {
   };
 }
 
-// node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/ms.js
+// ../env_ag7ffajzdy/bb/node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/ms.js
 var error28 = () => {
   const Sizable = {
     string: { unit: "aksara", verb: "mempunyai" },
@@ -9606,7 +9606,7 @@ function ms_default() {
   };
 }
 
-// node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/nl.js
+// ../env_ag7ffajzdy/bb/node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/nl.js
 var error29 = () => {
   const Sizable = {
     string: { unit: "tekens", verb: "heeft" },
@@ -9717,7 +9717,7 @@ function nl_default() {
   };
 }
 
-// node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/no.js
+// ../env_ag7ffajzdy/bb/node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/no.js
 var error30 = () => {
   const Sizable = {
     string: { unit: "tegn", verb: "\xE5 ha" },
@@ -9826,7 +9826,7 @@ function no_default() {
   };
 }
 
-// node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/ota.js
+// ../env_ag7ffajzdy/bb/node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/ota.js
 var error31 = () => {
   const Sizable = {
     string: { unit: "harf", verb: "olmal\u0131d\u0131r" },
@@ -9936,7 +9936,7 @@ function ota_default() {
   };
 }
 
-// node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/ps.js
+// ../env_ag7ffajzdy/bb/node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/ps.js
 var error32 = () => {
   const Sizable = {
     string: { unit: "\u062A\u0648\u06A9\u064A", verb: "\u0648\u0644\u0631\u064A" },
@@ -10051,7 +10051,7 @@ function ps_default() {
   };
 }
 
-// node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/pl.js
+// ../env_ag7ffajzdy/bb/node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/pl.js
 var error33 = () => {
   const Sizable = {
     string: { unit: "znak\xF3w", verb: "mie\u0107" },
@@ -10161,7 +10161,7 @@ function pl_default() {
   };
 }
 
-// node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/pt.js
+// ../env_ag7ffajzdy/bb/node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/pt.js
 var error34 = () => {
   const Sizable = {
     string: { unit: "caracteres", verb: "ter" },
@@ -10270,7 +10270,7 @@ function pt_default() {
   };
 }
 
-// node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/ru.js
+// ../env_ag7ffajzdy/bb/node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/ru.js
 function getRussianPlural(count, one, few, many) {
   const absCount = Math.abs(count);
   const lastDigit = absCount % 10;
@@ -10427,7 +10427,7 @@ function ru_default() {
   };
 }
 
-// node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/sl.js
+// ../env_ag7ffajzdy/bb/node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/sl.js
 var error36 = () => {
   const Sizable = {
     string: { unit: "znakov", verb: "imeti" },
@@ -10537,7 +10537,7 @@ function sl_default() {
   };
 }
 
-// node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/sv.js
+// ../env_ag7ffajzdy/bb/node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/sv.js
 var error37 = () => {
   const Sizable = {
     string: { unit: "tecken", verb: "att ha" },
@@ -10648,7 +10648,7 @@ function sv_default() {
   };
 }
 
-// node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/ta.js
+// ../env_ag7ffajzdy/bb/node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/ta.js
 var error38 = () => {
   const Sizable = {
     string: { unit: "\u0B8E\u0BB4\u0BC1\u0BA4\u0BCD\u0BA4\u0BC1\u0B95\u0BCD\u0B95\u0BB3\u0BCD", verb: "\u0B95\u0BCA\u0BA3\u0BCD\u0B9F\u0BBF\u0BB0\u0BC1\u0B95\u0BCD\u0B95 \u0BB5\u0BC7\u0BA3\u0BCD\u0B9F\u0BC1\u0BAE\u0BCD" },
@@ -10759,7 +10759,7 @@ function ta_default() {
   };
 }
 
-// node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/th.js
+// ../env_ag7ffajzdy/bb/node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/th.js
 var error39 = () => {
   const Sizable = {
     string: { unit: "\u0E15\u0E31\u0E27\u0E2D\u0E31\u0E01\u0E29\u0E23", verb: "\u0E04\u0E27\u0E23\u0E21\u0E35" },
@@ -10870,7 +10870,7 @@ function th_default() {
   };
 }
 
-// node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/tr.js
+// ../env_ag7ffajzdy/bb/node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/tr.js
 var error40 = () => {
   const Sizable = {
     string: { unit: "karakter", verb: "olmal\u0131" },
@@ -10976,7 +10976,7 @@ function tr_default() {
   };
 }
 
-// node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/uk.js
+// ../env_ag7ffajzdy/bb/node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/uk.js
 var error41 = () => {
   const Sizable = {
     string: { unit: "\u0441\u0438\u043C\u0432\u043E\u043B\u0456\u0432", verb: "\u043C\u0430\u0442\u0438\u043C\u0435" },
@@ -11085,12 +11085,12 @@ function uk_default() {
   };
 }
 
-// node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/ua.js
+// ../env_ag7ffajzdy/bb/node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/ua.js
 function ua_default() {
   return uk_default();
 }
 
-// node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/ur.js
+// ../env_ag7ffajzdy/bb/node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/ur.js
 var error42 = () => {
   const Sizable = {
     string: { unit: "\u062D\u0631\u0648\u0641", verb: "\u06C1\u0648\u0646\u0627" },
@@ -11201,7 +11201,7 @@ function ur_default() {
   };
 }
 
-// node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/uz.js
+// ../env_ag7ffajzdy/bb/node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/uz.js
 var error43 = () => {
   const Sizable = {
     string: { unit: "belgi", verb: "bo\u2018lishi kerak" },
@@ -11311,7 +11311,7 @@ function uz_default() {
   };
 }
 
-// node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/vi.js
+// ../env_ag7ffajzdy/bb/node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/vi.js
 var error44 = () => {
   const Sizable = {
     string: { unit: "k\xFD t\u1EF1", verb: "c\xF3" },
@@ -11420,7 +11420,7 @@ function vi_default() {
   };
 }
 
-// node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/zh-CN.js
+// ../env_ag7ffajzdy/bb/node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/zh-CN.js
 var error45 = () => {
   const Sizable = {
     string: { unit: "\u5B57\u7B26", verb: "\u5305\u542B" },
@@ -11530,7 +11530,7 @@ function zh_CN_default() {
   };
 }
 
-// node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/zh-TW.js
+// ../env_ag7ffajzdy/bb/node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/zh-TW.js
 var error46 = () => {
   const Sizable = {
     string: { unit: "\u5B57\u5143", verb: "\u64C1\u6709" },
@@ -11638,7 +11638,7 @@ function zh_TW_default() {
   };
 }
 
-// node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/yo.js
+// ../env_ag7ffajzdy/bb/node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/yo.js
 var error47 = () => {
   const Sizable = {
     string: { unit: "\xE0mi", verb: "n\xED" },
@@ -11746,7 +11746,7 @@ function yo_default() {
   };
 }
 
-// node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/core/registries.js
+// ../env_ag7ffajzdy/bb/node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/core/registries.js
 var _a;
 var $output = /* @__PURE__ */ Symbol("ZodOutput");
 var $input = /* @__PURE__ */ Symbol("ZodInput");
@@ -11796,7 +11796,7 @@ function registry() {
 (_a = globalThis).__zod_globalRegistry ?? (_a.__zod_globalRegistry = registry());
 var globalRegistry = globalThis.__zod_globalRegistry;
 
-// node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/core/api.js
+// ../env_ag7ffajzdy/bb/node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/core/api.js
 // @__NO_SIDE_EFFECTS__
 function _string(Class2, params) {
   return new Class2({
@@ -12835,7 +12835,7 @@ function _stringFormat(Class2, format, fnOrRegex, _params = {}) {
   return inst;
 }
 
-// node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/core/to-json-schema.js
+// ../env_ag7ffajzdy/bb/node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/core/to-json-schema.js
 function initializeContext(params) {
   let target = params?.target ?? "draft-2020-12";
   if (target === "draft-4")
@@ -13187,7 +13187,7 @@ var createStandardJSONSchemaMethod = (schema, io, processors = {}) => (params) =
   return finalize(ctx, schema);
 };
 
-// node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/core/json-schema-processors.js
+// ../env_ag7ffajzdy/bb/node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/core/json-schema-processors.js
 var formatMap = {
   guid: "uuid",
   url: "uri",
@@ -13738,7 +13738,7 @@ function toJSONSchema(input, params) {
   return finalize(ctx, input);
 }
 
-// node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/core/json-schema-generator.js
+// ../env_ag7ffajzdy/bb/node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/core/json-schema-generator.js
 var JSONSchemaGenerator = class {
   /** @deprecated Access via ctx instead */
   get metadataRegistry() {
@@ -13813,10 +13813,10 @@ var JSONSchemaGenerator = class {
   }
 };
 
-// node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/core/json-schema.js
+// ../env_ag7ffajzdy/bb/node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/core/json-schema.js
 var json_schema_exports = {};
 
-// node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/classic/schemas.js
+// ../env_ag7ffajzdy/bb/node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/classic/schemas.js
 var schemas_exports2 = {};
 __export(schemas_exports2, {
   ZodAny: () => ZodAny,
@@ -13985,7 +13985,7 @@ __export(schemas_exports2, {
   xor: () => xor
 });
 
-// node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/classic/checks.js
+// ../env_ag7ffajzdy/bb/node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/classic/checks.js
 var checks_exports2 = {};
 __export(checks_exports2, {
   endsWith: () => _endsWith,
@@ -14019,7 +14019,7 @@ __export(checks_exports2, {
   uppercase: () => _uppercase
 });
 
-// node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/classic/iso.js
+// ../env_ag7ffajzdy/bb/node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/classic/iso.js
 var iso_exports = {};
 __export(iso_exports, {
   ZodISODate: () => ZodISODate,
@@ -14060,7 +14060,7 @@ function duration2(params) {
   return _isoDuration(ZodISODuration, params);
 }
 
-// node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/classic/errors.js
+// ../env_ag7ffajzdy/bb/node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/classic/errors.js
 var initializer2 = (inst, issues) => {
   $ZodError.init(inst, issues);
   inst.name = "ZodError";
@@ -14100,7 +14100,7 @@ var ZodRealError = $constructor("ZodError", initializer2, {
   Parent: Error
 });
 
-// node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/classic/parse.js
+// ../env_ag7ffajzdy/bb/node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/classic/parse.js
 var parse2 = /* @__PURE__ */ _parse(ZodRealError);
 var parseAsync2 = /* @__PURE__ */ _parseAsync(ZodRealError);
 var safeParse2 = /* @__PURE__ */ _safeParse(ZodRealError);
@@ -14114,7 +14114,7 @@ var safeDecode2 = /* @__PURE__ */ _safeDecode(ZodRealError);
 var safeEncodeAsync2 = /* @__PURE__ */ _safeEncodeAsync(ZodRealError);
 var safeDecodeAsync2 = /* @__PURE__ */ _safeDecodeAsync(ZodRealError);
 
-// node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/classic/schemas.js
+// ../env_ag7ffajzdy/bb/node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/classic/schemas.js
 var ZodType = /* @__PURE__ */ $constructor("ZodType", (inst, def) => {
   $ZodType.init(inst, def);
   Object.assign(inst["~standard"], {
@@ -15193,7 +15193,7 @@ function preprocess(fn, schema) {
   return pipe(transform(fn), schema);
 }
 
-// node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/classic/compat.js
+// ../env_ag7ffajzdy/bb/node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/classic/compat.js
 var ZodIssueCode = {
   invalid_type: "invalid_type",
   too_big: "too_big",
@@ -15219,7 +15219,7 @@ var ZodFirstPartyTypeKind;
 /* @__PURE__ */ (function(ZodFirstPartyTypeKind2) {
 })(ZodFirstPartyTypeKind || (ZodFirstPartyTypeKind = {}));
 
-// node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/classic/from-json-schema.js
+// ../env_ag7ffajzdy/bb/node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/classic/from-json-schema.js
 var z = {
   ...schemas_exports2,
   ...checks_exports2,
@@ -15693,7 +15693,7 @@ function fromJSONSchema(schema, params) {
   return convertSchema(schema, ctx);
 }
 
-// node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/classic/coerce.js
+// ../env_ag7ffajzdy/bb/node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/classic/coerce.js
 var coerce_exports = {};
 __export(coerce_exports, {
   bigint: () => bigint3,
@@ -15718,10 +15718,10 @@ function date4(params) {
   return _coercedDate(ZodDate, params);
 }
 
-// node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/classic/external.js
+// ../env_ag7ffajzdy/bb/node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/classic/external.js
 config(en_default());
 
-// packages/domain/src/active-thinking.ts
+// ../env_ag7ffajzdy/bb/packages/domain/src/active-thinking.ts
 var activeThinkingSchema = external_exports.object({
   id: external_exports.string(),
   text: external_exports.string(),
@@ -15729,7 +15729,7 @@ var activeThinkingSchema = external_exports.object({
   updatedAt: external_exports.number()
 });
 
-// packages/domain/src/shared-types.ts
+// ../env_ag7ffajzdy/bb/packages/domain/src/shared-types.ts
 var reasoningLevelValues = [
   "none",
   "low",
@@ -16012,25 +16012,7 @@ var projectExecutionDefaultsSchema = external_exports.object({
   permissionMode: permissionModeSchema
 });
 
-// packages/domain/src/acp-cli.ts
-var providerSkillRootPathSchema = external_exports.string().min(1).refine((value) => {
-  const normalized = value.replaceAll("\\", "/");
-  return !normalized.startsWith("/") && !/^[a-zA-Z]:\//u.test(normalized) && normalized.split("/").every(
-    (segment) => segment !== "" && segment !== "." && segment !== ".."
-  );
-}, "Skill roots must be relative paths without dot segments");
-var uniqueProviderSkillRootPathsSchema = external_exports.array(providerSkillRootPathSchema).superRefine((paths, context) => {
-  if (new Set(paths).size !== paths.length) {
-    context.addIssue({
-      code: "custom",
-      message: "Skill roots must not contain duplicates"
-    });
-  }
-});
-var providerNativeSkillRootsSchema = external_exports.object({
-  user: uniqueProviderSkillRootPathsSchema.default([]),
-  project: uniqueProviderSkillRootPathsSchema.default([])
-}).strict();
+// ../env_ag7ffajzdy/bb/packages/domain/src/acp-cli.ts
 var acpReasoningCliLevelValueOverridesSchema = external_exports.partialRecord(
   reasoningLevelSchema,
   external_exports.string().min(1)
@@ -16094,7 +16076,7 @@ var acpPermissionCliSchema = external_exports.object({
   }
 });
 
-// packages/domain/src/app-settings.ts
+// ../env_ag7ffajzdy/bb/packages/domain/src/app-settings.ts
 var appSettingsSchema = external_exports.object({
   /**
    * macOS-only: keep the machine from idle sleeping while bb is running by
@@ -16119,20 +16101,10 @@ var appSettingsSchema = external_exports.object({
   /** Prevent Claude Code from exposing its native Task tool to bb threads. */
   claudeCodeSubagentsDisabled: external_exports.boolean(),
   /** Prevent Claude Code from exposing its native Workflow tool. */
-  claudeCodeWorkflowsDisabled: external_exports.boolean(),
-  /**
-   * ISO timestamp of when first-run onboarding last finished or was
-   * dismissed; null means it has never run. A timestamp rather than a boolean
-   * so we also know *when*, and so "never ran" has an honest value.
-   *
-   * Deliberately not a proxy for "is bb set up": whether an agent is usable is
-   * answered live by `provider.usage`, so dismissing onboarding never claims
-   * the machine is configured. Setting this back to null re-triggers the flow.
-   */
-  onboardingCompletedAt: external_exports.string().nullable()
+  claudeCodeWorkflowsDisabled: external_exports.boolean()
 }).strict();
 
-// packages/domain/src/app-keybindings.ts
+// ../env_ag7ffajzdy/bb/packages/domain/src/app-keybindings.ts
 var THREAD_JUMP_APP_COMMAND_IDS = [
   "thread.jump.1",
   "thread.jump.2",
@@ -16168,8 +16140,6 @@ var PANE_FOCUS_APP_COMMAND_IDS = [
 var APP_COMMAND_IDS = [
   "thread.new",
   "thread.search",
-  "thread.rename",
-  "thread.archive",
   "thread.previous",
   "thread.next",
   ...THREAD_JUMP_APP_COMMAND_IDS,
@@ -16190,12 +16160,6 @@ var APP_COMMAND_IDS = [
   "terminal.open",
   "composer.focus",
   "modelPicker.toggle",
-  "modelPicker.cycleModel",
-  "modelPicker.cycleModelBackward",
-  "modelPicker.cycleProvider",
-  "modelPicker.cycleProviderBackward",
-  "modelPicker.cycleReasoning",
-  "modelPicker.cycleReasoningBackward",
   "browser.focusLocation",
   "browser.reload",
   "workspace.openPreferred",
@@ -16211,9 +16175,7 @@ var APP_COMMAND_CONTEXT_KEYS = [
   "modelPickerOpen",
   "questionOpen",
   "promptAvailable",
-  "splitActive",
-  "webSurface",
-  "macPlatform"
+  "splitActive"
 ];
 var appCommandContextKeySchema = external_exports.enum(APP_COMMAND_CONTEXT_KEYS);
 var appShortcutSchema = external_exports.object({
@@ -16236,12 +16198,7 @@ var appKeybindingSchema = external_exports.object({
   shortcut: appShortcutSchema,
   when: appCommandWhenSchema
 }).strict();
-var appDefaultKeybindingSchema = appKeybindingSchema.extend({
-  // Null keeps a command assignable without shipping a default shortcut.
-  shortcut: appShortcutSchema.nullable()
-});
 var appKeybindingsSchema = external_exports.array(appKeybindingSchema).max(256);
-var appDefaultKeybindingsSchema = external_exports.array(appDefaultKeybindingSchema).max(256);
 var appKeybindingOverrideSchema = external_exports.object({
   command: appCommandIdSchema,
   // Null has explicit meaning: disable every default binding for this command.
@@ -16261,53 +16218,7 @@ var appKeybindingOverridesSchema = external_exports.array(appKeybindingOverrideS
   }
 });
 
-// packages/domain/src/json-value.ts
-var jsonValueSchema = external_exports.lazy(
-  () => external_exports.union([
-    external_exports.string(),
-    external_exports.number(),
-    external_exports.boolean(),
-    external_exports.null(),
-    external_exports.array(jsonValueSchema),
-    external_exports.record(external_exports.string(), jsonValueSchema)
-  ])
-);
-var jsonObjectSchema = external_exports.record(
-  external_exports.string(),
-  jsonValueSchema
-);
-
-// packages/domain/src/code-theme.ts
-var DEFAULT_CODE_THEME_DARK = "pierre-dark";
-var DEFAULT_CODE_THEME_LIGHT = "pierre-light";
-var codeThemeNameSchema = external_exports.string().min(1).max(128).regex(
-  /^[a-zA-Z0-9][a-zA-Z0-9._:-]*$/,
-  "Code theme names may use letters, digits, '.', '_', ':', and '-' and cannot start with '.'"
-);
-var codeThemePairSchema = external_exports.object({
-  dark: codeThemeNameSchema,
-  light: codeThemeNameSchema
-}).strict();
-var vscodeThemeJsonSchema = jsonObjectSchema.refine(
-  (value) => typeof value.name === "string" && value.name.length > 0,
-  { message: "Code theme JSON must include a non-empty name" }
-);
-var resolvedCodeThemeSchema = external_exports.object({
-  dark: codeThemeNameSchema,
-  light: codeThemeNameSchema,
-  files: external_exports.record(external_exports.string(), jsonObjectSchema)
-}).strict();
-var defaultResolvedCodeTheme = {
-  dark: DEFAULT_CODE_THEME_DARK,
-  light: DEFAULT_CODE_THEME_LIGHT,
-  files: {}
-};
-var uiCodeThemeDeclarationSchema = external_exports.object({
-  dark: external_exports.string().min(1).max(256).optional(),
-  light: external_exports.string().min(1).max(256).optional()
-}).strict();
-
-// packages/domain/src/app-theme.ts
+// ../env_ag7ffajzdy/bb/packages/domain/src/app-theme.ts
 var builtInThemeIdSchema = external_exports.enum([
   "default",
   "nord",
@@ -16347,12 +16258,7 @@ var appThemeSchema = external_exports.object({
   /** Resolved CSS for a custom palette; null for built-ins. */
   customCss: external_exports.string().max(CUSTOM_THEME_CSS_MAX_LENGTH).nullable(),
   /** Browser tab icon tint; "default" leaves the glyph untinted. */
-  faviconColor: faviconColorPreferenceSchema,
-  /**
-   * Pierre / Shiki names (and any custom JSON) derived from the active
-   * palette. Always filled at the server boundary.
-   */
-  resolvedCodeTheme: resolvedCodeThemeSchema.default(defaultResolvedCodeTheme)
+  faviconColor: faviconColorPreferenceSchema
 });
 var pluginThemeMetaSchema = external_exports.object({
   id: external_exports.string().min(1),
@@ -16365,7 +16271,7 @@ var appThemeSelectionSchema = external_exports.object({
   faviconColor: faviconColorPreferenceSchema
 });
 
-// packages/domain/src/background-task.ts
+// ../env_ag7ffajzdy/bb/packages/domain/src/background-task.ts
 var backgroundTaskStatusValues = [
   "pending",
   "running",
@@ -16425,10 +16331,23 @@ var backgroundTaskUsageSchema = external_exports.object({
   durationMs: external_exports.number()
 });
 
-// packages/domain/src/plugin-interaction-limits.ts
-var PLUGIN_INTERACTION_MAX_TITLE_LENGTH = 160;
+// ../env_ag7ffajzdy/bb/packages/domain/src/json-value.ts
+var jsonValueSchema = external_exports.lazy(
+  () => external_exports.union([
+    external_exports.string(),
+    external_exports.number(),
+    external_exports.boolean(),
+    external_exports.null(),
+    external_exports.array(jsonValueSchema),
+    external_exports.record(external_exports.string(), jsonValueSchema)
+  ])
+);
+var jsonObjectSchema = external_exports.record(
+  external_exports.string(),
+  jsonValueSchema
+);
 
-// packages/domain/src/pending-interactions.ts
+// ../env_ag7ffajzdy/bb/packages/domain/src/pending-interactions.ts
 var pendingInteractionStatusSchema = external_exports.enum([
   "pending",
   "resolving",
@@ -16531,21 +16450,12 @@ var pendingInteractionPermissionGrantApprovalSubjectSchema = external_exports.ob
   toolName: external_exports.string().nullable(),
   permissions: pendingInteractionGrantablePermissionProfileSchema
 });
-var pendingInteractionPlanApprovalSubjectSchema = external_exports.object({
-  kind: external_exports.literal("plan"),
-  itemId: external_exports.string().min(1),
-  /** The plan body, as Markdown. */
-  plan: external_exports.string().min(1),
-  /** Where the provider saved the plan, or null when it kept it in memory. */
-  planFilePath: external_exports.string().min(1).nullable()
-});
 var pendingInteractionApprovalSubjectSchema = external_exports.discriminatedUnion(
   "kind",
   [
     pendingInteractionCommandApprovalSubjectSchema,
     pendingInteractionFileChangeApprovalSubjectSchema,
-    pendingInteractionPermissionGrantApprovalSubjectSchema,
-    pendingInteractionPlanApprovalSubjectSchema
+    pendingInteractionPermissionGrantApprovalSubjectSchema
   ]
 );
 var approvalPendingInteractionPayloadSchema = external_exports.object({
@@ -16558,6 +16468,7 @@ var USER_QUESTION_MAX_QUESTIONS = 4;
 var USER_QUESTION_MAX_OPTIONS = 4;
 var USER_QUESTION_MAX_SELECTED = 4;
 var USER_QUESTION_MAX_FREE_TEXT_LENGTH = 4096;
+var PLUGIN_INTERACTION_MAX_TITLE_LENGTH = 160;
 var pendingInteractionUserQuestionIdSchema = external_exports.string().min(1).refine((value) => value.trim().length > 0, {
   message: "User question ids cannot be blank"
 });
@@ -16747,14 +16658,13 @@ var pendingInteractionSchema = external_exports.union([
   pluginPendingInteractionSchema
 ]);
 
-// packages/domain/src/protocol-ids.ts
+// ../env_ag7ffajzdy/bb/packages/domain/src/protocol-ids.ts
 var clientTurnRequestIdSchema = external_exports.string().regex(/^creq_[23456789abcdefghijkmnpqrstuvwxyz]{10}$/u);
 
-// packages/domain/src/thread-events.ts
+// ../env_ag7ffajzdy/bb/packages/domain/src/thread-events.ts
 var systemEventTypeValues = [
   "client/thread/start",
   "client/turn/requested",
-  "client/turn/rejected",
   "client/turn/start",
   "system/error",
   // Legacy persisted user-visible system event from a removed runtime path.
@@ -16801,6 +16711,9 @@ var threadProvisioningReasonValues = [
   "tell-after-missing-environment-attachment",
   "resume-missing-provider-thread"
 ];
+var threadProvisioningReasonSchema = external_exports.enum(
+  threadProvisioningReasonValues
+);
 var threadEnvironmentStartReasonValues = [
   ...threadProvisioningReasonValues,
   "boot-active-resume",
@@ -16834,8 +16747,6 @@ var clientTurnLifecycleEventDataSchema = external_exports.object({
 var turnRequestEventDataSchema = external_exports.object({
   direction: external_exports.literal("outbound"),
   requestId: clientTurnRequestIdSchema,
-  /** Failed request resumed by a guarded system continuation, when present. */
-  continuationOfRequestId: clientTurnRequestIdSchema.optional(),
   source: external_exports.enum(["spawn", "tell"]),
   initiator: threadTurnInitiatorSchema,
   // Non-null only when initiator === "agent". The invariant is enforced by
@@ -16856,11 +16767,6 @@ var turnRequestEventDataSchema = external_exports.object({
     params: external_exports.record(external_exports.string(), external_exports.unknown())
   }),
   execution: turnRequestOptionsSchema
-});
-var turnRequestRejectedEventDataSchema = external_exports.object({
-  requestId: clientTurnRequestIdSchema,
-  reason: external_exports.string().min(1),
-  message: external_exports.string().min(1)
 });
 var systemErrorEventDataSchema = external_exports.object({
   code: external_exports.string().optional(),
@@ -16966,6 +16872,10 @@ var systemLegacyUserMessageEventDataSchema = external_exports.object({
   toolCallId: external_exports.string().optional(),
   turnId: external_exports.string().optional()
 });
+var turnLifecycleEventDataSchema = external_exports.object({
+  turnId: external_exports.string().optional(),
+  input: external_exports.array(promptInputSchema).optional()
+});
 var systemProviderTurnWatchdogEventDataSchema = external_exports.object({
   reason: external_exports.literal("provider-turn-idle"),
   thresholdMs: external_exports.number().int().positive(),
@@ -16985,7 +16895,7 @@ var systemProviderTurnWatchdogEventDataSchema = external_exports.object({
   firedAt: external_exports.number().int().nonnegative()
 });
 
-// packages/domain/src/thread-event-scope.ts
+// ../env_ag7ffajzdy/bb/packages/domain/src/thread-event-scope.ts
 var threadEventScopeKindValues = ["thread", "turn"];
 var threadEventScopeKindSchema = external_exports.enum(threadEventScopeKindValues);
 var threadEventScopeSchema = external_exports.discriminatedUnion("kind", [
@@ -17017,7 +16927,6 @@ var threadEventScopeDefinitionByType = {
     rationale: "Thread metadata event; names are not part of a specific turn transcript."
   },
   "thread/compacted": { policy: "turn" },
-  "thread/context/cleared": { policy: "turn" },
   "thread/goal/updated": {
     policy: "thread",
     rationale: "Thread goal state is current thread metadata, not part of a specific turn transcript."
@@ -17045,19 +16954,12 @@ var threadEventScopeDefinitionByType = {
     rationale: "Terminal task state can arrive turns after the spawning turn completed; thread scope avoids appending into a closed turn's sequence range."
   },
   "thread/tokenUsage/updated": { policy: "turn" },
-  "thread/contextWindowUsage/updated": {
-    policy: "thread-or-turn",
-    rationale: "Context usage is session state; providers can report it before, during, or after a turn."
-  },
+  "thread/contextWindowUsage/updated": { policy: "turn" },
   "turn/plan/updated": { policy: "turn" },
   "turn/diff/updated": { policy: "turn" },
   "provider/error": {
     policy: "thread-or-turn",
     rationale: "Provider diagnostics use thread scope for provider setup/session failures; in-turn failures use turn scope."
-  },
-  "provider/rateLimits/updated": {
-    policy: "thread",
-    rationale: "Subscription usage is account-scoped state that can affect multiple turns and threads."
   },
   "provider/warning": {
     policy: "thread-or-turn",
@@ -17078,10 +16980,6 @@ var threadEventScopeDefinitionByType = {
   "client/turn/requested": {
     policy: "thread",
     rationale: "Outbound client lifecycle event; it records the request before provider turn acceptance."
-  },
-  "client/turn/rejected": {
-    policy: "thread",
-    rationale: "Client request rejection occurs before provider turn acceptance and identifies the request at thread scope."
   },
   "client/turn/start": {
     policy: "thread",
@@ -17160,7 +17058,7 @@ function validateThreadEventScope(args) {
   return { valid: true };
 }
 
-// packages/domain/src/thread-timeline-goal.ts
+// ../env_ag7ffajzdy/bb/packages/domain/src/thread-timeline-goal.ts
 var threadTimelineGoalStatusSchema = external_exports.enum([
   "active",
   "paused",
@@ -17177,7 +17075,7 @@ var threadTimelineGoalSchema = external_exports.object({
   timeUsedSeconds: external_exports.number()
 });
 
-// packages/domain/src/provider-event.ts
+// ../env_ag7ffajzdy/bb/packages/domain/src/provider-event.ts
 var threadEventItemStatusSchema = external_exports.enum([
   "pending",
   "completed",
@@ -17216,28 +17114,6 @@ var providerErrorInfoSchema = external_exports.object({
   category: providerErrorCategorySchema,
   providerCode: external_exports.string().nullable(),
   httpStatusCode: external_exports.number().nullable()
-});
-var providerRateLimitStatusSchema = external_exports.enum([
-  "allowed",
-  "warning",
-  "blocked",
-  "unknown"
-]);
-var providerRateLimitWindowSchema = external_exports.object({
-  /** Opaque provider-issued key. New provider windows must not break parsing. */
-  providerKey: external_exports.string().min(1).nullable(),
-  label: external_exports.string().min(1).nullable(),
-  status: providerRateLimitStatusSchema,
-  resetsAtMs: external_exports.number().int().nonnegative().nullable()
-});
-var providerRateLimitStateSchema = external_exports.object({
-  providerId: external_exports.string().min(1),
-  status: providerRateLimitStatusSchema,
-  kind: external_exports.enum(["subscription-window", "credits", "spend-control", "unknown"]),
-  windows: external_exports.array(providerRateLimitWindowSchema),
-  reachedReason: external_exports.string().min(1).nullable(),
-  overageStatus: external_exports.enum(["allowed", "warning", "rejected", "unavailable"]).nullable(),
-  overageReason: external_exports.string().min(1).nullable()
 });
 var threadEventFileChangeKindSchema = external_exports.enum([
   "add",
@@ -17414,8 +17290,6 @@ var threadEventItemSchema = external_exports.discriminatedUnion("type", [
     server: external_exports.string().optional(),
     tool: external_exports.string(),
     arguments: external_exports.record(external_exports.string(), external_exports.unknown()).optional(),
-    /** Server-enriched labels for a native plugin tool's timeline row. */
-    statusLabels: external_exports.object({ pending: external_exports.string(), completed: external_exports.string() }).optional(),
     status: threadEventItemStatusSchema,
     result: external_exports.unknown().optional(),
     error: external_exports.string().optional(),
@@ -17466,9 +17340,7 @@ var unscopedProviderEventSchema = external_exports.discriminatedUnion("type", [
     // original provider thread id was never persisted.
     providerThreadId: external_exports.string().nullable(),
     status: threadEventTurnStatusSchema,
-    error: external_exports.object({ message: external_exports.string() }).optional(),
-    /** Provider-native point through which a replacement branch should retain history. */
-    providerCheckpointId: external_exports.string().min(1).optional()
+    error: external_exports.object({ message: external_exports.string() }).optional()
   }),
   external_exports.object({
     type: external_exports.literal("turn/input/accepted"),
@@ -17485,11 +17357,6 @@ var unscopedProviderEventSchema = external_exports.discriminatedUnion("type", [
   }),
   external_exports.object({
     type: external_exports.literal("thread/compacted"),
-    threadId: external_exports.string(),
-    providerThreadId: external_exports.string()
-  }),
-  external_exports.object({
-    type: external_exports.literal("thread/context/cleared"),
     threadId: external_exports.string(),
     providerThreadId: external_exports.string()
   }),
@@ -17641,12 +17508,6 @@ var unscopedProviderEventSchema = external_exports.discriminatedUnion("type", [
     errorInfo: providerErrorInfoSchema.optional()
   }),
   external_exports.object({
-    type: external_exports.literal("provider/rateLimits/updated"),
-    threadId: external_exports.string(),
-    providerThreadId: external_exports.string(),
-    rateLimits: providerRateLimitStateSchema
-  }),
-  external_exports.object({
     type: external_exports.literal("provider/warning"),
     threadId: external_exports.string(),
     providerThreadId: external_exports.string(),
@@ -17683,10 +17544,6 @@ var unscopedSystemEventSchema = external_exports.union([
     type: external_exports.literal("client/turn/requested"),
     threadId: external_exports.string()
   }).merge(turnRequestEventDataSchema),
-  external_exports.object({
-    type: external_exports.literal("client/turn/rejected"),
-    threadId: external_exports.string()
-  }).merge(turnRequestRejectedEventDataSchema),
   external_exports.object({
     type: external_exports.literal("client/turn/start"),
     threadId: external_exports.string()
@@ -17776,12 +17633,11 @@ var threadEventTypeSchema = external_exports.string().refine(
   "Invalid thread event type"
 );
 
-// packages/domain/src/change-kinds.ts
+// ../env_ag7ffajzdy/bb/packages/domain/src/change-kinds.ts
 var THREAD_CHANGE_KINDS = [
   "thread-created",
   "thread-deleted",
   "events-appended",
-  "history-rewritten",
   "interactions-changed",
   "status-changed",
   "title-changed",
@@ -17970,7 +17826,7 @@ var changedMessageLenientSchema = external_exports.discriminatedUnion("entity", 
   systemChangedMessageLenientSchema
 ]);
 
-// packages/domain/src/claude-task-tools.ts
+// ../env_ag7ffajzdy/bb/packages/domain/src/claude-task-tools.ts
 var claudeTaskToolNameValues = [
   "TaskCreate",
   "TaskGet",
@@ -18042,7 +17898,7 @@ var claudeTaskToolOutputSchema = external_exports.union([
   claudeTaskUpdateOutputSchema
 ]);
 
-// packages/domain/src/environment.ts
+// ../env_ag7ffajzdy/bb/packages/domain/src/environment.ts
 var environmentStatusValues = [
   "provisioning",
   "ready",
@@ -18092,17 +17948,28 @@ var environmentSchema = external_exports.object({
   updatedAt: external_exports.number()
 });
 
-// packages/domain/src/experiments.ts
-var experimentKeys = [
-  "claudeCodeMockCliTraffic",
-  "editMessages",
-  "newOnboarding",
-  "providerSessionReaping"
-];
-var experimentKeySchema = external_exports.enum(experimentKeys);
-var experimentsSchema = external_exports.record(experimentKeySchema, external_exports.boolean());
+// ../env_ag7ffajzdy/bb/packages/domain/src/experiments.ts
+var experimentsSchema = external_exports.object({
+  /**
+   * Claude Code mock CLI traffic: routes Claude Code API requests through the
+   * local proxy so forwarded requests use CLI-shaped traffic.
+   */
+  claudeCodeMockCliTraffic: external_exports.boolean(),
+  /**
+   * Tools Hub: exposes the unified Skills, Plugins, and Automations management
+   * UI. This is a presentation gate only; it does not load or unload tools.
+   */
+  toolsHub: external_exports.boolean(),
+  /**
+   * Side chat plugin: replaces the native side-chat implementation with the
+   * builtin `side-chat` plugin. ON hides the native "Reply in side chat"
+   * entry points and loads the plugin; OFF suppresses the plugin and keeps
+   * the legacy path fully functional.
+   */
+  sideChatPlugin: external_exports.boolean()
+});
 
-// packages/domain/src/feature-flags.ts
+// ../env_ag7ffajzdy/bb/packages/domain/src/feature-flags.ts
 var featureFlagsSchema = external_exports.object({
   placeholder: external_exports.boolean(),
   /**
@@ -18120,7 +17987,7 @@ var featureFlagsSchema = external_exports.object({
   timelineWindowEventBudget: external_exports.number().int().positive()
 });
 
-// packages/domain/src/git-checkout.ts
+// ../env_ag7ffajzdy/bb/packages/domain/src/git-checkout.ts
 var gitBranchForbiddenCharacterPattern = /[\u0000-\u001f\u007f\\:~^?*\[]/u;
 var gitBranchWhitespacePattern = /[ \t]/u;
 var gitReservedBranchNames = /* @__PURE__ */ new Set([
@@ -18215,7 +18082,7 @@ var projectSourceCheckoutSchema = external_exports.object({
   selectedBranch: gitBranchRefClassificationSchema.nullable()
 });
 
-// packages/domain/src/host.ts
+// ../env_ag7ffajzdy/bb/packages/domain/src/host.ts
 var hostTypeValues = ["persistent"];
 var hostTypeSchema = external_exports.enum(hostTypeValues);
 var hostStatusValues = ["connected", "disconnected"];
@@ -18225,20 +18092,13 @@ var hostSchema = external_exports.object({
   name: external_exports.string(),
   type: hostTypeSchema,
   status: hostStatusSchema,
-  /**
-   * Permission ceiling for work that runs on this machine. Threads resolve
-   * down to this mode, so a sandbox machine can stay at "full" while a
-   * personal laptop refuses to go above "accept-edits". Only an owner session
-   * changes it; machine credentials cannot (see the hosts routes).
-   */
-  maxPermissionMode: permissionModeSchema,
   lastSeenAt: external_exports.number().nullable(),
   lastRejectedProtocolVersion: external_exports.number().int().positive().nullable(),
   createdAt: external_exports.number(),
   updatedAt: external_exports.number()
 });
 
-// packages/domain/src/plugin-id.ts
+// ../env_ag7ffajzdy/bb/packages/domain/src/plugin-id.ts
 function derivePluginId(packageName) {
   const base = packageName.includes("/") ? packageName.split("/").at(-1) ?? packageName : packageName;
   const id = base.replace(/^bb-plugin-/, "").toLowerCase().replace(/[^a-z0-9-]/g, "-").replace(/^-+|-+$/g, "");
@@ -18250,7 +18110,7 @@ function derivePluginId(packageName) {
   return id;
 }
 
-// packages/domain/src/plugin-manifest.ts
+// ../env_ag7ffajzdy/bb/packages/domain/src/plugin-manifest.ts
 var requiredManifestString = external_exports.string().trim().min(1);
 function isPluginOwnedIconPath(icon) {
   return icon.startsWith("./");
@@ -18287,8 +18147,7 @@ var pluginBbManifestSchema = external_exports.object({
       id: external_exports.string().regex(/^[a-zA-Z0-9][a-zA-Z0-9._-]*$/).max(64),
       name: requiredManifestString,
       description: requiredManifestString.optional(),
-      css: requiredManifestString,
-      codeTheme: uiCodeThemeDeclarationSchema.optional()
+      css: requiredManifestString
     }).strict()
   ).optional()
 }).strict();
@@ -18302,11 +18161,11 @@ var pluginPackageJsonSchema = external_exports.object({
   bb: pluginBbManifestSchema
 }).passthrough();
 
-// packages/domain/src/plugin-sdk-version.ts
-var PLUGIN_SDK_VERSION = "0.4.6";
+// ../env_ag7ffajzdy/bb/packages/domain/src/plugin-sdk-version.ts
+var PLUGIN_SDK_VERSION = "0.4.1";
 var PLUGIN_SDK_MAJOR = Number(PLUGIN_SDK_VERSION.split(".", 1)[0]);
 
-// packages/domain/src/project.ts
+// ../env_ag7ffajzdy/bb/packages/domain/src/project.ts
 var projectKindValues = ["standard", "personal"];
 var projectKindSchema = external_exports.enum(projectKindValues);
 var projectSchema = external_exports.object({
@@ -18332,7 +18191,7 @@ var localPathProjectSourceSchema = baseProjectSourceSchema.extend({
   path: external_exports.string()
 });
 
-// packages/domain/src/prompt-history.ts
+// ../env_ag7ffajzdy/bb/packages/domain/src/prompt-history.ts
 var promptHistoryScopeValues = ["project", "thread"];
 var promptHistoryScopeSchema = external_exports.enum(promptHistoryScopeValues);
 var promptHistoryEntrySchema = external_exports.object({
@@ -18341,7 +18200,7 @@ var promptHistoryEntrySchema = external_exports.object({
   input: external_exports.array(promptInputSchema).min(1)
 });
 
-// packages/domain/src/provider-types.ts
+// ../env_ag7ffajzdy/bb/packages/domain/src/provider-types.ts
 var modelReasoningEffortSchema = external_exports.object({
   reasoningEffort: reasoningLevelSchema,
   description: external_exports.string()
@@ -18350,9 +18209,6 @@ var availableModelSchema = external_exports.object({
   id: external_exports.string(),
   model: external_exports.string(),
   displayName: external_exports.string(),
-  /** Provider route used to run this model when it is distinct from the
-   * selected agent provider (for example, a model provider nested under Pi). */
-  routeProviderId: external_exports.string().min(1).optional(),
   description: external_exports.string(),
   supportedReasoningEfforts: external_exports.array(modelReasoningEffortSchema),
   defaultReasoningEffort: reasoningLevelSchema,
@@ -18422,15 +18278,7 @@ var dynamicToolSchema = external_exports.object({
   inputSchema: external_exports.unknown()
 });
 
-// packages/domain/src/raw-thread-id.ts
-var GENERATED_ID_ALPHABET = "23456789abcdefghijkmnpqrstuvwxyz";
-var GENERATED_ID_SUFFIX_LENGTH = 10;
-var THREAD_ID_PREFIX = "thr_";
-var RAW_THREAD_ID_PATTERN_SOURCE = `${THREAD_ID_PREFIX}[${GENERATED_ID_ALPHABET}]{${GENERATED_ID_SUFFIX_LENGTH}}`;
-var rawThreadIdPattern = new RegExp(`^${RAW_THREAD_ID_PATTERN_SOURCE}$`, "u");
-var rawThreadIdSchema = external_exports.string().regex(rawThreadIdPattern);
-
-// packages/domain/src/stored-thread-event.ts
+// ../env_ag7ffajzdy/bb/packages/domain/src/stored-thread-event.ts
 var threadEventRowInputSchema = external_exports.object({
   id: external_exports.string(),
   scope: threadEventScopeSchema,
@@ -18508,7 +18356,7 @@ var threadEventRowSchema = threadEventRowInputSchema.transform(
   (row) => parseThreadEventRowInput(row)
 );
 
-// packages/domain/src/terminal.ts
+// ../env_ag7ffajzdy/bb/packages/domain/src/terminal.ts
 var TERMINAL_COLS_MAX = 500;
 var TERMINAL_ROWS_MAX = 200;
 var TERMINAL_DATA_MAX_BYTES = 64 * 1024;
@@ -18552,7 +18400,7 @@ var terminalDataBase64Schema = external_exports.string().min(1).max(TERMINAL_DAT
   }
 );
 
-// packages/domain/src/thread-git-diff.ts
+// ../env_ag7ffajzdy/bb/packages/domain/src/thread-git-diff.ts
 var workspaceDiffTargetSchema = external_exports.discriminatedUnion("type", [
   external_exports.object({
     type: external_exports.literal("uncommitted")
@@ -18597,7 +18445,7 @@ var threadGitDiffResponseSchema = external_exports.object({
   mergeBaseRef: external_exports.string().nullable()
 });
 
-// packages/domain/src/thread-search.ts
+// ../env_ag7ffajzdy/bb/packages/domain/src/thread-search.ts
 var threadSearchSourceKindValues = [
   "title",
   "title_fallback",
@@ -18609,14 +18457,14 @@ var threadSearchSourceKindSchema = external_exports.enum(
   threadSearchSourceKindValues
 );
 
-// packages/domain/src/thread-timeline-active-prompt-mode.ts
+// ../env_ag7ffajzdy/bb/packages/domain/src/thread-timeline-active-prompt-mode.ts
 var threadTimelineActivePromptModeSchema = external_exports.object({
   mode: external_exports.literal("plan"),
   providerId: external_exports.enum(["claude-code", "codex"]),
   prompt: external_exports.string()
 }).strict();
 
-// packages/domain/src/thread-timeline-model-fallback.ts
+// ../env_ag7ffajzdy/bb/packages/domain/src/thread-timeline-model-fallback.ts
 var threadTimelineModelFallbackSchema = external_exports.object({
   sourceSeq: external_exports.number().int().nonnegative(),
   detectedAt: external_exports.number(),
@@ -18626,7 +18474,7 @@ var threadTimelineModelFallbackSchema = external_exports.object({
   message: external_exports.string()
 });
 
-// packages/domain/src/thread-timeline-pending-todos.ts
+// ../env_ag7ffajzdy/bb/packages/domain/src/thread-timeline-pending-todos.ts
 var threadTimelinePendingTodoItemStatusSchema = external_exports.enum([
   "pending",
   "in_progress",
@@ -18643,11 +18491,11 @@ var threadTimelinePendingTodosSchema = external_exports.object({
   items: external_exports.array(threadTimelinePendingTodoItemSchema)
 });
 
-// packages/domain/src/thread-visibility.ts
+// ../env_ag7ffajzdy/bb/packages/domain/src/thread-visibility.ts
 var threadVisibilityValues = ["visible", "hidden"];
 var threadVisibilitySchema = external_exports.enum(threadVisibilityValues);
 
-// packages/domain/src/thread-status.ts
+// ../env_ag7ffajzdy/bb/packages/domain/src/thread-status.ts
 var threadStatusValues = [
   "idle",
   "starting",
@@ -18657,11 +18505,12 @@ var threadStatusValues = [
 ];
 var threadStatusSchema = external_exports.enum(threadStatusValues);
 
-// packages/domain/src/thread-origin-kind.ts
-var threadOriginKindValues = ["fork"];
+// ../env_ag7ffajzdy/bb/packages/domain/src/thread-child-origin.ts
+var threadOriginKindValues = ["fork", "side-chat"];
 var threadOriginKindSchema = external_exports.enum(threadOriginKindValues);
+var threadChildOriginSchema = threadOriginKindSchema;
 
-// packages/domain/src/thread.ts
+// ../env_ag7ffajzdy/bb/packages/domain/src/thread.ts
 var threadRuntimeDisplayStatusValues = [
   ...threadStatusValues,
   "provisioning",
@@ -18726,8 +18575,6 @@ var workspaceCommitSummarySchema = external_exports.object({
 var workspaceChangeStatsSchema = external_exports.object({
   insertions: external_exports.number(),
   deletions: external_exports.number(),
-  /** False when line totals omit files whose contents were intentionally not read. */
-  lineStatsComplete: external_exports.boolean(),
   files: external_exports.array(workspaceFileStatusSchema)
 });
 var workspaceWorkingTreeSchema = workspaceChangeStatsSchema.extend({
@@ -18774,8 +18621,7 @@ var gitHostPullRequestCheckSchema = external_exports.object({
   name: external_exports.string().min(1),
   status: gitHostPullRequestCheckStatusSchema,
   conclusion: gitHostPullRequestCheckConclusionSchema.nullable(),
-  url: external_exports.string().url().nullable(),
-  startedAt: external_exports.string().datetime().nullable()
+  url: external_exports.string().url().nullable()
 }).strict();
 var gitHostPullRequestReviewDecisionSchema = external_exports.enum([
   "APPROVED",
@@ -18904,6 +18750,8 @@ var threadSchema = external_exports.object({
   parentThreadId: external_exports.string().nullable(),
   sourceThreadId: external_exports.string().nullable(),
   originKind: threadOriginKindSchema.nullable(),
+  /** @deprecated Use originKind. */
+  childOrigin: threadChildOriginSchema.nullable(),
   /** Id of the plugin that spawned this thread; null for non-plugin origins. */
   originPluginId: external_exports.string().nullable(),
   visibility: threadVisibilitySchema,
@@ -18928,7 +18776,7 @@ var threadListEntrySchema = threadWithRuntimeSchema.extend({
   environmentWorkspaceDisplayKind: environmentWorkspaceDisplayKindSchema
 });
 
-// packages/plugin-build/src/generated/plugin-theme.generated.ts
+// ../env_ag7ffajzdy/bb/packages/plugin-build/src/generated/plugin-theme.generated.ts
 var PLUGIN_THEME_CSS = `@theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
@@ -19021,17 +18869,12 @@ var PLUGIN_THEME_CSS = `@theme inline {
 }`;
 var TW_ANIMATE_CSS = `@property --tw-animation-delay{syntax:"*";inherits:false;initial-value:0s}@property --tw-animation-direction{syntax:"*";inherits:false;initial-value:normal}@property --tw-animation-duration{syntax:"*";inherits:false}@property --tw-animation-fill-mode{syntax:"*";inherits:false;initial-value:none}@property --tw-animation-iteration-count{syntax:"*";inherits:false;initial-value:1}@property --tw-enter-blur{syntax:"*";inherits:false;initial-value:0}@property --tw-enter-opacity{syntax:"*";inherits:false;initial-value:1}@property --tw-enter-rotate{syntax:"*";inherits:false;initial-value:0}@property --tw-enter-scale{syntax:"*";inherits:false;initial-value:1}@property --tw-enter-translate-x{syntax:"*";inherits:false;initial-value:0}@property --tw-enter-translate-y{syntax:"*";inherits:false;initial-value:0}@property --tw-exit-blur{syntax:"*";inherits:false;initial-value:0}@property --tw-exit-opacity{syntax:"*";inherits:false;initial-value:1}@property --tw-exit-rotate{syntax:"*";inherits:false;initial-value:0}@property --tw-exit-scale{syntax:"*";inherits:false;initial-value:1}@property --tw-exit-translate-x{syntax:"*";inherits:false;initial-value:0}@property --tw-exit-translate-y{syntax:"*";inherits:false;initial-value:0}@theme inline{--animation-delay-0: 0s; --animation-delay-75: 75ms; --animation-delay-100: .1s; --animation-delay-150: .15s; --animation-delay-200: .2s; --animation-delay-300: .3s; --animation-delay-500: .5s; --animation-delay-700: .7s; --animation-delay-1000: 1s; --animation-repeat-0: 0; --animation-repeat-1: 1; --animation-repeat-infinite: infinite; --animation-direction-normal: normal; --animation-direction-reverse: reverse; --animation-direction-alternate: alternate; --animation-direction-alternate-reverse: alternate-reverse; --animation-fill-mode-none: none; --animation-fill-mode-forwards: forwards; --animation-fill-mode-backwards: backwards; --animation-fill-mode-both: both; --percentage-0: 0; --percentage-5: .05; --percentage-10: .1; --percentage-15: .15; --percentage-20: .2; --percentage-25: .25; --percentage-30: .3; --percentage-35: .35; --percentage-40: .4; --percentage-45: .45; --percentage-50: .5; --percentage-55: .55; --percentage-60: .6; --percentage-65: .65; --percentage-70: .7; --percentage-75: .75; --percentage-80: .8; --percentage-85: .85; --percentage-90: .9; --percentage-95: .95; --percentage-100: 1; --percentage-translate-full: 1; --animate-in: enter var(--tw-animation-duration,var(--tw-duration,.15s))var(--tw-ease,ease)var(--tw-animation-delay,0s)var(--tw-animation-iteration-count,1)var(--tw-animation-direction,normal)var(--tw-animation-fill-mode,none); --animate-out: exit var(--tw-animation-duration,var(--tw-duration,.15s))var(--tw-ease,ease)var(--tw-animation-delay,0s)var(--tw-animation-iteration-count,1)var(--tw-animation-direction,normal)var(--tw-animation-fill-mode,none); @keyframes enter { from { opacity: var(--tw-enter-opacity,1); transform: translate3d(var(--tw-enter-translate-x,0),var(--tw-enter-translate-y,0),0)scale3d(var(--tw-enter-scale,1),var(--tw-enter-scale,1),var(--tw-enter-scale,1))rotate(var(--tw-enter-rotate,0)); filter: blur(var(--tw-enter-blur,0)); }}@keyframes exit { to { opacity: var(--tw-exit-opacity,1); transform: translate3d(var(--tw-exit-translate-x,0),var(--tw-exit-translate-y,0),0)scale3d(var(--tw-exit-scale,1),var(--tw-exit-scale,1),var(--tw-exit-scale,1))rotate(var(--tw-exit-rotate,0)); filter: blur(var(--tw-exit-blur,0)); }}--animate-accordion-down: accordion-down var(--tw-animation-duration,var(--tw-duration,.2s))var(--tw-ease,ease-out)var(--tw-animation-delay,0s)var(--tw-animation-iteration-count,1)var(--tw-animation-direction,normal)var(--tw-animation-fill-mode,none); --animate-accordion-up: accordion-up var(--tw-animation-duration,var(--tw-duration,.2s))var(--tw-ease,ease-out)var(--tw-animation-delay,0s)var(--tw-animation-iteration-count,1)var(--tw-animation-direction,normal)var(--tw-animation-fill-mode,none); --animate-collapsible-down: collapsible-down var(--tw-animation-duration,var(--tw-duration,.2s))var(--tw-ease,ease-out)var(--tw-animation-delay,0s)var(--tw-animation-iteration-count,1)var(--tw-animation-direction,normal)var(--tw-animation-fill-mode,none); --animate-collapsible-up: collapsible-up var(--tw-animation-duration,var(--tw-duration,.2s))var(--tw-ease,ease-out)var(--tw-animation-delay,0s)var(--tw-animation-iteration-count,1)var(--tw-animation-direction,normal)var(--tw-animation-fill-mode,none); @keyframes accordion-down { from { height: 0; }to { height: var(--radix-accordion-content-height,var(--bits-accordion-content-height,var(--reka-accordion-content-height,var(--kb-accordion-content-height,var(--ngp-accordion-content-height,auto))))); }}@keyframes accordion-up { from { height: var(--radix-accordion-content-height,var(--bits-accordion-content-height,var(--reka-accordion-content-height,var(--kb-accordion-content-height,var(--ngp-accordion-content-height,auto))))); }to { height: 0; }}@keyframes collapsible-down { from { height: 0; }to { height: var(--radix-collapsible-content-height,var(--bits-collapsible-content-height,var(--reka-collapsible-content-height,var(--kb-collapsible-content-height,auto)))); }}@keyframes collapsible-up { from { height: var(--radix-collapsible-content-height,var(--bits-collapsible-content-height,var(--reka-collapsible-content-height,var(--kb-collapsible-content-height,auto)))); }to { height: 0; }}--animate-caret-blink: caret-blink 1.25s ease-out infinite; @keyframes caret-blink { 0%,70%,100% { opacity: 1; }20%,50% { opacity: 0; }}}@utility animation-duration-*{--tw-animation-duration: calc(--value(number)*1ms); --tw-animation-duration: --value(--animation-duration-*,[duration],"initial",[*]); animation-duration: calc(--value(number)*1ms); animation-duration: --value(--animation-duration-*,[duration],"initial",[*]);}@utility delay-*{animation-delay: calc(--value(number)*1ms); animation-delay: --value(--animation-delay-*,[duration],"initial",[*]); --tw-animation-delay: calc(--value(number)*1ms); --tw-animation-delay: --value(--animation-delay-*,[duration],"initial",[*]);}@utility repeat-*{animation-iteration-count: --value(--animation-repeat-*,number,"initial",[*]); --tw-animation-iteration-count: --value(--animation-repeat-*,number,"initial",[*]);}@utility direction-*{animation-direction: --value(--animation-direction-*,"initial",[*]); --tw-animation-direction: --value(--animation-direction-*,"initial",[*]);}@utility fill-mode-*{animation-fill-mode: --value(--animation-fill-mode-*,"initial",[*]); --tw-animation-fill-mode: --value(--animation-fill-mode-*,"initial",[*]);}@utility running{animation-play-state: running;}@utility paused{animation-play-state: paused;}@utility play-state-*{animation-play-state: --value("initial",[*]);}@utility blur-in{--tw-enter-blur: 20px;}@utility blur-in-*{--tw-enter-blur: calc(--value(number)*1px); --tw-enter-blur: --value(--blur-*,[*]);}@utility blur-out{--tw-exit-blur: 20px;}@utility blur-out-*{--tw-exit-blur: calc(--value(number)*1px); --tw-exit-blur: --value(--blur-*,[*]);}@utility fade-in{--tw-enter-opacity: 0;}@utility fade-in-*{--tw-enter-opacity: calc(--value(number)/100); --tw-enter-opacity: --value(--percentage-*,[*]);}@utility fade-out{--tw-exit-opacity: 0;}@utility fade-out-*{--tw-exit-opacity: calc(--value(number)/100); --tw-exit-opacity: --value(--percentage-*,[*]);}@utility zoom-in{--tw-enter-scale: 0;}@utility zoom-in-*{--tw-enter-scale: calc(--value(number)*1%); --tw-enter-scale: calc(--value(ratio)); --tw-enter-scale: --value(--percentage-*,[*]);}@utility -zoom-in-*{--tw-enter-scale: calc(--value(number)*-1%); --tw-enter-scale: calc(--value(ratio)*-1); --tw-enter-scale: --value(--percentage-*,[*]);}@utility zoom-out{--tw-exit-scale: 0;}@utility zoom-out-*{--tw-exit-scale: calc(--value(number)*1%); --tw-exit-scale: calc(--value(ratio)); --tw-exit-scale: --value(--percentage-*,[*]);}@utility -zoom-out-*{--tw-exit-scale: calc(--value(number)*-1%); --tw-exit-scale: calc(--value(ratio)*-1); --tw-exit-scale: --value(--percentage-*,[*]);}@utility spin-in{--tw-enter-rotate: 30deg;}@utility spin-in-*{--tw-enter-rotate: calc(--value(number)*1deg); --tw-enter-rotate: calc(--value(ratio)*360deg); --tw-enter-rotate: --value(--rotate-*,[*]);}@utility -spin-in{--tw-enter-rotate: -30deg;}@utility -spin-in-*{--tw-enter-rotate: calc(--value(number)*-1deg); --tw-enter-rotate: calc(--value(ratio)*-360deg); --tw-enter-rotate: --value(--rotate-*,[*]);}@utility spin-out{--tw-exit-rotate: 30deg;}@utility spin-out-*{--tw-exit-rotate: calc(--value(number)*1deg); --tw-exit-rotate: calc(--value(ratio)*360deg); --tw-exit-rotate: --value(--rotate-*,[*]);}@utility -spin-out{--tw-exit-rotate: -30deg;}@utility -spin-out-*{--tw-exit-rotate: calc(--value(number)*-1deg); --tw-exit-rotate: calc(--value(ratio)*-360deg); --tw-exit-rotate: --value(--rotate-*,[*]);}@utility slide-in-from-top{--tw-enter-translate-y: -100%;}@utility slide-in-from-top-*{--tw-enter-translate-y: calc(--value(integer)*var(--spacing)*-1); --tw-enter-translate-y: calc(--value(--percentage-*,--percentage-translate-*)*-100%); --tw-enter-translate-y: calc(--value(ratio)*-100%); --tw-enter-translate-y: calc(--value(--translate-*,[percentage],[length])*-1);}@utility slide-in-from-bottom{--tw-enter-translate-y: 100%;}@utility slide-in-from-bottom-*{--tw-enter-translate-y: calc(--value(integer)*var(--spacing)); --tw-enter-translate-y: calc(--value(--percentage-*,--percentage-translate-*)*100%); --tw-enter-translate-y: calc(--value(ratio)*100%); --tw-enter-translate-y: --value(--translate-*,[percentage],[length]);}@utility slide-in-from-left{--tw-enter-translate-x: -100%;}@utility slide-in-from-left-*{--tw-enter-translate-x: calc(--value(integer)*var(--spacing)*-1); --tw-enter-translate-x: calc(--value(--percentage-*,--percentage-translate-*)*-100%); --tw-enter-translate-x: calc(--value(ratio)*-100%); --tw-enter-translate-x: calc(--value(--translate-*,[percentage],[length])*-1);}@utility slide-in-from-right{--tw-enter-translate-x: 100%;}@utility slide-in-from-right-*{--tw-enter-translate-x: calc(--value(integer)*var(--spacing)); --tw-enter-translate-x: calc(--value(--percentage-*,--percentage-translate-*)*100%); --tw-enter-translate-x: calc(--value(ratio)*100%); --tw-enter-translate-x: --value(--translate-*,[percentage],[length]);}@utility slide-in-from-start{&:dir(ltr){ --tw-enter-translate-x: -100%; }&:dir(rtl){ --tw-enter-translate-x: 100%; }}@utility slide-in-from-start-*{&:where(:dir(ltr),[dir="ltr"],[dir="ltr"]*){ --tw-enter-translate-x: calc(--value(integer)*var(--spacing)*-1); --tw-enter-translate-x: calc(--value(--percentage-*,--percentage-translate-*)*-100%); --tw-enter-translate-x: calc(--value(ratio)*-100%); --tw-enter-translate-x: calc(--value(--translate-*,[percentage],[length])*-1); }&:where(:dir(rtl),[dir="rtl"],[dir="rtl"]*){ --tw-enter-translate-x: calc(--value(integer)*var(--spacing)); --tw-enter-translate-x: calc(--value(--percentage-*,--percentage-translate-*)*100%); --tw-enter-translate-x: calc(--value(ratio)*100%); --tw-enter-translate-x: --value(--translate-*,[percentage],[length]); }}@utility slide-in-from-end{&:dir(ltr){ --tw-enter-translate-x: 100%; }&:dir(rtl){ --tw-enter-translate-x: -100%; }}@utility slide-in-from-end-*{&:where(:dir(ltr),[dir="ltr"],[dir="ltr"]*){ --tw-enter-translate-x: calc(--value(integer)*var(--spacing)); --tw-enter-translate-x: calc(--value(--percentage-*,--percentage-translate-*)*100%); --tw-enter-translate-x: calc(--value(ratio)*100%); --tw-enter-translate-x: --value(--translate-*,[percentage],[length]); }&:where(:dir(rtl),[dir="rtl"],[dir="rtl"]*){ --tw-enter-translate-x: calc(--value(integer)*var(--spacing)*-1); --tw-enter-translate-x: calc(--value(--percentage-*,--percentage-translate-*)*-100%); --tw-enter-translate-x: calc(--value(ratio)*-100%); --tw-enter-translate-x: calc(--value(--translate-*,[percentage],[length])*-1); }}@utility slide-out-to-top{--tw-exit-translate-y: -100%;}@utility slide-out-to-top-*{--tw-exit-translate-y: calc(--value(integer)*var(--spacing)*-1); --tw-exit-translate-y: calc(--value(--percentage-*,--percentage-translate-*)*-100%); --tw-exit-translate-y: calc(--value(ratio)*-100%); --tw-exit-translate-y: calc(--value(--translate-*,[percentage],[length])*-1);}@utility slide-out-to-bottom{--tw-exit-translate-y: 100%;}@utility slide-out-to-bottom-*{--tw-exit-translate-y: calc(--value(integer)*var(--spacing)); --tw-exit-translate-y: calc(--value(--percentage-*,--percentage-translate-*)*100%); --tw-exit-translate-y: calc(--value(ratio)*100%); --tw-exit-translate-y: --value(--translate-*,[percentage],[length]);}@utility slide-out-to-left{--tw-exit-translate-x: -100%;}@utility slide-out-to-left-*{--tw-exit-translate-x: calc(--value(integer)*var(--spacing)*-1); --tw-exit-translate-x: calc(--value(--percentage-*,--percentage-translate-*)*-100%); --tw-exit-translate-x: calc(--value(ratio)*-100%); --tw-exit-translate-x: calc(--value(--translate-*,[percentage],[length])*-1);}@utility slide-out-to-right{--tw-exit-translate-x: 100%;}@utility slide-out-to-right-*{--tw-exit-translate-x: calc(--value(integer)*var(--spacing)); --tw-exit-translate-x: calc(--value(--percentage-*,--percentage-translate-*)*100%); --tw-exit-translate-x: calc(--value(ratio)*100%); --tw-exit-translate-x: --value(--translate-*,[percentage],[length]);}@utility slide-out-to-start{&:dir(ltr){ --tw-exit-translate-x: -100%; }&:dir(rtl){ --tw-exit-translate-x: 100%; }}@utility slide-out-to-start-*{&:where(:dir(ltr),[dir="ltr"],[dir="ltr"]*){ --tw-exit-translate-x: calc(--value(integer)*var(--spacing)*-1); --tw-exit-translate-x: calc(--value(--percentage-*,--percentage-translate-*)*-100%); --tw-exit-translate-x: calc(--value(ratio)*-100%); --tw-exit-translate-x: calc(--value(--translate-*,[percentage],[length])*-1); }&:where(:dir(rtl),[dir="rtl"],[dir="rtl"]*){ --tw-exit-translate-x: calc(--value(integer)*var(--spacing)); --tw-exit-translate-x: calc(--value(--percentage-*,--percentage-translate-*)*100%); --tw-exit-translate-x: calc(--value(ratio)*100%); --tw-exit-translate-x: --value(--translate-*,[percentage],[length]); }}@utility slide-out-to-end{&:dir(ltr){ --tw-exit-translate-x: 100%; }&:dir(rtl){ --tw-exit-translate-x: -100%; }}@utility slide-out-to-end-*{&:where(:dir(ltr),[dir="ltr"],[dir="ltr"]*){ --tw-exit-translate-x: calc(--value(integer)*var(--spacing)); --tw-exit-translate-x: calc(--value(--percentage-*,--percentage-translate-*)*100%); --tw-exit-translate-x: calc(--value(ratio)*100%); --tw-exit-translate-x: --value(--translate-*,[percentage],[length]); }&:where(:dir(rtl),[dir="rtl"],[dir="rtl"]*){ --tw-exit-translate-x: calc(--value(integer)*var(--spacing)*-1); --tw-exit-translate-x: calc(--value(--percentage-*,--percentage-translate-*)*-100%); --tw-exit-translate-x: calc(--value(ratio)*-100%); --tw-exit-translate-x: calc(--value(--translate-*,[percentage],[length])*-1); }}`;
 
-// packages/plugin-build/src/runtime-export-manifest.ts
+// ../env_ag7ffajzdy/bb/packages/plugin-build/src/runtime-export-manifest.ts
 var RUNTIME_EXPORT_MANIFEST = {
-  "@get-bb/plugin-sdk/app": [
+  "@bb/plugin-sdk/app": [
     "Markdown",
     "ThreadChat",
     "definePluginApp",
-    "experimental_NewThreadComposer",
-    "experimental_useSidebarThreadActions",
-    "experimental_useSidebarThreadPullRequest",
-    "experimental_useSidebarThreadSplit",
-    "experimental_useSidebarThreads",
     "useBbContext",
     "useBbNavigate",
     "useComposer",
@@ -19579,7 +19422,7 @@ var RUNTIME_EXPORT_MANIFEST = {
   ]
 };
 
-// packages/plugin-build/src/plugin-artifact-meta.ts
+// ../env_ag7ffajzdy/bb/packages/plugin-build/src/plugin-artifact-meta.ts
 function createPluginArtifactMeta(args) {
   return {
     sdkMajor: PLUGIN_SDK_MAJOR,
@@ -19594,11 +19437,11 @@ function createPluginArtifactMeta(args) {
   };
 }
 
-// packages/plugin-build/src/plugin-manifest.ts
+// ../env_ag7ffajzdy/bb/packages/plugin-build/src/plugin-manifest.ts
 import { readFile, realpath, stat } from "node:fs/promises";
 import { isAbsolute, resolve } from "node:path";
 
-// packages/plugin-build/src/svg-asset.ts
+// ../env_ag7ffajzdy/bb/packages/plugin-build/src/svg-asset.ts
 var import_saxes = __toESM(require_saxes(), 1);
 var SVG_NAMESPACE = "http://www.w3.org/2000/svg";
 function assertValidPluginCompactIconSvg(bytes, label = "bb.branding.icon") {
@@ -19643,7 +19486,7 @@ function assertValidPluginCompactIconSvg(bytes, label = "bb.branding.icon") {
   }
 }
 
-// packages/plugin-build/src/plugin-manifest.ts
+// ../env_ag7ffajzdy/bb/packages/plugin-build/src/plugin-manifest.ts
 function resolveManifestPath(rootDir, entry, label) {
   if (isAbsolute(entry)) {
     throw new Error(`manifest ${label} must be relative, got "${entry}"`);
@@ -19704,17 +19547,14 @@ async function validatePluginBuildManifest(value, rootDir, packageJsonPath) {
   return parsed.data;
 }
 
-// packages/plugin-build/src/build-plugin-app.ts
-var PLUGIN_SDK_APP_SPECIFIER = "@get-bb/plugin-sdk/app";
-var LEGACY_PLUGIN_SDK_APP_SPECIFIER = "@bb/plugin-sdk/app";
+// ../env_ag7ffajzdy/bb/packages/plugin-build/src/build-plugin-app.ts
 var RUNTIME_SLOT_BY_SPECIFIER = {
   react: "react",
   "react-dom": "reactDom",
   "react-dom/client": "reactDomClient",
   "react/jsx-runtime": "jsxRuntime",
   "react/jsx-dev-runtime": "jsxDevRuntime",
-  [PLUGIN_SDK_APP_SPECIFIER]: "pluginSdkApp",
-  [LEGACY_PLUGIN_SDK_APP_SPECIFIER]: "pluginSdkApp",
+  "@bb/plugin-sdk/app": "pluginSdkApp",
   "@pierre/diffs": "pierreDiffs",
   "@pierre/diffs/react": "pierreDiffsReact",
   "@radix-ui/react-alert-dialog": "radixAlertDialog",
@@ -19740,15 +19580,14 @@ async function freshModuleExports(moduleUrl) {
   const moduleNamespace = await import(freshUrl.href);
   return Object.keys(moduleNamespace).sort();
 }
-async function shimExportsOf(requestedSpecifier, pluginSdkAppModuleUrl) {
-  const specifier = requestedSpecifier === LEGACY_PLUGIN_SDK_APP_SPECIFIER ? PLUGIN_SDK_APP_SPECIFIER : requestedSpecifier;
-  if (specifier === PLUGIN_SDK_APP_SPECIFIER) {
+async function shimExportsOf(specifier, pluginSdkAppModuleUrl) {
+  if (specifier === "@bb/plugin-sdk/app") {
     if (pluginSdkAppModuleUrl !== void 0) {
       return freshModuleExports(pluginSdkAppModuleUrl);
     }
     let resolvedModuleUrl;
     try {
-      resolvedModuleUrl = import.meta.resolve(PLUGIN_SDK_APP_SPECIFIER);
+      resolvedModuleUrl = import.meta.resolve("@bb/plugin-sdk/app");
     } catch {
       const names2 = RUNTIME_EXPORT_MANIFEST[specifier];
       if (!names2) {
@@ -19924,11 +19763,12 @@ async function readPluginAppConfig(rootDir) {
     pluginVersion: manifest.version
   };
 }
-async function buildTailwindCss(rootDir, pluginId, toolchain) {
+async function buildTailwindCss(rootDir, pluginId) {
   const [{ compile }, { Scanner }] = await Promise.all([
-    import(toolchain.tailwindNode),
-    import(toolchain.tailwindOxide)
+    import("@tailwindcss/node"),
+    import("@tailwindcss/oxide")
   ]);
+  const cliRequire = createRequire(import.meta.url);
   const input = [
     `@layer theme, utilities;`,
     `@import "tailwindcss/theme.css" layer(theme);`,
@@ -19947,16 +19787,17 @@ async function buildTailwindCss(rootDir, pluginId, toolchain) {
     base: rootDir,
     onDependency: () => {
     },
-    // Resolved against the toolchain rather than this module: a shipped
-    // server bundles @bb/plugin-build but installs no tailwindcss, so
-    // resolving relative to import.meta.url finds nothing there.
     customCssResolver: async (id) => {
       if (id !== "tailwindcss" && !id.startsWith("tailwindcss/")) {
         return void 0;
       }
-      const subpath = id === "tailwindcss" ? "index.css" : id.slice("tailwindcss/".length);
-      const candidate = join(toolchain.tailwindCssDir, subpath);
-      return existsSync(candidate) ? candidate : void 0;
+      try {
+        return cliRequire.resolve(
+          id === "tailwindcss" ? "tailwindcss/index.css" : id
+        );
+      } catch {
+        return void 0;
+      }
     }
   });
   const scannerSources = [
@@ -19970,7 +19811,7 @@ async function buildTailwindCss(rootDir, pluginId, toolchain) {
   });
   return compiler.build(scanner.scan());
 }
-async function buildPluginApp(rootDir, bbVersion, toolchain) {
+async function buildPluginApp(rootDir, bbVersion) {
   const { appEntry, packageName, pluginVersion } = await readPluginAppConfig(rootDir);
   const pluginId = derivePluginId(packageName);
   const distDir = join(rootDir, "dist");
@@ -19983,7 +19824,7 @@ async function buildPluginApp(rootDir, bbVersion, toolchain) {
     const stagedJsPath = join(stageDir, "app.js");
     const stagedCssPath = join(stageDir, "app.css");
     const stagedMetaPath = join(stageDir, "app.meta.json");
-    const esbuild = await import(toolchain.esbuild);
+    const esbuild = await import("esbuild");
     await esbuild.build({
       entryPoints: [appEntry],
       outfile: stagedJsPath,
@@ -20016,7 +19857,7 @@ async function buildPluginApp(rootDir, bbVersion, toolchain) {
     } catch (error48) {
       if (!isRecord(error48) || error48.code !== "ENOENT") throw error48;
     }
-    const tailwindCss = (await buildTailwindCss(rootDir, pluginId, toolchain)).trimEnd();
+    const tailwindCss = (await buildTailwindCss(rootDir, pluginId)).trimEnd();
     await writeFile(stagedCssPath, `${tailwindCss}
 ${authoredCss}`);
     await writeFile(
@@ -20036,7 +19877,7 @@ ${authoredCss}`);
   return { jsPath, cssPath, metaPath };
 }
 
-// packages/plugin-build/src/build-plugin-server.ts
+// ../env_ag7ffajzdy/bb/packages/plugin-build/src/build-plugin-server.ts
 import {
   mkdir as mkdir2,
   mkdtemp as mkdtemp2,
@@ -20055,13 +19896,6 @@ var NODE_ESM_REQUIRE_BANNER = [
   "var __filename = __fileURLToPath(import.meta.url);",
   "var __dirname = __pathDirname(__filename);"
 ].join("\n");
-var PLUGIN_SDK_SPECIFIER = "@get-bb/plugin-sdk";
-var LEGACY_PLUGIN_SDK_SPECIFIER = "@bb/plugin-sdk";
-var PLUGIN_SERVER_EXTERNALS = [
-  PLUGIN_SDK_SPECIFIER,
-  LEGACY_PLUGIN_SDK_SPECIFIER,
-  "better-sqlite3"
-];
 function isRecord2(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
@@ -20110,7 +19944,7 @@ async function readPluginServerConfig(rootDir) {
     pluginVersion: manifest.version
   };
 }
-async function buildPluginServer(rootDir, bbVersion, toolchain) {
+async function buildPluginServer(rootDir, bbVersion) {
   const { serverEntry, packageName, pluginVersion } = await readPluginServerConfig(rootDir);
   const distDir = join2(rootDir, "dist");
   await mkdir2(distDir, { recursive: true });
@@ -20121,7 +19955,7 @@ async function buildPluginServer(rootDir, bbVersion, toolchain) {
   try {
     const stagedJsPath = join2(stageDir, "server.js");
     const stagedMetaPath = join2(stageDir, "server.meta.json");
-    const esbuild = await import(toolchain.esbuild);
+    const esbuild = await import("esbuild");
     await esbuild.build({
       entryPoints: [serverEntry],
       outfile: stagedJsPath,
@@ -20134,7 +19968,7 @@ async function buildPluginServer(rootDir, bbVersion, toolchain) {
       // The server's loader aliases the SDK to its shipped runtime bundle at
       // load time; better-sqlite3 comes from the host (bb.storage). Node
       // builtins are auto-external via platform: "node".
-      external: [...PLUGIN_SERVER_EXTERNALS],
+      external: ["@bb/plugin-sdk", "better-sqlite3"],
       logLevel: "error"
     });
     await writeFile2(
@@ -20154,7 +19988,7 @@ async function buildPluginServer(rootDir, bbVersion, toolchain) {
   return { jsPath, mapPath, metaPath };
 }
 
-// packages/plugin-build/src/plugin-dev-loop.ts
+// ../env_ag7ffajzdy/bb/packages/plugin-build/src/plugin-dev-loop.ts
 var DEFAULT_DEBOUNCE_MS = 300;
 var IGNORED_SEGMENTS = /* @__PURE__ */ new Set(["dist", "node_modules", ".git"]);
 function isIgnoredPluginDevPath(relativePath) {
@@ -20219,202 +20053,10 @@ function createPluginDevLoop(deps) {
     }
   };
 }
-
-// packages/plugin-build/src/toolchain.ts
-import { execFile } from "node:child_process";
-import { randomUUID } from "node:crypto";
-import { existsSync as existsSync2, readFileSync } from "node:fs";
-import { mkdir as mkdir3, readFile as readFile4, rename as rename3, rm as rm3, writeFile as writeFile3 } from "node:fs/promises";
-import { createRequire } from "node:module";
-import { dirname as dirname2, join as join3 } from "node:path";
-import { pathToFileURL } from "node:url";
-import { promisify } from "node:util";
-var run = promisify(execFile);
-var PLUGIN_TOOLCHAIN_PINS = {
-  esbuild: "0.28.1",
-  "@tailwindcss/node": "4.3.0",
-  "@tailwindcss/oxide": "4.3.0",
-  tailwindcss: "4.3.0"
-};
-function pinKey() {
-  return Object.entries(PLUGIN_TOOLCHAIN_PINS).map(([name, version2]) => `${name}@${version2}`).sort().join(",");
-}
-function toolchainCacheDir(baseDir) {
-  const key = Object.values(PLUGIN_TOOLCHAIN_PINS).join("-");
-  return join3(baseDir, `toolchain-${key}`);
-}
-function packageDir(require2, name) {
-  let dir;
-  try {
-    dir = dirname2(require2.resolve(name));
-  } catch {
-    return null;
-  }
-  for (let depth = 0; depth < 10; depth += 1) {
-    const manifest = join3(dir, "package.json");
-    if (existsSync2(manifest)) {
-      try {
-        const parsed = JSON.parse(readFileSync(manifest, "utf8"));
-        if (typeof parsed === "object" && parsed !== null && parsed.name === name) {
-          return dir;
-        }
-      } catch {
-        return null;
-      }
-    }
-    const parent = dirname2(dir);
-    if (parent === dir) return null;
-    dir = parent;
-  }
-  return null;
-}
-function readVersion(require2, name) {
-  const dir = packageDir(require2, name);
-  if (dir === null) return null;
-  try {
-    const parsed = JSON.parse(
-      readFileSync(join3(dir, "package.json"), "utf8")
-    );
-    const version2 = typeof parsed === "object" && parsed !== null ? parsed.version : void 0;
-    return typeof version2 === "string" ? version2 : null;
-  } catch {
-    return null;
-  }
-}
-function toolchainFrom(require2) {
-  for (const [name, pinned] of Object.entries(PLUGIN_TOOLCHAIN_PINS)) {
-    if (readVersion(require2, name) !== pinned) return null;
-  }
-  try {
-    const tailwindCssDir = packageDir(require2, "tailwindcss");
-    if (tailwindCssDir === null) return null;
-    return {
-      esbuild: pathToFileURL(require2.resolve("esbuild")).href,
-      tailwindNode: pathToFileURL(require2.resolve("@tailwindcss/node")).href,
-      tailwindOxide: pathToFileURL(require2.resolve("@tailwindcss/oxide")).href,
-      tailwindCssDir
-    };
-  } catch {
-    return null;
-  }
-}
-function resolveLocalToolchain() {
-  return toolchainFrom(createRequire(import.meta.url));
-}
-async function isInstalled(dir) {
-  try {
-    const raw = await readFile4(join3(dir, ".bb-toolchain.json"), "utf8");
-    const parsed = JSON.parse(raw);
-    if (typeof parsed !== "object" || parsed === null || parsed.pins !== pinKey()) {
-      return false;
-    }
-  } catch {
-    return false;
-  }
-  return toolchainFrom(createRequire(join3(dir, "noop.js"))) !== null;
-}
-async function resolvePluginBuildToolchain(baseDir, options) {
-  if (options?.ignoreLocal !== true) {
-    const local = resolveLocalToolchain();
-    if (local !== null) return local;
-  }
-  const dir = toolchainCacheDir(baseDir);
-  if (await isInstalled(dir)) {
-    const cached2 = toolchainFrom(createRequire(join3(dir, "noop.js")));
-    if (cached2 !== null) return cached2;
-  }
-  options?.onFetchStart?.();
-  const startedAt = Date.now();
-  const staging = `${dir}.staging-${randomUUID()}`;
-  try {
-    await mkdir3(staging, { recursive: true });
-    await writeFile3(
-      join3(staging, "package.json"),
-      `${JSON.stringify({ name: "bb-plugin-toolchain", private: true, version: "0.0.0" }, null, 2)}
-`
-    );
-    await run(
-      "npm",
-      [
-        "install",
-        "--prefix",
-        staging,
-        "--ignore-scripts",
-        "--no-audit",
-        "--no-fund",
-        "--no-package-lock",
-        ...Object.entries(PLUGIN_TOOLCHAIN_PINS).map(
-          ([name, version2]) => `${name}@${version2}`
-        )
-      ],
-      { maxBuffer: 1024 * 1024 * 16 }
-    );
-    const staged = toolchainFrom(createRequire(join3(staging, "noop.js")));
-    if (staged === null) {
-      throw new Error(
-        "the downloaded plugin build toolchain is incomplete or misversioned"
-      );
-    }
-    await writeFile3(
-      join3(staging, ".bb-toolchain.json"),
-      `${JSON.stringify({ pins: pinKey() }, null, 2)}
-`
-    );
-    await mkdir3(dirname2(dir), { recursive: true });
-    try {
-      await rename3(staging, dir);
-    } catch {
-      if (!await isInstalled(dir)) throw new Error(errorPromoting(dir));
-    }
-  } finally {
-    await rm3(staging, { recursive: true, force: true });
-  }
-  const promoted = toolchainFrom(createRequire(join3(dir, "noop.js")));
-  if (promoted === null) throw new Error(errorPromoting(dir));
-  options?.onFetchDone?.(Date.now() - startedAt);
-  return promoted;
-}
-function errorPromoting(dir) {
-  return `could not install the plugin build toolchain into ${dir}`;
-}
 export {
-  PLUGIN_SERVER_EXTERNALS,
-  PLUGIN_TOOLCHAIN_PINS,
-  RUNTIME_SLOT_BY_SPECIFIER,
   assertValidPluginCompactIconSvg,
   buildPluginApp,
   buildPluginServer,
   createPluginDevLoop,
-  isIgnoredPluginDevPath,
-  resolvePluginBuildToolchain,
-  toolchainCacheDir
+  isIgnoredPluginDevPath
 };
-/*! Bundled license information:
-
-xmlchars/xml/1.0/ed5.js:
-  (**
-   * Character classes and associated utilities for the 5th edition of XML 1.0.
-   *
-   * @author Louis-Dominique Dubeau
-   * @license MIT
-   * @copyright Louis-Dominique Dubeau
-   *)
-
-xmlchars/xml/1.1/ed2.js:
-  (**
-   * Character classes and associated utilities for the 2nd edition of XML 1.1.
-   *
-   * @author Louis-Dominique Dubeau
-   * @license MIT
-   * @copyright Louis-Dominique Dubeau
-   *)
-
-xmlchars/xmlns/1.0/ed3.js:
-  (**
-   * Character class utilities for XML NS 1.0 edition 3.
-   *
-   * @author Louis-Dominique Dubeau
-   * @license MIT
-   * @copyright Louis-Dominique Dubeau
-   *)
-*/

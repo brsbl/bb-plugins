@@ -11,7 +11,7 @@ await build({
   bundle: true,
   format: "esm",
   outfile: join(output, "harness.js"),
-  external: ["@get-bb/plugin-sdk/app"],
+  external: ["@bb/plugin-sdk/app"],
   loader: { ".css": "css" },
 });
 copyFileSync(

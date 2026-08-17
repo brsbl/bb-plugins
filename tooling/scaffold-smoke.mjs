@@ -19,7 +19,7 @@ import { validatePluginArtifacts } from "./validate-plugin-artifacts.mjs";
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const bundledTypesDirectory = resolve(
   root,
-  "node_modules/@get-bb/plugin-sdk/bundled-types",
+  "node_modules/@bb/plugin-sdk/bundled-types",
 );
 
 function run(command, args, cwd) {
@@ -27,18 +27,6 @@ function run(command, args, cwd) {
   if (result.error) throw result.error;
   if (result.status !== 0) throw new Error(`${command} exited ${result.status}`);
 }
-
-const previousScaffoldManifest = JSON.parse(
-  await readFile(
-    resolve(root, "tooling/fixtures/scaffold-0.4.1-manifest.json"),
-    "utf8",
-  ),
-);
-assert.equal(
-  previousScaffoldManifest.devDependencies?.["@bb/plugin-sdk"],
-  "file:../../tooling/vendor/bb-plugin-sdk-0.4.1.tgz",
-  "fixture no longer represents the previously shipped scaffold",
-);
 
 async function createFixtureRepository(directory) {
   const rootManifest = JSON.parse(
@@ -65,7 +53,7 @@ async function createFixtureRepository(directory) {
         type: "module",
         workspaces: ["plugins/*", "packages/*"],
         devDependencies: {
-          "@get-bb/plugin-sdk": rootManifest.devDependencies["@get-bb/plugin-sdk"],
+          "@bb/plugin-sdk": rootManifest.devDependencies["@bb/plugin-sdk"],
           "@tailwindcss/node": rootManifest.devDependencies["@tailwindcss/node"],
           "@tailwindcss/oxide": rootManifest.devDependencies["@tailwindcss/oxide"],
           esbuild: rootManifest.devDependencies.esbuild,
@@ -238,14 +226,6 @@ try {
     skipInstall: true,
     skipVerify: true,
   });
-  const generatedManifest = JSON.parse(
-    await readFile(resolve(generated.directory, "package.json"), "utf8"),
-  );
-  assert.equal(
-    generatedManifest.engines?.bbPluginSdk,
-    previousScaffoldManifest.engines?.bbPluginSdk,
-    "new scaffolds must preserve the previously shipped SDK engine contract",
-  );
   const screenshot = await addVisualIndex(
     fixtureRoot,
     generated.directory,

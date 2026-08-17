@@ -1,4 +1,4 @@
-import type { PluginComposerThreadRowStatus } from "@get-bb/plugin-sdk/app";
+import type { PluginComposerThreadRowStatus } from "@bb/plugin-sdk/app";
 
 export const THREAD_ROW_STATUS = {
   icon: "AiContentGenerator01",

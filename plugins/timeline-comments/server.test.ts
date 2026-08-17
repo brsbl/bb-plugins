@@ -3,7 +3,7 @@ import {
   createFakePluginHost,
   makeThreadResponse,
   type FakePluginHost,
-} from "@get-bb/plugin-sdk/testing";
+} from "@bb/plugin-sdk/testing";
 import { z } from "zod";
 import plugin, {
   commentBodySchema,

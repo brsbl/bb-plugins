@@ -1,4 +1,4 @@
-import type { PluginMessageActionContext } from "@get-bb/plugin-sdk/app";
+import type { PluginMessageActionContext } from "@bb/plugin-sdk/app";
 import type { TimelineCommentThreadSummary } from "./server.js";
 
 export interface TimelineCommentsControllerBridge {

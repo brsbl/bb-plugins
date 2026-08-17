@@ -4,7 +4,7 @@
     "module": "ESNext",
     "moduleResolution": "bundler",
     "paths": {
-      "@get-bb/plugin-sdk": ["./test/plugin-sdk-runtime.ts"]
+      "@bb/plugin-sdk": ["./test/plugin-sdk-runtime.ts"]
     },
     "target": "ES2022"
   }

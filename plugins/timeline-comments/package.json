@@ -31,7 +31,7 @@
     "skills": []
   },
   "devDependencies": {
-    "@get-bb/plugin-sdk": "file:./vendor/get-bb-plugin-sdk-0.4.6.tgz",
+    "@bb/plugin-sdk": "file:../../tooling/vendor/bb-plugin-sdk-0.4.1.tgz",
     "@testing-library/react": "^16.3.2",
     "@types/better-sqlite3": "^7.6.12",
     "@types/node": "^22.0.0",

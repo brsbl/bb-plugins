@@ -12,7 +12,7 @@ export type SectionTarget = (typeof SECTION_TARGETS)[number];
 export interface OrganizableThread {
   archivedAt: number | null;
   deletedAt: number | null;
-  originKind: "fork" | null;
+  originKind: "fork" | "side-chat" | null;
   originPluginId: string | null;
   parentThreadId: string | null;
   sourceThreadId: string | null;

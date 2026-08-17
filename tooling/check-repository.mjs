@@ -4,8 +4,10 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { readPluginWorkspaces } from "./plugin-workspaces.mjs";
-import { pluginSdkEngineRange } from "./plugin-sdk-contract.mjs";
-import { pluginSdkArchive } from "./plugin-sdk-provenance.mjs";
+import {
+  pluginSdkArchive,
+  pluginSdkVersion,
+} from "./plugin-sdk-provenance.mjs";
 
 const defaultRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const nativeLoaderLockPaths = Object.freeze([
@@ -101,13 +103,13 @@ export async function checkRepository(repositoryRoot = defaultRoot, options = {}
   const plugins = await readPluginWorkspaces(root);
   const bundledTypesDirectory = resolve(
     options.bundledTypesDirectory ??
-      resolve(root, "node_modules/@get-bb/plugin-sdk/bundled-types"),
+      resolve(root, "node_modules/@bb/plugin-sdk/bundled-types"),
   );
 
   assert(rootManifest.workspaces.includes("plugins/*"), "plugins workspace missing");
   assert(rootManifest.workspaces.includes("packages/*"), "packages workspace missing");
   assert(
-    rootManifest.devDependencies?.["@get-bb/plugin-sdk"] ===
+    rootManifest.devDependencies?.["@bb/plugin-sdk"] ===
       `file:tooling/vendor/${pluginSdkArchive}`,
     "root plugin SDK dependency drift",
   );
@@ -202,34 +204,15 @@ export async function checkRepository(repositoryRoot = defaultRoot, options = {}
       `${slug}: bb engine drift`,
     );
     assert(
-      manifest.engines?.bbPluginSdk === pluginSdkEngineRange,
+      manifest.engines?.bbPluginSdk === `^${pluginSdkVersion}`,
       `${slug}: SDK engine drift`,
     );
-    if (manifest.devDependencies?.["@get-bb/plugin-sdk"] !== undefined) {
-      // Plugins may vendor the SDK archive next to their sources so a
-      // pinned-commit install is standalone; that copy must stay byte-equal
-      // to the shared tooling archive.
-      const sdkDependency = manifest.devDependencies["@get-bb/plugin-sdk"];
-      const vendoredSpecifier = `file:./vendor/${pluginSdkArchive}`;
+    if (manifest.devDependencies?.["@bb/plugin-sdk"] !== undefined) {
       assert(
-        sdkDependency === `file:../../tooling/vendor/${pluginSdkArchive}` ||
-          sdkDependency === vendoredSpecifier,
+        manifest.devDependencies["@bb/plugin-sdk"] ===
+          `file:../../tooling/vendor/${pluginSdkArchive}`,
         `${slug}: plugin SDK dependency drift`,
       );
-      if (sdkDependency === vendoredSpecifier) {
-        const shared = await readFile(
-          resolve(root, "tooling/vendor", pluginSdkArchive),
-        );
-        const vendored = await readFile(
-          resolve(directory, "vendor", pluginSdkArchive),
-        ).catch(() => null);
-        assert(vendored !== null, `${slug}: vendored SDK archive missing`);
-        assert(
-          createHash("sha256").update(shared).digest("hex") ===
-            createHash("sha256").update(vendored).digest("hex"),
-          `${slug}: vendored SDK archive drift`,
-        );
-      }
     }
     assert(pluginReadme.startsWith(`# ${name}\n`), `${slug}: README title drift`);
     for (const heading of ["## Install", "## Use", "## Develop"]) {

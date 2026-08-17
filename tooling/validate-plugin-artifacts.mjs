@@ -6,7 +6,6 @@ import { fileURLToPath } from "node:url";
 
 import { readPluginWorkspaces } from "./plugin-workspaces.mjs";
 import { pluginBuildBbVersion } from "./plugin-build-provenance.mjs";
-import { pluginSdkEngineRange } from "./plugin-sdk-contract.mjs";
 import { pluginSdkVersion } from "./plugin-sdk-provenance.mjs";
 
 const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
@@ -58,7 +57,7 @@ const builtinModuleNames = new Set(
   builtinModules.flatMap((name) => [name, `node:${name}`]),
 );
 const managedServerRuntimeImports = new Set([
-  "@get-bb/plugin-sdk",
+  "@bb/plugin-sdk",
   "better-sqlite3",
 ]);
 
@@ -220,9 +219,9 @@ export async function validatePluginArtifacts(pluginDirectory, options = {}) {
   if (options.expectedName && manifest.bb.name !== options.expectedName) {
     throw new Error(`${directory}: expected display name ${options.expectedName}`);
   }
-  if (manifest.engines?.bbPluginSdk !== pluginSdkEngineRange) {
+  if (manifest.engines?.bbPluginSdk !== `^${pluginSdkVersion}`) {
     throw new Error(
-      `${directory}: expected engines.bbPluginSdk=${pluginSdkEngineRange}`,
+      `${directory}: expected engines.bbPluginSdk=^${pluginSdkVersion}`,
     );
   }
 

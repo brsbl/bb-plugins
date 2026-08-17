@@ -1,4 +1,4 @@
-import { definePluginApp } from "@get-bb/plugin-sdk/app";
+import { definePluginApp } from "@bb/plugin-sdk/app";
 import {
   AlarmClockIcon,
   CancelCircleIcon,
