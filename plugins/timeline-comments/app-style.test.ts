@@ -11,10 +11,22 @@ describe("timeline comments visual contract", () => {
     expect(css).toMatch(/\.bb-comments-composer-action-icon \{[\s\S]*width: 16px;[\s\S]*height: 16px;/u);
     expect(css).toContain("width: 264px;");
     expect(css).toMatch(/\.bb-comments-comment \{[\s\S]*padding: 0;/u);
-    expect(css).toMatch(/\.bb-comments-comment-body \{[\s\S]*font-size: 10\.5px;/u);
+    expect(css).toMatch(/\.bb-comments-comment-body \{[\s\S]*font-family: inherit;[\s\S]*font-size: inherit;/u);
     expect(css).toMatch(/\.bb-comments-message-header strong \{[\s\S]*font-size: 9px;/u);
-    expect(css).toMatch(/\.bb-comments-panel \{[\s\S]*font-size: 11px;/u);
+    expect(css).toMatch(/\.bb-comments-panel \{[\s\S]*font-size: 13px;/u);
     expect(css).toMatch(/\.bb-comments-row-summary \{[\s\S]*padding: 7px 9px;/u);
+  });
+
+  it("uses BB body typography for comment copy and inputs", () => {
+    expect(css).toMatch(/\.bb-comments-composer,[\s\S]*\.bb-comments-popover \{[\s\S]*font-family: inherit;[\s\S]*font-size: 13px;/u);
+    expect(css).toMatch(/\.bb-comments-reply-input \{[\s\S]*font-family: inherit;[\s\S]*font-size: inherit;/u);
+    expect(css).toMatch(/\.bb-comments-row-body \{[\s\S]*font-family: inherit;[\s\S]*font-size: inherit;/u);
+    expect(css).toMatch(/\.bb-comments-panel-comment p \{[\s\S]*font-family: inherit;[\s\S]*font-size: inherit;/u);
+  });
+
+  it("shows the composer action tooltip on hover and keyboard focus", () => {
+    expect(css).toMatch(/\.bb-comments-composer-action-tooltip \{[\s\S]*z-index: 60;[\s\S]*background: var\(--primary\);/u);
+    expect(css).not.toMatch(/\.bb-comments-composer-action-tooltip \{[^}]*position: absolute;/u);
   });
 
   it("keeps the new-comment composer compact until content needs more room", () => {
@@ -43,12 +55,15 @@ describe("timeline comments visual contract", () => {
     expect(css).toContain("@media (prefers-reduced-motion: reduce)");
   });
 
-  it("uses a neutral ink focus treatment instead of the host accent ring", () => {
-    expect(css).not.toContain("var(--ring)");
-    expect(css).toMatch(
-      /\.bb-comments-mention-input:has\([\s\S]*:focus-visible[\s\S]*\) \{[\s\S]*outline: 2px solid[\s\S]*color-mix\(in oklab, var\(--foreground\) 55%, transparent\)/u,
+  it("leaves comment input focus indication to the browser", () => {
+    expect(css).not.toContain("outline: none !important;");
+    expect(css).not.toMatch(
+      /\.bb-comments-textarea,[\s\S]*?\.bb-comments-panel textarea \{[^}]*outline:\s*none;/u,
     );
-    expect(css).toContain("outline-offset: -2px;");
+    expect(css).not.toContain(".bb-comments-mention-input:has(");
+    expect(css).not.toMatch(
+      /\.bb-comments-panel textarea:focus-visible \{[^}]*outline:/u,
+    );
     expect(css).toMatch(
       /\.bb-comments-composer-action:focus-visible,[\s\S]*color-mix\(in oklab, var\(--foreground\) 15%, transparent\)/u,
     );

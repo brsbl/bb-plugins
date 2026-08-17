@@ -4,8 +4,7 @@ import { fileURLToPath } from "node:url";
 import {
   buildPluginApp,
   buildPluginServer,
-  resolvePluginBuildToolchain,
-} from "./vendor/bb-plugin-build-0.37.0.mjs";
+} from "./vendor/bb-plugin-build-0.0.34.mjs";
 import { pluginBuildBbVersion } from "./plugin-build-provenance.mjs";
 
 const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
@@ -16,22 +15,24 @@ if (appOnly && pluginArgument === undefined) {
   throw new Error("--app-only requires a plugin path");
 }
 const pluginPath = resolve(pluginArgument ?? process.cwd());
+const esbuild = resolve(
+  repositoryRoot,
+  "node_modules",
+  ".bin",
+  process.platform === "win32" ? "esbuild.cmd" : "esbuild",
+);
+process.env.ESBUILD_BINARY_PATH ??= esbuild;
 
-const toolchain = await resolvePluginBuildToolchain(repositoryRoot);
 const files = [];
 if (!appOnly) {
-  const server = await buildPluginServer(
-    pluginPath,
-    pluginBuildBbVersion,
-    toolchain,
-  );
+  const server = await buildPluginServer(pluginPath, pluginBuildBbVersion);
   files.push(server.jsPath, server.mapPath, server.metaPath);
 }
 const manifest = JSON.parse(
   await readFile(resolve(pluginPath, "package.json"), "utf8"),
 );
 if (typeof manifest.bb?.app === "string") {
-  const app = await buildPluginApp(pluginPath, pluginBuildBbVersion, toolchain);
+  const app = await buildPluginApp(pluginPath, pluginBuildBbVersion);
   files.push(app.jsPath, app.cssPath, app.metaPath);
 } else if (appOnly) {
   throw new Error(`${manifest.name}: --app-only requires bb.app`);

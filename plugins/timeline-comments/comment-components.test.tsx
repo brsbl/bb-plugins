@@ -380,6 +380,124 @@ describe("Moss comment component port", () => {
     unmount();
   });
 
+  it("refreshes changed state and retries an edit with fresh versions", async () => {
+    const freshDetail: TimelineCommentThreadDetail = {
+      ...detail,
+      thread: {
+        ...detail.thread,
+        version: 2,
+        rootComment: {
+          ...detail.thread.rootComment,
+          body: "Updated remotely",
+          version: 2,
+        },
+      },
+      comments: [
+        {
+          ...detail.comments[0]!,
+          body: "Updated remotely",
+          version: 2,
+        },
+      ],
+    };
+    const savedDetail: TimelineCommentThreadDetail = {
+      ...freshDetail,
+      thread: {
+        ...freshDetail.thread,
+        version: 3,
+        rootComment: {
+          ...freshDetail.thread.rootComment,
+          body: "Keep my local edit",
+          version: 3,
+        },
+      },
+      comments: [
+        {
+          ...freshDetail.comments[0]!,
+          body: "Keep my local edit",
+          version: 3,
+        },
+      ],
+    };
+    const remoteReply = {
+      id: "comment_2",
+      threadId: "ct_1",
+      parentId: "comment_1",
+      body: "Added remotely",
+      version: 1,
+      createdAt: 2,
+      updatedAt: 2,
+    };
+    let updateAttempts = 0;
+    let detailPage = 0;
+    const call = vi.fn(async (method: string, input: unknown) => {
+      if (method === "updateComment") {
+        updateAttempts += 1;
+        if (updateAttempts === 1) {
+          throw new Error("Comment changed; refresh and retry");
+        }
+        expect(input).toMatchObject({
+          commentId: "comment_1",
+          expectedVersion: 2,
+          body: "Keep my local edit",
+        });
+        return savedDetail;
+      }
+      if (method === "listCommentThreads") {
+        expect(input).toEqual({ bbThreadId: "thr_1", filter: "all" });
+        return { threads: [freshDetail.thread], nextCursor: null };
+      }
+      if (method === "getCommentThread") {
+        detailPage += 1;
+        if (detailPage === 1) {
+          expect(input).toEqual({
+            bbThreadId: "thr_1",
+            commentThreadId: "ct_1",
+          });
+          return { ...freshDetail, nextCursor: "comment_page_2" };
+        }
+        expect(input).toEqual({
+          bbThreadId: "thr_1",
+          commentThreadId: "ct_1",
+          cursor: "comment_page_2",
+        });
+        return { ...freshDetail, comments: [remoteReply], nextCursor: null };
+      }
+      throw new Error(`Unexpected RPC ${method}`);
+    });
+    const host = document.body.appendChild(document.createElement("section"));
+    const unmount = mountWithRpc(host, call);
+    const input = openRootEdit(host);
+    fireEvent.change(input, { target: { value: "Keep my local edit" } });
+    const save = host.querySelector<HTMLButtonElement>(
+      '[data-comment-edit-footer-host] button[aria-label="Submit comment"]',
+    )!;
+    fireEvent.click(save);
+
+    await waitFor(() =>
+      expect(call).toHaveBeenCalledWith("getCommentThread", {
+        bbThreadId: "thr_1",
+        commentThreadId: "ct_1",
+      }),
+    );
+    expect(
+      host.querySelector<HTMLTextAreaElement>('[aria-label="Edit comment"]')
+        ?.value,
+    ).toBe("Keep my local edit");
+    expect(host.textContent).toContain("Added remotely");
+
+    fireEvent.click(
+      host.querySelector(
+        '[data-comment-editing="true"] button[aria-label="Submit comment"]',
+      )!,
+    );
+    await waitFor(() => expect(updateAttempts).toBe(2));
+    await waitFor(() =>
+      expect(host.querySelector('[aria-label="Edit comment"]')).toBeNull(),
+    );
+    unmount();
+  });
+
   it("makes a pending new-comment composer read-only until its request settles", async () => {
     let rejectSubmit!: (error: Error) => void;
     const pending = new Promise<void>((_resolve, reject) => {
