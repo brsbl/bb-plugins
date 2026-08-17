@@ -29,7 +29,7 @@ import type { NotificationsPayload, rpcContract } from "./server";
 
 type ResourceFilter = "all" | ResourceKind;
 type ActivityFilter = "all" | ActivityKind;
-type SortKey = "activity" | "resource" | "updated";
+type SortKey = "resource" | "updated";
 type SortDirection = "asc" | "desc";
 
 const ACTIVITY_FILTERS: readonly { value: ActivityFilter; label: string }[] = [
@@ -65,8 +65,6 @@ export function filterAndSortNotifications(args: {
   });
   const valueFor = (item: GithubNotificationItem): string | number => {
     switch (args.sort) {
-      case "activity":
-        return `${item.actor ?? ""} ${item.activity}`;
       case "resource":
         return `${item.title} ${item.repo} ${item.resourceKind} ${item.number}`;
       case "updated":
@@ -180,25 +178,28 @@ function LatestUpdate({ item }: { item: GithubNotificationItem }) {
   const actor = item.actor ? `@${item.actor}` : "Someone";
   return (
     <div className="flex min-w-0 items-center gap-2 text-sm">
-      <span className="inline-flex max-w-40 shrink items-center gap-1 rounded-full bg-muted/35 py-0.5 pl-0.5 pr-1.5 text-xs font-normal text-muted-foreground">
-        <ActorAvatar avatarUrl={item.avatarUrl} />
-        <span className="truncate">{actor}</span>
-      </span>
-      <span
-        className={`group/status relative inline-flex shrink-0 items-center ${update.iconClass}`}
-        aria-label={update.label}
-        role="img"
-        tabIndex={0}
-        title={update.label}
-      >
-        <UpdateIcon aria-hidden="true" className="size-4" strokeWidth={1.75} />
+      <span className="flex min-w-0 items-center gap-2">
+        <span className="inline-flex max-w-40 shrink items-center gap-1 rounded-full bg-muted/35 py-0.5 pl-0.5 pr-1.5 text-xs font-normal text-muted-foreground">
+          <ActorAvatar avatarUrl={item.avatarUrl} />
+          <span className="truncate">{actor}</span>
+        </span>
         <span
-          aria-hidden="true"
-          className="pointer-events-none absolute left-1/2 top-full z-20 mt-1 -translate-x-1/2 whitespace-nowrap rounded-md bg-foreground px-2 py-1 text-xs font-medium text-background opacity-0 shadow-sm transition-opacity group-hover/status:opacity-100 group-focus/status:opacity-100"
+          className={`group/status relative inline-flex shrink-0 items-center ${update.iconClass}`}
+          aria-label={update.label}
+          role="img"
+          tabIndex={0}
+          title={update.label}
         >
-          {update.label}
+          <UpdateIcon aria-hidden="true" className="size-4" strokeWidth={1.75} />
+          <span
+            aria-hidden="true"
+            className="pointer-events-none absolute left-1/2 top-full z-20 mt-1 -translate-x-1/2 whitespace-nowrap rounded-md bg-foreground px-2 py-1 text-xs font-medium text-background opacity-0 shadow-sm transition-opacity group-hover/status:opacity-100 group-focus/status:opacity-100"
+          >
+            {update.label}
+          </span>
         </span>
       </span>
+      <UpdatedTime value={item.updatedAt} />
     </div>
   );
 }
@@ -229,7 +230,7 @@ function UpdatedTime({ value }: { value: string }) {
   const fullDate = new Date(value).toLocaleString();
   return (
     <span
-      className="block whitespace-nowrap text-right text-xs tabular-nums text-muted-foreground"
+      className="shrink-0 whitespace-nowrap text-xs tabular-nums text-muted-foreground"
       title={`Updated ${fullDate}`}
       aria-label={`Updated ${fullDate}`}
     >
@@ -280,11 +281,13 @@ function ResolveCheckbox({
 
 function SortHeader({
   active,
+  ariaLabel,
   direction,
   label,
   onSort,
 }: {
   active: boolean;
+  ariaLabel?: string;
   direction: SortDirection;
   label: string;
   onSort(): void;
@@ -294,7 +297,7 @@ function SortHeader({
       type="button"
       onClick={onSort}
       className="inline-flex items-center gap-1 rounded-sm font-medium text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-      aria-label={`Sort by ${label}${active ? `, ${direction === "asc" ? "ascending" : "descending"}` : ""}`}
+      aria-label={`${ariaLabel ?? `Sort by ${label}`}${active ? `, ${direction === "asc" ? "ascending" : "descending"}` : ""}`}
     >
       {label}
       {active ? (
@@ -511,9 +514,8 @@ function GitHubActivityPanel() {
               <table className="w-full min-w-[620px] table-fixed border-collapse text-left">
                 <colgroup>
                   <col className="w-[10%]" />
-                  <col className="w-[48%]" />
-                  <col className="w-[28%]" />
-                  <col className="w-[14%]" />
+                  <col className="w-[54%]" />
+                  <col className="w-[36%]" />
                 </colgroup>
                 <thead className="border-b border-border bg-muted/35 text-xs">
                   <tr>
@@ -524,10 +526,13 @@ function GitHubActivityPanel() {
                       <SortHeader label="Item" active={sort === "resource"} direction={direction} onSort={() => setSortKey("resource")} />
                     </th>
                     <th scope="col" className="px-3 py-2.5">
-                      <SortHeader label="Activity" active={sort === "activity"} direction={direction} onSort={() => setSortKey("activity")} />
-                    </th>
-                    <th scope="col" className="px-3 py-2.5 text-right">
-                      <SortHeader label="Last updated" active={sort === "updated"} direction={direction} onSort={() => setSortKey("updated")} />
+                      <SortHeader
+                        label="Activity"
+                        ariaLabel="Sort Activity by time"
+                        active={sort === "updated"}
+                        direction={direction}
+                        onSort={() => setSortKey("updated")}
+                      />
                     </th>
                   </tr>
                 </thead>
@@ -535,7 +540,7 @@ function GitHubActivityPanel() {
                   {loading && payload === null
                     ? [0, 1, 2, 3, 4].map((index) => (
                         <tr key={index} aria-label="Loading GitHub activity">
-                          {[0, 1, 2, 3].map((cell) => (
+                          {[0, 1, 2].map((cell) => (
                             <td key={cell} className="px-3 py-3">
                               <div className="h-4 animate-pulse rounded bg-muted" />
                             </td>
@@ -562,9 +567,6 @@ function GitHubActivityPanel() {
                           </td>
                           <td className="px-3 py-3">
                             <LatestUpdate item={item} />
-                          </td>
-                          <td className="px-3 py-3">
-                            <UpdatedTime value={item.updatedAt} />
                           </td>
                         </tr>
                       ))}

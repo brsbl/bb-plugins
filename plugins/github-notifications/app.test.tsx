@@ -113,7 +113,8 @@ describe("GitHub Activity panel", () => {
     expect(updatedTime.querySelector("svg")).toBeNull();
     expect(updatedTime.className).not.toContain("rounded");
     expect(updatedTime.className).not.toContain("bg-muted");
-    expect(updatedTime.className).toContain("text-right");
+    expect(updatedTime.className).toContain("shrink-0");
+    expect(updatedTime.closest("td")?.cellIndex).toBe(2);
     expect(screen.getAllByText("get-bb/bb")).toHaveLength(2);
     expect(screen.getByText("Scannable activity")).toBeDefined();
     const link = screen.getByRole("link", { name: /Pull request get-bb\/bb number 42/u });
@@ -122,8 +123,26 @@ describe("GitHub Activity panel", () => {
     expect(link.querySelector("svg")).not.toBeNull();
     expect(screen.getByRole("columnheader", { name: /Item/u })).toBeDefined();
     expect(screen.getByRole("columnheader", { name: /Activity/u })).toBeDefined();
-    expect(screen.getByRole("columnheader", { name: /Last updated/u })).toBeDefined();
+    expect(screen.queryByRole("columnheader", { name: /Last updated/u })).toBeNull();
     expect(screen.getByRole("columnheader", { name: "Status" })).toBeDefined();
+    expect(screen.getAllByRole("columnheader")).toHaveLength(3);
+
+    const activitySort = screen.getByRole("button", {
+      name: "Sort Activity by time, descending",
+    });
+    fireEvent.click(activitySort);
+    expect(screen.getAllByRole("link")[0]?.textContent).toContain(
+      "Mention without duplicate text",
+    );
+    expect(
+      screen.getByRole("button", { name: "Sort Activity by time, ascending" }),
+    ).toBeDefined();
+    fireEvent.click(
+      screen.getByRole("button", { name: "Sort Activity by time, ascending" }),
+    );
+    expect(screen.getAllByRole("link")[0]?.textContent).toContain(
+      "Scannable activity",
+    );
 
     const markResolved = screen.getByRole("checkbox", {
       name: "Resolve: Scannable activity",
