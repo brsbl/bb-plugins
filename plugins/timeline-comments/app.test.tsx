@@ -170,6 +170,13 @@ describe("timeline comments app", () => {
         },
       },
     );
+    const actionButton = action.getByRole("button", {
+      name: "Add comments to chat",
+    });
+    fireEvent.focus(actionButton);
+    const tooltip = await action.findByRole("tooltip");
+    expect(tooltip.textContent).toBe("Add comments to chat");
+    expect(actionButton.getAttribute("aria-describedby")).toBe(tooltip.id);
 
     expect(
       action.container.querySelector('[data-icon="ChatFeedback"]'),

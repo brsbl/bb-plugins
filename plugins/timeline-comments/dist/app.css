@@ -453,6 +453,21 @@
   align-items: center;
   gap: 3px;
 }
+.bb-comments-composer-action-tooltip {
+  z-index: 60;
+  width: max-content;
+  max-width: 240px;
+  padding: 5px 7px;
+  border-radius: 6px;
+  background: var(--primary);
+  box-shadow: 0 4px 12px color-mix(in oklab, var(--foreground) 12%, transparent);
+  color: var(--primary-foreground);
+  font-family: inherit;
+  font-size: 12px;
+  line-height: 1.25;
+  pointer-events: none;
+  white-space: nowrap;
+}
 .bb-comments-composer-action-error {
   color: var(--destructive-text, var(--muted-foreground));
   font-size: 9px;
