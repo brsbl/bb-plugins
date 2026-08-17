@@ -1,13 +1,14 @@
 {
   "name": "bb-plugin-thread-organizer",
   "version": "0.1.0",
-  "description": "Uses pinned threads as an inbox and organizes active work into semantic sections.",
+  "description": "Organizes bb threads into dynamic development-phase sections.",
   "type": "module",
   "license": "UNLICENSED",
   "files": [
     "dist",
     "docs",
-    "README.md"
+    "README.md",
+    "skills"
   ],
   "scripts": {
     "build": "node ../../tooling/build-plugin.mjs",
@@ -21,13 +22,15 @@
   },
   "bb": {
     "name": "Thread Organizer",
-    "description": "Uses pinned threads as an inbox and organizes active work into semantic sections.",
+    "description": "Organizes bb threads into dynamic development-phase sections.",
     "branding": {
       "icon": "Rows3"
     },
     "server": "./server.ts",
     "app": "./app.ts",
-    "skills": []
+    "skills": [
+      "skills"
+    ]
   },
   "devDependencies": {
     "@bb/plugin-sdk": "file:../../tooling/vendor/bb-plugin-sdk-0.4.1.tgz",
