@@ -16,6 +16,12 @@
       color 140ms ease;
   }
 
+  .bb-browser-context-action-trigger {
+    display: inline-flex;
+    width: 28px;
+    height: 28px;
+  }
+
   .bb-browser-context-action:hover:not(:disabled),
   .bb-browser-context-action[aria-pressed="true"] {
     background: var(--state-hover, rgb(0 0 0 / 6%));
@@ -155,12 +161,11 @@
     width: max-content;
     max-width: 280px;
     gap: 2px;
-    padding: 7px 9px;
-    border: 1px solid rgb(255 255 255 / 30%);
-    border-radius: 7px;
-    background: rgb(16 24 40 / 92%);
-    color: #fff;
-    box-shadow: 0 6px 20px rgb(16 24 40 / 28%);
+    padding: 6px 12px;
+    border: 0;
+    border-radius: 6px;
+    background: var(--primary, #101828);
+    color: var(--primary-foreground, #fff);
     text-align: left;
     white-space: normal;
   }
@@ -171,7 +176,11 @@
   }
 
   .bb-browser-context-target-tooltip span {
-    color: rgb(255 255 255 / 78%);
+    color: color-mix(
+      in srgb,
+      var(--primary-foreground, #fff) 78%,
+      transparent
+    );
     font-size: 11px;
   }
 
@@ -393,6 +402,65 @@
       color-mix(in srgb, var(--ring, #4c76e8) 24%, transparent);
   }
 
+  .bb-browser-context-comment-submit-row {
+    display: flex;
+    justify-content: flex-end;
+    margin-top: -1px;
+  }
+
+  .bb-browser-context-comment-submit {
+    display: inline-flex;
+    height: 28px;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+    padding: 0 9px;
+    border: 1px solid var(--border, #d0d5dd);
+    border-radius: 7px;
+    background: var(--background, #fff);
+    color: var(--foreground, #101828);
+    cursor: pointer;
+    font:
+      600 11px/1 Inter,
+      system-ui,
+      sans-serif;
+  }
+
+  .bb-browser-context-comment-submit:hover:not(:disabled) {
+    background: var(--state-hover, #f2f4f7);
+  }
+
+  .bb-browser-context-comment-submit:focus-visible {
+    outline: 2px solid var(--ring, #4c76e8);
+    outline-offset: 2px;
+  }
+
+  .bb-browser-context-comment-submit:disabled {
+    cursor: default;
+    opacity: 0.5;
+  }
+
+  .bb-browser-context-comment-submit[data-submitted="true"] {
+    border-color: transparent;
+    background: transparent;
+    color: var(--muted-foreground, #667085);
+    opacity: 1;
+  }
+
+  .bb-browser-context-comment-submit kbd {
+    min-width: 34px;
+    padding: 2px 5px;
+    border: 1px solid var(--border, #d0d5dd);
+    border-radius: 4px;
+    background: var(--surface-raised, #f8fafc);
+    color: var(--muted-foreground, #667085);
+    font:
+      500 9px/1 Inter,
+      system-ui,
+      sans-serif;
+    text-align: center;
+  }
+
   .bb-browser-context-error {
     margin: 0;
     font-size: 11px;
@@ -454,15 +522,31 @@
   }
 
   .bb-browser-context-review-actions .bb-browser-context-primary {
-    border-color: #3867e8;
-    background: #3867e8;
-    color: #fff;
+    border-color: var(--primary, #101828);
+    background: var(--primary, #101828);
+    color: var(--primary-foreground, #fff);
   }
 
   .bb-browser-context-review-actions
     .bb-browser-context-primary:hover:not(:disabled) {
-    background: #2d58cf;
+    background: color-mix(in srgb, var(--primary, #101828) 88%, transparent);
   }
+}
+
+[data-bb-plugin="browser-context"].bb-browser-context-action-tooltip {
+  z-index: 2147483103;
+  max-width: min(20rem, var(--radix-tooltip-content-available-width));
+  overflow: hidden;
+  padding: 6px 12px;
+  border-radius: 6px;
+  background: var(--primary, #101828);
+  color: var(--primary-foreground, #fff);
+  font:
+    500 12px/1.25 Inter,
+    system-ui,
+    sans-serif;
+  overflow-wrap: anywhere;
+  animation: bb-browser-context-tooltip-in 120ms ease-out;
 }
 
 @keyframes bb-browser-context-activate {
@@ -477,10 +561,26 @@
   }
 }
 
+@keyframes bb-browser-context-tooltip-in {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   [data-bb-plugin="browser-context"]
     .bb-browser-context-action[aria-pressed="true"]
     svg {
+    animation: none;
+  }
+
+  [data-bb-plugin="browser-context"].bb-browser-context-action-tooltip {
     animation: none;
   }
 }

@@ -3,11 +3,13 @@ import {
   useRef,
   useState,
   type CSSProperties,
+  type KeyboardEvent as ReactKeyboardEvent,
   type PointerEvent as ReactPointerEvent,
 } from "react";
 import { createPortal } from "react-dom";
 import { CursorMagicSelection03Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
+import * as TooltipPrimitive from "@radix-ui/react-tooltip";
 import {
   definePluginApp,
   useComposer,
@@ -165,6 +167,7 @@ interface PendingAnnotation {
   id: number;
   capture: ExperimentalBrowserInspectionResult;
   comment: string;
+  commentSubmitted: boolean;
 }
 
 function captureTargetLabel(
@@ -202,6 +205,7 @@ interface CaptureReviewProps {
   onAddToPrompt(): void;
   onCancel(): void;
   onCommentChange(id: number, comment: string): void;
+  onCommentSubmit(id: number): void;
   onRemove(id: number): void;
   onSelect(id: number): void;
   onSelectAnother(): void;
@@ -215,6 +219,7 @@ function CaptureReview({
   onAddToPrompt,
   onCancel,
   onCommentChange,
+  onCommentSubmit,
   onRemove,
   onSelect,
   onSelectAnother,
@@ -307,6 +312,25 @@ function CaptureReview({
     if (event.currentTarget.hasPointerCapture?.(event.pointerId) === true) {
       event.currentTarget.releasePointerCapture?.(event.pointerId);
     }
+  };
+
+  const submitActiveComment = () => {
+    if (staging || active.comment.trim().length === 0) return;
+    onCommentSubmit(active.id);
+  };
+
+  const handleCommentKeyDown = (
+    event: ReactKeyboardEvent<HTMLTextAreaElement>,
+  ) => {
+    if (
+      event.key !== "Enter" ||
+      event.shiftKey ||
+      event.nativeEvent.isComposing
+    ) {
+      return;
+    }
+    event.preventDefault();
+    submitActiveComment();
   };
 
   return (
@@ -454,10 +478,32 @@ function CaptureReview({
           aria-label={`Comment for selection ${activeIndex + 1}`}
           value={active.comment}
           onChange={(event) => onCommentChange(active.id, event.target.value)}
+          onKeyDown={handleCommentKeyDown}
           placeholder="What should change here?"
           maxLength={4_000}
           autoFocus
         />
+        <div className="bb-browser-context-comment-submit-row">
+          <button
+            type="button"
+            className="bb-browser-context-comment-submit"
+            data-submitted={active.commentSubmitted ? "true" : "false"}
+            onClick={submitActiveComment}
+            disabled={
+              staging ||
+              active.comment.trim().length === 0 ||
+              active.commentSubmitted
+            }
+            aria-label={
+              active.commentSubmitted ? "Comment submitted" : "Submit comment"
+            }
+          >
+            <span>
+              {active.commentSubmitted ? "Submitted" : "Submit comment"}
+            </span>
+            {active.commentSubmitted ? null : <kbd>Enter</kbd>}
+          </button>
+        </div>
         {error !== null ? (
           <p className="bb-browser-context-error" role="alert">
             {error}
@@ -569,6 +615,7 @@ function BrowserContextAction(props: PluginBrowserActionProps) {
         id: nextIdRef.current++,
         capture: result,
         comment: "",
+        commentSubmitted: false,
       };
       setAnnotations((current) => {
         const next = [...current, annotation];
@@ -662,7 +709,21 @@ function BrowserContextAction(props: PluginBrowserActionProps) {
   const updateComment = (id: number, comment: string) => {
     setAnnotations((current) => {
       const next = current.map((annotation) =>
-        annotation.id === id ? { ...annotation, comment } : annotation,
+        annotation.id === id
+          ? { ...annotation, comment, commentSubmitted: false }
+          : annotation,
+      );
+      annotationsRef.current = next;
+      return next;
+    });
+  };
+
+  const submitComment = (id: number) => {
+    setAnnotations((current) => {
+      const next = current.map((annotation) =>
+        annotation.id === id && annotation.comment.trim().length > 0
+          ? { ...annotation, commentSubmitted: true }
+          : annotation,
       );
       annotationsRef.current = next;
       return next;
@@ -689,35 +750,65 @@ function BrowserContextAction(props: PluginBrowserActionProps) {
       : operation === "selecting"
         ? "Cancel page selection"
         : "Select page context";
+  const actionDisabled =
+    !canStart && annotations.length === 0 && operation !== "selecting";
+  const actionButton = (
+    <button
+      type="button"
+      className="bb-browser-context-action"
+      aria-label={label}
+      aria-pressed={annotations.length > 0 || operation === "selecting"}
+      disabled={actionDisabled}
+      onClick={() => {
+        if (annotations.length > 0 || operation === "selecting") {
+          cancelSelection();
+          return;
+        }
+        void startSelection();
+      }}
+    >
+      {annotations.length > 0 || operation === "selecting" ? (
+        <CloseIcon />
+      ) : (
+        <HugeiconsIcon
+          icon={CursorMagicSelection03Icon}
+          aria-hidden="true"
+          data-icon="CursorMagicSelection03"
+        />
+      )}
+    </button>
+  );
   return (
     <>
-      <button
-        type="button"
-        className="bb-browser-context-action"
-        aria-label={label}
-        aria-pressed={annotations.length > 0 || operation === "selecting"}
-        disabled={
-          !canStart && annotations.length === 0 && operation !== "selecting"
-        }
-        title={disabledReason ?? label}
-        onClick={() => {
-          if (annotations.length > 0 || operation === "selecting") {
-            cancelSelection();
-            return;
-          }
-          void startSelection();
-        }}
-      >
-        {annotations.length > 0 || operation === "selecting" ? (
-          <CloseIcon />
-        ) : (
-          <HugeiconsIcon
-            icon={CursorMagicSelection03Icon}
-            aria-hidden="true"
-            data-icon="CursorMagicSelection03"
-          />
-        )}
-      </button>
+      <TooltipPrimitive.Provider delayDuration={300} skipDelayDuration={100}>
+        <TooltipPrimitive.Root>
+          <TooltipPrimitive.Trigger asChild>
+            {actionDisabled ? (
+              <span
+                className="bb-browser-context-action-trigger"
+                tabIndex={0}
+                aria-label={disabledReason ?? label}
+              >
+                {actionButton}
+              </span>
+            ) : (
+              actionButton
+            )}
+          </TooltipPrimitive.Trigger>
+          <TooltipPrimitive.Portal>
+            <TooltipPrimitive.Content
+              data-bb-plugin="browser-context"
+              data-bb-portaled-overlay=""
+              className="bb-browser-context-action-tooltip"
+              side="bottom"
+              sideOffset={4}
+              collisionPadding={8}
+            >
+              {disabledReason ?? label}
+            </TooltipPrimitive.Content>
+          </TooltipPrimitive.Portal>
+        </TooltipPrimitive.Root>
+      </TooltipPrimitive.Provider>
 
       {annotations.length > 0 &&
       activeId !== null &&
@@ -733,6 +824,7 @@ function BrowserContextAction(props: PluginBrowserActionProps) {
                 onAddToPrompt={() => void addToPrompt()}
                 onCancel={closeReview}
                 onCommentChange={updateComment}
+                onCommentSubmit={submitComment}
                 onRemove={removeAnnotation}
                 onSelect={setActiveId}
                 onSelectAnother={() => void startSelection()}

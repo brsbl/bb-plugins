@@ -160,6 +160,11 @@ describe("Browser Context action", () => {
     expect(
       action.querySelector('[data-icon="CursorMagicSelection03"]'),
     ).not.toBeNull();
+    expect(action.getAttribute("title")).toBeNull();
+    fireEvent.pointerMove(action);
+    expect((await screen.findByRole("tooltip")).textContent).toBe(
+      "Select page context",
+    );
 
     slot.lifecycle.unmount();
   });
@@ -191,6 +196,12 @@ describe("Browser Context action", () => {
     fireEvent.change(screen.getByLabelText("Comment for selection 1"), {
       target: { value: "Make this action more prominent" },
     });
+    fireEvent.click(screen.getByRole("button", { name: "Submit comment" }));
+    expect(
+      screen.getByRole("button", { name: "Comment submitted" }).textContent,
+    ).toContain("Submitted");
+    expect(createCaptureMentions).not.toHaveBeenCalled();
+    expect(slot.inspection.composer.text).toBe("Make this clearer");
     const target = screen.getByRole("button", {
       name: "Selection 1: button#save",
     });
@@ -225,6 +236,42 @@ describe("Browser Context action", () => {
       "Make this clearer and more compact",
     );
     expect(slot.inspection.composer.attachmentCount).toBe(0);
+  });
+
+  it("submits the active comment with Enter while Shift+Enter remains editable", async () => {
+    const registration = await loadAction();
+    const createCaptureMentions = vi.fn(async () => preparedBatch(1));
+    const slot = renderSlot(registration, actionProps(), {
+      rpc: rpcHandlers(createCaptureMentions),
+    });
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Select page context" }),
+    );
+    const comment = await screen.findByLabelText("Comment for selection 1");
+    fireEvent.change(comment, { target: { value: "Tighten this action" } });
+    fireEvent.keyDown(comment, { key: "Enter" });
+
+    expect(
+      screen.getByRole("button", { name: "Comment submitted" }),
+    ).toBeDefined();
+    expect(createCaptureMentions).not.toHaveBeenCalled();
+    expect(slot.inspection.composer.text).toBe("");
+    expect(
+      screen.getByRole("region", { name: "Browser context preview" }),
+    ).toBeDefined();
+
+    fireEvent.change(comment, {
+      target: { value: "Tighten this action\nKeep the label" },
+    });
+    expect(
+      screen.getByRole("button", { name: "Submit comment" }),
+    ).toBeDefined();
+    fireEvent.keyDown(comment, { key: "Enter", shiftKey: true });
+    expect(
+      screen.getByRole("button", { name: "Submit comment" }),
+    ).toBeDefined();
+    expect(createCaptureMentions).not.toHaveBeenCalled();
   });
 
   it("keeps click and drag comments attached across numbered multi-selection staging", async () => {
@@ -516,7 +563,13 @@ describe("Browser Context action", () => {
       name: "Select page context",
     });
     expect((unsupported as HTMLButtonElement).disabled).toBe(true);
-    expect(unsupported.getAttribute("title")).toBe(
+    expect(unsupported.getAttribute("title")).toBeNull();
+    fireEvent.focus(
+      screen.getByLabelText(
+        "Browser annotations require a newer BB desktop app.",
+      ),
+    );
+    expect((await screen.findByRole("tooltip")).textContent).toBe(
       "Browser annotations require a newer BB desktop app.",
     );
   });
