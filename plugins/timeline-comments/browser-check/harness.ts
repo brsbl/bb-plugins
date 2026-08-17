@@ -230,6 +230,13 @@ void (async () => {
     );
     if (reply === null || replyButton?.disabled !== true)
       throw new Error("Blank reply was not disabled");
+    const replyStyle = getComputedStyle(reply);
+    if (
+      replyStyle.fontSize !== "13px" ||
+      replyStyle.fontFamily !== getComputedStyle(document.body).fontFamily
+    ) {
+      throw new Error("Reply input typography did not match BB normal text");
+    }
     const emptyReplyHeight = reply.getBoundingClientRect().height;
     const replyComposer = reply.closest<HTMLElement>(
       ".bb-comments-mention-input",
