@@ -5,7 +5,6 @@ import {
   useState,
 } from "react";
 import {
-  AtSign,
   ArrowDown,
   ArrowUp,
   Check,
@@ -13,14 +12,11 @@ import {
   ChevronDown,
   ChevronsUpDown,
   CircleDot,
-  CircleX,
   GitPullRequest,
   MessageSquare,
-  MessageSquareMore,
   RefreshCw,
   Search,
   UserRound,
-  type LucideIcon,
 } from "lucide-react";
 import { definePluginApp, useRpc } from "@bb/plugin-sdk/app";
 
@@ -101,46 +97,34 @@ function relativeTime(value: string): string {
 }
 
 function updatePresentation(kind: GithubNotificationItem["activityKind"]): {
-  icon: LucideIcon;
-  iconClass: string;
-  label: string;
   verb: string;
+  verbClass: string;
 } {
   switch (kind) {
     case "approved":
       return {
-        icon: CheckCircle2,
-        iconClass: "text-success",
-        label: "Approved",
         verb: "approved",
+        verbClass: "text-success",
       };
     case "changes-requested":
       return {
-        icon: CircleX,
-        iconClass: "text-destructive-text",
-        label: "Changes requested",
         verb: "requested changes",
+        verbClass: "text-destructive-text",
       };
     case "mention":
       return {
-        icon: AtSign,
-        iconClass: "text-warning-text",
-        label: "Mention",
         verb: "mentioned you",
+        verbClass: "text-warning-text",
       };
     case "review":
       return {
-        icon: MessageSquareMore,
-        iconClass: "text-foreground",
-        label: "Review",
         verb: "reviewed",
+        verbClass: "text-foreground",
       };
     case "comment":
       return {
-        icon: MessageSquare,
-        iconClass: "text-muted-foreground",
-        label: "Comment",
         verb: "commented",
+        verbClass: "text-muted-foreground",
       };
   }
 }
@@ -172,37 +156,21 @@ function NotificationLink({ item }: { item: GithubNotificationItem }) {
         <span aria-hidden>·</span>
         <span className="truncate">{item.repo}</span>
       </span>
+      <LatestUpdate item={item} />
     </a>
   );
 }
 
 function LatestUpdate({ item }: { item: GithubNotificationItem }) {
   const update = updatePresentation(item.activityKind);
-  const UpdateIcon = update.icon;
   const actor = item.actor ? `@${item.actor}` : "Someone";
   return (
-    <div className="flex min-w-0 items-center gap-2 text-sm">
-      <span className="flex min-w-0 items-center gap-2">
-        <span className="inline-flex max-w-40 shrink items-center gap-1 rounded-full bg-muted/35 py-0.5 pl-0.5 pr-1.5 text-xs font-normal text-muted-foreground">
-          <ActorAvatar avatarUrl={item.avatarUrl} />
-          <span className="truncate">{actor}</span>
-        </span>
-        <span
-          className={`group/status relative inline-flex shrink-0 items-center ${update.iconClass}`}
-          aria-label={update.label}
-          role="img"
-          tabIndex={0}
-          title={update.label}
-        >
-          <UpdateIcon aria-hidden="true" className="size-4" strokeWidth={1.75} />
-          <span
-            aria-hidden="true"
-            className="pointer-events-none absolute left-1/2 top-full z-20 mt-1 -translate-x-1/2 whitespace-nowrap rounded-md bg-foreground px-2 py-1 text-xs font-medium text-background opacity-0 shadow-sm transition-opacity group-hover/status:opacity-100 group-focus/status:opacity-100"
-          >
-            {update.label}
-          </span>
-        </span>
+    <div className="mt-1.5 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-xs">
+      <span className="inline-flex max-w-40 shrink items-center gap-1 rounded-full bg-muted/35 py-0.5 pl-0.5 pr-1.5 font-normal text-muted-foreground">
+        <ActorAvatar avatarUrl={item.avatarUrl} />
+        <span className="truncate">{actor}</span>
       </span>
+      <span className={`font-medium ${update.verbClass}`}>{update.verb}</span>
       <UpdatedTime value={item.updatedAt} />
     </div>
   );
@@ -423,7 +391,7 @@ function GitHubActivityPanel() {
     }
   };
   return (
-    <main className="github-activity-surface @container h-full overflow-y-auto bg-background p-4 md:p-5">
+    <main className="github-activity-surface h-full overflow-y-auto bg-background p-4 md:p-5">
       <div className="mx-auto w-full max-w-6xl">
         <div className="mb-5 flex items-start gap-3">
           <div className="min-w-0 flex-1">
@@ -555,44 +523,37 @@ function GitHubActivityPanel() {
           <div className="overflow-hidden rounded-lg border border-border bg-card">
             <div>
               <table className="github-activity-table w-full table-fixed border-collapse text-left">
-                <colgroup className="github-activity-colgroup @max-[36rem]:hidden">
-                  <col className="w-[10%]" />
-                  <col className="w-[54%]" />
-                  <col className="w-[36%]" />
+                <colgroup className="github-activity-colgroup">
+                  <col className="w-16" />
+                  <col />
                 </colgroup>
                 <thead className="border-b border-border bg-muted/35 text-xs">
-                  <tr className="github-activity-header-row @max-[36rem]:grid @max-[36rem]:grid-cols-[3.5rem_minmax(0,1fr)]">
-                    <th scope="col" className="github-activity-status-header px-3 py-2.5 text-muted-foreground @max-[36rem]:row-span-2">
+                  <tr className="github-activity-header-row">
+                    <th scope="col" className="github-activity-status-header px-3 py-2.5 text-muted-foreground">
                       Status
                     </th>
-                    <th scope="col" className="github-activity-item-header px-3 py-2.5 @max-[36rem]:col-start-2 @max-[36rem]:row-start-1">
-                      <SortHeader label="Item" active={sort === "resource"} direction={direction} onSort={() => setSortKey("resource")} />
-                    </th>
-                    <th scope="col" className="github-activity-update-header px-3 py-2.5 @max-[36rem]:col-start-2 @max-[36rem]:row-start-1 @max-[36rem]:justify-self-end">
-                      <SortHeader
-                        label="Activity"
-                        ariaLabel="Sort Activity by time"
-                        active={sort === "updated"}
-                        direction={direction}
-                        onSort={() => setSortKey("updated")}
-                      />
+                    <th scope="col" className="github-activity-item-header px-3 py-2.5">
+                      <div className="flex items-center justify-between gap-3">
+                        <SortHeader label="Notification" active={sort === "resource"} direction={direction} onSort={() => setSortKey("resource")} />
+                        <SortHeader
+                          label="Recent"
+                          ariaLabel="Sort by time"
+                          active={sort === "updated"}
+                          direction={direction}
+                          onSort={() => setSortKey("updated")}
+                        />
+                      </div>
                     </th>
                   </tr>
                 </thead>
-                <tbody className="github-activity-body divide-y divide-border @max-[36rem]:block @max-[36rem]:divide-y-0">
+                <tbody className="github-activity-body divide-y divide-border">
                   {loading && payload === null
                     ? [0, 1, 2, 3, 4].map((index) => (
-                        <tr key={index} aria-label="Loading GitHub activity" className="github-activity-row @max-[36rem]:grid @max-[36rem]:grid-cols-[3.5rem_minmax(0,1fr)] @max-[36rem]:border-b @max-[36rem]:border-border @max-[36rem]:last:border-b-0">
-                          {[0, 1, 2].map((cell) => (
+                        <tr key={index} aria-label="Loading GitHub activity" className="github-activity-row">
+                          {[0, 1].map((cell) => (
                             <td
                               key={cell}
-                              className={`px-3 py-3 ${
-                                cell === 0
-                                  ? "github-activity-status-cell @max-[36rem]:row-span-2"
-                                  : cell === 1
-                                    ? "github-activity-item-cell @max-[36rem]:col-start-2 @max-[36rem]:row-start-1 @max-[36rem]:pb-1"
-                                    : "github-activity-update-cell @max-[36rem]:col-start-2 @max-[36rem]:row-start-2 @max-[36rem]:pt-0"
-                              }`}
+                              className={`px-3 py-3 ${cell === 0 ? "github-activity-status-cell" : "github-activity-item-cell"}`}
                             >
                               <div className="h-4 animate-pulse rounded bg-muted" />
                             </td>
@@ -603,22 +564,19 @@ function GitHubActivityPanel() {
                         <tr
                           key={item.id}
                           data-resolved={item.resolved ? "true" : "false"}
-                          className={`github-activity-row align-top transition-colors hover:bg-accent/30 @max-[36rem]:grid @max-[36rem]:grid-cols-[3.5rem_minmax(0,1fr)] @max-[36rem]:border-b @max-[36rem]:border-border @max-[36rem]:last:border-b-0 ${
+                          className={`github-activity-row align-top transition-colors hover:bg-accent/30 ${
                             item.resolved ? "bg-muted/15" : ""
                           }`}
                         >
-                          <td className="github-activity-status-cell px-3 py-2.5 @max-[36rem]:row-span-2">
+                          <td className="github-activity-status-cell px-3 py-2.5">
                             <ResolveCheckbox
                               disabled={pendingResolvedIds.has(item.id)}
                               item={item}
                               onToggle={() => void toggleResolved(item)}
                             />
                           </td>
-                          <td className="github-activity-item-cell px-3 py-3 @max-[36rem]:col-start-2 @max-[36rem]:row-start-1 @max-[36rem]:pb-1">
+                          <td className="github-activity-item-cell px-3 py-3">
                             <NotificationLink item={item} />
-                          </td>
-                          <td className="github-activity-update-cell px-3 py-3 @max-[36rem]:col-start-2 @max-[36rem]:row-start-2 @max-[36rem]:pt-0">
-                            <LatestUpdate item={item} />
                           </td>
                         </tr>
                       ))}
