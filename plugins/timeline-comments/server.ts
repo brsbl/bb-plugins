@@ -134,6 +134,14 @@ export type TimelineCommentThreadDetail = z.infer<
 >;
 const cursorInputSchema = z.string().min(1).max(2_048).optional();
 const rootFilterSchema = z.enum(["open", "resolved", "all"]);
+const contextMentionSchema = z
+  .object({
+    kind: z.enum(["file", "directory"]),
+    name: z.string(),
+    path: z.string(),
+  })
+  .strict();
+export type TimelineContextMention = z.infer<typeof contextMentionSchema>;
 
 export const timelineCommentsRpcContract = defineRpcContract({
   listOpenAnchors: {
@@ -182,6 +190,20 @@ export const timelineCommentsRpcContract = defineRpcContract({
         threadCount: z.number().int().nonnegative(),
         commentCount: z.number().int().nonnegative(),
         codePointSize: z.number().int().nonnegative(),
+      })
+      .strict(),
+  },
+  searchContextMentions: {
+    input: z
+      .object({
+        bbThreadId: idSchema,
+        query: z.string().max(256),
+      })
+      .strict(),
+    output: z
+      .object({
+        items: z.array(contextMentionSchema),
+        truncated: z.boolean(),
       })
       .strict(),
   },
@@ -1000,6 +1022,29 @@ export default function timelineCommentsPlugin(bb: BbPluginApi): void {
         threadCount: summary.threadCount,
         commentCount: summary.commentCount,
         codePointSize: summary.codePointSize,
+      };
+    },
+    async searchContextMentions({ bbThreadId, query }) {
+      const thread = await bb.sdk.threads.get({ threadId: bbThreadId });
+      const pathQuery = {
+        projectId: thread.projectId,
+        includeFiles: "true",
+        includeDirectories: "true",
+        limit: "20",
+        ...(query.trim() === "" ? {} : { query: query.trim() }),
+      } as const;
+      const result = await bb.sdk.projects.paths(
+        thread.environmentId === null
+          ? pathQuery
+          : { ...pathQuery, environmentId: thread.environmentId },
+      );
+      return {
+        items: result.paths.map(({ kind, name, path }) => ({
+          kind,
+          name,
+          path,
+        })),
+        truncated: result.truncated,
       };
     },
     createThread(input) {
