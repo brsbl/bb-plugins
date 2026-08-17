@@ -409,8 +409,7 @@ function plugin(bb) {
       });
       if (members.length) continue;
       try {
-        const conditionalDelete = bb.sdk.threadSections.delete;
-        await conditionalDelete({ id, onlyIfEmpty: true });
+        await bb.sdk.threadSections.delete({ id });
         owned.delete(id);
         changed = true;
         bb.log.info(`action=phase-section-deleted section=${id}`);

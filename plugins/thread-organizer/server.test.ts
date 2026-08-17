@@ -27,6 +27,7 @@ function createHarness(prompt = "Implement the dynamic organizer sections") {
     createdAt: number;
     updatedAt: number;
   }> = [];
+  const occupiedSectionIds = new Set<string>();
   let sectionCounter = 0;
   const update = vi.fn(
     async (args: {
@@ -55,15 +56,14 @@ function createHarness(prompt = "Implement the dynamic organizer sections") {
     sections.push(section);
     return section;
   });
-  const remove = vi.fn(
-    async ({ id, onlyIfEmpty }: { id: string; onlyIfEmpty?: boolean }) => {
-      if (!onlyIfEmpty) throw new Error("unsafe delete");
-      if (thread.sectionId === id) throw new Error("section not empty");
-      const section = sections.find((candidate) => candidate.id === id)!;
-      sections = sections.filter((candidate) => candidate.id !== id);
-      return { id, name: section.name, updatedThreadCount: 0 };
-    },
-  );
+  const remove = vi.fn(async ({ id }: { id: string }) => {
+    if (thread.sectionId === id || occupiedSectionIds.has(id)) {
+      throw new Error("test attempted to delete an occupied section");
+    }
+    const section = sections.find((candidate) => candidate.id === id)!;
+    sections = sections.filter((candidate) => candidate.id !== id);
+    return { id, name: section.name, updatedThreadCount: 0 };
+  });
   const host = createFakePluginHost({
     pluginId: "thread-organizer",
     settings: { inboxMode: "apply" },
@@ -72,8 +72,13 @@ function createHarness(prompt = "Implement the dynamic organizer sections") {
       threads: {
         events: { wait: async () => null },
         get: async () => thread,
-        list: async ({ sectionId }: { sectionId?: string } = {}) =>
-          sectionId && thread.sectionId === sectionId ? [thread] : [],
+        list: async ({ sectionId }: { sectionId?: string } = {}) => {
+          if (!sectionId) return [thread];
+          if (thread.sectionId === sectionId) return [thread];
+          return occupiedSectionIds.has(sectionId)
+            ? [makeThreadResponse({ id: `occupant_${sectionId}`, sectionId })]
+            : [];
+        },
         promptHistory: async () => [promptEntry(prompt)],
         update,
       },
@@ -88,6 +93,10 @@ function createHarness(prompt = "Implement the dynamic organizer sections") {
     sections: () => sections,
     setThread: (changes: Partial<typeof thread>) => {
       thread = makeThreadResponse({ ...thread, ...changes });
+    },
+    setSectionOccupied: (sectionId: string, occupied = true) => {
+      if (occupied) occupiedSectionIds.add(sectionId);
+      else occupiedSectionIds.delete(sectionId);
     },
   };
 }
@@ -149,10 +158,7 @@ describe("Thread Organizer phase lifecycle", () => {
     expect(organizer.sections().map(({ name }) => name)).toEqual([
       "✅ Testing / Deploy",
     ]);
-    expect(organizer.remove).toHaveBeenCalledWith({
-      id: "sec_1",
-      onlyIfEmpty: true,
-    });
+    expect(organizer.remove).toHaveBeenCalledWith({ id: "sec_1" });
     await organizer.harness.behavior.emitThreadEvent("thread.active", {
       thread: organizer.current(),
     });
@@ -162,20 +168,20 @@ describe("Thread Organizer phase lifecycle", () => {
     await organizer.harness.lifecycle.dispose();
   });
 
-  it("keeps an occupied section when conditional deletion rejects", async () => {
+  it("keeps an occupied owned section without calling delete", async () => {
     const organizer = createHarness();
     plugin(organizer.bb);
     await organizer.harness.behavior.emitThreadEvent("thread.created", {
       thread: organizer.current(),
     });
-    organizer.setThread({ sectionId: null });
-    organizer.remove.mockRejectedValueOnce(new Error("section not empty"));
+    organizer.setSectionOccupied("sec_1");
     await organizer.harness.behavior.runCli(["phase", "handoff"], {
       threadId: "thr_test",
     });
     expect(organizer.sections().map(({ name }) => name)).toContain(
       "🛠️ Building",
     );
+    expect(organizer.remove).not.toHaveBeenCalledWith({ id: "sec_1" });
     await organizer.harness.lifecycle.dispose();
   });
 

@@ -246,12 +246,7 @@ export default function plugin(bb: BbPluginApi): void {
       });
       if (members.length) continue;
       try {
-        const conditionalDelete = bb.sdk.threadSections
-          .delete as unknown as (args: {
-          id: string;
-          onlyIfEmpty: true;
-        }) => Promise<{ updatedThreadCount: number }>;
-        await conditionalDelete({ id, onlyIfEmpty: true });
+        await bb.sdk.threadSections.delete({ id });
         owned.delete(id);
         changed = true;
         bb.log.info(`action=phase-section-deleted section=${id}`);

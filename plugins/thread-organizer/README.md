@@ -46,7 +46,7 @@ Automatic organization preserves the plugin's existing safeguards: explicit crea
 
 Manual transitions through `bb organizer phase` are immediate and remain plugin-managed, so later phase transitions continue to work. Hidden workers, children, forks, side chats, plugin-originated threads, archived threads, and deleted threads are excluded.
 
-Empty cleanup uses bb's additive `onlyIfEmpty` section-delete option. On an older compatible bb host that does not recognize the option, organization remains safe and functional but an empty plugin-owned section is retained until bb is updated.
+Empty cleanup uses only the shipped section APIs. Before deleting a plugin-owned section, Organizer performs a fresh one-row membership check and skips any section that still contains a thread. Failed cleanup is non-blocking and is retried during later reconciliation.
 
 ## Develop
 
