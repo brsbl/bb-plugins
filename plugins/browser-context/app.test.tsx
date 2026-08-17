@@ -148,6 +148,22 @@ function actionProps(
 }
 
 describe("Browser Context action", () => {
+  it("uses the magic-selection glyph for the Browser toolbar action", async () => {
+    const registration = await loadAction();
+    const slot = renderSlot(registration, actionProps(), {
+      rpc: rpcHandlers(),
+    });
+
+    const action = screen.getByRole("button", {
+      name: "Select page context",
+    });
+    expect(
+      action.querySelector('[data-icon="CursorMagicSelection03"]'),
+    ).not.toBeNull();
+
+    slot.lifecycle.unmount();
+  });
+
   it("stages one clicked element while preserving the editable composer draft", async () => {
     const registration = await loadAction();
     const props = actionProps();

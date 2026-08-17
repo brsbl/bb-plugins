@@ -6,6 +6,8 @@ import {
   type PointerEvent as ReactPointerEvent,
 } from "react";
 import { createPortal } from "react-dom";
+import { CursorMagicSelection03Icon } from "@hugeicons/core-free-icons";
+import { HugeiconsIcon } from "@hugeicons/react";
 import {
   definePluginApp,
   useComposer,
@@ -26,23 +28,6 @@ function errorMessage(error: unknown): string {
   return error instanceof Error
     ? error.message
     : "Browser Context could not complete that request.";
-}
-
-function SelectionIcon() {
-  return (
-    <svg
-      aria-hidden="true"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.8"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <path d="M4 8V4h4M16 4h4v4M20 16v4h-4M8 20H4v-4" />
-      <path d="m9 8 7 6-3.2.7-1.4 3.1L9 8Z" fill="currentColor" />
-    </svg>
-  );
 }
 
 function CloseIcon() {
@@ -726,7 +711,11 @@ function BrowserContextAction(props: PluginBrowserActionProps) {
         {annotations.length > 0 || operation === "selecting" ? (
           <CloseIcon />
         ) : (
-          <SelectionIcon />
+          <HugeiconsIcon
+            icon={CursorMagicSelection03Icon}
+            aria-hidden="true"
+            data-icon="CursorMagicSelection03"
+          />
         )}
       </button>
 
