@@ -7,7 +7,7 @@ import {
   screen,
   waitFor,
 } from "@testing-library/react";
-import type { PluginComposerScope } from "@bb/plugin-sdk";
+import type { PluginComposerScope } from "@get-bb/plugin-sdk";
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { StrictMode, type ComponentType } from "react";
@@ -18,7 +18,7 @@ import {
   renderSlot,
   type PluginRpcTestHandlers,
   type RenderedSlot,
-} from "@bb/plugin-sdk/testing/app";
+} from "@get-bb/plugin-sdk/testing/app";
 
 import type { rpcContract } from "./server";
 import {

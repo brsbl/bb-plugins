@@ -1020,7 +1020,6 @@ function sectionThread(
       activeWorkflowCount: 0,
     },
     archivedAt: null,
-    childOrigin: null,
     deletedAt: null,
     hasPendingInteraction,
     id,
@@ -1119,7 +1118,6 @@ assert.equal(isSidebarSectionThread(sectionThread()), true);
 for (const excluded of [
   { archivedAt: 1 },
   { deletedAt: 1 },
-  { childOrigin: "side-chat" },
   { originKind: "side-chat" },
   { pinnedAt: 1 },
   { parentThreadId: "thr_parent" },

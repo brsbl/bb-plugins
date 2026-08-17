@@ -1,7 +1,7 @@
 import "../app.css";
 import { registerTimelineCommentThreadWindow } from "../bridge.js";
 import { mountTimelineCommentsController } from "../controller.js";
-import type { PluginContentScriptContext } from "@bb/plugin-sdk/app";
+import type { PluginContentScriptContext } from "@get-bb/plugin-sdk/app";
 
 const threadId = "thr_browser";
 const messageId = "msg_browser";
@@ -230,6 +230,13 @@ void (async () => {
     );
     if (reply === null || replyButton?.disabled !== true)
       throw new Error("Blank reply was not disabled");
+    const replyStyle = getComputedStyle(reply);
+    if (
+      replyStyle.fontSize !== "13px" ||
+      replyStyle.fontFamily !== getComputedStyle(document.body).fontFamily
+    ) {
+      throw new Error("Reply input typography did not match BB normal text");
+    }
     const emptyReplyHeight = reply.getBoundingClientRect().height;
     const replyComposer = reply.closest<HTMLElement>(
       ".bb-comments-mention-input",

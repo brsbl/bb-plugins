@@ -5,7 +5,7 @@ import {
   buildPluginApp,
   buildPluginServer,
   resolvePluginBuildToolchain,
-} from "./vendor/bb-plugin-build-0.37.0.mjs";
+} from "./vendor/bb-plugin-build-0.38.0.mjs";
 import { pluginBuildBbVersion } from "./plugin-build-provenance.mjs";
 
 const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");

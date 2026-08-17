@@ -19,13 +19,31 @@ import { validatePluginArtifacts } from "./validate-plugin-artifacts.mjs";
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const bundledTypesDirectory = resolve(
   root,
-  "node_modules/@bb/plugin-sdk/bundled-types",
+  "node_modules/@get-bb/plugin-sdk/bundled-types",
 );
 
 function run(command, args, cwd) {
   const result = spawnSync(command, args, { cwd, stdio: "inherit" });
   if (result.error) throw result.error;
   if (result.status !== 0) throw new Error(`${command} exited ${result.status}`);
+}
+
+function assertPreviousScaffoldUpgradeCompatibility(manifest, sdkVersion) {
+  const rangeMatch = /^\^(\d+)\.(\d+)\.(\d+)$/u.exec(
+    manifest.engines?.bbPluginSdk ?? "",
+  );
+  const versionMatch = /^(\d+)\.(\d+)\.(\d+)$/u.exec(sdkVersion);
+  assert.notEqual(rangeMatch, null, "previous scaffold SDK range changed");
+  assert.notEqual(versionMatch, null, "current SDK version is not concrete");
+  const [, floorMajor, floorMinor, floorPatch] = rangeMatch;
+  const [, versionMajor, versionMinor, versionPatch] = versionMatch;
+  assert.equal(floorMajor, "0", "fixture must preserve a pre-1.0 SDK range");
+  assert.equal(versionMajor, floorMajor, "current SDK major rejects the fixture");
+  assert.equal(versionMinor, floorMinor, "current SDK minor rejects the fixture");
+  assert.ok(
+    Number(versionPatch) >= Number(floorPatch),
+    "current SDK patch rejects the fixture",
+  );
 }
 
 async function createFixtureRepository(directory) {
@@ -41,6 +59,21 @@ async function createFixtureRepository(directory) {
       "utf8",
     ),
   );
+  const previousScaffoldManifest = JSON.parse(
+    await readFile(
+      resolve(root, "tooling/fixtures/scaffold-0.4.1-manifest.json"),
+      "utf8",
+    ),
+  );
+  assert.equal(
+    previousScaffoldManifest.devDependencies?.["@bb/plugin-sdk"],
+    "file:../../tooling/vendor/bb-plugin-sdk-0.4.1.tgz",
+    "fixture no longer represents the previously shipped scaffold",
+  );
+  assertPreviousScaffoldUpgradeCompatibility(
+    previousScaffoldManifest,
+    sdkRecord.package.replace(/^@get-bb\/plugin-sdk@/u, ""),
+  );
   await mkdir(resolve(directory, "packages"), { recursive: true });
   await mkdir(resolve(directory, "plugins"), { recursive: true });
   await mkdir(resolve(directory, "tooling/vendor"), { recursive: true });
@@ -53,7 +86,7 @@ async function createFixtureRepository(directory) {
         type: "module",
         workspaces: ["plugins/*", "packages/*"],
         devDependencies: {
-          "@bb/plugin-sdk": rootManifest.devDependencies["@bb/plugin-sdk"],
+          "@get-bb/plugin-sdk": rootManifest.devDependencies["@get-bb/plugin-sdk"],
           "@tailwindcss/node": rootManifest.devDependencies["@tailwindcss/node"],
           "@tailwindcss/oxide": rootManifest.devDependencies["@tailwindcss/oxide"],
           esbuild: rootManifest.devDependencies.esbuild,

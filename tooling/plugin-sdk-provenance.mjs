@@ -6,14 +6,14 @@ const provenance = JSON.parse(
     "utf8",
   ),
 );
-const packageVersion = /^@bb\/plugin-sdk@(\d+\.\d+\.\d+)$/.exec(
+const packageVersion = /^@get-bb\/plugin-sdk@(\d+\.\d+\.\d+)$/.exec(
   provenance.package,
 )?.[1];
 
 if (packageVersion === undefined) {
   throw new Error("vendored plugin SDK has no concrete version");
 }
-if (provenance.archive !== `bb-plugin-sdk-${packageVersion}.tgz`) {
+if (provenance.archive !== `get-bb-plugin-sdk-${packageVersion}.tgz`) {
   throw new Error("vendored plugin SDK archive does not match its version");
 }
 

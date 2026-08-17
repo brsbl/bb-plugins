@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 
-import type { BbPluginApi } from "@bb/plugin-sdk";
+import type { BbPluginApi } from "@get-bb/plugin-sdk";
 
 const THREAD_PAGE_SIZE = 1_000;
 // Larger windows can make BB's whole-item query exceed SQLite's expression depth.

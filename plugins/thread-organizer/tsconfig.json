@@ -10,10 +10,10 @@
     "moduleResolution": "Bundler",
     "baseUrl": ".",
     "paths": {
-      "@bb/plugin-sdk": [
+      "@get-bb/plugin-sdk": [
         "./types/bb-plugin-sdk.d.ts"
       ],
-      "@bb/plugin-sdk/app": [
+      "@get-bb/plugin-sdk/app": [
         "./types/bb-plugin-sdk-app.d.ts"
       ]
     },

@@ -106,12 +106,34 @@ var HugeiconsIcon = forwardRef(({ color = "currentColor", size = 24, strokeWidth
 });
 HugeiconsIcon.displayName = "HugeiconsIcon";
 
-// bb-plugin-runtime-shim:@bb/plugin-sdk/app
+// bb-plugin-runtime-shim:@radix-ui/react-tooltip
 var runtime2 = globalThis.__bbPluginRuntime;
-if (runtime2 == null || runtime2.pluginSdkApp == null) {
-  throw new Error('Cannot load "@bb/plugin-sdk/app": this bundle must be loaded by the BB app, which provides the shared plugin runtime (globalThis.__bbPluginRuntime).');
+if (runtime2 == null || runtime2.radixTooltip == null) {
+  throw new Error('Cannot load "@radix-ui/react-tooltip": this bundle must be loaded by the BB app, which provides the shared plugin runtime (globalThis.__bbPluginRuntime).');
 }
-var mod2 = runtime2.pluginSdkApp;
+var mod2 = runtime2.radixTooltip;
+var {
+  Arrow,
+  Content,
+  Portal,
+  Provider,
+  Root,
+  Tooltip,
+  TooltipArrow,
+  TooltipContent,
+  TooltipPortal,
+  TooltipProvider,
+  TooltipTrigger,
+  Trigger,
+  createTooltipScope
+} = mod2;
+
+// bb-plugin-runtime-shim:@get-bb/plugin-sdk/app
+var runtime3 = globalThis.__bbPluginRuntime;
+if (runtime3 == null || runtime3.pluginSdkApp == null) {
+  throw new Error('Cannot load "@get-bb/plugin-sdk/app": this bundle must be loaded by the BB app, which provides the shared plugin runtime (globalThis.__bbPluginRuntime).');
+}
+var mod3 = runtime3.pluginSdkApp;
 var {
   Markdown,
   ThreadChat,
@@ -129,7 +151,7 @@ var {
   useRealtimeConnectionState,
   useRpc,
   useSettings
-} = mod2;
+} = mod3;
 
 // bridge.ts
 var activeController = null;
@@ -472,11 +494,11 @@ function commentBodyError(value) {
 }
 
 // bb-plugin-runtime-shim:react-dom
-var runtime3 = globalThis.__bbPluginRuntime;
-if (runtime3 == null || runtime3.reactDom == null) {
+var runtime4 = globalThis.__bbPluginRuntime;
+if (runtime4 == null || runtime4.reactDom == null) {
   throw new Error('Cannot load "react-dom": this bundle must be loaded by the BB app, which provides the shared plugin runtime (globalThis.__bbPluginRuntime).');
 }
-var mod3 = runtime3.reactDom;
+var mod4 = runtime4.reactDom;
 var {
   createPortal,
   flushSync,
@@ -491,19 +513,19 @@ var {
   useFormState,
   useFormStatus,
   version: version2
-} = mod3;
+} = mod4;
 
 // bb-plugin-runtime-shim:react-dom/client
-var runtime4 = globalThis.__bbPluginRuntime;
-if (runtime4 == null || runtime4.reactDomClient == null) {
+var runtime5 = globalThis.__bbPluginRuntime;
+if (runtime5 == null || runtime5.reactDomClient == null) {
   throw new Error('Cannot load "react-dom/client": this bundle must be loaded by the BB app, which provides the shared plugin runtime (globalThis.__bbPluginRuntime).');
 }
-var mod4 = runtime4.reactDomClient;
+var mod5 = runtime5.reactDomClient;
 var {
   createRoot,
   hydrateRoot,
   version: version3
-} = mod4;
+} = mod5;
 
 // ../../node_modules/lucide-react/dist/esm/shared/src/utils.js
 var toKebabCase = (string) => string.replace(/([a-z0-9])([A-Z])/g, "$1-$2").toLowerCase();
@@ -667,16 +689,16 @@ var __iconNode11 = [
 var X2 = createLucideIcon("X", __iconNode11);
 
 // bb-plugin-runtime-shim:react/jsx-runtime
-var runtime5 = globalThis.__bbPluginRuntime;
-if (runtime5 == null || runtime5.jsxRuntime == null) {
+var runtime6 = globalThis.__bbPluginRuntime;
+if (runtime6 == null || runtime6.jsxRuntime == null) {
   throw new Error('Cannot load "react/jsx-runtime": this bundle must be loaded by the BB app, which provides the shared plugin runtime (globalThis.__bbPluginRuntime).');
 }
-var mod5 = runtime5.jsxRuntime;
+var mod6 = runtime6.jsxRuntime;
 var {
   Fragment: Fragment2,
   jsx,
   jsxs
-} = mod5;
+} = mod6;
 
 // comment-components.tsx
 var MODE_TRANSITION = {
@@ -3522,29 +3544,42 @@ function AddCommentsAction() {
     }
   }, [composer, rpc, threadId]);
   if (threadId === null) return null;
+  const actionLabel = error === null ? "Add comments to chat" : "Retry adding comments to chat";
+  const tooltipLabel = error === null ? actionLabel : `${actionLabel}: ${error}`;
   return /* @__PURE__ */ jsxs("span", { className: "bb-comments-composer-action-wrap", children: [
     error !== null ? /* @__PURE__ */ jsx("span", { className: "bb-comments-composer-action-error", role: "alert", children: "Couldn\u2019t add comments" }) : null,
     notice !== null ? /* @__PURE__ */ jsx("span", { className: "bb-comments-composer-action-status", role: "status", children: notice }) : null,
-    /* @__PURE__ */ jsx(
-      "button",
-      {
-        type: "button",
-        className: "bb-comments-composer-action",
-        "aria-label": error === null ? "Add comments to chat" : "Retry adding comments to chat",
-        title: error === null ? "Add comments to chat" : `Retry adding comments to chat: ${error}`,
-        disabled: busy,
-        onMouseDown: (event) => event.preventDefault(),
-        onClick: () => void addComments(),
-        children: /* @__PURE__ */ jsx("span", { className: "bb-comments-composer-action-icon", children: /* @__PURE__ */ jsx(
-          HugeiconsIcon,
-          {
-            icon: ChatFeedback01Icon,
-            "aria-hidden": "true",
-            "data-icon": "ChatFeedback"
-          }
-        ) })
-      }
-    )
+    /* @__PURE__ */ jsx(Provider, { delayDuration: 250, children: /* @__PURE__ */ jsxs(Root, { children: [
+      /* @__PURE__ */ jsx(Trigger, { asChild: true, children: /* @__PURE__ */ jsx(
+        "button",
+        {
+          type: "button",
+          className: "bb-comments-composer-action",
+          "aria-label": actionLabel,
+          disabled: busy,
+          onMouseDown: (event) => event.preventDefault(),
+          onClick: () => void addComments(),
+          children: /* @__PURE__ */ jsx("span", { className: "bb-comments-composer-action-icon", children: /* @__PURE__ */ jsx(
+            HugeiconsIcon,
+            {
+              icon: ChatFeedback01Icon,
+              "aria-hidden": "true",
+              "data-icon": "ChatFeedback"
+            }
+          ) })
+        }
+      ) }),
+      /* @__PURE__ */ jsx(Portal, { children: /* @__PURE__ */ jsx(
+        Content,
+        {
+          className: "bb-comments-composer-action-tooltip",
+          side: "top",
+          sideOffset: 7,
+          collisionPadding: 8,
+          children: tooltipLabel
+        }
+      ) })
+    ] }) })
   ] });
 }
 function CommentPanel({ threadId }) {
@@ -3738,7 +3773,7 @@ var app_default = definePluginApp((app) => {
   });
   app.slots.threadPanelAction({
     id: "comments",
-    title: "Comments",
+    title: "Comments List",
     icon: "ChatFeedback",
     component: CommentPanel,
     layout: "flush"

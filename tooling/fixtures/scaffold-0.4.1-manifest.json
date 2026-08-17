@@ -1,12 +1,11 @@
 {
-  "name": "bb-plugin-thread-organizer",
+  "name": "bb-plugin-sdk-upgrade-smoke",
   "version": "0.1.0",
-  "description": "Uses pinned threads as an inbox and organizes active work into semantic sections.",
+  "description": "Verifies compatibility with the previously shipped bb plugin scaffold.",
   "type": "module",
   "license": "UNLICENSED",
   "files": [
     "dist",
-    "docs",
     "README.md"
   ],
   "scripts": {
@@ -17,26 +16,24 @@
   },
   "engines": {
     "bb": ">=0.0.34",
-    "bbPluginSdk": "^0.4.6"
+    "bbPluginSdk": "^0.4.1"
   },
   "bb": {
-    "name": "Thread Organizer",
-    "description": "Uses pinned threads as an inbox and organizes active work into semantic sections.",
+    "name": "SDK Upgrade Smoke",
+    "description": "Verifies compatibility with the previously shipped bb plugin scaffold.",
     "branding": {
-      "icon": "Rows3"
+      "icon": "Puzzle"
     },
     "server": "./server.ts",
-    "app": "./app.ts",
     "skills": []
   },
   "devDependencies": {
-    "@get-bb/plugin-sdk": "file:../../tooling/vendor/get-bb-plugin-sdk-0.4.6.tgz",
+    "@bb/plugin-sdk": "file:../../tooling/vendor/bb-plugin-sdk-0.4.1.tgz",
     "@types/better-sqlite3": "^7.6.12",
     "@types/node": "^22.0.0",
     "better-sqlite3": "^12.10.0",
     "cron-parser": "^5.5.0",
     "hono": "^4.11.9",
-    "jsdom": "^29.0.1",
     "typescript": "^5.7.0",
     "vitest": "^4.1.8",
     "zod": "^4.3.6"

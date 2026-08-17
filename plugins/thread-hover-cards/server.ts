@@ -1,4 +1,4 @@
-import { defineRpcContract, type BbPluginApi } from "@bb/plugin-sdk";
+import { defineRpcContract, type BbPluginApi } from "@get-bb/plugin-sdk";
 import { z } from "zod";
 
 const displayStatusSchema = z.enum([
@@ -715,10 +715,9 @@ export function isSidebarSectionThread(thread: SidebarThread): boolean {
     thread.archivedAt === null &&
     thread.deletedAt === null &&
     thread.pinnedAt === null &&
-    // The 0.5 SDK types no longer admit "side-chat" origins, but legacy rows
-    // can still carry them at runtime, so the guard compares wide on purpose.
-    !isSideChatOrigin(thread.originKind) &&
-    !isSideChatOrigin(thread.childOrigin)
+    // Side chats are hidden on current hosts. Keep this wide guard for legacy
+    // rows that can still carry the pre-hidden-thread origin value at runtime.
+    !isSideChatOrigin(thread.originKind)
   );
 }
 

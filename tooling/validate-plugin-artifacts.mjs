@@ -57,7 +57,7 @@ const builtinModuleNames = new Set(
   builtinModules.flatMap((name) => [name, `node:${name}`]),
 );
 const managedServerRuntimeImports = new Set([
-  "@bb/plugin-sdk",
+  "@get-bb/plugin-sdk",
   "better-sqlite3",
 ]);
 

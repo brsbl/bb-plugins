@@ -11,9 +11,8 @@ export type SectionTarget = (typeof SECTION_TARGETS)[number];
 
 export interface OrganizableThread {
   archivedAt: number | null;
-  childOrigin: "fork" | "side-chat" | null;
   deletedAt: number | null;
-  originKind: "fork" | "side-chat" | null;
+  originKind: "fork" | null;
   originPluginId: string | null;
   parentThreadId: string | null;
   sourceThreadId: string | null;
@@ -171,7 +170,6 @@ export function isManageableThread(thread: OrganizableThread): boolean {
     thread.parentThreadId === null &&
     thread.sourceThreadId === null &&
     thread.originKind === null &&
-    thread.childOrigin === null &&
     thread.originPluginId === null &&
     thread.archivedAt === null &&
     thread.deletedAt === null

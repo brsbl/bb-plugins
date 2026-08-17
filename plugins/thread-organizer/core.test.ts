@@ -11,7 +11,6 @@ import {
 describe("thread eligibility", () => {
   const eligible = {
     archivedAt: null,
-    childOrigin: null,
     deletedAt: null,
     originKind: null,
     originPluginId: null,
@@ -30,8 +29,7 @@ describe("thread eligibility", () => {
     { ...eligible, deletedAt: 1 },
     { ...eligible, parentThreadId: "thr_parent" },
     { ...eligible, sourceThreadId: "thr_source" },
-    { ...eligible, originKind: "side-chat" as const },
-    { ...eligible, childOrigin: "fork" as const },
+    { ...eligible, originKind: "fork" as const },
     { ...eligible, originPluginId: "automations" },
     { ...eligible, status: "error" as const },
     { ...eligible, visibility: "hidden" as const },

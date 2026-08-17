@@ -103,13 +103,13 @@ export async function checkRepository(repositoryRoot = defaultRoot, options = {}
   const plugins = await readPluginWorkspaces(root);
   const bundledTypesDirectory = resolve(
     options.bundledTypesDirectory ??
-      resolve(root, "node_modules/@bb/plugin-sdk/bundled-types"),
+      resolve(root, "node_modules/@get-bb/plugin-sdk/bundled-types"),
   );
 
   assert(rootManifest.workspaces.includes("plugins/*"), "plugins workspace missing");
   assert(rootManifest.workspaces.includes("packages/*"), "packages workspace missing");
   assert(
-    rootManifest.devDependencies?.["@bb/plugin-sdk"] ===
+    rootManifest.devDependencies?.["@get-bb/plugin-sdk"] ===
       `file:tooling/vendor/${pluginSdkArchive}`,
     "root plugin SDK dependency drift",
   );
@@ -207,11 +207,11 @@ export async function checkRepository(repositoryRoot = defaultRoot, options = {}
       manifest.engines?.bbPluginSdk === `^${pluginSdkVersion}`,
       `${slug}: SDK engine drift`,
     );
-    if (manifest.devDependencies?.["@bb/plugin-sdk"] !== undefined) {
+    if (manifest.devDependencies?.["@get-bb/plugin-sdk"] !== undefined) {
       // Plugins may vendor the SDK archive next to their sources so a
       // pinned-commit install is standalone; that copy must stay byte-equal
       // to the shared tooling archive.
-      const sdkDependency = manifest.devDependencies["@bb/plugin-sdk"];
+      const sdkDependency = manifest.devDependencies["@get-bb/plugin-sdk"];
       const vendoredSpecifier = `file:./vendor/${pluginSdkArchive}`;
       assert(
         sdkDependency === `file:../../tooling/vendor/${pluginSdkArchive}` ||
