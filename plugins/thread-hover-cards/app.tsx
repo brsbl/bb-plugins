@@ -41,8 +41,10 @@ const SECTION_TOGGLE_SELECTOR =
 const STICKY_GROUP_SELECTOR = "[data-sidebar-sticky-group]";
 const SECTION_ID_SELECTOR = "[data-sidebar-section-id]";
 const PROJECT_ID_SELECTOR = "[data-sidebar-project-id]";
+const PROJECT_ITEM_SELECTOR = "[data-sidebar-sticky-project-item]";
 const SECTION_SUMMARY_CACHE_TTL_MS = 4_000;
 const SECTION_CACHE_MAX_ENTRIES = 32;
+const SECTION_UNKNOWN_TTL_MS = 60_000;
 const OPEN_DELAY_MS = 0;
 const CLOSE_DELAY_MS = 120;
 const ACTIVE_SUMMARY_CACHE_TTL_MS = 2_000;
@@ -341,10 +343,20 @@ function findThreadTrigger(target: EventTarget | null): HTMLAnchorElement | null
 
 /** A sidebar section header row and the section it stands for. */
 export interface SectionTrigger {
+  name: string;
   projectId: string | null;
+  projectName: string | null;
   row: HTMLElement;
-  sectionId: string;
+  sectionId: string | null;
   toggle: HTMLElement;
+}
+
+export function sectionLabelOf(toggle: Element): string | null {
+  return (
+    /^(?:Expand|Collapse) (.+) section$/.exec(
+      toggle.getAttribute("aria-label") ?? "",
+    )?.[1] ?? null
+  );
 }
 
 /**
@@ -376,6 +388,20 @@ function projectIdFor(row: Element): string | null {
   return value || null;
 }
 
+function projectNameFor(row: Element): string | null {
+  const projectItem = row.closest(PROJECT_ITEM_SELECTOR);
+  const projectToggle = projectItem?.querySelector(SECTION_TOGGLE_SELECTOR);
+  return projectToggle == null ? null : sectionLabelOf(projectToggle);
+}
+
+function isProjectHeaderRow(row: Element): boolean {
+  return (
+    row.closest(STICKY_GROUP_SELECTOR)?.parentElement?.matches(
+      PROJECT_ITEM_SELECTOR,
+    ) === true
+  );
+}
+
 export function findSectionTrigger(
   target: EventTarget | null,
 ): SectionTrigger | null {
@@ -385,15 +411,19 @@ export function findSectionTrigger(
     target instanceof Element ? target.closest(STICKY_GROUP_SELECTOR) : null;
   const sectionId =
     root instanceof HTMLElement ? root.dataset.sidebarSectionId?.trim() : null;
-  if (!(root instanceof HTMLElement) || !sectionId) return null;
+  if (!(root instanceof HTMLElement)) return null;
   let candidate: Element | null = target as Element;
   while (candidate && candidate !== root.parentElement) {
     const toggle = sectionToggleOwnedBy(candidate);
     if (toggle) {
+      const name = sectionLabelOf(toggle);
+      if (name === null || isProjectHeaderRow(candidate)) return null;
       return {
+        name,
         projectId: projectIdFor(candidate),
+        projectName: projectNameFor(candidate),
         row: candidate as HTMLElement,
-        sectionId,
+        sectionId: sectionId || null,
         toggle: toggle as HTMLElement,
       };
     }
@@ -402,30 +432,28 @@ export function findSectionTrigger(
   return null;
 }
 
-function findCurrentSectionTrigger(
-  sectionId: string,
-  projectId: string | null,
-): SectionTrigger | null {
-  for (const group of Array.from(
-    document.querySelectorAll<HTMLElement>(SECTION_ID_SELECTOR),
-  )) {
-    if (group.dataset.sidebarSectionId?.trim() !== sectionId) continue;
-    if (projectIdFor(group) !== projectId) continue;
-    const row = Array.from(group.children).find(
-      (child): child is HTMLElement =>
-        child instanceof HTMLElement && sectionToggleOwnedBy(child) !== null,
-    );
-    if (!row) continue;
-    const toggle = sectionToggleOwnedBy(row);
-    if (!toggle) continue;
-    return {
-      projectId,
-      row,
-      sectionId,
-      toggle: toggle as HTMLElement,
-    };
+function findCurrentSectionTrigger(identity: SectionTrigger): SectionTrigger | null {
+  const groups = identity.sectionId === null
+    ? document.querySelectorAll<HTMLElement>(STICKY_GROUP_SELECTOR)
+    : document.querySelectorAll<HTMLElement>(SECTION_ID_SELECTOR);
+  const matches: SectionTrigger[] = [];
+  for (const group of Array.from(groups)) {
+    for (const child of Array.from(group.children)) {
+      if (!(child instanceof HTMLElement)) continue;
+      const toggle = sectionToggleOwnedBy(child);
+      if (!toggle) continue;
+      const candidate = findSectionTrigger(toggle);
+      if (!candidate) continue;
+      const same = identity.sectionId === null
+        ? candidate.sectionId === null &&
+          candidate.name === identity.name &&
+          candidate.projectName === identity.projectName
+        : candidate.sectionId === identity.sectionId &&
+          candidate.projectId === identity.projectId;
+      if (same) matches.push(candidate);
+    }
   }
-  return null;
+  return matches.length === 1 ? matches[0]! : null;
 }
 
 function threadIdFor(trigger: HTMLAnchorElement): string | null {
@@ -1996,8 +2024,7 @@ function installHoverCards({ onOpen }: ThreadHoverCardOptions): HoverCardControl
 }
 
 async function fetchSectionSummary(
-  sectionId: string,
-  projectId: string | null,
+  target: SectionTrigger,
   signal: AbortSignal,
 ): Promise<SectionSummary> {
   const response = await fetch(
@@ -2005,7 +2032,11 @@ async function fetchSectionSummary(
     {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ projectId, sectionId }),
+      body: JSON.stringify(
+        target.sectionId === null
+          ? { name: target.name, projectName: target.projectName }
+          : { projectId: target.projectId, sectionId: target.sectionId },
+      ),
       signal,
     },
   );
@@ -2040,6 +2071,7 @@ function installSectionHoverCards({
   let disposed = false;
   const cache = new Map<string, { fetchedAt: number; summary: SectionSummary }>();
   const pending = new Map<string, AbortController>();
+  const unknownSections = new Map<string, number>();
   const style = element("style", "");
   style.id = SECTION_STYLE_ID;
   style.textContent = SECTION_CARD_CSS;
@@ -2047,7 +2079,11 @@ function installSectionHoverCards({
   document.head.append(style);
 
   const keyOf = (target: SectionTrigger): string =>
-    JSON.stringify([target.sectionId, target.projectId]);
+    JSON.stringify(
+      target.sectionId === null
+        ? ["name", target.name, target.projectName]
+        : ["id", target.sectionId, target.projectId],
+    );
 
   const sameIdentity = (
     left: SectionTrigger | null,
@@ -2055,8 +2091,7 @@ function installSectionHoverCards({
   ): boolean =>
     left !== null &&
     right !== null &&
-    left.sectionId === right.sectionId &&
-    left.projectId === right.projectId;
+    keyOf(left) === keyOf(right);
 
   function ensureCard(): HTMLDivElement {
     if (card) return card;
@@ -2077,10 +2112,7 @@ function installSectionHoverCards({
 
   function refreshActiveAnchor(): boolean {
     if (!active) return false;
-    const current = findCurrentSectionTrigger(
-      active.sectionId,
-      active.projectId,
-    );
+    const current = findCurrentSectionTrigger(active);
     if (!current) {
       closeCard();
       return false;
@@ -2141,12 +2173,12 @@ function installSectionHoverCards({
     abortPendingRequests();
     const controller = new AbortController();
     pending.set(key, controller);
-    return fetchSectionSummary(
-      target.sectionId,
-      target.projectId,
-      controller.signal,
-    )
+    return fetchSectionSummary(target, controller.signal)
       .then((summary) => {
+        if (!summary.known) {
+          unknownSections.set(key, Date.now());
+          return summary;
+        }
         cache.delete(key);
         cache.set(key, { fetchedAt: Date.now(), summary });
         while (cache.size > SECTION_CACHE_MAX_ENTRIES) {
@@ -2163,6 +2195,14 @@ function installSectionHoverCards({
 
   function showCard(target: SectionTrigger): void {
     if (disposed) return;
+    const knownUnknownAt = unknownSections.get(keyOf(target));
+    if (
+      knownUnknownAt !== undefined &&
+      Date.now() - knownUnknownAt < SECTION_UNKNOWN_TTL_MS
+    ) {
+      closeCard();
+      return;
+    }
     onOpen();
     cancelClose();
     abortPendingRequests();
@@ -2187,6 +2227,10 @@ function installSectionHoverCards({
 
     void requestSummary(target)
       .then((summary) => {
+        if (!summary.known) {
+          if (!disposed && requestGeneration === generation) closeCard();
+          return;
+        }
         if (disposed || requestGeneration !== generation) return;
         renderSectionSummary(hoverCard, summary);
         requestAnimationFrame(position);
@@ -2290,6 +2334,7 @@ function installSectionHoverCards({
       card = null;
       style.remove();
       cache.clear();
+      unknownSections.clear();
       for (const controller of pending.values()) controller.abort();
       pending.clear();
     },

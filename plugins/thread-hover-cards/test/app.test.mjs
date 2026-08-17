@@ -201,11 +201,25 @@ globalThis.fetch = async (url, init) => {
   const request = JSON.parse(init.body);
   if (String(url).endsWith("/sectionSummary")) {
     sectionRequestBodies.push(request);
-    const summary = sectionSummaries.get(request.sectionId);
+    const sectionKey =
+      request.sectionId ?? (request.name === "Design" ? "sec_design" : null);
+    const summary = sectionKey === null ? null : sectionSummaries.get(sectionKey);
     if (!summary) {
       return new Response(
-        JSON.stringify({ ok: false, error: { message: "Unknown section." } }),
-        { status: 404 },
+        JSON.stringify({
+          ok: true,
+          result: {
+            diagnostics: emptyDiagnostics,
+            failed: 0,
+            known: false,
+            projects: [],
+            questions: 0,
+            total: 0,
+            unread: 0,
+            working: 0,
+          },
+        }),
+        { status: 200 },
       );
     }
     const response = new Response(
@@ -1904,7 +1918,7 @@ assert.deepEqual(sectionRequestBodies.at(-1), {
 });
 assert.match(sectionCard.textContent, /1 thread/);
 
-// A built-in group has no persisted section ID and never issues an RPC.
+// A no-ID group is identified by the server and closes when it is not stored.
 const pinnedHeader = sectionHeaderRow("Pinned");
 sectionGroup.append(pinnedHeader.group);
 const requestsBeforePinnedHover = sectionRequestBodies.length;
@@ -1917,9 +1931,39 @@ assert.equal(
 );
 assert.equal(
   sectionRequestBodies.length,
-  requestsBeforePinnedHover,
-  "does not ask the server to identify a built-in group",
+  requestsBeforePinnedHover + 1,
+  "asks once so legacy stored sections remain discoverable",
 );
+hoverOver(pinnedHeader.title);
+await new Promise((resolve) => setTimeout(resolve, 20));
+assert.equal(
+  sectionRequestBodies.length,
+  requestsBeforePinnedHover + 1,
+  "caches an absent legacy label within the negative TTL",
+);
+
+// A legacy sidebar without stable ids uses names and still rebinds on rerender.
+const legacyHeader = sectionHeaderRow("Design");
+sectionGroup.append(legacyHeader.group);
+hoverOver(legacyHeader.title);
+await new Promise((resolve) => setTimeout(resolve, 20));
+assert.deepEqual(sectionRequestBodies.at(-1), {
+  name: "Design",
+  projectName: null,
+});
+assert.equal(sectionCard.hidden, false);
+const legacyReplacement = sectionHeaderRow("Design");
+legacyHeader.group.replaceWith(legacyReplacement.group);
+await new Promise((resolve) => setTimeout(resolve, 0));
+assert.equal(legacyHeader.toggle.hasAttribute("aria-describedby"), false);
+assert.equal(
+  legacyReplacement.toggle.getAttribute("aria-describedby"),
+  "bb-section-hover-card",
+);
+legacyReplacement.group.remove();
+await new Promise((resolve) => setTimeout(resolve, 0));
+assert.equal(sectionCard.hidden, true);
+assert.equal(legacyReplacement.toggle.hasAttribute("aria-describedby"), false);
 
 delayNextSectionFor.add("sec_delayed_a");
 hoverOver(delayedAHeader.title);
@@ -1935,6 +1979,16 @@ assert.equal(
   "a built-in group closes and aborts the previous section request",
 );
 assert.equal(sectionCard.hidden, true);
+
+const requestsBeforePinnedRetry = sectionRequestBodies.length;
+testNow += 60_001;
+hoverOver(pinnedHeader.title);
+await new Promise((resolve) => setTimeout(resolve, 20));
+assert.equal(
+  sectionRequestBodies.length,
+  requestsBeforePinnedRetry + 1,
+  "retries an absent legacy label after the negative TTL",
+);
 
 // A row rerender keeps the card attached by ID; permanent removal closes it.
 const rebindHeader = sectionHeaderRow("Rebind", "sec_rebind");

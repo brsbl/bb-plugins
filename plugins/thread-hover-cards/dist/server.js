@@ -14647,12 +14647,18 @@ var rpcContract = defineRpcContract({
     output: threadPullRequestSchema
   },
   sectionSummary: {
-    input: external_exports.object({
-      /** Stable id from the sidebar's section row. */
-      sectionId: external_exports.string().min(1),
-      /** Stable id from a containing project row; null for global sections. */
-      projectId: external_exports.string().min(1).nullable()
-    }).strict(),
+    input: external_exports.union([
+      external_exports.object({
+        /** Stable id from the current sidebar's section row. */
+        sectionId: external_exports.string().min(1),
+        projectId: external_exports.string().min(1).nullable()
+      }).strict(),
+      external_exports.object({
+        /** Label fallback for BB sidebars that predate stable DOM ids. */
+        name: external_exports.string().min(1).max(256),
+        projectName: external_exports.string().min(1).max(256).nullable().optional()
+      }).strict()
+    ]),
     output: sectionSummarySchema
   }
 });
@@ -15454,21 +15460,78 @@ function plugin(bb) {
         throw error51;
       }
     },
-    async sectionSummary({ projectId, sectionId }) {
+    async sectionSummary(input) {
       const recorder = createDiagnostics();
       const deadlineAt = Date.now() + SUMMARY_LOOKUP_TIMEOUT_MS;
       const remainingMs = () => Math.max(1, deadlineAt - Date.now());
       const signal = AbortSignal.timeout(SUMMARY_LOOKUP_TIMEOUT_MS);
+      let sectionId;
+      let projectId;
+      const diagnosticKey = "sectionId" in input ? input.sectionId : input.name;
+      let preloadedProjects = null;
       try {
-        const projectsPromise = measureStage(
+        if ("sectionId" in input) {
+          ({ projectId, sectionId } = input);
+        } else {
+          const sections = await measureStage(
+            recorder,
+            "sections",
+            () => within(
+              safely(bb.sdk.threadSections.list({ signal })),
+              remainingMs()
+            ),
+            { unavailableWhenNull: true }
+          );
+          if (sections === null) {
+            throw new Error("Section summary unavailable.");
+          }
+          const section = sections.find((row) => row.name === input.name);
+          if (!section) {
+            const diagnostics2 = finishDiagnostics(recorder);
+            recordDiagnostics(bb, "sectionSummary", diagnosticKey, diagnostics2);
+            return {
+              diagnostics: diagnostics2,
+              failed: 0,
+              known: false,
+              projects: [],
+              questions: 0,
+              total: 0,
+              unread: 0,
+              working: 0
+            };
+          }
+          const projects2 = await measureStage(
+            recorder,
+            "projects",
+            () => within(
+              safely(bb.sdk.projects.list({ includePersonal: true, signal })),
+              remainingMs()
+            ),
+            { unavailableWhenNull: true }
+          );
+          if (projects2 === null) {
+            throw new Error("Section summary unavailable.");
+          }
+          const projectName = input.projectName ?? null;
+          const projectMatches = projectName === null ? [] : projects2.filter((project) => project.name === projectName);
+          if (projectName !== null && projectMatches.length !== 1) {
+            throw new Error("Section summary unavailable.");
+          }
+          sectionId = section.id;
+          projectId = projectMatches[0]?.id ?? null;
+          preloadedProjects = projects2;
+        }
+        const projectsPromise = preloadedProjects === null ? measureStage(
           recorder,
           "projects",
           () => within(
-            safely(bb.sdk.projects.list({ includePersonal: true, signal })),
+            safely(
+              bb.sdk.projects.list({ includePersonal: true, signal })
+            ),
             remainingMs()
           ),
           { unavailableWhenNull: true }
-        );
+        ) : Promise.resolve(preloadedProjects);
         const threadCacheKey = JSON.stringify([sectionId, projectId]);
         const pagePromise = measureCachedStage(
           recorder,
@@ -15504,7 +15567,7 @@ function plugin(bb) {
         if (page === null) throw new Error("Section summary unavailable.");
         const threads = page.filter(isSidebarSectionThread);
         const diagnostics = finishDiagnostics(recorder);
-        recordDiagnostics(bb, "sectionSummary", sectionId, diagnostics);
+        recordDiagnostics(bb, "sectionSummary", diagnosticKey, diagnostics);
         return {
           ...summarizeSectionThreads(threads, projectNameById),
           diagnostics,
@@ -15514,7 +15577,7 @@ function plugin(bb) {
         recordDiagnostics(
           bb,
           "sectionSummary",
-          sectionId,
+          diagnosticKey,
           finishDiagnostics(recorder)
         );
         throw error51;

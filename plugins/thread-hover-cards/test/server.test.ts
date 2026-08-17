@@ -21,16 +21,18 @@ type TimingHandler = (input: {
 type PullRequestHandler = (input: {
   threadId: string;
 }) => Promise<ThreadPullRequest>;
-type SectionSummaryHandler = (input: {
-  projectId: string | null;
-  sectionId: string;
-}) => Promise<SectionSummary>;
+type SectionSummaryHandler = (
+  input:
+    | { projectId: string | null; sectionId: string }
+    | { name: string; projectName?: string | null },
+) => Promise<SectionSummary>;
 
 let summaryHandler: SummaryHandler | undefined;
 let timingHandler: TimingHandler | undefined;
 let pullRequestHandler: PullRequestHandler | undefined;
 let sectionSummaryHandler: SectionSummaryHandler | undefined;
 let sectionListCalls = 0;
+let sectionRows = [{ id: "sec_design", name: "Design" }];
 let projectListFails = false;
 let sectionThreadsFail = false;
 const sectionThreadsById = new Map<string, unknown[]>();
@@ -156,7 +158,7 @@ const fakeBb = {
     threadSections: {
       async list() {
         sectionListCalls += 1;
-        return [];
+        return sectionRows;
       },
     },
     projects: {
@@ -1176,6 +1178,27 @@ assert.deepEqual(sectionThreadListInputs.at(-1), {
   signal: sectionThreadListInputs.at(-1)?.signal,
 });
 
+const legacyDesignSummary = await sectionSummaryHandler({
+  name: "Design",
+  projectName: "moss",
+});
+assert.equal(legacyDesignSummary.known, true);
+assert.equal(legacyDesignSummary.total, 1);
+assert.equal(sectionListCalls, 1, "resolves names only for legacy callers");
+projectListFails = true;
+assert.equal(
+  (await sectionSummaryHandler({ name: "Pinned" })).known,
+  false,
+  "proves absence before an irrelevant project lookup can fail",
+);
+projectListFails = false;
+await assert.rejects(
+  sectionSummaryHandler({ name: "Design", projectName: "Same" }),
+  /Section summary unavailable\./,
+  "fails closed when a legacy project label is ambiguous",
+);
+const sectionListCallsAfterLegacy = sectionListCalls;
+
 assert.equal(
   (
     await sectionSummaryHandler({
@@ -1305,4 +1328,8 @@ await assert.rejects(
   "fails loudly rather than claiming the section is empty",
 );
 sectionThreadsFail = false;
-assert.equal(sectionListCalls, 0);
+assert.equal(
+  sectionListCalls,
+  sectionListCallsAfterLegacy,
+  "stable-id calls never consult the section directory",
+);
