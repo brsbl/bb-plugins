@@ -7,6 +7,7 @@
   "files": [
     "dist",
     "docs",
+    "skills",
     "README.md"
   ],
   "scripts": {
@@ -28,7 +29,9 @@
     },
     "server": "./server.ts",
     "app": "./app.tsx",
-    "skills": []
+    "skills": [
+      "skills"
+    ]
   },
   "devDependencies": {
     "@bb/plugin-sdk": "file:../../tooling/vendor/bb-plugin-sdk-0.4.1.tgz",
