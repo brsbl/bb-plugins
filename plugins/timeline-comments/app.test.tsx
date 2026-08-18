@@ -59,7 +59,7 @@ const thread = {
 };
 
 describe("timeline comments app", () => {
-  it("registers a selection action, composer action, Comments panel, and one content script", async () => {
+  it("registers a selection action, composer action, Comments List panel, and one content script", async () => {
     const app = await loadPluginApp(() => import("./app.js"));
     expect(app.messageActions).toMatchObject([
       {
@@ -72,7 +72,7 @@ describe("timeline comments app", () => {
     expect(app.threadPanelActions).toMatchObject([
       {
         id: "comments",
-        title: "Comments",
+        title: "Comments List",
         icon: "ChatFeedback",
         layout: "flush",
       },
@@ -103,7 +103,7 @@ describe("timeline comments app", () => {
     });
     expect(openPanel).toHaveBeenCalledWith({
       actionId: "comments",
-      title: "Comments",
+      title: "Comments List",
     });
 
     const beginComment = vi.fn();

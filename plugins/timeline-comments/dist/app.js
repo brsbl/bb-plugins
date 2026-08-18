@@ -3768,7 +3768,7 @@ var app_default = definePluginApp((app) => {
   });
   app.slots.threadPanelAction({
     id: "comments",
-    title: "Comments",
+    title: "Comments List",
     icon: "ChatFeedback",
     component: CommentPanel,
     layout: "flush"
@@ -3779,7 +3779,7 @@ var app_default = definePluginApp((app) => {
     icon: "ChatFeedback",
     run(context) {
       if (context.selectedText === void 0) {
-        context.openPanel({ actionId: "comments", title: "Comments" });
+        context.openPanel({ actionId: "comments", title: "Comments List" });
       } else {
         beginTimelineComment(context);
       }
