@@ -19,6 +19,7 @@ describe("GitHub Activity panel", () => {
       rpc: {
         listNotifications: () => ({
           fetchedAt: "2026-08-12T12:00:00Z",
+          identityKey: "https://api.github.com/user/1",
           login: "brsbl",
           items: [
             {
@@ -59,7 +60,7 @@ describe("GitHub Activity panel", () => {
     expect(await slot.findByText("#42")).toBeDefined();
     expect(screen.queryByText("mentioned you")).toBeNull();
     expect(screen.queryByText("commented")).toBeNull();
-    const actor = screen.getByText("@alice").parentElement!;
+    const actor = screen.getAllByText("@alice")[0]!.parentElement!;
     expect(actor.className).toContain("rounded-full");
     expect(actor.className).toContain("bg-muted/35");
     expect(actor.className).toContain("font-normal");
@@ -74,41 +75,54 @@ describe("GitHub Activity panel", () => {
     const pullRequestType = screen.getByLabelText("Pull request");
     expect(pullRequestType.querySelector("svg")).not.toBeNull();
     expect(pullRequestType.getAttribute("title")).toBe("Pull request");
+    expect(pullRequestType.className).toContain("text-muted-foreground");
     const issueType = screen.getByLabelText("Issue");
     expect(issueType.querySelector("svg")).not.toBeNull();
+    expect(issueType.className).toContain("text-muted-foreground");
     const mentionActivity = screen.getByLabelText("Mention");
     expect(mentionActivity.querySelector("svg")).not.toBeNull();
     expect(mentionActivity.className).toContain("text-warning-text");
     expect(mentionActivity.getAttribute("title")).toBe("Mention");
     const commentActivity = screen.getByLabelText("Comment");
     expect(commentActivity.querySelector("svg")).not.toBeNull();
-    const updatedTime = screen.getAllByLabelText(/^Updated /u)[0]!;
+    expect(commentActivity.className).toContain("text-muted-foreground");
+    const updatedTimes = screen.getAllByLabelText(/^Updated /u);
+    const inlineUpdatedTime = updatedTimes[0]!;
+    const desktopUpdatedTime = updatedTimes[1]!;
+    const updatedTime = desktopUpdatedTime;
     expect(updatedTime.getAttribute("title")).toMatch(/^Updated /u);
     expect(updatedTime.querySelector("svg")).toBeNull();
     expect(updatedTime.className).not.toContain("rounded");
     expect(updatedTime.className).not.toContain("bg-muted");
     expect(updatedTime.className).toContain("shrink-0");
-    expect(updatedTime.closest("td")?.cellIndex).toBe(3);
-    expect(screen.getAllByText("get-bb/bb")).toHaveLength(1);
+    expect(inlineUpdatedTime.closest("td")?.cellIndex).toBe(2);
+    expect(desktopUpdatedTime.closest("td")?.cellIndex).toBe(4);
+    expect(screen.getAllByText("get-bb/bb")).toHaveLength(2);
     expect(screen.getByText("Scannable activity")).toBeDefined();
-    const link = screen.getByRole("link", { name: /Pull request get-bb\/bb number 42/u });
+    expect(screen.getByText("#42").parentElement?.className).toContain("mt-0.5");
+    const link = screen.getByRole("link", { name: /Scannable activity/u });
     expect(link.getAttribute("href")).toBe("https://github.com/get-bb/bb/pull/42");
     expect(link.getAttribute("target")).toBe("_blank");
-    expect(link.className).toContain("lg:flex");
-    expect(link.className).toContain("lg:items-center");
+    expect(link.className).toContain("items-start");
     expect(screen.getByText("Scannable activity").className).toContain(
       "lg:line-clamp-1",
     );
-    expect(updatedTime.parentElement?.className).toContain("lg:mt-0");
-    expect(updatedTime.parentElement?.className).toContain("lg:flex-nowrap");
-    expect(pullRequestType.closest("td")).not.toBe(link.closest("td"));
+    expect(inlineUpdatedTime.parentElement?.className).toContain("xl:hidden");
+    expect(pullRequestType.closest("td")).toBe(link.closest("td"));
     expect(mentionActivity.closest("td")).not.toBe(link.closest("td"));
-    expect(screen.getByRole("columnheader", { name: "Resource" })).toBeDefined();
-    expect(screen.getByRole("columnheader", { name: "Activity" })).toBeDefined();
-    expect(screen.getByRole("columnheader", { name: /Notification/u })).toBeDefined();
+    const statusHeader = screen.getByRole("columnheader", { name: "Status" });
+    const activityHeader = screen.getByRole("columnheader", { name: "Activity" });
+    const resourceHeader = screen.getByRole("columnheader", { name: "Resource" });
+    const repoHeader = screen.getByRole("columnheader", { name: "Repo" });
+    const fromHeader = screen.getByRole("columnheader", { name: /From/u });
+    expect(
+      [statusHeader, activityHeader, resourceHeader, repoHeader, fromHeader].map(
+        (header) => (header as HTMLTableCellElement).cellIndex,
+      ),
+    ).toEqual([0, 1, 2, 3, 4]);
+    expect(screen.queryByRole("columnheader", { name: /Notification/u })).toBeNull();
     expect(screen.queryByRole("columnheader", { name: /Last updated/u })).toBeNull();
-    expect(screen.getByRole("columnheader", { name: "Status" })).toBeDefined();
-    expect(screen.getAllByRole("columnheader")).toHaveLength(4);
+    expect(screen.getAllByRole("columnheader")).toHaveLength(5);
     expect(
       screen.getByRole("combobox", { name: "Filter by status" }),
     ).toBeDefined();
@@ -119,20 +133,37 @@ describe("GitHub Activity panel", () => {
     ).toBeNull();
     expect(screen.getByRole("table").className).not.toContain("min-w-[620px]");
     expect(link.closest("tr")?.className).not.toContain("@max-[36rem]:grid");
-    expect(updatedTime.closest("td")).toBe(link.closest("td"));
+    const row = link.closest("tr")!;
+    expect(mentionActivity.closest("td")?.cellIndex).toBe(1);
+    expect(link.closest("td")?.cellIndex).toBe(2);
+    expect(row.querySelector(".github-activity-repo-cell")?.className).toContain(
+      "lg:table-cell",
+    );
+    expect(row.querySelector(".github-activity-from-cell")?.className).toContain(
+      "xl:table-cell",
+    );
+    expect(
+      row.querySelector(".github-activity-inline-repo")?.className,
+    ).toContain("lg:hidden");
+    expect(
+      row.querySelector(".github-activity-inline-repo")?.getAttribute(
+        "aria-hidden",
+      ),
+    ).toBeNull();
+    expect(inlineUpdatedTime.parentElement?.getAttribute("aria-hidden")).toBeNull();
 
-    const activitySort = screen.getByRole("button", {
+    const activitySort = screen.getAllByRole("button", {
       name: "Sort by time, descending",
-    });
+    })[0]!;
     fireEvent.click(activitySort);
     expect(screen.getAllByRole("link")[0]?.textContent).toContain(
       "Keep links local",
     );
     expect(
-      screen.getByRole("button", { name: "Sort by time, ascending" }),
+      screen.getAllByRole("button", { name: "Sort by time, ascending" })[0],
     ).toBeDefined();
     fireEvent.click(
-      screen.getByRole("button", { name: "Sort by time, ascending" }),
+      screen.getAllByRole("button", { name: "Sort by time, ascending" })[0]!,
     );
     expect(screen.getAllByRole("link")[0]?.textContent).toContain(
       "Scannable activity",
@@ -160,13 +191,23 @@ describe("GitHub Activity panel", () => {
       screen.getByRole("combobox", { name: "Filter by status" }),
       { target: { value: "open" } },
     );
+    markResolved.focus();
     fireEvent.click(markResolved);
     await waitFor(() => {
       expect(slot.inspection.rpcCalls).toContainEqual({
         method: "setNotificationResolved",
-        input: { id: "n1", resolved: true },
+        input: {
+          eventKey: null,
+          id: "n1",
+          identityKey: "https://api.github.com/user/1",
+          resolved: true,
+          updatedAt: "2026-08-12T12:00:00Z",
+        },
       });
       expect(screen.queryByText("Scannable activity")).toBeNull();
+      expect(document.activeElement).toBe(
+        screen.getByRole("combobox", { name: "Filter by status" }),
+      );
     });
 
     fireEvent.change(
@@ -187,7 +228,13 @@ describe("GitHub Activity panel", () => {
     await waitFor(() => {
       expect(slot.inspection.rpcCalls).toContainEqual({
         method: "setNotificationResolved",
-        input: { id: "n2", resolved: false },
+        input: {
+          eventKey: null,
+          id: "n2",
+          identityKey: "https://api.github.com/user/1",
+          resolved: false,
+          updatedAt: "2026-08-11T12:00:00Z",
+        },
       });
       expect(screen.queryByText("Keep links local")).toBeNull();
     });
@@ -217,7 +264,7 @@ describe("GitHub Activity panel", () => {
     fireEvent.click(screen.getByRole("button", { name: "Clear filters" }));
     expect(screen.getByText("Scannable activity")).toBeDefined();
 
-    fireEvent.click(screen.getByRole("button", { name: /Sort by Notification/u }));
+    fireEvent.click(screen.getByRole("button", { name: /Sort by Resource/u }));
     const links = screen.getAllByRole("link");
     expect(links[0]?.textContent).toContain("Keep links local");
 
@@ -238,6 +285,7 @@ describe("GitHub Activity panel", () => {
           if (calls > 1) throw new Error("GitHub is temporarily unavailable");
           return {
             fetchedAt: "2026-08-12T12:00:00Z",
+            identityKey: "https://api.github.com/user/1",
             login: "brsbl",
             items: [
               {
@@ -269,6 +317,75 @@ describe("GitHub Activity panel", () => {
     );
     expect(screen.getByText("Keep stale activity visible")).toBeDefined();
     expect(screen.queryByText("Couldn’t load GitHub activity")).toBeNull();
+    slot.lifecycle.unmount();
+  });
+  it("announces an initial load failure", async () => {
+    const app = await loadPluginApp(() => import("./app"));
+    const panel = app.navPanels[0]!;
+    const slot = renderSlot(panel, { subPath: "" }, {
+      rpc: {
+        listNotifications: () => {
+          throw new Error("GitHub authentication failed");
+        },
+        setNotificationResolved: (input) => input,
+      },
+    });
+
+    const alert = await screen.findByRole("alert");
+    expect(alert.textContent).toContain("Couldn’t load GitHub activity");
+    expect(alert.textContent).toContain("GitHub authentication failed");
+    slot.lifecycle.unmount();
+  });
+
+  it("keeps and refocuses a row when resolving fails", async () => {
+    const app = await loadPluginApp(() => import("./app"));
+    const panel = app.navPanels[0]!;
+    const slot = renderSlot(panel, { subPath: "" }, {
+      rpc: {
+        listNotifications: () => ({
+          fetchedAt: "2026-08-12T12:00:00Z",
+          identityKey: "https://api.github.com/user/1",
+          login: "brsbl",
+          items: [
+            {
+              id: "n1",
+              activity: "New comment",
+              activityKind: "comment" as const,
+              actor: "alice",
+              avatarUrl: null,
+              eventKey: "comment:1",
+              number: 42,
+              repo: "get-bb/bb",
+              resolved: false,
+              resourceKind: "pr" as const,
+              title: "Retry resolve",
+              unread: true,
+              updatedAt: "2026-08-12T12:00:00Z",
+              url: "https://github.com/get-bb/bb/pull/42",
+            },
+          ],
+        }),
+        setNotificationResolved: () => {
+          throw new Error("storage unavailable");
+        },
+      },
+    });
+
+    const checkbox = (await screen.findByRole("checkbox", {
+      name: "Resolve: Retry resolve",
+    })) as HTMLInputElement;
+    fireEvent.change(
+      screen.getByRole("combobox", { name: "Filter by status" }),
+      { target: { value: "open" } },
+    );
+    checkbox.focus();
+    fireEvent.click(checkbox);
+    expect((await screen.findByRole("alert")).textContent).toContain(
+      "Couldn’t update resolved state",
+    );
+    await waitFor(() => expect(document.activeElement).toBe(checkbox));
+    expect(checkbox.checked).toBe(false);
+    expect(screen.getByText("Retry resolve")).toBeDefined();
     slot.lifecycle.unmount();
   });
 });

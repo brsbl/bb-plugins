@@ -1,5 +1,5 @@
 import { createFakePluginHost } from "@bb/plugin-sdk/testing";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
   createGithubNotificationsPlugin,
@@ -7,15 +7,18 @@ import {
   type RunGh,
 } from "./server";
 
+afterEach(() => vi.useRealTimers());
+
 function notification(index: number, overrides: Record<string, unknown> = {}) {
   return {
     id: `n${index}`,
-    reason: "author",
+    reason: "comment",
     unread: true,
     updated_at: "2026-08-12T12:00:00Z",
     repository: { full_name: "get-bb/bb" },
     subject: {
-      latest_comment_url: `https://api.github.com/repos/get-bb/bb/issues/comments/${index + 1}`,
+      latest_comment_url:
+        "https://api.github.com/repos/get-bb/bb/issues/comments/1",
       title: `Notification ${index}`,
       type: "PullRequest",
       url: `https://api.github.com/repos/get-bb/bb/pulls/${index + 1}`,
@@ -31,12 +34,33 @@ function queryFrom(args: string[]): string {
 function identity(
   login = "brsbl",
   host = "api.github.com",
+  id = 1,
 ): Record<string, unknown> {
-  return { login, url: `https://${host}/users/${login}` };
+  return { id, login, url: `https://${host}/users/${login}` };
 }
 
 function isIdentityCall(args: string[]): boolean {
   return args.length === 2 && args[0] === "api" && args[1] === "user";
+}
+
+function resolutionInput(
+  payload: NotificationsPayload,
+  id: string,
+  resolved: boolean,
+) {
+  const item = payload.items.find((candidate) => candidate.id === id);
+  if (item === undefined) throw new Error(`Missing test notification ${id}`);
+  return {
+    eventKey: item.eventKey ?? null,
+    id,
+    identityKey: payload.identityKey,
+    resolved,
+    updatedAt: item.updatedAt,
+  };
+}
+
+function resolvedStateKey(host = "api.github.com", id = 1): string {
+  return `resolved-notification-through:https://${host}/user/${id}`;
 }
 
 describe("GitHub Activity plugin", () => {
@@ -95,9 +119,10 @@ describe("GitHub Activity plugin", () => {
       "listNotifications",
       "setNotificationResolved",
     ]);
-    await expect(
-      harness.behavior.callRpc("listNotifications", { force: false }),
-    ).resolves.toEqual(
+    const initial = (await harness.behavior.callRpc("listNotifications", {
+      force: false,
+    })) as NotificationsPayload;
+    expect(initial).toEqual(
       expect.objectContaining({
         login: "brsbl",
         items: [
@@ -112,8 +137,13 @@ describe("GitHub Activity plugin", () => {
     );
     await expect(
       harness.behavior.callRpc("setNotificationResolved", {
-        id: "n41",
-        resolved: true,
+        ...resolutionInput(initial, "n41", true),
+        identityKey: "https://api.github.com/user/999",
+      }),
+    ).rejects.toThrow("GitHub account changed");
+    await expect(
+      harness.behavior.callRpc("setNotificationResolved", {
+        ...resolutionInput(initial, "n41", true),
       }),
     ).resolves.toEqual({ id: "n41", resolved: true });
     await expect(
@@ -130,7 +160,7 @@ describe("GitHub Activity plugin", () => {
       bb.storage.kv.get("resolved-notification-ids:api.github.com/brsbl"),
     ).resolves.toBeUndefined();
     await expect(
-      bb.storage.kv.get("resolved-notification-through:api.github.com/brsbl"),
+      bb.storage.kv.get(resolvedStateKey()),
     ).resolves.toEqual({
       cursors: {
         n41: expect.objectContaining({
@@ -139,7 +169,8 @@ describe("GitHub Activity plugin", () => {
         }),
       },
       pendingLegacyIds: [],
-      version: 1,
+      legacyCutoffAt: null,
+      version: 2,
     });
     await harness.lifecycle.dispose();
   });
@@ -152,6 +183,12 @@ describe("GitHub Activity plugin", () => {
       if (args.includes("notifications")) {
         return [
           notification(0, {
+            subject: {
+              latest_comment_url: `https://api.github.com/repos/get-bb/bb/issues/comments/${activityId}`,
+              title: "Activity lifecycle",
+              type: "PullRequest",
+              url: "https://api.github.com/repos/get-bb/bb/pulls/1",
+            },
             updated_at: activityAt,
           }),
         ];
@@ -197,10 +234,11 @@ describe("GitHub Activity plugin", () => {
     });
     createGithubNotificationsPlugin(runGh)(bb);
 
-    await harness.behavior.callRpc("listNotifications", { force: false });
+    const initial = (await harness.behavior.callRpc("listNotifications", {
+      force: false,
+    })) as NotificationsPayload;
     await harness.behavior.callRpc("setNotificationResolved", {
-      id: "n0",
-      resolved: true,
+      ...resolutionInput(initial, "n0", true),
     });
 
     activityId = 2;
@@ -216,8 +254,7 @@ describe("GitHub Activity plugin", () => {
     );
 
     await harness.behavior.callRpc("setNotificationResolved", {
-      id: "n0",
-      resolved: true,
+      ...resolutionInput(sameSecond, "n0", true),
     });
     activityAt = "2026-08-13T11:00:00Z";
     activityId = 3;
@@ -233,11 +270,12 @@ describe("GitHub Activity plugin", () => {
       }),
     );
     await expect(
-      bb.storage.kv.get("resolved-notification-through:api.github.com/brsbl"),
+      bb.storage.kv.get(resolvedStateKey()),
     ).resolves.toEqual({
       cursors: {},
+      legacyCutoffAt: null,
       pendingLegacyIds: [],
-      version: 1,
+      version: 2,
     });
 
     activityAt = "2026-08-12T11:00:00Z";
@@ -246,6 +284,92 @@ describe("GitHub Activity plugin", () => {
       force: true,
     })) as NotificationsPayload;
     expect(fallback.items[0]?.resolved).toBe(false);
+    await harness.lifecycle.dispose();
+  });
+
+  it("reopens a resolved comment when an edit adds a mention", async () => {
+    const createdAt = "2026-08-12T11:00:00Z";
+    let updatedAt = createdAt;
+    let body = "Ordinary comment";
+    const runGh = vi.fn<RunGh>(async (args) => {
+      if (isIdentityCall(args)) return identity();
+      if (args.includes("notifications")) {
+        return [notification(0, { reason: "mention" })];
+      }
+      if (
+        args.includes(
+          "https://api.github.com/repos/get-bb/bb/issues/comments/1",
+        )
+      ) {
+        return {
+          body,
+          created_at: createdAt,
+          id: 1,
+          updated_at: updatedAt,
+          user: { avatar_url: null, login: "alice" },
+        };
+      }
+      const query = queryFrom(args);
+      if (query.includes("query GithubNotifications")) {
+        return {
+          data: {
+            viewer: { login: "brsbl" },
+            notification0: {
+              resource: {
+                author: { login: "brsbl" },
+                number: 1,
+                title: "Edited comment",
+                url: "https://github.com/get-bb/bb/pull/1",
+              },
+            },
+          },
+        };
+      }
+      return {
+        data: {
+          notification0: {
+            resource: {
+              comments: {
+                nodes: [
+                  {
+                    author: { login: "alice" },
+                    body,
+                    createdAt,
+                    databaseId: 1,
+                    updatedAt,
+                  },
+                ],
+              },
+            },
+          },
+        },
+      };
+    });
+    const { bb, harness } = createFakePluginHost({
+      pluginId: "github-notifications",
+    });
+    createGithubNotificationsPlugin(runGh)(bb);
+
+    const initial = (await harness.behavior.callRpc("listNotifications", {
+      force: false,
+    })) as NotificationsPayload;
+    await harness.behavior.callRpc(
+      "setNotificationResolved",
+      resolutionInput(initial, "n0", true),
+    );
+    body = `${"x".repeat(1_000_000)} @brsbl please revisit`;
+    updatedAt = "2026-08-13T11:00:00Z";
+    const edited = (await harness.behavior.callRpc("listNotifications", {
+      force: true,
+    })) as NotificationsPayload;
+    expect(edited.items).toEqual([
+      expect.objectContaining({
+        activityKind: "mention",
+        eventKey: "comment:1",
+        resolved: false,
+        updatedAt,
+      }),
+    ]);
     await harness.lifecycle.dispose();
   });
 
@@ -296,7 +420,7 @@ describe("GitHub Activity plugin", () => {
                     author: { login: "alice" },
                     bodyText: "comment",
                     createdAt: activityAt,
-                    databaseId: Date.parse(activityAt),
+                    databaseId: 1,
                   },
                 ],
               },
@@ -311,7 +435,7 @@ describe("GitHub Activity plugin", () => {
                     author: { login: "alice" },
                     bodyText: "second comment",
                     createdAt: activityAt,
-                    databaseId: Date.parse(activityAt) + 1,
+                    databaseId: 1,
                   },
                 ],
               },
@@ -336,17 +460,18 @@ describe("GitHub Activity plugin", () => {
     expect(migrated.items[0]?.resolved).toBe(true);
     await expect(
       bb.storage.kv.get(
-        "resolved-notification-through:api.github.com/brsbl",
+        resolvedStateKey(),
       ),
     ).resolves.toEqual({
       cursors: {
         n0: {
-          eventKey: `comment:${Date.parse(activityAt)}`,
+          eventKey: "comment:1",
           updatedAt: activityAt,
         },
       },
+      legacyCutoffAt: expect.any(String),
       pendingLegacyIds: ["n1"],
-      version: 1,
+      version: 2,
     });
 
     includeSecond = true;
@@ -360,7 +485,7 @@ describe("GitHub Activity plugin", () => {
     ]);
     await expect(
       bb.storage.kv.get(
-        "resolved-notification-through:api.github.com/brsbl",
+        resolvedStateKey(),
       ),
     ).resolves.toEqual(
       expect.objectContaining({
@@ -380,16 +505,87 @@ describe("GitHub Activity plugin", () => {
     await harness.lifecycle.dispose();
   });
 
+  it("does not resolve activity created after a legacy migration cutoff", async () => {
+    let includeActivity = false;
+    const createdAfterMigration = "2026-08-20T11:00:00Z";
+    const runGh = vi.fn<RunGh>(async (args) => {
+      if (isIdentityCall(args)) return identity();
+      if (args.includes("notifications")) {
+        return includeActivity
+          ? [notification(0, { updated_at: createdAfterMigration })]
+          : [];
+      }
+      const query = queryFrom(args);
+      if (query.includes("query GithubNotifications")) {
+        return {
+          data: {
+            viewer: { login: "brsbl" },
+            notification0: {
+              resource: {
+                author: { login: "brsbl" },
+                number: 1,
+                title: "New activity after migration",
+                url: "https://github.com/get-bb/bb/pull/1",
+              },
+            },
+          },
+        };
+      }
+      return {
+        data: {
+          notification0: {
+            resource: {
+              comments: {
+                nodes: [
+                  {
+                    author: { login: "alice" },
+                    createdAt: createdAfterMigration,
+                    databaseId: 1,
+                  },
+                ],
+              },
+            },
+          },
+        },
+      };
+    });
+    const { bb, harness } = createFakePluginHost({
+      pluginId: "github-notifications",
+    });
+    await bb.storage.kv.set(
+      "resolved-notification-ids:api.github.com/brsbl",
+      ["n0"],
+    );
+    createGithubNotificationsPlugin(runGh)(bb);
+
+    await harness.behavior.callRpc("listNotifications", { force: false });
+    includeActivity = true;
+    const refreshed = (await harness.behavior.callRpc("listNotifications", {
+      force: true,
+    })) as NotificationsPayload;
+    expect(refreshed.items).toEqual([
+      expect.objectContaining({ id: "n0", resolved: false }),
+    ]);
+    await expect(bb.storage.kv.get(resolvedStateKey())).resolves.toEqual(
+      expect.objectContaining({ pendingLegacyIds: [] }),
+    );
+    await harness.lifecycle.dispose();
+  });
+
   it("finds owned activity on a later bounded notification page and fetches activity only for owned resources", async () => {
-    const firstPage = Array.from({ length: 100 }, (_, index) =>
+    const firstPage = Array.from({ length: 50 }, (_, index) =>
       notification(index),
     );
     const laterNotification = notification(999);
     const graphqlQueries: string[] = [];
+    const notificationCalls: string[][] = [];
     const runGh = vi.fn<RunGh>(async (args) => {
       if (isIdentityCall(args)) return identity();
       if (args.includes("notifications")) {
-        return args.includes("page=1") ? firstPage : [laterNotification];
+        notificationCalls.push(args);
+        return args.includes("page=1")
+          ? firstPage
+          : [notification(49), laterNotification];
       }
       const query = queryFrom(args);
       graphqlQueries.push(query);
@@ -402,7 +598,7 @@ describe("GitHub Activity plugin", () => {
             ["viewer", { login: "brsbl" }],
             ...aliases.map((alias) => {
               const index = Number(alias.replace("notification", ""));
-              const owned = index === 100;
+              const owned = index === 50;
               return [
                 alias,
                 {
@@ -420,14 +616,14 @@ describe("GitHub Activity plugin", () => {
       }
       return {
         data: {
-          notification100: {
+          notification50: {
             resource: {
               comments: {
                 nodes: [
                   {
                     author: { login: "alice" },
                     createdAt: "2026-08-12T11:00:00Z",
-                    databaseId: 1001,
+                    databaseId: 1,
                   },
                 ],
               },
@@ -455,13 +651,22 @@ describe("GitHub Activity plugin", () => {
     const activityQueries = graphqlQueries.filter((query) =>
       query.includes("query GithubNotificationActivity"),
     );
-    expect(ownershipQueries).toHaveLength(3);
+    expect(ownershipQueries).toHaveLength(2);
     expect(
       ownershipQueries.every((query) => !query.includes("comments(")),
     ).toBe(true);
     expect(activityQueries).toHaveLength(1);
-    expect(activityQueries[0]).toContain("notification100");
+    expect(activityQueries[0]).toContain("notification50");
     expect(activityQueries[0]).not.toContain("notification0:");
+    expect(notificationCalls).toHaveLength(2);
+    const snapshotBounds = notificationCalls.map((args) =>
+      args.find((arg) => arg.startsWith("before=")),
+    );
+    expect(snapshotBounds[0]).toMatch(/^before=/u);
+    expect(new Set(snapshotBounds).size).toBe(1);
+    expect(
+      notificationCalls.every((args) => args.includes("per_page=50")),
+    ).toBe(true);
     await harness.lifecycle.dispose();
   });
 
@@ -607,7 +812,7 @@ describe("GitHub Activity plugin", () => {
                     author: { login: "alice" },
                     bodyText: "Still available",
                     createdAt: "2026-08-12T11:00:00Z",
-                    databaseId: 2,
+                    databaseId: 1,
                   },
                 ],
               },
@@ -719,7 +924,7 @@ describe("GitHub Activity plugin", () => {
     expect(accountA.login).toBe("account-a");
     expect(accountA.items).toHaveLength(1);
 
-    activeIdentity = identity("account-b", "api.github.com");
+    activeIdentity = identity("account-b", "api.github.com", 2);
     currentRows = [];
     const accountB = (await harness.behavior.callRpc("listNotifications", {
       force: false,
@@ -748,7 +953,11 @@ describe("GitHub Activity plugin", () => {
     const runGh = vi.fn<RunGh>(async (args) => {
       if (isIdentityCall(args)) {
         identityCalls += 1;
-        return identity(identityCalls === 1 ? "account-a" : "account-b");
+        return identity(
+          identityCalls === 1 ? "account-a" : "account-b",
+          "api.github.com",
+          identityCalls === 1 ? 1 : 2,
+        );
       }
       if (args.includes("notifications")) {
         return identityCalls === 1 ? [notification(0)] : [];
@@ -855,13 +1064,14 @@ describe("GitHub Activity plugin", () => {
       pluginId: "github-notifications",
     });
     createGithubNotificationsPlugin(runGh)(bb);
-    await harness.behavior.callRpc("listNotifications", { force: false });
+    const accountA = (await harness.behavior.callRpc("listNotifications", {
+      force: false,
+    })) as NotificationsPayload;
     await harness.behavior.callRpc("setNotificationResolved", {
-      id: "n0",
-      resolved: true,
+      ...resolutionInput(accountA, "n0", true),
     });
 
-    activeIdentity = identity("someone-else", "api.github.com");
+    activeIdentity = identity("someone-else", "api.github.com", 2);
     const otherAccount = (await harness.behavior.callRpc(
       "listNotifications",
       { force: true },
@@ -882,19 +1092,109 @@ describe("GitHub Activity plugin", () => {
       bb.storage.kv.get("resolved-notification-ids:api.github.com/brsbl"),
     ).resolves.toBeUndefined();
     await expect(
-      bb.storage.kv.get("resolved-notification-through:api.github.com/brsbl"),
+      bb.storage.kv.get(resolvedStateKey()),
     ).resolves.toEqual({
       cursors: {
         n0: expect.objectContaining({ updatedAt: "2026-08-12T11:00:00Z" }),
       },
+      legacyCutoffAt: null,
       pendingLegacyIds: [],
-      version: 1,
+      version: 2,
     });
     await expect(
       bb.storage.kv.get(
         "resolved-notification-ids:api.enterprise.test/brsbl",
       ),
     ).resolves.toBeUndefined();
+    await harness.lifecycle.dispose();
+  });
+
+  it("keys resolved state by immutable user id and full GitHub origin", async () => {
+    let activeIdentity = identity(
+      "old-login",
+      "github.example.test:8443",
+      77,
+    );
+    const runGh = vi.fn<RunGh>(async (args) => {
+      if (isIdentityCall(args)) return activeIdentity;
+      if (args.includes("notifications")) return [notification(0)];
+      const query = queryFrom(args);
+      const login = String(activeIdentity.login);
+      if (query.includes("query GithubNotifications")) {
+        return {
+          data: {
+            viewer: { login },
+            notification0: {
+              resource: {
+                author: { login },
+                number: 1,
+                title: "Identity-scoped state",
+                url: "https://github.example.test/get-bb/bb/pull/1",
+              },
+            },
+          },
+        };
+      }
+      return {
+        data: {
+          notification0: {
+            resource: {
+              comments: {
+                nodes: [
+                  {
+                    author: { login: "alice" },
+                    createdAt: "2026-08-12T11:00:00Z",
+                    databaseId: 1,
+                  },
+                ],
+              },
+            },
+          },
+        },
+      };
+    });
+    const { bb, harness } = createFakePluginHost({
+      pluginId: "github-notifications",
+    });
+    createGithubNotificationsPlugin(runGh)(bb);
+    const initial = (await harness.behavior.callRpc("listNotifications", {
+      force: false,
+    })) as NotificationsPayload;
+    await harness.behavior.callRpc(
+      "setNotificationResolved",
+      resolutionInput(initial, "n0", true),
+    );
+
+    activeIdentity = identity(
+      "renamed-login",
+      "github.example.test:8443",
+      77,
+    );
+    const renamed = (await harness.behavior.callRpc("listNotifications", {
+      force: true,
+    })) as NotificationsPayload;
+    expect(renamed.items[0]?.resolved).toBe(true);
+
+    activeIdentity = identity(
+      "renamed-login",
+      "github.example.test:9443",
+      77,
+    );
+    const otherPort = (await harness.behavior.callRpc("listNotifications", {
+      force: true,
+    })) as NotificationsPayload;
+    expect(otherPort.items[0]?.resolved).toBe(false);
+
+    activeIdentity = identity(
+      "old-login",
+      "github.example.test:8443",
+      88,
+    );
+    const reusedLogin = (await harness.behavior.callRpc(
+      "listNotifications",
+      { force: true },
+    )) as NotificationsPayload;
+    expect(reusedLogin.items[0]?.resolved).toBe(false);
     await harness.lifecycle.dispose();
   });
 
@@ -930,7 +1230,7 @@ describe("GitHub Activity plugin", () => {
     await harness.lifecycle.dispose();
   });
 
-  it("uses incremental notification data after the initial load", async () => {
+  it("uses a full notification snapshot for forced refreshes", async () => {
     const runGh = vi.fn<RunGh>(async (args) => {
       if (isIdentityCall(args)) return identity();
       if (args.includes("notifications")) return [];
@@ -952,13 +1252,152 @@ describe("GitHub Activity plugin", () => {
       false,
     );
     expect(notificationCalls[1]!.some((arg) => arg.startsWith("since="))).toBe(
-      true,
+      false,
     );
     await harness.lifecycle.dispose();
   });
 
-  it("loads eligible activity beyond the first 250 notifications", async () => {
-    const rows = Array.from({ length: 251 }, (_, index) => notification(index));
+  it("removes vanished activity during a forced full refresh", async () => {
+    let includeActivity = true;
+    const runGh = vi.fn<RunGh>(async (args) => {
+      if (isIdentityCall(args)) return identity();
+      if (args.includes("notifications")) {
+        return includeActivity ? [notification(0)] : [];
+      }
+      const query = queryFrom(args);
+      if (query.includes("query GithubNotifications")) {
+        return {
+          data: {
+            viewer: { login: "brsbl" },
+            notification0: {
+              resource: {
+                author: { login: "brsbl" },
+                number: 1,
+                title: "Activity that disappears",
+                url: "https://github.com/get-bb/bb/pull/1",
+              },
+            },
+          },
+        };
+      }
+      return {
+        data: {
+          notification0: {
+            resource: {
+              comments: {
+                nodes: [
+                  {
+                    author: { login: "alice" },
+                    createdAt: "2026-08-12T11:00:00Z",
+                    databaseId: 1,
+                  },
+                ],
+              },
+            },
+          },
+        },
+      };
+    });
+    const { bb, harness } = createFakePluginHost({
+      pluginId: "github-notifications",
+    });
+    createGithubNotificationsPlugin(runGh)(bb);
+
+    const initial = (await harness.behavior.callRpc("listNotifications", {
+      force: false,
+    })) as NotificationsPayload;
+    expect(initial.items).toHaveLength(1);
+    includeActivity = false;
+    const refreshed = (await harness.behavior.callRpc("listNotifications", {
+      force: true,
+    })) as NotificationsPayload;
+    expect(refreshed.items).toEqual([]);
+    await harness.lifecycle.dispose();
+  });
+
+  it("evicts a cached comment after an incremental review-only update", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-08-18T00:00:00Z"));
+    let notificationFetches = 0;
+    const runGh = vi.fn<RunGh>(async (args) => {
+      if (isIdentityCall(args)) return identity();
+      if (args.includes("notifications")) {
+        notificationFetches += 1;
+        return notificationFetches === 1
+          ? [notification(0)]
+          : [
+              notification(0, {
+                reason: "mention",
+                subject: {
+                  latest_comment_url:
+                    "https://api.github.com/repos/get-bb/bb/pulls/1",
+                  title: "Review-only update",
+                  type: "PullRequest",
+                  url: "https://api.github.com/repos/get-bb/bb/pulls/1",
+                },
+              }),
+            ];
+      }
+      const query = queryFrom(args);
+      if (query.includes("query GithubNotifications")) {
+        return {
+          data: {
+            viewer: { login: "brsbl" },
+            notification0: {
+              resource: {
+                author: { login: "brsbl" },
+                number: 1,
+                title: "Cached comment",
+                url: "https://github.com/get-bb/bb/pull/1",
+              },
+            },
+          },
+        };
+      }
+      return {
+        data: {
+          notification0: {
+            resource: {
+              comments: {
+                nodes: [
+                  {
+                    author: { login: "alice" },
+                    createdAt: "2026-08-17T23:00:00Z",
+                    databaseId: 1,
+                  },
+                ],
+              },
+            },
+          },
+        },
+      };
+    });
+    const { bb, harness } = createFakePluginHost({
+      pluginId: "github-notifications",
+    });
+    createGithubNotificationsPlugin(runGh)(bb);
+
+    const initial = (await harness.behavior.callRpc("listNotifications", {
+      force: false,
+    })) as NotificationsPayload;
+    expect(initial.items).toHaveLength(1);
+    vi.setSystemTime(new Date("2026-08-18T00:01:01Z"));
+    const refreshed = (await harness.behavior.callRpc("listNotifications", {
+      force: false,
+    })) as NotificationsPayload;
+    expect(refreshed.items).toEqual([]);
+    const secondNotificationCall = runGh.mock.calls
+      .map(([args]) => args)
+      .filter((args) => args.includes("notifications"))[1]!;
+    expect(secondNotificationCall.some((arg) => arg.startsWith("since="))).toBe(
+      true,
+    );
+    await harness.lifecycle.dispose();
+    vi.useRealTimers();
+  });
+
+  it("loads eligible activity beyond the first notification page", async () => {
+    const rows = Array.from({ length: 201 }, (_, index) => notification(index));
     const notificationCalls: string[][] = [];
     const runGh = vi.fn<RunGh>(async (args) => {
       if (isIdentityCall(args)) return identity();
@@ -967,8 +1406,8 @@ describe("GitHub Activity plugin", () => {
         const page = Number(
           args.find((arg) => arg.startsWith("page="))?.slice(5),
         );
-        const start = (page - 1) * 100;
-        return rows.slice(start, start + 100);
+        const start = (page - 1) * 50;
+        return rows.slice(start, start + 50);
       }
       const query = queryFrom(args);
       const aliases = [
@@ -985,7 +1424,7 @@ describe("GitHub Activity plugin", () => {
                 {
                   resource: {
                     author: {
-                      login: index === 250 ? "brsbl" : "someone-else",
+                      login: index === 200 ? "brsbl" : "someone-else",
                     },
                     number: index + 1,
                     title: `Notification ${index}`,
@@ -999,15 +1438,15 @@ describe("GitHub Activity plugin", () => {
       }
       return {
         data: {
-          notification250: {
+          notification200: {
             resource: {
               comments: {
                 nodes: [
                   {
                     author: { login: "alice" },
-                    bodyText: "Found after page five",
+                    bodyText: "Found after page one",
                     createdAt: "2026-08-12T11:00:00Z",
-                    databaseId: 251,
+                    databaseId: 1,
                   },
                 ],
               },
@@ -1026,11 +1465,11 @@ describe("GitHub Activity plugin", () => {
       force: false,
     })) as NotificationsPayload;
     expect(result.items).toEqual([
-      expect.objectContaining({ id: "n250", number: 251 }),
+      expect.objectContaining({ id: "n200", number: 201 }),
     ]);
-    expect(notificationCalls).toHaveLength(3);
+    expect(notificationCalls).toHaveLength(5);
     expect(
-      notificationCalls.every((args) => args.includes("per_page=100")),
+      notificationCalls.every((args) => args.includes("per_page=50")),
     ).toBe(true);
     await harness.lifecycle.dispose();
   });
@@ -1038,16 +1477,53 @@ describe("GitHub Activity plugin", () => {
   it("serializes concurrent resolved-state updates", async () => {
     const runGh = vi.fn<RunGh>(async (args) => {
       if (isIdentityCall(args)) return identity();
-      if (args.includes("notifications")) return [];
-      return { data: { viewer: { login: "brsbl" } } };
+      if (args.includes("notifications")) {
+        return [notification(1), notification(2)];
+      }
+      const query = queryFrom(args);
+      const aliases = [...query.matchAll(/(notification\d+): repository/gu)].map(
+        (match) => match[1]!,
+      );
+      return {
+        data: Object.fromEntries([
+          ...(query.includes("query GithubNotifications")
+            ? [["viewer", { login: "brsbl" }]]
+            : []),
+          ...aliases.map((alias) => [
+            alias,
+            {
+              resource: query.includes("query GithubNotifications")
+                ? {
+                    author: { login: "brsbl" },
+                    number: Number(alias.replace("notification", "")) + 1,
+                    title: alias,
+                    url: `https://github.com/get-bb/bb/pull/${Number(alias.replace("notification", "")) + 1}`,
+                  }
+                : {
+                    comments: {
+                      nodes: [
+                        {
+                          author: { login: "alice" },
+                          createdAt: "2026-08-12T11:00:00Z",
+                          databaseId: 1,
+                        },
+                      ],
+                    },
+                  },
+            },
+          ]),
+        ]),
+      };
     });
     const { bb, harness } = createFakePluginHost({
       pluginId: "github-notifications",
     });
     createGithubNotificationsPlugin(runGh)(bb);
-    await harness.behavior.callRpc("listNotifications", { force: false });
+    const payload = (await harness.behavior.callRpc("listNotifications", {
+      force: false,
+    })) as NotificationsPayload;
 
-    const key = "resolved-notification-through:api.github.com/brsbl";
+    const key = resolvedStateKey();
     const originalGet = bb.storage.kv.get.bind(bb.storage.kv);
     let reads = 0;
     let releaseReads!: () => void;
@@ -1066,21 +1542,20 @@ describe("GitHub Activity plugin", () => {
 
     await Promise.all([
       harness.behavior.callRpc("setNotificationResolved", {
-        id: "n1",
-        resolved: true,
+        ...resolutionInput(payload, "n1", true),
       }),
       harness.behavior.callRpc("setNotificationResolved", {
-        id: "n2",
-        resolved: true,
+        ...resolutionInput(payload, "n2", true),
       }),
     ]);
     await expect(originalGet(key)).resolves.toEqual({
       cursors: {
-        n1: expect.objectContaining({ eventKey: null }),
-        n2: expect.objectContaining({ eventKey: null }),
+        n1: expect.objectContaining({ eventKey: "comment:1" }),
+        n2: expect.objectContaining({ eventKey: "comment:1" }),
       },
+      legacyCutoffAt: null,
       pendingLegacyIds: [],
-      version: 1,
+      version: 2,
     });
     await harness.lifecycle.dispose();
   });
@@ -1129,9 +1604,11 @@ describe("GitHub Activity plugin", () => {
       pluginId: "github-notifications",
     });
     createGithubNotificationsPlugin(runGh)(bb);
-    await harness.behavior.callRpc("listNotifications", { force: false });
+    const payload = (await harness.behavior.callRpc("listNotifications", {
+      force: false,
+    })) as NotificationsPayload;
 
-    const key = "resolved-notification-through:api.github.com/brsbl";
+    const key = resolvedStateKey();
     const originalSet = bb.storage.kv.set.bind(bb.storage.kv);
     vi.spyOn(bb.storage.kv, "set").mockImplementation(
       async (requestedKey, value) => {
@@ -1142,14 +1619,14 @@ describe("GitHub Activity plugin", () => {
 
     await expect(
       harness.behavior.callRpc("setNotificationResolved", {
-        id: "n0",
-        resolved: true,
+        ...resolutionInput(payload, "n0", true),
       }),
     ).rejects.toThrow("storage unavailable");
     await expect(bb.storage.kv.get(key)).resolves.toEqual({
       cursors: {},
+      legacyCutoffAt: null,
       pendingLegacyIds: [],
-      version: 1,
+      version: 2,
     });
     const cached = (await harness.behavior.callRpc("listNotifications", {
       force: false,
@@ -1158,13 +1635,22 @@ describe("GitHub Activity plugin", () => {
     await harness.lifecycle.dispose();
   });
 
-  it("keeps a resolved mutation that races a refresh", async () => {
+  it("rejects a resolved mutation when a refresh advances the event", async () => {
     let notificationFetches = 0;
     const runGh = vi.fn<RunGh>(async (args) => {
       if (isIdentityCall(args)) return identity();
       if (args.includes("notifications")) {
         notificationFetches += 1;
-        return [notification(0)];
+        return [
+          notification(0, {
+            subject: {
+              latest_comment_url: `https://api.github.com/repos/get-bb/bb/issues/comments/${notificationFetches}`,
+              title: "Race-safe activity",
+              type: "PullRequest",
+              url: "https://api.github.com/repos/get-bb/bb/pulls/1",
+            },
+          }),
+        ];
       }
       const query = queryFrom(args);
       if (query.includes("query GithubNotifications")) {
@@ -1206,9 +1692,11 @@ describe("GitHub Activity plugin", () => {
       pluginId: "github-notifications",
     });
     createGithubNotificationsPlugin(runGh)(bb);
-    await harness.behavior.callRpc("listNotifications", { force: false });
+    const initial = (await harness.behavior.callRpc("listNotifications", {
+      force: false,
+    })) as NotificationsPayload;
 
-    const key = "resolved-notification-through:api.github.com/brsbl";
+    const key = resolvedStateKey();
     const originalGet = bb.storage.kv.get.bind(bb.storage.kv);
     let blockedRefreshRead = false;
     let releaseRefresh!: () => void;
@@ -1229,23 +1717,95 @@ describe("GitHub Activity plugin", () => {
     });
     await vi.waitFor(() => expect(blockedRefreshRead).toBe(true));
     const resolveItem = harness.behavior.callRpc("setNotificationResolved", {
-      id: "n0",
-      resolved: true,
+      ...resolutionInput(initial, "n0", true),
     });
     setTimeout(releaseRefresh, 5);
-    await Promise.all([refresh, resolveItem]);
+    await refresh;
+    await expect(resolveItem).rejects.toThrow("GitHub activity changed");
 
     const cached = (await harness.behavior.callRpc("listNotifications", {
       force: false,
     })) as NotificationsPayload;
-    expect(cached.items[0]?.resolved).toBe(true);
+    expect(cached.items[0]).toEqual(
+      expect.objectContaining({ eventKey: "comment:2", resolved: false }),
+    );
     await expect(originalGet(key)).resolves.toEqual({
-      cursors: {
-        n0: expect.objectContaining({ eventKey: "comment:2" }),
-      },
+      cursors: {},
+      legacyCutoffAt: null,
       pendingLegacyIds: [],
-      version: 1,
+      version: 2,
     });
+    await harness.lifecycle.dispose();
+  });
+
+  it("waits for active GraphQL workers before a failed refresh can retry", async () => {
+    const rows = Array.from({ length: 100 }, (_, index) => notification(index));
+    let failNextOwnership = true;
+    let activeOwnership = 0;
+    let maxActiveOwnership = 0;
+    let releaseSibling!: () => void;
+    const siblingReleased = new Promise<void>((resolve) => {
+      releaseSibling = resolve;
+    });
+    let observeFailure!: () => void;
+    const failureObserved = new Promise<void>((resolve) => {
+      observeFailure = resolve;
+    });
+    const runGh = vi.fn<RunGh>(async (args) => {
+      if (isIdentityCall(args)) return identity();
+      if (args.includes("notifications")) {
+        return args.includes("page=1") ? rows : [];
+      }
+      const query = queryFrom(args);
+      if (!query.includes("query GithubNotifications")) {
+        return { data: {} };
+      }
+      activeOwnership += 1;
+      maxActiveOwnership = Math.max(maxActiveOwnership, activeOwnership);
+      if (failNextOwnership && query.includes("notification0:")) {
+        failNextOwnership = false;
+        activeOwnership -= 1;
+        observeFailure();
+        throw new Error("ownership failed");
+      }
+      if (!failNextOwnership && maxActiveOwnership === 2) {
+        await siblingReleased;
+      }
+      activeOwnership -= 1;
+      const aliases = [...query.matchAll(/(notification\d+): repository/gu)].map(
+        (match) => match[1]!,
+      );
+      return {
+        data: Object.fromEntries([
+          ["viewer", { login: "brsbl" }],
+          ...aliases.map((alias) => [
+            alias,
+            { resource: { author: { login: "someone-else" } } },
+          ]),
+        ]),
+      };
+    });
+    const { bb, harness } = createFakePluginHost({
+      pluginId: "github-notifications",
+    });
+    createGithubNotificationsPlugin(runGh)(bb);
+
+    let settled = false;
+    const failedRefresh = harness.behavior
+      .callRpc("listNotifications", { force: false })
+      .finally(() => {
+        settled = true;
+      });
+    await failureObserved;
+    await Promise.resolve();
+    expect(settled).toBe(false);
+    releaseSibling();
+    await expect(failedRefresh).rejects.toThrow("ownership failed");
+
+    await expect(
+      harness.behavior.callRpc("listNotifications", { force: false }),
+    ).resolves.toEqual(expect.objectContaining({ items: [] }));
+    expect(maxActiveOwnership).toBeLessThanOrEqual(3);
     await harness.lifecycle.dispose();
   });
 

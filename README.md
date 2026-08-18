@@ -20,7 +20,7 @@ Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/d
 
 ### GitHub Activity
 
-Collects comments, mentions, and reviews on pull requests and issues you authored into one filterable table.
+Collects comments and mentions on pull requests and issues you authored into one filterable table.
 
 ![GitHub Activity in bb](plugins/github-notifications/docs/screenshot.png)
 

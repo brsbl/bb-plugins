@@ -24,6 +24,7 @@ export interface GithubCommentNode {
   bodyText?: unknown;
   createdAt?: unknown;
   databaseId?: unknown;
+  updatedAt?: unknown;
 }
 
 export interface GithubResourceNode {
@@ -77,11 +78,11 @@ function parseNumberFromSubjectUrl(url: string): number | null {
 }
 
 function isCommentActivity(reason: string, latestCommentUrl: string | null): boolean {
-  if (reason === "comment" || reason === "mention" || reason === "team_mention") {
-    return true;
-  }
   return (
-    reason === "author" &&
+    (reason === "author" ||
+      reason === "comment" ||
+      reason === "mention" ||
+      reason === "team_mention") &&
     latestCommentUrl !== null &&
     /\/comments\/\d+$/u.test(latestCommentUrl)
   );
@@ -198,7 +199,7 @@ export function buildActivityQuery(args: {
       lookup.resourceKind === "pr" ? "pullRequest" : "issue";
     return `${lookup.alias}: repository(owner: ${JSON.stringify(lookup.owner)}, name: ${JSON.stringify(lookup.repoName)}) {
       resource: ${resourceField}(number: ${lookup.number}) {
-        comments(last: 20) { nodes { author { login avatarUrl } body createdAt databaseId } }
+        comments(last: 20) { nodes { author { login avatarUrl } createdAt databaseId updatedAt } }
       }
     }`;
   });
@@ -318,7 +319,7 @@ function candidatesFromComments(
     const comment = entry as GithubCommentNode;
     const actor = stringValue(comment.author?.login);
     const avatarUrl = stringValue(comment.author?.avatarUrl);
-    const at = dateValue(comment.createdAt);
+    const at = dateValue(comment.updatedAt) ?? dateValue(comment.createdAt);
     if (actor === null || at === null || actor === viewer) return [];
     const body =
       typeof comment.body === "string"
@@ -397,9 +398,9 @@ export function projectOwnedNotifications(args: {
     const candidates = commentCandidates(resource, viewer, row).sort(
       (left, right) => Date.parse(right.at) - Date.parse(left.at),
     );
-    const activity =
-      candidates.find((candidate) => candidate.matchesLatestComment) ??
-      candidates[0];
+    const activity = candidates.find(
+      (candidate) => candidate.matchesLatestComment,
+    );
     if (activity === undefined) continue;
     const number =
       typeof resource.number === "number" ? resource.number : lookup.number;
