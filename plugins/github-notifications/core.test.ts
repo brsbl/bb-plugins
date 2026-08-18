@@ -15,6 +15,8 @@ const rows = parseNotificationRows([
     updated_at: "2026-08-12T12:00:00Z",
     repository: { full_name: "get-bb/bb" },
     subject: {
+      latest_comment_url:
+        "https://api.github.com/repos/get-bb/bb/issues/comments/101",
       title: "Scannable activity",
       type: "PullRequest",
       url: "https://api.github.com/repos/get-bb/bb/pulls/42",
@@ -27,6 +29,8 @@ const rows = parseNotificationRows([
     updated_at: "2026-08-11T12:00:00Z",
     repository: { full_name: "brsbl/moss" },
     subject: {
+      latest_comment_url:
+        "https://api.github.com/repos/brsbl/moss/issues/comments/202",
       title: "Keep links local",
       type: "Issue",
       url: "https://api.github.com/repos/brsbl/moss/issues/7",
@@ -45,13 +49,14 @@ describe("GitHub notification projection", () => {
     expect(query).toContain("issue(number: 7)");
     expect(query).not.toContain("comments(");
     const activityQuery = buildActivityQuery({ lookups, rows });
-    expect(activityQuery).toContain("reviews(last: 20)");
+    expect(activityQuery).not.toContain("reviews(");
     expect(activityQuery).toContain("databaseId");
     expect(activityQuery).toContain("avatarUrl");
-    expect(activityQuery.match(/ body /gu)).toHaveLength(2);
+    expect(activityQuery).not.toContain(" body ");
+    expect(activityQuery).toContain("updatedAt");
   });
 
-  it("keeps only incoming comment and review activity on resources the viewer authored", () => {
+  it("keeps only incoming comments and mentions on resources the viewer authored", () => {
     const { lookups } = buildOwnershipQuery(rows);
     const result = projectOwnedNotifications({
       rows,
@@ -70,6 +75,7 @@ describe("GitHub notification projection", () => {
                   author: { login: "alice" },
                   bodyText: "nice",
                   createdAt: "2026-08-12T10:00:00Z",
+                  databaseId: 101,
                 },
               ],
             },
@@ -109,14 +115,55 @@ describe("GitHub notification projection", () => {
     expect(result.login).toBe("brsbl");
     expect(result.items).toEqual([
       expect.objectContaining({
-        activity: "Approved",
-        activityKind: "approved",
-        actor: "bob",
-        avatarUrl: "https://ghe.example.test/avatars/bob",
+        activity: "New comment",
+        activityKind: "comment",
+        actor: "alice",
         repo: "get-bb/bb",
         resourceKind: "pr",
       }),
     ]);
+  });
+
+  it("drops review-only activity before fetching resource details", () => {
+    const reviewRows = parseNotificationRows([
+      {
+        id: "review-only",
+        reason: "author",
+        unread: true,
+        updated_at: "2026-08-12T12:00:00Z",
+        repository: { full_name: "get-bb/bb" },
+        subject: {
+          latest_comment_url:
+            "https://api.github.com/repos/get-bb/bb/pulls/42",
+          title: "Review-only activity",
+          type: "PullRequest",
+          url: "https://api.github.com/repos/get-bb/bb/pulls/42",
+        },
+      },
+    ]);
+
+    expect(reviewRows).toEqual([]);
+  });
+
+  it("drops a sticky mention reason when the latest event is not a comment", () => {
+    const reviewRows = parseNotificationRows([
+      {
+        id: "sticky-mention",
+        reason: "mention",
+        unread: true,
+        updated_at: "2026-08-12T12:00:00Z",
+        repository: { full_name: "get-bb/bb" },
+        subject: {
+          latest_comment_url:
+            "https://api.github.com/repos/get-bb/bb/pulls/42/reviews/9",
+          title: "Old mention, new review",
+          type: "PullRequest",
+          url: "https://api.github.com/repos/get-bb/bb/pulls/42",
+        },
+      },
+    ]);
+
+    expect(reviewRows).toEqual([]);
   });
 
   it("attributes a mention to the comment identified by notification metadata", () => {

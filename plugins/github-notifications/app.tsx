@@ -2,6 +2,7 @@ import {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
 import {
@@ -13,10 +14,8 @@ import {
   ChevronDown,
   ChevronsUpDown,
   CircleDot,
-  CircleX,
   GitPullRequest,
   MessageSquare,
-  MessageSquareMore,
   RefreshCw,
   Search,
   UserRound,
@@ -29,16 +28,14 @@ import type { NotificationsPayload, rpcContract } from "./server";
 
 type ResourceFilter = "all" | ResourceKind;
 type ActivityFilter = "all" | ActivityKind;
+type StatusFilter = "all" | "open" | "resolved";
 type SortKey = "resource" | "updated";
 type SortDirection = "asc" | "desc";
 
 const ACTIVITY_FILTERS: readonly { value: ActivityFilter; label: string }[] = [
-  { value: "all", label: "All updates" },
+  { value: "all", label: "All activity" },
   { value: "comment", label: "Comments" },
   { value: "mention", label: "Mentions" },
-  { value: "review", label: "Reviews" },
-  { value: "approved", label: "Approvals" },
-  { value: "changes-requested", label: "Changes requested" },
 ];
 
 export function filterAndSortNotifications(args: {
@@ -48,11 +45,14 @@ export function filterAndSortNotifications(args: {
   query: string;
   resource: ResourceFilter;
   sort: SortKey;
+  status: StatusFilter;
 }): GithubNotificationItem[] {
   const query = args.query.trim().toLocaleLowerCase();
   const filtered = args.items.filter((item) => {
     if (args.resource !== "all" && item.resourceKind !== args.resource) return false;
     if (args.activity !== "all" && item.activityKind !== args.activity) return false;
+    if (args.status === "open" && item.resolved) return false;
+    if (args.status === "resolved" && !item.resolved) return false;
     if (query.length === 0) return true;
     return [
       item.activity,
@@ -96,111 +96,123 @@ function relativeTime(value: string): string {
   );
 }
 
-function updatePresentation(kind: GithubNotificationItem["activityKind"]): {
+function activityPresentation(kind: GithubNotificationItem["activityKind"]): {
+  className: string;
   icon: LucideIcon;
-  iconClass: string;
   label: string;
-  verb: string;
 } {
   switch (kind) {
-    case "approved":
-      return {
-        icon: CheckCircle2,
-        iconClass: "text-success",
-        label: "Approved",
-        verb: "approved",
-      };
-    case "changes-requested":
-      return {
-        icon: CircleX,
-        iconClass: "text-destructive-text",
-        label: "Changes requested",
-        verb: "requested changes",
-      };
     case "mention":
       return {
+        className: "text-warning-text",
         icon: AtSign,
-        iconClass: "text-warning-text",
         label: "Mention",
-        verb: "mentioned you",
-      };
-    case "review":
-      return {
-        icon: MessageSquareMore,
-        iconClass: "text-foreground",
-        label: "Review",
-        verb: "reviewed",
       };
     case "comment":
       return {
+        className: "text-muted-foreground",
         icon: MessageSquare,
-        iconClass: "text-muted-foreground",
         label: "Comment",
-        verb: "commented",
       };
   }
 }
 
+function resourcePresentation(kind: ResourceKind): {
+  className: string;
+  icon: LucideIcon;
+  label: string;
+} {
+  return kind === "pr"
+    ? { className: "text-muted-foreground", icon: GitPullRequest, label: "Pull request" }
+    : { className: "text-muted-foreground", icon: CircleDot, label: "Issue" };
+}
+
+function TaxonomyIcon({
+  className,
+  icon: Icon,
+  label,
+}: {
+  className: string;
+  icon: LucideIcon;
+  label: string;
+}) {
+  return (
+    <span
+      className={`group/taxonomy relative inline-flex items-center rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${className}`}
+      aria-label={label}
+      role="img"
+      tabIndex={0}
+      title={label}
+    >
+      <Icon aria-hidden="true" className="size-4" strokeWidth={1.75} />
+      <span
+        aria-hidden="true"
+        className="pointer-events-none absolute left-1/2 top-full z-20 mt-1 -translate-x-1/2 whitespace-nowrap rounded-md bg-foreground px-2 py-1 text-xs font-medium text-background opacity-0 shadow-sm transition-opacity group-hover/taxonomy:opacity-100 group-focus/taxonomy:opacity-100"
+      >
+        {label}
+      </span>
+    </span>
+  );
+}
+
 function NotificationLink({ item }: { item: GithubNotificationItem }) {
-  const update = updatePresentation(item.activityKind);
-  const actor = item.actor ? `@${item.actor}` : "Someone";
-  const ResourceIcon = item.resourceKind === "pr" ? GitPullRequest : CircleDot;
+  const resource = resourcePresentation(item.resourceKind);
   return (
     <a
       href={item.url}
       target="_blank"
       rel="noopener noreferrer"
-      className="group block min-w-0 rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-      aria-label={`${item.resourceKind === "pr" ? "Pull request" : "Issue"} ${item.repo} number ${item.number}: ${item.title}. ${actor} ${update.verb}`}
+      className="group flex min-w-0 items-start gap-2 rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
     >
       <span
-        className={`line-clamp-2 min-w-0 text-sm font-medium leading-5 group-hover:underline ${
-          item.resolved ? "text-muted-foreground" : "text-foreground"
-        }`}
+        className={`mt-0.5 inline-flex shrink-0 ${resource.className}`}
+        aria-label={resource.label}
+        role="img"
+        title={resource.label}
       >
-        {item.title}
+        <resource.icon aria-hidden="true" className="size-4" strokeWidth={1.75} />
       </span>
-      <span className="mt-0.5 flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground">
-        <ResourceIcon aria-hidden="true" className="size-3.5 shrink-0" strokeWidth={1.75} />
-        <span className="font-medium text-foreground">
-          {item.resourceKind === "pr" ? "PR" : "Issue"} #{item.number}
+      <span className="min-w-0 flex-1">
+        <span
+          className={`line-clamp-2 min-w-0 text-sm font-medium leading-5 group-hover:underline lg:line-clamp-1 ${
+            item.resolved ? "text-muted-foreground" : "text-foreground"
+          }`}
+        >
+          {item.title}
         </span>
-        <span aria-hidden>·</span>
-        <span className="truncate">{item.repo}</span>
+        <span className="mt-0.5 flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs leading-4 text-muted-foreground">
+          <span className="font-medium text-foreground">#{item.number}</span>
+          <span
+            className="github-activity-inline-repo inline-flex min-w-0 items-center gap-1.5 lg:hidden"
+          >
+            <span>·</span>
+            <span className="truncate">{item.repo}</span>
+          </span>
+          <LatestUpdate item={item} className="xl:hidden" />
+        </span>
       </span>
     </a>
   );
 }
 
-function LatestUpdate({ item }: { item: GithubNotificationItem }) {
-  const update = updatePresentation(item.activityKind);
-  const UpdateIcon = update.icon;
+function LatestUpdate({
+  className = "",
+  item,
+}: {
+  className?: string;
+  item: GithubNotificationItem;
+}) {
   const actor = item.actor ? `@${item.actor}` : "Someone";
   return (
-    <div className="flex min-w-0 items-center gap-2 text-sm">
-      <span className="flex min-w-0 items-center gap-2">
-        <span className="inline-flex max-w-40 shrink items-center gap-1 rounded-full bg-muted/35 py-0.5 pl-0.5 pr-1.5 text-xs font-normal text-muted-foreground">
-          <ActorAvatar avatarUrl={item.avatarUrl} />
-          <span className="truncate">{actor}</span>
-        </span>
-        <span
-          className={`group/status relative inline-flex shrink-0 items-center ${update.iconClass}`}
-          aria-label={update.label}
-          role="img"
-          tabIndex={0}
-          title={update.label}
-        >
-          <UpdateIcon aria-hidden="true" className="size-4" strokeWidth={1.75} />
-          <span
-            aria-hidden="true"
-            className="pointer-events-none absolute left-1/2 top-full z-20 mt-1 -translate-x-1/2 whitespace-nowrap rounded-md bg-foreground px-2 py-1 text-xs font-medium text-background opacity-0 shadow-sm transition-opacity group-hover/status:opacity-100 group-focus/status:opacity-100"
-          >
-            {update.label}
-          </span>
-        </span>
+    <span
+      className={`flex min-w-0 items-center gap-1.5 text-xs ${className}`}
+    >
+      <span className="inline-flex max-w-40 shrink items-center gap-1 rounded-full bg-muted/35 py-0.5 pl-0.5 pr-1.5 font-normal text-muted-foreground">
+        <ActorAvatar avatarUrl={item.avatarUrl} />
+        <span className="truncate">{actor}</span>
       </span>
       <UpdatedTime value={item.updatedAt} />
-    </div>
+    </span>
   );
 }
 
@@ -246,7 +258,7 @@ function ResolveCheckbox({
 }: {
   disabled: boolean;
   item: GithubNotificationItem;
-  onToggle(): void;
+  onToggle(control: HTMLInputElement): void;
 }) {
   const label = item.resolved ? "Reopen" : "Resolve";
   return (
@@ -260,7 +272,8 @@ function ResolveCheckbox({
         aria-label={`${label}: ${item.title}`}
         checked={item.resolved}
         disabled={disabled}
-        onChange={onToggle}
+        data-resolve-control="true"
+        onChange={(event) => onToggle(event.currentTarget)}
         title={label}
         className="peer size-4 cursor-inherit appearance-none rounded-[4px] border border-muted-foreground/50 bg-background transition-colors hover:border-foreground/60 checked:border-success checked:bg-success focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 focus-visible:ring-offset-background"
       />
@@ -325,8 +338,10 @@ function GitHubActivityPanel() {
   const [query, setQuery] = useState("");
   const [resourceFilter, setResourceFilter] = useState<ResourceFilter>("all");
   const [activityFilter, setActivityFilter] = useState<ActivityFilter>("all");
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [sort, setSort] = useState<SortKey>("updated");
   const [direction, setDirection] = useState<SortDirection>("desc");
+  const statusFilterRef = useRef<HTMLSelectElement>(null);
 
   const load = useCallback(async (force = false) => {
     setLoading(true);
@@ -353,11 +368,15 @@ function GitHubActivityPanel() {
         query,
         resource: resourceFilter,
         sort,
+        status: statusFilter,
       }),
-    [activityFilter, direction, payload, query, resourceFilter, sort],
+    [activityFilter, direction, payload, query, resourceFilter, sort, statusFilter],
   );
   const hasFilters =
-    query.length > 0 || resourceFilter !== "all" || activityFilter !== "all";
+    query.length > 0 ||
+    resourceFilter !== "all" ||
+    activityFilter !== "all" ||
+    statusFilter !== "all";
   const setSortKey = (next: SortKey) => {
     if (sort === next) {
       setDirection((current) => (current === "asc" ? "desc" : "asc"));
@@ -370,27 +389,36 @@ function GitHubActivityPanel() {
     setQuery("");
     setResourceFilter("all");
     setActivityFilter("all");
+    setStatusFilter("all");
   };
-  const toggleResolved = async (item: GithubNotificationItem) => {
+  const toggleResolved = async (
+    item: GithubNotificationItem,
+    control: HTMLInputElement,
+  ) => {
     if (pendingResolvedIds.has(item.id)) return;
     const resolved = !item.resolved;
+    const controls = Array.from(
+      control
+        .closest("table")
+        ?.querySelectorAll<HTMLInputElement>("[data-resolve-control='true']") ??
+        [],
+    );
+    const controlIndex = controls.indexOf(control);
+    const focusAfterRemoval =
+      controls[controlIndex + 1] ??
+      controls[controlIndex - 1] ??
+      statusFilterRef.current;
     setResolveError(null);
     setPendingResolvedIds((current) => new Set(current).add(item.id));
-    setPayload((current) =>
-      current === null
-        ? current
-        : {
-            ...current,
-            items: current.items.map((candidate) =>
-              candidate.id === item.id
-                ? { ...candidate, resolved }
-                : candidate,
-            ),
-          },
-    );
     try {
-      await rpc.call("setNotificationResolved", { id: item.id, resolved });
-    } catch {
+      if (payload === null) return;
+      await rpc.call("setNotificationResolved", {
+        eventKey: item.eventKey ?? null,
+        id: item.id,
+        identityKey: payload.identityKey,
+        resolved,
+        updatedAt: item.updatedAt,
+      });
       setPayload((current) =>
         current === null
           ? current
@@ -398,12 +426,20 @@ function GitHubActivityPanel() {
               ...current,
               items: current.items.map((candidate) =>
                 candidate.id === item.id
-                  ? { ...candidate, resolved: item.resolved }
+                  ? { ...candidate, resolved }
                   : candidate,
               ),
             },
       );
+      if (
+        (statusFilter === "open" && resolved) ||
+        (statusFilter === "resolved" && !resolved)
+      ) {
+        queueMicrotask(() => focusAfterRemoval?.focus());
+      }
+    } catch {
       setResolveError("Couldn’t update resolved state. Try again.");
+      setTimeout(() => control.focus(), 0);
     } finally {
       setPendingResolvedIds((current) => {
         const next = new Set(current);
@@ -413,12 +449,12 @@ function GitHubActivityPanel() {
     }
   };
   return (
-    <main className="h-full overflow-y-auto bg-background p-4 md:p-5">
+    <main className="github-activity-surface h-full overflow-y-auto bg-background p-4 md:p-5">
       <div className="mx-auto w-full max-w-6xl">
         <div className="mb-5 flex items-start gap-3">
           <div className="min-w-0 flex-1">
             <p className="text-sm text-muted-foreground">
-              Comments and reviews on PRs and issues you authored{payload ? ` as @${payload.login}` : ""}.
+              Comments and mentions on PRs and issues you authored{payload ? ` as @${payload.login}` : ""}.
             </p>
           </div>
           <button
@@ -444,6 +480,21 @@ function GitHubActivityPanel() {
               aria-label="Filter GitHub activity"
               className="h-9 w-full rounded-md border border-input bg-background pl-8 pr-3 text-sm text-foreground outline-none placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring"
             />
+          </label>
+          <label className="relative w-36 shrink-0">
+            <CheckCircle2 aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
+            <select
+              ref={statusFilterRef}
+              value={statusFilter}
+              onChange={(event) => setStatusFilter(event.target.value as StatusFilter)}
+              aria-label="Filter by status"
+              className="h-9 w-full appearance-none rounded-md border border-input bg-background pl-8 pr-8 text-sm text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              <option value="all">All statuses</option>
+              <option value="open">Open</option>
+              <option value="resolved">Resolved</option>
+            </select>
+            <ChevronDown aria-hidden="true" className="pointer-events-none absolute right-3 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
           </label>
           <label className="relative w-40 shrink-0">
             <GitPullRequest aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
@@ -484,8 +535,27 @@ function GitHubActivityPanel() {
           </p>
         ) : null}
 
-        {error ? (
-          <div className="rounded-xl border border-destructive/25 bg-destructive/5 p-4">
+        {error && payload !== null ? (
+          <div
+            role="alert"
+            className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-warning/25 bg-warning/5 px-3 py-2"
+          >
+            <p className="text-sm text-foreground">
+              <span className="font-medium">Couldn’t refresh GitHub activity.</span>{" "}
+              <span className="text-muted-foreground">Showing the last loaded results.</span>
+            </p>
+            <button
+              type="button"
+              className="rounded-md px-2 py-1 text-sm font-medium text-foreground hover:bg-accent"
+              onClick={() => void load(true)}
+            >
+              Retry
+            </button>
+          </div>
+        ) : null}
+
+        {error && payload === null ? (
+          <div role="alert" className="rounded-xl border border-destructive/25 bg-destructive/5 p-4">
             <p className="text-sm font-medium text-destructive">Couldn’t load GitHub activity</p>
             <p className="mt-1 text-sm text-muted-foreground">{error}</p>
             <button type="button" className="mt-3 rounded-md border border-border px-2.5 py-1.5 text-sm font-medium text-foreground hover:bg-accent" onClick={() => void load(true)}>
@@ -495,12 +565,12 @@ function GitHubActivityPanel() {
         ) : payload !== null && items.length === 0 ? (
           <div className="rounded-xl border border-dashed border-border p-6 text-center">
             <p className="text-sm font-medium text-foreground">
-              {hasFilters ? "No matching activity" : "No comments or reviews to triage"}
+              {hasFilters ? "No matching activity" : "No comments or mentions to triage"}
             </p>
             <p className="mt-1 text-sm text-muted-foreground">
               {hasFilters
                 ? "Try a different search or clear the filters."
-                : "New activity on GitHub PRs and issues you authored will appear here."}
+                : "New comments and mentions on GitHub PRs and issues you authored will appear here."}
             </p>
             {hasFilters ? (
               <button type="button" className="mt-3 rounded-md border border-border px-2.5 py-1.5 text-sm font-medium text-foreground hover:bg-accent" onClick={clearFilters}>
@@ -510,25 +580,44 @@ function GitHubActivityPanel() {
           </div>
         ) : (
           <div className="overflow-hidden rounded-lg border border-border bg-card">
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[620px] table-fixed border-collapse text-left">
-                <colgroup>
-                  <col className="w-[10%]" />
-                  <col className="w-[54%]" />
-                  <col className="w-[36%]" />
+            <div>
+              <table className="github-activity-table w-full table-fixed border-collapse text-left">
+                <colgroup className="github-activity-colgroup">
+                  <col className="w-[3.75rem]" />
+                  <col className="w-16" />
+                  <col />
+                  <col className="hidden w-40 lg:table-column" />
+                  <col className="hidden w-[14rem] xl:table-column" />
                 </colgroup>
                 <thead className="border-b border-border bg-muted/35 text-xs">
-                  <tr>
-                    <th scope="col" className="px-3 py-2.5 text-muted-foreground">
+                  <tr className="github-activity-header-row">
+                    <th scope="col" className="github-activity-status-header px-3 py-2.5 text-muted-foreground">
                       Status
                     </th>
-                    <th scope="col" className="px-3 py-2.5">
-                      <SortHeader label="Item" active={sort === "resource"} direction={direction} onSort={() => setSortKey("resource")} />
+                    <th scope="col" className="github-activity-update-header px-2 py-2.5 text-center text-muted-foreground">
+                      Activity
                     </th>
-                    <th scope="col" className="px-3 py-2.5">
+                    <th scope="col" aria-label="Resource" className="github-activity-resource-header px-3 py-2.5">
+                      <div className="flex items-center justify-between gap-3">
+                        <SortHeader label="Resource" active={sort === "resource"} direction={direction} onSort={() => setSortKey("resource")} />
+                        <span className="xl:hidden">
+                          <SortHeader
+                            label="Recent"
+                            ariaLabel="Sort by time"
+                            active={sort === "updated"}
+                            direction={direction}
+                            onSort={() => setSortKey("updated")}
+                          />
+                        </span>
+                      </div>
+                    </th>
+                    <th scope="col" className="github-activity-repo-header hidden px-3 py-2.5 font-medium text-muted-foreground lg:table-cell">
+                      Repo
+                    </th>
+                    <th scope="col" className="github-activity-from-header hidden px-3 py-2.5 xl:table-cell">
                       <SortHeader
-                        label="Activity"
-                        ariaLabel="Sort Activity by time"
+                        label="From"
+                        ariaLabel="Sort by time"
                         active={sort === "updated"}
                         direction={direction}
                         onSort={() => setSortKey("updated")}
@@ -536,12 +625,25 @@ function GitHubActivityPanel() {
                     </th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-border">
+                <tbody className="github-activity-body divide-y divide-border">
                   {loading && payload === null
                     ? [0, 1, 2, 3, 4].map((index) => (
-                        <tr key={index} aria-label="Loading GitHub activity">
-                          {[0, 1, 2].map((cell) => (
-                            <td key={cell} className="px-3 py-3">
+                        <tr key={index} aria-label="Loading GitHub activity" className="github-activity-row">
+                          {[0, 1, 2, 3, 4].map((cell) => (
+                            <td
+                              key={cell}
+                              className={`px-3 py-3 ${
+                                cell === 0
+                                  ? "github-activity-status-cell"
+                                : cell === 1
+                                      ? "github-activity-update-cell"
+                                    : cell === 2
+                                      ? "github-activity-resource-cell"
+                                      : cell === 3
+                                        ? "github-activity-repo-cell hidden lg:table-cell"
+                                        : "github-activity-from-cell hidden xl:table-cell"
+                              }`}
+                            >
                               <div className="h-4 animate-pulse rounded bg-muted" />
                             </td>
                           ))}
@@ -551,21 +653,29 @@ function GitHubActivityPanel() {
                         <tr
                           key={item.id}
                           data-resolved={item.resolved ? "true" : "false"}
-                          className={`align-top transition-colors hover:bg-accent/30 ${
+                          className={`github-activity-row align-top transition-colors hover:bg-accent/30 ${
                             item.resolved ? "bg-muted/15" : ""
                           }`}
                         >
-                          <td className="px-3 py-2.5">
+                          <td className="github-activity-status-cell px-3 py-2.5">
                             <ResolveCheckbox
                               disabled={pendingResolvedIds.has(item.id)}
                               item={item}
-                              onToggle={() => void toggleResolved(item)}
+                              onToggle={(control) =>
+                                void toggleResolved(item, control)
+                              }
                             />
                           </td>
-                          <td className="px-3 py-3">
+                          <td className="github-activity-update-cell px-2 py-2.5 text-center">
+                            <TaxonomyIcon {...activityPresentation(item.activityKind)} />
+                          </td>
+                          <td className="github-activity-resource-cell px-3 py-2.5">
                             <NotificationLink item={item} />
                           </td>
-                          <td className="px-3 py-3">
+                          <td className="github-activity-repo-cell hidden px-3 py-2.5 text-xs text-muted-foreground lg:table-cell">
+                            <span className="block truncate" title={item.repo}>{item.repo}</span>
+                          </td>
+                          <td className="github-activity-from-cell hidden px-3 py-2.5 xl:table-cell">
                             <LatestUpdate item={item} />
                           </td>
                         </tr>

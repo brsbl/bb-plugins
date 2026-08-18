@@ -14,8 +14,8 @@ import {
 } from "./core.js";
 
 const CACHE_TTL_MS = 60_000;
-const NOTIFICATION_PAGE_SIZE = 100;
-const MAX_NOTIFICATION_ROWS = 5_000;
+const NOTIFICATION_PAGE_SIZE = 50;
+const MAX_NOTIFICATION_ROWS = 250;
 const MAX_NOTIFICATION_PAGES =
   MAX_NOTIFICATION_ROWS / NOTIFICATION_PAGE_SIZE;
 const OWNERSHIP_BATCH_SIZE = 50;
@@ -23,26 +23,27 @@ const ACTIVITY_BATCH_SIZE = 20;
 const GH_CONCURRENCY = 3;
 const GH_HINT = "Install the GitHub CLI and run `gh auth login`, then retry.";
 const RESOLVED_IDS_KEY_PREFIX = "resolved-notification-ids:";
+const RESOLVED_THROUGH_KEY_PREFIX = "resolved-notification-through:";
 
 interface GithubIdentity {
-  host: string;
+  legacyKey: string;
   key: string;
   login: string;
+}
+
+interface ResolvedCursor {
+  eventKey: string | null;
+  updatedAt: string;
 }
 
 const notificationItemSchema = z
   .object({
     id: z.string(),
     activity: z.string(),
-    activityKind: z.enum([
-      "approved",
-      "changes-requested",
-      "comment",
-      "mention",
-      "review",
-    ]),
+    activityKind: z.enum(["comment", "mention"]),
     actor: z.string().nullable(),
     avatarUrl: z.string().url().nullable(),
+    eventKey: z.string().nullable().optional(),
     number: z.number().int().positive(),
     repo: z.string(),
     resolved: z.boolean(),
@@ -59,6 +60,7 @@ const inlineReviewCommentSchema = z
     body: z.string(),
     created_at: z.string(),
     id: z.number().int().positive(),
+    updated_at: z.string().optional(),
     user: z
       .object({
         avatar_url: z.string().url().nullable(),
@@ -70,6 +72,7 @@ const inlineReviewCommentSchema = z
 
 const viewerIdentitySchema = z
   .object({
+    id: z.number().int().positive(),
     login: z.string().min(1),
     url: z.string().url(),
   })
@@ -81,6 +84,7 @@ export const rpcContract = defineRpcContract({
     output: z
       .object({
         fetchedAt: z.string(),
+        identityKey: z.string().min(1),
         items: z.array(notificationItemSchema),
         login: z.string().min(1),
       })
@@ -88,7 +92,13 @@ export const rpcContract = defineRpcContract({
   },
   setNotificationResolved: {
     input: z
-      .object({ id: z.string().min(1), resolved: z.boolean() })
+      .object({
+        eventKey: z.string().nullable(),
+        id: z.string().min(1),
+        identityKey: z.string().min(1),
+        resolved: z.boolean(),
+        updatedAt: z.string(),
+      })
       .strict(),
     output: z
       .object({ id: z.string().min(1), resolved: z.boolean() })
@@ -149,8 +159,14 @@ function mergeGraphqlData(
 async function fetchNotificationRows(
   runGh: RunGh,
   since?: string,
-): Promise<GithubNotificationRow[]> {
+  before?: string,
+): Promise<{
+  changedIds: Set<string>;
+  rows: GithubNotificationRow[];
+}> {
   const rows: GithubNotificationRow[] = [];
+  const changedIds = new Set<string>();
+  const seenIds = new Set<string>();
   for (let page = 1; page <= MAX_NOTIFICATION_PAGES + 1; page += 1) {
     const args = [
       "api",
@@ -167,20 +183,39 @@ async function fetchNotificationRows(
       `page=${page}`,
     ];
     if (since !== undefined) args.push("-f", `since=${since}`);
+    if (before !== undefined) args.push("-f", `before=${before}`);
     const rawPage = await runGh(args);
     if (page > MAX_NOTIFICATION_PAGES) {
-      if (Array.isArray(rawPage) && rawPage.length === 0) return rows;
+      if (Array.isArray(rawPage) && rawPage.length === 0) {
+        return { changedIds, rows };
+      }
       throw new Error(
         `GitHub activity exceeds the ${MAX_NOTIFICATION_ROWS}-notification safety limit.`,
       );
     }
+    if (Array.isArray(rawPage)) {
+      for (const entry of rawPage) {
+        if (
+          typeof entry === "object" &&
+          entry !== null &&
+          "id" in entry &&
+          typeof entry.id === "string"
+        ) {
+          changedIds.add(entry.id);
+        }
+      }
+    }
     const pageRows = parseNotificationRows(rawPage);
-    rows.push(...pageRows);
+    for (const row of pageRows) {
+      if (seenIds.has(row.id)) continue;
+      seenIds.add(row.id);
+      rows.push(row);
+    }
     if (!Array.isArray(rawPage) || rawPage.length < NOTIFICATION_PAGE_SIZE) {
-      return rows;
+      return { changedIds, rows };
     }
   }
-  return rows;
+  return { changedIds, rows };
 }
 
 async function mapWithConcurrency<T, R>(
@@ -190,16 +225,22 @@ async function mapWithConcurrency<T, R>(
 ): Promise<R[]> {
   const results = new Array<R>(values.length);
   let nextIndex = 0;
+  let firstError: unknown;
   async function worker(): Promise<void> {
-    while (nextIndex < values.length) {
+    while (firstError === undefined && nextIndex < values.length) {
       const index = nextIndex;
       nextIndex += 1;
-      results[index] = await run(values[index]!);
+      try {
+        results[index] = await run(values[index]!);
+      } catch (error: unknown) {
+        firstError ??= error;
+      }
     }
   }
   await Promise.all(
     Array.from({ length: Math.min(limit, values.length) }, () => worker()),
   );
+  if (firstError !== undefined) throw firstError;
   return results;
 }
 
@@ -252,13 +293,31 @@ function defaultGhRunner(): RunGh {
 
 async function fetchGithubIdentity(runGh: RunGh): Promise<GithubIdentity> {
   const identity = viewerIdentitySchema.parse(await runGh(["api", "user"]));
-  const host = new URL(identity.url).hostname.toLocaleLowerCase();
+  const url = new URL(identity.url);
+  const origin = url.origin.toLocaleLowerCase();
+  const host = url.hostname.toLocaleLowerCase();
   const login = identity.login.toLocaleLowerCase();
-  return { host, key: `${host}/${login}`, login: identity.login };
+  return {
+    key: `${origin}/user/${identity.id}`,
+    legacyKey: `${host}/${login}`,
+    login: identity.login,
+  };
 }
 
 function resolvedIdsKey(identity: GithubIdentity): string {
   return `${RESOLVED_IDS_KEY_PREFIX}${identity.key}`;
+}
+
+function resolvedThroughKey(identity: GithubIdentity): string {
+  return `${RESOLVED_THROUGH_KEY_PREFIX}${identity.key}`;
+}
+
+function legacyResolvedIdsKey(identity: GithubIdentity): string {
+  return `${RESOLVED_IDS_KEY_PREFIX}${identity.legacyKey}`;
+}
+
+function legacyResolvedThroughKey(identity: GithubIdentity): string {
+  return `${RESOLVED_THROUGH_KEY_PREFIX}${identity.legacyKey}`;
 }
 
 export function createGithubNotificationsPlugin(runGh: RunGh) {
@@ -277,11 +336,184 @@ export function createGithubNotificationsPlugin(runGh: RunGh) {
     async function loadResolvedIds(
       identity: GithubIdentity,
     ): Promise<Set<string>> {
-      const stored = await bb.storage.kv.get<unknown>(resolvedIdsKey(identity));
+      const current = await bb.storage.kv.get<unknown>(resolvedIdsKey(identity));
+      const stored =
+        current === undefined
+          ? await bb.storage.kv.get<unknown>(legacyResolvedIdsKey(identity))
+          : current;
       if (!Array.isArray(stored)) return new Set();
       return new Set(
         stored.filter((id): id is string => typeof id === "string"),
       );
+    }
+
+    async function loadResolvedState(identity: GithubIdentity): Promise<{
+      cursors: Map<string, ResolvedCursor>;
+      exists: boolean;
+      legacyCutoffAt: string | null;
+      needsMigration: boolean;
+      pendingLegacyIds: Set<string>;
+    }> {
+      const current = await bb.storage.kv.get<unknown>(
+        resolvedThroughKey(identity),
+      );
+      const legacy =
+        current === undefined
+          ? await bb.storage.kv.get<unknown>(legacyResolvedThroughKey(identity))
+          : undefined;
+      const stored = current ?? legacy;
+      if (stored === undefined) {
+        return {
+          cursors: new Map(),
+          exists: false,
+          legacyCutoffAt: null,
+          needsMigration: false,
+          pendingLegacyIds: new Set(),
+        };
+      }
+      if (typeof stored !== "object" || stored === null || Array.isArray(stored)) {
+        return {
+          cursors: new Map(),
+          exists: true,
+          legacyCutoffAt: null,
+          needsMigration: legacy !== undefined,
+          pendingLegacyIds: new Set(),
+        };
+      }
+      const record = stored as Record<string, unknown>;
+      const rawCursors =
+        (record.version === 1 || record.version === 2) &&
+        typeof record.cursors === "object" &&
+        record.cursors !== null &&
+        !Array.isArray(record.cursors)
+          ? (record.cursors as Record<string, unknown>)
+          : record;
+      const pendingLegacyIds =
+        (record.version === 1 || record.version === 2) &&
+        Array.isArray(record.pendingLegacyIds)
+          ? new Set(
+              record.pendingLegacyIds.filter(
+                (id): id is string => typeof id === "string",
+              ),
+            )
+          : new Set<string>();
+      const legacyCutoffAt =
+        record.version === 2 &&
+        typeof record.legacyCutoffAt === "string" &&
+        Number.isFinite(Date.parse(record.legacyCutoffAt))
+          ? record.legacyCutoffAt
+          : null;
+      const cursors = new Map<string, ResolvedCursor>();
+      for (const [id, value] of Object.entries(rawCursors)) {
+        if (typeof value === "string" && Number.isFinite(Date.parse(value))) {
+          cursors.set(id, { eventKey: null, updatedAt: value });
+          continue;
+        }
+        if (
+          typeof value === "object" &&
+          value !== null &&
+          !Array.isArray(value) &&
+          "updatedAt" in value &&
+          typeof value.updatedAt === "string" &&
+          Number.isFinite(Date.parse(value.updatedAt)) &&
+          "eventKey" in value &&
+          (typeof value.eventKey === "string" || value.eventKey === null)
+        ) {
+          cursors.set(id, {
+            eventKey: value.eventKey,
+            updatedAt: value.updatedAt,
+          });
+        }
+      }
+      return {
+        cursors,
+        exists: true,
+        legacyCutoffAt,
+        needsMigration: legacy !== undefined || record.version !== 2,
+        pendingLegacyIds,
+      };
+    }
+
+    async function storeResolvedState(
+      identity: GithubIdentity,
+      cursors: Map<string, ResolvedCursor>,
+      legacyCutoffAt: string | null,
+      pendingLegacyIds: Set<string>,
+    ): Promise<void> {
+      await bb.storage.kv.set(
+        resolvedThroughKey(identity),
+        {
+          cursors: Object.fromEntries(
+            [...cursors.entries()].sort(([left], [right]) =>
+              left.localeCompare(right),
+            ),
+          ),
+          legacyCutoffAt,
+          pendingLegacyIds: [...pendingLegacyIds].sort(),
+          version: 2,
+        },
+      );
+    }
+
+    async function applyResolvedState(
+      identity: GithubIdentity,
+      items: NotificationsPayload["items"],
+      migrationCutoffAt: string,
+    ): Promise<NotificationsPayload["items"]> {
+      const resolvedState = await loadResolvedState(identity);
+      const pendingLegacyIds = resolvedState.exists
+        ? resolvedState.pendingLegacyIds
+        : await loadResolvedIds(identity);
+      const cursors = resolvedState.cursors;
+      let legacyCutoffAt = resolvedState.legacyCutoffAt;
+      if (legacyCutoffAt === null && pendingLegacyIds.size > 0) {
+        legacyCutoffAt = migrationCutoffAt;
+      }
+      let stateChanged = !resolvedState.exists || resolvedState.needsMigration;
+      const nextItems = items.map((item) => {
+        let cursor = cursors.get(item.id);
+        if (cursor === undefined && pendingLegacyIds.has(item.id)) {
+          if (
+            legacyCutoffAt !== null &&
+            Date.parse(item.updatedAt) <= Date.parse(legacyCutoffAt)
+          ) {
+            // Legacy state knew only the notification id. Snapshot only an
+            // event that existed when migration began; later events reopen it.
+            cursor = {
+              eventKey: item.eventKey ?? null,
+              updatedAt: item.updatedAt,
+            };
+            cursors.set(item.id, cursor);
+          }
+          pendingLegacyIds.delete(item.id);
+          stateChanged = true;
+        }
+        const timestampOrder =
+          cursor === undefined
+            ? 1
+            : Date.parse(item.updatedAt) - Date.parse(cursor.updatedAt);
+        const sameEvent =
+          cursor !== undefined &&
+          timestampOrder === 0 &&
+          (cursor.eventKey === null ||
+            cursor.eventKey === (item.eventKey ?? null));
+        const resolved =
+          cursor !== undefined && (timestampOrder < 0 || sameEvent);
+        if (!resolved && cursor !== undefined) {
+          cursors.delete(item.id);
+          stateChanged = true;
+        }
+        return { ...item, resolved };
+      });
+      if (stateChanged) {
+        await storeResolvedState(
+          identity,
+          cursors,
+          legacyCutoffAt,
+          pendingLegacyIds,
+        );
+      }
+      return nextItems;
     }
 
     function withResolvedState<T>(run: () => Promise<T>): Promise<T> {
@@ -296,33 +528,42 @@ export function createGithubNotificationsPlugin(runGh: RunGh) {
     async function refresh(
       identity: GithubIdentity,
       identityRetries = 0,
+      fullSnapshot = false,
     ): Promise<NotificationsPayload> {
       const previous = cache;
       const refreshedAtMs = Date.now();
       const sameIdentity = previous?.identity.key === identity.key;
-      const rows = await fetchNotificationRows(
+      const notificationResult = await fetchNotificationRows(
         runGh,
-        !sameIdentity || previous === null
+        fullSnapshot || !sameIdentity || previous === null
           ? undefined
           : new Date(previous.fetchedAtMs).toISOString(),
+        new Date(refreshedAtMs).toISOString(),
       );
-      if (sameIdentity && previous !== null && rows.length === 0) {
+      const { changedIds, rows } = notificationResult;
+      if (
+        !fullSnapshot &&
+        sameIdentity &&
+        previous !== null &&
+        changedIds.size === 0
+      ) {
         const confirmedIdentity = await fetchGithubIdentity(runGh);
         if (confirmedIdentity.key !== identity.key) {
           if (identityRetries >= 2) {
             throw new Error("GitHub account changed repeatedly during refresh.");
           }
-          return refresh(confirmedIdentity, identityRetries + 1);
+          return refresh(confirmedIdentity, identityRetries + 1, fullSnapshot);
         }
         return withResolvedState(async () => {
-          const resolvedIds = await loadResolvedIds(identity);
           const payload = {
             ...previous.payload,
             fetchedAt: new Date(refreshedAtMs).toISOString(),
-            items: previous.payload.items.map((item) => ({
-              ...item,
-              resolved: resolvedIds.has(item.id),
-            })),
+            items: await applyResolvedState(
+              identity,
+              previous.payload.items,
+              new Date(refreshedAtMs).toISOString(),
+            ),
+            identityKey: identity.key,
             login: identity.login,
           };
           cache = { identity, payload, fetchedAtMs: refreshedAtMs };
@@ -358,76 +599,52 @@ export function createGithubNotificationsPlugin(runGh: RunGh) {
         data: combinedData,
         lookups: allLookups,
       });
-      const inlineReviewLookups = owned.lookups.flatMap((lookup) => {
+      const exactCommentLookups = owned.lookups.flatMap((lookup) => {
         const index = Number(lookup.alias.replace("notification", ""));
         const row = Number.isSafeInteger(index) ? rows[index] : undefined;
         return row !== undefined &&
           row.latestCommentUrl !== null &&
-          /\/pulls\/comments\/\d+$/u.test(row.latestCommentUrl)
-          ? [{ lookup, url: row.latestCommentUrl }]
+          (row.reason !== "comment" ||
+            /\/pulls\/comments\/\d+$/u.test(row.latestCommentUrl))
+          ? [
+              {
+                inline: /\/pulls\/comments\/\d+$/u.test(row.latestCommentUrl),
+                lookup,
+                url: row.latestCommentUrl,
+              },
+            ]
           : [];
       });
-      const inlineReviewResults = await mapWithConcurrency(
-        inlineReviewLookups,
+      const exactCommentResults = await mapWithConcurrency(
+        exactCommentLookups,
         GH_CONCURRENCY,
-        async ({ lookup, url }) => {
+        async ({ inline, lookup, url }) => {
           try {
             return {
               comment: inlineReviewCommentSchema.parse(
                 await runGh(["api", url]),
               ),
+              inline,
               lookup,
             };
           } catch (error: unknown) {
             const message =
               error instanceof Error ? error.message : String(error);
             bb.log.warn(
-              `Skipping unavailable GitHub review comment for ${lookup.alias}: ${message}`,
+              `Skipping unavailable GitHub comment for ${lookup.alias}: ${message}`,
             );
             return null;
           }
         },
       );
-      for (const result of inlineReviewResults) {
-        if (result === null) continue;
-        const { comment, lookup } = result;
-        mergeGraphqlData(combinedData, {
-          [lookup.alias]: {
-            resource: {
-              reviewThreads: {
-                nodes: [
-                  {
-                    comments: {
-                      nodes: [
-                        {
-                          author:
-                            comment.user === null
-                              ? null
-                              : {
-                                  avatarUrl: comment.user.avatar_url,
-                                  login: comment.user.login,
-                                },
-                          body: comment.body,
-                          createdAt: comment.created_at,
-                          databaseId: comment.id,
-                        },
-                      ],
-                    },
-                  },
-                ],
-              },
-            },
-          },
-        });
-      }
-      const activityGroups = Array.from(
-        { length: Math.ceil(owned.lookups.length / ACTIVITY_BATCH_SIZE) },
-        (_, index) =>
-          owned.lookups.slice(
-            index * ACTIVITY_BATCH_SIZE,
-            (index + 1) * ACTIVITY_BATCH_SIZE,
-          ),
-      );
+      const groupsFor = (lookups: GraphqlLookup[], size: number) =>
+        Array.from(
+          { length: Math.ceil(lookups.length / size) },
+          (_, index) => lookups.slice(index * size, (index + 1) * size),
+        );
+      const activityGroups = [
+        ...groupsFor(owned.lookups, ACTIVITY_BATCH_SIZE),
+      ];
       const activityResults = await mapWithConcurrency(
         activityGroups,
         GH_CONCURRENCY,
@@ -440,6 +657,36 @@ export function createGithubNotificationsPlugin(runGh: RunGh) {
       );
       for (const data of activityResults) {
         mergeGraphqlData(combinedData, data);
+      }
+      for (const result of exactCommentResults) {
+        if (result === null) continue;
+        const { comment, inline, lookup } = result;
+        const normalizedComment = {
+          author:
+            comment.user === null
+              ? null
+              : {
+                  avatarUrl: comment.user.avatar_url,
+                  login: comment.user.login,
+                },
+          body: comment.body,
+          createdAt: comment.created_at,
+          databaseId: comment.id,
+          updatedAt: comment.updated_at ?? comment.created_at,
+        };
+        mergeGraphqlData(combinedData, {
+          [lookup.alias]: {
+            resource: {
+              ...(inline
+                ? {
+                    reviewThreads: {
+                      nodes: [{ comments: { nodes: [normalizedComment] } }],
+                    },
+                  }
+                : { comments: { nodes: [normalizedComment] } }),
+            },
+          },
+        });
       }
       const projected = projectOwnedNotifications({
         data: combinedData,
@@ -454,11 +701,10 @@ export function createGithubNotificationsPlugin(runGh: RunGh) {
         if (identityRetries >= 2) {
           throw new Error("GitHub account changed repeatedly during refresh.");
         }
-        return refresh(confirmedIdentity, identityRetries + 1);
+        return refresh(confirmedIdentity, identityRetries + 1, fullSnapshot);
       }
-      const changedIds = new Set(rows.map((row) => row.id));
       const refreshedItems =
-        !sameIdentity || previous === null
+        fullSnapshot || !sameIdentity || previous === null
           ? projected.items
           : [
               ...projected.items,
@@ -470,13 +716,14 @@ export function createGithubNotificationsPlugin(runGh: RunGh) {
                 Date.parse(right.updatedAt) - Date.parse(left.updatedAt),
             );
       return withResolvedState(async () => {
-        const resolvedIds = await loadResolvedIds(identity);
-        const items = refreshedItems.map((item) => ({
-          ...item,
-          resolved: resolvedIds.has(item.id),
-        }));
+        const items = await applyResolvedState(
+          identity,
+          refreshedItems,
+          new Date(refreshedAtMs).toISOString(),
+        );
         const payload = {
           fetchedAt: new Date(refreshedAtMs).toISOString(),
+          identityKey: identity.key,
           items,
           login: projected.login,
         };
@@ -508,7 +755,7 @@ export function createGithubNotificationsPlugin(runGh: RunGh) {
         }
         return listNotifications(false);
       }
-      const promise = refresh(identity)
+      const promise = refresh(identity, 0, force === true)
         .catch((error: unknown) => {
           const message =
             error instanceof Error ? error.message : String(error);
@@ -526,18 +773,45 @@ export function createGithubNotificationsPlugin(runGh: RunGh) {
       async listNotifications({ force }) {
         return listNotifications(force);
       },
-      async setNotificationResolved({ id, resolved }) {
+      async setNotificationResolved({
+        eventKey,
+        id,
+        identityKey,
+        resolved,
+        updatedAt,
+      }) {
         return withResolvedState(async () => {
           if (cache === null) {
             throw new Error("Load GitHub activity before updating its state.");
           }
           const identity = cache.identity;
-          const resolvedIds = await loadResolvedIds(identity);
-          if (resolved) resolvedIds.add(id);
-          else resolvedIds.delete(id);
-          await bb.storage.kv.set(
-            resolvedIdsKey(identity),
-            [...resolvedIds].sort(),
+          if (identity.key !== identityKey) {
+            throw new Error("GitHub account changed. Refresh activity and try again.");
+          }
+          const item = cache.payload.items.find((candidate) => candidate.id === id);
+          if (
+            item === undefined ||
+            (item.eventKey ?? null) !== eventKey ||
+            item.updatedAt !== updatedAt
+          ) {
+            throw new Error("GitHub activity changed. Refresh and try again.");
+          }
+          const { cursors, legacyCutoffAt, pendingLegacyIds } =
+            await loadResolvedState(identity);
+          pendingLegacyIds.delete(id);
+          if (resolved) {
+            cursors.set(id, {
+              eventKey,
+              updatedAt,
+            });
+          } else {
+            cursors.delete(id);
+          }
+          await storeResolvedState(
+            identity,
+            cursors,
+            legacyCutoffAt,
+            pendingLegacyIds,
           );
           if (cache.identity.key === identity.key) {
             cache = {
