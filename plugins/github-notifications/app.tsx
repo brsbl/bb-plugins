@@ -3,7 +3,6 @@ import {
   useEffect,
   useMemo,
   useState,
-  type MouseEvent,
 } from "react";
 import {
   AtSign,
@@ -22,7 +21,7 @@ import {
   Search,
   type LucideIcon,
 } from "lucide-react";
-import { definePluginApp, useBbNavigate, useRpc } from "@bb/plugin-sdk/app";
+import { definePluginApp, useRpc } from "@bb/plugin-sdk/app";
 
 import type { ActivityKind, GithubNotificationItem, ResourceKind } from "./core";
 import type { NotificationsPayload, rpcContract } from "./server";
@@ -144,30 +143,14 @@ function updatePresentation(kind: GithubNotificationItem["activityKind"]): {
 }
 
 function NotificationLink({ item }: { item: GithubNotificationItem }) {
-  const navigate = useBbNavigate() as ReturnType<typeof useBbNavigate> & {
-    experimental_openBrowserTab?: (options: { url: string }) => boolean;
-  };
   const update = updatePresentation(item.activityKind);
   const actor = item.actor ? `@${item.actor}` : "Someone";
   const ResourceIcon = item.resourceKind === "pr" ? GitPullRequest : CircleDot;
-  const handleClick = (event: MouseEvent<HTMLAnchorElement>) => {
-    if (
-      event.button === 0 &&
-      !event.metaKey &&
-      !event.ctrlKey &&
-      !event.shiftKey &&
-      !event.altKey &&
-      navigate.experimental_openBrowserTab?.({ url: item.url })
-    ) {
-      event.preventDefault();
-    }
-  };
   return (
     <a
       href={item.url}
       target="_blank"
       rel="noopener noreferrer"
-      onClick={handleClick}
       className="group block min-w-0 rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
       aria-label={`${item.resourceKind === "pr" ? "Pull request" : "Issue"} ${item.repo} number ${item.number}: ${item.title}. ${actor} ${update.verb}`}
     >

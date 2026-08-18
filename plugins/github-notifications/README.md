@@ -8,7 +8,7 @@ GitHub Activity adds a BB sidebar panel for comments, mentions, and reviews on p
 
 The feed uses the account already authenticated in the GitHub CLI. It keeps only incoming comment and review activity on resources authored by that account, then presents one searchable, filterable, and sortable table with resource type, repository, title, activity, actor, and recency.
 
-Opening a row uses BB Desktop's native in-app browser. On web clients, the same row remains a normal GitHub link.
+BB hosts the page beside its native Browser and Terminal tools. Each row remains a normal GitHub link, so standard link behavior and modifiers are preserved.
 
 ## Install
 
