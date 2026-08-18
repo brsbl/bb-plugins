@@ -1,6 +1,6 @@
 # bb plugins
 
-Six bb plugins I use for product design work, kept together with the few build and repository tools they share. [![CI](https://github.com/brsbl/bb-plugins/actions/workflows/ci.yml/badge.svg)](https://github.com/brsbl/bb-plugins/actions/workflows/ci.yml)
+Seven bb plugins I use for product design work, kept together with the few build and repository tools they share. [![CI](https://github.com/brsbl/bb-plugins/actions/workflows/ci.yml/badge.svg)](https://github.com/brsbl/bb-plugins/actions/workflows/ci.yml)
 
 [bb](https://getbb.app) is an agentic IDE for running coding agents across projects, threads, and environments. Its plugins can add UI, commands, skills, and server capabilities; this repository is where I build and maintain mine.
 
@@ -67,6 +67,16 @@ Files new threads into the right existing work section while preserving native t
 [Source](plugins/thread-organizer) · [README](plugins/thread-organizer/README.md)
 
 Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/thread-organizer --yes`
+
+### Mesh Gradient
+
+A mesh gradient studio that opens beside any thread, with direct-manipulation editing and a Send to agent handoff into that thread's composer — plus `@gradient` mentions and a CLI so agents get exact values.
+
+![Mesh Gradient in bb](plugins/mesh-gradient/docs/screenshot.png)
+
+[Source](plugins/mesh-gradient) · [README](plugins/mesh-gradient/README.md)
+
+Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/mesh-gradient --yes`
 
 Each `plugin/*` install ref is generated from `main` after CI passes. The separate refs are necessary because bb installs from the root of a git checkout.
 
