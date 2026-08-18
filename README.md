@@ -1,6 +1,6 @@
 # bb plugins
 
-Five bb plugins I use for product design work, kept together with the few build and repository tools they share. [![CI](https://github.com/brsbl/bb-plugins/actions/workflows/ci.yml/badge.svg)](https://github.com/brsbl/bb-plugins/actions/workflows/ci.yml)
+Six bb plugins I use for product design work, kept together with the few build and repository tools they share. [![CI](https://github.com/brsbl/bb-plugins/actions/workflows/ci.yml/badge.svg)](https://github.com/brsbl/bb-plugins/actions/workflows/ci.yml)
 
 [bb](https://getbb.app) is an agentic IDE for running coding agents across projects, threads, and environments. Its plugins can add UI, commands, skills, and server capabilities; this repository is where I build and maintain mine.
 
@@ -17,6 +17,16 @@ Keeps the design lessons that come up again and again in reviews as reusable rul
 [Source](plugins/design-doctrine) · [README](plugins/design-doctrine/README.md)
 
 Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/design-doctrine --yes`
+
+### GitHub Activity
+
+Collects comments and mentions on pull requests and issues you authored into one filterable table.
+
+![GitHub Activity in bb](plugins/github-notifications/docs/screenshot.png)
+
+[Source](plugins/github-notifications) · [README](plugins/github-notifications/README.md)
+
+Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/github-notifications --yes`
 
 ### Improve Prompt
 
