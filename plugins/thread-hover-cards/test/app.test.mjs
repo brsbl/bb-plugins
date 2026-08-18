@@ -1942,7 +1942,7 @@ assert.equal(
   "caches an absent legacy label within the negative TTL",
 );
 
-// A legacy sidebar without stable ids uses names and fails closed on rerender.
+// A legacy sidebar without stable ids uses names and still rebinds on rerender.
 const legacyHeader = sectionHeaderRow("Design");
 sectionGroup.append(legacyHeader.group);
 hoverOver(legacyHeader.title);
@@ -1956,9 +1956,14 @@ const legacyReplacement = sectionHeaderRow("Design");
 legacyHeader.group.replaceWith(legacyReplacement.group);
 await new Promise((resolve) => setTimeout(resolve, 0));
 assert.equal(legacyHeader.toggle.hasAttribute("aria-describedby"), false);
+assert.equal(
+  legacyReplacement.toggle.getAttribute("aria-describedby"),
+  "bb-section-hover-card",
+);
+legacyReplacement.group.remove();
+await new Promise((resolve) => setTimeout(resolve, 0));
 assert.equal(sectionCard.hidden, true);
 assert.equal(legacyReplacement.toggle.hasAttribute("aria-describedby"), false);
-legacyReplacement.group.remove();
 
 delayNextSectionFor.add("sec_delayed_a");
 hoverOver(delayedAHeader.title);
