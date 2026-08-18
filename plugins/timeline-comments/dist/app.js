@@ -625,16 +625,35 @@ var __iconNode5 = [
 ];
 var Ellipsis = createLucideIcon("Ellipsis", __iconNode5);
 
-// ../../node_modules/lucide-react/dist/esm/icons/message-square-text.js
+// ../../node_modules/lucide-react/dist/esm/icons/file.js
 var __iconNode6 = [
+  ["path", { d: "M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z", key: "1rqfz7" }],
+  ["path", { d: "M14 2v4a2 2 0 0 0 2 2h4", key: "tnqrlb" }]
+];
+var File = createLucideIcon("File", __iconNode6);
+
+// ../../node_modules/lucide-react/dist/esm/icons/folder.js
+var __iconNode7 = [
+  [
+    "path",
+    {
+      d: "M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z",
+      key: "1kt360"
+    }
+  ]
+];
+var Folder = createLucideIcon("Folder", __iconNode7);
+
+// ../../node_modules/lucide-react/dist/esm/icons/message-square-text.js
+var __iconNode8 = [
   ["path", { d: "M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z", key: "1lielz" }],
   ["path", { d: "M13 8H7", key: "14i4kc" }],
   ["path", { d: "M17 12H7", key: "16if0g" }]
 ];
-var MessageSquareText = createLucideIcon("MessageSquareText", __iconNode6);
+var MessageSquareText = createLucideIcon("MessageSquareText", __iconNode8);
 
 // ../../node_modules/lucide-react/dist/esm/icons/pencil.js
-var __iconNode7 = [
+var __iconNode9 = [
   [
     "path",
     {
@@ -644,17 +663,17 @@ var __iconNode7 = [
   ],
   ["path", { d: "m15 5 4 4", key: "1mk7zo" }]
 ];
-var Pencil2 = createLucideIcon("Pencil", __iconNode7);
+var Pencil2 = createLucideIcon("Pencil", __iconNode9);
 
 // ../../node_modules/lucide-react/dist/esm/icons/plus.js
-var __iconNode8 = [
+var __iconNode10 = [
   ["path", { d: "M5 12h14", key: "1ays0h" }],
   ["path", { d: "M12 5v14", key: "s699le" }]
 ];
-var Plus = createLucideIcon("Plus", __iconNode8);
+var Plus = createLucideIcon("Plus", __iconNode10);
 
 // ../../node_modules/lucide-react/dist/esm/icons/send.js
-var __iconNode9 = [
+var __iconNode11 = [
   [
     "path",
     {
@@ -664,24 +683,24 @@ var __iconNode9 = [
   ],
   ["path", { d: "m21.854 2.147-10.94 10.939", key: "12cjpa" }]
 ];
-var Send = createLucideIcon("Send", __iconNode9);
+var Send = createLucideIcon("Send", __iconNode11);
 
 // ../../node_modules/lucide-react/dist/esm/icons/trash-2.js
-var __iconNode10 = [
+var __iconNode12 = [
   ["path", { d: "M3 6h18", key: "d0wm0j" }],
   ["path", { d: "M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6", key: "4alrt4" }],
   ["path", { d: "M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2", key: "v07s0e" }],
   ["line", { x1: "10", x2: "10", y1: "11", y2: "17", key: "1uufr5" }],
   ["line", { x1: "14", x2: "14", y1: "11", y2: "17", key: "xtxkd" }]
 ];
-var Trash22 = createLucideIcon("Trash2", __iconNode10);
+var Trash22 = createLucideIcon("Trash2", __iconNode12);
 
 // ../../node_modules/lucide-react/dist/esm/icons/x.js
-var __iconNode11 = [
+var __iconNode13 = [
   ["path", { d: "M18 6 6 18", key: "1bl5f8" }],
   ["path", { d: "m6 6 12 12", key: "d8bk6v" }]
 ];
-var X2 = createLucideIcon("X", __iconNode11);
+var X2 = createLucideIcon("X", __iconNode13);
 
 // bb-plugin-runtime-shim:react/jsx-runtime
 var runtime6 = globalThis.__bbPluginRuntime;
@@ -881,7 +900,8 @@ function CommentTextInput({
   footerPortalTarget,
   autoFocus = false,
   onCancel,
-  submitPending = false
+  submitPending = false,
+  searchMentions
 }) {
   const rootRef = useRef(null);
   const inputContentRef = useRef(null);
@@ -895,6 +915,17 @@ function CommentTextInput({
   const responsiveAnimationCleanupTimerRef = useRef(null);
   const responsiveMeasurementFrameRef = useRef(null);
   const [responsiveFooterLatched, setResponsiveFooterLatched] = useState(false);
+  const [mentionRange, setMentionRange] = useState(null);
+  const [mentionItems, setMentionItems] = useState([]);
+  const [mentionLoading, setMentionLoading] = useState(false);
+  const [mentionError, setMentionError] = useState(false);
+  const [activeMentionIndex, setActiveMentionIndex] = useState(0);
+  const [mentionMenuPosition, setMentionMenuPosition] = useState({
+    bottom: 8,
+    left: 8,
+    width: 280
+  });
+  const mentionRequestRef = useRef(0);
   const hasExplicitLineBreak = value.includes("\n");
   const responsiveExpansionRequested = hasExplicitLineBreak || responsiveFooterLatched;
   const footerVisible = persistentFooter || responsiveExpansionRequested;
@@ -1140,6 +1171,96 @@ function CommentTextInput({
     const frame = requestAnimationFrame(() => textareaRef.current?.focus());
     return () => cancelAnimationFrame(frame);
   }, [autoFocus]);
+  useEffect(() => {
+    if (mentionRange === null) return;
+    const request = mentionRequestRef.current + 1;
+    mentionRequestRef.current = request;
+    setMentionLoading(true);
+    setMentionError(false);
+    void searchMentions(mentionRange.query).then(({ items }) => {
+      if (mentionRequestRef.current !== request) return;
+      setMentionItems(items);
+      setActiveMentionIndex(0);
+    }).catch(() => {
+      if (mentionRequestRef.current !== request) return;
+      setMentionItems([]);
+      setMentionError(true);
+    }).finally(() => {
+      if (mentionRequestRef.current === request) setMentionLoading(false);
+    });
+  }, [mentionRange?.query, searchMentions]);
+  useLayoutEffect(() => {
+    if (mentionRange === null) return;
+    const updatePosition = () => {
+      const textarea = textareaRef.current;
+      if (!textarea) return;
+      const rect = textarea.getBoundingClientRect();
+      const width = Math.max(240, Math.min(360, rect.width));
+      setMentionMenuPosition({
+        bottom: Math.max(8, window.innerHeight - rect.top + 4),
+        left: Math.max(8, Math.min(window.innerWidth - width - 8, rect.left)),
+        width
+      });
+    };
+    updatePosition();
+    window.addEventListener("resize", updatePosition);
+    window.addEventListener("scroll", updatePosition, true);
+    return () => {
+      window.removeEventListener("resize", updatePosition);
+      window.removeEventListener("scroll", updatePosition, true);
+    };
+  }, [mentionRange !== null]);
+  const closeMentionMenu = useCallback(() => {
+    mentionRequestRef.current += 1;
+    setMentionRange(null);
+    setMentionItems([]);
+    setMentionLoading(false);
+    setMentionError(false);
+  }, []);
+  useEffect(() => {
+    if (mentionRange === null) return;
+    const closeOnOutsidePointer = (event) => {
+      if (!(event.target instanceof Element)) return;
+      if (rootRef.current?.contains(event.target) || event.target.closest(".bb-comments-mention-menu") !== null) {
+        return;
+      }
+      closeMentionMenu();
+    };
+    document.addEventListener("pointerdown", closeOnOutsidePointer, true);
+    return () => document.removeEventListener("pointerdown", closeOnOutsidePointer, true);
+  }, [closeMentionMenu, mentionRange]);
+  const updateMentionFromValue = useCallback(
+    (nextValue, caret) => {
+      const prefix = nextValue.slice(0, caret);
+      const match = /(?:^|\s)@([^\s@]*)$/u.exec(prefix);
+      if (!match) {
+        closeMentionMenu();
+        return;
+      }
+      const query = match[1] ?? "";
+      setMentionRange({
+        start: caret - query.length - 1,
+        end: caret,
+        query
+      });
+    },
+    [closeMentionMenu]
+  );
+  const selectMention = useCallback(
+    (mention) => {
+      if (mentionRange === null) return;
+      const inserted = `@${mention.path} `;
+      const nextValue = `${value.slice(0, mentionRange.start)}${inserted}${value.slice(mentionRange.end)}`;
+      const nextCaret = mentionRange.start + inserted.length;
+      onChange(nextValue);
+      closeMentionMenu();
+      window.requestAnimationFrame(() => {
+        textareaRef.current?.focus({ preventScroll: true });
+        textareaRef.current?.setSelectionRange(nextCaret, nextCaret);
+      });
+    },
+    [closeMentionMenu, mentionRange, onChange, value]
+  );
   const insertMentionTrigger = useCallback(() => {
     const textarea = textareaRef.current;
     if (!textarea) return;
@@ -1147,6 +1268,7 @@ function CommentTextInput({
     const end = textarea.selectionEnd;
     const nextValue = `${value.slice(0, start)}@${value.slice(end)}`;
     onChange(nextValue);
+    setMentionRange({ start, end: start + 1, query: "" });
     window.requestAnimationFrame(() => {
       textarea.focus({ preventScroll: true });
       textarea.setSelectionRange(start + 1, start + 1);
@@ -1209,37 +1331,100 @@ function CommentTextInput({
               className: "bb-comments-input-row",
               "data-mention-input-row": "true",
               "data-responsive-compact": responsiveCompact ? "true" : "false",
-              children: /* @__PURE__ */ jsx(
+              children: /* @__PURE__ */ jsxs(
                 "div",
                 {
                   ref: inputContentRef,
                   className: "bb-comments-input-content",
                   "data-mention-input-content": "true",
-                  children: /* @__PURE__ */ jsx(
-                    "textarea",
-                    {
-                      ref: textareaRef,
-                      className: persistentFooter ? "bb-comments-edit-input" : "bb-comments-reply-input",
-                      "aria-label": ariaLabel,
-                      placeholder,
-                      maxLength: 2e4,
-                      readOnly: submitPending,
-                      "aria-disabled": submitPending || void 0,
-                      value,
-                      onChange: (event) => onChange(event.currentTarget.value),
-                      onKeyDown: (event) => {
-                        if (event.key === "Escape" && onCancel && !submitPending) {
-                          event.preventDefault();
-                          onCancel();
-                          return;
-                        }
-                        if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) {
-                          event.preventDefault();
-                          if (!submitPending && !submitDisabled) onSubmit(value);
+                  children: [
+                    /* @__PURE__ */ jsx(
+                      "textarea",
+                      {
+                        ref: textareaRef,
+                        className: persistentFooter ? "bb-comments-edit-input" : "bb-comments-reply-input",
+                        "aria-label": ariaLabel,
+                        placeholder,
+                        maxLength: 2e4,
+                        readOnly: submitPending,
+                        "aria-disabled": submitPending || void 0,
+                        "aria-autocomplete": "list",
+                        "aria-expanded": mentionRange !== null,
+                        "aria-haspopup": "listbox",
+                        value,
+                        onChange: (event) => {
+                          const nextValue = event.currentTarget.value;
+                          const caret = event.currentTarget.selectionStart;
+                          onChange(nextValue);
+                          updateMentionFromValue(nextValue, caret);
+                        },
+                        onKeyDown: (event) => {
+                          if (mentionRange !== null) {
+                            if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+                              event.preventDefault();
+                              const direction = event.key === "ArrowDown" ? 1 : -1;
+                              setActiveMentionIndex(
+                                (current) => mentionItems.length === 0 ? 0 : (current + direction + mentionItems.length) % mentionItems.length
+                              );
+                              return;
+                            }
+                            if (event.key === "Enter" && mentionItems.length > 0) {
+                              event.preventDefault();
+                              selectMention(mentionItems[activeMentionIndex] ?? mentionItems[0]);
+                              return;
+                            }
+                            if (event.key === "Escape") {
+                              event.preventDefault();
+                              closeMentionMenu();
+                              return;
+                            }
+                          }
+                          if (event.key === "Escape" && onCancel && !submitPending) {
+                            event.preventDefault();
+                            onCancel();
+                            return;
+                          }
+                          if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) {
+                            event.preventDefault();
+                            if (!submitPending && !submitDisabled) onSubmit(value);
+                          }
                         }
                       }
-                    }
-                  )
+                    ),
+                    mentionRange !== null ? createPortal(
+                      /* @__PURE__ */ jsxs(
+                        "div",
+                        {
+                          className: "bb-comments-mention-menu",
+                          role: "listbox",
+                          "aria-label": "Workspace files and folders",
+                          style: mentionMenuPosition,
+                          children: [
+                            mentionItems.map((mention, index) => /* @__PURE__ */ jsxs(
+                              "button",
+                              {
+                                type: "button",
+                                role: "option",
+                                "aria-selected": index === activeMentionIndex,
+                                "data-mention-path": mention.path,
+                                onMouseDown: (event) => event.preventDefault(),
+                                onMouseEnter: () => setActiveMentionIndex(index),
+                                onClick: () => selectMention(mention),
+                                children: [
+                                  mention.kind === "directory" ? /* @__PURE__ */ jsx(Folder, { "aria-hidden": "true" }) : /* @__PURE__ */ jsx(File, { "aria-hidden": "true" }),
+                                  /* @__PURE__ */ jsx("span", { children: mention.name }),
+                                  /* @__PURE__ */ jsx("small", { children: mention.path })
+                                ]
+                              },
+                              `${mention.kind}:${mention.path}`
+                            )),
+                            mentionLoading ? /* @__PURE__ */ jsx("div", { className: "bb-comments-mention-status", role: "status", children: "Searching\u2026" }) : mentionError ? /* @__PURE__ */ jsx("div", { className: "bb-comments-mention-status", role: "status", children: "Couldn\u2019t load workspace paths" }) : mentionItems.length === 0 ? /* @__PURE__ */ jsx("div", { className: "bb-comments-mention-status", role: "status", children: "No matching files or folders" }) : null
+                          ]
+                        }
+                      ),
+                      document.body
+                    ) : null
+                  ]
                 }
               )
             }
@@ -1338,7 +1523,8 @@ function CommentMessage({
   onStartEdit,
   onCancelEdit,
   onSaveEdit,
-  onDelete
+  onDelete,
+  searchMentions
 }) {
   const rowRef = useRef(null);
   const editDraftKey = `bb.timeline-comments.edit:${comment.id}`;
@@ -1555,7 +1741,8 @@ function CommentMessage({
                 footerPortalTarget: isLast ? editFooterPortalTarget : null,
                 autoFocus: true,
                 onCancel: () => runModeTransition(cancelEdit),
-                submitPending
+                submitPending,
+                searchMentions
               }
             ) : /* @__PURE__ */ jsx("p", { className: "bb-comments-comment-body", children: comment.body })
           }
@@ -1572,6 +1759,13 @@ function MossCommentPopover({
   onSendToAgent
 }) {
   const [detail, setDetail] = useState(initialDetail);
+  const searchMentions = useCallback(
+    (query) => rpc.call("searchContextMentions", {
+      bbThreadId: detail.thread.bbThreadId,
+      query
+    }),
+    [detail.thread.bbThreadId, rpc]
+  );
   const [editingId, setEditingId] = useState(null);
   const replyDraftKey = `bb.timeline-comments.reply:${initialDetail.thread.id}`;
   const [replyText, setReplyText] = useState(
@@ -1768,7 +1962,8 @@ function MossCommentPopover({
         onDelete: () => {
           if (!window.confirm(comment.parentId === null ? "Delete this comment thread?" : "Delete this reply?")) return;
           void removeComment(comment);
-        }
+        },
+        searchMentions
       },
       comment.id
     )) }),
@@ -1818,7 +2013,8 @@ function MossCommentPopover({
                   },
                   placeholder: "Reply...",
                   ariaLabel: "Reply to comment thread",
-                  submitPending: busy
+                  submitPending: busy,
+                  searchMentions
                 }
               )
             }
@@ -1849,6 +2045,8 @@ function mountMossCommentPopover(host, options) {
   };
 }
 function MossNewCommentComposer({
+  rpc,
+  bbThreadId,
   initialValue,
   onChange,
   onCancel,
@@ -1858,6 +2056,10 @@ function MossNewCommentComposer({
   const [busy, setBusy] = useState(false);
   const busyRef = useRef(false);
   const [error, setError] = useState(null);
+  const searchMentions = useCallback(
+    (query) => rpc.call("searchContextMentions", { bbThreadId, query }),
+    [bbThreadId, rpc]
+  );
   return /* @__PURE__ */ jsxs("div", { className: "bb-comments-new-comment-input", "data-comment-new-composer": "true", children: [
     /* @__PURE__ */ jsx(
       CommentTextInput,
@@ -1885,7 +2087,8 @@ function MossNewCommentComposer({
         placeholder: "Add a comment\u2026",
         ariaLabel: "Add a comment",
         autoFocus: true,
-        submitPending: busy
+        submitPending: busy,
+        searchMentions
       }
     ),
     error ? /* @__PURE__ */ jsx("div", { className: "bb-comments-error", role: "status", children: error }) : null
@@ -2277,6 +2480,8 @@ var TimelineCommentsController = class {
     let draftValue = initialValue;
     const persist = () => writeDraft2(key, draftValue);
     this.#composerUiCleanup = mountMossCommentComposer(shell, {
+      rpc: this.#rpc,
+      bbThreadId: context.threadId,
       initialValue,
       onChange: (value) => {
         draftValue = value;
@@ -3869,6 +4074,8 @@ lucide-react/dist/esm/icons/check-check.js:
 lucide-react/dist/esm/icons/command.js:
 lucide-react/dist/esm/icons/corner-down-left.js:
 lucide-react/dist/esm/icons/ellipsis.js:
+lucide-react/dist/esm/icons/file.js:
+lucide-react/dist/esm/icons/folder.js:
 lucide-react/dist/esm/icons/message-square-text.js:
 lucide-react/dist/esm/icons/pencil.js:
 lucide-react/dist/esm/icons/plus.js:

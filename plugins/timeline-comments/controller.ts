@@ -540,6 +540,8 @@ class TimelineCommentsController {
     let draftValue = initialValue;
     const persist = () => writeDraft(key, draftValue);
     this.#composerUiCleanup = mountMossCommentComposer(shell, {
+      rpc: this.#rpc,
+      bbThreadId: context.threadId,
       initialValue,
       onChange: (value) => {
         draftValue = value;

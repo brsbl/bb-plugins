@@ -152,6 +152,53 @@ describe("Moss comment component port", () => {
     unmount();
   });
 
+  it("searches and inserts workspace context from the reply mention control", async () => {
+    const call = vi.fn((method: string) => {
+      if (method === "searchContextMentions") {
+        return Promise.resolve({
+          items: [
+            {
+              kind: "file",
+              name: "app.tsx",
+              path: "src/app.tsx",
+            },
+          ],
+          truncated: false,
+        });
+      }
+      throw new Error(`Unexpected RPC method: ${method}`);
+    });
+    const host = document.body.appendChild(document.createElement("section"));
+    const unmount = mountWithRpc(host, call);
+
+    fireEvent.click(
+      host.querySelector('button[aria-label="Add comment context"]')!,
+    );
+
+    await waitFor(() =>
+      expect(call).toHaveBeenCalledWith("searchContextMentions", {
+        bbThreadId: "thr_1",
+        query: "",
+      }),
+    );
+    const option = await waitFor(() => {
+      const match = document.querySelector<HTMLButtonElement>(
+        '[role="option"][data-mention-path="src/app.tsx"]',
+      );
+      expect(match).not.toBeNull();
+      return match!;
+    });
+    fireEvent.click(option);
+
+    expect(
+      host.querySelector<HTMLTextAreaElement>(
+        '[aria-label="Reply to comment thread"]',
+      )?.value,
+    ).toBe("@src/app.tsx ");
+    expect(document.querySelector('[role="listbox"]')).toBeNull();
+    unmount();
+  });
+
   it("moves the last comment's edit footer into the stable reply region", async () => {
     const host = document.body.appendChild(document.createElement("section"));
     host.dataset.bbPluginDecoration = "timeline-comments";
@@ -506,6 +553,10 @@ describe("Moss comment component port", () => {
     const onSubmit = vi.fn(() => pending);
     const host = document.body.appendChild(document.createElement("section"));
     const unmount = mountMossCommentComposer(host, {
+      rpc: { call: vi.fn() } as unknown as PluginRpcClient<
+        typeof timelineCommentsRpcContract
+      >,
+      bbThreadId: "thr_1",
       initialValue: "",
       onChange: vi.fn(),
       onCancel: vi.fn(),

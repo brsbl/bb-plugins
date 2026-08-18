@@ -14626,6 +14626,11 @@ var commentThreadDetailSchema = external_exports.object({
 }).strict();
 var cursorInputSchema = external_exports.string().min(1).max(2048).optional();
 var rootFilterSchema = external_exports.enum(["open", "resolved", "all"]);
+var contextMentionSchema = external_exports.object({
+  kind: external_exports.enum(["file", "directory"]),
+  name: external_exports.string(),
+  path: external_exports.string()
+}).strict();
 var timelineCommentsRpcContract = defineRpcContract({
   listOpenAnchors: {
     input: external_exports.object({
@@ -14662,6 +14667,16 @@ var timelineCommentsRpcContract = defineRpcContract({
       threadCount: external_exports.number().int().nonnegative(),
       commentCount: external_exports.number().int().nonnegative(),
       codePointSize: external_exports.number().int().nonnegative()
+    }).strict()
+  },
+  searchContextMentions: {
+    input: external_exports.object({
+      bbThreadId: idSchema,
+      query: external_exports.string().max(256)
+    }).strict(),
+    output: external_exports.object({
+      items: external_exports.array(contextMentionSchema),
+      truncated: external_exports.boolean()
     }).strict()
   },
   createThread: {
@@ -15300,6 +15315,27 @@ function timelineCommentsPlugin(bb) {
         threadCount: summary.threadCount,
         commentCount: summary.commentCount,
         codePointSize: summary.codePointSize
+      };
+    },
+    async searchContextMentions({ bbThreadId, query }) {
+      const thread = await bb.sdk.threads.get({ threadId: bbThreadId });
+      const pathQuery = {
+        projectId: thread.projectId,
+        includeFiles: "true",
+        includeDirectories: "true",
+        limit: "20",
+        ...query.trim() === "" ? {} : { query: query.trim() }
+      };
+      const result = await bb.sdk.projects.paths(
+        thread.environmentId === null ? pathQuery : { ...pathQuery, environmentId: thread.environmentId }
+      );
+      return {
+        items: result.paths.map(({ kind, name, path }) => ({
+          kind,
+          name,
+          path
+        })),
+        truncated: result.truncated
       };
     },
     createThread(input) {

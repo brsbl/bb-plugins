@@ -587,6 +587,7 @@ describe("timeline comments app", () => {
         context: { threadId: "thr_1" },
         rpc: {
           listCommentThreads: () => ({ threads: [thread], nextCursor: null }),
+          searchContextMentions: () => ({ items: [], truncated: false }),
           getThreadHandoffSummary: () => ({
             threadCount: 1,
             commentCount: 1,
@@ -647,6 +648,7 @@ describe("timeline comments app", () => {
         context: { threadId: "thr_1" },
         rpc: {
           listCommentThreads: () => ({ threads: [thread], nextCursor: null }),
+          searchContextMentions: () => ({ items: [], truncated: false }),
           getThreadHandoffSummary: () => ({
             threadCount: 1,
             commentCount: 1,
@@ -727,6 +729,7 @@ describe("timeline comments app", () => {
         context: { threadId: "thr_1" },
         rpc: {
           listCommentThreads,
+          searchContextMentions: () => ({ items: [], truncated: false }),
           getThreadHandoffSummary: () => ({
             threadCount: 1,
             commentCount: 1,
