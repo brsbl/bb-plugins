@@ -21,6 +21,7 @@ interface GithubActor {
 
 export interface GithubCommentNode {
   author?: GithubActor | null;
+  body?: unknown;
   bodyText?: unknown;
   createdAt?: unknown;
   databaseId?: unknown;
@@ -51,6 +52,7 @@ export interface GithubNotificationItem {
   avatarUrl: string | null;
   number: number;
   repo: string;
+  resolved: boolean;
   resourceKind: ResourceKind;
   title: string;
   unread: boolean;
@@ -202,7 +204,7 @@ export function buildActivityQuery(args: {
         : "";
     return `${lookup.alias}: repository(owner: ${JSON.stringify(lookup.owner)}, name: ${JSON.stringify(lookup.repoName)}) {
       resource: ${resourceField}(number: ${lookup.number}) {
-        comments(last: 20) { nodes { author { login avatarUrl } bodyText createdAt databaseId } }
+        comments(last: 20) { nodes { author { login avatarUrl } body createdAt databaseId } }
         ${reviews}
       }
     }`;
@@ -250,8 +252,65 @@ function dateValue(value: unknown): string | null {
   return candidate;
 }
 
-function includesMention(body: string, viewer: string): boolean {
-  return body.toLocaleLowerCase().includes(`@${viewer.toLocaleLowerCase()}`);
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
+}
+
+function includesMention(
+  body: string,
+  viewer: string,
+  reason: string,
+): boolean {
+  const mentionableBody = body
+    .replace(/<!--[\s\S]*?-->/gu, "")
+    .replace(/<(pre|code)\b[^>]*>[\s\S]*?<\/\1\s*>/giu, "")
+    .replace(/(`+)[\s\S]*?\1/gu, "")
+    .split(/\r?\n/u)
+    .reduce<{
+      fence: { character: string; length: number } | null;
+      lines: string[];
+      quoteContinuation: boolean;
+    }>(
+      (state, line) => {
+        const fence = line.match(/^\s{0,3}(`{3,}|~{3,})/u)?.[1];
+        if (state.fence !== null) {
+          if (
+            fence !== undefined &&
+            fence[0] === state.fence.character &&
+            fence.length >= state.fence.length
+          ) {
+            state.fence = null;
+          }
+          return state;
+        }
+        if (fence !== undefined) {
+          state.fence = { character: fence[0]!, length: fence.length };
+          return state;
+        }
+        if (/^\s{0,3}>/u.test(line)) {
+          state.quoteContinuation = line.replace(/^\s{0,3}>\s?/u, "").length > 0;
+          return state;
+        }
+        if (state.quoteContinuation) {
+          if (line.trim().length === 0) state.quoteContinuation = false;
+          return state;
+        }
+        if (/^(?: {4}|\t)/u.test(line)) return state;
+        state.lines.push(line);
+        return state;
+      },
+      { fence: null, lines: [], quoteContinuation: false },
+    )
+    .lines.join("\n");
+  const directMention = new RegExp(
+    `(^|[^A-Za-z0-9-])@${escapeRegExp(viewer)}(?![A-Za-z0-9-])`,
+    "iu",
+  );
+  if (directMention.test(mentionableBody)) return true;
+  if (reason !== "team_mention") return false;
+  return /(^|[^A-Za-z0-9-])@[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?\/[A-Za-z0-9](?:[A-Za-z0-9_-]*[A-Za-z0-9])?(?![A-Za-z0-9_-])/iu.test(
+    mentionableBody,
+  );
 }
 
 function candidatesFromComments(
@@ -267,14 +326,19 @@ function candidatesFromComments(
     const avatarUrl = stringValue(comment.author?.avatarUrl);
     const at = dateValue(comment.createdAt);
     if (actor === null || at === null || actor === viewer) return [];
-    const body = typeof comment.bodyText === "string" ? comment.bodyText : "";
+    const body =
+      typeof comment.body === "string"
+        ? comment.body
+        : typeof comment.bodyText === "string"
+          ? comment.bodyText
+          : "";
     const databaseId =
       typeof comment.databaseId === "number" &&
       Number.isSafeInteger(comment.databaseId)
         ? comment.databaseId
         : null;
     const expectedMentionId = latestCommentDatabaseId(row.latestCommentUrl);
-    const mention = includesMention(body, viewer);
+    const mention = includesMention(body, viewer, row.reason);
     return [
       {
         actor,
@@ -404,6 +468,7 @@ export function projectOwnedNotifications(args: {
       avatarUrl: activity.avatarUrl,
       number,
       repo: row.repository,
+      resolved: false,
       resourceKind: lookup.resourceKind,
       title,
       unread: row.unread,

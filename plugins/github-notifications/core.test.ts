@@ -48,7 +48,7 @@ describe("GitHub notification projection", () => {
     expect(activityQuery).toContain("reviews(last: 20)");
     expect(activityQuery).toContain("databaseId");
     expect(activityQuery).toContain("avatarUrl");
-    expect(activityQuery.match(/bodyText/gu)).toHaveLength(2);
+    expect(activityQuery.match(/ body /gu)).toHaveLength(2);
   });
 
   it("keeps only incoming comment and review activity on resources the viewer authored", () => {
@@ -175,6 +175,133 @@ describe("GitHub notification projection", () => {
         updatedAt: "2026-08-12T10:00:00Z",
       }),
     ]);
+  });
+
+  it.each([
+    {
+      body: "@brsbl, please take a look",
+      expected: "mention",
+      name: "a punctuation-delimited direct mention",
+      reason: "author",
+    },
+    {
+      body: "cc @brsbl2 instead",
+      expected: "comment",
+      name: "another username with the viewer as a prefix",
+      reason: "author",
+    },
+    {
+      body: "Could @get-bb/reviewers check this?",
+      expected: "mention",
+      name: "a team mention notification",
+      reason: "team_mention",
+    },
+    {
+      body: "Could @get-bb/reviewers check this?",
+      expected: "comment",
+      name: "an unrelated team reference",
+      reason: "author",
+    },
+    {
+      body: "> @brsbl said this earlier",
+      expected: "comment",
+      name: "a quoted direct mention",
+      reason: "author",
+    },
+    {
+      body: "Use `@brsbl` in the example",
+      expected: "comment",
+      name: "an inline-code direct mention",
+      reason: "author",
+    },
+    {
+      body: "Use `first line\n@brsbl\nlast line` in the example",
+      expected: "comment",
+      name: "a multiline-code direct mention",
+      reason: "author",
+    },
+    {
+      body: "```text\n@brsbl\n```",
+      expected: "comment",
+      name: "a fenced-code direct mention",
+      reason: "author",
+    },
+    {
+      body: "    @brsbl in an indented example",
+      expected: "comment",
+      name: "an indented-code direct mention",
+      reason: "author",
+    },
+    {
+      body: "<code>@brsbl</code>",
+      expected: "comment",
+      name: "an HTML-code direct mention",
+      reason: "author",
+    },
+    {
+      body: "<!-- @brsbl -->",
+      expected: "comment",
+      name: "an HTML-comment direct mention",
+      reason: "author",
+    },
+    {
+      body: "> quoted paragraph\n@brsbl is still quoted lazily\n\nNew text",
+      expected: "comment",
+      name: "a lazy blockquote continuation mention",
+      reason: "author",
+    },
+    {
+      body: "> quoted paragraph\n\n@brsbl is outside the quote",
+      expected: "mention",
+      name: "a direct mention after a blockquote",
+      reason: "author",
+    },
+  ])("classifies $name exactly", ({ body, expected, reason }) => {
+    const mentionRows = parseNotificationRows([
+      {
+        id: "mention-boundary",
+        reason,
+        unread: true,
+        updated_at: "2026-08-12T12:00:00Z",
+        repository: { full_name: "get-bb/bb" },
+        subject: {
+          latest_comment_url:
+            "https://api.github.com/repos/get-bb/bb/issues/comments/101",
+          title: "Mention boundaries",
+          type: "Issue",
+          url: "https://api.github.com/repos/get-bb/bb/issues/42",
+        },
+      },
+    ]);
+    const { lookups } = buildOwnershipQuery(mentionRows);
+
+    const result = projectOwnedNotifications({
+      rows: mentionRows,
+      lookups,
+      data: {
+        viewer: { login: "brsbl" },
+        notification0: {
+          resource: {
+            author: { login: "brsbl" },
+            number: 42,
+            title: "Mention boundaries",
+            url: "https://github.com/get-bb/bb/issues/42",
+            comments: {
+              nodes: [
+                {
+                  author: { login: "alice" },
+                  bodyText: body,
+                  createdAt: "2026-08-12T11:00:00Z",
+                  databaseId: 101,
+                },
+              ],
+            },
+          },
+        },
+      },
+    });
+
+    expect(result.items[0]?.activityKind).toBe(expected);
   });
 
   it("does not label a later ordinary comment as a persistent thread mention", () => {

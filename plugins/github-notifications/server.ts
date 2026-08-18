@@ -14,12 +14,21 @@ import {
 } from "./core.js";
 
 const CACHE_TTL_MS = 60_000;
-const NOTIFICATION_PAGE_SIZE = 50;
-const MAX_NOTIFICATION_PAGES = 5;
+const NOTIFICATION_PAGE_SIZE = 100;
+const MAX_NOTIFICATION_ROWS = 5_000;
+const MAX_NOTIFICATION_PAGES =
+  MAX_NOTIFICATION_ROWS / NOTIFICATION_PAGE_SIZE;
 const OWNERSHIP_BATCH_SIZE = 50;
 const ACTIVITY_BATCH_SIZE = 20;
 const GH_CONCURRENCY = 3;
 const GH_HINT = "Install the GitHub CLI and run `gh auth login`, then retry.";
+const RESOLVED_IDS_KEY_PREFIX = "resolved-notification-ids:";
+
+interface GithubIdentity {
+  host: string;
+  key: string;
+  login: string;
+}
 
 const notificationItemSchema = z
   .object({
@@ -36,6 +45,7 @@ const notificationItemSchema = z
     avatarUrl: z.string().url().nullable(),
     number: z.number().int().positive(),
     repo: z.string(),
+    resolved: z.boolean(),
     resourceKind: z.enum(["issue", "pr"]),
     title: z.string(),
     unread: z.boolean(),
@@ -58,6 +68,13 @@ const inlineReviewCommentSchema = z
   })
   .passthrough();
 
+const viewerIdentitySchema = z
+  .object({
+    login: z.string().min(1),
+    url: z.string().url(),
+  })
+  .passthrough();
+
 export const rpcContract = defineRpcContract({
   listNotifications: {
     input: z.object({ force: z.boolean().optional() }).strict(),
@@ -67,6 +84,14 @@ export const rpcContract = defineRpcContract({
         items: z.array(notificationItemSchema),
         login: z.string().min(1),
       })
+      .strict(),
+  },
+  setNotificationResolved: {
+    input: z
+      .object({ id: z.string().min(1), resolved: z.boolean() })
+      .strict(),
+    output: z
+      .object({ id: z.string().min(1), resolved: z.boolean() })
       .strict(),
   },
 });
@@ -126,7 +151,7 @@ async function fetchNotificationRows(
   since?: string,
 ): Promise<GithubNotificationRow[]> {
   const rows: GithubNotificationRow[] = [];
-  for (let page = 1; page <= MAX_NOTIFICATION_PAGES; page += 1) {
+  for (let page = 1; page <= MAX_NOTIFICATION_PAGES + 1; page += 1) {
     const args = [
       "api",
       "notifications",
@@ -143,10 +168,16 @@ async function fetchNotificationRows(
     ];
     if (since !== undefined) args.push("-f", `since=${since}`);
     const rawPage = await runGh(args);
+    if (page > MAX_NOTIFICATION_PAGES) {
+      if (Array.isArray(rawPage) && rawPage.length === 0) return rows;
+      throw new Error(
+        `GitHub activity exceeds the ${MAX_NOTIFICATION_ROWS}-notification safety limit.`,
+      );
+    }
     const pageRows = parseNotificationRows(rawPage);
     rows.push(...pageRows);
     if (!Array.isArray(rawPage) || rawPage.length < NOTIFICATION_PAGE_SIZE) {
-      break;
+      return rows;
     }
   }
   return rows;
@@ -219,28 +250,84 @@ function defaultGhRunner(): RunGh {
   };
 }
 
+async function fetchGithubIdentity(runGh: RunGh): Promise<GithubIdentity> {
+  const identity = viewerIdentitySchema.parse(await runGh(["api", "user"]));
+  const host = new URL(identity.url).hostname.toLocaleLowerCase();
+  const login = identity.login.toLocaleLowerCase();
+  return { host, key: `${host}/${login}`, login: identity.login };
+}
+
+function resolvedIdsKey(identity: GithubIdentity): string {
+  return `${RESOLVED_IDS_KEY_PREFIX}${identity.key}`;
+}
+
 export function createGithubNotificationsPlugin(runGh: RunGh) {
   return function githubNotificationsPlugin(bb: BbPluginApi): void {
-    let cache: { payload: NotificationsPayload; fetchedAtMs: number } | null =
-      null;
-    let activeRefresh: Promise<NotificationsPayload> | null = null;
+    let cache: {
+      fetchedAtMs: number;
+      identity: GithubIdentity;
+      payload: NotificationsPayload;
+    } | null = null;
+    let activeRefresh: {
+      identityKey: string;
+      promise: Promise<NotificationsPayload>;
+    } | null = null;
+    let resolvedStateQueue: Promise<void> = Promise.resolve();
 
-    async function refresh(): Promise<NotificationsPayload> {
+    async function loadResolvedIds(
+      identity: GithubIdentity,
+    ): Promise<Set<string>> {
+      const stored = await bb.storage.kv.get<unknown>(resolvedIdsKey(identity));
+      if (!Array.isArray(stored)) return new Set();
+      return new Set(
+        stored.filter((id): id is string => typeof id === "string"),
+      );
+    }
+
+    function withResolvedState<T>(run: () => Promise<T>): Promise<T> {
+      const result = resolvedStateQueue.then(run, run);
+      resolvedStateQueue = result.then(
+        () => undefined,
+        () => undefined,
+      );
+      return result;
+    }
+
+    async function refresh(
+      identity: GithubIdentity,
+      identityRetries = 0,
+    ): Promise<NotificationsPayload> {
       const previous = cache;
       const refreshedAtMs = Date.now();
+      const sameIdentity = previous?.identity.key === identity.key;
       const rows = await fetchNotificationRows(
         runGh,
-        previous === null
+        !sameIdentity || previous === null
           ? undefined
           : new Date(previous.fetchedAtMs).toISOString(),
       );
-      if (previous !== null && rows.length === 0) {
-        const payload = {
-          ...previous.payload,
-          fetchedAt: new Date(refreshedAtMs).toISOString(),
-        };
-        cache = { payload, fetchedAtMs: refreshedAtMs };
-        return payload;
+      if (sameIdentity && previous !== null && rows.length === 0) {
+        const confirmedIdentity = await fetchGithubIdentity(runGh);
+        if (confirmedIdentity.key !== identity.key) {
+          if (identityRetries >= 2) {
+            throw new Error("GitHub account changed repeatedly during refresh.");
+          }
+          return refresh(confirmedIdentity, identityRetries + 1);
+        }
+        return withResolvedState(async () => {
+          const resolvedIds = await loadResolvedIds(identity);
+          const payload = {
+            ...previous.payload,
+            fetchedAt: new Date(refreshedAtMs).toISOString(),
+            items: previous.payload.items.map((item) => ({
+              ...item,
+              resolved: resolvedIds.has(item.id),
+            })),
+            login: identity.login,
+          };
+          cache = { identity, payload, fetchedAtMs: refreshedAtMs };
+          return payload;
+        });
       }
       const combinedData: Record<string, unknown> = {};
       const allLookups: GraphqlLookup[] = [];
@@ -283,12 +370,27 @@ export function createGithubNotificationsPlugin(runGh: RunGh) {
       const inlineReviewResults = await mapWithConcurrency(
         inlineReviewLookups,
         GH_CONCURRENCY,
-        async ({ lookup, url }) => ({
-          comment: inlineReviewCommentSchema.parse(await runGh(["api", url])),
-          lookup,
-        }),
+        async ({ lookup, url }) => {
+          try {
+            return {
+              comment: inlineReviewCommentSchema.parse(
+                await runGh(["api", url]),
+              ),
+              lookup,
+            };
+          } catch (error: unknown) {
+            const message =
+              error instanceof Error ? error.message : String(error);
+            bb.log.warn(
+              `Skipping unavailable GitHub review comment for ${lookup.alias}: ${message}`,
+            );
+            return null;
+          }
+        },
       );
-      for (const { comment, lookup } of inlineReviewResults) {
+      for (const result of inlineReviewResults) {
+        if (result === null) continue;
+        const { comment, lookup } = result;
         mergeGraphqlData(combinedData, {
           [lookup.alias]: {
             resource: {
@@ -305,7 +407,7 @@ export function createGithubNotificationsPlugin(runGh: RunGh) {
                                   avatarUrl: comment.user.avatar_url,
                                   login: comment.user.login,
                                 },
-                          bodyText: comment.body,
+                          body: comment.body,
                           createdAt: comment.created_at,
                           databaseId: comment.id,
                         },
@@ -344,9 +446,19 @@ export function createGithubNotificationsPlugin(runGh: RunGh) {
         lookups: owned.lookups,
         rows,
       });
+      const confirmedIdentity = await fetchGithubIdentity(runGh);
+      if (
+        confirmedIdentity.key !== identity.key ||
+        projected.login.toLocaleLowerCase() !== identity.login.toLocaleLowerCase()
+      ) {
+        if (identityRetries >= 2) {
+          throw new Error("GitHub account changed repeatedly during refresh.");
+        }
+        return refresh(confirmedIdentity, identityRetries + 1);
+      }
       const changedIds = new Set(rows.map((row) => row.id));
-      const items =
-        previous === null
+      const refreshedItems =
+        !sameIdentity || previous === null
           ? projected.items
           : [
               ...projected.items,
@@ -357,36 +469,89 @@ export function createGithubNotificationsPlugin(runGh: RunGh) {
               (left, right) =>
                 Date.parse(right.updatedAt) - Date.parse(left.updatedAt),
             );
-      const payload = {
-        fetchedAt: new Date(refreshedAtMs).toISOString(),
-        items,
-        login: projected.login,
-      };
-      cache = { payload, fetchedAtMs: refreshedAtMs };
-      return payload;
+      return withResolvedState(async () => {
+        const resolvedIds = await loadResolvedIds(identity);
+        const items = refreshedItems.map((item) => ({
+          ...item,
+          resolved: resolvedIds.has(item.id),
+        }));
+        const payload = {
+          fetchedAt: new Date(refreshedAtMs).toISOString(),
+          items,
+          login: projected.login,
+        };
+        cache = { identity, payload, fetchedAtMs: refreshedAtMs };
+        return payload;
+      });
+    }
+
+    async function listNotifications(
+      force: boolean | undefined,
+    ): Promise<NotificationsPayload> {
+      const identity = await fetchGithubIdentity(runGh);
+      if (
+        force !== true &&
+        cache !== null &&
+        cache.identity.key === identity.key &&
+        Date.now() - cache.fetchedAtMs < CACHE_TTL_MS
+      ) {
+        return cache.payload;
+      }
+      if (activeRefresh !== null) {
+        if (activeRefresh.identityKey === identity.key) {
+          return activeRefresh.promise;
+        }
+        try {
+          await activeRefresh.promise;
+        } catch {
+          // A different identity still needs its own refresh after this settles.
+        }
+        return listNotifications(false);
+      }
+      const promise = refresh(identity)
+        .catch((error: unknown) => {
+          const message =
+            error instanceof Error ? error.message : String(error);
+          bb.log.warn(`GitHub notification refresh failed: ${message}`);
+          throw new Error(message);
+        })
+        .finally(() => {
+          if (activeRefresh?.promise === promise) activeRefresh = null;
+        });
+      activeRefresh = { identityKey: identity.key, promise };
+      return promise;
     }
 
     bb.rpc.register(rpcContract, {
       async listNotifications({ force }) {
-        if (
-          force !== true &&
-          cache !== null &&
-          Date.now() - cache.fetchedAtMs < CACHE_TTL_MS
-        ) {
-          return cache.payload;
-        }
-        if (activeRefresh !== null) return activeRefresh;
-        activeRefresh = refresh()
-          .catch((error: unknown) => {
-            const message =
-              error instanceof Error ? error.message : String(error);
-            bb.log.warn(`GitHub notification refresh failed: ${message}`);
-            throw new Error(`${message} ${GH_HINT}`);
-          })
-          .finally(() => {
-            activeRefresh = null;
-          });
-        return activeRefresh;
+        return listNotifications(force);
+      },
+      async setNotificationResolved({ id, resolved }) {
+        return withResolvedState(async () => {
+          if (cache === null) {
+            throw new Error("Load GitHub activity before updating its state.");
+          }
+          const identity = cache.identity;
+          const resolvedIds = await loadResolvedIds(identity);
+          if (resolved) resolvedIds.add(id);
+          else resolvedIds.delete(id);
+          await bb.storage.kv.set(
+            resolvedIdsKey(identity),
+            [...resolvedIds].sort(),
+          );
+          if (cache.identity.key === identity.key) {
+            cache = {
+              ...cache,
+              payload: {
+                ...cache.payload,
+                items: cache.payload.items.map((item) =>
+                  item.id === id ? { ...item, resolved } : item,
+                ),
+              },
+            };
+          }
+          return { id, resolved };
+        });
       },
     });
     bb.log.info("GitHub Activity loaded");
