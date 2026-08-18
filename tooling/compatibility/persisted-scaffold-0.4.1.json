@@ -1,0 +1,19 @@
+{
+  "provenance": {
+    "repository": "https://github.com/brsbl/bb-plugins",
+    "commit": "755586670f40e34f46311749c97b31760905c4b0",
+    "sdkSourceCommit": "568715f4866dfa2070e27b750b5d6d06c040566f"
+  },
+  "options": {
+    "slug": "scaffold-upgrade",
+    "name": "Scaffold Upgrade",
+    "description": "Verifies a persisted 0.4.1 scaffold can update in place."
+  },
+  "files": {
+    "package.json": "{\n  \"name\": \"bb-plugin-scaffold-upgrade\",\n  \"version\": \"0.1.0\",\n  \"description\": \"Verifies a persisted 0.4.1 scaffold can update in place.\",\n  \"type\": \"module\",\n  \"license\": \"UNLICENSED\",\n  \"files\": [\n    \"dist\",\n    \"README.md\"\n  ],\n  \"scripts\": {\n    \"build\": \"node ../../tooling/build-plugin.mjs\",\n    \"check\": \"npm run typecheck && npm run build && npm test\",\n    \"test\": \"vitest run\",\n    \"typecheck\": \"tsc --noEmit\"\n  },\n  \"engines\": {\n    \"bb\": \">=0.0.34\",\n    \"bbPluginSdk\": \"^0.4.1\"\n  },\n  \"bb\": {\n    \"name\": \"Scaffold Upgrade\",\n    \"description\": \"Verifies a persisted 0.4.1 scaffold can update in place.\",\n    \"branding\": {\n      \"icon\": \"Puzzle\"\n    },\n    \"server\": \"./server.ts\",\n    \"skills\": []\n  },\n  \"devDependencies\": {\n    \"@bb/plugin-sdk\": \"file:../../tooling/vendor/bb-plugin-sdk-0.4.1.tgz\",\n    \"@types/better-sqlite3\": \"^7.6.12\",\n    \"@types/node\": \"^22.0.0\",\n    \"better-sqlite3\": \"^12.10.0\",\n    \"cron-parser\": \"^5.5.0\",\n    \"hono\": \"^4.11.9\",\n    \"typescript\": \"^5.7.0\",\n    \"vitest\": \"^4.1.8\",\n    \"zod\": \"^4.3.6\"\n  }\n}\n",
+    "README.md": "# Scaffold Upgrade\n\nVerifies a persisted 0.4.1 scaffold can update in place.\n\n## Install\n\n```bash\nbb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/scaffold-upgrade --yes\n```\n\n## Use\n\nUse Scaffold Upgrade when its focused capability is useful in bb.\n\n## Develop\n\nFrom the monorepo root:\n\n```bash\nnpm ci\nnpm run check --workspace=bb-plugin-scaffold-upgrade\nbb plugin install \"path:$PWD/plugins/scaffold-upgrade\" --yes\n```\n",
+    "server.ts": "import type { BbPluginApi } from \"@bb/plugin-sdk\";\n\nexport default function plugin(bb: BbPluginApi): void {\n  bb.log.info(\"Scaffold Upgrade loaded\");\n}\n",
+    "server.test.ts": "import { createFakePluginHost } from \"@bb/plugin-sdk/testing\";\nimport { describe, expect, it } from \"vitest\";\n\nimport plugin from \"./server\";\n\ndescribe(\"Scaffold Upgrade plugin\", () => {\n  it(\"loads through the bb plugin harness\", async () => {\n    const { bb, harness } = createFakePluginHost({ pluginId: \"scaffold-upgrade\" });\n    plugin(bb);\n    expect(harness.inspection.logEntries.at(-1)?.message).toBe(\"Scaffold Upgrade loaded\");\n    await harness.lifecycle.dispose();\n  });\n});\n",
+    "tsconfig.json": "{\n  \"compilerOptions\": {\n    \"target\": \"ES2022\",\n    \"lib\": [\n      \"ES2022\"\n    ],\n    \"module\": \"ESNext\",\n    \"moduleResolution\": \"Bundler\",\n    \"baseUrl\": \".\",\n    \"paths\": {\n      \"@bb/plugin-sdk\": [\n        \"./types/bb-plugin-sdk.d.ts\"\n      ],\n      \"@bb/plugin-sdk/app\": [\n        \"./types/bb-plugin-sdk-app.d.ts\"\n      ]\n    },\n    \"strict\": true,\n    \"noEmit\": true,\n    \"skipLibCheck\": true,\n    \"types\": [\n      \"node\",\n      \"vitest/globals\"\n    ]\n  },\n  \"include\": [\n    \"*.ts\"\n  ]\n}\n"
+  }
+}

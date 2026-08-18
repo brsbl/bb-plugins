@@ -1461,7 +1461,10 @@ function findSectionTrigger(target) {
   return null;
 }
 function findCurrentSectionTrigger(identity) {
-  const groups = identity.sectionId === null ? document.querySelectorAll(STICKY_GROUP_SELECTOR) : document.querySelectorAll(SECTION_ID_SELECTOR);
+  if (identity.sectionId === null) {
+    return identity.row.isConnected && identity.toggle.isConnected ? identity : null;
+  }
+  const groups = document.querySelectorAll(SECTION_ID_SELECTOR);
   const matches = [];
   for (const group of Array.from(groups)) {
     for (const child of Array.from(group.children)) {
@@ -1470,7 +1473,7 @@ function findCurrentSectionTrigger(identity) {
       if (!toggle) continue;
       const candidate = findSectionTrigger(toggle);
       if (!candidate) continue;
-      const same = identity.sectionId === null ? candidate.sectionId === null && candidate.name === identity.name && candidate.projectName === identity.projectName : candidate.sectionId === identity.sectionId && candidate.projectId === identity.projectId;
+      const same = candidate.sectionId === identity.sectionId && candidate.projectId === identity.projectId;
       if (same) matches.push(candidate);
     }
   }
