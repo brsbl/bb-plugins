@@ -14,6 +14,7 @@ import {
   Loading03Icon,
   OpenAiIcon,
   PiIcon,
+  SecurityCheckIcon,
   SourceCodeIcon,
   SquareUnlock02Icon,
   ViewIcon,
@@ -540,9 +541,11 @@ function permissionMetadata(summary: ThreadSummary): HTMLSpanElement | null {
       : summary.permissionMode === "accept-edits" ||
           summary.permissionMode === "workspace-write"
         ? { definition: FolderEditIcon, name: "FolderEditIcon" }
-        : summary.permissionMode === "readonly"
-          ? { definition: ViewIcon, name: "ViewIcon" }
-          : null;
+        : summary.permissionMode === "auto"
+          ? { definition: SecurityCheckIcon, name: "SecurityCheckIcon" }
+          : summary.permissionMode === "readonly"
+            ? { definition: ViewIcon, name: "ViewIcon" }
+            : null;
   const access = element("span", "bb-thread-hover-card__access");
   access.dataset.permissionMode = summary.permissionMode!;
   access.setAttribute("aria-label", `Permission: ${label}`);

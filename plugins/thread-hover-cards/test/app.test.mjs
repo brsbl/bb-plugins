@@ -1091,8 +1091,9 @@ assert.equal(
 assert.equal(
   card
     .querySelector(".bb-thread-hover-card__access")
-    ?.querySelector("[data-icon]"),
-  null,
+    ?.querySelector("[data-icon]")
+    ?.getAttribute("data-icon"),
+  "SecurityCheckIcon",
 );
 assert.equal(
   card.querySelector(".bb-thread-hover-card__access")?.parentElement,
@@ -1982,8 +1983,9 @@ assert.equal(
 assert.equal(
   window.document
     .querySelector(".bb-thread-hover-card__access")
-    ?.querySelector("[data-icon]"),
-  null,
+    ?.querySelector("[data-icon]")
+    ?.getAttribute("data-icon"),
+  "SecurityCheckIcon",
 );
 
 globalThis.__bbThreadHoverCards?.dispose();
