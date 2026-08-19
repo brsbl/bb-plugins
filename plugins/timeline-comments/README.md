@@ -12,6 +12,10 @@ Comments stay attached through an underline and a compact nearest-gutter thread.
 
 ![An anchored comment thread with a reply](docs/screenshot.png)
 
+Open the thread-scoped Comments List to review open, resolved, or all feedback together.
+
+![Comments List showing an open timeline comment](docs/comments-panel.png)
+
 ## Use
 
 - Adds **Comment** to the floating menu when you select agent message text.

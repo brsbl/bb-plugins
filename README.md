@@ -10,9 +10,9 @@ Each plugin has its own workspace under `plugins/` and a short README with the s
 
 ### Design Doctrine
 
-Keeps the design lessons that come up again and again in reviews as reusable rules.
+Turns recurring product-design feedback into a searchable rule library that agents can apply while designing, building, and critiquing. Its maintenance workflow keeps the rules grounded in real review evidence.
 
-![Design Doctrine in bb](plugins/design-doctrine/docs/screenshot.png)
+![Design Doctrine's searchable rule library open in bb](plugins/design-doctrine/docs/screenshot.png)
 
 [Source](plugins/design-doctrine) · [README](plugins/design-doctrine/README.md)
 
@@ -20,19 +20,21 @@ Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/d
 
 ### GitHub Activity
 
-Collects comments and mentions on pull requests and issues you authored into one filterable table.
+Brings incoming comments and mentions from GitHub pull requests and issues you authored into one searchable, filterable triage view, with open and resolved activity kept together.
 
-![GitHub Activity in bb](plugins/github-notifications/docs/screenshot.png)
+![GitHub Activity showing searchable filters and incoming pull-request and issue activity](plugins/github-notifications/docs/screenshot.png)
 
 [Source](plugins/github-notifications) · [README](plugins/github-notifications/README.md)
 
 Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/github-notifications --yes`
 
-### Improve Prompt
+### Prompt Improver
 
-Turns a rough composer draft into a clearer, context-complete prompt before you send it.
+Rewrites a rough bb composer draft into a clearer, context-complete prompt for review before you send it. The rewrite can be cancelled or undone without leaving the composer.
 
-![Improve Prompt in bb](plugins/improve-prompt/docs/screenshot-result.png)
+![Prompt Improver working on a composer draft](plugins/improve-prompt/docs/screenshot-running.png)
+
+![Prompt Improver returning the revised draft for review](plugins/improve-prompt/docs/screenshot-result.png)
 
 [Source](plugins/improve-prompt) · [README](plugins/improve-prompt/README.md)
 
@@ -40,33 +42,37 @@ Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/i
 
 ### Thread Hover Cards
 
-Lets you peek at a thread's status and repository context, or at what a collapsed section holds, without leaving the sidebar.
+Shows a thread's live status, latest agent update, execution context, repository, and pull request without leaving the sidebar. Collapsed sections get a compact summary of their thread count and attention state.
 
-![Thread Hover Cards in bb](plugins/thread-hover-cards/docs/screenshot.png)
+![A thread hover card showing live worker and repository context](plugins/thread-hover-cards/docs/screenshot.png)
+
+![A collapsed section hover card summarizing its scope, activity, and attention state](plugins/thread-hover-cards/docs/screenshot-section.png)
 
 [Source](plugins/thread-hover-cards) · [README](plugins/thread-hover-cards/README.md)
 
 Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/thread-hover-cards --yes`
 
-### Timeline Comments
-
-Keeps comments and comment threads attached to exact text in bb timelines.
-
-![Timeline Comments in bb](plugins/timeline-comments/docs/screenshot.png)
-
-[Source](plugins/timeline-comments) · [README](plugins/timeline-comments/README.md)
-
-Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/timeline-comments --yes`
-
 ### Thread Organizer
 
-Files new threads into the right existing work section while preserving native titles and every manual override.
+Organizes work into development-phase sections, combining automatic placement with explicit agent transitions while preserving manual choices and native thread titles.
 
-![Thread Organizer in bb](plugins/thread-organizer/docs/screenshot.png)
+![Thread Organizer showing the current development-phase sections in bb's sidebar](plugins/thread-organizer/docs/screenshot.png)
 
 [Source](plugins/thread-organizer) · [README](plugins/thread-organizer/README.md)
 
 Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/thread-organizer --yes`
+
+### Timeline Comments
+
+Attaches durable discussion threads to selected timeline text. Users and agents can reply, edit, resolve or reopen comments, review them together, and add open feedback to the composer for follow-up.
+
+![Timeline Comments List showing an open comment in bb's right panel](plugins/timeline-comments/docs/comments-panel.png)
+
+![Timeline Comments adding a comment from bb's text-selection menu](plugins/timeline-comments/docs/selection-action.png)
+
+[Source](plugins/timeline-comments) · [README](plugins/timeline-comments/README.md)
+
+Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/timeline-comments --yes`
 
 Each `plugin/*` install ref is generated from `main` after CI passes. The separate refs are necessary because bb installs from the root of a git checkout.
 
@@ -82,4 +88,4 @@ npm run new:plugin -- --slug example --name "Example" --description "Adds an exa
 
 To work on one plugin, install its workspace directly: `bb plugin install "path:$PWD/plugins/<slug>" --yes`.
 
-See [contributor guidance](CONTRIBUTING.md) and [repository tooling](tooling/README.md).
+See [contributor guidance](CONTRIBUTING.md), the [plugin catalog entry template](tooling/plugin-catalog-entry.md), and [repository tooling](tooling/README.md).
