@@ -296,6 +296,7 @@ export const HOVER_CARD_CSS = String.raw`
 
 .bb-thread-hover-card__access {
   gap: 0.1875rem;
+  margin-left: 0.25rem;
 }
 
 .bb-thread-hover-card__permission-icon {

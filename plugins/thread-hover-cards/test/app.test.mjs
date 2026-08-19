@@ -558,6 +558,10 @@ assert.match(
 );
 assert.match(
   style.textContent,
+  /\.bb-thread-hover-card__access \{[\s\S]*?gap: 0\.1875rem;[\s\S]*?margin-left: 0\.25rem/,
+);
+assert.match(
+  style.textContent,
   /\.bb-thread-hover-card__permission-icon \{[\s\S]*?width: 0\.75rem;[\s\S]*?height: 0\.75rem/,
 );
 assert.match(
