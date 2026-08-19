@@ -19,8 +19,20 @@ Comments stay attached through an underline and a compact nearest-gutter thread.
 - Keeps open comment threads visible through a quiet underline and the nearest gutter marker.
 - Provides replies, inline editing, deletion, resolve/reopen controls, and a thread-scoped Comments panel.
 - Adds every open comment to the current thread's draft without submitting it.
+- Gives agents a bundled workflow for reading, addressing, replying to, and resolving review comments.
 
 Comments are stored in plugin-owned SQLite on the bb server. Missing or ambiguous source text remains manageable as **Unanchored** and is never attached to a guess.
+
+Agents can manage the same threads from the current bb thread context:
+
+```bash
+bb comments list --state open --json
+bb comments get <comment-thread-id> --json
+bb comments reply <comment-thread-id> --body "Fixed and verified."
+bb comments resolve <comment-thread-id>
+```
+
+Use `bb comments reopen <comment-thread-id>` when later evidence invalidates a resolution.
 
 ## Install
 
