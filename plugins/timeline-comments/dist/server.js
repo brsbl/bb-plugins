@@ -16,7 +16,7 @@ import { Buffer as Buffer2 } from "node:buffer";
 import {
   defineRpcContract,
   PLUGIN_CLI_OUTPUT_MAX_BYTES
-} from "@bb/plugin-sdk";
+} from "@get-bb/plugin-sdk";
 
 // ../../node_modules/zod/v4/classic/external.js
 var external_exports = {};

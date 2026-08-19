@@ -1,4 +1,4 @@
-import { defineRpcContract, type BbPluginApi } from "@bb/plugin-sdk";
+import { defineRpcContract, type BbPluginApi } from "@get-bb/plugin-sdk";
 import { z } from "zod";
 
 const displayStatusSchema = z.enum([
@@ -702,6 +702,9 @@ const PULL_REQUEST_SIGNALS = {
 type SidebarThread = Awaited<
   ReturnType<BbPluginApi["sdk"]["threads"]["list"]>
 >[number];
+type LegacySidebarThread = SidebarThread & {
+  childOrigin?: string | null;
+};
 /**
  * Matches the rows a section actually renders: visible, unarchived roots, side
  * chats excluded — and not pinned, because bb lifts pinned threads out of their
@@ -715,10 +718,10 @@ export function isSidebarSectionThread(thread: SidebarThread): boolean {
     thread.archivedAt === null &&
     thread.deletedAt === null &&
     thread.pinnedAt === null &&
-    // The 0.5 SDK types no longer admit "side-chat" origins, but legacy rows
+    // The released SDK types no longer admit child origins, but legacy rows
     // can still carry them at runtime, so the guard compares wide on purpose.
     !isSideChatOrigin(thread.originKind) &&
-    !isSideChatOrigin(thread.childOrigin)
+    !isSideChatOrigin((thread as LegacySidebarThread).childOrigin)
   );
 }
 

@@ -1,8 +1,11 @@
 {
-  "package": "@bb/plugin-sdk@0.5.0",
-  "sourceRepository": "https://github.com/ymichael/bb",
-  "sourceCommit": "24a3211a8f3062c2ac1de580e6ca9a9434ed1aad",
+  "package": "@get-bb/plugin-sdk@0.4.8",
+  "registryTarball": "https://registry.npmjs.org/@get-bb/plugin-sdk/-/plugin-sdk-0.4.8.tgz",
+  "registryIntegrity": "sha512-C2gC0OMaAQmndGozFlctmgYwa5WbvhVK389r1KOfjuRpGME3axTQ6p6gq1UHw66y19bIX7VGzEwxvxNILReX0A==",
+  "registryShasum": "8322e2f82a7ca20643fe8145a18fd3d38901a194",
+  "sourceRepository": "https://github.com/get-bb/bb",
+  "sourceCommit": "b33abbff098ac4c857578e7350d492dcaa65d489",
   "sourcePath": "packages/plugin-sdk",
-  "archive": "bb-plugin-sdk-0.5.0.tgz",
-  "sha256": "57d758a1bea097e5fcd52d0eb34f1c36c32e711874697ce9c012b132121a5c31"
+  "archive": "get-bb-plugin-sdk-0.4.8.tgz",
+  "sha256": "0b9221e6ba0f92205bf8414ad62e1c3608ddf1b6cd60e5a90b1a52b1e891a936"
 }

@@ -23,6 +23,8 @@ describe("thread eligibility", () => {
 
   it("accepts ordinary root threads, including pinned threads by implication", () => {
     expect(isEligibleThread(eligible)).toBe(true);
+    const { childOrigin: _legacyField, ...releasedSdkThread } = eligible;
+    expect(isEligibleThread(releasedSdkThread)).toBe(true);
   });
 
   it.each([

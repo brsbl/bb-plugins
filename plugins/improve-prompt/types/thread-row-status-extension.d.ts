@@ -1,6 +1,6 @@
-import type { PluginComposerThreadRowStatus } from "@bb/plugin-sdk/app";
+import type { PluginComposerThreadRowStatus } from "@get-bb/plugin-sdk/app";
 
-declare module "@bb/plugin-sdk/app" {
+declare module "@get-bb/plugin-sdk/app" {
   interface PluginContentScriptContext {
     /**
      * Persistently decorate any thread row for this plugin generation.

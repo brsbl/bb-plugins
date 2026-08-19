@@ -21,7 +21,7 @@ import {
   UserRound,
   type LucideIcon,
 } from "lucide-react";
-import { definePluginApp, useRpc } from "@bb/plugin-sdk/app";
+import { definePluginApp, useRpc } from "@get-bb/plugin-sdk/app";
 
 import type { ActivityKind, GithubNotificationItem, ResourceKind } from "./core";
 import type { NotificationsPayload, rpcContract } from "./server";

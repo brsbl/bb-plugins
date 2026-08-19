@@ -1116,6 +1116,8 @@ assert.deepEqual(summarizeSectionThreads([]), {
 });
 
 assert.equal(isSidebarSectionThread(sectionThread()), true);
+const { childOrigin: _legacyChildOrigin, ...releasedSdkThread } = sectionThread();
+assert.equal(isSidebarSectionThread(releasedSdkThread as never), true);
 for (const excluded of [
   { archivedAt: 1 },
   { deletedAt: 1 },

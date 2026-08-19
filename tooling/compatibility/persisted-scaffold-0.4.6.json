@@ -1,0 +1,18 @@
+{
+  "provenance": {
+    "repository": "https://github.com/get-bb/bb",
+    "release": "desktop-v0.38.0",
+    "commit": "45145e51af36b4bd1346a9d2e73d7612d250ba4f",
+    "sdkSourceCommit": "45145e51af36b4bd1346a9d2e73d7612d250ba4f"
+  },
+  "options": {
+    "slug": "scaffold-upgrade",
+    "name": "Scaffold Upgrade",
+    "description": "Verifies a persisted 0.4.6 scaffold can update in place."
+  },
+  "files": {
+    "package.json": "{\n  \"name\": \"bb-plugin-scaffold-upgrade\",\n  \"version\": \"0.1.0\",\n  \"type\": \"module\",\n  \"engines\": {\n    \"bb\": \">=0.38\",\n    \"bbPluginSdk\": \">=0.4.6\"\n  },\n  \"bb\": {\n    \"name\": \"Scaffold Upgrade\",\n    \"description\": \"A BB plugin.\",\n    \"branding\": {\n      \"icon\": \"Zap\"\n    },\n    \"server\": \"./server.ts\"\n  },\n  \"dependencies\": {\n    \"zod\": \"^4.3.6\"\n  },\n  \"devDependencies\": {\n    \"@get-bb/plugin-sdk\": \"0.4.6\",\n    \"@types/better-sqlite3\": \"^7.6.12\",\n    \"@types/node\": \"^22.0.0\",\n    \"@types/react\": \"^19.0.0\",\n    \"better-sqlite3\": \"^12.0.0\",\n    \"hono\": \"^4.11.9\",\n    \"typescript\": \"^5.7.0\"\n  }\n}\n",
+    "server.ts": "import type { BbPluginApi } from \"@get-bb/plugin-sdk\";\n\nexport default function plugin(bb: BbPluginApi): void {\n  bb.log.info(\"Scaffold Upgrade loaded\");\n}\n",
+    "tsconfig.json": "{\n  \"compilerOptions\": {\n    \"target\": \"ES2022\",\n    \"lib\": [\"ES2022\"],\n    \"module\": \"NodeNext\",\n    \"moduleResolution\": \"NodeNext\",\n    \"strict\": true,\n    \"noEmit\": true,\n    \"skipLibCheck\": true,\n    \"types\": [\"node\"]\n  },\n  \"include\": [\"*.ts\"]\n}\n"
+  }
+}

@@ -15,7 +15,7 @@ import {
   useRealtimeConnectionState,
   useRpc,
   type PluginThreadPanelProps,
-} from "@bb/plugin-sdk/app";
+} from "@get-bb/plugin-sdk/app";
 import type {
   TimelineCommentThreadSummary,
   timelineCommentsRpcContract,

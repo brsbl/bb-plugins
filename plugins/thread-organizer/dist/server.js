@@ -113,7 +113,7 @@ function isSubstantiveText(value) {
   return !/^(?:https?:\/\/\S+|@[a-z0-9:_-]+)$/i.test(normalized);
 }
 function isManageableThread(thread) {
-  return thread.visibility === "visible" && thread.parentThreadId === null && thread.sourceThreadId === null && thread.originKind === null && thread.childOrigin === null && thread.originPluginId === null && thread.archivedAt === null && thread.deletedAt === null;
+  return thread.visibility === "visible" && thread.parentThreadId === null && thread.sourceThreadId === null && thread.originKind === null && (thread.childOrigin ?? null) === null && thread.originPluginId === null && thread.archivedAt === null && thread.deletedAt === null;
 }
 function isEligibleThread(thread) {
   return isManageableThread(thread) && thread.status !== "error" && thread.status !== "stopping";

@@ -7,6 +7,7 @@ import { readPluginWorkspaces } from "./plugin-workspaces.mjs";
 import {
   pluginSdkArchive,
   pluginSdkVersion,
+  sdkRangeIncludesVersion,
 } from "./plugin-sdk-provenance.mjs";
 
 const defaultRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
@@ -103,15 +104,19 @@ export async function checkRepository(repositoryRoot = defaultRoot, options = {}
   const plugins = await readPluginWorkspaces(root);
   const bundledTypesDirectory = resolve(
     options.bundledTypesDirectory ??
-      resolve(root, "node_modules/@bb/plugin-sdk/bundled-types"),
+      resolve(root, "node_modules/@get-bb/plugin-sdk/bundled-types"),
   );
 
   assert(rootManifest.workspaces.includes("plugins/*"), "plugins workspace missing");
   assert(rootManifest.workspaces.includes("packages/*"), "packages workspace missing");
   assert(
-    rootManifest.devDependencies?.["@bb/plugin-sdk"] ===
+    rootManifest.devDependencies?.["@get-bb/plugin-sdk"] ===
       `file:tooling/vendor/${pluginSdkArchive}`,
     "root plugin SDK dependency drift",
+  );
+  assert(
+    rootManifest.devDependencies?.["@bb/plugin-sdk"] === undefined,
+    "legacy @bb/plugin-sdk root dependency remains",
   );
   const bundledLockPaths = new Set();
   for (const [packagePath, lockEntry] of Object.entries(rootLock.packages)) {
@@ -190,6 +195,7 @@ export async function checkRepository(repositoryRoot = defaultRoot, options = {}
     }
 
     const pluginReadme = await readFile(resolve(directory, "README.md"), "utf8");
+    const tsconfig = await readJson(resolve(directory, "tsconfig.json"));
     for (const script of ["typecheck", "test", "build"]) {
       assert(typeof manifest.scripts?.[script] === "string", `${slug}: ${script} script missing`);
     }
@@ -204,14 +210,18 @@ export async function checkRepository(repositoryRoot = defaultRoot, options = {}
       `${slug}: bb engine drift`,
     );
     assert(
-      manifest.engines?.bbPluginSdk === `^${pluginSdkVersion}`,
-      `${slug}: SDK engine drift`,
+      sdkRangeIncludesVersion(manifest.engines?.bbPluginSdk, pluginSdkVersion),
+      `${slug}: SDK floor is newer than vendored SDK ${pluginSdkVersion}`,
     );
-    if (manifest.devDependencies?.["@bb/plugin-sdk"] !== undefined) {
+    assert(
+      manifest.devDependencies?.["@bb/plugin-sdk"] === undefined,
+      `${slug}: legacy @bb/plugin-sdk dependency remains`,
+    );
+    if (manifest.devDependencies?.["@get-bb/plugin-sdk"] !== undefined) {
       // Plugins may vendor the SDK archive next to their sources so a
       // pinned-commit install is standalone; that copy must stay byte-equal
       // to the shared tooling archive.
-      const sdkDependency = manifest.devDependencies["@bb/plugin-sdk"];
+      const sdkDependency = manifest.devDependencies["@get-bb/plugin-sdk"];
       const vendoredSpecifier = `file:./vendor/${pluginSdkArchive}`;
       assert(
         sdkDependency === `file:../../tooling/vendor/${pluginSdkArchive}` ||
@@ -268,13 +278,24 @@ export async function checkRepository(repositoryRoot = defaultRoot, options = {}
       `${slug}: nested plugin .github/workflows is not allowed`,
     );
 
-    for (const typeFile of ["bb-plugin-sdk.d.ts", "bb-plugin-sdk-app.d.ts"]) {
-      const local = await readFile(resolve(directory, "types", typeFile), "utf8");
-      const authoritative = await readFile(
-        resolve(bundledTypesDirectory, typeFile),
-        "utf8",
+    const sdkTypePaths = tsconfig.compilerOptions?.paths ?? {};
+    const usesLocalSdkTypes =
+      sdkTypePaths["@get-bb/plugin-sdk"] !== undefined ||
+      sdkTypePaths["@get-bb/plugin-sdk/app"] !== undefined;
+    if (usesLocalSdkTypes) {
+      for (const typeFile of ["bb-plugin-sdk.d.ts", "bb-plugin-sdk-app.d.ts"]) {
+        const local = await readFile(resolve(directory, "types", typeFile), "utf8");
+        const authoritative = await readFile(
+          resolve(bundledTypesDirectory, typeFile),
+          "utf8",
+        );
+        assert(local === authoritative, `${slug}: ${typeFile} is out of sync`);
+      }
+    } else {
+      assert(
+        manifest.devDependencies?.["@get-bb/plugin-sdk"] !== undefined,
+        `${slug}: plugin SDK dependency missing`,
       );
-      assert(local === authoritative, `${slug}: ${typeFile} is out of sync`);
     }
   }
 

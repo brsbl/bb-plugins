@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { act, fireEvent, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { PluginRpcClient } from "@bb/plugin-sdk/app";
+import type { PluginRpcClient } from "@get-bb/plugin-sdk/app";
 import type {
   TimelineCommentThreadDetail,
   timelineCommentsRpcContract,

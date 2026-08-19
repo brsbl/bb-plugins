@@ -11,7 +11,7 @@ var __export = (target, all) => {
 };
 
 // server.ts
-import { defineRpcContract } from "@bb/plugin-sdk";
+import { defineRpcContract } from "@get-bb/plugin-sdk";
 
 // ../../node_modules/zod/v4/classic/external.js
 var external_exports = {};
@@ -15012,7 +15012,7 @@ var PULL_REQUEST_SIGNALS = {
   ready_to_merge: "Ready to merge"
 };
 function isSidebarSectionThread(thread) {
-  return thread.visibility === "visible" && thread.parentThreadId === null && thread.archivedAt === null && thread.deletedAt === null && thread.pinnedAt === null && // The 0.5 SDK types no longer admit "side-chat" origins, but legacy rows
+  return thread.visibility === "visible" && thread.parentThreadId === null && thread.archivedAt === null && thread.deletedAt === null && thread.pinnedAt === null && // The released SDK types no longer admit child origins, but legacy rows
   // can still carry them at runtime, so the guard compares wide on purpose.
   !isSideChatOrigin(thread.originKind) && !isSideChatOrigin(thread.childOrigin);
 }
