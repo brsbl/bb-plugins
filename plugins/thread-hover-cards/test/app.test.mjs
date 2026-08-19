@@ -212,6 +212,7 @@ globalThis.fetch = async (url, init) => {
   }
   const isLocal = request.threadId === "thr_local";
   const isClaude = request.threadId === "thr_claude";
+  const isClaudeVersion = request.threadId === "thr_claude_version";
   const hasNoPullRequest = request.threadId === "thr_no_pr";
   const pullRequestUnavailable = request.threadId === "thr_pr_unavailable";
   const isDraftPullRequest = request.threadId === "thr_draft_pr";
@@ -394,7 +395,7 @@ globalThis.fetch = async (url, init) => {
           : hasNoPullRequest
             ? null
             : "**Agent update**—implementing concise hover cards for foo_bar_baz and \\_literal\\_",
-        permissionMode: isLocal || isClaude
+        permissionMode: isLocal || isClaude || isClaudeVersion
           ? "auto"
           : isDraftPullRequest
             ? "accept-edits"
@@ -404,11 +405,15 @@ globalThis.fetch = async (url, init) => {
             ? { kind: "absent" }
             : { kind: "pending" },
         provider: {
-          displayName: isClaude ? "Claude" : "Codex",
-          id: isClaude ? "claude-code" : "codex",
+          displayName: isClaude || isClaudeVersion ? "Claude" : "Codex",
+          id: isClaude || isClaudeVersion ? "claude-code" : "codex",
           logoUrl: null,
-          model: isClaude ? "claude-sonnet-5" : "gpt-5.6-sol",
-          reasoningLevel: isClaude ? "medium" : "xhigh",
+          model: isClaudeVersion
+            ? "claude-opus-4-8[1m]"
+            : isClaude
+              ? "claude-sonnet-5"
+              : "gpt-5.6-sol",
+          reasoningLevel: isClaude || isClaudeVersion ? "medium" : "xhigh",
         },
         repository: isLocal
           ? {
@@ -1994,6 +1999,23 @@ assert.equal(
     ?.querySelector("[data-icon]")
     ?.getAttribute("data-icon"),
   "SecurityCheckIcon",
+);
+
+nestedThread.dispatchEvent(
+  new window.PointerEvent("pointerout", {
+    bubbles: true,
+    pointerType: "mouse",
+    relatedTarget: window.document.body,
+  }),
+);
+await new Promise((resolve) => setTimeout(resolve, 140));
+nestedThread.dataset.sidebarThreadId = "thr_claude_version";
+hoverOver(nestedThread);
+await new Promise((resolve) => setTimeout(resolve, 20));
+assert.equal(
+  window.document.querySelector(".bb-thread-hover-card__provider-model")
+    ?.textContent,
+  "Opus 4.8 (1M)",
 );
 
 globalThis.__bbThreadHoverCards?.dispose();

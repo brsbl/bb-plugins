@@ -485,7 +485,10 @@ function refreshRunTime(card: HTMLElement): void {
 
 function formatModelLabel(value: string, providerId: string): string {
   if (providerId === "claude-code") {
-    return value
+    const contextMatch = value.match(/^(.*)\[(\d+(?:\.\d+)?[km])\]$/i);
+    const modelId = contextMatch?.[1] ?? value;
+    const context = contextMatch?.[2]?.toUpperCase();
+    const formatted = modelId
       .replace(/^claude[-_\s]+/i, "")
       .split(/[-_]/)
       .map((part) => {
@@ -495,10 +498,11 @@ function formatModelLabel(value: string, providerId: string): string {
         }
         return part;
       })
-      .join(" ")
-      .replace(/(\d+)\[(\d+)([km])\]$/i, (_match, model, size, unit) =>
-        `${model} (${size}${String(unit).toUpperCase()})`,
-      );
+      .join("-")
+      .replace(/-(\d+)-(\d+)(?=-|$)/, "-$1.$2")
+      .split("-")
+      .join(" ");
+    return context ? `${formatted} (${context})` : formatted;
   }
 
   const formatted = value

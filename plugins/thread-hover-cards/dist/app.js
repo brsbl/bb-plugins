@@ -1530,16 +1530,17 @@ function refreshRunTime(card) {
 }
 function formatModelLabel(value, providerId) {
   if (providerId === "claude-code") {
-    return value.replace(/^claude[-_\s]+/i, "").split(/[-_]/).map((part) => {
+    const contextMatch = value.match(/^(.*)\[(\d+(?:\.\d+)?[km])\]$/i);
+    const modelId = contextMatch?.[1] ?? value;
+    const context = contextMatch?.[2]?.toUpperCase();
+    const formatted2 = modelId.replace(/^claude[-_\s]+/i, "").split(/[-_]/).map((part) => {
       if (/^\d+(\.\d+)*$/.test(part)) return part;
       if (/^[a-z]+$/i.test(part)) {
         return part.charAt(0).toUpperCase() + part.slice(1).toLowerCase();
       }
       return part;
-    }).join(" ").replace(
-      /(\d+)\[(\d+)([km])\]$/i,
-      (_match, model, size, unit) => `${model} (${size}${String(unit).toUpperCase()})`
-    );
+    }).join("-").replace(/-(\d+)-(\d+)(?=-|$)/, "-$1.$2").split("-").join(" ");
+    return context ? `${formatted2} (${context})` : formatted2;
   }
   const formatted = value.split("-").map((part) => {
     if (part.toLowerCase() === "gpt") return "GPT";
