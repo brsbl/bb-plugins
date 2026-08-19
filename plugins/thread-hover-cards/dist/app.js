@@ -613,7 +613,7 @@ var HOVER_CARD_CSS = String.raw`
 
 .bb-thread-hover-card__provider {
   flex: 1 1 auto;
-  gap: 0.3125rem;
+  gap: 0.25rem;
   color: var(--muted-foreground);
 }
 
@@ -625,10 +625,18 @@ var HOVER_CARD_CSS = String.raw`
   overflow: hidden;
 }
 
+.bb-thread-hover-card__provider-model,
+.bb-thread-hover-card__reasoning {
+  font-size: 0.75rem;
+  line-height: 1.25;
+}
+
 .bb-thread-hover-card__reasoning {
   flex: none;
-  color: color-mix(in srgb, var(--muted-foreground) 76%, transparent);
-  font-size: 0.625rem;
+  color: var(
+    --subtle-foreground,
+    color-mix(in srgb, var(--muted-foreground) 76%, transparent)
+  );
   white-space: nowrap;
 }
 
@@ -715,9 +723,9 @@ var HOVER_CARD_CSS = String.raw`
 }
 
 .bb-thread-hover-card__provider-icon {
-  width: 0.8125rem;
-  height: 0.8125rem;
-  color: color-mix(in srgb, var(--muted-foreground) 82%, transparent);
+  width: 1rem;
+  height: 1rem;
+  color: var(--muted-foreground);
   object-fit: contain;
 }
 
@@ -1737,7 +1745,7 @@ function renderSummary(card, summary) {
     summary.provider.id
   );
   const reasoningLabel = summary.provider.reasoningLevel ? REASONING_LABELS[summary.provider.reasoningLevel] : null;
-  provider.title = reasoningLabel ? `${summary.provider.displayName} \xB7 ${modelLabel} \xB7 ${reasoningLabel} reasoning` : `${summary.provider.displayName} \xB7 ${modelLabel}`;
+  provider.title = reasoningLabel ? `${summary.provider.displayName}: ${modelLabel} \xB7 ${reasoningLabel} reasoning` : `${summary.provider.displayName}: ${modelLabel}`;
   const providerIdentity = element(
     "div",
     "bb-thread-hover-card__provider-identity"

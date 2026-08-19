@@ -406,7 +406,7 @@ globalThis.fetch = async (url, init) => {
           displayName: "Codex",
           id: "codex",
           logoUrl: null,
-          model: "GPT-5.6-Sol",
+          model: "gpt-5.6-sol",
           reasoningLevel: "xhigh",
         },
         repository: isLocal
@@ -515,6 +515,18 @@ assert.match(
 assert.match(
   style.textContent,
   /\.bb-thread-hover-card__provider-model\.bb-thread-hover-card__truncate \{[\s\S]*?flex: 0 1 auto/,
+);
+assert.match(
+  style.textContent,
+  /\.bb-thread-hover-card__provider-model,[\s\S]*?\.bb-thread-hover-card__reasoning \{[\s\S]*?font-size: 0\.75rem;[\s\S]*?line-height: 1\.25/,
+);
+assert.match(
+  style.textContent,
+  /\.bb-thread-hover-card__reasoning \{[\s\S]*?--subtle-foreground/,
+);
+assert.match(
+  style.textContent,
+  /\.bb-thread-hover-card__provider-icon \{[\s\S]*?width: 1rem;[\s\S]*?height: 1rem;[\s\S]*?color: var\(--muted-foreground\)/,
 );
 assert.doesNotMatch(style.textContent, /--font-mono/);
 assert.match(style.textContent, /\.bb-thread-hover-card__context/);
@@ -657,6 +669,10 @@ assert.equal(
 assert.equal(
   card.querySelector(".bb-thread-hover-card__reasoning")?.textContent,
   "Extra High",
+);
+assert.equal(
+  card.querySelector(".bb-thread-hover-card__provider")?.title,
+  "Codex: 5.6-Sol · Extra High reasoning",
 );
 assert.equal(
   card.querySelector(".bb-thread-hover-card__provider-model")?.parentElement,

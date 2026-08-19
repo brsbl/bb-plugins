@@ -807,8 +807,8 @@ function renderSummary(card: HTMLElement, summary: ThreadSummary): void {
     ? REASONING_LABELS[summary.provider.reasoningLevel]
     : null;
   provider.title = reasoningLabel
-    ? `${summary.provider.displayName} · ${modelLabel} · ${reasoningLabel} reasoning`
-    : `${summary.provider.displayName} · ${modelLabel}`;
+    ? `${summary.provider.displayName}: ${modelLabel} · ${reasoningLabel} reasoning`
+    : `${summary.provider.displayName}: ${modelLabel}`;
   const providerIdentity = element(
     "div",
     "bb-thread-hover-card__provider-identity",
