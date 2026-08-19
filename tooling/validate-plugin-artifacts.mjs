@@ -6,6 +6,10 @@ import { fileURLToPath } from "node:url";
 
 import { readPluginWorkspaces } from "./plugin-workspaces.mjs";
 import { pluginBuildBbVersion } from "./plugin-build-provenance.mjs";
+import {
+  currentPluginBuildBbVersion,
+  currentPluginSdkVersion,
+} from "./plugin-build-sdk-0.4.8-provenance.mjs";
 import { pluginSdkVersion } from "./plugin-sdk-provenance.mjs";
 
 const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
@@ -28,7 +32,7 @@ function expectedPluginId(packageName) {
   return packageName.slice("bb-plugin-".length);
 }
 
-async function validateMetadata(path, manifest, id, bbVersion) {
+async function validateMetadata(path, manifest, id, bbVersion, sdkVersion) {
   const metadata = await readJson(path);
   const expected = {
     artifactFormatVersion: 1,
@@ -40,15 +44,15 @@ async function validateMetadata(path, manifest, id, bbVersion) {
       throw new Error(`${path}: expected ${key}=${JSON.stringify(value)}`);
     }
   }
-  if (metadata.sdkVersion !== pluginSdkVersion) {
-    throw new Error(`${path}: expected sdkVersion=${pluginSdkVersion}`);
+  if (metadata.sdkVersion !== sdkVersion) {
+    throw new Error(`${path}: expected sdkVersion=${sdkVersion}`);
   }
   if (metadata.builtWith?.bbVersion !== bbVersion) {
     throw new Error(`${path}: expected bb ${bbVersion} build metadata`);
   }
-  if (metadata.builtWith?.pluginSdkVersion !== pluginSdkVersion) {
+  if (metadata.builtWith?.pluginSdkVersion !== sdkVersion) {
     throw new Error(
-      `${path}: expected builtWith.pluginSdkVersion=${pluginSdkVersion}`,
+      `${path}: expected builtWith.pluginSdkVersion=${sdkVersion}`,
     );
   }
 }
@@ -211,7 +215,19 @@ export async function validatePluginArtifacts(pluginDirectory, options = {}) {
   const directory = resolve(pluginDirectory);
   const manifest = await readJson(resolve(directory, "package.json"));
   const id = expectedPluginId(manifest.name);
-  const buildBbVersion = options.buildBbVersion ?? pluginBuildBbVersion;
+  const currentSdkDependency =
+    manifest.dependencies?.["@get-bb/plugin-sdk"] ??
+    manifest.devDependencies?.["@get-bb/plugin-sdk"];
+  const usesCurrentSdk = currentSdkDependency !== undefined;
+  const expectedSdkVersion = usesCurrentSdk
+    ? currentPluginSdkVersion
+    : pluginSdkVersion;
+  const expectedSdkEngine = usesCurrentSdk
+    ? `>=${expectedSdkVersion}`
+    : `^${expectedSdkVersion}`;
+  const buildBbVersion =
+    options.buildBbVersion ??
+    (usesCurrentSdk ? currentPluginBuildBbVersion : pluginBuildBbVersion);
 
   if (options.expectedId && id !== options.expectedId) {
     throw new Error(`${directory}: expected plugin id ${options.expectedId}`);
@@ -219,9 +235,9 @@ export async function validatePluginArtifacts(pluginDirectory, options = {}) {
   if (options.expectedName && manifest.bb.name !== options.expectedName) {
     throw new Error(`${directory}: expected display name ${options.expectedName}`);
   }
-  if (manifest.engines?.bbPluginSdk !== `^${pluginSdkVersion}`) {
+  if (manifest.engines?.bbPluginSdk !== expectedSdkEngine) {
     throw new Error(
-      `${directory}: expected engines.bbPluginSdk=^${pluginSdkVersion}`,
+      `${directory}: expected engines.bbPluginSdk=${expectedSdkEngine}`,
     );
   }
 
@@ -233,6 +249,7 @@ export async function validatePluginArtifacts(pluginDirectory, options = {}) {
     manifest,
     id,
     buildBbVersion,
+    expectedSdkVersion,
   );
 
   if (manifest.bb.app) {
@@ -242,6 +259,7 @@ export async function validatePluginArtifacts(pluginDirectory, options = {}) {
       manifest,
       id,
       buildBbVersion,
+      expectedSdkVersion,
     );
   }
 

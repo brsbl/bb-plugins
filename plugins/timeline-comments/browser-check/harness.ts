@@ -1,4 +1,5 @@
 import "../app.css";
+import "../test/compact-composer-runtime.js";
 import { registerTimelineCommentThreadWindow } from "../bridge.js";
 import { mountTimelineCommentsController } from "../controller.js";
 import type { PluginContentScriptContext } from "@bb/plugin-sdk/app";
@@ -70,14 +71,6 @@ window.fetch = async (input, init) => {
     let result: unknown;
     if (method === "listOpenAnchors") {
       result = { anchors: summaries, nextCursor: null };
-    } else if (method === "searchContextMentions") {
-      result = {
-        items: [
-          { kind: "file", name: "app.tsx", path: "src/app.tsx" },
-          { kind: "directory", name: "components", path: "src/components" },
-        ],
-        truncated: false,
-      };
     } else if (method === "getCommentThread") {
       const summary = summaries[0]!;
       result = {
@@ -231,85 +224,24 @@ void (async () => {
     if (document.activeElement !== popover)
       throw new Error("Thread popover did not receive focus");
     const reply = popover.querySelector<HTMLTextAreaElement>(
-      ".bb-comments-reply-input",
+      'textarea[aria-label="Reply to comment thread"]',
     );
     let replyButton = popover.querySelector<HTMLButtonElement>(
-      'button[aria-label="Submit comment"]',
+      'button[aria-label="Reply"]',
     );
     if (reply === null || replyButton?.disabled !== true)
       throw new Error("Blank reply was not disabled");
-    const replyStyle = getComputedStyle(reply);
-    if (
-      replyStyle.fontSize !== "13px" ||
-      replyStyle.fontFamily !== getComputedStyle(document.body).fontFamily
-    ) {
-      throw new Error("Reply input typography did not match BB normal text");
-    }
-    const emptyReplyHeight = reply.getBoundingClientRect().height;
-    const replyComposer = reply.closest<HTMLElement>(
-      ".bb-comments-mention-input",
-    )!;
-    setTextareaValue(reply, "First line\nSecond line\nThird line");
-    await wait(30);
-    if (replyComposer.getAnimations().length === 0)
-      throw new Error("Multiline reply expansion did not animate");
-    await wait(250);
-    const replyNearTerminalHeight = replyComposer.getBoundingClientRect().height;
-    await wait(170);
-    const replyTerminalHeight = replyComposer.getBoundingClientRect().height;
-    if (
-      Math.abs(replyTerminalHeight - replyNearTerminalHeight) > 2 ||
-      replyComposer.getAnimations().length !== 0
-    ) {
-      throw new Error(
-        `Multiline reply snapped after its height animation: near=${replyNearTerminalHeight} terminal=${replyTerminalHeight} animations=${replyComposer.getAnimations().length}`,
-      );
-    }
-    if (reply.getBoundingClientRect().height <= emptyReplyHeight)
-      throw new Error("Multiline reply input did not grow with its content");
-    if (replyComposer.dataset.mentionInputExpanded !== "true")
-      throw new Error("Multiline reply did not switch composer layout");
+    if (reply.closest('[data-testid="bb-compact-composer"]') === null)
+      throw new Error("Reply did not render through the host compact composer");
     setTextareaValue(reply, "Ready");
-    await wait(250);
+    await wait(30);
     replyButton = popover.querySelector<HTMLButtonElement>(
-      'button[aria-label="Submit comment"]',
+      'button[aria-label="Reply"]',
     );
-    if (replyButton.disabled)
+    if (replyButton?.disabled !== false)
       throw new Error("Valid reply did not enable submission");
-    if (replyComposer.dataset.mentionInputExpanded !== "true")
-      throw new Error("Expanded reply layout did not stay latched like Moss");
-    setTextareaValue(reply, "");
-    await wait(30);
-    if (replyComposer.getAnimations().length === 0)
-      throw new Error("Reply collapse did not animate");
-    await wait(250);
-    if (replyComposer.dataset.mentionInputExpanded !== "false")
-      throw new Error("Cleared reply did not restore inline layout");
-    popover
-      .querySelector<HTMLButtonElement>(
-        'button[aria-label="Add comment context"]',
-      )
-      ?.click();
-    await wait(80);
-    const mentionMenu = document.querySelector<HTMLElement>(
-      ".bb-comments-mention-menu",
-    );
-    const mentionOption = mentionMenu?.querySelector<HTMLButtonElement>(
-      '[role="option"][data-mention-path="src/app.tsx"]',
-    );
-    if (
-      mentionMenu === null ||
-      mentionOption === null ||
-      popover.contains(mentionMenu) ||
-      !withinViewport(mentionMenu.getBoundingClientRect())
-    ) {
-      throw new Error("Workspace mention picker did not open as a visible portal");
-    }
-    mentionOption.click();
-    await wait(30);
-    if (reply.value !== "@src/app.tsx ")
-      throw new Error("Workspace mention picker did not insert the selected path");
-    setTextareaValue(reply, "Ready");
+    if (document.querySelector(".bb-comments-mention-menu") !== null)
+      throw new Error("Deleted custom mention picker is still mounted");
     if (CSS.highlights.get("bb-timeline-comments")?.size !== 8) {
       throw new Error("Custom Highlight registry did not retain every anchor");
     }
@@ -528,7 +460,7 @@ void (async () => {
       '[data-bb-comment-id="comment_root"] .bb-comments-comment-body',
     );
     const originalReplyInput = popover.querySelector<HTMLTextAreaElement>(
-      ".bb-comments-reply-input",
+      'textarea[aria-label="Reply to comment thread"]',
     );
     if (originalBody === null || originalReplyInput === null)
       throw new Error("Thread fixture omitted persistent edit surfaces");
@@ -544,7 +476,7 @@ void (async () => {
     if (document.querySelector(".bb-comments-actions-popover") !== null)
       throw new Error("Comment action did not dismiss its portal menu");
     const editInput = popover.querySelector<HTMLTextAreaElement>(
-      '[data-bb-comment-id="comment_root"] .bb-comments-edit-input',
+      '[data-bb-comment-id="comment_root"] textarea[aria-label="Edit comment"]',
     );
     if (
       editInput === null ||
@@ -573,15 +505,10 @@ void (async () => {
       throw new Error("Editing above replies did not incrementally collapse them");
     }
     const saveEdit = popover.querySelector<HTMLButtonElement>(
-      '[data-bb-comment-id="comment_root"] button[aria-label="Submit comment"]',
+      '[data-bb-comment-id="comment_root"] button[aria-label="Save comment"]',
     );
     if (saveEdit?.disabled !== false)
       throw new Error("Unchanged comment cannot exit editing like Moss");
-    const localFooter = editingRow.querySelector(
-      ".bb-comments-edit-footer",
-    );
-    if (localFooter === null)
-      throw new Error("Earlier-comment edit footer did not stay under its comment");
     saveEdit.focus();
     saveEdit.dispatchEvent(
       new KeyboardEvent("keydown", { key: "Escape", bubbles: true }),
@@ -596,7 +523,9 @@ void (async () => {
     }
     if (
       originalReplyInput !==
-        popover.querySelector<HTMLTextAreaElement>(".bb-comments-reply-input") ||
+        popover.querySelector<HTMLTextAreaElement>(
+          'textarea[aria-label="Reply to comment thread"]',
+        ) ||
       originalReplyInput.value !== "Preserve this reply draft"
     ) {
       throw new Error("Editing rebuilt or cleared the mounted reply composer");
@@ -621,7 +550,9 @@ void (async () => {
     if (
       document.querySelector(".bb-comments-thread") !== popover ||
       originalReplyInput !==
-        popover.querySelector<HTMLTextAreaElement>(".bb-comments-reply-input") ||
+        popover.querySelector<HTMLTextAreaElement>(
+          'textarea[aria-label="Reply to comment thread"]',
+        ) ||
       originalReplyInput.value !== "" ||
       insertedReply === undefined ||
       insertedReply.getAnimations().length === 0
@@ -631,7 +562,9 @@ void (async () => {
           threadPreserved: document.querySelector(".bb-comments-thread") === popover,
           inputPreserved:
             originalReplyInput ===
-            popover.querySelector<HTMLTextAreaElement>(".bb-comments-reply-input"),
+            popover.querySelector<HTMLTextAreaElement>(
+              'textarea[aria-label="Reply to comment thread"]',
+            ),
           inputValue: originalReplyInput.value,
           inserted: insertedReply !== undefined,
           animations: insertedReply?.getAnimations().length ?? 0,

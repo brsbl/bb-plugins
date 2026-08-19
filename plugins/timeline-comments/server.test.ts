@@ -64,67 +64,40 @@ async function createComment(
 }
 
 describe("timeline comments backend", () => {
-  it("searches the current thread workspace for mentionable files and folders", async () => {
-    const host = createFakePluginHost({
-      pluginId: "timeline-comments",
-      sdk: {
-        threads: {
-          get: () =>
-            makeThreadResponse({
-              id: "thr_1",
-              projectId: "proj_1",
-              environmentId: "env_1",
-            }),
-        },
-        projects: {
-          paths: () => ({
-            paths: [
-              {
-                kind: "directory" as const,
-                name: "components",
-                path: "src/components",
-                score: 1,
-                positions: [0],
-              },
-              {
-                kind: "file" as const,
-                name: "app.tsx",
-                path: "src/app.tsx",
-                score: 0.9,
-                positions: [4],
-              },
-            ],
-            truncated: false,
-          }),
-        },
-      },
-    });
-    await plugin(host.bb);
-
-    await expect(
-      host.harness.callRpc("searchContextMentions", {
-        bbThreadId: "thr_1",
-        query: "app",
+  it("persists host mention structure and defaults body-only callers to none", async () => {
+    const host = await loadPlugin();
+    const created = commentThreadDetailSchema.parse(
+      await host.harness.callRpc("createThread", {
+        ...createInput("Review @src/app.tsx"),
+        mentions: [
+          {
+            from: 7,
+            to: 19,
+            provider: "bb:path:workspace:file",
+            id: "src/app.tsx",
+            label: "src/app.tsx",
+          },
+        ],
       }),
-    ).resolves.toEqual({
-      items: [
-        { kind: "directory", name: "components", path: "src/components" },
-        { kind: "file", name: "app.tsx", path: "src/app.tsx" },
-      ],
-      truncated: false,
-    });
-    expect(host.harness.sdk.callsTo("projects.paths")).toEqual([
-      [
-        {
-          projectId: "proj_1",
-          environmentId: "env_1",
-          includeFiles: "true",
-          includeDirectories: "true",
-          limit: "20",
-          query: "app",
-        },
-      ],
+    );
+    expect(created.thread.rootComment.mentions).toEqual([
+      {
+        from: 7,
+        to: 19,
+        provider: "bb:path:workspace:file",
+        id: "src/app.tsx",
+        label: "src/app.tsx",
+      },
     ]);
+
+    const replied = commentThreadDetailSchema.parse(
+      await host.harness.callRpc("reply", {
+        bbThreadId: "thr_1",
+        commentThreadId: created.thread.id,
+        body: "Body-only CLI-compatible reply",
+      }),
+    );
+    expect(replied.comments.at(-1)?.mentions).toEqual([]);
   });
 
   it("enforces foreign keys and creates a scoped root thread before publishing", async () => {

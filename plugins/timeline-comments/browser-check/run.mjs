@@ -156,11 +156,7 @@ try {
     'textarea[aria-label="Reply to comment thread"]',
   );
   await replyInput.waitFor({ state: "visible" });
-  await replyInput.fill("");
-  await page.locator('button[aria-label="Add comment context"]').click();
-  await page
-    .locator('.bb-comments-mention-menu[role="listbox"]')
-    .waitFor({ state: "visible" });
+  await replyInput.fill("Host-owned comment input");
   await page.screenshot({ path: screenshot });
 } finally {
   await browser?.close();

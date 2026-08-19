@@ -4,19 +4,11 @@ import type {
   PluginRpcClient,
 } from "@bb/plugin-sdk/app";
 import {
-  CheckCheck,
-  Command,
-  CornerDownLeft,
-  EllipsisVertical,
-  Pencil,
   StickyNote,
-  Trash2,
-  X,
   createElement as createLucideElement,
   type IconNode,
 } from "lucide";
 import type {
-  TimelineComment,
   TimelineCommentThreadDetail,
   TimelineCommentThreadSummary,
   timelineCommentsRpcContract,
@@ -28,7 +20,6 @@ import {
   selectorForRange,
   type StoredSelector,
 } from "./anchors.js";
-import { commentBodyError } from "./comment-body.js";
 import {
   installTimelineCommentsController,
   publishTimelineCommentAnchorHealth,
@@ -39,6 +30,11 @@ import {
   mountMossCommentComposer,
   mountMossCommentPopover,
 } from "./comment-components.js";
+import {
+  emptyCommentValue,
+  readCommentDraft,
+  writeCommentDraft,
+} from "./comment-value.js";
 
 type Rpc = PluginRpcClient<typeof timelineCommentsRpcContract>;
 
@@ -226,153 +222,11 @@ function selectionTextMatches(rangeText: string, hostText: string): boolean {
   return canonicalize(rangeText) === canonicalize(hostText);
 }
 
-const inlineComposerAnimations = new WeakMap<HTMLElement, Animation>();
-const inlineComposerNaturalHeights = new WeakMap<HTMLElement, number>();
-const modeTransitionAnimations = new WeakMap<HTMLElement, Animation>();
-
-function runMeasuredModeTransition(
-  element: HTMLElement,
-  update: () => void,
-): void {
-  const scrollRegion = element.closest<HTMLElement>(
-    ".bb-comments-thread-comments",
-  );
-  const scrollTop = scrollRegion?.scrollTop;
-  const running = modeTransitionAnimations.get(element);
-  const startHeight = element.getBoundingClientRect().height;
-  running?.cancel();
-  modeTransitionAnimations.delete(element);
-  element.style.removeProperty("overflow");
-  update();
-  if (scrollRegion !== null && scrollTop !== undefined) {
-    scrollRegion.scrollTop = scrollTop;
-    requestAnimationFrame(() => {
-      if (scrollRegion.isConnected) scrollRegion.scrollTop = scrollTop;
-    });
-  }
-  const endHeight = element.getBoundingClientRect().height;
-  if (
-    Math.abs(endHeight - startHeight) < 0.5 ||
-    typeof element.animate !== "function" ||
-    matchMedia("(prefers-reduced-motion: reduce)").matches
-  ) {
-    return;
-  }
-  element.style.overflow = "hidden";
-  const animation = element.animate(
-    [{ height: `${startHeight}px` }, { height: `${endHeight}px` }],
-    {
-      duration: 150,
-      easing: "cubic-bezier(0.22, 1, 0.36, 1)",
-    },
-  );
-  modeTransitionAnimations.set(element, animation);
-  const finish = () => {
-    if (modeTransitionAnimations.get(element) !== animation) return;
-    modeTransitionAnimations.delete(element);
-    element.style.removeProperty("overflow");
-  };
-  animation.addEventListener("finish", finish, { once: true });
-  animation.addEventListener("cancel", finish, { once: true });
-}
-
-function removeWithTransition(element: HTMLElement, remove: () => void): void {
-  if (
-    typeof element.animate !== "function" ||
-    matchMedia("(prefers-reduced-motion: reduce)").matches
-  ) {
-    remove();
-    return;
-  }
-  const height = element.getBoundingClientRect().height;
-  element.style.overflow = "hidden";
-  const animation = element.animate(
-    [
-      { height: `${height}px`, opacity: 1 },
-      { height: "0px", opacity: 0 },
-    ],
-    { duration: 150, easing: "cubic-bezier(0.22, 1, 0.36, 1)" },
-  );
-  animation.addEventListener("finish", remove, { once: true });
-  animation.addEventListener("cancel", remove, { once: true });
-}
-
-function animateInsertion(element: HTMLElement): void {
-  if (
-    typeof element.animate !== "function" ||
-    matchMedia("(prefers-reduced-motion: reduce)").matches
-  ) {
-    return;
-  }
-  element.animate(
-    [
-      { opacity: 0, transform: "translateY(-4px)" },
-      { opacity: 1, transform: "translateY(0)" },
-    ],
-    { duration: 150, easing: "cubic-bezier(0.22, 1, 0.36, 1)" },
-  );
-}
-
-function syncInlineComposerLayout(
-  textarea: HTMLTextAreaElement,
-  composer: HTMLElement,
-  animate = true,
-): void {
-  const styles = getComputedStyle(textarea);
-  const lineHeight = Number.parseFloat(styles.lineHeight) || 20;
-  const verticalPadding =
-    (Number.parseFloat(styles.paddingTop) || 0) +
-    (Number.parseFloat(styles.paddingBottom) || 0);
-  const currentMultiline = composer.dataset.multiline === "true";
-  const hasText = textarea.value.trim() !== "";
-  const requestsMultiline =
-    textarea.value.includes("\n") ||
-    textarea.scrollHeight - verticalPadding > lineHeight + 1;
-  const nextMultiline =
-    hasText && (currentMultiline || requestsMultiline);
-  const running = inlineComposerAnimations.get(composer);
-  const startHeight =
-    running === undefined
-      ? (inlineComposerNaturalHeights.get(composer) ??
-        composer.getBoundingClientRect().height)
-      : composer.getBoundingClientRect().height;
-  running?.cancel();
-  inlineComposerAnimations.delete(composer);
-  composer.style.removeProperty("overflow");
-  composer.dataset.multiline = nextMultiline ? "true" : "false";
-  const endHeight = composer.getBoundingClientRect().height;
-  inlineComposerNaturalHeights.set(composer, endHeight);
-  if (
-    !animate ||
-    Math.abs(endHeight - startHeight) < 0.5 ||
-    typeof composer.animate !== "function" ||
-    matchMedia("(prefers-reduced-motion: reduce)").matches
-  ) {
-    return;
-  }
-  composer.style.overflow = "hidden";
-  const animation = composer.animate(
-    [{ height: `${startHeight}px` }, { height: `${endHeight}px` }],
-    {
-      duration: 150,
-      easing: "cubic-bezier(0.22, 1, 0.36, 1)",
-    },
-  );
-  inlineComposerAnimations.set(composer, animation);
-  const finish = () => {
-    if (inlineComposerAnimations.get(composer) !== animation) return;
-    inlineComposerAnimations.delete(composer);
-    composer.style.removeProperty("overflow");
-  };
-  animation.addEventListener("finish", finish, { once: true });
-  animation.addEventListener("cancel", finish, { once: true });
-}
-
 function isRelevantMutation(record: MutationRecord): boolean {
   const selector = `[data-thread-window], [data-timeline-row-id], ${MESSAGE_PROSE_SELECTOR}`;
   return [...record.addedNodes, ...record.removedNodes].some(
     (node) =>
-      node instanceof Element &&
+      node instanceof window.Element &&
       (node.matches(selector) || node.querySelector(selector) !== null),
   );
 }
@@ -432,9 +286,6 @@ class TimelineCommentsController {
   #outsidePopover: ((event: PointerEvent) => void) | null = null;
   #popoverKeydown: ((event: KeyboardEvent) => void) | null = null;
   #popoverInvoker: HTMLElement | null = null;
-  #actionsMenu: HTMLElement | null = null;
-  #actionsTrigger: HTMLButtonElement | null = null;
-  #outsideActionsMenu: ((event: PointerEvent) => void) | null = null;
 
   constructor(context: PluginContentScriptContext) {
     this.#rpc = contentScriptRpcClient(context.signal);
@@ -541,10 +392,10 @@ class TimelineCommentsController {
     this.rebuildHighlights();
 
     const key = `bb.timeline-comments.draft:${context.threadId}:${context.message.id}:${captured.selector.start}:${captured.selector.end}`;
-    const shell = element("form", "bb-comments-composer");
+    const shell = element("div", "bb-comments-composer");
     shell.setAttribute("role", "dialog");
     shell.setAttribute("aria-label", "Add comment");
-    const initialValue = readDraft(key) ?? "";
+    const initialValue = readCommentDraft(key) ?? emptyCommentValue();
 
     const firstRect = captured.rects[0];
     const x = firstRect?.x ?? window.innerWidth / 2;
@@ -552,9 +403,8 @@ class TimelineCommentsController {
     shell.style.left = `${Math.max(8, Math.min(window.innerWidth - COMPOSER_WIDTH - 8, x))}px`;
     shell.style.top = `${Math.max(8, Math.min(window.innerHeight - 144, y + 17))}px`;
     let draftValue = initialValue;
-    const persist = () => writeDraft(key, draftValue);
+    const persist = () => writeCommentDraft(key, draftValue);
     this.#composerUiCleanup = mountMossCommentComposer(shell, {
-      rpc: this.#rpc,
       bbThreadId: context.threadId,
       initialValue,
       onChange: (value) => {
@@ -565,7 +415,7 @@ class TimelineCommentsController {
         persist();
         this.closeComposer();
       },
-      onSubmit: async (body) => {
+      onSubmit: async (value) => {
         const detail = await this.#rpc.call("createThread", {
           bbThreadId: context.threadId,
           message: context.message,
@@ -573,7 +423,8 @@ class TimelineCommentsController {
             ...captured.selector,
             rects: captured.rects.map((rect) => ({ ...rect })),
           },
-          body,
+          body: value.text,
+          mentions: [...value.mentions],
         });
         sessionStorage.removeItem(key);
         this.closeComposer();
@@ -970,7 +821,6 @@ class TimelineCommentsController {
       this.#frame = null;
       this.layoutMarkers();
       this.positionPopover();
-      this.positionActionsMenu();
     });
   }
 
@@ -1189,7 +1039,6 @@ class TimelineCommentsController {
   ): void {
     this.#threadUiCleanup?.();
     this.#threadUiCleanup = null;
-    this.closeActionsMenu();
     delete popover.dataset.editing;
     popover.replaceChildren();
     this.#threadUiCleanup = mountMossCommentPopover(popover, {
@@ -1209,589 +1058,6 @@ class TimelineCommentsController {
     });
   }
 
-  private renderLegacyThreadPopover(
-    popover: HTMLElement,
-    detail: TimelineCommentThreadDetail,
-  ): void {
-    this.closeActionsMenu();
-    delete popover.dataset.editing;
-    popover.replaceChildren();
-    const header = element("header", "bb-comments-thread-header");
-    const source = element("div", "bb-comments-thread-source");
-    source.append(icon(StickyNote), document.createTextNode("Comment"));
-    const headerActions = element("div", "bb-comments-header-actions");
-    const resolve = element(
-      "button",
-      "bb-comments-icon-control",
-    ) as HTMLButtonElement;
-    resolve.type = "button";
-    resolve.setAttribute(
-      "aria-label",
-      detail.thread.resolvedAt === null ? "Resolve thread" : "Reopen thread",
-    );
-    resolve.title =
-      detail.thread.resolvedAt === null ? "Resolve thread" : "Reopen thread";
-    resolve.setAttribute(
-      "aria-pressed",
-      String(detail.thread.resolvedAt !== null),
-    );
-    resolve.append(icon(CheckCheck));
-    resolve.addEventListener("click", () => {
-      resolve.disabled = true;
-      void this.#rpc
-        .call("setThreadResolved", {
-          bbThreadId: detail.thread.bbThreadId,
-          commentThreadId: detail.thread.id,
-          expectedVersion: detail.thread.version,
-          resolved: detail.thread.resolvedAt === null,
-        })
-        .then(() => {
-          this.closePopover();
-          this.scheduleRefresh();
-        })
-        .catch((caught) => {
-          resolve.disabled = false;
-          this.handlePopoverMutationError(popover, detail, caught);
-        });
-    });
-    const removeThread = element(
-      "button",
-      "bb-comments-icon-control bb-comments-destructive",
-    ) as HTMLButtonElement;
-    removeThread.type = "button";
-    removeThread.setAttribute("aria-label", "Delete thread");
-    removeThread.title = "Delete thread";
-    removeThread.append(icon(Trash2));
-    removeThread.addEventListener("click", () => {
-      if (!window.confirm("Delete this comment thread?")) return;
-      const root = detail.comments.find(({ parentId }) => parentId === null);
-      if (root === undefined) return;
-      removeThread.disabled = true;
-      void this.#rpc
-        .call("deleteComment", {
-          bbThreadId: detail.thread.bbThreadId,
-          commentId: root.id,
-          expectedVersion: root.version,
-          expectedThreadVersion: detail.thread.version,
-        })
-        .then(() => {
-          this.closePopover();
-          this.scheduleRefresh();
-        })
-        .catch((caught) => {
-          removeThread.disabled = false;
-          this.handlePopoverMutationError(popover, detail, caught);
-        });
-    });
-    headerActions.append(resolve, removeThread);
-    header.append(source, headerActions);
-    popover.append(header);
-
-    const comments = element("div", "bb-comments-thread-comments");
-    for (const comment of detail.comments)
-      comments.append(this.renderComment(detail, comment, popover));
-    popover.append(comments);
-
-    if (detail.thread.resolvedAt === null) {
-      const reply = element("form", "bb-comments-reply");
-      reply.dataset.editing = "false";
-      reply.dataset.lastEditing = "false";
-      const replyInner = element("div", "bb-comments-reply-inner");
-      const replyComposer = element("div", "bb-comments-inline-composer");
-      replyComposer.dataset.bbCommentReplyComposer = "true";
-      const editFooterHost = element(
-        "div",
-        "bb-comments-edit-footer-host",
-      );
-      editFooterHost.dataset.bbCommentEditFooterHost = "true";
-      const draftKey = `bb.timeline-comments.reply:${detail.thread.id}`;
-      const textarea = element(
-        "textarea",
-        "bb-comments-reply-input",
-      ) as HTMLTextAreaElement;
-      textarea.placeholder = "Reply...";
-      textarea.maxLength = 20_000;
-      textarea.value = readDraft(draftKey) ?? "";
-      const send = element(
-        "button",
-        "bb-comments-submit-shortcut",
-      ) as HTMLButtonElement;
-      send.type = "submit";
-      send.setAttribute("aria-label", "Reply");
-      send.title = "Reply · ⌘/Ctrl Enter";
-      send.append(icon(Command), icon(CornerDownLeft));
-      const error = element("div", "bb-comments-error");
-      error.setAttribute("role", "status");
-      const validate = () => {
-        const message = commentBodyError(textarea.value);
-        send.disabled = message !== null;
-        error.textContent =
-          message !== null && textarea.value.trim() !== "" ? message : "";
-        return message;
-      };
-      textarea.addEventListener("input", () => {
-        writeDraft(draftKey, textarea.value);
-        syncInlineComposerLayout(textarea, replyComposer);
-        validate();
-      });
-      textarea.addEventListener("keydown", (event) => {
-        if (
-          event.key === "Enter" &&
-          (event.metaKey || event.ctrlKey)
-        ) {
-          event.preventDefault();
-          reply.requestSubmit();
-        }
-      });
-      replyComposer.append(textarea, send);
-      replyInner.append(replyComposer, error, editFooterHost);
-      reply.append(replyInner);
-      reply.addEventListener("submit", (event) => {
-        event.preventDefault();
-        if (validate() !== null) return;
-        send.disabled = true;
-        void this.#rpc
-          .call("reply", {
-            bbThreadId: detail.thread.bbThreadId,
-            commentThreadId: detail.thread.id,
-            body: textarea.value,
-          })
-          .then((result) => {
-            if (this.#popover !== popover) return;
-            const fresh = result as TimelineCommentThreadDetail;
-            const knownIds = new Set(detail.comments.map(({ id }) => id));
-            Object.assign(detail.thread, fresh.thread);
-            detail.comments.splice(0, detail.comments.length, ...fresh.comments);
-            sessionStorage.removeItem(draftKey);
-            textarea.value = "";
-            syncInlineComposerLayout(textarea, replyComposer);
-            validate();
-            for (const freshComment of fresh.comments) {
-              if (knownIds.has(freshComment.id)) continue;
-              const freshRow = this.renderComment(detail, freshComment, popover);
-              comments.append(freshRow);
-              animateInsertion(freshRow);
-            }
-            this.scheduleRefresh();
-          })
-          .catch((caught) => {
-            send.disabled = false;
-            this.handlePopoverMutationError(popover, detail, caught);
-          });
-      });
-      validate();
-      popover.append(reply);
-      syncInlineComposerLayout(textarea, replyComposer, false);
-    }
-  }
-
-  private renderComment(
-    detail: TimelineCommentThreadDetail,
-    comment: TimelineComment,
-    popover: HTMLElement,
-  ): HTMLElement {
-    const row = element("article", "bb-comments-comment");
-    row.dataset.bbCommentId = comment.id;
-    let currentComment = comment;
-    const buildHeader = (action: HTMLElement): HTMLElement => {
-      const header = element("header", "bb-comments-message-header");
-      const byline = element("div");
-      byline.append(element("strong", undefined, "Me"));
-      const timestamp = element(
-        "time",
-        undefined,
-        relativeTime(currentComment.createdAt),
-      );
-      timestamp.dateTime = new Date(currentComment.createdAt).toISOString();
-      timestamp.title = formatTime(currentComment.createdAt);
-      byline.append(timestamp);
-      header.append(byline, action);
-      return header;
-    };
-    const body = element("p", "bb-comments-comment-body", currentComment.body);
-    const actions = element("div", "bb-comments-actions-menu");
-    const actionsTrigger = element(
-      "button",
-      "bb-comments-icon-control",
-    ) as HTMLButtonElement;
-    actionsTrigger.type = "button";
-    actionsTrigger.setAttribute("aria-label", "Comment actions");
-    actionsTrigger.setAttribute("aria-haspopup", "menu");
-    actionsTrigger.setAttribute("aria-expanded", "false");
-    actionsTrigger.title = "Comment actions";
-    actionsTrigger.append(icon(EllipsisVertical));
-    const cancel = element(
-      "button",
-      "bb-comments-icon-control bb-comments-edit-cancel",
-    ) as HTMLButtonElement;
-    cancel.type = "button";
-    cancel.setAttribute("aria-label", "Cancel comment edit");
-    cancel.title = "Cancel edit";
-    cancel.append(icon(X));
-    const actionsMenu = element("div", "bb-comments-actions-popover");
-    actionsMenu.setAttribute("role", "menu");
-    const menuItems = () =>
-      [...actionsMenu.querySelectorAll<HTMLButtonElement>('[role="menuitem"]')]
-        .filter((item) => !item.disabled);
-    actionsMenu.addEventListener("keydown", (event) => {
-      const items = menuItems();
-      const current = items.indexOf(document.activeElement as HTMLButtonElement);
-      let next: HTMLButtonElement | undefined;
-      if (event.key === "ArrowDown")
-        next = items[(current + 1 + items.length) % items.length];
-      if (event.key === "ArrowUp")
-        next = items[(current - 1 + items.length) % items.length];
-      if (event.key === "Home") next = items[0];
-      if (event.key === "End") next = items.at(-1);
-      if (next !== undefined) {
-        event.preventDefault();
-        next.focus({ preventScroll: true });
-        return;
-      }
-      if (event.key !== "Tab") return;
-      event.preventDefault();
-      this.focusAdjacentToActionsTrigger(actionsTrigger, event.shiftKey);
-      this.closeActionsMenu();
-    });
-    actionsMenu.addEventListener("focusout", () => {
-      queueMicrotask(() => {
-        if (
-          this.#actionsMenu === actionsMenu &&
-          !actionsMenu.contains(document.activeElement)
-        ) {
-          this.closeActionsMenu();
-        }
-      });
-    });
-    actionsTrigger.addEventListener("click", () => {
-      if (this.#actionsTrigger === actionsTrigger) {
-        this.closeActionsMenu();
-        return;
-      }
-      this.openActionsMenu(actionsTrigger, actionsMenu);
-    });
-    const edit = element("button") as HTMLButtonElement;
-    edit.type = "button";
-    edit.tabIndex = -1;
-    edit.setAttribute("role", "menuitem");
-    edit.append(icon(Pencil), document.createTextNode("Edit"));
-    const draftKey = `bb.timeline-comments.edit:${comment.id}`;
-    const textarea = element(
-      "textarea",
-      "bb-comments-edit-input",
-    ) as HTMLTextAreaElement;
-    textarea.setAttribute("aria-label", "Edit comment");
-    textarea.maxLength = 20_000;
-    const editComposer = element("div", "bb-comments-edit-composer");
-    const localFooterHost = element(
-      "div",
-      "bb-comments-local-edit-footer-host",
-    );
-    const editFooter = element("div", "bb-comments-edit-footer");
-    const save = element(
-      "button",
-      "bb-comments-edit-submit",
-    ) as HTMLButtonElement;
-    save.type = "button";
-    save.append(icon(Command), icon(CornerDownLeft));
-    save.setAttribute("aria-label", "Save comment");
-    save.title = "Save comment · ⌘/Ctrl Enter";
-    editFooter.append(save);
-    localFooterHost.append(editFooter);
-    const error = element("div", "bb-comments-error");
-    error.setAttribute("role", "status");
-    editComposer.append(textarea, error, localFooterHost);
-    const validate = () => {
-      const message = commentBodyError(textarea.value);
-      save.disabled = message !== null;
-      error.textContent =
-        message !== null && textarea.value.trim() !== "" ? message : "";
-      return message;
-    };
-    const resetReplyRegion = () => {
-      const reply = popover.querySelector<HTMLElement>(".bb-comments-reply");
-      if (reply === null) return;
-      reply.dataset.editing = "false";
-      reply.dataset.lastEditing = "false";
-      reply.removeAttribute("aria-hidden");
-      reply.removeAttribute("inert");
-      const replyComposer = reply.querySelector<HTMLElement>(
-        "[data-bb-comment-reply-composer]",
-      );
-      replyComposer?.removeAttribute("aria-hidden");
-      replyComposer?.removeAttribute("inert");
-      localFooterHost.append(editFooter);
-    };
-    const finishEdit = (focusTrigger: boolean) => {
-      runMeasuredModeTransition(row, () => {
-        delete popover.dataset.editing;
-        delete row.dataset.editing;
-        resetReplyRegion();
-      });
-      if (focusTrigger) actionsTrigger.focus({ preventScroll: true });
-    };
-    const cancelEdit = () => {
-      sessionStorage.removeItem(draftKey);
-      finishEdit(true);
-    };
-    cancel.addEventListener("click", cancelEdit);
-    textarea.addEventListener("input", () => {
-      if (textarea.value === currentComment.body)
-        sessionStorage.removeItem(draftKey);
-      else writeDraft(draftKey, textarea.value);
-      validate();
-    });
-    textarea.addEventListener("keydown", (event) => {
-      if (event.key === "Escape") {
-        event.preventDefault();
-        cancelEdit();
-      }
-      if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) {
-        event.preventDefault();
-        save.click();
-      }
-    });
-    save.addEventListener("click", () => {
-      if (validate() !== null) return;
-      const nextBody = textarea.value.trim();
-      if (nextBody === currentComment.body) {
-        cancelEdit();
-        return;
-      }
-      save.disabled = true;
-      void this.#rpc
-        .call("updateComment", {
-          bbThreadId: detail.thread.bbThreadId,
-          commentId: currentComment.id,
-          expectedVersion: currentComment.version,
-          body: nextBody,
-        })
-        .then((result) => {
-          if (this.#popover !== popover) return;
-          const fresh = result as TimelineCommentThreadDetail;
-          const updated = fresh.comments.find(({ id }) => id === currentComment.id);
-          if (updated !== undefined) currentComment = updated;
-          Object.assign(detail.thread, fresh.thread);
-          body.textContent = currentComment.body;
-          sessionStorage.removeItem(draftKey);
-          finishEdit(false);
-          this.scheduleRefresh();
-        })
-        .catch((caught) => {
-          save.disabled = false;
-          this.handlePopoverMutationError(popover, detail, caught);
-        });
-    });
-    edit.addEventListener("click", () => {
-      if (popover.dataset.editing !== undefined) return;
-      this.closeActionsMenu();
-      textarea.value = readDraft(draftKey) ?? currentComment.body;
-      const isLastComment = detail.comments.at(-1)?.id === currentComment.id;
-      const reply = popover.querySelector<HTMLElement>(".bb-comments-reply");
-      runMeasuredModeTransition(row, () => {
-        popover.dataset.editing = currentComment.id;
-        row.dataset.editing = "true";
-        if (reply !== null) {
-          if (isLastComment) {
-            reply.dataset.lastEditing = "true";
-            const replyComposer = reply.querySelector<HTMLElement>(
-              "[data-bb-comment-reply-composer]",
-            );
-            replyComposer?.setAttribute("aria-hidden", "true");
-            replyComposer?.setAttribute("inert", "");
-            reply
-              .querySelector<HTMLElement>("[data-bb-comment-edit-footer-host]")
-              ?.append(editFooter);
-          } else {
-            reply.dataset.editing = "true";
-            reply.setAttribute("aria-hidden", "true");
-            reply.setAttribute("inert", "");
-          }
-        }
-      });
-      validate();
-      textarea.focus({ preventScroll: true });
-    });
-    const remove = element(
-      "button",
-      "bb-comments-destructive",
-    ) as HTMLButtonElement;
-    remove.type = "button";
-    remove.tabIndex = -1;
-    remove.setAttribute("role", "menuitem");
-    remove.append(icon(Trash2), document.createTextNode("Delete"));
-    remove.addEventListener("click", () => {
-      if (
-        !window.confirm(
-          currentComment.parentId === null
-            ? "Delete this comment thread?"
-            : "Delete this reply?",
-        )
-      )
-        return;
-      remove.disabled = true;
-      void this.#rpc
-        .call("deleteComment", {
-          bbThreadId: detail.thread.bbThreadId,
-          commentId: currentComment.id,
-          expectedVersion: currentComment.version,
-          expectedThreadVersion: detail.thread.version,
-        })
-        .then((result) => {
-          if (result.deletedThreadId !== null) {
-            this.closePopover();
-          } else if (result.thread !== null) {
-            Object.assign(detail.thread, result.thread.thread);
-            detail.comments.splice(
-              0,
-              detail.comments.length,
-              ...result.thread.comments,
-            );
-            removeWithTransition(row, () => row.remove());
-          }
-          this.scheduleRefresh();
-        })
-        .catch((caught) => {
-          remove.disabled = false;
-          this.handlePopoverMutationError(popover, detail, caught);
-        });
-    });
-    actionsMenu.append(edit, remove);
-    actions.append(actionsTrigger, cancel);
-    row.append(buildHeader(actions), body, editComposer);
-    return row;
-  }
-
-  private focusAdjacentToActionsTrigger(
-    trigger: HTMLButtonElement,
-    backwards: boolean,
-  ): void {
-    const popover = trigger.closest(".bb-comments-thread");
-    if (popover === null) {
-      trigger.focus({ preventScroll: true });
-      return;
-    }
-    const focusable = [
-      ...popover.querySelectorAll<HTMLElement>(
-        'button:not(:disabled), textarea:not(:disabled), input:not(:disabled), [href], [tabindex]:not([tabindex="-1"])',
-      ),
-    ].filter((node) => node.getClientRects().length > 0);
-    const current = focusable.indexOf(trigger);
-    const adjacent = focusable[current + (backwards ? -1 : 1)] ?? trigger;
-    adjacent.focus({ preventScroll: true });
-  }
-
-  private openActionsMenu(
-    trigger: HTMLButtonElement,
-    menu: HTMLElement,
-  ): void {
-    this.closeActionsMenu();
-    this.#actionsMenu = menu;
-    this.#actionsTrigger = trigger;
-    trigger.setAttribute("aria-expanded", "true");
-    this.#portal.append(menu);
-    this.positionActionsMenu();
-    if (this.#actionsMenu !== menu) return;
-
-    this.#outsideActionsMenu = (event) => {
-      if (
-        event.target instanceof Node &&
-        (menu.contains(event.target) || trigger.contains(event.target))
-      ) {
-        return;
-      }
-      this.closeActionsMenu();
-    };
-    document.addEventListener("pointerdown", this.#outsideActionsMenu, true);
-    menu.querySelector<HTMLButtonElement>("button")?.focus({
-      preventScroll: true,
-    });
-  }
-
-  private positionActionsMenu(): void {
-    const menu = this.#actionsMenu;
-    const trigger = this.#actionsTrigger;
-    if (menu === null || trigger === null) return;
-    if (!trigger.isConnected) {
-      this.closeActionsMenu();
-      return;
-    }
-    const triggerRect = trigger.getBoundingClientRect();
-    const scrollViewport = trigger.closest<HTMLElement>(
-      ".bb-comments-thread-comments",
-    );
-    if (scrollViewport !== null) {
-      const viewportRect = scrollViewport.getBoundingClientRect();
-      if (
-        triggerRect.top < viewportRect.top ||
-        triggerRect.bottom > viewportRect.bottom
-      ) {
-        this.closeActionsMenu();
-        return;
-      }
-    }
-    const menuRect = menu.getBoundingClientRect();
-    const gap = 4;
-    const maxLeft = Math.max(8, window.innerWidth - menuRect.width - 8);
-    const left = Math.max(
-      8,
-      Math.min(
-        maxLeft,
-        triggerRect.right - menuRect.width,
-      ),
-    );
-    const below = triggerRect.bottom + gap;
-    const candidateTop =
-      below + menuRect.height <= window.innerHeight - 8
-        ? below
-        : triggerRect.top - menuRect.height - gap;
-    const maxTop = Math.max(8, window.innerHeight - menuRect.height - 8);
-    const top = Math.max(8, Math.min(maxTop, candidateTop));
-    menu.style.left = `${left}px`;
-    menu.style.top = `${top}px`;
-  }
-
-  private closeActionsMenu(restoreFocus = false): void {
-    const trigger = this.#actionsTrigger;
-    if (this.#outsideActionsMenu !== null) {
-      document.removeEventListener(
-        "pointerdown",
-        this.#outsideActionsMenu,
-        true,
-      );
-      this.#outsideActionsMenu = null;
-    }
-    this.#actionsMenu?.remove();
-    this.#actionsMenu = null;
-    this.#actionsTrigger = null;
-    trigger?.setAttribute("aria-expanded", "false");
-    if (restoreFocus && trigger?.isConnected === true)
-      trigger.focus({ preventScroll: true });
-  }
-
-  private showPopoverError(popover: HTMLElement, error: unknown): void {
-    const existing = popover.querySelector(".bb-comments-error");
-    const node = existing ?? element("div", "bb-comments-error");
-    node.textContent = errorMessage(error);
-    if (existing === null) popover.append(node);
-  }
-
-  private handlePopoverMutationError(
-    popover: HTMLElement,
-    detail: TimelineCommentThreadDetail,
-    error: unknown,
-  ): void {
-    this.showPopoverError(popover, error);
-    if (!/changed/iu.test(errorMessage(error))) return;
-    void this.loadThread(detail.thread.bbThreadId, detail.thread.id).then(
-      (fresh) => {
-        if (this.#popover !== popover) return;
-        this.renderThreadPopover(popover, fresh);
-        this.showPopoverError(popover, error);
-      },
-    );
-  }
-
   private installPopoverDismissal(invoker: HTMLElement | null): void {
     this.removePopoverDismissal();
     this.#popoverInvoker = invoker;
@@ -1800,7 +1066,6 @@ class TimelineCommentsController {
         event.target instanceof Node &&
         (this.#popover?.contains(event.target) === true ||
           this.#popoverInvoker?.contains(event.target) === true ||
-          this.#actionsMenu?.contains(event.target) === true ||
           this.#portal
             .querySelector(".bb-comments-actions-popover")
             ?.contains(event.target) === true)
@@ -1822,11 +1087,6 @@ class TimelineCommentsController {
             'button[aria-label="Comment actions"][aria-expanded="true"]',
           )
           ?.click();
-        return;
-      }
-      if (this.#actionsMenu !== null) {
-        event.preventDefault();
-        this.closeActionsMenu(true);
         return;
       }
       const cancelEdit = this.#popover?.querySelector<HTMLButtonElement>(
@@ -1914,7 +1174,6 @@ class TimelineCommentsController {
         : (this.#restored.get(this.#openThreadId)?.marker ?? null);
     const focusTarget =
       invoker?.isConnected === true ? invoker : currentMarker;
-    this.closeActionsMenu();
     this.removePopoverDismissal();
     this.#threadUiCleanup?.();
     this.#threadUiCleanup = null;
