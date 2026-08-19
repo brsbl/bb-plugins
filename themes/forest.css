@@ -1,0 +1,39 @@
+/* Mesh Forest — generated from a mesh gradient (seed 47).
+   Only the anchors, accent, and semantics are set; bb derives the rest. */
+:root, .light {
+  --canvas: #f8f9f6;
+  --ink: #282f18;
+  --primary: #29ae36;
+  --primary-foreground: #f8f9f6;
+  --muted-foreground: color-mix(in oklch, var(--ink) 70%, var(--canvas));
+  --subtle-foreground: color-mix(in oklch, var(--ink) 58%, var(--canvas));
+  --readback-foreground: color-mix(in oklch, var(--ink) 64%, var(--canvas));
+  --timeline-accent: #29ae36;
+  --file-accent: var(--timeline-accent);
+  --destructive: #b3261e;
+  --destructive-text: #8c1d18;
+  --warning: #b06000;
+  --warning-text: #8a4b00;
+  --attention: #3cdd4c;
+  --success: #2e7d32;
+  --diff-added: #2e7d32;
+  --diff-removed: #b3261e;
+  --pr-merged: #46b99e;
+}
+.dark {
+  --canvas: #1e2315;
+  --ink: #e7eae1;
+  --primary: #7be085;
+  --primary-foreground: #1e2315;
+  --timeline-accent: #7be085;
+  --file-accent: var(--timeline-accent);
+  --destructive: #f2b8b5;
+  --destructive-text: #f2b8b5;
+  --warning: #ffb77c;
+  --warning-text: #ffb77c;
+  --attention: #74e780;
+  --success: #7bc47f;
+  --diff-added: #7bc47f;
+  --diff-removed: #f2b8b5;
+  --pr-merged: #8cd9c7;
+}

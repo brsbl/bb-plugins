@@ -1,0 +1,66 @@
+{
+  "name": "bb-plugin-mesh-gradient",
+  "version": "0.1.0",
+  "description": "Design, preview, and export mesh gradients from bb.",
+  "type": "module",
+  "license": "UNLICENSED",
+  "files": [
+    "assets",
+    "dist",
+    "docs",
+    "themes",
+    "README.md"
+  ],
+  "engines": {
+    "bb": ">=0.0.34",
+    "bbPluginSdk": ">=0.4.1"
+  },
+  "bb": {
+    "name": "Mesh Gradient",
+    "description": "Design, preview, and export mesh gradients from bb.",
+    "branding": {
+      "icon": "./assets/icon.svg"
+    },
+    "server": "./dist/install-server.mjs",
+    "app": "./dist/install-app.mjs",
+    "skills": [],
+    "themes": [
+      {
+        "id": "aurora",
+        "name": "Mesh Aurora",
+        "description": "Green-to-violet, from the aurora palette",
+        "css": "./themes/aurora.css"
+      },
+      {
+        "id": "sunset",
+        "name": "Mesh Sunset",
+        "description": "Warm amber and rose, from the sunset palette",
+        "css": "./themes/sunset.css"
+      },
+      {
+        "id": "ocean",
+        "name": "Mesh Ocean",
+        "description": "Teal and indigo, from the ocean palette",
+        "css": "./themes/ocean.css"
+      },
+      {
+        "id": "candy",
+        "name": "Mesh Candy",
+        "description": "Bright pink and violet, from the candy palette",
+        "css": "./themes/candy.css"
+      },
+      {
+        "id": "forest",
+        "name": "Mesh Forest",
+        "description": "Muted greens, from the forest palette",
+        "css": "./themes/forest.css"
+      },
+      {
+        "id": "mono",
+        "name": "Mesh Mono",
+        "description": "Single-hue neutral, from the mono palette",
+        "css": "./themes/mono.css"
+      }
+    ]
+  }
+}
