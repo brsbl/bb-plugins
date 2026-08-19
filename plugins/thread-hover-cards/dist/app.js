@@ -1222,6 +1222,7 @@ var THREAD_ROW_SELECTOR = ".group\\/thread-row";
 var SECTION_TOGGLE_SELECTOR = 'button[aria-expanded][aria-label$=" section"]';
 var STICKY_GROUP_SELECTOR = "[data-sidebar-sticky-group]";
 var PROJECT_ITEM_SELECTOR = "[data-sidebar-sticky-project-item]";
+var PROJECT_ID_SELECTOR = "[data-sidebar-project-id]";
 var SECTION_SUMMARY_CACHE_TTL_MS = 4e3;
 var SECTION_CACHE_MAX_ENTRIES = 32;
 var SECTION_UNKNOWN_TTL_MS = 6e4;
@@ -1425,6 +1426,10 @@ function enclosingProjectName(row) {
   const projectToggle = projectItem?.querySelector(SECTION_TOGGLE_SELECTOR);
   return projectToggle == null ? null : sectionLabelOf(projectToggle);
 }
+function projectIdFor(row) {
+  const value = row.closest(PROJECT_ID_SELECTOR)?.dataset.sidebarProjectId?.trim();
+  return value || null;
+}
 function findSectionTrigger(target) {
   const root = target instanceof Element ? target.closest(STICKY_GROUP_SELECTOR) : null;
   if (root === null) return null;
@@ -1436,14 +1441,32 @@ function findSectionTrigger(target) {
       if (name === null || isProjectHeaderRow(candidate)) return null;
       return {
         name,
+        projectId: projectIdFor(candidate),
         projectName: enclosingProjectName(candidate),
         row: candidate,
+        sectionId: root instanceof HTMLElement ? root.dataset.sidebarSectionId?.trim() || null : null,
         toggle
       };
     }
     candidate = candidate.parentElement;
   }
   return null;
+}
+function sameSectionIdentity(left, right) {
+  if (left.sectionId !== null || right.sectionId !== null) {
+    return left.sectionId !== null && left.sectionId === right.sectionId && left.projectId === right.projectId;
+  }
+  return left.name === right.name && left.projectName === right.projectName;
+}
+function findCurrentSectionTrigger(target) {
+  const matches = [];
+  for (const toggle of Array.from(
+    document.querySelectorAll(SECTION_TOGGLE_SELECTOR)
+  )) {
+    const current = findSectionTrigger(toggle);
+    if (current && sameSectionIdentity(target, current)) matches.push(current);
+  }
+  return matches.length === 1 ? matches[0] : null;
 }
 function threadIdFor(trigger) {
   const value = trigger.dataset.sidebarThreadId?.trim();
@@ -2651,13 +2674,18 @@ function installHoverCards({ onOpen }) {
     closeCard
   };
 }
-async function fetchSectionSummary(name, projectName, signal) {
+async function fetchSectionSummary(target, signal) {
   const response = await fetch(
     "/api/v1/plugins/thread-hover-cards/rpc/sectionSummary",
     {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ name, projectName }),
+      body: JSON.stringify({
+        name: target.name,
+        projectId: target.projectId,
+        projectName: target.projectName,
+        ...target.sectionId === null ? {} : { sectionId: target.sectionId }
+      }),
       signal
     }
   );
@@ -2685,7 +2713,9 @@ function installSectionHoverCards({
   style.textContent = SECTION_CARD_CSS;
   document.getElementById(SECTION_STYLE_ID)?.remove();
   document.head.append(style);
-  const keyOf = (target) => JSON.stringify([target.name, target.projectName]);
+  const keyOf = (target) => JSON.stringify(
+    target.sectionId === null ? ["name", target.name, target.projectName] : ["id", target.sectionId, target.projectId]
+  );
   function ensureCard() {
     if (card) return card;
     card = element("div", "bb-thread-hover-card");
@@ -2703,7 +2733,17 @@ function installSectionHoverCards({
     return card;
   }
   function position() {
-    if (!card || card.hidden || !active?.row.isConnected) return;
+    if (!card || card.hidden || !active) return;
+    if (!active.row.isConnected) {
+      const current = findCurrentSectionTrigger(active);
+      if (!current) {
+        closeCard();
+        return;
+      }
+      active.toggle.removeAttribute("aria-describedby");
+      active = current;
+      active.toggle.setAttribute("aria-describedby", SECTION_CARD_ID);
+    }
     placeCardNear(card, active.row);
   }
   function abortPendingRequests() {
@@ -2742,11 +2782,7 @@ function installSectionHoverCards({
     abortPendingRequests();
     const controller = new AbortController();
     pending.set(key, controller);
-    return fetchSectionSummary(
-      target.name,
-      target.projectName,
-      controller.signal
-    ).then((summary) => {
+    return fetchSectionSummary(target, controller.signal).then((summary) => {
       if (!summary.known) {
         unknownSections.set(key, Date.now());
         return summary;
@@ -2849,6 +2885,8 @@ function installSectionHoverCards({
   document.addEventListener("click", onClick);
   window.addEventListener("resize", position);
   window.addEventListener("scroll", position, true);
+  const sidebarObserver = new MutationObserver(position);
+  sidebarObserver.observe(document.body, { childList: true, subtree: true });
   return {
     dispose() {
       disposed = true;
@@ -2860,6 +2898,7 @@ function installSectionHoverCards({
       document.removeEventListener("click", onClick);
       window.removeEventListener("resize", position);
       window.removeEventListener("scroll", position, true);
+      sidebarObserver.disconnect();
       card?.remove();
       card = null;
       style.remove();

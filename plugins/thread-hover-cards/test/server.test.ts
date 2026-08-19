@@ -23,7 +23,9 @@ type PullRequestHandler = (input: {
 }) => Promise<ThreadPullRequest>;
 type SectionSummaryHandler = (input: {
   name: string;
+  projectId?: string | null;
   projectName?: string | null;
+  sectionId?: string;
 }) => Promise<SectionSummary>;
 
 let summaryHandler: SummaryHandler | undefined;
@@ -35,6 +37,7 @@ let sectionRows: { id: string; name: string }[] = [
   { id: "sec_duplicate_project", name: "Duplicate Project" },
   { id: "sec_pinned_case", name: "Pinned Case" },
   { id: "sec_lost_page", name: "Lost Page" },
+  { id: "sec_pinned_custom", name: "Pinned" },
   { id: "sec_stale_count", name: "Stale Count" },
 ];
 let sectionListCalls = 0;
@@ -1163,6 +1166,18 @@ await assert.rejects(
   /Section summary unavailable\./,
   "fails closed when a display name cannot identify one project",
 );
+assert.equal(
+  (
+    await sectionSummaryHandler({
+      name: "Duplicate Project",
+      projectId: "proj_same_1",
+      projectName: "Same",
+      sectionId: "sec_duplicate_project",
+    })
+  ).total,
+  1,
+  "uses stable ids when duplicate display names cannot identify a project",
+);
 
 const sectionRealDateNow = Date.now;
 let fakeNow = sectionRealDateNow();
@@ -1206,8 +1221,20 @@ await assert.rejects(
 );
 sectionThreadsFail = false;
 
-// A built-in group is genuinely not a section.
+// A built-in group remains closed even when a custom section shares its name;
+// the custom section is still reachable through the stable id-bearing DOM.
+sectionThreadsById.set("sec_pinned_custom", [sectionThread({ id: "custom" })]);
 assert.equal((await sectionSummaryHandler({ name: "Pinned" })).known, false);
+assert.equal(
+  (
+    await sectionSummaryHandler({
+      name: "Pinned",
+      projectId: null,
+      sectionId: "sec_pinned_custom",
+    })
+  ).total,
+  1,
+);
 
 // A section created after the directory was cached must not be written off.
 sectionRows = [...sectionRows, { id: "sec_new", name: "Just Created" }];
