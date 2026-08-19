@@ -1,0 +1,21 @@
+{
+  "capturedAt": "2026-08-19",
+  "viewport": {
+    "width": 1280,
+    "height": 900,
+    "deviceScaleFactor": 2
+  },
+  "pr72": {
+    "mergeBase": "88a95813a845cf8814191043302dd3840f7696c8",
+    "headRevision": "e5628940b8c50706b00d3ff74a6509a8ab2e2afe",
+    "coreRevision": "c3fe8ee68c5ddfe80b58e4b60bcf4da49bc1e43b",
+    "fixture": "Browser Core Test Lab in the Browser Context exact-target QA thread",
+    "beforeMethod": "Exact comparison app with Browser Context disabled",
+    "files": [
+      "pr72-before-plugin-disabled-final-e5628940b.png",
+      "pr72-after-enabled-final-e5628940b.png",
+      "pr72-after-agent-control-final-e5628940b.png",
+      "pr72-after-inspector-final-e5628940b.png"
+    ]
+  }
+}
