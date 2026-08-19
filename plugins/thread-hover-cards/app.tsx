@@ -526,19 +526,23 @@ function permissionMetadata(summary: ThreadSummary): HTMLSpanElement | null {
       : summary.permissionMode === "accept-edits" ||
           summary.permissionMode === "workspace-write"
         ? { definition: FolderEditIcon, name: "FolderEditIcon" }
-        : { definition: ViewIcon, name: "ViewIcon" };
+        : summary.permissionMode === "readonly"
+          ? { definition: ViewIcon, name: "ViewIcon" }
+          : null;
   const access = element("span", "bb-thread-hover-card__access");
   access.dataset.permissionMode = summary.permissionMode!;
   access.setAttribute("aria-label", `Permission: ${label}`);
   access.title = `Permission: ${label}`;
-  access.append(
-    icon(
-      permissionIcon.definition,
-      permissionIcon.name,
-      "bb-thread-hover-card__icon bb-thread-hover-card__permission-icon",
-    ),
-    document.createTextNode(label),
-  );
+  if (permissionIcon) {
+    access.append(
+      icon(
+        permissionIcon.definition,
+        permissionIcon.name,
+        "bb-thread-hover-card__icon bb-thread-hover-card__permission-icon",
+      ),
+    );
+  }
+  access.append(document.createTextNode(label));
   return access;
 }
 

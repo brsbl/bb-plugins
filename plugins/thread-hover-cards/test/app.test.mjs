@@ -1083,10 +1083,11 @@ assert.equal(
   card.querySelector(".bb-thread-hover-card__access")?.textContent,
   "Auto",
 );
-assert.ok(
+assert.equal(
   card
     .querySelector(".bb-thread-hover-card__access")
-    ?.querySelector('[data-icon="ViewIcon"]'),
+    ?.querySelector("[data-icon]"),
+  null,
 );
 assert.equal(
   card.querySelector(".bb-thread-hover-card__access")?.parentElement,
