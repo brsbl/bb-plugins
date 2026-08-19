@@ -144,7 +144,7 @@ jobs:
 
   publish-install-refs:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    needs: [hygiene, plugins, thread-history-maintenance]
+    needs: [hygiene, sdk-compatibility, plugins, thread-history-maintenance]
     permissions:
       contents: write
     runs-on: ubuntu-latest

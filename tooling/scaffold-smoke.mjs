@@ -7,6 +7,7 @@ import { fileURLToPath } from "node:url";
 
 import { checkRepository } from "./check-repository.mjs";
 import { scaffoldPlugin } from "./create-plugin.mjs";
+import { sdkRangeIncludesVersion } from "./plugin-sdk-provenance.mjs";
 import {
   assertPublishWorktreeClean,
   releaseManifest,
@@ -134,6 +135,11 @@ Install: \`bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/
 
 const fixtureRoot = await mkdtemp(resolve(tmpdir(), "bb-plugin-scaffold-smoke-"));
 try {
+  assert.equal(sdkRangeIncludesVersion("^0.4.1", "0.4.8"), true);
+  assert.equal(sdkRangeIncludesVersion(">=0.4.1", "0.4.8"), true);
+  assert.equal(sdkRangeIncludesVersion("^0.3.9", "0.4.8"), false);
+  assert.equal(sdkRangeIncludesVersion("^0.4.9", "0.4.8"), false);
+  assert.equal(sdkRangeIncludesVersion("^00.4.1", "0.4.8"), false);
   assert.throws(
     () => assertPublishWorktreeClean(" M tooling/publish-install-refs.mjs"),
     /refusing to push install refs from a dirty worktree/,

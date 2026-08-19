@@ -7,6 +7,7 @@ import { readPluginWorkspaces } from "./plugin-workspaces.mjs";
 import {
   pluginSdkArchive,
   pluginSdkVersion,
+  sdkRangeIncludesVersion,
 } from "./plugin-sdk-provenance.mjs";
 
 const defaultRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
@@ -24,31 +25,6 @@ async function readJson(path) {
 
 function assert(condition, message) {
   if (!condition) throw new Error(message);
-}
-
-function parseSdkVersion(value, label) {
-  const match = /^(\d+)\.(\d+)\.(\d+)$/.exec(value);
-  assert(match !== null, `${label} must be an exact semantic version`);
-  return match.slice(1).map(Number);
-}
-
-function sdkFloor(range, label) {
-  const match = /^(?:\^|>=)(\d+)\.(\d+)\.(\d+)$/.exec(range);
-  assert(match !== null, `${label} must be a ^ or >= SDK floor`);
-  return match.slice(1).map(Number);
-}
-
-function compareVersions(left, right) {
-  for (let index = 0; index < left.length; index += 1) {
-    if (left[index] !== right[index]) return left[index] - right[index];
-  }
-  return 0;
-}
-
-function sdkFloorIsSupported(range, version) {
-  const floor = sdkFloor(range, "engines.bbPluginSdk");
-  const target = parseSdkVersion(version, "vendored SDK version");
-  return floor[0] === target[0] && compareVersions(floor, target) <= 0;
 }
 
 function normalizeRelativePath(path, label) {
@@ -234,7 +210,7 @@ export async function checkRepository(repositoryRoot = defaultRoot, options = {}
       `${slug}: bb engine drift`,
     );
     assert(
-      sdkFloorIsSupported(manifest.engines?.bbPluginSdk, pluginSdkVersion),
+      sdkRangeIncludesVersion(manifest.engines?.bbPluginSdk, pluginSdkVersion),
       `${slug}: SDK floor is newer than vendored SDK ${pluginSdkVersion}`,
     );
     assert(
