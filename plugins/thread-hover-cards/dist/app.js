@@ -241,6 +241,30 @@ var SquareUnlock02Icon = [
     }
   ]
 ];
+var SecurityCheckIcon = [
+  [
+    "path",
+    {
+      d: "M18.7088 3.49534C16.8165 2.55382 14.5009 2 12 2C9.4991 2 7.1835 2.55382 5.29116 3.49534C4.36318 3.95706 3.89919 4.18792 3.4496 4.91378C3 5.63965 3 6.34248 3 7.74814V11.2371C3 16.9205 7.54236 20.0804 10.173 21.4338C10.9067 21.8113 11.2735 22 12 22C12.7265 22 13.0933 21.8113 13.8269 21.4338C16.4576 20.0804 21 16.9205 21 11.2371L21 7.74814C21 6.34249 21 5.63966 20.5504 4.91378C20.1008 4.18791 19.6368 3.95706 18.7088 3.49534Z",
+      stroke: "currentColor",
+      strokeLinecap: "round",
+      strokeLinejoin: "round",
+      strokeWidth: "1.5",
+      key: "0"
+    }
+  ],
+  [
+    "path",
+    {
+      d: "M9 11.5C9 11.5 10.4079 11.7519 11 13.5C11 13.5 12.5 10.5 15 9.5",
+      stroke: "currentColor",
+      strokeLinecap: "round",
+      strokeLinejoin: "round",
+      strokeWidth: "1.5",
+      key: "1"
+    }
+  ]
+];
 var FolderEditIcon = [
   [
     "path",
@@ -613,7 +637,7 @@ var HOVER_CARD_CSS = String.raw`
 
 .bb-thread-hover-card__provider {
   flex: 1 1 auto;
-  gap: 0.3125rem;
+  gap: 0.25rem;
   color: var(--muted-foreground);
 }
 
@@ -625,10 +649,20 @@ var HOVER_CARD_CSS = String.raw`
   overflow: hidden;
 }
 
-.bb-thread-hover-card__reasoning {
+.bb-thread-hover-card__provider-model,
+.bb-thread-hover-card__reasoning,
+.bb-thread-hover-card__access {
+  font-size: 0.75rem;
+  line-height: 1.25;
+}
+
+.bb-thread-hover-card__reasoning,
+.bb-thread-hover-card__access {
   flex: none;
-  color: color-mix(in srgb, var(--muted-foreground) 76%, transparent);
-  font-size: 0.625rem;
+  color: var(
+    --subtle-foreground,
+    color-mix(in srgb, var(--muted-foreground) 76%, transparent)
+  );
   white-space: nowrap;
 }
 
@@ -715,9 +749,9 @@ var HOVER_CARD_CSS = String.raw`
 }
 
 .bb-thread-hover-card__provider-icon {
-  width: 0.8125rem;
-  height: 0.8125rem;
-  color: color-mix(in srgb, var(--muted-foreground) 82%, transparent);
+  width: 1rem;
+  height: 1rem;
+  color: var(--muted-foreground);
   object-fit: contain;
 }
 
@@ -821,17 +855,20 @@ var HOVER_CARD_CSS = String.raw`
 }
 
 .bb-thread-hover-card__access {
-  flex: none;
   gap: 0.1875rem;
-  color: color-mix(in srgb, var(--muted-foreground) 76%, transparent);
-  font-size: 0.625rem;
-  white-space: nowrap;
+  margin-left: 0.25rem;
 }
 
 .bb-thread-hover-card__permission-icon {
-  width: 0.625rem;
-  height: 0.625rem;
+  width: 0.75rem;
+  height: 0.75rem;
   color: currentColor;
+}
+
+.bb-thread-hover-card__access[data-permission-mode="accept-edits"],
+.bb-thread-hover-card__access[data-permission-mode="workspace-write"],
+.bb-thread-hover-card__access[data-permission-mode="auto"] {
+  color: color-mix(in srgb, var(--muted-foreground) 72%, transparent);
 }
 
 .bb-thread-hover-card__access[data-permission-mode="full"] {
@@ -1492,6 +1529,19 @@ function refreshRunTime(card) {
   }
 }
 function formatModelLabel(value, providerId) {
+  if (providerId === "claude-code") {
+    const contextMatch = value.match(/^(.*)\[(\d+(?:\.\d+)?[km])\]$/i);
+    const modelId = contextMatch?.[1] ?? value;
+    const context = contextMatch?.[2]?.toUpperCase();
+    const formatted2 = modelId.replace(/^claude[-_\s]+/i, "").split(/[-_]/).map((part) => {
+      if (/^\d+(\.\d+)*$/.test(part)) return part;
+      if (/^[a-z]+$/i.test(part)) {
+        return part.charAt(0).toUpperCase() + part.slice(1).toLowerCase();
+      }
+      return part;
+    }).join("-").replace(/-(\d+)-(\d+)(?=-|$)/, "-$1.$2").split("-").join(" ");
+    return context ? `${formatted2} (${context})` : formatted2;
+  }
   const formatted = value.split("-").map((part) => {
     if (part.toLowerCase() === "gpt") return "GPT";
     if (/^\d+(\.\d+)*$/.test(part)) return part;
@@ -1501,9 +1551,6 @@ function formatModelLabel(value, providerId) {
     return part;
   }).join("-");
   if (providerId === "codex") return formatted.replace(/^GPT-/i, "");
-  if (providerId === "claude-code") {
-    return formatted.replace(/^Claude\s+/i, "");
-  }
   return formatted;
 }
 function permissionLabel(permissionMode) {
@@ -1520,19 +1567,21 @@ function permissionMetadata(summary) {
   const permissionIcon = summary.permissionMode === "full" ? {
     definition: SquareUnlock02Icon,
     name: "SquareUnlock02Icon"
-  } : summary.permissionMode === "accept-edits" || summary.permissionMode === "workspace-write" ? { definition: FolderEditIcon, name: "FolderEditIcon" } : { definition: ViewIcon, name: "ViewIcon" };
+  } : summary.permissionMode === "accept-edits" || summary.permissionMode === "workspace-write" ? { definition: FolderEditIcon, name: "FolderEditIcon" } : summary.permissionMode === "auto" ? { definition: SecurityCheckIcon, name: "SecurityCheckIcon" } : summary.permissionMode === "readonly" ? { definition: ViewIcon, name: "ViewIcon" } : null;
   const access = element("span", "bb-thread-hover-card__access");
   access.dataset.permissionMode = summary.permissionMode;
   access.setAttribute("aria-label", `Permission: ${label}`);
   access.title = `Permission: ${label}`;
-  access.append(
-    icon(
-      permissionIcon.definition,
-      permissionIcon.name,
-      "bb-thread-hover-card__icon bb-thread-hover-card__permission-icon"
-    ),
-    document.createTextNode(label)
-  );
+  if (permissionIcon) {
+    access.append(
+      icon(
+        permissionIcon.definition,
+        permissionIcon.name,
+        "bb-thread-hover-card__icon bb-thread-hover-card__permission-icon"
+      )
+    );
+  }
+  access.append(document.createTextNode(label));
   return access;
 }
 function nextInlinePattern(source) {
@@ -1737,7 +1786,7 @@ function renderSummary(card, summary) {
     summary.provider.id
   );
   const reasoningLabel = summary.provider.reasoningLevel ? REASONING_LABELS[summary.provider.reasoningLevel] : null;
-  provider.title = reasoningLabel ? `${summary.provider.displayName} \xB7 ${modelLabel} \xB7 ${reasoningLabel} reasoning` : `${summary.provider.displayName} \xB7 ${modelLabel}`;
+  provider.title = reasoningLabel ? `${summary.provider.displayName}: ${modelLabel} \xB7 ${reasoningLabel} reasoning` : `${summary.provider.displayName}: ${modelLabel}`;
   const providerIdentity = element(
     "div",
     "bb-thread-hover-card__provider-identity"

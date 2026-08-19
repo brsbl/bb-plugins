@@ -211,6 +211,8 @@ globalThis.fetch = async (url, init) => {
     );
   }
   const isLocal = request.threadId === "thr_local";
+  const isClaude = request.threadId === "thr_claude";
+  const isClaudeVersion = request.threadId === "thr_claude_version";
   const hasNoPullRequest = request.threadId === "thr_no_pr";
   const pullRequestUnavailable = request.threadId === "thr_pr_unavailable";
   const isDraftPullRequest = request.threadId === "thr_draft_pr";
@@ -393,7 +395,7 @@ globalThis.fetch = async (url, init) => {
           : hasNoPullRequest
             ? null
             : "**Agent update**—implementing concise hover cards for foo_bar_baz and \\_literal\\_",
-        permissionMode: isLocal
+        permissionMode: isLocal || isClaude || isClaudeVersion
           ? "auto"
           : isDraftPullRequest
             ? "accept-edits"
@@ -403,11 +405,15 @@ globalThis.fetch = async (url, init) => {
             ? { kind: "absent" }
             : { kind: "pending" },
         provider: {
-          displayName: "Codex",
-          id: "codex",
+          displayName: isClaude || isClaudeVersion ? "Claude" : "Codex",
+          id: isClaude || isClaudeVersion ? "claude-code" : "codex",
           logoUrl: null,
-          model: "GPT-5.6-Sol",
-          reasoningLevel: "xhigh",
+          model: isClaudeVersion
+            ? "claude-opus-4-8[1m]"
+            : isClaude
+              ? "claude-sonnet-5"
+              : "gpt-5.6-sol",
+          reasoningLevel: isClaude || isClaudeVersion ? "medium" : "xhigh",
         },
         repository: isLocal
           ? {
@@ -516,6 +522,18 @@ assert.match(
   style.textContent,
   /\.bb-thread-hover-card__provider-model\.bb-thread-hover-card__truncate \{[\s\S]*?flex: 0 1 auto/,
 );
+assert.match(
+  style.textContent,
+  /\.bb-thread-hover-card__provider-model,[\s\S]*?\.bb-thread-hover-card__reasoning,[\s\S]*?\.bb-thread-hover-card__access \{[\s\S]*?font-size: 0\.75rem;[\s\S]*?line-height: 1\.25/,
+);
+assert.match(
+  style.textContent,
+  /\.bb-thread-hover-card__reasoning,[\s\S]*?\.bb-thread-hover-card__access \{[\s\S]*?--subtle-foreground/,
+);
+assert.match(
+  style.textContent,
+  /\.bb-thread-hover-card__provider-icon \{[\s\S]*?width: 1rem;[\s\S]*?height: 1rem;[\s\S]*?color: var\(--muted-foreground\)/,
+);
 assert.doesNotMatch(style.textContent, /--font-mono/);
 assert.match(style.textContent, /\.bb-thread-hover-card__context/);
 assert.match(
@@ -541,7 +559,19 @@ assert.match(
 assert.match(style.textContent, /\.bb-thread-hover-card__pr-status/);
 assert.match(
   style.textContent,
-  /\.bb-thread-hover-card__access \{[\s\S]*?flex: none;[\s\S]*?white-space: nowrap/,
+  /\.bb-thread-hover-card__reasoning,[\s\S]*?\.bb-thread-hover-card__access \{[\s\S]*?flex: none;[\s\S]*?--subtle-foreground,[\s\S]*?white-space: nowrap/,
+);
+assert.match(
+  style.textContent,
+  /\.bb-thread-hover-card__access \{[\s\S]*?gap: 0\.1875rem;[\s\S]*?margin-left: 0\.25rem/,
+);
+assert.match(
+  style.textContent,
+  /\.bb-thread-hover-card__permission-icon \{[\s\S]*?width: 0\.75rem;[\s\S]*?height: 0\.75rem/,
+);
+assert.match(
+  style.textContent,
+  /\.bb-thread-hover-card__access\[data-permission-mode="accept-edits"\],[\s\S]*?\.bb-thread-hover-card__access\[data-permission-mode="auto"\] \{[\s\S]*?var\(--muted-foreground\) 72%, transparent/,
 );
 assert.match(
   style.textContent,
@@ -657,6 +687,10 @@ assert.equal(
 assert.equal(
   card.querySelector(".bb-thread-hover-card__reasoning")?.textContent,
   "Extra High",
+);
+assert.equal(
+  card.querySelector(".bb-thread-hover-card__provider")?.title,
+  "Codex: 5.6-Sol · Extra High reasoning",
 );
 assert.equal(
   card.querySelector(".bb-thread-hover-card__provider-model")?.parentElement,
@@ -1067,10 +1101,12 @@ assert.equal(
   card.querySelector(".bb-thread-hover-card__access")?.textContent,
   "Auto",
 );
-assert.ok(
+assert.equal(
   card
     .querySelector(".bb-thread-hover-card__access")
-    ?.querySelector('[data-icon="ViewIcon"]'),
+    ?.querySelector("[data-icon]")
+    ?.getAttribute("data-icon"),
+  "SecurityCheckIcon",
 );
 assert.equal(
   card.querySelector(".bb-thread-hover-card__access")?.parentElement,
@@ -1931,6 +1967,55 @@ assert.equal(
 assert.equal(
   window.document.getElementById("bb-thread-hover-card").hidden,
   false,
+);
+
+nestedThread.dispatchEvent(
+  new window.PointerEvent("pointerout", {
+    bubbles: true,
+    pointerType: "mouse",
+    relatedTarget: window.document.body,
+  }),
+);
+await new Promise((resolve) => setTimeout(resolve, 140));
+nestedThread.dataset.sidebarThreadId = "thr_claude";
+hoverOver(nestedThread);
+await new Promise((resolve) => setTimeout(resolve, 20));
+assert.equal(
+  window.document.querySelector(".bb-thread-hover-card__provider-model")
+    ?.textContent,
+  "Sonnet 5",
+);
+assert.equal(
+  window.document.querySelector(".bb-thread-hover-card__reasoning")?.textContent,
+  "Medium",
+);
+assert.equal(
+  window.document.querySelector(".bb-thread-hover-card__access")?.textContent,
+  "Auto",
+);
+assert.equal(
+  window.document
+    .querySelector(".bb-thread-hover-card__access")
+    ?.querySelector("[data-icon]")
+    ?.getAttribute("data-icon"),
+  "SecurityCheckIcon",
+);
+
+nestedThread.dispatchEvent(
+  new window.PointerEvent("pointerout", {
+    bubbles: true,
+    pointerType: "mouse",
+    relatedTarget: window.document.body,
+  }),
+);
+await new Promise((resolve) => setTimeout(resolve, 140));
+nestedThread.dataset.sidebarThreadId = "thr_claude_version";
+hoverOver(nestedThread);
+await new Promise((resolve) => setTimeout(resolve, 20));
+assert.equal(
+  window.document.querySelector(".bb-thread-hover-card__provider-model")
+    ?.textContent,
+  "Opus 4.8 (1M)",
 );
 
 globalThis.__bbThreadHoverCards?.dispose();

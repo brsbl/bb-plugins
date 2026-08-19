@@ -14,6 +14,7 @@ import {
   Loading03Icon,
   OpenAiIcon,
   PiIcon,
+  SecurityCheckIcon,
   SourceCodeIcon,
   SquareUnlock02Icon,
   ViewIcon,
@@ -483,6 +484,27 @@ function refreshRunTime(card: HTMLElement): void {
 }
 
 function formatModelLabel(value: string, providerId: string): string {
+  if (providerId === "claude-code") {
+    const contextMatch = value.match(/^(.*)\[(\d+(?:\.\d+)?[km])\]$/i);
+    const modelId = contextMatch?.[1] ?? value;
+    const context = contextMatch?.[2]?.toUpperCase();
+    const formatted = modelId
+      .replace(/^claude[-_\s]+/i, "")
+      .split(/[-_]/)
+      .map((part) => {
+        if (/^\d+(\.\d+)*$/.test(part)) return part;
+        if (/^[a-z]+$/i.test(part)) {
+          return part.charAt(0).toUpperCase() + part.slice(1).toLowerCase();
+        }
+        return part;
+      })
+      .join("-")
+      .replace(/-(\d+)-(\d+)(?=-|$)/, "-$1.$2")
+      .split("-")
+      .join(" ");
+    return context ? `${formatted} (${context})` : formatted;
+  }
+
   const formatted = value
     .split("-")
     .map((part) => {
@@ -496,9 +518,6 @@ function formatModelLabel(value: string, providerId: string): string {
     .join("-");
 
   if (providerId === "codex") return formatted.replace(/^GPT-/i, "");
-  if (providerId === "claude-code") {
-    return formatted.replace(/^Claude\s+/i, "");
-  }
   return formatted;
 }
 
@@ -526,19 +545,25 @@ function permissionMetadata(summary: ThreadSummary): HTMLSpanElement | null {
       : summary.permissionMode === "accept-edits" ||
           summary.permissionMode === "workspace-write"
         ? { definition: FolderEditIcon, name: "FolderEditIcon" }
-        : { definition: ViewIcon, name: "ViewIcon" };
+        : summary.permissionMode === "auto"
+          ? { definition: SecurityCheckIcon, name: "SecurityCheckIcon" }
+          : summary.permissionMode === "readonly"
+            ? { definition: ViewIcon, name: "ViewIcon" }
+            : null;
   const access = element("span", "bb-thread-hover-card__access");
   access.dataset.permissionMode = summary.permissionMode!;
   access.setAttribute("aria-label", `Permission: ${label}`);
   access.title = `Permission: ${label}`;
-  access.append(
-    icon(
-      permissionIcon.definition,
-      permissionIcon.name,
-      "bb-thread-hover-card__icon bb-thread-hover-card__permission-icon",
-    ),
-    document.createTextNode(label),
-  );
+  if (permissionIcon) {
+    access.append(
+      icon(
+        permissionIcon.definition,
+        permissionIcon.name,
+        "bb-thread-hover-card__icon bb-thread-hover-card__permission-icon",
+      ),
+    );
+  }
+  access.append(document.createTextNode(label));
   return access;
 }
 
@@ -807,8 +832,8 @@ function renderSummary(card: HTMLElement, summary: ThreadSummary): void {
     ? REASONING_LABELS[summary.provider.reasoningLevel]
     : null;
   provider.title = reasoningLabel
-    ? `${summary.provider.displayName} · ${modelLabel} · ${reasoningLabel} reasoning`
-    : `${summary.provider.displayName} · ${modelLabel}`;
+    ? `${summary.provider.displayName}: ${modelLabel} · ${reasoningLabel} reasoning`
+    : `${summary.provider.displayName}: ${modelLabel}`;
   const providerIdentity = element(
     "div",
     "bb-thread-hover-card__provider-identity",
