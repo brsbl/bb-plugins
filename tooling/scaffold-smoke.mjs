@@ -308,6 +308,31 @@ try {
     expectedScreenshot: screenshot,
   });
   await checkRepository(fixtureRoot);
+
+  const fixtureLockPath = resolve(fixtureRoot, "package-lock.json");
+  const fixtureLockRaw = await readFile(fixtureLockPath, "utf8");
+  const fixtureLock = JSON.parse(fixtureLockRaw);
+  const rolldownPath = "node_modules/rolldown";
+  const rolldownBindings = Object.keys(
+    fixtureLock.packages[rolldownPath]?.optionalDependencies ?? {},
+  ).filter((packageName) => fixtureLock.packages[`node_modules/${packageName}`]);
+  assert.ok(
+    rolldownBindings.length > 1,
+    "fixture must install multiple Rolldown binding lock entries",
+  );
+  delete fixtureLock.packages[`node_modules/${rolldownBindings[0]}`];
+  await writeFile(fixtureLockPath, `${JSON.stringify(fixtureLock, null, 2)}\n`);
+  await checkRepository(fixtureRoot);
+
+  for (const packageName of rolldownBindings.slice(1)) {
+    delete fixtureLock.packages[`node_modules/${packageName}`];
+  }
+  await writeFile(fixtureLockPath, `${JSON.stringify(fixtureLock, null, 2)}\n`);
+  await assert.rejects(
+    checkRepository(fixtureRoot),
+    /node_modules\/rolldown: native bindings missing/,
+  );
+  await writeFile(fixtureLockPath, fixtureLockRaw);
   console.log("plugin scaffold smoke test passed after clean npm ci");
 } finally {
   await rm(fixtureRoot, { recursive: true, force: true });
