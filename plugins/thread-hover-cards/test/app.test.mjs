@@ -211,6 +211,7 @@ globalThis.fetch = async (url, init) => {
     );
   }
   const isLocal = request.threadId === "thr_local";
+  const isClaude = request.threadId === "thr_claude";
   const hasNoPullRequest = request.threadId === "thr_no_pr";
   const pullRequestUnavailable = request.threadId === "thr_pr_unavailable";
   const isDraftPullRequest = request.threadId === "thr_draft_pr";
@@ -393,7 +394,7 @@ globalThis.fetch = async (url, init) => {
           : hasNoPullRequest
             ? null
             : "**Agent update**—implementing concise hover cards for foo_bar_baz and \\_literal\\_",
-        permissionMode: isLocal
+        permissionMode: isLocal || isClaude
           ? "auto"
           : isDraftPullRequest
             ? "accept-edits"
@@ -403,11 +404,11 @@ globalThis.fetch = async (url, init) => {
             ? { kind: "absent" }
             : { kind: "pending" },
         provider: {
-          displayName: "Codex",
-          id: "codex",
+          displayName: isClaude ? "Claude" : "Codex",
+          id: isClaude ? "claude-code" : "codex",
           logoUrl: null,
-          model: "gpt-5.6-sol",
-          reasoningLevel: "xhigh",
+          model: isClaude ? "claude-sonnet-5" : "gpt-5.6-sol",
+          reasoningLevel: isClaude ? "medium" : "xhigh",
         },
         repository: isLocal
           ? {
@@ -1948,6 +1949,37 @@ assert.equal(
 assert.equal(
   window.document.getElementById("bb-thread-hover-card").hidden,
   false,
+);
+
+nestedThread.dispatchEvent(
+  new window.PointerEvent("pointerout", {
+    bubbles: true,
+    pointerType: "mouse",
+    relatedTarget: window.document.body,
+  }),
+);
+await new Promise((resolve) => setTimeout(resolve, 140));
+nestedThread.dataset.sidebarThreadId = "thr_claude";
+hoverOver(nestedThread);
+await new Promise((resolve) => setTimeout(resolve, 20));
+assert.equal(
+  window.document.querySelector(".bb-thread-hover-card__provider-model")
+    ?.textContent,
+  "Sonnet 5",
+);
+assert.equal(
+  window.document.querySelector(".bb-thread-hover-card__reasoning")?.textContent,
+  "Medium",
+);
+assert.equal(
+  window.document.querySelector(".bb-thread-hover-card__access")?.textContent,
+  "Auto",
+);
+assert.equal(
+  window.document
+    .querySelector(".bb-thread-hover-card__access")
+    ?.querySelector("[data-icon]"),
+  null,
 );
 
 globalThis.__bbThreadHoverCards?.dispose();

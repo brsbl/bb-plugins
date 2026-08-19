@@ -483,6 +483,23 @@ function refreshRunTime(card: HTMLElement): void {
 }
 
 function formatModelLabel(value: string, providerId: string): string {
+  if (providerId === "claude-code") {
+    return value
+      .replace(/^claude[-_\s]+/i, "")
+      .split(/[-_]/)
+      .map((part) => {
+        if (/^\d+(\.\d+)*$/.test(part)) return part;
+        if (/^[a-z]+$/i.test(part)) {
+          return part.charAt(0).toUpperCase() + part.slice(1).toLowerCase();
+        }
+        return part;
+      })
+      .join(" ")
+      .replace(/(\d+)\[(\d+)([km])\]$/i, (_match, model, size, unit) =>
+        `${model} (${size}${String(unit).toUpperCase()})`,
+      );
+  }
+
   const formatted = value
     .split("-")
     .map((part) => {
@@ -496,9 +513,6 @@ function formatModelLabel(value: string, providerId: string): string {
     .join("-");
 
   if (providerId === "codex") return formatted.replace(/^GPT-/i, "");
-  if (providerId === "claude-code") {
-    return formatted.replace(/^Claude\s+/i, "");
-  }
   return formatted;
 }
 
