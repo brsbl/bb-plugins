@@ -164,9 +164,13 @@
     .underline {
       text-decoration-line: underline;
     }
-    .outline {
-      outline-style: var(--tw-outline-style);
-      outline-width: 1px;
+    .shadow {
+      --tw-shadow: var(--shadow);
+      box-shadow: var(--tw-inset-shadow), var(--tw-inset-ring-shadow), var(--tw-ring-offset-shadow), var(--tw-ring-shadow), var(--tw-shadow);
+    }
+    .ring {
+      --tw-ring-shadow: var(--tw-ring-inset,) 0 0 0 calc(1px + var(--tw-ring-offset-width)) var(--tw-ring-color, currentcolor);
+      box-shadow: var(--tw-inset-shadow), var(--tw-inset-ring-shadow), var(--tw-ring-offset-shadow), var(--tw-ring-shadow), var(--tw-shadow);
     }
     .blur {
       --tw-blur: blur(8px);
@@ -205,10 +209,70 @@
   inherits: false;
   initial-value: solid;
 }
-@property --tw-outline-style {
+@property --tw-shadow {
   syntax: "*";
   inherits: false;
-  initial-value: solid;
+  initial-value: 0 0 #0000;
+}
+@property --tw-shadow-color {
+  syntax: "*";
+  inherits: false;
+}
+@property --tw-shadow-alpha {
+  syntax: "<percentage>";
+  inherits: false;
+  initial-value: 100%;
+}
+@property --tw-inset-shadow {
+  syntax: "*";
+  inherits: false;
+  initial-value: 0 0 #0000;
+}
+@property --tw-inset-shadow-color {
+  syntax: "*";
+  inherits: false;
+}
+@property --tw-inset-shadow-alpha {
+  syntax: "<percentage>";
+  inherits: false;
+  initial-value: 100%;
+}
+@property --tw-ring-color {
+  syntax: "*";
+  inherits: false;
+}
+@property --tw-ring-shadow {
+  syntax: "*";
+  inherits: false;
+  initial-value: 0 0 #0000;
+}
+@property --tw-inset-ring-color {
+  syntax: "*";
+  inherits: false;
+}
+@property --tw-inset-ring-shadow {
+  syntax: "*";
+  inherits: false;
+  initial-value: 0 0 #0000;
+}
+@property --tw-ring-inset {
+  syntax: "*";
+  inherits: false;
+}
+@property --tw-ring-offset-width {
+  syntax: "<length>";
+  inherits: false;
+  initial-value: 0px;
+}
+@property --tw-ring-offset-color {
+  syntax: "*";
+  inherits: false;
+  initial-value: #fff;
+}
+@property --tw-ring-offset-shadow {
+  syntax: "*";
+  inherits: false;
+  initial-value: 0 0 #0000;
 }
 @property --tw-blur {
   syntax: "*";
@@ -289,7 +353,20 @@
       --tw-skew-x: initial;
       --tw-skew-y: initial;
       --tw-border-style: solid;
-      --tw-outline-style: solid;
+      --tw-shadow: 0 0 #0000;
+      --tw-shadow-color: initial;
+      --tw-shadow-alpha: 100%;
+      --tw-inset-shadow: 0 0 #0000;
+      --tw-inset-shadow-color: initial;
+      --tw-inset-shadow-alpha: 100%;
+      --tw-ring-color: initial;
+      --tw-ring-shadow: 0 0 #0000;
+      --tw-inset-ring-color: initial;
+      --tw-inset-ring-shadow: 0 0 #0000;
+      --tw-ring-inset: initial;
+      --tw-ring-offset-width: 0px;
+      --tw-ring-offset-color: #fff;
+      --tw-ring-offset-shadow: 0 0 #0000;
       --tw-blur: initial;
       --tw-brightness: initial;
       --tw-contrast: initial;
@@ -440,7 +517,7 @@
   box-sizing: border-box;
   padding: 5px 6px;
   overflow: visible;
-  transition: border-color 120ms ease;
+  transition: border-color 120ms ease, box-shadow 120ms ease;
 }
 .bb-comments-textarea,
 .bb-comments-reply-input,
@@ -803,6 +880,52 @@
   min-width: 0;
   flex: 1;
   flex-direction: column;
+  border: 1px solid var(--input, var(--border));
+  border-radius: 8px;
+  background: var(--background);
+  box-shadow: 0 1px 2px color-mix(in oklab, var(--foreground) 8%, transparent);
+  transition:
+    border-color 120ms ease,
+    background-color 120ms ease,
+    box-shadow 120ms ease;
+}
+.bb-comments-composer .bb-comments-mention-input {
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  box-shadow: none;
+}
+.bb-comments-mention-input:focus-within {
+  border-color: var(--ring);
+  box-shadow: 0 0 0 1px var(--ring);
+}
+.bb-comments-composer:focus-within {
+  border-color: var(--ring);
+  box-shadow: 0 0 0 1px var(--ring), 0 6px 18px color-mix(in oklab, var(--foreground) 12%, transparent);
+}
+.bb-comments-composer .bb-comments-mention-input:focus-within {
+  border-color: transparent;
+  box-shadow: none;
+}
+.bb-comments-mention-input:has(.bb-comments-error) {
+  border-color: var(--destructive-text, var(--foreground));
+}
+.bb-comments-composer:has(.bb-comments-error) {
+  border-color: var(--destructive-text, var(--foreground));
+}
+.bb-comments-mention-input[aria-busy=true] .bb-comments-input-surface,
+.bb-comments-mention-input:has(textarea[aria-disabled=true]) .bb-comments-input-surface {
+  background: color-mix(in oklab, var(--surface-recessed) 55%, var(--background));
+}
+.bb-comments-mention-input[aria-busy=true] textarea,
+.bb-comments-mention-input textarea[aria-disabled=true] {
+  color: var(--muted-foreground);
+  cursor: wait;
+}
+.bb-comments-mention-input textarea:focus,
+.bb-comments-mention-input textarea:focus-visible {
+  outline: none;
+  box-shadow: none;
 }
 .bb-comments-mention-input[data-mention-input-expanded=false] {
   height: 30px;
@@ -813,6 +936,8 @@
   flex: 1;
   padding: 3px 9px 0;
   overflow: hidden;
+  border-radius: inherit;
+  transition: background-color 120ms ease;
 }
 .bb-comments-input-row {
   display: flex;

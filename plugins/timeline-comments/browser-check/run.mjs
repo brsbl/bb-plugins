@@ -141,14 +141,23 @@ try {
     .locator('[data-comment-editing="true"] textarea')
     .evaluate((textarea) => {
       const style = getComputedStyle(textarea);
+      const composer = textarea.closest(".bb-comments-mention-input");
+      const composerStyle =
+        composer instanceof HTMLElement ? getComputedStyle(composer) : null;
       return {
         active: document.activeElement === textarea,
         outlineStyle: style.outlineStyle,
+        composerBorderColor: composerStyle?.borderColor,
+        composerBoxShadow: composerStyle?.boxShadow,
       };
     });
-  if (!focusedEditInput.active || focusedEditInput.outlineStyle !== "auto") {
+  if (
+    !focusedEditInput.active ||
+    focusedEditInput.outlineStyle !== "none" ||
+    focusedEditInput.composerBoxShadow === "none"
+  ) {
     throw new Error(
-      `Edit input did not keep the browser-native focus outline: ${JSON.stringify(focusedEditInput)}`,
+      `Edit input did not use the BB focus ring: ${JSON.stringify(focusedEditInput)}`,
     );
   }
   await page.screenshot({ path: screenshot });

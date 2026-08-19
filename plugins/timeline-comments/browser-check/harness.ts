@@ -63,6 +63,7 @@ const replies = Array.from({ length: 12 }, (_, index) => ({
 }));
 
 const nativeFetch = window.fetch.bind(window);
+let rejectNextReply = true;
 window.fetch = async (input, init) => {
   const url = String(input);
   const method = url.split("/").at(-1);
@@ -78,6 +79,20 @@ window.fetch = async (input, init) => {
         nextCursor: null,
       };
     } else if (method === "reply") {
+      await wait(260);
+      if (rejectNextReply) {
+        rejectNextReply = false;
+        return new Response(
+          JSON.stringify({
+            ok: false,
+            error: { message: "Unable to save this comment." },
+          }),
+          {
+            status: 500,
+            headers: { "content-type": "application/json" },
+          },
+        );
+      }
       const insertedReply = {
         id: "comment_reply_incremental",
         threadId: summaries[0]!.id,
@@ -222,7 +237,7 @@ void (async () => {
       throw new Error("Thread popover escaped the viewport");
     if (document.activeElement !== popover)
       throw new Error("Thread popover did not receive focus");
-    const reply = popover.querySelector<HTMLTextAreaElement>(
+    let reply = popover.querySelector<HTMLTextAreaElement>(
       ".bb-comments-reply-input",
     );
     let replyButton = popover.querySelector<HTMLButtonElement>(
@@ -238,9 +253,21 @@ void (async () => {
       throw new Error("Reply input typography did not match BB normal text");
     }
     const emptyReplyHeight = reply.getBoundingClientRect().height;
-    const replyComposer = reply.closest<HTMLElement>(
+    let replyComposer = reply.closest<HTMLElement>(
       ".bb-comments-mention-input",
     )!;
+    const restingBorderColor = getComputedStyle(replyComposer).borderColor;
+    reply.focus();
+    await wait(150);
+    const focusedComposerStyle = getComputedStyle(replyComposer);
+    if (
+      focusedComposerStyle.borderColor === restingBorderColor ||
+      focusedComposerStyle.boxShadow === "none"
+    ) {
+      throw new Error(
+        `Focused reply did not use the BB ring treatment: resting=${restingBorderColor} focused=${focusedComposerStyle.borderColor} shadow=${focusedComposerStyle.boxShadow}`,
+      );
+    }
     setTextareaValue(reply, "First line\nSecond line\nThird line");
     await wait(30);
     if (replyComposer.getAnimations().length === 0)
@@ -270,6 +297,14 @@ void (async () => {
       throw new Error("Valid reply did not enable submission");
     if (replyComposer.dataset.mentionInputExpanded !== "true")
       throw new Error("Expanded reply layout did not stay latched like Moss");
+    setTextareaValue(reply, "x".repeat(10_001));
+    await wait(150);
+    if (
+      replyComposer.querySelector(".bb-comments-error") === null ||
+      getComputedStyle(replyComposer).borderColor === restingBorderColor
+    ) {
+      throw new Error("Invalid reply did not expose the BB destructive state");
+    }
     setTextareaValue(reply, "");
     await wait(30);
     if (replyComposer.getAnimations().length === 0)
@@ -278,6 +313,31 @@ void (async () => {
     if (replyComposer.dataset.mentionInputExpanded !== "false")
       throw new Error("Cleared reply did not restore inline layout");
     setTextareaValue(reply, "Ready");
+    replyButton = popover.querySelector<HTMLButtonElement>(
+      'button[aria-label="Submit comment"]',
+    );
+    replyButton?.click();
+    await wait(150);
+    if (
+      replyComposer.getAttribute("aria-busy") !== "true" ||
+      !reply.readOnly ||
+      getComputedStyle(
+        replyComposer.querySelector<HTMLElement>(
+          ".bb-comments-input-surface",
+        )!,
+      ).backgroundColor === "rgba(0, 0, 0, 0)"
+    ) {
+      throw new Error("Submitting reply did not expose its disabled BB state");
+    }
+    await wait(140);
+    reply = popover.querySelector<HTMLTextAreaElement>(
+      ".bb-comments-reply-input",
+    );
+    replyComposer = reply.closest<HTMLElement>(".bb-comments-mention-input")!;
+    if (replyComposer.hasAttribute("aria-busy") || reply.readOnly)
+      throw new Error("Submitted reply did not restore the editable state");
+    if (!popover.textContent?.includes("Unable to save this comment."))
+      throw new Error("Failed reply did not expose the error state");
     if (CSS.highlights.get("bb-timeline-comments")?.size !== 8) {
       throw new Error("Custom Highlight registry did not retain every anchor");
     }
