@@ -2,16 +2,18 @@
 
 Thread Organizer files bb work into the phase it is in now. The sidebar contains only phase sections that currently have threads:
 
+- 📥 Inbox
 - 📋 Planning
 - 🔎 Spec Review
 - 🛠️ Building
-- 🤝 Handoff
 - ✅ Testing / Deploy
-- 📥 Inbox
+- 🤝 Handoff
 
 ![Thread Organizer development-phase sections in the bb sidebar](docs/screenshot.png)
 
 Inbox is an ordinary named section, not the pinned area. Sections are created when first needed. Pre-existing sections with the same name are reused but never claimed or deleted by the plugin. Empty plugin-created sections are retained because the released SDK does not provide an atomic delete-if-empty operation.
+
+The content script keeps those phase sections in the order above while leaving unrelated sections in their existing positions. Handoff is last because it represents packaging completed work for its next owner.
 
 ## Install
 
@@ -33,6 +35,15 @@ bb organizer phase inbox
 ```
 
 The bundled `thread-phase-organizer` skill explains when to make each transition and falls back to Inbox when the current phase is unclear.
+
+| Phase | Criteria |
+| --- | --- |
+| 📥 Inbox | The phase is unclear or mixed, work is blocked before it starts, or the thread is awaiting direction. |
+| 📋 Planning | Discovering, scoping, researching, designing an approach, or writing requirements. |
+| 🔎 Spec Review | Reviewing, critiquing, approving, or revising a specification or implementation plan. |
+| 🛠️ Building | Implementing, debugging, refactoring, or changing code and artifacts. |
+| ✅ Testing / Deploy | Running QA, tests, CI or release checks, shipping, or deploying. |
+| 🤝 Handoff | Packaging current state and evidence so another agent or owner can continue. |
 
 To preview automatic proposals without changing threads:
 

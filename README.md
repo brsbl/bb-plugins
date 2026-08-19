@@ -1,6 +1,6 @@
 # bb plugins
 
-Six bb plugins I use for product design work, kept together with the few build and repository tools they share. [![CI](https://github.com/brsbl/bb-plugins/actions/workflows/ci.yml/badge.svg)](https://github.com/brsbl/bb-plugins/actions/workflows/ci.yml)
+Seven bb plugins I use for product design work, kept together with the few build and repository tools they share. [![CI](https://github.com/brsbl/bb-plugins/actions/workflows/ci.yml/badge.svg)](https://github.com/brsbl/bb-plugins/actions/workflows/ci.yml)
 
 [bb](https://getbb.app) is an agentic IDE for running coding agents across projects, threads, and environments. Its plugins can add UI, commands, skills, and server capabilities; this repository is where I build and maintain mine.
 
@@ -61,6 +61,16 @@ Organizes work into development-phase sections, combining automatic placement wi
 [Source](plugins/thread-organizer) · [README](plugins/thread-organizer/README.md)
 
 Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/thread-organizer --yes`
+
+### Mesh Gradient
+
+Creates, edits, saves, and shares reusable mesh gradients from a visual studio beside a thread. Users can hand an exact saved gradient to the current agent, while agents can generate gradients, inspect the shared library, and apply saved designs through the same plugin.
+
+![Mesh Gradient's visual editor open beside a bb thread](plugins/mesh-gradient/docs/screenshot.png)
+
+[Source](plugins/mesh-gradient) · [README](plugins/mesh-gradient/README.md)
+
+Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/mesh-gradient --yes`
 
 ### Timeline Comments
 

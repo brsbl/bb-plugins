@@ -1,21 +1,21 @@
 export const PHASE_TARGETS = [
+  "inbox",
   "planning",
   "spec-review",
   "building",
-  "handoff",
   "testing-deploy",
-  "inbox",
+  "handoff",
 ] as const;
 
 export type PhaseTarget = (typeof PHASE_TARGETS)[number];
 
 export const PHASE_SECTION_NAMES: Record<PhaseTarget, string> = {
+  inbox: "📥 Inbox",
   planning: "📋 Planning",
   "spec-review": "🔎 Spec Review",
   building: "🛠️ Building",
-  handoff: "🤝 Handoff",
   "testing-deploy": "✅ Testing / Deploy",
-  inbox: "📥 Inbox",
+  handoff: "🤝 Handoff",
 };
 
 export interface OrganizableThread {
