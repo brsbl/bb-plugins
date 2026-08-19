@@ -9,8 +9,6 @@
     "types": ["node"],
     "baseUrl": ".",
     "paths": {
-      "@get-bb/plugin-sdk": ["./types/bb-plugin-sdk.d.ts"],
-      "@get-bb/plugin-sdk/app": ["./types/bb-plugin-sdk-app.d.ts"],
       "@/*": ["./*"]
     },
     "noEmit": true,
@@ -20,7 +18,6 @@
     "server.ts",
     "server.test.ts",
     "app-logic.ts",
-    "app.tsx",
-    "types"
+    "app.tsx"
   ]
 }

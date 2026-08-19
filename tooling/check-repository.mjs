@@ -219,6 +219,7 @@ export async function checkRepository(repositoryRoot = defaultRoot, options = {}
     }
 
     const pluginReadme = await readFile(resolve(directory, "README.md"), "utf8");
+    const tsconfig = await readJson(resolve(directory, "tsconfig.json"));
     for (const script of ["typecheck", "test", "build"]) {
       assert(typeof manifest.scripts?.[script] === "string", `${slug}: ${script} script missing`);
     }
@@ -301,13 +302,24 @@ export async function checkRepository(repositoryRoot = defaultRoot, options = {}
       `${slug}: nested plugin .github/workflows is not allowed`,
     );
 
-    for (const typeFile of ["bb-plugin-sdk.d.ts", "bb-plugin-sdk-app.d.ts"]) {
-      const local = await readFile(resolve(directory, "types", typeFile), "utf8");
-      const authoritative = await readFile(
-        resolve(bundledTypesDirectory, typeFile),
-        "utf8",
+    const sdkTypePaths = tsconfig.compilerOptions?.paths ?? {};
+    const usesLocalSdkTypes =
+      sdkTypePaths["@get-bb/plugin-sdk"] !== undefined ||
+      sdkTypePaths["@get-bb/plugin-sdk/app"] !== undefined;
+    if (usesLocalSdkTypes) {
+      for (const typeFile of ["bb-plugin-sdk.d.ts", "bb-plugin-sdk-app.d.ts"]) {
+        const local = await readFile(resolve(directory, "types", typeFile), "utf8");
+        const authoritative = await readFile(
+          resolve(bundledTypesDirectory, typeFile),
+          "utf8",
+        );
+        assert(local === authoritative, `${slug}: ${typeFile} is out of sync`);
+      }
+    } else {
+      assert(
+        manifest.devDependencies?.["@get-bb/plugin-sdk"] !== undefined,
+        `${slug}: plugin SDK dependency missing`,
       );
-      assert(local === authoritative, `${slug}: ${typeFile} is out of sync`);
     }
   }
 

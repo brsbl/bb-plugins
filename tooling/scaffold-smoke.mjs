@@ -17,11 +17,6 @@ import {
 import { validatePluginArtifacts } from "./validate-plugin-artifacts.mjs";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-const bundledTypesDirectory = resolve(
-  root,
-  "node_modules/@get-bb/plugin-sdk/bundled-types",
-);
-
 function run(command, args, cwd) {
   const result = spawnSync(command, args, { cwd, stdio: "inherit" });
   if (result.error) throw result.error;
@@ -222,7 +217,6 @@ try {
     name: "Scaffold Smoke",
     description,
     repositoryRoot: fixtureRoot,
-    bundledTypesDirectory,
     skipInstall: true,
     skipVerify: true,
   });
@@ -231,13 +225,6 @@ try {
     generated.directory,
     description,
   );
-
-  for (const typeFile of ["bb-plugin-sdk.d.ts", "bb-plugin-sdk-app.d.ts"]) {
-    assert.equal(
-      await readFile(resolve(generated.directory, "types", typeFile), "utf8"),
-      await readFile(resolve(bundledTypesDirectory, typeFile), "utf8"),
-    );
-  }
 
   run("npm", ["install", "--no-audit", "--no-fund"], fixtureRoot);
   run(
@@ -248,7 +235,7 @@ try {
   await validatePluginArtifacts(generated.directory, {
     expectedScreenshot: screenshot,
   });
-  await checkRepository(fixtureRoot, { bundledTypesDirectory });
+  await checkRepository(fixtureRoot);
 
   const serverMetaPath = resolve(generated.directory, "dist/server.meta.json");
   const serverMetaRaw = await readFile(serverMetaPath, "utf8");
@@ -303,7 +290,7 @@ try {
   await mkdir(nestedWorkflows, { recursive: true });
   await writeFile(resolve(nestedWorkflows, "ci.yml"), "name: accidental\n");
   await assert.rejects(
-    checkRepository(fixtureRoot, { bundledTypesDirectory }),
+    checkRepository(fixtureRoot),
     /nested plugin \.github\/workflows is not allowed/,
   );
   await rm(resolve(generated.directory, ".github"), {
@@ -314,7 +301,7 @@ try {
   await validatePluginArtifacts(generated.directory, {
     expectedScreenshot: screenshot,
   });
-  await checkRepository(fixtureRoot, { bundledTypesDirectory });
+  await checkRepository(fixtureRoot);
   console.log("plugin scaffold smoke test passed after clean npm ci");
 } finally {
   await rm(fixtureRoot, { recursive: true, force: true });
