@@ -519,11 +519,11 @@ assert.match(
 );
 assert.match(
   style.textContent,
-  /\.bb-thread-hover-card__provider-model,[\s\S]*?\.bb-thread-hover-card__reasoning \{[\s\S]*?font-size: 0\.75rem;[\s\S]*?line-height: 1\.25/,
+  /\.bb-thread-hover-card__provider-model,[\s\S]*?\.bb-thread-hover-card__reasoning,[\s\S]*?\.bb-thread-hover-card__access \{[\s\S]*?font-size: 0\.75rem;[\s\S]*?line-height: 1\.25/,
 );
 assert.match(
   style.textContent,
-  /\.bb-thread-hover-card__reasoning \{[\s\S]*?--subtle-foreground/,
+  /\.bb-thread-hover-card__reasoning,[\s\S]*?\.bb-thread-hover-card__access \{[\s\S]*?--subtle-foreground/,
 );
 assert.match(
   style.textContent,
@@ -554,7 +554,11 @@ assert.match(
 assert.match(style.textContent, /\.bb-thread-hover-card__pr-status/);
 assert.match(
   style.textContent,
-  /\.bb-thread-hover-card__access \{[\s\S]*?flex: none;[\s\S]*?white-space: nowrap/,
+  /\.bb-thread-hover-card__reasoning,[\s\S]*?\.bb-thread-hover-card__access \{[\s\S]*?flex: none;[\s\S]*?--subtle-foreground,[\s\S]*?white-space: nowrap/,
+);
+assert.match(
+  style.textContent,
+  /\.bb-thread-hover-card__permission-icon \{[\s\S]*?width: 0\.75rem;[\s\S]*?height: 0\.75rem/,
 );
 assert.match(
   style.textContent,
