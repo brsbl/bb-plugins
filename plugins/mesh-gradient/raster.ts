@@ -88,7 +88,9 @@ export function drawMeshGradient(
   );
   context.fillRect(0, 0, width, height);
   const longest = Math.max(width, height);
-  for (const point of points) {
+  // CSS paints the first background image on top. Canvas uses painter's
+  // order, so draw the first CSS layer last to preserve the same stacking.
+  for (const point of [...points].reverse()) {
     const cx = (point.x / 100) * width;
     const cy = (point.y / 100) * height;
     const radius = Math.max(1, (point.radius / 100) * longest);

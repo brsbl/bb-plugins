@@ -15,6 +15,21 @@ const savedGradient = {
   points: savedSpec.points,
   createdAt: 1,
 };
+const savedCustomSpec = generateMeshGradient({
+  seed: 91,
+  style: "custom",
+  customColor: "#c2410c",
+});
+const savedCustomGradient = {
+  id: "grad_custom",
+  name: "ember field",
+  seed: 91,
+  style: "custom" as const,
+  customColor: "#c2410c",
+  edited: true,
+  points: savedCustomSpec.points,
+  createdAt: 2,
+};
 
 afterEach(() => {
   cleanup();
@@ -141,6 +156,50 @@ describe("mesh gradient app", () => {
     await waitFor(() => {
       expect(slot.getByText("seed 42")).toBeTruthy();
     });
+    slot.lifecycle.unmount();
+  });
+
+  it("keeps a loaded custom color authoritative through reset and shuffle", async () => {
+    const app = await loadPluginApp(() => import("./app.js"));
+    const slot = renderSlot(
+      app.threadPanelActions[0]!,
+      { threadId: "thr_1", params: null },
+      { rpc: { listSaved: () => ({ gradients: [savedCustomGradient] }) } },
+    );
+
+    fireEvent.click(await slot.findByText("ember field"));
+    fireEvent.click(slot.getByRole("button", { name: "Gradient style" }));
+    expect((slot.getByLabelText("Custom color") as HTMLInputElement).value).toBe(
+      "#c2410c",
+    );
+
+    fireEvent.click(slot.getByRole("button", { name: "More actions" }));
+    fireEvent.click(slot.getByRole("menuitem", { name: "Reset to seed" }));
+    expect(slot.getByText("seed 91")).toBeTruthy();
+
+    fireEvent.click(slot.getByRole("button", { name: "Shuffle" }));
+    expect((slot.getByLabelText("Custom color") as HTMLInputElement).value).toBe(
+      "#c2410c",
+    );
+    slot.lifecycle.unmount();
+  });
+
+  it("keeps library actions keyboard-focusable and visible for touch input", async () => {
+    const app = await loadPluginApp(() => import("./app.js"));
+    const slot = renderSlot(
+      app.threadPanelActions[0]!,
+      { threadId: "thr_1", params: null },
+      { rpc: { listSaved: () => ({ gradients: [savedGradient] }) } },
+    );
+    const send = await slot.findByRole("button", {
+      name: "Send quiet lagoon to agent",
+    });
+    const actions = send.parentElement!;
+
+    expect(send.tabIndex).toBe(0);
+    expect(actions.className).not.toContain("hidden");
+    expect(actions.className).toContain("group-focus-within:opacity-100");
+    expect(actions.className).toContain("[@media(hover:none)]:opacity-100");
     slot.lifecycle.unmount();
   });
 

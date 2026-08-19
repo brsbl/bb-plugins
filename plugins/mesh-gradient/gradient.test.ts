@@ -219,5 +219,15 @@ describe("mesh gradient generation", () => {
     expect(svg).toContain('viewBox="0 0 400 300"');
     expect(svg.match(/<radialGradient /g)).toHaveLength(5);
     expect(svg.match(/fill="url\(#mesh-13-/g)).toHaveLength(5);
+    const paintedLayerIds = [...svg.matchAll(/<rect[^>]+fill="url\(#(mesh-13-\d+)\)"/g)].map(
+      (match) => match[1],
+    );
+    expect(paintedLayerIds).toEqual([
+      "mesh-13-4",
+      "mesh-13-3",
+      "mesh-13-2",
+      "mesh-13-1",
+      "mesh-13-0",
+    ]);
   });
 });

@@ -38,6 +38,11 @@ export const meshPointSchema = z.object({
 export const savedGradientSchema = z.object({
   id: z.string().min(1),
   name: z.string().min(1).max(80),
+  /** Stable export identifier. Older saved records are upgraded on read. */
+  tokenSlug: z
+    .string()
+    .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/)
+    .optional(),
   seed: z.number().int().nonnegative(),
   style: z.enum(MESH_STYLE_NAMES),
   edited: z.boolean(),
@@ -105,7 +110,7 @@ export const meshGradientRpcContract = defineRpcContract({
     input: z
       .object({
         threadId: z.string().min(1).nullable(),
-        format: z.enum(["css", "tailwind", "ts"]),
+        format: z.enum(["css", "tailwind", "ts"]).optional(),
       })
       .strict(),
     output: z.object({ path: z.string(), gradientCount: z.number().int() }),
@@ -159,15 +164,41 @@ function parseSavedValue(value: unknown): SavedGradient | null {
 async function listSavedGradients(bb: BbPluginApi): Promise<SavedGradient[]> {
   const keys = await bb.storage.kv.list(SAVED_PREFIX);
   const gradients: SavedGradient[] = [];
+  const needsSchemaUpgrade = new Set<string>();
+  const storageKeys = new Map<string, string>();
   for (const key of keys) {
     const value = await bb.storage.kv.get(key);
     const gradient = parseSavedValue(value);
     if (!gradient) continue;
     const upgraded = savedGradientSchema.safeParse(value);
-    if (!upgraded.success) await bb.storage.kv.set(key, gradient);
+    if (!upgraded.success) needsSchemaUpgrade.add(gradient.id);
+    storageKeys.set(gradient.id, key);
     gradients.push(gradient);
   }
-  return gradients.sort((a, b) => b.createdAt - a.createdAt);
+  gradients.sort((a, b) => b.createdAt - a.createdAt);
+
+  // Preserve the token names older versions rendered for the current library
+  // order, then persist them so later saves/deletes cannot reassign an
+  // existing gradient's identifier. Records with a stored slug always win.
+  const slugs = uniqueSlugs(gradients);
+  for (let index = 0; index < gradients.length; index += 1) {
+    const gradient = gradients[index]!;
+    const stableSlug = slugs.get(gradient.id)!;
+    if (
+      gradient.tokenSlug === stableSlug &&
+      !needsSchemaUpgrade.has(gradient.id)
+    ) {
+      continue;
+    }
+    const upgraded = { ...gradient, tokenSlug: stableSlug };
+    await bb.storage.kv.set(
+      storageKeys.get(gradient.id) ?? `${SAVED_PREFIX}${gradient.id}`,
+      upgraded,
+    );
+    gradients[index] = upgraded;
+  }
+
+  return gradients;
 }
 
 async function getSavedGradient(
@@ -181,13 +212,15 @@ async function saveGradient(
   bb: BbPluginApi,
   input: z.infer<typeof saveInputSchema>,
 ): Promise<{ gradient: SavedGradient; alreadySaved: boolean }> {
+  const gradients = await listSavedGradients(bb);
   const key = specKeyFor(input.points);
-  const existing = (await listSavedGradients(bb)).find(
+  const existing = gradients.find(
     (gradient) => specKeyFor(gradient.points) === key,
   );
   if (existing) return { gradient: existing, alreadySaved: true };
-  const gradient: SavedGradient = {
-    id: randomUUID(),
+  const id = randomUUID();
+  const gradientWithoutSlug: SavedGradient = {
+    id,
     name: input.name.trim(),
     seed: input.seed,
     style: input.style,
@@ -198,6 +231,8 @@ async function saveGradient(
       : { customColor: input.customColor }),
     createdAt: Date.now(),
   };
+  const tokenSlug = uniqueSlugs([...gradients, gradientWithoutSlug]).get(id)!;
+  const gradient: SavedGradient = { ...gradientWithoutSlug, tokenSlug };
   await bb.storage.kv.set(`${SAVED_PREFIX}${gradient.id}`, gradient);
   bb.realtime.publish(REALTIME_CHANNEL, { kind: "changed" });
   return { gradient, alreadySaved: false };
@@ -211,11 +246,22 @@ function tokenSlug(name: string): string {
   return slug === "" ? "gradient" : slug;
 }
 
-/** Unique, stable token names — two "dusky lagoon (custom)" saves can coexist. */
+/**
+ * Resolve unique token names while preserving every persisted assignment.
+ * Missing assignments are allocated in input order to preserve legacy output.
+ */
 function uniqueSlugs(gradients: SavedGradient[]): Map<string, string> {
   const used = new Set<string>();
   const slugs = new Map<string, string>();
+
   for (const gradient of gradients) {
+    if (!gradient.tokenSlug || used.has(gradient.tokenSlug)) continue;
+    used.add(gradient.tokenSlug);
+    slugs.set(gradient.id, gradient.tokenSlug);
+  }
+
+  for (const gradient of gradients) {
+    if (slugs.has(gradient.id)) continue;
     const base = tokenSlug(gradient.name);
     let slug = base;
     let suffix = 2;
@@ -503,7 +549,11 @@ export default function plugin(bb: BbPluginApi): void {
         throw new Error("save a gradient before exporting tokens");
       }
       const { hostId, root } = await resolveWorktree(threadId);
-      const { tokensPath } = await settings.get();
+      const { tokensPath, tokenFormat } = await settings.get();
+      const resolvedFormat = (format ?? tokenFormat) as
+        | "css"
+        | "tailwind"
+        | "ts";
       const relative = tokensPath.replace(/^\/+/, "");
       const target = `${root.replace(/\/+$/, "")}/${relative}`;
       const directory = target.slice(0, target.lastIndexOf("/"));
@@ -512,7 +562,7 @@ export default function plugin(bb: BbPluginApi): void {
         hostId,
         path: target,
         rootPath: root,
-        content: renderTokens(gradients, format),
+        content: renderTokens(gradients, resolvedFormat),
       });
       if (result.outcome !== "written") {
         throw new Error(`could not write ${relative}: ${result.outcome}`);

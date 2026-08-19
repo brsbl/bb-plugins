@@ -358,9 +358,13 @@ export function toSvg(spec: MeshGradientSpec, options: SvgOptions = {}): string 
       );
     })
     .join("");
+  // CSS paints the first background image on top. SVG uses painter's order,
+  // so emit the first CSS layer last to preserve the same stacking.
   const rects = spec.points
+    .map((_, index) => index)
+    .reverse()
     .map(
-      (_, index) =>
+      (index) =>
         `<rect width="${width}" height="${height}" fill="url(#${prefix}-${index})"/>`,
     )
     .join("");

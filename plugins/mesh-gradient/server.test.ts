@@ -8,8 +8,14 @@ import plugin, {
   specKeyFor,
 } from "./server.js";
 
-async function loadPlugin() {
-  const host = createFakePluginHost({ pluginId: "mesh-gradient" });
+async function loadPlugin(settings?: {
+  tokensPath?: string;
+  tokenFormat?: "css" | "tailwind" | "ts";
+}) {
+  const host = createFakePluginHost({
+    pluginId: "mesh-gradient",
+    ...(settings ? { settings } : {}),
+  });
   plugin(host.bb);
   return host;
 }
@@ -268,6 +274,77 @@ describe("mesh gradient backend", () => {
     expect(tailwind).toContain('"hero-background"');
   });
 
+  it("keeps assigned token slugs stable when duplicate names are added or deleted", async () => {
+    const host = await loadPlugin();
+    const first = (await host.harness.behavior.callRpc("saveGradient", {
+      ...saveInput(31),
+      name: "Hero Background",
+    })) as { gradient: { id: string; tokenSlug?: string } };
+    const second = (await host.harness.behavior.callRpc("saveGradient", {
+      ...saveInput(32),
+      name: "Hero Background",
+    })) as { gradient: { id: string; tokenSlug?: string } };
+
+    expect(first.gradient.tokenSlug).toBe("hero-background");
+    expect(second.gradient.tokenSlug).toBe("hero-background-2");
+
+    await host.harness.behavior.callRpc("deleteGradient", {
+      id: first.gradient.id,
+    });
+    const listed = (await host.harness.behavior.callRpc("listSaved")) as {
+      gradients: Array<{ id: string; tokenSlug?: string }>;
+    };
+    expect(listed.gradients).toMatchObject([
+      { id: second.gradient.id, tokenSlug: "hero-background-2" },
+    ]);
+    expect(
+      renderTokens(
+        listed.gradients as Parameters<typeof renderTokens>[0],
+        "css",
+      ),
+    ).toContain("--gradient-hero-background-2:");
+    await host.harness.lifecycle.dispose();
+  });
+
+  it("upgrades legacy saved token slugs without changing their rendered names", async () => {
+    const host = await loadPlugin();
+    const newer = generateMeshGradient({ seed: 41, style: "ocean" });
+    const older = generateMeshGradient({ seed: 42, style: "candy" });
+    await host.bb.storage.kv.set("saved/newer", {
+      id: "newer",
+      name: "Hero Background",
+      seed: newer.seed,
+      style: newer.style,
+      edited: false,
+      points: newer.points,
+      createdAt: 2,
+    });
+    await host.bb.storage.kv.set("saved/older", {
+      id: "older",
+      name: "Hero Background",
+      seed: older.seed,
+      style: older.style,
+      edited: false,
+      points: older.points,
+      createdAt: 1,
+    });
+
+    const listed = (await host.harness.behavior.callRpc("listSaved")) as {
+      gradients: Array<{ id: string; tokenSlug?: string }>;
+    };
+    expect(listed.gradients).toMatchObject([
+      { id: "newer", tokenSlug: "hero-background" },
+      { id: "older", tokenSlug: "hero-background-2" },
+    ]);
+    expect(await host.bb.storage.kv.get("saved/newer")).toMatchObject({
+      tokenSlug: "hero-background",
+    });
+    expect(await host.bb.storage.kv.get("saved/older")).toMatchObject({
+      tokenSlug: "hero-background-2",
+    });
+    await host.harness.lifecycle.dispose();
+  });
+
   it("exports tokens into the thread's own worktree", async () => {
     const host = await loadPlugin();
     await host.harness.behavior.callRpc("saveGradient", saveInput(4));
@@ -296,6 +373,33 @@ describe("mesh gradient backend", () => {
       path: "/repo/checkout/styles/gradients.css",
       rootPath: "/repo/checkout",
     });
+    await host.harness.lifecycle.dispose();
+  });
+
+  it("uses the configured token format when Write token file omits an override", async () => {
+    const host = await loadPlugin({ tokenFormat: "ts" });
+    await host.harness.behavior.callRpc("saveGradient", saveInput(5));
+    let writtenContent = "";
+    host.harness.sdk.stub("threads.get", async () => ({
+      id: "thr_1",
+      environmentId: "env_1",
+    }));
+    host.harness.sdk.stub("environments.get", async () => ({
+      id: "env_1",
+      hostId: "host_9",
+      path: "/repo/checkout",
+    }));
+    host.harness.sdk.stub("files.mkdir", async () => ({ created: true }));
+    host.harness.sdk.stub("files.write", async (args: unknown) => {
+      writtenContent = (args as { content: string }).content;
+      return { outcome: "written", sha256: "x", sizeBytes: 1 };
+    });
+
+    await host.harness.behavior.callRpc("exportTokens", {
+      threadId: "thr_1",
+    });
+    expect(writtenContent).toContain("export const gradients");
+    expect(writtenContent).not.toContain(":root {");
     await host.harness.lifecycle.dispose();
   });
 

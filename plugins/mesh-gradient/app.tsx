@@ -460,7 +460,7 @@ function SavedTile({
           </div>
         </div>
       </button>
-      <div className="absolute right-1.5 top-1.5 hidden gap-1 group-hover:flex">
+      <div className="absolute right-1.5 top-1.5 flex gap-1 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100 [@media(hover:none)]:opacity-100">
         <button
           type="button"
           aria-label={`Send ${gradient.name} to agent`}
@@ -506,6 +506,10 @@ function Studio({ threadId }: PluginThreadPanelProps) {
   const dragCount = useRef(0);
 
   const { spec, edited } = state.draft;
+  const customColor =
+    spec.style === "custom" && spec.customColor !== undefined
+      ? spec.customColor
+      : customHex;
   const contrast = useMemo(() => measureContrast(spec), [spec]);
   const layers = useMemo(() => toCssLayers(spec), [spec]);
   const displayName = useMemo(
@@ -675,7 +679,6 @@ function Studio({ threadId }: PluginThreadPanelProps) {
     try {
       const { path, gradientCount } = await rpc.call("exportTokens", {
         threadId: threadId ?? null,
-        format: "css",
       });
       toast.success(`Wrote ${gradientCount} gradients to ${path}`);
     } catch (error) {
@@ -888,7 +891,7 @@ function Studio({ threadId }: PluginThreadPanelProps) {
           <div className={`${clusterClass} shrink-0 gap-0.5 px-1`}>
             <StyleMenu
               spec={spec}
-              customHex={customHex}
+              customHex={customColor}
               onChange={(styleName) =>
                 mutate(
                   null,
@@ -941,6 +944,9 @@ function Studio({ threadId }: PluginThreadPanelProps) {
                       seed: randomSeed(),
                       pointCount: draft.spec.points.length,
                       style: draft.spec.style,
+                      ...(draft.spec.customColor === undefined
+                        ? {}
+                        : { customColor: draft.spec.customColor }),
                     }),
                     edited: false,
                   }),
@@ -1001,6 +1007,9 @@ function Studio({ threadId }: PluginThreadPanelProps) {
                               seed: draft.spec.seed,
                               pointCount: draft.spec.points.length,
                               style: draft.spec.style,
+                              ...(draft.spec.customColor === undefined
+                                ? {}
+                                : { customColor: draft.spec.customColor }),
                             }),
                             edited: false,
                           }),

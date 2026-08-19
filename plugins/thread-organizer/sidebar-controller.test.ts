@@ -12,6 +12,7 @@ function section(
 ): HTMLElement {
   const group = document.createElement("div");
   group.dataset.sidebarStickyGroup = "";
+  group.dataset.sidebarSectionId = label;
   const button = document.createElement("button");
   const rowToggle = document.createElement("button");
   rowToggle.setAttribute("aria-hidden", "true");
@@ -81,6 +82,10 @@ function sectionLabels(root: Element): string[] {
   });
 }
 
+function persistedSectionOrder(...labels: string[]): string[] {
+  return labels.map((label) => `section:${label}`);
+}
+
 function windowedSection(group: HTMLElement): HTMLElement {
   const stickySection = document.createElement("div");
   stickySection.dataset.sidebarStickySection = "";
@@ -99,11 +104,12 @@ async function mutationsSettled(): Promise<void> {
 
 afterEach(() => {
   document.body.replaceChildren();
+  window.localStorage.clear();
   vi.restoreAllMocks();
 });
 
 describe("inbox section collapser", () => {
-  it("orders phase sections while preserving unrelated section positions", () => {
+  it("updates BB's persisted order while preserving unrelated section positions and focus", () => {
     const customBefore = section("Personal", false, []);
     const testing = section("✅ Testing / Deploy", false, []);
     const planning = section("📋 Planning", false, []);
@@ -125,39 +131,85 @@ describe("inbox section collapser", () => {
       ].map(windowedSection),
     );
     document.body.append(root);
+    window.localStorage.setItem(
+      "bb.sidebar.manualSectionOrder",
+      JSON.stringify(
+        persistedSectionOrder(
+          "Personal",
+          "✅ Testing / Deploy",
+          "📋 Planning",
+          "Design",
+          "📥 Inbox",
+          "🔎 Spec Review",
+          "🛠️ Building",
+          "🤝 Handoff",
+        ),
+      ),
+    );
+    const focusedToggle = toggle(planning);
+    focusedToggle.focus();
     const controller = new AbortController();
 
     mountInboxSectionCollapser({ document, signal: controller.signal });
 
+    expect(
+      JSON.parse(
+        window.localStorage.getItem("bb.sidebar.manualSectionOrder")!,
+      ),
+    ).toEqual(
+      persistedSectionOrder(
+        "Personal",
+        "📥 Inbox",
+        "📋 Planning",
+        "Design",
+        "🔎 Spec Review",
+        "🛠️ Building",
+        "✅ Testing / Deploy",
+        "🤝 Handoff",
+      ),
+    );
     expect(sectionLabels(root)).toEqual([
       "Personal",
-      "📥 Inbox",
+      "✅ Testing / Deploy",
       "📋 Planning",
       "Design",
+      "📥 Inbox",
       "🔎 Spec Review",
       "🛠️ Building",
-      "✅ Testing / Deploy",
       "🤝 Handoff",
     ]);
+    expect(document.activeElement).toBe(focusedToggle);
     controller.abort();
   });
 
-  it("restores phase order after the host inserts a section", async () => {
+  it("restores persisted phase order after the host inserts a section", async () => {
     const planning = windowedSection(section("📋 Planning", false, []));
     const building = windowedSection(section("🛠️ Building", false, []));
     const root = sidebar(planning, building);
     document.body.append(root);
+    window.localStorage.setItem(
+      "bb.sidebar.manualSectionOrder",
+      JSON.stringify(persistedSectionOrder("📋 Planning", "🛠️ Building")),
+    );
     const controller = new AbortController();
     mountInboxSectionCollapser({ document, signal: controller.signal });
 
     root.append(windowedSection(section("📥 Inbox", false, [])));
+    window.localStorage.setItem(
+      "bb.sidebar.manualSectionOrder",
+      JSON.stringify(
+        persistedSectionOrder("📋 Planning", "🛠️ Building", "📥 Inbox"),
+      ),
+    );
     await mutationsSettled();
 
-    expect(sectionLabels(root)).toEqual([
-      "📥 Inbox",
-      "📋 Planning",
-      "🛠️ Building",
-    ]);
+    expect(
+      JSON.parse(
+        window.localStorage.getItem("bb.sidebar.manualSectionOrder")!,
+      ),
+    ).toEqual(
+      persistedSectionOrder("📥 Inbox", "📋 Planning", "🛠️ Building"),
+    );
     controller.abort();
   });
 
