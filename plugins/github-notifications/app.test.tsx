@@ -95,8 +95,11 @@ describe("GitHub Activity panel", () => {
     expect(updatedTime.className).not.toContain("rounded");
     expect(updatedTime.className).not.toContain("bg-muted");
     expect(updatedTime.className).toContain("shrink-0");
-    expect(inlineUpdatedTime.closest("td")?.cellIndex).toBe(2);
+    expect(inlineUpdatedTime.closest("td")?.cellIndex).toBe(1);
     expect(desktopUpdatedTime.closest("td")?.cellIndex).toBe(4);
+    expect(desktopUpdatedTime.parentElement?.className).toContain(
+      "justify-between",
+    );
     expect(screen.getAllByText("get-bb/bb")).toHaveLength(2);
     expect(screen.getByText("Scannable activity")).toBeDefined();
     expect(screen.getByText("#42").parentElement?.className).toContain("mt-0.5");
@@ -116,7 +119,7 @@ describe("GitHub Activity panel", () => {
     const repoHeader = screen.getByRole("columnheader", { name: "Repo" });
     const fromHeader = screen.getByRole("columnheader", { name: /From/u });
     expect(
-      [statusHeader, activityHeader, resourceHeader, repoHeader, fromHeader].map(
+      [statusHeader, resourceHeader, repoHeader, activityHeader, fromHeader].map(
         (header) => (header as HTMLTableCellElement).cellIndex,
       ),
     ).toEqual([0, 1, 2, 3, 4]);
@@ -134,8 +137,11 @@ describe("GitHub Activity panel", () => {
     expect(screen.getByRole("table").className).not.toContain("min-w-[620px]");
     expect(link.closest("tr")?.className).not.toContain("@max-[36rem]:grid");
     const row = link.closest("tr")!;
-    expect(mentionActivity.closest("td")?.cellIndex).toBe(1);
-    expect(link.closest("td")?.cellIndex).toBe(2);
+    expect(link.closest("td")?.cellIndex).toBe(1);
+    expect(mentionActivity.closest("td")?.cellIndex).toBe(3);
+    expect(mentionActivity.closest("td")?.nextElementSibling).toBe(
+      desktopUpdatedTime.closest("td"),
+    );
     expect(row.querySelector(".github-activity-repo-cell")?.className).toContain(
       "lg:table-cell",
     );
