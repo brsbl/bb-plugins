@@ -1,4 +1,4 @@
-import { copyFile, mkdir, writeFile } from "node:fs/promises";
+import { mkdir, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
@@ -139,11 +139,6 @@ describe(${testName}, () => {
       lib: ["ES2022"],
       module: "ESNext",
       moduleResolution: "Bundler",
-      baseUrl: ".",
-      paths: {
-        "@get-bb/plugin-sdk": ["./types/bb-plugin-sdk.d.ts"],
-        "@get-bb/plugin-sdk/app": ["./types/bb-plugin-sdk-app.d.ts"],
-      },
       strict: true,
       noEmit: true,
       skipLibCheck: true,
@@ -158,21 +153,6 @@ describe(${testName}, () => {
     "server.test.ts": test,
     "tsconfig.json": `${JSON.stringify(tsconfig, null, 2)}\n`,
   };
-}
-
-async function copySdkDeclarations(repositoryRoot, directory, options) {
-  const sourceDirectory = resolve(
-    options.bundledTypesDirectory ??
-      resolve(repositoryRoot, "node_modules/@get-bb/plugin-sdk/bundled-types"),
-  );
-  const destinationDirectory = resolve(directory, "types");
-  await mkdir(destinationDirectory);
-  for (const typeFile of ["bb-plugin-sdk.d.ts", "bb-plugin-sdk-app.d.ts"]) {
-    await copyFile(
-      resolve(sourceDirectory, typeFile),
-      resolve(destinationDirectory, typeFile),
-    );
-  }
 }
 
 export async function scaffoldPlugin(rawOptions) {
@@ -190,7 +170,6 @@ export async function scaffoldPlugin(rawOptions) {
   for (const [name, contents] of Object.entries(filesFor(options))) {
     await writeFile(resolve(directory, name), contents);
   }
-  await copySdkDeclarations(repositoryRoot, directory, options);
   if (!options.skipInstall) command("npm", ["install"], repositoryRoot);
   if (!options.skipVerify) {
     command(

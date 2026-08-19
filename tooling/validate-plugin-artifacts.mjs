@@ -6,7 +6,10 @@ import { fileURLToPath } from "node:url";
 
 import { readPluginWorkspaces } from "./plugin-workspaces.mjs";
 import { pluginBuildBbVersion } from "./plugin-build-provenance.mjs";
-import { pluginSdkVersion } from "./plugin-sdk-provenance.mjs";
+import {
+  pluginSdkVersion,
+  sdkRangeIncludesVersion,
+} from "./plugin-sdk-provenance.mjs";
 
 const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -26,24 +29,6 @@ function expectedPluginId(packageName) {
     throw new Error(`plugin package ${packageName} must start with bb-plugin-`);
   }
   return packageName.slice("bb-plugin-".length);
-}
-
-function parseVersion(value, label) {
-  const match = /^(\d+)\.(\d+)\.(\d+)$/.exec(value);
-  if (match === null) throw new Error(`${label} must be an exact semantic version`);
-  return match.slice(1).map(Number);
-}
-
-function sdkFloorIsSupported(range, version) {
-  const match = /^(?:\^|>=)(\d+)\.(\d+)\.(\d+)$/.exec(range ?? "");
-  if (match === null) return false;
-  const floor = match.slice(1).map(Number);
-  const target = parseVersion(version, "vendored SDK version");
-  if (floor[0] !== target[0]) return false;
-  for (let index = 0; index < floor.length; index += 1) {
-    if (floor[index] !== target[index]) return floor[index] < target[index];
-  }
-  return true;
 }
 
 async function validateMetadata(path, manifest, id, bbVersion) {
@@ -237,7 +222,7 @@ export async function validatePluginArtifacts(pluginDirectory, options = {}) {
   if (options.expectedName && manifest.bb.name !== options.expectedName) {
     throw new Error(`${directory}: expected display name ${options.expectedName}`);
   }
-  if (!sdkFloorIsSupported(manifest.engines?.bbPluginSdk, pluginSdkVersion)) {
+  if (!sdkRangeIncludesVersion(manifest.engines?.bbPluginSdk, pluginSdkVersion)) {
     throw new Error(
       `${directory}: engines.bbPluginSdk must be a compatible floor at or below ${pluginSdkVersion}`,
     );

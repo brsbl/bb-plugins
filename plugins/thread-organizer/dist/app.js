@@ -23,12 +23,66 @@ var {
   useSettings
 } = mod;
 
+// core.ts
+var PHASE_TARGETS = [
+  "inbox",
+  "planning",
+  "spec-review",
+  "building",
+  "testing-deploy",
+  "handoff"
+];
+var PHASE_SECTION_NAMES = {
+  inbox: "\u{1F4E5} Inbox",
+  planning: "\u{1F4CB} Planning",
+  "spec-review": "\u{1F50E} Spec Review",
+  building: "\u{1F6E0}\uFE0F Building",
+  "testing-deploy": "\u2705 Testing / Deploy",
+  handoff: "\u{1F91D} Handoff"
+};
+var ACTION_PATTERNS = [
+  [/^take\s+over\b/i, "Take Over"],
+  [/^clean\s+up\b/i, "Clean Up"],
+  [/^root\s+cause\b/i, "Investigate"],
+  [/^investigate\b/i, "Investigate"],
+  [/^implement\b/i, "Implement"],
+  [/^optimize\b/i, "Optimize"],
+  [/^reorganize\b/i, "Reorganize"],
+  [/^refactor\b/i, "Refactor"],
+  [/^analyze\b/i, "Analyze"],
+  [/^create\b/i, "Create"],
+  [/^design\b/i, "Design"],
+  [/^rewrite\b/i, "Rewrite"],
+  [/^refresh\b/i, "Refresh"],
+  [/^profile\b/i, "Profile"],
+  [/^review\b/i, "Review"],
+  [/^rename\b/i, "Rename"],
+  [/^update\b/i, "Update"],
+  [/^render\b/i, "Render"],
+  [/^archive\b/i, "Archive"],
+  [/^debug\b/i, "Debug"],
+  [/^build\b/i, "Build"],
+  [/^write\b/i, "Write"],
+  [/^style\b/i, "Style"],
+  [/^move\b/i, "Move"],
+  [/^open\b/i, "Open"],
+  [/^audit\b/i, "Audit"],
+  [/^add\b/i, "Add"],
+  [/^fix\b/i, "Fix"]
+].map(([expression, title]) => ({
+  expression,
+  title
+}));
+
 // sidebar-controller.ts
 var SIDEBAR_SELECTOR = '[data-sidebar="sidebar"]';
 var STICKY_GROUP_SELECTOR = "[data-sidebar-sticky-group]";
 var THREAD_SELECTOR = "[data-sidebar-thread-id]";
 var SECTION_TOGGLE_SELECTOR = 'button[aria-expanded][aria-label$=" section"]';
 var SECTION_ROW_TOGGLE_SELECTOR = 'button[aria-hidden="true"][tabindex="-1"]';
+var PHASE_SECTION_RANK = new Map(
+  PHASE_TARGETS.map((target, index) => [PHASE_SECTION_NAMES[target], index])
+);
 function groupToggle(group) {
   for (const button of group.querySelectorAll(
     SECTION_TOGGLE_SELECTOR
@@ -60,6 +114,46 @@ function visibleThreadGroups(sidebar) {
   }
   return groups;
 }
+function phaseSectionRank(group) {
+  const label = groupToggle(group)?.getAttribute("aria-label") ?? "";
+  const match = /^(?:Expand|Collapse) (.+) section$/.exec(label);
+  if (match === null) return null;
+  return PHASE_SECTION_RANK.get(match[1]) ?? null;
+}
+function sectionOrderSlot(group) {
+  const stickySection = group.closest("[data-sidebar-sticky-section]");
+  return stickySection?.parentElement ?? group;
+}
+function reorderPhaseSections(sidebar) {
+  const ranksBySlot = /* @__PURE__ */ new Map();
+  for (const group of sidebar.querySelectorAll(STICKY_GROUP_SELECTOR)) {
+    const rank = phaseSectionRank(group);
+    const slot = sectionOrderSlot(group);
+    if (rank === null || slot.parentElement === null) continue;
+    ranksBySlot.set(slot, rank);
+  }
+  const slotsByParent = /* @__PURE__ */ new Map();
+  for (const slot of ranksBySlot.keys()) {
+    const parent = slot.parentElement;
+    const siblings = slotsByParent.get(parent) ?? [];
+    siblings.push(slot);
+    slotsByParent.set(parent, siblings);
+  }
+  for (const [parent, slots] of slotsByParent) {
+    const current = [...parent.children].filter((child) => slots.includes(child));
+    const ordered = [...current].sort(
+      (left, right) => ranksBySlot.get(left) - ranksBySlot.get(right)
+    );
+    if (current.every((slot, index) => slot === ordered[index])) continue;
+    const placeholders = current.map(
+      () => parent.ownerDocument.createComment("thread-organizer-section-order")
+    );
+    current.forEach((slot, index) => slot.replaceWith(placeholders[index]));
+    placeholders.forEach(
+      (placeholder, index) => placeholder.replaceWith(ordered[index])
+    );
+  }
+}
 function addExpandedGroupAndAncestors(controls, group, userExpandedGroups, pendingUserExpandedGroups) {
   let current = group;
   while (current) {
@@ -81,6 +175,7 @@ function mountSidebarCollapser(sidebar, signal) {
   const reconcile = () => {
     scheduled = false;
     if (signal.aborted || !sidebar.isConnected) return;
+    reorderPhaseSections(sidebar);
     const currentThreadGroups = visibleThreadGroups(sidebar);
     const controls = /* @__PURE__ */ new Set();
     for (const group of sidebar.querySelectorAll(STICKY_GROUP_SELECTOR)) {
