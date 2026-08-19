@@ -1,0 +1,597 @@
+@scope ([data-bb-plugin="browser-context"]) {
+  .bb-browser-context-action {
+    display: inline-flex;
+    width: 28px;
+    height: 28px;
+    align-items: center;
+    justify-content: center;
+    border: 0;
+    border-radius: 7px;
+    background: transparent;
+    color: var(--muted-foreground, #667085);
+    cursor: pointer;
+    transition:
+      background-color 140ms ease,
+      box-shadow 140ms ease,
+      color 140ms ease;
+  }
+
+  .bb-browser-context-action-trigger {
+    display: inline-flex;
+    width: 28px;
+    height: 28px;
+  }
+
+  .bb-browser-context-action:hover:not(:disabled),
+  .bb-browser-context-action[aria-pressed="true"] {
+    background: var(--state-hover, rgb(0 0 0 / 6%));
+    color: var(--foreground, #101828);
+  }
+
+  .bb-browser-context-action[aria-pressed="true"] {
+    box-shadow: inset 0 0 0 1px
+      color-mix(in srgb, var(--ring, #4c76e8) 68%, transparent);
+    color: var(--ring, #4c76e8);
+  }
+
+  .bb-browser-context-action:disabled {
+    cursor: not-allowed;
+    opacity: 0.42;
+  }
+
+  .bb-browser-context-action:focus-visible {
+    outline: 2px solid var(--ring, #4c76e8);
+    outline-offset: 2px;
+  }
+
+  .bb-browser-context-action svg {
+    width: 17px;
+    height: 17px;
+  }
+
+  .bb-browser-context-action[aria-pressed="true"] svg {
+    animation: bb-browser-context-activate 220ms ease-out;
+    transform-origin: center;
+  }
+
+  .bb-browser-context-status {
+    position: fixed;
+    z-index: 2147483102;
+    right: 12px;
+    top: 92px;
+    max-width: 320px;
+    padding: 9px 11px;
+    border: 1px solid var(--destructive, #b42318);
+    border-radius: 9px;
+    background: var(--popover, #fff);
+    box-shadow: 0 8px 24px rgb(16 24 40 / 14%);
+    color: var(--destructive, #b42318);
+    font:
+      500 12px/1.4 Inter,
+      system-ui,
+      sans-serif;
+  }
+
+  .bb-browser-context-review {
+    position: absolute;
+    inset: 0;
+    overflow: hidden;
+    pointer-events: auto;
+    background: var(--background, #fff);
+    color: var(--foreground, #101828);
+    font:
+      400 13px/1.45 Inter,
+      system-ui,
+      sans-serif;
+  }
+
+  .bb-browser-context-canvas {
+    position: absolute;
+    inset: 0;
+    overflow: hidden;
+    background: #f2f4f7;
+  }
+
+  .bb-browser-context-canvas > img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: fill;
+    user-select: none;
+  }
+
+  .bb-browser-context-target {
+    position: absolute;
+    min-width: 8px;
+    min-height: 8px;
+    border: 2px solid #3867e8;
+    border-radius: 3px;
+    background: rgb(56 103 232 / 12%);
+    box-shadow:
+      0 0 0 1px rgb(255 255 255 / 78%),
+      0 3px 12px rgb(16 24 40 / 24%);
+    cursor: help;
+    outline: none;
+    opacity: 0.68;
+    transition:
+      background-color 120ms ease,
+      border-color 120ms ease,
+      box-shadow 120ms ease,
+      opacity 120ms ease;
+  }
+
+  .bb-browser-context-target:hover,
+  .bb-browser-context-target:focus-visible,
+  .bb-browser-context-target[data-active="true"] {
+    border-color: #1747c8;
+    background: rgb(56 103 232 / 23%);
+    box-shadow:
+      0 0 0 2px rgb(255 255 255 / 92%),
+      0 4px 16px rgb(16 24 40 / 30%);
+    opacity: 1;
+  }
+
+  .bb-browser-context-target-badge,
+  .bb-browser-context-comment-index {
+    display: inline-flex;
+    width: 20px;
+    height: 20px;
+    align-items: center;
+    justify-content: center;
+    border-radius: 999px;
+    background: #3867e8;
+    color: #fff;
+    font-size: 11px;
+    font-weight: 700;
+  }
+
+  .bb-browser-context-target-badge {
+    position: absolute;
+    top: -12px;
+    left: -12px;
+    box-shadow: 0 1px 4px rgb(16 24 40 / 24%);
+  }
+
+  .bb-browser-context-target-tooltip {
+    position: absolute;
+    left: 0;
+    top: calc(100% + 8px);
+    z-index: 2;
+    display: grid;
+    width: max-content;
+    max-width: 280px;
+    gap: 2px;
+    padding: 6px 12px;
+    border: 0;
+    border-radius: 6px;
+    background: var(--primary, #101828);
+    color: var(--primary-foreground, #fff);
+    text-align: left;
+    white-space: normal;
+  }
+
+  .bb-browser-context-target-tooltip strong {
+    font-size: 11px;
+    font-weight: 650;
+  }
+
+  .bb-browser-context-target-tooltip span {
+    color: color-mix(in srgb, var(--primary-foreground, #fff) 78%, transparent);
+    font-size: 11px;
+  }
+
+  .bb-browser-context-comment-card {
+    position: absolute;
+    z-index: 3;
+    top: 10px;
+    right: 10px;
+    display: grid;
+    width: min(300px, calc(100% - 20px));
+    gap: 7px;
+    padding: 10px;
+    border: 1px solid var(--border, #d0d5dd);
+    border-radius: 12px;
+    background: color-mix(in srgb, var(--popover, #fff) 96%, transparent);
+    box-shadow: 0 14px 36px rgb(16 24 40 / 20%);
+    backdrop-filter: blur(12px);
+  }
+
+  .bb-browser-context-comment-card-left {
+    right: auto;
+    left: 10px;
+  }
+
+  .bb-browser-context-comment-toolbar {
+    display: flex;
+    min-width: 0;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 6px;
+  }
+
+  .bb-browser-context-comment-heading {
+    display: flex;
+    flex: 1;
+    min-width: 0;
+    align-items: center;
+    gap: 7px;
+    cursor: grab;
+    touch-action: none;
+    user-select: none;
+  }
+
+  .bb-browser-context-comment-heading:active {
+    cursor: grabbing;
+  }
+
+  .bb-browser-context-comment-heading > svg {
+    width: 12px;
+    height: 16px;
+    flex: none;
+    color: var(--muted-foreground, #667085);
+  }
+
+  .bb-browser-context-comment-heading > span:last-child {
+    display: grid;
+    min-width: 0;
+  }
+
+  .bb-browser-context-comment-heading strong {
+    font-size: 12px;
+    font-weight: 650;
+  }
+
+  .bb-browser-context-comment-heading small {
+    overflow: hidden;
+    color: var(--muted-foreground, #667085);
+    font-size: 11px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .bb-browser-context-comment-utilities {
+    display: flex;
+    flex: none;
+    align-items: center;
+    gap: 2px;
+  }
+
+  .bb-browser-context-utility {
+    display: inline-flex;
+    width: 26px;
+    height: 26px;
+    flex: none;
+    align-items: center;
+    justify-content: center;
+    border: 0;
+    border-radius: 6px;
+    background: transparent;
+    color: var(--muted-foreground, #667085);
+    cursor: pointer;
+  }
+
+  .bb-browser-context-utility:hover:not(:disabled) {
+    background: var(--state-hover, #f2f4f7);
+    color: var(--foreground, #101828);
+  }
+
+  .bb-browser-context-utility:focus-visible {
+    outline: 2px solid var(--ring, #4c76e8);
+    outline-offset: 1px;
+  }
+
+  .bb-browser-context-utility:disabled {
+    cursor: wait;
+    opacity: 0.5;
+  }
+
+  .bb-browser-context-utility svg {
+    width: 14px;
+    height: 14px;
+  }
+
+  .bb-browser-context-comment-card textarea {
+    min-height: 72px;
+    resize: vertical;
+    padding: 9px 10px;
+    border: 1px solid var(--border, #d0d5dd);
+    border-radius: 8px;
+    background: var(--background, #fff);
+    color: var(--foreground, #101828);
+    font: inherit;
+    outline: none;
+  }
+
+  .bb-browser-context-selection-list {
+    display: grid;
+    max-height: 148px;
+    gap: 3px;
+    overflow-y: auto;
+    margin: 0;
+    padding: 2px 0;
+    list-style: none;
+  }
+
+  .bb-browser-context-selection-list li {
+    display: flex;
+    min-width: 0;
+    align-items: center;
+    border-radius: 7px;
+  }
+
+  .bb-browser-context-selection-list li[data-active="true"] {
+    background: var(--state-hover, rgb(0 0 0 / 6%));
+  }
+
+  .bb-browser-context-selection-row {
+    display: flex;
+    min-width: 0;
+    flex: 1;
+    align-items: center;
+    gap: 7px;
+    padding: 5px 4px 5px 6px;
+    border: 0;
+    background: transparent;
+    color: var(--foreground, #101828);
+    cursor: pointer;
+    text-align: left;
+  }
+
+  .bb-browser-context-selection-row > span:last-child {
+    display: grid;
+    min-width: 0;
+  }
+
+  .bb-browser-context-selection-row strong,
+  .bb-browser-context-selection-row small {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .bb-browser-context-selection-row strong {
+    font-size: 11px;
+    font-weight: 650;
+  }
+
+  .bb-browser-context-selection-row small {
+    color: var(--muted-foreground, #667085);
+    font-size: 10px;
+  }
+
+  .bb-browser-context-selection-row:focus-visible,
+  .bb-browser-context-remove:focus-visible {
+    outline: 2px solid var(--ring, #4c76e8);
+    outline-offset: -1px;
+  }
+
+  .bb-browser-context-remove {
+    display: inline-flex;
+    width: 25px;
+    height: 25px;
+    flex: none;
+    align-items: center;
+    justify-content: center;
+    margin-right: 2px;
+    border: 0;
+    border-radius: 6px;
+    background: transparent;
+    color: var(--muted-foreground, #667085);
+    cursor: pointer;
+  }
+
+  .bb-browser-context-remove:hover:not(:disabled) {
+    background: color-mix(
+      in srgb,
+      var(--destructive, #b42318) 10%,
+      transparent
+    );
+    color: var(--destructive, #b42318);
+  }
+
+  .bb-browser-context-remove:disabled {
+    cursor: wait;
+    opacity: 0.5;
+  }
+
+  .bb-browser-context-remove svg {
+    width: 13px;
+    height: 13px;
+  }
+
+  .bb-browser-context-comment-card textarea:focus-visible {
+    border-color: var(--ring, #4c76e8);
+    box-shadow: 0 0 0 2px
+      color-mix(in srgb, var(--ring, #4c76e8) 24%, transparent);
+  }
+
+  .bb-browser-context-comment-submit:disabled {
+    cursor: default;
+  }
+
+  .bb-browser-context-comment-submit {
+    flex: 0 0 auto;
+    min-width: 30px;
+    padding: 0 8px;
+  }
+
+  .bb-browser-context-comment-submit svg {
+    width: 16px;
+    height: 16px;
+  }
+
+  .bb-browser-context-comment-submit kbd {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 18px;
+    padding: 2px 6px;
+    border-radius: 4px;
+    background: var(--state-hover, #f2f4f7);
+    color: var(--subtle-foreground, var(--muted-foreground, #667085));
+    font:
+      500 10px/1 Inter,
+      system-ui,
+      sans-serif;
+    white-space: nowrap;
+    opacity: 0.72;
+  }
+
+  .bb-browser-context-submitted-comments {
+    display: grid;
+    max-height: 116px;
+    gap: 4px;
+    overflow-y: auto;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .bb-browser-context-submitted-comments li {
+    display: grid;
+    grid-template-columns: 18px minmax(0, 1fr);
+    align-items: start;
+    gap: 6px;
+    padding: 6px 8px;
+    border-radius: 7px;
+    background: color-mix(
+      in srgb,
+      var(--muted, var(--state-hover, #f2f4f7)) 72%,
+      transparent
+    );
+  }
+
+  .bb-browser-context-submitted-comments li > span {
+    display: inline-flex;
+    width: 18px;
+    height: 18px;
+    align-items: center;
+    justify-content: center;
+    border-radius: 999px;
+    background: var(--state-hover, #f2f4f7);
+    color: var(--muted-foreground, #667085);
+    font-size: 10px;
+    font-weight: 650;
+  }
+
+  .bb-browser-context-submitted-comments p {
+    margin: 1px 0 0;
+    color: var(--foreground, #101828);
+    font-size: 11px;
+    line-height: 1.35;
+    overflow-wrap: anywhere;
+    white-space: pre-wrap;
+  }
+
+  .bb-browser-context-error {
+    margin: 0;
+    font-size: 11px;
+  }
+
+  .bb-browser-context-error {
+    color: var(--destructive, #b42318);
+  }
+
+  .bb-browser-context-review-actions {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 6px;
+    margin-top: 2px;
+  }
+
+  .bb-browser-context-review-actions button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+    height: 30px;
+    padding: 0 10px;
+    border: 1px solid var(--border, #d0d5dd);
+    border-radius: 7px;
+    background: var(--background, #fff);
+    color: var(--foreground, #101828);
+    cursor: pointer;
+    font:
+      600 11px/1 Inter,
+      system-ui,
+      sans-serif;
+  }
+
+  .bb-browser-context-review-actions button:hover:not(:disabled) {
+    background: var(--state-hover, #f2f4f7);
+  }
+
+  .bb-browser-context-review-actions button:focus-visible {
+    outline: 2px solid var(--ring, #4c76e8);
+    outline-offset: 2px;
+  }
+
+  .bb-browser-context-review-actions button:disabled {
+    cursor: wait;
+    opacity: 0.55;
+  }
+
+  .bb-browser-context-review-actions .bb-browser-context-primary {
+    border-color: var(--primary, #101828);
+    background: var(--primary, #101828);
+    color: var(--primary-foreground, #fff);
+  }
+
+  .bb-browser-context-review-actions
+    .bb-browser-context-primary:hover:not(:disabled) {
+    background: color-mix(in srgb, var(--primary, #101828) 88%, transparent);
+  }
+}
+
+[data-bb-plugin="browser-context"].bb-browser-context-action-tooltip {
+  z-index: 2147483103;
+  max-width: min(20rem, var(--radix-tooltip-content-available-width));
+  overflow: hidden;
+  padding: 6px 12px;
+  border-radius: 6px;
+  background: var(--primary, #101828);
+  color: var(--primary-foreground, #fff);
+  font:
+    500 12px/1.25 Inter,
+    system-ui,
+    sans-serif;
+  overflow-wrap: anywhere;
+  animation: bb-browser-context-tooltip-in 120ms ease-out;
+}
+
+@keyframes bb-browser-context-activate {
+  0% {
+    opacity: 0.62;
+    transform: scale(0.88);
+  }
+
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes bb-browser-context-tooltip-in {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-bb-plugin="browser-context"]
+    .bb-browser-context-action[aria-pressed="true"]
+    svg {
+    animation: none;
+  }
+
+  [data-bb-plugin="browser-context"].bb-browser-context-action-tooltip {
+    animation: none;
+  }
+}

@@ -1,0 +1,8 @@
+{
+  "package": "@get-bb/plugin-sdk@0.4.9",
+  "sourceRepository": "https://github.com/get-bb/bb",
+  "sourceCommit": "9a6617ec517d2fa4b021b06f08326b36593765bd",
+  "sourcePath": "packages/plugin-sdk",
+  "archive": "bb-plugin-sdk-0.4.9.tgz",
+  "sha256": "0c2023c099ea00a54066be9c9a0f701b6716336779cc0ff8ed05a6a9bedc5930"
+}
