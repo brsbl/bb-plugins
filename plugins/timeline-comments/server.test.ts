@@ -3,7 +3,7 @@ import {
   createFakePluginHost,
   makeThreadResponse,
   type FakePluginHost,
-} from "@bb/plugin-sdk/testing";
+} from "@get-bb/plugin-sdk/testing";
 import { z } from "zod";
 import plugin, {
   commentBodySchema,
@@ -577,6 +577,73 @@ describe("timeline comments backend", () => {
     expect(invalidLimit.stderr).toContain("integer from 1 to 100");
   });
 
+  it("lets agents reply, resolve idempotently, and reopen through the CLI", async () => {
+    const host = await loadPlugin();
+    const created = await createComment(host, "Address this feedback");
+
+    const replied = await host.harness.runCli(
+      [
+        "reply",
+        created.thread.id,
+        "--body",
+        "Fixed in server.ts; focused tests pass.",
+        "--json",
+      ],
+      { threadId: "thr_1" },
+    );
+    expect(replied.exitCode).toBe(0);
+    expect(JSON.parse(replied.stdout ?? "")).toMatchObject({
+      id: created.thread.id,
+      state: "open",
+      replyCount: 1,
+    });
+
+    const resolved = await host.harness.runCli(
+      ["resolve", created.thread.id, "--json"],
+      { threadId: "thr_1" },
+    );
+    expect(resolved.exitCode).toBe(0);
+    const resolvedResult = JSON.parse(resolved.stdout ?? "");
+    expect(resolvedResult).toMatchObject({
+      id: created.thread.id,
+      state: "resolved",
+      replyCount: 1,
+    });
+
+    const resolvedAgain = await host.harness.runCli(
+      ["resolve", created.thread.id, "--json"],
+      { threadId: "thr_1" },
+    );
+    expect(JSON.parse(resolvedAgain.stdout ?? "").version).toBe(
+      resolvedResult.version,
+    );
+
+    const rejectedReply = await host.harness.runCli(
+      ["reply", created.thread.id, "--body", "Too late"],
+      { threadId: "thr_1" },
+    );
+    expect(rejectedReply).toMatchObject({ exitCode: 1 });
+    expect(rejectedReply.stderr).toContain("cannot receive replies");
+
+    const reopened = await host.harness.runCli(
+      ["reopen", created.thread.id],
+      { threadId: "thr_1" },
+    );
+    expect(reopened).toMatchObject({ exitCode: 0 });
+    expect(reopened.stdout).toContain("is open");
+
+    const detail = commentThreadDetailSchema.parse(
+      await host.harness.callRpc("getCommentThread", {
+        bbThreadId: "thr_1",
+        commentThreadId: created.thread.id,
+      }),
+    );
+    expect(detail.thread.resolvedAt).toBeNull();
+    expect(detail.comments.at(-1)?.body).toBe(
+      "Fixed in server.ts; focused tests pass.",
+    );
+  });
+
   it("rejects unknown CLI commands, options, arguments, and missing option values", async () => {
     const host = await loadPlugin();
     const cases: Array<{ argv: string[]; message: string }> = [
@@ -585,6 +652,14 @@ describe("timeline comments backend", () => {
       { argv: ["list", "extra"], message: "Unexpected argument for list" },
       { argv: ["list", "--wat"], message: "Unknown option for list" },
       { argv: ["get", "--json"], message: "comment-thread-id" },
+      {
+        argv: ["reply", "comment_1"],
+        message: "reply requires --body <text>",
+      },
+      {
+        argv: ["resolve", "comment_1", "--cursor", "next"],
+        message: "Unknown option for resolve",
+      },
       {
         argv: ["get", "comment_1", "--state", "open"],
         message: "Unknown option for get",

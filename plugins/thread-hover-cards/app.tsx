@@ -1,4 +1,4 @@
-import { definePluginApp } from "@bb/plugin-sdk/app";
+import { definePluginApp } from "@get-bb/plugin-sdk/app";
 import {
   AlarmClockIcon,
   CancelCircleIcon,
@@ -14,6 +14,7 @@ import {
   Loading03Icon,
   OpenAiIcon,
   PiIcon,
+  SecurityCheckIcon,
   SourceCodeIcon,
   SquareUnlock02Icon,
   ViewIcon,
@@ -39,10 +40,13 @@ const THREAD_ROW_SELECTOR = ".group\\/thread-row";
 const SECTION_TOGGLE_SELECTOR =
   'button[aria-expanded][aria-label$=" section"]';
 const STICKY_GROUP_SELECTOR = "[data-sidebar-sticky-group]";
+const PROJECT_ITEM_SELECTOR = "[data-sidebar-sticky-project-item]";
 const SECTION_ID_SELECTOR = "[data-sidebar-section-id]";
 const PROJECT_ID_SELECTOR = "[data-sidebar-project-id]";
 const SECTION_SUMMARY_CACHE_TTL_MS = 4_000;
 const SECTION_CACHE_MAX_ENTRIES = 32;
+/** Comfortably past the server's section-directory TTL, so a wrong "no" heals. */
+const SECTION_UNKNOWN_TTL_MS = 60_000;
 const OPEN_DELAY_MS = 0;
 const CLOSE_DELAY_MS = 120;
 const ACTIVE_SUMMARY_CACHE_TTL_MS = 2_000;
@@ -341,10 +345,20 @@ function findThreadTrigger(target: EventTarget | null): HTMLAnchorElement | null
 
 /** A sidebar section header row and the section it stands for. */
 export interface SectionTrigger {
+  name: string;
   projectId: string | null;
+  projectName: string | null;
   row: HTMLElement;
-  sectionId: string;
+  sectionId: string | null;
   toggle: HTMLElement;
+}
+
+export function sectionLabelOf(toggle: Element): string | null {
+  return (
+    /^(?:Expand|Collapse) (.+) section$/.exec(
+      toggle.getAttribute("aria-label") ?? "",
+    )?.[1] ?? null
+  );
 }
 
 /**
@@ -357,16 +371,20 @@ function sectionToggleOwnedBy(row: Element): Element | null {
   return toggle?.parentElement?.parentElement === row ? toggle : null;
 }
 
-function isSidebarHeaderTarget(target: EventTarget | null): boolean {
-  if (!(target instanceof Element)) return false;
-  const root = target.closest(STICKY_GROUP_SELECTOR);
-  if (!root) return false;
-  let candidate: Element | null = target;
-  while (candidate && candidate !== root.parentElement) {
-    if (sectionToggleOwnedBy(candidate)) return true;
-    candidate = candidate.parentElement;
-  }
-  return false;
+/** Project rows reuse the section header markup, so they are excluded. */
+function isProjectHeaderRow(row: Element): boolean {
+  return (
+    row.closest(STICKY_GROUP_SELECTOR)?.parentElement?.matches(
+      PROJECT_ITEM_SELECTOR,
+    ) === true
+  );
+}
+
+/** In project mode a section is nested under a project and only counts its threads. */
+function enclosingProjectName(row: Element): string | null {
+  const projectItem = row.closest(PROJECT_ITEM_SELECTOR);
+  const projectToggle = projectItem?.querySelector(SECTION_TOGGLE_SELECTOR);
+  return projectToggle == null ? null : sectionLabelOf(projectToggle);
 }
 
 function projectIdFor(row: Element): string | null {
@@ -383,17 +401,22 @@ export function findSectionTrigger(
   // outside a sidebar group rather than scanning up to <html> every time.
   const root =
     target instanceof Element ? target.closest(STICKY_GROUP_SELECTOR) : null;
-  const sectionId =
-    root instanceof HTMLElement ? root.dataset.sidebarSectionId?.trim() : null;
-  if (!(root instanceof HTMLElement) || !sectionId) return null;
+  if (root === null) return null;
   let candidate: Element | null = target as Element;
   while (candidate && candidate !== root.parentElement) {
     const toggle = sectionToggleOwnedBy(candidate);
     if (toggle) {
+      const name = sectionLabelOf(toggle);
+      if (name === null || isProjectHeaderRow(candidate)) return null;
       return {
+        name,
         projectId: projectIdFor(candidate),
+        projectName: enclosingProjectName(candidate),
         row: candidate as HTMLElement,
-        sectionId,
+        sectionId:
+          root instanceof HTMLElement
+            ? root.dataset.sidebarSectionId?.trim() || null
+            : null,
         toggle: toggle as HTMLElement,
       };
     }
@@ -402,30 +425,33 @@ export function findSectionTrigger(
   return null;
 }
 
-function findCurrentSectionTrigger(
-  sectionId: string,
-  projectId: string | null,
-): SectionTrigger | null {
-  for (const group of Array.from(
-    document.querySelectorAll<HTMLElement>(SECTION_ID_SELECTOR),
-  )) {
-    if (group.dataset.sidebarSectionId?.trim() !== sectionId) continue;
-    if (projectIdFor(group) !== projectId) continue;
-    const row = Array.from(group.children).find(
-      (child): child is HTMLElement =>
-        child instanceof HTMLElement && sectionToggleOwnedBy(child) !== null,
+function sameSectionIdentity(
+  left: SectionTrigger,
+  right: SectionTrigger,
+): boolean {
+  if (left.sectionId !== null || right.sectionId !== null) {
+    return (
+      left.sectionId !== null &&
+      left.sectionId === right.sectionId &&
+      left.projectId === right.projectId
     );
-    if (!row) continue;
-    const toggle = sectionToggleOwnedBy(row);
-    if (!toggle) continue;
-    return {
-      projectId,
-      row,
-      sectionId,
-      toggle: toggle as HTMLElement,
-    };
   }
-  return null;
+  return left.name === right.name && left.projectName === right.projectName;
+}
+
+function findCurrentSectionTrigger(
+  target: SectionTrigger,
+): SectionTrigger | null {
+  const matches: SectionTrigger[] = [];
+  for (const toggle of Array.from(
+    document.querySelectorAll<HTMLElement>(SECTION_TOGGLE_SELECTOR),
+  )) {
+    const current = findSectionTrigger(toggle);
+    if (current && sameSectionIdentity(target, current)) matches.push(current);
+  }
+  // Name-only legacy DOM cannot safely distinguish duplicate built-in/custom
+  // rows. Failing closed is better than attaching another section's summary.
+  return matches.length === 1 ? matches[0]! : null;
 }
 
 function threadIdFor(trigger: HTMLAnchorElement): string | null {
@@ -458,6 +484,27 @@ function refreshRunTime(card: HTMLElement): void {
 }
 
 function formatModelLabel(value: string, providerId: string): string {
+  if (providerId === "claude-code") {
+    const contextMatch = value.match(/^(.*)\[(\d+(?:\.\d+)?[km])\]$/i);
+    const modelId = contextMatch?.[1] ?? value;
+    const context = contextMatch?.[2]?.toUpperCase();
+    const formatted = modelId
+      .replace(/^claude[-_\s]+/i, "")
+      .split(/[-_]/)
+      .map((part) => {
+        if (/^\d+(\.\d+)*$/.test(part)) return part;
+        if (/^[a-z]+$/i.test(part)) {
+          return part.charAt(0).toUpperCase() + part.slice(1).toLowerCase();
+        }
+        return part;
+      })
+      .join("-")
+      .replace(/-(\d+)-(\d+)(?=-|$)/, "-$1.$2")
+      .split("-")
+      .join(" ");
+    return context ? `${formatted} (${context})` : formatted;
+  }
+
   const formatted = value
     .split("-")
     .map((part) => {
@@ -471,9 +518,6 @@ function formatModelLabel(value: string, providerId: string): string {
     .join("-");
 
   if (providerId === "codex") return formatted.replace(/^GPT-/i, "");
-  if (providerId === "claude-code") {
-    return formatted.replace(/^Claude\s+/i, "");
-  }
   return formatted;
 }
 
@@ -501,19 +545,25 @@ function permissionMetadata(summary: ThreadSummary): HTMLSpanElement | null {
       : summary.permissionMode === "accept-edits" ||
           summary.permissionMode === "workspace-write"
         ? { definition: FolderEditIcon, name: "FolderEditIcon" }
-        : { definition: ViewIcon, name: "ViewIcon" };
+        : summary.permissionMode === "auto"
+          ? { definition: SecurityCheckIcon, name: "SecurityCheckIcon" }
+          : summary.permissionMode === "readonly"
+            ? { definition: ViewIcon, name: "ViewIcon" }
+            : null;
   const access = element("span", "bb-thread-hover-card__access");
   access.dataset.permissionMode = summary.permissionMode!;
   access.setAttribute("aria-label", `Permission: ${label}`);
   access.title = `Permission: ${label}`;
-  access.append(
-    icon(
-      permissionIcon.definition,
-      permissionIcon.name,
-      "bb-thread-hover-card__icon bb-thread-hover-card__permission-icon",
-    ),
-    document.createTextNode(label),
-  );
+  if (permissionIcon) {
+    access.append(
+      icon(
+        permissionIcon.definition,
+        permissionIcon.name,
+        "bb-thread-hover-card__icon bb-thread-hover-card__permission-icon",
+      ),
+    );
+  }
+  access.append(document.createTextNode(label));
   return access;
 }
 
@@ -782,8 +832,8 @@ function renderSummary(card: HTMLElement, summary: ThreadSummary): void {
     ? REASONING_LABELS[summary.provider.reasoningLevel]
     : null;
   provider.title = reasoningLabel
-    ? `${summary.provider.displayName} · ${modelLabel} · ${reasoningLabel} reasoning`
-    : `${summary.provider.displayName} · ${modelLabel}`;
+    ? `${summary.provider.displayName}: ${modelLabel} · ${reasoningLabel} reasoning`
+    : `${summary.provider.displayName}: ${modelLabel}`;
   const providerIdentity = element(
     "div",
     "bb-thread-hover-card__provider-identity",
@@ -1996,8 +2046,7 @@ function installHoverCards({ onOpen }: ThreadHoverCardOptions): HoverCardControl
 }
 
 async function fetchSectionSummary(
-  sectionId: string,
-  projectId: string | null,
+  target: SectionTrigger,
   signal: AbortSignal,
 ): Promise<SectionSummary> {
   const response = await fetch(
@@ -2005,7 +2054,12 @@ async function fetchSectionSummary(
     {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ projectId, sectionId }),
+      body: JSON.stringify({
+        name: target.name,
+        projectId: target.projectId,
+        projectName: target.projectName,
+        ...(target.sectionId === null ? {} : { sectionId: target.sectionId }),
+      }),
       signal,
     },
   );
@@ -2040,6 +2094,11 @@ function installSectionHoverCards({
   let disposed = false;
   const cache = new Map<string, { fetchedAt: number; summary: SectionSummary }>();
   const pending = new Map<string, AbortController>();
+  // Built-in groups (Pinned, Unorganized, …) reuse the section header markup,
+  // so one answer stops us offering them a card. The verdict expires because a
+  // section created or renamed a moment ago can also answer "not a section",
+  // and that must not be permanent.
+  const unknownSections = new Map<string, number>();
   const style = element("style", "");
   style.id = SECTION_STYLE_ID;
   style.textContent = SECTION_CARD_CSS;
@@ -2047,16 +2106,11 @@ function installSectionHoverCards({
   document.head.append(style);
 
   const keyOf = (target: SectionTrigger): string =>
-    JSON.stringify([target.sectionId, target.projectId]);
-
-  const sameIdentity = (
-    left: SectionTrigger | null,
-    right: SectionTrigger | null,
-  ): boolean =>
-    left !== null &&
-    right !== null &&
-    left.sectionId === right.sectionId &&
-    left.projectId === right.projectId;
+    JSON.stringify(
+      target.sectionId === null
+        ? ["name", target.name, target.projectName]
+        : ["id", target.sectionId, target.projectId],
+    );
 
   function ensureCard(): HTMLDivElement {
     if (card) return card;
@@ -2075,26 +2129,18 @@ function installSectionHoverCards({
     return card;
   }
 
-  function refreshActiveAnchor(): boolean {
-    if (!active) return false;
-    const current = findCurrentSectionTrigger(
-      active.sectionId,
-      active.projectId,
-    );
-    if (!current) {
-      closeCard();
-      return false;
-    }
-    if (current.row !== active.row || current.toggle !== active.toggle) {
+  function position(): void {
+    if (!card || card.hidden || !active) return;
+    if (!active.row.isConnected) {
+      const current = findCurrentSectionTrigger(active);
+      if (!current) {
+        closeCard();
+        return;
+      }
       active.toggle.removeAttribute("aria-describedby");
       active = current;
       active.toggle.setAttribute("aria-describedby", SECTION_CARD_ID);
     }
-    return true;
-  }
-
-  function position(): void {
-    if (!card || card.hidden || !refreshActiveAnchor() || !active) return;
     placeCardNear(card, active.row);
   }
 
@@ -2141,12 +2187,12 @@ function installSectionHoverCards({
     abortPendingRequests();
     const controller = new AbortController();
     pending.set(key, controller);
-    return fetchSectionSummary(
-      target.sectionId,
-      target.projectId,
-      controller.signal,
-    )
+    return fetchSectionSummary(target, controller.signal)
       .then((summary) => {
+        if (!summary.known) {
+          unknownSections.set(key, Date.now());
+          return summary;
+        }
         cache.delete(key);
         cache.set(key, { fetchedAt: Date.now(), summary });
         while (cache.size > SECTION_CACHE_MAX_ENTRIES) {
@@ -2162,7 +2208,15 @@ function installSectionHoverCards({
   }
 
   function showCard(target: SectionTrigger): void {
+    const knownUnknownAt = unknownSections.get(keyOf(target));
     if (disposed) return;
+    if (
+      knownUnknownAt !== undefined &&
+      Date.now() - knownUnknownAt < SECTION_UNKNOWN_TTL_MS
+    ) {
+      closeCard();
+      return;
+    }
     onOpen();
     cancelClose();
     abortPendingRequests();
@@ -2187,6 +2241,10 @@ function installSectionHoverCards({
 
     void requestSummary(target)
       .then((summary) => {
+        if (!summary.known) {
+          if (!disposed && requestGeneration === generation) closeCard();
+          return;
+        }
         if (disposed || requestGeneration !== generation) return;
         renderSectionSummary(hoverCard, summary);
         requestAnimationFrame(position);
@@ -2202,17 +2260,8 @@ function installSectionHoverCards({
   function onPointerOver(event: PointerEvent): void {
     if (event.pointerType === "touch") return;
     const target = findSectionTrigger(event.target);
-    if (!target) {
-      if (isSidebarHeaderTarget(event.target)) closeCard();
-      return;
-    }
-    if (sameIdentity(active, target) && card && !card.hidden) {
-      if (active?.toggle !== target.toggle) {
-        active?.toggle.removeAttribute("aria-describedby");
-        active = target;
-        active.toggle.setAttribute("aria-describedby", SECTION_CARD_ID);
-        requestAnimationFrame(position);
-      }
+    if (!target) return;
+    if (active?.row === target.row && card && !card.hidden) {
       cancelClose();
       return;
     }
@@ -2221,7 +2270,7 @@ function installSectionHoverCards({
 
   function onPointerOut(event: PointerEvent): void {
     if (!findSectionTrigger(event.target)) return;
-    if (sameIdentity(findSectionTrigger(event.relatedTarget), active)) return;
+    if (findSectionTrigger(event.relatedTarget)?.row === active?.row) return;
     if (
       event.relatedTarget instanceof Node &&
       card?.contains(event.relatedTarget)
@@ -2234,13 +2283,7 @@ function installSectionHoverCards({
   function onFocusIn(event: FocusEvent): void {
     const target = findSectionTrigger(event.target);
     if (target) {
-      if (sameIdentity(active, target) && card && !card.hidden) {
-        if (active?.toggle !== target.toggle) {
-          active?.toggle.removeAttribute("aria-describedby");
-          active = target;
-          active.toggle.setAttribute("aria-describedby", SECTION_CARD_ID);
-          requestAnimationFrame(position);
-        }
+      if (active?.row === target.row && card && !card.hidden) {
         cancelClose();
         return;
       }
@@ -2268,11 +2311,8 @@ function installSectionHoverCards({
   document.addEventListener("click", onClick);
   window.addEventListener("resize", position);
   window.addEventListener("scroll", position, true);
-  const anchorObserver = new MutationObserver(() => {
-    if (!active || !card || card.hidden) return;
-    if (refreshActiveAnchor()) requestAnimationFrame(position);
-  });
-  anchorObserver.observe(document.body, { childList: true, subtree: true });
+  const sidebarObserver = new MutationObserver(position);
+  sidebarObserver.observe(document.body, { childList: true, subtree: true });
 
   return {
     dispose() {
@@ -2285,11 +2325,12 @@ function installSectionHoverCards({
       document.removeEventListener("click", onClick);
       window.removeEventListener("resize", position);
       window.removeEventListener("scroll", position, true);
-      anchorObserver.disconnect();
+      sidebarObserver.disconnect();
       card?.remove();
       card = null;
       style.remove();
       cache.clear();
+      unknownSections.clear();
       for (const controller of pending.values()) controller.abort();
       pending.clear();
     },

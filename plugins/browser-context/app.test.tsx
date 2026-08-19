@@ -1,12 +1,12 @@
 // @vitest-environment jsdom
 
 import { cleanup, fireEvent, screen, waitFor } from "@testing-library/react";
-import type { JsonValue, PluginBrowserActionProps } from "@bb/plugin-sdk/app";
+import type { JsonValue, PluginBrowserActionProps } from "@get-bb/plugin-sdk/app";
 import {
   loadPluginApp,
   renderSlot,
   type PluginRpcTestHandlers,
-} from "@bb/plugin-sdk/testing/app";
+} from "@get-bb/plugin-sdk/testing/app";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { rpcContract } from "./server.js";

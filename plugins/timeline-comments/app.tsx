@@ -8,6 +8,7 @@ import {
 } from "react";
 import { ChatFeedback01Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
+import * as TooltipPrimitive from "@radix-ui/react-tooltip";
 import {
   definePluginApp,
   useComposer,
@@ -15,7 +16,7 @@ import {
   useRealtimeConnectionState,
   useRpc,
   type PluginThreadPanelProps,
-} from "@bb/plugin-sdk/app";
+} from "@get-bb/plugin-sdk/app";
 import type {
   TimelineCommentThreadSummary,
   timelineCommentsRpcContract,
@@ -189,6 +190,13 @@ function AddCommentsAction() {
 
   if (threadId === null) return null;
 
+  const actionLabel =
+    error === null
+      ? "Add comments to chat"
+      : "Retry adding comments to chat";
+  const tooltipLabel =
+    error === null ? actionLabel : `${actionLabel}: ${error}`;
+
   return (
     <span className="bb-comments-composer-action-wrap">
       {error !== null ? (
@@ -201,31 +209,38 @@ function AddCommentsAction() {
           {notice}
         </span>
       ) : null}
-      <button
-        type="button"
-        className="bb-comments-composer-action"
-        aria-label={
-          error === null
-            ? "Add comments to chat"
-            : "Retry adding comments to chat"
-        }
-        title={
-          error === null
-            ? "Add comments to chat"
-            : `Retry adding comments to chat: ${error}`
-        }
-        disabled={busy}
-        onMouseDown={(event) => event.preventDefault()}
-        onClick={() => void addComments()}
-      >
-        <span className="bb-comments-composer-action-icon">
-          <HugeiconsIcon
-            icon={ChatFeedback01Icon}
-            aria-hidden="true"
-            data-icon="ChatFeedback"
-          />
-        </span>
-      </button>
+      <TooltipPrimitive.Provider delayDuration={250}>
+        <TooltipPrimitive.Root>
+          <TooltipPrimitive.Trigger asChild>
+            <button
+              type="button"
+              className="bb-comments-composer-action"
+              aria-label={actionLabel}
+              disabled={busy}
+              onMouseDown={(event) => event.preventDefault()}
+              onClick={() => void addComments()}
+            >
+              <span className="bb-comments-composer-action-icon">
+                <HugeiconsIcon
+                  icon={ChatFeedback01Icon}
+                  aria-hidden="true"
+                  data-icon="ChatFeedback"
+                />
+              </span>
+            </button>
+          </TooltipPrimitive.Trigger>
+          <TooltipPrimitive.Portal>
+            <TooltipPrimitive.Content
+              className="bb-comments-composer-action-tooltip"
+              side="top"
+              sideOffset={7}
+              collisionPadding={8}
+            >
+              {tooltipLabel}
+            </TooltipPrimitive.Content>
+          </TooltipPrimitive.Portal>
+        </TooltipPrimitive.Root>
+      </TooltipPrimitive.Provider>
     </span>
   );
 }
@@ -444,7 +459,7 @@ export default definePluginApp((app) => {
   });
   app.slots.threadPanelAction({
     id: "comments",
-    title: "Comments",
+    title: "Comments List",
     icon: "ChatFeedback",
     component: CommentPanel,
     layout: "flush",
@@ -455,7 +470,7 @@ export default definePluginApp((app) => {
     icon: "ChatFeedback",
     run(context) {
       if (context.selectedText === undefined) {
-        context.openPanel({ actionId: "comments", title: "Comments" });
+        context.openPanel({ actionId: "comments", title: "Comments List" });
       } else {
         beginTimelineComment(context);
       }

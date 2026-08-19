@@ -13,8 +13,6 @@
     --shadow-lg: var(--shadow-lg);
     --shadow-xl: var(--shadow-xl);
     --shadow-2xl: var(--shadow-2xl);
-    --default-transition-duration: 150ms;
-    --default-transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
     --shadow: var(--shadow);
     --shadow-lift: var(--shadow-lift);
   }
@@ -117,9 +115,6 @@
     .relative {
       position: relative;
     }
-    .static {
-      position: static;
-    }
     .container {
       width: 100%;
       @media (width >= 40rem) {
@@ -141,20 +136,20 @@
     .block {
       display: block;
     }
-    .contents {
-      display: contents;
-    }
-    .grid {
-      display: grid;
-    }
     .hidden {
       display: none;
     }
     .inline {
       display: inline;
     }
+    .table {
+      display: table;
+    }
     .grow {
       flex-grow: 1;
+    }
+    .border-collapse {
+      border-collapse: collapse;
     }
     .transform {
       transform: var(--tw-rotate-x,) var(--tw-rotate-y,) var(--tw-rotate-z,) var(--tw-skew-x,) var(--tw-skew-y,);
@@ -166,15 +161,12 @@
       border-style: var(--tw-border-style);
       border-width: 1px;
     }
-    .lowercase {
-      text-transform: lowercase;
-    }
     .underline {
       text-decoration-line: underline;
     }
-    .ring {
-      --tw-ring-shadow: var(--tw-ring-inset,) 0 0 0 calc(1px + var(--tw-ring-offset-width)) var(--tw-ring-color, currentcolor);
-      box-shadow: var(--tw-inset-shadow), var(--tw-inset-ring-shadow), var(--tw-ring-offset-shadow), var(--tw-ring-shadow), var(--tw-shadow);
+    .outline {
+      outline-style: var(--tw-outline-style);
+      outline-width: 1px;
     }
     .blur {
       --tw-blur: blur(8px);
@@ -182,14 +174,6 @@
     }
     .filter {
       filter: var(--tw-blur,) var(--tw-brightness,) var(--tw-contrast,) var(--tw-grayscale,) var(--tw-hue-rotate,) var(--tw-invert,) var(--tw-saturate,) var(--tw-sepia,) var(--tw-drop-shadow,);
-    }
-    .transition {
-      transition-property: color, background-color, border-color, outline-color, text-decoration-color, fill, stroke, --tw-gradient-from, --tw-gradient-via, --tw-gradient-to, opacity, box-shadow, transform, translate, scale, rotate, filter, -webkit-backdrop-filter, backdrop-filter, display, content-visibility, overlay, pointer-events;
-      transition-timing-function: var(--tw-ease, var(--default-transition-timing-function));
-      transition-duration: var(--tw-duration, var(--default-transition-duration));
-    }
-    .paused {
-      animation-play-state: paused;
     }
     .running {
       animation-play-state: running;
@@ -221,70 +205,10 @@
   inherits: false;
   initial-value: solid;
 }
-@property --tw-shadow {
+@property --tw-outline-style {
   syntax: "*";
   inherits: false;
-  initial-value: 0 0 #0000;
-}
-@property --tw-shadow-color {
-  syntax: "*";
-  inherits: false;
-}
-@property --tw-shadow-alpha {
-  syntax: "<percentage>";
-  inherits: false;
-  initial-value: 100%;
-}
-@property --tw-inset-shadow {
-  syntax: "*";
-  inherits: false;
-  initial-value: 0 0 #0000;
-}
-@property --tw-inset-shadow-color {
-  syntax: "*";
-  inherits: false;
-}
-@property --tw-inset-shadow-alpha {
-  syntax: "<percentage>";
-  inherits: false;
-  initial-value: 100%;
-}
-@property --tw-ring-color {
-  syntax: "*";
-  inherits: false;
-}
-@property --tw-ring-shadow {
-  syntax: "*";
-  inherits: false;
-  initial-value: 0 0 #0000;
-}
-@property --tw-inset-ring-color {
-  syntax: "*";
-  inherits: false;
-}
-@property --tw-inset-ring-shadow {
-  syntax: "*";
-  inherits: false;
-  initial-value: 0 0 #0000;
-}
-@property --tw-ring-inset {
-  syntax: "*";
-  inherits: false;
-}
-@property --tw-ring-offset-width {
-  syntax: "<length>";
-  inherits: false;
-  initial-value: 0px;
-}
-@property --tw-ring-offset-color {
-  syntax: "*";
-  inherits: false;
-  initial-value: #fff;
-}
-@property --tw-ring-offset-shadow {
-  syntax: "*";
-  inherits: false;
-  initial-value: 0 0 #0000;
+  initial-value: solid;
 }
 @property --tw-blur {
   syntax: "*";
@@ -365,20 +289,7 @@
       --tw-skew-x: initial;
       --tw-skew-y: initial;
       --tw-border-style: solid;
-      --tw-shadow: 0 0 #0000;
-      --tw-shadow-color: initial;
-      --tw-shadow-alpha: 100%;
-      --tw-inset-shadow: 0 0 #0000;
-      --tw-inset-shadow-color: initial;
-      --tw-inset-shadow-alpha: 100%;
-      --tw-ring-color: initial;
-      --tw-ring-shadow: 0 0 #0000;
-      --tw-inset-ring-color: initial;
-      --tw-inset-ring-shadow: 0 0 #0000;
-      --tw-ring-inset: initial;
-      --tw-ring-offset-width: 0px;
-      --tw-ring-offset-color: #fff;
-      --tw-ring-offset-shadow: 0 0 #0000;
+      --tw-outline-style: solid;
       --tw-blur: initial;
       --tw-brightness: initial;
       --tw-contrast: initial;
@@ -449,9 +360,25 @@
   color: var(--foreground);
 }
 .bb-comments-composer-action-wrap {
+  position: relative;
   display: inline-flex;
   align-items: center;
   gap: 3px;
+}
+.bb-comments-composer-action-tooltip {
+  z-index: 60;
+  width: max-content;
+  max-width: 240px;
+  padding: 5px 7px;
+  border-radius: 6px;
+  background: var(--primary);
+  box-shadow: 0 4px 12px color-mix(in oklab, var(--foreground) 12%, transparent);
+  color: var(--primary-foreground);
+  font-family: inherit;
+  font-size: 12px;
+  line-height: 1.25;
+  pointer-events: none;
+  white-space: nowrap;
 }
 .bb-comments-composer-action-error {
   color: var(--destructive-text, var(--muted-foreground));
@@ -503,7 +430,7 @@
   color: var(--popover-foreground);
   outline: none;
   font-family: inherit;
-  font-size: 11px;
+  font-size: 13px;
   line-height: 1.45;
 }
 .bb-comments-composer {
@@ -527,7 +454,6 @@
   background: var(--background);
   color: var(--foreground);
   font: inherit;
-  outline: none;
 }
 .bb-comments-textarea {
   field-sizing: content;
@@ -538,17 +464,6 @@
   background: transparent;
   resize: none;
   line-height: 1.45;
-}
-.bb-comments-textarea:focus,
-.bb-comments-textarea:focus-visible,
-.bb-comments-reply-input:focus,
-.bb-comments-reply-input:focus-visible,
-.bb-comments-edit-input:focus,
-.bb-comments-edit-input:focus-visible,
-.bb-comments-panel textarea:focus,
-.bb-comments-panel textarea:focus-visible {
-  outline: none !important;
-  box-shadow: none !important;
 }
 .bb-comments-thread-header,
 .bb-comments-comment-actions,
@@ -717,7 +632,8 @@
 }
 .bb-comments-comment-body {
   margin: 3px 9px 6px;
-  font-size: 10.5px;
+  font-family: inherit;
+  font-size: inherit;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
   line-height: 1.45;
@@ -779,7 +695,8 @@
   padding: 3px 0;
   border: 0;
   background: transparent;
-  font-size: 10.5px;
+  font-family: inherit;
+  font-size: inherit;
   line-height: 1.45;
   resize: none;
 }
@@ -853,21 +770,6 @@
   border: 0;
   border-radius: 0;
   background: transparent;
-}
-.bb-comments-inline-composer:focus-within {
-  outline: none;
-  box-shadow: none;
-}
-.bb-comments-mention-input:has(.bb-comments-textarea:focus-visible),
-.bb-comments-mention-input:has(.bb-comments-reply-input:focus-visible),
-.bb-comments-mention-input:has(.bb-comments-edit-input:focus-visible) {
-  outline: 2px solid color-mix(in oklab, var(--foreground) 55%, transparent);
-  outline-offset: -2px;
-  border-radius: 5px;
-}
-.bb-comments-panel textarea:focus-visible {
-  outline: 2px solid color-mix(in oklab, var(--foreground) 55%, transparent) !important;
-  outline-offset: -2px;
 }
 .bb-comments-composer[data-multiline=true] {
   padding-bottom: 26px;
@@ -1102,7 +1004,7 @@
   background: var(--background);
   color: var(--foreground);
   font-family: inherit;
-  font-size: 11px;
+  font-size: 13px;
   line-height: 1.45;
 }
 .bb-comments-filters {
@@ -1161,7 +1063,8 @@
   white-space: nowrap;
 }
 .bb-comments-row-body {
-  font-size: 11px;
+  font-family: inherit;
+  font-size: inherit;
   line-height: 1.45;
 }
 .bb-comments-row-meta {
@@ -1204,7 +1107,8 @@
 }
 .bb-comments-panel-comment p {
   margin: 3px 0 0;
-  font-size: 11px;
+  font-family: inherit;
+  font-size: inherit;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
   line-height: 1.45;

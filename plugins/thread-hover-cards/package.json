@@ -16,7 +16,7 @@
   },
   "engines": {
     "bb": ">=0.0.34",
-    "bbPluginSdk": "^0.5.0"
+    "bbPluginSdk": "^0.4.1"
   },
   "bb": {
     "name": "Thread Hover Cards",
@@ -32,6 +32,7 @@
     "zod": "^4.3.6"
   },
   "devDependencies": {
+    "@get-bb/plugin-sdk": "file:../../tooling/vendor/get-bb-plugin-sdk-0.4.8.tgz",
     "@types/better-sqlite3": "^7.6.12",
     "@types/node": "^22.0.0",
     "@types/react": "^19.0.0",

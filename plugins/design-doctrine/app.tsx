@@ -12,7 +12,7 @@ import {
   useRealtime,
   useRealtimeConnectionState,
   useRpc,
-} from "@bb/plugin-sdk/app";
+} from "@get-bb/plugin-sdk/app";
 
 import {
   detailRowEndIndex,

@@ -7,8 +7,8 @@
     "jsx": "react-jsx",
     "baseUrl": ".",
     "paths": {
-      "@bb/plugin-sdk": ["./types/bb-plugin-sdk.d.ts"],
-      "@bb/plugin-sdk/app": ["./types/bb-plugin-sdk-app.d.ts"]
+      "@get-bb/plugin-sdk": ["./types/bb-plugin-sdk.d.ts"],
+      "@get-bb/plugin-sdk/app": ["./types/bb-plugin-sdk-app.d.ts"]
     },
     "strict": true,
     "noEmit": true,

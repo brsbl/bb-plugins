@@ -1,7 +1,7 @@
 import type {
   ExperimentalBrowserPageCapture,
   PluginBrowserActionProps,
-} from "@bb/plugin-sdk/app";
+} from "@get-bb/plugin-sdk/app";
 
 export interface CapturePoint {
   x: number;

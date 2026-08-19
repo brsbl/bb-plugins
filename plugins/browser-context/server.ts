@@ -1,4 +1,4 @@
-import { defineRpcContract, type BbPluginApi } from "@bb/plugin-sdk";
+import { defineRpcContract, type BbPluginApi } from "@get-bb/plugin-sdk";
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
 

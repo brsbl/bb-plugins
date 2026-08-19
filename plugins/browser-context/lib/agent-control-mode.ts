@@ -1,4 +1,4 @@
-import type { PluginBrowserActionProps } from "@bb/plugin-sdk/app";
+import type { PluginBrowserActionProps } from "@get-bb/plugin-sdk/app";
 
 export const AGENT_CONTROL_FRAME_ID = "bb-browser-context-agent-control-frame";
 

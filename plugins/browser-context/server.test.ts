@@ -1,7 +1,7 @@
 import {
   createFakePluginHost,
   makeThreadResponse,
-} from "@bb/plugin-sdk/testing";
+} from "@get-bb/plugin-sdk/testing";
 import { describe, expect, it, vi } from "vitest";
 
 import plugin, {

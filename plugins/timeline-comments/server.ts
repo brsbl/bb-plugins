@@ -4,7 +4,7 @@ import {
   defineRpcContract,
   PLUGIN_CLI_OUTPUT_MAX_BYTES,
   type BbPluginApi,
-} from "@bb/plugin-sdk";
+} from "@get-bb/plugin-sdk";
 import { z } from "zod";
 import { COMMENT_BODY_CODE_POINT_LIMIT } from "./comment-body.js";
 
@@ -723,37 +723,44 @@ function countOpenComments(
 }
 
 function parseCli(argv: string[]): {
-  command: "list" | "get";
+  command: "list" | "get" | "reply" | "resolve" | "reopen";
   threadId: string | undefined;
   commentThreadId: string | undefined;
+  body: string | undefined;
   json: boolean;
   filter: "open" | "resolved" | "all";
   cursor: string | undefined;
   limit: number;
 } {
   const rawCommand = argv[0];
-  if (rawCommand !== "list" && rawCommand !== "get") {
+  if (
+    rawCommand !== "list" &&
+    rawCommand !== "get" &&
+    rawCommand !== "reply" &&
+    rawCommand !== "resolve" &&
+    rawCommand !== "reopen"
+  ) {
     throw new Error(
       rawCommand === undefined
-        ? "A command is required: list or get"
+        ? "A command is required: list, get, reply, resolve, or reopen"
         : `Unknown comments command: ${rawCommand}`,
     );
   }
   const command = rawCommand;
   let index = 1;
   let commentThreadId: string | undefined;
-  if (command === "get") {
+  if (command !== "list") {
     if (argv[index] === "--") {
       const candidate = argv[index + 1];
       if (candidate === undefined) {
-        throw new Error("get requires a comment-thread-id");
+        throw new Error(`${command} requires a comment-thread-id`);
       }
       commentThreadId = candidate;
       index += 2;
     } else {
       const candidate = argv[index];
       if (candidate === undefined || candidate.startsWith("--")) {
-        throw new Error("get requires a comment-thread-id");
+        throw new Error(`${command} requires a comment-thread-id`);
       }
       commentThreadId = candidate;
       index += 1;
@@ -762,8 +769,9 @@ function parseCli(argv: string[]): {
   let threadId: string | undefined;
   let filter: "open" | "resolved" | "all" = "open";
   let json = false;
+  let body: string | undefined;
   let cursor: string | undefined;
-  const maxLimit = command === "get" ? COMMENT_PAGE_SIZE : ROOT_PAGE_SIZE;
+  const maxLimit = command === "list" ? ROOT_PAGE_SIZE : COMMENT_PAGE_SIZE;
   let limit = maxLimit;
   const takeValue = (flag: string): string => {
     const value = argv[index + 1];
@@ -784,11 +792,15 @@ function parseCli(argv: string[]): {
       threadId = takeValue(arg);
       continue;
     }
-    if (arg === "--cursor") {
+    if (arg === "--body" && command === "reply") {
+      body = takeValue(arg);
+      continue;
+    }
+    if (arg === "--cursor" && (command === "list" || command === "get")) {
       cursor = takeValue(arg);
       continue;
     }
-    if (arg === "--limit") {
+    if (arg === "--limit" && (command === "list" || command === "get")) {
       const rawLimit = takeValue(arg);
       limit = Number(rawLimit);
       if (!Number.isInteger(limit) || limit < 1 || limit > maxLimit) {
@@ -810,10 +822,14 @@ function parseCli(argv: string[]): {
         : `Unexpected argument for ${command}: ${arg}`,
     );
   }
+  if (command === "reply" && body === undefined) {
+    throw new Error("reply requires --body <text>");
+  }
   return {
     command,
     threadId,
     commentThreadId,
+    body,
     json,
     filter,
     cursor,
@@ -904,6 +920,64 @@ export default function timelineCommentsPlugin(bb: BbPluginApi): void {
     });
   };
 
+  const replyToThread = (input: {
+    bbThreadId: string;
+    commentThreadId: string;
+    body: string;
+  }): TimelineCommentThreadDetail => {
+    const current = getThreadRow(db, input.bbThreadId, input.commentThreadId);
+    if (current.resolvedAt !== null) {
+      throw new Error("Resolved comment threads cannot receive replies");
+    }
+    const body = bodySchema.parse(input.body);
+    const now = Date.now();
+    const id = randomId();
+    db.transaction(() => {
+      db.prepare(
+        `INSERT INTO comments (
+          id, thread_id, parent_id, body, version, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, 1, ?, ?)`,
+      ).run(id, current.id, current.rootId, body, now, now);
+      db.prepare(
+        `UPDATE comment_threads
+         SET version = version + 1, updated_at = ? WHERE id = ?`,
+      ).run(now, current.id);
+    })();
+    const result = getCommentThread(db, input);
+    publishChanged(input.bbThreadId, input.commentThreadId);
+    return result;
+  };
+
+  const setThreadResolved = (input: {
+    bbThreadId: string;
+    commentThreadId: string;
+    expectedVersion: number;
+    resolved: boolean;
+  }): TimelineCommentThreadDetail => {
+    const now = Date.now();
+    const change = db.transaction(() =>
+      db
+        .prepare(
+          `UPDATE comment_threads
+           SET resolved_at = ?, version = version + 1, updated_at = ?
+           WHERE id = ? AND bb_thread_id = ? AND version = ?`,
+        )
+        .run(
+          input.resolved ? now : null,
+          now,
+          input.commentThreadId,
+          input.bbThreadId,
+          input.expectedVersion,
+        ),
+    )();
+    if (change.changes !== 1) {
+      throw new Error("Comment thread changed; refresh and retry");
+    }
+    const result = getCommentThread(db, input);
+    publishChanged(input.bbThreadId, input.commentThreadId);
+    return result;
+  };
+
   bb.events.on("thread.deleted", ({ thread }) => {
     db.prepare("DELETE FROM comment_threads WHERE bb_thread_id = ?").run(
       thread.id,
@@ -969,26 +1043,7 @@ export default function timelineCommentsPlugin(bb: BbPluginApi): void {
       return result;
     },
     reply(input) {
-      const current = getThreadRow(db, input.bbThreadId, input.commentThreadId);
-      if (current.resolvedAt !== null) {
-        throw new Error("Resolved comment threads cannot receive replies");
-      }
-      const now = Date.now();
-      const id = randomId();
-      db.transaction(() => {
-        db.prepare(
-          `INSERT INTO comments (
-            id, thread_id, parent_id, body, version, created_at, updated_at
-          ) VALUES (?, ?, ?, ?, 1, ?, ?)`,
-        ).run(id, current.id, current.rootId, input.body, now, now);
-        db.prepare(
-          `UPDATE comment_threads
-           SET version = version + 1, updated_at = ? WHERE id = ?`,
-        ).run(now, current.id);
-      })();
-      const result = getCommentThread(db, input);
-      publishChanged(input.bbThreadId, input.commentThreadId);
-      return result;
+      return replyToThread(input);
     },
     updateComment(input) {
       const comment = getCommentRow(db, input.commentId);
@@ -1078,28 +1133,7 @@ export default function timelineCommentsPlugin(bb: BbPluginApi): void {
       return { deletedThreadId: null, thread: result };
     },
     setThreadResolved(input) {
-      const now = Date.now();
-      const change = db.transaction(() =>
-        db
-          .prepare(
-            `UPDATE comment_threads
-             SET resolved_at = ?, version = version + 1, updated_at = ?
-             WHERE id = ? AND bb_thread_id = ? AND version = ?`,
-          )
-          .run(
-            input.resolved ? now : null,
-            now,
-            input.commentThreadId,
-            input.bbThreadId,
-            input.expectedVersion,
-          ),
-      )();
-      if (change.changes !== 1) {
-        throw new Error("Comment thread changed; refresh and retry");
-      }
-      const result = getCommentThread(db, input);
-      publishChanged(input.bbThreadId, input.commentThreadId);
-      return result;
+      return setThreadResolved(input);
     },
   });
 
@@ -1128,7 +1162,7 @@ export default function timelineCommentsPlugin(bb: BbPluginApi): void {
 
   bb.cli.register({
     name: "comments",
-    summary: "Read timeline comments attached to BB threads",
+    summary: "Read and address timeline comments attached to BB threads",
     commands: [
       {
         name: "list",
@@ -1142,6 +1176,24 @@ export default function timelineCommentsPlugin(bb: BbPluginApi): void {
         usage:
           "bb comments get <comment-thread-id> [--thread <id>] [--cursor <cursor>] [--limit 1-100] [--json]",
       },
+      {
+        name: "reply",
+        summary: "Reply to an open comment thread",
+        usage:
+          "bb comments reply <comment-thread-id> --body <text> [--thread <id>] [--json]",
+      },
+      {
+        name: "resolve",
+        summary: "Resolve a comment thread",
+        usage:
+          "bb comments resolve <comment-thread-id> [--thread <id>] [--json]",
+      },
+      {
+        name: "reopen",
+        summary: "Reopen a resolved comment thread",
+        usage:
+          "bb comments reopen <comment-thread-id> [--thread <id>] [--json]",
+      },
     ],
     run(argv, context) {
       try {
@@ -1151,6 +1203,60 @@ export default function timelineCommentsPlugin(bb: BbPluginApi): void {
           return {
             exitCode: 2,
             stderr: "A BB thread context or --thread <id> is required.\n",
+          };
+        }
+        if (
+          parsed.command !== "list" &&
+          parsed.commentThreadId === undefined
+        ) {
+          return {
+            exitCode: 2,
+            stderr: `${parsed.command} requires a comment-thread-id\n`,
+          };
+        }
+        if (parsed.command === "reply") {
+          const detail = replyToThread({
+            bbThreadId,
+            commentThreadId: parsed.commentThreadId!,
+            body: parsed.body!,
+          });
+          return {
+            exitCode: 0,
+            stdout: parsed.json
+              ? `${JSON.stringify({
+                  id: detail.thread.id,
+                  state: "open",
+                  version: detail.thread.version,
+                  replyCount: detail.thread.replyCount,
+                })}\n`
+              : `Replied to comment thread ${detail.thread.id}.\n`,
+          };
+        }
+        if (parsed.command === "resolve" || parsed.command === "reopen") {
+          const resolved = parsed.command === "resolve";
+          const current = getThreadRow(db, bbThreadId, parsed.commentThreadId!);
+          const alreadyDesired = (current.resolvedAt !== null) === resolved;
+          const detail = alreadyDesired
+            ? getCommentThread(db, {
+                bbThreadId,
+                commentThreadId: parsed.commentThreadId!,
+              })
+            : setThreadResolved({
+                bbThreadId,
+                commentThreadId: parsed.commentThreadId!,
+                expectedVersion: current.version,
+                resolved,
+              });
+          return {
+            exitCode: 0,
+            stdout: parsed.json
+              ? `${JSON.stringify({
+                  id: detail.thread.id,
+                  state: resolved ? "resolved" : "open",
+                  version: detail.thread.version,
+                  replyCount: detail.thread.replyCount,
+                })}\n`
+              : `Comment thread ${detail.thread.id} is ${resolved ? "resolved" : "open"}.\n`,
           };
         }
         if (parsed.command === "get") {

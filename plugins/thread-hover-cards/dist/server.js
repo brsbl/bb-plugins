@@ -11,7 +11,7 @@ var __export = (target, all) => {
 };
 
 // server.ts
-import { defineRpcContract } from "@bb/plugin-sdk";
+import { defineRpcContract } from "@get-bb/plugin-sdk";
 
 // ../../node_modules/zod/v4/classic/external.js
 var external_exports = {};
@@ -14618,7 +14618,11 @@ var sectionSummarySchema = external_exports.object({
   diagnostics: rpcDiagnosticsSchema,
   /** Threads that failed. Separate from questions: debugging is not answering. */
   failed: external_exports.number().int().nonnegative(),
-  /** True when the stable sidebar section id produced a summary. */
+  /**
+   * False for a row that looks like a section but is not one bb stores —
+   * Pinned, Unorganized, and the other built-in groups. The card stays shut
+   * rather than reporting an error for a row that never had a summary.
+   */
   known: external_exports.boolean(),
   /** Projects the section spans, busiest first; a section is not project-scoped. */
   projects: external_exports.array(external_exports.string()),
@@ -14648,14 +14652,28 @@ var rpcContract = defineRpcContract({
   },
   sectionSummary: {
     input: external_exports.object({
-      /** Stable id from the sidebar's section row. */
-      sectionId: external_exports.string().min(1),
-      /** Stable id from a containing project row; null for global sections. */
-      projectId: external_exports.string().min(1).nullable()
+      name: external_exports.string().min(1).max(256),
+      /** Stable id from newer sidebar section rows; names remain fallback. */
+      sectionId: external_exports.string().min(1).optional(),
+      /** Stable id from a containing project row. */
+      projectId: external_exports.string().min(1).nullable().optional(),
+      /** Set when the sidebar nests the section under a project row. */
+      projectName: external_exports.string().min(1).max(256).nullable().optional()
     }).strict(),
     output: sectionSummarySchema
   }
 });
+function wait(ms, signal) {
+  return new Promise((resolve) => {
+    const timer = setTimeout(finish, ms);
+    signal.addEventListener("abort", finish, { once: true });
+    function finish() {
+      clearTimeout(timer);
+      signal.removeEventListener("abort", finish);
+      resolve();
+    }
+  });
+}
 async function safely(promise2) {
   try {
     return await promise2;
@@ -14681,6 +14699,15 @@ async function within(promise2, timeoutMs) {
 function normalizeMessage(value) {
   const normalized = value.replace(/\r\n?/g, "\n").split("\n").map((line) => line.replace(/[\t ]+/g, " ").trim()).join("\n").replace(/\n{3,}/g, "\n\n").trim();
   return normalized.length > 1600 ? `${normalized.slice(0, 1599).trimEnd()}\u2026` : normalized;
+}
+function latestOutlineAssistantMessage(outline) {
+  for (let index = outline.items.length - 1; index >= 0; index -= 1) {
+    const item = outline.items[index];
+    if (item?.role === "assistant" && item.preview.trim().length > 0) {
+      return item.preview;
+    }
+  }
+  return null;
 }
 function latestTimelineAssistantMessage(timeline) {
   for (let rowIndex = timeline.rows.length - 1; rowIndex >= 0; rowIndex -= 1) {
@@ -14718,6 +14745,10 @@ var ACTIVE_TURN_EVENT_WAIT_MS = "1";
 var STABLE_DESCRIPTOR_CACHE_TTL_MS = 6e4;
 var PULL_REQUEST_CACHE_TTL_MS = 15e3;
 var STABLE_DESCRIPTOR_CACHE_MAX_ENTRIES = 128;
+var SECTION_DIRECTORY_CACHE_TTL_MS = 10 * 6e4;
+var SECTION_DIRECTORY_REFRESH_MS = 5 * 6e4;
+var SECTION_THREADS_FLOOR_MS = 1200;
+var BUILT_IN_SECTION_NAMES = /* @__PURE__ */ new Set(["Pinned", "Unorganized"]);
 var SECTION_THREADS_CACHE_TTL_MS = 2e3;
 function monotonicNow() {
   return typeof performance === "undefined" ? Date.now() : performance.now();
@@ -14793,6 +14824,9 @@ function recordDiagnostics(bb, rpc, subject, diagnostics) {
   bb.log.debug(
     `thread-hover-cards:timing ${JSON.stringify({ diagnostics, rpc, subject })}`
   );
+}
+async function withinCached(promise2, timeoutMs) {
+  return await within(promise2, timeoutMs) ?? { source: "miss", value: null };
 }
 var StableDescriptorCache = class {
   constructor(ttlMs = STABLE_DESCRIPTOR_CACHE_TTL_MS, maxEntries = STABLE_DESCRIPTOR_CACHE_MAX_ENTRIES, stage = "descriptor", observeBackgroundRefresh, invalidateOnLoadFailure = false) {
@@ -15012,8 +15046,8 @@ var PULL_REQUEST_SIGNALS = {
   ready_to_merge: "Ready to merge"
 };
 function isSidebarSectionThread(thread) {
-  return thread.visibility === "visible" && thread.parentThreadId === null && thread.archivedAt === null && thread.deletedAt === null && thread.pinnedAt === null && // The 0.5 SDK types no longer admit "side-chat" origins, but legacy rows
-  // can still carry them at runtime, so the guard compares wide on purpose.
+  return thread.visibility === "visible" && thread.parentThreadId === null && thread.archivedAt === null && thread.deletedAt === null && thread.pinnedAt === null && // Side chats are hidden on current hosts. Keep this narrow compatibility
+  // guard for legacy rows that can still carry the old runtime field.
   !isSideChatOrigin(thread.originKind) && !isSideChatOrigin(thread.childOrigin);
 }
 function isSideChatOrigin(value) {
@@ -15086,6 +15120,12 @@ function plugin(bb) {
     PULL_REQUEST_CACHE_TTL_MS,
     STABLE_DESCRIPTOR_CACHE_MAX_ENTRIES,
     "pullRequest",
+    recordBackgroundRefresh
+  );
+  const sectionDirectory = new StableDescriptorCache(
+    SECTION_DIRECTORY_CACHE_TTL_MS,
+    4,
+    "sectionDirectory",
     recordBackgroundRefresh
   );
   const sectionThreads = new StableDescriptorCache(
@@ -15186,7 +15226,23 @@ function plugin(bb) {
           ),
           { unavailableWhenNull: true }
         );
-        const latestAssistantMessagePromise = measureStage(
+        const loadOutlineMessage = (stageName) => measureStage(
+          recorder,
+          stageName,
+          () => within(
+            safely(
+              bb.sdk.threads.conversationOutline({
+                signal,
+                threadId
+              })
+            ),
+            remainingMs()
+          ),
+          { unavailableWhenNull: true }
+        ).then(
+          (outline) => outline ? latestOutlineAssistantMessage(outline) : null
+        );
+        const latestAssistantMessagePromise = isRunningStatus(thread.runtime.displayStatus) ? loadOutlineMessage("messageOutline") : measureStage(
           recorder,
           "messageTimeline",
           () => within(
@@ -15201,9 +15257,10 @@ function plugin(bb) {
             remainingMs()
           ),
           { unavailableWhenNull: true }
-        ).then(
-          (timeline) => timeline ? latestTimelineAssistantMessage(timeline) : null
-        );
+        ).then((timeline) => {
+          const latestMessage = timeline ? latestTimelineAssistantMessage(timeline) : null;
+          return latestMessage ?? loadOutlineMessage("messageOutlineFallback");
+        });
         const [projectResult, executionOptions, latestAssistantMessage] = await Promise.all([
           projectPromise,
           executionOptionsPromise,
@@ -15454,35 +15511,110 @@ function plugin(bb) {
         throw error51;
       }
     },
-    async sectionSummary({ projectId, sectionId }) {
+    async sectionSummary({
+      name,
+      projectId = null,
+      projectName = null,
+      sectionId: stableSectionId
+    }) {
       const recorder = createDiagnostics();
       const deadlineAt = Date.now() + SUMMARY_LOOKUP_TIMEOUT_MS;
       const remainingMs = () => Math.max(1, deadlineAt - Date.now());
+      const directoryBudgetMs = () => Math.max(1, remainingMs() - SECTION_THREADS_FLOOR_MS);
       const signal = AbortSignal.timeout(SUMMARY_LOOKUP_TIMEOUT_MS);
       try {
-        const projectsPromise = measureStage(
+        if (stableSectionId === void 0 && BUILT_IN_SECTION_NAMES.has(name)) {
+          const diagnostics2 = finishDiagnostics(recorder);
+          recordDiagnostics(bb, "sectionSummary", name, diagnostics2);
+          return {
+            diagnostics: diagnostics2,
+            failed: 0,
+            known: false,
+            projects: [],
+            questions: 0,
+            total: 0,
+            unread: 0,
+            working: 0
+          };
+        }
+        const readSections = () => measureCachedStage(
+          recorder,
+          "sections",
+          () => withinCached(
+            sectionDirectory.get(
+              "sections",
+              () => safely(bb.sdk.threadSections.list({ signal }))
+            ),
+            directoryBudgetMs()
+          )
+        );
+        let resolvedSectionId = stableSectionId ?? null;
+        if (resolvedSectionId === null) {
+          let sections = await readSections();
+          if (sections.value === null) {
+            throw new Error("Section summary unavailable.");
+          }
+          let section = sections.value.find((row) => row.name === name) ?? null;
+          if (section === null && sections.source !== "miss") {
+            sectionDirectory.delete("sections");
+            sections = await readSections();
+            if (sections.value === null) {
+              throw new Error("Section summary unavailable.");
+            }
+            section = sections.value.find((row) => row.name === name) ?? null;
+          }
+          if (section === null) {
+            const diagnostics2 = finishDiagnostics(recorder);
+            recordDiagnostics(bb, "sectionSummary", name, diagnostics2);
+            return {
+              diagnostics: diagnostics2,
+              failed: 0,
+              known: false,
+              projects: [],
+              questions: 0,
+              total: 0,
+              unread: 0,
+              working: 0
+            };
+          }
+          resolvedSectionId = section.id;
+        }
+        const projects = await measureCachedStage(
           recorder,
           "projects",
-          () => within(
-            safely(bb.sdk.projects.list({ includePersonal: true, signal })),
-            remainingMs()
-          ),
-          { unavailableWhenNull: true }
+          () => withinCached(
+            sectionDirectory.get(
+              "projects",
+              () => safely(bb.sdk.projects.list({ includePersonal: true, signal }))
+            ),
+            directoryBudgetMs()
+          )
         );
-        const threadCacheKey = JSON.stringify([sectionId, projectId]);
-        const pagePromise = measureCachedStage(
+        if (projects.value === null) {
+          throw new Error("Section summary unavailable.");
+        }
+        const projectNameById = new Map(
+          projects.value.map((project) => [project.id, project.name])
+        );
+        const scopedProject = projectId !== null ? projects.value.filter((project) => project.id === projectId) : projectName === null ? null : projects.value.filter(
+          (project) => project.name === projectName
+        );
+        if (scopedProject !== null && scopedProject.length !== 1) {
+          throw new Error("Section summary unavailable.");
+        }
+        const scopedProjectId = scopedProject?.[0]?.id ?? null;
+        const page = await measureCachedStage(
           recorder,
           "threads",
           () => sectionThreads.get(
-            threadCacheKey,
+            resolvedSectionId,
             () => within(
               safely(
                 bb.sdk.threads.list({
                   archived: false,
                   hasParent: false,
                   includeHidden: false,
-                  ...projectId === null ? {} : { projectId },
-                  sectionId,
+                  sectionId: resolvedSectionId,
                   signal
                 })
               ),
@@ -15490,34 +15622,51 @@ function plugin(bb) {
             )
           )
         ).then((result) => result.value);
-        const [projects, page] = await Promise.all([
-          projectsPromise,
-          pagePromise
-        ]);
-        if (projects === null) throw new Error("Section summary unavailable.");
-        const projectNameById = new Map(
-          projects.map((project) => [project.id, project.name])
-        );
-        if (projectId !== null && !projectNameById.has(projectId)) {
-          throw new Error("Section summary unavailable.");
-        }
         if (page === null) throw new Error("Section summary unavailable.");
-        const threads = page.filter(isSidebarSectionThread);
+        const threads = page.filter(isSidebarSectionThread).filter(
+          (thread) => scopedProjectId === null || thread.projectId === scopedProjectId
+        );
         const diagnostics = finishDiagnostics(recorder);
-        recordDiagnostics(bb, "sectionSummary", sectionId, diagnostics);
+        recordDiagnostics(bb, "sectionSummary", name, diagnostics);
         return {
           ...summarizeSectionThreads(threads, projectNameById),
           diagnostics,
           known: true
         };
       } catch (error51) {
-        recordDiagnostics(
-          bb,
-          "sectionSummary",
-          sectionId,
-          finishDiagnostics(recorder)
-        );
+        recordDiagnostics(bb, "sectionSummary", name, finishDiagnostics(recorder));
         throw error51;
+      }
+    }
+  });
+  bb.background.service("section-directory-warm", {
+    async start(signal) {
+      while (!signal.aborted) {
+        const startedAt = monotonicNow();
+        sectionDirectory.delete("sections");
+        sectionDirectory.delete("projects");
+        const [sections, projects] = await Promise.all([
+          sectionDirectory.get(
+            "sections",
+            () => within(safely(bb.sdk.threadSections.list({ signal })), 1e4)
+          ),
+          sectionDirectory.get(
+            "projects",
+            () => within(
+              safely(bb.sdk.projects.list({ includePersonal: true, signal })),
+              1e4
+            )
+          )
+        ]);
+        if (signal.aborted) return;
+        bb.log.debug(
+          `thread-hover-cards:section-directory ${JSON.stringify({
+            durationMs: roundedDuration(startedAt),
+            projects: projects.value?.length ?? null,
+            sections: sections.value?.length ?? null
+          })}`
+        );
+        await wait(SECTION_DIRECTORY_REFRESH_MS, signal);
       }
     }
   });

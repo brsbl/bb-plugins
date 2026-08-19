@@ -27,7 +27,7 @@ import {
   Trash2,
   X,
 } from "lucide-react";
-import type { PluginRpcClient } from "@bb/plugin-sdk/app";
+import type { PluginRpcClient } from "@get-bb/plugin-sdk/app";
 import type {
   TimelineComment,
   TimelineCommentThreadDetail,
@@ -42,6 +42,48 @@ const MODE_TRANSITION = {
   easing: "cubic-bezier(0.22, 1, 0.36, 1)",
 } as const;
 const DRAFT_TTL = 24 * 60 * 60 * 1_000;
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : "Something went wrong";
+}
+
+function isChangedStateError(error: unknown): boolean {
+  return /\bchanged\b/iu.test(errorMessage(error));
+}
+
+async function reloadCompleteThread(
+  rpc: Rpc,
+  current: TimelineCommentThreadDetail,
+): Promise<TimelineCommentThreadDetail | null> {
+  let listCursor: string | undefined;
+  let found = false;
+  do {
+    const page = await rpc.call("listCommentThreads", {
+      bbThreadId: current.thread.bbThreadId,
+      filter: "all",
+      ...(listCursor === undefined ? {} : { cursor: listCursor }),
+    });
+    found = page.threads.some(({ id }) => id === current.thread.id);
+    listCursor = page.nextCursor ?? undefined;
+  } while (!found && listCursor !== undefined);
+  if (!found) return null;
+
+  let detail: TimelineCommentThreadDetail | null = null;
+  let commentCursor: string | undefined;
+  do {
+    const page = await rpc.call("getCommentThread", {
+      bbThreadId: current.thread.bbThreadId,
+      commentThreadId: current.thread.id,
+      ...(commentCursor === undefined ? {} : { cursor: commentCursor }),
+    });
+    detail =
+      detail === null
+        ? page
+        : { ...page, comments: [...detail.comments, ...page.comments] };
+    commentCursor = page.nextCursor ?? undefined;
+  } while (commentCursor !== undefined);
+  return detail;
+}
 
 function readDraft(key: string): string | null {
   const saved = sessionStorage.getItem(key);
@@ -1011,6 +1053,28 @@ function MossCommentPopover({
   const lastCommentId = detail.comments.at(-1)?.id ?? null;
   const isEditingLast = editingId !== null && editingId === lastCommentId;
 
+  const recoverChangedState = async (caught: unknown): Promise<void> => {
+    setError(errorMessage(caught));
+    if (!isChangedStateError(caught)) return;
+    try {
+      const fresh = await reloadCompleteThread(rpc, detail);
+      if (fresh === null) {
+        onClose();
+        onChanged();
+        return;
+      }
+      setDetail(fresh);
+      setEditingId((current) =>
+        current !== null && fresh.comments.some(({ id }) => id === current)
+          ? current
+          : null,
+      );
+      onChanged();
+    } catch (refreshError) {
+      setError(errorMessage(refreshError));
+    }
+  };
+
   const beginReplyRegionTransition = useCallback(() => {
     const region = replyRegionRef.current;
     if (!region) return;
@@ -1056,7 +1120,7 @@ function MossCommentPopover({
       onChanged();
       return fresh;
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "Something went wrong");
+      await recoverChangedState(caught);
       return null;
     } finally {
       busyRef.current = false;
@@ -1080,7 +1144,7 @@ function MossCommentPopover({
       else setDetail(result.thread);
       onChanged();
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "Something went wrong");
+      await recoverChangedState(caught);
     } finally {
       busyRef.current = false;
       setBusy(false);

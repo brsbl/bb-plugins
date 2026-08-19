@@ -32,9 +32,9 @@ var __toESM = (mod, isNodeMode, target) => (target = mod != null ? __create(__ge
   mod
 ));
 
-// ../../node_modules/.pnpm/xmlchars@2.2.0/node_modules/xmlchars/xml/1.0/ed5.js
+// node_modules/.pnpm/xmlchars@2.2.0/node_modules/xmlchars/xml/1.0/ed5.js
 var require_ed5 = __commonJS({
-  "../../node_modules/.pnpm/xmlchars@2.2.0/node_modules/xmlchars/xml/1.0/ed5.js"(exports) {
+  "node_modules/.pnpm/xmlchars@2.2.0/node_modules/xmlchars/xml/1.0/ed5.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.CHAR = "	\n\r -\uD7FF\uE000-\uFFFD\u{10000}-\u{10FFFF}";
@@ -71,9 +71,9 @@ var require_ed5 = __commonJS({
   }
 });
 
-// ../../node_modules/.pnpm/xmlchars@2.2.0/node_modules/xmlchars/xml/1.1/ed2.js
+// node_modules/.pnpm/xmlchars@2.2.0/node_modules/xmlchars/xml/1.1/ed2.js
 var require_ed2 = __commonJS({
-  "../../node_modules/.pnpm/xmlchars@2.2.0/node_modules/xmlchars/xml/1.1/ed2.js"(exports) {
+  "node_modules/.pnpm/xmlchars@2.2.0/node_modules/xmlchars/xml/1.1/ed2.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.CHAR = "-\uD7FF\uE000-\uFFFD\u{10000}-\u{10FFFF}";
@@ -120,9 +120,9 @@ var require_ed2 = __commonJS({
   }
 });
 
-// ../../node_modules/.pnpm/xmlchars@2.2.0/node_modules/xmlchars/xmlns/1.0/ed3.js
+// node_modules/.pnpm/xmlchars@2.2.0/node_modules/xmlchars/xmlns/1.0/ed3.js
 var require_ed3 = __commonJS({
-  "../../node_modules/.pnpm/xmlchars@2.2.0/node_modules/xmlchars/xmlns/1.0/ed3.js"(exports) {
+  "node_modules/.pnpm/xmlchars@2.2.0/node_modules/xmlchars/xmlns/1.0/ed3.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.NC_NAME_START_CHAR = "A-Z_a-z\xC0-\xD6\xD8-\xF6\xF8-\u02FF\u0370-\u037D\u037F-\u1FFF\u200C-\u200D\u2070-\u218F\u2C00-\u2FEF\u3001-\uD7FF\uF900-\uFDCF\uFDF0-\uFFFD\u{10000}-\u{EFFFF}";
@@ -141,9 +141,9 @@ var require_ed3 = __commonJS({
   }
 });
 
-// ../../node_modules/.pnpm/saxes@6.0.0/node_modules/saxes/saxes.js
+// node_modules/.pnpm/saxes@6.0.0/node_modules/saxes/saxes.js
 var require_saxes = __commonJS({
-  "../../node_modules/.pnpm/saxes@6.0.0/node_modules/saxes/saxes.js"(exports) {
+  "node_modules/.pnpm/saxes@6.0.0/node_modules/saxes/saxes.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.SaxesParser = exports.EVENTS = void 0;
@@ -1940,7 +1940,7 @@ var require_saxes = __commonJS({
   }
 });
 
-// src/build-plugin-app.ts
+// packages/plugin-build/src/build-plugin-app.ts
 import {
   mkdir,
   mkdtemp,
@@ -1953,7 +1953,7 @@ import {
 import { existsSync } from "node:fs";
 import { dirname, isAbsolute as isAbsolute2, join, resolve as resolve2 } from "node:path";
 
-// ../../node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/classic/external.js
+// node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/classic/external.js
 var external_exports = {};
 __export(external_exports, {
   $brand: () => $brand,
@@ -2194,7 +2194,7 @@ __export(external_exports, {
   xor: () => xor
 });
 
-// ../../node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/core/index.js
+// node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/core/index.js
 var core_exports2 = {};
 __export(core_exports2, {
   $ZodAny: () => $ZodAny,
@@ -2472,7 +2472,7 @@ __export(core_exports2, {
   version: () => version
 });
 
-// ../../node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/core/core.js
+// node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/core/core.js
 var NEVER = Object.freeze({
   status: "aborted"
 });
@@ -2547,7 +2547,7 @@ function config(newConfig) {
   return globalConfig;
 }
 
-// ../../node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/core/util.js
+// node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/core/util.js
 var util_exports = {};
 __export(util_exports, {
   BIGINT_FORMAT_RANGES: () => BIGINT_FORMAT_RANGES,
@@ -3226,7 +3226,7 @@ var Class = class {
   }
 };
 
-// ../../node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/core/errors.js
+// node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/core/errors.js
 var initializer = (inst, def) => {
   inst.name = "$ZodError";
   Object.defineProperty(inst, "_zod", {
@@ -3362,7 +3362,7 @@ function prettifyError(error48) {
   return lines.join("\n");
 }
 
-// ../../node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/core/parse.js
+// node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/core/parse.js
 var _parse = (_Err) => (schema, value, _ctx, _params) => {
   const ctx = _ctx ? Object.assign(_ctx, { async: false }) : { async: false };
   const result = schema._zod.run({ value, issues: [] }, ctx);
@@ -3450,7 +3450,7 @@ var _safeDecodeAsync = (_Err) => async (schema, value, _ctx) => {
 };
 var safeDecodeAsync = /* @__PURE__ */ _safeDecodeAsync($ZodRealError);
 
-// ../../node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/core/regexes.js
+// node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/core/regexes.js
 var regexes_exports = {};
 __export(regexes_exports, {
   base64: () => base64,
@@ -3607,7 +3607,7 @@ var sha512_hex = /^[0-9a-fA-F]{128}$/;
 var sha512_base64 = /* @__PURE__ */ fixedBase64(86, "==");
 var sha512_base64url = /* @__PURE__ */ fixedBase64url(86);
 
-// ../../node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/core/checks.js
+// node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/core/checks.js
 var $ZodCheck = /* @__PURE__ */ $constructor("$ZodCheck", (inst, def) => {
   var _a2;
   inst._zod ?? (inst._zod = {});
@@ -4155,7 +4155,7 @@ var $ZodCheckOverwrite = /* @__PURE__ */ $constructor("$ZodCheckOverwrite", (ins
   };
 });
 
-// ../../node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/core/doc.js
+// node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/core/doc.js
 var Doc = class {
   constructor(args = []) {
     this.content = [];
@@ -4191,14 +4191,14 @@ var Doc = class {
   }
 };
 
-// ../../node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/core/versions.js
+// node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/core/versions.js
 var version = {
   major: 4,
   minor: 3,
   patch: 6
 };
 
-// ../../node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/core/schemas.js
+// node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/core/schemas.js
 var $ZodType = /* @__PURE__ */ $constructor("$ZodType", (inst, def) => {
   var _a2;
   inst ?? (inst = {});
@@ -6169,7 +6169,7 @@ function handleRefineResult(result, payload, input, inst) {
   }
 }
 
-// ../../node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/index.js
+// node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/index.js
 var locales_exports = {};
 __export(locales_exports, {
   ar: () => ar_default,
@@ -6223,7 +6223,7 @@ __export(locales_exports, {
   zhTW: () => zh_TW_default
 });
 
-// ../../node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/ar.js
+// node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/ar.js
 var error = () => {
   const Sizable = {
     string: { unit: "\u062D\u0631\u0641", verb: "\u0623\u0646 \u064A\u062D\u0648\u064A" },
@@ -6330,7 +6330,7 @@ function ar_default() {
   };
 }
 
-// ../../node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/az.js
+// node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/az.js
 var error2 = () => {
   const Sizable = {
     string: { unit: "simvol", verb: "olmal\u0131d\u0131r" },
@@ -6436,7 +6436,7 @@ function az_default() {
   };
 }
 
-// ../../node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/be.js
+// node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/be.js
 function getBelarusianPlural(count, one, few, many) {
   const absCount = Math.abs(count);
   const lastDigit = absCount % 10;
@@ -6593,7 +6593,7 @@ function be_default() {
   };
 }
 
-// ../../node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/bg.js
+// node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/bg.js
 var error4 = () => {
   const Sizable = {
     string: { unit: "\u0441\u0438\u043C\u0432\u043E\u043B\u0430", verb: "\u0434\u0430 \u0441\u044A\u0434\u044A\u0440\u0436\u0430" },
@@ -6714,7 +6714,7 @@ function bg_default() {
   };
 }
 
-// ../../node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/ca.js
+// node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/ca.js
 var error5 = () => {
   const Sizable = {
     string: { unit: "car\xE0cters", verb: "contenir" },
@@ -6823,7 +6823,7 @@ function ca_default() {
   };
 }
 
-// ../../node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/cs.js
+// node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/cs.js
 var error6 = () => {
   const Sizable = {
     string: { unit: "znak\u016F", verb: "m\xEDt" },
@@ -6935,7 +6935,7 @@ function cs_default() {
   };
 }
 
-// ../../node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/da.js
+// node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/da.js
 var error7 = () => {
   const Sizable = {
     string: { unit: "tegn", verb: "havde" },
@@ -7051,7 +7051,7 @@ function da_default() {
   };
 }
 
-// ../../node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/de.js
+// node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/de.js
 var error8 = () => {
   const Sizable = {
     string: { unit: "Zeichen", verb: "zu haben" },
@@ -7160,7 +7160,7 @@ function de_default() {
   };
 }
 
-// ../../node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/en.js
+// node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/en.js
 var error9 = () => {
   const Sizable = {
     string: { unit: "characters", verb: "to have" },
@@ -7269,7 +7269,7 @@ function en_default() {
   };
 }
 
-// ../../node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/eo.js
+// node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/eo.js
 var error10 = () => {
   const Sizable = {
     string: { unit: "karaktrojn", verb: "havi" },
@@ -7379,7 +7379,7 @@ function eo_default() {
   };
 }
 
-// ../../node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/es.js
+// node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/es.js
 var error11 = () => {
   const Sizable = {
     string: { unit: "caracteres", verb: "tener" },
@@ -7512,7 +7512,7 @@ function es_default() {
   };
 }
 
-// ../../node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/fa.js
+// node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/fa.js
 var error12 = () => {
   const Sizable = {
     string: { unit: "\u06A9\u0627\u0631\u0627\u06A9\u062A\u0631", verb: "\u062F\u0627\u0634\u062A\u0647 \u0628\u0627\u0634\u062F" },
@@ -7627,7 +7627,7 @@ function fa_default() {
   };
 }
 
-// ../../node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/fi.js
+// node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/fi.js
 var error13 = () => {
   const Sizable = {
     string: { unit: "merkki\xE4", subject: "merkkijonon" },
@@ -7740,7 +7740,7 @@ function fi_default() {
   };
 }
 
-// ../../node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/fr.js
+// node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/fr.js
 var error14 = () => {
   const Sizable = {
     string: { unit: "caract\xE8res", verb: "avoir" },
@@ -7849,7 +7849,7 @@ function fr_default() {
   };
 }
 
-// ../../node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/fr-CA.js
+// node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/fr-CA.js
 var error15 = () => {
   const Sizable = {
     string: { unit: "caract\xE8res", verb: "avoir" },
@@ -7957,7 +7957,7 @@ function fr_CA_default() {
   };
 }
 
-// ../../node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/he.js
+// node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/he.js
 var error16 = () => {
   const TypeNames = {
     string: { label: "\u05DE\u05D7\u05E8\u05D5\u05D6\u05EA", gender: "f" },
@@ -8152,7 +8152,7 @@ function he_default() {
   };
 }
 
-// ../../node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/hu.js
+// node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/hu.js
 var error17 = () => {
   const Sizable = {
     string: { unit: "karakter", verb: "legyen" },
@@ -8261,7 +8261,7 @@ function hu_default() {
   };
 }
 
-// ../../node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/hy.js
+// node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/hy.js
 function getArmenianPlural(count, one, many) {
   return Math.abs(count) === 1 ? one : many;
 }
@@ -8409,7 +8409,7 @@ function hy_default() {
   };
 }
 
-// ../../node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/id.js
+// node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/id.js
 var error19 = () => {
   const Sizable = {
     string: { unit: "karakter", verb: "memiliki" },
@@ -8516,7 +8516,7 @@ function id_default() {
   };
 }
 
-// ../../node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/is.js
+// node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/is.js
 var error20 = () => {
   const Sizable = {
     string: { unit: "stafi", verb: "a\xF0 hafa" },
@@ -8626,7 +8626,7 @@ function is_default() {
   };
 }
 
-// ../../node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/it.js
+// node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/it.js
 var error21 = () => {
   const Sizable = {
     string: { unit: "caratteri", verb: "avere" },
@@ -8735,7 +8735,7 @@ function it_default() {
   };
 }
 
-// ../../node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/ja.js
+// node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/ja.js
 var error22 = () => {
   const Sizable = {
     string: { unit: "\u6587\u5B57", verb: "\u3067\u3042\u308B" },
@@ -8843,7 +8843,7 @@ function ja_default() {
   };
 }
 
-// ../../node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/ka.js
+// node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/ka.js
 var error23 = () => {
   const Sizable = {
     string: { unit: "\u10E1\u10D8\u10DB\u10D1\u10DD\u10DA\u10DD", verb: "\u10E3\u10DC\u10D3\u10D0 \u10E8\u10D4\u10D8\u10EA\u10D0\u10D5\u10D3\u10D4\u10E1" },
@@ -8956,7 +8956,7 @@ function ka_default() {
   };
 }
 
-// ../../node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/km.js
+// node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/km.js
 var error24 = () => {
   const Sizable = {
     string: { unit: "\u178F\u17BD\u17A2\u1780\u17D2\u179F\u179A", verb: "\u1782\u17BD\u179A\u1798\u17B6\u1793" },
@@ -9067,12 +9067,12 @@ function km_default() {
   };
 }
 
-// ../../node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/kh.js
+// node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/kh.js
 function kh_default() {
   return km_default();
 }
 
-// ../../node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/ko.js
+// node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/ko.js
 var error25 = () => {
   const Sizable = {
     string: { unit: "\uBB38\uC790", verb: "to have" },
@@ -9184,7 +9184,7 @@ function ko_default() {
   };
 }
 
-// ../../node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/lt.js
+// node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/lt.js
 var capitalizeFirstCharacter = (text) => {
   return text.charAt(0).toUpperCase() + text.slice(1);
 };
@@ -9388,7 +9388,7 @@ function lt_default() {
   };
 }
 
-// ../../node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/mk.js
+// node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/mk.js
 var error27 = () => {
   const Sizable = {
     string: { unit: "\u0437\u043D\u0430\u0446\u0438", verb: "\u0434\u0430 \u0438\u043C\u0430\u0430\u0442" },
@@ -9498,7 +9498,7 @@ function mk_default() {
   };
 }
 
-// ../../node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/ms.js
+// node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/ms.js
 var error28 = () => {
   const Sizable = {
     string: { unit: "aksara", verb: "mempunyai" },
@@ -9606,7 +9606,7 @@ function ms_default() {
   };
 }
 
-// ../../node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/nl.js
+// node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/nl.js
 var error29 = () => {
   const Sizable = {
     string: { unit: "tekens", verb: "heeft" },
@@ -9717,7 +9717,7 @@ function nl_default() {
   };
 }
 
-// ../../node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/no.js
+// node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/no.js
 var error30 = () => {
   const Sizable = {
     string: { unit: "tegn", verb: "\xE5 ha" },
@@ -9826,7 +9826,7 @@ function no_default() {
   };
 }
 
-// ../../node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/ota.js
+// node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/ota.js
 var error31 = () => {
   const Sizable = {
     string: { unit: "harf", verb: "olmal\u0131d\u0131r" },
@@ -9936,7 +9936,7 @@ function ota_default() {
   };
 }
 
-// ../../node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/ps.js
+// node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/ps.js
 var error32 = () => {
   const Sizable = {
     string: { unit: "\u062A\u0648\u06A9\u064A", verb: "\u0648\u0644\u0631\u064A" },
@@ -10051,7 +10051,7 @@ function ps_default() {
   };
 }
 
-// ../../node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/pl.js
+// node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/pl.js
 var error33 = () => {
   const Sizable = {
     string: { unit: "znak\xF3w", verb: "mie\u0107" },
@@ -10161,7 +10161,7 @@ function pl_default() {
   };
 }
 
-// ../../node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/pt.js
+// node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/pt.js
 var error34 = () => {
   const Sizable = {
     string: { unit: "caracteres", verb: "ter" },
@@ -10270,7 +10270,7 @@ function pt_default() {
   };
 }
 
-// ../../node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/ru.js
+// node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/ru.js
 function getRussianPlural(count, one, few, many) {
   const absCount = Math.abs(count);
   const lastDigit = absCount % 10;
@@ -10427,7 +10427,7 @@ function ru_default() {
   };
 }
 
-// ../../node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/sl.js
+// node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/sl.js
 var error36 = () => {
   const Sizable = {
     string: { unit: "znakov", verb: "imeti" },
@@ -10537,7 +10537,7 @@ function sl_default() {
   };
 }
 
-// ../../node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/sv.js
+// node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/sv.js
 var error37 = () => {
   const Sizable = {
     string: { unit: "tecken", verb: "att ha" },
@@ -10648,7 +10648,7 @@ function sv_default() {
   };
 }
 
-// ../../node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/ta.js
+// node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/ta.js
 var error38 = () => {
   const Sizable = {
     string: { unit: "\u0B8E\u0BB4\u0BC1\u0BA4\u0BCD\u0BA4\u0BC1\u0B95\u0BCD\u0B95\u0BB3\u0BCD", verb: "\u0B95\u0BCA\u0BA3\u0BCD\u0B9F\u0BBF\u0BB0\u0BC1\u0B95\u0BCD\u0B95 \u0BB5\u0BC7\u0BA3\u0BCD\u0B9F\u0BC1\u0BAE\u0BCD" },
@@ -10759,7 +10759,7 @@ function ta_default() {
   };
 }
 
-// ../../node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/th.js
+// node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/th.js
 var error39 = () => {
   const Sizable = {
     string: { unit: "\u0E15\u0E31\u0E27\u0E2D\u0E31\u0E01\u0E29\u0E23", verb: "\u0E04\u0E27\u0E23\u0E21\u0E35" },
@@ -10870,7 +10870,7 @@ function th_default() {
   };
 }
 
-// ../../node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/tr.js
+// node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/tr.js
 var error40 = () => {
   const Sizable = {
     string: { unit: "karakter", verb: "olmal\u0131" },
@@ -10976,7 +10976,7 @@ function tr_default() {
   };
 }
 
-// ../../node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/uk.js
+// node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/uk.js
 var error41 = () => {
   const Sizable = {
     string: { unit: "\u0441\u0438\u043C\u0432\u043E\u043B\u0456\u0432", verb: "\u043C\u0430\u0442\u0438\u043C\u0435" },
@@ -11085,12 +11085,12 @@ function uk_default() {
   };
 }
 
-// ../../node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/ua.js
+// node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/ua.js
 function ua_default() {
   return uk_default();
 }
 
-// ../../node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/ur.js
+// node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/ur.js
 var error42 = () => {
   const Sizable = {
     string: { unit: "\u062D\u0631\u0648\u0641", verb: "\u06C1\u0648\u0646\u0627" },
@@ -11201,7 +11201,7 @@ function ur_default() {
   };
 }
 
-// ../../node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/uz.js
+// node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/uz.js
 var error43 = () => {
   const Sizable = {
     string: { unit: "belgi", verb: "bo\u2018lishi kerak" },
@@ -11311,7 +11311,7 @@ function uz_default() {
   };
 }
 
-// ../../node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/vi.js
+// node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/vi.js
 var error44 = () => {
   const Sizable = {
     string: { unit: "k\xFD t\u1EF1", verb: "c\xF3" },
@@ -11420,7 +11420,7 @@ function vi_default() {
   };
 }
 
-// ../../node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/zh-CN.js
+// node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/zh-CN.js
 var error45 = () => {
   const Sizable = {
     string: { unit: "\u5B57\u7B26", verb: "\u5305\u542B" },
@@ -11530,7 +11530,7 @@ function zh_CN_default() {
   };
 }
 
-// ../../node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/zh-TW.js
+// node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/zh-TW.js
 var error46 = () => {
   const Sizable = {
     string: { unit: "\u5B57\u5143", verb: "\u64C1\u6709" },
@@ -11638,7 +11638,7 @@ function zh_TW_default() {
   };
 }
 
-// ../../node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/yo.js
+// node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/yo.js
 var error47 = () => {
   const Sizable = {
     string: { unit: "\xE0mi", verb: "n\xED" },
@@ -11746,7 +11746,7 @@ function yo_default() {
   };
 }
 
-// ../../node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/core/registries.js
+// node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/core/registries.js
 var _a;
 var $output = /* @__PURE__ */ Symbol("ZodOutput");
 var $input = /* @__PURE__ */ Symbol("ZodInput");
@@ -11796,7 +11796,7 @@ function registry() {
 (_a = globalThis).__zod_globalRegistry ?? (_a.__zod_globalRegistry = registry());
 var globalRegistry = globalThis.__zod_globalRegistry;
 
-// ../../node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/core/api.js
+// node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/core/api.js
 // @__NO_SIDE_EFFECTS__
 function _string(Class2, params) {
   return new Class2({
@@ -12835,7 +12835,7 @@ function _stringFormat(Class2, format, fnOrRegex, _params = {}) {
   return inst;
 }
 
-// ../../node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/core/to-json-schema.js
+// node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/core/to-json-schema.js
 function initializeContext(params) {
   let target = params?.target ?? "draft-2020-12";
   if (target === "draft-4")
@@ -13187,7 +13187,7 @@ var createStandardJSONSchemaMethod = (schema, io, processors = {}) => (params) =
   return finalize(ctx, schema);
 };
 
-// ../../node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/core/json-schema-processors.js
+// node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/core/json-schema-processors.js
 var formatMap = {
   guid: "uuid",
   url: "uri",
@@ -13738,7 +13738,7 @@ function toJSONSchema(input, params) {
   return finalize(ctx, input);
 }
 
-// ../../node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/core/json-schema-generator.js
+// node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/core/json-schema-generator.js
 var JSONSchemaGenerator = class {
   /** @deprecated Access via ctx instead */
   get metadataRegistry() {
@@ -13813,10 +13813,10 @@ var JSONSchemaGenerator = class {
   }
 };
 
-// ../../node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/core/json-schema.js
+// node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/core/json-schema.js
 var json_schema_exports = {};
 
-// ../../node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/classic/schemas.js
+// node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/classic/schemas.js
 var schemas_exports2 = {};
 __export(schemas_exports2, {
   ZodAny: () => ZodAny,
@@ -13985,7 +13985,7 @@ __export(schemas_exports2, {
   xor: () => xor
 });
 
-// ../../node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/classic/checks.js
+// node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/classic/checks.js
 var checks_exports2 = {};
 __export(checks_exports2, {
   endsWith: () => _endsWith,
@@ -14019,7 +14019,7 @@ __export(checks_exports2, {
   uppercase: () => _uppercase
 });
 
-// ../../node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/classic/iso.js
+// node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/classic/iso.js
 var iso_exports = {};
 __export(iso_exports, {
   ZodISODate: () => ZodISODate,
@@ -14060,7 +14060,7 @@ function duration2(params) {
   return _isoDuration(ZodISODuration, params);
 }
 
-// ../../node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/classic/errors.js
+// node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/classic/errors.js
 var initializer2 = (inst, issues) => {
   $ZodError.init(inst, issues);
   inst.name = "ZodError";
@@ -14100,7 +14100,7 @@ var ZodRealError = $constructor("ZodError", initializer2, {
   Parent: Error
 });
 
-// ../../node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/classic/parse.js
+// node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/classic/parse.js
 var parse2 = /* @__PURE__ */ _parse(ZodRealError);
 var parseAsync2 = /* @__PURE__ */ _parseAsync(ZodRealError);
 var safeParse2 = /* @__PURE__ */ _safeParse(ZodRealError);
@@ -14114,7 +14114,7 @@ var safeDecode2 = /* @__PURE__ */ _safeDecode(ZodRealError);
 var safeEncodeAsync2 = /* @__PURE__ */ _safeEncodeAsync(ZodRealError);
 var safeDecodeAsync2 = /* @__PURE__ */ _safeDecodeAsync(ZodRealError);
 
-// ../../node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/classic/schemas.js
+// node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/classic/schemas.js
 var ZodType = /* @__PURE__ */ $constructor("ZodType", (inst, def) => {
   $ZodType.init(inst, def);
   Object.assign(inst["~standard"], {
@@ -15193,7 +15193,7 @@ function preprocess(fn, schema) {
   return pipe(transform(fn), schema);
 }
 
-// ../../node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/classic/compat.js
+// node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/classic/compat.js
 var ZodIssueCode = {
   invalid_type: "invalid_type",
   too_big: "too_big",
@@ -15219,7 +15219,7 @@ var ZodFirstPartyTypeKind;
 /* @__PURE__ */ (function(ZodFirstPartyTypeKind2) {
 })(ZodFirstPartyTypeKind || (ZodFirstPartyTypeKind = {}));
 
-// ../../node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/classic/from-json-schema.js
+// node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/classic/from-json-schema.js
 var z = {
   ...schemas_exports2,
   ...checks_exports2,
@@ -15693,7 +15693,7 @@ function fromJSONSchema(schema, params) {
   return convertSchema(schema, ctx);
 }
 
-// ../../node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/classic/coerce.js
+// node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/classic/coerce.js
 var coerce_exports = {};
 __export(coerce_exports, {
   bigint: () => bigint3,
@@ -15718,10 +15718,10 @@ function date4(params) {
   return _coercedDate(ZodDate, params);
 }
 
-// ../../node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/classic/external.js
+// node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/classic/external.js
 config(en_default());
 
-// ../domain/src/active-thinking.ts
+// packages/domain/src/active-thinking.ts
 var activeThinkingSchema = external_exports.object({
   id: external_exports.string(),
   text: external_exports.string(),
@@ -15729,7 +15729,7 @@ var activeThinkingSchema = external_exports.object({
   updatedAt: external_exports.number()
 });
 
-// ../domain/src/shared-types.ts
+// packages/domain/src/shared-types.ts
 var reasoningLevelValues = [
   "none",
   "low",
@@ -16012,7 +16012,7 @@ var projectExecutionDefaultsSchema = external_exports.object({
   permissionMode: permissionModeSchema
 });
 
-// ../domain/src/acp-cli.ts
+// packages/domain/src/acp-cli.ts
 var providerSkillRootPathSchema = external_exports.string().min(1).refine((value) => {
   const normalized = value.replaceAll("\\", "/");
   return !normalized.startsWith("/") && !/^[a-zA-Z]:\//u.test(normalized) && normalized.split("/").every(
@@ -16094,13 +16094,8 @@ var acpPermissionCliSchema = external_exports.object({
   }
 });
 
-// ../domain/src/app-settings.ts
+// packages/domain/src/app-settings.ts
 var appSettingsSchema = external_exports.object({
-  /**
-   * macOS-only: keep the machine from idle sleeping while bb is running by
-   * asking the local host daemon to hold a caffeinate assertion.
-   */
-  caffeinate: external_exports.boolean(),
   /** Show shortcut hints after holding Command or Control. */
   showKeyboardHints: external_exports.boolean(),
   /**
@@ -16132,7 +16127,7 @@ var appSettingsSchema = external_exports.object({
   onboardingCompletedAt: external_exports.string().nullable()
 }).strict();
 
-// ../domain/src/app-keybindings.ts
+// packages/domain/src/app-keybindings.ts
 var THREAD_JUMP_APP_COMMAND_IDS = [
   "thread.jump.1",
   "thread.jump.2",
@@ -16191,7 +16186,11 @@ var APP_COMMAND_IDS = [
   "composer.focus",
   "modelPicker.toggle",
   "modelPicker.cycleModel",
+  "modelPicker.cycleModelBackward",
+  "modelPicker.cycleProvider",
+  "modelPicker.cycleProviderBackward",
   "modelPicker.cycleReasoning",
+  "modelPicker.cycleReasoningBackward",
   "browser.focusLocation",
   "browser.reload",
   "workspace.openPreferred",
@@ -16257,7 +16256,53 @@ var appKeybindingOverridesSchema = external_exports.array(appKeybindingOverrideS
   }
 });
 
-// ../domain/src/app-theme.ts
+// packages/domain/src/json-value.ts
+var jsonValueSchema = external_exports.lazy(
+  () => external_exports.union([
+    external_exports.string(),
+    external_exports.number(),
+    external_exports.boolean(),
+    external_exports.null(),
+    external_exports.array(jsonValueSchema),
+    external_exports.record(external_exports.string(), jsonValueSchema)
+  ])
+);
+var jsonObjectSchema = external_exports.record(
+  external_exports.string(),
+  jsonValueSchema
+);
+
+// packages/domain/src/code-theme.ts
+var DEFAULT_CODE_THEME_DARK = "pierre-dark";
+var DEFAULT_CODE_THEME_LIGHT = "pierre-light";
+var codeThemeNameSchema = external_exports.string().min(1).max(128).regex(
+  /^[a-zA-Z0-9][a-zA-Z0-9._:-]*$/,
+  "Code theme names may use letters, digits, '.', '_', ':', and '-' and cannot start with '.'"
+);
+var codeThemePairSchema = external_exports.object({
+  dark: codeThemeNameSchema,
+  light: codeThemeNameSchema
+}).strict();
+var vscodeThemeJsonSchema = jsonObjectSchema.refine(
+  (value) => typeof value.name === "string" && value.name.length > 0,
+  { message: "Code theme JSON must include a non-empty name" }
+);
+var resolvedCodeThemeSchema = external_exports.object({
+  dark: codeThemeNameSchema,
+  light: codeThemeNameSchema,
+  files: external_exports.record(external_exports.string(), jsonObjectSchema)
+}).strict();
+var defaultResolvedCodeTheme = {
+  dark: DEFAULT_CODE_THEME_DARK,
+  light: DEFAULT_CODE_THEME_LIGHT,
+  files: {}
+};
+var uiCodeThemeDeclarationSchema = external_exports.object({
+  dark: external_exports.string().min(1).max(256).optional(),
+  light: external_exports.string().min(1).max(256).optional()
+}).strict();
+
+// packages/domain/src/app-theme.ts
 var builtInThemeIdSchema = external_exports.enum([
   "default",
   "nord",
@@ -16297,7 +16342,12 @@ var appThemeSchema = external_exports.object({
   /** Resolved CSS for a custom palette; null for built-ins. */
   customCss: external_exports.string().max(CUSTOM_THEME_CSS_MAX_LENGTH).nullable(),
   /** Browser tab icon tint; "default" leaves the glyph untinted. */
-  faviconColor: faviconColorPreferenceSchema
+  faviconColor: faviconColorPreferenceSchema,
+  /**
+   * Pierre / Shiki names (and any custom JSON) derived from the active
+   * palette. Always filled at the server boundary.
+   */
+  resolvedCodeTheme: resolvedCodeThemeSchema.default(defaultResolvedCodeTheme)
 });
 var pluginThemeMetaSchema = external_exports.object({
   id: external_exports.string().min(1),
@@ -16310,7 +16360,7 @@ var appThemeSelectionSchema = external_exports.object({
   faviconColor: faviconColorPreferenceSchema
 });
 
-// ../domain/src/background-task.ts
+// packages/domain/src/background-task.ts
 var backgroundTaskStatusValues = [
   "pending",
   "running",
@@ -16370,23 +16420,10 @@ var backgroundTaskUsageSchema = external_exports.object({
   durationMs: external_exports.number()
 });
 
-// ../domain/src/json-value.ts
-var jsonValueSchema = external_exports.lazy(
-  () => external_exports.union([
-    external_exports.string(),
-    external_exports.number(),
-    external_exports.boolean(),
-    external_exports.null(),
-    external_exports.array(jsonValueSchema),
-    external_exports.record(external_exports.string(), jsonValueSchema)
-  ])
-);
-var jsonObjectSchema = external_exports.record(
-  external_exports.string(),
-  jsonValueSchema
-);
+// packages/domain/src/plugin-interaction-limits.ts
+var PLUGIN_INTERACTION_MAX_TITLE_LENGTH = 160;
 
-// ../domain/src/pending-interactions.ts
+// packages/domain/src/pending-interactions.ts
 var pendingInteractionStatusSchema = external_exports.enum([
   "pending",
   "resolving",
@@ -16516,7 +16553,6 @@ var USER_QUESTION_MAX_QUESTIONS = 4;
 var USER_QUESTION_MAX_OPTIONS = 4;
 var USER_QUESTION_MAX_SELECTED = 4;
 var USER_QUESTION_MAX_FREE_TEXT_LENGTH = 4096;
-var PLUGIN_INTERACTION_MAX_TITLE_LENGTH = 160;
 var pendingInteractionUserQuestionIdSchema = external_exports.string().min(1).refine((value) => value.trim().length > 0, {
   message: "User question ids cannot be blank"
 });
@@ -16706,13 +16742,14 @@ var pendingInteractionSchema = external_exports.union([
   pluginPendingInteractionSchema
 ]);
 
-// ../domain/src/protocol-ids.ts
+// packages/domain/src/protocol-ids.ts
 var clientTurnRequestIdSchema = external_exports.string().regex(/^creq_[23456789abcdefghijkmnpqrstuvwxyz]{10}$/u);
 
-// ../domain/src/thread-events.ts
+// packages/domain/src/thread-events.ts
 var systemEventTypeValues = [
   "client/thread/start",
   "client/turn/requested",
+  "client/turn/rejected",
   "client/turn/start",
   "system/error",
   // Legacy persisted user-visible system event from a removed runtime path.
@@ -16814,6 +16851,11 @@ var turnRequestEventDataSchema = external_exports.object({
     params: external_exports.record(external_exports.string(), external_exports.unknown())
   }),
   execution: turnRequestOptionsSchema
+});
+var turnRequestRejectedEventDataSchema = external_exports.object({
+  requestId: clientTurnRequestIdSchema,
+  reason: external_exports.string().min(1),
+  message: external_exports.string().min(1)
 });
 var systemErrorEventDataSchema = external_exports.object({
   code: external_exports.string().optional(),
@@ -16938,7 +16980,7 @@ var systemProviderTurnWatchdogEventDataSchema = external_exports.object({
   firedAt: external_exports.number().int().nonnegative()
 });
 
-// ../domain/src/thread-event-scope.ts
+// packages/domain/src/thread-event-scope.ts
 var threadEventScopeKindValues = ["thread", "turn"];
 var threadEventScopeKindSchema = external_exports.enum(threadEventScopeKindValues);
 var threadEventScopeSchema = external_exports.discriminatedUnion("kind", [
@@ -16970,6 +17012,7 @@ var threadEventScopeDefinitionByType = {
     rationale: "Thread metadata event; names are not part of a specific turn transcript."
   },
   "thread/compacted": { policy: "turn" },
+  "thread/context/cleared": { policy: "turn" },
   "thread/goal/updated": {
     policy: "thread",
     rationale: "Thread goal state is current thread metadata, not part of a specific turn transcript."
@@ -17030,6 +17073,10 @@ var threadEventScopeDefinitionByType = {
   "client/turn/requested": {
     policy: "thread",
     rationale: "Outbound client lifecycle event; it records the request before provider turn acceptance."
+  },
+  "client/turn/rejected": {
+    policy: "thread",
+    rationale: "Client request rejection occurs before provider turn acceptance and identifies the request at thread scope."
   },
   "client/turn/start": {
     policy: "thread",
@@ -17108,7 +17155,7 @@ function validateThreadEventScope(args) {
   return { valid: true };
 }
 
-// ../domain/src/thread-timeline-goal.ts
+// packages/domain/src/thread-timeline-goal.ts
 var threadTimelineGoalStatusSchema = external_exports.enum([
   "active",
   "paused",
@@ -17125,7 +17172,7 @@ var threadTimelineGoalSchema = external_exports.object({
   timeUsedSeconds: external_exports.number()
 });
 
-// ../domain/src/provider-event.ts
+// packages/domain/src/provider-event.ts
 var threadEventItemStatusSchema = external_exports.enum([
   "pending",
   "completed",
@@ -17267,7 +17314,12 @@ var threadEventTokenUsageSchema = external_exports.object({
 var threadEventWarningCategorySchema = external_exports.enum([
   "deprecation",
   "config",
-  "general"
+  "general",
+  /**
+   * The provider declined a compaction that bb asked for because there was
+   * nothing to compact. The warning settles the pending compaction row.
+   */
+  "compaction-skipped"
 ]);
 var providerRawEventSchema = external_exports.object({
   jsonrpc: external_exports.literal("2.0"),
@@ -17433,6 +17485,11 @@ var unscopedProviderEventSchema = external_exports.discriminatedUnion("type", [
   }),
   external_exports.object({
     type: external_exports.literal("thread/compacted"),
+    threadId: external_exports.string(),
+    providerThreadId: external_exports.string()
+  }),
+  external_exports.object({
+    type: external_exports.literal("thread/context/cleared"),
     threadId: external_exports.string(),
     providerThreadId: external_exports.string()
   }),
@@ -17627,6 +17684,10 @@ var unscopedSystemEventSchema = external_exports.union([
     threadId: external_exports.string()
   }).merge(turnRequestEventDataSchema),
   external_exports.object({
+    type: external_exports.literal("client/turn/rejected"),
+    threadId: external_exports.string()
+  }).merge(turnRequestRejectedEventDataSchema),
+  external_exports.object({
     type: external_exports.literal("client/turn/start"),
     threadId: external_exports.string()
   }).merge(clientTurnLifecycleEventDataSchema),
@@ -17715,7 +17776,7 @@ var threadEventTypeSchema = external_exports.string().refine(
   "Invalid thread event type"
 );
 
-// ../domain/src/change-kinds.ts
+// packages/domain/src/change-kinds.ts
 var THREAD_CHANGE_KINDS = [
   "thread-created",
   "thread-deleted",
@@ -17757,7 +17818,8 @@ var HOST_CHANGE_KINDS = [
 ];
 var SYSTEM_CHANGE_KINDS = [
   "config-changed",
-  "plugins-changed"
+  "plugins-changed",
+  "provider-registrations-changed"
 ];
 var threadChangeKindSchema = external_exports.enum(THREAD_CHANGE_KINDS);
 var projectChangeKindSchema = external_exports.enum(PROJECT_CHANGE_KINDS);
@@ -17909,7 +17971,7 @@ var changedMessageLenientSchema = external_exports.discriminatedUnion("entity", 
   systemChangedMessageLenientSchema
 ]);
 
-// ../domain/src/claude-task-tools.ts
+// packages/domain/src/claude-task-tools.ts
 var claudeTaskToolNameValues = [
   "TaskCreate",
   "TaskGet",
@@ -17981,7 +18043,7 @@ var claudeTaskToolOutputSchema = external_exports.union([
   claudeTaskUpdateOutputSchema
 ]);
 
-// ../domain/src/environment.ts
+// packages/domain/src/environment.ts
 var environmentStatusValues = [
   "provisioning",
   "ready",
@@ -18031,19 +18093,17 @@ var environmentSchema = external_exports.object({
   updatedAt: external_exports.number()
 });
 
-// ../domain/src/experiments.ts
+// packages/domain/src/experiments.ts
 var experimentKeys = [
   "claudeCodeMockCliTraffic",
   "editMessages",
-  "newOnboarding"
+  "newOnboarding",
+  "providerSessionReaping"
 ];
 var experimentKeySchema = external_exports.enum(experimentKeys);
 var experimentsSchema = external_exports.record(experimentKeySchema, external_exports.boolean());
-var defaultExperiments = experimentsSchema.parse(
-  Object.fromEntries(experimentKeys.map((key) => [key, false]))
-);
 
-// ../domain/src/feature-flags.ts
+// packages/domain/src/feature-flags.ts
 var featureFlagsSchema = external_exports.object({
   placeholder: external_exports.boolean(),
   /**
@@ -18061,7 +18121,7 @@ var featureFlagsSchema = external_exports.object({
   timelineWindowEventBudget: external_exports.number().int().positive()
 });
 
-// ../domain/src/git-checkout.ts
+// packages/domain/src/git-checkout.ts
 var gitBranchForbiddenCharacterPattern = /[\u0000-\u001f\u007f\\:~^?*\[]/u;
 var gitBranchWhitespacePattern = /[ \t]/u;
 var gitReservedBranchNames = /* @__PURE__ */ new Set([
@@ -18156,7 +18216,7 @@ var projectSourceCheckoutSchema = external_exports.object({
   selectedBranch: gitBranchRefClassificationSchema.nullable()
 });
 
-// ../domain/src/host.ts
+// packages/domain/src/host.ts
 var hostTypeValues = ["persistent"];
 var hostTypeSchema = external_exports.enum(hostTypeValues);
 var hostStatusValues = ["connected", "disconnected"];
@@ -18179,7 +18239,7 @@ var hostSchema = external_exports.object({
   updatedAt: external_exports.number()
 });
 
-// ../domain/src/plugin-id.ts
+// packages/domain/src/plugin-id.ts
 function derivePluginId(packageName) {
   const base = packageName.includes("/") ? packageName.split("/").at(-1) ?? packageName : packageName;
   const id = base.replace(/^bb-plugin-/, "").toLowerCase().replace(/[^a-z0-9-]/g, "-").replace(/^-+|-+$/g, "");
@@ -18191,11 +18251,13 @@ function derivePluginId(packageName) {
   return id;
 }
 
-// ../domain/src/plugin-manifest.ts
-var requiredManifestString = external_exports.string().trim().min(1);
+// packages/domain/src/plugin-icon.ts
 function isPluginOwnedIconPath(icon) {
   return icon.startsWith("./");
 }
+
+// packages/domain/src/plugin-manifest.ts
+var requiredManifestString = external_exports.string().trim().min(1);
 var pluginBrandingSchema = external_exports.object({
   icon: requiredManifestString.optional(),
   logo: external_exports.object({
@@ -18222,13 +18284,15 @@ var pluginBbManifestSchema = external_exports.object({
   branding: pluginBrandingSchema,
   server: requiredManifestString,
   app: requiredManifestString.optional(),
+  host: requiredManifestString.optional(),
   skills: external_exports.array(requiredManifestString).optional(),
   themes: external_exports.array(
     external_exports.object({
       id: external_exports.string().regex(/^[a-zA-Z0-9][a-zA-Z0-9._-]*$/).max(64),
       name: requiredManifestString,
       description: requiredManifestString.optional(),
-      css: requiredManifestString
+      css: requiredManifestString,
+      codeTheme: uiCodeThemeDeclarationSchema.optional()
     }).strict()
   ).optional()
 }).strict();
@@ -18242,11 +18306,11 @@ var pluginPackageJsonSchema = external_exports.object({
   bb: pluginBbManifestSchema
 }).passthrough();
 
-// ../domain/src/plugin-sdk-version.ts
-var PLUGIN_SDK_VERSION = "0.5.0";
+// packages/domain/src/plugin-sdk-version.ts
+var PLUGIN_SDK_VERSION = "0.4.8";
 var PLUGIN_SDK_MAJOR = Number(PLUGIN_SDK_VERSION.split(".", 1)[0]);
 
-// ../domain/src/project.ts
+// packages/domain/src/project.ts
 var projectKindValues = ["standard", "personal"];
 var projectKindSchema = external_exports.enum(projectKindValues);
 var projectSchema = external_exports.object({
@@ -18272,7 +18336,7 @@ var localPathProjectSourceSchema = baseProjectSourceSchema.extend({
   path: external_exports.string()
 });
 
-// ../domain/src/prompt-history.ts
+// packages/domain/src/prompt-history.ts
 var promptHistoryScopeValues = ["project", "thread"];
 var promptHistoryScopeSchema = external_exports.enum(promptHistoryScopeValues);
 var promptHistoryEntrySchema = external_exports.object({
@@ -18281,7 +18345,11 @@ var promptHistoryEntrySchema = external_exports.object({
   input: external_exports.array(promptInputSchema).min(1)
 });
 
-// ../domain/src/provider-types.ts
+// packages/domain/src/provider-fork.ts
+var PROVIDER_FORK_VALUES = ["none", "tip", "checkpoint"];
+var providerForkSchema = external_exports.enum(PROVIDER_FORK_VALUES);
+
+// packages/domain/src/provider-types.ts
 var modelReasoningEffortSchema = external_exports.object({
   reasoningEffort: reasoningLevelSchema,
   description: external_exports.string()
@@ -18299,12 +18367,18 @@ var availableModelSchema = external_exports.object({
   isDefault: external_exports.boolean()
 });
 var providerCapabilitiesSchema = external_exports.object({
-  supportsArchive: external_exports.boolean(),
-  supportsRename: external_exports.boolean(),
+  supportsThreadArchive: external_exports.boolean(),
+  supportsThreadRename: external_exports.boolean(),
   supportsServiceTier: external_exports.boolean(),
-  supportsUserQuestion: external_exports.boolean(),
+  supportsNativeUserQuestion: external_exports.boolean(),
   supportsFork: external_exports.boolean(),
-  supportedPermissionModes: external_exports.array(permissionModeSchema).min(1)
+  /**
+   * The provider can recreate a session at an earlier point, which is what
+   * edit-past-message rewind needs. Separate from `supportsFork`: ACP clones
+   * whole sessions (tip-only) and cannot stop at a checkpoint.
+   */
+  supportsSessionRewind: external_exports.boolean(),
+  permissionModes: external_exports.array(permissionModeSchema).min(1)
 });
 var providerComposerCommandSchema = external_exports.object({
   trigger: promptMentionCommandTriggerSchema,
@@ -18362,7 +18436,15 @@ var dynamicToolSchema = external_exports.object({
   inputSchema: external_exports.unknown()
 });
 
-// ../domain/src/stored-thread-event.ts
+// packages/domain/src/raw-thread-id.ts
+var GENERATED_ID_ALPHABET = "23456789abcdefghijkmnpqrstuvwxyz";
+var GENERATED_ID_SUFFIX_LENGTH = 10;
+var THREAD_ID_PREFIX = "thr_";
+var RAW_THREAD_ID_PATTERN_SOURCE = `${THREAD_ID_PREFIX}[${GENERATED_ID_ALPHABET}]{${GENERATED_ID_SUFFIX_LENGTH}}`;
+var rawThreadIdPattern = new RegExp(`^${RAW_THREAD_ID_PATTERN_SOURCE}$`, "u");
+var rawThreadIdSchema = external_exports.string().regex(rawThreadIdPattern);
+
+// packages/domain/src/stored-thread-event.ts
 var threadEventRowInputSchema = external_exports.object({
   id: external_exports.string(),
   scope: threadEventScopeSchema,
@@ -18440,7 +18522,7 @@ var threadEventRowSchema = threadEventRowInputSchema.transform(
   (row) => parseThreadEventRowInput(row)
 );
 
-// ../domain/src/terminal.ts
+// packages/domain/src/terminal.ts
 var TERMINAL_COLS_MAX = 500;
 var TERMINAL_ROWS_MAX = 200;
 var TERMINAL_DATA_MAX_BYTES = 64 * 1024;
@@ -18484,7 +18566,7 @@ var terminalDataBase64Schema = external_exports.string().min(1).max(TERMINAL_DAT
   }
 );
 
-// ../domain/src/thread-git-diff.ts
+// packages/domain/src/thread-git-diff.ts
 var workspaceDiffTargetSchema = external_exports.discriminatedUnion("type", [
   external_exports.object({
     type: external_exports.literal("uncommitted")
@@ -18529,7 +18611,7 @@ var threadGitDiffResponseSchema = external_exports.object({
   mergeBaseRef: external_exports.string().nullable()
 });
 
-// ../domain/src/thread-search.ts
+// packages/domain/src/thread-search.ts
 var threadSearchSourceKindValues = [
   "title",
   "title_fallback",
@@ -18541,14 +18623,21 @@ var threadSearchSourceKindSchema = external_exports.enum(
   threadSearchSourceKindValues
 );
 
-// ../domain/src/thread-timeline-active-prompt-mode.ts
+// packages/domain/src/thread-timeline-active-prompt-mode.ts
 var threadTimelineActivePromptModeSchema = external_exports.object({
   mode: external_exports.literal("plan"),
-  providerId: external_exports.enum(["claude-code", "codex"]),
+  /**
+   * Any provider id. Eligibility is not this field's job: it comes from the
+   * provider declaring a `plan` composer action, so a plugin provider that
+   * declares one gets plan mode. This used to be `z.enum(["claude-code",
+   * "codex"])`, which made plan mode structurally unreachable for anyone
+   * else.
+   */
+  providerId: external_exports.string().min(1),
   prompt: external_exports.string()
 }).strict();
 
-// ../domain/src/thread-timeline-model-fallback.ts
+// packages/domain/src/thread-timeline-model-fallback.ts
 var threadTimelineModelFallbackSchema = external_exports.object({
   sourceSeq: external_exports.number().int().nonnegative(),
   detectedAt: external_exports.number(),
@@ -18558,7 +18647,7 @@ var threadTimelineModelFallbackSchema = external_exports.object({
   message: external_exports.string()
 });
 
-// ../domain/src/thread-timeline-pending-todos.ts
+// packages/domain/src/thread-timeline-pending-todos.ts
 var threadTimelinePendingTodoItemStatusSchema = external_exports.enum([
   "pending",
   "in_progress",
@@ -18575,11 +18664,11 @@ var threadTimelinePendingTodosSchema = external_exports.object({
   items: external_exports.array(threadTimelinePendingTodoItemSchema)
 });
 
-// ../domain/src/thread-visibility.ts
+// packages/domain/src/thread-visibility.ts
 var threadVisibilityValues = ["visible", "hidden"];
 var threadVisibilitySchema = external_exports.enum(threadVisibilityValues);
 
-// ../domain/src/thread-status.ts
+// packages/domain/src/thread-status.ts
 var threadStatusValues = [
   "idle",
   "starting",
@@ -18589,12 +18678,11 @@ var threadStatusValues = [
 ];
 var threadStatusSchema = external_exports.enum(threadStatusValues);
 
-// ../domain/src/thread-child-origin.ts
+// packages/domain/src/thread-origin-kind.ts
 var threadOriginKindValues = ["fork"];
 var threadOriginKindSchema = external_exports.enum(threadOriginKindValues);
-var threadChildOriginSchema = threadOriginKindSchema;
 
-// ../domain/src/thread.ts
+// packages/domain/src/thread.ts
 var threadRuntimeDisplayStatusValues = [
   ...threadStatusValues,
   "provisioning",
@@ -18659,6 +18747,8 @@ var workspaceCommitSummarySchema = external_exports.object({
 var workspaceChangeStatsSchema = external_exports.object({
   insertions: external_exports.number(),
   deletions: external_exports.number(),
+  /** False when line totals omit files whose contents were intentionally not read. */
+  lineStatsComplete: external_exports.boolean(),
   files: external_exports.array(workspaceFileStatusSchema)
 });
 var workspaceWorkingTreeSchema = workspaceChangeStatsSchema.extend({
@@ -18835,8 +18925,6 @@ var threadSchema = external_exports.object({
   parentThreadId: external_exports.string().nullable(),
   sourceThreadId: external_exports.string().nullable(),
   originKind: threadOriginKindSchema.nullable(),
-  /** @deprecated Use originKind. */
-  childOrigin: threadChildOriginSchema.nullable(),
   /** Id of the plugin that spawned this thread; null for non-plugin origins. */
   originPluginId: external_exports.string().nullable(),
   visibility: threadVisibilitySchema,
@@ -18861,7 +18949,7 @@ var threadListEntrySchema = threadWithRuntimeSchema.extend({
   environmentWorkspaceDisplayKind: environmentWorkspaceDisplayKindSchema
 });
 
-// src/generated/plugin-theme.generated.ts
+// packages/plugin-build/src/generated/plugin-theme.generated.ts
 var PLUGIN_THEME_CSS = `@theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
@@ -18954,9 +19042,9 @@ var PLUGIN_THEME_CSS = `@theme inline {
 }`;
 var TW_ANIMATE_CSS = `@property --tw-animation-delay{syntax:"*";inherits:false;initial-value:0s}@property --tw-animation-direction{syntax:"*";inherits:false;initial-value:normal}@property --tw-animation-duration{syntax:"*";inherits:false}@property --tw-animation-fill-mode{syntax:"*";inherits:false;initial-value:none}@property --tw-animation-iteration-count{syntax:"*";inherits:false;initial-value:1}@property --tw-enter-blur{syntax:"*";inherits:false;initial-value:0}@property --tw-enter-opacity{syntax:"*";inherits:false;initial-value:1}@property --tw-enter-rotate{syntax:"*";inherits:false;initial-value:0}@property --tw-enter-scale{syntax:"*";inherits:false;initial-value:1}@property --tw-enter-translate-x{syntax:"*";inherits:false;initial-value:0}@property --tw-enter-translate-y{syntax:"*";inherits:false;initial-value:0}@property --tw-exit-blur{syntax:"*";inherits:false;initial-value:0}@property --tw-exit-opacity{syntax:"*";inherits:false;initial-value:1}@property --tw-exit-rotate{syntax:"*";inherits:false;initial-value:0}@property --tw-exit-scale{syntax:"*";inherits:false;initial-value:1}@property --tw-exit-translate-x{syntax:"*";inherits:false;initial-value:0}@property --tw-exit-translate-y{syntax:"*";inherits:false;initial-value:0}@theme inline{--animation-delay-0: 0s; --animation-delay-75: 75ms; --animation-delay-100: .1s; --animation-delay-150: .15s; --animation-delay-200: .2s; --animation-delay-300: .3s; --animation-delay-500: .5s; --animation-delay-700: .7s; --animation-delay-1000: 1s; --animation-repeat-0: 0; --animation-repeat-1: 1; --animation-repeat-infinite: infinite; --animation-direction-normal: normal; --animation-direction-reverse: reverse; --animation-direction-alternate: alternate; --animation-direction-alternate-reverse: alternate-reverse; --animation-fill-mode-none: none; --animation-fill-mode-forwards: forwards; --animation-fill-mode-backwards: backwards; --animation-fill-mode-both: both; --percentage-0: 0; --percentage-5: .05; --percentage-10: .1; --percentage-15: .15; --percentage-20: .2; --percentage-25: .25; --percentage-30: .3; --percentage-35: .35; --percentage-40: .4; --percentage-45: .45; --percentage-50: .5; --percentage-55: .55; --percentage-60: .6; --percentage-65: .65; --percentage-70: .7; --percentage-75: .75; --percentage-80: .8; --percentage-85: .85; --percentage-90: .9; --percentage-95: .95; --percentage-100: 1; --percentage-translate-full: 1; --animate-in: enter var(--tw-animation-duration,var(--tw-duration,.15s))var(--tw-ease,ease)var(--tw-animation-delay,0s)var(--tw-animation-iteration-count,1)var(--tw-animation-direction,normal)var(--tw-animation-fill-mode,none); --animate-out: exit var(--tw-animation-duration,var(--tw-duration,.15s))var(--tw-ease,ease)var(--tw-animation-delay,0s)var(--tw-animation-iteration-count,1)var(--tw-animation-direction,normal)var(--tw-animation-fill-mode,none); @keyframes enter { from { opacity: var(--tw-enter-opacity,1); transform: translate3d(var(--tw-enter-translate-x,0),var(--tw-enter-translate-y,0),0)scale3d(var(--tw-enter-scale,1),var(--tw-enter-scale,1),var(--tw-enter-scale,1))rotate(var(--tw-enter-rotate,0)); filter: blur(var(--tw-enter-blur,0)); }}@keyframes exit { to { opacity: var(--tw-exit-opacity,1); transform: translate3d(var(--tw-exit-translate-x,0),var(--tw-exit-translate-y,0),0)scale3d(var(--tw-exit-scale,1),var(--tw-exit-scale,1),var(--tw-exit-scale,1))rotate(var(--tw-exit-rotate,0)); filter: blur(var(--tw-exit-blur,0)); }}--animate-accordion-down: accordion-down var(--tw-animation-duration,var(--tw-duration,.2s))var(--tw-ease,ease-out)var(--tw-animation-delay,0s)var(--tw-animation-iteration-count,1)var(--tw-animation-direction,normal)var(--tw-animation-fill-mode,none); --animate-accordion-up: accordion-up var(--tw-animation-duration,var(--tw-duration,.2s))var(--tw-ease,ease-out)var(--tw-animation-delay,0s)var(--tw-animation-iteration-count,1)var(--tw-animation-direction,normal)var(--tw-animation-fill-mode,none); --animate-collapsible-down: collapsible-down var(--tw-animation-duration,var(--tw-duration,.2s))var(--tw-ease,ease-out)var(--tw-animation-delay,0s)var(--tw-animation-iteration-count,1)var(--tw-animation-direction,normal)var(--tw-animation-fill-mode,none); --animate-collapsible-up: collapsible-up var(--tw-animation-duration,var(--tw-duration,.2s))var(--tw-ease,ease-out)var(--tw-animation-delay,0s)var(--tw-animation-iteration-count,1)var(--tw-animation-direction,normal)var(--tw-animation-fill-mode,none); @keyframes accordion-down { from { height: 0; }to { height: var(--radix-accordion-content-height,var(--bits-accordion-content-height,var(--reka-accordion-content-height,var(--kb-accordion-content-height,var(--ngp-accordion-content-height,auto))))); }}@keyframes accordion-up { from { height: var(--radix-accordion-content-height,var(--bits-accordion-content-height,var(--reka-accordion-content-height,var(--kb-accordion-content-height,var(--ngp-accordion-content-height,auto))))); }to { height: 0; }}@keyframes collapsible-down { from { height: 0; }to { height: var(--radix-collapsible-content-height,var(--bits-collapsible-content-height,var(--reka-collapsible-content-height,var(--kb-collapsible-content-height,auto)))); }}@keyframes collapsible-up { from { height: var(--radix-collapsible-content-height,var(--bits-collapsible-content-height,var(--reka-collapsible-content-height,var(--kb-collapsible-content-height,auto)))); }to { height: 0; }}--animate-caret-blink: caret-blink 1.25s ease-out infinite; @keyframes caret-blink { 0%,70%,100% { opacity: 1; }20%,50% { opacity: 0; }}}@utility animation-duration-*{--tw-animation-duration: calc(--value(number)*1ms); --tw-animation-duration: --value(--animation-duration-*,[duration],"initial",[*]); animation-duration: calc(--value(number)*1ms); animation-duration: --value(--animation-duration-*,[duration],"initial",[*]);}@utility delay-*{animation-delay: calc(--value(number)*1ms); animation-delay: --value(--animation-delay-*,[duration],"initial",[*]); --tw-animation-delay: calc(--value(number)*1ms); --tw-animation-delay: --value(--animation-delay-*,[duration],"initial",[*]);}@utility repeat-*{animation-iteration-count: --value(--animation-repeat-*,number,"initial",[*]); --tw-animation-iteration-count: --value(--animation-repeat-*,number,"initial",[*]);}@utility direction-*{animation-direction: --value(--animation-direction-*,"initial",[*]); --tw-animation-direction: --value(--animation-direction-*,"initial",[*]);}@utility fill-mode-*{animation-fill-mode: --value(--animation-fill-mode-*,"initial",[*]); --tw-animation-fill-mode: --value(--animation-fill-mode-*,"initial",[*]);}@utility running{animation-play-state: running;}@utility paused{animation-play-state: paused;}@utility play-state-*{animation-play-state: --value("initial",[*]);}@utility blur-in{--tw-enter-blur: 20px;}@utility blur-in-*{--tw-enter-blur: calc(--value(number)*1px); --tw-enter-blur: --value(--blur-*,[*]);}@utility blur-out{--tw-exit-blur: 20px;}@utility blur-out-*{--tw-exit-blur: calc(--value(number)*1px); --tw-exit-blur: --value(--blur-*,[*]);}@utility fade-in{--tw-enter-opacity: 0;}@utility fade-in-*{--tw-enter-opacity: calc(--value(number)/100); --tw-enter-opacity: --value(--percentage-*,[*]);}@utility fade-out{--tw-exit-opacity: 0;}@utility fade-out-*{--tw-exit-opacity: calc(--value(number)/100); --tw-exit-opacity: --value(--percentage-*,[*]);}@utility zoom-in{--tw-enter-scale: 0;}@utility zoom-in-*{--tw-enter-scale: calc(--value(number)*1%); --tw-enter-scale: calc(--value(ratio)); --tw-enter-scale: --value(--percentage-*,[*]);}@utility -zoom-in-*{--tw-enter-scale: calc(--value(number)*-1%); --tw-enter-scale: calc(--value(ratio)*-1); --tw-enter-scale: --value(--percentage-*,[*]);}@utility zoom-out{--tw-exit-scale: 0;}@utility zoom-out-*{--tw-exit-scale: calc(--value(number)*1%); --tw-exit-scale: calc(--value(ratio)); --tw-exit-scale: --value(--percentage-*,[*]);}@utility -zoom-out-*{--tw-exit-scale: calc(--value(number)*-1%); --tw-exit-scale: calc(--value(ratio)*-1); --tw-exit-scale: --value(--percentage-*,[*]);}@utility spin-in{--tw-enter-rotate: 30deg;}@utility spin-in-*{--tw-enter-rotate: calc(--value(number)*1deg); --tw-enter-rotate: calc(--value(ratio)*360deg); --tw-enter-rotate: --value(--rotate-*,[*]);}@utility -spin-in{--tw-enter-rotate: -30deg;}@utility -spin-in-*{--tw-enter-rotate: calc(--value(number)*-1deg); --tw-enter-rotate: calc(--value(ratio)*-360deg); --tw-enter-rotate: --value(--rotate-*,[*]);}@utility spin-out{--tw-exit-rotate: 30deg;}@utility spin-out-*{--tw-exit-rotate: calc(--value(number)*1deg); --tw-exit-rotate: calc(--value(ratio)*360deg); --tw-exit-rotate: --value(--rotate-*,[*]);}@utility -spin-out{--tw-exit-rotate: -30deg;}@utility -spin-out-*{--tw-exit-rotate: calc(--value(number)*-1deg); --tw-exit-rotate: calc(--value(ratio)*-360deg); --tw-exit-rotate: --value(--rotate-*,[*]);}@utility slide-in-from-top{--tw-enter-translate-y: -100%;}@utility slide-in-from-top-*{--tw-enter-translate-y: calc(--value(integer)*var(--spacing)*-1); --tw-enter-translate-y: calc(--value(--percentage-*,--percentage-translate-*)*-100%); --tw-enter-translate-y: calc(--value(ratio)*-100%); --tw-enter-translate-y: calc(--value(--translate-*,[percentage],[length])*-1);}@utility slide-in-from-bottom{--tw-enter-translate-y: 100%;}@utility slide-in-from-bottom-*{--tw-enter-translate-y: calc(--value(integer)*var(--spacing)); --tw-enter-translate-y: calc(--value(--percentage-*,--percentage-translate-*)*100%); --tw-enter-translate-y: calc(--value(ratio)*100%); --tw-enter-translate-y: --value(--translate-*,[percentage],[length]);}@utility slide-in-from-left{--tw-enter-translate-x: -100%;}@utility slide-in-from-left-*{--tw-enter-translate-x: calc(--value(integer)*var(--spacing)*-1); --tw-enter-translate-x: calc(--value(--percentage-*,--percentage-translate-*)*-100%); --tw-enter-translate-x: calc(--value(ratio)*-100%); --tw-enter-translate-x: calc(--value(--translate-*,[percentage],[length])*-1);}@utility slide-in-from-right{--tw-enter-translate-x: 100%;}@utility slide-in-from-right-*{--tw-enter-translate-x: calc(--value(integer)*var(--spacing)); --tw-enter-translate-x: calc(--value(--percentage-*,--percentage-translate-*)*100%); --tw-enter-translate-x: calc(--value(ratio)*100%); --tw-enter-translate-x: --value(--translate-*,[percentage],[length]);}@utility slide-in-from-start{&:dir(ltr){ --tw-enter-translate-x: -100%; }&:dir(rtl){ --tw-enter-translate-x: 100%; }}@utility slide-in-from-start-*{&:where(:dir(ltr),[dir="ltr"],[dir="ltr"]*){ --tw-enter-translate-x: calc(--value(integer)*var(--spacing)*-1); --tw-enter-translate-x: calc(--value(--percentage-*,--percentage-translate-*)*-100%); --tw-enter-translate-x: calc(--value(ratio)*-100%); --tw-enter-translate-x: calc(--value(--translate-*,[percentage],[length])*-1); }&:where(:dir(rtl),[dir="rtl"],[dir="rtl"]*){ --tw-enter-translate-x: calc(--value(integer)*var(--spacing)); --tw-enter-translate-x: calc(--value(--percentage-*,--percentage-translate-*)*100%); --tw-enter-translate-x: calc(--value(ratio)*100%); --tw-enter-translate-x: --value(--translate-*,[percentage],[length]); }}@utility slide-in-from-end{&:dir(ltr){ --tw-enter-translate-x: 100%; }&:dir(rtl){ --tw-enter-translate-x: -100%; }}@utility slide-in-from-end-*{&:where(:dir(ltr),[dir="ltr"],[dir="ltr"]*){ --tw-enter-translate-x: calc(--value(integer)*var(--spacing)); --tw-enter-translate-x: calc(--value(--percentage-*,--percentage-translate-*)*100%); --tw-enter-translate-x: calc(--value(ratio)*100%); --tw-enter-translate-x: --value(--translate-*,[percentage],[length]); }&:where(:dir(rtl),[dir="rtl"],[dir="rtl"]*){ --tw-enter-translate-x: calc(--value(integer)*var(--spacing)*-1); --tw-enter-translate-x: calc(--value(--percentage-*,--percentage-translate-*)*-100%); --tw-enter-translate-x: calc(--value(ratio)*-100%); --tw-enter-translate-x: calc(--value(--translate-*,[percentage],[length])*-1); }}@utility slide-out-to-top{--tw-exit-translate-y: -100%;}@utility slide-out-to-top-*{--tw-exit-translate-y: calc(--value(integer)*var(--spacing)*-1); --tw-exit-translate-y: calc(--value(--percentage-*,--percentage-translate-*)*-100%); --tw-exit-translate-y: calc(--value(ratio)*-100%); --tw-exit-translate-y: calc(--value(--translate-*,[percentage],[length])*-1);}@utility slide-out-to-bottom{--tw-exit-translate-y: 100%;}@utility slide-out-to-bottom-*{--tw-exit-translate-y: calc(--value(integer)*var(--spacing)); --tw-exit-translate-y: calc(--value(--percentage-*,--percentage-translate-*)*100%); --tw-exit-translate-y: calc(--value(ratio)*100%); --tw-exit-translate-y: --value(--translate-*,[percentage],[length]);}@utility slide-out-to-left{--tw-exit-translate-x: -100%;}@utility slide-out-to-left-*{--tw-exit-translate-x: calc(--value(integer)*var(--spacing)*-1); --tw-exit-translate-x: calc(--value(--percentage-*,--percentage-translate-*)*-100%); --tw-exit-translate-x: calc(--value(ratio)*-100%); --tw-exit-translate-x: calc(--value(--translate-*,[percentage],[length])*-1);}@utility slide-out-to-right{--tw-exit-translate-x: 100%;}@utility slide-out-to-right-*{--tw-exit-translate-x: calc(--value(integer)*var(--spacing)); --tw-exit-translate-x: calc(--value(--percentage-*,--percentage-translate-*)*100%); --tw-exit-translate-x: calc(--value(ratio)*100%); --tw-exit-translate-x: --value(--translate-*,[percentage],[length]);}@utility slide-out-to-start{&:dir(ltr){ --tw-exit-translate-x: -100%; }&:dir(rtl){ --tw-exit-translate-x: 100%; }}@utility slide-out-to-start-*{&:where(:dir(ltr),[dir="ltr"],[dir="ltr"]*){ --tw-exit-translate-x: calc(--value(integer)*var(--spacing)*-1); --tw-exit-translate-x: calc(--value(--percentage-*,--percentage-translate-*)*-100%); --tw-exit-translate-x: calc(--value(ratio)*-100%); --tw-exit-translate-x: calc(--value(--translate-*,[percentage],[length])*-1); }&:where(:dir(rtl),[dir="rtl"],[dir="rtl"]*){ --tw-exit-translate-x: calc(--value(integer)*var(--spacing)); --tw-exit-translate-x: calc(--value(--percentage-*,--percentage-translate-*)*100%); --tw-exit-translate-x: calc(--value(ratio)*100%); --tw-exit-translate-x: --value(--translate-*,[percentage],[length]); }}@utility slide-out-to-end{&:dir(ltr){ --tw-exit-translate-x: 100%; }&:dir(rtl){ --tw-exit-translate-x: -100%; }}@utility slide-out-to-end-*{&:where(:dir(ltr),[dir="ltr"],[dir="ltr"]*){ --tw-exit-translate-x: calc(--value(integer)*var(--spacing)); --tw-exit-translate-x: calc(--value(--percentage-*,--percentage-translate-*)*100%); --tw-exit-translate-x: calc(--value(ratio)*100%); --tw-exit-translate-x: --value(--translate-*,[percentage],[length]); }&:where(:dir(rtl),[dir="rtl"],[dir="rtl"]*){ --tw-exit-translate-x: calc(--value(integer)*var(--spacing)*-1); --tw-exit-translate-x: calc(--value(--percentage-*,--percentage-translate-*)*-100%); --tw-exit-translate-x: calc(--value(ratio)*-100%); --tw-exit-translate-x: calc(--value(--translate-*,[percentage],[length])*-1); }}`;
 
-// src/runtime-export-manifest.ts
+// packages/plugin-build/src/runtime-export-manifest.ts
 var RUNTIME_EXPORT_MANIFEST = {
-  "@bb/plugin-sdk/app": [
+  "@get-bb/plugin-sdk/app": [
     "Markdown",
     "ThreadChat",
     "definePluginApp",
@@ -19512,7 +19600,7 @@ var RUNTIME_EXPORT_MANIFEST = {
   ]
 };
 
-// src/plugin-artifact-meta.ts
+// packages/plugin-build/src/plugin-artifact-meta.ts
 function createPluginArtifactMeta(args) {
   return {
     sdkMajor: PLUGIN_SDK_MAJOR,
@@ -19527,11 +19615,11 @@ function createPluginArtifactMeta(args) {
   };
 }
 
-// src/plugin-manifest.ts
+// packages/plugin-build/src/plugin-manifest.ts
 import { readFile, realpath, stat } from "node:fs/promises";
 import { isAbsolute, resolve } from "node:path";
 
-// src/svg-asset.ts
+// packages/plugin-build/src/svg-asset.ts
 var import_saxes = __toESM(require_saxes(), 1);
 var SVG_NAMESPACE = "http://www.w3.org/2000/svg";
 function assertValidPluginCompactIconSvg(bytes, label = "bb.branding.icon") {
@@ -19576,7 +19664,7 @@ function assertValidPluginCompactIconSvg(bytes, label = "bb.branding.icon") {
   }
 }
 
-// src/plugin-manifest.ts
+// packages/plugin-build/src/plugin-manifest.ts
 function resolveManifestPath(rootDir, entry, label) {
   if (isAbsolute(entry)) {
     throw new Error(`manifest ${label} must be relative, got "${entry}"`);
@@ -19637,14 +19725,17 @@ async function validatePluginBuildManifest(value, rootDir, packageJsonPath) {
   return parsed.data;
 }
 
-// src/build-plugin-app.ts
+// packages/plugin-build/src/build-plugin-app.ts
+var PLUGIN_SDK_APP_SPECIFIER = "@get-bb/plugin-sdk/app";
+var LEGACY_PLUGIN_SDK_APP_SPECIFIER = "@bb/plugin-sdk/app";
 var RUNTIME_SLOT_BY_SPECIFIER = {
   react: "react",
   "react-dom": "reactDom",
   "react-dom/client": "reactDomClient",
   "react/jsx-runtime": "jsxRuntime",
   "react/jsx-dev-runtime": "jsxDevRuntime",
-  "@bb/plugin-sdk/app": "pluginSdkApp",
+  [PLUGIN_SDK_APP_SPECIFIER]: "pluginSdkApp",
+  [LEGACY_PLUGIN_SDK_APP_SPECIFIER]: "pluginSdkApp",
   "@pierre/diffs": "pierreDiffs",
   "@pierre/diffs/react": "pierreDiffsReact",
   "@radix-ui/react-alert-dialog": "radixAlertDialog",
@@ -19670,14 +19761,15 @@ async function freshModuleExports(moduleUrl) {
   const moduleNamespace = await import(freshUrl.href);
   return Object.keys(moduleNamespace).sort();
 }
-async function shimExportsOf(specifier, pluginSdkAppModuleUrl) {
-  if (specifier === "@bb/plugin-sdk/app") {
+async function shimExportsOf(requestedSpecifier, pluginSdkAppModuleUrl) {
+  const specifier = requestedSpecifier === LEGACY_PLUGIN_SDK_APP_SPECIFIER ? PLUGIN_SDK_APP_SPECIFIER : requestedSpecifier;
+  if (specifier === PLUGIN_SDK_APP_SPECIFIER) {
     if (pluginSdkAppModuleUrl !== void 0) {
       return freshModuleExports(pluginSdkAppModuleUrl);
     }
     let resolvedModuleUrl;
     try {
-      resolvedModuleUrl = import.meta.resolve("@bb/plugin-sdk/app");
+      resolvedModuleUrl = import.meta.resolve(PLUGIN_SDK_APP_SPECIFIER);
     } catch {
       const names2 = RUNTIME_EXPORT_MANIFEST[specifier];
       if (!names2) {
@@ -19965,7 +20057,7 @@ ${authoredCss}`);
   return { jsPath, cssPath, metaPath };
 }
 
-// src/build-plugin-server.ts
+// packages/plugin-build/src/build-plugin-server.ts
 import {
   mkdir as mkdir2,
   mkdtemp as mkdtemp2,
@@ -19984,8 +20076,11 @@ var NODE_ESM_REQUIRE_BANNER = [
   "var __filename = __fileURLToPath(import.meta.url);",
   "var __dirname = __pathDirname(__filename);"
 ].join("\n");
+var PLUGIN_SDK_SPECIFIER = "@get-bb/plugin-sdk";
+var LEGACY_PLUGIN_SDK_SPECIFIER = "@bb/plugin-sdk";
 var PLUGIN_SERVER_EXTERNALS = [
-  "@bb/plugin-sdk",
+  PLUGIN_SDK_SPECIFIER,
+  LEGACY_PLUGIN_SDK_SPECIFIER,
   "better-sqlite3"
 ];
 function isRecord2(value) {
@@ -20080,7 +20175,358 @@ async function buildPluginServer(rootDir, bbVersion, toolchain) {
   return { jsPath, mapPath, metaPath };
 }
 
-// src/plugin-dev-loop.ts
+// packages/plugin-build/src/build-plugin-host.ts
+import { createHash } from "node:crypto";
+import {
+  mkdir as mkdir3,
+  mkdtemp as mkdtemp3,
+  readFile as readFile4,
+  readdir,
+  rename as rename3,
+  rm as rm3,
+  stat as stat4,
+  writeFile as writeFile3
+} from "node:fs/promises";
+import { dirname as dirname2, isAbsolute as isAbsolute4, join as join3, resolve as resolve4 } from "node:path";
+var NODE_ESM_REQUIRE_BANNER2 = [
+  'import { createRequire as __createRequire } from "node:module";',
+  'import { dirname as __pathDirname } from "node:path";',
+  'import { fileURLToPath as __fileURLToPath } from "node:url";',
+  "const require = __createRequire(import.meta.url);",
+  "var __filename = __fileURLToPath(import.meta.url);",
+  "var __dirname = __pathDirname(__filename);"
+].join("\n");
+var PLUGIN_SDK_HOST_RUNTIME_NAMESPACE = "bb-host-sdk-runtime";
+var HOST_STAGE_DIRECTORY_PREFIX = ".host-stage-";
+var HOST_STAGE_STALE_AFTER_MS = 60 * 60 * 1e3;
+var PLUGIN_SDK_ROOT_RUNTIME = `
+export const PLUGIN_CLI_OUTPUT_MAX_BYTES = 1024 * 1024;
+export function defineRpcContract(contract) { return contract; }
+export function experimental_defineHostEntry(args) {
+  return {
+    experimental_apiVersion: 1,
+    contract: args.contract,
+    handlers: args.handlers,
+    ...(args.experimental_signals === undefined ? {} : { experimental_signals: args.experimental_signals }),
+    ...(args.dispose === undefined ? {} : { dispose: args.dispose }),
+  };
+}
+`;
+var PLUGIN_SDK_HOST_RUNTIME = `
+export function experimental_defineHostEntry(args) {
+  return {
+    experimental_apiVersion: 1,
+    contract: args.contract,
+    handlers: args.handlers,
+    ...(args.experimental_signals === undefined ? {} : { experimental_signals: args.experimental_signals }),
+    ...(args.dispose === undefined ? {} : { dispose: args.dispose }),
+  };
+}
+`;
+var HOST_ARTIFACT_RUNTIME_STUBS = {
+  "@get-bb/plugin-sdk": PLUGIN_SDK_ROOT_RUNTIME,
+  "@get-bb/plugin-sdk/host": PLUGIN_SDK_HOST_RUNTIME
+};
+function escapeRegex2(value) {
+  return value.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
+}
+function isRecord3(value) {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+function sourceTokens(source) {
+  const tokens = [];
+  let index = 0;
+  while (index < source.length) {
+    const character = source[index] ?? "";
+    if (/\s/u.test(character)) {
+      index += 1;
+      continue;
+    }
+    if (character === "/" && source[index + 1] === "/") {
+      index = source.indexOf("\n", index + 2);
+      if (index === -1) break;
+      continue;
+    }
+    if (character === "/" && source[index + 1] === "*") {
+      const end = source.indexOf("*/", index + 2);
+      index = end === -1 ? source.length : end + 2;
+      continue;
+    }
+    if (character === '"' || character === "'") {
+      const quote = character;
+      let value = "";
+      index += 1;
+      while (index < source.length) {
+        const next = source[index] ?? "";
+        if (next === "\\") {
+          value += source[index + 1] ?? "";
+          index += 2;
+          continue;
+        }
+        if (next === quote) {
+          index += 1;
+          break;
+        }
+        value += next;
+        index += 1;
+      }
+      tokens.push({ kind: "string", value });
+      continue;
+    }
+    if (character === "`") {
+      index += 1;
+      while (index < source.length) {
+        const next = source[index] ?? "";
+        if (next === "\\") index += 2;
+        else if (next === "`") {
+          index += 1;
+          break;
+        } else index += 1;
+      }
+      continue;
+    }
+    if (/[A-Za-z0-9_$]/u.test(character)) {
+      const start = index;
+      index += 1;
+      while (/[A-Za-z0-9_$]/u.test(source[index] ?? "")) index += 1;
+      tokens.push({
+        kind: "identifier",
+        value: source.slice(start, index)
+      });
+      continue;
+    }
+    tokens.push({ kind: "punctuation", value: character });
+    index += 1;
+  }
+  return tokens;
+}
+function sourceImportSpecifiers(source) {
+  const tokens = sourceTokens(source);
+  const specifiers = [];
+  for (let index = 0; index < tokens.length; index += 1) {
+    const token = tokens[index];
+    if (token?.kind !== "string") continue;
+    const previous = tokens[index - 1]?.value;
+    const callee = previous === "(" ? tokens[index - 2]?.value : void 0;
+    if (previous === "from" || previous === "import" || callee === "import" || callee === "require") {
+      specifiers.push(token.value);
+    }
+  }
+  return specifiers;
+}
+function privateBbImportError(specifier) {
+  return `host entries cannot import private BB workspace package "${specifier}"; use @get-bb/plugin-sdk, Node APIs, or a regular plugin dependency`;
+}
+async function owningPackageName(filePath, cache) {
+  let directory = dirname2(filePath);
+  const visited = [];
+  while (true) {
+    const cached2 = cache.get(directory);
+    if (cached2 !== void 0 || cache.has(directory)) {
+      for (const entry of visited) cache.set(entry, cached2 ?? null);
+      return cached2 ?? null;
+    }
+    visited.push(directory);
+    try {
+      const parsed = JSON.parse(
+        await readFile4(join3(directory, "package.json"), "utf8")
+      );
+      const name = isRecord3(parsed) && typeof parsed.name === "string" ? parsed.name : null;
+      for (const entry of visited) cache.set(entry, name);
+      return name;
+    } catch {
+      const parent = dirname2(directory);
+      if (parent === directory) {
+        for (const entry of visited) cache.set(entry, null);
+        return null;
+      }
+      directory = parent;
+    }
+  }
+}
+async function readPluginHostConfig(rootDir) {
+  const packageJsonPath = join3(rootDir, "package.json");
+  let json2;
+  try {
+    json2 = JSON.parse(await readFile4(packageJsonPath, "utf8"));
+  } catch {
+    throw new Error(`no readable valid package.json at ${packageJsonPath}`);
+  }
+  if (!isRecord3(json2) || !isRecord3(json2.bb) || json2.bb.host === void 0) {
+    throw new Error(
+      `no host entry: ${packageJsonPath} has no "bb": { "host": "./host.ts" } field`
+    );
+  }
+  const manifest = await validatePluginBuildManifest(
+    json2,
+    rootDir,
+    packageJsonPath
+  );
+  const host = manifest.bb.host;
+  if (host === void 0) {
+    throw new Error(`no host entry in ${packageJsonPath}`);
+  }
+  if (isAbsolute4(host)) {
+    throw new Error(`manifest bb.host must be relative, got "${host}"`);
+  }
+  const hostEntry = resolve4(rootDir, host);
+  if (hostEntry !== rootDir && !hostEntry.startsWith(rootDir + "/")) {
+    throw new Error(`manifest bb.host escapes the plugin directory: "${host}"`);
+  }
+  try {
+    await stat4(hostEntry);
+  } catch {
+    throw new Error(`manifest bb.host points at a missing file: ${host}`);
+  }
+  return {
+    hostEntry,
+    packageName: manifest.name,
+    pluginVersion: manifest.version
+  };
+}
+async function removeStaleHostStageDirectories(distDir) {
+  const entries = await readdir(distDir, { withFileTypes: true });
+  const staleBefore = Date.now() - HOST_STAGE_STALE_AFTER_MS;
+  await Promise.all(
+    entries.filter(
+      (entry) => entry.isDirectory() && entry.name.startsWith(HOST_STAGE_DIRECTORY_PREFIX)
+    ).map(async (entry) => {
+      const stageDir = join3(distDir, entry.name);
+      const stageStats = await stat4(stageDir).catch(() => null);
+      if (stageStats !== null && stageStats.mtimeMs <= staleBefore) {
+        await rm3(stageDir, { recursive: true, force: true });
+      }
+    })
+  );
+}
+async function buildPluginHost(rootDir, bbVersion, toolchain) {
+  const { hostEntry, packageName, pluginVersion } = await readPluginHostConfig(rootDir);
+  const distDir = join3(rootDir, "dist");
+  await mkdir3(distDir, { recursive: true });
+  const jsPath = join3(distDir, "host.js");
+  const mapPath = join3(distDir, "host.js.map");
+  const metaPath = join3(distDir, "host.meta.json");
+  await removeStaleHostStageDirectories(distDir);
+  const stageDir = await mkdtemp3(join3(distDir, HOST_STAGE_DIRECTORY_PREFIX));
+  try {
+    const stagedJsPath = join3(stageDir, "host.js");
+    const stagedMetaPath = join3(stageDir, "host.meta.json");
+    const esbuild = await import(toolchain.esbuild);
+    const packageNameByDirectory = /* @__PURE__ */ new Map();
+    await esbuild.build({
+      entryPoints: [hostEntry],
+      outfile: stagedJsPath,
+      bundle: true,
+      format: "esm",
+      platform: "node",
+      plugins: [
+        {
+          name: "provide-public-host-sdk-runtime",
+          setup(build) {
+            const runtimeStubFilter = new RegExp(
+              `^(?:${Object.keys(HOST_ARTIFACT_RUNTIME_STUBS).map(escapeRegex2).join("|")})$`
+            );
+            build.onResolve({ filter: runtimeStubFilter }, (args) => ({
+              path: args.path,
+              namespace: PLUGIN_SDK_HOST_RUNTIME_NAMESPACE
+            }));
+            build.onLoad(
+              {
+                filter: /.*/,
+                namespace: PLUGIN_SDK_HOST_RUNTIME_NAMESPACE
+              },
+              (args) => {
+                const contents = HOST_ARTIFACT_RUNTIME_STUBS[args.path];
+                if (contents === void 0) {
+                  throw new Error(
+                    `no host artifact runtime stub registered for "${args.path}"`
+                  );
+                }
+                return { contents, loader: "js" };
+              }
+            );
+          }
+        },
+        {
+          name: "reject-private-bb-host-imports",
+          setup(build) {
+            build.onResolve({ filter: /^@bb(?:\/|$)/ }, (args) => ({
+              errors: [{ text: privateBbImportError(args.path) }]
+            }));
+            build.onLoad({ filter: /\.[cm]?[jt]sx?$/ }, async (args) => {
+              const owner = await owningPackageName(
+                args.path,
+                packageNameByDirectory
+              );
+              if (owner === "@bb" || owner?.startsWith("@bb/")) {
+                return {
+                  errors: [{ text: privateBbImportError(owner) }]
+                };
+              }
+              const source = await readFile4(args.path, "utf8");
+              for (const specifier of sourceImportSpecifiers(source)) {
+                if (specifier === "@bb" || specifier.startsWith("@bb/")) {
+                  return {
+                    errors: [{ text: privateBbImportError(specifier) }]
+                  };
+                }
+                if (!specifier.startsWith(".") && !isAbsolute4(specifier)) {
+                  continue;
+                }
+                const resolvedImport = await build.resolve(specifier, {
+                  importer: args.path,
+                  kind: "import-statement",
+                  resolveDir: dirname2(args.path)
+                });
+                if (resolvedImport.errors.length > 0 || !resolvedImport.path) {
+                  continue;
+                }
+                const importedOwner = await owningPackageName(
+                  resolvedImport.path,
+                  packageNameByDirectory
+                );
+                if (importedOwner === "@bb" || importedOwner?.startsWith("@bb/")) {
+                  return {
+                    errors: [{ text: privateBbImportError(importedOwner) }]
+                  };
+                }
+              }
+              return void 0;
+            });
+          }
+        }
+      ],
+      target: "node22",
+      sourcemap: true,
+      banner: { js: NODE_ESM_REQUIRE_BANNER2 },
+      logLevel: "error"
+    });
+    const artifactDigest = createHash("sha256").update(await readFile4(stagedJsPath)).digest("hex");
+    await writeFile3(
+      stagedMetaPath,
+      JSON.stringify(
+        {
+          ...createPluginArtifactMeta({
+            packageName,
+            pluginVersion,
+            bbVersion
+          }),
+          artifactDigest
+        },
+        null,
+        2
+      ) + "\n"
+    );
+    await rename3(stagedJsPath, jsPath);
+    await rename3(join3(stageDir, "host.js.map"), mapPath);
+    await rename3(stagedMetaPath, metaPath);
+    return { jsPath, mapPath, metaPath, artifactDigest };
+  } finally {
+    await rm3(stageDir, { recursive: true, force: true });
+  }
+}
+
+// packages/plugin-build/src/plugin-dev-loop.ts
 var DEFAULT_DEBOUNCE_MS = 300;
 var IGNORED_SEGMENTS = /* @__PURE__ */ new Set(["dist", "node_modules", ".git"]);
 function isIgnoredPluginDevPath(relativePath) {
@@ -20110,6 +20556,19 @@ function createPluginDevLoop(deps) {
         );
       } catch (error48) {
         parts.push(`build failed: ${errorMessage(error48)}`);
+        deps.log(`${parts.join(" \xB7 ")} \u2014 fix and save to retry`);
+        return;
+      }
+    }
+    if (deps.hasHost) {
+      const startedAt = now();
+      try {
+        await deps.buildHost();
+        parts.push(
+          `rebuilt host in ${Math.max(0, Math.round(now() - startedAt))}ms`
+        );
+      } catch (error48) {
+        parts.push(`host build failed: ${errorMessage(error48)}`);
         deps.log(`${parts.join(" \xB7 ")} \u2014 fix and save to retry`);
         return;
       }
@@ -20146,13 +20605,13 @@ function createPluginDevLoop(deps) {
   };
 }
 
-// src/toolchain.ts
+// packages/plugin-build/src/toolchain.ts
 import { execFile } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { existsSync as existsSync2, readFileSync } from "node:fs";
-import { mkdir as mkdir3, readFile as readFile4, rename as rename3, rm as rm3, writeFile as writeFile3 } from "node:fs/promises";
+import { mkdir as mkdir4, readFile as readFile5, rename as rename4, rm as rm4, writeFile as writeFile4 } from "node:fs/promises";
 import { createRequire } from "node:module";
-import { dirname as dirname2, join as join3 } from "node:path";
+import { dirname as dirname3, join as join4 } from "node:path";
 import { pathToFileURL } from "node:url";
 import { promisify } from "node:util";
 var run = promisify(execFile);
@@ -20167,17 +20626,17 @@ function pinKey() {
 }
 function toolchainCacheDir(baseDir) {
   const key = Object.values(PLUGIN_TOOLCHAIN_PINS).join("-");
-  return join3(baseDir, `toolchain-${key}`);
+  return join4(baseDir, `toolchain-${key}`);
 }
 function packageDir(require2, name) {
   let dir;
   try {
-    dir = dirname2(require2.resolve(name));
+    dir = dirname3(require2.resolve(name));
   } catch {
     return null;
   }
   for (let depth = 0; depth < 10; depth += 1) {
-    const manifest = join3(dir, "package.json");
+    const manifest = join4(dir, "package.json");
     if (existsSync2(manifest)) {
       try {
         const parsed = JSON.parse(readFileSync(manifest, "utf8"));
@@ -20188,7 +20647,7 @@ function packageDir(require2, name) {
         return null;
       }
     }
-    const parent = dirname2(dir);
+    const parent = dirname3(dir);
     if (parent === dir) return null;
     dir = parent;
   }
@@ -20199,7 +20658,7 @@ function readVersion(require2, name) {
   if (dir === null) return null;
   try {
     const parsed = JSON.parse(
-      readFileSync(join3(dir, "package.json"), "utf8")
+      readFileSync(join4(dir, "package.json"), "utf8")
     );
     const version2 = typeof parsed === "object" && parsed !== null ? parsed.version : void 0;
     return typeof version2 === "string" ? version2 : null;
@@ -20229,7 +20688,7 @@ function resolveLocalToolchain() {
 }
 async function isInstalled(dir) {
   try {
-    const raw = await readFile4(join3(dir, ".bb-toolchain.json"), "utf8");
+    const raw = await readFile5(join4(dir, ".bb-toolchain.json"), "utf8");
     const parsed = JSON.parse(raw);
     if (typeof parsed !== "object" || parsed === null || parsed.pins !== pinKey()) {
       return false;
@@ -20237,7 +20696,7 @@ async function isInstalled(dir) {
   } catch {
     return false;
   }
-  return toolchainFrom(createRequire(join3(dir, "noop.js"))) !== null;
+  return toolchainFrom(createRequire(join4(dir, "noop.js"))) !== null;
 }
 async function resolvePluginBuildToolchain(baseDir, options) {
   if (options?.ignoreLocal !== true) {
@@ -20246,16 +20705,16 @@ async function resolvePluginBuildToolchain(baseDir, options) {
   }
   const dir = toolchainCacheDir(baseDir);
   if (await isInstalled(dir)) {
-    const cached2 = toolchainFrom(createRequire(join3(dir, "noop.js")));
+    const cached2 = toolchainFrom(createRequire(join4(dir, "noop.js")));
     if (cached2 !== null) return cached2;
   }
   options?.onFetchStart?.();
   const startedAt = Date.now();
   const staging = `${dir}.staging-${randomUUID()}`;
   try {
-    await mkdir3(staging, { recursive: true });
-    await writeFile3(
-      join3(staging, "package.json"),
+    await mkdir4(staging, { recursive: true });
+    await writeFile4(
+      join4(staging, "package.json"),
       `${JSON.stringify({ name: "bb-plugin-toolchain", private: true, version: "0.0.0" }, null, 2)}
 `
     );
@@ -20275,27 +20734,27 @@ async function resolvePluginBuildToolchain(baseDir, options) {
       ],
       { maxBuffer: 1024 * 1024 * 16 }
     );
-    const staged = toolchainFrom(createRequire(join3(staging, "noop.js")));
+    const staged = toolchainFrom(createRequire(join4(staging, "noop.js")));
     if (staged === null) {
       throw new Error(
         "the downloaded plugin build toolchain is incomplete or misversioned"
       );
     }
-    await writeFile3(
-      join3(staging, ".bb-toolchain.json"),
+    await writeFile4(
+      join4(staging, ".bb-toolchain.json"),
       `${JSON.stringify({ pins: pinKey() }, null, 2)}
 `
     );
-    await mkdir3(dirname2(dir), { recursive: true });
+    await mkdir4(dirname3(dir), { recursive: true });
     try {
-      await rename3(staging, dir);
+      await rename4(staging, dir);
     } catch {
       if (!await isInstalled(dir)) throw new Error(errorPromoting(dir));
     }
   } finally {
-    await rm3(staging, { recursive: true, force: true });
+    await rm4(staging, { recursive: true, force: true });
   }
-  const promoted = toolchainFrom(createRequire(join3(dir, "noop.js")));
+  const promoted = toolchainFrom(createRequire(join4(dir, "noop.js")));
   if (promoted === null) throw new Error(errorPromoting(dir));
   options?.onFetchDone?.(Date.now() - startedAt);
   return promoted;
@@ -20304,11 +20763,13 @@ function errorPromoting(dir) {
   return `could not install the plugin build toolchain into ${dir}`;
 }
 export {
+  HOST_ARTIFACT_RUNTIME_STUBS,
   PLUGIN_SERVER_EXTERNALS,
   PLUGIN_TOOLCHAIN_PINS,
   RUNTIME_SLOT_BY_SPECIFIER,
   assertValidPluginCompactIconSvg,
   buildPluginApp,
+  buildPluginHost,
   buildPluginServer,
   createPluginDevLoop,
   isIgnoredPluginDevPath,

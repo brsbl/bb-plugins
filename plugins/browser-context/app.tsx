@@ -23,7 +23,7 @@ import {
   useRpc,
   type PluginAppSlots,
   type PluginBrowserActionProps,
-} from "@bb/plugin-sdk/app";
+} from "@get-bb/plugin-sdk/app";
 
 import type { rpcContract } from "./server.js";
 import {

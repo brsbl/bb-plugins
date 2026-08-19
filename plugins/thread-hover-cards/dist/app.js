@@ -1,7 +1,7 @@
-// bb-plugin-runtime-shim:@bb/plugin-sdk/app
+// bb-plugin-runtime-shim:@get-bb/plugin-sdk/app
 var runtime = globalThis.__bbPluginRuntime;
 if (runtime == null || runtime.pluginSdkApp == null) {
-  throw new Error('Cannot load "@bb/plugin-sdk/app": this bundle must be loaded by the BB app, which provides the shared plugin runtime (globalThis.__bbPluginRuntime).');
+  throw new Error('Cannot load "@get-bb/plugin-sdk/app": this bundle must be loaded by the BB app, which provides the shared plugin runtime (globalThis.__bbPluginRuntime).');
 }
 var mod = runtime.pluginSdkApp;
 var {
@@ -238,6 +238,30 @@ var SquareUnlock02Icon = [
       strokeLinejoin: "round",
       strokeWidth: "1.5",
       key: "2"
+    }
+  ]
+];
+var SecurityCheckIcon = [
+  [
+    "path",
+    {
+      d: "M18.7088 3.49534C16.8165 2.55382 14.5009 2 12 2C9.4991 2 7.1835 2.55382 5.29116 3.49534C4.36318 3.95706 3.89919 4.18792 3.4496 4.91378C3 5.63965 3 6.34248 3 7.74814V11.2371C3 16.9205 7.54236 20.0804 10.173 21.4338C10.9067 21.8113 11.2735 22 12 22C12.7265 22 13.0933 21.8113 13.8269 21.4338C16.4576 20.0804 21 16.9205 21 11.2371L21 7.74814C21 6.34249 21 5.63966 20.5504 4.91378C20.1008 4.18791 19.6368 3.95706 18.7088 3.49534Z",
+      stroke: "currentColor",
+      strokeLinecap: "round",
+      strokeLinejoin: "round",
+      strokeWidth: "1.5",
+      key: "0"
+    }
+  ],
+  [
+    "path",
+    {
+      d: "M9 11.5C9 11.5 10.4079 11.7519 11 13.5C11 13.5 12.5 10.5 15 9.5",
+      stroke: "currentColor",
+      strokeLinecap: "round",
+      strokeLinejoin: "round",
+      strokeWidth: "1.5",
+      key: "1"
     }
   ]
 ];
@@ -613,7 +637,7 @@ var HOVER_CARD_CSS = String.raw`
 
 .bb-thread-hover-card__provider {
   flex: 1 1 auto;
-  gap: 0.3125rem;
+  gap: 0.25rem;
   color: var(--muted-foreground);
 }
 
@@ -625,10 +649,20 @@ var HOVER_CARD_CSS = String.raw`
   overflow: hidden;
 }
 
-.bb-thread-hover-card__reasoning {
+.bb-thread-hover-card__provider-model,
+.bb-thread-hover-card__reasoning,
+.bb-thread-hover-card__access {
+  font-size: 0.75rem;
+  line-height: 1.25;
+}
+
+.bb-thread-hover-card__reasoning,
+.bb-thread-hover-card__access {
   flex: none;
-  color: color-mix(in srgb, var(--muted-foreground) 76%, transparent);
-  font-size: 0.625rem;
+  color: var(
+    --subtle-foreground,
+    color-mix(in srgb, var(--muted-foreground) 76%, transparent)
+  );
   white-space: nowrap;
 }
 
@@ -715,9 +749,9 @@ var HOVER_CARD_CSS = String.raw`
 }
 
 .bb-thread-hover-card__provider-icon {
-  width: 0.8125rem;
-  height: 0.8125rem;
-  color: color-mix(in srgb, var(--muted-foreground) 82%, transparent);
+  width: 1rem;
+  height: 1rem;
+  color: var(--muted-foreground);
   object-fit: contain;
 }
 
@@ -821,17 +855,20 @@ var HOVER_CARD_CSS = String.raw`
 }
 
 .bb-thread-hover-card__access {
-  flex: none;
   gap: 0.1875rem;
-  color: color-mix(in srgb, var(--muted-foreground) 76%, transparent);
-  font-size: 0.625rem;
-  white-space: nowrap;
+  margin-left: 0.25rem;
 }
 
 .bb-thread-hover-card__permission-icon {
-  width: 0.625rem;
-  height: 0.625rem;
+  width: 0.75rem;
+  height: 0.75rem;
   color: currentColor;
+}
+
+.bb-thread-hover-card__access[data-permission-mode="accept-edits"],
+.bb-thread-hover-card__access[data-permission-mode="workspace-write"],
+.bb-thread-hover-card__access[data-permission-mode="auto"] {
+  color: color-mix(in srgb, var(--muted-foreground) 72%, transparent);
 }
 
 .bb-thread-hover-card__access[data-permission-mode="full"] {
@@ -1221,10 +1258,11 @@ var THREAD_TRIGGER_SELECTOR = "a[data-sidebar-thread-id]";
 var THREAD_ROW_SELECTOR = ".group\\/thread-row";
 var SECTION_TOGGLE_SELECTOR = 'button[aria-expanded][aria-label$=" section"]';
 var STICKY_GROUP_SELECTOR = "[data-sidebar-sticky-group]";
-var SECTION_ID_SELECTOR = "[data-sidebar-section-id]";
+var PROJECT_ITEM_SELECTOR = "[data-sidebar-sticky-project-item]";
 var PROJECT_ID_SELECTOR = "[data-sidebar-project-id]";
 var SECTION_SUMMARY_CACHE_TTL_MS = 4e3;
 var SECTION_CACHE_MAX_ENTRIES = 32;
+var SECTION_UNKNOWN_TTL_MS = 6e4;
 var OPEN_DELAY_MS = 0;
 var CLOSE_DELAY_MS = 120;
 var ACTIVE_SUMMARY_CACHE_TTL_MS = 2e3;
@@ -1406,20 +1444,24 @@ function findThreadTrigger(target) {
   const row = target.closest(THREAD_ROW_SELECTOR);
   return row?.querySelector(THREAD_TRIGGER_SELECTOR) ?? null;
 }
+function sectionLabelOf(toggle) {
+  return /^(?:Expand|Collapse) (.+) section$/.exec(
+    toggle.getAttribute("aria-label") ?? ""
+  )?.[1] ?? null;
+}
 function sectionToggleOwnedBy(row) {
   const toggle = row.querySelector(SECTION_TOGGLE_SELECTOR);
   return toggle?.parentElement?.parentElement === row ? toggle : null;
 }
-function isSidebarHeaderTarget(target) {
-  if (!(target instanceof Element)) return false;
-  const root = target.closest(STICKY_GROUP_SELECTOR);
-  if (!root) return false;
-  let candidate = target;
-  while (candidate && candidate !== root.parentElement) {
-    if (sectionToggleOwnedBy(candidate)) return true;
-    candidate = candidate.parentElement;
-  }
-  return false;
+function isProjectHeaderRow(row) {
+  return row.closest(STICKY_GROUP_SELECTOR)?.parentElement?.matches(
+    PROJECT_ITEM_SELECTOR
+  ) === true;
+}
+function enclosingProjectName(row) {
+  const projectItem = row.closest(PROJECT_ITEM_SELECTOR);
+  const projectToggle = projectItem?.querySelector(SECTION_TOGGLE_SELECTOR);
+  return projectToggle == null ? null : sectionLabelOf(projectToggle);
 }
 function projectIdFor(row) {
   const value = row.closest(PROJECT_ID_SELECTOR)?.dataset.sidebarProjectId?.trim();
@@ -1427,16 +1469,19 @@ function projectIdFor(row) {
 }
 function findSectionTrigger(target) {
   const root = target instanceof Element ? target.closest(STICKY_GROUP_SELECTOR) : null;
-  const sectionId = root instanceof HTMLElement ? root.dataset.sidebarSectionId?.trim() : null;
-  if (!(root instanceof HTMLElement) || !sectionId) return null;
+  if (root === null) return null;
   let candidate = target;
   while (candidate && candidate !== root.parentElement) {
     const toggle = sectionToggleOwnedBy(candidate);
     if (toggle) {
+      const name = sectionLabelOf(toggle);
+      if (name === null || isProjectHeaderRow(candidate)) return null;
       return {
+        name,
         projectId: projectIdFor(candidate),
+        projectName: enclosingProjectName(candidate),
         row: candidate,
-        sectionId,
+        sectionId: root instanceof HTMLElement ? root.dataset.sidebarSectionId?.trim() || null : null,
         toggle
       };
     }
@@ -1444,26 +1489,21 @@ function findSectionTrigger(target) {
   }
   return null;
 }
-function findCurrentSectionTrigger(sectionId, projectId) {
-  for (const group of Array.from(
-    document.querySelectorAll(SECTION_ID_SELECTOR)
-  )) {
-    if (group.dataset.sidebarSectionId?.trim() !== sectionId) continue;
-    if (projectIdFor(group) !== projectId) continue;
-    const row = Array.from(group.children).find(
-      (child) => child instanceof HTMLElement && sectionToggleOwnedBy(child) !== null
-    );
-    if (!row) continue;
-    const toggle = sectionToggleOwnedBy(row);
-    if (!toggle) continue;
-    return {
-      projectId,
-      row,
-      sectionId,
-      toggle
-    };
+function sameSectionIdentity(left, right) {
+  if (left.sectionId !== null || right.sectionId !== null) {
+    return left.sectionId !== null && left.sectionId === right.sectionId && left.projectId === right.projectId;
   }
-  return null;
+  return left.name === right.name && left.projectName === right.projectName;
+}
+function findCurrentSectionTrigger(target) {
+  const matches = [];
+  for (const toggle of Array.from(
+    document.querySelectorAll(SECTION_TOGGLE_SELECTOR)
+  )) {
+    const current = findSectionTrigger(toggle);
+    if (current && sameSectionIdentity(target, current)) matches.push(current);
+  }
+  return matches.length === 1 ? matches[0] : null;
 }
 function threadIdFor(trigger) {
   const value = trigger.dataset.sidebarThreadId?.trim();
@@ -1489,6 +1529,19 @@ function refreshRunTime(card) {
   }
 }
 function formatModelLabel(value, providerId) {
+  if (providerId === "claude-code") {
+    const contextMatch = value.match(/^(.*)\[(\d+(?:\.\d+)?[km])\]$/i);
+    const modelId = contextMatch?.[1] ?? value;
+    const context = contextMatch?.[2]?.toUpperCase();
+    const formatted2 = modelId.replace(/^claude[-_\s]+/i, "").split(/[-_]/).map((part) => {
+      if (/^\d+(\.\d+)*$/.test(part)) return part;
+      if (/^[a-z]+$/i.test(part)) {
+        return part.charAt(0).toUpperCase() + part.slice(1).toLowerCase();
+      }
+      return part;
+    }).join("-").replace(/-(\d+)-(\d+)(?=-|$)/, "-$1.$2").split("-").join(" ");
+    return context ? `${formatted2} (${context})` : formatted2;
+  }
   const formatted = value.split("-").map((part) => {
     if (part.toLowerCase() === "gpt") return "GPT";
     if (/^\d+(\.\d+)*$/.test(part)) return part;
@@ -1498,9 +1551,6 @@ function formatModelLabel(value, providerId) {
     return part;
   }).join("-");
   if (providerId === "codex") return formatted.replace(/^GPT-/i, "");
-  if (providerId === "claude-code") {
-    return formatted.replace(/^Claude\s+/i, "");
-  }
   return formatted;
 }
 function permissionLabel(permissionMode) {
@@ -1517,19 +1567,21 @@ function permissionMetadata(summary) {
   const permissionIcon = summary.permissionMode === "full" ? {
     definition: SquareUnlock02Icon,
     name: "SquareUnlock02Icon"
-  } : summary.permissionMode === "accept-edits" || summary.permissionMode === "workspace-write" ? { definition: FolderEditIcon, name: "FolderEditIcon" } : { definition: ViewIcon, name: "ViewIcon" };
+  } : summary.permissionMode === "accept-edits" || summary.permissionMode === "workspace-write" ? { definition: FolderEditIcon, name: "FolderEditIcon" } : summary.permissionMode === "auto" ? { definition: SecurityCheckIcon, name: "SecurityCheckIcon" } : summary.permissionMode === "readonly" ? { definition: ViewIcon, name: "ViewIcon" } : null;
   const access = element("span", "bb-thread-hover-card__access");
   access.dataset.permissionMode = summary.permissionMode;
   access.setAttribute("aria-label", `Permission: ${label}`);
   access.title = `Permission: ${label}`;
-  access.append(
-    icon(
-      permissionIcon.definition,
-      permissionIcon.name,
-      "bb-thread-hover-card__icon bb-thread-hover-card__permission-icon"
-    ),
-    document.createTextNode(label)
-  );
+  if (permissionIcon) {
+    access.append(
+      icon(
+        permissionIcon.definition,
+        permissionIcon.name,
+        "bb-thread-hover-card__icon bb-thread-hover-card__permission-icon"
+      )
+    );
+  }
+  access.append(document.createTextNode(label));
   return access;
 }
 function nextInlinePattern(source) {
@@ -1734,7 +1786,7 @@ function renderSummary(card, summary) {
     summary.provider.id
   );
   const reasoningLabel = summary.provider.reasoningLevel ? REASONING_LABELS[summary.provider.reasoningLevel] : null;
-  provider.title = reasoningLabel ? `${summary.provider.displayName} \xB7 ${modelLabel} \xB7 ${reasoningLabel} reasoning` : `${summary.provider.displayName} \xB7 ${modelLabel}`;
+  provider.title = reasoningLabel ? `${summary.provider.displayName}: ${modelLabel} \xB7 ${reasoningLabel} reasoning` : `${summary.provider.displayName}: ${modelLabel}`;
   const providerIdentity = element(
     "div",
     "bb-thread-hover-card__provider-identity"
@@ -2671,13 +2723,18 @@ function installHoverCards({ onOpen }) {
     closeCard
   };
 }
-async function fetchSectionSummary(sectionId, projectId, signal) {
+async function fetchSectionSummary(target, signal) {
   const response = await fetch(
     "/api/v1/plugins/thread-hover-cards/rpc/sectionSummary",
     {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ projectId, sectionId }),
+      body: JSON.stringify({
+        name: target.name,
+        projectId: target.projectId,
+        projectName: target.projectName,
+        ...target.sectionId === null ? {} : { sectionId: target.sectionId }
+      }),
       signal
     }
   );
@@ -2699,13 +2756,15 @@ function installSectionHoverCards({
   let disposed = false;
   const cache = /* @__PURE__ */ new Map();
   const pending = /* @__PURE__ */ new Map();
+  const unknownSections = /* @__PURE__ */ new Map();
   const style = element("style", "");
   style.id = SECTION_STYLE_ID;
   style.textContent = SECTION_CARD_CSS;
   document.getElementById(SECTION_STYLE_ID)?.remove();
   document.head.append(style);
-  const keyOf = (target) => JSON.stringify([target.sectionId, target.projectId]);
-  const sameIdentity = (left, right) => left !== null && right !== null && left.sectionId === right.sectionId && left.projectId === right.projectId;
+  const keyOf = (target) => JSON.stringify(
+    target.sectionId === null ? ["name", target.name, target.projectName] : ["id", target.sectionId, target.projectId]
+  );
   function ensureCard() {
     if (card) return card;
     card = element("div", "bb-thread-hover-card");
@@ -2722,25 +2781,18 @@ function installSectionHoverCards({
     document.body.append(card);
     return card;
   }
-  function refreshActiveAnchor() {
-    if (!active) return false;
-    const current = findCurrentSectionTrigger(
-      active.sectionId,
-      active.projectId
-    );
-    if (!current) {
-      closeCard();
-      return false;
-    }
-    if (current.row !== active.row || current.toggle !== active.toggle) {
+  function position() {
+    if (!card || card.hidden || !active) return;
+    if (!active.row.isConnected) {
+      const current = findCurrentSectionTrigger(active);
+      if (!current) {
+        closeCard();
+        return;
+      }
       active.toggle.removeAttribute("aria-describedby");
       active = current;
       active.toggle.setAttribute("aria-describedby", SECTION_CARD_ID);
     }
-    return true;
-  }
-  function position() {
-    if (!card || card.hidden || !refreshActiveAnchor() || !active) return;
     placeCardNear(card, active.row);
   }
   function abortPendingRequests() {
@@ -2779,11 +2831,11 @@ function installSectionHoverCards({
     abortPendingRequests();
     const controller = new AbortController();
     pending.set(key, controller);
-    return fetchSectionSummary(
-      target.sectionId,
-      target.projectId,
-      controller.signal
-    ).then((summary) => {
+    return fetchSectionSummary(target, controller.signal).then((summary) => {
+      if (!summary.known) {
+        unknownSections.set(key, Date.now());
+        return summary;
+      }
       cache.delete(key);
       cache.set(key, { fetchedAt: Date.now(), summary });
       while (cache.size > SECTION_CACHE_MAX_ENTRIES) {
@@ -2797,7 +2849,12 @@ function installSectionHoverCards({
     });
   }
   function showCard(target) {
+    const knownUnknownAt = unknownSections.get(keyOf(target));
     if (disposed) return;
+    if (knownUnknownAt !== void 0 && Date.now() - knownUnknownAt < SECTION_UNKNOWN_TTL_MS) {
+      closeCard();
+      return;
+    }
     onOpen();
     cancelClose();
     abortPendingRequests();
@@ -2820,6 +2877,10 @@ function installSectionHoverCards({
       return;
     }
     void requestSummary(target).then((summary) => {
+      if (!summary.known) {
+        if (!disposed && requestGeneration === generation) closeCard();
+        return;
+      }
       if (disposed || requestGeneration !== generation) return;
       renderSectionSummary(hoverCard, summary);
       requestAnimationFrame(position);
@@ -2833,17 +2894,8 @@ function installSectionHoverCards({
   function onPointerOver(event) {
     if (event.pointerType === "touch") return;
     const target = findSectionTrigger(event.target);
-    if (!target) {
-      if (isSidebarHeaderTarget(event.target)) closeCard();
-      return;
-    }
-    if (sameIdentity(active, target) && card && !card.hidden) {
-      if (active?.toggle !== target.toggle) {
-        active?.toggle.removeAttribute("aria-describedby");
-        active = target;
-        active.toggle.setAttribute("aria-describedby", SECTION_CARD_ID);
-        requestAnimationFrame(position);
-      }
+    if (!target) return;
+    if (active?.row === target.row && card && !card.hidden) {
       cancelClose();
       return;
     }
@@ -2851,7 +2903,7 @@ function installSectionHoverCards({
   }
   function onPointerOut(event) {
     if (!findSectionTrigger(event.target)) return;
-    if (sameIdentity(findSectionTrigger(event.relatedTarget), active)) return;
+    if (findSectionTrigger(event.relatedTarget)?.row === active?.row) return;
     if (event.relatedTarget instanceof Node && card?.contains(event.relatedTarget)) {
       return;
     }
@@ -2860,13 +2912,7 @@ function installSectionHoverCards({
   function onFocusIn(event) {
     const target = findSectionTrigger(event.target);
     if (target) {
-      if (sameIdentity(active, target) && card && !card.hidden) {
-        if (active?.toggle !== target.toggle) {
-          active?.toggle.removeAttribute("aria-describedby");
-          active = target;
-          active.toggle.setAttribute("aria-describedby", SECTION_CARD_ID);
-          requestAnimationFrame(position);
-        }
+      if (active?.row === target.row && card && !card.hidden) {
         cancelClose();
         return;
       }
@@ -2888,11 +2934,8 @@ function installSectionHoverCards({
   document.addEventListener("click", onClick);
   window.addEventListener("resize", position);
   window.addEventListener("scroll", position, true);
-  const anchorObserver = new MutationObserver(() => {
-    if (!active || !card || card.hidden) return;
-    if (refreshActiveAnchor()) requestAnimationFrame(position);
-  });
-  anchorObserver.observe(document.body, { childList: true, subtree: true });
+  const sidebarObserver = new MutationObserver(position);
+  sidebarObserver.observe(document.body, { childList: true, subtree: true });
   return {
     dispose() {
       disposed = true;
@@ -2904,11 +2947,12 @@ function installSectionHoverCards({
       document.removeEventListener("click", onClick);
       window.removeEventListener("resize", position);
       window.removeEventListener("scroll", position, true);
-      anchorObserver.disconnect();
+      sidebarObserver.disconnect();
       card?.remove();
       card = null;
       style.remove();
       cache.clear();
+      unknownSections.clear();
       for (const controller of pending.values()) controller.abort();
       pending.clear();
     },
@@ -2970,5 +3014,6 @@ var app_default = definePluginApp(() => {
 export {
   app_default as default,
   findSectionTrigger,
-  renderSectionSummary
+  renderSectionSummary,
+  sectionLabelOf
 };
