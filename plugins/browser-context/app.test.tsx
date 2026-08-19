@@ -415,6 +415,39 @@ describe("Browser agent-control action", () => {
     await screen.findByRole("button", { name: "Exit agent control" });
     slot.lifecycle.unmount();
   });
+
+  it("does not surface inactive-frame errors for blank tabs or navigation invalidation", async () => {
+    const registration = await loadAgentControlAction();
+    const blankRunner = vi.fn<
+      PluginBrowserActionProps["experimental_runPageContentScript"]
+    >();
+    const blankSlot = renderSlot(
+      registration,
+      actionProps({
+        url: "",
+        experimental_runPageContentScript: blankRunner,
+      }),
+      { rpc: rpcHandlers() },
+    );
+    await screen.findByRole("button", { name: "Enable agent control" });
+    await waitFor(() => expect(blankRunner).not.toHaveBeenCalled());
+    expect(screen.queryByRole("status")).toBeNull();
+    blankSlot.lifecycle.unmount();
+
+    const navigationRunner = vi.fn<
+      PluginBrowserActionProps["experimental_runPageContentScript"]
+    >(async () => {
+      throw new Error("The Browser page changed before the script ran");
+    });
+    const navigationSlot = renderSlot(
+      registration,
+      actionProps({ experimental_runPageContentScript: navigationRunner }),
+      { rpc: rpcHandlers() },
+    );
+    await waitFor(() => expect(navigationRunner).toHaveBeenCalledOnce());
+    expect(screen.queryByRole("status")).toBeNull();
+    navigationSlot.lifecycle.unmount();
+  });
 });
 
 describe("Browser Context action", () => {

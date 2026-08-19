@@ -727,11 +727,13 @@ function AgentControlAction(props: PluginBrowserActionProps) {
   });
 
   useEffect(() => {
-    if (!hydrated || !supported) return;
+    if (!hydrated || !supported || props.url.length === 0) return;
     const controller = new AbortController();
     void setBrowserAgentControlFrame(props, enabled, controller.signal).catch(
       (frameError: unknown) => {
-        if (!controller.signal.aborted) setError(errorMessage(frameError));
+        if (!controller.signal.aborted && enabled) {
+          setError(errorMessage(frameError));
+        }
       },
     );
     return () => controller.abort();
@@ -740,6 +742,7 @@ function AgentControlAction(props: PluginBrowserActionProps) {
     hydrated,
     props.experimental_runPageContentScript,
     props.tabId,
+    props.url,
     supported,
   ]);
 
