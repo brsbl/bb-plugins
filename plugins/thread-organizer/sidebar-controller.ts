@@ -1,3 +1,5 @@
+import { PHASE_SECTION_NAMES, PHASE_TARGETS } from "./core.js";
+
 const SIDEBAR_SELECTOR = '[data-sidebar="sidebar"]';
 const STICKY_GROUP_SELECTOR = "[data-sidebar-sticky-group]";
 const THREAD_SELECTOR = "[data-sidebar-thread-id]";
@@ -10,6 +12,10 @@ interface MountInboxSectionCollapserOptions {
   document?: Document;
   signal: AbortSignal;
 }
+
+const PHASE_SECTION_RANK = new Map(
+  PHASE_TARGETS.map((target, index) => [PHASE_SECTION_NAMES[target], index]),
+);
 
 function groupToggle(group: Element): HTMLButtonElement | null {
   for (const button of group.querySelectorAll<HTMLButtonElement>(
@@ -45,6 +51,52 @@ function visibleThreadGroups(sidebar: Element): Map<string, Element> {
     if (id && group) groups.set(id, group);
   }
   return groups;
+}
+
+function phaseSectionRank(group: Element): number | null {
+  const label = groupToggle(group)?.getAttribute("aria-label") ?? "";
+  const match = /^(?:Expand|Collapse) (.+) section$/.exec(label);
+  if (match === null) return null;
+  return PHASE_SECTION_RANK.get(match[1]!) ?? null;
+}
+
+function sectionOrderSlot(group: Element): Element {
+  const stickySection = group.closest("[data-sidebar-sticky-section]");
+  return stickySection?.parentElement ?? group;
+}
+
+function reorderPhaseSections(sidebar: Element): void {
+  const ranksBySlot = new Map<Element, number>();
+  for (const group of sidebar.querySelectorAll(STICKY_GROUP_SELECTOR)) {
+    const rank = phaseSectionRank(group);
+    const slot = sectionOrderSlot(group);
+    if (rank === null || slot.parentElement === null) continue;
+    ranksBySlot.set(slot, rank);
+  }
+
+  const slotsByParent = new Map<Element, Element[]>();
+  for (const slot of ranksBySlot.keys()) {
+    const parent = slot.parentElement!;
+    const siblings = slotsByParent.get(parent) ?? [];
+    siblings.push(slot);
+    slotsByParent.set(parent, siblings);
+  }
+
+  for (const [parent, slots] of slotsByParent) {
+    const current = [...parent.children].filter((child) => slots.includes(child));
+    const ordered = [...current].sort(
+      (left, right) => ranksBySlot.get(left)! - ranksBySlot.get(right)!,
+    );
+    if (current.every((slot, index) => slot === ordered[index])) continue;
+
+    const placeholders = current.map(() =>
+      parent.ownerDocument.createComment("thread-organizer-section-order"),
+    );
+    current.forEach((slot, index) => slot.replaceWith(placeholders[index]!));
+    placeholders.forEach((placeholder, index) =>
+      placeholder.replaceWith(ordered[index]!),
+    );
+  }
 }
 
 function addExpandedGroupAndAncestors(
@@ -85,6 +137,7 @@ function mountSidebarCollapser(
     scheduled = false;
     if (signal.aborted || !sidebar.isConnected) return;
 
+    reorderPhaseSections(sidebar);
     const currentThreadGroups = visibleThreadGroups(sidebar);
     const controls = new Set<HTMLButtonElement>();
 

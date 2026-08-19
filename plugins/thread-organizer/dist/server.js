@@ -7,12 +7,12 @@ var __dirname = __pathDirname(__filename);
 
 // core.ts
 var PHASE_SECTION_NAMES = {
+  inbox: "\u{1F4E5} Inbox",
   planning: "\u{1F4CB} Planning",
   "spec-review": "\u{1F50E} Spec Review",
   building: "\u{1F6E0}\uFE0F Building",
-  handoff: "\u{1F91D} Handoff",
   "testing-deploy": "\u2705 Testing / Deploy",
-  inbox: "\u{1F4E5} Inbox"
+  handoff: "\u{1F91D} Handoff"
 };
 var LOW_INFORMATION = /* @__PURE__ */ new Set([
   "continue",

@@ -69,6 +69,30 @@ function toggle(group: Element): HTMLButtonElement {
   return group.querySelector<HTMLButtonElement>("button[aria-expanded]")!;
 }
 
+function sectionLabels(root: Element): string[] {
+  return [...root.children].flatMap((slot) => {
+    const group = slot.matches("[data-sidebar-sticky-group]")
+      ? slot
+      : slot.querySelector("[data-sidebar-sticky-group]");
+    if (group === null) return [];
+    const label = toggle(group).getAttribute("aria-label") ?? "";
+    const match = /^(?:Expand|Collapse) (.+) section$/.exec(label);
+    return match === null ? [] : [match[1]!];
+  });
+}
+
+function windowedSection(group: HTMLElement): HTMLElement {
+  const stickySection = document.createElement("div");
+  stickySection.dataset.sidebarStickySection = "";
+  const windowedItem = document.createElement("div");
+  windowedItem.dataset.sidebarWindowedItem = "";
+  windowedItem.append(group);
+  stickySection.append(windowedItem);
+  const slot = document.createElement("div");
+  slot.append(stickySection);
+  return slot;
+}
+
 async function mutationsSettled(): Promise<void> {
   await new Promise((resolve) => setTimeout(resolve, 0));
 }
@@ -79,6 +103,64 @@ afterEach(() => {
 });
 
 describe("inbox section collapser", () => {
+  it("orders phase sections while preserving unrelated section positions", () => {
+    const customBefore = section("Personal", false, []);
+    const testing = section("✅ Testing / Deploy", false, []);
+    const planning = section("📋 Planning", false, []);
+    const customMiddle = section("Design", false, []);
+    const inbox = section("📥 Inbox", false, []);
+    const specReview = section("🔎 Spec Review", false, []);
+    const building = section("🛠️ Building", false, []);
+    const handoff = section("🤝 Handoff", false, []);
+    const root = sidebar(
+      ...[
+        customBefore,
+        testing,
+        planning,
+        customMiddle,
+        inbox,
+        specReview,
+        building,
+        handoff,
+      ].map(windowedSection),
+    );
+    document.body.append(root);
+    const controller = new AbortController();
+
+    mountInboxSectionCollapser({ document, signal: controller.signal });
+
+    expect(sectionLabels(root)).toEqual([
+      "Personal",
+      "📥 Inbox",
+      "📋 Planning",
+      "Design",
+      "🔎 Spec Review",
+      "🛠️ Building",
+      "✅ Testing / Deploy",
+      "🤝 Handoff",
+    ]);
+    controller.abort();
+  });
+
+  it("restores phase order after the host inserts a section", async () => {
+    const planning = windowedSection(section("📋 Planning", false, []));
+    const building = windowedSection(section("🛠️ Building", false, []));
+    const root = sidebar(planning, building);
+    document.body.append(root);
+    const controller = new AbortController();
+    mountInboxSectionCollapser({ document, signal: controller.signal });
+
+    root.append(windowedSection(section("📥 Inbox", false, [])));
+    await mutationsSettled();
+
+    expect(sectionLabels(root)).toEqual([
+      "📥 Inbox",
+      "📋 Planning",
+      "🛠️ Building",
+    ]);
+    controller.abort();
+  });
+
   it("collapses sections on mount without collapsing the native Pinned inbox", () => {
     const { controller, destination, pinned } = setup();
 
