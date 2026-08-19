@@ -6,13 +6,13 @@ var __filename = __fileURLToPath(import.meta.url);
 var __dirname = __pathDirname(__filename);
 
 // core.ts
-var SECTION_ALIASES = {
-  bb: ["bb", "bb quick fixes"],
-  design: ["design"],
-  extensions: ["extensions", "bb extensions"],
-  moss: ["moss"],
-  qa: ["qa", "quality assurance"],
-  writing: ["writing"]
+var PHASE_SECTION_NAMES = {
+  planning: "\u{1F4CB} Planning",
+  "spec-review": "\u{1F50E} Spec Review",
+  building: "\u{1F6E0}\uFE0F Building",
+  handoff: "\u{1F91D} Handoff",
+  "testing-deploy": "\u2705 Testing / Deploy",
+  inbox: "\u{1F4E5} Inbox"
 };
 var LOW_INFORMATION = /* @__PURE__ */ new Set([
   "continue",
@@ -25,52 +25,74 @@ var LOW_INFORMATION = /* @__PURE__ */ new Set([
   "ok",
   "okay",
   "proceed",
-  "root cause this",
   "sounds good",
   "yes"
 ]);
-var ACTION_PATTERNS = [
-  { expression: /^take\s+over\b/i, title: "Take Over" },
-  { expression: /^clean\s+up\b/i, title: "Clean Up" },
-  { expression: /^root\s+cause\b/i, title: "Investigate" },
-  { expression: /^investigate\b/i, title: "Investigate" },
-  { expression: /^implement\b/i, title: "Implement" },
-  { expression: /^optimize\b/i, title: "Optimize" },
-  { expression: /^reorganize\b/i, title: "Reorganize" },
-  { expression: /^refactor\b/i, title: "Refactor" },
-  { expression: /^analyze\b/i, title: "Analyze" },
-  { expression: /^create\b/i, title: "Create" },
-  { expression: /^design\b/i, title: "Design" },
-  { expression: /^rewrite\b/i, title: "Rewrite" },
-  { expression: /^refresh\b/i, title: "Refresh" },
-  { expression: /^profile\b/i, title: "Profile" },
-  { expression: /^review\b/i, title: "Review" },
-  { expression: /^rename\b/i, title: "Rename" },
-  { expression: /^update\b/i, title: "Update" },
-  { expression: /^render\b/i, title: "Render" },
-  { expression: /^archive\b/i, title: "Archive" },
-  { expression: /^debug\b/i, title: "Debug" },
-  { expression: /^build\b/i, title: "Build" },
-  { expression: /^write\b/i, title: "Write" },
-  { expression: /^style\b/i, title: "Style" },
-  { expression: /^move\b/i, title: "Move" },
-  { expression: /^open\b/i, title: "Open" },
-  { expression: /^audit\b/i, title: "Audit" },
-  { expression: /^add\b/i, title: "Add" },
-  { expression: /^fix\b/i, title: "Fix" }
+var PHASE_RULES = [
+  {
+    target: "spec-review",
+    confidence: 0.99,
+    reason: "explicit spec review",
+    expression: /\b(spec(?:ification)?|prd|proposal|implementation plan|requirements?)\b.{0,36}\b(review|critique|approve|approval|sign[ -]?off)\b|\b(review|critique|approve)\b.{0,24}\b(spec(?:ification)?|prd|proposal|plan|requirements?)\b/i
+  },
+  {
+    target: "handoff",
+    confidence: 0.98,
+    reason: "explicit handoff",
+    expression: /\b(handoff|hand[ -]?off|transfer ownership|pass (?:this|it) (?:to|back)|integration order|ready for (?:another|the next) agent)\b/i
+  },
+  {
+    target: "testing-deploy",
+    confidence: 0.97,
+    reason: "verification or delivery work",
+    expression: /\b(test(?:ing)?|qa|quality assurance|verify|verification|regression|ci|deploy|deployment|release|ship|shipping|merge-ready|visual qa)\b/i
+  },
+  {
+    target: "building",
+    confidence: 0.96,
+    reason: "implementation work",
+    expression: /\b(implement|build|code|develop|fix|debug|refactor|patch|wire up|add support|update the .+ plugin)\b/i
+  },
+  {
+    target: "planning",
+    confidence: 0.94,
+    reason: "planning or discovery work",
+    expression: /\b(plan|planning|scope|shape|explore|research|investigate|architecture|design direction|requirements?|break down|task graph)\b/i
+  }
 ];
-var GENERIC_TITLE_WORDS = /* @__PURE__ */ new Set([
-  "agent",
-  "automation",
-  "bb",
-  "issue",
-  "plugin",
-  "problem",
-  "task",
-  "thing",
-  "this",
-  "thread"
-]);
+var ACTION_PATTERNS = [
+  [/^take\s+over\b/i, "Take Over"],
+  [/^clean\s+up\b/i, "Clean Up"],
+  [/^root\s+cause\b/i, "Investigate"],
+  [/^investigate\b/i, "Investigate"],
+  [/^implement\b/i, "Implement"],
+  [/^optimize\b/i, "Optimize"],
+  [/^reorganize\b/i, "Reorganize"],
+  [/^refactor\b/i, "Refactor"],
+  [/^analyze\b/i, "Analyze"],
+  [/^create\b/i, "Create"],
+  [/^design\b/i, "Design"],
+  [/^rewrite\b/i, "Rewrite"],
+  [/^refresh\b/i, "Refresh"],
+  [/^profile\b/i, "Profile"],
+  [/^review\b/i, "Review"],
+  [/^rename\b/i, "Rename"],
+  [/^update\b/i, "Update"],
+  [/^render\b/i, "Render"],
+  [/^archive\b/i, "Archive"],
+  [/^debug\b/i, "Debug"],
+  [/^build\b/i, "Build"],
+  [/^write\b/i, "Write"],
+  [/^style\b/i, "Style"],
+  [/^move\b/i, "Move"],
+  [/^open\b/i, "Open"],
+  [/^audit\b/i, "Audit"],
+  [/^add\b/i, "Add"],
+  [/^fix\b/i, "Fix"]
+].map(([expression, title]) => ({
+  expression,
+  title
+}));
 var TITLE_CONNECTORS = /* @__PURE__ */ new Set([
   "and",
   "for",
@@ -88,10 +110,8 @@ var TITLE_ACRONYMS = /* @__PURE__ */ new Set([
   "ci",
   "cpu",
   "css",
-  "ds",
   "html",
   "http",
-  "https",
   "mcp",
   "pr",
   "qa",
@@ -100,17 +120,24 @@ var TITLE_ACRONYMS = /* @__PURE__ */ new Set([
   "url",
   "ux"
 ]);
+var GENERIC_TITLE_WORDS = /* @__PURE__ */ new Set([
+  "agent",
+  "automation",
+  "bb",
+  "issue",
+  "plugin",
+  "problem",
+  "task",
+  "thing",
+  "this",
+  "thread"
+]);
 function normalize(value) {
   return value.normalize("NFKC").replace(/\r\n?/g, "\n").replace(/[ \t]+/g, " ").trim().toLowerCase();
 }
-function matches(value, expression) {
-  expression.lastIndex = 0;
-  return expression.test(value);
-}
 function isSubstantiveText(value) {
   const normalized = normalize(value).replace(/^\/[a-z0-9:_-]+\s*/i, "").replace(/[.!?]+$/g, "").trim();
-  if (normalized.length < 4 || LOW_INFORMATION.has(normalized)) return false;
-  return !/^(?:https?:\/\/\S+|@[a-z0-9:_-]+)$/i.test(normalized);
+  return normalized.length >= 4 && !LOW_INFORMATION.has(normalized) && !/^(?:https?:\/\/\S+|@[a-z0-9:_-]+)$/i.test(normalized);
 }
 function isManageableThread(thread) {
   return thread.visibility === "visible" && thread.parentThreadId === null && thread.sourceThreadId === null && thread.originKind === null && (thread.childOrigin ?? null) === null && thread.originPluginId === null && thread.archivedAt === null && thread.deletedAt === null;
@@ -118,124 +145,62 @@ function isManageableThread(thread) {
 function isEligibleThread(thread) {
   return isManageableThread(thread) && thread.status !== "error" && thread.status !== "stopping";
 }
-function setScore(scores, target, confidence, reason) {
-  const current = scores.get(target);
-  if (current === void 0 || confidence > current.confidence) {
-    scores.set(target, { confidence, reasons: [reason] });
-    return;
-  }
-  if (confidence === current.confidence && !current.reasons.includes(reason)) {
-    current.reasons.push(reason);
-  }
-}
-function classifySection(input) {
-  const project = normalize(input.projectName);
-  const substantive = input.texts.filter(isSubstantiveText).map(normalize);
+function classifyPhase(texts) {
+  const substantive = texts.filter(isSubstantiveText).map(normalize);
   const corpus = substantive.join("\n");
-  const scores = /* @__PURE__ */ new Map();
-  if (matches(
-    corpus,
-    /\b(blog(?:\s+post)?|article|essay|positioning|product copy|website copy|editorial)\b/i
-  )) {
-    setScore(scores, "writing", 0.96, "explicit editorial intent");
-  }
-  if (project === "ui pattern atlas" || matches(
-    corpus,
-    /\b(design system|ui patterns?|information architecture|interaction model|product direction|api surface|figma)\b|design\s*[↔<>-]\s*code/i
-  )) {
-    setScore(
-      scores,
-      "design",
-      project === "ui pattern atlas" ? 0.97 : 0.95,
-      project === "ui pattern atlas" ? "design project identity" : "durable design-system intent"
-    );
-  }
-  if (matches(
-    corpus,
-    /\b(review-only|code review|qa|quality assurance|regression (?:review|test|coverage)|test audit|coverage audit|audit (?:a |the )?(?:pull request|pr|release|tests?))\b/i
-  )) {
-    setScore(scores, "qa", 0.98, "explicit verification intent");
-  }
-  const hasCrossCuttingIntent = scores.has("design") || scores.has("qa") || scores.has("writing");
-  if (!hasCrossCuttingIntent && ([
-    "bb plugins",
-    "design doctrine",
-    "loop-machine",
-    "moss-skills",
-    "ottonomous",
-    "prompt shaper"
-  ].includes(project) || project !== "bb" && matches(
-    corpus,
-    /\b(bb\s+plugin|plugin|skill|automation|agent tool|agent tooling)\b/i
-  ))) {
-    setScore(
-      scores,
-      "extensions",
-      [
-        "bb plugins",
-        "design doctrine",
-        "loop-machine",
-        "moss-skills",
-        "ottonomous",
-        "prompt shaper"
-      ].includes(project) ? 0.98 : 0.96,
-      [
-        "bb plugins",
-        "design doctrine",
-        "loop-machine",
-        "moss-skills",
-        "ottonomous",
-        "prompt shaper"
-      ].includes(project) ? "extension project identity" : "explicit extension intent"
-    );
-  }
-  const hasSpecificIntent = [...scores.keys()].some(
-    (target) => ["design", "extensions", "qa", "writing"].includes(target)
+  if (!corpus)
+    return { target: "inbox", confidence: 1, reasons: ["phase unclear"] };
+  const direct = substantive.find(
+    (text) => /^(?:plan|planning|scope|shape|design the approach|write requirements?)\b/i.test(
+      text
+    )
   );
-  if (!hasSpecificIntent && (["moss", "moss collab recovery", "moss-collab"].includes(project) || matches(corpus, /\bmoss(?:-collab)?\b/i))) {
-    setScore(
-      scores,
-      "moss",
-      ["moss", "moss collab recovery", "moss-collab"].includes(project) ? 0.97 : 0.94,
-      ["moss", "moss collab recovery", "moss-collab"].includes(project) ? "moss project identity" : "explicit moss product intent"
-    );
-  }
-  if (project !== "bb" && !hasSpecificIntent && !scores.has("extensions") && matches(corpus, /\bbb\b/i)) {
-    setScore(scores, "bb", 0.94, "explicit bb product intent");
-  }
-  if (project === "bb" && !hasCrossCuttingIntent) {
-    setScore(scores, "bb", 0.9, "bb project identity");
-    if (matches(
-      corpus,
-      /\b(fix|debug|investigate|implement|build|review|refactor|test|ci|server|daemon|sync|branch|pull request|pr\s*#?\d+|issue\s*#?\d+)\b/i
-    )) {
-      setScore(scores, "bb", 0.96, "bb engineering intent");
-    }
-  }
-  const ranked = [...scores.entries()].map(([target, value]) => ({ target, ...value })).sort(
-    (left, right) => right.confidence - left.confidence || left.target.localeCompare(right.target)
-  );
-  const winner = ranked[0];
-  if (winner === void 0) return null;
-  const runnerUp = ranked[1] ?? null;
+  if (direct)
+    return {
+      target: "planning",
+      confidence: 0.99,
+      reasons: ["explicit planning action"]
+    };
+  const matches = PHASE_RULES.filter((rule) => rule.expression.test(corpus));
+  const winner = matches[0];
+  if (!winner)
+    return { target: "inbox", confidence: 1, reasons: ["phase unclear"] };
   return {
+    target: winner.target,
     confidence: winner.confidence,
-    margin: winner.confidence - (runnerUp?.confidence ?? 0),
-    reasons: winner.reasons,
-    runnerUp: runnerUp?.target ?? null,
-    target: winner.target
+    reasons: [winner.reason]
   };
 }
-function resolveSectionId(sections, target) {
-  const aliases = new Set(SECTION_ALIASES[target]);
-  const matches2 = sections.filter(
-    (section) => aliases.has(normalize(section.name))
+function parsePhaseTarget(value) {
+  const normalized = normalize(value).replace(/[📋🔎🛠️🤝✅📥]/gu, "").trim().replace(/[ _/]+/g, "-");
+  const aliases = {
+    plan: "planning",
+    planning: "planning",
+    spec: "spec-review",
+    "spec-review": "spec-review",
+    review: "spec-review",
+    build: "building",
+    building: "building",
+    implement: "building",
+    handoff: "handoff",
+    test: "testing-deploy",
+    testing: "testing-deploy",
+    deploy: "testing-deploy",
+    "testing-deploy": "testing-deploy",
+    inbox: "inbox",
+    unclear: "inbox"
+  };
+  return aliases[normalized] ?? null;
+}
+function resolvePhaseSectionId(sections, target) {
+  const matches = sections.filter(
+    (section) => normalize(section.name) === normalize(PHASE_SECTION_NAMES[target])
   );
-  return matches2.length === 1 ? matches2[0].id : null;
+  return matches.length === 1 ? matches[0].id : null;
 }
 function stripPromptPreamble(value) {
   let result = value.normalize("NFKC").replace(/\r\n?/g, "\n").replace(/^\s*(?:[-*]|\d+[.)])\s+/, "").replace(/^\/[a-z0-9:_-]+\s+/i, "").trim();
-  const preambles = [
+  for (const expression of [
     /^(?:can|could|would)\s+you\s+/i,
     /^can\s+i\s+/i,
     /^please\s+/i,
@@ -243,8 +208,8 @@ function stripPromptPreamble(value) {
     /^i(?:'d| would)\s+like\s+to\s+/i,
     /^help\s+me\s+(?:to\s+)?/i,
     /^let(?:'s| us)\s+/i
-  ];
-  for (const preamble of preambles) result = result.replace(preamble, "");
+  ])
+    result = result.replace(expression, "");
   return result.trim();
 }
 function displayTitleWord(word, index) {
@@ -256,33 +221,29 @@ function displayTitleWord(word, index) {
 }
 function deriveTaskTitle(value) {
   let prompt = stripPromptPreamble(value);
-  if (prompt.length === 0 || /^(?:https?:\/\/|@)/i.test(prompt) || !isSubstantiveText(prompt)) {
+  if (!prompt || /^(?:https?:\/\/|@)/i.test(prompt) || !isSubstantiveText(prompt))
     return null;
-  }
   const action = ACTION_PATTERNS.find(
-    ({ expression }) => matches(prompt, expression)
+    ({ expression }) => expression.test(prompt)
   );
-  if (action === void 0) return null;
-  prompt = prompt.replace(action.expression, "").trim();
-  prompt = prompt.split(/\b(?:so that|because|and then|then|which|that)\b|[\n.!?;:]/i, 1)[0].replace(/^[\s"'`([{]+|[\s"'`\])}]+$/g, "").trim();
-  const words = prompt.match(/[A-Za-z0-9][A-Za-z0-9+#./↔<>-]*/g)?.filter(Boolean) ?? [];
-  while (words.length > 0 && /^(?:a|an|my|our|the|this|these|those)$/i.test(words[0])) {
+  if (!action) return null;
+  prompt = prompt.replace(action.expression, "").trim().split(/\b(?:so that|because|and then|then|which|that)\b|[\n.!?;:]/i, 1)[0].replace(/^[\s"'`([{]+|[\s"'`\])}]+$/g, "").trim();
+  const words = prompt.match(/[A-Za-z0-9][A-Za-z0-9+#./↔<>-]*/g) ?? [];
+  while (words.length && /^(?:a|an|my|our|the|this|these|those)$/i.test(words[0]))
     words.shift();
-  }
-  const actionWordCount = action.title.split(/\s+/).length;
-  const objectWords = words.slice(0, Math.max(1, 5 - actionWordCount));
-  while (objectWords.length > 0 && TITLE_CONNECTORS.has(objectWords.at(-1).toLowerCase())) {
+  const objectWords = words.slice(
+    0,
+    Math.max(1, 5 - action.title.split(/\s+/).length)
+  );
+  while (objectWords.length && TITLE_CONNECTORS.has(objectWords.at(-1).toLowerCase()))
     objectWords.pop();
-  }
-  const specificWords = objectWords.filter((word) => {
-    const normalized = word.toLowerCase();
-    return !GENERIC_TITLE_WORDS.has(normalized) && !TITLE_CONNECTORS.has(normalized) && normalized.length > 1;
-  });
-  if (objectWords.length === 0 || specificWords.length === 0) return null;
-  const objectTitle = objectWords.map((word, index) => displayTitleWord(word, index + actionWordCount)).join(" ");
+  if (!objectWords.some(
+    (word) => !GENERIC_TITLE_WORDS.has(word.toLowerCase()) && !TITLE_CONNECTORS.has(word.toLowerCase()) && word.length > 1
+  ))
+    return null;
   return {
     confidence: 0.92,
-    title: `${action.title} ${objectTitle}`.trim()
+    title: `${action.title} ${objectWords.map((word, index) => displayTitleWord(word, index + 1)).join(" ")}`.trim()
   };
 }
 function nextEvaluationMilestone(current) {
@@ -296,113 +257,64 @@ function advanceEvaluationMilestone(current, completedTurns) {
 
 // server.ts
 var STATE_PREFIX = "thread:v1:";
-var PERSONAL_PROJECT_ID = "proj_personal";
-var NEW_SECTION_CONFIDENCE = 0.85;
-var NEW_SECTION_MARGIN = 0.2;
-var MOVE_SECTION_CONFIDENCE = 0.92;
-var MOVE_SECTION_MARGIN = 0.25;
-var TITLE_CONFIDENCE = 0.9;
-var MAX_COMPLETED_EVENT_DRAIN = 100;
+var OWNED_SECTIONS_KEY = "sections:v1";
 var THREAD_LIST_PAGE_SIZE = 100;
-var RECONCILIATION_CONCURRENCY = 4;
 var RECONCILIATION_INTERVAL_MS = 5 * 6e4;
-var RECONCILIATION_RETRY_DELAYS_MS = [100, 500];
-var SECTION_CLASSIFIER_VERSION = 2;
+var MAX_COMPLETED_EVENT_DRAIN = 100;
+var CLASSIFIER_VERSION = 3;
 function stateKey(threadId) {
   return `${STATE_PREFIX}${threadId}`;
 }
 function initialState(thread) {
   return {
+    version: 2,
     completedTurns: 0,
     createdAt: thread.createdAt,
     hasAppliedSection: false,
     hasAppliedTitle: false,
-    inboxManagedPinnedAt: null,
-    inboxObservedPinned: false,
-    inboxPendingPin: false,
-    inboxPendingUnpin: false,
-    inboxLastPhase: null,
-    inboxSnoozed: false,
     lastAppliedSectionId: null,
     lastAppliedTitle: null,
     lastCompletedSeq: 0,
     nextEvaluationTurn: 1,
-    pendingSectionId: null,
-    pendingSectionStreak: 0,
-    sectionClassification: null,
+    phaseClassification: null,
     sectionLocked: thread.sectionId !== null,
-    titleLocked: thread.title !== null,
-    version: 1
+    titleLocked: thread.title !== null
   };
 }
-function isThreadState(value) {
-  if (typeof value !== "object" || value === null) return false;
-  const state = value;
-  return state.version === 1 && typeof state.completedTurns === "number" && typeof state.createdAt === "number" && typeof state.hasAppliedSection === "boolean" && typeof state.hasAppliedTitle === "boolean" && (typeof state.inboxManagedPinnedAt === "number" || state.inboxManagedPinnedAt === null || state.inboxManagedPinnedAt === void 0) && (typeof state.inboxObservedPinned === "boolean" || state.inboxObservedPinned === void 0) && (typeof state.inboxPendingPin === "boolean" || state.inboxPendingPin === void 0) && (typeof state.inboxPendingUnpin === "boolean" || state.inboxPendingUnpin === void 0) && (state.inboxLastPhase === "active" || state.inboxLastPhase === "failed" || state.inboxLastPhase === "idle" || state.inboxLastPhase === null || state.inboxLastPhase === void 0) && (typeof state.inboxSnoozed === "boolean" || state.inboxSnoozed === void 0) && (typeof state.lastAppliedSectionId === "string" || state.lastAppliedSectionId === null) && (typeof state.lastAppliedTitle === "string" || state.lastAppliedTitle === null) && typeof state.lastCompletedSeq === "number" && typeof state.nextEvaluationTurn === "number" && (typeof state.pendingSectionId === "string" || state.pendingSectionId === null) && typeof state.pendingSectionStreak === "number" && (state.sectionClassification === void 0 || state.sectionClassification === null || typeof state.sectionClassification === "object" && typeof state.sectionClassification.classifierVersion === "number" && typeof state.sectionClassification.completedTurns === "number" && typeof state.sectionClassification.contextAvailable === "boolean" && (state.sectionClassification.decision === null || typeof state.sectionClassification.decision === "object") && typeof state.sectionClassification.evaluatedAt === "number") && typeof state.sectionLocked === "boolean" && typeof state.titleLocked === "boolean";
-}
-function normalizeThreadState(state) {
+function migrateState(value, thread) {
+  if (!value || typeof value !== "object") return initialState(thread);
+  const legacy = value;
+  const appliedSection = legacy.hasAppliedSection === true;
   return {
-    ...state,
-    inboxManagedPinnedAt: state.inboxManagedPinnedAt ?? null,
-    inboxObservedPinned: state.inboxObservedPinned ?? false,
-    inboxPendingPin: state.inboxPendingPin ?? false,
-    inboxPendingUnpin: state.inboxPendingUnpin ?? false,
-    inboxLastPhase: state.inboxLastPhase ?? null,
-    inboxSnoozed: state.inboxSnoozed ?? false,
-    sectionClassification: state.sectionClassification ?? null
+    ...initialState(thread),
+    completedTurns: typeof legacy.completedTurns === "number" ? legacy.completedTurns : 0,
+    createdAt: typeof legacy.createdAt === "number" ? legacy.createdAt : thread.createdAt,
+    hasAppliedSection: appliedSection,
+    hasAppliedTitle: legacy.hasAppliedTitle === true,
+    lastAppliedSectionId: typeof legacy.lastAppliedSectionId === "string" ? legacy.lastAppliedSectionId : null,
+    lastAppliedTitle: typeof legacy.lastAppliedTitle === "string" ? legacy.lastAppliedTitle : null,
+    lastCompletedSeq: typeof legacy.lastCompletedSeq === "number" ? legacy.lastCompletedSeq : 0,
+    nextEvaluationTurn: typeof legacy.nextEvaluationTurn === "number" ? legacy.nextEvaluationTurn : 1,
+    phaseClassification: legacy.version === 2 ? legacy.phaseClassification ?? null : null,
+    sectionLocked: legacy.version === 2 ? legacy.sectionLocked === true : appliedSection ? false : legacy.sectionLocked === true || thread.sectionId !== null,
+    titleLocked: legacy.version === 2 ? legacy.titleLocked === true : legacy.titleLocked === true || !legacy.hasAppliedTitle && thread.title !== null
   };
-}
-function syncManualLocks(state, thread) {
-  let changed = false;
-  if (!state.titleLocked) {
-    const externalTitle = state.hasAppliedTitle ? thread.title !== state.lastAppliedTitle : thread.title !== null;
-    if (externalTitle) {
-      state.titleLocked = true;
-      changed = true;
-    }
-  }
-  if (!state.sectionLocked) {
-    const externalSection = state.hasAppliedSection ? thread.sectionId !== state.lastAppliedSectionId : thread.sectionId !== null;
-    if (externalSection) {
-      state.sectionLocked = true;
-      changed = true;
-    }
-  }
-  return changed;
 }
 function promptTexts(history) {
-  return [...history].sort((left, right) => left.createdAt - right.createdAt).flatMap(
+  return [...history].sort((a, b) => a.createdAt - b.createdAt).flatMap(
     (entry) => entry.input.flatMap(
       (item) => item.type === "text" && item.visibility !== "agent-only" ? [item.text] : []
     )
   );
 }
-function mostRecentSubstantiveText(texts) {
-  for (let index = texts.length - 1; index >= 0; index -= 1) {
-    const text = texts[index];
-    if (isSubstantiveText(text)) return text;
-  }
-  return null;
-}
-function classificationSummary(decision) {
-  return [
-    `target=${decision.target}`,
-    `confidence=${decision.confidence.toFixed(2)}`,
-    `margin=${decision.margin.toFixed(2)}`,
-    `reason=${decision.reasons.join(",")}`
-  ].join(" ");
-}
-function delay(milliseconds) {
-  return new Promise((resolve) => setTimeout(resolve, milliseconds));
-}
-function abortableDelay(milliseconds, signal) {
+function abortableDelay(ms, signal) {
   if (signal.aborted) return Promise.resolve();
   return new Promise((resolve) => {
-    const timeout = setTimeout(finish, milliseconds);
-    signal.addEventListener("abort", finish, { once: true });
-    function finish() {
-      clearTimeout(timeout);
-      signal.removeEventListener("abort", finish);
+    const timer = setTimeout(done, ms);
+    signal.addEventListener("abort", done, { once: true });
+    function done() {
+      clearTimeout(timer);
+      signal.removeEventListener("abort", done);
       resolve();
     }
   });
@@ -418,381 +330,169 @@ function plugin(bb) {
     }
   });
   const queues = /* @__PURE__ */ new Map();
-  let acceptingWork = true;
   let disposed = false;
-  async function readState(threadId) {
-    const stored = await bb.storage.kv.get(stateKey(threadId));
-    if (stored === void 0) return null;
-    if (isThreadState(stored)) return normalizeThreadState(stored);
-    bb.log.warn(`thread=${threadId} action=ignore-invalid-state`);
-    return null;
+  async function readState(thread) {
+    return migrateState(
+      await bb.storage.kv.get(stateKey(thread.id)),
+      thread
+    );
   }
   async function saveState(threadId, state) {
     await bb.storage.kv.set(stateKey(threadId), state);
   }
-  function enqueue(threadId, work, containErrors = true) {
-    if (!acceptingWork) return Promise.resolve();
+  async function ownedSectionIds() {
+    const stored = await bb.storage.kv.get(OWNED_SECTIONS_KEY);
+    return new Set(
+      Array.isArray(stored) ? stored.filter((id) => typeof id === "string") : []
+    );
+  }
+  async function saveOwnedSections(ids) {
+    await bb.storage.kv.set(OWNED_SECTIONS_KEY, [...ids].sort());
+  }
+  function enqueue(threadId, work) {
     const previous = queues.get(threadId) ?? Promise.resolve();
-    const workPromise = previous.catch(() => void 0).then(async () => {
+    const current = previous.catch(() => void 0).then(async () => {
       if (!disposed) await work();
-    });
-    const contained = containErrors ? workPromise.catch((error) => {
-      const message = error instanceof Error ? error.message : String(error);
-      bb.log.error(
-        `thread=${threadId} action=queue-failed error=${message}`
-      );
-    }) : workPromise;
-    const current = contained.finally(() => {
+    }).catch(
+      (error) => bb.log.error(
+        `thread=${threadId} action=queue-failed error=${error instanceof Error ? error.message : String(error)}`
+      )
+    ).finally(() => {
       if (queues.get(threadId) === current) queues.delete(threadId);
     });
     queues.set(threadId, current);
     return current;
   }
-  async function loadContextTexts(thread, attempts) {
-    let loaded = [];
-    for (let attempt = 0; attempt < attempts; attempt += 1) {
-      try {
-        loaded = promptTexts(
-          await bb.sdk.threads.promptHistory({
-            threadId: thread.id,
-            limit: "6"
-          })
-        );
-      } catch (error) {
-        const message = error instanceof Error ? error.message : String(error);
-        bb.log.debug(
-          `thread=${thread.id} action=prompt-history-unavailable attempt=${attempt + 1} error=${message}`
-        );
-      }
-      if (loaded.some(isSubstantiveText) || attempt === attempts - 1) break;
-      await delay(attempt === 0 ? 150 : 600);
-    }
-    return loaded;
-  }
-  async function reconcileInbox(thread, state, phase, signal, runStartPinnedAt) {
-    const { inboxMode } = await settings.get();
-    if (signal?.aborted) return;
-    const threadId = thread.id;
-    const startedNewRun = phase === "active" && state.inboxLastPhase !== "active";
-    if (startedNewRun && thread.pinnedAt === null && state.inboxObservedPinned && runStartPinnedAt === void 0) {
-      bb.log.debug(
-        `thread=${threadId} phase=${phase} action=await-run-start-pin-observation`
-      );
-      return;
-    }
-    state.inboxLastPhase = phase;
-    if (startedNewRun) state.inboxSnoozed = false;
-    if (state.inboxPendingPin && thread.pinnedAt !== null) {
-      state.inboxManagedPinnedAt = null;
-      state.inboxObservedPinned = true;
-      state.inboxPendingPin = false;
-      bb.log.warn(
-        `thread=${threadId} phase=${phase} action=inbox-pin-ownership-ambiguous`
-      );
-    }
-    let recoveredManagedUnpin = false;
-    if (state.inboxPendingUnpin && thread.pinnedAt === null) {
-      state.inboxManagedPinnedAt = null;
-      state.inboxObservedPinned = false;
-      state.inboxPendingUnpin = false;
-      recoveredManagedUnpin = true;
-      bb.log.info(
-        `thread=${threadId} phase=${phase} action=inbox-unpin-adopted`
-      );
-    }
-    if (thread.pinnedAt === null && state.inboxObservedPinned && !recoveredManagedUnpin) {
-      state.inboxManagedPinnedAt = null;
-      state.inboxObservedPinned = false;
-      state.inboxPendingPin = false;
-      state.inboxPendingUnpin = false;
-      if (startedNewRun && runStartPinnedAt === null) {
-        bb.log.info(
-          `thread=${threadId} phase=${phase} action=prior-run-unpin-observed`
-        );
-      } else {
-        state.inboxSnoozed = true;
-        bb.log.info(
-          `thread=${threadId} phase=${phase} action=inbox-snoozed`
-        );
-      }
-    }
-    if (phase !== "active") {
-      if (thread.pinnedAt !== null) {
-        if (state.inboxManagedPinnedAt !== null && state.inboxManagedPinnedAt !== thread.pinnedAt) {
-          state.inboxManagedPinnedAt = null;
-        }
-        state.inboxObservedPinned = true;
-        return;
-      }
-      if (state.inboxSnoozed) return;
-      if (inboxMode !== "apply") {
-        bb.log.info(
-          `thread=${threadId} phase=${phase} mode=observe action=propose-inbox-pin`
-        );
-        return;
-      }
-      if (signal?.aborted) return;
-      if (!state.inboxPendingPin) {
-        state.inboxPendingPin = true;
-        await saveState(threadId, state);
-      }
-      if (signal?.aborted) return;
-      let pinned;
-      try {
-        pinned = await bb.sdk.threads.pin({ threadId });
-      } catch (error) {
-        const fresh = await bb.sdk.threads.get({ threadId });
-        state.inboxPendingPin = false;
-        if (fresh.pinnedAt === null) {
-          state.inboxManagedPinnedAt = null;
-          state.inboxObservedPinned = false;
-        } else {
-          state.inboxManagedPinnedAt = null;
-          state.inboxObservedPinned = true;
-        }
-        await saveState(threadId, state);
-        throw error;
-      }
-      state.inboxManagedPinnedAt = pinned.pinnedAt;
-      state.inboxObservedPinned = true;
-      state.inboxPendingPin = false;
-      bb.log.info(
-        `thread=${threadId} phase=${phase} mode=apply action=inbox-pinned`
-      );
-      return;
-    }
-    if (thread.pinnedAt === null) {
-      state.inboxManagedPinnedAt = null;
-      state.inboxObservedPinned = false;
-      state.inboxPendingPin = false;
-      state.inboxPendingUnpin = false;
-      return;
-    }
-    state.inboxObservedPinned = true;
-    if (state.inboxManagedPinnedAt !== thread.pinnedAt) {
-      state.inboxManagedPinnedAt = null;
-      return;
-    }
-    if (inboxMode !== "apply") {
-      bb.log.info(
-        `thread=${threadId} phase=${phase} mode=observe action=propose-inbox-unpin`
-      );
-      return;
-    }
-    if (signal?.aborted) return;
-    if (!state.inboxPendingUnpin) {
-      state.inboxPendingUnpin = true;
-      await saveState(threadId, state);
-    }
-    if (signal?.aborted) return;
+  async function ensurePhaseSection(target) {
+    const listed = await bb.sdk.threadSections.list();
+    const existingId = resolvePhaseSectionId(listed, target);
+    if (existingId) return listed.find((section) => section.id === existingId);
     try {
-      await bb.sdk.threads.unpin({ threadId });
+      const created = await bb.sdk.threadSections.create({
+        name: PHASE_SECTION_NAMES[target]
+      });
+      const owned = await ownedSectionIds();
+      owned.add(created.id);
+      await saveOwnedSections(owned);
+      bb.log.info(
+        `action=phase-section-created target=${target} section=${created.id}`
+      );
+      return created;
     } catch (error) {
-      const fresh = await bb.sdk.threads.get({ threadId });
-      state.inboxPendingUnpin = false;
-      if (fresh.pinnedAt === null) {
-        state.inboxManagedPinnedAt = null;
-        state.inboxObservedPinned = false;
-        state.inboxSnoozed = true;
-      } else {
-        if (fresh.pinnedAt !== state.inboxManagedPinnedAt) {
-          state.inboxManagedPinnedAt = null;
-        }
-        state.inboxObservedPinned = true;
-      }
-      await saveState(threadId, state);
+      const raced = await bb.sdk.threadSections.list();
+      const racedId = resolvePhaseSectionId(raced, target);
+      if (racedId) return raced.find((section) => section.id === racedId);
       throw error;
     }
-    state.inboxManagedPinnedAt = null;
-    state.inboxObservedPinned = false;
-    state.inboxPendingUnpin = false;
-    bb.log.info(
-      `thread=${threadId} phase=${phase} mode=apply action=inbox-unpinned`
-    );
   }
-  async function applySection(thread, state, phase, decision, targetSectionId, mode) {
-    if (state.sectionLocked) return;
-    const movingManagedSection = thread.sectionId !== null;
-    if (movingManagedSection && (!state.hasAppliedSection || phase !== "turn")) {
-      return;
-    }
-    const minimumConfidence = movingManagedSection ? MOVE_SECTION_CONFIDENCE : NEW_SECTION_CONFIDENCE;
-    const minimumMargin = movingManagedSection ? MOVE_SECTION_MARGIN : NEW_SECTION_MARGIN;
-    if (decision.confidence < minimumConfidence || decision.margin < minimumMargin) {
-      state.pendingSectionId = null;
-      state.pendingSectionStreak = 0;
-      return;
-    }
-    if (thread.sectionId === targetSectionId) {
-      state.pendingSectionId = null;
-      state.pendingSectionStreak = 0;
-      return;
-    }
-    if (movingManagedSection) {
-      if (state.pendingSectionId === targetSectionId) {
-        state.pendingSectionStreak += 1;
-      } else {
-        state.pendingSectionId = targetSectionId;
-        state.pendingSectionStreak = 1;
+  async function cleanupEmptyOwnedSections() {
+    const owned = await ownedSectionIds();
+    if (!owned.size) return;
+    const existing = new Map(
+      (await bb.sdk.threadSections.list()).map((section) => [
+        section.id,
+        section
+      ])
+    );
+    let changed = false;
+    for (const id of [...owned]) {
+      if (!existing.has(id)) {
+        owned.delete(id);
+        changed = true;
+        continue;
       }
-      if (state.pendingSectionStreak < 2) return;
-    }
-    if (mode !== "apply") {
-      bb.log.info(
-        `thread=${thread.id} phase=${phase} mode=observe action=propose-section ${classificationSummary(decision)}`
-      );
-      return;
-    }
-    const fresh = await bb.sdk.threads.get({
-      threadId: thread.id
-    });
-    syncManualLocks(state, fresh);
-    if (state.sectionLocked || !isEligibleThread(fresh) || fresh.sectionId !== thread.sectionId) {
-      return;
-    }
-    const updated = await bb.sdk.threads.update({
-      threadId: thread.id,
-      sectionId: targetSectionId
-    });
-    state.hasAppliedSection = true;
-    state.lastAppliedSectionId = updated.sectionId;
-    state.pendingSectionId = null;
-    state.pendingSectionStreak = 0;
-    bb.log.info(
-      `thread=${thread.id} phase=${phase} mode=apply action=section-updated ${classificationSummary(decision)}`
-    );
-  }
-  async function applyTitle(thread, state, phase, texts, mode) {
-    if (phase !== "turn" || state.titleLocked || thread.title !== null) return;
-    const source = texts.find(isSubstantiveText) ?? thread.titleFallback ?? void 0;
-    if (source === void 0) return;
-    const candidate = deriveTaskTitle(source);
-    if (candidate === null || candidate.confidence < TITLE_CONFIDENCE) return;
-    if (mode !== "apply") {
-      bb.log.info(
-        `thread=${thread.id} phase=${phase} mode=observe action=propose-title confidence=${candidate.confidence.toFixed(2)} title=${JSON.stringify(candidate.title)}`
-      );
-      return;
-    }
-    const fresh = await bb.sdk.threads.get({
-      threadId: thread.id
-    });
-    syncManualLocks(state, fresh);
-    if (state.titleLocked || !isEligibleThread(fresh) || fresh.title !== null) {
-      return;
-    }
-    const updated = await bb.sdk.threads.update({
-      threadId: thread.id,
-      title: candidate.title
-    });
-    state.hasAppliedTitle = true;
-    state.lastAppliedTitle = updated.title;
-    bb.log.info(
-      `thread=${thread.id} phase=${phase} mode=apply action=title-updated confidence=${candidate.confidence.toFixed(2)} title=${JSON.stringify(candidate.title)}`
-    );
-  }
-  async function evaluate(threadId, phase, signal) {
-    const state = await readState(threadId);
-    if (state === null) return;
-    if (signal?.aborted) return;
-    const thread = await bb.sdk.threads.get({ threadId });
-    if (signal?.aborted) return;
-    const locksChanged = syncManualLocks(state, thread);
-    if (locksChanged) {
-      bb.log.info(
-        `thread=${threadId} action=manual-lock title=${state.titleLocked} section=${state.sectionLocked}`
-      );
-    }
-    if (thread.archivedAt !== null || thread.deletedAt !== null) {
-      await bb.storage.kv.delete(stateKey(threadId));
-      return;
-    }
-    if (!isEligibleThread(thread)) {
-      await saveState(threadId, state);
-      return;
-    }
-    const { inboxMode } = await settings.get();
-    if (signal?.aborted) return;
-    const movingManagedSection = state.hasAppliedSection && thread.sectionId !== null;
-    const canManageSection = !state.sectionLocked && (!movingManagedSection || phase === "turn");
-    const cachedClassification = state.sectionClassification;
-    const needsClassification = canManageSection && (cachedClassification === null || cachedClassification.classifierVersion !== SECTION_CLASSIFIER_VERSION || phase === "active" && (!cachedClassification.contextAvailable || cachedClassification.decision === null) || phase === "turn" && cachedClassification.completedTurns < state.completedTurns);
-    const needsHistory = needsClassification || phase === "turn";
-    const historyTexts = needsHistory ? await loadContextTexts(
-      thread,
-      phase === "active" || phase === "created" ? 3 : 1
-    ) : [];
-    if (signal?.aborted) return;
-    const texts = [
-      ...thread.title === null ? [] : [thread.title],
-      ...thread.titleFallback === null ? [] : [thread.titleFallback],
-      ...historyTexts
-    ];
-    const latestPromptText = mostRecentSubstantiveText(historyTexts);
-    const sectionTexts = phase === "turn" && state.hasAppliedSection && thread.sectionId !== null ? latestPromptText === null ? [] : [latestPromptText] : texts;
-    if (canManageSection) {
+      const members = await bb.sdk.threads.list({
+        archived: false,
+        sectionId: id,
+        limit: 1
+      });
+      if (members.length) continue;
       try {
-        let decision = cachedClassification?.decision ?? null;
-        if (needsClassification) {
-          const projectName = thread.projectId === PERSONAL_PROJECT_ID ? "Personal" : (await bb.sdk.projects.get({
-            projectId: thread.projectId
-          })).name;
-          decision = classifySection({
-            projectName,
-            texts: sectionTexts
-          });
-          state.sectionClassification = {
-            classifierVersion: SECTION_CLASSIFIER_VERSION,
-            completedTurns: state.completedTurns,
-            contextAvailable: sectionTexts.some(isSubstantiveText),
-            decision,
-            evaluatedAt: Date.now()
-          };
-          bb.log.info(
-            decision === null ? `thread=${threadId} phase=${phase} action=section-classified target=none` : `thread=${threadId} phase=${phase} action=section-classified ${classificationSummary(decision)}`
-          );
-        } else {
-          bb.log.debug(
-            `thread=${threadId} phase=${phase} action=section-cache-hit target=${decision?.target ?? "none"}`
-          );
-        }
-        if (decision !== null) {
-          const sectionId = resolveSectionId(
-            await bb.sdk.threadSections.list(),
-            decision.target
-          );
-          if (sectionId === null) {
-            bb.log.warn(
-              `thread=${threadId} phase=${phase} action=section-unavailable target=${decision.target}`
-            );
-          } else {
-            await applySection(
-              thread,
-              state,
-              phase,
-              decision,
-              sectionId,
-              inboxMode
-            );
-          }
-        } else {
-          state.pendingSectionId = null;
-          state.pendingSectionStreak = 0;
-        }
+        await bb.sdk.threadSections.delete({ id });
+        owned.delete(id);
+        changed = true;
+        bb.log.info(`action=phase-section-deleted section=${id}`);
       } catch (error) {
-        const message = error instanceof Error ? error.message : String(error);
-        bb.log.warn(
-          `thread=${threadId} phase=${phase} action=section-evaluation-failed error=${message}`
+        bb.log.debug(
+          `action=phase-section-delete-deferred section=${id} error=${error instanceof Error ? error.message : String(error)}`
         );
       }
     }
-    try {
-      await applyTitle(thread, state, phase, historyTexts, inboxMode);
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      bb.log.warn(
-        `thread=${threadId} phase=${phase} action=title-evaluation-failed error=${message}`
+    if (changed) await saveOwnedSections(owned);
+  }
+  function syncManualLocks(state, thread) {
+    if (!state.titleLocked && (state.hasAppliedTitle ? thread.title !== state.lastAppliedTitle : thread.title !== null))
+      state.titleLocked = true;
+    if (!state.sectionLocked && (state.hasAppliedSection ? thread.sectionId !== state.lastAppliedSectionId : thread.sectionId !== null))
+      state.sectionLocked = true;
+  }
+  async function moveToPhase(thread, state, target, explicit) {
+    const { inboxMode } = await settings.get();
+    if (!explicit && state.sectionLocked) return thread;
+    if (inboxMode !== "apply" && !explicit) {
+      bb.log.info(
+        `thread=${thread.id} mode=observe action=propose-phase target=${target}`
       );
+      return thread;
+    }
+    const section = await ensurePhaseSection(target);
+    if (thread.sectionId === section.id) return thread;
+    const fresh = await bb.sdk.threads.get({ threadId: thread.id });
+    if (!explicit) {
+      syncManualLocks(state, fresh);
+      if (state.sectionLocked || !isManageableThread(fresh) || fresh.sectionId !== thread.sectionId)
+        return fresh;
+    }
+    const updated = await bb.sdk.threads.update({
+      threadId: thread.id,
+      sectionId: section.id
+    });
+    state.hasAppliedSection = true;
+    state.lastAppliedSectionId = section.id;
+    state.sectionLocked = explicit;
+    state.phaseClassification = {
+      classifierVersion: CLASSIFIER_VERSION,
+      decision: {
+        target,
+        confidence: 1,
+        reasons: [explicit ? "agent transition" : "automatic phase mapping"]
+      }
+    };
+    await saveState(thread.id, state);
+    await cleanupEmptyOwnedSections();
+    bb.log.info(`thread=${thread.id} action=phase-updated target=${target}`);
+    return updated;
+  }
+  async function evaluate(threadId) {
+    const thread = await bb.sdk.threads.get({ threadId });
+    if (!isManageableThread(thread)) return;
+    const state = await readState(thread);
+    syncManualLocks(state, thread);
+    const history = promptTexts(
+      await bb.sdk.threads.promptHistory({ threadId, limit: "6" })
+    );
+    const texts = [
+      ...thread.title ? [thread.title] : [],
+      ...thread.titleFallback ? [thread.titleFallback] : [],
+      ...history
+    ];
+    const decision = classifyPhase(texts);
+    state.phaseClassification = {
+      classifierVersion: CLASSIFIER_VERSION,
+      decision
+    };
+    await moveToPhase(thread, state, decision.target, false);
+    if (!state.titleLocked && thread.title === null) {
+      const source = history.find(isSubstantiveText) ?? thread.titleFallback;
+      const candidate = source ? deriveTaskTitle(source) : null;
+      if (candidate && candidate.confidence >= 0.9 && (await settings.get()).inboxMode === "apply") {
+        const updated = await bb.sdk.threads.update({
+          threadId,
+          title: candidate.title
+        });
+        state.hasAppliedTitle = true;
+        state.lastAppliedTitle = updated.title;
+      }
     }
     await saveState(threadId, state);
   }
@@ -803,272 +503,144 @@ function plugin(bb) {
         threadId,
         type: "turn/completed",
         waitMs: "1",
-        ...state.lastCompletedSeq === 0 ? {} : { afterSeq: String(state.lastCompletedSeq) }
+        ...state.lastCompletedSeq ? { afterSeq: String(state.lastCompletedSeq) } : {}
       });
-      if (event === null) break;
+      if (!event) break;
       state.lastCompletedSeq = event.seq;
-      if (event.type === "turn/completed" && event.data.status === "completed") {
+      if (event.type === "turn/completed" && event.data.status === "completed")
         state.completedTurns += 1;
-      }
       drained += 1;
     }
-    if (drained === MAX_COMPLETED_EVENT_DRAIN) {
-      bb.log.warn(
-        `thread=${threadId} action=turn-drain-capped limit=${MAX_COMPLETED_EVENT_DRAIN}`
+    const due = state.completedTurns >= state.nextEvaluationTurn;
+    if (due)
+      state.nextEvaluationTurn = advanceEvaluationMilestone(
+        state.nextEvaluationTurn,
+        state.completedTurns
       );
-    }
+    return due;
   }
-  function inboxPhase(thread) {
-    if (thread.status === "idle") return "idle";
-    if (thread.status === "error") return "failed";
-    return "active";
-  }
-  async function reconcileManagedThread(threadId, signal) {
-    if (signal?.aborted) return;
-    const fresh = await bb.sdk.threads.get({ threadId, signal });
-    if (signal?.aborted) return;
-    if (!isManageableThread(fresh)) {
-      if (!signal?.aborted) {
-        await bb.storage.kv.delete(stateKey(threadId));
-      }
-      return;
+  async function reconcileExisting(signal) {
+    let offset = 0;
+    while (!signal.aborted) {
+      const page = await bb.sdk.threads.list({
+        archived: false,
+        hasParent: false,
+        limit: THREAD_LIST_PAGE_SIZE,
+        offset,
+        signal
+      });
+      for (const thread of page)
+        if (!signal.aborted && isManageableThread(thread))
+          await evaluate(thread.id);
+      if (page.length < THREAD_LIST_PAGE_SIZE) break;
+      offset += THREAD_LIST_PAGE_SIZE;
     }
-    let state = await readState(threadId);
-    if (signal?.aborted) return;
-    const adopted = state === null;
-    if (state === null) {
-      state = initialState(fresh);
-    }
-    if (signal?.aborted) return;
-    await reconcileInbox(fresh, state, inboxPhase(fresh), signal);
-    if (signal?.aborted) return;
-    await saveState(threadId, state);
-    if (isEligibleThread(fresh) && (adopted || state.sectionClassification?.classifierVersion !== SECTION_CLASSIFIER_VERSION)) {
-      await evaluate(threadId, "settings", signal);
-    }
-  }
-  async function discoverThreadIds(signal) {
-    const discovered = /* @__PURE__ */ new Set();
-    let foundNewIds = true;
-    while (foundNewIds && !disposed && !signal.aborted) {
-      foundNewIds = false;
-      let offset = 0;
-      while (!disposed && !signal.aborted) {
-        const page = await bb.sdk.threads.list({
-          archived: false,
-          hasParent: false,
-          limit: THREAD_LIST_PAGE_SIZE,
-          offset,
-          signal
-        });
-        for (const thread of page) {
-          if (!discovered.has(thread.id)) {
-            discovered.add(thread.id);
-            foundNewIds = true;
-          }
-        }
-        if (page.length < THREAD_LIST_PAGE_SIZE) break;
-        offset += THREAD_LIST_PAGE_SIZE;
-      }
-    }
-    return [...discovered];
-  }
-  async function reconcileWithRetry(threadId, signal) {
-    for (let attempt = 0; attempt <= RECONCILIATION_RETRY_DELAYS_MS.length; attempt += 1) {
-      if (signal.aborted) return;
-      try {
-        await enqueue(
-          threadId,
-          () => reconcileManagedThread(threadId, signal),
-          false
-        );
-        return;
-      } catch (error) {
-        if (signal.aborted) return;
-        const retryDelay = RECONCILIATION_RETRY_DELAYS_MS[attempt];
-        if (retryDelay === void 0) throw error;
-        const message = error instanceof Error ? error.message : String(error);
-        bb.log.warn(
-          `thread=${threadId} action=reconciliation-retry attempt=${attempt + 1} error=${message}`
-        );
-        await abortableDelay(retryDelay, signal);
-      }
-    }
-  }
-  async function reconcileExistingThreads(signal) {
-    const threadIds = await discoverThreadIds(signal);
-    let nextIndex = 0;
-    let firstError;
-    const workerCount = Math.min(
-      RECONCILIATION_CONCURRENCY,
-      threadIds.length
-    );
-    const workers = Array.from({ length: workerCount }, async () => {
-      while (!signal.aborted && firstError === void 0) {
-        const threadId = threadIds[nextIndex];
-        nextIndex += 1;
-        if (threadId === void 0 || signal.aborted) return;
-        try {
-          await reconcileWithRetry(threadId, signal);
-        } catch (error) {
-          firstError ??= error;
-        }
-      }
-    });
-    await Promise.all(workers);
-    if (firstError !== void 0) throw firstError;
+    if (!signal.aborted) await cleanupEmptyOwnedSections();
   }
   bb.events.on(
     "thread.created",
     ({ thread }) => enqueue(thread.id, async () => {
-      if (!isEligibleThread(thread)) return;
-      if (await readState(thread.id) !== null) return;
-      await saveState(thread.id, initialState(thread));
-      await evaluate(thread.id, "created");
+      if (isEligibleThread(thread)) await evaluate(thread.id);
     })
   );
   bb.events.on(
     "thread.active",
-    ({ thread }) => enqueue(thread.id, async () => {
-      await evaluate(thread.id, "active");
-      const state = await readState(thread.id);
-      if (state === null) return;
-      const fresh = await bb.sdk.threads.get({
-        threadId: thread.id
-      });
-      if (!isManageableThread(fresh)) {
-        await bb.storage.kv.delete(stateKey(thread.id));
-        return;
-      }
-      await reconcileInbox(
-        fresh,
-        state,
-        inboxPhase(fresh),
-        void 0,
-        thread.pinnedAt
-      );
-      await saveState(thread.id, state);
-    })
+    ({ thread }) => enqueue(thread.id, () => evaluate(thread.id))
   );
   bb.events.on(
     "thread.idle",
     ({ thread }) => enqueue(thread.id, async () => {
-      const state = await readState(thread.id);
-      if (state === null) return;
-      try {
-        await consumeCompletedTurns(thread.id, state);
-      } catch (error) {
-        const message = error instanceof Error ? error.message : String(error);
-        bb.log.warn(
-          `thread=${thread.id} action=turn-count-failed error=${message}`
-        );
-      }
-      const due = state.completedTurns >= state.nextEvaluationTurn;
-      if (due) {
-        state.nextEvaluationTurn = advanceEvaluationMilestone(
-          state.nextEvaluationTurn,
-          state.completedTurns
-        );
-      }
       const fresh = await bb.sdk.threads.get({
         threadId: thread.id
       });
-      if (!isManageableThread(fresh)) {
-        await bb.storage.kv.delete(stateKey(thread.id));
-        return;
-      }
-      await reconcileInbox(fresh, state, inboxPhase(fresh));
-      await saveState(thread.id, state);
-      if (due) await evaluate(thread.id, "turn");
+      if (!isManageableThread(fresh)) return;
+      const state = await readState(fresh);
+      if (await consumeCompletedTurns(thread.id, state))
+        await evaluate(thread.id);
+      else await saveState(thread.id, state);
     })
   );
   bb.events.on(
     "thread.failed",
     ({ thread }) => enqueue(thread.id, async () => {
-      const state = await readState(thread.id);
-      if (state === null) return;
       const fresh = await bb.sdk.threads.get({
         threadId: thread.id
       });
-      if (!isManageableThread(fresh)) {
-        await bb.storage.kv.delete(stateKey(thread.id));
-        return;
-      }
-      await reconcileInbox(fresh, state, inboxPhase(fresh));
-      await saveState(thread.id, state);
+      const state = await readState(fresh);
+      if (!state.hasAppliedSection && isManageableThread(fresh))
+        await moveToPhase(fresh, state, "inbox", false);
     })
   );
   const forget = (threadId) => enqueue(threadId, async () => {
+    const thread = await bb.sdk.threads.get({ threadId }).catch(() => null);
+    const state = thread ? await readState(thread) : null;
+    if (thread && state?.hasAppliedSection && thread.sectionId === state.lastAppliedSectionId) {
+      await bb.sdk.threads.update({ threadId, sectionId: null }).catch(() => void 0);
+    }
     await bb.storage.kv.delete(stateKey(threadId));
+    await cleanupEmptyOwnedSections();
   });
   bb.events.on("thread.archived", ({ thread }) => forget(thread.id));
   bb.events.on("thread.deleted", ({ thread }) => forget(thread.id));
-  let unsubscribeThreadChanges = () => void 0;
-  try {
-    unsubscribeThreadChanges = bb.sdk.subscribe({
-      event: "thread:changed",
-      callback(event) {
-        const threadId = event.id;
-        if (threadId === void 0 || !event.changes.includes("pin-state-changed") && !event.changes.includes("status-changed")) {
-          return;
-        }
-        void enqueue(threadId, () => reconcileManagedThread(threadId));
+  bb.cli.register({
+    name: "organizer",
+    summary: "Move the current bb thread through development phases",
+    commands: [
+      {
+        name: "phase",
+        summary: "Move the current thread to a phase",
+        usage: "bb organizer phase <planning|spec-review|building|handoff|testing-deploy|inbox>"
       }
-    });
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    bb.log.warn(`action=realtime-subscribe-failed error=${message}`);
-  }
-  settings.onChange((next, previous) => {
-    if (next.inboxMode === previous.inboxMode) return;
-    bb.log.info(
-      `action=mode-changed previous=${previous.inboxMode} next=${next.inboxMode}`
-    );
-    if (next.inboxMode !== "apply") return;
-    void bb.storage.kv.list(STATE_PREFIX).then(async (keys) => {
-      for (const key of keys) {
-        const threadId = key.slice(STATE_PREFIX.length);
-        await enqueue(threadId, async () => {
-          const state = await readState(threadId);
-          if (state === null) return;
-          const thread = await bb.sdk.threads.get({
-            threadId
-          });
-          if (!isManageableThread(thread)) {
-            await bb.storage.kv.delete(stateKey(threadId));
-            return;
-          }
-          await reconcileInbox(thread, state, inboxPhase(thread));
-          await saveState(threadId, state);
-          await evaluate(threadId, "settings");
-        });
-      }
-    }).catch((error) => {
-      const message = error instanceof Error ? error.message : String(error);
-      bb.log.error(`action=apply-mode-evaluation-failed error=${message}`);
-    });
+    ],
+    async run(argv, context) {
+      if (argv[0] !== "phase" || !argv[1])
+        return {
+          exitCode: 2,
+          stderr: "Usage: bb organizer phase <planning|spec-review|building|handoff|testing-deploy|inbox>\n"
+        };
+      const target = parsePhaseTarget(argv[1]);
+      if (!target)
+        return { exitCode: 2, stderr: `Unknown phase: ${argv[1]}
+` };
+      if (!context.threadId)
+        return {
+          exitCode: 2,
+          stderr: "Run inside a bb thread so BB_THREAD_ID is available.\n"
+        };
+      const thread = await bb.sdk.threads.get({
+        threadId: context.threadId
+      });
+      if (!isManageableThread(thread))
+        return { exitCode: 2, stderr: "This thread cannot be organized.\n" };
+      const state = await readState(thread);
+      await moveToPhase(thread, state, target, true);
+      return {
+        exitCode: 0,
+        stdout: `Moved ${thread.id} to ${PHASE_SECTION_NAMES[target]}.
+`
+      };
+    }
   });
-  bb.background.service("inbox-reconciliation", {
+  bb.agents.configure(() => ({
+    tools: [],
+    skills: ["thread-phase-organizer"]
+  }));
+  bb.background.service("phase-reconciliation", {
     async start(signal) {
       while (!signal.aborted) {
-        await reconcileExistingThreads(signal);
-        if (signal.aborted) return;
-        await abortableDelay(RECONCILIATION_INTERVAL_MS, signal);
+        await reconcileExisting(signal);
+        if (!signal.aborted)
+          await abortableDelay(RECONCILIATION_INTERVAL_MS, signal);
       }
     }
   });
   bb.onDispose(async () => {
-    acceptingWork = false;
-    unsubscribeThreadChanges();
-    await Promise.allSettled([...queues.values()]);
     disposed = true;
+    await Promise.allSettled([...queues.values()]);
   });
   void settings.get().then(
     ({ inboxMode }) => bb.log.info(`Thread Organizer loaded mode=${inboxMode}`)
-  ).catch((error) => {
-    const message = error instanceof Error ? error.message : String(error);
-    bb.log.warn(`action=mode-read-failed error=${message}`);
-  });
+  );
 }
 export {
   plugin as default

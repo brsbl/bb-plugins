@@ -1,13 +1,22 @@
-export const SECTION_TARGETS = [
-  "bb",
-  "extensions",
-  "design",
-  "moss",
-  "qa",
-  "writing",
+export const PHASE_TARGETS = [
+  "planning",
+  "spec-review",
+  "building",
+  "handoff",
+  "testing-deploy",
+  "inbox",
 ] as const;
 
-export type SectionTarget = (typeof SECTION_TARGETS)[number];
+export type PhaseTarget = (typeof PHASE_TARGETS)[number];
+
+export const PHASE_SECTION_NAMES: Record<PhaseTarget, string> = {
+  planning: "📋 Planning",
+  "spec-review": "🔎 Spec Review",
+  building: "🛠️ Building",
+  handoff: "🤝 Handoff",
+  "testing-deploy": "✅ Testing / Deploy",
+  inbox: "📥 Inbox",
+};
 
 export interface OrganizableThread {
   archivedAt: number | null;
@@ -21,12 +30,10 @@ export interface OrganizableThread {
   visibility: "hidden" | "visible";
 }
 
-export interface SectionClassification {
+export interface PhaseClassification {
   confidence: number;
-  margin: number;
   reasons: string[];
-  runnerUp: SectionTarget | null;
-  target: SectionTarget;
+  target: PhaseTarget;
 }
 
 export interface SectionDescriptor {
@@ -39,15 +46,6 @@ export interface TitleCandidate {
   title: string;
 }
 
-const SECTION_ALIASES: Record<SectionTarget, readonly string[]> = {
-  bb: ["bb", "bb quick fixes"],
-  design: ["design"],
-  extensions: ["extensions", "bb extensions"],
-  moss: ["moss"],
-  qa: ["qa", "quality assurance"],
-  writing: ["writing"],
-};
-
 const LOW_INFORMATION = new Set([
   "continue",
   "do it",
@@ -59,45 +57,114 @@ const LOW_INFORMATION = new Set([
   "ok",
   "okay",
   "proceed",
-  "root cause this",
   "sounds good",
   "yes",
 ]);
 
-const ACTION_PATTERNS: Array<{
+const PHASE_RULES: Array<{
+  target: Exclude<PhaseTarget, "inbox">;
+  confidence: number;
+  reason: string;
   expression: RegExp;
-  title: string;
 }> = [
-  { expression: /^take\s+over\b/i, title: "Take Over" },
-  { expression: /^clean\s+up\b/i, title: "Clean Up" },
-  { expression: /^root\s+cause\b/i, title: "Investigate" },
-  { expression: /^investigate\b/i, title: "Investigate" },
-  { expression: /^implement\b/i, title: "Implement" },
-  { expression: /^optimize\b/i, title: "Optimize" },
-  { expression: /^reorganize\b/i, title: "Reorganize" },
-  { expression: /^refactor\b/i, title: "Refactor" },
-  { expression: /^analyze\b/i, title: "Analyze" },
-  { expression: /^create\b/i, title: "Create" },
-  { expression: /^design\b/i, title: "Design" },
-  { expression: /^rewrite\b/i, title: "Rewrite" },
-  { expression: /^refresh\b/i, title: "Refresh" },
-  { expression: /^profile\b/i, title: "Profile" },
-  { expression: /^review\b/i, title: "Review" },
-  { expression: /^rename\b/i, title: "Rename" },
-  { expression: /^update\b/i, title: "Update" },
-  { expression: /^render\b/i, title: "Render" },
-  { expression: /^archive\b/i, title: "Archive" },
-  { expression: /^debug\b/i, title: "Debug" },
-  { expression: /^build\b/i, title: "Build" },
-  { expression: /^write\b/i, title: "Write" },
-  { expression: /^style\b/i, title: "Style" },
-  { expression: /^move\b/i, title: "Move" },
-  { expression: /^open\b/i, title: "Open" },
-  { expression: /^audit\b/i, title: "Audit" },
-  { expression: /^add\b/i, title: "Add" },
-  { expression: /^fix\b/i, title: "Fix" },
+  {
+    target: "spec-review",
+    confidence: 0.99,
+    reason: "explicit spec review",
+    expression:
+      /\b(spec(?:ification)?|prd|proposal|implementation plan|requirements?)\b.{0,36}\b(review|critique|approve|approval|sign[ -]?off)\b|\b(review|critique|approve)\b.{0,24}\b(spec(?:ification)?|prd|proposal|plan|requirements?)\b/i,
+  },
+  {
+    target: "handoff",
+    confidence: 0.98,
+    reason: "explicit handoff",
+    expression:
+      /\b(handoff|hand[ -]?off|transfer ownership|pass (?:this|it) (?:to|back)|integration order|ready for (?:another|the next) agent)\b/i,
+  },
+  {
+    target: "testing-deploy",
+    confidence: 0.97,
+    reason: "verification or delivery work",
+    expression:
+      /\b(test(?:ing)?|qa|quality assurance|verify|verification|regression|ci|deploy|deployment|release|ship|shipping|merge-ready|visual qa)\b/i,
+  },
+  {
+    target: "building",
+    confidence: 0.96,
+    reason: "implementation work",
+    expression:
+      /\b(implement|build|code|develop|fix|debug|refactor|patch|wire up|add support|update the .+ plugin)\b/i,
+  },
+  {
+    target: "planning",
+    confidence: 0.94,
+    reason: "planning or discovery work",
+    expression:
+      /\b(plan|planning|scope|shape|explore|research|investigate|architecture|design direction|requirements?|break down|task graph)\b/i,
+  },
 ];
 
+const ACTION_PATTERNS: Array<{ expression: RegExp; title: string }> = [
+  [/^take\s+over\b/i, "Take Over"],
+  [/^clean\s+up\b/i, "Clean Up"],
+  [/^root\s+cause\b/i, "Investigate"],
+  [/^investigate\b/i, "Investigate"],
+  [/^implement\b/i, "Implement"],
+  [/^optimize\b/i, "Optimize"],
+  [/^reorganize\b/i, "Reorganize"],
+  [/^refactor\b/i, "Refactor"],
+  [/^analyze\b/i, "Analyze"],
+  [/^create\b/i, "Create"],
+  [/^design\b/i, "Design"],
+  [/^rewrite\b/i, "Rewrite"],
+  [/^refresh\b/i, "Refresh"],
+  [/^profile\b/i, "Profile"],
+  [/^review\b/i, "Review"],
+  [/^rename\b/i, "Rename"],
+  [/^update\b/i, "Update"],
+  [/^render\b/i, "Render"],
+  [/^archive\b/i, "Archive"],
+  [/^debug\b/i, "Debug"],
+  [/^build\b/i, "Build"],
+  [/^write\b/i, "Write"],
+  [/^style\b/i, "Style"],
+  [/^move\b/i, "Move"],
+  [/^open\b/i, "Open"],
+  [/^audit\b/i, "Audit"],
+  [/^add\b/i, "Add"],
+  [/^fix\b/i, "Fix"],
+].map(([expression, title]) => ({
+  expression: expression as RegExp,
+  title: title as string,
+}));
+
+const TITLE_CONNECTORS = new Set([
+  "and",
+  "for",
+  "from",
+  "in",
+  "of",
+  "on",
+  "or",
+  "to",
+  "with",
+]);
+const TITLE_ACRONYMS = new Set([
+  "api",
+  "bb",
+  "ci",
+  "cpu",
+  "css",
+  "html",
+  "http",
+  "mcp",
+  "pr",
+  "qa",
+  "sdk",
+  "ui",
+  "url",
+  "ux",
+]);
 const GENERIC_TITLE_WORDS = new Set([
   "agent",
   "automation",
@@ -111,37 +178,6 @@ const GENERIC_TITLE_WORDS = new Set([
   "thread",
 ]);
 
-const TITLE_CONNECTORS = new Set([
-  "and",
-  "for",
-  "from",
-  "in",
-  "of",
-  "on",
-  "or",
-  "to",
-  "with",
-]);
-
-const TITLE_ACRONYMS = new Set([
-  "api",
-  "bb",
-  "ci",
-  "cpu",
-  "css",
-  "ds",
-  "html",
-  "http",
-  "https",
-  "mcp",
-  "pr",
-  "qa",
-  "sdk",
-  "ui",
-  "url",
-  "ux",
-]);
-
 function normalize(value: string): string {
   return value
     .normalize("NFKC")
@@ -151,18 +187,16 @@ function normalize(value: string): string {
     .toLowerCase();
 }
 
-function matches(value: string, expression: RegExp): boolean {
-  expression.lastIndex = 0;
-  return expression.test(value);
-}
-
 export function isSubstantiveText(value: string): boolean {
   const normalized = normalize(value)
     .replace(/^\/[a-z0-9:_-]+\s*/i, "")
     .replace(/[.!?]+$/g, "")
     .trim();
-  if (normalized.length < 4 || LOW_INFORMATION.has(normalized)) return false;
-  return !/^(?:https?:\/\/\S+|@[a-z0-9:_-]+)$/i.test(normalized);
+  return (
+    normalized.length >= 4 &&
+    !LOW_INFORMATION.has(normalized) &&
+    !/^(?:https?:\/\/\S+|@[a-z0-9:_-]+)$/i.test(normalized)
+  );
 }
 
 export function isManageableThread(thread: OrganizableThread): boolean {
@@ -186,180 +220,65 @@ export function isEligibleThread(thread: OrganizableThread): boolean {
   );
 }
 
-function setScore(
-  scores: Map<SectionTarget, { confidence: number; reasons: string[] }>,
-  target: SectionTarget,
-  confidence: number,
-  reason: string,
-): void {
-  const current = scores.get(target);
-  if (current === undefined || confidence > current.confidence) {
-    scores.set(target, { confidence, reasons: [reason] });
-    return;
-  }
-  if (confidence === current.confidence && !current.reasons.includes(reason)) {
-    current.reasons.push(reason);
-  }
-}
-
-export function classifySection(input: {
-  projectName: string;
-  texts: string[];
-}): SectionClassification | null {
-  const project = normalize(input.projectName);
-  const substantive = input.texts.filter(isSubstantiveText).map(normalize);
+export function classifyPhase(texts: string[]): PhaseClassification {
+  const substantive = texts.filter(isSubstantiveText).map(normalize);
   const corpus = substantive.join("\n");
-  const scores = new Map<
-    SectionTarget,
-    { confidence: number; reasons: string[] }
-  >();
-
-  if (
-    matches(
-      corpus,
-      /\b(blog(?:\s+post)?|article|essay|positioning|product copy|website copy|editorial)\b/i,
-    )
-  ) {
-    setScore(scores, "writing", 0.96, "explicit editorial intent");
-  }
-
-  if (
-    project === "ui pattern atlas" ||
-    matches(
-      corpus,
-      /\b(design system|ui patterns?|information architecture|interaction model|product direction|api surface|figma)\b|design\s*[↔<>-]\s*code/i,
-    )
-  ) {
-    setScore(
-      scores,
-      "design",
-      project === "ui pattern atlas" ? 0.97 : 0.95,
-      project === "ui pattern atlas"
-        ? "design project identity"
-        : "durable design-system intent",
-    );
-  }
-
-  if (
-    matches(
-      corpus,
-      /\b(review-only|code review|qa|quality assurance|regression (?:review|test|coverage)|test audit|coverage audit|audit (?:a |the )?(?:pull request|pr|release|tests?))\b/i,
-    )
-  ) {
-    setScore(scores, "qa", 0.98, "explicit verification intent");
-  }
-
-  const hasCrossCuttingIntent =
-    scores.has("design") || scores.has("qa") || scores.has("writing");
-  if (
-    !hasCrossCuttingIntent &&
-    ([
-      "bb plugins",
-      "design doctrine",
-      "loop-machine",
-      "moss-skills",
-      "ottonomous",
-      "prompt shaper",
-    ].includes(project) ||
-      (project !== "bb" &&
-        matches(
-          corpus,
-          /\b(bb\s+plugin|plugin|skill|automation|agent tool|agent tooling)\b/i,
-        )))
-  ) {
-    setScore(
-      scores,
-      "extensions",
-      [
-        "bb plugins",
-        "design doctrine",
-        "loop-machine",
-        "moss-skills",
-        "ottonomous",
-        "prompt shaper",
-      ].includes(project)
-        ? 0.98
-        : 0.96,
-      [
-        "bb plugins",
-        "design doctrine",
-        "loop-machine",
-        "moss-skills",
-        "ottonomous",
-        "prompt shaper",
-      ].includes(project)
-        ? "extension project identity"
-        : "explicit extension intent",
-    );
-  }
-
-  const hasSpecificIntent = [...scores.keys()].some((target) =>
-    ["design", "extensions", "qa", "writing"].includes(target),
+  if (!corpus)
+    return { target: "inbox", confidence: 1, reasons: ["phase unclear"] };
+  const direct = substantive.find((text) =>
+    /^(?:plan|planning|scope|shape|design the approach|write requirements?)\b/i.test(
+      text,
+    ),
   );
-  if (
-    !hasSpecificIntent &&
-    (["moss", "moss collab recovery", "moss-collab"].includes(project) ||
-      matches(corpus, /\bmoss(?:-collab)?\b/i))
-  ) {
-    setScore(
-      scores,
-      "moss",
-      ["moss", "moss collab recovery", "moss-collab"].includes(project)
-        ? 0.97
-        : 0.94,
-      ["moss", "moss collab recovery", "moss-collab"].includes(project)
-        ? "moss project identity"
-        : "explicit moss product intent",
-    );
-  }
-
-  if (
-    project !== "bb" &&
-    !hasSpecificIntent &&
-    !scores.has("extensions") &&
-    matches(corpus, /\bbb\b/i)
-  ) {
-    setScore(scores, "bb", 0.94, "explicit bb product intent");
-  }
-
-  if (project === "bb" && !hasCrossCuttingIntent) {
-    setScore(scores, "bb", 0.9, "bb project identity");
-    if (
-      matches(
-        corpus,
-        /\b(fix|debug|investigate|implement|build|review|refactor|test|ci|server|daemon|sync|branch|pull request|pr\s*#?\d+|issue\s*#?\d+)\b/i,
-      )
-    ) {
-      setScore(scores, "bb", 0.96, "bb engineering intent");
-    }
-  }
-
-  const ranked = [...scores.entries()]
-    .map(([target, value]) => ({ target, ...value }))
-    .sort(
-      (left, right) =>
-        right.confidence - left.confidence ||
-        left.target.localeCompare(right.target),
-    );
-  const winner = ranked[0];
-  if (winner === undefined) return null;
-  const runnerUp = ranked[1] ?? null;
+  if (direct)
+    return {
+      target: "planning",
+      confidence: 0.99,
+      reasons: ["explicit planning action"],
+    };
+  const matches = PHASE_RULES.filter((rule) => rule.expression.test(corpus));
+  const winner = matches[0];
+  if (!winner)
+    return { target: "inbox", confidence: 1, reasons: ["phase unclear"] };
   return {
-    confidence: winner.confidence,
-    margin: winner.confidence - (runnerUp?.confidence ?? 0),
-    reasons: winner.reasons,
-    runnerUp: runnerUp?.target ?? null,
     target: winner.target,
+    confidence: winner.confidence,
+    reasons: [winner.reason],
   };
 }
 
-export function resolveSectionId(
+export function parsePhaseTarget(value: string): PhaseTarget | null {
+  const normalized = normalize(value)
+    .replace(/[📋🔎🛠️🤝✅📥]/gu, "")
+    .trim()
+    .replace(/[ _/]+/g, "-");
+  const aliases: Record<string, PhaseTarget> = {
+    plan: "planning",
+    planning: "planning",
+    spec: "spec-review",
+    "spec-review": "spec-review",
+    review: "spec-review",
+    build: "building",
+    building: "building",
+    implement: "building",
+    handoff: "handoff",
+    test: "testing-deploy",
+    testing: "testing-deploy",
+    deploy: "testing-deploy",
+    "testing-deploy": "testing-deploy",
+    inbox: "inbox",
+    unclear: "inbox",
+  };
+  return aliases[normalized] ?? null;
+}
+
+export function resolvePhaseSectionId(
   sections: SectionDescriptor[],
-  target: SectionTarget,
+  target: PhaseTarget,
 ): string | null {
-  const aliases = new Set(SECTION_ALIASES[target]);
-  const matches = sections.filter((section) =>
-    aliases.has(normalize(section.name)),
+  const matches = sections.filter(
+    (section) =>
+      normalize(section.name) === normalize(PHASE_SECTION_NAMES[target]),
   );
   return matches.length === 1 ? matches[0]!.id : null;
 }
@@ -371,7 +290,7 @@ function stripPromptPreamble(value: string): string {
     .replace(/^\s*(?:[-*]|\d+[.)])\s+/, "")
     .replace(/^\/[a-z0-9:_-]+\s+/i, "")
     .trim();
-  const preambles = [
+  for (const expression of [
     /^(?:can|could|would)\s+you\s+/i,
     /^can\s+i\s+/i,
     /^please\s+/i,
@@ -379,8 +298,8 @@ function stripPromptPreamble(value: string): string {
     /^i(?:'d| would)\s+like\s+to\s+/i,
     /^help\s+me\s+(?:to\s+)?/i,
     /^let(?:'s| us)\s+/i,
-  ];
-  for (const preamble of preambles) result = result.replace(preamble, "");
+  ])
+    result = result.replace(expression, "");
   return result.trim();
 }
 
@@ -395,63 +314,55 @@ function displayTitleWord(word: string, index: number): string {
 export function deriveTaskTitle(value: string): TitleCandidate | null {
   let prompt = stripPromptPreamble(value);
   if (
-    prompt.length === 0 ||
+    !prompt ||
     /^(?:https?:\/\/|@)/i.test(prompt) ||
     !isSubstantiveText(prompt)
-  ) {
+  )
     return null;
-  }
-
   const action = ACTION_PATTERNS.find(({ expression }) =>
-    matches(prompt, expression),
+    expression.test(prompt),
   );
-  if (action === undefined) return null;
-  prompt = prompt.replace(action.expression, "").trim();
+  if (!action) return null;
   prompt = prompt
+    .replace(action.expression, "")
+    .trim()
     .split(/\b(?:so that|because|and then|then|which|that)\b|[\n.!?;:]/i, 1)[0]!
     .replace(/^[\s"'`([{]+|[\s"'`\])}]+$/g, "")
     .trim();
-
-  const words =
-    prompt.match(/[A-Za-z0-9][A-Za-z0-9+#./↔<>-]*/g)?.filter(Boolean) ?? [];
+  const words = prompt.match(/[A-Za-z0-9][A-Za-z0-9+#./↔<>-]*/g) ?? [];
   while (
-    words.length > 0 &&
+    words.length &&
     /^(?:a|an|my|our|the|this|these|those)$/i.test(words[0]!)
-  ) {
+  )
     words.shift();
-  }
-
-  const actionWordCount = action.title.split(/\s+/).length;
-  const objectWords = words.slice(0, Math.max(1, 5 - actionWordCount));
+  const objectWords = words.slice(
+    0,
+    Math.max(1, 5 - action.title.split(/\s+/).length),
+  );
   while (
-    objectWords.length > 0 &&
+    objectWords.length &&
     TITLE_CONNECTORS.has(objectWords.at(-1)!.toLowerCase())
-  ) {
+  )
     objectWords.pop();
-  }
-  const specificWords = objectWords.filter((word) => {
-    const normalized = word.toLowerCase();
-    return (
-      !GENERIC_TITLE_WORDS.has(normalized) &&
-      !TITLE_CONNECTORS.has(normalized) &&
-      normalized.length > 1
-    );
-  });
-  if (objectWords.length === 0 || specificWords.length === 0) return null;
-
-  const objectTitle = objectWords
-    .map((word, index) => displayTitleWord(word, index + actionWordCount))
-    .join(" ");
+  if (
+    !objectWords.some(
+      (word) =>
+        !GENERIC_TITLE_WORDS.has(word.toLowerCase()) &&
+        !TITLE_CONNECTORS.has(word.toLowerCase()) &&
+        word.length > 1,
+    )
+  )
+    return null;
   return {
     confidence: 0.92,
-    title: `${action.title} ${objectTitle}`.trim(),
+    title:
+      `${action.title} ${objectWords.map((word, index) => displayTitleWord(word, index + 1)).join(" ")}`.trim(),
   };
 }
 
 export function nextEvaluationMilestone(current: number): number {
   return current <= 1 ? 5 : current + 10;
 }
-
 export function advanceEvaluationMilestone(
   current: number,
   completedTurns: number,
