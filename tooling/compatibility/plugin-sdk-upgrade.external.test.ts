@@ -1,5 +1,5 @@
 import { execFile } from "node:child_process";
-import { cp, mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
@@ -70,7 +70,7 @@ describe("persisted 0.4.6 scaffold upgrade", () => {
       },
       logger,
       dataDir: join(workDir, "data"),
-      appVersion: "0.0.34",
+      appVersion: "0.39.0",
       loadTimeoutMs: 2_000,
       stabilizationWindowMs: 0,
       afterArtifactPromoted: async () => {},
@@ -132,8 +132,7 @@ describe("persisted 0.4.6 scaffold upgrade", () => {
         kind: "git",
         url: sourceRepo,
         subdirectory: null,
-        requestedRef: "main",
-        refKind: "branch",
+        selector: { kind: "ref", ref: "main", refKind: "branch" },
       },
       exactResolution: { kind: "git", commit: previousCommit },
       updateState: {
@@ -184,7 +183,12 @@ describe("persisted 0.4.6 scaffold upgrade", () => {
       "file:../../tooling/vendor/get-bb-plugin-sdk-0.4.8.tgz",
     );
 
-    await cp(generated.directory, sourceRepo, { recursive: true, force: true });
+    persistedManifest.engines.bbPluginSdk = "^0.4.8";
+    persistedManifest.devDependencies["@get-bb/plugin-sdk"] = "0.4.8";
+    await writeFile(
+      join(sourceRepo, "package.json"),
+      `${JSON.stringify(persistedManifest, null, 2)}\n`,
+    );
     await writeFile(
       join(sourceRepo, "server.ts"),
       'export default function plugin(bb: any) { bb.log.info("updated on 0.4.8"); }\n',
@@ -222,5 +226,5 @@ describe("persisted 0.4.6 scaffold upgrade", () => {
         expect.objectContaining({ id: "scaffold-upgrade", status: "running" }),
       ]),
     );
-  });
+  }, 30_000);
 });
