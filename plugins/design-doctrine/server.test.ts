@@ -58,6 +58,25 @@ describe("design doctrine library", () => {
     expect(results.map((rule) => rule.id)).toContain("ddr_001");
   });
 
+  it("returns the responsive-layout rules for a resizable-panel task", async () => {
+    const library = await loadDoctrine(process.cwd());
+
+    expect(
+      searchDoctrine(library.rules, "panel reflow narrow container width")
+        .map((rule) => rule.id),
+    ).toContain("ddr_034");
+    expect(
+      searchDoctrine(library.rules, "toolbar controls wrap instead of clipping labels")
+        .map((rule) => rule.id),
+    ).toContain("ddr_035");
+    // Both are reachable from one natural description of the work.
+    const combined = searchDoctrine(
+      library.rules,
+      "make the resizable side panel layout work at narrow widths",
+    ).map((rule) => rule.id);
+    expect(combined).toContain("ddr_034");
+  });
+
   it("ranks useful rules for natural task language with unmatched words", async () => {
     const library = await loadDoctrine(process.cwd());
     const results = searchDoctrine(
