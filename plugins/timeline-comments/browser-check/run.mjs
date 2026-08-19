@@ -137,6 +137,20 @@ try {
     .locator('[data-comment-editing="true"]')
     .waitFor({ state: "visible" });
   await page.waitForTimeout(50);
+  const focusedEditInput = await page
+    .locator('[data-comment-editing="true"] textarea')
+    .evaluate((textarea) => {
+      const style = getComputedStyle(textarea);
+      return {
+        active: document.activeElement === textarea,
+        outlineStyle: style.outlineStyle,
+      };
+    });
+  if (!focusedEditInput.active || focusedEditInput.outlineStyle !== "auto") {
+    throw new Error(
+      `Edit input did not keep the browser-native focus outline: ${JSON.stringify(focusedEditInput)}`,
+    );
+  }
   await page.screenshot({ path: screenshot });
 } finally {
   await browser?.close();
