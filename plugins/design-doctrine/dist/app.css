@@ -157,6 +157,9 @@
 }
 @layer utilities {
   @scope ([data-bb-plugin="design-doctrine"], [data-bb-plugin-root]:not([data-bb-plugin])) {
+    .\@container {
+      container-type: inline-size;
+    }
     .pointer-events-auto {
       pointer-events: auto;
     }
@@ -292,6 +295,9 @@
     .inline-flex {
       display: inline-flex;
     }
+    .table {
+      display: table;
+    }
     .h-1\.5 {
       height: calc(var(--spacing) * 1.5);
     }
@@ -340,6 +346,9 @@
     .flex-1 {
       flex: 1;
     }
+    .shrink {
+      flex-shrink: 1;
+    }
     .shrink-0 {
       flex-shrink: 0;
     }
@@ -354,9 +363,6 @@
     }
     .grid-cols-1 {
       grid-template-columns: repeat(1, minmax(0, 1fr));
-    }
-    .grid-cols-2 {
-      grid-template-columns: repeat(2, minmax(0, 1fr));
     }
     .flex-col {
       flex-direction: column;
@@ -405,8 +411,14 @@
         margin-block-end: calc(calc(var(--spacing) * 7) * calc(1 - var(--tw-space-y-reverse)));
       }
     }
+    .gap-x-2 {
+      column-gap: calc(var(--spacing) * 2);
+    }
     .gap-x-6 {
       column-gap: calc(var(--spacing) * 6);
+    }
+    .gap-y-1 {
+      row-gap: var(--spacing);
     }
     .gap-y-4 {
       row-gap: calc(var(--spacing) * 4);
@@ -1981,48 +1993,53 @@
         outline-style: none;
       }
     }
-    .sm\:w-56 {
-      @media (width >= 40rem) {
+    .\@md\:w-56 {
+      @container (width >= 28rem) {
         width: calc(var(--spacing) * 56);
       }
     }
-    .md\:grid-cols-2 {
-      @media (width >= 48rem) {
+    .\@md\:grid-cols-2 {
+      @container (width >= 28rem) {
         grid-template-columns: repeat(2, minmax(0, 1fr));
       }
     }
-    .md\:grid-cols-3 {
-      @media (width >= 48rem) {
-        grid-template-columns: repeat(3, minmax(0, 1fr));
-      }
-    }
-    .md\:px-8 {
-      @media (width >= 48rem) {
-        padding-inline: calc(var(--spacing) * 8);
-      }
-    }
-    .md\:pt-8 {
-      @media (width >= 48rem) {
-        padding-top: calc(var(--spacing) * 8);
-      }
-    }
-    .md\:pb-10 {
-      @media (width >= 48rem) {
-        padding-bottom: calc(var(--spacing) * 10);
-      }
-    }
-    .lg\:w-64 {
-      @media (width >= 64rem) {
+    .\@2xl\:w-64 {
+      @container (width >= 42rem) {
         width: calc(var(--spacing) * 64);
       }
     }
-    .lg\:flex-nowrap {
-      @media (width >= 64rem) {
+    .\@2xl\:grid-cols-2 {
+      @container (width >= 42rem) {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+    }
+    .\@2xl\:flex-nowrap {
+      @container (width >= 42rem) {
         flex-wrap: nowrap;
       }
     }
-    .xl\:grid-cols-3 {
-      @media (width >= 80rem) {
+    .\@2xl\:px-8 {
+      @container (width >= 42rem) {
+        padding-inline: calc(var(--spacing) * 8);
+      }
+    }
+    .\@2xl\:pt-8 {
+      @container (width >= 42rem) {
+        padding-top: calc(var(--spacing) * 8);
+      }
+    }
+    .\@2xl\:pb-10 {
+      @container (width >= 42rem) {
+        padding-bottom: calc(var(--spacing) * 10);
+      }
+    }
+    .\@3xl\:grid-cols-3 {
+      @container (width >= 48rem) {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+      }
+    }
+    .\@5xl\:grid-cols-3 {
+      @container (width >= 64rem) {
         grid-template-columns: repeat(3, minmax(0, 1fr));
       }
     }

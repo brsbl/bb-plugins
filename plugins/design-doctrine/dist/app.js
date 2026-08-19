@@ -205,6 +205,14 @@ function filterRules(rules, domain, query) {
     return terms.every((term) => text.includes(term));
   });
 }
+var GRID_TWO_COLUMN_WIDTH = 672;
+var GRID_THREE_COLUMN_WIDTH = 1024;
+function gridColumnCountForWidth(width) {
+  if (!Number.isFinite(width) || width <= 0) return 1;
+  if (width >= GRID_THREE_COLUMN_WIDTH) return 3;
+  if (width >= GRID_TWO_COLUMN_WIDTH) return 2;
+  return 1;
+}
 function detailRowEndIndex(selectedIndex, resultCount, columnCount) {
   if (selectedIndex < 0 || resultCount < 1) return -1;
   return Math.min(
@@ -326,25 +334,16 @@ function MeshFill({ start, end }) {
 function domainLabel(domain) {
   return titleCaseDomainFilter(domain);
 }
-function getGridColumnCount() {
-  if (typeof window === "undefined") return 1;
-  if (window.matchMedia("(min-width: 1280px)").matches) return 3;
-  if (window.matchMedia("(min-width: 768px)").matches) return 2;
-  return 1;
-}
-function useGridColumnCount() {
-  const [columnCount, setColumnCount] = useState(getGridColumnCount);
+function useGridColumnCount(element) {
+  const [columnCount, setColumnCount] = useState(1);
   useEffect(() => {
-    const medium = window.matchMedia("(min-width: 768px)");
-    const extraLarge = window.matchMedia("(min-width: 1280px)");
-    const update = () => setColumnCount(getGridColumnCount());
-    medium.addEventListener("change", update);
-    extraLarge.addEventListener("change", update);
-    return () => {
-      medium.removeEventListener("change", update);
-      extraLarge.removeEventListener("change", update);
-    };
-  }, []);
+    if (!element || typeof ResizeObserver === "undefined") return;
+    const update = () => setColumnCount(gridColumnCountForWidth(element.clientWidth));
+    update();
+    const observer = new ResizeObserver(update);
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, [element]);
   return columnCount;
 }
 function StatusBadge({ status }) {
@@ -365,7 +364,7 @@ function DomainPills({
   return /* @__PURE__ */ jsx(
     "div",
     {
-      className: "flex min-w-0 flex-1 flex-wrap items-center gap-1.5 lg:flex-nowrap",
+      className: "flex min-w-0 flex-1 flex-wrap items-center gap-1.5",
       role: "group",
       "aria-label": "Filter by domain",
       children: ["all", ...domains].map((domain) => {
@@ -378,7 +377,7 @@ function DomainPills({
           "button",
           {
             type: "button",
-            className: `group relative isolate cursor-pointer overflow-hidden rounded-full border px-3 py-1 text-xs font-medium text-foreground shadow-xs backdrop-blur-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background ${selected ? style.selected : style.idle}`,
+            className: `group relative isolate shrink-0 cursor-pointer overflow-hidden rounded-full border px-3 py-1 text-xs font-medium text-foreground shadow-xs backdrop-blur-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background ${selected ? style.selected : style.idle}`,
             "aria-label": domain === "all" ? "Show all domains" : `Show ${label} domain`,
             "aria-pressed": selected,
             onClick: () => onSelect(domain),
@@ -451,7 +450,7 @@ function RuleCard({
           ] }),
           /* @__PURE__ */ jsx("h2", { className: "mt-2 text-base font-semibold leading-snug text-foreground", children: rule.title }),
           /* @__PURE__ */ jsx("p", { className: "mt-1.5 line-clamp-3 text-sm leading-6 text-muted-foreground", children: rule.statement }),
-          /* @__PURE__ */ jsxs("div", { className: "mt-auto flex w-full items-center gap-2 pt-4 text-[11px] text-muted-foreground", children: [
+          /* @__PURE__ */ jsxs("div", { className: "mt-auto flex w-full flex-wrap items-center gap-x-2 gap-y-1 pt-4 text-[11px] text-muted-foreground", children: [
             /* @__PURE__ */ jsx("span", { children: rule.strength }),
             /* @__PURE__ */ jsx("span", { "aria-hidden": "true", children: "\xB7" }),
             /* @__PURE__ */ jsxs("span", { children: [
@@ -519,7 +518,7 @@ function RuleDetail({
       id: `rule-detail-${requestedId}`,
       className: "relative col-span-full overflow-hidden rounded-xl border border-border bg-card text-card-foreground shadow-sm",
       "aria-labelledby": "doctrine-rule-title",
-      children: /* @__PURE__ */ jsxs("div", { className: "mx-auto w-full max-w-5xl px-5 pb-8 pt-6 md:px-8 md:pb-10 md:pt-8", children: [
+      children: /* @__PURE__ */ jsxs("div", { className: "mx-auto w-full max-w-5xl px-5 pb-8 pt-6 @2xl:px-8 @2xl:pb-10 @2xl:pt-8", children: [
         /* @__PURE__ */ jsx(
           "button",
           {
@@ -552,11 +551,11 @@ function RuleDetail({
             /* @__PURE__ */ jsx("h3", { className: "text-xs font-semibold uppercase tracking-wide text-muted-foreground", children: "Why" }),
             /* @__PURE__ */ jsx("p", { className: "mt-2 text-sm leading-6 text-foreground", children: rule.why })
           ] }),
-          /* @__PURE__ */ jsxs("div", { className: "mt-7 grid gap-7 md:grid-cols-2", children: [
+          /* @__PURE__ */ jsxs("div", { className: "mt-7 grid gap-7 @2xl:grid-cols-2", children: [
             /* @__PURE__ */ jsx(ListSection, { title: "Prefer", items: rule.prefer, tone: "positive" }),
             /* @__PURE__ */ jsx(ListSection, { title: "Avoid", items: rule.avoid, tone: "negative" })
           ] }),
-          /* @__PURE__ */ jsxs("div", { className: "mt-7 grid gap-7 md:grid-cols-2", children: [
+          /* @__PURE__ */ jsxs("div", { className: "mt-7 grid gap-7 @2xl:grid-cols-2", children: [
             /* @__PURE__ */ jsx(ListSection, { title: "Use when", items: rule.use_when }),
             /* @__PURE__ */ jsx(ListSection, { title: "Do not use when", items: rule.not_when })
           ] }),
@@ -568,7 +567,7 @@ function RuleDetail({
             /* @__PURE__ */ jsx("h3", { className: "text-xs font-semibold uppercase tracking-wide text-muted-foreground", children: "Evidence" }),
             /* @__PURE__ */ jsx("div", { className: "mt-2 space-y-2", children: rule.evidence.map((item) => /* @__PURE__ */ jsx("p", { className: "rounded-lg bg-muted/60 px-3 py-2.5 text-sm leading-6 text-muted-foreground", children: item }, item)) })
           ] }) : null,
-          /* @__PURE__ */ jsxs("dl", { className: "mt-8 grid grid-cols-2 gap-x-6 gap-y-4 border-t border-border pt-5 md:grid-cols-3", children: [
+          /* @__PURE__ */ jsxs("dl", { className: "mt-8 grid grid-cols-1 gap-x-6 gap-y-4 border-t border-border pt-5 @md:grid-cols-2 @3xl:grid-cols-3", children: [
             /* @__PURE__ */ jsx(Fact, { label: "ID", children: rule.id }),
             /* @__PURE__ */ jsx(Fact, { label: "Kind", children: rule.kind }),
             /* @__PURE__ */ jsx(Fact, { label: "Strength", children: rule.strength }),
@@ -605,7 +604,8 @@ function DoctrineLibrary({ subPath }) {
   const [query, setQuery] = useState("");
   const [domain, setDomain] = useState("all");
   const detailRef = useRef(null);
-  const columnCount = useGridColumnCount();
+  const [panelElement, setPanelElement] = useState(null);
+  const columnCount = useGridColumnCount(panelElement);
   const requestedId = ruleIdFromPath(subPath);
   const load = useCallback(async () => {
     setLoading(true);
@@ -655,94 +655,101 @@ function DoctrineLibrary({ subPath }) {
   useEffect(() => {
     if (requestedId && selectedRule && selectedResultIndex < 0) closeDetail();
   }, [closeDetail, requestedId, selectedResultIndex, selectedRule]);
-  return /* @__PURE__ */ jsxs("main", { className: "flex h-full min-h-0 flex-col bg-background text-foreground", children: [
-    /* @__PURE__ */ jsxs("section", { className: "flex shrink-0 flex-wrap items-center gap-2 border-b border-border bg-background px-4 py-3 lg:flex-nowrap", "aria-label": "Filter design doctrine", children: [
-      /* @__PURE__ */ jsx(
-        "input",
-        {
-          type: "search",
-          className: "h-9 w-full min-w-0 rounded-lg border border-input bg-background px-3 text-sm text-foreground outline-none placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring sm:w-56 lg:w-64",
-          "aria-label": "Search doctrine",
-          placeholder: "Search rules\u2026",
-          value: query,
-          onChange: (event) => setQuery(event.currentTarget.value)
-        }
-      ),
-      /* @__PURE__ */ jsx(
-        DomainPills,
-        {
-          domains: library?.domains ?? [],
-          selectedDomain: domain,
-          onSelect: setDomain
-        }
-      ),
-      /* @__PURE__ */ jsx("div", { className: "ml-auto flex h-9 shrink-0 items-center", children: /* @__PURE__ */ jsxs("span", { className: "shrink-0 text-xs tabular-nums text-muted-foreground", role: "status", children: [
-        results.length,
-        " ",
-        results.length === 1 ? "rule" : "rules"
-      ] }) })
-    ] }),
-    /* @__PURE__ */ jsx("div", { className: "min-h-0 flex-1 overflow-y-auto p-4", children: error ? /* @__PURE__ */ jsxs("div", { className: "grid min-h-72 place-content-center text-center", children: [
-      /* @__PURE__ */ jsx("strong", { className: "text-sm font-semibold", children: "Could not load doctrine" }),
-      /* @__PURE__ */ jsx("p", { className: "mt-1 max-w-md text-sm text-muted-foreground", children: error }),
-      /* @__PURE__ */ jsx("button", { type: "button", className: "mx-auto mt-4 rounded-lg border border-border px-3 py-1.5 text-sm hover:bg-muted", onClick: () => void load(), children: "Retry" })
-    ] }) : loading && !library ? /* @__PURE__ */ jsx("div", { className: "grid min-h-72 place-content-center text-sm text-muted-foreground", children: "Loading rules\u2026" }) : results.length ? /* @__PURE__ */ jsxs("section", { className: "mx-auto grid w-full max-w-6xl grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3", "aria-label": "Design doctrine rules", children: [
-      requestedId && !selectedRule ? /* @__PURE__ */ jsx("div", { className: "col-span-full", ref: detailRef, children: /* @__PURE__ */ jsx(
-        RuleDetail,
-        {
-          rule: null,
-          requestedId,
-          selectedDomain: domain,
-          onClose: closeDetail,
-          onSelectDomain: setDomain
-        }
-      ) }) : null,
-      results.map((rule, index) => /* @__PURE__ */ jsxs(Fragment, { children: [
-        /* @__PURE__ */ jsx(
-          RuleCard,
-          {
-            rule,
-            selected: requestedId === rule.id,
-            selectedDomain: domain,
-            onToggle: () => {
-              const nextPath = toggledRulePath(requestedId, rule.id);
-              if (!nextPath) {
-                closeDetail();
-                return;
+  return /* @__PURE__ */ jsxs(
+    "main",
+    {
+      ref: setPanelElement,
+      className: "@container flex h-full min-h-0 flex-col bg-background text-foreground",
+      children: [
+        /* @__PURE__ */ jsxs("section", { className: "flex shrink-0 flex-wrap items-center gap-2 border-b border-border bg-background px-4 py-3 @2xl:flex-nowrap", "aria-label": "Filter design doctrine", children: [
+          /* @__PURE__ */ jsx(
+            "input",
+            {
+              type: "search",
+              className: "h-9 w-full min-w-0 rounded-lg border border-input bg-background px-3 text-sm text-foreground outline-none placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring @md:w-56 @2xl:w-64",
+              "aria-label": "Search doctrine",
+              placeholder: "Search rules\u2026",
+              value: query,
+              onChange: (event) => setQuery(event.currentTarget.value)
+            }
+          ),
+          /* @__PURE__ */ jsx(
+            DomainPills,
+            {
+              domains: library?.domains ?? [],
+              selectedDomain: domain,
+              onSelect: setDomain
+            }
+          ),
+          /* @__PURE__ */ jsx("div", { className: "ml-auto flex h-9 shrink-0 items-center", children: /* @__PURE__ */ jsxs("span", { className: "shrink-0 text-xs tabular-nums text-muted-foreground", role: "status", children: [
+            results.length,
+            " ",
+            results.length === 1 ? "rule" : "rules"
+          ] }) })
+        ] }),
+        /* @__PURE__ */ jsx("div", { className: "min-h-0 flex-1 overflow-y-auto p-4", children: error ? /* @__PURE__ */ jsxs("div", { className: "grid min-h-72 place-content-center text-center", children: [
+          /* @__PURE__ */ jsx("strong", { className: "text-sm font-semibold", children: "Could not load doctrine" }),
+          /* @__PURE__ */ jsx("p", { className: "mt-1 max-w-md text-sm text-muted-foreground", children: error }),
+          /* @__PURE__ */ jsx("button", { type: "button", className: "mx-auto mt-4 rounded-lg border border-border px-3 py-1.5 text-sm hover:bg-muted", onClick: () => void load(), children: "Retry" })
+        ] }) : loading && !library ? /* @__PURE__ */ jsx("div", { className: "grid min-h-72 place-content-center text-sm text-muted-foreground", children: "Loading rules\u2026" }) : results.length ? /* @__PURE__ */ jsxs("section", { className: "mx-auto grid w-full max-w-6xl grid-cols-1 gap-3 @2xl:grid-cols-2 @5xl:grid-cols-3", "aria-label": "Design doctrine rules", children: [
+          requestedId && !selectedRule ? /* @__PURE__ */ jsx("div", { className: "col-span-full", ref: detailRef, children: /* @__PURE__ */ jsx(
+            RuleDetail,
+            {
+              rule: null,
+              requestedId,
+              selectedDomain: domain,
+              onClose: closeDetail,
+              onSelectDomain: setDomain
+            }
+          ) }) : null,
+          results.map((rule, index) => /* @__PURE__ */ jsxs(Fragment, { children: [
+            /* @__PURE__ */ jsx(
+              RuleCard,
+              {
+                rule,
+                selected: requestedId === rule.id,
+                selectedDomain: domain,
+                onToggle: () => {
+                  const nextPath = toggledRulePath(requestedId, rule.id);
+                  if (!nextPath) {
+                    closeDetail();
+                    return;
+                  }
+                  navigate.toPluginPanel("library", {
+                    subPath: nextPath,
+                    replace: requestedId !== null
+                  });
+                },
+                onSelectDomain: setDomain
               }
-              navigate.toPluginPanel("library", {
-                subPath: nextPath,
-                replace: requestedId !== null
-              });
-            },
-            onSelectDomain: setDomain
-          }
-        ),
-        index === detailAfterIndex ? /* @__PURE__ */ jsx("div", { className: "col-span-full", ref: detailRef, children: /* @__PURE__ */ jsx(
+            ),
+            index === detailAfterIndex ? /* @__PURE__ */ jsx("div", { className: "col-span-full", ref: detailRef, children: /* @__PURE__ */ jsx(
+              RuleDetail,
+              {
+                rule: selectedRule,
+                requestedId,
+                selectedDomain: domain,
+                onClose: closeDetail,
+                onSelectDomain: setDomain
+              }
+            ) }) : null
+          ] }, rule.id))
+        ] }) : requestedId && !selectedRule ? /* @__PURE__ */ jsx("div", { className: "mx-auto w-full max-w-6xl", ref: detailRef, children: /* @__PURE__ */ jsx(
           RuleDetail,
           {
-            rule: selectedRule,
+            rule: null,
             requestedId,
             selectedDomain: domain,
             onClose: closeDetail,
             onSelectDomain: setDomain
           }
-        ) }) : null
-      ] }, rule.id))
-    ] }) : requestedId && !selectedRule ? /* @__PURE__ */ jsx("div", { className: "mx-auto w-full max-w-6xl", ref: detailRef, children: /* @__PURE__ */ jsx(
-      RuleDetail,
-      {
-        rule: null,
-        requestedId,
-        selectedDomain: domain,
-        onClose: closeDetail,
-        onSelectDomain: setDomain
-      }
-    ) }) : /* @__PURE__ */ jsxs("div", { className: "grid min-h-72 place-content-center text-center", children: [
-      /* @__PURE__ */ jsx("strong", { className: "text-sm font-semibold", children: "No rules found" }),
-      /* @__PURE__ */ jsx("p", { className: "mt-1 text-sm text-muted-foreground", children: "Try a different search or filter." })
-    ] }) })
-  ] });
+        ) }) : /* @__PURE__ */ jsxs("div", { className: "grid min-h-72 place-content-center text-center", children: [
+          /* @__PURE__ */ jsx("strong", { className: "text-sm font-semibold", children: "No rules found" }),
+          /* @__PURE__ */ jsx("p", { className: "mt-1 text-sm text-muted-foreground", children: "Try a different search or filter." })
+        ] }) })
+      ]
+    }
+  );
 }
 var app_default = definePluginApp((app) => {
   app.slots.navPanel({

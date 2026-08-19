@@ -19,6 +19,7 @@ import {
   displayDomainIdentifier,
   domainFilterFromIdentifier,
   filterRules,
+  gridColumnCountForWidth,
   ruleIdFromPath,
   SUBDOMAIN_MESH_STYLES,
   subdomainFromIdentifier,
@@ -132,27 +133,25 @@ function domainLabel(domain: string): string {
   return titleCaseDomainFilter(domain);
 }
 
-function getGridColumnCount(): number {
-  if (typeof window === "undefined") return 1;
-  if (window.matchMedia("(min-width: 1280px)").matches) return 3;
-  if (window.matchMedia("(min-width: 768px)").matches) return 2;
-  return 1;
-}
-
-function useGridColumnCount(): number {
-  const [columnCount, setColumnCount] = useState(getGridColumnCount);
+/**
+ * Tracks the rendered column count from the panel's own width. The panel is
+ * resized independently of the window, so measuring the element keeps this in
+ * step with the container breakpoints the grid uses in CSS.
+ */
+function useGridColumnCount(
+  element: HTMLElement | null,
+): number {
+  const [columnCount, setColumnCount] = useState(1);
 
   useEffect(() => {
-    const medium = window.matchMedia("(min-width: 768px)");
-    const extraLarge = window.matchMedia("(min-width: 1280px)");
-    const update = () => setColumnCount(getGridColumnCount());
-    medium.addEventListener("change", update);
-    extraLarge.addEventListener("change", update);
-    return () => {
-      medium.removeEventListener("change", update);
-      extraLarge.removeEventListener("change", update);
-    };
-  }, []);
+    if (!element || typeof ResizeObserver === "undefined") return;
+    const update = () =>
+      setColumnCount(gridColumnCountForWidth(element.clientWidth));
+    update();
+    const observer = new ResizeObserver(update);
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, [element]);
 
   return columnCount;
 }
@@ -183,7 +182,7 @@ function DomainPills({
 }) {
   return (
     <div
-      className="flex min-w-0 flex-1 flex-wrap items-center gap-1.5 lg:flex-nowrap"
+      className="flex min-w-0 flex-1 flex-wrap items-center gap-1.5"
       role="group"
       aria-label="Filter by domain"
     >
@@ -199,7 +198,7 @@ function DomainPills({
           <button
             key={domain}
             type="button"
-            className={`group relative isolate cursor-pointer overflow-hidden rounded-full border px-3 py-1 text-xs font-medium text-foreground shadow-xs backdrop-blur-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background ${selected ? style.selected : style.idle}`}
+            className={`group relative isolate shrink-0 cursor-pointer overflow-hidden rounded-full border px-3 py-1 text-xs font-medium text-foreground shadow-xs backdrop-blur-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background ${selected ? style.selected : style.idle}`}
             aria-label={domain === "all" ? "Show all domains" : `Show ${label} domain`}
             aria-pressed={selected}
             onClick={() => onSelect(domain)}
@@ -284,7 +283,7 @@ function RuleCard({
         <p className="mt-1.5 line-clamp-3 text-sm leading-6 text-muted-foreground">
           {rule.statement}
         </p>
-        <div className="mt-auto flex w-full items-center gap-2 pt-4 text-[11px] text-muted-foreground">
+        <div className="mt-auto flex w-full flex-wrap items-center gap-x-2 gap-y-1 pt-4 text-[11px] text-muted-foreground">
           <span>{rule.strength}</span>
           <span aria-hidden="true">·</span>
           <span>{rule.confidence} confidence</span>
@@ -370,7 +369,7 @@ function RuleDetail({
       className="relative col-span-full overflow-hidden rounded-xl border border-border bg-card text-card-foreground shadow-sm"
       aria-labelledby="doctrine-rule-title"
     >
-      <div className="mx-auto w-full max-w-5xl px-5 pb-8 pt-6 md:px-8 md:pb-10 md:pt-8">
+      <div className="mx-auto w-full max-w-5xl px-5 pb-8 pt-6 @2xl:px-8 @2xl:pb-10 @2xl:pt-8">
         <button
           type="button"
           className="absolute right-3 top-3 z-10 grid h-8 w-8 place-items-center rounded-md text-xl leading-none text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
@@ -410,11 +409,11 @@ function RuleDetail({
               <p className="mt-2 text-sm leading-6 text-foreground">{rule.why}</p>
             </section>
 
-            <div className="mt-7 grid gap-7 md:grid-cols-2">
+            <div className="mt-7 grid gap-7 @2xl:grid-cols-2">
               <ListSection title="Prefer" items={rule.prefer} tone="positive" />
               <ListSection title="Avoid" items={rule.avoid} tone="negative" />
             </div>
-            <div className="mt-7 grid gap-7 md:grid-cols-2">
+            <div className="mt-7 grid gap-7 @2xl:grid-cols-2">
               <ListSection title="Use when" items={rule.use_when} />
               <ListSection title="Do not use when" items={rule.not_when} />
             </div>
@@ -437,7 +436,7 @@ function RuleDetail({
               </section>
             ) : null}
 
-            <dl className="mt-8 grid grid-cols-2 gap-x-6 gap-y-4 border-t border-border pt-5 md:grid-cols-3">
+            <dl className="mt-8 grid grid-cols-1 gap-x-6 gap-y-4 border-t border-border pt-5 @md:grid-cols-2 @3xl:grid-cols-3">
               <Fact label="ID">{rule.id}</Fact>
               <Fact label="Kind">{rule.kind}</Fact>
               <Fact label="Strength">{rule.strength}</Fact>
@@ -470,7 +469,8 @@ function DoctrineLibrary({ subPath }: { subPath: string }) {
   const [query, setQuery] = useState("");
   const [domain, setDomain] = useState("all");
   const detailRef = useRef<HTMLDivElement | null>(null);
-  const columnCount = useGridColumnCount();
+  const [panelElement, setPanelElement] = useState<HTMLElement | null>(null);
+  const columnCount = useGridColumnCount(panelElement);
   const requestedId = ruleIdFromPath(subPath);
 
   const load = useCallback(async () => {
@@ -531,11 +531,14 @@ function DoctrineLibrary({ subPath }: { subPath: string }) {
   }, [closeDetail, requestedId, selectedResultIndex, selectedRule]);
 
   return (
-    <main className="flex h-full min-h-0 flex-col bg-background text-foreground">
-      <section className="flex shrink-0 flex-wrap items-center gap-2 border-b border-border bg-background px-4 py-3 lg:flex-nowrap" aria-label="Filter design doctrine">
+    <main
+      ref={setPanelElement}
+      className="@container flex h-full min-h-0 flex-col bg-background text-foreground"
+    >
+      <section className="flex shrink-0 flex-wrap items-center gap-2 border-b border-border bg-background px-4 py-3 @2xl:flex-nowrap" aria-label="Filter design doctrine">
         <input
           type="search"
-          className="h-9 w-full min-w-0 rounded-lg border border-input bg-background px-3 text-sm text-foreground outline-none placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring sm:w-56 lg:w-64"
+          className="h-9 w-full min-w-0 rounded-lg border border-input bg-background px-3 text-sm text-foreground outline-none placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring @md:w-56 @2xl:w-64"
           aria-label="Search doctrine"
           placeholder="Search rules…"
           value={query}
@@ -565,7 +568,7 @@ function DoctrineLibrary({ subPath }: { subPath: string }) {
         ) : loading && !library ? (
           <div className="grid min-h-72 place-content-center text-sm text-muted-foreground">Loading rules…</div>
         ) : results.length ? (
-          <section className="mx-auto grid w-full max-w-6xl grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3" aria-label="Design doctrine rules">
+          <section className="mx-auto grid w-full max-w-6xl grid-cols-1 gap-3 @2xl:grid-cols-2 @5xl:grid-cols-3" aria-label="Design doctrine rules">
             {requestedId && !selectedRule ? (
               <div className="col-span-full" ref={detailRef}>
                 <RuleDetail

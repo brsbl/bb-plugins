@@ -165,6 +165,25 @@ export function filterRules(
   });
 }
 
+/**
+ * Grid column count for a given panel width, in pixels.
+ *
+ * These thresholds mirror the `@2xl` / `@5xl` container breakpoints the grid
+ * uses in CSS. The panel is resizable independently of the window, so both must
+ * key off the panel's own width — a viewport media query would report three
+ * columns in a narrow panel inside a wide window, and the inline rule detail
+ * would then open in the wrong row.
+ */
+export const GRID_TWO_COLUMN_WIDTH = 672;
+export const GRID_THREE_COLUMN_WIDTH = 1024;
+
+export function gridColumnCountForWidth(width: number): number {
+  if (!Number.isFinite(width) || width <= 0) return 1;
+  if (width >= GRID_THREE_COLUMN_WIDTH) return 3;
+  if (width >= GRID_TWO_COLUMN_WIDTH) return 2;
+  return 1;
+}
+
 export function detailRowEndIndex(
   selectedIndex: number,
   resultCount: number,

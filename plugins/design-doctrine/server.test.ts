@@ -8,6 +8,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   detailRowEndIndex,
+  gridColumnCountForWidth,
   displayDomainIdentifier,
   domainFilterFromIdentifier,
   filterRules,
@@ -173,6 +174,18 @@ describe("design doctrine library", () => {
     expect(detailRowEndIndex(7, 8, 3)).toBe(7);
     expect(detailRowEndIndex(4, 8, 2)).toBe(5);
     expect(detailRowEndIndex(4, 8, 1)).toBe(4);
+  });
+
+  it("derives grid columns from the panel width, not the window", () => {
+    // Thresholds mirror the @2xl / @5xl container breakpoints the grid uses,
+    // so a narrow panel inside a wide window still reports one column.
+    expect(gridColumnCountForWidth(320)).toBe(1);
+    expect(gridColumnCountForWidth(671)).toBe(1);
+    expect(gridColumnCountForWidth(672)).toBe(2);
+    expect(gridColumnCountForWidth(1023)).toBe(2);
+    expect(gridColumnCountForWidth(1024)).toBe(3);
+    expect(gridColumnCountForWidth(0)).toBe(1);
+    expect(gridColumnCountForWidth(Number.NaN)).toBe(1);
   });
 
   it("preserves deep links and collapses a selected rule", () => {
