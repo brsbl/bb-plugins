@@ -865,6 +865,12 @@ var HOVER_CARD_CSS = String.raw`
   color: currentColor;
 }
 
+.bb-thread-hover-card__access[data-permission-mode="accept-edits"],
+.bb-thread-hover-card__access[data-permission-mode="workspace-write"],
+.bb-thread-hover-card__access[data-permission-mode="auto"] {
+  color: color-mix(in srgb, var(--muted-foreground) 72%, transparent);
+}
+
 .bb-thread-hover-card__access[data-permission-mode="full"] {
   color: color-mix(
     in srgb,

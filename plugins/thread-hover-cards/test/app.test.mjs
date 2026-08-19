@@ -566,6 +566,10 @@ assert.match(
 );
 assert.match(
   style.textContent,
+  /\.bb-thread-hover-card__access\[data-permission-mode="accept-edits"\],[\s\S]*?\.bb-thread-hover-card__access\[data-permission-mode="auto"\] \{[\s\S]*?var\(--muted-foreground\) 72%, transparent/,
+);
+assert.match(
+  style.textContent,
   /\.bb-thread-hover-card__access\[data-permission-mode="full"\][\s\S]*?var\(--warning-text, var\(--warning\)\)/,
 );
 assert.match(
