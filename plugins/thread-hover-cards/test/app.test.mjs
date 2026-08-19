@@ -594,6 +594,8 @@ trigger.dispatchEvent(pointerOver);
 const card = window.document.getElementById("bb-thread-hover-card");
 assert.ok(card, "opens the hover card in the pointer event turn");
 assert.equal(card.hidden, false);
+assert.equal(card.dataset.bbHoverCardRenderState, "loading");
+assert.equal(card.getAttribute("aria-busy"), "true");
 assert.deepEqual(
   requestBodies,
   [{ threadId: "thr_1" }],
@@ -610,6 +612,8 @@ assert.match(card.textContent, /Loading thread summary/);
 await new Promise((resolve) => setTimeout(resolve, 20));
 
 assert.equal(card.hidden, false);
+assert.equal(card.dataset.bbHoverCardRenderState, "complete");
+assert.equal(card.hasAttribute("aria-busy"), false);
 assert.equal(card.dataset.bbPlugin, "thread-hover-cards");
 assert.equal(card.hasAttribute("data-bb-portaled-overlay"), true);
 assert.equal(trigger.getAttribute("aria-describedby"), "bb-thread-hover-card");
@@ -1424,12 +1428,20 @@ testNow += 2_100;
 delayNextTimingFor.add("thr_summary_before_timing");
 await closeAndOpenThread("thr_summary_before_timing", 10);
 assert.ok(delayedTimingResponses.has("thr_summary_before_timing"));
+assert.equal(
+  reloadedCard.dataset.bbHoverCardRenderState,
+  "summary",
+  "does not advertise screenshot readiness while timing is still pending",
+);
+assert.equal(reloadedCard.getAttribute("aria-busy"), "true");
 assert.ok(
   reloadedCard.querySelector(".bb-thread-hover-card__runtime"),
   "keeps hydrated runtime while summary resolves before timing",
 );
 delayedTimingResponses.get("thr_summary_before_timing")?.();
 await new Promise((resolve) => setTimeout(resolve, 20));
+assert.equal(reloadedCard.dataset.bbHoverCardRenderState, "complete");
+assert.equal(reloadedCard.hasAttribute("aria-busy"), false);
 assert.ok(reloadedCard.querySelector(".bb-thread-hover-card__runtime"));
 assert.equal(
   timingRequestBodies.filter(
@@ -1525,6 +1537,18 @@ assert.doesNotMatch(
   /#41/,
   "ignores a late PR response for the previous branch",
 );
+
+delayNextPullRequestFor.add("thr_slow_pr");
+await closeAndOpenThread("thr_slow_pr", 20);
+assert.ok(delayedPullRequestResponses.has("thr_slow_pr"));
+assert.equal(
+  reloadedCard.dataset.bbHoverCardRenderState,
+  "summary",
+  "does not advertise screenshot readiness while PR content is still pending",
+);
+delayedPullRequestResponses.get("thr_slow_pr")?.();
+await new Promise((resolve) => setTimeout(resolve, 20));
+assert.equal(reloadedCard.dataset.bbHoverCardRenderState, "complete");
 
 for (const expected of [
   {
@@ -1699,6 +1723,7 @@ await new Promise((resolve) => setTimeout(resolve, 20));
 const sectionCard = window.document.getElementById("bb-section-hover-card");
 assert.ok(sectionCard, "opens a card from the section header row");
 assert.equal(sectionCard.hidden, false);
+assert.equal(sectionCard.dataset.bbHoverCardRenderState, "complete");
 assert.equal(
   designHeader.toggle.getAttribute("aria-describedby"),
   "bb-section-hover-card",
@@ -1769,6 +1794,20 @@ sectionGroup.append(delayedAHeader.row, delayedBHeader.row);
 hoverOver(delayedBHeader.title);
 await new Promise((resolve) => setTimeout(resolve, 20));
 assert.match(sectionCard.textContent, /2 threads/);
+
+delayNextSectionFor.add("Delayed A");
+hoverOver(delayedAHeader.title);
+await new Promise((resolve) => setTimeout(resolve, 0));
+assert.equal(sectionCard.dataset.bbHoverCardRenderState, "loading");
+assert.equal(sectionCard.getAttribute("aria-busy"), "true");
+delayedSectionResponses.get("Delayed A")?.();
+await new Promise((resolve) => setTimeout(resolve, 20));
+assert.equal(sectionCard.dataset.bbHoverCardRenderState, "complete");
+assert.equal(sectionCard.hasAttribute("aria-busy"), false);
+
+hoverOver(delayedBHeader.title);
+await new Promise((resolve) => setTimeout(resolve, 20));
+testNow += 4_100;
 delayNextSectionFor.add("Delayed A");
 hoverOver(delayedAHeader.title);
 await new Promise((resolve) => setTimeout(resolve, 0));
