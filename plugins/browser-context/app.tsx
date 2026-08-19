@@ -995,7 +995,7 @@ function BrowserContextAction(props: PluginBrowserActionProps) {
           provider: "captures",
           id: mention.id,
           label: mention.label,
-          preview: mention.preview,
+          experimental_preview: mention.preview,
           experimental_inspectable: true,
         });
         const comment =

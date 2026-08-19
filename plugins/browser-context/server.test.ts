@@ -608,7 +608,7 @@ describe("Browser Context prepareCapture", () => {
     expect(inspected.metadata).toContain(
       "capture.screenshot.pixelSize.width = 2400",
     );
-    expect(inspected.preview).toMatchObject({
+    expect(inspected.experimental_preview).toMatchObject({
       kind: "image",
       dataUrl: PNG_DATA_URL,
       alt: "Captured preview of Save",

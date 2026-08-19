@@ -143,12 +143,12 @@ declare const promptInputSchema: z.ZodDiscriminatedUnion<[z.ZodObject<{
             }>;
         }, z.core.$strip>, z.ZodObject<{
             experimentalInspectability: z.ZodOptional<z.ZodLiteral<true>>;
+            experimental_preview: z.ZodOptional<z.ZodString>;
             icon: z.ZodOptional<z.ZodNullable<z.ZodString>>;
             itemId: z.ZodString;
             kind: z.ZodLiteral<"plugin">;
             label: z.ZodString;
             pluginId: z.ZodString;
-            preview: z.ZodOptional<z.ZodString>;
         }, z.core.$strip>], "kind">>;
         start: z.ZodNumber;
     }, z.core.$strip>>>;
@@ -1295,7 +1295,7 @@ interface ComposerStructuredDraft {
         id: string;
         label: string;
         /** Human-readable preview carried by a plugin mention, when provided. */
-        preview?: string;
+        experimental_preview?: string;
         /** Whether the provider exposes optional host-rendered inspection detail. */
         experimental_inspectable?: boolean;
     }[];
@@ -1326,7 +1326,7 @@ interface PluginComposerMention {
     /** Pill text shown in the composer. */
     label: string;
     /** Optional human-readable content shown when the pill is hovered or focused. */
-    preview?: string;
+    experimental_preview?: string;
     /** Activate this mention's optional provider inspector. Experimental. */
     experimental_inspectable?: boolean;
 }
@@ -1661,6 +1661,13 @@ interface PluginSdkApp {
      * The sidebar's live thread view (see {@link PluginSidebarThreadsState}).
      * Reads the host's own cache and realtime subscriptions, so it costs no
      * extra request and updates exactly when the built-in sidebar does.
+     *
+     * `threads` is one array of every visible thread and is not capped. Thread
+     * objects keep their identity across updates while the underlying entry is
+     * unchanged, so a memoized row re-renders only when its own thread changed;
+     * the array itself is new on every update. Window your rows (render only
+     * what is on screen) as the built-in sidebar does — a list that mounts one
+     * row per thread is slow on phones with many threads.
      * Experimental: see docs/api_to_audit.md.
      */
     experimental_useSidebarThreads(): PluginSidebarThreadsState;

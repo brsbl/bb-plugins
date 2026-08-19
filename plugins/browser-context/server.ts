@@ -1345,7 +1345,7 @@ export default function plugin(bb: BbPluginApi): void {
       return {
         title: capture.label,
         description: `${comments.length} comment${comments.length === 1 ? "" : "s"}`,
-        preview: {
+        experimental_preview: {
           kind: "image",
           dataUrl: capture.screenshot_data_url,
           alt: capture.preview_alt,

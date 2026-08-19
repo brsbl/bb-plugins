@@ -640,7 +640,9 @@ describe("Browser Context action", () => {
     expect(slot.inspection.composer.mentions).toEqual([
       {
         provider: "captures",
-        ...prepared.mentions[0],
+        id: prepared.mentions[0]!.id,
+        label: prepared.mentions[0]!.label,
+        experimental_preview: prepared.mentions[0]!.preview,
         experimental_inspectable: true,
       },
     ]);
