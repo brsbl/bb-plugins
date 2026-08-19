@@ -1,6 +1,6 @@
 import { createHash, randomUUID } from "node:crypto";
 
-import { defineRpcContract, type BbPluginApi } from "@bb/plugin-sdk";
+import { defineRpcContract, type BbPluginApi } from "@get-bb/plugin-sdk";
 import { z } from "zod";
 
 import {

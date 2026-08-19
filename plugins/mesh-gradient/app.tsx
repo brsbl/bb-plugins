@@ -14,7 +14,7 @@ import {
   useRealtime,
   useRpc,
   type PluginThreadPanelProps,
-} from "@bb/plugin-sdk/app";
+} from "@get-bb/plugin-sdk/app";
 
 import {
   EDIT_MAX_POINTS,
@@ -739,7 +739,7 @@ function Studio({ threadId }: PluginThreadPanelProps) {
 
   return (
     <div
-      className="h-full overflow-y-auto p-4 md:p-5"
+      className="h-full overflow-y-auto px-4 py-2.5 md:px-5 md:py-3"
       onKeyDown={(event) => {
         if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "z") {
           event.preventDefault();
@@ -771,7 +771,7 @@ function Studio({ threadId }: PluginThreadPanelProps) {
         }
       }}
     >
-      <div className="mx-auto w-full max-w-3xl space-y-4">
+      <div className="mx-auto w-full max-w-3xl space-y-2.5">
         {/* Every instruction lives here, so nothing is repeated further down. */}
         <p className="text-xs leading-relaxed text-muted-foreground">
           Drag points to move them, click one to recolor it or set its falloff,
@@ -782,7 +782,7 @@ function Studio({ threadId }: PluginThreadPanelProps) {
           <code className="rounded bg-muted px-1 py-0.5">@gradient</code> to hand
           a saved gradient to an agent with its exact values.
         </p>
-        <div className="overflow-hidden rounded-xl border border-border">
+        <div className="overflow-hidden rounded-lg border border-border">
           <div
             ref={canvasRef}
             className={`relative w-full ${preset.overlay === "avatar" ? "mx-auto max-w-[260px] rounded-full" : ""}`}
