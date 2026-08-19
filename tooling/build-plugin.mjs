@@ -3,7 +3,6 @@ import { createRequire } from "node:module";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { pluginBuildBbVersion } from "./plugin-build-provenance.mjs";
-import { currentPluginBuildBbVersion } from "./plugin-build-sdk-0.4.8-provenance.mjs";
 
 const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const arguments_ = process.argv.slice(2);
@@ -29,7 +28,9 @@ if (usesCurrentSdk) {
   ({ buildPluginApp, buildPluginServer } = await import(
     "./vendor/bb-plugin-build-sdk-0.4.8.mjs"
   ));
-  bbVersion = currentPluginBuildBbVersion;
+  ({ currentPluginBuildBbVersion: bbVersion } = await import(
+    "./plugin-build-sdk-0.4.8-provenance.mjs"
+  ));
   const require = createRequire(import.meta.url);
   toolchain = {
     esbuild: pathToFileURL(require.resolve("esbuild")).href,
