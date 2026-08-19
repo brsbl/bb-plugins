@@ -78,7 +78,7 @@ function filesFor(options) {
       skills: [],
     },
     devDependencies: {
-      "@bb/plugin-sdk": `file:../../tooling/vendor/${pluginSdkArchive}`,
+      "@get-bb/plugin-sdk": `file:../../tooling/vendor/${pluginSdkArchive}`,
       "@types/better-sqlite3": "^7.6.12",
       "@types/node": "^22.0.0",
       "better-sqlite3": "^12.10.0",
@@ -113,13 +113,13 @@ npm run check --workspace=${packageName}
 bb plugin install "path:$PWD/plugins/${options.slug}" --yes
 \`\`\`
 `;
-  const server = `import type { BbPluginApi } from "@bb/plugin-sdk";
+  const server = `import type { BbPluginApi } from "@get-bb/plugin-sdk";
 
 export default function plugin(bb: BbPluginApi): void {
   bb.log.info(${loadedMessage});
 }
 `;
-  const test = `import { createFakePluginHost } from "@bb/plugin-sdk/testing";
+  const test = `import { createFakePluginHost } from "@get-bb/plugin-sdk/testing";
 import { describe, expect, it } from "vitest";
 
 import plugin from "./server";
@@ -141,8 +141,8 @@ describe(${testName}, () => {
       moduleResolution: "Bundler",
       baseUrl: ".",
       paths: {
-        "@bb/plugin-sdk": ["./types/bb-plugin-sdk.d.ts"],
-        "@bb/plugin-sdk/app": ["./types/bb-plugin-sdk-app.d.ts"],
+        "@get-bb/plugin-sdk": ["./types/bb-plugin-sdk.d.ts"],
+        "@get-bb/plugin-sdk/app": ["./types/bb-plugin-sdk-app.d.ts"],
       },
       strict: true,
       noEmit: true,
@@ -163,7 +163,7 @@ describe(${testName}, () => {
 async function copySdkDeclarations(repositoryRoot, directory, options) {
   const sourceDirectory = resolve(
     options.bundledTypesDirectory ??
-      resolve(repositoryRoot, "node_modules/@bb/plugin-sdk/bundled-types"),
+      resolve(repositoryRoot, "node_modules/@get-bb/plugin-sdk/bundled-types"),
   );
   const destinationDirectory = resolve(directory, "types");
   await mkdir(destinationDirectory);

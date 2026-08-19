@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, expect, it, vi } from "vitest";
-import type { PluginContentScriptContext } from "@bb/plugin-sdk/app";
+import type { PluginContentScriptContext } from "@get-bb/plugin-sdk/app";
 import {
   beginTimelineComment,
   focusTimelineComment,

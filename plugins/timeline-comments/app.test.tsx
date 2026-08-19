@@ -1,12 +1,12 @@
 // @vitest-environment jsdom
 import { act, cleanup, fireEvent } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { PluginThreadPanelProps } from "@bb/plugin-sdk/app";
+import type { PluginThreadPanelProps } from "@get-bb/plugin-sdk/app";
 import {
   loadPluginApp,
   mountPluginContentScripts,
   renderSlot,
-} from "@bb/plugin-sdk/testing/app";
+} from "@get-bb/plugin-sdk/testing/app";
 import {
   installTimelineCommentsController,
   requestTimelineCommentHandoff,

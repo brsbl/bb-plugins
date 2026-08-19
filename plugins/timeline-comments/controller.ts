@@ -2,7 +2,7 @@ import type {
   PluginContentScriptContext,
   PluginMessageActionContext,
   PluginRpcClient,
-} from "@bb/plugin-sdk/app";
+} from "@get-bb/plugin-sdk/app";
 import {
   CheckCheck,
   Command,

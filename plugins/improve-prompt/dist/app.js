@@ -102,10 +102,10 @@ var {
   version
 } = mod;
 
-// bb-plugin-runtime-shim:@bb/plugin-sdk/app
+// bb-plugin-runtime-shim:@get-bb/plugin-sdk/app
 var runtime2 = globalThis.__bbPluginRuntime;
 if (runtime2 == null || runtime2.pluginSdkApp == null) {
-  throw new Error('Cannot load "@bb/plugin-sdk/app": this bundle must be loaded by the BB app, which provides the shared plugin runtime (globalThis.__bbPluginRuntime).');
+  throw new Error('Cannot load "@get-bb/plugin-sdk/app": this bundle must be loaded by the BB app, which provides the shared plugin runtime (globalThis.__bbPluginRuntime).');
 }
 var mod2 = runtime2.pluginSdkApp;
 var {

@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { installTestPluginRuntime } from "@bb/plugin-sdk/testing/app";
+import { installTestPluginRuntime } from "@get-bb/plugin-sdk/testing/app";
 import { describe, expect, it, vi } from "vitest";
 
 interface Deferred<T> {

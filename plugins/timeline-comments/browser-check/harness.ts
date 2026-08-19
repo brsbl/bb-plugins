@@ -1,7 +1,7 @@
 import "../app.css";
 import { registerTimelineCommentThreadWindow } from "../bridge.js";
 import { mountTimelineCommentsController } from "../controller.js";
-import type { PluginContentScriptContext } from "@bb/plugin-sdk/app";
+import type { PluginContentScriptContext } from "@get-bb/plugin-sdk/app";
 
 const threadId = "thr_browser";
 const messageId = "msg_browser";

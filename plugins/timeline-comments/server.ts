@@ -4,7 +4,7 @@ import {
   defineRpcContract,
   PLUGIN_CLI_OUTPUT_MAX_BYTES,
   type BbPluginApi,
-} from "@bb/plugin-sdk";
+} from "@get-bb/plugin-sdk";
 import { z } from "zod";
 import { COMMENT_BODY_CODE_POINT_LIMIT } from "./comment-body.js";
 

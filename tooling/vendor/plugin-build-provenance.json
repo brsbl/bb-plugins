@@ -1,8 +1,9 @@
 {
-  "builder": "bb plugin build@0.37.0",
-  "sourceRepository": "https://github.com/ymichael/bb",
-  "sourceCommit": "24a3211a8f3062c2ac1de580e6ca9a9434ed1aad",
+  "builder": "bb plugin build@0.39.0",
+  "sourceRepository": "https://github.com/get-bb/bb",
+  "sourceCommit": "b33abbff098ac4c857578e7350d492dcaa65d489",
   "sourcePath": "packages/plugin-build",
-  "bundle": "bb-plugin-build-0.37.0.mjs",
-  "sha256": "d6005b1bb04ad1bf3ec4c6ad69e4cae44fbc49400d459cad9b53f12aaba9deb9"
+  "buildCommand": "pnpm exec esbuild packages/plugin-build/src/index.ts --bundle --platform=node --format=esm",
+  "bundle": "bb-plugin-build-0.39.0.mjs",
+  "sha256": "6a4d27f1a9556a59bdd1a3c58dc746189a8dff9fd0898b21616b7f63181bc4d1"
 }

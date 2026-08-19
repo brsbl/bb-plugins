@@ -19,7 +19,7 @@ import { validatePluginArtifacts } from "./validate-plugin-artifacts.mjs";
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const bundledTypesDirectory = resolve(
   root,
-  "node_modules/@bb/plugin-sdk/bundled-types",
+  "node_modules/@get-bb/plugin-sdk/bundled-types",
 );
 
 function run(command, args, cwd) {
@@ -53,7 +53,7 @@ async function createFixtureRepository(directory) {
         type: "module",
         workspaces: ["plugins/*", "packages/*"],
         devDependencies: {
-          "@bb/plugin-sdk": rootManifest.devDependencies["@bb/plugin-sdk"],
+          "@get-bb/plugin-sdk": rootManifest.devDependencies["@get-bb/plugin-sdk"],
           "@tailwindcss/node": rootManifest.devDependencies["@tailwindcss/node"],
           "@tailwindcss/oxide": rootManifest.devDependencies["@tailwindcss/oxide"],
           esbuild: rootManifest.devDependencies.esbuild,

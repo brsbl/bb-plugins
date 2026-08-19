@@ -39,6 +39,51 @@ jobs:
       - run: git diff --check
       - run: git diff --exit-code
 
+  sdk-compatibility:
+    name: Persisted SDK 0.4.6 upgrade
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          path: bb-plugins
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22.22.0
+          cache: npm
+          cache-dependency-path: bb-plugins/package-lock.json
+      - run: npm ci
+        working-directory: bb-plugins
+      - uses: actions/checkout@v6
+        with:
+          repository: get-bb/bb
+          ref: b33abbff098ac4c857578e7350d492dcaa65d489
+          path: bb-host
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.0
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22.22.0
+          cache: pnpm
+          cache-dependency-path: bb-host/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+        working-directory: bb-host
+      - run: >-
+          pnpm --dir
+          node_modules/.pnpm/better-sqlite3@12.10.0/node_modules/better-sqlite3
+          run install
+        working-directory: bb-host
+      - run: >-
+          cp
+          bb-plugins/tooling/compatibility/plugin-sdk-upgrade.external.test.ts
+          bb-host/apps/server/test/services/plugins/plugin-scaffold-upgrade.external.test.ts
+      - run: >-
+          pnpm --filter @bb/server test --
+          plugin-scaffold-upgrade.external.test.ts
+        working-directory: bb-host
+        env:
+          BB_PLUGIN_COMPAT_REPOSITORY: ${{ github.workspace }}/bb-plugins
+
   plugins:
     needs: inventory
     runs-on: ubuntu-latest

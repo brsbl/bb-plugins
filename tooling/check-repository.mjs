@@ -26,6 +26,31 @@ function assert(condition, message) {
   if (!condition) throw new Error(message);
 }
 
+function parseSdkVersion(value, label) {
+  const match = /^(\d+)\.(\d+)\.(\d+)$/.exec(value);
+  assert(match !== null, `${label} must be an exact semantic version`);
+  return match.slice(1).map(Number);
+}
+
+function sdkFloor(range, label) {
+  const match = /^(?:\^|>=)(\d+)\.(\d+)\.(\d+)$/.exec(range);
+  assert(match !== null, `${label} must be a ^ or >= SDK floor`);
+  return match.slice(1).map(Number);
+}
+
+function compareVersions(left, right) {
+  for (let index = 0; index < left.length; index += 1) {
+    if (left[index] !== right[index]) return left[index] - right[index];
+  }
+  return 0;
+}
+
+function sdkFloorIsSupported(range, version) {
+  const floor = sdkFloor(range, "engines.bbPluginSdk");
+  const target = parseSdkVersion(version, "vendored SDK version");
+  return floor[0] === target[0] && compareVersions(floor, target) <= 0;
+}
+
 function normalizeRelativePath(path, label) {
   assert(typeof path === "string", `${label} must be a string`);
   const normalized = path
@@ -103,15 +128,19 @@ export async function checkRepository(repositoryRoot = defaultRoot, options = {}
   const plugins = await readPluginWorkspaces(root);
   const bundledTypesDirectory = resolve(
     options.bundledTypesDirectory ??
-      resolve(root, "node_modules/@bb/plugin-sdk/bundled-types"),
+      resolve(root, "node_modules/@get-bb/plugin-sdk/bundled-types"),
   );
 
   assert(rootManifest.workspaces.includes("plugins/*"), "plugins workspace missing");
   assert(rootManifest.workspaces.includes("packages/*"), "packages workspace missing");
   assert(
-    rootManifest.devDependencies?.["@bb/plugin-sdk"] ===
+    rootManifest.devDependencies?.["@get-bb/plugin-sdk"] ===
       `file:tooling/vendor/${pluginSdkArchive}`,
     "root plugin SDK dependency drift",
+  );
+  assert(
+    rootManifest.devDependencies?.["@bb/plugin-sdk"] === undefined,
+    "legacy @bb/plugin-sdk root dependency remains",
   );
   const bundledLockPaths = new Set();
   for (const [packagePath, lockEntry] of Object.entries(rootLock.packages)) {
@@ -204,14 +233,18 @@ export async function checkRepository(repositoryRoot = defaultRoot, options = {}
       `${slug}: bb engine drift`,
     );
     assert(
-      manifest.engines?.bbPluginSdk === `^${pluginSdkVersion}`,
-      `${slug}: SDK engine drift`,
+      sdkFloorIsSupported(manifest.engines?.bbPluginSdk, pluginSdkVersion),
+      `${slug}: SDK floor is newer than vendored SDK ${pluginSdkVersion}`,
     );
-    if (manifest.devDependencies?.["@bb/plugin-sdk"] !== undefined) {
+    assert(
+      manifest.devDependencies?.["@bb/plugin-sdk"] === undefined,
+      `${slug}: legacy @bb/plugin-sdk dependency remains`,
+    );
+    if (manifest.devDependencies?.["@get-bb/plugin-sdk"] !== undefined) {
       // Plugins may vendor the SDK archive next to their sources so a
       // pinned-commit install is standalone; that copy must stay byte-equal
       // to the shared tooling archive.
-      const sdkDependency = manifest.devDependencies["@bb/plugin-sdk"];
+      const sdkDependency = manifest.devDependencies["@get-bb/plugin-sdk"];
       const vendoredSpecifier = `file:./vendor/${pluginSdkArchive}`;
       assert(
         sdkDependency === `file:../../tooling/vendor/${pluginSdkArchive}` ||
