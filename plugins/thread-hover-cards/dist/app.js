@@ -23,7 +23,7 @@ var {
   useSettings
 } = mod;
 
-// icons.ts
+// ../../../plugin-ui-stack/plugins/thread-hover-cards/icons.ts
 var AlarmClockIcon = [
   [
     "path",
@@ -557,7 +557,7 @@ var HelpCircleIcon = [
   ]
 ];
 
-// styles.ts
+// ../../../plugin-ui-stack/plugins/thread-hover-cards/styles.ts
 var HOVER_CARD_CSS = String.raw`
 .bb-thread-hover-card {
   position: fixed;
@@ -1155,7 +1155,7 @@ var SECTION_CARD_CSS = String.raw`
 }
 `;
 
-// markdown-preview.ts
+// ../../../plugin-ui-stack/plugins/thread-hover-cards/markdown-preview.ts
 function tableCells(line) {
   return line.trim().replace(/^\|/, "").replace(/\|$/, "").split("|").map((cell) => cell.trim());
 }
@@ -1248,7 +1248,7 @@ function markdownPreview(source) {
   return inline ? { inline, kind: "paragraph" } : null;
 }
 
-// app.tsx
+// ../../../plugin-ui-stack/plugins/thread-hover-cards/app.tsx
 var CARD_ID = "bb-thread-hover-card";
 var STYLE_ID = "bb-thread-hover-card-styles";
 var PLUGIN_CSS_SELECTOR = 'link[data-bb-plugin-css="thread-hover-cards"]';
@@ -1777,6 +1777,37 @@ function renderError(card) {
   card.replaceChildren(
     element("p", "bb-thread-hover-card__loading", "Summary unavailable")
   );
+}
+function setHoverCardRenderState(card, state) {
+  card.dataset.bbHoverCardRenderState = state;
+  if (state === "loading" || state === "summary") {
+    card.setAttribute("aria-busy", "true");
+  } else {
+    card.removeAttribute("aria-busy");
+  }
+}
+function nextPaint() {
+  return new Promise((resolve) => requestAnimationFrame(() => resolve()));
+}
+async function waitForCardAssets(card) {
+  const fonts = document.fonts?.ready;
+  const images = Array.from(card.querySelectorAll("img"));
+  await Promise.all([
+    fonts ?? Promise.resolve(),
+    ...images.map((image) => {
+      if (image.complete) return image.decode?.().catch(() => void 0);
+      return new Promise((resolve) => {
+        image.addEventListener("load", () => resolve(), { once: true });
+        image.addEventListener("error", () => resolve(), { once: true });
+      });
+    })
+  ]);
+}
+async function markHoverCardComplete(card, isCurrent) {
+  await waitForCardAssets(card);
+  await nextPaint();
+  await nextPaint();
+  if (isCurrent()) setHoverCardRenderState(card, "complete");
 }
 function renderSummary(card, summary) {
   const header = element("div", "bb-thread-hover-card__header");
@@ -2339,9 +2370,9 @@ function installHoverCards({ onOpen }) {
         outcome: "ok",
         threadId
       });
-      return;
+      return Promise.resolve();
     }
-    void requestTiming(threadId).then((timing) => {
+    return requestTiming(threadId).then((timing) => {
       const current = cache.get(threadId);
       if (!current) return;
       const summaryStartedAt = current.summary.diagnostics.startedAt;
@@ -2349,9 +2380,11 @@ function installHoverCards({ onOpen }) {
         if (!disposed && generation === requestGeneration && activeThreadId === threadId && resolveActiveTrigger() && timingRetriedForSummary.get(threadId) !== summaryStartedAt && !timingRetryScheduled.has(threadId)) {
           timingRetriedForSummary.set(threadId, summaryStartedAt);
           timingRetryScheduled.add(threadId);
-          queueMicrotask(() => {
-            timingRetryScheduled.delete(threadId);
-            refreshTiming(threadId, generation, hoverCard);
+          return new Promise((resolve) => {
+            queueMicrotask(() => {
+              timingRetryScheduled.delete(threadId);
+              void refreshTiming(threadId, generation, hoverCard).then(resolve);
+            });
           });
         }
         return;
@@ -2384,7 +2417,7 @@ function installHoverCards({ onOpen }) {
   }
   function refreshPullRequest(threadId, generation, hoverCard) {
     const cached = cache.get(threadId);
-    if (!cached?.summary.repository.isGitRepository) return;
+    if (!cached?.summary.repository.isGitRepository) return Promise.resolve();
     const repositoryKey = pullRequestRepositoryIdentity(
       cached.summary.repository
     );
@@ -2396,9 +2429,9 @@ function installHoverCards({ onOpen }) {
         outcome: "ok",
         threadId
       });
-      return;
+      return Promise.resolve();
     }
-    void requestPullRequest(threadId, repositoryKey).then(({ pullRequest, repository }) => {
+    return requestPullRequest(threadId, repositoryKey).then(({ pullRequest, repository }) => {
       const current = cache.get(threadId);
       if (!current || pullRequestRepositoryIdentity(repository) !== repositoryKey || pullRequestRepositoryIdentity(current.summary.repository) !== repositoryKey) {
         return;
@@ -2423,6 +2456,18 @@ function installHoverCards({ onOpen }) {
       }
       requestAnimationFrame(positionCard);
     }).catch(() => void 0);
+  }
+  function finishRendering(threadId, generation, hoverCard) {
+    setHoverCardRenderState(hoverCard, "summary");
+    void Promise.all([
+      refreshTiming(threadId, generation, hoverCard),
+      refreshPullRequest(threadId, generation, hoverCard)
+    ]).then(
+      () => markHoverCardComplete(
+        hoverCard,
+        () => !disposed && generation === requestGeneration && activeThreadId === threadId && resolveActiveTrigger() !== null
+      )
+    );
   }
   function resolveActiveTrigger() {
     if (!activeThreadId) return null;
@@ -2475,6 +2520,7 @@ function installHoverCards({ onOpen }) {
     const generation = requestGeneration;
     abortSupersededSummaryRequests(threadId);
     const hoverCard = ensureCard();
+    setHoverCardRenderState(hoverCard, "loading");
     hoverCard.hidden = false;
     hoverCard.classList.remove("is-visible");
     void hoverCard.offsetWidth;
@@ -2504,8 +2550,7 @@ function installHoverCards({ onOpen }) {
         threadId
       });
       if (cacheIsFresh) {
-        refreshTiming(threadId, generation, hoverCard);
-        refreshPullRequest(threadId, generation, hoverCard);
+        finishRendering(threadId, generation, hoverCard);
         return;
       }
     }
@@ -2537,11 +2582,11 @@ function installHoverCards({ onOpen }) {
         (replacementPullRequestLink ?? resolveActiveTrigger())?.focus();
       }
       requestAnimationFrame(positionCard);
-      refreshTiming(threadId, generation, hoverCard);
-      refreshPullRequest(threadId, generation, hoverCard);
+      finishRendering(threadId, generation, hoverCard);
     }).catch((error) => {
       if (!cached && !disposed && generation === requestGeneration && activeThreadId === threadId && resolveActiveTrigger()) {
         renderError(hoverCard);
+        setHoverCardRenderState(hoverCard, "error");
         recordTiming({
           cache: "miss",
           durationMs: elapsedMs(requestedAt),
@@ -2864,16 +2909,23 @@ function installSectionHoverCards({
     generation += 1;
     const requestGeneration = generation;
     const hoverCard = ensureCard();
+    setHoverCardRenderState(hoverCard, "loading");
     hoverCard.hidden = false;
     hoverCard.classList.remove("is-visible");
     void hoverCard.offsetWidth;
     hoverCard.classList.add("is-visible");
     const key = keyOf(target);
     const cached = cache.get(key);
-    if (cached) renderSectionSummary(hoverCard, cached.summary);
-    else renderLoading(hoverCard, "section");
+    if (cached) {
+      renderSectionSummary(hoverCard, cached.summary);
+      setHoverCardRenderState(hoverCard, "summary");
+    } else renderLoading(hoverCard, "section");
     requestAnimationFrame(position);
     if (cached && Date.now() - cached.fetchedAt < SECTION_SUMMARY_CACHE_TTL_MS) {
+      void markHoverCardComplete(
+        hoverCard,
+        () => !disposed && requestGeneration === generation && active !== null
+      );
       return;
     }
     void requestSummary(target).then((summary) => {
@@ -2884,10 +2936,16 @@ function installSectionHoverCards({
       if (disposed || requestGeneration !== generation) return;
       renderSectionSummary(hoverCard, summary);
       requestAnimationFrame(position);
+      setHoverCardRenderState(hoverCard, "summary");
+      void markHoverCardComplete(
+        hoverCard,
+        () => !disposed && requestGeneration === generation && active !== null
+      );
     }).catch((error) => {
       if (disposed || requestGeneration !== generation || cached) return;
       if (isAbortError(error)) return;
       renderError(hoverCard);
+      setHoverCardRenderState(hoverCard, "error");
       requestAnimationFrame(position);
     });
   }
