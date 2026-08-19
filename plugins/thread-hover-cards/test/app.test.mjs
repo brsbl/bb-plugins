@@ -1671,6 +1671,7 @@ assert.equal(
 assert.equal(designHeader.row.hasAttribute("aria-describedby"), false);
 assert.deepEqual(sectionRequestBodies.at(-1), {
   name: "Design",
+  projectId: null,
   projectName: null,
 });
 // Band 1: the projects the section spans, two names then +N.
@@ -1784,14 +1785,35 @@ assert.equal(
   "no headline when nothing wants action — absent, not a reassurance line",
 );
 
+// A sidebar rerender rebinds the open card, and removing the replacement
+// closes the portaled card instead of leaving a stale accessible relation.
+const writingReplacement = sectionHeaderRow("Writing");
+writingHeader.row.replaceWith(writingReplacement.row);
+await new Promise((resolve) => setTimeout(resolve, 0));
+assert.equal(writingHeader.toggle.hasAttribute("aria-describedby"), false);
+assert.equal(
+  writingReplacement.toggle.getAttribute("aria-describedby"),
+  "bb-section-hover-card",
+);
+assert.equal(sectionCard.hidden, false);
+writingReplacement.row.remove();
+await new Promise((resolve) => setTimeout(resolve, 0));
+assert.equal(sectionCard.hidden, true);
+assert.equal(
+  writingReplacement.toggle.hasAttribute("aria-describedby"),
+  false,
+);
+
 // A section nested under a project reports only that project's threads.
 const projectItem = window.document.createElement("div");
 projectItem.dataset.sidebarStickyProjectItem = "";
+projectItem.dataset.sidebarProjectId = "proj_1";
 const projectGroup = window.document.createElement("div");
 projectGroup.dataset.sidebarStickyGroup = "";
 const projectHeader = sectionHeaderRow("bb");
 const nestedGroup = window.document.createElement("div");
 nestedGroup.dataset.sidebarStickyGroup = "";
+nestedGroup.dataset.sidebarSectionId = "sec_design";
 const nestedHeader = sectionHeaderRow("Design");
 nestedGroup.append(nestedHeader.row);
 projectGroup.append(projectHeader.row, nestedGroup);
@@ -1802,7 +1824,9 @@ hoverOver(nestedHeader.title);
 await new Promise((resolve) => setTimeout(resolve, 20));
 assert.deepEqual(sectionRequestBodies.at(-1), {
   name: "Design",
+  projectId: "proj_1",
   projectName: "bb",
+  sectionId: "sec_design",
 });
 
 // A project row reuses the section header markup but is not a section.

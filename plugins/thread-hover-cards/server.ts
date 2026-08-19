@@ -172,6 +172,10 @@ export const rpcContract = defineRpcContract({
     input: z
       .object({
         name: z.string().min(1).max(256),
+        /** Stable id from newer sidebar section rows; names remain fallback. */
+        sectionId: z.string().min(1).optional(),
+        /** Stable id from a containing project row. */
+        projectId: z.string().min(1).nullable().optional(),
         /** Set when the sidebar nests the section under a project row. */
         projectName: z.string().min(1).max(256).nullable().optional(),
       })
@@ -329,6 +333,7 @@ const SECTION_DIRECTORY_CACHE_TTL_MS = 10 * 60_000;
 const SECTION_DIRECTORY_REFRESH_MS = 5 * 60_000;
 /** The thread query is the one the card actually needs; it always keeps this much. */
 const SECTION_THREADS_FLOOR_MS = 1_200;
+const BUILT_IN_SECTION_NAMES = new Set(["Pinned", "Unorganized"]);
 /** Collapses a sweep back and forth over the same rows into one query. */
 const SECTION_THREADS_CACHE_TTL_MS = 2_000;
 const SECTION_PREVIEW_LIMIT = 5;
@@ -1321,7 +1326,12 @@ export default function plugin(bb: BbPluginApi): void {
         throw error;
       }
     },
-    async sectionSummary({ name, projectName = null }) {
+    async sectionSummary({
+      name,
+      projectId = null,
+      projectName = null,
+      sectionId: stableSectionId,
+    }) {
       const recorder = createDiagnostics();
       const deadlineAt = Date.now() + SUMMARY_LOOKUP_TIMEOUT_MS;
       const remainingMs = (): number => Math.max(1, deadlineAt - Date.now());
@@ -1332,36 +1342,10 @@ export default function plugin(bb: BbPluginApi): void {
         Math.max(1, remainingMs() - SECTION_THREADS_FLOOR_MS);
       const signal = AbortSignal.timeout(SUMMARY_LOOKUP_TIMEOUT_MS);
       try {
-        const readSections = (): Promise<CacheResult<ThreadSectionRow[]>> =>
-          measureCachedStage(recorder, "sections", () =>
-            withinCached(
-              sectionDirectory.get<ThreadSectionRow[]>("sections", () =>
-                safely(bb.sdk.threadSections.list({ signal })),
-              ),
-              directoryBudgetMs(),
-            ),
-          );
-        let sections = await readSections();
-        if (sections.value === null) throw new Error("Section summary unavailable.");
-
-        // Section names are unique in bb (thread_sections has a unique index on
-        // name), so at most one row can match.
-        let section = sections.value.find((row) => row.name === name) ?? null;
-        if (section === null && sections.source !== "miss") {
-          // A miss against a possibly-stale directory is indistinguishable from
-          // a built-in group like Pinned. Re-read once before saying "not a
-          // section", so a just-created or just-renamed section is not written
-          // off — the client caches that answer.
-          sectionDirectory.delete("sections");
-          sections = await readSections();
-          // An unavailable directory is a failure, not proof of absence — the
-          // client caches "not a section", so a wrong no must never be cheap.
-          if (sections.value === null) {
-            throw new Error("Section summary unavailable.");
-          }
-          section = sections.value.find((row) => row.name === name) ?? null;
-        }
-        if (section === null) {
+        if (
+          stableSectionId === undefined &&
+          BUILT_IN_SECTION_NAMES.has(name)
+        ) {
           const diagnostics = finishDiagnostics(recorder);
           recordDiagnostics(bb, "sectionSummary", name, diagnostics);
           return {
@@ -1374,6 +1358,55 @@ export default function plugin(bb: BbPluginApi): void {
             unread: 0,
             working: 0,
           };
+        }
+        const readSections = (): Promise<CacheResult<ThreadSectionRow[]>> =>
+          measureCachedStage(recorder, "sections", () =>
+            withinCached(
+              sectionDirectory.get<ThreadSectionRow[]>("sections", () =>
+                safely(bb.sdk.threadSections.list({ signal })),
+              ),
+              directoryBudgetMs(),
+            ),
+          );
+        let resolvedSectionId = stableSectionId ?? null;
+        if (resolvedSectionId === null) {
+          let sections = await readSections();
+          if (sections.value === null) {
+            throw new Error("Section summary unavailable.");
+          }
+
+          // Section names are unique in bb (thread_sections has a unique index
+          // on name), so at most one row can match.
+          let section = sections.value.find((row) => row.name === name) ?? null;
+          if (section === null && sections.source !== "miss") {
+          // A miss against a possibly-stale directory is indistinguishable from
+          // a built-in group like Pinned. Re-read once before saying "not a
+          // section", so a just-created or just-renamed section is not written
+          // off — the client caches that answer.
+            sectionDirectory.delete("sections");
+            sections = await readSections();
+          // An unavailable directory is a failure, not proof of absence — the
+          // client caches "not a section", so a wrong no must never be cheap.
+            if (sections.value === null) {
+              throw new Error("Section summary unavailable.");
+            }
+            section = sections.value.find((row) => row.name === name) ?? null;
+          }
+          if (section === null) {
+            const diagnostics = finishDiagnostics(recorder);
+            recordDiagnostics(bb, "sectionSummary", name, diagnostics);
+            return {
+              diagnostics,
+              failed: 0,
+              known: false,
+              projects: [],
+              questions: 0,
+              total: 0,
+              unread: 0,
+              working: 0,
+            };
+          }
+          resolvedSectionId = section.id;
         }
 
         // The card names the projects the section spans, so this is needed on
@@ -1395,24 +1428,27 @@ export default function plugin(bb: BbPluginApi): void {
           projects.value.map((project) => [project.id, project.name]),
         );
         const scopedProject =
-          projectName === null
-            ? null
-            : projects.value.filter((project) => project.name === projectName);
+          projectId !== null
+            ? projects.value.filter((project) => project.id === projectId)
+            : projectName === null
+              ? null
+              : projects.value.filter(
+                  (project) => project.name === projectName,
+                );
         if (scopedProject !== null && scopedProject.length !== 1) {
           throw new Error("Section summary unavailable.");
         }
         const scopedProjectId = scopedProject?.[0]?.id ?? null;
 
-        const sectionId = section.id;
         const page = await measureCachedStage(recorder, "threads", () =>
-          sectionThreads.get<SidebarThread[]>(sectionId, () =>
+          sectionThreads.get<SidebarThread[]>(resolvedSectionId, () =>
             within(
               safely(
                 bb.sdk.threads.list({
                   archived: false,
                   hasParent: false,
                   includeHidden: false,
-                  sectionId,
+                  sectionId: resolvedSectionId,
                   signal,
                 }),
               ),
