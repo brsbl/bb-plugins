@@ -7,6 +7,7 @@ const SECTION_TOGGLE_SELECTOR =
   'button[aria-expanded][aria-label$=" section"]';
 const SECTION_ROW_TOGGLE_SELECTOR =
   'button[aria-hidden="true"][tabindex="-1"]';
+const MANUAL_SECTION_ORDER_STORAGE_KEY = "bb.sidebar.manualSectionOrder";
 
 interface MountInboxSectionCollapserOptions {
   document?: Document;
@@ -53,50 +54,71 @@ function visibleThreadGroups(sidebar: Element): Map<string, Element> {
   return groups;
 }
 
-function phaseSectionRank(group: Element): number | null {
+function phaseSection(group: Element): { id: string; rank: number } | null {
   const label = groupToggle(group)?.getAttribute("aria-label") ?? "";
   const match = /^(?:Expand|Collapse) (.+) section$/.exec(label);
   if (match === null) return null;
-  return PHASE_SECTION_RANK.get(match[1]!) ?? null;
-}
-
-function sectionOrderSlot(group: Element): Element {
-  const stickySection = group.closest("[data-sidebar-sticky-section]");
-  return stickySection?.parentElement ?? group;
+  const rank = PHASE_SECTION_RANK.get(match[1]!);
+  const sectionId = group.getAttribute("data-sidebar-section-id");
+  return rank === undefined || sectionId === null
+    ? null
+    : { id: `section:${sectionId}`, rank };
 }
 
 function reorderPhaseSections(sidebar: Element): void {
-  const ranksBySlot = new Map<Element, number>();
+  const ranksById = new Map<string, number>();
   for (const group of sidebar.querySelectorAll(STICKY_GROUP_SELECTOR)) {
-    const rank = phaseSectionRank(group);
-    const slot = sectionOrderSlot(group);
-    if (rank === null || slot.parentElement === null) continue;
-    ranksBySlot.set(slot, rank);
+    const section = phaseSection(group);
+    if (section !== null) ranksById.set(section.id, section.rank);
+  }
+  if (ranksById.size < 2) return;
+
+  const view = sidebar.ownerDocument.defaultView;
+  if (view === null) return;
+  const previousJson = view.localStorage.getItem(
+    MANUAL_SECTION_ORDER_STORAGE_KEY,
+  );
+  if (previousJson === null) return;
+
+  let currentOrder: unknown;
+  try {
+    currentOrder = JSON.parse(previousJson);
+  } catch {
+    return;
+  }
+  if (
+    !Array.isArray(currentOrder) ||
+    currentOrder.some((sectionId) => typeof sectionId !== "string") ||
+    [...ranksById.keys()].some((sectionId) => !currentOrder.includes(sectionId))
+  ) {
+    return;
   }
 
-  const slotsByParent = new Map<Element, Element[]>();
-  for (const slot of ranksBySlot.keys()) {
-    const parent = slot.parentElement!;
-    const siblings = slotsByParent.get(parent) ?? [];
-    siblings.push(slot);
-    slotsByParent.set(parent, siblings);
+  const phasePositions = currentOrder.flatMap((sectionId, index) =>
+    ranksById.has(sectionId) ? [index] : [],
+  );
+  const orderedPhaseIds = phasePositions
+    .map((index) => currentOrder[index] as string)
+    .sort((left, right) => ranksById.get(left)! - ranksById.get(right)!);
+  const nextOrder = [...currentOrder] as string[];
+  phasePositions.forEach((position, index) => {
+    nextOrder[position] = orderedPhaseIds[index]!;
+  });
+  if (nextOrder.every((sectionId, index) => sectionId === currentOrder[index])) {
+    return;
   }
 
-  for (const [parent, slots] of slotsByParent) {
-    const current = [...parent.children].filter((child) => slots.includes(child));
-    const ordered = [...current].sort(
-      (left, right) => ranksBySlot.get(left)! - ranksBySlot.get(right)!,
-    );
-    if (current.every((slot, index) => slot === ordered[index])) continue;
-
-    const placeholders = current.map(() =>
-      parent.ownerDocument.createComment("thread-organizer-section-order"),
-    );
-    current.forEach((slot, index) => slot.replaceWith(placeholders[index]!));
-    placeholders.forEach((placeholder, index) =>
-      placeholder.replaceWith(ordered[index]!),
-    );
-  }
+  const nextJson = JSON.stringify(nextOrder);
+  view.localStorage.setItem(MANUAL_SECTION_ORDER_STORAGE_KEY, nextJson);
+  view.dispatchEvent(
+    new view.StorageEvent("storage", {
+      key: MANUAL_SECTION_ORDER_STORAGE_KEY,
+      oldValue: previousJson,
+      newValue: nextJson,
+      storageArea: view.localStorage,
+      url: view.location.href,
+    }),
+  );
 }
 
 function addExpandedGroupAndAncestors(
