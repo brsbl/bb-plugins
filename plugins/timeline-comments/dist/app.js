@@ -1930,6 +1930,17 @@ function contentScriptRpcClient(signal) {
     }
   };
 }
+function renderedContentBounds(prose) {
+  const proseRect = prose.getBoundingClientRect();
+  let left = proseRect.left;
+  let right = proseRect.right;
+  for (const table of prose.querySelectorAll("table")) {
+    const tableRect = table.getBoundingClientRect();
+    left = Math.min(left, tableRect.left);
+    right = Math.max(right, tableRect.right);
+  }
+  return { left, right };
+}
 var OWNED = "data-bb-timeline-comments-owned";
 var NORMAL_HIGHLIGHT = "bb-timeline-comments";
 var ACTIVE_HIGHLIGHT = "bb-timeline-comments-active";
@@ -2560,15 +2571,18 @@ var TimelineCommentsController = class {
       health.set(anchor.id, "anchored");
       this.#resizeObserver?.observe(windowNode);
       this.#resizeObserver?.observe(prose);
+      for (const table of prose.querySelectorAll("table")) {
+        this.#resizeObserver?.observe(table);
+      }
       const fragments = [...restored.range.getClientRects()].filter(
         (rect) => rect.width > 0 || rect.height > 0
       );
       const fallback = restored.range.getBoundingClientRect();
       const rects = fragments.length > 0 ? fragments : [fallback];
-      const proseRect = prose.getBoundingClientRect();
+      const contentBounds = renderedContentBounds(prose);
       const side = chooseAvailableGutter(
         rects,
-        proseRect,
+        contentBounds,
         windowNode.getBoundingClientRect(),
         MARKER_SIZE + MARKER_TEXT_GAP
       );
@@ -2633,10 +2647,10 @@ var TimelineCommentsController = class {
       const bounding = restored.range.getBoundingClientRect();
       const fragments = rects.length > 0 ? rects : [bounding];
       restored.desiredY = fragments.reduce((sum, rect) => sum + rect.top + rect.height / 2, 0) / fragments.length;
-      const proseRect = restored.prose.getBoundingClientRect();
+      const contentBounds = renderedContentBounds(restored.prose);
       restored.side = chooseAvailableGutter(
         fragments,
-        proseRect,
+        contentBounds,
         restored.window.getBoundingClientRect(),
         MARKER_SIZE + MARKER_TEXT_GAP
       );
@@ -2670,10 +2684,10 @@ var TimelineCommentsController = class {
         marker.type = "button";
         marker.dataset.bbCommentGutter = side;
         marker.style.top = `${placement.y}px`;
-        const proseRects = threads.map(
-          ({ prose }) => prose.getBoundingClientRect()
+        const contentBounds = threads.map(
+          ({ prose }) => renderedContentBounds(prose)
         );
-        const gutterX = side === "left" ? Math.min(...proseRects.map(({ left }) => left)) - MARKER_SIZE - MARKER_TEXT_GAP : Math.max(...proseRects.map(({ right }) => right)) + MARKER_TEXT_GAP;
+        const gutterX = side === "left" ? Math.min(...contentBounds.map(({ left }) => left)) - MARKER_SIZE - MARKER_TEXT_GAP : Math.max(...contentBounds.map(({ right }) => right)) + MARKER_TEXT_GAP;
         marker.style.left = `${Math.max(
           8,
           Math.min(window.innerWidth - MARKER_SIZE - 8, gutterX)
