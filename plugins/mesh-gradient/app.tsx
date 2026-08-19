@@ -887,7 +887,7 @@ function Studio({ threadId }: PluginThreadPanelProps) {
           </div>
         </div>
 
-        <div className="flex flex-nowrap items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <div className={`${clusterClass} shrink-0 gap-0.5 px-1`}>
             <StyleMenu
               spec={spec}
