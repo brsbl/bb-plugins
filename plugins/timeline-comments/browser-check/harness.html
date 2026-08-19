@@ -33,7 +33,7 @@
       }
       #fixture {
         position: fixed;
-        inset: 36px 20px auto 360px;
+        inset: 36px 20px auto 80px;
         height: 120px;
         overflow: hidden;
         border: 1px solid var(--border);
@@ -50,6 +50,18 @@
       }
       [data-sidebar-swipe-selectable] {
         width: 420px;
+      }
+      [data-sidebar-swipe-selectable] table {
+        width: 560px;
+        border-collapse: collapse;
+        table-layout: fixed;
+      }
+      [data-sidebar-swipe-selectable] td {
+        padding: 0;
+        vertical-align: top;
+      }
+      [data-sidebar-swipe-selectable] td:first-child {
+        width: 300px;
       }
       [data-sidebar-swipe-selectable] span {
         display: block;
@@ -72,14 +84,23 @@
           data-timeline-row-id="msg_browser"
         >
           <div data-sidebar-swipe-selectable>
-            <span>First exact browser anchor</span>
-            <span>Second exact browser anchor</span>
-            <span>Third exact browser anchor</span>
-            <span>Fourth exact browser anchor</span>
-            <span>Fifth exact browser anchor</span>
-            <span>Sixth exact browser anchor</span>
-            <span>Seventh exact browser anchor</span>
-            <span>Eighth exact browser anchor</span>
+            <table>
+              <tbody>
+                <tr>
+                  <td>Wide Markdown table context</td>
+                  <td>
+                    <span>First exact browser anchor</span>
+                    <span>Second exact browser anchor</span>
+                    <span>Third exact browser anchor</span>
+                    <span>Fourth exact browser anchor</span>
+                    <span>Fifth exact browser anchor</span>
+                    <span>Sixth exact browser anchor</span>
+                    <span>Seventh exact browser anchor</span>
+                    <span>Eighth exact browser anchor</span>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
           </div>
         </article>
       </div>
