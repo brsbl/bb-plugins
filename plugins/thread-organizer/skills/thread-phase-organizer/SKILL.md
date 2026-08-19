@@ -24,4 +24,4 @@ Choose the phase from the work you are doing now, not the overall project or an 
 
 Move at the transition, before beginning the new phase. A return from testing to implementation is `building`; a revised plan awaiting approval is `spec-review`; accepted review followed by code changes is `building`. When two phases overlap, choose the one containing the next concrete action. If that is still unclear, use Inbox rather than guessing.
 
-Do not create, rename, or delete the sections yourself. The plugin creates the destination on demand and removes plugin-owned sections after their last thread leaves.
+Do not create, rename, or delete the sections yourself. The plugin creates destinations on demand and retains empty sections until BB exposes an atomic delete-if-empty operation.

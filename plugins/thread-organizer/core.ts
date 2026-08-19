@@ -222,29 +222,34 @@ export function isEligibleThread(thread: OrganizableThread): boolean {
 
 export function classifyPhase(texts: string[]): PhaseClassification {
   const substantive = texts.filter(isSubstantiveText).map(normalize);
-  const corpus = substantive.join("\n");
-  if (!corpus)
+  if (!substantive.length)
     return { target: "inbox", confidence: 1, reasons: ["phase unclear"] };
-  const direct = substantive.find((text) =>
-    /^(?:plan|planning|scope|shape|design the approach|write requirements?)\b/i.test(
-      text,
-    ),
-  );
-  if (direct)
-    return {
-      target: "planning",
-      confidence: 0.99,
-      reasons: ["explicit planning action"],
-    };
-  const matches = PHASE_RULES.filter((rule) => rule.expression.test(corpus));
-  const winner = matches[0];
-  if (!winner)
-    return { target: "inbox", confidence: 1, reasons: ["phase unclear"] };
-  return {
-    target: winner.target,
-    confidence: winner.confidence,
-    reasons: [winner.reason],
-  };
+  // Prompt history is chronological. The newest substantive phase signal wins;
+  // titles and fallbacks are earlier entries used only when later prompts are
+  // unclear, so an old planning request cannot pin a thread there forever.
+  for (let index = substantive.length - 1; index >= 0; index -= 1) {
+    const text = substantive[index]!;
+    if (
+      /^(?:plan|planning|scope|shape|design the approach|write requirements?)\b/i.test(
+        text,
+      )
+    ) {
+      return {
+        target: "planning",
+        confidence: 0.99,
+        reasons: ["explicit planning action"],
+      };
+    }
+    const winner = PHASE_RULES.find((rule) => rule.expression.test(text));
+    if (winner) {
+      return {
+        target: winner.target,
+        confidence: winner.confidence,
+        reasons: [winner.reason],
+      };
+    }
+  }
+  return { target: "inbox", confidence: 1, reasons: ["phase unclear"] };
 }
 
 export function parsePhaseTarget(value: string): PhaseTarget | null {

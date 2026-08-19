@@ -155,6 +155,7 @@ export default function plugin(bb: BbPluginApi): void {
     },
   });
   const queues = new Map<string, Promise<void>>();
+  let ownershipQueue: Promise<void> = Promise.resolve();
   let disposed = false;
 
   async function readState(thread: Thread): Promise<ThreadState> {
@@ -179,6 +180,19 @@ export default function plugin(bb: BbPluginApi): void {
   }
   async function saveOwnedSections(ids: Set<string>): Promise<void> {
     await bb.storage.kv.set(OWNED_SECTIONS_KEY, [...ids].sort());
+  }
+  async function mutateOwnedSections(
+    mutate: (ids: Set<string>) => Promise<void> | void,
+  ): Promise<void> {
+    const current = ownershipQueue
+      .catch(() => undefined)
+      .then(async () => {
+        const ids = await ownedSectionIds();
+        await mutate(ids);
+        await saveOwnedSections(ids);
+      });
+    ownershipQueue = current;
+    await current;
   }
 
   function enqueue(threadId: string, work: () => Promise<void>): Promise<void> {
@@ -208,9 +222,9 @@ export default function plugin(bb: BbPluginApi): void {
       const created = await bb.sdk.threadSections.create({
         name: PHASE_SECTION_NAMES[target],
       });
-      const owned = await ownedSectionIds();
-      owned.add(created.id);
-      await saveOwnedSections(owned);
+      await mutateOwnedSections((owned) => {
+        owned.add(created.id);
+      });
       bb.log.info(
         `action=phase-section-created target=${target} section=${created.id}`,
       );
@@ -223,40 +237,16 @@ export default function plugin(bb: BbPluginApi): void {
     }
   }
 
-  async function cleanupEmptyOwnedSections(): Promise<void> {
-    const owned = await ownedSectionIds();
-    if (!owned.size) return;
-    const existing = new Map(
-      (await bb.sdk.threadSections.list()).map((section) => [
-        section.id,
-        section,
-      ]),
-    );
-    let changed = false;
-    for (const id of [...owned]) {
-      if (!existing.has(id)) {
-        owned.delete(id);
-        changed = true;
-        continue;
+  async function reconcileOwnedSections(): Promise<void> {
+    await mutateOwnedSections(async (owned) => {
+      if (!owned.size) return;
+      const existing = new Set(
+        (await bb.sdk.threadSections.list()).map((section) => section.id),
+      );
+      for (const id of [...owned]) {
+        if (!existing.has(id)) owned.delete(id);
       }
-      const members = await bb.sdk.threads.list({
-        archived: false,
-        sectionId: id,
-        limit: 1,
-      });
-      if (members.length) continue;
-      try {
-        await bb.sdk.threadSections.delete({ id });
-        owned.delete(id);
-        changed = true;
-        bb.log.info(`action=phase-section-deleted section=${id}`);
-      } catch (error) {
-        bb.log.debug(
-          `action=phase-section-delete-deferred section=${id} error=${error instanceof Error ? error.message : String(error)}`,
-        );
-      }
-    }
-    if (changed) await saveOwnedSections(owned);
+    });
   }
 
   function syncManualLocks(state: ThreadState, thread: Thread): void {
@@ -320,7 +310,7 @@ export default function plugin(bb: BbPluginApi): void {
       },
     };
     await saveState(thread.id, state);
-    await cleanupEmptyOwnedSections();
+    await reconcileOwnedSections();
     bb.log.info(`thread=${thread.id} action=phase-updated target=${target}`);
     return updated;
   }
@@ -408,7 +398,7 @@ export default function plugin(bb: BbPluginApi): void {
       if (page.length < THREAD_LIST_PAGE_SIZE) break;
       offset += THREAD_LIST_PAGE_SIZE;
     }
-    if (!signal.aborted) await cleanupEmptyOwnedSections();
+    if (!signal.aborted) await reconcileOwnedSections();
   }
 
   bb.events.on("thread.created", ({ thread }) =>
@@ -457,7 +447,7 @@ export default function plugin(bb: BbPluginApi): void {
           .catch(() => undefined);
       }
       await bb.storage.kv.delete(stateKey(threadId));
-      await cleanupEmptyOwnedSections();
+      await reconcileOwnedSections();
     });
   bb.events.on("thread.archived", ({ thread }) => forget(thread.id));
   bb.events.on("thread.deleted", ({ thread }) => forget(thread.id));
