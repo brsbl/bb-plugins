@@ -51,6 +51,8 @@ describe("Browser page selection controller", () => {
     link.innerHTML = '<span>Reset account</span><input value="typed secret">';
     document.body.append(link);
     setRect(link, 20, 30, 140, 32);
+    const activation = vi.fn();
+    link.addEventListener("click", activation);
     Object.defineProperty(document, "elementFromPoint", {
       configurable: true,
       value: () => link,
@@ -62,6 +64,12 @@ describe("Browser page selection controller", () => {
     });
     document.dispatchEvent(pointer("pointerdown", 30, 40));
     document.dispatchEvent(pointer("pointerup", 30, 40));
+    const activationClick = new MouseEvent("click", {
+      bubbles: true,
+      cancelable: true,
+    });
+    expect(link.dispatchEvent(activationClick)).toBe(false);
+    expect(activation).not.toHaveBeenCalled();
 
     await expect(result).resolves.toMatchObject({
       version: 2,

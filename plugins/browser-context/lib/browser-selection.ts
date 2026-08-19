@@ -697,6 +697,23 @@ export function pageSelectionController({
       event.preventDefault();
       event.stopImmediatePropagation();
       try {
+        const suppressActivationClick = (clickEvent: Event) => {
+          clickEvent.preventDefault();
+          clickEvent.stopImmediatePropagation();
+          document.removeEventListener("click", suppressActivationClick, true);
+        };
+        document.addEventListener("click", suppressActivationClick, {
+          capture: true,
+        });
+        window.setTimeout(
+          () =>
+            document.removeEventListener(
+              "click",
+              suppressActivationClick,
+              true,
+            ),
+          0,
+        );
         if (dragging) {
           const selection = new DOMRect(
             Math.min(start.x, event.clientX),
