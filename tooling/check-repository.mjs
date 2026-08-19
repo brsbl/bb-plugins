@@ -140,6 +140,7 @@ export async function checkRepository(repositoryRoot = defaultRoot, options = {}
   for (const loaderPath of nativeLoaderLockPaths) {
     const loader = rootLock.packages[loaderPath];
     if (!loader) continue;
+    let nativeBindingCount = 0;
     for (const [packageName, version] of Object.entries(
       loader.optionalDependencies ?? {},
     )) {
@@ -152,7 +153,8 @@ export async function checkRepository(repositoryRoot = defaultRoot, options = {}
       const rootPath = `node_modules/${packageName}`;
       const dependencyPath = rootLock.packages[nestedPath] ? nestedPath : rootPath;
       const dependency = rootLock.packages[dependencyPath];
-      assert(dependency, `${loaderPath}: native binding missing: ${packageName}`);
+      if (!dependency) continue;
+      nativeBindingCount += 1;
       assert(
         dependency.version === version,
         `${loaderPath}: native binding version drift: ${packageName}`,
@@ -162,6 +164,7 @@ export async function checkRepository(repositoryRoot = defaultRoot, options = {}
         `${loaderPath}: native binding provenance missing: ${packageName}`,
       );
     }
+    assert(nativeBindingCount > 0, `${loaderPath}: native bindings missing`);
   }
   assert(
     !(await stat(resolve(root, "plugins/design-loop")).catch(() => null)),

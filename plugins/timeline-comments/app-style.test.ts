@@ -55,17 +55,36 @@ describe("timeline comments visual contract", () => {
     expect(css).toContain("@media (prefers-reduced-motion: reduce)");
   });
 
-  it("leaves comment input focus indication to the browser", () => {
-    expect(css).not.toContain("outline: none !important;");
-    expect(css).not.toMatch(
-      /\.bb-comments-textarea,[\s\S]*?\.bb-comments-panel textarea \{[^}]*outline:\s*none;/u,
+  it("uses BB input tokens for comment input states", () => {
+    expect(css).toMatch(
+      /\.bb-comments-mention-input \{[\s\S]*border: 1px solid var\(--input, var\(--border\)\);[\s\S]*background: var\(--background\);/u,
     );
-    expect(css).not.toContain(".bb-comments-mention-input:has(");
-    expect(css).not.toMatch(
-      /\.bb-comments-panel textarea:focus-visible \{[^}]*outline:/u,
+    expect(css).toMatch(
+      /\.bb-comments-mention-input:focus-within \{[\s\S]*border-color: var\(--ring\);[\s\S]*0 0 0 1px var\(--ring\);/u,
+    );
+    expect(css).toMatch(
+      /\.bb-comments-mention-input:has\(\.bb-comments-error\) \{[\s\S]*var\(--destructive-text/u,
+    );
+    expect(css).toMatch(
+      /\.bb-comments-mention-input\[aria-busy="true"\] \.bb-comments-input-surface,[\s\S]*var\(--surface-recessed\) 55%/u,
+    );
+    expect(css).toMatch(
+      /\.bb-comments-mention-input textarea:focus,[\s\S]*outline: none;[\s\S]*box-shadow: none;/u,
     );
     expect(css).toMatch(
       /\.bb-comments-composer-action:focus-visible,[\s\S]*color-mix\(in oklab, var\(--foreground\) 15%, transparent\)/u,
+    );
+  });
+
+  it("keeps the pre-restyle submit control unchanged", () => {
+    expect(css).toMatch(
+      /\.bb-comments-submit-shortcut \{\n  position: static;\n  display: flex;\n  min-width: 27px;\n  height: 18px;[\s\S]*?  cursor: pointer;\n\}/u,
+    );
+    expect(css).toMatch(
+      /\.bb-comments-submit-shortcut:hover:not\(:disabled\) \{\n  background: var\(--surface-recessed\);\n  color: var\(--foreground\);\n\}/u,
+    );
+    expect(css).toMatch(
+      /\.bb-comments-submit-shortcut:disabled \{\n  cursor: default;\n  opacity: 0\.3;\n\}/u,
     );
   });
 });

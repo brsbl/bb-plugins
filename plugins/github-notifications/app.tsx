@@ -584,18 +584,15 @@ function GitHubActivityPanel() {
               <table className="github-activity-table w-full table-fixed border-collapse text-left">
                 <colgroup className="github-activity-colgroup">
                   <col className="w-[3.75rem]" />
-                  <col className="w-16" />
                   <col />
                   <col className="hidden w-40 lg:table-column" />
+                  <col className="w-16" />
                   <col className="hidden w-[14rem] xl:table-column" />
                 </colgroup>
                 <thead className="border-b border-border bg-muted/35 text-xs">
                   <tr className="github-activity-header-row">
                     <th scope="col" className="github-activity-status-header px-3 py-2.5 text-muted-foreground">
                       Status
-                    </th>
-                    <th scope="col" className="github-activity-update-header px-2 py-2.5 text-center text-muted-foreground">
-                      Activity
                     </th>
                     <th scope="col" aria-label="Resource" className="github-activity-resource-header px-3 py-2.5">
                       <div className="flex items-center justify-between gap-3">
@@ -613,6 +610,9 @@ function GitHubActivityPanel() {
                     </th>
                     <th scope="col" className="github-activity-repo-header hidden px-3 py-2.5 font-medium text-muted-foreground lg:table-cell">
                       Repo
+                    </th>
+                    <th scope="col" className="github-activity-update-header px-2 py-2.5 text-center text-muted-foreground">
+                      Activity
                     </th>
                     <th scope="col" className="github-activity-from-header hidden px-3 py-2.5 xl:table-cell">
                       <SortHeader
@@ -636,11 +636,11 @@ function GitHubActivityPanel() {
                                 cell === 0
                                   ? "github-activity-status-cell"
                                 : cell === 1
-                                      ? "github-activity-update-cell"
-                                    : cell === 2
                                       ? "github-activity-resource-cell"
+                                    : cell === 2
+                                      ? "github-activity-repo-cell hidden lg:table-cell"
                                       : cell === 3
-                                        ? "github-activity-repo-cell hidden lg:table-cell"
+                                        ? "github-activity-update-cell"
                                         : "github-activity-from-cell hidden xl:table-cell"
                               }`}
                             >
@@ -666,17 +666,17 @@ function GitHubActivityPanel() {
                               }
                             />
                           </td>
-                          <td className="github-activity-update-cell px-2 py-2.5 text-center">
-                            <TaxonomyIcon {...activityPresentation(item.activityKind)} />
-                          </td>
                           <td className="github-activity-resource-cell px-3 py-2.5">
                             <NotificationLink item={item} />
                           </td>
                           <td className="github-activity-repo-cell hidden px-3 py-2.5 text-xs text-muted-foreground lg:table-cell">
                             <span className="block truncate" title={item.repo}>{item.repo}</span>
                           </td>
+                          <td className="github-activity-update-cell px-2 py-2.5 text-center">
+                            <TaxonomyIcon {...activityPresentation(item.activityKind)} />
+                          </td>
                           <td className="github-activity-from-cell hidden px-3 py-2.5 xl:table-cell">
-                            <LatestUpdate item={item} />
+                            <LatestUpdate item={item} className="justify-between" />
                           </td>
                         </tr>
                       ))}
