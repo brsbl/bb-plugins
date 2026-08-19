@@ -2,6 +2,7 @@
 import { act, fireEvent, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { PluginRpcClient } from "@bb/plugin-sdk/app";
+import "@get-bb/plugin-sdk/testing/app";
 import type {
   TimelineCommentThreadDetail,
   timelineCommentsRpcContract,
@@ -111,7 +112,7 @@ describe("Moss comment component port", () => {
     unmount();
   });
 
-  it("moves responsive side controls into a footer for multiline comments", async () => {
+  it("keeps multiline replies controlled by the host compact composer", () => {
     const host = document.body.appendChild(document.createElement("section"));
     const unmount = mountMossCommentPopover(host, {
       rpc: { call: vi.fn() } as unknown as PluginRpcClient<
@@ -127,79 +128,77 @@ describe("Moss comment component port", () => {
     )!;
     fireEvent.change(input, { target: { value: "First line\nSecond line" } });
 
-    await waitFor(() =>
-      expect(
-        host
-          .querySelector(".bb-comments-mention-input")
-          ?.getAttribute("data-mention-input-expanded"),
-      ).toBe("true"),
-    );
-    expect(
-      host
-        .querySelector("[data-mention-input-footer]")
-        ?.getAttribute("data-mention-input-footer-state"),
-    ).toBe("expanded");
-    expect(
-      host
-        .querySelector("[data-mention-input-compact-actions]")
-        ?.getAttribute("aria-hidden"),
-    ).toBe("true");
-    expect(
-      host
-        .querySelector("[data-mention-input-expanded-actions]")
-        ?.getAttribute("aria-hidden"),
-    ).toBe("false");
+    expect(input.value).toBe("First line\nSecond line");
+    expect(input.closest('[data-testid="bb-compact-composer"]')).not.toBeNull();
     unmount();
   });
 
-  it("searches and inserts workspace context from the reply mention control", async () => {
-    const call = vi.fn((method: string) => {
-      if (method === "searchContextMentions") {
-        return Promise.resolve({
-          items: [
+  it("round-trips host-owned mention structure through reply submission", async () => {
+    sessionStorage.setItem(
+      "bb.timeline-comments.reply:ct_1",
+      JSON.stringify({
+        value: {
+          text: "Review @src/app.tsx",
+          mentions: [
             {
-              kind: "file",
-              name: "app.tsx",
-              path: "src/app.tsx",
+              from: 7,
+              to: 19,
+              provider: "bb:path:workspace:file",
+              id: "src/app.tsx",
+              label: "src/app.tsx",
             },
           ],
-          truncated: false,
-        });
-      }
+        },
+        expiresAt: Date.now() + 60_000,
+      }),
+    );
+    const call = vi.fn(async (method: string) => {
+      if (method === "reply") return detail;
       throw new Error(`Unexpected RPC method: ${method}`);
     });
     const host = document.body.appendChild(document.createElement("section"));
     const unmount = mountWithRpc(host, call);
 
-    fireEvent.click(
-      host.querySelector('button[aria-label="Add comment context"]')!,
-    );
-
+    fireEvent.click(host.querySelector('button[aria-label="Reply"]')!);
     await waitFor(() =>
-      expect(call).toHaveBeenCalledWith("searchContextMentions", {
+      expect(call).toHaveBeenCalledWith("reply", {
         bbThreadId: "thr_1",
-        query: "",
+        commentThreadId: "ct_1",
+        body: "Review @src/app.tsx",
+        mentions: [
+          {
+            from: 7,
+            to: 19,
+            provider: "bb:path:workspace:file",
+            id: "src/app.tsx",
+            label: "src/app.tsx",
+          },
+        ],
       }),
     );
-    const option = await waitFor(() => {
-      const match = document.querySelector<HTMLButtonElement>(
-        '[role="option"][data-mention-path="src/app.tsx"]',
-      );
-      expect(match).not.toBeNull();
-      return match!;
-    });
-    fireEvent.click(option);
+    unmount();
+  });
+
+  it("restores body-only drafts written before the host composer", () => {
+    sessionStorage.setItem(
+      "bb.timeline-comments.reply:ct_1",
+      JSON.stringify({
+        body: "Legacy unsent reply",
+        expiresAt: Date.now() + 60_000,
+      }),
+    );
+    const host = document.body.appendChild(document.createElement("section"));
+    const unmount = mountWithRpc(host);
 
     expect(
       host.querySelector<HTMLTextAreaElement>(
         '[aria-label="Reply to comment thread"]',
       )?.value,
-    ).toBe("@src/app.tsx ");
-    expect(document.querySelector('[role="listbox"]')).toBeNull();
+    ).toBe("Legacy unsent reply");
     unmount();
   });
 
-  it("moves the last comment's edit footer into the stable reply region", async () => {
+  it("uses the host compact composer for editing and collapses the reply composer", async () => {
     const host = document.body.appendChild(document.createElement("section"));
     host.dataset.bbPluginDecoration = "timeline-comments";
     const unmount = mountMossCommentPopover(host, {
@@ -221,19 +220,17 @@ describe("Moss comment component port", () => {
       ),
     );
     const replyRegion = host.querySelector("[data-comment-reply-region]")!;
-    expect(replyRegion.getAttribute("data-last-editing")).toBe("true");
+    expect(replyRegion.getAttribute("data-editing")).toBe("true");
+    expect(replyRegion.getAttribute("aria-hidden")).toBe("true");
     expect(
       replyRegion
         .querySelector("[data-comment-reply-composer]")
         ?.getAttribute("aria-hidden"),
     ).toBe("true");
     expect(
-      replyRegion.querySelector(
-        "[data-comment-edit-footer-host] [data-mention-input-footer]",
+      host.querySelector(
+        '[data-comment-edit-composer] [data-testid="bb-compact-composer"]',
       ),
-    ).not.toBeNull();
-    expect(
-      host.querySelector("[data-comment-edit-composer] [data-mention-input-surface]"),
     ).not.toBeNull();
     unmount();
   });
@@ -250,8 +247,12 @@ describe("Moss comment component port", () => {
     );
     const edit = openRootEdit(host);
     fireEvent.change(edit, { target: { value: "Unsent edit" } });
-    expect(JSON.parse(sessionStorage.getItem(replyKey)!).body).toBe("Unsent reply");
-    expect(JSON.parse(sessionStorage.getItem(editKey)!).body).toBe("Unsent edit");
+    expect(JSON.parse(sessionStorage.getItem(replyKey)!).value.text).toBe(
+      "Unsent reply",
+    );
+    expect(JSON.parse(sessionStorage.getItem(editKey)!).value.text).toBe(
+      "Unsent edit",
+    );
     unmount();
     host.remove();
 
@@ -337,7 +338,7 @@ describe("Moss comment component port", () => {
     )!;
     fireEvent.change(input, { target: { value: "One reply" } });
     const submit = host.querySelector<HTMLButtonElement>(
-      'button[aria-label="Submit comment"]',
+      'button[aria-label="Reply"]',
     )!;
 
     act(() => {
@@ -353,7 +354,7 @@ describe("Moss comment component port", () => {
 
     expect(call).toHaveBeenCalledTimes(1);
     expect(submit.disabled).toBe(true);
-    expect(input.readOnly).toBe(true);
+    expect(input.readOnly).toBe(false);
     resolveReply(detail);
     await waitFor(() => expect(input.value).toBe(""));
     expect(sessionStorage.getItem("bb.timeline-comments.reply:ct_1")).toBeNull();
@@ -376,13 +377,13 @@ describe("Moss comment component port", () => {
     )!;
     fireEvent.change(input, { target: { value: "Retry this reply" } });
     const submit = host.querySelector<HTMLButtonElement>(
-      'button[aria-label="Submit comment"]',
+      'button[aria-label="Reply"]',
     )!;
 
     fireEvent.click(submit);
-    expect(input.readOnly).toBe(true);
+    expect(submit.disabled).toBe(true);
     rejectReply(new Error("Temporary failure"));
-    await waitFor(() => expect(input.readOnly).toBe(false));
+    await waitFor(() => expect(submit.disabled).toBe(false));
     expect(input.value).toBe("Retry this reply");
     expect(submit.disabled).toBe(false);
 
@@ -402,7 +403,7 @@ describe("Moss comment component port", () => {
     const input = openRootEdit(host);
     fireEvent.change(input, { target: { value: "Updated once" } });
     const submit = host.querySelector<HTMLButtonElement>(
-      'button[aria-label="Submit comment"]',
+      'button[aria-label="Save comment"]',
     )!;
 
     act(() => {
@@ -418,7 +419,7 @@ describe("Moss comment component port", () => {
 
     expect(call).toHaveBeenCalledTimes(1);
     expect(submit.disabled).toBe(true);
-    expect(input.readOnly).toBe(true);
+    expect(input.readOnly).toBe(false);
     resolveUpdate(detail);
     await waitFor(() =>
       expect(host.querySelector('[aria-label="Edit comment"]')).toBeNull(),
@@ -517,7 +518,7 @@ describe("Moss comment component port", () => {
     const input = openRootEdit(host);
     fireEvent.change(input, { target: { value: "Keep my local edit" } });
     const save = host.querySelector<HTMLButtonElement>(
-      '[data-comment-edit-footer-host] button[aria-label="Submit comment"]',
+      '[data-comment-editing="true"] button[aria-label="Save comment"]',
     )!;
     fireEvent.click(save);
 
@@ -535,7 +536,7 @@ describe("Moss comment component port", () => {
 
     fireEvent.click(
       host.querySelector(
-        '[data-comment-editing="true"] button[aria-label="Submit comment"]',
+        '[data-comment-editing="true"] button[aria-label="Save comment"]',
       )!,
     );
     await waitFor(() => expect(updateAttempts).toBe(2));
@@ -545,7 +546,7 @@ describe("Moss comment component port", () => {
     unmount();
   });
 
-  it("makes a pending new-comment composer read-only until its request settles", async () => {
+  it("blocks repeat submission while a new comment request is pending", async () => {
     let rejectSubmit!: (error: Error) => void;
     const pending = new Promise<void>((_resolve, reject) => {
       rejectSubmit = reject;
@@ -553,11 +554,8 @@ describe("Moss comment component port", () => {
     const onSubmit = vi.fn(() => pending);
     const host = document.body.appendChild(document.createElement("section"));
     const unmount = mountMossCommentComposer(host, {
-      rpc: { call: vi.fn() } as unknown as PluginRpcClient<
-        typeof timelineCommentsRpcContract
-      >,
       bbThreadId: "thr_1",
-      initialValue: "",
+      initialValue: { text: "", mentions: [] },
       onChange: vi.fn(),
       onCancel: vi.fn(),
       onSubmit,
@@ -566,13 +564,15 @@ describe("Moss comment component port", () => {
       '[aria-label="Add a comment"]',
     )!;
     fireEvent.change(input, { target: { value: "Pending comment" } });
-    fireEvent.click(
-      host.querySelector('button[aria-label="Submit comment"]')!,
-    );
-    expect(input.readOnly).toBe(true);
+    const submit = host.querySelector<HTMLButtonElement>(
+      'button[aria-label="Add comment"]',
+    )!;
+    fireEvent.click(submit);
+    expect(submit.disabled).toBe(true);
+    expect(input.readOnly).toBe(false);
 
     rejectSubmit(new Error("Temporary failure"));
-    await waitFor(() => expect(input.readOnly).toBe(false));
+    await waitFor(() => expect(submit.disabled).toBe(false));
     expect(input.value).toBe("Pending comment");
     unmount();
   });

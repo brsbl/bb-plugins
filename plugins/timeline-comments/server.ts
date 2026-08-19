@@ -91,12 +91,25 @@ const messageReferenceSchema = z
     sourceSeqEnd: z.number().int().nonnegative(),
   })
   .strict();
+const commentMentionSchema = z
+  .object({
+    from: z.number().int().nonnegative(),
+    to: z.number().int().positive(),
+    provider: z.string().min(1),
+    id: z.string(),
+    label: z.string(),
+  })
+  .strict();
+const commentMentionsSchema = z.array(commentMentionSchema).max(200);
+const optionalCommentMentionsSchema = commentMentionsSchema.optional();
+export type TimelineCommentMention = z.infer<typeof commentMentionSchema>;
 const commentSchema = z
   .object({
     id: idSchema,
     threadId: idSchema,
     parentId: idSchema.nullable(),
     body: z.string(),
+    mentions: commentMentionsSchema.optional(),
     version: z.number().int().positive(),
     createdAt: z.number().int().nonnegative(),
     updatedAt: z.number().int().nonnegative(),
@@ -134,14 +147,6 @@ export type TimelineCommentThreadDetail = z.infer<
 >;
 const cursorInputSchema = z.string().min(1).max(2_048).optional();
 const rootFilterSchema = z.enum(["open", "resolved", "all"]);
-const contextMentionSchema = z
-  .object({
-    kind: z.enum(["file", "directory"]),
-    name: z.string(),
-    path: z.string(),
-  })
-  .strict();
-export type TimelineContextMention = z.infer<typeof contextMentionSchema>;
 
 export const timelineCommentsRpcContract = defineRpcContract({
   listOpenAnchors: {
@@ -193,20 +198,6 @@ export const timelineCommentsRpcContract = defineRpcContract({
       })
       .strict(),
   },
-  searchContextMentions: {
-    input: z
-      .object({
-        bbThreadId: idSchema,
-        query: z.string().max(256),
-      })
-      .strict(),
-    output: z
-      .object({
-        items: z.array(contextMentionSchema),
-        truncated: z.boolean(),
-      })
-      .strict(),
-  },
   createThread: {
     input: z
       .object({
@@ -214,6 +205,7 @@ export const timelineCommentsRpcContract = defineRpcContract({
         message: messageReferenceSchema,
         selector: renderedTextSelectorSchema,
         body: bodySchema,
+        mentions: optionalCommentMentionsSchema,
       })
       .strict(),
     output: commentThreadDetailSchema,
@@ -224,6 +216,7 @@ export const timelineCommentsRpcContract = defineRpcContract({
         bbThreadId: idSchema,
         commentThreadId: idSchema,
         body: bodySchema,
+        mentions: optionalCommentMentionsSchema,
       })
       .strict(),
     output: commentThreadDetailSchema,
@@ -235,6 +228,7 @@ export const timelineCommentsRpcContract = defineRpcContract({
         commentId: idSchema,
         expectedVersion: z.number().int().positive(),
         body: bodySchema,
+        mentions: optionalCommentMentionsSchema,
       })
       .strict(),
     output: commentThreadDetailSchema,
@@ -287,6 +281,7 @@ const threadRowSchema = z.object({
   resolvedAt: z.number().nullable(),
   rootId: z.string(),
   rootBody: z.string(),
+  rootMentionsJson: z.string(),
   rootVersion: z.number(),
   rootCreatedAt: z.number(),
   rootUpdatedAt: z.number(),
@@ -298,6 +293,7 @@ const commentRowSchema = z.object({
   threadId: z.string(),
   parentId: z.string().nullable(),
   body: z.string(),
+  mentionsJson: z.string(),
   version: z.number(),
   createdAt: z.number(),
   updatedAt: z.number(),
@@ -346,8 +342,33 @@ function randomId(): string {
   return randomBytes(18).toString("base64url");
 }
 
+function parseStoredMentions(value: string): TimelineCommentMention[] {
+  try {
+    return commentMentionsSchema.parse(JSON.parse(value));
+  } catch {
+    return [];
+  }
+}
+
+function serializeMentions(
+  body: string,
+  value: readonly TimelineCommentMention[] | undefined,
+): string {
+  const mentions = commentMentionsSchema.parse(value ?? []);
+  for (const mention of mentions) {
+    if (mention.to <= mention.from || mention.to > body.length) {
+      throw new Error("Comment mention range does not match the comment body");
+    }
+  }
+  return JSON.stringify(mentions);
+}
+
 function mapComment(row: CommentRow): z.infer<typeof commentSchema> {
-  return commentSchema.parse(row);
+  const { mentionsJson, ...comment } = row;
+  return commentSchema.parse({
+    ...comment,
+    mentions: parseStoredMentions(mentionsJson),
+  });
 }
 
 function mapThread(row: ThreadRow): z.infer<typeof commentThreadSummarySchema> {
@@ -374,6 +395,7 @@ function mapThread(row: ThreadRow): z.infer<typeof commentThreadSummarySchema> {
       threadId: row.id,
       parentId: null,
       body: row.rootBody,
+      mentions: parseStoredMentions(row.rootMentionsJson),
       version: row.rootVersion,
       createdAt: row.rootCreatedAt,
       updatedAt: row.rootUpdatedAt,
@@ -400,6 +422,7 @@ const THREAD_SELECT = `
     t.resolved_at AS resolvedAt,
     root.id AS rootId,
     root.body AS rootBody,
+    root.mentions_json AS rootMentionsJson,
     root.version AS rootVersion,
     root.created_at AS rootCreatedAt,
     root.updated_at AS rootUpdatedAt,
@@ -424,7 +447,8 @@ function getThreadRow(
 function getCommentRow(db: Database, commentId: string): CommentRow {
   const row = db
     .prepare(
-      `SELECT id, thread_id AS threadId, parent_id AS parentId, body, version,
+      `SELECT id, thread_id AS threadId, parent_id AS parentId, body,
+        mentions_json AS mentionsJson, version,
         created_at AS createdAt, updated_at AS updatedAt
        FROM comments WHERE id = ?`,
     )
@@ -454,7 +478,8 @@ function getCommentThread(
   const cursorParentRank = cursor?.parentRank ?? 1;
   const rows = db
     .prepare(
-      `SELECT id, thread_id AS threadId, parent_id AS parentId, body, version,
+      `SELECT id, thread_id AS threadId, parent_id AS parentId, body,
+        mentions_json AS mentionsJson, version,
         created_at AS createdAt, updated_at AS updatedAt
        FROM comments
        WHERE thread_id = ?
@@ -933,6 +958,8 @@ export default function timelineCommentsPlugin(bb: BbPluginApi): void {
       ON comment_threads(bb_thread_id, resolved_at, created_at, id);
     CREATE INDEX comments_by_thread
       ON comments(thread_id, created_at, id);`,
+    `ALTER TABLE comments
+      ADD COLUMN mentions_json TEXT NOT NULL DEFAULT '[]';`,
   ]);
 
   const publishChanged = (bbThreadId: string, commentThreadId: string) => {
@@ -946,20 +973,23 @@ export default function timelineCommentsPlugin(bb: BbPluginApi): void {
     bbThreadId: string;
     commentThreadId: string;
     body: string;
+    mentions?: readonly TimelineCommentMention[];
   }): TimelineCommentThreadDetail => {
     const current = getThreadRow(db, input.bbThreadId, input.commentThreadId);
     if (current.resolvedAt !== null) {
       throw new Error("Resolved comment threads cannot receive replies");
     }
     const body = bodySchema.parse(input.body);
+    const mentionsJson = serializeMentions(body, input.mentions);
     const now = Date.now();
     const id = randomId();
     db.transaction(() => {
       db.prepare(
         `INSERT INTO comments (
-          id, thread_id, parent_id, body, version, created_at, updated_at
-        ) VALUES (?, ?, ?, ?, 1, ?, ?)`,
-      ).run(id, current.id, current.rootId, body, now, now);
+          id, thread_id, parent_id, body, mentions_json,
+          version, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, 1, ?, ?)`,
+      ).run(id, current.id, current.rootId, body, mentionsJson, now, now);
       db.prepare(
         `UPDATE comment_threads
          SET version = version + 1, updated_at = ? WHERE id = ?`,
@@ -1024,29 +1054,6 @@ export default function timelineCommentsPlugin(bb: BbPluginApi): void {
         codePointSize: summary.codePointSize,
       };
     },
-    async searchContextMentions({ bbThreadId, query }) {
-      const thread = await bb.sdk.threads.get({ threadId: bbThreadId });
-      const pathQuery = {
-        projectId: thread.projectId,
-        includeFiles: "true",
-        includeDirectories: "true",
-        limit: "20",
-        ...(query.trim() === "" ? {} : { query: query.trim() }),
-      } as const;
-      const result = await bb.sdk.projects.paths(
-        thread.environmentId === null
-          ? pathQuery
-          : { ...pathQuery, environmentId: thread.environmentId },
-      );
-      return {
-        items: result.paths.map(({ kind, name, path }) => ({
-          kind,
-          name,
-          path,
-        })),
-        truncated: result.truncated,
-      };
-    },
     createThread(input) {
       if (input.message.threadId !== input.bbThreadId) {
         throw new Error("Message does not belong to the requested BB thread");
@@ -1054,6 +1061,7 @@ export default function timelineCommentsPlugin(bb: BbPluginApi): void {
       const now = Date.now();
       const commentThreadId = randomId();
       const rootCommentId = randomId();
+      const mentionsJson = serializeMentions(input.body, input.mentions);
       db.transaction(() => {
         db.prepare(
           `INSERT INTO comment_threads (
@@ -1076,9 +1084,17 @@ export default function timelineCommentsPlugin(bb: BbPluginApi): void {
         );
         db.prepare(
           `INSERT INTO comments (
-            id, thread_id, parent_id, body, version, created_at, updated_at
-          ) VALUES (?, ?, NULL, ?, 1, ?, ?)`,
-        ).run(rootCommentId, commentThreadId, input.body, now, now);
+            id, thread_id, parent_id, body, mentions_json,
+            version, created_at, updated_at
+          ) VALUES (?, ?, NULL, ?, ?, 1, ?, ?)`,
+        ).run(
+          rootCommentId,
+          commentThreadId,
+          input.body,
+          mentionsJson,
+          now,
+          now,
+        );
       })();
       const result = getCommentThread(db, {
         bbThreadId: input.bbThreadId,
@@ -1094,14 +1110,22 @@ export default function timelineCommentsPlugin(bb: BbPluginApi): void {
       const comment = getCommentRow(db, input.commentId);
       const current = getThreadRow(db, input.bbThreadId, comment.threadId);
       const now = Date.now();
+      const mentionsJson = serializeMentions(input.body, input.mentions);
       const updated = db.transaction(() => {
         const change = db
           .prepare(
             `UPDATE comments
-             SET body = ?, version = version + 1, updated_at = ?
+             SET body = ?, mentions_json = ?, version = version + 1,
+               updated_at = ?
              WHERE id = ? AND version = ?`,
           )
-          .run(input.body, now, input.commentId, input.expectedVersion);
+          .run(
+            input.body,
+            mentionsJson,
+            now,
+            input.commentId,
+            input.expectedVersion,
+          );
         if (change.changes !== 1) return false;
         db.prepare(
           `UPDATE comment_threads

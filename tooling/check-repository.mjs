@@ -98,6 +98,13 @@ export async function checkRepository(repositoryRoot = defaultRoot, options = {}
   const root = resolve(repositoryRoot);
   const rootManifest = await readJson(resolve(root, "package.json"));
   const rootLock = await readJson(resolve(root, "package-lock.json"));
+  const currentSdkRecord = await readJson(
+    resolve(root, "tooling/vendor/get-bb-plugin-sdk-0.4.8-provenance.json"),
+  );
+  const currentSdkVersion = /^@get-bb\/plugin-sdk@(\d+\.\d+\.\d+)$/.exec(
+    currentSdkRecord.package,
+  )?.[1];
+  assert(currentSdkVersion !== undefined, "current plugin SDK version missing");
   const readme = await readFile(resolve(root, "README.md"), "utf8");
   const rootImages = markdownImageTargets(readme);
   const plugins = await readPluginWorkspaces(root);
@@ -203,10 +210,25 @@ export async function checkRepository(repositoryRoot = defaultRoot, options = {}
       manifest.engines?.bb === ">=0.0.34",
       `${slug}: bb engine drift`,
     );
-    assert(
-      manifest.engines?.bbPluginSdk === `^${pluginSdkVersion}`,
-      `${slug}: SDK engine drift`,
-    );
+    const currentSdkDependency =
+      manifest.dependencies?.["@get-bb/plugin-sdk"] ??
+      manifest.devDependencies?.["@get-bb/plugin-sdk"];
+    if (currentSdkDependency !== undefined) {
+      assert(
+        currentSdkDependency ===
+          `file:../../tooling/vendor/${currentSdkRecord.archive}`,
+        `${slug}: current plugin SDK dependency drift`,
+      );
+      assert(
+        manifest.engines?.bbPluginSdk === `>=${currentSdkVersion}`,
+        `${slug}: current SDK engine drift`,
+      );
+    } else {
+      assert(
+        manifest.engines?.bbPluginSdk === `^${pluginSdkVersion}`,
+        `${slug}: SDK engine drift`,
+      );
+    }
     if (manifest.devDependencies?.["@bb/plugin-sdk"] !== undefined) {
       assert(
         manifest.devDependencies["@bb/plugin-sdk"] ===
@@ -267,6 +289,17 @@ export async function checkRepository(repositoryRoot = defaultRoot, options = {}
   const sdkHash = createHash("sha256").update(sdkArchive).digest("hex");
   assert(sdkHash === sdkRecord.sha256, "vendored plugin SDK hash mismatch");
 
+  const currentSdkArchive = await readFile(
+    resolve(root, "tooling/vendor", currentSdkRecord.archive),
+  );
+  const currentSdkHash = createHash("sha256")
+    .update(currentSdkArchive)
+    .digest("hex");
+  assert(
+    currentSdkHash === currentSdkRecord.sha256,
+    "vendored current plugin SDK hash mismatch",
+  );
+
   const pluginBuildProvenance = await readJson(
     resolve(root, "tooling/vendor/plugin-build-provenance.json"),
   );
@@ -279,6 +312,23 @@ export async function checkRepository(repositoryRoot = defaultRoot, options = {}
   assert(
     pluginBuildHash === pluginBuildProvenance.sha256,
     "vendored plugin builder hash mismatch",
+  );
+
+  const currentPluginBuildProvenance = await readJson(
+    resolve(
+      root,
+      "tooling/vendor/plugin-build-sdk-0.4.8-provenance.json",
+    ),
+  );
+  const currentPluginBuildBundle = await readFile(
+    resolve(root, "tooling/vendor", currentPluginBuildProvenance.bundle),
+  );
+  const currentPluginBuildHash = createHash("sha256")
+    .update(currentPluginBuildBundle)
+    .digest("hex");
+  assert(
+    currentPluginBuildHash === currentPluginBuildProvenance.sha256,
+    "vendored SDK 0.4.8 plugin builder hash mismatch",
   );
 
   return { pluginCount: plugins.length };

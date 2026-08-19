@@ -78,11 +78,9 @@ describe("timeline comments controller teardown", () => {
     )!;
     expect(composer).not.toBeNull();
     expect(composer.querySelector(".bb-comments-composer-footer")).toBeNull();
-    expect(
-      composer.querySelector('button[aria-label="Submit comment"] svg'),
-    ).not.toBeNull();
+    expect(composer.querySelector('button[aria-label="Add comment"]')).not.toBeNull();
     const textarea = composer.querySelector<HTMLTextAreaElement>(
-      ".bb-comments-reply-input",
+      '[aria-label="Add a comment"]',
     )!;
     expect(composer.querySelector('[data-comment-new-composer="true"]')).not.toBeNull();
     expect(textarea.getAttribute("aria-label")).toBe("Add a comment");

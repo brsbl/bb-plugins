@@ -18,8 +18,8 @@ describe("timeline comments visual contract", () => {
   });
 
   it("uses BB body typography for comment copy and inputs", () => {
-    expect(css).toMatch(/\.bb-comments-composer,[\s\S]*\.bb-comments-popover \{[\s\S]*font-family: inherit;[\s\S]*font-size: 13px;/u);
-    expect(css).toMatch(/\.bb-comments-reply-input \{[\s\S]*font-family: inherit;[\s\S]*font-size: inherit;/u);
+    expect(css).toMatch(/\.bb-comments-popover \{[\s\S]*font-family: inherit;[\s\S]*font-size: 13px;/u);
+    expect(css).toMatch(/\.bb-comments-composer \{[\s\S]*font-family: inherit;[\s\S]*font-size: 13px;/u);
     expect(css).toMatch(/\.bb-comments-row-body \{[\s\S]*font-family: inherit;[\s\S]*font-size: inherit;/u);
     expect(css).toMatch(/\.bb-comments-panel-comment p \{[\s\S]*font-family: inherit;[\s\S]*font-size: inherit;/u);
   });
@@ -29,11 +29,12 @@ describe("timeline comments visual contract", () => {
     expect(css).not.toMatch(/\.bb-comments-composer-action-tooltip \{[^}]*position: absolute;/u);
   });
 
-  it("keeps the new-comment composer compact until content needs more room", () => {
-    expect(css).toMatch(/\.bb-comments-composer \{[\s\S]*width: 216px;[\s\S]*min-height: 30px;/u);
-    expect(css).toMatch(/\.bb-comments-mention-input\[data-mention-input-expanded="false"\] \{[\s\S]*height: 30px;/u);
-    expect(css).toMatch(/\.bb-comments-input-row \{[\s\S]*min-height: 24px;/u);
-    expect(css).toMatch(/\.bb-comments-context-control \{[\s\S]*width: 18px;/u);
+  it("lets the host composer own the input surface", () => {
+    expect(css).toMatch(/\.bb-comments-composer \{[\s\S]*width: 216px;[\s\S]*font-family: inherit;/u);
+    expect(css).toMatch(/\.bb-comments-host-composer \{[\s\S]*min-width: 0;/u);
+    expect(css).not.toContain(".bb-comments-mention-input");
+    expect(css).not.toContain(".bb-comments-mention-menu");
+    expect(css).not.toContain(".bb-comments-context-control");
   });
 
   it("uses Moss-style incremental edit and footer transitions", () => {
@@ -43,24 +44,15 @@ describe("timeline comments visual contract", () => {
     expect(css).toMatch(
       /\.bb-comments-reply\[data-editing="true"\] \{[\s\S]*grid-template-rows: 0fr;/u,
     );
-    expect(css).toMatch(
-      /\.bb-comments-edit-footer-host \{[\s\S]*opacity 150ms ease-out;/u,
-    );
-    expect(css).toMatch(
-      /\.bb-comments-compact-actions,[\s\S]*\.bb-comments-expanded-actions \{[\s\S]*opacity 150ms ease-out;/u,
-    );
-    expect(css).toMatch(
-      /\.bb-comments-reply\[data-last-editing="true"\] \.bb-comments-reply-inner \{[\s\S]*height: 31px;/u,
-    );
+    expect(css).not.toContain("data-last-editing");
+    expect(css).not.toContain(".bb-comments-edit-footer-host");
     expect(css).toContain("@media (prefers-reduced-motion: reduce)");
   });
 
   it("leaves comment input focus indication to the browser", () => {
     expect(css).not.toContain("outline: none !important;");
-    expect(css).not.toMatch(
-      /\.bb-comments-textarea,[\s\S]*?\.bb-comments-panel textarea \{[^}]*outline:\s*none;/u,
-    );
-    expect(css).not.toContain(".bb-comments-mention-input:has(");
+    expect(css).not.toContain(".bb-comments-host-composer:focus");
+    expect(css).not.toContain(".bb-comments-host-composer:focus-within");
     expect(css).not.toMatch(
       /\.bb-comments-panel textarea:focus-visible \{[^}]*outline:/u,
     );

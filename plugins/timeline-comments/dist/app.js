@@ -138,6 +138,12 @@ var {
   Markdown,
   ThreadChat,
   definePluginApp,
+  experimental_CompactComposer,
+  experimental_NewThreadComposer,
+  experimental_useSidebarThreadActions,
+  experimental_useSidebarThreadPullRequest,
+  experimental_useSidebarThreadSplit,
+  experimental_useSidebarThreads,
   useBbContext,
   useBbNavigate,
   useComposer,
@@ -241,59 +247,6 @@ var defaultAttributes2 = {
   "stroke-linejoin": "round"
 };
 
-// ../../node_modules/lucide/dist/esm/icons/check-check.js
-var CheckCheck = [
-  "svg",
-  defaultAttributes2,
-  [
-    ["path", { d: "M18 6 7 17l-5-5" }],
-    ["path", { d: "m22 10-7.5 7.5L13 16" }]
-  ]
-];
-
-// ../../node_modules/lucide/dist/esm/icons/command.js
-var Command = [
-  "svg",
-  defaultAttributes2,
-  [["path", { d: "M15 6v12a3 3 0 1 0 3-3H6a3 3 0 1 0 3 3V6a3 3 0 1 0-3 3h12a3 3 0 1 0-3-3" }]]
-];
-
-// ../../node_modules/lucide/dist/esm/icons/corner-down-left.js
-var CornerDownLeft = [
-  "svg",
-  defaultAttributes2,
-  [
-    ["polyline", { points: "9 10 4 15 9 20" }],
-    ["path", { d: "M20 4v7a4 4 0 0 1-4 4H4" }]
-  ]
-];
-
-// ../../node_modules/lucide/dist/esm/icons/ellipsis-vertical.js
-var EllipsisVertical = [
-  "svg",
-  defaultAttributes2,
-  [
-    ["circle", { cx: "12", cy: "12", r: "1" }],
-    ["circle", { cx: "12", cy: "5", r: "1" }],
-    ["circle", { cx: "12", cy: "19", r: "1" }]
-  ]
-];
-
-// ../../node_modules/lucide/dist/esm/icons/pencil.js
-var Pencil = [
-  "svg",
-  defaultAttributes2,
-  [
-    [
-      "path",
-      {
-        d: "M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z"
-      }
-    ],
-    ["path", { d: "m15 5 4 4" }]
-  ]
-];
-
 // ../../node_modules/lucide/dist/esm/icons/sticky-note.js
 var StickyNote = [
   "svg",
@@ -301,29 +254,6 @@ var StickyNote = [
   [
     ["path", { d: "M16 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V8Z" }],
     ["path", { d: "M15 3v4a2 2 0 0 0 2 2h4" }]
-  ]
-];
-
-// ../../node_modules/lucide/dist/esm/icons/trash-2.js
-var Trash2 = [
-  "svg",
-  defaultAttributes2,
-  [
-    ["path", { d: "M3 6h18" }],
-    ["path", { d: "M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" }],
-    ["path", { d: "M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" }],
-    ["line", { x1: "10", x2: "10", y1: "11", y2: "17" }],
-    ["line", { x1: "14", x2: "14", y1: "11", y2: "17" }]
-  ]
-];
-
-// ../../node_modules/lucide/dist/esm/icons/x.js
-var X = [
-  "svg",
-  defaultAttributes2,
-  [
-    ["path", { d: "M18 6 6 18" }],
-    ["path", { d: "m6 6 12 12" }]
   ]
 ];
 
@@ -479,15 +409,6 @@ function layoutGutterMarkers(candidates, top, bottom, markerSize = 24, gap = 4) 
   return placements;
 }
 
-// comment-body.ts
-var COMMENT_BODY_CODE_POINT_LIMIT = 1e4;
-function commentBodyError(value) {
-  if (value.trim() === "") return "Comment body is required";
-  if (Array.from(value).length > COMMENT_BODY_CODE_POINT_LIMIT)
-    return "Comment body must be at most 10,000 Unicode code points";
-  return null;
-}
-
 // bb-plugin-runtime-shim:react-dom
 var runtime4 = globalThis.__bbPluginRuntime;
 if (runtime4 == null || runtime4.reactDom == null) {
@@ -587,73 +508,31 @@ var createLucideIcon = (iconName, iconNode) => {
   return Component2;
 };
 
-// ../../node_modules/lucide-react/dist/esm/icons/at-sign.js
-var __iconNode = [
-  ["circle", { cx: "12", cy: "12", r: "4", key: "4exip2" }],
-  ["path", { d: "M16 8v5a3 3 0 0 0 6 0v-1a10 10 0 1 0-4 8", key: "7n84p3" }]
-];
-var AtSign = createLucideIcon("AtSign", __iconNode);
-
 // ../../node_modules/lucide-react/dist/esm/icons/check-check.js
-var __iconNode2 = [
+var __iconNode = [
   ["path", { d: "M18 6 7 17l-5-5", key: "116fxf" }],
   ["path", { d: "m22 10-7.5 7.5L13 16", key: "ke71qq" }]
 ];
-var CheckCheck2 = createLucideIcon("CheckCheck", __iconNode2);
-
-// ../../node_modules/lucide-react/dist/esm/icons/command.js
-var __iconNode3 = [
-  [
-    "path",
-    { d: "M15 6v12a3 3 0 1 0 3-3H6a3 3 0 1 0 3 3V6a3 3 0 1 0-3 3h12a3 3 0 1 0-3-3", key: "11bfej" }
-  ]
-];
-var Command2 = createLucideIcon("Command", __iconNode3);
-
-// ../../node_modules/lucide-react/dist/esm/icons/corner-down-left.js
-var __iconNode4 = [
-  ["polyline", { points: "9 10 4 15 9 20", key: "r3jprv" }],
-  ["path", { d: "M20 4v7a4 4 0 0 1-4 4H4", key: "6o5b7l" }]
-];
-var CornerDownLeft2 = createLucideIcon("CornerDownLeft", __iconNode4);
+var CheckCheck = createLucideIcon("CheckCheck", __iconNode);
 
 // ../../node_modules/lucide-react/dist/esm/icons/ellipsis.js
-var __iconNode5 = [
+var __iconNode2 = [
   ["circle", { cx: "12", cy: "12", r: "1", key: "41hilf" }],
   ["circle", { cx: "19", cy: "12", r: "1", key: "1wjl8i" }],
   ["circle", { cx: "5", cy: "12", r: "1", key: "1pcz8c" }]
 ];
-var Ellipsis = createLucideIcon("Ellipsis", __iconNode5);
-
-// ../../node_modules/lucide-react/dist/esm/icons/file.js
-var __iconNode6 = [
-  ["path", { d: "M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z", key: "1rqfz7" }],
-  ["path", { d: "M14 2v4a2 2 0 0 0 2 2h4", key: "tnqrlb" }]
-];
-var File = createLucideIcon("File", __iconNode6);
-
-// ../../node_modules/lucide-react/dist/esm/icons/folder.js
-var __iconNode7 = [
-  [
-    "path",
-    {
-      d: "M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z",
-      key: "1kt360"
-    }
-  ]
-];
-var Folder = createLucideIcon("Folder", __iconNode7);
+var Ellipsis = createLucideIcon("Ellipsis", __iconNode2);
 
 // ../../node_modules/lucide-react/dist/esm/icons/message-square-text.js
-var __iconNode8 = [
+var __iconNode3 = [
   ["path", { d: "M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z", key: "1lielz" }],
   ["path", { d: "M13 8H7", key: "14i4kc" }],
   ["path", { d: "M17 12H7", key: "16if0g" }]
 ];
-var MessageSquareText = createLucideIcon("MessageSquareText", __iconNode8);
+var MessageSquareText = createLucideIcon("MessageSquareText", __iconNode3);
 
 // ../../node_modules/lucide-react/dist/esm/icons/pencil.js
-var __iconNode9 = [
+var __iconNode4 = [
   [
     "path",
     {
@@ -663,17 +542,10 @@ var __iconNode9 = [
   ],
   ["path", { d: "m15 5 4 4", key: "1mk7zo" }]
 ];
-var Pencil2 = createLucideIcon("Pencil", __iconNode9);
-
-// ../../node_modules/lucide-react/dist/esm/icons/plus.js
-var __iconNode10 = [
-  ["path", { d: "M5 12h14", key: "1ays0h" }],
-  ["path", { d: "M12 5v14", key: "s699le" }]
-];
-var Plus = createLucideIcon("Plus", __iconNode10);
+var Pencil = createLucideIcon("Pencil", __iconNode4);
 
 // ../../node_modules/lucide-react/dist/esm/icons/send.js
-var __iconNode11 = [
+var __iconNode5 = [
   [
     "path",
     {
@@ -683,43 +555,145 @@ var __iconNode11 = [
   ],
   ["path", { d: "m21.854 2.147-10.94 10.939", key: "12cjpa" }]
 ];
-var Send = createLucideIcon("Send", __iconNode11);
+var Send = createLucideIcon("Send", __iconNode5);
 
 // ../../node_modules/lucide-react/dist/esm/icons/trash-2.js
-var __iconNode12 = [
+var __iconNode6 = [
   ["path", { d: "M3 6h18", key: "d0wm0j" }],
   ["path", { d: "M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6", key: "4alrt4" }],
   ["path", { d: "M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2", key: "v07s0e" }],
   ["line", { x1: "10", x2: "10", y1: "11", y2: "17", key: "1uufr5" }],
   ["line", { x1: "14", x2: "14", y1: "11", y2: "17", key: "xtxkd" }]
 ];
-var Trash22 = createLucideIcon("Trash2", __iconNode12);
+var Trash2 = createLucideIcon("Trash2", __iconNode6);
 
 // ../../node_modules/lucide-react/dist/esm/icons/x.js
-var __iconNode13 = [
+var __iconNode7 = [
   ["path", { d: "M18 6 6 18", key: "1bl5f8" }],
   ["path", { d: "m6 6 12 12", key: "d8bk6v" }]
 ];
-var X2 = createLucideIcon("X", __iconNode13);
+var X = createLucideIcon("X", __iconNode7);
+
+// bb-plugin-runtime-shim:@get-bb/plugin-sdk/app
+var runtime6 = globalThis.__bbPluginRuntime;
+if (runtime6 == null || runtime6.pluginSdkApp == null) {
+  throw new Error('Cannot load "@get-bb/plugin-sdk/app": this bundle must be loaded by the BB app, which provides the shared plugin runtime (globalThis.__bbPluginRuntime).');
+}
+var mod6 = runtime6.pluginSdkApp;
+var {
+  Markdown: Markdown2,
+  ThreadChat: ThreadChat2,
+  definePluginApp: definePluginApp2,
+  experimental_CompactComposer: experimental_CompactComposer2,
+  experimental_NewThreadComposer: experimental_NewThreadComposer2,
+  experimental_useSidebarThreadActions: experimental_useSidebarThreadActions2,
+  experimental_useSidebarThreadPullRequest: experimental_useSidebarThreadPullRequest2,
+  experimental_useSidebarThreadSplit: experimental_useSidebarThreadSplit2,
+  experimental_useSidebarThreads: experimental_useSidebarThreads2,
+  useBbContext: useBbContext2,
+  useBbNavigate: useBbNavigate2,
+  useComposer: useComposer2,
+  useComposerView: useComposerView2,
+  useRealtime: useRealtime2,
+  useRealtimeConnectionState: useRealtimeConnectionState2,
+  useRpc: useRpc2,
+  useSettings: useSettings2
+} = mod6;
+
+// comment-body.ts
+var COMMENT_BODY_CODE_POINT_LIMIT = 1e4;
+function commentBodyError(value) {
+  if (value.trim() === "") return "Comment body is required";
+  if (Array.from(value).length > COMMENT_BODY_CODE_POINT_LIMIT)
+    return "Comment body must be at most 10,000 Unicode code points";
+  return null;
+}
+
+// comment-value.ts
+var DRAFT_TTL = 24 * 60 * 60 * 1e3;
+function emptyCommentValue() {
+  return { text: "", mentions: [] };
+}
+function isMention(value) {
+  if (typeof value !== "object" || value === null) return false;
+  const mention = value;
+  return Number.isInteger(mention.from) && Number.isInteger(mention.to) && typeof mention.provider === "string" && typeof mention.id === "string" && typeof mention.label === "string";
+}
+function parseValue(value) {
+  if (typeof value !== "object" || value === null) return null;
+  const candidate = value;
+  if (typeof candidate.text !== "string" || !Array.isArray(candidate.mentions) || !candidate.mentions.every(isMention)) {
+    return null;
+  }
+  return {
+    text: candidate.text,
+    mentions: candidate.mentions.map((mention) => ({ ...mention }))
+  };
+}
+function readCommentDraft(key) {
+  const saved = sessionStorage.getItem(key);
+  if (saved === null) return null;
+  try {
+    const parsed = JSON.parse(saved);
+    if (typeof parsed.expiresAt !== "number" || parsed.expiresAt <= Date.now()) {
+      throw new Error("Expired draft");
+    }
+    const value = parseValue(parsed.value);
+    if (value !== null) return value;
+    if (typeof parsed.body === "string") {
+      return { text: parsed.body, mentions: [] };
+    }
+  } catch {
+  }
+  sessionStorage.removeItem(key);
+  return null;
+}
+function writeCommentDraft(key, value) {
+  if (value.text.trim() === "") {
+    sessionStorage.removeItem(key);
+    return;
+  }
+  sessionStorage.setItem(
+    key,
+    JSON.stringify({ value, expiresAt: Date.now() + DRAFT_TTL })
+  );
+}
+function trimCommentValue(value) {
+  const leadingWhitespace = value.text.length - value.text.trimStart().length;
+  const text = value.text.trim();
+  const end = leadingWhitespace + text.length;
+  return {
+    text,
+    mentions: value.mentions.filter(
+      (mention) => mention.from >= leadingWhitespace && mention.to <= end
+    ).map((mention) => ({
+      ...mention,
+      from: mention.from - leadingWhitespace,
+      to: mention.to - leadingWhitespace
+    }))
+  };
+}
+function commentValuesEqual(left, right) {
+  return JSON.stringify(left) === JSON.stringify(right);
+}
 
 // bb-plugin-runtime-shim:react/jsx-runtime
-var runtime6 = globalThis.__bbPluginRuntime;
-if (runtime6 == null || runtime6.jsxRuntime == null) {
+var runtime7 = globalThis.__bbPluginRuntime;
+if (runtime7 == null || runtime7.jsxRuntime == null) {
   throw new Error('Cannot load "react/jsx-runtime": this bundle must be loaded by the BB app, which provides the shared plugin runtime (globalThis.__bbPluginRuntime).');
 }
-var mod6 = runtime6.jsxRuntime;
+var mod7 = runtime7.jsxRuntime;
 var {
   Fragment: Fragment2,
   jsx,
   jsxs
-} = mod6;
+} = mod7;
 
 // comment-components.tsx
 var MODE_TRANSITION = {
   duration: 150,
   easing: "cubic-bezier(0.22, 1, 0.36, 1)"
 };
-var DRAFT_TTL = 24 * 60 * 60 * 1e3;
 function errorMessage(error) {
   return error instanceof Error ? error.message : "Something went wrong";
 }
@@ -751,29 +725,6 @@ async function reloadCompleteThread(rpc, current) {
     commentCursor = page.nextCursor ?? void 0;
   } while (commentCursor !== void 0);
   return detail;
-}
-function readDraft(key) {
-  const saved = sessionStorage.getItem(key);
-  if (saved === null) return null;
-  try {
-    const parsed = JSON.parse(saved);
-    if (typeof parsed.body === "string" && typeof parsed.expiresAt === "number" && parsed.expiresAt > Date.now()) {
-      return parsed.body;
-    }
-  } catch {
-  }
-  sessionStorage.removeItem(key);
-  return null;
-}
-function writeDraft(key, body) {
-  if (body.trim() === "") {
-    sessionStorage.removeItem(key);
-    return;
-  }
-  sessionStorage.setItem(
-    key,
-    JSON.stringify({ body, expiresAt: Date.now() + DRAFT_TTL })
-  );
 }
 function focusAdjacentToActionsTrigger(trigger, backwards) {
   const focusable = [
@@ -890,646 +841,57 @@ function useMeasuredModeTransition(elementRef, active) {
   );
   return run;
 }
-function CommentTextInput({
+var CompactComposer = experimental_CompactComposer2;
+function HostCommentComposer({
+  threadId,
   value,
   onChange,
   onSubmit,
   placeholder,
-  ariaLabel,
-  persistentFooter = false,
-  footerPortalTarget,
+  accessibleLabel,
+  submitLabel,
   autoFocus = false,
   onCancel,
-  submitPending = false,
-  searchMentions
+  submitPending = false
 }) {
-  const rootRef = useRef(null);
-  const inputContentRef = useRef(null);
-  const textareaRef = useRef(null);
-  const previousFooterVisibleRef = useRef(false);
-  const compactHeightRef = useRef(null);
-  const compactContentOffsetRef = useRef(null);
-  const expandedHeightRef = useRef(null);
-  const responsiveHeightAnimationRef = useRef(null);
-  const responsiveContentAnimationRef = useRef(null);
-  const responsiveAnimationCleanupTimerRef = useRef(null);
-  const responsiveMeasurementFrameRef = useRef(null);
-  const [responsiveFooterLatched, setResponsiveFooterLatched] = useState(false);
-  const [mentionRange, setMentionRange] = useState(null);
-  const [mentionItems, setMentionItems] = useState([]);
-  const [mentionLoading, setMentionLoading] = useState(false);
-  const [mentionError, setMentionError] = useState(false);
-  const [activeMentionIndex, setActiveMentionIndex] = useState(0);
-  const [mentionMenuPosition, setMentionMenuPosition] = useState({
-    bottom: 8,
-    left: 8,
-    width: 280
-  });
-  const mentionRequestRef = useRef(0);
-  const hasExplicitLineBreak = value.includes("\n");
-  const responsiveExpansionRequested = hasExplicitLineBreak || responsiveFooterLatched;
-  const footerVisible = persistentFooter || responsiveExpansionRequested;
-  const responsiveCompact = !persistentFooter && !footerVisible;
-  const error = value.trim() === "" ? null : commentBodyError(value);
-  const submitDisabled = commentBodyError(value) !== null;
-  const animateResponsiveHeightToNaturalSize = useCallback(() => {
-    const root = rootRef.current;
-    const previousNaturalHeight = expandedHeightRef.current;
-    if (!root || previousNaturalHeight === null) return;
-    const naturalHeight = Array.from(root.children).reduce((height, child) => {
-      if (!(child instanceof HTMLElement) || window.getComputedStyle(child).position === "absolute") {
-        return height;
-      }
-      return height + child.getBoundingClientRect().height;
-    }, 0);
-    if (Math.abs(naturalHeight - previousNaturalHeight) < 0.5) return;
-    expandedHeightRef.current = naturalHeight;
-    const runningAnimation = responsiveHeightAnimationRef.current;
-    const startHeight = runningAnimation ? root.getBoundingClientRect().height : previousNaturalHeight;
-    responsiveHeightAnimationRef.current = null;
-    runningAnimation?.cancel();
-    if (responsiveAnimationCleanupTimerRef.current !== null) {
-      window.clearTimeout(responsiveAnimationCleanupTimerRef.current);
-      responsiveAnimationCleanupTimerRef.current = null;
-    }
-    if (typeof root.animate !== "function" || reducedMotion() || Math.abs(naturalHeight - startHeight) < 0.5) {
-      root.style.removeProperty("overflow");
-      return;
-    }
-    root.style.overflow = "hidden";
-    const heightAnimation = root.animate(
-      [{ height: `${startHeight}px` }, { height: `${naturalHeight}px` }],
-      MODE_TRANSITION
-    );
-    responsiveHeightAnimationRef.current = heightAnimation;
-    const finishTransition = () => {
-      if (responsiveHeightAnimationRef.current !== heightAnimation) return;
-      responsiveHeightAnimationRef.current = null;
-      if (responsiveAnimationCleanupTimerRef.current !== null) {
-        window.clearTimeout(responsiveAnimationCleanupTimerRef.current);
-        responsiveAnimationCleanupTimerRef.current = null;
-      }
-      root.style.removeProperty("overflow");
-    };
-    heightAnimation.addEventListener("finish", finishTransition, { once: true });
-    responsiveAnimationCleanupTimerRef.current = window.setTimeout(() => {
-      if (responsiveHeightAnimationRef.current === heightAnimation) {
-        responsiveHeightAnimationRef.current = null;
-        heightAnimation.cancel();
-        root.style.removeProperty("overflow");
-      }
-      responsiveAnimationCleanupTimerRef.current = null;
-    }, 200);
-  }, []);
-  useLayoutEffect(() => {
-    if (persistentFooter) {
-      previousFooterVisibleRef.current = footerVisible;
-      return;
-    }
-    const root = rootRef.current;
-    const content = inputContentRef.current;
-    const row = root?.querySelector('[data-mention-input-row="true"]');
-    if (!root || !content || !row) return;
-    const wasVisible = previousFooterVisibleRef.current;
-    previousFooterVisibleRef.current = footerVisible;
-    const currentNaturalHeight = root.offsetHeight || root.getBoundingClientRect().height;
-    const currentContentOffset = Number.parseFloat(window.getComputedStyle(row).paddingLeft) || 0;
-    if (wasVisible === footerVisible) {
-      if (!footerVisible) {
-        const previousCompactHeight = compactHeightRef.current;
-        if (previousCompactHeight === null || currentNaturalHeight <= previousCompactHeight + 0.5) {
-          compactHeightRef.current = currentNaturalHeight;
-          compactContentOffsetRef.current = currentContentOffset;
-        }
-      } else if (!responsiveHeightAnimationRef.current) {
-        expandedHeightRef.current = currentNaturalHeight;
-      }
-      return;
-    }
-    const runningHeightAnimation = responsiveHeightAnimationRef.current;
-    const animatedStartHeight = runningHeightAnimation ? root.getBoundingClientRect().height : null;
-    responsiveHeightAnimationRef.current = null;
-    runningHeightAnimation?.cancel();
-    responsiveContentAnimationRef.current?.cancel();
-    responsiveContentAnimationRef.current = null;
-    if (responsiveAnimationCleanupTimerRef.current !== null) {
-      window.clearTimeout(responsiveAnimationCleanupTimerRef.current);
-      responsiveAnimationCleanupTimerRef.current = null;
-    }
-    root.style.removeProperty("overflow");
-    const endHeight = root.offsetHeight || root.getBoundingClientRect().height;
-    const startHeight = animatedStartHeight ?? (footerVisible ? compactHeightRef.current : expandedHeightRef.current) ?? endHeight;
-    if (footerVisible) expandedHeightRef.current = endHeight;
-    else {
-      compactHeightRef.current = endHeight;
-      compactContentOffsetRef.current = currentContentOffset;
-    }
-    if (typeof root.animate !== "function" || reducedMotion() || Math.abs(endHeight - startHeight) < 0.5) return;
-    root.style.overflow = "hidden";
-    const heightAnimation = root.animate(
-      [{ height: `${startHeight}px` }, { height: `${endHeight}px` }],
-      MODE_TRANSITION
-    );
-    responsiveHeightAnimationRef.current = heightAnimation;
-    if (footerVisible) {
-      const compactContentOffset = compactContentOffsetRef.current;
-      const contentOffset = compactContentOffset === null ? 0 : compactContentOffset - currentContentOffset;
-      if (Math.abs(contentOffset) >= 0.5) {
-        const contentAnimation = content.animate(
-          [
-            { transform: `translateX(${contentOffset}px)` },
-            { transform: "translateX(0)" }
-          ],
-          MODE_TRANSITION
-        );
-        responsiveContentAnimationRef.current = contentAnimation;
-        contentAnimation.addEventListener(
-          "finish",
-          () => {
-            if (responsiveContentAnimationRef.current === contentAnimation)
-              responsiveContentAnimationRef.current = null;
-          },
-          { once: true }
-        );
-      }
-    }
-    const finishTransition = () => {
-      if (responsiveHeightAnimationRef.current !== heightAnimation) return;
-      responsiveHeightAnimationRef.current = null;
-      if (responsiveAnimationCleanupTimerRef.current !== null) {
-        window.clearTimeout(responsiveAnimationCleanupTimerRef.current);
-        responsiveAnimationCleanupTimerRef.current = null;
-      }
-      root.style.removeProperty("overflow");
-    };
-    heightAnimation.addEventListener("finish", finishTransition, { once: true });
-    responsiveAnimationCleanupTimerRef.current = window.setTimeout(() => {
-      if (responsiveHeightAnimationRef.current === heightAnimation) {
-        responsiveHeightAnimationRef.current = null;
-        heightAnimation.cancel();
-        root.style.removeProperty("overflow");
-      }
-      responsiveAnimationCleanupTimerRef.current = null;
-    }, 200);
-  }, [footerVisible, persistentFooter]);
-  useEffect(
-    () => () => {
-      if (responsiveMeasurementFrameRef.current !== null)
-        window.cancelAnimationFrame(responsiveMeasurementFrameRef.current);
-      if (responsiveAnimationCleanupTimerRef.current !== null)
-        window.clearTimeout(responsiveAnimationCleanupTimerRef.current);
-      responsiveHeightAnimationRef.current?.cancel();
-      responsiveContentAnimationRef.current?.cancel();
-      responsiveHeightAnimationRef.current = null;
-      responsiveContentAnimationRef.current = null;
-      rootRef.current?.style.removeProperty("overflow");
-    },
-    []
-  );
-  const shouldExpandResponsiveFooter = useCallback(() => {
-    const element2 = textareaRef.current;
-    if (!element2) return false;
-    const computedLineHeight = Number.parseFloat(
-      window.getComputedStyle(element2).lineHeight
-    );
-    const singleLineHeight = Number.isFinite(computedLineHeight) ? computedLineHeight : 20;
-    const contentHeight = Math.max(
-      element2.scrollHeight,
-      element2.getBoundingClientRect().height
-    );
-    const singleLineOverflow = element2.scrollWidth > element2.clientWidth + 0.5;
-    return Boolean(element2.value.trim()) && (singleLineOverflow || contentHeight > singleLineHeight * 1.5);
-  }, []);
-  const cancelResponsiveFooterMeasurement = useCallback(() => {
-    if (responsiveMeasurementFrameRef.current === null) return;
-    window.cancelAnimationFrame(responsiveMeasurementFrameRef.current);
-    responsiveMeasurementFrameRef.current = null;
-  }, []);
-  const scheduleResponsiveFooterMeasurement = useCallback(() => {
-    if (responsiveMeasurementFrameRef.current !== null) return;
-    responsiveMeasurementFrameRef.current = window.requestAnimationFrame(() => {
-      responsiveMeasurementFrameRef.current = null;
-      if (shouldExpandResponsiveFooter()) setResponsiveFooterLatched(true);
-    });
-  }, [shouldExpandResponsiveFooter]);
-  useLayoutEffect(() => {
-    if (persistentFooter) {
-      cancelResponsiveFooterMeasurement();
-      return;
-    }
-    if (!value.trim()) {
-      cancelResponsiveFooterMeasurement();
-      setResponsiveFooterLatched(false);
-      return;
-    }
-    if (responsiveFooterLatched) {
-      cancelResponsiveFooterMeasurement();
-      return;
-    }
-    if (hasExplicitLineBreak) {
-      cancelResponsiveFooterMeasurement();
-      setResponsiveFooterLatched(true);
-      return;
-    }
-    scheduleResponsiveFooterMeasurement();
-  }, [
-    cancelResponsiveFooterMeasurement,
-    hasExplicitLineBreak,
-    persistentFooter,
-    responsiveFooterLatched,
-    scheduleResponsiveFooterMeasurement,
-    value
-  ]);
-  useLayoutEffect(() => {
-    if (persistentFooter || typeof ResizeObserver === "undefined") return;
-    const element2 = textareaRef.current;
-    if (!element2) return;
-    const handleResize = () => {
-      if (responsiveFooterLatched) animateResponsiveHeightToNaturalSize();
-      else scheduleResponsiveFooterMeasurement();
-    };
-    const resizeObserver = new ResizeObserver(handleResize);
-    const mutationObserver = responsiveFooterLatched || typeof MutationObserver === "undefined" ? null : new MutationObserver(scheduleResponsiveFooterMeasurement);
-    resizeObserver.observe(element2);
-    mutationObserver?.observe(element2, {
-      childList: true,
-      characterData: true,
-      subtree: true
-    });
-    return () => {
-      resizeObserver.disconnect();
-      mutationObserver?.disconnect();
-    };
-  }, [
-    animateResponsiveHeightToNaturalSize,
-    persistentFooter,
-    responsiveFooterLatched,
-    scheduleResponsiveFooterMeasurement
-  ]);
-  useEffect(() => {
-    if (!autoFocus) return;
-    const frame = requestAnimationFrame(() => textareaRef.current?.focus());
-    return () => cancelAnimationFrame(frame);
-  }, [autoFocus]);
-  useEffect(() => {
-    if (mentionRange === null) return;
-    const request = mentionRequestRef.current + 1;
-    mentionRequestRef.current = request;
-    setMentionLoading(true);
-    setMentionError(false);
-    void searchMentions(mentionRange.query).then(({ items }) => {
-      if (mentionRequestRef.current !== request) return;
-      setMentionItems(items);
-      setActiveMentionIndex(0);
-    }).catch(() => {
-      if (mentionRequestRef.current !== request) return;
-      setMentionItems([]);
-      setMentionError(true);
-    }).finally(() => {
-      if (mentionRequestRef.current === request) setMentionLoading(false);
-    });
-  }, [mentionRange?.query, searchMentions]);
-  useLayoutEffect(() => {
-    if (mentionRange === null) return;
-    const updatePosition = () => {
-      const textarea = textareaRef.current;
-      if (!textarea) return;
-      const rect = textarea.getBoundingClientRect();
-      const width = Math.max(240, Math.min(360, rect.width));
-      setMentionMenuPosition({
-        bottom: Math.max(8, window.innerHeight - rect.top + 4),
-        left: Math.max(8, Math.min(window.innerWidth - width - 8, rect.left)),
-        width
-      });
-    };
-    updatePosition();
-    window.addEventListener("resize", updatePosition);
-    window.addEventListener("scroll", updatePosition, true);
-    return () => {
-      window.removeEventListener("resize", updatePosition);
-      window.removeEventListener("scroll", updatePosition, true);
-    };
-  }, [mentionRange !== null]);
-  const closeMentionMenu = useCallback(() => {
-    mentionRequestRef.current += 1;
-    setMentionRange(null);
-    setMentionItems([]);
-    setMentionLoading(false);
-    setMentionError(false);
-  }, []);
-  useEffect(() => {
-    if (mentionRange === null) return;
-    const closeOnOutsidePointer = (event) => {
-      if (!(event.target instanceof Element)) return;
-      if (rootRef.current?.contains(event.target) || event.target.closest(".bb-comments-mention-menu") !== null) {
-        return;
-      }
-      closeMentionMenu();
-    };
-    document.addEventListener("pointerdown", closeOnOutsidePointer, true);
-    return () => document.removeEventListener("pointerdown", closeOnOutsidePointer, true);
-  }, [closeMentionMenu, mentionRange]);
-  const updateMentionFromValue = useCallback(
-    (nextValue, caret) => {
-      const prefix = nextValue.slice(0, caret);
-      const match = /(?:^|\s)@([^\s@]*)$/u.exec(prefix);
-      if (!match) {
-        closeMentionMenu();
-        return;
-      }
-      const query = match[1] ?? "";
-      setMentionRange({
-        start: caret - query.length - 1,
-        end: caret,
-        query
-      });
-    },
-    [closeMentionMenu]
-  );
-  const selectMention = useCallback(
-    (mention) => {
-      if (mentionRange === null) return;
-      const inserted = `@${mention.path} `;
-      const nextValue = `${value.slice(0, mentionRange.start)}${inserted}${value.slice(mentionRange.end)}`;
-      const nextCaret = mentionRange.start + inserted.length;
-      onChange(nextValue);
-      closeMentionMenu();
-      window.requestAnimationFrame(() => {
-        textareaRef.current?.focus({ preventScroll: true });
-        textareaRef.current?.setSelectionRange(nextCaret, nextCaret);
-      });
-    },
-    [closeMentionMenu, mentionRange, onChange, value]
-  );
-  const insertMentionTrigger = useCallback(() => {
-    const textarea = textareaRef.current;
-    if (!textarea) return;
-    const start = textarea.selectionStart;
-    const end = textarea.selectionEnd;
-    const nextValue = `${value.slice(0, start)}@${value.slice(end)}`;
-    onChange(nextValue);
-    setMentionRange({ start, end: start + 1, query: "" });
-    window.requestAnimationFrame(() => {
-      textarea.focus({ preventScroll: true });
-      textarea.setSelectionRange(start + 1, start + 1);
-    });
-  }, [onChange, value]);
-  const submit = /* @__PURE__ */ jsxs(
-    "button",
+  const validationMessage = value.text.trim() === "" ? null : commentBodyError(value.text);
+  return /* @__PURE__ */ jsx(
+    CompactComposer,
     {
-      type: "button",
-      className: "bb-comments-submit-shortcut",
-      disabled: submitPending || submitDisabled,
-      "aria-label": "Submit comment",
-      title: "Submit comment \xB7 \u2318/Ctrl Enter",
-      onMouseDown: (event) => event.preventDefault(),
-      onClick: () => {
-        if (!submitPending) onSubmit(value);
-      },
-      children: [
-        /* @__PURE__ */ jsx(Command2, { "aria-hidden": "true" }),
-        /* @__PURE__ */ jsx(CornerDownLeft2, { "aria-hidden": "true" })
-      ]
-    }
-  );
-  const footer = /* @__PURE__ */ jsxs(
-    "div",
-    {
-      className: "bb-comments-edit-footer",
-      "data-mention-input-footer": "true",
-      "data-mention-input-footer-state": "expanded",
-      "data-persistent-footer": "true",
-      children: [
-        /* @__PURE__ */ jsx(
-          "button",
-          {
-            type: "button",
-            className: "bb-comments-context-control",
-            "aria-label": "Mention context",
-            disabled: submitPending,
-            onMouseDown: (event) => event.preventDefault(),
-            onClick: insertMentionTrigger,
-            children: /* @__PURE__ */ jsx(AtSign, { "aria-hidden": "true" })
-          }
-        ),
-        submit
-      ]
-    }
-  );
-  return /* @__PURE__ */ jsxs(
-    "div",
-    {
-      ref: rootRef,
-      className: "bb-comments-mention-input",
-      "data-mention-input-expanded": footerVisible ? "true" : "false",
-      "aria-busy": submitPending || void 0,
-      children: [
-        /* @__PURE__ */ jsxs("div", { className: "bb-comments-input-surface", "data-mention-input-surface": "true", children: [
-          /* @__PURE__ */ jsx(
-            "div",
-            {
-              className: "bb-comments-input-row",
-              "data-mention-input-row": "true",
-              "data-responsive-compact": responsiveCompact ? "true" : "false",
-              children: /* @__PURE__ */ jsxs(
-                "div",
-                {
-                  ref: inputContentRef,
-                  className: "bb-comments-input-content",
-                  "data-mention-input-content": "true",
-                  children: [
-                    /* @__PURE__ */ jsx(
-                      "textarea",
-                      {
-                        ref: textareaRef,
-                        className: persistentFooter ? "bb-comments-edit-input" : "bb-comments-reply-input",
-                        "aria-label": ariaLabel,
-                        placeholder,
-                        maxLength: 2e4,
-                        readOnly: submitPending,
-                        "aria-disabled": submitPending || void 0,
-                        "aria-autocomplete": "list",
-                        "aria-expanded": mentionRange !== null,
-                        "aria-haspopup": "listbox",
-                        value,
-                        onChange: (event) => {
-                          const nextValue = event.currentTarget.value;
-                          const caret = event.currentTarget.selectionStart;
-                          onChange(nextValue);
-                          updateMentionFromValue(nextValue, caret);
-                        },
-                        onKeyDown: (event) => {
-                          if (mentionRange !== null) {
-                            if (event.key === "ArrowDown" || event.key === "ArrowUp") {
-                              event.preventDefault();
-                              const direction = event.key === "ArrowDown" ? 1 : -1;
-                              setActiveMentionIndex(
-                                (current) => mentionItems.length === 0 ? 0 : (current + direction + mentionItems.length) % mentionItems.length
-                              );
-                              return;
-                            }
-                            if (event.key === "Enter" && mentionItems.length > 0) {
-                              event.preventDefault();
-                              selectMention(mentionItems[activeMentionIndex] ?? mentionItems[0]);
-                              return;
-                            }
-                            if (event.key === "Escape") {
-                              event.preventDefault();
-                              closeMentionMenu();
-                              return;
-                            }
-                          }
-                          if (event.key === "Escape" && onCancel && !submitPending) {
-                            event.preventDefault();
-                            onCancel();
-                            return;
-                          }
-                          if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) {
-                            event.preventDefault();
-                            if (!submitPending && !submitDisabled) onSubmit(value);
-                          }
-                        }
-                      }
-                    ),
-                    mentionRange !== null ? createPortal(
-                      /* @__PURE__ */ jsxs(
-                        "div",
-                        {
-                          className: "bb-comments-mention-menu",
-                          role: "listbox",
-                          "aria-label": "Workspace files and folders",
-                          style: mentionMenuPosition,
-                          children: [
-                            mentionItems.map((mention, index) => /* @__PURE__ */ jsxs(
-                              "button",
-                              {
-                                type: "button",
-                                role: "option",
-                                "aria-selected": index === activeMentionIndex,
-                                "data-mention-path": mention.path,
-                                onMouseDown: (event) => event.preventDefault(),
-                                onMouseEnter: () => setActiveMentionIndex(index),
-                                onClick: () => selectMention(mention),
-                                children: [
-                                  mention.kind === "directory" ? /* @__PURE__ */ jsx(Folder, { "aria-hidden": "true" }) : /* @__PURE__ */ jsx(File, { "aria-hidden": "true" }),
-                                  /* @__PURE__ */ jsx("span", { children: mention.name }),
-                                  /* @__PURE__ */ jsx("small", { children: mention.path })
-                                ]
-                              },
-                              `${mention.kind}:${mention.path}`
-                            )),
-                            mentionLoading ? /* @__PURE__ */ jsx("div", { className: "bb-comments-mention-status", role: "status", children: "Searching\u2026" }) : mentionError ? /* @__PURE__ */ jsx("div", { className: "bb-comments-mention-status", role: "status", children: "Couldn\u2019t load workspace paths" }) : mentionItems.length === 0 ? /* @__PURE__ */ jsx("div", { className: "bb-comments-mention-status", role: "status", children: "No matching files or folders" }) : null
-                          ]
-                        }
-                      ),
-                      document.body
-                    ) : null
-                  ]
-                }
-              )
-            }
-          ),
-          error ? /* @__PURE__ */ jsx("div", { className: "bb-comments-error", role: "status", children: error }) : null
-        ] }),
-        persistentFooter ? footerPortalTarget ? createPortal(footer, footerPortalTarget) : footer : /* @__PURE__ */ jsxs(Fragment2, { children: [
-          /* @__PURE__ */ jsx(
-            "div",
-            {
-              className: "bb-comments-responsive-footer",
-              "aria-hidden": "true",
-              "data-mention-input-footer": "true",
-              "data-mention-input-footer-state": footerVisible ? "expanded" : "collapsed",
-              children: /* @__PURE__ */ jsx(
-                "div",
-                {
-                  className: "bb-comments-responsive-footer-divider",
-                  "data-mention-input-footer-divider": "true"
-                }
-              )
-            }
-          ),
-          /* @__PURE__ */ jsxs(
-            "div",
-            {
-              className: "bb-comments-responsive-actions",
-              "data-mention-input-responsive-actions": "true",
-              children: [
-                /* @__PURE__ */ jsxs("div", { className: "bb-comments-responsive-action-switcher", children: [
-                  /* @__PURE__ */ jsx(
-                    "div",
-                    {
-                      className: "bb-comments-compact-actions",
-                      "aria-hidden": footerVisible,
-                      inert: footerVisible || void 0,
-                      "data-mention-input-compact-actions": "true",
-                      children: /* @__PURE__ */ jsx(
-                        "button",
-                        {
-                          type: "button",
-                          className: "bb-comments-context-control",
-                          "aria-label": "Add comment context",
-                          disabled: submitPending,
-                          onMouseDown: (event) => event.preventDefault(),
-                          onClick: insertMentionTrigger,
-                          children: /* @__PURE__ */ jsx(Plus, { "aria-hidden": "true" })
-                        }
-                      )
-                    }
-                  ),
-                  /* @__PURE__ */ jsx(
-                    "div",
-                    {
-                      className: "bb-comments-expanded-actions",
-                      "aria-hidden": !footerVisible,
-                      inert: !footerVisible || void 0,
-                      "data-mention-input-expanded-actions": "true",
-                      children: /* @__PURE__ */ jsx(
-                        "button",
-                        {
-                          type: "button",
-                          className: "bb-comments-context-control",
-                          "aria-label": "Mention context",
-                          disabled: submitPending,
-                          onMouseDown: (event) => event.preventDefault(),
-                          onClick: insertMentionTrigger,
-                          children: /* @__PURE__ */ jsx(AtSign, { "aria-hidden": "true" })
-                        }
-                      )
-                    }
-                  )
-                ] }),
-                /* @__PURE__ */ jsx(
-                  "div",
-                  {
-                    className: "bb-comments-responsive-submit",
-                    "data-mention-input-responsive-submit": "true",
-                    children: submit
-                  }
-                )
-              ]
-            }
-          )
-        ] })
-      ]
+      threadId,
+      value,
+      onChange,
+      onSubmit,
+      onCancel,
+      isSubmitting: submitPending,
+      disabled: commentBodyError(value.text) !== null,
+      validationMessage,
+      placeholder,
+      autoFocus,
+      accessibleLabel,
+      submitLabel,
+      className: "bb-comments-host-composer"
     }
   );
 }
 function CommentMessage({
+  threadId,
   comment,
-  isLast,
   isEditing,
-  editFooterPortalTarget,
   submitPending,
   onStartEdit,
   onCancelEdit,
   onSaveEdit,
-  onDelete,
-  searchMentions
+  onDelete
 }) {
   const rowRef = useRef(null);
   const editDraftKey = `bb.timeline-comments.edit:${comment.id}`;
-  const [editText, setEditText] = useState(
-    () => readDraft(editDraftKey) ?? comment.body
+  const originalValue = useMemo(
+    () => ({ text: comment.body, mentions: comment.mentions ?? [] }),
+    [comment.body, comment.mentions]
+  );
+  const [editValue, setEditValue] = useState(
+    () => readCommentDraft(editDraftKey) ?? originalValue
   );
   const [menuOpen, setMenuOpen] = useState(false);
   const menuTriggerRef = useRef(null);
@@ -1539,9 +901,9 @@ function CommentMessage({
   const wasEditingRef = useRef(isEditing);
   const cancelEdit = useCallback(() => {
     sessionStorage.removeItem(editDraftKey);
-    setEditText(comment.body);
+    setEditValue(originalValue);
     onCancelEdit();
-  }, [comment.body, editDraftKey, onCancelEdit]);
+  }, [editDraftKey, onCancelEdit, originalValue]);
   useLayoutEffect(() => {
     if (wasEditingRef.current && !isEditing) {
       menuTriggerRef.current?.focus({ preventScroll: true });
@@ -1560,8 +922,8 @@ function CommentMessage({
     );
   }, []);
   useEffect(
-    () => setEditText(readDraft(editDraftKey) ?? comment.body),
-    [comment.body, editDraftKey]
+    () => setEditValue(readCommentDraft(editDraftKey) ?? originalValue),
+    [editDraftKey, originalValue]
   );
   useLayoutEffect(() => {
     if (!menuOpen) return;
@@ -1662,7 +1024,7 @@ function CommentMessage({
                 "aria-label": "Cancel comment edit",
                 disabled: submitPending,
                 onClick: () => runModeTransition(cancelEdit),
-                children: /* @__PURE__ */ jsx(X2, { "aria-hidden": "true" })
+                children: /* @__PURE__ */ jsx(X, { "aria-hidden": "true" })
               }
             ) : /* @__PURE__ */ jsx(
               "button",
@@ -1703,13 +1065,13 @@ function CommentMessage({
                           runModeTransition(onStartEdit);
                         },
                         children: [
-                          /* @__PURE__ */ jsx(Pencil2, { "aria-hidden": "true" }),
+                          /* @__PURE__ */ jsx(Pencil, { "aria-hidden": "true" }),
                           " Edit"
                         ]
                       }
                     ),
                     /* @__PURE__ */ jsxs("button", { type: "button", role: "menuitem", className: "bb-comments-destructive", onClick: onDelete, children: [
-                      /* @__PURE__ */ jsx(Trash22, { "aria-hidden": "true" }),
+                      /* @__PURE__ */ jsx(Trash2, { "aria-hidden": "true" }),
                       " Delete"
                     ] })
                   ]
@@ -1726,23 +1088,25 @@ function CommentMessage({
             "data-comment-edit-composer": isEditing ? "true" : void 0,
             "data-comment-view-content": isEditing ? void 0 : "true",
             children: isEditing ? /* @__PURE__ */ jsx(
-              CommentTextInput,
+              HostCommentComposer,
               {
-                value: editText,
+                threadId,
+                value: editValue,
                 onChange: (value) => {
-                  setEditText(value);
-                  if (value === comment.body) sessionStorage.removeItem(editDraftKey);
-                  else writeDraft(editDraftKey, value);
+                  setEditValue(value);
+                  if (commentValuesEqual(value, originalValue)) {
+                    sessionStorage.removeItem(editDraftKey);
+                  } else {
+                    writeCommentDraft(editDraftKey, value);
+                  }
                 },
-                onSubmit: (body) => runModeTransition(() => onSaveEdit(body)),
+                onSubmit: (value) => runModeTransition(() => onSaveEdit(value)),
                 placeholder: "Edit comment\u2026",
-                ariaLabel: "Edit comment",
-                persistentFooter: true,
-                footerPortalTarget: isLast ? editFooterPortalTarget : null,
+                accessibleLabel: "Edit comment",
+                submitLabel: "Save comment",
                 autoFocus: true,
                 onCancel: () => runModeTransition(cancelEdit),
-                submitPending,
-                searchMentions
+                submitPending
               }
             ) : /* @__PURE__ */ jsx("p", { className: "bb-comments-comment-body", children: comment.body })
           }
@@ -1759,27 +1123,14 @@ function MossCommentPopover({
   onSendToAgent
 }) {
   const [detail, setDetail] = useState(initialDetail);
-  const searchMentions = useCallback(
-    (query) => rpc.call("searchContextMentions", {
-      bbThreadId: detail.thread.bbThreadId,
-      query
-    }),
-    [detail.thread.bbThreadId, rpc]
-  );
   const [editingId, setEditingId] = useState(null);
   const replyDraftKey = `bb.timeline-comments.reply:${initialDetail.thread.id}`;
-  const [replyText, setReplyText] = useState(
-    () => readDraft(replyDraftKey) ?? ""
+  const [replyValue, setReplyValue] = useState(
+    () => readCommentDraft(replyDraftKey) ?? emptyCommentValue()
   );
   const [error, setError] = useState(null);
   const [busy, setBusy] = useState(false);
   const busyRef = useRef(false);
-  const replyRegionRef = useRef(null);
-  const [editFooterHost, setEditFooterHost] = useState(null);
-  const replyStartHeightRef = useRef(null);
-  const replyAnimationRef = useRef(null);
-  const lastCommentId = detail.comments.at(-1)?.id ?? null;
-  const isEditingLast = editingId !== null && editingId === lastCommentId;
   const recoverChangedState = async (caught) => {
     setError(errorMessage(caught));
     if (!isChangedStateError(caught)) return;
@@ -1799,38 +1150,6 @@ function MossCommentPopover({
       setError(errorMessage(refreshError));
     }
   };
-  const beginReplyRegionTransition = useCallback(() => {
-    const region = replyRegionRef.current;
-    if (!region) return;
-    replyAnimationRef.current?.cancel();
-    replyAnimationRef.current = null;
-    region.style.removeProperty("height");
-    region.style.removeProperty("overflow");
-    replyStartHeightRef.current = region.getBoundingClientRect().height;
-  }, []);
-  useLayoutEffect(() => {
-    const region = replyRegionRef.current;
-    const startHeight = replyStartHeightRef.current;
-    replyStartHeightRef.current = null;
-    if (!region || startHeight === null || reducedMotion() || typeof region.animate !== "function") return;
-    const endHeight = region.getBoundingClientRect().height;
-    if (Math.abs(endHeight - startHeight) < 0.5) return;
-    region.style.overflow = "hidden";
-    const animation = region.animate(
-      [{ height: `${startHeight}px` }, { height: `${endHeight}px` }],
-      MODE_TRANSITION
-    );
-    replyAnimationRef.current = animation;
-    animation.addEventListener(
-      "finish",
-      () => {
-        if (replyAnimationRef.current !== animation) return;
-        replyAnimationRef.current = null;
-        region.style.removeProperty("overflow");
-      },
-      { once: true }
-    );
-  }, [isEditingLast]);
   const mutate = async (operation) => {
     if (busyRef.current) return null;
     busyRef.current = true;
@@ -1872,11 +1191,9 @@ function MossCommentPopover({
     }
   };
   const startEdit = (comment) => {
-    if (comment.id === lastCommentId) beginReplyRegionTransition();
     setEditingId(comment.id);
   };
   const finishEdit = () => {
-    if (editingId === lastCommentId) beginReplyRegionTransition();
     setEditingId(null);
   };
   return /* @__PURE__ */ jsxs("div", { className: "bb-comments-thread-inner moss-comment-popover", children: [
@@ -1902,7 +1219,7 @@ function MossCommentPopover({
                 resolved: detail.thread.resolvedAt === null
               })
             ),
-            children: /* @__PURE__ */ jsx(CheckCheck2, { "aria-hidden": "true" })
+            children: /* @__PURE__ */ jsx(CheckCheck, { "aria-hidden": "true" })
           }
         ),
         /* @__PURE__ */ jsx("button", { type: "button", className: "bb-comments-icon-control", "aria-label": "Send thread to agent", onClick: onSendToAgent, children: /* @__PURE__ */ jsx(Send, { "aria-hidden": "true" }) }),
@@ -1919,7 +1236,7 @@ function MossCommentPopover({
               if (!rootComment) return;
               void removeComment(rootComment);
             },
-            children: /* @__PURE__ */ jsx(Trash22, { "aria-hidden": "true" })
+            children: /* @__PURE__ */ jsx(Trash2, { "aria-hidden": "true" })
           }
         )
       ] })
@@ -1927,16 +1244,19 @@ function MossCommentPopover({
     /* @__PURE__ */ jsx("div", { className: "bb-comments-thread-comments comment-thread-scroll", children: detail.comments.map((comment) => /* @__PURE__ */ jsx(
       CommentMessage,
       {
+        threadId: detail.thread.bbThreadId,
         comment,
-        isLast: comment.id === lastCommentId,
         isEditing: editingId === comment.id,
-        editFooterPortalTarget: editFooterHost,
         submitPending: busy,
         onStartEdit: () => startEdit(comment),
         onCancelEdit: finishEdit,
-        onSaveEdit: (body) => {
-          const nextBody = body.trim();
-          if (commentBodyError(nextBody) !== null || nextBody === comment.body) {
+        onSaveEdit: (value) => {
+          const nextValue = trimCommentValue(value);
+          const currentValue = {
+            text: comment.body,
+            mentions: comment.mentions ?? []
+          };
+          if (commentBodyError(nextValue.text) !== null || commentValuesEqual(nextValue, currentValue)) {
             sessionStorage.removeItem(
               `bb.timeline-comments.edit:${comment.id}`
             );
@@ -1948,7 +1268,8 @@ function MossCommentPopover({
               bbThreadId: detail.thread.bbThreadId,
               commentId: comment.id,
               expectedVersion: comment.version,
-              body: nextBody
+              body: nextValue.text,
+              mentions: [...nextValue.mentions]
             })
           ).then((fresh) => {
             if (fresh) {
@@ -1962,73 +1283,61 @@ function MossCommentPopover({
         onDelete: () => {
           if (!window.confirm(comment.parentId === null ? "Delete this comment thread?" : "Delete this reply?")) return;
           void removeComment(comment);
-        },
-        searchMentions
+        }
       },
       comment.id
     )) }),
     detail.thread.resolvedAt === null ? /* @__PURE__ */ jsx(
       "form",
       {
-        ref: replyRegionRef,
         className: "bb-comments-reply comment-reply-region",
         "data-comment-reply-region": "true",
-        "data-editing": editingId && !isEditingLast ? "true" : "false",
-        "data-last-editing": isEditingLast ? "true" : "false",
-        "aria-hidden": editingId && !isEditingLast ? true : void 0,
-        inert: editingId && !isEditingLast ? true : void 0,
+        "data-editing": editingId ? "true" : "false",
+        "aria-hidden": editingId ? true : void 0,
+        inert: editingId ? true : void 0,
         onSubmit: (event) => event.preventDefault(),
-        children: /* @__PURE__ */ jsxs("div", { className: "bb-comments-reply-inner comment-reply-region-inner", children: [
-          /* @__PURE__ */ jsx(
-            "div",
-            {
-              className: "bb-comments-inline-composer",
-              "data-bb-comment-reply-composer": "true",
-              "data-comment-reply-composer": "true",
-              "aria-hidden": editingId ? true : void 0,
-              inert: editingId ? true : void 0,
-              children: /* @__PURE__ */ jsx(
-                CommentTextInput,
-                {
-                  value: replyText,
-                  onChange: (value) => {
-                    setReplyText(value);
-                    writeDraft(replyDraftKey, value);
-                  },
-                  onSubmit: (body) => {
-                    const nextBody = body.trim();
-                    if (commentBodyError(nextBody) !== null) return;
-                    void mutate(
-                      () => rpc.call("reply", {
-                        bbThreadId: detail.thread.bbThreadId,
-                        commentThreadId: detail.thread.id,
-                        body: nextBody
-                      })
-                    ).then((fresh) => {
-                      if (fresh) {
-                        sessionStorage.removeItem(replyDraftKey);
-                        setReplyText("");
-                      }
-                    });
-                  },
-                  placeholder: "Reply...",
-                  ariaLabel: "Reply to comment thread",
-                  submitPending: busy,
-                  searchMentions
-                }
-              )
-            }
-          ),
-          /* @__PURE__ */ jsx(
-            "div",
-            {
-              ref: setEditFooterHost,
-              className: "bb-comments-edit-footer-host",
-              "data-bb-comment-edit-footer-host": "true",
-              "data-comment-edit-footer-host": "true"
-            }
-          )
-        ] })
+        children: /* @__PURE__ */ jsx("div", { className: "bb-comments-reply-inner comment-reply-region-inner", children: /* @__PURE__ */ jsx(
+          "div",
+          {
+            className: "bb-comments-inline-composer",
+            "data-bb-comment-reply-composer": "true",
+            "data-comment-reply-composer": "true",
+            "aria-hidden": editingId ? true : void 0,
+            inert: editingId ? true : void 0,
+            children: /* @__PURE__ */ jsx(
+              HostCommentComposer,
+              {
+                threadId: detail.thread.bbThreadId,
+                value: replyValue,
+                onChange: (value) => {
+                  setReplyValue(value);
+                  writeCommentDraft(replyDraftKey, value);
+                },
+                onSubmit: (value) => {
+                  const nextValue = trimCommentValue(value);
+                  if (commentBodyError(nextValue.text) !== null) return;
+                  void mutate(
+                    () => rpc.call("reply", {
+                      bbThreadId: detail.thread.bbThreadId,
+                      commentThreadId: detail.thread.id,
+                      body: nextValue.text,
+                      mentions: [...nextValue.mentions]
+                    })
+                  ).then((fresh) => {
+                    if (fresh) {
+                      sessionStorage.removeItem(replyDraftKey);
+                      setReplyValue(emptyCommentValue());
+                    }
+                  });
+                },
+                placeholder: "Reply...",
+                accessibleLabel: "Reply to comment thread",
+                submitLabel: "Reply",
+                submitPending: busy
+              }
+            )
+          }
+        ) })
       }
     ) : null,
     error ? /* @__PURE__ */ jsx("div", { className: "bb-comments-error", role: "status", children: error }) : null
@@ -2045,7 +1354,6 @@ function mountMossCommentPopover(host, options) {
   };
 }
 function MossNewCommentComposer({
-  rpc,
   bbThreadId,
   initialValue,
   onChange,
@@ -2056,26 +1364,26 @@ function MossNewCommentComposer({
   const [busy, setBusy] = useState(false);
   const busyRef = useRef(false);
   const [error, setError] = useState(null);
-  const searchMentions = useCallback(
-    (query) => rpc.call("searchContextMentions", { bbThreadId, query }),
-    [bbThreadId, rpc]
-  );
   return /* @__PURE__ */ jsxs("div", { className: "bb-comments-new-comment-input", "data-comment-new-composer": "true", children: [
     /* @__PURE__ */ jsx(
-      CommentTextInput,
+      HostCommentComposer,
       {
+        threadId: bbThreadId,
         value,
         onChange: (next) => {
           setValue(next);
           onChange(next);
         },
         onCancel,
-        onSubmit: (body) => {
-          if (busyRef.current || commentBodyError(body) !== null) return;
+        onSubmit: (draft) => {
+          const nextValue = trimCommentValue(draft);
+          if (busyRef.current || commentBodyError(nextValue.text) !== null) {
+            return;
+          }
           busyRef.current = true;
           setBusy(true);
           setError(null);
-          void onSubmit(body).catch(
+          void onSubmit(nextValue).catch(
             (caught) => setError(
               caught instanceof Error ? caught.message : "Something went wrong"
             )
@@ -2085,10 +1393,10 @@ function MossNewCommentComposer({
           });
         },
         placeholder: "Add a comment\u2026",
-        ariaLabel: "Add a comment",
+        accessibleLabel: "Add a comment",
+        submitLabel: "Add comment",
         autoFocus: true,
-        submitPending: busy,
-        searchMentions
+        submitPending: busy
       }
     ),
     error ? /* @__PURE__ */ jsx("div", { className: "bb-comments-error", role: "status", children: error }) : null
@@ -2138,29 +1446,6 @@ var MARKER_TEXT_GAP = 8;
 var COMPOSER_WIDTH = 216;
 var POPOVER_WIDTH = 264;
 var MESSAGE_PROSE_SELECTOR = "[data-sidebar-swipe-selectable], [data-no-sidebar-swipe]";
-function readDraft2(key) {
-  const saved = sessionStorage.getItem(key);
-  if (saved === null) return null;
-  try {
-    const parsed = JSON.parse(saved);
-    if (typeof parsed.body === "string" && typeof parsed.expiresAt === "number" && parsed.expiresAt > Date.now()) {
-      return parsed.body;
-    }
-  } catch {
-  }
-  sessionStorage.removeItem(key);
-  return null;
-}
-function writeDraft2(key, body) {
-  if (body.trim() === "") {
-    sessionStorage.removeItem(key);
-    return;
-  }
-  sessionStorage.setItem(
-    key,
-    JSON.stringify({ body, expiresAt: Date.now() + DRAFT_TTL2 })
-  );
-}
 function element(tag, className, text) {
   const node = document.createElement(tag);
   node.setAttribute(OWNED, "");
@@ -2178,34 +1463,6 @@ function escapeSelector(value) {
 function sourceExcerpt(text) {
   return text.length > 120 ? `${text.slice(0, 117)}\u2026` : text;
 }
-function formatTime(value) {
-  return new Intl.DateTimeFormat(void 0, {
-    month: "short",
-    day: "numeric",
-    hour: "numeric",
-    minute: "2-digit"
-  }).format(value);
-}
-function relativeTime2(value) {
-  const elapsed = Math.max(0, Date.now() - value);
-  if (elapsed < 6e4) return "just now";
-  if (elapsed < 36e5) {
-    const minutes = Math.floor(elapsed / 6e4);
-    return `${minutes} ${minutes === 1 ? "minute" : "minutes"} ago`;
-  }
-  if (elapsed < 864e5) {
-    const hours = Math.floor(elapsed / 36e5);
-    return `${hours} ${hours === 1 ? "hour" : "hours"} ago`;
-  }
-  if (elapsed < 6048e5) {
-    const days = Math.floor(elapsed / 864e5);
-    return `${days} ${days === 1 ? "day" : "days"} ago`;
-  }
-  return new Intl.DateTimeFormat(void 0, {
-    month: "short",
-    day: "numeric"
-  }).format(value);
-}
 function icon(node) {
   const svg = createElement$1(node);
   svg.setAttribute(OWNED, "");
@@ -2222,116 +1479,10 @@ function selectionTextMatches(rangeText, hostText) {
   const canonicalize = (value) => value.replace(/[\r\n\t]/g, "").trim();
   return canonicalize(rangeText) === canonicalize(hostText);
 }
-var inlineComposerAnimations = /* @__PURE__ */ new WeakMap();
-var inlineComposerNaturalHeights = /* @__PURE__ */ new WeakMap();
-var modeTransitionAnimations = /* @__PURE__ */ new WeakMap();
-function runMeasuredModeTransition(element2, update) {
-  const scrollRegion = element2.closest(
-    ".bb-comments-thread-comments"
-  );
-  const scrollTop = scrollRegion?.scrollTop;
-  const running = modeTransitionAnimations.get(element2);
-  const startHeight = element2.getBoundingClientRect().height;
-  running?.cancel();
-  modeTransitionAnimations.delete(element2);
-  element2.style.removeProperty("overflow");
-  update();
-  if (scrollRegion !== null && scrollTop !== void 0) {
-    scrollRegion.scrollTop = scrollTop;
-    requestAnimationFrame(() => {
-      if (scrollRegion.isConnected) scrollRegion.scrollTop = scrollTop;
-    });
-  }
-  const endHeight = element2.getBoundingClientRect().height;
-  if (Math.abs(endHeight - startHeight) < 0.5 || typeof element2.animate !== "function" || matchMedia("(prefers-reduced-motion: reduce)").matches) {
-    return;
-  }
-  element2.style.overflow = "hidden";
-  const animation = element2.animate(
-    [{ height: `${startHeight}px` }, { height: `${endHeight}px` }],
-    {
-      duration: 150,
-      easing: "cubic-bezier(0.22, 1, 0.36, 1)"
-    }
-  );
-  modeTransitionAnimations.set(element2, animation);
-  const finish = () => {
-    if (modeTransitionAnimations.get(element2) !== animation) return;
-    modeTransitionAnimations.delete(element2);
-    element2.style.removeProperty("overflow");
-  };
-  animation.addEventListener("finish", finish, { once: true });
-  animation.addEventListener("cancel", finish, { once: true });
-}
-function removeWithTransition(element2, remove) {
-  if (typeof element2.animate !== "function" || matchMedia("(prefers-reduced-motion: reduce)").matches) {
-    remove();
-    return;
-  }
-  const height = element2.getBoundingClientRect().height;
-  element2.style.overflow = "hidden";
-  const animation = element2.animate(
-    [
-      { height: `${height}px`, opacity: 1 },
-      { height: "0px", opacity: 0 }
-    ],
-    { duration: 150, easing: "cubic-bezier(0.22, 1, 0.36, 1)" }
-  );
-  animation.addEventListener("finish", remove, { once: true });
-  animation.addEventListener("cancel", remove, { once: true });
-}
-function animateInsertion(element2) {
-  if (typeof element2.animate !== "function" || matchMedia("(prefers-reduced-motion: reduce)").matches) {
-    return;
-  }
-  element2.animate(
-    [
-      { opacity: 0, transform: "translateY(-4px)" },
-      { opacity: 1, transform: "translateY(0)" }
-    ],
-    { duration: 150, easing: "cubic-bezier(0.22, 1, 0.36, 1)" }
-  );
-}
-function syncInlineComposerLayout(textarea, composer, animate = true) {
-  const styles = getComputedStyle(textarea);
-  const lineHeight = Number.parseFloat(styles.lineHeight) || 20;
-  const verticalPadding = (Number.parseFloat(styles.paddingTop) || 0) + (Number.parseFloat(styles.paddingBottom) || 0);
-  const currentMultiline = composer.dataset.multiline === "true";
-  const hasText = textarea.value.trim() !== "";
-  const requestsMultiline = textarea.value.includes("\n") || textarea.scrollHeight - verticalPadding > lineHeight + 1;
-  const nextMultiline = hasText && (currentMultiline || requestsMultiline);
-  const running = inlineComposerAnimations.get(composer);
-  const startHeight = running === void 0 ? inlineComposerNaturalHeights.get(composer) ?? composer.getBoundingClientRect().height : composer.getBoundingClientRect().height;
-  running?.cancel();
-  inlineComposerAnimations.delete(composer);
-  composer.style.removeProperty("overflow");
-  composer.dataset.multiline = nextMultiline ? "true" : "false";
-  const endHeight = composer.getBoundingClientRect().height;
-  inlineComposerNaturalHeights.set(composer, endHeight);
-  if (!animate || Math.abs(endHeight - startHeight) < 0.5 || typeof composer.animate !== "function" || matchMedia("(prefers-reduced-motion: reduce)").matches) {
-    return;
-  }
-  composer.style.overflow = "hidden";
-  const animation = composer.animate(
-    [{ height: `${startHeight}px` }, { height: `${endHeight}px` }],
-    {
-      duration: 150,
-      easing: "cubic-bezier(0.22, 1, 0.36, 1)"
-    }
-  );
-  inlineComposerAnimations.set(composer, animation);
-  const finish = () => {
-    if (inlineComposerAnimations.get(composer) !== animation) return;
-    inlineComposerAnimations.delete(composer);
-    composer.style.removeProperty("overflow");
-  };
-  animation.addEventListener("finish", finish, { once: true });
-  animation.addEventListener("cancel", finish, { once: true });
-}
 function isRelevantMutation(record) {
   const selector = `[data-thread-window], [data-timeline-row-id], ${MESSAGE_PROSE_SELECTOR}`;
   return [...record.addedNodes, ...record.removedNodes].some(
-    (node) => node instanceof Element && (node.matches(selector) || node.querySelector(selector) !== null)
+    (node) => node instanceof window.Element && (node.matches(selector) || node.querySelector(selector) !== null)
   );
 }
 function isThreadWindowRendered(windowNode) {
@@ -2379,9 +1530,6 @@ var TimelineCommentsController = class {
   #outsidePopover = null;
   #popoverKeydown = null;
   #popoverInvoker = null;
-  #actionsMenu = null;
-  #actionsTrigger = null;
-  #outsideActionsMenu = null;
   constructor(context) {
     this.#rpc = contentScriptRpcClient(context.signal);
     this.#overlay.setAttribute("aria-live", "polite");
@@ -2468,19 +1616,18 @@ var TimelineCommentsController = class {
     this.#provisionalRange = restored?.range ?? captured.range.cloneRange();
     this.rebuildHighlights();
     const key = `bb.timeline-comments.draft:${context.threadId}:${context.message.id}:${captured.selector.start}:${captured.selector.end}`;
-    const shell = element("form", "bb-comments-composer");
+    const shell = element("div", "bb-comments-composer");
     shell.setAttribute("role", "dialog");
     shell.setAttribute("aria-label", "Add comment");
-    const initialValue = readDraft2(key) ?? "";
+    const initialValue = readCommentDraft(key) ?? emptyCommentValue();
     const firstRect = captured.rects[0];
     const x = firstRect?.x ?? window.innerWidth / 2;
     const y = captured.rects.at(-1)?.y ?? window.innerHeight / 2;
     shell.style.left = `${Math.max(8, Math.min(window.innerWidth - COMPOSER_WIDTH - 8, x))}px`;
     shell.style.top = `${Math.max(8, Math.min(window.innerHeight - 144, y + 17))}px`;
     let draftValue = initialValue;
-    const persist = () => writeDraft2(key, draftValue);
+    const persist = () => writeCommentDraft(key, draftValue);
     this.#composerUiCleanup = mountMossCommentComposer(shell, {
-      rpc: this.#rpc,
       bbThreadId: context.threadId,
       initialValue,
       onChange: (value) => {
@@ -2491,7 +1638,7 @@ var TimelineCommentsController = class {
         persist();
         this.closeComposer();
       },
-      onSubmit: async (body) => {
+      onSubmit: async (value) => {
         const detail = await this.#rpc.call("createThread", {
           bbThreadId: context.threadId,
           message: context.message,
@@ -2499,7 +1646,8 @@ var TimelineCommentsController = class {
             ...captured.selector,
             rects: captured.rects.map((rect) => ({ ...rect }))
           },
-          body
+          body: value.text,
+          mentions: [...value.mentions]
         });
         sessionStorage.removeItem(key);
         this.closeComposer();
@@ -2823,7 +1971,6 @@ var TimelineCommentsController = class {
       this.#frame = null;
       this.layoutMarkers();
       this.positionPopover();
-      this.positionActionsMenu();
     });
   }
   layoutMarkers() {
@@ -3001,7 +2148,6 @@ var TimelineCommentsController = class {
   renderThreadPopover(popover, detail) {
     this.#threadUiCleanup?.();
     this.#threadUiCleanup = null;
-    this.closeActionsMenu();
     delete popover.dataset.editing;
     popover.replaceChildren();
     this.#threadUiCleanup = mountMossCommentPopover(popover, {
@@ -3020,525 +2166,11 @@ var TimelineCommentsController = class {
       }
     });
   }
-  renderLegacyThreadPopover(popover, detail) {
-    this.closeActionsMenu();
-    delete popover.dataset.editing;
-    popover.replaceChildren();
-    const header = element("header", "bb-comments-thread-header");
-    const source = element("div", "bb-comments-thread-source");
-    source.append(icon(StickyNote), document.createTextNode("Comment"));
-    const headerActions = element("div", "bb-comments-header-actions");
-    const resolve = element(
-      "button",
-      "bb-comments-icon-control"
-    );
-    resolve.type = "button";
-    resolve.setAttribute(
-      "aria-label",
-      detail.thread.resolvedAt === null ? "Resolve thread" : "Reopen thread"
-    );
-    resolve.title = detail.thread.resolvedAt === null ? "Resolve thread" : "Reopen thread";
-    resolve.setAttribute(
-      "aria-pressed",
-      String(detail.thread.resolvedAt !== null)
-    );
-    resolve.append(icon(CheckCheck));
-    resolve.addEventListener("click", () => {
-      resolve.disabled = true;
-      void this.#rpc.call("setThreadResolved", {
-        bbThreadId: detail.thread.bbThreadId,
-        commentThreadId: detail.thread.id,
-        expectedVersion: detail.thread.version,
-        resolved: detail.thread.resolvedAt === null
-      }).then(() => {
-        this.closePopover();
-        this.scheduleRefresh();
-      }).catch((caught) => {
-        resolve.disabled = false;
-        this.handlePopoverMutationError(popover, detail, caught);
-      });
-    });
-    const removeThread = element(
-      "button",
-      "bb-comments-icon-control bb-comments-destructive"
-    );
-    removeThread.type = "button";
-    removeThread.setAttribute("aria-label", "Delete thread");
-    removeThread.title = "Delete thread";
-    removeThread.append(icon(Trash2));
-    removeThread.addEventListener("click", () => {
-      if (!window.confirm("Delete this comment thread?")) return;
-      const root = detail.comments.find(({ parentId }) => parentId === null);
-      if (root === void 0) return;
-      removeThread.disabled = true;
-      void this.#rpc.call("deleteComment", {
-        bbThreadId: detail.thread.bbThreadId,
-        commentId: root.id,
-        expectedVersion: root.version,
-        expectedThreadVersion: detail.thread.version
-      }).then(() => {
-        this.closePopover();
-        this.scheduleRefresh();
-      }).catch((caught) => {
-        removeThread.disabled = false;
-        this.handlePopoverMutationError(popover, detail, caught);
-      });
-    });
-    headerActions.append(resolve, removeThread);
-    header.append(source, headerActions);
-    popover.append(header);
-    const comments = element("div", "bb-comments-thread-comments");
-    for (const comment of detail.comments)
-      comments.append(this.renderComment(detail, comment, popover));
-    popover.append(comments);
-    if (detail.thread.resolvedAt === null) {
-      const reply = element("form", "bb-comments-reply");
-      reply.dataset.editing = "false";
-      reply.dataset.lastEditing = "false";
-      const replyInner = element("div", "bb-comments-reply-inner");
-      const replyComposer = element("div", "bb-comments-inline-composer");
-      replyComposer.dataset.bbCommentReplyComposer = "true";
-      const editFooterHost = element(
-        "div",
-        "bb-comments-edit-footer-host"
-      );
-      editFooterHost.dataset.bbCommentEditFooterHost = "true";
-      const draftKey = `bb.timeline-comments.reply:${detail.thread.id}`;
-      const textarea = element(
-        "textarea",
-        "bb-comments-reply-input"
-      );
-      textarea.placeholder = "Reply...";
-      textarea.maxLength = 2e4;
-      textarea.value = readDraft2(draftKey) ?? "";
-      const send = element(
-        "button",
-        "bb-comments-submit-shortcut"
-      );
-      send.type = "submit";
-      send.setAttribute("aria-label", "Reply");
-      send.title = "Reply \xB7 \u2318/Ctrl Enter";
-      send.append(icon(Command), icon(CornerDownLeft));
-      const error = element("div", "bb-comments-error");
-      error.setAttribute("role", "status");
-      const validate = () => {
-        const message = commentBodyError(textarea.value);
-        send.disabled = message !== null;
-        error.textContent = message !== null && textarea.value.trim() !== "" ? message : "";
-        return message;
-      };
-      textarea.addEventListener("input", () => {
-        writeDraft2(draftKey, textarea.value);
-        syncInlineComposerLayout(textarea, replyComposer);
-        validate();
-      });
-      textarea.addEventListener("keydown", (event) => {
-        if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) {
-          event.preventDefault();
-          reply.requestSubmit();
-        }
-      });
-      replyComposer.append(textarea, send);
-      replyInner.append(replyComposer, error, editFooterHost);
-      reply.append(replyInner);
-      reply.addEventListener("submit", (event) => {
-        event.preventDefault();
-        if (validate() !== null) return;
-        send.disabled = true;
-        void this.#rpc.call("reply", {
-          bbThreadId: detail.thread.bbThreadId,
-          commentThreadId: detail.thread.id,
-          body: textarea.value
-        }).then((result) => {
-          if (this.#popover !== popover) return;
-          const fresh = result;
-          const knownIds = new Set(detail.comments.map(({ id }) => id));
-          Object.assign(detail.thread, fresh.thread);
-          detail.comments.splice(0, detail.comments.length, ...fresh.comments);
-          sessionStorage.removeItem(draftKey);
-          textarea.value = "";
-          syncInlineComposerLayout(textarea, replyComposer);
-          validate();
-          for (const freshComment of fresh.comments) {
-            if (knownIds.has(freshComment.id)) continue;
-            const freshRow = this.renderComment(detail, freshComment, popover);
-            comments.append(freshRow);
-            animateInsertion(freshRow);
-          }
-          this.scheduleRefresh();
-        }).catch((caught) => {
-          send.disabled = false;
-          this.handlePopoverMutationError(popover, detail, caught);
-        });
-      });
-      validate();
-      popover.append(reply);
-      syncInlineComposerLayout(textarea, replyComposer, false);
-    }
-  }
-  renderComment(detail, comment, popover) {
-    const row = element("article", "bb-comments-comment");
-    row.dataset.bbCommentId = comment.id;
-    let currentComment = comment;
-    const buildHeader = (action) => {
-      const header = element("header", "bb-comments-message-header");
-      const byline = element("div");
-      byline.append(element("strong", void 0, "Me"));
-      const timestamp = element(
-        "time",
-        void 0,
-        relativeTime2(currentComment.createdAt)
-      );
-      timestamp.dateTime = new Date(currentComment.createdAt).toISOString();
-      timestamp.title = formatTime(currentComment.createdAt);
-      byline.append(timestamp);
-      header.append(byline, action);
-      return header;
-    };
-    const body = element("p", "bb-comments-comment-body", currentComment.body);
-    const actions = element("div", "bb-comments-actions-menu");
-    const actionsTrigger = element(
-      "button",
-      "bb-comments-icon-control"
-    );
-    actionsTrigger.type = "button";
-    actionsTrigger.setAttribute("aria-label", "Comment actions");
-    actionsTrigger.setAttribute("aria-haspopup", "menu");
-    actionsTrigger.setAttribute("aria-expanded", "false");
-    actionsTrigger.title = "Comment actions";
-    actionsTrigger.append(icon(EllipsisVertical));
-    const cancel = element(
-      "button",
-      "bb-comments-icon-control bb-comments-edit-cancel"
-    );
-    cancel.type = "button";
-    cancel.setAttribute("aria-label", "Cancel comment edit");
-    cancel.title = "Cancel edit";
-    cancel.append(icon(X));
-    const actionsMenu = element("div", "bb-comments-actions-popover");
-    actionsMenu.setAttribute("role", "menu");
-    const menuItems = () => [...actionsMenu.querySelectorAll('[role="menuitem"]')].filter((item) => !item.disabled);
-    actionsMenu.addEventListener("keydown", (event) => {
-      const items = menuItems();
-      const current = items.indexOf(document.activeElement);
-      let next;
-      if (event.key === "ArrowDown")
-        next = items[(current + 1 + items.length) % items.length];
-      if (event.key === "ArrowUp")
-        next = items[(current - 1 + items.length) % items.length];
-      if (event.key === "Home") next = items[0];
-      if (event.key === "End") next = items.at(-1);
-      if (next !== void 0) {
-        event.preventDefault();
-        next.focus({ preventScroll: true });
-        return;
-      }
-      if (event.key !== "Tab") return;
-      event.preventDefault();
-      this.focusAdjacentToActionsTrigger(actionsTrigger, event.shiftKey);
-      this.closeActionsMenu();
-    });
-    actionsMenu.addEventListener("focusout", () => {
-      queueMicrotask(() => {
-        if (this.#actionsMenu === actionsMenu && !actionsMenu.contains(document.activeElement)) {
-          this.closeActionsMenu();
-        }
-      });
-    });
-    actionsTrigger.addEventListener("click", () => {
-      if (this.#actionsTrigger === actionsTrigger) {
-        this.closeActionsMenu();
-        return;
-      }
-      this.openActionsMenu(actionsTrigger, actionsMenu);
-    });
-    const edit = element("button");
-    edit.type = "button";
-    edit.tabIndex = -1;
-    edit.setAttribute("role", "menuitem");
-    edit.append(icon(Pencil), document.createTextNode("Edit"));
-    const draftKey = `bb.timeline-comments.edit:${comment.id}`;
-    const textarea = element(
-      "textarea",
-      "bb-comments-edit-input"
-    );
-    textarea.setAttribute("aria-label", "Edit comment");
-    textarea.maxLength = 2e4;
-    const editComposer = element("div", "bb-comments-edit-composer");
-    const localFooterHost = element(
-      "div",
-      "bb-comments-local-edit-footer-host"
-    );
-    const editFooter = element("div", "bb-comments-edit-footer");
-    const save = element(
-      "button",
-      "bb-comments-edit-submit"
-    );
-    save.type = "button";
-    save.append(icon(Command), icon(CornerDownLeft));
-    save.setAttribute("aria-label", "Save comment");
-    save.title = "Save comment \xB7 \u2318/Ctrl Enter";
-    editFooter.append(save);
-    localFooterHost.append(editFooter);
-    const error = element("div", "bb-comments-error");
-    error.setAttribute("role", "status");
-    editComposer.append(textarea, error, localFooterHost);
-    const validate = () => {
-      const message = commentBodyError(textarea.value);
-      save.disabled = message !== null;
-      error.textContent = message !== null && textarea.value.trim() !== "" ? message : "";
-      return message;
-    };
-    const resetReplyRegion = () => {
-      const reply = popover.querySelector(".bb-comments-reply");
-      if (reply === null) return;
-      reply.dataset.editing = "false";
-      reply.dataset.lastEditing = "false";
-      reply.removeAttribute("aria-hidden");
-      reply.removeAttribute("inert");
-      const replyComposer = reply.querySelector(
-        "[data-bb-comment-reply-composer]"
-      );
-      replyComposer?.removeAttribute("aria-hidden");
-      replyComposer?.removeAttribute("inert");
-      localFooterHost.append(editFooter);
-    };
-    const finishEdit = (focusTrigger) => {
-      runMeasuredModeTransition(row, () => {
-        delete popover.dataset.editing;
-        delete row.dataset.editing;
-        resetReplyRegion();
-      });
-      if (focusTrigger) actionsTrigger.focus({ preventScroll: true });
-    };
-    const cancelEdit = () => {
-      sessionStorage.removeItem(draftKey);
-      finishEdit(true);
-    };
-    cancel.addEventListener("click", cancelEdit);
-    textarea.addEventListener("input", () => {
-      if (textarea.value === currentComment.body)
-        sessionStorage.removeItem(draftKey);
-      else writeDraft2(draftKey, textarea.value);
-      validate();
-    });
-    textarea.addEventListener("keydown", (event) => {
-      if (event.key === "Escape") {
-        event.preventDefault();
-        cancelEdit();
-      }
-      if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) {
-        event.preventDefault();
-        save.click();
-      }
-    });
-    save.addEventListener("click", () => {
-      if (validate() !== null) return;
-      const nextBody = textarea.value.trim();
-      if (nextBody === currentComment.body) {
-        cancelEdit();
-        return;
-      }
-      save.disabled = true;
-      void this.#rpc.call("updateComment", {
-        bbThreadId: detail.thread.bbThreadId,
-        commentId: currentComment.id,
-        expectedVersion: currentComment.version,
-        body: nextBody
-      }).then((result) => {
-        if (this.#popover !== popover) return;
-        const fresh = result;
-        const updated = fresh.comments.find(({ id }) => id === currentComment.id);
-        if (updated !== void 0) currentComment = updated;
-        Object.assign(detail.thread, fresh.thread);
-        body.textContent = currentComment.body;
-        sessionStorage.removeItem(draftKey);
-        finishEdit(false);
-        this.scheduleRefresh();
-      }).catch((caught) => {
-        save.disabled = false;
-        this.handlePopoverMutationError(popover, detail, caught);
-      });
-    });
-    edit.addEventListener("click", () => {
-      if (popover.dataset.editing !== void 0) return;
-      this.closeActionsMenu();
-      textarea.value = readDraft2(draftKey) ?? currentComment.body;
-      const isLastComment = detail.comments.at(-1)?.id === currentComment.id;
-      const reply = popover.querySelector(".bb-comments-reply");
-      runMeasuredModeTransition(row, () => {
-        popover.dataset.editing = currentComment.id;
-        row.dataset.editing = "true";
-        if (reply !== null) {
-          if (isLastComment) {
-            reply.dataset.lastEditing = "true";
-            const replyComposer = reply.querySelector(
-              "[data-bb-comment-reply-composer]"
-            );
-            replyComposer?.setAttribute("aria-hidden", "true");
-            replyComposer?.setAttribute("inert", "");
-            reply.querySelector("[data-bb-comment-edit-footer-host]")?.append(editFooter);
-          } else {
-            reply.dataset.editing = "true";
-            reply.setAttribute("aria-hidden", "true");
-            reply.setAttribute("inert", "");
-          }
-        }
-      });
-      validate();
-      textarea.focus({ preventScroll: true });
-    });
-    const remove = element(
-      "button",
-      "bb-comments-destructive"
-    );
-    remove.type = "button";
-    remove.tabIndex = -1;
-    remove.setAttribute("role", "menuitem");
-    remove.append(icon(Trash2), document.createTextNode("Delete"));
-    remove.addEventListener("click", () => {
-      if (!window.confirm(
-        currentComment.parentId === null ? "Delete this comment thread?" : "Delete this reply?"
-      ))
-        return;
-      remove.disabled = true;
-      void this.#rpc.call("deleteComment", {
-        bbThreadId: detail.thread.bbThreadId,
-        commentId: currentComment.id,
-        expectedVersion: currentComment.version,
-        expectedThreadVersion: detail.thread.version
-      }).then((result) => {
-        if (result.deletedThreadId !== null) {
-          this.closePopover();
-        } else if (result.thread !== null) {
-          Object.assign(detail.thread, result.thread.thread);
-          detail.comments.splice(
-            0,
-            detail.comments.length,
-            ...result.thread.comments
-          );
-          removeWithTransition(row, () => row.remove());
-        }
-        this.scheduleRefresh();
-      }).catch((caught) => {
-        remove.disabled = false;
-        this.handlePopoverMutationError(popover, detail, caught);
-      });
-    });
-    actionsMenu.append(edit, remove);
-    actions.append(actionsTrigger, cancel);
-    row.append(buildHeader(actions), body, editComposer);
-    return row;
-  }
-  focusAdjacentToActionsTrigger(trigger, backwards) {
-    const popover = trigger.closest(".bb-comments-thread");
-    if (popover === null) {
-      trigger.focus({ preventScroll: true });
-      return;
-    }
-    const focusable = [
-      ...popover.querySelectorAll(
-        'button:not(:disabled), textarea:not(:disabled), input:not(:disabled), [href], [tabindex]:not([tabindex="-1"])'
-      )
-    ].filter((node) => node.getClientRects().length > 0);
-    const current = focusable.indexOf(trigger);
-    const adjacent = focusable[current + (backwards ? -1 : 1)] ?? trigger;
-    adjacent.focus({ preventScroll: true });
-  }
-  openActionsMenu(trigger, menu) {
-    this.closeActionsMenu();
-    this.#actionsMenu = menu;
-    this.#actionsTrigger = trigger;
-    trigger.setAttribute("aria-expanded", "true");
-    this.#portal.append(menu);
-    this.positionActionsMenu();
-    if (this.#actionsMenu !== menu) return;
-    this.#outsideActionsMenu = (event) => {
-      if (event.target instanceof Node && (menu.contains(event.target) || trigger.contains(event.target))) {
-        return;
-      }
-      this.closeActionsMenu();
-    };
-    document.addEventListener("pointerdown", this.#outsideActionsMenu, true);
-    menu.querySelector("button")?.focus({
-      preventScroll: true
-    });
-  }
-  positionActionsMenu() {
-    const menu = this.#actionsMenu;
-    const trigger = this.#actionsTrigger;
-    if (menu === null || trigger === null) return;
-    if (!trigger.isConnected) {
-      this.closeActionsMenu();
-      return;
-    }
-    const triggerRect = trigger.getBoundingClientRect();
-    const scrollViewport = trigger.closest(
-      ".bb-comments-thread-comments"
-    );
-    if (scrollViewport !== null) {
-      const viewportRect = scrollViewport.getBoundingClientRect();
-      if (triggerRect.top < viewportRect.top || triggerRect.bottom > viewportRect.bottom) {
-        this.closeActionsMenu();
-        return;
-      }
-    }
-    const menuRect = menu.getBoundingClientRect();
-    const gap = 4;
-    const maxLeft = Math.max(8, window.innerWidth - menuRect.width - 8);
-    const left = Math.max(
-      8,
-      Math.min(
-        maxLeft,
-        triggerRect.right - menuRect.width
-      )
-    );
-    const below = triggerRect.bottom + gap;
-    const candidateTop = below + menuRect.height <= window.innerHeight - 8 ? below : triggerRect.top - menuRect.height - gap;
-    const maxTop = Math.max(8, window.innerHeight - menuRect.height - 8);
-    const top = Math.max(8, Math.min(maxTop, candidateTop));
-    menu.style.left = `${left}px`;
-    menu.style.top = `${top}px`;
-  }
-  closeActionsMenu(restoreFocus = false) {
-    const trigger = this.#actionsTrigger;
-    if (this.#outsideActionsMenu !== null) {
-      document.removeEventListener(
-        "pointerdown",
-        this.#outsideActionsMenu,
-        true
-      );
-      this.#outsideActionsMenu = null;
-    }
-    this.#actionsMenu?.remove();
-    this.#actionsMenu = null;
-    this.#actionsTrigger = null;
-    trigger?.setAttribute("aria-expanded", "false");
-    if (restoreFocus && trigger?.isConnected === true)
-      trigger.focus({ preventScroll: true });
-  }
-  showPopoverError(popover, error) {
-    const existing = popover.querySelector(".bb-comments-error");
-    const node = existing ?? element("div", "bb-comments-error");
-    node.textContent = errorMessage2(error);
-    if (existing === null) popover.append(node);
-  }
-  handlePopoverMutationError(popover, detail, error) {
-    this.showPopoverError(popover, error);
-    if (!/changed/iu.test(errorMessage2(error))) return;
-    void this.loadThread(detail.thread.bbThreadId, detail.thread.id).then(
-      (fresh) => {
-        if (this.#popover !== popover) return;
-        this.renderThreadPopover(popover, fresh);
-        this.showPopoverError(popover, error);
-      }
-    );
-  }
   installPopoverDismissal(invoker) {
     this.removePopoverDismissal();
     this.#popoverInvoker = invoker;
     this.#outsidePopover = (event) => {
-      if (event.target instanceof Node && (this.#popover?.contains(event.target) === true || this.#popoverInvoker?.contains(event.target) === true || this.#actionsMenu?.contains(event.target) === true || this.#portal.querySelector(".bb-comments-actions-popover")?.contains(event.target) === true)) {
+      if (event.target instanceof Node && (this.#popover?.contains(event.target) === true || this.#popoverInvoker?.contains(event.target) === true || this.#portal.querySelector(".bb-comments-actions-popover")?.contains(event.target) === true)) {
         return;
       }
       this.closePopover();
@@ -3554,11 +2186,6 @@ var TimelineCommentsController = class {
         this.#popover?.querySelector(
           'button[aria-label="Comment actions"][aria-expanded="true"]'
         )?.click();
-        return;
-      }
-      if (this.#actionsMenu !== null) {
-        event.preventDefault();
-        this.closeActionsMenu(true);
         return;
       }
       const cancelEdit = this.#popover?.querySelector(
@@ -3627,7 +2254,6 @@ var TimelineCommentsController = class {
     const invoker = this.#popoverInvoker;
     const currentMarker = this.#openThreadId === null ? null : this.#restored.get(this.#openThreadId)?.marker ?? null;
     const focusTarget = invoker?.isConnected === true ? invoker : currentMarker;
-    this.closeActionsMenu();
     this.removePopoverDismissal();
     this.#threadUiCleanup?.();
     this.#threadUiCleanup = null;
@@ -4049,14 +2675,7 @@ export {
 
 lucide/dist/esm/createElement.js:
 lucide/dist/esm/defaultAttributes.js:
-lucide/dist/esm/icons/check-check.js:
-lucide/dist/esm/icons/command.js:
-lucide/dist/esm/icons/corner-down-left.js:
-lucide/dist/esm/icons/ellipsis-vertical.js:
-lucide/dist/esm/icons/pencil.js:
 lucide/dist/esm/icons/sticky-note.js:
-lucide/dist/esm/icons/trash-2.js:
-lucide/dist/esm/icons/x.js:
 lucide/dist/esm/lucide.js:
   (**
    * @license lucide v0.474.0 - ISC
@@ -4069,16 +2688,10 @@ lucide-react/dist/esm/shared/src/utils.js:
 lucide-react/dist/esm/defaultAttributes.js:
 lucide-react/dist/esm/Icon.js:
 lucide-react/dist/esm/createLucideIcon.js:
-lucide-react/dist/esm/icons/at-sign.js:
 lucide-react/dist/esm/icons/check-check.js:
-lucide-react/dist/esm/icons/command.js:
-lucide-react/dist/esm/icons/corner-down-left.js:
 lucide-react/dist/esm/icons/ellipsis.js:
-lucide-react/dist/esm/icons/file.js:
-lucide-react/dist/esm/icons/folder.js:
 lucide-react/dist/esm/icons/message-square-text.js:
 lucide-react/dist/esm/icons/pencil.js:
-lucide-react/dist/esm/icons/plus.js:
 lucide-react/dist/esm/icons/send.js:
 lucide-react/dist/esm/icons/trash-2.js:
 lucide-react/dist/esm/icons/x.js:
