@@ -39,10 +39,11 @@ const THREAD_ROW_SELECTOR = ".group\\/thread-row";
 const SECTION_TOGGLE_SELECTOR =
   'button[aria-expanded][aria-label$=" section"]';
 const STICKY_GROUP_SELECTOR = "[data-sidebar-sticky-group]";
-const SECTION_ID_SELECTOR = "[data-sidebar-section-id]";
-const PROJECT_ID_SELECTOR = "[data-sidebar-project-id]";
+const PROJECT_ITEM_SELECTOR = "[data-sidebar-sticky-project-item]";
 const SECTION_SUMMARY_CACHE_TTL_MS = 4_000;
 const SECTION_CACHE_MAX_ENTRIES = 32;
+/** Comfortably past the server's section-directory TTL, so a wrong "no" heals. */
+const SECTION_UNKNOWN_TTL_MS = 60_000;
 const OPEN_DELAY_MS = 0;
 const CLOSE_DELAY_MS = 120;
 const ACTIVE_SUMMARY_CACHE_TTL_MS = 2_000;
@@ -341,10 +342,18 @@ function findThreadTrigger(target: EventTarget | null): HTMLAnchorElement | null
 
 /** A sidebar section header row and the section it stands for. */
 export interface SectionTrigger {
-  projectId: string | null;
+  name: string;
+  projectName: string | null;
   row: HTMLElement;
-  sectionId: string;
   toggle: HTMLElement;
+}
+
+export function sectionLabelOf(toggle: Element): string | null {
+  return (
+    /^(?:Expand|Collapse) (.+) section$/.exec(
+      toggle.getAttribute("aria-label") ?? "",
+    )?.[1] ?? null
+  );
 }
 
 /**
@@ -357,23 +366,20 @@ function sectionToggleOwnedBy(row: Element): Element | null {
   return toggle?.parentElement?.parentElement === row ? toggle : null;
 }
 
-function isSidebarHeaderTarget(target: EventTarget | null): boolean {
-  if (!(target instanceof Element)) return false;
-  const root = target.closest(STICKY_GROUP_SELECTOR);
-  if (!root) return false;
-  let candidate: Element | null = target;
-  while (candidate && candidate !== root.parentElement) {
-    if (sectionToggleOwnedBy(candidate)) return true;
-    candidate = candidate.parentElement;
-  }
-  return false;
+/** Project rows reuse the section header markup, so they are excluded. */
+function isProjectHeaderRow(row: Element): boolean {
+  return (
+    row.closest(STICKY_GROUP_SELECTOR)?.parentElement?.matches(
+      PROJECT_ITEM_SELECTOR,
+    ) === true
+  );
 }
 
-function projectIdFor(row: Element): string | null {
-  const value = row
-    .closest<HTMLElement>(PROJECT_ID_SELECTOR)
-    ?.dataset.sidebarProjectId?.trim();
-  return value || null;
+/** In project mode a section is nested under a project and only counts its threads. */
+function enclosingProjectName(row: Element): string | null {
+  const projectItem = row.closest(PROJECT_ITEM_SELECTOR);
+  const projectToggle = projectItem?.querySelector(SECTION_TOGGLE_SELECTOR);
+  return projectToggle == null ? null : sectionLabelOf(projectToggle);
 }
 
 export function findSectionTrigger(
@@ -383,47 +389,21 @@ export function findSectionTrigger(
   // outside a sidebar group rather than scanning up to <html> every time.
   const root =
     target instanceof Element ? target.closest(STICKY_GROUP_SELECTOR) : null;
-  const sectionId =
-    root instanceof HTMLElement ? root.dataset.sidebarSectionId?.trim() : null;
-  if (!(root instanceof HTMLElement) || !sectionId) return null;
+  if (root === null) return null;
   let candidate: Element | null = target as Element;
   while (candidate && candidate !== root.parentElement) {
     const toggle = sectionToggleOwnedBy(candidate);
     if (toggle) {
+      const name = sectionLabelOf(toggle);
+      if (name === null || isProjectHeaderRow(candidate)) return null;
       return {
-        projectId: projectIdFor(candidate),
+        name,
+        projectName: enclosingProjectName(candidate),
         row: candidate as HTMLElement,
-        sectionId,
         toggle: toggle as HTMLElement,
       };
     }
     candidate = candidate.parentElement;
-  }
-  return null;
-}
-
-function findCurrentSectionTrigger(
-  sectionId: string,
-  projectId: string | null,
-): SectionTrigger | null {
-  for (const group of Array.from(
-    document.querySelectorAll<HTMLElement>(SECTION_ID_SELECTOR),
-  )) {
-    if (group.dataset.sidebarSectionId?.trim() !== sectionId) continue;
-    if (projectIdFor(group) !== projectId) continue;
-    const row = Array.from(group.children).find(
-      (child): child is HTMLElement =>
-        child instanceof HTMLElement && sectionToggleOwnedBy(child) !== null,
-    );
-    if (!row) continue;
-    const toggle = sectionToggleOwnedBy(row);
-    if (!toggle) continue;
-    return {
-      projectId,
-      row,
-      sectionId,
-      toggle: toggle as HTMLElement,
-    };
   }
   return null;
 }
@@ -1996,8 +1976,8 @@ function installHoverCards({ onOpen }: ThreadHoverCardOptions): HoverCardControl
 }
 
 async function fetchSectionSummary(
-  sectionId: string,
-  projectId: string | null,
+  name: string,
+  projectName: string | null,
   signal: AbortSignal,
 ): Promise<SectionSummary> {
   const response = await fetch(
@@ -2005,7 +1985,7 @@ async function fetchSectionSummary(
     {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ projectId, sectionId }),
+      body: JSON.stringify({ name, projectName }),
       signal,
     },
   );
@@ -2040,6 +2020,11 @@ function installSectionHoverCards({
   let disposed = false;
   const cache = new Map<string, { fetchedAt: number; summary: SectionSummary }>();
   const pending = new Map<string, AbortController>();
+  // Built-in groups (Pinned, Unorganized, …) reuse the section header markup,
+  // so one answer stops us offering them a card. The verdict expires because a
+  // section created or renamed a moment ago can also answer "not a section",
+  // and that must not be permanent.
+  const unknownSections = new Map<string, number>();
   const style = element("style", "");
   style.id = SECTION_STYLE_ID;
   style.textContent = SECTION_CARD_CSS;
@@ -2047,16 +2032,7 @@ function installSectionHoverCards({
   document.head.append(style);
 
   const keyOf = (target: SectionTrigger): string =>
-    JSON.stringify([target.sectionId, target.projectId]);
-
-  const sameIdentity = (
-    left: SectionTrigger | null,
-    right: SectionTrigger | null,
-  ): boolean =>
-    left !== null &&
-    right !== null &&
-    left.sectionId === right.sectionId &&
-    left.projectId === right.projectId;
+    JSON.stringify([target.name, target.projectName]);
 
   function ensureCard(): HTMLDivElement {
     if (card) return card;
@@ -2075,26 +2051,8 @@ function installSectionHoverCards({
     return card;
   }
 
-  function refreshActiveAnchor(): boolean {
-    if (!active) return false;
-    const current = findCurrentSectionTrigger(
-      active.sectionId,
-      active.projectId,
-    );
-    if (!current) {
-      closeCard();
-      return false;
-    }
-    if (current.row !== active.row || current.toggle !== active.toggle) {
-      active.toggle.removeAttribute("aria-describedby");
-      active = current;
-      active.toggle.setAttribute("aria-describedby", SECTION_CARD_ID);
-    }
-    return true;
-  }
-
   function position(): void {
-    if (!card || card.hidden || !refreshActiveAnchor() || !active) return;
+    if (!card || card.hidden || !active?.row.isConnected) return;
     placeCardNear(card, active.row);
   }
 
@@ -2142,11 +2100,15 @@ function installSectionHoverCards({
     const controller = new AbortController();
     pending.set(key, controller);
     return fetchSectionSummary(
-      target.sectionId,
-      target.projectId,
+      target.name,
+      target.projectName,
       controller.signal,
     )
       .then((summary) => {
+        if (!summary.known) {
+          unknownSections.set(key, Date.now());
+          return summary;
+        }
         cache.delete(key);
         cache.set(key, { fetchedAt: Date.now(), summary });
         while (cache.size > SECTION_CACHE_MAX_ENTRIES) {
@@ -2162,7 +2124,15 @@ function installSectionHoverCards({
   }
 
   function showCard(target: SectionTrigger): void {
+    const knownUnknownAt = unknownSections.get(keyOf(target));
     if (disposed) return;
+    if (
+      knownUnknownAt !== undefined &&
+      Date.now() - knownUnknownAt < SECTION_UNKNOWN_TTL_MS
+    ) {
+      closeCard();
+      return;
+    }
     onOpen();
     cancelClose();
     abortPendingRequests();
@@ -2187,6 +2157,10 @@ function installSectionHoverCards({
 
     void requestSummary(target)
       .then((summary) => {
+        if (!summary.known) {
+          if (!disposed && requestGeneration === generation) closeCard();
+          return;
+        }
         if (disposed || requestGeneration !== generation) return;
         renderSectionSummary(hoverCard, summary);
         requestAnimationFrame(position);
@@ -2202,17 +2176,8 @@ function installSectionHoverCards({
   function onPointerOver(event: PointerEvent): void {
     if (event.pointerType === "touch") return;
     const target = findSectionTrigger(event.target);
-    if (!target) {
-      if (isSidebarHeaderTarget(event.target)) closeCard();
-      return;
-    }
-    if (sameIdentity(active, target) && card && !card.hidden) {
-      if (active?.toggle !== target.toggle) {
-        active?.toggle.removeAttribute("aria-describedby");
-        active = target;
-        active.toggle.setAttribute("aria-describedby", SECTION_CARD_ID);
-        requestAnimationFrame(position);
-      }
+    if (!target) return;
+    if (active?.row === target.row && card && !card.hidden) {
       cancelClose();
       return;
     }
@@ -2221,7 +2186,7 @@ function installSectionHoverCards({
 
   function onPointerOut(event: PointerEvent): void {
     if (!findSectionTrigger(event.target)) return;
-    if (sameIdentity(findSectionTrigger(event.relatedTarget), active)) return;
+    if (findSectionTrigger(event.relatedTarget)?.row === active?.row) return;
     if (
       event.relatedTarget instanceof Node &&
       card?.contains(event.relatedTarget)
@@ -2234,13 +2199,7 @@ function installSectionHoverCards({
   function onFocusIn(event: FocusEvent): void {
     const target = findSectionTrigger(event.target);
     if (target) {
-      if (sameIdentity(active, target) && card && !card.hidden) {
-        if (active?.toggle !== target.toggle) {
-          active?.toggle.removeAttribute("aria-describedby");
-          active = target;
-          active.toggle.setAttribute("aria-describedby", SECTION_CARD_ID);
-          requestAnimationFrame(position);
-        }
+      if (active?.row === target.row && card && !card.hidden) {
         cancelClose();
         return;
       }
@@ -2268,11 +2227,6 @@ function installSectionHoverCards({
   document.addEventListener("click", onClick);
   window.addEventListener("resize", position);
   window.addEventListener("scroll", position, true);
-  const anchorObserver = new MutationObserver(() => {
-    if (!active || !card || card.hidden) return;
-    if (refreshActiveAnchor()) requestAnimationFrame(position);
-  });
-  anchorObserver.observe(document.body, { childList: true, subtree: true });
 
   return {
     dispose() {
@@ -2285,11 +2239,11 @@ function installSectionHoverCards({
       document.removeEventListener("click", onClick);
       window.removeEventListener("resize", position);
       window.removeEventListener("scroll", position, true);
-      anchorObserver.disconnect();
       card?.remove();
       card = null;
       style.remove();
       cache.clear();
+      unknownSections.clear();
       for (const controller of pending.values()) controller.abort();
       pending.clear();
     },
