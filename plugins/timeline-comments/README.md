@@ -10,7 +10,11 @@ Select message text to add a comment without leaving the timeline.
 
 Comments stay attached through an underline and a compact nearest-gutter thread.
 
-![An anchored comment thread with a reply](docs/screenshot.png)
+![An anchored comment pill with comment actions and its reply composer](docs/screenshot.png)
+
+Send an open comment to the agent by copying it into bb's composer for review before submission.
+
+![An open comment copied into bb's composer](docs/send-to-agent.png)
 
 Open the thread-scoped Comments List to review open, resolved, or all feedback together.
 
