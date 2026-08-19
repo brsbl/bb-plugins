@@ -1,0 +1,108 @@
+{
+  "candidate": "84bff65f1aee81c9042dc1b79df765a560c6a9c0",
+  "interface": "BB dev app at 127.0.0.1:17405",
+  "evidence": [
+    {
+      "name": "mobile",
+      "width": 390,
+      "height": 844,
+      "manualMode": false,
+      "phaseLabels": [
+        "Expand Timeline Organizer QA section",
+        "Expand Threads section"
+      ],
+      "hoverCardVisible": false,
+      "promptActionVisible": true,
+      "tooltipVisible": true,
+      "tooltipText": "Add comments to chat",
+      "commentsListVisible": true,
+      "commentsPanelVisible": true,
+      "organizerScreenshot": "/Users/brsbl/.bb/thread-storage/thr_vn5p6bgypg/qa/final-stack-84bff65/mobile-organizer.png",
+      "hoverCardScreenshot": null,
+      "tooltipScreenshot": "/Users/brsbl/.bb/thread-storage/thr_vn5p6bgypg/qa/final-stack-84bff65/mobile-comments-tooltip.png",
+      "commentsScreenshot": "/Users/brsbl/.bb/thread-storage/thr_vn5p6bgypg/qa/final-stack-84bff65/mobile-comments-panel.png",
+      "result": "PASS"
+    },
+    {
+      "name": "narrow",
+      "width": 768,
+      "height": 900,
+      "manualMode": true,
+      "phaseLabels": [
+        "Expand ✅ Testing / Deploy section",
+        "Expand 📋 Planning section",
+        "Expand 📥 Inbox section",
+        "Expand 🔎 Spec Review section",
+        "Expand 🛠️ Building section",
+        "Expand 🤝 Handoff section",
+        "Expand Unorganized section",
+        "New section"
+      ],
+      "hoverCardVisible": true,
+      "promptActionVisible": true,
+      "tooltipVisible": true,
+      "tooltipText": "Add comments to chat",
+      "commentsListVisible": true,
+      "commentsPanelVisible": true,
+      "organizerScreenshot": "/Users/brsbl/.bb/thread-storage/thr_vn5p6bgypg/qa/final-stack-84bff65/narrow-organizer.png",
+      "hoverCardScreenshot": "/Users/brsbl/.bb/thread-storage/thr_vn5p6bgypg/qa/final-stack-84bff65/narrow-section-hover-card.png",
+      "tooltipScreenshot": "/Users/brsbl/.bb/thread-storage/thr_vn5p6bgypg/qa/final-stack-84bff65/narrow-comments-tooltip.png",
+      "commentsScreenshot": "/Users/brsbl/.bb/thread-storage/thr_vn5p6bgypg/qa/final-stack-84bff65/narrow-comments-panel.png",
+      "result": "PASS"
+    },
+    {
+      "name": "desktop",
+      "width": 1440,
+      "height": 900,
+      "manualMode": true,
+      "phaseLabels": [
+        "Expand ✅ Testing / Deploy section",
+        "Expand 📋 Planning section",
+        "Expand 📥 Inbox section",
+        "Expand 🔎 Spec Review section",
+        "Expand 🛠️ Building section",
+        "Expand 🤝 Handoff section",
+        "Expand Unorganized section",
+        "New section"
+      ],
+      "hoverCardVisible": true,
+      "promptActionVisible": true,
+      "tooltipVisible": true,
+      "tooltipText": "Add comments to chat",
+      "commentsListVisible": true,
+      "commentsPanelVisible": true,
+      "organizerScreenshot": "/Users/brsbl/.bb/thread-storage/thr_vn5p6bgypg/qa/final-stack-84bff65/desktop-organizer.png",
+      "hoverCardScreenshot": "/Users/brsbl/.bb/thread-storage/thr_vn5p6bgypg/qa/final-stack-84bff65/desktop-section-hover-card.png",
+      "tooltipScreenshot": "/Users/brsbl/.bb/thread-storage/thr_vn5p6bgypg/qa/final-stack-84bff65/desktop-comments-tooltip.png",
+      "commentsScreenshot": "/Users/brsbl/.bb/thread-storage/thr_vn5p6bgypg/qa/final-stack-84bff65/desktop-comments-panel.png",
+      "result": "PASS"
+    },
+    {
+      "name": "wide",
+      "width": 3440,
+      "height": 1440,
+      "manualMode": true,
+      "phaseLabels": [
+        "Expand ✅ Testing / Deploy section",
+        "Expand 📋 Planning section",
+        "Expand 📥 Inbox section",
+        "Expand 🔎 Spec Review section",
+        "Expand 🛠️ Building section",
+        "Expand 🤝 Handoff section",
+        "Expand Unorganized section",
+        "New section"
+      ],
+      "hoverCardVisible": true,
+      "promptActionVisible": true,
+      "tooltipVisible": true,
+      "tooltipText": "Add comments to chat",
+      "commentsListVisible": true,
+      "commentsPanelVisible": true,
+      "organizerScreenshot": "/Users/brsbl/.bb/thread-storage/thr_vn5p6bgypg/qa/final-stack-84bff65/wide-organizer.png",
+      "hoverCardScreenshot": "/Users/brsbl/.bb/thread-storage/thr_vn5p6bgypg/qa/final-stack-84bff65/wide-section-hover-card.png",
+      "tooltipScreenshot": "/Users/brsbl/.bb/thread-storage/thr_vn5p6bgypg/qa/final-stack-84bff65/wide-comments-tooltip.png",
+      "commentsScreenshot": "/Users/brsbl/.bb/thread-storage/thr_vn5p6bgypg/qa/final-stack-84bff65/wide-comments-panel.png",
+      "result": "PASS"
+    }
+  ]
+}
