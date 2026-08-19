@@ -23,7 +23,7 @@ var {
   useSettings
 } = mod;
 
-// ../../../plugin-ui-stack/plugins/thread-hover-cards/icons.ts
+// icons.ts
 var AlarmClockIcon = [
   [
     "path",
@@ -557,7 +557,7 @@ var HelpCircleIcon = [
   ]
 ];
 
-// ../../../plugin-ui-stack/plugins/thread-hover-cards/styles.ts
+// styles.ts
 var HOVER_CARD_CSS = String.raw`
 .bb-thread-hover-card {
   position: fixed;
@@ -1155,7 +1155,7 @@ var SECTION_CARD_CSS = String.raw`
 }
 `;
 
-// ../../../plugin-ui-stack/plugins/thread-hover-cards/markdown-preview.ts
+// markdown-preview.ts
 function tableCells(line) {
   return line.trim().replace(/^\|/, "").replace(/\|$/, "").split("|").map((cell) => cell.trim());
 }
@@ -1248,7 +1248,7 @@ function markdownPreview(source) {
   return inline ? { inline, kind: "paragraph" } : null;
 }
 
-// ../../../plugin-ui-stack/plugins/thread-hover-cards/app.tsx
+// app.tsx
 var CARD_ID = "bb-thread-hover-card";
 var STYLE_ID = "bb-thread-hover-card-styles";
 var PLUGIN_CSS_SELECTOR = 'link[data-bb-plugin-css="thread-hover-cards"]';
