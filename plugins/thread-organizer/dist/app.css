@@ -122,9 +122,6 @@
       transition-timing-function: var(--tw-ease, var(--default-transition-timing-function));
       transition-duration: var(--tw-duration, var(--default-transition-duration));
     }
-    .running {
-      animation-play-state: running;
-    }
   }
 }
 @layer properties {
