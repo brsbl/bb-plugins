@@ -147,29 +147,29 @@ function isEligibleThread(thread) {
 }
 function classifyPhase(texts) {
   const substantive = texts.filter(isSubstantiveText).map(normalize);
-  const corpus = substantive.join("\n");
-  if (!corpus)
+  if (!substantive.length)
     return { target: "inbox", confidence: 1, reasons: ["phase unclear"] };
-  const direct = substantive.find(
-    (text) => /^(?:plan|planning|scope|shape|design the approach|write requirements?)\b/i.test(
+  for (let index = substantive.length - 1; index >= 0; index -= 1) {
+    const text = substantive[index];
+    if (/^(?:plan|planning|scope|shape|design the approach|write requirements?)\b/i.test(
       text
-    )
-  );
-  if (direct)
-    return {
-      target: "planning",
-      confidence: 0.99,
-      reasons: ["explicit planning action"]
-    };
-  const matches = PHASE_RULES.filter((rule) => rule.expression.test(corpus));
-  const winner = matches[0];
-  if (!winner)
-    return { target: "inbox", confidence: 1, reasons: ["phase unclear"] };
-  return {
-    target: winner.target,
-    confidence: winner.confidence,
-    reasons: [winner.reason]
-  };
+    )) {
+      return {
+        target: "planning",
+        confidence: 0.99,
+        reasons: ["explicit planning action"]
+      };
+    }
+    const winner = PHASE_RULES.find((rule) => rule.expression.test(text));
+    if (winner) {
+      return {
+        target: winner.target,
+        confidence: winner.confidence,
+        reasons: [winner.reason]
+      };
+    }
+  }
+  return { target: "inbox", confidence: 1, reasons: ["phase unclear"] };
 }
 function parsePhaseTarget(value) {
   const normalized = normalize(value).replace(/[📋🔎🛠️🤝✅📥]/gu, "").trim().replace(/[ _/]+/g, "-");
@@ -330,6 +330,7 @@ function plugin(bb) {
     }
   });
   const queues = /* @__PURE__ */ new Map();
+  let ownershipQueue = Promise.resolve();
   let disposed = false;
   async function readState(thread) {
     return migrateState(
@@ -348,6 +349,15 @@ function plugin(bb) {
   }
   async function saveOwnedSections(ids) {
     await bb.storage.kv.set(OWNED_SECTIONS_KEY, [...ids].sort());
+  }
+  async function mutateOwnedSections(mutate) {
+    const current = ownershipQueue.catch(() => void 0).then(async () => {
+      const ids = await ownedSectionIds();
+      await mutate(ids);
+      await saveOwnedSections(ids);
+    });
+    ownershipQueue = current;
+    await current;
   }
   function enqueue(threadId, work) {
     const previous = queues.get(threadId) ?? Promise.resolve();
@@ -371,9 +381,9 @@ function plugin(bb) {
       const created = await bb.sdk.threadSections.create({
         name: PHASE_SECTION_NAMES[target]
       });
-      const owned = await ownedSectionIds();
-      owned.add(created.id);
-      await saveOwnedSections(owned);
+      await mutateOwnedSections((owned) => {
+        owned.add(created.id);
+      });
       bb.log.info(
         `action=phase-section-created target=${target} section=${created.id}`
       );
@@ -385,40 +395,16 @@ function plugin(bb) {
       throw error;
     }
   }
-  async function cleanupEmptyOwnedSections() {
-    const owned = await ownedSectionIds();
-    if (!owned.size) return;
-    const existing = new Map(
-      (await bb.sdk.threadSections.list()).map((section) => [
-        section.id,
-        section
-      ])
-    );
-    let changed = false;
-    for (const id of [...owned]) {
-      if (!existing.has(id)) {
-        owned.delete(id);
-        changed = true;
-        continue;
+  async function reconcileOwnedSections() {
+    await mutateOwnedSections(async (owned) => {
+      if (!owned.size) return;
+      const existing = new Set(
+        (await bb.sdk.threadSections.list()).map((section) => section.id)
+      );
+      for (const id of [...owned]) {
+        if (!existing.has(id)) owned.delete(id);
       }
-      const members = await bb.sdk.threads.list({
-        archived: false,
-        sectionId: id,
-        limit: 1
-      });
-      if (members.length) continue;
-      try {
-        await bb.sdk.threadSections.delete({ id });
-        owned.delete(id);
-        changed = true;
-        bb.log.info(`action=phase-section-deleted section=${id}`);
-      } catch (error) {
-        bb.log.debug(
-          `action=phase-section-delete-deferred section=${id} error=${error instanceof Error ? error.message : String(error)}`
-        );
-      }
-    }
-    if (changed) await saveOwnedSections(owned);
+    });
   }
   function syncManualLocks(state, thread) {
     if (!state.titleLocked && (state.hasAppliedTitle ? thread.title !== state.lastAppliedTitle : thread.title !== null))
@@ -459,7 +445,7 @@ function plugin(bb) {
       }
     };
     await saveState(thread.id, state);
-    await cleanupEmptyOwnedSections();
+    await reconcileOwnedSections();
     bb.log.info(`thread=${thread.id} action=phase-updated target=${target}`);
     return updated;
   }
@@ -535,7 +521,7 @@ function plugin(bb) {
       if (page.length < THREAD_LIST_PAGE_SIZE) break;
       offset += THREAD_LIST_PAGE_SIZE;
     }
-    if (!signal.aborted) await cleanupEmptyOwnedSections();
+    if (!signal.aborted) await reconcileOwnedSections();
   }
   bb.events.on(
     "thread.created",
@@ -578,7 +564,7 @@ function plugin(bb) {
       await bb.sdk.threads.update({ threadId, sectionId: null }).catch(() => void 0);
     }
     await bb.storage.kv.delete(stateKey(threadId));
-    await cleanupEmptyOwnedSections();
+    await reconcileOwnedSections();
   });
   bb.events.on("thread.archived", ({ thread }) => forget(thread.id));
   bb.events.on("thread.deleted", ({ thread }) => forget(thread.id));

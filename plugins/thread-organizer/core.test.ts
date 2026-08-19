@@ -21,6 +21,15 @@ describe("development phase mapping", () => {
     expect(classifyPhase([text]).target).toBe(target);
   });
 
+  it.each([
+    [["Plan the implementation", "Implement the approved change"], "building"],
+    [["Review the specification", "Build the approved feature"], "building"],
+    [["Implement the feature", "Run regression tests and deploy"], "testing-deploy"],
+    [["Run regression tests", "Fix the implementation"], "building"],
+  ] as const)("uses the latest phase signal in %j", (texts, target) => {
+    expect(classifyPhase([...texts]).target).toBe(target);
+  });
+
   it("uses exact icon-prefixed section names", () => {
     expect(PHASE_SECTION_NAMES).toEqual({
       planning: "📋 Planning",

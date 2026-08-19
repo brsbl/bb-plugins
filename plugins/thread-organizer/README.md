@@ -11,7 +11,7 @@ Thread Organizer files bb work into the phase it is in now. The sidebar contains
 
 ![Thread Organizer development-phase sections in the bb sidebar](docs/screenshot.png)
 
-Inbox is an ordinary named section, not the pinned area. Sections are created when first needed. Plugin-created sections are removed after their last thread leaves; pre-existing sections with the same name are reused but never deleted by the plugin.
+Inbox is an ordinary named section, not the pinned area. Sections are created when first needed. Pre-existing sections with the same name are reused but never claimed or deleted by the plugin. Empty plugin-created sections are retained because the released SDK does not provide an atomic delete-if-empty operation.
 
 ## Install
 
@@ -46,7 +46,7 @@ Automatic organization preserves the plugin's existing safeguards: explicit crea
 
 Manual transitions through `bb organizer phase` are immediate and remain plugin-managed, so later phase transitions continue to work. Hidden workers, children, forks, side chats, plugin-originated threads, archived threads, and deleted threads are excluded.
 
-Empty cleanup uses only the shipped section APIs. Before deleting a plugin-owned section, Organizer performs a fresh one-row membership check and skips any section that still contains a thread. Failed cleanup is non-blocking and is retried during later reconciliation.
+Ownership reconciliation removes stale registry entries for sections deleted elsewhere. Organizer does not compose a membership check with unconditional deletion because a thread could enter the section between those calls and lose its assignment.
 
 ## Develop
 

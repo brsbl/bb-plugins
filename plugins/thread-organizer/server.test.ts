@@ -21,6 +21,8 @@ function createHarness(prompt = "Implement the dynamic organizer sections") {
     title: null,
     titleFallback: prompt,
   });
+  const additionalThreads = new Map<string, typeof thread>();
+  const promptByThreadId = new Map([[thread.id, prompt]]);
   let sections: Array<{
     id: string;
     name: string;
@@ -35,15 +37,21 @@ function createHarness(prompt = "Implement the dynamic organizer sections") {
       sectionId?: string | null;
       title?: string | null;
     }) => {
-      thread = makeThreadResponse({
-        ...thread,
+      const current =
+        args.threadId === thread.id
+          ? thread
+          : additionalThreads.get(args.threadId)!;
+      const updated = makeThreadResponse({
+        ...current,
         ...(Object.hasOwn(args, "sectionId")
           ? { sectionId: args.sectionId ?? null }
           : {}),
         ...(Object.hasOwn(args, "title") ? { title: args.title ?? null } : {}),
-        updatedAt: thread.updatedAt + 1,
+        updatedAt: current.updatedAt + 1,
       });
-      return thread;
+      if (args.threadId === thread.id) thread = updated;
+      else additionalThreads.set(args.threadId, updated);
+      return updated;
     },
   );
   const create = vi.fn(async ({ name }: { name: string }) => {
@@ -71,7 +79,8 @@ function createHarness(prompt = "Implement the dynamic organizer sections") {
       threadSections: { create, delete: remove, list: async () => sections },
       threads: {
         events: { wait: async () => null },
-        get: async () => thread,
+        get: async ({ threadId }: { threadId: string }) =>
+          threadId === thread.id ? thread : additionalThreads.get(threadId)!,
         list: async ({ sectionId }: { sectionId?: string } = {}) => {
           if (!sectionId) return [thread];
           if (thread.sectionId === sectionId) return [thread];
@@ -79,7 +88,9 @@ function createHarness(prompt = "Implement the dynamic organizer sections") {
             ? [makeThreadResponse({ id: `occupant_${sectionId}`, sectionId })]
             : [];
         },
-        promptHistory: async () => [promptEntry(prompt)],
+        promptHistory: async ({ threadId }: { threadId: string }) => [
+          promptEntry(promptByThreadId.get(threadId) ?? prompt),
+        ],
         update,
       },
     },
@@ -90,6 +101,18 @@ function createHarness(prompt = "Implement the dynamic organizer sections") {
     remove,
     update,
     current: () => thread,
+    addThread: (id: string, nextPrompt: string) => {
+      const added = makeThreadResponse({
+        ...thread,
+        id,
+        sectionId: null,
+        title: null,
+        titleFallback: nextPrompt,
+      });
+      additionalThreads.set(id, added);
+      promptByThreadId.set(id, nextPrompt);
+      return added;
+    },
     sections: () => sections,
     setThread: (changes: Partial<typeof thread>) => {
       thread = makeThreadResponse({ ...thread, ...changes });
@@ -128,6 +151,32 @@ describe("Thread Organizer phase lifecycle", () => {
     await organizer.harness.lifecycle.dispose();
   });
 
+  it("serializes ownership records across concurrent phase creation", async () => {
+    const organizer = createHarness();
+    const testing = organizer.addThread(
+      "thr_testing",
+      "Run regression tests and deploy",
+    );
+    plugin(organizer.bb);
+    await Promise.all([
+      organizer.harness.behavior.emitThreadEvent("thread.created", {
+        thread: organizer.current(),
+      }),
+      organizer.harness.behavior.emitThreadEvent("thread.created", {
+        thread: testing,
+      }),
+    ]);
+    expect(organizer.sections().map(({ name }) => name).sort()).toEqual([
+      "✅ Testing / Deploy",
+      "🛠️ Building",
+    ]);
+    await expect(organizer.bb.storage.kv.get("sections:v1")).resolves.toEqual([
+      "sec_1",
+      "sec_2",
+    ]);
+    await organizer.harness.lifecycle.dispose();
+  });
+
   it("uses Inbox as a named fallback and never pins", async () => {
     const organizer = createHarness("Please continue");
     plugin(organizer.bb);
@@ -141,7 +190,7 @@ describe("Thread Organizer phase lifecycle", () => {
     await organizer.harness.lifecycle.dispose();
   });
 
-  it("moves the current thread through the CLI and removes its empty prior section", async () => {
+  it("moves the current thread without destructively deleting its empty prior section", async () => {
     const organizer = createHarness();
     plugin(organizer.bb);
     await organizer.harness.behavior.emitThreadEvent("thread.created", {
@@ -156,13 +205,15 @@ describe("Thread Organizer phase lifecycle", () => {
       stdout: expect.stringContaining("✅ Testing / Deploy"),
     });
     expect(organizer.sections().map(({ name }) => name)).toEqual([
+      "🛠️ Building",
       "✅ Testing / Deploy",
     ]);
-    expect(organizer.remove).toHaveBeenCalledWith({ id: "sec_1" });
+    expect(organizer.remove).not.toHaveBeenCalled();
     await organizer.harness.behavior.emitThreadEvent("thread.active", {
       thread: organizer.current(),
     });
     expect(organizer.sections().map(({ name }) => name)).toEqual([
+      "🛠️ Building",
       "✅ Testing / Deploy",
     ]);
     await organizer.harness.lifecycle.dispose();
@@ -197,7 +248,7 @@ describe("Thread Organizer phase lifecycle", () => {
     await organizer.harness.lifecycle.dispose();
   });
 
-  it("clears its assignment and removes the last phase section on archive", async () => {
+  it("clears its assignment without deleting the last phase section on archive", async () => {
     const organizer = createHarness();
     plugin(organizer.bb);
     await organizer.harness.behavior.emitThreadEvent("thread.created", {
@@ -208,7 +259,10 @@ describe("Thread Organizer phase lifecycle", () => {
       thread: organizer.current(),
     });
     expect(organizer.current().sectionId).toBeNull();
-    expect(organizer.sections()).toEqual([]);
+    expect(organizer.sections().map(({ name }) => name)).toEqual([
+      "🛠️ Building",
+    ]);
+    expect(organizer.remove).not.toHaveBeenCalled();
     await organizer.harness.lifecycle.dispose();
   });
 });
