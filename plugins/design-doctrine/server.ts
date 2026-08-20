@@ -9,8 +9,14 @@ import type { BbPluginApi } from "@get-bb/plugin-sdk";
 import { z } from "zod";
 
 import { createHistoryMaintenance } from "./history.js";
+import {
+  createHarvest,
+  harvestProposalSchema,
+  harvestVerdictSchema,
+} from "./harvest.js";
 
 const execFileAsync = promisify(execFile);
+const HARVEST_AGENT_TIMEOUT_MS = 15 * 60 * 1_000;
 const MODULE_DIR = dirname(fileURLToPath(import.meta.url));
 const DEFAULT_DOCTRINE_PATH =
   basename(MODULE_DIR) === "dist" ? dirname(MODULE_DIR) : MODULE_DIR;
@@ -685,11 +691,77 @@ export default async function plugin(bb: BbPluginApi) {
     async () => expandPath((await settings.get()).doctrinePath),
     DEFAULT_DOCTRINE_PATH,
   );
+  const harvest = createHarvest({
+    bb,
+    resolveDoctrineRoot: async () =>
+      expandPath((await settings.get()).doctrinePath),
+    listRuleIds: async () => (await currentLibrary()).rules.map((rule) => rule.id),
+    describeExistingRules: async () =>
+      (await currentLibrary()).rules
+        .map(
+          (rule) =>
+            `${rule.id} (${rule.domain}, ${rule.strength}): ${rule.title} — ${rule.statement}`,
+        )
+        .join("\n"),
+    async runAgent({ projectId, environmentId, title, prompt }) {
+      const spawned = await bb.sdk.threads.spawn({
+        projectId,
+        // Hidden so the harvest never interrupts the user. `spawn` attributes
+        // the thread to this plugin, which also keeps it out of its own queue.
+        visibility: "hidden",
+        environment: environmentId
+          ? { type: "reuse", environmentId }
+          : { type: "host", workspace: { type: "unmanaged", path: null } },
+        title,
+        prompt,
+      });
+      await bb.sdk.threads.wait({
+        threadId: spawned.id,
+        status: "idle",
+        timeoutMs: HARVEST_AGENT_TIMEOUT_MS,
+      });
+    },
+  });
+
+  // Serializes harvests so two archives never run agents concurrently, and keeps
+  // the work off the archive event, which must stay instant.
+  let harvestQueue: Promise<void> = Promise.resolve();
+
+  function drainHarvest(): void {
+    harvestQueue = harvestQueue
+      .then(async () => {
+        for (const {
+          threadId,
+          projectId,
+          environmentId,
+        } of harvest.pendingThreads()) {
+          await harvest.harvestThread(threadId, projectId, environmentId);
+        }
+      })
+      .catch((error: unknown) => {
+        bb.log.warn(
+          `doctrine harvest: drain failed: ${error instanceof Error ? error.message : String(error)}`,
+        );
+      });
+  }
+
   bb.events.on("thread.created", async ({ thread }) => {
     await historyMaintenance.observeCreated(thread);
   });
   bb.events.on("thread.idle", async ({ thread }) => {
     await historyMaintenance.observeThread(thread);
+  });
+  bb.events.on("thread.archived", ({ thread }) => {
+    // Observe-only and fire-and-forget: archiving never waits on the harvest,
+    // and a harvest failure is a log line, not a user-facing error.
+    try {
+      if (!harvest.enqueue(thread)) return;
+      drainHarvest();
+    } catch (error) {
+      bb.log.warn(
+        `doctrine harvest: could not queue ${thread.id}: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
   });
   bb.events.on("thread.deleted", async ({ thread }) => {
     await historyMaintenance.forgetThread(thread.id);
@@ -737,6 +809,7 @@ export default async function plugin(bb: BbPluginApi) {
       { name: "search", summary: "Search current rules", usage: "bb doctrine search <query> [--all] [--json]" },
       { name: "show", summary: "Show one rule", usage: "bb doctrine show <rule-id> [--json]" },
       { name: "history", summary: "Scan bb thread history through the SDK", usage: "bb doctrine history <scan|advance|release> [options]" },
+      { name: "harvest", summary: "Report archive-harvest proposals and verdicts", usage: "bb doctrine harvest <propose|verdict|status> [options]" },
       { name: "validate", summary: "Validate the personalized rule corpus", usage: "bb doctrine validate" },
     ],
     async run(argv, context) {
@@ -793,6 +866,78 @@ export default async function plugin(bb: BbPluginApi) {
             stderr: "Usage: bb doctrine history <scan|advance|release> [options]\n",
           };
         }
+        if (command === "harvest") {
+          const action = argv[1];
+          if (action === "propose") {
+            const threadId = requiredOption(argv, "--thread");
+            const parsed: unknown = JSON.parse(requiredOption(argv, "--json"));
+            const proposals = z
+              .array(harvestProposalSchema)
+              .max(10)
+              .parse(parsed);
+            const stored = harvest.recordProposals(threadId, proposals);
+            return {
+              exitCode: 0,
+              stdout: `${JSON.stringify({
+                thread_id: threadId,
+                recorded: stored.length,
+                proposal_ids: stored.map((item) => item.id),
+              })}\n`,
+            };
+          }
+          if (action === "verdict") {
+            const proposalId = Number(requiredOption(argv, "--proposal"));
+            if (!Number.isInteger(proposalId) || proposalId < 1) {
+              throw new Error("--proposal must be a positive integer");
+            }
+            const approve = argv.includes("--approve");
+            const reject = argv.includes("--reject");
+            if (approve === reject) {
+              throw new Error("pass exactly one of --approve or --reject");
+            }
+            const verdict = harvestVerdictSchema.parse({
+              approve,
+              reason: requiredOption(argv, "--reason"),
+            });
+            harvest.recordVerdict(
+              proposalId,
+              verdict.approve ? "approved" : "rejected",
+              verdict.reason,
+            );
+            return {
+              exitCode: 0,
+              stdout: `${JSON.stringify({
+                proposal_id: proposalId,
+                verdict: verdict.approve ? "approved" : "rejected",
+              })}\n`,
+            };
+          }
+          if (action === "status") {
+            const threadId = requiredOption(argv, "--thread");
+            return {
+              exitCode: 0,
+              stdout: `${JSON.stringify(
+                {
+                  thread: harvest.threadState(threadId),
+                  proposals: harvest.proposalsForThread(threadId).map((item) => ({
+                    id: item.id,
+                    rule_key: item.ruleKey,
+                    verdict: item.verdict,
+                    reason: item.reason,
+                    written_path: item.writtenPath,
+                  })),
+                },
+                null,
+                2,
+              )}\n`,
+            };
+          }
+          return {
+            exitCode: 2,
+            stderr:
+              "Usage: bb doctrine harvest <propose|verdict|status> [options]\n",
+          };
+        }
         if (command === "validate") {
           const library = await loadDoctrine(
             expandPath((await settings.get()).doctrinePath),
@@ -843,7 +988,7 @@ export default async function plugin(bb: BbPluginApi) {
           if (!rule) return { exitCode: 1, stderr: `Rule not found: ${argv[1] ?? ""}\n` };
           return { exitCode: 0, stdout: json ? `${JSON.stringify(rule, null, 2)}\n` : `${formatRule(rule)}\n` };
         }
-        return { exitCode: 2, stderr: "Usage: bb doctrine <status|search|show|history|validate>\n" };
+        return { exitCode: 2, stderr: "Usage: bb doctrine <status|search|show|history|harvest|validate>\n" };
       } catch (error) {
         return { exitCode: 1, stderr: `${error instanceof Error ? error.message : String(error)}\n` };
       }
