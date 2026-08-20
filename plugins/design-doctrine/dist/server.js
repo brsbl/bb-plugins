@@ -14,7 +14,7 @@ var __export = (target, all) => {
 import { execFile as execFile2 } from "node:child_process";
 import { readdir, readFile as readFile2, stat } from "node:fs/promises";
 import { homedir } from "node:os";
-import { basename, dirname, join as join2, relative, resolve } from "node:path";
+import { basename, dirname, join as join3, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { promisify as promisify2 } from "node:util";
 
@@ -15518,8 +15518,506 @@ function createHistoryMaintenance(bb, resolveDoctrineRoot, installedPluginRoot) 
   };
 }
 
+// harvest.ts
+import { mkdir, writeFile } from "node:fs/promises";
+import { join as join2 } from "node:path";
+var HARVEST_SCHEMA = [
+  `CREATE TABLE IF NOT EXISTS harvest_threads (
+     thread_id TEXT PRIMARY KEY,
+     project_id TEXT NOT NULL,
+     environment_id TEXT,
+     queued_at INTEGER NOT NULL,
+     processed_at INTEGER,
+     outcome TEXT
+   )`,
+  `CREATE TABLE IF NOT EXISTS harvest_proposals (
+     id INTEGER PRIMARY KEY AUTOINCREMENT,
+     thread_id TEXT NOT NULL,
+     rule_key TEXT NOT NULL,
+     payload TEXT NOT NULL,
+     created_at INTEGER NOT NULL,
+     verdict TEXT,
+     reason TEXT,
+     written_path TEXT
+   )`,
+  `CREATE INDEX IF NOT EXISTS harvest_proposals_rule_key
+     ON harvest_proposals (rule_key)`
+];
+var RECURRENCE_APPROVAL_THRESHOLD = 3;
+var KEY_STOP_TOKENS = /* @__PURE__ */ new Set([
+  "a",
+  "an",
+  "and",
+  "are",
+  "as",
+  "at",
+  "be",
+  "before",
+  "but",
+  "by",
+  "for",
+  "from",
+  "in",
+  "into",
+  "is",
+  "it",
+  "its",
+  "must",
+  "not",
+  "of",
+  "on",
+  "one",
+  "only",
+  "or",
+  "should",
+  "that",
+  "the",
+  "their",
+  "them",
+  "then",
+  "there",
+  "they",
+  "this",
+  "to",
+  "use",
+  "used",
+  "when",
+  "with",
+  "without"
+]);
+var harvestProposalSchema = external_exports.object({
+  title: external_exports.string().trim().min(3).max(120),
+  statement: external_exports.string().trim().min(10),
+  kind: external_exports.enum(["principle", "standard", "guideline", "taste", "anti_pattern"]),
+  strength: external_exports.enum(["required", "default", "preference", "warning"]),
+  confidence: external_exports.enum(["low", "medium", "high"]).default("low"),
+  domain: external_exports.string().regex(/^[a-z-]+\.[a-z-]+$/),
+  products: external_exports.array(external_exports.string().trim().min(1)).min(1),
+  activities: external_exports.array(external_exports.string().trim().min(1)).min(1),
+  artifacts: external_exports.array(external_exports.string().trim().min(1)).min(1),
+  surfaces: external_exports.array(external_exports.string().trim().min(1)).default([]),
+  why: external_exports.string().trim().min(10),
+  prefer: external_exports.array(external_exports.string().trim().min(1)).min(1),
+  avoid: external_exports.array(external_exports.string().trim().min(1)).min(1),
+  use_when: external_exports.array(external_exports.string().trim().min(1)).min(1),
+  not_when: external_exports.array(external_exports.string().trim().min(1)).default([]),
+  exceptions: external_exports.array(external_exports.string().trim().min(1)).default([]),
+  evidence: external_exports.array(external_exports.string().trim().min(1)).min(1),
+  checks: external_exports.array(external_exports.string().trim().min(1)).min(1)
+});
+var harvestVerdictSchema = external_exports.object({
+  approve: external_exports.boolean(),
+  reason: external_exports.string().trim().min(3).max(600)
+});
+function normalizeRuleKey(proposal) {
+  const tokens = (proposal.title.toLocaleLowerCase().match(/[a-z0-9]+/g) ?? []).filter((token) => token.length > 2 && !KEY_STOP_TOKENS.has(token));
+  return `${proposal.domain}|${[...new Set(tokens)].sort().join("-")}`;
+}
+function allocateRuleId(existingIds) {
+  const highest = existingIds.reduce((best, id) => {
+    const match = /^ddr_(\d+)$/.exec(id);
+    if (!match) return best;
+    return Math.max(best, Number(match[1]));
+  }, 0);
+  return `ddr_${String(highest + 1).padStart(3, "0")}`;
+}
+function ruleRelativePath(domain2, id) {
+  return join2("rules", domain2.split(".")[0], `${id}.md`);
+}
+function frontmatterList(values) {
+  return JSON.stringify(values);
+}
+function bulletList(values) {
+  return values.map((value) => `- ${value}`).join("\n");
+}
+function renderRuleMarkdown(proposal, id, updated) {
+  const sections = [
+    `# ${proposal.title}`,
+    "",
+    proposal.statement,
+    "",
+    "## Why",
+    "",
+    proposal.why,
+    "",
+    "## Prefer",
+    "",
+    bulletList(proposal.prefer),
+    "",
+    "## Avoid",
+    "",
+    bulletList(proposal.avoid),
+    "",
+    "## Use when",
+    "",
+    bulletList(proposal.use_when)
+  ];
+  if (proposal.not_when.length > 0) {
+    sections.push("", "## Do not use when", "", bulletList(proposal.not_when));
+  }
+  if (proposal.exceptions.length > 0) {
+    sections.push("", "## Exceptions", "", bulletList(proposal.exceptions));
+  }
+  sections.push(
+    "",
+    "## Evidence",
+    "",
+    bulletList(proposal.evidence),
+    "",
+    "## Check",
+    "",
+    bulletList(proposal.checks),
+    ""
+  );
+  const frontmatter = [
+    "---",
+    `id: ${id}`,
+    `kind: ${proposal.kind}`,
+    `strength: ${proposal.strength}`,
+    `confidence: ${proposal.confidence}`,
+    "status: active",
+    `domain: ${proposal.domain}`,
+    `products: ${frontmatterList(proposal.products)}`,
+    `activities: ${frontmatterList(proposal.activities)}`,
+    `artifacts: ${frontmatterList(proposal.artifacts)}`,
+    `surfaces: ${frontmatterList(proposal.surfaces)}`,
+    "relations: []",
+    `supporting_episodes: ${proposal.evidence.length}`,
+    "challenging_episodes: 0",
+    `updated: ${updated}`,
+    "---",
+    "",
+    ""
+  ].join("\n");
+  return `${frontmatter}${sections.join("\n")}`;
+}
+function isoDate(timestamp) {
+  return new Date(timestamp).toISOString().slice(0, 10);
+}
+function isHarvestableThread(thread) {
+  if (thread.originPluginId) return false;
+  if (thread.visibility && thread.visibility !== "visible") return false;
+  return true;
+}
+function createHarvest(dependencies) {
+  const { bb, resolveDoctrineRoot, listRuleIds, describeExistingRules, runAgent } = dependencies;
+  const now = dependencies.now ?? (() => Date.now());
+  let database = null;
+  function db() {
+    if (!database) {
+      database = bb.storage.database();
+      for (const statement of HARVEST_SCHEMA) database.exec(statement);
+    }
+    return database;
+  }
+  function readProposal(row) {
+    return {
+      id: Number(row.id),
+      threadId: String(row.thread_id),
+      ruleKey: String(row.rule_key),
+      proposal: JSON.parse(String(row.payload)),
+      createdAt: Number(row.created_at),
+      verdict: row.verdict ?? null,
+      reason: row.reason ?? null,
+      writtenPath: row.written_path ?? null
+    };
+  }
+  function enqueue(thread) {
+    if (!isHarvestableThread(thread)) return false;
+    const result = db().prepare(
+      `INSERT INTO harvest_threads
+           (thread_id, project_id, environment_id, queued_at)
+         VALUES (?, ?, ?, ?)
+         ON CONFLICT (thread_id) DO NOTHING`
+    ).run(thread.id, thread.projectId, thread.environmentId ?? null, now());
+    return result.changes > 0;
+  }
+  function pendingThreads() {
+    return db().prepare(
+      `SELECT thread_id, project_id, environment_id FROM harvest_threads
+         WHERE processed_at IS NULL
+         ORDER BY queued_at, thread_id`
+    ).all().map((row) => {
+      const record2 = row;
+      return {
+        threadId: String(record2.thread_id),
+        projectId: String(record2.project_id),
+        environmentId: record2.environment_id === null || record2.environment_id === void 0 ? null : String(record2.environment_id)
+      };
+    });
+  }
+  function markProcessed(threadId, outcome) {
+    db().prepare(
+      `UPDATE harvest_threads SET processed_at = ?, outcome = ?
+         WHERE thread_id = ?`
+    ).run(now(), outcome, threadId);
+  }
+  function recordProposals(threadId, proposals) {
+    const insert = db().prepare(
+      `INSERT INTO harvest_proposals
+         (thread_id, rule_key, payload, created_at)
+       VALUES (?, ?, ?, ?)`
+    );
+    const stored = [];
+    for (const proposal of proposals) {
+      const ruleKey = normalizeRuleKey(proposal);
+      const createdAt = now();
+      const result = insert.run(
+        threadId,
+        ruleKey,
+        JSON.stringify(proposal),
+        createdAt
+      );
+      stored.push({
+        id: Number(result.lastInsertRowid),
+        threadId,
+        ruleKey,
+        proposal,
+        createdAt,
+        verdict: null,
+        reason: null,
+        writtenPath: null
+      });
+    }
+    return stored;
+  }
+  function recordVerdict(proposalId, verdict, reason, writtenPath = null) {
+    db().prepare(
+      `UPDATE harvest_proposals
+         SET verdict = ?, reason = ?, written_path = ?
+         WHERE id = ?`
+    ).run(verdict, reason, writtenPath, proposalId);
+  }
+  function pendingProposals(threadId) {
+    return db().prepare(
+      `SELECT * FROM harvest_proposals
+         WHERE thread_id = ? AND verdict IS NULL
+         ORDER BY id`
+    ).all(threadId).map((row) => readProposal(row));
+  }
+  function recurrenceContext(ruleKey, threadId) {
+    const rows = db().prepare(
+      `SELECT thread_id, verdict, reason, created_at
+         FROM harvest_proposals
+         WHERE rule_key = ?
+         ORDER BY created_at`
+    ).all(ruleKey).map((row) => row);
+    const threads = new Set(rows.map((row) => String(row.thread_id)));
+    threads.add(threadId);
+    return {
+      recurrence: threads.size,
+      meetsRecurrenceThreshold: threads.size >= RECURRENCE_APPROVAL_THRESHOLD,
+      priorVerdicts: rows.filter((row) => String(row.thread_id) !== threadId).map((row) => ({
+        verdict: row.verdict ?? null,
+        reason: row.reason ?? null,
+        at: Number(row.created_at)
+      }))
+    };
+  }
+  function alreadyApproved(ruleKey) {
+    const row = db().prepare(
+      `SELECT * FROM harvest_proposals
+         WHERE rule_key = ? AND verdict = 'approved'
+         ORDER BY id LIMIT 1`
+    ).get(ruleKey);
+    return row ? readProposal(row) : null;
+  }
+  async function writeApprovedRule(proposal) {
+    const root = await resolveDoctrineRoot();
+    const id = allocateRuleId(await listRuleIds());
+    const relativePath = ruleRelativePath(proposal.domain, id);
+    const absolutePath = join2(root, relativePath);
+    await mkdir(join2(absolutePath, ".."), { recursive: true });
+    await writeFile(
+      absolutePath,
+      renderRuleMarkdown(proposal, id, isoDate(now())),
+      "utf8"
+    );
+    return relativePath;
+  }
+  function harvesterPrompt(threadId) {
+    return [
+      "You are the Design Doctrine harvester. Work silently; nobody is watching this thread.",
+      "",
+      `Read the complete history of bb thread ${threadId} with \`bb thread log ${threadId} --format minimal\`,`,
+      "paginating with `--format json --limit 500 --after-seq <seq>` if the minimal timeline is windowed.",
+      "",
+      "Decide whether that thread contains durable product/UX/UI/visual-design/design-system/AI-interaction",
+      "judgment worth a doctrine rule.",
+      "",
+      "Rules of evidence:",
+      "- Only messages the user wrote are evidence. Assistant and subagent output never is.",
+      "- One-off task constraints, tool failures, environment breakage, and general engineering or",
+      "  PR-process direction are not doctrine.",
+      "- Silence is the expected result. Most threads warrant nothing.",
+      "",
+      "Report exactly once, even when you found nothing, by running:",
+      "",
+      `  bb doctrine harvest propose --thread ${threadId} --json '<json-array>'`,
+      "",
+      "The array is empty when nothing is warranted. Each element must be an object with:",
+      "title, statement, kind, strength, confidence, domain, products, activities, artifacts,",
+      "surfaces, why, prefer, avoid, use_when, not_when, exceptions, evidence, checks.",
+      "",
+      "Evidence lines must be short, anonymous, one per episode. Never include thread ids,",
+      "message ids, transcripts, credentials, or private URLs.",
+      "",
+      "Do not write or edit any rule file yourself."
+    ].join("\n");
+  }
+  function reviewerPrompt(stored, context, existingRules) {
+    const priors = context.priorVerdicts.length ? context.priorVerdicts.map(
+      (entry) => `- ${entry.verdict ?? "undecided"}: ${entry.reason ?? "(no reason recorded)"}`
+    ).join("\n") : "- none";
+    return [
+      "You are an independent Design Doctrine reviewer. You did not write this proposal.",
+      "Judge it; do not improve it.",
+      "",
+      "Approve only if all of these hold:",
+      "1. It is genuinely new \u2014 not a duplicate or restatement of an existing rule below.",
+      "2. It does not contradict an existing rule.",
+      "3. It is supported by concrete feedback the user actually gave.",
+      "",
+      `This proposal has been raised in ${context.recurrence} distinct thread(s).`,
+      context.meetsRecurrenceThreshold ? `Because that reaches the recurrence threshold of ${RECURRENCE_APPROVAL_THRESHOLD}, evidence that would be too thin from a single thread is acceptable: the pattern has repeated independently.` : `That is below the recurrence threshold of ${RECURRENCE_APPROVAL_THRESHOLD}, so judge it on this thread's evidence alone.`,
+      "",
+      "Previous verdicts on this same proposal:",
+      priors,
+      "",
+      "If it was rejected before for a reason that still applies, reject it again for the same reason.",
+      "",
+      "Proposal:",
+      JSON.stringify(stored.proposal, null, 2),
+      "",
+      "Existing rules:",
+      existingRules,
+      "",
+      "Report exactly once by running:",
+      "",
+      `  bb doctrine harvest verdict --proposal ${stored.id} --approve --reason '<why>'`,
+      "or",
+      `  bb doctrine harvest verdict --proposal ${stored.id} --reject --reason '<why>'`
+    ].join("\n");
+  }
+  async function harvestThread(threadId, projectId, environmentId = null) {
+    try {
+      await runAgent({
+        kind: "harvester",
+        threadId,
+        projectId,
+        environmentId,
+        title: "Doctrine harvest",
+        prompt: harvesterPrompt(threadId)
+      });
+    } catch (error51) {
+      bb.log.warn(
+        `doctrine harvest: harvester failed for ${threadId}: ${error51 instanceof Error ? error51.message : String(error51)}`
+      );
+      markProcessed(threadId, "harvester-failed");
+      return;
+    }
+    const proposals = pendingProposals(threadId);
+    if (proposals.length === 0) {
+      bb.log.info(`doctrine harvest: no proposals from ${threadId}`);
+      markProcessed(threadId, "no-proposals");
+      return;
+    }
+    const existingRules = await describeExistingRules();
+    let approved = 0;
+    for (const stored of proposals) {
+      const duplicate = alreadyApproved(stored.ruleKey);
+      if (duplicate) {
+        const reason = `duplicate of an already-approved proposal (${duplicate.writtenPath ?? "unwritten"})`;
+        recordVerdict(stored.id, "rejected", reason);
+        bb.log.info(
+          `doctrine harvest: rejected proposal ${stored.id} from ${threadId} \u2014 ${reason}`
+        );
+        continue;
+      }
+      const context = recurrenceContext(stored.ruleKey, threadId);
+      try {
+        await runAgent({
+          kind: "reviewer",
+          threadId,
+          projectId,
+          environmentId,
+          title: "Doctrine review",
+          prompt: reviewerPrompt(stored, context, existingRules)
+        });
+      } catch (error51) {
+        const reason = `reviewer failed: ${error51 instanceof Error ? error51.message : String(error51)}`;
+        recordVerdict(stored.id, "rejected", reason);
+        bb.log.warn(
+          `doctrine harvest: rejected proposal ${stored.id} from ${threadId} \u2014 ${reason}`
+        );
+        continue;
+      }
+      const decided = db().prepare(`SELECT * FROM harvest_proposals WHERE id = ?`).get(stored.id);
+      const verdict = decided ? readProposal(decided) : null;
+      if (!verdict || verdict.verdict === null) {
+        const reason = "reviewer returned no verdict";
+        recordVerdict(stored.id, "rejected", reason);
+        bb.log.warn(
+          `doctrine harvest: rejected proposal ${stored.id} from ${threadId} \u2014 ${reason}`
+        );
+        continue;
+      }
+      if (verdict.verdict === "rejected") {
+        bb.log.info(
+          `doctrine harvest: rejected proposal ${stored.id} from ${threadId} \u2014 ${verdict.reason ?? "no reason given"}`
+        );
+        continue;
+      }
+      try {
+        const relativePath = await writeApprovedRule(verdict.proposal);
+        recordVerdict(
+          stored.id,
+          "approved",
+          verdict.reason ?? "approved",
+          relativePath
+        );
+        approved += 1;
+        bb.log.info(
+          `doctrine harvest: wrote ${relativePath} from ${threadId} \u2014 ${verdict.reason ?? "approved"}`
+        );
+      } catch (error51) {
+        const reason = `could not write rule: ${error51 instanceof Error ? error51.message : String(error51)}`;
+        recordVerdict(stored.id, "rejected", reason);
+        bb.log.warn(
+          `doctrine harvest: rejected proposal ${stored.id} from ${threadId} \u2014 ${reason}`
+        );
+      }
+    }
+    markProcessed(threadId, approved > 0 ? `approved:${approved}` : "no-approvals");
+  }
+  return {
+    enqueue,
+    pendingThreads,
+    pendingProposals,
+    recordProposals,
+    recordVerdict,
+    recurrenceContext,
+    harvestThread,
+    proposalsForThread(threadId) {
+      return db().prepare(
+        `SELECT * FROM harvest_proposals WHERE thread_id = ? ORDER BY id`
+      ).all(threadId).map((row) => readProposal(row));
+    },
+    threadState(threadId) {
+      const row = db().prepare(`SELECT * FROM harvest_threads WHERE thread_id = ?`).get(threadId);
+      if (!row) return null;
+      return {
+        queuedAt: Number(row.queued_at),
+        processedAt: row.processed_at === null || row.processed_at === void 0 ? null : Number(row.processed_at),
+        outcome: row.outcome ?? null
+      };
+    }
+  };
+}
+
 // server.ts
 var execFileAsync2 = promisify2(execFile2);
+var HARVEST_AGENT_TIMEOUT_MS = 15 * 60 * 1e3;
 var MODULE_DIR = dirname(fileURLToPath(import.meta.url));
 var DEFAULT_DOCTRINE_PATH = basename(MODULE_DIR) === "dist" ? dirname(MODULE_DIR) : MODULE_DIR;
 var WATCH_INTERVAL_MS = 2500;
@@ -15632,16 +16130,16 @@ var rpcContract = defineRpcContract({
 });
 function expandPath(input) {
   if (input === "~") return homedir();
-  if (input.startsWith("~/")) return join2(homedir(), input.slice(2));
+  if (input.startsWith("~/")) return join3(homedir(), input.slice(2));
   return resolve(input);
 }
 async function listRuleFiles(root) {
-  const rulesRoot = join2(root, "rules");
+  const rulesRoot = join3(root, "rules");
   const domains = await readdir(rulesRoot, { withFileTypes: true });
   const files = await Promise.all(
     domains.filter((entry) => entry.isDirectory()).map(async (domain2) => {
-      const directory = join2(rulesRoot, domain2.name);
-      return (await readdir(directory, { withFileTypes: true })).filter((entry) => entry.isFile() && entry.name.endsWith(".md")).map((entry) => join2(directory, entry.name));
+      const directory = join3(rulesRoot, domain2.name);
+      return (await readdir(directory, { withFileTypes: true })).filter((entry) => entry.isFile() && entry.name.endsWith(".md")).map((entry) => join3(directory, entry.name));
     })
   );
   return files.flat().sort();
@@ -16102,11 +16600,61 @@ async function plugin(bb) {
     async () => expandPath((await settings.get()).doctrinePath),
     DEFAULT_DOCTRINE_PATH
   );
+  const harvest = createHarvest({
+    bb,
+    resolveDoctrineRoot: async () => expandPath((await settings.get()).doctrinePath),
+    listRuleIds: async () => (await currentLibrary()).rules.map((rule) => rule.id),
+    describeExistingRules: async () => (await currentLibrary()).rules.map(
+      (rule) => `${rule.id} (${rule.domain}, ${rule.strength}): ${rule.title} \u2014 ${rule.statement}`
+    ).join("\n"),
+    async runAgent({ projectId, environmentId, title, prompt }) {
+      const spawned = await bb.sdk.threads.spawn({
+        projectId,
+        // Hidden so the harvest never interrupts the user. `spawn` attributes
+        // the thread to this plugin, which also keeps it out of its own queue.
+        visibility: "hidden",
+        environment: environmentId ? { type: "reuse", environmentId } : { type: "host", workspace: { type: "unmanaged", path: null } },
+        title,
+        prompt
+      });
+      await bb.sdk.threads.wait({
+        threadId: spawned.id,
+        status: "idle",
+        timeoutMs: HARVEST_AGENT_TIMEOUT_MS
+      });
+    }
+  });
+  let harvestQueue = Promise.resolve();
+  function drainHarvest() {
+    harvestQueue = harvestQueue.then(async () => {
+      for (const {
+        threadId,
+        projectId,
+        environmentId
+      } of harvest.pendingThreads()) {
+        await harvest.harvestThread(threadId, projectId, environmentId);
+      }
+    }).catch((error51) => {
+      bb.log.warn(
+        `doctrine harvest: drain failed: ${error51 instanceof Error ? error51.message : String(error51)}`
+      );
+    });
+  }
   bb.events.on("thread.created", async ({ thread }) => {
     await historyMaintenance.observeCreated(thread);
   });
   bb.events.on("thread.idle", async ({ thread }) => {
     await historyMaintenance.observeThread(thread);
+  });
+  bb.events.on("thread.archived", ({ thread }) => {
+    try {
+      if (!harvest.enqueue(thread)) return;
+      drainHarvest();
+    } catch (error51) {
+      bb.log.warn(
+        `doctrine harvest: could not queue ${thread.id}: ${error51 instanceof Error ? error51.message : String(error51)}`
+      );
+    }
   });
   bb.events.on("thread.deleted", async ({ thread }) => {
     await historyMaintenance.forgetThread(thread.id);
@@ -16151,6 +16699,7 @@ async function plugin(bb) {
       { name: "search", summary: "Search current rules", usage: "bb doctrine search <query> [--all] [--json]" },
       { name: "show", summary: "Show one rule", usage: "bb doctrine show <rule-id> [--json]" },
       { name: "history", summary: "Scan bb thread history through the SDK", usage: "bb doctrine history <scan|advance|release> [options]" },
+      { name: "harvest", summary: "Report archive-harvest proposals and verdicts", usage: "bb doctrine harvest <propose|verdict|status> [options]" },
       { name: "validate", summary: "Validate the personalized rule corpus", usage: "bb doctrine validate" }
     ],
     async run(argv, context) {
@@ -16210,6 +16759,77 @@ async function plugin(bb) {
             stderr: "Usage: bb doctrine history <scan|advance|release> [options]\n"
           };
         }
+        if (command === "harvest") {
+          const action = argv[1];
+          if (action === "propose") {
+            const threadId = requiredOption(argv, "--thread");
+            const parsed = JSON.parse(requiredOption(argv, "--json"));
+            const proposals = external_exports.array(harvestProposalSchema).max(10).parse(parsed);
+            const stored = harvest.recordProposals(threadId, proposals);
+            return {
+              exitCode: 0,
+              stdout: `${JSON.stringify({
+                thread_id: threadId,
+                recorded: stored.length,
+                proposal_ids: stored.map((item) => item.id)
+              })}
+`
+            };
+          }
+          if (action === "verdict") {
+            const proposalId = Number(requiredOption(argv, "--proposal"));
+            if (!Number.isInteger(proposalId) || proposalId < 1) {
+              throw new Error("--proposal must be a positive integer");
+            }
+            const approve = argv.includes("--approve");
+            const reject = argv.includes("--reject");
+            if (approve === reject) {
+              throw new Error("pass exactly one of --approve or --reject");
+            }
+            const verdict = harvestVerdictSchema.parse({
+              approve,
+              reason: requiredOption(argv, "--reason")
+            });
+            harvest.recordVerdict(
+              proposalId,
+              verdict.approve ? "approved" : "rejected",
+              verdict.reason
+            );
+            return {
+              exitCode: 0,
+              stdout: `${JSON.stringify({
+                proposal_id: proposalId,
+                verdict: verdict.approve ? "approved" : "rejected"
+              })}
+`
+            };
+          }
+          if (action === "status") {
+            const threadId = requiredOption(argv, "--thread");
+            return {
+              exitCode: 0,
+              stdout: `${JSON.stringify(
+                {
+                  thread: harvest.threadState(threadId),
+                  proposals: harvest.proposalsForThread(threadId).map((item) => ({
+                    id: item.id,
+                    rule_key: item.ruleKey,
+                    verdict: item.verdict,
+                    reason: item.reason,
+                    written_path: item.writtenPath
+                  }))
+                },
+                null,
+                2
+              )}
+`
+            };
+          }
+          return {
+            exitCode: 2,
+            stderr: "Usage: bb doctrine harvest <propose|verdict|status> [options]\n"
+          };
+        }
         if (command === "validate") {
           const library2 = await loadDoctrine(
             expandPath((await settings.get()).doctrinePath)
@@ -16264,7 +16884,7 @@ Repository: ${summary.root}
 ` : `${formatRule(rule)}
 ` };
         }
-        return { exitCode: 2, stderr: "Usage: bb doctrine <status|search|show|history|validate>\n" };
+        return { exitCode: 2, stderr: "Usage: bb doctrine <status|search|show|history|harvest|validate>\n" };
       } catch (error51) {
         return { exitCode: 1, stderr: `${error51 instanceof Error ? error51.message : String(error51)}
 ` };
