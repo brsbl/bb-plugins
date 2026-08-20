@@ -17,12 +17,17 @@ import {
 
 const execFileAsync = promisify(execFile);
 const HARVEST_AGENT_TIMEOUT_MS = 15 * 60 * 1_000;
+const COUNTER_FLUSH_MS = 60_000;
+const RETRIEVAL_COUNTER_KEY = "retrieval:counters:v1";
+export const DOCTRINE_POINTER =
+  "This user maintains a personal Design Doctrine of product, UX, UI, visual-design, " +
+  "design-system, and AI-interaction decisions. Before settling any such decision, call " +
+  "design_doctrine_search with a plain description of the task and surface.";
 const MODULE_DIR = dirname(fileURLToPath(import.meta.url));
 const DEFAULT_DOCTRINE_PATH =
   basename(MODULE_DIR) === "dist" ? dirname(MODULE_DIR) : MODULE_DIR;
 const WATCH_INTERVAL_MS = 2_500;
 const SEARCH_RESULT_LIMIT = 24;
-const AUTOMATIC_RULE_LIMIT = 4;
 const SEARCH_STOP_TOKENS = new Set([
   "build",
   "change",
@@ -522,30 +527,6 @@ export function formatAgentSearchResults(rules: DoctrineRule[]): string {
     .join("\n\n");
 }
 
-export function automaticDoctrineGuidance(
-  rules: DoctrineRule[],
-  threadTitle: string | null,
-): string | undefined {
-  if (!threadTitle) return undefined;
-  const titleTokens = new Set(tokenize(threadTitle));
-  if (![...titleTokens].some((token) => DESIGN_CONTEXT_TOKENS.has(token))) {
-    return undefined;
-  }
-  const matches = searchDoctrine(rules, threadTitle).slice(
-    0,
-    AUTOMATIC_RULE_LIMIT,
-  );
-  if (matches.length === 0) return undefined;
-  return [
-    "Design Doctrine candidates inferred from the thread title:",
-    ...matches.map(
-      (rule) =>
-        `- ${rule.id} (${rule.strength}): ${rule.title} — ${rule.statement}`,
-    ),
-    "Validate each rule's Use when and exceptions against the current request. Current user instructions and hard product constraints win. Use design_doctrine_search when the exact task needs different guidance; cite IDs only when they materially affect a decision.",
-  ].join("\n");
-}
-
 export async function gitStatusFingerprint(rootInput: string): Promise<string> {
   const root = expandPath(rootInput);
   try {
@@ -658,13 +639,11 @@ export default async function plugin(bb: BbPluginApi) {
   let cacheGeneration = 0;
   let cached: { root: string; value: LibraryPayload } | null = null;
   let loading: Promise<LibraryPayload> | null = null;
-  let automaticRules: DoctrineRule[] = [];
 
   function invalidate(): void {
     cacheGeneration += 1;
     cached = null;
     loading = null;
-    automaticRules = [];
   }
 
   async function currentLibrary(): Promise<LibraryPayload> {
@@ -678,7 +657,6 @@ export default async function plugin(bb: BbPluginApi) {
       const value = await request;
       if (generation === cacheGeneration) {
         cached = { root, value };
-        automaticRules = value.rules;
       }
       return value;
     } finally {
@@ -691,6 +669,23 @@ export default async function plugin(bb: BbPluginApi) {
     async () => expandPath((await settings.get()).doctrinePath),
     DEFAULT_DOCTRINE_PATH,
   );
+  // Directional only: configure() runs per turn, and one session may call the
+  // tool several times, so these do not divide into a rate. They answer whether
+  // the tool is called at all.
+  let counters = { pointer_issued: 0, search_called: 0 };
+  let countersDirty = false;
+
+  async function loadCounters(): Promise<void> {
+    const stored = await bb.storage.kv.get<typeof counters>(RETRIEVAL_COUNTER_KEY);
+    if (stored) counters = { ...counters, ...stored };
+  }
+
+  async function flushCounters(): Promise<void> {
+    if (!countersDirty) return;
+    countersDirty = false;
+    await bb.storage.kv.set(RETRIEVAL_COUNTER_KEY, counters);
+  }
+
   const harvest = createHarvest({
     bb,
     resolveDoctrineRoot: async () =>
@@ -773,32 +768,34 @@ export default async function plugin(bb: BbPluginApi) {
     description:
       "Search the user's active Design Doctrine rules for a product, UX, UI, visual-design, design-system, or AI-interaction task.",
     instructions:
-      "Use this when automatic Design Doctrine guidance does not cover the exact task. Apply only rules whose Use when fits; current user instructions and hard constraints outrank doctrine.",
+      "Call this before settling a product, UX, UI, visual-design, design-system, or AI-interaction decision — including during implementation and review, not only when designing. Query with the task and surface in plain words. Apply only rules whose Use when fits; the user's current instructions and hard product, accessibility, and platform constraints outrank doctrine.",
     parameters: z.object({
       query: z.string().trim().min(2).max(500),
       limit: z.number().int().min(1).max(8).default(6),
     }),
     async execute({ query, limit }) {
+      counters.search_called += 1;
+      countersDirty = true;
       const library = await currentLibrary();
       return formatAgentSearchResults(
         searchDoctrine(library.rules, query).slice(0, limit),
       );
     },
   });
+  await loadCounters().catch(() => undefined);
   try {
     await currentLibrary();
   } catch (error) {
     bb.log.warn(error instanceof Error ? error.message : String(error));
   }
-  bb.agents.configure(({ thread }) => {
-    const instructions = automaticDoctrineGuidance(
-      automaticRules,
-      thread.title,
-    );
+  bb.agents.configure(() => {
+    // Synchronous and on the thread-start path: increment in memory only.
+    counters.pointer_issued += 1;
+    countersDirty = true;
     return {
       tools: ["design_doctrine_search"],
       skills: ["design-doctrine"],
-      ...(instructions ? { instructions } : {}),
+      instructions: DOCTRINE_POINTER,
     };
   });
   bb.cli.register({
@@ -962,12 +959,13 @@ export default async function plugin(bb: BbPluginApi) {
             rules: library.rules.length,
             statuses: library.status_counts,
             git: library.git,
+            retrieval: { ...counters },
           };
           return {
             exitCode: 0,
             stdout: json
               ? `${JSON.stringify(summary, null, 2)}\n`
-              : `${summary.rules} rules (${Object.entries(summary.statuses).map(([status, count]) => `${count} ${status}`).join(", ")})\nRepository: ${summary.root}\n`,
+              : `${summary.rules} rules (${Object.entries(summary.statuses).map(([status, count]) => `${count} ${status}`).join(", ")})\nRepository: ${summary.root}\nRetrieval: ${summary.retrieval.pointer_issued} pointers, ${summary.retrieval.search_called} searches\n`,
           };
         }
         if (command === "search") {
@@ -1004,6 +1002,7 @@ export default async function plugin(bb: BbPluginApi) {
       while (!signal.aborted) {
         await sleep(WATCH_INTERVAL_MS, signal);
         if (signal.aborted) break;
+        await flushCounters().catch(() => undefined);
         const next = await watchFingerprint((await settings.get()).doctrinePath);
         if (next !== fingerprint) {
           fingerprint = next;

@@ -20,7 +20,7 @@ import {
   toggledRulePath,
 } from "./app-logic";
 import {
-  automaticDoctrineGuidance,
+  DOCTRINE_POINTER,
   gitStatusFingerprint,
   loadDoctrine,
   readGit,
@@ -134,24 +134,11 @@ describe("design doctrine library", () => {
     ).not.toContain("ddr_031");
   });
 
-  it("preselects a bounded rule set only for design-oriented thread titles", async () => {
-    const library = await loadDoctrine(process.cwd());
-
-    expect(
-      automaticDoctrineGuidance(
-        library.rules,
-        "Redesign the compact utility toolbar",
-      ),
-    ).toContain("ddr_001");
-    expect(
-      automaticDoctrineGuidance(library.rules, "Redesign the login flow"),
-    ).toContain("Design Doctrine candidates inferred from the thread title");
-    expect(
-      automaticDoctrineGuidance(
-        library.rules,
-        "Repair Linux dependency publishing",
-      ),
-    ).toBeUndefined();
+  it("points at the search tool instead of preselecting rules", () => {
+    // Retrieval is agent-initiated: nothing is injected but the pointer.
+    expect(DOCTRINE_POINTER).toContain("design_doctrine_search");
+    expect(DOCTRINE_POINTER).not.toContain("ddr_");
+    expect(DOCTRINE_POINTER.length).toBeLessThan(320);
   });
 
   it("uses scoped single-episode rules without an approval queue", async () => {

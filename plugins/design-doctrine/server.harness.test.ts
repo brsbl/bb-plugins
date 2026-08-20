@@ -105,8 +105,13 @@ describe("Design Doctrine plugin contract", () => {
     expect(configuration.tools.map(({ name }) => name)).toEqual([
       "design_doctrine_search",
     ]);
-    expect(configuration.instructions).toContain("ddr_001");
+    expect(configuration.instructions).toContain("design_doctrine_search");
     expect(toolResult).toContain("ddr_001");
+
+    const status = await harness.behavior.runCli(["status", "--json"]);
+    const retrieval = JSON.parse(status.stdout).retrieval;
+    expect(retrieval.pointer_issued).toBeGreaterThan(0);
+    expect(retrieval.search_called).toBeGreaterThan(0);
     expect(toolResult).toContain("Use when:");
     await expect(
       harness.behavior.callAgentTool("design_doctrine_search", {
@@ -125,7 +130,7 @@ describe("Design Doctrine plugin contract", () => {
       await harness.behavior.resolveAgentConfiguration(
         agentContext("Redesign the compact utility toolbar"),
       );
-    expect(unavailableConfiguration.instructions).toBeNull();
+    expect(unavailableConfiguration.instructions).toContain("design_doctrine_search");
     expect(unavailableConfiguration.skills).toEqual(["design-doctrine"]);
     expect(unavailableConfiguration.tools.map(({ name }) => name)).toEqual([
       "design_doctrine_search",
@@ -154,7 +159,7 @@ describe("Design Doctrine plugin contract", () => {
     const configuration = await harness.behavior.resolveAgentConfiguration(
       agentContext("Redesign the compact utility toolbar"),
     );
-    expect(configuration.instructions).toBeNull();
+    expect(configuration.instructions).toContain("design_doctrine_search");
     await vi.waitFor(() => {
       expect(harness.inspection.logEntries).toContainEqual(
         expect.objectContaining({

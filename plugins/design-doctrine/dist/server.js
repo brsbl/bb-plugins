@@ -16018,11 +16018,12 @@ function createHarvest(dependencies) {
 // server.ts
 var execFileAsync2 = promisify2(execFile2);
 var HARVEST_AGENT_TIMEOUT_MS = 15 * 60 * 1e3;
+var RETRIEVAL_COUNTER_KEY = "retrieval:counters:v1";
+var DOCTRINE_POINTER = "This user maintains a personal Design Doctrine of product, UX, UI, visual-design, design-system, and AI-interaction decisions. Before settling any such decision, call design_doctrine_search with a plain description of the task and surface.";
 var MODULE_DIR = dirname(fileURLToPath(import.meta.url));
 var DEFAULT_DOCTRINE_PATH = basename(MODULE_DIR) === "dist" ? dirname(MODULE_DIR) : MODULE_DIR;
 var WATCH_INTERVAL_MS = 2500;
 var SEARCH_RESULT_LIMIT = 24;
-var AUTOMATIC_RULE_LIMIT = 4;
 var SEARCH_STOP_TOKENS = /* @__PURE__ */ new Set([
   "build",
   "change",
@@ -16452,25 +16453,6 @@ function formatAgentSearchResults(rules) {
     return lines.join("\n");
   }).join("\n\n");
 }
-function automaticDoctrineGuidance(rules, threadTitle) {
-  if (!threadTitle) return void 0;
-  const titleTokens = new Set(tokenize(threadTitle));
-  if (![...titleTokens].some((token) => DESIGN_CONTEXT_TOKENS.has(token))) {
-    return void 0;
-  }
-  const matches = searchDoctrine(rules, threadTitle).slice(
-    0,
-    AUTOMATIC_RULE_LIMIT
-  );
-  if (matches.length === 0) return void 0;
-  return [
-    "Design Doctrine candidates inferred from the thread title:",
-    ...matches.map(
-      (rule) => `- ${rule.id} (${rule.strength}): ${rule.title} \u2014 ${rule.statement}`
-    ),
-    "Validate each rule's Use when and exceptions against the current request. Current user instructions and hard product constraints win. Use design_doctrine_search when the exact task needs different guidance; cite IDs only when they materially affect a decision."
-  ].join("\n");
-}
 async function gitStatusFingerprint(rootInput) {
   const root = expandPath(rootInput);
   try {
@@ -16570,12 +16552,10 @@ async function plugin(bb) {
   let cacheGeneration = 0;
   let cached2 = null;
   let loading = null;
-  let automaticRules = [];
   function invalidate() {
     cacheGeneration += 1;
     cached2 = null;
     loading = null;
-    automaticRules = [];
   }
   async function currentLibrary() {
     const root = expandPath((await settings.get()).doctrinePath);
@@ -16588,7 +16568,6 @@ async function plugin(bb) {
       const value = await request;
       if (generation === cacheGeneration) {
         cached2 = { root, value };
-        automaticRules = value.rules;
       }
       return value;
     } finally {
@@ -16600,6 +16579,17 @@ async function plugin(bb) {
     async () => expandPath((await settings.get()).doctrinePath),
     DEFAULT_DOCTRINE_PATH
   );
+  let counters = { pointer_issued: 0, search_called: 0 };
+  let countersDirty = false;
+  async function loadCounters() {
+    const stored = await bb.storage.kv.get(RETRIEVAL_COUNTER_KEY);
+    if (stored) counters = { ...counters, ...stored };
+  }
+  async function flushCounters() {
+    if (!countersDirty) return;
+    countersDirty = false;
+    await bb.storage.kv.set(RETRIEVAL_COUNTER_KEY, counters);
+  }
   const harvest = createHarvest({
     bb,
     resolveDoctrineRoot: async () => expandPath((await settings.get()).doctrinePath),
@@ -16663,32 +16653,33 @@ async function plugin(bb) {
   bb.agents.registerTool({
     name: "design_doctrine_search",
     description: "Search the user's active Design Doctrine rules for a product, UX, UI, visual-design, design-system, or AI-interaction task.",
-    instructions: "Use this when automatic Design Doctrine guidance does not cover the exact task. Apply only rules whose Use when fits; current user instructions and hard constraints outrank doctrine.",
+    instructions: "Call this before settling a product, UX, UI, visual-design, design-system, or AI-interaction decision \u2014 including during implementation and review, not only when designing. Query with the task and surface in plain words. Apply only rules whose Use when fits; the user's current instructions and hard product, accessibility, and platform constraints outrank doctrine.",
     parameters: external_exports.object({
       query: external_exports.string().trim().min(2).max(500),
       limit: external_exports.number().int().min(1).max(8).default(6)
     }),
     async execute({ query, limit }) {
+      counters.search_called += 1;
+      countersDirty = true;
       const library = await currentLibrary();
       return formatAgentSearchResults(
         searchDoctrine(library.rules, query).slice(0, limit)
       );
     }
   });
+  await loadCounters().catch(() => void 0);
   try {
     await currentLibrary();
   } catch (error51) {
     bb.log.warn(error51 instanceof Error ? error51.message : String(error51));
   }
-  bb.agents.configure(({ thread }) => {
-    const instructions = automaticDoctrineGuidance(
-      automaticRules,
-      thread.title
-    );
+  bb.agents.configure(() => {
+    counters.pointer_issued += 1;
+    countersDirty = true;
     return {
       tools: ["design_doctrine_search"],
       skills: ["design-doctrine"],
-      ...instructions ? { instructions } : {}
+      instructions: DOCTRINE_POINTER
     };
   });
   bb.cli.register({
@@ -16854,13 +16845,15 @@ async function plugin(bb) {
             root: library.root,
             rules: library.rules.length,
             statuses: library.status_counts,
-            git: library.git
+            git: library.git,
+            retrieval: { ...counters }
           };
           return {
             exitCode: 0,
             stdout: json2 ? `${JSON.stringify(summary, null, 2)}
 ` : `${summary.rules} rules (${Object.entries(summary.statuses).map(([status, count]) => `${count} ${status}`).join(", ")})
 Repository: ${summary.root}
+Retrieval: ${summary.retrieval.pointer_issued} pointers, ${summary.retrieval.search_called} searches
 `
           };
         }
@@ -16902,6 +16895,7 @@ Repository: ${summary.root}
       while (!signal.aborted) {
         await sleep(WATCH_INTERVAL_MS, signal);
         if (signal.aborted) break;
+        await flushCounters().catch(() => void 0);
         const next = await watchFingerprint((await settings.get()).doctrinePath);
         if (next !== fingerprint) {
           fingerprint = next;
@@ -16930,7 +16924,7 @@ Repository: ${summary.root}
   });
 }
 export {
-  automaticDoctrineGuidance,
+  DOCTRINE_POINTER,
   plugin as default,
   formatAgentSearchResults,
   gitStatusFingerprint,
