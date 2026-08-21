@@ -13,7 +13,8 @@
   ],
   "scripts": {
     "build": "node ../../tooling/build-plugin.mjs",
-    "check": "npm run typecheck && npm run build && npm test",
+    "check": "npm run typecheck && npm run build && npm run audit && npm test",
+    "audit": "python3 build/palette.py",
     "test": "vitest run",
     "typecheck": "tsc --noEmit"
   },

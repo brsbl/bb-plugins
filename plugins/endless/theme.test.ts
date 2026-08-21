@@ -1,4 +1,8 @@
+import { spawnSync } from "node:child_process";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { readFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { resolve } from "node:path";
 
 import { describe, expect, it } from "vitest";
@@ -61,6 +65,20 @@ describe("Endless theme contribution", () => {
       const c = cssFor(t);
       expect(c).not.toContain("file://");
       expect(c).not.toMatch(/\/Users\/|\/home\/|[A-Z]:\\/);
+    }
+  });
+
+  it("fails the generated-theme contrast audit when a text pair falls below its floor", () => {
+    const directory = mkdtempSync(join(tmpdir(), "endless-contrast-"));
+    try {
+      const fixture = resolve(directory, "failing.css");
+      writeFileSync(fixture, css.replace("--foreground: #0a0a0a;", "--foreground: #b0b0b0;"));
+      const audit = spawnSync("python3", [resolve(__dirname, "build/palette.py"), fixture], {
+        encoding: "utf8",
+      });
+      expect(audit.status, `${audit.stdout}\n${audit.stderr}`).not.toBe(0);
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
     }
   });
 });

@@ -224,7 +224,7 @@ DARK_OVERRIDE = """
   --foreground: #c9c9c9;          /* 11.49:1 — inside the family band; #e8e8e8 haloed */
   --muted-foreground: #a6a6a6;    /* 7.82:1 */
   --readback-foreground: #969696; /* 6.43:1 */
-  --subtle-foreground: #868686;   /* 5.23:1 · 4.53:1 on the floating step */
+  --subtle-foreground: #888888;   /* 5.28:1 canvas · 4.54:1 on the floating step */
   --sidebar-foreground: #c5c5c5;  /* 11.81:1 — in band on the deeper field */
   --sidebar-accent: #121212;
   --sidebar-accent-foreground: #c5c5c5;
