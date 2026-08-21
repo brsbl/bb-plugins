@@ -30,13 +30,20 @@ color.
 
 ## The family
 
-`endless-color` is generated from the `endless` stylesheet plus one appended
-light-only block (`src` in the authoring workspace), and a test asserts that
-derivation byte-for-byte. Radius, type, dark mode, the sidebar noise and every
+`endless-color` is generated from the `endless` stylesheet plus appended
+light and dark override blocks in [`build/build-color.py`](build/build-color.py),
+and a test asserts that derivation byte-for-byte. Radius, type, the sidebar
+material and every
 structural rule are therefore shared by construction — the variant can only
 differ where it deliberately overrides: the silver field, the stair accents
 (light blue, mustard, orange, red, olive), the foil violet, and the plywood
 trim.
+
+The complete generators and reference imagery live in [`build/`](build/),
+outside the package `files` allowlist so installed plugins do not carry the
+authoring sources. [`build/PROVENANCE.md`](build/PROVENANCE.md) records each
+measured colour, its source region, exact value, and nearest pixel in the
+committed image.
 
 Type across the family follows the album's liner notes: Helvetica for the UI,
 Courier for code, paths and terminals. Both are system faces — nothing is
@@ -74,11 +81,11 @@ where color is load-bearing rather than decorative.
 
 ## Notes for anyone editing the stylesheet
 
-**No grain.** Earlier builds carried a fractal-noise film grain, and both
-`--canvas` anchors were set past their targets to compensate for the lift it
-added. The grain is gone by request, so the anchors are now the field values
-directly — `#161619` dark and `#f0efeb` light. Every contrast ratio in the
-stylesheet is unchanged and still measured against the colour you actually see.
+**Canvas grain stays off.** Earlier builds raised both `--canvas` anchors to
+compensate for a page-wide film-grain overlay. The canvas is now the measured
+field directly. The sidebar keeps a separate paper mottle in light mode and a
+zero-mean highlight/shadow grain in dark mode, so its texture does not lift the
+surface away from the contrast value being tested.
 
 **Panels sit above the field.** In dark mode cards, popovers and code wells sit
 a step above the canvas rather than below it — the cover's own logic, where the
@@ -101,11 +108,9 @@ this theme's toned monochrome. A matching pair exists and works when the palette
 is installed the other way, as a custom theme folder under
 `<bb-data-dir>/theme/endless/` alongside `pierre-dark.json` / `pierre-light.json`.
 
-**Fonts are base64.** bb hands a theme's CSS to the client as an inline string,
-so a relative `url()` resolves against the app document rather than this
-directory, and an absolute path only exists on the machine that authored it.
-Inlining is the only form that survives installation. `theme.test.ts` fails the
-build if a machine-specific path reappears.
+**Fonts are system-native.** The family uses Helvetica Neue and Courier with
+portable fallbacks; it embeds no font files. `theme.test.ts` fails the build if
+a machine-specific path appears in either generated stylesheet.
 
 ## Develop
 
@@ -113,6 +118,8 @@ From the monorepo root:
 
 ```bash
 npm ci
+python3 plugins/endless/build/build.py 0.13 0.18 plugins/endless/themes/endless.css local
+python3 plugins/endless/build/build-color.py plugins/endless/themes/endless-color.css plugins/endless/themes/endless.css
 npm run check --workspace=bb-plugin-endless
 bb plugin install "path:$PWD/plugins/endless" --yes
 ```

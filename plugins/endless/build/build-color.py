@@ -219,7 +219,7 @@ DARK_OVERRIDE = """
   --muted: #161616;
   --surface-recessed-solid: #191919;
   --surface-recessed-soft-solid: #161616;
-  --surface-scrim: rgba(18, 16, 22, 0.92);
+  --surface-scrim: rgba(18, 18, 18, 0.92);   /* matches the neutral canvas — the old value still carried the UV tint */
 
   --foreground: #c9c9c9;          /* 11.49:1 — inside the family band; #e8e8e8 haloed */
   --muted-foreground: #a6a6a6;    /* 7.82:1 */
@@ -267,23 +267,25 @@ DARK_OVERRIDE = """
   --border-seam: rgba(255, 255, 255, 0.10);
   --border-seam-vertical: rgba(255, 255, 255, 0.10);
   --input: rgba(255, 255, 255, 0.14);               /* neutral edge — the orange belongs to the seam and the primary, not every field */
-  --sidebar-border: rgba(255, 106, 31, 0.60);       /* the piping — lit */
+  --sidebar-border: rgba(255, 255, 255, 0.10);   /* neutral seam — orange stays on primary and the active row */
   --state-hover: rgba(255, 106, 31, 0.07);          /* hover = lit */
   --state-active: rgba(255, 106, 31, 0.14);
 
   /* NEON GLOW. Raised surfaces under blacklight glow at the edges — an
    * orange halo with a blue undertone, instead of the base family's lit-rim
-   * register shadows. */
+   * register shadows. Raised surfaces carry neutral black elevation with a
+   * faint white rim — no coloured glow; orange and blue stay on the things that
+   * are lit, not on the air around them. */
   /* Halved from the first pass — the halo was reading as an alert, not a
    * glow. Ring stays legible; the bloom is a suggestion. */
-  --shadow-color: rgba(255, 106, 31, 0.13);
-  --shadow-2xs: 0px 1px 3px 0px rgba(255, 106, 31, 0.08);
-  --shadow-xs: 0px 1px 3px 0px rgba(255, 106, 31, 0.08);
-  --shadow-sm: 0 0 0 1px rgba(255, 255, 255, 0.08), 0px 2px 10px -1px rgba(255, 106, 31, 0.10), 0px 1px 4px 0px rgba(47, 180, 255, 0.05);
-  --shadow: 0 0 0 1px rgba(255, 255, 255, 0.08), 0px 2px 10px -1px rgba(255, 106, 31, 0.10), 0px 1px 4px 0px rgba(47, 180, 255, 0.05);
-  --shadow-md: 0 0 0 1px rgba(255, 255, 255, 0.08), 0px 4px 16px -2px rgba(255, 106, 31, 0.13), 0px 2px 8px -1px rgba(47, 180, 255, 0.06);
-  --shadow-lg: 0 0 0 1px rgba(255, 255, 255, 0.08), 0px 8px 26px -4px rgba(255, 106, 31, 0.16), 0px 3px 12px -2px rgba(47, 180, 255, 0.07);
-  --shadow-xl: 0 0 0 1px rgba(255, 255, 255, 0.08), 0px 12px 36px -6px rgba(255, 106, 31, 0.18), 0px 4px 14px -2px rgba(47, 180, 255, 0.08);
+  --shadow-color: rgba(0, 0, 0, 0.75);
+  --shadow-2xs: 0px 1px 0px 0px rgba(0, 0, 0, 0.55);
+  --shadow-xs: 0px 1px 0px 0px rgba(0, 0, 0, 0.55);
+  --shadow-sm: 0 0 0 1px rgba(255, 255, 255, 0.06), 0px 1px 3px -1px rgba(0, 0, 0, 0.70);
+  --shadow: 0 0 0 1px rgba(255, 255, 255, 0.06), 0px 1px 3px -1px rgba(0, 0, 0, 0.70);
+  --shadow-md: 0 0 0 1px rgba(255, 255, 255, 0.07), 0px 3px 10px -2px rgba(0, 0, 0, 0.75);
+  --shadow-lg: 0 0 0 1px rgba(255, 255, 255, 0.08), 0px 6px 20px -4px rgba(0, 0, 0, 0.80);
+  --shadow-xl: 0 0 0 1px rgba(255, 255, 255, 0.09), 0px 10px 30px -6px rgba(0, 0, 0, 0.85);
 
   --pill-surface: linear-gradient(to bottom, rgba(255, 106, 31, 0.08), rgba(255, 106, 31, 0.16));
   --pill-surface-selected: linear-gradient(to bottom, rgba(255, 106, 31, 0.22), rgba(255, 106, 31, 0.34));
@@ -340,7 +342,7 @@ SEAM_RULE = """
 
   --border: rgba(255, 255, 255, 0.05);
   --border-hairline: rgba(255, 255, 255, 0.025);
-  --sidebar-border: rgba(255, 106, 31, 0.40);
+  --sidebar-border: rgba(255, 255, 255, 0.10);   /* neutral seam — orange stays on primary and the active row */
 
   --state-hover: rgba(255, 106, 31, 0.07);  /* hover = lit, like the content */
   --state-active: rgba(255, 106, 31, 0.13);
@@ -352,7 +354,7 @@ SEAM_RULE = """
 
 /* The lit seam — the piping that defines the blacklight frame. */
 .dark .fixed.bg-sidebar {
-  box-shadow: inset -1px 0 0 0 rgba(255, 106, 31, 0.85);
+  box-shadow: none;
 }
 """
 

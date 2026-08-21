@@ -534,3 +534,23 @@
 code:not(pre code) {
   font-weight: 600;
 }
+
+/* MESSAGE NAVIGATOR (the "Agent messages / Your messages" popover, bb id
+ * thread-toc-panel-*). It sits over the timeline like a hung sheet of the
+ * sidebar's material: same fill as the sidebar, with a light source at the top
+ * edge — a soft sheen falling off by a third of the panel, and a 1px inner
+ * highlight where the light catches the lip. --popover is remapped inside so
+ * the panel's own fade gradients and children stay on the same surface. */
+[id^="thread-toc-panel-"] {
+  --popover: var(--sidebar);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.55), rgba(255, 255, 255, 0.18) 18%, rgba(255, 255, 255, 0) 38%),
+    var(--sidebar);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.85), 0 8px 24px -8px rgba(22, 22, 22, 0.25);
+}
+.dark [id^="thread-toc-panel-"] {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.07), rgba(255, 255, 255, 0.025) 18%, rgba(255, 255, 255, 0) 38%),
+    var(--sidebar);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.09), 0 8px 24px -8px rgba(0, 0, 0, 0.6);
+}
