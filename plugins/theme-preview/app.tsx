@@ -583,19 +583,19 @@ function Frame({ view, fitBoth = false }: { view: View; fitBoth?: boolean }) {
 }
 
 // ---------------------------------------------------------------------------
-// Style guide — a dense table rather than a wall of cards. The rail keeps a
-// compact live summary while the complete palette uses the wide sheet below
-// the mock. Values include sidebar-scoped overrides a theme may apply.
+// Style guide — a dense table rather than a wall of cards. Surface values and
+// the working theme picker live in the rail; visual component specimens and
+// the remaining token families use the wide sheet below the mock.
 // ---------------------------------------------------------------------------
 
-const GROUPS: ReadonlyArray<{ title: string; tokens: readonly string[] }> = [
-  { title: "Surfaces", tokens: ["canvas", "sidebar", "card", "popover", "secondary", "muted", "surface-recessed-solid", "surface-scrim"] },
+const SURFACE_TOKENS = ["canvas", "sidebar", "card", "popover", "secondary", "muted", "surface-recessed-solid", "surface-scrim"] as const;
+const GUIDE_GROUPS: ReadonlyArray<{ title: string; tokens: readonly string[] }> = [
   { title: "Ink", tokens: ["foreground", "muted-foreground", "subtle-foreground", "readback-foreground", "sidebar-foreground"] },
   { title: "Accent", tokens: ["primary", "file-accent", "timeline-accent", "surface-selected", "state-hover", "state-active"] },
   { title: "Status", tokens: ["success", "warning", "destructive", "pr-merged", "diff-added", "diff-removed"] },
   { title: "Lines", tokens: ["border", "border-hairline", "border-seam", "sidebar-border", "input", "ring"] },
 ];
-const ALL_TOKENS = GROUPS.flatMap((group) => group.tokens);
+const ALL_TOKENS = [...SURFACE_TOKENS, ...GUIDE_GROUPS.flatMap((group) => group.tokens)];
 
 type Computed = Record<string, { value: string; hex: string; rgb: string; sidebar: string | null }>;
 
@@ -727,41 +727,19 @@ function TypeSpecimen() {
   );
 }
 
-const SUMMARY_TOKENS = ["primary", "file-accent", "success", "warning", "destructive", "pr-merged"] as const;
-
-function SummarySwatch({ name, computed }: { name: string; computed: Computed }) {
-  const token = computed[name];
-  return (
-    <div style={{ minWidth: 0, display: "flex", alignItems: "center", gap: 7 }}>
-      <span
-        title={token?.value}
-        style={{ width: 20, height: 15, borderRadius: 4, flex: "none", background: token?.value ? v(name) : "transparent", boxShadow: `inset 0 0 0 1px ${v("border-hairline", v("border"))}` }}
-      />
-      <span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontFamily: MONO, fontSize: 10.5, color: v("muted-foreground") }}>{name}</span>
-    </div>
-  );
-}
-
-function InspectorSummary({ computed }: { computed: Computed }) {
+function SurfaceControls({ computed, catalog, mode, onPick }: { computed: Computed; catalog: Catalog; mode: Mode; onPick: (themeId: string, mode: Mode) => void }) {
   return (
     <div>
       <div style={{ display: "flex", alignItems: "baseline", gap: 8, minHeight: 22, marginBottom: 12 }}>
-        <span style={{ fontSize: 13, fontWeight: 650, letterSpacing: "-0.005em" }}>At a glance</span>
-        <span style={{ fontSize: 10.5, color: v("muted-foreground") }}>details below</span>
+        <span style={{ fontSize: 13, fontWeight: 650, letterSpacing: "-0.005em" }}>Theme surfaces</span>
+        <span style={{ fontSize: 10.5, color: v("muted-foreground") }}>live values</span>
       </div>
-      <GuideBlock title="Type" note="live faces">
-        <TypeSpecimen />
+      <GuideBlock title="Theme" note="applies live">
+        <ThemePicker catalog={catalog} mode={mode} onPick={onPick} />
       </GuideBlock>
-      <GuideBlock title="Signals">
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: "8px 10px" }}>
-          {SUMMARY_TOKENS.map((token) => <SummarySwatch key={token} name={token} computed={computed} />)}
-        </div>
-      </GuideBlock>
-      <GuideBlock title="Contrast" note="WCAG body floor 4.5:1">
+      <GuideBlock title="Surfaces" note="amber = sidebar override">
         <div style={{ display: "flex", flexDirection: "column", gap: 1 }}>
-          <TokenRow name="foreground" computed={computed} contrastAgainst="canvas" />
-          <TokenRow name="muted-foreground" computed={computed} contrastAgainst="canvas" />
-          <TokenRow name="sidebar-foreground" computed={computed} contrastAgainst="sidebar" />
+          {SURFACE_TOKENS.map((token) => <TokenRow key={token} name={token} computed={computed} />)}
         </div>
       </GuideBlock>
     </div>
@@ -772,12 +750,12 @@ function StyleGuide({ computed }: { computed: Computed }) {
   return (
     <div>
       <div style={{ display: "flex", alignItems: "baseline", gap: 9, minHeight: 22, marginBottom: 14 }}>
-        <span style={{ fontSize: 13, fontWeight: 650, letterSpacing: "-0.005em" }}>Full style guide</span>
-        <span style={{ fontSize: 11, color: v("muted-foreground") }}>live token readout + 1:1 states</span>
+        <span style={{ fontSize: 13, fontWeight: 650, letterSpacing: "-0.005em" }}>Style guide</span>
+        <span style={{ fontSize: 11, color: v("muted-foreground") }}>visual specimens + live token readout</span>
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", columnGap: 24, alignItems: "start" }}>
 
-      <GuideBlock title="Controls" wide>
+      <GuideBlock title="Visual controls" note="preview only" wide>
         <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
           <Button size="sm">Default</Button><Button size="sm" variant="secondary">Secondary</Button>
           <Button size="sm" variant="outline">Outline</Button><Button size="sm" variant="destructive">Delete</Button>
@@ -788,11 +766,15 @@ function StyleGuide({ computed }: { computed: Computed }) {
         </div>
       </GuideBlock>
 
-      {GROUPS.map((group) => (
+      <GuideBlock title="Type" note="visual specimen">
+        <TypeSpecimen />
+      </GuideBlock>
+
+      {GUIDE_GROUPS.map((group) => (
         <GuideBlock
           key={group.title}
           title={group.title}
-          note={group.title === "Surfaces" ? "amber outline = sidebar-scoped" : group.title === "Ink" ? "ratio vs its surface · floor 4.5:1" : group.title === "Status" ? "ratio vs canvas" : undefined}
+          note={group.title === "Ink" ? "ratio vs its surface · floor 4.5:1" : group.title === "Status" ? "ratio vs canvas" : undefined}
         >
           <div style={{ display: "flex", flexDirection: "column", gap: 1 }}>
             {group.tokens.map((token) => (
@@ -1074,13 +1056,12 @@ function PreviewPage({ subPath }: { subPath: string }) {
         {layout.compact ? null : <span style={{ fontSize: 11.5, color: v("muted-foreground") }}>{VIEW_NOTE[view]}</span>}
         <div style={{ flex: 1 }} />
         {error ? <span style={{ fontSize: 12, color: v("destructive-text", v("destructive")) }}>{error}</span> : null}
-        <ThemePicker catalog={catalog} mode={mode} onPick={pick} />
       </div>
 
-      {/* The mock keeps the main stage. A narrow summary rail carries only the
-          signals worth monitoring while the full readout gets a wide sheet. */}
+      {/* The mock keeps the main stage. Surface values and the working picker
+          occupy the rail; visual specimens stay in the wide sheet below. */}
       <div
-        data-tp-layout={layout.compact ? "stacked" : "stage-with-summary"}
+        data-tp-layout={layout.compact ? "stacked" : "stage-with-surfaces"}
         style={{
           minHeight: 0, display: "grid",
           gridTemplateColumns: layout.compact ? "minmax(0, 1fr)" : "minmax(0, 1fr) 276px",
@@ -1093,7 +1074,7 @@ function PreviewPage({ subPath }: { subPath: string }) {
           <Frame view={view} fitBoth />
         </div>
         <div
-          data-tp-section="summary"
+          data-tp-section="surfaces"
           style={{
             minWidth: 0, padding: "16px 16px 20px",
             borderLeft: layout.compact ? undefined : `1px solid ${v("border-seam", v("border"))}`,
@@ -1101,7 +1082,7 @@ function PreviewPage({ subPath }: { subPath: string }) {
             background: v("surface-recessed-soft-solid", v("card")),
           }}
         >
-          <InspectorSummary computed={computed} />
+          <SurfaceControls computed={computed} catalog={catalog} mode={mode} onPick={pick} />
         </div>
       </div>
 

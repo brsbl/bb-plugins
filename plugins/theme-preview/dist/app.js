@@ -636,14 +636,14 @@ function Frame({ view, fitBoth = false }) {
     }
   ) });
 }
-var GROUPS = [
-  { title: "Surfaces", tokens: ["canvas", "sidebar", "card", "popover", "secondary", "muted", "surface-recessed-solid", "surface-scrim"] },
+var SURFACE_TOKENS = ["canvas", "sidebar", "card", "popover", "secondary", "muted", "surface-recessed-solid", "surface-scrim"];
+var GUIDE_GROUPS = [
   { title: "Ink", tokens: ["foreground", "muted-foreground", "subtle-foreground", "readback-foreground", "sidebar-foreground"] },
   { title: "Accent", tokens: ["primary", "file-accent", "timeline-accent", "surface-selected", "state-hover", "state-active"] },
   { title: "Status", tokens: ["success", "warning", "destructive", "pr-merged", "diff-added", "diff-removed"] },
   { title: "Lines", tokens: ["border", "border-hairline", "border-seam", "sidebar-border", "input", "ring"] }
 ];
-var ALL_TOKENS = GROUPS.flatMap((group) => group.tokens);
+var ALL_TOKENS = [...SURFACE_TOKENS, ...GUIDE_GROUPS.flatMap((group) => group.tokens)];
 function resolveColor(color) {
   const m = /rgba?\(([^)]+)\)/.exec(color);
   let channels = null;
@@ -762,43 +762,24 @@ function TypeSpecimen() {
     ] })
   ] });
 }
-var SUMMARY_TOKENS = ["primary", "file-accent", "success", "warning", "destructive", "pr-merged"];
-function SummarySwatch({ name, computed }) {
-  const token = computed[name];
-  return /* @__PURE__ */ jsxs("div", { style: { minWidth: 0, display: "flex", alignItems: "center", gap: 7 }, children: [
-    /* @__PURE__ */ jsx(
-      "span",
-      {
-        title: token?.value,
-        style: { width: 20, height: 15, borderRadius: 4, flex: "none", background: token?.value ? v(name) : "transparent", boxShadow: `inset 0 0 0 1px ${v("border-hairline", v("border"))}` }
-      }
-    ),
-    /* @__PURE__ */ jsx("span", { style: { minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontFamily: MONO, fontSize: 10.5, color: v("muted-foreground") }, children: name })
-  ] });
-}
-function InspectorSummary({ computed }) {
+function SurfaceControls({ computed, catalog, mode, onPick }) {
   return /* @__PURE__ */ jsxs("div", { children: [
     /* @__PURE__ */ jsxs("div", { style: { display: "flex", alignItems: "baseline", gap: 8, minHeight: 22, marginBottom: 12 }, children: [
-      /* @__PURE__ */ jsx("span", { style: { fontSize: 13, fontWeight: 650, letterSpacing: "-0.005em" }, children: "At a glance" }),
-      /* @__PURE__ */ jsx("span", { style: { fontSize: 10.5, color: v("muted-foreground") }, children: "details below" })
+      /* @__PURE__ */ jsx("span", { style: { fontSize: 13, fontWeight: 650, letterSpacing: "-0.005em" }, children: "Theme surfaces" }),
+      /* @__PURE__ */ jsx("span", { style: { fontSize: 10.5, color: v("muted-foreground") }, children: "live values" })
     ] }),
-    /* @__PURE__ */ jsx(GuideBlock, { title: "Type", note: "live faces", children: /* @__PURE__ */ jsx(TypeSpecimen, {}) }),
-    /* @__PURE__ */ jsx(GuideBlock, { title: "Signals", children: /* @__PURE__ */ jsx("div", { style: { display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: "8px 10px" }, children: SUMMARY_TOKENS.map((token) => /* @__PURE__ */ jsx(SummarySwatch, { name: token, computed }, token)) }) }),
-    /* @__PURE__ */ jsx(GuideBlock, { title: "Contrast", note: "WCAG body floor 4.5:1", children: /* @__PURE__ */ jsxs("div", { style: { display: "flex", flexDirection: "column", gap: 1 }, children: [
-      /* @__PURE__ */ jsx(TokenRow, { name: "foreground", computed, contrastAgainst: "canvas" }),
-      /* @__PURE__ */ jsx(TokenRow, { name: "muted-foreground", computed, contrastAgainst: "canvas" }),
-      /* @__PURE__ */ jsx(TokenRow, { name: "sidebar-foreground", computed, contrastAgainst: "sidebar" })
-    ] }) })
+    /* @__PURE__ */ jsx(GuideBlock, { title: "Theme", note: "applies live", children: /* @__PURE__ */ jsx(ThemePicker, { catalog, mode, onPick }) }),
+    /* @__PURE__ */ jsx(GuideBlock, { title: "Surfaces", note: "amber = sidebar override", children: /* @__PURE__ */ jsx("div", { style: { display: "flex", flexDirection: "column", gap: 1 }, children: SURFACE_TOKENS.map((token) => /* @__PURE__ */ jsx(TokenRow, { name: token, computed }, token)) }) })
   ] });
 }
 function StyleGuide({ computed }) {
   return /* @__PURE__ */ jsxs("div", { children: [
     /* @__PURE__ */ jsxs("div", { style: { display: "flex", alignItems: "baseline", gap: 9, minHeight: 22, marginBottom: 14 }, children: [
-      /* @__PURE__ */ jsx("span", { style: { fontSize: 13, fontWeight: 650, letterSpacing: "-0.005em" }, children: "Full style guide" }),
-      /* @__PURE__ */ jsx("span", { style: { fontSize: 11, color: v("muted-foreground") }, children: "live token readout + 1:1 states" })
+      /* @__PURE__ */ jsx("span", { style: { fontSize: 13, fontWeight: 650, letterSpacing: "-0.005em" }, children: "Style guide" }),
+      /* @__PURE__ */ jsx("span", { style: { fontSize: 11, color: v("muted-foreground") }, children: "visual specimens + live token readout" })
     ] }),
     /* @__PURE__ */ jsxs("div", { style: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", columnGap: 24, alignItems: "start" }, children: [
-      /* @__PURE__ */ jsx(GuideBlock, { title: "Controls", wide: true, children: /* @__PURE__ */ jsxs("div", { style: { display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }, children: [
+      /* @__PURE__ */ jsx(GuideBlock, { title: "Visual controls", note: "preview only", wide: true, children: /* @__PURE__ */ jsxs("div", { style: { display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }, children: [
         /* @__PURE__ */ jsx(Button, { size: "sm", children: "Default" }),
         /* @__PURE__ */ jsx(Button, { size: "sm", variant: "secondary", children: "Secondary" }),
         /* @__PURE__ */ jsx(Button, { size: "sm", variant: "outline", children: "Outline" }),
@@ -815,11 +796,12 @@ function StyleGuide({ computed }) {
         /* @__PURE__ */ jsx(Badge, { tone: "merged", children: "Merged" }),
         /* @__PURE__ */ jsx(Badge, { tone: "outline", children: "branch" })
       ] }) }),
-      GROUPS.map((group) => /* @__PURE__ */ jsx(
+      /* @__PURE__ */ jsx(GuideBlock, { title: "Type", note: "visual specimen", children: /* @__PURE__ */ jsx(TypeSpecimen, {}) }),
+      GUIDE_GROUPS.map((group) => /* @__PURE__ */ jsx(
         GuideBlock,
         {
           title: group.title,
-          note: group.title === "Surfaces" ? "amber outline = sidebar-scoped" : group.title === "Ink" ? "ratio vs its surface \xB7 floor 4.5:1" : group.title === "Status" ? "ratio vs canvas" : void 0,
+          note: group.title === "Ink" ? "ratio vs its surface \xB7 floor 4.5:1" : group.title === "Status" ? "ratio vs canvas" : void 0,
           children: /* @__PURE__ */ jsx("div", { style: { display: "flex", flexDirection: "column", gap: 1 }, children: group.tokens.map((token) => /* @__PURE__ */ jsx(
             TokenRow,
             {
@@ -1087,13 +1069,12 @@ function PreviewPage({ subPath }) {
       /* @__PURE__ */ jsx("div", { style: { display: "inline-flex", gap: 1, padding: 2, borderRadius: 8, background: v("surface-recessed", v("muted")) }, children: VIEWS.map((item) => /* @__PURE__ */ jsx(Toggle, { on: item === view, onChange: () => navigate.toPluginPanel("preview", { subPath: item }), children: VIEW_LABEL[item] }, item)) }),
       layout.compact ? null : /* @__PURE__ */ jsx("span", { style: { fontSize: 11.5, color: v("muted-foreground") }, children: VIEW_NOTE[view] }),
       /* @__PURE__ */ jsx("div", { style: { flex: 1 } }),
-      error ? /* @__PURE__ */ jsx("span", { style: { fontSize: 12, color: v("destructive-text", v("destructive")) }, children: error }) : null,
-      /* @__PURE__ */ jsx(ThemePicker, { catalog, mode, onPick: pick })
+      error ? /* @__PURE__ */ jsx("span", { style: { fontSize: 12, color: v("destructive-text", v("destructive")) }, children: error }) : null
     ] }),
     /* @__PURE__ */ jsxs(
       "div",
       {
-        "data-tp-layout": layout.compact ? "stacked" : "stage-with-summary",
+        "data-tp-layout": layout.compact ? "stacked" : "stage-with-surfaces",
         style: {
           minHeight: 0,
           display: "grid",
@@ -1107,7 +1088,7 @@ function PreviewPage({ subPath }) {
           /* @__PURE__ */ jsx(
             "div",
             {
-              "data-tp-section": "summary",
+              "data-tp-section": "surfaces",
               style: {
                 minWidth: 0,
                 padding: "16px 16px 20px",
@@ -1115,7 +1096,7 @@ function PreviewPage({ subPath }) {
                 borderTop: layout.compact ? `1px solid ${v("border-seam", v("border"))}` : void 0,
                 background: v("surface-recessed-soft-solid", v("card"))
               },
-              children: /* @__PURE__ */ jsx(InspectorSummary, { computed })
+              children: /* @__PURE__ */ jsx(SurfaceControls, { computed, catalog, mode, onPick: pick })
             }
           )
         ]
