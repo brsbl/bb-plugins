@@ -872,9 +872,13 @@ function ThemePicker({ catalog, mode, onPick }: { catalog: Catalog; mode: Mode; 
   );
 }
 
-// Light/dark is not part of bb's server-side appearance (palette + favicon
-// only) — it is a per-client preference — so the toggle flips the document's
-// `.dark` class, the selector every theme keys on.
+// Light/dark is a per-client preference in bb, stored in localStorage under
+// `bb.theme` as "light" | "dark" | "system" and mirrored onto the document's
+// `.dark` class. Writing the key (not just the class) is what makes the choice
+// stick and what keeps Settings → Appearance showing the same thing; the
+// storage event tells bb's own control to re-read it.
+const MODE_KEY = "bb.theme";
+
 function useColorMode(): [Mode, (next: Mode) => void] {
   const read = () => (document.documentElement.classList.contains("dark") ? "dark" : "light") as Mode;
   const [mode, setMode] = useState<Mode>(read);
@@ -884,6 +888,11 @@ function useColorMode(): [Mode, (next: Mode) => void] {
     return () => mo.disconnect();
   }, []);
   const set = (next: Mode) => {
+    const previous = localStorage.getItem(MODE_KEY);
+    localStorage.setItem(MODE_KEY, next);
+    // Same-document writes do not fire `storage`, so dispatch it ourselves for
+    // any listener in this window; other windows get the native event.
+    window.dispatchEvent(new StorageEvent("storage", { key: MODE_KEY, oldValue: previous, newValue: next, storageArea: localStorage }));
     document.documentElement.classList.toggle("dark", next === "dark");
     document.documentElement.style.colorScheme = next;
     setMode(next);

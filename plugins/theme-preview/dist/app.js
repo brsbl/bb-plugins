@@ -847,6 +847,7 @@ function ThemePicker({ catalog, mode, onPick }) {
     ] }, entry.id)) }) : null
   ] });
 }
+var MODE_KEY = "bb.theme";
 function useColorMode() {
   const read = () => document.documentElement.classList.contains("dark") ? "dark" : "light";
   const [mode, setMode] = useState(read);
@@ -856,6 +857,9 @@ function useColorMode() {
     return () => mo.disconnect();
   }, []);
   const set = (next) => {
+    const previous = localStorage.getItem(MODE_KEY);
+    localStorage.setItem(MODE_KEY, next);
+    window.dispatchEvent(new StorageEvent("storage", { key: MODE_KEY, oldValue: previous, newValue: next, storageArea: localStorage }));
     document.documentElement.classList.toggle("dark", next === "dark");
     document.documentElement.style.colorScheme = next;
     setMode(next);
