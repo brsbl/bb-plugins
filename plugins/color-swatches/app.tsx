@@ -98,15 +98,20 @@ function decorateWholeElement(el: HTMLElement): void {
   if (isColor(only.value)) decorate(el, only.value);
 }
 
+function matchesWithin(root: ParentNode, selector: string): Element[] {
+  const matches = Array.from(root.querySelectorAll?.(selector) ?? []);
+  return root instanceof Element && root.matches(selector) ? [root, ...matches] : matches;
+}
+
 function scan(root: ParentNode): void {
   // Re-scanning a streamed line must not leave yesterday's chips behind.
   for (const stale of Array.from(root.querySelectorAll?.(`[${ATTR}]`) ?? [])) undecorate(stale);
 
-  for (const line of Array.from(root.querySelectorAll?.(".sh__line") ?? [])) {
+  for (const line of matchesWithin(root, ".sh__line")) {
     if (line.closest(EXCLUDED)) continue;
     decorateTokenizedLine(line);
   }
-  for (const code of Array.from(root.querySelectorAll?.("code") ?? [])) {
+  for (const code of matchesWithin(root, "code")) {
     if (code.closest(EXCLUDED) || code.closest("pre")) continue;
     decorateWholeElement(code as HTMLElement);
   }
