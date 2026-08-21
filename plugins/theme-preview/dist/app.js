@@ -160,7 +160,7 @@ var VIEW_LABEL = {
   settings: "Settings"
 };
 var VIEW_NOTE = {
-  thread: "open thread \xB7 side panel \xB7 row menu, hover card, toast",
+  thread: "open thread \xB7 timeline TOC \xB7 side panel \xB7 row menu, hover card, toast",
   new: "empty state and composer",
   split: "two panes, one focused",
   settings: "page header, cards, controls"
@@ -417,7 +417,51 @@ function VerificationCard() {
     ] }, label))
   ] });
 }
-function Thread({ title = "Endless theme family \u2014 blacklight pass", active = true, narrow = false, empty = false, marker = false, children }) {
+function TimelineToc() {
+  const items = [
+    "Three blacks were fragmenting the frame\u2026",
+    "Selection now reads rgba(47,180,255,.20)\u2026",
+    "Tightened the raised surfaces and kept seams neutral\u2026"
+  ];
+  return /* @__PURE__ */ jsxs("div", { style: { position: "absolute", right: 10, top: 58, zIndex: 4, display: "flex", alignItems: "flex-start" }, children: [
+    /* @__PURE__ */ jsx(
+      "div",
+      {
+        id: "thread-toc-panel-preview",
+        style: {
+          position: "absolute",
+          right: 36,
+          top: 0,
+          width: 292,
+          paddingRight: 4
+        },
+        children: /* @__PURE__ */ jsxs("div", { "data-tp-toc": "panel", style: { padding: 4, borderRadius: 8, background: v("popover"), color: v("popover-foreground"), boxShadow: `inset 0 0 0 1px ${v("border")}, ${v("shadow-lg", "0 8px 24px rgba(0,0,0,.22)")}` }, children: [
+          /* @__PURE__ */ jsxs("div", { style: { display: "flex", alignItems: "center", gap: 2, paddingBottom: 4 }, children: [
+            /* @__PURE__ */ jsx("span", { style: { borderRadius: 6, padding: "5px 8px", background: v("state-hover"), color: v("foreground"), fontSize: 11.5, fontWeight: 600 }, children: "Agent messages" }),
+            /* @__PURE__ */ jsx("span", { style: { borderRadius: 6, padding: "5px 8px", color: v("muted-foreground"), fontSize: 11.5 }, children: "Your messages" })
+          ] }),
+          /* @__PURE__ */ jsx("div", { style: { display: "flex", flexDirection: "column" }, children: items.map((item, index) => /* @__PURE__ */ jsx(
+            "div",
+            {
+              style: {
+                borderRadius: 6,
+                padding: "6px 8px",
+                fontSize: 12,
+                lineHeight: "16px",
+                background: index === 1 ? v("state-hover") : void 0,
+                color: index === 1 ? v("foreground") : v("muted-foreground")
+              },
+              children: item
+            },
+            item
+          )) })
+        ] })
+      }
+    ),
+    /* @__PURE__ */ jsx("div", { "aria-label": "Thread table of contents", style: { width: 32, padding: "8px 0", display: "flex", flexDirection: "column", alignItems: "center", gap: 8 }, children: [12, 12, 20, 12, 12].map((width, index) => /* @__PURE__ */ jsx("span", { style: { width, height: 3, borderRadius: 999, background: index === 2 ? `color-mix(in srgb, ${v("foreground")} 70%, transparent)` : `color-mix(in srgb, ${v("foreground")} 20%, transparent)` } }, index)) })
+  ] });
+}
+function Thread({ title = "Endless theme family \u2014 blacklight pass", active = true, narrow = false, empty = false, marker = false, toc = false, children }) {
   const pad = narrow ? 20 : 30;
   return /* @__PURE__ */ jsxs("div", { style: { flex: 1, minWidth: 0, height: "100%", background: v("canvas", v("background")), color: v("foreground"), display: "flex", flexDirection: "column", fontFamily: SANS, position: "relative" }, children: [
     empty ? /* @__PURE__ */ jsxs("div", { style: { flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 20, padding: `0 ${pad}px` }, children: [
@@ -434,7 +478,7 @@ function Thread({ title = "Endless theme family \u2014 blacklight pass", active 
         ] }),
         narrow ? null : /* @__PURE__ */ jsx(Badge, { tone: "outline", children: "bb/endless-theme-plugin" })
       ] }),
-      /* @__PURE__ */ jsxs("div", { style: { flex: 1, overflow: "hidden", padding: `22px ${pad}px 0`, display: "flex", flexDirection: "column", justifyContent: "space-between", gap: 16, fontSize: 13.5, lineHeight: "21px" }, children: [
+      /* @__PURE__ */ jsxs("div", { style: { flex: 1, overflow: "hidden", padding: `22px ${toc ? 54 : pad}px 0 ${pad}px`, display: "flex", flexDirection: "column", justifyContent: "space-between", gap: 16, fontSize: 13.5, lineHeight: "21px" }, children: [
         /* @__PURE__ */ jsx(Bubble, { children: "make the blacklight variant feel like the reference \u2014 neon orange seam, blue selection, calm UV canvas." }),
         /* @__PURE__ */ jsxs("div", { children: [
           "Three blacks were fragmenting the frame. The base theme's",
@@ -458,7 +502,7 @@ function Thread({ title = "Endless theme family \u2014 blacklight pass", active 
           " over the canvas, and file paths pick up the glove's steel blue \u2014 ",
           /* @__PURE__ */ jsx("span", { style: { color: v("file-accent", v("muted-foreground")), fontFamily: MONO, fontSize: "0.92em" }, children: "build-color.py" }),
           " shows it inline.",
-          /* @__PURE__ */ jsx("span", { style: { background: v("selection-color-default", v("surface-selected")), padding: "0 2px" }, children: " Selected text looks like this." })
+          /* @__PURE__ */ jsx("span", { "data-tp-selection": "sample", style: { background: v("selection-color-default", v("surface-selected")), color: v("foreground"), borderRadius: 3, padding: "0 3px", WebkitBoxDecorationBreak: "clone", boxDecorationBreak: "clone" }, children: " Selected text stays readable." })
         ] }),
         /* @__PURE__ */ jsxs("div", { style: { color: v("muted-foreground"), fontSize: 12.5, display: "flex", alignItems: "center", gap: 8 }, children: [
           /* @__PURE__ */ jsx("span", { style: { width: 1, height: 18, background: v("timeline-accent", v("border")) } }),
@@ -470,6 +514,7 @@ function Thread({ title = "Endless theme family \u2014 blacklight pass", active 
       ] }),
       /* @__PURE__ */ jsx("div", { style: { padding: `12px ${pad}px 18px`, flex: "none" }, children: /* @__PURE__ */ jsx(Composer, { focused: active }) })
     ] }),
+    toc ? /* @__PURE__ */ jsx(TimelineToc, {}) : null,
     children
   ] });
 }
@@ -526,7 +571,7 @@ function FrameView({ view }) {
     case "thread":
       return /* @__PURE__ */ jsxs(Fragment2, { children: [
         /* @__PURE__ */ jsx(Sidebar, { selected: true }),
-        /* @__PURE__ */ jsx(Thread, {}),
+        /* @__PURE__ */ jsx(Thread, { toc: true }),
         /* @__PURE__ */ jsx(InfoPanel, {}),
         /* @__PURE__ */ jsx(Menu, { style: { position: "absolute", left: 196, top: 118, zIndex: 5 } }),
         /* @__PURE__ */ jsx(HoverCard, { style: { position: "absolute", left: 254, top: 292, zIndex: 5 } }),
@@ -701,28 +746,58 @@ function GuideBlock({ title, note, wide = false, children }) {
     children
   ] });
 }
-function StyleGuide({ revision }) {
-  const computed = useComputedTokens(ALL_TOKENS, revision);
+function TypeSpecimen() {
+  return /* @__PURE__ */ jsxs("div", { style: { display: "flex", flexDirection: "column", gap: 3 }, children: [
+    /* @__PURE__ */ jsx("span", { style: { fontSize: 15, fontWeight: 600, letterSpacing: "-0.005em" }, children: "Title \xB7 foreground 600" }),
+    /* @__PURE__ */ jsx("span", { style: { fontSize: 13.5 }, children: "Body at 13.5 \u2014 the thing most pixels are." }),
+    /* @__PURE__ */ jsx("span", { style: { fontSize: 13, color: v("muted-foreground") }, children: "Muted \xB7 labels and captions" }),
+    /* @__PURE__ */ jsx("span", { style: { fontSize: 12.5, color: v("subtle-foreground", v("muted-foreground")) }, children: "Subtle \xB7 secondary metadata" }),
+    /* @__PURE__ */ jsxs("span", { style: { fontSize: 13 }, children: [
+      "inline ",
+      /* @__PURE__ */ jsx("code", { style: { fontFamily: MONO, fontSize: "0.92em", fontWeight: 600, background: v("surface-recessed"), padding: "1px 5px", borderRadius: 4 }, children: "--token" }),
+      " \xB7 ",
+      /* @__PURE__ */ jsx("span", { style: { fontFamily: MONO, fontSize: 12.5, color: v("file-accent", "inherit") }, children: "path/file.tsx" }),
+      " \xB7 ",
+      /* @__PURE__ */ jsx("span", { style: { color: v("primary"), textDecoration: "underline", textUnderlineOffset: 3 }, children: "link" })
+    ] })
+  ] });
+}
+var SUMMARY_TOKENS = ["primary", "file-accent", "success", "warning", "destructive", "pr-merged"];
+function SummarySwatch({ name, computed }) {
+  const token = computed[name];
+  return /* @__PURE__ */ jsxs("div", { style: { minWidth: 0, display: "flex", alignItems: "center", gap: 7 }, children: [
+    /* @__PURE__ */ jsx(
+      "span",
+      {
+        title: token?.value,
+        style: { width: 20, height: 15, borderRadius: 4, flex: "none", background: token?.value ? v(name) : "transparent", boxShadow: `inset 0 0 0 1px ${v("border-hairline", v("border"))}` }
+      }
+    ),
+    /* @__PURE__ */ jsx("span", { style: { minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontFamily: MONO, fontSize: 10.5, color: v("muted-foreground") }, children: name })
+  ] });
+}
+function InspectorSummary({ computed }) {
   return /* @__PURE__ */ jsxs("div", { children: [
-    /* @__PURE__ */ jsxs("div", { style: { display: "flex", alignItems: "baseline", gap: 9, minHeight: 22, marginBottom: 10 }, children: [
-      /* @__PURE__ */ jsx("span", { style: { fontSize: 13, fontWeight: 650, letterSpacing: "-0.005em" }, children: "Style guide" }),
+    /* @__PURE__ */ jsxs("div", { style: { display: "flex", alignItems: "baseline", gap: 8, minHeight: 22, marginBottom: 12 }, children: [
+      /* @__PURE__ */ jsx("span", { style: { fontSize: 13, fontWeight: 650, letterSpacing: "-0.005em" }, children: "At a glance" }),
+      /* @__PURE__ */ jsx("span", { style: { fontSize: 10.5, color: v("muted-foreground") }, children: "details below" })
+    ] }),
+    /* @__PURE__ */ jsx(GuideBlock, { title: "Type", note: "live faces", children: /* @__PURE__ */ jsx(TypeSpecimen, {}) }),
+    /* @__PURE__ */ jsx(GuideBlock, { title: "Signals", children: /* @__PURE__ */ jsx("div", { style: { display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: "8px 10px" }, children: SUMMARY_TOKENS.map((token) => /* @__PURE__ */ jsx(SummarySwatch, { name: token, computed }, token)) }) }),
+    /* @__PURE__ */ jsx(GuideBlock, { title: "Contrast", note: "WCAG body floor 4.5:1", children: /* @__PURE__ */ jsxs("div", { style: { display: "flex", flexDirection: "column", gap: 1 }, children: [
+      /* @__PURE__ */ jsx(TokenRow, { name: "foreground", computed, contrastAgainst: "canvas" }),
+      /* @__PURE__ */ jsx(TokenRow, { name: "muted-foreground", computed, contrastAgainst: "canvas" }),
+      /* @__PURE__ */ jsx(TokenRow, { name: "sidebar-foreground", computed, contrastAgainst: "sidebar" })
+    ] }) })
+  ] });
+}
+function StyleGuide({ computed }) {
+  return /* @__PURE__ */ jsxs("div", { children: [
+    /* @__PURE__ */ jsxs("div", { style: { display: "flex", alignItems: "baseline", gap: 9, minHeight: 22, marginBottom: 14 }, children: [
+      /* @__PURE__ */ jsx("span", { style: { fontSize: 13, fontWeight: 650, letterSpacing: "-0.005em" }, children: "Full style guide" }),
       /* @__PURE__ */ jsx("span", { style: { fontSize: 11, color: v("muted-foreground") }, children: "live token readout + 1:1 states" })
     ] }),
-    /* @__PURE__ */ jsxs("div", { children: [
-      /* @__PURE__ */ jsx(GuideBlock, { title: "Type", note: "the two faces, live", wide: true, children: /* @__PURE__ */ jsxs("div", { style: { display: "flex", flexDirection: "column", gap: 3 }, children: [
-        /* @__PURE__ */ jsx("span", { style: { fontSize: 15, fontWeight: 600, letterSpacing: "-0.005em" }, children: "Title \xB7 foreground 600" }),
-        /* @__PURE__ */ jsx("span", { style: { fontSize: 13.5 }, children: "Body at 13.5 \u2014 the thing most pixels are." }),
-        /* @__PURE__ */ jsx("span", { style: { fontSize: 13, color: v("muted-foreground") }, children: "Muted \xB7 labels and captions" }),
-        /* @__PURE__ */ jsx("span", { style: { fontSize: 12.5, color: v("subtle-foreground", v("muted-foreground")) }, children: "Subtle \xB7 secondary metadata" }),
-        /* @__PURE__ */ jsxs("span", { style: { fontSize: 13 }, children: [
-          "inline ",
-          /* @__PURE__ */ jsx("code", { style: { fontFamily: MONO, fontSize: "0.92em", fontWeight: 600, background: v("surface-recessed"), padding: "1px 5px", borderRadius: 4 }, children: "--token" }),
-          " \xB7 ",
-          /* @__PURE__ */ jsx("span", { style: { fontFamily: MONO, fontSize: 12.5, color: v("file-accent", "inherit") }, children: "path/file.tsx" }),
-          " \xB7 ",
-          /* @__PURE__ */ jsx("span", { style: { color: v("primary"), textDecoration: "underline", textUnderlineOffset: 3 }, children: "link" })
-        ] })
-      ] }) }),
+    /* @__PURE__ */ jsxs("div", { style: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", columnGap: 24, alignItems: "start" }, children: [
       /* @__PURE__ */ jsx(GuideBlock, { title: "Controls", wide: true, children: /* @__PURE__ */ jsxs("div", { style: { display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }, children: [
         /* @__PURE__ */ jsx(Button, { size: "sm", children: "Default" }),
         /* @__PURE__ */ jsx(Button, { size: "sm", variant: "secondary", children: "Secondary" }),
@@ -762,8 +837,7 @@ function StyleGuide({ revision }) {
         /* @__PURE__ */ jsx(Row, { label: "hover \xB7 sidebar-accent", state: "hover" }),
         /* @__PURE__ */ jsx(Row, { label: "open thread \xB7 state-active", state: "selected" }),
         /* @__PURE__ */ jsx(Row, { label: "open in split", state: "split", dot: "status" })
-      ] }) }),
-      /* @__PURE__ */ jsx("div", { style: { gridColumn: "1 / -1", fontSize: 10.5, fontFamily: MONO, color: v("subtle-foreground", v("muted-foreground")), marginTop: 4, lineHeight: "15px" }, children: "values live from the active theme \xB7 mock surfaces measured against bb c942421a4" })
+      ] }) })
     ] })
   ] });
 }
@@ -856,6 +930,7 @@ function ThemePicker({ catalog, mode, onPick }) {
     /* @__PURE__ */ jsxs(
       "button",
       {
+        "data-tp-theme-control": "",
         type: "button",
         onClick: () => setOpen((o) => !o),
         style: {
@@ -941,7 +1016,7 @@ function PreviewPage({ subPath }) {
   const [mode, setMode] = useColorMode();
   const navigate = useBbNavigate();
   const rootRef = useRef(null);
-  const [stacked, setStacked] = useState(false);
+  const [layout, setLayout] = useState({ compact: false, stageHeight: 620 });
   const [catalog, setCatalog] = useState({ activeThemeId: null, themes: [], revision: 0 });
   const [error, setError] = useState(null);
   const catalogRequests = useRef(new LatestRequest());
@@ -975,11 +1050,21 @@ function PreviewPage({ subPath }) {
   useLayoutEffect(() => {
     const el = rootRef.current;
     if (!el) return;
-    const measure = () => setStacked(el.clientWidth < 1040);
+    const measure = () => {
+      const compact = el.clientWidth < 920;
+      const framePaneWidth = compact ? el.clientWidth : el.clientWidth - 276;
+      const fittedFrameHeight = Math.round(Math.max(0, framePaneWidth - 32) / FRAME_W * FRAME_H + 26);
+      const stageHeight = Math.min(720, Math.max(compact ? 320 : 500, fittedFrameHeight));
+      setLayout((current) => current.compact === compact && current.stageHeight === stageHeight ? current : { compact, stageHeight });
+    };
     measure();
     const ro = new ResizeObserver(measure);
     ro.observe(el);
-    return () => ro.disconnect();
+    window.addEventListener("resize", measure);
+    return () => {
+      ro.disconnect();
+      window.removeEventListener("resize", measure);
+    };
   }, []);
   const pick = (themeId, nextMode) => {
     setMode(nextMode);
@@ -995,47 +1080,48 @@ function PreviewPage({ subPath }) {
       });
     }
   };
-  return /* @__PURE__ */ jsxs("div", { ref: rootRef, "data-tp-root": true, style: { height: "100%", overflow: "hidden", background: v("canvas", v("background")), color: v("foreground"), fontFamily: SANS, display: "flex", flexDirection: "column" }, children: [
-    /* @__PURE__ */ jsxs("div", { style: { display: "flex", alignItems: "center", flexWrap: "wrap", rowGap: 6, gap: 8, padding: "8px 16px", borderBottom: `1px solid ${v("border-seam", v("border"))}`, flex: "none" }, children: [
+  const revision = `${mode}:${catalog.activeThemeId ?? ""}:${catalog.revision}`;
+  const computed = useComputedTokens(ALL_TOKENS, revision);
+  return /* @__PURE__ */ jsxs("div", { ref: rootRef, "data-tp-root": true, style: { height: "100%", overflowY: "auto", overflowX: "hidden", background: v("canvas", v("background")), color: v("foreground"), fontFamily: SANS }, children: [
+    /* @__PURE__ */ jsxs("div", { style: { position: "sticky", top: 0, zIndex: 20, display: "flex", alignItems: "center", flexWrap: "wrap", rowGap: 6, gap: 8, padding: "8px 16px", borderBottom: `1px solid ${v("border-seam", v("border"))}`, background: v("canvas", v("background")) }, children: [
       /* @__PURE__ */ jsx("div", { style: { display: "inline-flex", gap: 1, padding: 2, borderRadius: 8, background: v("surface-recessed", v("muted")) }, children: VIEWS.map((item) => /* @__PURE__ */ jsx(Toggle, { on: item === view, onChange: () => navigate.toPluginPanel("preview", { subPath: item }), children: VIEW_LABEL[item] }, item)) }),
-      /* @__PURE__ */ jsx("span", { style: { fontSize: 11.5, color: v("muted-foreground") }, children: VIEW_NOTE[view] }),
+      layout.compact ? null : /* @__PURE__ */ jsx("span", { style: { fontSize: 11.5, color: v("muted-foreground") }, children: VIEW_NOTE[view] }),
       /* @__PURE__ */ jsx("div", { style: { flex: 1 } }),
-      error ? /* @__PURE__ */ jsx("span", { style: { fontSize: 12, color: v("destructive-text", v("destructive")) }, children: error }) : null
+      error ? /* @__PURE__ */ jsx("span", { style: { fontSize: 12, color: v("destructive-text", v("destructive")) }, children: error }) : null,
+      /* @__PURE__ */ jsx(ThemePicker, { catalog, mode, onPick: pick })
     ] }),
     /* @__PURE__ */ jsxs(
       "div",
       {
-        "data-tp-layout": stacked ? "stacked" : "side-by-side",
+        "data-tp-layout": layout.compact ? "stacked" : "stage-with-summary",
         style: {
-          flex: 1,
           minHeight: 0,
           display: "grid",
-          gridTemplateColumns: stacked ? "minmax(0, 1fr)" : "minmax(0, 1fr) 330px",
-          gridTemplateRows: stacked ? "minmax(260px, 2fr) minmax(390px, 3fr)" : void 0
+          gridTemplateColumns: layout.compact ? "minmax(0, 1fr)" : "minmax(0, 1fr) 276px",
+          gridTemplateRows: layout.compact ? `${layout.stageHeight}px auto` : void 0,
+          height: layout.compact ? void 0 : layout.stageHeight,
+          borderBottom: `1px solid ${v("border-seam", v("border"))}`
         },
         children: [
           /* @__PURE__ */ jsx("div", { "data-tp-section": "frame", style: { minWidth: 0, minHeight: 0, display: "flex", flexDirection: "column", padding: "12px 16px 14px" }, children: /* @__PURE__ */ jsx(Frame, { view, fitBoth: true }) }),
-          /* @__PURE__ */ jsxs(
+          /* @__PURE__ */ jsx(
             "div",
             {
-              "data-tp-section": "guide",
+              "data-tp-section": "summary",
               style: {
                 minWidth: 0,
-                minHeight: 0,
-                overflowY: "auto",
-                padding: "14px 16px 40px",
-                borderLeft: stacked ? void 0 : `1px solid ${v("border-seam", v("border"))}`,
-                borderBottom: stacked ? `1px solid ${v("border-seam", v("border"))}` : void 0
+                padding: "16px 16px 20px",
+                borderLeft: layout.compact ? void 0 : `1px solid ${v("border-seam", v("border"))}`,
+                borderTop: layout.compact ? `1px solid ${v("border-seam", v("border"))}` : void 0,
+                background: v("surface-recessed-soft-solid", v("card"))
               },
-              children: [
-                /* @__PURE__ */ jsx("div", { style: { display: "flex", justifyContent: "flex-end", marginBottom: 12 }, children: /* @__PURE__ */ jsx(ThemePicker, { catalog, mode, onPick: pick }) }),
-                /* @__PURE__ */ jsx(StyleGuide, { revision: `${mode}:${catalog.activeThemeId ?? ""}:${catalog.revision}` })
-              ]
+              children: /* @__PURE__ */ jsx(InspectorSummary, { computed })
             }
           )
         ]
       }
-    )
+    ),
+    /* @__PURE__ */ jsx("div", { "data-tp-section": "guide", style: { margin: "18px 16px 24px", padding: "18px 18px 22px", borderRadius: 14, background: v("card"), boxShadow: `inset 0 0 0 1px ${v("border-seam", v("border"))}, ${v("shadow-xs", "none")}` }, children: /* @__PURE__ */ jsx(StyleGuide, { computed }) })
   ] });
 }
 var app_default = definePluginApp((app) => {

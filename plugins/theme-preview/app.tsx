@@ -39,7 +39,7 @@ const VIEW_LABEL: Record<View, string> = {
   settings: "Settings",
 };
 const VIEW_NOTE: Record<View, string> = {
-  thread: "open thread · side panel · row menu, hover card, toast",
+  thread: "open thread · timeline TOC · side panel · row menu, hover card, toast",
   new: "empty state and composer",
   split: "two panes, one focused",
   settings: "page header, cards, controls",
@@ -335,7 +335,51 @@ function VerificationCard() {
   );
 }
 
-function Thread({ title = "Endless theme family — blacklight pass", active = true, narrow = false, empty = false, marker = false, children }: { title?: string; active?: boolean; narrow?: boolean; empty?: boolean; marker?: boolean; children?: ReactNode }) {
+function TimelineToc() {
+  const items = [
+    "Three blacks were fragmenting the frame…",
+    "Selection now reads rgba(47,180,255,.20)…",
+    "Tightened the raised surfaces and kept seams neutral…",
+  ];
+  return (
+    <div style={{ position: "absolute", right: 10, top: 58, zIndex: 4, display: "flex", alignItems: "flex-start" }}>
+      <div
+        id="thread-toc-panel-preview"
+        style={{
+          position: "absolute", right: 36, top: 0, width: 292, paddingRight: 4,
+        }}
+      >
+        <div data-tp-toc="panel" style={{ padding: 4, borderRadius: 8, background: v("popover"), color: v("popover-foreground"), boxShadow: `inset 0 0 0 1px ${v("border")}, ${v("shadow-lg", "0 8px 24px rgba(0,0,0,.22)")}` }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 2, paddingBottom: 4 }}>
+            <span style={{ borderRadius: 6, padding: "5px 8px", background: v("state-hover"), color: v("foreground"), fontSize: 11.5, fontWeight: 600 }}>Agent messages</span>
+            <span style={{ borderRadius: 6, padding: "5px 8px", color: v("muted-foreground"), fontSize: 11.5 }}>Your messages</span>
+          </div>
+          <div style={{ display: "flex", flexDirection: "column" }}>
+            {items.map((item, index) => (
+              <div
+                key={item}
+                style={{
+                  borderRadius: 6, padding: "6px 8px", fontSize: 12, lineHeight: "16px",
+                  background: index === 1 ? v("state-hover") : undefined,
+                  color: index === 1 ? v("foreground") : v("muted-foreground"),
+                }}
+              >
+                {item}
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+      <div aria-label="Thread table of contents" style={{ width: 32, padding: "8px 0", display: "flex", flexDirection: "column", alignItems: "center", gap: 8 }}>
+        {[12, 12, 20, 12, 12].map((width, index) => (
+          <span key={index} style={{ width, height: 3, borderRadius: 999, background: index === 2 ? `color-mix(in srgb, ${v("foreground")} 70%, transparent)` : `color-mix(in srgb, ${v("foreground")} 20%, transparent)` }} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function Thread({ title = "Endless theme family — blacklight pass", active = true, narrow = false, empty = false, marker = false, toc = false, children }: { title?: string; active?: boolean; narrow?: boolean; empty?: boolean; marker?: boolean; toc?: boolean; children?: ReactNode }) {
   const pad = narrow ? 20 : 30;
   return (
     <div style={{ flex: 1, minWidth: 0, height: "100%", background: v("canvas", v("background")), color: v("foreground"), display: "flex", flexDirection: "column", fontFamily: SANS, position: "relative" }}>
@@ -357,7 +401,7 @@ function Thread({ title = "Endless theme family — blacklight pass", active = t
             <Badge tone="success"><Dot color={v("success")} size={6} /> Running</Badge>
             {narrow ? null : <Badge tone="outline">bb/endless-theme-plugin</Badge>}
           </div>
-          <div style={{ flex: 1, overflow: "hidden", padding: `22px ${pad}px 0`, display: "flex", flexDirection: "column", justifyContent: "space-between", gap: 16, fontSize: 13.5, lineHeight: "21px" }}>
+          <div style={{ flex: 1, overflow: "hidden", padding: `22px ${toc ? 54 : pad}px 0 ${pad}px`, display: "flex", flexDirection: "column", justifyContent: "space-between", gap: 16, fontSize: 13.5, lineHeight: "21px" }}>
             <Bubble>make the blacklight variant feel like the reference — neon orange seam, blue selection, calm UV canvas.</Bubble>
             <div>
               Three blacks were fragmenting the frame. The base theme's{" "}
@@ -373,7 +417,7 @@ function Thread({ title = "Endless theme family — blacklight pass", active = t
             <div>
               Done. Selection now reads <span style={{ fontFamily: MONO, fontSize: "0.92em" }}>rgba(47,180,255,.20)</span> over the canvas, and file paths pick up the
               glove's steel blue — <span style={{ color: v("file-accent", v("muted-foreground")), fontFamily: MONO, fontSize: "0.92em" }}>build-color.py</span> shows it inline.
-              <span style={{ background: v("selection-color-default", v("surface-selected")), padding: "0 2px" }}> Selected text looks like this.</span>
+              <span data-tp-selection="sample" style={{ background: v("selection-color-default", v("surface-selected")), color: v("foreground"), borderRadius: 3, padding: "0 3px", WebkitBoxDecorationBreak: "clone", boxDecorationBreak: "clone" }}> Selected text stays readable.</span>
             </div>
             <div style={{ color: v("muted-foreground"), fontSize: 12.5, display: "flex", alignItems: "center", gap: 8 }}>
               <span style={{ width: 1, height: 18, background: v("timeline-accent", v("border")) }} />
@@ -388,6 +432,7 @@ function Thread({ title = "Endless theme family — blacklight pass", active = t
           <div style={{ padding: `12px ${pad}px 18px`, flex: "none" }}><Composer focused={active} /></div>
         </>
       )}
+      {toc ? <TimelineToc /> : null}
       {children}
     </div>
   );
@@ -475,7 +520,7 @@ function FrameView({ view }: { view: View }) {
       return (
         <>
           <Sidebar selected />
-          <Thread />
+          <Thread toc />
           <InfoPanel />
           <Menu style={{ position: "absolute", left: 196, top: 118, zIndex: 5 }} />
           <HoverCard style={{ position: "absolute", left: 254, top: 292, zIndex: 5 }} />
@@ -538,9 +583,9 @@ function Frame({ view, fitBoth = false }: { view: View; fitBoth?: boolean }) {
 }
 
 // ---------------------------------------------------------------------------
-// Style guide — a dense table rather than a wall of cards, so the whole palette
-// fits beside the mock. Values are computed from the live document, including
-// the sidebar-scoped overrides a theme may apply to one surface.
+// Style guide — a dense table rather than a wall of cards. The rail keeps a
+// compact live summary while the complete palette uses the wide sheet below
+// the mock. Values include sidebar-scoped overrides a theme may apply.
 // ---------------------------------------------------------------------------
 
 const GROUPS: ReadonlyArray<{ title: string; tokens: readonly string[] }> = [
@@ -666,28 +711,71 @@ function GuideBlock({ title, note, wide = false, children }: { title: string; no
   );
 }
 
-function StyleGuide({ revision }: { revision: string }) {
-  const computed = useComputedTokens(ALL_TOKENS, revision);
+function TypeSpecimen() {
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+      <span style={{ fontSize: 15, fontWeight: 600, letterSpacing: "-0.005em" }}>Title · foreground 600</span>
+      <span style={{ fontSize: 13.5 }}>Body at 13.5 — the thing most pixels are.</span>
+      <span style={{ fontSize: 13, color: v("muted-foreground") }}>Muted · labels and captions</span>
+      <span style={{ fontSize: 12.5, color: v("subtle-foreground", v("muted-foreground")) }}>Subtle · secondary metadata</span>
+      <span style={{ fontSize: 13 }}>
+        inline <code style={{ fontFamily: MONO, fontSize: "0.92em", fontWeight: 600, background: v("surface-recessed"), padding: "1px 5px", borderRadius: 4 }}>--token</code>
+        {" · "}<span style={{ fontFamily: MONO, fontSize: 12.5, color: v("file-accent", "inherit") }}>path/file.tsx</span>
+        {" · "}<span style={{ color: v("primary"), textDecoration: "underline", textUnderlineOffset: 3 }}>link</span>
+      </span>
+    </div>
+  );
+}
+
+const SUMMARY_TOKENS = ["primary", "file-accent", "success", "warning", "destructive", "pr-merged"] as const;
+
+function SummarySwatch({ name, computed }: { name: string; computed: Computed }) {
+  const token = computed[name];
+  return (
+    <div style={{ minWidth: 0, display: "flex", alignItems: "center", gap: 7 }}>
+      <span
+        title={token?.value}
+        style={{ width: 20, height: 15, borderRadius: 4, flex: "none", background: token?.value ? v(name) : "transparent", boxShadow: `inset 0 0 0 1px ${v("border-hairline", v("border"))}` }}
+      />
+      <span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontFamily: MONO, fontSize: 10.5, color: v("muted-foreground") }}>{name}</span>
+    </div>
+  );
+}
+
+function InspectorSummary({ computed }: { computed: Computed }) {
   return (
     <div>
-      <div style={{ display: "flex", alignItems: "baseline", gap: 9, minHeight: 22, marginBottom: 10 }}>
-        <span style={{ fontSize: 13, fontWeight: 650, letterSpacing: "-0.005em" }}>Style guide</span>
-        <span style={{ fontSize: 11, color: v("muted-foreground") }}>live token readout + 1:1 states</span>
+      <div style={{ display: "flex", alignItems: "baseline", gap: 8, minHeight: 22, marginBottom: 12 }}>
+        <span style={{ fontSize: 13, fontWeight: 650, letterSpacing: "-0.005em" }}>At a glance</span>
+        <span style={{ fontSize: 10.5, color: v("muted-foreground") }}>details below</span>
       </div>
-      <div>
-      <GuideBlock title="Type" note="the two faces, live" wide>
-        <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
-          <span style={{ fontSize: 15, fontWeight: 600, letterSpacing: "-0.005em" }}>Title · foreground 600</span>
-          <span style={{ fontSize: 13.5 }}>Body at 13.5 — the thing most pixels are.</span>
-          <span style={{ fontSize: 13, color: v("muted-foreground") }}>Muted · labels and captions</span>
-          <span style={{ fontSize: 12.5, color: v("subtle-foreground", v("muted-foreground")) }}>Subtle · secondary metadata</span>
-          <span style={{ fontSize: 13 }}>
-            inline <code style={{ fontFamily: MONO, fontSize: "0.92em", fontWeight: 600, background: v("surface-recessed"), padding: "1px 5px", borderRadius: 4 }}>--token</code>
-            {" · "}<span style={{ fontFamily: MONO, fontSize: 12.5, color: v("file-accent", "inherit") }}>path/file.tsx</span>
-            {" · "}<span style={{ color: v("primary"), textDecoration: "underline", textUnderlineOffset: 3 }}>link</span>
-          </span>
+      <GuideBlock title="Type" note="live faces">
+        <TypeSpecimen />
+      </GuideBlock>
+      <GuideBlock title="Signals">
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: "8px 10px" }}>
+          {SUMMARY_TOKENS.map((token) => <SummarySwatch key={token} name={token} computed={computed} />)}
         </div>
       </GuideBlock>
+      <GuideBlock title="Contrast" note="WCAG body floor 4.5:1">
+        <div style={{ display: "flex", flexDirection: "column", gap: 1 }}>
+          <TokenRow name="foreground" computed={computed} contrastAgainst="canvas" />
+          <TokenRow name="muted-foreground" computed={computed} contrastAgainst="canvas" />
+          <TokenRow name="sidebar-foreground" computed={computed} contrastAgainst="sidebar" />
+        </div>
+      </GuideBlock>
+    </div>
+  );
+}
+
+function StyleGuide({ computed }: { computed: Computed }) {
+  return (
+    <div>
+      <div style={{ display: "flex", alignItems: "baseline", gap: 9, minHeight: 22, marginBottom: 14 }}>
+        <span style={{ fontSize: 13, fontWeight: 650, letterSpacing: "-0.005em" }}>Full style guide</span>
+        <span style={{ fontSize: 11, color: v("muted-foreground") }}>live token readout + 1:1 states</span>
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", columnGap: 24, alignItems: "start" }}>
 
       <GuideBlock title="Controls" wide>
         <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
@@ -732,9 +820,6 @@ function StyleGuide({ revision }: { revision: string }) {
         </div>
       </GuideBlock>
 
-      <div style={{ gridColumn: "1 / -1", fontSize: 10.5, fontFamily: MONO, color: v("subtle-foreground", v("muted-foreground")), marginTop: 4, lineHeight: "15px" }}>
-        values live from the active theme · mock surfaces measured against bb c942421a4
-      </div>
       </div>
     </div>
   );
@@ -831,6 +916,7 @@ function ThemePicker({ catalog, mode, onPick }: { catalog: Catalog; mode: Mode; 
   return (
     <div ref={hostRef} style={{ position: "relative" }}>
       <button
+        data-tp-theme-control=""
         type="button"
         onClick={() => setOpen((o) => !o)}
         style={{
@@ -910,7 +996,7 @@ function PreviewPage({ subPath }: { subPath: string }) {
   const [mode, setMode] = useColorMode();
   const navigate = useBbNavigate();
   const rootRef = useRef<HTMLDivElement | null>(null);
-  const [stacked, setStacked] = useState(false);
+  const [layout, setLayout] = useState({ compact: false, stageHeight: 620 });
   const [catalog, setCatalog] = useState<Catalog>({ activeThemeId: null, themes: [], revision: 0 });
   const [error, setError] = useState<string | null>(null);
   const catalogRequests = useRef(new LatestRequest());
@@ -945,11 +1031,21 @@ function PreviewPage({ subPath }: { subPath: string }) {
   useLayoutEffect(() => {
     const el = rootRef.current;
     if (!el) return;
-    const measure = () => setStacked(el.clientWidth < 1040);
+    const measure = () => {
+      const compact = el.clientWidth < 920;
+      const framePaneWidth = compact ? el.clientWidth : el.clientWidth - 276;
+      const fittedFrameHeight = Math.round((Math.max(0, framePaneWidth - 32) / FRAME_W) * FRAME_H + 26);
+      const stageHeight = Math.min(720, Math.max(compact ? 320 : 500, fittedFrameHeight));
+      setLayout((current) => current.compact === compact && current.stageHeight === stageHeight ? current : { compact, stageHeight });
+    };
     measure();
     const ro = new ResizeObserver(measure);
     ro.observe(el);
-    return () => ro.disconnect();
+    window.addEventListener("resize", measure);
+    return () => {
+      ro.disconnect();
+      window.removeEventListener("resize", measure);
+    };
   }, []);
 
   const pick = (themeId: string, nextMode: Mode) => {
@@ -964,47 +1060,53 @@ function PreviewPage({ subPath }: { subPath: string }) {
     }
   };
 
+  const revision = `${mode}:${catalog.activeThemeId ?? ""}:${catalog.revision}`;
+  const computed = useComputedTokens(ALL_TOKENS, revision);
+
   return (
-    <div ref={rootRef} data-tp-root style={{ height: "100%", overflow: "hidden", background: v("canvas", v("background")), color: v("foreground"), fontFamily: SANS, display: "flex", flexDirection: "column" }}>
-      <div style={{ display: "flex", alignItems: "center", flexWrap: "wrap", rowGap: 6, gap: 8, padding: "8px 16px", borderBottom: `1px solid ${v("border-seam", v("border"))}`, flex: "none" }}>
+    <div ref={rootRef} data-tp-root style={{ height: "100%", overflowY: "auto", overflowX: "hidden", background: v("canvas", v("background")), color: v("foreground"), fontFamily: SANS }}>
+      <div style={{ position: "sticky", top: 0, zIndex: 20, display: "flex", alignItems: "center", flexWrap: "wrap", rowGap: 6, gap: 8, padding: "8px 16px", borderBottom: `1px solid ${v("border-seam", v("border"))}`, background: v("canvas", v("background")) }}>
         <div style={{ display: "inline-flex", gap: 1, padding: 2, borderRadius: 8, background: v("surface-recessed", v("muted")) }}>
           {VIEWS.map((item) => (
             <Toggle key={item} on={item === view} onChange={() => navigate.toPluginPanel("preview", { subPath: item })}>{VIEW_LABEL[item]}</Toggle>
           ))}
         </div>
-        <span style={{ fontSize: 11.5, color: v("muted-foreground") }}>{VIEW_NOTE[view]}</span>
+        {layout.compact ? null : <span style={{ fontSize: 11.5, color: v("muted-foreground") }}>{VIEW_NOTE[view]}</span>}
         <div style={{ flex: 1 }} />
         {error ? <span style={{ fontSize: 12, color: v("destructive-text", v("destructive")) }}>{error}</span> : null}
+        <ThemePicker catalog={catalog} mode={mode} onPick={pick} />
       </div>
 
-      {/* Guide left and mock right at working widths; stacked into two bounded
-          panes when the host sidebar leaves too little room for both. */}
+      {/* The mock keeps the main stage. A narrow summary rail carries only the
+          signals worth monitoring while the full readout gets a wide sheet. */}
       <div
-        data-tp-layout={stacked ? "stacked" : "side-by-side"}
+        data-tp-layout={layout.compact ? "stacked" : "stage-with-summary"}
         style={{
-          flex: 1, minHeight: 0, display: "grid",
-          gridTemplateColumns: stacked ? "minmax(0, 1fr)" : "minmax(0, 1fr) 330px",
-          gridTemplateRows: stacked ? "minmax(260px, 2fr) minmax(390px, 3fr)" : undefined,
+          minHeight: 0, display: "grid",
+          gridTemplateColumns: layout.compact ? "minmax(0, 1fr)" : "minmax(0, 1fr) 276px",
+          gridTemplateRows: layout.compact ? `${layout.stageHeight}px auto` : undefined,
+          height: layout.compact ? undefined : layout.stageHeight,
+          borderBottom: `1px solid ${v("border-seam", v("border"))}`,
         }}
       >
         <div data-tp-section="frame" style={{ minWidth: 0, minHeight: 0, display: "flex", flexDirection: "column", padding: "12px 16px 14px" }}>
           <Frame view={view} fitBoth />
         </div>
         <div
-          data-tp-section="guide"
+          data-tp-section="summary"
           style={{
-            minWidth: 0, minHeight: 0, overflowY: "auto", padding: "14px 16px 40px",
-            borderLeft: stacked ? undefined : `1px solid ${v("border-seam", v("border"))}`,
-            borderBottom: stacked ? `1px solid ${v("border-seam", v("border"))}` : undefined,
+            minWidth: 0, padding: "16px 16px 20px",
+            borderLeft: layout.compact ? undefined : `1px solid ${v("border-seam", v("border"))}`,
+            borderTop: layout.compact ? `1px solid ${v("border-seam", v("border"))}` : undefined,
+            background: v("surface-recessed-soft-solid", v("card")),
           }}
         >
-          {/* The picker lives with the readout it drives: pick a palette, read
-              its values directly underneath. */}
-          <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 12 }}>
-            <ThemePicker catalog={catalog} mode={mode} onPick={pick} />
-          </div>
-          <StyleGuide revision={`${mode}:${catalog.activeThemeId ?? ""}:${catalog.revision}`} />
+          <InspectorSummary computed={computed} />
         </div>
+      </div>
+
+      <div data-tp-section="guide" style={{ margin: "18px 16px 24px", padding: "18px 18px 22px", borderRadius: 14, background: v("card"), boxShadow: `inset 0 0 0 1px ${v("border-seam", v("border"))}, ${v("shadow-xs", "none")}` }}>
+        <StyleGuide computed={computed} />
       </div>
     </div>
   );

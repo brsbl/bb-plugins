@@ -112,8 +112,14 @@
     .relative {
       position: relative;
     }
+    .sticky {
+      position: sticky;
+    }
     .block {
       display: block;
+    }
+    .contents {
+      display: contents;
     }
     .flex {
       display: flex;
@@ -135,6 +141,9 @@
     }
     .table {
       display: table;
+    }
+    .resize {
+      resize: both;
     }
     .rounded {
       border-radius: 0.25rem;
