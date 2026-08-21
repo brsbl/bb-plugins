@@ -14570,14 +14570,17 @@ var SWATCH_TOKENS = [
 function classifySelector(selector) {
   const parts = selector.split(",").map((part) => part.trim()).filter((part) => part.length > 0);
   if (parts.length === 0) return null;
+  let sawShared = false;
   let sawLight = false;
   let sawDark = false;
   for (const part of parts) {
     if (/\s/.test(part.replace(/:not\([^)]*\)/g, ""))) return null;
-    if (part === ":root" || part === ".light" || part === ":root:not(.dark)" || part === "html:not(.dark)") sawLight = true;
+    if (part === ":root") sawShared = true;
+    else if (part === ".light" || part === ":root:not(.dark)" || part === "html:not(.dark)") sawLight = true;
     else if (part === ".dark" || part === ":root.dark" || part === "html.dark") sawDark = true;
     else return null;
   }
+  if (sawShared) return "shared";
   if (sawDark && !sawLight) return "dark";
   if (sawLight && !sawDark) return "light";
   return null;
@@ -14593,18 +14596,45 @@ function parseThemeSwatches(css) {
     const mode = classifySelector(block[1]);
     if (!mode) continue;
     for (const declaration of block[2].matchAll(/--([a-zA-Z0-9-]+)\s*:\s*([^;]+);/g)) {
-      declarations[mode].set(declaration[1], declaration[2].trim());
+      if (mode === "shared") {
+        declarations.light.set(declaration[1], declaration[2].trim());
+        declarations.dark.set(declaration[1], declaration[2].trim());
+      } else {
+        declarations[mode].set(declaration[1], declaration[2].trim());
+      }
     }
   }
-  const build = (source2) => {
-    if (source2.size === 0) return null;
+  const resolveToken = (name, tokens, seen = /* @__PURE__ */ new Set()) => {
+    if (seen.has(name)) return null;
+    const value = tokens.get(name);
+    if (value === void 0) return null;
+    const nextSeen = new Set(seen).add(name);
+    let resolved = value;
+    for (let depth = 0; depth < 16 && resolved.includes("var("); depth += 1) {
+      const before = resolved;
+      resolved = resolved.replace(
+        /var\(\s*--([a-zA-Z0-9-]+)(?:\s*,\s*([^()]*))?\s*\)/g,
+        (whole, referenced, fallback) => resolveToken(referenced, tokens, nextSeen) ?? fallback?.trim() ?? whole
+      );
+      if (resolved === before) break;
+    }
+    return resolved.includes("var(") ? null : resolved;
+  };
+  const build = (source2, mode) => {
+    const base = BUILTIN_SWATCHES.default[mode];
+    const tokens = /* @__PURE__ */ new Map();
+    for (const [key, candidates] of SWATCH_TOKENS) {
+      for (const candidate of candidates) tokens.set(candidate, base[key] ?? "");
+    }
+    for (const [name, value] of source2) tokens.set(name, value);
     const swatch = {};
     for (const [key, candidates] of SWATCH_TOKENS) {
-      swatch[key] = candidates.map((token) => source2.get(token)).find((value) => value !== void 0) ?? null;
+      const token = candidates.find((candidate) => source2.has(candidate)) ?? candidates[0];
+      swatch[key] = resolveToken(token, tokens) ?? base[key];
     }
     return swatch;
   };
-  return { light: build(declarations.light), dark: build(declarations.dark) };
+  return { light: build(declarations.light, "light"), dark: build(declarations.dark, "dark") };
 }
 async function readCustomThemeCss(directory, id) {
   for (const candidate of [resolve(directory, id, "theme.css"), resolve(directory, `${id}.css`)]) {
@@ -14802,33 +14832,35 @@ async function readPluginThemeCss(bb, themeId, rootDirs) {
     return null;
   }
 }
-async function plugin(bb) {
-  let lastStamp = null;
+async function activeThemePath(themeId, dir, rootDirs) {
+  const pluginMatch = /^plugin:([^:]+):(.+)$/.exec(themeId);
+  if (pluginMatch) {
+    const rootDir = rootDirs.get(pluginMatch[1]);
+    if (!rootDir) return null;
+    try {
+      const manifest = JSON.parse(await readFile(resolve(rootDir, "package.json"), "utf8"));
+      const entry = manifest.bb?.themes?.find((theme) => theme.id === pluginMatch[2]);
+      return entry?.css ? resolve(rootDir, entry.css) : null;
+    } catch {
+      return null;
+    }
+  }
+  if (!dir) return null;
+  for (const candidate of [resolve(dir, themeId, "theme.css"), resolve(dir, `${themeId}.css`)]) {
+    try {
+      await stat(candidate);
+      return candidate;
+    } catch {
+    }
+  }
+  return null;
+}
+function createCatalogLoader(bb) {
+  const stamps = /* @__PURE__ */ new Map();
   let revision = 0;
-  const activeThemePath = async (themeId, dir, rootDirs) => {
-    const pluginMatch = /^plugin:([^:]+):(.+)$/.exec(themeId);
-    if (pluginMatch) {
-      const rootDir = rootDirs.get(pluginMatch[1]);
-      if (!rootDir) return null;
-      try {
-        const manifest = JSON.parse(await readFile(resolve(rootDir, "package.json"), "utf8"));
-        const entry = manifest.bb?.themes?.find((theme) => theme.id === pluginMatch[2]);
-        return entry?.css ? resolve(rootDir, entry.css) : null;
-      } catch {
-        return null;
-      }
-    }
-    if (!dir) return null;
-    for (const candidate of [resolve(dir, themeId, "theme.css"), resolve(dir, `${themeId}.css`)]) {
-      try {
-        await stat(candidate);
-        return candidate;
-      } catch {
-      }
-    }
-    return null;
-  };
+  let selectionGeneration = 0;
   const catalog = async () => {
+    const selectionAtStart = selectionGeneration;
     const raw = await bb.sdk.theme.catalog();
     const dir = typeof raw?.dir === "string" ? raw.dir : null;
     const rootDirs = /* @__PURE__ */ new Map();
@@ -14850,12 +14882,17 @@ async function plugin(bb) {
         try {
           const info = await stat(path);
           const stamp = `${path}:${info.mtimeMs}:${info.size}`;
-          if (lastStamp !== null && stamp !== lastStamp) {
-            revision += 1;
-            await bb.sdk.theme.set(built.activeThemeId);
-            bb.log.info(`theme-preview: ${built.activeThemeId} changed on disk \u2014 re-applied (rev ${revision})`);
+          const previousStamp = stamps.get(path);
+          stamps.set(path, stamp);
+          if (previousStamp !== void 0 && stamp !== previousStamp) {
+            const current = await bb.sdk.theme.catalog();
+            const currentThemeId = typeof current.active?.themeId === "string" ? current.active.themeId : null;
+            if (selectionGeneration === selectionAtStart && currentThemeId === built.activeThemeId) {
+              revision += 1;
+              await bb.sdk.theme.set(built.activeThemeId);
+              bb.log.info(`theme-preview: ${built.activeThemeId} changed on disk \u2014 re-applied (rev ${revision})`);
+            }
           }
-          lastStamp = stamp;
         } catch (error51) {
           bb.log.warn(`theme-preview: could not stat ${path}: ${String(error51)}`);
         }
@@ -14863,6 +14900,18 @@ async function plugin(bb) {
     }
     return { ...built, revision };
   };
+  return {
+    catalog,
+    async setTheme(themeId) {
+      selectionGeneration += 1;
+      await bb.sdk.theme.set(themeId);
+      return catalog();
+    }
+  };
+}
+async function plugin(bb) {
+  const catalogLoader = createCatalogLoader(bb);
+  const catalog = catalogLoader.catalog;
   bb.background.service("theme-watch", {
     async start(signal) {
       const raw = await bb.sdk.theme.catalog();
@@ -14899,8 +14948,7 @@ async function plugin(bb) {
       return catalog();
     },
     async setTheme({ themeId }) {
-      await bb.sdk.theme.set(themeId);
-      return catalog();
+      return catalogLoader.setTheme(themeId);
     }
   });
   bb.log.info("theme-preview ready");
@@ -14910,6 +14958,7 @@ export {
   BUILTIN_THEMES,
   buildCatalog,
   classifySelector,
+  createCatalogLoader,
   plugin as default,
   parseThemeSwatches,
   rpcContract

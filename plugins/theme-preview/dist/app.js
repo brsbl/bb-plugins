@@ -74,6 +74,65 @@ var {
   version
 } = mod2;
 
+// theme-utils.ts
+function parseChannel(value) {
+  const trimmed = value.trim();
+  return trimmed.endsWith("%") ? Number.parseFloat(trimmed) * 2.55 : Number.parseFloat(trimmed);
+}
+function parseAlpha(value) {
+  if (value === void 0) return 1;
+  const trimmed = value.trim();
+  return trimmed.endsWith("%") ? Number.parseFloat(trimmed) / 100 : Number.parseFloat(trimmed);
+}
+function parseRgb(value) {
+  const match = /rgba?\(([^)]+)\)/.exec(value);
+  if (!match) return null;
+  const body = match[1].replace(/\s*\/\s*/g, ",");
+  const parts = body.includes(",") ? body.split(",") : body.trim().split(/\s+/);
+  if (parts.length < 3 || parts.length > 4) return null;
+  const channels = [parseChannel(parts[0]), parseChannel(parts[1]), parseChannel(parts[2]), parseAlpha(parts[3])];
+  return channels.every(Number.isFinite) ? channels : null;
+}
+function composite(foreground, background) {
+  const alpha = foreground[3] + background[3] * (1 - foreground[3]);
+  if (alpha === 0) return [0, 0, 0, 0];
+  return [
+    (foreground[0] * foreground[3] + background[0] * background[3] * (1 - foreground[3])) / alpha,
+    (foreground[1] * foreground[3] + background[1] * background[3] * (1 - foreground[3])) / alpha,
+    (foreground[2] * foreground[3] + background[2] * background[3] * (1 - foreground[3])) / alpha,
+    alpha
+  ];
+}
+function luminance(color) {
+  const linear = (channel) => {
+    const normalized = channel / 255;
+    return normalized <= 0.03928 ? normalized / 12.92 : ((normalized + 0.055) / 1.055) ** 2.4;
+  };
+  return 0.2126 * linear(color[0]) + 0.7152 * linear(color[1]) + 0.0722 * linear(color[2]);
+}
+function contrastRatio(foregroundValue, backgroundValue, backdropValue = "rgb(255, 255, 255)") {
+  const foreground = parseRgb(foregroundValue);
+  const background = parseRgb(backgroundValue);
+  const backdrop = parseRgb(backdropValue);
+  if (!foreground || !background || !backdrop) return null;
+  const opaqueBackdrop = backdrop[3] < 1 ? composite(backdrop, [255, 255, 255, 1]) : backdrop;
+  const paintedBackground = composite(background, opaqueBackdrop);
+  const paintedForeground = composite(foreground, paintedBackground);
+  const foregroundLuminance = luminance(paintedForeground);
+  const backgroundLuminance = luminance(paintedBackground);
+  return (Math.max(foregroundLuminance, backgroundLuminance) + 0.05) / (Math.min(foregroundLuminance, backgroundLuminance) + 0.05);
+}
+var LatestRequest = class {
+  #generation = 0;
+  begin() {
+    this.#generation += 1;
+    return this.#generation;
+  }
+  isLatest(generation) {
+    return generation === this.#generation;
+  }
+};
+
 // bb-plugin-runtime-shim:react/jsx-runtime
 var runtime3 = globalThis.__bbPluginRuntime;
 if (runtime3 == null || runtime3.jsxRuntime == null) {
@@ -540,19 +599,6 @@ var GROUPS = [
   { title: "Lines", tokens: ["border", "border-hairline", "border-seam", "sidebar-border", "input", "ring"] }
 ];
 var ALL_TOKENS = GROUPS.flatMap((group) => group.tokens);
-function contrastRatio(a, b) {
-  const lum = (c) => {
-    const m = /rgba?\(([^)]+)\)/.exec(c);
-    if (!m) return null;
-    const [r, g, bl] = m[1].split(",").map((p) => parseFloat(p.trim()) / 255);
-    const f = (x) => x <= 0.03928 ? x / 12.92 : ((x + 0.055) / 1.055) ** 2.4;
-    return 0.2126 * f(r) + 0.7152 * f(g) + 0.0722 * f(bl);
-  };
-  const la = lum(a);
-  const lb = lum(b);
-  if (la === null || lb === null) return null;
-  return (Math.max(la, lb) + 0.05) / (Math.min(la, lb) + 0.05);
-}
 function resolveColor(color) {
   const m = /rgba?\(([^)]+)\)/.exec(color);
   let channels = null;
@@ -618,7 +664,7 @@ function useComputedTokens(names, revision) {
 }
 function TokenRow({ name, computed, contrastAgainst }) {
   const c = computed[name];
-  const ratio = contrastAgainst && c?.rgb && computed[contrastAgainst]?.rgb ? contrastRatio(c.rgb, computed[contrastAgainst].rgb) : null;
+  const ratio = contrastAgainst && c?.rgb && computed[contrastAgainst]?.rgb ? contrastRatio(c.rgb, computed[contrastAgainst].rgb, contrastAgainst === "canvas" ? void 0 : computed.canvas?.rgb) : null;
   return /* @__PURE__ */ jsxs("div", { style: { display: "grid", gridTemplateColumns: contrastAgainst ? "24px minmax(0, 1fr) 72px 46px" : "24px minmax(0, 1fr) 72px", alignItems: "center", columnGap: 6, height: 22 }, children: [
     /* @__PURE__ */ jsx(
       "span",
@@ -898,6 +944,8 @@ function PreviewPage({ subPath }) {
   const [stacked, setStacked] = useState(false);
   const [catalog, setCatalog] = useState({ activeThemeId: null, themes: [], revision: 0 });
   const [error, setError] = useState(null);
+  const catalogRequests = useRef(new LatestRequest());
+  const selectionPending = useRef(false);
   const view = useMemo(() => {
     const first = subPath.split("/").filter(Boolean)[0] ?? "";
     return VIEWS.includes(first) ? first : "thread";
@@ -907,9 +955,13 @@ function PreviewPage({ subPath }) {
   useEffect(() => {
     let cancelled = false;
     const load = () => {
+      if (selectionPending.current) return;
+      const request = catalogRequests.current.begin();
       rpc.call("themeCatalog", {}).then((c) => {
-        if (!cancelled) setCatalog(c);
-      }).catch((e) => setError(String(e)));
+        if (!cancelled && catalogRequests.current.isLatest(request)) setCatalog(c);
+      }).catch((e) => {
+        if (catalogRequests.current.isLatest(request)) setError(String(e));
+      });
     };
     loadRef.current = load;
     load();
@@ -932,7 +984,15 @@ function PreviewPage({ subPath }) {
   const pick = (themeId, nextMode) => {
     setMode(nextMode);
     if (themeId !== catalog.activeThemeId) {
-      rpc.call("setTheme", { themeId }).then(setCatalog).catch((err) => setError(String(err)));
+      selectionPending.current = true;
+      const request = catalogRequests.current.begin();
+      rpc.call("setTheme", { themeId }).then((next) => {
+        if (catalogRequests.current.isLatest(request)) setCatalog(next);
+      }).catch((err) => {
+        if (catalogRequests.current.isLatest(request)) setError(String(err));
+      }).finally(() => {
+        if (catalogRequests.current.isLatest(request)) selectionPending.current = false;
+      });
     }
   };
   return /* @__PURE__ */ jsxs("div", { ref: rootRef, "data-tp-root": true, style: { height: "100%", overflow: "hidden", background: v("canvas", v("background")), color: v("foreground"), fontFamily: SANS, display: "flex", flexDirection: "column" }, children: [

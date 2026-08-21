@@ -1,9 +1,15 @@
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+
 import { describe, expect, it } from "vitest";
-import { buildCatalog, classifySelector, parseThemeSwatches } from "./server";
+import type { BbPluginApi } from "@get-bb/plugin-sdk";
+import { buildCatalog, classifySelector, createCatalogLoader, parseThemeSwatches } from "./server";
 
 describe("classifySelector", () => {
   it("accepts the mode roots and rejects element-scoped blocks", () => {
-    expect(classifySelector(":root, .light")).toBe("light");
+    expect(classifySelector(":root, .light")).toBe("shared");
+    expect(classifySelector(":root")).toBe("shared");
     expect(classifySelector(":root:not(.dark)")).toBe("light");
     expect(classifySelector(".dark")).toBe("dark");
     expect(classifySelector(".dark .fixed.bg-sidebar")).toBeNull();
@@ -30,15 +36,69 @@ describe("parseThemeSwatches", () => {
     expect(dark?.sidebar).toBe("#0a0a0a");
   });
 
-  it("falls back across token candidates and inherits fonts only where declared", () => {
+  it("falls back across token candidates and overlays the base palette", () => {
     const { light, dark } = parseThemeSwatches(css);
     expect(light?.fontSans).toBe("Helvetica");
-    expect(dark?.fontSans).toBeNull();
+    expect(dark?.fontSans).toBe("Helvetica");
     expect(parseThemeSwatches(":root { --background: #fff; }").light?.canvas).toBe("#fff");
+    expect(parseThemeSwatches(":root { --background: #fff; }").dark?.canvas).toBe("#fff");
   });
 
-  it("returns null for a mode the CSS never declares", () => {
-    expect(parseThemeSwatches(":root { --canvas: #fff; }").dark).toBeNull();
+  it("resolves shared, mode-specific, derived, and inherited values", () => {
+    const parsed = parseThemeSwatches(`
+      :root { --brand: #456789; --primary: var(--brand); }
+      :root:not(.dark) { --canvas: #fefefe; }
+      .dark { --brand: #abcdef; --file-accent: var(--missing, var(--brand)); }
+    `);
+    expect(parsed.light?.primary).toBe("#456789");
+    expect(parsed.light?.canvas).toBe("#fefefe");
+    expect(parsed.dark?.primary).toBe("#abcdef");
+    expect(parsed.dark?.accent).toBe("#abcdef");
+    expect(parsed.dark?.canvas).toBe("oklch(0.195 0 0)");
+  });
+});
+
+describe("createCatalogLoader", () => {
+  it("does not let a stale request reapply a theme selected by a newer request", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "theme-preview-catalog-"));
+    for (const id of ["theme-a", "theme-b"]) {
+      await mkdir(join(directory, id));
+      await writeFile(join(directory, id, "theme.css"), `:root { --canvas: #${id === "theme-a" ? "aaaaaa" : "bbbbbb"}; }`);
+    }
+
+    let activeThemeId = "theme-a";
+    let pluginListCalls = 0;
+    let resumeFirstPluginList!: () => void;
+    const firstPluginList = new Promise<void>((resolve) => { resumeFirstPluginList = resolve; });
+    const setCalls: string[] = [];
+    const bb = {
+      sdk: {
+        theme: {
+          catalog: async () => ({ active: { themeId: activeThemeId }, custom: ["theme-a", "theme-b"], dir: directory }),
+          set: async (themeId: string) => { setCalls.push(themeId); activeThemeId = themeId; },
+        },
+        plugins: {
+          list: async () => {
+            pluginListCalls += 1;
+            if (pluginListCalls === 1) await firstPluginList;
+            return { plugins: [] };
+          },
+        },
+      },
+      log: { info() {}, warn() {} },
+    } as unknown as BbPluginApi;
+
+    const catalogLoader = createCatalogLoader(bb);
+    const stale = catalogLoader.catalog();
+    const latest = await catalogLoader.setTheme("theme-b");
+    expect(latest.activeThemeId).toBe("theme-b");
+    resumeFirstPluginList();
+    const late = await stale;
+
+    expect(late.activeThemeId).toBe("theme-a");
+    expect(activeThemeId).toBe("theme-b");
+    expect(setCalls).toEqual(["theme-b"]);
+    await rm(directory, { recursive: true, force: true });
   });
 });
 

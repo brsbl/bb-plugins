@@ -9,6 +9,7 @@ import {
   type ReactNode,
 } from "react";
 import type { rpcContract } from "./server";
+import { LatestRequest, contrastRatio } from "./theme-utils";
 
 // ---------------------------------------------------------------------------
 // Everything reads the theme's CSS custom properties directly, and the mock
@@ -553,21 +554,6 @@ const ALL_TOKENS = GROUPS.flatMap((group) => group.tokens);
 
 type Computed = Record<string, { value: string; hex: string; rgb: string; sidebar: string | null }>;
 
-/** WCAG relative-luminance contrast between two resolved rgb() strings. */
-function contrastRatio(a: string, b: string): number | null {
-  const lum = (c: string): number | null => {
-    const m = /rgba?\(([^)]+)\)/.exec(c);
-    if (!m) return null;
-    const [r, g, bl] = m[1].split(",").map((p) => parseFloat(p.trim()) / 255);
-    const f = (x: number) => (x <= 0.03928 ? x / 12.92 : ((x + 0.055) / 1.055) ** 2.4);
-    return 0.2126 * f(r) + 0.7152 * f(g) + 0.0722 * f(bl);
-  };
-  const la = lum(a);
-  const lb = lum(b);
-  if (la === null || lb === null) return null;
-  return (Math.max(la, lb) + 0.05) / (Math.min(la, lb) + 0.05);
-}
-
 function resolveColor(color: string): { rgb: string; hex: string } {
   const m = /rgba?\(([^)]+)\)/.exec(color);
   let channels: readonly number[] | null = null;
@@ -642,7 +628,9 @@ function TokenRow({ name, computed, contrastAgainst }: { name: string; computed:
   const c = computed[name];
   // Ink rows carry their WCAG ratio against the surface they sit on; the 4.5:1
   // body-text floor is the pass mark.
-  const ratio = contrastAgainst && c?.rgb && computed[contrastAgainst]?.rgb ? contrastRatio(c.rgb, computed[contrastAgainst].rgb) : null;
+  const ratio = contrastAgainst && c?.rgb && computed[contrastAgainst]?.rgb
+    ? contrastRatio(c.rgb, computed[contrastAgainst].rgb, contrastAgainst === "canvas" ? undefined : computed.canvas?.rgb)
+    : null;
   return (
     <div style={{ display: "grid", gridTemplateColumns: contrastAgainst ? "24px minmax(0, 1fr) 72px 46px" : "24px minmax(0, 1fr) 72px", alignItems: "center", columnGap: 6, height: 22 }}>
       <span
@@ -925,6 +913,8 @@ function PreviewPage({ subPath }: { subPath: string }) {
   const [stacked, setStacked] = useState(false);
   const [catalog, setCatalog] = useState<Catalog>({ activeThemeId: null, themes: [], revision: 0 });
   const [error, setError] = useState<string | null>(null);
+  const catalogRequests = useRef(new LatestRequest());
+  const selectionPending = useRef(false);
 
   const view = useMemo<View>(() => {
     const first = subPath.split("/").filter(Boolean)[0] ?? "";
@@ -938,7 +928,11 @@ function PreviewPage({ subPath }: { subPath: string }) {
   useEffect(() => {
     let cancelled = false;
     const load = () => {
-      rpc.call("themeCatalog", {}).then((c) => { if (!cancelled) setCatalog(c); }).catch((e) => setError(String(e)));
+      if (selectionPending.current) return;
+      const request = catalogRequests.current.begin();
+      rpc.call("themeCatalog", {})
+        .then((c) => { if (!cancelled && catalogRequests.current.isLatest(request)) setCatalog(c); })
+        .catch((e) => { if (catalogRequests.current.isLatest(request)) setError(String(e)); });
     };
     loadRef.current = load;
     load();
@@ -961,7 +955,12 @@ function PreviewPage({ subPath }: { subPath: string }) {
   const pick = (themeId: string, nextMode: Mode) => {
     setMode(nextMode);
     if (themeId !== catalog.activeThemeId) {
-      rpc.call("setTheme", { themeId }).then(setCatalog).catch((err) => setError(String(err)));
+      selectionPending.current = true;
+      const request = catalogRequests.current.begin();
+      rpc.call("setTheme", { themeId })
+        .then((next) => { if (catalogRequests.current.isLatest(request)) setCatalog(next); })
+        .catch((err) => { if (catalogRequests.current.isLatest(request)) setError(String(err)); })
+        .finally(() => { if (catalogRequests.current.isLatest(request)) selectionPending.current = false; });
     }
   };
 

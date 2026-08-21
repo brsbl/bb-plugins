@@ -54,24 +54,31 @@ const SWATCH_TOKENS: ReadonlyArray<[keyof ThemeSwatch, readonly string[]]> = [
 ];
 
 /**
- * Which mode a top-level block contributes to. Element-scoped blocks (for
+ * Which mode a top-level block contributes to, including declarations shared
+ * by both modes through `:root`. Element-scoped blocks (for
  * example `.dark .fixed.bg-sidebar`) are skipped: their values are true, but
  * they describe one surface rather than the palette a chip should advertise.
  */
-export function classifySelector(selector: string): "light" | "dark" | null {
+export function classifySelector(selector: string): "shared" | "light" | "dark" | null {
   const parts = selector
     .split(",")
     .map((part) => part.trim())
     .filter((part) => part.length > 0);
   if (parts.length === 0) return null;
+  let sawShared = false;
   let sawLight = false;
   let sawDark = false;
   for (const part of parts) {
     if (/\s/.test(part.replace(/:not\([^)]*\)/g, ""))) return null; // descendant selector
-    if (part === ":root" || part === ".light" || part === ":root:not(.dark)" || part === "html:not(.dark)") sawLight = true;
+    if (part === ":root") sawShared = true;
+    else if (part === ".light" || part === ":root:not(.dark)" || part === "html:not(.dark)") sawLight = true;
     else if (part === ".dark" || part === ":root.dark" || part === "html.dark") sawDark = true;
     else return null;
   }
+  // `:root` still matches when the root carries `.dark`; in a selector list
+  // such as `:root, .light` it therefore establishes shared defaults that a
+  // later dark block may override.
+  if (sawShared) return "shared";
   if (sawDark && !sawLight) return "dark";
   if (sawLight && !sawDark) return "light";
   return null;
@@ -95,18 +102,48 @@ export function parseThemeSwatches(css: string): { light: ThemeSwatch | null; da
     const mode = classifySelector(block[1]);
     if (!mode) continue;
     for (const declaration of block[2].matchAll(/--([a-zA-Z0-9-]+)\s*:\s*([^;]+);/g)) {
-      declarations[mode].set(declaration[1], declaration[2].trim());
+      if (mode === "shared") {
+        declarations.light.set(declaration[1], declaration[2].trim());
+        declarations.dark.set(declaration[1], declaration[2].trim());
+      } else {
+        declarations[mode].set(declaration[1], declaration[2].trim());
+      }
     }
   }
-  const build = (source: Map<string, string>): ThemeSwatch | null => {
-    if (source.size === 0) return null;
+
+  const resolveToken = (name: string, tokens: Map<string, string>, seen = new Set<string>()): string | null => {
+    if (seen.has(name)) return null;
+    const value = tokens.get(name);
+    if (value === undefined) return null;
+    const nextSeen = new Set(seen).add(name);
+    let resolved = value;
+    for (let depth = 0; depth < 16 && resolved.includes("var("); depth += 1) {
+      const before = resolved;
+      resolved = resolved.replace(
+        /var\(\s*--([a-zA-Z0-9-]+)(?:\s*,\s*([^()]*))?\s*\)/g,
+        (whole, referenced: string, fallback: string | undefined) =>
+          resolveToken(referenced, tokens, nextSeen) ?? fallback?.trim() ?? whole,
+      );
+      if (resolved === before) break;
+    }
+    return resolved.includes("var(") ? null : resolved;
+  };
+
+  const build = (source: Map<string, string>, mode: "light" | "dark"): ThemeSwatch => {
+    const base = BUILTIN_SWATCHES.default[mode];
+    const tokens = new Map<string, string>();
+    for (const [key, candidates] of SWATCH_TOKENS) {
+      for (const candidate of candidates) tokens.set(candidate, base[key] ?? "");
+    }
+    for (const [name, value] of source) tokens.set(name, value);
     const swatch = {} as ThemeSwatch;
     for (const [key, candidates] of SWATCH_TOKENS) {
-      swatch[key] = candidates.map((token) => source.get(token)).find((value) => value !== undefined) ?? null;
+      const token = candidates.find((candidate) => source.has(candidate)) ?? candidates[0];
+      swatch[key] = resolveToken(token, tokens) ?? base[key];
     }
     return swatch;
   };
-  return { light: build(declarations.light), dark: build(declarations.dark) };
+  return { light: build(declarations.light, "light"), dark: build(declarations.dark, "dark") };
 }
 
 async function readCustomThemeCss(directory: string, id: string): Promise<string | null> {
@@ -334,45 +371,45 @@ async function readPluginThemeCss(
   }
 }
 
-export default async function plugin(bb: BbPluginApi) {
-  // Live-reload support. bb reads a custom theme's CSS from disk on demand and
-  // never watches the file, so an agent editing `<dataDir>/theme/<id>/theme.css`
-  // in one split leaves every open window painted with the previous version.
-  // The background watcher below handles custom-theme edits immediately. Each
-  // catalog poll also stats the active custom or plugin theme as a fallback;
-  // when it has changed we re-set the same palette, which makes bb re-read the
-  // CSS and push it to every client.
-  let lastStamp: string | null = null;
-  let revision = 0;
+async function activeThemePath(themeId: string, dir: string | null, rootDirs: Map<string, string>) {
+  const pluginMatch = /^plugin:([^:]+):(.+)$/.exec(themeId);
+  if (pluginMatch) {
+    const rootDir = rootDirs.get(pluginMatch[1]);
+    if (!rootDir) return null;
+    try {
+      const manifest = JSON.parse(await readFile(resolve(rootDir, "package.json"), "utf8")) as {
+        bb?: { themes?: Array<{ id?: string; css?: string }> };
+      };
+      const entry = manifest.bb?.themes?.find((theme) => theme.id === pluginMatch[2]);
+      return entry?.css ? resolve(rootDir, entry.css) : null;
+    } catch {
+      return null;
+    }
+  }
+  if (!dir) return null;
+  for (const candidate of [resolve(dir, themeId, "theme.css"), resolve(dir, `${themeId}.css`)]) {
+    try {
+      await stat(candidate);
+      return candidate;
+    } catch {
+      // try the next layout
+    }
+  }
+  return null;
+}
 
-  const activeThemePath = async (themeId: string, dir: string | null, rootDirs: Map<string, string>) => {
-    const pluginMatch = /^plugin:([^:]+):(.+)$/.exec(themeId);
-    if (pluginMatch) {
-      const rootDir = rootDirs.get(pluginMatch[1]);
-      if (!rootDir) return null;
-      try {
-        const manifest = JSON.parse(await readFile(resolve(rootDir, "package.json"), "utf8")) as {
-          bb?: { themes?: Array<{ id?: string; css?: string }> };
-        };
-        const entry = manifest.bb?.themes?.find((theme) => theme.id === pluginMatch[2]);
-        return entry?.css ? resolve(rootDir, entry.css) : null;
-      } catch {
-        return null;
-      }
-    }
-    if (!dir) return null;
-    for (const candidate of [resolve(dir, themeId, "theme.css"), resolve(dir, `${themeId}.css`)]) {
-      try {
-        await stat(candidate);
-        return candidate;
-      } catch {
-        // try the next layout
-      }
-    }
-    return null;
-  };
+/**
+ * Catalog and selection share one coordinator so an older poll cannot undo a
+ * newer picker action. File stamps are keyed by path: changing the active
+ * theme is not itself mistaken for editing the previous theme's stylesheet.
+ */
+export function createCatalogLoader(bb: BbPluginApi) {
+  const stamps = new Map<string, string>();
+  let revision = 0;
+  let selectionGeneration = 0;
 
   const catalog = async () => {
+    const selectionAtStart = selectionGeneration;
     const raw = (await bb.sdk.theme.catalog()) as { dir?: unknown };
     const dir = typeof raw?.dir === "string" ? raw.dir : null;
     const rootDirs = new Map<string, string>();
@@ -394,12 +431,19 @@ export default async function plugin(bb: BbPluginApi) {
         try {
           const info = await stat(path);
           const stamp = `${path}:${info.mtimeMs}:${info.size}`;
-          if (lastStamp !== null && stamp !== lastStamp) {
-            revision += 1;
-            await bb.sdk.theme.set(built.activeThemeId);
-            bb.log.info(`theme-preview: ${built.activeThemeId} changed on disk — re-applied (rev ${revision})`);
+          const previousStamp = stamps.get(path);
+          stamps.set(path, stamp);
+          if (previousStamp !== undefined && stamp !== previousStamp) {
+            // Everything above can await. Confirm that neither this panel nor
+            // another bb surface selected a different theme in the meantime.
+            const current = (await bb.sdk.theme.catalog()) as { active?: { themeId?: unknown } };
+            const currentThemeId = typeof current.active?.themeId === "string" ? current.active.themeId : null;
+            if (selectionGeneration === selectionAtStart && currentThemeId === built.activeThemeId) {
+              revision += 1;
+              await bb.sdk.theme.set(built.activeThemeId);
+              bb.log.info(`theme-preview: ${built.activeThemeId} changed on disk — re-applied (rev ${revision})`);
+            }
           }
-          lastStamp = stamp;
         } catch (error) {
           bb.log.warn(`theme-preview: could not stat ${path}: ${String(error)}`);
         }
@@ -407,6 +451,27 @@ export default async function plugin(bb: BbPluginApi) {
     }
     return { ...built, revision };
   };
+
+  return {
+    catalog,
+    async setTheme(themeId: string) {
+      selectionGeneration += 1;
+      await bb.sdk.theme.set(themeId);
+      return catalog();
+    },
+  };
+}
+
+export default async function plugin(bb: BbPluginApi) {
+  // Live-reload support. bb reads a custom theme's CSS from disk on demand and
+  // never watches the file, so an agent editing `<dataDir>/theme/<id>/theme.css`
+  // in one split leaves every open window painted with the previous version.
+  // The background watcher below handles custom-theme edits immediately. Each
+  // catalog poll also stats the active custom or plugin theme as a fallback;
+  // when it has changed we re-set the same palette, which makes bb re-read the
+  // CSS and push it to every client.
+  const catalogLoader = createCatalogLoader(bb);
+  const catalog = catalogLoader.catalog;
 
   // Instant path. Watch the custom-theme directory (new themes, edits) and push
   // a signal to every open panel; the panel refetches on the signal, so a new
@@ -450,8 +515,7 @@ export default async function plugin(bb: BbPluginApi) {
       return catalog();
     },
     async setTheme({ themeId }) {
-      await bb.sdk.theme.set(themeId);
-      return catalog();
+      return catalogLoader.setTheme(themeId);
     },
   });
 
