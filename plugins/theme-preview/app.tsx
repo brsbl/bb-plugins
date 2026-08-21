@@ -1,4 +1,4 @@
-import { Markdown, definePluginApp, useBbNavigate, useRpc } from "@get-bb/plugin-sdk/app";
+import { definePluginApp, useBbNavigate, useRealtime, useRpc } from "@get-bb/plugin-sdk/app";
 import {
   useEffect,
   useLayoutEffect,
@@ -11,9 +11,11 @@ import {
 import type { rpcContract } from "./server";
 
 // ---------------------------------------------------------------------------
-// Everything reads the theme's CSS custom properties directly. The variable
-// names are what a theme author iterates on, and the plugin then renders the
-// same under any host build.
+// Everything reads the theme's CSS custom properties directly, and the mock
+// mirrors what bb actually paints: surfaces, radii and borders were measured
+// off the running app rather than invented, so a palette fails here the same
+// way it fails there. Decoration bb's theme does not touch — icons, window
+// chrome, nav lists — is left out on purpose.
 // ---------------------------------------------------------------------------
 
 const v = (name: string, fallback?: string): string =>
@@ -21,45 +23,45 @@ const v = (name: string, fallback?: string): string =>
 const SANS = v("font-sans", "ui-sans-serif, system-ui, sans-serif");
 const MONO = v("font-mono", "ui-monospace, SFMono-Regular, Menlo, monospace");
 
-const VIEWS = ["new", "thread", "split", "panel", "overlays", "settings"] as const;
+// Measured off the running app: thread rows 10px, composer and messages 16px,
+// code blocks 10px.
+const R_ROW = 10;
+const R_BUBBLE = 16;
+const R_BLOCK = 10;
+
+const VIEWS = ["thread", "new", "split", "settings"] as const;
 type View = (typeof VIEWS)[number];
 const VIEW_LABEL: Record<View, string> = {
-  new: "New thread",
   thread: "Thread",
+  new: "New thread",
   split: "Split",
-  panel: "Thread + panel",
-  overlays: "Overlays",
   settings: "Settings",
 };
+const VIEW_NOTE: Record<View, string> = {
+  thread: "open thread · side panel · row menu, hover card, toast",
+  new: "empty state and composer",
+  split: "two panes, one focused",
+  settings: "page header, cards, controls",
+};
 
-// Frame geometry. The frame is laid out at a real 1360×820 and zoomed to fit
-// the column, so every size inside it (row height, type size, radii) is the
-// size bb actually ships — scaled uniformly, never redrawn smaller.
-const FRAME_W = 1360;
-const FRAME_H = 820;
+// The frame is laid out at bb's real size and scaled to fit, so row heights and
+// type sizes stay the sizes bb ships.
+const FRAME_W = 1280;
+const FRAME_H = 780;
+
+type Mode = "light" | "dark";
 
 // ---------------------------------------------------------------------------
-// Small primitives
+// Primitives
 // ---------------------------------------------------------------------------
 
-function Dot({ color, size = 7 }: { color: string; size?: number }) {
+function Dot({ color, size = 6 }: { color: string; size?: number }) {
   return <span style={{ display: "inline-block", width: size, height: size, borderRadius: 999, background: color, flex: "none" }} />;
-}
-
-function Glyph({ size = 14, color = "currentColor" }: { size?: number; color?: string }) {
-  return (
-    <span
-      style={{
-        display: "inline-block", width: size, height: size, borderRadius: Math.max(2, size / 4),
-        boxShadow: `inset 0 0 0 1.5px ${color}`, flex: "none", opacity: 0.85,
-      }}
-    />
-  );
 }
 
 function Eyebrow({ children, style }: { children: ReactNode; style?: CSSProperties }) {
   return (
-    <div style={{ fontFamily: MONO, fontSize: 10.5, letterSpacing: "0.08em", textTransform: "uppercase", color: v("muted-foreground"), ...style }}>
+    <div style={{ fontFamily: MONO, fontSize: 10, letterSpacing: "0.08em", textTransform: "uppercase", color: v("muted-foreground"), ...style }}>
       {children}
     </div>
   );
@@ -83,20 +85,23 @@ function Badge({ children, tone = "outline" }: { children: ReactNode; tone?: Ton
   );
 }
 
-type ButtonVariant = "primary" | "secondary" | "outline" | "ghost" | "destructive";
-function Button({ children, variant = "primary", size = "md", disabled = false }: { children: ReactNode; variant?: ButtonVariant; size?: "sm" | "md"; disabled?: boolean }) {
+// bb's Button variants (shared-ui/button.tsx): the default button is
+// foreground-on-background — bb has no primary-filled button; --primary carries
+// links, focus and accents.
+type ButtonVariant = "default" | "secondary" | "outline" | "ghost" | "destructive";
+function Button({ children, variant = "default", size = "md", disabled = false }: { children: ReactNode; variant?: ButtonVariant; size?: "sm" | "md"; disabled?: boolean }) {
   const variants: Record<ButtonVariant, CSSProperties> = {
-    primary: { background: v("primary"), color: v("primary-foreground") },
+    default: { background: v("foreground"), color: v("background", v("canvas")) },
     secondary: { background: v("secondary"), color: v("secondary-foreground") },
-    outline: { boxShadow: `inset 0 0 0 1px ${v("border")}`, color: v("foreground") },
+    outline: { boxShadow: `inset 0 0 0 1px ${v("input")}`, color: v("foreground") },
     ghost: { color: v("foreground") },
     destructive: { background: v("destructive"), color: v("destructive-foreground") },
   };
   return (
     <span
       style={{
-        display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6, borderRadius: 7, whiteSpace: "nowrap",
-        height: size === "sm" ? 28 : 32, padding: size === "sm" ? "0 10px" : "0 12px", fontSize: size === "sm" ? 12.5 : 13, fontWeight: 500,
+        display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6, borderRadius: 8, whiteSpace: "nowrap",
+        height: size === "sm" ? 26 : 30, padding: size === "sm" ? "0 10px" : "0 12px", fontSize: size === "sm" ? 12 : 13, fontWeight: 500,
         opacity: disabled ? 0.5 : 1, fontFamily: SANS, ...variants[variant],
       }}
     >
@@ -107,58 +112,58 @@ function Button({ children, variant = "primary", size = "md", disabled = false }
 
 function Switch({ on }: { on: boolean }) {
   return (
-    <span style={{ width: 32, height: 18, borderRadius: 999, background: on ? v("primary") : v("input"), position: "relative", display: "inline-block", flex: "none" }}>
-      <span style={{ position: "absolute", top: 2, left: on ? 16 : 2, width: 14, height: 14, borderRadius: 999, background: on ? v("primary-foreground") : v("background", "#fff"), boxShadow: "0 1px 2px rgba(0,0,0,.25)" }} />
+    <span style={{ width: 30, height: 17, borderRadius: 999, background: on ? v("primary") : v("input"), position: "relative", display: "inline-block", flex: "none" }}>
+      <span style={{ position: "absolute", top: 2, left: on ? 15 : 2, width: 13, height: 13, borderRadius: 999, background: on ? v("primary-foreground") : v("background", "#fff") }} />
     </span>
   );
 }
 
-function TextInput({ focused = false, value, placeholder, width = 220 }: { focused?: boolean; value?: string; placeholder?: string; width?: number }) {
+function TextInput({ focused = false, value, placeholder, width = 190 }: { focused?: boolean; value?: string; placeholder?: string; width?: number }) {
   return (
     <div
       style={{
-        height: 32, width, borderRadius: 7, boxSizing: "border-box", padding: "0 10px", display: "flex", alignItems: "center", gap: 1,
-        boxShadow: focused ? `inset 0 0 0 1px ${v("ring")}, 0 0 0 3px color-mix(in srgb, ${v("ring")} 30%, transparent)` : `inset 0 0 0 1px ${v("input")}`,
-        background: v("background", "transparent"), fontSize: 13, fontFamily: SANS, color: value ? v("foreground") : v("muted-foreground"),
+        height: 30, width, borderRadius: 8, boxSizing: "border-box", padding: "0 10px", display: "flex", alignItems: "center", gap: 1,
+        boxShadow: focused ? `inset 0 0 0 1px ${v("ring")}, 0 0 0 3px color-mix(in srgb, ${v("ring")} 28%, transparent)` : `inset 0 0 0 1px ${v("input")}`,
+        background: v("background", "transparent"), fontSize: 12.5, fontFamily: SANS, color: value ? v("foreground") : v("muted-foreground"),
       }}
     >
       {value ?? placeholder}
-      {focused ? <span style={{ width: 1, height: 15, background: v("foreground") }} /> : null}
+      {focused ? <span style={{ width: 1, height: 14, background: v("foreground") }} /> : null}
     </div>
   );
 }
 
 // ---------------------------------------------------------------------------
 // Sidebar. Carries bb's real `fixed bg-sidebar` classes so any theme block
-// scoped to `.fixed.bg-sidebar` (token overrides, the noise ::after) applies
-// here exactly as it does in the app. Inline position beats the host's `.fixed`.
+// scoped to that selector (token overrides, the noise overlay) applies here
+// exactly as it does in the app.
 // ---------------------------------------------------------------------------
 
 const sidebarScope: CSSProperties = { position: "relative", inset: "auto", zIndex: "auto" };
 
-type RowState = "rest" | "hover" | "selected" | "split" | "active";
+// From bb's sidebarRowClasses.ts: hover paints bg-sidebar-accent with
+// sidebar-accent-foreground text; the open thread's row paints bg-state-active
+// (CONTEXT_SELECTION_SURFACE_CLASS); open-in-split resolves sidebar-accent 50%
+// against the sidebar unless the theme overrides the variable.
+type RowState = "rest" | "hover" | "selected" | "split";
 function rowStyle(state: RowState): CSSProperties {
   switch (state) {
-    case "hover": return { background: v("state-hover") };
-    case "selected": return { background: v("surface-selected"), boxShadow: `inset 0 0 0 1px ${v("surface-selected-border", "transparent")}` };
-    case "split": return { background: v("bb-sidebar-open-in-split-background", v("surface-selected")) };
-    case "active": return { background: v("state-active") };
+    case "hover": return { background: v("sidebar-accent"), color: v("sidebar-accent-foreground") };
+    case "selected": return { background: v("state-active") };
+    case "split": return { background: v("bb-sidebar-open-in-split-background", `color-mix(in oklch, ${v("sidebar-accent")} 50%, ${v("sidebar")})`) };
     default: return {};
   }
 }
 
-function Row({ label, state = "rest", dot, meta, icon }: { label: string; state?: RowState; dot?: string; meta?: string; icon?: boolean }) {
+// The dots bb actually draws: a 5px foreground dot for unread, a muted dot for
+// working status (SIDEBAR_UNREAD_DOT_CLASS / SIDEBAR_SUCCESS_STATUS_DOT_CLASS).
+function Row({ label, state = "rest", dot }: { label: string; state?: RowState; dot?: "unread" | "status" }) {
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: 8, height: 28, padding: "0 8px", borderRadius: 6, fontSize: 13, color: v("sidebar-foreground"), ...rowStyle(state) }}>
-      {icon ? <Glyph size={14} /> : <Dot color={dot ?? v("muted-foreground")} />}
+    <div style={{ display: "flex", alignItems: "center", gap: 8, height: 28, padding: "0 10px", borderRadius: R_ROW, fontSize: 13, color: v("sidebar-foreground"), ...rowStyle(state) }}>
       <span style={{ flex: 1, overflow: "hidden", whiteSpace: "nowrap", textOverflow: "ellipsis" }}>{label}</span>
-      {meta ? <span style={{ fontSize: 11, color: v("muted-foreground"), fontFamily: MONO }}>{meta}</span> : null}
+      {dot === "unread" ? <Dot color={v("foreground")} size={5} /> : dot === "status" ? <Dot color={`color-mix(in srgb, ${v("muted-foreground")} 60%, transparent)`} size={5} /> : null}
     </div>
   );
-}
-
-function SectionTitle({ children }: { children: ReactNode }) {
-  return <div style={{ fontSize: 11, fontWeight: 500, color: v("muted-foreground"), padding: "12px 8px 4px" }}>{children}</div>;
 }
 
 function Sidebar({ selected, split, hover }: { selected?: boolean; split?: boolean; hover?: boolean }) {
@@ -166,147 +171,125 @@ function Sidebar({ selected, split, hover }: { selected?: boolean; split?: boole
     <div
       className="fixed bg-sidebar"
       style={{
-        ...sidebarScope, width: 256, height: "100%", flex: "none", background: v("sidebar"), color: v("sidebar-foreground"),
-        borderRight: `1px solid ${v("sidebar-border")}`, display: "flex", flexDirection: "column", padding: "0 8px 8px", boxSizing: "border-box", fontFamily: SANS,
+        ...sidebarScope, width: 248, height: "100%", flex: "none", background: v("sidebar"), color: v("sidebar-foreground"),
+        // bb's sidebar divider is border-border-seam; a theme's scoped seam
+        // (blacklight's orange line) still arrives via the element class.
+        borderRight: `1px solid ${v("border-seam", v("border"))}`, display: "flex", flexDirection: "column", padding: "10px 8px", boxSizing: "border-box", fontFamily: SANS,
       }}
     >
-      <div style={{ height: 40, display: "flex", alignItems: "center", gap: 7, padding: "0 6px" }}>
-        <Dot color={v("destructive")} size={11} /><Dot color={v("warning")} size={11} /><Dot color={v("success")} size={11} />
-        <div style={{ flex: 1 }} />
-        <Glyph size={13} color={v("muted-foreground")} />
-      </div>
-      <div style={{ display: "flex", alignItems: "center", gap: 8, height: 30, padding: "0 8px", fontSize: 13, fontWeight: 600 }}>
-        <span style={{ width: 16, height: 16, borderRadius: 4, background: v("primary"), flex: "none" }} />
-        <span style={{ flex: 1 }}>bb-plugins</span>
-        <span style={{ color: v("muted-foreground"), fontSize: 11 }}>▾</span>
-      </div>
-      <div style={{ display: "flex", gap: 6, padding: "6px 0 2px" }}>
-        <div style={{ flex: 1, height: 28, borderRadius: 7, background: v("primary"), color: v("primary-foreground"), fontSize: 12.5, fontWeight: 500, display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
-          + New thread
-        </div>
-        <div style={{ width: 28, height: 28, borderRadius: 7, boxShadow: `inset 0 0 0 1px ${v("border")}`, display: "grid", placeItems: "center" }}><Glyph size={12} /></div>
-      </div>
-      <Row icon label="Extensions" />
-      <Row icon label="Automations" meta="3" />
-      <SectionTitle>Today</SectionTitle>
-      <Row label="Endless theme family — blacklight pass" state={selected ? "selected" : "rest"} dot={v("success")} />
-      <Row label="Specimen sheets + social grid" state={split ? "split" : "rest"} dot={v("warning")} />
-      <Row label="theme-preview plugin" state={hover ? "hover" : "rest"} dot={v("primary")} />
-      <Row label="Crit: endless-color light foil" />
-      <SectionTitle>Yesterday</SectionTitle>
-      <Row label="Sidebar brushed-noise overlay" />
-      <Row label="Fix pink split row (oklch mix)" dot={v("destructive")} />
+      <div style={{ display: "flex", alignItems: "center", height: 30, padding: "0 10px", fontSize: 13, fontWeight: 600 }}>bb-plugins</div>
+      {/* bb renders New thread as a ghost row, not a filled button. */}
+      <Row label="New thread" />
+      <div style={{ fontSize: 11, color: v("muted-foreground"), padding: "6px 10px 4px" }}>Today</div>
+      <Row label="Endless theme family — blacklight" state={selected ? "selected" : "rest"} dot="unread" />
+      <Row label="Specimen sheets + social grid" state={split ? "split" : "rest"} dot="status" />
+      <Row label="theme-preview plugin" state={hover ? "hover" : "rest"} />
+      <Row label="Crit: endless-color light foil" dot="unread" />
+      <div style={{ fontSize: 11, color: v("muted-foreground"), padding: "12px 10px 4px" }}>Yesterday</div>
+      <Row label="Fix pink split row (oklch mix)" dot="status" />
       <Row label="Hue census battery" />
       <div style={{ flex: 1 }} />
-      <div style={{ display: "flex", alignItems: "center", gap: 8, height: 30, padding: "0 8px", fontSize: 12.5 }}>
-        <span style={{ width: 18, height: 18, borderRadius: 999, background: v("secondary"), boxShadow: `inset 0 0 0 1px ${v("border")}` }} />
-        <span style={{ flex: 1 }}>brsbl</span>
-        <Glyph size={13} color={v("muted-foreground")} />
-      </div>
+      <div style={{ display: "flex", alignItems: "center", height: 30, padding: "0 10px", fontSize: 12.5, color: v("muted-foreground") }}>brsbl</div>
     </div>
   );
 }
 
 // ---------------------------------------------------------------------------
-// Overlays (popover tokens). Rendered in place, forced open.
+// Overlays
 // ---------------------------------------------------------------------------
 
 const popover: CSSProperties = {
-  background: v("popover"), color: v("popover-foreground"), boxShadow: `inset 0 0 0 1px ${v("border")}, ${v("shadow-md", "0 4px 16px rgba(0,0,0,.2)")}`,
-  borderRadius: 8, fontFamily: SANS, fontSize: 13,
+  background: v("popover"), color: v("popover-foreground"),
+  boxShadow: `inset 0 0 0 1px ${v("border")}, ${v("shadow-md", "0 4px 16px rgba(0,0,0,.2)")}`,
+  borderRadius: 10, fontFamily: SANS, fontSize: 13,
 };
 
 function MenuItem({ children, hover = false, destructive = false, kbd }: { children: ReactNode; hover?: boolean; destructive?: boolean; kbd?: string }) {
   return (
     <div
       style={{
-        display: "flex", alignItems: "center", gap: 8, height: 28, padding: "0 8px", borderRadius: 5, margin: "0 4px",
+        display: "flex", alignItems: "center", gap: 8, height: 28, padding: "0 10px", borderRadius: 6, margin: "0 4px",
         background: hover ? v("accent") : undefined,
         color: destructive ? v("destructive-text", v("destructive")) : hover ? v("accent-foreground") : v("popover-foreground"),
       }}
     >
-      <Glyph size={12} />
       <span style={{ flex: 1 }}>{children}</span>
       {kbd ? <span style={{ fontFamily: MONO, fontSize: 11, color: v("muted-foreground") }}>{kbd}</span> : null}
     </div>
   );
 }
 
-function ContextMenu({ left, top }: { left: number; top: number }) {
+function Menu({ style }: { style?: CSSProperties }) {
   return (
-    <div style={{ ...popover, position: "absolute", left, top, width: 210, padding: "4px 0", zIndex: 5 }}>
+    <div style={{ ...popover, width: 200, padding: "5px 0", ...style }}>
       <MenuItem kbd="⌘⇧O">Open in split</MenuItem>
       <MenuItem hover kbd="⌘R">Rename</MenuItem>
-      <MenuItem>Move to section ▸</MenuItem>
-      <div style={{ height: 1, background: v("border"), margin: "4px 0" }} />
-      <MenuItem>Archive</MenuItem>
+      <MenuItem>Move to section</MenuItem>
+      <div style={{ height: 1, background: v("border"), margin: "5px 0" }} />
       <MenuItem destructive>Delete thread</MenuItem>
     </div>
   );
 }
 
-function Dialog() {
+function HoverCard({ style }: { style?: CSSProperties }) {
   return (
-    <div style={{ position: "absolute", inset: 0, background: v("surface-scrim", "rgba(0,0,0,.5)"), display: "grid", placeItems: "center", zIndex: 4 }}>
-      <div style={{ width: 380, background: v("card"), color: v("card-foreground"), boxShadow: `inset 0 0 0 1px ${v("border")}, ${v("shadow-lift", v("shadow-xl", "0 16px 40px rgba(0,0,0,.35)"))}`, borderRadius: 12, padding: 20, fontFamily: SANS }}>
-        <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 6 }}>Delete thread?</div>
-        <div style={{ fontSize: 13, color: v("muted-foreground"), lineHeight: "19px", marginBottom: 18 }}>This removes the thread and its timeline. The workspace stays on disk.</div>
-        <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}><Button variant="outline" size="sm">Cancel</Button><Button variant="destructive" size="sm">Delete</Button></div>
+    <div style={{ ...popover, width: 280, padding: 13, ...style }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 7 }}>
+        <Dot color={v("warning")} /> <span style={{ fontWeight: 600 }}>Specimen sheets + social grid</span>
+      </div>
+      <div style={{ fontSize: 12.5, color: v("muted-foreground"), lineHeight: "18px", marginBottom: 10 }}>
+        Regenerating both sheets against the new ramp.
+      </div>
+      <div style={{ display: "flex", gap: 6 }}><Badge tone="outline">bb/endless-theme</Badge><Badge tone="merged">#42</Badge></div>
+    </div>
+  );
+}
+
+function Toast({ style }: { style?: CSSProperties }) {
+  return (
+    <div style={{ ...popover, width: 280, padding: "11px 13px", display: "flex", gap: 10, alignItems: "flex-start", boxShadow: `inset 0 0 0 1px ${v("border")}, ${v("shadow-lg", "0 8px 24px rgba(0,0,0,.25)")}`, ...style }}>
+      <Dot color={v("success")} size={8} />
+      <div style={{ flex: 1 }}>
+        <div style={{ fontWeight: 600, marginBottom: 2 }}>Theme applied</div>
+        <div style={{ fontSize: 12.5, color: v("muted-foreground") }}>endless-color is now active.</div>
       </div>
     </div>
   );
 }
 
 function Tooltip({ children, style }: { children: ReactNode; style?: CSSProperties }) {
-  return <span style={{ ...popover, position: "absolute", padding: "5px 9px", fontSize: 12, borderRadius: 6, whiteSpace: "nowrap", zIndex: 5, ...style }}>{children}</span>;
+  return <span style={{ ...popover, padding: "5px 9px", fontSize: 12, borderRadius: 7, whiteSpace: "nowrap", ...style }}>{children}</span>;
 }
 
+
 // ---------------------------------------------------------------------------
-// Thread column: header, timeline, composer. The assistant message goes through
-// bb's real Markdown renderer, so code blocks, inline code and links are the
-// host's own — the one place a composed skeleton would otherwise lie.
+// Thread. Surfaces measured off the running app: the composer sits on the
+// canvas with a 1px border (not on --card), and messages and code blocks are
+// the faintest recessed wash with a seam border.
 // ---------------------------------------------------------------------------
 
-const ASSISTANT_MD = `Three blacks were fragmenting the frame. The base theme's \`.fixed.bg-sidebar\` block was overriding the variant's sidebar tokens, so the sidebar rendered \`#1d1d1d\` instead of true black. Scoped the variant's values at the same selector, after the base — see [build-color.py](https://example.com).
-
-\`\`\`css
-.dark .fixed.bg-sidebar {
-  --sidebar: #070509;
-  --sidebar-border: rgba(255, 106, 31, 0.60);
-}
-\`\`\`
-
-Sidebar, right panel and seam now agree: **one black**, one orange line.`;
-
-function ToolPill({ name, path }: { name: string; path: string }) {
+function Bubble({ children }: { children: ReactNode }) {
   return (
-    <div
-      style={{
-        display: "inline-flex", alignItems: "center", gap: 8, height: 26, padding: "0 10px 0 8px", borderRadius: 7,
-        background: v("pill-surface", v("secondary")), boxShadow: `inset 0 0 0 1px ${v("border-hairline", v("border"))}, ${v("pill-shadow", "none")}`,
-        fontSize: 12, color: v("foreground"),
-      }}
-    >
-      <Glyph size={12} />
-      <span style={{ fontWeight: 500 }}>{name}</span>
-      <span style={{ fontFamily: MONO, fontSize: 11.5, color: v("file-accent", v("muted-foreground")) }}>{path}</span>
+    <div style={{ alignSelf: "flex-end", maxWidth: "70%", background: v("surface-recessed", "rgba(127,127,127,.05)"), boxShadow: `inset 0 0 0 1px ${v("border-seam", v("border"))}`, borderRadius: R_BUBBLE, padding: "10px 14px" }}>
+      {children}
     </div>
   );
 }
 
-function DiffBlock() {
+function CodeBlock() {
   const line = (text: string, kind?: "add" | "del") => (
     <div key={text} style={{ padding: "0 12px", whiteSpace: "pre", background: kind === "add" ? `color-mix(in srgb, ${v("diff-added")} 18%, transparent)` : kind === "del" ? `color-mix(in srgb, ${v("diff-removed")} 18%, transparent)` : undefined }}>
       {text}
     </div>
   );
   return (
-    <div style={{ borderRadius: 8, overflow: "hidden", background: v("surface-recessed-solid"), boxShadow: `inset 0 0 0 1px ${v("border-hairline", v("border"))}`, fontFamily: MONO, fontSize: 12, lineHeight: "19px", color: v("foreground"), padding: "8px 0" }}>
-      <div style={{ padding: "0 12px 6px", fontSize: 11, color: v("muted-foreground"), display: "flex", gap: 8 }}><span style={{ color: v("file-accent", v("muted-foreground")) }}>themes/endless-color.css</span><span>+2 −1</span></div>
+    <div style={{ borderRadius: R_BLOCK, overflow: "hidden", boxShadow: `inset 0 0 0 1px ${v("border-seam", v("border"))}`, fontFamily: MONO, fontSize: 12, lineHeight: "19px", color: v("foreground"), padding: "8px 0" }}>
+      <div style={{ padding: "0 12px 6px", fontSize: 11, display: "flex", gap: 8, color: v("muted-foreground") }}>
+        <span style={{ color: v("file-accent", v("muted-foreground")) }}>themes/endless-color.css</span><span>+2 −1</span>
+      </div>
       {line("  .dark .fixed.bg-sidebar {")}
       {line("-   --sidebar: #1d1d1d;", "del")}
-      {line("+   --sidebar: #070509;", "add")}
-      {line("+   --sidebar-border: rgba(255,106,31,0.60);", "add")}
+      {line("+   --sidebar: #070707;", "add")}
       {line("  }")}
     </div>
   );
@@ -316,72 +299,92 @@ function Composer({ focused = false, text }: { focused?: boolean; text?: string 
   return (
     <div
       style={{
-        borderRadius: 12, background: v("card"), padding: "10px 10px 8px", display: "flex", flexDirection: "column", gap: 10,
+        borderRadius: R_BUBBLE, background: v("background", v("canvas")), padding: "12px 12px 10px", display: "flex", flexDirection: "column", gap: 12,
         boxShadow: focused
-          ? `inset 0 0 0 1px ${v("ring")}, 0 0 0 3px color-mix(in srgb, ${v("ring")} 28%, transparent)`
-          : `inset 0 0 0 1px ${v("input")}, ${v("shadow-sm", "none")}`,
+          ? `inset 0 0 0 1px ${v("ring")}, 0 0 0 3px color-mix(in srgb, ${v("ring")} 25%, transparent)`
+          : `inset 0 0 0 1px ${v("border")}`,
       }}
     >
-      <div style={{ fontSize: 13.5, color: text ? v("foreground") : v("muted-foreground"), minHeight: 20 }}>{text ?? "Message the agent…"}</div>
+      <div style={{ fontSize: 13.5, color: text ? v("foreground") : v("muted-foreground"), minHeight: 20 }}>{text ?? "Ask for a follow-up."}</div>
       <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-        <Badge tone="secondary">claude-fable-5</Badge>
-        <Badge tone="outline">⌘ plan</Badge>
+        <span style={{ fontSize: 12, color: v("muted-foreground") }}>claude-fable-5</span>
         <div style={{ flex: 1 }} />
-        <div style={{ width: 26, height: 26, borderRadius: 999, background: text ? v("primary") : v("muted"), display: "grid", placeItems: "center", color: text ? v("primary-foreground") : v("muted-foreground"), fontSize: 12 }}>↑</div>
+        <div style={{ width: 26, height: 26, borderRadius: 8, background: text ? v("primary") : v("muted"), color: text ? v("primary-foreground") : v("muted-foreground"), display: "grid", placeItems: "center", fontSize: 12 }}>↑</div>
       </div>
     </div>
   );
 }
 
-function ThreadHeader({ title, active, narrow, marker }: { title: string; active: boolean; narrow?: boolean; marker?: boolean }) {
+function VerificationCard() {
+  const rows: ReadonlyArray<[string, string, Tone]> = [
+    ["Theme tokens", "28 resolved", "success"],
+    ["Contrast floor", "AA passed", "success"],
+    ["Reference sheet", "Updated", "secondary"],
+  ];
   return (
-    <div style={{ height: 44, display: "flex", alignItems: "center", gap: 8, padding: "0 16px", flex: "none", borderBottom: `1px solid ${v("border-seam", v("border"))}`, position: "relative" }}>
-      {marker && active ? <span style={{ position: "absolute", left: 0, right: 0, top: 0, height: 2, background: v("primary") }} /> : null}
-      <span style={{ fontSize: 13.5, fontWeight: 600, overflow: "hidden", whiteSpace: "nowrap", textOverflow: "ellipsis" }}>{title}</span>
-      <Badge tone="success"><Dot color={v("success")} size={6} /> Running</Badge>
-      {narrow ? null : <Badge tone="outline">bb/endless-theme-plugin</Badge>}
-      <div style={{ flex: 1 }} />
-      <Glyph color={v("muted-foreground")} /><Glyph color={v("muted-foreground")} /><Glyph color={v("muted-foreground")} />
+    <div style={{ borderRadius: R_BLOCK, background: v("surface-recessed", "rgba(127,127,127,.05)"), boxShadow: `inset 0 0 0 1px ${v("border-seam", v("border"))}`, padding: "10px 12px" }}>
+      <div style={{ fontSize: 12.5, fontWeight: 600, marginBottom: 6 }}>Verification summary</div>
+      {rows.map(([label, value, tone]) => (
+        <div key={label} style={{ display: "flex", alignItems: "center", gap: 10, minHeight: 25, borderTop: `1px solid ${v("border-hairline", v("border"))}` }}>
+          <span style={{ flex: 1, color: v("muted-foreground") }}>{label}</span>
+          <Badge tone={tone}>{value}</Badge>
+        </div>
+      ))}
     </div>
   );
 }
 
 function Thread({ title = "Endless theme family — blacklight pass", active = true, narrow = false, empty = false, marker = false, children }: { title?: string; active?: boolean; narrow?: boolean; empty?: boolean; marker?: boolean; children?: ReactNode }) {
-  const pad = narrow ? 18 : 32;
+  const pad = narrow ? 20 : 30;
   return (
     <div style={{ flex: 1, minWidth: 0, height: "100%", background: v("canvas", v("background")), color: v("foreground"), display: "flex", flexDirection: "column", fontFamily: SANS, position: "relative" }}>
       {empty ? (
-        <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 22, padding: `0 ${pad}px` }}>
-          <div style={{ textAlign: "center" }}>
-            <div style={{ fontSize: 22, fontWeight: 600, letterSpacing: "-0.01em", marginBottom: 6 }}>What are we building?</div>
-            <div style={{ fontSize: 13.5, color: v("muted-foreground") }}>Pick a project, describe the work, and an agent takes it from here.</div>
-          </div>
-          <div style={{ width: "100%", maxWidth: 680 }}><Composer focused text="make the blacklight variant feel like the reference — neon orange seam, blue selection, calm UV canvas" /></div>
+        <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 20, padding: `0 ${pad}px` }}>
+          <div style={{ fontSize: 21, fontWeight: 600, letterSpacing: "-0.01em" }}>What are we building?</div>
+          <div style={{ width: "100%", maxWidth: 620 }}><Composer focused text="make the blacklight variant feel like the reference" /></div>
           <div style={{ display: "flex", gap: 8 }}>
-            {["Fix the failing build", "Review open PRs", "Draft release notes"].map((s) => (
+            {["Fix the failing build", "Review open PRs"].map((s) => (
               <span key={s} style={{ fontSize: 12.5, padding: "6px 12px", borderRadius: 999, boxShadow: `inset 0 0 0 1px ${v("border")}`, color: v("muted-foreground") }}>{s}</span>
             ))}
           </div>
         </div>
       ) : (
         <>
-          <ThreadHeader title={title} active={active} narrow={narrow} marker={marker} />
-          <div style={{ flex: 1, overflow: "hidden", padding: `22px ${pad}px 0`, display: "flex", flexDirection: "column", gap: 16, fontSize: 13.5, lineHeight: "21px" }}>
-            <div style={{ alignSelf: "flex-end", maxWidth: "72%", background: v("card"), boxShadow: `inset 0 0 0 1px ${v("border")}`, borderRadius: 12, padding: "8px 12px" }}>
-              make the blacklight variant feel like the reference — neon orange seam, blue selection, calm UV canvas.
+          <div style={{ height: 48, display: "flex", alignItems: "center", gap: 10, padding: `0 ${pad}px`, flex: "none", position: "relative" }}>
+            {marker && active ? <span style={{ position: "absolute", left: 0, right: 0, top: 0, height: 2, background: v("primary") }} /> : null}
+            <span style={{ fontSize: 13.5, fontWeight: 600, overflow: "hidden", whiteSpace: "nowrap", textOverflow: "ellipsis" }}>{title}</span>
+            <Badge tone="success"><Dot color={v("success")} size={6} /> Running</Badge>
+            {narrow ? null : <Badge tone="outline">bb/endless-theme-plugin</Badge>}
+          </div>
+          <div style={{ flex: 1, overflow: "hidden", padding: `22px ${pad}px 0`, display: "flex", flexDirection: "column", justifyContent: "space-between", gap: 16, fontSize: 13.5, lineHeight: "21px" }}>
+            <Bubble>make the blacklight variant feel like the reference — neon orange seam, blue selection, calm UV canvas.</Bubble>
+            <div>
+              Three blacks were fragmenting the frame. The base theme's{" "}
+              <code style={{ fontFamily: MONO, fontSize: "0.92em", fontWeight: 600, background: v("surface-recessed"), padding: "1px 5px", borderRadius: 4 }}>.fixed.bg-sidebar</code>{" "}
+              block was overriding the variant's sidebar tokens, so it rendered <span style={{ fontFamily: MONO, fontSize: "0.92em" }}>#1d1d1d</span> instead of true black.
             </div>
-            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-              <ToolPill name="Read" path="theme-src/endless/build-color.py" />
-              <ToolPill name="Bash" path="python3 build-color.py 0.035 0.045" />
-            </div>
-            <Markdown content={ASSISTANT_MD} />
-            <DiffBlock />
+            <CodeBlock />
             <div style={{ color: v("muted-foreground"), fontSize: 12.5, display: "flex", alignItems: "center", gap: 8 }}>
               <span style={{ width: 1, height: 18, background: v("timeline-accent", v("border")) }} />
-              14:02 · 2 files changed · <span style={{ color: v("file-accent", v("muted-foreground")), fontFamily: MONO }}>themes/endless-color.css</span>
+              14:02 · <span style={{ color: v("file-accent", v("muted-foreground")), fontFamily: MONO }}>themes/endless-color.css</span>
+            </div>
+            <Bubble>looks right — now match the selection blue to the glove.</Bubble>
+            <div>
+              Done. Selection now reads <span style={{ fontFamily: MONO, fontSize: "0.92em" }}>rgba(47,180,255,.20)</span> over the canvas, and file paths pick up the
+              glove's steel blue — <span style={{ color: v("file-accent", v("muted-foreground")), fontFamily: MONO, fontSize: "0.92em" }}>build-color.py</span> shows it inline.
+              <span style={{ background: v("selection-color-default", v("surface-selected")), padding: "0 2px" }}> Selected text looks like this.</span>
+            </div>
+            <div style={{ color: v("muted-foreground"), fontSize: 12.5, display: "flex", alignItems: "center", gap: 8 }}>
+              <span style={{ width: 1, height: 18, background: v("timeline-accent", v("border")) }} />
+              14:18 · checks completed
+            </div>
+            <VerificationCard />
+            <Bubble>keep the hierarchy calm — orange should guide the eye, not fill the room.</Bubble>
+            <div>
+              Tightened the raised surfaces and kept the content seams neutral. The sidebar edge is the only persistent orange line; focus and selection stay blue, so the two signals never compete.
             </div>
           </div>
-          <div style={{ padding: `12px ${pad}px 16px`, flex: "none" }}><Composer focused={active} /></div>
+          <div style={{ padding: `12px ${pad}px 18px`, flex: "none" }}><Composer focused={active} /></div>
         </>
       )}
       {children}
@@ -398,35 +401,31 @@ function InfoPanel() {
   );
   return (
     <div
-      className="fixed bg-sidebar"
-      style={{ ...sidebarScope, width: 320, height: "100%", flex: "none", background: v("sidebar"), color: v("sidebar-foreground"), borderLeft: `1px solid ${v("sidebar-border")}`, fontFamily: SANS, display: "flex", flexDirection: "column" }}
+      // The real right panel is `bg-sidebar` WITHOUT `fixed` (probe: no seam, no
+      // scoped overrides), so it must not carry the class the sidebar rule targets.
+      className="bg-sidebar"
+      style={{ ...sidebarScope, width: 280, height: "100%", flex: "none", background: v("sidebar"), color: v("sidebar-foreground"), borderLeft: `1px solid ${v("border-seam", v("border"))}`, fontFamily: SANS, display: "flex", flexDirection: "column" }}
     >
-      <div style={{ height: 44, display: "flex", alignItems: "center", gap: 2, padding: "0 10px", borderBottom: `1px solid ${v("border-seam", v("border"))}` }}>
+      <div style={{ height: 48, display: "flex", alignItems: "center", gap: 14, padding: "0 16px", fontSize: 12.5 }}>
         {["Info", "Files", "Changes"].map((t, i) => (
-          <span key={t} style={{ fontSize: 12.5, padding: "0 10px", height: 26, display: "inline-flex", alignItems: "center", borderRadius: 6, background: i === 0 ? v("state-active", v("state-hover")) : undefined, color: i === 0 ? v("foreground") : v("muted-foreground"), fontWeight: i === 0 ? 500 : 400 }}>{t}</span>
+          <span key={t} style={{ color: i === 0 ? v("foreground") : v("muted-foreground"), fontWeight: i === 0 ? 600 : 400 }}>{t}</span>
         ))}
       </div>
-      <div style={{ padding: "14px 16px", display: "flex", flexDirection: "column", gap: 16 }}>
+      <div style={{ padding: "14px 16px", display: "flex", flexDirection: "column", gap: 14 }}>
         <div>
-          <Eyebrow style={{ marginBottom: 4 }}>Thread</Eyebrow>
           {kv("Status", <Badge tone="success">Running</Badge>)}
           {kv("Agent", "Claude Fable 5")}
-          {kv("Branch", <span style={{ fontFamily: MONO, fontSize: 12 }}>bb/endless-theme-plugin</span>)}
+          {kv("Branch", <span style={{ fontFamily: MONO, fontSize: 12 }}>bb/endless-theme</span>)}
           {kv("Pull request", <Badge tone="merged">Merged #42</Badge>)}
         </div>
         <div>
-          <Eyebrow style={{ marginBottom: 4 }}>Git</Eyebrow>
-          {kv("Working tree", <span style={{ display: "inline-flex", gap: 6, alignItems: "center" }}><Dot color={v("success")} /> Clean</span>)}
-          {kv("Ahead", "3 commits")}
-        </div>
-        <div>
           <Eyebrow style={{ marginBottom: 4 }}>Files</Eyebrow>
-          {["themes/endless-color.css", "build-color.py", "README.md"].map((f) => (
-            <div key={f} style={{ display: "flex", gap: 8, alignItems: "center", height: 26, fontSize: 12.5, fontFamily: MONO, color: v("file-accent", v("foreground")) }}><Glyph size={12} color={v("muted-foreground")} />{f}</div>
+          {["themes/endless-color.css", "build-color.py"].map((f) => (
+            <div key={f} style={{ height: 24, fontSize: 12.5, fontFamily: MONO, color: v("file-accent", v("foreground")), overflow: "hidden", whiteSpace: "nowrap", textOverflow: "ellipsis" }}>{f}</div>
           ))}
         </div>
-        <div style={{ borderRadius: 8, background: v("surface-recessed-soft-solid", v("card")), boxShadow: `inset 0 0 0 1px ${v("border-hairline", v("border"))}`, padding: "10px 12px", fontSize: 12.5, color: v("readback-foreground", v("muted-foreground")), lineHeight: "18px" }}>
-          Sidebar now reads true black with the orange seam; blue selection at .20 over the UV canvas.
+        <div style={{ borderRadius: R_BLOCK, background: v("surface-recessed-soft-solid", v("card")), boxShadow: `inset 0 0 0 1px ${v("border-hairline", v("border"))}`, padding: "10px 12px", fontSize: 12.5, color: v("readback-foreground", v("muted-foreground")), lineHeight: "18px" }}>
+          Sidebar reads true black with the orange seam; blue selection at .20.
         </div>
       </div>
     </div>
@@ -436,23 +435,22 @@ function InfoPanel() {
 function SettingsPage() {
   return (
     <div style={{ flex: 1, minWidth: 0, height: "100%", background: v("canvas", v("background")), color: v("foreground"), fontFamily: SANS, overflow: "hidden" }}>
-      <div style={{ maxWidth: 820, margin: "0 auto", padding: "40px 36px" }}>
-        <div style={{ borderRadius: 14, padding: "26px 28px", marginBottom: 24, background: `linear-gradient(135deg, ${v("secondary")} 0%, ${v("accent")} 100%)`, boxShadow: `inset 0 0 0 1px ${v("border-hairline", v("border"))}` }}>
-          <div style={{ fontSize: 22, fontWeight: 600, letterSpacing: "-0.01em", marginBottom: 6 }}>Extensions</div>
-          <div style={{ fontSize: 13.5, color: v("muted-foreground"), maxWidth: 480, lineHeight: "20px" }}>Plugins add surfaces, agents, and themes to bb. Everything here is on by default and reloads in place.</div>
+      <div style={{ maxWidth: 720, margin: "0 auto", padding: "36px 32px" }}>
+        <div style={{ borderRadius: 14, padding: "24px 26px", marginBottom: 22, background: `linear-gradient(135deg, ${v("secondary")} 0%, ${v("accent")} 100%)`, boxShadow: `inset 0 0 0 1px ${v("border-hairline", v("border"))}` }}>
+          <div style={{ fontSize: 21, fontWeight: 600, letterSpacing: "-0.01em", marginBottom: 6 }}>Extensions</div>
+          <div style={{ fontSize: 13.5, color: v("muted-foreground"), maxWidth: 440, lineHeight: "20px" }}>Plugins add surfaces, agents and themes to bb.</div>
         </div>
-        <div style={{ display: "flex", gap: 2, borderBottom: `1px solid ${v("border")}`, marginBottom: 18 }}>
+        <div style={{ display: "flex", gap: 18, borderBottom: `1px solid ${v("border")}`, marginBottom: 18, fontSize: 13 }}>
           {["Installed", "Marketplace", "Themes"].map((t, i) => (
-            <span key={t} style={{ padding: "7px 12px", fontSize: 13, color: i === 0 ? v("foreground") : v("muted-foreground"), fontWeight: i === 0 ? 500 : 400, boxShadow: i === 0 ? `inset 0 -2px 0 0 ${v("primary")}` : undefined }}>{t}</span>
+            <span key={t} style={{ padding: "0 0 8px", color: i === 0 ? v("foreground") : v("muted-foreground"), fontWeight: i === 0 ? 600 : 400, boxShadow: i === 0 ? `inset 0 -2px 0 0 ${v("primary")}` : undefined }}>{t}</span>
           ))}
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
           {["Endless", "Endless Color", "Theme Preview", "Plugin Guide"].map((name, i) => (
-            <div key={name} style={{ borderRadius: 10, background: v("card"), boxShadow: `inset 0 0 0 1px ${v("border")}, ${v("shadow-xs", "none")}`, padding: "12px 14px", display: "flex", gap: 12, alignItems: "center" }}>
-              <span style={{ width: 32, height: 32, borderRadius: 8, background: v("secondary"), display: "grid", placeItems: "center" }}><Glyph size={14} /></span>
+            <div key={name} style={{ borderRadius: 12, background: v("card"), boxShadow: `inset 0 0 0 1px ${v("border")}, ${v("shadow-xs", "none")}`, padding: "12px 14px", display: "flex", gap: 12, alignItems: "center" }}>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontSize: 13, fontWeight: 600 }}>{name}</div>
-                <div style={{ fontSize: 12, color: v("muted-foreground"), whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>A bb plugin · v0.1.{i}</div>
+                <div style={{ fontSize: 12, color: v("muted-foreground") }}>v0.1.{i}</div>
               </div>
               <Switch on={i !== 3} />
             </div>
@@ -464,15 +462,28 @@ function SettingsPage() {
 }
 
 // ---------------------------------------------------------------------------
-// The frame: one large app skeleton, one view at a time.
+// The frame
 // ---------------------------------------------------------------------------
 
 function FrameView({ view }: { view: View }) {
   switch (view) {
+    case "thread":
+      // Overlays are anchored to the things that open them: the context menu
+      // hangs off the open thread's row, the hover card off the row under it,
+      // the toast sits in bb's toast corner. No free-floating chrome.
+      return (
+        <>
+          <Sidebar selected />
+          <Thread />
+          <InfoPanel />
+          <Menu style={{ position: "absolute", left: 196, top: 118, zIndex: 5 }} />
+          <HoverCard style={{ position: "absolute", left: 254, top: 292, zIndex: 5 }} />
+          {/* bb toasts land in the window's bottom-right corner. */}
+          <Toast style={{ position: "absolute", right: 20, bottom: 20, zIndex: 5 }} />
+        </>
+      );
     case "new":
       return <><Sidebar hover /><Thread empty /></>;
-    case "thread":
-      return <><Sidebar selected /><Thread /></>;
     case "split":
       return (
         <>
@@ -482,42 +493,40 @@ function FrameView({ view }: { view: View }) {
           <Thread title="Specimen sheets + social grid" active={false} narrow marker />
         </>
       );
-    case "panel":
-      return <><Sidebar selected /><Thread /><InfoPanel /></>;
-    case "overlays":
-      return (
-        <>
-          <Sidebar selected />
-          <Thread>
-            <Tooltip style={{ right: 64, top: 48 }}>Open side panel ⌘I</Tooltip>
-          </Thread>
-          {/* Overlays sit at frame level: bb's dialog scrim covers the whole window, and the sidebar scope clips anything inside it. */}
-          <ContextMenu left={132} top={216} />
-          <Dialog />
-        </>
-      );
     case "settings":
       return <><Sidebar /><SettingsPage /></>;
   }
 }
 
-function Frame({ view }: { view: View }) {
+function Frame({ view, fitBoth = false }: { view: View; fitBoth?: boolean }) {
   const hostRef = useRef<HTMLDivElement | null>(null);
-  const [zoom, setZoom] = useState(0.8);
+  const [fit, setFit] = useState({ zoom: 0.8, height: FRAME_H });
   useLayoutEffect(() => {
     const el = hostRef.current;
     if (!el) return;
-    const measure = () => setZoom(Math.min(1, Math.max(0.2, el.clientWidth / FRAME_W)));
+    // Width sets the scale; the mock window then takes whatever height the pane
+    // gives it — a bb window is resizable, so a taller mock is still truthful
+    // and the pane has no dead space.
+    const measure = () => {
+      if (fitBoth) {
+        const zoom = Math.min(1, Math.max(0.24, Math.min(el.clientWidth / FRAME_W, el.clientHeight / FRAME_H)));
+        setFit({ zoom, height: FRAME_H });
+        return;
+      }
+      const zoom = Math.min(1, Math.max(0.24, el.clientWidth / FRAME_W));
+      const height = Math.min(1400, Math.max(620, Math.floor(el.clientHeight / zoom)));
+      setFit({ zoom, height });
+    };
     measure();
     const ro = new ResizeObserver(measure);
     ro.observe(el);
     return () => ro.disconnect();
-  }, []);
+  }, [fitBoth]);
   return (
-    <div ref={hostRef} style={{ width: "100%", height: FRAME_H * zoom }}>
+    <div ref={hostRef} style={{ flex: 1, minHeight: 0, display: "flex", alignItems: "flex-start", justifyContent: "center", overflow: "hidden" }}>
       <div
         style={{
-          width: FRAME_W, height: FRAME_H, zoom, display: "flex", overflow: "hidden", borderRadius: 12, position: "relative",
+          width: FRAME_W, height: fit.height, zoom: fit.zoom, display: "flex", overflow: "hidden", borderRadius: 12, position: "relative", flex: "none",
           boxShadow: v("shadow-lg", "0 10px 30px rgba(0,0,0,.25)"), background: v("canvas", v("background")),
         }}
       >
@@ -528,32 +537,75 @@ function Frame({ view }: { view: View }) {
 }
 
 // ---------------------------------------------------------------------------
-// Style guide: representative, not exhaustive. Surfaces as a ramp, ink on
-// canvas and on sidebar, accent + status, lines, then interactive states.
-// Values are computed from the live document so the guide always tells the
-// truth — including sidebar-scoped overrides.
+// Style guide — a dense table rather than a wall of cards, so the whole palette
+// fits beside the mock. Values are computed from the live document, including
+// the sidebar-scoped overrides a theme may apply to one surface.
 // ---------------------------------------------------------------------------
 
-const SURFACES = ["canvas", "sidebar", "card", "popover", "secondary", "muted", "surface-recessed-solid"] as const;
-const INKS = ["foreground", "muted-foreground", "subtle-foreground", "readback-foreground"] as const;
-const ACCENTS = ["primary", "file-accent", "timeline-accent", "success", "warning", "destructive", "pr-merged"] as const;
-const LINES = ["border", "border-hairline", "border-seam", "sidebar-border", "input", "ring"] as const;
+const GROUPS: ReadonlyArray<{ title: string; tokens: readonly string[] }> = [
+  { title: "Surfaces", tokens: ["canvas", "sidebar", "card", "popover", "secondary", "muted", "surface-recessed-solid", "surface-scrim"] },
+  { title: "Ink", tokens: ["foreground", "muted-foreground", "subtle-foreground", "readback-foreground", "sidebar-foreground"] },
+  { title: "Accent", tokens: ["primary", "file-accent", "timeline-accent", "surface-selected", "state-hover", "state-active"] },
+  { title: "Status", tokens: ["success", "warning", "destructive", "pr-merged", "diff-added", "diff-removed"] },
+  { title: "Lines", tokens: ["border", "border-hairline", "border-seam", "sidebar-border", "input", "ring"] },
+];
+const ALL_TOKENS = GROUPS.flatMap((group) => group.tokens);
 
-type Computed = Record<string, { value: string; hex: string; sidebar: string | null }>;
+type Computed = Record<string, { value: string; hex: string; rgb: string; sidebar: string | null }>;
 
-function toHex(rgb: string): string {
-  const m = /rgba?\(([^)]+)\)/.exec(rgb);
-  if (!m) return rgb;
-  const parts = m[1].split(",").map((p) => parseFloat(p.trim()));
-  const [r, g, b] = parts;
-  const a = parts[3];
-  const hex = "#" + [r, g, b].map((c) => Math.round(c).toString(16).padStart(2, "0")).join("");
-  return a !== undefined && a < 1 ? `${hex} · ${Math.round(a * 100)}%` : hex;
+/** WCAG relative-luminance contrast between two resolved rgb() strings. */
+function contrastRatio(a: string, b: string): number | null {
+  const lum = (c: string): number | null => {
+    const m = /rgba?\(([^)]+)\)/.exec(c);
+    if (!m) return null;
+    const [r, g, bl] = m[1].split(",").map((p) => parseFloat(p.trim()) / 255);
+    const f = (x: number) => (x <= 0.03928 ? x / 12.92 : ((x + 0.055) / 1.055) ** 2.4);
+    return 0.2126 * f(r) + 0.7152 * f(g) + 0.0722 * f(bl);
+  };
+  const la = lum(a);
+  const lb = lum(b);
+  if (la === null || lb === null) return null;
+  return (Math.max(la, lb) + 0.05) / (Math.min(la, lb) + 0.05);
 }
 
-function useComputedTokens(names: readonly string[]): Computed {
+function resolveColor(color: string): { rgb: string; hex: string } {
+  const m = /rgba?\(([^)]+)\)/.exec(color);
+  let channels: readonly number[] | null = null;
+  if (m) {
+    channels = m[1].split(",").map((p) => parseFloat(p.trim()));
+  } else if (color) {
+    // Chrome may preserve authored oklch()/oklab()/color-mix() syntax in
+    // computed styles. Painting one pixel asks the browser's color engine for
+    // the actual sRGB result without duplicating its conversion math here.
+    const canvas = document.createElement("canvas");
+    canvas.width = 1;
+    canvas.height = 1;
+    const context = canvas.getContext("2d", { willReadFrequently: true });
+    if (context) {
+      context.clearRect(0, 0, 1, 1);
+      context.fillStyle = color;
+      context.fillRect(0, 0, 1, 1);
+      const [r, g, b, a] = context.getImageData(0, 0, 1, 1).data;
+      channels = [r, g, b, a / 255];
+    }
+  }
+  if (!channels || channels.length < 3 || channels.some((channel) => !Number.isFinite(channel))) return { rgb: "", hex: "—" };
+  const [r, g, b, a] = channels;
+  const rounded = [r, g, b].map((channel) => Math.round(channel));
+  const baseHex = "#" + rounded.map((channel) => channel.toString(16).padStart(2, "0")).join("");
+  const alpha = a === undefined ? 1 : a;
+  return {
+    rgb: alpha < 1 ? `rgba(${rounded.join(", ")}, ${alpha})` : `rgb(${rounded.join(", ")})`,
+    hex: alpha < 1 ? `${baseHex} ${Math.round(alpha * 100)}%` : baseHex,
+  };
+}
+
+function useComputedTokens(names: readonly string[], revision: string): Computed {
   const [out, setOut] = useState<Computed>({});
   useEffect(() => {
+    // Re-read on every theme/mode change (revision) — a beat later, because the
+    // theme CSS lands asynchronously after the rpc response.
+    const timer = setTimeout(() => {
     const rootStyle = getComputedStyle(document.documentElement);
     const probe = document.createElement("div");
     probe.className = "fixed bg-sidebar";
@@ -569,176 +621,269 @@ function useComputedTokens(names: readonly string[]): Computed {
       const scoped = sidebarStyle.getPropertyValue(`--${name}`).trim();
       swatch.style.backgroundColor = "";
       swatch.style.backgroundColor = `var(--${name})`;
-      const hex = value ? toHex(getComputedStyle(swatch).backgroundColor) : "—";
-      next[name] = { value, hex, sidebar: scoped && scoped !== value ? scoped : null };
+      const resolved = value ? resolveColor(getComputedStyle(swatch).backgroundColor) : { rgb: "", hex: "—" };
+      next[name] = {
+        value,
+        hex: resolved.hex,
+        rgb: resolved.rgb,
+        sidebar: scoped && scoped !== value ? scoped : null,
+      };
     }
     probe.remove();
     swatch.remove();
     setOut(next);
-  }, [names]);
+    }, 350);
+    return () => clearTimeout(timer);
+  }, [names, revision]);
   return out;
 }
 
-function GuideBlock({ title, note, children, span = 1 }: { title: string; note?: string; children: ReactNode; span?: number }) {
+function TokenRow({ name, computed, contrastAgainst }: { name: string; computed: Computed; contrastAgainst?: string }) {
+  const c = computed[name];
+  // Ink rows carry their WCAG ratio against the surface they sit on; the 4.5:1
+  // body-text floor is the pass mark.
+  const ratio = contrastAgainst && c?.rgb && computed[contrastAgainst]?.rgb ? contrastRatio(c.rgb, computed[contrastAgainst].rgb) : null;
   return (
-    <div data-tp-guide-block style={{ gridColumn: `span ${span}`, minWidth: 0 }}>
-      <div style={{ display: "flex", alignItems: "baseline", gap: 10, marginBottom: 10 }}>
-        <span style={{ fontSize: 13, fontWeight: 600, color: v("foreground") }}>{title}</span>
-        {note ? <span style={{ fontSize: 12, color: v("muted-foreground") }}>{note}</span> : null}
+    <div style={{ display: "grid", gridTemplateColumns: contrastAgainst ? "24px minmax(0, 1fr) 72px 46px" : "24px minmax(0, 1fr) 72px", alignItems: "center", columnGap: 6, height: 22 }}>
+      <span
+        title={c?.sidebar ? `${c.value}\nsidebar: ${c.sidebar}` : c?.value}
+        style={{
+          width: 24, height: 14, borderRadius: 3, background: c?.value ? v(name) : "transparent",
+          boxShadow: `inset 0 0 0 1px ${c?.sidebar ? v("warning") : v("border-hairline", v("border"))}`,
+        }}
+      />
+      <span style={{ fontFamily: MONO, fontSize: 10.5, color: v("foreground"), overflow: "hidden", whiteSpace: "nowrap", textOverflow: "ellipsis" }}>{name}</span>
+      <span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", fontFamily: MONO, fontSize: 10.5, color: v("muted-foreground"), textAlign: "right", fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap" }}>{c?.hex ?? ""}</span>
+      {contrastAgainst ? (
+        <span
+          title={`contrast vs --${contrastAgainst} · WCAG floor 4.5:1`}
+          style={{ fontFamily: MONO, fontSize: 10.5, textAlign: "right", fontVariantNumeric: "tabular-nums", color: ratio === null || ratio >= 4.5 ? v("success") : v("destructive-text", v("destructive")), fontWeight: ratio !== null && ratio < 4.5 ? 600 : 400, whiteSpace: "nowrap" }}
+        >
+          {ratio === null ? "" : `${ratio.toFixed(2)}:1`}
+        </span>
+      ) : null}
+    </div>
+  );
+}
+
+function GuideBlock({ title, note, wide = false, children }: { title: string; note?: string; wide?: boolean; children: ReactNode }) {
+  return (
+    <div style={{ marginBottom: 14, gridColumn: wide ? "1 / -1" : undefined, minWidth: 0 }}>
+      <div style={{ display: "flex", alignItems: "baseline", gap: 8, minHeight: 18, marginBottom: 6, overflow: "hidden" }}>
+        <span style={{ fontSize: 12, fontWeight: 650, color: v("foreground"), whiteSpace: "nowrap" }}>{title}</span>
+        {note ? <span style={{ minWidth: 0, overflow: "hidden", whiteSpace: "nowrap", textOverflow: "ellipsis", fontSize: 10.5, color: v("muted-foreground") }}>{note}</span> : null}
       </div>
       {children}
     </div>
   );
 }
 
-function Swatch({ name, computed, tall = false }: { name: string; computed: Computed; tall?: boolean }) {
-  const c = computed[name];
+function StyleGuide({ revision }: { revision: string }) {
+  const computed = useComputedTokens(ALL_TOKENS, revision);
   return (
-    <div style={{ minWidth: 0 }}>
-      <div style={{ height: tall ? 64 : 40, borderRadius: 8, background: v(name), boxShadow: `inset 0 0 0 1px ${v("border-hairline", v("border"))}` }} />
-      <div style={{ fontFamily: MONO, fontSize: 10.5, lineHeight: "15px", marginTop: 6, color: v("foreground"), overflow: "hidden", whiteSpace: "nowrap", textOverflow: "ellipsis" }}>{name}</div>
-      <div style={{ fontFamily: MONO, fontSize: 10.5, lineHeight: "15px", color: v("muted-foreground"), overflow: "hidden", whiteSpace: "nowrap", textOverflow: "ellipsis" }} title={c?.value}>{c?.hex ?? ""}</div>
-      {c?.sidebar ? <div style={{ fontFamily: MONO, fontSize: 10.5, lineHeight: "15px", color: v("warning-text", v("warning")), overflow: "hidden", whiteSpace: "nowrap", textOverflow: "ellipsis" }} title={c.sidebar}>sidebar {c.sidebar}</div> : null}
-    </div>
-  );
-}
+    <div>
+      <div style={{ display: "flex", alignItems: "baseline", gap: 9, minHeight: 22, marginBottom: 10 }}>
+        <span style={{ fontSize: 13, fontWeight: 650, letterSpacing: "-0.005em" }}>Style guide</span>
+        <span style={{ fontSize: 11, color: v("muted-foreground") }}>live token readout + 1:1 states</span>
+      </div>
+      <div>
+      <GuideBlock title="Type" note="the two faces, live" wide>
+        <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+          <span style={{ fontSize: 15, fontWeight: 600, letterSpacing: "-0.005em" }}>Title · foreground 600</span>
+          <span style={{ fontSize: 13.5 }}>Body at 13.5 — the thing most pixels are.</span>
+          <span style={{ fontSize: 13, color: v("muted-foreground") }}>Muted · labels and captions</span>
+          <span style={{ fontSize: 12.5, color: v("subtle-foreground", v("muted-foreground")) }}>Subtle · secondary metadata</span>
+          <span style={{ fontSize: 13 }}>
+            inline <code style={{ fontFamily: MONO, fontSize: "0.92em", fontWeight: 600, background: v("surface-recessed"), padding: "1px 5px", borderRadius: 4 }}>--token</code>
+            {" · "}<span style={{ fontFamily: MONO, fontSize: 12.5, color: v("file-accent", "inherit") }}>path/file.tsx</span>
+            {" · "}<span style={{ color: v("primary"), textDecoration: "underline", textUnderlineOffset: 3 }}>link</span>
+          </span>
+        </div>
+      </GuideBlock>
 
-const ALL_TOKENS = [...SURFACES, ...INKS, ...ACCENTS, ...LINES];
+      <GuideBlock title="Controls" wide>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
+          <Button size="sm">Default</Button><Button size="sm" variant="secondary">Secondary</Button>
+          <Button size="sm" variant="outline">Outline</Button><Button size="sm" variant="destructive">Delete</Button>
+          <Switch on />
+          <TextInput placeholder="Search threads…" width={150} /><TextInput focused value="endless" width={110} />
+          <Badge tone="success"><Dot color={v("success")} size={6} /> Running</Badge><Badge tone="warning">Attention</Badge>
+          <Badge tone="destructive">Failed</Badge><Badge tone="merged">Merged</Badge><Badge tone="outline">branch</Badge>
+        </div>
+      </GuideBlock>
 
-function StyleGuide() {
-  const computed = useComputedTokens(ALL_TOKENS);
-  const inkSample = (scopeLabel: string, bg: string, className?: string) => (
-    <div className={className} style={{ ...(className ? sidebarScope : {}), background: bg, borderRadius: 10, padding: "14px 16px", boxShadow: `inset 0 0 0 1px ${v("border-hairline", v("border"))}`, display: "flex", flexDirection: "column", gap: 6, minWidth: 0 }}>
-      <Eyebrow>{scopeLabel}</Eyebrow>
-      <div style={{ fontSize: 15, fontWeight: 600, color: className ? v("sidebar-foreground") : v("foreground"), letterSpacing: "-0.005em" }}>Title · foreground 600</div>
-      <div style={{ fontSize: 13.5, color: className ? v("sidebar-foreground") : v("foreground"), lineHeight: "20px" }}>Body text at 13.5 — the thing most pixels are.</div>
-      <div style={{ fontSize: 13, color: v("muted-foreground") }}>Muted · labels, captions, timestamps</div>
-      <div style={{ fontSize: 12.5, color: v("subtle-foreground", v("muted-foreground")) }}>Subtle · secondary metadata</div>
-      <div style={{ fontSize: 13, color: className ? v("sidebar-foreground") : v("foreground") }}>
-        inline <code style={{ fontFamily: MONO, fontSize: "0.92em", fontWeight: 600, background: v("surface-recessed"), padding: "1px 5px", borderRadius: 4 }}>--token</code> · <span style={{ fontFamily: MONO, fontSize: 12.5, color: v("file-accent", "inherit") }}>path/file.tsx</span> · <span style={{ color: v("primary"), textDecoration: "underline", textUnderlineOffset: 3 }}>link</span>
+      {GROUPS.map((group) => (
+        <GuideBlock
+          key={group.title}
+          title={group.title}
+          note={group.title === "Surfaces" ? "amber outline = sidebar-scoped" : group.title === "Ink" ? "ratio vs its surface · floor 4.5:1" : group.title === "Status" ? "ratio vs canvas" : undefined}
+        >
+          <div style={{ display: "flex", flexDirection: "column", gap: 1 }}>
+            {group.tokens.map((token) => (
+              <TokenRow
+                key={token}
+                name={token}
+                computed={computed}
+                contrastAgainst={
+                  group.title === "Ink" ? (token === "sidebar-foreground" ? "sidebar" : "canvas")
+                  : group.title === "Status" ? "canvas"
+                  : undefined
+                }
+              />
+            ))}
+          </div>
+        </GuideBlock>
+      ))}
+
+      <GuideBlock title="Sidebar rows" note="1:1, in the real sidebar scope">
+        <div className="fixed bg-sidebar" style={{ ...sidebarScope, overflow: "hidden", background: v("sidebar"), boxShadow: `inset 0 0 0 1px ${v("border-seam", v("border"))}`, borderRadius: 10, padding: 6 }}>
+          <Row label="rest · unread" dot="unread" />
+          <Row label="hover · sidebar-accent" state="hover" />
+          <Row label="open thread · state-active" state="selected" />
+          <Row label="open in split" state="split" dot="status" />
+        </div>
+      </GuideBlock>
+
+      <div style={{ gridColumn: "1 / -1", fontSize: 10.5, fontFamily: MONO, color: v("subtle-foreground", v("muted-foreground")), marginTop: 4, lineHeight: "15px" }}>
+        values live from the active theme · mock surfaces measured against bb c942421a4
+      </div>
       </div>
     </div>
   );
+}
+
+// ---------------------------------------------------------------------------
+// The theme control: palette and mode in one dropdown. Every row previews the
+// theme it names — its prominent colours as chips, its two faces as live type —
+// so the choice is made on appearance rather than on an id.
+// ---------------------------------------------------------------------------
+
+type Swatch = {
+  canvas: string | null; sidebar: string | null; card: string | null;
+  primary: string | null; accent: string | null; foreground: string | null;
+  fontSans: string | null; fontMono: string | null;
+};
+type ThemeEntry = { id: string; name: string; light: Swatch | null; dark: Swatch | null };
+type Catalog = { activeThemeId: string | null; themes: ThemeEntry[]; revision: number };
+
+const CHIP_KEYS = ["sidebar", "canvas", "card", "primary", "accent"] as const;
+
+function Chips({ swatch, w = 13, h = 20 }: { swatch: Swatch | null; w?: number; h?: number }) {
+  return (
+    <span style={{ display: "flex", gap: 3, flex: "none" }}>
+      {CHIP_KEYS.map((key) => (
+        <span
+          key={key}
+          title={`--${key === "accent" ? "file-accent" : key}: ${swatch?.[key] ?? "bundled with the app, not readable from disk"}`}
+          style={{
+            width: w, height: h, borderRadius: 3, flex: "none", background: swatch?.[key] ?? "transparent",
+            boxShadow: `inset 0 0 0 1px ${swatch?.[key] ? v("border-hairline", v("border")) : v("border")}`,
+            opacity: swatch?.[key] ? 1 : 0.35,
+          }}
+        />
+      ))}
+    </span>
+  );
+}
+
+function ThemeRow({ entry, mode, active, onPick }: { entry: ThemeEntry; mode: Mode; active: boolean; onPick: () => void }) {
+  const swatch = mode === "dark" ? entry.dark : entry.light;
+  const shell = swatch?.canvas ?? (mode === "dark" ? "#1a1a1a" : "#f4f4f4");
+  const ink = swatch?.foreground ?? (mode === "dark" ? "#e6e6e6" : "#111111");
+  // Type is declared once at :root, so a dark block usually omits it.
+  const fontSans = swatch?.fontSans ?? entry.light?.fontSans ?? entry.dark?.fontSans ?? SANS;
+  const fontMono = swatch?.fontMono ?? entry.light?.fontMono ?? entry.dark?.fontMono ?? MONO;
+  return (
+    <button
+      type="button"
+      onClick={onPick}
+      style={{
+        appearance: "none", border: 0, cursor: "pointer", textAlign: "left", padding: "4px 6px", borderRadius: 7,
+        display: "flex", alignItems: "center", gap: 8, width: "100%", fontFamily: SANS,
+        background: active ? v("accent") : "transparent", color: active ? v("accent-foreground") : v("popover-foreground"),
+      }}
+    >
+      <Chips swatch={swatch} w={10} h={16} />
+      <span style={{ flex: 1, minWidth: 0, fontSize: 12, fontWeight: active ? 600 : 500, overflow: "hidden", whiteSpace: "nowrap", textOverflow: "ellipsis" }}>{entry.name}</span>
+      <span style={{ display: "inline-flex", alignItems: "baseline", gap: 5, padding: "1px 6px", borderRadius: 4, flex: "none", background: shell, color: ink, boxShadow: `inset 0 0 0 1px ${v("border-hairline", v("border"))}` }}>
+        <span style={{ fontFamily: fontSans, fontSize: 12.5, fontWeight: 600 }}>Aa</span>
+        <span style={{ fontFamily: fontMono, fontSize: 11 }}>Aa</span>
+      </span>
+      <span style={{ fontSize: 10.5, color: v("muted-foreground"), width: 28, flex: "none", textTransform: "capitalize" }}>{mode}</span>
+    </button>
+  );
+}
+
+function ThemePicker({ catalog, mode, onPick }: { catalog: Catalog; mode: Mode; onPick: (themeId: string, mode: Mode) => void }) {
+  const [open, setOpen] = useState(false);
+  const hostRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e: MouseEvent) => { if (!hostRef.current?.contains(e.target as Node)) setOpen(false); };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setOpen(false);
+      // Arrow keys walk the option buttons; Enter activates the focused one.
+      if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+        e.preventDefault();
+        const options = Array.from(hostRef.current?.querySelectorAll<HTMLButtonElement>("[role=listbox] button") ?? []);
+        if (options.length === 0) return;
+        const index = options.indexOf(document.activeElement as HTMLButtonElement);
+        const next = index === -1 ? 0 : (index + (e.key === "ArrowDown" ? 1 : options.length - 1)) % options.length;
+        options[next].focus();
+      }
+    };
+    document.addEventListener("mousedown", onDown);
+    document.addEventListener("keydown", onKey);
+    return () => { document.removeEventListener("mousedown", onDown); document.removeEventListener("keydown", onKey); };
+  }, [open]);
+
+  const current = catalog.themes.find((t) => t.id === catalog.activeThemeId) ?? catalog.themes[0];
+  const currentSwatch = current ? (mode === "dark" ? current.dark : current.light) : null;
 
   return (
-    <div data-tp-guide-grid style={{ display: "grid", gridTemplateColumns: "repeat(12, 1fr)", columnGap: 28, rowGap: 30 }}>
-      <GuideBlock title="Surfaces" note="the rooms, darkest to lightest in the ramp" span={12}>
-        <div style={{ display: "grid", gridTemplateColumns: `repeat(${SURFACES.length}, 1fr)`, gap: 10 }}>
-          {SURFACES.map((n) => <Swatch key={n} name={n} computed={computed} tall />)}
-        </div>
-      </GuideBlock>
-
-      <GuideBlock title="Ink" note="the same ramp on canvas and on the sidebar scope" span={7}>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-          {inkSample("on canvas", v("canvas", v("background")))}
-          {inkSample("on sidebar", v("sidebar"), "fixed bg-sidebar")}
-        </div>
-      </GuideBlock>
-      <GuideBlock title="Accent & status" span={5}>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 10 }}>
-          {ACCENTS.map((n) => <Swatch key={n} name={n} computed={computed} />)}
-        </div>
-      </GuideBlock>
-
-      <GuideBlock title="Lines" note="1px, drawn on canvas" span={5}>
-        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-          {LINES.map((n) => (
-            <div key={n} style={{ display: "grid", gridTemplateColumns: "120px 1fr auto", alignItems: "center", gap: 12, fontFamily: MONO, fontSize: 10.5 }}>
-              <span style={{ color: v("foreground") }}>{n}</span>
-              <span style={{ height: 1, background: v(n) }} />
-              <span style={{ color: v("muted-foreground") }}>{computed[n]?.hex ?? ""}</span>
+    <div ref={hostRef} style={{ position: "relative" }}>
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        style={{
+          appearance: "none", border: 0, cursor: "pointer", fontFamily: SANS, display: "inline-flex", alignItems: "center", gap: 5,
+          height: 24, padding: "0 6px", borderRadius: 7, background: v("card"), color: v("foreground"), fontSize: 11.5, fontWeight: 500, maxWidth: 200,
+          boxShadow: `inset 0 0 0 1px ${v("border")}, ${v("shadow-xs", "none")}`,
+        }}
+      >
+        <Chips swatch={currentSwatch} w={6} h={11} />
+        <span style={{ overflow: "hidden", whiteSpace: "nowrap", textOverflow: "ellipsis", minWidth: 0 }}>{current?.name ?? "theme"}</span>
+        <span style={{ color: v("muted-foreground"), textTransform: "capitalize", fontSize: 10.5, flex: "none" }}>{mode}</span>
+        <span style={{ color: v("muted-foreground"), fontSize: 9, flex: "none" }}>▾</span>
+      </button>
+      {open ? (
+        <div role="listbox" aria-label="Theme and mode" style={{ ...popover, position: "absolute", top: 28, right: 0, width: 296, padding: 4, zIndex: 30, maxHeight: 520, overflowY: "auto" }}>
+          {catalog.themes.map((entry) => (
+            <div key={entry.id} style={{ padding: "1px 0" }}>
+              {(["light", "dark"] as const).map((m) => (
+                <ThemeRow key={m} entry={entry} mode={m} active={entry.id === catalog.activeThemeId && m === mode} onPick={() => { onPick(entry.id, m); setOpen(false); }} />
+              ))}
+              <div style={{ height: 1, background: v("border-hairline", v("border")), margin: "3px 6px" }} />
             </div>
           ))}
         </div>
-      </GuideBlock>
-      <GuideBlock title="Controls" span={7}>
-        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
-            <Button>Primary</Button><Button variant="secondary">Secondary</Button><Button variant="outline">Outline</Button><Button variant="ghost">Ghost</Button><Button variant="destructive">Destructive</Button><Button disabled>Disabled</Button>
-          </div>
-          <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
-            <TextInput placeholder="Search threads…" width={200} />
-            <TextInput focused value="endless-color" width={200} />
-            <Switch on /><Switch on={false} />
-            <span style={{ width: 16, height: 16, borderRadius: 4, background: v("primary"), color: v("primary-foreground"), display: "grid", placeItems: "center", fontSize: 11 }}>✓</span>
-            <span style={{ width: 16, height: 16, borderRadius: 4, boxShadow: `inset 0 0 0 1px ${v("input")}` }} />
-          </div>
-          <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-            <Badge tone="primary">Primary</Badge><Badge tone="secondary">Secondary</Badge><Badge tone="outline">Outline</Badge>
-            <Badge tone="success"><Dot color={v("success")} size={6} /> Running</Badge><Badge tone="warning">Attention</Badge><Badge tone="destructive">Failed</Badge><Badge tone="merged">Merged</Badge>
-          </div>
-        </div>
-      </GuideBlock>
-
-      <GuideBlock title="Sidebar row states" note="1:1, inside the real sidebar scope" span={5}>
-        <div className="fixed bg-sidebar" style={{ ...sidebarScope, overflow: "hidden", background: v("sidebar"), boxShadow: `inset 0 0 0 1px ${v("sidebar-border")}`, borderRadius: 10, padding: 8, display: "flex", flexDirection: "column", gap: 2 }}>
-          {(["rest", "hover", "selected", "split", "active"] as RowState[]).map((s) => (
-            <Row key={s} label={s === "split" ? "open in split" : s} state={s} dot={v("success")} meta={s === "rest" ? "" : s === "hover" ? "state-hover" : s === "selected" ? "surface-selected" : s === "split" ? "open-in-split" : "state-active"} />
-          ))}
-        </div>
-      </GuideBlock>
-      <GuideBlock title="Menu & popover" span={3}>
-        <div style={{ ...popover, padding: "4px 0" }}>
-          <MenuItem kbd="⌘⇧O">Open in split</MenuItem>
-          <MenuItem hover kbd="⌘R">Rename</MenuItem>
-          <MenuItem>Move to section ▸</MenuItem>
-          <div style={{ height: 1, background: v("border"), margin: "4px 0" }} />
-          <MenuItem destructive>Delete thread</MenuItem>
-        </div>
-      </GuideBlock>
-      <GuideBlock title="Message surfaces" span={4}>
-        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}><ToolPill name="Edit" path="build-color.py" /><ToolPill name="Bash" path="npm test" /></div>
-          <DiffBlock />
-        </div>
-      </GuideBlock>
+      ) : null}
     </div>
   );
 }
 
-// ---------------------------------------------------------------------------
-// Page
-// ---------------------------------------------------------------------------
-
-function Segmented({ value, onChange }: { value: View; onChange: (next: View) => void }) {
-  return (
-    <div data-tp-view-switcher style={{ display: "inline-flex", gap: 2, padding: 3, borderRadius: 9, background: v("surface-recessed", v("muted")), boxShadow: `inset 0 0 0 1px ${v("border-hairline", "transparent")}` }}>
-      {VIEWS.map((view) => {
-        const active = view === value;
-        return (
-          <button
-            key={view}
-            type="button"
-            onClick={() => onChange(view)}
-            style={{
-              appearance: "none", border: 0, cursor: "pointer", fontFamily: SANS, fontSize: 12.5, fontWeight: active ? 600 : 500,
-              height: 26, padding: "0 11px", borderRadius: 6,
-              background: active ? v("card") : "transparent",
-              color: active ? v("foreground") : v("muted-foreground"),
-              boxShadow: active ? `inset 0 0 0 1px ${v("border")}, ${v("shadow-xs", "none")}` : "none",
-            }}
-          >
-            {VIEW_LABEL[view]}
-          </button>
-        );
-      })}
-    </div>
-  );
-}
-
-// Light/dark is not part of bb's server-side appearance (themeId + favicon
-// only), so the toggle flips the document's `.dark` class directly — the very
-// selector every theme keys on. It is a preview-local override; bb's own
-// appearance setting re-applies whenever the host re-evaluates it.
-function useColorMode(): ["light" | "dark", (next: "light" | "dark") => void] {
-  const read = () => (document.documentElement.classList.contains("dark") ? "dark" : "light") as "light" | "dark";
-  const [mode, setMode] = useState<"light" | "dark">(read);
+// Light/dark is not part of bb's server-side appearance (palette + favicon
+// only) — it is a per-client preference — so the toggle flips the document's
+// `.dark` class, the selector every theme keys on.
+function useColorMode(): [Mode, (next: Mode) => void] {
+  const read = () => (document.documentElement.classList.contains("dark") ? "dark" : "light") as Mode;
+  const [mode, setMode] = useState<Mode>(read);
   useEffect(() => {
     const mo = new MutationObserver(() => setMode(read()));
     mo.observe(document.documentElement, { attributes: true, attributeFilter: ["class"] });
     return () => mo.disconnect();
   }, []);
-  const set = (next: "light" | "dark") => {
+  const set = (next: Mode) => {
     document.documentElement.classList.toggle("dark", next === "dark");
     document.documentElement.style.colorScheme = next;
     setMode(next);
@@ -746,11 +891,30 @@ function useColorMode(): ["light" | "dark", (next: "light" | "dark") => void] {
   return [mode, set];
 }
 
+function Toggle({ on, onChange, children }: { on: boolean; onChange: () => void; children: ReactNode }) {
+  return (
+    <button
+      type="button"
+      onClick={onChange}
+      style={{
+        appearance: "none", border: 0, cursor: "pointer", fontFamily: SANS, fontSize: 11.5, fontWeight: on ? 600 : 500,
+        height: 22, padding: "0 8px", borderRadius: 6,
+        background: on ? v("card") : "transparent", color: on ? v("foreground") : v("muted-foreground"),
+        boxShadow: on ? `inset 0 0 0 1px ${v("border")}, ${v("shadow-xs", "none")}` : "none",
+      }}
+    >
+      {children}
+    </button>
+  );
+}
+
 function PreviewPage({ subPath }: { subPath: string }) {
   const rpc = useRpc<typeof rpcContract>();
   const [mode, setMode] = useColorMode();
   const navigate = useBbNavigate();
-  const [catalog, setCatalog] = useState<{ activeThemeId: string | null; themes: Array<{ id: string; name: string }> }>({ activeThemeId: null, themes: [] });
+  const rootRef = useRef<HTMLDivElement | null>(null);
+  const [stacked, setStacked] = useState(false);
+  const [catalog, setCatalog] = useState<Catalog>({ activeThemeId: null, themes: [], revision: 0 });
   const [error, setError] = useState<string | null>(null);
 
   const view = useMemo<View>(() => {
@@ -758,105 +922,81 @@ function PreviewPage({ subPath }: { subPath: string }) {
     return (VIEWS as readonly string[]).includes(first) ? (first as View) : "thread";
   }, [subPath]);
 
+  // Poll while the panel is open: the server compares the active theme file's
+  // mtime and re-applies it when an agent has rewritten it, so a theme being
+  // edited in the other split repaints here without anyone clicking anything.
+  const loadRef = useRef<() => void>(() => {});
   useEffect(() => {
     let cancelled = false;
-    rpc.call("themeCatalog", {}).then((c) => { if (!cancelled) setCatalog(c); }).catch((e) => setError(String(e)));
-    return () => { cancelled = true; };
+    const load = () => {
+      rpc.call("themeCatalog", {}).then((c) => { if (!cancelled) setCatalog(c); }).catch((e) => setError(String(e)));
+    };
+    loadRef.current = load;
+    load();
+    // Slow fallback only; the server's directory watcher signals changes instantly.
+    const timer = setInterval(load, 8000);
+    return () => { cancelled = true; clearInterval(timer); };
   }, [rpc]);
+  useRealtime("theme-preview:changed", () => loadRef.current());
 
-  const setView = (next: View) => navigate.toPluginPanel("preview", { subPath: next });
+  useLayoutEffect(() => {
+    const el = rootRef.current;
+    if (!el) return;
+    const measure = () => setStacked(el.clientWidth < 1040);
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
+  const pick = (themeId: string, nextMode: Mode) => {
+    setMode(nextMode);
+    if (themeId !== catalog.activeThemeId) {
+      rpc.call("setTheme", { themeId }).then(setCatalog).catch((err) => setError(String(err)));
+    }
+  };
 
   return (
-    <div data-tp-root className="tp-root" style={{ height: "100%", overflowY: "auto", overscrollBehavior: "contain", background: v("canvas", v("background")), color: v("foreground"), fontFamily: SANS }}>
-      <style>{`
-        .tp-root {
-          container-name: theme-preview;
-          container-type: inline-size;
-        }
-        @container theme-preview (max-width: 600px) {
-          [data-tp-content] {
-            padding: 16px 16px 56px !important;
-          }
-          [data-tp-toolbar] {
-            align-items: stretch !important;
-            flex-wrap: wrap !important;
-            gap: 10px !important;
-          }
-          [data-tp-view-switcher] {
-            display: grid !important;
-            grid-template-columns: repeat(3, minmax(0, 1fr));
-            width: 100%;
-          }
-          [data-tp-view-switcher] button {
-            min-width: 0;
-            padding: 0 4px !important;
-            white-space: nowrap;
-          }
-          [data-tp-toolbar-spacer] {
-            display: none;
-          }
-          [data-tp-theme-picker] {
-            flex: 1;
-            justify-content: flex-end;
-            min-width: 0;
-          }
-          [data-tp-theme-picker] select {
-            min-width: 0;
-          }
-          [data-tp-guide-heading] {
-            align-items: flex-start !important;
-            flex-direction: column;
-            gap: 4px !important;
-          }
-          [data-tp-guide-grid] > [data-tp-guide-block] {
-            grid-column: 1 / -1 !important;
-          }
-        }
-      `}</style>
-      <div data-tp-content style={{ maxWidth: 1280, margin: "0 auto", padding: "24px 28px 72px" }}>
-        <div data-tp-toolbar style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 18 }}>
-          <Segmented value={view} onChange={setView} />
-          <div data-tp-toolbar-spacer style={{ flex: 1 }} />
-          <div style={{ display: "inline-flex", gap: 2, padding: 3, borderRadius: 9, background: v("surface-recessed", v("muted")), boxShadow: `inset 0 0 0 1px ${v("border-hairline", "transparent")}` }}>
-            {(["light", "dark"] as const).map((m) => {
-              const active = m === mode;
-              return (
-                <button
-                  key={m}
-                  type="button"
-                  onClick={() => setMode(m)}
-                  style={{
-                    appearance: "none", border: 0, cursor: "pointer", fontFamily: SANS, fontSize: 12.5, fontWeight: active ? 600 : 500,
-                    height: 26, padding: "0 11px", borderRadius: 6, textTransform: "capitalize",
-                    background: active ? v("card") : "transparent", color: active ? v("foreground") : v("muted-foreground"),
-                    boxShadow: active ? `inset 0 0 0 1px ${v("border")}, ${v("shadow-xs", "none")}` : "none",
-                  }}
-                >
-                  {m}
-                </button>
-              );
-            })}
+    <div ref={rootRef} data-tp-root style={{ height: "100%", overflow: "hidden", background: v("canvas", v("background")), color: v("foreground"), fontFamily: SANS, display: "flex", flexDirection: "column" }}>
+      <div style={{ display: "flex", alignItems: "center", flexWrap: "wrap", rowGap: 6, gap: 8, padding: "8px 16px", borderBottom: `1px solid ${v("border-seam", v("border"))}`, flex: "none" }}>
+        <div style={{ display: "inline-flex", gap: 1, padding: 2, borderRadius: 8, background: v("surface-recessed", v("muted")) }}>
+          {VIEWS.map((item) => (
+            <Toggle key={item} on={item === view} onChange={() => navigate.toPluginPanel("preview", { subPath: item })}>{VIEW_LABEL[item]}</Toggle>
+          ))}
+        </div>
+        <span style={{ fontSize: 11.5, color: v("muted-foreground") }}>{VIEW_NOTE[view]}</span>
+        <div style={{ flex: 1 }} />
+        {error ? <span style={{ fontSize: 12, color: v("destructive-text", v("destructive")) }}>{error}</span> : null}
+      </div>
+
+      {/* Guide left and mock right at working widths; stacked into two bounded
+          panes when the host sidebar leaves too little room for both. */}
+      <div
+        data-tp-layout={stacked ? "stacked" : "side-by-side"}
+        style={{
+          flex: 1, minHeight: 0, display: "grid",
+          gridTemplateColumns: stacked ? "minmax(0, 1fr)" : "minmax(0, 1fr) 330px",
+          gridTemplateRows: stacked ? "minmax(260px, 2fr) minmax(390px, 3fr)" : undefined,
+        }}
+      >
+        <div data-tp-section="frame" style={{ minWidth: 0, minHeight: 0, display: "flex", flexDirection: "column", padding: "12px 16px 14px" }}>
+          <Frame view={view} fitBoth />
+        </div>
+        <div
+          data-tp-section="guide"
+          style={{
+            minWidth: 0, minHeight: 0, overflowY: "auto", padding: "14px 16px 40px",
+            borderLeft: stacked ? undefined : `1px solid ${v("border-seam", v("border"))}`,
+            borderBottom: stacked ? `1px solid ${v("border-seam", v("border"))}` : undefined,
+          }}
+        >
+          {/* The picker lives with the readout it drives: pick a palette, read
+              its values directly underneath. */}
+          <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 12 }}>
+            <ThemePicker catalog={catalog} mode={mode} onPick={pick} />
           </div>
-          <label data-tp-theme-picker style={{ display: "inline-flex", alignItems: "center", gap: 8, fontSize: 12.5, color: v("muted-foreground") }}>
-            theme
-            <select
-              value={catalog.activeThemeId ?? ""}
-              onChange={(e) => rpc.call("setTheme", { themeId: e.target.value }).then(setCatalog).catch((err) => setError(String(err)))}
-              style={{ height: 28, borderRadius: 7, border: 0, boxShadow: `inset 0 0 0 1px ${v("input")}`, background: v("card"), color: v("foreground"), fontSize: 12.5, padding: "0 8px", maxWidth: 260, fontFamily: SANS }}
-            >
-              {catalog.themes.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
-            </select>
-          </label>
-          {error ? <span style={{ fontSize: 12, color: v("destructive-text", v("destructive")) }}>{error}</span> : null}
+          <StyleGuide revision={`${mode}:${catalog.activeThemeId ?? ""}:${catalog.revision}`} />
         </div>
-
-        <div data-tp-section="frame"><Frame view={view} /></div>
-
-        <div data-tp-guide-heading style={{ display: "flex", alignItems: "baseline", gap: 12, margin: "44px 0 18px" }}>
-          <span style={{ fontSize: 15, fontWeight: 600 }}>Style guide</span>
-          <span style={{ fontSize: 12.5, color: v("muted-foreground") }}>values computed from the live theme · amber = sidebar-scoped override</span>
-        </div>
-        <div data-tp-section="guide"><StyleGuide /></div>
       </div>
     </div>
   );

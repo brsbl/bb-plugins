@@ -14,15 +14,44 @@ bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/theme-previ
 
 ## Use
 
-Open **Theme Preview** from the sidebar. The top of the page is one large app
-skeleton; switch views with the segmented control to pan through the common
-surfaces — **New thread · Thread · Split · Thread + panel · Overlays ·
-Settings**. Below it sits a compact style guide: surfaces, ink on canvas and on
-the sidebar, accent and status, lines, controls, sidebar row states, menus and
-message surfaces — every value computed from the live theme.
+Open **Theme Preview** from the sidebar.
 
-Switch themes from the select at the top right; the whole app follows. Deep-link
-a view with `/plugins/theme-preview/preview/<new|thread|split|panel|overlays|settings>`.
+- **Left:** an app mock at bb's real sizes — thread, side panel, and the overlays
+  that sit on top of them. Switch views with the compact control in the top bar:
+  Thread · New thread · Split · Settings.
+- **Right:** the theme picker and, under it, the live style guide — type
+  specimen, controls, sidebar row states, and every token with its resolved
+  value and its WCAG ratio against the surface it sits on (4.5:1 is the pass
+  mark).
+
+The picker is one control for palette and mode: each row previews the theme it
+names with its own colours and typefaces, and picking a row applies both at
+once. It lists everything you have — custom themes, plugin themes, and bb's
+bundled palettes.
+
+### Iterating on a theme with an agent
+
+The panel is built for a split: your agent in one pane, this preview in the
+other.
+
+1. Open a thread and ask an agent to edit your theme's CSS
+   (`<data-dir>/theme/<name>/theme.css`, or a plugin theme's `bb.themes[].css`).
+2. Open Theme Preview in a split beside it (⌘⇧O on the sidebar row).
+3. Keep prompting. The plugin's background watcher detects custom-theme edits
+   and tells every open preview to refresh immediately. The panel also checks
+   the active custom or plugin theme's file as a fallback; when it changes, the
+   plugin re-applies the palette. The mock, token values and ratios update on
+   their own — and so does the rest of bb, since re-applying pushes the palette
+   to every open window.
+
+No copy-paste, no restart, no reload: the agent writes the file and you watch
+the surfaces change.
+
+The plugin ships a skill, **bb-theme-authoring**, that is injected into agent
+threads while the plugin is installed. It tells the agent where themes live,
+the file shape and token vocabulary, how bb uses each token, how to apply and
+verify a theme, and that this panel live-reloads — so "make me a theme" works
+without the user explaining any of it.
 
 ## Develop
 

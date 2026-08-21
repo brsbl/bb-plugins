@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "type": "module",
   "private": true,
-  "files": ["assets", "dist", "docs", "README.md"],
+  "files": ["assets", "dist", "docs", "skills", "README.md"],
   "engines": { "bb": ">=0.0.34", "bbPluginSdk": "^0.4.1" },
   "bb": {
     "name": "Theme Preview",
@@ -11,7 +11,7 @@
     "branding": { "icon": "./assets/swatches.svg" },
     "server": "./server.ts",
     "app": "./app.tsx",
-    "skills": []
+    "skills": ["skills"]
   },
   "scripts": {
     "build": "node ../../tooling/build-plugin.mjs",
