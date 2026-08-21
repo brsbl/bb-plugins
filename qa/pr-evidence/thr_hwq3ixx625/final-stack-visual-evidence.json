@@ -1,0 +1,54 @@
+{
+  "capturedAt": "2026-08-21T21:28:00Z",
+  "fixture": {
+    "server": "bb desktop dev fixture at origin/main c942421a4",
+    "projectId": "proj_demo",
+    "threadId": "thr_d01"
+  },
+  "exactHeads": {
+    "pr74": "5c5552ac82f687fbf3debc6a4093f3093afb9f26",
+    "pr75": "e07166b9f4f31de0883fb0a7be1648e96e938b24",
+    "pr76": "66db0d26b494fcecda21f5c43cd28e7ba1defdcd"
+  },
+  "branchFaithfulCaptures": {
+    "pr74": {
+      "laterLayersInstalled": false,
+      "themePreviewAvailable": false,
+      "colorSwatches": 0,
+      "image": "pr74-after-exact-head.png"
+    },
+    "pr75": {
+      "colorSwatchesInstalled": false,
+      "panelError": false,
+      "pickerVisible": true,
+      "image": "pr75-after-exact-head.png"
+    },
+    "pr76": {
+      "colorSwatches": 13,
+      "image": "pr76-after-exact-head.png"
+    }
+  },
+  "cumulativeMatrix": [
+    { "width": 390, "height": 844, "scale": 3, "threadOverflowX": false, "previewOverflowX": false },
+    { "width": 768, "height": 900, "scale": 2, "threadOverflowX": false, "previewOverflowX": false },
+    { "width": 1440, "height": 900, "scale": 2, "threadOverflowX": false, "previewOverflowX": false },
+    { "width": 3440, "height": 1440, "scale": 1, "threadOverflowX": false, "previewOverflowX": false }
+  ],
+  "transitions": {
+    "widths": [389, 390, 391, 767, 768, 769, 1023, 1024, 1025, 1919, 1920, 1921],
+    "threadOverflowX": false,
+    "previewOverflowX": false
+  },
+  "darkMode": {
+    "canvas": "#121212",
+    "subtleForeground": "#888888",
+    "popover": "#212121",
+    "panelError": false
+  },
+  "streamingMutation": {
+    "before": "#f4f4f4",
+    "after": "#000000",
+    "swatchRetained": true,
+    "resolvedSwatch": "#000000"
+  }
+}
