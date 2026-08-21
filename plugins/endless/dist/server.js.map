@@ -1,0 +1,7 @@
+{
+  "version": 3,
+  "sources": ["../../server.ts"],
+  "sourcesContent": ["import type { BbPluginApi } from \"@get-bb/plugin-sdk\";\n\nexport default function plugin(bb: BbPluginApi): void {\n  bb.log.info(\"Endless loaded\");\n}\n"],
+  "mappings": ";;;;;;;;AAEe,SAAR,OAAwB,IAAuB;AACpD,KAAG,IAAI,KAAK,gBAAgB;AAC9B;",
+  "names": []
+}

@@ -1,6 +1,6 @@
 # bb plugins
 
-Seven bb plugins I use for product design work, kept together with the few build and repository tools they share. [![CI](https://github.com/brsbl/bb-plugins/actions/workflows/ci.yml/badge.svg)](https://github.com/brsbl/bb-plugins/actions/workflows/ci.yml)
+Eight bb plugins I use for product design work, kept together with the few build and repository tools they share. [![CI](https://github.com/brsbl/bb-plugins/actions/workflows/ci.yml/badge.svg)](https://github.com/brsbl/bb-plugins/actions/workflows/ci.yml)
 
 [bb](https://getbb.app) is an agentic IDE for running coding agents across projects, threads, and environments. Its plugins can add UI, commands, skills, and server capabilities; this repository is where I build and maintain mine.
 
@@ -71,6 +71,16 @@ Creates, edits, saves, and shares reusable mesh gradients from a visual studio b
 [Source](plugins/mesh-gradient) · [README](plugins/mesh-gradient/README.md)
 
 Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/mesh-gradient --yes`
+
+### Endless
+
+Frank Ocean's *Endless* as a bb palette — achromatic, grained, squared. Ten years to the day.
+
+![The Endless palette in bb](plugins/endless/docs/screenshot.png)
+
+[Source](plugins/endless) · [README](plugins/endless/README.md)
+
+Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/endless --yes`
 
 ### Timeline Comments
 

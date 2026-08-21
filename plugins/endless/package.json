@@ -1,0 +1,58 @@
+{
+  "name": "bb-plugin-endless",
+  "version": "0.1.0",
+  "description": "Frank Ocean's Endless as a bb palette — achromatic, squared.",
+  "type": "module",
+  "license": "UNLICENSED",
+  "files": [
+    "assets",
+    "dist",
+    "docs",
+    "themes",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "node ../../tooling/build-plugin.mjs",
+    "check": "npm run typecheck && npm run build && npm test",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "engines": {
+    "bb": ">=0.0.34",
+    "bbPluginSdk": "^0.4.1"
+  },
+  "bb": {
+    "name": "Endless",
+    "description": "Frank Ocean's Endless as a bb palette — achromatic, squared.",
+    "branding": {
+      "icon": "./assets/registration-mark.svg"
+    },
+    "server": "./server.ts",
+    "skills": [],
+    "themes": [
+      {
+        "id": "endless",
+        "name": "Endless",
+        "description": "Achromatic silver-print palette after the 2016 album — near-black warehouse dark, gallery-print light",
+        "css": "./themes/endless.css"
+      },
+      {
+        "id": "endless-color",
+        "name": "Endless Color",
+        "description": "The foil sleeve and the painted stair: silver field, rare pops of stair blue, mustard, orange and red",
+        "css": "./themes/endless-color.css"
+      }
+    ]
+  },
+  "devDependencies": {
+    "@get-bb/plugin-sdk": "file:../../tooling/vendor/get-bb-plugin-sdk-0.4.8.tgz",
+    "@types/better-sqlite3": "^7.6.12",
+    "@types/node": "^22.0.0",
+    "better-sqlite3": "^12.10.0",
+    "cron-parser": "^5.5.0",
+    "hono": "^4.11.9",
+    "typescript": "^5.7.0",
+    "vitest": "^4.1.8",
+    "zod": "^4.3.6"
+  }
+}
