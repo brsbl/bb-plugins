@@ -1,0 +1,7 @@
+{
+  "version": 3,
+  "sources": ["../../server.ts"],
+  "sourcesContent": ["import type { BbPluginApi } from \"@get-bb/plugin-sdk\";\n\n/**\n * All of the behaviour lives in the frontend content script; a plugin still\n * needs a backend entry, so this one only announces itself.\n */\nexport default async function plugin(bb: BbPluginApi) {\n  bb.log.info(\"color-swatches ready\");\n}\n"],
+  "mappings": ";;;;;;;;AAMA,eAAO,OAA8B,IAAiB;AACpD,KAAG,IAAI,KAAK,sBAAsB;AACpC;",
+  "names": []
+}

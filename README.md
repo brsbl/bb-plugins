@@ -1,6 +1,6 @@
 # bb plugins
 
-Nine bb plugins I use for product design work, kept together with the few build and repository tools they share. [![CI](https://github.com/brsbl/bb-plugins/actions/workflows/ci.yml/badge.svg)](https://github.com/brsbl/bb-plugins/actions/workflows/ci.yml)
+Ten bb plugins I use for product design work, kept together with the few build and repository tools they share. [![CI](https://github.com/brsbl/bb-plugins/actions/workflows/ci.yml/badge.svg)](https://github.com/brsbl/bb-plugins/actions/workflows/ci.yml)
 
 [bb](https://getbb.app) is an agentic IDE for running coding agents across projects, threads, and environments. Its plugins can add UI, commands, skills, and server capabilities; this repository is where I build and maintain mine.
 
@@ -91,6 +91,16 @@ A skeleton of the bb app in every configuration — sidebar, splits, panels, ove
 [Source](plugins/theme-preview) · [README](plugins/theme-preview/README.md)
 
 Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/theme-preview --yes`
+
+### Color Swatches
+
+Renders an inline swatch beside every color literal in a thread — hex, `rgb()`, `hsl()`, `oklch()` and friends — the way an editor decorates code.
+
+![Color Swatches in bb](plugins/color-swatches/docs/screenshot.png)
+
+[Source](plugins/color-swatches) · [README](plugins/color-swatches/README.md)
+
+Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/color-swatches --yes`
 
 ### Timeline Comments
 

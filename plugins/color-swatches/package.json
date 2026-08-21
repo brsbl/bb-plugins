@@ -1,0 +1,29 @@
+{
+  "name": "bb-plugin-color-swatches",
+  "version": "0.1.0",
+  "type": "module",
+  "private": true,
+  "files": ["assets", "dist", "docs", "README.md"],
+  "engines": { "bb": ">=0.0.34", "bbPluginSdk": "^0.4.1" },
+  "bb": {
+    "name": "Color Swatches",
+    "description": "Renders an inline swatch beside every color literal in a thread — hex, rgb(), hsl() and oklch() — the way an editor decorates code.",
+    "branding": { "icon": "./assets/color-chip.svg" },
+    "server": "./server.ts",
+    "app": "./app.tsx",
+    "skills": []
+  },
+  "scripts": {
+    "build": "node ../../tooling/build-plugin.mjs",
+    "check": "npm run typecheck && npm run build && npm test",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@get-bb/plugin-sdk": "file:../../tooling/vendor/get-bb-plugin-sdk-0.4.8.tgz",
+    "@types/node": "^22.0.0",
+    "@types/react": "^19.0.0",
+    "typescript": "^5.7.0",
+    "vitest": "^4.0.0"
+  }
+}
