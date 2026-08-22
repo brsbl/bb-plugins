@@ -12,6 +12,7 @@ const REQUEST_PREFIX = "request:";
 const THREAD_PREFIX = "thread:";
 const CANCELLATION_PREFIX = "cancellation:";
 const RECONCILIATION_RETRY_DELAY_MS = 50;
+const EMPTY_OUTPUT_GRACE_MS = 5_000;
 
 const requestIdSchema = z.string().uuid();
 
@@ -150,6 +151,17 @@ function errorMessage(error: unknown): string {
 
 export default async function plugin(bb: BbPluginApi) {
   const reconciliationRequests = new Map<string, Promise<void>>();
+  const emptyOutputChecks = new Map<
+    string,
+    ReturnType<typeof setTimeout>
+  >();
+
+  function clearEmptyOutputCheck(threadId: string): void {
+    const pending = emptyOutputChecks.get(threadId);
+    if (pending === undefined) return;
+    clearTimeout(pending);
+    emptyOutputChecks.delete(threadId);
+  }
 
   async function readHelperExecution(): Promise<HelperExecution> {
     const value = await bb.storage.kv.get<unknown>(HELPER_EXECUTION_KEY);
@@ -184,6 +196,7 @@ export default async function plugin(bb: BbPluginApi) {
     requestId: string,
     helperThreadId: string,
   ): Promise<void> {
+    clearEmptyOutputCheck(helperThreadId);
     await bb.storage.kv.delete(requestKey(requestId));
     await bb.storage.kv.delete(threadKey(helperThreadId));
   }
@@ -213,6 +226,7 @@ export default async function plugin(bb: BbPluginApi) {
     threadId: string,
     result: ParsedShaperOutput | { error: string },
   ): Promise<void> {
+    clearEmptyOutputCheck(threadId);
     const requestId = await bb.storage.kv.get<string>(threadKey(threadId));
     if (requestId === undefined) return;
     const current = await readRecord(requestId);
@@ -250,7 +264,14 @@ export default async function plugin(bb: BbPluginApi) {
     threadId: string,
     assistantText: string | null,
   ): Promise<void> {
-    const parsed = parseShaperOutput(assistantText ?? "");
+    const output = assistantText ?? "";
+    if (output.trim().length === 0) {
+      scheduleEmptyOutputCheck(threadId);
+      return;
+    }
+
+    clearEmptyOutputCheck(threadId);
+    const parsed = parseShaperOutput(output);
     if (parsed === null) {
       await finish(threadId, {
         error:
@@ -259,6 +280,42 @@ export default async function plugin(bb: BbPluginApi) {
       return;
     }
     await finish(threadId, parsed);
+  }
+
+  function scheduleEmptyOutputCheck(threadId: string): void {
+    if (emptyOutputChecks.has(threadId)) return;
+    const pending = setTimeout(() => {
+      if (emptyOutputChecks.get(threadId) !== pending) return;
+      emptyOutputChecks.delete(threadId);
+      void (async () => {
+        const requestId = await bb.storage.kv.get<string>(threadKey(threadId));
+        if (requestId === undefined) return;
+        const current = await readRecord(requestId);
+        if (current === null || current.status !== "running") return;
+
+        const thread = await bb.sdk.threads.get({ threadId });
+        if (thread.status === "error") {
+          await finish(threadId, { error: "The shaping agent failed." });
+          return;
+        }
+        if (thread.status !== "idle") return;
+
+        const { output } = await bb.sdk.threads.output({ threadId });
+        if ((output ?? "").trim().length > 0) {
+          await finishFromOutput(threadId, output);
+          return;
+        }
+        await finish(threadId, {
+          error:
+            "The shaping agent did not return an enhanced prompt. Try again or use /prompt-shaper directly.",
+        });
+      })().catch((error) => {
+        bb.log.warn(
+          `could not confirm Improve Prompt helper ${threadId} output: ${errorMessage(error)}`,
+        );
+      });
+    }, EMPTY_OUTPUT_GRACE_MS);
+    emptyOutputChecks.set(threadId, pending);
   }
 
   async function reconcileHelperOnce(threadId: string): Promise<void> {
@@ -479,6 +536,9 @@ export default async function plugin(bb: BbPluginApi) {
   bb.events.on("thread.idle", ({ thread, lastAssistantText }) =>
     finishFromOutput(thread.id, lastAssistantText),
   );
+  bb.events.on("thread.active", ({ thread }) => {
+    clearEmptyOutputCheck(thread.id);
+  });
   bb.events.on("thread.failed", ({ thread, error }) =>
     finish(thread.id, {
       error: error?.trim() || "The shaping agent failed.",
@@ -503,6 +563,11 @@ export default async function plugin(bb: BbPluginApi) {
       await bb.storage.kv.delete(key);
     }
   }
+
+  bb.onDispose(() => {
+    for (const pending of emptyOutputChecks.values()) clearTimeout(pending);
+    emptyOutputChecks.clear();
+  });
 
   bb.log.info("loaded composer enhancement action");
 }
