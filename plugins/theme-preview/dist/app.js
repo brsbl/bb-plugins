@@ -74,6 +74,19 @@ var {
   version
 } = mod2;
 
+// theme-menu.ts
+var MENU_MAX_HEIGHT = 520;
+var BOUNDARY_GAP = 8;
+function placeThemeMenu(bounds) {
+  const above = Math.max(0, bounds.controlTop - bounds.boundaryTop - BOUNDARY_GAP);
+  const below = Math.max(0, bounds.boundaryBottom - bounds.controlBottom - BOUNDARY_GAP);
+  const side = below < MENU_MAX_HEIGHT && above > below ? "up" : "down";
+  return {
+    side,
+    maxHeight: Math.min(MENU_MAX_HEIGHT, Math.floor(side === "up" ? above : below))
+  };
+}
+
 // theme-utils.ts
 function parseChannel(value) {
   const trimmed = value.trim();
@@ -882,7 +895,33 @@ function ThemeRow({ entry, mode, active, onPick }) {
 }
 function ThemePicker({ catalog, mode, onPick }) {
   const [open, setOpen] = useState(false);
+  const [menuPlacement, setMenuPlacement] = useState({ side: "down", maxHeight: 520 });
   const hostRef = useRef(null);
+  useLayoutEffect(() => {
+    if (!open) return;
+    const host = hostRef.current;
+    const root = host?.closest("[data-tp-root]");
+    if (!host || !root) return;
+    const updatePlacement = () => {
+      const control = host.querySelector("[data-tp-theme-control]");
+      if (!control) return;
+      const controlRect = control.getBoundingClientRect();
+      const rootRect = root.getBoundingClientRect();
+      setMenuPlacement(placeThemeMenu({
+        controlTop: controlRect.top,
+        controlBottom: controlRect.bottom,
+        boundaryTop: Math.max(0, rootRect.top),
+        boundaryBottom: Math.min(window.innerHeight, rootRect.bottom)
+      }));
+    };
+    updatePlacement();
+    window.addEventListener("resize", updatePlacement);
+    root.addEventListener("scroll", updatePlacement, { passive: true });
+    return () => {
+      window.removeEventListener("resize", updatePlacement);
+      root.removeEventListener("scroll", updatePlacement);
+    };
+  }, [open]);
   useEffect(() => {
     if (!open) return;
     const onDown = (e) => {
@@ -914,6 +953,8 @@ function ThemePicker({ catalog, mode, onPick }) {
       {
         "data-tp-theme-control": "",
         type: "button",
+        "aria-haspopup": "listbox",
+        "aria-expanded": open,
         onClick: () => setOpen((o) => !o),
         style: {
           appearance: "none",
@@ -941,13 +982,32 @@ function ThemePicker({ catalog, mode, onPick }) {
         ]
       }
     ),
-    open ? /* @__PURE__ */ jsx("div", { role: "listbox", "aria-label": "Theme and mode", style: { ...popover, position: "absolute", top: 28, right: 0, width: 296, padding: 4, zIndex: 30, maxHeight: 520, overflowY: "auto" }, children: catalog.themes.map((entry) => /* @__PURE__ */ jsxs("div", { style: { padding: "1px 0" }, children: [
-      ["light", "dark"].map((m) => /* @__PURE__ */ jsx(ThemeRow, { entry, mode: m, active: entry.id === catalog.activeThemeId && m === mode, onPick: () => {
-        onPick(entry.id, m);
-        setOpen(false);
-      } }, m)),
-      /* @__PURE__ */ jsx("div", { style: { height: 1, background: v("border-hairline", v("border")), margin: "3px 6px" } })
-    ] }, entry.id)) }) : null
+    open ? /* @__PURE__ */ jsx(
+      "div",
+      {
+        role: "listbox",
+        "aria-label": "Theme and mode",
+        style: {
+          ...popover,
+          position: "absolute",
+          top: menuPlacement.side === "down" ? 28 : void 0,
+          bottom: menuPlacement.side === "up" ? 28 : void 0,
+          right: 0,
+          width: 296,
+          padding: 4,
+          zIndex: 30,
+          maxHeight: menuPlacement.maxHeight,
+          overflowY: "auto"
+        },
+        children: catalog.themes.map((entry) => /* @__PURE__ */ jsxs("div", { style: { padding: "1px 0" }, children: [
+          ["light", "dark"].map((m) => /* @__PURE__ */ jsx(ThemeRow, { entry, mode: m, active: entry.id === catalog.activeThemeId && m === mode, onPick: () => {
+            onPick(entry.id, m);
+            setOpen(false);
+          } }, m)),
+          /* @__PURE__ */ jsx("div", { style: { height: 1, background: v("border-hairline", v("border")), margin: "3px 6px" } })
+        ] }, entry.id))
+      }
+    ) : null
   ] });
 }
 var MODE_KEY = "bb.theme";

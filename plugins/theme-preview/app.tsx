@@ -9,6 +9,7 @@ import {
   type ReactNode,
 } from "react";
 import type { rpcContract } from "./server";
+import { placeThemeMenu, type ThemeMenuPlacement } from "./theme-menu";
 import { LatestRequest, contrastRatio } from "./theme-utils";
 
 // ---------------------------------------------------------------------------
@@ -871,7 +872,35 @@ function ThemeRow({ entry, mode, active, onPick }: { entry: ThemeEntry; mode: Mo
 
 function ThemePicker({ catalog, mode, onPick }: { catalog: Catalog; mode: Mode; onPick: (themeId: string, mode: Mode) => void }) {
   const [open, setOpen] = useState(false);
+  const [menuPlacement, setMenuPlacement] = useState<ThemeMenuPlacement>({ side: "down", maxHeight: 520 });
   const hostRef = useRef<HTMLDivElement | null>(null);
+  useLayoutEffect(() => {
+    if (!open) return;
+    const host = hostRef.current;
+    const root = host?.closest<HTMLElement>("[data-tp-root]");
+    if (!host || !root) return;
+
+    const updatePlacement = () => {
+      const control = host.querySelector<HTMLElement>("[data-tp-theme-control]");
+      if (!control) return;
+      const controlRect = control.getBoundingClientRect();
+      const rootRect = root.getBoundingClientRect();
+      setMenuPlacement(placeThemeMenu({
+        controlTop: controlRect.top,
+        controlBottom: controlRect.bottom,
+        boundaryTop: Math.max(0, rootRect.top),
+        boundaryBottom: Math.min(window.innerHeight, rootRect.bottom),
+      }));
+    };
+
+    updatePlacement();
+    window.addEventListener("resize", updatePlacement);
+    root.addEventListener("scroll", updatePlacement, { passive: true });
+    return () => {
+      window.removeEventListener("resize", updatePlacement);
+      root.removeEventListener("scroll", updatePlacement);
+    };
+  }, [open]);
   useEffect(() => {
     if (!open) return;
     const onDown = (e: MouseEvent) => { if (!hostRef.current?.contains(e.target as Node)) setOpen(false); };
@@ -900,6 +929,8 @@ function ThemePicker({ catalog, mode, onPick }: { catalog: Catalog; mode: Mode; 
       <button
         data-tp-theme-control=""
         type="button"
+        aria-haspopup="listbox"
+        aria-expanded={open}
         onClick={() => setOpen((o) => !o)}
         style={{
           appearance: "none", border: 0, cursor: "pointer", fontFamily: SANS, display: "inline-flex", alignItems: "center", gap: 5,
@@ -913,7 +944,22 @@ function ThemePicker({ catalog, mode, onPick }: { catalog: Catalog; mode: Mode; 
         <span style={{ color: v("muted-foreground"), fontSize: 9, flex: "none" }}>▾</span>
       </button>
       {open ? (
-        <div role="listbox" aria-label="Theme and mode" style={{ ...popover, position: "absolute", top: 28, right: 0, width: 296, padding: 4, zIndex: 30, maxHeight: 520, overflowY: "auto" }}>
+        <div
+          role="listbox"
+          aria-label="Theme and mode"
+          style={{
+            ...popover,
+            position: "absolute",
+            top: menuPlacement.side === "down" ? 28 : undefined,
+            bottom: menuPlacement.side === "up" ? 28 : undefined,
+            right: 0,
+            width: 296,
+            padding: 4,
+            zIndex: 30,
+            maxHeight: menuPlacement.maxHeight,
+            overflowY: "auto",
+          }}
+        >
           {catalog.themes.map((entry) => (
             <div key={entry.id} style={{ padding: "1px 0" }}>
               {(["light", "dark"] as const).map((m) => (
