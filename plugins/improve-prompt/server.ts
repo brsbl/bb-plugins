@@ -156,9 +156,17 @@ export default async function plugin(bb: BbPluginApi) {
     ReturnType<typeof setTimeout>
   >();
 
-  function clearEmptyOutputCheck(threadId: string): void {
+  function clearEmptyOutputCheck(
+    threadId: string,
+    expected?: ReturnType<typeof setTimeout>,
+  ): void {
     const pending = emptyOutputChecks.get(threadId);
-    if (pending === undefined) return;
+    if (
+      pending === undefined ||
+      (expected !== undefined && pending !== expected)
+    ) {
+      return;
+    }
     clearTimeout(pending);
     emptyOutputChecks.delete(threadId);
   }
@@ -286,34 +294,44 @@ export default async function plugin(bb: BbPluginApi) {
     if (emptyOutputChecks.has(threadId)) return;
     const pending = setTimeout(() => {
       if (emptyOutputChecks.get(threadId) !== pending) return;
-      emptyOutputChecks.delete(threadId);
       void (async () => {
         const requestId = await bb.storage.kv.get<string>(threadKey(threadId));
+        if (emptyOutputChecks.get(threadId) !== pending) return;
         if (requestId === undefined) return;
         const current = await readRecord(requestId);
+        if (emptyOutputChecks.get(threadId) !== pending) return;
         if (current === null || current.status !== "running") return;
 
         const thread = await bb.sdk.threads.get({ threadId });
+        if (emptyOutputChecks.get(threadId) !== pending) return;
         if (thread.status === "error") {
+          if (emptyOutputChecks.get(threadId) !== pending) return;
           await finish(threadId, { error: "The shaping agent failed." });
           return;
         }
         if (thread.status !== "idle") return;
 
         const { output } = await bb.sdk.threads.output({ threadId });
+        if (emptyOutputChecks.get(threadId) !== pending) return;
         if ((output ?? "").trim().length > 0) {
+          if (emptyOutputChecks.get(threadId) !== pending) return;
           await finishFromOutput(threadId, output);
           return;
         }
+        if (emptyOutputChecks.get(threadId) !== pending) return;
         await finish(threadId, {
           error:
             "The shaping agent did not return an enhanced prompt. Try again or use /prompt-shaper directly.",
         });
-      })().catch((error) => {
-        bb.log.warn(
-          `could not confirm Improve Prompt helper ${threadId} output: ${errorMessage(error)}`,
-        );
-      });
+      })()
+        .catch((error) => {
+          bb.log.warn(
+            `could not confirm Improve Prompt helper ${threadId} output: ${errorMessage(error)}`,
+          );
+        })
+        .finally(() => {
+          clearEmptyOutputCheck(threadId, pending);
+        });
     }, EMPTY_OUTPUT_GRACE_MS);
     emptyOutputChecks.set(threadId, pending);
   }

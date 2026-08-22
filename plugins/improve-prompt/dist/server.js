@@ -14685,9 +14685,11 @@ function errorMessage(error51) {
 async function plugin(bb) {
   const reconciliationRequests = /* @__PURE__ */ new Map();
   const emptyOutputChecks = /* @__PURE__ */ new Map();
-  function clearEmptyOutputCheck(threadId) {
+  function clearEmptyOutputCheck(threadId, expected) {
     const pending = emptyOutputChecks.get(threadId);
-    if (pending === void 0) return;
+    if (pending === void 0 || expected !== void 0 && pending !== expected) {
+      return;
+    }
     clearTimeout(pending);
     emptyOutputChecks.delete(threadId);
   }
@@ -14787,23 +14789,29 @@ async function plugin(bb) {
     if (emptyOutputChecks.has(threadId)) return;
     const pending = setTimeout(() => {
       if (emptyOutputChecks.get(threadId) !== pending) return;
-      emptyOutputChecks.delete(threadId);
       void (async () => {
         const requestId = await bb.storage.kv.get(threadKey(threadId));
+        if (emptyOutputChecks.get(threadId) !== pending) return;
         if (requestId === void 0) return;
         const current = await readRecord(requestId);
+        if (emptyOutputChecks.get(threadId) !== pending) return;
         if (current === null || current.status !== "running") return;
         const thread = await bb.sdk.threads.get({ threadId });
+        if (emptyOutputChecks.get(threadId) !== pending) return;
         if (thread.status === "error") {
+          if (emptyOutputChecks.get(threadId) !== pending) return;
           await finish(threadId, { error: "The shaping agent failed." });
           return;
         }
         if (thread.status !== "idle") return;
         const { output } = await bb.sdk.threads.output({ threadId });
+        if (emptyOutputChecks.get(threadId) !== pending) return;
         if ((output ?? "").trim().length > 0) {
+          if (emptyOutputChecks.get(threadId) !== pending) return;
           await finishFromOutput(threadId, output);
           return;
         }
+        if (emptyOutputChecks.get(threadId) !== pending) return;
         await finish(threadId, {
           error: "The shaping agent did not return an enhanced prompt. Try again or use /prompt-shaper directly."
         });
@@ -14811,6 +14819,8 @@ async function plugin(bb) {
         bb.log.warn(
           `could not confirm Improve Prompt helper ${threadId} output: ${errorMessage(error51)}`
         );
+      }).finally(() => {
+        clearEmptyOutputCheck(threadId, pending);
       });
     }, EMPTY_OUTPUT_GRACE_MS);
     emptyOutputChecks.set(threadId, pending);
