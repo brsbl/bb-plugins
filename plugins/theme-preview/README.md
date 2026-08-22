@@ -8,6 +8,8 @@ tokens, so a palette can be judged on app-shaped surfaces before it ships.
 
 ## Install
 
+Requires bb 0.38 or newer.
+
 ```sh
 bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/theme-preview --yes
 ```
@@ -16,13 +18,15 @@ bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/theme-previ
 
 Open **Theme Preview** from the sidebar.
 
-- **Left:** an app mock at bb's real sizes — thread, side panel, and the overlays
-  that sit on top of them. Switch views with the compact control in the top bar:
-  Thread · New thread · Split · Settings.
-- **Right:** the theme picker and, under it, the live style guide — type
-  specimen, controls, sidebar row states, and every token with its resolved
-  value and its WCAG ratio against the surface it sits on (4.5:1 is the pass
-  mark).
+- **Main stage:** an app mock at bb's real sizes — thread, timeline TOC, side
+  panel, and the overlays that sit on top of them. Switch views with the compact
+  control in the top bar: Thread · New thread · Split · Settings.
+- **Right:** the live theme picker and surface values. Picking a theme applies
+  it immediately.
+- **Below:** the style guide — type, visual-only control specimens, sidebar row
+  states, and resolved ink, accent, status, and line tokens. Ink and status
+  values include their WCAG ratio against the surface they sit on (4.5:1 is the
+  pass mark).
 
 The picker is one control for palette and mode: each row previews the theme it
 names with its own colours and typefaces, and picking a row applies both at

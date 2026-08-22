@@ -18,6 +18,12 @@ const nativeLoaderLockPaths = Object.freeze([
   "node_modules/lightningcss",
   "node_modules/@tailwindcss/node/node_modules/lightningcss",
 ]);
+const defaultBbEngine = ">=0.0.34";
+// Keep newer host requirements scoped to the plugin that consumes them
+// instead of raising the compatibility floor for every package.
+const pluginBbEngineOverrides = new Map([
+  ["theme-preview", ">=0.38.0"],
+]);
 
 async function readJson(path) {
   return JSON.parse(await readFile(path, "utf8"));
@@ -208,10 +214,8 @@ export async function checkRepository(repositoryRoot = defaultRoot, options = {}
       `${slug}: dist missing from package files`,
     );
     assert(manifest.files.includes("README.md"), `${slug}: README missing from package files`);
-    assert(
-      manifest.engines?.bb === ">=0.0.34",
-      `${slug}: bb engine drift`,
-    );
+    const expectedBbEngine = pluginBbEngineOverrides.get(slug) ?? defaultBbEngine;
+    assert(manifest.engines?.bb === expectedBbEngine, `${slug}: bb engine drift`);
     assert(
       sdkRangeIncludesVersion(manifest.engines?.bbPluginSdk, pluginSdkVersion),
       `${slug}: SDK floor is newer than vendored SDK ${pluginSdkVersion}`,
