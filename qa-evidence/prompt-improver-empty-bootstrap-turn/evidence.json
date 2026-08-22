@@ -1,7 +1,7 @@
 {
   "fixture": {
     "schemaVersion": 1,
-    "candidate": "90e767564c5a93d56199e74fac4d8c0f65d63679",
+    "candidate": "6c6a5b563a895e7829914fe254eab080e82c64d8",
     "base": "88a95813a845cf8814191043302dd3840f7696c8",
     "hostCandidate": "4844423bac0b9774c06ad37eec919fe69a02c522",
     "checkpoint": "prompt-improver-empty-bootstrap-turn",
@@ -25,42 +25,42 @@
         "state": "new-thread composer with deterministic dark-mode-plan draft",
         "transitionWidths": [],
         "cycles": 5,
-        "elapsedMs": 40311,
+        "elapsedMs": 59172,
         "beforeScreenshot": "qa/prompt-improver-before.jpeg",
         "afterScreenshot": "qa/prompt-improver-after.jpeg",
         "recording": null,
-        "proof": "Base reports that the shaping agent returned no enhanced prompt after the empty first turn. Candidate preserves the request through that idle boundary and applies the valid second-turn result in five consecutive cycles.",
-        "notes": "Same isolated bb desktop dev app, fixture prompt, project, provider sequence, and native window bounds. Additional viewport classes and responsive transitions are not applicable because this change is server-side lifecycle handling and changes no rendered layout.",
+        "proof": "Base reports that the shaping agent returned no enhanced prompt after the empty first turn. The reviewed candidate preserves the request through that idle boundary, keeps an in-flight empty-output confirmation cancellable when the helper becomes active again, and applies the valid second-turn result in five consecutive cycles.",
+        "notes": "Same isolated bb desktop dev app, fixture prompt, project, provider sequence, and native window bounds. The five recorded cycles ran after restarting the exact candidate fixture. Additional viewport classes and responsive transitions are not applicable because this change is server-side lifecycle handling and changes no rendered layout.",
         "result": "PASS"
       }
     ],
     "helperThreadEvidence": [
       {
-        "threadId": "thr_4m7mrfy49v",
+        "threadId": "thr_2ng86nt9pu",
         "turnsStarted": 2,
         "turnsCompleted": 2,
         "agentMessages": 1
       },
       {
-        "threadId": "thr_sg3z34e2q7",
+        "threadId": "thr_me4iwdyzrs",
         "turnsStarted": 2,
         "turnsCompleted": 2,
         "agentMessages": 1
       },
       {
-        "threadId": "thr_k832kitvyt",
+        "threadId": "thr_ab6n8rfvhi",
         "turnsStarted": 2,
         "turnsCompleted": 2,
         "agentMessages": 1
       },
       {
-        "threadId": "thr_4kxm8vcdeq",
+        "threadId": "thr_c8v3p8gqgk",
         "turnsStarted": 2,
         "turnsCompleted": 2,
         "agentMessages": 1
       },
       {
-        "threadId": "thr_7s6h24zic2",
+        "threadId": "thr_2wxv86mcn9",
         "turnsStarted": 2,
         "turnsCompleted": 2,
         "agentMessages": 1
