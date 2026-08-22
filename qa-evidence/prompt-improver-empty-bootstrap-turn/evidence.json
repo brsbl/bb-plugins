@@ -1,0 +1,73 @@
+{
+  "fixture": {
+    "schemaVersion": 1,
+    "candidate": "90e767564c5a93d56199e74fac4d8c0f65d63679",
+    "base": "88a95813a845cf8814191043302dd3840f7696c8",
+    "hostCandidate": "4844423bac0b9774c06ad37eec919fe69a02c522",
+    "checkpoint": "prompt-improver-empty-bootstrap-turn",
+    "providerSequence": "empty completed turn, 1200 ms delay, valid enhanced-prompt turn",
+    "viewports": [
+      {
+        "viewportClass": "normal desktop",
+        "viewportWidth": null,
+        "viewportHeight": null,
+        "viewportUnit": null,
+        "contentWidth": null,
+        "contentHeight": null,
+        "contentUnit": null,
+        "windowWidth": 1093,
+        "windowHeight": 768,
+        "windowUnit": "device_px",
+        "deviceScaleFactor": null,
+        "captureWidth": 1093,
+        "captureHeight": 768,
+        "captureUnit": "device_px",
+        "state": "new-thread composer with deterministic dark-mode-plan draft",
+        "transitionWidths": [],
+        "cycles": 5,
+        "elapsedMs": 40311,
+        "beforeScreenshot": "qa/prompt-improver-before.jpeg",
+        "afterScreenshot": "qa/prompt-improver-after.jpeg",
+        "recording": null,
+        "proof": "Base reports that the shaping agent returned no enhanced prompt after the empty first turn. Candidate preserves the request through that idle boundary and applies the valid second-turn result in five consecutive cycles.",
+        "notes": "Same isolated bb desktop dev app, fixture prompt, project, provider sequence, and native window bounds. Additional viewport classes and responsive transitions are not applicable because this change is server-side lifecycle handling and changes no rendered layout.",
+        "result": "PASS"
+      }
+    ],
+    "helperThreadEvidence": [
+      {
+        "threadId": "thr_4m7mrfy49v",
+        "turnsStarted": 2,
+        "turnsCompleted": 2,
+        "agentMessages": 1
+      },
+      {
+        "threadId": "thr_sg3z34e2q7",
+        "turnsStarted": 2,
+        "turnsCompleted": 2,
+        "agentMessages": 1
+      },
+      {
+        "threadId": "thr_k832kitvyt",
+        "turnsStarted": 2,
+        "turnsCompleted": 2,
+        "agentMessages": 1
+      },
+      {
+        "threadId": "thr_4kxm8vcdeq",
+        "turnsStarted": 2,
+        "turnsCompleted": 2,
+        "agentMessages": 1
+      },
+      {
+        "threadId": "thr_7s6h24zic2",
+        "turnsStarted": 2,
+        "turnsCompleted": 2,
+        "agentMessages": 1
+      }
+    ],
+    "responsiveTransitions": "NOT_APPLICABLE",
+    "sustainedMotion": "PASS",
+    "result": "PASS"
+  }
+}
