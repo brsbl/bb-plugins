@@ -21,7 +21,8 @@ storage state, not a semantic decision that the current work is planning.
 The remembered stage changes when the user moves the thread or when you run
 `bb organizer phase <stage-key>`. `update_plan` and other internal task plans do
 not move the bb workflow stage. Only `bb organizer phase` performs an
-agent-driven stage transition.
+agent-driven stage update. Re-running it with the already-remembered key leaves
+the row in place and queues a title refresh.
 
 ## Current workflow
 
@@ -76,16 +77,23 @@ Re-evaluate the root thread’s primary activity at each of these checkpoints:
    activity. Move to the matching handoff-like stage.
 
 At a checkpoint, use the stage whose rule describes the resolved next concrete
-action. If that is already the remembered stage, do not run a redundant move.
+action. When the task or scope changed substantively, run `bb organizer phase`
+with that key even if it is already remembered. Thread Organizer batches that
+same-stage refresh with other title reassessments. Do not refresh again for
+minor progress within unchanged work.
 
-## Move when the work changes
+## Update when the work changes
 
-When the root thread genuinely changes its primary activity, move it before
-starting that work:
+When the root thread genuinely changes its primary activity—or its concrete
+work changes substantially within the current stage—run the matching stage
+command before starting that work:
 
 ```bash
 bb organizer phase <stage-key>
 ```
+
+This is routine agent bookkeeping. Run it autonomously; never ask the user for
+confirmation or permission to update or refresh the stage.
 
 Choose only a key from the current workflow table when the work you are about
 to do clearly matches that stage’s rule. Inbox is system-managed and can’t be
