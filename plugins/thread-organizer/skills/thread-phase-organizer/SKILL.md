@@ -21,7 +21,9 @@ storage state, not a semantic decision that the current work is planning.
 The remembered stage changes when the user moves the thread or when you run
 `bb organizer phase <stage-key>`. `update_plan` and other internal task plans do
 not move the bb workflow stage. Only `bb organizer phase` performs an
-agent-driven stage transition.
+agent-driven stage transition. Confirming the already-remembered key does not
+move the row; it tells Thread Organizer that the active work may need a fresh
+title.
 
 ## Current workflow
 
@@ -76,12 +78,16 @@ Re-evaluate the root thread’s primary activity at each of these checkpoints:
    activity. Move to the matching handoff-like stage.
 
 At a checkpoint, use the stage whose rule describes the resolved next concrete
-action. If that is already the remembered stage, do not run a redundant move.
+action. When the task or scope changed substantively, run `bb organizer phase`
+with that key even if it is already remembered. Thread Organizer batches that
+same-stage confirmation with other title reassessments. Do not confirm again
+for minor progress within unchanged work.
 
 ## Move when the work changes
 
-When the root thread genuinely changes its primary activity, move it before
-starting that work:
+When the root thread genuinely changes its primary activity—or its concrete
+work changes substantially within the current stage—confirm the matching stage
+before starting that work:
 
 ```bash
 bb organizer phase <stage-key>

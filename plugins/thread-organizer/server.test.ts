@@ -55,13 +55,21 @@ function agentContext(originPluginId: string | null = null) {
 }
 
 function createHarness(options: { legacyPlanning?: boolean } = {}) {
-  let thread = makeThreadResponse({
+  const initialThread = makeThreadResponse({
     id: "thr_test",
     projectId: "proj_test",
     status: "starting",
     lastReadAt: 0,
     latestAttentionAt: 10,
   });
+  const threads = new Map<string, TestThread>([
+    [initialThread.id, initialThread],
+  ]);
+  const getTestThread = (threadId = "thr_test") => {
+    const thread = threads.get(threadId);
+    if (!thread) throw new Error(`unknown test thread: ${threadId}`);
+    return thread;
+  };
   let sectionCounter = 0;
   let sections: TestSection[] = options.legacyPlanning
     ? [
@@ -73,26 +81,20 @@ function createHarness(options: { legacyPlanning?: boolean } = {}) {
         },
       ]
     : [];
-  const changedCallbacks: Array<() => void> = [];
+  const changedCallbacks: Array<(threadId: string) => void> = [];
 
   const create = vi.fn(async ({ name }: { name: string }) => {
-      const section: TestSection = {
-        id: `sec_${++sectionCounter}`,
-        name,
-        createdAt: sectionCounter + 10,
-        updatedAt: sectionCounter + 10,
-      };
-      sections.push(section);
-      return section;
-    });
-  const updateSection = vi.fn(
-    async ({
-      id,
+    const section: TestSection = {
+      id: `sec_${++sectionCounter}`,
       name,
-    }: {
-      id: string;
-      name: string;
-    }) => {
+      createdAt: sectionCounter + 10,
+      updatedAt: sectionCounter + 10,
+    };
+    sections.push(section);
+    return section;
+  });
+  const updateSection = vi.fn(
+    async ({ id, name }: { id: string; name: string }) => {
       const section = sections.find((candidate) => candidate.id === id)!;
       section.name = name;
       section.updatedAt += 1;
@@ -101,8 +103,14 @@ function createHarness(options: { legacyPlanning?: boolean } = {}) {
   );
   const deleteSection = vi.fn(async ({ id }: { id: string }) => {
     const section = sections.find((candidate) => candidate.id === id)!;
-    if (thread.sectionId === id)
-      thread = makeThreadResponse({ ...thread, sectionId: null });
+    for (const [threadId, thread] of threads) {
+      if (thread.sectionId === id) {
+        threads.set(
+          threadId,
+          makeThreadResponse({ ...thread, sectionId: null }),
+        );
+      }
+    }
     sections = sections.filter((candidate) => candidate.id !== id);
     return { id, name: section.name, updatedThreadCount: 0 };
   });
@@ -116,29 +124,29 @@ function createHarness(options: { legacyPlanning?: boolean } = {}) {
       sectionId?: string | null;
       title?: string | null;
     }) => {
-      if (threadId !== thread.id) throw new Error("unknown test thread");
-      thread = makeThreadResponse({
+      const thread = getTestThread(threadId);
+      const updated = makeThreadResponse({
         ...thread,
         ...(sectionId !== undefined ? { sectionId } : {}),
         ...(title !== undefined ? { title } : {}),
         updatedAt: thread.updatedAt + 1,
       });
-      return thread;
+      threads.set(threadId, updated);
+      return updated;
     },
   );
-  const getThread = vi.fn(async ({ threadId }: { threadId: string }) => {
-    if (threadId !== thread.id) throw new Error("unknown test thread");
-    return thread;
-  });
-  const listThreads = vi.fn(async () => [thread]);
+  const getThread = vi.fn(async ({ threadId }: { threadId: string }) =>
+    getTestThread(threadId),
+  );
+  const listThreads = vi.fn(async () => [...threads.values()]);
   const listSections = vi.fn(async () =>
     sections.map((section) => ({ ...section })),
   );
   const spawnThread = vi.fn(async (_args: ThreadSpawnArgs) =>
     makeThreadResponse({
       id: "thr_title_worker",
-      projectId: thread.projectId,
-      environmentId: thread.environmentId,
+      projectId: getTestThread().projectId,
+      environmentId: getTestThread().environmentId,
       visibility: "hidden",
       originPluginId: "thread-organizer",
       title: "Reassess thread title",
@@ -146,7 +154,8 @@ function createHarness(options: { legacyPlanning?: boolean } = {}) {
   );
   const waitThread = vi.fn(async () => ({ matched: true }));
   const outputThread = vi.fn(async () => ({
-    output: '{"action":"rename","title":"Implement semantic thread titles"}',
+    output:
+      '{"decisions":[{"id":"thr_test","action":"rename","title":"Implement semantic thread titles"}]}',
   }));
   const timelineThread = vi.fn(async () => ({
     rows: [
@@ -171,11 +180,11 @@ function createHarness(options: { legacyPlanning?: boolean } = {}) {
           id: string;
           type: "changed";
         }) => void;
-        changedCallbacks.push(() =>
+        changedCallbacks.push((threadId) =>
           callback({
             entity: "thread",
             type: "changed",
-            id: thread.id,
+            id: threadId,
             changes: ["read-state-changed"],
           }),
         );
@@ -216,13 +225,26 @@ function createHarness(options: { legacyPlanning?: boolean } = {}) {
     stopThread,
     timelineThread,
     waitThread,
-    current: () => thread,
+    current: (threadId = "thr_test") => getTestThread(threadId),
     sections: () => sections.map((section) => ({ ...section })),
-    setThread(changes: Partial<TestThread>) {
-      thread = makeThreadResponse({ ...thread, ...changes });
+    addThread(changes: Partial<TestThread> & { id: string }) {
+      threads.set(
+        changes.id,
+        makeThreadResponse({
+          projectId: "proj_test",
+          status: "active",
+          lastReadAt: 0,
+          latestAttentionAt: 10,
+          ...changes,
+        }),
+      );
     },
-    emitChanged() {
-      for (const callback of changedCallbacks) callback();
+    setThread(changes: Partial<TestThread>, threadId = "thr_test") {
+      const thread = getTestThread(threadId);
+      threads.set(threadId, makeThreadResponse({ ...thread, ...changes }));
+    },
+    emitChanged(threadId = "thr_test") {
+      for (const callback of changedCallbacks) callback(threadId);
     },
   };
 }
@@ -438,6 +460,12 @@ describe("Thread Organizer server", () => {
     expect(organizer.spawnThread.mock.calls[0]?.[0].prompt).toContain(
       "Implement semantic thread title reassessment.",
     );
+    expect(organizer.waitThread).toHaveBeenCalledWith(
+      expect.objectContaining({
+        event: "turn/completed",
+        threadId: "thr_title_worker",
+      }),
+    );
     expect(organizer.archiveThread).toHaveBeenCalledWith({
       threadId: "thr_title_worker",
     });
@@ -452,6 +480,70 @@ describe("Thread Organizer server", () => {
     await organizer.harness.lifecycle.dispose();
   });
 
+  it("reassesses a title when the current stage is explicitly confirmed", async () => {
+    const organizer = createHarness();
+    organizer.setThread({ status: "active", title: "Old planning title" });
+    await plugin(organizer.bb);
+
+    await organizer.harness.behavior.runCli(["phase", "planning"], {
+      threadId: "thr_test",
+    });
+
+    await vi.waitFor(() =>
+      expect(organizer.current().title).toBe(
+        "Implement semantic thread titles",
+      ),
+    );
+    expect(organizer.spawnThread).toHaveBeenCalledOnce();
+    await organizer.harness.lifecycle.dispose();
+  });
+
+  it("batches title reassessments for multiple threads into one worker", async () => {
+    const organizer = createHarness();
+    organizer.setThread({ status: "active", title: "First old title" });
+    organizer.addThread({
+      id: "thr_second",
+      status: "active",
+      title: "Second old title",
+    });
+    organizer.outputThread.mockResolvedValueOnce({
+      output: JSON.stringify({
+        decisions: [
+          {
+            id: "thr_test",
+            action: "rename",
+            title: "First current work",
+          },
+          {
+            id: "thr_second",
+            action: "rename",
+            title: "Second current work",
+          },
+        ],
+      }),
+    });
+    await plugin(organizer.bb);
+
+    await Promise.all([
+      organizer.harness.behavior.runCli(["phase", "building"], {
+        threadId: "thr_test",
+      }),
+      organizer.harness.behavior.runCli(["phase", "building"], {
+        threadId: "thr_second",
+      }),
+    ]);
+
+    await vi.waitFor(() => {
+      expect(organizer.current().title).toBe("First current work");
+      expect(organizer.current("thr_second").title).toBe("Second current work");
+    });
+    expect(organizer.spawnThread).toHaveBeenCalledOnce();
+    const prompt = organizer.spawnThread.mock.calls[0]?.[0].prompt ?? "";
+    expect(prompt).toContain('"id":"thr_test"');
+    expect(prompt).toContain('"id":"thr_second"');
+    await organizer.harness.lifecycle.dispose();
+  });
+
   it("does not overwrite a title changed while reassessment is running", async () => {
     const organizer = createHarness();
     organizer.setThread({ status: "active", title: "Initial title" });
@@ -462,7 +554,8 @@ describe("Thread Organizer server", () => {
     organizer.outputThread.mockImplementationOnce(async () => {
       await outputReady;
       return {
-        output: '{"action":"rename","title":"Stale generated title"}',
+        output:
+          '{"decisions":[{"id":"thr_test","action":"rename","title":"Stale generated title"}]}',
       };
     });
     await plugin(organizer.bb);

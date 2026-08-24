@@ -11,7 +11,8 @@ thread’s actual stage.
 - Running threads appear in their remembered workflow stage.
 - Idle unread threads appear in Inbox and stay there after being marked read.
 - Starting work again restores the thread’s remembered stage.
-- A user move or `bb organizer phase <stage-key>` changes the remembered stage.
+- A user move changes the remembered stage. `bb organizer phase <stage-key>`
+  changes it or confirms that substantially changed work remains in that stage.
 - Inbox keeps that system behavior even when its visible title or icon changes.
 - The icon picker maps each semantic icon choice to an emoji section prefix on
   the released plugin SDK.
@@ -20,12 +21,15 @@ thread’s actual stage.
 - Reordering a non-Inbox stage in the native sidebar saves the same workflow
   order used by plugin settings and future agent instructions.
 - Automation-origin root threads follow the same workflow as ordinary roots.
-- After a semantic stage transition, an invisible worker reassesses whether the
-  current thread title still describes the active work. User title changes win.
+- Stage changes and same-stage confirmations enter one bounded title queue.
+  Thread Organizer batches queued threads into one invisible worker, which
+  reassesses whether each title still describes the active work. User title
+  changes made while that worker is running win.
 
 The plugin does not classify prompts to choose stages. Agents and users move
-threads from the rules saved in plugin settings; title reassessment runs only
-after one of those semantic transitions.
+threads from the rules saved in plugin settings. Agents confirm the resolved
+stage when substantial work changes, including changes that remain within the
+same stage; those checkpoints drive batched title reassessment.
 
 ## Use
 

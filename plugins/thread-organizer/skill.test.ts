@@ -34,6 +34,18 @@ describe("thread phase organizer guidance", () => {
     );
   });
 
+  it("confirms substantial same-stage work changes for batched title reassessment", () => {
+    expect(skill).toContain(
+      "When the task or scope changed substantively, run bb organizer phase with that key even if it is already remembered.",
+    );
+    expect(skill).toContain(
+      "Thread Organizer batches that same-stage confirmation with other title reassessments.",
+    );
+    expect(skill).toContain(
+      "Do not confirm again for minor progress within unchanged work.",
+    );
+  });
+
   it("distinguishes remembered storage and internal plans from semantic stage moves", () => {
     expect(skill).toContain("Thread Organizer does not classify prompts.");
     expect(skill).toContain(
