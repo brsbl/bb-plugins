@@ -1,8 +1,9 @@
-import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
-import type { BbPluginApi } from "@bb/plugin-sdk";
+import type { BbPluginApi } from "@get-bb/plugin-sdk";
 import { z } from "zod";
+
+import { commitNewRuleFiles, ensureMaintenanceCheckout } from "./history";
 
 /**
  * Archive-triggered doctrine harvest.
@@ -55,6 +56,7 @@ const HARVEST_SCHEMA = [
  * constant rather than a scanning subsystem.
  */
 export const RECURRENCE_APPROVAL_THRESHOLD = 3;
+export const HARVEST_RULE_FILE_LIMIT = 5;
 
 const KEY_STOP_TOKENS = new Set([
   "a", "an", "and", "are", "as", "at", "be", "before", "but", "by", "for",
@@ -253,6 +255,8 @@ export interface HarvestDependencies {
   listRuleIds: () => Promise<string[]>;
   /** Compact catalog of existing rules, given to the reviewer. */
   describeExistingRules: () => Promise<string>;
+  /** Parses and validates the complete personalized corpus after draft writes. */
+  validateRules: () => Promise<void>;
   /** Runs one hidden agent to completion. Injected so tests do not need a real host. */
   runAgent: (request: HarvestAgentRequest) => Promise<void>;
   now?: () => number;
@@ -270,8 +274,14 @@ export function isHarvestableThread(thread: HarvestThread): boolean {
 }
 
 export function createHarvest(dependencies: HarvestDependencies) {
-  const { bb, resolveDoctrineRoot, listRuleIds, describeExistingRules, runAgent } =
-    dependencies;
+  const {
+    bb,
+    resolveDoctrineRoot,
+    listRuleIds,
+    describeExistingRules,
+    validateRules,
+    runAgent,
+  } = dependencies;
   const now = dependencies.now ?? (() => Date.now());
   let database: ReturnType<BbPluginApi["storage"]["database"]> | null = null;
 
@@ -450,20 +460,6 @@ export function createHarvest(dependencies: HarvestDependencies) {
     return row ? readProposal(row as Record<string, unknown>) : null;
   }
 
-  async function writeApprovedRule(proposal: HarvestProposal): Promise<string> {
-    const root = await resolveDoctrineRoot();
-    const id = allocateRuleId(await listRuleIds());
-    const relativePath = ruleRelativePath(proposal.domain, id);
-    const absolutePath = join(root, relativePath);
-    await mkdir(join(absolutePath, ".."), { recursive: true });
-    await writeFile(
-      absolutePath,
-      renderRuleMarkdown(proposal, id, isoDate(now())),
-      "utf8",
-    );
-    return relativePath;
-  }
-
   function harvesterPrompt(threadId: string): string {
     return [
       "You are the Design Doctrine harvester. Work silently; nobody is watching this thread.",
@@ -547,6 +543,19 @@ export function createHarvest(dependencies: HarvestDependencies) {
     projectId: string,
     environmentId: string | null = null,
   ): Promise<void> {
+    let doctrineRoot: string;
+    try {
+      doctrineRoot = await resolveDoctrineRoot();
+      await ensureMaintenanceCheckout(doctrineRoot);
+    } catch (error) {
+      bb.log.warn(
+        `doctrine harvest: waiting for a clean maintenance checkout: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
+      return;
+    }
+
     try {
       await runAgent({
         kind: "harvester",
@@ -575,6 +584,7 @@ export function createHarvest(dependencies: HarvestDependencies) {
 
     const existingRules = await describeExistingRules();
     let approved = 0;
+    const approvedProposals: StoredProposal[] = [];
     for (const stored of proposals) {
       const duplicate = alreadyApproved(stored.ruleKey);
       if (duplicate) {
@@ -625,26 +635,58 @@ export function createHarvest(dependencies: HarvestDependencies) {
         );
         continue;
       }
-      try {
-        const relativePath = await writeApprovedRule(verdict.proposal);
-        recordVerdict(
-          stored.id,
-          "approved",
-          verdict.reason ?? "approved",
-          relativePath,
-        );
-        approved += 1;
-        bb.log.info(
-          `doctrine harvest: wrote ${relativePath} from ${threadId} — ${verdict.reason ?? "approved"}`,
-        );
-      } catch (error) {
-        const reason = `could not write rule: ${
-          error instanceof Error ? error.message : String(error)
-        }`;
+      if (approvedProposals.length >= HARVEST_RULE_FILE_LIMIT) {
+        const reason = `archive harvests are limited to ${HARVEST_RULE_FILE_LIMIT} rule files`;
         recordVerdict(stored.id, "rejected", reason);
         bb.log.warn(
           `doctrine harvest: rejected proposal ${stored.id} from ${threadId} — ${reason}`,
         );
+        continue;
+      }
+      approvedProposals.push(verdict);
+    }
+
+    if (approvedProposals.length > 0) {
+      const existingIds = await listRuleIds();
+      const drafts = approvedProposals.map((stored) => {
+        const id = allocateRuleId(existingIds);
+        existingIds.push(id);
+        return {
+          stored,
+          file: {
+            relativePath: ruleRelativePath(stored.proposal.domain, id),
+            content: renderRuleMarkdown(stored.proposal, id, isoDate(now())),
+          },
+        };
+      });
+      try {
+        await commitNewRuleFiles(
+          doctrineRoot,
+          drafts.map((draft) => draft.file),
+          validateRules,
+        );
+        for (const draft of drafts) {
+          recordVerdict(
+            draft.stored.id,
+            "approved",
+            draft.stored.reason ?? "approved",
+            draft.file.relativePath,
+          );
+          approved += 1;
+          bb.log.info(
+            `doctrine harvest: committed ${draft.file.relativePath} from ${threadId} — ${draft.stored.reason ?? "approved"}`,
+          );
+        }
+      } catch (error) {
+        const reason = `could not commit rule batch: ${
+          error instanceof Error ? error.message : String(error)
+        }`;
+        for (const draft of drafts) {
+          recordVerdict(draft.stored.id, "rejected", reason);
+          bb.log.warn(
+            `doctrine harvest: rejected proposal ${draft.stored.id} from ${threadId} — ${reason}`,
+          );
+        }
       }
     }
     markProcessed(threadId, approved > 0 ? `approved:${approved}` : "no-approvals");

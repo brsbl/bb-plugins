@@ -1,11 +1,13 @@
+import { execFile } from "node:child_process";
 import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { promisify } from "node:util";
 
 import {
   createFakePluginHost,
   makeThreadResponse,
-} from "@bb/plugin-sdk/testing";
+} from "@get-bb/plugin-sdk/testing";
 import { afterEach, describe, expect, it } from "vitest";
 
 import {
@@ -71,12 +73,18 @@ Dense operational surfaces should not fill with labels that repeat the icon.
 `;
 
 const temporaryRoots: string[] = [];
+const execFileAsync = promisify(execFile);
 
 async function makeDoctrineRoot(): Promise<string> {
   const root = await mkdtemp(join(tmpdir(), "doctrine-harvest-"));
   temporaryRoots.push(root);
   await mkdir(join(root, "rules", "interaction"), { recursive: true });
   await writeFile(join(root, "rules", "interaction", "ddr_001.md"), SEED_RULE, "utf8");
+  await execFileAsync("git", ["-C", root, "init", "-b", "doctrine-maintenance"]);
+  await execFileAsync("git", ["-C", root, "config", "user.name", "Design Doctrine Test"]);
+  await execFileAsync("git", ["-C", root, "config", "user.email", "doctrine-test@example.com"]);
+  await execFileAsync("git", ["-C", root, "add", "rules/interaction/ddr_001.md"]);
+  await execFileAsync("git", ["-C", root, "commit", "-m", "seed rules"]);
   return root;
 }
 
@@ -305,11 +313,70 @@ describe("archive-triggered harvest", () => {
       "ddr_002",
     ]);
     expect(status.thread).toMatchObject({ outcome: "approved:1" });
+    const rulesStatus = await execFileAsync("git", [
+      "-C",
+      root,
+      "status",
+      "--porcelain=v1",
+      "--untracked-files=all",
+      "--",
+      "rules",
+    ]);
+    expect(rulesStatus.stdout).toBe("");
+    const commits = await execFileAsync("git", [
+      "-C",
+      root,
+      "log",
+      "--format=%s",
+      "--",
+      "rules",
+    ]);
+    expect(commits.stdout).toContain("doctrine: harvest archived feedback");
     expect(
       harness.logEntries.some((entry) =>
-        entry.message.includes("wrote rules/visual/ddr_002.md"),
+        entry.message.includes("committed rules/visual/ddr_002.md"),
       ),
     ).toBe(true);
+    await harness.lifecycle.dispose();
+  });
+
+  it("commits multiple approved rules with distinct ids in one batch", async () => {
+    const root = await makeDoctrineRoot();
+    const script: AgentScript = {
+      propose: () => [
+        makeProposal(),
+        makeProposal({
+          title: "Keep warnings visually distinct from errors",
+          statement:
+            "Warning states use their own treatment instead of borrowing the error signal.",
+          domain: "visual.status",
+        }),
+      ],
+      review: () => ({ approve: true, reason: "new and grounded" }),
+      reviewerPrompts: [],
+      harvesterPrompts: [],
+    };
+    const { harness } = await startPlugin(root, script);
+
+    const status = await archiveAndSettle(harness, "thr_batch");
+
+    expect(await writtenRuleFiles(root)).toEqual([
+      "interaction/ddr_001.md",
+      "visual/ddr_002.md",
+      "visual/ddr_003.md",
+    ]);
+    expect(status.thread).toMatchObject({ outcome: "approved:2" });
+    const latestCommit = await execFileAsync("git", [
+      "-C",
+      root,
+      "show",
+      "--format=%s",
+      "--name-only",
+      "HEAD",
+    ]);
+    expect(latestCommit.stdout).toContain("doctrine: harvest archived feedback");
+    expect(latestCommit.stdout).toContain("rules/visual/ddr_002.md");
+    expect(latestCommit.stdout).toContain("rules/visual/ddr_003.md");
     await harness.lifecycle.dispose();
   });
 

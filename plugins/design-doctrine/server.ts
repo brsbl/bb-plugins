@@ -695,14 +695,28 @@ export default async function plugin(bb: BbPluginApi) {
     bb,
     resolveDoctrineRoot: async () =>
       expandPath((await settings.get()).doctrinePath),
-    listRuleIds: async () => (await currentLibrary()).rules.map((rule) => rule.id),
+    listRuleIds: async () =>
+      (
+        await loadDoctrine(
+          expandPath((await settings.get()).doctrinePath),
+        )
+      ).rules.map((rule) => rule.id),
     describeExistingRules: async () =>
-      (await currentLibrary()).rules
+      (
+        await loadDoctrine(
+          expandPath((await settings.get()).doctrinePath),
+        )
+      ).rules
         .map(
           (rule) =>
             `${rule.id} (${rule.domain}, ${rule.strength}): ${rule.title} — ${rule.statement}`,
         )
         .join("\n"),
+    validateRules: async () => {
+      await loadDoctrine(
+        expandPath((await settings.get()).doctrinePath),
+      );
+    },
     async runAgent({ projectId, environmentId, title, prompt }) {
       const spawned = await bb.sdk.threads.spawn({
         projectId,
@@ -766,6 +780,9 @@ export default async function plugin(bb: BbPluginApi) {
   bb.events.on("thread.deleted", async ({ thread }) => {
     await historyMaintenance.forgetThread(thread.id);
   });
+  // Resume durable archive work after reloads. A dirty maintenance checkout
+  // leaves the row pending; rule-watch retries it when that checkout changes.
+  drainHarvest();
 
   bb.rpc.register(rpcContract, { getLibrary: currentLibrary });
   bb.agents.registerTool({
@@ -1014,6 +1031,7 @@ export default async function plugin(bb: BbPluginApi) {
             bb.log.warn(error instanceof Error ? error.message : String(error));
           }
           bb.realtime.publish("rules-changed", { changed_at: new Date().toISOString() });
+          drainHarvest();
         }
       }
     },
