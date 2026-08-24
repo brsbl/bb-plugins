@@ -14919,33 +14919,42 @@ async function plugin(bb) {
   const catalog = catalogLoader.catalog;
   bb.background.service("theme-watch", {
     async start(signal) {
-      const raw = await bb.sdk.theme.catalog();
-      const dir = typeof raw?.dir === "string" ? raw.dir : null;
-      if (!dir) return;
       let watcher = null;
       let timer = null;
-      const onChange = () => {
-        if (timer) clearTimeout(timer);
-        timer = setTimeout(async () => {
-          try {
-            const next = await catalog();
-            bb.realtime.publish("theme-preview:changed", { revision: next.revision, at: Date.now() });
-          } catch (error51) {
-            bb.log.warn(`theme-preview: watch refresh failed: ${String(error51)}`);
-          }
-        }, 120);
-      };
       try {
-        watcher = watch(dir, { recursive: true }, onChange);
-        watcher.on("error", (error51) => bb.log.warn(`theme-preview: watcher error: ${String(error51)}`));
-        bb.log.info(`theme-preview: watching ${dir}`);
+        const raw = await bb.sdk.theme.catalog({ signal });
+        if (signal.aborted) return;
+        const dir = typeof raw?.dir === "string" ? raw.dir : null;
+        if (!dir) return;
+        const onChange = () => {
+          if (timer) clearTimeout(timer);
+          timer = setTimeout(async () => {
+            try {
+              const next = await catalog();
+              bb.realtime.publish("theme-preview:changed", { revision: next.revision, at: Date.now() });
+            } catch (error51) {
+              bb.log.warn(`theme-preview: watch refresh failed: ${String(error51)}`);
+            }
+          }, 120);
+        };
+        try {
+          watcher = watch(dir, { recursive: true }, onChange);
+          watcher.on("error", (error51) => bb.log.warn(`theme-preview: watcher error: ${String(error51)}`));
+          bb.log.info(`theme-preview: watching ${dir}`);
+        } catch (error51) {
+          bb.log.warn(`theme-preview: cannot watch ${dir}: ${String(error51)}`);
+          return;
+        }
+        await new Promise((resolve2) => {
+          if (signal.aborted) resolve2();
+          else signal.addEventListener("abort", () => resolve2(), { once: true });
+        });
       } catch (error51) {
-        bb.log.warn(`theme-preview: cannot watch ${dir}: ${String(error51)}`);
-        return;
+        if (!signal.aborted) throw error51;
+      } finally {
+        if (timer) clearTimeout(timer);
+        watcher?.close();
       }
-      await new Promise((resolve2) => signal.addEventListener("abort", () => resolve2(), { once: true }));
-      if (timer) clearTimeout(timer);
-      watcher?.close();
     }
   });
   bb.rpc.register(rpcContract, {

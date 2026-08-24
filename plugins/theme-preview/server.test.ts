@@ -4,7 +4,7 @@ import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
 import type { BbPluginApi } from "@get-bb/plugin-sdk";
-import { buildCatalog, classifySelector, createCatalogLoader, parseThemeSwatches } from "./server";
+import plugin, { buildCatalog, classifySelector, createCatalogLoader, parseThemeSwatches } from "./server";
 
 describe("classifySelector", () => {
   it("accepts the mode roots and rejects element-scoped blocks", () => {
@@ -137,6 +137,44 @@ describe("createCatalogLoader", () => {
     expect(activeThemeId).toBe("theme-b");
     expect(setCalls).toEqual(["theme-b"]);
     await rm(directory, { recursive: true, force: true });
+  });
+});
+
+describe("theme watcher", () => {
+  it("stops promptly when aborted during the initial catalog request", async () => {
+    let start!: (signal: AbortSignal) => Promise<void>;
+    let markCatalogStarted!: () => void;
+    const catalogStarted = new Promise<void>((resolve) => { markCatalogStarted = resolve; });
+    let catalogSignal: AbortSignal | undefined;
+    const bb = {
+      background: {
+        service(_name: string, options: { start(signal: AbortSignal): Promise<void> }) {
+          start = options.start;
+        },
+      },
+      sdk: {
+        theme: {
+          catalog: ({ signal }: { signal?: AbortSignal } = {}) => {
+            catalogSignal = signal;
+            markCatalogStarted();
+            return new Promise((_resolve, reject) => {
+              signal?.addEventListener("abort", () => reject(signal.reason), { once: true });
+            });
+          },
+        },
+      },
+      rpc: { register() {} },
+      log: { info() {}, warn() {} },
+    } as unknown as BbPluginApi;
+
+    await plugin(bb);
+    const controller = new AbortController();
+    const running = start(controller.signal);
+    await catalogStarted;
+    controller.abort();
+
+    await expect(running).resolves.toBeUndefined();
+    expect(catalogSignal).toBe(controller.signal);
   });
 });
 
