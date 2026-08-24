@@ -1,0 +1,27 @@
+{
+  "name": "bb-plugin-prompt-shaper",
+  "version": "0.1.0",
+  "type": "module",
+  "files": [
+    "dist",
+    "docs",
+    "README.md",
+    "skills"
+  ],
+  "engines": {
+    "bb": ">=0.0.34",
+    "bbPluginSdk": "^0.4.1"
+  },
+  "bb": {
+    "name": "Prompt Improver",
+    "description": "Adds an Improve prompt action to the composer that sends your rough draft to a hidden helper agent, which applies the prompt-shaper skill to rewrite it into a clear, complete prompt and returns it in place for review before you send.",
+    "branding": {
+      "icon": "AiContentGenerator01"
+    },
+    "server": "./dist/install-server.mjs",
+    "app": "./dist/install-app.mjs",
+    "skills": [
+      "skills"
+    ]
+  }
+}

@@ -1,0 +1,591 @@
+import type { BbPluginApi } from "@get-bb/plugin-sdk";
+import { z } from "zod";
+
+import {
+  buildWorkerPrompt,
+  parseShaperOutput,
+  type ParsedShaperOutput,
+} from "./core.js";
+
+const REQUEST_TTL_MS = 24 * 60 * 60 * 1_000;
+const REQUEST_PREFIX = "request:";
+const THREAD_PREFIX = "thread:";
+const CANCELLATION_PREFIX = "cancellation:";
+const RECONCILIATION_RETRY_DELAY_MS = 50;
+const EMPTY_OUTPUT_GRACE_MS = 5_000;
+
+const requestIdSchema = z.string().uuid();
+
+const enhancementBaseSchema = z.object({
+  requestId: requestIdSchema,
+  helperThreadId: z.string().min(1),
+  createdAt: z.number().int().nonnegative(),
+});
+
+const enhancementRecordSchema = z.discriminatedUnion("status", [
+  enhancementBaseSchema.extend({ status: z.literal("running") }),
+  enhancementBaseSchema.extend({
+    status: z.literal("complete"),
+    enhancedPrompt: z.string().min(1),
+    assumptions: z.string().min(1).nullable(),
+    completedAt: z.number().int().nonnegative(),
+  }),
+  enhancementBaseSchema.extend({
+    status: z.literal("failed"),
+    error: z.string().min(1),
+    completedAt: z.number().int().nonnegative(),
+  }),
+]);
+const cancellationRecordSchema = z.object({
+  createdAt: z.number().int().nonnegative(),
+});
+
+/**
+ * Which provider/model the hidden helper runs with.
+ * - "default": unset — the helper matches the composer's thread when one
+ *   exists, otherwise the project's spawn defaults (the pre-setting behavior).
+ * - "thread": explicitly inherit the current thread's provider and model.
+ *   Behaves like "default" today, but records the user's intent so the two can
+ *   diverge if the default ever changes.
+ * - "fixed": always run with `providerId` (and optionally `model`).
+ * `providerId`/`model` are only meaningful for "fixed"; the schema enforces it.
+ */
+const HELPER_EXECUTION_KEY = "helper-execution";
+const helperExecutionSchema = z.discriminatedUnion("mode", [
+  z.object({
+    mode: z.literal("default"),
+    providerId: z.null(),
+    model: z.null(),
+  }),
+  z.object({
+    mode: z.literal("thread"),
+    providerId: z.null(),
+    model: z.null(),
+  }),
+  z.object({
+    mode: z.literal("fixed"),
+    providerId: z.string().min(1),
+    model: z.string().min(1).nullable(),
+  }),
+]);
+type HelperExecution = z.infer<typeof helperExecutionSchema>;
+const UNSET_HELPER_EXECUTION: HelperExecution = {
+  mode: "default",
+  providerId: null,
+  model: null,
+};
+
+type EnhancementRecord = z.infer<typeof enhancementRecordSchema>;
+type RunningRecord = Extract<EnhancementRecord, { status: "running" }>;
+
+export const rpcContract = {
+  startEnhancement: {
+    input: z.object({
+      requestId: requestIdSchema,
+      draft: z
+        .string()
+        .min(1)
+        .max(64_000)
+        .refine((value) => value.trim().length > 0, "Draft cannot be blank"),
+      projectId: z.string().min(1),
+      sourceThreadId: z.string().min(1).nullable(),
+    }),
+    output: z.object({
+      requestId: requestIdSchema,
+      helperThreadId: z.string().min(1),
+    }),
+  },
+  getEnhancement: {
+    input: z.object({ requestId: requestIdSchema }),
+    output: enhancementRecordSchema.nullable(),
+  },
+  cancelEnhancement: {
+    input: z.object({ requestId: requestIdSchema }),
+    output: z.object({ cancelled: z.literal(true) }),
+  },
+  getHelperExecution: {
+    input: z.object({}),
+    output: helperExecutionSchema,
+  },
+  setHelperExecution: {
+    input: helperExecutionSchema,
+    output: z.object({ saved: z.literal(true) }),
+  },
+  listHelperProviders: {
+    input: z.object({}),
+    output: z.object({
+      providers: z.array(
+        z.object({
+          id: z.string(),
+          displayName: z.string(),
+          available: z.boolean(),
+        }),
+      ),
+    }),
+  },
+  listHelperModels: {
+    input: z.object({ providerId: z.string().min(1) }),
+    output: z.object({
+      models: z.array(
+        z.object({ model: z.string(), displayName: z.string() }),
+      ),
+    }),
+  },
+} as const;
+
+function requestKey(requestId: string): string {
+  return `${REQUEST_PREFIX}${requestId}`;
+}
+
+function threadKey(threadId: string): string {
+  return `${THREAD_PREFIX}${threadId}`;
+}
+
+function cancellationKey(requestId: string): string {
+  return `${CANCELLATION_PREFIX}${requestId}`;
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+export default async function plugin(bb: BbPluginApi) {
+  const reconciliationRequests = new Map<string, Promise<void>>();
+  const emptyOutputChecks = new Map<
+    string,
+    ReturnType<typeof setTimeout>
+  >();
+
+  function clearEmptyOutputCheck(
+    threadId: string,
+    expected?: ReturnType<typeof setTimeout>,
+  ): void {
+    const pending = emptyOutputChecks.get(threadId);
+    if (
+      pending === undefined ||
+      (expected !== undefined && pending !== expected)
+    ) {
+      return;
+    }
+    clearTimeout(pending);
+    emptyOutputChecks.delete(threadId);
+  }
+
+  async function readHelperExecution(): Promise<HelperExecution> {
+    const value = await bb.storage.kv.get<unknown>(HELPER_EXECUTION_KEY);
+    if (value === undefined) return UNSET_HELPER_EXECUTION;
+    const parsed = helperExecutionSchema.safeParse(value);
+    return parsed.success ? parsed.data : UNSET_HELPER_EXECUTION;
+  }
+
+  async function readRecord(
+    requestId: string,
+  ): Promise<EnhancementRecord | null> {
+    const value = await bb.storage.kv.get<unknown>(requestKey(requestId));
+    if (value === undefined) return null;
+    const parsed = enhancementRecordSchema.safeParse(value);
+    if (!parsed.success) {
+      bb.log.warn(`discarding invalid enhancement record ${requestId}`);
+      await bb.storage.kv.delete(requestKey(requestId));
+      return null;
+    }
+    return parsed.data;
+  }
+
+  async function writeRecord(record: EnhancementRecord): Promise<void> {
+    await bb.storage.kv.set(requestKey(record.requestId), record);
+  }
+
+  async function cancellationRequested(requestId: string): Promise<boolean> {
+    return (await bb.storage.kv.get(cancellationKey(requestId))) !== undefined;
+  }
+
+  async function clearRequest(
+    requestId: string,
+    helperThreadId: string,
+  ): Promise<void> {
+    clearEmptyOutputCheck(helperThreadId);
+    await bb.storage.kv.delete(requestKey(requestId));
+    await bb.storage.kv.delete(threadKey(helperThreadId));
+  }
+
+  async function archiveHelper(threadId: string): Promise<void> {
+    try {
+      await bb.sdk.threads.archive({ threadId });
+    } catch (error) {
+      bb.log.warn(
+        `could not archive Improve Prompt helper ${threadId}: ${errorMessage(error)}`,
+      );
+    }
+  }
+
+  async function cancelHelper(threadId: string): Promise<void> {
+    try {
+      await bb.sdk.threads.stop({ threadId });
+    } catch (error) {
+      bb.log.warn(
+        `could not stop Improve Prompt helper ${threadId}: ${errorMessage(error)}`,
+      );
+    }
+    await archiveHelper(threadId);
+  }
+
+  async function finish(
+    threadId: string,
+    result: ParsedShaperOutput | { error: string },
+  ): Promise<void> {
+    clearEmptyOutputCheck(threadId);
+    const requestId = await bb.storage.kv.get<string>(threadKey(threadId));
+    if (requestId === undefined) return;
+    const current = await readRecord(requestId);
+    if (current === null || current.status !== "running") return;
+
+    const completedAt = Date.now();
+    const next: EnhancementRecord =
+      "error" in result
+        ? {
+            ...current,
+            status: "failed",
+            error: result.error,
+            completedAt,
+          }
+        : {
+            ...current,
+            status: "complete",
+            enhancedPrompt: result.prompt,
+            assumptions: result.assumptions,
+            completedAt,
+          };
+
+    if (await cancellationRequested(requestId)) return;
+    await writeRecord(next);
+    if (await cancellationRequested(requestId)) {
+      await clearRequest(requestId, threadId);
+      return;
+    }
+    bb.realtime.publish("enhancement-changed", { requestId });
+    await bb.storage.kv.delete(threadKey(threadId));
+    await archiveHelper(threadId);
+  }
+
+  async function finishFromOutput(
+    threadId: string,
+    assistantText: string | null,
+  ): Promise<void> {
+    const output = assistantText ?? "";
+    if (output.trim().length === 0) {
+      scheduleEmptyOutputCheck(threadId);
+      return;
+    }
+
+    clearEmptyOutputCheck(threadId);
+    const parsed = parseShaperOutput(output);
+    if (parsed === null) {
+      await finish(threadId, {
+        error:
+          "The shaping agent did not return an enhanced prompt. Try again or use /prompt-shaper directly.",
+      });
+      return;
+    }
+    await finish(threadId, parsed);
+  }
+
+  function scheduleEmptyOutputCheck(threadId: string): void {
+    if (emptyOutputChecks.has(threadId)) return;
+    const pending = setTimeout(() => {
+      if (emptyOutputChecks.get(threadId) !== pending) return;
+      void (async () => {
+        const requestId = await bb.storage.kv.get<string>(threadKey(threadId));
+        if (emptyOutputChecks.get(threadId) !== pending) return;
+        if (requestId === undefined) return;
+        const current = await readRecord(requestId);
+        if (emptyOutputChecks.get(threadId) !== pending) return;
+        if (current === null || current.status !== "running") return;
+
+        const thread = await bb.sdk.threads.get({ threadId });
+        if (emptyOutputChecks.get(threadId) !== pending) return;
+        if (thread.status === "error") {
+          if (emptyOutputChecks.get(threadId) !== pending) return;
+          await finish(threadId, { error: "The shaping agent failed." });
+          return;
+        }
+        if (thread.status !== "idle") return;
+
+        const { output } = await bb.sdk.threads.output({ threadId });
+        if (emptyOutputChecks.get(threadId) !== pending) return;
+        if ((output ?? "").trim().length > 0) {
+          if (emptyOutputChecks.get(threadId) !== pending) return;
+          await finishFromOutput(threadId, output);
+          return;
+        }
+        if (emptyOutputChecks.get(threadId) !== pending) return;
+        await finish(threadId, {
+          error:
+            "The shaping agent did not return an enhanced prompt. Try again or use /prompt-shaper directly.",
+        });
+      })()
+        .catch((error) => {
+          bb.log.warn(
+            `could not confirm Improve Prompt helper ${threadId} output: ${errorMessage(error)}`,
+          );
+        })
+        .finally(() => {
+          clearEmptyOutputCheck(threadId, pending);
+        });
+    }, EMPTY_OUTPUT_GRACE_MS);
+    emptyOutputChecks.set(threadId, pending);
+  }
+
+  async function reconcileHelperOnce(threadId: string): Promise<void> {
+    const thread = await bb.sdk.threads.get({ threadId });
+    if (thread.status === "idle") {
+      const { output } = await bb.sdk.threads.output({ threadId });
+      await finishFromOutput(threadId, output);
+    } else if (thread.status === "error") {
+      await finish(threadId, { error: "The shaping agent failed." });
+    }
+  }
+
+  function reconcileHelper(threadId: string): Promise<void> {
+    const pending = reconciliationRequests.get(threadId);
+    if (pending) return pending;
+
+    const request = (async () => {
+      try {
+        await reconcileHelperOnce(threadId);
+      } catch {
+        await new Promise((resolve) =>
+          setTimeout(resolve, RECONCILIATION_RETRY_DELAY_MS),
+        );
+        await reconcileHelperOnce(threadId);
+      }
+    })().finally(() => {
+      if (reconciliationRequests.get(threadId) === request) {
+        reconciliationRequests.delete(threadId);
+      }
+    });
+    reconciliationRequests.set(threadId, request);
+    return request;
+  }
+
+  async function spawnHelper(input: {
+    draft: string;
+    projectId: string;
+    sourceThreadId: string | null;
+  }) {
+    // A fixed helper execution beats inheritance: the user asked for a
+    // specific provider (and optionally model) for every enhancement run.
+    // "default" and "thread" both take the inheritance path below — match the
+    // composer's thread, or fall back to the project's spawn defaults.
+    const configured = await readHelperExecution();
+    const configuredExecution =
+      configured.mode !== "fixed"
+        ? null
+        : {
+            providerId: configured.providerId,
+            ...(configured.model === null ? {} : { model: configured.model }),
+          };
+
+    if (input.sourceThreadId === null) {
+      return bb.sdk.threads.spawn({
+        projectId: input.projectId,
+        prompt: buildWorkerPrompt({ draft: input.draft }),
+        environment: { type: "project-default" },
+        ...(configuredExecution ?? {}),
+        permissionMode: "auto",
+        visibility: "hidden",
+        title: "Improve Prompt",
+      });
+    }
+
+    const source = await bb.sdk.threads.get({
+      threadId: input.sourceThreadId,
+    });
+    if (source.projectId !== input.projectId) {
+      throw new Error("Source thread does not belong to this composer project");
+    }
+    const environment =
+      source.environmentId === null
+        ? ({ type: "project-default" } as const)
+        : ({ type: "reuse", environmentId: source.environmentId } as const);
+    if (configuredExecution !== null) {
+      return bb.sdk.threads.spawn({
+        projectId: input.projectId,
+        prompt: buildWorkerPrompt({ draft: input.draft }),
+        environment,
+        ...configuredExecution,
+        permissionMode: "auto",
+        visibility: "hidden",
+        title: "Improve Prompt",
+      });
+    }
+    const execution = await bb.sdk.threads.defaultExecutionOptions({
+      threadId: input.sourceThreadId,
+    });
+    return bb.sdk.threads.spawn({
+      projectId: input.projectId,
+      prompt: buildWorkerPrompt({ draft: input.draft }),
+      environment,
+      providerId: source.providerId,
+      ...(execution === null
+        ? {}
+        : {
+            model: execution.model,
+            reasoningLevel: execution.reasoningLevel,
+            serviceTier: execution.serviceTier,
+          }),
+      permissionMode: "auto",
+      visibility: "hidden",
+      title: "Improve Prompt",
+    });
+  }
+
+  bb.rpc.register(rpcContract, {
+    async getHelperExecution() {
+      return readHelperExecution();
+    },
+    async setHelperExecution(input) {
+      if (input.mode === "default") {
+        await bb.storage.kv.delete(HELPER_EXECUTION_KEY);
+      } else {
+        await bb.storage.kv.set(HELPER_EXECUTION_KEY, input);
+      }
+      return { saved: true as const };
+    },
+    async listHelperProviders() {
+      const providers = await bb.sdk.providers.list();
+      return {
+        providers: providers.map((provider) => ({
+          id: provider.id,
+          displayName: provider.displayName,
+          available: provider.available,
+        })),
+      };
+    },
+    async listHelperModels(input) {
+      const options = await bb.sdk.providers.models({
+        providerId: input.providerId,
+      });
+      return {
+        models: options.models.map((model) => ({
+          model: model.model,
+          displayName: model.displayName,
+        })),
+      };
+    },
+    async startEnhancement(input) {
+      let helperThreadId: string | null = null;
+      try {
+        if (await cancellationRequested(input.requestId)) {
+          throw new Error("Enhancement was cancelled.");
+        }
+        if ((await readRecord(input.requestId)) !== null) {
+          throw new Error(
+            `Enhancement request ${input.requestId} already exists`,
+          );
+        }
+
+        const helper = await spawnHelper(input);
+        helperThreadId = helper.id;
+        if (await cancellationRequested(input.requestId)) {
+          await cancelHelper(helperThreadId);
+          helperThreadId = null;
+          throw new Error("Enhancement was cancelled.");
+        }
+        const record: RunningRecord = {
+          requestId: input.requestId,
+          helperThreadId,
+          status: "running",
+          createdAt: Date.now(),
+        };
+        await writeRecord(record);
+        await bb.storage.kv.set(threadKey(helperThreadId), input.requestId);
+        if (await cancellationRequested(input.requestId)) {
+          await clearRequest(input.requestId, helperThreadId);
+          await cancelHelper(helperThreadId);
+          helperThreadId = null;
+          throw new Error("Enhancement was cancelled.");
+        }
+        await reconcileHelper(helperThreadId);
+        return { requestId: input.requestId, helperThreadId };
+      } catch (error) {
+        if (helperThreadId !== null) {
+          try {
+            await clearRequest(input.requestId, helperThreadId);
+          } catch (cleanupError) {
+            bb.log.warn(
+              `could not clear failed Improve Prompt request ${input.requestId}: ${errorMessage(cleanupError)}`,
+            );
+          }
+          await cancelHelper(helperThreadId);
+        }
+        throw error;
+      } finally {
+        await bb.storage.kv.delete(cancellationKey(input.requestId));
+      }
+    },
+    async getEnhancement({ requestId }) {
+      const record = await readRecord(requestId);
+      if (record?.status === "running") {
+        try {
+          await reconcileHelper(record.helperThreadId);
+        } catch (error) {
+          bb.log.warn(
+            `could not reconcile Improve Prompt helper ${record.helperThreadId}: ${errorMessage(error)}`,
+          );
+        }
+      }
+      return readRecord(requestId);
+    },
+    async cancelEnhancement({ requestId }) {
+      await bb.storage.kv.set(cancellationKey(requestId), {
+        createdAt: Date.now(),
+      });
+      const record = await readRecord(requestId);
+      if (record !== null) {
+        await clearRequest(requestId, record.helperThreadId);
+        await cancelHelper(record.helperThreadId);
+      }
+      bb.realtime.publish("enhancement-changed", { requestId });
+      return { cancelled: true as const };
+    },
+  });
+
+  bb.events.on("thread.idle", ({ thread, lastAssistantText }) =>
+    finishFromOutput(thread.id, lastAssistantText),
+  );
+  bb.events.on("thread.active", ({ thread }) => {
+    clearEmptyOutputCheck(thread.id);
+  });
+  bb.events.on("thread.failed", ({ thread, error }) =>
+    finish(thread.id, {
+      error: error?.trim() || "The shaping agent failed.",
+    }),
+  );
+
+  const now = Date.now();
+  for (const key of await bb.storage.kv.list(REQUEST_PREFIX)) {
+    const requestId = key.slice(REQUEST_PREFIX.length);
+    const record = await readRecord(requestId);
+    if (record !== null && now - record.createdAt > REQUEST_TTL_MS) {
+      await clearRequest(requestId, record.helperThreadId);
+      if (record.status === "running") {
+        await cancelHelper(record.helperThreadId);
+      }
+    }
+  }
+  for (const key of await bb.storage.kv.list(CANCELLATION_PREFIX)) {
+    const value = await bb.storage.kv.get<unknown>(key);
+    const parsed = cancellationRecordSchema.safeParse(value);
+    if (!parsed.success || now - parsed.data.createdAt > REQUEST_TTL_MS) {
+      await bb.storage.kv.delete(key);
+    }
+  }
+
+  bb.onDispose(() => {
+    for (const pending of emptyOutputChecks.values()) clearTimeout(pending);
+    emptyOutputChecks.clear();
+  });
+
+  bb.log.info("loaded composer enhancement action");
+}
