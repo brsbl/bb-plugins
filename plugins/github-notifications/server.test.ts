@@ -506,6 +506,8 @@ describe("GitHub Activity plugin", () => {
   });
 
   it("does not resolve activity created after a legacy migration cutoff", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-08-20T10:00:00Z"));
     let includeActivity = false;
     const createdAfterMigration = "2026-08-20T11:00:00Z";
     const runGh = vi.fn<RunGh>(async (args) => {
@@ -560,6 +562,7 @@ describe("GitHub Activity plugin", () => {
 
     await harness.behavior.callRpc("listNotifications", { force: false });
     includeActivity = true;
+    vi.setSystemTime(new Date("2026-08-20T12:00:00Z"));
     const refreshed = (await harness.behavior.callRpc("listNotifications", {
       force: true,
     })) as NotificationsPayload;
