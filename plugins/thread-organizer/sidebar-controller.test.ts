@@ -1,49 +1,55 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { mountInboxSectionCollapser } from "./sidebar-controller.js";
+import {
+  DEFAULT_WORKFLOW_CONFIG,
+  cloneWorkflowConfig,
+  mergeEditableWorkflowConfig,
+  type EditableWorkflowConfig,
+  type WorkflowConfig,
+} from "./core.js";
+import {
+  cacheWorkflowConfig,
+  mountThreadOrganizerSidebar,
+} from "./sidebar-controller.js";
+
+function workflow(): WorkflowConfig {
+  const config = cloneWorkflowConfig(DEFAULT_WORKFLOW_CONFIG);
+  config.stages.forEach((stage) => {
+    stage.sectionId = `sec_${stage.key}`;
+  });
+  return config;
+}
 
 function section(
+  id: string,
   label: string,
   expanded: boolean,
-  threadIds: string[],
-  commit: "sync" | "microtask" = "sync",
-  hasFullRowToggle = true,
+  threadIds: string[] = [],
 ): HTMLElement {
   const group = document.createElement("div");
   group.dataset.sidebarStickyGroup = "";
-  group.dataset.sidebarSectionId = label;
+  group.dataset.sidebarSectionId = id;
   const button = document.createElement("button");
   const rowToggle = document.createElement("button");
   rowToggle.setAttribute("aria-hidden", "true");
   rowToggle.tabIndex = -1;
-  const setExpanded = (nextExpanded: boolean) => {
-    button.setAttribute("aria-expanded", String(nextExpanded));
+  const setExpanded = (next: boolean) => {
+    button.setAttribute("aria-expanded", String(next));
     button.setAttribute(
       "aria-label",
-      `${nextExpanded ? "Collapse" : "Expand"} ${label} section`,
+      `${next ? "Collapse" : "Expand"} ${label} section`,
     );
   };
+  const toggle = () =>
+    setExpanded(button.getAttribute("aria-expanded") !== "true");
   setExpanded(expanded);
-  const toggleExpanded = () => {
-    const nextExpanded = button.getAttribute("aria-expanded") !== "true";
-    if (commit === "microtask") {
-      queueMicrotask(() => setExpanded(nextExpanded));
-    } else {
-      setExpanded(nextExpanded);
-    }
-  };
-  button.addEventListener("click", () => {
-    toggleExpanded();
-  });
-  rowToggle.addEventListener("click", () => {
-    toggleExpanded();
-  });
-  group.append(button);
-  if (hasFullRowToggle) group.append(rowToggle);
-  for (const id of threadIds) {
+  button.addEventListener("click", toggle);
+  rowToggle.addEventListener("click", toggle);
+  group.append(button, rowToggle);
+  for (const threadId of threadIds) {
     const row = document.createElement("a");
-    row.dataset.sidebarThreadId = id;
+    row.dataset.sidebarThreadId = threadId;
     group.append(row);
   }
   return group;
@@ -53,53 +59,34 @@ function sidebar(...groups: HTMLElement[]): HTMLElement {
   const root = document.createElement("aside");
   root.dataset.sidebar = "sidebar";
   root.append(...groups);
-  return root;
-}
-
-function setup() {
-  const pinned = section("Pinned", true, ["thr_active"], "sync", false);
-  const destination = section("Engineering", true, []);
-  const root = sidebar(pinned, destination);
   document.body.append(root);
-  const controller = new AbortController();
-  mountInboxSectionCollapser({ document, signal: controller.signal });
-  return { controller, destination, pinned, sidebar: root };
+  return root;
 }
 
 function toggle(group: Element): HTMLButtonElement {
   return group.querySelector<HTMLButtonElement>("button[aria-expanded]")!;
 }
 
-function sectionLabels(root: Element): string[] {
-  return [...root.children].flatMap((slot) => {
-    const group = slot.matches("[data-sidebar-sticky-group]")
-      ? slot
-      : slot.querySelector("[data-sidebar-sticky-group]");
-    if (group === null) return [];
-    const label = toggle(group).getAttribute("aria-label") ?? "";
-    const match = /^(?:Expand|Collapse) (.+) section$/.exec(label);
-    return match === null ? [] : [match[1]!];
+function order(...ids: string[]): string[] {
+  return ids.map((id) => `section:${id}`);
+}
+
+function mount(
+  config = workflow(),
+  saveConfig: (
+    edited: EditableWorkflowConfig,
+  ) => Promise<WorkflowConfig> = async (edited) =>
+    mergeEditableWorkflowConfig(config, edited),
+) {
+  const controller = new AbortController();
+  mountThreadOrganizerSidebar({
+    document,
+    pluginId: "thread-organizer",
+    signal: controller.signal,
+    loadConfig: async () => config,
+    saveConfig,
   });
-}
-
-function persistedSectionOrder(...labels: string[]): string[] {
-  return labels.map((label) => `section:${label}`);
-}
-
-function windowedSection(group: HTMLElement): HTMLElement {
-  const stickySection = document.createElement("div");
-  stickySection.dataset.sidebarStickySection = "";
-  const windowedItem = document.createElement("div");
-  windowedItem.dataset.sidebarWindowedItem = "";
-  windowedItem.append(group);
-  stickySection.append(windowedItem);
-  const slot = document.createElement("div");
-  slot.append(stickySection);
-  return slot;
-}
-
-async function mutationsSettled(): Promise<void> {
-  await new Promise((resolve) => setTimeout(resolve, 0));
+  return controller;
 }
 
 afterEach(() => {
@@ -108,448 +95,237 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-describe("inbox section collapser", () => {
-  it("updates BB's persisted order while preserving unrelated section positions and focus", () => {
-    const customBefore = section("Personal", false, []);
-    const testing = section("✅ Testing / Deploy", false, []);
-    const planning = section("📋 Planning", false, []);
-    const customMiddle = section("Design", false, []);
-    const inbox = section("📥 Inbox", false, []);
-    const specReview = section("🔎 Spec Review", false, []);
-    const building = section("🛠️ Building", false, []);
-    const handoff = section("🤝 Handoff", false, []);
-    const root = sidebar(
-      ...[
-        customBefore,
-        testing,
-        planning,
-        customMiddle,
-        inbox,
-        specReview,
-        building,
-        handoff,
-      ].map(windowedSection),
+describe("workflow sidebar controller", () => {
+  it("starts with Inbox expanded and other configured sections collapsed", async () => {
+    const pinned = section("pinned", "Pinned", true, ["thr_one"]);
+    const inbox = section("sec_inbox", "Inbox", false);
+    const planning = section("sec_planning", "Planning", true);
+    const custom = section("custom", "Personal", true);
+    sidebar(pinned, inbox, planning, custom);
+    const controller = mount();
+
+    await vi.waitFor(() =>
+      expect(toggle(inbox).getAttribute("aria-expanded")).toBe("true"),
     );
-    document.body.append(root);
+    expect(toggle(planning).getAttribute("aria-expanded")).toBe("false");
+    expect(toggle(pinned).getAttribute("aria-expanded")).toBe("true");
+    expect(toggle(custom).getAttribute("aria-expanded")).toBe("true");
+    controller.abort();
+  });
+
+  it("restores configured order while preserving unrelated positions", async () => {
+    const personal = section("personal", "Personal", false);
+    const testing = section("sec_testing-deploy", "Testing / Deploy", false);
+    const planning = section("sec_planning", "Planning", false);
+    const design = section("design", "Design", false);
+    const inbox = section("sec_inbox", "Inbox", false);
+    const building = section("sec_building", "Building", false);
+    sidebar(personal, testing, planning, design, inbox, building);
     window.localStorage.setItem(
       "bb.sidebar.manualSectionOrder",
       JSON.stringify(
-        persistedSectionOrder(
-          "Personal",
-          "✅ Testing / Deploy",
-          "📋 Planning",
-          "Design",
-          "📥 Inbox",
-          "🔎 Spec Review",
-          "🛠️ Building",
-          "🤝 Handoff",
+        order(
+          "personal",
+          "sec_testing-deploy",
+          "sec_planning",
+          "design",
+          "sec_inbox",
+          "sec_building",
         ),
       ),
     );
-    const focusedToggle = toggle(planning);
-    focusedToggle.focus();
-    const controller = new AbortController();
+    const controller = mount();
 
-    mountInboxSectionCollapser({ document, signal: controller.signal });
-
-    expect(
-      JSON.parse(
-        window.localStorage.getItem("bb.sidebar.manualSectionOrder")!,
-      ),
-    ).toEqual(
-      persistedSectionOrder(
-        "Personal",
-        "📥 Inbox",
-        "📋 Planning",
-        "Design",
-        "🔎 Spec Review",
-        "🛠️ Building",
-        "✅ Testing / Deploy",
-        "🤝 Handoff",
+    await vi.waitFor(() =>
+      expect(
+        JSON.parse(
+          window.localStorage.getItem("bb.sidebar.manualSectionOrder")!,
+        ),
+      ).toEqual(
+        order(
+          "personal",
+          "sec_inbox",
+          "sec_planning",
+          "design",
+          "sec_building",
+          "sec_testing-deploy",
+        ),
       ),
     );
-    expect(sectionLabels(root)).toEqual([
-      "Personal",
-      "✅ Testing / Deploy",
-      "📋 Planning",
-      "Design",
-      "📥 Inbox",
-      "🔎 Spec Review",
-      "🛠️ Building",
-      "🤝 Handoff",
-    ]);
-    expect(document.activeElement).toBe(focusedToggle);
     controller.abort();
   });
 
-  it("restores persisted phase order after the host inserts a section", async () => {
-    const planning = windowedSection(section("📋 Planning", false, []));
-    const building = windowedSection(section("🛠️ Building", false, []));
-    const root = sidebar(planning, building);
-    document.body.append(root);
-    window.localStorage.setItem(
-      "bb.sidebar.manualSectionOrder",
-      JSON.stringify(persistedSectionOrder("📋 Planning", "🛠️ Building")),
+  it("keeps a workflow-stage order chosen in the native sidebar", async () => {
+    const config = workflow();
+    const saveConfig = vi.fn(async (edited: EditableWorkflowConfig) =>
+      mergeEditableWorkflowConfig(config, edited),
     );
-    const controller = new AbortController();
-    mountInboxSectionCollapser({ document, signal: controller.signal });
-
-    root.append(windowedSection(section("📥 Inbox", false, [])));
+    const inbox = section("sec_inbox", "Inbox", false);
+    const planning = section("sec_planning", "Planning", false);
+    const building = section("sec_building", "Building", false);
+    const testing = section(
+      "sec_testing-deploy",
+      "Testing / Deploy",
+      false,
+    );
+    const root = sidebar(inbox, planning, building, testing);
     window.localStorage.setItem(
       "bb.sidebar.manualSectionOrder",
       JSON.stringify(
-        persistedSectionOrder("📋 Planning", "🛠️ Building", "📥 Inbox"),
+        order(
+          "sec_inbox",
+          "sec_planning",
+          "sec_spec-review",
+          "sec_building",
+          "sec_testing-deploy",
+          "sec_handoff",
+          "sec_on-hold",
+        ),
       ),
     );
-    await mutationsSettled();
+    const controller = mount(config, saveConfig);
+    await vi.waitFor(() =>
+      expect(toggle(inbox).getAttribute("aria-expanded")).toBe("true"),
+    );
+
+    const chosen = order(
+      "sec_inbox",
+      "sec_building",
+      "sec_planning",
+      "sec_spec-review",
+      "sec_testing-deploy",
+      "sec_handoff",
+      "sec_on-hold",
+    );
+    window.localStorage.setItem(
+      "bb.sidebar.manualSectionOrder",
+      JSON.stringify(chosen),
+    );
+    root.insertBefore(building, planning);
+    await vi.waitFor(() => expect(saveConfig).toHaveBeenCalledOnce());
 
     expect(
       JSON.parse(
         window.localStorage.getItem("bb.sidebar.manualSectionOrder")!,
       ),
-    ).toEqual(
-      persistedSectionOrder("📥 Inbox", "📋 Planning", "🛠️ Building"),
+    ).toEqual(chosen);
+    expect(saveConfig.mock.calls[0]?.[0].stages.map((stage) => stage.key)).toEqual(
+      [
+        "inbox",
+        "building",
+        "planning",
+        "spec-review",
+        "testing-deploy",
+        "handoff",
+        "on-hold",
+      ],
     );
     controller.abort();
   });
 
-  it("collapses sections on mount without collapsing the native Pinned inbox", () => {
-    const { controller, destination, pinned } = setup();
-
-    expect(toggle(destination).getAttribute("aria-expanded")).toBe("false");
-    expect(toggle(pinned).getAttribute("aria-expanded")).toBe("true");
-    controller.abort();
-  });
-
-  it("collapses the destination section after a thread moves between groups", async () => {
-    const { controller, destination, pinned } = setup();
-    const collapse = toggle(destination);
-    const click = vi.spyOn(collapse, "click");
-    const row = pinned.querySelector<HTMLElement>(
-      '[data-sidebar-thread-id="thr_active"]',
-    )!;
-
-    collapse.setAttribute("aria-expanded", "true");
-    collapse.setAttribute("aria-label", "Collapse Engineering section");
-    destination.append(row);
-
-    await vi.waitFor(() => expect(click).toHaveBeenCalledOnce());
-    expect(collapse.getAttribute("aria-expanded")).toBe("false");
-    controller.abort();
-  });
-
-  it("never collapses the native Pinned inbox after a thread moves into it", async () => {
-    const { controller, destination, pinned } = setup();
-    const pinnedToggle = toggle(pinned);
-    const click = vi.spyOn(pinnedToggle, "click");
-    const row = pinned.querySelector<HTMLElement>(
-      '[data-sidebar-thread-id="thr_active"]',
-    )!;
-
-    destination.append(row);
-    await mutationsSettled();
-    pinned.append(row);
-    await mutationsSettled();
-
-    expect(click).not.toHaveBeenCalled();
-    expect(pinnedToggle.getAttribute("aria-expanded")).toBe("true");
-    controller.abort();
-  });
-
-  it("collapses a top-level custom section named Pinned", async () => {
-    const nativePinned = section(
-      "Pinned",
-      true,
-      ["thr_active"],
-      "sync",
-      false,
+  it("keeps the protected Inbox first when it is dragged", async () => {
+    const config = workflow();
+    const saveConfig = vi.fn(async (edited: EditableWorkflowConfig) =>
+      mergeEditableWorkflowConfig(config, edited),
     );
-    const customPinned = section("Pinned", true, [], "sync", false);
-    const action = document.createElement("button");
-    action.setAttribute("aria-label", "New thread in Pinned");
-    customPinned.append(action);
-    const root = sidebar(nativePinned, customPinned);
-    document.body.append(root);
-    const controller = new AbortController();
-    mountInboxSectionCollapser({ document, signal: controller.signal });
-    const nativeToggle = toggle(nativePinned);
-    const customToggle = toggle(customPinned);
-
-    expect(nativeToggle.getAttribute("aria-expanded")).toBe("true");
-    expect(customToggle.getAttribute("aria-expanded")).toBe("false");
-
-    const customClick = vi.spyOn(customToggle, "click");
-    const row = nativePinned.querySelector<HTMLElement>(
-      '[data-sidebar-thread-id="thr_active"]',
-    )!;
-    customToggle.setAttribute("aria-expanded", "true");
-    customToggle.setAttribute("aria-label", "Collapse Pinned section");
-    customPinned.append(row);
-
-    await vi.waitFor(() => expect(customClick).toHaveBeenCalledOnce());
-    expect(customToggle.getAttribute("aria-expanded")).toBe("false");
-    expect(nativeToggle.getAttribute("aria-expanded")).toBe("true");
-    controller.abort();
-  });
-
-  it("remembers a thread while collapsed section contents are unmounted", async () => {
-    const { controller, destination, pinned } = setup();
-    const collapse = toggle(destination);
-    const click = vi.spyOn(collapse, "click");
-    const row = pinned.querySelector<HTMLElement>(
-      '[data-sidebar-thread-id="thr_active"]',
-    )!;
-
-    row.remove();
-    await mutationsSettled();
-    collapse.setAttribute("aria-expanded", "true");
-    collapse.setAttribute("aria-label", "Collapse Engineering section");
-    destination.append(row);
-
-    await vi.waitFor(() => expect(click).toHaveBeenCalledOnce());
-    expect(collapse.getAttribute("aria-expanded")).toBe("false");
-    controller.abort();
-  });
-
-  it("preserves a section the user deliberately expands with its chevron", async () => {
-    const { controller, destination } = setup();
-    const sectionToggle = toggle(destination);
-    sectionToggle.click();
-    const click = vi.spyOn(sectionToggle, "click");
-    const row = document.createElement("a");
-    row.dataset.sidebarThreadId = "thr_new";
-
-    destination.append(row);
-    await mutationsSettled();
-
-    expect(click).not.toHaveBeenCalled();
-    expect(sectionToggle.getAttribute("aria-expanded")).toBe("true");
-    controller.abort();
-  });
-
-  it("preserves a deliberate expansion when the native state commit is deferred", async () => {
-    const destination = section("Engineering", false, [], "microtask");
-    const root = sidebar(destination);
-    document.body.append(root);
-    const controller = new AbortController();
-    mountInboxSectionCollapser({ document, signal: controller.signal });
-    const sectionToggle = toggle(destination);
-
-    sectionToggle.click();
-    await mutationsSettled();
-
-    expect(sectionToggle.getAttribute("aria-expanded")).toBe("true");
-    controller.abort();
-  });
-
-  it("records a deliberate expansion when native handling runs first", async () => {
-    const destination = section("Engineering", false, []);
-    const originalToggle = toggle(destination);
-    const sectionToggle = originalToggle.cloneNode(true) as HTMLButtonElement;
-    originalToggle.replaceWith(sectionToggle);
-    const root = sidebar(destination);
-    root.addEventListener(
-      "click",
-      () => {
-        sectionToggle.setAttribute("aria-expanded", "true");
-        sectionToggle.setAttribute(
-          "aria-label",
-          "Collapse Engineering section",
-        );
-      },
-      true,
+    const inbox = section("sec_inbox", "Inbox", false);
+    const planning = section("sec_planning", "Planning", false);
+    const root = sidebar(inbox, planning);
+    const configured = order(
+      "sec_inbox",
+      "sec_planning",
+      "sec_spec-review",
+      "sec_building",
+      "sec_testing-deploy",
+      "sec_handoff",
+      "sec_on-hold",
     );
-    document.body.append(root);
-    const controller = new AbortController();
-    mountInboxSectionCollapser({ document, signal: controller.signal });
-
-    sectionToggle.click();
-    await mutationsSettled();
-
-    expect(sectionToggle.getAttribute("aria-expanded")).toBe("true");
-    controller.abort();
-  });
-
-  it("preserves a section the user deliberately expands with the native full row", async () => {
-    const { controller, destination } = setup();
-    const sectionToggle = toggle(destination);
-    const rowToggle = destination.querySelector<HTMLButtonElement>(
-      'button[aria-hidden="true"][tabindex="-1"]',
-    )!;
-    rowToggle.click();
-    const click = vi.spyOn(sectionToggle, "click");
-    const row = document.createElement("a");
-    row.dataset.sidebarThreadId = "thr_new";
-
-    destination.append(row);
-    await mutationsSettled();
-
-    expect(click).not.toHaveBeenCalled();
-    expect(sectionToggle.getAttribute("aria-expanded")).toBe("true");
-    controller.abort();
-  });
-
-  it("keeps a deliberately expanded destination open when a known thread moves into it", async () => {
-    const { controller, destination, pinned } = setup();
-    const sectionToggle = toggle(destination);
-    sectionToggle.click();
-    await mutationsSettled();
-    const click = vi.spyOn(sectionToggle, "click");
-    const row = pinned.querySelector<HTMLElement>(
-      '[data-sidebar-thread-id="thr_active"]',
-    )!;
-
-    destination.append(row);
-    await mutationsSettled();
-
-    expect(click).not.toHaveBeenCalled();
-    expect(sectionToggle.getAttribute("aria-expanded")).toBe("true");
-    controller.abort();
-  });
-
-  it("does not preserve expansion intent when the native row click is suppressed", async () => {
-    const { controller, destination } = setup();
-    const sectionToggle = toggle(destination);
-    const nativeRowToggle = destination.querySelector<HTMLButtonElement>(
-      'button[aria-hidden="true"][tabindex="-1"]',
-    )!;
-    const suppressedRowToggle = nativeRowToggle.cloneNode(
-      true,
-    ) as HTMLButtonElement;
-    nativeRowToggle.replaceWith(suppressedRowToggle);
-    await mutationsSettled();
-
-    suppressedRowToggle.click();
-    await mutationsSettled();
-    expect(sectionToggle.getAttribute("aria-expanded")).toBe("false");
-
-    const click = vi.spyOn(sectionToggle, "click");
-    sectionToggle.setAttribute("aria-expanded", "true");
-    sectionToggle.setAttribute(
-      "aria-label",
-      "Collapse Engineering section",
+    window.localStorage.setItem(
+      "bb.sidebar.manualSectionOrder",
+      JSON.stringify(configured),
+    );
+    const controller = mount(config, saveConfig);
+    await vi.waitFor(() =>
+      expect(toggle(inbox).getAttribute("aria-expanded")).toBe("true"),
     );
 
-    await vi.waitFor(() => expect(click).toHaveBeenCalledOnce());
-    expect(sectionToggle.getAttribute("aria-expanded")).toBe("false");
-    controller.abort();
-  });
-
-  it("does not mistake a section action for a deliberate expansion", async () => {
-    const { controller, destination } = setup();
-    const sectionToggle = toggle(destination);
-    const action = document.createElement("button");
-    action.textContent = "Section action";
-    destination.append(action);
-
-    action.click();
-    sectionToggle.setAttribute("aria-expanded", "true");
-    sectionToggle.setAttribute(
-      "aria-label",
-      "Collapse Engineering section",
+    window.localStorage.setItem(
+      "bb.sidebar.manualSectionOrder",
+      JSON.stringify([
+        configured[1],
+        configured[0],
+        ...configured.slice(2),
+      ]),
     );
+    root.insertBefore(planning, inbox);
 
     await vi.waitFor(() =>
-      expect(sectionToggle.getAttribute("aria-expanded")).toBe("false"),
+      expect(
+        JSON.parse(
+          window.localStorage.getItem("bb.sidebar.manualSectionOrder")!,
+        ),
+      ).toEqual(configured),
     );
+    expect(saveConfig).not.toHaveBeenCalled();
     controller.abort();
   });
 
-  it("tracks duplicate labels as independent section elements", async () => {
-    const first = section("Engineering", true, []);
-    const second = section("Engineering", true, []);
-    const root = sidebar(first, second);
-    document.body.append(root);
-    const controller = new AbortController();
-    mountInboxSectionCollapser({ document, signal: controller.signal });
-    const firstToggle = toggle(first);
-    const secondToggle = toggle(second);
-
-    firstToggle.click();
-    await mutationsSettled();
-    secondToggle.setAttribute("aria-expanded", "true");
-    secondToggle.setAttribute("aria-label", "Collapse Engineering section");
-
+  it("re-collapses a host-expanded destination unless the user opened it", async () => {
+    const planning = section("sec_planning", "Planning", true);
+    sidebar(planning);
+    const controller = mount();
     await vi.waitFor(() =>
-      expect(secondToggle.getAttribute("aria-expanded")).toBe("false"),
+      expect(toggle(planning).getAttribute("aria-expanded")).toBe("false"),
     );
-    expect(firstToggle.getAttribute("aria-expanded")).toBe("true");
-    controller.abort();
-  });
 
-  it("does not give a custom section named Pinned special treatment", () => {
-    const customPinned = section("Pinned", true, []);
-    const root = sidebar(customPinned);
-    document.body.append(root);
-    const controller = new AbortController();
-    mountInboxSectionCollapser({ document, signal: controller.signal });
-
-    expect(toggle(customPinned).getAttribute("aria-expanded")).toBe("false");
-    controller.abort();
-  });
-
-  it("retries a controller collapse once when drag-click suppression swallows it", async () => {
-    const destination = section("Engineering", true, []);
-    let suppressNextClick = true;
-    destination.addEventListener(
-      "click",
-      (event) => {
-        if (!suppressNextClick) return;
-        suppressNextClick = false;
-        event.preventDefault();
-        event.stopPropagation();
-      },
-      true,
-    );
-    const root = sidebar(destination);
-    document.body.append(root);
-    const sectionToggle = toggle(destination);
-    const click = vi.spyOn(sectionToggle, "click");
-    const controller = new AbortController();
-
-    mountInboxSectionCollapser({ document, signal: controller.signal });
-
+    toggle(planning).setAttribute("aria-expanded", "true");
+    toggle(planning).setAttribute("aria-label", "Collapse Planning section");
+    planning.append(document.createElement("a"));
     await vi.waitFor(() =>
-      expect(sectionToggle.getAttribute("aria-expanded")).toBe("false"),
+      expect(toggle(planning).getAttribute("aria-expanded")).toBe("false"),
     );
-    expect(click).toHaveBeenCalledTimes(2);
     controller.abort();
   });
 
-  it("mounts replacement sidebars and stops handling the detached root", async () => {
-    const { controller, destination, sidebar: oldSidebar } = setup();
-    const oldToggle = toggle(destination);
-    oldSidebar.remove();
-
-    const replacementGroup = section("Product", true, []);
-    const replacement = sidebar(replacementGroup);
-    document.body.append(replacement);
-
+  it("honors a deliberate user expansion across later mutations", async () => {
+    const planning = section("sec_planning", "Planning", true);
+    sidebar(planning);
+    const controller = mount();
     await vi.waitFor(() =>
-      expect(toggle(replacementGroup).getAttribute("aria-expanded")).toBe(
-        "false",
-      ),
+      expect(toggle(planning).getAttribute("aria-expanded")).toBe("false"),
     );
 
-    oldToggle.setAttribute("aria-expanded", "true");
-    oldToggle.setAttribute("aria-label", "Collapse Engineering section");
-    destination.append(document.createElement("span"));
-    await mutationsSettled();
-
-    expect(oldToggle.getAttribute("aria-expanded")).toBe("true");
+    toggle(planning).click();
+    await vi.waitFor(() =>
+      expect(toggle(planning).getAttribute("aria-expanded")).toBe("true"),
+    );
+    planning.append(document.createElement("span"));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(toggle(planning).getAttribute("aria-expanded")).toBe("true");
     controller.abort();
   });
 
-  it("stops observing when the content script is aborted", async () => {
-    const { controller, destination } = setup();
-    const collapse = toggle(destination);
-    const click = vi.spyOn(collapse, "click");
+  it("applies a saved configuration event without remounting", async () => {
+    const inbox = section("sec_inbox", "Inbox", false);
+    const planning = section("sec_planning", "Planning", true);
+    const onHold = section("sec_on-hold", "On Hold", true);
+    sidebar(inbox, planning, onHold);
+    const config = workflow();
+    const controller = mount(config);
+    await vi.waitFor(() =>
+      expect(toggle(onHold).getAttribute("aria-expanded")).toBe("false"),
+    );
 
+    const edited = cloneWorkflowConfig(config);
+    edited.stages = edited.stages.filter((stage) => stage.key !== "on-hold");
+    toggle(onHold).setAttribute("aria-expanded", "true");
+    toggle(onHold).setAttribute("aria-label", "Collapse On Hold section");
+    cacheWorkflowConfig(edited);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(toggle(onHold).getAttribute("aria-expanded")).toBe("true");
+    expect(toggle(inbox).getAttribute("aria-expanded")).toBe("true");
+    expect(toggle(planning).getAttribute("aria-expanded")).toBe("false");
     controller.abort();
-    collapse.setAttribute("aria-expanded", "true");
-    destination.append(document.createElement("span"));
-    await mutationsSettled();
-
-    expect(click).not.toHaveBeenCalled();
   });
 });

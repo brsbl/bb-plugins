@@ -1,22 +1,32 @@
-import { PHASE_SECTION_NAMES, PHASE_TARGETS } from "./core.js";
+import {
+  cloneWorkflowConfig,
+  editableWorkflowConfig,
+  parseWorkflowConfig,
+  type EditableWorkflowConfig,
+  type WorkflowConfig,
+} from "./core.js";
 
 const SIDEBAR_SELECTOR = '[data-sidebar="sidebar"]';
 const STICKY_GROUP_SELECTOR = "[data-sidebar-sticky-group]";
-const THREAD_SELECTOR = "[data-sidebar-thread-id]";
-const SECTION_TOGGLE_SELECTOR =
-  'button[aria-expanded][aria-label$=" section"]';
-const SECTION_ROW_TOGGLE_SELECTOR =
-  'button[aria-hidden="true"][tabindex="-1"]';
+const SECTION_TOGGLE_SELECTOR = 'button[aria-expanded][aria-label$=" section"]';
+const SECTION_ROW_TOGGLE_SELECTOR = 'button[aria-hidden="true"][tabindex="-1"]';
 const MANUAL_SECTION_ORDER_STORAGE_KEY = "bb.sidebar.manualSectionOrder";
 
-interface MountInboxSectionCollapserOptions {
+export const WORKFLOW_CACHE_STORAGE_KEY = "bb.thread-organizer.workflow-config";
+export const WORKFLOW_CONFIG_EVENT = "bb-thread-organizer-workflow-config";
+
+interface MountThreadOrganizerSidebarOptions {
   document?: Document;
+  loadConfig?: () => Promise<WorkflowConfig>;
+  pluginId: string;
+  saveConfig?: (config: EditableWorkflowConfig) => Promise<WorkflowConfig>;
   signal: AbortSignal;
 }
 
-const PHASE_SECTION_RANK = new Map(
-  PHASE_TARGETS.map((target, index) => [PHASE_SECTION_NAMES[target], index]),
-);
+interface SidebarController {
+  applyConfiguredOrder: () => void;
+  dispose: () => void;
+}
 
 function groupToggle(group: Element): HTMLButtonElement | null {
   for (const button of group.querySelectorAll<HTMLButtonElement>(
@@ -27,310 +37,448 @@ function groupToggle(group: Element): HTMLButtonElement | null {
   return null;
 }
 
-function isNativePinnedGroup(group: Element): boolean {
-  const toggle = groupToggle(group);
+function groupSectionId(group: Element): string | null {
+  return group.getAttribute("data-sidebar-section-id");
+}
+
+function parsedCachedConfig(view: Window): WorkflowConfig | null {
+  try {
+    const raw = view.localStorage.getItem(WORKFLOW_CACHE_STORAGE_KEY);
+    return raw === null ? null : parseWorkflowConfig(JSON.parse(raw));
+  } catch {
+    return null;
+  }
+}
+
+export function cacheWorkflowConfig(
+  config: WorkflowConfig,
+  view: Window = window,
+): void {
+  const snapshot = cloneWorkflowConfig(config);
+  view.localStorage.setItem(
+    WORKFLOW_CACHE_STORAGE_KEY,
+    JSON.stringify(snapshot),
+  );
+  view.dispatchEvent(
+    new CustomEvent(WORKFLOW_CONFIG_EVENT, { detail: snapshot }),
+  );
+}
+
+async function fetchWorkflowConfig(pluginId: string): Promise<WorkflowConfig> {
+  const response = await fetch(
+    `/api/v1/plugins/${encodeURIComponent(pluginId)}/rpc/getConfig`,
+    {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: "{}",
+    },
+  );
+  if (!response.ok) {
+    throw new Error(
+      `Thread Organizer config request failed (${response.status})`,
+    );
+  }
+  const payload: unknown = await response.json();
   if (
-    !/^(?:Expand|Collapse) Pinned section$/.test(
-      toggle?.getAttribute("aria-label") ?? "",
-    )
+    typeof payload !== "object" ||
+    payload === null ||
+    !("ok" in payload) ||
+    payload.ok !== true ||
+    !("result" in payload)
   ) {
-    return false;
+    throw new Error("Thread Organizer returned an invalid config response");
   }
-  for (const button of group.querySelectorAll<HTMLButtonElement>(
-    `${SECTION_ROW_TOGGLE_SELECTOR}, button[aria-label="Pinned section actions"], button[aria-label="New thread in Pinned"]`,
-  )) {
-    if (button.closest(STICKY_GROUP_SELECTOR) === group) return false;
+  const config = parseWorkflowConfig(payload.result);
+  if (config === null) {
+    throw new Error("Thread Organizer returned an invalid workflow config");
   }
-  return true;
+  return config;
 }
 
-function visibleThreadGroups(sidebar: Element): Map<string, Element> {
-  const groups = new Map<string, Element>();
-  for (const row of sidebar.querySelectorAll<HTMLElement>(THREAD_SELECTOR)) {
-    const id = row.dataset.sidebarThreadId;
-    const group = row.closest(STICKY_GROUP_SELECTOR);
-    if (id && group) groups.set(id, group);
+async function saveWorkflowConfig(
+  pluginId: string,
+  config: EditableWorkflowConfig,
+): Promise<WorkflowConfig> {
+  const response = await fetch(
+    `/api/v1/plugins/${encodeURIComponent(pluginId)}/rpc/saveConfig`,
+    {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(config),
+    },
+  );
+  if (!response.ok) {
+    throw new Error(
+      `Thread Organizer config save failed (${response.status})`,
+    );
   }
-  return groups;
+  const payload: unknown = await response.json();
+  if (
+    typeof payload !== "object" ||
+    payload === null ||
+    !("ok" in payload) ||
+    payload.ok !== true ||
+    !("result" in payload)
+  ) {
+    throw new Error("Thread Organizer returned an invalid config response");
+  }
+  const saved = parseWorkflowConfig(payload.result);
+  if (saved === null) {
+    throw new Error("Thread Organizer returned an invalid workflow config");
+  }
+  return saved;
 }
 
-function phaseSection(group: Element): { id: string; rank: number } | null {
-  const label = groupToggle(group)?.getAttribute("aria-label") ?? "";
-  const match = /^(?:Expand|Collapse) (.+) section$/.exec(label);
-  if (match === null) return null;
-  const rank = PHASE_SECTION_RANK.get(match[1]!);
-  const sectionId = group.getAttribute("data-sidebar-section-id");
-  return rank === undefined || sectionId === null
-    ? null
-    : { id: `section:${sectionId}`, rank };
+function currentWorkflowSectionOrder(
+  sidebar: Element,
+  config: WorkflowConfig,
+): string[] | null {
+  const view = sidebar.ownerDocument.defaultView;
+  if (view === null) return null;
+  const raw = view.localStorage.getItem(MANUAL_SECTION_ORDER_STORAGE_KEY);
+  if (raw === null) return null;
+  let current: unknown;
+  try {
+    current = JSON.parse(raw);
+  } catch {
+    return null;
+  }
+  if (
+    !Array.isArray(current) ||
+    current.some((value) => typeof value !== "string")
+  ) {
+    return null;
+  }
+
+  const configuredSectionIds = new Set(
+    config.stages.flatMap((stage) =>
+      stage.sectionId === null ? [] : [stage.sectionId],
+    ),
+  );
+  const orderedSectionIds = (current as string[]).flatMap((orderId) => {
+    if (!orderId.startsWith("section:")) return [];
+    const sectionId = orderId.slice("section:".length);
+    return configuredSectionIds.has(sectionId) ? [sectionId] : [];
+  });
+  return orderedSectionIds.length === configuredSectionIds.size
+    ? orderedSectionIds
+    : null;
 }
 
-function reorderPhaseSections(sidebar: Element): void {
-  const ranksById = new Map<string, number>();
-  for (const group of sidebar.querySelectorAll(STICKY_GROUP_SELECTOR)) {
-    const section = phaseSection(group);
-    if (section !== null) ranksById.set(section.id, section.rank);
+function configInSectionOrder(
+  config: WorkflowConfig,
+  sectionIds: readonly string[],
+): WorkflowConfig | null {
+  if (sectionIds.length !== config.stages.length) return null;
+  const stageBySectionId = new Map(
+    config.stages.flatMap((stage) =>
+      stage.sectionId === null ? [] : [[stage.sectionId, stage] as const],
+    ),
+  );
+  if (stageBySectionId.size !== config.stages.length) return null;
+  const stages = sectionIds.flatMap((sectionId) => {
+    const stage = stageBySectionId.get(sectionId);
+    return stage === undefined ? [] : [{ ...stage }];
+  });
+  if (stages.length !== config.stages.length || stages[0]?.role !== "inbox") {
+    return null;
   }
-  if (ranksById.size < 2) return;
+  return { ...config, stages };
+}
 
+function reorderWorkflowSections(
+  sidebar: Element,
+  config: WorkflowConfig,
+): void {
   const view = sidebar.ownerDocument.defaultView;
   if (view === null) return;
-  const previousJson = view.localStorage.getItem(
-    MANUAL_SECTION_ORDER_STORAGE_KEY,
+  const rankByOrderId = new Map<string, number>(
+    config.stages.flatMap((stage, index) =>
+      stage.sectionId === null
+        ? []
+        : [[`section:${stage.sectionId}`, index] as const],
+    ),
   );
-  if (previousJson === null) return;
+  if (rankByOrderId.size < 2) return;
 
-  let currentOrder: unknown;
+  const raw = view.localStorage.getItem(MANUAL_SECTION_ORDER_STORAGE_KEY);
+  if (raw === null) return;
+  let current: unknown;
   try {
-    currentOrder = JSON.parse(previousJson);
+    current = JSON.parse(raw);
   } catch {
     return;
   }
   if (
-    !Array.isArray(currentOrder) ||
-    currentOrder.some((sectionId) => typeof sectionId !== "string") ||
-    [...ranksById.keys()].some((sectionId) => !currentOrder.includes(sectionId))
+    !Array.isArray(current) ||
+    current.some((value) => typeof value !== "string")
   ) {
     return;
   }
 
-  const phasePositions = currentOrder.flatMap((sectionId, index) =>
-    ranksById.has(sectionId) ? [index] : [],
+  const currentOrder = current as string[];
+  const positions = currentOrder.flatMap((id, index) =>
+    rankByOrderId.has(id) ? [index] : [],
   );
-  const orderedPhaseIds = phasePositions
-    .map((index) => currentOrder[index] as string)
-    .sort((left, right) => ranksById.get(left)! - ranksById.get(right)!);
-  const nextOrder = [...currentOrder] as string[];
-  phasePositions.forEach((position, index) => {
-    nextOrder[position] = orderedPhaseIds[index]!;
+  if (positions.length < 2) return;
+  const configuredIds = positions
+    .map((position) => currentOrder[position]!)
+    .sort(
+      (left, right) => rankByOrderId.get(left)! - rankByOrderId.get(right)!,
+    );
+  const nextOrder = [...currentOrder];
+  positions.forEach((position, index) => {
+    nextOrder[position] = configuredIds[index]!;
   });
-  if (nextOrder.every((sectionId, index) => sectionId === currentOrder[index])) {
-    return;
-  }
+  if (nextOrder.every((id, index) => id === currentOrder[index])) return;
 
-  const nextJson = JSON.stringify(nextOrder);
-  view.localStorage.setItem(MANUAL_SECTION_ORDER_STORAGE_KEY, nextJson);
+  const nextRaw = JSON.stringify(nextOrder);
+  view.localStorage.setItem(MANUAL_SECTION_ORDER_STORAGE_KEY, nextRaw);
   view.dispatchEvent(
     new view.StorageEvent("storage", {
       key: MANUAL_SECTION_ORDER_STORAGE_KEY,
-      oldValue: previousJson,
-      newValue: nextJson,
+      oldValue: raw,
+      newValue: nextRaw,
       storageArea: view.localStorage,
       url: view.location.href,
     }),
   );
 }
 
-function addExpandedGroupAndAncestors(
-  controls: Set<HTMLButtonElement>,
-  group: Element,
-  userExpandedGroups: WeakSet<Element>,
-  pendingUserExpandedGroups: WeakSet<Element>,
-): void {
-  let current: Element | null = group;
-  while (current) {
-    const toggle = groupToggle(current);
-    if (
-      !isNativePinnedGroup(current) &&
-      toggle?.getAttribute("aria-expanded") === "true" &&
-      !userExpandedGroups.has(current) &&
-      !pendingUserExpandedGroups.has(current)
-    ) {
-      controls.add(toggle);
-    }
-    current =
-      current.parentElement?.closest(STICKY_GROUP_SELECTOR) ?? null;
-  }
-}
-
-function mountSidebarCollapser(
+function mountSidebarController(
   sidebar: Element,
   signal: AbortSignal,
-): () => void {
-  const expandedByGroup = new WeakMap<Element, boolean>();
-  const userExpandedGroups = new WeakSet<Element>();
-  const pendingUserExpandedGroups = new WeakSet<Element>();
-  const controllerCollapseControls = new WeakSet<HTMLButtonElement>();
-  const pendingExpansionTimers = new Set<ReturnType<typeof setTimeout>>();
-  const knownThreadGroups = visibleThreadGroups(sidebar);
+  getConfig: () => WorkflowConfig | null,
+  onStageOrderChange: (sectionIds: readonly string[]) => boolean,
+): SidebarController {
+  const userExpansionBySectionId = new Map<string, boolean>();
+  const pluginControls = new WeakSet<HTMLButtonElement>();
+  let applyConfiguredOrder = true;
   let scheduled = false;
 
   const reconcile = () => {
     scheduled = false;
     if (signal.aborted || !sidebar.isConnected) return;
-
-    reorderPhaseSections(sidebar);
-    const currentThreadGroups = visibleThreadGroups(sidebar);
-    const controls = new Set<HTMLButtonElement>();
-
-    for (const group of sidebar.querySelectorAll(STICKY_GROUP_SELECTOR)) {
-      const toggle = groupToggle(group);
-      if (toggle === null || isNativePinnedGroup(group)) continue;
-      const expanded = toggle.getAttribute("aria-expanded") === "true";
-      const wasExpanded = expandedByGroup.get(group);
-      if (!expanded) userExpandedGroups.delete(group);
+    const config = getConfig();
+    if (config === null) return;
+    if (applyConfiguredOrder) {
+      applyConfiguredOrder = false;
+      reorderWorkflowSections(sidebar, config);
+    } else {
+      const currentOrder = currentWorkflowSectionOrder(sidebar, config);
+      const configuredOrder = config.stages.flatMap((stage) =>
+        stage.sectionId === null ? [] : [stage.sectionId],
+      );
       if (
-        expanded &&
-        !userExpandedGroups.has(group) &&
-        !pendingUserExpandedGroups.has(group) &&
-        (wasExpanded === undefined || wasExpanded === false)
+        currentOrder !== null &&
+        !currentOrder.every(
+          (sectionId, index) => sectionId === configuredOrder[index],
+        ) &&
+        !onStageOrderChange(currentOrder)
       ) {
-        controls.add(toggle);
+        reorderWorkflowSections(sidebar, config);
       }
     }
-
-    for (const [id, currentGroup] of currentThreadGroups) {
-      const previousGroup = knownThreadGroups.get(id);
-      if (previousGroup && previousGroup !== currentGroup) {
-        addExpandedGroupAndAncestors(
-          controls,
-          currentGroup,
-          userExpandedGroups,
-          pendingUserExpandedGroups,
-        );
-      }
-      knownThreadGroups.set(id, currentGroup);
-    }
-
-    for (const control of controls) {
-      if (
-        control.isConnected &&
-        control.getAttribute("aria-expanded") === "true"
-      ) {
-        const collapse = (remainingAttempts: number) => {
-          if (
-            signal.aborted ||
-            !control.isConnected ||
-            control.getAttribute("aria-expanded") !== "true"
-          ) {
-            return;
-          }
-          controllerCollapseControls.add(control);
-          try {
-            control.click();
-          } finally {
-            controllerCollapseControls.delete(control);
-          }
-          if (
-            remainingAttempts > 1 &&
-            control.getAttribute("aria-expanded") === "true"
-          ) {
-            queueMicrotask(() => collapse(remainingAttempts - 1));
-          }
-        };
-        collapse(2);
-      }
-    }
-
-    for (const group of sidebar.querySelectorAll(STICKY_GROUP_SELECTOR)) {
-      const toggle = groupToggle(group);
-      if (toggle !== null) {
-        expandedByGroup.set(
-          group,
-          toggle.getAttribute("aria-expanded") === "true",
-        );
-      }
-    }
-  };
-
-  const recordUserExpansion = (event: Event) => {
-    const target = event.target;
-    if (!(target instanceof Element)) return;
-    const button = target.closest<HTMLButtonElement>(
-      `${SECTION_TOGGLE_SELECTOR}, ${SECTION_ROW_TOGGLE_SELECTOR}`,
+    const inbox = config.stages.find((stage) => stage.role === "inbox");
+    const configuredIds = new Set(
+      config.stages.flatMap((stage) =>
+        stage.sectionId === null ? [] : [stage.sectionId],
+      ),
     );
-    if (button === null) return;
-    if (controllerCollapseControls.has(button)) return;
-    const group = button.closest(STICKY_GROUP_SELECTOR);
-    if (group === null) return;
-    const toggle = groupToggle(group);
-    if (toggle?.getAttribute("aria-expanded") === "true") {
-      userExpandedGroups.add(group);
-      return;
-    }
-    if (toggle !== null) {
-      pendingUserExpandedGroups.add(group);
-      const timer = setTimeout(() => {
-        pendingExpansionTimers.delete(timer);
-        pendingUserExpandedGroups.delete(group);
-        if (
-          !signal.aborted &&
-          group.isConnected &&
-          groupToggle(group)?.getAttribute("aria-expanded") === "true"
-        ) {
-          userExpandedGroups.add(group);
-        }
-        scheduleReconcile();
-      }, 0);
-      pendingExpansionTimers.add(timer);
+
+    for (const group of sidebar.querySelectorAll(STICKY_GROUP_SELECTOR)) {
+      const sectionId = groupSectionId(group);
+      if (sectionId === null || !configuredIds.has(sectionId)) continue;
+      const toggle = groupToggle(group);
+      if (toggle === null) continue;
+      const expanded = toggle.getAttribute("aria-expanded") === "true";
+      const userPreference = userExpansionBySectionId.get(sectionId);
+      const desired = userPreference ?? sectionId === inbox?.sectionId;
+      if (expanded === desired) continue;
+      pluginControls.add(toggle);
+      toggle.click();
+      queueMicrotask(() => pluginControls.delete(toggle));
     }
   };
-  sidebar.addEventListener("click", recordUserExpansion, true);
 
-  const scheduleReconcile = () => {
+  const schedule = () => {
     if (scheduled || signal.aborted) return;
     scheduled = true;
     queueMicrotask(reconcile);
   };
-  const observer = new MutationObserver(scheduleReconcile);
+
+  const requestConfiguredOrder = () => {
+    applyConfiguredOrder = true;
+    schedule();
+  };
+
+  const recordUserToggle = (event: Event) => {
+    const target = event.target;
+    if (!(target instanceof Element)) return;
+    const control = target.closest<HTMLButtonElement>(
+      `${SECTION_TOGGLE_SELECTOR}, ${SECTION_ROW_TOGGLE_SELECTOR}`,
+    );
+    if (control === null || pluginControls.has(control)) return;
+    const group = control.closest(STICKY_GROUP_SELECTOR);
+    const sectionId = group === null ? null : groupSectionId(group);
+    if (group === null || sectionId === null) return;
+    const config = getConfig();
+    if (!config?.stages.some((stage) => stage.sectionId === sectionId)) return;
+    const toggle = groupToggle(group);
+    if (toggle === null) return;
+    userExpansionBySectionId.set(
+      sectionId,
+      toggle.getAttribute("aria-expanded") !== "true",
+    );
+  };
+
+  sidebar.addEventListener("click", recordUserToggle, true);
+  const Observer =
+    sidebar.ownerDocument.defaultView?.MutationObserver ?? MutationObserver;
+  const observer = new Observer(schedule);
   observer.observe(sidebar, {
     attributeFilter: ["aria-expanded", "aria-label"],
     attributes: true,
     childList: true,
     subtree: true,
   });
-  reconcile();
-  signal.addEventListener(
-    "abort",
-    () => {
-      observer.disconnect();
-      for (const timer of pendingExpansionTimers) clearTimeout(timer);
-      pendingExpansionTimers.clear();
-      sidebar.removeEventListener("click", recordUserExpansion, true);
-    },
-    { once: true },
+  sidebar.addEventListener(
+    "thread-organizer-config-changed",
+    requestConfiguredOrder,
   );
+  reconcile();
 
-  return () => {
-    observer.disconnect();
-    for (const timer of pendingExpansionTimers) clearTimeout(timer);
-    pendingExpansionTimers.clear();
-    sidebar.removeEventListener("click", recordUserExpansion, true);
+  return {
+    applyConfiguredOrder: requestConfiguredOrder,
+    dispose: () => {
+      observer.disconnect();
+      sidebar.removeEventListener("click", recordUserToggle, true);
+      sidebar.removeEventListener(
+        "thread-organizer-config-changed",
+        requestConfiguredOrder,
+      );
+    },
   };
 }
 
-export function mountInboxSectionCollapser({
+export function mountThreadOrganizerSidebar({
   document: targetDocument = document,
+  loadConfig,
+  pluginId,
+  saveConfig = (config) => saveWorkflowConfig(pluginId, config),
   signal,
-}: MountInboxSectionCollapserOptions): () => void {
-  const disposers = new Map<Element, () => void>();
+}: MountThreadOrganizerSidebarOptions): () => void {
+  const view = targetDocument.defaultView;
+  let config = view === null ? null : parsedCachedConfig(view);
+  const controllers = new Map<Element, SidebarController>();
+  let pendingSectionOrder: readonly string[] | null = null;
+  let savingSectionOrder = false;
 
-  const mountSidebars = () => {
-    for (const [sidebar, stop] of disposers) {
-      if (!sidebar.isConnected) {
-        stop();
-        disposers.delete(sidebar);
-      }
+  const applyConfiguredOrder = () => {
+    for (const controller of controllers.values()) {
+      controller.applyConfiguredOrder();
     }
-    for (const sidebar of targetDocument.querySelectorAll(SIDEBAR_SELECTOR)) {
-      if (!disposers.has(sidebar)) {
-        disposers.set(sidebar, mountSidebarCollapser(sidebar, signal));
+  };
+
+  const updateConfig = (next: WorkflowConfig) => {
+    config = cloneWorkflowConfig(next);
+    if (view !== null) {
+      view.localStorage.setItem(
+        WORKFLOW_CACHE_STORAGE_KEY,
+        JSON.stringify(config),
+      );
+    }
+    mountSidebars();
+    applyConfiguredOrder();
+  };
+
+  const savePendingSectionOrder = async () => {
+    if (savingSectionOrder) return;
+    savingSectionOrder = true;
+    try {
+      while (pendingSectionOrder !== null && !signal.aborted) {
+        const requestedOrder = pendingSectionOrder;
+        pendingSectionOrder = null;
+        const next =
+          config === null ? null : configInSectionOrder(config, requestedOrder);
+        if (next === null) {
+          applyConfiguredOrder();
+          continue;
+        }
+        const saved = await saveConfig(editableWorkflowConfig(next));
+        if (!signal.aborted) updateConfig(saved);
+      }
+    } catch {
+      pendingSectionOrder = null;
+      applyConfiguredOrder();
+    } finally {
+      savingSectionOrder = false;
+      if (pendingSectionOrder !== null && !signal.aborted) {
+        void savePendingSectionOrder();
       }
     }
   };
 
-  mountSidebars();
-  const discoveryObserver = new MutationObserver(mountSidebars);
+  const requestStageOrder = (sectionIds: readonly string[]): boolean => {
+    if (config === null || configInSectionOrder(config, sectionIds) === null) {
+      return false;
+    }
+    pendingSectionOrder = [...sectionIds];
+    void savePendingSectionOrder();
+    return true;
+  };
+
+  const mountSidebars = () => {
+    for (const [sidebar, controller] of controllers) {
+      if (!sidebar.isConnected) {
+        controller.dispose();
+        controllers.delete(sidebar);
+      }
+    }
+    for (const sidebar of targetDocument.querySelectorAll(SIDEBAR_SELECTOR)) {
+      if (!controllers.has(sidebar)) {
+        controllers.set(
+          sidebar,
+          mountSidebarController(
+            sidebar,
+            signal,
+            () => config,
+            requestStageOrder,
+          ),
+        );
+      }
+    }
+  };
+
+  const onConfigEvent = (event: Event) => {
+    const candidate =
+      event instanceof CustomEvent ? parseWorkflowConfig(event.detail) : null;
+    if (candidate !== null) updateConfig(candidate);
+  };
+  view?.addEventListener(WORKFLOW_CONFIG_EVENT, onConfigEvent);
+
+  const Observer = view?.MutationObserver ?? MutationObserver;
+  const discoveryObserver = new Observer(mountSidebars);
   discoveryObserver.observe(targetDocument.documentElement, {
     childList: true,
     subtree: true,
   });
+  mountSidebars();
+  void (loadConfig ?? (() => fetchWorkflowConfig(pluginId)))()
+    .then((loaded) => {
+      if (!signal.aborted) updateConfig(loaded);
+    })
+    .catch(() => undefined);
 
   const dispose = () => {
     discoveryObserver.disconnect();
-    for (const stop of disposers.values()) stop();
-    disposers.clear();
+    view?.removeEventListener(WORKFLOW_CONFIG_EVENT, onConfigEvent);
+    for (const controller of controllers.values()) controller.dispose();
+    controllers.clear();
   };
   signal.addEventListener("abort", dispose, { once: true });
   return dispose;
 }
+
+/** Compatibility alias for existing imports while the plugin migrates. */
+export const mountInboxSectionCollapser = mountThreadOrganizerSidebar;
