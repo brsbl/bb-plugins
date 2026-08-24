@@ -480,14 +480,18 @@ describe("Thread Organizer server", () => {
     await organizer.harness.lifecycle.dispose();
   });
 
-  it("reassesses a title when the current stage is explicitly confirmed", async () => {
+  it("reassesses a title when the current stage is autonomously refreshed", async () => {
     const organizer = createHarness();
     organizer.setThread({ status: "active", title: "Old planning title" });
     await plugin(organizer.bb);
 
-    await organizer.harness.behavior.runCli(["phase", "planning"], {
-      threadId: "thr_test",
-    });
+    const result = await organizer.harness.behavior.runCli(
+      ["phase", "planning"],
+      { threadId: "thr_test" },
+    );
+
+    expect(result.stdout).toContain("queued a title refresh");
+    expect(result.stdout).not.toContain("Confirm");
 
     await vi.waitFor(() =>
       expect(organizer.current().title).toBe(

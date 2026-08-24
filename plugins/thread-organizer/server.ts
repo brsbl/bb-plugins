@@ -877,11 +877,11 @@ export default async function plugin(bb: BbPluginApi): Promise<void> {
 
   bb.cli.register({
     name: "organizer",
-    summary: "Confirm or move the current thread through workflow stages",
+    summary: "Move or refresh the current thread's workflow stage",
     commands: [
       {
         name: "phase",
-        summary: "Confirm a workflow stage and queue a title reassessment",
+        summary: "Apply a workflow stage and queue a title refresh",
         usage: "bb organizer phase <stage-key>",
       },
     ],
@@ -932,7 +932,7 @@ export default async function plugin(bb: BbPluginApi): Promise<void> {
       }
       return {
         exitCode: 0,
-        stdout: `Confirmed ${thread.id} workflow stage as ${stage.title}.\n`,
+        stdout: `Applied ${stage.title} to ${thread.id} and queued a title refresh.\n`,
       };
     },
   });

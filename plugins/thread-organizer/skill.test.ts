@@ -34,15 +34,18 @@ describe("thread phase organizer guidance", () => {
     );
   });
 
-  it("confirms substantial same-stage work changes for batched title reassessment", () => {
+  it("autonomously refreshes substantial same-stage work changes for batched title reassessment", () => {
     expect(skill).toContain(
       "When the task or scope changed substantively, run bb organizer phase with that key even if it is already remembered.",
     );
     expect(skill).toContain(
-      "Thread Organizer batches that same-stage confirmation with other title reassessments.",
+      "Thread Organizer batches that same-stage refresh with other title reassessments.",
     );
     expect(skill).toContain(
-      "Do not confirm again for minor progress within unchanged work.",
+      "Do not refresh again for minor progress within unchanged work.",
+    );
+    expect(skill).toContain(
+      "Run it autonomously; never ask the user for confirmation or permission to update or refresh the stage.",
     );
   });
 
@@ -55,7 +58,7 @@ describe("thread phase organizer guidance", () => {
       "update_plan and other internal task plans do not move the bb workflow stage.",
     );
     expect(skill).toContain(
-      "Only bb organizer phase performs an agent-driven stage transition.",
+      "Only bb organizer phase performs an agent-driven stage update.",
     );
   });
 });
