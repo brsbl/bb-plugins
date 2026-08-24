@@ -510,16 +510,29 @@ export default async function plugin(bb: BbPluginApi): Promise<void> {
           threadId: context.threadId,
           signal,
         });
-        if (
-          !isManageableThread(currentThread) ||
-          currentThread.title !== context.currentTitle
-        ) {
+        if (!isManageableThread(currentThread)) {
           return;
         }
         const currentState = await readThreadState(currentThread);
         if (
           currentState.rememberedStageKey !== context.toStage.key ||
-          signal.aborted ||
+          signal.aborted
+        ) {
+          return;
+        }
+        if (currentThread.title !== context.currentTitle) {
+          if (!pendingTitleRequests.has(context.threadId)) {
+            scheduleTitleReassessment(context.threadId, {
+              fromKey: context.fromStage.key,
+              toKey: context.toStage.key,
+            });
+          }
+          bb.log.info(
+            `thread=${context.threadId} action=title-reassessment-requeued reason=title-changed`,
+          );
+          return;
+        }
+        if (
           decision.action === "keep" ||
           decision.title === context.currentTitle
         ) {

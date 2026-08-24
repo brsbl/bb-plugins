@@ -548,7 +548,7 @@ describe("Thread Organizer server", () => {
     await organizer.harness.lifecycle.dispose();
   });
 
-  it("does not overwrite a title changed while reassessment is running", async () => {
+  it("retries reassessment with a title changed while its worker is running", async () => {
     const organizer = createHarness();
     organizer.setThread({ status: "active", title: "Initial title" });
     let releaseOutput!: () => void;
@@ -562,6 +562,10 @@ describe("Thread Organizer server", () => {
           '{"decisions":[{"id":"thr_test","action":"rename","title":"Stale generated title"}]}',
       };
     });
+    organizer.outputThread.mockResolvedValueOnce({
+      output:
+        '{"decisions":[{"id":"thr_test","action":"rename","title":"Current implementation focus"}]}',
+    });
     await plugin(organizer.bb);
 
     await organizer.harness.behavior.runCli(["phase", "building"], {
@@ -573,13 +577,25 @@ describe("Thread Organizer server", () => {
     organizer.setThread({ title: "User-chosen title" });
     releaseOutput();
 
-    await vi.waitFor(() => expect(organizer.stopThread).toHaveBeenCalledOnce());
-    expect(organizer.current().title).toBe("User-chosen title");
+    await vi.waitFor(() =>
+      expect(organizer.current().title).toBe("Current implementation focus"),
+    );
+    expect(organizer.spawnThread).toHaveBeenCalledTimes(2);
+    expect(organizer.spawnThread.mock.calls[1]?.[0].prompt).toContain(
+      '"currentTitle":"User-chosen title"',
+    );
     expect(
       organizer.updateThread.mock.calls.filter(
         ([input]) => input.title !== undefined,
       ),
-    ).toHaveLength(0);
+    ).toEqual([
+      [
+        {
+          threadId: "thr_test",
+          title: "Current implementation focus",
+        },
+      ],
+    ]);
     await organizer.harness.lifecycle.dispose();
   });
 

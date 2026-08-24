@@ -24,8 +24,9 @@ thread’s actual stage.
 - Stage changes and same-stage refreshes enter one bounded title queue.
   Thread Organizer batches queued threads into one invisible worker, which
   reassesses whether each title still describes the active work. If you rename
-  a thread while that worker is running, its older proposal is discarded rather
-  than overwriting your newer title.
+  a thread while that worker is running, its older proposal is discarded and
+  the thread is queued again with its latest title. That title remains eligible
+  for later reassessment whenever the active work changes again.
 
 The plugin does not classify prompts to choose stages. Agents and users move
 threads from the rules saved in plugin settings. Agents autonomously apply the
