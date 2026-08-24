@@ -106,6 +106,7 @@ async function createHarness(options?: {
       warn: vi.fn(),
       error: vi.fn(),
     },
+    onDispose: vi.fn(),
   } as unknown as BbPluginApi;
 
   await promptShaper(bb);
@@ -243,6 +244,121 @@ describe("Improve Prompt cancellation", () => {
 });
 
 describe("Improve Prompt runtime context", () => {
+  it("keeps a helper running through a transient empty idle before its real output", async () => {
+    const harness = await createHarness();
+    await harness.rpc.startEnhancement(START_INPUT);
+
+    await harness.emit("thread.idle", {
+      thread: { id: "thr_helper" },
+      lastAssistantText: null,
+    });
+
+    await expect(
+      harness.rpc.getEnhancement({ requestId: REQUEST_ID }),
+    ).resolves.toEqual(expect.objectContaining({ status: "running" }));
+    expect(harness.threads.archive).not.toHaveBeenCalled();
+
+    await harness.emit("thread.idle", {
+      thread: { id: "thr_helper" },
+      lastAssistantText:
+        "## Enhanced prompt\n\n> A complete prompt from the real turn.",
+    });
+
+    await expect(
+      harness.rpc.getEnhancement({ requestId: REQUEST_ID }),
+    ).resolves.toEqual(
+      expect.objectContaining({
+        status: "complete",
+        enhancedPrompt: "A complete prompt from the real turn.",
+      }),
+    );
+    expect(harness.threads.archive).toHaveBeenCalledTimes(1);
+  });
+
+  it("fails when an empty idle remains the helper's final state", async () => {
+    vi.useFakeTimers();
+    let status = "active";
+    try {
+      const harness = await createHarness({
+        get: async () => ({ status }),
+        output: async () => ({ output: null }),
+      });
+      await harness.rpc.startEnhancement(START_INPUT);
+      status = "idle";
+
+      await harness.emit("thread.idle", {
+        thread: { id: "thr_helper" },
+        lastAssistantText: null,
+      });
+
+      expect(harness.kv.get(`request:${REQUEST_ID}`)).toEqual(
+        expect.objectContaining({ status: "running" }),
+      );
+      await vi.advanceTimersByTimeAsync(4_000);
+      await expect(
+        harness.rpc.getEnhancement({ requestId: REQUEST_ID }),
+      ).resolves.toEqual(expect.objectContaining({ status: "running" }));
+      await vi.advanceTimersByTimeAsync(2_000);
+
+      await expect(
+        harness.rpc.getEnhancement({ requestId: REQUEST_ID }),
+      ).resolves.toEqual(expect.objectContaining({ status: "failed" }));
+      expect(harness.threads.archive).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("keeps an in-flight empty-output check invalidated by renewed activity", async () => {
+    vi.useFakeTimers();
+    let status = "active";
+    const outputRead = deferred<{ output: string | null }>();
+    try {
+      const harness = await createHarness({
+        get: async () => ({ status }),
+        output: () => outputRead.promise,
+      });
+      await harness.rpc.startEnhancement(START_INPUT);
+      status = "idle";
+
+      await harness.emit("thread.idle", {
+        thread: { id: "thr_helper" },
+        lastAssistantText: null,
+      });
+      await vi.advanceTimersByTimeAsync(5_000);
+      expect(harness.threads.output).toHaveBeenCalledTimes(1);
+
+      status = "active";
+      await harness.emit("thread.active", {
+        thread: { id: "thr_helper" },
+      });
+      outputRead.resolve({ output: null });
+      await vi.advanceTimersByTimeAsync(0);
+      expect(harness.kv.get(`request:${REQUEST_ID}`)).toEqual(
+        expect.objectContaining({ status: "running" }),
+      );
+      expect(harness.threads.archive).not.toHaveBeenCalled();
+
+      await harness.emit("thread.idle", {
+        thread: { id: "thr_helper" },
+        lastAssistantText:
+          "## Enhanced prompt\n\n> A complete prompt from the continued turn.",
+      });
+
+      await expect(
+        harness.rpc.getEnhancement({ requestId: REQUEST_ID }),
+      ).resolves.toEqual(
+        expect.objectContaining({
+          status: "complete",
+          enhancedPrompt: "A complete prompt from the continued turn.",
+        }),
+      );
+      expect(harness.threads.archive).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("coalesces polling and retries a transient helper status failure", async () => {
     const firstStatus = deferred<void>();
     let getCalls = 0;
