@@ -1,63 +1,69 @@
 # Thread Organizer
 
-Thread Organizer files bb work into the phase it is in now. The sidebar contains only phase sections that currently have threads:
+Thread Organizer turns native bb thread sections into a configurable workflow.
+It keeps unread agent output in one attention queue without losing each
+thread’s actual stage.
 
-- 📥 Inbox
-- 📋 Planning
-- 🔎 Spec Review
-- 🛠️ Building
-- ✅ Testing / Deploy
-- 🤝 Handoff
+![Thread Organizer workflow sections in bb](docs/screenshot.png)
 
-![Thread Organizer development-phase sections in the bb sidebar](docs/screenshot.png)
+## Behavior
 
-Inbox is an ordinary named section, not the pinned area. Sections are created when first needed. Pre-existing sections with the same name are reused but never claimed or deleted by the plugin. Empty plugin-created sections are retained because the released SDK does not provide an atomic delete-if-empty operation.
+- Running threads appear in their remembered workflow stage.
+- Idle unread threads appear in Inbox and stay there after being marked read.
+- Starting work again restores the thread’s remembered stage.
+- A user move or `bb organizer phase <stage-key>` changes the remembered stage.
+- Inbox keeps that system behavior even when its visible title or icon changes.
+- The icon picker maps each semantic icon choice to an emoji section prefix on
+  the released plugin SDK.
+- Inbox starts expanded. Other configured sections start collapsed, while later
+  user expansion and collapse choices are respected.
+- Reordering a non-Inbox stage in the native sidebar saves the same workflow
+  order used by plugin settings and future agent instructions.
+- Automation-origin root threads follow the same workflow as ordinary roots.
+- After a semantic stage transition, an invisible worker reassesses whether the
+  current thread title still describes the active work. User title changes win.
 
-The content script keeps those phase sections in the order above while leaving unrelated sections in their existing positions. Handoff is last because it represents packaging completed work for its next owner.
+The plugin does not classify prompts to choose stages. Agents and users move
+threads from the rules saved in plugin settings; title reassessment runs only
+after one of those semantic transitions.
+
+## Use
+
+### Configure
+
+Open Thread Organizer in bb’s plugin settings. The workflow editor lets you:
+
+- rename and re-icon Inbox while leaving its routing protected;
+- search and choose from bb’s full semantic icon catalog in a visual picker
+  placed beside each editable title;
+- add, remove, reorder, rename, and re-icon other stages;
+- describe what belongs in each stage;
+
+The defaults are Planning, Spec Review, Building, Testing / Deploy, Handoff,
+and On Hold. When an agent has enough context to determine that its current
+work clearly matches a rule, the bundled skill tells it to move the thread. If
+the context is insufficient, the thread stays where it is.
+
+### Move a thread
+
+Run the configured stage key from inside a bb thread:
+
+```bash
+bb organizer phase building
+bb organizer phase testing-deploy
+bb organizer phase on-hold
+```
+
+Inbox is system-managed and cannot be selected by the CLI. The bundled
+`thread-phase-organizer` skill contains the invariant movement protocol. The
+plugin adds the current saved stage table to the agent’s dynamic instructions
+whenever a session starts or resumes.
 
 ## Install
 
 ```bash
 bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/thread-organizer --yes
 ```
-
-## Use
-
-The plugin starts in `apply` mode, infers an initial phase from thread context, and periodically revisits plugin-managed placements. Agents can make an explicit transition for their own thread:
-
-```bash
-bb organizer phase planning
-bb organizer phase spec-review
-bb organizer phase building
-bb organizer phase handoff
-bb organizer phase testing-deploy
-bb organizer phase inbox
-```
-
-The bundled `thread-phase-organizer` skill explains when to make each transition and falls back to Inbox when the current phase is unclear.
-
-| Phase | Criteria |
-| --- | --- |
-| 📥 Inbox | The phase is unclear or mixed, work is blocked before it starts, or the thread is awaiting direction. |
-| 📋 Planning | Discovering, scoping, researching, designing an approach, or writing requirements. |
-| 🔎 Spec Review | Reviewing, critiquing, approving, or revising a specification or implementation plan. |
-| 🛠️ Building | Implementing, debugging, refactoring, or changing code and artifacts. |
-| ✅ Testing / Deploy | Running QA, tests, CI or release checks, shipping, or deploying. |
-| 🤝 Handoff | Packaging current state and evidence so another agent or owner can continue. |
-
-To preview automatic proposals without changing threads:
-
-```bash
-bb plugin config thread-organizer set inboxMode observe
-```
-
-## Behavior
-
-Automatic organization preserves the plugin's existing safeguards: explicit creation-time sections remain locked, external changes lock subsequent automatic placement, ordinary visible root threads are the only managed threads, prompt-derived title repair remains available, and section destinations start collapsed unless the user deliberately expands them.
-
-Manual transitions through `bb organizer phase` are immediate and remain plugin-managed, so later phase transitions continue to work. Hidden workers, children, forks, side chats, plugin-originated threads, archived threads, and deleted threads are excluded.
-
-Ownership reconciliation removes stale registry entries for sections deleted elsewhere. Organizer does not compose a membership check with unconditional deletion because a thread could enter the section between those calls and lose its assignment.
 
 ## Develop
 
