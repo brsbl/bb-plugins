@@ -1,6 +1,6 @@
 # bb plugins
 
-Eight bb plugins I use for product design work, kept together with the few build and repository tools they share. [![CI](https://github.com/brsbl/bb-plugins/actions/workflows/ci.yml/badge.svg)](https://github.com/brsbl/bb-plugins/actions/workflows/ci.yml)
+Nine bb plugins I use for product design work, kept together with the few build and repository tools they share. [![CI](https://github.com/brsbl/bb-plugins/actions/workflows/ci.yml/badge.svg)](https://github.com/brsbl/bb-plugins/actions/workflows/ci.yml)
 
 [bb](https://getbb.app) is an agentic IDE for running coding agents across projects, threads, and environments. Its plugins can add UI, commands, skills, and server capabilities; this repository is where I build and maintain mine.
 
@@ -81,6 +81,16 @@ Frank Ocean's *Endless* as a bb palette — achromatic, grained, squared. Ten ye
 [Source](plugins/endless) · [README](plugins/endless/README.md)
 
 Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/endless --yes`
+
+### Theme Preview
+
+A skeleton of the bb app in every configuration — sidebar, splits, panels, overlays, real thread timelines and controls — drawn from the active theme's tokens, so a palette can be judged before it ships.
+
+![Theme Preview in bb](plugins/theme-preview/docs/screenshot.png)
+
+[Source](plugins/theme-preview) · [README](plugins/theme-preview/README.md)
+
+Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/theme-preview --yes`
 
 ### Timeline Comments
 
