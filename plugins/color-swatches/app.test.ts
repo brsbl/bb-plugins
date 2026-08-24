@@ -14,17 +14,17 @@ afterEach(() => {
 
 describe("Color Swatches content script", () => {
   it("decorates a color literal in user-message prose", async () => {
-    class TestHighlight {
-      readonly ranges: Range[];
-
-      constructor(...ranges: Range[]) {
-        this.ranges = ranges;
-      }
-    }
-    const highlights = new Map<string, TestHighlight>();
-    vi.stubGlobal("Highlight", TestHighlight);
-    vi.stubGlobal("CSS", { supports: () => true, highlights });
-    vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue(null);
+    const frames: FrameRequestCallback[] = [];
+    const canceledFrames: number[] = [];
+    let nextFrameId = 1;
+    vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) => {
+      frames.push(callback);
+      return nextFrameId++;
+    });
+    vi.stubGlobal("cancelAnimationFrame", (frameId: number) => {
+      canceledFrames.push(frameId);
+    });
+    vi.stubGlobal("CSS", { supports: () => true });
     document.body.innerHTML = `
       <div data-message-column="">
         <div class="ml-auto">
@@ -32,27 +32,58 @@ describe("Color Swatches content script", () => {
         </div>
       </div>
     `;
+    const paragraph = document.querySelector("p")!;
+    const originalTextNode = paragraph.firstChild as Text;
 
     const app = await loadPluginApp(() => import("./app"));
     const mounted = await mountPluginContentScripts(app, {
       pluginId: "color-swatches",
     });
-    const [[name, swatch]] = [...highlights];
 
-    expect(name).toMatch(/^bb-color-swatches-prose-/);
-    expect(swatch.ranges.map((range) => range.toString())).toEqual(["#ffffff"]);
+    const proseSwatch = document.querySelector<HTMLElement>(
+      "[data-bb-color-swatch-prose]",
+    );
+    expect(proseSwatch?.textContent).toBe("#ffffff");
+    expect(proseSwatch?.getAttribute("data-bb-color-swatch")).toBe("");
+    expect(proseSwatch?.style.getPropertyValue("--bb-color-swatch")).toBe(
+      "#ffffff",
+    );
+    expect(paragraph.textContent).toBe(
+      "just testing the color swatch plugin #ffffff",
+    );
+    expect(paragraph.firstChild).toBe(originalTextNode);
     expect(
       document.querySelector("style[data-bb-color-swatches]")?.textContent,
-    ).toContain("background-color: #ffffff");
-    expect(document.querySelector("[data-markdown-preview]")?.textContent).toBe(
-      "just testing the color swatch plugin #ffffff",
+    ).toContain("[data-bb-color-swatch]::before");
+
+    // React retains and updates the Text node it created. Keep that node in
+    // place so a later render replaces the literal without stale duplicate DOM.
+    originalTextNode.data = "updated message #000000";
+    await Promise.resolve();
+    expect(frames).toHaveLength(1);
+    frames.shift()!(0);
+
+    const updatedSwatch = document.querySelector<HTMLElement>(
+      "[data-bb-color-swatch-prose]",
     );
-    expect(document.querySelector("[data-markdown-preview] span")).toBeNull();
+    expect(updatedSwatch?.textContent).toBe("#000000");
+    expect(updatedSwatch?.style.getPropertyValue("--bb-color-swatch")).toBe(
+      "#000000",
+    );
+    expect(paragraph.textContent).toBe("updated message #000000");
+    expect(paragraph.firstChild).toBe(originalTextNode);
+
+    originalTextNode.data = "final message #ff00ff";
+    await Promise.resolve();
+    expect(frames).toHaveLength(1);
+    const staleFrame = frames.shift()!;
+
     await mounted.lifecycle.dispose();
-    expect(highlights.size).toBe(0);
-    expect(document.querySelector("[data-markdown-preview]")?.textContent).toBe(
-      "just testing the color swatch plugin #ffffff",
-    );
+    expect(canceledFrames).toEqual([2]);
+    staleFrame(0);
+    expect(document.querySelector("[data-bb-color-swatch-prose]")).toBeNull();
+    expect(paragraph.textContent).toBe("final message #ff00ff");
+    expect(paragraph.firstChild).toBe(originalTextNode);
   });
 
   it("redecorates a code line after its streamed text changes", async () => {

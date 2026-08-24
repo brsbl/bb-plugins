@@ -65,9 +65,9 @@ function findColorMatches(text) {
 
 // app.tsx
 var ATTR = "data-bb-color-swatch";
+var PROSE_ATTR = "data-bb-color-swatch-prose";
 var PROP = "--bb-color-swatch";
 var USER_PROSE_SELECTOR = "[data-message-column] > .ml-auto [data-markdown-preview]";
-var PROSE_HIGHLIGHT_PREFIX = "bb-color-swatches-prose-";
 var STYLESHEET = `
 [${ATTR}] {
   /* The chip inherits the line's font size, so it tracks code and prose. */
@@ -92,6 +92,10 @@ var STYLESHEET = `
   background-color: #fff;
   box-shadow: inset 0 0 0 1px rgba(128, 128, 128, 0.45);
 }
+[${PROSE_ATTR}] {
+  /* Keep the generated chip attached to the literal at line boundaries. */
+  white-space: nowrap;
+}
 `;
 var EXCLUDED = "[contenteditable], input, textarea";
 var isColor = (value) => typeof CSS !== "undefined" && typeof CSS.supports === "function" ? CSS.supports("color", value) : true;
@@ -102,12 +106,6 @@ function decorate(el, value) {
 function undecorate(el) {
   el.removeAttribute(ATTR);
   el.style?.removeProperty(PROP);
-}
-function highlightApi() {
-  if (typeof CSS === "undefined") return null;
-  const registry = CSS.highlights;
-  const HighlightConstructor = globalThis.Highlight;
-  return registry && HighlightConstructor ? { registry, HighlightConstructor } : null;
 }
 function decorateTokenizedLine(line) {
   const starts = /* @__PURE__ */ new Map();
@@ -132,109 +130,103 @@ function decorateWholeElement(el) {
   if (only.start !== 0 || only.end !== text.length) return;
   if (isColor(only.value)) decorate(el, only.value);
 }
-function contrastForeground(value) {
-  const canvas = document.createElement("canvas");
-  canvas.width = 1;
-  canvas.height = 1;
-  const context = canvas.getContext("2d", { willReadFrequently: true });
-  if (!context) return null;
-  context.fillStyle = "rgb(1, 2, 3)";
-  const sentinel = context.fillStyle;
-  context.fillStyle = value;
-  if (context.fillStyle === sentinel) return null;
-  context.fillRect(0, 0, 1, 1);
-  const [red, green, blue, alpha] = context.getImageData(0, 0, 1, 1).data;
-  const opacity = alpha / 255;
-  const composite = (channel) => channel * opacity + 128 * (1 - opacity);
-  const linear = (channel) => {
-    const normalized = composite(channel) / 255;
-    return normalized <= 0.04045 ? normalized / 12.92 : ((normalized + 0.055) / 1.055) ** 2.4;
-  };
-  const luminance = 0.2126 * linear(red) + 0.7152 * linear(green) + 0.0722 * linear(blue);
-  return luminance > 0.42 ? "#111" : "#fff";
-}
-var ProseHighlighter = class {
-  constructor(style) {
-    this.style = style;
-  }
-  style;
-  api = highlightApi();
-  entriesByRoot = /* @__PURE__ */ new Map();
-  dirty = false;
-  nextId = 1;
+var ProseDecorator = class {
+  decorations = /* @__PURE__ */ new Map();
+  nodesByRoot = /* @__PURE__ */ new Map();
   prune() {
-    for (const root of this.entriesByRoot.keys()) {
-      if (!root.isConnected) this.clearRoot(root);
+    for (const [node, decoration] of [...this.decorations]) {
+      if (!node.isConnected || !decoration.root.isConnected) {
+        this.release(node, true);
+      }
     }
   }
   replace(root) {
     this.clearRoot(root);
-    if (!this.api) return;
-    const entries = [];
+    const textNodes = [];
     const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
     for (let node = walker.nextNode(); node; node = walker.nextNode()) {
-      const textNode = node;
-      const parent = textNode.parentElement;
-      if (!parent || parent.closest(`${EXCLUDED}, code, pre`) || !textNode.data.includes("#") && !/[a-z]\(/i.test(textNode.data)) {
-        continue;
-      }
-      for (const match of findColorMatches(textNode.data)) {
-        if (!isColor(match.value)) continue;
-        const range = document.createRange();
-        range.setStart(textNode, match.start);
-        range.setEnd(textNode, match.end);
-        const name = `${PROSE_HIGHLIGHT_PREFIX}${this.nextId++}`;
-        this.api.registry.set(name, new this.api.HighlightConstructor(range));
-        entries.push({
-          name,
-          value: match.value,
-          foreground: contrastForeground(match.value)
-        });
-      }
+      textNodes.push(node);
     }
-    if (entries.length > 0) {
-      this.entriesByRoot.set(root, entries);
-      this.dirty = true;
-    }
+    for (const textNode of textNodes) this.decorateTextNode(root, textNode);
   }
-  commit() {
-    if (!this.dirty) return;
-    this.syncStyles();
-    this.dirty = false;
+  /**
+   * React updated a Text node we retained. Remove our siblings but preserve
+   * React's new value so the next frame can decorate that value from scratch.
+   */
+  releaseForExternalUpdate(node) {
+    const root = this.decorations.get(node)?.root ?? null;
+    if (root) this.release(node, false);
+    return root;
   }
   dispose() {
-    for (const root of [...this.entriesByRoot.keys()]) this.clearRoot(root);
-    this.commit();
+    for (const root of [...this.nodesByRoot.keys()]) this.clearRoot(root);
+  }
+  decorateTextNode(root, textNode) {
+    const parent = textNode.parentElement;
+    const text = textNode.data;
+    if (!parent || parent.closest(`${EXCLUDED}, code, pre`) || !text.includes("#") && !/[a-z]\(/i.test(text)) {
+      return;
+    }
+    const matches = findColorMatches(text).filter(
+      (match) => isColor(match.value)
+    );
+    if (matches.length === 0) return;
+    const fragment = document.createDocumentFragment();
+    const insertedNodes = [];
+    let cursor = matches[0].start;
+    textNode.data = text.slice(0, cursor);
+    for (const match of matches) {
+      if (match.start > cursor) {
+        const between = document.createTextNode(text.slice(cursor, match.start));
+        fragment.append(between);
+        insertedNodes.push(between);
+      }
+      const swatch = document.createElement("span");
+      swatch.setAttribute(PROSE_ATTR, "");
+      swatch.textContent = match.value;
+      decorate(swatch, match.value);
+      fragment.append(swatch);
+      insertedNodes.push(swatch);
+      cursor = match.end;
+    }
+    if (cursor < text.length) {
+      const trailing = document.createTextNode(text.slice(cursor));
+      fragment.append(trailing);
+      insertedNodes.push(trailing);
+    }
+    textNode.parentNode?.insertBefore(fragment, textNode.nextSibling);
+    this.decorations.set(textNode, { root, originalText: text, insertedNodes });
+    const rootNodes = this.nodesByRoot.get(root) ?? /* @__PURE__ */ new Set();
+    rootNodes.add(textNode);
+    this.nodesByRoot.set(root, rootNodes);
   }
   clearRoot(root) {
-    const entries = this.entriesByRoot.get(root);
-    if (!entries) return;
-    for (const entry of entries) this.api?.registry.delete(entry.name);
-    this.entriesByRoot.delete(root);
-    this.dirty = true;
+    for (const node of [...this.nodesByRoot.get(root) ?? []]) {
+      this.release(node, true);
+    }
   }
-  syncStyles() {
-    const proseRules = [...this.entriesByRoot.values()].flat().map(
-      ({ name, value, foreground }) => `
-::highlight(${name}) {
-  background-color: ${value};
-  ${foreground ? `color: ${foreground};` : ""}
-  text-decoration-line: underline;
-  text-decoration-color: rgba(128, 128, 128, 0.65);
-  text-decoration-thickness: 1px;
-  text-underline-offset: 2px;
-}`
-    ).join("\n");
-    this.style.textContent = `${STYLESHEET}${proseRules}`;
+  release(node, restoreOriginal) {
+    const decoration = this.decorations.get(node);
+    if (!decoration) return;
+    if (restoreOriginal) node.data = decoration.originalText;
+    for (const inserted of decoration.insertedNodes) {
+      inserted.parentNode?.removeChild(inserted);
+    }
+    this.decorations.delete(node);
+    const rootNodes = this.nodesByRoot.get(decoration.root);
+    rootNodes?.delete(node);
+    if (rootNodes?.size === 0) this.nodesByRoot.delete(decoration.root);
   }
 };
 function matchesWithin(root, selector) {
   const matches = Array.from(root.querySelectorAll?.(selector) ?? []);
   return root instanceof Element && root.matches(selector) ? [root, ...matches] : matches;
 }
-function scan(root, proseHighlighter) {
-  proseHighlighter.prune();
-  for (const stale of Array.from(root.querySelectorAll?.(`[${ATTR}]`) ?? [])) {
+function scan(root, proseDecorator) {
+  proseDecorator.prune();
+  for (const stale of Array.from(
+    root.querySelectorAll?.(`[${ATTR}]:not([${PROSE_ATTR}])`) ?? []
+  )) {
     undecorate(stale);
   }
   for (const line of matchesWithin(root, ".sh__line")) {
@@ -246,9 +238,8 @@ function scan(root, proseHighlighter) {
     decorateWholeElement(code);
   }
   for (const prose of matchesWithin(root, USER_PROSE_SELECTOR)) {
-    if (!prose.closest(EXCLUDED)) proseHighlighter.replace(prose);
+    if (!prose.closest(EXCLUDED)) proseDecorator.replace(prose);
   }
-  proseHighlighter.commit();
 }
 var app_default = definePluginApp((app) => {
   app.contentScripts.register({
@@ -258,25 +249,41 @@ var app_default = definePluginApp((app) => {
       style.dataset.bbColorSwatches = "";
       style.textContent = STYLESHEET;
       document.head.append(style);
-      const proseHighlighter = new ProseHighlighter(style);
+      const proseDecorator = new ProseDecorator();
       let pending = null;
+      let frameId = null;
+      let disposed = false;
       const flush = () => {
+        frameId = null;
+        if (disposed) {
+          pending = null;
+          return;
+        }
         const roots = pending ?? /* @__PURE__ */ new Set();
         pending = null;
         for (const root of roots) {
-          if (root.isConnected !== false) scan(root, proseHighlighter);
+          if (root.isConnected !== false) scan(root, proseDecorator);
         }
+        observer.takeRecords();
       };
       const queue = (node) => {
+        if (disposed) return;
         if (!pending) {
           pending = /* @__PURE__ */ new Set();
-          requestAnimationFrame(flush);
+          frameId = requestAnimationFrame(flush);
         }
         pending.add(node);
       };
       const observer = new MutationObserver((records) => {
         for (const record of records) {
           const target = record.target;
+          if (record.type === "characterData" && target instanceof Text) {
+            const proseRoot = proseDecorator.releaseForExternalUpdate(target);
+            if (proseRoot) {
+              queue(proseRoot);
+              continue;
+            }
+          }
           const host = target.nodeType === Node.ELEMENT_NODE ? target : target.parentElement;
           const scope = host?.closest?.("pre, .sh__line, [data-markdown-preview], main") ?? host;
           if (scope) queue(scope);
@@ -287,11 +294,17 @@ var app_default = definePluginApp((app) => {
         childList: true,
         characterData: true
       });
-      scan(document.body, proseHighlighter);
+      scan(document.body, proseDecorator);
       observer.takeRecords();
       const dispose = () => {
+        disposed = true;
+        pending = null;
+        if (frameId !== null) {
+          cancelAnimationFrame(frameId);
+          frameId = null;
+        }
         observer.disconnect();
-        proseHighlighter.dispose();
+        proseDecorator.dispose();
         style.remove();
         for (const el of Array.from(document.querySelectorAll(`[${ATTR}]`))) {
           undecorate(el);
