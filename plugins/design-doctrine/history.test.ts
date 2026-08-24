@@ -7,7 +7,7 @@ import { promisify } from "node:util";
 import { createFakePluginHost } from "@bb/plugin-sdk/testing";
 import { describe, expect, it } from "vitest";
 
-import { createHistoryMaintenance } from "./history";
+import { commitNewRuleFiles, createHistoryMaintenance } from "./history";
 
 const execFileAsync = promisify(execFile);
 const LEGACY_KEY = "maintenance:thread-history:v2";
@@ -32,6 +32,55 @@ function scanOptions() {
 }
 
 describe("Design Doctrine legacy history migration", () => {
+  it("rolls back a generated harvest batch when corpus validation fails", async () => {
+    const root = await createPluginRoot();
+    await writeFile(join(root, "rules", "existing.md"), "existing\n");
+    await execFileAsync("git", ["-C", root, "add", "rules/existing.md"]);
+    await execFileAsync("git", [
+      "-C",
+      root,
+      "-c",
+      "user.name=Design Doctrine Test",
+      "-c",
+      "user.email=doctrine-test@example.com",
+      "commit",
+      "-m",
+      "seed rules",
+    ]);
+
+    try {
+      await expect(
+        commitNewRuleFiles(
+          root,
+          [
+            {
+              relativePath: "rules/visual/ddr_002.md",
+              content: "invalid rule\n",
+            },
+          ],
+          async () => {
+            throw new Error("invalid doctrine corpus");
+          },
+        ),
+      ).rejects.toThrow("invalid doctrine corpus");
+      await expect(
+        readFile(join(root, "rules", "visual", "ddr_002.md"), "utf8"),
+      ).rejects.toMatchObject({ code: "ENOENT" });
+      const status = await execFileAsync("git", [
+        "-C",
+        root,
+        "status",
+        "--porcelain=v1",
+        "--untracked-files=all",
+        "--",
+        "rules",
+      ]);
+      expect(status.stdout).toBe("");
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
   it("refuses maintenance scans from a detached managed checkout", async () => {
     const root = await createPluginRoot();
     await writeFile(join(root, "rules", "existing.md"), "existing\n");

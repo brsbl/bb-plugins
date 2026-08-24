@@ -14534,7 +14534,7 @@ config(en_default());
 
 // history.ts
 import { execFile } from "node:child_process";
-import { readFile, unlink } from "node:fs/promises";
+import { mkdir, readFile, unlink, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { promisify } from "node:util";
 
@@ -15403,7 +15403,7 @@ var execFileAsync = promisify(execFile);
 var LEGACY_HISTORY_STATE_KEY = "maintenance:thread-history:v2";
 var LEGACY_HISTORY_STATE_PATH = join("maintenance", "state.json");
 var PRIMARY_BRANCH_NAMES = /* @__PURE__ */ new Set(["main", "master", "trunk"]);
-async function ensureMaintenanceCheckout(pluginRoot) {
+async function ensureMaintenanceBranch(pluginRoot) {
   let branchName;
   try {
     const branch = await execFileAsync(
@@ -15423,6 +15423,8 @@ async function ensureMaintenanceCheckout(pluginRoot) {
       `maintenance refuses primary branch ${branchName}; use a dedicated non-default branch/worktree and point doctrinePath at its plugins/design-doctrine folder`
     );
   }
+}
+async function ruleTreeStatus(pluginRoot) {
   const result = await execFileAsync(
     "git",
     [
@@ -15436,10 +15438,89 @@ async function ensureMaintenanceCheckout(pluginRoot) {
     ],
     { encoding: "utf8" }
   );
-  if (result.stdout.length > 0) {
+  return result.stdout;
+}
+async function ensureMaintenanceCheckout(pluginRoot) {
+  await ensureMaintenanceBranch(pluginRoot);
+  if ((await ruleTreeStatus(pluginRoot)).length > 0) {
     throw new Error(
       "rules tree has pre-existing work; commit, stash, or move it before scanning"
     );
+  }
+}
+function assertRulePath(relativePath) {
+  if (!/^rules\/[a-z-]+\/ddr_\d{3,}\.md$/.test(relativePath)) {
+    throw new Error(`invalid generated rule path: ${relativePath}`);
+  }
+}
+async function rollbackNewRuleFiles(pluginRoot, relativePaths) {
+  if (relativePaths.length === 0) return;
+  await execFileAsync(
+    "git",
+    ["-C", pluginRoot, "restore", "--staged", "--", ...relativePaths],
+    { encoding: "utf8" }
+  ).catch(() => void 0);
+  await Promise.all(
+    relativePaths.map(async (relativePath) => {
+      try {
+        await unlink(join(pluginRoot, relativePath));
+      } catch (error51) {
+        if (!isMissingFile(error51)) throw error51;
+      }
+    })
+  );
+}
+async function commitNewRuleFiles(pluginRoot, files, validate) {
+  if (files.length === 0) return;
+  if (files.length > 5) {
+    throw new Error("a doctrine harvest may commit at most five rule files");
+  }
+  const relativePaths = files.map((file2) => file2.relativePath);
+  for (const relativePath of relativePaths) assertRulePath(relativePath);
+  if (new Set(relativePaths).size !== relativePaths.length) {
+    throw new Error("generated rule paths must be unique");
+  }
+  await ensureMaintenanceCheckout(pluginRoot);
+  const created = [];
+  let committed = false;
+  try {
+    for (const file2 of files) {
+      const absolutePath = join(pluginRoot, file2.relativePath);
+      await mkdir(join(absolutePath, ".."), { recursive: true });
+      await writeFile(absolutePath, file2.content, { encoding: "utf8", flag: "wx" });
+      created.push(file2.relativePath);
+    }
+    await validate();
+    const expectedStatus = new Set(
+      relativePaths.map((relativePath) => `?? ${relativePath}`)
+    );
+    const actualStatus = (await ruleTreeStatus(pluginRoot)).trimEnd().split("\n").filter(Boolean);
+    if (actualStatus.length !== expectedStatus.size || actualStatus.some((line) => !expectedStatus.has(line))) {
+      throw new Error("rules tree changed while the doctrine harvest was running");
+    }
+    await execFileAsync("git", ["-C", pluginRoot, "add", "--", ...relativePaths]);
+    await execFileAsync("git", [
+      "-C",
+      pluginRoot,
+      "diff",
+      "--check",
+      "--cached",
+      "--",
+      ...relativePaths
+    ]);
+    await execFileAsync("git", [
+      "-C",
+      pluginRoot,
+      "commit",
+      "--only",
+      "-m",
+      "doctrine: harvest archived feedback",
+      "--",
+      ...relativePaths
+    ]);
+    committed = true;
+  } finally {
+    if (!committed) await rollbackNewRuleFiles(pluginRoot, created);
   }
 }
 function normalizeEpochMilliseconds(value) {
@@ -15519,7 +15600,6 @@ function createHistoryMaintenance(bb, resolveDoctrineRoot, installedPluginRoot) 
 }
 
 // harvest.ts
-import { mkdir, writeFile } from "node:fs/promises";
 import { join as join2 } from "node:path";
 var HARVEST_SCHEMA = [
   `CREATE TABLE IF NOT EXISTS harvest_threads (
@@ -15544,6 +15624,7 @@ var HARVEST_SCHEMA = [
      ON harvest_proposals (rule_key)`
 ];
 var RECURRENCE_APPROVAL_THRESHOLD = 3;
+var HARVEST_RULE_FILE_LIMIT = 5;
 var KEY_STOP_TOKENS = /* @__PURE__ */ new Set([
   "a",
   "an",
@@ -15700,7 +15781,14 @@ function isHarvestableThread(thread) {
   return true;
 }
 function createHarvest(dependencies) {
-  const { bb, resolveDoctrineRoot, listRuleIds, describeExistingRules, runAgent } = dependencies;
+  const {
+    bb,
+    resolveDoctrineRoot,
+    listRuleIds,
+    describeExistingRules,
+    validateRules,
+    runAgent
+  } = dependencies;
   const now = dependencies.now ?? (() => Date.now());
   let database = null;
   function db() {
@@ -15822,19 +15910,6 @@ function createHarvest(dependencies) {
     ).get(ruleKey);
     return row ? readProposal(row) : null;
   }
-  async function writeApprovedRule(proposal) {
-    const root = await resolveDoctrineRoot();
-    const id = allocateRuleId(await listRuleIds());
-    const relativePath = ruleRelativePath(proposal.domain, id);
-    const absolutePath = join2(root, relativePath);
-    await mkdir(join2(absolutePath, ".."), { recursive: true });
-    await writeFile(
-      absolutePath,
-      renderRuleMarkdown(proposal, id, isoDate(now())),
-      "utf8"
-    );
-    return relativePath;
-  }
   function harvesterPrompt(threadId) {
     return [
       "You are the Design Doctrine harvester. Work silently; nobody is watching this thread.",
@@ -15900,6 +15975,16 @@ function createHarvest(dependencies) {
     ].join("\n");
   }
   async function harvestThread(threadId, projectId, environmentId = null) {
+    let doctrineRoot;
+    try {
+      doctrineRoot = await resolveDoctrineRoot();
+      await ensureMaintenanceCheckout(doctrineRoot);
+    } catch (error51) {
+      bb.log.warn(
+        `doctrine harvest: waiting for a clean maintenance checkout: ${error51 instanceof Error ? error51.message : String(error51)}`
+      );
+      return;
+    }
     try {
       await runAgent({
         kind: "harvester",
@@ -15924,6 +16009,7 @@ function createHarvest(dependencies) {
     }
     const existingRules = await describeExistingRules();
     let approved = 0;
+    const approvedProposals = [];
     for (const stored of proposals) {
       const duplicate = alreadyApproved(stored.ruleKey);
       if (duplicate) {
@@ -15968,24 +16054,55 @@ function createHarvest(dependencies) {
         );
         continue;
       }
-      try {
-        const relativePath = await writeApprovedRule(verdict.proposal);
-        recordVerdict(
-          stored.id,
-          "approved",
-          verdict.reason ?? "approved",
-          relativePath
-        );
-        approved += 1;
-        bb.log.info(
-          `doctrine harvest: wrote ${relativePath} from ${threadId} \u2014 ${verdict.reason ?? "approved"}`
-        );
-      } catch (error51) {
-        const reason = `could not write rule: ${error51 instanceof Error ? error51.message : String(error51)}`;
+      if (approvedProposals.length >= HARVEST_RULE_FILE_LIMIT) {
+        const reason = `archive harvests are limited to ${HARVEST_RULE_FILE_LIMIT} rule files`;
         recordVerdict(stored.id, "rejected", reason);
         bb.log.warn(
           `doctrine harvest: rejected proposal ${stored.id} from ${threadId} \u2014 ${reason}`
         );
+        continue;
+      }
+      approvedProposals.push(verdict);
+    }
+    if (approvedProposals.length > 0) {
+      const existingIds = await listRuleIds();
+      const drafts = approvedProposals.map((stored) => {
+        const id = allocateRuleId(existingIds);
+        existingIds.push(id);
+        return {
+          stored,
+          file: {
+            relativePath: ruleRelativePath(stored.proposal.domain, id),
+            content: renderRuleMarkdown(stored.proposal, id, isoDate(now()))
+          }
+        };
+      });
+      try {
+        await commitNewRuleFiles(
+          doctrineRoot,
+          drafts.map((draft) => draft.file),
+          validateRules
+        );
+        for (const draft of drafts) {
+          recordVerdict(
+            draft.stored.id,
+            "approved",
+            draft.stored.reason ?? "approved",
+            draft.file.relativePath
+          );
+          approved += 1;
+          bb.log.info(
+            `doctrine harvest: committed ${draft.file.relativePath} from ${threadId} \u2014 ${draft.stored.reason ?? "approved"}`
+          );
+        }
+      } catch (error51) {
+        const reason = `could not commit rule batch: ${error51 instanceof Error ? error51.message : String(error51)}`;
+        for (const draft of drafts) {
+          recordVerdict(draft.stored.id, "rejected", reason);
+          bb.log.warn(
+            `doctrine harvest: rejected proposal ${draft.stored.id} from ${threadId} \u2014 ${reason}`
+          );
+        }
       }
     }
     markProcessed(threadId, approved > 0 ? `approved:${approved}` : "no-approvals");
@@ -16593,10 +16710,19 @@ async function plugin(bb) {
   const harvest = createHarvest({
     bb,
     resolveDoctrineRoot: async () => expandPath((await settings.get()).doctrinePath),
-    listRuleIds: async () => (await currentLibrary()).rules.map((rule) => rule.id),
-    describeExistingRules: async () => (await currentLibrary()).rules.map(
+    listRuleIds: async () => (await loadDoctrine(
+      expandPath((await settings.get()).doctrinePath)
+    )).rules.map((rule) => rule.id),
+    describeExistingRules: async () => (await loadDoctrine(
+      expandPath((await settings.get()).doctrinePath)
+    )).rules.map(
       (rule) => `${rule.id} (${rule.domain}, ${rule.strength}): ${rule.title} \u2014 ${rule.statement}`
     ).join("\n"),
+    validateRules: async () => {
+      await loadDoctrine(
+        expandPath((await settings.get()).doctrinePath)
+      );
+    },
     async runAgent({ projectId, environmentId, title, prompt }) {
       const spawned = await bb.sdk.threads.spawn({
         projectId,
@@ -16649,6 +16775,7 @@ async function plugin(bb) {
   bb.events.on("thread.deleted", async ({ thread }) => {
     await historyMaintenance.forgetThread(thread.id);
   });
+  drainHarvest();
   bb.rpc.register(rpcContract, { getLibrary: currentLibrary });
   bb.agents.registerTool({
     name: "design_doctrine_search",
@@ -16906,6 +17033,7 @@ Retrieval: ${summary.retrieval.pointer_issued} pointers, ${summary.retrieval.sea
             bb.log.warn(error51 instanceof Error ? error51.message : String(error51));
           }
           bb.realtime.publish("rules-changed", { changed_at: (/* @__PURE__ */ new Date()).toISOString() });
+          drainHarvest();
         }
       }
     }
