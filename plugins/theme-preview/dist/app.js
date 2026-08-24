@@ -1024,7 +1024,6 @@ function useColorMode() {
     localStorage.setItem(MODE_KEY, next);
     window.dispatchEvent(new StorageEvent("storage", { key: MODE_KEY, oldValue: previous, newValue: next, storageArea: localStorage }));
     document.documentElement.classList.toggle("dark", next === "dark");
-    document.documentElement.style.colorScheme = next;
     setMode(next);
   };
   return [mode, set];

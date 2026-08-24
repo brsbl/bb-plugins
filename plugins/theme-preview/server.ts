@@ -487,33 +487,42 @@ export default async function plugin(bb: BbPluginApi) {
   // fallback for filesystems where watching is unreliable.
   bb.background.service("theme-watch", {
     async start(signal) {
-      const raw = (await bb.sdk.theme.catalog()) as { dir?: unknown };
-      const dir = typeof raw?.dir === "string" ? raw.dir : null;
-      if (!dir) return;
       let watcher: FSWatcher | null = null;
       let timer: ReturnType<typeof setTimeout> | null = null;
-      const onChange = () => {
-        if (timer) clearTimeout(timer);
-        timer = setTimeout(async () => {
-          try {
-            const next = await catalog(); // re-applies the active theme if its file changed
-            bb.realtime.publish("theme-preview:changed", { revision: next.revision, at: Date.now() });
-          } catch (error) {
-            bb.log.warn(`theme-preview: watch refresh failed: ${String(error)}`);
-          }
-        }, 120);
-      };
       try {
-        watcher = watch(dir, { recursive: true }, onChange);
-        watcher.on("error", (error) => bb.log.warn(`theme-preview: watcher error: ${String(error)}`));
-        bb.log.info(`theme-preview: watching ${dir}`);
+        const raw = (await bb.sdk.theme.catalog({ signal })) as { dir?: unknown };
+        if (signal.aborted) return;
+        const dir = typeof raw?.dir === "string" ? raw.dir : null;
+        if (!dir) return;
+        const onChange = () => {
+          if (timer) clearTimeout(timer);
+          timer = setTimeout(async () => {
+            try {
+              const next = await catalog(); // re-applies the active theme if its file changed
+              bb.realtime.publish("theme-preview:changed", { revision: next.revision, at: Date.now() });
+            } catch (error) {
+              bb.log.warn(`theme-preview: watch refresh failed: ${String(error)}`);
+            }
+          }, 120);
+        };
+        try {
+          watcher = watch(dir, { recursive: true }, onChange);
+          watcher.on("error", (error) => bb.log.warn(`theme-preview: watcher error: ${String(error)}`));
+          bb.log.info(`theme-preview: watching ${dir}`);
+        } catch (error) {
+          bb.log.warn(`theme-preview: cannot watch ${dir}: ${String(error)}`);
+          return;
+        }
+        await new Promise<void>((resolve) => {
+          if (signal.aborted) resolve();
+          else signal.addEventListener("abort", () => resolve(), { once: true });
+        });
       } catch (error) {
-        bb.log.warn(`theme-preview: cannot watch ${dir}: ${String(error)}`);
-        return;
+        if (!signal.aborted) throw error;
+      } finally {
+        if (timer) clearTimeout(timer);
+        watcher?.close();
       }
-      await new Promise<void>((resolve) => signal.addEventListener("abort", () => resolve(), { once: true }));
-      if (timer) clearTimeout(timer);
-      watcher?.close();
     },
   });
 

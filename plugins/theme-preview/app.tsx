@@ -996,7 +996,6 @@ function useColorMode(): [Mode, (next: Mode) => void] {
     // any listener in this window; other windows get the native event.
     window.dispatchEvent(new StorageEvent("storage", { key: MODE_KEY, oldValue: previous, newValue: next, storageArea: localStorage }));
     document.documentElement.classList.toggle("dark", next === "dark");
-    document.documentElement.style.colorScheme = next;
     setMode(next);
   };
   return [mode, set];
