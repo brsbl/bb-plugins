@@ -407,6 +407,7 @@ export function createCatalogLoader(bb: BbPluginApi) {
   const stamps = new Map<string, string>();
   let revision = 0;
   let selectionGeneration = 0;
+  let selectionQueue: Promise<void> = Promise.resolve();
 
   const catalog = async () => {
     const selectionAtStart = selectionGeneration;
@@ -456,7 +457,13 @@ export function createCatalogLoader(bb: BbPluginApi) {
     catalog,
     async setTheme(themeId: string) {
       selectionGeneration += 1;
-      await bb.sdk.theme.set(themeId);
+      // Theme application is global and not cancellable. Preserve click order
+      // so a slower earlier apply cannot land after the user's newer choice.
+      const apply = selectionQueue.then(async () => {
+        await bb.sdk.theme.set(themeId);
+      });
+      selectionQueue = apply.catch(() => undefined);
+      await apply;
       return catalog();
     },
   };

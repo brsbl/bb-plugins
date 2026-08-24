@@ -1078,14 +1078,14 @@ function PreviewPage({ subPath }: { subPath: string }) {
 
   const pick = (themeId: string, nextMode: Mode) => {
     setMode(nextMode);
-    if (themeId !== catalog.activeThemeId) {
-      selectionPending.current = true;
-      const request = catalogRequests.current.begin();
-      rpc.call("setTheme", { themeId })
-        .then((next) => { if (catalogRequests.current.isLatest(request)) setCatalog(next); })
-        .catch((err) => { if (catalogRequests.current.isLatest(request)) setError(String(err)); })
-        .finally(() => { if (catalogRequests.current.isLatest(request)) selectionPending.current = false; });
-    }
+    // Always send the explicit choice. The catalog reflects the last completed
+    // apply, so it can be stale while a slower selection is still in flight.
+    selectionPending.current = true;
+    const request = catalogRequests.current.begin();
+    rpc.call("setTheme", { themeId })
+      .then((next) => { if (catalogRequests.current.isLatest(request)) setCatalog(next); })
+      .catch((err) => { if (catalogRequests.current.isLatest(request)) setError(String(err)); })
+      .finally(() => { if (catalogRequests.current.isLatest(request)) selectionPending.current = false; });
   };
 
   const revision = `${mode}:${catalog.activeThemeId ?? ""}:${catalog.revision}`;

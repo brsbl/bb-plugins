@@ -14859,6 +14859,7 @@ function createCatalogLoader(bb) {
   const stamps = /* @__PURE__ */ new Map();
   let revision = 0;
   let selectionGeneration = 0;
+  let selectionQueue = Promise.resolve();
   const catalog = async () => {
     const selectionAtStart = selectionGeneration;
     const raw = await bb.sdk.theme.catalog();
@@ -14904,7 +14905,11 @@ function createCatalogLoader(bb) {
     catalog,
     async setTheme(themeId) {
       selectionGeneration += 1;
-      await bb.sdk.theme.set(themeId);
+      const apply = selectionQueue.then(async () => {
+        await bb.sdk.theme.set(themeId);
+      });
+      selectionQueue = apply.catch(() => void 0);
+      await apply;
       return catalog();
     }
   };

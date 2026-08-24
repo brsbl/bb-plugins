@@ -59,6 +59,44 @@ describe("parseThemeSwatches", () => {
 });
 
 describe("createCatalogLoader", () => {
+  it("serializes overlapping selections so the latest requested theme wins", async () => {
+    let activeThemeId = "initial";
+    const setCalls: string[] = [];
+    let releaseFirst!: () => void;
+    let markFirstStarted!: () => void;
+    const firstBlocked = new Promise<void>((resolve) => { releaseFirst = resolve; });
+    const firstStarted = new Promise<void>((resolve) => { markFirstStarted = resolve; });
+    const bb = {
+      sdk: {
+        theme: {
+          catalog: async () => ({ active: { themeId: activeThemeId }, custom: [], dir: null }),
+          set: async (themeId: string) => {
+            setCalls.push(themeId);
+            if (themeId === "theme-a") {
+              markFirstStarted();
+              await firstBlocked;
+            }
+            activeThemeId = themeId;
+          },
+        },
+        plugins: { list: async () => ({ plugins: [] }) },
+      },
+      log: { info() {}, warn() {} },
+    } as unknown as BbPluginApi;
+
+    const catalogLoader = createCatalogLoader(bb);
+    const first = catalogLoader.setTheme("theme-a");
+    await firstStarted;
+    const second = catalogLoader.setTheme("theme-b");
+    await Promise.resolve();
+
+    expect(setCalls).toEqual(["theme-a"]);
+    releaseFirst();
+    await Promise.all([first, second]);
+    expect(setCalls).toEqual(["theme-a", "theme-b"]);
+    expect(activeThemeId).toBe("theme-b");
+  });
+
   it("does not let a stale request reapply a theme selected by a newer request", async () => {
     const directory = await mkdtemp(join(tmpdir(), "theme-preview-catalog-"));
     for (const id of ["theme-a", "theme-b"]) {

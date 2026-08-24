@@ -1110,17 +1110,15 @@ function PreviewPage({ subPath }) {
   }, []);
   const pick = (themeId, nextMode) => {
     setMode(nextMode);
-    if (themeId !== catalog.activeThemeId) {
-      selectionPending.current = true;
-      const request = catalogRequests.current.begin();
-      rpc.call("setTheme", { themeId }).then((next) => {
-        if (catalogRequests.current.isLatest(request)) setCatalog(next);
-      }).catch((err) => {
-        if (catalogRequests.current.isLatest(request)) setError(String(err));
-      }).finally(() => {
-        if (catalogRequests.current.isLatest(request)) selectionPending.current = false;
-      });
-    }
+    selectionPending.current = true;
+    const request = catalogRequests.current.begin();
+    rpc.call("setTheme", { themeId }).then((next) => {
+      if (catalogRequests.current.isLatest(request)) setCatalog(next);
+    }).catch((err) => {
+      if (catalogRequests.current.isLatest(request)) setError(String(err));
+    }).finally(() => {
+      if (catalogRequests.current.isLatest(request)) selectionPending.current = false;
+    });
   };
   const revision = `${mode}:${catalog.activeThemeId ?? ""}:${catalog.revision}`;
   const computed = useComputedTokens(ALL_TOKENS, revision);
