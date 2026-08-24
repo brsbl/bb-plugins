@@ -1,0 +1,30 @@
+{
+  "name": "bb-plugin-theme-preview",
+  "version": "0.1.0",
+  "type": "module",
+  "private": true,
+  "files": ["assets", "dist", "docs", "skills", "README.md"],
+  "engines": { "bb": ">=0.38.0", "bbPluginSdk": ">=0.4.6" },
+  "bb": {
+    "name": "Theme Preview",
+    "description": "A skeleton of the bb app in every configuration — sidebar, splits, panels, overlays, threads — rendered from the active theme's tokens so a palette can be judged before it ships.",
+    "branding": { "icon": "./assets/swatches.svg" },
+    "server": "./server.ts",
+    "app": "./app.tsx",
+    "skills": ["skills"]
+  },
+  "scripts": {
+    "build": "node ../../tooling/build-plugin.mjs",
+    "check": "npm run typecheck && npm run build && npm test",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@get-bb/plugin-sdk": "file:../../tooling/vendor/get-bb-plugin-sdk-0.4.8.tgz",
+    "@types/node": "^22.0.0",
+    "@types/react": "^19.0.0",
+    "typescript": "^5.7.0",
+    "vitest": "^4.0.0",
+    "zod": "^4.3.6"
+  }
+}

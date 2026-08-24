@@ -1,0 +1,208 @@
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+
+import { describe, expect, it } from "vitest";
+import type { BbPluginApi } from "@get-bb/plugin-sdk";
+import plugin, { buildCatalog, classifySelector, createCatalogLoader, parseThemeSwatches } from "./server";
+
+describe("classifySelector", () => {
+  it("accepts the mode roots and rejects element-scoped blocks", () => {
+    expect(classifySelector(":root, .light")).toBe("shared");
+    expect(classifySelector(":root")).toBe("shared");
+    expect(classifySelector(":root:not(.dark)")).toBe("light");
+    expect(classifySelector(".dark")).toBe("dark");
+    expect(classifySelector(".dark .fixed.bg-sidebar")).toBeNull();
+    expect(classifySelector("code:not(pre code)")).toBeNull();
+  });
+});
+
+describe("parseThemeSwatches", () => {
+  const css = `
+    :root, .light { --canvas: #f4f4f4; --sidebar: #e4e4e4; --card: #fff; --primary: #0a0a0a;
+                    --file-accent: #405663; --foreground: #0a0a0a; --font-sans: Helvetica; --font-mono: Courier; }
+    .dark { --canvas: #1a1a1a; --sidebar: #0a0a0a; --card: #212121; --primary: #ffffff;
+            --file-accent: #9db6c6; --foreground: #cecbc4; }
+    :root:not(.dark) { --primary: #2e6f95; }
+    .dark .fixed.bg-sidebar { --sidebar: #070707; }
+  `;
+
+  it("resolves each mode with later declarations winning", () => {
+    const { light, dark } = parseThemeSwatches(css);
+    expect(light?.primary).toBe("#2e6f95");
+    expect(light?.canvas).toBe("#f4f4f4");
+    expect(dark?.primary).toBe("#ffffff");
+    // the element-scoped override describes one surface, not the palette
+    expect(dark?.sidebar).toBe("#0a0a0a");
+  });
+
+  it("falls back across token candidates and overlays the base palette", () => {
+    const { light, dark } = parseThemeSwatches(css);
+    expect(light?.fontSans).toBe("Helvetica");
+    expect(dark?.fontSans).toBe("Helvetica");
+    expect(parseThemeSwatches(":root { --background: #fff; }").light?.canvas).toBe("#fff");
+    expect(parseThemeSwatches(":root { --background: #fff; }").dark?.canvas).toBe("#fff");
+  });
+
+  it("resolves shared, mode-specific, derived, and inherited values", () => {
+    const parsed = parseThemeSwatches(`
+      :root { --brand: #456789; --primary: var(--brand); }
+      :root:not(.dark) { --canvas: #fefefe; }
+      .dark { --brand: #abcdef; --file-accent: var(--missing, var(--brand)); }
+    `);
+    expect(parsed.light?.primary).toBe("#456789");
+    expect(parsed.light?.canvas).toBe("#fefefe");
+    expect(parsed.dark?.primary).toBe("#abcdef");
+    expect(parsed.dark?.accent).toBe("#abcdef");
+    expect(parsed.dark?.canvas).toBe("oklch(0.195 0 0)");
+  });
+});
+
+describe("createCatalogLoader", () => {
+  it("serializes overlapping selections so the latest requested theme wins", async () => {
+    let activeThemeId = "initial";
+    const setCalls: string[] = [];
+    let releaseFirst!: () => void;
+    let markFirstStarted!: () => void;
+    const firstBlocked = new Promise<void>((resolve) => { releaseFirst = resolve; });
+    const firstStarted = new Promise<void>((resolve) => { markFirstStarted = resolve; });
+    const bb = {
+      sdk: {
+        theme: {
+          catalog: async () => ({ active: { themeId: activeThemeId }, custom: [], dir: null }),
+          set: async (themeId: string) => {
+            setCalls.push(themeId);
+            if (themeId === "theme-a") {
+              markFirstStarted();
+              await firstBlocked;
+            }
+            activeThemeId = themeId;
+          },
+        },
+        plugins: { list: async () => ({ plugins: [] }) },
+      },
+      log: { info() {}, warn() {} },
+    } as unknown as BbPluginApi;
+
+    const catalogLoader = createCatalogLoader(bb);
+    const first = catalogLoader.setTheme("theme-a");
+    await firstStarted;
+    const second = catalogLoader.setTheme("theme-b");
+    await Promise.resolve();
+
+    expect(setCalls).toEqual(["theme-a"]);
+    releaseFirst();
+    await Promise.all([first, second]);
+    expect(setCalls).toEqual(["theme-a", "theme-b"]);
+    expect(activeThemeId).toBe("theme-b");
+  });
+
+  it("does not let a stale request reapply a theme selected by a newer request", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "theme-preview-catalog-"));
+    for (const id of ["theme-a", "theme-b"]) {
+      await mkdir(join(directory, id));
+      await writeFile(join(directory, id, "theme.css"), `:root { --canvas: #${id === "theme-a" ? "aaaaaa" : "bbbbbb"}; }`);
+    }
+
+    let activeThemeId = "theme-a";
+    let pluginListCalls = 0;
+    let resumeFirstPluginList!: () => void;
+    const firstPluginList = new Promise<void>((resolve) => { resumeFirstPluginList = resolve; });
+    const setCalls: string[] = [];
+    const bb = {
+      sdk: {
+        theme: {
+          catalog: async () => ({ active: { themeId: activeThemeId }, custom: ["theme-a", "theme-b"], dir: directory }),
+          set: async (themeId: string) => { setCalls.push(themeId); activeThemeId = themeId; },
+        },
+        plugins: {
+          list: async () => {
+            pluginListCalls += 1;
+            if (pluginListCalls === 1) await firstPluginList;
+            return { plugins: [] };
+          },
+        },
+      },
+      log: { info() {}, warn() {} },
+    } as unknown as BbPluginApi;
+
+    const catalogLoader = createCatalogLoader(bb);
+    const stale = catalogLoader.catalog();
+    const latest = await catalogLoader.setTheme("theme-b");
+    expect(latest.activeThemeId).toBe("theme-b");
+    resumeFirstPluginList();
+    const late = await stale;
+
+    expect(late.activeThemeId).toBe("theme-a");
+    expect(activeThemeId).toBe("theme-b");
+    expect(setCalls).toEqual(["theme-b"]);
+    await rm(directory, { recursive: true, force: true });
+  });
+});
+
+describe("theme watcher", () => {
+  it("stops promptly when aborted during the initial catalog request", async () => {
+    let start!: (signal: AbortSignal) => Promise<void>;
+    let markCatalogStarted!: () => void;
+    const catalogStarted = new Promise<void>((resolve) => { markCatalogStarted = resolve; });
+    let catalogSignal: AbortSignal | undefined;
+    const bb = {
+      background: {
+        service(_name: string, options: { start(signal: AbortSignal): Promise<void> }) {
+          start = options.start;
+        },
+      },
+      sdk: {
+        theme: {
+          catalog: ({ signal }: { signal?: AbortSignal } = {}) => {
+            catalogSignal = signal;
+            markCatalogStarted();
+            return new Promise((_resolve, reject) => {
+              signal?.addEventListener("abort", () => reject(signal.reason), { once: true });
+            });
+          },
+        },
+      },
+      rpc: { register() {} },
+      log: { info() {}, warn() {} },
+    } as unknown as BbPluginApi;
+
+    await plugin(bb);
+    const controller = new AbortController();
+    const running = start(controller.signal);
+    await catalogStarted;
+    controller.abort();
+
+    await expect(running).resolves.toBeUndefined();
+    expect(catalogSignal).toBe(controller.signal);
+  });
+});
+
+describe("comments", () => {
+  it("does not let a commented selector swallow the block after it", () => {
+    const css = `/* .dark .fixed.bg-sidebar { --sidebar: #000; } */ :root { --canvas: #f4f4f4; }`;
+    expect(parseThemeSwatches(css).light?.canvas).toBe("#f4f4f4");
+  });
+});
+
+describe("buildCatalog", () => {
+  it("lists custom and plugin themes, keeps an unlisted active id, and attaches swatches", async () => {
+    const out = await buildCatalog(
+      {
+        active: { themeId: "default" },
+        custom: ["endless"],
+        plugins: [{ id: "plugin:endless:endless-color", name: "Endless Color" }],
+      },
+      async (id) => (id === "endless" ? ":root { --canvas: #f4f4f4; }" : null),
+    );
+    expect(out.activeThemeId).toBe("default");
+    expect(out.themes.map((t) => t.id).slice(0, 3)).toEqual(["endless", "plugin:endless:endless-color", "default"]);
+    // bundled palettes carry swatches extracted from bb's source
+    const nord = out.themes.find((t) => t.id === "nord");
+    expect(nord?.dark?.primary).toBe("#88c0d0");
+    expect(nord?.light?.canvas).toBe("#eceff4");
+    expect(out.themes[0].light?.canvas).toBe("#f4f4f4");
+    expect(out.themes[1].light).toBeNull();
+    expect(out.revision).toBe(0);
+  });
+});

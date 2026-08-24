@@ -1,6 +1,6 @@
 # bb plugins
 
-Seven bb plugins I use for product design work, kept together with the few build and repository tools they share. [![CI](https://github.com/brsbl/bb-plugins/actions/workflows/ci.yml/badge.svg)](https://github.com/brsbl/bb-plugins/actions/workflows/ci.yml)
+Ten bb plugins I use for product design work, kept together with the few build and repository tools they share. [![CI](https://github.com/brsbl/bb-plugins/actions/workflows/ci.yml/badge.svg)](https://github.com/brsbl/bb-plugins/actions/workflows/ci.yml)
 
 [bb](https://getbb.app) is an agentic IDE for running coding agents across projects, threads, and environments. Its plugins can add UI, commands, skills, and server capabilities; this repository is where I build and maintain mine.
 
@@ -71,6 +71,36 @@ Creates, edits, saves, and shares reusable mesh gradients from a visual studio b
 [Source](plugins/mesh-gradient) · [README](plugins/mesh-gradient/README.md)
 
 Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/mesh-gradient --yes`
+
+### Endless
+
+Frank Ocean's *Endless* as a bb palette — achromatic, grained, squared. Ten years to the day.
+
+![The Endless palette in bb](plugins/endless/docs/screenshot.png)
+
+[Source](plugins/endless) · [README](plugins/endless/README.md)
+
+Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/endless --yes`
+
+### Theme Preview
+
+A skeleton of the bb app in every configuration — sidebar, splits, panels, overlays, real thread timelines and controls — drawn from the active theme's tokens, so a palette can be judged before it ships.
+
+![Theme Preview in bb](plugins/theme-preview/docs/screenshot.png)
+
+[Source](plugins/theme-preview) · [README](plugins/theme-preview/README.md)
+
+Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/theme-preview --yes`
+
+### Color Swatches
+
+Renders an inline swatch beside every color literal in a thread — hex, `rgb()`, `hsl()`, `oklch()` and friends — the way an editor decorates code.
+
+![Color Swatches in bb](plugins/color-swatches/docs/screenshot.png)
+
+[Source](plugins/color-swatches) · [README](plugins/color-swatches/README.md)
+
+Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/color-swatches --yes`
 
 ### Timeline Comments
 
