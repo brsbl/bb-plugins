@@ -54,7 +54,7 @@ Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/t
 
 ### Thread Organizer
 
-Organizes work into development-phase sections, combining automatic placement with explicit agent transitions while preserving manual choices and native thread titles.
+Organizes work into configurable workflow sections, keeps unread idle threads in Inbox until work resumes, and reassesses titles after semantic stage transitions.
 
 ![Thread Organizer showing the current development-phase sections in bb's sidebar](plugins/thread-organizer/docs/screenshot.png)
 
