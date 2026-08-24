@@ -1,0 +1,29 @@
+[
+  {
+    "width": 1250,
+    "expected": "stacked",
+    "pass": true,
+    "viewportWidth": 1250,
+    "rootWidth": 919,
+    "rootScrollWidth": 919,
+    "layout": "stacked"
+  },
+  {
+    "width": 1251,
+    "expected": "stage-with-surfaces",
+    "pass": true,
+    "viewportWidth": 1251,
+    "rootWidth": 920,
+    "rootScrollWidth": 920,
+    "layout": "stage-with-surfaces"
+  },
+  {
+    "width": 1252,
+    "expected": "stage-with-surfaces",
+    "pass": true,
+    "viewportWidth": 1252,
+    "rootWidth": 921,
+    "rootScrollWidth": 921,
+    "layout": "stage-with-surfaces"
+  }
+]
