@@ -15,7 +15,7 @@ bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/color-swatc
 
 Nothing to configure. Once installed, color literals get chips inside fenced
 code blocks, diffs, and inline `` `#070509` `` code. A literal in the plain text
-of a submitted user message is painted as an inline color sample too.
+of a submitted user message gets the same square chip immediately before it.
 
 The chip shows alpha over a checkerboard and carries a faint ring, so
 `#ffffff` and `#000000` stay visible on any theme.
@@ -25,9 +25,9 @@ Two rendering paths keep thread behavior intact:
 - **Code is never rewritten.** Its chip is drawn in `::before` from a custom
   property on bb's existing token, so streaming, selection, and copied text are
   unchanged.
-- **User-message prose uses browser highlights.** A `Range` identifies the
-  literal and CSS paints the sample without inserting a wrapper into React's
-  DOM, so editing, selection, and copied text remain unchanged.
+- **Submitted user messages retain React's text node.** The plugin inserts a
+  small chip host beside each literal without changing the copied text, and
+  removes those hosts before React updates that message again.
 
 The composer is never decorated.
 

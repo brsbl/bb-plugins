@@ -19,32 +19,25 @@ import { findColorMatches } from "./colors";
 // literal always begins at a child boundary (`<span>#</span><span>f4f4f4</span>`)
 // and the chip can sit on the token that starts the match.
 //
-// Submitted user-message prose has no token boundary to decorate, so it uses
-// the browser's Custom Highlight API. A Range identifies the literal and CSS
-// paints it without changing React's DOM. Agent prose deliberately stays on
-// the token path above so live streaming remains as cheap as possible.
+// Submitted user-message prose has no token boundary to decorate. It is not a
+// streaming surface, so each matching literal gets an inline span after send.
+// The original React-owned Text node remains first in the paragraph: we only
+// shorten it to the prefix and insert the remaining nodes after it. If React
+// updates that Text node later, the inserted nodes are removed before the new
+// value is decorated. Copying still yields exactly the authored message because
+// the visual chip remains generated content.
 // ---------------------------------------------------------------------------
 
 const ATTR = "data-bb-color-swatch";
+const PROSE_ATTR = "data-bb-color-swatch-prose";
 const PROP = "--bb-color-swatch";
 const USER_PROSE_SELECTOR =
   "[data-message-column] > .ml-auto [data-markdown-preview]";
-const PROSE_HIGHLIGHT_PREFIX = "bb-color-swatches-prose-";
 
-interface HighlightRegistryLike {
-  delete(name: string): boolean;
-  set(name: string, highlight: unknown): unknown;
-}
-
-interface HighlightApi {
-  registry: HighlightRegistryLike;
-  HighlightConstructor: new (...ranges: Range[]) => unknown;
-}
-
-interface ProseHighlightEntry {
-  name: string;
-  value: string;
-  foreground: string | null;
+interface ProseDecoration {
+  root: Element;
+  originalText: string;
+  insertedNodes: Node[];
 }
 
 const STYLESHEET = `
@@ -71,6 +64,10 @@ const STYLESHEET = `
   background-color: #fff;
   box-shadow: inset 0 0 0 1px rgba(128, 128, 128, 0.45);
 }
+[${PROSE_ATTR}] {
+  /* Keep the generated chip attached to the literal at line boundaries. */
+  white-space: nowrap;
+}
 `;
 
 /** Containers whose text is being edited — never decorate the composer. */
@@ -89,20 +86,6 @@ function decorate(el: HTMLElement, value: string): void {
 function undecorate(el: Element): void {
   el.removeAttribute(ATTR);
   (el as HTMLElement).style?.removeProperty(PROP);
-}
-
-function highlightApi(): HighlightApi | null {
-  if (typeof CSS === "undefined") return null;
-  const registry = (CSS as typeof CSS & { highlights?: HighlightRegistryLike })
-    .highlights;
-  const HighlightConstructor = (
-    globalThis as typeof globalThis & {
-      Highlight?: new (...ranges: Range[]) => unknown;
-    }
-  ).Highlight;
-  return registry && HighlightConstructor
-    ? { registry, HighlightConstructor }
-    : null;
 }
 
 /**
@@ -137,119 +120,109 @@ function decorateWholeElement(el: HTMLElement): void {
   if (isColor(only.value)) decorate(el, only.value);
 }
 
-function contrastForeground(value: string): string | null {
-  const canvas = document.createElement("canvas");
-  canvas.width = 1;
-  canvas.height = 1;
-  const context = canvas.getContext("2d", { willReadFrequently: true });
-  if (!context) return null;
-
-  context.fillStyle = "rgb(1, 2, 3)";
-  const sentinel = context.fillStyle;
-  context.fillStyle = value;
-  if (context.fillStyle === sentinel) return null;
-  context.fillRect(0, 0, 1, 1);
-  const [red, green, blue, alpha] = context.getImageData(0, 0, 1, 1).data;
-  const opacity = alpha / 255;
-  const composite = (channel: number) =>
-    channel * opacity + 128 * (1 - opacity);
-  const linear = (channel: number) => {
-    const normalized = composite(channel) / 255;
-    return normalized <= 0.04045
-      ? normalized / 12.92
-      : ((normalized + 0.055) / 1.055) ** 2.4;
-  };
-  const luminance =
-    0.2126 * linear(red) + 0.7152 * linear(green) + 0.0722 * linear(blue);
-  return luminance > 0.42 ? "#111" : "#fff";
-}
-
-/** Paint submitted user-message literals without changing React-owned DOM. */
-class ProseHighlighter {
-  private readonly api = highlightApi();
-  private readonly entriesByRoot = new Map<Element, ProseHighlightEntry[]>();
-  private dirty = false;
-  private nextId = 1;
-
-  constructor(private readonly style: HTMLStyleElement) {}
+/** Add inline chip hosts while retaining the Text nodes React owns. */
+class ProseDecorator {
+  private readonly decorations = new Map<Text, ProseDecoration>();
+  private readonly nodesByRoot = new Map<Element, Set<Text>>();
 
   prune(): void {
-    for (const root of this.entriesByRoot.keys()) {
-      if (!root.isConnected) this.clearRoot(root);
+    for (const [node, decoration] of [...this.decorations]) {
+      if (!node.isConnected || !decoration.root.isConnected) {
+        this.release(node, true);
+      }
     }
   }
 
   replace(root: Element): void {
     this.clearRoot(root);
-    if (!this.api) return;
 
-    const entries: ProseHighlightEntry[] = [];
+    const textNodes: Text[] = [];
     const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
     for (let node = walker.nextNode(); node; node = walker.nextNode()) {
-      const textNode = node as Text;
-      const parent = textNode.parentElement;
-      if (
-        !parent ||
-        parent.closest(`${EXCLUDED}, code, pre`) ||
-        (!textNode.data.includes("#") && !/[a-z]\(/i.test(textNode.data))
-      ) {
-        continue;
-      }
-      for (const match of findColorMatches(textNode.data)) {
-        if (!isColor(match.value)) continue;
-        const range = document.createRange();
-        range.setStart(textNode, match.start);
-        range.setEnd(textNode, match.end);
-        const name = `${PROSE_HIGHLIGHT_PREFIX}${this.nextId++}`;
-        this.api.registry.set(name, new this.api.HighlightConstructor(range));
-        entries.push({
-          name,
-          value: match.value,
-          foreground: contrastForeground(match.value),
-        });
-      }
+      textNodes.push(node as Text);
     }
-    if (entries.length > 0) {
-      this.entriesByRoot.set(root, entries);
-      this.dirty = true;
-    }
+    for (const textNode of textNodes) this.decorateTextNode(root, textNode);
   }
 
-  commit(): void {
-    if (!this.dirty) return;
-    this.syncStyles();
-    this.dirty = false;
+  /**
+   * React updated a Text node we retained. Remove our siblings but preserve
+   * React's new value so the next frame can decorate that value from scratch.
+   */
+  releaseForExternalUpdate(node: Text): Element | null {
+    const root = this.decorations.get(node)?.root ?? null;
+    if (root) this.release(node, false);
+    return root;
   }
 
   dispose(): void {
-    for (const root of [...this.entriesByRoot.keys()]) this.clearRoot(root);
-    this.commit();
+    for (const root of [...this.nodesByRoot.keys()]) this.clearRoot(root);
+  }
+
+  private decorateTextNode(root: Element, textNode: Text): void {
+    const parent = textNode.parentElement;
+    const text = textNode.data;
+    if (
+      !parent ||
+      parent.closest(`${EXCLUDED}, code, pre`) ||
+      (!text.includes("#") && !/[a-z]\(/i.test(text))
+    ) {
+      return;
+    }
+
+    const matches = findColorMatches(text).filter((match) =>
+      isColor(match.value),
+    );
+    if (matches.length === 0) return;
+
+    const fragment = document.createDocumentFragment();
+    const insertedNodes: Node[] = [];
+    let cursor = matches[0].start;
+    textNode.data = text.slice(0, cursor);
+
+    for (const match of matches) {
+      if (match.start > cursor) {
+        const between = document.createTextNode(text.slice(cursor, match.start));
+        fragment.append(between);
+        insertedNodes.push(between);
+      }
+      const swatch = document.createElement("span");
+      swatch.setAttribute(PROSE_ATTR, "");
+      swatch.textContent = match.value;
+      decorate(swatch, match.value);
+      fragment.append(swatch);
+      insertedNodes.push(swatch);
+      cursor = match.end;
+    }
+    if (cursor < text.length) {
+      const trailing = document.createTextNode(text.slice(cursor));
+      fragment.append(trailing);
+      insertedNodes.push(trailing);
+    }
+
+    textNode.parentNode?.insertBefore(fragment, textNode.nextSibling);
+    this.decorations.set(textNode, { root, originalText: text, insertedNodes });
+    const rootNodes = this.nodesByRoot.get(root) ?? new Set<Text>();
+    rootNodes.add(textNode);
+    this.nodesByRoot.set(root, rootNodes);
   }
 
   private clearRoot(root: Element): void {
-    const entries = this.entriesByRoot.get(root);
-    if (!entries) return;
-    for (const entry of entries) this.api?.registry.delete(entry.name);
-    this.entriesByRoot.delete(root);
-    this.dirty = true;
+    for (const node of [...(this.nodesByRoot.get(root) ?? [])]) {
+      this.release(node, true);
+    }
   }
 
-  private syncStyles(): void {
-    const proseRules = [...this.entriesByRoot.values()]
-      .flat()
-      .map(
-        ({ name, value, foreground }) => `
-::highlight(${name}) {
-  background-color: ${value};
-  ${foreground ? `color: ${foreground};` : ""}
-  text-decoration-line: underline;
-  text-decoration-color: rgba(128, 128, 128, 0.65);
-  text-decoration-thickness: 1px;
-  text-underline-offset: 2px;
-}`,
-      )
-      .join("\n");
-    this.style.textContent = `${STYLESHEET}${proseRules}`;
+  private release(node: Text, restoreOriginal: boolean): void {
+    const decoration = this.decorations.get(node);
+    if (!decoration) return;
+    if (restoreOriginal) node.data = decoration.originalText;
+    for (const inserted of decoration.insertedNodes) {
+      inserted.parentNode?.removeChild(inserted);
+    }
+    this.decorations.delete(node);
+    const rootNodes = this.nodesByRoot.get(decoration.root);
+    rootNodes?.delete(node);
+    if (rootNodes?.size === 0) this.nodesByRoot.delete(decoration.root);
   }
 }
 
@@ -260,10 +233,12 @@ function matchesWithin(root: ParentNode, selector: string): Element[] {
     : matches;
 }
 
-function scan(root: ParentNode, proseHighlighter: ProseHighlighter): void {
-  proseHighlighter.prune();
+function scan(root: ParentNode, proseDecorator: ProseDecorator): void {
+  proseDecorator.prune();
   // Re-scanning a streamed line must not leave yesterday's chips behind.
-  for (const stale of Array.from(root.querySelectorAll?.(`[${ATTR}]`) ?? [])) {
+  for (const stale of Array.from(
+    root.querySelectorAll?.(`[${ATTR}]:not([${PROSE_ATTR}])`) ?? [],
+  )) {
     undecorate(stale);
   }
 
@@ -276,9 +251,8 @@ function scan(root: ParentNode, proseHighlighter: ProseHighlighter): void {
     decorateWholeElement(code as HTMLElement);
   }
   for (const prose of matchesWithin(root, USER_PROSE_SELECTOR)) {
-    if (!prose.closest(EXCLUDED)) proseHighlighter.replace(prose);
+    if (!prose.closest(EXCLUDED)) proseDecorator.replace(prose);
   }
-  proseHighlighter.commit();
 }
 
 export default definePluginApp((app) => {
@@ -289,22 +263,32 @@ export default definePluginApp((app) => {
       style.dataset.bbColorSwatches = "";
       style.textContent = STYLESHEET;
       document.head.append(style);
-      const proseHighlighter = new ProseHighlighter(style);
+      const proseDecorator = new ProseDecorator();
 
       // Streaming fires mutations constantly; collect subtrees and do one pass
       // per frame rather than one pass per mutation record.
       let pending: Set<ParentNode> | null = null;
+      let frameId: number | null = null;
+      let disposed = false;
       const flush = () => {
+        frameId = null;
+        if (disposed) {
+          pending = null;
+          return;
+        }
         const roots = pending ?? new Set();
         pending = null;
         for (const root of roots) {
-          if (root.isConnected !== false) scan(root, proseHighlighter);
+          if (root.isConnected !== false) scan(root, proseDecorator);
         }
+        // Discard the DOM mutations caused by this content script itself.
+        observer.takeRecords();
       };
       const queue = (node: ParentNode) => {
+        if (disposed) return;
         if (!pending) {
           pending = new Set();
-          requestAnimationFrame(flush);
+          frameId = requestAnimationFrame(flush);
         }
         pending.add(node);
       };
@@ -312,6 +296,13 @@ export default definePluginApp((app) => {
       const observer = new MutationObserver((records) => {
         for (const record of records) {
           const target = record.target;
+          if (record.type === "characterData" && target instanceof Text) {
+            const proseRoot = proseDecorator.releaseForExternalUpdate(target);
+            if (proseRoot) {
+              queue(proseRoot);
+              continue;
+            }
+          }
           const host =
             target.nodeType === Node.ELEMENT_NODE
               ? (target as Element)
@@ -330,12 +321,18 @@ export default definePluginApp((app) => {
         characterData: true,
       });
 
-      scan(document.body, proseHighlighter);
+      scan(document.body, proseDecorator);
       observer.takeRecords();
 
       const dispose = () => {
+        disposed = true;
+        pending = null;
+        if (frameId !== null) {
+          cancelAnimationFrame(frameId);
+          frameId = null;
+        }
         observer.disconnect();
-        proseHighlighter.dispose();
+        proseDecorator.dispose();
         style.remove();
         for (const el of Array.from(document.querySelectorAll(`[${ATTR}]`))) {
           undecorate(el);
