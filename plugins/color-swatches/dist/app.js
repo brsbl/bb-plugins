@@ -251,7 +251,14 @@ var app_default = definePluginApp((app) => {
       document.head.append(style);
       const proseDecorator = new ProseDecorator();
       let pending = null;
+      let frameId = null;
+      let disposed = false;
       const flush = () => {
+        frameId = null;
+        if (disposed) {
+          pending = null;
+          return;
+        }
         const roots = pending ?? /* @__PURE__ */ new Set();
         pending = null;
         for (const root of roots) {
@@ -260,9 +267,10 @@ var app_default = definePluginApp((app) => {
         observer.takeRecords();
       };
       const queue = (node) => {
+        if (disposed) return;
         if (!pending) {
           pending = /* @__PURE__ */ new Set();
-          requestAnimationFrame(flush);
+          frameId = requestAnimationFrame(flush);
         }
         pending.add(node);
       };
@@ -289,6 +297,12 @@ var app_default = definePluginApp((app) => {
       scan(document.body, proseDecorator);
       observer.takeRecords();
       const dispose = () => {
+        disposed = true;
+        pending = null;
+        if (frameId !== null) {
+          cancelAnimationFrame(frameId);
+          frameId = null;
+        }
         observer.disconnect();
         proseDecorator.dispose();
         style.remove();

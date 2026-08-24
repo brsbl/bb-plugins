@@ -268,7 +268,14 @@ export default definePluginApp((app) => {
       // Streaming fires mutations constantly; collect subtrees and do one pass
       // per frame rather than one pass per mutation record.
       let pending: Set<ParentNode> | null = null;
+      let frameId: number | null = null;
+      let disposed = false;
       const flush = () => {
+        frameId = null;
+        if (disposed) {
+          pending = null;
+          return;
+        }
         const roots = pending ?? new Set();
         pending = null;
         for (const root of roots) {
@@ -278,9 +285,10 @@ export default definePluginApp((app) => {
         observer.takeRecords();
       };
       const queue = (node: ParentNode) => {
+        if (disposed) return;
         if (!pending) {
           pending = new Set();
-          requestAnimationFrame(flush);
+          frameId = requestAnimationFrame(flush);
         }
         pending.add(node);
       };
@@ -317,6 +325,12 @@ export default definePluginApp((app) => {
       observer.takeRecords();
 
       const dispose = () => {
+        disposed = true;
+        pending = null;
+        if (frameId !== null) {
+          cancelAnimationFrame(frameId);
+          frameId = null;
+        }
         observer.disconnect();
         proseDecorator.dispose();
         style.remove();

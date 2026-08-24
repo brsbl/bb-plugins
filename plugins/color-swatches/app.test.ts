@@ -15,9 +15,14 @@ afterEach(() => {
 describe("Color Swatches content script", () => {
   it("decorates a color literal in user-message prose", async () => {
     const frames: FrameRequestCallback[] = [];
+    const canceledFrames: number[] = [];
+    let nextFrameId = 1;
     vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) => {
       frames.push(callback);
-      return frames.length;
+      return nextFrameId++;
+    });
+    vi.stubGlobal("cancelAnimationFrame", (frameId: number) => {
+      canceledFrames.push(frameId);
     });
     vi.stubGlobal("CSS", { supports: () => true });
     document.body.innerHTML = `
@@ -68,9 +73,16 @@ describe("Color Swatches content script", () => {
     expect(paragraph.textContent).toBe("updated message #000000");
     expect(paragraph.firstChild).toBe(originalTextNode);
 
+    originalTextNode.data = "final message #ff00ff";
+    await Promise.resolve();
+    expect(frames).toHaveLength(1);
+    const staleFrame = frames.shift()!;
+
     await mounted.lifecycle.dispose();
+    expect(canceledFrames).toEqual([2]);
+    staleFrame(0);
     expect(document.querySelector("[data-bb-color-swatch-prose]")).toBeNull();
-    expect(paragraph.textContent).toBe("updated message #000000");
+    expect(paragraph.textContent).toBe("final message #ff00ff");
     expect(paragraph.firstChild).toBe(originalTextNode);
   });
 
