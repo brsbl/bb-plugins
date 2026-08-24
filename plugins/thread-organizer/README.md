@@ -27,7 +27,9 @@ The plugin does not classify prompts to choose stages. Agents and users move
 threads from the rules saved in plugin settings; title reassessment runs only
 after one of those semantic transitions.
 
-## Configure
+## Use
+
+### Configure
 
 Open Thread Organizer in bb’s plugin settings. The workflow editor lets you:
 
@@ -42,7 +44,7 @@ and On Hold. When an agent has enough context to determine that its current
 work clearly matches a rule, the bundled skill tells it to move the thread. If
 the context is insufficient, the thread stays where it is.
 
-## Move a thread
+### Move a thread
 
 Run the configured stage key from inside a bb thread:
 
