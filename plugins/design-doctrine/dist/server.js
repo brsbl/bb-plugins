@@ -15448,6 +15448,26 @@ async function ensureMaintenanceCheckout(pluginRoot) {
     );
   }
 }
+var MaintenanceHeadChangedError = class extends Error {
+  constructor(expected, actual) {
+    super(
+      `maintenance checkout HEAD changed during doctrine harvest (expected ${expected}, found ${actual})`
+    );
+    this.name = "MaintenanceHeadChangedError";
+  }
+};
+async function readMaintenanceHead(pluginRoot) {
+  const result = await execFileAsync(
+    "git",
+    ["-C", pluginRoot, "rev-parse", "HEAD"],
+    { encoding: "utf8" }
+  );
+  const head = result.stdout.trim();
+  if (!/^[0-9a-f]{40,64}$/i.test(head)) {
+    throw new Error("maintenance checkout has no valid HEAD commit");
+  }
+  return head;
+}
 function assertRulePath(relativePath) {
   if (!/^rules\/[a-z-]+\/ddr_\d{3,}\.md$/.test(relativePath)) {
     throw new Error(`invalid generated rule path: ${relativePath}`);
@@ -15470,7 +15490,7 @@ async function rollbackNewRuleFiles(pluginRoot, relativePaths) {
     })
   );
 }
-async function commitNewRuleFiles(pluginRoot, files, validate) {
+async function commitNewRuleFiles(pluginRoot, files, validate, expectedHead) {
   if (files.length === 0) return;
   if (files.length > 5) {
     throw new Error("a doctrine harvest may commit at most five rule files");
@@ -15481,6 +15501,12 @@ async function commitNewRuleFiles(pluginRoot, files, validate) {
     throw new Error("generated rule paths must be unique");
   }
   await ensureMaintenanceCheckout(pluginRoot);
+  if (expectedHead) {
+    const actualHead = await readMaintenanceHead(pluginRoot);
+    if (actualHead !== expectedHead) {
+      throw new MaintenanceHeadChangedError(expectedHead, actualHead);
+    }
+  }
   const created = [];
   let committed = false;
   try {
@@ -15491,6 +15517,12 @@ async function commitNewRuleFiles(pluginRoot, files, validate) {
       created.push(file2.relativePath);
     }
     await validate();
+    if (expectedHead) {
+      const actualHead = await readMaintenanceHead(pluginRoot);
+      if (actualHead !== expectedHead) {
+        throw new MaintenanceHeadChangedError(expectedHead, actualHead);
+      }
+    }
     const expectedStatus = new Set(
       relativePaths.map((relativePath) => `?? ${relativePath}`)
     );
@@ -15600,6 +15632,7 @@ function createHistoryMaintenance(bb, resolveDoctrineRoot, installedPluginRoot) 
 }
 
 // harvest.ts
+import { randomBytes } from "node:crypto";
 import { join as join2 } from "node:path";
 var HARVEST_SCHEMA = [
   `CREATE TABLE IF NOT EXISTS harvest_threads (
@@ -15625,6 +15658,11 @@ var HARVEST_SCHEMA = [
 ];
 var RECURRENCE_APPROVAL_THRESHOLD = 3;
 var HARVEST_RULE_FILE_LIMIT = 5;
+var REVIEW_CATALOG_RETRY_LIMIT = 2;
+var HARVESTED_STATE = "pending:harvested";
+var HARVESTER_CAPABILITY_PREFIX = "pending:harvester:";
+var REVIEWED_HEAD_PREFIX = "pending:reviewed:";
+var REVIEWER_CAPABILITY_PREFIX = "internal:reviewer:";
 var KEY_STOP_TOKENS = /* @__PURE__ */ new Set([
   "a",
   "an",
@@ -15666,29 +15704,55 @@ var KEY_STOP_TOKENS = /* @__PURE__ */ new Set([
   "with",
   "without"
 ]);
+var UNSAFE_RENDERED_PATTERNS = [
+  {
+    pattern: /\b(?:thr|msg|message|seg)_[a-z0-9_-]+\b/i,
+    message: "must not contain thread or message identifiers"
+  },
+  {
+    pattern: /(?:\b[a-z][a-z0-9+.-]*:\/\/|\bwww\.)\S*/i,
+    message: "must not contain URLs"
+  },
+  {
+    pattern: /(?:-----BEGIN [A-Z ]*PRIVATE KEY-----|\bAKIA[0-9A-Z]{16}\b|\bgh[pousr]_[A-Za-z0-9]{20,}\b|\bsk-[A-Za-z0-9_-]{16,}\b|\b(?:api[_ -]?key|access[_ -]?token|token|password|secret)\s*[:=]\s*\S+)/i,
+    message: "must not contain credentials or secrets"
+  }
+];
+function renderedString(minimum, maximum) {
+  return external_exports.string().trim().min(minimum).max(maximum).refine((value) => !/[\r\n]/.test(value), "must be a single line").superRefine((value, context) => {
+    for (const unsafe of UNSAFE_RENDERED_PATTERNS) {
+      if (unsafe.pattern.test(value)) {
+        context.addIssue({ code: "custom", message: unsafe.message });
+      }
+    }
+  });
+}
+function renderedList(minimum = 0, maximum = 20, itemLength = 400) {
+  return external_exports.array(renderedString(1, itemLength)).min(minimum).max(maximum);
+}
 var harvestProposalSchema = external_exports.object({
-  title: external_exports.string().trim().min(3).max(120),
-  statement: external_exports.string().trim().min(10),
+  title: renderedString(3, 120),
+  statement: renderedString(10, 1e3),
   kind: external_exports.enum(["principle", "standard", "guideline", "taste", "anti_pattern"]),
   strength: external_exports.enum(["required", "default", "preference", "warning"]),
   confidence: external_exports.enum(["low", "medium", "high"]).default("low"),
-  domain: external_exports.string().regex(/^[a-z-]+\.[a-z-]+$/),
-  products: external_exports.array(external_exports.string().trim().min(1)).min(1),
-  activities: external_exports.array(external_exports.string().trim().min(1)).min(1),
-  artifacts: external_exports.array(external_exports.string().trim().min(1)).min(1),
-  surfaces: external_exports.array(external_exports.string().trim().min(1)).default([]),
-  why: external_exports.string().trim().min(10),
-  prefer: external_exports.array(external_exports.string().trim().min(1)).min(1),
-  avoid: external_exports.array(external_exports.string().trim().min(1)).min(1),
-  use_when: external_exports.array(external_exports.string().trim().min(1)).min(1),
-  not_when: external_exports.array(external_exports.string().trim().min(1)).default([]),
-  exceptions: external_exports.array(external_exports.string().trim().min(1)).default([]),
-  evidence: external_exports.array(external_exports.string().trim().min(1)).min(1),
-  checks: external_exports.array(external_exports.string().trim().min(1)).min(1)
+  domain: renderedString(3, 80).regex(/^[a-z-]+\.[a-z-]+$/),
+  products: renderedList(1, 20, 80),
+  activities: renderedList(1, 20, 80),
+  artifacts: renderedList(1, 20, 80),
+  surfaces: renderedList(0, 20, 120).default([]),
+  why: renderedString(10, 1e3),
+  prefer: renderedList(1),
+  avoid: renderedList(1),
+  use_when: renderedList(1),
+  not_when: renderedList().default([]),
+  exceptions: renderedList().default([]),
+  evidence: renderedList(1),
+  checks: renderedList(1)
 });
 var harvestVerdictSchema = external_exports.object({
   approve: external_exports.boolean(),
-  reason: external_exports.string().trim().min(3).max(600)
+  reason: renderedString(3, 600)
 });
 function normalizeRuleKey(proposal) {
   const tokens = (proposal.title.toLocaleLowerCase().match(/[a-z0-9]+/g) ?? []).filter((token) => token.length > 2 && !KEY_STOP_TOKENS.has(token));
@@ -15712,6 +15776,7 @@ function bulletList(values) {
   return values.map((value) => `- ${value}`).join("\n");
 }
 function renderRuleMarkdown(proposal, id, updated) {
+  proposal = harvestProposalSchema.parse(proposal);
   const sections = [
     `# ${proposal.title}`,
     "",
@@ -15810,6 +15875,38 @@ function createHarvest(dependencies) {
       writtenPath: row.written_path ?? null
     };
   }
+  function capabilityToken() {
+    return randomBytes(32).toString("base64url");
+  }
+  function isReviewerCapability(value) {
+    return value?.startsWith(REVIEWER_CAPABILITY_PREFIX) ?? false;
+  }
+  function rawThreadOutcome(threadId) {
+    const row = db().prepare(`SELECT outcome FROM harvest_threads WHERE thread_id = ?`).get(threadId);
+    if (!row) return void 0;
+    return row.outcome ?? null;
+  }
+  function isPending(threadId) {
+    return Boolean(
+      db().prepare(
+        `SELECT 1 FROM harvest_threads
+           WHERE thread_id = ? AND processed_at IS NULL`
+      ).get(threadId)
+    );
+  }
+  function hasHarvesterReport(threadId) {
+    const outcome = rawThreadOutcome(threadId);
+    return outcome === HARVESTED_STATE || (outcome?.startsWith(REVIEWED_HEAD_PREFIX) ?? false);
+  }
+  function beginHarvester(threadId) {
+    if (!isPending(threadId) || hasHarvesterReport(threadId)) return null;
+    const token = capabilityToken();
+    const result = db().prepare(
+      `UPDATE harvest_threads SET outcome = ?
+         WHERE thread_id = ? AND processed_at IS NULL`
+    ).run(`${HARVESTER_CAPABILITY_PREFIX}${token}`, threadId);
+    return result.changes > 0 ? token : null;
+  }
   function enqueue(thread) {
     if (!isHarvestableThread(thread)) return false;
     const result = db().prepare(
@@ -15837,49 +15934,158 @@ function createHarvest(dependencies) {
   function markProcessed(threadId, outcome) {
     db().prepare(
       `UPDATE harvest_threads SET processed_at = ?, outcome = ?
-         WHERE thread_id = ?`
+         WHERE thread_id = ? AND processed_at IS NULL`
     ).run(now(), outcome, threadId);
   }
-  function recordProposals(threadId, proposals) {
-    const insert = db().prepare(
-      `INSERT INTO harvest_proposals
-         (thread_id, rule_key, payload, created_at)
-       VALUES (?, ?, ?, ?)`
+  function recordProposals(threadId, token, proposals) {
+    const validated = proposals.map(
+      (proposal) => harvestProposalSchema.parse(proposal)
     );
-    const stored = [];
-    for (const proposal of proposals) {
-      const ruleKey = normalizeRuleKey(proposal);
-      const createdAt = now();
-      const result = insert.run(
-        threadId,
-        ruleKey,
-        JSON.stringify(proposal),
-        createdAt
-      );
-      stored.push({
-        id: Number(result.lastInsertRowid),
-        threadId,
-        ruleKey,
-        proposal,
-        createdAt,
-        verdict: null,
-        reason: null,
-        writtenPath: null
-      });
-    }
-    return stored;
+    const databaseHandle = db();
+    const transact = databaseHandle.transaction(() => {
+      const expected = `${HARVESTER_CAPABILITY_PREFIX}${token}`;
+      const state = databaseHandle.prepare(
+        `SELECT outcome FROM harvest_threads
+           WHERE thread_id = ? AND processed_at IS NULL`
+      ).get(threadId);
+      if (!state || state.outcome !== expected) {
+        throw new Error("invalid or expired harvester capability");
+      }
+      const stored = [];
+      const seen = /* @__PURE__ */ new Set();
+      for (const proposal of validated) {
+        const ruleKey = normalizeRuleKey(proposal);
+        if (seen.has(ruleKey)) continue;
+        seen.add(ruleKey);
+        const existing = databaseHandle.prepare(
+          `SELECT * FROM harvest_proposals
+             WHERE thread_id = ? AND rule_key = ?
+             ORDER BY id LIMIT 1`
+        ).get(threadId, ruleKey);
+        if (existing) {
+          stored.push(readProposal(existing));
+          continue;
+        }
+        const createdAt = now();
+        const result = databaseHandle.prepare(
+          `INSERT INTO harvest_proposals
+               (thread_id, rule_key, payload, created_at)
+             VALUES (?, ?, ?, ?)`
+        ).run(threadId, ruleKey, JSON.stringify(proposal), createdAt);
+        stored.push({
+          id: Number(result.lastInsertRowid),
+          threadId,
+          ruleKey,
+          proposal,
+          createdAt,
+          verdict: null,
+          reason: null,
+          writtenPath: null
+        });
+      }
+      const transitioned = databaseHandle.prepare(
+        `UPDATE harvest_threads SET outcome = ?
+           WHERE thread_id = ? AND processed_at IS NULL AND outcome = ?`
+      ).run(HARVESTED_STATE, threadId, expected);
+      if (transitioned.changes !== 1) {
+        throw new Error("invalid or expired harvester capability");
+      }
+      return stored;
+    });
+    return transact();
   }
-  function recordVerdict(proposalId, verdict, reason, writtenPath = null) {
+  function recordVerdict(proposalId, token, verdict, reason) {
+    const parsedReason = harvestVerdictSchema.parse({
+      approve: verdict === "approved",
+      reason
+    }).reason;
+    const capability = `${REVIEWER_CAPABILITY_PREFIX}${token}`;
+    const result = db().prepare(
+      `UPDATE harvest_proposals
+         SET verdict = ?, reason = ?, written_path = NULL
+         WHERE id = ? AND verdict IS NULL AND reason = ?
+           AND EXISTS (
+             SELECT 1 FROM harvest_threads
+             WHERE harvest_threads.thread_id = harvest_proposals.thread_id
+               AND harvest_threads.processed_at IS NULL
+           )`
+    ).run(verdict, parsedReason, proposalId, capability);
+    if (result.changes !== 1) {
+      throw new Error("invalid or expired reviewer capability");
+    }
+  }
+  function beginReviewer(proposalId) {
+    const token = capabilityToken();
+    const result = db().prepare(
+      `UPDATE harvest_proposals SET reason = ?
+         WHERE id = ? AND verdict IS NULL
+           AND EXISTS (
+             SELECT 1 FROM harvest_threads
+             WHERE harvest_threads.thread_id = harvest_proposals.thread_id
+               AND harvest_threads.processed_at IS NULL
+           )`
+    ).run(`${REVIEWER_CAPABILITY_PREFIX}${token}`, proposalId);
+    return result.changes === 1 ? token : null;
+  }
+  function setSystemVerdict(proposalId, verdict, reason) {
     db().prepare(
       `UPDATE harvest_proposals
-         SET verdict = ?, reason = ?, written_path = ?
-         WHERE id = ?`
-    ).run(verdict, reason, writtenPath, proposalId);
+         SET verdict = ?, reason = ?, written_path = NULL
+         WHERE id = ?
+           AND EXISTS (
+             SELECT 1 FROM harvest_threads
+             WHERE harvest_threads.thread_id = harvest_proposals.thread_id
+               AND harvest_threads.processed_at IS NULL
+           )`
+    ).run(verdict, reason, proposalId);
+  }
+  function setWrittenPath(proposalId, writtenPath) {
+    db().prepare(
+      `UPDATE harvest_proposals SET written_path = ?
+         WHERE id = ? AND verdict = 'approved' AND written_path IS NULL`
+    ).run(writtenPath, proposalId);
+  }
+  function setReviewedHead(threadId, head) {
+    const result = db().prepare(
+      `UPDATE harvest_threads SET outcome = ?
+         WHERE thread_id = ? AND processed_at IS NULL`
+    ).run(`${REVIEWED_HEAD_PREFIX}${head}`, threadId);
+    return result.changes === 1;
+  }
+  function reviewedHead(threadId) {
+    const outcome = rawThreadOutcome(threadId);
+    return outcome?.startsWith(REVIEWED_HEAD_PREFIX) ? outcome.slice(REVIEWED_HEAD_PREFIX.length) : null;
+  }
+  function resetReviewDecisions(threadId, proposalIds) {
+    const databaseHandle = db();
+    const reset = databaseHandle.transaction(() => {
+      if (proposalIds && proposalIds.length > 0) {
+        const placeholders = proposalIds.map(() => "?").join(", ");
+        databaseHandle.prepare(
+          `UPDATE harvest_proposals
+             SET verdict = NULL, reason = NULL, written_path = NULL
+             WHERE thread_id = ? AND written_path IS NULL
+               AND id IN (${placeholders})`
+        ).run(threadId, ...proposalIds);
+      } else {
+        databaseHandle.prepare(
+          `UPDATE harvest_proposals
+             SET verdict = NULL, reason = NULL, written_path = NULL
+             WHERE thread_id = ? AND written_path IS NULL`
+        ).run(threadId);
+      }
+      databaseHandle.prepare(
+        `UPDATE harvest_threads SET outcome = ?
+           WHERE thread_id = ? AND processed_at IS NULL`
+      ).run(HARVESTED_STATE, threadId);
+    });
+    reset();
   }
   function pendingProposals(threadId) {
     return db().prepare(
       `SELECT * FROM harvest_proposals
-         WHERE thread_id = ? AND verdict IS NULL
+         WHERE thread_id = ?
+           AND (verdict IS NULL OR (verdict = 'approved' AND written_path IS NULL))
          ORDER BY id`
     ).all(threadId).map((row) => readProposal(row));
   }
@@ -15897,7 +16103,7 @@ function createHarvest(dependencies) {
       meetsRecurrenceThreshold: threads.size >= RECURRENCE_APPROVAL_THRESHOLD,
       priorVerdicts: rows.filter((row) => String(row.thread_id) !== threadId).map((row) => ({
         verdict: row.verdict ?? null,
-        reason: row.reason ?? null,
+        reason: isReviewerCapability(row.reason ?? null) ? null : row.reason ?? null,
         at: Number(row.created_at)
       }))
     };
@@ -15905,12 +16111,12 @@ function createHarvest(dependencies) {
   function alreadyApproved(ruleKey) {
     const row = db().prepare(
       `SELECT * FROM harvest_proposals
-         WHERE rule_key = ? AND verdict = 'approved'
+         WHERE rule_key = ? AND verdict = 'approved' AND written_path IS NOT NULL
          ORDER BY id LIMIT 1`
     ).get(ruleKey);
     return row ? readProposal(row) : null;
   }
-  function harvesterPrompt(threadId) {
+  function harvesterPrompt(threadId, token) {
     return [
       "You are the Design Doctrine harvester. Work silently; nobody is watching this thread.",
       "",
@@ -15928,7 +16134,7 @@ function createHarvest(dependencies) {
       "",
       "Report exactly once, even when you found nothing, by running:",
       "",
-      `  bb doctrine harvest propose --thread ${threadId} --json '<json-array>'`,
+      `  bb doctrine harvest propose --thread ${threadId} --token ${token} --json '<json-array>'`,
       "",
       "The array is empty when nothing is warranted. Each element must be an object with:",
       "title, statement, kind, strength, confidence, domain, products, activities, artifacts,",
@@ -15940,7 +16146,7 @@ function createHarvest(dependencies) {
       "Do not write or edit any rule file yourself."
     ].join("\n");
   }
-  function reviewerPrompt(stored, context, existingRules) {
+  function reviewerPrompt(stored, context, existingRules, token) {
     const priors = context.priorVerdicts.length ? context.priorVerdicts.map(
       (entry) => `- ${entry.verdict ?? "undecided"}: ${entry.reason ?? "(no reason recorded)"}`
     ).join("\n") : "- none";
@@ -15969,9 +16175,9 @@ function createHarvest(dependencies) {
       "",
       "Report exactly once by running:",
       "",
-      `  bb doctrine harvest verdict --proposal ${stored.id} --approve --reason '<why>'`,
+      `  bb doctrine harvest verdict --proposal ${stored.id} --token ${token} --approve --reason '<why>'`,
       "or",
-      `  bb doctrine harvest verdict --proposal ${stored.id} --reject --reason '<why>'`
+      `  bb doctrine harvest verdict --proposal ${stored.id} --token ${token} --reject --reason '<why>'`
     ].join("\n");
   }
   async function harvestThread(threadId, projectId, environmentId = null) {
@@ -15985,130 +16191,232 @@ function createHarvest(dependencies) {
       );
       return;
     }
-    try {
-      await runAgent({
-        kind: "harvester",
-        threadId,
-        projectId,
-        environmentId,
-        title: "Doctrine harvest",
-        prompt: harvesterPrompt(threadId)
-      });
-    } catch (error51) {
-      bb.log.warn(
-        `doctrine harvest: harvester failed for ${threadId}: ${error51 instanceof Error ? error51.message : String(error51)}`
-      );
-      markProcessed(threadId, "harvester-failed");
-      return;
+    if (!isPending(threadId)) return;
+    if (!hasHarvesterReport(threadId)) {
+      const token = beginHarvester(threadId);
+      if (!token) return;
+      try {
+        await runAgent({
+          kind: "harvester",
+          threadId,
+          projectId,
+          environmentId,
+          title: "Doctrine harvest",
+          prompt: harvesterPrompt(threadId, token)
+        });
+      } catch (error51) {
+        bb.log.warn(
+          `doctrine harvest: harvester failed for ${threadId}: ${error51 instanceof Error ? error51.message : String(error51)}`
+        );
+        return;
+      }
+      if (!isPending(threadId)) return;
+      if (!hasHarvesterReport(threadId)) {
+        bb.log.warn(
+          `doctrine harvest: harvester returned without reporting for ${threadId}`
+        );
+        return;
+      }
     }
-    const proposals = pendingProposals(threadId);
-    if (proposals.length === 0) {
+    const allProposals = () => db().prepare(
+      `SELECT * FROM harvest_proposals WHERE thread_id = ? ORDER BY id`
+    ).all(threadId).map((row) => readProposal(row));
+    if (allProposals().length === 0) {
       bb.log.info(`doctrine harvest: no proposals from ${threadId}`);
       markProcessed(threadId, "no-proposals");
       return;
     }
-    const existingRules = await describeExistingRules();
-    let approved = 0;
-    const approvedProposals = [];
-    for (const stored of proposals) {
-      const duplicate = alreadyApproved(stored.ruleKey);
-      if (duplicate) {
-        const reason = `duplicate of an already-approved proposal (${duplicate.writtenPath ?? "unwritten"})`;
-        recordVerdict(stored.id, "rejected", reason);
-        bb.log.info(
-          `doctrine harvest: rejected proposal ${stored.id} from ${threadId} \u2014 ${reason}`
-        );
-        continue;
-      }
-      const context = recurrenceContext(stored.ruleKey, threadId);
-      try {
-        await runAgent({
-          kind: "reviewer",
-          threadId,
-          projectId,
-          environmentId,
-          title: "Doctrine review",
-          prompt: reviewerPrompt(stored, context, existingRules)
-        });
-      } catch (error51) {
-        const reason = `reviewer failed: ${error51 instanceof Error ? error51.message : String(error51)}`;
-        recordVerdict(stored.id, "rejected", reason);
-        bb.log.warn(
-          `doctrine harvest: rejected proposal ${stored.id} from ${threadId} \u2014 ${reason}`
-        );
-        continue;
-      }
-      const decided = db().prepare(`SELECT * FROM harvest_proposals WHERE id = ?`).get(stored.id);
-      const verdict = decided ? readProposal(decided) : null;
-      if (!verdict || verdict.verdict === null) {
-        const reason = "reviewer returned no verdict";
-        recordVerdict(stored.id, "rejected", reason);
-        bb.log.warn(
-          `doctrine harvest: rejected proposal ${stored.id} from ${threadId} \u2014 ${reason}`
-        );
-        continue;
-      }
-      if (verdict.verdict === "rejected") {
-        bb.log.info(
-          `doctrine harvest: rejected proposal ${stored.id} from ${threadId} \u2014 ${verdict.reason ?? "no reason given"}`
-        );
-        continue;
-      }
-      if (approvedProposals.length >= HARVEST_RULE_FILE_LIMIT) {
-        const reason = `archive harvests are limited to ${HARVEST_RULE_FILE_LIMIT} rule files`;
-        recordVerdict(stored.id, "rejected", reason);
-        bb.log.warn(
-          `doctrine harvest: rejected proposal ${stored.id} from ${threadId} \u2014 ${reason}`
-        );
-        continue;
-      }
-      approvedProposals.push(verdict);
-    }
-    if (approvedProposals.length > 0) {
-      const existingIds = await listRuleIds();
-      const drafts = approvedProposals.map((stored) => {
-        const id = allocateRuleId(existingIds);
-        existingIds.push(id);
-        return {
-          stored,
-          file: {
-            relativePath: ruleRelativePath(stored.proposal.domain, id),
-            content: renderRuleMarkdown(stored.proposal, id, isoDate(now()))
-          }
-        };
-      });
-      try {
-        await commitNewRuleFiles(
-          doctrineRoot,
-          drafts.map((draft) => draft.file),
-          validateRules
-        );
-        for (const draft of drafts) {
-          recordVerdict(
-            draft.stored.id,
-            "approved",
-            draft.stored.reason ?? "approved",
-            draft.file.relativePath
+    for (let attempt = 0; attempt < REVIEW_CATALOG_RETRY_LIMIT; attempt += 1) {
+      if (!isPending(threadId)) return;
+      const carriedApprovals = pendingProposals(threadId).filter(
+        (proposal) => proposal.verdict === "approved" && proposal.writtenPath === null
+      );
+      const carriedHead = reviewedHead(threadId);
+      if (carriedApprovals.length > 0 && carriedHead) {
+        const currentHead = await readMaintenanceHead(doctrineRoot);
+        if (currentHead === carriedHead) {
+          const committed2 = await commitApproved(
+            doctrineRoot,
+            threadId,
+            carriedHead,
+            carriedApprovals
           );
-          approved += 1;
-          bb.log.info(
-            `doctrine harvest: committed ${draft.file.relativePath} from ${threadId} \u2014 ${draft.stored.reason ?? "approved"}`
-          );
+          if (committed2 === "done" || committed2 === "waiting") return;
+          continue;
         }
-      } catch (error51) {
-        const reason = `could not commit rule batch: ${error51 instanceof Error ? error51.message : String(error51)}`;
-        for (const draft of drafts) {
-          recordVerdict(draft.stored.id, "rejected", reason);
+        resetReviewDecisions(threadId, carriedApprovals.map((item) => item.id));
+      } else if (carriedApprovals.length > 0) {
+        resetReviewDecisions(threadId, carriedApprovals.map((item) => item.id));
+      }
+      await ensureMaintenanceCheckout(doctrineRoot);
+      const catalogHead = await readMaintenanceHead(doctrineRoot);
+      const existingRules = await describeExistingRules(doctrineRoot);
+      if (await readMaintenanceHead(doctrineRoot) !== catalogHead) {
+        continue;
+      }
+      const reviewedIds = [];
+      const proposals = pendingProposals(threadId).filter(
+        (proposal) => proposal.verdict === null
+      );
+      for (const stored of proposals) {
+        if (!isPending(threadId)) return;
+        try {
+          harvestProposalSchema.parse(stored.proposal);
+        } catch {
+          const reason = "proposal failed safety validation";
+          setSystemVerdict(stored.id, "rejected", reason);
+          reviewedIds.push(stored.id);
           bb.log.warn(
-            `doctrine harvest: rejected proposal ${draft.stored.id} from ${threadId} \u2014 ${reason}`
+            `doctrine harvest: rejected proposal ${stored.id} from ${threadId} \u2014 ${reason}`
+          );
+          continue;
+        }
+        const duplicate = alreadyApproved(stored.ruleKey);
+        if (duplicate) {
+          const reason = `duplicate of an already-approved proposal (${duplicate.writtenPath})`;
+          setSystemVerdict(stored.id, "rejected", reason);
+          reviewedIds.push(stored.id);
+          bb.log.info(
+            `doctrine harvest: rejected proposal ${stored.id} from ${threadId} \u2014 ${reason}`
+          );
+          continue;
+        }
+        const context = recurrenceContext(stored.ruleKey, threadId);
+        const token = beginReviewer(stored.id);
+        if (!token) {
+          if (!isPending(threadId)) return;
+          continue;
+        }
+        reviewedIds.push(stored.id);
+        try {
+          await runAgent({
+            kind: "reviewer",
+            threadId,
+            projectId,
+            environmentId,
+            title: "Doctrine review",
+            prompt: reviewerPrompt(stored, context, existingRules, token)
+          });
+        } catch (error51) {
+          if (!isPending(threadId)) return;
+          const reason = "reviewer agent failed before recording a verdict";
+          recordVerdict(stored.id, token, "rejected", reason);
+          bb.log.warn(
+            `doctrine harvest: rejected proposal ${stored.id} from ${threadId} \u2014 ${reason}: ${error51 instanceof Error ? error51.message : String(error51)}`
+          );
+          continue;
+        }
+        if (!isPending(threadId)) return;
+        const decided = db().prepare(`SELECT * FROM harvest_proposals WHERE id = ?`).get(stored.id);
+        const verdict = decided ? readProposal(decided) : null;
+        if (!verdict || verdict.verdict === null) {
+          const reason = "reviewer returned no verdict";
+          recordVerdict(stored.id, token, "rejected", reason);
+          bb.log.warn(
+            `doctrine harvest: rejected proposal ${stored.id} from ${threadId} \u2014 ${reason}`
+          );
+          continue;
+        }
+        if (verdict.verdict === "rejected") {
+          bb.log.info(
+            `doctrine harvest: rejected proposal ${stored.id} from ${threadId} \u2014 ${verdict.reason ?? "no reason given"}`
+          );
+          continue;
+        }
+        const approvedCount = pendingProposals(threadId).filter(
+          (proposal) => proposal.verdict === "approved"
+        ).length;
+        if (approvedCount > HARVEST_RULE_FILE_LIMIT) {
+          const reason = `archive harvests are limited to ${HARVEST_RULE_FILE_LIMIT} rule files`;
+          setSystemVerdict(stored.id, "rejected", reason);
+          bb.log.warn(
+            `doctrine harvest: rejected proposal ${stored.id} from ${threadId} \u2014 ${reason}`
           );
         }
       }
+      if (!isPending(threadId)) return;
+      const headBeforeCommit = await readMaintenanceHead(doctrineRoot);
+      if (headBeforeCommit !== catalogHead) {
+        resetReviewDecisions(threadId, reviewedIds);
+        continue;
+      }
+      const approved = pendingProposals(threadId).filter(
+        (proposal) => proposal.verdict === "approved" && proposal.writtenPath === null
+      );
+      if (approved.length === 0) {
+        markProcessed(threadId, "no-approvals");
+        return;
+      }
+      if (!setReviewedHead(threadId, catalogHead) || !isPending(threadId)) return;
+      const committed = await commitApproved(
+        doctrineRoot,
+        threadId,
+        catalogHead,
+        approved
+      );
+      if (committed === "done" || committed === "waiting") return;
+      resetReviewDecisions(threadId, reviewedIds);
     }
-    markProcessed(threadId, approved > 0 ? `approved:${approved}` : "no-approvals");
+    bb.log.warn(
+      `doctrine harvest: maintenance checkout kept changing for ${threadId}; review remains pending`
+    );
+    async function commitApproved(root, pendingThreadId, catalogHead, approvedProposals) {
+      if (!isPending(pendingThreadId)) return "waiting";
+      try {
+        const existingIds = await listRuleIds(root);
+        const drafts = approvedProposals.map((stored) => {
+          const proposal = harvestProposalSchema.parse(stored.proposal);
+          const id = allocateRuleId(existingIds);
+          existingIds.push(id);
+          return {
+            stored,
+            file: {
+              relativePath: ruleRelativePath(proposal.domain, id),
+              content: renderRuleMarkdown(proposal, id, isoDate(now()))
+            }
+          };
+        });
+        if (!isPending(pendingThreadId)) return "waiting";
+        await commitNewRuleFiles(
+          root,
+          drafts.map((draft) => draft.file),
+          () => validateRules(root),
+          catalogHead
+        );
+        for (const draft of drafts) {
+          setWrittenPath(draft.stored.id, draft.file.relativePath);
+          bb.log.info(
+            `doctrine harvest: committed ${draft.file.relativePath} from ${pendingThreadId} \u2014 ${draft.stored.reason ?? "approved"}`
+          );
+        }
+        markProcessed(pendingThreadId, `approved:${drafts.length}`);
+        return "done";
+      } catch (error51) {
+        if (error51 instanceof MaintenanceHeadChangedError) {
+          resetReviewDecisions(
+            pendingThreadId,
+            approvedProposals.map((proposal) => proposal.id)
+          );
+          return "retry";
+        }
+        bb.log.warn(
+          `doctrine harvest: approved rule batch for ${pendingThreadId} remains pending: ${error51 instanceof Error ? error51.message : String(error51)}`
+        );
+        return "waiting";
+      }
+    }
   }
   return {
     enqueue,
+    cancel(threadId) {
+      const databaseHandle = db();
+      const purge = databaseHandle.transaction(() => {
+        databaseHandle.prepare(`DELETE FROM harvest_proposals WHERE thread_id = ?`).run(threadId);
+        databaseHandle.prepare(`DELETE FROM harvest_threads WHERE thread_id = ?`).run(threadId);
+      });
+      purge();
+    },
+    isPending,
     pendingThreads,
     pendingProposals,
     recordProposals,
@@ -16118,7 +16426,10 @@ function createHarvest(dependencies) {
     proposalsForThread(threadId) {
       return db().prepare(
         `SELECT * FROM harvest_proposals WHERE thread_id = ? ORDER BY id`
-      ).all(threadId).map((row) => readProposal(row));
+      ).all(threadId).map((row) => readProposal(row)).map((proposal) => ({
+        ...proposal,
+        reason: isReviewerCapability(proposal.reason) ? null : proposal.reason
+      }));
     },
     threadState(threadId) {
       const row = db().prepare(`SELECT * FROM harvest_threads WHERE thread_id = ?`).get(threadId);
@@ -16126,7 +16437,7 @@ function createHarvest(dependencies) {
       return {
         queuedAt: Number(row.queued_at),
         processedAt: row.processed_at === null || row.processed_at === void 0 ? null : Number(row.processed_at),
-        outcome: row.outcome ?? null
+        outcome: row.processed_at === null || row.processed_at === void 0 ? null : row.outcome ?? null
       };
     }
   };
@@ -16720,18 +17031,12 @@ async function plugin(bb) {
   const harvest = createHarvest({
     bb,
     resolveDoctrineRoot: async () => expandPath((await settings.get()).doctrinePath),
-    listRuleIds: async () => (await loadDoctrine(
-      expandPath((await settings.get()).doctrinePath)
-    )).rules.map((rule) => rule.id),
-    describeExistingRules: async () => (await loadDoctrine(
-      expandPath((await settings.get()).doctrinePath)
-    )).rules.map(
+    listRuleIds: async (doctrineRoot) => (await loadDoctrine(doctrineRoot)).rules.map((rule) => rule.id),
+    describeExistingRules: async (doctrineRoot) => (await loadDoctrine(doctrineRoot)).rules.map(
       (rule) => `${rule.id} (${rule.domain}, ${rule.strength}): ${rule.title} \u2014 ${rule.statement}`
     ).join("\n"),
-    validateRules: async () => {
-      await loadDoctrine(
-        expandPath((await settings.get()).doctrinePath)
-      );
+    validateRules: async (doctrineRoot) => {
+      await loadDoctrine(doctrineRoot);
     },
     async runAgent({ projectId, environmentId, title, prompt }) {
       const spawned = await bb.sdk.threads.spawn({
@@ -16774,7 +17079,8 @@ async function plugin(bb) {
   });
   bb.events.on("thread.archived", ({ thread }) => {
     try {
-      if (!harvest.enqueue(thread)) return;
+      const queued = harvest.enqueue(thread);
+      if (!queued && !harvest.isPending(thread.id)) return;
       drainHarvest();
     } catch (error51) {
       bb.log.warn(
@@ -16783,6 +17089,7 @@ async function plugin(bb) {
     }
   });
   bb.events.on("thread.deleted", async ({ thread }) => {
+    harvest.cancel(thread.id);
     await historyMaintenance.forgetThread(thread.id);
   });
   drainHarvest();
@@ -16890,9 +17197,10 @@ async function plugin(bb) {
           const action = argv[1];
           if (action === "propose") {
             const threadId = requiredOption(argv, "--thread");
+            const token = requiredOption(argv, "--token");
             const parsed = JSON.parse(requiredOption(argv, "--json"));
             const proposals = external_exports.array(harvestProposalSchema).max(10).parse(parsed);
-            const stored = harvest.recordProposals(threadId, proposals);
+            const stored = harvest.recordProposals(threadId, token, proposals);
             return {
               exitCode: 0,
               stdout: `${JSON.stringify({
@@ -16919,6 +17227,7 @@ async function plugin(bb) {
             });
             harvest.recordVerdict(
               proposalId,
+              requiredOption(argv, "--token"),
               verdict.approve ? "approved" : "rejected",
               verdict.reason
             );

@@ -695,27 +695,17 @@ export default async function plugin(bb: BbPluginApi) {
     bb,
     resolveDoctrineRoot: async () =>
       expandPath((await settings.get()).doctrinePath),
-    listRuleIds: async () =>
-      (
-        await loadDoctrine(
-          expandPath((await settings.get()).doctrinePath),
-        )
-      ).rules.map((rule) => rule.id),
-    describeExistingRules: async () =>
-      (
-        await loadDoctrine(
-          expandPath((await settings.get()).doctrinePath),
-        )
-      ).rules
+    listRuleIds: async (doctrineRoot) =>
+      (await loadDoctrine(doctrineRoot)).rules.map((rule) => rule.id),
+    describeExistingRules: async (doctrineRoot) =>
+      (await loadDoctrine(doctrineRoot)).rules
         .map(
           (rule) =>
             `${rule.id} (${rule.domain}, ${rule.strength}): ${rule.title} — ${rule.statement}`,
         )
         .join("\n"),
-    validateRules: async () => {
-      await loadDoctrine(
-        expandPath((await settings.get()).doctrinePath),
-      );
+    validateRules: async (doctrineRoot) => {
+      await loadDoctrine(doctrineRoot);
     },
     async runAgent({ projectId, environmentId, title, prompt }) {
       const spawned = await bb.sdk.threads.spawn({
@@ -769,7 +759,8 @@ export default async function plugin(bb: BbPluginApi) {
     // Observe-only and fire-and-forget: archiving never waits on the harvest,
     // and a harvest failure is a log line, not a user-facing error.
     try {
-      if (!harvest.enqueue(thread)) return;
+      const queued = harvest.enqueue(thread);
+      if (!queued && !harvest.isPending(thread.id)) return;
       drainHarvest();
     } catch (error) {
       bb.log.warn(
@@ -778,6 +769,7 @@ export default async function plugin(bb: BbPluginApi) {
     }
   });
   bb.events.on("thread.deleted", async ({ thread }) => {
+    harvest.cancel(thread.id);
     await historyMaintenance.forgetThread(thread.id);
   });
   // Resume durable archive work after reloads. A dirty maintenance checkout
@@ -887,12 +879,13 @@ export default async function plugin(bb: BbPluginApi) {
           const action = argv[1];
           if (action === "propose") {
             const threadId = requiredOption(argv, "--thread");
+            const token = requiredOption(argv, "--token");
             const parsed: unknown = JSON.parse(requiredOption(argv, "--json"));
             const proposals = z
               .array(harvestProposalSchema)
               .max(10)
               .parse(parsed);
-            const stored = harvest.recordProposals(threadId, proposals);
+            const stored = harvest.recordProposals(threadId, token, proposals);
             return {
               exitCode: 0,
               stdout: `${JSON.stringify({
@@ -918,6 +911,7 @@ export default async function plugin(bb: BbPluginApi) {
             });
             harvest.recordVerdict(
               proposalId,
+              requiredOption(argv, "--token"),
               verdict.approve ? "approved" : "rejected",
               verdict.reason,
             );

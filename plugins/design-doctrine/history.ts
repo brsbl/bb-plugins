@@ -72,6 +72,28 @@ export interface NewRuleFile {
   content: string;
 }
 
+export class MaintenanceHeadChangedError extends Error {
+  constructor(expected: string, actual: string) {
+    super(
+      `maintenance checkout HEAD changed during doctrine harvest (expected ${expected}, found ${actual})`,
+    );
+    this.name = "MaintenanceHeadChangedError";
+  }
+}
+
+export async function readMaintenanceHead(pluginRoot: string): Promise<string> {
+  const result = await execFileAsync(
+    "git",
+    ["-C", pluginRoot, "rev-parse", "HEAD"],
+    { encoding: "utf8" },
+  );
+  const head = result.stdout.trim();
+  if (!/^[0-9a-f]{40,64}$/i.test(head)) {
+    throw new Error("maintenance checkout has no valid HEAD commit");
+  }
+  return head;
+}
+
 function assertRulePath(relativePath: string): void {
   if (!/^rules\/[a-z-]+\/ddr_\d{3,}\.md$/.test(relativePath)) {
     throw new Error(`invalid generated rule path: ${relativePath}`);
@@ -108,6 +130,7 @@ export async function commitNewRuleFiles(
   pluginRoot: string,
   files: readonly NewRuleFile[],
   validate: () => Promise<void>,
+  expectedHead?: string,
 ): Promise<void> {
   if (files.length === 0) return;
   if (files.length > 5) {
@@ -120,6 +143,12 @@ export async function commitNewRuleFiles(
   }
 
   await ensureMaintenanceCheckout(pluginRoot);
+  if (expectedHead) {
+    const actualHead = await readMaintenanceHead(pluginRoot);
+    if (actualHead !== expectedHead) {
+      throw new MaintenanceHeadChangedError(expectedHead, actualHead);
+    }
+  }
   const created: string[] = [];
   let committed = false;
   try {
@@ -131,6 +160,12 @@ export async function commitNewRuleFiles(
     }
 
     await validate();
+    if (expectedHead) {
+      const actualHead = await readMaintenanceHead(pluginRoot);
+      if (actualHead !== expectedHead) {
+        throw new MaintenanceHeadChangedError(expectedHead, actualHead);
+      }
+    }
     const expectedStatus = new Set(
       relativePaths.map((relativePath) => `?? ${relativePath}`),
     );

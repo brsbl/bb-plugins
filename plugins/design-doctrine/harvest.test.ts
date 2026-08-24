@@ -1,18 +1,28 @@
 import { execFile } from "node:child_process";
-import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
+import {
+  chmod,
+  mkdir,
+  mkdtemp,
+  readdir,
+  readFile,
+  rm,
+  unlink,
+  writeFile,
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { promisify } from "node:util";
 
 import {
   createFakePluginHost,
   makeThreadResponse,
 } from "@get-bb/plugin-sdk/testing";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
   allocateRuleId,
   harvestProposalSchema,
+  harvestVerdictSchema,
   isHarvestableThread,
   normalizeRuleKey,
   renderRuleMarkdown,
@@ -74,6 +84,7 @@ Dense operational surfaces should not fill with labels that repeat the icon.
 
 const temporaryRoots: string[] = [];
 const execFileAsync = promisify(execFile);
+vi.setConfig({ testTimeout: 30_000 });
 
 async function makeDoctrineRoot(): Promise<string> {
   const root = await mkdtemp(join(tmpdir(), "doctrine-harvest-"));
@@ -120,6 +131,49 @@ function makeProposal(overrides: Partial<HarvestProposal> = {}): HarvestProposal
   });
 }
 
+function deferred(): { promise: Promise<void>; resolve: () => void } {
+  let resolve = () => undefined;
+  const promise = new Promise<void>((complete) => {
+    resolve = complete;
+  });
+  return { promise, resolve };
+}
+
+async function waitFor(
+  condition: () => boolean | Promise<boolean>,
+  message: string,
+): Promise<void> {
+  for (let attempt = 0; attempt < 1_000; attempt += 1) {
+    if (await condition()) return;
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  }
+  throw new Error(message);
+}
+
+async function commitRule(
+  root: string,
+  proposal: HarvestProposal,
+  id: string,
+): Promise<void> {
+  const relativePath = ruleRelativePath(proposal.domain, id);
+  await mkdir(dirname(join(root, relativePath)), { recursive: true });
+  await writeFile(
+    join(root, relativePath),
+    renderRuleMarkdown(proposal, id, "2026-08-24"),
+    "utf8",
+  );
+  await execFileAsync("git", ["-C", root, "add", "--", relativePath]);
+  await execFileAsync("git", [
+    "-C",
+    root,
+    "commit",
+    "-m",
+    `add ${id}`,
+    "--",
+    relativePath,
+  ]);
+}
+
 interface AgentScript {
   /** JSON array the harvester reports for a given archived thread. */
   propose: (threadId: string) => HarvestProposal[];
@@ -129,6 +183,16 @@ interface AgentScript {
   reviewerPrompts: string[];
   /** Prompts handed to harvester agents, in order. */
   harvesterPrompts: string[];
+  reportHarvester?: boolean;
+  reportReviewer?: boolean;
+  waitForHarvester?: (threadId: string) => Promise<void>;
+  waitForReviewer?: (proposalId: number) => Promise<void>;
+  afterHarvesterReport?: (threadId: string) => Promise<void>;
+  afterReviewerReport?: (
+    proposalId: number,
+    prompt: string,
+    harness: ReturnType<typeof createFakePluginHost>["harness"],
+  ) => Promise<void>;
 }
 
 async function startPlugin(root: string, script: AgentScript) {
@@ -144,31 +208,45 @@ async function startPlugin(root: string, script: AgentScript) {
     const prompt = args.prompt;
     const proposeMatch = /harvest propose --thread (\S+)/.exec(prompt);
     const reviewMatch = /harvest verdict --proposal (\d+)/.exec(prompt);
+    const tokenMatch = /--token (\S+)/.exec(prompt);
+    if ((proposeMatch || reviewMatch) && !tokenMatch) {
+      throw new Error("worker prompt omitted its capability token");
+    }
     if (proposeMatch && !reviewMatch) {
       script.harvesterPrompts.push(prompt);
       const threadId = proposeMatch[1];
-      await harness.behavior.runCli([
-        "harvest",
-        "propose",
-        "--thread",
-        threadId,
-        "--json",
-        JSON.stringify(script.propose(threadId)),
-      ]);
+      await script.waitForHarvester?.(threadId);
+      if (script.reportHarvester !== false) {
+        await harness.behavior.runCli([
+          "harvest",
+          "propose",
+          "--thread",
+          threadId,
+          "--token",
+          tokenMatch![1],
+          "--json",
+          JSON.stringify(script.propose(threadId)),
+        ]);
+        await script.afterHarvesterReport?.(threadId);
+      }
     } else if (reviewMatch) {
       script.reviewerPrompts.push(prompt);
       const proposalId = Number(reviewMatch[1]);
+      await script.waitForReviewer?.(proposalId);
       const verdict = script.review?.(proposalId, prompt);
-      if (verdict) {
+      if (verdict && script.reportReviewer !== false) {
         await harness.behavior.runCli([
           "harvest",
           "verdict",
           "--proposal",
           String(proposalId),
+          "--token",
+          tokenMatch![1],
           verdict.approve ? "--approve" : "--reject",
           "--reason",
           verdict.reason,
         ]);
+        await script.afterReviewerReport?.(proposalId, prompt, harness);
       }
     }
     return makeThreadResponse({ id: `spawned-${harness.sdk.calls.length}` });
@@ -183,6 +261,7 @@ async function archiveAndSettle(
   harness: Awaited<ReturnType<typeof startPlugin>>["harness"],
   threadId: string,
 ) {
+  let lastResult = "";
   await harness.behavior.emitThreadEvent("thread.archived", {
     thread: makeThreadResponse({
       id: threadId,
@@ -191,20 +270,25 @@ async function archiveAndSettle(
       originPluginId: null,
     }),
   });
-  for (let attempt = 0; attempt < 200; attempt += 1) {
+  for (let attempt = 0; attempt < 2_000; attempt += 1) {
     const result = await harness.behavior.runCli([
       "harvest",
       "status",
       "--thread",
       threadId,
     ]);
-    const parsed = JSON.parse(result.stdout ?? "{}") as {
+    const parsed = JSON.parse(result.stdout || "{}") as {
       thread: { processedAt: number | null } | null;
     };
+    lastResult = result.stdout ?? "";
     if (parsed.thread && parsed.thread.processedAt !== null) return parsed;
     await new Promise((resolve) => setTimeout(resolve, 10));
   }
-  throw new Error(`harvest for ${threadId} did not settle`);
+  throw new Error(
+    `harvest for ${threadId} did not settle: ${lastResult}; logs=${JSON.stringify(
+      harness.logEntries.map((entry) => entry.message),
+    )}`,
+  );
 }
 
 async function writtenRuleFiles(root: string): Promise<string[]> {
@@ -267,6 +351,61 @@ describe("harvest pure helpers", () => {
     expect(
       renderRuleMarkdown(makeProposal(), "ddr_002", "2026-08-19"),
     ).toContain("---\n\n# Reserve alarm color for errors");
+  });
+
+  it("rejects identifiers, URLs, secrets, multiline text, and oversized rendered strings", () => {
+    const base = makeProposal();
+    const scalarFields = ["title", "statement", "domain", "why"] as const;
+    const listFields = [
+      "products",
+      "activities",
+      "artifacts",
+      "surfaces",
+      "prefer",
+      "avoid",
+      "use_when",
+      "not_when",
+      "exceptions",
+      "evidence",
+      "checks",
+    ] as const;
+    for (const field of scalarFields) {
+      expect(
+        harvestProposalSchema.safeParse({ ...base, [field]: "contains thr_private123" })
+          .success,
+        field,
+      ).toBe(false);
+    }
+    for (const field of listFields) {
+      expect(
+        harvestProposalSchema.safeParse({ ...base, [field]: ["contains msg_private123"] })
+          .success,
+        field,
+      ).toBe(false);
+    }
+    for (const unsafe of [
+      "See https://private.example.test/design",
+      "api_key=topsecretvalue",
+      "line one\nline two",
+      "x".repeat(1_001),
+    ]) {
+      expect(
+        harvestProposalSchema.safeParse({ ...base, statement: unsafe }).success,
+      ).toBe(false);
+    }
+    expect(
+      harvestVerdictSchema.safeParse({
+        approve: true,
+        reason: "token=privatecredentialvalue",
+      }).success,
+    ).toBe(false);
+    expect(() =>
+      renderRuleMarkdown(
+        { ...base, evidence: ["See https://private.example.test"] } as HarvestProposal,
+        "ddr_002",
+        "2026-08-24",
+      ),
+    ).toThrow();
   });
 
   it("excludes plugin-origin and hidden threads from harvest", () => {
@@ -428,6 +567,155 @@ describe("archive-triggered harvest", () => {
         entry.message.includes("no proposals from thr_quiet"),
       ),
     ).toBe(true);
+    await harness.behavior.emitThreadEvent("thread.archived", {
+      thread: makeThreadResponse({ id: "thr_quiet", projectId: "proj_test" }),
+    });
+    expect(script.harvesterPrompts).toHaveLength(1);
+    await harness.lifecycle.dispose();
+  });
+
+  it("rejects unsafe CLI proposals and missing or incorrect harvester capabilities without writing", async () => {
+    const root = await makeDoctrineRoot();
+    const script: AgentScript = {
+      propose: () => [makeProposal()],
+      reportHarvester: false,
+      reviewerPrompts: [],
+      harvesterPrompts: [],
+    };
+    const { harness } = await startPlugin(root, script);
+    await harness.behavior.emitThreadEvent("thread.archived", {
+      thread: makeThreadResponse({
+        id: "thr_untrusted",
+        projectId: "proj_test",
+        visibility: "visible",
+      }),
+    });
+    await waitFor(
+      () => script.harvesterPrompts.length === 1,
+      "harvester prompt was not captured",
+    );
+    const prompt = script.harvesterPrompts[0];
+    const token = /--token (\S+)/.exec(prompt)?.[1];
+    expect(token).toBeTruthy();
+    const unsafe = {
+      ...makeProposal(),
+      evidence: ["Read https://private.example.test/thread"],
+    } as HarvestProposal;
+    for (const tokenArgs of [[], ["--token", "wrong-capability"]]) {
+      const result = await harness.behavior.runCli([
+        "harvest",
+        "propose",
+        "--thread",
+        "thr_untrusted",
+        ...tokenArgs,
+        "--json",
+        JSON.stringify([makeProposal()]),
+      ]);
+      expect(result.exitCode).toBe(1);
+    }
+    const unsafeResult = await harness.behavior.runCli([
+      "harvest",
+      "propose",
+      "--thread",
+      "thr_untrusted",
+      "--token",
+      token!,
+      "--json",
+      JSON.stringify([unsafe]),
+    ]);
+    expect(unsafeResult.exitCode).toBe(1);
+    const status = await harness.behavior.runCli([
+      "harvest",
+      "status",
+      "--thread",
+      "thr_untrusted",
+    ]);
+    expect(status.stdout).not.toContain(token!);
+    expect(status.stdout).toContain('"proposals": []');
+    expect(await writtenRuleFiles(root)).toEqual(["interaction/ddr_001.md"]);
+    const commits = await execFileAsync("git", ["-C", root, "rev-list", "--count", "HEAD"]);
+    expect(commits.stdout.trim()).toBe("1");
+    await harness.lifecycle.dispose();
+  });
+
+  it("requires a one-time reviewer capability and redacts it from status", async () => {
+    const root = await makeDoctrineRoot();
+    const reviewerGate = deferred();
+    const script: AgentScript = {
+      propose: () => [makeProposal()],
+      review: () => ({ approve: true, reason: "new and grounded" }),
+      reportReviewer: false,
+      waitForReviewer: () => reviewerGate.promise,
+      reviewerPrompts: [],
+      harvesterPrompts: [],
+    };
+    const { harness } = await startPlugin(root, script);
+    await harness.behavior.emitThreadEvent("thread.archived", {
+      thread: makeThreadResponse({
+        id: "thr_reviewer_capability",
+        projectId: "proj_test",
+        visibility: "visible",
+      }),
+    });
+    await waitFor(
+      () => script.reviewerPrompts.length === 1,
+      "reviewer prompt was not captured",
+    );
+    const prompt = script.reviewerPrompts[0];
+    const proposalId = Number(/--proposal (\d+)/.exec(prompt)?.[1]);
+    const token = /--token (\S+)/.exec(prompt)?.[1];
+    expect(proposalId).toBeGreaterThan(0);
+    expect(token).toBeTruthy();
+    for (const tokenArgs of [[], ["--token", "wrong-capability"]]) {
+      const result = await harness.behavior.runCli([
+        "harvest",
+        "verdict",
+        "--proposal",
+        String(proposalId),
+        ...tokenArgs,
+        "--approve",
+        "--reason",
+        "new and grounded",
+      ]);
+      expect(result.exitCode).toBe(1);
+    }
+    const before = await harness.behavior.runCli([
+      "harvest",
+      "status",
+      "--thread",
+      "thr_reviewer_capability",
+    ]);
+    expect(before.stdout).not.toContain(token!);
+    expect(before.stdout).toContain('"verdict": null');
+    expect(before.stdout).toContain('"reason": null');
+
+    const accepted = await harness.behavior.runCli([
+      "harvest",
+      "verdict",
+      "--proposal",
+      String(proposalId),
+      "--token",
+      token!,
+      "--approve",
+      "--reason",
+      "new and grounded",
+    ]);
+    expect(accepted.exitCode).toBe(0);
+    const replay = await harness.behavior.runCli([
+      "harvest",
+      "verdict",
+      "--proposal",
+      String(proposalId),
+      "--token",
+      token!,
+      "--reject",
+      "--reason",
+      "changed my mind",
+    ]);
+    expect(replay.exitCode).toBe(1);
+    reviewerGate.resolve();
+    const status = await archiveAndSettle(harness, "thr_reviewer_capability");
+    expect(status.thread).toMatchObject({ outcome: "approved:1" });
     await harness.lifecycle.dispose();
   });
 
@@ -454,6 +742,136 @@ describe("archive-triggered harvest", () => {
     expect(await writtenRuleFiles(root)).toEqual([
       "interaction/ddr_001.md",
       "visual/ddr_002.md",
+    ]);
+    await harness.lifecycle.dispose();
+  });
+
+  it("keeps approved work pending after a commit failure and resumes once without rerunning agents", async () => {
+    const root = await makeDoctrineRoot();
+    const proposal = makeProposal();
+    const hookPath = join(root, ".git", "hooks", "pre-commit");
+    await writeFile(hookPath, "#!/bin/sh\nexit 1\n", "utf8");
+    await chmod(hookPath, 0o755);
+    const script: AgentScript = {
+      // A repeated report in one worker call must reuse the same rule key.
+      propose: () => [proposal, proposal],
+      review: () => ({ approve: true, reason: "new and grounded" }),
+      reviewerPrompts: [],
+      harvesterPrompts: [],
+    };
+    const { harness } = await startPlugin(root, script);
+    await harness.behavior.emitThreadEvent("thread.archived", {
+      thread: makeThreadResponse({
+        id: "thr_commit_retry",
+        projectId: "proj_test",
+        visibility: "visible",
+      }),
+    });
+    await waitFor(
+      () =>
+        harness.logEntries.some((entry) =>
+          entry.message.includes("approved rule batch for thr_commit_retry remains pending"),
+        ),
+      "failed commit did not leave the batch pending",
+    );
+    const pending = await harness.behavior.runCli([
+      "harvest",
+      "status",
+      "--thread",
+      "thr_commit_retry",
+    ]);
+    expect(pending.stdout).toContain('"processedAt": null');
+    expect(pending.stdout).toContain('"verdict": "approved"');
+    expect(pending.stdout).toContain('"written_path": null');
+    expect(pending.stdout?.match(/"rule_key"/g)).toHaveLength(1);
+    expect(await writtenRuleFiles(root)).toEqual(["interaction/ddr_001.md"]);
+
+    await unlink(hookPath);
+    const status = await archiveAndSettle(harness, "thr_commit_retry");
+    expect(status.thread).toMatchObject({ outcome: "approved:1" });
+    expect(script.harvesterPrompts).toHaveLength(1);
+    expect(script.reviewerPrompts).toHaveLength(1);
+    expect(await writtenRuleFiles(root)).toEqual([
+      "interaction/ddr_001.md",
+      "visual/ddr_002.md",
+    ]);
+    const commits = await execFileAsync("git", [
+      "-C",
+      root,
+      "log",
+      "--format=%s",
+      "--",
+      "rules/visual/ddr_002.md",
+    ]);
+    expect(commits.stdout.trim().split("\n")).toEqual([
+      "doctrine: harvest archived feedback",
+    ]);
+    await harness.lifecycle.dispose();
+  });
+
+  it("re-reviews against a fresh catalog when maintenance HEAD changes before commit", async () => {
+    const root = await makeDoctrineRoot();
+    let changedHead = false;
+    const concurrentRule = makeProposal({
+      title: "Keep pending status distinct from errors",
+      statement:
+        "Pending status uses a neutral treatment instead of borrowing the error signal.",
+      domain: "visual.status",
+    });
+    const script: AgentScript = {
+      propose: () => [makeProposal()],
+      review: () => ({ approve: true, reason: "new and grounded" }),
+      afterReviewerReport: async () => {
+        if (changedHead) return;
+        changedHead = true;
+        await commitRule(root, concurrentRule, "ddr_002");
+      },
+      reviewerPrompts: [],
+      harvesterPrompts: [],
+    };
+    const { harness } = await startPlugin(root, script);
+
+    const status = await archiveAndSettle(harness, "thr_head_race");
+
+    expect(status.thread).toMatchObject({ outcome: "approved:1" });
+    expect(script.reviewerPrompts).toHaveLength(2);
+    expect(script.reviewerPrompts[1]).toContain(
+      "Keep pending status distinct from errors",
+    );
+    expect(await writtenRuleFiles(root)).toEqual([
+      "interaction/ddr_001.md",
+      "visual/ddr_002.md",
+      "visual/ddr_003.md",
+    ]);
+    await harness.lifecycle.dispose();
+  });
+
+  it("freezes the doctrine root for catalog, validation, and commit across a settings change", async () => {
+    const originalRoot = await makeDoctrineRoot();
+    const changedRoot = await makeDoctrineRoot();
+    let changedSettings = false;
+    const script: AgentScript = {
+      propose: () => [makeProposal()],
+      review: () => ({ approve: true, reason: "new and grounded" }),
+      afterReviewerReport: async (_proposalId, _prompt, harness) => {
+        if (changedSettings) return;
+        changedSettings = true;
+        await harness.behavior.setSettings({ doctrinePath: changedRoot });
+      },
+      reviewerPrompts: [],
+      harvesterPrompts: [],
+    };
+    const { harness } = await startPlugin(originalRoot, script);
+
+    const status = await archiveAndSettle(harness, "thr_root_freeze");
+
+    expect(status.thread).toMatchObject({ outcome: "approved:1" });
+    expect(await writtenRuleFiles(originalRoot)).toEqual([
+      "interaction/ddr_001.md",
+      "visual/ddr_002.md",
+    ]);
+    expect(await writtenRuleFiles(changedRoot)).toEqual([
+      "interaction/ddr_001.md",
     ]);
     await harness.lifecycle.dispose();
   });
@@ -519,6 +937,105 @@ describe("archive-triggered harvest", () => {
       "thr_duplicate",
     ]);
     expect(status.stdout).toContain("duplicate of an already-approved proposal");
+    await harness.lifecycle.dispose();
+  });
+
+  it("purges a deleted queued thread before any worker can record or commit", async () => {
+    const root = await makeDoctrineRoot();
+    const blockerGate = deferred();
+    const script: AgentScript = {
+      propose: () => [],
+      waitForHarvester: (threadId) =>
+        threadId === "thr_queue_blocker" ? blockerGate.promise : Promise.resolve(),
+      reviewerPrompts: [],
+      harvesterPrompts: [],
+    };
+    const { harness } = await startPlugin(root, script);
+    await harness.behavior.emitThreadEvent("thread.archived", {
+      thread: makeThreadResponse({
+        id: "thr_queue_blocker",
+        projectId: "proj_test",
+        visibility: "visible",
+      }),
+    });
+    await waitFor(
+      () => script.harvesterPrompts.length === 1,
+      "blocking harvester did not start",
+    );
+    await harness.behavior.emitThreadEvent("thread.archived", {
+      thread: makeThreadResponse({
+        id: "thr_deleted_queued",
+        projectId: "proj_test",
+        visibility: "visible",
+      }),
+    });
+    await harness.behavior.emitThreadEvent("thread.deleted", {
+      thread: makeThreadResponse({
+        id: "thr_deleted_queued",
+        projectId: "proj_test",
+      }),
+    });
+    blockerGate.resolve();
+    await archiveAndSettle(harness, "thr_queue_blocker");
+
+    const status = await harness.behavior.runCli([
+      "harvest",
+      "status",
+      "--thread",
+      "thr_deleted_queued",
+    ]);
+    expect(status.stdout).toContain('"thread": null');
+    expect(status.stdout).toContain('"proposals": []');
+    expect(script.harvesterPrompts).toHaveLength(1);
+    expect(await writtenRuleFiles(root)).toEqual(["interaction/ddr_001.md"]);
+    await harness.lifecycle.dispose();
+  });
+
+  it("purges a thread deleted while its reviewer is in flight and never commits", async () => {
+    const root = await makeDoctrineRoot();
+    const reviewerGate = deferred();
+    const script: AgentScript = {
+      propose: () => [makeProposal()],
+      review: () => ({ approve: true, reason: "new and grounded" }),
+      waitForReviewer: () => reviewerGate.promise,
+      reviewerPrompts: [],
+      harvesterPrompts: [],
+    };
+    const { harness } = await startPlugin(root, script);
+    await harness.behavior.emitThreadEvent("thread.archived", {
+      thread: makeThreadResponse({
+        id: "thr_deleted_in_flight",
+        projectId: "proj_test",
+        visibility: "visible",
+      }),
+    });
+    await waitFor(
+      () => script.reviewerPrompts.length === 1,
+      "reviewer did not start",
+    );
+    await harness.behavior.emitThreadEvent("thread.deleted", {
+      thread: makeThreadResponse({
+        id: "thr_deleted_in_flight",
+        projectId: "proj_test",
+      }),
+    });
+    reviewerGate.resolve();
+    await waitFor(
+      () => harness.sdk.callsTo("threads.wait").length >= 2,
+      "in-flight reviewer did not finish",
+    );
+
+    const status = await harness.behavior.runCli([
+      "harvest",
+      "status",
+      "--thread",
+      "thr_deleted_in_flight",
+    ]);
+    expect(status.stdout).toContain('"thread": null');
+    expect(status.stdout).toContain('"proposals": []');
+    expect(await writtenRuleFiles(root)).toEqual(["interaction/ddr_001.md"]);
+    const commits = await execFileAsync("git", ["-C", root, "rev-list", "--count", "HEAD"]);
+    expect(commits.stdout.trim()).toBe("1");
     await harness.lifecycle.dispose();
   });
 });
