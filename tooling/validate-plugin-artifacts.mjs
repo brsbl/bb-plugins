@@ -7,7 +7,7 @@ import { fileURLToPath } from "node:url";
 import { readPluginWorkspaces } from "./plugin-workspaces.mjs";
 import { pluginBuildBbVersion } from "./plugin-build-provenance.mjs";
 import {
-  pluginSdkVersion,
+  resolvePluginSdkProvenance,
   sdkRangeIncludesVersion,
 } from "./plugin-sdk-provenance.mjs";
 
@@ -31,7 +31,7 @@ function expectedPluginId(packageName) {
   return packageName.slice("bb-plugin-".length);
 }
 
-async function validateMetadata(path, manifest, id, bbVersion) {
+async function validateMetadata(path, manifest, id, bbVersion, sdkVersion) {
   const metadata = await readJson(path);
   const expected = {
     artifactFormatVersion: 1,
@@ -43,15 +43,15 @@ async function validateMetadata(path, manifest, id, bbVersion) {
       throw new Error(`${path}: expected ${key}=${JSON.stringify(value)}`);
     }
   }
-  if (metadata.sdkVersion !== pluginSdkVersion) {
-    throw new Error(`${path}: expected sdkVersion=${pluginSdkVersion}`);
+  if (metadata.sdkVersion !== sdkVersion) {
+    throw new Error(`${path}: expected sdkVersion=${sdkVersion}`);
   }
   if (metadata.builtWith?.bbVersion !== bbVersion) {
     throw new Error(`${path}: expected bb ${bbVersion} build metadata`);
   }
-  if (metadata.builtWith?.pluginSdkVersion !== pluginSdkVersion) {
+  if (metadata.builtWith?.pluginSdkVersion !== sdkVersion) {
     throw new Error(
-      `${path}: expected builtWith.pluginSdkVersion=${pluginSdkVersion}`,
+      `${path}: expected builtWith.pluginSdkVersion=${sdkVersion}`,
     );
   }
 }
@@ -215,6 +215,12 @@ export async function validatePluginArtifacts(pluginDirectory, options = {}) {
   const manifest = await readJson(resolve(directory, "package.json"));
   const id = expectedPluginId(manifest.name);
   const buildBbVersion = options.buildBbVersion ?? pluginBuildBbVersion;
+  const serverMetadataPath = resolve(directory, "dist/server.meta.json");
+  const serverMetadata = await readJson(serverMetadataPath);
+  const pluginSdk = manifest.devDependencies?.["@get-bb/plugin-sdk"]
+    ? await resolvePluginSdkProvenance(directory, manifest)
+    : null;
+  const expectedSdkVersion = pluginSdk?.version ?? serverMetadata.sdkVersion;
 
   if (options.expectedId && id !== options.expectedId) {
     throw new Error(`${directory}: expected plugin id ${options.expectedId}`);
@@ -222,9 +228,9 @@ export async function validatePluginArtifacts(pluginDirectory, options = {}) {
   if (options.expectedName && manifest.bb.name !== options.expectedName) {
     throw new Error(`${directory}: expected display name ${options.expectedName}`);
   }
-  if (!sdkRangeIncludesVersion(manifest.engines?.bbPluginSdk, pluginSdkVersion)) {
+  if (!sdkRangeIncludesVersion(manifest.engines?.bbPluginSdk, expectedSdkVersion)) {
     throw new Error(
-      `${directory}: engines.bbPluginSdk must be a compatible floor at or below ${pluginSdkVersion}`,
+      `${directory}: engines.bbPluginSdk must be a compatible floor at or below ${expectedSdkVersion}`,
     );
   }
 
@@ -232,10 +238,11 @@ export async function validatePluginArtifacts(pluginDirectory, options = {}) {
   await requireNonEmpty(serverBundlePath);
   await validateManagedServerBundle(serverBundlePath);
   await validateMetadata(
-    resolve(directory, "dist/server.meta.json"),
+    serverMetadataPath,
     manifest,
     id,
     buildBbVersion,
+    expectedSdkVersion,
   );
 
   if (manifest.bb.app) {
@@ -245,6 +252,7 @@ export async function validatePluginArtifacts(pluginDirectory, options = {}) {
       manifest,
       id,
       buildBbVersion,
+      expectedSdkVersion,
     );
   }
 

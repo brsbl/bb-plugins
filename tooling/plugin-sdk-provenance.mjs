@@ -1,4 +1,5 @@
 import { readFile } from "node:fs/promises";
+import { resolve } from "node:path";
 
 const provenance = JSON.parse(
   await readFile(
@@ -19,6 +20,64 @@ if (provenance.archive !== `get-bb-plugin-sdk-${packageVersion}.tgz`) {
 
 export const pluginSdkArchive = provenance.archive;
 export const pluginSdkVersion = packageVersion;
+
+function versionFromProvenance(record, label) {
+  const version = /^@get-bb\/plugin-sdk@(\d+\.\d+\.\d+)$/.exec(
+    record.package ?? "",
+  )?.[1];
+  if (version === undefined) {
+    throw new Error(`${label} has no concrete @get-bb/plugin-sdk version`);
+  }
+  if (record.archive !== `get-bb-plugin-sdk-${version}.tgz`) {
+    throw new Error(`${label} archive does not match its version`);
+  }
+  return version;
+}
+
+export async function resolvePluginSdkProvenance(pluginDirectory, manifest) {
+  const dependency = manifest.devDependencies?.["@get-bb/plugin-sdk"];
+  const sharedDependency = `file:../../tooling/vendor/${pluginSdkArchive}`;
+  if (dependency === undefined || dependency === sharedDependency) {
+    return {
+      archive: pluginSdkArchive,
+      archivePath: null,
+      local: false,
+      record: provenance,
+      version: pluginSdkVersion,
+    };
+  }
+
+  const localArchive = /^file:\.\/vendor\/([^/]+\.tgz)$/.exec(dependency)?.[1];
+  if (localArchive === undefined) {
+    throw new Error(`${manifest.name}: plugin SDK dependency drift`);
+  }
+  if (localArchive === pluginSdkArchive) {
+    return {
+      archive: pluginSdkArchive,
+      archivePath: resolve(pluginDirectory, "vendor", pluginSdkArchive),
+      local: true,
+      record: provenance,
+      version: pluginSdkVersion,
+    };
+  }
+  const record = JSON.parse(
+    await readFile(resolve(pluginDirectory, "vendor/sdk-provenance.json"), "utf8"),
+  );
+  const version = versionFromProvenance(
+    record,
+    `${manifest.name}: vendored plugin SDK provenance`,
+  );
+  if (record.archive !== localArchive) {
+    throw new Error(`${manifest.name}: plugin SDK dependency and provenance drift`);
+  }
+  return {
+    archive: localArchive,
+    archivePath: resolve(pluginDirectory, "vendor", localArchive),
+    local: true,
+    record,
+    version,
+  };
+}
 
 function parseVersion(value) {
   const match = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/.exec(value);

@@ -7,6 +7,7 @@ import { readPluginWorkspaces } from "./plugin-workspaces.mjs";
 import {
   pluginSdkArchive,
   pluginSdkVersion,
+  resolvePluginSdkProvenance,
   sdkRangeIncludesVersion,
 } from "./plugin-sdk-provenance.mjs";
 
@@ -213,36 +214,22 @@ export async function checkRepository(repositoryRoot = defaultRoot, options = {}
       `${slug}: bb engine drift`,
     );
     assert(
-      sdkRangeIncludesVersion(manifest.engines?.bbPluginSdk, pluginSdkVersion),
-      `${slug}: SDK floor is newer than vendored SDK ${pluginSdkVersion}`,
-    );
-    assert(
       manifest.devDependencies?.["@bb/plugin-sdk"] === undefined,
       `${slug}: legacy @bb/plugin-sdk dependency remains`,
     );
+    const pluginSdk = await resolvePluginSdkProvenance(directory, manifest);
+    assert(
+      sdkRangeIncludesVersion(manifest.engines?.bbPluginSdk, pluginSdk.version),
+      `${slug}: SDK floor is newer than vendored SDK ${pluginSdk.version}`,
+    );
     if (manifest.devDependencies?.["@get-bb/plugin-sdk"] !== undefined) {
-      // Plugins may vendor the SDK archive next to their sources so a
-      // pinned-commit install is standalone; that copy must stay byte-equal
-      // to the shared tooling archive.
-      const sdkDependency = manifest.devDependencies["@get-bb/plugin-sdk"];
-      const vendoredSpecifier = `file:./vendor/${pluginSdkArchive}`;
-      assert(
-        sdkDependency === `file:../../tooling/vendor/${pluginSdkArchive}` ||
-          sdkDependency === vendoredSpecifier,
-        `${slug}: plugin SDK dependency drift`,
-      );
-      if (sdkDependency === vendoredSpecifier) {
-        const shared = await readFile(
-          resolve(root, "tooling/vendor", pluginSdkArchive),
-        );
-        const vendored = await readFile(
-          resolve(directory, "vendor", pluginSdkArchive),
-        ).catch(() => null);
+      if (pluginSdk.local) {
+        const vendored = await readFile(pluginSdk.archivePath).catch(() => null);
         assert(vendored !== null, `${slug}: vendored SDK archive missing`);
         assert(
-          createHash("sha256").update(shared).digest("hex") ===
-            createHash("sha256").update(vendored).digest("hex"),
-          `${slug}: vendored SDK archive drift`,
+          createHash("sha256").update(vendored).digest("hex") ===
+            pluginSdk.record.sha256,
+          `${slug}: vendored SDK hash mismatch`,
         );
       }
     }
@@ -286,10 +273,13 @@ export async function checkRepository(repositoryRoot = defaultRoot, options = {}
       sdkTypePaths["@get-bb/plugin-sdk"] !== undefined ||
       sdkTypePaths["@get-bb/plugin-sdk/app"] !== undefined;
     if (usesLocalSdkTypes) {
+      const authoritativeTypesDirectory = pluginSdk.local
+        ? resolve(directory, "node_modules/@get-bb/plugin-sdk/bundled-types")
+        : bundledTypesDirectory;
       for (const typeFile of ["bb-plugin-sdk.d.ts", "bb-plugin-sdk-app.d.ts"]) {
         const local = await readFile(resolve(directory, "types", typeFile), "utf8");
         const authoritative = await readFile(
-          resolve(bundledTypesDirectory, typeFile),
+          resolve(authoritativeTypesDirectory, typeFile),
           "utf8",
         );
         assert(local === authoritative, `${slug}: ${typeFile} is out of sync`);

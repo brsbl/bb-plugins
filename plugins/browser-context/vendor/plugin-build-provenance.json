@@ -1,0 +1,8 @@
+{
+  "builder": "bb plugin build@0.39.0",
+  "sourceRepository": "https://github.com/get-bb/bb",
+  "sourceCommit": "c3fe8ee68c5ddfe80b58e4b60bcf4da49bc1e43b",
+  "sourcePath": "packages/plugin-build",
+  "bundle": "bb-plugin-build-0.39.0.mjs",
+  "sha256": "4228738add52171fb1adb7ffa8768a694066cfe2a761c134d2a919640e5383f6"
+}

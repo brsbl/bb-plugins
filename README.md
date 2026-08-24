@@ -1,12 +1,22 @@
 # bb plugins
 
-Seven bb plugins I use for product design work, kept together with the few build and repository tools they share. [![CI](https://github.com/brsbl/bb-plugins/actions/workflows/ci.yml/badge.svg)](https://github.com/brsbl/bb-plugins/actions/workflows/ci.yml)
+Eight bb plugins I use for product design work, kept together with the few build and repository tools they share. [![CI](https://github.com/brsbl/bb-plugins/actions/workflows/ci.yml/badge.svg)](https://github.com/brsbl/bb-plugins/actions/workflows/ci.yml)
 
 [bb](https://getbb.app) is an agentic IDE for running coding agents across projects, threads, and environments. Its plugins can add UI, commands, skills, and server capabilities; this repository is where I build and maintain mine.
 
 ## Plugins
 
 Each plugin has its own workspace under `plugins/` and a short README with the story behind it.
+
+### Browser Context
+
+Selects and annotates elements or regions in BB's Browser, stages inspectable context mentions, and gives agents an explicit user-visible control mode for the exact tab.
+
+![Browser Context selection and agent-control actions in bb](plugins/browser-context/docs/screenshot.png)
+
+[Source](plugins/browser-context) · [README](plugins/browser-context/README.md)
+
+Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/browser-context --yes`
 
 ### Design Doctrine
 
