@@ -1,0 +1,41 @@
+{
+  "name": "bb-plugin-endless",
+  "version": "0.1.0",
+  "description": "Frank Ocean's Endless as a bb palette — achromatic, squared.",
+  "type": "module",
+  "license": "UNLICENSED",
+  "files": [
+    "assets",
+    "dist",
+    "docs",
+    "themes",
+    "README.md"
+  ],
+  "engines": {
+    "bb": ">=0.0.34",
+    "bbPluginSdk": "^0.4.1"
+  },
+  "bb": {
+    "name": "Endless",
+    "description": "Frank Ocean's Endless as a bb palette — achromatic, squared.",
+    "branding": {
+      "icon": "./assets/registration-mark.svg"
+    },
+    "server": "./dist/install-server.mjs",
+    "skills": [],
+    "themes": [
+      {
+        "id": "endless",
+        "name": "Endless",
+        "description": "Achromatic silver-print palette after the 2016 album — near-black warehouse dark, gallery-print light",
+        "css": "./themes/endless.css"
+      },
+      {
+        "id": "endless-color",
+        "name": "Endless Color",
+        "description": "The foil sleeve and the painted stair: silver field, rare pops of stair blue, mustard, orange and red",
+        "css": "./themes/endless-color.css"
+      }
+    ]
+  }
+}
