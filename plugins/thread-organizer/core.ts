@@ -1,27 +1,181 @@
-export const PHASE_TARGETS = [
-  "inbox",
-  "planning",
-  "spec-review",
-  "building",
-  "testing-deploy",
-  "handoff",
+export const WORKFLOW_CONFIG_VERSION = 2 as const;
+
+export const SECTION_ICON_OPTIONS = [
+  "AiContentGenerator01",
+  "AlertCircle",
+  "AlertTriangle",
+  "AlignLeft",
+  "AppWindow",
+  "Archive",
+  "ArchiveRestore",
+  "ArrowDown",
+  "ArrowReloadHorizontal",
+  "ArrowRight",
+  "ArrowTurnBackward",
+  "ArrowTurnForward",
+  "ArrowUp",
+  "ArrowUpDown",
+  "ArrowUpRight",
+  "Beaker",
+  "Brain",
+  "Browser",
+  "Bug",
+  "Calendar",
+  "CalendarCheckOut02",
+  "ChartColumn",
+  "Check",
+  "ChevronDown",
+  "ChevronLeft",
+  "ChevronRight",
+  "ChevronUp",
+  "ChevronsDown",
+  "ChevronsUp",
+  "Circle",
+  "CircleArrowShrink",
+  "CircleCheck",
+  "CircleQuestion",
+  "CircleX",
+  "Clean",
+  "Clock",
+  "ClosePluginPane",
+  "CloseThreadPane",
+  "Cloud",
+  "CloudOff",
+  "Code",
+  "Coffee",
+  "Columns2",
+  "ComputerTerminal01",
+  "Copy",
+  "CornerDownLeft",
+  "CornerDownRight",
+  "DateTime",
+  "Discord",
+  "Download",
+  "DragDropHorizontal",
+  "DragDropVertical",
+  "Edit",
+  "EditFile",
+  "ElectricPlugs",
+  "Explore",
+  "ExternalLink",
+  "Eye",
+  "EyeOff",
+  "File",
+  "FileAttachment",
+  "FileDiff",
+  "FileQuestion",
+  "FileText",
+  "FileView",
+  "Folder",
+  "FolderEdit",
+  "FolderExport",
+  "FolderGit",
+  "FolderMinus",
+  "FolderOpen",
+  "FolderPlus",
+  "Fork",
+  "GitBranch",
+  "GitMerge",
+  "GitPullRequest",
+  "GitPullRequestArrow",
+  "GitPullRequestClosed",
+  "GitPullRequestDraft",
+  "Github",
+  "Globe",
+  "GridView",
+  "Info",
+  "Laptop",
+  "Layers",
+  "ListTodo",
+  "ListView",
+  "Loading",
+  "Lock",
+  "Mail",
+  "MailOpen",
+  "Maximize2",
+  "MessageCirclePlus",
+  "MessageQuestion",
+  "MessageSquare",
+  "MessageSquarePlus",
+  "Mic",
+  "Minimize2",
+  "MoreHorizontal",
+  "NewTab",
+  "PackageReceive",
+  "Palette",
+  "PanelBottom",
+  "PanelLeft",
+  "PanelRight",
+  "Paperclip",
+  "Pause",
+  "Pin",
+  "PinOff",
+  "Play",
+  "Plus",
+  "Puzzle",
+  "Repeat",
+  "RotateCcw",
+  "Rows2",
+  "Search",
+  "SectionAdd",
+  "SecurityCheck",
+  "Sent",
+  "Settings",
+  "SideChat",
+  "SlidersHorizontal",
+  "Smartphone",
+  "Sort",
+  "Spinner",
+  "Square",
+  "SquareUnlock02",
+  "Star",
+  "Target",
+  "Terminal",
+  "TextWrap",
+  "TimeSchedule",
+  "ToolCase",
+  "Toolbox",
+  "Trash2",
+  "UserRound",
+  "UserRoundPlus",
+  "Workflow",
+  "X",
+  "Zap",
+  "ZoomIn",
+  "ZoomOut",
 ] as const;
 
-export type PhaseTarget = (typeof PHASE_TARGETS)[number];
+export type SectionIconName = (typeof SECTION_ICON_OPTIONS)[number];
+export type WorkflowStageRole = "inbox" | "stage";
 
-export const PHASE_SECTION_NAMES: Record<PhaseTarget, string> = {
-  inbox: "📥 Inbox",
-  planning: "📋 Planning",
-  "spec-review": "🔎 Spec Review",
-  building: "🛠️ Building",
-  "testing-deploy": "✅ Testing / Deploy",
-  handoff: "🤝 Handoff",
-};
+export interface EditableWorkflowStage {
+  icon: SectionIconName;
+  key: string;
+  role: WorkflowStageRole;
+  rule: string;
+  title: string;
+}
+
+export interface WorkflowStage extends EditableWorkflowStage {
+  sectionId: string | null;
+}
+
+export interface EditableWorkflowConfig {
+  stages: EditableWorkflowStage[];
+  version: typeof WORKFLOW_CONFIG_VERSION;
+}
+
+export interface WorkflowConfig {
+  stages: WorkflowStage[];
+  version: typeof WORKFLOW_CONFIG_VERSION;
+}
 
 export interface OrganizableThread {
   archivedAt: number | null;
   childOrigin?: "fork" | "side-chat" | null;
   deletedAt: number | null;
+  lastReadAt: number | null;
+  latestAttentionAt: number;
   originKind: "fork" | "side-chat" | null;
   originPluginId: string | null;
   parentThreadId: string | null;
@@ -30,173 +184,353 @@ export interface OrganizableThread {
   visibility: "hidden" | "visible";
 }
 
-export interface PhaseClassification {
-  confidence: number;
-  reasons: string[];
-  target: PhaseTarget;
+export const INBOX_RULE =
+  "Idle unread threads that need your attention appear here automatically and stay until work resumes. This behavior can’t be customized.";
+
+const PREVIOUS_INBOX_RULES = [
+  "Idle unread threads that need your attention appear here automatically. This behavior can’t be customized.",
+  "Idle unread threads requiring the user's attention. This stage is managed automatically.",
+] as const;
+
+export const DEFAULT_WORKFLOW_CONFIG: WorkflowConfig = {
+  version: WORKFLOW_CONFIG_VERSION,
+  stages: [
+    {
+      key: "inbox",
+      role: "inbox",
+      title: "Inbox",
+      icon: "Mail",
+      rule: INBOX_RULE,
+      sectionId: null,
+    },
+    {
+      key: "planning",
+      role: "stage",
+      title: "Planning",
+      icon: "ListTodo",
+      rule: "Defining scope, requirements, or approach before a reviewable spec exists.",
+      sectionId: null,
+    },
+    {
+      key: "spec-review",
+      role: "stage",
+      title: "Spec Review",
+      icon: "FileView",
+      rule: "A spec or implementation plan is ready for, awaiting, or undergoing user review.",
+      sectionId: null,
+    },
+    {
+      key: "building",
+      role: "stage",
+      title: "Building",
+      icon: "Code",
+      rule: "Implementing or changing approved work.",
+      sectionId: null,
+    },
+    {
+      key: "testing-deploy",
+      role: "stage",
+      title: "Testing / Deploy",
+      icon: "Beaker",
+      rule: "Validating, packaging, releasing, or deploying completed work.",
+      sectionId: null,
+    },
+    {
+      key: "handoff",
+      role: "stage",
+      title: "Handoff",
+      icon: "ArrowRight",
+      rule: "Packaging work and context so a colleague can continue it.",
+      sectionId: null,
+    },
+    {
+      key: "on-hold",
+      role: "stage",
+      title: "On Hold",
+      icon: "Pause",
+      rule: "Work intentionally paused until a later time or external condition.",
+      sectionId: null,
+    },
+  ],
+};
+
+const LEGACY_SECTION_NAMES: Readonly<Record<string, readonly string[]>> = {
+  inbox: ["📥 Inbox"],
+  planning: ["📋 Planning"],
+  "spec-review": ["🔎 Spec Review"],
+  building: ["🛠️ Building"],
+  "testing-deploy": ["✅ Testing / Deploy"],
+  handoff: ["🤝 Handoff"],
+  "on-hold": ["Parked"],
+};
+
+function normalizeText(value: string): string {
+  return value.normalize("NFKC").trim().replace(/\s+/gu, " ");
 }
 
-export interface SectionDescriptor {
-  id: string;
-  name: string;
+function normalizedIdentity(value: string): string {
+  return normalizeText(value).toLocaleLowerCase();
 }
 
-export interface TitleCandidate {
-  confidence: number;
-  title: string;
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-const LOW_INFORMATION = new Set([
-  "continue",
-  "do it",
-  "fix",
-  "go ahead",
-  "help",
-  "help me",
-  "investigate",
-  "ok",
-  "okay",
-  "proceed",
-  "sounds good",
-  "yes",
-]);
+function parseStage(value: unknown, withSectionId: boolean): WorkflowStage {
+  if (!isRecord(value))
+    throw new Error("Every workflow stage must be an object.");
+  const key = typeof value.key === "string" ? value.key.trim() : "";
+  const title =
+    typeof value.title === "string" ? normalizeText(value.title) : "";
+  const rule = typeof value.rule === "string" ? normalizeText(value.rule) : "";
+  const role = value.role;
+  const icon = value.icon;
+  const sectionId = withSectionId
+    ? value.sectionId === null || typeof value.sectionId === "string"
+      ? value.sectionId
+      : null
+    : null;
 
-const PHASE_RULES: Array<{
-  target: Exclude<PhaseTarget, "inbox">;
-  confidence: number;
-  reason: string;
-  expression: RegExp;
-}> = [
-  {
-    target: "spec-review",
-    confidence: 0.99,
-    reason: "explicit spec review",
-    expression:
-      /\b(spec(?:ification)?|prd|proposal|implementation plan|requirements?)\b.{0,36}\b(review|critique|approve|approval|sign[ -]?off)\b|\b(review|critique|approve)\b.{0,24}\b(spec(?:ification)?|prd|proposal|plan|requirements?)\b/i,
-  },
-  {
-    target: "handoff",
-    confidence: 0.98,
-    reason: "explicit handoff",
-    expression:
-      /\b(handoff|hand[ -]?off|transfer ownership|pass (?:this|it) (?:to|back)|integration order|ready for (?:another|the next) agent)\b/i,
-  },
-  {
-    target: "testing-deploy",
-    confidence: 0.97,
-    reason: "verification or delivery work",
-    expression:
-      /\b(test(?:ing)?|qa|quality assurance|verify|verification|regression|ci|deploy|deployment|release|ship|shipping|merge-ready|visual qa)\b/i,
-  },
-  {
-    target: "building",
-    confidence: 0.96,
-    reason: "implementation work",
-    expression:
-      /\b(implement|build|code|develop|fix|debug|refactor|patch|wire up|add support|update the .+ plugin)\b/i,
-  },
-  {
-    target: "planning",
-    confidence: 0.94,
-    reason: "planning or discovery work",
-    expression:
-      /\b(plan|planning|scope|shape|explore|research|investigate|architecture|design direction|requirements?|break down|task graph)\b/i,
-  },
-];
-
-const ACTION_PATTERNS: Array<{ expression: RegExp; title: string }> = [
-  [/^take\s+over\b/i, "Take Over"],
-  [/^clean\s+up\b/i, "Clean Up"],
-  [/^root\s+cause\b/i, "Investigate"],
-  [/^investigate\b/i, "Investigate"],
-  [/^implement\b/i, "Implement"],
-  [/^optimize\b/i, "Optimize"],
-  [/^reorganize\b/i, "Reorganize"],
-  [/^refactor\b/i, "Refactor"],
-  [/^analyze\b/i, "Analyze"],
-  [/^create\b/i, "Create"],
-  [/^design\b/i, "Design"],
-  [/^rewrite\b/i, "Rewrite"],
-  [/^refresh\b/i, "Refresh"],
-  [/^profile\b/i, "Profile"],
-  [/^review\b/i, "Review"],
-  [/^rename\b/i, "Rename"],
-  [/^update\b/i, "Update"],
-  [/^render\b/i, "Render"],
-  [/^archive\b/i, "Archive"],
-  [/^debug\b/i, "Debug"],
-  [/^build\b/i, "Build"],
-  [/^write\b/i, "Write"],
-  [/^style\b/i, "Style"],
-  [/^move\b/i, "Move"],
-  [/^open\b/i, "Open"],
-  [/^audit\b/i, "Audit"],
-  [/^add\b/i, "Add"],
-  [/^fix\b/i, "Fix"],
-].map(([expression, title]) => ({
-  expression: expression as RegExp,
-  title: title as string,
-}));
-
-const TITLE_CONNECTORS = new Set([
-  "and",
-  "for",
-  "from",
-  "in",
-  "of",
-  "on",
-  "or",
-  "to",
-  "with",
-]);
-const TITLE_ACRONYMS = new Set([
-  "api",
-  "bb",
-  "ci",
-  "cpu",
-  "css",
-  "html",
-  "http",
-  "mcp",
-  "pr",
-  "qa",
-  "sdk",
-  "ui",
-  "url",
-  "ux",
-]);
-const GENERIC_TITLE_WORDS = new Set([
-  "agent",
-  "automation",
-  "bb",
-  "issue",
-  "plugin",
-  "problem",
-  "task",
-  "thing",
-  "this",
-  "thread",
-]);
-
-function normalize(value: string): string {
-  return value
-    .normalize("NFKC")
-    .replace(/\r\n?/g, "\n")
-    .replace(/[ \t]+/g, " ")
-    .trim()
-    .toLowerCase();
+  if (!/^[a-z0-9][a-z0-9-]{0,39}$/u.test(key)) {
+    throw new Error(
+      `Stage key "${key}" must use lowercase letters, numbers, and hyphens.`,
+    );
+  }
+  if (title.length === 0 || title.length > 80) {
+    throw new Error(`Stage "${key}" needs a title of 1–80 characters.`);
+  }
+  if (rule.length === 0 || rule.length > 240) {
+    throw new Error(`Stage "${key}" needs a rule of 1–240 characters.`);
+  }
+  if (role !== "inbox" && role !== "stage") {
+    throw new Error(`Stage "${key}" has an invalid role.`);
+  }
+  if (!SECTION_ICON_OPTIONS.includes(icon as SectionIconName)) {
+    throw new Error(`Stage "${key}" has an unsupported icon.`);
+  }
+  return {
+    key,
+    title,
+    rule,
+    role,
+    icon: icon as SectionIconName,
+    sectionId: sectionId && sectionId.trim().length > 0 ? sectionId : null,
+  };
 }
 
-export function isSubstantiveText(value: string): boolean {
-  const normalized = normalize(value)
-    .replace(/^\/[a-z0-9:_-]+\s*/i, "")
-    .replace(/[.!?]+$/g, "")
-    .trim();
-  return (
-    normalized.length >= 4 &&
-    !LOW_INFORMATION.has(normalized) &&
-    !/^(?:https?:\/\/\S+|@[a-z0-9:_-]+)$/i.test(normalized)
+function validateStages(stages: WorkflowStage[]): void {
+  if (stages.length < 2 || stages.length > 12) {
+    throw new Error("Configure Inbox plus 1–11 workflow stages.");
+  }
+  const keys = new Set<string>();
+  const titles = new Set<string>();
+  for (const stage of stages) {
+    if (keys.has(stage.key)) {
+      throw new Error(`Stage key "${stage.key}" is duplicated.`);
+    }
+    keys.add(stage.key);
+    const titleIdentity = normalizedIdentity(stage.title);
+    if (titles.has(titleIdentity)) {
+      throw new Error(`Stage title "${stage.title}" is duplicated.`);
+    }
+    titles.add(titleIdentity);
+  }
+  const inboxes = stages.filter((stage) => stage.role === "inbox");
+  if (inboxes.length !== 1 || inboxes[0]?.key !== "inbox") {
+    throw new Error(
+      "The workflow must contain exactly one protected Inbox stage.",
+    );
+  }
+  if (inboxes[0]?.rule !== INBOX_RULE) {
+    throw new Error("Inbox routing and its system rule cannot be changed.");
+  }
+}
+
+function migrateDraftStage(stage: WorkflowStage): WorkflowStage {
+  if (stage.key === "inbox") {
+    return {
+      ...stage,
+      title: stage.title === "Needs Me" ? "Inbox" : stage.title,
+      rule: PREVIOUS_INBOX_RULES.some((rule) => rule === stage.rule)
+        ? INBOX_RULE
+        : stage.rule,
+    };
+  }
+  if (
+    stage.key === "handoff" &&
+    stage.rule ===
+      "Transferring work to a colleague after explicit user direction."
+  ) {
+    return {
+      ...stage,
+      rule: "Packaging work and context so a colleague can continue it.",
+    };
+  }
+  if (stage.key !== "parked") return stage;
+  return {
+    ...stage,
+    key: "on-hold",
+    title: stage.title === "Parked" ? "On Hold" : stage.title,
+    rule:
+      stage.rule ===
+      "Intentionally pausing work for later after explicit user direction."
+        ? "Work intentionally paused until a later time or external condition."
+        : stage.rule,
+  };
+}
+
+export function parseWorkflowConfig(value: unknown): WorkflowConfig | null {
+  try {
+    if (!isRecord(value) || (value.version !== 1 && value.version !== 2)) {
+      return null;
+    }
+    if (!Array.isArray(value.stages)) return null;
+    const stages = value.stages
+      .map((stage) => parseStage(stage, true))
+      .map(migrateDraftStage);
+    validateStages(stages);
+    return { version: WORKFLOW_CONFIG_VERSION, stages };
+  } catch {
+    return null;
+  }
+}
+
+export function normalizeEditableWorkflowConfig(
+  value: EditableWorkflowConfig,
+): EditableWorkflowConfig {
+  const stages = value.stages.map((stage) => {
+    const parsed = parseStage(stage, false);
+    const { sectionId: _sectionId, ...editable } = parsed;
+    return editable;
+  });
+  validateStages(stages.map((stage) => ({ ...stage, sectionId: null })));
+  return { version: WORKFLOW_CONFIG_VERSION, stages };
+}
+
+export function cloneWorkflowConfig(config: WorkflowConfig): WorkflowConfig {
+  return { ...config, stages: config.stages.map((stage) => ({ ...stage })) };
+}
+
+export function editableWorkflowConfig(
+  config: WorkflowConfig,
+): EditableWorkflowConfig {
+  return {
+    version: WORKFLOW_CONFIG_VERSION,
+    stages: config.stages.map(({ sectionId: _sectionId, ...stage }) => ({
+      ...stage,
+    })),
+  };
+}
+
+export function mergeEditableWorkflowConfig(
+  current: WorkflowConfig,
+  edited: EditableWorkflowConfig,
+): WorkflowConfig {
+  const normalized = normalizeEditableWorkflowConfig(edited);
+  const sectionIdsByKey = new Map(
+    current.stages.map((stage) => [stage.key, stage.sectionId]),
   );
+  return {
+    ...normalized,
+    stages: normalized.stages.map((stage) => ({
+      ...stage,
+      sectionId: sectionIdsByKey.get(stage.key) ?? null,
+    })),
+  };
+}
+
+export function legacySectionNames(stage: WorkflowStage): readonly string[] {
+  return [stage.title, ...(LEGACY_SECTION_NAMES[stage.key] ?? [])];
+}
+
+const LOCAL_SECTION_EMOJIS: Partial<Record<SectionIconName, string>> = {
+  ArrowRight: "🤝",
+  Beaker: "🧪",
+  Circle: "⚪",
+  Code: "🛠️",
+  FileView: "📄",
+  ListTodo: "📋",
+  Mail: "📥",
+  MailOpen: "📬",
+  Pause: "⏸️",
+};
+
+export function localSectionEmoji(icon: SectionIconName): string {
+  const exact = LOCAL_SECTION_EMOJIS[icon];
+  if (exact) return exact;
+  if (/Alert|Bug|CircleX/u.test(icon)) return "⚠️";
+  if (/Archive/u.test(icon)) return "🗄️";
+  if (/Arrow|Chevron|Corner/u.test(icon)) return "➡️";
+  if (/Brain|AiContent/u.test(icon)) return "🧠";
+  if (/Browser|AppWindow|Laptop|Smartphone/u.test(icon)) return "🖥️";
+  if (/Calendar|Clock|DateTime|TimeSchedule/u.test(icon)) return "📅";
+  if (/Check|Security/u.test(icon)) return "✅";
+  if (/Cloud/u.test(icon)) return "☁️";
+  if (/Code|Terminal|Tool/u.test(icon)) return "🛠️";
+  if (/Download|Package|Sent/u.test(icon)) return "📦";
+  if (/Edit|File/u.test(icon)) return "📄";
+  if (/Eye|Explore|Globe|Search|Zoom/u.test(icon)) return "🔎";
+  if (/Folder/u.test(icon)) return "📁";
+  if (/Fork|Git/u.test(icon)) return "🌿";
+  if (/Info|Question/u.test(icon)) return "❓";
+  if (/List|Rows|Columns|Grid|Workflow/u.test(icon)) return "📋";
+  if (/Loading|Repeat|Rotate/u.test(icon)) return "🔄";
+  if (/Lock|Unlock/u.test(icon)) return "🔒";
+  if (/Mail/u.test(icon)) return "📥";
+  if (/Message|SideChat/u.test(icon)) return "💬";
+  if (/Palette/u.test(icon)) return "🎨";
+  if (/Panel/u.test(icon)) return "🗂️";
+  if (/Pause/u.test(icon)) return "⏸️";
+  if (/Pin/u.test(icon)) return "📌";
+  if (/Play/u.test(icon)) return "▶️";
+  if (/Plus|SectionAdd/u.test(icon)) return "➕";
+  if (/Settings|Sliders/u.test(icon)) return "⚙️";
+  if (/Star/u.test(icon)) return "⭐";
+  if (/Target/u.test(icon)) return "🎯";
+  if (/Trash|Clean/u.test(icon)) return "🗑️";
+  if (/User/u.test(icon)) return "👤";
+  if (/Zap|Electric/u.test(icon)) return "⚡";
+  return "🗂️";
+}
+
+export function localSectionName(stage: EditableWorkflowStage): string {
+  return `${localSectionEmoji(stage.icon)} ${stage.title}`;
+}
+
+export function inboxStage(config: WorkflowConfig): WorkflowStage {
+  return config.stages.find((stage) => stage.role === "inbox")!;
+}
+
+export function firstWorkflowStage(config: WorkflowConfig): WorkflowStage {
+  return config.stages.find((stage) => stage.role === "stage")!;
+}
+
+export function stageForSectionId(
+  config: WorkflowConfig,
+  sectionId: string | null,
+): WorkflowStage | null {
+  if (sectionId === null) return null;
+  return config.stages.find((stage) => stage.sectionId === sectionId) ?? null;
+}
+
+export function createStageKey(
+  title: string,
+  existingKeys: readonly string[],
+): string {
+  const base =
+    title
+      .normalize("NFKD")
+      .toLocaleLowerCase()
+      .replace(/[^a-z0-9]+/gu, "-")
+      .replace(/^-+|-+$/gu, "")
+      .slice(0, 32) || "stage";
+  const unavailable = new Set(["inbox", ...existingKeys]);
+  if (!unavailable.has(base)) return base;
+  for (let suffix = 2; suffix < 10_000; suffix += 1) {
+    const key = `${base.slice(0, 36)}-${suffix}`;
+    if (!unavailable.has(key)) return key;
+  }
+  throw new Error("Could not create a unique stage key.");
 }
 
 export function isManageableThread(thread: OrganizableThread): boolean {
@@ -206,173 +540,62 @@ export function isManageableThread(thread: OrganizableThread): boolean {
     thread.sourceThreadId === null &&
     thread.originKind === null &&
     (thread.childOrigin ?? null) === null &&
-    thread.originPluginId === null &&
     thread.archivedAt === null &&
     thread.deletedAt === null
   );
 }
 
-export function isEligibleThread(thread: OrganizableThread): boolean {
+export function isRunningThread(thread: OrganizableThread): boolean {
   return (
-    isManageableThread(thread) &&
-    thread.status !== "error" &&
-    thread.status !== "stopping"
+    thread.status === "active" ||
+    thread.status === "starting" ||
+    thread.status === "stopping"
   );
 }
 
-export function classifyPhase(texts: string[]): PhaseClassification {
-  const substantive = texts.filter(isSubstantiveText).map(normalize);
-  if (!substantive.length)
-    return { target: "inbox", confidence: 1, reasons: ["phase unclear"] };
-  // Prompt history is chronological. The newest substantive phase signal wins;
-  // titles and fallbacks are earlier entries used only when later prompts are
-  // unclear, so an old planning request cannot pin a thread there forever.
-  for (let index = substantive.length - 1; index >= 0; index -= 1) {
-    const text = substantive[index]!;
-    if (
-      /^(?:plan|planning|scope|shape|design the approach|write requirements?)\b/i.test(
-        text,
-      )
-    ) {
-      return {
-        target: "planning",
-        confidence: 0.99,
-        reasons: ["explicit planning action"],
-      };
-    }
-    const winner = PHASE_RULES.find((rule) => rule.expression.test(text));
-    if (winner) {
-      return {
-        target: winner.target,
-        confidence: winner.confidence,
-        reasons: [winner.reason],
-      };
-    }
-  }
-  return { target: "inbox", confidence: 1, reasons: ["phase unclear"] };
+export function isUnreadThread(thread: OrganizableThread): boolean {
+  return (thread.lastReadAt ?? 0) < thread.latestAttentionAt;
 }
 
-export function parsePhaseTarget(value: string): PhaseTarget | null {
-  const normalized = normalize(value)
-    .replace(/[📋🔎🛠️🤝✅📥]/gu, "")
-    .trim()
-    .replace(/[ _/]+/g, "-");
-  const aliases: Record<string, PhaseTarget> = {
-    plan: "planning",
-    planning: "planning",
-    spec: "spec-review",
-    "spec-review": "spec-review",
-    review: "spec-review",
-    build: "building",
-    building: "building",
-    implement: "building",
-    handoff: "handoff",
-    test: "testing-deploy",
-    testing: "testing-deploy",
-    deploy: "testing-deploy",
-    "testing-deploy": "testing-deploy",
-    inbox: "inbox",
-    unclear: "inbox",
-  };
-  return aliases[normalized] ?? null;
+export interface ThreadPlacement {
+  inboxLatched: boolean;
+  stage: WorkflowStage;
 }
 
-export function resolvePhaseSectionId(
-  sections: SectionDescriptor[],
-  target: PhaseTarget,
-): string | null {
-  const matches = sections.filter(
-    (section) =>
-      normalize(section.name) === normalize(PHASE_SECTION_NAMES[target]),
-  );
-  return matches.length === 1 ? matches[0]!.id : null;
-}
-
-function stripPromptPreamble(value: string): string {
-  let result = value
-    .normalize("NFKC")
-    .replace(/\r\n?/g, "\n")
-    .replace(/^\s*(?:[-*]|\d+[.)])\s+/, "")
-    .replace(/^\/[a-z0-9:_-]+\s+/i, "")
-    .trim();
-  for (const expression of [
-    /^(?:can|could|would)\s+you\s+/i,
-    /^can\s+i\s+/i,
-    /^please\s+/i,
-    /^i\s+(?:want|need)\s+to\s+/i,
-    /^i(?:'d| would)\s+like\s+to\s+/i,
-    /^help\s+me\s+(?:to\s+)?/i,
-    /^let(?:'s| us)\s+/i,
-  ])
-    result = result.replace(expression, "");
-  return result.trim();
-}
-
-function displayTitleWord(word: string, index: number): string {
-  const lower = word.toLowerCase();
-  if (TITLE_ACRONYMS.has(lower)) return lower.toUpperCase();
-  if (index > 0 && TITLE_CONNECTORS.has(lower)) return lower;
-  if (/[0-9↔<>+#./-]/.test(word) && /[A-Z]/.test(word)) return word;
-  return `${word.charAt(0).toUpperCase()}${word.slice(1).toLowerCase()}`;
-}
-
-export function deriveTaskTitle(value: string): TitleCandidate | null {
-  let prompt = stripPromptPreamble(value);
-  if (
-    !prompt ||
-    /^(?:https?:\/\/|@)/i.test(prompt) ||
-    !isSubstantiveText(prompt)
-  )
-    return null;
-  const action = ACTION_PATTERNS.find(({ expression }) =>
-    expression.test(prompt),
-  );
-  if (!action) return null;
-  prompt = prompt
-    .replace(action.expression, "")
-    .trim()
-    .split(/\b(?:so that|because|and then|then|which|that)\b|[\n.!?;:]/i, 1)[0]!
-    .replace(/^[\s"'`([{]+|[\s"'`\])}]+$/g, "")
-    .trim();
-  const words = prompt.match(/[A-Za-z0-9][A-Za-z0-9+#./↔<>-]*/g) ?? [];
-  while (
-    words.length &&
-    /^(?:a|an|my|our|the|this|these|those)$/i.test(words[0]!)
-  )
-    words.shift();
-  const objectWords = words.slice(
-    0,
-    Math.max(1, 5 - action.title.split(/\s+/).length),
-  );
-  while (
-    objectWords.length &&
-    TITLE_CONNECTORS.has(objectWords.at(-1)!.toLowerCase())
-  )
-    objectWords.pop();
-  if (
-    !objectWords.some(
-      (word) =>
-        !GENERIC_TITLE_WORDS.has(word.toLowerCase()) &&
-        !TITLE_CONNECTORS.has(word.toLowerCase()) &&
-        word.length > 1,
-    )
-  )
-    return null;
+export function placementForThread(
+  config: WorkflowConfig,
+  thread: OrganizableThread,
+  rememberedStageKey: string,
+  inboxLatched: boolean,
+): ThreadPlacement {
+  const remembered =
+    config.stages.find(
+      (stage) => stage.key === rememberedStageKey && stage.role === "stage",
+    ) ?? firstWorkflowStage(config);
+  const nextInboxLatched =
+    !isRunningThread(thread) && (inboxLatched || isUnreadThread(thread));
   return {
-    confidence: 0.92,
-    title:
-      `${action.title} ${objectWords.map((word, index) => displayTitleWord(word, index + 1)).join(" ")}`.trim(),
+    inboxLatched: nextInboxLatched,
+    stage: nextInboxLatched ? inboxStage(config) : remembered,
   };
 }
 
-export function nextEvaluationMilestone(current: number): number {
-  return current <= 1 ? 5 : current + 10;
+function escapeTableCell(value: string): string {
+  return value.replace(/\|/gu, "\\|").replace(/\s+/gu, " ").trim();
 }
-export function advanceEvaluationMilestone(
-  current: number,
-  completedTurns: number,
-): number {
-  let next = current;
-  while (next <= completedTurns) next = nextEvaluationMilestone(next);
-  return next;
+
+export function buildWorkflowSkillSlot(config: WorkflowConfig): string {
+  const rows = config.stages
+    .filter((stage) => stage.role === "stage")
+    .map(
+      (stage) =>
+        `| ${stage.key} | ${escapeTableCell(stage.title)} | ${escapeTableCell(stage.rule)} |`,
+    );
+  return [
+    `**${escapeTableCell(inboxStage(config).title)}** is the protected Inbox section. Idle unread threads go there automatically and stay until work resumes. This routing behavior can’t be customized; never choose Inbox yourself.`,
+    "",
+    "| Key | Section | What belongs here |",
+    "| --- | --- | --- |",
+    ...rows,
+  ].join("\n");
 }

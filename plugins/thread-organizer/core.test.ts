@@ -1,87 +1,288 @@
 import { describe, expect, it } from "vitest";
-import {
-  PHASE_SECTION_NAMES,
-  classifyPhase,
-  deriveTaskTitle,
-  isManageableThread,
-  parsePhaseTarget,
-  resolvePhaseSectionId,
-} from "./core.js";
+import * as core from "./core.js";
 
-describe("development phase mapping", () => {
-  it.each([
-    ["Shape the requirements and plan the approach", "planning"],
-    ["Plan the Timeline Organizer QA flow and requirements", "planning"],
-    ["Review and approve the implementation spec", "spec-review"],
-    ["Implement the sidebar changes", "building"],
-    ["Prepare a handoff for the integration owner", "handoff"],
-    ["Run regression tests and deploy", "testing-deploy"],
-    ["Please continue", "inbox"],
-  ] as const)("maps %s to %s", (text, target) => {
-    expect(classifyPhase([text]).target).toBe(target);
-  });
+function editable() {
+  return core.editableWorkflowConfig(
+    core.cloneWorkflowConfig(core.DEFAULT_WORKFLOW_CONFIG),
+  );
+}
 
-  it.each([
-    [["Plan the implementation", "Implement the approved change"], "building"],
-    [["Review the specification", "Build the approved feature"], "building"],
-    [["Implement the feature", "Run regression tests and deploy"], "testing-deploy"],
-    [["Run regression tests", "Fix the implementation"], "building"],
-  ] as const)("uses the latest phase signal in %j", (texts, target) => {
-    expect(classifyPhase([...texts]).target).toBe(target);
-  });
-
-  it("uses exact icon-prefixed section names", () => {
-    expect(PHASE_SECTION_NAMES).toEqual({
-      planning: "📋 Planning",
-      "spec-review": "🔎 Spec Review",
-      building: "🛠️ Building",
-      handoff: "🤝 Handoff",
-      "testing-deploy": "✅ Testing / Deploy",
-      inbox: "📥 Inbox",
-    });
-    expect(
-      resolvePhaseSectionId([{ id: "sec", name: "📥 Inbox" }], "inbox"),
-    ).toBe("sec");
-    expect(
-      resolvePhaseSectionId([{ id: "legacy", name: "Inbox" }], "inbox"),
-    ).toBeNull();
-  });
-
-  it.each([
-    ["plan", "planning"],
-    ["spec", "spec-review"],
-    ["build", "building"],
-    ["handoff", "handoff"],
-    ["deploy", "testing-deploy"],
-    ["unclear", "inbox"],
-  ] as const)("accepts the phase alias %s", (input, target) => {
-    expect(parsePhaseTarget(input)).toBe(target);
-  });
-});
-
-describe("existing organizer safeguards", () => {
-  const ordinary = {
+function thread(
+  overrides: Partial<core.OrganizableThread> = {},
+): core.OrganizableThread {
+  return {
     archivedAt: null,
+    childOrigin: null,
     deletedAt: null,
+    lastReadAt: 20,
+    latestAttentionAt: 10,
     originKind: null,
     originPluginId: null,
     parentThreadId: null,
     sourceThreadId: null,
-    status: "idle" as const,
-    visibility: "visible" as const,
+    status: "idle",
+    visibility: "visible",
+    ...overrides,
   };
-  it("keeps ordinary roots and excludes legacy side chats", () => {
-    expect(isManageableThread(ordinary)).toBe(true);
+}
+
+describe("workflow configuration", () => {
+  it("ships the approved starter stages without emoji labels", () => {
     expect(
-      isManageableThread({
-        ...ordinary,
-        childOrigin: "side-chat",
-      } as typeof ordinary),
-    ).toBe(false);
+      core.DEFAULT_WORKFLOW_CONFIG.stages.map(({ key, title, icon }) => ({
+        key,
+        title,
+        icon,
+      })),
+    ).toEqual([
+      { key: "inbox", title: "Inbox", icon: "Mail" },
+      {
+        key: "planning",
+        title: "Planning",
+        icon: "ListTodo",
+      },
+      {
+        key: "spec-review",
+        title: "Spec Review",
+        icon: "FileView",
+      },
+      {
+        key: "building",
+        title: "Building",
+        icon: "Code",
+      },
+      {
+        key: "testing-deploy",
+        title: "Testing / Deploy",
+        icon: "Beaker",
+      },
+      {
+        key: "handoff",
+        title: "Handoff",
+        icon: "ArrowRight",
+      },
+      {
+        key: "on-hold",
+        title: "On Hold",
+        icon: "Pause",
+      },
+    ]);
   });
-  it("keeps prompt-derived title repair", () => {
+
+  it("allows Inbox presentation changes while preserving its system role", () => {
+    const next = editable();
+    next.stages[0] = {
+      ...next.stages[0]!,
+      title: "Needs Me",
+      icon: "MailOpen",
+    };
+
+    expect(core.normalizeEditableWorkflowConfig(next).stages[0]).toMatchObject({
+      key: "inbox",
+      title: "Needs Me",
+      icon: "MailOpen",
+      rule: core.INBOX_RULE,
+    });
+  });
+
+  it("rejects attempts to change Inbox logic or make titles ambiguous", () => {
+    const changedRule = editable();
+    changedRule.stages[0] = {
+      ...changedRule.stages[0]!,
+      rule: "Anything I want",
+    };
+    expect(() => core.normalizeEditableWorkflowConfig(changedRule)).toThrow(
+      "Inbox routing",
+    );
+
+    const duplicatedTitle = editable();
+    duplicatedTitle.stages[2] = {
+      ...duplicatedTitle.stages[2]!,
+      title: " planning ",
+    };
+    expect(() => core.normalizeEditableWorkflowConfig(duplicatedTitle)).toThrow(
+      "duplicated",
+    );
+  });
+
+  it("preserves native section identities across presentation edits", () => {
+    const current = core.cloneWorkflowConfig(core.DEFAULT_WORKFLOW_CONFIG);
+    current.stages.forEach((stage) => {
+      stage.sectionId = `section-${stage.key}`;
+    });
+    const next = core.editableWorkflowConfig(current);
+    next.stages[1] = { ...next.stages[1]!, title: "Shaping" };
+
     expect(
-      deriveTaskTitle("Please update the timeline organizer plugin")?.title,
-    ).toBe("Update Timeline Organizer Plugin");
+      core.mergeEditableWorkflowConfig(current, next).stages[1],
+    ).toMatchObject({
+      key: "planning",
+      title: "Shaping",
+      sectionId: "section-planning",
+    });
+  });
+
+  it("creates immutable, collision-free CLI keys for new stages", () => {
+    expect(core.createStageKey("Design QA", ["planning"])).toBe("design-qa");
+    expect(core.createStageKey("Design QA", ["design-qa"])).toBe("design-qa-2");
+  });
+
+  it("migrates the draft Inbox and Parked defaults without losing section ids", () => {
+    const legacy = {
+      version: 1,
+      defaultActiveStageKey: "planning",
+      stages: core.DEFAULT_WORKFLOW_CONFIG.stages.map((stage) => ({
+        ...stage,
+        policy: stage.role === "inbox" ? "system" : "agent",
+      })),
+    };
+    legacy.stages[0] = {
+      ...legacy.stages[0]!,
+      title: "Needs Me",
+      rule: "Idle unread threads requiring the user's attention. This stage is managed automatically.",
+      sectionId: "sec_inbox",
+    };
+    legacy.stages[6] = {
+      ...legacy.stages[6]!,
+      key: "parked",
+      title: "Parked",
+      rule: "Intentionally pausing work for later after explicit user direction.",
+      sectionId: "sec_parked",
+    };
+
+    expect(core.parseWorkflowConfig(legacy)?.stages).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          key: "inbox",
+          title: "Inbox",
+          sectionId: "sec_inbox",
+          rule: core.INBOX_RULE,
+        }),
+        expect.objectContaining({
+          key: "on-hold",
+          title: "On Hold",
+          sectionId: "sec_parked",
+        }),
+      ]),
+    );
+  });
+});
+
+describe("thread placement precedence", () => {
+  const config = core.cloneWorkflowConfig(core.DEFAULT_WORKFLOW_CONFIG);
+
+  it("keeps running work in its remembered stage and clears the Inbox latch", () => {
+    expect(
+      core.placementForThread(
+        config,
+        thread({ status: "active", lastReadAt: 0, latestAttentionAt: 10 }),
+        "building",
+        true,
+      ),
+    ).toMatchObject({ stage: { key: "building" }, inboxLatched: false });
+  });
+
+  it("latches idle unread work in Inbox until work resumes", () => {
+    expect(
+      core.placementForThread(
+        config,
+        thread({ status: "idle", lastReadAt: 0, latestAttentionAt: 10 }),
+        "spec-review",
+        false,
+      ),
+    ).toMatchObject({ stage: { key: "inbox" }, inboxLatched: true });
+    expect(
+      core.placementForThread(config, thread(), "spec-review", true),
+    ).toMatchObject({ stage: { key: "inbox" }, inboxLatched: true });
+    expect(
+      core.placementForThread(config, thread(), "spec-review", false),
+    ).toMatchObject({
+      stage: { key: "spec-review" },
+      inboxLatched: false,
+    });
+  });
+
+  it("falls back to the first non-Inbox stage when a remembered stage vanished", () => {
+    expect(
+      core.placementForThread(config, thread(), "removed-stage", false).stage
+        .key,
+    ).toBe("planning");
+  });
+});
+
+describe("agent guidance", () => {
+  it("generates the current taxonomy without movement-policy metadata", () => {
+    const config = core.cloneWorkflowConfig(core.DEFAULT_WORKFLOW_CONFIG);
+    config.stages[0] = { ...config.stages[0]!, title: "Needs Me" };
+    config.stages[1] = {
+      ...config.stages[1]!,
+      title: "Shaping",
+      rule: "Clarifying the outcome and constraints.",
+    };
+    const instructions = core.buildWorkflowSkillSlot(config);
+
+    expect(instructions).toContain("**Needs Me** is the protected Inbox");
+    expect(instructions).toContain("stay until work resumes");
+    expect(instructions).toContain(
+      "| planning | Shaping | Clarifying the outcome and constraints. |",
+    );
+    expect(instructions).toContain(
+      "| on-hold | On Hold | Work intentionally paused until a later time or external condition. |",
+    );
+    expect(instructions).not.toContain("Agent policy");
+    expect(instructions).not.toContain("user direction");
+    expect(instructions).not.toContain("bb organizer phase inbox");
+  });
+
+  it("contains no classifier or prompt-title derivation surface", () => {
+    expect(core).not.toHaveProperty("classifyPhase");
+    expect(core).not.toHaveProperty("deriveTaskTitle");
+    expect(core).not.toHaveProperty("parsePhaseTarget");
+  });
+});
+
+describe("local section presentation", () => {
+  it("uses temporary emoji names without leaking them into workflow titles", () => {
+    const config = core.cloneWorkflowConfig(core.DEFAULT_WORKFLOW_CONFIG);
+
+    expect(config.stages.map(core.localSectionName)).toEqual([
+      "📥 Inbox",
+      "📋 Planning",
+      "📄 Spec Review",
+      "🛠️ Building",
+      "🧪 Testing / Deploy",
+      "🤝 Handoff",
+      "⏸️ On Hold",
+    ]);
+    expect(config.stages.map((stage) => stage.title)).toEqual([
+      "Inbox",
+      "Planning",
+      "Spec Review",
+      "Building",
+      "Testing / Deploy",
+      "Handoff",
+      "On Hold",
+    ]);
+  });
+
+  it("gives every configurable icon a local emoji fallback", () => {
+    for (const icon of core.SECTION_ICON_OPTIONS) {
+      expect(core.localSectionEmoji(icon).length).toBeGreaterThan(0);
+    }
+  });
+});
+
+describe("thread safeguards", () => {
+  it("organizes ordinary and automation roots while excluding side chats and hidden workers", () => {
+    expect(core.isManageableThread(thread())).toBe(true);
+    expect(
+      core.isManageableThread(thread({ originPluginId: "automations" })),
+    ).toBe(true);
+    expect(core.isManageableThread(thread({ childOrigin: "side-chat" }))).toBe(
+      false,
+    );
+    expect(core.isManageableThread(thread({ visibility: "hidden" }))).toBe(
+      false,
+    );
   });
 });
