@@ -1,0 +1,158 @@
+[
+  {
+    "viewportClass": "mobile",
+    "width": 389,
+    "pass": true,
+    "count": 5,
+    "prose": [
+      {
+        "name": "bb-color-swatches-prose-13",
+        "text": "#ffffff"
+      }
+    ],
+    "noHorizontalOverflow": true
+  },
+  {
+    "viewportClass": "mobile",
+    "width": 390,
+    "pass": true,
+    "count": 5,
+    "prose": [
+      {
+        "name": "bb-color-swatches-prose-13",
+        "text": "#ffffff"
+      }
+    ],
+    "noHorizontalOverflow": true
+  },
+  {
+    "viewportClass": "mobile",
+    "width": 391,
+    "pass": true,
+    "count": 5,
+    "prose": [
+      {
+        "name": "bb-color-swatches-prose-13",
+        "text": "#ffffff"
+      }
+    ],
+    "noHorizontalOverflow": true
+  },
+  {
+    "viewportClass": "small/narrow",
+    "width": 767,
+    "pass": true,
+    "count": 5,
+    "prose": [
+      {
+        "name": "bb-color-swatches-prose-13",
+        "text": "#ffffff"
+      }
+    ],
+    "noHorizontalOverflow": true
+  },
+  {
+    "viewportClass": "small/narrow",
+    "width": 768,
+    "pass": true,
+    "count": 5,
+    "prose": [
+      {
+        "name": "bb-color-swatches-prose-16",
+        "text": "#ffffff"
+      }
+    ],
+    "noHorizontalOverflow": true
+  },
+  {
+    "viewportClass": "small/narrow",
+    "width": 769,
+    "pass": true,
+    "count": 5,
+    "prose": [
+      {
+        "name": "bb-color-swatches-prose-16",
+        "text": "#ffffff"
+      }
+    ],
+    "noHorizontalOverflow": true
+  },
+  {
+    "viewportClass": "normal desktop",
+    "width": 1439,
+    "pass": true,
+    "count": 5,
+    "prose": [
+      {
+        "name": "bb-color-swatches-prose-16",
+        "text": "#ffffff"
+      }
+    ],
+    "noHorizontalOverflow": true
+  },
+  {
+    "viewportClass": "normal desktop",
+    "width": 1440,
+    "pass": true,
+    "count": 5,
+    "prose": [
+      {
+        "name": "bb-color-swatches-prose-16",
+        "text": "#ffffff"
+      }
+    ],
+    "noHorizontalOverflow": true
+  },
+  {
+    "viewportClass": "normal desktop",
+    "width": 1441,
+    "pass": true,
+    "count": 5,
+    "prose": [
+      {
+        "name": "bb-color-swatches-prose-16",
+        "text": "#ffffff"
+      }
+    ],
+    "noHorizontalOverflow": true
+  },
+  {
+    "viewportClass": "very large desktop",
+    "width": 3439,
+    "pass": true,
+    "count": 5,
+    "prose": [
+      {
+        "name": "bb-color-swatches-prose-16",
+        "text": "#ffffff"
+      }
+    ],
+    "noHorizontalOverflow": true
+  },
+  {
+    "viewportClass": "very large desktop",
+    "width": 3440,
+    "pass": true,
+    "count": 5,
+    "prose": [
+      {
+        "name": "bb-color-swatches-prose-16",
+        "text": "#ffffff"
+      }
+    ],
+    "noHorizontalOverflow": true
+  },
+  {
+    "viewportClass": "very large desktop",
+    "width": 3441,
+    "pass": true,
+    "count": 5,
+    "prose": [
+      {
+        "name": "bb-color-swatches-prose-16",
+        "text": "#ffffff"
+      }
+    ],
+    "noHorizontalOverflow": true
+  }
+]
