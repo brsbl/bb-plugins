@@ -1,0 +1,890 @@
+/*
+ * ENDLESS — 10 years (August 19, 2016 → August 19, 2026)
+ *
+ * Frank Ocean's Endless as a bb palette. The album is a black-and-white
+ * visual record: a grainy near-black field, two silver-gelatin photographs,
+ * printers' registration marks in the corners, a greyscale step wedge down
+ * each edge, and a warehouse ceiling of fluorescent tubes.
+ *
+ * The four moves that make this read as Endless rather than "a dark theme":
+ *
+ *   1. ACHROMATIC. There is no accent hue. The neutral ramp is a warm-toned
+ *      silver print — the step wedge from the cover's edge strips — and every
+ *      surface, border and text tier is drawn from it.
+ *   2. LIGHT IS THE ACCENT. In dark mode --primary is pure #ffffff: the
+ *      fluorescent tube. Body text sits at #f4f2ed, so anything primary reads
+ *      as literally *lit* rather than merely tinted. Light mode inverts the
+ *      idea — --primary becomes #161616, a slab of ink on paper.
+ *   3. ROUNDED. --radius is 12px. The source is hard-cornered print, but at
+ *      UI scale 0, 4px and 8px all read as brittle; 12px is where it settles.
+ *   4. TWO TONES, NOT ONE. Body text is warm-toned silver; file paths and the
+ *      timeline are cold-toned (#9db6c6 dark / #405663 light) — two prints
+ *      from the same negative, developed in different chemistry. The status
+ *      whispers sit a step from grey, but this one shift is held VISIBLE on
+ *      purpose: it is the only temperature change in the theme, so it does
+ *      all the work of an accent color without adding one.
+ *
+ * Semantics are a WHISPER of hue, not a colour: desaturated until they sit a
+ * step from grey, so the print stays silver and endless-color owns colour.
+ * Destructive leans safelight, warning sepia, success selenium, merged violet
+ * — visible side by side, silent from across the room.
+ *
+ * CASCADE RULE — read before editing. `:root` and `.dark` have equal
+ * specificity (0,1,0) and this stylesheet loads after bb's, so a `:root`
+ * declaration here BEATS bb's own `.dark` default. Every token pinned in the
+ * light block is therefore also pinned in the dark block, or its light value
+ * would leak into dark mode.
+ *
+ * ACHROMATIC IN BOTH MODES. Light mode's surfaces were always exact greys;
+ * dark mode's carried a faint +4 blue cast, which read as muddy next to the
+ * warm silver ink. Every dark surface is now an exact grey at the same
+ * luminance it had before, so the only colour temperature in the theme comes
+ * from the ink and the two-tone text — as designed.
+ *
+ * Contrast floors held throughout: text >= 4.5:1, non-text UI >= 3:1, measured
+ * against the field — #f4f4f4 (light) and #1a1a1a (dark). Ratios were solved
+ * numerically and the tightest cases (the secondary text tiers over --accent,
+ * the hover fill) are noted inline.
+ *
+ * NO GRAIN. Earlier builds carried a fractal-noise film grain, and the two
+ * --canvas anchors were set past their targets to compensate for the lift it
+ * added. The grain is gone by request; the anchors are now the field values
+ * directly, so every ratio below is unchanged and still measured against the
+ * colour you actually see.
+ *
+ * The ANSI terminal palette is left at bb's defaults on purpose. A greyscale
+ * remap would erase the one place in the app where color is load-bearing
+ * rather than decorative.
+ */
+
+/* Type is system-native (Helvetica Neue / Courier); nothing to embed. */
+
+/* ===========================================================================
+ * LIGHT — the gallery print. Warm paper, ink, photographs mounted on board.
+ * ======================================================================== */
+
+:root,
+.light {
+  color-scheme: light;
+
+  /* ---------------------------------------------------------------------
+   * TYPE — the two faces. Not a colour tier, but part of the palette: every
+   * theme in the family inherits these, so the type is as much the brand as
+   * the ink is.
+   * ------------------------------------------------------------------- */
+  /* Typography — :root-only so it applies in both modes, and shared by every
+   * theme in the family. The reference is the album's liner notes: song titles
+   * in bold Helvetica, lyrics in typewriter caps. So the UI face is Helvetica
+   * Neue (falling back to bb's bundled Inter, which is cut from the same
+   * cloth), and the mono is a Courier — code, file paths and terminals read as
+   * the typewriter. Both are system faces: no webfont, no @font-face, nothing
+   * to embed. */
+  --font-sans: 'Helvetica Neue', Helvetica, 'Inter Variable', Inter, sans-serif;
+  --font-mono: 'Courier Prime', 'Courier New', Courier, 'American Typewriter', monospace;
+
+  /* Squared. Prints and crop marks have no rounded corners. */
+  --radius: 12px;
+
+  /* Sidebar noise — see the rule at the bottom. Fine, low-opacity fractal
+   * noise on the sidebar only, the way most apps do it: enough to break up a
+   * flat fill, never enough to read as texture. */
+  --sidebar-noise: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.55' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='180' height='180' filter='url(%23g)' opacity='0.18'/%3E%3C/svg%3E");
+
+  /* =====================================================================
+   * TIER 1 · ANCHORS — the two colours that ARE the theme. Everything below
+   * is derived from or measured against this pair plus --primary. If you
+   * only ever saw three swatches, these are the three.
+   * ================================================================== */
+  /* Anchors — neutral paper and process black. The reference still measures
+   * exactly zero saturation, so the ramp carries no cast at all. */
+  --canvas: #f4f4f4;              /* the field, set directly */
+  --ink: #0a0a0a;                 /* 18.00:1 on the field */
+
+  /* Accent — a slab of ink. The inverse of dark mode's tube of light. */
+  --primary: #0a0a0a;             /* 18.00:1 */
+  --primary-foreground: #f4f4f4;
+  --ring: #0a0a0a;
+
+  /* =====================================================================
+   * TIER 2 · NEUTRAL RAMP — supporting greys. Text tiers, surfaces, sidebar,
+   * borders and states: the whole structure of the app, and deliberately
+   * quiet. No hue of its own; it exists so Tier 1 and Tier 3 can speak.
+   * ================================================================== */
+  /* Text tiers — the greyscale step wedge, warm-toned */
+  --foreground: #0a0a0a;
+  --muted-foreground: #3a3a3a;    /* 8.39:1 canvas · 7.18:1 on --accent */
+  --readback-foreground: #474747; /* 6.83:1 canvas · 5.84:1 on --accent */
+  --subtle-foreground: #545454;   /* 5.59:1 canvas · 4.78:1 on --accent */
+
+  /* Surfaces — cards are pure white, so every panel reads as a photograph
+   * mounted on the warm board of the canvas */
+  --card: #ffffff;
+  --card-foreground: #0a0a0a;
+  --popover: #ffffff;
+  --popover-foreground: #0a0a0a;
+  --secondary: #e0e0e0;
+  --secondary-foreground: #0a0a0a;
+  --accent: #d6d6d6;              /* hover fill, one step past secondary */
+  --accent-foreground: #0a0a0a;
+  --muted: #dedede;
+
+  /* Sidebar — mount board: a shade under the canvas */
+  --sidebar: #e4e4e4;             /* the noise shifts this by <1 level */
+  --sidebar-foreground: #0a0a0a;
+  --sidebar-accent: #d6d6d6;
+  --sidebar-accent-foreground: #0a0a0a;
+  --sidebar-border: rgba(22, 22, 22, 0.26);
+  --sidebar-ring: #0a0a0a;
+
+  /* Borders — crisp press rules. Light mode has no glow to lean on, so the
+   * geometry has to carry the structure by itself. */
+  --border: rgba(22, 22, 22, 0.30);
+  --border-hairline: rgba(22, 22, 22, 0.11);
+  --border-seam: rgba(22, 22, 22, 0.17);
+  --border-seam-vertical: rgba(22, 22, 22, 0.17);
+  --input: rgba(22, 22, 22, 0.55);   /* 3.29:1 as a solid — clears the UI floor */
+
+  /* Interactive states — neutral graphite washes, no hue */
+  --state-hover: rgba(22, 22, 22, 0.07);
+  --state-active: rgba(22, 22, 22, 0.14);
+
+  /* Selection */
+  --surface-selected: rgba(22, 22, 22, 0.13);
+  --surface-selected-border: rgba(22, 22, 22, 0.40);
+  --selection-color-default: rgba(22, 22, 22, 0.16);
+
+  /* Frosted top bars — the field at 92%. */
+  --surface-scrim: rgba(244, 244, 244, 0.92);
+
+  /* Inset wells. bb uses --surface-recessed for USER MESSAGE BUBBLES, tables
+   * and quote blocks as well as code, so this is the tint every prompt you
+   * send picks up — kept light on purpose. */
+  --surface-recessed: rgba(22, 22, 22, 0.05);
+  --surface-recessed-solid: #e0e0e0;
+  --surface-recessed-soft-solid: #e9e9e9;
+
+  /* =====================================================================
+   * TIER 3 · SEMANTIC ACCENTS — the only hues in the palette, and the
+   * smallest surface area. Status, diffs and the cold file/timeline tone.
+   * ================================================================== */
+  /* Semantic — a hand-tinted print. Toned, never saturated. */
+  --destructive: #6e4a47;         /* a whisper of safelight · 6.98:1 */
+  --destructive-foreground: #ffffff;
+  --destructive-text: #5c3d3a;    /* 8.74:1 */
+  --success: #47564d;             /* a whisper of selenium · 7.06:1 */
+  --success-foreground: #47564d;
+  --warning: #655a42;             /* a whisper of sepia · 6.17:1 */
+  --warning-text: #57503c;        /* 7.29:1 */
+  --attention: #655a42;
+  --pr-merged: #54506a;           /* a whisper of violet · 6.99:1 */
+  --timeline-accent: #405663;     /* the cold tone — visibly cold, still quiet · 7.00:1 */
+  --file-accent: #405663;
+
+  /* Diffs */
+  --diff-added: #47564d;          /* 7.06:1 */
+  --diff-removed: #6e4a47;        /* 6.98:1 */
+
+  /* Sidebar search highlight */
+  --sidebar-search-match: #d4d4d4;
+  --sidebar-search-match-border: #0a0a0a;
+
+  /* Prompt mention pills */
+  --pill-surface: linear-gradient(to bottom, rgba(22, 22, 22, 0.06), rgba(22, 22, 22, 0.12));
+  --pill-surface-selected: linear-gradient(to bottom, rgba(22, 22, 22, 0.18), rgba(22, 22, 22, 0.28));
+  --pill-surface-selected-border: rgba(22, 22, 22, 0.40);
+  --pill-shadow: 0 1px 0 0 rgba(22, 22, 22, 0.14);
+
+  /* Resource shelf hover */
+  --resource-source-shelf-card-hover-border: rgba(22, 22, 22, 0.38);
+  --resource-source-shelf-card-hover-shadow:
+    -1px 2px 0 0 rgba(22, 22, 22, 0.10),
+    -4px 6px 12px -5px rgba(22, 22, 22, 0.22);
+
+  /* Shadows — hard-edged register offsets, the way a print sits on board.
+   * No blur-first elevation; planes stack, they do not float. */
+  --shadow-opacity: 0.16;
+  --shadow-color: rgba(22, 22, 22, 0.16);
+  --shadow-2xs: 0px 1px 0px 0px rgba(22, 22, 22, 0.10);
+  --shadow-xs: 0px 1px 0px 0px rgba(22, 22, 22, 0.10);
+  --shadow-sm: 0px 1px 0px 0px rgba(22, 22, 22, 0.13), 0px 1px 3px -1px rgba(22, 22, 22, 0.13);
+  --shadow: 0px 1px 0px 0px rgba(22, 22, 22, 0.13), 0px 1px 3px -1px rgba(22, 22, 22, 0.13);
+  --shadow-md: 0px 1px 0px 0px rgba(22, 22, 22, 0.13), 0px 3px 8px -2px rgba(22, 22, 22, 0.16);
+  --shadow-lg: 0px 1px 0px 0px rgba(22, 22, 22, 0.15), 0px 6px 16px -4px rgba(22, 22, 22, 0.20);
+  --shadow-xl: 0px 1px 0px 0px rgba(22, 22, 22, 0.15), 0px 10px 26px -6px rgba(22, 22, 22, 0.24);
+  --shadow-2xl: 0px 1px 0px 0px rgba(22, 22, 22, 0.34);
+  --shadow-lift: 0px -4px 14px -4px rgba(22, 22, 22, 0.14);
+}
+
+/* ===========================================================================
+ * DARK — the warehouse. Grain, near-black, and tube light.
+ * ======================================================================== */
+
+.dark {
+  color-scheme: dark;
+
+  --radius: 12px;
+
+  /* Sidebar noise — see the rule at the bottom. */
+  --sidebar-noise: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='hi' x='0' y='0' width='100%25' height='100%25'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.55' numOctaves='3' seed='3' stitchTiles='stitch'/%3E%3CfeColorMatrix type='matrix' values='0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  .4 .4 .4 0 -.6'/%3E%3C/filter%3E%3Cfilter id='lo' x='0' y='0' width='100%25' height='100%25'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.55' numOctaves='3' seed='3' stitchTiles='stitch'/%3E%3CfeColorMatrix type='matrix' values='0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  -.4 -.4 -.4 0 .6'/%3E%3C/filter%3E%3Crect width='180' height='180' filter='url(%23hi)' opacity='0.13'/%3E%3Crect width='180' height='180' filter='url(%23lo)' opacity='0.13'/%3E%3C/svg%3E");
+
+  /* =====================================================================
+   * TIER 1 · ANCHORS — the two colours that ARE the theme. Everything below
+   * is derived from or measured against this pair plus --primary. If you
+   * only ever saw three swatches, these are the three.
+   * ================================================================== */
+  /* Anchors — the cover's field. Not #000: a printed black, faintly cool. */
+  --canvas: #1a1a1a;              /* the field, set directly */
+  --ink: #dbd8d1;                 /* warm silver, 12.19:1 — deliberately short of maximum */
+
+  /* Accent — the fluorescent tube. Pure white, one step brighter than body
+   * text, so a primary element is not tinted but lit. */
+  --primary: #ffffff;             /* 18.06:1 */
+  --primary-foreground: #0e0e10;
+  --ring: #ffffff;
+
+  /* =====================================================================
+   * TIER 2 · NEUTRAL RAMP — supporting greys. Text tiers, surfaces, sidebar,
+   * borders and states: the whole structure of the app, and deliberately
+   * quiet. No hue of its own; it exists so Tier 1 and Tier 3 can speak.
+   * ================================================================== */
+  /* Text tiers — the step wedge, warm-toned */
+  --foreground: #cecbc4;          /* 10.74:1 canvas — one step down from 12.23:1; the top of the ramp is where dark-mode bloom comes from */
+  --muted-foreground: #bab7b0;    /* 8.66:1 canvas · 7.28:1 on --accent */
+  --readback-foreground: #a09d96; /* 6.41:1 canvas · 5.50:1 on --accent */
+  --subtle-foreground: #918e86;   /* 5.30:1 canvas · 4.90:1 on --accent */
+
+  /* Surfaces — barely separated on purpose. The cover is a flat field; depth
+   * comes from the lit edges below, not from graduated fills. */
+  --card: #212121;
+  --card-foreground: #dcd9d2;     /* 11.42:1 on --card (was 14.39:1) */
+  --popover: #262626;
+  --popover-foreground: #dcd9d2;  /* 10.74:1 on --popover (was 13.53:1) */
+  --secondary: #232323;
+  --secondary-foreground: #f4f2ed;
+  --accent: #262626;              /* hover fill */
+  --accent-foreground: #f4f2ed;
+  --muted: #1f1f1f;
+
+  /* Sidebar — blacker than the canvas, so its lit trailing edge separates it */
+  --sidebar: #0a0a0a;             /* raw; the noise settles it to #0b0b0e */
+  --sidebar-foreground: #f4f2ed;
+  --sidebar-accent: #202020;
+  --sidebar-accent-foreground: #f4f2ed;
+  --sidebar-border: rgba(255, 255, 255, 0.18);
+  --sidebar-ring: #ffffff;
+
+  /* Borders — white hairlines. Every seam in the app is a strip light. */
+  --border: rgba(255, 255, 255, 0.10);
+  --border-hairline: rgba(255, 255, 255, 0.05);
+  --border-seam: rgba(255, 255, 255, 0.12);
+  --border-seam-vertical: rgba(255, 255, 255, 0.12);
+  --input: rgba(255, 255, 255, 0.30);  /* 3.31:1 as a solid */
+
+  /* Interactive states — light falling on a surface, not color washing it */
+  --state-hover: rgba(255, 255, 255, 0.06);
+  --state-active: rgba(255, 255, 255, 0.12);
+
+  /* Selection */
+  --surface-selected: rgba(255, 255, 255, 0.11);
+  --surface-selected-border: rgba(255, 255, 255, 0.40);
+  --selection-color-default: rgba(255, 255, 255, 0.20);
+
+  /* Inset wells — a lit slab. Your own prompts read as the exposed frame. */
+  --surface-recessed: rgba(255, 255, 255, 0.05);
+  --surface-recessed-solid: #212121;
+  --surface-recessed-soft-solid: #1d1d1d;
+
+  /* Frosted top bars — the field at 92%. */
+  --surface-scrim: rgba(26, 26, 26, 0.92);
+
+  /* =====================================================================
+   * TIER 3 · SEMANTIC ACCENTS — the only hues in the palette, and the
+   * smallest surface area. Status, diffs and the cold file/timeline tone.
+   * ================================================================== */
+  /* Semantic — toned, not saturated */
+  --destructive: #8a5b57;         /* a whisper of safelight · 3.07:1 fill */
+  --destructive-foreground: #ffffff;
+  --destructive-text: #c9aca8;    /* 8.22:1 */
+  --success: #9fafa5;             /* a whisper of selenium · 7.56:1 */
+  --success-foreground: #9fafa5;
+  --warning: #bfb49b;             /* a whisper of sepia · 8.44:1 */
+  --warning-text: #bfb49b;
+  --attention: #bfb49b;
+  --pr-merged: #aca7c0;           /* a whisper of violet · 7.47:1 */
+  --timeline-accent: #9db6c6;     /* the cold tone — visibly cold, still quiet · 8.24:1 */
+  --file-accent: #9db6c6;
+
+  /* Diffs */
+  --diff-added: #9fafa5;          /* 7.56:1 */
+  --diff-removed: #c9aca8;        /* 8.22:1 */
+
+  /* Sidebar search highlight */
+  --sidebar-search-match: #2a2a30;
+  --sidebar-search-match-border: #ffffff;
+
+  /* Prompt mention pills */
+  --pill-surface: linear-gradient(to bottom, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.12));
+  --pill-surface-selected: linear-gradient(to bottom, rgba(255, 255, 255, 0.18), rgba(255, 255, 255, 0.28));
+  --pill-surface-selected-border: rgba(255, 255, 255, 0.42);
+  --pill-shadow: 0 1px 0 0 rgba(255, 255, 255, 0.07);
+
+  /* Resource shelf hover */
+  --resource-source-shelf-card-hover-border: rgba(255, 255, 255, 0.38);
+  --resource-source-shelf-card-hover-shadow:
+    -1px 2px 0 0 rgba(0, 0, 0, 0.55),
+    -4px 6px 14px -5px rgba(0, 0, 0, 0.75);
+
+  /* Shadows — a black cast shadow is invisible on a near-black field, so
+   * every tier carries a 1px white key line and the blur only adds weight
+   * beneath it. Re-declared in full so the :root block cannot leak into dark.
+   */
+  --shadow-opacity: 0.55;
+  --shadow-color: rgba(0, 0, 0, 0.75);
+  --shadow-2xs: 0px 1px 0px 0px rgba(0, 0, 0, 0.55);
+  --shadow-xs: 0px 1px 0px 0px rgba(0, 0, 0, 0.55);
+  --shadow-sm: 0 0 0 1px rgba(255, 255, 255, 0.04), 0px 1px 3px -1px rgba(0, 0, 0, 0.70);
+  --shadow: 0 0 0 1px rgba(255, 255, 255, 0.04), 0px 1px 3px -1px rgba(0, 0, 0, 0.70);
+  --shadow-md: 0 0 0 1px rgba(255, 255, 255, 0.05), 0px 3px 10px -2px rgba(0, 0, 0, 0.75);
+  --shadow-lg: 0 0 0 1px rgba(255, 255, 255, 0.06), 0px 6px 20px -4px rgba(0, 0, 0, 0.80);
+  --shadow-xl: 0 0 0 1px rgba(255, 255, 255, 0.07), 0px 10px 30px -6px rgba(0, 0, 0, 0.85);
+  --shadow-2xl: 0px 1px 0px 0px rgba(0, 0, 0, 0.90);
+  --shadow-lift: 0px -4px 16px -4px rgba(0, 0, 0, 0.60);
+}
+
+/* ---------------------------------------------------------------------------
+ * The room. Everything below is structure the token system cannot express.
+ * Delete any block to drop that effect; the palette above stands on its own.
+ * ------------------------------------------------------------------------- */
+
+
+/* TEXT TIERS AT FULL STRENGTH.
+ *
+ * bb dims the secondary tiers with Tailwind opacity modifiers (/45 - /90) on
+ * top of whatever the palette sets. Audited by walking every rendered text
+ * node in the running app and computing its contrast against its composited
+ * background, that drops real labels to 2.07:1 dark and 1.89:1 light — far
+ * below AA. No token value can rescue them: the modifier multiplies whatever
+ * it is given, and a /45 tier over the dark field tops out near 3.8:1 even if
+ * the token were pure white.
+ *
+ * Neutralised app-wide. The hierarchy still reads: it is carried by the three
+ * tier values, which are spaced roughly 1.3x apart in contrast, rather than by
+ * opacity as well. */
+.text-foreground\/80, .text-foreground\/85, .text-foreground\/90 { color: var(--foreground); }
+.text-muted-foreground\/45, .text-muted-foreground\/50, .text-muted-foreground\/60,
+.text-muted-foreground\/70, .text-muted-foreground\/75, .text-muted-foreground\/80 { color: var(--muted-foreground); }
+.text-subtle-foreground\/50, .text-subtle-foreground\/60, .text-subtle-foreground\/75,
+.text-subtle-foreground\/80, .text-subtle-foreground\/85 { color: var(--subtle-foreground); }
+.data-\[state\=open\]\:text-subtle-foreground\/75[data-state="open"] { color: var(--subtle-foreground); }
+
+/* ANCESTOR OPACITY. Two spots dim an ancestor rather than the text, so no
+ * colour token reaches them: settled-turn machinery ("Worked for 7m 11s")
+ * carries a bare `opacity-40`, and an inline error label carries `opacity-75`.
+ * Solving for the 4.5:1 floor against both fields needs >= 0.89 and >= 0.95
+ * respectively. Tailwind compiles `disabled:opacity-40` to a DIFFERENT
+ * selector, so neither rule touches a disabled control (which WCAG exempts
+ * anyway), and `.cursor-not-allowed` is excluded so unavailable items still
+ * read as unavailable. */
+.opacity-40:not(.cursor-not-allowed) { opacity: 0.92; }
+.opacity-75:not(.cursor-not-allowed) { opacity: 1; }
+
+/* DARK SIDEBAR — halation and visual noise.
+ *
+ * HALATION. Near-white text on a near-black fill is the worst case for
+ * astigmatic haloing: optical blur spreads a very bright edge into the dark
+ * ground. The fix narrows the contrast BAND rather than maximising it — lift
+ * the surface off black, drop the foreground off white, keep every pair well
+ * above AA but far below the 16:1 the content area runs at. Surface goes
+ * #0b0b0e -> #17171a; foreground #f4f2ed -> #cecbc4, landing at 11.05:1
+ * instead of 16.29:1.
+ *
+ * No text-shadow to remove — neither bb nor this theme sets one (checked).
+ * Font smoothing is pinned to `auto` so macOS uses subpixel antialiasing;
+ * greyscale AA thins strokes on dark ground and worsens haloing. Font weight
+ * is deliberately untouched: the brief says keep type as it is, and smoothing
+ * is the lever that moves no layout.
+ *
+ * BUSY. Fewer simultaneous signals, same structure: dividers 18% -> 7%, the
+ * lit trailing edge 26% -> 12%, hover becomes a quiet 5% lift so the SELECTED
+ * row is the only strong mark, and the secondary tiers step down. Nesting, row
+ * height, spacing rhythm and interaction behaviour are unchanged.
+ *
+ * These are the theme's own shared tokens re-scoped to the sidebar subtree —
+ * custom properties inherit, so this reaches every descendant with no
+ * per-component override. `.dark`-only: light mode is untouched. */
+.dark .fixed.bg-sidebar {
+  --sidebar: #1d1d1d;                       /* lifted off near-black — and
+                                               matched to the flat #1d1d1d that
+                                               bb paints behind row lists, so
+                                               the field and the rows read as
+                                               ONE surface instead of banding */
+  --sidebar-foreground: #c6c3bc;            /* 9.58:1 — stays one step under the canvas ramp */
+  --foreground: #c6c3bc;                    /* 9.58:1 */
+  --muted-foreground: #b0ada5;              /* 7.98:1 · 6.06:1 on selected */
+  --readback-foreground: #a3a099;           /* 6.85:1 · 5.20:1 on selected */
+  --subtle-foreground: #99968e;             /* 6.05:1 · 5.30:1 hover · 4.59:1 selected */
+
+  --border: rgba(255, 255, 255, 0.05);      /* was 0.18 — fewer dividers */
+  --border-hairline: rgba(255, 255, 255, 0.025);
+  --sidebar-border: rgba(255, 255, 255, 0.06);
+
+  --state-hover: rgba(255, 255, 255, 0.05); /* quiet; selected carries the mark */
+  --state-active: rgba(255, 255, 255, 0.09);
+  --sidebar-accent: #232323;      /* neutralised — the achromatic pass had missed this scoped value */
+  --sidebar-accent-foreground: #cecbc4;
+  --surface-selected: rgba(255, 255, 255, 0.10);
+  --surface-selected-border: rgba(255, 255, 255, 0.20);
+
+  -webkit-font-smoothing: auto;
+}
+.dark .fixed.bg-sidebar * { -webkit-font-smoothing: inherit; }
+
+/* QUEUED DRAWER DIVIDER. bb draws the drawer's header rule with
+ * `border-b border-border/35` — that is --border multiplied by 35%, so it
+ * lands at white 3.5% in dark and black 10.5% in light. The light one in
+ * particular reads as a hard rule against near-white paper.
+ *
+ * Halved in both modes. Scoped to the drawer's own group class so --border is
+ * untouched everywhere else; the drawer is the only surface asked for. */
+.group\/queue-header { border-bottom-color: rgba(22, 22, 22, 0.05); }
+.dark .group\/queue-header { border-bottom-color: rgba(255, 255, 255, 0.018); }
+
+/* SIDEBAR SECTION HEADINGS — no fill.
+ *
+ * bb gives the section header row its own opaque `bg-sidebar` fill. That is
+ * the SAME colour as the sidebar, so it is invisible on a flat theme — but
+ * this sidebar carries noise, and an opaque repaint erases the texture on
+ * those rows. The result reads as a flat band behind every heading.
+ *
+ * Dropping the fill lets the sidebar's own surface (and its noise) show
+ * through. Scoped to elements carrying BOTH classes: of the 12
+ * `.bb-sidebar-hover-actions-row` rows in the sidebar, exactly 3 also carry
+ * `bg-sidebar`, and those 3 are the section headers. Hover and focus fills are
+ * separate classes and are untouched. Verified against the running app. */
+.fixed.bg-sidebar .bb-sidebar-hover-actions-row.bg-sidebar {
+  background-color: transparent;
+}
+
+/* SIDEBAR NOISE — the amp face. Fine desaturated fractal noise, tuned to read
+ * like the brushed black panel of old rack gear.
+ *
+ * DARK RUNS AN ORDER QUIETER THAN LIGHT, and the reason is worth keeping: a
+ * live toggle experiment (noise off via --sidebar-noise: none) proved that the
+ * "section background" bands were the noise itself — turn it off and the
+ * sidebar measures perfectly uniform. White noise over near-black lifts the
+ * mean by ~5 levels at 6% opacity, and its blob-scale variance (~±4) aligns
+ * with the layout often enough to read as fills. On light's silver the same
+ * opacity is a whisper. So light keeps 5% and dark drops to 2%, where the
+ * variance cannot exceed a level.
+ *
+ * (original note) Fine desaturated fractal noise at a very low opacity, on the
+ * sidebar and nothing else — the standard way apps break up a large flat fill.
+ * Painted as an ::after OVERLAY on the sidebar, above every child. Two earlier
+ * placements failed: on the container it was buried by the `h-full w-full`
+ * child that repaints an opaque fill, and on that child it was interrupted by
+ * the row and section surfaces bb paints on top — the brushing measurably
+ * halved in amplitude under them (sd 0.42 between rows vs 0.19 beneath), which
+ * reads as horizontal gaps chopping up the grain. An overlay paints last, so
+ * the panel is one continuous brushed face no matter what bb fills underneath.
+ * pointer-events:none keeps it non-interactive.
+ *
+ * The noise composites over the fill, so it shifts the sidebar a little: the
+ * two --sidebar values are set past their targets to absorb that, exactly as
+ * the old full-app grain did for --canvas. Measured, not estimated.
+ *
+ * THE TUBE. The sidebar's trailing edge is a strip light — a hard white
+ * hairline, and nothing else. It used to carry a soft bloom spilling into the
+ * canvas; that read as a glow rather than an edge, so it is gone. The 1px
+ * inset line stays: it is the structure, not the effect.
+ *
+ * Scoped to `.fixed.bg-sidebar`, which matches only the outermost sidebar;
+ * plain `.bg-sidebar` matches ~19 nested elements and would draw a dozen
+ * stacked seams. Dark-only: in light mode the print is lit from the room, not
+ * from inside the frame. */
+.fixed.bg-sidebar::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 60;
+  background-image: var(--sidebar-noise);
+  /* Per-layer sizes: a variant that layers a full-bleed sheen under the
+   * brushing overrides this list; the default is the texture tile alone. */
+  background-size: var(--sidebar-noise-size, 180px 180px);
+  background-repeat: repeat;
+}
+.dark .fixed.bg-sidebar {
+  box-shadow: inset -1px 0 0 0 rgba(255, 255, 255, 0.12);
+}
+
+/* Text selection — bb only styles ::selection inside the prompt editor
+ * (.ProseMirror), so thread text would otherwise fall back to the macOS
+ * default blue and put the one hue this theme refuses right in the middle of
+ * it. Point both at the same token. */
+::selection {
+  background-color: var(--selection-color-default);
+}
+.ProseMirror ::selection {
+  background-color: var(--selection-color-default);
+}
+
+/* INLINE CODE WEIGHT. Courier New draws thin at UI sizes; inline code chips
+ * and paths read under-weight against Helvetica body text. Semibold for
+ * inline code only — fenced blocks keep regular weight for density. */
+code:not(pre code) {
+  font-weight: 600;
+}
+
+/* MESSAGE NAVIGATOR (the "Agent messages / Your messages" popover, bb id
+ * thread-toc-panel-*). It sits over the timeline like a hung sheet of the
+ * sidebar's material: same fill as the sidebar, with a light source at the top
+ * edge — a soft sheen falling off by a third of the panel, and a 1px inner
+ * highlight where the light catches the lip. --popover is remapped inside so
+ * the panel's own fade gradients and children stay on the same surface. */
+[id^="thread-toc-panel-"] {
+  --popover: var(--sidebar);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.55), rgba(255, 255, 255, 0.18) 18%, rgba(255, 255, 255, 0) 38%),
+    var(--sidebar);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.85), 0 8px 24px -8px rgba(22, 22, 22, 0.25);
+}
+.dark [id^="thread-toc-panel-"] {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.07), rgba(255, 255, 255, 0.025) 18%, rgba(255, 255, 255, 0) 38%),
+    var(--sidebar);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.09), 0 8px 24px -8px rgba(0, 0, 0, 0.6);
+}
+
+
+/* ===========================================================================
+ * ENDLESS COLOR — the foil sleeve and the painted stair, in light mode.
+ *
+ * Base: the foil cover (IMG_6519). Its paper measures #E2E2E2 — exactly
+ * neutral — and its foil holds a median saturation of just 11.8%, so the field
+ * stays achromatic silver and colour appears only as a rare pop.
+ *
+ * Accents: the painted stair stack, held at the HIGHEST chroma each floor
+ * allows rather than the lowest — an earlier pass minimised chroma and the
+ * result read as muddy. Same sampled hues, cleaner voices:
+ *   light blue #75A1B4 -> #2e6f95   primary / files / selection
+ *   mustard    #C8A55B -> #8a660a   warning
+ *   orange     #AA5C41 -> #a8481f   attention
+ *   red        #6E2F24 -> #9c3118   destructive
+ *   olive      #333820 -> #5a6813   success
+ * plus the foil's own violet (#5d4f93) for merged.
+ *
+ * Trim: the speaker cabinet — white boxes held together by exposed plywood
+ * rails. Borders here are a mustard-khaki ink instead of neutral black, at the
+ * same alphas the family uses, so the chrome reads as warm rail against
+ * silver panel. It is trim, not another accent: too faint to register as
+ * colour until surfaces sit side by side.
+ *
+ * SELECTOR: `:root:not(.dark)`, not `:root, .light`. This block loads AFTER
+ * the endless palette, and `:root` has the same specificity as `.dark` — so a
+ * plain `:root` here BEATS the dark block and leaks light values into dark
+ * mode. bb never sets a `.light` class either (light is the ABSENCE of
+ * `.dark`), so `.light` alone matches nothing. `:root:not(.dark)` is the only
+ * form that is both light-only and immune to the ordering. Caught by auditing
+ * dark mode after the first attempt, which regressed 3 pairs.
+ * ======================================================================== */
+:root:not(.dark) {
+  --canvas: #f1f2f4;              /* foil silver — measured base #bbbdbb is neutral; lifted, a breath cool */
+
+  /* THE FOIL. The sleeve's base measures neutral silver (#bbbdbb, 1% sat)
+   * with violet / periwinkle / cyan-blue streaks — so the surfaces are cool
+   * silver (never warm, never cream), the sheen carries those exact streak
+   * hues, and the stair colours are the pops: blue leads, mustard / orange /
+   * red punctuate. Every value is luminance-matched, so all contrast ratios
+   * carry over. */
+  --sidebar: #e3e5e9;
+  --secondary: #dfe2e6;
+  --secondary-foreground: #0a0a0a;
+  --accent: #d5d9df;
+  --accent-foreground: #0a0a0a;
+  --muted: #dde0e5;
+  --sidebar-accent: #d5d9df;
+  --sidebar-accent-foreground: #0a0a0a;
+  --card: #fdfdff;
+  --popover: #fdfdff;
+  --surface-recessed: rgba(40, 44, 60, 0.05);
+  --surface-recessed-solid: #dfe2e6;
+  --surface-recessed-soft-solid: #e9ebee;
+  --surface-scrim: rgba(241, 242, 244, 0.92);
+  --state-hover: rgba(40, 44, 60, 0.07);     /* quiet, cool */
+  --state-active: rgba(40, 44, 60, 0.14);
+
+  /* GLOW, NOT REGISTER. The base family stacks planes like mounted prints;
+   * the colour variant lets them shimmer instead — soft shadows tinted with
+   * the foil's violet and the stair blue, so raised surfaces carry a faint
+   * iridescent halo. */
+  --shadow-color: rgba(70, 80, 130, 0.20);
+  --shadow-2xs: 0px 1px 2px 0px rgba(70, 80, 130, 0.14);
+  --shadow-xs: 0px 1px 2px 0px rgba(70, 80, 130, 0.14);
+  --shadow-sm: 0 0 0 1px rgba(90, 80, 48, 0.10), 0px 2px 8px -1px rgba(70, 80, 130, 0.22), 0px 1px 3px 0px rgba(46, 111, 149, 0.10);
+  --shadow: 0 0 0 1px rgba(90, 80, 48, 0.10), 0px 2px 8px -1px rgba(70, 80, 130, 0.22), 0px 1px 3px 0px rgba(46, 111, 149, 0.10);
+  --shadow-md: 0 0 0 1px rgba(90, 80, 48, 0.11), 0px 4px 14px -2px rgba(70, 80, 130, 0.26), 0px 2px 6px -1px rgba(46, 111, 149, 0.12);
+  --shadow-lg: 0 0 0 1px rgba(90, 80, 48, 0.12), 0px 8px 24px -4px rgba(70, 80, 130, 0.30), 0px 3px 10px -2px rgba(46, 111, 149, 0.14);
+  --shadow-xl: 0 0 0 1px rgba(90, 80, 48, 0.12), 0px 12px 34px -6px rgba(70, 80, 130, 0.34), 0px 4px 12px -2px rgba(46, 111, 149, 0.16);
+
+
+  /* THE SHEEN. Color Light's sidebar carries the holographic sleeve (sampled
+   * 2000px scan: gold flare #e4cea3 / #f1ccac at the left edge, periwinkle slate
+   * #8e97aa, sky #a4cedd, light blue #79add6 at the right; field #eaeaea).
+   * Stops run left→right in the sleeve's own order: a soft
+   * diagonal drift through the sleeve's violet, blue, gold and cyan, layered
+   * UNDER the family's noise by riding the same --sidebar-noise hook the
+   * structural rule already paints (a custom property can hold a multi-image
+   * list). Stops run 9–17% alpha with a white catch-light at 38% and a second
+   * oblique flash at 28deg — the foil turned toward the light. Worst text case on the tinted
+   * surface measures 5.72:1, comfortably above the 4.5:1 floor. Light-only by
+   * this block's own scoping — no other theme, and not dark, sees it. */
+  --sidebar-noise-size: 100% 100%, 100% 100%, 180px 180px;
+  --sidebar-noise:
+    linear-gradient(163deg,
+      rgba(228, 206, 163, 0.16) 0%,
+      rgba(142, 151, 170, 0.12) 22%,
+      rgba(255, 255, 255, 0.17) 38%,
+      rgba(164, 206, 221, 0.16) 56%,
+      rgba(255, 255, 255, 0) 70%,
+      rgba(121, 173, 214, 0.14) 100%),
+    linear-gradient(28deg,
+      rgba(255, 255, 255, 0) 42%,
+      rgba(255, 255, 255, 0.15) 50%,
+      rgba(255, 255, 255, 0) 58%),
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.82' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='180' height='180' filter='url(%23g)' opacity='0.05'/%3E%3C/svg%3E");
+
+  /* THE POP. Light blue leads — the stair's blue and the foil's dominant
+   * hue agree on it — and it carries every interactive role. */
+  --primary: #2e6f95;             /* 4.86:1 · white text 5.49:1 */
+  --primary-foreground: #ffffff;
+  --ring: #2e6f95;
+  --timeline-accent: #2e6f95;
+  --file-accent: #2e6f95;
+  --surface-selected: rgba(121, 173, 214, 0.30);       /* chalk blue, sampled #6998a8 */
+  --surface-selected-border: rgba(121, 173, 214, 0.75);
+  --selection-color-default: rgba(121, 173, 214, 0.42);
+  /* bb derives the 'open in split' row colour with color-mix(in oklch …);
+   * on these warm low-chroma surfaces that mix serialises a powerless hue,
+   * which Chrome renders as hue 0 — a pink row. Pin it to a soft chalk-blue
+   * wash instead: a lighter member of the same blue selection system. */
+  --bb-sidebar-open-in-split-background: rgba(105, 152, 168, 0.14);
+  --sidebar-ring: #2e6f95;
+  --sidebar-search-match: #d9e5ec;
+  --sidebar-search-match-border: #2e6f95;
+
+  /* Status — the rest of the stair */
+  --warning: #8a660a;             /* mustard · 4.66:1 */
+  --warning-text: #8a660a;
+  --attention: #a8481f;           /* orange · 5.15:1 */
+  --destructive: #9c3118;         /* red · 6.49:1, white text 7.33:1 */
+  --destructive-foreground: #ffffff;
+  --destructive-text: #872a14;
+  --success: #5a6813;             /* olive · 5.43:1 */
+  --success-foreground: #5a6813;
+  --pr-merged: #55608c;           /* the foil's violet · 6.19:1 */
+  --diff-added: #5a6813;
+  --diff-removed: #9c3118;
+
+  /* THE RAIL. Plywood-edge trim: mustard-khaki ink at the family's alphas. */
+  --border: rgba(90, 80, 48, 0.30);
+  --border-hairline: rgba(90, 80, 48, 0.12);
+  --border-seam: rgba(90, 80, 48, 0.18);
+  --border-seam-vertical: rgba(90, 80, 48, 0.18);
+  --input: rgba(90, 80, 48, 0.55);
+  --sidebar-border: rgba(90, 80, 48, 0.26);
+
+  /* THE FOIL STICKER. Mention pills carry the sleeve's iridescence as a
+   * the foil actually behaves in the reference: a mostly-silver surface with
+   * chromatic streaks at the edges — violet-blue flaring in from one end,
+   * gold-pink from the other, quiet in the middle. Text on the pill stays #0a0a0a; the
+   * deepest stop composited over paper keeps the surface above 72%
+   * lightness, so the ink clears the same floor the grey pill did. */
+  --pill-surface: linear-gradient(105deg,
+    rgba(150, 90, 210, 0.16) 0%,  rgba(60, 140, 220, 0.12) 12%,
+    rgba(50, 195, 215, 0.07) 24%, rgba(120, 120, 120, 0.05) 40%,
+    rgba(120, 120, 120, 0.05) 62%, rgba(235, 180, 45, 0.09) 78%,
+    rgba(240, 115, 150, 0.13) 92%, rgba(150, 90, 210, 0.10) 100%);
+  --pill-surface-selected: linear-gradient(105deg,
+    rgba(150, 90, 210, 0.26) 0%,  rgba(60, 140, 220, 0.20) 12%,
+    rgba(50, 195, 215, 0.12) 24%, rgba(120, 120, 120, 0.09) 40%,
+    rgba(120, 120, 120, 0.09) 62%, rgba(235, 180, 45, 0.15) 78%,
+    rgba(240, 115, 150, 0.22) 92%, rgba(150, 90, 210, 0.17) 100%);
+  --pill-surface-selected-border: rgba(93, 79, 147, 0.50);
+  --pill-shadow: 0 1px 3px 0 rgba(70, 80, 130, 0.25);
+}
+
+/* FIELD — neutral black. Both dark references (the blacklight poster scan and
+ * the gatefold) sample #111111 with no cast; the colour lives only in the orange
+ * tape and the blue-lit gloves. Surfaces keep the solved luminance ladder and
+ * drop the violet tint. */
+
+/* ===========================================================================
+ * ENDLESS COLOR, DARK — blacklight.
+ *
+ * The reference is the neon frame: a figure in black against true black, cut
+ * by neon-orange piping and blue-lit hands, ENDLESS in white above. Measured:
+ * the field is #010100 and the two accents sit at hue 16 (orange) and hue 208
+ * (blue). So this dark mode drops the field to near-true black, keeps the
+ * text silver, and hands the two accent roles to the neon pair — orange leads
+ * (primary, ring, selection, attention), blue answers (files, timeline).
+ * Status glows to match: this is the one mode in the family where saturation
+ * is the point.
+ *
+ * TEMPERATURE CARRIES THE IDENTITY. Both dark modes share one luminance
+ * ladder (the halation band is physiological, not stylistic), so what
+ * separates them is temperature: the print's blacks are exact neutral;
+ * blacklight's carry a UV-violet whisper — the colour of the lamp itself.
+ * ACHROMATIC no more, but deliberately: The surfaces and text tiers
+ * used to carry a +2..+10 blue cast, which fought the neon orange and made the
+ * two dark modes read as different systems. They are exact greys now at the
+ * same luminance; all the colour comes from the sampled accents.
+ *
+ * Loads after everything, so this .dark block wins over the inherited endless
+ * dark by order at equal specificity — the same cascade rule the family
+ * header documents, used deliberately this time.
+ * ======================================================================== */
+.dark {
+  --canvas: #121212;              /* blacklight black — a UV-violet whisper, same luminance */
+  --sidebar: #070707;             /* the video frame — true black, tinted UV */
+  --card: #191919;
+  --popover: #212121;
+  --secondary: #191919;
+  --accent: #191919;
+  --muted: #161616;
+  --surface-recessed-solid: #191919;
+  --surface-recessed-soft-solid: #161616;
+  --surface-scrim: rgba(18, 18, 18, 0.92);   /* matches the neutral canvas — the old value still carried the UV tint */
+
+  --foreground: #c9c9c9;          /* 11.49:1 — inside the family band; #e8e8e8 haloed */
+  --muted-foreground: #a6a6a6;    /* 7.82:1 */
+  --readback-foreground: #969696; /* 6.43:1 */
+  --subtle-foreground: #888888;   /* 5.28:1 canvas · 4.54:1 on the floating step */
+  --sidebar-foreground: #c5c5c5;  /* 11.81:1 — in band on the deeper field */
+  --sidebar-accent: #121212;
+  --sidebar-accent-foreground: #c5c5c5;
+
+  /* ORANGE LEADS — sampled hue 16, lit to neon */
+  --primary: #ff6a1f;             /* 7.01:1 · black text 6.63:1 */
+  --primary-foreground: #111111;
+  --ring: #2fb4ff;               /* focus shares the selection's blue; orange is the seam, not a ring */
+  --sidebar-ring: #2fb4ff;
+  --attention: #ff6a1f;
+  --surface-selected: rgba(47, 180, 255, 0.20);      /* the blue light — lit hands */
+  --surface-selected-border: rgba(47, 180, 255, 0.85);
+  --selection-color-default: rgba(47, 180, 255, 0.30);
+  --bb-sidebar-open-in-split-background: rgba(47, 180, 255, 0.10);  /* see light note */
+  --sidebar-search-match: #241a14;
+  --sidebar-search-match-border: #ff6a1f;
+
+  /* BLUE ANSWERS — sampled hue 208, lit */
+  --timeline-accent: #5fa8d8;   /* the glove under UV (#357098 sampled), lifted to clear 4.5:1 */     /* 7.63:1 */
+  --file-accent: #5fa8d8;
+
+  /* Status under blacklight */
+  --destructive: #ff5240;         /* 6.23:1 fill */
+  --destructive-foreground: #111111;
+  --destructive-text: #ff9484;    /* 9.91:1 */
+  --success: #38f56e;             /* 13.78:1 */
+  --success-foreground: #38f56e;
+  --warning: #ffab33;             /* 10.60:1 */
+  --warning-text: #ffab33;
+  --pr-merged: #a97aff;           /* 6.59:1 */
+  --diff-added: #38f56e;
+  --diff-removed: #ff9484;
+
+  --border: rgba(255, 255, 255, 0.09);
+  --border-hairline: rgba(255, 255, 255, 0.04);
+  /* Seam tokens border CONTENT (message bubbles, cards) as well as panel
+   * edges, so they stay neutral — orange there reads as an alert ring, not
+   * piping. The piping lives where only chrome is: the sidebar edge, the lit
+   * seam, and the composer's input line. */
+  --border-seam: rgba(255, 255, 255, 0.10);
+  --border-seam-vertical: rgba(255, 255, 255, 0.10);
+  --input: rgba(255, 255, 255, 0.14);               /* neutral edge — the orange belongs to the seam and the primary, not every field */
+  --sidebar-border: rgba(255, 255, 255, 0.10);   /* neutral seam — orange stays on primary and the active row */
+  --state-hover: rgba(255, 106, 31, 0.07);          /* hover = lit */
+  --state-active: rgba(255, 106, 31, 0.14);
+
+  /* NEON GLOW. Raised surfaces under blacklight glow at the edges — an
+   * orange halo with a blue undertone, instead of the base family's lit-rim
+   * register shadows. Raised surfaces carry neutral black elevation with a
+   * faint white rim — no coloured glow; orange and blue stay on the things that
+   * are lit, not on the air around them. */
+  /* Halved from the first pass — the halo was reading as an alert, not a
+   * glow. Ring stays legible; the bloom is a suggestion. */
+  --shadow-color: rgba(0, 0, 0, 0.75);
+  --shadow-2xs: 0px 1px 0px 0px rgba(0, 0, 0, 0.55);
+  --shadow-xs: 0px 1px 0px 0px rgba(0, 0, 0, 0.55);
+  --shadow-sm: 0 0 0 1px rgba(255, 255, 255, 0.06), 0px 1px 3px -1px rgba(0, 0, 0, 0.70);
+  --shadow: 0 0 0 1px rgba(255, 255, 255, 0.06), 0px 1px 3px -1px rgba(0, 0, 0, 0.70);
+  --shadow-md: 0 0 0 1px rgba(255, 255, 255, 0.07), 0px 3px 10px -2px rgba(0, 0, 0, 0.75);
+  --shadow-lg: 0 0 0 1px rgba(255, 255, 255, 0.08), 0px 6px 20px -4px rgba(0, 0, 0, 0.80);
+  --shadow-xl: 0 0 0 1px rgba(255, 255, 255, 0.09), 0px 10px 30px -6px rgba(0, 0, 0, 0.85);
+
+  --pill-surface: linear-gradient(to bottom, rgba(255, 106, 31, 0.08), rgba(255, 106, 31, 0.16));
+  --pill-surface-selected: linear-gradient(to bottom, rgba(255, 106, 31, 0.22), rgba(255, 106, 31, 0.34));
+  --pill-surface-selected-border: rgba(255, 106, 31, 0.50);
+}
+
+/* Blacklight sidebar: the same starfield as the mono theme, at less than half
+ * the speck strength — on true black the specks read brighter than they do on
+ * #1d1d1d, so the density stays and the intensity comes down. */
+.dark .fixed.bg-sidebar { --sidebar-noise: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='hi' x='0' y='0' width='100%25' height='100%25'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.55' numOctaves='3' seed='3' stitchTiles='stitch'/%3E%3CfeColorMatrix type='matrix' values='0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  .4 .4 .4 0 -.6'/%3E%3C/filter%3E%3Cfilter id='lo' x='0' y='0' width='100%25' height='100%25'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.55' numOctaves='3' seed='3' stitchTiles='stitch'/%3E%3CfeColorMatrix type='matrix' values='0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  -.4 -.4 -.4 0 .6'/%3E%3C/filter%3E%3Crect width='180' height='180' filter='url(%23hi)' opacity='0.09'/%3E%3Crect width='180' height='180' filter='url(%23lo)' opacity='0.09'/%3E%3C/svg%3E"); }
+
+
+/* bb sets --bb-sidebar-open-in-split-background ON the row element via
+ * color-mix(in oklch …); with warm low-chroma surfaces the mix serialises a
+ * powerless hue that Chrome renders as hue 0 — a pink row. A root-level
+ * token cannot beat an element-level declaration, so this overrides at the
+ * element's own selector (loads later; :root:not(.dark) also out-specifies). */
+:root:not(.dark) .bb-sidebar-open-in-split-row {
+  --bb-sidebar-open-in-split-background: rgba(105, 152, 168, 0.14);
+}
+.dark .bb-sidebar-open-in-split-row {
+  --bb-sidebar-open-in-split-background: rgba(47, 180, 255, 0.10);
+}
+
+/* Blacklight text renders with greyscale antialiasing. bb's default subpixel
+ * smoothing draws RGB fringes around light glyphs, and on a near-true-black
+ * field those fringes read as a glow around every character. Greyscale AA is
+ * the standard fix for light-on-dark halation. Scoped to dark only; light
+ * keeps subpixel, where fringes are invisible and text is crisper. */
+.dark body,
+.dark .fixed.bg-sidebar {
+  /* the base theme re-enables subpixel in the sidebar; blacklight must not */
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* The blacklight sidebar. The base theme pins its own sidebar system on
+ * `.dark .fixed.bg-sidebar` (values solved for the silver print), which
+ * silently overrides the variant's tokens — the sidebar was rendering the
+ * WRONG THEME. This block loads later at equal specificity, so the frame
+ * actually wears the blacklight. --surface-recessed-soft-solid is pinned to
+ * the same black because bb paints it behind row lists; leaving it lighter
+ * would bring back the banding the base block documents. */
+.dark .fixed.bg-sidebar {
+  --sidebar: #070707;
+  --surface-recessed-soft-solid: #070707;
+  --sidebar-foreground: #c5c5c5;            /* 11.81:1 — in band */
+  --foreground: #c5c5c5;
+  --muted-foreground: #a4a4a4;
+  --readback-foreground: #949494;
+  --subtle-foreground: #848484;             /* 5.42:1 */
+
+  --border: rgba(255, 255, 255, 0.05);
+  --border-hairline: rgba(255, 255, 255, 0.025);
+  --sidebar-border: rgba(255, 255, 255, 0.10);   /* neutral seam — orange stays on primary and the active row */
+
+  --state-hover: rgba(255, 106, 31, 0.07);  /* hover = lit, like the content */
+  --state-active: rgba(255, 106, 31, 0.13);
+  --sidebar-accent: #121212;
+  --sidebar-accent-foreground: #c5c5c5;
+  --surface-selected: rgba(47, 180, 255, 0.18);   /* the blue light */
+  --surface-selected-border: rgba(47, 180, 255, 0.85);
+}
+
+/* The lit seam — the piping that defines the blacklight frame. */
+.dark .fixed.bg-sidebar {
+  box-shadow: none;
+}
