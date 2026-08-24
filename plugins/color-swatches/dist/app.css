@@ -124,8 +124,8 @@
         max-width: 96rem;
       }
     }
-    .block {
-      display: block;
+    .ml-auto {
+      margin-left: auto;
     }
     .inline {
       display: inline;

@@ -7,7 +7,7 @@
   "engines": { "bb": ">=0.0.34", "bbPluginSdk": "^0.4.1" },
   "bb": {
     "name": "Color Swatches",
-    "description": "Renders an inline swatch beside every color literal in a thread — hex, rgb(), hsl() and oklch() — the way an editor decorates code.",
+    "description": "Makes CSS color literals visible at a glance in thread code and submitted user messages — hex, rgb(), hsl(), oklch() and more.",
     "branding": { "icon": "./assets/color-chip.svg" },
     "server": "./server.ts",
     "app": "./app.tsx",

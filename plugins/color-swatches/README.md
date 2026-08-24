@@ -1,7 +1,7 @@
 # Color Swatches
 
-Renders an inline swatch beside every color literal in a thread — hex, `rgb()`,
-`hsl()`, `oklch()` and friends — the way an editor decorates code.
+Makes CSS color literals visible at a glance in thread code and submitted user
+messages — hex, `rgb()`, `hsl()`, `oklch()` and friends.
 
 ![Color Swatches in bb](docs/screenshot.png)
 
@@ -13,23 +13,21 @@ bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/color-swatc
 
 ## Use
 
-Nothing to configure. Once installed, any color literal an agent writes gets a
-chip in front of it: inside fenced code blocks, inside diffs, and in the inline
-`` `#070509` `` chips that appear in prose.
+Nothing to configure. Once installed, color literals get chips inside fenced
+code blocks, diffs, and inline `` `#070509` `` code. A literal in the plain text
+of a submitted user message is painted as an inline color sample too.
 
 The chip shows alpha over a checkerboard and carries a faint ring, so
 `#ffffff` and `#000000` stay visible on any theme.
 
-Two deliberate limits:
+Two rendering paths keep thread behavior intact:
 
-- **Nothing is inserted into the page.** The chip is drawn in `::before` from a
-  custom property, so selecting and copying a line still yields exactly the
-  original text, and a streaming message can never end up with a stale wrapper
-  in it.
-- **A chip only appears where it can be placed exactly.** bb highlights code one
-  token per element, so a literal reliably starts at a boundary; in an
-  unhighlighted block a literal can begin mid-run, and the plugin leaves it
-  alone rather than putting the chip in the wrong column.
+- **Code is never rewritten.** Its chip is drawn in `::before` from a custom
+  property on bb's existing token, so streaming, selection, and copied text are
+  unchanged.
+- **User-message prose uses browser highlights.** A `Range` identifies the
+  literal and CSS paints the sample without inserting a wrapper into React's
+  DOM, so editing, selection, and copied text remain unchanged.
 
 The composer is never decorated.
 
