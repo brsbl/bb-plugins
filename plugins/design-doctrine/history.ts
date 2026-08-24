@@ -1,5 +1,5 @@
 import { execFile } from "node:child_process";
-import { readFile, unlink } from "node:fs/promises";
+import { mkdir, readFile, unlink, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { promisify } from "node:util";
 
@@ -17,7 +17,7 @@ const PRIMARY_BRANCH_NAMES = new Set(["main", "master", "trunk"]);
 
 export type { HistoryAdvanceInput, HistoryScanOptions };
 
-async function ensureMaintenanceCheckout(pluginRoot: string): Promise<void> {
+async function ensureMaintenanceBranch(pluginRoot: string): Promise<void> {
   let branchName: string;
   try {
     const branch = await execFileAsync(
@@ -37,6 +37,9 @@ async function ensureMaintenanceCheckout(pluginRoot: string): Promise<void> {
       `maintenance refuses primary branch ${branchName}; use a dedicated non-default branch/worktree and point doctrinePath at its plugins/design-doctrine folder`,
     );
   }
+}
+
+async function ruleTreeStatus(pluginRoot: string): Promise<string> {
   const result = await execFileAsync(
     "git",
     [
@@ -50,10 +53,156 @@ async function ensureMaintenanceCheckout(pluginRoot: string): Promise<void> {
     ],
     { encoding: "utf8" },
   );
-  if (result.stdout.length > 0) {
+  return result.stdout;
+}
+
+export async function ensureMaintenanceCheckout(
+  pluginRoot: string,
+): Promise<void> {
+  await ensureMaintenanceBranch(pluginRoot);
+  if ((await ruleTreeStatus(pluginRoot)).length > 0) {
     throw new Error(
       "rules tree has pre-existing work; commit, stash, or move it before scanning",
     );
+  }
+}
+
+export interface NewRuleFile {
+  relativePath: string;
+  content: string;
+}
+
+export class MaintenanceHeadChangedError extends Error {
+  constructor(expected: string, actual: string) {
+    super(
+      `maintenance checkout HEAD changed during doctrine harvest (expected ${expected}, found ${actual})`,
+    );
+    this.name = "MaintenanceHeadChangedError";
+  }
+}
+
+export async function readMaintenanceHead(pluginRoot: string): Promise<string> {
+  const result = await execFileAsync(
+    "git",
+    ["-C", pluginRoot, "rev-parse", "HEAD"],
+    { encoding: "utf8" },
+  );
+  const head = result.stdout.trim();
+  if (!/^[0-9a-f]{40,64}$/i.test(head)) {
+    throw new Error("maintenance checkout has no valid HEAD commit");
+  }
+  return head;
+}
+
+function assertRulePath(relativePath: string): void {
+  if (!/^rules\/[a-z-]+\/ddr_\d{3,}\.md$/.test(relativePath)) {
+    throw new Error(`invalid generated rule path: ${relativePath}`);
+  }
+}
+
+async function rollbackNewRuleFiles(
+  pluginRoot: string,
+  relativePaths: readonly string[],
+): Promise<void> {
+  if (relativePaths.length === 0) return;
+  await execFileAsync(
+    "git",
+    ["-C", pluginRoot, "restore", "--staged", "--", ...relativePaths],
+    { encoding: "utf8" },
+  ).catch(() => undefined);
+  await Promise.all(
+    relativePaths.map(async (relativePath) => {
+      try {
+        await unlink(join(pluginRoot, relativePath));
+      } catch (error) {
+        if (!isMissingFile(error)) throw error;
+      }
+    }),
+  );
+}
+
+/**
+ * Completes one archive-harvest batch atomically: create, validate, and commit
+ * only its new rule files. A failed batch removes only files it created, so it
+ * cannot strand the maintenance checkout in the dirty state that blocks scans.
+ */
+export async function commitNewRuleFiles(
+  pluginRoot: string,
+  files: readonly NewRuleFile[],
+  validate: () => Promise<void>,
+  expectedHead?: string,
+): Promise<void> {
+  if (files.length === 0) return;
+  if (files.length > 5) {
+    throw new Error("a doctrine harvest may commit at most five rule files");
+  }
+  const relativePaths = files.map((file) => file.relativePath);
+  for (const relativePath of relativePaths) assertRulePath(relativePath);
+  if (new Set(relativePaths).size !== relativePaths.length) {
+    throw new Error("generated rule paths must be unique");
+  }
+
+  await ensureMaintenanceCheckout(pluginRoot);
+  if (expectedHead) {
+    const actualHead = await readMaintenanceHead(pluginRoot);
+    if (actualHead !== expectedHead) {
+      throw new MaintenanceHeadChangedError(expectedHead, actualHead);
+    }
+  }
+  const created: string[] = [];
+  let committed = false;
+  try {
+    for (const file of files) {
+      const absolutePath = join(pluginRoot, file.relativePath);
+      await mkdir(join(absolutePath, ".."), { recursive: true });
+      await writeFile(absolutePath, file.content, { encoding: "utf8", flag: "wx" });
+      created.push(file.relativePath);
+    }
+
+    await validate();
+    if (expectedHead) {
+      const actualHead = await readMaintenanceHead(pluginRoot);
+      if (actualHead !== expectedHead) {
+        throw new MaintenanceHeadChangedError(expectedHead, actualHead);
+      }
+    }
+    const expectedStatus = new Set(
+      relativePaths.map((relativePath) => `?? ${relativePath}`),
+    );
+    const actualStatus = (await ruleTreeStatus(pluginRoot))
+      .trimEnd()
+      .split("\n")
+      .filter(Boolean);
+    if (
+      actualStatus.length !== expectedStatus.size ||
+      actualStatus.some((line) => !expectedStatus.has(line))
+    ) {
+      throw new Error("rules tree changed while the doctrine harvest was running");
+    }
+
+    await execFileAsync("git", ["-C", pluginRoot, "add", "--", ...relativePaths]);
+    await execFileAsync("git", [
+      "-C",
+      pluginRoot,
+      "diff",
+      "--check",
+      "--cached",
+      "--",
+      ...relativePaths,
+    ]);
+    await execFileAsync("git", [
+      "-C",
+      pluginRoot,
+      "commit",
+      "--only",
+      "-m",
+      "doctrine: harvest archived feedback",
+      "--",
+      ...relativePaths,
+    ]);
+    committed = true;
+  } finally {
+    if (!committed) await rollbackNewRuleFiles(pluginRoot, created);
   }
 }
 
