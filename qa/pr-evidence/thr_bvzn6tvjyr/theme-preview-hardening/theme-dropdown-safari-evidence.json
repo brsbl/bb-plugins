@@ -1,0 +1,46 @@
+{
+  "schemaVersion": 1,
+  "candidate": "af534f6837f1c57b581fd63be0bd7068ba487f5a",
+  "checkpoint": "theme-dropdown-hardening-safari",
+  "browser": "Safari 26.5.2",
+  "platform": "macOS 26.5.2",
+  "window": {
+    "width": 1440,
+    "height": 900,
+    "unit": "css_px"
+  },
+  "pendingState": {
+    "label": "Applying Nord light",
+    "disabled": true,
+    "ariaBusy": "true"
+  },
+  "failureRecovery": "PASS",
+  "lightPersistedAfterReload": true,
+  "repeatedSwitchCycles": 5,
+  "cycleElapsedMs": [
+    223,
+    297,
+    368,
+    252,
+    227
+  ],
+  "clientNavigation": "Thread → Settings → Thread PASS",
+  "hardReloads": 2,
+  "finalState": {
+    "navigation": {
+      "type": "reload",
+      "domComplete": 408.00000000000006,
+      "loadEventEnd": 408.00000000000006
+    },
+    "label": "Endless Color dark",
+    "isDark": true,
+    "persistedMode": "dark",
+    "viewport": {
+      "width": 1440,
+      "devicePixelRatio": 2,
+      "height": 848
+    },
+    "horizontalOverflow": false
+  },
+  "result": "PASS"
+}
