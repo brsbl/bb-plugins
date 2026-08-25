@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "candidate": "2848a42c8",
+  "candidate": "af534f6837f1c57b581fd63be0bd7068ba487f5a",
   "checkpoint": "theme-dropdown-hardening",
   "browser": "Chrome/151.0.7922.71",
   "viewports": [
@@ -26,7 +26,7 @@
         1252
       ],
       "cycles": 5,
-      "elapsedMs": 1016,
+      "elapsedMs": 1597,
       "beforeScreenshot": "qa/theme-dropdown-mobile-before.png",
       "afterScreenshot": "qa/theme-dropdown-mobile-after.png",
       "recording": null,
@@ -56,7 +56,7 @@
         1252
       ],
       "cycles": 5,
-      "elapsedMs": 632,
+      "elapsedMs": 935,
       "beforeScreenshot": "qa/theme-dropdown-small-narrow-before.png",
       "afterScreenshot": "qa/theme-dropdown-small-narrow-after.png",
       "recording": null,
@@ -86,7 +86,7 @@
         1252
       ],
       "cycles": 5,
-      "elapsedMs": 735,
+      "elapsedMs": 855,
       "beforeScreenshot": "qa/theme-dropdown-normal-desktop-before.png",
       "afterScreenshot": "qa/theme-dropdown-normal-desktop-after.png",
       "recording": null,
@@ -116,7 +116,7 @@
         1252
       ],
       "cycles": 5,
-      "elapsedMs": 1152,
+      "elapsedMs": 724,
       "beforeScreenshot": "qa/theme-dropdown-very-large-desktop-before.png",
       "afterScreenshot": "qa/theme-dropdown-very-large-desktop-after.png",
       "recording": null,
