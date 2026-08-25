@@ -50,8 +50,23 @@ const VIEW_NOTE: Record<View, string> = {
 // type sizes stay the sizes bb ships.
 const FRAME_W = 1280;
 const FRAME_H = 780;
+const CLIENT_RPC_TIMEOUT_MS = 20_000;
+
+function withRpcTimeout<T>(operation: Promise<T>, label: string): Promise<T> {
+  let timeout: ReturnType<typeof setTimeout> | undefined;
+  const deadline = new Promise<never>((_resolve, reject) => {
+    timeout = setTimeout(
+      () => reject(new Error(`${label} timed out after ${CLIENT_RPC_TIMEOUT_MS / 1000} seconds`)),
+      CLIENT_RPC_TIMEOUT_MS,
+    );
+  });
+  return Promise.race([operation, deadline]).finally(() => {
+    if (timeout !== undefined) clearTimeout(timeout);
+  });
+}
 
 type Mode = "light" | "dark";
+type ThemeSelection = { themeId: string; mode: Mode };
 
 // ---------------------------------------------------------------------------
 // Primitives
@@ -728,7 +743,25 @@ function TypeSpecimen() {
   );
 }
 
-function SurfaceControls({ computed, catalog, mode, onPick }: { computed: Computed; catalog: Catalog; mode: Mode; onPick: (themeId: string, mode: Mode) => void }) {
+function SurfaceControls({
+  computed,
+  catalog,
+  mode,
+  pendingSelection,
+  selectionSlow,
+  selectionFailed,
+  onPick,
+  onRetry,
+}: {
+  computed: Computed;
+  catalog: Catalog;
+  mode: Mode;
+  pendingSelection: ThemeSelection | null;
+  selectionSlow: boolean;
+  selectionFailed: boolean;
+  onPick: (themeId: string, mode: Mode) => void;
+  onRetry: () => void;
+}) {
   return (
     <div>
       <div style={{ display: "flex", alignItems: "baseline", gap: 8, minHeight: 22, marginBottom: 12 }}>
@@ -736,7 +769,15 @@ function SurfaceControls({ computed, catalog, mode, onPick }: { computed: Comput
         <span style={{ fontSize: 10.5, color: v("muted-foreground") }}>live values</span>
       </div>
       <GuideBlock title="Theme" note="applies live">
-        <ThemePicker catalog={catalog} mode={mode} onPick={onPick} />
+        <ThemePicker
+          catalog={catalog}
+          mode={mode}
+          pendingSelection={pendingSelection}
+          selectionSlow={selectionSlow}
+          selectionFailed={selectionFailed}
+          onPick={onPick}
+          onRetry={onRetry}
+        />
       </GuideBlock>
       <GuideBlock title="Surfaces" note="amber = sidebar override">
         <div style={{ display: "flex", flexDirection: "column", gap: 1 }}>
@@ -870,7 +911,23 @@ function ThemeRow({ entry, mode, active, onPick }: { entry: ThemeEntry; mode: Mo
   );
 }
 
-function ThemePicker({ catalog, mode, onPick }: { catalog: Catalog; mode: Mode; onPick: (themeId: string, mode: Mode) => void }) {
+function ThemePicker({
+  catalog,
+  mode,
+  pendingSelection,
+  selectionSlow,
+  selectionFailed,
+  onPick,
+  onRetry,
+}: {
+  catalog: Catalog;
+  mode: Mode;
+  pendingSelection: ThemeSelection | null;
+  selectionSlow: boolean;
+  selectionFailed: boolean;
+  onPick: (themeId: string, mode: Mode) => void;
+  onRetry: () => void;
+}) {
   const [open, setOpen] = useState(false);
   const [menuPlacement, setMenuPlacement] = useState<ThemeMenuPlacement>({ side: "down", maxHeight: 520 });
   const hostRef = useRef<HTMLDivElement | null>(null);
@@ -921,8 +978,13 @@ function ThemePicker({ catalog, mode, onPick }: { catalog: Catalog; mode: Mode; 
     return () => { document.removeEventListener("mousedown", onDown); document.removeEventListener("keydown", onKey); };
   }, [open]);
 
-  const current = catalog.themes.find((t) => t.id === catalog.activeThemeId) ?? catalog.themes[0];
+  const displayThemeId = pendingSelection?.themeId ?? catalog.activeThemeId;
+  const current = catalog.themes.find((t) => t.id === displayThemeId) ?? catalog.themes[0];
   const currentSwatch = current ? (mode === "dark" ? current.dark : current.light) : null;
+  const pending = pendingSelection !== null;
+  const accessibleName = pending
+    ? `${selectionSlow ? "Still applying" : "Applying"} ${current?.name ?? "theme"} ${mode}`
+    : `${current?.name ?? "Theme"} ${mode}`;
 
   return (
     <div ref={hostRef} style={{ position: "relative" }}>
@@ -931,17 +993,21 @@ function ThemePicker({ catalog, mode, onPick }: { catalog: Catalog; mode: Mode; 
         type="button"
         aria-haspopup="listbox"
         aria-expanded={open}
+        aria-busy={pending}
+        aria-label={accessibleName}
+        disabled={pending}
         onClick={() => setOpen((o) => !o)}
         style={{
-          appearance: "none", border: 0, cursor: "pointer", fontFamily: SANS, display: "inline-flex", alignItems: "center", gap: 5,
+          appearance: "none", border: 0, cursor: pending ? "wait" : "pointer", fontFamily: SANS, display: "inline-flex", alignItems: "center", gap: 5,
           height: 24, padding: "0 6px", borderRadius: 7, background: v("card"), color: v("foreground"), fontSize: 11.5, fontWeight: 500, maxWidth: 200,
           boxShadow: `inset 0 0 0 1px ${v("border")}, ${v("shadow-xs", "none")}`,
+          opacity: pending ? 0.72 : 1,
         }}
       >
         <Chips swatch={currentSwatch} w={6} h={11} />
         <span style={{ overflow: "hidden", whiteSpace: "nowrap", textOverflow: "ellipsis", minWidth: 0 }}>{current?.name ?? "theme"}</span>
         <span style={{ color: v("muted-foreground"), textTransform: "capitalize", fontSize: 10.5, flex: "none" }}>{mode}</span>
-        <span style={{ color: v("muted-foreground"), fontSize: 9, flex: "none" }}>▾</span>
+        <span aria-hidden="true" style={{ color: v("muted-foreground"), fontSize: 9, flex: "none" }}>{pending ? "…" : "▾"}</span>
       </button>
       {open ? (
         <div
@@ -968,6 +1034,19 @@ function ThemePicker({ catalog, mode, onPick }: { catalog: Catalog; mode: Mode; 
               <div style={{ height: 1, background: v("border-hairline", v("border")), margin: "3px 6px" }} />
             </div>
           ))}
+        </div>
+      ) : null}
+      {selectionFailed ? (
+        <div role="alert" style={{ display: "flex", alignItems: "center", gap: 7, marginTop: 6, minHeight: 20, fontSize: 10.5, color: v("destructive-text", v("destructive")) }}>
+          <span>Theme didn’t apply.</span>
+          <button
+            type="button"
+            aria-label="Retry theme"
+            onClick={onRetry}
+            style={{ appearance: "none", border: 0, padding: 0, cursor: "pointer", background: "transparent", color: "inherit", font: "inherit", fontWeight: 650, textDecoration: "underline", textUnderlineOffset: 2 }}
+          >
+            Retry
+          </button>
         </div>
       ) : null}
     </div>
@@ -1026,8 +1105,13 @@ function PreviewPage({ subPath }: { subPath: string }) {
   const [layout, setLayout] = useState({ compact: false, stageHeight: 620 });
   const [catalog, setCatalog] = useState<Catalog>({ activeThemeId: null, themes: [], revision: 0 });
   const [error, setError] = useState<string | null>(null);
+  const [pendingSelection, setPendingSelection] = useState<ThemeSelection | null>(null);
+  const [failedSelection, setFailedSelection] = useState<ThemeSelection | null>(null);
+  const [selectionSlow, setSelectionSlow] = useState(false);
   const catalogRequests = useRef(new LatestRequest());
   const selectionPending = useRef(false);
+  const catalogLoadPending = useRef(false);
+  const catalogLoadQueued = useRef(false);
 
   const view = useMemo<View>(() => {
     const first = subPath.split("/").filter(Boolean)[0] ?? "";
@@ -1041,11 +1125,29 @@ function PreviewPage({ subPath }: { subPath: string }) {
   useEffect(() => {
     let cancelled = false;
     const load = () => {
-      if (selectionPending.current) return;
+      if (selectionPending.current || catalogLoadPending.current) {
+        catalogLoadQueued.current = true;
+        return;
+      }
+      catalogLoadQueued.current = false;
+      catalogLoadPending.current = true;
       const request = catalogRequests.current.begin();
-      rpc.call("themeCatalog", {})
-        .then((c) => { if (!cancelled && catalogRequests.current.isLatest(request)) setCatalog(c); })
-        .catch((e) => { if (catalogRequests.current.isLatest(request)) setError(String(e)); });
+      withRpcTimeout(rpc.call("themeCatalog", {}), "Theme catalog")
+        .then((c) => {
+          if (!cancelled && !catalogLoadQueued.current && catalogRequests.current.isLatest(request)) {
+            setCatalog(c);
+            setError(null);
+          }
+        })
+        .catch((e) => {
+          if (!cancelled && !catalogLoadQueued.current && catalogRequests.current.isLatest(request)) {
+            setError(String(e));
+          }
+        })
+        .finally(() => {
+          catalogLoadPending.current = false;
+          if (!cancelled && catalogLoadQueued.current) load();
+        });
     };
     loadRef.current = load;
     load();
@@ -1054,6 +1156,15 @@ function PreviewPage({ subPath }: { subPath: string }) {
     return () => { cancelled = true; clearInterval(timer); };
   }, [rpc]);
   useRealtime("theme-preview:changed", () => loadRef.current());
+
+  useEffect(() => {
+    if (!pendingSelection) {
+      setSelectionSlow(false);
+      return;
+    }
+    const timer = setTimeout(() => setSelectionSlow(true), 5_000);
+    return () => clearTimeout(timer);
+  }, [pendingSelection]);
 
   useLayoutEffect(() => {
     const el = rootRef.current;
@@ -1075,17 +1186,36 @@ function PreviewPage({ subPath }: { subPath: string }) {
     };
   }, []);
 
-  const pick = (themeId: string, nextMode: Mode) => {
-    setMode(nextMode);
+  const applySelection = (selection: ThemeSelection) => {
+    if (selectionPending.current) return;
+    setMode(selection.mode);
     // Always send the explicit choice. The catalog reflects the last completed
     // apply, so it can be stale while a slower selection is still in flight.
     selectionPending.current = true;
+    setPendingSelection(selection);
+    setFailedSelection(null);
+    setError(null);
     const request = catalogRequests.current.begin();
-    rpc.call("setTheme", { themeId })
-      .then((next) => { if (catalogRequests.current.isLatest(request)) setCatalog(next); })
-      .catch((err) => { if (catalogRequests.current.isLatest(request)) setError(String(err)); })
-      .finally(() => { if (catalogRequests.current.isLatest(request)) selectionPending.current = false; });
+    withRpcTimeout(rpc.call("setTheme", { themeId: selection.themeId }), "Theme selection")
+      .then((next) => {
+        if (catalogRequests.current.isLatest(request)) {
+          setCatalog(next);
+          setFailedSelection(null);
+        }
+      })
+      .catch(() => {
+        if (catalogRequests.current.isLatest(request)) setFailedSelection(selection);
+      })
+      .finally(() => {
+        if (catalogRequests.current.isLatest(request)) {
+          selectionPending.current = false;
+          setPendingSelection(null);
+          if (catalogLoadQueued.current) loadRef.current();
+        }
+      });
   };
+  const pick = (themeId: string, nextMode: Mode) => applySelection({ themeId, mode: nextMode });
+  const retrySelection = () => { if (failedSelection) applySelection(failedSelection); };
 
   const revision = `${mode}:${catalog.activeThemeId ?? ""}:${catalog.revision}`;
   const computed = useComputedTokens(ALL_TOKENS, revision);
@@ -1127,7 +1257,16 @@ function PreviewPage({ subPath }: { subPath: string }) {
             background: v("surface-recessed-soft-solid", v("card")),
           }}
         >
-          <SurfaceControls computed={computed} catalog={catalog} mode={mode} onPick={pick} />
+          <SurfaceControls
+            computed={computed}
+            catalog={catalog}
+            mode={mode}
+            pendingSelection={pendingSelection}
+            selectionSlow={selectionSlow}
+            selectionFailed={failedSelection !== null}
+            onPick={pick}
+            onRetry={retrySelection}
+          />
         </div>
       </div>
 
