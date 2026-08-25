@@ -10,6 +10,8 @@ thread’s actual stage.
 
 - Running threads appear in their remembered workflow stage.
 - Idle unread threads appear in Inbox and stay there after being marked read.
+- After reading one, drag it to any workflow section to clear it from Inbox
+  without starting another agent turn.
 - Starting work again restores the thread’s remembered stage.
 - A user move changes the remembered stage. `bb organizer phase <stage-key>`
   moves it or refreshes substantially changed work that remains in that stage.

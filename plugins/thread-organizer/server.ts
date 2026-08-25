@@ -12,6 +12,7 @@ import {
   firstWorkflowStage,
   inboxStage,
   isManageableThread,
+  isUnreadThread,
   legacySectionNames,
   localSectionName,
   mergeEditableWorkflowConfig,
@@ -691,6 +692,7 @@ export default async function plugin(bb: BbPluginApi): Promise<void> {
     let titleReassessmentRequest: TitleReassessmentRequest | null = null;
 
     if (explicitStageKey) {
+      if (!isUnreadThread(thread)) state.inboxLatched = false;
       titleReassessmentRequest = {
         fromKey: state.rememberedStageKey,
         toKey: explicitStageKey,
@@ -700,8 +702,10 @@ export default async function plugin(bb: BbPluginApi): Promise<void> {
       thread.sectionId !== state.lastObservedSectionId &&
       currentStage?.role === "stage"
     ) {
-      // A change the plugin did not record is an explicit user move. For an
-      // idle unread thread we remember it, then return the visible row to Inbox.
+      // A change the plugin did not record is an explicit user move. Once the
+      // thread is read, moving it out of Inbox explicitly clears the latch.
+      // Unread moves are still remembered while the visible row stays in Inbox.
+      if (!isUnreadThread(thread)) state.inboxLatched = false;
       if (state.rememberedStageKey !== currentStage.key) {
         titleReassessmentRequest = {
           fromKey: state.rememberedStageKey,
