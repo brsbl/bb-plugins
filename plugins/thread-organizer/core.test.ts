@@ -166,6 +166,18 @@ describe("workflow configuration", () => {
       ]),
     );
   });
+
+  it("migrates the previous sticky Inbox rule to the manual-clear contract", () => {
+    const stored = core.cloneWorkflowConfig(core.DEFAULT_WORKFLOW_CONFIG);
+    stored.stages[0] = {
+      ...stored.stages[0]!,
+      rule: "Idle unread threads that need your attention appear here automatically and stay until work resumes. This behavior can’t be customized.",
+    };
+
+    expect(core.parseWorkflowConfig(stored)?.stages[0]?.rule).toBe(
+      core.INBOX_RULE,
+    );
+  });
 });
 
 describe("thread placement precedence", () => {
@@ -223,6 +235,9 @@ describe("agent guidance", () => {
 
     expect(instructions).toContain("**Needs Me** is the protected Inbox");
     expect(instructions).toContain("stay until work resumes");
+    expect(instructions).toContain(
+      "the user moves a read thread to another workflow section",
+    );
     expect(instructions).toContain(
       "| planning | Shaping | Clarifying the outcome and constraints. |",
     );

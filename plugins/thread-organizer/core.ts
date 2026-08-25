@@ -185,9 +185,10 @@ export interface OrganizableThread {
 }
 
 export const INBOX_RULE =
-  "Idle unread threads that need your attention appear here automatically and stay until work resumes. This behavior can’t be customized.";
+  "Idle unread threads that need your attention appear here automatically and stay until work resumes or you move a read thread to another workflow section. This behavior can’t be customized.";
 
 const PREVIOUS_INBOX_RULES = [
+  "Idle unread threads that need your attention appear here automatically and stay until work resumes. This behavior can’t be customized.",
   "Idle unread threads that need your attention appear here automatically. This behavior can’t be customized.",
   "Idle unread threads requiring the user's attention. This stage is managed automatically.",
 ] as const;
@@ -592,7 +593,7 @@ export function buildWorkflowSkillSlot(config: WorkflowConfig): string {
         `| ${stage.key} | ${escapeTableCell(stage.title)} | ${escapeTableCell(stage.rule)} |`,
     );
   return [
-    `**${escapeTableCell(inboxStage(config).title)}** is the protected Inbox section. Idle unread threads go there automatically and stay until work resumes. This routing behavior can’t be customized; never choose Inbox yourself.`,
+    `**${escapeTableCell(inboxStage(config).title)}** is the protected Inbox section. Idle unread threads go there automatically and stay until work resumes or the user moves a read thread to another workflow section. This routing behavior can’t be customized; never choose Inbox yourself.`,
     "",
     "| Key | Section | What belongs here |",
     "| --- | --- | --- |",

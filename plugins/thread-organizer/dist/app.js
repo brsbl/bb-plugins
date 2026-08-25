@@ -1180,8 +1180,9 @@ var SECTION_ICON_OPTIONS = [
   "ZoomIn",
   "ZoomOut"
 ];
-var INBOX_RULE = "Idle unread threads that need your attention appear here automatically and stay until work resumes. This behavior can\u2019t be customized.";
+var INBOX_RULE = "Idle unread threads that need your attention appear here automatically and stay until work resumes or you move a read thread to another workflow section. This behavior can\u2019t be customized.";
 var PREVIOUS_INBOX_RULES = [
+  "Idle unread threads that need your attention appear here automatically and stay until work resumes. This behavior can\u2019t be customized.",
   "Idle unread threads that need your attention appear here automatically. This behavior can\u2019t be customized.",
   "Idle unread threads requiring the user's attention. This stage is managed automatically."
 ];

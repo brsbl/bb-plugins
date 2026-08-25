@@ -599,7 +599,7 @@ describe("Thread Organizer server", () => {
     await organizer.harness.lifecycle.dispose();
   });
 
-  it("remembers a user move made while unread, but keeps the row in Inbox", async () => {
+  it("keeps unread user moves in Inbox, then accepts an explicit move once read", async () => {
     const organizer = createHarness();
     await plugin(organizer.bb);
     const config = await configFor(organizer);
@@ -635,6 +635,20 @@ describe("Thread Organizer server", () => {
     });
     expect(organizer.current().sectionId).toBe(sectionId("inbox"));
 
+    organizer.setThread({ sectionId: sectionId("on-hold") });
+    organizer.emitChanged();
+    await vi.waitFor(async () => {
+      expect(organizer.current().sectionId).toBe(sectionId("on-hold"));
+      await expect(
+        organizer.bb.storage.kv.get("thread:v3:thr_test"),
+      ).resolves.toMatchObject({ inboxLatched: false });
+    });
+
+    organizer.setThread({ lastReadAt: 0 });
+    organizer.emitChanged();
+    await vi.waitFor(() =>
+      expect(organizer.current().sectionId).toBe(sectionId("inbox")),
+    );
     organizer.setThread({ status: "starting" });
     await organizer.harness.behavior.emitThreadEvent("thread.active", {
       thread: organizer.current(),
