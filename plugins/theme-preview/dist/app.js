@@ -775,13 +775,33 @@ function TypeSpecimen() {
     ] })
   ] });
 }
-function SurfaceControls({ computed, catalog, mode, onPick }) {
+function SurfaceControls({
+  computed,
+  catalog,
+  mode,
+  pendingSelection,
+  selectionSlow,
+  selectionFailed,
+  onPick,
+  onRetry
+}) {
   return /* @__PURE__ */ jsxs("div", { children: [
     /* @__PURE__ */ jsxs("div", { style: { display: "flex", alignItems: "baseline", gap: 8, minHeight: 22, marginBottom: 12 }, children: [
       /* @__PURE__ */ jsx("span", { style: { fontSize: 13, fontWeight: 650, letterSpacing: "-0.005em" }, children: "Theme surfaces" }),
       /* @__PURE__ */ jsx("span", { style: { fontSize: 10.5, color: v("muted-foreground") }, children: "live values" })
     ] }),
-    /* @__PURE__ */ jsx(GuideBlock, { title: "Theme", note: "applies live", children: /* @__PURE__ */ jsx(ThemePicker, { catalog, mode, onPick }) }),
+    /* @__PURE__ */ jsx(GuideBlock, { title: "Theme", note: "applies live", children: /* @__PURE__ */ jsx(
+      ThemePicker,
+      {
+        catalog,
+        mode,
+        pendingSelection,
+        selectionSlow,
+        selectionFailed,
+        onPick,
+        onRetry
+      }
+    ) }),
     /* @__PURE__ */ jsx(GuideBlock, { title: "Surfaces", note: "amber = sidebar override", children: /* @__PURE__ */ jsx("div", { style: { display: "flex", flexDirection: "column", gap: 1 }, children: SURFACE_TOKENS.map((token) => /* @__PURE__ */ jsx(TokenRow, { name: token, computed }, token)) }) })
   ] });
 }
@@ -893,7 +913,15 @@ function ThemeRow({ entry, mode, active, onPick }) {
     }
   );
 }
-function ThemePicker({ catalog, mode, onPick }) {
+function ThemePicker({
+  catalog,
+  mode,
+  pendingSelection,
+  selectionSlow,
+  selectionFailed,
+  onPick,
+  onRetry
+}) {
   const [open, setOpen] = useState(false);
   const [menuPlacement, setMenuPlacement] = useState({ side: "down", maxHeight: 520 });
   const hostRef = useRef(null);
@@ -945,8 +973,11 @@ function ThemePicker({ catalog, mode, onPick }) {
       document.removeEventListener("keydown", onKey);
     };
   }, [open]);
-  const current = catalog.themes.find((t) => t.id === catalog.activeThemeId) ?? catalog.themes[0];
+  const displayThemeId = pendingSelection?.themeId ?? catalog.activeThemeId;
+  const current = catalog.themes.find((t) => t.id === displayThemeId) ?? catalog.themes[0];
   const currentSwatch = current ? mode === "dark" ? current.dark : current.light : null;
+  const pending = pendingSelection !== null;
+  const accessibleName = pending ? `${selectionSlow ? "Still applying" : "Applying"} ${current?.name ?? "theme"} ${mode}` : `${current?.name ?? "Theme"} ${mode}`;
   return /* @__PURE__ */ jsxs("div", { ref: hostRef, style: { position: "relative" }, children: [
     /* @__PURE__ */ jsxs(
       "button",
@@ -955,11 +986,14 @@ function ThemePicker({ catalog, mode, onPick }) {
         type: "button",
         "aria-haspopup": "listbox",
         "aria-expanded": open,
+        "aria-busy": pending,
+        "aria-label": accessibleName,
+        disabled: pending,
         onClick: () => setOpen((o) => !o),
         style: {
           appearance: "none",
           border: 0,
-          cursor: "pointer",
+          cursor: pending ? "wait" : "pointer",
           fontFamily: SANS,
           display: "inline-flex",
           alignItems: "center",
@@ -972,13 +1006,14 @@ function ThemePicker({ catalog, mode, onPick }) {
           fontSize: 11.5,
           fontWeight: 500,
           maxWidth: 200,
-          boxShadow: `inset 0 0 0 1px ${v("border")}, ${v("shadow-xs", "none")}`
+          boxShadow: `inset 0 0 0 1px ${v("border")}, ${v("shadow-xs", "none")}`,
+          opacity: pending ? 0.72 : 1
         },
         children: [
           /* @__PURE__ */ jsx(Chips, { swatch: currentSwatch, w: 6, h: 11 }),
           /* @__PURE__ */ jsx("span", { style: { overflow: "hidden", whiteSpace: "nowrap", textOverflow: "ellipsis", minWidth: 0 }, children: current?.name ?? "theme" }),
           /* @__PURE__ */ jsx("span", { style: { color: v("muted-foreground"), textTransform: "capitalize", fontSize: 10.5, flex: "none" }, children: mode }),
-          /* @__PURE__ */ jsx("span", { style: { color: v("muted-foreground"), fontSize: 9, flex: "none" }, children: "\u25BE" })
+          /* @__PURE__ */ jsx("span", { "aria-hidden": "true", style: { color: v("muted-foreground"), fontSize: 9, flex: "none" }, children: pending ? "\u2026" : "\u25BE" })
         ]
       }
     ),
@@ -1007,7 +1042,20 @@ function ThemePicker({ catalog, mode, onPick }) {
           /* @__PURE__ */ jsx("div", { style: { height: 1, background: v("border-hairline", v("border")), margin: "3px 6px" } })
         ] }, entry.id))
       }
-    ) : null
+    ) : null,
+    selectionFailed ? /* @__PURE__ */ jsxs("div", { role: "alert", style: { display: "flex", alignItems: "center", gap: 7, marginTop: 6, minHeight: 20, fontSize: 10.5, color: v("destructive-text", v("destructive")) }, children: [
+      /* @__PURE__ */ jsx("span", { children: "Theme didn\u2019t apply." }),
+      /* @__PURE__ */ jsx(
+        "button",
+        {
+          type: "button",
+          "aria-label": "Retry theme",
+          onClick: onRetry,
+          style: { appearance: "none", border: 0, padding: 0, cursor: "pointer", background: "transparent", color: "inherit", font: "inherit", fontWeight: 650, textDecoration: "underline", textUnderlineOffset: 2 },
+          children: "Retry"
+        }
+      )
+    ] }) : null
   ] });
 }
 var MODE_KEY = "bb.theme";
@@ -1060,8 +1108,12 @@ function PreviewPage({ subPath }) {
   const [layout, setLayout] = useState({ compact: false, stageHeight: 620 });
   const [catalog, setCatalog] = useState({ activeThemeId: null, themes: [], revision: 0 });
   const [error, setError] = useState(null);
+  const [pendingSelection, setPendingSelection] = useState(null);
+  const [failedSelection, setFailedSelection] = useState(null);
+  const [selectionSlow, setSelectionSlow] = useState(false);
   const catalogRequests = useRef(new LatestRequest());
   const selectionPending = useRef(false);
+  const catalogLoadPending = useRef(false);
   const view = useMemo(() => {
     const first = subPath.split("/").filter(Boolean)[0] ?? "";
     return VIEWS.includes(first) ? first : "thread";
@@ -1071,12 +1123,18 @@ function PreviewPage({ subPath }) {
   useEffect(() => {
     let cancelled = false;
     const load = () => {
-      if (selectionPending.current) return;
+      if (selectionPending.current || catalogLoadPending.current) return;
+      catalogLoadPending.current = true;
       const request = catalogRequests.current.begin();
       rpc.call("themeCatalog", {}).then((c) => {
-        if (!cancelled && catalogRequests.current.isLatest(request)) setCatalog(c);
+        if (!cancelled && catalogRequests.current.isLatest(request)) {
+          setCatalog(c);
+          setError(null);
+        }
       }).catch((e) => {
         if (catalogRequests.current.isLatest(request)) setError(String(e));
+      }).finally(() => {
+        catalogLoadPending.current = false;
       });
     };
     loadRef.current = load;
@@ -1088,6 +1146,14 @@ function PreviewPage({ subPath }) {
     };
   }, [rpc]);
   useRealtime("theme-preview:changed", () => loadRef.current());
+  useEffect(() => {
+    if (!pendingSelection) {
+      setSelectionSlow(false);
+      return;
+    }
+    const timer = setTimeout(() => setSelectionSlow(true), 5e3);
+    return () => clearTimeout(timer);
+  }, [pendingSelection]);
   useLayoutEffect(() => {
     const el = rootRef.current;
     if (!el) return;
@@ -1107,17 +1173,31 @@ function PreviewPage({ subPath }) {
       window.removeEventListener("resize", measure);
     };
   }, []);
-  const pick = (themeId, nextMode) => {
-    setMode(nextMode);
+  const applySelection = (selection) => {
+    if (selectionPending.current) return;
+    setMode(selection.mode);
     selectionPending.current = true;
+    setPendingSelection(selection);
+    setFailedSelection(null);
+    setError(null);
     const request = catalogRequests.current.begin();
-    rpc.call("setTheme", { themeId }).then((next) => {
-      if (catalogRequests.current.isLatest(request)) setCatalog(next);
-    }).catch((err) => {
-      if (catalogRequests.current.isLatest(request)) setError(String(err));
+    rpc.call("setTheme", { themeId: selection.themeId }).then((next) => {
+      if (catalogRequests.current.isLatest(request)) {
+        setCatalog(next);
+        setFailedSelection(null);
+      }
+    }).catch(() => {
+      if (catalogRequests.current.isLatest(request)) setFailedSelection(selection);
     }).finally(() => {
-      if (catalogRequests.current.isLatest(request)) selectionPending.current = false;
+      if (catalogRequests.current.isLatest(request)) {
+        selectionPending.current = false;
+        setPendingSelection(null);
+      }
     });
+  };
+  const pick = (themeId, nextMode) => applySelection({ themeId, mode: nextMode });
+  const retrySelection = () => {
+    if (failedSelection) applySelection(failedSelection);
   };
   const revision = `${mode}:${catalog.activeThemeId ?? ""}:${catalog.revision}`;
   const computed = useComputedTokens(ALL_TOKENS, revision);
@@ -1153,7 +1233,19 @@ function PreviewPage({ subPath }) {
                 borderTop: layout.compact ? `1px solid ${v("border-seam", v("border"))}` : void 0,
                 background: v("surface-recessed-soft-solid", v("card"))
               },
-              children: /* @__PURE__ */ jsx(SurfaceControls, { computed, catalog, mode, onPick: pick })
+              children: /* @__PURE__ */ jsx(
+                SurfaceControls,
+                {
+                  computed,
+                  catalog,
+                  mode,
+                  pendingSelection,
+                  selectionSlow,
+                  selectionFailed: failedSelection !== null,
+                  onPick: pick,
+                  onRetry: retrySelection
+                }
+              )
             }
           )
         ]

@@ -408,22 +408,40 @@ export function createCatalogLoader(bb: BbPluginApi) {
   let revision = 0;
   let selectionGeneration = 0;
   let selectionQueue: Promise<void> = Promise.resolve();
+  let latestCatalog: z.infer<typeof catalogSchema> | null = null;
+  let catalogInFlight: {
+    generation: number;
+    promise: Promise<z.infer<typeof catalogSchema>>;
+  } | null = null;
 
-  const catalog = async () => {
-    const selectionAtStart = selectionGeneration;
-    const raw = (await bb.sdk.theme.catalog()) as { dir?: unknown };
+  const observe = async <T>(label: string, operation: () => Promise<T>): Promise<T> => {
+    const startedAt = Date.now();
+    try {
+      return await operation();
+    } finally {
+      const elapsedMs = Date.now() - startedAt;
+      if (elapsedMs >= 5_000) bb.log.warn(`theme-preview: ${label} took ${elapsedMs}ms`);
+    }
+  };
+
+  const loadCatalog = async (selectionAtStart: number) => {
+    const raw = (await observe("theme catalog", () => bb.sdk.theme.catalog())) as { dir?: unknown };
     const dir = typeof raw?.dir === "string" ? raw.dir : null;
     const rootDirs = new Map<string, string>();
     try {
-      const listed = (await bb.sdk.plugins.list()) as { plugins?: Array<{ id?: string; rootDir?: string }> };
+      const listed = (await observe("plugin list", () => bb.sdk.plugins.list())) as {
+        plugins?: Array<{ id?: string; rootDir?: string }>;
+      };
       for (const entry of listed.plugins ?? []) {
         if (typeof entry.id === "string" && typeof entry.rootDir === "string") rootDirs.set(entry.id, entry.rootDir);
       }
     } catch (error) {
       bb.log.warn(`theme-preview: plugin list unavailable: ${String(error)}`);
     }
-    const built = await buildCatalog(raw, async (id) =>
-      id.startsWith("plugin:") ? readPluginThemeCss(bb, id, rootDirs) : dir ? readCustomThemeCss(dir, id) : null,
+    const built = await observe("catalog enrichment", () =>
+      buildCatalog(raw, async (id) =>
+        id.startsWith("plugin:") ? readPluginThemeCss(bb, id, rootDirs) : dir ? readCustomThemeCss(dir, id) : null,
+      ),
     );
 
     if (built.activeThemeId) {
@@ -450,21 +468,43 @@ export function createCatalogLoader(bb: BbPluginApi) {
         }
       }
     }
-    return { ...built, revision };
+    const next = { ...built, revision };
+    if (selectionGeneration === selectionAtStart) latestCatalog = next;
+    return next;
+  };
+
+  const catalog = () => {
+    const generation = selectionGeneration;
+    if (catalogInFlight?.generation === generation) return catalogInFlight.promise;
+
+    const promise = loadCatalog(generation).finally(() => {
+      if (catalogInFlight?.promise === promise) catalogInFlight = null;
+    });
+    catalogInFlight = { generation, promise };
+    return promise;
   };
 
   return {
     catalog,
     async setTheme(themeId: string) {
       selectionGeneration += 1;
+      const generation = selectionGeneration;
       // Theme application is global and not cancellable. Preserve click order
       // so a slower earlier apply cannot land after the user's newer choice.
       const apply = selectionQueue.then(async () => {
-        await bb.sdk.theme.set(themeId);
+        await observe(`theme apply (${themeId})`, () => bb.sdk.theme.set(themeId));
       });
       selectionQueue = apply.catch(() => undefined);
       await apply;
-      return catalog();
+
+      // The picker already has the enriched catalog it selected from. Confirm
+      // the global mutation from that snapshot so a slow CSS/plugin scan cannot
+      // make a successful selection look stuck. The next watcher signal or poll
+      // refreshes enrichment independently.
+      const base = latestCatalog ?? await catalog();
+      const selected = { ...base, activeThemeId: themeId };
+      if (selectionGeneration === generation) latestCatalog = selected;
+      return selected;
     },
   };
 }

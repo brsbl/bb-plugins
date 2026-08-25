@@ -59,6 +59,70 @@ describe("parseThemeSwatches", () => {
 });
 
 describe("createCatalogLoader", () => {
+  it("shares one catalog refresh across overlapping callers", async () => {
+    let catalogCalls = 0;
+    let releaseCatalog!: () => void;
+    const catalogBlocked = new Promise<void>((resolve) => { releaseCatalog = resolve; });
+    const bb = {
+      sdk: {
+        theme: {
+          catalog: async () => {
+            catalogCalls += 1;
+            await catalogBlocked;
+            return { active: { themeId: "default" }, custom: [], dir: null };
+          },
+        },
+        plugins: { list: async () => ({ plugins: [] }) },
+      },
+      log: { info() {}, warn() {} },
+    } as unknown as BbPluginApi;
+
+    const catalogLoader = createCatalogLoader(bb);
+    const first = catalogLoader.catalog();
+    const second = catalogLoader.catalog();
+
+    expect(catalogCalls).toBe(1);
+    releaseCatalog();
+    await Promise.all([first, second]);
+  });
+
+  it("acknowledges a selection without waiting for catalog enrichment", async () => {
+    let activeThemeId = "theme-a";
+    let blockPluginList = false;
+    let releasePluginList!: () => void;
+    const pluginListBlocked = new Promise<void>((resolve) => { releasePluginList = resolve; });
+    const bb = {
+      sdk: {
+        theme: {
+          catalog: async () => ({ active: { themeId: activeThemeId }, custom: ["theme-a", "theme-b"], dir: null }),
+          set: async (themeId: string) => { activeThemeId = themeId; },
+        },
+        plugins: {
+          list: async () => {
+            if (blockPluginList) await pluginListBlocked;
+            return { plugins: [] };
+          },
+        },
+      },
+      log: { info() {}, warn() {} },
+    } as unknown as BbPluginApi;
+
+    const catalogLoader = createCatalogLoader(bb);
+    await catalogLoader.catalog();
+    blockPluginList = true;
+
+    const selection = catalogLoader.setTheme("theme-b");
+    const outcome = await Promise.race([
+      selection.then((catalog) => ({ status: "resolved" as const, catalog })),
+      new Promise<{ status: "pending" }>((resolve) => setTimeout(() => resolve({ status: "pending" }), 10)),
+    ]);
+
+    releasePluginList();
+    await selection;
+    expect(outcome.status).toBe("resolved");
+    if (outcome.status === "resolved") expect(outcome.catalog.activeThemeId).toBe("theme-b");
+  });
+
   it("serializes overlapping selections so the latest requested theme wins", async () => {
     let activeThemeId = "initial";
     const setCalls: string[] = [];

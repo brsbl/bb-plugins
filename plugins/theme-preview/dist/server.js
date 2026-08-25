@@ -14860,22 +14860,35 @@ function createCatalogLoader(bb) {
   let revision = 0;
   let selectionGeneration = 0;
   let selectionQueue = Promise.resolve();
-  const catalog = async () => {
-    const selectionAtStart = selectionGeneration;
-    const raw = await bb.sdk.theme.catalog();
+  let latestCatalog = null;
+  let catalogInFlight = null;
+  const observe = async (label, operation) => {
+    const startedAt = Date.now();
+    try {
+      return await operation();
+    } finally {
+      const elapsedMs = Date.now() - startedAt;
+      if (elapsedMs >= 5e3) bb.log.warn(`theme-preview: ${label} took ${elapsedMs}ms`);
+    }
+  };
+  const loadCatalog = async (selectionAtStart) => {
+    const raw = await observe("theme catalog", () => bb.sdk.theme.catalog());
     const dir = typeof raw?.dir === "string" ? raw.dir : null;
     const rootDirs = /* @__PURE__ */ new Map();
     try {
-      const listed = await bb.sdk.plugins.list();
+      const listed = await observe("plugin list", () => bb.sdk.plugins.list());
       for (const entry of listed.plugins ?? []) {
         if (typeof entry.id === "string" && typeof entry.rootDir === "string") rootDirs.set(entry.id, entry.rootDir);
       }
     } catch (error51) {
       bb.log.warn(`theme-preview: plugin list unavailable: ${String(error51)}`);
     }
-    const built = await buildCatalog(
-      raw,
-      async (id) => id.startsWith("plugin:") ? readPluginThemeCss(bb, id, rootDirs) : dir ? readCustomThemeCss(dir, id) : null
+    const built = await observe(
+      "catalog enrichment",
+      () => buildCatalog(
+        raw,
+        async (id) => id.startsWith("plugin:") ? readPluginThemeCss(bb, id, rootDirs) : dir ? readCustomThemeCss(dir, id) : null
+      )
     );
     if (built.activeThemeId) {
       const path = await activeThemePath(built.activeThemeId, dir, rootDirs);
@@ -14899,18 +14912,33 @@ function createCatalogLoader(bb) {
         }
       }
     }
-    return { ...built, revision };
+    const next = { ...built, revision };
+    if (selectionGeneration === selectionAtStart) latestCatalog = next;
+    return next;
+  };
+  const catalog = () => {
+    const generation = selectionGeneration;
+    if (catalogInFlight?.generation === generation) return catalogInFlight.promise;
+    const promise2 = loadCatalog(generation).finally(() => {
+      if (catalogInFlight?.promise === promise2) catalogInFlight = null;
+    });
+    catalogInFlight = { generation, promise: promise2 };
+    return promise2;
   };
   return {
     catalog,
     async setTheme(themeId) {
       selectionGeneration += 1;
+      const generation = selectionGeneration;
       const apply = selectionQueue.then(async () => {
-        await bb.sdk.theme.set(themeId);
+        await observe(`theme apply (${themeId})`, () => bb.sdk.theme.set(themeId));
       });
       selectionQueue = apply.catch(() => void 0);
       await apply;
-      return catalog();
+      const base = latestCatalog ?? await catalog();
+      const selected = { ...base, activeThemeId: themeId };
+      if (selectionGeneration === generation) latestCatalog = selected;
+      return selected;
     }
   };
 }
