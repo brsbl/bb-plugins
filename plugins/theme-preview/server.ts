@@ -146,11 +146,12 @@ export function parseThemeSwatches(css: string): { light: ThemeSwatch | null; da
   return { light: build(declarations.light, "light"), dark: build(declarations.dark, "dark") };
 }
 
-async function readCustomThemeCss(directory: string, id: string): Promise<string | null> {
+async function readCustomThemeCss(directory: string, id: string, signal?: AbortSignal): Promise<string | null> {
   for (const candidate of [resolve(directory, id, "theme.css"), resolve(directory, `${id}.css`)]) {
     try {
-      return await readFile(candidate, "utf8");
+      return await readFile(candidate, { encoding: "utf8", signal });
     } catch {
+      signal?.throwIfAborted();
       // try the next layout
     }
   }
@@ -352,6 +353,7 @@ async function readPluginThemeCss(
   bb: BbPluginApi,
   themeId: string,
   rootDirs: Map<string, string>,
+  signal?: AbortSignal,
 ): Promise<string | null> {
   const m = /^plugin:([^:]+):(.+)$/.exec(themeId);
   if (!m) return null;
@@ -359,39 +361,49 @@ async function readPluginThemeCss(
   const rootDir = rootDirs.get(pluginId);
   if (!rootDir) return null;
   try {
-    const manifest = JSON.parse(await readFile(resolve(rootDir, "package.json"), "utf8")) as {
+    const manifest = JSON.parse(await readFile(resolve(rootDir, "package.json"), { encoding: "utf8", signal })) as {
       bb?: { themes?: Array<{ id?: string; css?: string }> };
     };
     const entry = manifest.bb?.themes?.find((theme) => theme.id === localId);
     if (!entry?.css) return null;
-    return await readFile(resolve(rootDir, entry.css), "utf8");
+    return await readFile(resolve(rootDir, entry.css), { encoding: "utf8", signal });
   } catch (error) {
+    signal?.throwIfAborted();
     bb.log.warn(`theme-preview: could not read ${themeId}: ${String(error)}`);
     return null;
   }
 }
 
-async function activeThemePath(themeId: string, dir: string | null, rootDirs: Map<string, string>) {
+async function activeThemePath(
+  themeId: string,
+  dir: string | null,
+  rootDirs: Map<string, string>,
+  signal?: AbortSignal,
+) {
   const pluginMatch = /^plugin:([^:]+):(.+)$/.exec(themeId);
   if (pluginMatch) {
     const rootDir = rootDirs.get(pluginMatch[1]);
     if (!rootDir) return null;
     try {
-      const manifest = JSON.parse(await readFile(resolve(rootDir, "package.json"), "utf8")) as {
+      const manifest = JSON.parse(await readFile(resolve(rootDir, "package.json"), { encoding: "utf8", signal })) as {
         bb?: { themes?: Array<{ id?: string; css?: string }> };
       };
       const entry = manifest.bb?.themes?.find((theme) => theme.id === pluginMatch[2]);
       return entry?.css ? resolve(rootDir, entry.css) : null;
     } catch {
+      signal?.throwIfAborted();
       return null;
     }
   }
   if (!dir) return null;
   for (const candidate of [resolve(dir, themeId, "theme.css"), resolve(dir, `${themeId}.css`)]) {
     try {
+      signal?.throwIfAborted();
       await stat(candidate);
+      signal?.throwIfAborted();
       return candidate;
     } catch {
+      signal?.throwIfAborted();
       // try the next layout
     }
   }
@@ -404,44 +416,103 @@ async function activeThemePath(themeId: string, dir: string | null, rootDirs: Ma
  * theme is not itself mistaken for editing the previous theme's stylesheet.
  */
 export function createCatalogLoader(bb: BbPluginApi) {
+  const slowWarningMs = 5_000;
+  const catalogOperationTimeoutMs = 15_000;
   const stamps = new Map<string, string>();
   let revision = 0;
   let selectionGeneration = 0;
   let selectionQueue: Promise<void> = Promise.resolve();
+  let latestCatalog: z.infer<typeof catalogSchema> | null = null;
+  let catalogInFlight: {
+    generation: number;
+    promise: Promise<z.infer<typeof catalogSchema>>;
+  } | null = null;
 
-  const catalog = async () => {
-    const selectionAtStart = selectionGeneration;
-    const raw = (await bb.sdk.theme.catalog()) as { dir?: unknown };
+  const warnIfSlow = async <T>(label: string, operation: () => Promise<T>): Promise<T> => {
+    const warning = setTimeout(() => {
+      bb.log.warn(`theme-preview: ${label} still pending after ${slowWarningMs}ms`);
+    }, slowWarningMs);
+    try {
+      return await operation();
+    } finally {
+      clearTimeout(warning);
+    }
+  };
+
+  const observeCatalogOperation = async <T>(
+    label: string,
+    operation: (signal: AbortSignal) => Promise<T>,
+  ): Promise<T> => {
+    const controller = new AbortController();
+    const warning = setTimeout(() => {
+      bb.log.warn(`theme-preview: ${label} still pending after ${slowWarningMs}ms`);
+    }, slowWarningMs);
+    let timeout: ReturnType<typeof setTimeout> | undefined;
+    const deadline = new Promise<never>((_resolve, reject) => {
+      timeout = setTimeout(() => {
+        const error = new Error(`theme-preview: ${label} timed out after ${catalogOperationTimeoutMs}ms`);
+        controller.abort(error);
+        reject(error);
+      }, catalogOperationTimeoutMs);
+    });
+    try {
+      return await Promise.race([operation(controller.signal), deadline]);
+    } finally {
+      clearTimeout(warning);
+      if (timeout) clearTimeout(timeout);
+    }
+  };
+
+  const loadCatalog = async (selectionAtStart: number) => {
+    const raw = (await observeCatalogOperation("theme catalog", (signal) => bb.sdk.theme.catalog({ signal }))) as {
+      dir?: unknown;
+    };
     const dir = typeof raw?.dir === "string" ? raw.dir : null;
     const rootDirs = new Map<string, string>();
     try {
-      const listed = (await bb.sdk.plugins.list()) as { plugins?: Array<{ id?: string; rootDir?: string }> };
+      const listed = (await observeCatalogOperation("plugin list", (signal) => bb.sdk.plugins.list({ signal }))) as {
+        plugins?: Array<{ id?: string; rootDir?: string }>;
+      };
       for (const entry of listed.plugins ?? []) {
         if (typeof entry.id === "string" && typeof entry.rootDir === "string") rootDirs.set(entry.id, entry.rootDir);
       }
     } catch (error) {
       bb.log.warn(`theme-preview: plugin list unavailable: ${String(error)}`);
     }
-    const built = await buildCatalog(raw, async (id) =>
-      id.startsWith("plugin:") ? readPluginThemeCss(bb, id, rootDirs) : dir ? readCustomThemeCss(dir, id) : null,
+    const built = await observeCatalogOperation("catalog enrichment", (signal) =>
+      buildCatalog(raw, async (id) =>
+        id.startsWith("plugin:")
+          ? readPluginThemeCss(bb, id, rootDirs, signal)
+          : dir
+            ? readCustomThemeCss(dir, id, signal)
+            : null,
+      ),
     );
 
     if (built.activeThemeId) {
-      const path = await activeThemePath(built.activeThemeId, dir, rootDirs);
+      const path = await observeCatalogOperation("active theme lookup", (signal) =>
+        activeThemePath(built.activeThemeId!, dir, rootDirs, signal),
+      );
       if (path) {
         try {
-          const info = await stat(path);
+          const info = await observeCatalogOperation("active theme stat", async (signal) => {
+            const result = await stat(path);
+            signal.throwIfAborted();
+            return result;
+          });
           const stamp = `${path}:${info.mtimeMs}:${info.size}`;
           const previousStamp = stamps.get(path);
           stamps.set(path, stamp);
           if (previousStamp !== undefined && stamp !== previousStamp) {
             // Everything above can await. Confirm that neither this panel nor
             // another bb surface selected a different theme in the meantime.
-            const current = (await bb.sdk.theme.catalog()) as { active?: { themeId?: unknown } };
+            const current = (await observeCatalogOperation("active theme confirmation", (signal) =>
+              bb.sdk.theme.catalog({ signal }),
+            )) as { active?: { themeId?: unknown } };
             const currentThemeId = typeof current.active?.themeId === "string" ? current.active.themeId : null;
             if (selectionGeneration === selectionAtStart && currentThemeId === built.activeThemeId) {
               revision += 1;
-              await bb.sdk.theme.set(built.activeThemeId);
+              await warnIfSlow(`theme re-apply (${built.activeThemeId})`, () => bb.sdk.theme.set(built.activeThemeId!));
               bb.log.info(`theme-preview: ${built.activeThemeId} changed on disk — re-applied (rev ${revision})`);
             }
           }
@@ -450,21 +521,43 @@ export function createCatalogLoader(bb: BbPluginApi) {
         }
       }
     }
-    return { ...built, revision };
+    const next = { ...built, revision };
+    if (selectionGeneration === selectionAtStart) latestCatalog = next;
+    return next;
+  };
+
+  const catalog = () => {
+    const generation = selectionGeneration;
+    if (catalogInFlight?.generation === generation) return catalogInFlight.promise;
+
+    const promise = loadCatalog(generation).finally(() => {
+      if (catalogInFlight?.promise === promise) catalogInFlight = null;
+    });
+    catalogInFlight = { generation, promise };
+    return promise;
   };
 
   return {
     catalog,
     async setTheme(themeId: string) {
       selectionGeneration += 1;
+      const generation = selectionGeneration;
       // Theme application is global and not cancellable. Preserve click order
       // so a slower earlier apply cannot land after the user's newer choice.
       const apply = selectionQueue.then(async () => {
-        await bb.sdk.theme.set(themeId);
+        await warnIfSlow(`theme apply (${themeId})`, () => bb.sdk.theme.set(themeId));
       });
       selectionQueue = apply.catch(() => undefined);
       await apply;
-      return catalog();
+
+      // The picker already has the enriched catalog it selected from. Confirm
+      // the global mutation from that snapshot so a slow CSS/plugin scan cannot
+      // make a successful selection look stuck. The next watcher signal or poll
+      // refreshes enrichment independently.
+      const base = latestCatalog ?? await catalog();
+      const selected = { ...base, activeThemeId: themeId };
+      if (selectionGeneration === generation) latestCatalog = selected;
+      return selected;
     },
   };
 }

@@ -103,6 +103,9 @@
 }
 @layer utilities {
   @scope ([data-bb-plugin="theme-preview"], [data-bb-plugin-root]:not([data-bb-plugin])) {
+    .visible {
+      visibility: visible;
+    }
     .absolute {
       position: absolute;
     }

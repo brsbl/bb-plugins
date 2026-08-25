@@ -14636,11 +14636,12 @@ function parseThemeSwatches(css) {
   };
   return { light: build(declarations.light, "light"), dark: build(declarations.dark, "dark") };
 }
-async function readCustomThemeCss(directory, id) {
+async function readCustomThemeCss(directory, id, signal) {
   for (const candidate of [resolve(directory, id, "theme.css"), resolve(directory, `${id}.css`)]) {
     try {
-      return await readFile(candidate, "utf8");
+      return await readFile(candidate, { encoding: "utf8", signal });
     } catch {
+      signal?.throwIfAborted();
     }
   }
   return null;
@@ -14816,81 +14817,132 @@ async function buildCatalog(result, readCss) {
   );
   return { activeThemeId, themes, revision: 0 };
 }
-async function readPluginThemeCss(bb, themeId, rootDirs) {
+async function readPluginThemeCss(bb, themeId, rootDirs, signal) {
   const m = /^plugin:([^:]+):(.+)$/.exec(themeId);
   if (!m) return null;
   const [, pluginId, localId] = m;
   const rootDir = rootDirs.get(pluginId);
   if (!rootDir) return null;
   try {
-    const manifest = JSON.parse(await readFile(resolve(rootDir, "package.json"), "utf8"));
+    const manifest = JSON.parse(await readFile(resolve(rootDir, "package.json"), { encoding: "utf8", signal }));
     const entry = manifest.bb?.themes?.find((theme) => theme.id === localId);
     if (!entry?.css) return null;
-    return await readFile(resolve(rootDir, entry.css), "utf8");
+    return await readFile(resolve(rootDir, entry.css), { encoding: "utf8", signal });
   } catch (error51) {
+    signal?.throwIfAborted();
     bb.log.warn(`theme-preview: could not read ${themeId}: ${String(error51)}`);
     return null;
   }
 }
-async function activeThemePath(themeId, dir, rootDirs) {
+async function activeThemePath(themeId, dir, rootDirs, signal) {
   const pluginMatch = /^plugin:([^:]+):(.+)$/.exec(themeId);
   if (pluginMatch) {
     const rootDir = rootDirs.get(pluginMatch[1]);
     if (!rootDir) return null;
     try {
-      const manifest = JSON.parse(await readFile(resolve(rootDir, "package.json"), "utf8"));
+      const manifest = JSON.parse(await readFile(resolve(rootDir, "package.json"), { encoding: "utf8", signal }));
       const entry = manifest.bb?.themes?.find((theme) => theme.id === pluginMatch[2]);
       return entry?.css ? resolve(rootDir, entry.css) : null;
     } catch {
+      signal?.throwIfAborted();
       return null;
     }
   }
   if (!dir) return null;
   for (const candidate of [resolve(dir, themeId, "theme.css"), resolve(dir, `${themeId}.css`)]) {
     try {
+      signal?.throwIfAborted();
       await stat(candidate);
+      signal?.throwIfAborted();
       return candidate;
     } catch {
+      signal?.throwIfAborted();
     }
   }
   return null;
 }
 function createCatalogLoader(bb) {
+  const slowWarningMs = 5e3;
+  const catalogOperationTimeoutMs = 15e3;
   const stamps = /* @__PURE__ */ new Map();
   let revision = 0;
   let selectionGeneration = 0;
   let selectionQueue = Promise.resolve();
-  const catalog = async () => {
-    const selectionAtStart = selectionGeneration;
-    const raw = await bb.sdk.theme.catalog();
+  let latestCatalog = null;
+  let catalogInFlight = null;
+  const warnIfSlow = async (label, operation) => {
+    const warning = setTimeout(() => {
+      bb.log.warn(`theme-preview: ${label} still pending after ${slowWarningMs}ms`);
+    }, slowWarningMs);
+    try {
+      return await operation();
+    } finally {
+      clearTimeout(warning);
+    }
+  };
+  const observeCatalogOperation = async (label, operation) => {
+    const controller = new AbortController();
+    const warning = setTimeout(() => {
+      bb.log.warn(`theme-preview: ${label} still pending after ${slowWarningMs}ms`);
+    }, slowWarningMs);
+    let timeout;
+    const deadline = new Promise((_resolve, reject) => {
+      timeout = setTimeout(() => {
+        const error51 = new Error(`theme-preview: ${label} timed out after ${catalogOperationTimeoutMs}ms`);
+        controller.abort(error51);
+        reject(error51);
+      }, catalogOperationTimeoutMs);
+    });
+    try {
+      return await Promise.race([operation(controller.signal), deadline]);
+    } finally {
+      clearTimeout(warning);
+      if (timeout) clearTimeout(timeout);
+    }
+  };
+  const loadCatalog = async (selectionAtStart) => {
+    const raw = await observeCatalogOperation("theme catalog", (signal) => bb.sdk.theme.catalog({ signal }));
     const dir = typeof raw?.dir === "string" ? raw.dir : null;
     const rootDirs = /* @__PURE__ */ new Map();
     try {
-      const listed = await bb.sdk.plugins.list();
+      const listed = await observeCatalogOperation("plugin list", (signal) => bb.sdk.plugins.list({ signal }));
       for (const entry of listed.plugins ?? []) {
         if (typeof entry.id === "string" && typeof entry.rootDir === "string") rootDirs.set(entry.id, entry.rootDir);
       }
     } catch (error51) {
       bb.log.warn(`theme-preview: plugin list unavailable: ${String(error51)}`);
     }
-    const built = await buildCatalog(
-      raw,
-      async (id) => id.startsWith("plugin:") ? readPluginThemeCss(bb, id, rootDirs) : dir ? readCustomThemeCss(dir, id) : null
+    const built = await observeCatalogOperation(
+      "catalog enrichment",
+      (signal) => buildCatalog(
+        raw,
+        async (id) => id.startsWith("plugin:") ? readPluginThemeCss(bb, id, rootDirs, signal) : dir ? readCustomThemeCss(dir, id, signal) : null
+      )
     );
     if (built.activeThemeId) {
-      const path = await activeThemePath(built.activeThemeId, dir, rootDirs);
+      const path = await observeCatalogOperation(
+        "active theme lookup",
+        (signal) => activeThemePath(built.activeThemeId, dir, rootDirs, signal)
+      );
       if (path) {
         try {
-          const info = await stat(path);
+          const info = await observeCatalogOperation("active theme stat", async (signal) => {
+            const result = await stat(path);
+            signal.throwIfAborted();
+            return result;
+          });
           const stamp = `${path}:${info.mtimeMs}:${info.size}`;
           const previousStamp = stamps.get(path);
           stamps.set(path, stamp);
           if (previousStamp !== void 0 && stamp !== previousStamp) {
-            const current = await bb.sdk.theme.catalog();
+            const current = await observeCatalogOperation(
+              "active theme confirmation",
+              (signal) => bb.sdk.theme.catalog({ signal })
+            );
             const currentThemeId = typeof current.active?.themeId === "string" ? current.active.themeId : null;
             if (selectionGeneration === selectionAtStart && currentThemeId === built.activeThemeId) {
               revision += 1;
-              await bb.sdk.theme.set(built.activeThemeId);
+              await warnIfSlow(`theme re-apply (${built.activeThemeId})`, () => bb.sdk.theme.set(built.activeThemeId));
               bb.log.info(`theme-preview: ${built.activeThemeId} changed on disk \u2014 re-applied (rev ${revision})`);
             }
           }
@@ -14899,18 +14951,33 @@ function createCatalogLoader(bb) {
         }
       }
     }
-    return { ...built, revision };
+    const next = { ...built, revision };
+    if (selectionGeneration === selectionAtStart) latestCatalog = next;
+    return next;
+  };
+  const catalog = () => {
+    const generation = selectionGeneration;
+    if (catalogInFlight?.generation === generation) return catalogInFlight.promise;
+    const promise2 = loadCatalog(generation).finally(() => {
+      if (catalogInFlight?.promise === promise2) catalogInFlight = null;
+    });
+    catalogInFlight = { generation, promise: promise2 };
+    return promise2;
   };
   return {
     catalog,
     async setTheme(themeId) {
       selectionGeneration += 1;
+      const generation = selectionGeneration;
       const apply = selectionQueue.then(async () => {
-        await bb.sdk.theme.set(themeId);
+        await warnIfSlow(`theme apply (${themeId})`, () => bb.sdk.theme.set(themeId));
       });
       selectionQueue = apply.catch(() => void 0);
       await apply;
-      return catalog();
+      const base = latestCatalog ?? await catalog();
+      const selected = { ...base, activeThemeId: themeId };
+      if (selectionGeneration === generation) latestCatalog = selected;
+      return selected;
     }
   };
 }
