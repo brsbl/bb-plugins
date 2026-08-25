@@ -26,7 +26,7 @@ the row in place and queues a title refresh.
 
 ## Current workflow
 
-**Inbox** is the protected Inbox section. Idle unread threads go there automatically and stay until work resumes. This routing behavior can’t be customized; never choose Inbox yourself.
+**Inbox** is the protected Inbox section. Idle unread threads go there automatically and stay until work resumes or the user moves a read thread to another workflow section. This routing behavior can’t be customized; never choose Inbox yourself.
 
 | Key            | Section          | What belongs here                                                                |
 | -------------- | ---------------- | -------------------------------------------------------------------------------- |
