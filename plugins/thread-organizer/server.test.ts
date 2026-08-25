@@ -502,6 +502,30 @@ describe("Thread Organizer server", () => {
     await organizer.harness.lifecycle.dispose();
   });
 
+  it("caps generated rename proposals at five words", async () => {
+    const organizer = createHarness();
+    organizer.setThread({ status: "active", title: "Old planning title" });
+    organizer.outputThread.mockResolvedValueOnce({
+      output:
+        '{"decisions":[{"id":"thr_test","action":"rename","title":"Investigate and fix thread organizer title generation"}]}',
+    });
+    await plugin(organizer.bb);
+
+    await organizer.harness.behavior.runCli(["phase", "planning"], {
+      threadId: "thr_test",
+    });
+
+    await vi.waitFor(() =>
+      expect(organizer.current().title).toBe(
+        "Investigate and fix thread organizer",
+      ),
+    );
+    expect(organizer.spawnThread.mock.calls[0]?.[0].prompt).toContain(
+      "no more than 5 words",
+    );
+    await organizer.harness.lifecycle.dispose();
+  });
+
   it("batches title reassessments for multiple threads into one worker", async () => {
     const organizer = createHarness();
     organizer.setThread({ status: "active", title: "First old title" });
