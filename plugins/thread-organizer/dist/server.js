@@ -15473,6 +15473,7 @@ async function plugin(bb) {
     const currentStage = stageForSectionId(configSnapshot, thread.sectionId);
     let titleReassessmentRequest = null;
     if (explicitStageKey) {
+      if (!isUnreadThread(thread)) state.inboxLatched = false;
       titleReassessmentRequest = {
         fromKey: state.rememberedStageKey,
         toKey: explicitStageKey

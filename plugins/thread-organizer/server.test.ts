@@ -657,6 +657,53 @@ describe("Thread Organizer server", () => {
     await organizer.harness.lifecycle.dispose();
   });
 
+  it("clears a read Inbox latch through the CLI while unread CLI moves stay latched", async () => {
+    const organizer = createHarness();
+    await plugin(organizer.bb);
+    const config = await configFor(organizer);
+    const sectionId = (key: string) =>
+      config.stages.find((stage) => stage.key === key)!.sectionId;
+
+    organizer.setThread({
+      status: "idle",
+      lastReadAt: 0,
+      latestAttentionAt: 20,
+      sectionId: sectionId("planning"),
+    });
+    await organizer.harness.behavior.emitThreadEvent("thread.idle", {
+      thread: organizer.current(),
+      lastAssistantText: null,
+    });
+    expect(organizer.current().sectionId).toBe(sectionId("inbox"));
+
+    await organizer.harness.behavior.runCli(["phase", "on-hold"], {
+      threadId: "thr_test",
+    });
+    expect(organizer.current().sectionId).toBe(sectionId("inbox"));
+    await expect(
+      organizer.bb.storage.kv.get("thread:v3:thr_test"),
+    ).resolves.toMatchObject({
+      inboxLatched: true,
+      rememberedStageKey: "on-hold",
+    });
+
+    organizer.setThread({ lastReadAt: 20 });
+    await organizer.harness.behavior.emitThreadEvent("thread.idle", {
+      thread: organizer.current(),
+      lastAssistantText: null,
+    });
+    expect(organizer.current().sectionId).toBe(sectionId("inbox"));
+
+    await organizer.harness.behavior.runCli(["phase", "on-hold"], {
+      threadId: "thr_test",
+    });
+    expect(organizer.current().sectionId).toBe(sectionId("on-hold"));
+    await expect(
+      organizer.bb.storage.kv.get("thread:v3:thr_test"),
+    ).resolves.toMatchObject({ inboxLatched: false });
+    await organizer.harness.lifecycle.dispose();
+  });
+
   it("moves explicitly with dynamic CLI keys and never accepts Inbox", async () => {
     const organizer = createHarness();
     await plugin(organizer.bb);

@@ -692,6 +692,7 @@ export default async function plugin(bb: BbPluginApi): Promise<void> {
     let titleReassessmentRequest: TitleReassessmentRequest | null = null;
 
     if (explicitStageKey) {
+      if (!isUnreadThread(thread)) state.inboxLatched = false;
       titleReassessmentRequest = {
         fromKey: state.rememberedStageKey,
         toKey: explicitStageKey,
