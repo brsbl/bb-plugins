@@ -180,6 +180,19 @@ var VIEW_NOTE = {
 };
 var FRAME_W = 1280;
 var FRAME_H = 780;
+var CLIENT_RPC_TIMEOUT_MS = 2e4;
+function withRpcTimeout(operation, label) {
+  let timeout;
+  const deadline = new Promise((_resolve, reject) => {
+    timeout = setTimeout(
+      () => reject(new Error(`${label} timed out after ${CLIENT_RPC_TIMEOUT_MS / 1e3} seconds`)),
+      CLIENT_RPC_TIMEOUT_MS
+    );
+  });
+  return Promise.race([operation, deadline]).finally(() => {
+    if (timeout !== void 0) clearTimeout(timeout);
+  });
+}
 function Dot({ color, size = 6 }) {
   return /* @__PURE__ */ jsx("span", { style: { display: "inline-block", width: size, height: size, borderRadius: 999, background: color, flex: "none" } });
 }
@@ -1114,6 +1127,7 @@ function PreviewPage({ subPath }) {
   const catalogRequests = useRef(new LatestRequest());
   const selectionPending = useRef(false);
   const catalogLoadPending = useRef(false);
+  const catalogLoadQueued = useRef(false);
   const view = useMemo(() => {
     const first = subPath.split("/").filter(Boolean)[0] ?? "";
     return VIEWS.includes(first) ? first : "thread";
@@ -1123,18 +1137,25 @@ function PreviewPage({ subPath }) {
   useEffect(() => {
     let cancelled = false;
     const load = () => {
-      if (selectionPending.current || catalogLoadPending.current) return;
+      if (selectionPending.current || catalogLoadPending.current) {
+        catalogLoadQueued.current = true;
+        return;
+      }
+      catalogLoadQueued.current = false;
       catalogLoadPending.current = true;
       const request = catalogRequests.current.begin();
-      rpc.call("themeCatalog", {}).then((c) => {
-        if (!cancelled && catalogRequests.current.isLatest(request)) {
+      withRpcTimeout(rpc.call("themeCatalog", {}), "Theme catalog").then((c) => {
+        if (!cancelled && !catalogLoadQueued.current && catalogRequests.current.isLatest(request)) {
           setCatalog(c);
           setError(null);
         }
       }).catch((e) => {
-        if (catalogRequests.current.isLatest(request)) setError(String(e));
+        if (!cancelled && !catalogLoadQueued.current && catalogRequests.current.isLatest(request)) {
+          setError(String(e));
+        }
       }).finally(() => {
         catalogLoadPending.current = false;
+        if (!cancelled && catalogLoadQueued.current) load();
       });
     };
     loadRef.current = load;
@@ -1181,7 +1202,7 @@ function PreviewPage({ subPath }) {
     setFailedSelection(null);
     setError(null);
     const request = catalogRequests.current.begin();
-    rpc.call("setTheme", { themeId: selection.themeId }).then((next) => {
+    withRpcTimeout(rpc.call("setTheme", { themeId: selection.themeId }), "Theme selection").then((next) => {
       if (catalogRequests.current.isLatest(request)) {
         setCatalog(next);
         setFailedSelection(null);
@@ -1192,6 +1213,7 @@ function PreviewPage({ subPath }) {
       if (catalogRequests.current.isLatest(request)) {
         selectionPending.current = false;
         setPendingSelection(null);
+        if (catalogLoadQueued.current) loadRef.current();
       }
     });
   };

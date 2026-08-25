@@ -2,7 +2,7 @@ import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import type { BbPluginApi } from "@get-bb/plugin-sdk";
 import plugin, { buildCatalog, classifySelector, createCatalogLoader, parseThemeSwatches } from "./server";
 
@@ -84,6 +84,90 @@ describe("createCatalogLoader", () => {
     expect(catalogCalls).toBe(1);
     releaseCatalog();
     await Promise.all([first, second]);
+  });
+
+  it("times out a stuck catalog request, aborts it, and allows a healthy retry", async () => {
+    vi.useFakeTimers();
+    try {
+      let catalogCalls = 0;
+      let firstSignal: AbortSignal | undefined;
+      const warn = vi.fn();
+      const bb = {
+        sdk: {
+          theme: {
+            catalog: ({ signal }: { signal?: AbortSignal } = {}) => {
+              catalogCalls += 1;
+              if (catalogCalls === 1) {
+                firstSignal = signal;
+                return new Promise(() => undefined);
+              }
+              return Promise.resolve({ active: { themeId: "default" }, custom: [], dir: null });
+            },
+          },
+          plugins: { list: async () => ({ plugins: [] }) },
+        },
+        log: { info() {}, warn },
+      } as unknown as BbPluginApi;
+
+      const catalogLoader = createCatalogLoader(bb);
+      const failed = catalogLoader.catalog().catch((error: unknown) => error);
+      await vi.advanceTimersByTimeAsync(5_000);
+
+      expect(warn).toHaveBeenCalledWith("theme-preview: theme catalog still pending after 5000ms");
+      await vi.advanceTimersByTimeAsync(10_000);
+      const error = await failed;
+      expect(error).toEqual(expect.objectContaining({ message: "theme-preview: theme catalog timed out after 15000ms" }));
+      expect(firstSignal?.aborted).toBe(true);
+
+      const recovered = await catalogLoader.catalog();
+      expect(recovered.activeThemeId).toBe("default");
+      expect(catalogCalls).toBe(2);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("bounds a stuck plugin list without poisoning the next catalog refresh", async () => {
+    vi.useFakeTimers();
+    try {
+      let pluginListCalls = 0;
+      let firstSignal: AbortSignal | undefined;
+      const warn = vi.fn();
+      const bb = {
+        sdk: {
+          theme: {
+            catalog: async () => ({ active: { themeId: "default" }, custom: [], dir: null }),
+          },
+          plugins: {
+            list: ({ signal }: { signal?: AbortSignal } = {}) => {
+              pluginListCalls += 1;
+              if (pluginListCalls === 1) {
+                firstSignal = signal;
+                return new Promise(() => undefined);
+              }
+              return Promise.resolve({ plugins: [] });
+            },
+          },
+        },
+        log: { info() {}, warn },
+      } as unknown as BbPluginApi;
+
+      const catalogLoader = createCatalogLoader(bb);
+      const degraded = catalogLoader.catalog();
+      await vi.advanceTimersByTimeAsync(5_000);
+      expect(warn).toHaveBeenCalledWith("theme-preview: plugin list still pending after 5000ms");
+      await vi.advanceTimersByTimeAsync(10_000);
+
+      await expect(degraded).resolves.toEqual(expect.objectContaining({ activeThemeId: "default" }));
+      expect(firstSignal?.aborted).toBe(true);
+      expect(warn).toHaveBeenCalledWith(
+        "theme-preview: plugin list unavailable: Error: theme-preview: plugin list timed out after 15000ms",
+      );
+      await expect(catalogLoader.catalog()).resolves.toEqual(expect.objectContaining({ activeThemeId: "default" }));
+      expect(pluginListCalls).toBe(2);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("acknowledges a selection without waiting for catalog enrichment", async () => {

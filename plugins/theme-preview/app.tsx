@@ -50,6 +50,20 @@ const VIEW_NOTE: Record<View, string> = {
 // type sizes stay the sizes bb ships.
 const FRAME_W = 1280;
 const FRAME_H = 780;
+const CLIENT_RPC_TIMEOUT_MS = 20_000;
+
+function withRpcTimeout<T>(operation: Promise<T>, label: string): Promise<T> {
+  let timeout: ReturnType<typeof setTimeout> | undefined;
+  const deadline = new Promise<never>((_resolve, reject) => {
+    timeout = setTimeout(
+      () => reject(new Error(`${label} timed out after ${CLIENT_RPC_TIMEOUT_MS / 1000} seconds`)),
+      CLIENT_RPC_TIMEOUT_MS,
+    );
+  });
+  return Promise.race([operation, deadline]).finally(() => {
+    if (timeout !== undefined) clearTimeout(timeout);
+  });
+}
 
 type Mode = "light" | "dark";
 type ThemeSelection = { themeId: string; mode: Mode };
@@ -1097,6 +1111,7 @@ function PreviewPage({ subPath }: { subPath: string }) {
   const catalogRequests = useRef(new LatestRequest());
   const selectionPending = useRef(false);
   const catalogLoadPending = useRef(false);
+  const catalogLoadQueued = useRef(false);
 
   const view = useMemo<View>(() => {
     const first = subPath.split("/").filter(Boolean)[0] ?? "";
@@ -1110,18 +1125,29 @@ function PreviewPage({ subPath }: { subPath: string }) {
   useEffect(() => {
     let cancelled = false;
     const load = () => {
-      if (selectionPending.current || catalogLoadPending.current) return;
+      if (selectionPending.current || catalogLoadPending.current) {
+        catalogLoadQueued.current = true;
+        return;
+      }
+      catalogLoadQueued.current = false;
       catalogLoadPending.current = true;
       const request = catalogRequests.current.begin();
-      rpc.call("themeCatalog", {})
+      withRpcTimeout(rpc.call("themeCatalog", {}), "Theme catalog")
         .then((c) => {
-          if (!cancelled && catalogRequests.current.isLatest(request)) {
+          if (!cancelled && !catalogLoadQueued.current && catalogRequests.current.isLatest(request)) {
             setCatalog(c);
             setError(null);
           }
         })
-        .catch((e) => { if (catalogRequests.current.isLatest(request)) setError(String(e)); })
-        .finally(() => { catalogLoadPending.current = false; });
+        .catch((e) => {
+          if (!cancelled && !catalogLoadQueued.current && catalogRequests.current.isLatest(request)) {
+            setError(String(e));
+          }
+        })
+        .finally(() => {
+          catalogLoadPending.current = false;
+          if (!cancelled && catalogLoadQueued.current) load();
+        });
     };
     loadRef.current = load;
     load();
@@ -1170,7 +1196,7 @@ function PreviewPage({ subPath }: { subPath: string }) {
     setFailedSelection(null);
     setError(null);
     const request = catalogRequests.current.begin();
-    rpc.call("setTheme", { themeId: selection.themeId })
+    withRpcTimeout(rpc.call("setTheme", { themeId: selection.themeId }), "Theme selection")
       .then((next) => {
         if (catalogRequests.current.isLatest(request)) {
           setCatalog(next);
@@ -1184,6 +1210,7 @@ function PreviewPage({ subPath }: { subPath: string }) {
         if (catalogRequests.current.isLatest(request)) {
           selectionPending.current = false;
           setPendingSelection(null);
+          if (catalogLoadQueued.current) loadRef.current();
         }
       });
   };
