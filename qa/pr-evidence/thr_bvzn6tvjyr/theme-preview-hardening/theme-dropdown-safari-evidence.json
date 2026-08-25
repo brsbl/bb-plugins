@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "candidate": "af534f6837f1c57b581fd63be0bd7068ba487f5a",
+  "candidate": "6ca5ed319b71f78753339d45dc065057a394773f",
   "checkpoint": "theme-dropdown-hardening-safari",
   "browser": "Safari 26.5.2",
   "platform": "macOS 26.5.2",
@@ -18,19 +18,19 @@
   "lightPersistedAfterReload": true,
   "repeatedSwitchCycles": 5,
   "cycleElapsedMs": [
-    223,
-    297,
-    368,
-    252,
-    227
+    567,
+    360,
+    659,
+    388,
+    419
   ],
   "clientNavigation": "Thread → Settings → Thread PASS",
   "hardReloads": 2,
   "finalState": {
     "navigation": {
       "type": "reload",
-      "domComplete": 408.00000000000006,
-      "loadEventEnd": 408.00000000000006
+      "domComplete": 851,
+      "loadEventEnd": 851
     },
     "label": "Endless Color dark",
     "isDark": true,
