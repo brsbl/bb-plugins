@@ -460,6 +460,12 @@ describe("Thread Organizer server", () => {
     expect(organizer.spawnThread.mock.calls[0]?.[0].prompt).toContain(
       "Implement semantic thread title reassessment.",
     );
+    expect(organizer.spawnThread.mock.calls[0]?.[0].prompt).toContain(
+      "durable core job of the whole thread",
+    );
+    expect(organizer.spawnThread.mock.calls[0]?.[0].prompt).toContain(
+      "a stage change alone is not a reason to rename",
+    );
     expect(organizer.waitThread).toHaveBeenCalledWith(
       expect.objectContaining({
         event: "turn/completed",
@@ -480,7 +486,7 @@ describe("Thread Organizer server", () => {
     await organizer.harness.lifecycle.dispose();
   });
 
-  it("reassesses a title when the current stage is autonomously refreshed", async () => {
+  it("reassesses a title when the core job changes within the current stage", async () => {
     const organizer = createHarness();
     organizer.setThread({ status: "active", title: "Old planning title" });
     await plugin(organizer.bb);
@@ -523,6 +529,41 @@ describe("Thread Organizer server", () => {
     expect(organizer.spawnThread.mock.calls[0]?.[0].prompt).toContain(
       "no more than 5 words",
     );
+    await organizer.harness.lifecycle.dispose();
+  });
+
+  it("keeps the opening request alongside recent title context", async () => {
+    const organizer = createHarness();
+    organizer.setThread({ status: "active", title: "Old planning title" });
+    organizer.timelineThread.mockResolvedValueOnce({
+      rows: [
+        {
+          kind: "conversation",
+          role: "user",
+          text: "Build the durable project dashboard.",
+        },
+        ...Array.from({ length: 12 }, (_, index) => ({
+          kind: "conversation" as const,
+          role: (index % 2 === 0 ? "assistant" : "user") as
+            | "assistant"
+            | "user",
+          text: `Recent turn ${index + 1}`,
+        })),
+      ],
+    });
+    await plugin(organizer.bb);
+
+    await organizer.harness.behavior.runCli(["phase", "planning"], {
+      threadId: "thr_test",
+    });
+
+    await vi.waitFor(() =>
+      expect(organizer.spawnThread).toHaveBeenCalledOnce(),
+    );
+    const prompt = organizer.spawnThread.mock.calls[0]?.[0].prompt ?? "";
+    expect(prompt).toContain("Build the durable project dashboard.");
+    expect(prompt).toContain("Recent turn 12");
+    expect(prompt).not.toContain('"text":"Recent turn 1"');
     await organizer.harness.lifecycle.dispose();
   });
 
@@ -572,7 +613,7 @@ describe("Thread Organizer server", () => {
     await organizer.harness.lifecycle.dispose();
   });
 
-  it("retries reassessment with a title changed while its worker is running", async () => {
+  it("preserves a title changed while its worker is running", async () => {
     const organizer = createHarness();
     organizer.setThread({ status: "active", title: "Initial title" });
     let releaseOutput!: () => void;
@@ -586,10 +627,6 @@ describe("Thread Organizer server", () => {
           '{"decisions":[{"id":"thr_test","action":"rename","title":"Stale generated title"}]}',
       };
     });
-    organizer.outputThread.mockResolvedValueOnce({
-      output:
-        '{"decisions":[{"id":"thr_test","action":"rename","title":"Current implementation focus"}]}',
-    });
     await plugin(organizer.bb);
 
     await organizer.harness.behavior.runCli(["phase", "building"], {
@@ -602,24 +639,17 @@ describe("Thread Organizer server", () => {
     releaseOutput();
 
     await vi.waitFor(() =>
-      expect(organizer.current().title).toBe("Current implementation focus"),
+      expect(organizer.stopThread).toHaveBeenCalledWith({
+        threadId: "thr_title_worker",
+      }),
     );
-    expect(organizer.spawnThread).toHaveBeenCalledTimes(2);
-    expect(organizer.spawnThread.mock.calls[1]?.[0].prompt).toContain(
-      '"currentTitle":"User-chosen title"',
-    );
+    expect(organizer.current().title).toBe("User-chosen title");
+    expect(organizer.spawnThread).toHaveBeenCalledOnce();
     expect(
       organizer.updateThread.mock.calls.filter(
         ([input]) => input.title !== undefined,
       ),
-    ).toEqual([
-      [
-        {
-          threadId: "thr_test",
-          title: "Current implementation focus",
-        },
-      ],
-    ]);
+    ).toEqual([]);
     await organizer.harness.lifecycle.dispose();
   });
 
@@ -854,6 +884,9 @@ describe("Thread Organizer server", () => {
     );
     expect(configuration.instructions).toContain(
       "**Needs Me** is the protected Inbox section",
+    );
+    expect(configuration.instructions).toContain(
+      "generated from the user’s plugin settings",
     );
     await organizer.harness.lifecycle.dispose();
   });
