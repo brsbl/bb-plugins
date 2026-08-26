@@ -25,17 +25,19 @@ thread’s actual stage.
 - Automation-origin root threads follow the same workflow as ordinary roots.
 - Stage changes and same-stage refreshes enter one bounded title queue.
   Thread Organizer batches queued threads into one invisible worker, which
-  reassesses whether each title still describes the active work. Generated
-  renames are limited to five words. If you rename a thread while that worker
-  is running, its older proposal is discarded and the thread is queued again
-  with its latest title. That title remains eligible for later reassessment
-  whenever the active work changes again.
+  reassesses whether each title still describes the durable core job of the
+  whole thread. Generated renames are limited to five words. A concurrent
+  rename wins: the worker discards its older proposal without queuing a
+  replacement. The title remains eligible for a later reassessment when the
+  thread’s core job genuinely changes.
 
 The plugin does not classify prompts to choose stages. Agents and users move
-threads from the rules saved in plugin settings. Agents autonomously apply the
-resolved stage when substantial work changes, including changes that remain
-within the same stage; those checkpoints drive batched title reassessment and
-never require user permission.
+threads from the rules saved in plugin settings. The bundled skill contains
+only the movement protocol and reads the current taxonomy from the dynamic
+settings block. Agents apply clear stage changes autonomously, but a rule that
+requires explicit user intent—such as the default Handoff rule—cannot be
+inferred. Same-stage refreshes are reserved for a genuine change to the
+thread’s durable core job.
 
 ## Use
 
@@ -65,9 +67,10 @@ bb organizer phase on-hold
 ```
 
 Inbox is system-managed and cannot be selected by the CLI. The bundled
-`thread-phase-organizer` skill contains the invariant movement protocol. The
-plugin adds the current saved stage table to the agent’s dynamic instructions
-whenever a session starts or resumes.
+`thread-phase-organizer` skill contains only the invariant movement protocol.
+The plugin adds the current saved stage table—the source of truth for section
+names and rules—to the agent’s dynamic instructions whenever a session starts
+or resumes.
 
 ## Install
 

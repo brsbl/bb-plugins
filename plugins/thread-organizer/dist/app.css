@@ -182,6 +182,9 @@
     .ml-auto {
       margin-left: auto;
     }
+    .block {
+      display: block;
+    }
     .flex {
       display: flex;
     }
@@ -193,9 +196,6 @@
     }
     .inline-flex {
       display: inline-flex;
-    }
-    .table {
-      display: table;
     }
     .size-4 {
       width: calc(var(--spacing) * 4);

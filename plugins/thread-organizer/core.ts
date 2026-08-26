@@ -187,10 +187,18 @@ export interface OrganizableThread {
 export const INBOX_RULE =
   "Idle unread threads that need your attention appear here automatically and stay until work resumes or you move a read thread to another workflow section. This behavior can’t be customized.";
 
+export const HANDOFF_RULE =
+  "Use only when the user explicitly says this thread is being handed to a colleague to take across the finish line; never infer it from packaging context, completed work, or waiting.";
+
 const PREVIOUS_INBOX_RULES = [
   "Idle unread threads that need your attention appear here automatically and stay until work resumes. This behavior can’t be customized.",
   "Idle unread threads that need your attention appear here automatically. This behavior can’t be customized.",
   "Idle unread threads requiring the user's attention. This stage is managed automatically.",
+] as const;
+
+const PREVIOUS_HANDOFF_RULES = [
+  "Packaging work and context so a colleague can continue it.",
+  "Transferring work to a colleague after explicit user direction.",
 ] as const;
 
 export const DEFAULT_WORKFLOW_CONFIG: WorkflowConfig = {
@@ -241,7 +249,7 @@ export const DEFAULT_WORKFLOW_CONFIG: WorkflowConfig = {
       role: "stage",
       title: "Handoff",
       icon: "ArrowRight",
-      rule: "Packaging work and context so a colleague can continue it.",
+      rule: HANDOFF_RULE,
       sectionId: null,
     },
     {
@@ -359,12 +367,11 @@ function migrateDraftStage(stage: WorkflowStage): WorkflowStage {
   }
   if (
     stage.key === "handoff" &&
-    stage.rule ===
-      "Transferring work to a colleague after explicit user direction."
+    PREVIOUS_HANDOFF_RULES.some((rule) => rule === stage.rule)
   ) {
     return {
       ...stage,
-      rule: "Packaging work and context so a colleague can continue it.",
+      rule: HANDOFF_RULE,
     };
   }
   if (stage.key !== "parked") return stage;

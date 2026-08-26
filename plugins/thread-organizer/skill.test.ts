@@ -16,43 +16,51 @@ beforeAll(async () => {
 });
 
 describe("thread phase organizer guidance", () => {
-  it("resolves an indirect read-this-brief kickoff before moving to implementation", () => {
+  it("uses live plugin settings as the sole workflow taxonomy", () => {
+    expect(skill).toContain(
+      "It intentionally contains no section taxonomy.",
+    );
+    expect(skill).toContain(
+      "Treat that live block as the sole source of stage keys, titles, and rules.",
+    );
+    expect(skill).toContain(
+      "If it is absent, do not guess a stage or run the organizer command.",
+    );
+    expect(skill).not.toContain("| planning");
+    expect(skill).not.toContain("Handoff");
+  });
+
+  it("resolves an indirect kickoff before choosing from the live rules", () => {
     expect(skill).toContain(
       "Immediately after resolving an indirect kickoff such as “read this brief/spec/issue/thread.” Read the referenced artifact first, then classify the resolved next concrete action—not isolated words in the kickoff or the artifact.",
     );
     expect(skill).toContain(
-      "Before implementation begins. Move to the matching building-like stage before changing code or product artifacts.",
+      "A checkpoint is an opportunity to reassess, not a reason to move.",
     );
   });
 
-  it("moves from Building to Testing / Deploy and back when validation fails", () => {
+  it("requires explicit user intent whenever the configured rule does", () => {
     expect(skill).toContain(
-      "When implementation transitions to testing, packaging a deliverable, releasing, or deploying. Move to the matching testing/deploy-like stage.",
+      "A stage rule that requires an explicit user decision is ineligible without a current, explicit statement from the user.",
     );
     expect(skill).toContain(
-      "When failed validation makes implementation the next concrete action again. Move from the testing/deploy-like stage back to the building-like stage before fixing the failure.",
+      "Run it autonomously when the live rule clearly applies, except when that rule itself requires explicit user intent.",
     );
   });
 
-  it("autonomously refreshes substantial same-stage work changes for batched title reassessment", () => {
+  it("reserves same-stage title refreshes for a changed core job", () => {
     expect(skill).toContain(
-      "When the task or scope changed substantively, run bb organizer phase with that key even if it is already remembered.",
+      "Re-run the already-remembered stage only when the durable core job of the entire thread changed enough that its current title is materially inaccurate.",
     );
     expect(skill).toContain(
-      "Thread Organizer batches that same-stage refresh with other title reassessments.",
-    );
-    expect(skill).toContain(
-      "Do not refresh again for minor progress within unchanged work.",
-    );
-    expect(skill).toContain(
-      "Run it autonomously; never ask the user for confirmation or permission to update or refresh the stage.",
+      "Do not refresh for the latest turn, a new subtask, a method or approach change, ordinary progress, implementation versus validation, or completion of one step.",
     );
   });
 
   it("distinguishes remembered storage and internal plans from semantic stage moves", () => {
     expect(skill).toContain("Thread Organizer does not classify prompts.");
     expect(skill).toContain(
-      "This default or remembered value is storage state, not a semantic decision",
+      "That remembered value is storage state, not a semantic decision",
     );
     expect(skill).toContain(
       "update_plan and other internal task plans do not move the bb workflow stage.",

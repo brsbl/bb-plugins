@@ -67,6 +67,11 @@ describe("workflow configuration", () => {
         icon: "Pause",
       },
     ]);
+    expect(
+      core.DEFAULT_WORKFLOW_CONFIG.stages.find(
+        (stage) => stage.key === "handoff",
+      )?.rule,
+    ).toBe(core.HANDOFF_RULE);
   });
 
   it("allows Inbox presentation changes while preserving its system role", () => {
@@ -178,6 +183,39 @@ describe("workflow configuration", () => {
       core.INBOX_RULE,
     );
   });
+
+  it.each([
+    "Packaging work and context so a colleague can continue it.",
+    "Transferring work to a colleague after explicit user direction.",
+  ])(
+    "migrates the previous Handoff default while preserving custom rules",
+    (rule) => {
+      const stored = core.cloneWorkflowConfig(core.DEFAULT_WORKFLOW_CONFIG);
+      const handoffIndex = stored.stages.findIndex(
+        (stage) => stage.key === "handoff",
+      );
+      stored.stages[handoffIndex] = {
+        ...stored.stages[handoffIndex]!,
+        rule,
+      };
+
+      expect(
+        core
+          .parseWorkflowConfig(stored)
+          ?.stages.find((stage) => stage.key === "handoff")?.rule,
+      ).toBe(core.HANDOFF_RULE);
+
+      stored.stages[handoffIndex] = {
+        ...stored.stages[handoffIndex]!,
+        rule: "My custom transfer rule.",
+      };
+      expect(
+        core
+          .parseWorkflowConfig(stored)
+          ?.stages.find((stage) => stage.key === "handoff")?.rule,
+      ).toBe("My custom transfer rule.");
+    },
+  );
 });
 
 describe("thread placement precedence", () => {
@@ -244,8 +282,10 @@ describe("agent guidance", () => {
     expect(instructions).toContain(
       "| on-hold | On Hold | Work intentionally paused until a later time or external condition. |",
     );
+    expect(instructions).toContain(
+      `| handoff | Handoff | ${core.HANDOFF_RULE} |`,
+    );
     expect(instructions).not.toContain("Agent policy");
-    expect(instructions).not.toContain("user direction");
     expect(instructions).not.toContain("bb organizer phase inbox");
   });
 
