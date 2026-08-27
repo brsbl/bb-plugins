@@ -14567,6 +14567,7 @@ var threadSummarySchema = external_exports.object({
   currentTurnCompletedAt: external_exports.number().nullable(),
   currentTurnStartedAt: external_exports.number().nullable(),
   diagnostics: rpcDiagnosticsSchema,
+  hostName: external_exports.string().nullable(),
   latestAssistantMessage: external_exports.string().nullable(),
   permissionMode: external_exports.enum([
     "accept-edits",
@@ -15198,6 +15199,22 @@ function plugin(bb) {
           });
         }
         const skipProject = environment?.workspaceProvisionType === "personal" && !environment.isGitRepo;
+        const hostPromise = environment?.hostId ? measureCachedStage(
+          recorder,
+          "host",
+          () => stableDescriptors.get(
+            `host:${environment.hostId}`,
+            () => within(
+              safely(
+                bb.sdk.hosts.get({
+                  hostId: environment.hostId,
+                  signal
+                })
+              ),
+              remainingMs()
+            )
+          )
+        ) : (recordSkippedStage(recorder, "host"), Promise.resolve({ source: "hit", value: null }));
         if (skipProject) recordSkippedStage(recorder, "project");
         const projectPromise = skipProject ? Promise.resolve({ source: "hit", value: null }) : measureCachedStage(
           recorder,
@@ -15261,7 +15278,13 @@ function plugin(bb) {
           const latestMessage = timeline ? latestTimelineAssistantMessage(timeline) : null;
           return latestMessage ?? loadOutlineMessage("messageOutlineFallback");
         });
-        const [projectResult, executionOptions, latestAssistantMessage] = await Promise.all([
+        const [
+          hostResult,
+          projectResult,
+          executionOptions,
+          latestAssistantMessage
+        ] = await Promise.all([
+          hostPromise,
           projectPromise,
           executionOptionsPromise,
           latestAssistantMessagePromise
@@ -15277,6 +15300,7 @@ function plugin(bb) {
           currentTurnCompletedAt: null,
           currentTurnStartedAt: null,
           diagnostics,
+          hostName: hostResult.value?.name ?? null,
           latestAssistantMessage: normalizedAssistantMessage || null,
           permissionMode: executionOptions?.permissionMode ?? null,
           pullRequest: isGitRepository ? { kind: "pending" } : { kind: "absent" },

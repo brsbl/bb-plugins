@@ -128,63 +128,6 @@ var Folder01Icon = [
     }
   ]
 ];
-var GitBranchIcon = [
-  [
-    "path",
-    {
-      d: "M7 19H13C15.8284 19 17.2426 19 18.1213 18.1213C19 17.2426 19 15.8284 19 13V10M19 10C19.7002 10 21.0085 11.9943 21.5 12.5M19 10C18.2998 10 16.9915 11.9943 16.5 12.5",
-      stroke: "currentColor",
-      strokeLinecap: "round",
-      strokeLinejoin: "round",
-      strokeWidth: "1.5",
-      key: "0"
-    }
-  ],
-  [
-    "path",
-    {
-      d: "M5 7L5 17",
-      stroke: "currentColor",
-      strokeLinecap: "round",
-      strokeLinejoin: "round",
-      strokeWidth: "1.5",
-      key: "1"
-    }
-  ],
-  [
-    "circle",
-    {
-      cx: "5",
-      cy: "5",
-      r: "2",
-      stroke: "currentColor",
-      strokeWidth: "1.5",
-      key: "2"
-    }
-  ],
-  [
-    "circle",
-    {
-      cx: "19",
-      cy: "5",
-      r: "2",
-      stroke: "currentColor",
-      strokeWidth: "1.5",
-      key: "3"
-    }
-  ],
-  [
-    "circle",
-    {
-      cx: "5",
-      cy: "19",
-      r: "2",
-      stroke: "currentColor",
-      strokeWidth: "1.5",
-      key: "4"
-    }
-  ]
-];
 var LinkSquare01Icon = [
   [
     "path",
@@ -597,7 +540,7 @@ var HOVER_CARD_CSS = String.raw`
 .bb-thread-hover-card__times,
 .bb-thread-hover-card__context,
 .bb-thread-hover-card__project,
-.bb-thread-hover-card__branch,
+.bb-thread-hover-card__host,
 .bb-thread-hover-card__local,
 .bb-thread-hover-card__pr,
 .bb-thread-hover-card__access,
@@ -777,7 +720,7 @@ var HOVER_CARD_CSS = String.raw`
 }
 
 .bb-thread-hover-card__project,
-.bb-thread-hover-card__branch {
+.bb-thread-hover-card__host {
   gap: 0.25rem;
   overflow: hidden;
 }
@@ -787,19 +730,19 @@ var HOVER_CARD_CSS = String.raw`
   flex: 0 1 auto;
 }
 
-.bb-thread-hover-card__context[data-has-branch="false"]
+.bb-thread-hover-card__context[data-has-host="false"]
   .bb-thread-hover-card__project {
   max-width: 100%;
   flex: 1 1 auto;
 }
 
-.bb-thread-hover-card__branch {
+.bb-thread-hover-card__host {
   flex: 1 1 4rem;
   min-width: 0;
 }
 
 .bb-thread-hover-card__project-name,
-.bb-thread-hover-card__branch-name,
+.bb-thread-hover-card__host-name,
 .bb-thread-hover-card__local-path {
   min-width: 0;
   overflow: hidden;
@@ -809,7 +752,7 @@ var HOVER_CARD_CSS = String.raw`
 }
 
 .bb-thread-hover-card__project-name,
-.bb-thread-hover-card__branch-name,
+.bb-thread-hover-card__host-name,
 .bb-thread-hover-card__local-path {
   flex: 1 1 auto;
 }
@@ -1913,8 +1856,8 @@ function renderSummary(card, summary) {
   const hasMeaningfulProject = summary.repository.name !== "Repository unavailable";
   if (summary.repository.isGitRepository || hasMeaningfulProject) {
     const context = element("section", "bb-thread-hover-card__context");
-    context.dataset.hasBranch = String(
-      summary.repository.isGitRepository && Boolean(summary.repository.branch)
+    context.dataset.hasHost = String(
+      summary.repository.isGitRepository && Boolean(summary.hostName)
     );
     const project = element("span", "bb-thread-hover-card__project");
     const projectName = element(
@@ -1932,23 +1875,23 @@ function renderSummary(card, summary) {
       projectName
     );
     context.append(project);
-    if (summary.repository.isGitRepository && summary.repository.branch) {
-      const branch = element("span", "bb-thread-hover-card__branch");
-      const branchName = element(
+    if (summary.repository.isGitRepository && summary.hostName) {
+      const host = element("span", "bb-thread-hover-card__host");
+      const hostName = element(
         "span",
-        "bb-thread-hover-card__branch-name",
-        summary.repository.branch
+        "bb-thread-hover-card__host-name",
+        summary.hostName
       );
-      branchName.title = summary.repository.branch;
-      branch.append(
+      hostName.title = summary.hostName;
+      host.append(
         icon(
-          GitBranchIcon,
-          "GitBranchIcon",
+          LaptopIcon,
+          "LaptopIcon",
           "bb-thread-hover-card__icon bb-thread-hover-card__meta-icon"
         ),
-        branchName
+        hostName
       );
-      context.append(branch);
+      context.append(host);
     }
     if (summary.repository.isGitRepository && summary.pullRequest.kind === "available") {
       const pullRequest = element("span", "bb-thread-hover-card__pr");
