@@ -30,7 +30,6 @@ const PENDING_CONFIG_OPERATION_KEY = "workflow-config-operation:v1";
 const THREAD_STATE_PREFIX = "thread:v3:";
 const LEGACY_THREAD_STATE_PREFIX = "thread:v1:";
 const THREAD_LIST_PAGE_SIZE = 100;
-const RECONCILIATION_INTERVAL_MS = 5 * 60_000;
 
 const editableStageSchema = z
   .object({
@@ -104,19 +103,6 @@ function threadStateKey(threadId: string): string {
 
 function legacyThreadStateKey(threadId: string): string {
   return `${LEGACY_THREAD_STATE_PREFIX}${threadId}`;
-}
-
-function abortableDelay(ms: number, signal: AbortSignal): Promise<void> {
-  if (signal.aborted) return Promise.resolve();
-  return new Promise((resolve) => {
-    const timer = setTimeout(done, ms);
-    signal.addEventListener("abort", done, { once: true });
-    function done() {
-      clearTimeout(timer);
-      signal.removeEventListener("abort", done);
-      resolve();
-    }
-  });
 }
 
 function describeError(error: unknown): string {
@@ -321,11 +307,13 @@ export default async function plugin(bb: BbPluginApi): Promise<void> {
   async function reconcileThread(
     threadId: string,
     explicitStageKey?: string,
+    threadSnapshot?: Thread,
   ): Promise<void> {
-    const thread = await bb.sdk.threads.get({ threadId });
+    const thread = threadSnapshot ?? (await bb.sdk.threads.get({ threadId }));
     if (!isManageableThread(thread)) return;
     const state = await readThreadState(thread);
     const currentStage = stageForSectionId(configSnapshot, thread.sectionId);
+    if (currentStage?.role === "inbox") state.inboxLatched = true;
 
     if (explicitStageKey) {
       if (!isUnreadThread(thread)) state.inboxLatched = false;
@@ -374,18 +362,15 @@ export default async function plugin(bb: BbPluginApi): Promise<void> {
     await saveThreadState(threadId, state);
   }
 
-  async function listManageableThreads(
-    signal?: AbortSignal,
-  ): Promise<Thread[]> {
+  async function listManageableThreads(): Promise<Thread[]> {
     const result: Thread[] = [];
     let offset = 0;
-    while (!signal?.aborted) {
+    while (true) {
       const page = await bb.sdk.threads.list({
         archived: false,
         hasParent: false,
         limit: THREAD_LIST_PAGE_SIZE,
         offset,
-        ...(signal ? { signal } : {}),
       });
       result.push(...page.filter(isManageableThread));
       if (page.length < THREAD_LIST_PAGE_SIZE) break;
@@ -394,12 +379,8 @@ export default async function plugin(bb: BbPluginApi): Promise<void> {
     return result;
   }
 
-  async function reconcileExisting(
-    signal?: AbortSignal,
-    propagate = false,
-  ): Promise<void> {
-    for (const thread of await listManageableThreads(signal)) {
-      if (signal?.aborted) return;
+  async function reconcileExisting(propagate = false): Promise<void> {
+    for (const thread of await listManageableThreads()) {
       await enqueue(thread.id, () => reconcileThread(thread.id), propagate);
     }
   }
@@ -500,6 +481,7 @@ export default async function plugin(bb: BbPluginApi): Promise<void> {
 
   try {
     await loadConfig();
+    await reconcileExisting(true);
   } catch (error) {
     bb.log.error(`action=workflow-load-failed error=${describeError(error)}`);
     throw error;
@@ -601,7 +583,7 @@ export default async function plugin(bb: BbPluginApi): Promise<void> {
     "thread.failed",
   ] as const) {
     bb.events.on(event, ({ thread }) =>
-      enqueue(thread.id, () => reconcileThread(thread.id)),
+      enqueue(thread.id, () => reconcileThread(thread.id, undefined, thread)),
     );
   }
   for (const event of ["thread.archived", "thread.deleted"] as const) {
@@ -616,17 +598,18 @@ export default async function plugin(bb: BbPluginApi): Promise<void> {
   const unsubscribe = bb.sdk.subscribe({
     event: "thread:changed",
     callback(event) {
-      if (event.id) void enqueue(event.id, () => reconcileThread(event.id!));
-    },
-  });
-
-  bb.background.service("workflow-reconciliation", {
-    async start(signal) {
-      while (!signal.aborted) {
-        await reconcileExisting(signal);
-        if (!signal.aborted) {
-          await abortableDelay(RECONCILIATION_INTERVAL_MS, signal);
-        }
+      if (!event.id) return;
+      if (event.changes.includes("title-changed")) {
+        void enqueue(event.id, () => reconcileThread(event.id!));
+        return;
+      }
+      if (event.changes.includes("read-state-changed")) {
+        void enqueue(event.id, async () => {
+          const thread = await bb.sdk.threads.get({ threadId: event.id! });
+          if (isUnreadThread(thread)) {
+            await reconcileThread(event.id!, undefined, thread);
+          }
+        });
       }
     },
   });

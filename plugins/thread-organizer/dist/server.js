@@ -14998,7 +14998,6 @@ var PENDING_CONFIG_OPERATION_KEY = "workflow-config-operation:v1";
 var THREAD_STATE_PREFIX = "thread:v3:";
 var LEGACY_THREAD_STATE_PREFIX = "thread:v1:";
 var THREAD_LIST_PAGE_SIZE = 100;
-var RECONCILIATION_INTERVAL_MS = 5 * 6e4;
 var editableStageSchema = external_exports.object({
   icon: external_exports.enum(SECTION_ICON_OPTIONS),
   key: external_exports.string().min(1).max(40),
@@ -15040,18 +15039,6 @@ function threadStateKey(threadId) {
 }
 function legacyThreadStateKey(threadId) {
   return `${LEGACY_THREAD_STATE_PREFIX}${threadId}`;
-}
-function abortableDelay(ms, signal) {
-  if (signal.aborted) return Promise.resolve();
-  return new Promise((resolve) => {
-    const timer = setTimeout(done, ms);
-    signal.addEventListener("abort", done, { once: true });
-    function done() {
-      clearTimeout(timer);
-      signal.removeEventListener("abort", done);
-      resolve();
-    }
-  });
 }
 function describeError(error51) {
   return error51 instanceof Error ? error51.message : String(error51);
@@ -15196,11 +15183,12 @@ async function plugin(bb) {
   async function saveThreadState(threadId, state) {
     await bb.storage.kv.set(threadStateKey(threadId), state);
   }
-  async function reconcileThread(threadId, explicitStageKey) {
-    const thread = await bb.sdk.threads.get({ threadId });
+  async function reconcileThread(threadId, explicitStageKey, threadSnapshot) {
+    const thread = threadSnapshot ?? await bb.sdk.threads.get({ threadId });
     if (!isManageableThread(thread)) return;
     const state = await readThreadState(thread);
     const currentStage = stageForSectionId(configSnapshot, thread.sectionId);
+    if (currentStage?.role === "inbox") state.inboxLatched = true;
     if (explicitStageKey) {
       if (!isUnreadThread(thread)) state.inboxLatched = false;
       state.rememberedStageKey = explicitStageKey;
@@ -15236,16 +15224,15 @@ async function plugin(bb) {
     state.lastObservedSectionId = destination.sectionId;
     await saveThreadState(threadId, state);
   }
-  async function listManageableThreads(signal) {
+  async function listManageableThreads() {
     const result = [];
     let offset = 0;
-    while (!signal?.aborted) {
+    while (true) {
       const page = await bb.sdk.threads.list({
         archived: false,
         hasParent: false,
         limit: THREAD_LIST_PAGE_SIZE,
-        offset,
-        ...signal ? { signal } : {}
+        offset
       });
       result.push(...page.filter(isManageableThread));
       if (page.length < THREAD_LIST_PAGE_SIZE) break;
@@ -15253,9 +15240,8 @@ async function plugin(bb) {
     }
     return result;
   }
-  async function reconcileExisting(signal, propagate = false) {
-    for (const thread of await listManageableThreads(signal)) {
-      if (signal?.aborted) return;
+  async function reconcileExisting(propagate = false) {
+    for (const thread of await listManageableThreads()) {
       await enqueue(thread.id, () => reconcileThread(thread.id), propagate);
     }
   }
@@ -15339,6 +15325,7 @@ async function plugin(bb) {
   }
   try {
     await loadConfig();
+    await reconcileExisting(true);
   } catch (error51) {
     bb.log.error(`action=workflow-load-failed error=${describeError(error51)}`);
     throw error51;
@@ -15433,7 +15420,7 @@ Available: ${available}
   ]) {
     bb.events.on(
       event,
-      ({ thread }) => enqueue(thread.id, () => reconcileThread(thread.id))
+      ({ thread }) => enqueue(thread.id, () => reconcileThread(thread.id, void 0, thread))
     );
   }
   for (const event of ["thread.archived", "thread.deleted"]) {
@@ -15448,16 +15435,18 @@ Available: ${available}
   const unsubscribe = bb.sdk.subscribe({
     event: "thread:changed",
     callback(event) {
-      if (event.id) void enqueue(event.id, () => reconcileThread(event.id));
-    }
-  });
-  bb.background.service("workflow-reconciliation", {
-    async start(signal) {
-      while (!signal.aborted) {
-        await reconcileExisting(signal);
-        if (!signal.aborted) {
-          await abortableDelay(RECONCILIATION_INTERVAL_MS, signal);
-        }
+      if (!event.id) return;
+      if (event.changes.includes("title-changed")) {
+        void enqueue(event.id, () => reconcileThread(event.id));
+        return;
+      }
+      if (event.changes.includes("read-state-changed")) {
+        void enqueue(event.id, async () => {
+          const thread = await bb.sdk.threads.get({ threadId: event.id });
+          if (isUnreadThread(thread)) {
+            await reconcileThread(event.id, void 0, thread);
+          }
+        });
       }
     }
   });

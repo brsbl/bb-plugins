@@ -79,7 +79,10 @@ function createHarness(options: { legacyPlanning?: boolean } = {}) {
         },
       ]
     : [];
-  const changedCallbacks: Array<(threadId: string) => void> = [];
+  type TestThreadChange = "read-state-changed" | "title-changed";
+  const changedCallbacks: Array<
+    (threadId: string, changes: readonly TestThreadChange[]) => void
+  > = [];
 
   const create = vi.fn(async ({ name }: { name: string }) => {
     const section: TestSection = {
@@ -157,17 +160,17 @@ function createHarness(options: { legacyPlanning?: boolean } = {}) {
     sdk: {
       subscribe: (args) => {
         const callback = args.callback as unknown as (event: {
-          changes: ["read-state-changed"];
+          changes: readonly TestThreadChange[];
           entity: "thread";
           id: string;
           type: "changed";
         }) => void;
-        changedCallbacks.push((threadId) =>
+        changedCallbacks.push((threadId, changes) =>
           callback({
             entity: "thread",
             type: "changed",
             id: threadId,
-            changes: ["read-state-changed"],
+            changes,
           }),
         );
         return () => undefined;
@@ -203,8 +206,11 @@ function createHarness(options: { legacyPlanning?: boolean } = {}) {
       const thread = getTestThread(threadId);
       threads.set(threadId, makeThreadResponse({ ...thread, ...changes }));
     },
-    emitChanged(threadId = "thr_test") {
-      for (const callback of changedCallbacks) callback(threadId);
+    emitChanged(
+      change: TestThreadChange = "read-state-changed",
+      threadId = "thr_test",
+    ) {
+      for (const callback of changedCallbacks) callback(threadId, [change]);
     },
   };
 }
@@ -304,10 +310,14 @@ describe("Thread Organizer server", () => {
     expect(organizer.current().sectionId).toBe(sectionId("inbox"));
 
     organizer.setThread({ lastReadAt: 20 });
-    await organizer.harness.behavior.emitThreadEvent("thread.idle", {
-      thread: organizer.current(),
-      lastAssistantText: null,
+    await organizer.bb.storage.kv.set("thread:v3:thr_test", {
+      version: 4,
+      inboxLatched: false,
+      rememberedStageKey: "planning",
+      lastObservedSectionId: sectionId("inbox"),
     });
+    organizer.emitChanged("read-state-changed");
+    await new Promise((resolve) => setTimeout(resolve, 0));
     expect(organizer.current().sectionId).toBe(sectionId("inbox"));
 
     organizer.setThread({ lastReadAt: 0 });
@@ -325,6 +335,29 @@ describe("Thread Organizer server", () => {
       organizer.harness.inspection.sdk.callsTo("threads.promptHistory"),
     ).toHaveLength(0);
     expect(organizer.spawnThread).not.toHaveBeenCalled();
+    await organizer.harness.lifecycle.dispose();
+  });
+
+  it("routes an idle event from its snapshot without a second thread fetch", async () => {
+    const organizer = createHarness();
+    await plugin(organizer.bb);
+    expect(organizer.harness.inspection.registrations.services).toEqual([]);
+    const config = await configFor(organizer);
+    const sectionId = (key: string) =>
+      config.stages.find((stage) => stage.key === key)!.sectionId;
+
+    organizer.setThread({
+      status: "idle",
+      lastReadAt: 0,
+      latestAttentionAt: 20,
+    });
+    organizer.getThread.mockRejectedValueOnce(new Error("fetch failed"));
+    await organizer.harness.behavior.emitThreadEvent("thread.idle", {
+      thread: organizer.current(),
+      lastAssistantText: null,
+    });
+
+    expect(organizer.current().sectionId).toBe(sectionId("inbox"));
     await organizer.harness.lifecycle.dispose();
   });
 
@@ -364,6 +397,34 @@ describe("Thread Organizer server", () => {
       thread: organizer.current(),
     });
     expect(organizer.current().sectionId).toBe(planningId);
+    await organizer.harness.lifecycle.dispose();
+  });
+
+  it("treats a visible Inbox placement as authoritative on startup", async () => {
+    const organizer = createHarness();
+    organizer.setThread({
+      status: "idle",
+      lastReadAt: 10,
+      latestAttentionAt: 10,
+      sectionId: "sec_1",
+    });
+    await organizer.bb.storage.kv.set("thread:v3:thr_test", {
+      version: 4,
+      inboxLatched: false,
+      rememberedStageKey: "planning",
+      lastObservedSectionId: "sec_1",
+    });
+
+    await plugin(organizer.bb);
+    const config = await configFor(organizer);
+    const inboxId = config.stages.find(
+      (stage) => stage.key === "inbox",
+    )!.sectionId;
+
+    expect(organizer.current().sectionId).toBe(inboxId);
+    await expect(
+      organizer.bb.storage.kv.get("thread:v3:thr_test"),
+    ).resolves.toMatchObject({ inboxLatched: true });
     await organizer.harness.lifecycle.dispose();
   });
 
@@ -450,7 +511,7 @@ describe("Thread Organizer server", () => {
     expect(organizer.current().sectionId).toBe(sectionId("inbox"));
 
     organizer.setThread({ sectionId: sectionId("on-hold") });
-    organizer.emitChanged();
+    organizer.emitChanged("title-changed");
     await vi.waitFor(async () => {
       expect(organizer.current().sectionId).toBe(sectionId("on-hold"));
       await expect(
