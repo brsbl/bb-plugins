@@ -2463,9 +2463,47 @@ const pluginGlobal = globalThis as typeof globalThis & {
   __bbThreadHoverCards?: HoverCardController;
 };
 
+// Hover cards are pointer-only affordances. On touch devices — mobile web,
+// tablets — there is no hover, so the card either never opens or hijacks the
+// tap that should have opened the thread. Gate on a real fine pointer.
+const HOVER_CAPABLE_QUERY = "(hover: hover) and (pointer: fine)";
+
+function hoverCapable(): boolean {
+  if (typeof window === "undefined" || !window.matchMedia) return false;
+  return window.matchMedia(HOVER_CAPABLE_QUERY).matches;
+}
+
+let lifecycle: HoverCardController | null = null;
+
+function syncLifecycle(): void {
+  const wanted = hoverCapable();
+  if (wanted && !lifecycle) {
+    lifecycle = installHoverCardLifecycle();
+  } else if (!wanted && lifecycle) {
+    lifecycle.dispose();
+    lifecycle = null;
+  }
+}
+
 function start(): void {
   pluginGlobal.__bbThreadHoverCards?.dispose();
-  pluginGlobal.__bbThreadHoverCards = installHoverCardLifecycle();
+
+  const media =
+    typeof window !== "undefined" && window.matchMedia
+      ? window.matchMedia(HOVER_CAPABLE_QUERY)
+      : null;
+  const onChange = () => syncLifecycle();
+  media?.addEventListener("change", onChange);
+
+  syncLifecycle();
+
+  pluginGlobal.__bbThreadHoverCards = {
+    dispose() {
+      media?.removeEventListener("change", onChange);
+      lifecycle?.dispose();
+      lifecycle = null;
+    },
+  };
 }
 
 if (typeof document !== "undefined") {
