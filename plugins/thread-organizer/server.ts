@@ -574,11 +574,9 @@ export default async function plugin(bb: BbPluginApi): Promise<void> {
     callback(event) {
       if (!event.id) return;
       const threadId = event.id;
-      const onlyReadStateChanged =
-        event.changes.length === 1 &&
-        event.changes[0] === "read-state-changed";
+      const readStateChanged = event.changes.includes("read-state-changed");
       void schedule(threadId, async () => {
-        if (onlyReadStateChanged) {
+        if (readStateChanged) {
           const thread = await bb.sdk.threads.get({ threadId });
           if (!isUnreadThread(thread)) return;
         }
