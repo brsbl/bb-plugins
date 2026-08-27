@@ -3034,13 +3034,34 @@ function installHoverCardLifecycle() {
     }
   };
 }
+var HOVER_CAPABLE_QUERY = "(hover: hover) and (pointer: fine)";
 var app_default = definePluginApp((app) => {
   app.contentScripts.register({
     id: "thread-hover-cards",
     mount({ signal }) {
       if (signal.aborted) return;
-      const lifecycle = installHoverCardLifecycle();
-      const dispose = () => lifecycle.dispose();
+      const media = typeof window !== "undefined" && window.matchMedia ? window.matchMedia(HOVER_CAPABLE_QUERY) : null;
+      let lifecycle = null;
+      let disposed = false;
+      const syncLifecycle = () => {
+        if (disposed) return;
+        if (media?.matches && !lifecycle) {
+          lifecycle = installHoverCardLifecycle();
+        } else if (!media?.matches && lifecycle) {
+          lifecycle.dispose();
+          lifecycle = null;
+        }
+      };
+      const onChange = () => syncLifecycle();
+      const dispose = () => {
+        if (disposed) return;
+        disposed = true;
+        media?.removeEventListener("change", onChange);
+        lifecycle?.dispose();
+        lifecycle = null;
+      };
+      media?.addEventListener("change", onChange);
+      syncLifecycle();
       signal.addEventListener("abort", dispose, { once: true });
       return () => {
         signal.removeEventListener("abort", dispose);

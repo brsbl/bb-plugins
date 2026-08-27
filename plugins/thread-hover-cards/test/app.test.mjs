@@ -37,6 +37,28 @@ Object.assign(globalThis, {
   },
 });
 
+// The plugin only installs on a hover-capable fine pointer. JSDOM has no real
+// media support, so drive it from here and start out as a desktop pointer.
+let hoverCapablePointer = true;
+const mediaChangeListeners = new Set();
+window.matchMedia = (query) => ({
+  media: query,
+  get matches() {
+    return hoverCapablePointer;
+  },
+  addEventListener(type, listener) {
+    if (type === "change") mediaChangeListeners.add(listener);
+  },
+  removeEventListener(type, listener) {
+    if (type === "change") mediaChangeListeners.delete(listener);
+  },
+});
+
+function setHoverCapablePointer(value) {
+  hoverCapablePointer = value;
+  for (const listener of [...mediaChangeListeners]) listener({ matches: value });
+}
+
 const requestBodies = [];
 const sectionRequestBodies = [];
 const emptyDiagnostics = { startedAt: 0, stages: [], totalMs: 0 };
@@ -2067,6 +2089,22 @@ assert.equal(
     ?.textContent,
   "Opus 4.8 (1M)",
 );
+
+// Touch devices — mobile web, tablets — have no hover, so the plugin must not
+// install anything and must not intercept taps on a thread row.
+setHoverCapablePointer(false);
+assert.equal(window.document.getElementById("bb-thread-hover-card-styles"), null);
+assert.equal(window.document.getElementById("bb-thread-hover-card"), null);
+
+const requestsBeforeTouch = requestBodies.length;
+hoverOver(trigger);
+await new Promise((resolve) => setTimeout(resolve, 140));
+assert.equal(window.document.getElementById("bb-thread-hover-card"), null);
+assert.equal(requestBodies.length, requestsBeforeTouch);
+
+// A pointer arriving later — an iPad gaining a trackpad — reinstalls it.
+setHoverCapablePointer(true);
+assert.ok(window.document.getElementById("bb-thread-hover-card-styles"));
 
 replacementContentScriptController.abort();
 disposeContentScript?.();

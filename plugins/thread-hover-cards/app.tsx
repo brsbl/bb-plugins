@@ -2440,13 +2440,43 @@ function installHoverCardLifecycle(): HoverCardController {
   };
 }
 
+// Hover cards are pointer-only affordances. On touch devices — mobile web,
+// tablets — there is no hover, so the card either never opens or hijacks the
+// tap that should have opened the thread. Gate on a real fine pointer.
+const HOVER_CAPABLE_QUERY = "(hover: hover) and (pointer: fine)";
+
 export default definePluginApp((app) => {
   app.contentScripts.register({
     id: "thread-hover-cards",
     mount({ signal }) {
       if (signal.aborted) return;
-      const lifecycle = installHoverCardLifecycle();
-      const dispose = () => lifecycle.dispose();
+      const media =
+        typeof window !== "undefined" && window.matchMedia
+          ? window.matchMedia(HOVER_CAPABLE_QUERY)
+          : null;
+      let lifecycle: HoverCardController | null = null;
+      let disposed = false;
+
+      const syncLifecycle = () => {
+        if (disposed) return;
+        if (media?.matches && !lifecycle) {
+          lifecycle = installHoverCardLifecycle();
+        } else if (!media?.matches && lifecycle) {
+          lifecycle.dispose();
+          lifecycle = null;
+        }
+      };
+      const onChange = () => syncLifecycle();
+      const dispose = () => {
+        if (disposed) return;
+        disposed = true;
+        media?.removeEventListener("change", onChange);
+        lifecycle?.dispose();
+        lifecycle = null;
+      };
+
+      media?.addEventListener("change", onChange);
+      syncLifecycle();
       signal.addEventListener("abort", dispose, { once: true });
       return () => {
         signal.removeEventListener("abort", dispose);
