@@ -199,18 +199,6 @@ function createHarness(options: { legacyPlanning?: boolean } = {}) {
     spawnThread,
     current: (threadId = "thr_test") => getTestThread(threadId),
     sections: () => sections.map((section) => ({ ...section })),
-    addThread(changes: Partial<TestThread> & { id: string }) {
-      threads.set(
-        changes.id,
-        makeThreadResponse({
-          projectId: "proj_test",
-          status: "active",
-          lastReadAt: 0,
-          latestAttentionAt: 10,
-          ...changes,
-        }),
-      );
-    },
     setThread(changes: Partial<TestThread>, threadId = "thr_test") {
       const thread = getTestThread(threadId);
       threads.set(threadId, makeThreadResponse({ ...thread, ...changes }));

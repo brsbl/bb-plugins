@@ -54,7 +54,7 @@ Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/t
 
 ### Thread Organizer
 
-Organizes work into configurable workflow sections, keeps unread idle threads in Inbox until work resumes or you explicitly clear them, and reassesses titles after semantic stage transitions.
+Organizes work into configurable workflow sections and keeps unread idle threads in Inbox until work resumes or you explicitly clear them.
 
 ![Thread Organizer showing the current development-phase sections in bb's sidebar](plugins/thread-organizer/docs/screenshot.png)
 
