@@ -390,7 +390,7 @@ describe("Thread Organizer server", () => {
     expect(organizer.current().sectionId).toBe(inboxId);
     await expect(
       organizer.bb.storage.kv.get("thread:v3:thr_test"),
-    ).resolves.toMatchObject({ version: 4, inboxLatched: true });
+    ).resolves.toEqual({ version: 5, rememberedStageKey: "planning" });
 
     organizer.setThread({ status: "starting" });
     await organizer.harness.behavior.emitThreadEvent("thread.active", {
@@ -424,7 +424,7 @@ describe("Thread Organizer server", () => {
     expect(organizer.current().sectionId).toBe(inboxId);
     await expect(
       organizer.bb.storage.kv.get("thread:v3:thr_test"),
-    ).resolves.toMatchObject({ inboxLatched: true });
+    ).resolves.toEqual({ version: 5, rememberedStageKey: "planning" });
     await organizer.harness.lifecycle.dispose();
   });
 
@@ -516,7 +516,7 @@ describe("Thread Organizer server", () => {
       expect(organizer.current().sectionId).toBe(sectionId("on-hold"));
       await expect(
         organizer.bb.storage.kv.get("thread:v3:thr_test"),
-      ).resolves.toMatchObject({ inboxLatched: false });
+      ).resolves.toEqual({ version: 5, rememberedStageKey: "on-hold" });
     });
 
     organizer.setThread({ lastReadAt: 0 });
@@ -532,7 +532,7 @@ describe("Thread Organizer server", () => {
     await organizer.harness.lifecycle.dispose();
   });
 
-  it("clears a read Inbox latch through the CLI while unread CLI moves stay latched", async () => {
+  it("moves a read Inbox thread through the CLI while unread moves stay in Inbox", async () => {
     const organizer = createHarness();
     await plugin(organizer.bb);
     const config = await configFor(organizer);
@@ -557,10 +557,7 @@ describe("Thread Organizer server", () => {
     expect(organizer.current().sectionId).toBe(sectionId("inbox"));
     await expect(
       organizer.bb.storage.kv.get("thread:v3:thr_test"),
-    ).resolves.toMatchObject({
-      inboxLatched: true,
-      rememberedStageKey: "on-hold",
-    });
+    ).resolves.toEqual({ version: 5, rememberedStageKey: "on-hold" });
 
     organizer.setThread({ lastReadAt: 20 });
     await organizer.harness.behavior.emitThreadEvent("thread.idle", {
@@ -575,7 +572,7 @@ describe("Thread Organizer server", () => {
     expect(organizer.current().sectionId).toBe(sectionId("on-hold"));
     await expect(
       organizer.bb.storage.kv.get("thread:v3:thr_test"),
-    ).resolves.toMatchObject({ inboxLatched: false });
+    ).resolves.toEqual({ version: 5, rememberedStageKey: "on-hold" });
     await organizer.harness.lifecycle.dispose();
   });
 

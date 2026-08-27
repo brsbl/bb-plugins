@@ -82,17 +82,14 @@ export const rpcContract = defineRpcContract({
 
 type Thread = OrganizableThread & {
   id: string;
-  sectionId: string | null;
 };
 type Section = Awaited<
   ReturnType<BbPluginApi["sdk"]["threadSections"]["list"]>
 >[number];
 
 interface ThreadWorkflowState {
-  inboxLatched: boolean;
-  lastObservedSectionId: string | null;
   rememberedStageKey: string;
-  version: 4;
+  version: 5;
 }
 
 type PendingConfigOperation = z.infer<typeof pendingConfigOperationSchema>;
@@ -240,8 +237,6 @@ export default async function plugin(bb: BbPluginApi): Promise<void> {
     const stored = await bb.storage.kv.get<unknown>(threadStateKey(thread.id));
     if (stored && typeof stored === "object") {
       const value = stored as {
-        inboxLatched?: unknown;
-        lastObservedSectionId?: unknown;
         rememberedStageKey?: unknown;
         version?: unknown;
       };
@@ -249,20 +244,15 @@ export default async function plugin(bb: BbPluginApi): Promise<void> {
         (stage) =>
           stage.key === value.rememberedStageKey && stage.role === "stage",
       );
-      if ((value.version === 3 || value.version === 4) && remembered) {
+      if (
+        (value.version === 3 ||
+          value.version === 4 ||
+          value.version === 5) &&
+        remembered
+      ) {
         return {
-          version: 4,
-          inboxLatched:
-            value.version === 4 && typeof value.inboxLatched === "boolean"
-              ? value.inboxLatched
-              : stageForSectionId(configSnapshot, thread.sectionId)?.role ===
-                "inbox",
+          version: 5,
           rememberedStageKey: remembered.key,
-          lastObservedSectionId:
-            typeof value.lastObservedSectionId === "string" ||
-            value.lastObservedSectionId === null
-              ? value.lastObservedSectionId
-              : thread.sectionId,
         };
       }
     }
@@ -284,11 +274,8 @@ export default async function plugin(bb: BbPluginApi): Promise<void> {
       }
     }
     const migrated: ThreadWorkflowState = {
-      version: 4,
-      inboxLatched:
-        stageForSectionId(configSnapshot, thread.sectionId)?.role === "inbox",
+      version: 5,
       rememberedStageKey: remembered.key,
-      lastObservedSectionId: thread.sectionId,
     };
     await bb.storage.kv.set(threadStateKey(thread.id), migrated);
     if (legacy !== undefined) {
@@ -313,19 +300,10 @@ export default async function plugin(bb: BbPluginApi): Promise<void> {
     if (!isManageableThread(thread)) return;
     const state = await readThreadState(thread);
     const currentStage = stageForSectionId(configSnapshot, thread.sectionId);
-    if (currentStage?.role === "inbox") state.inboxLatched = true;
 
     if (explicitStageKey) {
-      if (!isUnreadThread(thread)) state.inboxLatched = false;
       state.rememberedStageKey = explicitStageKey;
-    } else if (
-      thread.sectionId !== state.lastObservedSectionId &&
-      currentStage?.role === "stage"
-    ) {
-      // A change the plugin did not record is an explicit user move. Once the
-      // thread is read, moving it out of Inbox explicitly clears the latch.
-      // Unread moves are still remembered while the visible row stays in Inbox.
-      if (!isUnreadThread(thread)) state.inboxLatched = false;
+    } else if (currentStage?.role === "stage") {
       state.rememberedStageKey = currentStage.key;
     }
 
@@ -338,14 +316,12 @@ export default async function plugin(bb: BbPluginApi): Promise<void> {
       state.rememberedStageKey = firstWorkflowStage(configSnapshot).key;
     }
 
-    const placement = placementForThread(
+    const destination = placementForThread(
       configSnapshot,
       thread,
       state.rememberedStageKey,
-      state.inboxLatched,
+      explicitStageKey !== undefined,
     );
-    state.inboxLatched = placement.inboxLatched;
-    const destination = placement.stage;
     if (!destination.sectionId) {
       throw new Error(`Stage ${destination.key} has no native section.`);
     }
@@ -358,7 +334,6 @@ export default async function plugin(bb: BbPluginApi): Promise<void> {
         `thread=${threadId} action=section-updated stage=${destination.key}`,
       );
     }
-    state.lastObservedSectionId = destination.sectionId;
     await saveThreadState(threadId, state);
   }
 
@@ -381,7 +356,11 @@ export default async function plugin(bb: BbPluginApi): Promise<void> {
 
   async function reconcileExisting(propagate = false): Promise<void> {
     for (const thread of await listManageableThreads()) {
-      await enqueue(thread.id, () => reconcileThread(thread.id), propagate);
+      await enqueue(
+        thread.id,
+        () => reconcileThread(thread.id, undefined, thread),
+        propagate,
+      );
     }
   }
 
@@ -407,7 +386,7 @@ export default async function plugin(bb: BbPluginApi): Promise<void> {
             state.rememberedStageKey = firstWorkflowStage(configSnapshot).key;
             await saveThreadState(thread.id, state);
           }
-          await reconcileThread(thread.id);
+          await reconcileThread(thread.id, undefined, thread);
         },
         true,
       );

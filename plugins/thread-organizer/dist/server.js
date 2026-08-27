@@ -14966,15 +14966,13 @@ function isRunningThread(thread) {
 function isUnreadThread(thread) {
   return (thread.lastReadAt ?? 0) < thread.latestAttentionAt;
 }
-function placementForThread(config2, thread, rememberedStageKey, inboxLatched) {
+function placementForThread(config2, thread, rememberedStageKey, leaveInbox = false) {
   const remembered = config2.stages.find(
     (stage) => stage.key === rememberedStageKey && stage.role === "stage"
   ) ?? firstWorkflowStage(config2);
-  const nextInboxLatched = !isRunningThread(thread) && (inboxLatched || isUnreadThread(thread));
-  return {
-    inboxLatched: nextInboxLatched,
-    stage: nextInboxLatched ? inboxStage(config2) : remembered
-  };
+  const currentStage = stageForSectionId(config2, thread.sectionId);
+  const belongsInInbox = !isRunningThread(thread) && (isUnreadThread(thread) || !leaveInbox && currentStage?.role === "inbox");
+  return belongsInInbox ? inboxStage(config2) : remembered;
 }
 function escapeTableCell(value) {
   return value.replace(/\|/gu, "\\|").replace(/\s+/gu, " ").trim();
@@ -15145,12 +15143,10 @@ async function plugin(bb) {
       const remembered2 = configSnapshot.stages.find(
         (stage) => stage.key === value.rememberedStageKey && stage.role === "stage"
       );
-      if ((value.version === 3 || value.version === 4) && remembered2) {
+      if ((value.version === 3 || value.version === 4 || value.version === 5) && remembered2) {
         return {
-          version: 4,
-          inboxLatched: value.version === 4 && typeof value.inboxLatched === "boolean" ? value.inboxLatched : stageForSectionId(configSnapshot, thread.sectionId)?.role === "inbox",
-          rememberedStageKey: remembered2.key,
-          lastObservedSectionId: typeof value.lastObservedSectionId === "string" || value.lastObservedSectionId === null ? value.lastObservedSectionId : thread.sectionId
+          version: 5,
+          rememberedStageKey: remembered2.key
         };
       }
     }
@@ -15169,10 +15165,8 @@ async function plugin(bb) {
       }
     }
     const migrated = {
-      version: 4,
-      inboxLatched: stageForSectionId(configSnapshot, thread.sectionId)?.role === "inbox",
-      rememberedStageKey: remembered.key,
-      lastObservedSectionId: thread.sectionId
+      version: 5,
+      rememberedStageKey: remembered.key
     };
     await bb.storage.kv.set(threadStateKey(thread.id), migrated);
     if (legacy !== void 0) {
@@ -15188,12 +15182,9 @@ async function plugin(bb) {
     if (!isManageableThread(thread)) return;
     const state = await readThreadState(thread);
     const currentStage = stageForSectionId(configSnapshot, thread.sectionId);
-    if (currentStage?.role === "inbox") state.inboxLatched = true;
     if (explicitStageKey) {
-      if (!isUnreadThread(thread)) state.inboxLatched = false;
       state.rememberedStageKey = explicitStageKey;
-    } else if (thread.sectionId !== state.lastObservedSectionId && currentStage?.role === "stage") {
-      if (!isUnreadThread(thread)) state.inboxLatched = false;
+    } else if (currentStage?.role === "stage") {
       state.rememberedStageKey = currentStage.key;
     }
     if (!configSnapshot.stages.some(
@@ -15201,14 +15192,12 @@ async function plugin(bb) {
     )) {
       state.rememberedStageKey = firstWorkflowStage(configSnapshot).key;
     }
-    const placement = placementForThread(
+    const destination = placementForThread(
       configSnapshot,
       thread,
       state.rememberedStageKey,
-      state.inboxLatched
+      explicitStageKey !== void 0
     );
-    state.inboxLatched = placement.inboxLatched;
-    const destination = placement.stage;
     if (!destination.sectionId) {
       throw new Error(`Stage ${destination.key} has no native section.`);
     }
@@ -15221,7 +15210,6 @@ async function plugin(bb) {
         `thread=${threadId} action=section-updated stage=${destination.key}`
       );
     }
-    state.lastObservedSectionId = destination.sectionId;
     await saveThreadState(threadId, state);
   }
   async function listManageableThreads() {
@@ -15242,7 +15230,11 @@ async function plugin(bb) {
   }
   async function reconcileExisting(propagate = false) {
     for (const thread of await listManageableThreads()) {
-      await enqueue(thread.id, () => reconcileThread(thread.id), propagate);
+      await enqueue(
+        thread.id,
+        () => reconcileThread(thread.id, void 0, thread),
+        propagate
+      );
     }
   }
   async function finishConfigOperation(operation) {
@@ -15264,7 +15256,7 @@ async function plugin(bb) {
             state.rememberedStageKey = firstWorkflowStage(configSnapshot).key;
             await saveThreadState(thread.id, state);
           }
-          await reconcileThread(thread.id);
+          await reconcileThread(thread.id, void 0, thread);
         },
         true
       );

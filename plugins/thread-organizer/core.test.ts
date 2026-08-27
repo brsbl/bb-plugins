@@ -19,6 +19,7 @@ function thread(
     originKind: null,
     originPluginId: null,
     parentThreadId: null,
+    sectionId: null,
     sourceThreadId: null,
     status: "idle",
     visibility: "visible",
@@ -220,42 +221,50 @@ describe("workflow configuration", () => {
 
 describe("thread placement precedence", () => {
   const config = core.cloneWorkflowConfig(core.DEFAULT_WORKFLOW_CONFIG);
+  config.stages.find((stage) => stage.role === "inbox")!.sectionId =
+    "sec_inbox";
 
-  it("keeps running work in its remembered stage and clears the Inbox latch", () => {
+  it("keeps running work in its remembered stage", () => {
     expect(
       core.placementForThread(
         config,
         thread({ status: "active", lastReadAt: 0, latestAttentionAt: 10 }),
         "building",
-        true,
-      ),
-    ).toMatchObject({ stage: { key: "building" }, inboxLatched: false });
+      ).key,
+    ).toBe("building");
   });
 
-  it("latches idle unread work in Inbox until work resumes", () => {
+  it("keeps idle unread work and existing Inbox placements in Inbox", () => {
     expect(
       core.placementForThread(
         config,
         thread({ status: "idle", lastReadAt: 0, latestAttentionAt: 10 }),
         "spec-review",
-        false,
-      ),
-    ).toMatchObject({ stage: { key: "inbox" }, inboxLatched: true });
+      ).key,
+    ).toBe("inbox");
     expect(
-      core.placementForThread(config, thread(), "spec-review", true),
-    ).toMatchObject({ stage: { key: "inbox" }, inboxLatched: true });
+      core.placementForThread(
+        config,
+        thread({ sectionId: "sec_inbox" }),
+        "spec-review",
+      ).key,
+    ).toBe("inbox");
     expect(
-      core.placementForThread(config, thread(), "spec-review", false),
-    ).toMatchObject({
-      stage: { key: "spec-review" },
-      inboxLatched: false,
-    });
+      core.placementForThread(config, thread(), "spec-review").key,
+    ).toBe("spec-review");
+    expect(
+      core.placementForThread(
+        config,
+        thread({ sectionId: "sec_inbox" }),
+        "on-hold",
+        true,
+      ).key,
+    ).toBe("on-hold");
   });
 
   it("falls back to the first non-Inbox stage when a remembered stage vanished", () => {
     expect(
-      core.placementForThread(config, thread(), "removed-stage", false).stage
-        .key,
+      core.placementForThread(config, thread(), "removed-stage").key,
     ).toBe("planning");
   });
 });
