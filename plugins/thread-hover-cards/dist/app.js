@@ -3050,9 +3050,34 @@ function installHoverCardLifecycle() {
   };
 }
 var pluginGlobal = globalThis;
+var HOVER_CAPABLE_QUERY = "(hover: hover) and (pointer: fine)";
+function hoverCapable() {
+  if (typeof window === "undefined" || !window.matchMedia) return false;
+  return window.matchMedia(HOVER_CAPABLE_QUERY).matches;
+}
+var lifecycle = null;
+function syncLifecycle() {
+  const wanted = hoverCapable();
+  if (wanted && !lifecycle) {
+    lifecycle = installHoverCardLifecycle();
+  } else if (!wanted && lifecycle) {
+    lifecycle.dispose();
+    lifecycle = null;
+  }
+}
 function start() {
   pluginGlobal.__bbThreadHoverCards?.dispose();
-  pluginGlobal.__bbThreadHoverCards = installHoverCardLifecycle();
+  const media = typeof window !== "undefined" && window.matchMedia ? window.matchMedia(HOVER_CAPABLE_QUERY) : null;
+  const onChange = () => syncLifecycle();
+  media?.addEventListener("change", onChange);
+  syncLifecycle();
+  pluginGlobal.__bbThreadHoverCards = {
+    dispose() {
+      media?.removeEventListener("change", onChange);
+      lifecycle?.dispose();
+      lifecycle = null;
+    }
+  };
 }
 if (typeof document !== "undefined") {
   if (document.readyState === "loading") {
