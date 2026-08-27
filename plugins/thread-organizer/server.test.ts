@@ -458,6 +458,36 @@ describe("Thread Organizer server", () => {
     await organizer.harness.lifecycle.dispose();
   });
 
+  it("does not remove a running Inbox thread when it becomes read", async () => {
+    const organizer = createHarness();
+    await plugin(organizer.bb);
+    const config = await configFor(organizer);
+    const inboxId = config.stages.find(
+      (stage) => stage.key === "inbox",
+    )!.sectionId;
+
+    organizer.setThread({
+      status: "idle",
+      lastReadAt: 0,
+      latestAttentionAt: 20,
+    });
+    await organizer.harness.behavior.emitThreadEvent("thread.idle", {
+      thread: organizer.current(),
+      lastAssistantText: null,
+    });
+    expect(organizer.current().sectionId).toBe(inboxId);
+
+    organizer.setThread({ status: "active", lastReadAt: 20 });
+    const fetchCount = organizer.getThread.mock.calls.length;
+    organizer.emitChanged("read-state-changed");
+    await vi.waitFor(() =>
+      expect(organizer.getThread.mock.calls.length).toBeGreaterThan(fetchCount),
+    );
+
+    expect(organizer.current().sectionId).toBe(inboxId);
+    await organizer.harness.lifecycle.dispose();
+  });
+
   it("routes lifecycle events from current state instead of event snapshots", async () => {
     const organizer = createHarness();
     await plugin(organizer.bb);

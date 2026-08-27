@@ -573,7 +573,17 @@ export default async function plugin(bb: BbPluginApi): Promise<void> {
     event: "thread:changed",
     callback(event) {
       if (!event.id) return;
-      void schedule(event.id, () => reconcileThread(event.id!));
+      const threadId = event.id;
+      const onlyReadStateChanged =
+        event.changes.length === 1 &&
+        event.changes[0] === "read-state-changed";
+      void schedule(threadId, async () => {
+        if (onlyReadStateChanged) {
+          const thread = await bb.sdk.threads.get({ threadId });
+          if (!isUnreadThread(thread)) return;
+        }
+        await reconcileThread(threadId);
+      });
     },
   });
 
