@@ -2,9 +2,7 @@ import assert from "node:assert/strict";
 import { JSDOM } from "jsdom";
 
 const dom = new JSDOM(
-  `<head>
-    <link data-bb-plugin-css="thread-hover-cards" href="/plugins/thread-hover-cards/app.css">
-  </head>
+  `<head></head>
   <body>
     <div class="group/thread-row">
       <a data-sidebar-thread-id="thr_1" href="/threads/thr_1">Thread</a>
@@ -469,10 +467,26 @@ globalThis.__bbPluginRuntime = {
   },
 };
 
-await import("../dist/app.js");
-window.document.dispatchEvent(
-  new window.Event("DOMContentLoaded", { bubbles: true }),
+const pluginApp = (await import("../dist/app.js")).default;
+let hoverCardContentScript = null;
+pluginApp.setup({
+  contentScripts: {
+    register(script) {
+      hoverCardContentScript = script;
+    },
+  },
+});
+assert.equal(
+  hoverCardContentScript?.id,
+  "thread-hover-cards",
+  "registers the hover behavior through bb's content-script lifecycle",
 );
+let contentScriptController = new AbortController();
+let disposeContentScript = hoverCardContentScript.mount({
+  generation: 1,
+  pluginId: "thread-hover-cards",
+  signal: contentScriptController.signal,
+});
 
 let trigger = window.document.querySelector("[data-sidebar-thread-id]");
 assert.ok(trigger);
@@ -1211,20 +1225,19 @@ assert.deepEqual(requestBodies, [
   { threadId: "thr_draft_pr" },
 ]);
 
-const pluginCssLink = window.document.querySelector(
-  'link[data-bb-plugin-css="thread-hover-cards"]',
-);
-assert.ok(pluginCssLink);
-pluginCssLink.remove();
+contentScriptController.abort();
+disposeContentScript?.();
 await new Promise((resolve) => setTimeout(resolve, 0));
 
 assert.equal(card.isConnected, false);
 assert.equal(window.document.getElementById("bb-thread-hover-card-styles"), null);
 
-const replacementCssLink = window.document.createElement("link");
-replacementCssLink.dataset.bbPluginCss = "thread-hover-cards";
-replacementCssLink.href = "/plugins/thread-hover-cards/app.css?hash=next";
-window.document.head.append(replacementCssLink);
+contentScriptController = new AbortController();
+disposeContentScript = hoverCardContentScript.mount({
+  generation: 2,
+  pluginId: "thread-hover-cards",
+  signal: contentScriptController.signal,
+});
 await new Promise((resolve) => setTimeout(resolve, 0));
 
 assert.ok(window.document.getElementById("bb-thread-hover-card-styles"));
@@ -2062,7 +2075,8 @@ assert.equal(
   "Opus 4.8 (1M)",
 );
 
-globalThis.__bbThreadHoverCards?.dispose();
+contentScriptController.abort();
+disposeContentScript?.();
 assert.equal(window.document.getElementById("bb-thread-hover-card-styles"), null);
 assert.equal(window.document.getElementById("bb-section-hover-card-styles"), null);
 assert.equal(window.document.getElementById("bb-section-hover-card"), null);
