@@ -1,0 +1,30 @@
+{
+  "name": "bb-plugin-thread-organizer",
+  "version": "0.1.0",
+  "description": "Organizes bb threads with configurable workflow sections and unread Inbox routing.",
+  "type": "module",
+  "license": "UNLICENSED",
+  "files": [
+    "assets",
+    "dist",
+    "docs",
+    "README.md",
+    "skills"
+  ],
+  "engines": {
+    "bb": ">=0.0.34",
+    "bbPluginSdk": "^0.4.1"
+  },
+  "bb": {
+    "name": "Thread Organizer",
+    "description": "Configurable workflow sections and unread Inbox routing.",
+    "branding": {
+      "icon": "./assets/thread-organizer.svg"
+    },
+    "server": "./dist/install-server.mjs",
+    "app": "./dist/install-app.mjs",
+    "skills": [
+      "skills"
+    ]
+  }
+}
