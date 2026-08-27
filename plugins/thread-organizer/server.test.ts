@@ -213,10 +213,12 @@ function createHarness(options: { legacyPlanning?: boolean } = {}) {
       threads.set(threadId, makeThreadResponse({ ...thread, ...changes }));
     },
     emitChanged(
-      change: TestThreadChange = "read-state-changed",
+      changes: TestThreadChange | readonly TestThreadChange[] =
+        "read-state-changed",
       threadId = "thr_test",
     ) {
-      for (const callback of changedCallbacks) callback(threadId, [change]);
+      const changeList = Array.isArray(changes) ? changes : [changes];
+      for (const callback of changedCallbacks) callback(threadId, changeList);
     },
   };
 }
@@ -436,7 +438,7 @@ describe("Thread Organizer server", () => {
       rememberedStageKey: "planning",
       lastObservedSectionId: sectionId("inbox"),
     });
-    organizer.emitChanged("read-state-changed");
+    organizer.emitChanged(["read-state-changed", "title-changed"]);
     await new Promise((resolve) => setTimeout(resolve, 0));
     expect(organizer.current().sectionId).toBe(sectionId("inbox"));
 
@@ -479,7 +481,7 @@ describe("Thread Organizer server", () => {
 
     organizer.setThread({ status: "active", lastReadAt: 20 });
     const fetchCount = organizer.getThread.mock.calls.length;
-    organizer.emitChanged("read-state-changed");
+    organizer.emitChanged(["read-state-changed", "title-changed"]);
     await vi.waitFor(() =>
       expect(organizer.getThread.mock.calls.length).toBeGreaterThan(fetchCount),
     );
