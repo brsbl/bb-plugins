@@ -1,0 +1,1452 @@
+.sceneseed-library,
+.sceneseed-editor,
+.sceneseed-missing,
+.sceneseed-settings,
+.sceneseed-disclosure {
+  --sceneseed-line: color-mix(in oklch, var(--ink) 14%, var(--canvas));
+  --sceneseed-line-strong: color-mix(in oklch, var(--ink) 24%, var(--canvas));
+  --sceneseed-soft: color-mix(in oklch, var(--ink) 5%, var(--canvas));
+  --sceneseed-raised: color-mix(in oklch, var(--ink) 2.5%, var(--canvas));
+  --sceneseed-muted: color-mix(in oklch, var(--ink) 58%, var(--canvas));
+  --sceneseed-accent: var(
+    --accent,
+    color-mix(in oklch, var(--ink) 76%, var(--canvas))
+  );
+  color: var(--ink);
+}
+
+.sceneseed-library {
+  box-sizing: border-box;
+  min-height: 100%;
+  overflow: auto;
+  padding: 2rem clamp(1rem, 4vw, 3.5rem) 4rem;
+  background: var(--canvas);
+}
+
+.sceneseed-library-intro {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(18rem, 26rem);
+  gap: clamp(2rem, 6vw, 6rem);
+  align-items: end;
+  max-width: 74rem;
+  margin: 0 auto 2rem;
+  padding: clamp(1.5rem, 4vw, 3rem) 0 2.25rem;
+  border-bottom: 1px solid var(--sceneseed-line);
+}
+
+.sceneseed-library-intro h1,
+.sceneseed-missing h1 {
+  max-width: 13ch;
+  margin: 0.2rem 0 0.75rem;
+  font-size: clamp(2.25rem, 6vw, 4.5rem);
+  font-weight: 590;
+  line-height: 0.98;
+  letter-spacing: -0.055em;
+}
+
+.sceneseed-library-intro p:not(.sceneseed-eyebrow) {
+  max-width: 42rem;
+  margin: 0;
+  color: var(--sceneseed-muted);
+  font-size: 1rem;
+  line-height: 1.65;
+}
+
+.sceneseed-eyebrow {
+  margin: 0;
+  color: var(--sceneseed-muted);
+  font-size: 0.72rem;
+  font-weight: 650;
+  letter-spacing: 0.12em;
+  line-height: 1.4;
+  text-transform: uppercase;
+}
+
+.sceneseed-new-canvas {
+  padding: 1rem;
+  border: 1px solid var(--sceneseed-line);
+  border-radius: 1rem;
+  background: var(--sceneseed-raised);
+  box-shadow: 0 1rem 3rem color-mix(in oklab, var(--ink) 8%, transparent);
+}
+
+.sceneseed-new-canvas label {
+  display: block;
+  margin-bottom: 0.55rem;
+  font-size: 0.78rem;
+  font-weight: 650;
+}
+
+.sceneseed-new-canvas > div {
+  display: flex;
+  gap: 0.55rem;
+}
+
+.sceneseed-disclosure {
+  display: grid;
+  grid-template-columns: minmax(12rem, 0.75fr) repeat(2, minmax(12rem, 1fr));
+  gap: 1rem 1.5rem;
+  max-width: 74rem;
+  margin: 0 auto 2rem;
+  padding: 1.25rem;
+  border: 1px solid var(--sceneseed-line-strong);
+  border-radius: 1rem;
+  background: color-mix(in oklch, var(--sceneseed-accent) 7%, var(--canvas));
+}
+
+.sceneseed-disclosure h2 {
+  margin: 0.15rem 0 0;
+  font-size: 1.05rem;
+  line-height: 1.25;
+}
+
+.sceneseed-disclosure > p {
+  margin: 0;
+  color: var(--sceneseed-muted);
+  font-size: 0.8rem;
+  line-height: 1.55;
+}
+
+.sceneseed-disclosure-actions {
+  grid-column: 2 / -1;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 1rem;
+}
+
+.sceneseed-disclosure-screen {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.sceneseed-disclosure-back {
+  max-width: 74rem;
+  width: 100%;
+  margin: 0 auto;
+}
+
+.sceneseed-text-link {
+  color: var(--ink);
+  font-size: 0.8rem;
+  text-decoration: underline;
+  text-underline-offset: 0.2rem;
+}
+
+.sceneseed-connection,
+.sceneseed-error {
+  max-width: 74rem;
+  margin: 0 auto 1rem;
+  padding: 0.75rem 0.9rem;
+  border: 1px solid var(--sceneseed-line);
+  border-radius: 0.7rem;
+  color: var(--sceneseed-muted);
+  background: var(--sceneseed-soft);
+  font-size: 0.8rem;
+}
+
+.sceneseed-error,
+.sceneseed-editor-error {
+  color: var(--destructive, var(--ink));
+  border-color: color-mix(
+    in oklch,
+    var(--destructive, var(--ink)) 30%,
+    var(--canvas)
+  );
+}
+
+.sceneseed-library > section {
+  max-width: 74rem;
+  margin: 0 auto;
+}
+
+.sceneseed-section-heading,
+.sceneseed-rail-heading {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 0.9rem;
+}
+
+.sceneseed-section-heading h2,
+.sceneseed-rail-heading h2,
+.sceneseed-object-list h2 {
+  margin: 0.15rem 0 0;
+  font-size: 1.05rem;
+  font-weight: 630;
+  line-height: 1.2;
+}
+
+.sceneseed-section-heading > span,
+.sceneseed-rail-heading > span {
+  color: var(--sceneseed-muted);
+  font-size: 0.75rem;
+}
+
+.sceneseed-library-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
+  gap: 0.75rem;
+}
+
+.sceneseed-canvas-card {
+  position: relative;
+  display: flex;
+  min-height: 9rem;
+  flex-direction: column;
+  align-items: flex-start;
+  padding: 1rem;
+  overflow: hidden;
+  border: 1px solid var(--sceneseed-line);
+  border-radius: 1rem;
+  color: var(--ink);
+  background: var(--sceneseed-raised);
+  text-align: left;
+  transition:
+    transform 140ms ease,
+    border-color 140ms ease,
+    box-shadow 140ms ease;
+}
+
+.sceneseed-canvas-card:hover,
+.sceneseed-canvas-card:focus-visible {
+  border-color: var(--sceneseed-line-strong);
+  outline: none;
+  box-shadow: 0 0.8rem 2.2rem color-mix(in oklab, var(--ink) 7%, transparent);
+  transform: translateY(-2px);
+}
+
+.sceneseed-canvas-card-mark {
+  width: 2.25rem;
+  height: 2.25rem;
+  margin-bottom: 1.5rem;
+  border: 1px solid var(--sceneseed-line-strong);
+  border-radius: 50% 50% 46% 54%;
+  background: color-mix(in oklch, var(--sceneseed-accent) 24%, var(--canvas));
+  box-shadow: 0 0.35rem 0 color-mix(in oklab, var(--ink) 10%, transparent);
+  transform: rotate(-8deg);
+}
+
+.sceneseed-canvas-card-name {
+  margin-bottom: 0.25rem;
+  font-size: 1rem;
+  font-weight: 630;
+}
+
+.sceneseed-canvas-card-meta,
+.sceneseed-canvas-card-time {
+  color: var(--sceneseed-muted);
+  font-size: 0.72rem;
+}
+
+.sceneseed-canvas-card-time {
+  margin-top: auto;
+  padding-top: 0.8rem;
+}
+
+.sceneseed-empty-library {
+  display: flex;
+  min-height: 16rem;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem;
+  border: 1px dashed var(--sceneseed-line-strong);
+  border-radius: 1rem;
+  text-align: center;
+}
+
+.sceneseed-empty-library h3,
+.sceneseed-renderer-fallback h3 {
+  margin: 0.8rem 0 0.25rem;
+  font-size: 1rem;
+}
+
+.sceneseed-empty-library p,
+.sceneseed-renderer-fallback p {
+  max-width: 28rem;
+  margin: 0;
+  color: var(--sceneseed-muted);
+  font-size: 0.8rem;
+  line-height: 1.55;
+}
+
+.sceneseed-seed-mark {
+  width: 1.6rem;
+  height: 2rem;
+  border: 1px solid var(--sceneseed-line-strong);
+  border-radius: 60% 40% 54% 46%;
+  background: color-mix(in oklch, var(--sceneseed-accent) 30%, var(--canvas));
+  box-shadow: 0 0.35rem 0 color-mix(in oklab, var(--ink) 12%, transparent);
+  transform: rotate(12deg);
+}
+
+.sceneseed-editor {
+  display: flex;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--canvas);
+}
+
+.sceneseed-editor-header {
+  position: relative;
+  z-index: 20;
+  display: grid;
+  min-height: 3.4rem;
+  grid-template-columns: 8rem minmax(0, 1fr) 8rem;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.55rem 0.75rem;
+  border-bottom: 1px solid var(--sceneseed-line);
+  background: var(--canvas);
+}
+
+.sceneseed-editor-title {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: center;
+  gap: 0.65rem;
+}
+
+.sceneseed-editor-title h1 {
+  margin: 0;
+  overflow: hidden;
+  font-size: 0.9rem;
+  font-weight: 650;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sceneseed-rename {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+}
+
+.sceneseed-rename input {
+  max-width: 20rem;
+}
+
+.sceneseed-canvas-menu {
+  position: relative;
+  justify-self: end;
+}
+
+.sceneseed-canvas-menu summary {
+  display: grid;
+  width: 2rem;
+  height: 2rem;
+  place-items: center;
+  border-radius: 0.45rem;
+  color: var(--sceneseed-muted);
+  cursor: pointer;
+  font-weight: 650;
+  list-style: none;
+}
+
+.sceneseed-canvas-menu summary::-webkit-details-marker {
+  display: none;
+}
+
+.sceneseed-canvas-menu summary:hover,
+.sceneseed-canvas-menu summary:focus-visible {
+  color: var(--ink);
+  background: var(--sceneseed-soft);
+  outline: none;
+}
+
+.sceneseed-canvas-menu > div {
+  position: absolute;
+  top: calc(100% + 0.35rem);
+  right: 0;
+  display: flex;
+  width: 14rem;
+  flex-direction: column;
+  gap: 0.2rem;
+  padding: 0.35rem;
+  border: 1px solid var(--sceneseed-line);
+  border-radius: 0.65rem;
+  background: var(--canvas);
+  box-shadow: 0 1rem 2.5rem color-mix(in oklab, var(--ink) 12%, transparent);
+}
+
+.sceneseed-canvas-menu button {
+  min-height: 2rem;
+  padding: 0.4rem 0.55rem;
+  border: 0;
+  border-radius: 0.4rem;
+  color: var(--ink);
+  background: transparent;
+  text-align: left;
+}
+
+.sceneseed-canvas-menu button:hover,
+.sceneseed-canvas-menu button:focus-visible {
+  background: var(--sceneseed-soft);
+  outline: none;
+}
+
+.sceneseed-canvas-menu button:disabled {
+  opacity: 0.45;
+}
+
+.sceneseed-canvas-menu p {
+  margin: 0;
+  padding: 0.35rem 0.55rem;
+  color: var(--sceneseed-muted);
+  font-size: 0.75rem;
+  line-height: 1.4;
+}
+
+.sceneseed-canvas-menu .sceneseed-danger-action {
+  color: var(--destructive, var(--ink));
+}
+
+.sceneseed-offline-banner,
+.sceneseed-editor-error {
+  position: relative;
+  z-index: 10;
+  padding: 0.55rem 1rem;
+  border-bottom: 1px solid var(--sceneseed-line);
+  color: var(--sceneseed-muted);
+  background: var(--sceneseed-soft);
+  font-size: 0.75rem;
+  text-align: center;
+}
+
+.sceneseed-workspace {
+  display: grid;
+  min-height: 0;
+  flex: 1;
+  grid-template-columns: minmax(16rem, 19rem) minmax(0, 1fr);
+}
+
+.sceneseed-card-rail {
+  min-height: 0;
+  padding: 1rem;
+  overflow: auto;
+  border-right: 1px solid var(--sceneseed-line);
+  background: var(--canvas);
+}
+
+.sceneseed-rail-instruction {
+  margin: 0 0 1rem;
+  color: var(--sceneseed-muted);
+  font-size: 0.75rem;
+  line-height: 1.5;
+}
+
+.sceneseed-card-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+
+.sceneseed-prompt-card {
+  position: relative;
+  padding: 0.75rem;
+  border: 1px solid var(--sceneseed-line);
+  border-radius: 0.8rem;
+  background: var(--sceneseed-raised);
+  box-shadow: 0 0.25rem 0 color-mix(in oklab, var(--ink) 8%, transparent);
+  transition:
+    border-color 120ms ease,
+    transform 120ms ease,
+    box-shadow 120ms ease;
+}
+
+.sceneseed-prompt-card[draggable="true"] {
+  cursor: grab;
+}
+
+.sceneseed-prompt-card[draggable="true"]:active {
+  cursor: grabbing;
+}
+
+.sceneseed-prompt-card[data-selected="true"] {
+  border-color: color-mix(in oklch, var(--sceneseed-accent) 65%, var(--canvas));
+  box-shadow:
+    0 0 0 2px color-mix(in oklab, var(--sceneseed-accent) 18%, transparent),
+    0 0.25rem 0 color-mix(in oklab, var(--ink) 8%, transparent);
+}
+
+.sceneseed-prompt-card[data-state="queued"],
+.sceneseed-prompt-card[data-state="interpreting"],
+.sceneseed-prompt-card[data-state="realizing"] {
+  background: color-mix(in oklch, var(--sceneseed-accent) 5%, var(--canvas));
+}
+
+.sceneseed-card-prompt {
+  display: block;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  color: var(--ink);
+  background: transparent;
+  font-size: 0.88rem;
+  font-weight: 560;
+  line-height: 1.35;
+  text-align: left;
+}
+
+.sceneseed-card-prompt:disabled {
+  cursor: default;
+  opacity: 1;
+}
+
+.sceneseed-card-prompt:focus-visible {
+  border-radius: 0.25rem;
+  outline: 2px solid var(--sceneseed-accent);
+  outline-offset: 0.25rem;
+}
+
+.sceneseed-card-footer {
+  display: flex;
+  min-height: 2rem;
+  align-items: center;
+  gap: 0.45rem;
+  margin-top: 0.65rem;
+  color: var(--sceneseed-muted);
+  font-size: 0.68rem;
+}
+
+.sceneseed-card-footer > button:first-of-type {
+  margin-left: auto;
+}
+
+.sceneseed-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-weight: 620;
+}
+
+.sceneseed-status > span {
+  width: 0.42rem;
+  height: 0.42rem;
+  border: 1px solid currentColor;
+  border-radius: 50%;
+  background: transparent;
+}
+
+.sceneseed-status[data-state="complete"] > span {
+  background: var(--success, var(--ink));
+}
+
+.sceneseed-status[data-state="queued"] > span,
+.sceneseed-status[data-state="interpreting"] > span,
+.sceneseed-status[data-state="realizing"] > span {
+  background: var(--sceneseed-accent);
+}
+
+.sceneseed-status[data-state="failed"] > span,
+.sceneseed-status[data-state="cancelled"] > span {
+  background: var(--destructive, var(--ink));
+}
+
+.sceneseed-card-error {
+  margin: 0.45rem 0 0;
+  color: var(--destructive, var(--ink));
+  font-size: 0.72rem;
+  line-height: 1.4;
+}
+
+.sceneseed-draft-card textarea {
+  min-height: 4.75rem;
+  padding: 0;
+  resize: none;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  font-size: 0.88rem;
+  line-height: 1.4;
+}
+
+.sceneseed-draft-card textarea:focus-visible {
+  outline: none;
+  box-shadow: none;
+}
+
+.sceneseed-unsaved {
+  color: var(--warning, var(--ink));
+  font-weight: 620;
+}
+
+.sceneseed-stage-column {
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  flex-direction: column;
+  overflow: auto;
+  background: var(--sceneseed-soft);
+}
+
+.sceneseed-stage {
+  position: relative;
+  min-height: 28rem;
+  flex: 1 0 min(64vh, 52rem);
+  overflow: hidden;
+  background: color-mix(in oklch, var(--ink) 3%, var(--canvas));
+}
+
+.sceneseed-webgl {
+  position: absolute !important;
+  inset: 0;
+}
+
+.sceneseed-stage-empty,
+.sceneseed-renderer-fallback {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem;
+  color: var(--sceneseed-muted);
+  text-align: center;
+  pointer-events: none;
+}
+
+.sceneseed-stage-empty strong {
+  margin-top: 0.9rem;
+  color: var(--ink);
+  font-size: 0.95rem;
+}
+
+.sceneseed-stage-empty span {
+  margin-top: 0.25rem;
+  font-size: 0.75rem;
+}
+
+.sceneseed-renderer-fallback {
+  z-index: 8;
+  background: var(--canvas);
+  pointer-events: auto;
+}
+
+.sceneseed-renderer-fallback button {
+  margin-top: 1rem;
+}
+
+.sceneseed-placement-layer {
+  position: absolute;
+  z-index: 9;
+  inset: 0;
+  cursor: crosshair;
+  background: color-mix(in oklab, var(--sceneseed-accent) 7%, transparent);
+  outline: none;
+}
+
+.sceneseed-placement-layer:focus-visible {
+  box-shadow: inset 0 0 0 3px
+    color-mix(in oklab, var(--sceneseed-accent) 55%, transparent);
+}
+
+.sceneseed-placement-cursor {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.35rem;
+  color: var(--ink);
+  font-size: 0.68rem;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+
+.sceneseed-placement-cursor > span {
+  width: 1.45rem;
+  height: 1.8rem;
+  border: 2px solid var(--sceneseed-accent);
+  border-radius: 60% 40% 54% 46%;
+  background: color-mix(in oklab, var(--canvas) 90%, transparent);
+  box-shadow: 0 0.35rem 0 color-mix(in oklab, var(--ink) 15%, transparent);
+}
+
+.sceneseed-placement-cancel {
+  position: absolute;
+  right: 1rem;
+  bottom: 1rem;
+  min-height: 2rem;
+  padding: 0.4rem 0.7rem;
+  border: 1px solid var(--sceneseed-line-strong);
+  border-radius: 0.45rem;
+  color: var(--ink);
+  background: var(--canvas);
+  font-size: 0.72rem;
+}
+
+.sceneseed-stage-seed {
+  position: absolute;
+  z-index: 4;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.3rem;
+  color: var(--sceneseed-muted);
+  font-size: 0.68rem;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+
+.sceneseed-stage-seed > span {
+  width: 1.15rem;
+  height: 1.45rem;
+  border: 1px solid var(--sceneseed-line-strong);
+  border-radius: 55% 45% 58% 42%;
+  background: color-mix(in oklch, var(--sceneseed-accent) 25%, var(--canvas));
+  box-shadow: 0 0.3rem 0 color-mix(in oklab, var(--ink) 12%, transparent);
+  animation: sceneseed-seed-breathe 1.8s ease-in-out infinite;
+}
+
+.sceneseed-object-controls {
+  display: grid;
+  grid-template-columns: minmax(11rem, 1fr) auto;
+  gap: 1rem;
+  align-items: center;
+  padding: 0.8rem 1rem;
+  border-top: 1px solid var(--sceneseed-line);
+  border-bottom: 1px solid var(--sceneseed-line);
+  background: var(--canvas);
+}
+
+.sceneseed-selected-copy {
+  min-width: 0;
+}
+
+.sceneseed-selected-copy h3 {
+  margin: 0.12rem 0 0;
+  overflow: hidden;
+  font-size: 0.86rem;
+  font-weight: 630;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sceneseed-transform-groups,
+.sceneseed-object-actions,
+.sceneseed-control-group {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.sceneseed-transform-groups {
+  grid-column: 1 / -1;
+  justify-content: flex-end;
+  gap: 0.65rem;
+}
+
+.sceneseed-object-actions {
+  justify-content: flex-end;
+}
+
+.sceneseed-control-group > span {
+  margin-right: 0.1rem;
+  color: var(--sceneseed-muted);
+  font-size: 0.68rem;
+  font-weight: 620;
+}
+
+.sceneseed-control-group button {
+  min-width: 2rem;
+  padding-inline: 0.45rem;
+}
+
+.sceneseed-no-selection {
+  padding: 0.75rem 1rem;
+  border-top: 1px solid var(--sceneseed-line);
+  border-bottom: 1px solid var(--sceneseed-line);
+  color: var(--sceneseed-muted);
+  background: var(--canvas);
+  font-size: 0.75rem;
+  text-align: center;
+}
+
+.sceneseed-object-list {
+  padding: 1rem;
+  background: var(--canvas);
+}
+
+.sceneseed-object-list > p {
+  color: var(--sceneseed-muted);
+  font-size: 0.75rem;
+}
+
+.sceneseed-object-list ol {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr));
+  gap: 0.5rem;
+  margin: 0.75rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.sceneseed-object-list li {
+  border: 1px solid var(--sceneseed-line);
+  border-radius: 0.65rem;
+}
+
+.sceneseed-object-list li[data-selected="true"] {
+  border-color: color-mix(in oklch, var(--sceneseed-accent) 65%, var(--canvas));
+}
+
+.sceneseed-object-list button {
+  display: flex;
+  width: 100%;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.15rem;
+  padding: 0.65rem;
+  border: 0;
+  border-radius: inherit;
+  color: var(--ink);
+  background: transparent;
+  text-align: left;
+}
+
+.sceneseed-object-list button:hover,
+.sceneseed-object-list button:focus-visible {
+  background: var(--sceneseed-soft);
+  outline: none;
+}
+
+.sceneseed-object-list strong {
+  font-size: 0.78rem;
+}
+
+.sceneseed-object-list span,
+.sceneseed-object-list small {
+  color: var(--sceneseed-muted);
+  font-size: 0.68rem;
+}
+
+.sceneseed-missing {
+  display: flex;
+  min-height: 100%;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem;
+  background: var(--canvas);
+  text-align: center;
+}
+
+.sceneseed-missing h1 {
+  max-width: 18ch;
+  margin-top: 1.25rem;
+  font-size: clamp(2rem, 5vw, 3.5rem);
+}
+
+.sceneseed-missing p {
+  max-width: 30rem;
+  margin: 0 0 1rem;
+  color: var(--sceneseed-muted);
+}
+
+.sceneseed-settings {
+  display: flex;
+  max-width: 42rem;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.75rem;
+}
+
+.sceneseed-settings h3,
+.sceneseed-settings p {
+  margin: 0;
+}
+
+.sceneseed-settings p {
+  color: var(--sceneseed-muted);
+  font-size: 0.8rem;
+  line-height: 1.55;
+}
+
+.sceneseed-clear-confirmation {
+  width: 100%;
+  padding: 1rem;
+  border: 1px solid
+    color-mix(in oklch, var(--destructive, var(--ink)) 30%, var(--canvas));
+  border-radius: 0.75rem;
+  background: color-mix(
+    in oklch,
+    var(--destructive, var(--ink)) 5%,
+    var(--canvas)
+  );
+}
+
+.sceneseed-clear-confirmation > div {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.85rem;
+}
+
+.sceneseed-settings-result {
+  padding: 0.65rem 0.75rem;
+  border: 1px solid var(--sceneseed-line);
+  border-radius: 0.55rem;
+  background: var(--sceneseed-soft);
+}
+
+.sceneseed-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+@keyframes sceneseed-seed-breathe {
+  0%,
+  100% {
+    transform: translateY(0) rotate(8deg);
+  }
+  50% {
+    transform: translateY(-0.2rem) rotate(4deg);
+  }
+}
+
+@media (max-width: 900px) {
+  .sceneseed-library-intro,
+  .sceneseed-disclosure {
+    grid-template-columns: 1fr;
+  }
+
+  .sceneseed-disclosure-actions {
+    grid-column: 1;
+    justify-content: flex-start;
+  }
+
+  .sceneseed-object-controls {
+    grid-template-columns: 1fr;
+  }
+
+  .sceneseed-transform-groups,
+  .sceneseed-object-actions {
+    grid-column: auto;
+    justify-content: flex-start;
+    flex-wrap: wrap;
+  }
+}
+
+@media (max-width: 1100px) {
+  .sceneseed-library {
+    padding: 1rem 0.85rem 3rem;
+  }
+
+  .sceneseed-library-intro {
+    padding-top: 1rem;
+  }
+
+  .sceneseed-library-intro h1 {
+    max-width: 11ch;
+  }
+
+  .sceneseed-new-canvas > div {
+    flex-direction: column;
+  }
+
+  .sceneseed-editor-header {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+  }
+
+  .sceneseed-workspace {
+    display: flex;
+    flex-direction: column;
+    overflow: auto;
+  }
+
+  .sceneseed-card-rail {
+    max-height: 42vh;
+    flex: 0 0 auto;
+    border-right: 0;
+    border-bottom: 1px solid var(--sceneseed-line);
+  }
+
+  .sceneseed-card-stack {
+    display: grid;
+    grid-auto-columns: minmax(15rem, 78vw);
+    grid-auto-flow: column;
+    overflow-x: auto;
+    padding-bottom: 0.35rem;
+    scroll-snap-type: x proximity;
+  }
+
+  .sceneseed-prompt-card {
+    scroll-snap-align: start;
+  }
+
+  .sceneseed-stage-column {
+    min-height: 35rem;
+    overflow: visible;
+  }
+
+  .sceneseed-stage {
+    min-height: 28rem;
+    flex-basis: 58vh;
+  }
+
+  .sceneseed-rename {
+    position: absolute;
+    inset: 0.4rem 3.25rem;
+    z-index: 1;
+    background: var(--canvas);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sceneseed-canvas-card,
+  .sceneseed-prompt-card {
+    transition-duration: 0.01ms;
+  }
+
+  .sceneseed-stage-seed > span {
+    animation: none;
+  }
+}
+
+/* Composer-led canvas ----------------------------------------------------- */
+
+.sceneseed-editor-header {
+  grid-template-columns: minmax(7rem, 1fr) minmax(0, auto) minmax(7rem, 1fr);
+  min-height: 3.25rem;
+  padding: 0.45rem 0.65rem;
+}
+
+.sceneseed-header-actions {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.15rem;
+}
+
+.sceneseed-canvas-menu summary svg {
+  width: 1rem;
+  height: 1rem;
+}
+
+.sceneseed-offline-banner,
+.sceneseed-editor-error {
+  position: absolute;
+  z-index: 40;
+  top: 3.25rem;
+  right: 0;
+  left: 0;
+  border-bottom: 0;
+  background: color-mix(in oklab, var(--canvas) 88%, transparent);
+  backdrop-filter: blur(12px);
+}
+
+.sceneseed-editor-error {
+  color: var(--destructive, var(--ink));
+}
+
+.sceneseed-workspace {
+  position: relative;
+  display: block;
+  min-width: 0;
+  min-height: 0;
+  flex: 1;
+  overflow: hidden;
+  background: color-mix(in oklch, var(--accent) 8%, var(--canvas));
+}
+
+.sceneseed-stage {
+  position: absolute;
+  inset: 0;
+  min-height: 0;
+  border: 0;
+  background: transparent;
+}
+
+.sceneseed-webgl {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.sceneseed-stage-empty {
+  position: absolute;
+  inset: 0 0 7.5rem;
+  z-index: 2;
+  display: flex;
+  min-height: 16rem;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  padding: 2rem;
+  pointer-events: none;
+  text-align: center;
+}
+
+.sceneseed-stage-empty .sceneseed-seed-mark {
+  margin-bottom: 0.7rem;
+  border-color: color-mix(in oklch, var(--accent) 55%, var(--canvas));
+  background: color-mix(in oklch, var(--accent) 48%, var(--canvas));
+  box-shadow:
+    0 0.55rem 1.5rem color-mix(in oklab, var(--accent) 24%, transparent),
+    0 0.25rem 0 color-mix(in oklab, var(--ink) 11%, transparent);
+}
+
+.sceneseed-stage-empty strong {
+  font-size: clamp(1.15rem, 2vw, 1.5rem);
+  font-weight: 620;
+  letter-spacing: -0.025em;
+}
+
+.sceneseed-stage-empty span {
+  color: var(--sceneseed-muted);
+  font-size: 0.82rem;
+}
+
+.sceneseed-stage-status {
+  position: absolute;
+  z-index: 12;
+  top: 1rem;
+  left: 50%;
+  width: min(32rem, calc(100% - 2rem));
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+
+.sceneseed-activity {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 0.65rem;
+  width: max-content;
+  max-width: 100%;
+  margin: 0 auto;
+  padding: 0.45rem 0.55rem 0.45rem 0.65rem;
+  border: 1px solid var(--sceneseed-line);
+  border-radius: 0.65rem;
+  background: color-mix(in oklab, var(--canvas) 88%, transparent);
+  box-shadow: 0 0.65rem 2rem color-mix(in oklab, var(--ink) 10%, transparent);
+  backdrop-filter: blur(16px);
+  pointer-events: auto;
+}
+
+.sceneseed-activity[data-tone="error"] {
+  border-color: color-mix(
+    in oklch,
+    var(--destructive, var(--ink)) 28%,
+    var(--canvas)
+  );
+}
+
+.sceneseed-activity > svg {
+  width: 0.95rem;
+  height: 0.95rem;
+  color: var(--sceneseed-muted);
+}
+
+.sceneseed-activity[data-tone="error"] > svg {
+  color: var(--destructive, var(--ink));
+}
+
+.sceneseed-spin {
+  animation: sceneseed-spin 1.1s linear infinite;
+}
+
+.sceneseed-activity > div {
+  display: grid;
+  min-width: 0;
+  line-height: 1.25;
+}
+
+.sceneseed-activity strong {
+  overflow: hidden;
+  font-size: 0.75rem;
+  font-weight: 620;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sceneseed-activity span,
+.sceneseed-activity small {
+  overflow: hidden;
+  color: var(--sceneseed-muted);
+  font-size: 0.68rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sceneseed-stage-seed {
+  z-index: 7;
+  gap: 0.25rem;
+  color: var(--ink);
+  transform: translate(-50%, -50%);
+}
+
+.sceneseed-stage-seed > span {
+  width: 0.9rem;
+  height: 1.1rem;
+  border: 1px solid color-mix(in oklch, var(--accent) 62%, var(--canvas));
+  background: color-mix(in oklch, var(--accent) 48%, var(--canvas));
+  box-shadow: 0 0.4rem 1.2rem
+    color-mix(in oklab, var(--accent) 24%, transparent);
+}
+
+.sceneseed-stage-seed small {
+  padding: 0.16rem 0.3rem;
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--canvas) 82%, transparent);
+  backdrop-filter: blur(8px);
+}
+
+.sceneseed-compose-stack {
+  position: absolute;
+  z-index: 14;
+  right: 1rem;
+  bottom: 1rem;
+  left: 1rem;
+  display: flex;
+  width: min(48rem, calc(100% - 2rem));
+  max-height: calc(100% - 4.75rem);
+  flex-direction: column;
+  gap: 0.45rem;
+  margin: 0 auto;
+  pointer-events: none;
+}
+
+.sceneseed-compose-stack > * {
+  pointer-events: auto;
+}
+
+.sceneseed-object-controls {
+  display: flex;
+  width: max-content;
+  max-width: 100%;
+  min-height: 2.25rem;
+  grid-template-columns: none;
+  align-items: center;
+  align-self: center;
+  gap: 0.35rem;
+  padding: 0.25rem 0.3rem 0.25rem 0.55rem;
+  border: 1px solid var(--sceneseed-line);
+  border-radius: 0.65rem;
+  background: color-mix(in oklab, var(--canvas) 88%, transparent);
+  box-shadow: 0 0.5rem 1.75rem color-mix(in oklab, var(--ink) 9%, transparent);
+  backdrop-filter: blur(16px);
+}
+
+.sceneseed-selection-dot {
+  width: 0.45rem;
+  height: 0.45rem;
+  flex: 0 0 auto;
+  border-radius: 999px;
+  background: var(--accent);
+  box-shadow: 0 0 0 0.15rem color-mix(in oklab, var(--accent) 16%, transparent);
+}
+
+.sceneseed-object-controls h3 {
+  max-width: min(22rem, 44vw);
+  margin: 0 0.35rem 0 0;
+  overflow: hidden;
+  font-size: 0.75rem;
+  font-weight: 570;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sceneseed-composer-shell {
+  width: 100%;
+}
+
+.sceneseed-composer {
+  width: 100%;
+}
+
+.sceneseed-composer-error {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  align-self: center;
+  max-width: 100%;
+  padding: 0.4rem 0.55rem;
+  border: 1px solid
+    color-mix(in oklch, var(--destructive, var(--ink)) 25%, var(--canvas));
+  border-radius: 0.55rem;
+  color: var(--destructive, var(--ink));
+  background: color-mix(in oklab, var(--canvas) 92%, transparent);
+  box-shadow: 0 0.5rem 1.5rem color-mix(in oklab, var(--ink) 8%, transparent);
+  font-size: 0.72rem;
+  backdrop-filter: blur(14px);
+}
+
+.sceneseed-composer-error svg {
+  width: 0.9rem;
+  height: 0.9rem;
+  flex: 0 0 auto;
+}
+
+.sceneseed-composer-error button {
+  margin-left: auto;
+  border: 0;
+  color: inherit;
+  background: transparent;
+  font: inherit;
+  text-decoration: underline;
+  text-underline-offset: 0.15rem;
+  cursor: pointer;
+}
+
+.sceneseed-contents-menu {
+  width: min(19rem, calc(100vw - 1rem));
+}
+
+.sceneseed-contents-menu [role^="menuitem"] {
+  align-items: flex-start;
+}
+
+.sceneseed-contents-status {
+  width: 0.45rem;
+  height: 0.45rem;
+  flex: 0 0 auto;
+  margin-top: 0.28rem;
+  border: 1px solid var(--sceneseed-line-strong);
+  border-radius: 999px;
+}
+
+.sceneseed-contents-status[data-state="complete"] {
+  border-color: var(--success, var(--accent));
+  background: var(--success, var(--accent));
+}
+
+.sceneseed-contents-status[data-state="queued"],
+.sceneseed-contents-status[data-state="interpreting"],
+.sceneseed-contents-status[data-state="realizing"] {
+  border-color: var(--accent);
+  background: var(--accent);
+}
+
+.sceneseed-contents-status[data-state="failed"] {
+  border-color: var(--destructive, var(--ink));
+  background: var(--destructive, var(--ink));
+}
+
+.sceneseed-contents-copy {
+  display: grid;
+  min-width: 0;
+  flex: 1;
+}
+
+.sceneseed-contents-copy strong,
+.sceneseed-contents-copy small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sceneseed-contents-copy strong {
+  font-weight: 570;
+}
+
+.sceneseed-contents-copy small {
+  color: var(--sceneseed-muted);
+  font-size: 0.65rem;
+}
+
+.sceneseed-contents-check {
+  width: 0.8rem;
+  height: 0.8rem;
+  margin: 0.2rem 0 0 0.25rem;
+}
+
+.sceneseed-loading-stage {
+  position: relative;
+}
+
+.sceneseed-loading-composer {
+  position: absolute;
+  right: 1rem;
+  bottom: 1rem;
+  left: 1rem;
+  width: min(48rem, calc(100% - 2rem));
+  height: 7.5rem;
+  margin: 0 auto;
+  border-radius: 0.85rem;
+}
+
+@keyframes sceneseed-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (max-width: 720px) {
+  .sceneseed-editor-header {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .sceneseed-editor-header > :first-child {
+    display: none;
+  }
+
+  .sceneseed-editor-title {
+    justify-content: flex-start;
+  }
+
+  .sceneseed-fixture-badge {
+    display: none;
+  }
+
+  .sceneseed-header-actions {
+    justify-self: end;
+  }
+
+  .sceneseed-compose-stack {
+    right: 0.5rem;
+    bottom: 0.5rem;
+    left: 0.5rem;
+    width: calc(100% - 1rem);
+  }
+
+  .sceneseed-stage-status {
+    top: 0.6rem;
+    width: calc(100% - 1rem);
+  }
+
+  .sceneseed-activity {
+    width: 100%;
+  }
+
+  .sceneseed-object-controls {
+    align-self: stretch;
+  }
+
+  .sceneseed-object-controls h3 {
+    max-width: none;
+    flex: 1;
+  }
+
+  .sceneseed-stage-empty {
+    bottom: 8.5rem;
+  }
+
+  .sceneseed-rename {
+    inset: 0.35rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sceneseed-spin {
+    animation-duration: 2s;
+  }
+}

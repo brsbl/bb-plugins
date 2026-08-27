@@ -1,6 +1,6 @@
 # bb plugins
 
-Ten bb plugins I use for product design work, kept together with the few build and repository tools they share. [![CI](https://github.com/brsbl/bb-plugins/actions/workflows/ci.yml/badge.svg)](https://github.com/brsbl/bb-plugins/actions/workflows/ci.yml)
+Eleven bb plugins I use for product design work, kept together with the few build and repository tools they share. [![CI](https://github.com/brsbl/bb-plugins/actions/workflows/ci.yml/badge.svg)](https://github.com/brsbl/bb-plugins/actions/workflows/ci.yml)
 
 [bb](https://getbb.app) is an agentic IDE for running coding agents across projects, threads, and environments. Its plugins can add UI, commands, skills, and server capabilities; this repository is where I build and maintain mine.
 
@@ -71,6 +71,16 @@ Creates, edits, saves, and shares reusable mesh gradients from a visual studio b
 [Source](plugins/mesh-gradient) · [README](plugins/mesh-gradient/README.md)
 
 Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/mesh-gradient --yes`
+
+### SceneSeed
+
+Turns short prompts into playful 3D objects on a persistent canvas. It keeps generation progress and recovery in context, then lets you select, transform, remix, duplicate, or remove each result.
+
+![SceneSeed showing two generated objects, the selected-object controls, and bb's composer](plugins/sceneseed/docs/screenshot.png)
+
+[Source](plugins/sceneseed) · [README](plugins/sceneseed/README.md)
+
+Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/sceneseed --yes`
 
 ### Endless
 
