@@ -2,9 +2,7 @@ import assert from "node:assert/strict";
 import { JSDOM } from "jsdom";
 
 const dom = new JSDOM(
-  `<head>
-    <link data-bb-plugin-css="thread-hover-cards" href="/plugins/thread-hover-cards/app.css">
-  </head>
+  `<head></head>
   <body>
     <div class="group/thread-row">
       <a data-sidebar-thread-id="thr_1" href="/threads/thr_1">Thread</a>
@@ -482,18 +480,34 @@ globalThis.fetch = async (url, init) => {
   return response;
 };
 
+let contentScriptRegistration = null;
+
 globalThis.__bbPluginRuntime = {
   pluginSdkApp: {
     definePluginApp(setup) {
+      setup({
+        contentScripts: {
+          register(registration) {
+            contentScriptRegistration = registration;
+          },
+        },
+      });
       return { __bbPluginApp: true, setup };
     },
   },
 };
 
 await import("../dist/app.js");
-window.document.dispatchEvent(
-  new window.Event("DOMContentLoaded", { bubbles: true }),
+assert.ok(
+  contentScriptRegistration,
+  "registers hover behavior as a lifecycle-managed content script",
 );
+const contentScriptController = new AbortController();
+let disposeContentScript = await contentScriptRegistration.mount({
+  generation: 1,
+  pluginId: "thread-hover-cards",
+  signal: contentScriptController.signal,
+});
 
 let trigger = window.document.querySelector("[data-sidebar-thread-id]");
 assert.ok(trigger);
@@ -1231,21 +1245,18 @@ assert.deepEqual(requestBodies, [
   { threadId: "thr_draft_pr" },
 ]);
 
-const pluginCssLink = window.document.querySelector(
-  'link[data-bb-plugin-css="thread-hover-cards"]',
-);
-assert.ok(pluginCssLink);
-pluginCssLink.remove();
-await new Promise((resolve) => setTimeout(resolve, 0));
+contentScriptController.abort();
+disposeContentScript?.();
 
 assert.equal(card.isConnected, false);
 assert.equal(window.document.getElementById("bb-thread-hover-card-styles"), null);
 
-const replacementCssLink = window.document.createElement("link");
-replacementCssLink.dataset.bbPluginCss = "thread-hover-cards";
-replacementCssLink.href = "/plugins/thread-hover-cards/app.css?hash=next";
-window.document.head.append(replacementCssLink);
-await new Promise((resolve) => setTimeout(resolve, 0));
+const replacementContentScriptController = new AbortController();
+disposeContentScript = await contentScriptRegistration.mount({
+  generation: 2,
+  pluginId: "thread-hover-cards",
+  signal: replacementContentScriptController.signal,
+});
 
 assert.ok(window.document.getElementById("bb-thread-hover-card-styles"));
 
@@ -2095,7 +2106,8 @@ assert.equal(requestBodies.length, requestsBeforeTouch);
 setHoverCapablePointer(true);
 assert.ok(window.document.getElementById("bb-thread-hover-card-styles"));
 
-globalThis.__bbThreadHoverCards?.dispose();
+replacementContentScriptController.abort();
+disposeContentScript?.();
 assert.equal(window.document.getElementById("bb-thread-hover-card-styles"), null);
 assert.equal(window.document.getElementById("bb-section-hover-card-styles"), null);
 assert.equal(window.document.getElementById("bb-section-hover-card"), null);

@@ -31,8 +31,6 @@ import { markdownPreview } from "./markdown-preview";
 
 const CARD_ID = "bb-thread-hover-card";
 const STYLE_ID = "bb-thread-hover-card-styles";
-const PLUGIN_CSS_SELECTOR =
-  'link[data-bb-plugin-css="thread-hover-cards"]';
 const SECTION_CARD_ID = "bb-section-hover-card";
 const SECTION_STYLE_ID = "bb-section-hover-card-styles";
 const THREAD_TRIGGER_SELECTOR = "a[data-sidebar-thread-id]";
@@ -2422,104 +2420,68 @@ function installSectionHoverCards({
 }
 
 function installHoverCardLifecycle(): HoverCardController {
-  let controllers: HoverCardController[] = [];
   let disposed = false;
-
-  function reconcile(): void {
-    if (disposed) return;
-
-    const pluginIsActive = document.querySelector(PLUGIN_CSS_SELECTOR) !== null;
-    if (pluginIsActive && controllers.length === 0) {
-      // Each card closes the other, so the refs are bound after both exist.
-      let sections: HoverCardController | null = null;
-      const threads = installHoverCards({
-        onOpen: () => sections?.closeCard?.(),
-      });
-      sections = installSectionHoverCards({
-        onOpen: () => threads.closeCard?.(),
-      });
-      controllers = [threads, sections];
-    } else if (!pluginIsActive && controllers.length > 0) {
-      for (const controller of controllers) controller.dispose();
-      controllers = [];
-    }
-  }
-
-  const observer = new MutationObserver(reconcile);
-  observer.observe(document.head, { childList: true });
-  reconcile();
+  // Each card closes the other, so the refs are bound after both exist.
+  let sections: HoverCardController | null = null;
+  const threads = installHoverCards({
+    onOpen: () => sections?.closeCard?.(),
+  });
+  sections = installSectionHoverCards({
+    onOpen: () => threads.closeCard?.(),
+  });
+  const controllers = [threads, sections];
 
   return {
     dispose() {
+      if (disposed) return;
       disposed = true;
-      observer.disconnect();
       for (const controller of controllers) controller.dispose();
-      controllers = [];
     },
   };
 }
-
-const pluginGlobal = globalThis as typeof globalThis & {
-  __bbThreadHoverCards?: HoverCardController;
-};
 
 // Hover cards are pointer-only affordances. On touch devices — mobile web,
 // tablets — there is no hover, so the card either never opens or hijacks the
 // tap that should have opened the thread. Gate on a real fine pointer.
 const HOVER_CAPABLE_QUERY = "(hover: hover) and (pointer: fine)";
 
-function hoverCapable(): boolean {
-  if (typeof window === "undefined" || !window.matchMedia) return false;
-  return window.matchMedia(HOVER_CAPABLE_QUERY).matches;
-}
+export default definePluginApp((app) => {
+  app.contentScripts.register({
+    id: "thread-hover-cards",
+    mount({ signal }) {
+      if (signal.aborted) return;
+      const media =
+        typeof window !== "undefined" && window.matchMedia
+          ? window.matchMedia(HOVER_CAPABLE_QUERY)
+          : null;
+      let lifecycle: HoverCardController | null = null;
+      let disposed = false;
 
-let lifecycle: HoverCardController | null = null;
+      const syncLifecycle = () => {
+        if (disposed) return;
+        if (media?.matches && !lifecycle) {
+          lifecycle = installHoverCardLifecycle();
+        } else if (!media?.matches && lifecycle) {
+          lifecycle.dispose();
+          lifecycle = null;
+        }
+      };
+      const onChange = () => syncLifecycle();
+      const dispose = () => {
+        if (disposed) return;
+        disposed = true;
+        media?.removeEventListener("change", onChange);
+        lifecycle?.dispose();
+        lifecycle = null;
+      };
 
-function syncLifecycle(): void {
-  const wanted = hoverCapable();
-  if (wanted && !lifecycle) {
-    lifecycle = installHoverCardLifecycle();
-  } else if (!wanted && lifecycle) {
-    lifecycle.dispose();
-    lifecycle = null;
-  }
-}
-
-function start(): void {
-  pluginGlobal.__bbThreadHoverCards?.dispose();
-
-  const media =
-    typeof window !== "undefined" && window.matchMedia
-      ? window.matchMedia(HOVER_CAPABLE_QUERY)
-      : null;
-  const onChange = () => syncLifecycle();
-  media?.addEventListener("change", onChange);
-
-  syncLifecycle();
-
-  pluginGlobal.__bbThreadHoverCards = {
-    dispose() {
-      media?.removeEventListener("change", onChange);
-      lifecycle?.dispose();
-      lifecycle = null;
+      media?.addEventListener("change", onChange);
+      syncLifecycle();
+      signal.addEventListener("abort", dispose, { once: true });
+      return () => {
+        signal.removeEventListener("abort", dispose);
+        dispose();
+      };
     },
-  };
-}
-
-if (typeof document !== "undefined") {
-  if (document.readyState === "loading") {
-    const onReady = () => start();
-    document.addEventListener("DOMContentLoaded", onReady, { once: true });
-    pluginGlobal.__bbThreadHoverCards = {
-      dispose() {
-        document.removeEventListener("DOMContentLoaded", onReady);
-      },
-    };
-  } else {
-    start();
-  }
-}
-
-// The SDK currently has no thread-row hover slot. This valid, empty app
-// definition lets BB load the scoped compatibility bridge above.
-export default definePluginApp(() => {});
+  });
+});

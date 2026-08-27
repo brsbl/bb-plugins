@@ -9,6 +9,7 @@ import {
   type WorkflowConfig,
 } from "./core.js";
 import {
+  WORKFLOW_CACHE_STORAGE_KEY,
   cacheWorkflowConfig,
   mountThreadOrganizerSidebar,
 } from "./sidebar-controller.js";
@@ -96,7 +97,7 @@ afterEach(() => {
 });
 
 describe("workflow sidebar controller", () => {
-  it("starts with Inbox expanded and other configured sections collapsed", async () => {
+  it("leaves native section expansion state untouched", async () => {
     const pinned = section("pinned", "Pinned", true, ["thr_one"]);
     const inbox = section("sec_inbox", "Inbox", false);
     const planning = section("sec_planning", "Planning", true);
@@ -105,11 +106,22 @@ describe("workflow sidebar controller", () => {
     const controller = mount();
 
     await vi.waitFor(() =>
-      expect(toggle(inbox).getAttribute("aria-expanded")).toBe("true"),
+      expect(
+        window.localStorage.getItem(WORKFLOW_CACHE_STORAGE_KEY),
+      ).not.toBeNull(),
     );
-    expect(toggle(planning).getAttribute("aria-expanded")).toBe("false");
+    expect(toggle(inbox).getAttribute("aria-expanded")).toBe("false");
+    expect(toggle(planning).getAttribute("aria-expanded")).toBe("true");
     expect(toggle(pinned).getAttribute("aria-expanded")).toBe("true");
     expect(toggle(custom).getAttribute("aria-expanded")).toBe("true");
+
+    planning.append(document.createElement("a"));
+    await vi.waitFor(() =>
+      expect(
+        window.localStorage.getItem(WORKFLOW_CACHE_STORAGE_KEY),
+      ).not.toBeNull(),
+    );
+    expect(toggle(planning).getAttribute("aria-expanded")).toBe("true");
     controller.abort();
   });
 
@@ -185,7 +197,9 @@ describe("workflow sidebar controller", () => {
     );
     const controller = mount(config, saveConfig);
     await vi.waitFor(() =>
-      expect(toggle(inbox).getAttribute("aria-expanded")).toBe("true"),
+      expect(
+        window.localStorage.getItem(WORKFLOW_CACHE_STORAGE_KEY),
+      ).not.toBeNull(),
     );
 
     const chosen = order(
@@ -246,7 +260,9 @@ describe("workflow sidebar controller", () => {
     );
     const controller = mount(config, saveConfig);
     await vi.waitFor(() =>
-      expect(toggle(inbox).getAttribute("aria-expanded")).toBe("true"),
+      expect(
+        window.localStorage.getItem(WORKFLOW_CACHE_STORAGE_KEY),
+      ).not.toBeNull(),
     );
 
     window.localStorage.setItem(
@@ -270,41 +286,6 @@ describe("workflow sidebar controller", () => {
     controller.abort();
   });
 
-  it("re-collapses a host-expanded destination unless the user opened it", async () => {
-    const planning = section("sec_planning", "Planning", true);
-    sidebar(planning);
-    const controller = mount();
-    await vi.waitFor(() =>
-      expect(toggle(planning).getAttribute("aria-expanded")).toBe("false"),
-    );
-
-    toggle(planning).setAttribute("aria-expanded", "true");
-    toggle(planning).setAttribute("aria-label", "Collapse Planning section");
-    planning.append(document.createElement("a"));
-    await vi.waitFor(() =>
-      expect(toggle(planning).getAttribute("aria-expanded")).toBe("false"),
-    );
-    controller.abort();
-  });
-
-  it("honors a deliberate user expansion across later mutations", async () => {
-    const planning = section("sec_planning", "Planning", true);
-    sidebar(planning);
-    const controller = mount();
-    await vi.waitFor(() =>
-      expect(toggle(planning).getAttribute("aria-expanded")).toBe("false"),
-    );
-
-    toggle(planning).click();
-    await vi.waitFor(() =>
-      expect(toggle(planning).getAttribute("aria-expanded")).toBe("true"),
-    );
-    planning.append(document.createElement("span"));
-    await new Promise((resolve) => setTimeout(resolve, 0));
-    expect(toggle(planning).getAttribute("aria-expanded")).toBe("true");
-    controller.abort();
-  });
-
   it("applies a saved configuration event without remounting", async () => {
     const inbox = section("sec_inbox", "Inbox", false);
     const planning = section("sec_planning", "Planning", true);
@@ -312,9 +293,7 @@ describe("workflow sidebar controller", () => {
     sidebar(inbox, planning, onHold);
     const config = workflow();
     const controller = mount(config);
-    await vi.waitFor(() =>
-      expect(toggle(onHold).getAttribute("aria-expanded")).toBe("false"),
-    );
+    await Promise.resolve();
 
     const edited = cloneWorkflowConfig(config);
     edited.stages = edited.stages.filter((stage) => stage.key !== "on-hold");
@@ -324,8 +303,8 @@ describe("workflow sidebar controller", () => {
     await new Promise((resolve) => setTimeout(resolve, 0));
 
     expect(toggle(onHold).getAttribute("aria-expanded")).toBe("true");
-    expect(toggle(inbox).getAttribute("aria-expanded")).toBe("true");
-    expect(toggle(planning).getAttribute("aria-expanded")).toBe("false");
+    expect(toggle(inbox).getAttribute("aria-expanded")).toBe("false");
+    expect(toggle(planning).getAttribute("aria-expanded")).toBe("true");
     controller.abort();
   });
 });

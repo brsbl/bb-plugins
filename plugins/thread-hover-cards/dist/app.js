@@ -1166,12 +1166,12 @@ function isTableDivider(line) {
 function cleanBlockText(value) {
   return value.replace(/<\/?[A-Za-z][^>]*>/g, "").replace(/\s+/g, " ").trim();
 }
-function tablePreview(lines, start2) {
-  if (!lines[start2]?.includes("|") || !isTableDivider(lines[start2 + 1] ?? "")) {
+function tablePreview(lines, start) {
+  if (!lines[start]?.includes("|") || !isTableDivider(lines[start + 1] ?? "")) {
     return null;
   }
-  const headers = tableCells(lines[start2]);
-  const values = tableCells(lines[start2 + 2] ?? "");
+  const headers = tableCells(lines[start]);
+  const values = tableCells(lines[start + 2] ?? "");
   const pairs = headers.map((header, index) => {
     const value = values[index];
     if (!header || !value) return null;
@@ -1182,25 +1182,25 @@ function tablePreview(lines, start2) {
 }
 function markdownPreview(source) {
   let lines = source.replace(/\r\n?/g, "\n").split("\n");
-  let start2 = lines.findIndex((line) => line.trim().length > 0);
-  if (start2 < 0) return null;
-  if (lines[start2]?.trim() === "---") {
+  let start = lines.findIndex((line) => line.trim().length > 0);
+  if (start < 0) return null;
+  if (lines[start]?.trim() === "---") {
     const frontmatterEnd = lines.findIndex(
-      (line, index) => index > start2 && line.trim() === "---"
+      (line, index) => index > start && line.trim() === "---"
     );
-    if (frontmatterEnd > start2) {
+    if (frontmatterEnd > start) {
       lines = lines.slice(frontmatterEnd + 1);
-      start2 = lines.findIndex((line) => line.trim().length > 0);
-      if (start2 < 0) return null;
+      start = lines.findIndex((line) => line.trim().length > 0);
+      if (start < 0) return null;
     }
   }
-  const table = tablePreview(lines, start2);
+  const table = tablePreview(lines, start);
   if (table) return table;
-  const first = lines[start2].trim();
+  const first = lines[start].trim();
   const fence = first.match(/^(```+|~~~+)\s*[^\s]*\s*$/);
   if (fence) {
     const codeLines = [];
-    for (let index = start2 + 1; index < lines.length; index += 1) {
+    for (let index = start + 1; index < lines.length; index += 1) {
       const line = lines[index];
       if (line.trim().startsWith(fence[1])) break;
       if (line.trim() || codeLines.length > 0) codeLines.push(line.trim());
@@ -1216,7 +1216,7 @@ function markdownPreview(source) {
   const listItem = first.match(/^(?:[-+*]|\d+[.)])\s+(.+)$/);
   if (listItem) {
     const items = [];
-    for (let index = start2; index < lines.length && items.length < 2; index += 1) {
+    for (let index = start; index < lines.length && items.length < 2; index += 1) {
       const match = lines[index].trim().match(/^(?:[-+*]|\d+[.)])\s+(.+)$/);
       if (!match) break;
       items.push(cleanBlockText(match[1].replace(/^\[[ xX]\]\s*/, "")));
@@ -1226,7 +1226,7 @@ function markdownPreview(source) {
   }
   if (first.startsWith(">")) {
     const quoteLines = [];
-    for (let index = start2; index < lines.length; index += 1) {
+    for (let index = start; index < lines.length; index += 1) {
       const match = lines[index].trim().match(/^>\s?(.*)$/);
       if (!match) break;
       quoteLines.push(match[1]);
@@ -1235,11 +1235,11 @@ function markdownPreview(source) {
     return inline2 ? { inline: inline2, kind: "quote" } : null;
   }
   const paragraph = [];
-  for (let index = start2; index < lines.length; index += 1) {
+  for (let index = start; index < lines.length; index += 1) {
     const line = lines[index].trim();
     if (!line) break;
-    if (index > start2 && tablePreview(lines, index)) break;
-    if (index > start2 && /^(?:#{1,6}\s|```|~~~|>|[-+*]\s|\d+[.)]\s)/.test(line)) {
+    if (index > start && tablePreview(lines, index)) break;
+    if (index > start && /^(?:#{1,6}\s|```|~~~|>|[-+*]\s|\d+[.)]\s)/.test(line)) {
       break;
     }
     paragraph.push(line);
@@ -1251,7 +1251,6 @@ function markdownPreview(source) {
 // app.tsx
 var CARD_ID = "bb-thread-hover-card";
 var STYLE_ID = "bb-thread-hover-card-styles";
-var PLUGIN_CSS_SELECTOR = 'link[data-bb-plugin-css="thread-hover-cards"]';
 var SECTION_CARD_ID = "bb-section-hover-card";
 var SECTION_STYLE_ID = "bb-section-hover-card-styles";
 var THREAD_TRIGGER_SELECTOR = "a[data-sidebar-thread-id]";
@@ -3018,81 +3017,58 @@ function installSectionHoverCards({
   };
 }
 function installHoverCardLifecycle() {
-  let controllers = [];
   let disposed = false;
-  function reconcile() {
-    if (disposed) return;
-    const pluginIsActive = document.querySelector(PLUGIN_CSS_SELECTOR) !== null;
-    if (pluginIsActive && controllers.length === 0) {
-      let sections = null;
-      const threads = installHoverCards({
-        onOpen: () => sections?.closeCard?.()
-      });
-      sections = installSectionHoverCards({
-        onOpen: () => threads.closeCard?.()
-      });
-      controllers = [threads, sections];
-    } else if (!pluginIsActive && controllers.length > 0) {
-      for (const controller of controllers) controller.dispose();
-      controllers = [];
-    }
-  }
-  const observer = new MutationObserver(reconcile);
-  observer.observe(document.head, { childList: true });
-  reconcile();
+  let sections = null;
+  const threads = installHoverCards({
+    onOpen: () => sections?.closeCard?.()
+  });
+  sections = installSectionHoverCards({
+    onOpen: () => threads.closeCard?.()
+  });
+  const controllers = [threads, sections];
   return {
     dispose() {
+      if (disposed) return;
       disposed = true;
-      observer.disconnect();
       for (const controller of controllers) controller.dispose();
-      controllers = [];
     }
   };
 }
-var pluginGlobal = globalThis;
 var HOVER_CAPABLE_QUERY = "(hover: hover) and (pointer: fine)";
-function hoverCapable() {
-  if (typeof window === "undefined" || !window.matchMedia) return false;
-  return window.matchMedia(HOVER_CAPABLE_QUERY).matches;
-}
-var lifecycle = null;
-function syncLifecycle() {
-  const wanted = hoverCapable();
-  if (wanted && !lifecycle) {
-    lifecycle = installHoverCardLifecycle();
-  } else if (!wanted && lifecycle) {
-    lifecycle.dispose();
-    lifecycle = null;
-  }
-}
-function start() {
-  pluginGlobal.__bbThreadHoverCards?.dispose();
-  const media = typeof window !== "undefined" && window.matchMedia ? window.matchMedia(HOVER_CAPABLE_QUERY) : null;
-  const onChange = () => syncLifecycle();
-  media?.addEventListener("change", onChange);
-  syncLifecycle();
-  pluginGlobal.__bbThreadHoverCards = {
-    dispose() {
-      media?.removeEventListener("change", onChange);
-      lifecycle?.dispose();
-      lifecycle = null;
+var app_default = definePluginApp((app) => {
+  app.contentScripts.register({
+    id: "thread-hover-cards",
+    mount({ signal }) {
+      if (signal.aborted) return;
+      const media = typeof window !== "undefined" && window.matchMedia ? window.matchMedia(HOVER_CAPABLE_QUERY) : null;
+      let lifecycle = null;
+      let disposed = false;
+      const syncLifecycle = () => {
+        if (disposed) return;
+        if (media?.matches && !lifecycle) {
+          lifecycle = installHoverCardLifecycle();
+        } else if (!media?.matches && lifecycle) {
+          lifecycle.dispose();
+          lifecycle = null;
+        }
+      };
+      const onChange = () => syncLifecycle();
+      const dispose = () => {
+        if (disposed) return;
+        disposed = true;
+        media?.removeEventListener("change", onChange);
+        lifecycle?.dispose();
+        lifecycle = null;
+      };
+      media?.addEventListener("change", onChange);
+      syncLifecycle();
+      signal.addEventListener("abort", dispose, { once: true });
+      return () => {
+        signal.removeEventListener("abort", dispose);
+        dispose();
+      };
     }
-  };
-}
-if (typeof document !== "undefined") {
-  if (document.readyState === "loading") {
-    const onReady = () => start();
-    document.addEventListener("DOMContentLoaded", onReady, { once: true });
-    pluginGlobal.__bbThreadHoverCards = {
-      dispose() {
-        document.removeEventListener("DOMContentLoaded", onReady);
-      }
-    };
-  } else {
-    start();
-  }
-}
-var app_default = definePluginApp(() => {
+  });
 });
 export {
   app_default as default,

@@ -14,30 +14,24 @@ thread’s actual stage.
   without starting another agent turn.
 - Starting work again restores the thread’s remembered stage.
 - A user move changes the remembered stage. `bb organizer phase <stage-key>`
-  moves it or refreshes substantially changed work that remains in that stage.
+  moves it explicitly.
 - Inbox keeps that system behavior even when its visible title or icon changes.
 - The icon picker maps each semantic icon choice to an emoji section prefix on
   the released plugin SDK.
-- Inbox starts expanded. Other configured sections start collapsed, while later
-  user expansion and collapse choices are respected.
+- Section expansion and collapse are owned by bb and the user; Thread Organizer
+  never changes them automatically.
 - Reordering a non-Inbox stage in the native sidebar saves the same workflow
   order used by plugin settings and future agent instructions.
 - Automation-origin root threads follow the same workflow as ordinary roots.
-- Stage changes and same-stage refreshes enter one bounded title queue.
-  Thread Organizer batches queued threads into one invisible worker, which
-  reassesses whether each title still describes the durable core job of the
-  whole thread. Generated renames are limited to five words. A concurrent
-  rename wins: the worker discards its older proposal without queuing a
-  replacement. The title remains eligible for a later reassessment when the
-  thread’s core job genuinely changes.
+- Thread Organizer never renames threads. Moving between workflow stages leaves
+  the user’s thread title unchanged.
 
 The plugin does not classify prompts to choose stages. Agents and users move
 threads from the rules saved in plugin settings. The bundled skill contains
 only the movement protocol and reads the current taxonomy from the dynamic
 settings block. Agents apply clear stage changes autonomously, but a rule that
 requires explicit user intent—such as the default Handoff rule—cannot be
-inferred. Same-stage refreshes are reserved for a genuine change to the
-thread’s durable core job.
+inferred.
 
 ## Use
 

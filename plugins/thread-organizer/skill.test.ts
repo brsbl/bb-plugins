@@ -48,15 +48,6 @@ describe("thread phase organizer guidance", () => {
     );
   });
 
-  it("reserves same-stage title refreshes for a changed core job", () => {
-    expect(skill).toContain(
-      "Re-run the already-remembered stage only when the durable core job of the entire thread changed enough that its current title is materially inaccurate.",
-    );
-    expect(skill).toContain(
-      "Do not refresh for the latest turn, a new subtask, a method or approach change, ordinary progress, implementation versus validation, or completion of one step.",
-    );
-  });
-
   it("distinguishes remembered storage and internal plans from semantic stage moves", () => {
     expect(skill).toContain("Thread Organizer does not classify prompts.");
     expect(skill).toContain(
