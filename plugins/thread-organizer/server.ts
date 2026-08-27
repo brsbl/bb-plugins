@@ -116,14 +116,12 @@ function sectionMatchesName(section: Section, name: string): boolean {
 export default async function plugin(bb: BbPluginApi): Promise<void> {
   let configSnapshot = cloneWorkflowConfig(DEFAULT_WORKFLOW_CONFIG);
   let disposed = false;
+  const reconciliationController = new AbortController();
   const queues = new Map<string, Promise<void>>();
   let configQueue: Promise<void> = Promise.resolve();
+  let startupReconciliation: Promise<void> = Promise.resolve();
 
-  function enqueue(
-    threadId: string,
-    work: () => Promise<void>,
-    propagate = false,
-  ): Promise<void> {
+  function enqueue(threadId: string, work: () => Promise<void>): Promise<void> {
     const previous = queues.get(threadId) ?? Promise.resolve();
     const operation = previous
       .catch(() => undefined)
@@ -141,7 +139,14 @@ export default async function plugin(bb: BbPluginApi): Promise<void> {
         if (queues.get(threadId) === tail) queues.delete(threadId);
       });
     queues.set(threadId, tail);
-    return propagate ? operation : tail;
+    return operation;
+  }
+
+  function schedule(
+    threadId: string,
+    work: () => Promise<void>,
+  ): Promise<void> {
+    return enqueue(threadId, work).catch(() => undefined);
   }
 
   async function ensureWorkflowSections(
@@ -245,9 +250,7 @@ export default async function plugin(bb: BbPluginApi): Promise<void> {
           stage.key === value.rememberedStageKey && stage.role === "stage",
       );
       if (
-        (value.version === 3 ||
-          value.version === 4 ||
-          value.version === 5) &&
+        (value.version === 3 || value.version === 4 || value.version === 5) &&
         remembered
       ) {
         return {
@@ -294,9 +297,8 @@ export default async function plugin(bb: BbPluginApi): Promise<void> {
   async function reconcileThread(
     threadId: string,
     explicitStageKey?: string,
-    threadSnapshot?: Thread,
   ): Promise<void> {
-    const thread = threadSnapshot ?? (await bb.sdk.threads.get({ threadId }));
+    const thread = await bb.sdk.threads.get({ threadId });
     if (!isManageableThread(thread)) return;
     const state = await readThreadState(thread);
     const currentStage = stageForSectionId(configSnapshot, thread.sectionId);
@@ -337,30 +339,32 @@ export default async function plugin(bb: BbPluginApi): Promise<void> {
     await saveThreadState(threadId, state);
   }
 
-  async function listManageableThreads(): Promise<Thread[]> {
-    const result: Thread[] = [];
+  async function listManageableThreadIds(
+    signal?: AbortSignal,
+  ): Promise<string[]> {
+    const result: string[] = [];
     let offset = 0;
-    while (true) {
+    while (!signal?.aborted) {
       const page = await bb.sdk.threads.list({
         archived: false,
         hasParent: false,
         limit: THREAD_LIST_PAGE_SIZE,
         offset,
+        ...(signal ? { signal } : {}),
       });
-      result.push(...page.filter(isManageableThread));
+      result.push(
+        ...page.filter(isManageableThread).map((thread) => thread.id),
+      );
       if (page.length < THREAD_LIST_PAGE_SIZE) break;
       offset += THREAD_LIST_PAGE_SIZE;
     }
     return result;
   }
 
-  async function reconcileExisting(propagate = false): Promise<void> {
-    for (const thread of await listManageableThreads()) {
-      await enqueue(
-        thread.id,
-        () => reconcileThread(thread.id, undefined, thread),
-        propagate,
-      );
+  async function reconcileExisting(signal?: AbortSignal): Promise<void> {
+    for (const threadId of await listManageableThreadIds(signal)) {
+      if (signal?.aborted) return;
+      await schedule(threadId, () => reconcileThread(threadId));
     }
   }
 
@@ -373,23 +377,19 @@ export default async function plugin(bb: BbPluginApi): Promise<void> {
       operation.removedStages.map((stage) => stage.key),
     );
 
-    for (const listedThread of await listManageableThreads()) {
-      await enqueue(
-        listedThread.id,
-        async () => {
-          const thread = await bb.sdk.threads.get({
-            threadId: listedThread.id,
-          });
-          if (!isManageableThread(thread)) return;
-          const state = await readThreadState(thread);
-          if (removedKeys.has(state.rememberedStageKey)) {
-            state.rememberedStageKey = firstWorkflowStage(configSnapshot).key;
-            await saveThreadState(thread.id, state);
-          }
-          await reconcileThread(thread.id, undefined, thread);
-        },
-        true,
-      );
+    for (const threadId of await listManageableThreadIds()) {
+      await enqueue(threadId, async () => {
+        const thread = await bb.sdk.threads.get({
+          threadId,
+        });
+        if (!isManageableThread(thread)) return;
+        const state = await readThreadState(thread);
+        if (removedKeys.has(state.rememberedStageKey)) {
+          state.rememberedStageKey = firstWorkflowStage(configSnapshot).key;
+          await saveThreadState(thread.id, state);
+        }
+        await reconcileThread(thread.id);
+      });
     }
 
     const existingSectionIds = new Set(
@@ -460,7 +460,6 @@ export default async function plugin(bb: BbPluginApi): Promise<void> {
 
   try {
     await loadConfig();
-    await reconcileExisting(true);
   } catch (error) {
     bb.log.error(`action=workflow-load-failed error=${describeError(error)}`);
     throw error;
@@ -517,11 +516,7 @@ export default async function plugin(bb: BbPluginApi): Promise<void> {
         return { exitCode: 2, stderr: "This thread cannot be organized.\n" };
       }
       try {
-        await enqueue(
-          thread.id,
-          () => reconcileThread(thread.id, stage.key),
-          true,
-        );
+        await enqueue(thread.id, () => reconcileThread(thread.id, stage.key));
       } catch (error) {
         return {
           exitCode: 1,
@@ -562,12 +557,12 @@ export default async function plugin(bb: BbPluginApi): Promise<void> {
     "thread.failed",
   ] as const) {
     bb.events.on(event, ({ thread }) =>
-      enqueue(thread.id, () => reconcileThread(thread.id, undefined, thread)),
+      schedule(thread.id, () => reconcileThread(thread.id)),
     );
   }
   for (const event of ["thread.archived", "thread.deleted"] as const) {
     bb.events.on(event, ({ thread }) =>
-      enqueue(thread.id, async () => {
+      schedule(thread.id, async () => {
         await bb.storage.kv.delete(threadStateKey(thread.id));
         await bb.storage.kv.delete(legacyThreadStateKey(thread.id));
       }),
@@ -578,29 +573,31 @@ export default async function plugin(bb: BbPluginApi): Promise<void> {
     event: "thread:changed",
     callback(event) {
       if (!event.id) return;
-      if (event.changes.includes("title-changed")) {
-        void enqueue(event.id, () => reconcileThread(event.id!));
-        return;
-      }
-      if (event.changes.includes("read-state-changed")) {
-        void enqueue(event.id, async () => {
-          const thread = await bb.sdk.threads.get({ threadId: event.id! });
-          if (isUnreadThread(thread)) {
-            await reconcileThread(event.id!, undefined, thread);
-          }
-        });
-      }
+      void schedule(event.id, () => reconcileThread(event.id!));
     },
   });
 
   bb.onDispose(async () => {
     disposed = true;
+    reconciliationController.abort();
     unsubscribe();
     await Promise.allSettled([
+      startupReconciliation,
       ...queues.values(),
       configQueue,
     ]);
   });
+
+  startupReconciliation = reconcileExisting(
+    reconciliationController.signal,
+  ).catch((error: unknown) => {
+    if (!reconciliationController.signal.aborted) {
+      bb.log.error(
+        `action=workflow-reconciliation-failed error=${describeError(error)}`,
+      );
+    }
+  });
+  await startupReconciliation;
 }
 
 export { editableWorkflowConfig, INBOX_RULE };

@@ -79,7 +79,11 @@ function createHarness(options: { legacyPlanning?: boolean } = {}) {
         },
       ]
     : [];
-  type TestThreadChange = "read-state-changed" | "title-changed";
+  type TestThreadChange =
+    | "archived-changed"
+    | "parent-changed"
+    | "read-state-changed"
+    | "title-changed";
   const changedCallbacks: Array<
     (threadId: string, changes: readonly TestThreadChange[]) => void
   > = [];
@@ -139,7 +143,9 @@ function createHarness(options: { legacyPlanning?: boolean } = {}) {
   const getThread = vi.fn(async ({ threadId }: { threadId: string }) =>
     getTestThread(threadId),
   );
-  const listThreads = vi.fn(async () => [...threads.values()]);
+  const listThreads = vi.fn(async (_input?: { signal?: AbortSignal }) => [
+    ...threads.values(),
+  ]);
   const listSections = vi.fn(async () =>
     sections.map((section) => ({ ...section })),
   );
@@ -270,6 +276,120 @@ describe("Thread Organizer server", () => {
     await organizer.harness.lifecycle.dispose();
   });
 
+  it("keeps the plugin registered when startup reconciliation fails", async () => {
+    const organizer = createHarness();
+    organizer.setThread({
+      status: "idle",
+      lastReadAt: 0,
+      latestAttentionAt: 20,
+    });
+    organizer.updateThread.mockRejectedValueOnce(new Error("update failed"));
+
+    await expect(plugin(organizer.bb)).resolves.toBeUndefined();
+
+    expect(organizer.harness.inspection.registrations.cli?.name).toBe(
+      "organizer",
+    );
+    expect(organizer.harness.inspection.registrations.rpcMethods).toEqual([
+      "getConfig",
+      "saveConfig",
+    ]);
+    expect(
+      organizer.harness.inspection.registrations.agentConfigurationProvider,
+    ).not.toBeNull();
+    await organizer.harness.lifecycle.dispose();
+  });
+
+  it("handles lifecycle events while startup reconciliation is listing threads", async () => {
+    const organizer = createHarness();
+    let releaseList!: () => void;
+    let markListStarted!: () => void;
+    const listBlocked = new Promise<void>((resolve) => {
+      releaseList = resolve;
+    });
+    const listStarted = new Promise<void>((resolve) => {
+      markListStarted = resolve;
+    });
+    organizer.listThreads.mockImplementationOnce(async () => {
+      markListStarted();
+      await listBlocked;
+      return [organizer.current()];
+    });
+
+    const activation = plugin(organizer.bb);
+    await listStarted;
+    organizer.setThread({
+      status: "idle",
+      lastReadAt: 0,
+      latestAttentionAt: 20,
+    });
+    await organizer.harness.behavior.emitThreadEvent("thread.idle", {
+      thread: organizer.current(),
+      lastAssistantText: null,
+    });
+
+    expect(organizer.current().sectionId).toBe("sec_1");
+    releaseList();
+    await activation;
+    await organizer.harness.lifecycle.dispose();
+  });
+
+  it("re-fetches current thread state after startup listing", async () => {
+    const organizer = createHarness();
+    organizer.setThread({
+      status: "idle",
+      lastReadAt: 0,
+      latestAttentionAt: 20,
+      sectionId: "sec_2",
+    });
+    organizer.listThreads.mockImplementationOnce(async () => {
+      const stale = organizer.current();
+      organizer.setThread({
+        status: "active",
+        lastReadAt: 20,
+        latestAttentionAt: 20,
+        sectionId: "sec_4",
+      });
+      return [stale];
+    });
+
+    await plugin(organizer.bb);
+
+    expect(organizer.current().sectionId).toBe("sec_4");
+    await expect(
+      organizer.bb.storage.kv.get("thread:v3:thr_test"),
+    ).resolves.toEqual({ version: 5, rememberedStageKey: "building" });
+    await organizer.harness.lifecycle.dispose();
+  });
+
+  it("aborts startup listing when the plugin is disposed", async () => {
+    const organizer = createHarness();
+    let releaseList!: () => void;
+    let markListStarted!: () => void;
+    let listSignal: AbortSignal | undefined;
+    const listBlocked = new Promise<void>((resolve) => {
+      releaseList = resolve;
+    });
+    const listStarted = new Promise<void>((resolve) => {
+      markListStarted = resolve;
+    });
+    organizer.listThreads.mockImplementationOnce(async (input) => {
+      listSignal = input?.signal;
+      markListStarted();
+      await listBlocked;
+      return [organizer.current()];
+    });
+
+    const activation = plugin(organizer.bb);
+    await listStarted;
+    const disposal = organizer.harness.lifecycle.dispose();
+
+    expect(listSignal?.aborted).toBe(true);
+    releaseList();
+    await Promise.all([activation, disposal]);
+    expect(organizer.listThreads).toHaveBeenCalledTimes(1);
+  });
+
   it("migrates an emoji-prefixed default in place and preserves its id", async () => {
     const organizer = createHarness({ legacyPlanning: true });
     await plugin(organizer.bb);
@@ -338,7 +458,7 @@ describe("Thread Organizer server", () => {
     await organizer.harness.lifecycle.dispose();
   });
 
-  it("routes an idle event from its snapshot without a second thread fetch", async () => {
+  it("routes lifecycle events from current state instead of event snapshots", async () => {
     const organizer = createHarness();
     await plugin(organizer.bb);
     expect(organizer.harness.inspection.registrations.services).toEqual([]);
@@ -346,18 +466,50 @@ describe("Thread Organizer server", () => {
     const sectionId = (key: string) =>
       config.stages.find((stage) => stage.key === key)!.sectionId;
 
-    organizer.setThread({
+    const stale = makeThreadResponse({
+      ...organizer.current(),
       status: "idle",
       lastReadAt: 0,
       latestAttentionAt: 20,
+      sectionId: sectionId("planning"),
     });
-    organizer.getThread.mockRejectedValueOnce(new Error("fetch failed"));
+    organizer.setThread({
+      status: "active",
+      lastReadAt: 20,
+      latestAttentionAt: 20,
+      sectionId: sectionId("building"),
+    });
     await organizer.harness.behavior.emitThreadEvent("thread.idle", {
-      thread: organizer.current(),
+      thread: stale,
       lastAssistantText: null,
     });
 
-    expect(organizer.current().sectionId).toBe(sectionId("inbox"));
+    expect(organizer.current().sectionId).toBe(sectionId("building"));
+    expect(organizer.getThread).toHaveBeenCalledWith({ threadId: "thr_test" });
+    await organizer.harness.lifecycle.dispose();
+  });
+
+  it("reconciles every thread change as a current-state invalidation", async () => {
+    const organizer = createHarness();
+    await plugin(organizer.bb);
+    const config = await configFor(organizer);
+    const onHoldId = config.stages.find(
+      (stage) => stage.key === "on-hold",
+    )!.sectionId;
+    organizer.setThread({
+      status: "active",
+      lastReadAt: 20,
+      latestAttentionAt: 20,
+      sectionId: onHoldId,
+    });
+
+    organizer.emitChanged("parent-changed");
+
+    await vi.waitFor(async () => {
+      await expect(
+        organizer.bb.storage.kv.get("thread:v3:thr_test"),
+      ).resolves.toEqual({ version: 5, rememberedStageKey: "on-hold" });
+    });
     await organizer.harness.lifecycle.dispose();
   });
 
