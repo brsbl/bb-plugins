@@ -18,8 +18,8 @@ thread’s actual stage.
 - Inbox keeps that system behavior even when its visible title or icon changes.
 - The icon picker maps each semantic icon choice to an emoji section prefix on
   the released plugin SDK.
-- Inbox starts expanded. Other configured sections start collapsed, while later
-  user expansion and collapse choices are respected.
+- Section expansion and collapse are owned by bb and the user; Thread Organizer
+  never changes them automatically.
 - Reordering a non-Inbox stage in the native sidebar saves the same workflow
   order used by plugin settings and future agent instructions.
 - Automation-origin root threads follow the same workflow as ordinary roots.
