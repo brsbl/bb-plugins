@@ -1,0 +1,58 @@
+{
+  "status": "pass",
+  "scope": "Thread hover card lifecycle and branch-to-hostname metadata replacement",
+  "application": {
+    "repository": "get-bb/bb",
+    "commit": "b629714e31487bde8af5574639422a9b5c97cbb5",
+    "url": "http://localhost:11661/"
+  },
+  "plugin": {
+    "repository": "brsbl/bb-plugins",
+    "beforeCommit": "93f6b2f0353e7a2358cac809507216b0ca3849ea",
+    "afterCommit": "d8732308d84ce7bf259a6315f121e82ffcee486b"
+  },
+  "browser": "Chrome for Testing 152.0.7977.64",
+  "viewport": {
+    "width": 1440,
+    "height": 900,
+    "deviceScaleFactor": 1
+  },
+  "fixture": {
+    "seed": 7,
+    "projectId": "proj_23zqieg9jr",
+    "projectName": "orbital",
+    "threadId": "thr_x5inwyumyy",
+    "threadTitle": "Harden input validation on the upload route 66",
+    "hostName": "bb-worker-1"
+  },
+  "before": {
+    "result": "The merge-base content script did not mount, so hovering produced no card.",
+    "screenshot": "before.png",
+    "consoleErrors": []
+  },
+  "after": {
+    "result": "After same-tab hard navigation, the content script remounted and the settled card showed bb-worker-1 with LaptopIcon and no branch field.",
+    "screenshot": "after.png",
+    "hostName": "bb-worker-1",
+    "branchField": null,
+    "icons": [
+      "OpenAiIcon",
+      "SquareUnlock02Icon",
+      "CheckmarkCircle02Icon",
+      "Folder01Icon",
+      "LaptopIcon"
+    ],
+    "cardRect": {
+      "left": 319,
+      "top": 186,
+      "right": 639,
+      "bottom": 250.171875
+    },
+    "consoleErrors": []
+  },
+  "excluded": {
+    "mobile": "Hover cards are a desktop pointer/focus affordance and this change does not alter responsive layout.",
+    "additionalBrowsers": "bb web UI completion requires Chrome for Testing; the change is not browser-specific."
+  },
+  "toolingNote": "The required visual-qa-loop skill was unavailable, so this used the bounded QA workflow as the evidence-preserving fallback."
+}
