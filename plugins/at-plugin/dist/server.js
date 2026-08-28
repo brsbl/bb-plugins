@@ -210,7 +210,6 @@ function searchCommunityPlugins(entries, query) {
         entryId: candidate.entryId
       }),
       title: boundUntrustedText(candidate.displayName, MAX_ITEM_TITLE_BYTES),
-      experimental_searchAliases: candidate.pluginId === candidate.entryId ? [candidate.pluginId] : [candidate.pluginId, candidate.entryId],
       subtitle: boundUntrustedText(subtitleParts.join(" \xB7 "), MAX_ITEM_SUBTITLE_BYTES)
     };
   });
@@ -226,14 +225,13 @@ function compareText(left, right) {
 }
 function matchTier(query, displayName, pluginId, description) {
   const foldedQuery = folded2(normalizeUntrustedText(query));
-  if (foldedQuery.length === 0) return 3;
+  if (foldedQuery.length === 0) return 2;
   const name = folded2(displayName);
   const id = folded2(pluginId);
   const detail = folded2(description);
   if (name === foldedQuery || id === foldedQuery) return 0;
-  if ([name, id].some((field) => field.startsWith(foldedQuery))) return 1;
-  if ([name, id].some((field) => field.includes(foldedQuery))) return 2;
-  if (detail.includes(foldedQuery)) return 3;
+  if ([name, id, detail].some((field) => field.startsWith(foldedQuery))) return 1;
+  if ([name, id, detail].some((field) => field.includes(foldedQuery))) return 2;
   return null;
 }
 function hasAgentFacingInterface(plugin2) {
@@ -285,7 +283,6 @@ function searchInstalledPlugins(plugins, query, ownerPluginId) {
     return {
       id: encodeInstalledItemId(candidate.pluginId),
       title: boundUntrustedText(candidate.displayName, MAX_ITEM_TITLE_BYTES),
-      experimental_searchAliases: [candidate.pluginId],
       ...subtitle.length > 0 ? { subtitle } : {}
     };
   });

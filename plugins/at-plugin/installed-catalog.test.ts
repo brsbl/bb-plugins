@@ -129,28 +129,6 @@ describe("Installed discovery", () => {
     ]);
   });
 
-  it("ranks every identity match ahead of description-only matches", () => {
-    const plugins = [
-      installed({
-        id: "description-only",
-        name: "Alpha",
-        description: "Git integrations",
-        capabilities: [capability("skill")],
-      }),
-      installed({
-        id: "identity-substring",
-        name: "The Git Helper",
-        description: "Developer utility",
-        capabilities: [capability("skill")],
-      }),
-    ];
-
-    expect(searchInstalledPlugins(plugins, "git", "at-plugin").map((item) => item.title)).toEqual([
-      "The Git Helper",
-      "Alpha",
-    ]);
-  });
-
   it("disambiguates duplicate normalized names with stable ids", () => {
     const plugins = [
       installed({
@@ -187,7 +165,6 @@ describe("Installed discovery", () => {
     expect(utf8ByteLength(item?.title ?? "")).toBeLessThanOrEqual(120);
     expect(utf8ByteLength(item?.subtitle ?? "")).toBeLessThanOrEqual(240);
     expect(decodeInstalledItemId(item?.id ?? "")).toEqual({ pluginId: "safe:id%一" });
-    expect(item?.experimental_searchAliases).toEqual(["safe:id%一"]);
   });
 
   it("returns at most six rows", () => {

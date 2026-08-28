@@ -1,5 +1,3 @@
-import type { PluginMentionItem } from "@get-bb/plugin-sdk";
-
 const CONTROL_CHARACTERS = /[\u0000-\u001f\u007f-\u009f]/gu;
 const WHITESPACE = /\s+/gu;
 
@@ -7,15 +5,6 @@ export const MAX_CONTEXT_BYTES = 1_024;
 export const MAX_IDENTITY_BYTES = 256;
 export const MAX_ITEM_TITLE_BYTES = 120;
 export const MAX_ITEM_SUBTITLE_BYTES = 240;
-
-/**
- * bb Plugin SDK 0.4.25+ uses these aliases for host-owned cross-source
- * relevance. Older compatible hosts safely ignore the additional field, so
- * the plugin can preserve its existing 0.4.8 engine floor.
- */
-export type RelevanceAwarePluginMentionItem = PluginMentionItem & {
-  experimental_searchAliases: readonly string[];
-};
 
 const MAX_CONTEXT_FIELD_BYTES = 512;
 

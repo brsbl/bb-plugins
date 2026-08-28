@@ -86,28 +86,6 @@ describe("Community discovery", () => {
     ]);
   });
 
-  it("ranks every identity match ahead of description-only catalog results", () => {
-    const entries = [
-      community({
-        pluginId: "description-only",
-        entryId: "description-only",
-        displayName: "Alpha",
-        description: "Git integrations",
-      }),
-      community({
-        pluginId: "identity-substring",
-        entryId: "identity-substring",
-        displayName: "The Git Helper",
-        description: "Developer utility",
-      }),
-    ];
-
-    expect(searchCommunityPlugins(entries, "git").map((item) => item.title)).toEqual([
-      "The Git Helper",
-      "Alpha",
-    ]);
-  });
-
   it("deduplicates stable plugin ids after ranking, keeping the better result", () => {
     const entries = [
       community({
@@ -182,10 +160,6 @@ describe("Community discovery", () => {
       marketplace: "bb-community",
       entryId: "entry:50%二",
     });
-    expect(item?.experimental_searchAliases).toEqual([
-      "plug:in%一",
-      "entry:50%二",
-    ]);
   });
 
   it("returns at most six rows", () => {
