@@ -2984,14 +2984,13 @@ var app_default = definePluginApp((app) => {
     mount({ signal }) {
       if (signal.aborted) return;
       const media = typeof window !== "undefined" && window.matchMedia ? window.matchMedia(HOVER_CAPABLE_QUERY) : null;
-      let disposed = false;
       let lifecycle = null;
+      let disposed = false;
       const syncLifecycle = () => {
         if (disposed) return;
-        const wanted = media?.matches ?? false;
-        if (wanted && !lifecycle) {
+        if (media?.matches && !lifecycle) {
           lifecycle = installHoverCardLifecycle();
-        } else if (!wanted && lifecycle) {
+        } else if (!media?.matches && lifecycle) {
           lifecycle.dispose();
           lifecycle = null;
         }
@@ -3000,15 +2999,17 @@ var app_default = definePluginApp((app) => {
       const dispose = () => {
         if (disposed) return;
         disposed = true;
-        signal.removeEventListener("abort", dispose);
         media?.removeEventListener("change", onChange);
         lifecycle?.dispose();
         lifecycle = null;
       };
       media?.addEventListener("change", onChange);
-      signal.addEventListener("abort", dispose, { once: true });
       syncLifecycle();
-      return dispose;
+      signal.addEventListener("abort", dispose, { once: true });
+      return () => {
+        signal.removeEventListener("abort", dispose);
+        dispose();
+      };
     }
   });
 });

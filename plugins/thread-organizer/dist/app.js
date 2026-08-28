@@ -1628,23 +1628,9 @@ function SectionIcon({
 
 // sidebar-controller.ts
 var SIDEBAR_SELECTOR = '[data-sidebar="sidebar"]';
-var STICKY_GROUP_SELECTOR = "[data-sidebar-sticky-group]";
-var SECTION_TOGGLE_SELECTOR = 'button[aria-expanded][aria-label$=" section"]';
-var SECTION_ROW_TOGGLE_SELECTOR = 'button[aria-hidden="true"][tabindex="-1"]';
 var MANUAL_SECTION_ORDER_STORAGE_KEY = "bb.sidebar.manualSectionOrder";
 var WORKFLOW_CACHE_STORAGE_KEY = "bb.thread-organizer.workflow-config";
 var WORKFLOW_CONFIG_EVENT = "bb-thread-organizer-workflow-config";
-function groupToggle(group) {
-  for (const button of group.querySelectorAll(
-    SECTION_TOGGLE_SELECTOR
-  )) {
-    if (button.closest(STICKY_GROUP_SELECTOR) === group) return button;
-  }
-  return null;
-}
-function groupSectionId(group) {
-  return group.getAttribute("data-sidebar-section-id");
-}
 function parsedCachedConfig(view) {
   try {
     const raw = view.localStorage.getItem(WORKFLOW_CACHE_STORAGE_KEY);
@@ -1800,8 +1786,6 @@ function reorderWorkflowSections(sidebar, config) {
   );
 }
 function mountSidebarController(sidebar, signal, getConfig, onStageOrderChange) {
-  const userExpansionBySectionId = /* @__PURE__ */ new Map();
-  const pluginControls = /* @__PURE__ */ new WeakSet();
   let applyConfiguredOrder = true;
   let scheduled = false;
   const reconcile = () => {
@@ -1823,25 +1807,6 @@ function mountSidebarController(sidebar, signal, getConfig, onStageOrderChange) 
         reorderWorkflowSections(sidebar, config);
       }
     }
-    const inbox = config.stages.find((stage) => stage.role === "inbox");
-    const configuredIds = new Set(
-      config.stages.flatMap(
-        (stage) => stage.sectionId === null ? [] : [stage.sectionId]
-      )
-    );
-    for (const group of sidebar.querySelectorAll(STICKY_GROUP_SELECTOR)) {
-      const sectionId = groupSectionId(group);
-      if (sectionId === null || !configuredIds.has(sectionId)) continue;
-      const toggle = groupToggle(group);
-      if (toggle === null) continue;
-      const expanded = toggle.getAttribute("aria-expanded") === "true";
-      const userPreference = userExpansionBySectionId.get(sectionId);
-      const desired = userPreference ?? sectionId === inbox?.sectionId;
-      if (expanded === desired) continue;
-      pluginControls.add(toggle);
-      toggle.click();
-      queueMicrotask(() => pluginControls.delete(toggle));
-    }
   };
   const schedule = () => {
     if (scheduled || signal.aborted) return;
@@ -1852,31 +1817,9 @@ function mountSidebarController(sidebar, signal, getConfig, onStageOrderChange) 
     applyConfiguredOrder = true;
     schedule();
   };
-  const recordUserToggle = (event) => {
-    const target = event.target;
-    if (!(target instanceof Element)) return;
-    const control = target.closest(
-      `${SECTION_TOGGLE_SELECTOR}, ${SECTION_ROW_TOGGLE_SELECTOR}`
-    );
-    if (control === null || pluginControls.has(control)) return;
-    const group = control.closest(STICKY_GROUP_SELECTOR);
-    const sectionId = group === null ? null : groupSectionId(group);
-    if (group === null || sectionId === null) return;
-    const config = getConfig();
-    if (!config?.stages.some((stage) => stage.sectionId === sectionId)) return;
-    const toggle = groupToggle(group);
-    if (toggle === null) return;
-    userExpansionBySectionId.set(
-      sectionId,
-      toggle.getAttribute("aria-expanded") !== "true"
-    );
-  };
-  sidebar.addEventListener("click", recordUserToggle, true);
   const Observer = sidebar.ownerDocument.defaultView?.MutationObserver ?? MutationObserver;
   const observer = new Observer(schedule);
   observer.observe(sidebar, {
-    attributeFilter: ["aria-expanded", "aria-label"],
-    attributes: true,
     childList: true,
     subtree: true
   });
@@ -1889,7 +1832,6 @@ function mountSidebarController(sidebar, signal, getConfig, onStageOrderChange) 
     applyConfiguredOrder: requestConfiguredOrder,
     dispose: () => {
       observer.disconnect();
-      sidebar.removeEventListener("click", recordUserToggle, true);
       sidebar.removeEventListener(
         "thread-organizer-config-changed",
         requestConfiguredOrder

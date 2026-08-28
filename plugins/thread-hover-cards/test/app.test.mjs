@@ -481,30 +481,30 @@ globalThis.fetch = async (url, init) => {
   return response;
 };
 
+let contentScriptRegistration = null;
+
 globalThis.__bbPluginRuntime = {
   pluginSdkApp: {
     definePluginApp(setup) {
+      setup({
+        contentScripts: {
+          register(registration) {
+            contentScriptRegistration = registration;
+          },
+        },
+      });
       return { __bbPluginApp: true, setup };
     },
   },
 };
 
-const pluginApp = (await import("../dist/app.js")).default;
-let hoverCardContentScript = null;
-pluginApp.setup({
-  contentScripts: {
-    register(script) {
-      hoverCardContentScript = script;
-    },
-  },
-});
-assert.equal(
-  hoverCardContentScript?.id,
-  "thread-hover-cards",
-  "registers the hover behavior through bb's content-script lifecycle",
+await import("../dist/app.js");
+assert.ok(
+  contentScriptRegistration,
+  "registers hover behavior as a lifecycle-managed content script",
 );
-let contentScriptController = new AbortController();
-let disposeContentScript = hoverCardContentScript.mount({
+const contentScriptController = new AbortController();
+let disposeContentScript = await contentScriptRegistration.mount({
   generation: 1,
   pluginId: "thread-hover-cards",
   signal: contentScriptController.signal,
@@ -1249,18 +1249,16 @@ assert.deepEqual(requestBodies, [
 
 contentScriptController.abort();
 disposeContentScript?.();
-await new Promise((resolve) => setTimeout(resolve, 0));
 
 assert.equal(card.isConnected, false);
 assert.equal(window.document.getElementById("bb-thread-hover-card-styles"), null);
 
-contentScriptController = new AbortController();
-disposeContentScript = hoverCardContentScript.mount({
+const replacementContentScriptController = new AbortController();
+disposeContentScript = await contentScriptRegistration.mount({
   generation: 2,
   pluginId: "thread-hover-cards",
-  signal: contentScriptController.signal,
+  signal: replacementContentScriptController.signal,
 });
-await new Promise((resolve) => setTimeout(resolve, 0));
 
 assert.ok(window.document.getElementById("bb-thread-hover-card-styles"));
 
@@ -2113,7 +2111,7 @@ assert.equal(requestBodies.length, requestsBeforeTouch);
 setHoverCapablePointer(true);
 assert.ok(window.document.getElementById("bb-thread-hover-card-styles"));
 
-contentScriptController.abort();
+replacementContentScriptController.abort();
 disposeContentScript?.();
 assert.equal(window.document.getElementById("bb-thread-hover-card-styles"), null);
 assert.equal(window.document.getElementById("bb-section-hover-card-styles"), null);

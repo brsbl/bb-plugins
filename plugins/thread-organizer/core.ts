@@ -179,6 +179,7 @@ export interface OrganizableThread {
   originKind: "fork" | "side-chat" | null;
   originPluginId: string | null;
   parentThreadId: string | null;
+  sectionId: string | null;
   sourceThreadId: string | null;
   status: "active" | "error" | "idle" | "starting" | "stopping";
   visibility: "hidden" | "visible";
@@ -565,27 +566,22 @@ export function isUnreadThread(thread: OrganizableThread): boolean {
   return (thread.lastReadAt ?? 0) < thread.latestAttentionAt;
 }
 
-export interface ThreadPlacement {
-  inboxLatched: boolean;
-  stage: WorkflowStage;
-}
-
 export function placementForThread(
   config: WorkflowConfig,
   thread: OrganizableThread,
   rememberedStageKey: string,
-  inboxLatched: boolean,
-): ThreadPlacement {
+  leaveInbox = false,
+): WorkflowStage {
   const remembered =
     config.stages.find(
       (stage) => stage.key === rememberedStageKey && stage.role === "stage",
     ) ?? firstWorkflowStage(config);
-  const nextInboxLatched =
-    !isRunningThread(thread) && (inboxLatched || isUnreadThread(thread));
-  return {
-    inboxLatched: nextInboxLatched,
-    stage: nextInboxLatched ? inboxStage(config) : remembered,
-  };
+  const currentStage = stageForSectionId(config, thread.sectionId);
+  const belongsInInbox =
+    !isRunningThread(thread) &&
+    (isUnreadThread(thread) ||
+      (!leaveInbox && currentStage?.role === "inbox"));
+  return belongsInInbox ? inboxStage(config) : remembered;
 }
 
 function escapeTableCell(value: string): string {
