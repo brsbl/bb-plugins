@@ -1,4 +1,4 @@
-import type { BbPluginApi, PluginMentionItem } from "@get-bb/plugin-sdk";
+import type { BbPluginApi } from "@get-bb/plugin-sdk";
 
 import {
   MAX_ITEM_SUBTITLE_BYTES,
@@ -7,6 +7,7 @@ import {
   encodeCommunityItemId,
   normalizeStableIdentity,
   normalizeUntrustedText,
+  type RelevanceAwarePluginMentionItem,
 } from "./mention-context";
 
 export type CommunityCatalogRecord = Awaited<
@@ -86,7 +87,7 @@ function toCandidate(
 export function searchCommunityPlugins(
   entries: readonly CommunityCatalogRecord[],
   query: string,
-): PluginMentionItem[] {
+): RelevanceAwarePluginMentionItem[] {
   const ranked = entries
     .map((entry, hostRank) => toCandidate(entry, query, hostRank))
     .filter((candidate): candidate is CommunityCandidate => candidate !== null)
@@ -125,6 +126,10 @@ export function searchCommunityPlugins(
         entryId: candidate.entryId,
       }),
       title: boundUntrustedText(candidate.displayName, MAX_ITEM_TITLE_BYTES),
+      experimental_searchAliases:
+        candidate.pluginId === candidate.entryId
+          ? [candidate.pluginId]
+          : [candidate.pluginId, candidate.entryId],
       subtitle: boundUntrustedText(subtitleParts.join(" · "), MAX_ITEM_SUBTITLE_BYTES),
     };
   });

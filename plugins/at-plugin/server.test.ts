@@ -189,7 +189,12 @@ describe("provider searches", () => {
 
     const installedRows = await mentionProvider(harness, "installed").search(MENTION_CONTEXT);
     expect(installedRows).toEqual([
-      { id: encodeInstalledItemId("github"), title: "GitHub", subtitle: "Plugin description" },
+      {
+        id: encodeInstalledItemId("github"),
+        title: "GitHub",
+        experimental_searchAliases: ["github"],
+        subtitle: "Plugin description",
+      },
     ]);
     expect(harness.inspection.sdk.calls.map((call) => call.path)).toEqual(["plugins.list"]);
     expect(sdkSignal(harness.inspection.sdk.calls[0]!.args).aborted).toBe(false);
@@ -203,6 +208,7 @@ describe("provider searches", () => {
           entryId: "noema-entry",
         }),
         title: "Git Memory",
+        experimental_searchAliases: ["git-memory", "noema-entry"],
         subtitle: "Not installed · Catalog description",
       },
     ]);
