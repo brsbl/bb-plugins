@@ -1,0 +1,39 @@
+{
+  "name": "bb-plugin-at-plugin",
+  "version": "0.1.0",
+  "description": "Mention installed and Community plugins from bb's existing @ menu.",
+  "type": "module",
+  "private": true,
+  "license": "UNLICENSED",
+  "files": ["assets", "dist", "docs", "README.md"],
+  "engines": {
+    "bb": ">=0.0.34",
+    "bbPluginSdk": ">=0.4.8"
+  },
+  "bb": {
+    "name": "@Plugin",
+    "description": "Mention installed and Community plugins in bb conversations.",
+    "branding": {
+      "icon": "./assets/at.svg"
+    },
+    "server": "./server.ts",
+    "skills": []
+  },
+  "scripts": {
+    "build": "node ../../tooling/build-plugin.mjs",
+    "check": "npm run typecheck && npm run build && npm test",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@get-bb/plugin-sdk": "file:../../tooling/vendor/get-bb-plugin-sdk-0.4.8.tgz",
+    "@types/better-sqlite3": "^7.6.12",
+    "@types/node": "^22.0.0",
+    "@types/react": "^19.0.0",
+    "better-sqlite3": "^12.10.0",
+    "cron-parser": "^5.5.0",
+    "hono": "^4.11.9",
+    "typescript": "^5.7.0",
+    "vitest": "^4.1.8"
+  }
+}

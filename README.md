@@ -112,6 +112,16 @@ Makes local Markdown links in bb open directly in Moss, with bb's viewer kept as
 
 Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/open-in-moss --yes`
 
+### @Plugin
+
+Adds installed and Community plugins to bb's existing `@` menu without installing or invoking them.
+
+![Plugin mentions in bb](plugins/at-plugin/docs/screenshot.png)
+
+[Source](plugins/at-plugin) · [README](plugins/at-plugin/README.md)
+
+Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/at-plugin --yes`
+
 ### Timeline Comments
 
 Attaches durable discussion threads to selected timeline text. Users and agents can reply, edit, resolve or reopen comments, review them together, and add open feedback to the composer for follow-up.
