@@ -1,0 +1,27 @@
+{
+  "name": "bb-plugin-at-plugin",
+  "version": "0.1.0",
+  "description": "Mention installed and Community plugins from bb's existing @ menu.",
+  "type": "module",
+  "private": true,
+  "license": "UNLICENSED",
+  "files": [
+    "assets",
+    "dist",
+    "docs",
+    "README.md"
+  ],
+  "engines": {
+    "bb": ">=0.0.34",
+    "bbPluginSdk": ">=0.4.8"
+  },
+  "bb": {
+    "name": "@Plugin",
+    "description": "Mention installed and Community plugins in bb conversations.",
+    "branding": {
+      "icon": "./assets/at.svg"
+    },
+    "server": "./dist/install-server.mjs",
+    "skills": []
+  }
+}
