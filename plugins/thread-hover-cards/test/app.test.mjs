@@ -415,6 +415,7 @@ globalThis.fetch = async (url, init) => {
           : hasNoPullRequest
             ? null
             : "**Agent update**—implementing concise hover cards for foo_bar_baz and \\_literal\\_",
+        hostName: "Brsbl Mac",
         permissionMode: isLocal || isClaude || isClaudeVersion
           ? "auto"
           : isDraftPullRequest
@@ -582,15 +583,15 @@ assert.match(
 );
 assert.match(
   style.textContent,
-  /\.bb-thread-hover-card__branch \{[\s\S]*?flex: 1 1 4rem;/,
+  /\.bb-thread-hover-card__host \{[\s\S]*?flex: 1 1 4rem;/,
 );
 assert.match(
   style.textContent,
-  /\.bb-thread-hover-card__branch \{[\s\S]*?min-width: 0;/,
+  /\.bb-thread-hover-card__host \{[\s\S]*?min-width: 0;/,
 );
 assert.match(
   style.textContent,
-  /\.bb-thread-hover-card__branch-name,[\s\S]*?text-overflow: ellipsis/,
+  /\.bb-thread-hover-card__host-name,[\s\S]*?text-overflow: ellipsis/,
 );
 assert.match(style.textContent, /\.bb-thread-hover-card__pr-status/);
 assert.match(
@@ -718,7 +719,8 @@ assert.ok(
     ?.querySelector('[data-icon="OpenAiIcon"]'),
 );
 assert.ok(card.querySelector('[data-icon="Folder01Icon"]'));
-assert.ok(card.querySelector('[data-icon="GitBranchIcon"]'));
+assert.ok(card.querySelector('[data-icon="LaptopIcon"]'));
+assert.doesNotMatch(card.textContent, /feature\/hover-cards/);
 assert.ok(card.querySelector('[data-icon="LinkSquare01Icon"]'));
 assert.equal(
   card.querySelector(".bb-thread-hover-card__provider")?.parentElement,
@@ -772,7 +774,7 @@ assert.equal(
   card.querySelector(".bb-thread-hover-card__context"),
 );
 assert.equal(
-  card.querySelector(".bb-thread-hover-card__branch")?.parentElement,
+  card.querySelector(".bb-thread-hover-card__host")?.parentElement,
   card.querySelector(".bb-thread-hover-card__context"),
 );
 assert.deepEqual(
@@ -781,7 +783,7 @@ assert.deepEqual(
   ).map((child) => child.className),
   [
     "bb-thread-hover-card__project",
-    "bb-thread-hover-card__branch",
+    "bb-thread-hover-card__host",
     "bb-thread-hover-card__pr",
   ],
 );
@@ -812,17 +814,17 @@ assert.equal(
 );
 assert.equal(
   card
-    .querySelector(".bb-thread-hover-card__branch")
+    .querySelector(".bb-thread-hover-card__host")
     ?.firstElementChild?.getAttribute("data-icon"),
-  "GitBranchIcon",
+  "LaptopIcon",
 );
 assert.equal(
   card.querySelector(".bb-thread-hover-card__project-name")?.title,
   "acme/bb",
 );
 assert.equal(
-  card.querySelector(".bb-thread-hover-card__branch-name")?.title,
-  "feature/hover-cards",
+  card.querySelector(".bb-thread-hover-card__host-name")?.title,
+  "Brsbl Mac",
 );
 assert.equal(
   card.querySelector(".bb-thread-hover-card__pr .bb-thread-hover-card__meta-label"),
@@ -1553,17 +1555,20 @@ assert.equal(
 branchTestBranch = "branch-a";
 delayNextPullRequestFor.add("thr_branch_identity");
 await closeAndOpenThread("thr_branch_identity", 20);
-assert.match(reloadedCard.textContent, /branch-a/);
+assert.match(reloadedCard.textContent, /Brsbl Mac/);
+assert.doesNotMatch(reloadedCard.textContent, /branch-a/);
 assert.ok(delayedPullRequestResponses.has("thr_branch_identity"));
 branchTestBranch = "branch-b";
 testNow += 2_100;
 await closeAndOpenThread("thr_branch_identity", 20);
-assert.match(reloadedCard.textContent, /branch-b/);
+assert.match(reloadedCard.textContent, /Brsbl Mac/);
+assert.doesNotMatch(reloadedCard.textContent, /branch-b/);
 assert.match(reloadedCard.textContent, /#42/);
 assert.doesNotMatch(reloadedCard.textContent, /#41/);
 delayedPullRequestResponses.get("thr_branch_identity")?.();
 await new Promise((resolve) => setTimeout(resolve, 20));
-assert.match(reloadedCard.textContent, /branch-b/);
+assert.match(reloadedCard.textContent, /Brsbl Mac/);
+assert.doesNotMatch(reloadedCard.textContent, /branch-b/);
 assert.match(reloadedCard.textContent, /#42/);
 assert.doesNotMatch(
   reloadedCard.textContent,

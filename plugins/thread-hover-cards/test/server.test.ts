@@ -65,6 +65,7 @@ let environmentBranchName = "feature/hover-cards";
 let turnStartedAt: number | null = 100;
 let turnCompletedAt: number | null = null;
 let environmentGetCalls = 0;
+let hostCalls = 0;
 let outputCalls = 0;
 let summaryTimelineCalls = 0;
 let projectCalls = 0;
@@ -119,6 +120,12 @@ const fakeBb = {
     },
   },
   sdk: {
+    hosts: {
+      async get() {
+        hostCalls += 1;
+        return { name: "Brsbl Mac" };
+      },
+    },
     environments: {
       async get() {
         environmentGetCalls += 1;
@@ -290,6 +297,7 @@ const fakeBb = {
             ? {
                 environment: {
                   branchName: environmentBranchName,
+                  hostId: "host_1",
                   isGitRepo: environmentIsGitRepository,
                   path: "/workspace/thread-hover-cards",
                   workspaceProvisionType:
@@ -422,6 +430,7 @@ const summary = await summaryHandler({ threadId: "thr_1" });
 assert.deepEqual(withoutDiagnostics(summary), {
   currentTurnCompletedAt: null,
   currentTurnStartedAt: null,
+  hostName: "Brsbl Mac",
   latestAssistantMessage: "**Finished** the hover card\n- polish.",
   permissionMode: "full",
   pullRequest: { kind: "pending" },
@@ -452,11 +461,13 @@ assert.equal(projectCalls, 1);
 assert.equal(providerListCalls, 0);
 assert.equal(providerModelCalls, 0);
 assert.equal(environmentGetCalls, 0);
+assert.equal(hostCalls, 1);
 assert.equal(pullRequestCalls, 0);
 assert.equal(executionOptionsCalls, 1);
 assert.deepEqual(eventWaitInputs, []);
 assert.equal(stage(summary.diagnostics, "thread").outcome, "ok");
 assert.equal(stage(summary.diagnostics, "environment").cache, "none");
+assert.equal(stage(summary.diagnostics, "host").cache, "miss");
 assert.equal(stage(summary.diagnostics, "project").cache, "miss");
 assert.equal(stage(summary.diagnostics, "executionOptions").outcome, "ok");
 assert.equal(stage(summary.diagnostics, "messageOutline").outcome, "ok");

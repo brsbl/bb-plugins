@@ -7,7 +7,6 @@ import {
   CursorIcon,
   Folder01Icon,
   FolderEditIcon,
-  GitBranchIcon,
   HelpCircleIcon,
   LaptopIcon,
   LinkSquare01Icon,
@@ -978,9 +977,8 @@ function renderSummary(card: HTMLElement, summary: ThreadSummary): void {
     summary.repository.name !== "Repository unavailable";
   if (summary.repository.isGitRepository || hasMeaningfulProject) {
     const context = element("section", "bb-thread-hover-card__context");
-    context.dataset.hasBranch = String(
-      summary.repository.isGitRepository &&
-        Boolean(summary.repository.branch),
+    context.dataset.hasHost = String(
+      summary.repository.isGitRepository && Boolean(summary.hostName),
     );
     const project = element("span", "bb-thread-hover-card__project");
     const projectName = element(
@@ -999,23 +997,23 @@ function renderSummary(card: HTMLElement, summary: ThreadSummary): void {
     );
     context.append(project);
 
-    if (summary.repository.isGitRepository && summary.repository.branch) {
-      const branch = element("span", "bb-thread-hover-card__branch");
-      const branchName = element(
+    if (summary.repository.isGitRepository && summary.hostName) {
+      const host = element("span", "bb-thread-hover-card__host");
+      const hostName = element(
         "span",
-        "bb-thread-hover-card__branch-name",
-        summary.repository.branch,
+        "bb-thread-hover-card__host-name",
+        summary.hostName,
       );
-      branchName.title = summary.repository.branch;
-      branch.append(
+      hostName.title = summary.hostName;
+      host.append(
         icon(
-          GitBranchIcon,
-          "GitBranchIcon",
+          LaptopIcon,
+          "LaptopIcon",
           "bb-thread-hover-card__icon bb-thread-hover-card__meta-icon",
         ),
-        branchName,
+        hostName,
       );
-      context.append(branch);
+      context.append(host);
     }
 
     if (
