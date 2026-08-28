@@ -102,6 +102,16 @@ Renders an inline swatch beside every color literal in a thread — hex, `rgb()`
 
 Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/color-swatches --yes`
 
+### Open in Moss
+
+Makes local Markdown links in bb open directly in Moss, with bb's viewer kept as the fallback.
+
+![A Markdown file link from bb open in Moss](plugins/open-in-moss/docs/screenshot.png)
+
+[Source](plugins/open-in-moss) · [README](plugins/open-in-moss/README.md)
+
+Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/open-in-moss --yes`
+
 ### Timeline Comments
 
 Attaches durable discussion threads to selected timeline text. Users and agents can reply, edit, resolve or reopen comments, review them together, and add open feedback to the composer for follow-up.
