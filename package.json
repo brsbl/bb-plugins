@@ -1,0 +1,32 @@
+{
+  "name": "bb-plugin-open-in-moss",
+  "version": "0.1.0",
+  "description": "Open Markdown file links in Moss instead of BB's built-in file viewer.",
+  "type": "module",
+  "private": true,
+  "license": "UNLICENSED",
+  "files": [
+    "dist",
+    "docs",
+    "README.md"
+  ],
+  "engines": {
+    "bb": ">=0.0.34",
+    "bbPluginSdk": "^0.4.1"
+  },
+  "bb": {
+    "name": "Open in Moss",
+    "description": "Open Markdown file links in Moss instead of BB's file viewer.",
+    "branding": {
+      "icon": "ExternalLink"
+    },
+    "server": "./dist/install-server.mjs",
+    "app": "./dist/install-app.mjs",
+    "skills": []
+  },
+  "keywords": [
+    "bb-plugin",
+    "markdown",
+    "moss"
+  ]
+}
