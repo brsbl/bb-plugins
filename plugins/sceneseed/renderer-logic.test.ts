@@ -14,7 +14,9 @@ import {
   mapMaterial,
   mapMeshGeometry,
   resolvePaletteEntry,
+  resolveMonochromeScenePalette,
   resolveScenePalette,
+  toMonochromeThemePalette,
   type SceneThemePalette,
 } from "./renderer-logic";
 
@@ -79,6 +81,20 @@ describe("renderer palette mapping", () => {
       "#123456",
       FALLBACK_THEME_PALETTE["theme:accent"],
     ]);
+  });
+
+  it("maps host and generated colors to grayscale for the rendered scene", () => {
+    const theme = toMonochromeThemePalette({
+      ...FALLBACK_THEME_PALETTE,
+      "theme:success": "#aabbcc",
+    });
+    expect(theme["theme:success"]).toBe("#b9b9b9");
+    expect(
+      resolveMonochromeScenePalette(
+        { palette: ["theme:ink", "#123456", "theme:success"] },
+        theme,
+      ),
+    ).toEqual(["#292929", "#2f2f2f", "#b9b9b9"]);
   });
 });
 

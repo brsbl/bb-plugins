@@ -122,7 +122,6 @@ describe("SceneSeed CLI", () => {
   it("adds through the durable card/job queue and honors placement flags", async () => {
     const { host, send } = await loadHost();
     const canvasId = await createCanvas(host);
-    await host.harness.callRpc("acknowledgeDisclosure", null);
 
     const added = await host.harness.runCli([
       "add",
@@ -167,7 +166,7 @@ describe("SceneSeed CLI", () => {
     });
   });
 
-  it("enforces disclosure for CLI generation and returns a bounded failure", async () => {
+  it("generates without a separate disclosure acknowledgement", async () => {
     const { host, send } = await loadHost();
     const canvasId = await createCanvas(host);
     const result = await host.harness.runCli([
@@ -176,17 +175,14 @@ describe("SceneSeed CLI", () => {
       "--prompt",
       "private phrase",
     ]);
-    expect(result.exitCode).toBe(1);
-    expect(result.stderr).toContain(
-      "Acknowledge the SceneSeed agent and retention disclosure",
-    );
-    expect(send).not.toHaveBeenCalled();
+    expect(result.exitCode).toBe(0);
+    expect(result.stderr).toBe("");
+    expect(send).toHaveBeenCalledTimes(1);
   });
 
   it("cancels, waits, and removes through the same store operations as UI", async () => {
     const { host, stop } = await loadHost();
     const canvasId = await createCanvas(host);
-    await host.harness.callRpc("acknowledgeDisclosure", null);
     const added = await host.harness.runCli([
       "add",
       canvasId,

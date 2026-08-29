@@ -1,17 +1,13 @@
 .sceneseed-library,
 .sceneseed-editor,
 .sceneseed-missing,
-.sceneseed-settings,
-.sceneseed-disclosure {
+.sceneseed-settings {
   --sceneseed-line: color-mix(in oklch, var(--ink) 14%, var(--canvas));
   --sceneseed-line-strong: color-mix(in oklch, var(--ink) 24%, var(--canvas));
   --sceneseed-soft: color-mix(in oklch, var(--ink) 5%, var(--canvas));
   --sceneseed-raised: color-mix(in oklch, var(--ink) 2.5%, var(--canvas));
   --sceneseed-muted: color-mix(in oklch, var(--ink) 58%, var(--canvas));
-  --sceneseed-accent: var(
-    --accent,
-    color-mix(in oklch, var(--ink) 76%, var(--canvas))
-  );
+  --sceneseed-accent: color-mix(in oklch, var(--ink) 76%, var(--canvas));
   color: var(--ink);
 }
 
@@ -80,58 +76,6 @@
 .sceneseed-new-canvas > div {
   display: flex;
   gap: 0.55rem;
-}
-
-.sceneseed-disclosure {
-  display: grid;
-  grid-template-columns: minmax(12rem, 0.75fr) repeat(2, minmax(12rem, 1fr));
-  gap: 1rem 1.5rem;
-  max-width: 74rem;
-  margin: 0 auto 2rem;
-  padding: 1.25rem;
-  border: 1px solid var(--sceneseed-line-strong);
-  border-radius: 1rem;
-  background: color-mix(in oklch, var(--sceneseed-accent) 7%, var(--canvas));
-}
-
-.sceneseed-disclosure h2 {
-  margin: 0.15rem 0 0;
-  font-size: 1.05rem;
-  line-height: 1.25;
-}
-
-.sceneseed-disclosure > p {
-  margin: 0;
-  color: var(--sceneseed-muted);
-  font-size: 0.8rem;
-  line-height: 1.55;
-}
-
-.sceneseed-disclosure-actions {
-  grid-column: 2 / -1;
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 1rem;
-}
-
-.sceneseed-disclosure-screen {
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-}
-
-.sceneseed-disclosure-back {
-  max-width: 74rem;
-  width: 100%;
-  margin: 0 auto;
-}
-
-.sceneseed-text-link {
-  color: var(--ink);
-  font-size: 0.8rem;
-  text-decoration: underline;
-  text-underline-offset: 0.2rem;
 }
 
 .sceneseed-connection,
@@ -919,14 +863,8 @@
 }
 
 @media (max-width: 900px) {
-  .sceneseed-library-intro,
-  .sceneseed-disclosure {
+  .sceneseed-library-intro {
     grid-template-columns: 1fr;
-  }
-
-  .sceneseed-disclosure-actions {
-    grid-column: 1;
-    justify-content: flex-start;
   }
 
   .sceneseed-object-controls {
@@ -1042,7 +980,7 @@
 .sceneseed-editor-error {
   position: absolute;
   z-index: 40;
-  top: 3.25rem;
+  top: 0;
   right: 0;
   left: 0;
   border-bottom: 0;
@@ -1061,7 +999,7 @@
   min-height: 0;
   flex: 1;
   overflow: hidden;
-  background: color-mix(in oklch, var(--accent) 8%, var(--canvas));
+  background: color-mix(in oklch, var(--ink) 4%, var(--canvas));
 }
 
 .sceneseed-stage {
@@ -1088,30 +1026,39 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 0.45rem;
   padding: 2rem;
   pointer-events: none;
   text-align: center;
 }
 
-.sceneseed-stage-empty .sceneseed-seed-mark {
-  margin-bottom: 0.7rem;
-  border-color: color-mix(in oklch, var(--accent) 55%, var(--canvas));
-  background: color-mix(in oklch, var(--accent) 48%, var(--canvas));
-  box-shadow:
-    0 0.55rem 1.5rem color-mix(in oklab, var(--accent) 24%, transparent),
-    0 0.25rem 0 color-mix(in oklab, var(--ink) 11%, transparent);
-}
-
 .sceneseed-stage-empty strong {
-  font-size: clamp(1.15rem, 2vw, 1.5rem);
-  font-weight: 620;
-  letter-spacing: -0.025em;
+  margin: 0;
+  font-size: 0.85rem;
+  font-weight: 560;
+  letter-spacing: 0;
 }
 
 .sceneseed-stage-empty span {
   color: var(--sceneseed-muted);
   font-size: 0.82rem;
+}
+
+.sceneseed-stage-shimmer {
+  position: absolute;
+  z-index: 8;
+  inset: 0;
+  background:
+    linear-gradient(
+      105deg,
+      transparent 30%,
+      color-mix(in oklab, var(--ink) 9%, transparent) 48%,
+      color-mix(in oklab, var(--canvas) 62%, transparent) 52%,
+      transparent 70%
+    ),
+    color-mix(in oklch, var(--ink) 4%, var(--canvas));
+  background-size: 220% 100%, 100% 100%;
+  animation: sceneseed-canvas-shimmer 1.35s ease-in-out infinite;
+  pointer-events: none;
 }
 
 .sceneseed-stage-status {
@@ -1390,6 +1337,15 @@
   }
 }
 
+@keyframes sceneseed-canvas-shimmer {
+  from {
+    background-position: 140% 0, 0 0;
+  }
+  to {
+    background-position: -140% 0, 0 0;
+  }
+}
+
 @media (max-width: 720px) {
   .sceneseed-editor-header {
     grid-template-columns: minmax(0, 1fr) auto;
@@ -1448,5 +1404,9 @@
 @media (prefers-reduced-motion: reduce) {
   .sceneseed-spin {
     animation-duration: 2s;
+  }
+
+  .sceneseed-stage-shimmer {
+    animation: none;
   }
 }

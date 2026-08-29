@@ -19,7 +19,6 @@ import {
   type PluginNavPanelProps,
   type PluginSettingsSectionProps,
 } from "@get-bb/plugin-sdk/app";
-import { Badge } from "./components/ui/badge.js";
 import { Button } from "./components/ui/button.js";
 import {
   DropdownMenu,
@@ -33,7 +32,6 @@ import {
   DropdownMenuTrigger,
 } from "./components/ui/dropdown-menu.js";
 import { Icon } from "./components/ui/icon.js";
-import { Input } from "./components/ui/input.js";
 import { Skeleton } from "./components/ui/skeleton.js";
 import {
   Tooltip,
@@ -54,7 +52,6 @@ import {
 } from "./sceneseed-ui-fixture.js";
 import type {
   CanvasSnapshotDto,
-  CanvasSummaryDto,
   CardDto,
   JobDto,
   ObjectDto,
@@ -65,7 +62,6 @@ import "./app.css";
 
 const PANEL_PATH = "sceneseed";
 const ACTIVE_CARD_STATES = new Set<CardDto["state"]>([
-  "ready",
   "queued",
   "interpreting",
   "realizing",
@@ -74,8 +70,6 @@ const ACTIVE_CARD_STATES = new Set<CardDto["state"]>([
 type ConnectionState = ReturnType<typeof useRealtimeConnectionState>;
 
 interface WorkspaceActions {
-  rename(name: string): Promise<void>;
-  deleteCanvas(): Promise<void>;
   submit(prompt: string, placement: Placement): Promise<void>;
   retry(card: CardDto): Promise<void>;
   cancel(jobId: string): Promise<void>;
@@ -107,10 +101,6 @@ function isCanvasSignal(
   );
 }
 
-function canvasSubPath(canvasId: string): string {
-  return `canvas/${encodeURIComponent(canvasId)}`;
-}
-
 function parseCanvasId(subPath: string): string | null {
   if (!subPath.startsWith("canvas/")) return null;
   const encoded = subPath.slice("canvas/".length);
@@ -120,14 +110,6 @@ function parseCanvasId(subPath: string): string | null {
   } catch {
     return null;
   }
-}
-
-function formatRelativeTime(timestamp: number, now: number): string {
-  const elapsed = Math.max(0, now - timestamp);
-  if (elapsed < 60_000) return "just now";
-  if (elapsed < 3_600_000) return `${Math.floor(elapsed / 60_000)}m ago`;
-  if (elapsed < 86_400_000) return `${Math.floor(elapsed / 3_600_000)}h ago`;
-  return `${Math.floor(elapsed / 86_400_000)}d ago`;
 }
 
 function cardStateLabel(card: CardDto): string {
@@ -159,259 +141,54 @@ function useClock(active: boolean): number {
   return now;
 }
 
-function useDisclosure(): {
-  acknowledged: boolean | null;
-  acknowledge: () => Promise<void>;
-  error: string | null;
-} {
+function ImplicitCanvas() {
   const rpc = useRpc<typeof rpcContract>();
-  const [acknowledged, setAcknowledged] = useState<boolean | null>(null);
+  const connection = useRealtimeConnectionState();
+  const [canvasId, setCanvasId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [retryNonce, setRetryNonce] = useState(0);
+
   useEffect(() => {
     let active = true;
-    void rpc.call("listCanvases").then(
-      (result) => {
-        if (active) setAcknowledged(result.disclosureAcknowledged);
-      },
-      (reason: unknown) => {
+    const open = async () => {
+      try {
+        const listed = await rpc.call("listCanvases");
+        const existing = [...listed.canvases].sort(
+          (left, right) => left.createdAt - right.createdAt,
+        )[0];
+        if (existing) {
+          if (active) setCanvasId(existing.id);
+          return;
+        }
+        if (connection !== "connected") {
+          throw new Error("Reconnect to restore the canvas.");
+        }
+        const created = await rpc.call("createCanvas", { name: "SceneSeed" });
+        if (active) setCanvasId(created.snapshot.canvas.id);
+      } catch (reason) {
         if (active) setError(errorMessage(reason));
-      },
-    );
+      }
+    };
+    setError(null);
+    void open();
     return () => {
       active = false;
     };
-  }, [rpc]);
-  const acknowledge = useCallback(async () => {
-    setError(null);
-    try {
-      await rpc.call("acknowledgeDisclosure");
-      setAcknowledged(true);
-    } catch (reason) {
-      setError(errorMessage(reason));
-    }
-  }, [rpc]);
-  return { acknowledged, acknowledge, error };
-}
+  }, [connection, retryNonce, rpc]);
 
-function Disclosure({
-  acknowledged,
-  error,
-  onAcknowledge,
-}: {
-  acknowledged: boolean | null;
-  error: string | null;
-  onAcknowledge: () => Promise<void>;
-}) {
-  const [saving, setSaving] = useState(false);
-  if (acknowledged !== false) return null;
+  if (canvasId) return <CanvasEditor canvasId={canvasId} />;
+  if (!error) return <LoadingCanvas />;
   return (
-    <section
-      className="sceneseed-disclosure"
-      aria-labelledby="sceneseed-disclosure-title"
-    >
-      <div>
-        <p className="sceneseed-eyebrow">Before the first seed</p>
-        <h2 id="sceneseed-disclosure-title">
-          Know what the interpreter can access
-        </h2>
-      </div>
-      <p>
-        SceneSeed sends the prompt, placement, and nearby scene summaries to a
-        hidden bb agent in the personal project. Hidden means absent from normal
-        navigation, not secret or ephemeral.
-      </p>
-      <p>
-        It is still a normal bb agent session and may have core, provider, and
-        plugin tools, shared skills and instructions, filesystem access, and
-        network access. Prompts and transcripts follow your provider and bb
-        retention settings.
-      </p>
-      <p>
-        Uninstalling SceneSeed does not delete its canvas database or hidden
-        threads. “Delete all canvas data” clears the plugin database and
-        archives those threads.
-      </p>
-      <div className="sceneseed-disclosure-actions">
-        <a href="/settings/providers" className="sceneseed-text-link">
-          Review provider settings
-        </a>
-        <Button
-          type="button"
-          disabled={saving}
-          onClick={() => {
-            setSaving(true);
-            void onAcknowledge().finally(() => setSaving(false));
-          }}
-        >
-          {saving ? "Saving…" : "I understand"}
-        </Button>
-      </div>
-      {error ? (
-        <p className="sceneseed-error" role="alert">
-          {error}
-        </p>
-      ) : null}
-    </section>
-  );
-}
-
-function LibraryPanel() {
-  const rpc = useRpc<typeof rpcContract>();
-  const navigate = useBbNavigate();
-  const connection = useRealtimeConnectionState();
-  const [canvases, setCanvases] = useState<CanvasSummaryDto[] | null>(null);
-  const [newName, setNewName] = useState("Untitled canvas");
-  const [creating, setCreating] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const now = useClock(false);
-  const disclosure = useDisclosure();
-
-  const refresh = useCallback(() => {
-    void rpc.call("listCanvases").then(
-      (result) => {
-        setCanvases(result.canvases);
-        setError(null);
-      },
-      (reason: unknown) => setError(errorMessage(reason)),
-    );
-  }, [rpc]);
-
-  useEffect(refresh, [refresh]);
-  useRealtime("library-changed", refresh);
-  useEffect(() => {
-    if (connection === "connected") refresh();
-  }, [connection, refresh]);
-
-  const create = async () => {
-    const name = newName.trim();
-    if (!name || creating || connection !== "connected") return;
-    setCreating(true);
-    setError(null);
-    try {
-      const result = await rpc.call("createCanvas", { name });
-      navigate.toPluginPanel(PANEL_PATH, {
-        subPath: canvasSubPath(result.snapshot.canvas.id),
-      });
-    } catch (reason) {
-      setError(errorMessage(reason));
-    } finally {
-      setCreating(false);
-    }
-  };
-
-  return (
-    <main className="sceneseed-library">
-      <div className="sceneseed-library-intro">
-        <div>
-          <p className="sceneseed-eyebrow">Prompt → seed → scene</p>
-          <h1>Grow an idea into a tiny world.</h1>
-          <p>
-            Drop a short phrase onto the canvas and see how the SceneSeed
-            interpreter draws it in three dimensions.
-          </p>
-        </div>
-        <form
-          className="sceneseed-new-canvas"
-          onSubmit={(event) => {
-            event.preventDefault();
-            void create();
-          }}
-        >
-          <label htmlFor="sceneseed-new-name">New canvas</label>
-          <div>
-            <Input
-              id="sceneseed-new-name"
-              value={newName}
-              maxLength={80}
-              onChange={(event) => setNewName(event.currentTarget.value)}
-              disabled={connection !== "connected"}
-            />
-            <Button
-              type="submit"
-              disabled={
-                !newName.trim() || creating || connection !== "connected"
-              }
-            >
-              {creating ? "Creating…" : "Create"}
-            </Button>
-          </div>
-        </form>
-      </div>
-
-      <Disclosure
-        acknowledged={disclosure.acknowledged}
-        error={disclosure.error}
-        onAcknowledge={disclosure.acknowledge}
-      />
-
-      {connection !== "connected" ? (
-        <p className="sceneseed-connection" role="status">
-          Reconnecting — saved canvases remain available, but changes are
-          paused.
-        </p>
-      ) : null}
-      {error ? (
-        <p className="sceneseed-error" role="alert">
-          {error}
-        </p>
-      ) : null}
-
-      <section aria-labelledby="sceneseed-canvases-heading">
-        <div className="sceneseed-section-heading">
-          <div>
-            <p className="sceneseed-eyebrow">Your work</p>
-            <h2 id="sceneseed-canvases-heading">Canvases</h2>
-          </div>
-          <span>{canvases?.length ?? 0}</span>
-        </div>
-        {canvases === null ? (
-          <div className="sceneseed-library-grid" aria-label="Loading canvases">
-            <Skeleton className="h-36 rounded-xl" />
-            <Skeleton className="h-36 rounded-xl" />
-          </div>
-        ) : canvases.length === 0 ? (
-          <div className="sceneseed-empty-library">
-            <div className="sceneseed-seed-mark" aria-hidden="true" />
-            <h3>Your first canvas is waiting.</h3>
-            <p>
-              Create one above, then add a phrase you can picture—or one you
-              cannot.
-            </p>
-          </div>
-        ) : (
-          <div className="sceneseed-library-grid">
-            {canvases.map((canvas) => (
-              <button
-                key={canvas.id}
-                type="button"
-                className="sceneseed-canvas-card"
-                onClick={() =>
-                  navigate.toPluginPanel(PANEL_PATH, {
-                    subPath: canvasSubPath(canvas.id),
-                  })
-                }
-              >
-                <span
-                  className="sceneseed-canvas-card-mark"
-                  aria-hidden="true"
-                />
-                <span className="sceneseed-canvas-card-name">
-                  {canvas.name}
-                </span>
-                <span className="sceneseed-canvas-card-meta">
-                  {canvas.objectCount}{" "}
-                  {canvas.objectCount === 1 ? "object" : "objects"}
-                  <span aria-hidden="true"> · </span>
-                  {canvas.activeCost}/100 units
-                </span>
-                <span className="sceneseed-canvas-card-time">
-                  Edited {formatRelativeTime(canvas.updatedAt, now)}
-                </span>
-              </button>
-            ))}
-          </div>
-        )}
-      </section>
+    <main className="sceneseed-missing">
+      <h1>Canvas unavailable</h1>
+      <p>{error}</p>
+      <Button
+        type="button"
+        variant="outline"
+        onClick={() => setRetryNonce((value) => value + 1)}
+      >
+        Retry
+      </Button>
     </main>
   );
 }
@@ -879,7 +656,6 @@ function ObjectControls({
 function CanvasWorkspace({
   snapshot,
   connection,
-  disclosureAcknowledged,
   actions,
   renderObjects,
   fixture = false,
@@ -891,7 +667,6 @@ function CanvasWorkspace({
 }: {
   snapshot: CanvasSnapshotDto;
   connection: ConnectionState;
-  disclosureAcknowledged: boolean;
   actions: WorkspaceActions;
   renderObjects: SceneRenderObject[];
   fixture?: boolean;
@@ -901,14 +676,10 @@ function CanvasWorkspace({
   onRenderProbe?: (event: SceneRenderProbeEvent) => void;
   onRevealComplete?: (objectId: string) => void;
 }) {
-  const navigate = useBbNavigate();
-  const readOnly = connection !== "connected" || !disclosureAcknowledged;
+  const readOnly = connection !== "connected";
   const [selectedObjectId, setSelectedObjectId] = useState<string | null>(
     snapshot.objects.find((object) => object.removedAt === null)?.id ?? null,
   );
-  const [renaming, setRenaming] = useState(false);
-  const [renameValue, setRenameValue] = useState(snapshot.canvas.name);
-  const [confirmDelete, setConfirmDelete] = useState(false);
   const [rendererReset, setRendererReset] = useState(0);
   const [rendererLost, setRendererLost] = useState(false);
   const [announcement, setAnnouncement] = useState("Canvas restored.");
@@ -922,8 +693,8 @@ function CanvasWorkspace({
   const inFlightCount = snapshot.cards.filter((card) =>
     ACTIVE_CARD_STATES.has(card.state),
   ).length;
+  const isGenerating = inFlightCount > 0 || busy;
 
-  useEffect(() => setRenameValue(snapshot.canvas.name), [snapshot.canvas.name]);
   useEffect(() => {
     if (
       selectedObjectId &&
@@ -975,18 +746,11 @@ function CanvasWorkspace({
       if (connection !== "connected") {
         throw new Error("Reconnect before sending this idea to the scene.");
       }
-      if (!disclosureAcknowledged) {
-        throw new Error(
-          "Acknowledge the SceneSeed privacy note before sending.",
-        );
-      }
-      if (inFlightCount >= 12) {
-        throw new Error(
-          "This canvas already has 12 ideas in progress. Wait for one to finish.",
-        );
+      if (inFlightCount > 0) {
+        throw new Error("Wait for the current scene to finish generating.");
       }
       setBusy(true);
-      await actions.submit(prompt, automaticPlacement(snapshot));
+      await actions.submit(prompt, { x: 0, y: 0 });
       setAnnouncement(`${prompt} was sent to the canvas interpreter.`);
     } catch (reason) {
       const message = errorMessage(reason);
@@ -999,122 +763,7 @@ function CanvasWorkspace({
   };
 
   return (
-    <main className="sceneseed-editor">
-      <header className="sceneseed-editor-header">
-        <Button
-          type="button"
-          size="sm"
-          variant="ghost"
-          onClick={() => navigate.toPluginPanel(PANEL_PATH)}
-        >
-          ← Canvases
-        </Button>
-        {renaming ? (
-          <form
-            className="sceneseed-rename"
-            onSubmit={(event) => {
-              event.preventDefault();
-              const name = renameValue.trim();
-              if (!name) return;
-              void runAction("Canvas renamed.", async () => {
-                await actions.rename(name);
-                setRenaming(false);
-              });
-            }}
-          >
-            <Input
-              aria-label="Canvas name"
-              value={renameValue}
-              maxLength={80}
-              onChange={(event) => setRenameValue(event.currentTarget.value)}
-            />
-            <Button
-              type="submit"
-              size="sm"
-              disabled={readOnly || !renameValue.trim()}
-            >
-              Save
-            </Button>
-            <Button
-              type="button"
-              size="sm"
-              variant="ghost"
-              onClick={() => setRenaming(false)}
-            >
-              Cancel
-            </Button>
-          </form>
-        ) : (
-          <div className="sceneseed-editor-title">
-            <h1>{snapshot.canvas.name}</h1>
-            {fixture ? (
-              <Badge className="sceneseed-fixture-badge" variant="secondary">
-                Visual QA fixture
-              </Badge>
-            ) : null}
-          </div>
-        )}
-        <div className="sceneseed-header-actions">
-          <SceneContentsMenu
-            snapshot={snapshot}
-            selectedObjectId={selectedObjectId}
-            readOnly={readOnly || busy}
-            onSelectObject={(objectId) => selectFromRenderer(objectId)}
-            onCancel={(jobId) =>
-              void runAction(
-                "Generation cancelled. The prompt is ready to retry.",
-                () => actions.cancel(jobId),
-              )
-            }
-            onRetry={(card) =>
-              void runAction(`${card.prompt} was sent again.`, () =>
-                actions.retry(card),
-              )
-            }
-          />
-          <details className="sceneseed-canvas-menu">
-            <summary aria-label="Canvas options">
-              <Icon name="MoreHorizontal" aria-hidden="true" />
-            </summary>
-            <div>
-              <button
-                type="button"
-                disabled={readOnly}
-                onClick={() => setRenaming(true)}
-              >
-                Rename
-              </button>
-              {confirmDelete ? (
-                <>
-                  <p>Delete this canvas and archive its hidden thread?</p>
-                  <button
-                    type="button"
-                    className="sceneseed-danger-action"
-                    disabled={readOnly}
-                    onClick={() =>
-                      void runAction("Canvas deleted.", actions.deleteCanvas)
-                    }
-                  >
-                    Delete canvas
-                  </button>
-                  <button type="button" onClick={() => setConfirmDelete(false)}>
-                    Keep canvas
-                  </button>
-                </>
-              ) : (
-                <button
-                  type="button"
-                  disabled={readOnly}
-                  onClick={() => setConfirmDelete(true)}
-                >
-                  Delete canvas…
-                </button>
-              )}
-            </div>
-          </details>
-        </div>
-      </header>
-
+    <main className="sceneseed-editor" data-fixture={fixture || undefined}>
       {connection !== "connected" ? (
         <div className="sceneseed-offline-banner" role="status">
           Reconnecting — keep composing if you like. Sending and scene edits are
@@ -1128,7 +777,7 @@ function CanvasWorkspace({
       ) : null}
 
       <section className="sceneseed-workspace" aria-label="Scene canvas">
-        <div className="sceneseed-stage">
+        <div className="sceneseed-stage" aria-busy={isGenerating}>
           <RendererBoundary
             resetKey={rendererReset}
             fallback={
@@ -1153,7 +802,7 @@ function CanvasWorkspace({
                 className="sceneseed-webgl"
                 objects={renderObjects}
                 selectedObjectId={selectedObjectId}
-                enableOrbitControls={!busy}
+                enableOrbitControls={!isGenerating}
                 onSelectObject={selectFromRenderer}
                 onRenderProbe={onRenderProbe}
                 onRevealComplete={(objectId) => {
@@ -1197,15 +846,22 @@ function CanvasWorkspace({
               );
             })}
           {renderObjects.length === 0 &&
+          !isGenerating &&
           snapshot.objects.every(
             (object) =>
               object.activeSceneId === null || object.removedAt !== null,
           ) ? (
             <div className="sceneseed-stage-empty">
-              <div className="sceneseed-seed-mark" aria-hidden="true" />
-              <strong>Describe something impossible.</strong>
-              <span>SceneSeed will draw it here.</span>
+              <strong>Enter a prompt and send it.</strong>
             </div>
+          ) : null}
+          {isGenerating ? (
+            <div
+              className="sceneseed-stage-shimmer"
+              data-testid="sceneseed-canvas-shimmer"
+              role="status"
+              aria-label="Generating scene"
+            />
           ) : null}
           <div className="sceneseed-stage-status">
             <CanvasActivity
@@ -1227,11 +883,11 @@ function CanvasWorkspace({
           </div>
 
           <div className="sceneseed-compose-stack">
-            {selectedObject && selectedCard ? (
+            {selectedObject && selectedCard && !isGenerating ? (
               <ObjectControls
                 object={selectedObject}
                 card={selectedCard}
-                readOnly={readOnly || busy}
+                readOnly={readOnly}
                 actionRef={(element) => {
                   if (element)
                     objectActionRefs.current.set(selectedObject.id, element);
@@ -1243,9 +899,8 @@ function CanvasWorkspace({
                   )
                 }
                 onRemix={() =>
-                  void runAction(
-                    "Remix queued. The current object stays until the new one renders.",
-                    () => actions.remix(selectedObject.id),
+                  void runAction("Scene regeneration started.", () =>
+                    actions.remix(selectedObject.id),
                   )
                 }
                 onDuplicate={() =>
@@ -1277,7 +932,7 @@ function CanvasWorkspace({
                   composerDraftKey ?? `sceneseed-canvas-${snapshot.canvas.id}`
                 }
                 initialPrompt={initialPrompt}
-                placeholder="Describe something for the scene…"
+                placeholder="Enter a prompt…"
                 onSubmit={submitPrompt}
               />
             </div>
@@ -1294,9 +949,6 @@ function CanvasWorkspace({
 function LoadingCanvas() {
   return (
     <main className="sceneseed-editor" aria-label="Restoring canvas">
-      <header className="sceneseed-editor-header">
-        <Skeleton className="h-8 w-48" />
-      </header>
       <div className="sceneseed-workspace sceneseed-loading-stage">
         <Skeleton className="sceneseed-stage" />
         <Skeleton className="sceneseed-loading-composer" />
@@ -1307,9 +959,7 @@ function LoadingCanvas() {
 
 function CanvasEditor({ canvasId }: { canvasId: string }) {
   const rpc = useRpc<typeof rpcContract>();
-  const navigate = useBbNavigate();
   const connection = useRealtimeConnectionState();
-  const disclosure = useDisclosure();
   const [snapshot, setSnapshot] = useState<CanvasSnapshotDto | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [revealing, setRevealing] = useState<Set<string>>(() => new Set());
@@ -1514,12 +1164,8 @@ function CanvasEditor({ canvasId }: { canvasId: string }) {
         <div className="sceneseed-seed-mark" aria-hidden="true" />
         <h1>Canvas unavailable</h1>
         <p>{error}</p>
-        <Button
-          type="button"
-          variant="outline"
-          onClick={() => navigate.toPluginPanel(PANEL_PATH)}
-        >
-          Back to canvases
+        <Button type="button" variant="outline" onClick={() => void refresh()}>
+          Retry
         </Button>
       </main>
     ) : (
@@ -1527,50 +1173,20 @@ function CanvasEditor({ canvasId }: { canvasId: string }) {
     );
   }
 
-  if (disclosure.acknowledged === false) {
-    return (
-      <main className="sceneseed-library sceneseed-disclosure-screen">
-        <Disclosure
-          acknowledged={disclosure.acknowledged}
-          error={disclosure.error}
-          onAcknowledge={disclosure.acknowledge}
-        />
-        <div className="sceneseed-disclosure-back">
-          <BackToLibrary />
-        </div>
-      </main>
-    );
-  }
-
   const actions: WorkspaceActions = {
-    rename: async (name) =>
-      mutate(
-        rpc.call("renameCanvas", {
-          canvasId,
-          name,
-          expectedRevision: latestSnapshot.current!.canvas.revision,
-        }),
-      ),
-    deleteCanvas: async () => {
-      const current = latestSnapshot.current!;
-      setError(null);
-      try {
-        const result = await rpc.call("deleteCanvas", {
-          canvasId,
-          expectedRevision: current.canvas.revision,
-        });
-        if (result.threadCleanupFailed)
-          setError(
-            "Canvas data was deleted, but its hidden thread could not be archived. Check plugin logs.",
-          );
-        navigate.toPluginPanel(PANEL_PATH);
-      } catch (reason) {
-        setError(errorMessage(reason));
-        throw reason;
-      }
-    },
     submit: async (prompt, placement) => {
       let current = latestSnapshot.current!;
+      for (const object of current.objects.filter(
+        (entry) => entry.removedAt === null,
+      )) {
+        const removed = await rpc.call("removeObject", {
+          canvasId,
+          objectId: object.id,
+          expectedCanvasRevision: current.canvas.revision,
+        });
+        applySnapshot(removed.snapshot);
+        current = removed.snapshot;
+      }
       const created = await rpc.call("createCard", {
         canvasId,
         prompt,
@@ -1646,7 +1262,6 @@ function CanvasEditor({ canvasId }: { canvasId: string }) {
     <CanvasWorkspace
       snapshot={snapshot}
       connection={connection}
-      disclosureAcknowledged={disclosure.acknowledged === true}
       actions={actions}
       renderObjects={buildRenderObjects(
         snapshot,
@@ -1667,7 +1282,6 @@ function CanvasEditor({ canvasId }: { canvasId: string }) {
 }
 
 type SceneSeedFixtureState =
-  | "mixed"
   | "empty"
   | "composing"
   | "processing"
@@ -1676,7 +1290,6 @@ type SceneSeedFixtureState =
 
 function fixtureSnapshot(state: SceneSeedFixtureState): CanvasSnapshotDto {
   const snapshot = createSceneSeedUiFixture();
-  if (state === "mixed") return snapshot;
   if (state === "empty" || state === "composing") {
     return {
       ...snapshot,
@@ -1686,20 +1299,13 @@ function fixtureSnapshot(state: SceneSeedFixtureState): CanvasSnapshotDto {
       candidates: [],
     };
   }
-  const wantedCardStates =
+  const wantedCardId =
     state === "success"
-      ? new Set<CardDto["state"]>(["complete"])
+      ? "card_lighthouse"
       : state === "processing"
-        ? new Set<CardDto["state"]>([
-            "complete",
-            "queued",
-            "interpreting",
-            "realizing",
-          ])
-        : new Set<CardDto["state"]>(["complete", "failed"]);
-  const cards = snapshot.cards.filter((card) =>
-    wantedCardStates.has(card.state),
-  );
+        ? "card_queue"
+        : "card_failed";
+  const cards = snapshot.cards.filter((card) => card.id === wantedCardId);
   const cardIds = new Set(cards.map((card) => card.id));
   const objects = snapshot.objects.filter((object) =>
     cardIds.has(object.sourceCardId),
@@ -1717,14 +1323,21 @@ function fixtureSnapshot(state: SceneSeedFixtureState): CanvasSnapshotDto {
 }
 
 function FixtureCanvasEditor({
-  state = "mixed",
+  state = "empty",
 }: {
   state?: SceneSeedFixtureState;
 }) {
-  const navigate = useBbNavigate();
   const connection = useRealtimeConnectionState();
   const [snapshot, setSnapshot] = useState(() => fixtureSnapshot(state));
   const [revealing, setRevealing] = useState<Set<string>>(() => new Set());
+  const replacementCount = useRef(0);
+  const completionTimers = useRef<number[]>([]);
+  useEffect(
+    () => () => {
+      for (const timer of completionTimers.current) window.clearTimeout(timer);
+    },
+    [],
+  );
   const update = (
     change: (current: CanvasSnapshotDto) => CanvasSnapshotDto,
   ) => {
@@ -1741,75 +1354,130 @@ function FixtureCanvasEditor({
     });
   };
   const actions: WorkspaceActions = {
-    rename: async (name) =>
+    submit: async (prompt, placement) => {
+      const cardId = nextClientId("fixture_card");
+      const jobId = nextClientId("fixture_job");
+      const objectId = nextClientId("fixture_object");
+      const sceneId = nextClientId("fixture_scene");
+      const timestamp = Date.now();
+      const variant = replacementCount.current++ % 2;
+      const templateSnapshot = createSceneSeedUiFixture();
+      const template = templateSnapshot.candidates[variant]?.normalizedScene;
+      if (!template) throw new Error("Fixture scene is unavailable.");
+      const scene = {
+        ...template,
+        jobId,
+        objectId,
+        name: variant === 0 ? "Storm in glass" : "Lighthouse at midnight",
+        altText:
+          variant === 0
+            ? "A grayscale storm cloud suspended inside a clear glass jar."
+            : "A black-and-white lighthouse with a bright lantern and pointed roof.",
+        palette: ["#111111", "#f4f4f4", "#777777"],
+      };
       update((current) => ({
         ...current,
-        canvas: { ...current.canvas, name },
-      })),
-    deleteCanvas: async () => navigate.toPluginPanel(PANEL_PATH),
-    submit: async (prompt, placement) =>
-      update((current) => {
-        const cardId = nextClientId("fixture_card");
-        const jobId = nextClientId("fixture_job");
-        const objectId = nextClientId("fixture_object");
-        const timestamp = Date.now();
-        return {
-          ...current,
-          cards: [
-            ...current.cards,
-            {
-              id: cardId,
-              canvasId: current.canvas.id,
-              prompt,
-              state: "queued",
-              order: current.cards.length,
-              placement,
-              activeJobId: jobId,
-              createdAt: timestamp,
-              updatedAt: timestamp,
+        cards: [
+          {
+            id: cardId,
+            canvasId: current.canvas.id,
+            prompt,
+            state: "queued",
+            order: 0,
+            placement,
+            activeJobId: jobId,
+            createdAt: timestamp,
+            updatedAt: timestamp,
+          },
+        ],
+        objects: [
+          {
+            id: objectId,
+            canvasId: current.canvas.id,
+            sourceCardId: cardId,
+            activeSceneId: null,
+            activeJobId: jobId,
+            transform: {
+              position: [placement.x, 0, -placement.y],
+              rotation: [0, 0, 0],
+              scale: [1, 1, 1],
             },
-          ],
-          objects: [
-            ...current.objects,
-            {
-              id: objectId,
-              canvasId: current.canvas.id,
-              sourceCardId: cardId,
-              activeSceneId: null,
-              activeJobId: jobId,
-              transform: {
-                position: [placement.x, 0, -placement.y],
-                rotation: [0, 0, 0],
-                scale: [1, 1, 1],
+            order: 0,
+            removedAt: null,
+            createdAt: timestamp,
+            updatedAt: timestamp,
+          },
+        ],
+        jobs: [
+          {
+            id: jobId,
+            canvasId: current.canvas.id,
+            cardId,
+            objectId,
+            generation: 1,
+            state: "queued",
+            agentThreadId: current.canvas.agentThreadId ?? "thr_fixture",
+            invalidSubmissionAttempts: 0,
+            errorCode: null,
+            errorMessage: null,
+            startedAt: null,
+            finishedAt: null,
+            threadSettledAt: null,
+            createdAt: timestamp,
+            updatedAt: timestamp,
+          },
+        ],
+        candidates: [],
+      }));
+      const timer = window.setTimeout(() => {
+        const completedAt = Date.now();
+        update((current) => {
+          if (current.objects[0]?.id !== objectId) return current;
+          return {
+            ...current,
+            cards: current.cards.map((card) => ({
+              ...card,
+              state: "complete",
+              updatedAt: completedAt,
+            })),
+            objects: current.objects.map((object) => ({
+              ...object,
+              activeSceneId: sceneId,
+              updatedAt: completedAt,
+            })),
+            jobs: current.jobs.map((job) => ({
+              ...job,
+              state: "complete",
+              startedAt: timestamp,
+              finishedAt: completedAt,
+              threadSettledAt: completedAt,
+              updatedAt: completedAt,
+            })),
+            candidates: [
+              {
+                id: sceneId,
+                canvasId: current.canvas.id,
+                jobId,
+                objectId,
+                generation: 1,
+                originalScene: scene,
+                normalizedScene: scene,
+                sceneVersion: 1,
+                cost: 4,
+                state: "active",
+                realizationAttempts: 1,
+                realizedAt: completedAt,
+                readError: null,
+                createdAt: timestamp,
+                updatedAt: completedAt,
               },
-              order: current.objects.length,
-              removedAt: null,
-              createdAt: timestamp,
-              updatedAt: timestamp,
-            },
-          ],
-          jobs: [
-            ...current.jobs,
-            {
-              id: jobId,
-              canvasId: current.canvas.id,
-              cardId,
-              objectId,
-              generation: 1,
-              state: "queued",
-              agentThreadId: current.canvas.agentThreadId ?? "thr_fixture",
-              invalidSubmissionAttempts: 0,
-              errorCode: null,
-              errorMessage: null,
-              startedAt: null,
-              finishedAt: null,
-              threadSettledAt: null,
-              createdAt: timestamp,
-              updatedAt: timestamp,
-            },
-          ],
-        };
-      }),
+            ],
+          };
+        });
+        setRevealing(new Set([objectId]));
+      }, 1_600);
+      completionTimers.current.push(timer);
+    },
     retry: async (wanted) =>
       update((current) => ({
         ...current,
@@ -1916,12 +1584,11 @@ function FixtureCanvasEditor({
     <CanvasWorkspace
       snapshot={snapshot}
       connection={connection}
-      disclosureAcknowledged
       actions={actions}
       renderObjects={buildRenderObjects(snapshot, revealing)}
       fixture
       initialPrompt={
-        state === "composing" ? "a melody folded into blue glass" : undefined
+        state === "composing" ? "a folded paper moon" : undefined
       }
       composerDraftKey={`sceneseed-qa-v2-${state}`}
       error={null}
@@ -1937,7 +1604,7 @@ function FixtureCanvasEditor({
 }
 
 function SceneSeedPanel({ subPath }: PluginNavPanelProps) {
-  if (subPath === "" || subPath === "library") return <LibraryPanel />;
+  if (subPath === "" || subPath === "library") return <ImplicitCanvas />;
   if (subPath === SCENESEED_QA_SUBPATH) return <FixtureCanvasEditor />;
   if (subPath.startsWith(`${SCENESEED_QA_SUBPATH}/`)) {
     const state = subPath.slice(SCENESEED_QA_SUBPATH.length + 1);
@@ -1956,8 +1623,8 @@ function SceneSeedPanel({ subPath }: PluginNavPanelProps) {
   return (
     <main className="sceneseed-missing">
       <div className="sceneseed-seed-mark" aria-hidden="true" />
-      <h1>That SceneSeed path did not grow.</h1>
-      <p>Return to the canvas library and choose a saved canvas.</p>
+      <h1>SceneSeed could not open this path.</h1>
+      <p>Open the persistent canvas instead.</p>
       <BackToLibrary />
     </main>
   );
@@ -1971,7 +1638,7 @@ function BackToLibrary() {
       variant="outline"
       onClick={() => navigate.toPluginPanel(PANEL_PATH)}
     >
-      Back to canvases
+      Open SceneSeed
     </Button>
   );
 }
@@ -2001,7 +1668,7 @@ function SceneSeedSettings(_props: PluginSettingsSectionProps) {
   };
   return (
     <section className="sceneseed-settings">
-      <h3>Stored canvas data</h3>
+      <h3>Stored SceneSeed data</h3>
       <p>
         SceneSeed stores prompts, scene graphs, transforms, and job state in its
         plugin database. Hidden interpreter transcripts follow bb’s thread
@@ -2017,10 +1684,10 @@ function SceneSeedSettings(_props: PluginSettingsSectionProps) {
           role="group"
           aria-label="Confirm deleting all SceneSeed canvas data"
         >
-          <strong>Delete every SceneSeed canvas?</strong>
+          <strong>Delete SceneSeed data?</strong>
           <p>
-            This clears the plugin database and archives every canvas
-            interpreter thread. This cannot be undone.
+            This clears the persistent canvas and archives its interpreter
+            thread. Legacy canvas data is cleared too. This cannot be undone.
           </p>
           <div>
             <Button
@@ -2029,7 +1696,7 @@ function SceneSeedSettings(_props: PluginSettingsSectionProps) {
               disabled={busy || connection !== "connected"}
               onClick={() => void clearAll()}
             >
-              {busy ? "Deleting…" : "Delete all canvas data"}
+              {busy ? "Deleting…" : "Delete SceneSeed data"}
             </Button>
             <Button
               type="button"
@@ -2048,7 +1715,7 @@ function SceneSeedSettings(_props: PluginSettingsSectionProps) {
           disabled={connection !== "connected"}
           onClick={() => setConfirming(true)}
         >
-          Delete all canvas data…
+          Delete SceneSeed data…
         </Button>
       )}
       {connection !== "connected" ? (
@@ -2074,7 +1741,7 @@ export default definePluginApp((app) => {
   app.slots.settingsSection({
     id: "storage",
     title: "SceneSeed data",
-    description: "Understand retention and permanently clear saved canvases.",
+    description: "Understand retention and permanently clear SceneSeed data.",
     component: SceneSeedSettings,
   });
 });

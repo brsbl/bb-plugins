@@ -140,8 +140,14 @@ describe("SceneSeed app", () => {
     expect(SCENESEED_QA_SUBPATH).toBe("qa-fixture");
   });
 
-  it("creates a canvas from the library and navigates to its durable route", async () => {
-    const snapshot = createSceneSeedUiFixture();
+  it("creates and opens one implicit canvas without management UI", async () => {
+    const snapshot = {
+      ...createSceneSeedUiFixture(),
+      cards: [],
+      objects: [],
+      jobs: [],
+      candidates: [],
+    };
     const slot = track(
       renderSlot(
         app.navPanels[0]!,
@@ -149,69 +155,51 @@ describe("SceneSeed app", () => {
         {
           rpc: {
             listCanvases: () => disclosureState(true),
-            createCanvas: (input: unknown) => {
-              if (
-                typeof input !== "object" ||
-                input === null ||
-                !("name" in input) ||
-                typeof input.name !== "string"
-              ) {
-                throw new Error("expected a canvas name");
-              }
-              return {
-                snapshot: {
-                  ...snapshot,
-                  canvas: {
-                    ...snapshot.canvas,
-                    id: "canvas_new",
-                    name: input.name,
-                  },
-                },
-              };
-            },
+            createCanvas: () => ({ snapshot }),
+            getCanvas: () => ({ snapshot }),
           },
         },
       ),
     );
 
-    fireEvent.change(await slot.findByLabelText("New canvas"), {
-      target: { value: "Small wonders" },
-    });
-    fireEvent.click(slot.getByRole("button", { name: "Create" }));
-
     await waitFor(() =>
-      expect(slot.navigateCalls).toContainEqual({
-        method: "toPluginPanel",
-        path: "sceneseed",
-        options: { subPath: "canvas/canvas_new" },
+      expect(slot.rpcCalls).toContainEqual({
+        method: "createCanvas",
+        input: { name: "SceneSeed" },
       }),
     );
+    expect(await slot.findByText("Enter a prompt and send it.")).toBeDefined();
+    expect(slot.queryByText("Grow an idea into a tiny world.")).toBeNull();
+    expect(slot.queryByRole("button", { name: "Create" })).toBeNull();
+    expect(slot.queryByText("Canvases")).toBeNull();
+    expect(slot.navigateCalls).toHaveLength(0);
   });
 
-  it("requires an explicit capability and retention acknowledgement", async () => {
+  it("opens the canvas without a first-run disclosure or acknowledgement", async () => {
+    const snapshot = createSceneSeedUiFixture();
     const slot = track(
       renderSlot(
         app.navPanels[0]!,
         { subPath: "" },
         {
           rpc: {
-            listCanvases: () => disclosureState(false),
+            listCanvases: () => ({
+              canvases: [snapshot.canvas],
+              disclosureAcknowledged: false,
+            }),
+            getCanvas: () => ({ snapshot }),
             acknowledgeDisclosure: () => ({ acknowledgedAt: Date.now() }),
           },
         },
       ),
     );
 
+    expect(await slot.findByPlaceholderText("Enter a prompt…")).toBeDefined();
+    expect(slot.queryByText("Know what the interpreter can access")).toBeNull();
+    expect(slot.queryByRole("button", { name: "I understand" })).toBeNull();
     expect(
-      await slot.findByText("Know what the interpreter can access"),
-    ).toBeDefined();
-    fireEvent.click(slot.getByRole("button", { name: "I understand" }));
-    await waitFor(() =>
-      expect(slot.rpcCalls).toContainEqual({
-        method: "acknowledgeDisclosure",
-        input: null,
-      }),
-    );
+      slot.rpcCalls.some((call) => call.method === "acknowledgeDisclosure"),
+    ).toBe(false);
   });
 
   it("keeps an offline draft in the BB composer and names the paused send state", () => {
@@ -223,9 +211,7 @@ describe("SceneSeed app", () => {
       ),
     );
 
-    const draft = slot.getByPlaceholderText(
-      "Describe something for the scene…",
-    );
+    const draft = slot.getByPlaceholderText("Enter a prompt…");
     fireEvent.change(draft, { target: { value: "a warm clock under snow" } });
     expect(draft).toHaveProperty("value", "a warm clock under snow");
     expect(
@@ -235,8 +221,19 @@ describe("SceneSeed app", () => {
     ).toBeDefined();
   });
 
-  it("submits the BB composer prompt directly into the durable queue", async () => {
-    let current = createSceneSeedUiFixture();
+  it("replaces the current scene before submitting the next prompt", async () => {
+    const fixture = createSceneSeedUiFixture();
+    let current: CanvasSnapshotDto = {
+      ...fixture,
+      cards: fixture.cards.filter((card) => card.id === "card_lighthouse"),
+      objects: fixture.objects.filter(
+        (object) => object.id === "object_lighthouse",
+      ),
+      jobs: fixture.jobs.filter((job) => job.id === "job_lighthouse"),
+      candidates: fixture.candidates.filter(
+        (candidate) => candidate.id === "scene_lighthouse",
+      ),
+    };
     const slot = track(
       renderSlot(
         app.navPanels[0]!,
@@ -245,6 +242,20 @@ describe("SceneSeed app", () => {
           rpc: {
             listCanvases: () => disclosureState(true),
             getCanvas: () => ({ snapshot: current }),
+            removeObject: () => {
+              current = {
+                ...current,
+                canvas: {
+                  ...current.canvas,
+                  revision: current.canvas.revision + 1,
+                },
+                objects: current.objects.map((object) => ({
+                  ...object,
+                  removedAt: Date.now(),
+                })),
+              };
+              return { snapshot: current };
+            },
             createCard: (input: unknown) => {
               if (
                 typeof input !== "object" ||
@@ -256,7 +267,10 @@ describe("SceneSeed app", () => {
               }
               current = {
                 ...current,
-                canvas: { ...current.canvas, revision: 8 },
+                canvas: {
+                  ...current.canvas,
+                  revision: current.canvas.revision + 1,
+                },
                 cards: [
                   ...current.cards,
                   {
@@ -280,9 +294,7 @@ describe("SceneSeed app", () => {
       ),
     );
 
-    const draft = await slot.findByPlaceholderText(
-      "Describe something for the scene…",
-    );
+    const draft = await slot.findByPlaceholderText("Enter a prompt…");
     fireEvent.change(draft, {
       target: { value: "a silver memory with roots" },
     });
@@ -295,18 +307,61 @@ describe("SceneSeed app", () => {
           canvasId: "canvas_fixture",
           cardId: "card_keyboard",
           placement: { x: 0, y: 0 },
-          expectedRevision: 8,
+          expectedRevision: 9,
         },
       }),
     );
     const createIndex = slot.rpcCalls.findIndex(
       (call) => call.method === "createCard",
     );
+    const removeIndex = slot.rpcCalls.findIndex(
+      (call) => call.method === "removeObject",
+    );
     const placeIndex = slot.rpcCalls.findIndex(
       (call) => call.method === "placeCard",
     );
-    expect(createIndex).toBeGreaterThan(-1);
+    expect(removeIndex).toBeGreaterThan(-1);
+    expect(createIndex).toBeGreaterThan(removeIndex);
     expect(placeIndex).toBeGreaterThan(createIndex);
+  });
+
+  it("shimmers while each fixture prompt replaces the generated scene", async () => {
+    vi.useFakeTimers();
+    try {
+      const slot = track(
+        renderSlot(app.navPanels[0]!, { subPath: SCENESEED_QA_SUBPATH }),
+      );
+      expect(slot.getByText("Enter a prompt and send it.")).toBeDefined();
+
+      const draft = slot.getByPlaceholderText("Enter a prompt…");
+      fireEvent.change(draft, { target: { value: "a storm caught in glass" } });
+      fireEvent.click(slot.getByTestId("bb-new-thread-composer-submit"));
+      expect(slot.getByTestId("sceneseed-canvas-shimmer")).toBeDefined();
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(1_700);
+      });
+      expect(slot.queryByTestId("sceneseed-canvas-shimmer")).toBeNull();
+      const firstScene = slot.getAllByRole("button", {
+        name: /^Select fixture_object_/,
+      })[0]?.textContent;
+      expect(firstScene).toBeTruthy();
+
+      fireEvent.change(draft, { target: { value: "a midnight lighthouse" } });
+      fireEvent.click(slot.getByTestId("bb-new-thread-composer-submit"));
+      expect(slot.getByTestId("sceneseed-canvas-shimmer")).toBeDefined();
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(1_700);
+      });
+      const replacement = slot.getAllByRole("button", {
+        name: /^Select fixture_object_/,
+      });
+      expect(replacement).toHaveLength(1);
+      expect(replacement[0]?.textContent).not.toBe(firstScene);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("probes an inactive candidate before acknowledging and revealing it", async () => {
@@ -494,15 +549,15 @@ describe("SceneSeed app", () => {
     );
 
     fireEvent.click(
-      slot.getByRole("button", { name: "Delete all canvas data…" }),
+      slot.getByRole("button", { name: "Delete SceneSeed data…" }),
     );
     expect(
       slot.getByText(
-        "This clears the plugin database and archives every canvas interpreter thread. This cannot be undone.",
+        "This clears the persistent canvas and archives its interpreter thread. Legacy canvas data is cleared too. This cannot be undone.",
       ),
     ).toBeDefined();
     fireEvent.click(
-      slot.getByRole("button", { name: "Delete all canvas data" }),
+      slot.getByRole("button", { name: "Delete SceneSeed data" }),
     );
     await waitFor(() =>
       expect(slot.rpcCalls).toContainEqual({

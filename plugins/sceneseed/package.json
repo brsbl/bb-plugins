@@ -1,7 +1,7 @@
 {
   "name": "bb-plugin-sceneseed",
   "version": "0.1.0",
-  "description": "Turn short prompts into playful, skill-guided 3D scenes.",
+  "description": "Turn prompts into a persistent black-and-white 3D scene.",
   "license": "MIT",
   "type": "module",
   "files": [
@@ -16,7 +16,7 @@
   },
   "bb": {
     "name": "SceneSeed",
-    "description": "Turn short prompts into playful, skill-guided 3D scenes.",
+    "description": "Turn prompts into a persistent black-and-white 3D scene.",
     "branding": {
       "icon": "Layers"
     },

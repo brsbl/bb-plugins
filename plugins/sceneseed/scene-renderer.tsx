@@ -21,7 +21,8 @@ import {
   evaluateReveal,
   mapMaterial,
   mapMeshGeometry,
-  resolveScenePalette,
+  resolveMonochromeScenePalette,
+  toMonochromeThemePalette,
   type MaterialPlan,
   type SceneNodeTree,
   type SceneThemePalette,
@@ -807,7 +808,11 @@ export function SceneRenderer({
     onContextRestored,
   };
   const [rendererAvailable, setRendererAvailable] = useState(true);
-  const themePalette = useHostThemePalette();
+  const hostThemePalette = useHostThemePalette();
+  const themePalette = useMemo(
+    () => toMonochromeThemePalette(hostThemePalette),
+    [hostThemePalette],
+  );
   const reducedMotion = usePrefersReducedMotion(reducedMotionOverride);
 
   useEffect(() => {
@@ -1080,7 +1085,7 @@ export function SceneRenderer({
       const { scene } = item;
       try {
         assertRendererSceneLimits(scene);
-        const palette = resolveScenePalette(scene, themePalette);
+        const palette = resolveMonochromeScenePalette(scene, themePalette);
         const materialPlan = mapMaterial(scene.material);
         const initiallyHidden = item.reveal === true || item.probeOnly === true;
         const outer = new THREE.Group();

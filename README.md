@@ -74,9 +74,9 @@ Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/m
 
 ### SceneSeed
 
-Turns short prompts into playful 3D objects on a persistent canvas. It keeps generation progress and recovery in context, then lets you select, transform, remix, duplicate, or remove each result.
+Turns each prompt into a black-and-white 3D scene on one persistent, implicit canvas. New prompts replace the current scene after a canvas-wide loading shimmer.
 
-![SceneSeed showing two generated objects, the selected-object controls, and bb's composer](plugins/sceneseed/docs/screenshot.png)
+![SceneSeed showing a black-and-white generated scene and bb's composer](plugins/sceneseed/docs/screenshot.png)
 
 [Source](plugins/sceneseed) · [README](plugins/sceneseed/README.md)
 

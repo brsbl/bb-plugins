@@ -100,6 +100,34 @@ export function resolveScenePalette(
   return scene.palette.map((entry) => resolvePaletteEntry(entry, palette));
 }
 
+export function toMonochromeColor(value: string): string {
+  const normalized = isSafeHexColor(value) ? value.slice(1) : "808080";
+  const red = Number.parseInt(normalized.slice(0, 2), 16);
+  const green = Number.parseInt(normalized.slice(2, 4), 16);
+  const blue = Number.parseInt(normalized.slice(4, 6), 16);
+  const level = Math.round(red * 0.2126 + green * 0.7152 + blue * 0.0722);
+  const channel = level.toString(16).padStart(2, "0");
+  return `#${channel}${channel}${channel}`;
+}
+
+export function toMonochromeThemePalette(
+  palette: SceneThemePalette,
+): SceneThemePalette {
+  return Object.fromEntries(
+    (Object.keys(palette) as SceneThemeToken[]).map((token) => [
+      token,
+      toMonochromeColor(palette[token]),
+    ]),
+  ) as SceneThemePalette;
+}
+
+export function resolveMonochromeScenePalette(
+  scene: Pick<SceneObjectV1, "palette">,
+  palette: SceneThemePalette = FALLBACK_THEME_PALETTE,
+): readonly string[] {
+  return resolveScenePalette(scene, palette).map(toMonochromeColor);
+}
+
 export interface SceneNodeTree {
   readonly node: SceneNodeV1;
   readonly children: readonly SceneNodeTree[];

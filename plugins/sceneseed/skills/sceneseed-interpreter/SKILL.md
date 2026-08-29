@@ -34,8 +34,7 @@ remote assets.
    lowest visible mass near its local ground, and include a contact shadow with
    intentional strength and softness.
 5. Treat nearby objects as a visual neighborhood, not ingredients to copy.
-   Reuse a small part of the supplied palette or style rhythm while preserving
-   a distinct silhouette and focal color for this object.
+   Reuse their scale or shape rhythm while preserving a distinct silhouette.
 6. Add text only when visible lettering is essential to the prompt itself.
    Never use text as a caption, explanation, or substitute for a visual idea.
 7. Write concise alt text that names the interpretation and its visible major
@@ -43,10 +42,10 @@ remote assets.
 
 ## Use one SceneSeed visual language
 
-- **Color:** use 3–5 purposeful colors when the prompt allows it. Establish one
-  dominant family, one clear focal accent, and enough warm/cool or light/dark
-  contrast for the silhouette to read. Reuse a nearby accent or neutral to
-  connect the canvas, but do not make every object the same color.
+- **Color:** every scene is black and white. Use 2–5 purposeful grayscale
+  values from near-black through white, with enough light/dark contrast for the
+  silhouette and focal form to read. Do not introduce hue, even when the prompt
+  names a color; express that cue through value, material, shape, or light.
 - **Shape:** favor bold rounded masses, clean extrusions, and one contrasting
   shape family. Build a recognizable silhouette before adding small accents;
   avoid generic stacks of boxes or evenly sized parts.
@@ -71,7 +70,7 @@ only when an ambiguous phrase needs a precedent.
   Keep `name` to 80 visible characters and `altText` to 240.
 - Set each top-level bound (`width`, `height`, `depth`) from 0.05 through 20,
   then choose `front`, `three-quarter`, `top`, or `free` as `cameraHint`.
-- Use 1–8 theme-relative palette colors or exact safe color values.
+- Use 1–8 theme-relative neutral palette values or exact grayscale colors.
 - Use 1–40 nodes drawn only from `group`, `mesh`, `extrudedShape`, `text`, and
   `particles`.
 - Every node has a unique simple `id`, a valid `parentId` or `null`,

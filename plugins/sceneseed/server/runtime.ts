@@ -147,15 +147,6 @@ export class SceneSeedRuntime {
     }
   }
 
-  private requireDisclosure(): void {
-    if (!this.store.isDisclosureAcknowledged()) {
-      throw new SceneSeedStoreError(
-        "invalid_state",
-        "Acknowledge the SceneSeed agent and retention disclosure before generating.",
-      );
-    }
-  }
-
   private publishCanvas(
     canvasId: string,
     revision: number,
@@ -380,7 +371,6 @@ export class SceneSeedRuntime {
     expectedRevision: number;
   }): Promise<{ snapshot: CanvasSnapshotDto; jobId: string }> {
     return this.withCanvasLock(input.canvasId, async () => {
-      this.requireDisclosure();
       this.assertRevision(input.canvasId, input.expectedRevision);
       this.assertCardOnCanvas(input.canvasId, input.cardId);
       const threadId = await this.ensureAgentThreadLocked(input.canvasId);
@@ -406,7 +396,6 @@ export class SceneSeedRuntime {
     expectedRevision: number;
   }): Promise<{ snapshot: CanvasSnapshotDto; jobId: string }> {
     return this.withCanvasLock(input.canvasId, async () => {
-      this.requireDisclosure();
       this.assertRevision(input.canvasId, input.expectedRevision);
       this.assertObjectOnCanvas(input.canvasId, input.objectId);
       const threadId = await this.ensureAgentThreadLocked(input.canvasId);

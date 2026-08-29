@@ -157,7 +157,6 @@ async function loadHost(input?: {
 }
 
 async function createQueuedJob(host: FakePluginHost, prompt = "rain in a jar") {
-  await callRpc(host, "acknowledgeDisclosure", null);
   const created = await callRpc(host, "createCanvas", {
     name: "Test canvas",
   });
