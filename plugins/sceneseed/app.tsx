@@ -5,6 +5,7 @@ import {
   useMemo,
   useRef,
   useState,
+  type CSSProperties,
   type ErrorInfo,
   type ReactNode,
 } from "react";
@@ -50,6 +51,20 @@ const ACTIVE_CARD_STATES = new Set<CardDto["state"]>([
   "interpreting",
   "realizing",
 ]);
+const ACTIVE_JOB_STATES = new Set<JobDto["state"]>([
+  "queued",
+  "interpreting",
+  "candidate_ready",
+  "realizing",
+]);
+const MAX_GENERATION_STREAM_LINES = 7;
+const GENERATION_STREAM_LINE_TTL_MS = 5_600;
+
+interface GenerationStreamLine {
+  id: string;
+  jobId: string;
+  text: string;
+}
 
 const SCENE_TINT_OPTIONS: readonly {
   label: string;
@@ -94,6 +109,67 @@ function isCanvasSignal(
     typeof payload.canvasId === "string" &&
     "revision" in payload &&
     typeof payload.revision === "number"
+  );
+}
+
+function isGenerationStreamSignal(payload: unknown): payload is
+  | {
+      kind: "line";
+      canvasId: string;
+      jobId: string;
+      lineId: string;
+      text: string;
+    }
+  | { kind: "clear"; canvasId: string } {
+  if (typeof payload !== "object" || payload === null) return false;
+  if (
+    !("kind" in payload) ||
+    !("canvasId" in payload) ||
+    typeof payload.canvasId !== "string"
+  ) {
+    return false;
+  }
+  if (payload.kind === "clear") return true;
+  return (
+    payload.kind === "line" &&
+    "jobId" in payload &&
+    typeof payload.jobId === "string" &&
+    "lineId" in payload &&
+    typeof payload.lineId === "string" &&
+    "text" in payload &&
+    typeof payload.text === "string"
+  );
+}
+
+function GenerationMessageStream({
+  lines,
+  onLineExpired,
+}: {
+  lines: readonly GenerationStreamLine[];
+  onLineExpired: (lineId: string) => void;
+}) {
+  return (
+    <div
+      className="sceneseed-generation-stream"
+      data-testid="sceneseed-generation-stream"
+      aria-hidden="true"
+    >
+      {[...lines].reverse().map((line, rank) => (
+        <span
+          key={line.id}
+          className="sceneseed-generation-stream-line"
+          data-stream-rank={rank}
+          style={
+            {
+              "--sceneseed-stream-rank": rank,
+            } as CSSProperties
+          }
+          onAnimationEnd={() => onLineExpired(line.id)}
+        >
+          {line.text}
+        </span>
+      ))}
+    </div>
   );
 }
 
@@ -505,6 +581,10 @@ function CanvasWorkspace({
   const [announcement, setAnnouncement] = useState("Canvas restored.");
   const [busy, setBusy] = useState(false);
   const [composerError, setComposerError] = useState<string | null>(null);
+  const [generationStreamLines, setGenerationStreamLines] = useState<
+    GenerationStreamLine[]
+  >([]);
+  const generationStreamTimers = useRef(new Map<string, number>());
   const hasLiveStatus = snapshot.cards.some(
     (card) => card.state === "interpreting" || card.state === "realizing",
   );
@@ -516,6 +596,86 @@ function CanvasWorkspace({
     (object) => object.reveal === true && object.probeOnly !== true,
   );
   const isGenerating = inFlightCount > 0 || hasPendingReveal || busy;
+  const activeGenerationJobId =
+    snapshot.jobs.find((job) => ACTIVE_JOB_STATES.has(job.state))?.id ?? null;
+
+  const removeGenerationStreamLine = useCallback((lineId: string) => {
+    const timer = generationStreamTimers.current.get(lineId);
+    if (timer !== undefined) window.clearTimeout(timer);
+    generationStreamTimers.current.delete(lineId);
+    setGenerationStreamLines((current) =>
+      current.filter((line) => line.id !== lineId),
+    );
+  }, []);
+
+  const clearGenerationStream = useCallback(() => {
+    for (const timer of generationStreamTimers.current.values()) {
+      window.clearTimeout(timer);
+    }
+    generationStreamTimers.current.clear();
+    setGenerationStreamLines([]);
+  }, []);
+
+  useRealtime(
+    "generation-stream",
+    useCallback(
+      (payload: unknown) => {
+        if (
+          !isGenerationStreamSignal(payload) ||
+          payload.canvasId !== snapshot.canvas.id
+        ) {
+          return;
+        }
+        if (payload.kind === "clear") {
+          clearGenerationStream();
+          return;
+        }
+        const line: GenerationStreamLine = {
+          id: payload.lineId,
+          jobId: payload.jobId,
+          text: payload.text,
+        };
+        setGenerationStreamLines((current) => [
+          ...current.filter(
+            (entry) =>
+              entry.id !== line.id && entry.jobId === line.jobId,
+          ),
+          line,
+        ].slice(-MAX_GENERATION_STREAM_LINES));
+        const previousTimer = generationStreamTimers.current.get(line.id);
+        if (previousTimer !== undefined) window.clearTimeout(previousTimer);
+        generationStreamTimers.current.set(
+          line.id,
+          window.setTimeout(
+            () => removeGenerationStreamLine(line.id),
+            GENERATION_STREAM_LINE_TTL_MS,
+          ),
+        );
+      },
+      [clearGenerationStream, removeGenerationStreamLine, snapshot.canvas.id],
+    ),
+  );
+
+  useEffect(() => {
+    if (activeGenerationJobId === null) return;
+    setGenerationStreamLines((current) =>
+      current.filter((line) => line.jobId === activeGenerationJobId),
+    );
+  }, [activeGenerationJobId]);
+
+  useEffect(() => {
+    if (!isGenerating) clearGenerationStream();
+  }, [clearGenerationStream, isGenerating]);
+
+  useEffect(
+    () => () => {
+      for (const timer of generationStreamTimers.current.values()) {
+        window.clearTimeout(timer);
+      }
+      generationStreamTimers.current.clear();
+    },
+    [],
+  );
 
   useEffect(() => {
     if (
@@ -684,6 +844,12 @@ function CanvasWorkspace({
               data-testid="sceneseed-canvas-shimmer"
               role="status"
               aria-label="Generating scene"
+            />
+          ) : null}
+          {isGenerating && generationStreamLines.length > 0 ? (
+            <GenerationMessageStream
+              lines={generationStreamLines}
+              onLineExpired={removeGenerationStreamLine}
             />
           ) : null}
           <div className="sceneseed-stage-status">

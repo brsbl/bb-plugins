@@ -304,7 +304,7 @@ describe("SceneSeed agent orchestration", () => {
     expect(ordinary.skills).toEqual([]);
   });
 
-  it("starts the first claimed job as the hidden thread's fast initial turn", async () => {
+  it("starts the first claimed job with a fast streamed-progress turn", async () => {
     const loaded = await loadHost();
     const result = await createQueuedJob(loaded.host);
 
@@ -325,7 +325,8 @@ describe("SceneSeed agent orchestration", () => {
     const prompt = loaded.host.harness.sdk.callsTo("threads.spawn")[0]?.[0]
       ?.prompt as string;
     expect(prompt).toContain('"prompt":"rain in a jar"');
-    expect(prompt).toContain("500–1,500 aggregate vertices");
+    expect(prompt).toContain("exactly four concise, display-ready lines");
+    expect(prompt).toContain("Do not call tools or write code");
     expect(prompt).not.toContain("Reply only READY");
     expect(loaded.send).not.toHaveBeenCalled();
     expect(
@@ -333,9 +334,30 @@ describe("SceneSeed agent orchestration", () => {
     ).toBe("interpreting");
     expect(loaded.host.harness.sdk.callsTo("projects.files")).toEqual([]);
     expect(loaded.host.harness.sdk.callsTo("files.write")).toEqual([]);
+
+    await loaded.host.harness.emitThreadEvent("thread.idle", {
+      thread: makeThreadResponse({
+        id: "thr_scene",
+        projectId: personalProject.id,
+        originPluginId: "sceneseed",
+        visibility: "hidden",
+      }),
+      lastAssistantText: "Four real visual choices",
+    });
+    expect(loaded.send).toHaveBeenCalledTimes(1);
+    const buildPrompt = loaded.send.mock.calls[0]?.[0].input[0]?.text;
+    expect(buildPrompt).toContain("500–1,500 aggregate vertices");
+    expect(buildPrompt).toContain("Use only the submit_scene_object tool");
+    expect(
+      (
+        await callRpc(loaded.host, "getCanvas", {
+          canvasId: result.canvasId,
+        })
+      ).snapshot?.jobs[0]?.state,
+    ).toBe("interpreting");
   });
 
-  it("does not queue a throwaway bootstrap turn", async () => {
+  it("uses the first turn for visible progress instead of bootstrap work", async () => {
     const loaded = await loadHost({ threadStatus: "active" });
     const queued = await createQueuedJob(loaded.host);
 

@@ -348,6 +348,31 @@ describe("SceneSeed app", () => {
       fireEvent.change(draft, { target: { value: "a storm caught in glass" } });
       fireEvent.click(slot.getByTestId("bb-new-thread-composer-submit"));
       expect(slot.getByTestId("sceneseed-canvas-shimmer")).toBeDefined();
+      await slot.emitRealtime("generation-stream", {
+        kind: "line",
+        canvasId: "canvas_fixture",
+        jobId: "fixture_stream_job",
+        lineId: "stream_1",
+        text: "Shaping a rounded storm silhouette",
+      });
+      await slot.emitRealtime("generation-stream", {
+        kind: "line",
+        canvasId: "canvas_fixture",
+        jobId: "fixture_stream_job",
+        lineId: "stream_2",
+        text: "Balancing the glass around the cloud",
+      });
+      expect(slot.getByTestId("sceneseed-generation-stream")).toBeDefined();
+      expect(
+        slot
+          .getByText("Balancing the glass around the cloud")
+          .getAttribute("data-stream-rank"),
+      ).toBe("0");
+      expect(
+        slot
+          .getByText("Shaping a rounded storm silhouette")
+          .getAttribute("data-stream-rank"),
+      ).toBe("1");
 
       await act(async () => {
         await vi.advanceTimersByTimeAsync(1_700);
@@ -357,6 +382,7 @@ describe("SceneSeed app", () => {
         slot.getByRole("button", { name: /^Finish fixture_object_/ }),
       );
       expect(slot.queryByTestId("sceneseed-canvas-shimmer")).toBeNull();
+      expect(slot.queryByTestId("sceneseed-generation-stream")).toBeNull();
       const firstScene = slot.getAllByRole("button", {
         name: /^Select fixture_object_/,
       })[0]?.textContent;

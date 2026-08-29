@@ -88,6 +88,11 @@ export const submitSceneObjectParameters = lowerHomogeneousTuplesForToolSchema(
 );
 
 const SETTLED_JOB_STATES = new Set(["complete", "failed", "superseded"]);
+const GENERATION_STREAM_EVENT_TYPES = [
+  "item/agentMessage/delta",
+  "item/completed",
+] as const;
+const MAX_GENERATION_STREAM_LINE_LENGTH = 120;
 const FAST_GENERATION_MODELS: Readonly<Record<string, readonly string[]>> = {
   codex: [
     "gpt-5.6-luna",
@@ -112,6 +117,11 @@ interface GenerationExecutionOptions {
 
 interface SpawnGenerationExecutionOptions extends GenerationExecutionOptions {
   providerId?: string;
+}
+
+interface AgentStreamItemState {
+  buffer: string;
+  emittedLineCount: number;
 }
 
 function isNonterminalJobState(
@@ -164,6 +174,13 @@ export interface SceneSeedCleanupResult {
 export class SceneSeedRuntime {
   private readonly locks = new Map<string, Promise<void>>();
   private readonly initialJobReadiness = new Map<string, Promise<void>>();
+  private readonly agentStreamCursorByThread = new Map<string, number>();
+  private readonly agentStreamItemsByThread = new Map<
+    string,
+    Map<string, AgentStreamItemState>
+  >();
+  private readonly agentStreamReadsByThread = new Map<string, Promise<void>>();
+  private readonly generationPreludeJobByThread = new Map<string, string>();
   private readonly generationExecutionByProvider = new Map<
     string,
     GenerationExecutionOptions
@@ -261,6 +278,134 @@ export class SceneSeedRuntime {
     this.bb.realtime.publish("library-changed", { canvasId });
   }
 
+  private publishGenerationStreamLine(input: {
+    canvasId: string;
+    jobId: string;
+    itemId: string;
+    eventSeq: number;
+    lineIndex: number;
+    text: string;
+  }): void {
+    const text = input.text.replace(/\s+/gu, " ").trim();
+    if (text.length === 0) return;
+    this.bb.realtime.publish("generation-stream", {
+      kind: "line",
+      canvasId: input.canvasId,
+      jobId: input.jobId,
+      lineId: `${input.itemId}:${input.eventSeq}:${input.lineIndex}`,
+      text: text.slice(0, MAX_GENERATION_STREAM_LINE_LENGTH),
+    });
+  }
+
+  private clearGenerationStream(threadId: string): void {
+    this.agentStreamItemsByThread.delete(threadId);
+    const canvas = this.store.getCanvasByAgentThreadId(threadId);
+    if (canvas === null) return;
+    this.bb.realtime.publish("generation-stream", {
+      kind: "clear",
+      canvasId: canvas.id,
+    });
+  }
+
+  private queueAgentStreamRead(threadId: string): void {
+    const previous =
+      this.agentStreamReadsByThread.get(threadId) ?? Promise.resolve();
+    const next = previous
+      .catch(() => undefined)
+      .then(() => this.readAgentStream(threadId))
+      .catch((error) => {
+        this.bb.log.warn(
+          `Could not read SceneSeed agent stream for ${threadId}: ${errorMessage(error)}`,
+        );
+      })
+      .finally(() => {
+        if (this.agentStreamReadsByThread.get(threadId) === next) {
+          this.agentStreamReadsByThread.delete(threadId);
+        }
+      });
+    this.agentStreamReadsByThread.set(threadId, next);
+  }
+
+  private async readAgentStream(threadId: string): Promise<void> {
+    const canvas = this.store.getCanvasByAgentThreadId(threadId);
+    const job = this.store.getCurrentJobByAgentThreadId(threadId);
+    if (
+      canvas === null ||
+      job === null ||
+      job.state !== "interpreting" ||
+      job.startedAt === null
+    ) {
+      this.agentStreamItemsByThread.delete(threadId);
+      return;
+    }
+
+    const afterSeq = this.agentStreamCursorByThread.get(threadId);
+    const events = await this.bb.sdk.threads.events.list({
+      threadId,
+      ...(afterSeq === undefined ? {} : { afterSeq: String(afterSeq) }),
+      types: GENERATION_STREAM_EVENT_TYPES,
+      order: "asc",
+      limit: "100",
+    });
+    if (events.length === 0) return;
+
+    let items = this.agentStreamItemsByThread.get(threadId);
+    if (items === undefined) {
+      items = new Map();
+      this.agentStreamItemsByThread.set(threadId, items);
+    }
+    for (const event of events) {
+      this.agentStreamCursorByThread.set(threadId, event.seq);
+      if (event.createdAt < job.startedAt) continue;
+
+      if (event.type === "item/agentMessage/delta") {
+        const item = items.get(event.data.itemId) ?? {
+          buffer: "",
+          emittedLineCount: 0,
+        };
+        const lines = `${item.buffer}${event.data.delta}`.split(/\r?\n/u);
+        item.buffer = lines.pop() ?? "";
+        items.set(event.data.itemId, item);
+        lines.forEach((line) => {
+          const lineIndex = item.emittedLineCount;
+          item.emittedLineCount += 1;
+          this.publishGenerationStreamLine({
+            canvasId: canvas.id,
+            jobId: job.id,
+            itemId: event.data.itemId,
+            eventSeq: event.seq,
+            lineIndex,
+            text: line,
+          });
+        });
+        continue;
+      }
+
+      if (
+        event.type !== "item/completed" ||
+        event.data.item.type !== "agentMessage"
+      ) {
+        continue;
+      }
+      const item = items.get(event.data.item.id);
+      const emittedLineCount = item?.emittedLineCount ?? 0;
+      event.data.item.text
+        .split(/\r?\n/u)
+        .slice(emittedLineCount)
+        .forEach((line, offset) =>
+          this.publishGenerationStreamLine({
+            canvasId: canvas.id,
+            jobId: job.id,
+            itemId: event.data.item.id,
+            eventSeq: event.seq,
+            lineIndex: emittedLineCount + offset,
+            text: line,
+          }),
+        );
+      items.delete(event.data.item.id);
+    }
+  }
+
   listCanvases() {
     return this.store.listCanvases();
   }
@@ -329,6 +474,7 @@ export class SceneSeedRuntime {
       prompt: string;
       placement: Placement;
     },
+    phase: "progress" | "scene" = "progress",
   ): string {
     const activeCandidates = new Map(
       snapshot.candidates
@@ -359,22 +505,35 @@ export class SceneSeedRuntime {
               },
             ];
       });
+    const context = JSON.stringify({
+      jobId: payload.jobId,
+      objectId: payload.objectId,
+      generation: payload.generation,
+      prompt: payload.prompt,
+      placement: payload.placement,
+      nearby,
+    });
+    if (phase === "progress") {
+      return [
+        "Prepare the visual direction for this SceneSeed job using the sceneseed-interpreter skill.",
+        "Do not call tools or write code in this progress turn. Do not inspect files, use network access, or call unrelated tools.",
+        "Reply with exactly four concise, display-ready lines describing the actual visual choices you will use for this prompt. Use one complete sentence fragment per line, under 72 characters, with no bullets, numbering, markdown, code, preamble, conclusion, or generic filler. End every line with a newline so Diorama can stream it as a complete line.",
+        context,
+      ].join("\n\n");
+    }
     return [
-      "Interpret this SceneSeed job using the sceneseed-interpreter skill.",
-      "Use only the submit_scene_object tool. Do not inspect files, use network access, or call unrelated tools.",
-      "Write one compact visualization as a JavaScript function body using the THREE namespace described by the sceneseed-interpreter skill, then call submit_scene_object once with that source. Target 4–10 drawable objects and 500–1,500 aggregate vertices, with no more than 3 unique geometries, at most 4 materials, under 3,500 source characters, and under 250 KB when serialized. Reuse geometry and materials. Keep TubeGeometry at or below 40 tubular by 8 radial segments; keep ExtrudeGeometry at or below 1 step, 2 bevel segments, and 8 curve segments; never call toNonIndexed or create per-face geometry. Do not add a ground plane or a shadow mesh; Diorama supplies both. Return the canonical presentation values camera: \"three-quarter\", movement: \"still\", and shadow: \"crisp\" rather than inventing option objects. Prefer one clear rounded silhouette, simple curved primitives, controlled gloss, and no decorative detail that does not help recognition. The plugin injects job and object identity, runs the source for this requested job, recenters and grounds the returned Object3D, and persists its serialized Three.js result. If validation issues are returned, correct them and call the tool one final time. End without prose after one visualization is accepted.",
-      JSON.stringify({
-        jobId: payload.jobId,
-        objectId: payload.objectId,
-        generation: payload.generation,
-        prompt: payload.prompt,
-        placement: payload.placement,
-        nearby,
-      }),
+      "Build and submit the SceneSeed job below using the visual direction from the preceding progress turn and the sceneseed-interpreter skill.",
+      "Use only the submit_scene_object tool. Do not write commentary or a final answer, inspect files, use network access, or call unrelated tools.",
+      "Write one compact visualization as a JavaScript function body using the THREE namespace described by the sceneseed-interpreter skill and pass that source text directly to submit_scene_object. THREE is supplied only when the plugin executes the source, so do not try to inspect or execute THREE yourself. Target 4–10 drawable objects and 500–1,500 aggregate vertices, with no more than 3 unique geometries, at most 4 materials, under 3,500 source characters, and under 250 KB when serialized. Reuse geometry and materials. Keep TubeGeometry at or below 40 tubular by 8 radial segments; keep ExtrudeGeometry at or below 1 step, 2 bevel segments, and 8 curve segments; never call toNonIndexed or create per-face geometry. Do not add a ground plane or a shadow mesh; Diorama supplies both. Return the canonical presentation values camera: \"three-quarter\", movement: \"still\", and shadow: \"crisp\" rather than inventing option objects. Prefer one clear rounded silhouette, simple curved primitives, controlled gloss, and no decorative detail that does not help recognition. The plugin injects job and object identity, runs the source for this requested job, recenters and grounds the returned Object3D, and persists its serialized Three.js result. If validation issues are returned, correct them and call the tool one final time. End without prose after one visualization is accepted.",
+      context,
     ].join("\n\n");
   }
 
-  private buildJobPrompt(snapshot: CanvasSnapshotDto, job: JobDto): string {
+  private buildJobPrompt(
+    snapshot: CanvasSnapshotDto,
+    job: JobDto,
+    phase: "progress" | "scene" = "progress",
+  ): string {
     const card = snapshot.cards.find((entry) => entry.id === job.cardId);
     const object = snapshot.objects.find((entry) => entry.id === job.objectId);
     if (card === undefined || object === undefined || card.placement === null) {
@@ -382,13 +541,17 @@ export class SceneSeedRuntime {
         `SceneSeed job ${job.id} is missing its card or placement`,
       );
     }
-    return this.buildJobPromptFromPayload(snapshot, {
-      jobId: job.id,
-      objectId: job.objectId,
-      generation: job.generation,
-      prompt: card.prompt,
-      placement: card.placement,
-    });
+    return this.buildJobPromptFromPayload(
+      snapshot,
+      {
+        jobId: job.id,
+        objectId: job.objectId,
+        generation: job.generation,
+        prompt: card.prompt,
+        placement: card.placement,
+      },
+      phase,
+    );
   }
 
   private async generationExecutionForProvider(
@@ -550,6 +713,7 @@ export class SceneSeedRuntime {
       if (claimed === null || claimed.job.id !== input.jobId) {
         throw new Error("SceneSeed could not claim its first generation job");
       }
+      this.generationPreludeJobByThread.set(thread.id, claimed.job.id);
       this.publishCanvas(input.canvasId, claimed.revision, claimed.job.id);
       return {
         snapshot: this.requiredSnapshot(input.canvasId),
@@ -598,6 +762,10 @@ export class SceneSeedRuntime {
       const execution = await this.generationExecutionOptions(
         canvas.agentThreadId,
       );
+      this.generationPreludeJobByThread.set(
+        canvas.agentThreadId,
+        claimed.job.id,
+      );
       await this.bb.sdk.threads.send({
         threadId: canvas.agentThreadId,
         mode: "queue-if-active",
@@ -612,6 +780,12 @@ export class SceneSeedRuntime {
         ...execution,
       });
     } catch (error) {
+      if (
+        this.generationPreludeJobByThread.get(canvas.agentThreadId) ===
+        claimed.job.id
+      ) {
+        this.generationPreludeJobByThread.delete(canvas.agentThreadId);
+      }
       const latest = this.store.getCanvas(canvasId);
       if (latest === null) return;
       this.store.failNonterminalJob({
@@ -1187,6 +1361,8 @@ export class SceneSeedRuntime {
         outcome: "success",
       });
       this.publishCanvas(canvas.id, activated.revision, current.id);
+      this.generationPreludeJobByThread.delete(callerThreadId);
+      this.clearGenerationStream(callerThreadId);
       if (activated.outcome !== "complete") {
         return {
           content: [
@@ -1304,6 +1480,47 @@ export class SceneSeedRuntime {
       const interpreting = snapshot.jobs.find(
         (job) => job.agentThreadId === threadId && job.state === "interpreting",
       );
+      if (
+        outcome === "idle" &&
+        interpreting !== undefined &&
+        this.generationPreludeJobByThread.get(threadId) === interpreting.id
+      ) {
+        this.generationPreludeJobByThread.delete(threadId);
+        try {
+          const execution = await this.generationExecutionOptions(threadId);
+          await this.bb.sdk.threads.send({
+            threadId,
+            mode: "queue-if-active",
+            input: [
+              {
+                type: "text",
+                text: this.buildJobPrompt(snapshot, interpreting, "scene"),
+                mentions: [],
+              },
+            ],
+            permissionMode: "accept-edits",
+            ...execution,
+          });
+          return;
+        } catch (error) {
+          const latest = this.requiredSnapshot(canvas.id);
+          const failed = this.store.failNonterminalJob({
+            jobId: interpreting.id,
+            generation: interpreting.generation,
+            expectedState: "interpreting",
+            agentThreadId: threadId,
+            expectedCanvasRevision: latest.canvas.revision,
+            errorCode: "dispatch_failed",
+            errorMessage: errorMessage(error),
+          });
+          this.publishCanvas(canvas.id, failed.revision, interpreting.id);
+          await this.dispatchNextLocked(canvas.id);
+          return;
+        }
+      }
+      if (interpreting === undefined) {
+        this.generationPreludeJobByThread.delete(threadId);
+      }
       if (interpreting !== undefined) {
         const result = this.store.failNonterminalJob({
           jobId: interpreting.id,
@@ -1390,6 +1607,25 @@ export class SceneSeedRuntime {
   }
 
   registerLifecycle(): void {
+    const unsubscribeThreadChanges = this.bb.sdk.subscribe({
+      event: "thread:changed",
+      callback: (event) => {
+        if (
+          event.id === undefined ||
+          !event.metadata?.eventTypes?.some((type) =>
+            GENERATION_STREAM_EVENT_TYPES.includes(
+              type as (typeof GENERATION_STREAM_EVENT_TYPES)[number],
+            ),
+          )
+        ) {
+          return;
+        }
+        if (this.store.getCanvasByAgentThreadId(event.id) !== null) {
+          this.queueAgentStreamRead(event.id);
+        }
+      },
+    });
+    this.bb.onDispose(unsubscribeThreadChanges);
     this.bb.events.on("thread.idle", ({ thread }) =>
       this.reconcileThread(thread.id, "idle"),
     );

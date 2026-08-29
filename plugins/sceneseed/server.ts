@@ -117,7 +117,7 @@ export default async function sceneSeedPlugin(bb: BbPluginApi): Promise<void> {
       tools: ["submit_scene_object"],
       skills: ["sceneseed-interpreter"],
       instructions:
-        "This is a SceneSeed canvas interpreter thread. Turn each supplied prompt into Three.js source using the template defined by the sceneseed-interpreter skill, then submit it with submit_scene_object. Use only the supplied job context and SceneSeed submit tool. Do not inspect unrelated files or context, use network access, or call unrelated tools. BB may still supply core/provider tools and shared instructions; this selection is not an exclusive capability allowlist.",
+        "This is a SceneSeed canvas interpreter thread. A progress-only turn requests four visualization notes and must not call tools. The immediately following build turn turns that same job into Three.js source using the sceneseed-interpreter skill and submits it with submit_scene_object. Use only the supplied job context and SceneSeed submit tool. Do not inspect unrelated files or context, use network access, or call unrelated tools. BB may still supply core/provider tools and shared instructions; this selection is not an exclusive capability allowlist.",
     };
   });
 
