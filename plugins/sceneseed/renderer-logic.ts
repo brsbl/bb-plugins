@@ -2,6 +2,7 @@ import {
   MAX_SCENE_LIGHTS,
   MAX_SCENE_NODES,
   type SceneNodeV1,
+  type SceneObject,
   type SceneObjectV1,
 } from "./scene-contract";
 
@@ -94,7 +95,7 @@ export function resolvePaletteEntry(
 }
 
 export function resolveScenePalette(
-  scene: Pick<SceneObjectV1, "palette">,
+  scene: Pick<SceneObject, "palette">,
   palette: SceneThemePalette = FALLBACK_THEME_PALETTE,
 ): readonly string[] {
   return scene.palette.map((entry) => resolvePaletteEntry(entry, palette));
@@ -122,7 +123,7 @@ export function toMonochromeThemePalette(
 }
 
 export function resolveMonochromeScenePalette(
-  scene: Pick<SceneObjectV1, "palette">,
+  scene: Pick<SceneObject, "palette">,
   palette: SceneThemePalette = FALLBACK_THEME_PALETTE,
 ): readonly string[] {
   return resolveScenePalette(scene, palette).map(toMonochromeColor);
@@ -486,7 +487,7 @@ export interface CameraPlan {
 }
 
 export function cameraPlanForScene(
-  scene: Pick<SceneObjectV1, "bounds" | "cameraHint">,
+  scene: Pick<SceneObject, "bounds" | "cameraHint">,
 ): CameraPlan {
   const radius = Math.max(
     scene.bounds.width,
@@ -518,7 +519,15 @@ export function cameraPlanForScene(
   }
 }
 
-export function assertRendererSceneLimits(scene: SceneObjectV1): void {
+export function assertRendererSceneLimits(scene: SceneObject): void {
+  if (scene.version === 2) {
+    if (scene.stats.objects < 1) {
+      throw new SceneRendererInvariantError(
+        "Generated scene contains no drawable objects",
+      );
+    }
+    return;
+  }
   if (scene.nodes.length < 1 || scene.nodes.length > MAX_SCENE_NODES) {
     throw new SceneRendererInvariantError(
       `Scene node count ${scene.nodes.length} is outside renderer limits`,

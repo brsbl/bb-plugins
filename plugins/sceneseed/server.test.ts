@@ -70,44 +70,35 @@ function validScene(jobId: string, objectId: string) {
   };
 }
 
-function validProgram() {
-  return {
-    version: 1 as const,
-    name: "Rain jar",
-    altText: "A dark cloud raining inside a pale glass jar.",
-    camera: "three-quarter" as const,
-    material: "glass" as const,
-    movement: "bob" as const,
-    shadow: "soft" as const,
-    parts: [
-      {
-        kind: "shape" as const,
-        id: "jar",
-        shape: "cylinder" as const,
-        size: { width: 2.8, height: 3.8, depth: 2.8 },
-        at: [0, 1.9, 0] as [number, number, number],
-        tone: "light" as const,
-      },
-      {
-        kind: "shape" as const,
-        id: "cloud",
-        shape: "sphere" as const,
-        size: { width: 1.8, height: 1.1, depth: 1.4 },
-        at: [0, 2.7, 0] as [number, number, number],
-        tone: "dark" as const,
-      },
-      {
-        kind: "particles" as const,
-        id: "rain",
-        effect: "motes" as const,
-        count: 36,
-        size: 0.05,
-        spread: { width: 1.2, height: 1.5, depth: 0.7 },
-        at: [0, 1.6, 0] as [number, number, number],
-        tone: "black" as const,
-      },
-    ],
-  };
+function validSource() {
+  return `
+const root = new THREE.Group();
+const glass = new THREE.MeshPhysicalMaterial({
+  color: 0xdddddd,
+  roughness: 0.2,
+  transmission: 0.3,
+  transparent: true,
+  opacity: 0.8,
+});
+const dark = new THREE.MeshStandardMaterial({ color: 0x222222 });
+const jar = new THREE.Mesh(
+  new THREE.CylinderGeometry(1.4, 1.4, 3.8, 32),
+  glass,
+);
+jar.position.y = 1.9;
+root.add(jar);
+const cloud = new THREE.Mesh(new THREE.SphereGeometry(0.8, 24, 16), dark);
+cloud.scale.set(1.4, 0.7, 1);
+cloud.position.y = 2.7;
+root.add(cloud);
+return {
+  root,
+  name: "Rain jar",
+  altText: "A dark cloud suspended inside a pale glass jar.",
+  camera: "three-quarter",
+  movement: "bob",
+  shadow: "soft",
+};`;
 }
 
 function configurationContext(
@@ -226,7 +217,7 @@ afterEach(async () => {
 });
 
 describe("SceneSeed agent orchestration", () => {
-  it("advertises a provider-compatible SceneSeed Kit tool schema", () => {
+  it("advertises a provider-compatible Three.js source tool schema", () => {
     const arrayValuedItems: string[] = [];
     const visit = (value: unknown, path: string): void => {
       if (Array.isArray(value)) {
@@ -247,8 +238,8 @@ describe("SceneSeed agent orchestration", () => {
     expect(arrayValuedItems).toEqual([]);
     expect(submitSceneObjectParameters).toMatchObject({
       type: "object",
-      required: ["program"],
-      properties: { program: { type: "object" } },
+      required: ["source"],
+      properties: { source: { type: "string" } },
     });
     expect(
       (submitSceneObjectParameters.properties as Record<string, unknown>).scene,
@@ -348,7 +339,7 @@ describe("SceneSeed agent orchestration", () => {
 
     const wrongCaller = await host.harness.callAgentTool(
       "submit_scene_object",
-      { scene: {} },
+      { source: validSource() },
       { threadId: "thr_wrong" },
     );
     expect(wrongCaller).toMatchObject({ isError: true });
@@ -359,7 +350,7 @@ describe("SceneSeed agent orchestration", () => {
 
     const first = await host.harness.callAgentTool(
       "submit_scene_object",
-      { scene: { version: 1 } },
+      { source: "return {" },
       { threadId: "thr_scene" },
     );
     expect(JSON.parse(first as string)).toMatchObject({
@@ -376,7 +367,7 @@ describe("SceneSeed agent orchestration", () => {
 
     const second = await host.harness.callAgentTool(
       "submit_scene_object",
-      { scene: { version: 1 } },
+      { source: "return {" },
       { threadId: "thr_scene" },
     );
     expect(second).toMatchObject({ isError: true });
@@ -391,18 +382,18 @@ describe("SceneSeed agent orchestration", () => {
 
     const third = await host.harness.callAgentTool(
       "submit_scene_object",
-      { scene: { version: 1 } },
+      { source: "return {" },
       { threadId: "thr_scene" },
     );
     expect(third).toMatchObject({ isError: true });
   });
 
-  it("compiles the preferred kit program and injects the current job identity", async () => {
+  it("executes preferred Three.js source and injects the current job identity", async () => {
     const { host } = await loadHost();
     const queued = await createQueuedJob(host);
     const acceptedText = await host.harness.callAgentTool(
       "submit_scene_object",
-      { program: validProgram() },
+      { source: validSource() },
       { threadId: "thr_scene" },
     );
     const accepted = JSON.parse(acceptedText as string) as {
@@ -416,15 +407,12 @@ describe("SceneSeed agent orchestration", () => {
     );
 
     expect(candidate?.normalizedScene).toMatchObject({
+      version: 2,
       jobId: queued.jobId,
       objectId: snapshot.snapshot?.jobs[0]?.objectId,
       palette: ["#111111", "#444444", "#888888", "#cccccc", "#f5f5f5"],
+      stats: { objects: 2, materials: 2 },
     });
-    expect(candidate?.normalizedScene?.nodes.map((node) => node.id)).toEqual([
-      "jar",
-      "cloud",
-      "rain",
-    ]);
   });
 
   it("serializes jobs and advances only after the active thread settles", async () => {

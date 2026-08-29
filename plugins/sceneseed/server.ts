@@ -97,9 +97,9 @@ export default async function sceneSeedPlugin(bb: BbPluginApi): Promise<void> {
   bb.agents.registerTool({
     name: "submit_scene_object",
     description:
-      "Compose the current visualization with the small SceneSeed Kit program.",
+      "Render agent-authored Three.js source for the current SceneSeed prompt.",
     instructions:
-      "For new work, submit exactly one program. The plugin supplies identity, framing, grounding, scale, and safe defaults. Call at most twice: one submission and, only after actionable validation issues, one correction. Stop after one scene is accepted.",
+      "For new work, submit exactly one JavaScript function body in source. THREE is already in scope; return { root, name, altText, camera?, movement?, shadow? }. Call at most twice: one submission and, only after actionable validation issues, one correction. Stop after one scene is accepted.",
     parameters: submitSceneObjectParameters,
     execute(params, context) {
       return runtime.submitSceneObject(params, context.threadId);
@@ -117,7 +117,7 @@ export default async function sceneSeedPlugin(bb: BbPluginApi): Promise<void> {
       tools: ["submit_scene_object"],
       skills: ["sceneseed-interpreter"],
       instructions:
-        "This is a SceneSeed canvas interpreter thread. Compose new visualizations with the SceneSeed Kit program accepted by submit_scene_object. Use only the supplied job context and SceneSeed submit tool. Do not inspect unrelated files or context, use network access, or call unrelated tools. BB may still supply core/provider tools and shared instructions; this selection is not an exclusive capability allowlist.",
+        "This is a SceneSeed canvas interpreter thread. Turn each supplied prompt into Three.js source using the template defined by the sceneseed-interpreter skill, then submit it with submit_scene_object. Use only the supplied job context and SceneSeed submit tool. Do not inspect unrelated files or context, use network access, or call unrelated tools. BB may still supply core/provider tools and shared instructions; this selection is not an exclusive capability allowlist.",
     };
   });
 

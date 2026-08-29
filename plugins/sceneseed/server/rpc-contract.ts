@@ -1,6 +1,6 @@
 import { defineRpcContract } from "@get-bb/plugin-sdk";
 import { z } from "zod";
-import { sceneObjectV1Schema } from "../scene-contract.js";
+import { sceneObjectSchema } from "../scene-contract.js";
 
 const idSchema = z.string().min(1).max(128);
 const revisionSchema = z.number().int().min(0);
@@ -123,8 +123,8 @@ const candidateSchema = z
     jobId: idSchema,
     objectId: idSchema,
     generation: z.number().int().min(1),
-    originalScene: sceneObjectV1Schema.nullable(),
-    normalizedScene: sceneObjectV1Schema.nullable(),
+    originalScene: sceneObjectSchema.nullable(),
+    normalizedScene: sceneObjectSchema.nullable(),
     sceneVersion: z.number().int().min(1),
     cost: z.number().min(0),
     state: z.enum(["pending", "active", "failed", "superseded"]),

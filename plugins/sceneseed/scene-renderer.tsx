@@ -9,7 +9,12 @@ import {
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 
-import type { SceneNodeV1, SceneObjectV1 } from "./scene-contract";
+import type {
+  SceneNodeV1,
+  SceneObject,
+  SceneObjectV1,
+  SceneObjectV2,
+} from "./scene-contract";
 import {
   FALLBACK_THEME_PALETTE,
   RendererResourceRegistry,
@@ -40,11 +45,11 @@ const CSS_VARIABLE_BY_TOKEN = {
   "theme:danger": "--destructive",
 } as const satisfies Record<SceneThemeToken, string>;
 
-const MAX_GEOMETRY_VERTICES = 20_000;
+const MAX_GEOMETRY_VERTICES = 40_000;
 const TEXTURE_SIZE = 64;
 
 export interface SceneRenderObject {
-  readonly scene: SceneObjectV1;
+  readonly scene: SceneObject;
   readonly position?: Vector3Tuple;
   readonly rotation?: Vector3Tuple;
   readonly scale?: number | Vector3Tuple;
@@ -621,7 +626,7 @@ function createShadowTexture(softness: number): THREE.DataTexture {
 }
 
 function createContactShadow(
-  scene: SceneObjectV1,
+  scene: SceneObject,
   color: string,
   visible: boolean,
   registry: RendererResourceRegistry,
@@ -660,7 +665,7 @@ function createContactShadow(
 }
 
 function createSelectionOutline(
-  scene: SceneObjectV1,
+  scene: SceneObject,
   color: string,
   registry: RendererResourceRegistry,
 ): THREE.Mesh {
@@ -728,12 +733,67 @@ function addLocalLights(
   }
 }
 
+function createGeneratedThreeObject(
+  scene: SceneObjectV2,
+  initiallyHidden: boolean,
+  registry: RendererResourceRegistry,
+): THREE.Object3D {
+  const loader = new THREE.ObjectLoader();
+  const root = loader.parse(
+    scene.objectJson as unknown as Parameters<typeof loader.parse>[0],
+  );
+  const resources = new Set<THREE.BufferGeometry | THREE.Material | THREE.Texture>();
+  root.traverse((object) => {
+    if (object instanceof THREE.Light) {
+      object.userData.sceneseedBaseIntensity = object.intensity;
+      if (initiallyHidden) object.intensity = 0;
+    }
+    if (!("geometry" in object || "material" in object)) return;
+    const renderable = object as THREE.Object3D & {
+      geometry?: THREE.BufferGeometry;
+      material?: THREE.Material | THREE.Material[];
+    };
+    if (renderable.geometry instanceof THREE.BufferGeometry) {
+      assertFiniteGeometry(renderable.geometry);
+      resources.add(renderable.geometry);
+    }
+    const materials =
+      renderable.material === undefined
+        ? []
+        : Array.isArray(renderable.material)
+          ? renderable.material
+          : [renderable.material];
+    for (const material of materials) {
+      material.userData.sceneseedBaseOpacity = material.opacity;
+      material.userData.sceneseedTransparent = material.transparent;
+      material.userData.sceneseedDepthWrite = material.depthWrite;
+      if (initiallyHidden) {
+        material.opacity = 0;
+        material.transparent = true;
+        material.depthWrite = false;
+      }
+      resources.add(material);
+      for (const value of Object.values(material)) {
+        if (value instanceof THREE.Texture) resources.add(value);
+      }
+    }
+  });
+  for (const resource of resources) registry.register(resource);
+  return root;
+}
+
 function forEachSceneMaterial(
   root: THREE.Object3D,
   callback: (material: THREE.Material, baseOpacity: number) => void,
 ): void {
   root.traverse((object) => {
-    if (!(object instanceof THREE.Mesh || object instanceof THREE.Points))
+    if (
+      !(
+        object instanceof THREE.Mesh ||
+        object instanceof THREE.Points ||
+        object instanceof THREE.Line
+      )
+    )
       return;
     const materials = Array.isArray(object.material)
       ? object.material
@@ -758,6 +818,13 @@ function applyMaterialOpacity(root: THREE.Object3D, multiplier: number): void {
     material.depthWrite =
       material.userData.sceneseedDepthWrite === true && nextOpacity >= 0.999;
   });
+  root.traverse((object) => {
+    if (!(object instanceof THREE.Light)) return;
+    const baseIntensity = object.userData.sceneseedBaseIntensity;
+    if (typeof baseIntensity === "number") {
+      object.intensity = Math.max(0, baseIntensity * multiplier);
+    }
+  });
 }
 
 function objectScale(item: SceneRenderObject): Vector3Tuple {
@@ -772,10 +839,10 @@ function diagnosticMessage(error: unknown): string {
 }
 
 /**
- * Maps normalized SceneObjectV1 values directly to Three.js primitives. The
- * viewport owns its WebGL renderer, fixed camera, lights, ground, controls,
- * render probes, selection raycasting, and resource lifetime. No scene value
- * is evaluated as code or used to load an asset.
+ * Maps retained SceneObjectV1 values to primitives and parses serialized
+ * agent-authored Three.js objects for SceneObjectV2. Generated source runs on
+ * the server for the explicit prompt action; the browser receives only finite
+ * Three.js object JSON and never evaluates source text.
  */
 export function SceneRenderer({
   objects,
@@ -1086,7 +1153,6 @@ export function SceneRenderer({
       try {
         assertRendererSceneLimits(scene);
         const palette = resolveMonochromeScenePalette(scene, themePalette);
-        const materialPlan = mapMaterial(scene.material);
         const initiallyHidden = item.reveal === true || item.probeOnly === true;
         const outer = new THREE.Group();
         outer.position.set(...(item.position ?? [0, 0, 0]));
@@ -1108,13 +1174,24 @@ export function SceneRenderer({
         const animated = new THREE.Group();
         if (item.reveal === true && !reducedMotion)
           animated.scale.set(0.86, 0.035, 0.86);
-        addLocalLights(animated, scene, palette, item.probeOnly === true);
-        for (const tree of buildSceneNodeTree(scene.nodes)) {
+        if (scene.version === 1) {
+          const materialPlan = mapMaterial(scene.material);
+          addLocalLights(animated, scene, palette, item.probeOnly === true);
+          for (const tree of buildSceneNodeTree(scene.nodes)) {
+            animated.add(
+              createRenderNode(
+                tree,
+                palette,
+                materialPlan,
+                initiallyHidden,
+                objectRegistry,
+              ),
+            );
+          }
+        } else {
           animated.add(
-            createRenderNode(
-              tree,
-              palette,
-              materialPlan,
+            createGeneratedThreeObject(
+              scene,
               initiallyHidden,
               objectRegistry,
             ),
@@ -1164,7 +1241,8 @@ export function SceneRenderer({
                 status: "ready",
                 jobId: scene.jobId,
                 objectId: scene.objectId,
-                nodeCount: scene.nodes.length,
+                nodeCount:
+                  scene.version === 1 ? scene.nodes.length : scene.stats.objects,
               });
             } catch (error: unknown) {
               reportRenderFailure(error);

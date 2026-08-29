@@ -1,14 +1,15 @@
 import type { BbPluginApi } from "@get-bb/plugin-sdk";
 import { z } from "zod";
 import {
-  safeNormalizeSceneObjectV1,
+  safeNormalizeSceneObject,
   type SceneContractIssue,
-  type SceneObjectV1,
+  type SceneObject,
 } from "../scene-contract.js";
 import {
-  safeCompileSceneSeedKitProgram,
-  sceneSeedKitProgramSchema,
-} from "../scene-kit.js";
+  safeCompileSceneCode,
+  sceneCodeSourceSchema,
+} from "../scene-code.js";
+import { safeCompileSceneSeedKitProgram } from "../scene-kit.js";
 import {
   SceneSeedStoreError,
   type CanvasSnapshotDto,
@@ -21,24 +22,25 @@ import {
 
 export type SceneSeedStore = ReturnType<typeof createSceneSeedStore>;
 
-// Keep accepting the original raw scene envelope at the execution boundary so
-// older in-flight interpreter calls remain compatible. New sessions only see
-// the smaller SceneSeed Kit schema registered below.
+// Keep accepting the older declarative and raw-scene envelopes at execution so
+// in-flight and persisted version-1 interpreters remain compatible. New
+// sessions only see the agent-authored Three.js source contract below.
 const submitEnvelopeSchema = z
   .object({
+    source: z.unknown().optional(),
     program: z.unknown().optional(),
     scene: z.unknown().optional(),
   })
   .strict()
   .superRefine((value, context) => {
-    const supplied = [value.program, value.scene].filter(
+    const supplied = [value.source, value.program, value.scene].filter(
       (entry) => entry !== undefined,
     ).length;
     if (supplied !== 1) {
       context.addIssue({
         code: "custom",
         path: [],
-        message: "supply exactly one of program or scene",
+        message: "supply exactly one of source, program, or scene",
       });
     }
   });
@@ -77,9 +79,7 @@ export const submitSceneObjectParameters = lowerHomogeneousTuplesForToolSchema(
   z.toJSONSchema(
     z
       .object({
-        program: sceneSeedKitProgramSchema.describe(
-          "SceneSeed Kit composition. The plugin injects job identity, recenters and grounds the parts, fits them safely, and compiles the result into SceneObjectV1.",
-        ),
+        source: sceneCodeSourceSchema,
       })
       .strict(),
     { io: "input", target: "draft-7" },
@@ -356,7 +356,7 @@ export class SceneSeedRuntime {
     return [
       "Interpret this SceneSeed job using the sceneseed-interpreter skill.",
       "Use only the submit_scene_object tool. Do not inspect files, use network access, or call unrelated tools.",
-      "Compose the visualization with the SceneSeed Kit and call submit_scene_object once with a valid program. Do not submit a raw scene for new work. The plugin injects job and object identity, recenters and grounds the parts, fits the composition safely, and supplies the grayscale palette. If validation issues are returned, correct them and call the tool one final time. End without prose after one visualization is accepted.",
+      "Write the visualization as a JavaScript function body using the THREE namespace described by the sceneseed-interpreter skill, then call submit_scene_object once with that source. The plugin injects job and object identity, runs the source for this requested job, recenters and grounds the returned Object3D, and persists its serialized Three.js result. If validation issues are returned, correct them and call the tool one final time. End without prose after one visualization is accepted.",
       JSON.stringify({
         jobId: job.id,
         objectId: job.objectId,
@@ -762,11 +762,17 @@ export class SceneSeedRuntime {
       const envelope = submitEnvelopeSchema.safeParse(params);
       let issues: readonly SceneContractIssue[];
       let normalized:
-        | { success: true; scene: SceneObjectV1 }
+        | { success: true; scene: SceneObject }
         | { success: false; issues: readonly SceneContractIssue[] }
         | undefined;
       if (!envelope.success) {
         issues = envelopeIssues(envelope.error);
+      } else if (envelope.data.source !== undefined) {
+        normalized = safeCompileSceneCode(envelope.data.source, {
+          jobId: current.id,
+          objectId: current.objectId,
+        });
+        issues = normalized.success ? [] : normalized.issues;
       } else if (envelope.data.program !== undefined) {
         normalized = safeCompileSceneSeedKitProgram(envelope.data.program, {
           jobId: current.id,
@@ -774,7 +780,7 @@ export class SceneSeedRuntime {
         });
         issues = normalized.success ? [] : normalized.issues;
       } else {
-        normalized = safeNormalizeSceneObjectV1(envelope.data.scene);
+        normalized = safeNormalizeSceneObject(envelope.data.scene);
         issues = normalized.success ? [] : normalized.issues;
       }
       if (normalized?.success) {

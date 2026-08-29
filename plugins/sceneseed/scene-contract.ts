@@ -1,11 +1,17 @@
 import { z } from "zod";
 
 export const SCENE_OBJECT_VERSION = 1 as const;
+export const GENERATED_SCENE_OBJECT_VERSION = 2 as const;
 export const MAX_SCENE_NODES = 40;
 export const MAX_SCENE_LIGHTS = 3;
 export const MAX_SCENE_COST = 10;
 export const MAX_CANVAS_OBJECTS = 25;
 export const MAX_CANVAS_COST = 100;
+export const MAX_GENERATED_SCENE_OBJECTS = 80;
+export const MAX_GENERATED_SCENE_VERTICES = 40_000;
+export const MAX_GENERATED_SCENE_MATERIALS = 24;
+export const MAX_GENERATED_SCENE_LIGHTS = 4;
+export const MAX_GENERATED_SCENE_JSON_BYTES = 1_000_000;
 
 const identifierSchema = z
   .string()
@@ -279,6 +285,64 @@ export const sceneObjectV1Schema = z
 export type SceneNodeV1 = z.infer<typeof sceneNodeV1Schema>;
 export type SceneObjectV1 = z.infer<typeof sceneObjectV1Schema>;
 
+const generatedSceneStatsSchema = z
+  .object({
+    objects: z.number().int().min(1).max(MAX_GENERATED_SCENE_OBJECTS),
+    vertices: z.number().int().min(1).max(MAX_GENERATED_SCENE_VERTICES),
+    materials: z.number().int().min(1).max(MAX_GENERATED_SCENE_MATERIALS),
+    lights: z.number().int().min(0).max(MAX_GENERATED_SCENE_LIGHTS),
+  })
+  .strict();
+
+const generatedObjectJsonSchema = z
+  .record(z.string(), z.unknown())
+  .superRefine((value, context) => {
+    let serialized: string;
+    try {
+      serialized = JSON.stringify(value);
+    } catch {
+      context.addIssue({
+        code: "custom",
+        message: "generated Three.js object must be finite JSON",
+      });
+      return;
+    }
+    if (
+      new TextEncoder().encode(serialized).byteLength >
+      MAX_GENERATED_SCENE_JSON_BYTES
+    ) {
+      context.addIssue({
+        code: "custom",
+        message: `generated Three.js object exceeds ${MAX_GENERATED_SCENE_JSON_BYTES} bytes`,
+      });
+    }
+  });
+
+export const sceneObjectV2Schema = z
+  .object({
+    version: z.literal(GENERATED_SCENE_OBJECT_VERSION),
+    jobId: identifierSchema,
+    objectId: identifierSchema,
+    name: visibleTextSchema(80),
+    altText: visibleTextSchema(240),
+    bounds: dimensionsSchema,
+    cameraHint: z.enum(["front", "three-quarter", "top", "free"]),
+    palette: z.array(colorSchema).min(1).max(8),
+    motion: motionSchema,
+    ground: groundSchema,
+    objectJson: generatedObjectJsonSchema,
+    stats: generatedSceneStatsSchema,
+  })
+  .strict();
+
+export const sceneObjectSchema = z.union([
+  sceneObjectV1Schema,
+  sceneObjectV2Schema,
+]);
+
+export type SceneObjectV2 = z.infer<typeof sceneObjectV2Schema>;
+export type SceneObject = z.infer<typeof sceneObjectSchema>;
+
 export interface SceneContractIssue {
   code: string;
   path: string;
@@ -327,6 +391,22 @@ export function calculateSceneCost(scene: SceneObjectV1): number {
   return Math.max(1, Math.ceil(rawCost));
 }
 
+export function calculateGeneratedSceneCost(scene: SceneObjectV2): number {
+  const rawCost =
+    1 +
+    scene.stats.objects / 20 +
+    scene.stats.vertices / 20_000 +
+    scene.stats.materials / 8 +
+    scene.stats.lights / 2;
+  return Math.max(1, Math.ceil(rawCost));
+}
+
+export function calculateAnySceneCost(scene: SceneObject): number {
+  return scene.version === SCENE_OBJECT_VERSION
+    ? calculateSceneCost(scene)
+    : calculateGeneratedSceneCost(scene);
+}
+
 export function normalizeSceneObjectV1(input: unknown): SceneObjectV1 {
   const result = sceneObjectV1Schema.safeParse(input);
   if (!result.success) {
@@ -359,6 +439,52 @@ export function safeNormalizeSceneObjectV1(
   try {
     const scene = normalizeSceneObjectV1(input);
     return { success: true, scene, cost: calculateSceneCost(scene) };
+  } catch (error) {
+    if (error instanceof SceneContractError) {
+      return { success: false, issues: error.issues };
+    }
+    throw error;
+  }
+}
+
+export function normalizeSceneObject(input: unknown): SceneObject {
+  const version =
+    input !== null && typeof input === "object" && "version" in input
+      ? (input as { version?: unknown }).version
+      : undefined;
+  if (version === SCENE_OBJECT_VERSION) return normalizeSceneObjectV1(input);
+
+  const result = sceneObjectV2Schema.safeParse(input);
+  if (!result.success) {
+    throw new SceneContractError(
+      result.error.issues.map((issue) => ({
+        code: issue.code,
+        path: issue.path.join("."),
+        message: issue.message,
+      })),
+    );
+  }
+  const cost = calculateGeneratedSceneCost(result.data);
+  if (cost > MAX_SCENE_COST) {
+    throw new SceneContractError([
+      {
+        code: "scene_cost_exceeded",
+        path: "scene",
+        message: `scene costs ${cost} units; maximum is ${MAX_SCENE_COST}`,
+      },
+    ]);
+  }
+  return result.data;
+}
+
+export function safeNormalizeSceneObject(
+  input: unknown,
+):
+  | { success: true; scene: SceneObject; cost: number }
+  | { success: false; issues: readonly SceneContractIssue[] } {
+  try {
+    const scene = normalizeSceneObject(input);
+    return { success: true, scene, cost: calculateAnySceneCost(scene) };
   } catch (error) {
     if (error instanceof SceneContractError) {
       return { success: false, issues: error.issues };

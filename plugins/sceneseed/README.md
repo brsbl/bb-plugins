@@ -27,15 +27,18 @@ runs, and replaces the current scene when the next prompt completes.
 
 ## Agent access
 
-Scene generation uses a plugin-local **SceneSeed Kit** rather than asking the
-agent to hand-author Three.js or a full scene graph. The agent composes up to
-12 declarative shapes, labels, or particle effects with semantic grayscale
-tones. The kit injects job identity, recenters and grounds the composition,
-fits it into renderer limits, calculates bounds, applies safe lighting and
-motion presets, and compiles the result into the existing `SceneObjectV1`
-contract. Three.js only renders that validated contract; no agent-written code
-is evaluated and no new bb SDK API is required. Legacy raw scene submissions
-remain accepted for compatibility.
+Scene generation uses agent-authored Three.js. When the user sends a prompt,
+SceneSeed supplies a focused template with `THREE` already in scope. The agent
+returns a JavaScript function body that constructs and returns one
+`THREE.Object3D`; SceneSeed runs that source for the requested job, normalizes
+the result to grayscale, recenters and grounds it, fits it into renderer
+limits, serializes the Three.js object, and persists the rendered result.
+
+The browser never evaluates returned source: it receives the serialized
+Three.js object and loads it into the existing canvas renderer. This flow uses
+the plugin's existing agent tool and bb SDK surface. Previously saved
+`SceneObjectV1` records and older in-flight declarative submissions remain
+accepted for compatibility.
 
 The same saved records are available through the plugin CLI:
 
@@ -50,8 +53,10 @@ bb sceneseed remove-object <canvas-id> <object-id>
 
 ## Safety and privacy
 
-- Generated output must conform to SceneSeed's strict, versioned scene contract.
-  It cannot contain executable code, URLs, files, remote assets, or shaders.
+- Three.js source runs only for the prompt action the user submitted. It has
+  the supplied `THREE` namespace and must return one finite object; imports,
+  URLs, files, remote assets, textures, shaders, DOM, and network access are
+  not part of the template.
 - Prompts, generated scene graphs, transforms, job state, and canvas metadata are
   stored in the plugin's private SQLite database, not in a project workspace.
 - The canvas uses a hidden, persistent bb thread in the personal project. The

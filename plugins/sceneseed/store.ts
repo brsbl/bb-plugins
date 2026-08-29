@@ -5,10 +5,10 @@ import {
   MAX_CANVAS_COST,
   MAX_CANVAS_OBJECTS,
   SCENE_OBJECT_VERSION,
-  calculateSceneCost,
-  normalizeSceneObjectV1,
-  safeNormalizeSceneObjectV1,
-  type SceneObjectV1,
+  calculateAnySceneCost,
+  normalizeSceneObject,
+  safeNormalizeSceneObject,
+  type SceneObject,
 } from "./scene-contract.js";
 
 type PluginDatabase = Database.Database;
@@ -120,8 +120,8 @@ export interface SceneCandidateDto {
   jobId: string;
   objectId: string;
   generation: number;
-  originalScene: SceneObjectV1 | null;
-  normalizedScene: SceneObjectV1 | null;
+  originalScene: SceneObject | null;
+  normalizedScene: SceneObject | null;
   sceneVersion: number;
   cost: number;
   state: CandidateState;
@@ -427,14 +427,14 @@ function objectFromRow(row: ObjectRow): ObjectDto {
 }
 
 function candidateFromRow(row: CandidateRow): SceneCandidateDto {
-  let originalScene: SceneObjectV1 | null = null;
-  let normalizedScene: SceneObjectV1 | null = null;
+  let originalScene: SceneObject | null = null;
+  let normalizedScene: SceneObject | null = null;
   let readError: string | null = null;
   try {
-    const originalResult = safeNormalizeSceneObjectV1(
+    const originalResult = safeNormalizeSceneObject(
       JSON.parse(row.original_scene_json),
     );
-    const normalizedResult = safeNormalizeSceneObjectV1(
+    const normalizedResult = safeNormalizeSceneObject(
       JSON.parse(row.normalized_scene_json),
     );
     if (!originalResult.success || !normalizedResult.success) {
@@ -1345,9 +1345,9 @@ export function createSceneSeedStore(db: PluginDatabase) {
       expectedCanvasRevision: number;
       scene: unknown;
     }): { candidate: SceneCandidateDto; job: JobDto; revision: number } {
-      const normalized = normalizeSceneObjectV1(input.scene);
+      const normalized = normalizeSceneObject(input.scene);
       const originalSceneJson = serializeOriginalScene(input.scene);
-      const cost = calculateSceneCost(normalized);
+      const cost = calculateAnySceneCost(normalized);
       return db.transaction(() => {
         const job = requiredJob(db, input.jobId);
         const canvas = requiredCanvas(db, job.canvas_id);
@@ -2032,10 +2032,10 @@ export function createSceneSeedStore(db: PluginDatabase) {
         const transform = transformSchema.parse(
           input.transform ?? JSON.parse(source.transform_json),
         );
-        const sourceParsed = normalizeSceneObjectV1(
+        const sourceParsed = normalizeSceneObject(
           JSON.parse(sourceScene.normalized_scene_json),
         );
-        const scene = normalizeSceneObjectV1({
+        const scene = normalizeSceneObject({
           ...sourceParsed,
           jobId,
           objectId,
