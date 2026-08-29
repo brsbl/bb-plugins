@@ -561,7 +561,7 @@ export class SceneSeedRuntime {
     if (candidate === null) {
       throw new SceneSeedStoreError("not_found", "candidate was not found");
     }
-    return this.withCanvasLock(candidate.canvasId, () => {
+    return this.withCanvasLock(candidate.canvasId, async () => {
       const canvas = this.store.getCanvas(candidate.canvasId);
       if (canvas?.agentThreadId === null || canvas === null) {
         throw new SceneSeedStoreError(
@@ -569,13 +569,40 @@ export class SceneSeedRuntime {
           "canvas has no interpreter thread",
         );
       }
-      const result = this.store.beginRealization({
+      const currentCandidate = this.store.getCandidate(input.candidateId);
+      const currentJob = this.store.getJob(input.jobId);
+      if (
+        currentCandidate?.jobId === input.jobId &&
+        currentCandidate.generation === input.generation &&
+        currentCandidate.state === "active" &&
+        currentJob?.state === "complete"
+      ) {
+        return {
+          alreadyProcessed: true,
+          snapshot: this.requiredSnapshot(candidate.canvasId),
+        };
+      }
+
+      const begun = this.store.beginRealization({
         ...input,
         agentThreadId: canvas.agentThreadId,
       });
-      this.publishCanvas(candidate.canvasId, result.revision, input.jobId);
+      // Generated source has already executed in the bounded server runtime,
+      // passed scene limits, and serialized through Three.js. Promote it in
+      // the same lock instead of leasing acceptance to whichever browser tab
+      // happens to answer first; an inactive tab otherwise adds a full lease
+      // timeout before another client can show the result.
+      const completed = this.store.acknowledgeRealization({
+        ...input,
+        agentThreadId: canvas.agentThreadId,
+        expectedCanvasRevision: begun.revision,
+        outcome: "success",
+      });
+      this.publishCanvas(candidate.canvasId, completed.revision, input.jobId);
+      await this.dispatchNextWhenThreadIdleLocked(candidate.canvasId);
       return {
-        alreadyProcessed: result.alreadyProcessed,
+        alreadyProcessed:
+          begun.alreadyProcessed || completed.outcome === "already_processed",
         snapshot: this.requiredSnapshot(candidate.canvasId),
       };
     });

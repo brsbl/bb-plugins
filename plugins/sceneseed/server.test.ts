@@ -463,7 +463,7 @@ describe("SceneSeed agent orchestration", () => {
     ).toBe("interpreting");
   });
 
-  it("promotes exactly one render-acknowledged candidate idempotently", async () => {
+  it("promotes a validated candidate when realization begins idempotently", async () => {
     const { host } = await loadHost();
     const queued = await createQueuedJob(host);
     const job = queued.snapshot.jobs.find(
@@ -485,6 +485,11 @@ describe("SceneSeed agent orchestration", () => {
       generation: job.generation,
       expectedCanvasRevision: accepted.revision,
     });
+    expect(begun.snapshot.objects[0]).toMatchObject({
+      activeSceneId: accepted.candidateId,
+    });
+    expect(begun.snapshot.jobs[0]?.state).toBe("complete");
+
     const completed = await callRpc(host, "acknowledgeRealization", {
       candidateId: accepted.candidateId,
       attemptId: "attempt_1",
@@ -493,21 +498,23 @@ describe("SceneSeed agent orchestration", () => {
       expectedCanvasRevision: begun.snapshot.canvas.revision,
       outcome: "success",
     });
-    expect(completed.outcome).toBe("complete");
+    expect(completed.outcome).toBe("already_processed");
     expect(completed.snapshot.objects[0]).toMatchObject({
       activeSceneId: accepted.candidateId,
     });
     expect(completed.snapshot.jobs[0]?.state).toBe("complete");
 
-    const duplicate = await callRpc(host, "acknowledgeRealization", {
+    const duplicate = await callRpc(host, "beginRealization", {
       candidateId: accepted.candidateId,
-      attemptId: "attempt_1",
+      attemptId: "attempt_2",
       jobId: job.id,
       generation: job.generation,
       expectedCanvasRevision: completed.snapshot.canvas.revision,
-      outcome: "success",
     });
-    expect(duplicate.outcome).toBe("already_processed");
+    expect(duplicate.alreadyProcessed).toBe(true);
+    expect(duplicate.snapshot.objects[0]).toMatchObject({
+      activeSceneId: accepted.candidateId,
+    });
   });
 
   it("waits for idle after cancelling an active turn before dispatching the queue", async () => {

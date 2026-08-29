@@ -721,6 +721,51 @@ function createGeneratedThreeObject(
     scene.objectJson as unknown as Parameters<typeof loader.parse>[0],
   );
   const resources = new Set<THREE.BufferGeometry | THREE.Material | THREE.Texture>();
+  const optimizedMaterials = new Map<THREE.Material, THREE.Material>();
+
+  const optimizeMaterial = (material: THREE.Material): THREE.Material => {
+    if (!(material instanceof THREE.MeshStandardMaterial)) return material;
+    const cached = optimizedMaterials.get(material);
+    if (cached) return cached;
+
+    // PBR shader compilation is disproportionately expensive in software
+    // WebGL. A Phong finish preserves the authored glossy/glass read without
+    // making the first visible frame compile the full PBR pipeline.
+    const transmission =
+      material instanceof THREE.MeshPhysicalMaterial
+        ? material.transmission
+        : 0;
+    const isGlass = transmission > 0.01 || material.transparent;
+    const optimized = new THREE.MeshPhongMaterial({
+      color: material.color,
+      emissive: material.emissive,
+      emissiveIntensity: material.emissiveIntensity,
+      specular: 0xd9d9d9,
+      shininess: Math.max(
+        72,
+        Math.min(120, Math.round((1 - material.roughness) * 128)),
+      ),
+      opacity: isGlass ? Math.min(material.opacity, 0.84) : material.opacity,
+      transparent: isGlass || material.transparent,
+      depthTest: material.depthTest,
+      depthWrite: isGlass ? false : material.depthWrite,
+      side: material.side,
+      vertexColors: material.vertexColors,
+      flatShading: material.flatShading,
+      wireframe: material.wireframe,
+      fog: material.fog,
+    });
+    optimized.name = material.name;
+    optimized.visible = material.visible;
+    optimized.toneMapped = material.toneMapped;
+    optimized.alphaTest = material.alphaTest;
+    optimized.premultipliedAlpha = material.premultipliedAlpha;
+    optimized.dithering = material.dithering;
+    optimized.userData = { ...material.userData };
+    optimizedMaterials.set(material, optimized);
+    return optimized;
+  };
+
   root.traverse((object) => {
     if (object instanceof THREE.Light) {
       object.userData.sceneseedBaseIntensity = object.intensity;
@@ -735,12 +780,26 @@ function createGeneratedThreeObject(
       assertFiniteGeometry(renderable.geometry);
       resources.add(renderable.geometry);
     }
-    const materials =
+    const sourceMaterials =
       renderable.material === undefined
         ? []
         : Array.isArray(renderable.material)
           ? renderable.material
           : [renderable.material];
+    const materials = sourceMaterials.map(optimizeMaterial);
+    if (renderable.material !== undefined) {
+      if (Array.isArray(renderable.material)) {
+        renderable.material = materials;
+      } else {
+        renderable.material = materials[0] ?? renderable.material;
+      }
+    }
+    for (const sourceMaterial of sourceMaterials) {
+      resources.add(sourceMaterial);
+      for (const value of Object.values(sourceMaterial)) {
+        if (value instanceof THREE.Texture) resources.add(value);
+      }
+    }
     for (const material of materials) {
       material.userData.sceneseedBaseOpacity = material.opacity;
       material.userData.sceneseedTransparent = material.transparent;
@@ -758,6 +817,43 @@ function createGeneratedThreeObject(
   });
   for (const resource of resources) registry.register(resource);
   return root;
+}
+
+function applyRenderProbeMaterials(
+  root: THREE.Object3D,
+  registry: RendererResourceRegistry,
+): void {
+  const meshMaterial = new THREE.MeshBasicMaterial({
+    color: 0xffffff,
+    toneMapped: false,
+  });
+  const lineMaterial = new THREE.LineBasicMaterial({
+    color: 0xffffff,
+    toneMapped: false,
+  });
+  const pointsMaterial = new THREE.PointsMaterial({
+    color: 0xffffff,
+    size: 1,
+    toneMapped: false,
+  });
+  registry.register(meshMaterial);
+  registry.register(lineMaterial);
+  registry.register(pointsMaterial);
+
+  root.traverse((object) => {
+    object.castShadow = false;
+    object.receiveShadow = false;
+    object.frustumCulled = false;
+    if (object instanceof THREE.Light) {
+      object.visible = false;
+    } else if (object instanceof THREE.Mesh) {
+      object.material = meshMaterial;
+    } else if (object instanceof THREE.Line) {
+      object.material = lineMaterial;
+    } else if (object instanceof THREE.Points) {
+      object.material = pointsMaterial;
+    }
+  });
 }
 
 function forEachSceneMaterial(
@@ -928,6 +1024,7 @@ export function SceneRenderer({
   const sceneRef = useRef<THREE.Scene | null>(null);
   const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
   const controlsRef = useRef<OrbitControls | null>(null);
+  const renderRequestedRef = useRef(true);
   const framedSceneKeyRef = useRef("");
   const objectContainerRef = useRef<THREE.Group | null>(null);
   const animationsRef = useRef<AnimationRecord[]>([]);
@@ -1046,6 +1143,7 @@ export function SceneRenderer({
     controls.update();
     controlsRef.current = controls;
     const updateZoomPercent = () => {
+      renderRequestedRef.current = true;
       const distance = camera.position.distanceTo(controls.target);
       const next = zoomPercentForDistance(
         distance,
@@ -1063,6 +1161,7 @@ export function SceneRenderer({
       renderer.setSize(width, height, false);
       camera.aspect = width / height;
       camera.updateProjectionMatrix();
+      renderRequestedRef.current = true;
     };
     resize();
     const resizeObserver = new ResizeObserver(resize);
@@ -1105,7 +1204,10 @@ export function SceneRenderer({
       renderer.renderLists.dispose();
       callbacksRef.current.onContextLost?.();
     };
-    const contextRestored = () => callbacksRef.current.onContextRestored?.();
+    const contextRestored = () => {
+      renderRequestedRef.current = true;
+      callbacksRef.current.onContextRestored?.();
+    };
     canvas.addEventListener("webglcontextlost", contextLost, false);
     canvas.addEventListener("webglcontextrestored", contextRestored, false);
 
@@ -1113,6 +1215,7 @@ export function SceneRenderer({
     let animationFrame = 0;
     const renderFrame = () => {
       const elapsed = clock.getElapsedTime();
+      let needsContinuousRender = false;
       for (const record of animationsRef.current) {
         if (record.failed) continue;
         const { item, animated } = record;
@@ -1123,13 +1226,15 @@ export function SceneRenderer({
           applyMaterialOpacity(animated, 0);
           continue;
         }
-        if (!record.ready && item.reveal === true) {
+        const revealPending =
+          item.reveal === true && record.revealAnnounced === false;
+        if (!record.ready && revealPending) {
           applyMaterialOpacity(animated, 0);
           continue;
         }
         if (record.revealStartedAt === null) record.revealStartedAt = elapsed;
         const revealFrame =
-          item.reveal === true
+          revealPending
             ? evaluateReveal(elapsed - record.revealStartedAt, reducedMotion)
             : {
                 opacity: 1,
@@ -1152,8 +1257,13 @@ export function SceneRenderer({
           animated,
           revealFrame.opacity * motionFrame.opacityMultiplier,
         );
+        needsContinuousRender ||=
+          (revealPending && !revealFrame.complete) ||
+          (item.scene.motion.preset !== "none" &&
+            item.scene.motion.speed > 0 &&
+            item.scene.motion.amplitude > 0);
         if (
-          item.reveal === true &&
+          revealPending &&
           revealFrame.complete &&
           !record.revealAnnounced
         ) {
@@ -1161,8 +1271,15 @@ export function SceneRenderer({
           callbacksRef.current.onRevealComplete?.(item.scene.objectId);
         }
       }
-      controls.update();
-      renderer.render(scene, camera);
+      const controlsChanged = controls.update();
+      if (
+        renderRequestedRef.current ||
+        controlsChanged ||
+        needsContinuousRender
+      ) {
+        renderer.render(scene, camera);
+        renderRequestedRef.current = false;
+      }
       animationFrame = requestAnimationFrame(renderFrame);
     };
     animationFrame = requestAnimationFrame(renderFrame);
@@ -1222,6 +1339,7 @@ export function SceneRenderer({
         ground.material.color.set(colors.ground);
       }
     });
+    renderRequestedRef.current = true;
   }, [themePalette]);
 
   useEffect(() => {
@@ -1235,13 +1353,14 @@ export function SceneRenderer({
     objectRegistry.disposeAll();
     container.clear();
     const records: AnimationRecord[] = [];
+    const probing = objects.some((item) => item.probeOnly === true);
 
     for (const item of objects) {
       const { scene } = item;
       try {
         assertRendererSceneLimits(scene);
         const palette = resolveMonochromeScenePalette(scene, themePalette);
-        const initiallyHidden = item.reveal === true || item.probeOnly === true;
+        const initiallyHidden = item.reveal === true && item.probeOnly !== true;
         const outer = new THREE.Group();
         outer.position.set(...(item.position ?? [0, 0, 0]));
         outer.rotation.set(...(item.rotation ?? [0, 0, 0]));
@@ -1250,6 +1369,7 @@ export function SceneRenderer({
         outer.userData.sceneseedJobId = scene.jobId;
         outer.userData.sceneseedAltText = scene.altText;
         outer.userData.sceneseedProbeOnly = item.probeOnly === true;
+        outer.visible = !probing || item.probeOnly === true;
         outer.add(
           createContactShadow(
             scene,
@@ -1260,7 +1380,7 @@ export function SceneRenderer({
         );
 
         const animated = new THREE.Group();
-        if (item.reveal === true && !reducedMotion)
+        if (item.reveal === true && item.probeOnly !== true && !reducedMotion)
           animated.scale.set(0.86, 0.035, 0.86);
         if (scene.version === 1) {
           const materialPlan = mapMaterial(scene.material);
@@ -1285,11 +1405,15 @@ export function SceneRenderer({
             ),
           );
         }
-        applySceneColor(
-          animated,
-          sceneTint === null ? null : SCENE_TINT_COLORS[sceneTint],
-        );
-        applySceneFinish(animated);
+        if (item.probeOnly === true) {
+          applyRenderProbeMaterials(animated, objectRegistry);
+        } else {
+          applySceneColor(
+            animated,
+            sceneTint === null ? null : SCENE_TINT_COLORS[sceneTint],
+          );
+          applySceneFinish(animated);
+        }
         outer.add(animated);
         container.add(outer);
         const record: AnimationRecord = {
@@ -1315,19 +1439,43 @@ export function SceneRenderer({
             diagnostic: diagnosticMessage(error),
           });
         };
+        const reportRenderReady = () => {
+          if (cancelled) return;
+          record.ready = true;
+          callbacksRef.current.onRenderProbe?.({
+            status: "ready",
+            jobId: scene.jobId,
+            objectId: scene.objectId,
+            nodeCount:
+              scene.version === 1 ? scene.nodes.length : scene.stats.objects,
+          });
+        };
+
+        if (item.probeOnly === true) {
+          // Source execution, scene limits, ObjectLoader parsing, and finite
+          // geometry checks have all succeeded by this point. A WebGL draw is
+          // not part of candidate acceptance: software renderers can block one
+          // frame beyond the realization lease and force the same scene to be
+          // drawn twice. The accepted scene gets one real draw after cutover.
+          queueMicrotask(reportRenderReady);
+          continue;
+        }
         try {
           requestAnimationFrame(() => {
             if (cancelled) return;
             try {
+              if (item.reveal === true) {
+                animated.position.y = 0;
+                animated.rotation.set(0, 0, 0);
+                animated.scale.set(1, 1, 1);
+                applyMaterialOpacity(animated, 1);
+              }
               renderer.render(hostScene, camera);
-              record.ready = true;
-              callbacksRef.current.onRenderProbe?.({
-                status: "ready",
-                jobId: scene.jobId,
-                objectId: scene.objectId,
-                nodeCount:
-                  scene.version === 1 ? scene.nodes.length : scene.stats.objects,
-              });
+              reportRenderReady();
+              if (item.reveal === true && !record.revealAnnounced) {
+                record.revealAnnounced = true;
+                callbacksRef.current.onRevealComplete?.(item.scene.objectId);
+              }
             } catch (error: unknown) {
               reportRenderFailure(error);
             }
@@ -1388,6 +1536,10 @@ export function SceneRenderer({
       framedSceneKeyRef.current = frameKey;
     }
     animationsRef.current = records;
+    // Every visible record has one guarded first-render callback above. Keep
+    // the animation loop from drawing that same first frame a second time;
+    // an empty container still needs one paint to clear the previous scene.
+    renderRequestedRef.current = records.length === 0;
 
     return () => {
       cancelled = true;

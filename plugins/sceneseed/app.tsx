@@ -859,7 +859,20 @@ function CanvasEditor({ canvasId }: { canvasId: string }) {
       .then(
         (result) => {
           realizationStarts.current.delete(candidate.id);
-          realizationAttempts.current.set(candidate.id, attemptId);
+          const stillPending = result.snapshot.candidates.some(
+            (entry) => entry.id === candidate.id && entry.state === "pending",
+          );
+          if (stillPending) {
+            realizationAttempts.current.set(candidate.id, attemptId);
+          } else {
+            realizationAttempts.current.delete(candidate.id);
+            const activated = result.snapshot.candidates.find(
+              (entry) => entry.id === candidate.id && entry.state === "active",
+            );
+            if (activated) {
+              setRevealing((ids) => new Set(ids).add(activated.objectId));
+            }
+          }
           applySnapshot(result.snapshot);
           setError(null);
         },

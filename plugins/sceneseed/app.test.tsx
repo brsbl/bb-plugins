@@ -456,6 +456,59 @@ describe("SceneSeed app", () => {
     });
   });
 
+  it("reveals a candidate promoted by beginRealization without a client acknowledgement", async () => {
+    let current = candidateReadySnapshot();
+    const slot = track(
+      renderSlot(
+        app.navPanels[0]!,
+        { subPath: "canvas/canvas_fixture" },
+        {
+          rpc: {
+            listCanvases: () => disclosureState(true),
+            getCanvas: () => ({ snapshot: current }),
+            beginRealization: () => {
+              current = {
+                ...current,
+                canvas: { ...current.canvas, revision: 22 },
+                cards: current.cards.map((card) =>
+                  card.id === "card_lighthouse"
+                    ? { ...card, state: "complete" }
+                    : card,
+                ),
+                objects: current.objects.map((object) =>
+                  object.id === "object_lighthouse"
+                    ? { ...object, activeSceneId: "scene_lighthouse" }
+                    : object,
+                ),
+                jobs: current.jobs.map((job) =>
+                  job.id === "job_lighthouse"
+                    ? { ...job, state: "complete" }
+                    : job,
+                ),
+                candidates: current.candidates.map((candidate) =>
+                  candidate.id === "scene_lighthouse"
+                    ? { ...candidate, state: "active" }
+                    : candidate,
+                ),
+              };
+              return { snapshot: current, alreadyProcessed: false };
+            },
+          },
+        },
+      ),
+    );
+
+    await waitFor(() => {
+      const revealed = slot.getByRole("button", {
+        name: "Select object_lighthouse",
+      });
+      expect(revealed.getAttribute("data-reveal")).toBe("true");
+    });
+    expect(
+      slot.rpcCalls.some((call) => call.method === "acknowledgeRealization"),
+    ).toBe(false);
+  });
+
   it("waits out a stale realization lease before exposing the accepted attempt", async () => {
     vi.useFakeTimers();
     try {
