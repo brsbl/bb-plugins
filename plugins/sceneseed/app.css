@@ -1212,6 +1212,74 @@
   white-space: nowrap;
 }
 
+.sceneseed-color-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.28rem;
+  margin-inline: 0.15rem 0.35rem;
+}
+
+.sceneseed-color-controls > span {
+  margin-right: 0.08rem;
+  color: var(--sceneseed-muted);
+  font-size: 0.68rem;
+  font-weight: 570;
+}
+
+.sceneseed-color-choice {
+  display: grid;
+  width: 1.35rem;
+  height: 1.35rem;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  cursor: pointer;
+}
+
+.sceneseed-color-choice > span {
+  width: 0.72rem;
+  height: 0.72rem;
+  border: 1px solid color-mix(in oklch, var(--ink) 24%, var(--canvas));
+  border-radius: inherit;
+  background: var(--canvas);
+}
+
+.sceneseed-color-choice[data-swatch="mono"] > span {
+  border-color: var(--ink);
+  background: var(--canvas);
+}
+
+.sceneseed-color-choice[data-swatch="blue"] > span {
+  background: #2f6df6;
+}
+
+.sceneseed-color-choice[data-swatch="green"] > span {
+  background: #21a568;
+}
+
+.sceneseed-color-choice[data-swatch="orange"] > span {
+  background: #ed8a1e;
+}
+
+.sceneseed-color-choice[data-swatch="red"] > span {
+  background: #d43f4b;
+}
+
+.sceneseed-color-choice:hover > span {
+  transform: scale(1.12);
+}
+
+.sceneseed-color-choice:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.sceneseed-color-choice[aria-pressed="true"] {
+  box-shadow: inset 0 0 0 1px var(--ink);
+}
+
 .sceneseed-composer-shell {
   width: 100%;
 }

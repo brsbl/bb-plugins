@@ -87,6 +87,26 @@ export const submitSceneObjectParameters = lowerHomogeneousTuplesForToolSchema(
 );
 
 const SETTLED_JOB_STATES = new Set(["complete", "failed", "superseded"]);
+const FAST_GENERATION_MODELS: Readonly<Record<string, readonly string[]>> = {
+  codex: [
+    "gpt-5.3-codex-spark",
+    "gpt-5.4-mini",
+    "gpt-5.6-luna",
+  ],
+};
+
+interface GenerationExecutionOptions {
+  model?: string;
+  reasoningLevel?:
+    | "none"
+    | "low"
+    | "medium"
+    | "high"
+    | "xhigh"
+    | "max"
+    | "ultra"
+    | "ultracode";
+}
 
 function isNonterminalJobState(
   state: JobDto["state"],
@@ -133,6 +153,10 @@ export interface SceneSeedCleanupResult {
 
 export class SceneSeedRuntime {
   private readonly locks = new Map<string, Promise<void>>();
+  private readonly generationExecutionByProvider = new Map<
+    string,
+    GenerationExecutionOptions
+  >();
 
   constructor(
     private readonly bb: BbPluginApi,
@@ -356,7 +380,7 @@ export class SceneSeedRuntime {
     return [
       "Interpret this SceneSeed job using the sceneseed-interpreter skill.",
       "Use only the submit_scene_object tool. Do not inspect files, use network access, or call unrelated tools.",
-      "Write the visualization as a JavaScript function body using the THREE namespace described by the sceneseed-interpreter skill, then call submit_scene_object once with that source. The plugin injects job and object identity, runs the source for this requested job, recenters and grounds the returned Object3D, and persists its serialized Three.js result. If validation issues are returned, correct them and call the tool one final time. End without prose after one visualization is accepted.",
+      "Write one compact visualization as a JavaScript function body using the THREE namespace described by the sceneseed-interpreter skill, then call submit_scene_object once with that source. Prefer a clear silhouette, shared geometry and materials, and no decorative detail that does not help recognition. The plugin injects job and object identity, runs the source for this requested job, recenters and grounds the returned Object3D, and persists its serialized Three.js result. If validation issues are returned, correct them and call the tool one final time. End without prose after one visualization is accepted.",
       JSON.stringify({
         jobId: job.id,
         objectId: job.objectId,
@@ -366,6 +390,51 @@ export class SceneSeedRuntime {
         nearby,
       }),
     ].join("\n\n");
+  }
+
+  private async generationExecutionOptions(
+    threadId: string,
+  ): Promise<GenerationExecutionOptions> {
+    try {
+      const thread = await this.bb.sdk.threads.get({ threadId });
+      const cached = this.generationExecutionByProvider.get(thread.providerId);
+      if (cached) return cached;
+
+      const catalog = await this.bb.sdk.providers.models({
+        providerId: thread.providerId,
+      });
+      const defaults = await this.bb.sdk.threads.defaultExecutionOptions({
+        threadId,
+      });
+      const preferredModels = FAST_GENERATION_MODELS[thread.providerId] ?? [];
+      const selected =
+        preferredModels
+          .map((model) => catalog.models.find((entry) => entry.model === model))
+          .find((entry) => entry !== undefined) ??
+        catalog.models.find((entry) => entry.model === defaults?.model) ??
+        catalog.models.find((entry) => entry.isDefault);
+      if (!selected) return {};
+
+      const supportsLowReasoning = selected.supportedReasoningEfforts.some(
+        (effort) => effort.reasoningEffort === "low",
+      );
+      const options: GenerationExecutionOptions = {
+        model: selected.model,
+        reasoningLevel: supportsLowReasoning
+          ? "low"
+          : selected.defaultReasoningEffort,
+      };
+      this.generationExecutionByProvider.set(thread.providerId, options);
+      this.bb.log.info(
+        `SceneSeed generation will use ${thread.providerId}/${selected.model} at ${options.reasoningLevel} reasoning`,
+      );
+      return options;
+    } catch (error) {
+      this.bb.log.warn(
+        `Could not resolve a faster SceneSeed generation model; using the thread defaults: ${errorMessage(error)}`,
+      );
+      return {};
+    }
   }
 
   private async dispatchNextLocked(canvasId: string): Promise<void> {
@@ -380,6 +449,9 @@ export class SceneSeedRuntime {
     this.publishCanvas(canvasId, claimed.revision, claimed.job.id);
     const snapshot = this.requiredSnapshot(canvasId);
     try {
+      const execution = await this.generationExecutionOptions(
+        canvas.agentThreadId,
+      );
       await this.bb.sdk.threads.send({
         threadId: canvas.agentThreadId,
         mode: "queue-if-active",
@@ -391,6 +463,7 @@ export class SceneSeedRuntime {
           },
         ],
         permissionMode: "accept-edits",
+        ...execution,
       });
     } catch (error) {
       const latest = this.store.getCanvas(canvasId);

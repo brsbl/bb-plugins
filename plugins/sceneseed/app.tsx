@@ -20,31 +20,15 @@ import {
   type PluginSettingsSectionProps,
 } from "@get-bb/plugin-sdk/app";
 import { Button } from "./components/ui/button.js";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuSub,
-  DropdownMenuSubContent,
-  DropdownMenuSubTrigger,
-  DropdownMenuTrigger,
-} from "./components/ui/dropdown-menu.js";
 import { Icon } from "./components/ui/icon.js";
 import { Skeleton } from "./components/ui/skeleton.js";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "./components/ui/tooltip.js";
 
 import type { rpcContract } from "./server";
 import {
   SceneRenderer,
   type SceneRenderObject,
   type SceneRenderProbeEvent,
+  type SceneTintToken,
 } from "./scene-renderer.js";
 import {
   createSceneSeedUiFixture,
@@ -66,6 +50,18 @@ const ACTIVE_CARD_STATES = new Set<CardDto["state"]>([
   "interpreting",
   "realizing",
 ]);
+
+const SCENE_TINT_OPTIONS: readonly {
+  label: string;
+  swatch: "mono" | SceneTintToken;
+  value: SceneTintToken | null;
+}[] = [
+  { label: "Black and white", swatch: "mono", value: null },
+  { label: "Blue", swatch: "blue", value: "blue" },
+  { label: "Green", swatch: "green", value: "green" },
+  { label: "Orange", swatch: "orange", value: "orange" },
+  { label: "Red", swatch: "red", value: "red" },
+];
 
 type ConnectionState = ReturnType<typeof useRealtimeConnectionState>;
 
@@ -238,17 +234,6 @@ function activeJobForCard(
 ): JobDto | null {
   if (!card.activeJobId) return null;
   return snapshot.jobs.find((job) => job.id === card.activeJobId) ?? null;
-}
-
-function objectForCard(
-  snapshot: CanvasSnapshotDto,
-  cardId: string,
-): ObjectDto | null {
-  return (
-    snapshot.objects.find(
-      (object) => object.sourceCardId === cardId && object.removedAt === null,
-    ) ?? null
-  );
 }
 
 function buildRenderObjects(
@@ -433,136 +418,19 @@ function CanvasActivity({
   );
 }
 
-function SceneContentsMenu({
-  snapshot,
-  selectedObjectId,
-  readOnly,
-  onSelectObject,
-  onCancel,
-  onRetry,
-}: {
-  snapshot: CanvasSnapshotDto;
-  selectedObjectId: string | null;
-  readOnly: boolean;
-  onSelectObject: (objectId: string) => void;
-  onCancel: (jobId: string) => void;
-  onRetry: (card: CardDto) => void;
-}) {
-  const visibleObjects = snapshot.objects.filter(
-    (object) => object.removedAt === null,
-  );
-  return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button type="button" size="sm" variant="ghost">
-          <Icon name="Layers" aria-hidden="true" />
-          {visibleObjects.length}{" "}
-          {visibleObjects.length === 1 ? "object" : "objects"}
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="sceneseed-contents-menu">
-        <DropdownMenuLabel>Scene contents</DropdownMenuLabel>
-        {snapshot.cards.length === 0 ? (
-          <DropdownMenuItem disabled>No objects yet</DropdownMenuItem>
-        ) : (
-          snapshot.cards.map((card) => {
-            const object = objectForCard(snapshot, card.id);
-            const job = activeJobForCard(snapshot, card);
-            const canRetry =
-              card.state === "ready" ||
-              card.state === "cancelled" ||
-              card.state === "failed";
-            const canCancel =
-              (card.state === "queued" || card.state === "interpreting") &&
-              job !== null;
-            const canSelect = object !== null;
-            return (
-              <DropdownMenuItem
-                key={card.id}
-                disabled={!canSelect && !canRetry && !canCancel}
-                aria-checked={object?.id === selectedObjectId}
-                role={canSelect ? "menuitemradio" : "menuitem"}
-                onSelect={() => {
-                  if (object) onSelectObject(object.id);
-                  else if (canRetry) onRetry(card);
-                  else if (canCancel && job) onCancel(job.id);
-                }}
-              >
-                <span
-                  className="sceneseed-contents-status"
-                  data-state={card.state}
-                />
-                <span className="sceneseed-contents-copy">
-                  <strong>{card.prompt}</strong>
-                  <small>
-                    {canRetry
-                      ? "Retry"
-                      : canCancel
-                        ? "Cancel generation"
-                        : cardStateLabel(card)}
-                  </small>
-                </span>
-                {object?.id === selectedObjectId ? (
-                  <Icon
-                    name="Check"
-                    className="sceneseed-contents-check"
-                    aria-hidden="true"
-                  />
-                ) : null}
-              </DropdownMenuItem>
-            );
-          })
-        )}
-      </DropdownMenuContent>
-    </DropdownMenu>
-  );
-}
-
 function ObjectControls({
-  object,
   card,
   readOnly,
-  actionRef,
-  onTransform,
+  sceneTint,
+  onSceneTint,
   onRemix,
-  onDuplicate,
-  onRemove,
 }: {
-  object: ObjectDto;
   card: CardDto;
   readOnly: boolean;
-  actionRef: (element: HTMLButtonElement | null) => void;
-  onTransform: (transform: Transform3D) => void;
+  sceneTint: SceneTintToken | null;
+  onSceneTint: (tint: SceneTintToken | null) => void;
   onRemix: () => void;
-  onDuplicate: () => void;
-  onRemove: () => void;
 }) {
-  const transform = object.transform;
-  const move = (x: number, z: number) =>
-    onTransform({
-      ...transform,
-      position: [
-        transform.position[0] + x,
-        transform.position[1],
-        transform.position[2] + z,
-      ],
-    });
-  const rotate = (delta: number) =>
-    onTransform({
-      ...transform,
-      rotation: [
-        transform.rotation[0],
-        transform.rotation[1] + delta,
-        transform.rotation[2],
-      ],
-    });
-  const scale = (factor: number) =>
-    onTransform({
-      ...transform,
-      scale: transform.scale.map((value) =>
-        Math.max(0.1, Math.min(10, value * factor)),
-      ) as [number, number, number],
-    });
   return (
     <section
       className="sceneseed-object-controls"
@@ -570,8 +438,28 @@ function ObjectControls({
     >
       <span className="sceneseed-selection-dot" aria-hidden="true" />
       <h3 id="sceneseed-selected-heading">{card.prompt}</h3>
+      <div
+        className="sceneseed-color-controls"
+        role="group"
+        aria-label="Scene color"
+      >
+        <span>Color</span>
+        {SCENE_TINT_OPTIONS.map((option) => (
+          <button
+            key={option.swatch}
+            type="button"
+            className="sceneseed-color-choice"
+            data-swatch={option.swatch}
+            aria-label={option.label}
+            aria-pressed={sceneTint === option.value}
+            title={option.label}
+            onClick={() => onSceneTint(option.value)}
+          >
+            <span aria-hidden="true" />
+          </button>
+        ))}
+      </div>
       <Button
-        ref={actionRef}
         type="button"
         size="sm"
         variant="secondary"
@@ -580,75 +468,6 @@ function ObjectControls({
       >
         Remix
       </Button>
-      <DropdownMenu>
-        <TooltipProvider>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <DropdownMenuTrigger asChild>
-                <Button
-                  type="button"
-                  size="icon"
-                  variant="ghost"
-                  disabled={readOnly}
-                  aria-label="More object actions"
-                >
-                  <Icon name="MoreHorizontal" aria-hidden="true" />
-                </Button>
-              </DropdownMenuTrigger>
-            </TooltipTrigger>
-            <TooltipContent>More object actions</TooltipContent>
-          </Tooltip>
-        </TooltipProvider>
-        <DropdownMenuContent align="end">
-          <DropdownMenuLabel>Arrange object</DropdownMenuLabel>
-          <DropdownMenuSub>
-            <DropdownMenuSubTrigger>Move</DropdownMenuSubTrigger>
-            <DropdownMenuSubContent>
-              <DropdownMenuItem onSelect={() => move(-0.5, 0)}>
-                Left
-              </DropdownMenuItem>
-              <DropdownMenuItem onSelect={() => move(0.5, 0)}>
-                Right
-              </DropdownMenuItem>
-              <DropdownMenuItem onSelect={() => move(0, -0.5)}>
-                Forward
-              </DropdownMenuItem>
-              <DropdownMenuItem onSelect={() => move(0, 0.5)}>
-                Back
-              </DropdownMenuItem>
-            </DropdownMenuSubContent>
-          </DropdownMenuSub>
-          <DropdownMenuSub>
-            <DropdownMenuSubTrigger>Rotate</DropdownMenuSubTrigger>
-            <DropdownMenuSubContent>
-              <DropdownMenuItem onSelect={() => rotate(-Math.PI / 12)}>
-                Counterclockwise
-              </DropdownMenuItem>
-              <DropdownMenuItem onSelect={() => rotate(Math.PI / 12)}>
-                Clockwise
-              </DropdownMenuItem>
-            </DropdownMenuSubContent>
-          </DropdownMenuSub>
-          <DropdownMenuSub>
-            <DropdownMenuSubTrigger>Scale</DropdownMenuSubTrigger>
-            <DropdownMenuSubContent>
-              <DropdownMenuItem onSelect={() => scale(0.9)}>
-                Smaller
-              </DropdownMenuItem>
-              <DropdownMenuItem onSelect={() => scale(1.1)}>
-                Larger
-              </DropdownMenuItem>
-            </DropdownMenuSubContent>
-          </DropdownMenuSub>
-          <DropdownMenuSeparator />
-          <DropdownMenuItem onSelect={onDuplicate}>
-            <Icon name="Copy" aria-hidden="true" /> Duplicate
-          </DropdownMenuItem>
-          <DropdownMenuItem variant="destructive" onSelect={onRemove}>
-            <Icon name="Trash2" aria-hidden="true" /> Remove
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
     </section>
   );
 }
@@ -682,10 +501,10 @@ function CanvasWorkspace({
   );
   const [rendererReset, setRendererReset] = useState(0);
   const [rendererLost, setRendererLost] = useState(false);
+  const [sceneTint, setSceneTint] = useState<SceneTintToken | null>(null);
   const [announcement, setAnnouncement] = useState("Canvas restored.");
   const [busy, setBusy] = useState(false);
   const [composerError, setComposerError] = useState<string | null>(null);
-  const objectActionRefs = useRef(new Map<string, HTMLButtonElement>());
   const hasLiveStatus = snapshot.cards.some(
     (card) => card.state === "interpreting" || card.state === "realizing",
   );
@@ -801,11 +620,13 @@ function CanvasWorkspace({
                 key={rendererReset}
                 className="sceneseed-webgl"
                 objects={renderObjects}
+                sceneTint={sceneTint}
                 selectedObjectId={selectedObjectId}
                 enableOrbitControls={!isGenerating}
                 onSelectObject={selectFromRenderer}
                 onRenderProbe={onRenderProbe}
                 onRevealComplete={(objectId) => {
+                  setSelectedObjectId(objectId);
                   setAnnouncement("Interpretation complete.");
                   onRevealComplete?.(objectId);
                 }}
@@ -885,32 +706,20 @@ function CanvasWorkspace({
           <div className="sceneseed-compose-stack">
             {selectedObject && selectedCard && !isGenerating ? (
               <ObjectControls
-                object={selectedObject}
                 card={selectedCard}
                 readOnly={readOnly}
-                actionRef={(element) => {
-                  if (element)
-                    objectActionRefs.current.set(selectedObject.id, element);
-                  else objectActionRefs.current.delete(selectedObject.id);
+                sceneTint={sceneTint}
+                onSceneTint={(tint) => {
+                  setSceneTint(tint);
+                  setAnnouncement(
+                    tint === null
+                      ? "Black-and-white scene selected."
+                      : "Scene color changed.",
+                  );
                 }}
-                onTransform={(transform) =>
-                  void runAction("Object moved.", () =>
-                    actions.transform(selectedObject, transform),
-                  )
-                }
                 onRemix={() =>
                   void runAction("Scene regeneration started.", () =>
                     actions.remix(selectedObject.id),
-                  )
-                }
-                onDuplicate={() =>
-                  void runAction("Object duplicated.", () =>
-                    actions.duplicate(selectedObject),
-                  )
-                }
-                onRemove={() =>
-                  void runAction("Object removed from the scene.", () =>
-                    actions.remove(selectedObject),
                   )
                 }
               />

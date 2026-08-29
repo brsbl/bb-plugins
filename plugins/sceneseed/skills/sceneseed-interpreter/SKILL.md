@@ -55,7 +55,11 @@ return {
   calls, timers, imports, exports, or runtime code generation.
 - The plugin recenters the returned object horizontally, places its lowest
   visible point on the ground, and fits oversized work into the stage.
-- Keep the result purposeful: at most 80 drawable objects, 40,000 rendered
+- Keep the result purposeful and fast to author: aim for 8–24 drawable
+  objects, fewer than 10,000 rendered vertices, and no more than 10 materials.
+  Reuse geometry and materials in repeated forms, keep the source under 8,000
+  characters, and add detail only when it materially improves recognition.
+  The hard acceptance ceilings remain 80 drawable objects, 40,000 rendered
   vertices, 24 materials, and four lights.
 - Optional `camera` is `front`, `three-quarter`, `top`, or `free`. A detailed
   `{ position: [x, y, z], target: [x, y, z], fov }` camera is also accepted

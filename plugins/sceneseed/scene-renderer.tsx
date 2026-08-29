@@ -58,6 +58,15 @@ export interface SceneRenderObject {
   readonly revisionKey?: string | number;
 }
 
+export type SceneTintToken = "blue" | "green" | "orange" | "red";
+
+const SCENE_TINT_COLORS: Readonly<Record<SceneTintToken, string>> = {
+  blue: "#2f6df6",
+  green: "#21a568",
+  orange: "#ed8a1e",
+  red: "#d43f4b",
+};
+
 export type SceneRenderProbeEvent =
   | {
       readonly status: "ready";
@@ -75,6 +84,7 @@ export type SceneRenderProbeEvent =
 
 export interface SceneRendererProps {
   readonly objects: readonly SceneRenderObject[];
+  readonly sceneTint?: SceneTintToken | null;
   readonly selectedObjectId?: string | null;
   readonly onSelectObject?: (objectId: string | null) => void;
   readonly onRenderProbe?: (event: SceneRenderProbeEvent) => void;
@@ -827,6 +837,48 @@ function applyMaterialOpacity(root: THREE.Object3D, multiplier: number): void {
   });
 }
 
+function applySceneColor(root: THREE.Object3D, tint: string | null): void {
+  const tintHsl =
+    tint === null
+      ? { h: 0, s: 0, l: 0 }
+      : new THREE.Color(tint).getHSL({ h: 0, s: 0, l: 0 });
+  const colorize = (color: THREE.Color) => {
+    const source = color.getHSL({ h: 0, s: 0, l: 0 });
+    const lightness = 0.07 + 0.72 * Math.pow(source.l, 0.78);
+    color.setHSL(
+      tintHsl.h,
+      tint === null ? 0 : Math.max(0.46, Math.min(0.78, tintHsl.s)),
+      lightness,
+    );
+  };
+  root.traverse((object) => {
+    if (
+      !(
+        object instanceof THREE.Mesh ||
+        object instanceof THREE.Points ||
+        object instanceof THREE.Line
+      )
+    )
+      return;
+    const materials = Array.isArray(object.material)
+      ? object.material
+      : [object.material];
+    for (const material of materials) {
+      const colored = material as THREE.Material & {
+        color?: THREE.Color;
+        emissive?: THREE.Color;
+      };
+      if (colored.color instanceof THREE.Color) colorize(colored.color);
+      if (
+        colored.emissive instanceof THREE.Color &&
+        colored.emissive.getHex() !== 0
+      ) {
+        colorize(colored.emissive);
+      }
+    }
+  });
+}
+
 function objectScale(item: SceneRenderObject): Vector3Tuple {
   if (typeof item.scale === "number") {
     return [item.scale, item.scale, item.scale];
@@ -846,6 +898,7 @@ function diagnosticMessage(error: unknown): string {
  */
 export function SceneRenderer({
   objects,
+  sceneTint = null,
   selectedObjectId = null,
   onSelectObject,
   onRenderProbe,
@@ -1197,6 +1250,10 @@ export function SceneRenderer({
             ),
           );
         }
+        applySceneColor(
+          animated,
+          sceneTint === null ? null : SCENE_TINT_COLORS[sceneTint],
+        );
         if (item.probeOnly !== true && scene.objectId === selectedObjectId) {
           animated.add(
             createSelectionOutline(
@@ -1267,7 +1324,15 @@ export function SceneRenderer({
       cancelled = true;
       animationsRef.current = [];
     };
-  }, [objectRegistry, objects, reducedMotion, selectedObjectId, themePalette]);
+  }, [
+    hostThemePalette,
+    objectRegistry,
+    objects,
+    reducedMotion,
+    sceneTint,
+    selectedObjectId,
+    themePalette,
+  ]);
 
   if (!rendererAvailable) {
     return (
