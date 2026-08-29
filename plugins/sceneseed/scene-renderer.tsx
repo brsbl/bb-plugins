@@ -1038,6 +1038,7 @@ export function SceneRenderer({
     onContextRestored,
   };
   const [rendererAvailable, setRendererAvailable] = useState(true);
+  const [rendererReadyVersion, setRendererReadyVersion] = useState(0);
   const [zoomPercent, setZoomPercent] = useState(50);
   const hostThemePalette = useHostThemePalette();
   const themePalette = useMemo(
@@ -1049,6 +1050,9 @@ export function SceneRenderer({
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
+    // Development Strict Mode recreates the renderer while preserving refs.
+    // The replacement camera must frame the active scene again.
+    framedSceneKeyRef.current = "";
     let renderer: THREE.WebGLRenderer;
     try {
       renderer = new THREE.WebGLRenderer({
@@ -1142,6 +1146,7 @@ export function SceneRenderer({
     controls.enabled = enableOrbitControls;
     controls.update();
     controlsRef.current = controls;
+    setRendererReadyVersion((current) => current + 1);
     const updateZoomPercent = () => {
       renderRequestedRef.current = true;
       const distance = camera.position.distanceTo(controls.target);
@@ -1380,8 +1385,6 @@ export function SceneRenderer({
         );
 
         const animated = new THREE.Group();
-        if (item.reveal === true && item.probeOnly !== true && !reducedMotion)
-          animated.scale.set(0.86, 0.035, 0.86);
         if (scene.version === 1) {
           const materialPlan = mapMaterial(scene.material);
           addLocalLights(animated, scene, palette, item.probeOnly === true);
@@ -1500,6 +1503,7 @@ export function SceneRenderer({
       )
       .join("|");
     if (records.length > 0 && frameKey !== framedSceneKeyRef.current) {
+      let framed = false;
       container.updateMatrixWorld(true);
       const bounds = new THREE.Box3().setFromObject(container);
       if (!bounds.isEmpty()) {
@@ -1531,9 +1535,10 @@ export function SceneRenderer({
               controls.maxDistance,
             ),
           );
+          framed = true;
         }
       }
-      framedSceneKeyRef.current = frameKey;
+      if (framed) framedSceneKeyRef.current = frameKey;
     }
     animationsRef.current = records;
     // Every visible record has one guarded first-render callback above. Keep
@@ -1550,6 +1555,7 @@ export function SceneRenderer({
     objectRegistry,
     objects,
     reducedMotion,
+    rendererReadyVersion,
     sceneTint,
     themePalette,
   ]);

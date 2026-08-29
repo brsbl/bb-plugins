@@ -423,6 +423,12 @@ export class SceneSeedRuntime {
   }
 
   createCanvas(name: string): CanvasSnapshotDto {
+    const existing = [...this.store.listCanvases()].sort(
+      (left, right) =>
+        left.createdAt - right.createdAt || left.id.localeCompare(right.id),
+    )[0];
+    if (existing !== undefined) return this.requiredSnapshot(existing.id);
+
     const canvas = this.store.createCanvas({ name });
     this.publishLibrary(canvas.id);
     return this.requiredSnapshot(canvas.id);
@@ -517,14 +523,14 @@ export class SceneSeedRuntime {
       return [
         "Prepare the visual direction for this SceneSeed job using the sceneseed-interpreter skill.",
         "Do not call tools or write code in this progress turn. Do not inspect files, use network access, or call unrelated tools.",
-        "Reply with exactly four concise, display-ready lines describing the actual visual choices you will use for this prompt. Use one complete sentence fragment per line, under 72 characters, with no bullets, numbering, markdown, code, preamble, conclusion, or generic filler. End every line with a newline so Diorama can stream it as a complete line.",
+        "Reply with exactly four concise, display-ready lines describing the playful mockup choices you will use for this prompt. Use one complete sentence fragment per line, under 72 characters, with no bullets, numbering, markdown, code, preamble, conclusion, or generic filler. End every line with a newline so Diorama can stream it as a complete line.",
         context,
       ].join("\n\n");
     }
     return [
       "Build and submit the SceneSeed job below using the visual direction from the preceding progress turn and the sceneseed-interpreter skill.",
       "Use only the submit_scene_object tool. Do not write commentary or a final answer, inspect files, use network access, or call unrelated tools.",
-      "Write one compact visualization as a JavaScript function body using the THREE namespace described by the sceneseed-interpreter skill and pass that source text directly to submit_scene_object. THREE is supplied only when the plugin executes the source, so do not try to inspect or execute THREE yourself. Target 4–10 drawable objects and 500–1,500 aggregate vertices, with no more than 3 unique geometries, at most 4 materials, under 3,500 source characters, and under 250 KB when serialized. Reuse geometry and materials. Keep TubeGeometry at or below 40 tubular by 8 radial segments; keep ExtrudeGeometry at or below 1 step, 2 bevel segments, and 8 curve segments; never call toNonIndexed or create per-face geometry. Do not add a ground plane or a shadow mesh; Diorama supplies both. Return the canonical presentation values camera: \"three-quarter\", movement: \"still\", and shadow: \"crisp\" rather than inventing option objects. Prefer one clear rounded silhouette, simple curved primitives, controlled gloss, and no decorative detail that does not help recognition. The plugin injects job and object identity, runs the source for this requested job, recenters and grounds the returned Object3D, and persists its serialized Three.js result. If validation issues are returned, correct them and call the tool one final time. End without prose after one visualization is accepted.",
+      "Write one compact visualization as a JavaScript function body using the THREE namespace described by the sceneseed-interpreter skill and pass that source text directly to submit_scene_object. THREE is supplied only when the plugin executes the source, so do not try to inspect or execute THREE yourself. Target 3–7 drawable objects and 250–800 aggregate vertices, with no more than 3 unique geometries, at most 3 materials, under 2,500 source characters, and under 160 KB when serialized. Reuse geometry and materials. Keep radial segments around 10–16, TubeGeometry at or below 24 tubular by 6 radial segments, and ExtrudeGeometry at or below 1 step, 1 bevel segment, and 6 curve segments; never call toNonIndexed or create per-face geometry. Do not add a ground plane, shadow mesh, ring, cage, grid, axes, or presentation frame unless the user's subject explicitly requires one; Diorama supplies the stage and shadow. Return the canonical presentation values camera: \"three-quarter\", movement: \"still\", and shadow: \"crisp\" rather than inventing option objects. Make it feel like a fun, loose concept mockup: use one recognizable, exaggerated rounded silhouette, toy-like proportions, a small off-kilter composition, simple curved primitives, and soft or glossy finishes. Avoid the visual language of technical diagrams, serious geometric studies, monuments, exact product renders, stacked boxes, and decorative detail that does not help recognition. The plugin injects job and object identity, runs the source for this requested job, recenters and grounds the returned Object3D, and persists its serialized Three.js result. If validation issues are returned, correct them and call the tool one final time. End without prose after one visualization is accepted.",
       context,
     ].join("\n\n");
   }

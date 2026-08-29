@@ -84,7 +84,7 @@ return { root, name: "Textured", altText: "A textured cube." };`,
     ).toBe(false);
   });
 
-  it("rejects agent-authored scenes above the 1,500-vertex budget", () => {
+  it("rejects agent-authored scenes above the 800-vertex budget", () => {
     const result = safeCompileSceneCode(
       `const root = new THREE.Mesh(
   new THREE.SphereGeometry(1, 64, 32),
@@ -98,7 +98,7 @@ return { root, name: "Dense sphere", altText: "A dense pale sphere." };`,
       success: false,
       issues: [
         expect.objectContaining({
-          message: expect.stringContaining("budget is 1500"),
+          message: expect.stringContaining("budget is 800"),
         }),
       ],
     });

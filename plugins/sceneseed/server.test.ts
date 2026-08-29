@@ -255,6 +255,17 @@ afterEach(async () => {
 });
 
 describe("SceneSeed agent orchestration", () => {
+  it("reuses the oldest canvas when repeated mounts request the implicit canvas", async () => {
+    const { host } = await loadHost();
+    const first = await callRpc(host, "createCanvas", { name: "First" });
+    const second = await callRpc(host, "createCanvas", { name: "Second" });
+    const listed = await callRpc(host, "listCanvases", null);
+
+    expect(second.snapshot.canvas.id).toBe(first.snapshot.canvas.id);
+    expect(second.snapshot.canvas.name).toBe("First");
+    expect(listed.canvases).toHaveLength(1);
+  });
+
   it("advertises a provider-compatible Three.js source tool schema", () => {
     const arrayValuedItems: string[] = [];
     const visit = (value: unknown, path: string): void => {
@@ -346,7 +357,8 @@ describe("SceneSeed agent orchestration", () => {
     });
     expect(loaded.send).toHaveBeenCalledTimes(1);
     const buildPrompt = loaded.send.mock.calls[0]?.[0].input[0]?.text;
-    expect(buildPrompt).toContain("500–1,500 aggregate vertices");
+    expect(buildPrompt).toContain("250–800 aggregate vertices");
+    expect(buildPrompt).toContain("fun, loose concept mockup");
     expect(buildPrompt).toContain("Use only the submit_scene_object tool");
     expect(
       (

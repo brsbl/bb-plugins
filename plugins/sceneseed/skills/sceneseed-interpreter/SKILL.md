@@ -55,15 +55,16 @@ return {
   calls, timers, imports, exports, or runtime code generation.
 - The plugin recenters the returned object horizontally, places its lowest
   visible point on the ground, and fits oversized work into the stage.
-- Keep the result purposeful and fast to author: aim for 4–10 drawable
-  objects and 500–1,500 aggregate vertices, with no more than three unique
-  geometries and four materials. Reuse geometry and materials in repeated
-  forms, keep the source under 3,500 characters and the serialized result under
-  250 KB, and add detail only when it materially improves recognition.
-- Keep `TubeGeometry` at or below 40 tubular by eight radial segments. Keep
-  `ExtrudeGeometry` at or below one step, two bevel segments, and eight curve
-  segments. Never call `toNonIndexed()` or create geometry per face. New
-  agent-authored source is accepted only at or below 1,500 aggregate vertices;
+- Keep the result purposeful and fast to author: aim for 3–7 drawable
+  objects and 250–800 aggregate vertices, with no more than three unique
+  geometries and three materials. Reuse geometry and materials in repeated
+  forms, keep the source under 2,500 characters and the serialized result under
+  160 KB, and add detail only when it materially improves recognition.
+- Keep radial segments around 10–16 and `TubeGeometry` at or below 24 tubular
+  by six radial segments. Keep `ExtrudeGeometry` at or below one step, one
+  bevel segment, and six curve segments. Never call `toNonIndexed()` or create
+  geometry per face. New
+  agent-authored source is accepted only at or below 800 aggregate vertices;
   the broader persisted-scene ceilings remain for backward compatibility.
 - Optional `camera` is `front`, `three-quarter`, `top`, or `free`. A detailed
   Three-style camera object is also accepted and normalized to free-camera
@@ -78,13 +79,14 @@ return {
 
 ## Make the visualization read clearly
 
-1. Choose one visual thesis from the prompt and establish its silhouette.
-2. Use recognizable proportion, overlap, curves, depth, and negative space;
-   do not reduce every idea to stacked boxes.
+1. Treat the result as a playful concept mockup, not a technical diagram,
+   serious geometric study, monument, or exact product render. Choose one
+   visual thesis and exaggerate its most recognizable silhouette.
+2. Use toy-like proportions, slight asymmetry, overlap, curves, depth, and
+   negative space; do not reduce every idea to stacked boxes.
 3. Prefer `CapsuleGeometry`, spheres, lathes, tubes, toruses, rounded cylinders,
    and beveled `ExtrudeGeometry` for major forms. Use `BoxGeometry` only when a
-   deliberately rigid edge is part of the idea. Keep radial segments around
-   16–24 so silhouettes stay smooth without wasting vertices.
+   deliberately rigid edge is part of the idea.
 4. Favor `MeshPhysicalMaterial` or `MeshStandardMaterial` with controlled
    gloss. A useful physical finish is roughness `0.16–0.34`, clearcoat
    `0.55–0.9`, and clearcoat roughness `0.12–0.25`; reserve modest transmission
@@ -97,6 +99,9 @@ return {
    composition.
 8. Write concise alt text describing only the visible major forms and their
    relationship.
+
+Do not add rings, cages, grids, axes, or presentation frames unless the user's
+subject explicitly requires them. Diorama already supplies the stage.
 
 Nearby objects are context for scale and visual rhythm, not ingredients to
 copy. Each submitted prompt replaces the current canvas result.
