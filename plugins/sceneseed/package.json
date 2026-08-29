@@ -1,7 +1,7 @@
 {
   "name": "bb-plugin-sceneseed",
   "version": "0.1.0",
-  "description": "Turn prompts into a persistent black-and-white 3D scene.",
+  "description": "Turn prompts into one persistent interactive 3D diorama.",
   "license": "MIT",
   "type": "module",
   "files": [
@@ -15,8 +15,8 @@
     "bbPluginSdk": ">=0.4.8"
   },
   "bb": {
-    "name": "SceneSeed",
-    "description": "Turn prompts into a persistent black-and-white 3D scene.",
+    "name": "Diorama",
+    "description": "Turn prompts into one persistent interactive 3D diorama.",
     "branding": {
       "icon": "Layers"
     },

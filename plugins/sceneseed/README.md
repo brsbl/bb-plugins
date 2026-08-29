@@ -1,10 +1,10 @@
-# SceneSeed
+# Diorama
 
-SceneSeed turns a prompt into one persistent black-and-white Three.js scene.
+Diorama turns a prompt into one persistent interactive Three.js scene.
 Send an idea from bb's composer and a hidden bb agent replaces the canvas with
 its bounded, dimensional interpretation.
 
-![SceneSeed showing a black-and-white generated scene and bb's composer](docs/screenshot.png)
+![Diorama showing a generated 3D scene and bb's composer](docs/screenshot.png)
 
 ## Install
 
@@ -12,25 +12,25 @@ its bounded, dimensional interpretation.
 bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/sceneseed --yes
 ```
 
-Open **SceneSeed** in bb's navigation, enter a prompt, and send it. SceneSeed
+Open **Diorama** in bb's navigation, enter a prompt, and send it. Diorama
 creates its persistent canvas automatically, shimmers while the interpretation
 runs, and replaces the current scene when the next prompt completes.
 
 ## Use
 
-- Enter a prompt in bb's composer and send it. Each prompt becomes a queued
-  interpretation job, with cancellation and retry available in place.
+- Enter a prompt in bb's composer and send it. A failed interpretation offers
+  an in-place retry.
 - The first result fills the canvas. Each later prompt replaces it after a
   canvas-wide loading shimmer.
-- Select an object on the stage to move, rotate, scale, remix, duplicate, or
-  remove it. SceneSeed restores the persistent scene across reloads.
+- Orbit or zoom the stage, apply a color tint, or remix the current scene.
+  Diorama restores the persistent scene across reloads.
 
 ## Agent access
 
 Scene generation uses agent-authored Three.js. When the user sends a prompt,
-SceneSeed supplies a focused template with `THREE` already in scope. The agent
+Diorama supplies a focused template with `THREE` already in scope. The agent
 returns a JavaScript function body that constructs and returns one
-`THREE.Object3D`; SceneSeed runs that source for the requested job, normalizes
+`THREE.Object3D`; Diorama runs that source for the requested job, normalizes
 the result to grayscale, recenters and grounds it, fits it into renderer
 limits, serializes the Three.js object, and persists the rendered result.
 
@@ -60,10 +60,10 @@ bb sceneseed remove-object <canvas-id> <object-id>
 - Prompts, generated scene graphs, transforms, job state, and canvas metadata are
   stored in the plugin's private SQLite database, not in a project workspace.
 - The canvas uses a hidden, persistent bb thread in the personal project. The
-  thread uses the normal provider and bb capability envelope; SceneSeed asks it
+  thread uses the normal provider and bb capability envelope; Diorama asks it
   not to inspect unrelated context, but does not claim structural isolation.
 - Disabling or uninstalling the plugin does not erase its database or spawned
-  threads. Use **Delete SceneSeed data** in SceneSeed settings to archive the
+  threads. Use **Delete Diorama data** in Diorama settings to archive the
   interpreter thread and clear stored data, including legacy canvases.
 
 ## MVP limits

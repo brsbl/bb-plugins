@@ -260,12 +260,20 @@ function inspectRoot(root: THREE.Object3D): SceneCodeStats {
 }
 
 function makeGeometriesPortable(root: THREE.Object3D): void {
+  const portableGeometries = new Map<
+    THREE.BufferGeometry,
+    THREE.BufferGeometry
+  >();
   root.traverse((object) => {
     const geometry = geometryFor(object);
     if (geometry === null) return;
-    const portable = new THREE.BufferGeometry().copy(geometry);
-    portable.name = geometry.name;
-    portable.userData = {};
+    let portable = portableGeometries.get(geometry);
+    if (portable === undefined) {
+      portable = new THREE.BufferGeometry().copy(geometry);
+      portable.name = geometry.name;
+      portable.userData = {};
+      portableGeometries.set(geometry, portable);
+    }
     (
       object as THREE.Object3D & {
         geometry: THREE.BufferGeometry;
@@ -344,13 +352,13 @@ function groundFor(
     ) {
       return { contactShadow: { strength: 0, softness: 1 } };
     }
-    return { contactShadow: { strength: 0.58, softness: 0.74 } };
+    return { contactShadow: { strength: 0.66, softness: 0.46 } };
   }
   switch (shadow ?? "soft") {
     case "soft":
-      return { contactShadow: { strength: 0.58, softness: 0.74 } };
+      return { contactShadow: { strength: 0.64, softness: 0.5 } };
     case "crisp":
-      return { contactShadow: { strength: 0.72, softness: 0.34 } };
+      return { contactShadow: { strength: 0.78, softness: 0.18 } };
     case "none":
       return { contactShadow: { strength: 0, softness: 1 } };
   }
@@ -385,7 +393,7 @@ export function compileSceneCode(
   if (bytes > MAX_GENERATED_SCENE_JSON_BYTES) {
     fail(
       "source",
-      `serialized scene is ${bytes} bytes; maximum is ${MAX_GENERATED_SCENE_JSON_BYTES}`,
+      `serialized scene is ${bytes} bytes; maximum is ${MAX_GENERATED_SCENE_JSON_BYTES}. Simplify unique geometry and segment counts (objects: ${stats.objects}, vertices: ${stats.vertices}, materials: ${stats.materials})`,
     );
   }
 

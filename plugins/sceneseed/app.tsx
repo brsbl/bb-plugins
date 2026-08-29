@@ -159,7 +159,7 @@ function ImplicitCanvas() {
         if (connection !== "connected") {
           throw new Error("Reconnect to restore the canvas.");
         }
-        const created = await rpc.call("createCanvas", { name: "SceneSeed" });
+        const created = await rpc.call("createCanvas", { name: "Diorama" });
         if (active) setCanvasId(created.snapshot.canvas.id);
       } catch (reason) {
         if (active) setError(errorMessage(reason));
@@ -286,7 +286,7 @@ function buildRenderObjects(
 function promptFromComposerRequest(request: NewThreadRequest): string {
   if (request.input.some((entry) => entry.type !== "text")) {
     throw new Error(
-      "SceneSeed can draw from text only. Remove attachments and send again.",
+      "Diorama can draw from text only. Remove attachments and send again.",
     );
   }
   const visibleText: string[] = [];
@@ -299,7 +299,7 @@ function promptFromComposerRequest(request: NewThreadRequest): string {
   if (!prompt)
     throw new Error("Write a prompt before sending it to the scene.");
   if (prompt.length > 500) {
-    throw new Error("Keep the SceneSeed prompt to 500 characters or fewer.");
+    throw new Error("Keep the Diorama prompt to 500 characters or fewer.");
   }
   return prompt;
 }
@@ -621,7 +621,6 @@ function CanvasWorkspace({
                 className="sceneseed-webgl"
                 objects={renderObjects}
                 sceneTint={sceneTint}
-                selectedObjectId={selectedObjectId}
                 enableOrbitControls={!isGenerating}
                 onSelectObject={selectFromRenderer}
                 onRenderProbe={onRenderProbe}
@@ -860,8 +859,8 @@ function CanvasEditor({ canvasId }: { canvasId: string }) {
       .then(
         (result) => {
           realizationStarts.current.delete(candidate.id);
-          applySnapshot(result.snapshot);
           realizationAttempts.current.set(candidate.id, attemptId);
+          applySnapshot(result.snapshot);
           setError(null);
         },
         (reason: unknown) => {
@@ -869,7 +868,7 @@ function CanvasEditor({ canvasId }: { canvasId: string }) {
           const message = errorMessage(reason);
           if (message.includes("already realizing")) {
             setError(
-              "Another client is realizing this interpretation. SceneSeed will retry if its lease expires.",
+              "Another client is realizing this interpretation. Diorama will retry if its lease expires.",
             );
             const existingTimer = realizationRetryTimers.current.get(
               candidate.id,
@@ -1431,7 +1430,7 @@ function SceneSeedPanel({ subPath }: PluginNavPanelProps) {
   return (
     <main className="sceneseed-missing">
       <div className="sceneseed-seed-mark" aria-hidden="true" />
-      <h1>SceneSeed could not open this path.</h1>
+      <h1>Diorama could not open this path.</h1>
       <p>Open the persistent canvas instead.</p>
       <BackToLibrary />
     </main>
@@ -1446,7 +1445,7 @@ function BackToLibrary() {
       variant="outline"
       onClick={() => navigate.toPluginPanel(PANEL_PATH)}
     >
-      Open SceneSeed
+      Open Diorama
     </Button>
   );
 }
@@ -1476,23 +1475,23 @@ function SceneSeedSettings(_props: PluginSettingsSectionProps) {
   };
   return (
     <section className="sceneseed-settings">
-      <h3>Stored SceneSeed data</h3>
+      <h3>Stored Diorama data</h3>
       <p>
-        SceneSeed stores prompts, scene graphs, transforms, and job state in its
+        Diorama stores prompts, scene graphs, transforms, and job state in its
         plugin database. Hidden interpreter transcripts follow bb’s thread
         retention behavior.
       </p>
       <p>
-        Disabling or uninstalling SceneSeed does not delete that database or its
+        Disabling or uninstalling Diorama does not delete that database or its
         hidden threads.
       </p>
       {confirming ? (
         <div
           className="sceneseed-clear-confirmation"
           role="group"
-          aria-label="Confirm deleting all SceneSeed canvas data"
+          aria-label="Confirm deleting all Diorama canvas data"
         >
-          <strong>Delete SceneSeed data?</strong>
+          <strong>Delete Diorama data?</strong>
           <p>
             This clears the persistent canvas and archives its interpreter
             thread. Legacy canvas data is cleared too. This cannot be undone.
@@ -1504,7 +1503,7 @@ function SceneSeedSettings(_props: PluginSettingsSectionProps) {
               disabled={busy || connection !== "connected"}
               onClick={() => void clearAll()}
             >
-              {busy ? "Deleting…" : "Delete SceneSeed data"}
+              {busy ? "Deleting…" : "Delete Diorama data"}
             </Button>
             <Button
               type="button"
@@ -1523,7 +1522,7 @@ function SceneSeedSettings(_props: PluginSettingsSectionProps) {
           disabled={connection !== "connected"}
           onClick={() => setConfirming(true)}
         >
-          Delete SceneSeed data…
+          Delete Diorama data…
         </Button>
       )}
       {connection !== "connected" ? (
@@ -1541,15 +1540,15 @@ function SceneSeedSettings(_props: PluginSettingsSectionProps) {
 export default definePluginApp((app) => {
   app.slots.navPanel({
     id: "sceneseed",
-    title: "SceneSeed",
+    title: "Diorama",
     icon: "Layers",
     path: PANEL_PATH,
     component: SceneSeedPanel,
   });
   app.slots.settingsSection({
     id: "storage",
-    title: "SceneSeed data",
-    description: "Understand retention and permanently clear SceneSeed data.",
+    title: "Diorama data",
+    description: "Understand retention and permanently clear Diorama data.",
     component: SceneSeedSettings,
   });
 });

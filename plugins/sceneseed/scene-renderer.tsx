@@ -46,7 +46,7 @@ const CSS_VARIABLE_BY_TOKEN = {
 } as const satisfies Record<SceneThemeToken, string>;
 
 const MAX_GEOMETRY_VERTICES = 40_000;
-const TEXTURE_SIZE = 64;
+const TEXTURE_SIZE = 128;
 
 export interface SceneRenderObject {
   readonly scene: SceneObject;
@@ -85,7 +85,6 @@ export type SceneRenderProbeEvent =
 export interface SceneRendererProps {
   readonly objects: readonly SceneRenderObject[];
   readonly sceneTint?: SceneTintToken | null;
-  readonly selectedObjectId?: string | null;
   readonly onSelectObject?: (objectId: string | null) => void;
   readonly onRenderProbe?: (event: SceneRenderProbeEvent) => void;
   readonly onRevealComplete?: (objectId: string) => void;
@@ -643,13 +642,15 @@ function createContactShadow(
 ): THREE.Mesh {
   const texture = register(
     registry,
-    createShadowTexture(scene.ground.contactShadow.softness),
+    createShadowTexture(
+      Math.min(0.5, scene.ground.contactShadow.softness),
+    ),
   );
   const geometry = register(
     registry,
     new THREE.PlaneGeometry(
-      scene.bounds.width * 1.12,
-      scene.bounds.depth * 1.12,
+      scene.bounds.width * 1.06,
+      scene.bounds.depth * 1.06,
       1,
       1,
     ),
@@ -659,7 +660,7 @@ function createContactShadow(
     new THREE.MeshBasicMaterial({
       color,
       map: texture,
-      opacity: scene.ground.contactShadow.strength * 0.58,
+      opacity: Math.min(0.78, scene.ground.contactShadow.strength * 0.72),
       transparent: true,
       depthWrite: false,
       toneMapped: false,
@@ -672,39 +673,6 @@ function createContactShadow(
   shadow.visible = visible;
   shadow.raycast = () => undefined;
   return shadow;
-}
-
-function createSelectionOutline(
-  scene: SceneObject,
-  color: string,
-  registry: RendererResourceRegistry,
-): THREE.Mesh {
-  const radius = Math.max(
-    0.45,
-    Math.max(scene.bounds.width, scene.bounds.depth) * 0.58,
-  );
-  const geometry = register(
-    registry,
-    new THREE.RingGeometry(radius, radius + Math.max(0.05, radius * 0.045), 64),
-  );
-  const material = register(
-    registry,
-    new THREE.MeshBasicMaterial({
-      color,
-      transparent: true,
-      opacity: 0.58,
-      side: THREE.DoubleSide,
-      depthTest: false,
-      depthWrite: false,
-      toneMapped: false,
-    }),
-  );
-  const outline = new THREE.Mesh(geometry, material);
-  outline.position.y = 0.025;
-  outline.rotation.x = -Math.PI / 2;
-  outline.renderOrder = 10;
-  outline.raycast = () => undefined;
-  return outline;
 }
 
 function addLocalLights(
@@ -879,6 +847,51 @@ function applySceneColor(root: THREE.Object3D, tint: string | null): void {
   });
 }
 
+function applySceneFinish(root: THREE.Object3D): void {
+  root.traverse((object) => {
+    if (
+      !(
+        object instanceof THREE.Mesh ||
+        object instanceof THREE.Points ||
+        object instanceof THREE.Line
+      )
+    )
+      return;
+    const materials = Array.isArray(object.material)
+      ? object.material
+      : [object.material];
+    for (const material of materials) {
+      if (material instanceof THREE.MeshPhysicalMaterial) {
+        material.roughness = Math.min(material.roughness, 0.32);
+        material.clearcoat = Math.max(material.clearcoat, 0.58);
+        material.clearcoatRoughness = Math.min(
+          material.clearcoatRoughness,
+          0.22,
+        );
+        material.envMapIntensity = Math.max(material.envMapIntensity, 1.15);
+      } else if (material instanceof THREE.MeshStandardMaterial) {
+        material.roughness = Math.min(material.roughness, 0.42);
+        material.envMapIntensity = Math.max(material.envMapIntensity, 1.08);
+      } else if (material instanceof THREE.MeshPhongMaterial) {
+        material.shininess = Math.max(material.shininess, 72);
+      }
+      material.needsUpdate = true;
+    }
+  });
+}
+
+function zoomPercentForDistance(
+  distance: number,
+  minDistance: number,
+  maxDistance: number,
+): number {
+  const bounded = Math.max(minDistance, Math.min(maxDistance, distance));
+  const progress =
+    1 -
+    Math.log(bounded / minDistance) / Math.log(maxDistance / minDistance);
+  return Math.round(Math.max(0, Math.min(1, progress)) * 100);
+}
+
 function objectScale(item: SceneRenderObject): Vector3Tuple {
   if (typeof item.scale === "number") {
     return [item.scale, item.scale, item.scale];
@@ -899,7 +912,6 @@ function diagnosticMessage(error: unknown): string {
 export function SceneRenderer({
   objects,
   sceneTint = null,
-  selectedObjectId = null,
   onSelectObject,
   onRenderProbe,
   onRevealComplete,
@@ -916,6 +928,7 @@ export function SceneRenderer({
   const sceneRef = useRef<THREE.Scene | null>(null);
   const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
   const controlsRef = useRef<OrbitControls | null>(null);
+  const framedSceneKeyRef = useRef("");
   const objectContainerRef = useRef<THREE.Group | null>(null);
   const animationsRef = useRef<AnimationRecord[]>([]);
   const objectRegistry = useMemo(() => new RendererResourceRegistry(), []);
@@ -928,6 +941,7 @@ export function SceneRenderer({
     onContextRestored,
   };
   const [rendererAvailable, setRendererAvailable] = useState(true);
+  const [zoomPercent, setZoomPercent] = useState(50);
   const hostThemePalette = useHostThemePalette();
   const themePalette = useMemo(
     () => toMonochromeThemePalette(hostThemePalette),
@@ -952,9 +966,11 @@ export function SceneRenderer({
       return;
     }
     renderer.outputColorSpace = THREE.SRGBColorSpace;
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.08;
     renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.75));
     renderer.shadowMap.enabled = true;
-    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    renderer.shadowMap.type = THREE.PCFShadowMap;
     rendererRef.current = renderer;
 
     const scene = new THREE.Scene();
@@ -963,8 +979,8 @@ export function SceneRenderer({
     scene.fog = new THREE.Fog(initialStageColors.background, 24, 58);
     sceneRef.current = scene;
     const camera = new THREE.PerspectiveCamera(38, 1, 0.1, 240);
-    camera.position.set(11, 8.5, 13);
-    camera.lookAt(0, 2.2, 0);
+    camera.position.set(7, 5.2, 8);
+    camera.lookAt(0, 1.4, 0);
     cameraRef.current = camera;
 
     const objectContainer = new THREE.Group();
@@ -989,15 +1005,20 @@ export function SceneRenderer({
     directional.position.set(8, 12, 7);
     directional.castShadow = true;
     directional.shadow.mapSize.set(1024, 1024);
-    directional.shadow.camera.left = -18;
-    directional.shadow.camera.right = 18;
-    directional.shadow.camera.top = 18;
-    directional.shadow.camera.bottom = -18;
+    directional.shadow.camera.left = -10;
+    directional.shadow.camera.right = 10;
+    directional.shadow.camera.top = 10;
+    directional.shadow.camera.bottom = -10;
     directional.shadow.camera.near = 0.5;
     directional.shadow.camera.far = 45;
     directional.shadow.bias = -0.00045;
+    directional.shadow.normalBias = 0.018;
     directional.userData.sceneseedHostDirectional = true;
     scene.add(directional);
+    const rim = new THREE.DirectionalLight(initialStageColors.sky, 1.05);
+    rim.position.set(-7, 8, -9);
+    rim.userData.sceneseedHostRim = true;
+    scene.add(rim);
 
     const groundGeometry = new THREE.PlaneGeometry(160, 160, 1, 1);
     const groundMaterial = new THREE.MeshStandardMaterial({
@@ -1020,10 +1041,21 @@ export function SceneRenderer({
     controls.maxDistance = 80;
     controls.minPolarAngle = 0.08;
     controls.maxPolarAngle = Math.PI / 2 - 0.025;
-    controls.target.set(0, 2.2, 0);
+    controls.target.set(0, 1.4, 0);
     controls.enabled = enableOrbitControls;
     controls.update();
     controlsRef.current = controls;
+    const updateZoomPercent = () => {
+      const distance = camera.position.distanceTo(controls.target);
+      const next = zoomPercentForDistance(
+        distance,
+        controls.minDistance,
+        controls.maxDistance,
+      );
+      setZoomPercent((current) => (current === next ? current : next));
+    };
+    controls.addEventListener("change", updateZoomPercent);
+    updateZoomPercent();
 
     const resize = () => {
       const width = Math.max(1, canvas.clientWidth);
@@ -1146,6 +1178,7 @@ export function SceneRenderer({
         false,
       );
       objectRegistry.disposeAll();
+      controls.removeEventListener("change", updateZoomPercent);
       controls.dispose();
       groundGeometry.dispose();
       groundMaterial.dispose();
@@ -1179,6 +1212,8 @@ export function SceneRenderer({
         hemisphere.groundColor.set(colors.bounce);
       } else if (object.userData.sceneseedHostDirectional === true) {
         (object as THREE.DirectionalLight).color.set(colors.key);
+      } else if (object.userData.sceneseedHostRim === true) {
+        (object as THREE.DirectionalLight).color.set(colors.sky);
       } else if (object.userData.sceneseedHostGround === true) {
         const ground = object as THREE.Mesh<
           THREE.BufferGeometry,
@@ -1254,15 +1289,7 @@ export function SceneRenderer({
           animated,
           sceneTint === null ? null : SCENE_TINT_COLORS[sceneTint],
         );
-        if (item.probeOnly !== true && scene.objectId === selectedObjectId) {
-          animated.add(
-            createSelectionOutline(
-              scene,
-              themePalette["theme:warning"],
-              objectRegistry,
-            ),
-          );
-        }
+        applySceneFinish(animated);
         outer.add(animated);
         container.add(outer);
         const record: AnimationRecord = {
@@ -1318,6 +1345,48 @@ export function SceneRenderer({
         });
       }
     }
+    const frameKey = objects
+      .map(
+        (item) =>
+          `${item.revisionKey ?? item.scene.jobId}:${item.probeOnly === true ? "probe" : "scene"}`,
+      )
+      .join("|");
+    if (records.length > 0 && frameKey !== framedSceneKeyRef.current) {
+      container.updateMatrixWorld(true);
+      const bounds = new THREE.Box3().setFromObject(container);
+      if (!bounds.isEmpty()) {
+        const sphere = bounds.getBoundingSphere(new THREE.Sphere());
+        const controls = controlsRef.current;
+        if (controls && Number.isFinite(sphere.radius) && sphere.radius > 0) {
+          const verticalFov = THREE.MathUtils.degToRad(camera.fov);
+          const horizontalFov =
+            2 * Math.atan(Math.tan(verticalFov / 2) * camera.aspect);
+          const limitingFov = Math.min(verticalFov, horizontalFov);
+          const distance = Math.max(
+            controls.minDistance,
+            Math.min(
+              controls.maxDistance,
+              (sphere.radius / Math.sin(limitingFov / 2)) * 1.02,
+            ),
+          );
+          const direction = camera.position.clone().sub(controls.target);
+          if (direction.lengthSq() === 0) direction.set(1, 0.6, 1);
+          controls.target.copy(sphere.center);
+          camera.position.copy(
+            sphere.center.clone().add(direction.normalize().multiplyScalar(distance)),
+          );
+          controls.update();
+          setZoomPercent(
+            zoomPercentForDistance(
+              camera.position.distanceTo(controls.target),
+              controls.minDistance,
+              controls.maxDistance,
+            ),
+          );
+        }
+      }
+      framedSceneKeyRef.current = frameKey;
+    }
     animationsRef.current = records;
 
     return () => {
@@ -1330,9 +1399,25 @@ export function SceneRenderer({
     objects,
     reducedMotion,
     sceneTint,
-    selectedObjectId,
     themePalette,
   ]);
+
+  const zoomBy = (factor: number) => {
+    const camera = cameraRef.current;
+    const controls = controlsRef.current;
+    if (!camera || !controls || !controls.enabled) return;
+    const offset = camera.position.clone().sub(controls.target);
+    const currentDistance = offset.length();
+    if (currentDistance <= 0) return;
+    const nextDistance = Math.max(
+      controls.minDistance,
+      Math.min(controls.maxDistance, currentDistance * factor),
+    );
+    camera.position.copy(
+      controls.target.clone().add(offset.setLength(nextDistance)),
+    );
+    controls.update();
+  };
 
   if (!rendererAvailable) {
     return (
@@ -1343,11 +1428,46 @@ export function SceneRenderer({
   }
 
   return (
-    <canvas
-      ref={canvasRef}
-      className={className}
-      style={{ display: "block", width: "100%", height: "100%", ...style }}
-      aria-label="SceneSeed 3D canvas"
-    />
+    <div className={className} style={style}>
+      <canvas
+        ref={canvasRef}
+        className="sceneseed-webgl-canvas"
+        aria-label="Diorama 3D canvas"
+      />
+      {objects.some((item) => item.probeOnly !== true) ? (
+        <div className="sceneseed-zoom-controls" aria-label="Canvas zoom">
+          <button
+            type="button"
+            aria-label="Zoom in"
+            title="Zoom in"
+            disabled={!enableOrbitControls || zoomPercent >= 100}
+            onClick={() => zoomBy(0.82)}
+          >
+            +
+          </button>
+          <div
+            className="sceneseed-zoom-level"
+            role="meter"
+            aria-label="Zoom level"
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-valuenow={zoomPercent}
+            aria-valuetext={`${zoomPercent}%`}
+          >
+            <span style={{ height: `${zoomPercent}%` }} />
+            <i style={{ bottom: `calc(${zoomPercent}% - 0.18rem)` }} />
+          </div>
+          <button
+            type="button"
+            aria-label="Zoom out"
+            title="Zoom out"
+            disabled={!enableOrbitControls || zoomPercent <= 0}
+            onClick={() => zoomBy(1.22)}
+          >
+            &minus;
+          </button>
+        </div>
+      ) : null}
+    </div>
   );
 }

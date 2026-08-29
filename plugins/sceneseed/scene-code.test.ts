@@ -100,4 +100,25 @@ return { root, name: "Textured", altText: "A textured cube." };`,
     expect(scene.motion.preset).toBe("orbit");
     expect(scene.ground.contactShadow.strength).toBe(0);
   });
+
+  it("preserves shared geometry while making generated geometry portable", () => {
+    const scene = compileSceneCode(
+      `const root = new THREE.Group();
+const geometry = new THREE.SphereGeometry(0.4, 16, 12);
+const material = new THREE.MeshStandardMaterial({ color: 0xdddddd });
+for (let index = 0; index < 6; index += 1) {
+  const mesh = new THREE.Mesh(geometry, material);
+  mesh.position.x = index - 2.5;
+  root.add(mesh);
+}
+return {
+  root,
+  name: "Shared forms",
+  altText: "Six rounded forms made from one shared geometry.",
+};`,
+      identity,
+    );
+
+    expect(scene.objectJson.geometries).toHaveLength(1);
+  });
 });
