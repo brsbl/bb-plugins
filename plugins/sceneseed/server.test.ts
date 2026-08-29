@@ -69,6 +69,46 @@ function validScene(jobId: string, objectId: string) {
   };
 }
 
+function validProgram() {
+  return {
+    version: 1 as const,
+    name: "Rain jar",
+    altText: "A dark cloud raining inside a pale glass jar.",
+    camera: "three-quarter" as const,
+    material: "glass" as const,
+    movement: "bob" as const,
+    shadow: "soft" as const,
+    parts: [
+      {
+        kind: "shape" as const,
+        id: "jar",
+        shape: "cylinder" as const,
+        size: { width: 2.8, height: 3.8, depth: 2.8 },
+        at: [0, 1.9, 0] as [number, number, number],
+        tone: "light" as const,
+      },
+      {
+        kind: "shape" as const,
+        id: "cloud",
+        shape: "sphere" as const,
+        size: { width: 1.8, height: 1.1, depth: 1.4 },
+        at: [0, 2.7, 0] as [number, number, number],
+        tone: "dark" as const,
+      },
+      {
+        kind: "particles" as const,
+        id: "rain",
+        effect: "motes" as const,
+        count: 36,
+        size: 0.05,
+        spread: { width: 1.2, height: 1.5, depth: 0.7 },
+        at: [0, 1.6, 0] as [number, number, number],
+        tone: "black" as const,
+      },
+    ],
+  };
+}
+
 function configurationContext(
   overrides: Partial<PluginAgentConfigurationContext> = {},
 ): PluginAgentConfigurationContext {
@@ -322,6 +362,36 @@ describe("SceneSeed agent orchestration", () => {
       { threadId: "thr_scene" },
     );
     expect(third).toMatchObject({ isError: true });
+  });
+
+  it("compiles the preferred kit program and injects the current job identity", async () => {
+    const { host } = await loadHost();
+    const queued = await createQueuedJob(host);
+    const acceptedText = await host.harness.callAgentTool(
+      "submit_scene_object",
+      { program: validProgram() },
+      { threadId: "thr_scene" },
+    );
+    const accepted = JSON.parse(acceptedText as string) as {
+      candidateId: string;
+    };
+    const snapshot = await callRpc(host, "getCanvas", {
+      canvasId: queued.canvasId,
+    });
+    const candidate = snapshot.snapshot?.candidates.find(
+      (entry) => entry.id === accepted.candidateId,
+    );
+
+    expect(candidate?.normalizedScene).toMatchObject({
+      jobId: queued.jobId,
+      objectId: snapshot.snapshot?.jobs[0]?.objectId,
+      palette: ["#111111", "#444444", "#888888", "#cccccc", "#f5f5f5"],
+    });
+    expect(candidate?.normalizedScene?.nodes.map((node) => node.id)).toEqual([
+      "jar",
+      "cloud",
+      "rain",
+    ]);
   });
 
   it("serializes jobs and advances only after the active thread settles", async () => {

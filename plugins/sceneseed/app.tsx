@@ -1373,7 +1373,6 @@ function FixtureCanvasEditor({
           variant === 0
             ? "A grayscale storm cloud suspended inside a clear glass jar."
             : "A black-and-white lighthouse with a bright lantern and pointed roof.",
-        palette: ["#111111", "#f4f4f4", "#777777"],
       };
       update((current) => ({
         ...current,

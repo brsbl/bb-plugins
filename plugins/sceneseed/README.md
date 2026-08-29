@@ -27,6 +27,16 @@ runs, and replaces the current scene when the next prompt completes.
 
 ## Agent access
 
+Scene generation uses a plugin-local **SceneSeed Kit** rather than asking the
+agent to hand-author Three.js or a full scene graph. The agent composes up to
+12 declarative shapes, labels, or particle effects with semantic grayscale
+tones. The kit injects job identity, recenters and grounds the composition,
+fits it into renderer limits, calculates bounds, applies safe lighting and
+motion presets, and compiles the result into the existing `SceneObjectV1`
+contract. Three.js only renders that validated contract; no agent-written code
+is evaluated and no new bb SDK API is required. Legacy raw scene submissions
+remain accepted for compatibility.
+
 The same saved records are available through the plugin CLI:
 
 ```bash

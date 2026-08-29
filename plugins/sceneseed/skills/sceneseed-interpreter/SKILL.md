@@ -1,121 +1,91 @@
 ---
 name: sceneseed-interpreter
-description: Interpret SceneSeed plugin-origin canvas placement and remix jobs as one bounded SceneObjectV1 submission. Use for hidden SceneSeed canvas agents that receive a prompt, placement, nearby-scene summary, palette, and submit_scene_object tool; do not use for ordinary 3D design, coding, image generation, or user-facing chat.
+description: Interpret SceneSeed plugin-origin prompt jobs by composing one bounded 3D visualization with the SceneSeed Kit program accepted by submit_scene_object. Use for hidden SceneSeed agents that receive a prompt, placement, and nearby-scene summary; do not use for ordinary 3D design, coding, image generation, or user-facing chat.
 ---
 
 # SceneSeed interpreter
 
-Turn the supplied phrase into one recognizable, dimensional scene object. You
-own semantic interpretation only; the plugin owns job policy, validation,
-rendering, persistence, and user communication.
+Turn the supplied phrase into one recognizable black-and-white 3D
+visualization. You own the visual interpretation. The plugin owns job
+identity, framing, grounding, fitting, validation, rendering, persistence, and
+user communication.
 
 ## Work only from the job payload
 
-Use only the prompt, job and object identifiers, placement, nearby-object
-summaries, palette/style summary, and SceneObjectV1 schema supplied by
-SceneSeed. Do not inspect the project, unrelated filesystem content, URLs,
-conversation history, or unrelated tools and skills. Do not invent personal
-details. The bundled example reference is the only optional file for this job.
+Use only the prompt, placement, nearby-object summaries, and the SceneSeed Kit
+schema exposed by `submit_scene_object`. Do not inspect the project, unrelated
+filesystem content, URLs, conversation history, or unrelated tools and skills.
+Do not invent personal details. The bundled example reference is the only
+optional file for this job.
 
-The result is declarative scene data. Never generate or request execution of
-code, scripts, shaders, shell commands, files, URLs, textures, models, or other
-remote assets.
+The result is declarative data. Never generate or request execution of code,
+scripts, shaders, shell commands, files, URLs, textures, models, or remote
+assets.
 
-## Compose the interpretation
+## Compose with SceneSeed Kit
 
-1. Decide whether the prompt is best read as **literal**, **metaphorical**, or
-   **abstract**. Spatial prompts are literal compositions whose stated
-   relationships must survive simplification.
-2. Choose one clear visual thesis. Optimize first for a recognizable outer
-   silhouette, then add material, lighting, and secondary detail.
-3. Use the smallest useful set of primitives. Prefer proportion, overlap,
-   depth, negative space, and scale contrast over many tiny parts.
-4. Make the object feel placed in the stage: give it real depth, keep its
-   lowest visible mass near its local ground, and include a contact shadow with
-   intentional strength and softness.
-5. Treat nearby objects as a visual neighborhood, not ingredients to copy.
-   Reuse their scale or shape rhythm while preserving a distinct silhouette.
-6. Add text only when visible lettering is essential to the prompt itself.
-   Never use text as a caption, explanation, or substitute for a visual idea.
-7. Write concise alt text that names the interpretation and its visible major
-   forms. Do not claim detail the scene does not contain.
+Always call `submit_scene_object` with `program` for new work. Do not author the
+legacy raw `scene` form; it exists only so scenes created by older plugin
+versions continue to work.
 
-## Use one SceneSeed visual language
+The kit is deliberately small:
 
-- **Color:** every scene is black and white. Use 2–5 purposeful grayscale
-  values from near-black through white, with enough light/dark contrast for the
-  silhouette and focal form to read. Do not introduce hue, even when the prompt
-  names a color; express that cue through value, material, shape, or light.
-- **Shape:** favor bold rounded masses, clean extrusions, and one contrasting
-  shape family. Build a recognizable silhouette before adding small accents;
-  avoid generic stacks of boxes or evenly sized parts.
-- **Depth:** compose across foreground, middle, and rear offsets when that
-  clarifies the idea. Use overlap and staggered height instead of a flat row,
-  and keep the main mass visibly grounded by its contact shadow.
-- **Motion:** choose at most one motion thesis for the whole object. Keep it
-  slow and low-amplitude so motion adds life without making the scene restless.
-- **Restraint:** one surprising relationship is more playful than ornamental
-  clutter. Spend scene cost on the focal idea, material contrast, and readable
-  depth before particles or extra lights.
+- `parts` contains 1–12 flat, absolute parts. Use `shape` for a primitive,
+  `label` only when visible lettering is essential, and `particles` for one
+  restrained atmospheric effect.
+- Shapes are `box`, `sphere`, `cylinder`, `cone`, `torus`, `capsule`, or
+  `plane`. Describe their dimensions with `size`; place them with optional
+  `at`, `rotate`, and `scale`.
+- Tones are semantic: `black`, `dark`, `mid`, `light`, or `white`. The plugin
+  maps them to one stable grayscale palette.
+- Choose one scene-wide `material`, optional `movement`, and shadow preset.
+  Add at most two purposeful lights.
+- Omitted transforms, tone, camera, material, opacity, movement, shadow, and
+  light settings receive safe defaults.
+- Do not include `jobId`, `objectId`, bounds, palette, parent graphs, renderer
+  costs, or raw Three.js data. The kit compiler supplies them.
 
-For interpretation patterns across literal, metaphorical, spatial, and
-abstract prompts, consult
+The plugin automatically centers the composition horizontally, moves its
+lowest visible point to the ground, scales oversized work into the safe stage,
+calculates bounds, applies stable movement and shadow presets, and validates
+the resulting `SceneObjectV1` before rendering it.
+
+## Make the visualization read clearly
+
+1. Decide whether the prompt is literal, metaphorical, or abstract. Preserve
+   any stated spatial relationship.
+2. Choose one visual thesis. Establish a recognizable outer silhouette before
+   adding secondary detail.
+3. Use the fewest useful parts. Prefer proportion, overlap, depth, negative
+   space, and scale contrast over tiny decoration.
+4. Compose across foreground, middle, and rear offsets when depth clarifies
+   the idea. The kit will ground and frame the whole composition.
+5. Use 2–5 grayscale tones with a clear light/dark hierarchy. When a prompt
+   names a color, express it through value, material, shape, or light—not hue.
+6. Choose at most one movement thesis. Keep it slow and subordinate to the
+   silhouette.
+7. Use text only when lettering is part of the pictured object. Never use it
+   as a caption or explanation.
+8. Write concise alt text naming only the visible major forms and relationship.
+
+Nearby objects are a visual neighborhood, not ingredients to copy. Reuse their
+scale or shape rhythm when useful while keeping the new silhouette distinct.
+
+For literal, metaphorical, spatial, and abstract composition examples, consult
 [`references/interpretation-examples.md`](references/interpretation-examples.md)
-only when an ambiguous phrase needs a precedent.
-
-## Stay inside SceneObjectV1
-
-- Set `version` to `1`. Return the exact `jobId` and `objectId` supplied by the
-  job; identifiers are 1–80 characters using letters, digits, `_`, and `-`.
-  Keep `name` to 80 visible characters and `altText` to 240.
-- Set each top-level bound (`width`, `height`, `depth`) from 0.05 through 20,
-  then choose `front`, `three-quarter`, `top`, or `free` as `cameraHint`.
-- Use 1–8 theme-relative neutral palette values or exact grayscale colors.
-- Use 1–40 nodes drawn only from `group`, `mesh`, `extrudedShape`, `text`, and
-  `particles`.
-- Every node has a unique simple `id`, a valid `parentId` or `null`,
-  `position` components from -50 through 50, `rotation` components from -2π
-  through 2π, and `scale` components from 0.05 through 10. The flat parent
-  graph must be acyclic; never add `children` arrays.
-- Mesh geometry is only `box`, `sphere`, `cylinder`, `cone`, `torus`,
-  `capsule`, or `plane`; each mesh size component is 0.05 through 20.
-- An `extrudedShape` has 3–24 2D points with components from -10 through 10
-  and depth from 0.05 through 10.
-- One top-level material applies to the whole object. Its preset is `matte`,
-  `glossy`, `glass`, `metal`, `emissive`, or `toon`, with opacity from 0.1
-  through 1. Do not invent per-node materials.
-- Use at most three `point` or `spot` local lights. Light intensity is 0
-  through 5 and range is 0.1 through 50. The host's key and fill lights remain
-  the lighting baseline.
-- Motion is only `none`, `breathe`, `orbit`, `bob`, or `shimmer`; use it when
-  it clarifies the idea and keep speed and amplitude from 0 through 2.
-- Visible text is at most 80 characters and its font is only `sans`, `serif`,
-  or `mono`, with size from 0.05 through 10.
-- Particles use only `dust`, `motes`, `sparks`, or `snow`: 1–500 particles,
-  size from 0.01 through 1, and spread dimensions from 0.05 through 20.
-- Set contact-shadow strength and softness from 0 through 1.
-- Every non-group node and light has a `paletteIndex` that refers to an
-  existing palette entry.
-- Keep the deterministic scene cost at or below 10 units. Reduce secondary
-  detail before weakening the primary silhouette.
-- Unknown fields are invalid.
-
-The canvas-wide limits—25 active objects or 100 active cost units, whichever
-binds first—are enforced by the plugin. Do not work around them by hiding
-geometry in unsupported fields.
+only when the prompt needs a precedent.
 
 ## Submission protocol
 
-Call `submit_scene_object` with one complete candidate and produce no
+Call `submit_scene_object` with one complete `program` and produce no
 user-facing prose before or after the call.
 
-- If the call is accepted, stop immediately. There is exactly one accepted
-  scene for the job; do not submit an alternative.
-- If the call returns actionable validation issues, make one correction that
-  addresses those issues without changing the prompt's visual thesis, then
-  call `submit_scene_object` once more and stop regardless of the outcome.
+- If accepted, stop immediately. There is exactly one accepted visualization
+  for the job.
+- If actionable validation issues are returned, make one correction without
+  changing the visual thesis, call the tool once more, and stop.
 - If the call is refused, unavailable, or fails without actionable validation
   issues, stop without retrying.
 
-Two calls are the absolute ceiling: one initial submission and one validation
-correction. Never narrate progress, promise later work, or keep retrying.
+Two calls are the absolute ceiling. Never narrate progress, promise later work,
+or keep retrying.

@@ -1,4 +1,5 @@
 import type { SceneObjectV1 } from "./scene-contract.js";
+import { compileSceneSeedKitProgram } from "./scene-kit.js";
 import type {
   CanvasSnapshotDto,
   SceneCandidateDto,
@@ -15,141 +16,118 @@ const FIXTURE_TRANSFORM: Transform3D = {
 };
 
 function rainyThoughtScene(): SceneObjectV1 {
-  return {
-    version: 1,
-    jobId: "job_rainy",
-    objectId: "object_rainy",
-    name: "Rainy thought",
-    altText:
-      "A blue rain cloud and warm halo suspended inside a clear glass jar.",
-    bounds: { width: 3.5, height: 4.2, depth: 3.5 },
-    cameraHint: "three-quarter",
-    palette: ["#55a8e8", "#d9f1ff", "#ff9b68", "theme:ink"],
-    material: { preset: "glass", opacity: 0.76 },
-    nodes: [
-      {
-        id: "jar",
-        parentId: null,
-        kind: "mesh",
-        geometry: "cylinder",
-        position: [0, 1.45, 0],
-        rotation: [0, 0, 0],
-        scale: [1, 1, 1],
-        paletteIndex: 1,
-        size: { width: 2.5, height: 3, depth: 2.5 },
-      },
-      {
-        id: "cloud_left",
-        parentId: null,
-        kind: "mesh",
-        geometry: "sphere",
-        position: [-0.48, 2.25, 0],
-        rotation: [0, 0, 0],
-        scale: [1, 0.72, 0.86],
-        paletteIndex: 0,
-        size: { width: 1.5, height: 1.2, depth: 1.2 },
-      },
-      {
-        id: "cloud_right",
-        parentId: null,
-        kind: "mesh",
-        geometry: "sphere",
-        position: [0.48, 2.15, 0.05],
-        rotation: [0, 0, 0],
-        scale: [1, 0.7, 0.84],
-        paletteIndex: 0,
-        size: { width: 1.6, height: 1.3, depth: 1.2 },
-      },
-      {
-        id: "thought_halo",
-        parentId: null,
-        kind: "mesh",
-        geometry: "torus",
-        position: [0, 2.12, 0],
-        rotation: [Math.PI / 2, 0, 0],
-        scale: [1, 1, 1],
-        paletteIndex: 2,
-        size: { width: 2.25, height: 0.18, depth: 2.25 },
-      },
-      {
-        id: "rain",
-        parentId: null,
-        kind: "particles",
-        preset: "motes",
-        position: [0, 1.25, 0],
-        rotation: [0, 0, 0],
-        scale: [1, 1, 1],
-        paletteIndex: 0,
-        count: 42,
-        size: 0.06,
-        spread: { width: 1.4, height: 1.5, depth: 0.7 },
-      },
-    ],
-    lights: [],
-    motion: { preset: "breathe", speed: 0.42, amplitude: 0.08 },
-    ground: { contactShadow: { strength: 0.55, softness: 0.72 } },
-  };
+  return compileSceneSeedKitProgram(
+    {
+      version: 1,
+      name: "Rainy thought",
+      altText:
+        "A pale rain cloud and dark halo suspended inside a clear glass jar.",
+      camera: "three-quarter",
+      material: "glass",
+      movement: "breathe",
+      shadow: "soft",
+      parts: [
+        {
+          kind: "shape",
+          id: "jar",
+          shape: "cylinder",
+          size: { width: 2.5, height: 3, depth: 2.5 },
+          at: [0, 1.45, 0],
+          tone: "light",
+        },
+        {
+          kind: "shape",
+          id: "cloud_left",
+          shape: "sphere",
+          size: { width: 1.5, height: 1.2, depth: 1.2 },
+          at: [-0.48, 2.25, 0],
+          scale: [1, 0.72, 0.86],
+          tone: "dark",
+        },
+        {
+          kind: "shape",
+          id: "cloud_right",
+          shape: "sphere",
+          size: { width: 1.6, height: 1.3, depth: 1.2 },
+          at: [0.48, 2.15, 0.05],
+          scale: [1, 0.7, 0.84],
+          tone: "dark",
+        },
+        {
+          kind: "shape",
+          id: "thought_halo",
+          shape: "torus",
+          size: { width: 2.25, height: 0.18, depth: 2.25 },
+          at: [0, 2.12, 0],
+          rotate: [Math.PI / 2, 0, 0],
+          tone: "black",
+        },
+        {
+          kind: "particles",
+          id: "rain",
+          effect: "motes",
+          count: 42,
+          size: 0.06,
+          spread: { width: 1.4, height: 1.5, depth: 0.7 },
+          at: [0, 1.25, 0],
+          tone: "dark",
+        },
+      ],
+    },
+    { jobId: "job_rainy", objectId: "object_rainy" },
+  );
 }
 
 function lighthouseScene(): SceneObjectV1 {
-  return {
-    version: 1,
-    jobId: "job_lighthouse",
-    objectId: "object_lighthouse",
-    name: "Tiny red lighthouse",
-    altText: "A small red lighthouse with a bright lantern and pointed roof.",
-    bounds: { width: 2.5, height: 5.6, depth: 2.5 },
-    cameraHint: "three-quarter",
-    palette: ["#e6534b", "#f3d98b", "#273244"],
-    material: { preset: "matte", opacity: 1 },
-    nodes: [
-      {
-        id: "tower",
-        parentId: null,
-        kind: "mesh",
-        geometry: "cylinder",
-        position: [0, 2, 0],
-        rotation: [0, 0, 0],
-        scale: [0.72, 1, 0.72],
-        paletteIndex: 0,
-        size: { width: 2, height: 4, depth: 2 },
-      },
-      {
-        id: "lantern",
-        parentId: null,
-        kind: "mesh",
-        geometry: "cylinder",
-        position: [0, 4.3, 0],
-        rotation: [0, 0, 0],
-        scale: [1, 1, 1],
-        paletteIndex: 1,
-        size: { width: 1.45, height: 0.85, depth: 1.45 },
-      },
-      {
-        id: "roof",
-        parentId: null,
-        kind: "mesh",
-        geometry: "cone",
-        position: [0, 5.1, 0],
-        rotation: [0, 0, 0],
-        scale: [1, 1, 1],
-        paletteIndex: 2,
-        size: { width: 1.8, height: 1, depth: 1.8 },
-      },
-    ],
-    lights: [
-      {
-        id: "lantern_light",
-        kind: "point",
-        position: [0, 4.3, 0],
-        paletteIndex: 1,
-        intensity: 1.2,
-        range: 5,
-      },
-    ],
-    motion: { preset: "none", speed: 0, amplitude: 0 },
-    ground: { contactShadow: { strength: 0.68, softness: 0.48 } },
-  };
+  return compileSceneSeedKitProgram(
+    {
+      version: 1,
+      name: "Tiny lighthouse",
+      altText:
+        "A small dark lighthouse with a bright lantern and pointed black roof.",
+      camera: "three-quarter",
+      material: "matte",
+      movement: "still",
+      shadow: "crisp",
+      parts: [
+        {
+          kind: "shape",
+          id: "tower",
+          shape: "cylinder",
+          size: { width: 2, height: 4, depth: 2 },
+          at: [0, 2, 0],
+          scale: [0.72, 1, 0.72],
+          tone: "dark",
+        },
+        {
+          kind: "shape",
+          id: "lantern",
+          shape: "cylinder",
+          size: { width: 1.45, height: 0.85, depth: 1.45 },
+          at: [0, 4.3, 0],
+          tone: "white",
+        },
+        {
+          kind: "shape",
+          id: "roof",
+          shape: "cone",
+          size: { width: 1.8, height: 1, depth: 1.8 },
+          at: [0, 5.1, 0],
+          tone: "black",
+        },
+      ],
+      lights: [
+        {
+          id: "lantern_light",
+          at: [0, 4.3, 0],
+          tone: "white",
+          intensity: 1.2,
+          range: 5,
+        },
+      ],
+    },
+    { jobId: "job_lighthouse", objectId: "object_lighthouse" },
+  );
 }
 
 function candidate(scene: SceneObjectV1, id: string): SceneCandidateDto {

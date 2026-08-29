@@ -4,7 +4,12 @@ import {
   sceneObjectV1Schema,
   safeNormalizeSceneObjectV1,
   type SceneContractIssue,
+  type SceneObjectV1,
 } from "../scene-contract.js";
+import {
+  safeCompileSceneSeedKitProgram,
+  sceneSeedKitProgramSchema,
+} from "../scene-kit.js";
 import {
   SceneSeedStoreError,
   type CanvasSnapshotDto,
@@ -17,10 +22,40 @@ import {
 
 export type SceneSeedStore = ReturnType<typeof createSceneSeedStore>;
 
-const submitEnvelopeSchema = z.object({ scene: z.unknown() }).strict();
+const submitEnvelopeSchema = z
+  .object({
+    program: z.unknown().optional(),
+    scene: z.unknown().optional(),
+  })
+  .strict()
+  .superRefine((value, context) => {
+    const supplied = [value.program, value.scene].filter(
+      (entry) => entry !== undefined,
+    ).length;
+    if (supplied !== 1) {
+      context.addIssue({
+        code: "custom",
+        path: [],
+        message: "supply exactly one of program or scene",
+      });
+    }
+  });
 
 export const submitSceneObjectParameters = z.toJSONSchema(
-  z.object({ scene: sceneObjectV1Schema }).strict(),
+  z
+    .object({
+      program: sceneSeedKitProgramSchema
+        .optional()
+        .describe(
+          "Preferred SceneSeed Kit composition. The plugin injects job identity, recenters and grounds the parts, fits them safely, and compiles the result into SceneObjectV1.",
+        ),
+      scene: sceneObjectV1Schema
+        .optional()
+        .describe(
+          "Legacy raw SceneObjectV1 compatibility input. New interpretations should use program.",
+        ),
+    })
+    .strict(),
   { io: "input", target: "draft-7" },
 ) as Record<string, unknown>;
 const SETTLED_JOB_STATES = new Set(["complete", "failed", "superseded"]);
@@ -293,7 +328,7 @@ export class SceneSeedRuntime {
     return [
       "Interpret this SceneSeed job using the sceneseed-interpreter skill.",
       "Use only the submit_scene_object tool. Do not inspect files, use network access, or call unrelated tools.",
-      "Call submit_scene_object once with a valid scene. If it returns validation issues, correct them and call it one final time. End without prose after one scene is accepted.",
+      "Compose the visualization with the SceneSeed Kit and call submit_scene_object once with a valid program. Do not submit a raw scene for new work. The plugin injects job and object identity, recenters and grounds the parts, fits the composition safely, and supplies the grayscale palette. If validation issues are returned, correct them and call the tool one final time. End without prose after one visualization is accepted.",
       JSON.stringify({
         jobId: job.id,
         objectId: job.objectId,
@@ -698,9 +733,18 @@ export class SceneSeedRuntime {
 
       const envelope = submitEnvelopeSchema.safeParse(params);
       let issues: readonly SceneContractIssue[];
-      let normalized: ReturnType<typeof safeNormalizeSceneObjectV1> | undefined;
+      let normalized:
+        | { success: true; scene: SceneObjectV1 }
+        | { success: false; issues: readonly SceneContractIssue[] }
+        | undefined;
       if (!envelope.success) {
         issues = envelopeIssues(envelope.error);
+      } else if (envelope.data.program !== undefined) {
+        normalized = safeCompileSceneSeedKitProgram(envelope.data.program, {
+          jobId: current.id,
+          objectId: current.objectId,
+        });
+        issues = normalized.success ? [] : normalized.issues;
       } else {
         normalized = safeNormalizeSceneObjectV1(envelope.data.scene);
         issues = normalized.success ? [] : normalized.issues;
