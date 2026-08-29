@@ -1514,7 +1514,7 @@ export function SceneRenderer({
             controls.minDistance,
             Math.min(
               controls.maxDistance,
-              (sphere.radius / Math.sin(limitingFov / 2)) * 1.02,
+              (sphere.radius / Math.sin(limitingFov / 2)) * 1.18,
             ),
           );
           const direction = camera.position.clone().sub(controls.target);

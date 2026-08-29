@@ -84,6 +84,26 @@ return { root, name: "Textured", altText: "A textured cube." };`,
     ).toBe(false);
   });
 
+  it("rejects agent-authored scenes above the 1,500-vertex budget", () => {
+    const result = safeCompileSceneCode(
+      `const root = new THREE.Mesh(
+  new THREE.SphereGeometry(1, 64, 32),
+  new THREE.MeshStandardMaterial({ color: 0xdddddd }),
+);
+return { root, name: "Dense sphere", altText: "A dense pale sphere." };`,
+      identity,
+    );
+
+    expect(result).toMatchObject({
+      success: false,
+      issues: [
+        expect.objectContaining({
+          message: expect.stringContaining("budget is 1500"),
+        }),
+      ],
+    });
+  });
+
   it("accepts detailed camera and shadow options emitted by Three.js authors", () => {
     const scene = compileSceneCode(
       lighthouseSource().replace(
@@ -91,7 +111,7 @@ return { root, name: "Textured", altText: "A textured cube." };`,
         "const dark = new THREE.MeshStandardMaterial({ color: 0x222222 });\nconst orbit = new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(-1, 0, 0), new THREE.Vector3(1, 0, 0)]), new THREE.LineDashedMaterial({ color: 0x555555 }));\nroot.add(orbit);",
       ).replace(
         'camera: "three-quarter",\n  shadow: "crisp",',
-        "camera: { position: [5, 4, 6], target: [0, 2, 0], fov: 36 },\n  movement: { type: 'orbit', speed: 0.2 },\n  shadow: { enabled: false, opacity: 0.2, blur: 2 },",
+        "camera: { position: [5, 4, 6], target: [0, 2, 0] },\n  movement: { rotation: [0, 0.18, 0] },\n  shadow: { enabled: false, opacity: 0.2, blur: 2 },",
       ),
       identity,
     );
@@ -99,6 +119,30 @@ return { root, name: "Textured", altText: "A textured cube." };`,
     expect(scene.cameraHint).toBe("free");
     expect(scene.motion.preset).toBe("orbit");
     expect(scene.ground.contactShadow.strength).toBe(0);
+  });
+
+  it("normalizes ignored Three-style camera metadata without an agent retry", () => {
+    const scene = compileSceneCode(
+      lighthouseSource().replace(
+        'camera: "three-quarter"',
+        "camera: { position: { x: 3, y: 2, z: 4 }, lookAt: { x: 0, y: 1, z: 0 } }",
+      ),
+      identity,
+    );
+
+    expect(scene.cameraHint).toBe("free");
+  });
+
+  it("normalizes a boolean shadow without forcing an agent retry", () => {
+    const scene = compileSceneCode(
+      lighthouseSource().replace('shadow: "crisp"', "shadow: true"),
+      identity,
+    );
+
+    expect(scene.ground.contactShadow).toEqual({
+      strength: 0.78,
+      softness: 0.18,
+    });
   });
 
   it("preserves shared geometry while making generated geometry portable", () => {

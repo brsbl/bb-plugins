@@ -512,7 +512,10 @@ function CanvasWorkspace({
   const inFlightCount = snapshot.cards.filter((card) =>
     ACTIVE_CARD_STATES.has(card.state),
   ).length;
-  const isGenerating = inFlightCount > 0 || busy;
+  const hasPendingReveal = renderObjects.some(
+    (object) => object.reveal === true && object.probeOnly !== true,
+  );
+  const isGenerating = inFlightCount > 0 || hasPendingReveal || busy;
 
   useEffect(() => {
     if (
@@ -780,6 +783,27 @@ function CanvasEditor({ canvasId }: { canvasId: string }) {
   const hasConnected = useRef(false);
 
   const applySnapshot = useCallback((next: CanvasSnapshotDto) => {
+    const previous = latestSnapshot.current;
+    if (previous !== null) {
+      const previousSceneByObject = new Map(
+        previous.objects.map((object) => [object.id, object.activeSceneId]),
+      );
+      const newlyActiveObjectIds = next.objects
+        .filter(
+          (object) =>
+            object.removedAt === null &&
+            object.activeSceneId !== null &&
+            previousSceneByObject.get(object.id) !== object.activeSceneId,
+        )
+        .map((object) => object.id);
+      if (newlyActiveObjectIds.length > 0) {
+        setRevealing((current) => {
+          const updated = new Set(current);
+          for (const objectId of newlyActiveObjectIds) updated.add(objectId);
+          return updated;
+        });
+      }
+    }
     latestSnapshot.current = next;
     setSnapshot(next);
   }, []);

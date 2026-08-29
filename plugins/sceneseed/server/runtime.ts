@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import type { BbPluginApi } from "@get-bb/plugin-sdk";
 import { z } from "zod";
 import {
@@ -89,9 +90,9 @@ export const submitSceneObjectParameters = lowerHomogeneousTuplesForToolSchema(
 const SETTLED_JOB_STATES = new Set(["complete", "failed", "superseded"]);
 const FAST_GENERATION_MODELS: Readonly<Record<string, readonly string[]>> = {
   codex: [
-    "gpt-5.3-codex-spark",
-    "gpt-5.4-mini",
     "gpt-5.6-luna",
+    "gpt-5.4-mini",
+    "gpt-5.3-codex-spark",
   ],
 };
 
@@ -106,6 +107,11 @@ interface GenerationExecutionOptions {
     | "max"
     | "ultra"
     | "ultracode";
+  serviceTier?: "default" | "fast";
+}
+
+interface SpawnGenerationExecutionOptions extends GenerationExecutionOptions {
+  providerId?: string;
 }
 
 function isNonterminalJobState(
@@ -121,6 +127,10 @@ function isNonterminalJobState(
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
+}
+
+function createRuntimeId(prefix: string): string {
+  return `${prefix}_${randomUUID().replaceAll("-", "")}`;
 }
 
 function boundedIssues(issues: readonly SceneContractIssue[]): string {
@@ -153,6 +163,7 @@ export interface SceneSeedCleanupResult {
 
 export class SceneSeedRuntime {
   private readonly locks = new Map<string, Promise<void>>();
+  private readonly initialJobReadiness = new Map<string, Promise<void>>();
   private readonly generationExecutionByProvider = new Map<
     string,
     GenerationExecutionOptions
@@ -309,45 +320,16 @@ export class SceneSeedRuntime {
     return personal.id;
   }
 
-  private async ensureAgentThreadLocked(canvasId: string): Promise<string> {
-    const current = this.store.getCanvas(canvasId);
-    if (current === null) {
-      throw new SceneSeedStoreError(
-        "not_found",
-        `canvas ${canvasId} was not found`,
-      );
-    }
-    if (current.agentThreadId !== null) return current.agentThreadId;
-
-    const projectId = await this.personalProjectId();
-    const thread = await this.bb.sdk.threads.spawn({
-      projectId,
-      environment: { type: "project-default" },
-      prompt:
-        "Initialize a SceneSeed canvas interpreter. Do not inspect files, use network access, or call tools in this initialization turn. Reply only READY.",
-      title: `SceneSeed: ${current.name}`,
-      visibility: "hidden",
-      permissionMode: "accept-edits",
-      origin: "plugin",
-      originPluginId: this.bb.pluginId,
-    });
-    const bound = this.store.setCanvasAgentThreadId({
-      canvasId,
-      agentThreadId: thread.id,
-      expectedRevision: current.revision,
-    });
-    this.publishCanvas(canvasId, bound.revision);
-    return thread.id;
-  }
-
-  private buildJobPrompt(snapshot: CanvasSnapshotDto, job: JobDto): string {
-    const card = snapshot.cards.find((entry) => entry.id === job.cardId);
-    const object = snapshot.objects.find((entry) => entry.id === job.objectId);
-    if (card === undefined || object === undefined || card.placement === null) {
-      throw new Error(
-        `SceneSeed job ${job.id} is missing its card or placement`,
-      );
-    }
+  private buildJobPromptFromPayload(
+    snapshot: CanvasSnapshotDto,
+    payload: {
+      jobId: string;
+      objectId: string;
+      generation: number;
+      prompt: string;
+      placement: Placement;
+    },
+  ): string {
     const activeCandidates = new Map(
       snapshot.candidates
         .filter(
@@ -359,7 +341,7 @@ export class SceneSeedRuntime {
     const nearby = snapshot.objects
       .filter(
         (entry) =>
-          entry.id !== object.id &&
+          entry.id !== payload.objectId &&
           entry.removedAt === null &&
           entry.activeSceneId !== null,
       )
@@ -380,16 +362,67 @@ export class SceneSeedRuntime {
     return [
       "Interpret this SceneSeed job using the sceneseed-interpreter skill.",
       "Use only the submit_scene_object tool. Do not inspect files, use network access, or call unrelated tools.",
-      "Write one compact visualization as a JavaScript function body using the THREE namespace described by the sceneseed-interpreter skill, then call submit_scene_object once with that source. Target 6–18 drawable objects, 2,000–6,000 aggregate vertices, no more than 5 unique geometries, at most 8 materials, under 6,000 source characters, and under 500 KB when serialized. Reuse geometry and materials. Keep TubeGeometry at or below 64 tubular by 12 radial segments; keep ExtrudeGeometry at or below 2 steps, 3 bevel segments, and 12 curve segments; never call toNonIndexed or create per-face geometry. Do not add a ground plane or a shadow mesh; use the returned shadow option because Diorama supplies the ground and contact shadow. Prefer a clear rounded silhouette, simple curved primitives, controlled gloss, and no decorative detail that does not help recognition. Use a crisp contact shadow. The plugin injects job and object identity, runs the source for this requested job, recenters and grounds the returned Object3D, and persists its serialized Three.js result. If validation issues are returned, correct them and call the tool one final time. End without prose after one visualization is accepted.",
+      "Write one compact visualization as a JavaScript function body using the THREE namespace described by the sceneseed-interpreter skill, then call submit_scene_object once with that source. Target 4–10 drawable objects and 500–1,500 aggregate vertices, with no more than 3 unique geometries, at most 4 materials, under 3,500 source characters, and under 250 KB when serialized. Reuse geometry and materials. Keep TubeGeometry at or below 40 tubular by 8 radial segments; keep ExtrudeGeometry at or below 1 step, 2 bevel segments, and 8 curve segments; never call toNonIndexed or create per-face geometry. Do not add a ground plane or a shadow mesh; Diorama supplies both. Return the canonical presentation values camera: \"three-quarter\", movement: \"still\", and shadow: \"crisp\" rather than inventing option objects. Prefer one clear rounded silhouette, simple curved primitives, controlled gloss, and no decorative detail that does not help recognition. The plugin injects job and object identity, runs the source for this requested job, recenters and grounds the returned Object3D, and persists its serialized Three.js result. If validation issues are returned, correct them and call the tool one final time. End without prose after one visualization is accepted.",
       JSON.stringify({
-        jobId: job.id,
-        objectId: job.objectId,
-        generation: job.generation,
-        prompt: card.prompt,
-        placement: card.placement,
+        jobId: payload.jobId,
+        objectId: payload.objectId,
+        generation: payload.generation,
+        prompt: payload.prompt,
+        placement: payload.placement,
         nearby,
       }),
     ].join("\n\n");
+  }
+
+  private buildJobPrompt(snapshot: CanvasSnapshotDto, job: JobDto): string {
+    const card = snapshot.cards.find((entry) => entry.id === job.cardId);
+    const object = snapshot.objects.find((entry) => entry.id === job.objectId);
+    if (card === undefined || object === undefined || card.placement === null) {
+      throw new Error(
+        `SceneSeed job ${job.id} is missing its card or placement`,
+      );
+    }
+    return this.buildJobPromptFromPayload(snapshot, {
+      jobId: job.id,
+      objectId: job.objectId,
+      generation: job.generation,
+      prompt: card.prompt,
+      placement: card.placement,
+    });
+  }
+
+  private async generationExecutionForProvider(
+    providerId: string,
+    defaultModel?: string,
+  ): Promise<GenerationExecutionOptions> {
+    const cached = this.generationExecutionByProvider.get(providerId);
+    if (cached) return cached;
+
+    const catalog = await this.bb.sdk.providers.models({ providerId });
+    const preferredModels = FAST_GENERATION_MODELS[providerId] ?? [];
+    const selected =
+      preferredModels
+        .map((model) => catalog.models.find((entry) => entry.model === model))
+        .find((entry) => entry !== undefined) ??
+      catalog.models.find((entry) => entry.model === defaultModel) ??
+      catalog.models.find((entry) => entry.isDefault);
+    if (!selected) return { serviceTier: "fast" };
+
+    const supportsLowReasoning = selected.supportedReasoningEfforts.some(
+      (effort) => effort.reasoningEffort === "low",
+    );
+    const options: GenerationExecutionOptions = {
+      model: selected.model,
+      reasoningLevel: supportsLowReasoning
+        ? "low"
+        : selected.defaultReasoningEffort,
+      serviceTier: "fast",
+    };
+    this.generationExecutionByProvider.set(providerId, options);
+    this.bb.log.info(
+      `SceneSeed generation will use ${providerId}/${selected.model} at ${options.reasoningLevel} reasoning on the fast service tier`,
+    );
+    return options;
   }
 
   private async generationExecutionOptions(
@@ -397,43 +430,156 @@ export class SceneSeedRuntime {
   ): Promise<GenerationExecutionOptions> {
     try {
       const thread = await this.bb.sdk.threads.get({ threadId });
-      const cached = this.generationExecutionByProvider.get(thread.providerId);
-      if (cached) return cached;
-
-      const catalog = await this.bb.sdk.providers.models({
-        providerId: thread.providerId,
-      });
       const defaults = await this.bb.sdk.threads.defaultExecutionOptions({
         threadId,
       });
-      const preferredModels = FAST_GENERATION_MODELS[thread.providerId] ?? [];
-      const selected =
-        preferredModels
-          .map((model) => catalog.models.find((entry) => entry.model === model))
-          .find((entry) => entry !== undefined) ??
-        catalog.models.find((entry) => entry.model === defaults?.model) ??
-        catalog.models.find((entry) => entry.isDefault);
-      if (!selected) return {};
-
-      const supportsLowReasoning = selected.supportedReasoningEfforts.some(
-        (effort) => effort.reasoningEffort === "low",
+      return await this.generationExecutionForProvider(
+        thread.providerId,
+        defaults?.model,
       );
-      const options: GenerationExecutionOptions = {
-        model: selected.model,
-        reasoningLevel: supportsLowReasoning
-          ? "low"
-          : selected.defaultReasoningEffort,
-      };
-      this.generationExecutionByProvider.set(thread.providerId, options);
-      this.bb.log.info(
-        `SceneSeed generation will use ${thread.providerId}/${selected.model} at ${options.reasoningLevel} reasoning`,
-      );
-      return options;
     } catch (error) {
       this.bb.log.warn(
         `Could not resolve a faster SceneSeed generation model; using the thread defaults: ${errorMessage(error)}`,
       );
-      return {};
+      return { serviceTier: "fast" };
+    }
+  }
+
+  private async initialGenerationExecutionOptions(
+    projectId: string,
+  ): Promise<SpawnGenerationExecutionOptions> {
+    try {
+      const defaults = await this.bb.sdk.projects.defaultExecutionOptions({
+        projectId,
+      });
+      if (defaults === null) {
+        const providers = await this.bb.sdk.providers.list();
+        const preferred = providers.find(
+          (provider) =>
+            provider.available &&
+            (FAST_GENERATION_MODELS[provider.id]?.length ?? 0) > 0,
+        );
+        if (preferred === undefined) return { serviceTier: "fast" };
+        return {
+          providerId: preferred.id,
+          ...(await this.generationExecutionForProvider(preferred.id)),
+        };
+      }
+      return {
+        providerId: defaults.providerId,
+        ...(await this.generationExecutionForProvider(
+          defaults.providerId,
+          defaults.model,
+        )),
+      };
+    } catch (error) {
+      this.bb.log.warn(
+        `Could not resolve first-turn SceneSeed execution options; using the project defaults on the fast service tier: ${errorMessage(error)}`,
+      );
+      return { serviceTier: "fast" };
+    }
+  }
+
+  private async startFirstJobLocked(input: {
+    canvasId: string;
+    prompt: string;
+    placement: Placement;
+    objectId: string;
+    jobId: string;
+    generation: number;
+    queue: (
+      agentThreadId: string,
+      expectedRevision: number,
+    ) => { job: JobDto; revision: number };
+  }): Promise<{ snapshot: CanvasSnapshotDto; jobId: string }> {
+    const current = this.store.getCanvas(input.canvasId);
+    if (current === null) {
+      throw new SceneSeedStoreError(
+        "not_found",
+        `canvas ${input.canvasId} was not found`,
+      );
+    }
+    if (current.agentThreadId !== null) {
+      throw new SceneSeedStoreError(
+        "invalid_state",
+        "canvas already has an interpreter thread",
+      );
+    }
+
+    const projectId = await this.personalProjectId();
+    const execution = await this.initialGenerationExecutionOptions(projectId);
+    const thread = await this.bb.sdk.threads.spawn({
+      projectId,
+      environment: { type: "project-default" },
+      prompt: this.buildJobPromptFromPayload(
+        this.requiredSnapshot(input.canvasId),
+        {
+          jobId: input.jobId,
+          objectId: input.objectId,
+          generation: input.generation,
+          prompt: input.prompt,
+          placement: input.placement,
+        },
+      ),
+      title: `SceneSeed: ${current.name}`,
+      visibility: "hidden",
+      permissionMode: "accept-edits",
+      origin: "plugin",
+      originPluginId: this.bb.pluginId,
+      ...execution,
+    });
+
+    let markInitialJobReady!: () => void;
+    const initialJobReady = new Promise<void>((resolve) => {
+      markInitialJobReady = resolve;
+    });
+    this.initialJobReadiness.set(thread.id, initialJobReady);
+
+    try {
+      const bound = this.store.setCanvasAgentThreadId({
+        canvasId: input.canvasId,
+        agentThreadId: thread.id,
+        expectedRevision: current.revision,
+      });
+      const queued = input.queue(thread.id, bound.revision);
+      const claimed = this.store.claimNextQueuedJob({
+        canvasId: input.canvasId,
+        agentThreadId: thread.id,
+        expectedRevision: queued.revision,
+      });
+      if (claimed === null || claimed.job.id !== input.jobId) {
+        throw new Error("SceneSeed could not claim its first generation job");
+      }
+      this.publishCanvas(input.canvasId, claimed.revision, claimed.job.id);
+      return {
+        snapshot: this.requiredSnapshot(input.canvasId),
+        jobId: claimed.job.id,
+      };
+    } catch (error) {
+      const latest = this.store.getCanvas(input.canvasId);
+      if (latest?.agentThreadId === thread.id) {
+        try {
+          const reset = this.store.replaceCanvasAgentThreadId({
+            canvasId: input.canvasId,
+            agentThreadId: null,
+            expectedRevision: latest.revision,
+          });
+          this.publishCanvas(input.canvasId, reset.revision);
+        } catch (resetError) {
+          this.bb.log.warn(
+            `Could not detach failed SceneSeed thread ${thread.id}: ${errorMessage(resetError)}`,
+          );
+        }
+      }
+      await this.cleanupThread(thread.id);
+      throw error;
+    } finally {
+      markInitialJobReady();
+      queueMicrotask(() => {
+        if (this.initialJobReadiness.get(thread.id) === initialJobReady) {
+          this.initialJobReadiness.delete(thread.id);
+        }
+      });
     }
   }
 
@@ -509,10 +655,46 @@ export class SceneSeedRuntime {
     return this.withCanvasLock(input.canvasId, async () => {
       this.assertRevision(input.canvasId, input.expectedRevision);
       this.assertCardOnCanvas(input.canvasId, input.cardId);
-      const threadId = await this.ensureAgentThreadLocked(input.canvasId);
+      const before = this.requiredSnapshot(input.canvasId);
+      const card = before.cards.find((entry) => entry.id === input.cardId)!;
+      const existingObject = before.objects.find(
+        (entry) => entry.sourceCardId === input.cardId,
+      );
+      const objectId = existingObject?.id ?? createRuntimeId("object");
+      const generation =
+        Math.max(
+          0,
+          ...before.jobs
+            .filter((job) => job.objectId === objectId)
+            .map((job) => job.generation),
+        ) + 1;
+      const jobId = createRuntimeId("job");
+      if (before.canvas.agentThreadId === null) {
+        return this.startFirstJobLocked({
+          canvasId: input.canvasId,
+          prompt: card.prompt,
+          placement: input.placement,
+          objectId,
+          jobId,
+          generation,
+          queue: (agentThreadId, expectedRevision) =>
+            this.store.queueCard({
+              cardId: input.cardId,
+              objectId,
+              jobId,
+              placement: input.placement,
+              agentThreadId,
+              expectedRevision,
+            }),
+        });
+      }
+
+      const threadId = before.canvas.agentThreadId;
       const canvas = this.store.getCanvas(input.canvasId)!;
       const queued = this.store.queueCard({
         cardId: input.cardId,
+        objectId,
+        jobId,
         placement: input.placement,
         agentThreadId: threadId,
         expectedRevision: canvas.revision,
@@ -534,10 +716,50 @@ export class SceneSeedRuntime {
     return this.withCanvasLock(input.canvasId, async () => {
       this.assertRevision(input.canvasId, input.expectedRevision);
       this.assertObjectOnCanvas(input.canvasId, input.objectId);
-      const threadId = await this.ensureAgentThreadLocked(input.canvasId);
+      const before = this.requiredSnapshot(input.canvasId);
+      const object = before.objects.find(
+        (entry) => entry.id === input.objectId,
+      )!;
+      const card = before.cards.find(
+        (entry) => entry.id === object.sourceCardId,
+      );
+      if (card?.placement === null || card === undefined) {
+        throw new SceneSeedStoreError(
+          "invalid_state",
+          "remix source is missing its prompt placement",
+        );
+      }
+      const generation =
+        Math.max(
+          0,
+          ...before.jobs
+            .filter((job) => job.objectId === object.id)
+            .map((job) => job.generation),
+        ) + 1;
+      const jobId = createRuntimeId("job");
+      if (before.canvas.agentThreadId === null) {
+        return this.startFirstJobLocked({
+          canvasId: input.canvasId,
+          prompt: card.prompt,
+          placement: card.placement,
+          objectId: object.id,
+          jobId,
+          generation,
+          queue: (agentThreadId, expectedRevision) =>
+            this.store.queueRemix({
+              objectId: input.objectId,
+              jobId,
+              agentThreadId,
+              expectedRevision,
+            }),
+        });
+      }
+
+      const threadId = before.canvas.agentThreadId;
       const canvas = this.store.getCanvas(input.canvasId)!;
       const queued = this.store.queueRemix({
         objectId: input.objectId,
+        jobId,
         agentThreadId: threadId,
         expectedRevision: canvas.revision,
       });
@@ -833,6 +1055,7 @@ export class SceneSeedRuntime {
   }
 
   async submitSceneObject(params: unknown, callerThreadId: string) {
+    await this.initialJobReadiness.get(callerThreadId);
     const canvas = this.store.getCanvasByAgentThreadId(callerThreadId);
     if (canvas === null) {
       return {
@@ -945,12 +1168,41 @@ export class SceneSeedRuntime {
         expectedCanvasRevision: latest.revision,
         scene: normalized.scene,
       });
-      this.publishCanvas(canvas.id, result.revision, current.id);
+      const attemptId = createRuntimeId("realization");
+      const begun = this.store.beginRealization({
+        candidateId: result.candidate.id,
+        attemptId,
+        jobId: current.id,
+        generation: current.generation,
+        agentThreadId: callerThreadId,
+        expectedCanvasRevision: result.revision,
+      });
+      const activated = this.store.acknowledgeRealization({
+        candidateId: result.candidate.id,
+        attemptId,
+        jobId: current.id,
+        generation: current.generation,
+        agentThreadId: callerThreadId,
+        expectedCanvasRevision: begun.revision,
+        outcome: "success",
+      });
+      this.publishCanvas(canvas.id, activated.revision, current.id);
+      if (activated.outcome !== "complete") {
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text: `Rejected: the validated scene could not be activated (${activated.outcome}).`,
+            },
+          ],
+          isError: true,
+        };
+      }
       return JSON.stringify({
         accepted: true,
         jobId: current.id,
         candidateId: result.candidate.id,
-        revision: result.revision,
+        revision: activated.revision,
       });
     });
   }

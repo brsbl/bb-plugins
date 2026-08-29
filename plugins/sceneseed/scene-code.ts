@@ -17,6 +17,7 @@ import {
 const MAX_SOURCE_LENGTH = 24_000;
 const EXECUTION_TIMEOUT_MS = 2_000;
 const TARGET_SCENE_SPAN = 16;
+const MAX_AGENT_AUTHORED_SCENE_VERTICES = 1_500;
 
 const visibleTextSchema = (maximum: number) =>
   z
@@ -49,21 +50,7 @@ const generatedResultSchema = z
     camera: z
       .union([
         z.enum(["front", "three-quarter", "top", "free"]),
-        z
-          .object({
-            position: z.tuple([
-              z.number().finite(),
-              z.number().finite(),
-              z.number().finite(),
-            ]),
-            target: z.tuple([
-              z.number().finite(),
-              z.number().finite(),
-              z.number().finite(),
-            ]),
-            fov: z.number().finite().min(18).max(70),
-          })
-          .passthrough(),
+        z.object({}).passthrough(),
       ])
       .optional(),
     movement: z
@@ -74,10 +61,20 @@ const generatedResultSchema = z
             type: z.enum(["still", "breathe", "orbit", "bob", "shimmer"]),
           })
           .passthrough(),
+        z
+          .object({
+            rotation: z.tuple([
+              z.number().finite(),
+              z.number().finite(),
+              z.number().finite(),
+            ]),
+          })
+          .passthrough(),
       ])
       .optional(),
     shadow: z
       .union([
+        z.boolean(),
         z.enum(["soft", "crisp", "none"]),
         z
           .object({
@@ -320,7 +317,12 @@ function normalizeRoot(root: THREE.Object3D): {
 function motionFor(
   movement: z.infer<typeof generatedResultSchema>["movement"],
 ): SceneObjectV2["motion"] {
-  const preset = typeof movement === "object" ? movement.type : movement;
+  const preset =
+    typeof movement === "object"
+      ? "type" in movement
+        ? movement.type
+        : "orbit"
+      : movement;
   switch (preset ?? "still") {
     case "still":
       return { preset: "none", speed: 0, amplitude: 0 };
@@ -345,6 +347,11 @@ function cameraFor(
 function groundFor(
   shadow: z.infer<typeof generatedResultSchema>["shadow"],
 ): SceneObjectV2["ground"] {
+  if (typeof shadow === "boolean") {
+    return shadow
+      ? { contactShadow: { strength: 0.78, softness: 0.18 } }
+      : { contactShadow: { strength: 0, softness: 1 } };
+  }
   if (typeof shadow === "object") {
     if (
       shadow.enabled === false ||
@@ -383,6 +390,12 @@ export function compileSceneCode(
     script.runInContext(context, { timeout: EXECUTION_TIMEOUT_MS }),
   );
   const stats = inspectRoot(result.root);
+  if (stats.vertices > MAX_AGENT_AUTHORED_SCENE_VERTICES) {
+    fail(
+      "source",
+      `generated scene has ${stats.vertices} vertices; Diorama's agent-authored scene budget is ${MAX_AGENT_AUTHORED_SCENE_VERTICES}. Reuse simpler geometry and lower segment counts`,
+    );
+  }
   makeGeometriesPortable(result.root);
   const normalized = normalizeRoot(result.root);
   const objectJson = normalized.root.toJSON() as unknown as Record<

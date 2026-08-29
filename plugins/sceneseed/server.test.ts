@@ -152,7 +152,38 @@ async function loadHost(input?: {
     pluginId: "sceneseed",
     agentSkillIds: ["sceneseed-interpreter"],
     sdk: {
-      projects: { list: async () => [personalProject] },
+      projects: {
+        list: async () => [personalProject],
+        defaultExecutionOptions: async () => null,
+      },
+      providers: {
+        list: async () => [
+          {
+            id: "codex",
+            displayName: "Codex",
+            available: true,
+          },
+        ],
+        models: async () => ({
+          modelLoadError: null,
+          models: [
+            {
+              id: "gpt-5.6-luna",
+              model: "gpt-5.6-luna",
+              displayName: "GPT-5.6 Luna",
+              description: "Fast coding model",
+              isDefault: false,
+              defaultReasoningEffort: "low" as const,
+              supportedReasoningEfforts: [
+                { reasoningEffort: "low" as const, description: "Low" },
+              ],
+            },
+          ],
+          permissionCeiling: "full" as const,
+          providers: [],
+          selectedOnlyModels: [],
+        }),
+      },
       threads: {
         spawn: async () =>
           makeThreadResponse({
@@ -172,6 +203,13 @@ async function loadHost(input?: {
             originPluginId: "sceneseed",
             status: threadStatus,
           }),
+        defaultExecutionOptions: async () => ({
+          model: "gpt-default",
+          permissionMode: "accept-edits" as const,
+          reasoningLevel: "medium" as const,
+          serviceTier: "default" as const,
+          source: "client/thread/start" as const,
+        }),
       },
     },
   });
@@ -266,71 +304,48 @@ describe("SceneSeed agent orchestration", () => {
     expect(ordinary.skills).toEqual([]);
   });
 
-  it("persists and claims a job before dispatching it to one hidden canvas thread", async () => {
-    let host!: FakePluginHost;
-    const loaded = await loadHost({
-      onSend: () => {
-        const row = host.bb.storage
-          .database()
-          .prepare("SELECT state FROM sceneseed_jobs LIMIT 1")
-          .get() as { state: string } | undefined;
-        expect(row?.state).toBe("interpreting");
-      },
-    });
-    host = loaded.host;
-    const result = await createQueuedJob(host);
+  it("starts the first claimed job as the hidden thread's fast initial turn", async () => {
+    const loaded = await loadHost();
+    const result = await createQueuedJob(loaded.host);
 
-    expect(host.harness.sdk.callsTo("threads.spawn")[0]?.[0]).toMatchObject({
+    expect(
+      loaded.host.harness.sdk.callsTo("threads.spawn")[0]?.[0],
+    ).toMatchObject({
       projectId: personalProject.id,
       environment: { type: "project-default" },
       visibility: "hidden",
       permissionMode: "accept-edits",
       origin: "plugin",
       originPluginId: "sceneseed",
+      providerId: "codex",
+      model: "gpt-5.6-luna",
+      reasoningLevel: "low",
+      serviceTier: "fast",
     });
-    expect(loaded.send).toHaveBeenCalledTimes(1);
+    const prompt = loaded.host.harness.sdk.callsTo("threads.spawn")[0]?.[0]
+      ?.prompt as string;
+    expect(prompt).toContain('"prompt":"rain in a jar"');
+    expect(prompt).toContain("500–1,500 aggregate vertices");
+    expect(prompt).not.toContain("Reply only READY");
+    expect(loaded.send).not.toHaveBeenCalled();
     expect(
       result.snapshot.jobs.find((job) => job.id === result.jobId)?.state,
     ).toBe("interpreting");
-    expect(host.harness.sdk.callsTo("projects.files")).toEqual([]);
-    expect(host.harness.sdk.callsTo("files.write")).toEqual([]);
+    expect(loaded.host.harness.sdk.callsTo("projects.files")).toEqual([]);
+    expect(loaded.host.harness.sdk.callsTo("files.write")).toEqual([]);
   });
 
-  it("waits for the bootstrap turn to become idle before claiming the real job", async () => {
-    let setThreadStatus!: (status: "active" | "idle" | "error") => void;
-    const loaded = await loadHost({
-      threadStatus: "active",
-      onSend: () => setThreadStatus("active"),
-    });
-    setThreadStatus = loaded.setThreadStatus;
+  it("does not queue a throwaway bootstrap turn", async () => {
+    const loaded = await loadHost({ threadStatus: "active" });
     const queued = await createQueuedJob(loaded.host);
 
     expect(loaded.send).not.toHaveBeenCalled();
     expect(
       queued.snapshot.jobs.find((job) => job.id === queued.jobId)?.state,
-    ).toBe("queued");
-
-    setThreadStatus("idle");
-    await loaded.host.harness.emitThreadEvent("thread.idle", {
-      thread: makeThreadResponse({
-        id: "thr_scene",
-        originPluginId: "sceneseed",
-      }),
-      lastAssistantText: "READY",
-    });
-    expect(loaded.send).toHaveBeenCalledTimes(1);
-
-    await loaded.host.harness.emitThreadEvent("thread.idle", {
-      thread: makeThreadResponse({
-        id: "thr_scene",
-        originPluginId: "sceneseed",
-      }),
-      lastAssistantText: "READY",
-    });
-    const snapshot = await callRpc(loaded.host, "getCanvas", {
-      canvasId: queued.canvasId,
-    });
-    expect(snapshot.snapshot?.jobs[0]?.state).toBe("interpreting");
+    ).toBe("interpreting");
+    expect(
+      loaded.host.harness.sdk.callsTo("threads.spawn")[0]?.[0]?.prompt,
+    ).not.toBe("READY");
   });
 
   it("counts manual invalid calls, rejects another caller, and fails on attempt two", async () => {
@@ -413,6 +428,8 @@ describe("SceneSeed agent orchestration", () => {
       palette: ["#111111", "#444444", "#888888", "#cccccc", "#f5f5f5"],
       stats: { objects: 2, materials: 2 },
     });
+    expect(candidate?.state).toBe("active");
+    expect(snapshot.snapshot?.jobs[0]?.state).toBe("complete");
   });
 
   it("serializes jobs and advances only after the active thread settles", async () => {
@@ -432,7 +449,7 @@ describe("SceneSeed agent orchestration", () => {
       placement: { x: 4, y: 4 },
       expectedRevision: secondCard.snapshot.canvas.revision,
     });
-    expect(send).toHaveBeenCalledTimes(1);
+    expect(send).not.toHaveBeenCalled();
     expect(
       second.snapshot.jobs.find((job) => job.id === second.jobId)?.state,
     ).toBe("queued");
@@ -454,7 +471,8 @@ describe("SceneSeed agent orchestration", () => {
       }),
       lastAssistantText: null,
     });
-    expect(send).toHaveBeenCalledTimes(2);
+    expect(send).toHaveBeenCalledTimes(1);
+    expect(send.mock.calls[0]?.[0]).toMatchObject({ serviceTier: "fast" });
     const after = await callRpc(host, "getCanvas", {
       canvasId: first.canvasId,
     });
@@ -463,7 +481,7 @@ describe("SceneSeed agent orchestration", () => {
     ).toBe("interpreting");
   });
 
-  it("promotes a validated candidate when realization begins idempotently", async () => {
+  it("promotes a validated candidate in the submit tool and keeps realization idempotent", async () => {
     const { host } = await loadHost();
     const queued = await createQueuedJob(host);
     const job = queued.snapshot.jobs.find(
@@ -489,27 +507,14 @@ describe("SceneSeed agent orchestration", () => {
       activeSceneId: accepted.candidateId,
     });
     expect(begun.snapshot.jobs[0]?.state).toBe("complete");
-
-    const completed = await callRpc(host, "acknowledgeRealization", {
-      candidateId: accepted.candidateId,
-      attemptId: "attempt_1",
-      jobId: job.id,
-      generation: job.generation,
-      expectedCanvasRevision: begun.snapshot.canvas.revision,
-      outcome: "success",
-    });
-    expect(completed.outcome).toBe("already_processed");
-    expect(completed.snapshot.objects[0]).toMatchObject({
-      activeSceneId: accepted.candidateId,
-    });
-    expect(completed.snapshot.jobs[0]?.state).toBe("complete");
+    expect(begun.alreadyProcessed).toBe(true);
 
     const duplicate = await callRpc(host, "beginRealization", {
       candidateId: accepted.candidateId,
       attemptId: "attempt_2",
       jobId: job.id,
       generation: job.generation,
-      expectedCanvasRevision: completed.snapshot.canvas.revision,
+      expectedCanvasRevision: begun.snapshot.canvas.revision,
     });
     expect(duplicate.alreadyProcessed).toBe(true);
     expect(duplicate.snapshot.objects[0]).toMatchObject({
@@ -536,7 +541,7 @@ describe("SceneSeed agent orchestration", () => {
     });
     await callRpc(host, "cancelJob", { jobId: first.jobId });
     expect(stop).toHaveBeenCalledTimes(1);
-    expect(send).toHaveBeenCalledTimes(1);
+    expect(send).not.toHaveBeenCalled();
 
     await host.harness.emitThreadEvent("thread.idle", {
       thread: makeThreadResponse({
@@ -545,7 +550,7 @@ describe("SceneSeed agent orchestration", () => {
       }),
       lastAssistantText: null,
     });
-    expect(send).toHaveBeenCalledTimes(2);
+    expect(send).toHaveBeenCalledTimes(1);
   });
 
   it("fails a settled interpreter with no candidate and reconciles stale work on startup", async () => {

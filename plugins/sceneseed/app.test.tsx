@@ -22,6 +22,7 @@ vi.mock("./scene-renderer.js", () => ({
     objects,
     onRenderProbe,
     onSelectObject,
+    onRevealComplete,
     onContextLost,
   }: {
     objects: MockRenderObject[];
@@ -32,6 +33,7 @@ vi.mock("./scene-renderer.js", () => ({
       nodeCount: number;
     }) => void;
     onSelectObject?: (objectId: string) => void;
+    onRevealComplete?: (objectId: string) => void;
     onContextLost?: () => void;
   }) => (
     <div data-testid="scene-renderer">
@@ -54,14 +56,23 @@ vi.mock("./scene-renderer.js", () => ({
             Probe {object.scene.jobId}
           </button>
         ) : (
-          <button
-            key={String(object.revisionKey)}
-            type="button"
-            data-reveal={object.reveal ? "true" : "false"}
-            onClick={() => onSelectObject?.(object.scene.objectId)}
-          >
-            Select {object.scene.objectId}
-          </button>
+          <div key={String(object.revisionKey)}>
+            <button
+              type="button"
+              data-reveal={object.reveal ? "true" : "false"}
+              onClick={() => onSelectObject?.(object.scene.objectId)}
+            >
+              Select {object.scene.objectId}
+            </button>
+            {object.reveal ? (
+              <button
+                type="button"
+                onClick={() => onRevealComplete?.(object.scene.objectId)}
+              >
+                Finish {object.scene.objectId}
+              </button>
+            ) : null}
+          </div>
         ),
       )}
       <button type="button" onClick={onContextLost}>
@@ -341,6 +352,10 @@ describe("SceneSeed app", () => {
       await act(async () => {
         await vi.advanceTimersByTimeAsync(1_700);
       });
+      expect(slot.getByTestId("sceneseed-canvas-shimmer")).toBeDefined();
+      fireEvent.click(
+        slot.getByRole("button", { name: /^Finish fixture_object_/ }),
+      );
       expect(slot.queryByTestId("sceneseed-canvas-shimmer")).toBeNull();
       const firstScene = slot.getAllByRole("button", {
         name: /^Select fixture_object_/,
@@ -354,6 +369,10 @@ describe("SceneSeed app", () => {
       await act(async () => {
         await vi.advanceTimersByTimeAsync(1_700);
       });
+      expect(slot.getByTestId("sceneseed-canvas-shimmer")).toBeDefined();
+      fireEvent.click(
+        slot.getByRole("button", { name: /^Finish fixture_object_/ }),
+      );
       const replacement = slot.getAllByRole("button", {
         name: /^Select fixture_object_/,
       });
@@ -504,6 +523,12 @@ describe("SceneSeed app", () => {
       });
       expect(revealed.getAttribute("data-reveal")).toBe("true");
     });
+    expect(slot.getByTestId("sceneseed-canvas-shimmer")).toBeDefined();
+    fireEvent.click(
+      slot.getByRole("button", { name: "Finish object_lighthouse" }),
+    );
+    expect(slot.queryByTestId("sceneseed-canvas-shimmer")).toBeNull();
+    expect(slot.getByRole("button", { name: "Remix" })).toBeDefined();
     expect(
       slot.rpcCalls.some((call) => call.method === "acknowledgeRealization"),
     ).toBe(false);

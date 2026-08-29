@@ -55,24 +55,26 @@ return {
   calls, timers, imports, exports, or runtime code generation.
 - The plugin recenters the returned object horizontally, places its lowest
   visible point on the ground, and fits oversized work into the stage.
-- Keep the result purposeful and fast to author: aim for 6–18 drawable
-  objects, 2,000–6,000 aggregate vertices, no more than five unique geometries,
-  and no more than eight materials. Reuse geometry and materials in repeated
-  forms, keep the source under 6,000 characters and the serialized result under
-  500 KB, and add detail only when it materially improves recognition.
-- Keep `TubeGeometry` at or below 64 tubular by 12 radial segments. Keep
-  `ExtrudeGeometry` at or below two steps, three bevel segments, and 12 curve
-  segments. Never call `toNonIndexed()` or create geometry per face.
-  The hard acceptance ceilings remain 80 drawable objects, 40,000 rendered
-  vertices, 24 materials, and four lights.
+- Keep the result purposeful and fast to author: aim for 4–10 drawable
+  objects and 500–1,500 aggregate vertices, with no more than three unique
+  geometries and four materials. Reuse geometry and materials in repeated
+  forms, keep the source under 3,500 characters and the serialized result under
+  250 KB, and add detail only when it materially improves recognition.
+- Keep `TubeGeometry` at or below 40 tubular by eight radial segments. Keep
+  `ExtrudeGeometry` at or below one step, two bevel segments, and eight curve
+  segments. Never call `toNonIndexed()` or create geometry per face. New
+  agent-authored source is accepted only at or below 1,500 aggregate vertices;
+  the broader persisted-scene ceilings remain for backward compatibility.
 - Optional `camera` is `front`, `three-quarter`, `top`, or `free`. A detailed
-  `{ position: [x, y, z], target: [x, y, z], fov }` camera is also accepted
-  and uses the free-camera framing.
+  Three-style camera object is also accepted and normalized to free-camera
+  framing; Diorama performs the actual fit. Prefer the string presets.
 - Optional `movement` is `still`, `breathe`, `orbit`, `bob`, or `shimmer`;
-  `{ type, speed }` is accepted as the equivalent Three-style form.
+  `{ type, speed }` is accepted as the equivalent Three-style form. A finite
+  `{ rotation: [x, y, z] }` vector is normalized to the bounded orbit preset.
 - Optional `shadow` is `soft`, `crisp`, or `none`; small Three-style shadow
   option objects such as `{ enabled }` or `{ cast, receive }` are normalized.
-  Do not add a ground plane or shadow mesh; Diorama supplies both.
+  Boolean `true` and `false` are normalized to crisp and none. Do not add a
+  ground plane or shadow mesh; Diorama supplies both.
 
 ## Make the visualization read clearly
 
@@ -82,7 +84,7 @@ return {
 3. Prefer `CapsuleGeometry`, spheres, lathes, tubes, toruses, rounded cylinders,
    and beveled `ExtrudeGeometry` for major forms. Use `BoxGeometry` only when a
    deliberately rigid edge is part of the idea. Keep radial segments around
-   24–32 so silhouettes are smooth without wasting vertices.
+   16–24 so silhouettes stay smooth without wasting vertices.
 4. Favor `MeshPhysicalMaterial` or `MeshStandardMaterial` with controlled
    gloss. A useful physical finish is roughness `0.16–0.34`, clearcoat
    `0.55–0.9`, and clearcoat roughness `0.12–0.25`; reserve modest transmission
