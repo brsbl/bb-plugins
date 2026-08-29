@@ -11,6 +11,7 @@ import {
   rpcContract,
   type SceneSeedRpcContract,
 } from "./server/rpc-contract.js";
+import { submitSceneObjectParameters } from "./server/runtime.js";
 
 const hosts: FakePluginHost[] = [];
 
@@ -225,6 +226,35 @@ afterEach(async () => {
 });
 
 describe("SceneSeed agent orchestration", () => {
+  it("advertises a provider-compatible SceneSeed Kit tool schema", () => {
+    const arrayValuedItems: string[] = [];
+    const visit = (value: unknown, path: string): void => {
+      if (Array.isArray(value)) {
+        for (const [index, child] of value.entries()) {
+          visit(child, `${path}[${index}]`);
+        }
+        return;
+      }
+      if (value === null || typeof value !== "object") return;
+      const object = value as Record<string, unknown>;
+      if (Array.isArray(object.items)) arrayValuedItems.push(`${path}.items`);
+      for (const [key, child] of Object.entries(object)) {
+        visit(child, `${path}.${key}`);
+      }
+    };
+
+    visit(submitSceneObjectParameters, "$schema");
+    expect(arrayValuedItems).toEqual([]);
+    expect(submitSceneObjectParameters).toMatchObject({
+      type: "object",
+      required: ["program"],
+      properties: { program: { type: "object" } },
+    });
+    expect(
+      (submitSceneObjectParameters.properties as Record<string, unknown>).scene,
+    ).toBeUndefined();
+  });
+
   it("selects its skill and submit tool only for plugin-origin personal threads", async () => {
     const { host } = await loadHost();
     const selected = await host.harness.resolveAgentConfiguration(
@@ -332,7 +362,10 @@ describe("SceneSeed agent orchestration", () => {
       { scene: { version: 1 } },
       { threadId: "thr_scene" },
     );
-    expect(first).toMatchObject({ isError: true });
+    expect(JSON.parse(first as string)).toMatchObject({
+      accepted: false,
+      retryAllowed: true,
+    });
     snapshot = await callRpc(host, "getCanvas", {
       canvasId: queued.canvasId,
     });

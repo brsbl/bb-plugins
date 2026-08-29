@@ -1,7 +1,6 @@
 import type { BbPluginApi } from "@get-bb/plugin-sdk";
 import { z } from "zod";
 import {
-  sceneObjectV1Schema,
   safeNormalizeSceneObjectV1,
   type SceneContractIssue,
   type SceneObjectV1,
@@ -22,6 +21,9 @@ import {
 
 export type SceneSeedStore = ReturnType<typeof createSceneSeedStore>;
 
+// Keep accepting the original raw scene envelope at the execution boundary so
+// older in-flight interpreter calls remain compatible. New sessions only see
+// the smaller SceneSeed Kit schema registered below.
 const submitEnvelopeSchema = z
   .object({
     program: z.unknown().optional(),
@@ -41,23 +43,49 @@ const submitEnvelopeSchema = z
     }
   });
 
-export const submitSceneObjectParameters = z.toJSONSchema(
-  z
-    .object({
-      program: sceneSeedKitProgramSchema
-        .optional()
-        .describe(
-          "Preferred SceneSeed Kit composition. The plugin injects job identity, recenters and grounds the parts, fits them safely, and compiles the result into SceneObjectV1.",
+function lowerHomogeneousTuplesForToolSchema(
+  schema: Record<string, unknown>,
+): Record<string, unknown> {
+  const normalized = JSON.parse(JSON.stringify(schema)) as Record<
+    string,
+    unknown
+  >;
+  const visit = (value: unknown): void => {
+    if (Array.isArray(value)) {
+      for (const child of value) visit(child);
+      return;
+    }
+    if (value === null || typeof value !== "object") return;
+    const object = value as Record<string, unknown>;
+    if (Array.isArray(object.items)) {
+      const [first, ...rest] = object.items;
+      const serializedFirst = JSON.stringify(first);
+      if (rest.some((item) => JSON.stringify(item) !== serializedFirst)) {
+        throw new Error(
+          "SceneSeed tool schema contains a heterogeneous tuple that cannot be lowered safely",
+        );
+      }
+      object.items = first ?? {};
+    }
+    for (const child of Object.values(object)) visit(child);
+  };
+  visit(normalized);
+  return normalized;
+}
+
+export const submitSceneObjectParameters = lowerHomogeneousTuplesForToolSchema(
+  z.toJSONSchema(
+    z
+      .object({
+        program: sceneSeedKitProgramSchema.describe(
+          "SceneSeed Kit composition. The plugin injects job identity, recenters and grounds the parts, fits them safely, and compiles the result into SceneObjectV1.",
         ),
-      scene: sceneObjectV1Schema
-        .optional()
-        .describe(
-          "Legacy raw SceneObjectV1 compatibility input. New interpretations should use program.",
-        ),
-    })
-    .strict(),
-  { io: "input", target: "draft-7" },
-) as Record<string, unknown>;
+      })
+      .strict(),
+    { io: "input", target: "draft-7" },
+  ) as Record<string, unknown>,
+);
+
 const SETTLED_JOB_STATES = new Set(["complete", "failed", "superseded"]);
 
 function isNonterminalJobState(
@@ -783,13 +811,20 @@ export class SceneSeedRuntime {
           errorMessage: message,
         });
         this.publishCanvas(canvas.id, result.revision, current.id);
+        if (!result.terminal) {
+          return JSON.stringify({
+            accepted: false,
+            retryAllowed: true,
+            issues: issues.slice(0, 8),
+            instruction:
+              "Correct every issue and call submit_scene_object one final time.",
+          });
+        }
         return {
           content: [
             {
               type: "text" as const,
-              text: result.terminal
-                ? `Rejected: the second invalid submission failed this job.\n${message}`
-                : `Invalid scene. Correct every issue and call submit_scene_object one final time.\n${message}`,
+              text: `Rejected: the second invalid submission failed this job.\n${message}`,
             },
           ],
           isError: true,

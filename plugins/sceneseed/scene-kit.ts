@@ -35,25 +35,25 @@ const positionSchema = z.tuple([
   boundedNumber(-12, 12),
   boundedNumber(-12, 12),
   boundedNumber(-12, 12),
-]);
+]).describe("Three coordinates in [x, y, z] order.");
 
 const rotationSchema = z.tuple([
   boundedNumber(-Math.PI * 2, Math.PI * 2),
   boundedNumber(-Math.PI * 2, Math.PI * 2),
   boundedNumber(-Math.PI * 2, Math.PI * 2),
-]);
+]).describe("Three rotation angles in radians, in [x, y, z] order.");
 
 const scaleSchema = z.tuple([
   boundedNumber(0.25, 3),
   boundedNumber(0.25, 3),
   boundedNumber(0.25, 3),
-]);
+]).describe("Three scale factors in [x, y, z] order.");
 
 const dimensionsSchema = z
   .object({
-    width: boundedNumber(0.1, 12),
-    height: boundedNumber(0.1, 12),
-    depth: boundedNumber(0.1, 12),
+    width: boundedNumber(0.05, 12),
+    height: boundedNumber(0.05, 12),
+    depth: boundedNumber(0.05, 12),
   })
   .strict();
 
@@ -171,13 +171,6 @@ export const sceneSeedKitProgramSchema = z
         code: "custom",
         path: ["parts"],
         message: "the kit allows at most one essential label",
-      });
-    }
-    if (program.parts.filter((part) => part.kind === "particles").length > 1) {
-      context.addIssue({
-        code: "custom",
-        path: ["parts"],
-        message: "the kit allows at most one particle effect",
       });
     }
   });

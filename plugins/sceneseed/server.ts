@@ -97,7 +97,7 @@ export default async function sceneSeedPlugin(bb: BbPluginApi): Promise<void> {
   bb.agents.registerTool({
     name: "submit_scene_object",
     description:
-      "Compose the current visualization with the small SceneSeed Kit program, or submit a legacy raw scene for compatibility.",
+      "Compose the current visualization with the small SceneSeed Kit program.",
     instructions:
       "For new work, submit exactly one program. The plugin supplies identity, framing, grounding, scale, and safe defaults. Call at most twice: one submission and, only after actionable validation issues, one correction. Stop after one scene is accepted.",
     parameters: submitSceneObjectParameters,

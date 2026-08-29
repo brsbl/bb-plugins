@@ -24,15 +24,15 @@ assets.
 
 ## Compose with SceneSeed Kit
 
-Always call `submit_scene_object` with `program` for new work. Do not author the
-legacy raw `scene` form; it exists only so scenes created by older plugin
-versions continue to work.
+Always call `submit_scene_object` with `program`. The raw `SceneObjectV1` path
+is retained internally for older in-flight calls and is not part of this tool
+surface.
 
 The kit is deliberately small:
 
 - `parts` contains 1–12 flat, absolute parts. Use `shape` for a primitive,
-  `label` only when visible lettering is essential, and `particles` for one
-  restrained atmospheric effect.
+  `label` only when visible lettering is essential, and `particles` for
+  restrained atmospheric effects.
 - Shapes are `box`, `sphere`, `cylinder`, `cone`, `torus`, `capsule`, or
   `plane`. Describe their dimensions with `size`; place them with optional
   `at`, `rotate`, and `scale`.
@@ -82,8 +82,9 @@ user-facing prose before or after the call.
 
 - If accepted, stop immediately. There is exactly one accepted visualization
   for the job.
-- If actionable validation issues are returned, make one correction without
-  changing the visual thesis, call the tool once more, and stop.
+- If the result says `accepted: false` and returns validation issues, make one
+  correction without changing the visual thesis, call the tool once more, and
+  stop.
 - If the call is refused, unavailable, or fails without actionable validation
   issues, stop without retrying.
 
