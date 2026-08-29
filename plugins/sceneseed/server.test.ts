@@ -357,8 +357,8 @@ describe("SceneSeed agent orchestration", () => {
     });
     expect(loaded.send).toHaveBeenCalledTimes(1);
     const buildPrompt = loaded.send.mock.calls[0]?.[0].input[0]?.text;
-    expect(buildPrompt).toContain("250–800 aggregate vertices");
-    expect(buildPrompt).toContain("fun, loose concept mockup");
+    expect(buildPrompt).toContain("350–600 aggregate vertices");
+    expect(buildPrompt).toContain("soft, fun concept mockup");
     expect(buildPrompt).toContain("Use only the submit_scene_object tool");
     expect(
       (

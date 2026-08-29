@@ -9,6 +9,7 @@ import {
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 
+import { smoothGeneratedGeometryNormals } from "./geometry-smoothing";
 import type {
   SceneNodeV1,
   SceneObject,
@@ -722,6 +723,7 @@ function createGeneratedThreeObject(
   );
   const resources = new Set<THREE.BufferGeometry | THREE.Material | THREE.Texture>();
   const optimizedMaterials = new Map<THREE.Material, THREE.Material>();
+  const smoothedGeometries = new Set<THREE.BufferGeometry>();
 
   const optimizeMaterial = (material: THREE.Material): THREE.Material => {
     if (!(material instanceof THREE.MeshStandardMaterial)) return material;
@@ -740,10 +742,10 @@ function createGeneratedThreeObject(
       color: material.color,
       emissive: material.emissive,
       emissiveIntensity: material.emissiveIntensity,
-      specular: 0xd9d9d9,
+      specular: 0xbebebe,
       shininess: Math.max(
-        72,
-        Math.min(120, Math.round((1 - material.roughness) * 128)),
+        48,
+        Math.min(84, Math.round((1 - material.roughness) * 96)),
       ),
       opacity: isGlass ? Math.min(material.opacity, 0.84) : material.opacity,
       transparent: isGlass || material.transparent,
@@ -751,7 +753,7 @@ function createGeneratedThreeObject(
       depthWrite: isGlass ? false : material.depthWrite,
       side: material.side,
       vertexColors: material.vertexColors,
-      flatShading: material.flatShading,
+      flatShading: false,
       wireframe: material.wireframe,
       fog: material.fog,
     });
@@ -778,6 +780,10 @@ function createGeneratedThreeObject(
     };
     if (renderable.geometry instanceof THREE.BufferGeometry) {
       assertFiniteGeometry(renderable.geometry);
+      if (!smoothedGeometries.has(renderable.geometry)) {
+        smoothGeneratedGeometryNormals(renderable.geometry);
+        smoothedGeometries.add(renderable.geometry);
+      }
       resources.add(renderable.geometry);
     }
     const sourceMaterials =
@@ -969,7 +975,13 @@ function applySceneFinish(root: THREE.Object3D): void {
         material.roughness = Math.min(material.roughness, 0.42);
         material.envMapIntensity = Math.max(material.envMapIntensity, 1.08);
       } else if (material instanceof THREE.MeshPhongMaterial) {
-        material.shininess = Math.max(material.shininess, 72);
+        material.shininess = Math.max(material.shininess, 48);
+        material.flatShading = false;
+      } else if (
+        material instanceof THREE.MeshLambertMaterial ||
+        material instanceof THREE.MeshToonMaterial
+      ) {
+        material.flatShading = false;
       }
       material.needsUpdate = true;
     }

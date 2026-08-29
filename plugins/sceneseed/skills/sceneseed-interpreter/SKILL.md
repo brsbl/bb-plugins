@@ -55,16 +55,18 @@ return {
   calls, timers, imports, exports, or runtime code generation.
 - The plugin recenters the returned object horizontally, places its lowest
   visible point on the ground, and fits oversized work into the stage.
-- Keep the result purposeful and fast to author: aim for 3–7 drawable
-  objects and 250–800 aggregate vertices, with no more than three unique
+- Keep the result purposeful and fast to author: aim for 3–6 drawable
+  objects and 350–600 aggregate vertices, with no more than two unique
   geometries and three materials. Reuse geometry and materials in repeated
   forms, keep the source under 2,500 characters and the serialized result under
   160 KB, and add detail only when it materially improves recognition.
-- Keep radial segments around 10–16 and `TubeGeometry` at or below 24 tubular
-  by six radial segments. Keep `ExtrudeGeometry` at or below one step, one
+- Give the single hero sphere, capsule, lathe, or rounded cylinder 22–24
+  radial and 12–16 vertical or cap segments. Give one shared curved secondary
+  geometry 14–16 radial and 6–10 vertical or cap segments. Keep `TubeGeometry`
+  at or below 20 tubular by six radial segments. Keep `ExtrudeGeometry` at or below one step, one
   bevel segment, and six curve segments. Never call `toNonIndexed()` or create
   geometry per face. New
-  agent-authored source is accepted only at or below 800 aggregate vertices;
+  agent-authored source is accepted only at or below 600 aggregate vertices;
   the broader persisted-scene ceilings remain for backward compatibility.
 - Optional `camera` is `front`, `three-quarter`, `top`, or `free`. A detailed
   Three-style camera object is also accepted and normalized to free-camera
@@ -82,8 +84,9 @@ return {
 1. Treat the result as a playful concept mockup, not a technical diagram,
    serious geometric study, monument, or exact product render. Choose one
    visual thesis and exaggerate its most recognizable silhouette.
-2. Use toy-like proportions, slight asymmetry, overlap, curves, depth, and
-   negative space; do not reduce every idea to stacked boxes.
+2. Use one continuous, exaggerated rounded silhouette with toy-like
+   proportions, slight asymmetry, gentle overlap, curves, depth, and negative
+   space; do not reduce every idea to stacked boxes.
 3. Prefer `CapsuleGeometry`, spheres, lathes, tubes, toruses, rounded cylinders,
    and beveled `ExtrudeGeometry` for major forms. Use `BoxGeometry` only when a
    deliberately rigid edge is part of the idea.
@@ -91,8 +94,12 @@ return {
    gloss. A useful physical finish is roughness `0.16–0.34`, clearcoat
    `0.55–0.9`, and clearcoat roughness `0.12–0.25`; reserve modest transmission
    for one or two intentionally glass-like parts so the scene stays legible.
-5. Write small local helper functions when repeated geometry or radial detail
-   improves the form.
+5. Spend the small vertex budget on a soft outer contour, not surface detail.
+   Build fins, ears, limbs, handles, and other appendages from squashed
+   spheres, capsules, toruses, or rounded cylinders. Avoid cones, polyhedra,
+   flattened forms with polygonal outlines, faceted hero forms, sharp spikes,
+   and exposed low-segment cylinders; reuse or scale simple geometry for
+   smaller parts.
 6. Use two to five grayscale values with a clear light/dark hierarchy. Express
    named colors through value, finish, lighting, or form rather than hue.
 7. Prefer a crisp contact shadow and keep animation subordinate to the
