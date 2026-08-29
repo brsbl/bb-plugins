@@ -41,10 +41,11 @@ return {
 - Use Three.js geometry, transforms, groups, materials, lights, loops, and
   local helper functions freely. This is real drawing code, not a declarative
   list of kit parts.
-- Use built-in buffer geometries such as `BoxGeometry`, `SphereGeometry`,
-  `CylinderGeometry`, `ConeGeometry`, `TorusGeometry`, `TorusKnotGeometry`,
-  `CapsuleGeometry`, `LatheGeometry`, `ShapeGeometry`, `ExtrudeGeometry`,
-  `TubeGeometry`, `RingGeometry`, or a finite custom `BufferGeometry`.
+- Use available buffer geometries such as `RoundedBoxGeometry`, `BoxGeometry`,
+  `SphereGeometry`, `CylinderGeometry`, `ConeGeometry`, `TorusGeometry`,
+  `TorusKnotGeometry`, `CapsuleGeometry`, `LatheGeometry`, `ShapeGeometry`,
+  `ExtrudeGeometry`, `TubeGeometry`, `RingGeometry`, or a finite custom
+  `BufferGeometry`.
 - Supported materials are `MeshBasicMaterial`, `MeshLambertMaterial`,
   `MeshPhongMaterial`, `MeshStandardMaterial`, `MeshPhysicalMaterial`,
   `MeshToonMaterial`, `LineBasicMaterial`, `LineDashedMaterial`, and
@@ -63,9 +64,11 @@ return {
 - Give the single hero sphere, capsule, lathe, or rounded cylinder 22–24
   radial and 12–16 vertical or cap segments. Give one shared curved secondary
   geometry 14–16 radial and 6–10 vertical or cap segments. Keep `TubeGeometry`
-  at or below 20 tubular by six radial segments. Keep `ExtrudeGeometry` at or below one step, one
-  bevel segment, and six curve segments. Never call `toNonIndexed()` or create
-  geometry per face. New
+  at or below 20 tubular by six radial segments. Use at most one unique
+  `RoundedBoxGeometry`, with one corner segment, and reuse it when the idea
+  needs a soft block-like form. Keep `ExtrudeGeometry` at or below one step,
+  one bevel segment, and six curve segments. Never call `toNonIndexed()` or
+  create geometry per face. New
   agent-authored source is accepted only at or below 600 aggregate vertices;
   the broader persisted-scene ceilings remain for backward compatibility.
 - Optional `camera` is `front`, `three-quarter`, `top`, or `free`. A detailed
@@ -88,8 +91,8 @@ return {
    proportions, slight asymmetry, gentle overlap, curves, depth, and negative
    space; do not reduce every idea to stacked boxes.
 3. Prefer `CapsuleGeometry`, spheres, lathes, tubes, toruses, rounded cylinders,
-   and beveled `ExtrudeGeometry` for major forms. Use `BoxGeometry` only when a
-   deliberately rigid edge is part of the idea.
+   `RoundedBoxGeometry`, and beveled `ExtrudeGeometry` for major forms. Use
+   `BoxGeometry` only when a deliberately rigid edge is part of the idea.
 4. Favor `MeshPhysicalMaterial` or `MeshStandardMaterial` with controlled
    gloss. A useful physical finish is roughness `0.16–0.34`, clearcoat
    `0.55–0.9`, and clearcoat roughness `0.12–0.25`; reserve modest transmission

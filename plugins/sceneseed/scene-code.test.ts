@@ -104,6 +104,20 @@ return { root, name: "Dense sphere", altText: "A dense pale sphere." };`,
     });
   });
 
+  it("makes low-segment rounded boxes available to generated scenes", () => {
+    const scene = compileSceneCode(
+      `const root = new THREE.Mesh(
+  new THREE.RoundedBoxGeometry(2, 1.4, 1, 1, 0.18),
+  new THREE.MeshStandardMaterial({ color: 0xdddddd }),
+);
+return { root, name: "Soft box", altText: "A pale box with rounded corners." };`,
+      identity,
+    );
+
+    expect(scene.stats.vertices).toBeLessThanOrEqual(600);
+    expect(scene.stats.objects).toBe(1);
+  });
+
   it("accepts detailed camera and shadow options emitted by Three.js authors", () => {
     const scene = compileSceneCode(
       lighthouseSource().replace(

@@ -7,6 +7,7 @@ import {
   type ReactNode,
 } from "react";
 import * as THREE from "three";
+import { RoundedBoxGeometry } from "three/addons/geometries/RoundedBoxGeometry.js";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 
 import { smoothGeneratedGeometryNormals } from "./geometry-smoothing";
@@ -343,8 +344,8 @@ function createMeshGeometry(node: Extract<SceneNodeV1, { kind: "mesh" }>): {
   let geometry: THREE.BufferGeometry;
   switch (plan.kind) {
     case "box":
-      geometry = new THREE.BoxGeometry(
-        ...(plan.args as [number, number, number]),
+      geometry = new RoundedBoxGeometry(
+        ...(plan.args as [number, number, number, number, number]),
       );
       break;
     case "sphere":
@@ -1079,7 +1080,7 @@ export function SceneRenderer({
       return;
     }
     renderer.outputColorSpace = THREE.SRGBColorSpace;
-    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMapping = THREE.AgXToneMapping;
     renderer.toneMappingExposure = 1.08;
     renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.75));
     renderer.shadowMap.enabled = true;

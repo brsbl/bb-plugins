@@ -1,5 +1,6 @@
 import { createContext, Script } from "node:vm";
 import * as THREE from "three";
+import { RoundedBoxGeometry } from "three/addons/geometries/RoundedBoxGeometry.js";
 import { z } from "zod";
 
 import {
@@ -18,6 +19,7 @@ const MAX_SOURCE_LENGTH = 24_000;
 const EXECUTION_TIMEOUT_MS = 2_000;
 const TARGET_SCENE_SPAN = 16;
 const MAX_AGENT_AUTHORED_SCENE_VERTICES = 600;
+const SCENE_THREE = Object.freeze({ ...THREE, RoundedBoxGeometry });
 
 const visibleTextSchema = (maximum: number) =>
   z
@@ -377,7 +379,7 @@ export function compileSceneCode(
 ): SceneObjectV2 {
   const source = sceneCodeSourceSchema.parse(sourceInput);
   const context = createContext(
-    { THREE },
+    { THREE: SCENE_THREE },
     {
       name: `SceneSeed ${identity.jobId}`,
       codeGeneration: { strings: false, wasm: false },

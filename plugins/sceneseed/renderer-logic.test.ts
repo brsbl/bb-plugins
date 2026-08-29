@@ -174,6 +174,12 @@ describe("bounded geometry and material plans", () => {
     );
   });
 
+  it("rounds host box geometry with one low-cost corner segment", () => {
+    const plan = mapMeshGeometry(meshNode("box"));
+
+    expect(plan.args).toEqual([1, 1, 1, 1, 0.16]);
+  });
+
   it("maps all material presets without exposing shaders or textures", () => {
     const plans = (
       ["matte", "glossy", "glass", "metal", "emissive", "toon"] as const

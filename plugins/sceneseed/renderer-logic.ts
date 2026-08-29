@@ -209,7 +209,13 @@ export function mapMeshGeometry(
     case "box":
       return {
         kind: "box",
-        args: [width, height, depth],
+        args: [
+          width,
+          height,
+          depth,
+          1,
+          Math.min(width, height, depth) * 0.16,
+        ],
         localScale: [1, 1, 1],
         localRotation: [0, 0, 0],
       };
