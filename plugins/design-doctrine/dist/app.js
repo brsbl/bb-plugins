@@ -75,6 +75,10 @@ var {
 } = mod2;
 
 // app-logic.ts
+var FALLBACK_MESH_STYLE = {
+  idle: "bg-accent/35 group-hover:bg-accent/45",
+  selected: "bg-accent/50 group-hover:bg-accent/60"
+};
 var SUBDOMAIN_MESH_STYLES = {
   operation: {
     idle: "bg-cyan-300/40 group-hover:bg-cyan-300/50",
@@ -154,6 +158,9 @@ function displayDomainIdentifier(identifier) {
 }
 function domainFilterFromIdentifier(identifier) {
   return displayDomainIdentifier(identifier).split(".", 1)[0] || "all";
+}
+function subdomainMeshStyle(identifier) {
+  return SUBDOMAIN_MESH_STYLES[subdomainFromIdentifier(identifier)] ?? FALLBACK_MESH_STYLE;
 }
 function subdomainFromIdentifier(identifier) {
   const [, subdomain] = displayDomainIdentifier(identifier).split(".", 2);
@@ -406,10 +413,7 @@ function DomainIdentifierPill({
   const filterDomain = domainFilterFromIdentifier(identifier);
   const selected = selectedDomain === filterDomain;
   const style = DOMAIN_STYLES[filterDomain] ?? DOMAIN_STYLES.all;
-  const subdomainMesh = SUBDOMAIN_MESH_STYLES[subdomainFromIdentifier(identifier)] ?? {
-    idle: "bg-accent/35 group-hover:bg-accent/45",
-    selected: "bg-accent/50 group-hover:bg-accent/60"
-  };
+  const subdomainMesh = subdomainMeshStyle(identifier);
   const label = displayDomainIdentifier(identifier);
   const meshStart = selected ? style.meshStartSelected : style.meshStartIdle;
   const meshEnd = selected ? subdomainMesh.selected : subdomainMesh.idle;
