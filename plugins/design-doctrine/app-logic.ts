@@ -23,6 +23,18 @@ export const SUBDOMAIN_MESH_STYLES: Record<
     idle: "bg-cyan-300/40 group-hover:bg-cyan-300/50",
     selected: "bg-cyan-300/55 group-hover:bg-cyan-300/65",
   },
+  errors: {
+    idle: "bg-stone-300/40 group-hover:bg-stone-300/50",
+    selected: "bg-stone-300/55 group-hover:bg-stone-300/65",
+  },
+  conventions: {
+    idle: "bg-zinc-300/40 group-hover:bg-zinc-300/50",
+    selected: "bg-zinc-300/55 group-hover:bg-zinc-300/65",
+  },
+  proposal: {
+    idle: "bg-slate-300/40 group-hover:bg-slate-300/50",
+    selected: "bg-slate-300/55 group-hover:bg-slate-300/65",
+  },
   agency: {
     idle: "bg-rose-300/40 group-hover:bg-rose-300/50",
     selected: "bg-rose-300/55 group-hover:bg-rose-300/65",
