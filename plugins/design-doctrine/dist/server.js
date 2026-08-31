@@ -16899,6 +16899,20 @@ function automaticDoctrineGuidance(rules, threadTitle) {
     "Validate each rule's Use when and exceptions against the current request. Current user instructions and hard product constraints win. Use design_doctrine_search when the exact task needs different guidance; cite IDs only when they materially affect a decision."
   ].join("\n");
 }
+async function harvestSpawnEnvironment(environmentId, readEnvironment) {
+  const fresh = {
+    type: "host",
+    workspace: { type: "unmanaged", path: null }
+  };
+  if (!environmentId) return fresh;
+  try {
+    const environment = await readEnvironment(environmentId);
+    if (environment.status !== "ready") return fresh;
+  } catch {
+    return fresh;
+  }
+  return { type: "reuse", environmentId };
+}
 async function gitStatusFingerprint(rootInput) {
   const root = expandPath(rootInput);
   try {
@@ -17044,7 +17058,10 @@ async function plugin(bb) {
         // Hidden so the harvest never interrupts the user. `spawn` attributes
         // the thread to this plugin, which also keeps it out of its own queue.
         visibility: "hidden",
-        environment: environmentId ? { type: "reuse", environmentId } : { type: "host", workspace: { type: "unmanaged", path: null } },
+        environment: await harvestSpawnEnvironment(
+          environmentId,
+          async (id) => bb.sdk.environments.get({ environmentId: id })
+        ),
         title,
         prompt
       });
@@ -17371,6 +17388,7 @@ export {
   plugin as default,
   formatAgentSearchResults,
   gitStatusFingerprint,
+  harvestSpawnEnvironment,
   loadDoctrine,
   readGit,
   rpcContract,

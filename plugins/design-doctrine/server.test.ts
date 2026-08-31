@@ -21,6 +21,7 @@ import {
 import {
   automaticDoctrineGuidance,
   gitStatusFingerprint,
+  harvestSpawnEnvironment,
   loadDoctrine,
   readGit,
   searchDoctrine,
@@ -261,4 +262,37 @@ describe("design doctrine library", () => {
     }
   });
 
+});
+
+describe("harvest spawn environment", () => {
+  it("reuses a ready environment", async () => {
+    expect(
+      await harvestSpawnEnvironment("env_ready", async () => ({
+        status: "ready",
+      })),
+    ).toEqual({ type: "reuse", environmentId: "env_ready" });
+  });
+
+  it("falls back to a fresh workspace when the environment is gone", async () => {
+    const fresh = {
+      type: "host",
+      workspace: { type: "unmanaged", path: null },
+    };
+
+    for (const status of ["destroyed", "destroying", "retiring", "error"]) {
+      expect(
+        await harvestSpawnEnvironment("env_dead", async () => ({ status })),
+      ).toEqual(fresh);
+    }
+
+    expect(
+      await harvestSpawnEnvironment("env_missing", async () => {
+        throw new Error("HTTP 409: Environment unavailable");
+      }),
+    ).toEqual(fresh);
+
+    expect(await harvestSpawnEnvironment(null, async () => ({
+      status: "ready",
+    }))).toEqual(fresh);
+  });
 });

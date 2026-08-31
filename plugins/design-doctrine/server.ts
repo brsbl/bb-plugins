@@ -546,6 +546,33 @@ export function automaticDoctrineGuidance(
   ].join("\n");
 }
 
+/**
+ * Harvest queues a thread with the environment it was archived from, which is
+ * often destroyed or retired by the time the harvest runs. Reusing one of those
+ * fails the spawn outright, so the harvester falls back to a fresh unmanaged
+ * workspace; it reads the thread's timeline, not its files.
+ */
+export async function harvestSpawnEnvironment(
+  environmentId: string | null | undefined,
+  readEnvironment: (environmentId: string) => Promise<{ status: string }>,
+): Promise<
+  | { type: "reuse"; environmentId: string }
+  | { type: "host"; workspace: { type: "unmanaged"; path: null } }
+> {
+  const fresh = {
+    type: "host" as const,
+    workspace: { type: "unmanaged" as const, path: null },
+  };
+  if (!environmentId) return fresh;
+  try {
+    const environment = await readEnvironment(environmentId);
+    if (environment.status !== "ready") return fresh;
+  } catch {
+    return fresh;
+  }
+  return { type: "reuse", environmentId };
+}
+
 export async function gitStatusFingerprint(rootInput: string): Promise<string> {
   const root = expandPath(rootInput);
   try {
@@ -713,9 +740,10 @@ export default async function plugin(bb: BbPluginApi) {
         // Hidden so the harvest never interrupts the user. `spawn` attributes
         // the thread to this plugin, which also keeps it out of its own queue.
         visibility: "hidden",
-        environment: environmentId
-          ? { type: "reuse", environmentId }
-          : { type: "host", workspace: { type: "unmanaged", path: null } },
+        environment: await harvestSpawnEnvironment(
+          environmentId,
+          async (id) => bb.sdk.environments.get({ environmentId: id }),
+        ),
         title,
         prompt,
       });
