@@ -34,6 +34,9 @@
     --color-pink-300: oklch(82.3% 0.12 346.018);
     --color-rose-300: oklch(81% 0.117 11.638);
     --color-rose-400: oklch(71.2% 0.194 13.428);
+    --color-slate-300: oklch(86.9% 0.022 252.894);
+    --color-zinc-300: oklch(87.1% 0.006 286.286);
+    --color-stone-300: oklch(86.9% 0.005 56.366);
     --spacing: 0.25rem;
     --container-md: 28rem;
     --container-5xl: 64rem;
@@ -174,6 +177,9 @@
     }
     .absolute {
       position: absolute;
+    }
+    .fixed {
+      position: fixed;
     }
     .relative {
       position: relative;
@@ -418,6 +424,9 @@
     }
     .overflow-y-auto {
       overflow-y: auto;
+    }
+    .rounded {
+      border-radius: 0.25rem;
     }
     .rounded-\[inherit\] {
       border-radius: inherit;
@@ -902,6 +911,30 @@
         background-color: color-mix(in oklab, var(--color-sky-300) 55%, transparent);
       }
     }
+    .bg-slate-300\/40 {
+      background-color: color-mix(in srgb, oklch(86.9% 0.022 252.894) 40%, transparent);
+      @supports (color: color-mix(in lab, red, red)) {
+        background-color: color-mix(in oklab, var(--color-slate-300) 40%, transparent);
+      }
+    }
+    .bg-slate-300\/55 {
+      background-color: color-mix(in srgb, oklch(86.9% 0.022 252.894) 55%, transparent);
+      @supports (color: color-mix(in lab, red, red)) {
+        background-color: color-mix(in oklab, var(--color-slate-300) 55%, transparent);
+      }
+    }
+    .bg-stone-300\/40 {
+      background-color: color-mix(in srgb, oklch(86.9% 0.005 56.366) 40%, transparent);
+      @supports (color: color-mix(in lab, red, red)) {
+        background-color: color-mix(in oklab, var(--color-stone-300) 40%, transparent);
+      }
+    }
+    .bg-stone-300\/55 {
+      background-color: color-mix(in srgb, oklch(86.9% 0.005 56.366) 55%, transparent);
+      @supports (color: color-mix(in lab, red, red)) {
+        background-color: color-mix(in oklab, var(--color-stone-300) 55%, transparent);
+      }
+    }
     .bg-teal-300\/40 {
       background-color: color-mix(in srgb, oklch(85.5% 0.138 181.071) 40%, transparent);
       @supports (color: color-mix(in lab, red, red)) {
@@ -960,6 +993,18 @@
       background-color: color-mix(in srgb, oklch(90.5% 0.182 98.111) 55%, transparent);
       @supports (color: color-mix(in lab, red, red)) {
         background-color: color-mix(in oklab, var(--color-yellow-300) 55%, transparent);
+      }
+    }
+    .bg-zinc-300\/40 {
+      background-color: color-mix(in srgb, oklch(87.1% 0.006 286.286) 40%, transparent);
+      @supports (color: color-mix(in lab, red, red)) {
+        background-color: color-mix(in oklab, var(--color-zinc-300) 40%, transparent);
+      }
+    }
+    .bg-zinc-300\/55 {
+      background-color: color-mix(in srgb, oklch(87.1% 0.006 286.286) 55%, transparent);
+      @supports (color: color-mix(in lab, red, red)) {
+        background-color: color-mix(in oklab, var(--color-zinc-300) 55%, transparent);
       }
     }
     .p-4 {
@@ -1706,6 +1751,46 @@
         }
       }
     }
+    .group-hover\:bg-slate-300\/50 {
+      &:is(:where(.group):hover *) {
+        @media (hover: hover) {
+          background-color: color-mix(in srgb, oklch(86.9% 0.022 252.894) 50%, transparent);
+          @supports (color: color-mix(in lab, red, red)) {
+            background-color: color-mix(in oklab, var(--color-slate-300) 50%, transparent);
+          }
+        }
+      }
+    }
+    .group-hover\:bg-slate-300\/65 {
+      &:is(:where(.group):hover *) {
+        @media (hover: hover) {
+          background-color: color-mix(in srgb, oklch(86.9% 0.022 252.894) 65%, transparent);
+          @supports (color: color-mix(in lab, red, red)) {
+            background-color: color-mix(in oklab, var(--color-slate-300) 65%, transparent);
+          }
+        }
+      }
+    }
+    .group-hover\:bg-stone-300\/50 {
+      &:is(:where(.group):hover *) {
+        @media (hover: hover) {
+          background-color: color-mix(in srgb, oklch(86.9% 0.005 56.366) 50%, transparent);
+          @supports (color: color-mix(in lab, red, red)) {
+            background-color: color-mix(in oklab, var(--color-stone-300) 50%, transparent);
+          }
+        }
+      }
+    }
+    .group-hover\:bg-stone-300\/65 {
+      &:is(:where(.group):hover *) {
+        @media (hover: hover) {
+          background-color: color-mix(in srgb, oklch(86.9% 0.005 56.366) 65%, transparent);
+          @supports (color: color-mix(in lab, red, red)) {
+            background-color: color-mix(in oklab, var(--color-stone-300) 65%, transparent);
+          }
+        }
+      }
+    }
     .group-hover\:bg-teal-300\/50 {
       &:is(:where(.group):hover *) {
         @media (hover: hover) {
@@ -1802,6 +1887,26 @@
           background-color: color-mix(in srgb, oklch(90.5% 0.182 98.111) 65%, transparent);
           @supports (color: color-mix(in lab, red, red)) {
             background-color: color-mix(in oklab, var(--color-yellow-300) 65%, transparent);
+          }
+        }
+      }
+    }
+    .group-hover\:bg-zinc-300\/50 {
+      &:is(:where(.group):hover *) {
+        @media (hover: hover) {
+          background-color: color-mix(in srgb, oklch(87.1% 0.006 286.286) 50%, transparent);
+          @supports (color: color-mix(in lab, red, red)) {
+            background-color: color-mix(in oklab, var(--color-zinc-300) 50%, transparent);
+          }
+        }
+      }
+    }
+    .group-hover\:bg-zinc-300\/65 {
+      &:is(:where(.group):hover *) {
+        @media (hover: hover) {
+          background-color: color-mix(in srgb, oklch(87.1% 0.006 286.286) 65%, transparent);
+          @supports (color: color-mix(in lab, red, red)) {
+            background-color: color-mix(in oklab, var(--color-zinc-300) 65%, transparent);
           }
         }
       }
