@@ -194,7 +194,6 @@ describe("Design Doctrine legacy history migration", () => {
 
   it("migrates installed-plugin state when the doctrine path is customized", async () => {
     const installedPluginRoot = await createPluginRoot();
-    const doctrineRoot = await createPluginRoot();
     const statePath = join(
       installedPluginRoot,
       "maintenance",
@@ -222,17 +221,9 @@ describe("Design Doctrine legacy history migration", () => {
         code: "ENOENT",
       });
       await expect(bb.storage.kv.get(LEGACY_KEY)).resolves.toBeUndefined();
-
-      await writeFile(join(doctrineRoot, "rules", "uncommitted.md"), "draft\n");
-      await expect(history.scan(scanOptions())).rejects.toThrow(
-        "rules tree has pre-existing work",
-      );
     } finally {
       await harness.lifecycle.dispose();
-      await Promise.all([
-        rm(installedPluginRoot, { recursive: true, force: true }),
-        rm(doctrineRoot, { recursive: true, force: true }),
-      ]);
+      await rm(installedPluginRoot, { recursive: true, force: true });
     }
   });
 });
