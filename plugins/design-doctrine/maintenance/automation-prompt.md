@@ -122,6 +122,19 @@ root.
    waits indefinitely, so name it in your report; the corpus learns nothing
    further until it lands.
 
+10. Archive this thread when the pass finished cleanly — rules published or
+    nothing worth changing, no stalled publication, no rule left conflicted, no
+    blocker:
+
+    ```bash
+    bb thread archive --self
+    ```
+
+    Do this last, after your report. Runs happen daily and a clean one is not
+    worth a place in the thread list. Leave the thread open whenever the report
+    needs a human: a stalled publication, a rule you set to `conflicted` and the
+    question it needs, or anything that stopped you finishing.
+
 Report what changed, the pull request URL, any stalled publication, anything
 left conflicted and the question it needs, and the rule count. Keep no-change
 runs to one sentence.
