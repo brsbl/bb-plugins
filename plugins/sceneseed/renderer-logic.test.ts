@@ -177,7 +177,7 @@ describe("bounded geometry and material plans", () => {
   it("rounds host box geometry with one low-cost corner segment", () => {
     const plan = mapMeshGeometry(meshNode("box"));
 
-    expect(plan.args).toEqual([1, 1, 1, 1, 0.16]);
+    expect(plan.args).toEqual([4, 3, 2, 1, 0.32]);
   });
 
   it("maps all material presets without exposing shaders or textures", () => {
@@ -265,6 +265,17 @@ describe("particle, motion, and reveal plans", () => {
 });
 
 describe("camera plans and resource disposal", () => {
+  it("keeps the front camera exactly head-on", () => {
+    const plan = cameraPlanForScene({
+      bounds: { width: 12, height: 8, depth: 0.1 },
+      cameraHint: "front",
+    });
+
+    expect(plan.position[0]).toBe(0);
+    expect(plan.position[1]).toBe(plan.target[1]);
+    expect(plan.position[2]).toBeGreaterThan(0);
+  });
+
   it("keeps camera hints host-owned and finite", () => {
     const bounds = { width: 8, height: 5, depth: 3 };
     for (const cameraHint of [

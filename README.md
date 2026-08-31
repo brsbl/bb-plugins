@@ -72,11 +72,11 @@ Creates, edits, saves, and shares reusable mesh gradients from a visual studio b
 
 Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/mesh-gradient --yes`
 
-### Diorama
+### Protofetti
 
-Turns each prompt into an interactive 3D scene on one persistent, implicit canvas. New prompts replace the current scene after a canvas-wide loading shimmer.
+Turns each prompt into an interactive hand-drawn scene on one persistent, implicit canvas. New prompts replace the current scene after a canvas-wide loading shimmer.
 
-![Diorama showing a generated 3D scene and bb's composer](plugins/sceneseed/docs/screenshot.png)
+![Protofetti showing a generated scene and bb's composer](plugins/sceneseed/docs/screenshot.png)
 
 [Source](plugins/sceneseed) · [README](plugins/sceneseed/README.md)
 

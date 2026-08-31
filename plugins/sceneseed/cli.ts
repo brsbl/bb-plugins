@@ -25,7 +25,7 @@ function json(value: unknown): string {
   const output = `${JSON.stringify(value, null, 2)}\n`;
   if (Buffer.byteLength(output, "utf8") > PLUGIN_CLI_OUTPUT_MAX_BYTES) {
     throw new Error(
-      "Diorama output exceeds the bb plugin CLI limit; inspect a smaller canvas.",
+      "Protofetti output exceeds the bb plugin CLI limit; inspect a smaller canvas.",
     );
   }
   return output;
@@ -123,11 +123,11 @@ export function registerSceneSeedCli(
 ): void {
   bb.cli.register({
     name: "sceneseed",
-    summary: "Create and inspect Diorama scene objects",
+    summary: "Create and inspect Protofetti scene objects",
     commands: [
       {
         name: "list",
-        summary: "List saved Diorama canvases",
+        summary: "List saved Protofetti canvases",
         usage: "bb sceneseed list",
       },
       {
@@ -163,7 +163,7 @@ export function registerSceneSeedCli(
           const canvases = runtime.listCanvases();
           const shown = canvases.slice(0, MAX_LIST_CANVASES);
           if (shown.length === 0) {
-            return { exitCode: 0, stdout: "No Diorama canvases.\n" };
+            return { exitCode: 0, stdout: "No Protofetti canvases.\n" };
           }
           const lines = shown.map(
             (canvas) =>
@@ -268,8 +268,8 @@ export function registerSceneSeedCli(
 
         return failure(
           command === undefined
-            ? "Missing Diorama subcommand."
-            : `Unknown Diorama subcommand ${command}.`,
+            ? "Missing Protofetti subcommand."
+            : `Unknown Protofetti subcommand ${command}.`,
         );
       } catch (error) {
         return {

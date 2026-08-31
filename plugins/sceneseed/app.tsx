@@ -23,6 +23,11 @@ import {
 import { Button } from "./components/ui/button.js";
 import { Icon } from "./components/ui/icon.js";
 import { Skeleton } from "./components/ui/skeleton.js";
+import {
+  BRUSH_COMPARISON_CRITERIA,
+  createBrushComparisonFixtures,
+  type BrushFixtureId,
+} from "./brush-fixtures.js";
 
 import type { rpcContract } from "./server";
 import {
@@ -235,7 +240,7 @@ function ImplicitCanvas() {
         if (connection !== "connected") {
           throw new Error("Reconnect to restore the canvas.");
         }
-        const created = await rpc.call("createCanvas", { name: "Diorama" });
+        const created = await rpc.call("createCanvas", { name: "Protofetti" });
         if (active) setCanvasId(created.snapshot.canvas.id);
       } catch (reason) {
         if (active) setError(errorMessage(reason));
@@ -362,7 +367,7 @@ function buildRenderObjects(
 function promptFromComposerRequest(request: NewThreadRequest): string {
   if (request.input.some((entry) => entry.type !== "text")) {
     throw new Error(
-      "Diorama can draw from text only. Remove attachments and send again.",
+      "Protofetti can draw from text only. Remove attachments and send again.",
     );
   }
   const visibleText: string[] = [];
@@ -375,7 +380,7 @@ function promptFromComposerRequest(request: NewThreadRequest): string {
   if (!prompt)
     throw new Error("Write a prompt before sending it to the scene.");
   if (prompt.length > 500) {
-    throw new Error("Keep the Diorama prompt to 500 characters or fewer.");
+    throw new Error("Keep the Protofetti prompt to 500 characters or fewer.");
   }
   return prompt;
 }
@@ -1071,7 +1076,7 @@ function CanvasEditor({ canvasId }: { canvasId: string }) {
           const message = errorMessage(reason);
           if (message.includes("already realizing")) {
             setError(
-              "Another client is realizing this interpretation. Diorama will retry if its lease expires.",
+              "Another client is realizing this interpretation. Protofetti will retry if its lease expires.",
             );
             const existingTimer = realizationRetryTimers.current.get(
               candidate.id,
@@ -1372,18 +1377,12 @@ function FixtureCanvasEditor({
       const sceneId = nextClientId("fixture_scene");
       const timestamp = Date.now();
       const variant = replacementCount.current++ % 2;
-      const templateSnapshot = createSceneSeedUiFixture();
-      const template = templateSnapshot.candidates[variant]?.normalizedScene;
+      const template = createBrushComparisonFixtures()[variant + 1]?.after;
       if (!template) throw new Error("Fixture scene is unavailable.");
       const scene = {
         ...template,
         jobId,
         objectId,
-        name: variant === 0 ? "Storm in glass" : "Lighthouse at midnight",
-        altText:
-          variant === 0
-            ? "A grayscale storm cloud suspended inside a clear glass jar."
-            : "A black-and-white lighthouse with a bright lantern and pointed roof.",
       };
       update((current) => ({
         ...current,
@@ -1472,7 +1471,7 @@ function FixtureCanvasEditor({
                 generation: 1,
                 originalScene: scene,
                 normalizedScene: scene,
-                sceneVersion: 1,
+                sceneVersion: scene.version,
                 cost: 4,
                 state: "active",
                 realizationAttempts: 1,
@@ -1613,9 +1612,83 @@ function FixtureCanvasEditor({
   );
 }
 
+function BrushComparisonFixture({ id }: { id: BrushFixtureId }) {
+  const fixture = createBrushComparisonFixtures().find(
+    (candidate) => candidate.id === id,
+  );
+  if (!fixture) return null;
+  const before: SceneRenderObject = {
+    scene: fixture.before,
+    revisionKey: `${id}-before`,
+  };
+  const after: SceneRenderObject = {
+    scene: fixture.after,
+    revisionKey: `${id}-after`,
+  };
+  return (
+    <main className="sceneseed-brush-comparison">
+      <header>
+        <p className="sceneseed-eyebrow">Procedural brush evaluation</p>
+        <h1>{fixture.prompt}</h1>
+        <p>
+          Same prompt, front camera, monochrome palette, still motion, and no
+          contact shadow. Compare {BRUSH_COMPARISON_CRITERIA.join(", ")}.
+        </p>
+      </header>
+      <div className="sceneseed-brush-comparison-grid">
+        <section>
+          <div>
+            <strong>Before</strong>
+            <span>Geometric primitives</span>
+          </div>
+          <SceneRenderer
+            className="sceneseed-brush-comparison-renderer"
+            objects={[before]}
+            reducedMotion
+            enableOrbitControls={false}
+          />
+        </section>
+        <section>
+          <div>
+            <strong>After</strong>
+            <span>Procedural pencil brush</span>
+          </div>
+          <SceneRenderer
+            className="sceneseed-brush-comparison-renderer"
+            objects={[after]}
+            reducedMotion
+            enableOrbitControls={false}
+          />
+        </section>
+      </div>
+      <nav aria-label="Brush comparison fixtures">
+        {createBrushComparisonFixtures().map((candidate) => (
+          <a
+            key={candidate.id}
+            href={`?brush-fixture=${candidate.id}`}
+            aria-current={candidate.id === id ? "page" : undefined}
+          >
+            {candidate.id.replaceAll("-", " ")}
+          </a>
+        ))}
+      </nav>
+    </main>
+  );
+}
+
 function SceneSeedPanel({ subPath }: PluginNavPanelProps) {
   if (subPath === "" || subPath === "library") return <ImplicitCanvas />;
   if (subPath === SCENESEED_QA_SUBPATH) return <FixtureCanvasEditor />;
+  if (subPath === `${SCENESEED_QA_SUBPATH}/brush-comparison`) {
+    const requested = new URLSearchParams(window.location.search).get(
+      "brush-fixture",
+    );
+    const id: BrushFixtureId =
+      requested === "rain-jar" || requested === "pocket-radio"
+        ? requested
+        : "seated-traveler";
+    return <BrushComparisonFixture key={id} id={id} />;
+  }
   if (subPath.startsWith(`${SCENESEED_QA_SUBPATH}/`)) {
     const state = subPath.slice(SCENESEED_QA_SUBPATH.length + 1);
     if (
@@ -1633,7 +1706,7 @@ function SceneSeedPanel({ subPath }: PluginNavPanelProps) {
   return (
     <main className="sceneseed-missing">
       <div className="sceneseed-seed-mark" aria-hidden="true" />
-      <h1>Diorama could not open this path.</h1>
+      <h1>Protofetti could not open this path.</h1>
       <p>Open the persistent canvas instead.</p>
       <BackToLibrary />
     </main>
@@ -1648,7 +1721,7 @@ function BackToLibrary() {
       variant="outline"
       onClick={() => navigate.toPluginPanel(PANEL_PATH)}
     >
-      Open Diorama
+      Open Protofetti
     </Button>
   );
 }
@@ -1678,23 +1751,23 @@ function SceneSeedSettings(_props: PluginSettingsSectionProps) {
   };
   return (
     <section className="sceneseed-settings">
-      <h3>Stored Diorama data</h3>
+      <h3>Stored Protofetti data</h3>
       <p>
-        Diorama stores prompts, scene graphs, transforms, and job state in its
+        Protofetti stores prompts, scene graphs, transforms, and job state in its
         plugin database. Hidden interpreter transcripts follow bb’s thread
         retention behavior.
       </p>
       <p>
-        Disabling or uninstalling Diorama does not delete that database or its
+        Disabling or uninstalling Protofetti does not delete that database or its
         hidden threads.
       </p>
       {confirming ? (
         <div
           className="sceneseed-clear-confirmation"
           role="group"
-          aria-label="Confirm deleting all Diorama canvas data"
+          aria-label="Confirm deleting all Protofetti canvas data"
         >
-          <strong>Delete Diorama data?</strong>
+          <strong>Delete Protofetti data?</strong>
           <p>
             This clears the persistent canvas and archives its interpreter
             thread. Legacy canvas data is cleared too. This cannot be undone.
@@ -1706,7 +1779,7 @@ function SceneSeedSettings(_props: PluginSettingsSectionProps) {
               disabled={busy || connection !== "connected"}
               onClick={() => void clearAll()}
             >
-              {busy ? "Deleting…" : "Delete Diorama data"}
+              {busy ? "Deleting…" : "Delete Protofetti data"}
             </Button>
             <Button
               type="button"
@@ -1725,7 +1798,7 @@ function SceneSeedSettings(_props: PluginSettingsSectionProps) {
           disabled={connection !== "connected"}
           onClick={() => setConfirming(true)}
         >
-          Delete Diorama data…
+          Delete Protofetti data…
         </Button>
       )}
       {connection !== "connected" ? (
@@ -1743,15 +1816,15 @@ function SceneSeedSettings(_props: PluginSettingsSectionProps) {
 export default definePluginApp((app) => {
   app.slots.navPanel({
     id: "sceneseed",
-    title: "Diorama",
+    title: "Protofetti",
     icon: "Layers",
     path: PANEL_PATH,
     component: SceneSeedPanel,
   });
   app.slots.settingsSection({
     id: "storage",
-    title: "Diorama data",
-    description: "Understand retention and permanently clear Diorama data.",
+    title: "Protofetti data",
+    description: "Understand retention and permanently clear Protofetti data.",
     component: SceneSeedSettings,
   });
 });

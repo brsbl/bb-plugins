@@ -1,7 +1,8 @@
 .sceneseed-library,
 .sceneseed-editor,
 .sceneseed-missing,
-.sceneseed-settings {
+.sceneseed-settings,
+.sceneseed-brush-comparison {
   --sceneseed-line: color-mix(in oklch, var(--ink) 14%, var(--canvas));
   --sceneseed-line-strong: color-mix(in oklch, var(--ink) 24%, var(--canvas));
   --sceneseed-soft: color-mix(in oklch, var(--ink) 5%, var(--canvas));
@@ -1552,6 +1553,106 @@
   }
 }
 
+.sceneseed-brush-comparison {
+  min-height: 100%;
+  padding: 1.5rem;
+  overflow: auto;
+  color: var(--ink);
+  background: var(--canvas);
+}
+
+.sceneseed-brush-comparison > header {
+  max-width: 68rem;
+  margin: 0 auto 1.2rem;
+}
+
+.sceneseed-brush-comparison h1 {
+  margin: 0.15rem 0 0.4rem;
+  font-size: clamp(1.35rem, 2.4vw, 2rem);
+  font-weight: 620;
+  letter-spacing: -0.035em;
+}
+
+.sceneseed-brush-comparison > header > p:last-child {
+  max-width: 64rem;
+  margin: 0;
+  color: var(--sceneseed-muted);
+  font-size: 0.78rem;
+  line-height: 1.5;
+}
+
+.sceneseed-brush-comparison-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+  max-width: 68rem;
+  margin: 0 auto;
+}
+
+.sceneseed-brush-comparison-grid > section {
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid var(--sceneseed-line);
+  border-radius: 0.9rem;
+  background: var(--sceneseed-soft);
+}
+
+.sceneseed-brush-comparison-grid > section > div:first-child {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+  min-height: 2.8rem;
+  padding: 0.75rem 0.85rem;
+  border-bottom: 1px solid var(--sceneseed-line);
+  background: var(--canvas);
+}
+
+.sceneseed-brush-comparison-grid strong {
+  font-size: 0.82rem;
+  font-weight: 650;
+}
+
+.sceneseed-brush-comparison-grid span {
+  color: var(--sceneseed-muted);
+  font-size: 0.7rem;
+}
+
+.sceneseed-brush-comparison-renderer {
+  position: relative;
+  height: min(66vh, 38rem);
+  min-height: 24rem;
+}
+
+.sceneseed-brush-comparison-renderer .sceneseed-zoom-controls {
+  display: none;
+}
+
+.sceneseed-brush-comparison nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  max-width: 68rem;
+  margin: 0.8rem auto 0;
+}
+
+.sceneseed-brush-comparison nav a {
+  padding: 0.35rem 0.58rem;
+  border: 1px solid var(--sceneseed-line);
+  border-radius: 999px;
+  color: var(--sceneseed-muted);
+  font-size: 0.7rem;
+  text-decoration: none;
+  text-transform: capitalize;
+  background: var(--canvas);
+}
+
+.sceneseed-brush-comparison nav a[aria-current="page"] {
+  border-color: var(--sceneseed-line-strong);
+  color: var(--ink);
+  background: var(--sceneseed-soft);
+}
+
 @media (max-width: 720px) {
   .sceneseed-editor-header {
     grid-template-columns: minmax(0, 1fr) auto;
@@ -1611,6 +1712,14 @@
 
   .sceneseed-rename {
     inset: 0.35rem;
+  }
+
+  .sceneseed-brush-comparison {
+    padding: 0.75rem;
+  }
+
+  .sceneseed-brush-comparison-grid {
+    grid-template-columns: 1fr;
   }
 }
 

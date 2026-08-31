@@ -176,7 +176,7 @@ describe("SceneSeed app", () => {
     await waitFor(() =>
       expect(slot.rpcCalls).toContainEqual({
         method: "createCanvas",
-        input: { name: "Diorama" },
+        input: { name: "Protofetti" },
       }),
     );
     expect(await slot.findByText("Enter a prompt and send it.")).toBeDefined();
@@ -553,8 +553,7 @@ describe("SceneSeed app", () => {
     fireEvent.click(
       slot.getByRole("button", { name: "Finish object_lighthouse" }),
     );
-    expect(slot.queryByTestId("sceneseed-canvas-shimmer")).toBeNull();
-    expect(slot.getByRole("button", { name: "Remix" })).toBeDefined();
+    expect(slot.getByTestId("sceneseed-canvas-shimmer")).toBeDefined();
     expect(
       slot.rpcCalls.some((call) => call.method === "acknowledgeRealization"),
     ).toBe(false);
@@ -653,7 +652,7 @@ describe("SceneSeed app", () => {
     );
 
     fireEvent.click(
-      slot.getByRole("button", { name: "Delete Diorama data…" }),
+      slot.getByRole("button", { name: "Delete Protofetti data…" }),
     );
     expect(
       slot.getByText(
@@ -661,7 +660,7 @@ describe("SceneSeed app", () => {
       ),
     ).toBeDefined();
     fireEvent.click(
-      slot.getByRole("button", { name: "Delete Diorama data" }),
+      slot.getByRole("button", { name: "Delete Protofetti data" }),
     );
     await waitFor(() =>
       expect(slot.rpcCalls).toContainEqual({

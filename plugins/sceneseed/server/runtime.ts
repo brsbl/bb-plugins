@@ -65,7 +65,7 @@ function lowerHomogeneousTuplesForToolSchema(
       const serializedFirst = JSON.stringify(first);
       if (rest.some((item) => JSON.stringify(item) !== serializedFirst)) {
         throw new Error(
-          "SceneSeed tool schema contains a heterogeneous tuple that cannot be lowered safely",
+          "Protofetti tool schema contains a heterogeneous tuple that cannot be lowered safely",
         );
       }
       object.items = first ?? {};
@@ -315,7 +315,7 @@ export class SceneSeedRuntime {
       .then(() => this.readAgentStream(threadId))
       .catch((error) => {
         this.bb.log.warn(
-          `Could not read SceneSeed agent stream for ${threadId}: ${errorMessage(error)}`,
+          `Could not read Protofetti agent stream for ${threadId}: ${errorMessage(error)}`,
         );
       })
       .finally(() => {
@@ -466,7 +466,7 @@ export class SceneSeedRuntime {
     const projects = await this.bb.sdk.projects.list({ includePersonal: true });
     const personal = projects.find((project) => project.kind === "personal");
     if (personal === undefined) {
-      throw new Error("SceneSeed could not resolve bb's personal project");
+      throw new Error("Protofetti could not resolve bb's personal project");
     }
     return personal.id;
   }
@@ -521,16 +521,16 @@ export class SceneSeedRuntime {
     });
     if (phase === "progress") {
       return [
-        "Prepare the visual direction for this SceneSeed job using the sceneseed-interpreter skill.",
+        "Prepare the visual direction for this Protofetti job using the sceneseed-interpreter skill.",
         "Do not call tools or write code in this progress turn. Do not inspect files, use network access, or call unrelated tools.",
-        "Reply with exactly four concise, display-ready lines describing the playful mockup choices you will use for this prompt. Use one complete sentence fragment per line, under 72 characters, with no bullets, numbering, markdown, code, preamble, conclusion, or generic filler. End every line with a newline so Diorama can stream it as a complete line.",
+        "Reply with exactly four concise, display-ready lines describing the playful mockup choices you will use for this prompt. Use one complete sentence fragment per line, under 72 characters, with no bullets, numbering, markdown, code, preamble, conclusion, or generic filler. End every line with a newline so Protofetti can stream it as a complete line.",
         context,
       ].join("\n\n");
     }
     return [
-      "Build and submit the SceneSeed job below using the visual direction from the preceding progress turn and the sceneseed-interpreter skill.",
+      "Build and submit the Protofetti job below using the visual direction from the preceding progress turn and the sceneseed-interpreter skill.",
       "Use only the submit_scene_object tool. Do not write commentary or a final answer, inspect files, use network access, or call unrelated tools.",
-      "Write one compact visualization as a JavaScript function body using the THREE namespace described by the sceneseed-interpreter skill and pass that source text directly to submit_scene_object. THREE is supplied only when the plugin executes the source, so do not try to inspect or execute THREE yourself. Target 3–6 drawable objects and 350–600 aggregate vertices, with no more than 2 unique geometries, at most 3 materials, under 2,500 source characters, and under 160 KB when serialized. Reuse geometry and materials. Give the single hero sphere, capsule, lathe, or rounded cylinder 22–24 radial and 12–16 vertical or cap segments; give one shared curved secondary geometry 14–16 radial and 6–10 vertical or cap segments. When the idea needs a soft block-like form, use at most one unique new THREE.RoundedBoxGeometry(width, height, depth, 1, radius) and reuse it. Keep TubeGeometry at or below 20 tubular by 6 radial segments and ExtrudeGeometry at or below 1 step, 1 bevel segment, and 6 curve segments. Never call toNonIndexed or create per-face geometry. Do not add a ground plane, shadow mesh, ring, cage, grid, axes, or presentation frame unless the user's subject explicitly requires one; Diorama supplies the stage and shadow. Return the canonical presentation values camera: \"three-quarter\", movement: \"still\", and shadow: \"crisp\" rather than inventing option objects. Make it feel like a soft, fun concept mockup: use one continuous exaggerated rounded silhouette, toy-like proportions, gentle overlap, a small off-kilter composition, simple curved primitives, and soft glossy finishes. Build fins, ears, limbs, handles, and other appendages from squashed spheres, capsules, toruses, or rounded cylinders; avoid cones, polyhedra, flattened forms with polygonal outlines, faceted hero forms, sharp spikes, exposed low-segment cylinders, stacked boxes, technical diagrams, serious geometric studies, monuments, exact product renders, and decorative detail that does not help recognition. Do not raise the total vertex count to create detail; spend the small budget on the outer contour and reuse or scale simple geometry for everything else. The plugin injects job and object identity, runs the source for this requested job, recenters and grounds the returned Object3D, and persists its serialized Three.js result. If validation issues are returned, correct them and call the tool one final time. End without prose after one visualization is accepted.",
+      "Write one compact visualization as a JavaScript function body using the BRUSH API described by the sceneseed-interpreter skill and pass that source text directly to submit_scene_object. BRUSH and THREE are supplied only when the plugin executes the source, so do not try to inspect or execute them yourself. Use THREE only to create the root Group; make every visible mark with one reusable BRUSH.create(...) instance and its stroke(points, overrides?) method. Compose a front-facing loose sketch from 4–6 purposeful contours or gesture lines, normally 4–6 control points each. Use one closed outer contour, a few overlapping interior contours, and no more than two lighter construction or hatching strokes. Keep the complete brush output at or below 520 vertices and the serialized scene at or below 160 KB. Start with the pencil texture, tapered shape, three layers, width 0.09–0.14, opacity 0.85–0.95, pressure variation 0.26–0.38, jitter 0.45–0.70, graphite color behavior, and a stable integer seed. Keep interior structure at 0.60–0.75 opacity and reserve 0.30–0.40 opacity for one-layer construction marks that are not required for recognition, then tune only what makes the prompt read more clearly. Keep coordinates on the XY plane within roughly -6 to 6 and use shallow depth overrides only to control overlap. Return camera: \"front\", movement: \"still\", and shadow: \"none\". Aim for an observational sketch, not polished vector art or a 3D model: asymmetrical searching lines, varied pressure, imperfect overlaps, visible construction, sparse graphite texture, and a recognizable silhouette. Avoid geometric primitives, glossy materials, solid fills, technical diagrams, grids, frames, and decorative lines that do not improve recognition. The plugin injects job and object identity, validates the bounded brush output, recenters it, and persists ordinary serialized Three.js geometry for the existing renderer. If validation issues are returned, correct them and call the tool one final time. End without prose after one visualization is accepted.",
       context,
     ].join("\n\n");
   }
@@ -544,7 +544,7 @@ export class SceneSeedRuntime {
     const object = snapshot.objects.find((entry) => entry.id === job.objectId);
     if (card === undefined || object === undefined || card.placement === null) {
       throw new Error(
-        `SceneSeed job ${job.id} is missing its card or placement`,
+        `Protofetti job ${job.id} is missing its card or placement`,
       );
     }
     return this.buildJobPromptFromPayload(
@@ -589,7 +589,7 @@ export class SceneSeedRuntime {
     };
     this.generationExecutionByProvider.set(providerId, options);
     this.bb.log.info(
-      `SceneSeed generation will use ${providerId}/${selected.model} at ${options.reasoningLevel} reasoning on the fast service tier`,
+      `Protofetti generation will use ${providerId}/${selected.model} at ${options.reasoningLevel} reasoning on the fast service tier`,
     );
     return options;
   }
@@ -608,7 +608,7 @@ export class SceneSeedRuntime {
       );
     } catch (error) {
       this.bb.log.warn(
-        `Could not resolve a faster SceneSeed generation model; using the thread defaults: ${errorMessage(error)}`,
+        `Could not resolve a faster Protofetti generation model; using the thread defaults: ${errorMessage(error)}`,
       );
       return { serviceTier: "fast" };
     }
@@ -643,7 +643,7 @@ export class SceneSeedRuntime {
       };
     } catch (error) {
       this.bb.log.warn(
-        `Could not resolve first-turn SceneSeed execution options; using the project defaults on the fast service tier: ${errorMessage(error)}`,
+        `Could not resolve first-turn Protofetti execution options; using the project defaults on the fast service tier: ${errorMessage(error)}`,
       );
       return { serviceTier: "fast" };
     }
@@ -690,7 +690,7 @@ export class SceneSeedRuntime {
           placement: input.placement,
         },
       ),
-      title: `SceneSeed: ${current.name}`,
+      title: `Protofetti: ${current.name}`,
       visibility: "hidden",
       permissionMode: "accept-edits",
       origin: "plugin",
@@ -717,7 +717,7 @@ export class SceneSeedRuntime {
         expectedRevision: queued.revision,
       });
       if (claimed === null || claimed.job.id !== input.jobId) {
-        throw new Error("SceneSeed could not claim its first generation job");
+        throw new Error("Protofetti could not claim its first generation job");
       }
       this.generationPreludeJobByThread.set(thread.id, claimed.job.id);
       this.publishCanvas(input.canvasId, claimed.revision, claimed.job.id);
@@ -737,7 +737,7 @@ export class SceneSeedRuntime {
           this.publishCanvas(input.canvasId, reset.revision);
         } catch (resetError) {
           this.bb.log.warn(
-            `Could not detach failed SceneSeed thread ${thread.id}: ${errorMessage(resetError)}`,
+            `Could not detach failed Protofetti thread ${thread.id}: ${errorMessage(resetError)}`,
           );
         }
       }
@@ -821,7 +821,7 @@ export class SceneSeedRuntime {
       if (thread.status === "idle") await this.dispatchNextLocked(canvasId);
     } catch (error) {
       this.bb.log.warn(
-        `Could not inspect SceneSeed thread ${canvas.agentThreadId} before dispatch: ${errorMessage(error)}`,
+        `Could not inspect Protofetti thread ${canvas.agentThreadId} before dispatch: ${errorMessage(error)}`,
       );
     }
   }
@@ -1125,7 +1125,7 @@ export class SceneSeedRuntime {
           await this.bb.sdk.threads.stop({ threadId: canvas.agentThreadId });
         } catch (error) {
           this.bb.log.warn(
-            `Could not stop cancelled SceneSeed thread ${canvas.agentThreadId}: ${errorMessage(error)}`,
+            `Could not stop cancelled Protofetti thread ${canvas.agentThreadId}: ${errorMessage(error)}`,
           );
         }
       } else {
@@ -1160,7 +1160,7 @@ export class SceneSeedRuntime {
             await this.bb.sdk.threads.stop({ threadId });
           } catch (error) {
             this.bb.log.warn(
-              `Could not stop removed SceneSeed object job: ${errorMessage(error)}`,
+              `Could not stop removed Protofetti object job: ${errorMessage(error)}`,
             );
           }
         }
@@ -1182,7 +1182,7 @@ export class SceneSeedRuntime {
       archived = true;
     } catch (error) {
       this.bb.log.warn(
-        `Could not archive SceneSeed thread ${threadId}: ${errorMessage(error)}`,
+        `Could not archive Protofetti thread ${threadId}: ${errorMessage(error)}`,
       );
     }
     try {
@@ -1190,7 +1190,7 @@ export class SceneSeedRuntime {
       stopped = true;
     } catch (error) {
       this.bb.log.warn(
-        `Could not stop SceneSeed thread ${threadId}: ${errorMessage(error)}`,
+        `Could not stop Protofetti thread ${threadId}: ${errorMessage(error)}`,
       );
     }
     return { archived, stopped };
@@ -1242,7 +1242,7 @@ export class SceneSeedRuntime {
         content: [
           {
             type: "text" as const,
-            text: "Rejected: this thread does not own a SceneSeed canvas.",
+            text: "Rejected: this thread does not own a Protofetti canvas.",
           },
         ],
         isError: true,
@@ -1451,7 +1451,7 @@ export class SceneSeedRuntime {
           await this.failJobsForMissingThreadLocked(
             canvas.id,
             threadId,
-            `The SceneSeed interpreter thread could not be reconciled: ${errorMessage(error)}`,
+            `The Protofetti interpreter thread could not be reconciled: ${errorMessage(error)}`,
           );
           return;
         }
@@ -1460,7 +1460,7 @@ export class SceneSeedRuntime {
         await this.failJobsForMissingThreadLocked(
           canvas.id,
           threadId,
-          detail ?? "The SceneSeed interpreter thread is unavailable.",
+          detail ?? "The Protofetti interpreter thread is unavailable.",
         );
         return;
       }
@@ -1538,8 +1538,8 @@ export class SceneSeedRuntime {
           errorMessage:
             detail ??
             (outcome === "failed"
-              ? "The SceneSeed interpreter failed."
-              : "The SceneSeed interpreter finished without submitting a scene."),
+              ? "The Protofetti interpreter failed."
+              : "The Protofetti interpreter finished without submitting a scene."),
         });
         this.publishCanvas(canvas.id, result.revision, interpreting.id);
       }
@@ -1563,7 +1563,7 @@ export class SceneSeedRuntime {
             await this.failJobsForMissingThreadLocked(
               canvasId,
               canvas.agentThreadId,
-              "The SceneSeed interpreter thread was archived or deleted.",
+              "The Protofetti interpreter thread was archived or deleted.",
             );
             return;
           }
@@ -1605,7 +1605,7 @@ export class SceneSeedRuntime {
           await this.failJobsForMissingThreadLocked(
             canvasId,
             canvas.agentThreadId,
-            `The SceneSeed interpreter thread could not be reconciled: ${errorMessage(error)}`,
+            `The Protofetti interpreter thread could not be reconciled: ${errorMessage(error)}`,
           );
         }
       });
@@ -1642,14 +1642,14 @@ export class SceneSeedRuntime {
       this.reconcileThread(
         thread.id,
         "unavailable",
-        "The SceneSeed interpreter thread was archived.",
+        "The Protofetti interpreter thread was archived.",
       ),
     );
     this.bb.events.on("thread.deleted", ({ thread }) =>
       this.reconcileThread(
         thread.id,
         "unavailable",
-        "The SceneSeed interpreter thread was deleted.",
+        "The Protofetti interpreter thread was deleted.",
       ),
     );
     this.bb.background.service("scene-reconciler", {

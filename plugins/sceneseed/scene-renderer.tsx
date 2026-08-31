@@ -11,6 +11,7 @@ import { RoundedBoxGeometry } from "three/addons/geometries/RoundedBoxGeometry.j
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 
 import { smoothGeneratedGeometryNormals } from "./geometry-smoothing";
+import { applySceneColor } from "./scene-color";
 import type {
   SceneNodeV1,
   SceneObject,
@@ -23,6 +24,7 @@ import {
   SceneRendererInvariantError,
   assertRendererSceneLimits,
   buildSceneNodeTree,
+  cameraPlanForScene,
   createParticlePositions,
   evaluateMotion,
   evaluateReveal,
@@ -908,48 +910,6 @@ function applyMaterialOpacity(root: THREE.Object3D, multiplier: number): void {
   });
 }
 
-function applySceneColor(root: THREE.Object3D, tint: string | null): void {
-  const tintHsl =
-    tint === null
-      ? { h: 0, s: 0, l: 0 }
-      : new THREE.Color(tint).getHSL({ h: 0, s: 0, l: 0 });
-  const colorize = (color: THREE.Color) => {
-    const source = color.getHSL({ h: 0, s: 0, l: 0 });
-    const lightness = 0.07 + 0.72 * Math.pow(source.l, 0.78);
-    color.setHSL(
-      tintHsl.h,
-      tint === null ? 0 : Math.max(0.46, Math.min(0.78, tintHsl.s)),
-      lightness,
-    );
-  };
-  root.traverse((object) => {
-    if (
-      !(
-        object instanceof THREE.Mesh ||
-        object instanceof THREE.Points ||
-        object instanceof THREE.Line
-      )
-    )
-      return;
-    const materials = Array.isArray(object.material)
-      ? object.material
-      : [object.material];
-    for (const material of materials) {
-      const colored = material as THREE.Material & {
-        color?: THREE.Color;
-        emissive?: THREE.Color;
-      };
-      if (colored.color instanceof THREE.Color) colorize(colored.color);
-      if (
-        colored.emissive instanceof THREE.Color &&
-        colored.emissive.getHex() !== 0
-      ) {
-        colorize(colored.emissive);
-      }
-    }
-  });
-}
-
 function applySceneFinish(root: THREE.Object3D): void {
   root.traverse((object) => {
     if (
@@ -978,10 +938,7 @@ function applySceneFinish(root: THREE.Object3D): void {
       } else if (material instanceof THREE.MeshPhongMaterial) {
         material.shininess = Math.max(material.shininess, 48);
         material.flatShading = false;
-      } else if (
-        material instanceof THREE.MeshLambertMaterial ||
-        material instanceof THREE.MeshToonMaterial
-      ) {
+      } else if (material instanceof THREE.MeshLambertMaterial) {
         material.flatShading = false;
       }
       material.needsUpdate = true;
@@ -1534,7 +1491,18 @@ export function SceneRenderer({
               (sphere.radius / Math.sin(limitingFov / 2)) * 1.18,
             ),
           );
-          const direction = camera.position.clone().sub(controls.target);
+          const frontOnly = records.every(
+            (record) => record.item.scene.cameraHint === "front",
+          );
+          controls.enableRotate = !frontOnly;
+          const direction = frontOnly
+            ? (() => {
+                const plan = cameraPlanForScene(records[0]!.item.scene);
+                return new THREE.Vector3(...plan.position).sub(
+                  new THREE.Vector3(...plan.target),
+                );
+              })()
+            : camera.position.clone().sub(controls.target);
           if (direction.lengthSq() === 0) direction.set(1, 0.6, 1);
           controls.target.copy(sphere.center);
           camera.position.copy(
@@ -1603,7 +1571,7 @@ export function SceneRenderer({
       <canvas
         ref={canvasRef}
         className="sceneseed-webgl-canvas"
-        aria-label="Diorama 3D canvas"
+        aria-label="Protofetti canvas"
       />
       {objects.some((item) => item.probeOnly !== true) ? (
         <div className="sceneseed-zoom-controls" aria-label="Canvas zoom">

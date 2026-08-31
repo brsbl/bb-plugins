@@ -504,7 +504,7 @@ export function cameraPlanForScene(
   switch (scene.cameraHint) {
     case "front":
       return {
-        position: [0, scene.bounds.height * 0.55, radius * 1.8],
+        position: [0, target[1], radius * 1.8],
         target,
       };
     case "three-quarter":

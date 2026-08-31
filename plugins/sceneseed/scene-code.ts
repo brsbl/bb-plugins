@@ -5,19 +5,16 @@ import { z } from "zod";
 
 import {
   MAX_GENERATED_SCENE_JSON_BYTES,
-  MAX_GENERATED_SCENE_LIGHTS,
-  MAX_GENERATED_SCENE_MATERIALS,
-  MAX_GENERATED_SCENE_OBJECTS,
-  MAX_GENERATED_SCENE_VERTICES,
   SceneContractError,
   normalizeSceneObject,
   type SceneContractIssue,
   type SceneObjectV2,
 } from "./scene-contract.js";
+import { PROCEDURAL_BRUSH } from "./procedural-brush.js";
+import { prepareGeneratedRoot } from "./scene-output.js";
 
 const MAX_SOURCE_LENGTH = 24_000;
 const EXECUTION_TIMEOUT_MS = 2_000;
-const TARGET_SCENE_SPAN = 16;
 const MAX_AGENT_AUTHORED_SCENE_VERTICES = 600;
 const SCENE_THREE = Object.freeze({ ...THREE, RoundedBoxGeometry });
 
@@ -38,7 +35,7 @@ export const sceneCodeSourceSchema = z
   .min(1)
   .max(MAX_SOURCE_LENGTH)
   .describe(
-    "JavaScript function body with THREE already in scope. Build and return { root, name, altText, camera?, movement?, shadow? }. root must be a THREE.Object3D. Do not include imports, exports, markdown fences, textures, external assets, shaders, DOM, or network code.",
+    "JavaScript function body with THREE and BRUSH already in scope. Build and return { root, name, altText, camera?, movement?, shadow? }. root must be a THREE.Object3D. Do not include imports, exports, markdown fences, textures, external assets, shaders, DOM, or network code.",
   );
 
 const generatedResultSchema = z
@@ -90,18 +87,6 @@ const generatedResultSchema = z
   })
   .strict();
 
-const ALLOWED_MATERIAL_TYPES = new Set([
-  "LineBasicMaterial",
-  "LineDashedMaterial",
-  "MeshBasicMaterial",
-  "MeshLambertMaterial",
-  "MeshPhongMaterial",
-  "MeshPhysicalMaterial",
-  "MeshStandardMaterial",
-  "MeshToonMaterial",
-  "PointsMaterial",
-]);
-
 const PALETTE = [
   "#111111",
   "#444444",
@@ -109,13 +94,6 @@ const PALETTE = [
   "#cccccc",
   "#f5f5f5",
 ] as const;
-
-interface SceneCodeStats {
-  objects: number;
-  vertices: number;
-  materials: number;
-  lights: number;
-}
 
 export interface SceneCodeIdentity {
   readonly jobId: string;
@@ -126,194 +104,6 @@ function fail(path: string, message: string): never {
   throw new SceneContractError([
     { code: "invalid_generated_scene", path, message },
   ]);
-}
-
-function monochrome(color: THREE.Color): void {
-  const level = Math.max(
-    0,
-    Math.min(
-      255,
-      Math.round(
-        (color.r * 0.2126 + color.g * 0.7152 + color.b * 0.0722) * 255,
-      ),
-    ),
-  );
-  color.setHex((level << 16) | (level << 8) | level);
-}
-
-function materialList(object: THREE.Object3D): THREE.Material[] {
-  if (!("material" in object)) return [];
-  const material = (object as THREE.Object3D & {
-    material?: THREE.Material | THREE.Material[];
-  }).material;
-  if (material === undefined) return [];
-  return Array.isArray(material) ? material : [material];
-}
-
-function geometryFor(object: THREE.Object3D): THREE.BufferGeometry | null {
-  if (!("geometry" in object)) return null;
-  const geometry = (object as THREE.Object3D & {
-    geometry?: THREE.BufferGeometry;
-  }).geometry;
-  return geometry instanceof THREE.BufferGeometry ? geometry : null;
-}
-
-function assertNoTextures(material: THREE.Material): void {
-  for (const value of Object.values(material)) {
-    if (
-      value !== null &&
-      typeof value === "object" &&
-      "isTexture" in value &&
-      (value as { isTexture?: unknown }).isTexture === true
-    ) {
-      fail("source", "generated materials cannot contain textures");
-    }
-  }
-}
-
-function normalizeMaterial(material: THREE.Material): void {
-  if (!ALLOWED_MATERIAL_TYPES.has(material.type)) {
-    fail("source", `material ${material.type} is not supported`);
-  }
-  assertNoTextures(material);
-  const colored = material as THREE.Material & {
-    color?: THREE.Color;
-    emissive?: THREE.Color;
-  };
-  if (colored.color instanceof THREE.Color) monochrome(colored.color);
-  if (colored.emissive instanceof THREE.Color) monochrome(colored.emissive);
-  material.userData = {};
-}
-
-function inspectRoot(root: THREE.Object3D): SceneCodeStats {
-  let objects = 0;
-  let vertices = 0;
-  let lights = 0;
-  const materials = new Set<THREE.Material>();
-  const geometries = new Set<THREE.BufferGeometry>();
-
-  root.traverse((object) => {
-    object.userData = {};
-    if (object instanceof THREE.Camera) {
-      fail("source", "the generated root cannot contain a camera");
-    }
-    if (object instanceof THREE.Light) {
-      lights += 1;
-      monochrome(object.color);
-    }
-
-    const geometry = geometryFor(object);
-    const nextMaterials = materialList(object);
-    if (geometry !== null || nextMaterials.length > 0) objects += 1;
-    if (geometry !== null && !geometries.has(geometry)) {
-      geometries.add(geometry);
-      const position = geometry.getAttribute("position");
-      if (!position || position.count < 1) {
-        fail("source", "every generated geometry needs finite positions");
-      }
-      const multiplier =
-        object instanceof THREE.InstancedMesh ? Math.max(1, object.count) : 1;
-      vertices += position.count * multiplier;
-      for (const value of position.array) {
-        if (!Number.isFinite(value)) {
-          fail("source", "generated geometry contains a non-finite vertex");
-        }
-      }
-    }
-    for (const material of nextMaterials) {
-      materials.add(material);
-      normalizeMaterial(material);
-    }
-    if (object instanceof THREE.Mesh) {
-      object.castShadow = true;
-      object.receiveShadow = true;
-    }
-  });
-
-  if (objects < 1) fail("source", "the generated root contains no drawable objects");
-  if (objects > MAX_GENERATED_SCENE_OBJECTS) {
-    fail(
-      "source",
-      `generated scene has ${objects} objects; maximum is ${MAX_GENERATED_SCENE_OBJECTS}`,
-    );
-  }
-  if (vertices > MAX_GENERATED_SCENE_VERTICES) {
-    fail(
-      "source",
-      `generated scene has ${vertices} vertices; maximum is ${MAX_GENERATED_SCENE_VERTICES}`,
-    );
-  }
-  if (materials.size < 1 || materials.size > MAX_GENERATED_SCENE_MATERIALS) {
-    fail(
-      "source",
-      `generated scene has ${materials.size} materials; maximum is ${MAX_GENERATED_SCENE_MATERIALS}`,
-    );
-  }
-  if (lights > MAX_GENERATED_SCENE_LIGHTS) {
-    fail(
-      "source",
-      `generated scene has ${lights} lights; maximum is ${MAX_GENERATED_SCENE_LIGHTS}`,
-    );
-  }
-  return { objects, vertices, materials: materials.size, lights };
-}
-
-function makeGeometriesPortable(root: THREE.Object3D): void {
-  const portableGeometries = new Map<
-    THREE.BufferGeometry,
-    THREE.BufferGeometry
-  >();
-  root.traverse((object) => {
-    const geometry = geometryFor(object);
-    if (geometry === null) return;
-    let portable = portableGeometries.get(geometry);
-    if (portable === undefined) {
-      portable = new THREE.BufferGeometry().copy(geometry);
-      portable.name = geometry.name;
-      portable.userData = {};
-      portableGeometries.set(geometry, portable);
-    }
-    (
-      object as THREE.Object3D & {
-        geometry: THREE.BufferGeometry;
-      }
-    ).geometry = portable;
-  });
-}
-
-function normalizeRoot(root: THREE.Object3D): {
-  root: THREE.Group;
-  bounds: SceneObjectV2["bounds"];
-} {
-  root.updateMatrixWorld(true);
-  const sourceBounds = new THREE.Box3().setFromObject(root);
-  if (sourceBounds.isEmpty()) fail("source", "generated scene has empty bounds");
-  const size = sourceBounds.getSize(new THREE.Vector3());
-  const center = sourceBounds.getCenter(new THREE.Vector3());
-  if (![size.x, size.y, size.z, center.x, center.y, center.z].every(Number.isFinite)) {
-    fail("source", "generated scene bounds are not finite");
-  }
-  const largestSpan = Math.max(size.x, size.y, size.z);
-  if (largestSpan <= 0) fail("source", "generated scene has zero-size bounds");
-  const fitScale = Math.min(1, TARGET_SCENE_SPAN / largestSpan);
-
-  const centered = new THREE.Group();
-  centered.position.set(-center.x, -sourceBounds.min.y, -center.z);
-  centered.add(root);
-  const fitted = new THREE.Group();
-  fitted.name = "SceneSeed generated scene";
-  fitted.scale.setScalar(fitScale);
-  fitted.add(centered);
-  fitted.updateMatrixWorld(true);
-
-  return {
-    root: fitted,
-    bounds: {
-      width: Math.max(0.05, size.x * fitScale),
-      height: Math.max(0.05, size.y * fitScale),
-      depth: Math.max(0.05, size.z * fitScale),
-    },
-  };
 }
 
 function motionFor(
@@ -337,6 +127,7 @@ function motionFor(
     case "shimmer":
       return { preset: "shimmer", speed: 0.42, amplitude: 0.1 };
   }
+  return { preset: "none", speed: 0, amplitude: 0 };
 }
 
 function cameraFor(
@@ -379,7 +170,7 @@ export function compileSceneCode(
 ): SceneObjectV2 {
   const source = sceneCodeSourceSchema.parse(sourceInput);
   const context = createContext(
-    { THREE: SCENE_THREE },
+    { BRUSH: PROCEDURAL_BRUSH, THREE: SCENE_THREE },
     {
       name: `SceneSeed ${identity.jobId}`,
       codeGeneration: { strings: false, wasm: false },
@@ -391,24 +182,18 @@ export function compileSceneCode(
   const result = generatedResultSchema.parse(
     script.runInContext(context, { timeout: EXECUTION_TIMEOUT_MS }),
   );
-  const stats = inspectRoot(result.root);
+  const prepared = prepareGeneratedRoot(result.root);
+  const { stats } = prepared;
   if (stats.vertices > MAX_AGENT_AUTHORED_SCENE_VERTICES) {
     fail(
       "source",
-      `generated scene has ${stats.vertices} vertices; Diorama's agent-authored scene budget is ${MAX_AGENT_AUTHORED_SCENE_VERTICES}. Reuse simpler geometry and lower segment counts`,
+      `generated scene has ${stats.vertices} vertices; Protofetti's agent-authored scene budget is ${MAX_AGENT_AUTHORED_SCENE_VERTICES}. Reuse simpler geometry and lower segment counts`,
     );
   }
-  makeGeometriesPortable(result.root);
-  const normalized = normalizeRoot(result.root);
-  const objectJson = normalized.root.toJSON() as unknown as Record<
-    string,
-    unknown
-  >;
-  const bytes = new TextEncoder().encode(JSON.stringify(objectJson)).byteLength;
-  if (bytes > MAX_GENERATED_SCENE_JSON_BYTES) {
+  if (prepared.bytes > MAX_GENERATED_SCENE_JSON_BYTES) {
     fail(
       "source",
-      `serialized scene is ${bytes} bytes; maximum is ${MAX_GENERATED_SCENE_JSON_BYTES}. Simplify unique geometry and segment counts (objects: ${stats.objects}, vertices: ${stats.vertices}, materials: ${stats.materials})`,
+      `serialized scene is ${prepared.bytes} bytes; maximum is ${MAX_GENERATED_SCENE_JSON_BYTES}. Simplify unique geometry and segment counts (objects: ${stats.objects}, vertices: ${stats.vertices}, materials: ${stats.materials})`,
     );
   }
 
@@ -418,12 +203,12 @@ export function compileSceneCode(
     objectId: identity.objectId,
     name: result.name,
     altText: result.altText,
-    bounds: normalized.bounds,
+    bounds: prepared.bounds,
     cameraHint: cameraFor(result.camera),
     palette: [...PALETTE],
     motion: motionFor(result.movement),
     ground: groundFor(result.shadow),
-    objectJson,
+    objectJson: prepared.objectJson,
     stats,
   }) as SceneObjectV2;
 }

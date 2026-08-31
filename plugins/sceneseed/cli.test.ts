@@ -18,6 +18,7 @@ async function loadHost() {
     pluginId: "sceneseed",
     agentSkillIds: ["sceneseed-interpreter"],
     sdk: {
+      subscribe: () => () => undefined,
       projects: {
         list: async () => [
           {
@@ -140,7 +141,7 @@ describe("SceneSeed CLI", () => {
       state: string;
     };
     expect(output.state).toBe("interpreting");
-    expect(send).toHaveBeenCalledTimes(1);
+    expect(send).not.toHaveBeenCalled();
 
     const row = host.bb.storage
       .database()
@@ -177,7 +178,7 @@ describe("SceneSeed CLI", () => {
     ]);
     expect(result.exitCode).toBe(0);
     expect(result.stderr).toBe("");
-    expect(send).toHaveBeenCalledTimes(1);
+    expect(send).not.toHaveBeenCalled();
   });
 
   it("cancels, waits, and removes through the same store operations as UI", async () => {

@@ -118,6 +118,65 @@ return { root, name: "Soft box", altText: "A pale box with rounded corners." };`
     expect(scene.stats.objects).toBe(1);
   });
 
+  it("injects the bounded procedural brush without changing the source envelope", () => {
+    const scene = compileSceneCode(
+      `const root = new THREE.Group();
+const pencil = BRUSH.create({
+  seed: 31,
+  texture: "pencil",
+  width: 0.16,
+  opacity: 0.5,
+  pressureVariation: 0.3,
+  jitter: 0.16,
+  layering: 2,
+  colorBehavior: "graphite",
+});
+root.add(pencil.stroke([[-3,-2],[-2.7,1],[-1.4,2.3],[0.8,2.5],[2.7,1],[3,-2]], { closed: true }));
+root.add(pencil.stroke([[-2.4,0.4],[-1,0.8],[0.2,0.3],[1.7,0.7],[2.4,0.2]]));
+root.add(pencil.stroke([[-1.7,-0.2],[-1.1,-1.3],[0.2,-1.7],[1.5,-0.8]]));
+return {
+  root,
+  name: "Loose rain jar",
+  altText: "A loose graphite outline of a cloud resting in a jar.",
+  camera: "front",
+  movement: "still",
+  shadow: "none",
+};`,
+      identity,
+    );
+
+    expect(scene).toMatchObject({
+      version: 2,
+      cameraHint: "front",
+      ground: { contactShadow: { strength: 0 } },
+      stats: { objects: 6, materials: 2, lights: 0 },
+    });
+    expect(scene.stats.vertices).toBeLessThanOrEqual(600);
+    expect(scene.objectJson.materials).toHaveLength(2);
+  });
+
+  it("normalizes each shared brush material once", () => {
+    const source = (strokes: number) => `const root = new THREE.Group();
+const pencil = BRUSH.create({
+  texture: "pencil",
+  layering: 3,
+  color: 0x555555,
+  colorBehavior: "graphite",
+  colorVariation: 0.12,
+});
+for (let index = 0; index < ${strokes}; index += 1) {
+  root.add(pencil.stroke([[0, index], [1, index + 0.2], [2, index]]));
+}
+return { root, name: "Shared graphite", altText: "Layered graphite lines." };`;
+    const colors = (strokes: number) =>
+      (compileSceneCode(source(strokes), identity).objectJson.materials as Array<{
+        color: number;
+      }>).map((material) => material.color);
+
+    expect(colors(3)).toEqual(colors(1));
+    expect(colors(3).some((value) => value !== 0)).toBe(true);
+  });
+
   it("accepts detailed camera and shadow options emitted by Three.js authors", () => {
     const scene = compileSceneCode(
       lighthouseSource().replace(

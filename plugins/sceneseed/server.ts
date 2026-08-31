@@ -97,9 +97,9 @@ export default async function sceneSeedPlugin(bb: BbPluginApi): Promise<void> {
   bb.agents.registerTool({
     name: "submit_scene_object",
     description:
-      "Render agent-authored Three.js source for the current SceneSeed prompt.",
+      "Render agent-authored sketch source for the current Protofetti prompt.",
     instructions:
-      "For new work, submit exactly one JavaScript function body in source. THREE is already in scope; return { root, name, altText, camera?, movement?, shadow? }. Call at most twice: one submission and, only after actionable validation issues, one correction. Stop after one scene is accepted.",
+      "For new work, submit exactly one JavaScript function body in source. THREE and the bounded procedural BRUSH API are already in scope; use BRUSH for the visible drawing and THREE only for grouping. Return { root, name, altText, camera?, movement?, shadow? }. Call at most twice: one submission and, only after actionable validation issues, one correction. Stop after one scene is accepted.",
     parameters: submitSceneObjectParameters,
     execute(params, context) {
       return runtime.submitSceneObject(params, context.threadId);
@@ -117,7 +117,7 @@ export default async function sceneSeedPlugin(bb: BbPluginApi): Promise<void> {
       tools: ["submit_scene_object"],
       skills: ["sceneseed-interpreter"],
       instructions:
-        "This is a SceneSeed canvas interpreter thread. A progress-only turn requests four visualization notes and must not call tools. The immediately following build turn turns that same job into Three.js source using the sceneseed-interpreter skill and submits it with submit_scene_object. Use only the supplied job context and SceneSeed submit tool. Do not inspect unrelated files or context, use network access, or call unrelated tools. BB may still supply core/provider tools and shared instructions; this selection is not an exclusive capability allowlist.",
+        "This is a Protofetti canvas interpreter thread. A progress-only turn requests four visualization notes and must not call tools. The immediately following build turn turns that same job into procedural sketch source using the sceneseed-interpreter skill and submits it with submit_scene_object. Use only the supplied job context and Protofetti submit tool. Do not inspect unrelated files or context, use network access, or call unrelated tools. BB may still supply core/provider tools and shared instructions; this selection is not an exclusive capability allowlist.",
     };
   });
 

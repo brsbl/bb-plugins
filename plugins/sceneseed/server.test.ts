@@ -82,12 +82,12 @@ const glass = new THREE.MeshPhysicalMaterial({
 });
 const dark = new THREE.MeshStandardMaterial({ color: 0x222222 });
 const jar = new THREE.Mesh(
-  new THREE.CylinderGeometry(1.4, 1.4, 3.8, 32),
+  new THREE.CylinderGeometry(1.4, 1.4, 3.8, 24),
   glass,
 );
 jar.position.y = 1.9;
 root.add(jar);
-const cloud = new THREE.Mesh(new THREE.SphereGeometry(0.8, 24, 16), dark);
+const cloud = new THREE.Mesh(new THREE.SphereGeometry(0.8, 20, 14), dark);
 cloud.scale.set(1.4, 0.7, 1);
 cloud.position.y = 2.7;
 root.add(cloud);
@@ -107,7 +107,7 @@ function configurationContext(
   return {
     thread: {
       id: "thr_scene",
-      title: "SceneSeed",
+      title: "Protofetti",
       parentThreadId: null,
       sourceThreadId: null,
     },
@@ -142,16 +142,22 @@ async function loadHost(input?: {
 }) {
   const threadId = input?.threadId ?? "thr_scene";
   let threadStatus = input?.threadStatus ?? "idle";
-  const send = vi.fn(async () => {
+  const send = vi.fn(
+    async (_request: {
+      input: object[];
+      serviceTier?: string;
+    }) => {
     input?.onSend?.();
     return { ok: true as const, delivery: "sent" as const };
-  });
+    },
+  );
   const stop = vi.fn(async () => ({ ok: true as const }));
   const archive = vi.fn(async () => ({ threads: [] }));
   const host = createFakePluginHost({
     pluginId: "sceneseed",
     agentSkillIds: ["sceneseed-interpreter"],
     sdk: {
+      subscribe: () => () => undefined,
       projects: {
         list: async () => [personalProject],
         defaultExecutionOptions: async () => null,
@@ -266,7 +272,7 @@ describe("SceneSeed agent orchestration", () => {
     expect(listed.canvases).toHaveLength(1);
   });
 
-  it("advertises a provider-compatible Three.js source tool schema", () => {
+  it("keeps the provider-compatible source tool schema for brush drawings", () => {
     const arrayValuedItems: string[] = [];
     const visit = (value: unknown, path: string): void => {
       if (Array.isArray(value)) {
@@ -307,6 +313,7 @@ describe("SceneSeed agent orchestration", () => {
     expect(selected.instructions).toContain(
       "not an exclusive capability allowlist",
     );
+    expect(selected.instructions).toContain("procedural sketch source");
 
     const ordinary = await host.harness.resolveAgentConfiguration(
       configurationContext({ origin: { kind: null, pluginId: null } }),
@@ -333,8 +340,10 @@ describe("SceneSeed agent orchestration", () => {
       reasoningLevel: "low",
       serviceTier: "fast",
     });
-    const prompt = loaded.host.harness.sdk.callsTo("threads.spawn")[0]?.[0]
-      ?.prompt as string;
+    const spawnRequest = loaded.host.harness.sdk.callsTo("threads.spawn")[0]?.[0] as
+      | { prompt?: string }
+      | undefined;
+    const prompt = spawnRequest?.prompt ?? "";
     expect(prompt).toContain('"prompt":"rain in a jar"');
     expect(prompt).toContain("exactly four concise, display-ready lines");
     expect(prompt).toContain("Do not call tools or write code");
@@ -356,9 +365,12 @@ describe("SceneSeed agent orchestration", () => {
       lastAssistantText: "Four real visual choices",
     });
     expect(loaded.send).toHaveBeenCalledTimes(1);
-    const buildPrompt = loaded.send.mock.calls[0]?.[0].input[0]?.text;
-    expect(buildPrompt).toContain("350–600 aggregate vertices");
-    expect(buildPrompt).toContain("soft, fun concept mockup");
+    const buildPrompt = (
+      loaded.send.mock.calls[0]?.[0].input[0] as { text?: string } | undefined
+    )?.text;
+    expect(buildPrompt).toContain("complete brush output at or below 520 vertices");
+    expect(buildPrompt).toContain("observational sketch");
+    expect(buildPrompt).toContain("BRUSH.create");
     expect(buildPrompt).toContain("Use only the submit_scene_object tool");
     expect(
       (
@@ -377,9 +389,10 @@ describe("SceneSeed agent orchestration", () => {
     expect(
       queued.snapshot.jobs.find((job) => job.id === queued.jobId)?.state,
     ).toBe("interpreting");
-    expect(
-      loaded.host.harness.sdk.callsTo("threads.spawn")[0]?.[0]?.prompt,
-    ).not.toBe("READY");
+    const spawnRequest = loaded.host.harness.sdk.callsTo("threads.spawn")[0]?.[0] as
+      | { prompt?: string }
+      | undefined;
+    expect(spawnRequest?.prompt).not.toBe("READY");
   });
 
   it("counts manual invalid calls, rejects another caller, and fails on attempt two", async () => {
