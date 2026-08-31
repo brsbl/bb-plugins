@@ -151,6 +151,21 @@ function boundedIssues(issues: readonly SceneContractIssue[]): string {
     .slice(0, 1_000);
 }
 
+function invalidSubmissionInstruction(
+  issues: readonly SceneContractIssue[],
+): string {
+  if (
+    issues.some(
+      (issue) =>
+        issue.path === "source" &&
+        issue.message === "the generated root contains no drawable objects",
+    )
+  ) {
+    return "The returned root is empty. Add every Group returned by brush.stroke(...) with root.add(brush.stroke(...)); calling brush.stroke(...) by itself discards the mark. Then call submit_scene_object one final time.";
+  }
+  return "Correct every issue and call submit_scene_object one final time.";
+}
+
 function envelopeIssues(error: z.ZodError): SceneContractIssue[] {
   return error.issues.map((issue) => ({
     code: issue.code,
@@ -530,7 +545,7 @@ export class SceneSeedRuntime {
     return [
       "Build and submit the Protofetti job below using the visual direction from the preceding progress turn and the sceneseed-interpreter skill.",
       "Use only the submit_scene_object tool. Do not write commentary or a final answer, inspect files, use network access, or call unrelated tools.",
-      "Write one compact visualization as a JavaScript function body using the BRUSH API described by the sceneseed-interpreter skill and pass that source text directly to submit_scene_object. BRUSH and THREE are supplied only when the plugin executes the source, so do not try to inspect or execute them yourself. Use THREE only to create the root Group; make every visible mark with one reusable BRUSH.create(...) instance and its stroke(points, overrides?) method. Compose a front-facing loose sketch from 4–6 purposeful contours or gesture lines, normally 4–6 control points each. Use one closed outer contour, a few overlapping interior contours, and no more than two lighter construction or hatching strokes. Keep the complete brush output at or below 520 vertices and the serialized scene at or below 160 KB. Start with the pencil texture, tapered shape, three layers, width 0.09–0.14, opacity 0.85–0.95, pressure variation 0.26–0.38, jitter 0.45–0.70, graphite color behavior, and a stable integer seed. Keep interior structure at 0.60–0.75 opacity and reserve 0.30–0.40 opacity for one-layer construction marks that are not required for recognition, then tune only what makes the prompt read more clearly. Keep coordinates on the XY plane within roughly -6 to 6 and use shallow depth overrides only to control overlap. Return camera: \"front\", movement: \"still\", and shadow: \"none\". Aim for an observational sketch, not polished vector art or a 3D model: asymmetrical searching lines, varied pressure, imperfect overlaps, visible construction, sparse graphite texture, and a recognizable silhouette. Avoid geometric primitives, glossy materials, solid fills, technical diagrams, grids, frames, and decorative lines that do not improve recognition. The plugin injects job and object identity, validates the bounded brush output, recenters it, and persists ordinary serialized Three.js geometry for the existing renderer. If validation issues are returned, correct them and call the tool one final time. End without prose after one visualization is accepted.",
+      "Write one compact visualization as a JavaScript function body using the BRUSH API described by the sceneseed-interpreter skill and pass that source text directly to submit_scene_object. BRUSH and THREE are supplied only when the plugin executes the source, so do not try to inspect or execute them yourself. Use THREE only to create the root Group; make every visible mark with one reusable BRUSH.create(...) instance and its stroke(points, overrides?) method. Every stroke returns a Group: attach it immediately with root.add(brush.stroke(...)); never call brush.stroke(...) by itself because that leaves root empty. Compose a front-facing loose sketch from 4–6 purposeful contours or gesture lines, normally 4–6 control points each. Use one closed outer contour, a few overlapping interior contours, and no more than two lighter construction or hatching strokes. Keep the complete brush output at or below 520 vertices and the serialized scene at or below 160 KB. Start with the pencil texture, tapered shape, three layers, width 0.09–0.14, opacity 0.85–0.95, pressure variation 0.26–0.38, jitter 0.45–0.70, graphite color behavior, and a stable integer seed. Keep interior structure at 0.60–0.75 opacity and reserve 0.30–0.40 opacity for one-layer construction marks that are not required for recognition, then tune only what makes the prompt read more clearly. Keep coordinates on the XY plane within roughly -6 to 6 and use shallow depth overrides only to control overlap. Return camera: \"front\", movement: \"still\", and shadow: \"none\". Aim for an observational sketch, not polished vector art or a 3D model: asymmetrical searching lines, varied pressure, imperfect overlaps, visible construction, sparse graphite texture, and a recognizable silhouette. Avoid geometric primitives, glossy materials, solid fills, technical diagrams, grids, frames, and decorative lines that do not improve recognition. The plugin injects job and object identity, validates the bounded brush output, recenters it, and persists ordinary serialized Three.js geometry for the existing renderer. If validation issues are returned, correct them and call the tool one final time. End without prose after one visualization is accepted.",
       context,
     ].join("\n\n");
   }
@@ -1325,8 +1340,7 @@ export class SceneSeedRuntime {
             accepted: false,
             retryAllowed: true,
             issues: issues.slice(0, 8),
-            instruction:
-              "Correct every issue and call submit_scene_object one final time.",
+            instruction: invalidSubmissionInstruction(issues),
           });
         }
         return {

@@ -371,6 +371,7 @@ describe("SceneSeed agent orchestration", () => {
     expect(buildPrompt).toContain("complete brush output at or below 520 vertices");
     expect(buildPrompt).toContain("observational sketch");
     expect(buildPrompt).toContain("BRUSH.create");
+    expect(buildPrompt).toContain("root.add(brush.stroke(...))");
     expect(buildPrompt).toContain("Use only the submit_scene_object tool");
     expect(
       (
@@ -448,6 +449,42 @@ describe("SceneSeed agent orchestration", () => {
       { threadId: "thr_scene" },
     );
     expect(third).toMatchObject({ isError: true });
+  });
+
+  it("explains how to attach discarded brush strokes before the final retry", async () => {
+    const { host } = await loadHost();
+    await createQueuedJob(host);
+
+    const result = await host.harness.callAgentTool(
+      "submit_scene_object",
+      {
+        source: `
+const root = new THREE.Group();
+const brush = BRUSH.create({ seed: 7, texture: "pencil" });
+brush.stroke([[-2, -1], [0, 2], [2, -1]], { closed: true });
+return {
+  root,
+  name: "Discarded mark",
+  altText: "A mark that was not attached to its root.",
+  camera: "front",
+  movement: "still",
+  shadow: "none",
+};`,
+      },
+      { threadId: "thr_scene" },
+    );
+
+    expect(JSON.parse(result as string)).toMatchObject({
+      accepted: false,
+      retryAllowed: true,
+      issues: [
+        {
+          path: "source",
+          message: "the generated root contains no drawable objects",
+        },
+      ],
+      instruction: expect.stringContaining("root.add(brush.stroke(...))"),
+    });
   });
 
   it("executes preferred Three.js source and injects the current job identity", async () => {

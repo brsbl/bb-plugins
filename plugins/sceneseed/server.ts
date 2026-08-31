@@ -99,7 +99,7 @@ export default async function sceneSeedPlugin(bb: BbPluginApi): Promise<void> {
     description:
       "Render agent-authored sketch source for the current Protofetti prompt.",
     instructions:
-      "For new work, submit exactly one JavaScript function body in source. THREE and the bounded procedural BRUSH API are already in scope; use BRUSH for the visible drawing and THREE only for grouping. Return { root, name, altText, camera?, movement?, shadow? }. Call at most twice: one submission and, only after actionable validation issues, one correction. Stop after one scene is accepted.",
+      "For new work, submit exactly one JavaScript function body in source. THREE and the bounded procedural BRUSH API are already in scope; use BRUSH for the visible drawing and THREE only for grouping. Every BRUSH stroke returns a Group: attach it with root.add(brush.stroke(...)); a bare brush.stroke(...) call leaves root empty. Return { root, name, altText, camera?, movement?, shadow? }. Call at most twice: one submission and, only after actionable validation issues, one correction. Stop after one scene is accepted.",
     parameters: submitSceneObjectParameters,
     execute(params, context) {
       return runtime.submitSceneObject(params, context.threadId);

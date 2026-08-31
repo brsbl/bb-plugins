@@ -62,9 +62,11 @@ return {
 };
 ```
 
-`pencil.stroke(points, overrides?)` returns a serializable `THREE.Group` and
-accepts two- or three-coordinate points. Two-coordinate points draw on the XY
-plane. Use shallow `depth` overrides only to control overlap.
+`pencil.stroke(points, overrides?)` returns a serializable `THREE.Group`; it
+does not attach itself. Add every visible mark with
+`root.add(pencil.stroke(...))`—a bare `pencil.stroke(...)` call is discarded.
+The method accepts two- or three-coordinate points. Two-coordinate points draw
+on the XY plane. Use shallow `depth` overrides only to control overlap.
 
 ### Brush controls
 
