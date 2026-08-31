@@ -9,6 +9,9 @@ test("the built server bundle registers and serves its initial state", async (t)
   const host = createFakePluginHost({
     pluginId: "sceneseed",
     agentSkillIds: ["sceneseed-interpreter"],
+    sdk: {
+      subscribe: () => () => undefined,
+    },
   });
   t.after(() => host.harness.lifecycle.dispose());
 
