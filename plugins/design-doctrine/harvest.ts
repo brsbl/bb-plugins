@@ -37,7 +37,6 @@ const HARVEST_SCHEMA = [
   `CREATE TABLE IF NOT EXISTS harvest_threads (
      thread_id TEXT PRIMARY KEY,
      project_id TEXT NOT NULL,
-     environment_id TEXT,
      queued_at INTEGER NOT NULL,
      processed_at INTEGER,
      outcome TEXT
@@ -283,7 +282,6 @@ export interface HarvestThread {
   id: string;
   projectId: string;
   title: string | null;
-  environmentId?: string | null;
   visibility?: string | null;
   originPluginId?: string | null;
 }
@@ -294,7 +292,6 @@ export interface HarvestAgentRequest {
   threadId: string;
   projectId: string;
   /** Environment of the archived thread, reused by the spawned agent when present. */
-  environmentId: string | null;
   title: string;
   prompt: string;
 }
@@ -413,11 +410,11 @@ export function createHarvest(dependencies: HarvestDependencies) {
     const result = db()
       .prepare(
         `INSERT INTO harvest_threads
-           (thread_id, project_id, environment_id, queued_at)
-         VALUES (?, ?, ?, ?)
+           (thread_id, project_id, queued_at)
+         VALUES (?, ?, ?)
          ON CONFLICT (thread_id) DO NOTHING`,
       )
-      .run(thread.id, thread.projectId, thread.environmentId ?? null, now());
+      .run(thread.id, thread.projectId, now());
     return result.changes > 0;
   }
 
@@ -425,11 +422,10 @@ export function createHarvest(dependencies: HarvestDependencies) {
   function pendingThreads(): Array<{
     threadId: string;
     projectId: string;
-    environmentId: string | null;
   }> {
     return db()
       .prepare(
-        `SELECT thread_id, project_id, environment_id FROM harvest_threads
+        `SELECT thread_id, project_id FROM harvest_threads
          WHERE processed_at IS NULL
          ORDER BY queued_at, thread_id`,
       )
@@ -439,10 +435,6 @@ export function createHarvest(dependencies: HarvestDependencies) {
         return {
           threadId: String(record.thread_id),
           projectId: String(record.project_id),
-          environmentId:
-            record.environment_id === null || record.environment_id === undefined
-              ? null
-              : String(record.environment_id),
         };
       });
   }
@@ -790,7 +782,6 @@ export function createHarvest(dependencies: HarvestDependencies) {
   async function harvestThread(
     threadId: string,
     projectId: string,
-    environmentId: string | null = null,
   ): Promise<void> {
     let doctrineRoot: string;
     try {
@@ -815,7 +806,6 @@ export function createHarvest(dependencies: HarvestDependencies) {
           kind: "harvester",
           threadId,
           projectId,
-          environmentId,
           title: "Doctrine harvest",
           prompt: harvesterPrompt(threadId, token),
         });
@@ -921,7 +911,6 @@ export function createHarvest(dependencies: HarvestDependencies) {
             kind: "reviewer",
             threadId,
             projectId,
-            environmentId,
             title: "Doctrine review",
             prompt: reviewerPrompt(stored, context, existingRules, token),
           });
