@@ -81,46 +81,21 @@ describe("Design Doctrine legacy history migration", () => {
     }
   });
 
-  it("leases history from a detached checkout, which it only reads", async () => {
-    const root = await createPluginRoot();
-    await writeFile(join(root, "rules", "existing.md"), "existing\n");
-    await execFileAsync("git", ["-C", root, "add", "rules/existing.md"]);
-    await execFileAsync("git", [
-      "-C",
-      root,
-      "-c",
-      "user.name=Design Doctrine Test",
-      "-c",
-      "user.email=doctrine-test@example.com",
-      "commit",
-      "-m",
-      "seed rules",
-    ]);
-    await execFileAsync("git", ["-C", root, "checkout", "--detach"]);
+  it("leases history without any git working tree", async () => {
+    // Reading episodes writes nothing, so it must not depend on a checkout —
+    // gating it on one is what used to strand maintenance entirely.
+    const root = await mkdtemp(join(tmpdir(), "doctrine-history-plain-"));
     const { bb, harness } = createFakePluginHost({
       pluginId: "design-doctrine",
       sdk: { threads: { list: async () => [] } },
     });
-    const history = createHistoryMaintenance(bb, async () => root, root);
+    const history = createHistoryMaintenance(bb, root);
 
     try {
-      await expect(history.scan(scanOptions())).resolves.toBeDefined();
-    } finally {
-      await harness.lifecycle.dispose();
-      await rm(root, { recursive: true, force: true });
-    }
-  });
-
-  it("leases history from a primary branch checkout", async () => {
-    const root = await createPluginRoot("main");
-    const { bb, harness } = createFakePluginHost({
-      pluginId: "design-doctrine",
-      sdk: { threads: { list: async () => [] } },
-    });
-    const history = createHistoryMaintenance(bb, async () => root, root);
-
-    try {
-      await expect(history.scan(scanOptions())).resolves.toBeDefined();
+      await expect(history.scan(scanOptions())).resolves.toMatchObject({
+        lease_id: null,
+        episode_count: 0,
+      });
     } finally {
       await harness.lifecycle.dispose();
       await rm(root, { recursive: true, force: true });
@@ -150,7 +125,7 @@ describe("Design Doctrine legacy history migration", () => {
         },
       },
     });
-    const history = createHistoryMaintenance(bb, async () => root, root);
+    const history = createHistoryMaintenance(bb, root);
 
     try {
       await expect(history.prepare()).rejects.toThrow("inventory unavailable");
@@ -196,7 +171,7 @@ describe("Design Doctrine legacy history migration", () => {
       pluginId: "design-doctrine",
       sdk: { threads: { list: async () => [] } },
     });
-    const history = createHistoryMaintenance(bb, async () => root, root);
+    const history = createHistoryMaintenance(bb, root);
 
     try {
       await expect(history.prepare()).rejects.toThrow(
@@ -237,11 +212,7 @@ describe("Design Doctrine legacy history migration", () => {
       pluginId: "design-doctrine",
       sdk: { threads: { list: async () => [] } },
     });
-    const history = createHistoryMaintenance(
-      bb,
-      async () => doctrineRoot,
-      installedPluginRoot,
-    );
+    const history = createHistoryMaintenance(bb, installedPluginRoot);
 
     try {
       await expect(history.prepare()).resolves.toEqual({

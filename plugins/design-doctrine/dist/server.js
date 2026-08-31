@@ -14534,7 +14534,7 @@ config(en_default());
 
 // corpus.ts
 import { execFile } from "node:child_process";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, rm } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { promisify } from "node:util";
 var execFileAsync = promisify(execFile);
@@ -14573,7 +14573,13 @@ async function resolveBaseBranch(repositoryRoot) {
 async function publishedRulesId(source, signal) {
   return git(
     source.repositoryRoot,
-    ["rev-parse", `origin/${source.baseBranch}:${source.prefix}/rules`],
+    [
+      "ls-tree",
+      "--object-only",
+      `origin/${source.baseBranch}`,
+      "--",
+      `${source.prefix}/rules`
+    ],
     signal
   );
 }
@@ -14584,18 +14590,21 @@ async function materializeRules(source, currentId, signal) {
   if (publishedId === currentId) return null;
   const staging = `${readPath}.incoming`;
   await rm(staging, { recursive: true, force: true });
-  await execFileAsync(
-    "sh",
-    [
-      "-c",
-      'set -e; mkdir -p "$1/rules"; git -C "$2" archive --format=tar "$3" | tar -x -C "$1/rules"',
+  await mkdir(join(staging, "rules"), { recursive: true });
+  if (publishedId.length > 0) {
+    await execFileAsync(
       "sh",
-      staging,
-      repositoryRoot,
-      `origin/${baseBranch}:${prefix}/rules`
-    ],
-    { encoding: "utf8", timeout: COMMAND_TIMEOUT_MS, signal }
-  );
+      [
+        "-c",
+        'set -e; git -C "$1" archive --format=tar "$2" | tar -x -C "$3"',
+        "sh",
+        repositoryRoot,
+        publishedId,
+        join(staging, "rules")
+      ],
+      { encoding: "utf8", timeout: COMMAND_TIMEOUT_MS, signal }
+    );
+  }
   const retired = `${readPath}.retired`;
   await rm(retired, { recursive: true, force: true });
   await execFileAsync("sh", [
@@ -14707,7 +14716,7 @@ async function readStalledPublications(source, stallAfterHours = 6, signal) {
 
 // history.ts
 import { execFile as execFile2 } from "node:child_process";
-import { mkdir, readFile, unlink, writeFile } from "node:fs/promises";
+import { mkdir as mkdir2, readFile, unlink, writeFile } from "node:fs/promises";
 import { join as join2 } from "node:path";
 import { promisify as promisify2 } from "node:util";
 
@@ -15697,7 +15706,7 @@ async function commitNewRuleFiles(pluginRoot, files, validate, expectedHead) {
   try {
     for (const file2 of files) {
       const absolutePath = join2(pluginRoot, file2.relativePath);
-      await mkdir(join2(absolutePath, ".."), { recursive: true });
+      await mkdir2(join2(absolutePath, ".."), { recursive: true });
       await writeFile(absolutePath, file2.content, { encoding: "utf8", flag: "wx" });
       created.push(file2.relativePath);
     }

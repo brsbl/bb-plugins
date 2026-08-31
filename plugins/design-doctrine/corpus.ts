@@ -1,5 +1,5 @@
 import { execFile } from "node:child_process";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, rm } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { promisify } from "node:util";
 
@@ -84,9 +84,18 @@ export async function publishedRulesId(
   source: CorpusSource,
   signal?: AbortSignal,
 ): Promise<string> {
+  // `ls-tree` prints nothing when the directory is absent and fails only on a
+  // genuine error, so "no rules published yet" stays distinguishable from "git
+  // is broken" — collapsing the two would publish or serve the wrong thing.
   return git(
     source.repositoryRoot,
-    ["rev-parse", `origin/${source.baseBranch}:${source.prefix}/rules`],
+    [
+      "ls-tree",
+      "--object-only",
+      `origin/${source.baseBranch}`,
+      "--",
+      `${source.prefix}/rules`,
+    ],
     signal,
   );
 }
@@ -111,18 +120,21 @@ export async function materializeRules(
 
   const staging = `${readPath}.incoming`;
   await rm(staging, { recursive: true, force: true });
-  await execFileAsync(
-    "sh",
-    [
-      "-c",
-      'set -e; mkdir -p "$1/rules"; git -C "$2" archive --format=tar "$3" | tar -x -C "$1/rules"',
+  await mkdir(join(staging, "rules"), { recursive: true });
+  if (publishedId.length > 0) {
+    await execFileAsync(
       "sh",
-      staging,
-      repositoryRoot,
-      `origin/${baseBranch}:${prefix}/rules`,
-    ],
-    { encoding: "utf8", timeout: COMMAND_TIMEOUT_MS, signal },
-  );
+      [
+        "-c",
+        'set -e; git -C "$1" archive --format=tar "$2" | tar -x -C "$3"',
+        "sh",
+        repositoryRoot,
+        publishedId,
+        join(staging, "rules"),
+      ],
+      { encoding: "utf8", timeout: COMMAND_TIMEOUT_MS, signal },
+    );
+  }
   const retired = `${readPath}.retired`;
   await rm(retired, { recursive: true, force: true });
   await execFileAsync("sh", [

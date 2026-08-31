@@ -111,6 +111,8 @@ describe("doctrine corpus", () => {
   });
 
   it("drops a rule that was removed upstream", async () => {
+    await commitRule(repository, "ddr_002.md");
+    await git(repository, "push", "--quiet", "origin", "main");
     const first = await materializeRules(source, null);
     await rm(join(repository, PREFIX, "rules", "interaction", "ddr_001.md"));
     await git(repository, "add", "-A");
@@ -122,6 +124,21 @@ describe("doctrine corpus", () => {
     expect(
       await exists(join(source.readPath, "rules", "interaction", "ddr_001.md")),
     ).toBe(false);
+    expect(
+      await exists(join(source.readPath, "rules", "interaction", "ddr_002.md")),
+    ).toBe(true);
+  });
+
+  it("serves an empty corpus when nothing is published yet", async () => {
+    await rm(join(repository, PREFIX, "rules", "interaction", "ddr_001.md"));
+    await git(repository, "add", "-A");
+    await git(repository, "commit", "--quiet", "-m", "remove every rule");
+    await git(repository, "push", "--quiet", "origin", "main");
+
+    expect(await publishedRulesId(source)).toBe("");
+    await materializeRules(source, null);
+
+    expect(await exists(join(source.readPath, "rules"))).toBe(true);
   });
 
   it("gives a batch a throwaway checkout of the published branch", async () => {
