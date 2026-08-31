@@ -113,12 +113,8 @@ function GalleryStory() {
       data-gallery-ready={data.entries.length === 50 ? "true" : "false"}
     >
       <header>
-        <p>Protofetti stress test</p>
-        <h1>50 prompt-driven prototype sketches</h1>
-        <span>
-          Production compiler and renderer · {data.viewport.width}×{data.viewport.height}
-          captures · {data.failures.length} generation failures
-        </span>
+        <h1>Protofetti prompt gallery</h1>
+        <span>{data.count} prompts</span>
       </header>
       {categories.map((category) => {
         const entries = data.entries.filter((entry) => entry.category === category);
