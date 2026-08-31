@@ -174,16 +174,64 @@ export async function refreshCheckout(
   return before !== (await git(path, "rev-parse", "HEAD"));
 }
 
-async function pullRequestExists(
+interface OpenPullRequest {
+  number: number;
+  url: string;
+  mergeStateStatus: string;
+  createdAt: string;
+}
+
+async function openPullRequest(
   path: string,
   branch: string,
-): Promise<boolean> {
+): Promise<OpenPullRequest | null> {
   const result = await execFileAsync(
     "gh",
-    ["pr", "list", "--head", branch, "--state", "open", "--json", "number"],
+    [
+      "pr",
+      "list",
+      "--head",
+      branch,
+      "--state",
+      "open",
+      "--json",
+      "number,url,mergeStateStatus,createdAt",
+    ],
     { cwd: path, encoding: "utf8" },
   );
-  return result.stdout.trim() !== "[]";
+  const parsed = JSON.parse(result.stdout) as OpenPullRequest[];
+  return parsed[0] ?? null;
+}
+
+export interface StalledPublication {
+  url: string;
+  /** Why GitHub will not merge it: BLOCKED, BEHIND, DIRTY, and so on. */
+  reason: string;
+  ageHours: number;
+}
+
+/**
+ * Reports a batch that was published but is not merging. Auto-merge waits
+ * indefinitely and nobody is watching the queue, so an unresolved review
+ * comment or a failing check would otherwise stop the corpus learning without
+ * ever saying so.
+ */
+export async function readStalledPublication(
+  checkout: CorpusCheckout,
+  stallAfterHours = 6,
+): Promise<StalledPublication | null> {
+  if ((await readState(checkout)) !== "unpublished") return null;
+  const head = await git(checkout.path, "rev-parse", "--short", "HEAD");
+  const pullRequest = await openPullRequest(checkout.path, `doctrine/${head}`);
+  if (!pullRequest) return null;
+  const ageHours =
+    (Date.now() - Date.parse(pullRequest.createdAt)) / (60 * 60 * 1_000);
+  if (ageHours < stallAfterHours) return null;
+  return {
+    url: pullRequest.url,
+    reason: pullRequest.mergeStateStatus,
+    ageHours: Math.round(ageHours),
+  };
 }
 
 /**
@@ -202,7 +250,7 @@ export async function publishCheckout(
   const head = await git(path, "rev-parse", "--short", "HEAD");
   const branch = `doctrine/${head}`;
   await git(path, "push", "--quiet", "--force-with-lease", "origin", `HEAD:refs/heads/${branch}`);
-  if (!(await pullRequestExists(path, branch))) {
+  if (!(await openPullRequest(path, branch))) {
     await execFileAsync(
       "gh",
       [

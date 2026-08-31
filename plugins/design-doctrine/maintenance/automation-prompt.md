@@ -108,5 +108,17 @@ root.
    bb doctrine history release --lease-id <lease-id>
    ```
 
-Report what changed, the pull request URL, anything left conflicted and the
-question it needs, and the rule count. Keep no-change runs to one sentence.
+9. Check whether an earlier batch is stuck before you finish:
+
+   ```bash
+   bb doctrine status --json
+   ```
+
+   A `stalled_publication` means a previous run's pull request has not merged —
+   a failing check, an unresolved review comment, or a conflict. Auto-merge
+   waits indefinitely, so name it in your report; the corpus learns nothing
+   further until it lands.
+
+Report what changed, the pull request URL, any stalled publication, anything
+left conflicted and the question it needs, and the rule count. Keep no-change
+runs to one sentence.

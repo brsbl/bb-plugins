@@ -11,9 +11,11 @@ import { z } from "zod";
 import {
   CORPUS_DIRECTORY,
   type CorpusCheckout,
+  type StalledPublication,
   ensureCheckout,
   pluginDataDirectory,
   publishCheckout,
+  readStalledPublication,
   refreshCheckout,
   resolveBaseBranch,
   resolveRepositoryRoot,
@@ -703,6 +705,8 @@ export default async function plugin(bb: BbPluginApi) {
   // published branch, so merged rules go live without anyone maintaining a
   // checkout by hand. An explicitly configured doctrinePath still wins.
   let corpusResolution: Promise<CorpusCheckout | null> | null = null;
+  let stalledPublication: StalledPublication | null = null;
+  let reportedStall: string | null = null;
 
   function resolveCorpus(): Promise<CorpusCheckout | null> {
     corpusResolution ??= (async () => {
@@ -1064,12 +1068,17 @@ export default async function plugin(bb: BbPluginApi) {
             rules: library.rules.length,
             statuses: library.status_counts,
             git: library.git,
+            stalled_publication: stalledPublication,
           };
           return {
             exitCode: 0,
             stdout: json
               ? `${JSON.stringify(summary, null, 2)}\n`
-              : `${summary.rules} rules (${Object.entries(summary.statuses).map(([status, count]) => `${count} ${status}`).join(", ")})\nRepository: ${summary.root}\n`,
+              : `${summary.rules} rules (${Object.entries(summary.statuses).map(([status, count]) => `${count} ${status}`).join(", ")})\nRepository: ${summary.root}\n${
+                  stalledPublication
+                    ? `Stalled: ${stalledPublication.url} not merged after ${stalledPublication.ageHours}h (${stalledPublication.reason})\n`
+                    : ""
+                }`,
           };
         }
         if (command === "search") {
@@ -1112,6 +1121,20 @@ export default async function plugin(bb: BbPluginApi) {
         bb.log.info(`doctrine corpus: published ${branch} for review by CI`);
       }
       await refreshCheckout(checkout);
+      stalledPublication = await readStalledPublication(checkout);
+      // Auto-merge waits forever, so say so once per distinct stall rather
+      // than staying quiet or repeating every cycle.
+      const signature = stalledPublication
+        ? `${stalledPublication.url}:${stalledPublication.reason}`
+        : null;
+      if (signature !== reportedStall) {
+        reportedStall = signature;
+        if (stalledPublication) {
+          bb.log.warn(
+            `doctrine corpus: ${stalledPublication.url} has not merged after ${stalledPublication.ageHours}h (${stalledPublication.reason}); rules stay unpublished until it does`,
+          );
+        }
+      }
     } catch (error) {
       bb.log.warn(
         `doctrine corpus upkeep failed, retrying next cycle: ${

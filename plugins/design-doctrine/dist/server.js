@@ -14635,13 +14635,36 @@ async function refreshCheckout(checkout) {
   await git(path, "reset", "--hard", "--quiet", `origin/${baseBranch}`);
   return before !== await git(path, "rev-parse", "HEAD");
 }
-async function pullRequestExists(path, branch) {
+async function openPullRequest(path, branch) {
   const result = await execFileAsync(
     "gh",
-    ["pr", "list", "--head", branch, "--state", "open", "--json", "number"],
+    [
+      "pr",
+      "list",
+      "--head",
+      branch,
+      "--state",
+      "open",
+      "--json",
+      "number,url,mergeStateStatus,createdAt"
+    ],
     { cwd: path, encoding: "utf8" }
   );
-  return result.stdout.trim() !== "[]";
+  const parsed = JSON.parse(result.stdout);
+  return parsed[0] ?? null;
+}
+async function readStalledPublication(checkout, stallAfterHours = 6) {
+  if (await readState(checkout) !== "unpublished") return null;
+  const head = await git(checkout.path, "rev-parse", "--short", "HEAD");
+  const pullRequest = await openPullRequest(checkout.path, `doctrine/${head}`);
+  if (!pullRequest) return null;
+  const ageHours = (Date.now() - Date.parse(pullRequest.createdAt)) / (60 * 60 * 1e3);
+  if (ageHours < stallAfterHours) return null;
+  return {
+    url: pullRequest.url,
+    reason: pullRequest.mergeStateStatus,
+    ageHours: Math.round(ageHours)
+  };
 }
 async function publishCheckout(checkout) {
   const { path, baseBranch } = checkout;
@@ -14649,7 +14672,7 @@ async function publishCheckout(checkout) {
   const head = await git(path, "rev-parse", "--short", "HEAD");
   const branch = `doctrine/${head}`;
   await git(path, "push", "--quiet", "--force-with-lease", "origin", `HEAD:refs/heads/${branch}`);
-  if (!await pullRequestExists(path, branch)) {
+  if (!await openPullRequest(path, branch)) {
     await execFileAsync(
       "gh",
       [
@@ -17160,6 +17183,8 @@ async function plugin(bb) {
   let loading = null;
   let automaticRules = [];
   let corpusResolution = null;
+  let stalledPublication = null;
+  let reportedStall = null;
   function resolveCorpus() {
     corpusResolution ??= (async () => {
       const repositoryRoot = await resolveRepositoryRoot(DEFAULT_DOCTRINE_PATH);
@@ -17493,14 +17518,16 @@ async function plugin(bb) {
             root: library.root,
             rules: library.rules.length,
             statuses: library.status_counts,
-            git: library.git
+            git: library.git,
+            stalled_publication: stalledPublication
           };
           return {
             exitCode: 0,
             stdout: json2 ? `${JSON.stringify(summary, null, 2)}
 ` : `${summary.rules} rules (${Object.entries(summary.statuses).map(([status, count]) => `${count} ${status}`).join(", ")})
 Repository: ${summary.root}
-`
+${stalledPublication ? `Stalled: ${stalledPublication.url} not merged after ${stalledPublication.ageHours}h (${stalledPublication.reason})
+` : ""}`
           };
         }
         if (command === "search") {
@@ -17539,6 +17566,16 @@ Repository: ${summary.root}
         bb.log.info(`doctrine corpus: published ${branch} for review by CI`);
       }
       await refreshCheckout(checkout);
+      stalledPublication = await readStalledPublication(checkout);
+      const signature = stalledPublication ? `${stalledPublication.url}:${stalledPublication.reason}` : null;
+      if (signature !== reportedStall) {
+        reportedStall = signature;
+        if (stalledPublication) {
+          bb.log.warn(
+            `doctrine corpus: ${stalledPublication.url} has not merged after ${stalledPublication.ageHours}h (${stalledPublication.reason}); rules stay unpublished until it does`
+          );
+        }
+      }
     } catch (error51) {
       bb.log.warn(
         `doctrine corpus upkeep failed, retrying next cycle: ${error51 instanceof Error ? error51.message : String(error51)}`
