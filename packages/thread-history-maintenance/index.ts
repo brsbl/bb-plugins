@@ -46,8 +46,24 @@ export interface HistoryAdvanceInput {
   leaseId: string;
 }
 
+/** An episode offered to {@link ThreadHistoryMaintenanceOptions.skipEpisode}. */
+export interface ScannedEpisode {
+  threadId: string;
+  title: string;
+  targetAt: number;
+  messages: ReadonlyArray<{ role: "user" | "assistant"; text: string }>;
+}
+
 export interface ThreadHistoryMaintenanceOptions {
   beforeScan?: () => Promise<void>;
+  /**
+   * Advance an episode's checkpoint without spending a reviewer on it, by
+   * returning a reason. Callers queue every idle thread, but most hold nothing
+   * the caller is looking for; without this the queue grows faster than any
+   * review cadence can drain it. Only complete episodes are offered, so a
+   * windowed one is never dropped before its remainder is seen.
+   */
+  skipEpisode?: (episode: ScannedEpisode) => string | null;
   legacyStateKeys?: string[];
   reconcileIntervalMs?: number;
 }
@@ -820,6 +836,7 @@ export function createThreadHistoryMaintenance(
         }> = [];
         const leaseTargets: LeaseTarget[] = [];
         const automaticTargets: LeaseTarget[] = [];
+        let skippedCount = 0;
         let messageCount = 0;
         let messageBytes = 0;
         let hitBound = false;
@@ -933,7 +950,17 @@ export function createThreadHistoryMaintenance(
             }
             const episode = result.episode;
             storeHydrationCursor(result.candidate.thread_id, null);
-            if (episode.messages.length === 0) {
+            const skipReason =
+              episode.messages.length > 0 && episode.complete
+                ? (options.skipEpisode?.({
+                    threadId: episode.state.thread_id,
+                    title: episode.state.title,
+                    targetAt: episode.targetAt,
+                    messages: episode.messages,
+                  }) ?? null)
+                : null;
+            if (episode.messages.length === 0 || skipReason !== null) {
+              if (skipReason !== null) skippedCount += 1;
               automaticTargets.push({
                 threadId: episode.state.thread_id,
                 targetSequence: episode.targetSequence,
@@ -1046,6 +1073,7 @@ export function createThreadHistoryMaintenance(
             message_bytes: 0,
             pending_thread_count: pendingCount(),
             deferred_thread_count: deferredThreadCount,
+            skipped_episode_count: skippedCount,
           };
         }
 
@@ -1086,6 +1114,7 @@ export function createThreadHistoryMaintenance(
           message_bytes: messageBytes,
           pending_thread_count: pendingCount(),
           deferred_thread_count: deferredThreadCount,
+          skipped_episode_count: skippedCount,
         };
       });
     },

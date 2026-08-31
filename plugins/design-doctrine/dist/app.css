@@ -295,6 +295,9 @@
     .inline-flex {
       display: inline-flex;
     }
+    .table {
+      display: table;
+    }
     .h-1\.5 {
       height: calc(var(--spacing) * 1.5);
     }
