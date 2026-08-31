@@ -121,31 +121,40 @@ export type CorpusState =
   /** Nothing of its own in flight; safe to fast-forward. */
   | "published";
 
+async function succeeds(
+  operation: () => Promise<unknown>,
+): Promise<boolean> {
+  try {
+    await operation();
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 /**
- * Compares rules rather than commits, because a batch reaches the published
- * branch as a squashed commit that shares no history with the one here. Commit
- * ancestry would report those rules as unpublished forever and republish them.
+ * Distinguishes the corpus having rules of its own from the published branch
+ * simply having moved ahead. Commit ancestry alone is not enough — a batch
+ * lands as a squash that shares no history with the commit here, which
+ * ancestry would report as unpublished forever and republish every cycle — so
+ * a checkout carrying local commits is only unpublished while its rules still
+ * differ from the ones on the published branch.
  */
 export async function readState(
   checkout: CorpusCheckout,
 ): Promise<CorpusState> {
   const { path, baseBranch, rulesPath } = checkout;
-  const status = await git(path, "status", "--porcelain=v1", "-uall");
-  if (status.length > 0) return "writing";
-  try {
-    await git(
-      path,
-      "diff",
-      "--quiet",
-      `origin/${baseBranch}`,
-      "HEAD",
-      "--",
-      rulesPath,
-    );
-    return "published";
-  } catch {
-    return "unpublished";
+  if ((await git(path, "status", "--porcelain=v1", "-uall")).length > 0) {
+    return "writing";
   }
+  const merged = await succeeds(() =>
+    git(path, "merge-base", "--is-ancestor", "HEAD", `origin/${baseBranch}`),
+  );
+  if (merged) return "published";
+  const sameRules = await succeeds(() =>
+    git(path, "diff", "--quiet", `origin/${baseBranch}`, "HEAD", "--", rulesPath),
+  );
+  return sameRules ? "published" : "unpublished";
 }
 
 /**

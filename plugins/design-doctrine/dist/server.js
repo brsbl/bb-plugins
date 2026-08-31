@@ -14604,24 +14604,27 @@ async function ensureCheckout(checkout) {
     startPoint
   );
 }
+async function succeeds(operation) {
+  try {
+    await operation();
+    return true;
+  } catch {
+    return false;
+  }
+}
 async function readState(checkout) {
   const { path, baseBranch, rulesPath } = checkout;
-  const status = await git(path, "status", "--porcelain=v1", "-uall");
-  if (status.length > 0) return "writing";
-  try {
-    await git(
-      path,
-      "diff",
-      "--quiet",
-      `origin/${baseBranch}`,
-      "HEAD",
-      "--",
-      rulesPath
-    );
-    return "published";
-  } catch {
-    return "unpublished";
+  if ((await git(path, "status", "--porcelain=v1", "-uall")).length > 0) {
+    return "writing";
   }
+  const merged = await succeeds(
+    () => git(path, "merge-base", "--is-ancestor", "HEAD", `origin/${baseBranch}`)
+  );
+  if (merged) return "published";
+  const sameRules = await succeeds(
+    () => git(path, "diff", "--quiet", `origin/${baseBranch}`, "HEAD", "--", rulesPath)
+  );
+  return sameRules ? "published" : "unpublished";
 }
 async function refreshCheckout(checkout) {
   await ensureCheckout(checkout);

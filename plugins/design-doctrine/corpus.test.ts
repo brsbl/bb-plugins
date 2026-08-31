@@ -119,7 +119,7 @@ describe("doctrine corpus checkout", () => {
     expect(await readState(checkout)).toBe("unpublished");
   });
 
-  it("fast-forwards to rules that have been published", async () => {
+  it("fast-forwards when the published branch moves ahead", async () => {
     await ensureCheckout(checkout);
     await writeRule(repository, "ddr_003.md");
     await git(repository, "add", "-A");
