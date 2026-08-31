@@ -411,7 +411,11 @@ export function createHarvest(dependencies: HarvestDependencies) {
       .prepare(
         `INSERT INTO harvest_threads
            (thread_id, project_id, queued_at)
+<<<<<<< HEAD
          VALUES (?, ?, ?, ?)
+=======
+         VALUES (?, ?, ?)
+>>>>>>> origin/bb/fix-doctrine-automation-environment-thr_i8zhsa7gjm
          ON CONFLICT (thread_id) DO NOTHING`,
       )
       .run(thread.id, thread.projectId, now());
