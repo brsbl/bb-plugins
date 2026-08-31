@@ -7,19 +7,18 @@ Limits: change at most five rule files per run. Don't touch plugin code, the
 skill, or `governance.md`. Only the user's own messages are evidence — never
 agent output, including your own.
 
-Run from the dedicated non-default branch/worktree whose
-`plugins/design-doctrine` folder is configured as the plugin's `doctrinePath`.
-The scanner rejects detached installs and primary branches (`main`, `master`,
-or `trunk`) before leasing history, so rule commits cannot dirty the normal
-checkout.
+Run from the worktree bb provisioned for this run. It is a fresh checkout of
+the repository on its own branch, so rule edits cannot disturb any other
+checkout and nothing has to be configured by hand. Rules live at
+`plugins/design-doctrine/rules`; every path below is relative to the worktree
+root.
 
 ## Steps
 
 1. Read completed, queued episodes through the plugin's thread-history API and
-   retain the returned `lease_id`. The command refuses to start if `rules/`
-   already contains tracked or untracked work. Per-thread checkpoints prevent
-   rereading old episodes, and the lease prevents concurrent runs from
-   processing the same batch. The bounds shown are the defaults.
+   retain the returned `lease_id`. Per-thread checkpoints prevent rereading old
+   episodes, and the lease prevents concurrent runs from processing the same
+   batch. The bounds shown are the defaults.
 
    ```bash
    bb doctrine history scan \
@@ -48,7 +47,7 @@ checkout.
    - nothing;
    - add an Evidence line to an existing rule and bump `supporting_episodes`;
    - tighten "Use when" / "Do not use when", or add an Exceptions section;
-   - write a new rule at `rules/<domain>/ddr_NNN.md`;
+   - write a new rule at `plugins/design-doctrine/rules/<domain>/ddr_NNN.md`;
    - retire a replaced rule (`status: retired`) and point its replacement at it
      through `relations`;
    - set `status: conflicted`, add the challenging evidence, bump
@@ -66,24 +65,37 @@ checkout.
    what the user asked for or corrected. Never paste transcripts, credentials,
    private URLs, thread IDs, or message IDs.
 
-6. If nothing changed, skip to step 7. Otherwise validate the personalized
-   corpus through the running plugin, then commit only the rule files:
+6. If nothing changed, skip to step 8. Otherwise validate this worktree's rules
+   and commit only rule files:
 
    ```bash
-   git diff --check -- rules
-   bb doctrine validate
-   git add -- rules
-   git commit --only -m "doctrine: <what changed>" -- rules
+   git diff --check -- plugins/design-doctrine/rules
+   bb doctrine validate plugins/design-doctrine
+   git add -- plugins/design-doctrine/rules
+   git commit -m "doctrine: <what changed>" -- plugins/design-doctrine/rules
    ```
 
-   `git commit --only -- rules` leaves unrelated staged or working-tree changes
-   untouched. The scan already refuses to start when `rules/` contains any
-   pre-existing work. Rule-only maintenance does not rebuild or test plugin
-   code; `bb doctrine validate` parses every rule and enforces the live schema,
-   evidence counts, relations, and lifecycle constraints.
+   `bb doctrine validate <path>` parses every rule under that path and enforces
+   the live schema, evidence counts, relations, and lifecycle constraints. Pass
+   the worktree's own plugin directory so you validate what you just wrote
+   rather than the published corpus.
 
-7. Advance every per-thread checkpoint in the leased batch after either a
-   successful commit or a no-change decision:
+7. Publish the batch as a pull request that merges itself once the
+   repository's required checks pass. Do not wait for CI and do not merge by
+   hand.
+
+   ```bash
+   git push -u origin HEAD
+   gh pr create --fill
+   gh pr merge --auto --squash
+   ```
+
+   The plugin picks the rules up on its next corpus refresh, a couple of
+   minutes after the merge. If CI fails, leave the pull request open and say so
+   in your report; the next run starts from a fresh worktree and is unaffected.
+
+8. Advance every per-thread checkpoint in the leased batch after either a
+   pushed pull request or a no-change decision:
 
    ```bash
    bb doctrine history advance --lease-id <lease-id>
@@ -96,5 +108,5 @@ checkout.
    bb doctrine history release --lease-id <lease-id>
    ```
 
-Report what changed, anything left conflicted and the question it needs, and the
-rule count. Keep no-change runs to one sentence.
+Report what changed, the pull request URL, anything left conflicted and the
+question it needs, and the rule count. Keep no-change runs to one sentence.

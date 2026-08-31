@@ -29,12 +29,12 @@ async function ensureMaintenanceBranch(pluginRoot: string): Promise<void> {
     if (branchName.length === 0) throw new Error("missing branch");
   } catch {
     throw new Error(
-      "maintenance requires doctrinePath to point to a dedicated non-default branch checkout, not a detached managed install; configure it with `bb plugin config design-doctrine set doctrinePath /path/to/bb-plugins-doctrine-maintenance/plugins/design-doctrine`",
+      "rule commits need a checkout on a branch; the plugin's own corpus checkout provides one, so this indicates a doctrinePath override pointing at a detached install",
     );
   }
   if (PRIMARY_BRANCH_NAMES.has(branchName)) {
     throw new Error(
-      `maintenance refuses primary branch ${branchName}; use a dedicated non-default branch/worktree and point doctrinePath at its plugins/design-doctrine folder`,
+      `refusing to commit rules onto primary branch ${branchName}; rules are published through a pull request, never committed to the published branch directly`,
     );
   }
 }
@@ -56,15 +56,25 @@ async function ruleTreeStatus(pluginRoot: string): Promise<string> {
   return result.stdout;
 }
 
-export async function ensureMaintenanceCheckout(
-  pluginRoot: string,
-): Promise<void> {
-  await ensureMaintenanceBranch(pluginRoot);
+/**
+ * Guards the rules tree before a batch is written into it. Leasing history is
+ * deliberately not gated on the branch: reading episodes writes nothing, and
+ * refusing to read because of where a checkout happens to sit is what used to
+ * strand maintenance entirely.
+ */
+export async function ensureRuleTreeClean(pluginRoot: string): Promise<void> {
   if ((await ruleTreeStatus(pluginRoot)).length > 0) {
     throw new Error(
       "rules tree has pre-existing work; commit, stash, or move it before scanning",
     );
   }
+}
+
+export async function ensureMaintenanceCheckout(
+  pluginRoot: string,
+): Promise<void> {
+  await ensureMaintenanceBranch(pluginRoot);
+  await ensureRuleTreeClean(pluginRoot);
 }
 
 export interface NewRuleFile {
@@ -280,8 +290,7 @@ export function createHistoryMaintenance(
   installedPluginRoot: string,
 ) {
   const history = createThreadHistoryMaintenance(bb, {
-    beforeScan: async () =>
-      ensureMaintenanceCheckout(await resolveDoctrineRoot()),
+    beforeScan: async () => ensureRuleTreeClean(await resolveDoctrineRoot()),
     legacyStateKeys: [LEGACY_HISTORY_STATE_KEY],
   });
   let migrationQueue: Promise<unknown> = Promise.resolve();
