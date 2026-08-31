@@ -559,33 +559,6 @@ export function automaticDoctrineGuidance(
   ].join("\n");
 }
 
-/**
- * Harvest queues a thread with the environment it was archived from, which is
- * often destroyed or retired by the time the harvest runs. Reusing one of those
- * fails the spawn outright, so the harvester falls back to a fresh unmanaged
- * workspace; it reads the thread's timeline, not its files.
- */
-export async function harvestSpawnEnvironment(
-  environmentId: string | null | undefined,
-  readEnvironment: (environmentId: string) => Promise<{ status: string }>,
-): Promise<
-  | { type: "reuse"; environmentId: string }
-  | { type: "host"; workspace: { type: "unmanaged"; path: null } }
-> {
-  const fresh = {
-    type: "host" as const,
-    workspace: { type: "unmanaged" as const, path: null },
-  };
-  if (!environmentId) return fresh;
-  try {
-    const environment = await readEnvironment(environmentId);
-    if (environment.status !== "ready") return fresh;
-  } catch {
-    return fresh;
-  }
-  return { type: "reuse", environmentId };
-}
-
 export async function gitStatusFingerprint(rootInput: string): Promise<string> {
   const root = expandPath(rootInput);
   try {
@@ -798,16 +771,17 @@ export default async function plugin(bb: BbPluginApi) {
     validateRules: async (doctrineRoot) => {
       await loadDoctrine(doctrineRoot);
     },
-    async runAgent({ projectId, environmentId, title, prompt }) {
+    async runAgent({ projectId, title, prompt }) {
       const spawned = await bb.sdk.threads.spawn({
         projectId,
         // Hidden so the harvest never interrupts the user. `spawn` attributes
         // the thread to this plugin, which also keeps it out of its own queue.
         visibility: "hidden",
-        environment: await harvestSpawnEnvironment(
-          environmentId,
-          async (id) => bb.sdk.environments.get({ environmentId: id }),
-        ),
+        // Both agents read the thread through bb's API and report through the
+        // doctrine CLI; neither opens a file. Reusing the archived thread's
+        // environment only tied the harvest to workspaces bb had already
+        // destroyed.
+        environment: { type: "host", workspace: { type: "unmanaged", path: null } },
         title,
         prompt,
       });
@@ -829,9 +803,8 @@ export default async function plugin(bb: BbPluginApi) {
         for (const {
           threadId,
           projectId,
-          environmentId,
         } of harvest.pendingThreads()) {
-          await harvest.harvestThread(threadId, projectId, environmentId);
+          await harvest.harvestThread(threadId, projectId);
         }
       })
       .catch((error: unknown) => {
