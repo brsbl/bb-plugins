@@ -54,6 +54,7 @@ export const threadSummarySchema = z
     currentTurnCompletedAt: z.number().nullable(),
     currentTurnStartedAt: z.number().nullable(),
     diagnostics: rpcDiagnosticsSchema,
+    hostName: z.string().nullable(),
     latestAssistantMessage: z.string().nullable(),
     permissionMode: z
       .enum([
@@ -966,6 +967,22 @@ export default function plugin(bb: BbPluginApi): void {
         const skipProject =
           environment?.workspaceProvisionType === "personal" &&
           !environment.isGitRepo;
+        const hostPromise = environment?.hostId
+          ? measureCachedStage(recorder, "host", () =>
+              stableDescriptors.get(`host:${environment.hostId}`, () =>
+                within(
+                  safely(
+                    bb.sdk.hosts.get({
+                      hostId: environment.hostId,
+                      signal,
+                    }),
+                  ),
+                  remainingMs(),
+                ),
+              ),
+            )
+          : (recordSkippedStage(recorder, "host"),
+            Promise.resolve({ source: "hit" as const, value: null }));
         if (skipProject) recordSkippedStage(recorder, "project");
         const projectPromise = skipProject
           ? Promise.resolve({ source: "hit" as const, value: null })
@@ -1042,12 +1059,17 @@ export default function plugin(bb: BbPluginApi): void {
                   loadOutlineMessage("messageOutlineFallback")
                 );
               });
-        const [projectResult, executionOptions, latestAssistantMessage] =
-          await Promise.all([
-            projectPromise,
-            executionOptionsPromise,
-            latestAssistantMessagePromise,
-          ]);
+        const [
+          hostResult,
+          projectResult,
+          executionOptions,
+          latestAssistantMessage,
+        ] = await Promise.all([
+          hostPromise,
+          projectPromise,
+          executionOptionsPromise,
+          latestAssistantMessagePromise,
+        ]);
         const project = projectResult.value;
         const isGitRepository =
           environment?.isGitRepo ?? project?.gitRemoteUrl != null;
@@ -1061,6 +1083,7 @@ export default function plugin(bb: BbPluginApi): void {
           currentTurnCompletedAt: null,
           currentTurnStartedAt: null,
           diagnostics,
+          hostName: hostResult.value?.name ?? null,
           latestAssistantMessage: normalizedAssistantMessage || null,
           permissionMode: executionOptions?.permissionMode ?? null,
           pullRequest: isGitRepository

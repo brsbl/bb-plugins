@@ -68,13 +68,6 @@ clearly applies, except when that rule itself requires explicit user intent.
 Choose only a key from the live settings block. Inbox is system-managed and
 can’t be selected.
 
-Re-run the already-remembered stage only when the durable core job of the
-entire thread changed enough that its current title is materially inaccurate.
-Do not refresh for the latest turn, a new subtask, a method or approach change,
-ordinary progress, implementation versus validation, or completion of one
-step. This keeps titles anchored to the thread’s identity instead of its most
-recent activity.
-
 If several stages seem relevant, use the one describing the next concrete
 action. If you lack sufficient context, leave the remembered stage unchanged
 rather than inventing a transition. Do not move the thread merely to record an

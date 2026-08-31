@@ -54,7 +54,7 @@ Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/t
 
 ### Thread Organizer
 
-Organizes work into configurable workflow sections, keeps unread idle threads in Inbox until work resumes or you explicitly clear them, and reassesses titles after semantic stage transitions.
+Organizes work into configurable workflow sections and keeps unread idle threads in Inbox until work resumes or you explicitly clear them.
 
 ![Thread Organizer showing the current development-phase sections in bb's sidebar](plugins/thread-organizer/docs/screenshot.png)
 
@@ -111,6 +111,26 @@ Renders an inline swatch beside every color literal in a thread — hex, `rgb()`
 [Source](plugins/color-swatches) · [README](plugins/color-swatches/README.md)
 
 Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/color-swatches --yes`
+
+### Open in Moss
+
+Makes local Markdown links in bb open directly in Moss, with bb's viewer kept as the fallback.
+
+![A Markdown file link from bb open in Moss](plugins/open-in-moss/docs/screenshot.png)
+
+[Source](plugins/open-in-moss) · [README](plugins/open-in-moss/README.md)
+
+Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/open-in-moss --yes`
+
+### @Plugin
+
+Adds installed and Community plugins to bb's existing `@` menu without installing or invoking them.
+
+![Plugin mentions in bb](plugins/at-plugin/docs/screenshot.png)
+
+[Source](plugins/at-plugin) · [README](plugins/at-plugin/README.md)
+
+Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/at-plugin --yes`
 
 ### Timeline Comments
 

@@ -37,7 +37,7 @@ export const HOVER_CARD_CSS = String.raw`
 .bb-thread-hover-card__times,
 .bb-thread-hover-card__context,
 .bb-thread-hover-card__project,
-.bb-thread-hover-card__branch,
+.bb-thread-hover-card__host,
 .bb-thread-hover-card__local,
 .bb-thread-hover-card__pr,
 .bb-thread-hover-card__access,
@@ -217,7 +217,7 @@ export const HOVER_CARD_CSS = String.raw`
 }
 
 .bb-thread-hover-card__project,
-.bb-thread-hover-card__branch {
+.bb-thread-hover-card__host {
   gap: 0.25rem;
   overflow: hidden;
 }
@@ -227,19 +227,19 @@ export const HOVER_CARD_CSS = String.raw`
   flex: 0 1 auto;
 }
 
-.bb-thread-hover-card__context[data-has-branch="false"]
+.bb-thread-hover-card__context[data-has-host="false"]
   .bb-thread-hover-card__project {
   max-width: 100%;
   flex: 1 1 auto;
 }
 
-.bb-thread-hover-card__branch {
+.bb-thread-hover-card__host {
   flex: 1 1 4rem;
   min-width: 0;
 }
 
 .bb-thread-hover-card__project-name,
-.bb-thread-hover-card__branch-name,
+.bb-thread-hover-card__host-name,
 .bb-thread-hover-card__local-path {
   min-width: 0;
   overflow: hidden;
@@ -249,7 +249,7 @@ export const HOVER_CARD_CSS = String.raw`
 }
 
 .bb-thread-hover-card__project-name,
-.bb-thread-hover-card__branch-name,
+.bb-thread-hover-card__host-name,
 .bb-thread-hover-card__local-path {
   flex: 1 1 auto;
 }

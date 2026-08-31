@@ -2,7 +2,6 @@ import {
   createFakePluginHost,
   makeThreadResponse,
 } from "@get-bb/plugin-sdk/testing";
-import type { BbPluginApi } from "@get-bb/plugin-sdk";
 import { describe, expect, it, vi } from "vitest";
 
 import {
@@ -14,7 +13,6 @@ import {
 import plugin from "./server.js";
 
 type TestThread = ReturnType<typeof makeThreadResponse>;
-type ThreadSpawnArgs = Parameters<BbPluginApi["sdk"]["threads"]["spawn"]>[0];
 
 interface TestSection {
   createdAt: number;
@@ -81,7 +79,14 @@ function createHarness(options: { legacyPlanning?: boolean } = {}) {
         },
       ]
     : [];
-  const changedCallbacks: Array<(threadId: string) => void> = [];
+  type TestThreadChange =
+    | "archived-changed"
+    | "parent-changed"
+    | "read-state-changed"
+    | "title-changed";
+  const changedCallbacks: Array<
+    (threadId: string, changes: readonly TestThreadChange[]) => void
+  > = [];
 
   const create = vi.fn(async ({ name }: { name: string }) => {
     const section: TestSection = {
@@ -138,36 +143,22 @@ function createHarness(options: { legacyPlanning?: boolean } = {}) {
   const getThread = vi.fn(async ({ threadId }: { threadId: string }) =>
     getTestThread(threadId),
   );
-  const listThreads = vi.fn(async () => [...threads.values()]);
+  const listThreads = vi.fn(async (_input?: { signal?: AbortSignal }) => [
+    ...threads.values(),
+  ]);
   const listSections = vi.fn(async () =>
     sections.map((section) => ({ ...section })),
   );
-  const spawnThread = vi.fn(async (_args: ThreadSpawnArgs) =>
+  const spawnThread = vi.fn(async () =>
     makeThreadResponse({
-      id: "thr_title_worker",
+      id: "thr_unexpected_worker",
       projectId: getTestThread().projectId,
       environmentId: getTestThread().environmentId,
       visibility: "hidden",
       originPluginId: "thread-organizer",
-      title: "Reassess thread title",
+      title: "Unexpected worker",
     }),
   );
-  const waitThread = vi.fn(async () => ({ matched: true }));
-  const outputThread = vi.fn(async () => ({
-    output:
-      '{"decisions":[{"id":"thr_test","action":"rename","title":"Implement semantic thread titles"}]}',
-  }));
-  const timelineThread = vi.fn(async () => ({
-    rows: [
-      {
-        kind: "conversation",
-        role: "user",
-        text: "Implement semantic thread title reassessment.",
-      },
-    ],
-  }));
-  const archiveThread = vi.fn(async () => ({}));
-  const stopThread = vi.fn(async () => ({ ok: true }));
 
   const host = createFakePluginHost({
     pluginId: "thread-organizer",
@@ -175,17 +166,17 @@ function createHarness(options: { legacyPlanning?: boolean } = {}) {
     sdk: {
       subscribe: (args) => {
         const callback = args.callback as unknown as (event: {
-          changes: ["read-state-changed"];
+          changes: readonly TestThreadChange[];
           entity: "thread";
           id: string;
           type: "changed";
         }) => void;
-        changedCallbacks.push((threadId) =>
+        changedCallbacks.push((threadId, changes) =>
           callback({
             entity: "thread",
             type: "changed",
             id: threadId,
-            changes: ["read-state-changed"],
+            changes,
           }),
         );
         return () => undefined;
@@ -197,15 +188,10 @@ function createHarness(options: { legacyPlanning?: boolean } = {}) {
         update: updateSection,
       },
       threads: {
-        archive: archiveThread,
         get: getThread,
         list: listThreads,
-        output: outputThread,
         spawn: spawnThread,
-        stop: stopThread,
-        timeline: timelineThread,
         update: updateThread,
-        wait: waitThread,
       },
     },
   });
@@ -214,37 +200,25 @@ function createHarness(options: { legacyPlanning?: boolean } = {}) {
     ...host,
     create,
     deleteSection,
-    archiveThread,
     getThread,
     listSections,
     listThreads,
-    outputThread,
     updateSection,
     updateThread,
     spawnThread,
-    stopThread,
-    timelineThread,
-    waitThread,
     current: (threadId = "thr_test") => getTestThread(threadId),
     sections: () => sections.map((section) => ({ ...section })),
-    addThread(changes: Partial<TestThread> & { id: string }) {
-      threads.set(
-        changes.id,
-        makeThreadResponse({
-          projectId: "proj_test",
-          status: "active",
-          lastReadAt: 0,
-          latestAttentionAt: 10,
-          ...changes,
-        }),
-      );
-    },
     setThread(changes: Partial<TestThread>, threadId = "thr_test") {
       const thread = getTestThread(threadId);
       threads.set(threadId, makeThreadResponse({ ...thread, ...changes }));
     },
-    emitChanged(threadId = "thr_test") {
-      for (const callback of changedCallbacks) callback(threadId);
+    emitChanged(
+      changes: TestThreadChange | readonly TestThreadChange[] =
+        "read-state-changed",
+      threadId = "thr_test",
+    ) {
+      const changeList = Array.isArray(changes) ? changes : [changes];
+      for (const callback of changedCallbacks) callback(threadId, changeList);
     },
   };
 }
@@ -304,6 +278,120 @@ describe("Thread Organizer server", () => {
     await organizer.harness.lifecycle.dispose();
   });
 
+  it("keeps the plugin registered when startup reconciliation fails", async () => {
+    const organizer = createHarness();
+    organizer.setThread({
+      status: "idle",
+      lastReadAt: 0,
+      latestAttentionAt: 20,
+    });
+    organizer.updateThread.mockRejectedValueOnce(new Error("update failed"));
+
+    await expect(plugin(organizer.bb)).resolves.toBeUndefined();
+
+    expect(organizer.harness.inspection.registrations.cli?.name).toBe(
+      "organizer",
+    );
+    expect(organizer.harness.inspection.registrations.rpcMethods).toEqual([
+      "getConfig",
+      "saveConfig",
+    ]);
+    expect(
+      organizer.harness.inspection.registrations.agentConfigurationProvider,
+    ).not.toBeNull();
+    await organizer.harness.lifecycle.dispose();
+  });
+
+  it("handles lifecycle events while startup reconciliation is listing threads", async () => {
+    const organizer = createHarness();
+    let releaseList!: () => void;
+    let markListStarted!: () => void;
+    const listBlocked = new Promise<void>((resolve) => {
+      releaseList = resolve;
+    });
+    const listStarted = new Promise<void>((resolve) => {
+      markListStarted = resolve;
+    });
+    organizer.listThreads.mockImplementationOnce(async () => {
+      markListStarted();
+      await listBlocked;
+      return [organizer.current()];
+    });
+
+    const activation = plugin(organizer.bb);
+    await listStarted;
+    organizer.setThread({
+      status: "idle",
+      lastReadAt: 0,
+      latestAttentionAt: 20,
+    });
+    await organizer.harness.behavior.emitThreadEvent("thread.idle", {
+      thread: organizer.current(),
+      lastAssistantText: null,
+    });
+
+    expect(organizer.current().sectionId).toBe("sec_1");
+    releaseList();
+    await activation;
+    await organizer.harness.lifecycle.dispose();
+  });
+
+  it("re-fetches current thread state after startup listing", async () => {
+    const organizer = createHarness();
+    organizer.setThread({
+      status: "idle",
+      lastReadAt: 0,
+      latestAttentionAt: 20,
+      sectionId: "sec_2",
+    });
+    organizer.listThreads.mockImplementationOnce(async () => {
+      const stale = organizer.current();
+      organizer.setThread({
+        status: "active",
+        lastReadAt: 20,
+        latestAttentionAt: 20,
+        sectionId: "sec_4",
+      });
+      return [stale];
+    });
+
+    await plugin(organizer.bb);
+
+    expect(organizer.current().sectionId).toBe("sec_4");
+    await expect(
+      organizer.bb.storage.kv.get("thread:v3:thr_test"),
+    ).resolves.toEqual({ version: 5, rememberedStageKey: "building" });
+    await organizer.harness.lifecycle.dispose();
+  });
+
+  it("aborts startup listing when the plugin is disposed", async () => {
+    const organizer = createHarness();
+    let releaseList!: () => void;
+    let markListStarted!: () => void;
+    let listSignal: AbortSignal | undefined;
+    const listBlocked = new Promise<void>((resolve) => {
+      releaseList = resolve;
+    });
+    const listStarted = new Promise<void>((resolve) => {
+      markListStarted = resolve;
+    });
+    organizer.listThreads.mockImplementationOnce(async (input) => {
+      listSignal = input?.signal;
+      markListStarted();
+      await listBlocked;
+      return [organizer.current()];
+    });
+
+    const activation = plugin(organizer.bb);
+    await listStarted;
+    const disposal = organizer.harness.lifecycle.dispose();
+
+    expect(listSignal?.aborted).toBe(true);
+    releaseList();
+    await Promise.all([activation, disposal]);
+    expect(organizer.listThreads).toHaveBeenCalledTimes(1);
+  });
+
   it("migrates an emoji-prefixed default in place and preserves its id", async () => {
     const organizer = createHarness({ legacyPlanning: true });
     await plugin(organizer.bb);
@@ -344,10 +432,14 @@ describe("Thread Organizer server", () => {
     expect(organizer.current().sectionId).toBe(sectionId("inbox"));
 
     organizer.setThread({ lastReadAt: 20 });
-    await organizer.harness.behavior.emitThreadEvent("thread.idle", {
-      thread: organizer.current(),
-      lastAssistantText: null,
+    await organizer.bb.storage.kv.set("thread:v3:thr_test", {
+      version: 4,
+      inboxLatched: false,
+      rememberedStageKey: "planning",
+      lastObservedSectionId: sectionId("inbox"),
     });
+    organizer.emitChanged(["read-state-changed", "title-changed"]);
+    await new Promise((resolve) => setTimeout(resolve, 0));
     expect(organizer.current().sectionId).toBe(sectionId("inbox"));
 
     organizer.setThread({ lastReadAt: 0 });
@@ -365,6 +457,91 @@ describe("Thread Organizer server", () => {
       organizer.harness.inspection.sdk.callsTo("threads.promptHistory"),
     ).toHaveLength(0);
     expect(organizer.spawnThread).not.toHaveBeenCalled();
+    await organizer.harness.lifecycle.dispose();
+  });
+
+  it("does not remove a running Inbox thread when it becomes read", async () => {
+    const organizer = createHarness();
+    await plugin(organizer.bb);
+    const config = await configFor(organizer);
+    const inboxId = config.stages.find(
+      (stage) => stage.key === "inbox",
+    )!.sectionId;
+
+    organizer.setThread({
+      status: "idle",
+      lastReadAt: 0,
+      latestAttentionAt: 20,
+    });
+    await organizer.harness.behavior.emitThreadEvent("thread.idle", {
+      thread: organizer.current(),
+      lastAssistantText: null,
+    });
+    expect(organizer.current().sectionId).toBe(inboxId);
+
+    organizer.setThread({ status: "active", lastReadAt: 20 });
+    const fetchCount = organizer.getThread.mock.calls.length;
+    organizer.emitChanged(["read-state-changed", "title-changed"]);
+    await vi.waitFor(() =>
+      expect(organizer.getThread.mock.calls.length).toBeGreaterThan(fetchCount),
+    );
+
+    expect(organizer.current().sectionId).toBe(inboxId);
+    await organizer.harness.lifecycle.dispose();
+  });
+
+  it("routes lifecycle events from current state instead of event snapshots", async () => {
+    const organizer = createHarness();
+    await plugin(organizer.bb);
+    expect(organizer.harness.inspection.registrations.services).toEqual([]);
+    const config = await configFor(organizer);
+    const sectionId = (key: string) =>
+      config.stages.find((stage) => stage.key === key)!.sectionId;
+
+    const stale = makeThreadResponse({
+      ...organizer.current(),
+      status: "idle",
+      lastReadAt: 0,
+      latestAttentionAt: 20,
+      sectionId: sectionId("planning"),
+    });
+    organizer.setThread({
+      status: "active",
+      lastReadAt: 20,
+      latestAttentionAt: 20,
+      sectionId: sectionId("building"),
+    });
+    await organizer.harness.behavior.emitThreadEvent("thread.idle", {
+      thread: stale,
+      lastAssistantText: null,
+    });
+
+    expect(organizer.current().sectionId).toBe(sectionId("building"));
+    expect(organizer.getThread).toHaveBeenCalledWith({ threadId: "thr_test" });
+    await organizer.harness.lifecycle.dispose();
+  });
+
+  it("reconciles every thread change as a current-state invalidation", async () => {
+    const organizer = createHarness();
+    await plugin(organizer.bb);
+    const config = await configFor(organizer);
+    const onHoldId = config.stages.find(
+      (stage) => stage.key === "on-hold",
+    )!.sectionId;
+    organizer.setThread({
+      status: "active",
+      lastReadAt: 20,
+      latestAttentionAt: 20,
+      sectionId: onHoldId,
+    });
+
+    organizer.emitChanged("parent-changed");
+
+    await vi.waitFor(async () => {
+      await expect(
+        organizer.bb.storage.kv.get("thread:v3:thr_test"),
+      ).resolves.toEqual({ version: 5, rememberedStageKey: "on-hold" });
+    });
     await organizer.harness.lifecycle.dispose();
   });
 
@@ -397,13 +574,41 @@ describe("Thread Organizer server", () => {
     expect(organizer.current().sectionId).toBe(inboxId);
     await expect(
       organizer.bb.storage.kv.get("thread:v3:thr_test"),
-    ).resolves.toMatchObject({ version: 4, inboxLatched: true });
+    ).resolves.toEqual({ version: 5, rememberedStageKey: "planning" });
 
     organizer.setThread({ status: "starting" });
     await organizer.harness.behavior.emitThreadEvent("thread.active", {
       thread: organizer.current(),
     });
     expect(organizer.current().sectionId).toBe(planningId);
+    await organizer.harness.lifecycle.dispose();
+  });
+
+  it("treats a visible Inbox placement as authoritative on startup", async () => {
+    const organizer = createHarness();
+    organizer.setThread({
+      status: "idle",
+      lastReadAt: 10,
+      latestAttentionAt: 10,
+      sectionId: "sec_1",
+    });
+    await organizer.bb.storage.kv.set("thread:v3:thr_test", {
+      version: 4,
+      inboxLatched: false,
+      rememberedStageKey: "planning",
+      lastObservedSectionId: "sec_1",
+    });
+
+    await plugin(organizer.bb);
+    const config = await configFor(organizer);
+    const inboxId = config.stages.find(
+      (stage) => stage.key === "inbox",
+    )!.sectionId;
+
+    expect(organizer.current().sectionId).toBe(inboxId);
+    await expect(
+      organizer.bb.storage.kv.get("thread:v3:thr_test"),
+    ).resolves.toEqual({ version: 5, rememberedStageKey: "planning" });
     await organizer.harness.lifecycle.dispose();
   });
 
@@ -428,223 +633,23 @@ describe("Thread Organizer server", () => {
     await organizer.harness.lifecycle.dispose();
   });
 
-  it("reassesses the affected title after a semantic stage transition", async () => {
+  it("moves stages without changing the thread title or spawning a worker", async () => {
     const organizer = createHarness();
-    organizer.setThread({
-      environmentId: "env_test",
-      status: "active",
-      title: "Old work title",
-    });
-    await plugin(organizer.bb);
-
-    await organizer.harness.behavior.runCli(["phase", "building"], {
-      threadId: "thr_test",
-    });
-
-    await vi.waitFor(() =>
-      expect(organizer.spawnThread).toHaveBeenCalledOnce(),
-    );
-    await vi.waitFor(() =>
-      expect(organizer.current().title).toBe(
-        "Implement semantic thread titles",
-      ),
-    );
-    expect(organizer.spawnThread).toHaveBeenCalledWith(
-      expect.objectContaining({
-        environment: { type: "reuse", environmentId: "env_test" },
-        permissionMode: "accept-edits",
-        projectId: "proj_test",
-        visibility: "hidden",
-      }),
-    );
-    expect(organizer.spawnThread.mock.calls[0]?.[0].prompt).toContain(
-      "Implement semantic thread title reassessment.",
-    );
-    expect(organizer.spawnThread.mock.calls[0]?.[0].prompt).toContain(
-      "durable core job of the whole thread",
-    );
-    expect(organizer.spawnThread.mock.calls[0]?.[0].prompt).toContain(
-      "a stage change alone is not a reason to rename",
-    );
-    expect(organizer.waitThread).toHaveBeenCalledWith(
-      expect.objectContaining({
-        event: "turn/completed",
-        threadId: "thr_title_worker",
-      }),
-    );
-    expect(organizer.archiveThread).toHaveBeenCalledWith({
-      threadId: "thr_title_worker",
-    });
-    expect(organizer.stopThread).toHaveBeenCalledWith({
-      threadId: "thr_title_worker",
-    });
-    await expect(
-      organizer.harness.behavior.resolveAgentConfiguration(
-        agentContext("thread-organizer"),
-      ),
-    ).resolves.toMatchObject({ skills: [] });
-    await organizer.harness.lifecycle.dispose();
-  });
-
-  it("reassesses a title when the core job changes within the current stage", async () => {
-    const organizer = createHarness();
-    organizer.setThread({ status: "active", title: "Old planning title" });
+    organizer.setThread({ status: "active", title: "Durable project title" });
     await plugin(organizer.bb);
 
     const result = await organizer.harness.behavior.runCli(
-      ["phase", "planning"],
+      ["phase", "building"],
       { threadId: "thr_test" },
     );
 
-    expect(result.stdout).toContain("queued a title refresh");
-    expect(result.stdout).not.toContain("Confirm");
-
-    await vi.waitFor(() =>
-      expect(organizer.current().title).toBe(
-        "Implement semantic thread titles",
-      ),
-    );
-    expect(organizer.spawnThread).toHaveBeenCalledOnce();
-    await organizer.harness.lifecycle.dispose();
-  });
-
-  it("caps generated rename proposals at five words", async () => {
-    const organizer = createHarness();
-    organizer.setThread({ status: "active", title: "Old planning title" });
-    organizer.outputThread.mockResolvedValueOnce({
-      output:
-        '{"decisions":[{"id":"thr_test","action":"rename","title":"Investigate and fix thread organizer title generation"}]}',
+    expect(result).toMatchObject({
+      exitCode: 0,
+      stdout: expect.stringContaining("Applied Building to thr_test."),
     });
-    await plugin(organizer.bb);
-
-    await organizer.harness.behavior.runCli(["phase", "planning"], {
-      threadId: "thr_test",
-    });
-
-    await vi.waitFor(() =>
-      expect(organizer.current().title).toBe(
-        "Investigate and fix thread organizer",
-      ),
-    );
-    expect(organizer.spawnThread.mock.calls[0]?.[0].prompt).toContain(
-      "no more than 5 words",
-    );
-    await organizer.harness.lifecycle.dispose();
-  });
-
-  it("keeps the opening request alongside recent title context", async () => {
-    const organizer = createHarness();
-    organizer.setThread({ status: "active", title: "Old planning title" });
-    organizer.timelineThread.mockResolvedValueOnce({
-      rows: [
-        {
-          kind: "conversation",
-          role: "user",
-          text: "Build the durable project dashboard.",
-        },
-        ...Array.from({ length: 12 }, (_, index) => ({
-          kind: "conversation" as const,
-          role: (index % 2 === 0 ? "assistant" : "user") as
-            | "assistant"
-            | "user",
-          text: `Recent turn ${index + 1}`,
-        })),
-      ],
-    });
-    await plugin(organizer.bb);
-
-    await organizer.harness.behavior.runCli(["phase", "planning"], {
-      threadId: "thr_test",
-    });
-
-    await vi.waitFor(() =>
-      expect(organizer.spawnThread).toHaveBeenCalledOnce(),
-    );
-    const prompt = organizer.spawnThread.mock.calls[0]?.[0].prompt ?? "";
-    expect(prompt).toContain("Build the durable project dashboard.");
-    expect(prompt).toContain("Recent turn 12");
-    expect(prompt).not.toContain('"text":"Recent turn 1"');
-    await organizer.harness.lifecycle.dispose();
-  });
-
-  it("batches title reassessments for multiple threads into one worker", async () => {
-    const organizer = createHarness();
-    organizer.setThread({ status: "active", title: "First old title" });
-    organizer.addThread({
-      id: "thr_second",
-      status: "active",
-      title: "Second old title",
-    });
-    organizer.outputThread.mockResolvedValueOnce({
-      output: JSON.stringify({
-        decisions: [
-          {
-            id: "thr_test",
-            action: "rename",
-            title: "First current work",
-          },
-          {
-            id: "thr_second",
-            action: "rename",
-            title: "Second current work",
-          },
-        ],
-      }),
-    });
-    await plugin(organizer.bb);
-
-    await Promise.all([
-      organizer.harness.behavior.runCli(["phase", "building"], {
-        threadId: "thr_test",
-      }),
-      organizer.harness.behavior.runCli(["phase", "building"], {
-        threadId: "thr_second",
-      }),
-    ]);
-
-    await vi.waitFor(() => {
-      expect(organizer.current().title).toBe("First current work");
-      expect(organizer.current("thr_second").title).toBe("Second current work");
-    });
-    expect(organizer.spawnThread).toHaveBeenCalledOnce();
-    const prompt = organizer.spawnThread.mock.calls[0]?.[0].prompt ?? "";
-    expect(prompt).toContain('"id":"thr_test"');
-    expect(prompt).toContain('"id":"thr_second"');
-    await organizer.harness.lifecycle.dispose();
-  });
-
-  it("preserves a title changed while its worker is running", async () => {
-    const organizer = createHarness();
-    organizer.setThread({ status: "active", title: "Initial title" });
-    let releaseOutput!: () => void;
-    const outputReady = new Promise<void>((resolve) => {
-      releaseOutput = resolve;
-    });
-    organizer.outputThread.mockImplementationOnce(async () => {
-      await outputReady;
-      return {
-        output:
-          '{"decisions":[{"id":"thr_test","action":"rename","title":"Stale generated title"}]}',
-      };
-    });
-    await plugin(organizer.bb);
-
-    await organizer.harness.behavior.runCli(["phase", "building"], {
-      threadId: "thr_test",
-    });
-    await vi.waitFor(() =>
-      expect(organizer.spawnThread).toHaveBeenCalledOnce(),
-    );
-    organizer.setThread({ title: "User-chosen title" });
-    releaseOutput();
-
-    await vi.waitFor(() =>
-      expect(organizer.stopThread).toHaveBeenCalledWith({
-        threadId: "thr_title_worker",
-      }),
-    );
-    expect(organizer.current().title).toBe("User-chosen title");
-    expect(organizer.spawnThread).toHaveBeenCalledOnce();
+    expect(result.stdout).not.toContain("title");
+    expect(organizer.current().title).toBe("Durable project title");
+    expect(organizer.spawnThread).not.toHaveBeenCalled();
     expect(
       organizer.updateThread.mock.calls.filter(
         ([input]) => input.title !== undefined,
@@ -690,12 +695,12 @@ describe("Thread Organizer server", () => {
     expect(organizer.current().sectionId).toBe(sectionId("inbox"));
 
     organizer.setThread({ sectionId: sectionId("on-hold") });
-    organizer.emitChanged();
+    organizer.emitChanged("title-changed");
     await vi.waitFor(async () => {
       expect(organizer.current().sectionId).toBe(sectionId("on-hold"));
       await expect(
         organizer.bb.storage.kv.get("thread:v3:thr_test"),
-      ).resolves.toMatchObject({ inboxLatched: false });
+      ).resolves.toEqual({ version: 5, rememberedStageKey: "on-hold" });
     });
 
     organizer.setThread({ lastReadAt: 0 });
@@ -711,7 +716,7 @@ describe("Thread Organizer server", () => {
     await organizer.harness.lifecycle.dispose();
   });
 
-  it("clears a read Inbox latch through the CLI while unread CLI moves stay latched", async () => {
+  it("moves a read Inbox thread through the CLI while unread moves stay in Inbox", async () => {
     const organizer = createHarness();
     await plugin(organizer.bb);
     const config = await configFor(organizer);
@@ -736,10 +741,7 @@ describe("Thread Organizer server", () => {
     expect(organizer.current().sectionId).toBe(sectionId("inbox"));
     await expect(
       organizer.bb.storage.kv.get("thread:v3:thr_test"),
-    ).resolves.toMatchObject({
-      inboxLatched: true,
-      rememberedStageKey: "on-hold",
-    });
+    ).resolves.toEqual({ version: 5, rememberedStageKey: "on-hold" });
 
     organizer.setThread({ lastReadAt: 20 });
     await organizer.harness.behavior.emitThreadEvent("thread.idle", {
@@ -754,7 +756,7 @@ describe("Thread Organizer server", () => {
     expect(organizer.current().sectionId).toBe(sectionId("on-hold"));
     await expect(
       organizer.bb.storage.kv.get("thread:v3:thr_test"),
-    ).resolves.toMatchObject({ inboxLatched: false });
+    ).resolves.toEqual({ version: 5, rememberedStageKey: "on-hold" });
     await organizer.harness.lifecycle.dispose();
   });
 
