@@ -14534,7 +14534,14 @@ config(en_default());
 
 // corpus.ts
 import { execFile } from "node:child_process";
-import { mkdir, mkdtemp, rm } from "node:fs/promises";
+import {
+  mkdir,
+  mkdtemp,
+  readlink,
+  rename,
+  rm,
+  symlink
+} from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { promisify } from "node:util";
 var execFileAsync = promisify(execFile);
@@ -14588,9 +14595,9 @@ async function materializeRules(source, currentId, signal) {
   await git(repositoryRoot, ["fetch", "--quiet", "origin", baseBranch], signal);
   const publishedId = await publishedRulesId(source, signal);
   if (publishedId === currentId) return null;
-  const staging = `${readPath}.incoming`;
-  await rm(staging, { recursive: true, force: true });
-  await mkdir(join(staging, "rules"), { recursive: true });
+  const target = `${readPath}.${publishedId.length > 0 ? publishedId : "empty"}`;
+  await rm(target, { recursive: true, force: true });
+  await mkdir(join(target, "rules"), { recursive: true });
   if (publishedId.length > 0) {
     await execFileAsync(
       "sh",
@@ -14600,22 +14607,22 @@ async function materializeRules(source, currentId, signal) {
         "sh",
         repositoryRoot,
         publishedId,
-        join(staging, "rules")
+        join(target, "rules")
       ],
       { encoding: "utf8", timeout: COMMAND_TIMEOUT_MS, signal }
     );
   }
-  const retired = `${readPath}.retired`;
-  await rm(retired, { recursive: true, force: true });
-  await execFileAsync("sh", [
-    "-c",
-    'if [ -e "$1" ]; then mv "$1" "$2"; fi; mv "$3" "$1"',
-    "sh",
-    readPath,
-    retired,
-    staging
-  ]);
-  await rm(retired, { recursive: true, force: true });
+  const previous = await readlink(readPath).catch(() => null);
+  const pending = `${readPath}.pending`;
+  await rm(pending, { recursive: true, force: true });
+  await symlink(target, pending);
+  if (previous === null) {
+    await rm(readPath, { recursive: true, force: true });
+  }
+  await rename(pending, readPath);
+  if (previous && previous !== target) {
+    await rm(previous, { recursive: true, force: true });
+  }
   return publishedId;
 }
 async function openPublication(source, signal) {

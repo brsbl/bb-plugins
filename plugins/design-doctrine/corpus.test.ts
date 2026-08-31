@@ -1,5 +1,12 @@
 import { execFile } from "node:child_process";
-import { access, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import {
+  access,
+  lstat,
+  mkdir,
+  mkdtemp,
+  rm,
+  writeFile,
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
@@ -93,6 +100,21 @@ describe("doctrine corpus", () => {
     ).toBe(true);
     // Nothing commits here, so there is no branch to reset and nothing to lose.
     expect(await exists(join(source.readPath, ".git"))).toBe(false);
+  });
+
+  it("swaps the read copy through a symlink so it is never absent", async () => {
+    await materializeRules(source, null);
+    expect((await lstat(source.readPath)).isSymbolicLink()).toBe(true);
+
+    await commitRule(repository, "ddr_002.md");
+    await git(repository, "push", "--quiet", "origin", "main");
+    await materializeRules(source, await publishedRulesId(source).catch(() => null));
+
+    // Still a symlink, and still resolves to a complete corpus.
+    expect((await lstat(source.readPath)).isSymbolicLink()).toBe(true);
+    expect(
+      await exists(join(source.readPath, "rules", "interaction", "ddr_001.md")),
+    ).toBe(true);
   });
 
   it("rebuilds the read copy only when the published rules change", async () => {
