@@ -524,7 +524,7 @@ __export(core_exports2, {
   parse: () => parse,
   parseAsync: () => parseAsync,
   prettifyError: () => prettifyError,
-  process: () => process,
+  process: () => process2,
   regexes: () => regexes_exports,
   registry: () => registry,
   safeDecode: () => safeDecode,
@@ -11449,7 +11449,7 @@ function initializeContext(params) {
     external: params?.external ?? void 0
   };
 }
-function process(schema, ctx, _params = { path: [], schemaPath: [] }) {
+function process2(schema, ctx, _params = { path: [], schemaPath: [] }) {
   var _a3;
   const def = schema._zod.def;
   const seen = ctx.seen.get(schema);
@@ -11486,7 +11486,7 @@ function process(schema, ctx, _params = { path: [], schemaPath: [] }) {
     if (parent) {
       if (!result.ref)
         result.ref = parent;
-      process(parent, ctx, params);
+      process2(parent, ctx, params);
       ctx.seen.get(parent).isParent = true;
     }
   }
@@ -11774,14 +11774,14 @@ function isTransforming(_schema, _ctx) {
 }
 var createToJSONSchemaMethod = (schema, processors = {}) => (params) => {
   const ctx = initializeContext({ ...params, processors });
-  process(schema, ctx);
+  process2(schema, ctx);
   extractDefs(ctx, schema);
   return finalize(ctx, schema);
 };
 var createStandardJSONSchemaMethod = (schema, io, processors = {}) => (params) => {
   const { libraryOptions, target } = params ?? {};
   const ctx = initializeContext({ ...libraryOptions ?? {}, target, io, processors });
-  process(schema, ctx);
+  process2(schema, ctx);
   extractDefs(ctx, schema);
   return finalize(ctx, schema);
 };
@@ -12027,7 +12027,7 @@ var arrayProcessor = (schema, ctx, _json, params) => {
   if (typeof maximum === "number")
     json2.maxItems = maximum;
   json2.type = "array";
-  json2.items = process(def.element, ctx, {
+  json2.items = process2(def.element, ctx, {
     ...params,
     path: [...params.path, "items"]
   });
@@ -12039,7 +12039,7 @@ var objectProcessor = (schema, ctx, _json, params) => {
   json2.properties = {};
   const shape = def.shape;
   for (const key in shape) {
-    json2.properties[key] = process(shape[key], ctx, {
+    json2.properties[key] = process2(shape[key], ctx, {
       ...params,
       path: [...params.path, "properties", key]
     });
@@ -12062,7 +12062,7 @@ var objectProcessor = (schema, ctx, _json, params) => {
     if (ctx.io === "output")
       json2.additionalProperties = false;
   } else if (def.catchall) {
-    json2.additionalProperties = process(def.catchall, ctx, {
+    json2.additionalProperties = process2(def.catchall, ctx, {
       ...params,
       path: [...params.path, "additionalProperties"]
     });
@@ -12071,7 +12071,7 @@ var objectProcessor = (schema, ctx, _json, params) => {
 var unionProcessor = (schema, ctx, json2, params) => {
   const def = schema._zod.def;
   const isExclusive = def.inclusive === false;
-  const options = def.options.map((x, i) => process(x, ctx, {
+  const options = def.options.map((x, i) => process2(x, ctx, {
     ...params,
     path: [...params.path, isExclusive ? "oneOf" : "anyOf", i]
   }));
@@ -12083,11 +12083,11 @@ var unionProcessor = (schema, ctx, json2, params) => {
 };
 var intersectionProcessor = (schema, ctx, json2, params) => {
   const def = schema._zod.def;
-  const a = process(def.left, ctx, {
+  const a = process2(def.left, ctx, {
     ...params,
     path: [...params.path, "allOf", 0]
   });
-  const b = process(def.right, ctx, {
+  const b = process2(def.right, ctx, {
     ...params,
     path: [...params.path, "allOf", 1]
   });
@@ -12104,11 +12104,11 @@ var tupleProcessor = (schema, ctx, _json, params) => {
   json2.type = "array";
   const prefixPath = ctx.target === "draft-2020-12" ? "prefixItems" : "items";
   const restPath = ctx.target === "draft-2020-12" ? "items" : ctx.target === "openapi-3.0" ? "items" : "additionalItems";
-  const prefixItems = def.items.map((x, i) => process(x, ctx, {
+  const prefixItems = def.items.map((x, i) => process2(x, ctx, {
     ...params,
     path: [...params.path, prefixPath, i]
   }));
-  const rest = def.rest ? process(def.rest, ctx, {
+  const rest = def.rest ? process2(def.rest, ctx, {
     ...params,
     path: [...params.path, restPath, ...ctx.target === "openapi-3.0" ? [def.items.length] : []]
   }) : null;
@@ -12148,7 +12148,7 @@ var recordProcessor = (schema, ctx, _json, params) => {
   const keyBag = keyType._zod.bag;
   const patterns = keyBag?.patterns;
   if (def.mode === "loose" && patterns && patterns.size > 0) {
-    const valueSchema = process(def.valueType, ctx, {
+    const valueSchema = process2(def.valueType, ctx, {
       ...params,
       path: [...params.path, "patternProperties", "*"]
     });
@@ -12158,12 +12158,12 @@ var recordProcessor = (schema, ctx, _json, params) => {
     }
   } else {
     if (ctx.target === "draft-07" || ctx.target === "draft-2020-12") {
-      json2.propertyNames = process(def.keyType, ctx, {
+      json2.propertyNames = process2(def.keyType, ctx, {
         ...params,
         path: [...params.path, "propertyNames"]
       });
     }
-    json2.additionalProperties = process(def.valueType, ctx, {
+    json2.additionalProperties = process2(def.valueType, ctx, {
       ...params,
       path: [...params.path, "additionalProperties"]
     });
@@ -12178,7 +12178,7 @@ var recordProcessor = (schema, ctx, _json, params) => {
 };
 var nullableProcessor = (schema, ctx, json2, params) => {
   const def = schema._zod.def;
-  const inner = process(def.innerType, ctx, params);
+  const inner = process2(def.innerType, ctx, params);
   const seen = ctx.seen.get(schema);
   if (ctx.target === "openapi-3.0") {
     seen.ref = def.innerType;
@@ -12189,20 +12189,20 @@ var nullableProcessor = (schema, ctx, json2, params) => {
 };
 var nonoptionalProcessor = (schema, ctx, _json, params) => {
   const def = schema._zod.def;
-  process(def.innerType, ctx, params);
+  process2(def.innerType, ctx, params);
   const seen = ctx.seen.get(schema);
   seen.ref = def.innerType;
 };
 var defaultProcessor = (schema, ctx, json2, params) => {
   const def = schema._zod.def;
-  process(def.innerType, ctx, params);
+  process2(def.innerType, ctx, params);
   const seen = ctx.seen.get(schema);
   seen.ref = def.innerType;
   json2.default = JSON.parse(JSON.stringify(def.defaultValue));
 };
 var prefaultProcessor = (schema, ctx, json2, params) => {
   const def = schema._zod.def;
-  process(def.innerType, ctx, params);
+  process2(def.innerType, ctx, params);
   const seen = ctx.seen.get(schema);
   seen.ref = def.innerType;
   if (ctx.io === "input")
@@ -12210,7 +12210,7 @@ var prefaultProcessor = (schema, ctx, json2, params) => {
 };
 var catchProcessor = (schema, ctx, json2, params) => {
   const def = schema._zod.def;
-  process(def.innerType, ctx, params);
+  process2(def.innerType, ctx, params);
   const seen = ctx.seen.get(schema);
   seen.ref = def.innerType;
   let catchValue;
@@ -12225,32 +12225,32 @@ var pipeProcessor = (schema, ctx, _json, params) => {
   const def = schema._zod.def;
   const inIsTransform = def.in._zod.traits.has("$ZodTransform");
   const innerType = ctx.io === "input" ? inIsTransform ? def.out : def.in : def.out;
-  process(innerType, ctx, params);
+  process2(innerType, ctx, params);
   const seen = ctx.seen.get(schema);
   seen.ref = innerType;
 };
 var readonlyProcessor = (schema, ctx, json2, params) => {
   const def = schema._zod.def;
-  process(def.innerType, ctx, params);
+  process2(def.innerType, ctx, params);
   const seen = ctx.seen.get(schema);
   seen.ref = def.innerType;
   json2.readOnly = true;
 };
 var promiseProcessor = (schema, ctx, _json, params) => {
   const def = schema._zod.def;
-  process(def.innerType, ctx, params);
+  process2(def.innerType, ctx, params);
   const seen = ctx.seen.get(schema);
   seen.ref = def.innerType;
 };
 var optionalProcessor = (schema, ctx, _json, params) => {
   const def = schema._zod.def;
-  process(def.innerType, ctx, params);
+  process2(def.innerType, ctx, params);
   const seen = ctx.seen.get(schema);
   seen.ref = def.innerType;
 };
 var lazyProcessor = (schema, ctx, _json, params) => {
   const innerType = schema._zod.innerType;
-  process(innerType, ctx, params);
+  process2(innerType, ctx, params);
   const seen = ctx.seen.get(schema);
   seen.ref = innerType;
 };
@@ -12302,7 +12302,7 @@ function toJSONSchema(input, params) {
     const defs = {};
     for (const entry of registry2._idmap.entries()) {
       const [_, schema] = entry;
-      process(schema, ctx2);
+      process2(schema, ctx2);
     }
     const schemas = {};
     const external = {
@@ -12325,7 +12325,7 @@ function toJSONSchema(input, params) {
     return { schemas };
   }
   const ctx = initializeContext({ ...params, processors: allProcessors });
-  process(input, ctx);
+  process2(input, ctx);
   extractDefs(ctx, input);
   return finalize(ctx, input);
 }
@@ -12383,7 +12383,7 @@ var JSONSchemaGenerator = class {
    * This must be called before emit().
    */
   process(schema, _params = { path: [], schemaPath: [] }) {
-    return process(schema, this.ctx, _params);
+    return process2(schema, this.ctx, _params);
   }
   /**
    * Emit the final JSON Schema after processing.
@@ -14534,146 +14534,117 @@ config(en_default());
 
 // corpus.ts
 import { execFile } from "node:child_process";
-import { access, mkdir, rm } from "node:fs/promises";
+import { mkdtemp, rm } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { promisify } from "node:util";
 var execFileAsync = promisify(execFile);
-var CORPUS_BRANCH = "doctrine-corpus";
-var CORPUS_DIRECTORY = "corpus";
-async function git(cwd, ...args) {
+var COMMAND_TIMEOUT_MS = 6e4;
+async function git(cwd, args, signal) {
   const result = await execFileAsync("git", ["-C", cwd, ...args], {
-    encoding: "utf8"
+    encoding: "utf8",
+    timeout: COMMAND_TIMEOUT_MS,
+    signal
   });
   return result.stdout.trim();
-}
-async function exists(path) {
-  try {
-    await access(path);
-    return true;
-  } catch {
-    return false;
-  }
 }
 function pluginDataDirectory(databasePath) {
   return dirname(databasePath);
 }
 async function resolveRepositoryRoot(path) {
   try {
-    return await git(path, "rev-parse", "--show-toplevel");
+    return await git(path, ["rev-parse", "--show-toplevel"]);
   } catch {
     return null;
   }
 }
 async function resolveBaseBranch(repositoryRoot) {
   try {
-    const head = await git(
-      repositoryRoot,
+    const head = await git(repositoryRoot, [
       "symbolic-ref",
       "--short",
       "refs/remotes/origin/HEAD"
-    );
+    ]);
     const branch = head.replace(/^origin\//, "");
     return branch.length > 0 ? branch : "main";
   } catch {
     return "main";
   }
 }
-async function ensureCheckout(checkout) {
-  const { repositoryRoot, path, baseBranch } = checkout;
-  if (await exists(join(path, ".git"))) return;
-  await git(repositoryRoot, "worktree", "prune").catch(() => void 0);
-  await rm(path, { recursive: true, force: true });
-  await mkdir(dirname(path), { recursive: true });
-  await git(repositoryRoot, "fetch", "--quiet", "origin", baseBranch).catch(
-    () => void 0
+async function publishedRulesId(source, signal) {
+  return git(
+    source.repositoryRoot,
+    ["rev-parse", `origin/${source.baseBranch}:${source.prefix}/rules`],
+    signal
   );
-  const startPoint = await git(
-    repositoryRoot,
-    "rev-parse",
-    "--verify",
-    `origin/${baseBranch}`
-  ).catch(() => "HEAD");
+}
+async function materializeRules(source, currentId, signal) {
+  const { repositoryRoot, baseBranch, prefix, readPath } = source;
+  await git(repositoryRoot, ["fetch", "--quiet", "origin", baseBranch], signal);
+  const publishedId = await publishedRulesId(source, signal);
+  if (publishedId === currentId) return null;
+  const staging = `${readPath}.incoming`;
+  await rm(staging, { recursive: true, force: true });
+  await execFileAsync(
+    "sh",
+    [
+      "-c",
+      'set -e; mkdir -p "$1/rules"; git -C "$2" archive --format=tar "$3" | tar -x -C "$1/rules"',
+      "sh",
+      staging,
+      repositoryRoot,
+      `origin/${baseBranch}:${prefix}/rules`
+    ],
+    { encoding: "utf8", timeout: COMMAND_TIMEOUT_MS, signal }
+  );
+  const retired = `${readPath}.retired`;
+  await rm(retired, { recursive: true, force: true });
+  await execFileAsync("sh", [
+    "-c",
+    'if [ -e "$1" ]; then mv "$1" "$2"; fi; mv "$3" "$1"',
+    "sh",
+    readPath,
+    retired,
+    staging
+  ]);
+  await rm(retired, { recursive: true, force: true });
+  return publishedId;
+}
+async function openPublication(source, signal) {
+  const { repositoryRoot, baseBranch, prefix, workPath } = source;
+  await git(repositoryRoot, ["fetch", "--quiet", "origin", baseBranch], signal);
+  const directory = await mkdtemp(join(workPath, "publish-"));
   await git(
     repositoryRoot,
-    "worktree",
-    "add",
-    "--force",
-    "-B",
-    CORPUS_BRANCH,
-    path,
-    startPoint
+    ["worktree", "add", "--detach", "--quiet", directory, `origin/${baseBranch}`],
+    signal
   );
-}
-async function succeeds(operation) {
-  try {
-    await operation();
-    return true;
-  } catch {
-    return false;
-  }
-}
-async function readState(checkout) {
-  const { path, baseBranch, rulesPath } = checkout;
-  if ((await git(path, "status", "--porcelain=v1", "-uall")).length > 0) {
-    return "writing";
-  }
-  const merged = await succeeds(
-    () => git(path, "merge-base", "--is-ancestor", "HEAD", `origin/${baseBranch}`)
-  );
-  if (merged) return "published";
-  const sameRules = await succeeds(
-    () => git(path, "diff", "--quiet", `origin/${baseBranch}`, "HEAD", "--", rulesPath)
-  );
-  return sameRules ? "published" : "unpublished";
-}
-async function refreshCheckout(checkout) {
-  await ensureCheckout(checkout);
-  const { repositoryRoot, path, baseBranch } = checkout;
-  await git(repositoryRoot, "fetch", "--quiet", "origin", baseBranch);
-  if (await readState(checkout) !== "published") return false;
-  const before = await git(path, "rev-parse", "HEAD");
-  await git(path, "reset", "--hard", "--quiet", `origin/${baseBranch}`);
-  return before !== await git(path, "rev-parse", "HEAD");
-}
-async function openPullRequest(path, branch) {
-  const result = await execFileAsync(
-    "gh",
-    [
-      "pr",
-      "list",
-      "--head",
-      branch,
-      "--state",
-      "open",
-      "--json",
-      "number,url,mergeStateStatus,createdAt"
-    ],
-    { cwd: path, encoding: "utf8" }
-  );
-  const parsed = JSON.parse(result.stdout);
-  return parsed[0] ?? null;
-}
-async function readStalledPublication(checkout, stallAfterHours = 6) {
-  if (await readState(checkout) !== "unpublished") return null;
-  const head = await git(checkout.path, "rev-parse", "--short", "HEAD");
-  const pullRequest = await openPullRequest(checkout.path, `doctrine/${head}`);
-  if (!pullRequest) return null;
-  const ageHours = (Date.now() - Date.parse(pullRequest.createdAt)) / (60 * 60 * 1e3);
-  if (ageHours < stallAfterHours) return null;
   return {
-    url: pullRequest.url,
-    reason: pullRequest.mergeStateStatus,
-    ageHours: Math.round(ageHours)
+    root: join(directory, prefix),
+    async finish(committed) {
+      try {
+        if (!committed) return null;
+        return await publish(source, directory, signal);
+      } finally {
+        await git(
+          repositoryRoot,
+          ["worktree", "remove", "--force", directory],
+          signal
+        ).catch(() => void 0);
+        await rm(directory, { recursive: true, force: true });
+      }
+    }
   };
 }
-async function publishCheckout(checkout) {
-  const { path, baseBranch } = checkout;
-  if (await readState(checkout) !== "unpublished") return null;
-  const head = await git(path, "rev-parse", "--short", "HEAD");
+async function publish(source, directory, signal) {
+  const head = await git(directory, ["rev-parse", "--short", "HEAD"], signal);
   const branch = `doctrine/${head}`;
-  await git(path, "push", "--quiet", "--force-with-lease", "origin", `HEAD:refs/heads/${branch}`);
-  if (!await openPullRequest(path, branch)) {
-    await execFileAsync(
+  await git(
+    directory,
+    ["push", "--quiet", "origin", `HEAD:refs/heads/${branch}`],
+    signal
+  );
+  try {
+    const created = await execFileAsync(
       "gh",
       [
         "pr",
@@ -14681,25 +14652,62 @@ async function publishCheckout(checkout) {
         "--head",
         branch,
         "--base",
-        baseBranch,
+        source.baseBranch,
         "--title",
         "doctrine: publish harvested rules",
         "--body",
         "Rules harvested from bb thread feedback by the Design Doctrine plugin.\n\nMerges itself once the repository's required checks pass."
       ],
-      { cwd: path, encoding: "utf8" }
+      { cwd: directory, encoding: "utf8", timeout: COMMAND_TIMEOUT_MS, signal }
     );
+    await execFileAsync("gh", ["pr", "merge", branch, "--auto", "--squash"], {
+      cwd: directory,
+      encoding: "utf8",
+      timeout: COMMAND_TIMEOUT_MS,
+      signal
+    });
+    return created.stdout.trim().split("\n").filter(Boolean).pop() ?? branch;
+  } catch (error51) {
+    await git(
+      directory,
+      ["push", "--quiet", "--delete", "origin", branch],
+      signal
+    ).catch(() => void 0);
+    throw error51;
   }
-  await execFileAsync("gh", ["pr", "merge", branch, "--auto", "--squash"], {
-    cwd: path,
-    encoding: "utf8"
-  });
-  return branch;
+}
+async function readStalledPublications(source, stallAfterHours = 6, signal) {
+  const result = await execFileAsync(
+    "gh",
+    [
+      "pr",
+      "list",
+      "--state",
+      "open",
+      "--search",
+      "head:doctrine/",
+      "--json",
+      "url,headRefName,mergeStateStatus,createdAt"
+    ],
+    {
+      cwd: source.repositoryRoot,
+      encoding: "utf8",
+      timeout: COMMAND_TIMEOUT_MS,
+      signal
+    }
+  );
+  const rows = JSON.parse(result.stdout);
+  return rows.map((row) => ({
+    url: row.url,
+    branch: row.headRefName,
+    mergeStateStatus: row.mergeStateStatus,
+    ageHours: (Date.now() - Date.parse(row.createdAt)) / (60 * 60 * 1e3)
+  })).filter((row) => row.ageHours >= stallAfterHours).map((row) => ({ ...row, ageHours: Math.round(row.ageHours) }));
 }
 
 // history.ts
 import { execFile as execFile2 } from "node:child_process";
-import { mkdir as mkdir2, readFile, unlink, writeFile } from "node:fs/promises";
+import { mkdir, readFile, unlink, writeFile } from "node:fs/promises";
 import { join as join2 } from "node:path";
 import { promisify as promisify2 } from "node:util";
 
@@ -15622,9 +15630,8 @@ async function ensureRuleTreeClean(pluginRoot) {
     );
   }
 }
-async function ensureMaintenanceCheckout(pluginRoot) {
+async function ensureNotPublishedBranch(pluginRoot) {
   await ensureMaintenanceBranch(pluginRoot);
-  await ensureRuleTreeClean(pluginRoot);
 }
 var MaintenanceHeadChangedError = class extends Error {
   constructor(expected, actual) {
@@ -15678,7 +15685,7 @@ async function commitNewRuleFiles(pluginRoot, files, validate, expectedHead) {
   if (new Set(relativePaths).size !== relativePaths.length) {
     throw new Error("generated rule paths must be unique");
   }
-  await ensureMaintenanceCheckout(pluginRoot);
+  await ensureRuleTreeClean(pluginRoot);
   if (expectedHead) {
     const actualHead = await readMaintenanceHead(pluginRoot);
     if (actualHead !== expectedHead) {
@@ -15690,7 +15697,7 @@ async function commitNewRuleFiles(pluginRoot, files, validate, expectedHead) {
   try {
     for (const file2 of files) {
       const absolutePath = join2(pluginRoot, file2.relativePath);
-      await mkdir2(join2(absolutePath, ".."), { recursive: true });
+      await mkdir(join2(absolutePath, ".."), { recursive: true });
       await writeFile(absolutePath, file2.content, { encoding: "utf8", flag: "wx" });
       created.push(file2.relativePath);
     }
@@ -15783,9 +15790,8 @@ async function removeMigratedStateFile(bb, statePath) {
     if (!isMissingFile(error51)) throw error51;
   }
 }
-function createHistoryMaintenance(bb, resolveDoctrineRoot, installedPluginRoot, skipEpisode) {
+function createHistoryMaintenance(bb, installedPluginRoot, skipEpisode) {
   const history = createThreadHistoryMaintenance(bb, {
-    beforeScan: async () => ensureRuleTreeClean(await resolveDoctrineRoot()),
     legacyStateKeys: [LEGACY_HISTORY_STATE_KEY],
     skipEpisode
   });
@@ -16026,7 +16032,7 @@ function isHarvestableThread(thread) {
 function createHarvest(dependencies) {
   const {
     bb,
-    resolveDoctrineRoot,
+    openPublication: openPublication2,
     listRuleIds,
     describeExistingRules,
     validateRules,
@@ -16358,10 +16364,36 @@ function createHarvest(dependencies) {
     ].join("\n");
   }
   async function harvestThread(threadId, projectId) {
-    let doctrineRoot;
+    const publication = await openPublication2().catch((error51) => {
+      bb.log.warn(
+        `doctrine harvest: no publication checkout available: ${error51 instanceof Error ? error51.message : String(error51)}`
+      );
+      return null;
+    });
+    if (!publication) {
+      bb.log.warn(
+        "doctrine harvest: nowhere to publish rules; leaving the thread queued"
+      );
+      return;
+    }
+    let committed = false;
     try {
-      doctrineRoot = await resolveDoctrineRoot();
-      await ensureMaintenanceCheckout(doctrineRoot);
+      await harvestThreadInto(publication.root, threadId, projectId, () => {
+        committed = true;
+      });
+    } finally {
+      const url2 = await publication.finish(committed).catch((error51) => {
+        bb.log.warn(
+          `doctrine harvest: publishing the batch failed, it will be retried: ${error51 instanceof Error ? error51.message : String(error51)}`
+        );
+        return null;
+      });
+      if (url2) bb.log.info(`doctrine harvest: published ${url2}`);
+    }
+  }
+  async function harvestThreadInto(doctrineRoot, threadId, projectId, markCommitted) {
+    try {
+      await ensureRuleTreeClean(doctrineRoot);
     } catch (error51) {
       bb.log.warn(
         `doctrine harvest: waiting for a clean maintenance checkout: ${error51 instanceof Error ? error51.message : String(error51)}`
@@ -16424,7 +16456,7 @@ function createHarvest(dependencies) {
       } else if (carriedApprovals.length > 0) {
         resetReviewDecisions(threadId, carriedApprovals.map((item) => item.id));
       }
-      await ensureMaintenanceCheckout(doctrineRoot);
+      await ensureRuleTreeClean(doctrineRoot);
       const catalogHead = await readMaintenanceHead(doctrineRoot);
       const existingRules = await describeExistingRules(doctrineRoot);
       if (await readMaintenanceHead(doctrineRoot) !== catalogHead) {
@@ -16564,6 +16596,7 @@ function createHarvest(dependencies) {
             `doctrine harvest: committed ${draft.file.relativePath} from ${pendingThreadId} \u2014 ${draft.stored.reason ?? "approved"}`
           );
         }
+        markCommitted();
         markProcessed(pendingThreadId, `approved:${drafts.length}`);
         return "done";
       } catch (error51) {
@@ -16625,6 +16658,7 @@ var MODULE_DIR = dirname2(fileURLToPath(import.meta.url));
 var DEFAULT_DOCTRINE_PATH = basename(MODULE_DIR) === "dist" ? dirname2(MODULE_DIR) : MODULE_DIR;
 var WATCH_INTERVAL_MS = 2500;
 var CORPUS_REFRESH_INTERVAL_MS = 2 * 60 * 1e3;
+var CORPUS_DIRECTORY = "rules-cache";
 var SEARCH_RESULT_LIMIT = 24;
 var AUTOMATIC_RULE_LIMIT = 4;
 var SEARCH_STOP_TOKENS = /* @__PURE__ */ new Set([
@@ -16732,6 +16766,10 @@ var librarySchema = external_exports.object({
 var rpcContract = defineRpcContract({
   getLibrary: { input: external_exports.null(), output: librarySchema }
 });
+function resolveAgainst(cwd, input) {
+  if (input === "~" || input.startsWith("~/")) return expandPath(input);
+  return isAbsolute(input) ? input : resolve(cwd ?? process.cwd(), input);
+}
 function expandPath(input) {
   if (input === "~") return homedir();
   if (input.startsWith("~/")) return join4(homedir(), input.slice(2));
@@ -17221,46 +17259,42 @@ async function plugin(bb) {
   let cached2 = null;
   let loading = null;
   let automaticRules = [];
-  let corpusResolution = null;
-  let stalledPublication = null;
-  let reportedStall = null;
-  function resolveCorpus() {
-    corpusResolution ??= (async () => {
-      const repositoryRoot = await resolveRepositoryRoot(DEFAULT_DOCTRINE_PATH);
-      if (!repositoryRoot) return null;
-      const dataDirectory = pluginDataDirectory(bb.storage.database().name);
-      const path = join4(dataDirectory, CORPUS_DIRECTORY);
-      if (!isAbsolute(path) || !relative(repositoryRoot, path).startsWith("..")) {
-        return null;
-      }
-      const checkout = {
-        repositoryRoot,
-        path,
-        baseBranch: await resolveBaseBranch(repositoryRoot),
-        rulesPath: join4(
-          relative(repositoryRoot, DEFAULT_DOCTRINE_PATH),
-          "rules"
-        )
-      };
-      await ensureCheckout(checkout);
-      return checkout;
-    })().catch((error51) => {
-      bb.log.warn(
-        `doctrine corpus unavailable, reading the installed rules: ${error51 instanceof Error ? error51.message : String(error51)}`
-      );
+  let corpusSource = null;
+  let materializedId = null;
+  let stalledPublications = [];
+  let reportedStalls = null;
+  async function resolveSource() {
+    if (corpusSource) return corpusSource;
+    const repositoryRoot = await resolveRepositoryRoot(DEFAULT_DOCTRINE_PATH);
+    if (!repositoryRoot) return null;
+    const dataDirectory = pluginDataDirectory(bb.storage.database().name);
+    const readPath = join4(dataDirectory, CORPUS_DIRECTORY);
+    if (!isAbsolute(readPath) || !relative(repositoryRoot, readPath).startsWith("..")) {
       return null;
-    });
-    return corpusResolution;
+    }
+    corpusSource = {
+      repositoryRoot,
+      baseBranch: await resolveBaseBranch(repositoryRoot),
+      prefix: relative(repositoryRoot, DEFAULT_DOCTRINE_PATH),
+      readPath,
+      workPath: dataDirectory
+    };
+    return corpusSource;
   }
   async function doctrineRoot() {
     const configured = expandPath((await settings.get()).doctrinePath);
     if (configured !== DEFAULT_DOCTRINE_PATH) return configured;
-    const checkout = await resolveCorpus();
-    if (!checkout) return configured;
-    return join4(
-      checkout.path,
-      relative(checkout.repositoryRoot, DEFAULT_DOCTRINE_PATH)
-    );
+    return materializedId ? corpusSource?.readPath ?? configured : configured;
+  }
+  async function openRulePublication() {
+    const configured = expandPath((await settings.get()).doctrinePath);
+    if (configured !== DEFAULT_DOCTRINE_PATH) {
+      await ensureNotPublishedBranch(configured);
+      return { root: configured, finish: async () => null };
+    }
+    const source = await resolveSource();
+    if (!source) return null;
+    return openPublication(source);
   }
   function invalidate() {
     cacheGeneration += 1;
@@ -17288,7 +17322,6 @@ async function plugin(bb) {
   }
   const historyMaintenance = createHistoryMaintenance(
     bb,
-    doctrineRoot,
     DEFAULT_DOCTRINE_PATH,
     (episode) => {
       const reason = skipEpisodeReason(episode);
@@ -17300,7 +17333,7 @@ async function plugin(bb) {
   );
   const harvest = createHarvest({
     bb,
-    resolveDoctrineRoot: doctrineRoot,
+    openPublication: openRulePublication,
     listRuleIds: async (doctrineRoot2) => (await loadDoctrine(doctrineRoot2)).rules.map((rule) => rule.id),
     describeExistingRules: async (doctrineRoot2) => (await loadDoctrine(doctrineRoot2)).rules.map(
       (rule) => `${rule.id} (${rule.domain}, ${rule.strength}): ${rule.title} \u2014 ${rule.statement}`
@@ -17421,7 +17454,9 @@ async function plugin(bb) {
               "--max-bytes",
               262144,
               1,
-              9e5
+              // A daily pass reads far more than the original ceiling allowed;
+              // the queue grows faster than 256KB a day can drain.
+              2097152
             );
             const maxMessageBytes = integerOption(
               argv,
@@ -17541,8 +17576,14 @@ async function plugin(bb) {
         }
         if (command === "validate") {
           const target = argv[1] && !argv[1].startsWith("--") ? argv[1] : null;
+          if (target && !isAbsolute(expandPath(target)) && !context.cwd) {
+            return {
+              exitCode: 2,
+              stderr: "bb doctrine validate needs an absolute path when the caller's directory is unknown\n"
+            };
+          }
           const library2 = await loadDoctrine(
-            target ? expandPath(target) : await doctrineRoot()
+            target ? resolveAgainst(context.cwd, target) : await doctrineRoot()
           );
           return {
             exitCode: 0,
@@ -17565,15 +17606,17 @@ async function plugin(bb) {
             rules: library.rules.length,
             statuses: library.status_counts,
             git: library.git,
-            stalled_publication: stalledPublication
+            stalled_publications: stalledPublications
           };
           return {
             exitCode: 0,
             stdout: json2 ? `${JSON.stringify(summary, null, 2)}
 ` : `${summary.rules} rules (${Object.entries(summary.statuses).map(([status, count]) => `${count} ${status}`).join(", ")})
 Repository: ${summary.root}
-${stalledPublication ? `Stalled: ${stalledPublication.url} not merged after ${stalledPublication.ageHours}h (${stalledPublication.reason})
-` : ""}`
+${stalledPublications.map(
+              (stall) => `Stalled: ${stall.url} not merged after ${stall.ageHours}h (${stall.mergeStateStatus})
+`
+            ).join("")}`
           };
         }
         if (command === "search") {
@@ -17603,34 +17646,54 @@ ${stalledPublication ? `Stalled: ${stalledPublication.url} not merged after ${st
       }
     }
   });
-  async function maintainCorpus() {
-    const checkout = await resolveCorpus();
-    if (!checkout) return;
+  async function maintainCorpus(signal) {
+    const source = await resolveSource().catch(() => null);
+    if (!source) return;
     try {
-      const branch = await publishCheckout(checkout);
-      if (branch) {
-        bb.log.info(`doctrine corpus: published ${branch} for review by CI`);
+      const published = await materializeRules(source, materializedId, signal);
+      if (published) {
+        materializedId = published;
+        invalidate();
+        await currentLibrary();
+        bb.realtime.publish("rules-changed", {
+          changed_at: (/* @__PURE__ */ new Date()).toISOString()
+        });
       }
-      await refreshCheckout(checkout);
-      stalledPublication = await readStalledPublication(checkout);
-      const signature = stalledPublication ? `${stalledPublication.url}:${stalledPublication.reason}` : null;
-      if (signature !== reportedStall) {
-        reportedStall = signature;
-        if (stalledPublication) {
-          bb.log.warn(
-            `doctrine corpus: ${stalledPublication.url} has not merged after ${stalledPublication.ageHours}h (${stalledPublication.reason}); rules stay unpublished until it does`
-          );
-        }
-      }
+      stalledPublications = await readStalledPublications(
+        source,
+        void 0,
+        signal
+      );
     } catch (error51) {
+      stalledPublications = [];
       bb.log.warn(
         `doctrine corpus upkeep failed, retrying next cycle: ${error51 instanceof Error ? error51.message : String(error51)}`
       );
     }
+    const signature = stalledPublications.map((row) => `${row.url}:${row.mergeStateStatus}`).join(",");
+    if (signature !== reportedStalls) {
+      reportedStalls = signature;
+      for (const stall of stalledPublications) {
+        bb.log.warn(
+          `doctrine corpus: ${stall.url} has not merged after ${stall.ageHours}h (${stall.mergeStateStatus}); those rules stay unpublished until it does`
+        );
+      }
+    }
+  }
+  async function safeFingerprint() {
+    try {
+      return await watchFingerprint(await doctrineRoot());
+    } catch (error51) {
+      bb.log.warn(
+        `doctrine rules unreadable: ${error51 instanceof Error ? error51.message : String(error51)}`
+      );
+      return "rules:unavailable";
+    }
   }
   bb.background.service("rule-watch", {
     async start(signal) {
-      let fingerprint = await watchFingerprint(await doctrineRoot());
+      await maintainCorpus(signal);
+      let fingerprint = await safeFingerprint();
       try {
         await currentLibrary();
       } catch (error51) {
@@ -17642,9 +17705,10 @@ ${stalledPublication ? `Stalled: ${stalledPublication.url} not merged after ${st
         if (signal.aborted) break;
         if (Date.now() >= nextRefreshAt) {
           nextRefreshAt = Date.now() + CORPUS_REFRESH_INTERVAL_MS;
-          await maintainCorpus();
+          await maintainCorpus(signal);
+          if (signal.aborted) break;
         }
-        const next = await watchFingerprint(await doctrineRoot());
+        const next = await safeFingerprint();
         if (next !== fingerprint) {
           fingerprint = next;
           invalidate();

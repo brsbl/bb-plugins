@@ -21,7 +21,7 @@ has to be configured or kept clean by hand.
 Begin one bounded API-backed pass with:
 
 ```bash
-bb doctrine history scan --limit 200 --max-bytes 262144 --max-message-bytes 8192
+bb doctrine history scan --limit 400 --max-bytes 1048576 --max-message-bytes 8192
 ```
 
 The plugin queues visible user threads when they become idle and this command

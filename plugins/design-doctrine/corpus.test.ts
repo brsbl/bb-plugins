@@ -1,5 +1,5 @@
 import { execFile } from "node:child_process";
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { access, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
@@ -7,18 +7,17 @@ import { promisify } from "node:util";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import {
-  CORPUS_BRANCH,
-  type CorpusCheckout,
-  ensureCheckout,
+  type CorpusSource,
+  materializeRules,
+  openPublication,
   pluginDataDirectory,
-  readState,
-  refreshCheckout,
+  publishedRulesId,
   resolveBaseBranch,
   resolveRepositoryRoot,
 } from "./corpus";
 
 const execFileAsync = promisify(execFile);
-const RULES_PATH = join("plugins", "design-doctrine", "rules");
+const PREFIX = join("plugins", "design-doctrine");
 
 async function git(cwd: string, ...args: string[]): Promise<string> {
   const result = await execFileAsync("git", ["-C", cwd, ...args], {
@@ -27,34 +26,46 @@ async function git(cwd: string, ...args: string[]): Promise<string> {
   return result.stdout.trim();
 }
 
-async function writeRule(root: string, name: string): Promise<void> {
-  const path = join(root, RULES_PATH, "interaction");
-  await mkdir(path, { recursive: true });
-  await writeFile(join(path, name), `# ${name}\n`, "utf8");
+async function commitRule(root: string, name: string): Promise<void> {
+  const directory = join(root, PREFIX, "rules", "interaction");
+  await mkdir(directory, { recursive: true });
+  await writeFile(join(directory, name), `# ${name}\n`, "utf8");
+  await git(root, "add", "-A");
+  await git(root, "commit", "--quiet", "-m", `add ${name}`);
 }
 
-describe("doctrine corpus checkout", () => {
+async function exists(path: string): Promise<boolean> {
+  try {
+    await access(path);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+describe("doctrine corpus", () => {
   let workspace: string;
   let repository: string;
-  let checkout: CorpusCheckout;
+  let source: CorpusSource;
 
   beforeEach(async () => {
     workspace = await mkdtemp(join(tmpdir(), "doctrine-corpus-"));
     const origin = join(workspace, "origin.git");
     repository = join(workspace, "repository");
+    const data = join(workspace, "data");
+    await mkdir(data, { recursive: true });
     await execFileAsync("git", ["init", "--quiet", "--bare", "-b", "main", origin]);
     await execFileAsync("git", ["clone", "--quiet", origin, repository]);
     await git(repository, "config", "user.email", "doctrine@example.test");
     await git(repository, "config", "user.name", "Doctrine");
-    await writeRule(repository, "ddr_001.md");
-    await git(repository, "add", "-A");
-    await git(repository, "commit", "--quiet", "-m", "seed");
+    await commitRule(repository, "ddr_001.md");
     await git(repository, "push", "--quiet", "origin", "main");
-    checkout = {
+    source = {
       repositoryRoot: repository,
-      path: join(workspace, "data", "corpus"),
       baseBranch: "main",
-      rulesPath: RULES_PATH,
+      prefix: PREFIX,
+      readPath: join(data, "rules-cache"),
+      workPath: data,
     };
   });
 
@@ -73,81 +84,83 @@ describe("doctrine corpus checkout", () => {
     expect(await resolveBaseBranch(workspace)).toBe("main");
   });
 
-  it("creates the checkout on its own branch at the published head", async () => {
-    await ensureCheckout(checkout);
+  it("extracts the published rules as plain files with no git metadata", async () => {
+    const id = await materializeRules(source, null);
 
-    expect(await git(checkout.path, "rev-parse", "--abbrev-ref", "HEAD")).toBe(
-      CORPUS_BRANCH,
-    );
-    expect(await git(checkout.path, "rev-parse", "HEAD")).toBe(
-      await git(repository, "rev-parse", "origin/main"),
-    );
-    expect(await readState(checkout)).toBe("published");
+    expect(id).toBe(await publishedRulesId(source));
+    expect(
+      await exists(join(source.readPath, "rules", "interaction", "ddr_001.md")),
+    ).toBe(true);
+    // Nothing commits here, so there is no branch to reset and nothing to lose.
+    expect(await exists(join(source.readPath, ".git"))).toBe(false);
   });
 
-  it("recreates a checkout that was deleted underneath it", async () => {
-    await ensureCheckout(checkout);
-    await rm(checkout.path, { recursive: true, force: true });
+  it("rebuilds the read copy only when the published rules change", async () => {
+    const first = await materializeRules(source, null);
 
-    await ensureCheckout(checkout);
+    expect(await materializeRules(source, first)).toBeNull();
 
-    expect(await readState(checkout)).toBe("published");
+    await commitRule(repository, "ddr_002.md");
+    await git(repository, "push", "--quiet", "origin", "main");
+    const second = await materializeRules(source, first);
+
+    expect(second).not.toBe(first);
+    expect(
+      await exists(join(source.readPath, "rules", "interaction", "ddr_002.md")),
+    ).toBe(true);
   });
 
-  it("distinguishes rules being written from rules awaiting publication", async () => {
-    await ensureCheckout(checkout);
-
-    await writeRule(checkout.path, "ddr_002.md");
-    expect(await readState(checkout)).toBe("writing");
-
-    await git(checkout.path, "config", "user.email", "doctrine@example.test");
-    await git(checkout.path, "config", "user.name", "Doctrine");
-    await git(checkout.path, "add", "-A");
-    await git(checkout.path, "commit", "--quiet", "-m", "doctrine: add rule");
-    expect(await readState(checkout)).toBe("unpublished");
-  });
-
-  it("keeps unpublished rules through a refresh", async () => {
-    await ensureCheckout(checkout);
-    await writeRule(checkout.path, "ddr_002.md");
-    await git(checkout.path, "config", "user.email", "doctrine@example.test");
-    await git(checkout.path, "config", "user.name", "Doctrine");
-    await git(checkout.path, "add", "-A");
-    await git(checkout.path, "commit", "--quiet", "-m", "doctrine: add rule");
-
-    expect(await refreshCheckout(checkout)).toBe(false);
-    expect(await readState(checkout)).toBe("unpublished");
-  });
-
-  it("fast-forwards when the published branch moves ahead", async () => {
-    await ensureCheckout(checkout);
-    await writeRule(repository, "ddr_003.md");
+  it("drops a rule that was removed upstream", async () => {
+    const first = await materializeRules(source, null);
+    await rm(join(repository, PREFIX, "rules", "interaction", "ddr_001.md"));
     await git(repository, "add", "-A");
-    await git(repository, "commit", "--quiet", "-m", "doctrine: publish rule");
+    await git(repository, "commit", "--quiet", "-m", "remove rule");
     await git(repository, "push", "--quiet", "origin", "main");
 
-    expect(await refreshCheckout(checkout)).toBe(true);
-    expect(await git(checkout.path, "rev-parse", "HEAD")).toBe(
-      await git(repository, "rev-parse", "origin/main"),
-    );
+    await materializeRules(source, first);
+
+    expect(
+      await exists(join(source.readPath, "rules", "interaction", "ddr_001.md")),
+    ).toBe(false);
   });
 
-  it("treats a squashed publication as published rather than republishing it", async () => {
-    await ensureCheckout(checkout);
-    await writeRule(checkout.path, "ddr_002.md");
-    await git(checkout.path, "config", "user.email", "doctrine@example.test");
-    await git(checkout.path, "config", "user.name", "Doctrine");
-    await git(checkout.path, "add", "-A");
-    await git(checkout.path, "commit", "--quiet", "-m", "doctrine: add rule");
+  it("gives a batch a throwaway checkout of the published branch", async () => {
+    const publication = await openPublication(source);
 
-    // The same rules reach main as an unrelated squash commit.
-    await writeRule(repository, "ddr_002.md");
-    await git(repository, "add", "-A");
-    await git(repository, "commit", "--quiet", "-m", "doctrine: squashed");
-    await git(repository, "push", "--quiet", "origin", "main");
-    await git(repository, "fetch", "--quiet", "origin", "main");
+    expect(publication.root).toContain(PREFIX);
+    expect(await git(publication.root, "rev-parse", "HEAD")).toBe(
+      await git(repository, "rev-parse", "origin/main"),
+    );
 
-    expect(await readState(checkout)).toBe("published");
-    expect(await refreshCheckout(checkout)).toBe(true);
+    await publication.finish(false);
+
+    // The checkout is gone and left no worktree registration behind.
+    expect(await exists(publication.root)).toBe(false);
+    expect(await git(repository, "worktree", "list")).not.toContain("publish-");
+  });
+
+  it("removes the checkout even when nothing published", async () => {
+    const publication = await openPublication(source);
+    await writeFile(join(publication.root, "rules", "stray.md"), "x\n", "utf8");
+
+    await publication.finish(false);
+
+    expect(await exists(publication.root)).toBe(false);
+  });
+
+  it("keeps two concurrent batches in separate checkouts", async () => {
+    const first = await openPublication(source);
+    const second = await openPublication(source);
+
+    expect(first.root).not.toBe(second.root);
+
+    await first.finish(false);
+    // Removing the first batch must not disturb the second.
+    expect(await exists(second.root)).toBe(true);
+    expect(await git(second.root, "rev-parse", "HEAD")).toBe(
+      await git(repository, "rev-parse", "origin/main"),
+    );
+
+    await second.finish(false);
   });
 });

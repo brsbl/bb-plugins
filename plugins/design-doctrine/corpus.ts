@@ -1,46 +1,43 @@
 import { execFile } from "node:child_process";
-import { access, mkdir, rm } from "node:fs/promises";
+import { mkdtemp, rm } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { promisify } from "node:util";
 
 const execFileAsync = promisify(execFile);
 
-/** Branch the plugin keeps its own corpus checkout on. */
-export const CORPUS_BRANCH = "doctrine-corpus";
-/** Directory, inside the plugin data directory, holding that checkout. */
-export const CORPUS_DIRECTORY = "corpus";
+/** Bounds every git and gh call so a hung remote cannot wedge the caller. */
+const COMMAND_TIMEOUT_MS = 60_000;
 
-export interface CorpusCheckout {
+export interface CorpusSource {
   /** Git repository that publishes the rule corpus. */
   repositoryRoot: string;
-  /** Worktree the plugin owns, reads from, and commits into. */
-  path: string;
-  /** Branch rule changes are published to. */
+  /** Branch rules are published on. */
   baseBranch: string;
-  /** Rules directory, relative to the worktree root. */
-  rulesPath: string;
+  /** The plugin's directory within that repository, e.g. plugins/design-doctrine. */
+  prefix: string;
+  /** Directory the published rules are extracted into for reading. */
+  readPath: string;
+  /** Directory publication worktrees are created under. */
+  workPath: string;
 }
 
-async function git(cwd: string, ...args: string[]): Promise<string> {
+async function git(
+  cwd: string,
+  args: string[],
+  signal?: AbortSignal,
+): Promise<string> {
   const result = await execFileAsync("git", ["-C", cwd, ...args], {
     encoding: "utf8",
+    timeout: COMMAND_TIMEOUT_MS,
+    signal,
   });
   return result.stdout.trim();
 }
 
-async function exists(path: string): Promise<boolean> {
-  try {
-    await access(path);
-    return true;
-  } catch {
-    return false;
-  }
-}
-
 /**
  * The plugin's own data directory, derived from the SQLite file bb opens for
- * it. bb owns that directory, so the corpus checkout lives and dies with the
- * plugin instead of sitting in a source tree waiting to be deleted.
+ * it. Everything this module materializes lives there, so it belongs to bb
+ * rather than to a source tree somebody might delete.
  */
 export function pluginDataDirectory(databasePath: string): string {
   return dirname(databasePath);
@@ -55,7 +52,7 @@ export async function resolveRepositoryRoot(
   path: string,
 ): Promise<string | null> {
   try {
-    return await git(path, "rev-parse", "--show-toplevel");
+    return await git(path, ["rev-parse", "--show-toplevel"]);
   } catch {
     return null;
   }
@@ -66,12 +63,11 @@ export async function resolveBaseBranch(
   repositoryRoot: string,
 ): Promise<string> {
   try {
-    const head = await git(
-      repositoryRoot,
+    const head = await git(repositoryRoot, [
       "symbolic-ref",
       "--short",
       "refs/remotes/origin/HEAD",
-    );
+    ]);
     const branch = head.replace(/^origin\//, "");
     return branch.length > 0 ? branch : "main";
   } catch {
@@ -80,178 +76,129 @@ export async function resolveBaseBranch(
 }
 
 /**
- * Creates the corpus checkout when it is missing and repairs it when it was
- * deleted out from under the plugin, so a removed directory is a recoverable
- * state rather than an install that silently stops learning.
+ * Identity of the published rules: the git tree hash of the rules directory on
+ * the base branch. Comparing it is exact and costs one `rev-parse`, so the read
+ * copy is only rewritten when the rules genuinely changed.
  */
-export async function ensureCheckout(checkout: CorpusCheckout): Promise<void> {
-  const { repositoryRoot, path, baseBranch } = checkout;
-  if (await exists(join(path, ".git"))) return;
-  // A worktree whose directory vanished stays registered and blocks re-adding
-  // the same path, so clear those records first.
-  await git(repositoryRoot, "worktree", "prune").catch(() => undefined);
-  await rm(path, { recursive: true, force: true });
-  await mkdir(dirname(path), { recursive: true });
-  await git(repositoryRoot, "fetch", "--quiet", "origin", baseBranch).catch(
-    () => undefined,
+export async function publishedRulesId(
+  source: CorpusSource,
+  signal?: AbortSignal,
+): Promise<string> {
+  return git(
+    source.repositoryRoot,
+    ["rev-parse", `origin/${source.baseBranch}:${source.prefix}/rules`],
+    signal,
   );
-  const startPoint = await git(
-    repositoryRoot,
-    "rev-parse",
-    "--verify",
-    `origin/${baseBranch}`,
-  ).catch(() => "HEAD");
+}
+
+/**
+ * Extracts the published rules into the read copy, replacing it atomically so
+ * a reader never observes a half-written corpus. Returns the id it wrote, or
+ * null when the copy was already current.
+ *
+ * The read copy is plain files with no git metadata: nothing commits here, so
+ * there is no branch to reset and nothing to lose by rebuilding it.
+ */
+export async function materializeRules(
+  source: CorpusSource,
+  currentId: string | null,
+  signal?: AbortSignal,
+): Promise<string | null> {
+  const { repositoryRoot, baseBranch, prefix, readPath } = source;
+  await git(repositoryRoot, ["fetch", "--quiet", "origin", baseBranch], signal);
+  const publishedId = await publishedRulesId(source, signal);
+  if (publishedId === currentId) return null;
+
+  const staging = `${readPath}.incoming`;
+  await rm(staging, { recursive: true, force: true });
+  await execFileAsync(
+    "sh",
+    [
+      "-c",
+      'set -e; mkdir -p "$1/rules"; git -C "$2" archive --format=tar "$3" | tar -x -C "$1/rules"',
+      "sh",
+      staging,
+      repositoryRoot,
+      `origin/${baseBranch}:${prefix}/rules`,
+    ],
+    { encoding: "utf8", timeout: COMMAND_TIMEOUT_MS, signal },
+  );
+  const retired = `${readPath}.retired`;
+  await rm(retired, { recursive: true, force: true });
+  await execFileAsync("sh", [
+    "-c",
+    'if [ -e "$1" ]; then mv "$1" "$2"; fi; mv "$3" "$1"',
+    "sh",
+    readPath,
+    retired,
+    staging,
+  ]);
+  await rm(retired, { recursive: true, force: true });
+  return publishedId;
+}
+
+export interface Publication {
+  /** The plugin directory to read, write, and commit rules in. */
+  root: string;
+  /**
+   * Publishes the batch when `committed`, then always removes the worktree.
+   * Returns the pull request URL, or null when nothing was published.
+   */
+  finish(committed: boolean): Promise<string | null>;
+}
+
+/**
+ * Opens a throwaway checkout of the published branch for one batch of rules.
+ *
+ * Nothing outside this worktree is touched and nothing survives the batch, so
+ * a failure cannot strand rules, reset a branch, or collide with a concurrent
+ * batch. The caller must always call `finish`.
+ */
+export async function openPublication(
+  source: CorpusSource,
+  signal?: AbortSignal,
+): Promise<Publication> {
+  const { repositoryRoot, baseBranch, prefix, workPath } = source;
+  await git(repositoryRoot, ["fetch", "--quiet", "origin", baseBranch], signal);
+  const directory = await mkdtemp(join(workPath, "publish-"));
   await git(
     repositoryRoot,
-    "worktree",
-    "add",
-    "--force",
-    "-B",
-    CORPUS_BRANCH,
-    path,
-    startPoint,
+    ["worktree", "add", "--detach", "--quiet", directory, `origin/${baseBranch}`],
+    signal,
   );
-}
 
-export type CorpusState =
-  /** Rules are being edited right now; leave the checkout alone. */
-  | "writing"
-  /** Committed rules that have not reached the published branch yet. */
-  | "unpublished"
-  /** Nothing of its own in flight; safe to fast-forward. */
-  | "published";
-
-async function succeeds(
-  operation: () => Promise<unknown>,
-): Promise<boolean> {
-  try {
-    await operation();
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-/**
- * Distinguishes the corpus having rules of its own from the published branch
- * simply having moved ahead. Commit ancestry alone is not enough — a batch
- * lands as a squash that shares no history with the commit here, which
- * ancestry would report as unpublished forever and republish every cycle — so
- * a checkout carrying local commits is only unpublished while its rules still
- * differ from the ones on the published branch.
- */
-export async function readState(
-  checkout: CorpusCheckout,
-): Promise<CorpusState> {
-  const { path, baseBranch, rulesPath } = checkout;
-  if ((await git(path, "status", "--porcelain=v1", "-uall")).length > 0) {
-    return "writing";
-  }
-  const merged = await succeeds(() =>
-    git(path, "merge-base", "--is-ancestor", "HEAD", `origin/${baseBranch}`),
-  );
-  if (merged) return "published";
-  const sameRules = await succeeds(() =>
-    git(path, "diff", "--quiet", `origin/${baseBranch}`, "HEAD", "--", rulesPath),
-  );
-  return sameRules ? "published" : "unpublished";
-}
-
-/**
- * Brings the corpus in line with what has actually been published. Only
- * fast-forwards once its own rules have landed, so a refresh can never discard
- * a batch that is still in flight.
- */
-export async function refreshCheckout(
-  checkout: CorpusCheckout,
-): Promise<boolean> {
-  await ensureCheckout(checkout);
-  const { repositoryRoot, path, baseBranch } = checkout;
-  await git(repositoryRoot, "fetch", "--quiet", "origin", baseBranch);
-  if ((await readState(checkout)) !== "published") return false;
-  const before = await git(path, "rev-parse", "HEAD");
-  await git(path, "reset", "--hard", "--quiet", `origin/${baseBranch}`);
-  return before !== (await git(path, "rev-parse", "HEAD"));
-}
-
-interface OpenPullRequest {
-  number: number;
-  url: string;
-  mergeStateStatus: string;
-  createdAt: string;
-}
-
-async function openPullRequest(
-  path: string,
-  branch: string,
-): Promise<OpenPullRequest | null> {
-  const result = await execFileAsync(
-    "gh",
-    [
-      "pr",
-      "list",
-      "--head",
-      branch,
-      "--state",
-      "open",
-      "--json",
-      "number,url,mergeStateStatus,createdAt",
-    ],
-    { cwd: path, encoding: "utf8" },
-  );
-  const parsed = JSON.parse(result.stdout) as OpenPullRequest[];
-  return parsed[0] ?? null;
-}
-
-export interface StalledPublication {
-  url: string;
-  /** Why GitHub will not merge it: BLOCKED, BEHIND, DIRTY, and so on. */
-  reason: string;
-  ageHours: number;
-}
-
-/**
- * Reports a batch that was published but is not merging. Auto-merge waits
- * indefinitely and nobody is watching the queue, so an unresolved review
- * comment or a failing check would otherwise stop the corpus learning without
- * ever saying so.
- */
-export async function readStalledPublication(
-  checkout: CorpusCheckout,
-  stallAfterHours = 6,
-): Promise<StalledPublication | null> {
-  if ((await readState(checkout)) !== "unpublished") return null;
-  const head = await git(checkout.path, "rev-parse", "--short", "HEAD");
-  const pullRequest = await openPullRequest(checkout.path, `doctrine/${head}`);
-  if (!pullRequest) return null;
-  const ageHours =
-    (Date.now() - Date.parse(pullRequest.createdAt)) / (60 * 60 * 1_000);
-  if (ageHours < stallAfterHours) return null;
   return {
-    url: pullRequest.url,
-    reason: pullRequest.mergeStateStatus,
-    ageHours: Math.round(ageHours),
+    root: join(directory, prefix),
+    async finish(committed) {
+      try {
+        if (!committed) return null;
+        return await publish(source, directory, signal);
+      } finally {
+        await git(
+          repositoryRoot,
+          ["worktree", "remove", "--force", directory],
+          signal,
+        ).catch(() => undefined);
+        await rm(directory, { recursive: true, force: true });
+      }
+    },
   };
 }
 
-/**
- * Publishes committed rules as a pull request that merges itself once the
- * repository's required checks pass: rules reach the corpus only after CI has
- * validated them, and nobody has to watch the queue for that to happen.
- *
- * Safe to call repeatedly for the same batch — a publish that fails part way
- * is retried on the next cycle rather than stranding the rules.
- */
-export async function publishCheckout(
-  checkout: CorpusCheckout,
+async function publish(
+  source: CorpusSource,
+  directory: string,
+  signal?: AbortSignal,
 ): Promise<string | null> {
-  const { path, baseBranch } = checkout;
-  if ((await readState(checkout)) !== "unpublished") return null;
-  const head = await git(path, "rev-parse", "--short", "HEAD");
+  const head = await git(directory, ["rev-parse", "--short", "HEAD"], signal);
   const branch = `doctrine/${head}`;
-  await git(path, "push", "--quiet", "--force-with-lease", "origin", `HEAD:refs/heads/${branch}`);
-  if (!(await openPullRequest(path, branch))) {
-    await execFileAsync(
+  await git(
+    directory,
+    ["push", "--quiet", "origin", `HEAD:refs/heads/${branch}`],
+    signal,
+  );
+  try {
+    const created = await execFileAsync(
       "gh",
       [
         "pr",
@@ -259,18 +206,82 @@ export async function publishCheckout(
         "--head",
         branch,
         "--base",
-        baseBranch,
+        source.baseBranch,
         "--title",
         "doctrine: publish harvested rules",
         "--body",
         "Rules harvested from bb thread feedback by the Design Doctrine plugin.\n\nMerges itself once the repository's required checks pass.",
       ],
-      { cwd: path, encoding: "utf8" },
+      { cwd: directory, encoding: "utf8", timeout: COMMAND_TIMEOUT_MS, signal },
     );
+    await execFileAsync("gh", ["pr", "merge", branch, "--auto", "--squash"], {
+      cwd: directory,
+      encoding: "utf8",
+      timeout: COMMAND_TIMEOUT_MS,
+      signal,
+    });
+    return created.stdout.trim().split("\n").filter(Boolean).pop() ?? branch;
+  } catch (error) {
+    // Leave no branch behind that nothing is going to merge; the batch stays
+    // unwritten in the plugin's database and a later drain retries it whole.
+    await git(
+      directory,
+      ["push", "--quiet", "--delete", "origin", branch],
+      signal,
+    ).catch(() => undefined);
+    throw error;
   }
-  await execFileAsync("gh", ["pr", "merge", branch, "--auto", "--squash"], {
-    cwd: path,
-    encoding: "utf8",
-  });
-  return branch;
+}
+
+export interface OpenPublication {
+  url: string;
+  branch: string;
+  mergeStateStatus: string;
+  ageHours: number;
+}
+
+/**
+ * Reports doctrine pull requests that are open but not merging. Auto-merge
+ * waits indefinitely, so without this a failing check or an unresolved comment
+ * stops the corpus learning without ever saying so.
+ */
+export async function readStalledPublications(
+  source: CorpusSource,
+  stallAfterHours = 6,
+  signal?: AbortSignal,
+): Promise<OpenPublication[]> {
+  const result = await execFileAsync(
+    "gh",
+    [
+      "pr",
+      "list",
+      "--state",
+      "open",
+      "--search",
+      "head:doctrine/",
+      "--json",
+      "url,headRefName,mergeStateStatus,createdAt",
+    ],
+    {
+      cwd: source.repositoryRoot,
+      encoding: "utf8",
+      timeout: COMMAND_TIMEOUT_MS,
+      signal,
+    },
+  );
+  const rows = JSON.parse(result.stdout) as Array<{
+    url: string;
+    headRefName: string;
+    mergeStateStatus: string;
+    createdAt: string;
+  }>;
+  return rows
+    .map((row) => ({
+      url: row.url,
+      branch: row.headRefName,
+      mergeStateStatus: row.mergeStateStatus,
+      ageHours: (Date.now() - Date.parse(row.createdAt)) / (60 * 60 * 1_000),
+    }))
+    .filter((row) => row.ageHours >= stallAfterHours)
+    .map((row) => ({ ...row, ageHours: Math.round(row.ageHours) }));
 }

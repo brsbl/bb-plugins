@@ -71,11 +71,15 @@ export async function ensureRuleTreeClean(pluginRoot: string): Promise<void> {
   }
 }
 
-export async function ensureMaintenanceCheckout(
+/**
+ * Refuses to commit rules onto a branch that is published directly. Only a
+ * caller-configured checkout needs this: a batch's own throwaway checkout is
+ * detached on purpose and is pushed to a fresh branch, never committed to.
+ */
+export async function ensureNotPublishedBranch(
   pluginRoot: string,
 ): Promise<void> {
   await ensureMaintenanceBranch(pluginRoot);
-  await ensureRuleTreeClean(pluginRoot);
 }
 
 export interface NewRuleFile {
@@ -153,7 +157,7 @@ export async function commitNewRuleFiles(
     throw new Error("generated rule paths must be unique");
   }
 
-  await ensureMaintenanceCheckout(pluginRoot);
+  await ensureRuleTreeClean(pluginRoot);
   if (expectedHead) {
     const actualHead = await readMaintenanceHead(pluginRoot);
     if (actualHead !== expectedHead) {
@@ -287,12 +291,14 @@ async function removeMigratedStateFile(
 
 export function createHistoryMaintenance(
   bb: BbPluginApi,
-  resolveDoctrineRoot: () => Promise<string>,
   installedPluginRoot: string,
   skipEpisode?: (episode: ScannedEpisode) => string | null,
 ) {
+  // Leasing history writes nothing into any working tree, so it is not gated on
+  // one. The rules tree is guarded where a batch is actually written, in
+  // `ensureMaintenanceCheckout`; gating the read as well only ever stranded
+  // maintenance behind a checkout it never touches.
   const history = createThreadHistoryMaintenance(bb, {
-    beforeScan: async () => ensureRuleTreeClean(await resolveDoctrineRoot()),
     legacyStateKeys: [LEGACY_HISTORY_STATE_KEY],
     skipEpisode,
   });
