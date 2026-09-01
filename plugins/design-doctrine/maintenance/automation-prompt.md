@@ -94,10 +94,15 @@ root.
    hand.
 
    ```bash
-   git push -u origin HEAD
-   gh pr create --fill
-   gh pr merge --auto --squash
+   branch="doctrine/$(git rev-parse --short HEAD)"
+   git push origin "HEAD:refs/heads/$branch"
+   gh pr create --head "$branch" --fill
+   gh pr merge "$branch" --auto --squash
    ```
+
+   Publish under `doctrine/` so the batch is visible to the stall check in step
+   9 and to every later run. A branch named anything else is invisible to it,
+   and a pull request that never merges would go unnoticed.
 
    If the push or the pull request fails, stop: do not advance. Release the
    lease as in step 8, report the failure, and leave this thread open. On
