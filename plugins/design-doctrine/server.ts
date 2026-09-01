@@ -1,13 +1,25 @@
 import { execFile } from "node:child_process";
 import { readdir, readFile, stat } from "node:fs/promises";
 import { homedir } from "node:os";
-import { basename, dirname, join, relative, resolve } from "node:path";
+import { basename, dirname, isAbsolute, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 
 import type { BbPluginApi } from "@get-bb/plugin-sdk";
 import { z } from "zod";
 
+import {
+  CORPUS_DIRECTORY,
+  type CorpusCheckout,
+  type StalledPublication,
+  ensureCheckout,
+  pluginDataDirectory,
+  publishCheckout,
+  readStalledPublication,
+  refreshCheckout,
+  resolveBaseBranch,
+  resolveRepositoryRoot,
+} from "./corpus.js";
 import { createHistoryMaintenance } from "./history.js";
 import {
   createHarvest,
@@ -21,6 +33,7 @@ const MODULE_DIR = dirname(fileURLToPath(import.meta.url));
 const DEFAULT_DOCTRINE_PATH =
   basename(MODULE_DIR) === "dist" ? dirname(MODULE_DIR) : MODULE_DIR;
 const WATCH_INTERVAL_MS = 2_500;
+const CORPUS_REFRESH_INTERVAL_MS = 2 * 60 * 1_000;
 const SEARCH_RESULT_LIMIT = 24;
 const AUTOMATIC_RULE_LIMIT = 4;
 const SEARCH_STOP_TOKENS = new Set([
@@ -660,6 +673,58 @@ export default async function plugin(bb: BbPluginApi) {
   let loading: Promise<LibraryPayload> | null = null;
   let automaticRules: DoctrineRule[] = [];
 
+  // The plugin keeps its own checkout of the published corpus. bb owns the
+  // directory, it is recreated when it goes missing, and it follows the
+  // published branch, so merged rules go live without anyone maintaining a
+  // checkout by hand. An explicitly configured doctrinePath still wins.
+  let corpusResolution: Promise<CorpusCheckout | null> | null = null;
+  let stalledPublication: StalledPublication | null = null;
+  let reportedStall: string | null = null;
+
+  function resolveCorpus(): Promise<CorpusCheckout | null> {
+    corpusResolution ??= (async () => {
+      const repositoryRoot = await resolveRepositoryRoot(DEFAULT_DOCTRINE_PATH);
+      if (!repositoryRoot) return null;
+      const dataDirectory = pluginDataDirectory(bb.storage.database().name);
+      const path = join(dataDirectory, CORPUS_DIRECTORY);
+      // bb owns the data directory; a corpus materialized anywhere inside the
+      // repository would show up as untracked work in the user's own checkout.
+      if (!isAbsolute(path) || !relative(repositoryRoot, path).startsWith("..")) {
+        return null;
+      }
+      const checkout: CorpusCheckout = {
+        repositoryRoot,
+        path,
+        baseBranch: await resolveBaseBranch(repositoryRoot),
+        rulesPath: join(
+          relative(repositoryRoot, DEFAULT_DOCTRINE_PATH),
+          "rules",
+        ),
+      };
+      await ensureCheckout(checkout);
+      return checkout;
+    })().catch((error: unknown) => {
+      bb.log.warn(
+        `doctrine corpus unavailable, reading the installed rules: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
+      return null;
+    });
+    return corpusResolution;
+  }
+
+  async function doctrineRoot(): Promise<string> {
+    const configured = expandPath((await settings.get()).doctrinePath);
+    if (configured !== DEFAULT_DOCTRINE_PATH) return configured;
+    const checkout = await resolveCorpus();
+    if (!checkout) return configured;
+    return join(
+      checkout.path,
+      relative(checkout.repositoryRoot, DEFAULT_DOCTRINE_PATH),
+    );
+  }
+
   function invalidate(): void {
     cacheGeneration += 1;
     cached = null;
@@ -668,7 +733,7 @@ export default async function plugin(bb: BbPluginApi) {
   }
 
   async function currentLibrary(): Promise<LibraryPayload> {
-    const root = expandPath((await settings.get()).doctrinePath);
+    const root = await doctrineRoot();
     if (cached?.root === root) return cached.value;
     if (loading) return loading;
     const generation = cacheGeneration;
@@ -688,13 +753,12 @@ export default async function plugin(bb: BbPluginApi) {
 
   const historyMaintenance = createHistoryMaintenance(
     bb,
-    async () => expandPath((await settings.get()).doctrinePath),
+    doctrineRoot,
     DEFAULT_DOCTRINE_PATH,
   );
   const harvest = createHarvest({
     bb,
-    resolveDoctrineRoot: async () =>
-      expandPath((await settings.get()).doctrinePath),
+    resolveDoctrineRoot: doctrineRoot,
     listRuleIds: async (doctrineRoot) =>
       (await loadDoctrine(doctrineRoot)).rules.map((rule) => rule.id),
     describeExistingRules: async (doctrineRoot) =>
@@ -951,8 +1015,11 @@ export default async function plugin(bb: BbPluginApi) {
           };
         }
         if (command === "validate") {
+          // Maintenance edits rules in its own checkout, so it has to be able
+          // to validate that working copy rather than the published corpus.
+          const target = argv[1] && !argv[1].startsWith("--") ? argv[1] : null;
           const library = await loadDoctrine(
-            expandPath((await settings.get()).doctrinePath),
+            target ? expandPath(target) : await doctrineRoot(),
           );
           return {
             exitCode: 0,
@@ -974,12 +1041,17 @@ export default async function plugin(bb: BbPluginApi) {
             rules: library.rules.length,
             statuses: library.status_counts,
             git: library.git,
+            stalled_publication: stalledPublication,
           };
           return {
             exitCode: 0,
             stdout: json
               ? `${JSON.stringify(summary, null, 2)}\n`
-              : `${summary.rules} rules (${Object.entries(summary.statuses).map(([status, count]) => `${count} ${status}`).join(", ")})\nRepository: ${summary.root}\n`,
+              : `${summary.rules} rules (${Object.entries(summary.statuses).map(([status, count]) => `${count} ${status}`).join(", ")})\nRepository: ${summary.root}\n${
+                  stalledPublication
+                    ? `Stalled: ${stalledPublication.url} not merged after ${stalledPublication.ageHours}h (${stalledPublication.reason})\n`
+                    : ""
+                }`,
           };
         }
         if (command === "search") {
@@ -1007,16 +1079,59 @@ export default async function plugin(bb: BbPluginApi) {
     },
   });
 
+  /**
+   * One cycle of corpus upkeep: publish rules the harvest has committed, then
+   * pull in whatever has landed. Publishing is retried here rather than at the
+   * commit site so a failed push leaves the rules committed and recoverable
+   * instead of lost.
+   */
+  async function maintainCorpus(): Promise<void> {
+    const checkout = await resolveCorpus();
+    if (!checkout) return;
+    try {
+      const branch = await publishCheckout(checkout);
+      if (branch) {
+        bb.log.info(`doctrine corpus: published ${branch} for review by CI`);
+      }
+      await refreshCheckout(checkout);
+      stalledPublication = await readStalledPublication(checkout);
+      // Auto-merge waits forever, so say so once per distinct stall rather
+      // than staying quiet or repeating every cycle.
+      const signature = stalledPublication
+        ? `${stalledPublication.url}:${stalledPublication.reason}`
+        : null;
+      if (signature !== reportedStall) {
+        reportedStall = signature;
+        if (stalledPublication) {
+          bb.log.warn(
+            `doctrine corpus: ${stalledPublication.url} has not merged after ${stalledPublication.ageHours}h (${stalledPublication.reason}); rules stay unpublished until it does`,
+          );
+        }
+      }
+    } catch (error) {
+      bb.log.warn(
+        `doctrine corpus upkeep failed, retrying next cycle: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
+    }
+  }
+
   bb.background.service("rule-watch", {
     async start(signal) {
-      let fingerprint = await watchFingerprint((await settings.get()).doctrinePath);
+      let fingerprint = await watchFingerprint(await doctrineRoot());
       try { await currentLibrary(); } catch (error) {
         bb.log.warn(error instanceof Error ? error.message : String(error));
       }
+      let nextRefreshAt = Date.now() + CORPUS_REFRESH_INTERVAL_MS;
       while (!signal.aborted) {
         await sleep(WATCH_INTERVAL_MS, signal);
         if (signal.aborted) break;
-        const next = await watchFingerprint((await settings.get()).doctrinePath);
+        if (Date.now() >= nextRefreshAt) {
+          nextRefreshAt = Date.now() + CORPUS_REFRESH_INTERVAL_MS;
+          await maintainCorpus();
+        }
+        const next = await watchFingerprint(await doctrineRoot());
         if (next !== fingerprint) {
           fingerprint = next;
           invalidate();

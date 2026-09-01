@@ -5,6 +5,16 @@ export type IdentifierMeshStyle = {
   selected: string;
 };
 
+/**
+ * Chips fall back to the accent mesh for a subdomain nobody has picked a color
+ * for yet. Maintenance learns new subdomains on its own, so an unmapped one has
+ * to render rather than block the corpus from growing.
+ */
+export const FALLBACK_MESH_STYLE: IdentifierMeshStyle = {
+  idle: "bg-accent/35 group-hover:bg-accent/45",
+  selected: "bg-accent/50 group-hover:bg-accent/60",
+};
+
 export const SUBDOMAIN_MESH_STYLES: Record<
   string,
   IdentifierMeshStyle
@@ -101,6 +111,13 @@ export function displayDomainIdentifier(identifier: string): string {
 
 export function domainFilterFromIdentifier(identifier: string): string {
   return displayDomainIdentifier(identifier).split(".", 1)[0] || "all";
+}
+
+export function subdomainMeshStyle(identifier: string): IdentifierMeshStyle {
+  return (
+    SUBDOMAIN_MESH_STYLES[subdomainFromIdentifier(identifier)] ??
+    FALLBACK_MESH_STYLE
+  );
 }
 
 export function subdomainFromIdentifier(identifier: string): string {

@@ -81,7 +81,7 @@ describe("Design Doctrine legacy history migration", () => {
     }
   });
 
-  it("refuses maintenance scans from a detached managed checkout", async () => {
+  it("leases history from a detached checkout, which it only reads", async () => {
     const root = await createPluginRoot();
     await writeFile(join(root, "rules", "existing.md"), "existing\n");
     await execFileAsync("git", ["-C", root, "add", "rules/existing.md"]);
@@ -104,16 +104,14 @@ describe("Design Doctrine legacy history migration", () => {
     const history = createHistoryMaintenance(bb, async () => root, root);
 
     try {
-      await expect(history.scan(scanOptions())).rejects.toThrow(
-        "maintenance requires doctrinePath to point to a dedicated non-default branch checkout",
-      );
+      await expect(history.scan(scanOptions())).resolves.toBeDefined();
     } finally {
       await harness.lifecycle.dispose();
       await rm(root, { recursive: true, force: true });
     }
   });
 
-  it("refuses maintenance scans from a primary branch checkout", async () => {
+  it("leases history from a primary branch checkout", async () => {
     const root = await createPluginRoot("main");
     const { bb, harness } = createFakePluginHost({
       pluginId: "design-doctrine",
@@ -122,9 +120,7 @@ describe("Design Doctrine legacy history migration", () => {
     const history = createHistoryMaintenance(bb, async () => root, root);
 
     try {
-      await expect(history.scan(scanOptions())).rejects.toThrow(
-        "maintenance refuses primary branch main",
-      );
+      await expect(history.scan(scanOptions())).resolves.toBeDefined();
     } finally {
       await harness.lifecycle.dispose();
       await rm(root, { recursive: true, force: true });
