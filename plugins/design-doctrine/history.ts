@@ -8,6 +8,7 @@ import {
   createThreadHistoryMaintenance,
   type HistoryAdvanceInput,
   type HistoryScanOptions,
+  type ScannedEpisode,
 } from "@brsbl/bb-thread-history-maintenance";
 
 const execFileAsync = promisify(execFile);
@@ -15,7 +16,7 @@ const LEGACY_HISTORY_STATE_KEY = "maintenance:thread-history:v2";
 const LEGACY_HISTORY_STATE_PATH = join("maintenance", "state.json");
 const PRIMARY_BRANCH_NAMES = new Set(["main", "master", "trunk"]);
 
-export type { HistoryAdvanceInput, HistoryScanOptions };
+export type { HistoryAdvanceInput, HistoryScanOptions, ScannedEpisode };
 
 async function ensureMaintenanceBranch(pluginRoot: string): Promise<void> {
   let branchName: string;
@@ -288,10 +289,12 @@ export function createHistoryMaintenance(
   bb: BbPluginApi,
   resolveDoctrineRoot: () => Promise<string>,
   installedPluginRoot: string,
+  skipEpisode?: (episode: ScannedEpisode) => string | null,
 ) {
   const history = createThreadHistoryMaintenance(bb, {
     beforeScan: async () => ensureRuleTreeClean(await resolveDoctrineRoot()),
     legacyStateKeys: [LEGACY_HISTORY_STATE_KEY],
+    skipEpisode,
   });
   let migrationQueue: Promise<unknown> = Promise.resolve();
 

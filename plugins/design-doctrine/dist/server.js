@@ -15270,6 +15270,7 @@ function createThreadHistoryMaintenance(bb, options = {}) {
         const episodes = [];
         const leaseTargets = [];
         const automaticTargets = [];
+        let skippedCount = 0;
         let messageCount = 0;
         let messageBytes = 0;
         let hitBound = false;
@@ -15370,7 +15371,14 @@ function createThreadHistoryMaintenance(bb, options = {}) {
             }
             const episode = result.episode;
             storeHydrationCursor(result.candidate.thread_id, null);
-            if (episode.messages.length === 0) {
+            const skipReason = episode.messages.length > 0 && episode.complete ? options.skipEpisode?.({
+              threadId: episode.state.thread_id,
+              title: episode.state.title,
+              targetAt: episode.targetAt,
+              messages: episode.messages
+            }) ?? null : null;
+            if (episode.messages.length === 0 || skipReason !== null) {
+              if (skipReason !== null) skippedCount += 1;
               automaticTargets.push({
                 threadId: episode.state.thread_id,
                 targetSequence: episode.targetSequence,
@@ -15463,7 +15471,8 @@ function createThreadHistoryMaintenance(bb, options = {}) {
             message_count: 0,
             message_bytes: 0,
             pending_thread_count: pendingCount(),
-            deferred_thread_count: deferredThreadCount
+            deferred_thread_count: deferredThreadCount,
+            skipped_episode_count: skippedCount
           };
         }
         const leaseId = randomUUID().replaceAll("-", "");
@@ -15501,7 +15510,8 @@ function createThreadHistoryMaintenance(bb, options = {}) {
           message_count: messageCount,
           message_bytes: messageBytes,
           pending_thread_count: pendingCount(),
-          deferred_thread_count: deferredThreadCount
+          deferred_thread_count: deferredThreadCount,
+          skipped_episode_count: skippedCount
         };
       });
     },
@@ -15773,10 +15783,11 @@ async function removeMigratedStateFile(bb, statePath) {
     if (!isMissingFile(error51)) throw error51;
   }
 }
-function createHistoryMaintenance(bb, resolveDoctrineRoot, installedPluginRoot) {
+function createHistoryMaintenance(bb, resolveDoctrineRoot, installedPluginRoot, skipEpisode) {
   const history = createThreadHistoryMaintenance(bb, {
     beforeScan: async () => ensureRuleTreeClean(await resolveDoctrineRoot()),
-    legacyStateKeys: [LEGACY_HISTORY_STATE_KEY]
+    legacyStateKeys: [LEGACY_HISTORY_STATE_KEY],
+    skipEpisode
   });
   let migrationQueue = Promise.resolve();
   function withLegacyStateMigration(operation) {
@@ -17045,6 +17056,52 @@ function formatAgentSearchResults(rules) {
     return lines.join("\n");
   }).join("\n\n");
 }
+var FEEDBACK_SIGNAL_TOKENS = /* @__PURE__ */ new Set([
+  ...DESIGN_CONTEXT_TOKENS,
+  "align",
+  "alignment",
+  "badge",
+  "chip",
+  "cluttered",
+  "confusing",
+  "contrast",
+  "copy",
+  "cramped",
+  "font",
+  "label",
+  "language",
+  "margin",
+  "padding",
+  "placement",
+  "position",
+  "readable",
+  "row",
+  "spacing",
+  "step",
+  "tab",
+  "table",
+  "toast",
+  "tooltip",
+  "typo",
+  "ux",
+  "verbose",
+  "wording",
+  "wordy"
+]);
+var EPISODE_MAX_AGE_MS = 90 * 24 * 60 * 60 * 1e3;
+function skipEpisodeReason(episode, now = Date.now()) {
+  if (now - episode.targetAt > EPISODE_MAX_AGE_MS) {
+    return "older than the review window";
+  }
+  const spoken = [
+    episode.title,
+    ...episode.messages.filter((message) => message.role === "user").map((message) => message.text)
+  ].join(" ");
+  for (const token of tokenize(spoken)) {
+    if (FEEDBACK_SIGNAL_TOKENS.has(token)) return null;
+  }
+  return "no design signal in the user's messages";
+}
 function automaticDoctrineGuidance(rules, threadTitle) {
   if (!threadTitle) return void 0;
   const titleTokens = new Set(tokenize(threadTitle));
@@ -17232,7 +17289,14 @@ async function plugin(bb) {
   const historyMaintenance = createHistoryMaintenance(
     bb,
     doctrineRoot,
-    DEFAULT_DOCTRINE_PATH
+    DEFAULT_DOCTRINE_PATH,
+    (episode) => {
+      const reason = skipEpisodeReason(episode);
+      if (reason) {
+        bb.log.info(`doctrine history: skipped ${episode.threadId} \u2014 ${reason}`);
+      }
+      return reason;
+    }
   );
   const harvest = createHarvest({
     bb,
@@ -17616,6 +17680,7 @@ export {
   loadDoctrine,
   readGit,
   rpcContract,
-  searchDoctrine
+  searchDoctrine,
+  skipEpisodeReason
 };
 //# sourceMappingURL=server.js.map

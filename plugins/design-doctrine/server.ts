@@ -535,6 +535,75 @@ export function formatAgentSearchResults(rules: DoctrineRule[]): string {
     .join("\n\n");
 }
 
+/**
+ * Words that mark an episode as worth a reviewer's attention. Deliberately
+ * broad: the queue grows about eighty episodes a week and yields a rule from
+ * roughly one in twenty-five, so the cost of reading a dull episode is a little
+ * budget while the cost of dropping a real one is feedback lost for good.
+ */
+const FEEDBACK_SIGNAL_TOKENS = new Set([
+  ...DESIGN_CONTEXT_TOKENS,
+  "align",
+  "alignment",
+  "badge",
+  "chip",
+  "cluttered",
+  "confusing",
+  "contrast",
+  "copy",
+  "cramped",
+  "font",
+  "label",
+  "language",
+  "margin",
+  "padding",
+  "placement",
+  "position",
+  "readable",
+  "row",
+  "spacing",
+  "step",
+  "tab",
+  "table",
+  "toast",
+  "tooltip",
+  "typo",
+  "ux",
+  "verbose",
+  "wording",
+  "wordy",
+]);
+
+/** Episodes older than this are advanced unread so the queue cannot diverge. */
+const EPISODE_MAX_AGE_MS = 90 * 24 * 60 * 60 * 1_000;
+
+/**
+ * Decides whether an episode is worth a maintenance pass. Only the user's own
+ * messages count, because only those are evidence.
+ */
+export function skipEpisodeReason(
+  episode: {
+    title: string;
+    targetAt: number;
+    messages: ReadonlyArray<{ role: "user" | "assistant"; text: string }>;
+  },
+  now = Date.now(),
+): string | null {
+  if (now - episode.targetAt > EPISODE_MAX_AGE_MS) {
+    return "older than the review window";
+  }
+  const spoken = [
+    episode.title,
+    ...episode.messages
+      .filter((message) => message.role === "user")
+      .map((message) => message.text),
+  ].join(" ");
+  for (const token of tokenize(spoken)) {
+    if (FEEDBACK_SIGNAL_TOKENS.has(token)) return null;
+  }
+  return "no design signal in the user's messages";
+}
+
 export function automaticDoctrineGuidance(
   rules: DoctrineRule[],
   threadTitle: string | null,
@@ -755,6 +824,13 @@ export default async function plugin(bb: BbPluginApi) {
     bb,
     doctrineRoot,
     DEFAULT_DOCTRINE_PATH,
+    (episode) => {
+      const reason = skipEpisodeReason(episode);
+      if (reason) {
+        bb.log.info(`doctrine history: skipped ${episode.threadId} — ${reason}`);
+      }
+      return reason;
+    },
   );
   const harvest = createHarvest({
     bb,

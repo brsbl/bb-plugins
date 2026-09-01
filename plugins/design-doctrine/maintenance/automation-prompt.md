@@ -22,13 +22,16 @@ root.
 
    ```bash
    bb doctrine history scan \
-     --limit 200 \
-     --max-bytes 262144 \
+     --limit 400 \
+     --max-bytes 1048576 \
      --max-message-bytes 8192
    ```
 
-   A fresh install establishes a current baseline and does not replay feedback
-   already represented by the existing doctrine. The plugin normally queues
+   Episodes whose user messages carry no design signal, and episodes older than
+   the review window, are advanced automatically and never reach you; the
+   result reports them as `skipped_episode_count`. A fresh install establishes a
+   current baseline and does not replay feedback already represented by the
+   existing doctrine. The plugin normally queues
    visible user threads as they become idle; a startup and monthly inventory
    reconciliation recovers idle events missed during downtime. If `lease_id`
    is `null`, history is caught up. Report that there is no new feedback and
