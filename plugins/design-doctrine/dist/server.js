@@ -12,6 +12,7 @@ var __export = (target, all) => {
 
 // server.ts
 import { execFile as execFile3 } from "node:child_process";
+import { createHmac, timingSafeEqual } from "node:crypto";
 import { readdir, readFile as readFile2, stat } from "node:fs/promises";
 import { homedir } from "node:os";
 import { basename, dirname as dirname2, isAbsolute, join as join4, relative, resolve } from "node:path";
@@ -14577,6 +14578,43 @@ async function resolveBaseBranch(repositoryRoot) {
     return "main";
   }
 }
+function githubRepositoryFromRemote(remote) {
+  const match = remote.trim().match(
+    /^(?:git@github\.com:|ssh:\/\/git@github\.com\/|https?:\/\/github\.com\/)([^\s]+)$/i
+  );
+  if (!match) return null;
+  const repository = match[1].replace(/\/$/, "").replace(/\.git$/i, "");
+  return /^[^/]+\/[^/]+$/.test(repository) ? repository : null;
+}
+async function resolveGitHubRepository(repositoryRoot) {
+  try {
+    return githubRepositoryFromRemote(
+      await git(repositoryRoot, ["remote", "get-url", "origin"])
+    );
+  } catch {
+    return null;
+  }
+}
+async function publishedBranchId(source, signal) {
+  return git(
+    source.repositoryRoot,
+    ["rev-parse", `refs/remotes/origin/${source.baseBranch}`],
+    signal
+  );
+}
+async function remoteBranchId(source, signal) {
+  const ref = `refs/heads/${source.baseBranch}`;
+  const output = await git(
+    source.repositoryRoot,
+    ["ls-remote", "--exit-code", "--refs", "origin", ref],
+    signal
+  );
+  const fields = output.split(/\s+/);
+  if (fields.length !== 2 || fields[1] !== ref || !/^[0-9a-f]{40,64}$/i.test(fields[0])) {
+    throw new Error(`origin returned an invalid ${ref} identity`);
+  }
+  return fields[0];
+}
 async function publishedRulesId(source, signal) {
   return git(
     source.repositoryRoot,
@@ -16673,8 +16711,9 @@ var HARVEST_AGENT_TIMEOUT_MS = 15 * 60 * 1e3;
 var MODULE_DIR = dirname2(fileURLToPath(import.meta.url));
 var DEFAULT_DOCTRINE_PATH = basename(MODULE_DIR) === "dist" ? dirname2(MODULE_DIR) : MODULE_DIR;
 var WATCH_INTERVAL_MS = 2500;
-var CORPUS_REFRESH_INTERVAL_MS = 2 * 60 * 1e3;
+var CORPUS_FRESHNESS_TTL_MS = 15 * 60 * 1e3;
 var CORPUS_DIRECTORY = "rules-cache";
+var MAX_WEBHOOK_BODY_BYTES = 2 * 1024 * 1024;
 var SEARCH_RESULT_LIMIT = 24;
 var AUTOMATIC_RULE_LIMIT = 4;
 var SEARCH_STOP_TOKENS = /* @__PURE__ */ new Set([
@@ -16779,6 +16818,96 @@ var librarySchema = external_exports.object({
   status_counts: external_exports.record(external_exports.string(), external_exports.number().int()),
   git: gitSchema
 });
+var githubPushEnvelopeSchema = external_exports.object({
+  ref: external_exports.string(),
+  after: external_exports.string().regex(/^[0-9a-f]{40,64}$/i),
+  deleted: external_exports.boolean().optional(),
+  forced: external_exports.boolean().optional(),
+  repository: external_exports.object({ full_name: external_exports.string() }).passthrough()
+}).passthrough();
+function isRulePath(path, prefix) {
+  const rules = `${prefix.replace(/\\/g, "/").replace(/\/$/, "")}/rules`;
+  return path === rules || path.startsWith(`${rules}/`);
+}
+function pushMayChangeRules(payload, prefix) {
+  if (payload.forced === true) return true;
+  const size = payload.size;
+  const commits = payload.commits;
+  if (!Number.isInteger(size) || size < 0 || !Array.isArray(commits)) {
+    return true;
+  }
+  if (commits.length !== size) return true;
+  for (const commit of commits) {
+    if (!commit || typeof commit !== "object" || Array.isArray(commit)) return true;
+    const row = commit;
+    for (const key of ["added", "modified", "removed"]) {
+      const paths = row[key];
+      if (!Array.isArray(paths) || paths.some((path) => typeof path !== "string")) {
+        return true;
+      }
+      if (paths.some((path) => isRulePath(path, prefix))) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+function classifyGitHubPush(input, expectedRepository, source) {
+  const parsed = githubPushEnvelopeSchema.safeParse(input);
+  if (!parsed.success) return { kind: "invalid", reason: "invalid push payload" };
+  if (!expectedRepository) {
+    return { kind: "ignore", reason: "origin is not a GitHub repository" };
+  }
+  if (parsed.data.repository.full_name.toLocaleLowerCase() !== expectedRepository.toLocaleLowerCase()) {
+    return { kind: "ignore", reason: "different repository" };
+  }
+  if (parsed.data.ref !== `refs/heads/${source.baseBranch}`) {
+    return { kind: "ignore", reason: "different branch" };
+  }
+  if (parsed.data.deleted || /^0+$/.test(parsed.data.after)) {
+    return { kind: "ignore", reason: "branch deletion" };
+  }
+  if (!pushMayChangeRules(parsed.data, source.prefix)) {
+    return { kind: "ignore", reason: "rules unchanged" };
+  }
+  return { kind: "refresh", remoteCommit: parsed.data.after };
+}
+function verifyGitHubSignature(secret, body, signature) {
+  const match = signature?.match(/^sha256=([0-9a-f]{64})$/i);
+  if (!match) return false;
+  const expected = createHmac("sha256", secret).update(body).digest();
+  const received = Buffer.from(match[1], "hex");
+  return received.length === expected.length && timingSafeEqual(received, expected);
+}
+var WebhookBodyTooLargeError = class extends Error {
+};
+async function readWebhookBody(request) {
+  const declaredLength = Number(request.headers.get("content-length"));
+  if (Number.isFinite(declaredLength) && declaredLength > MAX_WEBHOOK_BODY_BYTES) {
+    throw new WebhookBodyTooLargeError();
+  }
+  if (!request.body) return new Uint8Array();
+  const reader = request.body.getReader();
+  const chunks = [];
+  let length = 0;
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    length += value.byteLength;
+    if (length > MAX_WEBHOOK_BODY_BYTES) {
+      await reader.cancel().catch(() => void 0);
+      throw new WebhookBodyTooLargeError();
+    }
+    chunks.push(value);
+  }
+  const body = new Uint8Array(length);
+  let offset = 0;
+  for (const chunk of chunks) {
+    body.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return body;
+}
 var rpcContract = defineRpcContract({
   getLibrary: { input: external_exports.null(), output: librarySchema }
 });
@@ -17269,6 +17398,12 @@ async function plugin(bb) {
       type: "string",
       label: "Doctrine repository",
       default: DEFAULT_DOCTRINE_PATH
+    },
+    githubWebhookSecret: {
+      type: "string",
+      label: "GitHub webhook secret",
+      description: "Verifies push events that refresh the published rule corpus.",
+      secret: true
     }
   });
   let cacheGeneration = 0;
@@ -17276,13 +17411,20 @@ async function plugin(bb) {
   let loading = null;
   let automaticRules = [];
   let corpusSource = null;
+  let githubRepository = null;
   let materializedId = null;
+  let observedRemoteCommit = null;
+  let lastFreshnessCheckAt = Date.now();
+  let corpusRefresh = null;
+  let freshnessCheck = null;
+  let watchedFingerprint = "rules:unavailable";
   let stalledPublications = [];
   let reportedStalls = null;
   async function resolveSource() {
     if (corpusSource) return corpusSource;
     const repositoryRoot = await resolveRepositoryRoot(DEFAULT_DOCTRINE_PATH);
     if (!repositoryRoot) return null;
+    githubRepository = await resolveGitHubRepository(repositoryRoot);
     const dataDirectory = pluginDataDirectory(bb.storage.database().name);
     const readPath = join4(dataDirectory, CORPUS_DIRECTORY);
     if (!isAbsolute(readPath) || !relative(repositoryRoot, readPath).startsWith("..")) {
@@ -17318,7 +17460,7 @@ async function plugin(bb) {
     loading = null;
     automaticRules = [];
   }
-  async function currentLibrary() {
+  async function loadCurrentLibrary() {
     const root = await doctrineRoot();
     if (cached2?.root === root) return cached2.value;
     if (loading) return loading;
@@ -17335,6 +17477,10 @@ async function plugin(bb) {
     } finally {
       if (loading === request) loading = null;
     }
+  }
+  async function currentLibrary() {
+    await reconcileCorpusOnRead();
+    return loadCurrentLibrary();
   }
   const historyMaintenance = createHistoryMaintenance(
     bb,
@@ -17415,6 +17561,75 @@ async function plugin(bb) {
     await historyMaintenance.forgetThread(thread.id);
   });
   drainHarvest();
+  bb.http.route(
+    "POST",
+    "/github",
+    async (context) => {
+      const { doctrinePath, githubWebhookSecret } = await settings.get();
+      if (!githubWebhookSecret) {
+        return context.json(
+          { ok: false, error: "GitHub webhook secret is not configured" },
+          503
+        );
+      }
+      let body;
+      try {
+        body = await readWebhookBody(context.req.raw);
+      } catch (error51) {
+        if (error51 instanceof WebhookBodyTooLargeError) {
+          return context.json({ ok: false, error: "Webhook body is too large" }, 413);
+        }
+        throw error51;
+      }
+      if (!verifyGitHubSignature(
+        githubWebhookSecret,
+        body,
+        context.req.header("x-hub-signature-256")
+      )) {
+        return context.json({ ok: false, error: "Invalid webhook signature" }, 401);
+      }
+      const event = context.req.header("x-github-event");
+      if (event !== "push") {
+        return context.json({ ok: true, ignored: event ?? "missing event" }, 202);
+      }
+      let payload;
+      try {
+        payload = JSON.parse(Buffer.from(body).toString("utf8"));
+      } catch {
+        return context.json({ ok: false, error: "Invalid JSON payload" }, 400);
+      }
+      if (expandPath(doctrinePath) !== DEFAULT_DOCTRINE_PATH) {
+        return context.json({ ok: true, ignored: "custom doctrine path" }, 202);
+      }
+      const source = await resolveSource();
+      if (!source) {
+        return context.json({ ok: false, error: "Corpus source is unavailable" }, 503);
+      }
+      const decision = classifyGitHubPush(payload, githubRepository, source);
+      if (decision.kind === "invalid") {
+        return context.json({ ok: false, error: decision.reason }, 400);
+      }
+      if (decision.kind === "ignore") {
+        return context.json({ ok: true, ignored: decision.reason }, 202);
+      }
+      try {
+        let changed = false;
+        if (decision.remoteCommit !== observedRemoteCommit) {
+          changed = await refreshCorpus();
+          if (decision.remoteCommit !== observedRemoteCommit) {
+            changed = await refreshCorpus() || changed;
+          }
+        }
+        return context.json({ ok: true, changed }, 200);
+      } catch (error51) {
+        bb.log.warn(
+          `doctrine corpus webhook refresh failed: ${error51 instanceof Error ? error51.message : String(error51)}`
+        );
+        return context.json({ ok: false, error: "Corpus refresh failed" }, 500);
+      }
+    },
+    { auth: "none" }
+  );
   bb.rpc.register(rpcContract, { getLibrary: currentLibrary });
   bb.agents.registerTool({
     name: "design_doctrine_search",
@@ -17662,19 +17877,8 @@ ${stalledPublications.map(
       }
     }
   });
-  async function maintainCorpus(signal) {
-    const source = await resolveSource().catch(() => null);
-    if (!source) return;
+  async function refreshStalls(source, signal) {
     try {
-      const published = await materializeRules(source, materializedId, signal);
-      if (published) {
-        materializedId = published;
-        invalidate();
-        await currentLibrary();
-        bb.realtime.publish("rules-changed", {
-          changed_at: (/* @__PURE__ */ new Date()).toISOString()
-        });
-      }
       stalledPublications = await readStalledPublications(
         source,
         void 0,
@@ -17683,7 +17887,7 @@ ${stalledPublications.map(
     } catch (error51) {
       stalledPublications = [];
       bb.log.warn(
-        `doctrine corpus upkeep failed, retrying next cycle: ${error51 instanceof Error ? error51.message : String(error51)}`
+        `doctrine corpus publication check failed: ${error51 instanceof Error ? error51.message : String(error51)}`
       );
     }
     const signature = stalledPublications.map((row) => `${row.url}:${row.mergeStateStatus}`).join(",");
@@ -17694,6 +17898,64 @@ ${stalledPublications.map(
           `doctrine corpus: ${stall.url} has not merged after ${stall.ageHours}h (${stall.mergeStateStatus}); those rules stay unpublished until it does`
         );
       }
+    }
+  }
+  async function performCorpusRefresh(signal) {
+    const source = await resolveSource();
+    if (!source) return false;
+    const published = await materializeRules(source, materializedId, signal);
+    observedRemoteCommit = await publishedBranchId(source, signal);
+    lastFreshnessCheckAt = Date.now();
+    if (published) {
+      materializedId = published;
+      invalidate();
+      await loadCurrentLibrary();
+      watchedFingerprint = await safeFingerprint();
+      bb.realtime.publish("rules-changed", {
+        changed_at: (/* @__PURE__ */ new Date()).toISOString()
+      });
+    }
+    await refreshStalls(source, signal);
+    return published !== null;
+  }
+  async function refreshCorpus(signal) {
+    if (corpusRefresh) return corpusRefresh;
+    const request = performCorpusRefresh(signal);
+    corpusRefresh = request;
+    try {
+      return await request;
+    } finally {
+      if (corpusRefresh === request) corpusRefresh = null;
+    }
+  }
+  async function reconcileCorpusOnRead() {
+    const configured = expandPath((await settings.get()).doctrinePath);
+    if (configured !== DEFAULT_DOCTRINE_PATH) return;
+    if (Date.now() - lastFreshnessCheckAt < CORPUS_FRESHNESS_TTL_MS) return;
+    if (freshnessCheck) return freshnessCheck;
+    const request = (async () => {
+      lastFreshnessCheckAt = Date.now();
+      try {
+        const source = await resolveSource();
+        if (!source) return;
+        const remoteCommit = await remoteBranchId(source);
+        if (remoteCommit !== observedRemoteCommit || materializedId === null) {
+          await refreshCorpus();
+          if (remoteCommit !== observedRemoteCommit) await refreshCorpus();
+        } else {
+          await refreshStalls(source);
+        }
+      } catch (error51) {
+        bb.log.warn(
+          `doctrine corpus freshness check failed: ${error51 instanceof Error ? error51.message : String(error51)}`
+        );
+      }
+    })();
+    freshnessCheck = request;
+    try {
+      await request;
+    } finally {
+      if (freshnessCheck === request) freshnessCheck = null;
     }
   }
   async function safeFingerprint() {
@@ -17708,25 +17970,25 @@ ${stalledPublications.map(
   }
   bb.background.service("rule-watch", {
     async start(signal) {
-      await maintainCorpus(signal);
-      let fingerprint = await safeFingerprint();
+      try {
+        await refreshCorpus(signal);
+      } catch (error51) {
+        bb.log.warn(
+          `doctrine corpus startup refresh failed: ${error51 instanceof Error ? error51.message : String(error51)}`
+        );
+      }
+      watchedFingerprint = await safeFingerprint();
       try {
         await currentLibrary();
       } catch (error51) {
         bb.log.warn(error51 instanceof Error ? error51.message : String(error51));
       }
-      let nextRefreshAt = Date.now() + CORPUS_REFRESH_INTERVAL_MS;
       while (!signal.aborted) {
         await sleep(WATCH_INTERVAL_MS, signal);
         if (signal.aborted) break;
-        if (Date.now() >= nextRefreshAt) {
-          nextRefreshAt = Date.now() + CORPUS_REFRESH_INTERVAL_MS;
-          await maintainCorpus(signal);
-          if (signal.aborted) break;
-        }
         const next = await safeFingerprint();
-        if (next !== fingerprint) {
-          fingerprint = next;
+        if (next !== watchedFingerprint) {
+          watchedFingerprint = next;
           invalidate();
           try {
             await currentLibrary();
@@ -17739,7 +18001,8 @@ ${stalledPublications.map(
       }
     }
   });
-  settings.onChange(() => {
+  settings.onChange((next, previous) => {
+    if (next.doctrinePath === previous.doctrinePath) return;
     invalidate();
     void currentLibrary().catch((error51) => {
       bb.log.warn(error51 instanceof Error ? error51.message : String(error51));
@@ -17754,6 +18017,7 @@ ${stalledPublications.map(
 }
 export {
   automaticDoctrineGuidance,
+  classifyGitHubPush,
   plugin as default,
   formatAgentSearchResults,
   gitStatusFingerprint,
@@ -17761,6 +18025,7 @@ export {
   readGit,
   rpcContract,
   searchDoctrine,
-  skipEpisodeReason
+  skipEpisodeReason,
+  verifyGitHubSignature
 };
 //# sourceMappingURL=server.js.map

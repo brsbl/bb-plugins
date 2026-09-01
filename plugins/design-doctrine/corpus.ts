@@ -82,6 +82,68 @@ export async function resolveBaseBranch(
   }
 }
 
+/** GitHub owner/repository identity encoded by a standard origin URL. */
+export function githubRepositoryFromRemote(remote: string): string | null {
+  const match = remote
+    .trim()
+    .match(
+      /^(?:git@github\.com:|ssh:\/\/git@github\.com\/|https?:\/\/github\.com\/)([^\s]+)$/i,
+    );
+  if (!match) return null;
+  const repository = match[1].replace(/\/$/, "").replace(/\.git$/i, "");
+  return /^[^/]+\/[^/]+$/.test(repository) ? repository : null;
+}
+
+/** GitHub repository published by origin, or null for a non-GitHub remote. */
+export async function resolveGitHubRepository(
+  repositoryRoot: string,
+): Promise<string | null> {
+  try {
+    return githubRepositoryFromRemote(
+      await git(repositoryRoot, ["remote", "get-url", "origin"]),
+    );
+  } catch {
+    return null;
+  }
+}
+
+/** Commit currently recorded in the local origin tracking ref. */
+export async function publishedBranchId(
+  source: CorpusSource,
+  signal?: AbortSignal,
+): Promise<string> {
+  return git(
+    source.repositoryRoot,
+    ["rev-parse", `refs/remotes/origin/${source.baseBranch}`],
+    signal,
+  );
+}
+
+/**
+ * Commit currently published by origin without downloading any objects or
+ * changing the local tracking ref.
+ */
+export async function remoteBranchId(
+  source: CorpusSource,
+  signal?: AbortSignal,
+): Promise<string> {
+  const ref = `refs/heads/${source.baseBranch}`;
+  const output = await git(
+    source.repositoryRoot,
+    ["ls-remote", "--exit-code", "--refs", "origin", ref],
+    signal,
+  );
+  const fields = output.split(/\s+/);
+  if (
+    fields.length !== 2 ||
+    fields[1] !== ref ||
+    !/^[0-9a-f]{40,64}$/i.test(fields[0])
+  ) {
+    throw new Error(`origin returned an invalid ${ref} identity`);
+  }
+  return fields[0];
+}
+
 /**
  * Identity of the published rules: the git tree hash of the rules directory on
  * the base branch. Comparing it is exact and costs one `rev-parse`, so the read
