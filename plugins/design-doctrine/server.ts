@@ -707,15 +707,17 @@ export default async function plugin(bb: BbPluginApi) {
     validateRules: async (doctrineRoot) => {
       await loadDoctrine(doctrineRoot);
     },
-    async runAgent({ projectId, environmentId, title, prompt }) {
+    async runAgent({ projectId, title, prompt }) {
       const spawned = await bb.sdk.threads.spawn({
         projectId,
         // Hidden so the harvest never interrupts the user. `spawn` attributes
         // the thread to this plugin, which also keeps it out of its own queue.
         visibility: "hidden",
-        environment: environmentId
-          ? { type: "reuse", environmentId }
-          : { type: "host", workspace: { type: "unmanaged", path: null } },
+        // Both agents read the thread through bb's API and report through the
+        // doctrine CLI; neither opens a file. Reusing the archived thread's
+        // environment only tied the harvest to workspaces bb had already
+        // destroyed.
+        environment: { type: "host", workspace: { type: "unmanaged", path: null } },
         title,
         prompt,
       });
@@ -737,9 +739,8 @@ export default async function plugin(bb: BbPluginApi) {
         for (const {
           threadId,
           projectId,
-          environmentId,
         } of harvest.pendingThreads()) {
-          await harvest.harvestThread(threadId, projectId, environmentId);
+          await harvest.harvestThread(threadId, projectId);
         }
       })
       .catch((error: unknown) => {

@@ -15638,7 +15638,6 @@ var HARVEST_SCHEMA = [
   `CREATE TABLE IF NOT EXISTS harvest_threads (
      thread_id TEXT PRIMARY KEY,
      project_id TEXT NOT NULL,
-     environment_id TEXT,
      queued_at INTEGER NOT NULL,
      processed_at INTEGER,
      outcome TEXT
@@ -15911,23 +15910,22 @@ function createHarvest(dependencies) {
     if (!isHarvestableThread(thread)) return false;
     const result = db().prepare(
       `INSERT INTO harvest_threads
-           (thread_id, project_id, environment_id, queued_at)
-         VALUES (?, ?, ?, ?)
+           (thread_id, project_id, queued_at)
+         VALUES (?, ?, ?)
          ON CONFLICT (thread_id) DO NOTHING`
-    ).run(thread.id, thread.projectId, thread.environmentId ?? null, now());
+    ).run(thread.id, thread.projectId, now());
     return result.changes > 0;
   }
   function pendingThreads() {
     return db().prepare(
-      `SELECT thread_id, project_id, environment_id FROM harvest_threads
+      `SELECT thread_id, project_id FROM harvest_threads
          WHERE processed_at IS NULL
          ORDER BY queued_at, thread_id`
     ).all().map((row) => {
       const record2 = row;
       return {
         threadId: String(record2.thread_id),
-        projectId: String(record2.project_id),
-        environmentId: record2.environment_id === null || record2.environment_id === void 0 ? null : String(record2.environment_id)
+        projectId: String(record2.project_id)
       };
     });
   }
@@ -16180,7 +16178,7 @@ function createHarvest(dependencies) {
       `  bb doctrine harvest verdict --proposal ${stored.id} --token ${token} --reject --reason '<why>'`
     ].join("\n");
   }
-  async function harvestThread(threadId, projectId, environmentId = null) {
+  async function harvestThread(threadId, projectId) {
     let doctrineRoot;
     try {
       doctrineRoot = await resolveDoctrineRoot();
@@ -16200,7 +16198,6 @@ function createHarvest(dependencies) {
           kind: "harvester",
           threadId,
           projectId,
-          environmentId,
           title: "Doctrine harvest",
           prompt: harvesterPrompt(threadId, token)
         });
@@ -16293,7 +16290,6 @@ function createHarvest(dependencies) {
             kind: "reviewer",
             threadId,
             projectId,
-            environmentId,
             title: "Doctrine review",
             prompt: reviewerPrompt(stored, context, existingRules, token)
           });
@@ -17038,13 +17034,17 @@ async function plugin(bb) {
     validateRules: async (doctrineRoot) => {
       await loadDoctrine(doctrineRoot);
     },
-    async runAgent({ projectId, environmentId, title, prompt }) {
+    async runAgent({ projectId, title, prompt }) {
       const spawned = await bb.sdk.threads.spawn({
         projectId,
         // Hidden so the harvest never interrupts the user. `spawn` attributes
         // the thread to this plugin, which also keeps it out of its own queue.
         visibility: "hidden",
-        environment: environmentId ? { type: "reuse", environmentId } : { type: "host", workspace: { type: "unmanaged", path: null } },
+        // Both agents read the thread through bb's API and report through the
+        // doctrine CLI; neither opens a file. Reusing the archived thread's
+        // environment only tied the harvest to workspaces bb had already
+        // destroyed.
+        environment: { type: "host", workspace: { type: "unmanaged", path: null } },
         title,
         prompt
       });
@@ -17060,10 +17060,9 @@ async function plugin(bb) {
     harvestQueue = harvestQueue.then(async () => {
       for (const {
         threadId,
-        projectId,
-        environmentId
+        projectId
       } of harvest.pendingThreads()) {
-        await harvest.harvestThread(threadId, projectId, environmentId);
+        await harvest.harvestThread(threadId, projectId);
       }
     }).catch((error51) => {
       bb.log.warn(
