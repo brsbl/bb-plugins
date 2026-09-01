@@ -15,10 +15,13 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import {
   type CorpusSource,
+  githubRepositoryFromRemote,
   materializeRules,
   openPublication,
   pluginDataDirectory,
+  publishedBranchId,
   publishedRulesId,
+  remoteBranchId,
   resolveBaseBranch,
   resolveRepositoryRoot,
 } from "./corpus";
@@ -89,6 +92,34 @@ describe("doctrine corpus", () => {
   it("reports no repository outside a git checkout", async () => {
     expect(await resolveRepositoryRoot(workspace)).toBeNull();
     expect(await resolveBaseBranch(workspace)).toBe("main");
+  });
+
+  it("recognizes standard GitHub origin URLs", () => {
+    expect(githubRepositoryFromRemote("git@github.com:brsbl/bb-plugins.git")).toBe(
+      "brsbl/bb-plugins",
+    );
+    expect(
+      githubRepositoryFromRemote("https://github.com/brsbl/bb-plugins.git"),
+    ).toBe("brsbl/bb-plugins");
+    expect(
+      githubRepositoryFromRemote("ssh://git@github.com/brsbl/bb-plugins.git"),
+    ).toBe("brsbl/bb-plugins");
+    expect(githubRepositoryFromRemote("git@example.com:brsbl/bb-plugins.git")).toBeNull();
+  });
+
+  it("probes the remote branch without updating the local tracking ref", async () => {
+    const localBefore = await publishedBranchId(source);
+    const publisher = join(workspace, "publisher");
+    await execFileAsync("git", ["clone", "--quiet", join(workspace, "origin.git"), publisher]);
+    await git(publisher, "config", "user.email", "publisher@example.test");
+    await git(publisher, "config", "user.name", "Publisher");
+    await commitRule(publisher, "ddr_002.md");
+    await git(publisher, "push", "--quiet", "origin", "main");
+
+    const remote = await remoteBranchId(source);
+
+    expect(remote).not.toBe(localBefore);
+    expect(await publishedBranchId(source)).toBe(localBefore);
   });
 
   it("extracts the published rules as plain files with no git metadata", async () => {

@@ -1,4 +1,5 @@
 import { execFile } from "node:child_process";
+import { createHmac } from "node:crypto";
 import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -19,11 +20,13 @@ import {
 } from "./app-logic";
 import {
   automaticDoctrineGuidance,
+  classifyGitHubPush,
   gitStatusFingerprint,
   loadDoctrine,
   readGit,
   searchDoctrine,
   skipEpisodeReason,
+  verifyGitHubSignature,
 } from "./server";
 
 const execFileAsync = promisify(execFile);
@@ -31,6 +34,83 @@ const execFileAsync = promisify(execFile);
 async function runGit(root: string, ...args: string[]) {
   return execFileAsync("git", ["-C", root, ...args], { encoding: "utf8" });
 }
+
+describe("GitHub corpus webhook policy", () => {
+  const source = {
+    baseBranch: "main",
+    prefix: "plugins/design-doctrine",
+  };
+  const after = "a".repeat(40);
+
+  function push(overrides: Record<string, unknown> = {}) {
+    return {
+      ref: "refs/heads/main",
+      after,
+      repository: { full_name: "brsbl/bb-plugins" },
+      size: 1,
+      commits: [
+        {
+          added: [],
+          modified: ["plugins/design-doctrine/rules/visual/ddr_001.md"],
+          removed: [],
+        },
+      ],
+      ...overrides,
+    };
+  }
+
+  it("verifies the exact raw webhook bytes", () => {
+    const body = Buffer.from('{"message":"doctrine 🌱"}', "utf8");
+    const signature = `sha256=${createHmac("sha256", "secret").update(body).digest("hex")}`;
+
+    expect(verifyGitHubSignature("secret", body, signature)).toBe(true);
+    expect(
+      verifyGitHubSignature("secret", Buffer.from(`${body.toString()} `), signature),
+    ).toBe(false);
+    expect(verifyGitHubSignature("secret", body, "sha256=not-hex")).toBe(false);
+    expect(verifyGitHubSignature("secret", body, undefined)).toBe(false);
+  });
+
+  it("accepts only this repository's main-branch rule changes", () => {
+    expect(classifyGitHubPush(push(), "brsbl/bb-plugins", source)).toEqual({
+      kind: "refresh",
+      remoteCommit: after,
+    });
+    expect(
+      classifyGitHubPush(
+        push({ repository: { full_name: "someone/fork" } }),
+        "brsbl/bb-plugins",
+        source,
+      ),
+    ).toMatchObject({ kind: "ignore", reason: "different repository" });
+    expect(
+      classifyGitHubPush(push({ ref: "refs/heads/feature" }), "brsbl/bb-plugins", source),
+    ).toMatchObject({ kind: "ignore", reason: "different branch" });
+    expect(
+      classifyGitHubPush(push({ deleted: true, after: "0".repeat(40) }), "brsbl/bb-plugins", source),
+    ).toMatchObject({ kind: "ignore", reason: "branch deletion" });
+    expect(
+      classifyGitHubPush(
+        push({
+          commits: [
+            { added: [], modified: ["plugins/design-doctrine/README.md"], removed: [] },
+          ],
+        }),
+        "brsbl/bb-plugins",
+        source,
+      ),
+    ).toMatchObject({ kind: "ignore", reason: "rules unchanged" });
+  });
+
+  it("reconciles conservatively when GitHub truncates the commit list", () => {
+    expect(
+      classifyGitHubPush(push({ size: 2 }), "brsbl/bb-plugins", source),
+    ).toMatchObject({ kind: "refresh" });
+    expect(
+      classifyGitHubPush({ ref: "refs/heads/main" }, "brsbl/bb-plugins", source),
+    ).toMatchObject({ kind: "invalid" });
+  });
+});
 
 describe("design doctrine library", () => {
   it("loads the Markdown rules directly", async () => {

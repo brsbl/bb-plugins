@@ -1,4 +1,5 @@
 import { execFile } from "node:child_process";
+import { createHmac } from "node:crypto";
 import { mkdir, mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -73,6 +74,12 @@ describe("Design Doctrine plugin contract", () => {
     expect(
       harness.inspection.registrations.services.map(({ name }) => name),
     ).toContain("rule-watch");
+    expect(harness.inspection.registrations.httpRoutes).toEqual([
+      expect.objectContaining({ method: "POST", path: "/github", auth: "none" }),
+    ]);
+    expect(
+      harness.inspection.registrations.settingsDescriptors.githubWebhookSecret,
+    ).toMatchObject({ type: "string", secret: true });
     expect(
       harness.inspection.registrations.threadEventHandlers["thread.idle"],
     ).toBe(1);
@@ -82,6 +89,69 @@ describe("Design Doctrine plugin contract", () => {
     expect(
       harness.inspection.registrations.threadEventHandlers["thread.deleted"],
     ).toBe(1);
+    await harness.lifecycle.dispose();
+  });
+
+  it("keeps reads available while the webhook awaits secure configuration", async () => {
+    const { bb, harness } = createFakePluginHost({
+      pluginId: "design-doctrine",
+      sdk: { threads: { list: async () => [] } },
+      agentSkillIds: ["design-doctrine"],
+    });
+    await plugin(bb);
+
+    const response = await harness.behavior.fetchHttp("POST", "/github", {
+      body: "{}",
+    });
+
+    expect(response.status).toBe(503);
+    await expect(harness.behavior.callRpc("getLibrary", null)).resolves.toMatchObject({
+      rules: expect.any(Array),
+    });
+    await harness.lifecycle.dispose();
+  });
+
+  it("authenticates raw webhook bytes before interpreting the event", async () => {
+    const secret = "test-webhook-secret";
+    const { bb, harness } = createFakePluginHost({
+      pluginId: "design-doctrine",
+      settings: { githubWebhookSecret: secret },
+      sdk: { threads: { list: async () => [] } },
+      agentSkillIds: ["design-doctrine"],
+    });
+    await plugin(bb);
+    const body = JSON.stringify({ zen: "Keep it logically awesome. 🌱" });
+    const signature = `sha256=${createHmac("sha256", secret).update(body).digest("hex")}`;
+
+    const rejected = await harness.behavior.fetchHttp("POST", "/github", {
+      body,
+      headers: {
+        "x-github-event": "ping",
+        "x-hub-signature-256": `sha256=${"0".repeat(64)}`,
+      },
+    });
+    expect(rejected.status).toBe(401);
+
+    const accepted = await harness.behavior.fetchHttp("POST", "/github", {
+      body,
+      headers: {
+        "x-github-event": "ping",
+        "x-hub-signature-256": signature,
+      },
+    });
+    expect(accepted.status).toBe(202);
+    await expect(accepted.json()).resolves.toMatchObject({ ok: true, ignored: "ping" });
+
+    const invalidJson = "not json";
+    const invalidJsonSignature = `sha256=${createHmac("sha256", secret).update(invalidJson).digest("hex")}`;
+    const malformed = await harness.behavior.fetchHttp("POST", "/github", {
+      body: invalidJson,
+      headers: {
+        "x-github-event": "push",
+        "x-hub-signature-256": invalidJsonSignature,
+      },
+    });
+    expect(malformed.status).toBe(400);
     await harness.lifecycle.dispose();
   });
 

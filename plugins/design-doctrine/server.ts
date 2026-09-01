@@ -1,4 +1,5 @@
 import { execFile } from "node:child_process";
+import { createHmac, timingSafeEqual } from "node:crypto";
 import { readdir, readFile, stat } from "node:fs/promises";
 import { homedir } from "node:os";
 import { basename, dirname, isAbsolute, join, relative, resolve } from "node:path";
@@ -15,8 +16,11 @@ import {
   materializeRules,
   openPublication,
   pluginDataDirectory,
+  publishedBranchId,
   readStalledPublications,
+  remoteBranchId,
   resolveBaseBranch,
+  resolveGitHubRepository,
   resolveRepositoryRoot,
 } from "./corpus.js";
 import {
@@ -35,8 +39,9 @@ const MODULE_DIR = dirname(fileURLToPath(import.meta.url));
 const DEFAULT_DOCTRINE_PATH =
   basename(MODULE_DIR) === "dist" ? dirname(MODULE_DIR) : MODULE_DIR;
 const WATCH_INTERVAL_MS = 2_500;
-const CORPUS_REFRESH_INTERVAL_MS = 2 * 60 * 1_000;
+const CORPUS_FRESHNESS_TTL_MS = 15 * 60 * 1_000;
 const CORPUS_DIRECTORY = "rules-cache";
+const MAX_WEBHOOK_BODY_BYTES = 2 * 1_024 * 1_024;
 const SEARCH_RESULT_LIMIT = 24;
 const AUTOMATIC_RULE_LIMIT = 4;
 const SEARCH_STOP_TOKENS = new Set([
@@ -145,6 +150,128 @@ const librarySchema = z.object({
   status_counts: z.record(z.string(), z.number().int()),
   git: gitSchema,
 });
+
+const githubPushEnvelopeSchema = z
+  .object({
+    ref: z.string(),
+    after: z.string().regex(/^[0-9a-f]{40,64}$/i),
+    deleted: z.boolean().optional(),
+    forced: z.boolean().optional(),
+    repository: z.object({ full_name: z.string() }).passthrough(),
+  })
+  .passthrough();
+
+type GitHubPushDecision =
+  | { kind: "refresh"; remoteCommit: string }
+  | { kind: "ignore"; reason: string }
+  | { kind: "invalid"; reason: string };
+
+function isRulePath(path: string, prefix: string): boolean {
+  const rules = `${prefix.replace(/\\/g, "/").replace(/\/$/, "")}/rules`;
+  return path === rules || path.startsWith(`${rules}/`);
+}
+
+/**
+ * A complete GitHub commit list can prove that a push did not touch rules.
+ * Incomplete or unfamiliar lists reconcile conservatively instead of risking
+ * a missed corpus update.
+ */
+function pushMayChangeRules(
+  payload: Record<string, unknown>,
+  prefix: string,
+): boolean {
+  if (payload.forced === true) return true;
+  const size = payload.size;
+  const commits = payload.commits;
+  if (!Number.isInteger(size) || (size as number) < 0 || !Array.isArray(commits)) {
+    return true;
+  }
+  if (commits.length !== size) return true;
+  for (const commit of commits) {
+    if (!commit || typeof commit !== "object" || Array.isArray(commit)) return true;
+    const row = commit as Record<string, unknown>;
+    for (const key of ["added", "modified", "removed"] as const) {
+      const paths = row[key];
+      if (!Array.isArray(paths) || paths.some((path) => typeof path !== "string")) {
+        return true;
+      }
+      if ((paths as string[]).some((path) => isRulePath(path, prefix))) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+export function classifyGitHubPush(
+  input: unknown,
+  expectedRepository: string | null,
+  source: Pick<CorpusSource, "baseBranch" | "prefix">,
+): GitHubPushDecision {
+  const parsed = githubPushEnvelopeSchema.safeParse(input);
+  if (!parsed.success) return { kind: "invalid", reason: "invalid push payload" };
+  if (!expectedRepository) {
+    return { kind: "ignore", reason: "origin is not a GitHub repository" };
+  }
+  if (
+    parsed.data.repository.full_name.toLocaleLowerCase() !==
+    expectedRepository.toLocaleLowerCase()
+  ) {
+    return { kind: "ignore", reason: "different repository" };
+  }
+  if (parsed.data.ref !== `refs/heads/${source.baseBranch}`) {
+    return { kind: "ignore", reason: "different branch" };
+  }
+  if (parsed.data.deleted || /^0+$/.test(parsed.data.after)) {
+    return { kind: "ignore", reason: "branch deletion" };
+  }
+  if (!pushMayChangeRules(parsed.data, source.prefix)) {
+    return { kind: "ignore", reason: "rules unchanged" };
+  }
+  return { kind: "refresh", remoteCommit: parsed.data.after };
+}
+
+export function verifyGitHubSignature(
+  secret: string,
+  body: Uint8Array,
+  signature: string | undefined,
+): boolean {
+  const match = signature?.match(/^sha256=([0-9a-f]{64})$/i);
+  if (!match) return false;
+  const expected = createHmac("sha256", secret).update(body).digest();
+  const received = Buffer.from(match[1], "hex");
+  return received.length === expected.length && timingSafeEqual(received, expected);
+}
+
+class WebhookBodyTooLargeError extends Error {}
+
+async function readWebhookBody(request: Request): Promise<Uint8Array> {
+  const declaredLength = Number(request.headers.get("content-length"));
+  if (Number.isFinite(declaredLength) && declaredLength > MAX_WEBHOOK_BODY_BYTES) {
+    throw new WebhookBodyTooLargeError();
+  }
+  if (!request.body) return new Uint8Array();
+  const reader = request.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let length = 0;
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    length += value.byteLength;
+    if (length > MAX_WEBHOOK_BODY_BYTES) {
+      await reader.cancel().catch(() => undefined);
+      throw new WebhookBodyTooLargeError();
+    }
+    chunks.push(value);
+  }
+  const body = new Uint8Array(length);
+  let offset = 0;
+  for (const chunk of chunks) {
+    body.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return body;
+}
 
 export const rpcContract = defineRpcContract({
   getLibrary: { input: z.null(), output: librarySchema },
@@ -745,6 +872,12 @@ export default async function plugin(bb: BbPluginApi) {
       label: "Doctrine repository",
       default: DEFAULT_DOCTRINE_PATH,
     },
+    githubWebhookSecret: {
+      type: "string",
+      label: "GitHub webhook secret",
+      description: "Verifies push events that refresh the published rule corpus.",
+      secret: true,
+    },
   });
   let cacheGeneration = 0;
   let cached: { root: string; value: LibraryPayload } | null = null;
@@ -756,7 +889,13 @@ export default async function plugin(bb: BbPluginApi) {
   // no git metadata — nothing commits into it, so there is nothing to lose by
   // rebuilding it. An explicitly configured doctrinePath still wins.
   let corpusSource: CorpusSource | null = null;
+  let githubRepository: string | null = null;
   let materializedId: string | null = null;
+  let observedRemoteCommit: string | null = null;
+  let lastFreshnessCheckAt = Date.now();
+  let corpusRefresh: Promise<boolean> | null = null;
+  let freshnessCheck: Promise<void> | null = null;
+  let watchedFingerprint = "rules:unavailable";
   let stalledPublications: OpenPublication[] = [];
   let reportedStalls: string | null = null;
 
@@ -769,6 +908,7 @@ export default async function plugin(bb: BbPluginApi) {
     if (corpusSource) return corpusSource;
     const repositoryRoot = await resolveRepositoryRoot(DEFAULT_DOCTRINE_PATH);
     if (!repositoryRoot) return null;
+    githubRepository = await resolveGitHubRepository(repositoryRoot);
     const dataDirectory = pluginDataDirectory(bb.storage.database().name);
     const readPath = join(dataDirectory, CORPUS_DIRECTORY);
     // bb owns the data directory; anything materialized inside the repository
@@ -817,7 +957,7 @@ export default async function plugin(bb: BbPluginApi) {
     automaticRules = [];
   }
 
-  async function currentLibrary(): Promise<LibraryPayload> {
+  async function loadCurrentLibrary(): Promise<LibraryPayload> {
     const root = await doctrineRoot();
     if (cached?.root === root) return cached.value;
     if (loading) return loading;
@@ -834,6 +974,11 @@ export default async function plugin(bb: BbPluginApi) {
     } finally {
       if (loading === request) loading = null;
     }
+  }
+
+  async function currentLibrary(): Promise<LibraryPayload> {
+    await reconcileCorpusOnRead();
+    return loadCurrentLibrary();
   }
 
   const historyMaintenance = createHistoryMaintenance(
@@ -932,6 +1077,81 @@ export default async function plugin(bb: BbPluginApi) {
   // leaves the row pending; rule-watch retries it when that checkout changes.
   drainHarvest();
 
+  bb.http.route(
+    "POST",
+    "/github",
+    async (context) => {
+      const { doctrinePath, githubWebhookSecret } = await settings.get();
+      if (!githubWebhookSecret) {
+        return context.json(
+          { ok: false, error: "GitHub webhook secret is not configured" },
+          503,
+        );
+      }
+      let body: Uint8Array;
+      try {
+        body = await readWebhookBody(context.req.raw);
+      } catch (error) {
+        if (error instanceof WebhookBodyTooLargeError) {
+          return context.json({ ok: false, error: "Webhook body is too large" }, 413);
+        }
+        throw error;
+      }
+      if (
+        !verifyGitHubSignature(
+          githubWebhookSecret,
+          body,
+          context.req.header("x-hub-signature-256"),
+        )
+      ) {
+        return context.json({ ok: false, error: "Invalid webhook signature" }, 401);
+      }
+      const event = context.req.header("x-github-event");
+      if (event !== "push") {
+        return context.json({ ok: true, ignored: event ?? "missing event" }, 202);
+      }
+      let payload: unknown;
+      try {
+        payload = JSON.parse(Buffer.from(body).toString("utf8")) as unknown;
+      } catch {
+        return context.json({ ok: false, error: "Invalid JSON payload" }, 400);
+      }
+      if (expandPath(doctrinePath) !== DEFAULT_DOCTRINE_PATH) {
+        return context.json({ ok: true, ignored: "custom doctrine path" }, 202);
+      }
+      const source = await resolveSource();
+      if (!source) {
+        return context.json({ ok: false, error: "Corpus source is unavailable" }, 503);
+      }
+      const decision = classifyGitHubPush(payload, githubRepository, source);
+      if (decision.kind === "invalid") {
+        return context.json({ ok: false, error: decision.reason }, 400);
+      }
+      if (decision.kind === "ignore") {
+        return context.json({ ok: true, ignored: decision.reason }, 202);
+      }
+      try {
+        let changed = false;
+        if (decision.remoteCommit !== observedRemoteCommit) {
+          changed = await refreshCorpus();
+          // A second delivery can arrive while the first fetch is in flight.
+          // One follow-up closes that race without restoring a poll loop.
+          if (decision.remoteCommit !== observedRemoteCommit) {
+            changed = (await refreshCorpus()) || changed;
+          }
+        }
+        return context.json({ ok: true, changed }, 200);
+      } catch (error) {
+        bb.log.warn(
+          `doctrine corpus webhook refresh failed: ${
+            error instanceof Error ? error.message : String(error)
+          }`,
+        );
+        return context.json({ ok: false, error: "Corpus refresh failed" }, 500);
+      }
+    },
+    { auth: "none" },
+  );
   bb.rpc.register(rpcContract, { getLibrary: currentLibrary });
   bb.agents.registerTool({
     name: "design_doctrine_search",
@@ -1185,35 +1405,22 @@ export default async function plugin(bb: BbPluginApi) {
     },
   });
 
-  /**
-   * One cycle of corpus upkeep: pull in whatever has been published, then
-   * report any batch that is not merging. Publication itself happens in the
-   * throwaway checkout that wrote the batch, so nothing here can strand rules.
-   */
-  async function maintainCorpus(signal?: AbortSignal): Promise<void> {
-    const source = await resolveSource().catch(() => null);
-    if (!source) return;
+  async function refreshStalls(
+    source: CorpusSource,
+    signal?: AbortSignal,
+  ): Promise<void> {
     try {
-      const published = await materializeRules(source, materializedId, signal);
-      if (published) {
-        materializedId = published;
-        invalidate();
-        await currentLibrary();
-        bb.realtime.publish("rules-changed", {
-          changed_at: new Date().toISOString(),
-        });
-      }
       stalledPublications = await readStalledPublications(
         source,
         undefined,
         signal,
       );
     } catch (error) {
-      // A cycle that could not complete must not leave a stale stall report
-      // standing as though it were current.
+      // A failed query must not leave a stale report standing as current. Rule
+      // refreshes still succeed when GitHub's pull-request API is unavailable.
       stalledPublications = [];
       bb.log.warn(
-        `doctrine corpus upkeep failed, retrying next cycle: ${
+        `doctrine corpus publication check failed: ${
           error instanceof Error ? error.message : String(error)
         }`,
       );
@@ -1227,6 +1434,79 @@ export default async function plugin(bb: BbPluginApi) {
           `doctrine corpus: ${stall.url} has not merged after ${stall.ageHours}h (${stall.mergeStateStatus}); those rules stay unpublished until it does`,
         );
       }
+    }
+  }
+
+  /**
+   * Fetch and publish the corpus once. The single-flight wrapper below keeps a
+   * webhook, startup, and stale read from racing the atomic symlink swap.
+   */
+  async function performCorpusRefresh(signal?: AbortSignal): Promise<boolean> {
+    const source = await resolveSource();
+    if (!source) return false;
+    const published = await materializeRules(source, materializedId, signal);
+    observedRemoteCommit = await publishedBranchId(source, signal);
+    lastFreshnessCheckAt = Date.now();
+    if (published) {
+      materializedId = published;
+      invalidate();
+      await loadCurrentLibrary();
+      watchedFingerprint = await safeFingerprint();
+      bb.realtime.publish("rules-changed", {
+        changed_at: new Date().toISOString(),
+      });
+    }
+    await refreshStalls(source, signal);
+    return published !== null;
+  }
+
+  async function refreshCorpus(signal?: AbortSignal): Promise<boolean> {
+    if (corpusRefresh) return corpusRefresh;
+    const request = performCorpusRefresh(signal);
+    corpusRefresh = request;
+    try {
+      return await request;
+    } finally {
+      if (corpusRefresh === request) corpusRefresh = null;
+    }
+  }
+
+  /**
+   * Reconcile a webhook missed while bb was offline. Reads at most probe one
+   * remote ref per TTL, and only a changed ref downloads git objects.
+   */
+  async function reconcileCorpusOnRead(): Promise<void> {
+    const configured = expandPath((await settings.get()).doctrinePath);
+    if (configured !== DEFAULT_DOCTRINE_PATH) return;
+    if (Date.now() - lastFreshnessCheckAt < CORPUS_FRESHNESS_TTL_MS) return;
+    if (freshnessCheck) return freshnessCheck;
+    const request = (async () => {
+      // Rate-limit failures as well as successes so an offline read path stays
+      // fast and keeps serving the last good corpus.
+      lastFreshnessCheckAt = Date.now();
+      try {
+        const source = await resolveSource();
+        if (!source) return;
+        const remoteCommit = await remoteBranchId(source);
+        if (remoteCommit !== observedRemoteCommit || materializedId === null) {
+          await refreshCorpus();
+          if (remoteCommit !== observedRemoteCommit) await refreshCorpus();
+        } else {
+          await refreshStalls(source);
+        }
+      } catch (error) {
+        bb.log.warn(
+          `doctrine corpus freshness check failed: ${
+            error instanceof Error ? error.message : String(error)
+          }`,
+        );
+      }
+    })();
+    freshnessCheck = request;
+    try {
+      await request;
+    } finally {
+      if (freshnessCheck === request) freshnessCheck = null;
     }
   }
 
@@ -1249,23 +1529,25 @@ export default async function plugin(bb: BbPluginApi) {
   bb.background.service("rule-watch", {
     async start(signal) {
       // Build the read copy before serving anything, rather than a cycle later.
-      await maintainCorpus(signal);
-      let fingerprint = await safeFingerprint();
+      try {
+        await refreshCorpus(signal);
+      } catch (error) {
+        bb.log.warn(
+          `doctrine corpus startup refresh failed: ${
+            error instanceof Error ? error.message : String(error)
+          }`,
+        );
+      }
+      watchedFingerprint = await safeFingerprint();
       try { await currentLibrary(); } catch (error) {
         bb.log.warn(error instanceof Error ? error.message : String(error));
       }
-      let nextRefreshAt = Date.now() + CORPUS_REFRESH_INTERVAL_MS;
       while (!signal.aborted) {
         await sleep(WATCH_INTERVAL_MS, signal);
         if (signal.aborted) break;
-        if (Date.now() >= nextRefreshAt) {
-          nextRefreshAt = Date.now() + CORPUS_REFRESH_INTERVAL_MS;
-          await maintainCorpus(signal);
-          if (signal.aborted) break;
-        }
         const next = await safeFingerprint();
-        if (next !== fingerprint) {
-          fingerprint = next;
+        if (next !== watchedFingerprint) {
+          watchedFingerprint = next;
           invalidate();
           try {
             await currentLibrary();
@@ -1278,7 +1560,8 @@ export default async function plugin(bb: BbPluginApi) {
       }
     },
   });
-  settings.onChange(() => {
+  settings.onChange((next, previous) => {
+    if (next.doctrinePath === previous.doctrinePath) return;
     invalidate();
     void currentLibrary().catch((error) => {
       bb.log.warn(error instanceof Error ? error.message : String(error));
