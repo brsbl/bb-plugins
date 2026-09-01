@@ -18,7 +18,8 @@ root.
 1. Read completed, queued episodes through the plugin's thread-history API and
    retain the returned `lease_id`. Per-thread checkpoints prevent rereading old
    episodes, and the lease prevents concurrent runs from processing the same
-   batch. The bounds shown are the defaults.
+   batch. These bounds are larger than the defaults so a daily pass keeps up
+   with the queue.
 
    ```bash
    bb doctrine history scan \
@@ -73,42 +74,56 @@ root.
 
    ```bash
    git diff --check -- plugins/design-doctrine/rules
-   bb doctrine validate plugins/design-doctrine
+   bb doctrine validate "$(git rev-parse --show-toplevel)/plugins/design-doctrine"
    git add -- plugins/design-doctrine/rules
    git commit -m "doctrine: <what changed>" -- plugins/design-doctrine/rules
    ```
 
+   If any of these fails, stop: do not commit, do not publish, and do not
+   advance. Go to the release command in step 8, report the failure, and leave
+   this thread open.
+
    `bb doctrine validate <path>` parses every rule under that path and enforces
    the live schema, evidence counts, relations, and lifecycle constraints. Pass
-   the worktree's own plugin directory so you validate what you just wrote
-   rather than the published corpus.
+   an absolute path to this worktree's own plugin directory: a relative path
+   would be resolved somewhere else entirely, and could report a different
+   corpus as clean. Check the `root` it prints is inside this worktree.
 
 7. Publish the batch as a pull request that merges itself once the
    repository's required checks pass. Do not wait for CI and do not merge by
    hand.
 
    ```bash
-   git push -u origin HEAD
-   gh pr create --fill
-   gh pr merge --auto --squash
+   branch="doctrine/$(git rev-parse --short HEAD)"
+   git push origin "HEAD:refs/heads/$branch"
+   gh pr create --head "$branch" --fill
+   gh pr merge "$branch" --auto --squash
    ```
 
-   The plugin picks the rules up on its next corpus refresh, a couple of
-   minutes after the merge. If CI fails, leave the pull request open and say so
-   in your report; the next run starts from a fresh worktree and is unaffected.
+   Publish under `doctrine/` so the batch is visible to the stall check in step
+   9 and to every later run. A branch named anything else is invisible to it,
+   and a pull request that never merges would go unnoticed.
 
-8. Advance every per-thread checkpoint in the leased batch after either a
-   pushed pull request or a no-change decision:
+   If the push or the pull request fails, stop: do not advance. Release the
+   lease as in step 8, report the failure, and leave this thread open. On
+   success the plugin picks the rules up on its next corpus refresh, a couple
+   of minutes after the merge. You do not wait for CI, so you cannot report its
+   outcome — a run that fails CI surfaces as a stalled publication on a later
+   pass.
 
-   ```bash
-   bb doctrine history advance --lease-id <lease-id>
-   ```
-
-   If the run cannot safely finish, release its lease without advancing so a
-   later run can retry the same feedback:
+8. Release the lease without advancing whenever the run could not safely
+   finish — a failed validate, commit, push, or pull request:
 
    ```bash
    bb doctrine history release --lease-id <lease-id>
+   ```
+
+   Advancing is irreversible: it moves the checkpoints past feedback nobody
+   read. Only advance after a pushed pull request, or after you deliberately
+   decided nothing in the batch was worth changing:
+
+   ```bash
+   bb doctrine history advance --lease-id <lease-id>
    ```
 
 9. Check whether an earlier batch is stuck before you finish:
@@ -117,10 +132,24 @@ root.
    bb doctrine status --json
    ```
 
-   A `stalled_publication` means a previous run's pull request has not merged —
+   A `stalled_publications` entry means an earlier doctrine pull request has not
+   merged —
    a failing check, an unresolved review comment, or a conflict. Auto-merge
    waits indefinitely, so name it in your report; the corpus learns nothing
    further until it lands.
+
+10. Archive this thread when the pass finished cleanly — rules published or
+    nothing worth changing, no stalled publication, no rule left conflicted, no
+    blocker:
+
+    ```bash
+    bb thread archive --self
+    ```
+
+    Do this last, after your report. Runs happen daily and a clean one is not
+    worth a place in the thread list. Leave the thread open whenever the report
+    needs a human: a stalled publication, a rule you set to `conflicted` and the
+    question it needs, or anything that stopped you finishing.
 
 Report what changed, the pull request URL, any stalled publication, anything
 left conflicted and the question it needs, and the rule count. Keep no-change
