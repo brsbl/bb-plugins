@@ -333,10 +333,13 @@ export async function checkRepository(repositoryRoot = defaultRoot, options = {}
   // GitHub runs from the pull request's head. A job left out of that list would
   // pass unnoticed, so the gate is only trustworthy while something asserts it
   // is complete. This check runs inside `hygiene`, which is itself in the list.
+  // Absent in the scaffold smoke harness, which runs this check against a
+  // synthetic repository that has no workflows of its own.
   const workflow = await readFile(
     resolve(root, ".github/workflows/ci.yml"),
     "utf8",
-  );
+  ).catch(() => null);
+  if (workflow === null) return { pluginCount: plugins.length };
   const jobs = workflow.slice(workflow.indexOf("\njobs:"));
   const jobIds = [...jobs.matchAll(/^ {2}([a-z][a-z0-9-]*):$/gm)].map(
     (match) => match[1],
