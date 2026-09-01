@@ -10,13 +10,10 @@ import {
   detailRowEndIndex,
   displayDomainIdentifier,
   domainFilterFromIdentifier,
-  FALLBACK_MESH_STYLE,
   filterRules,
   ruleIdFromPath,
   rulePath,
-  SUBDOMAIN_MESH_STYLES,
   subdomainFromIdentifier,
-  subdomainMeshStyle,
   titleCaseDomainFilter,
   toggledRulePath,
 } from "./app-logic";
@@ -207,28 +204,7 @@ describe("design doctrine library", () => {
     expect(titleCaseDomainFilter("design-system")).toBe("Design System");
   });
 
-  it("gives every mapped subdomain a unique mesh endpoint", () => {
-    const mappedSubdomains = Object.keys(SUBDOMAIN_MESH_STYLES);
-    const meshEndpoints = mappedSubdomains.map(
-      (subdomain) => SUBDOMAIN_MESH_STYLES[subdomain].idle,
-    );
 
-    expect(new Set(meshEndpoints).size).toBe(meshEndpoints.length);
-    expect(meshEndpoints).not.toContain(FALLBACK_MESH_STYLE.idle);
-  });
-
-  it("renders a subdomain that has no colour of its own", async () => {
-    // Maintenance learns new subdomains without a code change, so requiring an
-    // explicit colour for each one would fail CI on every rule it invents.
-    const library = await loadDoctrine(process.cwd());
-
-    for (const rule of library.rules) {
-      expect(subdomainMeshStyle(rule.domain).idle).toBeTruthy();
-    }
-    expect(subdomainMeshStyle("process.not-a-real-subdomain")).toEqual(
-      FALLBACK_MESH_STYLE,
-    );
-  });
 
   it("scopes Git status to the plugin directory", async () => {
     const repository = await mkdtemp(join(tmpdir(), "doctrine-git-scope-"));

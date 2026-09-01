@@ -20,7 +20,6 @@ import {
   domainFilterFromIdentifier,
   filterRules,
   ruleIdFromPath,
-  subdomainMeshStyle,
   titleCaseDomainFilter,
   toggledRulePath,
 } from "./app-logic";
@@ -224,10 +223,9 @@ function DomainIdentifierPill({
   const filterDomain = domainFilterFromIdentifier(identifier);
   const selected = selectedDomain === filterDomain;
   const style = DOMAIN_STYLES[filterDomain] ?? DOMAIN_STYLES.all;
-  const subdomainMesh = subdomainMeshStyle(identifier);
   const label = displayDomainIdentifier(identifier);
   const meshStart = selected ? style.meshStartSelected : style.meshStartIdle;
-  const meshEnd = selected ? subdomainMesh.selected : subdomainMesh.idle;
+  const meshEnd = selected ? style.meshEndSelected : style.meshEndIdle;
 
   return (
     <button
