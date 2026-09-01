@@ -328,6 +328,39 @@ export async function checkRepository(repositoryRoot = defaultRoot, options = {}
     "vendored plugin builder hash mismatch",
   );
 
+  // `ci-complete` is the single required check on main, but its coverage is its
+  // own `needs:` list — inside a file any pull request can edit, and which
+  // GitHub runs from the pull request's head. A job left out of that list would
+  // pass unnoticed, so the gate is only trustworthy while something asserts it
+  // is complete. This check runs inside `hygiene`, which is itself in the list.
+  // Absent in the scaffold smoke harness, which runs this check against a
+  // synthetic repository that has no workflows of its own.
+  const workflow = await readFile(
+    resolve(root, ".github/workflows/ci.yml"),
+    "utf8",
+  ).catch(() => null);
+  if (workflow === null) return { pluginCount: plugins.length };
+  const jobs = workflow.slice(workflow.indexOf("\njobs:"));
+  const jobIds = [...jobs.matchAll(/^ {2}([a-z][a-z0-9-]*):$/gm)].map(
+    (match) => match[1],
+  );
+  assert(jobIds.includes("ci-complete"), "ci.yml: ci-complete job is missing");
+  const gate = jobs.slice(jobs.indexOf("\n  ci-complete:"));
+  const needs = gate.slice(gate.indexOf("needs:"), gate.indexOf("runs-on:"));
+  const covered = new Set(
+    [...needs.matchAll(/^ +- ([a-z][a-z0-9-]*)$/gm)].map((match) => match[1]),
+  );
+  // `publish-install-refs` only runs on pushes to main, so requiring it would
+  // block every pull request on a check that never reports.
+  const exempt = new Set(["ci-complete", "publish-install-refs"]);
+  for (const id of jobIds) {
+    if (exempt.has(id)) continue;
+    assert(
+      covered.has(id),
+      `ci.yml: job "${id}" is missing from ci-complete needs, so it would not gate main`,
+    );
+  }
+
   return { pluginCount: plugins.length };
 }
 

@@ -1,14 +1,28 @@
 import { execFile } from "node:child_process";
 import { readdir, readFile, stat } from "node:fs/promises";
 import { homedir } from "node:os";
-import { basename, dirname, join, relative, resolve } from "node:path";
+import { basename, dirname, isAbsolute, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 
 import type { BbPluginApi } from "@get-bb/plugin-sdk";
 import { z } from "zod";
 
-import { createHistoryMaintenance } from "./history.js";
+import {
+  type CorpusSource,
+  type OpenPublication,
+  type Publication,
+  materializeRules,
+  openPublication,
+  pluginDataDirectory,
+  readStalledPublications,
+  resolveBaseBranch,
+  resolveRepositoryRoot,
+} from "./corpus.js";
+import {
+  createHistoryMaintenance,
+  ensureNotPublishedBranch,
+} from "./history.js";
 import {
   createHarvest,
   harvestProposalSchema,
@@ -21,6 +35,8 @@ const MODULE_DIR = dirname(fileURLToPath(import.meta.url));
 const DEFAULT_DOCTRINE_PATH =
   basename(MODULE_DIR) === "dist" ? dirname(MODULE_DIR) : MODULE_DIR;
 const WATCH_INTERVAL_MS = 2_500;
+const CORPUS_REFRESH_INTERVAL_MS = 2 * 60 * 1_000;
+const CORPUS_DIRECTORY = "rules-cache";
 const SEARCH_RESULT_LIMIT = 24;
 const AUTOMATIC_RULE_LIMIT = 4;
 const SEARCH_STOP_TOKENS = new Set([
@@ -136,6 +152,12 @@ export const rpcContract = defineRpcContract({
 
 export type DoctrineRule = z.infer<typeof ruleSchema>;
 export type LibraryPayload = z.infer<typeof librarySchema>;
+
+/** Resolves a caller-supplied path against the caller's directory. */
+function resolveAgainst(cwd: string | undefined, input: string): string {
+  if (input === "~" || input.startsWith("~/")) return expandPath(input);
+  return isAbsolute(input) ? input : resolve(cwd ?? process.cwd(), input);
+}
 
 function expandPath(input: string): string {
   if (input === "~") return homedir();
@@ -522,6 +544,75 @@ export function formatAgentSearchResults(rules: DoctrineRule[]): string {
     .join("\n\n");
 }
 
+/**
+ * Words that mark an episode as worth a reviewer's attention. Deliberately
+ * broad: the queue grows about eighty episodes a week and yields a rule from
+ * roughly one in twenty-five, so the cost of reading a dull episode is a little
+ * budget while the cost of dropping a real one is feedback lost for good.
+ */
+const FEEDBACK_SIGNAL_TOKENS = new Set([
+  ...DESIGN_CONTEXT_TOKENS,
+  "align",
+  "alignment",
+  "badge",
+  "chip",
+  "cluttered",
+  "confusing",
+  "contrast",
+  "copy",
+  "cramped",
+  "font",
+  "label",
+  "language",
+  "margin",
+  "padding",
+  "placement",
+  "position",
+  "readable",
+  "row",
+  "spacing",
+  "step",
+  "tab",
+  "table",
+  "toast",
+  "tooltip",
+  "typo",
+  "ux",
+  "verbose",
+  "wording",
+  "wordy",
+]);
+
+/** Episodes older than this are advanced unread so the queue cannot diverge. */
+const EPISODE_MAX_AGE_MS = 90 * 24 * 60 * 60 * 1_000;
+
+/**
+ * Decides whether an episode is worth a maintenance pass. Only the user's own
+ * messages count, because only those are evidence.
+ */
+export function skipEpisodeReason(
+  episode: {
+    title: string;
+    targetAt: number;
+    messages: ReadonlyArray<{ role: "user" | "assistant"; text: string }>;
+  },
+  now = Date.now(),
+): string | null {
+  if (now - episode.targetAt > EPISODE_MAX_AGE_MS) {
+    return "older than the review window";
+  }
+  const spoken = [
+    episode.title,
+    ...episode.messages
+      .filter((message) => message.role === "user")
+      .map((message) => message.text),
+  ].join(" ");
+  for (const token of tokenize(spoken)) {
+    if (FEEDBACK_SIGNAL_TOKENS.has(token)) return null;
+  }
+  return "no design signal in the user's messages";
+}
+
 export function automaticDoctrineGuidance(
   rules: DoctrineRule[],
   threadTitle: string | null,
@@ -660,6 +751,65 @@ export default async function plugin(bb: BbPluginApi) {
   let loading: Promise<LibraryPayload> | null = null;
   let automaticRules: DoctrineRule[] = [];
 
+  // The plugin keeps its own copy of the published rules. bb owns the
+  // directory, it is rebuilt whenever the published rules change, and it holds
+  // no git metadata — nothing commits into it, so there is nothing to lose by
+  // rebuilding it. An explicitly configured doctrinePath still wins.
+  let corpusSource: CorpusSource | null = null;
+  let materializedId: string | null = null;
+  let stalledPublications: OpenPublication[] = [];
+  let reportedStalls: string | null = null;
+
+  /**
+   * Resolves where rules are published from. Only a successful resolution is
+   * remembered: caching a failure would disable the corpus for the lifetime of
+   * the process after one offline fetch.
+   */
+  async function resolveSource(): Promise<CorpusSource | null> {
+    if (corpusSource) return corpusSource;
+    const repositoryRoot = await resolveRepositoryRoot(DEFAULT_DOCTRINE_PATH);
+    if (!repositoryRoot) return null;
+    const dataDirectory = pluginDataDirectory(bb.storage.database().name);
+    const readPath = join(dataDirectory, CORPUS_DIRECTORY);
+    // bb owns the data directory; anything materialized inside the repository
+    // would surface as untracked work in the user's own checkout.
+    if (!isAbsolute(readPath) || !relative(repositoryRoot, readPath).startsWith("..")) {
+      return null;
+    }
+    corpusSource = {
+      repositoryRoot,
+      baseBranch: await resolveBaseBranch(repositoryRoot),
+      prefix: relative(repositoryRoot, DEFAULT_DOCTRINE_PATH),
+      readPath,
+      workPath: dataDirectory,
+    };
+    return corpusSource;
+  }
+
+  async function doctrineRoot(): Promise<string> {
+    const configured = expandPath((await settings.get()).doctrinePath);
+    if (configured !== DEFAULT_DOCTRINE_PATH) return configured;
+    return materializedId ? (corpusSource?.readPath ?? configured) : configured;
+  }
+
+  /**
+   * Opens somewhere safe to write a batch of rules. A configured doctrinePath
+   * is committed into directly, as before. Otherwise the batch gets a throwaway
+   * checkout of the published branch. When neither exists there is nowhere
+   * legitimate to commit, and the harvest declines rather than writing rules
+   * into the directory the plugin was installed from.
+   */
+  async function openRulePublication(): Promise<Publication | null> {
+    const configured = expandPath((await settings.get()).doctrinePath);
+    if (configured !== DEFAULT_DOCTRINE_PATH) {
+      await ensureNotPublishedBranch(configured);
+      return { root: configured, finish: async () => null };
+    }
+    const source = await resolveSource();
+    if (!source) return null;
+    return openPublication(source);
+  }
+
   function invalidate(): void {
     cacheGeneration += 1;
     cached = null;
@@ -668,7 +818,7 @@ export default async function plugin(bb: BbPluginApi) {
   }
 
   async function currentLibrary(): Promise<LibraryPayload> {
-    const root = expandPath((await settings.get()).doctrinePath);
+    const root = await doctrineRoot();
     if (cached?.root === root) return cached.value;
     if (loading) return loading;
     const generation = cacheGeneration;
@@ -688,13 +838,18 @@ export default async function plugin(bb: BbPluginApi) {
 
   const historyMaintenance = createHistoryMaintenance(
     bb,
-    async () => expandPath((await settings.get()).doctrinePath),
     DEFAULT_DOCTRINE_PATH,
+    (episode) => {
+      const reason = skipEpisodeReason(episode);
+      if (reason) {
+        bb.log.info(`doctrine history: skipped ${episode.threadId} — ${reason}`);
+      }
+      return reason;
+    },
   );
   const harvest = createHarvest({
     bb,
-    resolveDoctrineRoot: async () =>
-      expandPath((await settings.get()).doctrinePath),
+    openPublication: openRulePublication,
     listRuleIds: async (doctrineRoot) =>
       (await loadDoctrine(doctrineRoot)).rules.map((rule) => rule.id),
     describeExistingRules: async (doctrineRoot) =>
@@ -707,15 +862,17 @@ export default async function plugin(bb: BbPluginApi) {
     validateRules: async (doctrineRoot) => {
       await loadDoctrine(doctrineRoot);
     },
-    async runAgent({ projectId, environmentId, title, prompt }) {
+    async runAgent({ projectId, title, prompt }) {
       const spawned = await bb.sdk.threads.spawn({
         projectId,
         // Hidden so the harvest never interrupts the user. `spawn` attributes
         // the thread to this plugin, which also keeps it out of its own queue.
         visibility: "hidden",
-        environment: environmentId
-          ? { type: "reuse", environmentId }
-          : { type: "host", workspace: { type: "unmanaged", path: null } },
+        // Both agents read the thread through bb's API and report through the
+        // doctrine CLI; neither opens a file. Reusing the archived thread's
+        // environment only tied the harvest to workspaces bb had already
+        // destroyed.
+        environment: { type: "host", workspace: { type: "unmanaged", path: null } },
         title,
         prompt,
       });
@@ -737,9 +894,8 @@ export default async function plugin(bb: BbPluginApi) {
         for (const {
           threadId,
           projectId,
-          environmentId,
         } of harvest.pendingThreads()) {
-          await harvest.harvestThread(threadId, projectId, environmentId);
+          await harvest.harvestThread(threadId, projectId);
         }
       })
       .catch((error: unknown) => {
@@ -833,7 +989,9 @@ export default async function plugin(bb: BbPluginApi) {
               "--max-bytes",
               262_144,
               1,
-              900_000,
+              // A daily pass reads far more than the original ceiling allowed;
+              // the queue grows faster than 256KB a day can drain.
+              2_097_152,
             );
             const maxMessageBytes = integerOption(
               argv,
@@ -950,8 +1108,21 @@ export default async function plugin(bb: BbPluginApi) {
           };
         }
         if (command === "validate") {
+          // Maintenance edits rules in its own checkout, so it has to be able
+          // to validate that working copy rather than the published corpus.
+          // The path is the caller's, so it must resolve against the caller's
+          // cwd — resolving against this long-lived server process would
+          // silently validate an unrelated checkout and report it clean.
+          const target = argv[1] && !argv[1].startsWith("--") ? argv[1] : null;
+          if (target && !isAbsolute(expandPath(target)) && !context.cwd) {
+            return {
+              exitCode: 2,
+              stderr:
+                "bb doctrine validate needs an absolute path when the caller's directory is unknown\n",
+            };
+          }
           const library = await loadDoctrine(
-            expandPath((await settings.get()).doctrinePath),
+            target ? resolveAgainst(context.cwd, target) : await doctrineRoot(),
           );
           return {
             exitCode: 0,
@@ -973,12 +1144,20 @@ export default async function plugin(bb: BbPluginApi) {
             rules: library.rules.length,
             statuses: library.status_counts,
             git: library.git,
+            stalled_publications: stalledPublications,
           };
           return {
             exitCode: 0,
             stdout: json
               ? `${JSON.stringify(summary, null, 2)}\n`
-              : `${summary.rules} rules (${Object.entries(summary.statuses).map(([status, count]) => `${count} ${status}`).join(", ")})\nRepository: ${summary.root}\n`,
+              : `${summary.rules} rules (${Object.entries(summary.statuses).map(([status, count]) => `${count} ${status}`).join(", ")})\nRepository: ${summary.root}\n${
+                  stalledPublications
+                    .map(
+                      (stall) =>
+                        `Stalled: ${stall.url} not merged after ${stall.ageHours}h (${stall.mergeStateStatus})\n`,
+                    )
+                    .join("")
+                }`,
           };
         }
         if (command === "search") {
@@ -1006,16 +1185,85 @@ export default async function plugin(bb: BbPluginApi) {
     },
   });
 
+  /**
+   * One cycle of corpus upkeep: pull in whatever has been published, then
+   * report any batch that is not merging. Publication itself happens in the
+   * throwaway checkout that wrote the batch, so nothing here can strand rules.
+   */
+  async function maintainCorpus(signal?: AbortSignal): Promise<void> {
+    const source = await resolveSource().catch(() => null);
+    if (!source) return;
+    try {
+      const published = await materializeRules(source, materializedId, signal);
+      if (published) {
+        materializedId = published;
+        invalidate();
+        await currentLibrary();
+        bb.realtime.publish("rules-changed", {
+          changed_at: new Date().toISOString(),
+        });
+      }
+      stalledPublications = await readStalledPublications(
+        source,
+        undefined,
+        signal,
+      );
+    } catch (error) {
+      // A cycle that could not complete must not leave a stale stall report
+      // standing as though it were current.
+      stalledPublications = [];
+      bb.log.warn(
+        `doctrine corpus upkeep failed, retrying next cycle: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
+    }
+    // Say so once per distinct set of stalls rather than every cycle.
+    const signature = stalledPublications.map((row) => `${row.url}:${row.mergeStateStatus}`).join(",");
+    if (signature !== reportedStalls) {
+      reportedStalls = signature;
+      for (const stall of stalledPublications) {
+        bb.log.warn(
+          `doctrine corpus: ${stall.url} has not merged after ${stall.ageHours}h (${stall.mergeStateStatus}); those rules stay unpublished until it does`,
+        );
+      }
+    }
+  }
+
+  /**
+   * Never let an unreadable rules directory throw out of the watcher: a crash
+   * loop here would take the service down with the one cycle that repairs it
+   * still pending, which is the failure this whole design exists to remove.
+   */
+  async function safeFingerprint(): Promise<string> {
+    try {
+      return await watchFingerprint(await doctrineRoot());
+    } catch (error) {
+      bb.log.warn(
+        `doctrine rules unreadable: ${error instanceof Error ? error.message : String(error)}`,
+      );
+      return "rules:unavailable";
+    }
+  }
+
   bb.background.service("rule-watch", {
     async start(signal) {
-      let fingerprint = await watchFingerprint((await settings.get()).doctrinePath);
+      // Build the read copy before serving anything, rather than a cycle later.
+      await maintainCorpus(signal);
+      let fingerprint = await safeFingerprint();
       try { await currentLibrary(); } catch (error) {
         bb.log.warn(error instanceof Error ? error.message : String(error));
       }
+      let nextRefreshAt = Date.now() + CORPUS_REFRESH_INTERVAL_MS;
       while (!signal.aborted) {
         await sleep(WATCH_INTERVAL_MS, signal);
         if (signal.aborted) break;
-        const next = await watchFingerprint((await settings.get()).doctrinePath);
+        if (Date.now() >= nextRefreshAt) {
+          nextRefreshAt = Date.now() + CORPUS_REFRESH_INTERVAL_MS;
+          await maintainCorpus(signal);
+          if (signal.aborted) break;
+        }
+        const next = await safeFingerprint();
         if (next !== fingerprint) {
           fingerprint = next;
           invalidate();

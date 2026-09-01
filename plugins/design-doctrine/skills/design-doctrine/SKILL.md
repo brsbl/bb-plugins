@@ -15,14 +15,13 @@ When the user asks to learn, maintain, or update doctrine from thread history,
 this skill is authoritative; do not substitute the generic bb-usage skill's
 cross-thread inventory workflow. Skip the normal retrieval flow and follow
 `maintenance/automation-prompt.md`.
-Maintenance must run in the dedicated non-default branch/worktree configured
-as the plugin's `doctrinePath`; the scanner rejects detached installs and
-primary branches so rule commits cannot be stranded or dirty the normal
-checkout.
+Maintenance runs in the worktree bb provisions for it and publishes its rules
+as a pull request that merges itself once required checks pass, so no checkout
+has to be configured or kept clean by hand.
 Begin one bounded API-backed pass with:
 
 ```bash
-bb doctrine history scan --limit 200 --max-bytes 262144 --max-message-bytes 8192
+bb doctrine history scan --limit 400 --max-bytes 1048576 --max-message-bytes 8192
 ```
 
 The plugin queues visible user threads when they become idle and this command

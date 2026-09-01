@@ -11,12 +11,12 @@ var __export = (target, all) => {
 };
 
 // server.ts
-import { execFile as execFile2 } from "node:child_process";
+import { execFile as execFile3 } from "node:child_process";
 import { readdir, readFile as readFile2, stat } from "node:fs/promises";
 import { homedir } from "node:os";
-import { basename, dirname, join as join3, relative, resolve } from "node:path";
+import { basename, dirname as dirname2, isAbsolute, join as join4, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { promisify as promisify2 } from "node:util";
+import { promisify as promisify3 } from "node:util";
 
 // ../../node_modules/zod/v4/classic/external.js
 var external_exports = {};
@@ -524,7 +524,7 @@ __export(core_exports2, {
   parse: () => parse,
   parseAsync: () => parseAsync,
   prettifyError: () => prettifyError,
-  process: () => process,
+  process: () => process2,
   regexes: () => regexes_exports,
   registry: () => registry,
   safeDecode: () => safeDecode,
@@ -11449,7 +11449,7 @@ function initializeContext(params) {
     external: params?.external ?? void 0
   };
 }
-function process(schema, ctx, _params = { path: [], schemaPath: [] }) {
+function process2(schema, ctx, _params = { path: [], schemaPath: [] }) {
   var _a3;
   const def = schema._zod.def;
   const seen = ctx.seen.get(schema);
@@ -11486,7 +11486,7 @@ function process(schema, ctx, _params = { path: [], schemaPath: [] }) {
     if (parent) {
       if (!result.ref)
         result.ref = parent;
-      process(parent, ctx, params);
+      process2(parent, ctx, params);
       ctx.seen.get(parent).isParent = true;
     }
   }
@@ -11774,14 +11774,14 @@ function isTransforming(_schema, _ctx) {
 }
 var createToJSONSchemaMethod = (schema, processors = {}) => (params) => {
   const ctx = initializeContext({ ...params, processors });
-  process(schema, ctx);
+  process2(schema, ctx);
   extractDefs(ctx, schema);
   return finalize(ctx, schema);
 };
 var createStandardJSONSchemaMethod = (schema, io, processors = {}) => (params) => {
   const { libraryOptions, target } = params ?? {};
   const ctx = initializeContext({ ...libraryOptions ?? {}, target, io, processors });
-  process(schema, ctx);
+  process2(schema, ctx);
   extractDefs(ctx, schema);
   return finalize(ctx, schema);
 };
@@ -12027,7 +12027,7 @@ var arrayProcessor = (schema, ctx, _json, params) => {
   if (typeof maximum === "number")
     json2.maxItems = maximum;
   json2.type = "array";
-  json2.items = process(def.element, ctx, {
+  json2.items = process2(def.element, ctx, {
     ...params,
     path: [...params.path, "items"]
   });
@@ -12039,7 +12039,7 @@ var objectProcessor = (schema, ctx, _json, params) => {
   json2.properties = {};
   const shape = def.shape;
   for (const key in shape) {
-    json2.properties[key] = process(shape[key], ctx, {
+    json2.properties[key] = process2(shape[key], ctx, {
       ...params,
       path: [...params.path, "properties", key]
     });
@@ -12062,7 +12062,7 @@ var objectProcessor = (schema, ctx, _json, params) => {
     if (ctx.io === "output")
       json2.additionalProperties = false;
   } else if (def.catchall) {
-    json2.additionalProperties = process(def.catchall, ctx, {
+    json2.additionalProperties = process2(def.catchall, ctx, {
       ...params,
       path: [...params.path, "additionalProperties"]
     });
@@ -12071,7 +12071,7 @@ var objectProcessor = (schema, ctx, _json, params) => {
 var unionProcessor = (schema, ctx, json2, params) => {
   const def = schema._zod.def;
   const isExclusive = def.inclusive === false;
-  const options = def.options.map((x, i) => process(x, ctx, {
+  const options = def.options.map((x, i) => process2(x, ctx, {
     ...params,
     path: [...params.path, isExclusive ? "oneOf" : "anyOf", i]
   }));
@@ -12083,11 +12083,11 @@ var unionProcessor = (schema, ctx, json2, params) => {
 };
 var intersectionProcessor = (schema, ctx, json2, params) => {
   const def = schema._zod.def;
-  const a = process(def.left, ctx, {
+  const a = process2(def.left, ctx, {
     ...params,
     path: [...params.path, "allOf", 0]
   });
-  const b = process(def.right, ctx, {
+  const b = process2(def.right, ctx, {
     ...params,
     path: [...params.path, "allOf", 1]
   });
@@ -12104,11 +12104,11 @@ var tupleProcessor = (schema, ctx, _json, params) => {
   json2.type = "array";
   const prefixPath = ctx.target === "draft-2020-12" ? "prefixItems" : "items";
   const restPath = ctx.target === "draft-2020-12" ? "items" : ctx.target === "openapi-3.0" ? "items" : "additionalItems";
-  const prefixItems = def.items.map((x, i) => process(x, ctx, {
+  const prefixItems = def.items.map((x, i) => process2(x, ctx, {
     ...params,
     path: [...params.path, prefixPath, i]
   }));
-  const rest = def.rest ? process(def.rest, ctx, {
+  const rest = def.rest ? process2(def.rest, ctx, {
     ...params,
     path: [...params.path, restPath, ...ctx.target === "openapi-3.0" ? [def.items.length] : []]
   }) : null;
@@ -12148,7 +12148,7 @@ var recordProcessor = (schema, ctx, _json, params) => {
   const keyBag = keyType._zod.bag;
   const patterns = keyBag?.patterns;
   if (def.mode === "loose" && patterns && patterns.size > 0) {
-    const valueSchema = process(def.valueType, ctx, {
+    const valueSchema = process2(def.valueType, ctx, {
       ...params,
       path: [...params.path, "patternProperties", "*"]
     });
@@ -12158,12 +12158,12 @@ var recordProcessor = (schema, ctx, _json, params) => {
     }
   } else {
     if (ctx.target === "draft-07" || ctx.target === "draft-2020-12") {
-      json2.propertyNames = process(def.keyType, ctx, {
+      json2.propertyNames = process2(def.keyType, ctx, {
         ...params,
         path: [...params.path, "propertyNames"]
       });
     }
-    json2.additionalProperties = process(def.valueType, ctx, {
+    json2.additionalProperties = process2(def.valueType, ctx, {
       ...params,
       path: [...params.path, "additionalProperties"]
     });
@@ -12178,7 +12178,7 @@ var recordProcessor = (schema, ctx, _json, params) => {
 };
 var nullableProcessor = (schema, ctx, json2, params) => {
   const def = schema._zod.def;
-  const inner = process(def.innerType, ctx, params);
+  const inner = process2(def.innerType, ctx, params);
   const seen = ctx.seen.get(schema);
   if (ctx.target === "openapi-3.0") {
     seen.ref = def.innerType;
@@ -12189,20 +12189,20 @@ var nullableProcessor = (schema, ctx, json2, params) => {
 };
 var nonoptionalProcessor = (schema, ctx, _json, params) => {
   const def = schema._zod.def;
-  process(def.innerType, ctx, params);
+  process2(def.innerType, ctx, params);
   const seen = ctx.seen.get(schema);
   seen.ref = def.innerType;
 };
 var defaultProcessor = (schema, ctx, json2, params) => {
   const def = schema._zod.def;
-  process(def.innerType, ctx, params);
+  process2(def.innerType, ctx, params);
   const seen = ctx.seen.get(schema);
   seen.ref = def.innerType;
   json2.default = JSON.parse(JSON.stringify(def.defaultValue));
 };
 var prefaultProcessor = (schema, ctx, json2, params) => {
   const def = schema._zod.def;
-  process(def.innerType, ctx, params);
+  process2(def.innerType, ctx, params);
   const seen = ctx.seen.get(schema);
   seen.ref = def.innerType;
   if (ctx.io === "input")
@@ -12210,7 +12210,7 @@ var prefaultProcessor = (schema, ctx, json2, params) => {
 };
 var catchProcessor = (schema, ctx, json2, params) => {
   const def = schema._zod.def;
-  process(def.innerType, ctx, params);
+  process2(def.innerType, ctx, params);
   const seen = ctx.seen.get(schema);
   seen.ref = def.innerType;
   let catchValue;
@@ -12225,32 +12225,32 @@ var pipeProcessor = (schema, ctx, _json, params) => {
   const def = schema._zod.def;
   const inIsTransform = def.in._zod.traits.has("$ZodTransform");
   const innerType = ctx.io === "input" ? inIsTransform ? def.out : def.in : def.out;
-  process(innerType, ctx, params);
+  process2(innerType, ctx, params);
   const seen = ctx.seen.get(schema);
   seen.ref = innerType;
 };
 var readonlyProcessor = (schema, ctx, json2, params) => {
   const def = schema._zod.def;
-  process(def.innerType, ctx, params);
+  process2(def.innerType, ctx, params);
   const seen = ctx.seen.get(schema);
   seen.ref = def.innerType;
   json2.readOnly = true;
 };
 var promiseProcessor = (schema, ctx, _json, params) => {
   const def = schema._zod.def;
-  process(def.innerType, ctx, params);
+  process2(def.innerType, ctx, params);
   const seen = ctx.seen.get(schema);
   seen.ref = def.innerType;
 };
 var optionalProcessor = (schema, ctx, _json, params) => {
   const def = schema._zod.def;
-  process(def.innerType, ctx, params);
+  process2(def.innerType, ctx, params);
   const seen = ctx.seen.get(schema);
   seen.ref = def.innerType;
 };
 var lazyProcessor = (schema, ctx, _json, params) => {
   const innerType = schema._zod.innerType;
-  process(innerType, ctx, params);
+  process2(innerType, ctx, params);
   const seen = ctx.seen.get(schema);
   seen.ref = innerType;
 };
@@ -12302,7 +12302,7 @@ function toJSONSchema(input, params) {
     const defs = {};
     for (const entry of registry2._idmap.entries()) {
       const [_, schema] = entry;
-      process(schema, ctx2);
+      process2(schema, ctx2);
     }
     const schemas = {};
     const external = {
@@ -12325,7 +12325,7 @@ function toJSONSchema(input, params) {
     return { schemas };
   }
   const ctx = initializeContext({ ...params, processors: allProcessors });
-  process(input, ctx);
+  process2(input, ctx);
   extractDefs(ctx, input);
   return finalize(ctx, input);
 }
@@ -12383,7 +12383,7 @@ var JSONSchemaGenerator = class {
    * This must be called before emit().
    */
   process(schema, _params = { path: [], schemaPath: [] }) {
-    return process(schema, this.ctx, _params);
+    return process2(schema, this.ctx, _params);
   }
   /**
    * Emit the final JSON Schema after processing.
@@ -14532,11 +14532,200 @@ function date4(params) {
 // ../../node_modules/zod/v4/classic/external.js
 config(en_default());
 
-// history.ts
+// corpus.ts
 import { execFile } from "node:child_process";
-import { mkdir, readFile, unlink, writeFile } from "node:fs/promises";
-import { join } from "node:path";
+import {
+  mkdir,
+  mkdtemp,
+  readlink,
+  rename,
+  rm,
+  symlink
+} from "node:fs/promises";
+import { dirname, join } from "node:path";
 import { promisify } from "node:util";
+var execFileAsync = promisify(execFile);
+var COMMAND_TIMEOUT_MS = 6e4;
+async function git(cwd, args, signal) {
+  const result = await execFileAsync("git", ["-C", cwd, ...args], {
+    encoding: "utf8",
+    timeout: COMMAND_TIMEOUT_MS,
+    signal
+  });
+  return result.stdout.trim();
+}
+function pluginDataDirectory(databasePath) {
+  return dirname(databasePath);
+}
+async function resolveRepositoryRoot(path) {
+  try {
+    return await git(path, ["rev-parse", "--show-toplevel"]);
+  } catch {
+    return null;
+  }
+}
+async function resolveBaseBranch(repositoryRoot) {
+  try {
+    const head = await git(repositoryRoot, [
+      "symbolic-ref",
+      "--short",
+      "refs/remotes/origin/HEAD"
+    ]);
+    const branch = head.replace(/^origin\//, "");
+    return branch.length > 0 ? branch : "main";
+  } catch {
+    return "main";
+  }
+}
+async function publishedRulesId(source, signal) {
+  return git(
+    source.repositoryRoot,
+    [
+      "ls-tree",
+      "--object-only",
+      `origin/${source.baseBranch}`,
+      "--",
+      `${source.prefix}/rules`
+    ],
+    signal
+  );
+}
+async function materializeRules(source, currentId, signal) {
+  const { repositoryRoot, baseBranch, prefix, readPath } = source;
+  await git(repositoryRoot, ["fetch", "--quiet", "origin", baseBranch], signal);
+  const publishedId = await publishedRulesId(source, signal);
+  if (publishedId === currentId) return null;
+  const target = `${readPath}.${publishedId.length > 0 ? publishedId : "empty"}`;
+  await rm(target, { recursive: true, force: true });
+  await mkdir(join(target, "rules"), { recursive: true });
+  if (publishedId.length > 0) {
+    await execFileAsync(
+      "sh",
+      [
+        "-c",
+        'set -e; git -C "$1" archive --format=tar "$2" | tar -x -C "$3"',
+        "sh",
+        repositoryRoot,
+        publishedId,
+        join(target, "rules")
+      ],
+      { encoding: "utf8", timeout: COMMAND_TIMEOUT_MS, signal }
+    );
+  }
+  const previous = await readlink(readPath).catch(() => null);
+  const pending = `${readPath}.pending`;
+  await rm(pending, { recursive: true, force: true });
+  await symlink(target, pending);
+  if (previous === null) {
+    await rm(readPath, { recursive: true, force: true });
+  }
+  await rename(pending, readPath);
+  if (previous && previous !== target) {
+    await rm(previous, { recursive: true, force: true });
+  }
+  return publishedId;
+}
+async function openPublication(source, signal) {
+  const { repositoryRoot, baseBranch, prefix, workPath } = source;
+  await git(repositoryRoot, ["fetch", "--quiet", "origin", baseBranch], signal);
+  const directory = await mkdtemp(join(workPath, "publish-"));
+  await git(
+    repositoryRoot,
+    ["worktree", "add", "--detach", "--quiet", directory, `origin/${baseBranch}`],
+    signal
+  );
+  return {
+    root: join(directory, prefix),
+    async finish(committed) {
+      try {
+        if (!committed) return null;
+        return await publish(source, directory, signal);
+      } finally {
+        await git(
+          repositoryRoot,
+          ["worktree", "remove", "--force", directory],
+          signal
+        ).catch(() => void 0);
+        await rm(directory, { recursive: true, force: true });
+      }
+    }
+  };
+}
+async function publish(source, directory, signal) {
+  const head = await git(directory, ["rev-parse", "--short", "HEAD"], signal);
+  const branch = `doctrine/${head}`;
+  await git(
+    directory,
+    ["push", "--quiet", "origin", `HEAD:refs/heads/${branch}`],
+    signal
+  );
+  try {
+    const created = await execFileAsync(
+      "gh",
+      [
+        "pr",
+        "create",
+        "--head",
+        branch,
+        "--base",
+        source.baseBranch,
+        "--title",
+        "doctrine: publish harvested rules",
+        "--body",
+        "Rules harvested from bb thread feedback by the Design Doctrine plugin.\n\nMerges itself once the repository's required checks pass."
+      ],
+      { cwd: directory, encoding: "utf8", timeout: COMMAND_TIMEOUT_MS, signal }
+    );
+    await execFileAsync("gh", ["pr", "merge", branch, "--auto", "--squash"], {
+      cwd: directory,
+      encoding: "utf8",
+      timeout: COMMAND_TIMEOUT_MS,
+      signal
+    });
+    return created.stdout.trim().split("\n").filter(Boolean).pop() ?? branch;
+  } catch (error51) {
+    await git(
+      directory,
+      ["push", "--quiet", "--delete", "origin", branch],
+      signal
+    ).catch(() => void 0);
+    throw error51;
+  }
+}
+async function readStalledPublications(source, stallAfterHours = 6, signal) {
+  const result = await execFileAsync(
+    "gh",
+    [
+      "pr",
+      "list",
+      "--state",
+      "open",
+      "--search",
+      "head:doctrine/",
+      "--json",
+      "url,headRefName,mergeStateStatus,createdAt"
+    ],
+    {
+      cwd: source.repositoryRoot,
+      encoding: "utf8",
+      timeout: COMMAND_TIMEOUT_MS,
+      signal
+    }
+  );
+  const rows = JSON.parse(result.stdout);
+  return rows.map((row) => ({
+    url: row.url,
+    branch: row.headRefName,
+    mergeStateStatus: row.mergeStateStatus,
+    ageHours: (Date.now() - Date.parse(row.createdAt)) / (60 * 60 * 1e3)
+  })).filter((row) => row.ageHours >= stallAfterHours).map((row) => ({ ...row, ageHours: Math.round(row.ageHours) }));
+}
+
+// history.ts
+import { execFile as execFile2 } from "node:child_process";
+import { mkdir as mkdir2, readFile, unlink, writeFile } from "node:fs/promises";
+import { join as join2 } from "node:path";
+import { promisify as promisify2 } from "node:util";
 
 // ../../packages/thread-history-maintenance/index.ts
 import { randomUUID } from "node:crypto";
@@ -15105,6 +15294,7 @@ function createThreadHistoryMaintenance(bb, options = {}) {
         const episodes = [];
         const leaseTargets = [];
         const automaticTargets = [];
+        let skippedCount = 0;
         let messageCount = 0;
         let messageBytes = 0;
         let hitBound = false;
@@ -15205,7 +15395,14 @@ function createThreadHistoryMaintenance(bb, options = {}) {
             }
             const episode = result.episode;
             storeHydrationCursor(result.candidate.thread_id, null);
-            if (episode.messages.length === 0) {
+            const skipReason = episode.messages.length > 0 && episode.complete ? options.skipEpisode?.({
+              threadId: episode.state.thread_id,
+              title: episode.state.title,
+              targetAt: episode.targetAt,
+              messages: episode.messages
+            }) ?? null : null;
+            if (episode.messages.length === 0 || skipReason !== null) {
+              if (skipReason !== null) skippedCount += 1;
               automaticTargets.push({
                 threadId: episode.state.thread_id,
                 targetSequence: episode.targetSequence,
@@ -15298,7 +15495,8 @@ function createThreadHistoryMaintenance(bb, options = {}) {
             message_count: 0,
             message_bytes: 0,
             pending_thread_count: pendingCount(),
-            deferred_thread_count: deferredThreadCount
+            deferred_thread_count: deferredThreadCount,
+            skipped_episode_count: skippedCount
           };
         }
         const leaseId = randomUUID().replaceAll("-", "");
@@ -15336,7 +15534,8 @@ function createThreadHistoryMaintenance(bb, options = {}) {
           message_count: messageCount,
           message_bytes: messageBytes,
           pending_thread_count: pendingCount(),
-          deferred_thread_count: deferredThreadCount
+          deferred_thread_count: deferredThreadCount,
+          skipped_episode_count: skippedCount
         };
       });
     },
@@ -15399,14 +15598,14 @@ function createThreadHistoryMaintenance(bb, options = {}) {
 }
 
 // history.ts
-var execFileAsync = promisify(execFile);
+var execFileAsync2 = promisify2(execFile2);
 var LEGACY_HISTORY_STATE_KEY = "maintenance:thread-history:v2";
-var LEGACY_HISTORY_STATE_PATH = join("maintenance", "state.json");
+var LEGACY_HISTORY_STATE_PATH = join2("maintenance", "state.json");
 var PRIMARY_BRANCH_NAMES = /* @__PURE__ */ new Set(["main", "master", "trunk"]);
 async function ensureMaintenanceBranch(pluginRoot) {
   let branchName;
   try {
-    const branch = await execFileAsync(
+    const branch = await execFileAsync2(
       "git",
       ["-C", pluginRoot, "symbolic-ref", "--quiet", "--short", "HEAD"],
       { encoding: "utf8" }
@@ -15415,17 +15614,17 @@ async function ensureMaintenanceBranch(pluginRoot) {
     if (branchName.length === 0) throw new Error("missing branch");
   } catch {
     throw new Error(
-      "maintenance requires doctrinePath to point to a dedicated non-default branch checkout, not a detached managed install; configure it with `bb plugin config design-doctrine set doctrinePath /path/to/bb-plugins-doctrine-maintenance/plugins/design-doctrine`"
+      "rule commits need a checkout on a branch; the plugin's own corpus checkout provides one, so this indicates a doctrinePath override pointing at a detached install"
     );
   }
   if (PRIMARY_BRANCH_NAMES.has(branchName)) {
     throw new Error(
-      `maintenance refuses primary branch ${branchName}; use a dedicated non-default branch/worktree and point doctrinePath at its plugins/design-doctrine folder`
+      `refusing to commit rules onto primary branch ${branchName}; rules are published through a pull request, never committed to the published branch directly`
     );
   }
 }
 async function ruleTreeStatus(pluginRoot) {
-  const result = await execFileAsync(
+  const result = await execFileAsync2(
     "git",
     [
       "-C",
@@ -15440,13 +15639,15 @@ async function ruleTreeStatus(pluginRoot) {
   );
   return result.stdout;
 }
-async function ensureMaintenanceCheckout(pluginRoot) {
-  await ensureMaintenanceBranch(pluginRoot);
+async function ensureRuleTreeClean(pluginRoot) {
   if ((await ruleTreeStatus(pluginRoot)).length > 0) {
     throw new Error(
       "rules tree has pre-existing work; commit, stash, or move it before scanning"
     );
   }
+}
+async function ensureNotPublishedBranch(pluginRoot) {
+  await ensureMaintenanceBranch(pluginRoot);
 }
 var MaintenanceHeadChangedError = class extends Error {
   constructor(expected, actual) {
@@ -15457,7 +15658,7 @@ var MaintenanceHeadChangedError = class extends Error {
   }
 };
 async function readMaintenanceHead(pluginRoot) {
-  const result = await execFileAsync(
+  const result = await execFileAsync2(
     "git",
     ["-C", pluginRoot, "rev-parse", "HEAD"],
     { encoding: "utf8" }
@@ -15475,7 +15676,7 @@ function assertRulePath(relativePath) {
 }
 async function rollbackNewRuleFiles(pluginRoot, relativePaths) {
   if (relativePaths.length === 0) return;
-  await execFileAsync(
+  await execFileAsync2(
     "git",
     ["-C", pluginRoot, "restore", "--staged", "--", ...relativePaths],
     { encoding: "utf8" }
@@ -15483,7 +15684,7 @@ async function rollbackNewRuleFiles(pluginRoot, relativePaths) {
   await Promise.all(
     relativePaths.map(async (relativePath) => {
       try {
-        await unlink(join(pluginRoot, relativePath));
+        await unlink(join2(pluginRoot, relativePath));
       } catch (error51) {
         if (!isMissingFile(error51)) throw error51;
       }
@@ -15500,7 +15701,7 @@ async function commitNewRuleFiles(pluginRoot, files, validate, expectedHead) {
   if (new Set(relativePaths).size !== relativePaths.length) {
     throw new Error("generated rule paths must be unique");
   }
-  await ensureMaintenanceCheckout(pluginRoot);
+  await ensureRuleTreeClean(pluginRoot);
   if (expectedHead) {
     const actualHead = await readMaintenanceHead(pluginRoot);
     if (actualHead !== expectedHead) {
@@ -15511,8 +15712,8 @@ async function commitNewRuleFiles(pluginRoot, files, validate, expectedHead) {
   let committed = false;
   try {
     for (const file2 of files) {
-      const absolutePath = join(pluginRoot, file2.relativePath);
-      await mkdir(join(absolutePath, ".."), { recursive: true });
+      const absolutePath = join2(pluginRoot, file2.relativePath);
+      await mkdir2(join2(absolutePath, ".."), { recursive: true });
       await writeFile(absolutePath, file2.content, { encoding: "utf8", flag: "wx" });
       created.push(file2.relativePath);
     }
@@ -15530,8 +15731,8 @@ async function commitNewRuleFiles(pluginRoot, files, validate, expectedHead) {
     if (actualStatus.length !== expectedStatus.size || actualStatus.some((line) => !expectedStatus.has(line))) {
       throw new Error("rules tree changed while the doctrine harvest was running");
     }
-    await execFileAsync("git", ["-C", pluginRoot, "add", "--", ...relativePaths]);
-    await execFileAsync("git", [
+    await execFileAsync2("git", ["-C", pluginRoot, "add", "--", ...relativePaths]);
+    await execFileAsync2("git", [
       "-C",
       pluginRoot,
       "diff",
@@ -15540,7 +15741,7 @@ async function commitNewRuleFiles(pluginRoot, files, validate, expectedHead) {
       "--",
       ...relativePaths
     ]);
-    await execFileAsync("git", [
+    await execFileAsync2("git", [
       "-C",
       pluginRoot,
       "commit",
@@ -15582,7 +15783,7 @@ function isMissingFile(error51) {
   return typeof error51 === "object" && error51 !== null && "code" in error51 && error51.code === "ENOENT";
 }
 async function importLegacyStateFile(bb, pluginRoot) {
-  const statePath = join(pluginRoot, LEGACY_HISTORY_STATE_PATH);
+  const statePath = join2(pluginRoot, LEGACY_HISTORY_STATE_PATH);
   let source;
   try {
     source = await readFile(statePath, "utf8");
@@ -15605,10 +15806,10 @@ async function removeMigratedStateFile(bb, statePath) {
     if (!isMissingFile(error51)) throw error51;
   }
 }
-function createHistoryMaintenance(bb, resolveDoctrineRoot, installedPluginRoot) {
+function createHistoryMaintenance(bb, installedPluginRoot, skipEpisode) {
   const history = createThreadHistoryMaintenance(bb, {
-    beforeScan: async () => ensureMaintenanceCheckout(await resolveDoctrineRoot()),
-    legacyStateKeys: [LEGACY_HISTORY_STATE_KEY]
+    legacyStateKeys: [LEGACY_HISTORY_STATE_KEY],
+    skipEpisode
   });
   let migrationQueue = Promise.resolve();
   function withLegacyStateMigration(operation) {
@@ -15633,12 +15834,11 @@ function createHistoryMaintenance(bb, resolveDoctrineRoot, installedPluginRoot) 
 
 // harvest.ts
 import { randomBytes } from "node:crypto";
-import { join as join2 } from "node:path";
+import { join as join3 } from "node:path";
 var HARVEST_SCHEMA = [
   `CREATE TABLE IF NOT EXISTS harvest_threads (
      thread_id TEXT PRIMARY KEY,
      project_id TEXT NOT NULL,
-     environment_id TEXT,
      queued_at INTEGER NOT NULL,
      processed_at INTEGER,
      outcome TEXT
@@ -15767,7 +15967,7 @@ function allocateRuleId(existingIds) {
   return `ddr_${String(highest + 1).padStart(3, "0")}`;
 }
 function ruleRelativePath(domain2, id) {
-  return join2("rules", domain2.split(".")[0], `${id}.md`);
+  return join3("rules", domain2.split(".")[0], `${id}.md`);
 }
 function frontmatterList(values) {
   return JSON.stringify(values);
@@ -15848,7 +16048,7 @@ function isHarvestableThread(thread) {
 function createHarvest(dependencies) {
   const {
     bb,
-    resolveDoctrineRoot,
+    openPublication: openPublication2,
     listRuleIds,
     describeExistingRules,
     validateRules,
@@ -15911,23 +16111,22 @@ function createHarvest(dependencies) {
     if (!isHarvestableThread(thread)) return false;
     const result = db().prepare(
       `INSERT INTO harvest_threads
-           (thread_id, project_id, environment_id, queued_at)
-         VALUES (?, ?, ?, ?)
+           (thread_id, project_id, queued_at)
+         VALUES (?, ?, ?)
          ON CONFLICT (thread_id) DO NOTHING`
-    ).run(thread.id, thread.projectId, thread.environmentId ?? null, now());
+    ).run(thread.id, thread.projectId, now());
     return result.changes > 0;
   }
   function pendingThreads() {
     return db().prepare(
-      `SELECT thread_id, project_id, environment_id FROM harvest_threads
+      `SELECT thread_id, project_id FROM harvest_threads
          WHERE processed_at IS NULL
          ORDER BY queued_at, thread_id`
     ).all().map((row) => {
       const record2 = row;
       return {
         threadId: String(record2.thread_id),
-        projectId: String(record2.project_id),
-        environmentId: record2.environment_id === null || record2.environment_id === void 0 ? null : String(record2.environment_id)
+        projectId: String(record2.project_id)
       };
     });
   }
@@ -16180,11 +16379,37 @@ function createHarvest(dependencies) {
       `  bb doctrine harvest verdict --proposal ${stored.id} --token ${token} --reject --reason '<why>'`
     ].join("\n");
   }
-  async function harvestThread(threadId, projectId, environmentId = null) {
-    let doctrineRoot;
+  async function harvestThread(threadId, projectId) {
+    const publication = await openPublication2().catch((error51) => {
+      bb.log.warn(
+        `doctrine harvest: no publication checkout available: ${error51 instanceof Error ? error51.message : String(error51)}`
+      );
+      return null;
+    });
+    if (!publication) {
+      bb.log.warn(
+        "doctrine harvest: nowhere to publish rules; leaving the thread queued"
+      );
+      return;
+    }
+    let committed = false;
     try {
-      doctrineRoot = await resolveDoctrineRoot();
-      await ensureMaintenanceCheckout(doctrineRoot);
+      await harvestThreadInto(publication.root, threadId, projectId, () => {
+        committed = true;
+      });
+    } finally {
+      const url2 = await publication.finish(committed).catch((error51) => {
+        bb.log.warn(
+          `doctrine harvest: publishing the batch failed, it will be retried: ${error51 instanceof Error ? error51.message : String(error51)}`
+        );
+        return null;
+      });
+      if (url2) bb.log.info(`doctrine harvest: published ${url2}`);
+    }
+  }
+  async function harvestThreadInto(doctrineRoot, threadId, projectId, markCommitted) {
+    try {
+      await ensureRuleTreeClean(doctrineRoot);
     } catch (error51) {
       bb.log.warn(
         `doctrine harvest: waiting for a clean maintenance checkout: ${error51 instanceof Error ? error51.message : String(error51)}`
@@ -16200,7 +16425,6 @@ function createHarvest(dependencies) {
           kind: "harvester",
           threadId,
           projectId,
-          environmentId,
           title: "Doctrine harvest",
           prompt: harvesterPrompt(threadId, token)
         });
@@ -16248,7 +16472,7 @@ function createHarvest(dependencies) {
       } else if (carriedApprovals.length > 0) {
         resetReviewDecisions(threadId, carriedApprovals.map((item) => item.id));
       }
-      await ensureMaintenanceCheckout(doctrineRoot);
+      await ensureRuleTreeClean(doctrineRoot);
       const catalogHead = await readMaintenanceHead(doctrineRoot);
       const existingRules = await describeExistingRules(doctrineRoot);
       if (await readMaintenanceHead(doctrineRoot) !== catalogHead) {
@@ -16293,7 +16517,6 @@ function createHarvest(dependencies) {
             kind: "reviewer",
             threadId,
             projectId,
-            environmentId,
             title: "Doctrine review",
             prompt: reviewerPrompt(stored, context, existingRules, token)
           });
@@ -16389,6 +16612,7 @@ function createHarvest(dependencies) {
             `doctrine harvest: committed ${draft.file.relativePath} from ${pendingThreadId} \u2014 ${draft.stored.reason ?? "approved"}`
           );
         }
+        markCommitted();
         markProcessed(pendingThreadId, `approved:${drafts.length}`);
         return "done";
       } catch (error51) {
@@ -16444,11 +16668,13 @@ function createHarvest(dependencies) {
 }
 
 // server.ts
-var execFileAsync2 = promisify2(execFile2);
+var execFileAsync3 = promisify3(execFile3);
 var HARVEST_AGENT_TIMEOUT_MS = 15 * 60 * 1e3;
-var MODULE_DIR = dirname(fileURLToPath(import.meta.url));
-var DEFAULT_DOCTRINE_PATH = basename(MODULE_DIR) === "dist" ? dirname(MODULE_DIR) : MODULE_DIR;
+var MODULE_DIR = dirname2(fileURLToPath(import.meta.url));
+var DEFAULT_DOCTRINE_PATH = basename(MODULE_DIR) === "dist" ? dirname2(MODULE_DIR) : MODULE_DIR;
 var WATCH_INTERVAL_MS = 2500;
+var CORPUS_REFRESH_INTERVAL_MS = 2 * 60 * 1e3;
+var CORPUS_DIRECTORY = "rules-cache";
 var SEARCH_RESULT_LIMIT = 24;
 var AUTOMATIC_RULE_LIMIT = 4;
 var SEARCH_STOP_TOKENS = /* @__PURE__ */ new Set([
@@ -16556,18 +16782,22 @@ var librarySchema = external_exports.object({
 var rpcContract = defineRpcContract({
   getLibrary: { input: external_exports.null(), output: librarySchema }
 });
+function resolveAgainst(cwd, input) {
+  if (input === "~" || input.startsWith("~/")) return expandPath(input);
+  return isAbsolute(input) ? input : resolve(cwd ?? process.cwd(), input);
+}
 function expandPath(input) {
   if (input === "~") return homedir();
-  if (input.startsWith("~/")) return join3(homedir(), input.slice(2));
+  if (input.startsWith("~/")) return join4(homedir(), input.slice(2));
   return resolve(input);
 }
 async function listRuleFiles(root) {
-  const rulesRoot = join3(root, "rules");
+  const rulesRoot = join4(root, "rules");
   const domains = await readdir(rulesRoot, { withFileTypes: true });
   const files = await Promise.all(
     domains.filter((entry) => entry.isDirectory()).map(async (domain2) => {
-      const directory = join3(rulesRoot, domain2.name);
-      return (await readdir(directory, { withFileTypes: true })).filter((entry) => entry.isFile() && entry.name.endsWith(".md")).map((entry) => join3(directory, entry.name));
+      const directory = join4(rulesRoot, domain2.name);
+      return (await readdir(directory, { withFileTypes: true })).filter((entry) => entry.isFile() && entry.name.endsWith(".md")).map((entry) => join4(directory, entry.name));
     })
   );
   return files.flat().sort();
@@ -16641,7 +16871,7 @@ async function parseRule(path, root) {
   }
 }
 async function runGit(root, args) {
-  const result = await execFileAsync2("git", ["-C", root, ...args], {
+  const result = await execFileAsync3("git", ["-C", root, ...args], {
     encoding: "utf8",
     maxBuffer: 256 * 1024
   });
@@ -16704,7 +16934,7 @@ function validateRelations(rules) {
 async function loadDoctrine(rootInput = DEFAULT_DOCTRINE_PATH) {
   const root = expandPath(rootInput);
   const files = await listRuleFiles(root);
-  const [rules, git] = await Promise.all([
+  const [rules, git2] = await Promise.all([
     Promise.all(files.map((path) => parseRule(path, root))),
     readGit(root)
   ]);
@@ -16725,7 +16955,7 @@ async function loadDoctrine(rootInput = DEFAULT_DOCTRINE_PATH) {
     rules,
     domains: [...new Set(rules.map((rule) => rule.domain.split(".")[0]))].sort(),
     status_counts: statusCounts,
-    git
+    git: git2
   });
 }
 function searchableText(rule) {
@@ -16880,6 +17110,52 @@ function formatAgentSearchResults(rules) {
     return lines.join("\n");
   }).join("\n\n");
 }
+var FEEDBACK_SIGNAL_TOKENS = /* @__PURE__ */ new Set([
+  ...DESIGN_CONTEXT_TOKENS,
+  "align",
+  "alignment",
+  "badge",
+  "chip",
+  "cluttered",
+  "confusing",
+  "contrast",
+  "copy",
+  "cramped",
+  "font",
+  "label",
+  "language",
+  "margin",
+  "padding",
+  "placement",
+  "position",
+  "readable",
+  "row",
+  "spacing",
+  "step",
+  "tab",
+  "table",
+  "toast",
+  "tooltip",
+  "typo",
+  "ux",
+  "verbose",
+  "wording",
+  "wordy"
+]);
+var EPISODE_MAX_AGE_MS = 90 * 24 * 60 * 60 * 1e3;
+function skipEpisodeReason(episode, now = Date.now()) {
+  if (now - episode.targetAt > EPISODE_MAX_AGE_MS) {
+    return "older than the review window";
+  }
+  const spoken = [
+    episode.title,
+    ...episode.messages.filter((message) => message.role === "user").map((message) => message.text)
+  ].join(" ");
+  for (const token of tokenize(spoken)) {
+    if (FEEDBACK_SIGNAL_TOKENS.has(token)) return null;
+  }
+  return "no design signal in the user's messages";
+}
 function automaticDoctrineGuidance(rules, threadTitle) {
   if (!threadTitle) return void 0;
   const titleTokens = new Set(tokenize(threadTitle));
@@ -16999,6 +17275,43 @@ async function plugin(bb) {
   let cached2 = null;
   let loading = null;
   let automaticRules = [];
+  let corpusSource = null;
+  let materializedId = null;
+  let stalledPublications = [];
+  let reportedStalls = null;
+  async function resolveSource() {
+    if (corpusSource) return corpusSource;
+    const repositoryRoot = await resolveRepositoryRoot(DEFAULT_DOCTRINE_PATH);
+    if (!repositoryRoot) return null;
+    const dataDirectory = pluginDataDirectory(bb.storage.database().name);
+    const readPath = join4(dataDirectory, CORPUS_DIRECTORY);
+    if (!isAbsolute(readPath) || !relative(repositoryRoot, readPath).startsWith("..")) {
+      return null;
+    }
+    corpusSource = {
+      repositoryRoot,
+      baseBranch: await resolveBaseBranch(repositoryRoot),
+      prefix: relative(repositoryRoot, DEFAULT_DOCTRINE_PATH),
+      readPath,
+      workPath: dataDirectory
+    };
+    return corpusSource;
+  }
+  async function doctrineRoot() {
+    const configured = expandPath((await settings.get()).doctrinePath);
+    if (configured !== DEFAULT_DOCTRINE_PATH) return configured;
+    return materializedId ? corpusSource?.readPath ?? configured : configured;
+  }
+  async function openRulePublication() {
+    const configured = expandPath((await settings.get()).doctrinePath);
+    if (configured !== DEFAULT_DOCTRINE_PATH) {
+      await ensureNotPublishedBranch(configured);
+      return { root: configured, finish: async () => null };
+    }
+    const source = await resolveSource();
+    if (!source) return null;
+    return openPublication(source);
+  }
   function invalidate() {
     cacheGeneration += 1;
     cached2 = null;
@@ -17006,7 +17319,7 @@ async function plugin(bb) {
     automaticRules = [];
   }
   async function currentLibrary() {
-    const root = expandPath((await settings.get()).doctrinePath);
+    const root = await doctrineRoot();
     if (cached2?.root === root) return cached2.value;
     if (loading) return loading;
     const generation = cacheGeneration;
@@ -17025,26 +17338,36 @@ async function plugin(bb) {
   }
   const historyMaintenance = createHistoryMaintenance(
     bb,
-    async () => expandPath((await settings.get()).doctrinePath),
-    DEFAULT_DOCTRINE_PATH
+    DEFAULT_DOCTRINE_PATH,
+    (episode) => {
+      const reason = skipEpisodeReason(episode);
+      if (reason) {
+        bb.log.info(`doctrine history: skipped ${episode.threadId} \u2014 ${reason}`);
+      }
+      return reason;
+    }
   );
   const harvest = createHarvest({
     bb,
-    resolveDoctrineRoot: async () => expandPath((await settings.get()).doctrinePath),
-    listRuleIds: async (doctrineRoot) => (await loadDoctrine(doctrineRoot)).rules.map((rule) => rule.id),
-    describeExistingRules: async (doctrineRoot) => (await loadDoctrine(doctrineRoot)).rules.map(
+    openPublication: openRulePublication,
+    listRuleIds: async (doctrineRoot2) => (await loadDoctrine(doctrineRoot2)).rules.map((rule) => rule.id),
+    describeExistingRules: async (doctrineRoot2) => (await loadDoctrine(doctrineRoot2)).rules.map(
       (rule) => `${rule.id} (${rule.domain}, ${rule.strength}): ${rule.title} \u2014 ${rule.statement}`
     ).join("\n"),
-    validateRules: async (doctrineRoot) => {
-      await loadDoctrine(doctrineRoot);
+    validateRules: async (doctrineRoot2) => {
+      await loadDoctrine(doctrineRoot2);
     },
-    async runAgent({ projectId, environmentId, title, prompt }) {
+    async runAgent({ projectId, title, prompt }) {
       const spawned = await bb.sdk.threads.spawn({
         projectId,
         // Hidden so the harvest never interrupts the user. `spawn` attributes
         // the thread to this plugin, which also keeps it out of its own queue.
         visibility: "hidden",
-        environment: environmentId ? { type: "reuse", environmentId } : { type: "host", workspace: { type: "unmanaged", path: null } },
+        // Both agents read the thread through bb's API and report through the
+        // doctrine CLI; neither opens a file. Reusing the archived thread's
+        // environment only tied the harvest to workspaces bb had already
+        // destroyed.
+        environment: { type: "host", workspace: { type: "unmanaged", path: null } },
         title,
         prompt
       });
@@ -17060,10 +17383,9 @@ async function plugin(bb) {
     harvestQueue = harvestQueue.then(async () => {
       for (const {
         threadId,
-        projectId,
-        environmentId
+        projectId
       } of harvest.pendingThreads()) {
-        await harvest.harvestThread(threadId, projectId, environmentId);
+        await harvest.harvestThread(threadId, projectId);
       }
     }).catch((error51) => {
       bb.log.warn(
@@ -17148,7 +17470,9 @@ async function plugin(bb) {
               "--max-bytes",
               262144,
               1,
-              9e5
+              // A daily pass reads far more than the original ceiling allowed;
+              // the queue grows faster than 256KB a day can drain.
+              2097152
             );
             const maxMessageBytes = integerOption(
               argv,
@@ -17267,8 +17591,15 @@ async function plugin(bb) {
           };
         }
         if (command === "validate") {
+          const target = argv[1] && !argv[1].startsWith("--") ? argv[1] : null;
+          if (target && !isAbsolute(expandPath(target)) && !context.cwd) {
+            return {
+              exitCode: 2,
+              stderr: "bb doctrine validate needs an absolute path when the caller's directory is unknown\n"
+            };
+          }
           const library2 = await loadDoctrine(
-            expandPath((await settings.get()).doctrinePath)
+            target ? resolveAgainst(context.cwd, target) : await doctrineRoot()
           );
           return {
             exitCode: 0,
@@ -17290,14 +17621,18 @@ async function plugin(bb) {
             root: library.root,
             rules: library.rules.length,
             statuses: library.status_counts,
-            git: library.git
+            git: library.git,
+            stalled_publications: stalledPublications
           };
           return {
             exitCode: 0,
             stdout: json2 ? `${JSON.stringify(summary, null, 2)}
 ` : `${summary.rules} rules (${Object.entries(summary.statuses).map(([status, count]) => `${count} ${status}`).join(", ")})
 Repository: ${summary.root}
+${stalledPublications.map(
+              (stall) => `Stalled: ${stall.url} not merged after ${stall.ageHours}h (${stall.mergeStateStatus})
 `
+            ).join("")}`
           };
         }
         if (command === "search") {
@@ -17327,18 +17662,69 @@ Repository: ${summary.root}
       }
     }
   });
+  async function maintainCorpus(signal) {
+    const source = await resolveSource().catch(() => null);
+    if (!source) return;
+    try {
+      const published = await materializeRules(source, materializedId, signal);
+      if (published) {
+        materializedId = published;
+        invalidate();
+        await currentLibrary();
+        bb.realtime.publish("rules-changed", {
+          changed_at: (/* @__PURE__ */ new Date()).toISOString()
+        });
+      }
+      stalledPublications = await readStalledPublications(
+        source,
+        void 0,
+        signal
+      );
+    } catch (error51) {
+      stalledPublications = [];
+      bb.log.warn(
+        `doctrine corpus upkeep failed, retrying next cycle: ${error51 instanceof Error ? error51.message : String(error51)}`
+      );
+    }
+    const signature = stalledPublications.map((row) => `${row.url}:${row.mergeStateStatus}`).join(",");
+    if (signature !== reportedStalls) {
+      reportedStalls = signature;
+      for (const stall of stalledPublications) {
+        bb.log.warn(
+          `doctrine corpus: ${stall.url} has not merged after ${stall.ageHours}h (${stall.mergeStateStatus}); those rules stay unpublished until it does`
+        );
+      }
+    }
+  }
+  async function safeFingerprint() {
+    try {
+      return await watchFingerprint(await doctrineRoot());
+    } catch (error51) {
+      bb.log.warn(
+        `doctrine rules unreadable: ${error51 instanceof Error ? error51.message : String(error51)}`
+      );
+      return "rules:unavailable";
+    }
+  }
   bb.background.service("rule-watch", {
     async start(signal) {
-      let fingerprint = await watchFingerprint((await settings.get()).doctrinePath);
+      await maintainCorpus(signal);
+      let fingerprint = await safeFingerprint();
       try {
         await currentLibrary();
       } catch (error51) {
         bb.log.warn(error51 instanceof Error ? error51.message : String(error51));
       }
+      let nextRefreshAt = Date.now() + CORPUS_REFRESH_INTERVAL_MS;
       while (!signal.aborted) {
         await sleep(WATCH_INTERVAL_MS, signal);
         if (signal.aborted) break;
-        const next = await watchFingerprint((await settings.get()).doctrinePath);
+        if (Date.now() >= nextRefreshAt) {
+          nextRefreshAt = Date.now() + CORPUS_REFRESH_INTERVAL_MS;
+          await maintainCorpus(signal);
+          if (signal.aborted) break;
+        }
+        const next = await safeFingerprint();
         if (next !== fingerprint) {
           fingerprint = next;
           invalidate();
@@ -17374,6 +17760,7 @@ export {
   loadDoctrine,
   readGit,
   rpcContract,
-  searchDoctrine
+  searchDoctrine,
+  skipEpisodeReason
 };
 //# sourceMappingURL=server.js.map

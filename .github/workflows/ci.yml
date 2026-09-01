@@ -142,6 +142,29 @@ jobs:
       - run: npm run artifacts
       - run: node tooling/publish-install-refs.mjs
 
+  ci-complete:
+    # One stable required check. Naming each matrix job in branch protection
+    # meant a new plugin silently stopped gating main, and a removed one would
+    # block every pull request on a check that never reports again.
+    name: ci-complete
+    if: always()
+    needs:
+      - inventory
+      - hygiene
+      - sdk-compatibility
+      - plugins
+      - thread-history-maintenance
+      - install-refs-validation
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require every job to have succeeded or been skipped
+        if: >-
+          contains(needs.*.result, 'failure') ||
+          contains(needs.*.result, 'cancelled')
+        run: |
+          echo "A required job did not succeed."
+          exit 1
+
   publish-install-refs:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     needs: [hygiene, sdk-compatibility, plugins, thread-history-maintenance]

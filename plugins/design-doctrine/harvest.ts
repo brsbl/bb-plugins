@@ -6,7 +6,7 @@ import { z } from "zod";
 
 import {
   commitNewRuleFiles,
-  ensureMaintenanceCheckout,
+  ensureRuleTreeClean,
   MaintenanceHeadChangedError,
   readMaintenanceHead,
 } from "./history";
@@ -37,7 +37,6 @@ const HARVEST_SCHEMA = [
   `CREATE TABLE IF NOT EXISTS harvest_threads (
      thread_id TEXT PRIMARY KEY,
      project_id TEXT NOT NULL,
-     environment_id TEXT,
      queued_at INTEGER NOT NULL,
      processed_at INTEGER,
      outcome TEXT
@@ -283,7 +282,6 @@ export interface HarvestThread {
   id: string;
   projectId: string;
   title: string | null;
-  environmentId?: string | null;
   visibility?: string | null;
   originPluginId?: string | null;
 }
@@ -294,14 +292,23 @@ export interface HarvestAgentRequest {
   threadId: string;
   projectId: string;
   /** Environment of the archived thread, reused by the spawned agent when present. */
-  environmentId: string | null;
   title: string;
   prompt: string;
 }
 
+/** A throwaway checkout that one batch of rules is written and published from. */
+export interface HarvestPublication {
+  root: string;
+  finish(committed: boolean): Promise<string | null>;
+}
+
 export interface HarvestDependencies {
   bb: BbPluginApi;
-  resolveDoctrineRoot: () => Promise<string>;
+  /**
+   * Opens somewhere safe to write one batch of rules, or null when there is
+   * nowhere legitimate to commit. The harvest declines rather than guessing.
+   */
+  openPublication: () => Promise<HarvestPublication | null>;
   /** Existing rule ids, used for ID allocation and duplicate awareness. */
   listRuleIds: (doctrineRoot: string) => Promise<string[]>;
   /** Compact catalog of existing rules, given to the reviewer. */
@@ -327,7 +334,7 @@ export function isHarvestableThread(thread: HarvestThread): boolean {
 export function createHarvest(dependencies: HarvestDependencies) {
   const {
     bb,
-    resolveDoctrineRoot,
+    openPublication,
     listRuleIds,
     describeExistingRules,
     validateRules,
@@ -413,11 +420,11 @@ export function createHarvest(dependencies: HarvestDependencies) {
     const result = db()
       .prepare(
         `INSERT INTO harvest_threads
-           (thread_id, project_id, environment_id, queued_at)
-         VALUES (?, ?, ?, ?)
+           (thread_id, project_id, queued_at)
+         VALUES (?, ?, ?)
          ON CONFLICT (thread_id) DO NOTHING`,
       )
-      .run(thread.id, thread.projectId, thread.environmentId ?? null, now());
+      .run(thread.id, thread.projectId, now());
     return result.changes > 0;
   }
 
@@ -425,11 +432,10 @@ export function createHarvest(dependencies: HarvestDependencies) {
   function pendingThreads(): Array<{
     threadId: string;
     projectId: string;
-    environmentId: string | null;
   }> {
     return db()
       .prepare(
-        `SELECT thread_id, project_id, environment_id FROM harvest_threads
+        `SELECT thread_id, project_id FROM harvest_threads
          WHERE processed_at IS NULL
          ORDER BY queued_at, thread_id`,
       )
@@ -439,10 +445,6 @@ export function createHarvest(dependencies: HarvestDependencies) {
         return {
           threadId: String(record.thread_id),
           projectId: String(record.project_id),
-          environmentId:
-            record.environment_id === null || record.environment_id === undefined
-              ? null
-              : String(record.environment_id),
         };
       });
   }
@@ -790,12 +792,49 @@ export function createHarvest(dependencies: HarvestDependencies) {
   async function harvestThread(
     threadId: string,
     projectId: string,
-    environmentId: string | null = null,
   ): Promise<void> {
-    let doctrineRoot: string;
+    const publication = await openPublication().catch((error: unknown) => {
+      bb.log.warn(
+        `doctrine harvest: no publication checkout available: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
+      return null;
+    });
+    if (!publication) {
+      bb.log.warn(
+        "doctrine harvest: nowhere to publish rules; leaving the thread queued",
+      );
+      return;
+    }
+    let committed = false;
     try {
-      doctrineRoot = await resolveDoctrineRoot();
-      await ensureMaintenanceCheckout(doctrineRoot);
+      await harvestThreadInto(publication.root, threadId, projectId, () => {
+        committed = true;
+      });
+    } finally {
+      const url = await publication
+        .finish(committed)
+        .catch((error: unknown) => {
+          bb.log.warn(
+            `doctrine harvest: publishing the batch failed, it will be retried: ${
+              error instanceof Error ? error.message : String(error)
+            }`,
+          );
+          return null;
+        });
+      if (url) bb.log.info(`doctrine harvest: published ${url}`);
+    }
+  }
+
+  async function harvestThreadInto(
+    doctrineRoot: string,
+    threadId: string,
+    projectId: string,
+    markCommitted: () => void,
+  ): Promise<void> {
+    try {
+      await ensureRuleTreeClean(doctrineRoot);
     } catch (error) {
       bb.log.warn(
         `doctrine harvest: waiting for a clean maintenance checkout: ${
@@ -815,7 +854,6 @@ export function createHarvest(dependencies: HarvestDependencies) {
           kind: "harvester",
           threadId,
           projectId,
-          environmentId,
           title: "Doctrine harvest",
           prompt: harvesterPrompt(threadId, token),
         });
@@ -875,7 +913,7 @@ export function createHarvest(dependencies: HarvestDependencies) {
         resetReviewDecisions(threadId, carriedApprovals.map((item) => item.id));
       }
 
-      await ensureMaintenanceCheckout(doctrineRoot);
+      await ensureRuleTreeClean(doctrineRoot);
       const catalogHead = await readMaintenanceHead(doctrineRoot);
       const existingRules = await describeExistingRules(doctrineRoot);
       if ((await readMaintenanceHead(doctrineRoot)) !== catalogHead) {
@@ -921,7 +959,6 @@ export function createHarvest(dependencies: HarvestDependencies) {
             kind: "reviewer",
             threadId,
             projectId,
-            environmentId,
             title: "Doctrine review",
             prompt: reviewerPrompt(stored, context, existingRules, token),
           });
@@ -1031,6 +1068,7 @@ export function createHarvest(dependencies: HarvestDependencies) {
             `doctrine harvest: committed ${draft.file.relativePath} from ${pendingThreadId} — ${draft.stored.reason ?? "approved"}`,
           );
         }
+        markCommitted();
         markProcessed(pendingThreadId, `approved:${drafts.length}`);
         return "done";
       } catch (error) {

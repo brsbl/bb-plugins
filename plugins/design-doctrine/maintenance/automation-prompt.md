@@ -7,29 +7,32 @@ Limits: change at most five rule files per run. Don't touch plugin code, the
 skill, or `governance.md`. Only the user's own messages are evidence — never
 agent output, including your own.
 
-Run from the dedicated non-default branch/worktree whose
-`plugins/design-doctrine` folder is configured as the plugin's `doctrinePath`.
-The scanner rejects detached installs and primary branches (`main`, `master`,
-or `trunk`) before leasing history, so rule commits cannot dirty the normal
-checkout.
+Run from the worktree bb provisioned for this run. It is a fresh checkout of
+the repository on its own branch, so rule edits cannot disturb any other
+checkout and nothing has to be configured by hand. Rules live at
+`plugins/design-doctrine/rules`; every path below is relative to the worktree
+root.
 
 ## Steps
 
 1. Read completed, queued episodes through the plugin's thread-history API and
-   retain the returned `lease_id`. The command refuses to start if `rules/`
-   already contains tracked or untracked work. Per-thread checkpoints prevent
-   rereading old episodes, and the lease prevents concurrent runs from
-   processing the same batch. The bounds shown are the defaults.
+   retain the returned `lease_id`. Per-thread checkpoints prevent rereading old
+   episodes, and the lease prevents concurrent runs from processing the same
+   batch. These bounds are larger than the defaults so a daily pass keeps up
+   with the queue.
 
    ```bash
    bb doctrine history scan \
-     --limit 200 \
-     --max-bytes 262144 \
+     --limit 400 \
+     --max-bytes 1048576 \
      --max-message-bytes 8192
    ```
 
-   A fresh install establishes a current baseline and does not replay feedback
-   already represented by the existing doctrine. The plugin normally queues
+   Episodes whose user messages carry no design signal, and episodes older than
+   the review window, are advanced automatically and never reach you; the
+   result reports them as `skipped_episode_count`. A fresh install establishes a
+   current baseline and does not replay feedback already represented by the
+   existing doctrine. The plugin normally queues
    visible user threads as they become idle; a startup and monthly inventory
    reconciliation recovers idle events missed during downtime. If `lease_id`
    is `null`, history is caught up. Report that there is no new feedback and
@@ -48,7 +51,7 @@ checkout.
    - nothing;
    - add an Evidence line to an existing rule and bump `supporting_episodes`;
    - tighten "Use when" / "Do not use when", or add an Exceptions section;
-   - write a new rule at `rules/<domain>/ddr_NNN.md`;
+   - write a new rule at `plugins/design-doctrine/rules/<domain>/ddr_NNN.md`;
    - retire a replaced rule (`status: retired`) and point its replacement at it
      through `relations`;
    - set `status: conflicted`, add the challenging evidence, bump
@@ -66,35 +69,88 @@ checkout.
    what the user asked for or corrected. Never paste transcripts, credentials,
    private URLs, thread IDs, or message IDs.
 
-6. If nothing changed, skip to step 7. Otherwise validate the personalized
-   corpus through the running plugin, then commit only the rule files:
+6. If nothing changed, skip to step 8. Otherwise validate this worktree's rules
+   and commit only rule files:
 
    ```bash
-   git diff --check -- rules
-   bb doctrine validate
-   git add -- rules
-   git commit --only -m "doctrine: <what changed>" -- rules
+   git diff --check -- plugins/design-doctrine/rules
+   bb doctrine validate "$(git rev-parse --show-toplevel)/plugins/design-doctrine"
+   git add -- plugins/design-doctrine/rules
+   git commit -m "doctrine: <what changed>" -- plugins/design-doctrine/rules
    ```
 
-   `git commit --only -- rules` leaves unrelated staged or working-tree changes
-   untouched. The scan already refuses to start when `rules/` contains any
-   pre-existing work. Rule-only maintenance does not rebuild or test plugin
-   code; `bb doctrine validate` parses every rule and enforces the live schema,
-   evidence counts, relations, and lifecycle constraints.
+   If any of these fails, stop: do not commit, do not publish, and do not
+   advance. Go to the release command in step 8, report the failure, and leave
+   this thread open.
 
-7. Advance every per-thread checkpoint in the leased batch after either a
-   successful commit or a no-change decision:
+   `bb doctrine validate <path>` parses every rule under that path and enforces
+   the live schema, evidence counts, relations, and lifecycle constraints. Pass
+   an absolute path to this worktree's own plugin directory: a relative path
+   would be resolved somewhere else entirely, and could report a different
+   corpus as clean. Check the `root` it prints is inside this worktree.
+
+7. Publish the batch as a pull request that merges itself once the
+   repository's required checks pass. Do not wait for CI and do not merge by
+   hand.
 
    ```bash
-   bb doctrine history advance --lease-id <lease-id>
+   branch="doctrine/$(git rev-parse --short HEAD)"
+   git push origin "HEAD:refs/heads/$branch"
+   gh pr create --head "$branch" --fill
+   gh pr merge "$branch" --auto --squash
    ```
 
-   If the run cannot safely finish, release its lease without advancing so a
-   later run can retry the same feedback:
+   Publish under `doctrine/` so the batch is visible to the stall check in step
+   9 and to every later run. A branch named anything else is invisible to it,
+   and a pull request that never merges would go unnoticed.
+
+   If the push or the pull request fails, stop: do not advance. Release the
+   lease as in step 8, report the failure, and leave this thread open. On
+   success the plugin picks the rules up on its next corpus refresh, a couple
+   of minutes after the merge. You do not wait for CI, so you cannot report its
+   outcome — a run that fails CI surfaces as a stalled publication on a later
+   pass.
+
+8. Release the lease without advancing whenever the run could not safely
+   finish — a failed validate, commit, push, or pull request:
 
    ```bash
    bb doctrine history release --lease-id <lease-id>
    ```
 
-Report what changed, anything left conflicted and the question it needs, and the
-rule count. Keep no-change runs to one sentence.
+   Advancing is irreversible: it moves the checkpoints past feedback nobody
+   read. Only advance after a pushed pull request, or after you deliberately
+   decided nothing in the batch was worth changing:
+
+   ```bash
+   bb doctrine history advance --lease-id <lease-id>
+   ```
+
+9. Check whether an earlier batch is stuck before you finish:
+
+   ```bash
+   bb doctrine status --json
+   ```
+
+   A `stalled_publications` entry means an earlier doctrine pull request has not
+   merged —
+   a failing check, an unresolved review comment, or a conflict. Auto-merge
+   waits indefinitely, so name it in your report; the corpus learns nothing
+   further until it lands.
+
+10. Archive this thread when the pass finished cleanly — rules published or
+    nothing worth changing, no stalled publication, no rule left conflicted, no
+    blocker:
+
+    ```bash
+    bb thread archive --self
+    ```
+
+    Do this last, after your report. Runs happen daily and a clean one is not
+    worth a place in the thread list. Leave the thread open whenever the report
+    needs a human: a stalled publication, a rule you set to `conflicted` and the
+    question it needs, or anything that stopped you finishing.
+
+Report what changed, the pull request URL, any stalled publication, anything
+left conflicted and the question it needs, and the rule count. Keep no-change
+runs to one sentence.

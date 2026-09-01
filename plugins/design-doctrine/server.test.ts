@@ -13,7 +13,6 @@ import {
   filterRules,
   ruleIdFromPath,
   rulePath,
-  SUBDOMAIN_MESH_STYLES,
   subdomainFromIdentifier,
   titleCaseDomainFilter,
   toggledRulePath,
@@ -24,6 +23,7 @@ import {
   loadDoctrine,
   readGit,
   searchDoctrine,
+  skipEpisodeReason,
 } from "./server";
 
 const execFileAsync = promisify(execFile);
@@ -204,19 +204,7 @@ describe("design doctrine library", () => {
     expect(titleCaseDomainFilter("design-system")).toBe("Design System");
   });
 
-  it("gives every current subdomain a unique mesh endpoint", async () => {
-    const library = await loadDoctrine(process.cwd());
-    const subdomains = [
-      ...new Set(library.rules.map((rule) => subdomainFromIdentifier(rule.domain))),
-    ].sort();
-    const mappedSubdomains = Object.keys(SUBDOMAIN_MESH_STYLES).sort();
-    const meshEndpoints = mappedSubdomains.map(
-      (subdomain) => SUBDOMAIN_MESH_STYLES[subdomain].idle,
-    );
 
-    expect(mappedSubdomains).toEqual(subdomains);
-    expect(new Set(meshEndpoints).size).toBe(meshEndpoints.length);
-  });
 
   it("scopes Git status to the plugin directory", async () => {
     const repository = await mkdtemp(join(tmpdir(), "doctrine-git-scope-"));
@@ -261,4 +249,57 @@ describe("design doctrine library", () => {
     }
   });
 
+});
+
+describe("episode selection", () => {
+  const recent = Date.parse("2026-08-31T00:00:00Z");
+
+  function episode(messages: Array<{ role: "user" | "assistant"; text: string }>) {
+    return { title: "Some thread", targetAt: recent, messages };
+  }
+
+  it("keeps an episode where the user talks about the interface", () => {
+    expect(
+      skipEpisodeReason(
+        episode([{ role: "user", text: "the spacing in that panel is cramped" }]),
+        recent,
+      ),
+    ).toBeNull();
+  });
+
+  it("skips an episode with no design signal from the user", () => {
+    expect(
+      skipEpisodeReason(
+        episode([
+          { role: "user", text: "rerun the failing integration test" },
+          { role: "assistant", text: "the button layout looks fine to me" },
+        ]),
+        recent,
+      ),
+    ).toBe("no design signal in the user's messages");
+  });
+
+  it("does not treat the assistant's words as signal", () => {
+    // Only the user's messages are evidence, so an assistant that happens to
+    // discuss the UI must not keep an otherwise unrelated episode alive.
+    expect(
+      skipEpisodeReason(
+        episode([{ role: "assistant", text: "I adjusted the sidebar padding" }]),
+        recent,
+      ),
+    ).toBe("no design signal in the user's messages");
+  });
+
+  it("advances an episode older than the review window", () => {
+    expect(
+      skipEpisodeReason(
+        {
+          title: "Some thread",
+          targetAt: recent - 200 * 24 * 60 * 60 * 1_000,
+          messages: [{ role: "user", text: "the spacing is cramped" }],
+        },
+        recent,
+      ),
+    ).toBe("older than the review window");
+  });
 });
