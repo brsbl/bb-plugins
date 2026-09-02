@@ -75,101 +75,11 @@ var {
 } = mod2;
 
 // app-logic.ts
-var SUBDOMAIN_MESH_STYLES = {
-  operation: {
-    idle: "bg-cyan-300/40 group-hover:bg-cyan-300/50",
-    selected: "bg-cyan-300/55 group-hover:bg-cyan-300/65"
-  },
-  errors: {
-    idle: "bg-stone-300/40 group-hover:bg-stone-300/50",
-    selected: "bg-stone-300/55 group-hover:bg-stone-300/65"
-  },
-  conventions: {
-    idle: "bg-zinc-300/40 group-hover:bg-zinc-300/50",
-    selected: "bg-zinc-300/55 group-hover:bg-zinc-300/65"
-  },
-  proposal: {
-    idle: "bg-slate-300/40 group-hover:bg-slate-300/50",
-    selected: "bg-slate-300/55 group-hover:bg-slate-300/65"
-  },
-  agency: {
-    idle: "bg-rose-300/40 group-hover:bg-rose-300/50",
-    selected: "bg-rose-300/55 group-hover:bg-rose-300/65"
-  },
-  context: {
-    idle: "bg-sky-300/40 group-hover:bg-sky-300/50",
-    selected: "bg-sky-300/55 group-hover:bg-sky-300/65"
-  },
-  instructions: {
-    idle: "bg-amber-200/40 group-hover:bg-amber-200/50",
-    selected: "bg-amber-200/55 group-hover:bg-amber-200/65"
-  },
-  terminology: {
-    idle: "bg-orange-300/40 group-hover:bg-orange-300/50",
-    selected: "bg-orange-300/55 group-hover:bg-orange-300/65"
-  },
-  density: {
-    idle: "bg-blue-300/40 group-hover:bg-blue-300/50",
-    selected: "bg-blue-300/55 group-hover:bg-blue-300/65"
-  },
-  hierarchy: {
-    idle: "bg-indigo-300/40 group-hover:bg-indigo-300/50",
-    selected: "bg-indigo-300/55 group-hover:bg-indigo-300/65"
-  },
-  organization: {
-    idle: "bg-emerald-300/40 group-hover:bg-emerald-300/50",
-    selected: "bg-emerald-300/55 group-hover:bg-emerald-300/65"
-  },
-  efficiency: {
-    idle: "bg-lime-300/40 group-hover:bg-lime-300/50",
-    selected: "bg-lime-300/55 group-hover:bg-lime-300/65"
-  },
-  feedback: {
-    idle: "bg-pink-300/40 group-hover:bg-pink-300/50",
-    selected: "bg-pink-300/55 group-hover:bg-pink-300/65"
-  },
-  input: {
-    idle: "bg-teal-300/40 group-hover:bg-teal-300/50",
-    selected: "bg-teal-300/55 group-hover:bg-teal-300/65"
-  },
-  navigation: {
-    idle: "bg-violet-300/40 group-hover:bg-violet-300/50",
-    selected: "bg-violet-300/55 group-hover:bg-violet-300/65"
-  },
-  handoff: {
-    idle: "bg-yellow-300/40 group-hover:bg-yellow-300/50",
-    selected: "bg-yellow-300/55 group-hover:bg-yellow-300/65"
-  },
-  validation: {
-    idle: "bg-green-300/40 group-hover:bg-green-300/50",
-    selected: "bg-green-300/55 group-hover:bg-green-300/65"
-  },
-  "design-system": {
-    idle: "bg-fuchsia-300/40 group-hover:bg-fuchsia-300/50",
-    selected: "bg-fuchsia-300/55 group-hover:bg-fuchsia-300/65"
-  },
-  color: {
-    idle: "bg-red-300/40 group-hover:bg-red-300/50",
-    selected: "bg-red-300/55 group-hover:bg-red-300/65"
-  },
-  imagery: {
-    idle: "bg-purple-300/40 group-hover:bg-purple-300/50",
-    selected: "bg-purple-300/55 group-hover:bg-purple-300/65"
-  },
-  layout: {
-    idle: "bg-cyan-200/40 group-hover:bg-cyan-200/50",
-    selected: "bg-cyan-200/55 group-hover:bg-cyan-200/65"
-  }
-};
 function displayDomainIdentifier(identifier) {
   return identifier.toLocaleLowerCase();
 }
 function domainFilterFromIdentifier(identifier) {
   return displayDomainIdentifier(identifier).split(".", 1)[0] || "all";
-}
-function subdomainFromIdentifier(identifier) {
-  const [, subdomain] = displayDomainIdentifier(identifier).split(".", 2);
-  return subdomain || "unknown";
 }
 function titleCaseDomainFilter(domain) {
   const normalized = displayDomainIdentifier(domain);
@@ -418,13 +328,9 @@ function DomainIdentifierPill({
   const filterDomain = domainFilterFromIdentifier(identifier);
   const selected = selectedDomain === filterDomain;
   const style = DOMAIN_STYLES[filterDomain] ?? DOMAIN_STYLES.all;
-  const subdomainMesh = SUBDOMAIN_MESH_STYLES[subdomainFromIdentifier(identifier)] ?? {
-    idle: "bg-accent/35 group-hover:bg-accent/45",
-    selected: "bg-accent/50 group-hover:bg-accent/60"
-  };
   const label = displayDomainIdentifier(identifier);
   const meshStart = selected ? style.meshStartSelected : style.meshStartIdle;
-  const meshEnd = selected ? subdomainMesh.selected : subdomainMesh.idle;
+  const meshEnd = selected ? style.meshEndSelected : style.meshEndIdle;
   return /* @__PURE__ */ jsxs(
     "button",
     {

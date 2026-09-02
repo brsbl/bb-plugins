@@ -24,7 +24,7 @@ var {
 } = mod;
 
 // colors.ts
-var HEX_LENGTHS = /* @__PURE__ */ new Set([3, 4, 6, 8]);
+var HEX_LENGTHS = /* @__PURE__ */ new Set([6, 8]);
 var FUNCTION_NAMES = [
   "rgb",
   "rgba",

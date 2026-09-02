@@ -4,8 +4,17 @@ import { findColorMatches } from "./colors";
 const values = (text: string) => findColorMatches(text).map((m) => m.value);
 
 describe("findColorMatches", () => {
-  it("accepts the four valid hex lengths", () => {
-    expect(values("#fff #ffff #f4f4f4 #f4f4f4ff")).toEqual(["#fff", "#ffff", "#f4f4f4", "#f4f4f4ff"]);
+  it("accepts long-form RGB and RGBA hex colors", () => {
+    expect(values("#f4f4f4 #f4f4f4ff")).toEqual([
+      "#f4f4f4",
+      "#f4f4f4ff",
+    ]);
+  });
+
+  it("rejects short hex forms that overlap with PR and issue references", () => {
+    expect(
+      values("Fix PR #123 and issue #1234; CSS used #fff and #ffff"),
+    ).toEqual([]);
   });
 
   it("rejects hex runs that are not colors", () => {
@@ -13,7 +22,7 @@ describe("findColorMatches", () => {
   });
 
   it("does not start a literal inside a word", () => {
-    expect(values("id#fff my-rgb(1 2 3) $#fff")).toEqual([]);
+    expect(values("id#f4f4f4 my-rgb(1 2 3) $#f4f4f4")).toEqual([]);
   });
 
   it("finds function forms, including one level of nesting", () => {

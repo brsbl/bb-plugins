@@ -81,50 +81,21 @@ describe("Design Doctrine legacy history migration", () => {
     }
   });
 
-  it("refuses maintenance scans from a detached managed checkout", async () => {
-    const root = await createPluginRoot();
-    await writeFile(join(root, "rules", "existing.md"), "existing\n");
-    await execFileAsync("git", ["-C", root, "add", "rules/existing.md"]);
-    await execFileAsync("git", [
-      "-C",
-      root,
-      "-c",
-      "user.name=Design Doctrine Test",
-      "-c",
-      "user.email=doctrine-test@example.com",
-      "commit",
-      "-m",
-      "seed rules",
-    ]);
-    await execFileAsync("git", ["-C", root, "checkout", "--detach"]);
+  it("leases history without any git working tree", async () => {
+    // Reading episodes writes nothing, so it must not depend on a checkout —
+    // gating it on one is what used to strand maintenance entirely.
+    const root = await mkdtemp(join(tmpdir(), "doctrine-history-plain-"));
     const { bb, harness } = createFakePluginHost({
       pluginId: "design-doctrine",
       sdk: { threads: { list: async () => [] } },
     });
-    const history = createHistoryMaintenance(bb, async () => root, root);
+    const history = createHistoryMaintenance(bb, root);
 
     try {
-      await expect(history.scan(scanOptions())).rejects.toThrow(
-        "maintenance requires doctrinePath to point to a dedicated non-default branch checkout",
-      );
-    } finally {
-      await harness.lifecycle.dispose();
-      await rm(root, { recursive: true, force: true });
-    }
-  });
-
-  it("refuses maintenance scans from a primary branch checkout", async () => {
-    const root = await createPluginRoot("main");
-    const { bb, harness } = createFakePluginHost({
-      pluginId: "design-doctrine",
-      sdk: { threads: { list: async () => [] } },
-    });
-    const history = createHistoryMaintenance(bb, async () => root, root);
-
-    try {
-      await expect(history.scan(scanOptions())).rejects.toThrow(
-        "maintenance refuses primary branch main",
-      );
+      await expect(history.scan(scanOptions())).resolves.toMatchObject({
+        lease_id: null,
+        episode_count: 0,
+      });
     } finally {
       await harness.lifecycle.dispose();
       await rm(root, { recursive: true, force: true });
@@ -154,7 +125,7 @@ describe("Design Doctrine legacy history migration", () => {
         },
       },
     });
-    const history = createHistoryMaintenance(bb, async () => root, root);
+    const history = createHistoryMaintenance(bb, root);
 
     try {
       await expect(history.prepare()).rejects.toThrow("inventory unavailable");
@@ -200,7 +171,7 @@ describe("Design Doctrine legacy history migration", () => {
       pluginId: "design-doctrine",
       sdk: { threads: { list: async () => [] } },
     });
-    const history = createHistoryMaintenance(bb, async () => root, root);
+    const history = createHistoryMaintenance(bb, root);
 
     try {
       await expect(history.prepare()).rejects.toThrow(
@@ -223,7 +194,6 @@ describe("Design Doctrine legacy history migration", () => {
 
   it("migrates installed-plugin state when the doctrine path is customized", async () => {
     const installedPluginRoot = await createPluginRoot();
-    const doctrineRoot = await createPluginRoot();
     const statePath = join(
       installedPluginRoot,
       "maintenance",
@@ -241,11 +211,7 @@ describe("Design Doctrine legacy history migration", () => {
       pluginId: "design-doctrine",
       sdk: { threads: { list: async () => [] } },
     });
-    const history = createHistoryMaintenance(
-      bb,
-      async () => doctrineRoot,
-      installedPluginRoot,
-    );
+    const history = createHistoryMaintenance(bb, installedPluginRoot);
 
     try {
       await expect(history.prepare()).resolves.toEqual({
@@ -255,17 +221,9 @@ describe("Design Doctrine legacy history migration", () => {
         code: "ENOENT",
       });
       await expect(bb.storage.kv.get(LEGACY_KEY)).resolves.toBeUndefined();
-
-      await writeFile(join(doctrineRoot, "rules", "uncommitted.md"), "draft\n");
-      await expect(history.scan(scanOptions())).rejects.toThrow(
-        "rules tree has pre-existing work",
-      );
     } finally {
       await harness.lifecycle.dispose();
-      await Promise.all([
-        rm(installedPluginRoot, { recursive: true, force: true }),
-        rm(doctrineRoot, { recursive: true, force: true }),
-      ]);
+      await rm(installedPluginRoot, { recursive: true, force: true });
     }
   });
 });

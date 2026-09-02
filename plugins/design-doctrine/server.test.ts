@@ -1,4 +1,5 @@
 import { execFile } from "node:child_process";
+import { createHmac } from "node:crypto";
 import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -13,17 +14,19 @@ import {
   filterRules,
   ruleIdFromPath,
   rulePath,
-  SUBDOMAIN_MESH_STYLES,
   subdomainFromIdentifier,
   titleCaseDomainFilter,
   toggledRulePath,
 } from "./app-logic";
 import {
   automaticDoctrineGuidance,
+  classifyGitHubPush,
   gitStatusFingerprint,
   loadDoctrine,
   readGit,
   searchDoctrine,
+  skipEpisodeReason,
+  verifyGitHubSignature,
 } from "./server";
 
 const execFileAsync = promisify(execFile);
@@ -31,6 +34,83 @@ const execFileAsync = promisify(execFile);
 async function runGit(root: string, ...args: string[]) {
   return execFileAsync("git", ["-C", root, ...args], { encoding: "utf8" });
 }
+
+describe("GitHub corpus webhook policy", () => {
+  const source = {
+    baseBranch: "main",
+    prefix: "plugins/design-doctrine",
+  };
+  const after = "a".repeat(40);
+
+  function push(overrides: Record<string, unknown> = {}) {
+    return {
+      ref: "refs/heads/main",
+      after,
+      repository: { full_name: "brsbl/bb-plugins" },
+      size: 1,
+      commits: [
+        {
+          added: [],
+          modified: ["plugins/design-doctrine/rules/visual/ddr_001.md"],
+          removed: [],
+        },
+      ],
+      ...overrides,
+    };
+  }
+
+  it("verifies the exact raw webhook bytes", () => {
+    const body = Buffer.from('{"message":"doctrine 🌱"}', "utf8");
+    const signature = `sha256=${createHmac("sha256", "secret").update(body).digest("hex")}`;
+
+    expect(verifyGitHubSignature("secret", body, signature)).toBe(true);
+    expect(
+      verifyGitHubSignature("secret", Buffer.from(`${body.toString()} `), signature),
+    ).toBe(false);
+    expect(verifyGitHubSignature("secret", body, "sha256=not-hex")).toBe(false);
+    expect(verifyGitHubSignature("secret", body, undefined)).toBe(false);
+  });
+
+  it("accepts only this repository's main-branch rule changes", () => {
+    expect(classifyGitHubPush(push(), "brsbl/bb-plugins", source)).toEqual({
+      kind: "refresh",
+      remoteCommit: after,
+    });
+    expect(
+      classifyGitHubPush(
+        push({ repository: { full_name: "someone/fork" } }),
+        "brsbl/bb-plugins",
+        source,
+      ),
+    ).toMatchObject({ kind: "ignore", reason: "different repository" });
+    expect(
+      classifyGitHubPush(push({ ref: "refs/heads/feature" }), "brsbl/bb-plugins", source),
+    ).toMatchObject({ kind: "ignore", reason: "different branch" });
+    expect(
+      classifyGitHubPush(push({ deleted: true, after: "0".repeat(40) }), "brsbl/bb-plugins", source),
+    ).toMatchObject({ kind: "ignore", reason: "branch deletion" });
+    expect(
+      classifyGitHubPush(
+        push({
+          commits: [
+            { added: [], modified: ["plugins/design-doctrine/README.md"], removed: [] },
+          ],
+        }),
+        "brsbl/bb-plugins",
+        source,
+      ),
+    ).toMatchObject({ kind: "ignore", reason: "rules unchanged" });
+  });
+
+  it("reconciles conservatively when GitHub truncates the commit list", () => {
+    expect(
+      classifyGitHubPush(push({ size: 2 }), "brsbl/bb-plugins", source),
+    ).toMatchObject({ kind: "refresh" });
+    expect(
+      classifyGitHubPush({ ref: "refs/heads/main" }, "brsbl/bb-plugins", source),
+    ).toMatchObject({ kind: "invalid" });
+  });
+});
 
 describe("design doctrine library", () => {
   it("loads the Markdown rules directly", async () => {
@@ -204,19 +284,7 @@ describe("design doctrine library", () => {
     expect(titleCaseDomainFilter("design-system")).toBe("Design System");
   });
 
-  it("gives every current subdomain a unique mesh endpoint", async () => {
-    const library = await loadDoctrine(process.cwd());
-    const subdomains = [
-      ...new Set(library.rules.map((rule) => subdomainFromIdentifier(rule.domain))),
-    ].sort();
-    const mappedSubdomains = Object.keys(SUBDOMAIN_MESH_STYLES).sort();
-    const meshEndpoints = mappedSubdomains.map(
-      (subdomain) => SUBDOMAIN_MESH_STYLES[subdomain].idle,
-    );
 
-    expect(mappedSubdomains).toEqual(subdomains);
-    expect(new Set(meshEndpoints).size).toBe(meshEndpoints.length);
-  });
 
   it("scopes Git status to the plugin directory", async () => {
     const repository = await mkdtemp(join(tmpdir(), "doctrine-git-scope-"));
@@ -261,4 +329,57 @@ describe("design doctrine library", () => {
     }
   });
 
+});
+
+describe("episode selection", () => {
+  const recent = Date.parse("2026-08-31T00:00:00Z");
+
+  function episode(messages: Array<{ role: "user" | "assistant"; text: string }>) {
+    return { title: "Some thread", targetAt: recent, messages };
+  }
+
+  it("keeps an episode where the user talks about the interface", () => {
+    expect(
+      skipEpisodeReason(
+        episode([{ role: "user", text: "the spacing in that panel is cramped" }]),
+        recent,
+      ),
+    ).toBeNull();
+  });
+
+  it("skips an episode with no design signal from the user", () => {
+    expect(
+      skipEpisodeReason(
+        episode([
+          { role: "user", text: "rerun the failing integration test" },
+          { role: "assistant", text: "the button layout looks fine to me" },
+        ]),
+        recent,
+      ),
+    ).toBe("no design signal in the user's messages");
+  });
+
+  it("does not treat the assistant's words as signal", () => {
+    // Only the user's messages are evidence, so an assistant that happens to
+    // discuss the UI must not keep an otherwise unrelated episode alive.
+    expect(
+      skipEpisodeReason(
+        episode([{ role: "assistant", text: "I adjusted the sidebar padding" }]),
+        recent,
+      ),
+    ).toBe("no design signal in the user's messages");
+  });
+
+  it("advances an episode older than the review window", () => {
+    expect(
+      skipEpisodeReason(
+        {
+          title: "Some thread",
+          targetAt: recent - 200 * 24 * 60 * 60 * 1_000,
+          messages: [{ role: "user", text: "the spacing is cramped" }],
+        },
+        recent,
+      ),
+    ).toBe("older than the review window");
+  });
 });

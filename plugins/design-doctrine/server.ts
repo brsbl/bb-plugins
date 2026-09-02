@@ -1,14 +1,32 @@
 import { execFile } from "node:child_process";
+import { createHmac, timingSafeEqual } from "node:crypto";
 import { readdir, readFile, stat } from "node:fs/promises";
 import { homedir } from "node:os";
-import { basename, dirname, join, relative, resolve } from "node:path";
+import { basename, dirname, isAbsolute, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 
 import type { BbPluginApi } from "@get-bb/plugin-sdk";
 import { z } from "zod";
 
-import { createHistoryMaintenance } from "./history.js";
+import {
+  type CorpusSource,
+  type OpenPublication,
+  type Publication,
+  materializeRules,
+  openPublication,
+  pluginDataDirectory,
+  publishedBranchId,
+  readStalledPublications,
+  remoteBranchId,
+  resolveBaseBranch,
+  resolveGitHubRepository,
+  resolveRepositoryRoot,
+} from "./corpus.js";
+import {
+  createHistoryMaintenance,
+  ensureNotPublishedBranch,
+} from "./history.js";
 import {
   createHarvest,
   harvestProposalSchema,
@@ -21,6 +39,9 @@ const MODULE_DIR = dirname(fileURLToPath(import.meta.url));
 const DEFAULT_DOCTRINE_PATH =
   basename(MODULE_DIR) === "dist" ? dirname(MODULE_DIR) : MODULE_DIR;
 const WATCH_INTERVAL_MS = 2_500;
+const CORPUS_FRESHNESS_TTL_MS = 15 * 60 * 1_000;
+const CORPUS_DIRECTORY = "rules-cache";
+const MAX_WEBHOOK_BODY_BYTES = 2 * 1_024 * 1_024;
 const SEARCH_RESULT_LIMIT = 24;
 const AUTOMATIC_RULE_LIMIT = 4;
 const SEARCH_STOP_TOKENS = new Set([
@@ -130,12 +151,140 @@ const librarySchema = z.object({
   git: gitSchema,
 });
 
+const githubPushEnvelopeSchema = z
+  .object({
+    ref: z.string(),
+    after: z.string().regex(/^[0-9a-f]{40,64}$/i),
+    deleted: z.boolean().optional(),
+    forced: z.boolean().optional(),
+    repository: z.object({ full_name: z.string() }).passthrough(),
+  })
+  .passthrough();
+
+type GitHubPushDecision =
+  | { kind: "refresh"; remoteCommit: string }
+  | { kind: "ignore"; reason: string }
+  | { kind: "invalid"; reason: string };
+
+function isRulePath(path: string, prefix: string): boolean {
+  const rules = `${prefix.replace(/\\/g, "/").replace(/\/$/, "")}/rules`;
+  return path === rules || path.startsWith(`${rules}/`);
+}
+
+/**
+ * A complete GitHub commit list can prove that a push did not touch rules.
+ * Incomplete or unfamiliar lists reconcile conservatively instead of risking
+ * a missed corpus update.
+ */
+function pushMayChangeRules(
+  payload: Record<string, unknown>,
+  prefix: string,
+): boolean {
+  if (payload.forced === true) return true;
+  const size = payload.size;
+  const commits = payload.commits;
+  if (!Number.isInteger(size) || (size as number) < 0 || !Array.isArray(commits)) {
+    return true;
+  }
+  if (commits.length !== size) return true;
+  for (const commit of commits) {
+    if (!commit || typeof commit !== "object" || Array.isArray(commit)) return true;
+    const row = commit as Record<string, unknown>;
+    for (const key of ["added", "modified", "removed"] as const) {
+      const paths = row[key];
+      if (!Array.isArray(paths) || paths.some((path) => typeof path !== "string")) {
+        return true;
+      }
+      if ((paths as string[]).some((path) => isRulePath(path, prefix))) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+export function classifyGitHubPush(
+  input: unknown,
+  expectedRepository: string | null,
+  source: Pick<CorpusSource, "baseBranch" | "prefix">,
+): GitHubPushDecision {
+  const parsed = githubPushEnvelopeSchema.safeParse(input);
+  if (!parsed.success) return { kind: "invalid", reason: "invalid push payload" };
+  if (!expectedRepository) {
+    return { kind: "ignore", reason: "origin is not a GitHub repository" };
+  }
+  if (
+    parsed.data.repository.full_name.toLocaleLowerCase() !==
+    expectedRepository.toLocaleLowerCase()
+  ) {
+    return { kind: "ignore", reason: "different repository" };
+  }
+  if (parsed.data.ref !== `refs/heads/${source.baseBranch}`) {
+    return { kind: "ignore", reason: "different branch" };
+  }
+  if (parsed.data.deleted || /^0+$/.test(parsed.data.after)) {
+    return { kind: "ignore", reason: "branch deletion" };
+  }
+  if (!pushMayChangeRules(parsed.data, source.prefix)) {
+    return { kind: "ignore", reason: "rules unchanged" };
+  }
+  return { kind: "refresh", remoteCommit: parsed.data.after };
+}
+
+export function verifyGitHubSignature(
+  secret: string,
+  body: Uint8Array,
+  signature: string | undefined,
+): boolean {
+  const match = signature?.match(/^sha256=([0-9a-f]{64})$/i);
+  if (!match) return false;
+  const expected = createHmac("sha256", secret).update(body).digest();
+  const received = Buffer.from(match[1], "hex");
+  return received.length === expected.length && timingSafeEqual(received, expected);
+}
+
+class WebhookBodyTooLargeError extends Error {}
+
+async function readWebhookBody(request: Request): Promise<Uint8Array> {
+  const declaredLength = Number(request.headers.get("content-length"));
+  if (Number.isFinite(declaredLength) && declaredLength > MAX_WEBHOOK_BODY_BYTES) {
+    throw new WebhookBodyTooLargeError();
+  }
+  if (!request.body) return new Uint8Array();
+  const reader = request.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let length = 0;
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    length += value.byteLength;
+    if (length > MAX_WEBHOOK_BODY_BYTES) {
+      await reader.cancel().catch(() => undefined);
+      throw new WebhookBodyTooLargeError();
+    }
+    chunks.push(value);
+  }
+  const body = new Uint8Array(length);
+  let offset = 0;
+  for (const chunk of chunks) {
+    body.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return body;
+}
+
 export const rpcContract = defineRpcContract({
   getLibrary: { input: z.null(), output: librarySchema },
 });
 
 export type DoctrineRule = z.infer<typeof ruleSchema>;
 export type LibraryPayload = z.infer<typeof librarySchema>;
+
+/** Resolves a caller-supplied path against the caller's directory. */
+function resolveAgainst(cwd: string | undefined, input: string): string {
+  if (input === "~" || input.startsWith("~/")) return expandPath(input);
+  return isAbsolute(input) ? input : resolve(cwd ?? process.cwd(), input);
+}
 
 function expandPath(input: string): string {
   if (input === "~") return homedir();
@@ -522,6 +671,75 @@ export function formatAgentSearchResults(rules: DoctrineRule[]): string {
     .join("\n\n");
 }
 
+/**
+ * Words that mark an episode as worth a reviewer's attention. Deliberately
+ * broad: the queue grows about eighty episodes a week and yields a rule from
+ * roughly one in twenty-five, so the cost of reading a dull episode is a little
+ * budget while the cost of dropping a real one is feedback lost for good.
+ */
+const FEEDBACK_SIGNAL_TOKENS = new Set([
+  ...DESIGN_CONTEXT_TOKENS,
+  "align",
+  "alignment",
+  "badge",
+  "chip",
+  "cluttered",
+  "confusing",
+  "contrast",
+  "copy",
+  "cramped",
+  "font",
+  "label",
+  "language",
+  "margin",
+  "padding",
+  "placement",
+  "position",
+  "readable",
+  "row",
+  "spacing",
+  "step",
+  "tab",
+  "table",
+  "toast",
+  "tooltip",
+  "typo",
+  "ux",
+  "verbose",
+  "wording",
+  "wordy",
+]);
+
+/** Episodes older than this are advanced unread so the queue cannot diverge. */
+const EPISODE_MAX_AGE_MS = 90 * 24 * 60 * 60 * 1_000;
+
+/**
+ * Decides whether an episode is worth a maintenance pass. Only the user's own
+ * messages count, because only those are evidence.
+ */
+export function skipEpisodeReason(
+  episode: {
+    title: string;
+    targetAt: number;
+    messages: ReadonlyArray<{ role: "user" | "assistant"; text: string }>;
+  },
+  now = Date.now(),
+): string | null {
+  if (now - episode.targetAt > EPISODE_MAX_AGE_MS) {
+    return "older than the review window";
+  }
+  const spoken = [
+    episode.title,
+    ...episode.messages
+      .filter((message) => message.role === "user")
+      .map((message) => message.text),
+  ].join(" ");
+  for (const token of tokenize(spoken)) {
+    if (FEEDBACK_SIGNAL_TOKENS.has(token)) return null;
+  }
+  return "no design signal in the user's messages";
+}
+
 export function automaticDoctrineGuidance(
   rules: DoctrineRule[],
   threadTitle: string | null,
@@ -654,11 +872,83 @@ export default async function plugin(bb: BbPluginApi) {
       label: "Doctrine repository",
       default: DEFAULT_DOCTRINE_PATH,
     },
+    githubWebhookSecret: {
+      type: "string",
+      label: "GitHub webhook secret",
+      description: "Verifies push events that refresh the published rule corpus.",
+      secret: true,
+    },
   });
   let cacheGeneration = 0;
   let cached: { root: string; value: LibraryPayload } | null = null;
   let loading: Promise<LibraryPayload> | null = null;
   let automaticRules: DoctrineRule[] = [];
+
+  // The plugin keeps its own copy of the published rules. bb owns the
+  // directory, it is rebuilt whenever the published rules change, and it holds
+  // no git metadata — nothing commits into it, so there is nothing to lose by
+  // rebuilding it. An explicitly configured doctrinePath still wins.
+  let corpusSource: CorpusSource | null = null;
+  let githubRepository: string | null = null;
+  let materializedId: string | null = null;
+  let observedRemoteCommit: string | null = null;
+  let lastFreshnessCheckAt = Date.now();
+  let corpusRefresh: Promise<boolean> | null = null;
+  let freshnessCheck: Promise<void> | null = null;
+  let watchedFingerprint = "rules:unavailable";
+  let stalledPublications: OpenPublication[] = [];
+  let reportedStalls: string | null = null;
+
+  /**
+   * Resolves where rules are published from. Only a successful resolution is
+   * remembered: caching a failure would disable the corpus for the lifetime of
+   * the process after one offline fetch.
+   */
+  async function resolveSource(): Promise<CorpusSource | null> {
+    if (corpusSource) return corpusSource;
+    const repositoryRoot = await resolveRepositoryRoot(DEFAULT_DOCTRINE_PATH);
+    if (!repositoryRoot) return null;
+    githubRepository = await resolveGitHubRepository(repositoryRoot);
+    const dataDirectory = pluginDataDirectory(bb.storage.database().name);
+    const readPath = join(dataDirectory, CORPUS_DIRECTORY);
+    // bb owns the data directory; anything materialized inside the repository
+    // would surface as untracked work in the user's own checkout.
+    if (!isAbsolute(readPath) || !relative(repositoryRoot, readPath).startsWith("..")) {
+      return null;
+    }
+    corpusSource = {
+      repositoryRoot,
+      baseBranch: await resolveBaseBranch(repositoryRoot),
+      prefix: relative(repositoryRoot, DEFAULT_DOCTRINE_PATH),
+      readPath,
+      workPath: dataDirectory,
+    };
+    return corpusSource;
+  }
+
+  async function doctrineRoot(): Promise<string> {
+    const configured = expandPath((await settings.get()).doctrinePath);
+    if (configured !== DEFAULT_DOCTRINE_PATH) return configured;
+    return materializedId ? (corpusSource?.readPath ?? configured) : configured;
+  }
+
+  /**
+   * Opens somewhere safe to write a batch of rules. A configured doctrinePath
+   * is committed into directly, as before. Otherwise the batch gets a throwaway
+   * checkout of the published branch. When neither exists there is nowhere
+   * legitimate to commit, and the harvest declines rather than writing rules
+   * into the directory the plugin was installed from.
+   */
+  async function openRulePublication(): Promise<Publication | null> {
+    const configured = expandPath((await settings.get()).doctrinePath);
+    if (configured !== DEFAULT_DOCTRINE_PATH) {
+      await ensureNotPublishedBranch(configured);
+      return { root: configured, finish: async () => null };
+    }
+    const source = await resolveSource();
+    if (!source) return null;
+    return openPublication(source);
+  }
 
   function invalidate(): void {
     cacheGeneration += 1;
@@ -667,8 +957,8 @@ export default async function plugin(bb: BbPluginApi) {
     automaticRules = [];
   }
 
-  async function currentLibrary(): Promise<LibraryPayload> {
-    const root = expandPath((await settings.get()).doctrinePath);
+  async function loadCurrentLibrary(): Promise<LibraryPayload> {
+    const root = await doctrineRoot();
     if (cached?.root === root) return cached.value;
     if (loading) return loading;
     const generation = cacheGeneration;
@@ -686,15 +976,25 @@ export default async function plugin(bb: BbPluginApi) {
     }
   }
 
+  async function currentLibrary(): Promise<LibraryPayload> {
+    await reconcileCorpusOnRead();
+    return loadCurrentLibrary();
+  }
+
   const historyMaintenance = createHistoryMaintenance(
     bb,
-    async () => expandPath((await settings.get()).doctrinePath),
     DEFAULT_DOCTRINE_PATH,
+    (episode) => {
+      const reason = skipEpisodeReason(episode);
+      if (reason) {
+        bb.log.info(`doctrine history: skipped ${episode.threadId} — ${reason}`);
+      }
+      return reason;
+    },
   );
   const harvest = createHarvest({
     bb,
-    resolveDoctrineRoot: async () =>
-      expandPath((await settings.get()).doctrinePath),
+    openPublication: openRulePublication,
     listRuleIds: async (doctrineRoot) =>
       (await loadDoctrine(doctrineRoot)).rules.map((rule) => rule.id),
     describeExistingRules: async (doctrineRoot) =>
@@ -707,15 +1007,17 @@ export default async function plugin(bb: BbPluginApi) {
     validateRules: async (doctrineRoot) => {
       await loadDoctrine(doctrineRoot);
     },
-    async runAgent({ projectId, environmentId, title, prompt }) {
+    async runAgent({ projectId, title, prompt }) {
       const spawned = await bb.sdk.threads.spawn({
         projectId,
         // Hidden so the harvest never interrupts the user. `spawn` attributes
         // the thread to this plugin, which also keeps it out of its own queue.
         visibility: "hidden",
-        environment: environmentId
-          ? { type: "reuse", environmentId }
-          : { type: "host", workspace: { type: "unmanaged", path: null } },
+        // Both agents read the thread through bb's API and report through the
+        // doctrine CLI; neither opens a file. Reusing the archived thread's
+        // environment only tied the harvest to workspaces bb had already
+        // destroyed.
+        environment: { type: "host", workspace: { type: "unmanaged", path: null } },
         title,
         prompt,
       });
@@ -737,9 +1039,8 @@ export default async function plugin(bb: BbPluginApi) {
         for (const {
           threadId,
           projectId,
-          environmentId,
         } of harvest.pendingThreads()) {
-          await harvest.harvestThread(threadId, projectId, environmentId);
+          await harvest.harvestThread(threadId, projectId);
         }
       })
       .catch((error: unknown) => {
@@ -776,6 +1077,81 @@ export default async function plugin(bb: BbPluginApi) {
   // leaves the row pending; rule-watch retries it when that checkout changes.
   drainHarvest();
 
+  bb.http.route(
+    "POST",
+    "/github",
+    async (context) => {
+      const { doctrinePath, githubWebhookSecret } = await settings.get();
+      if (!githubWebhookSecret) {
+        return context.json(
+          { ok: false, error: "GitHub webhook secret is not configured" },
+          503,
+        );
+      }
+      let body: Uint8Array;
+      try {
+        body = await readWebhookBody(context.req.raw);
+      } catch (error) {
+        if (error instanceof WebhookBodyTooLargeError) {
+          return context.json({ ok: false, error: "Webhook body is too large" }, 413);
+        }
+        throw error;
+      }
+      if (
+        !verifyGitHubSignature(
+          githubWebhookSecret,
+          body,
+          context.req.header("x-hub-signature-256"),
+        )
+      ) {
+        return context.json({ ok: false, error: "Invalid webhook signature" }, 401);
+      }
+      const event = context.req.header("x-github-event");
+      if (event !== "push") {
+        return context.json({ ok: true, ignored: event ?? "missing event" }, 202);
+      }
+      let payload: unknown;
+      try {
+        payload = JSON.parse(Buffer.from(body).toString("utf8")) as unknown;
+      } catch {
+        return context.json({ ok: false, error: "Invalid JSON payload" }, 400);
+      }
+      if (expandPath(doctrinePath) !== DEFAULT_DOCTRINE_PATH) {
+        return context.json({ ok: true, ignored: "custom doctrine path" }, 202);
+      }
+      const source = await resolveSource();
+      if (!source) {
+        return context.json({ ok: false, error: "Corpus source is unavailable" }, 503);
+      }
+      const decision = classifyGitHubPush(payload, githubRepository, source);
+      if (decision.kind === "invalid") {
+        return context.json({ ok: false, error: decision.reason }, 400);
+      }
+      if (decision.kind === "ignore") {
+        return context.json({ ok: true, ignored: decision.reason }, 202);
+      }
+      try {
+        let changed = false;
+        if (decision.remoteCommit !== observedRemoteCommit) {
+          changed = await refreshCorpus();
+          // A second delivery can arrive while the first fetch is in flight.
+          // One follow-up closes that race without restoring a poll loop.
+          if (decision.remoteCommit !== observedRemoteCommit) {
+            changed = (await refreshCorpus()) || changed;
+          }
+        }
+        return context.json({ ok: true, changed }, 200);
+      } catch (error) {
+        bb.log.warn(
+          `doctrine corpus webhook refresh failed: ${
+            error instanceof Error ? error.message : String(error)
+          }`,
+        );
+        return context.json({ ok: false, error: "Corpus refresh failed" }, 500);
+      }
+    },
+    { auth: "none" },
+  );
   bb.rpc.register(rpcContract, { getLibrary: currentLibrary });
   bb.agents.registerTool({
     name: "design_doctrine_search",
@@ -833,7 +1209,9 @@ export default async function plugin(bb: BbPluginApi) {
               "--max-bytes",
               262_144,
               1,
-              900_000,
+              // A daily pass reads far more than the original ceiling allowed;
+              // the queue grows faster than 256KB a day can drain.
+              2_097_152,
             );
             const maxMessageBytes = integerOption(
               argv,
@@ -950,8 +1328,21 @@ export default async function plugin(bb: BbPluginApi) {
           };
         }
         if (command === "validate") {
+          // Maintenance edits rules in its own checkout, so it has to be able
+          // to validate that working copy rather than the published corpus.
+          // The path is the caller's, so it must resolve against the caller's
+          // cwd — resolving against this long-lived server process would
+          // silently validate an unrelated checkout and report it clean.
+          const target = argv[1] && !argv[1].startsWith("--") ? argv[1] : null;
+          if (target && !isAbsolute(expandPath(target)) && !context.cwd) {
+            return {
+              exitCode: 2,
+              stderr:
+                "bb doctrine validate needs an absolute path when the caller's directory is unknown\n",
+            };
+          }
           const library = await loadDoctrine(
-            expandPath((await settings.get()).doctrinePath),
+            target ? resolveAgainst(context.cwd, target) : await doctrineRoot(),
           );
           return {
             exitCode: 0,
@@ -973,12 +1364,20 @@ export default async function plugin(bb: BbPluginApi) {
             rules: library.rules.length,
             statuses: library.status_counts,
             git: library.git,
+            stalled_publications: stalledPublications,
           };
           return {
             exitCode: 0,
             stdout: json
               ? `${JSON.stringify(summary, null, 2)}\n`
-              : `${summary.rules} rules (${Object.entries(summary.statuses).map(([status, count]) => `${count} ${status}`).join(", ")})\nRepository: ${summary.root}\n`,
+              : `${summary.rules} rules (${Object.entries(summary.statuses).map(([status, count]) => `${count} ${status}`).join(", ")})\nRepository: ${summary.root}\n${
+                  stalledPublications
+                    .map(
+                      (stall) =>
+                        `Stalled: ${stall.url} not merged after ${stall.ageHours}h (${stall.mergeStateStatus})\n`,
+                    )
+                    .join("")
+                }`,
           };
         }
         if (command === "search") {
@@ -1006,18 +1405,149 @@ export default async function plugin(bb: BbPluginApi) {
     },
   });
 
+  async function refreshStalls(
+    source: CorpusSource,
+    signal?: AbortSignal,
+  ): Promise<void> {
+    try {
+      stalledPublications = await readStalledPublications(
+        source,
+        undefined,
+        signal,
+      );
+    } catch (error) {
+      // A failed query must not leave a stale report standing as current. Rule
+      // refreshes still succeed when GitHub's pull-request API is unavailable.
+      stalledPublications = [];
+      bb.log.warn(
+        `doctrine corpus publication check failed: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
+    }
+    // Say so once per distinct set of stalls rather than every cycle.
+    const signature = stalledPublications.map((row) => `${row.url}:${row.mergeStateStatus}`).join(",");
+    if (signature !== reportedStalls) {
+      reportedStalls = signature;
+      for (const stall of stalledPublications) {
+        bb.log.warn(
+          `doctrine corpus: ${stall.url} has not merged after ${stall.ageHours}h (${stall.mergeStateStatus}); those rules stay unpublished until it does`,
+        );
+      }
+    }
+  }
+
+  /**
+   * Fetch and publish the corpus once. The single-flight wrapper below keeps a
+   * webhook, startup, and stale read from racing the atomic symlink swap.
+   */
+  async function performCorpusRefresh(signal?: AbortSignal): Promise<boolean> {
+    const source = await resolveSource();
+    if (!source) return false;
+    const published = await materializeRules(source, materializedId, signal);
+    observedRemoteCommit = await publishedBranchId(source, signal);
+    lastFreshnessCheckAt = Date.now();
+    if (published) {
+      materializedId = published;
+      invalidate();
+      await loadCurrentLibrary();
+      watchedFingerprint = await safeFingerprint();
+      bb.realtime.publish("rules-changed", {
+        changed_at: new Date().toISOString(),
+      });
+    }
+    await refreshStalls(source, signal);
+    return published !== null;
+  }
+
+  async function refreshCorpus(signal?: AbortSignal): Promise<boolean> {
+    if (corpusRefresh) return corpusRefresh;
+    const request = performCorpusRefresh(signal);
+    corpusRefresh = request;
+    try {
+      return await request;
+    } finally {
+      if (corpusRefresh === request) corpusRefresh = null;
+    }
+  }
+
+  /**
+   * Reconcile a webhook missed while bb was offline. Reads at most probe one
+   * remote ref per TTL, and only a changed ref downloads git objects.
+   */
+  async function reconcileCorpusOnRead(): Promise<void> {
+    const configured = expandPath((await settings.get()).doctrinePath);
+    if (configured !== DEFAULT_DOCTRINE_PATH) return;
+    if (Date.now() - lastFreshnessCheckAt < CORPUS_FRESHNESS_TTL_MS) return;
+    if (freshnessCheck) return freshnessCheck;
+    const request = (async () => {
+      // Rate-limit failures as well as successes so an offline read path stays
+      // fast and keeps serving the last good corpus.
+      lastFreshnessCheckAt = Date.now();
+      try {
+        const source = await resolveSource();
+        if (!source) return;
+        const remoteCommit = await remoteBranchId(source);
+        if (remoteCommit !== observedRemoteCommit || materializedId === null) {
+          await refreshCorpus();
+          if (remoteCommit !== observedRemoteCommit) await refreshCorpus();
+        } else {
+          await refreshStalls(source);
+        }
+      } catch (error) {
+        bb.log.warn(
+          `doctrine corpus freshness check failed: ${
+            error instanceof Error ? error.message : String(error)
+          }`,
+        );
+      }
+    })();
+    freshnessCheck = request;
+    try {
+      await request;
+    } finally {
+      if (freshnessCheck === request) freshnessCheck = null;
+    }
+  }
+
+  /**
+   * Never let an unreadable rules directory throw out of the watcher: a crash
+   * loop here would take the service down with the one cycle that repairs it
+   * still pending, which is the failure this whole design exists to remove.
+   */
+  async function safeFingerprint(): Promise<string> {
+    try {
+      return await watchFingerprint(await doctrineRoot());
+    } catch (error) {
+      bb.log.warn(
+        `doctrine rules unreadable: ${error instanceof Error ? error.message : String(error)}`,
+      );
+      return "rules:unavailable";
+    }
+  }
+
   bb.background.service("rule-watch", {
     async start(signal) {
-      let fingerprint = await watchFingerprint((await settings.get()).doctrinePath);
+      // Build the read copy before serving anything, rather than a cycle later.
+      try {
+        await refreshCorpus(signal);
+      } catch (error) {
+        bb.log.warn(
+          `doctrine corpus startup refresh failed: ${
+            error instanceof Error ? error.message : String(error)
+          }`,
+        );
+      }
+      watchedFingerprint = await safeFingerprint();
       try { await currentLibrary(); } catch (error) {
         bb.log.warn(error instanceof Error ? error.message : String(error));
       }
       while (!signal.aborted) {
         await sleep(WATCH_INTERVAL_MS, signal);
         if (signal.aborted) break;
-        const next = await watchFingerprint((await settings.get()).doctrinePath);
-        if (next !== fingerprint) {
-          fingerprint = next;
+        const next = await safeFingerprint();
+        if (next !== watchedFingerprint) {
+          watchedFingerprint = next;
           invalidate();
           try {
             await currentLibrary();
@@ -1030,7 +1560,8 @@ export default async function plugin(bb: BbPluginApi) {
       }
     },
   });
-  settings.onChange(() => {
+  settings.onChange((next, previous) => {
+    if (next.doctrinePath === previous.doctrinePath) return;
     invalidate();
     void currentLibrary().catch((error) => {
       bb.log.warn(error instanceof Error ? error.message : String(error));

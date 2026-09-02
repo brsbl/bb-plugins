@@ -20,6 +20,10 @@ of a submitted user message gets the same square chip immediately before it.
 The chip shows alpha over a checkerboard and carries a faint ring, so
 `#ffffff` and `#000000` stay visible on any theme.
 
+Hex colors must use the long six-digit RGB or eight-digit RGBA form. Short
+three- and four-digit CSS forms are left alone so PR and issue references such
+as `#123` and `#1234` do not get mistaken for colors.
+
 Two rendering paths keep thread behavior intact:
 
 - **Code is never rewritten.** Its chip is drawn in `::before` from a custom

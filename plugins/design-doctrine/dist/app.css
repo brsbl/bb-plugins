@@ -6,37 +6,28 @@
     --font-sans: var(--font-sans);
     --font-serif: var(--font-serif);
     --font-mono: var(--font-mono);
-    --color-red-300: oklch(80.8% 0.114 19.571);
     --color-orange-300: oklch(83.7% 0.128 66.29);
     --color-orange-400: oklch(75% 0.183 55.934);
-    --color-amber-200: oklch(92.4% 0.12 95.746);
     --color-amber-300: oklch(87.9% 0.169 91.605);
     --color-amber-400: oklch(82.8% 0.189 84.429);
     --color-yellow-300: oklch(90.5% 0.182 98.111);
     --color-lime-300: oklch(89.7% 0.196 126.665);
-    --color-green-300: oklch(87.1% 0.15 154.449);
     --color-emerald-300: oklch(84.5% 0.143 164.978);
     --color-emerald-400: oklch(76.5% 0.177 163.223);
     --color-emerald-600: oklch(59.6% 0.145 163.225);
     --color-teal-300: oklch(85.5% 0.138 181.071);
     --color-teal-400: oklch(77.7% 0.152 181.912);
-    --color-cyan-200: oklch(91.7% 0.08 205.041);
     --color-cyan-300: oklch(86.5% 0.127 207.078);
     --color-sky-300: oklch(82.8% 0.111 230.318);
     --color-sky-400: oklch(74.6% 0.16 232.661);
-    --color-blue-300: oklch(80.9% 0.105 251.813);
     --color-indigo-300: oklch(78.5% 0.115 274.713);
     --color-indigo-400: oklch(67.3% 0.182 276.935);
     --color-violet-300: oklch(81.1% 0.111 293.571);
     --color-violet-400: oklch(70.2% 0.183 293.541);
     --color-purple-300: oklch(82.7% 0.119 306.383);
-    --color-fuchsia-300: oklch(83.3% 0.145 321.434);
     --color-pink-300: oklch(82.3% 0.12 346.018);
     --color-rose-300: oklch(81% 0.117 11.638);
     --color-rose-400: oklch(71.2% 0.194 13.428);
-    --color-slate-300: oklch(86.9% 0.022 252.894);
-    --color-zinc-300: oklch(87.1% 0.006 286.286);
-    --color-stone-300: oklch(86.9% 0.005 56.366);
     --spacing: 0.25rem;
     --container-md: 28rem;
     --container-5xl: 64rem;
@@ -294,6 +285,9 @@
     }
     .inline-flex {
       display: inline-flex;
+    }
+    .table {
+      display: table;
     }
     .h-1\.5 {
       height: calc(var(--spacing) * 1.5);
@@ -587,18 +581,6 @@
         background-color: color-mix(in oklab, var(--accent) 50%, transparent);
       }
     }
-    .bg-amber-200\/40 {
-      background-color: color-mix(in srgb, oklch(92.4% 0.12 95.746) 40%, transparent);
-      @supports (color: color-mix(in lab, red, red)) {
-        background-color: color-mix(in oklab, var(--color-amber-200) 40%, transparent);
-      }
-    }
-    .bg-amber-200\/55 {
-      background-color: color-mix(in srgb, oklch(92.4% 0.12 95.746) 55%, transparent);
-      @supports (color: color-mix(in lab, red, red)) {
-        background-color: color-mix(in oklab, var(--color-amber-200) 55%, transparent);
-      }
-    }
     .bg-amber-300\/40 {
       background-color: color-mix(in srgb, oklch(87.9% 0.169 91.605) 40%, transparent);
       @supports (color: color-mix(in lab, red, red)) {
@@ -626,32 +608,8 @@
         background-color: color-mix(in oklab, var(--background) 55%, transparent);
       }
     }
-    .bg-blue-300\/40 {
-      background-color: color-mix(in srgb, oklch(80.9% 0.105 251.813) 40%, transparent);
-      @supports (color: color-mix(in lab, red, red)) {
-        background-color: color-mix(in oklab, var(--color-blue-300) 40%, transparent);
-      }
-    }
-    .bg-blue-300\/55 {
-      background-color: color-mix(in srgb, oklch(80.9% 0.105 251.813) 55%, transparent);
-      @supports (color: color-mix(in lab, red, red)) {
-        background-color: color-mix(in oklab, var(--color-blue-300) 55%, transparent);
-      }
-    }
     .bg-card {
       background-color: var(--card);
-    }
-    .bg-cyan-200\/40 {
-      background-color: color-mix(in srgb, oklch(91.7% 0.08 205.041) 40%, transparent);
-      @supports (color: color-mix(in lab, red, red)) {
-        background-color: color-mix(in oklab, var(--color-cyan-200) 40%, transparent);
-      }
-    }
-    .bg-cyan-200\/55 {
-      background-color: color-mix(in srgb, oklch(91.7% 0.08 205.041) 55%, transparent);
-      @supports (color: color-mix(in lab, red, red)) {
-        background-color: color-mix(in oklab, var(--color-cyan-200) 55%, transparent);
-      }
     }
     .bg-cyan-300\/35 {
       background-color: color-mix(in srgb, oklch(86.5% 0.127 207.078) 35%, transparent);
@@ -659,22 +617,10 @@
         background-color: color-mix(in oklab, var(--color-cyan-300) 35%, transparent);
       }
     }
-    .bg-cyan-300\/40 {
-      background-color: color-mix(in srgb, oklch(86.5% 0.127 207.078) 40%, transparent);
-      @supports (color: color-mix(in lab, red, red)) {
-        background-color: color-mix(in oklab, var(--color-cyan-300) 40%, transparent);
-      }
-    }
     .bg-cyan-300\/50 {
       background-color: color-mix(in srgb, oklch(86.5% 0.127 207.078) 50%, transparent);
       @supports (color: color-mix(in lab, red, red)) {
         background-color: color-mix(in oklab, var(--color-cyan-300) 50%, transparent);
-      }
-    }
-    .bg-cyan-300\/55 {
-      background-color: color-mix(in srgb, oklch(86.5% 0.127 207.078) 55%, transparent);
-      @supports (color: color-mix(in lab, red, red)) {
-        background-color: color-mix(in oklab, var(--color-cyan-300) 55%, transparent);
       }
     }
     .bg-destructive {
@@ -700,30 +646,6 @@
     }
     .bg-emerald-600 {
       background-color: var(--color-emerald-600);
-    }
-    .bg-fuchsia-300\/40 {
-      background-color: color-mix(in srgb, oklch(83.3% 0.145 321.434) 40%, transparent);
-      @supports (color: color-mix(in lab, red, red)) {
-        background-color: color-mix(in oklab, var(--color-fuchsia-300) 40%, transparent);
-      }
-    }
-    .bg-fuchsia-300\/55 {
-      background-color: color-mix(in srgb, oklch(83.3% 0.145 321.434) 55%, transparent);
-      @supports (color: color-mix(in lab, red, red)) {
-        background-color: color-mix(in oklab, var(--color-fuchsia-300) 55%, transparent);
-      }
-    }
-    .bg-green-300\/40 {
-      background-color: color-mix(in srgb, oklch(87.1% 0.15 154.449) 40%, transparent);
-      @supports (color: color-mix(in lab, red, red)) {
-        background-color: color-mix(in oklab, var(--color-green-300) 40%, transparent);
-      }
-    }
-    .bg-green-300\/55 {
-      background-color: color-mix(in srgb, oklch(87.1% 0.15 154.449) 55%, transparent);
-      @supports (color: color-mix(in lab, red, red)) {
-        background-color: color-mix(in oklab, var(--color-green-300) 55%, transparent);
-      }
     }
     .bg-indigo-300\/35 {
       background-color: color-mix(in srgb, oklch(78.5% 0.115 274.713) 35%, transparent);
@@ -755,22 +677,10 @@
         background-color: color-mix(in oklab, var(--color-lime-300) 35%, transparent);
       }
     }
-    .bg-lime-300\/40 {
-      background-color: color-mix(in srgb, oklch(89.7% 0.196 126.665) 40%, transparent);
-      @supports (color: color-mix(in lab, red, red)) {
-        background-color: color-mix(in oklab, var(--color-lime-300) 40%, transparent);
-      }
-    }
     .bg-lime-300\/50 {
       background-color: color-mix(in srgb, oklch(89.7% 0.196 126.665) 50%, transparent);
       @supports (color: color-mix(in lab, red, red)) {
         background-color: color-mix(in oklab, var(--color-lime-300) 50%, transparent);
-      }
-    }
-    .bg-lime-300\/55 {
-      background-color: color-mix(in srgb, oklch(89.7% 0.196 126.665) 55%, transparent);
-      @supports (color: color-mix(in lab, red, red)) {
-        background-color: color-mix(in oklab, var(--color-lime-300) 55%, transparent);
       }
     }
     .bg-muted {
@@ -821,22 +731,10 @@
         background-color: color-mix(in oklab, var(--color-pink-300) 35%, transparent);
       }
     }
-    .bg-pink-300\/40 {
-      background-color: color-mix(in srgb, oklch(82.3% 0.12 346.018) 40%, transparent);
-      @supports (color: color-mix(in lab, red, red)) {
-        background-color: color-mix(in oklab, var(--color-pink-300) 40%, transparent);
-      }
-    }
     .bg-pink-300\/50 {
       background-color: color-mix(in srgb, oklch(82.3% 0.12 346.018) 50%, transparent);
       @supports (color: color-mix(in lab, red, red)) {
         background-color: color-mix(in oklab, var(--color-pink-300) 50%, transparent);
-      }
-    }
-    .bg-pink-300\/55 {
-      background-color: color-mix(in srgb, oklch(82.3% 0.12 346.018) 55%, transparent);
-      @supports (color: color-mix(in lab, red, red)) {
-        background-color: color-mix(in oklab, var(--color-pink-300) 55%, transparent);
       }
     }
     .bg-purple-300\/35 {
@@ -845,34 +743,10 @@
         background-color: color-mix(in oklab, var(--color-purple-300) 35%, transparent);
       }
     }
-    .bg-purple-300\/40 {
-      background-color: color-mix(in srgb, oklch(82.7% 0.119 306.383) 40%, transparent);
-      @supports (color: color-mix(in lab, red, red)) {
-        background-color: color-mix(in oklab, var(--color-purple-300) 40%, transparent);
-      }
-    }
     .bg-purple-300\/50 {
       background-color: color-mix(in srgb, oklch(82.7% 0.119 306.383) 50%, transparent);
       @supports (color: color-mix(in lab, red, red)) {
         background-color: color-mix(in oklab, var(--color-purple-300) 50%, transparent);
-      }
-    }
-    .bg-purple-300\/55 {
-      background-color: color-mix(in srgb, oklch(82.7% 0.119 306.383) 55%, transparent);
-      @supports (color: color-mix(in lab, red, red)) {
-        background-color: color-mix(in oklab, var(--color-purple-300) 55%, transparent);
-      }
-    }
-    .bg-red-300\/40 {
-      background-color: color-mix(in srgb, oklch(80.8% 0.114 19.571) 40%, transparent);
-      @supports (color: color-mix(in lab, red, red)) {
-        background-color: color-mix(in oklab, var(--color-red-300) 40%, transparent);
-      }
-    }
-    .bg-red-300\/55 {
-      background-color: color-mix(in srgb, oklch(80.8% 0.114 19.571) 55%, transparent);
-      @supports (color: color-mix(in lab, red, red)) {
-        background-color: color-mix(in oklab, var(--color-red-300) 55%, transparent);
       }
     }
     .bg-rose-300\/35 {
@@ -909,30 +783,6 @@
       background-color: color-mix(in srgb, oklch(82.8% 0.111 230.318) 55%, transparent);
       @supports (color: color-mix(in lab, red, red)) {
         background-color: color-mix(in oklab, var(--color-sky-300) 55%, transparent);
-      }
-    }
-    .bg-slate-300\/40 {
-      background-color: color-mix(in srgb, oklch(86.9% 0.022 252.894) 40%, transparent);
-      @supports (color: color-mix(in lab, red, red)) {
-        background-color: color-mix(in oklab, var(--color-slate-300) 40%, transparent);
-      }
-    }
-    .bg-slate-300\/55 {
-      background-color: color-mix(in srgb, oklch(86.9% 0.022 252.894) 55%, transparent);
-      @supports (color: color-mix(in lab, red, red)) {
-        background-color: color-mix(in oklab, var(--color-slate-300) 55%, transparent);
-      }
-    }
-    .bg-stone-300\/40 {
-      background-color: color-mix(in srgb, oklch(86.9% 0.005 56.366) 40%, transparent);
-      @supports (color: color-mix(in lab, red, red)) {
-        background-color: color-mix(in oklab, var(--color-stone-300) 40%, transparent);
-      }
-    }
-    .bg-stone-300\/55 {
-      background-color: color-mix(in srgb, oklch(86.9% 0.005 56.366) 55%, transparent);
-      @supports (color: color-mix(in lab, red, red)) {
-        background-color: color-mix(in oklab, var(--color-stone-300) 55%, transparent);
       }
     }
     .bg-teal-300\/40 {
@@ -977,34 +827,10 @@
         background-color: color-mix(in oklab, var(--color-yellow-300) 35%, transparent);
       }
     }
-    .bg-yellow-300\/40 {
-      background-color: color-mix(in srgb, oklch(90.5% 0.182 98.111) 40%, transparent);
-      @supports (color: color-mix(in lab, red, red)) {
-        background-color: color-mix(in oklab, var(--color-yellow-300) 40%, transparent);
-      }
-    }
     .bg-yellow-300\/50 {
       background-color: color-mix(in srgb, oklch(90.5% 0.182 98.111) 50%, transparent);
       @supports (color: color-mix(in lab, red, red)) {
         background-color: color-mix(in oklab, var(--color-yellow-300) 50%, transparent);
-      }
-    }
-    .bg-yellow-300\/55 {
-      background-color: color-mix(in srgb, oklch(90.5% 0.182 98.111) 55%, transparent);
-      @supports (color: color-mix(in lab, red, red)) {
-        background-color: color-mix(in oklab, var(--color-yellow-300) 55%, transparent);
-      }
-    }
-    .bg-zinc-300\/40 {
-      background-color: color-mix(in srgb, oklch(87.1% 0.006 286.286) 40%, transparent);
-      @supports (color: color-mix(in lab, red, red)) {
-        background-color: color-mix(in oklab, var(--color-zinc-300) 40%, transparent);
-      }
-    }
-    .bg-zinc-300\/55 {
-      background-color: color-mix(in srgb, oklch(87.1% 0.006 286.286) 55%, transparent);
-      @supports (color: color-mix(in lab, red, red)) {
-        background-color: color-mix(in oklab, var(--color-zinc-300) 55%, transparent);
       }
     }
     .p-4 {
@@ -1291,26 +1117,6 @@
         }
       }
     }
-    .group-hover\:bg-amber-200\/50 {
-      &:is(:where(.group):hover *) {
-        @media (hover: hover) {
-          background-color: color-mix(in srgb, oklch(92.4% 0.12 95.746) 50%, transparent);
-          @supports (color: color-mix(in lab, red, red)) {
-            background-color: color-mix(in oklab, var(--color-amber-200) 50%, transparent);
-          }
-        }
-      }
-    }
-    .group-hover\:bg-amber-200\/65 {
-      &:is(:where(.group):hover *) {
-        @media (hover: hover) {
-          background-color: color-mix(in srgb, oklch(92.4% 0.12 95.746) 65%, transparent);
-          @supports (color: color-mix(in lab, red, red)) {
-            background-color: color-mix(in oklab, var(--color-amber-200) 65%, transparent);
-          }
-        }
-      }
-    }
     .group-hover\:bg-amber-300\/50 {
       &:is(:where(.group):hover *) {
         @media (hover: hover) {
@@ -1331,46 +1137,6 @@
         }
       }
     }
-    .group-hover\:bg-blue-300\/50 {
-      &:is(:where(.group):hover *) {
-        @media (hover: hover) {
-          background-color: color-mix(in srgb, oklch(80.9% 0.105 251.813) 50%, transparent);
-          @supports (color: color-mix(in lab, red, red)) {
-            background-color: color-mix(in oklab, var(--color-blue-300) 50%, transparent);
-          }
-        }
-      }
-    }
-    .group-hover\:bg-blue-300\/65 {
-      &:is(:where(.group):hover *) {
-        @media (hover: hover) {
-          background-color: color-mix(in srgb, oklch(80.9% 0.105 251.813) 65%, transparent);
-          @supports (color: color-mix(in lab, red, red)) {
-            background-color: color-mix(in oklab, var(--color-blue-300) 65%, transparent);
-          }
-        }
-      }
-    }
-    .group-hover\:bg-cyan-200\/50 {
-      &:is(:where(.group):hover *) {
-        @media (hover: hover) {
-          background-color: color-mix(in srgb, oklch(91.7% 0.08 205.041) 50%, transparent);
-          @supports (color: color-mix(in lab, red, red)) {
-            background-color: color-mix(in oklab, var(--color-cyan-200) 50%, transparent);
-          }
-        }
-      }
-    }
-    .group-hover\:bg-cyan-200\/65 {
-      &:is(:where(.group):hover *) {
-        @media (hover: hover) {
-          background-color: color-mix(in srgb, oklch(91.7% 0.08 205.041) 65%, transparent);
-          @supports (color: color-mix(in lab, red, red)) {
-            background-color: color-mix(in oklab, var(--color-cyan-200) 65%, transparent);
-          }
-        }
-      }
-    }
     .group-hover\:bg-cyan-300\/45 {
       &:is(:where(.group):hover *) {
         @media (hover: hover) {
@@ -1381,32 +1147,12 @@
         }
       }
     }
-    .group-hover\:bg-cyan-300\/50 {
-      &:is(:where(.group):hover *) {
-        @media (hover: hover) {
-          background-color: color-mix(in srgb, oklch(86.5% 0.127 207.078) 50%, transparent);
-          @supports (color: color-mix(in lab, red, red)) {
-            background-color: color-mix(in oklab, var(--color-cyan-300) 50%, transparent);
-          }
-        }
-      }
-    }
     .group-hover\:bg-cyan-300\/60 {
       &:is(:where(.group):hover *) {
         @media (hover: hover) {
           background-color: color-mix(in srgb, oklch(86.5% 0.127 207.078) 60%, transparent);
           @supports (color: color-mix(in lab, red, red)) {
             background-color: color-mix(in oklab, var(--color-cyan-300) 60%, transparent);
-          }
-        }
-      }
-    }
-    .group-hover\:bg-cyan-300\/65 {
-      &:is(:where(.group):hover *) {
-        @media (hover: hover) {
-          background-color: color-mix(in srgb, oklch(86.5% 0.127 207.078) 65%, transparent);
-          @supports (color: color-mix(in lab, red, red)) {
-            background-color: color-mix(in oklab, var(--color-cyan-300) 65%, transparent);
           }
         }
       }
@@ -1427,46 +1173,6 @@
           background-color: color-mix(in srgb, oklch(84.5% 0.143 164.978) 65%, transparent);
           @supports (color: color-mix(in lab, red, red)) {
             background-color: color-mix(in oklab, var(--color-emerald-300) 65%, transparent);
-          }
-        }
-      }
-    }
-    .group-hover\:bg-fuchsia-300\/50 {
-      &:is(:where(.group):hover *) {
-        @media (hover: hover) {
-          background-color: color-mix(in srgb, oklch(83.3% 0.145 321.434) 50%, transparent);
-          @supports (color: color-mix(in lab, red, red)) {
-            background-color: color-mix(in oklab, var(--color-fuchsia-300) 50%, transparent);
-          }
-        }
-      }
-    }
-    .group-hover\:bg-fuchsia-300\/65 {
-      &:is(:where(.group):hover *) {
-        @media (hover: hover) {
-          background-color: color-mix(in srgb, oklch(83.3% 0.145 321.434) 65%, transparent);
-          @supports (color: color-mix(in lab, red, red)) {
-            background-color: color-mix(in oklab, var(--color-fuchsia-300) 65%, transparent);
-          }
-        }
-      }
-    }
-    .group-hover\:bg-green-300\/50 {
-      &:is(:where(.group):hover *) {
-        @media (hover: hover) {
-          background-color: color-mix(in srgb, oklch(87.1% 0.15 154.449) 50%, transparent);
-          @supports (color: color-mix(in lab, red, red)) {
-            background-color: color-mix(in oklab, var(--color-green-300) 50%, transparent);
-          }
-        }
-      }
-    }
-    .group-hover\:bg-green-300\/65 {
-      &:is(:where(.group):hover *) {
-        @media (hover: hover) {
-          background-color: color-mix(in srgb, oklch(87.1% 0.15 154.449) 65%, transparent);
-          @supports (color: color-mix(in lab, red, red)) {
-            background-color: color-mix(in oklab, var(--color-green-300) 65%, transparent);
           }
         }
       }
@@ -1521,32 +1227,12 @@
         }
       }
     }
-    .group-hover\:bg-lime-300\/50 {
-      &:is(:where(.group):hover *) {
-        @media (hover: hover) {
-          background-color: color-mix(in srgb, oklch(89.7% 0.196 126.665) 50%, transparent);
-          @supports (color: color-mix(in lab, red, red)) {
-            background-color: color-mix(in oklab, var(--color-lime-300) 50%, transparent);
-          }
-        }
-      }
-    }
     .group-hover\:bg-lime-300\/60 {
       &:is(:where(.group):hover *) {
         @media (hover: hover) {
           background-color: color-mix(in srgb, oklch(89.7% 0.196 126.665) 60%, transparent);
           @supports (color: color-mix(in lab, red, red)) {
             background-color: color-mix(in oklab, var(--color-lime-300) 60%, transparent);
-          }
-        }
-      }
-    }
-    .group-hover\:bg-lime-300\/65 {
-      &:is(:where(.group):hover *) {
-        @media (hover: hover) {
-          background-color: color-mix(in srgb, oklch(89.7% 0.196 126.665) 65%, transparent);
-          @supports (color: color-mix(in lab, red, red)) {
-            background-color: color-mix(in oklab, var(--color-lime-300) 65%, transparent);
           }
         }
       }
@@ -1601,32 +1287,12 @@
         }
       }
     }
-    .group-hover\:bg-pink-300\/50 {
-      &:is(:where(.group):hover *) {
-        @media (hover: hover) {
-          background-color: color-mix(in srgb, oklch(82.3% 0.12 346.018) 50%, transparent);
-          @supports (color: color-mix(in lab, red, red)) {
-            background-color: color-mix(in oklab, var(--color-pink-300) 50%, transparent);
-          }
-        }
-      }
-    }
     .group-hover\:bg-pink-300\/60 {
       &:is(:where(.group):hover *) {
         @media (hover: hover) {
           background-color: color-mix(in srgb, oklch(82.3% 0.12 346.018) 60%, transparent);
           @supports (color: color-mix(in lab, red, red)) {
             background-color: color-mix(in oklab, var(--color-pink-300) 60%, transparent);
-          }
-        }
-      }
-    }
-    .group-hover\:bg-pink-300\/65 {
-      &:is(:where(.group):hover *) {
-        @media (hover: hover) {
-          background-color: color-mix(in srgb, oklch(82.3% 0.12 346.018) 65%, transparent);
-          @supports (color: color-mix(in lab, red, red)) {
-            background-color: color-mix(in oklab, var(--color-pink-300) 65%, transparent);
           }
         }
       }
@@ -1641,52 +1307,12 @@
         }
       }
     }
-    .group-hover\:bg-purple-300\/50 {
-      &:is(:where(.group):hover *) {
-        @media (hover: hover) {
-          background-color: color-mix(in srgb, oklch(82.7% 0.119 306.383) 50%, transparent);
-          @supports (color: color-mix(in lab, red, red)) {
-            background-color: color-mix(in oklab, var(--color-purple-300) 50%, transparent);
-          }
-        }
-      }
-    }
     .group-hover\:bg-purple-300\/60 {
       &:is(:where(.group):hover *) {
         @media (hover: hover) {
           background-color: color-mix(in srgb, oklch(82.7% 0.119 306.383) 60%, transparent);
           @supports (color: color-mix(in lab, red, red)) {
             background-color: color-mix(in oklab, var(--color-purple-300) 60%, transparent);
-          }
-        }
-      }
-    }
-    .group-hover\:bg-purple-300\/65 {
-      &:is(:where(.group):hover *) {
-        @media (hover: hover) {
-          background-color: color-mix(in srgb, oklch(82.7% 0.119 306.383) 65%, transparent);
-          @supports (color: color-mix(in lab, red, red)) {
-            background-color: color-mix(in oklab, var(--color-purple-300) 65%, transparent);
-          }
-        }
-      }
-    }
-    .group-hover\:bg-red-300\/50 {
-      &:is(:where(.group):hover *) {
-        @media (hover: hover) {
-          background-color: color-mix(in srgb, oklch(80.8% 0.114 19.571) 50%, transparent);
-          @supports (color: color-mix(in lab, red, red)) {
-            background-color: color-mix(in oklab, var(--color-red-300) 50%, transparent);
-          }
-        }
-      }
-    }
-    .group-hover\:bg-red-300\/65 {
-      &:is(:where(.group):hover *) {
-        @media (hover: hover) {
-          background-color: color-mix(in srgb, oklch(80.8% 0.114 19.571) 65%, transparent);
-          @supports (color: color-mix(in lab, red, red)) {
-            background-color: color-mix(in oklab, var(--color-red-300) 65%, transparent);
           }
         }
       }
@@ -1747,46 +1373,6 @@
           background-color: color-mix(in srgb, oklch(82.8% 0.111 230.318) 65%, transparent);
           @supports (color: color-mix(in lab, red, red)) {
             background-color: color-mix(in oklab, var(--color-sky-300) 65%, transparent);
-          }
-        }
-      }
-    }
-    .group-hover\:bg-slate-300\/50 {
-      &:is(:where(.group):hover *) {
-        @media (hover: hover) {
-          background-color: color-mix(in srgb, oklch(86.9% 0.022 252.894) 50%, transparent);
-          @supports (color: color-mix(in lab, red, red)) {
-            background-color: color-mix(in oklab, var(--color-slate-300) 50%, transparent);
-          }
-        }
-      }
-    }
-    .group-hover\:bg-slate-300\/65 {
-      &:is(:where(.group):hover *) {
-        @media (hover: hover) {
-          background-color: color-mix(in srgb, oklch(86.9% 0.022 252.894) 65%, transparent);
-          @supports (color: color-mix(in lab, red, red)) {
-            background-color: color-mix(in oklab, var(--color-slate-300) 65%, transparent);
-          }
-        }
-      }
-    }
-    .group-hover\:bg-stone-300\/50 {
-      &:is(:where(.group):hover *) {
-        @media (hover: hover) {
-          background-color: color-mix(in srgb, oklch(86.9% 0.005 56.366) 50%, transparent);
-          @supports (color: color-mix(in lab, red, red)) {
-            background-color: color-mix(in oklab, var(--color-stone-300) 50%, transparent);
-          }
-        }
-      }
-    }
-    .group-hover\:bg-stone-300\/65 {
-      &:is(:where(.group):hover *) {
-        @media (hover: hover) {
-          background-color: color-mix(in srgb, oklch(86.9% 0.005 56.366) 65%, transparent);
-          @supports (color: color-mix(in lab, red, red)) {
-            background-color: color-mix(in oklab, var(--color-stone-300) 65%, transparent);
           }
         }
       }
@@ -1861,52 +1447,12 @@
         }
       }
     }
-    .group-hover\:bg-yellow-300\/50 {
-      &:is(:where(.group):hover *) {
-        @media (hover: hover) {
-          background-color: color-mix(in srgb, oklch(90.5% 0.182 98.111) 50%, transparent);
-          @supports (color: color-mix(in lab, red, red)) {
-            background-color: color-mix(in oklab, var(--color-yellow-300) 50%, transparent);
-          }
-        }
-      }
-    }
     .group-hover\:bg-yellow-300\/60 {
       &:is(:where(.group):hover *) {
         @media (hover: hover) {
           background-color: color-mix(in srgb, oklch(90.5% 0.182 98.111) 60%, transparent);
           @supports (color: color-mix(in lab, red, red)) {
             background-color: color-mix(in oklab, var(--color-yellow-300) 60%, transparent);
-          }
-        }
-      }
-    }
-    .group-hover\:bg-yellow-300\/65 {
-      &:is(:where(.group):hover *) {
-        @media (hover: hover) {
-          background-color: color-mix(in srgb, oklch(90.5% 0.182 98.111) 65%, transparent);
-          @supports (color: color-mix(in lab, red, red)) {
-            background-color: color-mix(in oklab, var(--color-yellow-300) 65%, transparent);
-          }
-        }
-      }
-    }
-    .group-hover\:bg-zinc-300\/50 {
-      &:is(:where(.group):hover *) {
-        @media (hover: hover) {
-          background-color: color-mix(in srgb, oklch(87.1% 0.006 286.286) 50%, transparent);
-          @supports (color: color-mix(in lab, red, red)) {
-            background-color: color-mix(in oklab, var(--color-zinc-300) 50%, transparent);
-          }
-        }
-      }
-    }
-    .group-hover\:bg-zinc-300\/65 {
-      &:is(:where(.group):hover *) {
-        @media (hover: hover) {
-          background-color: color-mix(in srgb, oklch(87.1% 0.006 286.286) 65%, transparent);
-          @supports (color: color-mix(in lab, red, red)) {
-            background-color: color-mix(in oklab, var(--color-zinc-300) 65%, transparent);
           }
         }
       }

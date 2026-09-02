@@ -28,7 +28,7 @@ describe("Color Swatches content script", () => {
     document.body.innerHTML = `
       <div data-message-column="">
         <div class="ml-auto">
-          <div data-markdown-preview=""><p>just testing the color swatch plugin #ffffff</p></div>
+          <div data-markdown-preview=""><p>PR #123 and issue #1234; colors #3366ff and #3366ff80</p></div>
         </div>
       </div>
     `;
@@ -40,16 +40,25 @@ describe("Color Swatches content script", () => {
       pluginId: "color-swatches",
     });
 
-    const proseSwatch = document.querySelector<HTMLElement>(
-      "[data-bb-color-swatch-prose]",
+    const proseSwatches = Array.from(
+      document.querySelectorAll<HTMLElement>("[data-bb-color-swatch-prose]"),
     );
-    expect(proseSwatch?.textContent).toBe("#ffffff");
-    expect(proseSwatch?.getAttribute("data-bb-color-swatch")).toBe("");
-    expect(proseSwatch?.style.getPropertyValue("--bb-color-swatch")).toBe(
-      "#ffffff",
-    );
+    expect(proseSwatches.map((swatch) => swatch.textContent)).toEqual([
+      "#3366ff",
+      "#3366ff80",
+    ]);
+    expect(
+      proseSwatches.every(
+        (swatch) => swatch.getAttribute("data-bb-color-swatch") === "",
+      ),
+    ).toBe(true);
+    expect(
+      proseSwatches.map((swatch) =>
+        swatch.style.getPropertyValue("--bb-color-swatch"),
+      ),
+    ).toEqual(["#3366ff", "#3366ff80"]);
     expect(paragraph.textContent).toBe(
-      "just testing the color swatch plugin #ffffff",
+      "PR #123 and issue #1234; colors #3366ff and #3366ff80",
     );
     expect(paragraph.firstChild).toBe(originalTextNode);
     expect(
@@ -92,7 +101,7 @@ describe("Color Swatches content script", () => {
       frames.push(callback);
       return frames.length;
     });
-    document.body.innerHTML = `<pre><div class="sh__line"><span>#</span><span>fff</span></div></pre>`;
+    document.body.innerHTML = `<pre><div class="sh__line"><span>#</span><span>ffffff</span></div></pre>`;
 
     const app = await loadPluginApp(() => import("./app"));
     const mounted = await mountPluginContentScripts(app, {
@@ -103,15 +112,15 @@ describe("Color Swatches content script", () => {
       line.querySelectorAll<HTMLElement>("span"),
     );
     expect(prefix.getAttribute("data-bb-color-swatch")).toBe("");
-    expect(prefix.style.getPropertyValue("--bb-color-swatch")).toBe("#fff");
+    expect(prefix.style.getPropertyValue("--bb-color-swatch")).toBe("#ffffff");
 
-    value.textContent = "000";
+    value.textContent = "000000";
     await Promise.resolve(); // deliver MutationObserver records
     expect(frames).toHaveLength(1);
     frames.shift()!(0);
 
     expect(prefix.getAttribute("data-bb-color-swatch")).toBe("");
-    expect(prefix.style.getPropertyValue("--bb-color-swatch")).toBe("#000");
+    expect(prefix.style.getPropertyValue("--bb-color-swatch")).toBe("#000000");
     await mounted.lifecycle.dispose();
   });
 });

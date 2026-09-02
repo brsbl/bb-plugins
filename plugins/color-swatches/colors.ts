@@ -17,8 +17,12 @@ export interface ColorMatch {
   value: string;
 }
 
-/** Only these hex lengths are colors; 5 and 7 digits are something else. */
-const HEX_LENGTHS = new Set([3, 4, 6, 8]);
+/**
+ * Only long-form RGB and RGBA hex literals get swatches. Short CSS forms are
+ * intentionally excluded because they are indistinguishable from common
+ * issue and pull-request references such as `#123` and `#1234`.
+ */
+const HEX_LENGTHS = new Set([6, 8]);
 
 /**
  * Function forms, including one level of nesting so `rgb(var(--x) / 50%)` and
