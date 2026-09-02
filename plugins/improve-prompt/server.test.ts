@@ -12,6 +12,7 @@ interface RpcHandlers {
     draft: string;
     projectId: string;
     sourceThreadId: string | null;
+    targetModel: "claude-fable-5-1" | null;
   }): Promise<{ requestId: string; helperThreadId: string }>;
   getEnhancement(input: { requestId: string }): Promise<unknown>;
   cancelEnhancement(input: { requestId: string }): Promise<{ cancelled: true }>;
@@ -131,6 +132,7 @@ const START_INPUT = {
   draft: "rough draft",
   projectId: "proj_1",
   sourceThreadId: null,
+  targetModel: null,
 };
 
 describe("Improve Prompt cancellation", () => {
@@ -244,6 +246,60 @@ describe("Improve Prompt cancellation", () => {
 });
 
 describe("Improve Prompt runtime context", () => {
+  it("sends both skills when the prompt targets Fable, regardless of the helper model", async () => {
+    const harness = await createHarness({
+      initialKv: [
+        [
+          "helper-execution",
+          {
+            mode: "fixed",
+            providerId: "codex",
+            model: "gpt-5.5",
+          },
+        ],
+      ],
+    });
+
+    await harness.rpc.startEnhancement({
+      ...START_INPUT,
+      targetModel: "claude-fable-5-1",
+    });
+
+    expect(harness.threads.spawn).toHaveBeenCalledWith(
+      expect.objectContaining({
+        providerId: "codex",
+        model: "gpt-5.5",
+        prompt: expect.stringMatching(
+          /Use the fable-5-1-prompting skill as target-model guidance[\s\S]+Use the prompt-shaper skill/u,
+        ),
+      }),
+    );
+  });
+
+  it("does not send Fable guidance merely because the helper runs Fable", async () => {
+    const harness = await createHarness({
+      initialKv: [
+        [
+          "helper-execution",
+          {
+            mode: "fixed",
+            providerId: "claude-code",
+            model: "claude-fable-5-1",
+          },
+        ],
+      ],
+    });
+
+    await harness.rpc.startEnhancement(START_INPUT);
+
+    expect(harness.threads.spawn).toHaveBeenCalledWith(
+      expect.objectContaining({
+        model: "claude-fable-5-1",
+        prompt: expect.not.stringContaining("fable-5-1-prompting"),
+      }),
+    );
+  });
+
   it("keeps a helper running through a transient empty idle before its real output", async () => {
     const harness = await createHarness();
     await harness.rpc.startEnhancement(START_INPUT);

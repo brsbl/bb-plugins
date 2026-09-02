@@ -22,7 +22,7 @@ The behavior comes from the installed `prompt-shaper` skill; the stable plugin I
 
 ## How it works
 
-The plugin sends only the current draft to a standalone hidden helper thread. The helper applies the `prompt-shaper` skill to rewrite the draft into one paste-ready prompt, and the result replaces the draft in place. The helper may reuse the source thread's environment and execution settings, but it never reads or inherits that thread's transcript.
+The plugin sends only the current draft to a standalone hidden helper thread. The helper applies the `prompt-shaper` skill to rewrite the draft into one paste-ready prompt, and the result replaces the draft in place. When the prompt box targets Claude Fable 5.1, the hidden helper also uses the project's `fable-5-1-prompting` skill as target-model guidance, regardless of which model runs the helper. The helper may reuse the source thread's environment and execution settings, but it never reads or inherits that thread's transcript.
 
 bb gives a personal skill in `~/.bb/skills/prompt-shaper/` precedence over this plugin's bundled default, so you can tune the rewriting guidance without forking the plugin.
 

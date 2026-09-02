@@ -71,6 +71,7 @@ interface ActionHarnessOptions {
   text: string;
   scope: PluginComposerScope;
   attachmentCount?: number;
+  modelPickerTitle?: string;
   rpc: PluginRpcTestHandlers<typeof rpcContract>;
 }
 
@@ -82,13 +83,23 @@ function configureAction(options: ActionHarnessOptions): void {
 }
 
 function mountAction(Action: ComponentType, strictMode = false): RenderedSlot {
+  const ActionInComposer = () => (
+    <div data-app-composer="">
+      {actionOptions.modelPickerTitle ? (
+        <button type="button" aria-label="Provider, model and reasoning">
+          <span title={actionOptions.modelPickerTitle}>Selected model</span>
+        </button>
+      ) : null}
+      <Action />
+    </div>
+  );
   const component = strictMode
     ? () => (
         <StrictMode>
-          <Action />
+          <ActionInComposer />
         </StrictMode>
       )
-    : Action;
+    : ActionInComposer;
   actionSlot = renderSlot(
     { component },
     {},
@@ -139,10 +150,44 @@ afterEach(() => {
 });
 
 describe("Improve Prompt composer action", () => {
+  it("marks the request as Fable-targeted from the owning prompt box picker", async () => {
+    configureAction({
+      text: "rough Fable draft",
+      modelPickerTitle: "Claude Code: Fable 5.1 · Medium reasoning",
+      scope: { kind: "new-thread", projectId: "proj_1" },
+      rpc: {
+        startEnhancement: () => ({
+          requestId: REQUEST_ID,
+          helperThreadId: "thr_helper",
+        }),
+        getEnhancement: () => ({
+          requestId: REQUEST_ID,
+          helperThreadId: "thr_helper",
+          status: "running",
+          createdAt: 1,
+        }),
+      },
+    });
+    const Action = await loadAction();
+    mountAction(Action);
+
+    fireEvent.click(screen.getByRole("button", { name: "Improve prompt" }));
+
+    await waitFor(() => {
+      expect(actionSlot.inspection.rpcCalls).toContainEqual({
+        method: "startEnhancement",
+        input: expect.objectContaining({
+          targetModel: "claude-fable-5-1",
+        }),
+      });
+    });
+  });
+
   it("enhances the active queued-message draft and preserves its attachments for manual save", async () => {
     configureAction({
       text: "queued rough draft",
       attachmentCount: 1,
+      modelPickerTitle: "Codex: 5.5 · Medium reasoning",
       scope: {
         kind: "queued-message",
         threadId: "thr_source",
@@ -195,6 +240,10 @@ describe("Improve Prompt composer action", () => {
     });
     expect(actionSlot.inspection.composer.attachmentCount).toBe(1);
     expect(actionSlot.inspection.rpcCalls).toHaveLength(2);
+    expect(actionSlot.inspection.rpcCalls[0]).toEqual({
+      method: "startEnhancement",
+      input: expect.objectContaining({ targetModel: null }),
+    });
     expect(actionSlot.inspection.composer.focusCount).toBe(1);
     expect(toast.success).not.toHaveBeenCalled();
   }, 60_000);

@@ -33,7 +33,7 @@ import {
 } from "@/components/ui/tooltip";
 import { ProviderLogo } from "@/components/icons/provider-icon";
 import type { rpcContract } from "./server";
-import { scopeKey } from "./core.js";
+import { FABLE_5_1_MODEL, scopeKey } from "./core.js";
 import {
   clearPromptRun,
   installPromptThreadStatusController,
@@ -55,6 +55,25 @@ interface UndoState {
 }
 
 type ReconcileOutcome = "absent" | "ignored" | "running" | "terminal";
+
+const COMPOSER_MODEL_TRIGGER =
+  'button[aria-label^="Provider, model and reasoning"]';
+
+/**
+ * ComposerView does not currently expose execution selection. Read the exact
+ * visible picker owned by this action's composer so new-thread, follow-up,
+ * queued-message, and side-chat prompt boxes all route from what the user sees.
+ */
+export function promptBoxTargetModel(
+  actionRoot: HTMLElement | null,
+): typeof FABLE_5_1_MODEL | null {
+  const composerShell = actionRoot?.closest("[data-app-composer]");
+  const modelTrigger = composerShell?.querySelector(COMPOSER_MODEL_TRIGGER);
+  const title = modelTrigger?.querySelector("[title]")?.getAttribute("title");
+  return title !== null && title !== undefined && /\bFable 5\.1\b/iu.test(title)
+    ? FABLE_5_1_MODEL
+    : null;
+}
 
 type HelperExecutionInput =
   | { mode: "fixed"; providerId: string; model: string | null }
@@ -275,6 +294,7 @@ function PromptShaperAction() {
   const pendingRef = useRef<PendingRequest | null>(pending);
   const cancellingRequestIdRef = useRef<string | null>(null);
   const composerRef = useRef(composer);
+  const actionsRootRef = useRef<HTMLDivElement>(null);
   const composerScopeKeyRef = useRef(composerScopeKey);
   const mountedComposerScopeKindRef = useRef(view.scope.kind);
   const rpcRef = useRef(rpc);
@@ -636,6 +656,7 @@ function PromptShaperAction() {
         draft,
         projectId,
         sourceThreadId,
+        targetModel: promptBoxTargetModel(actionsRootRef.current),
       });
       locallyStartingRequestIds.delete(request.requestId);
 
@@ -770,7 +791,11 @@ function PromptShaperAction() {
 
   return (
     <TooltipProvider delayDuration={300}>
-      <div className="flex items-center" data-prompt-shaper-actions>
+      <div
+        ref={actionsRootRef}
+        className="flex items-center"
+        data-prompt-shaper-actions
+      >
         <Tooltip>
           <TooltipTrigger asChild>
             <Button
