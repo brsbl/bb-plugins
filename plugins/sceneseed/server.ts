@@ -10,32 +10,6 @@ import { createSceneSeedStore } from "./store.js";
 export { rpcContract } from "./server/rpc-contract.js";
 
 export default async function sceneSeedPlugin(bb: BbPluginApi): Promise<void> {
-  bb.settings.define({
-    rendererQuality: {
-      type: "select",
-      label: "Renderer quality",
-      description:
-        "Balanced favors smooth interaction; High favors denser shadows and effects.",
-      options: ["balanced", "high"],
-      default: "balanced",
-    },
-    defaultMotion: {
-      type: "select",
-      label: "Generated motion",
-      description:
-        "Allow the interpreter's bounded motion preset or keep new scenes still by default.",
-      options: ["playful", "still"],
-      default: "playful",
-    },
-    diagnostics: {
-      type: "boolean",
-      label: "Local diagnostics",
-      description:
-        "Show prompt-free renderer and queue counters. Scene and prompt contents are never included.",
-      default: false,
-    },
-  });
-
   const store = createSceneSeedStore(bb.storage.database());
   const runtime = new SceneSeedRuntime(bb, store);
 

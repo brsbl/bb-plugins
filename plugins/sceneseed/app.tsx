@@ -444,7 +444,11 @@ function CanvasActivity({
     (left, right) => right.updatedAt - left.updatedAt,
   )[0];
   const failed = newest?.state === "failed" ? newest : undefined;
-  const card = active ?? failed;
+  const retryable =
+    newest?.state === "ready" || newest?.state === "cancelled"
+      ? newest
+      : undefined;
+  const card = active ?? failed ?? retryable;
   if (!card) return null;
   const job = activeJobForCard(snapshot, card);
   if (card.state === "failed") {
@@ -454,6 +458,30 @@ function CanvasActivity({
         <div>
           <strong>That idea didn’t make it onto the canvas</strong>
           <span>{job?.errorMessage ?? card.prompt}</span>
+        </div>
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          disabled={readOnly}
+          onClick={() => onRetry(card)}
+        >
+          Retry
+        </Button>
+      </section>
+    );
+  }
+  if (card.state === "ready" || card.state === "cancelled") {
+    return (
+      <section className="sceneseed-activity" role="status" aria-live="polite">
+        <Icon name="RotateCcw" aria-hidden="true" />
+        <div>
+          <strong>
+            {card.state === "cancelled"
+              ? "Generation cancelled"
+              : "Ready to draw"}
+          </strong>
+          <span>{card.prompt}</span>
         </div>
         <Button
           type="button"

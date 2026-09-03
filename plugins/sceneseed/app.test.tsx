@@ -409,6 +409,21 @@ describe("SceneSeed app", () => {
     }
   });
 
+  it("keeps the prompt retryable after generation is cancelled", async () => {
+    const slot = track(
+      renderSlot(app.navPanels[0]!, {
+        subPath: `${SCENESEED_QA_SUBPATH}/processing`,
+      }),
+    );
+
+    fireEvent.click(slot.getByRole("button", { name: "Cancel" }));
+
+    const retry = await slot.findByRole("button", { name: "Retry" });
+    expect(slot.getByText("Ready to draw")).toBeDefined();
+    fireEvent.click(retry);
+    expect(slot.getByRole("button", { name: "Cancel" })).toBeDefined();
+  });
+
   it("probes an inactive candidate before acknowledging and revealing it", async () => {
     let current = candidateReadySnapshot();
     let resolveBegin!: (result: {

@@ -1,4 +1,5 @@
 import {
+  useId,
   useEffect,
   useMemo,
   useRef,
@@ -1010,6 +1011,18 @@ export function SceneRenderer({
   const [rendererAvailable, setRendererAvailable] = useState(true);
   const [rendererReadyVersion, setRendererReadyVersion] = useState(0);
   const [zoomPercent, setZoomPercent] = useState(50);
+  const sceneDescriptionId = useId();
+  const sceneDescription = useMemo(
+    () =>
+      [
+        ...new Set(
+          objects
+            .filter((item) => item.probeOnly !== true)
+            .map((item) => item.scene.altText),
+        ),
+      ].join(" "),
+    [objects],
+  );
   const hostThemePalette = useHostThemePalette();
   const themePalette = useMemo(
     () => toMonochromeThemePalette(hostThemePalette),
@@ -1381,9 +1394,12 @@ export function SceneRenderer({
         if (item.probeOnly === true) {
           applyRenderProbeMaterials(animated, objectRegistry);
         } else {
+          const colors = stageColors(themePalette);
           applySceneColor(
             animated,
             sceneTint === null ? null : SCENE_TINT_COLORS[sceneTint],
+            themePalette["theme:ink"],
+            colors.background,
           );
           applySceneFinish(animated);
         }
@@ -1572,7 +1588,15 @@ export function SceneRenderer({
         ref={canvasRef}
         className="sceneseed-webgl-canvas"
         aria-label="Protofetti canvas"
+        aria-describedby={
+          sceneDescription.length > 0 ? sceneDescriptionId : undefined
+        }
       />
+      {sceneDescription.length > 0 ? (
+        <span id={sceneDescriptionId} className="sceneseed-sr-only">
+          {sceneDescription}
+        </span>
+      ) : null}
       {objects.some((item) => item.probeOnly !== true) ? (
         <div className="sceneseed-zoom-controls" aria-label="Canvas zoom">
           <button

@@ -45,4 +45,35 @@ describe("scene color treatment", () => {
     expect(after.s).toBeGreaterThan(0.45);
     expect(after.l).toBeCloseTo(before.l, 6);
   });
+
+  it("lifts graphite into the foreground range on a dark canvas", () => {
+    const material = new THREE.MeshBasicMaterial({ color: 0x080808 });
+    material.name = "Sketch pencil 1";
+
+    applySceneColor(
+      sharedMaterialRoot(material),
+      null,
+      "#eeeeee",
+      "#111111",
+    );
+
+    const after = material.color.getHSL({ h: 0, s: 0, l: 0 });
+    expect(after.l).toBeGreaterThan(0.8);
+  });
+
+  it("keeps a visible tint on dark canvases", () => {
+    const material = new THREE.MeshBasicMaterial({ color: 0x202020 });
+    material.name = "Sketch pencil 1";
+
+    applySceneColor(
+      sharedMaterialRoot(material),
+      "#2f6df6",
+      "#eeeeee",
+      "#111111",
+    );
+
+    const after = material.color.getHSL({ h: 0, s: 0, l: 0 });
+    expect(after.s).toBeGreaterThan(0.45);
+    expect(after.l).toBeGreaterThan(0.75);
+  });
 });
