@@ -13,7 +13,7 @@ describe("Prompt Improver skills", () => {
     const fableSkill = readFileSync(
       resolve(
         pluginDirectory,
-        "skills/fable-5-1-prompting/SKILL.md",
+        "skills/fable-5-1-target-prompting/SKILL.md",
       ),
       "utf8",
     );
@@ -24,15 +24,15 @@ describe("Prompt Improver skills", () => {
     const fableReference = readFileSync(
       resolve(
         pluginDirectory,
-        "skills/fable-5-1-prompting/references/prompting-claude-fable-5-1.md",
+        "skills/fable-5-1-target-prompting/references/prompting-claude-fable-5-1.md",
       ),
       "utf8",
     );
 
     expect(manifest.files).toContain("skills");
     expect(manifest.bb.skills).toEqual(["skills"]);
-    expect(fableSkill).toMatch(/^---\nname: fable-5-1-prompting\n/u);
-    expect(fableSkill).toContain("Any model may use this mode.");
+    expect(fableSkill).toMatch(/^---\nname: fable-5-1-target-prompting\n/u);
+    expect(fableSkill).toContain("Any helper model may use it.");
     expect(fableSkill).toContain(
       "Apply the guidance to the prompt you produce, not to your own tool use",
     );
@@ -41,7 +41,7 @@ describe("Prompt Improver skills", () => {
     );
     expect(promptShaperSkill).toMatch(/^---\nname: prompt-shaper\n/u);
     expect(fableReference).toContain(
-      "Reference copy for the fable-5-1-prompting skill",
+      "Reference copy for the fable-5-1-target-prompting skill",
     );
   });
 });

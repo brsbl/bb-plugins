@@ -53,9 +53,9 @@ describe("buildWorkerPrompt", () => {
     });
 
     expect(fablePrompt).toContain(
-      "Use the fable-5-1-prompting skill as target-model guidance",
+      "Use the fable-5-1-target-prompting skill as target-model guidance",
     );
-    expect(otherPrompt).not.toContain("fable-5-1-prompting");
+    expect(otherPrompt).not.toContain("fable-5-1-target-prompting");
   });
 });
 

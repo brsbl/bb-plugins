@@ -22,7 +22,7 @@ The rewriting behavior comes from the plugin's bundled skills; the stable plugin
 
 ## How it works
 
-The plugin sends only the current draft to a standalone hidden helper thread. The helper applies the bundled `prompt-shaper` skill to rewrite the draft into one paste-ready prompt, and the result replaces the draft in place. When the prompt box targets Claude Fable 5.1, the hidden helper also uses the bundled `fable-5-1-prompting` skill as target-model guidance, regardless of which model runs the helper. The helper may reuse the source thread's environment and execution settings, but it never reads or inherits that thread's transcript.
+The plugin sends only the current draft to a standalone hidden helper thread. The helper applies the bundled `prompt-shaper` skill to rewrite the draft into one paste-ready prompt, and the result replaces the draft in place. When the prompt box targets Claude Fable 5.1, the hidden helper also uses the bundled, collision-free `fable-5-1-target-prompting` skill as target-model guidance, regardless of which model runs the helper. The helper may reuse the source thread's environment and execution settings, but it never reads or inherits that thread's transcript.
 
 bb gives personal and project skills precedence over plugin-bundled defaults, so you can tune either skill without forking the plugin.
 

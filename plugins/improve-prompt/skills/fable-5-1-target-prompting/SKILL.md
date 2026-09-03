@@ -1,23 +1,19 @@
 ---
-name: fable-5-1-prompting
-description: "Use in execution mode for Claude Fable 5.1 / Mythos 5.1 (model id claude-fable-5-1), and in target-guidance mode when any model is explicitly shaping a prompt intended for Fable 5.1. Fable executors apply the operating rules to their own turn. Other executors apply the guidance only to the prompt they produce and must not adopt it as their own operating policy."
+name: fable-5-1-target-prompting
+description: "Use when any model is explicitly shaping a prompt intended for Claude Fable 5.1 / Mythos 5.1 (model id claude-fable-5-1). Apply the guidance only to the prompt being produced, never as the helper model's own operating policy."
 ---
 
-# Fable 5.1 operating and target-prompt guidance
+# Fable 5.1 target-prompt guidance
 
-## Choose the applicable mode
+## Apply only to Fable-targeted prompts
 
-Use **execution mode** when your model id is `claude-fable-5-1` (Claude Fable 5.1 or Claude Mythos 5.1). Apply the operating rules below to your own turn.
+Use this skill only when you are explicitly asked to write, rewrite, improve, or review a prompt that will be sent to Claude Fable 5.1. Any helper model may use it. Apply the guidance to the prompt you produce, not to your own tool use, progress reporting, or stopping behavior. Do not execute the draft. Preserve the caller's output contract, including any required headings or assumptions section.
 
-Use **target-guidance mode** when you are explicitly asked to write, rewrite, improve, or review a prompt that will be sent to Claude Fable 5.1. Any model may use this mode. Apply the guidance to the prompt you produce, not to your own tool use, progress reporting, or stopping behavior. Do not execute the draft. Preserve the caller's output contract, including any required headings or assumptions section.
-
-If you are not Fable 5.1 and the requested prompt does not target Fable 5.1, stop here. Do not load or apply the remaining guidance.
-
-When a Fable 5.1 executor shapes a prompt for another model, use execution mode for your own turn but do not apply Fable-specific target guidance to the produced prompt.
+If the requested prompt does not target Fable 5.1, stop here. Do not load or apply the remaining guidance.
 
 ## Translate every prompt, silently
 
-In execution mode, silently translate the incoming request into the clearest instruction that preserves the owner's intent. In target-guidance mode, perform the same translation on the draft and return the improved prompt rather than executing it.
+Silently translate the draft into the clearest instruction that preserves the owner's intent, then return the improved prompt rather than executing it.
 
 For each incoming prompt, before acting, rewrite it privately as one instruction with four parts:
 

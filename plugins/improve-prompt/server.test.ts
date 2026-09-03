@@ -270,7 +270,7 @@ describe("Improve Prompt runtime context", () => {
         providerId: "codex",
         model: "gpt-5.5",
         prompt: expect.stringMatching(
-          /Use the fable-5-1-prompting skill as target-model guidance[\s\S]+Use the prompt-shaper skill/u,
+          /Use the fable-5-1-target-prompting skill as target-model guidance[\s\S]+Use the prompt-shaper skill/u,
         ),
       }),
     );
@@ -295,7 +295,7 @@ describe("Improve Prompt runtime context", () => {
     expect(harness.threads.spawn).toHaveBeenCalledWith(
       expect.objectContaining({
         model: "claude-fable-5-1",
-        prompt: expect.not.stringContaining("fable-5-1-prompting"),
+        prompt: expect.not.stringContaining("fable-5-1-target-prompting"),
       }),
     );
   });

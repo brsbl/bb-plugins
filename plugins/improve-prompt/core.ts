@@ -4,7 +4,7 @@ export interface ParsedShaperOutput {
 }
 
 export const FABLE_5_1_MODEL = "claude-fable-5-1";
-const FABLE_5_1_SKILL = "fable-5-1-prompting";
+const FABLE_5_1_SKILL = "fable-5-1-target-prompting";
 
 function sectionAfterHeading(output: string, heading: string): string | null {
   const pattern = new RegExp(`^##\\s+${heading}\\s*$`, "im");

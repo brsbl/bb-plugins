@@ -1,4 +1,4 @@
-<!-- Reference copy for the fable-5-1-prompting skill. Source: Anthropic,
+<!-- Reference copy for the fable-5-1-target-prompting skill. Source: Anthropic,
 "Prompting Claude Fable 5.1", https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-fable-5-1
 Fetched 2026-09-02. The 300-line SDK code sample under "Batch independent tool
 calls" is omitted; everything else is the page's prose as published. Re-fetch
