@@ -11,6 +11,7 @@ import type { PluginComposerScope } from "@get-bb/plugin-sdk";
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { StrictMode, type ComponentType } from "react";
+import { createPortal } from "react-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { toast } from "sonner";
 import {
@@ -71,6 +72,10 @@ interface ActionHarnessOptions {
   text: string;
   scope: PluginComposerScope;
   attachmentCount?: number;
+  modelPickerPlacement?: "inline" | "desktop-overflow" | "compact-overflow";
+  modelPickerText?: string;
+  modelPickerTitle?: string;
+  modelPickerTitleOwner?: "button" | "content";
   rpc: PluginRpcTestHandlers<typeof rpcContract>;
 }
 
@@ -82,13 +87,69 @@ function configureAction(options: ActionHarnessOptions): void {
 }
 
 function mountAction(Action: ComponentType, strictMode = false): RenderedSlot {
+  const ActionInComposer = () => {
+    const placement = actionOptions.modelPickerPlacement ?? "inline";
+    const isOverflow = placement !== "inline";
+    const overflowId = "prompt-actions-overflow";
+    const action = <Action />;
+    return (
+      <>
+        <div data-app-composer="">
+          {actionOptions.modelPickerTitle ? (
+            <button
+              type="button"
+              aria-label="Provider, model and reasoning"
+              title={
+                actionOptions.modelPickerTitleOwner === "button"
+                  ? actionOptions.modelPickerTitle
+                  : undefined
+              }
+            >
+              <span
+                title={
+                  actionOptions.modelPickerTitleOwner === "button"
+                    ? undefined
+                    : actionOptions.modelPickerTitle
+                }
+              >
+                {actionOptions.modelPickerText ?? "Selected model"}
+              </span>
+            </button>
+          ) : null}
+          {isOverflow ? (
+            <button
+              type="button"
+              aria-label="More plugin actions"
+              aria-expanded="true"
+              aria-controls={
+                placement === "desktop-overflow" ? overflowId : undefined
+              }
+            />
+          ) : (
+            action
+          )}
+        </div>
+        {isOverflow
+          ? createPortal(
+              <div
+                id={overflowId}
+                data-plugin-composer-action-overflow=""
+              >
+                {action}
+              </div>,
+              document.body,
+            )
+          : null}
+      </>
+    );
+  };
   const component = strictMode
     ? () => (
         <StrictMode>
-          <Action />
+          <ActionInComposer />
         </StrictMode>
       )
-    : Action;
+    : ActionInComposer;
   actionSlot = renderSlot(
     { component },
     {},
@@ -139,10 +200,154 @@ afterEach(() => {
 });
 
 describe("Improve Prompt composer action", () => {
+  it.each([
+    {
+      name: "inline",
+      modelPickerPlacement: "inline" as const,
+      modelPickerText: "Fable 5.1 Medium",
+      modelPickerTitle: "Claude Code: Fable 5.1 · Medium reasoning",
+    },
+    {
+      name: "a failed catalog with the retained model still visible",
+      modelPickerPlacement: "inline" as const,
+      modelPickerText: "Fable 5.1 Medium",
+      modelPickerTitle: "Claude Code: Could not load models.",
+    },
+    {
+      name: "a failed catalog exposing the raw model id in overflow",
+      modelPickerPlacement: "desktop-overflow" as const,
+      modelPickerText: "claude-fable-5-1",
+      modelPickerTitle: "Claude Code: Could not load models.",
+    },
+    {
+      name: "an older picker with its title on the trigger",
+      modelPickerPlacement: "inline" as const,
+      modelPickerText: "Fable 5.1 Medium",
+      modelPickerTitle: "Claude Code: Fable 5.1 · Medium reasoning",
+      modelPickerTitleOwner: "button" as const,
+    },
+    {
+      name: "the desktop overflow portal",
+      modelPickerPlacement: "desktop-overflow" as const,
+      modelPickerText: "Fable 5.1 Medium",
+      modelPickerTitle: "Claude Code: Fable 5.1 · Medium reasoning",
+    },
+    {
+      name: "the compact overflow portal",
+      modelPickerPlacement: "compact-overflow" as const,
+      modelPickerText: "Fable 5.1 Medium",
+      modelPickerTitle: "Claude Code: Fable 5.1 · Medium reasoning",
+    },
+  ])("marks the request as Fable-targeted from $name", async (picker) => {
+    configureAction({
+      text: "rough Fable draft",
+      ...picker,
+      scope: { kind: "new-thread", projectId: "proj_1" },
+      rpc: {
+        startEnhancement: () => ({
+          requestId: REQUEST_ID,
+          helperThreadId: "thr_helper",
+        }),
+        getEnhancement: () => ({
+          requestId: REQUEST_ID,
+          helperThreadId: "thr_helper",
+          status: "running",
+          createdAt: 1,
+        }),
+      },
+    });
+    const Action = await loadAction();
+    mountAction(Action);
+
+    fireEvent.click(screen.getByRole("button", { name: "Improve prompt" }));
+
+    await waitFor(() => {
+      expect(actionSlot.inspection.rpcCalls).toContainEqual({
+        method: "startEnhancement",
+        input: expect.objectContaining({
+          targetModel: "claude-fable-5-1",
+        }),
+      });
+    });
+  });
+
+  it("waits instead of silently treating a loading Fable picker as non-Fable", async () => {
+    configureAction({
+      text: "rough Fable draft",
+      modelPickerText: "Loading models",
+      modelPickerTitle: "Claude Code: Loading models...",
+      scope: { kind: "new-thread", projectId: "proj_1" },
+      rpc: {},
+    });
+    const Action = await loadAction();
+    mountAction(Action);
+
+    fireEvent.click(screen.getByRole("button", { name: "Improve prompt" }));
+
+    expect(actionSlot.inspection.rpcCalls).toHaveLength(0);
+    expect(toast.error).toHaveBeenCalledWith(
+      "Could not read this prompt box's selected model. Wait for the picker to finish loading, then try again.",
+    );
+  });
+
+  it.each([
+    {
+      name: "desktop overflow portal",
+      modelPickerPlacement: "desktop-overflow" as const,
+      modelPickerText: "5.5 Medium",
+      modelPickerTitle: "Codex: 5.5 · Medium reasoning",
+    },
+    {
+      name: "compact overflow portal",
+      modelPickerPlacement: "compact-overflow" as const,
+      modelPickerText: "5.5 Medium",
+      modelPickerTitle: "Codex: 5.5 · Medium reasoning",
+    },
+    {
+      name: "failed catalog exposing a different raw model id",
+      modelPickerPlacement: "desktop-overflow" as const,
+      modelPickerText: "claude-sonnet-5",
+      modelPickerTitle: "Claude Code: Could not load models.",
+    },
+  ])(
+    "keeps a non-Fable picker generic from the $name",
+    async (picker) => {
+      configureAction({
+        text: "rough Codex draft",
+        ...picker,
+        scope: { kind: "new-thread", projectId: "proj_1" },
+        rpc: {
+          startEnhancement: () => ({
+            requestId: REQUEST_ID,
+            helperThreadId: "thr_helper",
+          }),
+          getEnhancement: () => ({
+            requestId: REQUEST_ID,
+            helperThreadId: "thr_helper",
+            status: "running",
+            createdAt: 1,
+          }),
+        },
+      });
+      const Action = await loadAction();
+      mountAction(Action);
+
+      fireEvent.click(screen.getByRole("button", { name: "Improve prompt" }));
+
+      await waitFor(() => {
+        expect(actionSlot.inspection.rpcCalls).toContainEqual({
+          method: "startEnhancement",
+          input: expect.objectContaining({ targetModel: null }),
+        });
+      });
+    },
+  );
+
   it("enhances the active queued-message draft and preserves its attachments for manual save", async () => {
     configureAction({
       text: "queued rough draft",
       attachmentCount: 1,
+      modelPickerTitle: "Codex: 5.5 · Medium reasoning",
       scope: {
         kind: "queued-message",
         threadId: "thr_source",
@@ -195,6 +400,10 @@ describe("Improve Prompt composer action", () => {
     });
     expect(actionSlot.inspection.composer.attachmentCount).toBe(1);
     expect(actionSlot.inspection.rpcCalls).toHaveLength(2);
+    expect(actionSlot.inspection.rpcCalls[0]).toEqual({
+      method: "startEnhancement",
+      input: expect.objectContaining({ targetModel: null }),
+    });
     expect(actionSlot.inspection.composer.focusCount).toBe(1);
     expect(toast.success).not.toHaveBeenCalled();
   }, 60_000);

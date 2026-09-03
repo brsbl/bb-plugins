@@ -5692,6 +5692,7 @@ function ProviderLogo({
 }
 
 // core.ts
+var FABLE_5_1_MODEL = "claude-fable-5-1";
 function scopeKey(scope) {
   if (scope.kind === "thread") {
     return `thread:${scope.threadId ?? ""}`;
@@ -5804,6 +5805,40 @@ function clearPromptRun(requestId) {
 }
 
 // app.tsx
+var COMPOSER_MODEL_TRIGGER = 'button[aria-label^="Provider, model and reasoning"]';
+var COMPOSER_ACTION_OVERFLOW = "[data-plugin-composer-action-overflow]";
+var COMPOSER_ACTION_OVERFLOW_TRIGGER = 'button[aria-label^="More plugin actions"][aria-expanded="true"]';
+function owningComposer(actionRoot) {
+  const directComposer = actionRoot.closest("[data-app-composer]");
+  if (directComposer !== null) return directComposer;
+  const overflow = actionRoot.closest(COMPOSER_ACTION_OVERFLOW);
+  if (overflow === null) return null;
+  const openTriggers = Array.from(
+    actionRoot.ownerDocument.querySelectorAll(
+      COMPOSER_ACTION_OVERFLOW_TRIGGER
+    )
+  );
+  const controlledTrigger = overflow.id.length === 0 ? null : openTriggers.find(
+    (trigger) => trigger.getAttribute("aria-controls") === overflow.id
+  ) ?? null;
+  const ownerTrigger = controlledTrigger ?? (openTriggers.length === 1 ? openTriggers[0] : null);
+  return ownerTrigger?.closest("[data-app-composer]") ?? null;
+}
+function promptBoxTargetModel(actionRoot) {
+  if (actionRoot === null) return void 0;
+  const composerShell = owningComposer(actionRoot);
+  if (composerShell === null) return void 0;
+  const modelTrigger = composerShell.querySelector(COMPOSER_MODEL_TRIGGER);
+  const title = modelTrigger?.getAttribute("title") ?? modelTrigger?.querySelector("[title]")?.getAttribute("title");
+  const visibleLabel = modelTrigger?.textContent ?? "";
+  const selectionText = `${title ?? ""}
+${visibleLabel}`;
+  if (/\b(?:Fable 5\.1|claude-fable-5-1)\b/iu.test(selectionText)) {
+    return FABLE_5_1_MODEL;
+  }
+  if (/\bLoading models\b/iu.test(selectionText)) return void 0;
+  return null;
+}
 function createHelperExecutionSaveQueue(save, onLatestResult) {
   let generation = 0;
   let queue = Promise.resolve();
@@ -5920,6 +5955,7 @@ function PromptShaperAction() {
   const pendingRef = useRef(pending);
   const cancellingRequestIdRef = useRef(null);
   const composerRef = useRef(composer);
+  const actionsRootRef = useRef(null);
   const composerScopeKeyRef = useRef(composerScopeKey);
   const mountedComposerScopeKindRef = useRef(view.scope.kind);
   const rpcRef = useRef(rpc);
@@ -6168,6 +6204,13 @@ function PromptShaperAction() {
     })) {
       return;
     }
+    const targetModel = promptBoxTargetModel(actionsRootRef.current);
+    if (targetModel === void 0) {
+      toast.error(
+        "Could not read this prompt box's selected model. Wait for the picker to finish loading, then try again."
+      );
+      return;
+    }
     const request = {
       cancellationRequested: false,
       createdAt: Date.now(),
@@ -6186,7 +6229,8 @@ function PromptShaperAction() {
         requestId: request.requestId,
         draft,
         projectId,
-        sourceThreadId
+        sourceThreadId,
+        targetModel
       });
       locallyStartingRequestIds.delete(request.requestId);
       const stored = loadPendingRequest(request.scopeKey);
@@ -6282,58 +6326,66 @@ function PromptShaperAction() {
   const actionLabel = isRunning ? "Cancel prompt improvement" : "Improve prompt";
   const controlLabel = canUndo ? "Undo prompt" : actionLabel;
   const iconName = isRunning ? showCancelIcon ? "X" : "AiContentGenerator01" : "AiContentGenerator01";
-  return /* @__PURE__ */ jsx(TooltipProvider2, { delayDuration: 300, children: /* @__PURE__ */ jsx("div", { className: "flex items-center", "data-prompt-shaper-actions": true, children: /* @__PURE__ */ jsxs(Tooltip2, { children: [
-    /* @__PURE__ */ jsx(TooltipTrigger2, { asChild: true, children: /* @__PURE__ */ jsx(
-      Button,
-      {
-        type: "button",
-        variant: "ghost",
-        size: "icon",
-        className: canUndo ? "h-7 w-auto gap-1 px-1.5 text-muted-foreground" : isRunning && !showCancelIcon ? "size-7 text-success" : "size-7 text-muted-foreground",
-        disabled: isDisabled,
-        "aria-busy": isRunning,
-        "aria-label": controlLabel,
-        onMouseDown: (event) => {
-          event.preventDefault();
-        },
-        onBlur: () => setIsKeyboardFocused(false),
-        onFocus: (event) => setIsKeyboardFocused(
-          event.currentTarget.matches(":focus-visible")
-        ),
-        onMouseEnter: () => setIsHovered(true),
-        onMouseLeave: () => setIsHovered(false),
-        onClick: () => {
-          if (canUndo) {
-            undo();
-            return;
-          }
-          if (isRunning) {
-            void cancel();
-            return;
-          }
-          void enhance();
-        },
-        children: canUndo ? /* @__PURE__ */ jsxs(Fragment2, { children: [
-          /* @__PURE__ */ jsx(Icon, { name: "AiContentGenerator01", "aria-hidden": "true" }),
-          /* @__PURE__ */ jsx(Icon, { name: "ArrowTurnBackward", "aria-hidden": "true" })
-        ] }) : /* @__PURE__ */ jsx(
-          "span",
+  return /* @__PURE__ */ jsx(TooltipProvider2, { delayDuration: 300, children: /* @__PURE__ */ jsx(
+    "div",
+    {
+      ref: actionsRootRef,
+      className: "flex items-center",
+      "data-prompt-shaper-actions": true,
+      children: /* @__PURE__ */ jsxs(Tooltip2, { children: [
+        /* @__PURE__ */ jsx(TooltipTrigger2, { asChild: true, children: /* @__PURE__ */ jsx(
+          Button,
           {
-            className: isRunning && !showCancelIcon ? "inline-flex size-4 items-center justify-center motion-safe:animate-pulse" : "inline-flex size-4 items-center justify-center",
-            children: /* @__PURE__ */ jsx(
-              Icon,
+            type: "button",
+            variant: "ghost",
+            size: "icon",
+            className: canUndo ? "h-7 w-auto gap-1 px-1.5 text-muted-foreground" : isRunning && !showCancelIcon ? "size-7 text-success" : "size-7 text-muted-foreground",
+            disabled: isDisabled,
+            "aria-busy": isRunning,
+            "aria-label": controlLabel,
+            onMouseDown: (event) => {
+              event.preventDefault();
+            },
+            onBlur: () => setIsKeyboardFocused(false),
+            onFocus: (event) => setIsKeyboardFocused(
+              event.currentTarget.matches(":focus-visible")
+            ),
+            onMouseEnter: () => setIsHovered(true),
+            onMouseLeave: () => setIsHovered(false),
+            onClick: () => {
+              if (canUndo) {
+                undo();
+                return;
+              }
+              if (isRunning) {
+                void cancel();
+                return;
+              }
+              void enhance();
+            },
+            children: canUndo ? /* @__PURE__ */ jsxs(Fragment2, { children: [
+              /* @__PURE__ */ jsx(Icon, { name: "AiContentGenerator01", "aria-hidden": "true" }),
+              /* @__PURE__ */ jsx(Icon, { name: "ArrowTurnBackward", "aria-hidden": "true" })
+            ] }) : /* @__PURE__ */ jsx(
+              "span",
               {
-                name: iconName,
-                className: isRunning && !showCancelIcon ? "animate-shine-icon motion-safe:[animation-duration:1.5s]" : void 0,
-                "aria-hidden": "true"
+                className: isRunning && !showCancelIcon ? "inline-flex size-4 items-center justify-center motion-safe:animate-pulse" : "inline-flex size-4 items-center justify-center",
+                children: /* @__PURE__ */ jsx(
+                  Icon,
+                  {
+                    name: iconName,
+                    className: isRunning && !showCancelIcon ? "animate-shine-icon motion-safe:[animation-duration:1.5s]" : void 0,
+                    "aria-hidden": "true"
+                  }
+                )
               }
             )
           }
-        )
-      }
-    ) }),
-    /* @__PURE__ */ jsx(TooltipContent2, { side: "top", children: canUndo ? "Undo prompt" : isRunning ? "Cancel" : "Improve prompt" })
-  ] }) }) });
+        ) }),
+        /* @__PURE__ */ jsx(TooltipContent2, { side: "top", children: canUndo ? "Undo prompt" : isRunning ? "Cancel" : "Improve prompt" })
+      ] })
+    }
+  ) });
 }
 function choiceKey(choice) {
   if (choice.mode === "fixed") {
@@ -6624,6 +6676,7 @@ export {
   canStartEnhancement,
   createHelperExecutionSaveQueue,
   app_default as default,
+  promptBoxTargetModel,
   registerPromptPluginApp,
   resetLocallyStartingRequestsForTest,
   shouldCancelForSubmission
