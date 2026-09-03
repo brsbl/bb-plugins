@@ -1,0 +1,506 @@
+[
+  {
+    "id": "literal-lighthouse",
+    "prompt": "tiny red lighthouse",
+    "promptClass": "literal",
+    "nearbyScene": [],
+    "evaluation": {
+      "visualThesis": "A narrow red tower with a distinct lantern cap",
+      "silhouetteCues": ["tall tower", "lantern cap", "small roof"],
+      "primitiveHints": ["cylinder", "cone", "torus"],
+      "materialHints": ["matte", "glass", "emissive"],
+      "textEssential": false,
+      "spatialRequirement": "The lantern sits above the tower and the tower meets the ground"
+    }
+  },
+  {
+    "id": "literal-cactus-cup",
+    "prompt": "a cactus in a teacup",
+    "promptClass": "literal",
+    "nearbyScene": ["a low matte yellow paper boat"],
+    "evaluation": {
+      "visualThesis": "A rounded cactus emerges from a handled ceramic cup",
+      "silhouetteCues": ["cup bowl", "side handle", "upright cactus arms"],
+      "primitiveHints": ["cylinder", "torus", "capsule"],
+      "materialHints": ["matte", "glossy"],
+      "textEssential": false,
+      "spatialRequirement": "The cactus is visibly contained by the cup"
+    }
+  },
+  {
+    "id": "literal-brass-moon",
+    "prompt": "a brass moon on a museum stand",
+    "promptClass": "literal",
+    "nearbyScene": ["a dark blue glass jar with a cloud inside"],
+    "evaluation": {
+      "visualThesis": "A crescent-like brass moon is presented above a small display stand",
+      "silhouetteCues": ["crescent", "thin support", "low plinth"],
+      "primitiveHints": ["sphere", "torus", "cylinder", "box"],
+      "materialHints": ["metal", "matte"],
+      "textEssential": false,
+      "spatialRequirement": "The moon is supported by rather than floating away from the stand"
+    }
+  },
+  {
+    "id": "literal-glass-whale",
+    "prompt": "a glass whale carrying a cloud",
+    "promptClass": "literal",
+    "nearbyScene": ["a brass crescent on a black plinth"],
+    "evaluation": {
+      "visualThesis": "A translucent whale-like body supports a soft cloud along its back",
+      "silhouetteCues": ["long whale body", "tail flukes", "cloud cluster"],
+      "primitiveHints": ["capsule", "cone", "sphere"],
+      "materialHints": ["glass", "matte"],
+      "textEssential": false,
+      "spatialRequirement": "The cloud overlaps the whale's upper back"
+    }
+  },
+  {
+    "id": "literal-paper-boat",
+    "prompt": "a yellow paper boat in a blue puddle",
+    "promptClass": "literal",
+    "nearbyScene": [],
+    "evaluation": {
+      "visualThesis": "A folded yellow boat rests within a shallow blue puddle",
+      "silhouetteCues": ["pointed folded boat", "wide low puddle"],
+      "primitiveHints": ["extrudedShape", "plane"],
+      "materialHints": ["matte", "glossy"],
+      "textEssential": false,
+      "spatialRequirement": "The puddle surrounds the boat's base without hiding its outline"
+    }
+  },
+  {
+    "id": "literal-sleeping-cat",
+    "prompt": "a sleeping cat curled on three books",
+    "promptClass": "literal",
+    "nearbyScene": ["a warm cream reading lamp"],
+    "evaluation": {
+      "visualThesis": "A curled cat form rests on a clearly stacked trio of books",
+      "silhouetteCues": ["three horizontal books", "curled body", "small ears"],
+      "primitiveHints": ["box", "torus", "sphere", "cone"],
+      "materialHints": ["matte", "toon"],
+      "textEssential": false,
+      "spatialRequirement": "The cat visibly contacts the top book"
+    }
+  },
+  {
+    "id": "literal-exit-snow",
+    "prompt": "an EXIT sign half-buried in snow",
+    "promptClass": "literal",
+    "nearbyScene": ["a low white cone-shaped mountain"],
+    "evaluation": {
+      "visualThesis": "A small sign with the essential word EXIT emerges from snow mounds",
+      "silhouetteCues": ["thin sign board", "snow mounds", "short support"],
+      "primitiveHints": ["box", "sphere", "text"],
+      "materialHints": ["matte", "emissive"],
+      "textEssential": true,
+      "spatialRequirement": "Snow overlaps the lower part of the sign but leaves EXIT readable"
+    }
+  },
+  {
+    "id": "literal-mailbox",
+    "prompt": "a crooked blue mailbox with its flag raised",
+    "promptClass": "literal",
+    "nearbyScene": ["a red cylindrical lighthouse"],
+    "evaluation": {
+      "visualThesis": "A blue rural mailbox leans slightly while a raised side flag breaks its outline",
+      "silhouetteCues": ["arched mailbox body", "post", "raised flag"],
+      "primitiveHints": ["box", "cylinder", "plane"],
+      "materialHints": ["matte", "metal"],
+      "textEssential": false,
+      "spatialRequirement": "The post meets the ground and the flag attaches to the mailbox side"
+    }
+  },
+  {
+    "id": "metaphor-rainy-thought",
+    "prompt": "a rainy thought in a jar",
+    "promptClass": "metaphorical",
+    "nearbyScene": ["a small brass moon", "a matte red lighthouse"],
+    "evaluation": {
+      "visualThesis": "A blue cloud rains inside a transparent jar",
+      "silhouetteCues": ["clear vessel", "cloud cluster", "falling droplets"],
+      "primitiveHints": ["cylinder", "sphere", "capsule"],
+      "materialHints": ["glass", "matte"],
+      "textEssential": false,
+      "spatialRequirement": "The cloud and rain are contained within the jar"
+    }
+  },
+  {
+    "id": "metaphor-deadline-chase",
+    "prompt": "a deadline chasing me",
+    "promptClass": "metaphorical",
+    "nearbyScene": [],
+    "evaluation": {
+      "visualThesis": "A looming clock-like disc pursues a smaller running abstract figure",
+      "silhouetteCues": [
+        "large clock disc",
+        "small forward-leaning figure",
+        "directional gap"
+      ],
+      "primitiveHints": ["cylinder", "capsule", "sphere"],
+      "materialHints": ["toon", "emissive"],
+      "textEssential": false,
+      "spatialRequirement": "Both forms face the same direction with the clock behind the figure"
+    }
+  },
+  {
+    "id": "metaphor-fragile-confidence",
+    "prompt": "fragile confidence on a pedestal",
+    "promptClass": "metaphorical",
+    "nearbyScene": ["a tall gray museum plinth with a brass crescent"],
+    "evaluation": {
+      "visualThesis": "A bright delicate orb balances on an oversized formal pedestal",
+      "silhouetteCues": [
+        "solid pedestal",
+        "small balanced orb",
+        "protective thin ring"
+      ],
+      "primitiveHints": ["box", "sphere", "torus"],
+      "materialHints": ["matte", "glass", "emissive"],
+      "textEssential": false,
+      "spatialRequirement": "The small focal form touches the pedestal at one precarious point"
+    }
+  },
+  {
+    "id": "metaphor-heavy-secret",
+    "prompt": "a secret too heavy to hold",
+    "promptClass": "metaphorical",
+    "nearbyScene": ["two pale forms leaning toward a bright gap"],
+    "evaluation": {
+      "visualThesis": "A small cupped support bends beneath one dense sealed dark form",
+      "silhouetteCues": ["heavy dark mass", "bent support", "compressed gap"],
+      "primitiveHints": ["sphere", "capsule", "extrudedShape"],
+      "materialHints": ["matte", "metal"],
+      "textEssential": false,
+      "spatialRequirement": "The support visibly carries the heavy mass"
+    }
+  },
+  {
+    "id": "metaphor-hope-concrete",
+    "prompt": "hope growing through concrete",
+    "promptClass": "metaphorical",
+    "nearbyScene": ["a muted gray stack of books"],
+    "evaluation": {
+      "visualThesis": "A vivid shoot rises through a split heavy slab",
+      "silhouetteCues": ["wide slab", "central split", "thin stem with leaves"],
+      "primitiveHints": ["box", "cylinder", "extrudedShape"],
+      "materialHints": ["matte", "glossy"],
+      "textEssential": false,
+      "spatialRequirement": "The shoot crosses the slab plane through the central opening"
+    }
+  },
+  {
+    "id": "metaphor-procrastination",
+    "prompt": "procrastination as a cozy monster",
+    "promptClass": "metaphorical",
+    "nearbyScene": ["a curled orange cat on books"],
+    "evaluation": {
+      "visualThesis": "A soft wide creature hugs a small clock while settling into the ground",
+      "silhouetteCues": ["wide soft body", "short limbs", "small clock disc"],
+      "primitiveHints": ["sphere", "capsule", "cylinder"],
+      "materialHints": ["toon", "matte"],
+      "textEssential": false,
+      "spatialRequirement": "The creature encloses or hugs the clock rather than standing beside it"
+    }
+  },
+  {
+    "id": "metaphor-slipping-memory",
+    "prompt": "a memory slipping through open hands",
+    "promptClass": "metaphorical",
+    "nearbyScene": ["a clear jar containing a blue cloud"],
+    "evaluation": {
+      "visualThesis": "A small luminous form descends through a gap between two open supports",
+      "silhouetteCues": [
+        "two open cupped forms",
+        "bright falling core",
+        "vertical separation"
+      ],
+      "primitiveHints": ["capsule", "sphere", "extrudedShape"],
+      "materialHints": ["matte", "emissive"],
+      "textEssential": false,
+      "spatialRequirement": "The luminous form is visibly passing between, not resting on, the supports"
+    }
+  },
+  {
+    "id": "metaphor-quiet-courage",
+    "prompt": "quiet courage",
+    "promptClass": "metaphorical",
+    "nearbyScene": ["a dark matte ring containing varied shapes"],
+    "evaluation": {
+      "visualThesis": "One tiny warm light stands inside a much larger dark enclosure",
+      "silhouetteCues": [
+        "large sheltering arch",
+        "small upright light",
+        "open surrounding darkness"
+      ],
+      "primitiveHints": ["extrudedShape", "cylinder", "sphere"],
+      "materialHints": ["matte", "emissive"],
+      "textEssential": false,
+      "spatialRequirement": "The light remains small, central, and grounded within the enclosure"
+    }
+  },
+  {
+    "id": "spatial-sphere-towers",
+    "prompt": "a red sphere balanced between two towers",
+    "promptClass": "spatial",
+    "nearbyScene": [],
+    "evaluation": {
+      "visualThesis": "A red sphere precariously bridges the upper edges of two tall supports",
+      "silhouetteCues": ["two towers", "central sphere", "narrow gap"],
+      "primitiveHints": ["box", "sphere"],
+      "materialHints": ["matte", "glossy"],
+      "textEssential": false,
+      "spatialRequirement": "The sphere touches both tower tops and neither tower is hidden"
+    }
+  },
+  {
+    "id": "spatial-moon-spiral",
+    "prompt": "a spiral of small moons around a blue planet",
+    "promptClass": "spatial",
+    "nearbyScene": ["a brass crescent on a stand"],
+    "evaluation": {
+      "visualThesis": "Small pale satellites trace a depth-varying spiral around one blue center",
+      "silhouetteCues": [
+        "large central sphere",
+        "ordered satellite trail",
+        "asymmetric spiral"
+      ],
+      "primitiveHints": ["sphere"],
+      "materialHints": ["matte", "emissive"],
+      "textEssential": false,
+      "spatialRequirement": "Satellites occupy front and back depths around the central planet"
+    }
+  },
+  {
+    "id": "spatial-light-bridge",
+    "prompt": "a bridge crossing a pool of light",
+    "promptClass": "spatial",
+    "nearbyScene": ["a tiny warm light under a dark arch"],
+    "evaluation": {
+      "visualThesis": "A narrow raised bridge spans above a wide luminous pool",
+      "silhouetteCues": ["long bridge deck", "two supports", "low light pool"],
+      "primitiveHints": ["box", "cylinder", "plane"],
+      "materialHints": ["matte", "emissive"],
+      "textEssential": false,
+      "spatialRequirement": "The bridge crosses above the pool from one side to the other"
+    }
+  },
+  {
+    "id": "spatial-houses-fire",
+    "prompt": "three little houses leaning toward a campfire",
+    "promptClass": "spatial",
+    "nearbyScene": [],
+    "evaluation": {
+      "visualThesis": "Three simple houses tilt inward around one warm central flame",
+      "silhouetteCues": [
+        "three roofed houses",
+        "central flame",
+        "circular grouping"
+      ],
+      "primitiveHints": ["box", "cone", "extrudedShape"],
+      "materialHints": ["matte", "emissive"],
+      "textEssential": false,
+      "spatialRequirement": "All houses face and lean toward the fire without overlapping it"
+    }
+  },
+  {
+    "id": "spatial-key-cube",
+    "prompt": "a brass key floating inside a transparent cube",
+    "promptClass": "spatial",
+    "nearbyScene": ["a translucent whale with a cloud"],
+    "evaluation": {
+      "visualThesis": "A simple brass key is visibly enclosed by a clear cube",
+      "silhouetteCues": ["cube enclosure", "key ring", "shaft and teeth"],
+      "primitiveHints": ["box", "torus", "cylinder"],
+      "materialHints": ["glass", "metal"],
+      "textEssential": false,
+      "spatialRequirement": "Every key part lies inside the cube bounds with clear depth separation"
+    }
+  },
+  {
+    "id": "spatial-ladder-cloud",
+    "prompt": "a ladder emerging from a low cloud",
+    "promptClass": "spatial",
+    "nearbyScene": ["a blue cloud trapped in a jar"],
+    "evaluation": {
+      "visualThesis": "A narrow ladder rises vertically out of a low cloud bank",
+      "silhouetteCues": [
+        "parallel ladder rails",
+        "repeated rungs",
+        "cloud base"
+      ],
+      "primitiveHints": ["cylinder", "box", "sphere"],
+      "materialHints": ["matte", "metal"],
+      "textEssential": false,
+      "spatialRequirement": "The cloud overlaps the ladder's lower section while the upper rungs remain clear"
+    }
+  },
+  {
+    "id": "spatial-door-arch",
+    "prompt": "a small green door beneath a giant stone arch",
+    "promptClass": "spatial",
+    "nearbyScene": ["a gray slab split by a green shoot"],
+    "evaluation": {
+      "visualThesis": "An oversized stone arch frames a tiny saturated door",
+      "silhouetteCues": [
+        "giant arch",
+        "small rectangular door",
+        "large empty frame"
+      ],
+      "primitiveHints": ["torus", "box", "extrudedShape"],
+      "materialHints": ["matte", "glossy"],
+      "textEssential": false,
+      "spatialRequirement": "The door is centered under the arch with strong scale contrast"
+    }
+  },
+  {
+    "id": "spatial-stone-seed",
+    "prompt": "a ring of stones around a pulsing seed",
+    "promptClass": "spatial",
+    "nearbyScene": ["a yellow paper boat in a blue puddle"],
+    "evaluation": {
+      "visualThesis": "A rough low stone circle encloses one small luminous seed",
+      "silhouetteCues": ["stone ring", "central seed", "open inner gap"],
+      "primitiveHints": ["sphere", "capsule"],
+      "materialHints": ["matte", "emissive"],
+      "textEssential": false,
+      "spatialRequirement": "The seed stays inside the open center without touching the stones"
+    }
+  },
+  {
+    "id": "abstract-gentle-urgency",
+    "prompt": "gentle urgency",
+    "promptClass": "abstract",
+    "nearbyScene": [],
+    "evaluation": {
+      "visualThesis": "Soft rounded forms lean in one clear direction around a bright advancing point",
+      "silhouetteCues": [
+        "forward lean",
+        "rounded envelope",
+        "small leading point"
+      ],
+      "primitiveHints": ["capsule", "sphere", "cone"],
+      "materialHints": ["matte", "emissive"],
+      "textEssential": false,
+      "spatialRequirement": "Directional tension reads without sharp or threatening forms"
+    }
+  },
+  {
+    "id": "abstract-organized-chaos",
+    "prompt": "organized chaos",
+    "promptClass": "abstract",
+    "nearbyScene": ["a regular ring of stones around a seed"],
+    "evaluation": {
+      "visualThesis": "A regular outer frame contains varied forms at irregular angles and depths",
+      "silhouetteCues": [
+        "ordered frame",
+        "varied interior pieces",
+        "clear outer boundary"
+      ],
+      "primitiveHints": ["torus", "box", "sphere", "cone"],
+      "materialHints": ["matte", "glossy"],
+      "textEssential": false,
+      "spatialRequirement": "Irregular pieces remain contained by the ordered outer form"
+    }
+  },
+  {
+    "id": "abstract-warm-silence",
+    "prompt": "warm silence",
+    "promptClass": "abstract",
+    "nearbyScene": ["three small houses around a campfire"],
+    "evaluation": {
+      "visualThesis": "A quiet enclosure holds one diffuse warm center with generous empty space",
+      "silhouetteCues": [
+        "soft enclosing shell",
+        "small warm center",
+        "open negative space"
+      ],
+      "primitiveHints": ["sphere", "torus", "capsule"],
+      "materialHints": ["matte", "emissive"],
+      "textEssential": false,
+      "spatialRequirement": "The central glow is sheltered rather than radiating into visual clutter"
+    }
+  },
+  {
+    "id": "abstract-almost-meeting",
+    "prompt": "two ideas almost meeting",
+    "promptClass": "abstract",
+    "nearbyScene": ["a blue planet with pale moons"],
+    "evaluation": {
+      "visualThesis": "Two distinct forms reach toward a narrow luminous gap without touching",
+      "silhouetteCues": ["two opposing clusters", "narrow gap", "inward reach"],
+      "primitiveHints": ["sphere", "capsule", "cone"],
+      "materialHints": ["matte", "emissive"],
+      "textEssential": false,
+      "spatialRequirement": "The negative space between forms remains visibly open"
+    }
+  },
+  {
+    "id": "abstract-calm-impact",
+    "prompt": "calm after impact",
+    "promptClass": "abstract",
+    "nearbyScene": ["varied shapes inside a dark ring"],
+    "evaluation": {
+      "visualThesis": "Concentric low ripples settle around one displaced central form",
+      "silhouetteCues": ["wide ripple rings", "offset center", "low profile"],
+      "primitiveHints": ["torus", "sphere", "plane"],
+      "materialHints": ["matte", "glass"],
+      "textEssential": false,
+      "spatialRequirement": "Ripples expand outward from the visibly shifted center"
+    }
+  },
+  {
+    "id": "abstract-playful-gravity",
+    "prompt": "playful gravity",
+    "promptClass": "abstract",
+    "nearbyScene": ["a red sphere balanced between towers"],
+    "evaluation": {
+      "visualThesis": "Rounded forms arc toward a low center while one buoyant form resists the pull",
+      "silhouetteCues": [
+        "curved descending trail",
+        "low anchor",
+        "one rising exception"
+      ],
+      "primitiveHints": ["sphere", "torus", "capsule"],
+      "materialHints": ["toon", "glossy"],
+      "textEssential": false,
+      "spatialRequirement": "Most forms converge toward the anchor while one remains clearly elevated"
+    }
+  },
+  {
+    "id": "abstract-crowded-loneliness",
+    "prompt": "loneliness in a crowded room",
+    "promptClass": "abstract",
+    "nearbyScene": ["three houses leaning around a fire"],
+    "evaluation": {
+      "visualThesis": "Many similar upright forms cluster together while one contrasting form is isolated by a gap",
+      "silhouetteCues": [
+        "dense group",
+        "single separated form",
+        "visible empty gap"
+      ],
+      "primitiveHints": ["capsule", "cylinder"],
+      "materialHints": ["matte"],
+      "textEssential": false,
+      "spatialRequirement": "The isolated form remains near enough to read as excluded from the group"
+    }
+  },
+  {
+    "id": "abstract-deep-breath",
+    "prompt": "the rhythm of a deep breath",
+    "promptClass": "abstract",
+    "nearbyScene": ["a warm glow inside a soft enclosure"],
+    "evaluation": {
+      "visualThesis": "A nested rounded form expands from a calm center in a slow repeating rhythm",
+      "silhouetteCues": [
+        "nested soft shells",
+        "calm center",
+        "balanced spacing"
+      ],
+      "primitiveHints": ["sphere", "torus", "capsule"],
+      "materialHints": ["glass", "matte"],
+      "textEssential": false,
+      "spatialRequirement": "Layers share one center and retain visible depth between them"
+    }
+  }
+]

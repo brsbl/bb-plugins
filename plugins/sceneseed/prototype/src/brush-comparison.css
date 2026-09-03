@@ -1,0 +1,142 @@
+:root {
+  --canvas: #faf9f7;
+  --ink: #1b1b1b;
+  --accent: #505050;
+  --muted: #77736f;
+  --success: #626862;
+  --warning: #b2a58f;
+  --destructive: #9d3a3a;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  color: var(--ink);
+  background: var(--canvas);
+  font-family: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+#ladle-root {
+  padding: 0 !important;
+}
+
+.brush-evaluation {
+  --line: color-mix(in oklch, var(--ink) 14%, var(--canvas));
+  --muted-ink: color-mix(in oklch, var(--ink) 57%, var(--canvas));
+  min-height: 100vh;
+  padding: 1.4rem;
+  background: var(--canvas);
+}
+
+.brush-evaluation > header,
+.brush-evaluation > nav,
+.brush-evaluation-grid {
+  max-width: 78rem;
+  margin-inline: auto;
+}
+
+.brush-evaluation > header > p {
+  margin: 0;
+  color: var(--muted-ink);
+  font-size: 0.69rem;
+  font-weight: 650;
+  letter-spacing: 0.11em;
+  text-transform: uppercase;
+}
+
+.brush-evaluation h1 {
+  margin: 0.18rem 0 0.35rem;
+  font-size: clamp(1.55rem, 3vw, 2.5rem);
+  font-weight: 610;
+  letter-spacing: -0.045em;
+}
+
+.brush-evaluation > header > span {
+  color: var(--muted-ink);
+  font-size: 0.77rem;
+  line-height: 1.5;
+}
+
+.brush-evaluation > nav {
+  display: flex;
+  gap: 0.4rem;
+  margin-block: 1rem 0.7rem;
+}
+
+.brush-evaluation > nav button {
+  padding: 0.36rem 0.62rem;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--muted-ink);
+  background: var(--canvas);
+  font: inherit;
+  font-size: 0.69rem;
+  text-transform: capitalize;
+  cursor: pointer;
+}
+
+.brush-evaluation > nav button[aria-pressed="true"] {
+  border-color: color-mix(in oklch, var(--ink) 28%, var(--canvas));
+  color: var(--ink);
+  background: color-mix(in oklch, var(--ink) 4%, var(--canvas));
+}
+
+.brush-evaluation-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.7rem;
+}
+
+.brush-evaluation-grid > section {
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 0.85rem;
+  background: color-mix(in oklch, var(--ink) 2%, var(--canvas));
+}
+
+.brush-evaluation-grid > section > div:first-child {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  min-height: 2.7rem;
+  padding: 0.72rem 0.8rem;
+  border-bottom: 1px solid var(--line);
+  background: var(--canvas);
+}
+
+.brush-evaluation-grid strong {
+  font-size: 0.78rem;
+}
+
+.brush-evaluation-grid span {
+  color: var(--muted-ink);
+  font-size: 0.68rem;
+}
+
+.brush-evaluation-renderer {
+  position: relative;
+  height: min(68vh, 42rem);
+  min-height: 30rem;
+}
+
+.brush-evaluation-renderer .sceneseed-zoom-controls {
+  display: none;
+}
+
+@media (max-width: 760px) {
+  .brush-evaluation {
+    padding: 0.75rem;
+  }
+
+  .brush-evaluation-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .brush-evaluation-renderer {
+    min-height: 24rem;
+  }
+}
