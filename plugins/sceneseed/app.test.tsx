@@ -411,12 +411,14 @@ describe("SceneSeed app", () => {
 
   it("keeps the prompt retryable after generation is cancelled", async () => {
     const slot = track(
-      renderSlot(app.navPanels[0]!, {
-        subPath: `${SCENESEED_QA_SUBPATH}/processing`,
-      }),
+      renderSlot(app.navPanels[0]!, { subPath: SCENESEED_QA_SUBPATH }),
     );
 
-    fireEvent.click(slot.getByRole("button", { name: "Cancel" }));
+    fireEvent.change(slot.getByPlaceholderText("Enter a prompt…"), {
+      target: { value: "a cancelled paper prototype" },
+    });
+    fireEvent.click(slot.getByTestId("bb-new-thread-composer-submit"));
+    fireEvent.click(await slot.findByRole("button", { name: "Cancel" }));
 
     const retry = await slot.findByRole("button", { name: "Retry" });
     expect(slot.getByText("Ready to draw")).toBeDefined();
