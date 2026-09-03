@@ -214,6 +214,12 @@ describe("Improve Prompt composer action", () => {
       modelPickerTitle: "Claude Code: Could not load models.",
     },
     {
+      name: "a failed catalog exposing the raw model id in overflow",
+      modelPickerPlacement: "desktop-overflow" as const,
+      modelPickerText: "claude-fable-5-1",
+      modelPickerTitle: "Claude Code: Could not load models.",
+    },
+    {
       name: "an older picker with its title on the trigger",
       modelPickerPlacement: "inline" as const,
       modelPickerText: "Fable 5.1 Medium",
@@ -284,14 +290,31 @@ describe("Improve Prompt composer action", () => {
     );
   });
 
-  it.each(["desktop-overflow", "compact-overflow"] as const)(
-    "keeps a non-Fable picker generic from the %s portal",
-    async (modelPickerPlacement) => {
+  it.each([
+    {
+      name: "desktop overflow portal",
+      modelPickerPlacement: "desktop-overflow" as const,
+      modelPickerText: "5.5 Medium",
+      modelPickerTitle: "Codex: 5.5 · Medium reasoning",
+    },
+    {
+      name: "compact overflow portal",
+      modelPickerPlacement: "compact-overflow" as const,
+      modelPickerText: "5.5 Medium",
+      modelPickerTitle: "Codex: 5.5 · Medium reasoning",
+    },
+    {
+      name: "failed catalog exposing a different raw model id",
+      modelPickerPlacement: "desktop-overflow" as const,
+      modelPickerText: "claude-sonnet-5",
+      modelPickerTitle: "Claude Code: Could not load models.",
+    },
+  ])(
+    "keeps a non-Fable picker generic from the $name",
+    async (picker) => {
       configureAction({
         text: "rough Codex draft",
-        modelPickerPlacement,
-        modelPickerText: "5.5 Medium",
-        modelPickerTitle: "Codex: 5.5 · Medium reasoning",
+        ...picker,
         scope: { kind: "new-thread", projectId: "proj_1" },
         rpc: {
           startEnhancement: () => ({

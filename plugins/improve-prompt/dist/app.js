@@ -5833,7 +5833,9 @@ function promptBoxTargetModel(actionRoot) {
   const visibleLabel = modelTrigger?.textContent ?? "";
   const selectionText = `${title ?? ""}
 ${visibleLabel}`;
-  if (/\bFable 5\.1\b/iu.test(selectionText)) return FABLE_5_1_MODEL;
+  if (/\b(?:Fable 5\.1|claude-fable-5-1)\b/iu.test(selectionText)) {
+    return FABLE_5_1_MODEL;
+  }
   if (/\bLoading models\b/iu.test(selectionText)) return void 0;
   return null;
 }

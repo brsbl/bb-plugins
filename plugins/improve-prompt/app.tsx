@@ -105,7 +105,9 @@ export function promptBoxTargetModel(
     modelTrigger?.querySelector("[title]")?.getAttribute("title");
   const visibleLabel = modelTrigger?.textContent ?? "";
   const selectionText = `${title ?? ""}\n${visibleLabel}`;
-  if (/\bFable 5\.1\b/iu.test(selectionText)) return FABLE_5_1_MODEL;
+  if (/\b(?:Fable 5\.1|claude-fable-5-1)\b/iu.test(selectionText)) {
+    return FABLE_5_1_MODEL;
+  }
   if (/\bLoading models\b/iu.test(selectionText)) return undefined;
   return null;
 }
