@@ -12,6 +12,8 @@ A rerunnable community feedback report for bb: public Discord and GitHub feedbac
 
 The run directory layout and every metric definition are in [docs/run-contract.md](docs/run-contract.md). Narrative rules are in the skill's `references/narrative-guide.md`.
 
+The dashboard's shared type, spacing, color, and component rules are in [docs/design-system.md](docs/design-system.md). Apply them when changing or generating its interface.
+
 ## Install
 
 ```

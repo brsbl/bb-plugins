@@ -32,7 +32,7 @@ Five to seven, in this order, so they read as a story. Pick from these candidate
 5. **Where praise and complaints cluster.** Use theme `praise_share` and `complaint_share`; set the chart flag to `"sentiment-share"`.
 6. **Least-served demand.** The area with the lowest close rate among areas reaching at least 9% of people, and what plan it points at.
 
-Keep each claim short enough to scan in one or two lines. Evidence items should each contain one fact, with its denominator or comparison stated. Lead quantitative facts with the value, for example "32% of feedback resolved" or "73–88% weekly praise share among people praising or complaining". The dashboard separates a leading number from its label; ordinary prose still renders in full. Use two to four quantitative facts and a short context line when needed. Keep charts below the evidence.
+Keep each claim short enough to scan in one or two lines. Evidence items should each contain one fact, with its denominator or comparison stated. Lead quantitative facts with the value, for example "32% of feedback resolved" or "73–88% weekly praise share among people praising or complaining". The dashboard emphasizes that number inline at body size; ordinary prose still renders in full. Use two to four concise evidence lines. Keep charts below the evidence and follow the plugin's [design system](../../../docs/design-system.md); do not turn each supporting fact into another large metric.
 
 Mark a headline "critical" when it names a problem, "good" otherwise.
 

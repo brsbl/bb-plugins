@@ -61,7 +61,7 @@ function RunList({
               type="button"
               onClick={() => onSelect(run.id)}
               aria-current={active ? "true" : undefined}
-              className={`block w-full rounded-md px-3 py-2 text-left text-sm ${active ? "bg-accent text-accent-foreground" : "hover:bg-muted"}`}
+              className={`block w-full rounded px-4 py-2 text-left text-sm ${active ? "bg-accent text-accent-foreground" : "hover:bg-muted"}`}
             >
               <div className="font-medium">{periodLabel(run)}</div>
               <div className="text-muted-foreground text-xs">
@@ -78,7 +78,7 @@ function RunList({
 
 function EmptyState() {
   return (
-    <div className="mx-auto w-full max-w-xl space-y-3 p-6 text-sm">
+    <div className="mx-auto w-full max-w-xl space-y-4 p-6 text-sm">
       <h2 className="text-base font-semibold">No report runs yet</h2>
       <p className="text-muted-foreground">
         Ask an agent to run the feedback report for a period; the bundled
@@ -137,13 +137,13 @@ function FeedbackReportPanel() {
   return (
     <div className="flex h-full min-h-0 w-full">
       <aside className="border-border w-64 shrink-0 overflow-y-auto border-r p-2">
-        <div className="text-muted-foreground px-3 py-2 text-xs font-medium uppercase tracking-wide">
+        <div className="text-muted-foreground px-4 py-2 text-xs font-medium">
           Runs
         </div>
         <RunList runs={runs} selected={selected.id} onSelect={setSelectedId} />
       </aside>
       <section className="flex min-h-0 min-w-0 flex-1 flex-col">
-        <div className="border-border flex items-center gap-2 border-b px-3 py-2 text-sm">
+        <div className="border-border flex flex-wrap items-center gap-2 border-b px-4 py-2 text-sm">
           <span className="font-medium">{periodLabel(selected)}</span>
           <span className="text-muted-foreground">
             · {selected.repository} · imported {selected.importedAt.slice(0, 10)}
@@ -153,31 +153,31 @@ function FeedbackReportPanel() {
             type="button"
             onClick={() => void askAgent()}
             disabled={asking}
-            className="border-border inline-flex items-center gap-1 rounded-md border px-2 py-1 text-xs hover:bg-muted disabled:opacity-60"
+            className="border-border inline-flex h-8 shrink-0 items-center gap-1 whitespace-nowrap rounded border px-2 py-1 text-sm hover:bg-muted disabled:opacity-60"
           >
-            <MessageSquare className="size-3.5" aria-hidden="true" />
+            <MessageSquare className="size-4" aria-hidden="true" />
             {selected.threadId ? "Open agent thread" : "Ask the agent"}
           </button>
           <a
             href={dashboardUrl(selected.id)}
             target="_blank"
             rel="noreferrer"
-            className="border-border inline-flex items-center gap-1 rounded-md border px-2 py-1 text-xs hover:bg-muted"
+            className="border-border inline-flex h-8 shrink-0 items-center gap-1 whitespace-nowrap rounded border px-2 py-1 text-sm hover:bg-muted"
           >
-            <ExternalLink className="size-3.5" aria-hidden="true" />
+            <ExternalLink className="size-4" aria-hidden="true" />
             Open in browser
           </a>
           <button
             type="button"
             onClick={() => void refresh()}
             aria-label="Refresh runs"
-            className="border-border inline-flex items-center rounded-md border p-1 hover:bg-muted"
+            className="border-border inline-flex size-8 shrink-0 items-center justify-center rounded border p-1 hover:bg-muted"
           >
-            <RefreshCw className="size-3.5" aria-hidden="true" />
+            <RefreshCw className="size-4" aria-hidden="true" />
           </button>
         </div>
         {askError ? (
-          <p className="text-destructive border-border border-b px-3 py-2 text-xs">{askError}</p>
+          <p className="text-destructive border-border border-b px-4 py-2 text-xs">{askError}</p>
         ) : null}
         <iframe
           key={selected.id}
