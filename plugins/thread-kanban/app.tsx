@@ -1,6 +1,7 @@
 import {
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -34,6 +35,41 @@ import type { BoardPayload, BoardThread, rpcContract } from "./server";
 const POLL_INTERVAL_MS = 10_000;
 const SIGNAL_DEBOUNCE_MS = 300;
 const DRAG_MIME = "application/x-bb-thread-id";
+
+function useSidebarTheme() {
+  const ref = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    const target = ref.current;
+    if (!target) return;
+    const tokens = [
+      "--sidebar", "--sidebar-foreground", "--sidebar-accent",
+      "--sidebar-accent-foreground", "--sidebar-ring", "--muted-foreground",
+      "--foreground", "--warning-text", "--destructive", "--font-sans", "--radius",
+    ];
+    const sync = () => {
+      const sidebar = document.querySelector(".fixed.bg-sidebar");
+      if (!sidebar) {
+        for (const token of tokens) target.style.removeProperty(token);
+        return;
+      }
+      const style = getComputedStyle(sidebar);
+      for (const token of tokens) {
+        const value = style.getPropertyValue(token);
+        if (target.style.getPropertyValue(token) !== value) {
+          target.style.setProperty(token, value);
+        }
+      }
+    };
+    sync();
+    const observer = new MutationObserver(sync);
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ["class", "style"] });
+    observer.observe(document.head, { childList: true, subtree: true, characterData: true, attributes: true });
+    const sidebar = document.querySelector(".fixed.bg-sidebar");
+    if (sidebar) observer.observe(sidebar, { attributes: true, attributeFilter: ["class", "style"] });
+    return () => observer.disconnect();
+  }, []);
+  return ref;
+}
 
 function toneClass(tone: ThreadTone): string {
   switch (tone) {
@@ -164,7 +200,7 @@ function ThreadCard({
   return (
     <article
       aria-label={thread.title}
-      className={`group/card cursor-grab select-none rounded-md border border-border bg-card px-2.5 py-2 text-sm text-card-foreground shadow-xs transition-opacity hover:border-foreground/25 active:cursor-grabbing ${
+      className={`group/thread-row group/card relative w-full cursor-grab select-none rounded-md bg-sidebar px-2 py-2 text-sm text-sidebar-foreground/85 transition-none dark:text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground active:cursor-grabbing ${
         dragging ? "opacity-40" : ""
       } ${moving ? "opacity-60" : ""}`}
       data-thread-id={thread.id}
@@ -172,20 +208,25 @@ function ThreadCard({
       onDragEnd={onDragEnd}
       onDragStart={onDragStart}
     >
-      <button
-        className="w-full text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-sm"
-        onClick={onOpen}
-        title="Open thread"
-        type="button"
-      >
-        <span className="line-clamp-2 font-medium leading-snug">{thread.title}</span>
-      </button>
-      <div className="mt-1.5 flex items-center gap-1.5 text-xs text-muted-foreground">
+      <a
+        aria-label={`Open ${thread.title}`}
+        className="absolute inset-0 cursor-inherit rounded-md outline-none ring-sidebar-ring focus-visible:ring-2"
+        data-sidebar-thread-id={thread.id}
+        draggable={false}
+        href={`/projects/${encodeURIComponent(thread.projectId)}/threads/${encodeURIComponent(thread.id)}`}
+        onClick={(event) => {
+          if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+          event.preventDefault();
+          if (!dragging && !moving) onOpen();
+        }}
+      />
+      <span className="pointer-events-none line-clamp-2 font-normal">{thread.title}</span>
+      <div className="pointer-events-none mt-1.5 flex items-center gap-1.5 text-xs text-muted-foreground group-hover/card:text-inherit">
         <span
           aria-hidden="true"
           className={`inline-block size-1.5 rounded-full ${toneClass(tone)}`}
         />
-        <span className={tone === "idle" ? "" : "text-foreground/80"}>{label}</span>
+        <span>{label}</span>
         {thread.pinned ? <span aria-label="Pinned">· pinned</span> : null}
         <span className="ml-auto tabular-nums" title={new Date(thread.updatedAt).toLocaleString()}>
           {relativeTime(thread.updatedAt)}
@@ -282,6 +323,7 @@ function Column({
 type BoardApi = ReturnType<typeof useBoard>;
 
 function BoardView({ board }: { board: BoardApi }) {
+  const sidebarThemeRef = useSidebarTheme();
   const navigate = useBbNavigate();
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [dropTargetKey, setDropTargetKey] = useState<string | null>(null);
@@ -333,7 +375,7 @@ function BoardView({ board }: { board: BoardApi }) {
 
   if (columns.length === 0) {
     return (
-      <div className="flex flex-1 flex-col items-center justify-center gap-1 text-sm text-muted-foreground">
+      <div ref={sidebarThemeRef} className="flex flex-1 flex-col items-center justify-center gap-1 text-sm text-muted-foreground">
         <p>No thread sections yet.</p>
         <p className="text-xs">Create one in the sidebar and it becomes a column here.</p>
       </div>
@@ -341,7 +383,7 @@ function BoardView({ board }: { board: BoardApi }) {
   }
 
   return (
-    <div className="flex min-h-0 flex-1 gap-3 overflow-x-auto p-4 md:p-5">
+    <div ref={sidebarThemeRef} className="flex min-h-0 flex-1 gap-3 overflow-x-auto p-4 md:p-5">
       {columns.map((column) => (
         <Column
           column={column}

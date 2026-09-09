@@ -26,9 +26,12 @@ Open **Thread Kanban** from the sidebar.
 - Archived, hidden, and child threads stay off the board.
 - Drag a card to another column to move that thread into the section. The
   move goes through bb's thread update, so the sidebar follows immediately.
-- Click a card title to open the thread. Each card shows the thread's live
+- Click a card to open the thread. Each card shows the thread's live
   status, whether it needs your input or has unread output, and when it was
   last updated.
+- Cards use bb's sidebar typography, theme colors, hover colors, and keyboard
+  focus ring. Theme changes apply immediately. When Thread Hover Cards is
+  installed, hovering or focusing a card opens the same thread preview.
 - The board refreshes live from bb thread changes and re-reads sections every
   ten seconds while visible.
 - Switch to **Dashboard** with the toggle in the title bar. It lists threads

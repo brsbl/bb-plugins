@@ -102,7 +102,7 @@ describe("Thread Kanban board", () => {
         moveThread: (input) => thread({ id: input.threadId, title: "x" }),
       },
     });
-    fireEvent.click(await slot.findByText("Build it"));
+    fireEvent.click(await slot.findByRole("link", { name: "Open Build it" }));
     expect(slot.inspection.navigateCalls).toEqual([{ method: "toThread", threadId: "thr_b" }]);
   });
 
