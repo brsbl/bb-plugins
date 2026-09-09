@@ -530,14 +530,13 @@ function DashboardView({ board }: { board: BoardApi }) {
   return (
     <div className="min-h-0 flex-1 overflow-y-auto p-4 md:p-5">
       <div className="mx-auto w-full max-w-5xl space-y-4">
-        <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+        <div className="grid gap-3 sm:grid-cols-3">
           <StatTile hint="agents working" label="Active now" value={summary.active.length} />
           <StatTile
             hint="input needed or unread"
             label="Waiting on me"
             value={summary.waiting.length}
           />
-          <StatTile label="Sections" value={summary.perSection.length} />
           <StatTile hint="on the board" label="Threads" value={payload.threads.length} />
         </div>
 
