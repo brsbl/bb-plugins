@@ -130,8 +130,7 @@
 <div class="viz-root" id="root">
   <header>
     <h1><span id="pageTitle"></span></h1>
-    <p class="sub">Community feedback (public Discord and <span id="subRepository"></span> GitHub, maintainers excluded) against development on <code>main</code>. One piece of feedback = one GitHub issue, one Discord thread, or one standalone channel post, counted once however many messages it holds. <span id="subBuckets"></span> weekly buckets show levels, not trends.</p>
-    <p class="note">Hover or focus any mark for values; every chart has a table view.</p>
+    <p class="sub">Public Discord and <span id="subRepository"></span> GitHub feedback, compared with development on <code>main</code>. Maintainers excluded.</p>
   </header>
   <div class="err" id="err"></div>
 
@@ -157,7 +156,6 @@
     <div class="controls" style="margin:0 0 10px">
       <label for="themeSel">Filter areas by theme</label>
       <select id="themeSel"><option value="">All themes</option></select>
-      <span class="note">Applies to everything in this tab.</span>
     </div>
     <h2 class="first">Where demand is</h2>
     <div class="card"><figure id="fDemand"></figure></div>
@@ -165,7 +163,7 @@
     <div class="card"><figure id="fRes"></figure></div>
     <h2>Scorecard by area</h2>
     <div class="card">
-      <p class="note" style="margin:0 0 8px" id="scoreNote">Click a column to sort.</p>
+      <p class="note" style="margin:0 0 8px" id="scoreNote"></p>
       <table id="score"><thead><tr>
         <th class="sortable" data-k="area">Area</th><th class="sortable" data-k="theme">Theme</th>
         <th class="num sortable" data-k="topics">Feedback</th><th class="num sortable" data-k="people_pct">People %</th>
@@ -215,12 +213,12 @@
         <li id="dataDevelopment"></li>
         <li id="dataInstrumentation"></li>
         <li id="dataQc"></li>
-        <li>Artifacts: classification, weekly series, area summary, commit ledger and rules, issue closure, resolution matches, taxonomy map and definitions, QC samples, and this dashboard's generator, all in the run's artifacts folder.</li>
+        <li>Artifacts: classification, weekly series, area summary, commit ledger and rules, issue closure, resolution matches, taxonomy map and definitions, QC samples, and report data, all in the run directory.</li>
       </ul>
     </div>
   </section>
 
-  <footer><button id="darkBtn" type="button" class="iconbtn" aria-pressed="false" aria-label="Toggle dark mode" title="Toggle dark mode">☾</button> <span id="footerSource"></span> Two-period changes are called signal only when they exceed 2·√(prior + latest). Close counts stop at the <span id="footerCutoff"></span> cutoff, so later weeks had less time to close.</footer>
+  <footer><button id="darkBtn" type="button" class="iconbtn" aria-pressed="false" aria-label="Toggle dark mode" title="Toggle dark mode">☾</button> <span id="footerSource"></span> Close counts stop at the <span id="footerCutoff"></span> cutoff, so later weeks had less time to close.</footer>
 <div id="tip" class="tip" role="tooltip" aria-hidden="true"></div>
 </div>
 <script>
@@ -235,8 +233,6 @@ window.addEventListener('error', function (e) { var b = document.getElementById(
   var css = getComputedStyle(document.getElementById('root'));
   function tok(name) { return css.getPropertyValue(name).trim(); }
   var RAMP = ['#cde2fb', '#9ec5f4', '#6da7ec', '#3987e5', '#256abf', '#184f95', '#0d366b'];
-
-  // ---- tooltip ----
   var tip = document.getElementById('tip');
   function showTip(title, rows, x, y) {
     while (tip.firstChild) tip.removeChild(tip.firstChild);
@@ -252,8 +248,6 @@ window.addEventListener('error', function (e) { var b = document.getElementById(
     node.addEventListener('focus', function () { var r = node.getBoundingClientRect(); var c = getContent(); showTip(c.title, c.rows, r.right, r.top); });
     node.addEventListener('blur', hideTip);
   }
-
-  // ---- figure scaffold with table view ----
   function figure(id, title, caption, buildChart, buildTable) {
     var fig = document.getElementById(id); while (fig.firstChild) fig.removeChild(fig.firstChild);
     var btn = h('button', { type: 'button', 'aria-pressed': 'false', text: 'Table' });
@@ -272,8 +266,6 @@ window.addEventListener('error', function (e) { var b = document.getElementById(
   function roundedRight(x, y, w, hgt, r) { if (w <= r) return 'M' + x + ',' + y + ' h' + w + ' v' + hgt + ' h' + (-w) + ' z'; return 'M' + x + ',' + y + ' h' + (w - r) + ' a' + r + ',' + r + ' 0 0 1 ' + r + ',' + r + ' v' + (hgt - 2 * r) + ' a' + r + ',' + r + ' 0 0 1 ' + (-r) + ',' + r + ' h' + (-(w - r)) + ' z'; }
   function roundedLeft(x, y, w, hgt, r) { if (w <= r) return 'M' + x + ',' + y + ' h' + (-w) + ' v' + hgt + ' h' + w + ' z'; return 'M' + x + ',' + y + ' h' + (-(w - r)) + ' a' + r + ',' + r + ' 0 0 0 ' + (-r) + ',' + r + ' v' + (hgt - 2 * r) + ' a' + r + ',' + r + ' 0 0 0 ' + r + ',' + r + ' h' + (w - r) + ' z'; }
   function niceMax(v) { if (v <= 0) return 1; var p = Math.pow(10, Math.floor(Math.log10(v))); var m = v / p; var n = m <= 1 ? 1 : m <= 2 ? 2 : m <= 2.5 ? 2.5 : m <= 5 ? 5 : 10; return n * p; }
-
-  // ---- horizontal bars (single series) ----
   function hbars(container, rows, opts) {
     var W = Math.max(320, container.clientWidth || 480), LW = opts.labelWidth || 170, RH = 22, BH = 14, top = 6, right = 48;
     var H = top + rows.length * RH + 8; var max = niceMax(Math.max.apply(null, rows.map(function (r) { return r.value; })));
@@ -289,7 +281,6 @@ window.addEventListener('error', function (e) { var b = document.getElementById(
     });
     container.appendChild(svg);
   }
-  // ---- diverging bars ----
   function diverging(container, rows) {
     var W = Math.max(320, container.clientWidth || 480), LW = 170, RH = 22, BH = 14, top = 6; var H = top + rows.length * RH + 8;
     var max = niceMax(Math.max.apply(null, rows.map(function (r) { return Math.max(r.neg, r.pos); }))); var half = (W - LW - 40) / 2; var cx = LW + half;
@@ -306,7 +297,6 @@ window.addEventListener('error', function (e) { var b = document.getElementById(
     });
     container.appendChild(svg);
   }
-  // ---- grouped horizontal bars (2 series) ----
   function grouped(container, rows, series) {
     var W = Math.max(320, container.clientWidth || 480), LW = 170, RH = 40, BH = 12, top = 6, right = 48; var H = top + rows.length * RH + 8;
     var max = niceMax(Math.max.apply(null, rows.map(function (r) { return Math.max(r.v[0], r.v[1]); }))); var pw = W - LW - right;
@@ -319,7 +309,6 @@ window.addEventListener('error', function (e) { var b = document.getElementById(
     });
     container.appendChild(svg);
   }
-  // ---- line chart with crosshair ----
   function lines(container, labels, series, opts) {
     opts = opts || {}; var W = Math.max(320, container.clientWidth || 480), H = opts.height || 220, m = { l: 40, r: 44, t: 14, b: 26 };
     var max = niceMax(Math.max.apply(null, series.map(function (sr) { return Math.max.apply(null, sr.values); }))); var pw = W - m.l - m.r, ph = H - m.t - m.b;
@@ -340,7 +329,6 @@ window.addEventListener('error', function (e) { var b = document.getElementById(
     container.appendChild(svg);
     if (series.length > 1) container.appendChild(legend(series, true));
   }
-  // ---- heatmap ----
   function heatmap(container, rowsLabels, cols, cells, opts) {
     var W = Math.max(320, container.clientWidth || 600), LW = 180, CH = 26, CW = Math.min(110, Math.floor((W - LW - 10) / cols.length)), top = 22; var H = top + rowsLabels.length * CH + 6;
     var svg = s('svg', { width: W, height: H, viewBox: '0 0 ' + W + ' ' + H, role: 'img' });
@@ -359,8 +347,6 @@ window.addEventListener('error', function (e) { var b = document.getElementById(
     var sc = h('div', { class: 'legend' }); sc.appendChild(h('span', { text: opts.scaleLabel + ': 0%' })); RAMP.forEach(function (c) { var k = h('span', { class: 'k' }); k.style.background = c; k.style.marginRight = '1px'; sc.appendChild(k); }); sc.appendChild(h('span', { text: '100%' })); container.appendChild(sc);
   }
   function spark(values, w, hgt, color) { var max = Math.max.apply(null, values) || 1, min = 0; var svg = s('svg', { width: w, height: hgt, viewBox: '0 0 ' + w + ' ' + hgt, 'aria-hidden': 'true' }); var x = function (i) { return 4 + (w - 8) * i / (values.length - 1); }, y = function (v) { return hgt - 4 - (hgt - 8) * (v - min) / (max - min || 1); }; svg.appendChild(s('path', { d: values.map(function (v, i) { return (i ? 'L' : 'M') + x(i) + ',' + y(v); }).join(' '), fill: 'none', stroke: tok('--gray'), 'stroke-width': 2, 'stroke-linecap': 'round', 'stroke-linejoin': 'round' })); var l = values.length - 1; svg.appendChild(s('circle', { cx: x(l), cy: y(values[l]), r: 4, fill: color, stroke: tok('--surface-1'), 'stroke-width': 2 })); return svg; }
-
-  // ================= render =================
   var D = DATA; var state = { theme: '', sortKey: 'topics', sortDir: -1 };
   var meta = D.meta || {}; var method = meta.method || {};
   function methodText(key) { return typeof method[key] === 'string' ? method[key] : ''; }
@@ -391,10 +377,10 @@ window.addEventListener('error', function (e) { var b = document.getElementById(
   function renderDecisions() { document.getElementById('recRule').textContent = D.rec_rule; document.getElementById('untrackedNote').textContent = D.untracked_note; var c = document.getElementById('decisions'); while (c.firstChild) c.removeChild(c.firstChild); D.recs.forEach(function (d) { var chips = h('div', { class: 'chips' }, [h('span', { class: 'chip' }, [h('span', { text: 'People' }), d[3] + '%']), h('span', { class: 'chip' }, [h('span', { text: 'Open' }), d[4] + '%']), h('span', { class: 'chip' }, [h('span', { text: 'Close rate' }), d[5] + '%']), h('span', { class: 'chip' }, [h('span', { text: 'Resolved' }), d[7] == null ? '–' : d[7] + '%'])]); c.appendChild(h('div', { class: 'rec' }, [h('div', null, [h('span', { class: 'tag ' + d[0], text: d[0] })]), h('div', null, [h('h4', null, [d[1], h('span', { class: 'area', text: d[2] })]), h('ul', { class: 'hb' }, d[6].map(function (x) { return h('li', { text: x }); })), chips])])); }); }
   function demandRows(container, rows) { var W = Math.max(480, container.clientWidth || 900), LW = 200, RH = 22, BH = 14, top = 22, SW = 220, gap = 40; var H = top + rows.length * RH + 8; var max = niceMax(Math.max.apply(null, rows.map(function (r) { return r.topics; }))); var smax = niceMax(Math.max.apply(null, rows.map(function (r) { return Math.max(r.positive, r.negative); }))); var pw = W - LW - SW - gap - 48; var sx = LW + pw + gap + 40; var half = (SW - 40) / 2; var cx = sx + half; var svg = s('svg', { width: W, height: H, viewBox: '0 0 ' + W + ' ' + H, role: 'img' }); svg.appendChild(s('text', { x: LW, y: 12, class: 'axis-text', text: 'Feedback (count)' })); svg.appendChild(s('text', { x: cx, y: 12, 'text-anchor': 'middle', class: 'axis-text', text: 'Complaints  |  Praise (records)' })); svg.appendChild(s('line', { x1: LW, x2: LW, y1: top, y2: H - 8, class: 'baseline' })); svg.appendChild(s('line', { x1: cx, x2: cx, y1: top, y2: H - 8, class: 'baseline' })); rows.forEach(function (r, i) { var y = top + i * RH + (RH - BH) / 2; var w = pw * r.topics / max; svg.appendChild(s('text', { x: LW - 8, y: y + BH - 3, 'text-anchor': 'end', class: 'lbl', text: r.short })); svg.appendChild(s('path', { d: roundedRight(LW + 1, y, w, BH, 4), class: 'bar', tabindex: '0' })); svg.appendChild(s('text', { x: LW + 1 + w + 6, y: y + BH - 3, class: 'val', text: String(r.topics) })); var wn = half * r.negative / smax, wp = half * r.positive / smax; if (r.negative) { svg.appendChild(s('path', { d: roundedLeft(cx - 1, y + 2, wn, BH - 4, 3), class: 'bar neg' })); svg.appendChild(s('text', { x: cx - 1 - wn - 4, y: y + BH - 3, 'text-anchor': 'end', class: 'val', text: String(r.negative) })); } if (r.positive) { svg.appendChild(s('path', { d: roundedRight(cx + 1, y + 2, wp, BH - 4, 3), class: 'bar' })); svg.appendChild(s('text', { x: cx + 1 + wp + 4, y: y + BH - 3, class: 'val', text: String(r.positive) })); } var hit = s('rect', { x: 0, y: top + i * RH, width: W, height: RH, class: 'hit' }); svg.appendChild(hit); bindTip(hit, function () { return { title: r.area, rows: [{ label: 'Feedback', value: String(r.topics), color: tok('--s1') }, { label: 'People', value: String(r.people) }, { label: 'Requests share', value: r.req_pct + '%' }, { label: 'Praise records', value: String(r.positive), color: tok('--s1') }, { label: 'Complaint records', value: String(r.negative), color: tok('--red') }] }; }); }); container.appendChild(svg); }
   function stackedRes(container, rows) { var W = Math.max(480, container.clientWidth || 900), LW = 200, RH = 22, BH = 14, top = 6, right = 56; var H = top + rows.length * RH + 8; var pw = W - LW - right; var cols = [['resolved', tok('--good'), 'Resolved'], ['open', tok('--gray'), 'Tracked in an open issue'], ['untracked', tok('--warning'), 'Not tracked'], ['unclear', tok('--mid'), 'Unclear'], ['pending', tok('--mid'), 'Pending']]; var svg = s('svg', { width: W, height: H, viewBox: '0 0 ' + W + ' ' + H, role: 'img' }); rows.forEach(function (r, i) { var y = top + i * RH + (RH - BH) / 2; var n = r.res.n || 1; var x = LW + 1; svg.appendChild(s('text', { x: LW - 8, y: y + BH - 3, 'text-anchor': 'end', class: 'lbl', text: r.short })); cols.forEach(function (c) { var v = r.res[c[0]] || 0; if (!v) return; var w = pw * v / n; var seg = s('rect', { x: x, y: y, width: Math.max(0, w - 2), height: BH, rx: 2, fill: c[1] }); svg.appendChild(seg); x += w; }); svg.appendChild(s('text', { x: LW + 1 + pw + 6, y: y + BH - 3, class: 'val', text: (r.res.resolved_pct == null ? '–' : r.res.resolved_pct + '%') })); var hit = s('rect', { x: 0, y: top + i * RH, width: W, height: RH, class: 'hit' }); svg.appendChild(hit); bindTip(hit, function () { return { title: r.area, rows: cols.filter(function (c) { return r.res[c[0]]; }).map(function (c) { return { label: c[2], value: r.res[c[0]] + ' of ' + r.res.n, color: c[1] }; }) }; }); }); container.appendChild(legend(cols.filter(function (c) { return rows.some(function (r) { return r.res[c[0]]; }); }).map(function (c) { return { name: c[2], color: c[1] }; }))); container.appendChild(svg); }
-  function renderRes() { var rows = areasIn().slice().sort(function (a, b) { return b.topics - a.topics; }); figure('fRes', 'Resolution of each area\'s feedback by ' + cutoffLabel, 'Every piece of feedback checked against issue state and the commit history. Resolved = closed GitHub issue or a Discord ask matched to a commit or closed issue. The number at the end is the resolved share.', function (c) { stackedRes(c, rows); }, function (c) { c.appendChild(table(['Area', 'Feedback', 'Resolved', 'Resolved by PR', 'Tracked open', 'Not tracked', 'Unclear', 'Resolved %'], rows.map(function (a) { return [a.area, a.res.n, a.res.resolved, a.res.resolved_pr, a.res.open, a.res.untracked, a.res.unclear, a.res.resolved_pct == null ? '–' : a.res.resolved_pct + '%']; }))); }); }
+  function renderRes() { var rows = areasIn().slice().sort(function (a, b) { return b.topics - a.topics; }); figure('fRes', 'Resolution of each area\'s feedback by ' + cutoffLabel, 'Resolved: a closed GitHub issue, or Discord feedback matched to a commit or closed issue.', function (c) { stackedRes(c, rows); }, function (c) { c.appendChild(table(['Area', 'Feedback', 'Resolved', 'Resolved by PR', 'Tracked open', 'Not tracked', 'Unclear', 'Resolved %'], rows.map(function (a) { return [a.area, a.res.n, a.res.resolved, a.res.resolved_pr, a.res.open, a.res.untracked, a.res.unclear, a.res.resolved_pct == null ? '–' : a.res.resolved_pct + '%']; }))); }); }
   function renderDemand() {
     var rows = areasIn().slice().sort(function (a, b) { return b.topics - a.topics; });
-    figure('fDemand', 'Feedback by area, with praise and complaints on the same row', 'Left: feedback counted once per GitHub issue, Discord thread, or channel post, sorted by volume. Right: records with positive or negative tone that name the area.',
+    figure('fDemand', 'Feedback, praise, and complaints by area', 'Praise and complaints count messages that name the area.',
       function (c) { demandRows(c, rows); },
       function (c) { c.appendChild(table(['Area', 'Feedback', 'People', 'Requests share', 'Praise records', 'Complaint records'], rows.map(function (a) { return [a.area, a.topics, a.people, a.req_pct + '%', a.positive, a.negative]; }))); });
   }
@@ -404,17 +390,17 @@ window.addEventListener('error', function (e) { var b = document.getElementById(
       function (c) { c.appendChild(legend([{ name: 'Praise', color: tok('--s1') }, { name: 'Complaints', color: tok('--red') }])); diverging(c, rows.map(function (a) { return { label: a.short, full: a.area, pos: a.positive, neg: a.negative }; })); },
       function (c) { c.appendChild(table(['Area', 'Praise', 'Complaints'], rows.map(function (a) { return [a.area, a.positive, a.negative]; }))); });
   }
-  function renderScore() { document.getElementById('scoreNote').textContent = 'Click a column to sort. People % of ' + D.totals.people + '; Open % of the ' + D.totals.open + ' issues still open on ' + cutoffLabel + '; Aging % = share of the area\'s open issues older than two weeks; Resolved % = share of all the area\'s feedback (GitHub and Discord) matched to a closed issue or a commit by ' + cutoffLabel + '; hover a row for counts.';
+  function renderScore() { document.getElementById('scoreNote').textContent = 'People % of ' + D.totals.people + '; Open % of the ' + D.totals.open + ' issues still open on ' + cutoffLabel + '; Aging % = share of the area\'s open issues older than two weeks; Resolved % = share of all the area\'s feedback (GitHub and Discord) matched to a closed issue or a commit by ' + cutoffLabel + '.';
     var tb = document.querySelector('#score tbody'); while (tb.firstChild) tb.removeChild(tb.firstChild);
     var rows = areasIn().slice().sort(function (a, b) { var k = state.sortKey; var va = k === 'resolved_pct' ? a.res.resolved_pct : a[k], vb = k === 'resolved_pct' ? b.res.resolved_pct : b[k]; if (typeof va === 'string') return state.sortDir * va.localeCompare(vb); va = va == null ? -1 : va; vb = vb == null ? -1 : vb; return state.sortDir * (va - vb); });
     rows.forEach(function (a) { var meter = h('span', { class: 'meter' }, [h('i')]); meter.firstChild.style.width = (a.close_pct || 0) + '%'; var tr = h('tr', { tabindex: '0' }, [h('td', null, [h('b', { text: a.area })]), h('td', { text: a.theme }), h('td', { class: 'num', text: String(a.topics) }), h('td', { class: 'num', text: a.people_pct + '%' }), h('td', { class: 'num', text: a.req_pct + '%' }), h('td', { class: 'num' }, [meter, a.close_pct == null ? '–' : a.close_pct + '%']), h('td', { class: 'num', text: a.res.resolved_pct == null ? '–' : a.res.resolved_pct + '%' }), h('td', { class: 'num', text: fmt(a.median_days, 1) }), h('td', { class: 'num', text: a.open_pct + '%' }), h('td', { class: 'num', text: a.aging_pct == null ? '–' : a.aging_pct + '%' }), h('td', null, [h('span', { class: 'rd ' + a.read_kind }), a.read])]); bindTip(tr, function () { return { title: a.area, rows: [{ label: 'People', value: String(a.people) }, { label: 'Requests / bugs', value: a.requests + ' / ' + a.bugs }, { label: 'Issues opened', value: String(a.opened) }, { label: 'Open · aging', value: a.open + ' · ' + a.aging }] }; }); tb.appendChild(tr); });
     document.querySelectorAll('#score th.sortable').forEach(function (th) { th.setAttribute('aria-sort', th.dataset.k === state.sortKey ? (state.sortDir < 0 ? 'descending' : 'ascending') : 'none'); });
   }
   function renderWeekly() {
-    figure('fWeekly', 'Feedback and people reporting, per week', 'Both are counts; swings under about 20 feedback items or 10 people are within noise.',
+    figure('fWeekly', 'Feedback and people reporting, per week', 'Weekly counts.',
       function (c) { lines(c, D.weeks, [{ name: 'Feedback', values: D.weekly.map(function (w) { return w.topics; }), color: tok('--s1') }, { name: 'People reporting', values: D.weekly.map(function (w) { return w.people; }), color: tok('--s2') }]); },
       function (c) { c.appendChild(table(['Week', 'Feedback', 'People', 'Bugs', 'Requests'], D.weekly.map(function (w) { return [w.week, w.topics, w.people, w.bugs, w.requests]; }))); });
-    figure('fSentWeekly', 'People praising vs complaining, per week', 'Unique authors with a positive or negative record of any kind.',
+    figure('fSentWeekly', 'People praising vs complaining, per week', 'Unique authors with a positive or negative record.',
       function (c) { lines(c, D.weeks, [{ name: 'Praising', values: D.weekly.map(function (w) { return w.pos; }), color: tok('--s1') }, { name: 'Complaining', values: D.weekly.map(function (w) { return w.neg; }), color: tok('--red') }]); },
       function (c) { c.appendChild(table(['Week', 'Praising', 'Complaining'], D.weekly.map(function (w) { return [w.week, w.pos, w.neg]; }))); });
     var moved = D.areas.filter(function (a) { return a.signal; }).sort(function (a, b) { return Math.abs(b.delta) - Math.abs(a.delta); }).slice(0, 3);
@@ -434,7 +420,7 @@ window.addEventListener('error', function (e) { var b = document.getElementById(
   var heatMetric = 'req';
   function renderHeat() {
     var rows = areasIn(); var fig = document.getElementById('fHeat');
-    var metrics = { req: { title: 'Requests share by area and week', cap: 'Share of that week\'s feedback that is requests rather than bugs. Hover a cell for counts.', scale: 'Requests share' }, close: { title: 'Close rate by area and week', cap: 'Share of issues opened that week that were closed by ' + cutoffLabel + '. Later weeks had less time to close. Hover a cell for counts.', scale: 'Close rate' } };
+    var metrics = { req: { title: 'Requests share by area and week', cap: 'Share of that week\'s feedback that is requests rather than bugs.', scale: 'Requests share' }, close: { title: 'Close rate by area and week', cap: 'Share of issues opened that week that were closed by ' + cutoffLabel + '. Later weeks had less time to close.', scale: 'Close rate' } };
     var mt = metrics[heatMetric];
     figure('fHeat', mt.title, mt.cap,
       function (c) {
@@ -446,19 +432,16 @@ window.addEventListener('error', function (e) { var b = document.getElementById(
   }
   function renderReach() {
     var rows = D.themes.slice().sort(function (a, b) { return b.people_pct - a.people_pct; });
-    figure('fReach', 'Share of people affected vs share of commits, by theme', 'Commits are a rough proxy for attention; this shows where attention lags reach, not whether the work was right.',
+    figure('fReach', 'Share of people affected vs share of commits, by theme', 'Commits are a rough proxy for attention; the gap shows where attention lags reach.',
       function (c) { var sr = [{ name: 'People (% of ' + D.totals.people + ')', color: tok('--s1') }, { name: 'Commits (% of ' + D.totals.commits + ')', color: tok('--s2') }]; c.appendChild(legend(sr)); grouped(c, rows.map(function (t) { return { label: t.theme, v: [t.people_pct, t.commits_pct], abs: [t.people + ' people', t.commits + ' commits'] }; }), sr); },
       function (c) { c.appendChild(table(['Theme', 'People', 'People %', 'Commits', 'Commits %', 'Open'], rows.map(function (t) { return [t.theme, t.people, t.people_pct + '%', t.commits, t.commits_pct + '%', t.open]; }))); });
   }
   function renderAsks() { var tb = document.querySelector('#asks tbody'); while (tb.firstChild) tb.removeChild(tb.firstChild); Object.keys(D.asks).forEach(function (a) { var ar = D.areas.filter(function (x) { return x.area === a; })[0]; if (state.theme && ar && ar.theme !== state.theme) return; tb.appendChild(h('tr', null, [h('td', null, [h('b', { text: a })]), h('td', { text: D.asks[a][0] }), h('td', { text: D.asks[a][1] })])); }); }
   function renderAll() { css = getComputedStyle(document.getElementById('root')); renderKpis(); renderHeadlines(); renderDecisions(); var cur = Object.keys(panels || {}).filter(function (k) { return panels[k] && !panels[k].hidden; })[0] || 'areas'; if (cur === 'areas') { renderDemand(); renderRes(); renderScore(); renderAsks(); } else if (cur === 'trends') { renderWeekly(); renderHeat(); renderReach(); } }
-
-  // tabs
   var tabBtns = document.querySelectorAll('.tabs [role=tab]'); var panels = { areas: document.getElementById('tab-areas'), trends: document.getElementById('tab-trends'), method: document.getElementById('tab-method') };
   function showTab(name) { Object.keys(panels).forEach(function (k) { panels[k].hidden = k !== name; }); tabBtns.forEach(function (b) { b.setAttribute('aria-selected', b.dataset.tab === name ? 'true' : 'false'); }); if (name === 'areas') { renderDemand(); renderRes(); renderScore(); renderAsks(); } if (name === 'trends') { renderWeekly(); renderHeat(); renderReach(); } if (history.replaceState) history.replaceState(null, '', '#' + name); }
   tabBtns.forEach(function (b) { b.addEventListener('click', function () { showTab(b.dataset.tab); }); });
   document.getElementById('methodRule').textContent = D.rec_rule;
-  // controls
   var sel = document.getElementById('themeSel'); D.themes.forEach(function (t) { sel.appendChild(h('option', { value: t.theme, text: t.theme })); });
   sel.addEventListener('change', function () { state.theme = sel.value; renderDemand(); renderRes(); renderScore(); renderHeat(); renderAsks(); });
   document.querySelectorAll('#score th.sortable').forEach(function (th) { th.addEventListener('click', function () { var k = th.dataset.k; if (state.sortKey === k) state.sortDir = -state.sortDir; else { state.sortKey = k; state.sortDir = (k === 'area' || k === 'theme' || k === 'read_kind') ? 1 : -1; } renderScore(); }); });
@@ -472,7 +455,6 @@ window.addEventListener('error', function (e) { var b = document.getElementById(
   document.title = meta.repository + ' feedback dashboard — ' + rangeLabel(meta.periodStart, meta.asOf);
   setText('dataWindow', 'Window: ' + meta.periodStart + ' to ' + meta.asOf + ', ' + meta.weeks + ' seven-day buckets anchored to the collection cutoff.');
   setText('subRepository', meta.repository);
-  setText('subBuckets', String(meta.weeks));
   setText('asksCutoff', cutoffLabel);
   setText('footerCutoff', cutoffLabel);
   setText('defPeople', String(D.totals.people));
