@@ -583,14 +583,6 @@ function DashboardView({ board }: { board: BoardApi }) {
           )}
         </DashboardSection>
 
-        <DashboardSection count={summary.recent.length} title="Recently updated">
-          <ThreadList
-            empty="No threads yet."
-            nameFor={nameFor}
-            onOpen={onOpen}
-            threads={summary.recent}
-          />
-        </DashboardSection>
         <p className="text-right text-xs text-muted-foreground">
           Live from bb · refreshed {relativeTime(payload.fetchedAt)} ago
         </p>

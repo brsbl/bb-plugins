@@ -133,9 +133,6 @@ describe("Thread Kanban board", () => {
     const perSection = screen.getByRole("region", { name: "Threads per section" });
     expect(perSection.textContent).toContain("📋 Planning");
     expect(perSection.textContent).toContain("2");
-    const recent = screen.getByRole("region", { name: "Recently updated" });
-    expect(recent.querySelectorAll("li").length).toBe(4);
-    expect(recent.querySelector("li")?.textContent).toContain("Needs answer");
     expect(screen.queryByRole("region", { name: "📋 Planning" })).toBeNull();
   });
 

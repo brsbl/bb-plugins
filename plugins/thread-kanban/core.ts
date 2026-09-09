@@ -161,13 +161,10 @@ export function threadStatusLabel(thread: BoardThreadLike): string {
   }
 }
 
-export const RECENT_LIMIT = 10;
-
 export interface DashboardSummary<T extends BoardThreadLike> {
   active: T[];
   waiting: T[];
   perSection: { key: string; name: string; count: number }[];
-  recent: T[];
 }
 
 export function isActiveThread(thread: BoardThreadLike): boolean {
@@ -194,6 +191,5 @@ export function buildDashboard<T extends BoardThreadLike>(
     active: byUpdated.filter(isActiveThread),
     waiting: byUpdated.filter(isWaitingOnUser),
     perSection,
-    recent: byUpdated.slice(0, RECENT_LIMIT),
   };
 }

@@ -3,12 +3,12 @@
 Threads as a kanban board by section. Every bb thread section becomes a
 column, every live top-level thread becomes a card, and dragging a card to
 another column moves the thread into that section. A Dashboard view on the
-same page shows what is running, what is waiting on you, thread counts per
-section, and the most recently updated threads.
+same page shows what is running, what is waiting on you, and thread counts per
+section.
 
 ![Thread Kanban board with one column per thread section](docs/screenshot.png)
 
-![Thread Kanban dashboard with active, waiting, per-section, and recent threads](docs/dashboard.png)
+![Thread Kanban dashboard with active, waiting, and per-section threads](docs/dashboard.png)
 
 ## Install
 
@@ -36,8 +36,8 @@ Open **Thread Kanban** from the sidebar.
   ten seconds while visible.
 - Switch to **Dashboard** with the toggle in the title bar. It lists threads
   active right now, threads waiting on you (a pending question or approval, or
-  unread output on an idle thread), a count per section, and the ten most
-  recently updated threads with their status. Click any row to open it.
+  unread output on an idle thread), and a count per section. Click any thread
+  row to open it.
 
 ## Develop
 
