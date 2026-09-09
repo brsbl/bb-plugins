@@ -155,8 +155,8 @@
 <body>
 <div class="viz-root" id="root">
   <header>
-    <h1><span id="pageTitle"></span></h1>
-    <p class="sub">Public Discord and <span id="subRepository"></span> GitHub feedback, compared with development on <code>main</code>. Maintainers excluded.</p>
+    <h1>Overview</h1>
+    <p class="sub"><span id="overviewPeriod"></span> · Feedback from public Discord messages and <span id="subRepository"></span> GitHub issues.</p>
   </header>
   <div class="err" id="err"></div>
 
@@ -523,7 +523,7 @@ window.addEventListener('error', function (e) { var b = document.getElementById(
   window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', function () { if (!root.hasAttribute('data-theme')) renderAll(); });
   var rt; window.addEventListener('resize', function () { clearTimeout(rt); rt = setTimeout(renderAll, 150); });
   renderAll();
-  setText('pageTitle', meta.repository + ' feedback dashboard — ' + rangeLabel(meta.periodStart, meta.asOf));
+  setText('overviewPeriod', rangeLabel(meta.periodStart, meta.asOf));
   document.title = meta.repository + ' feedback dashboard — ' + rangeLabel(meta.periodStart, meta.asOf);
   setText('dataWindow', 'Window: ' + meta.periodStart + ' to ' + meta.asOf + ', ' + meta.weeks + ' seven-day buckets anchored to the collection cutoff.');
   setText('subRepository', meta.repository);
