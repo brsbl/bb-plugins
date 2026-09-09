@@ -74,15 +74,23 @@
   th.sortable[aria-sort="descending"]::after { content: " ↓"; } th.sortable[aria-sort="ascending"]::after { content: " ↑"; }
   .tv { display: none; margin-top: 10px; max-height: 360px; overflow: auto; }
   .tv.on { display: block; }
-  .headline { display: grid; grid-template-columns: 18px 1fr; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--grid); }
-  .headline:last-child { border-bottom: 0; }
-  .dot { width: 10px; height: 10px; border-radius: 50%; margin-top: 5px; }
+  .headline { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 2fr); gap: 32px; padding: 22px 0; border-bottom: 1px solid var(--grid); }
+  .headline:first-child { padding-top: 4px; }
+  .headline:last-child { border-bottom: 0; padding-bottom: 4px; }
+  .headline-title { display: flex; gap: 10px; align-items: baseline; }
+  .headline h3 { margin: 0; font-size: 17px; font-weight: 500; line-height: 1.35; letter-spacing: -0.01em; }
+  .dot { flex: 0 0 7px; width: 7px; height: 7px; border-radius: 50%; }
   .dot.good { background: var(--good); } .dot.critical { background: var(--critical); }
-  .headline b { display: block; font-size: 15px; font-weight: 600; }
-  .headline span { color: var(--ink-2); }
-  .headline ul.hb { margin: 3px 0 0; padding-left: 18px; color: var(--ink-2); font-size: 13px; }
-  .headline ul.hb li { margin: 1px 0; }
-  .headline .mini { margin: 8px 0 2px; }
+  .headline-evidence { min-width: 0; }
+  .headline-facts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px 28px; list-style: none; margin: 0; padding: 0; }
+  .headline-facts li { min-width: 0; color: var(--ink-2); font-size: 13px; }
+  .headline-facts .metric-value { display: block; color: var(--ink-1); font-size: 22px; font-weight: 500; font-variant-numeric: tabular-nums; line-height: 1.2; margin-bottom: 3px; }
+  .headline-facts .fact-note { grid-column: 1 / -1; }
+  .headline .mini { margin-top: 16px; overflow-x: auto; }
+  @media (max-width: 740px) {
+    .headline { grid-template-columns: minmax(0, 1fr); gap: 16px; }
+    .headline-facts { gap: 14px 18px; }
+  }
   .tag { display: inline-block; font-size: 11px; font-weight: 600; padding: 1px 7px; border-radius: 10px; border: 1px solid var(--ring); color: var(--ink-1); white-space: nowrap; }
   .tag.P1 { background: color-mix(in srgb, var(--critical) 18%, var(--surface-1)); }
   .tag.P2 { background: color-mix(in srgb, var(--serious) 22%, var(--surface-1)); }
@@ -393,7 +401,25 @@ window.addEventListener('error', function (e) { var b = document.getElementById(
     tiles.forEach(function (tl) { var tile = h('div', { class: 'tile' }, [h('div', { class: 'label', text: tl.label }), h('div', { class: 'value', text: tl.value })]); if (tl.note) tile.appendChild(h('div', { class: 'delta', text: tl.note })); if (tl.weekly) tile.appendChild(trendTable(tl.weekly, tl.fmt, tl.upGood, tl.label)); if (tl.bullets) tile.appendChild(h('ul', { class: 'tb' }, tl.bullets.map(function (b) { return h('li', { text: b }); }))); if (tl.delta) tile.appendChild(h('div', { class: 'delta', text: tl.delta })); if (tl.spark) tile.appendChild(spark(tl.spark, 140, 28, S1)); k.appendChild(tile); });
   }
   function miniShare(container) { var rows = D.themes.slice().sort(function (a, b) { return (b.praise_share + b.complaint_share) - (a.praise_share + a.complaint_share); }); var W = Math.min(560, Math.max(320, container.clientWidth || 520)), LW = 150, RH = 18, BH = 6, top = 4; var H = top + rows.length * RH + 4; var max = 40; var pw = W - LW - 40; var svg = s('svg', { width: W, height: H, viewBox: '0 0 ' + W + ' ' + H, role: 'img', 'aria-label': 'Share of all praise and of all complaints by theme' }); rows.forEach(function (r, i) { var y = top + i * RH; svg.appendChild(s('text', { x: LW - 8, y: y + 11, 'text-anchor': 'end', class: 'lbl', text: r.theme })); var w1 = pw * r.praise_share / max, w2 = pw * r.complaint_share / max; svg.appendChild(s('path', { d: roundedRight(LW + 1, y + 1, w1, BH, 3), class: 'bar' })); svg.appendChild(s('text', { x: LW + 1 + w1 + 4, y: y + 7, class: 'val', text: r.praise_share + '%' })); svg.appendChild(s('path', { d: roundedRight(LW + 1, y + BH + 3, w2, BH, 3), class: 'bar neg' })); svg.appendChild(s('text', { x: LW + 1 + w2 + 4, y: y + BH + 9, class: 'val', text: r.complaint_share + '%' })); var hit = s('rect', { x: 0, y: y, width: W, height: RH, class: 'hit' }); svg.appendChild(hit); bindTip(hit, function () { return { title: r.theme, rows: [{ label: 'Share of all praise', value: r.praise_share + '%', color: tok('--s1') }, { label: 'Share of all complaints', value: r.complaint_share + '%', color: tok('--red') }, { label: 'Records', value: r.positive + ' praise · ' + r.negative + ' complaints' }] }; }); }); container.appendChild(legend([{ name: 'Share of all praise', color: tok('--s1') }, { name: 'Share of all complaints', color: tok('--red') }])); container.appendChild(svg); }
-  function renderHeadlines() { var c = document.getElementById('headlines'); while (c.firstChild) c.removeChild(c.firstChild); D.headlines.forEach(function (hl) { var body = h('div', null, [h('b', { text: hl[1] }), h('ul', { class: 'hb' }, hl[2].map(function (x) { return h('li', { text: x }); }))]); if (hl[3] === 'sentiment-share') { var mc = h('div', { class: 'mini' }); body.appendChild(mc); setTimeout(function () { miniShare(mc); }, 0); } c.appendChild(h('div', { class: 'headline' }, [h('div', { class: 'dot ' + hl[0], title: hl[0] === 'good' ? 'positive' : 'needs attention' }), body])); }); }
+  function renderHeadlines() {
+    var c = document.getElementById('headlines'); while (c.firstChild) c.removeChild(c.firstChild);
+    D.headlines.forEach(function (hl) {
+      var facts = h('ul', { class: 'headline-facts' }, hl[2].map(function (text) {
+        var metric = text.match(/^(\d+(?:\.\d+)?(?:[–-]\d+(?:\.\d+)?)?%?)\s+(.+)$/);
+        return metric
+          ? h('li', null, [h('strong', { class: 'metric-value', text: metric[1] }), ' ', h('span', { text: metric[2] })])
+          : h('li', { class: 'fact-note', text: text });
+      }));
+      var evidence = h('div', { class: 'headline-evidence' }, [facts]);
+      if (hl[3] === 'sentiment-share') {
+        var mc = h('div', { class: 'mini' }); evidence.appendChild(mc); setTimeout(function () { miniShare(mc); }, 0);
+      }
+      c.appendChild(h('article', { class: 'headline' }, [
+        h('div', { class: 'headline-title' }, [h('span', { class: 'dot ' + hl[0], role: 'img', 'aria-label': hl[0] === 'good' ? 'Positive' : 'Needs attention' }), h('h3', { text: hl[1] })]),
+        evidence,
+      ]));
+    });
+  }
   function renderDecisions() { document.getElementById('recRule').textContent = D.rec_rule; document.getElementById('untrackedNote').textContent = D.untracked_note; var c = document.getElementById('decisions'); while (c.firstChild) c.removeChild(c.firstChild); D.recs.forEach(function (d) { var chips = h('div', { class: 'chips' }, [h('span', { class: 'chip' }, [h('span', { text: 'People' }), d[3] + '%']), h('span', { class: 'chip' }, [h('span', { text: 'Open' }), d[4] + '%']), h('span', { class: 'chip' }, [h('span', { text: 'Close rate' }), d[5] + '%']), h('span', { class: 'chip' }, [h('span', { text: 'Resolved' }), d[7] == null ? '–' : d[7] + '%'])]); c.appendChild(h('div', { class: 'rec' }, [h('div', null, [h('span', { class: 'tag ' + d[0], text: d[0] })]), h('div', null, [h('h4', null, [d[1], h('span', { class: 'area', text: d[2] })]), h('ul', { class: 'hb' }, d[6].map(function (x) { return h('li', { text: x }); })), chips])])); }); }
   function demandRows(container, rows) { var W = Math.max(480, container.clientWidth || 900), LW = 200, RH = 22, BH = 14, top = 22, SW = 220, gap = 40; var H = top + rows.length * RH + 8; var max = niceMax(Math.max.apply(null, rows.map(function (r) { return r.topics; }))); var smax = niceMax(Math.max.apply(null, rows.map(function (r) { return Math.max(r.positive, r.negative); }))); var pw = W - LW - SW - gap - 48; var sx = LW + pw + gap + 40; var half = (SW - 40) / 2; var cx = sx + half; var svg = s('svg', { width: W, height: H, viewBox: '0 0 ' + W + ' ' + H, role: 'img' }); svg.appendChild(s('text', { x: LW, y: 12, class: 'axis-text', text: 'Feedback (count)' })); svg.appendChild(s('text', { x: cx, y: 12, 'text-anchor': 'middle', class: 'axis-text', text: 'Complaints  |  Praise (records)' })); svg.appendChild(s('line', { x1: LW, x2: LW, y1: top, y2: H - 8, class: 'baseline' })); svg.appendChild(s('line', { x1: cx, x2: cx, y1: top, y2: H - 8, class: 'baseline' })); rows.forEach(function (r, i) { var y = top + i * RH + (RH - BH) / 2; var w = pw * r.topics / max; svg.appendChild(s('text', { x: LW - 8, y: y + BH - 3, 'text-anchor': 'end', class: 'lbl', text: r.short })); svg.appendChild(s('path', { d: roundedRight(LW + 1, y, w, BH, 4), class: 'bar', tabindex: '0' })); svg.appendChild(s('text', { x: LW + 1 + w + 6, y: y + BH - 3, class: 'val', text: String(r.topics) })); var wn = half * r.negative / smax, wp = half * r.positive / smax; if (r.negative) { svg.appendChild(s('path', { d: roundedLeft(cx - 1, y + 2, wn, BH - 4, 3), class: 'bar neg' })); svg.appendChild(s('text', { x: cx - 1 - wn - 4, y: y + BH - 3, 'text-anchor': 'end', class: 'val', text: String(r.negative) })); } if (r.positive) { svg.appendChild(s('path', { d: roundedRight(cx + 1, y + 2, wp, BH - 4, 3), class: 'bar' })); svg.appendChild(s('text', { x: cx + 1 + wp + 4, y: y + BH - 3, class: 'val', text: String(r.positive) })); } var hit = s('rect', { x: 0, y: top + i * RH, width: W, height: RH, class: 'hit' }); svg.appendChild(hit); bindTip(hit, function () { return { title: r.area, rows: [{ label: 'Feedback', value: String(r.topics), color: tok('--s1') }, { label: 'People', value: String(r.people) }, { label: 'Requests share', value: r.req_pct + '%' }, { label: 'Praise records', value: String(r.positive), color: tok('--s1') }, { label: 'Complaint records', value: String(r.negative), color: tok('--red') }] }; }); }); container.appendChild(svg); }
   function stackedRes(container, rows) { var W = Math.max(480, container.clientWidth || 900), LW = 200, RH = 22, BH = 14, top = 6, right = 56; var H = top + rows.length * RH + 8; var pw = W - LW - right; var cols = [['resolved', tok('--good'), 'Resolved'], ['open', tok('--gray'), 'Tracked in an open issue'], ['untracked', tok('--warning'), 'Not tracked'], ['unclear', tok('--mid'), 'Unclear'], ['pending', tok('--mid'), 'Pending']]; var svg = s('svg', { width: W, height: H, viewBox: '0 0 ' + W + ' ' + H, role: 'img' }); rows.forEach(function (r, i) { var y = top + i * RH + (RH - BH) / 2; var n = r.res.n || 1; var x = LW + 1; svg.appendChild(s('text', { x: LW - 8, y: y + BH - 3, 'text-anchor': 'end', class: 'lbl', text: r.short })); cols.forEach(function (c) { var v = r.res[c[0]] || 0; if (!v) return; var w = pw * v / n; var seg = s('rect', { x: x, y: y, width: Math.max(0, w - 2), height: BH, rx: 2, fill: c[1] }); svg.appendChild(seg); x += w; }); svg.appendChild(s('text', { x: LW + 1 + pw + 6, y: y + BH - 3, class: 'val', text: (r.res.resolved_pct == null ? '–' : r.res.resolved_pct + '%') })); var hit = s('rect', { x: 0, y: top + i * RH, width: W, height: RH, class: 'hit' }); svg.appendChild(hit); bindTip(hit, function () { return { title: r.area, rows: cols.filter(function (c) { return r.res[c[0]]; }).map(function (c) { return { label: c[2], value: r.res[c[0]] + ' of ' + r.res.n, color: c[1] }; }) }; }); }); container.appendChild(legend(cols.filter(function (c) { return rows.some(function (r) { return r.res[c[0]]; }); }).map(function (c) { return { name: c[2], color: c[1] }; }))); container.appendChild(svg); }
