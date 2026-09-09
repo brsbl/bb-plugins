@@ -1,0 +1,363 @@
+{
+  "version": "v2",
+  "themes": {
+    "Providers & execution": [
+      "Provider & agent coverage",
+      "Execution controls",
+      "Provider runtime & setup reliability"
+    ],
+    "Threads & agent work": [
+      "Thread timeline & rendering",
+      "Composer, steering & interaction",
+      "Delegation & orchestration",
+      "Thread organization & lifecycle"
+    ],
+    "Extensions": [
+      "Plugin platform & SDK",
+      "Plugin ecosystem & third-party plugins",
+      "First-party plugins"
+    ],
+    "Machines & mobile": [
+      "Mobile & remote access",
+      "Machines & daemon connectivity"
+    ],
+    "Environments & delivery": [
+      "Environments & worktrees",
+      "Files, diffs & PR review"
+    ],
+    "App shell & setup": [
+      "App navigation & layout",
+      "Settings & personalization",
+      "Install, startup & updates"
+    ],
+    "Foundations": [
+      "Skills & agent context",
+      "Projects & sources",
+      "Browser & web navigation",
+      "Terminals"
+    ]
+  },
+  "short": {
+    "Provider & agent coverage": "Provider coverage",
+    "Execution controls": "Execution controls",
+    "Provider runtime & setup reliability": "Provider reliability",
+    "Thread timeline & rendering": "Thread timeline",
+    "Composer, steering & interaction": "Composer & steering",
+    "Delegation & orchestration": "Delegation",
+    "Thread organization & lifecycle": "Thread organization",
+    "Plugin platform & SDK": "Plugin platform & SDK",
+    "Plugin ecosystem & third-party plugins": "Plugin ecosystem",
+    "First-party plugins": "First-party plugins",
+    "Mobile & remote access": "Mobile & remote",
+    "Machines & daemon connectivity": "Machines & daemon",
+    "Environments & worktrees": "Environments & worktrees",
+    "Files, diffs & PR review": "Files, diffs & PRs",
+    "App navigation & layout": "Navigation & layout",
+    "Settings & personalization": "Settings",
+    "Install, startup & updates": "Install & updates",
+    "Skills & agent context": "Skills & context",
+    "Projects & sources": "Projects & sources",
+    "Browser & web navigation": "Browser",
+    "Terminals": "Terminals"
+  },
+  "map": {
+    "Providers & agent execution": {
+      "ACP agents": "Provider & agent coverage",
+      "Provider availability": "Provider & agent coverage",
+      "Provider-specific tools and capabilities": "Provider & agent coverage",
+      "Provider selection": "Execution controls",
+      "Model discovery and selection": "Execution controls",
+      "Reasoning controls": "Execution controls",
+      "Permission modes": "Execution controls",
+      "Usage and rate limits": "Execution controls",
+      "Service tiers": "Execution controls",
+      "Runtime stability": "Provider runtime & setup reliability",
+      "Provider event translation": "Provider runtime & setup reliability",
+      "Provider session start and resume": "Provider runtime & setup reliability",
+      "Provider authentication": "Provider runtime & setup reliability",
+      "Provider compaction": "Provider runtime & setup reliability",
+      "Provider CLI installation": "Provider runtime & setup reliability",
+      "Provider CLI health": "Provider runtime & setup reliability",
+      "Provider interactions": "Provider runtime & setup reliability",
+      "Provider fork and rewind": "Provider runtime & setup reliability",
+      "Other": "Provider runtime & setup reliability"
+    },
+    "Threads & agent work": {
+      "Timeline rendering": "Thread timeline & rendering",
+      "Streaming and progress": "Thread timeline & rendering",
+      "Unread and attention state": "Thread timeline & rendering",
+      "Other": "Thread timeline & rendering",
+      "New-thread composition": "Composer, steering & interaction",
+      "Execution setup": "Composer, steering & interaction",
+      "Prompt attachments and mentions": "Composer, steering & interaction",
+      "Follow-up messages": "Composer, steering & interaction",
+      "Queued messages": "Composer, steering & interaction",
+      "Message editing and rewind": "Composer, steering & interaction",
+      "Stop and cancellation": "Composer, steering & interaction",
+      "Retry and recovery": "Composer, steering & interaction",
+      "Compaction and context limits": "Composer, steering & interaction",
+      "Goals and plans": "Composer, steering & interaction",
+      "Approvals and questions": "Composer, steering & interaction",
+      "Thread execution and status": "Composer, steering & interaction",
+      "Parent-child delegation": "Delegation & orchestration",
+      "Forks and handoffs": "Delegation & orchestration",
+      "Manager threads": "Delegation & orchestration",
+      "Provider session import": "Delegation & orchestration",
+      "Thread search": "Thread organization & lifecycle",
+      "Thread sections and pinning": "Thread organization & lifecycle",
+      "Thread archive and deletion": "Thread organization & lifecycle",
+      "Thread tabs and multi-thread splits": "Thread organization & lifecycle",
+      "Thread naming and metadata": "Thread organization & lifecycle"
+    },
+    "Extensions & integrations": {
+      "Plugin platform": "Plugin platform & SDK",
+      "Plugin UI contributions": "Plugin platform & SDK",
+      "Plugin storage and RPC": "Plugin platform & SDK",
+      "Plugin CLI commands": "Plugin platform & SDK",
+      "Plugin agent tools": "Plugin platform & SDK",
+      "Plugin host artifacts": "Plugin platform & SDK",
+      "Plugin settings": "Plugin platform & SDK",
+      "Plugin discovery and marketplaces": "Plugin ecosystem & third-party plugins",
+      "Plugin installation and updates": "Plugin ecosystem & third-party plugins",
+      "Plugin enablement": "Plugin ecosystem & third-party plugins",
+      "Plugin lifecycle and health": "Plugin ecosystem & third-party plugins",
+      "Other": "Plugin ecosystem & third-party plugins",
+      "Automations": "First-party plugins",
+      "Workflows": "First-party plugins",
+      "Tasks": "First-party plugins",
+      "Side chat": "First-party plugins",
+      "GitHub integration": "First-party plugins",
+      "Docs": "First-party plugins",
+      "Memory": "First-party plugins",
+      "Custom instructions plugin": "First-party plugins",
+      "Secrets": "First-party plugins",
+      "Ask-user interactions": "First-party plugins",
+      "Inline visualization": "First-party plugins",
+      "Keep awake": "First-party plugins",
+      "Provider retry": "First-party plugins",
+      "Connect plugin": "First-party plugins"
+    },
+    "Machines & remote access": {
+      "Remote and mobile access": "Mobile & remote access",
+      "Remote tunnels": "Mobile & remote access",
+      "Connect accounts and handles": "Mobile & remote access",
+      "Remote session renewal": "Mobile & remote access",
+      "Remote server registration": "Mobile & remote access",
+      "Other": "Mobile & remote access",
+      "Machine enrollment": "Machines & daemon connectivity",
+      "Machine identity": "Machines & daemon connectivity",
+      "Machine status and health": "Machines & daemon connectivity",
+      "Primary-machine selection": "Machines & daemon connectivity",
+      "Daemon connectivity": "Machines & daemon connectivity",
+      "Daemon sessions": "Machines & daemon connectivity",
+      "Local versus remote actions": "Machines & daemon connectivity",
+      "Machine permissions": "Machines & daemon connectivity",
+      "Machine redemption and revocation": "Machines & daemon connectivity",
+      "Cross-machine paths": "Machines & daemon connectivity",
+      "Host resource capacity": "Machines & daemon connectivity",
+      "Desktop server selection": "Machines & daemon connectivity"
+    },
+    "Environments & Git": {
+      "Environment provisioning": "Environments & worktrees",
+      "Managed worktrees": "Environments & worktrees",
+      "Unmanaged environments": "Environments & worktrees",
+      "Environment reuse": "Environments & worktrees",
+      "Environment setup scripts": "Environments & worktrees",
+      "Environment lifecycle": "Environments & worktrees",
+      "Environment lifecycle and cleanup": "Environments & worktrees",
+      "Branch and checkout operations": "Environments & worktrees",
+      "Merge-base handling": "Environments & worktrees",
+      "Workspace path and filesystem errors": "Environments & worktrees",
+      "Workspace files and previews": "Files, diffs & PR review",
+      "Changed-file summaries": "Files, diffs & PR review",
+      "Git status": "Files, diffs & PR review",
+      "Diffs and patches": "Files, diffs & PR review",
+      "Pull-request state": "Files, diffs & PR review",
+      "Pull-request actions": "Files, diffs & PR review",
+      "Open in editor": "Files, diffs & PR review",
+      "Other": "Files, diffs & PR review"
+    },
+    "Navigation & layout": {
+      "*": "App navigation & layout"
+    },
+    "Settings & personalization": {
+      "*": "Settings & personalization"
+    },
+    "Setup, installation & updates": {
+      "*": "Install, startup & updates"
+    },
+    "Skills & agent context": {
+      "*": "Skills & agent context"
+    },
+    "Projects & sources": {
+      "*": "Projects & sources"
+    },
+    "Browser & web navigation": {
+      "*": "Browser & web navigation"
+    },
+    "Terminals": {
+      "*": "Terminals"
+    }
+  },
+  "v1": [
+    {
+      "area": "Providers & agent execution",
+      "clusters": [
+        "ACP agents",
+        "Provider availability",
+        "Provider-specific tools and capabilities",
+        "Provider selection",
+        "Model discovery and selection",
+        "Reasoning controls",
+        "Permission modes",
+        "Usage and rate limits",
+        "Service tiers",
+        "Runtime stability",
+        "Provider event translation",
+        "Provider session start and resume",
+        "Provider authentication",
+        "Provider compaction",
+        "Provider CLI installation",
+        "Provider CLI health",
+        "Provider interactions",
+        "Provider fork and rewind",
+        "Other"
+      ]
+    },
+    {
+      "area": "Threads & agent work",
+      "clusters": [
+        "Timeline rendering",
+        "Streaming and progress",
+        "Unread and attention state",
+        "Other",
+        "New-thread composition",
+        "Execution setup",
+        "Prompt attachments and mentions",
+        "Follow-up messages",
+        "Queued messages",
+        "Message editing and rewind",
+        "Stop and cancellation",
+        "Retry and recovery",
+        "Compaction and context limits",
+        "Goals and plans",
+        "Approvals and questions",
+        "Thread execution and status",
+        "Parent-child delegation",
+        "Forks and handoffs",
+        "Manager threads",
+        "Provider session import",
+        "Thread search",
+        "Thread sections and pinning",
+        "Thread archive and deletion",
+        "Thread tabs and multi-thread splits",
+        "Thread naming and metadata"
+      ]
+    },
+    {
+      "area": "Extensions & integrations",
+      "clusters": [
+        "Plugin platform",
+        "Plugin UI contributions",
+        "Plugin storage and RPC",
+        "Plugin CLI commands",
+        "Plugin agent tools",
+        "Plugin host artifacts",
+        "Plugin settings",
+        "Plugin discovery and marketplaces",
+        "Plugin installation and updates",
+        "Plugin enablement",
+        "Plugin lifecycle and health",
+        "Other",
+        "Automations",
+        "Workflows",
+        "Tasks",
+        "Side chat",
+        "GitHub integration",
+        "Docs",
+        "Memory",
+        "Custom instructions plugin",
+        "Secrets",
+        "Ask-user interactions",
+        "Inline visualization",
+        "Keep awake",
+        "Provider retry",
+        "Connect plugin"
+      ]
+    },
+    {
+      "area": "Machines & remote access",
+      "clusters": [
+        "Remote and mobile access",
+        "Remote tunnels",
+        "Connect accounts and handles",
+        "Remote session renewal",
+        "Remote server registration",
+        "Other",
+        "Machine enrollment",
+        "Machine identity",
+        "Machine status and health",
+        "Primary-machine selection",
+        "Daemon connectivity",
+        "Daemon sessions",
+        "Local versus remote actions",
+        "Machine permissions",
+        "Machine redemption and revocation",
+        "Cross-machine paths",
+        "Host resource capacity",
+        "Desktop server selection"
+      ]
+    },
+    {
+      "area": "Environments & Git",
+      "clusters": [
+        "Environment provisioning",
+        "Managed worktrees",
+        "Unmanaged environments",
+        "Environment reuse",
+        "Environment setup scripts",
+        "Environment lifecycle",
+        "Environment lifecycle and cleanup",
+        "Branch and checkout operations",
+        "Merge-base handling",
+        "Workspace path and filesystem errors",
+        "Workspace files and previews",
+        "Changed-file summaries",
+        "Git status",
+        "Diffs and patches",
+        "Pull-request state",
+        "Pull-request actions",
+        "Open in editor",
+        "Other"
+      ]
+    },
+    {
+      "area": "Navigation & layout",
+      "clusters": []
+    },
+    {
+      "area": "Settings & personalization",
+      "clusters": []
+    },
+    {
+      "area": "Setup, installation & updates",
+      "clusters": []
+    },
+    {
+      "area": "Skills & agent context",
+      "clusters": []
+    },
+    {
+      "area": "Projects & sources",
+      "clusters": []
+    },
+    {
+      "area": "Browser & web navigation",
+      "clusters": []
+    },
+    {
+      "area": "Terminals",
+      "clusters": []
+    }
+  ]
+}

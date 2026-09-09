@@ -153,3 +153,17 @@ npm run new:plugin -- --slug example --name "Example" --description "Adds an exa
 To work on one plugin, install its workspace directly: `bb plugin install "path:$PWD/plugins/<slug>" --yes`.
 
 See [contributor guidance](CONTRIBUTING.md), the [plugin catalog entry template](tooling/plugin-catalog-entry.md), and [repository tooling](tooling/README.md).
+
+### Feedback Report
+
+Turns a period of public Discord and GitHub feedback into a rerunnable dashboard: every piece of feedback classified once by area and sentiment, checked against merged commits and closed issues, and summarized as headlines and prioritized product recommendations. Runs are imported from the bundled skill, listed in a nav panel, and each run can open its own agent thread for follow-up questions.
+
+![Feedback Report panel showing a run's brief with KPI tiles, headlines, and recommendations](plugins/feedback-report/docs/dashboard-brief.png)
+
+![Feedback Report dashboard opened in the browser, Areas tab with feedback, praise, and complaints per area](plugins/feedback-report/docs/dashboard-areas.png)
+
+![Follow-up agent thread spawned from a Feedback Report run, primed with the run's headlines](plugins/feedback-report/docs/agent-thread.png)
+
+[Source](plugins/feedback-report) · [README](plugins/feedback-report/README.md)
+
+Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/feedback-report --yes`

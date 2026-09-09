@@ -1,0 +1,489 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>feedback dashboard</title>
+<style>
+  :root { color-scheme: light dark; }
+  .viz-root {
+    color-scheme: light;
+    --surface-1: #fcfcfb; --plane: #f9f9f7;
+    --ink-1: #0b0b0b; --ink-2: #52514e; --ink-3: #898781;
+    --grid: #e1e0d9; --axis: #c3c2b7; --ring: rgba(11,11,11,0.10);
+    --s1: #2a78d6; --s2: #eb6834; --red: #e34948; --gray: #c3c2b7;
+    --good: #0ca30c; --warning: #fab219; --serious: #ec835a; --critical: #d03b3b; --good-text: #006300;
+    --mid: #f0efec;
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif; color: var(--ink-1); background: var(--plane);
+    font-size: 14px; line-height: 1.4;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:where(:not([data-theme="light"])) .viz-root { color-scheme: dark;
+      --surface-1: #1a1a19; --plane: #0d0d0d; --ink-1: #ffffff; --ink-2: #c3c2b7; --ink-3: #898781;
+      --grid: #2c2c2a; --axis: #383835; --ring: rgba(255,255,255,0.10);
+      --s1: #3987e5; --s2: #d95926; --red: #e66767; --gray: #52514e; --good-text: #0ca30c; --mid: #383835; }
+  }
+  :root[data-theme="dark"] .viz-root { color-scheme: dark;
+    --surface-1: #1a1a19; --plane: #0d0d0d; --ink-1: #ffffff; --ink-2: #c3c2b7; --ink-3: #898781;
+    --grid: #2c2c2a; --axis: #383835; --ring: rgba(255,255,255,0.10);
+    --s1: #3987e5; --s2: #d95926; --red: #e66767; --gray: #52514e; --good-text: #0ca30c; --mid: #383835; }
+  html, body { margin: 0; background: var(--plane); }
+  .viz-root { padding: 20px 24px 40px; max-width: 1180px; margin: 0 auto; }
+  h1 { font-size: 22px; font-weight: 650; margin: 0 0 4px; letter-spacing: -0.01em; }
+  h2 { font-size: 17px; font-weight: 650; margin: 36px 0 10px; color: var(--ink-1); letter-spacing: -0.005em; }
+  h2 + .note, h2 + .controls { margin-top: -4px; }
+  .sub { color: var(--ink-2); margin: 0; max-width: 900px; }
+  .viz-root > header { margin-bottom: 16px; }
+  .controls { display: flex; gap: 12px; align-items: center; margin: 14px 0 6px; flex-wrap: wrap; }
+  .controls label { color: var(--ink-2); font-size: 13px; }
+  select, button { font: inherit; font-size: 13px; color: var(--ink-1); background: var(--surface-1); border: 1px solid var(--ring); border-radius: 6px; padding: 4px 8px; }
+  button { cursor: pointer; }
+  button[aria-pressed="true"] { background: var(--mid); }
+  .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 10px; }
+  .tile { background: var(--surface-1); border: 1px solid var(--ring); border-radius: 10px; padding: 12px 14px; }
+  .tile .label { color: var(--ink-2); font-size: 12px; font-weight: 500; }
+  .tile .value { font-size: 30px; font-weight: 650; margin: 2px 0 0; letter-spacing: -0.01em; }
+  .tile .delta { font-size: 12px; color: var(--ink-2); margin-top: 2px; } .tile .delta b { font-weight: 500; color: var(--ink-1); font-variant-numeric: tabular-nums; }
+  .tile .trendgrid { display: grid; grid-template-columns: repeat(4, auto); justify-content: start; column-gap: 18px; row-gap: 0; align-items: baseline; margin-top: 4px; font-size: 12px; }
+  .tile .trendgrid b { font-weight: 500; color: var(--ink-1); font-variant-numeric: tabular-nums; }
+  .tile .trendgrid .trend { font-size: 10px; color: var(--ink-3); justify-self: start; white-space: nowrap; }
+  .tile .trendgrid .trend.good { color: var(--good-text); } .tile .trendgrid .trend.bad { color: var(--critical); }
+  .tri { display: inline-block; width: 0; height: 0; border-left: 3px solid transparent; border-right: 3px solid transparent; margin-right: 2px; vertical-align: 1px; }
+  .tri.up { border-bottom: 5px solid currentColor; } .tri.down { border-top: 5px solid currentColor; } .tri.flat { width: 5px; height: 2px; background: currentColor; border: 0; vertical-align: 3px; }
+  .tile ul.tb { margin: 4px 0 0; padding-left: 16px; font-size: 12px; color: var(--ink-2); }
+  .tile ul.tb li { margin: 1px 0; }
+  .tile svg { display: block; margin-top: 6px; }
+  .card { background: var(--surface-1); border: 1px solid var(--ring); border-radius: 10px; padding: 16px 18px; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  @media (max-width: 820px) { .grid2 { grid-template-columns: 1fr; } }
+  figure { margin: 0; }
+  figure .fh { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+  figure h3 { font-size: 14px; font-weight: 600; margin: 0 0 2px; }
+  figure .cap { color: var(--ink-3); font-size: 12px; margin: 0 0 8px; }
+  .legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: 12px; color: var(--ink-2); margin: 6px 0 4px; }
+  .legend .k { display: inline-block; width: 12px; height: 12px; border-radius: 2px; vertical-align: -2px; margin-right: 5px; }
+  .legend .kl { display: inline-block; width: 16px; height: 2px; vertical-align: 3px; margin-right: 5px; }
+  table { border-collapse: collapse; width: 100%; font-size: 13px; }
+  th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--grid); vertical-align: top; }
+  th { color: var(--ink-3); font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: 0.03em; }
+  td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  th.sortable { cursor: pointer; user-select: none; }
+  th.sortable[aria-sort="descending"]::after { content: " ↓"; } th.sortable[aria-sort="ascending"]::after { content: " ↑"; }
+  .tv { display: none; margin-top: 10px; max-height: 360px; overflow: auto; }
+  .tv.on { display: block; }
+  .headline { display: grid; grid-template-columns: 18px 1fr; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--grid); }
+  .headline:last-child { border-bottom: 0; }
+  .dot { width: 10px; height: 10px; border-radius: 50%; margin-top: 5px; }
+  .dot.good { background: var(--good); } .dot.critical { background: var(--critical); }
+  .headline b { display: block; font-size: 15px; font-weight: 600; }
+  .headline span { color: var(--ink-2); }
+  .headline ul.hb { margin: 3px 0 0; padding-left: 18px; color: var(--ink-2); font-size: 13px; }
+  .headline ul.hb li { margin: 1px 0; }
+  .headline .mini { margin: 8px 0 2px; }
+  .tag { display: inline-block; font-size: 11px; font-weight: 600; padding: 1px 7px; border-radius: 10px; border: 1px solid var(--ring); color: var(--ink-1); white-space: nowrap; }
+  .tag.P1 { background: color-mix(in srgb, var(--critical) 18%, var(--surface-1)); }
+  .tag.P2 { background: color-mix(in srgb, var(--serious) 22%, var(--surface-1)); }
+  .tag.P3 { background: color-mix(in srgb, var(--warning) 28%, var(--surface-1)); }
+  .rec { display: grid; grid-template-columns: 44px 1fr; gap: 12px; padding: 12px 0; border-top: 1px solid var(--grid); }
+  .rec:first-child { border-top: 0; padding-top: 2px; }
+  .rec h4 { margin: 0 0 3px; font-size: 15px; font-weight: 600; }
+  .rec .area { color: var(--ink-3); font-weight: 400; font-size: 12px; margin-left: 8px; }
+  .rec p { margin: 0 0 6px; color: var(--ink-2); }
+  .rec ul.hb { margin: 0 0 8px; padding-left: 18px; color: var(--ink-2); font-size: 13px; }
+  .rec ul.hb li { margin: 2px 0; }
+  .chips { display: flex; gap: 8px; flex-wrap: wrap; }
+  .chip { font-size: 12px; border: 1px solid var(--ring); border-radius: 12px; padding: 2px 9px; color: var(--ink-1); background: var(--surface-1); font-variant-numeric: tabular-nums; }
+  .chip span { color: var(--ink-3); margin-right: 4px; }
+  .trend { color: var(--ink-3); font-size: 11px; margin: 0 3px; }
+  .trend.up-good, .trend.down-good { color: var(--good-text); } .trend.up-bad, .trend.down-bad { color: var(--critical); }
+  .rd { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; vertical-align: 0; }
+  .rd.decide { background: var(--critical); } .rd.fix { background: var(--serious); } .rd.watch { background: var(--warning); } .rd.ok { background: var(--good); }
+  .meter { display: inline-block; width: 60px; height: 6px; background: color-mix(in srgb, var(--s1) 22%, var(--surface-1)); border-radius: 3px; vertical-align: middle; margin-right: 6px; overflow: hidden; }
+  .meter i { display: block; height: 100%; background: var(--s1); }
+  svg text { font-family: inherit; }
+  .axis-text { fill: var(--ink-3); font-size: 11px; }
+  .lbl { fill: var(--ink-2); font-size: 12px; }
+  .val { fill: var(--ink-1); font-size: 11px; font-variant-numeric: tabular-nums; }
+  .gridline { stroke: var(--grid); stroke-width: 1; }
+  .baseline { stroke: var(--axis); stroke-width: 1; }
+  .bar { fill: var(--s1); transition: opacity .12s; }
+  .bar.s2 { fill: var(--s2); }
+  .bar.neg { fill: var(--red); }
+  .bar:hover, .bar:focus, .cell:hover, .cell:focus { opacity: .78; outline: none; }
+  .hit { fill: transparent; }
+  .iconbtn { font-size: 14px; line-height: 1; padding: 3px 7px; margin-right: 8px; vertical-align: middle; }
+  .tip { position: fixed; z-index: 10; pointer-events: none; display: none; background: var(--surface-1, #fcfcfb); background-color: var(--surface-1, #fcfcfb); color: var(--ink-1); border: 1px solid var(--ring); box-shadow: 0 4px 16px rgba(0,0,0,.14); border-radius: 8px; padding: 8px 10px; font-size: 12px; min-width: 140px; }
+  .tip .t { color: var(--ink-2); margin-bottom: 4px; }
+  .tip .r { display: flex; justify-content: space-between; gap: 14px; }
+  .tip .r b { font-variant-numeric: tabular-nums; }
+  .tip .r .k { display: inline-block; width: 12px; height: 2px; vertical-align: 3px; margin-right: 6px; }
+  .err { background: #fde4e4; color: #7a1010; padding: 8px 12px; border-radius: 6px; margin: 8px 0; display: none; font-family: monospace; font-size: 12px; }
+  .tabs { display: flex; gap: 4px; margin: 36px 0 14px; border-bottom: 1px solid var(--grid); }
+  .tabs button { background: none; border: 0; border-bottom: 2px solid transparent; border-radius: 0; padding: 8px 12px; font-size: 14px; font-weight: 600; color: var(--ink-2); }
+  .tabs button[aria-selected="true"] { color: var(--ink-1); border-bottom-color: var(--s1); }
+  .tabpanel h2.first { margin-top: 8px; }
+  footer { color: var(--ink-3); font-size: 12px; margin-top: 32px; padding-top: 12px; border-top: 1px solid var(--grid); }
+  .note { color: var(--ink-2); font-size: 12px; margin: 4px 0 0; }
+</style>
+</head>
+<body>
+<div class="viz-root" id="root">
+  <header>
+    <h1><span id="pageTitle"></span></h1>
+    <p class="sub">Community feedback (public Discord and <span id="subRepository"></span> GitHub, maintainers excluded) against development on <code>main</code>. One piece of feedback = one GitHub issue, one Discord thread, or one standalone channel post, counted once however many messages it holds. <span id="subBuckets"></span> weekly buckets show levels, not trends.</p>
+    <p class="note">Hover or focus any mark for values; every chart has a table view.</p>
+  </header>
+  <div class="err" id="err"></div>
+
+  <section class="kpis" id="kpis"></section>
+
+  <h2>Headlines</h2>
+  <div class="card" id="headlines"></div>
+
+  <h2>Product recommendations, by priority</h2>
+  <div class="card">
+    <p class="note" style="margin:0 0 10px" id="recRule"></p>
+    <div id="decisions"></div>
+    <p class="note" id="untrackedNote" style="margin-top:12px"></p>
+  </div>
+
+  <div class="tabs" role="tablist" aria-label="Report sections">
+    <button type="button" role="tab" data-tab="areas" aria-selected="true">Areas</button>
+    <button type="button" role="tab" data-tab="trends" aria-selected="false">Trends</button>
+    <button type="button" role="tab" data-tab="method" aria-selected="false">Method</button>
+  </div>
+
+  <section class="tabpanel" id="tab-areas" role="tabpanel">
+    <div class="controls" style="margin:0 0 10px">
+      <label for="themeSel">Filter areas by theme</label>
+      <select id="themeSel"><option value="">All themes</option></select>
+      <span class="note">Applies to everything in this tab.</span>
+    </div>
+    <h2 class="first">Where demand is</h2>
+    <div class="card"><figure id="fDemand"></figure></div>
+    <h2>What shipped against the feedback</h2>
+    <div class="card"><figure id="fRes"></figure></div>
+    <h2>Scorecard by area</h2>
+    <div class="card">
+      <p class="note" style="margin:0 0 8px" id="scoreNote">Click a column to sort.</p>
+      <table id="score"><thead><tr>
+        <th class="sortable" data-k="area">Area</th><th class="sortable" data-k="theme">Theme</th>
+        <th class="num sortable" data-k="topics">Feedback</th><th class="num sortable" data-k="people_pct">People %</th>
+        <th class="num sortable" data-k="req_pct">Requests %</th><th class="num sortable" data-k="close_pct">Close rate</th><th class="num sortable" data-k="resolved_pct">Resolved %</th>
+        <th class="num sortable" data-k="median_days">Median days</th><th class="num sortable" data-k="open_pct">Open %</th><th class="num sortable" data-k="aging_pct">Aging %</th>
+        <th class="sortable" data-k="read_kind">Read</th></tr></thead><tbody></tbody></table>
+    </div>
+    <h2>What people are asking for</h2>
+    <div class="card"><table id="asks"><thead><tr><th>Area</th><th>Top asks in the feedback</th><th>Status on <span id="asksCutoff"></span></th></tr></thead><tbody></tbody></table></div>
+  </section>
+
+  <section class="tabpanel" id="tab-trends" role="tabpanel" hidden>
+    <h2 class="first">Week by week</h2>
+    <div class="grid2">
+      <div class="card"><figure id="fWeekly"></figure></div>
+      <div class="card"><figure id="fSentWeekly"></figure></div>
+    </div>
+    <div class="grid2" style="margin-top:12px">
+      <div class="card"><figure id="fMoved"></figure></div>
+      <div class="card"><figure id="fDev"></figure></div>
+    </div>
+    <h2>Each area by week</h2>
+    <div class="card"><figure id="fHeat"></figure></div>
+    <h2>Engineering attention vs user reach</h2>
+    <div class="card"><figure id="fReach"></figure></div>
+  </section>
+
+  <section class="tabpanel" id="tab-method" role="tabpanel" hidden>
+    <h2 class="first">Definitions</h2>
+    <div class="card">
+      <table><tbody>
+        <tr><th>Feedback</th><td>One GitHub issue (with its comments), one Discord thread, or one standalone Discord channel post that carries a bug, request, or complaint. Counted once however many messages it holds. Messages by repository collaborators are excluded.</td></tr>
+        <tr><th>People</th><td>Unique authors of feedback. People % is the share of all <span id="defPeople"></span> people whose feedback touched an area.</td></tr>
+        <tr><th>Open</th><td>Community GitHub issues opened in the window and still open at the cutoff, including issues filed by users' agents. Aging = open for more than two weeks.</td></tr>
+        <tr><th>Close rate</th><td>Share of an area's community issues closed by the cutoff. <span id="defClosedByPr"></span></td></tr>
+        <tr><th>Resolved</th><td>Share of all feedback matched to a closed GitHub issue or a commit on main by the cutoff. GitHub issues use closure data; Discord items were matched by reader agents against commit subjects and issue titles, with every reference validated.</td></tr>
+        <tr><th>Sentiment</th><td>Unique people per week with a positive or negative record of any kind. Praise share = of people who praised or complained, the share who praised. Plain bug reports are neutral.</td></tr>
+        <tr><th>Signal</th><td>A two-period change is called signal only when it exceeds 2·√(prior + latest), the approximate 95% band for a difference of two Poisson counts.</td></tr>
+        <tr><th>Priority</th><td id="methodRule"></td></tr>
+      </tbody></table>
+    </div>
+    <h2>Data</h2>
+    <div class="card">
+      <ul class="hb" style="margin:0;padding-left:18px">
+        <li id="dataWindow"></li>
+        <li id="dataSources"></li>
+        <li id="dataDevelopment"></li>
+        <li id="dataInstrumentation"></li>
+        <li id="dataQc"></li>
+        <li>Artifacts: classification, weekly series, area summary, commit ledger and rules, issue closure, resolution matches, taxonomy map and definitions, QC samples, and this dashboard's generator, all in the run's artifacts folder.</li>
+      </ul>
+    </div>
+  </section>
+
+  <footer><button id="darkBtn" type="button" class="iconbtn" aria-pressed="false" aria-label="Toggle dark mode" title="Toggle dark mode">☾</button> <span id="footerSource"></span> Two-period changes are called signal only when they exceed 2·√(prior + latest). Close counts stop at the <span id="footerCutoff"></span> cutoff, so later weeks had less time to close.</footer>
+<div id="tip" class="tip" role="tooltip" aria-hidden="true"></div>
+</div>
+<script>
+window.addEventListener('error', function (e) { var b = document.getElementById('err'); b.style.display = 'block'; b.textContent = 'Render error: ' + e.message; });
+/*__DATA__*/
+(function () {
+  'use strict';
+  var NS = 'http://www.w3.org/2000/svg';
+  function h(tag, attrs, kids) { var e = document.createElement(tag); if (attrs) for (var k in attrs) { if (k === 'text') e.textContent = attrs[k]; else if (k === 'class') e.className = attrs[k]; else e.setAttribute(k, attrs[k]); } (kids || []).forEach(function (c) { if (c != null) e.appendChild(typeof c === 'string' ? document.createTextNode(c) : c); }); return e; }
+  function s(tag, attrs, kids) { var e = document.createElementNS(NS, tag); if (attrs) for (var k in attrs) { if (k === 'text') e.textContent = attrs[k]; else e.setAttribute(k, attrs[k]); } (kids || []).forEach(function (c) { if (c != null) e.appendChild(c); }); return e; }
+  function fmt(n, d) { return (n == null || isNaN(n)) ? '–' : (d ? n.toFixed(d) : String(n)); }
+  var css = getComputedStyle(document.getElementById('root'));
+  function tok(name) { return css.getPropertyValue(name).trim(); }
+  var RAMP = ['#cde2fb', '#9ec5f4', '#6da7ec', '#3987e5', '#256abf', '#184f95', '#0d366b'];
+
+  // ---- tooltip ----
+  var tip = document.getElementById('tip');
+  function showTip(title, rows, x, y) {
+    while (tip.firstChild) tip.removeChild(tip.firstChild);
+    tip.appendChild(h('div', { class: 't', text: title }));
+    rows.forEach(function (r) { var row = h('div', { class: 'r' }); var l = h('span'); if (r.color) { var k = h('span', { class: 'k' }); k.style.background = r.color; l.appendChild(k); } l.appendChild(document.createTextNode(r.label)); row.appendChild(l); row.appendChild(h('b', { text: r.value })); tip.appendChild(row); });
+    tip.style.display = 'block'; tip.setAttribute('aria-hidden', 'false'); moveTip(x, y);
+  }
+  function moveTip(x, y) { var w = tip.offsetWidth, hh = tip.offsetHeight; var px = x + 14, py = y + 14; if (px + w > window.innerWidth - 8) px = x - w - 14; if (py + hh > window.innerHeight - 8) py = y - hh - 14; tip.style.left = px + 'px'; tip.style.top = py + 'px'; }
+  function hideTip() { tip.style.display = 'none'; tip.setAttribute('aria-hidden', 'true'); }
+  function bindTip(node, getContent) {
+    node.addEventListener('pointermove', function (e) { var c = getContent(); showTip(c.title, c.rows, e.clientX, e.clientY); });
+    node.addEventListener('pointerleave', hideTip);
+    node.addEventListener('focus', function () { var r = node.getBoundingClientRect(); var c = getContent(); showTip(c.title, c.rows, r.right, r.top); });
+    node.addEventListener('blur', hideTip);
+  }
+
+  // ---- figure scaffold with table view ----
+  function figure(id, title, caption, buildChart, buildTable) {
+    var fig = document.getElementById(id); while (fig.firstChild) fig.removeChild(fig.firstChild);
+    var btn = h('button', { type: 'button', 'aria-pressed': 'false', text: 'Table' });
+    var head = h('div', { class: 'fh' }, [h('div', null, [h('h3', { text: title }), h('p', { class: 'cap', text: caption })]), btn]);
+    var chart = h('div', { class: 'chart' }); var tv = h('div', { class: 'tv' });
+    fig.appendChild(head); fig.appendChild(chart); fig.appendChild(tv);
+    buildChart(chart); buildTable(tv);
+    btn.addEventListener('click', function () { var on = tv.classList.toggle('on'); btn.setAttribute('aria-pressed', on ? 'true' : 'false'); });
+    return chart;
+  }
+  function table(headers, rows, numFrom) {
+    var t = h('table'); var tr = h('tr'); headers.forEach(function (x, i) { tr.appendChild(h('th', { class: i >= (numFrom == null ? 1 : numFrom) ? 'num' : '', text: x })); }); t.appendChild(h('thead', null, [tr]));
+    var tb = h('tbody'); rows.forEach(function (r) { var tr2 = h('tr'); r.forEach(function (c, i) { tr2.appendChild(h('td', { class: i >= (numFrom == null ? 1 : numFrom) ? 'num' : '', text: c == null ? '–' : String(c) })); }); tb.appendChild(tr2); }); t.appendChild(tb); return t;
+  }
+  function legend(items, line) { var l = h('div', { class: 'legend' }); items.forEach(function (it) { var k = h('span', { class: line ? 'kl' : 'k' }); k.style.background = it.color; l.appendChild(h('span', null, [k, it.name])); }); return l; }
+  function roundedRight(x, y, w, hgt, r) { if (w <= r) return 'M' + x + ',' + y + ' h' + w + ' v' + hgt + ' h' + (-w) + ' z'; return 'M' + x + ',' + y + ' h' + (w - r) + ' a' + r + ',' + r + ' 0 0 1 ' + r + ',' + r + ' v' + (hgt - 2 * r) + ' a' + r + ',' + r + ' 0 0 1 ' + (-r) + ',' + r + ' h' + (-(w - r)) + ' z'; }
+  function roundedLeft(x, y, w, hgt, r) { if (w <= r) return 'M' + x + ',' + y + ' h' + (-w) + ' v' + hgt + ' h' + w + ' z'; return 'M' + x + ',' + y + ' h' + (-(w - r)) + ' a' + r + ',' + r + ' 0 0 0 ' + (-r) + ',' + r + ' v' + (hgt - 2 * r) + ' a' + r + ',' + r + ' 0 0 0 ' + r + ',' + r + ' h' + (w - r) + ' z'; }
+  function niceMax(v) { if (v <= 0) return 1; var p = Math.pow(10, Math.floor(Math.log10(v))); var m = v / p; var n = m <= 1 ? 1 : m <= 2 ? 2 : m <= 2.5 ? 2.5 : m <= 5 ? 5 : 10; return n * p; }
+
+  // ---- horizontal bars (single series) ----
+  function hbars(container, rows, opts) {
+    var W = Math.max(320, container.clientWidth || 480), LW = opts.labelWidth || 170, RH = 22, BH = 14, top = 6, right = 48;
+    var H = top + rows.length * RH + 8; var max = niceMax(Math.max.apply(null, rows.map(function (r) { return r.value; })));
+    var svg = s('svg', { width: W, height: H, viewBox: '0 0 ' + W + ' ' + H, role: 'img', 'aria-label': opts.aria || '' });
+    var pw = W - LW - right; svg.appendChild(s('line', { x1: LW, x2: LW, y1: top, y2: H - 8, class: 'baseline' }));
+    rows.forEach(function (r, i) {
+      var y = top + i * RH + (RH - BH) / 2; var w = Math.max(0, pw * r.value / max);
+      svg.appendChild(s('text', { x: LW - 8, y: y + BH - 3, 'text-anchor': 'end', class: 'lbl', text: r.label }));
+      var bar = s('path', { d: roundedRight(LW + 1, y, w, BH, 4), class: 'bar' + (r.cls ? ' ' + r.cls : ''), tabindex: '0', role: 'graphics-symbol', 'aria-label': r.label + ': ' + r.value });
+      svg.appendChild(bar); svg.appendChild(s('text', { x: LW + 1 + w + 6, y: y + BH - 3, class: 'val', text: r.valueLabel != null ? r.valueLabel : String(r.value) }));
+      var hit = s('rect', { x: 0, y: top + i * RH, width: W, height: RH, class: 'hit' }); svg.appendChild(hit);
+      [bar, hit].forEach(function (n) { bindTip(n, function () { return { title: r.full || r.label, rows: r.tip || [{ label: opts.valueName || 'Value', value: String(r.value), color: tok('--s1') }] }; }); });
+    });
+    container.appendChild(svg);
+  }
+  // ---- diverging bars ----
+  function diverging(container, rows) {
+    var W = Math.max(320, container.clientWidth || 480), LW = 170, RH = 22, BH = 14, top = 6; var H = top + rows.length * RH + 8;
+    var max = niceMax(Math.max.apply(null, rows.map(function (r) { return Math.max(r.neg, r.pos); }))); var half = (W - LW - 40) / 2; var cx = LW + half;
+    var svg = s('svg', { width: W, height: H, viewBox: '0 0 ' + W + ' ' + H, role: 'img' }); svg.appendChild(s('line', { x1: cx, x2: cx, y1: top, y2: H - 8, class: 'baseline' }));
+    rows.forEach(function (r, i) {
+      var y = top + i * RH + (RH - BH) / 2; var wn = half * r.neg / max, wp = half * r.pos / max;
+      svg.appendChild(s('text', { x: LW - 8, y: y + BH - 3, 'text-anchor': 'end', class: 'lbl', text: r.label }));
+      var nb = s('path', { d: roundedLeft(cx - 1, y, wn, BH, 4), class: 'bar neg', tabindex: '0' }); var pb = s('path', { d: roundedRight(cx + 1, y, wp, BH, 4), class: 'bar', tabindex: '0' });
+      svg.appendChild(nb); svg.appendChild(pb);
+      if (r.neg) svg.appendChild(s('text', { x: cx - 1 - wn - 5, y: y + BH - 3, 'text-anchor': 'end', class: 'val', text: String(r.neg) }));
+      if (r.pos) svg.appendChild(s('text', { x: cx + 1 + wp + 5, y: y + BH - 3, class: 'val', text: String(r.pos) }));
+      var hit = s('rect', { x: 0, y: top + i * RH, width: W, height: RH, class: 'hit' }); svg.appendChild(hit);
+      [nb, pb, hit].forEach(function (n) { bindTip(n, function () { return { title: r.full || r.label, rows: [{ label: 'Praise (positive records)', value: String(r.pos), color: tok('--s1') }, { label: 'Complaints (negative records)', value: String(r.neg), color: tok('--red') }] }; }); });
+    });
+    container.appendChild(svg);
+  }
+  // ---- grouped horizontal bars (2 series) ----
+  function grouped(container, rows, series) {
+    var W = Math.max(320, container.clientWidth || 480), LW = 170, RH = 40, BH = 12, top = 6, right = 48; var H = top + rows.length * RH + 8;
+    var max = niceMax(Math.max.apply(null, rows.map(function (r) { return Math.max(r.v[0], r.v[1]); }))); var pw = W - LW - right;
+    var svg = s('svg', { width: W, height: H, viewBox: '0 0 ' + W + ' ' + H, role: 'img' }); svg.appendChild(s('line', { x1: LW, x2: LW, y1: top, y2: H - 8, class: 'baseline' }));
+    rows.forEach(function (r, i) {
+      var y0 = top + i * RH + 4; svg.appendChild(s('text', { x: LW - 8, y: y0 + 16, 'text-anchor': 'end', class: 'lbl', text: r.label }));
+      series.forEach(function (sr, j) { var y = y0 + j * (BH + 2); var w = pw * r.v[j] / max; var b = s('path', { d: roundedRight(LW + 1, y, w, BH, 4), class: 'bar' + (j ? ' s2' : ''), tabindex: '0' }); svg.appendChild(b); svg.appendChild(s('text', { x: LW + 1 + w + 6, y: y + BH - 2, class: 'val', text: r.v[j] + '%' })); });
+      var hit = s('rect', { x: 0, y: top + i * RH, width: W, height: RH, class: 'hit' }); svg.appendChild(hit);
+      bindTip(hit, function () { return { title: r.label, rows: series.map(function (sr, j) { return { label: sr.name, value: r.v[j] + '%' + (r.abs ? ' (' + r.abs[j] + ')' : ''), color: sr.color }; }) }; });
+    });
+    container.appendChild(svg);
+  }
+  // ---- line chart with crosshair ----
+  function lines(container, labels, series, opts) {
+    opts = opts || {}; var W = Math.max(320, container.clientWidth || 480), H = opts.height || 220, m = { l: 40, r: 44, t: 14, b: 26 };
+    var max = niceMax(Math.max.apply(null, series.map(function (sr) { return Math.max.apply(null, sr.values); }))); var pw = W - m.l - m.r, ph = H - m.t - m.b;
+    var x = function (i) { return m.l + (labels.length === 1 ? pw / 2 : pw * i / (labels.length - 1)); }; var y = function (v) { return m.t + ph - ph * v / max; };
+    var svg = s('svg', { width: W, height: H, viewBox: '0 0 ' + W + ' ' + H, role: 'img' });
+    var ticks = (max % 4 === 0) ? 4 : (max % 5 === 0 ? 5 : 4); for (var t = 0; t <= ticks; t++) { var v = max * t / ticks; svg.appendChild(s('line', { x1: m.l, x2: W - m.r, y1: y(v), y2: y(v), class: t === 0 ? 'baseline' : 'gridline' })); svg.appendChild(s('text', { x: m.l - 6, y: y(v) + 4, 'text-anchor': 'end', class: 'axis-text', text: String(Math.round(v)) })); }
+    labels.forEach(function (l, i) { svg.appendChild(s('text', { x: x(i), y: H - 8, 'text-anchor': i === 0 ? 'start' : i === labels.length - 1 ? 'end' : 'middle', class: 'axis-text', text: l })); });
+    series.forEach(function (sr) {
+      var d = sr.values.map(function (v, i) { return (i ? 'L' : 'M') + x(i) + ',' + y(v); }).join(' ');
+      svg.appendChild(s('path', { d: d, fill: 'none', stroke: sr.color, 'stroke-width': 2, 'stroke-linejoin': 'round', 'stroke-linecap': 'round' }));
+      sr.values.forEach(function (v, i) { svg.appendChild(s('circle', { cx: x(i), cy: y(v), r: 4, fill: sr.color, stroke: tok('--surface-1'), 'stroke-width': 2 })); });
+      var last = sr.values.length - 1; svg.appendChild(s('text', { x: x(last) + 8, y: y(sr.values[last]) + 4, class: 'val', text: String(sr.values[last]) }));
+    });
+    var cross = s('line', { x1: 0, x2: 0, y1: m.t, y2: m.t + ph, class: 'baseline', style: 'display:none' }); svg.appendChild(cross);
+    var hit = s('rect', { x: m.l, y: m.t, width: pw, height: ph, class: 'hit' }); svg.appendChild(hit);
+    hit.addEventListener('pointermove', function (e) { var r = svg.getBoundingClientRect(); var px = e.clientX - r.left; var i = 0, best = 1e9; labels.forEach(function (_, j) { var d = Math.abs(x(j) - px); if (d < best) { best = d; i = j; } }); cross.setAttribute('x1', x(i)); cross.setAttribute('x2', x(i)); cross.style.display = ''; showTip(labels[i], series.map(function (sr) { return { label: sr.name, value: String(sr.values[i]), color: sr.color }; }), e.clientX, e.clientY); });
+    hit.addEventListener('pointerleave', function () { cross.style.display = 'none'; hideTip(); });
+    container.appendChild(svg);
+    if (series.length > 1) container.appendChild(legend(series, true));
+  }
+  // ---- heatmap ----
+  function heatmap(container, rowsLabels, cols, cells, opts) {
+    var W = Math.max(320, container.clientWidth || 600), LW = 180, CH = 26, CW = Math.min(110, Math.floor((W - LW - 10) / cols.length)), top = 22; var H = top + rowsLabels.length * CH + 6;
+    var svg = s('svg', { width: W, height: H, viewBox: '0 0 ' + W + ' ' + H, role: 'img' });
+    cols.forEach(function (c, j) { svg.appendChild(s('text', { x: LW + j * CW + CW / 2, y: 14, 'text-anchor': 'middle', class: 'axis-text', text: c })); });
+    rowsLabels.forEach(function (rl, i) {
+      svg.appendChild(s('text', { x: LW - 8, y: top + i * CH + CH / 2 + 4, 'text-anchor': 'end', class: 'lbl', text: rl }));
+      cols.forEach(function (c, j) {
+        var cell = cells[i][j]; var v = cell.v; var x0 = LW + j * CW + 1, y0 = top + i * CH + 1;
+        var fill = v == null ? tok('--mid') : RAMP[Math.min(6, Math.max(0, Math.round(v / 100 * 6)))]; var idx = v == null ? -1 : Math.round(v / 100 * 6);
+        var rect = s('rect', { x: x0, y: y0, width: CW - 2, height: CH - 2, rx: 3, fill: fill, class: 'cell', tabindex: '0' }); svg.appendChild(rect);
+        svg.appendChild(s('text', { x: x0 + (CW - 2) / 2, y: y0 + CH / 2 + 3, 'text-anchor': 'middle', 'font-size': '11', fill: v == null ? tok('--ink-3') : (idx >= 3 ? '#ffffff' : '#0b0b0b'), 'pointer-events': 'none', text: cell.t }));
+        bindTip(rect, function () { return { title: (opts.full ? opts.full[i] : rl) + ' · ' + c, rows: cell.rows }; });
+      });
+    });
+    container.appendChild(svg);
+    var sc = h('div', { class: 'legend' }); sc.appendChild(h('span', { text: opts.scaleLabel + ': 0%' })); RAMP.forEach(function (c) { var k = h('span', { class: 'k' }); k.style.background = c; k.style.marginRight = '1px'; sc.appendChild(k); }); sc.appendChild(h('span', { text: '100%' })); container.appendChild(sc);
+  }
+  function spark(values, w, hgt, color) { var max = Math.max.apply(null, values) || 1, min = 0; var svg = s('svg', { width: w, height: hgt, viewBox: '0 0 ' + w + ' ' + hgt, 'aria-hidden': 'true' }); var x = function (i) { return 4 + (w - 8) * i / (values.length - 1); }, y = function (v) { return hgt - 4 - (hgt - 8) * (v - min) / (max - min || 1); }; svg.appendChild(s('path', { d: values.map(function (v, i) { return (i ? 'L' : 'M') + x(i) + ',' + y(v); }).join(' '), fill: 'none', stroke: tok('--gray'), 'stroke-width': 2, 'stroke-linecap': 'round', 'stroke-linejoin': 'round' })); var l = values.length - 1; svg.appendChild(s('circle', { cx: x(l), cy: y(values[l]), r: 4, fill: color, stroke: tok('--surface-1'), 'stroke-width': 2 })); return svg; }
+
+  // ================= render =================
+  var D = DATA; var state = { theme: '', sortKey: 'topics', sortDir: -1 };
+  var meta = D.meta || {}; var method = meta.method || {};
+  function methodText(key) { return typeof method[key] === 'string' ? method[key] : ''; }
+  function dateLabel(iso) { return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' }); }
+  function yearOf(iso) { return new Date(iso).getUTCFullYear(); }
+  function rangeLabel(fromIso, toIso) { return yearOf(fromIso) === yearOf(toIso) ? dateLabel(fromIso) + ' to ' + dateLabel(toIso) + ', ' + yearOf(toIso) : dateLabel(fromIso) + ', ' + yearOf(fromIso) + ' to ' + dateLabel(toIso) + ', ' + yearOf(toIso); }
+  function setText(id, text) { document.getElementById(id).textContent = text; }
+  var cutoffLabel = dateLabel(meta.asOf);
+  function areasIn() { return D.areas.filter(function (a) { return !state.theme || a.theme === state.theme; }); }
+  function pct(a, b) { return b ? Math.round(100 * a / b) : null; }
+
+  function trendRow(values, fmtv, upGood) { var grid = h('div', { class: 'trendgrid' }); values.forEach(function (v, i) { var c = h('b', { text: fmtv(v) }); c.style.gridColumn = String(i + 1); c.style.gridRow = '1'; grid.appendChild(c); if (i) { var prev = values[i - 1]; var ch = prev ? Math.round(100 * (v - prev) / prev) : 0; var dir = ch > 0 ? 'up' : ch < 0 ? 'down' : 'flat'; var good = dir === 'flat' ? '' : ((dir === 'up') === upGood ? ' good' : ' bad'); var d = h('span', { class: 'trend' + good }, [h('i', { class: 'tri ' + dir }), dir === 'flat' ? '0%' : Math.abs(ch) + '%']); d.style.gridColumn = String(i + 1); d.style.gridRow = '2'; grid.appendChild(d); } }); return grid; }
+  function renderKpis() {
+    var k = document.getElementById('kpis'); while (k.firstChild) k.removeChild(k.firstChild);
+    var wk = D.weekly; var t = D.totals; var S1 = tok('--s1');
+    var tiles = [
+      { label: 'Feedback, ' + meta.weeks + ' weeks', value: String(t.topics), weekly: wk.map(function (w) { return w.topics; }), fmt: String, upGood: true, spark: wk.map(function (w) { return w.topics; }) },
+      { label: 'People reporting', value: String(t.people), weekly: wk.map(function (w) { return w.people; }), fmt: String, upGood: true, spark: wk.map(function (w) { return w.people; }) },
+      { label: 'Open issues', value: String(t.open), bullets: [Math.round(100 * t.aging / t.open) + '% older than two weeks', t.reporters_per_open + ' reporters per open issue', t.people_with_open_pct + '% of reporters have an open issue'] },
+      { label: 'Feedback resolved by ' + cutoffLabel, value: (t.res.resolved_pct == null ? '–' : t.res.resolved_pct + '%'), bullets: ['GitHub issues: ' + t.close_pct + '% closed, median ' + t.median_days + ' days' + (t.closed_by_pr_pct == null ? '' : ', ' + t.closed_by_pr_pct + '% by a linked PR'), 'Discord asks matched to a commit or closed issue: ' + (t.res.pending ? 'pending' : t.res.discord_resolved_pct == null ? '–' : t.res.discord_resolved_pct + '%'), t.res.open_pct + '% tracked in an open issue · ' + t.res.untracked_pct + '% not tracked anywhere'] },
+      { label: 'Praise share of sentiment, last week', value: Math.round(100 * wk[wk.length - 1].pos / (wk[wk.length - 1].pos + wk[wk.length - 1].neg)) + '%', note: 'of people who praised or complained, the share who praised', weekly: wk.map(function (w) { return Math.round(100 * w.pos / (w.pos + w.neg)); }), fmt: function (v) { return v + '%'; }, upGood: true, spark: wk.map(function (w) { return Math.round(100 * w.pos / (w.pos + w.neg)); }) },
+      { label: 'Commits on main', value: String(t.commits), weekly: wk.map(function (w) { return w.commits; }), fmt: String, upGood: true, spark: wk.map(function (w) { return w.commits; }) },
+    ];
+    tiles.forEach(function (tl) { var tile = h('div', { class: 'tile' }, [h('div', { class: 'label', text: tl.label }), h('div', { class: 'value', text: tl.value })]); if (tl.note) tile.appendChild(h('div', { class: 'delta', text: tl.note })); if (tl.weekly) tile.appendChild(trendRow(tl.weekly, tl.fmt, tl.upGood)); if (tl.bullets) tile.appendChild(h('ul', { class: 'tb' }, tl.bullets.map(function (b) { return h('li', { text: b }); }))); if (tl.delta) tile.appendChild(h('div', { class: 'delta', text: tl.delta })); if (tl.spark) tile.appendChild(spark(tl.spark, 140, 28, S1)); k.appendChild(tile); });
+  }
+  function miniShare(container) { var rows = D.themes.slice().sort(function (a, b) { return (b.praise_share + b.complaint_share) - (a.praise_share + a.complaint_share); }); var W = Math.min(560, Math.max(320, container.clientWidth || 520)), LW = 150, RH = 18, BH = 6, top = 4; var H = top + rows.length * RH + 4; var max = 40; var pw = W - LW - 40; var svg = s('svg', { width: W, height: H, viewBox: '0 0 ' + W + ' ' + H, role: 'img', 'aria-label': 'Share of all praise and of all complaints by theme' }); rows.forEach(function (r, i) { var y = top + i * RH; svg.appendChild(s('text', { x: LW - 8, y: y + 11, 'text-anchor': 'end', class: 'lbl', text: r.theme })); var w1 = pw * r.praise_share / max, w2 = pw * r.complaint_share / max; svg.appendChild(s('path', { d: roundedRight(LW + 1, y + 1, w1, BH, 3), class: 'bar' })); svg.appendChild(s('text', { x: LW + 1 + w1 + 4, y: y + 7, class: 'val', text: r.praise_share + '%' })); svg.appendChild(s('path', { d: roundedRight(LW + 1, y + BH + 3, w2, BH, 3), class: 'bar neg' })); svg.appendChild(s('text', { x: LW + 1 + w2 + 4, y: y + BH + 9, class: 'val', text: r.complaint_share + '%' })); var hit = s('rect', { x: 0, y: y, width: W, height: RH, class: 'hit' }); svg.appendChild(hit); bindTip(hit, function () { return { title: r.theme, rows: [{ label: 'Share of all praise', value: r.praise_share + '%', color: tok('--s1') }, { label: 'Share of all complaints', value: r.complaint_share + '%', color: tok('--red') }, { label: 'Records', value: r.positive + ' praise · ' + r.negative + ' complaints' }] }; }); }); container.appendChild(legend([{ name: 'Share of all praise', color: tok('--s1') }, { name: 'Share of all complaints', color: tok('--red') }])); container.appendChild(svg); }
+  function renderHeadlines() { var c = document.getElementById('headlines'); while (c.firstChild) c.removeChild(c.firstChild); D.headlines.forEach(function (hl) { var body = h('div', null, [h('b', { text: hl[1] }), h('ul', { class: 'hb' }, hl[2].map(function (x) { return h('li', { text: x }); }))]); if (hl[3] === 'sentiment-share') { var mc = h('div', { class: 'mini' }); body.appendChild(mc); setTimeout(function () { miniShare(mc); }, 0); } c.appendChild(h('div', { class: 'headline' }, [h('div', { class: 'dot ' + hl[0], title: hl[0] === 'good' ? 'positive' : 'needs attention' }), body])); }); }
+  function renderDecisions() { document.getElementById('recRule').textContent = D.rec_rule; document.getElementById('untrackedNote').textContent = D.untracked_note; var c = document.getElementById('decisions'); while (c.firstChild) c.removeChild(c.firstChild); D.recs.forEach(function (d) { var chips = h('div', { class: 'chips' }, [h('span', { class: 'chip' }, [h('span', { text: 'People' }), d[3] + '%']), h('span', { class: 'chip' }, [h('span', { text: 'Open' }), d[4] + '%']), h('span', { class: 'chip' }, [h('span', { text: 'Close rate' }), d[5] + '%']), h('span', { class: 'chip' }, [h('span', { text: 'Resolved' }), d[7] == null ? '–' : d[7] + '%'])]); c.appendChild(h('div', { class: 'rec' }, [h('div', null, [h('span', { class: 'tag ' + d[0], text: d[0] })]), h('div', null, [h('h4', null, [d[1], h('span', { class: 'area', text: d[2] })]), h('ul', { class: 'hb' }, d[6].map(function (x) { return h('li', { text: x }); })), chips])])); }); }
+  function demandRows(container, rows) { var W = Math.max(480, container.clientWidth || 900), LW = 200, RH = 22, BH = 14, top = 22, SW = 220, gap = 40; var H = top + rows.length * RH + 8; var max = niceMax(Math.max.apply(null, rows.map(function (r) { return r.topics; }))); var smax = niceMax(Math.max.apply(null, rows.map(function (r) { return Math.max(r.positive, r.negative); }))); var pw = W - LW - SW - gap - 48; var sx = LW + pw + gap + 40; var half = (SW - 40) / 2; var cx = sx + half; var svg = s('svg', { width: W, height: H, viewBox: '0 0 ' + W + ' ' + H, role: 'img' }); svg.appendChild(s('text', { x: LW, y: 12, class: 'axis-text', text: 'Feedback (count)' })); svg.appendChild(s('text', { x: cx, y: 12, 'text-anchor': 'middle', class: 'axis-text', text: 'Complaints  |  Praise (records)' })); svg.appendChild(s('line', { x1: LW, x2: LW, y1: top, y2: H - 8, class: 'baseline' })); svg.appendChild(s('line', { x1: cx, x2: cx, y1: top, y2: H - 8, class: 'baseline' })); rows.forEach(function (r, i) { var y = top + i * RH + (RH - BH) / 2; var w = pw * r.topics / max; svg.appendChild(s('text', { x: LW - 8, y: y + BH - 3, 'text-anchor': 'end', class: 'lbl', text: r.short })); svg.appendChild(s('path', { d: roundedRight(LW + 1, y, w, BH, 4), class: 'bar', tabindex: '0' })); svg.appendChild(s('text', { x: LW + 1 + w + 6, y: y + BH - 3, class: 'val', text: String(r.topics) })); var wn = half * r.negative / smax, wp = half * r.positive / smax; if (r.negative) { svg.appendChild(s('path', { d: roundedLeft(cx - 1, y + 2, wn, BH - 4, 3), class: 'bar neg' })); svg.appendChild(s('text', { x: cx - 1 - wn - 4, y: y + BH - 3, 'text-anchor': 'end', class: 'val', text: String(r.negative) })); } if (r.positive) { svg.appendChild(s('path', { d: roundedRight(cx + 1, y + 2, wp, BH - 4, 3), class: 'bar' })); svg.appendChild(s('text', { x: cx + 1 + wp + 4, y: y + BH - 3, class: 'val', text: String(r.positive) })); } var hit = s('rect', { x: 0, y: top + i * RH, width: W, height: RH, class: 'hit' }); svg.appendChild(hit); bindTip(hit, function () { return { title: r.area, rows: [{ label: 'Feedback', value: String(r.topics), color: tok('--s1') }, { label: 'People', value: String(r.people) }, { label: 'Requests share', value: r.req_pct + '%' }, { label: 'Praise records', value: String(r.positive), color: tok('--s1') }, { label: 'Complaint records', value: String(r.negative), color: tok('--red') }] }; }); }); container.appendChild(svg); }
+  function stackedRes(container, rows) { var W = Math.max(480, container.clientWidth || 900), LW = 200, RH = 22, BH = 14, top = 6, right = 56; var H = top + rows.length * RH + 8; var pw = W - LW - right; var cols = [['resolved', tok('--good'), 'Resolved'], ['open', tok('--gray'), 'Tracked in an open issue'], ['untracked', tok('--warning'), 'Not tracked'], ['unclear', tok('--mid'), 'Unclear'], ['pending', tok('--mid'), 'Pending']]; var svg = s('svg', { width: W, height: H, viewBox: '0 0 ' + W + ' ' + H, role: 'img' }); rows.forEach(function (r, i) { var y = top + i * RH + (RH - BH) / 2; var n = r.res.n || 1; var x = LW + 1; svg.appendChild(s('text', { x: LW - 8, y: y + BH - 3, 'text-anchor': 'end', class: 'lbl', text: r.short })); cols.forEach(function (c) { var v = r.res[c[0]] || 0; if (!v) return; var w = pw * v / n; var seg = s('rect', { x: x, y: y, width: Math.max(0, w - 2), height: BH, rx: 2, fill: c[1] }); svg.appendChild(seg); x += w; }); svg.appendChild(s('text', { x: LW + 1 + pw + 6, y: y + BH - 3, class: 'val', text: (r.res.resolved_pct == null ? '–' : r.res.resolved_pct + '%') })); var hit = s('rect', { x: 0, y: top + i * RH, width: W, height: RH, class: 'hit' }); svg.appendChild(hit); bindTip(hit, function () { return { title: r.area, rows: cols.filter(function (c) { return r.res[c[0]]; }).map(function (c) { return { label: c[2], value: r.res[c[0]] + ' of ' + r.res.n, color: c[1] }; }) }; }); }); container.appendChild(legend(cols.filter(function (c) { return rows.some(function (r) { return r.res[c[0]]; }); }).map(function (c) { return { name: c[2], color: c[1] }; }))); container.appendChild(svg); }
+  function renderRes() { var rows = areasIn().slice().sort(function (a, b) { return b.topics - a.topics; }); figure('fRes', 'Resolution of each area\'s feedback by ' + cutoffLabel, 'Every piece of feedback checked against issue state and the commit history. Resolved = closed GitHub issue or a Discord ask matched to a commit or closed issue. The number at the end is the resolved share.', function (c) { stackedRes(c, rows); }, function (c) { c.appendChild(table(['Area', 'Feedback', 'Resolved', 'Resolved by PR', 'Tracked open', 'Not tracked', 'Unclear', 'Resolved %'], rows.map(function (a) { return [a.area, a.res.n, a.res.resolved, a.res.resolved_pr, a.res.open, a.res.untracked, a.res.unclear, a.res.resolved_pct == null ? '–' : a.res.resolved_pct + '%']; }))); }); }
+  function renderDemand() {
+    var rows = areasIn().slice().sort(function (a, b) { return b.topics - a.topics; });
+    figure('fDemand', 'Feedback by area, with praise and complaints on the same row', 'Left: feedback counted once per GitHub issue, Discord thread, or channel post, sorted by volume. Right: records with positive or negative tone that name the area.',
+      function (c) { demandRows(c, rows); },
+      function (c) { c.appendChild(table(['Area', 'Feedback', 'People', 'Requests share', 'Praise records', 'Complaint records'], rows.map(function (a) { return [a.area, a.topics, a.people, a.req_pct + '%', a.positive, a.negative]; }))); });
+  }
+  function renderSent() {
+    var rows = areasIn().slice().sort(function (a, b) { return (b.positive + b.negative) - (a.positive + a.negative); }).filter(function (a) { return a.positive + a.negative > 0; });
+    figure('fSent', 'Praise vs complaints by area', 'Records with positive or negative tone that name the area, four weeks. Left: complaints. Right: praise.',
+      function (c) { c.appendChild(legend([{ name: 'Praise', color: tok('--s1') }, { name: 'Complaints', color: tok('--red') }])); diverging(c, rows.map(function (a) { return { label: a.short, full: a.area, pos: a.positive, neg: a.negative }; })); },
+      function (c) { c.appendChild(table(['Area', 'Praise', 'Complaints'], rows.map(function (a) { return [a.area, a.positive, a.negative]; }))); });
+  }
+  function renderScore() { document.getElementById('scoreNote').textContent = 'Click a column to sort. People % of ' + D.totals.people + '; Open % of the ' + D.totals.open + ' issues still open on ' + cutoffLabel + '; Aging % = share of the area\'s open issues older than two weeks; Resolved % = share of all the area\'s feedback (GitHub and Discord) matched to a closed issue or a commit by ' + cutoffLabel + '; hover a row for counts.';
+    var tb = document.querySelector('#score tbody'); while (tb.firstChild) tb.removeChild(tb.firstChild);
+    var rows = areasIn().slice().sort(function (a, b) { var k = state.sortKey; var va = k === 'resolved_pct' ? a.res.resolved_pct : a[k], vb = k === 'resolved_pct' ? b.res.resolved_pct : b[k]; if (typeof va === 'string') return state.sortDir * va.localeCompare(vb); va = va == null ? -1 : va; vb = vb == null ? -1 : vb; return state.sortDir * (va - vb); });
+    rows.forEach(function (a) { var meter = h('span', { class: 'meter' }, [h('i')]); meter.firstChild.style.width = (a.close_pct || 0) + '%'; var tr = h('tr', { tabindex: '0' }, [h('td', null, [h('b', { text: a.area })]), h('td', { text: a.theme }), h('td', { class: 'num', text: String(a.topics) }), h('td', { class: 'num', text: a.people_pct + '%' }), h('td', { class: 'num', text: a.req_pct + '%' }), h('td', { class: 'num' }, [meter, a.close_pct == null ? '–' : a.close_pct + '%']), h('td', { class: 'num', text: a.res.resolved_pct == null ? '–' : a.res.resolved_pct + '%' }), h('td', { class: 'num', text: fmt(a.median_days, 1) }), h('td', { class: 'num', text: a.open_pct + '%' }), h('td', { class: 'num', text: a.aging_pct == null ? '–' : a.aging_pct + '%' }), h('td', null, [h('span', { class: 'rd ' + a.read_kind }), a.read])]); bindTip(tr, function () { return { title: a.area, rows: [{ label: 'People', value: String(a.people) }, { label: 'Requests / bugs', value: a.requests + ' / ' + a.bugs }, { label: 'Issues opened', value: String(a.opened) }, { label: 'Open · aging', value: a.open + ' · ' + a.aging }] }; }); tb.appendChild(tr); });
+    document.querySelectorAll('#score th.sortable').forEach(function (th) { th.setAttribute('aria-sort', th.dataset.k === state.sortKey ? (state.sortDir < 0 ? 'descending' : 'ascending') : 'none'); });
+  }
+  function renderWeekly() {
+    figure('fWeekly', 'Feedback and people reporting, per week', 'Both are counts; swings under about 20 feedback items or 10 people are within noise.',
+      function (c) { lines(c, D.weeks, [{ name: 'Feedback', values: D.weekly.map(function (w) { return w.topics; }), color: tok('--s1') }, { name: 'People reporting', values: D.weekly.map(function (w) { return w.people; }), color: tok('--s2') }]); },
+      function (c) { c.appendChild(table(['Week', 'Feedback', 'People', 'Bugs', 'Requests'], D.weekly.map(function (w) { return [w.week, w.topics, w.people, w.bugs, w.requests]; }))); });
+    figure('fSentWeekly', 'People praising vs complaining, per week', 'Unique authors with a positive or negative record of any kind.',
+      function (c) { lines(c, D.weeks, [{ name: 'Praising', values: D.weekly.map(function (w) { return w.pos; }), color: tok('--s1') }, { name: 'Complaining', values: D.weekly.map(function (w) { return w.neg; }), color: tok('--red') }]); },
+      function (c) { c.appendChild(table(['Week', 'Praising', 'Complaining'], D.weekly.map(function (w) { return [w.week, w.pos, w.neg]; }))); });
+    var moved = D.areas.filter(function (a) { return a.signal; }).sort(function (a, b) { return Math.abs(b.delta) - Math.abs(a.delta); }).slice(0, 3);
+    var movedCard = document.getElementById('fMoved').parentNode;
+    if (moved.length === 0) { movedCard.style.display = 'none'; } else {
+      movedCard.style.display = '';
+      var movedCap = (moved.length === 1 ? 'The only area that moved outside its noise band' : 'Areas that moved outside their noise bands') + ' (last two weeks vs the two before): ' + moved.map(function (a) { return a.short + ' ' + (a.delta > 0 ? '+' : '') + a.delta + ', band ±' + a.band; }).join('; ') + '.' + (methodText('moved_note') ? ' ' + methodText('moved_note') : '');
+      var movedColors = [tok('--s1'), tok('--s2'), tok('--red')];
+      figure('fMoved', (moved.length === 1 ? moved[0].area : 'Areas that moved') + ', per week', movedCap,
+        function (c) { lines(c, D.weeks, moved.map(function (a, i) { return { name: a.short, values: a.weekly, color: movedColors[i] }; })); },
+        function (c) { var hd = ['Week']; moved.forEach(function (a) { hd.push(a.short + ' feedback'); hd.push(a.short + ' requests share'); hd.push(a.short + ' praising / complaining'); }); c.appendChild(table(hd, D.weeks.map(function (wk, i) { var r = [wk]; moved.forEach(function (a) { var w = a.weeks[i]; r.push(w.topics); r.push(w.req_pct == null ? '–' : w.req_pct + '%'); r.push(w.pos + ' / ' + w.neg); }); return r; }))); });
+    }
+    figure('fDev', 'Development per week', 'First-parent commits on main, and the subset whose PR closed at least one issue.',
+      function (c) { lines(c, D.weeks, [{ name: 'Commits', values: D.weekly.map(function (w) { return w.commits; }), color: tok('--s1') }, { name: 'Issue-closing', values: D.weekly.map(function (w) { return w.closing; }), color: tok('--s2') }]); },
+      function (c) { c.appendChild(table(['Week', 'Commits', 'Issue-closing commits', 'Issues opened', 'Closed that week'], D.weekly.map(function (w) { return [w.week, w.commits, w.closing, w.opened, w.closed]; }))); });
+  }
+  var heatMetric = 'req';
+  function renderHeat() {
+    var rows = areasIn(); var fig = document.getElementById('fHeat');
+    var metrics = { req: { title: 'Requests share by area and week', cap: 'Share of that week\'s feedback that is requests rather than bugs. Hover a cell for counts.', scale: 'Requests share' }, close: { title: 'Close rate by area and week', cap: 'Share of issues opened that week that were closed by ' + cutoffLabel + '. Later weeks had less time to close. Hover a cell for counts.', scale: 'Close rate' } };
+    var mt = metrics[heatMetric];
+    figure('fHeat', mt.title, mt.cap,
+      function (c) {
+        var bar = h('div', { class: 'controls', style: 'margin:0 0 8px' }); Object.keys(metrics).forEach(function (k) { var b = h('button', { type: 'button', 'aria-pressed': k === heatMetric ? 'true' : 'false', text: metrics[k].scale }); b.addEventListener('click', function () { heatMetric = k; renderHeat(); }); bar.appendChild(b); }); c.appendChild(bar);
+        var cells = rows.map(function (a) { return a.weeks.map(function (w) { if (heatMetric === 'req') { return { v: w.req_pct, t: w.req_pct == null ? '–' : w.req_pct + '%', rows: [{ label: 'Feedback', value: String(w.topics) }, { label: 'Requests share', value: w.req_pct == null ? '–' : w.req_pct + '%' }, { label: 'Praising / complaining', value: w.pos + ' / ' + w.neg }] }; } var p = pct(w.closed, w.opened); return { v: p, t: p == null ? '–' : p + '%', rows: [{ label: 'Opened that week', value: String(w.opened) }, { label: 'Closed by ' + cutoffLabel, value: String(w.closed) }, { label: 'Close rate', value: p == null ? '–' : p + '%' }] }; }); });
+        heatmap(c, rows.map(function (a) { return a.short; }), D.weeks, cells, { scaleLabel: mt.scale, full: rows.map(function (a) { return a.area; }) });
+      },
+      function (c) { var hd = ['Area']; D.weeks.forEach(function (w) { hd.push(w + ' feedback'); hd.push(w + ' requests'); hd.push(w + ' praise/complaints'); hd.push(w + ' closed/opened'); }); c.appendChild(table(hd, rows.map(function (a) { var r = [a.area]; a.weeks.forEach(function (w) { r.push(w.topics); r.push(w.req_pct == null ? '–' : w.req_pct + '%'); r.push(w.pos + ' / ' + w.neg); r.push(w.opened ? pct(w.closed, w.opened) + '% (' + w.closed + '/' + w.opened + ')' : '–'); }); return r; }))); });
+  }
+  function renderReach() {
+    var rows = D.themes.slice().sort(function (a, b) { return b.people_pct - a.people_pct; });
+    figure('fReach', 'Share of people affected vs share of commits, by theme', 'Commits are a rough proxy for attention; this shows where attention lags reach, not whether the work was right.',
+      function (c) { var sr = [{ name: 'People (% of ' + D.totals.people + ')', color: tok('--s1') }, { name: 'Commits (% of ' + D.totals.commits + ')', color: tok('--s2') }]; c.appendChild(legend(sr)); grouped(c, rows.map(function (t) { return { label: t.theme, v: [t.people_pct, t.commits_pct], abs: [t.people + ' people', t.commits + ' commits'] }; }), sr); },
+      function (c) { c.appendChild(table(['Theme', 'People', 'People %', 'Commits', 'Commits %', 'Open'], rows.map(function (t) { return [t.theme, t.people, t.people_pct + '%', t.commits, t.commits_pct + '%', t.open]; }))); });
+  }
+  function renderAsks() { var tb = document.querySelector('#asks tbody'); while (tb.firstChild) tb.removeChild(tb.firstChild); Object.keys(D.asks).forEach(function (a) { var ar = D.areas.filter(function (x) { return x.area === a; })[0]; if (state.theme && ar && ar.theme !== state.theme) return; tb.appendChild(h('tr', null, [h('td', null, [h('b', { text: a })]), h('td', { text: D.asks[a][0] }), h('td', { text: D.asks[a][1] })])); }); }
+  function renderAll() { css = getComputedStyle(document.getElementById('root')); renderKpis(); renderHeadlines(); renderDecisions(); var cur = Object.keys(panels || {}).filter(function (k) { return panels[k] && !panels[k].hidden; })[0] || 'areas'; if (cur === 'areas') { renderDemand(); renderRes(); renderScore(); renderAsks(); } else if (cur === 'trends') { renderWeekly(); renderHeat(); renderReach(); } }
+
+  // tabs
+  var tabBtns = document.querySelectorAll('.tabs [role=tab]'); var panels = { areas: document.getElementById('tab-areas'), trends: document.getElementById('tab-trends'), method: document.getElementById('tab-method') };
+  function showTab(name) { Object.keys(panels).forEach(function (k) { panels[k].hidden = k !== name; }); tabBtns.forEach(function (b) { b.setAttribute('aria-selected', b.dataset.tab === name ? 'true' : 'false'); }); if (name === 'areas') { renderDemand(); renderRes(); renderScore(); renderAsks(); } if (name === 'trends') { renderWeekly(); renderHeat(); renderReach(); } if (history.replaceState) history.replaceState(null, '', '#' + name); }
+  tabBtns.forEach(function (b) { b.addEventListener('click', function () { showTab(b.dataset.tab); }); });
+  document.getElementById('methodRule').textContent = D.rec_rule;
+  // controls
+  var sel = document.getElementById('themeSel'); D.themes.forEach(function (t) { sel.appendChild(h('option', { value: t.theme, text: t.theme })); });
+  sel.addEventListener('change', function () { state.theme = sel.value; renderDemand(); renderRes(); renderScore(); renderHeat(); renderAsks(); });
+  document.querySelectorAll('#score th.sortable').forEach(function (th) { th.addEventListener('click', function () { var k = th.dataset.k; if (state.sortKey === k) state.sortDir = -state.sortDir; else { state.sortKey = k; state.sortDir = (k === 'area' || k === 'theme' || k === 'read_kind') ? 1 : -1; } renderScore(); }); });
+  var darkBtn = document.getElementById('darkBtn'); var root = document.documentElement;
+  function setTheme(t) { if (t) root.setAttribute('data-theme', t); else root.removeAttribute('data-theme'); darkBtn.setAttribute('aria-pressed', t === 'dark' ? 'true' : 'false'); darkBtn.textContent = t === 'dark' ? '☀' : '☾'; renderAll(); }
+  darkBtn.addEventListener('click', function () { setTheme(root.getAttribute('data-theme') === 'dark' ? 'light' : 'dark'); });
+  var q = new URLSearchParams(location.search).get('theme'); if (q === 'dark' || q === 'light') root.setAttribute('data-theme', q); darkBtn.setAttribute('aria-pressed', root.getAttribute('data-theme') === 'dark' ? 'true' : 'false'); darkBtn.textContent = root.getAttribute('data-theme') === 'dark' ? '☀' : '☾';
+  var rt; window.addEventListener('resize', function () { clearTimeout(rt); rt = setTimeout(renderAll, 150); });
+  renderAll();
+  setText('pageTitle', meta.repository + ' feedback dashboard — ' + rangeLabel(meta.periodStart, meta.asOf));
+  document.title = meta.repository + ' feedback dashboard — ' + rangeLabel(meta.periodStart, meta.asOf);
+  setText('dataWindow', 'Window: ' + meta.periodStart + ' to ' + meta.asOf + ', ' + meta.weeks + ' seven-day buckets anchored to the collection cutoff.');
+  setText('subRepository', meta.repository);
+  setText('subBuckets', String(meta.weeks));
+  setText('asksCutoff', cutoffLabel);
+  setText('footerCutoff', cutoffLabel);
+  setText('defPeople', String(D.totals.people));
+  setText('defClosedByPr', D.totals.closed_by_pr_pct == null ? '' : D.totals.closed_by_pr_pct + '% of closures link to a merged PR.');
+  setText('dataSources', methodText('sources'));
+  setText('dataDevelopment', methodText('development') || (D.totals.commits + ' first-parent commits on main by committer date, each assigned an area by file paths; issue links from GitHub closing references.'));
+  setText('dataInstrumentation', methodText('instrumentation'));
+  setText('dataQc', methodText('qc'));
+  setText('footerSource', methodText('source'));
+  var initial = (location.hash || '#areas').slice(1); if (!panels[initial]) initial = 'areas'; showTab(initial);
+})();
+</script>
+</body>
+</html>
