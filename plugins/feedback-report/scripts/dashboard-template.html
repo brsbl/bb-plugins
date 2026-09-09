@@ -91,10 +91,8 @@
   th.sortable[aria-sort="descending"]::after { content: " ↓"; } th.sortable[aria-sort="ascending"]::after { content: " ↑"; }
   .tv { display: none; margin-top: var(--space-group); max-height: 360px; overflow: auto; }
   .tv.on { display: block; }
-  .headline-title { display: flex; gap: var(--space-related); align-items: baseline; margin-bottom: var(--space-related); }
+  .headline-title { margin-bottom: var(--space-related); }
   .headline h3 { margin: 0; font-size: var(--text-heading); font-weight: var(--weight-label); line-height: var(--leading-body); }
-  .dot { flex: 0 0 8px; width: 8px; height: 8px; border-radius: 50%; }
-  .dot.good { background: var(--good); } .dot.critical { background: var(--critical); }
   .headline-evidence { min-width: 0; }
   .headline-facts { display: grid; gap: var(--space-related); list-style: none; margin: 0; padding: 0; }
   .headline-facts li { min-width: 0; color: var(--ink-2); }
@@ -441,7 +439,7 @@ window.addEventListener('error', function (e) { var b = document.getElementById(
         var mc = h('div', { class: 'mini' }); evidence.appendChild(mc); setTimeout(function () { miniShare(mc); }, 0);
       }
       c.appendChild(h('article', { class: 'card headline' }, [
-        h('div', { class: 'headline-title' }, [h('span', { class: 'dot ' + hl[0], role: 'img', 'aria-label': hl[0] === 'good' ? 'Positive' : 'Needs attention' }), h('h3', { text: hl[1] })]),
+        h('div', { class: 'headline-title' }, [h('h3', { text: hl[1] })]),
         evidence,
       ]));
     });
