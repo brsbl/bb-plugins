@@ -182,29 +182,33 @@ function useBoard() {
 
 function ThreadCard({
   thread,
-  dragging,
-  moving,
+  sectionName,
+  dragging = false,
+  moving = false,
   onOpen,
   onDragStart,
   onDragEnd,
 }: {
   thread: BoardThread;
-  dragging: boolean;
-  moving: boolean;
+  sectionName?: string | null;
+  dragging?: boolean;
+  moving?: boolean;
   onOpen: () => void;
-  onDragStart: (event: DragEvent<HTMLElement>) => void;
-  onDragEnd: () => void;
+  onDragStart?: (event: DragEvent<HTMLElement>) => void;
+  onDragEnd?: () => void;
 }) {
   const tone = threadTone(thread);
   const label = threadStatusLabel(thread);
   return (
     <article
       aria-label={thread.title}
-      className={`group/thread-row group/card relative w-full cursor-grab select-none rounded-md bg-sidebar px-2 py-2 text-sm text-sidebar-foreground/85 transition-none dark:text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground active:cursor-grabbing ${
+      className={`group/thread-row group/card relative w-full select-none rounded-md bg-sidebar px-2 py-2 text-sm text-sidebar-foreground/85 transition-none dark:text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground ${
+        onDragStart ? "cursor-grab active:cursor-grabbing" : "cursor-pointer"
+      } ${
         dragging ? "opacity-40" : ""
       } ${moving ? "opacity-60" : ""}`}
       data-thread-id={thread.id}
-      draggable={!moving}
+      draggable={Boolean(onDragStart) && !moving}
       onDragEnd={onDragEnd}
       onDragStart={onDragStart}
     >
@@ -227,6 +231,7 @@ function ThreadCard({
           className={`inline-block size-1.5 rounded-full ${toneClass(tone)}`}
         />
         <span>{label}</span>
+        {sectionName ? <span className="truncate">· {sectionName}</span> : null}
         {thread.pinned ? <span aria-label="Pinned">· pinned</span> : null}
         <span className="ml-auto tabular-nums" title={new Date(thread.updatedAt).toLocaleString()}>
           {relativeTime(thread.updatedAt)}
@@ -514,6 +519,7 @@ function ThreadList({
 }
 
 function DashboardView({ board }: { board: BoardApi }) {
+  const sidebarThemeRef = useSidebarTheme();
   const navigate = useBbNavigate();
   const payload = board.payload;
   const summary = useMemo(
@@ -531,24 +537,16 @@ function DashboardView({ board }: { board: BoardApi }) {
     <div className="min-h-0 flex-1 overflow-y-auto p-4 md:p-5">
       <div className="mx-auto w-full max-w-5xl space-y-4">
         <div className="grid gap-3 sm:grid-cols-3">
-          <StatTile hint="agents working" label="Active now" value={summary.active.length} />
           <StatTile
             hint="input needed or unread"
             label="Waiting on me"
             value={summary.waiting.length}
           />
+          <StatTile hint="agents working" label="Active now" value={summary.active.length} />
           <StatTile hint="on the board" label="Threads" value={payload.threads.length} />
         </div>
 
         <div className="grid gap-4 md:grid-cols-2">
-          <DashboardSection count={summary.active.length} title="Active now">
-            <ThreadList
-              empty="No agents are working right now."
-              nameFor={nameFor}
-              onOpen={onOpen}
-              threads={summary.active}
-            />
-          </DashboardSection>
           <DashboardSection count={summary.waiting.length} title="Waiting on me">
             <ThreadList
               empty="Nothing needs your attention."
@@ -556,6 +554,25 @@ function DashboardView({ board }: { board: BoardApi }) {
               onOpen={onOpen}
               threads={summary.waiting}
             />
+          </DashboardSection>
+          <DashboardSection count={summary.active.length} title="Active now">
+            <div ref={sidebarThemeRef}>
+              {summary.active.length === 0 ? (
+                <EmptyRow>No agents are working right now.</EmptyRow>
+              ) : (
+                <ul className="space-y-2">
+                  {summary.active.map((thread) => (
+                    <li key={thread.id}>
+                      <ThreadCard
+                        thread={thread}
+                        sectionName={nameFor(thread)}
+                        onOpen={() => onOpen(thread)}
+                      />
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
           </DashboardSection>
         </div>
 
