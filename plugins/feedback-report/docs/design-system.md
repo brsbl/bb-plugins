@@ -38,7 +38,7 @@ Heatmaps use four blue levels: 0–24%, 25–49%, 50–74%, and 75–100%. The d
 
 ## Component rules
 
-- **Summary cards:** one label, one large value, then readable detail. Weekly values stay in a table with concise dates and their trend line underneath at the same width. Open issue bullets use the available height. Resolution details use short labeled rows.
+- **Summary cards:** one label, one large value, then readable detail. Weekly values stay in a table with concise dates and their trend line underneath at the same width. Open issue bullets use the available height. Resolution rows show each source's rate and median time inline, without the linked-PR share. Missing medians show a dash; hover provides the timing definition and sample coverage.
 - **Headlines:** one card per takeaway, with a short title and a vertical list of evidence. Keep a leading number inline with its explanation at body size. Do not introduce another grid of large metrics or a separate title column. A supporting chart stays below that card's evidence.
 - **Recommendations:** a small priority marker, a title, supporting bullets, and plain metric annotations. Avoid pills around every number.
 - **Tables:** sentence-case headers, regular body text, right-aligned numeric columns, subtle row dividers, and visible sorting state.

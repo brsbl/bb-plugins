@@ -7,6 +7,7 @@ import { readIssues } from "./lib/issues.mjs";
 import { readLedger } from "./lib/ledger.mjs";
 import { communityRecordsInWindow, readClassifiedRecords } from "./lib/records.mjs";
 import { median, percent, roundHalfEven, roundToTenth } from "./lib/rounding.mjs";
+import { discordResolutionTiming } from "./lib/resolution-timing.mjs";
 import { loadTaxonomy } from "./lib/taxonomy.mjs";
 
 const USAGE = "node compute.mjs --run <dir>";
@@ -309,11 +310,13 @@ const community = communityRecordsInWindow(records);
 const areaByIssue = new Map(
   records.filter((record) => record.sourceType === "issue").map((record) => [record.issueNumber, record.areaV2]),
 );
-const issues = communityIssuesInWindow(readIssues(runDir), config, areaByIssue);
+const allIssues = readIssues(runDir);
+const issues = communityIssuesInWindow(allIssues, config, areaByIssue);
 const ledger = readLedger(runDir);
 const resolution = readResolution(runDir);
 const labels = weekLabels(config);
 const totals = buildTotals(config, community, issues, ledger, resolution);
+totals.res.discord_resolution_time = discordResolutionTiming({ resolution, community, issues: allIssues, ledger, asOfMs: config.asOfMs });
 const report = {
   meta: {
     runId: config.runId,
