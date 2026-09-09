@@ -3,6 +3,9 @@ export interface ParsedShaperOutput {
   assumptions: string | null;
 }
 
+export const FABLE_5_1_MODEL = "claude-fable-5-1";
+const FABLE_5_1_SKILL = "fable-5-1-target-prompting";
+
 function sectionAfterHeading(output: string, heading: string): string | null {
   const pattern = new RegExp(`^##\\s+${heading}\\s*$`, "im");
   const match = pattern.exec(output);
@@ -53,8 +56,16 @@ export function parseShaperOutput(output: string): ParsedShaperOutput | null {
   };
 }
 
-export function buildWorkerPrompt(input: { draft: string }): string {
+export function buildWorkerPrompt(input: {
+  draft: string;
+  targetModel?: string | null;
+}): string {
   return [
+    ...(input.targetModel === FABLE_5_1_MODEL
+      ? [
+          `Use the ${FABLE_5_1_SKILL} skill as target-model guidance for the prompt you produce; do not apply its model-specific operating rules to yourself.`,
+        ]
+      : []),
     "Use the prompt-shaper skill to transform the rough draft below into one concise, paste-ready bb-agent prompt.",
     "This is composer-enhancement mode. Apply the skill's maintained guidance to the supplied draft only; do not fetch, inherit, or infer thread history.",
     "Do not execute the draft and do not ask a question. If a material value is missing, make the safest narrow assumption and include it under `## Assumptions or missing context`.",

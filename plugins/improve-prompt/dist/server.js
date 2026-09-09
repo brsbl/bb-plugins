@@ -14525,6 +14525,8 @@ function date4(params) {
 config(en_default());
 
 // core.ts
+var FABLE_5_1_MODEL = "claude-fable-5-1";
+var FABLE_5_1_SKILL = "fable-5-1-target-prompting";
 function sectionAfterHeading(output, heading) {
   const pattern = new RegExp(`^##\\s+${heading}\\s*$`, "im");
   const match = pattern.exec(output);
@@ -14555,6 +14557,9 @@ function parseShaperOutput(output) {
 }
 function buildWorkerPrompt(input) {
   return [
+    ...input.targetModel === FABLE_5_1_MODEL ? [
+      `Use the ${FABLE_5_1_SKILL} skill as target-model guidance for the prompt you produce; do not apply its model-specific operating rules to yourself.`
+    ] : [],
     "Use the prompt-shaper skill to transform the rough draft below into one concise, paste-ready bb-agent prompt.",
     "This is composer-enhancement mode. Apply the skill's maintained guidance to the supplied draft only; do not fetch, inherit, or infer thread history.",
     "Do not execute the draft and do not ask a question. If a material value is missing, make the safest narrow assumption and include it under `## Assumptions or missing context`.",
@@ -14626,7 +14631,8 @@ var rpcContract = {
       requestId: requestIdSchema,
       draft: external_exports.string().min(1).max(64e3).refine((value) => value.trim().length > 0, "Draft cannot be blank"),
       projectId: external_exports.string().min(1),
-      sourceThreadId: external_exports.string().min(1).nullable()
+      sourceThreadId: external_exports.string().min(1).nullable(),
+      targetModel: external_exports.literal("claude-fable-5-1").nullable().default(null)
     }),
     output: external_exports.object({
       requestId: requestIdSchema,
@@ -14863,7 +14869,10 @@ async function plugin(bb) {
     if (input.sourceThreadId === null) {
       return bb.sdk.threads.spawn({
         projectId: input.projectId,
-        prompt: buildWorkerPrompt({ draft: input.draft }),
+        prompt: buildWorkerPrompt({
+          draft: input.draft,
+          targetModel: input.targetModel
+        }),
         environment: { type: "project-default" },
         ...configuredExecution ?? {},
         permissionMode: "auto",
@@ -14881,7 +14890,10 @@ async function plugin(bb) {
     if (configuredExecution !== null) {
       return bb.sdk.threads.spawn({
         projectId: input.projectId,
-        prompt: buildWorkerPrompt({ draft: input.draft }),
+        prompt: buildWorkerPrompt({
+          draft: input.draft,
+          targetModel: input.targetModel
+        }),
         environment,
         ...configuredExecution,
         permissionMode: "auto",
@@ -14894,7 +14906,10 @@ async function plugin(bb) {
     });
     return bb.sdk.threads.spawn({
       projectId: input.projectId,
-      prompt: buildWorkerPrompt({ draft: input.draft }),
+      prompt: buildWorkerPrompt({
+        draft: input.draft,
+        targetModel: input.targetModel
+      }),
       environment,
       providerId: source.providerId,
       ...execution === null ? {} : {

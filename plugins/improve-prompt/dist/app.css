@@ -224,6 +224,9 @@
     .ml-1\.5 {
       margin-left: calc(var(--spacing) * 1.5);
     }
+    .block {
+      display: block;
+    }
     .flex {
       display: flex;
     }
@@ -238,6 +241,9 @@
     }
     .inline-flex {
       display: inline-flex;
+    }
+    .table {
+      display: table;
     }
     .size-1\.5 {
       width: calc(var(--spacing) * 1.5);
