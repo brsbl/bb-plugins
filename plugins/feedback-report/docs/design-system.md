@@ -38,10 +38,10 @@ Heatmaps use four blue levels: 0–24%, 25–49%, 50–74%, and 75–100%. The d
 
 ## Component rules
 
-- **Summary cards:** one label, one large value, then readable detail. Weekly values stay in a table with concise dates and their trend line underneath at the same width. Open issue bullets use the available height. Resolution rows show each source's rate and median time inline, without the linked-PR share. Missing medians show a dash; hover provides the timing definition and sample coverage.
+- **Summary cards:** one label, one large value, then readable detail. The five feedback cards form one row beneath Overview, using the available panel width and scrolling horizontally when needed. Commit activity lives in Trends. Weekly values stay in a table with concise dates and their trend line underneath at the same width. Open issue bullets use the available height. Resolution rows show each source's rate and median time inline, without the linked-PR share. Missing medians show a dash; hover provides the timing definition and sample coverage.
 - **Headlines:** one card per takeaway, with a short title and a vertical list of evidence. Keep a leading number inline with its explanation at body size. Do not introduce another grid of large metrics or a separate title column. A supporting chart stays below that card's evidence.
 - **Recommendations:** a small priority marker, a title, supporting bullets, and plain metric annotations. Avoid pills around every number.
 - **Tables:** sentence-case headers, regular body text, right-aligned numeric columns, subtle row dividers, and visible sorting state.
-- **Controls:** normal body text; medium weight only for a selected tab or a label. Use one control radius and the shared spacing steps.
+- **Controls:** normal body text; medium weight only for a selected tab or a label. Use one control radius and the shared spacing steps. Runs starts collapsed; its toolbar button shows or hides the list without resetting the selected dashboard.
 
 Use the existing tokens for new content. Add a new value only when it represents a distinct semantic role that the existing four-step system cannot express; update this document with that decision.

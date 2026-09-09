@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { ExternalLink, MessageSquare, RefreshCw } from "lucide-react";
+import { ExternalLink, MessageSquare, PanelLeftClose, PanelLeftOpen, RefreshCw } from "lucide-react";
 import {
   definePluginApp,
   useBbNavigate,
@@ -99,6 +99,7 @@ function FeedbackReportPanel() {
   const rpc = useRpc<typeof rpcContract>();
   const navigate = useBbNavigate();
   const [selectedId, setSelectedId] = useState<string>("");
+  const [runsOpen, setRunsOpen] = useState(false);
   const [asking, setAsking] = useState(false);
   const [askError, setAskError] = useState<string | null>(null);
 
@@ -136,7 +137,12 @@ function FeedbackReportPanel() {
 
   return (
     <div className="flex h-full min-h-0 w-full">
-      <aside className="border-border w-64 shrink-0 overflow-y-auto border-r p-2">
+      <aside
+        id="feedback-report-runs"
+        aria-label="Report runs"
+        hidden={!runsOpen}
+        className="border-border w-64 shrink-0 overflow-y-auto border-r p-2"
+      >
         <div className="text-muted-foreground px-4 py-2 text-xs font-medium">
           Runs
         </div>
@@ -144,6 +150,20 @@ function FeedbackReportPanel() {
       </aside>
       <section className="flex min-h-0 min-w-0 flex-1 flex-col">
         <div className="border-border flex flex-wrap items-center gap-2 border-b px-4 py-2 text-sm">
+          <button
+            type="button"
+            onClick={() => setRunsOpen((open) => !open)}
+            aria-expanded={runsOpen}
+            aria-controls="feedback-report-runs"
+            className="border-border inline-flex h-8 shrink-0 items-center gap-1 whitespace-nowrap rounded border px-2 py-1 text-sm hover:bg-muted"
+          >
+            {runsOpen ? (
+              <PanelLeftClose className="size-4" aria-hidden="true" />
+            ) : (
+              <PanelLeftOpen className="size-4" aria-hidden="true" />
+            )}
+            Runs
+          </button>
           <span className="font-medium">{periodLabel(selected)}</span>
           <span className="text-muted-foreground">
             · {selected.repository} · imported {selected.importedAt.slice(0, 10)}

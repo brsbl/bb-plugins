@@ -7,7 +7,7 @@ A rerunnable community feedback report for bb: public Discord and GitHub feedbac
 ![Feedback Report panel showing a run's brief with KPI tiles, headlines, and recommendations](docs/dashboard-brief.png)
 
 1. An agent runs the bundled `feedback-report` skill for a period (`asOf`, `weeks`). The skill drives the scripts in `scripts/` in order: collect, prepare, GitHub state, commit ledger, classification batches read by parallel workers, a resolution check of every piece of feedback against commits and issues, `compute.mjs` for the data, a narrative written from the data, and `build-dashboard.mjs` for the HTML.
-2. `bb feedback-report import <run-dir>` stores the run (report, narrative, dashboard) in the plugin database. The Feedback report panel lists runs and shows the selected dashboard.
+2. `bb feedback-report import <run-dir>` stores the run (report, narrative, dashboard) in the plugin database. The Feedback report panel shows the selected dashboard with five feedback cards in a row beneath Overview. Use **Runs** in the toolbar to expand or collapse the run list.
 3. **Ask the agent** spawns one thread per run, primed with the run's headlines and `bb feedback-report show <runId>`, and reopens it afterwards.
 
 The run directory layout and every metric definition are in [docs/run-contract.md](docs/run-contract.md). Narrative rules are in the skill's `references/narrative-guide.md`.

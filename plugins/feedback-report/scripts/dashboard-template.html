@@ -40,7 +40,7 @@
   * { box-sizing: border-box; }
   html, body { margin: 0; background: var(--plane); }
   b, strong { font-weight: var(--weight-emphasis); }
-  .viz-root { padding: var(--space-section); max-width: 1180px; margin: 0 auto; }
+  .viz-root { padding: var(--space-section); margin: 0 auto; }
   h1, h2 { font-size: var(--text-heading); font-weight: var(--weight-emphasis); line-height: var(--leading-tight); color: var(--ink-1); }
   h1 { margin: 0 0 var(--space-related); }
   h2 { margin: var(--space-section) 0 var(--space-group); }
@@ -52,7 +52,8 @@
   button { cursor: pointer; }
   button[aria-pressed="true"] { background: var(--mid); }
   button:focus-visible, select:focus-visible { outline: 2px solid var(--s1); outline-offset: 2px; }
-  .kpis, .headlines { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr)); gap: var(--space-group); }
+  .kpis { display: grid; grid-template-columns: repeat(5, minmax(280px, 1fr)); gap: var(--space-group); overflow-x: auto; }
+  .headlines { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr)); gap: var(--space-group); }
   .headlines { align-items: start; }
   .tile, .card { background: var(--surface-1); border: 1px solid var(--ring); border-radius: var(--radius-card); padding: var(--space-group); min-width: 0; }
   .tile .label { color: var(--ink-1); font-size: var(--text-body); font-weight: var(--weight-label); }
@@ -159,7 +160,7 @@
   </header>
   <div class="err" id="err"></div>
 
-  <section class="kpis" id="kpis"></section>
+  <section class="kpis" id="kpis" aria-label="Feedback overview" tabindex="0"></section>
 
   <h2>Headlines</h2>
   <div class="headlines" id="headlines"></div>
@@ -417,7 +418,6 @@ window.addEventListener('error', function (e) { var b = document.getElementById(
         h('dt', { text: 'Tracking' }), h('dd', null, [h('b', { text: t.res.open_pct + '%' }), ' open']),
       ]) },
       { label: 'Praise share of sentiment', value: Math.round(100 * wk[wk.length - 1].pos / (wk[wk.length - 1].pos + wk[wk.length - 1].neg)) + '%', weekly: wk.map(function (w) { return Math.round(100 * w.pos / (w.pos + w.neg)); }), fmt: function (v) { return v + '%'; }, upGood: true, spark: wk.map(function (w) { return Math.round(100 * w.pos / (w.pos + w.neg)); }) },
-      { label: 'Commits on main', value: String(t.commits), weekly: wk.map(function (w) { return w.commits; }), fmt: String, upGood: true, spark: wk.map(function (w) { return w.commits; }) },
     ];
     tiles.forEach(function (tl) { var tile = h('div', { class: 'tile' + (tl.bullets ? ' tile-bullets' : '') }, [h('div', { class: 'label', text: tl.label }), h('div', { class: 'value', text: tl.value })]); if (tl.note) tile.appendChild(h('div', { class: 'delta', text: tl.note })); if (tl.weekly) tile.appendChild(trendTable(tl.weekly, tl.fmt, tl.upGood, tl.label)); if (tl.bullets) tile.appendChild(h('ul', { class: 'tb' }, tl.bullets.map(function (b) { return h('li', null, b); }))); if (tl.details) tile.appendChild(tl.details); if (tl.delta) tile.appendChild(h('div', { class: 'delta', text: tl.delta })); k.appendChild(tile); });
     tiles.forEach(function (tl, i) {
