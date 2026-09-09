@@ -33,6 +33,7 @@ jobs:
           node-version: 22.22.0
           cache: npm
           cache-dependency-path: package-lock.json
+      - run: npm install -g npm@11.19.1
       - run: npm ci
       - run: npm run hygiene
       - run: npm run scaffold:smoke
