@@ -53,8 +53,12 @@
   .tile .trend-table .trend.good { color: var(--good-text); } .tile .trend-table .trend.bad { color: var(--critical); }
   .tri { display: inline-block; width: 0; height: 0; border-left: 3px solid transparent; border-right: 3px solid transparent; margin-right: 2px; vertical-align: 1px; }
   .tri.up { border-bottom: 5px solid currentColor; } .tri.down { border-top: 5px solid currentColor; } .tri.flat { width: 5px; height: 2px; background: currentColor; border: 0; vertical-align: 3px; }
-  .tile ul.tb { margin: 4px 0 0; padding-left: 16px; font-size: 12px; color: var(--ink-2); }
-  .tile ul.tb li { margin: 1px 0; }
+  .tile-bullets { display: flex; flex-direction: column; }
+  .tile ul.tb { flex: 1; display: flex; flex-direction: column; justify-content: space-between; gap: 6px; margin: 8px 0 0; padding-left: 18px; font-size: 14px; line-height: 1.5; color: var(--ink-2); font-variant-numeric: tabular-nums; }
+  .tile .resolution-facts { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 6px 12px; margin: 6px 0 0; font-size: 12px; line-height: 1.5; color: var(--ink-2); }
+  .tile .resolution-facts dd { margin: 0; }
+  .tile .resolution-facts b { font-weight: 500; color: var(--ink-1); font-variant-numeric: tabular-nums; }
+  .tile .resolution-detail { display: block; }
   .tile svg { display: block; margin-top: 6px; }
   .card { background: var(--surface-1); border: 1px solid var(--ring); border-radius: 10px; padding: 16px 18px; }
   .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
@@ -394,11 +398,15 @@ window.addEventListener('error', function (e) { var b = document.getElementById(
       { label: 'Feedback submitted', value: String(t.topics), weekly: wk.map(function (w) { return w.topics; }), fmt: String, upGood: true, spark: wk.map(function (w) { return w.topics; }) },
       { label: 'People reporting', value: String(t.people), weekly: wk.map(function (w) { return w.people; }), fmt: String, upGood: true, spark: wk.map(function (w) { return w.people; }) },
       { label: 'Open issues', value: String(t.open), bullets: [Math.round(100 * t.aging / t.open) + '% older than two weeks', t.reporters_per_open + ' reporters per open issue', t.people_with_open_pct + '% of reporters have an open issue'] },
-      { label: 'Feedback resolved', value: (t.res.resolved_pct == null ? '–' : t.res.resolved_pct + '%'), bullets: ['GitHub issues: ' + t.close_pct + '% closed, median ' + t.median_days + ' days' + (t.closed_by_pr_pct == null ? '' : ', ' + t.closed_by_pr_pct + '% by a linked PR'), 'Discord asks matched to a commit or closed issue: ' + (t.res.pending ? 'pending' : t.res.discord_resolved_pct == null ? '–' : t.res.discord_resolved_pct + '%'), t.res.open_pct + '% tracked in an open issue · ' + t.res.untracked_pct + '% not tracked anywhere'] },
+      { label: 'Feedback resolved', value: (t.res.resolved_pct == null ? '–' : t.res.resolved_pct + '%'), details: h('dl', { class: 'resolution-facts' }, [
+        h('dt', { text: 'GitHub' }), h('dd', null, [h('b', { text: t.close_pct + '%' }), ' closed', h('span', { class: 'resolution-detail', title: 'Median time to close; share of closures linked to a PR', text: t.median_days + 'd median' + (t.closed_by_pr_pct == null ? '' : ' · ' + t.closed_by_pr_pct + '% linked PR') })]),
+        h('dt', { text: 'Discord', title: 'Asks matched to a commit or closed issue' }), h('dd', null, [h('b', { text: t.res.pending ? 'pending' : t.res.discord_resolved_pct == null ? '–' : t.res.discord_resolved_pct + '%' }), t.res.pending ? '' : ' resolved']),
+        h('dt', { text: 'Tracking' }), h('dd', null, [h('b', { text: t.res.open_pct + '%' }), ' open · ', h('b', { text: t.res.untracked_pct + '%' }), ' untracked']),
+      ]) },
       { label: 'Praise share of sentiment', value: Math.round(100 * wk[wk.length - 1].pos / (wk[wk.length - 1].pos + wk[wk.length - 1].neg)) + '%', note: 'of people who praised or complained, the share who praised', weekly: wk.map(function (w) { return Math.round(100 * w.pos / (w.pos + w.neg)); }), fmt: function (v) { return v + '%'; }, upGood: true, spark: wk.map(function (w) { return Math.round(100 * w.pos / (w.pos + w.neg)); }) },
       { label: 'Commits on main', value: String(t.commits), weekly: wk.map(function (w) { return w.commits; }), fmt: String, upGood: true, spark: wk.map(function (w) { return w.commits; }) },
     ];
-    tiles.forEach(function (tl) { var tile = h('div', { class: 'tile' }, [h('div', { class: 'label', text: tl.label }), h('div', { class: 'value', text: tl.value })]); if (tl.note) tile.appendChild(h('div', { class: 'delta', text: tl.note })); if (tl.weekly) tile.appendChild(trendTable(tl.weekly, tl.fmt, tl.upGood, tl.label)); if (tl.bullets) tile.appendChild(h('ul', { class: 'tb' }, tl.bullets.map(function (b) { return h('li', { text: b }); }))); if (tl.delta) tile.appendChild(h('div', { class: 'delta', text: tl.delta })); k.appendChild(tile); });
+    tiles.forEach(function (tl) { var tile = h('div', { class: 'tile' + (tl.bullets ? ' tile-bullets' : '') }, [h('div', { class: 'label', text: tl.label }), h('div', { class: 'value', text: tl.value })]); if (tl.note) tile.appendChild(h('div', { class: 'delta', text: tl.note })); if (tl.weekly) tile.appendChild(trendTable(tl.weekly, tl.fmt, tl.upGood, tl.label)); if (tl.bullets) tile.appendChild(h('ul', { class: 'tb' }, tl.bullets.map(function (b) { return h('li', { text: b }); }))); if (tl.details) tile.appendChild(tl.details); if (tl.delta) tile.appendChild(h('div', { class: 'delta', text: tl.delta })); k.appendChild(tile); });
     tiles.forEach(function (tl, i) {
       if (!tl.spark) return;
       var table = k.children[i].querySelector('.trend-table');
