@@ -402,7 +402,7 @@ describe("Thread Organizer server", () => {
     expect(organizer.sections()).toContainEqual(
       expect.objectContaining({
         id: "sec_legacy_planning",
-        name: "📋 Planning",
+        name: "Planning",
       }),
     );
     await organizer.harness.lifecycle.dispose();
