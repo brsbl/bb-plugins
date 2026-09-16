@@ -449,22 +449,6 @@ __FONTS__
 .group\/queue-header { border-bottom-color: rgba(22, 22, 22, 0.05); }
 .dark .group\/queue-header { border-bottom-color: rgba(255, 255, 255, 0.018); }
 
-/* SIDEBAR SECTION HEADINGS — no fill.
- *
- * bb gives the section header row its own opaque `bg-sidebar` fill. That is
- * the SAME colour as the sidebar, so it is invisible on a flat theme — but
- * this sidebar carries noise, and an opaque repaint erases the texture on
- * those rows. The result reads as a flat band behind every heading.
- *
- * Dropping the fill lets the sidebar's own surface (and its noise) show
- * through. Scoped to elements carrying BOTH classes: of the 12
- * `.bb-sidebar-hover-actions-row` rows in the sidebar, exactly 3 also carry
- * `bg-sidebar`, and those 3 are the section headers. Hover and focus fills are
- * separate classes and are untouched. Verified against the running app. */
-.fixed.bg-sidebar .bb-sidebar-hover-actions-row.bg-sidebar {
-  background-color: transparent;
-}
-
 /* SIDEBAR NOISE — the amp face. Fine desaturated fractal noise, tuned to read
  * like the brushed black panel of old rack gear.
  *
