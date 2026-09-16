@@ -1,4 +1,5 @@
 import type { BbPluginApi } from "@get-bb/plugin-sdk";
+import { isPluginBrowseQuery } from "./mention-query";
 
 import {
   COMMUNITY_MARKETPLACE,
@@ -183,7 +184,7 @@ export default async function plugin(bb: BbPluginApi) {
     async search({ query }) {
       try {
         const entries = await boundedSdkRead((signal) =>
-          bb.sdk.plugins.catalog.search({ query, signal }),
+          bb.sdk.plugins.catalog.search({ query: isPluginBrowseQuery(query) ? "" : query, signal }),
         );
         return searchCommunityPlugins(entries, query);
       } catch {

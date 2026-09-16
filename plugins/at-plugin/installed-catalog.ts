@@ -1,4 +1,5 @@
 import type { BbPluginApi, PluginMentionItem } from "@get-bb/plugin-sdk";
+import { isPluginBrowseQuery } from "./mention-query";
 
 import {
   MAX_ITEM_SUBTITLE_BYTES,
@@ -78,6 +79,7 @@ export function searchInstalledPlugins(
   query: string,
   ownerPluginId: string,
 ): PluginMentionItem[] {
+  const browse = isPluginBrowseQuery(query);
   const eligible = plugins.flatMap((plugin): InstalledCandidate[] => {
     if (!isUsableInstalledTarget(plugin, ownerPluginId)) return [];
 
@@ -85,7 +87,7 @@ export function searchInstalledPlugins(
     if (pluginId === null) return [];
     const displayName = normalizeUntrustedText(plugin.name ?? pluginId) || pluginId;
     const description = normalizeUntrustedText(plugin.description ?? "");
-    const tier = matchTier(query, displayName, pluginId, description);
+    const tier = matchTier(browse ? "" : query, displayName, pluginId, description);
     if (tier === null) return [];
 
     return [
@@ -118,7 +120,7 @@ export function searchInstalledPlugins(
         compareText(left.displayName, right.displayName) ||
         compareText(left.pluginId, right.pluginId),
     )
-    .slice(0, RESULT_LIMIT)
+    .slice(0, browse ? undefined : RESULT_LIMIT)
     .map((candidate) => {
       const subtitleParts = duplicateNames.has(candidate.normalizedName)
         ? [candidate.pluginId, candidate.description]

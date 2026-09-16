@@ -1,4 +1,5 @@
 import type { BbPluginApi, PluginMentionItem } from "@get-bb/plugin-sdk";
+import { isPluginBrowseQuery } from "./mention-query";
 
 import {
   MAX_ITEM_SUBTITLE_BYTES,
@@ -87,8 +88,9 @@ export function searchCommunityPlugins(
   entries: readonly CommunityCatalogRecord[],
   query: string,
 ): PluginMentionItem[] {
+  const browse = isPluginBrowseQuery(query);
   const ranked = entries
-    .map((entry, hostRank) => toCandidate(entry, query, hostRank))
+    .map((entry, hostRank) => toCandidate(entry, browse ? "" : query, hostRank))
     .filter((candidate): candidate is CommunityCandidate => candidate !== null)
     .sort((left, right) => left.tier - right.tier || left.hostRank - right.hostRank);
 
@@ -110,7 +112,7 @@ export function searchCommunityPlugins(
       .map(([name]) => name),
   );
 
-  return deduplicated.slice(0, RESULT_LIMIT).map((candidate) => {
+  return deduplicated.slice(0, browse ? undefined : RESULT_LIMIT).map((candidate) => {
     const detail = candidate.description || candidate.publisherLabel;
     const subtitleParts = [
       "Not installed",
