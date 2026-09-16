@@ -15,9 +15,9 @@ thread’s actual stage.
 - Starting work again restores the thread’s remembered stage.
 - A user move changes the remembered stage. `bb organizer phase <stage-key>`
   moves it explicitly.
-- Inbox keeps that system behavior even when its visible title or icon changes.
-- The icon picker maps each semantic icon choice to an emoji section prefix on
-  the released plugin SDK.
+- Inbox keeps that system behavior even when its visible title changes.
+- A stage title is used verbatim as its bb section name, so any emoji you want
+  in the sidebar goes in the title itself.
 - Section expansion and collapse are owned by bb and the user; Thread Organizer
   never changes them automatically.
 - Reordering a non-Inbox stage in the native sidebar saves the same workflow
@@ -39,10 +39,8 @@ inferred.
 
 Open Thread Organizer in bb’s plugin settings. The workflow editor lets you:
 
-- rename and re-icon Inbox while leaving its routing protected;
-- search and choose from bb’s full semantic icon catalog in a visual picker
-  placed beside each editable title;
-- add, remove, reorder, rename, and re-icon other stages;
+- rename Inbox while leaving its routing protected;
+- add, remove, reorder, and rename other stages;
 - describe what belongs in each stage;
 
 The defaults are Planning, Spec Review, Building, Testing / Deploy, Handoff,

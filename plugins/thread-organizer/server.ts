@@ -4,7 +4,6 @@ import { z } from "zod";
 import {
   DEFAULT_WORKFLOW_CONFIG,
   INBOX_RULE,
-  SECTION_ICON_OPTIONS,
   WORKFLOW_CONFIG_VERSION,
   buildWorkflowSkillSlot,
   cloneWorkflowConfig,
@@ -33,7 +32,9 @@ const THREAD_LIST_PAGE_SIZE = 100;
 
 const editableStageSchema = z
   .object({
-    icon: z.enum(SECTION_ICON_OPTIONS),
+    // Accepted and discarded so configs and clients written before
+    // section icons were removed keep validating.
+    icon: z.unknown().optional(),
     key: z.string().min(1).max(40),
     role: z.enum(["inbox", "stage"]),
     rule: z.string().min(1).max(240),

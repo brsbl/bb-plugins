@@ -18,7 +18,6 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import { definePluginApp, useRealtime, useRpc } from "@get-bb/plugin-sdk/app";
 
 import {
-  SECTION_ICON_OPTIONS,
   WORKFLOW_CONFIG_VERSION,
   createStageKey,
   editableWorkflowConfig,
@@ -26,7 +25,6 @@ import {
   type EditableWorkflowConfig,
   type EditableWorkflowStage,
 } from "./core.js";
-import { SectionIcon, sectionIconLabel } from "./section-icon.js";
 import type { rpcContract } from "./server.js";
 import {
   cacheWorkflowConfig,
@@ -44,11 +42,11 @@ const primaryButtonClass = `${buttonBaseClass} bg-foreground text-background hov
 const iconButtonClass =
   "inline-flex size-8 shrink-0 items-center justify-center rounded-md text-muted-foreground outline-none hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-40";
 const stageRowClass =
-  "grid min-w-0 grid-cols-[2rem_minmax(0,1fr)_2rem] items-start gap-x-2 gap-y-0 lg:grid-cols-[2rem_2rem_minmax(7rem,9rem)_minmax(0,1fr)_2rem]";
+  "grid min-w-0 grid-cols-[minmax(0,1fr)_2rem] items-start gap-x-2 gap-y-0 lg:grid-cols-[2rem_minmax(7rem,9rem)_minmax(0,1fr)_2rem]";
 const stageRuleLayoutClass =
-  "col-span-2 col-start-2 row-start-2 min-w-0 lg:col-span-1 lg:col-start-4 lg:row-start-1";
+  "col-span-2 col-start-1 row-start-2 min-w-0 lg:col-span-1 lg:col-start-3 lg:row-start-1";
 const workflowSettingsDescription =
-  "Rename, re-icon, reorder, and define the workflow your agents follow.";
+  "Rename, reorder, and define the workflow your agents follow.";
 // Align the visible R to the rounded-lg panel's top-left tangent. Inter's
 // capital R starts 180/2048 em inside its advance box, so hang that sidebearing
 // back out of the shared radius inset rather than introducing a pixel nudge.
@@ -70,107 +68,6 @@ function uniqueNewStageTitle(stages: readonly EditableWorkflowStage[]): string {
     if (!titles.has(title.toLocaleLowerCase())) return title;
   }
   return "Untitled Stage";
-}
-
-function IconPicker({
-  label,
-  onChange,
-  value,
-}: {
-  label: string;
-  onChange(value: EditableWorkflowStage["icon"]): void;
-  value: EditableWorkflowStage["icon"];
-}) {
-  const [open, setOpen] = useState(false);
-  const [query, setQuery] = useState("");
-  const rootRef = useRef<HTMLDivElement>(null);
-  const normalizedQuery = query.trim().toLocaleLowerCase();
-  const filteredIcons = SECTION_ICON_OPTIONS.filter((icon) =>
-    sectionIconLabel(icon).toLocaleLowerCase().includes(normalizedQuery),
-  );
-
-  useEffect(() => {
-    if (!open) return;
-    const closeOnOutsidePress = (event: PointerEvent) => {
-      if (!rootRef.current?.contains(event.target as Node)) setOpen(false);
-    };
-    const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setOpen(false);
-    };
-    document.addEventListener("pointerdown", closeOnOutsidePress);
-    document.addEventListener("keydown", closeOnEscape);
-    return () => {
-      document.removeEventListener("pointerdown", closeOnOutsidePress);
-      document.removeEventListener("keydown", closeOnEscape);
-    };
-  }, [open]);
-
-  return (
-    <div className="relative shrink-0" ref={rootRef}>
-      <button
-        aria-expanded={open}
-        aria-haspopup="listbox"
-        aria-label={`Choose icon for ${label}`}
-        className={`${iconButtonClass} border border-border bg-background text-foreground`}
-        onClick={() => {
-          setQuery("");
-          setOpen((current) => !current);
-        }}
-        title={`Choose icon for ${label}`}
-        type="button"
-      >
-        <SectionIcon className="size-4" name={value} />
-      </button>
-      {open ? (
-        <div className="absolute left-0 top-full z-30 mt-1 grid w-72 max-w-[calc(100vw-2rem)] gap-2 rounded-lg border border-border bg-popover p-2 text-popover-foreground shadow-lg">
-          <input
-            aria-label="Search icons"
-            autoFocus
-            className={fieldClass}
-            onChange={(event) => setQuery(event.target.value)}
-            placeholder="Search icons"
-            type="search"
-            value={query}
-          />
-          <div
-            aria-label={`Icons for ${label}`}
-            className="grid max-h-72 grid-cols-6 gap-1 overflow-y-auto pr-1"
-            role="listbox"
-          >
-            {filteredIcons.map((icon) => {
-              const iconLabel = sectionIconLabel(icon);
-              return (
-                <button
-                  aria-label={iconLabel}
-                  aria-selected={icon === value}
-                  className={`inline-flex size-8 items-center justify-center rounded-md outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring ${
-                    icon === value
-                      ? "bg-muted text-foreground ring-1 ring-foreground/35"
-                      : "text-muted-foreground"
-                  }`}
-                  key={icon}
-                  onClick={() => {
-                    onChange(icon);
-                    setOpen(false);
-                  }}
-                  role="option"
-                  title={iconLabel}
-                  type="button"
-                >
-                  <SectionIcon className="size-4" name={icon} />
-                </button>
-              );
-            })}
-            {filteredIcons.length === 0 ? (
-              <p className="col-span-6 py-3 text-center text-xs text-muted-foreground">
-                No matching icons
-              </p>
-            ) : null}
-          </div>
-        </div>
-      ) : null}
-    </div>
-  );
 }
 
 function StageActions({
@@ -347,11 +244,6 @@ function StageCard({
             </button>
           </span>
         )}
-        <IconPicker
-          label={stage.title || "untitled stage"}
-          onChange={(icon) => update("icon", icon)}
-          value={stage.icon}
-        />
         <input
           aria-label={`${stage.title || "Untitled stage"} section title`}
           className="h-8 min-w-0 flex-1 rounded-md border border-transparent bg-transparent px-1.5 text-sm font-semibold text-foreground outline-none hover:border-border focus:border-foreground/45 focus:bg-background"
@@ -362,7 +254,7 @@ function StageCard({
         {inbox ? (
           <span
             aria-hidden="true"
-            className="col-start-3 row-start-1 size-8 lg:col-start-5"
+            className="col-start-2 row-start-1 size-8 lg:col-start-4"
           />
         ) : (
           <StageActions
@@ -494,7 +386,6 @@ export function WorkflowSettings() {
           key,
           role: "stage",
           title,
-          icon: "Circle",
           rule: "Describe the work that belongs in this stage.",
         },
       ],

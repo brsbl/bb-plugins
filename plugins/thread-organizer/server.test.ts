@@ -856,7 +856,6 @@ describe("Thread Organizer server", () => {
     edited.stages[0] = {
       ...edited.stages[0]!,
       title: "Needs Me",
-      icon: "MailOpen",
     };
     edited.stages[1] = {
       ...edited.stages[1]!,
@@ -875,10 +874,9 @@ describe("Thread Organizer server", () => {
 
     expect(saved.stages[0]).toMatchObject({
       title: "Needs Me",
-      icon: "MailOpen",
     });
     expect(organizer.sections()).toContainEqual(
-      expect.objectContaining({ name: "📬 Needs Me" }),
+      expect.objectContaining({ name: "Needs Me" }),
     );
     expect(configuration.skills).toEqual(["thread-phase-organizer"]);
     expect(configuration.instructions).toContain(
