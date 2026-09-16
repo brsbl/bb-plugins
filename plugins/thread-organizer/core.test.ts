@@ -35,13 +35,13 @@ describe("workflow configuration", () => {
         title,
       })),
     ).toEqual([
-      { key: "inbox", title: "📥 Inbox" },
-      { key: "planning", title: "📋 Planning" },
-      { key: "spec-review", title: "📄 Spec Review" },
-      { key: "building", title: "🛠️ Building" },
-      { key: "testing-deploy", title: "🧪 Testing / Deploy" },
-      { key: "handoff", title: "🤝 Handoff" },
-      { key: "on-hold", title: "⏸️ On Hold" },
+      { key: "inbox", title: "Inbox" },
+      { key: "planning", title: "Planning" },
+      { key: "spec-review", title: "Spec Review" },
+      { key: "building", title: "Building" },
+      { key: "testing-deploy", title: "Testing / Deploy" },
+      { key: "handoff", title: "Handoff" },
+      { key: "on-hold", title: "On Hold" },
     ]);
     expect(
       core.DEFAULT_WORKFLOW_CONFIG.stages.find(
@@ -283,13 +283,13 @@ describe("local section presentation", () => {
     const config = core.cloneWorkflowConfig(core.DEFAULT_WORKFLOW_CONFIG);
 
     expect(config.stages.map(core.localSectionName)).toEqual([
-      "📥 Inbox",
-      "📋 Planning",
-      "📄 Spec Review",
-      "🛠️ Building",
-      "🧪 Testing / Deploy",
-      "🤝 Handoff",
-      "⏸️ On Hold",
+      "Inbox",
+      "Planning",
+      "Spec Review",
+      "Building",
+      "Testing / Deploy",
+      "Handoff",
+      "On Hold",
     ]);
     expect(config.stages.map(core.localSectionName)).toEqual(
       config.stages.map((stage) => stage.title),
