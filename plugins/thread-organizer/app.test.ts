@@ -428,6 +428,13 @@ describe("workflow settings", () => {
     expect(planningRuleLayout.className).toContain("row-start-2");
     expect(planningRuleLayout.className).toContain("lg:col-start-3");
     expect(planningRuleLayout.className).toContain("lg:row-start-1");
+    const planningActions = rendered.getByLabelText(
+      "More actions for Planning",
+    ).parentElement!;
+    expect(planningActions.className).toContain("col-start-2");
+    expect(planningActions.className).toContain("lg:col-start-4");
+    expect(planningActions.className).not.toContain("col-start-3");
+    expect(planningActions.className).not.toContain("lg:col-start-5");
     expect(planningRule.className).toContain("border-transparent");
     expect(planningRule.className).toContain("resize-none");
     expect(planningRule.className).not.toContain("resize-y");

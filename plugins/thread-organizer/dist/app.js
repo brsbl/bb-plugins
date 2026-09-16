@@ -701,7 +701,7 @@ function StageActions({
   return /* @__PURE__ */ jsxs(
     "div",
     {
-      className: "relative col-start-3 row-start-1 shrink-0 lg:col-start-5",
+      className: "relative col-start-2 row-start-1 shrink-0 lg:col-start-4",
       ref: rootRef,
       children: [
         /* @__PURE__ */ jsx(
