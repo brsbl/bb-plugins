@@ -142,6 +142,11 @@ function buildCommunityPluginContext(reference) {
   );
 }
 
+// mention-query.ts
+function isPluginBrowseQuery(query) {
+  return normalizeUntrustedText(query).toLowerCase() === "plugin";
+}
+
 // community-catalog.ts
 var COMMUNITY_MARKETPLACE = "bb-community";
 var RESULT_LIMIT = 6;
@@ -181,7 +186,8 @@ function toCandidate(entry, query, hostRank) {
   };
 }
 function searchCommunityPlugins(entries, query) {
-  const ranked = entries.map((entry, hostRank) => toCandidate(entry, query, hostRank)).filter((candidate) => candidate !== null).sort((left, right) => left.tier - right.tier || left.hostRank - right.hostRank);
+  const browse = isPluginBrowseQuery(query);
+  const ranked = entries.map((entry, hostRank) => toCandidate(entry, browse ? "" : query, hostRank)).filter((candidate) => candidate !== null).sort((left, right) => left.tier - right.tier || left.hostRank - right.hostRank);
   const seenPluginIds = /* @__PURE__ */ new Set();
   const deduplicated = ranked.filter((candidate) => {
     if (seenPluginIds.has(candidate.pluginId)) return false;
@@ -196,7 +202,7 @@ function searchCommunityPlugins(entries, query) {
       }, /* @__PURE__ */ new Map())
     ).filter(([, count]) => count > 1).map(([name]) => name)
   );
-  return deduplicated.slice(0, RESULT_LIMIT).map((candidate) => {
+  return deduplicated.slice(0, browse ? void 0 : RESULT_LIMIT).map((candidate) => {
     const detail = candidate.description || candidate.publisherLabel;
     const subtitleParts = [
       "Not installed",
@@ -245,13 +251,14 @@ function isUsableInstalledTarget(plugin2, ownerPluginId) {
   return pluginId !== null && pluginId !== ownerId && plugin2.status === "running" && hasAgentFacingInterface(plugin2);
 }
 function searchInstalledPlugins(plugins, query, ownerPluginId) {
+  const browse = isPluginBrowseQuery(query);
   const eligible = plugins.flatMap((plugin2) => {
     if (!isUsableInstalledTarget(plugin2, ownerPluginId)) return [];
     const pluginId = normalizeStableIdentity(plugin2.id);
     if (pluginId === null) return [];
     const displayName = normalizeUntrustedText(plugin2.name ?? pluginId) || pluginId;
     const description = normalizeUntrustedText(plugin2.description ?? "");
-    const tier = matchTier(query, displayName, pluginId, description);
+    const tier = matchTier(browse ? "" : query, displayName, pluginId, description);
     if (tier === null) return [];
     return [
       {
@@ -274,7 +281,7 @@ function searchInstalledPlugins(plugins, query, ownerPluginId) {
   );
   return eligible.sort(
     (left, right) => left.tier - right.tier || compareText(left.displayName, right.displayName) || compareText(left.pluginId, right.pluginId)
-  ).slice(0, RESULT_LIMIT2).map((candidate) => {
+  ).slice(0, browse ? void 0 : RESULT_LIMIT2).map((candidate) => {
     const subtitleParts = duplicateNames.has(candidate.normalizedName) ? [candidate.pluginId, candidate.description] : [candidate.description];
     const subtitle = boundUntrustedText(
       subtitleParts.filter(Boolean).join(" \xB7 "),
@@ -415,7 +422,7 @@ async function plugin(bb) {
     async search({ query }) {
       try {
         const entries = await boundedSdkRead(
-          (signal) => bb.sdk.plugins.catalog.search({ query, signal })
+          (signal) => bb.sdk.plugins.catalog.search({ query: isPluginBrowseQuery(query) ? "" : query, signal })
         );
         return searchCommunityPlugins(entries, query);
       } catch {
