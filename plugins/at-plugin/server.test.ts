@@ -173,6 +173,52 @@ describe("provider registration and package shape", () => {
 });
 
 describe("provider searches", () => {
+  it.each(["plugin", " Plugin "])("browses every eligible plugin for %j and still searches names", async (query) => {
+    const inventory = Array.from({ length: 9 }, (_, index) => installed({
+      id: `installed-${index}`, name: `Tool ${index}`, description: "Manage tasks",
+    }));
+    const catalog = Array.from({ length: 9 }, (_, index) => community({
+      pluginId: `community-${index}`, entryId: `entry-${index}`, displayName: `Service ${index}`,
+    }));
+    const { bb, harness } = createFakePluginHost({
+      pluginId: "at-plugin",
+      sdk: {
+        plugins: {
+          list: async () => ({ plugins: [
+            ...inventory,
+            installed({ id: "disabled", status: "disabled" }),
+            installed({ id: "ui-only", capabilities: [] }),
+            installed({ id: "at-plugin" }),
+          ] }),
+          catalog: { search: async ({ query: catalogQuery }) => [
+            ...catalog,
+            community({ pluginId: "incompatible", compatible: false }),
+            community({ pluginId: "already-installed", installed: true }),
+          ].filter((entry) => entry.displayName.toLowerCase().includes(catalogQuery.toLowerCase())) },
+        },
+      },
+    });
+    await plugin(bb);
+    const installedProvider = mentionProvider(harness, "installed");
+    const communityProvider = mentionProvider(harness, "community");
+    const context = { ...MENTION_CONTEXT, query };
+    const installedRows = await installedProvider.search(context);
+    const communityRows = await communityProvider.search(context);
+    expect(installedRows.map((row) => row.title)).toEqual(inventory.map((entry) => entry.name));
+    expect(communityRows.map((row) => row.title)).toEqual(catalog.map((entry) => entry.displayName));
+    expect(harness.inspection.sdk.callsTo("plugins.catalog.search")[0]?.[0]).toMatchObject({ query: "" });
+    expect(await installedProvider.resolve(installedRows[8]!.id)).toEqual({
+      context: buildInstalledPluginContext({ name: "Tool 8", pluginId: "installed-8" }),
+    });
+
+    expect((await installedProvider.search({ ...context, query: "tool" }))).toHaveLength(6);
+    expect((await installedProvider.search({ ...context, query: "tool 8" })).map((row) => row.title)).toEqual(["Tool 8"]);
+    expect(await installedProvider.search({ ...context, query: "plugin-tools" })).toEqual([]);
+    expect((await communityProvider.search({ ...context, query: "service" }))).toHaveLength(6);
+    expect((await communityProvider.search({ ...context, query: "service 8" })).map((row) => row.title)).toEqual(["Service 8"]);
+    expect(await communityProvider.search({ ...context, query: "plugin-tools" })).toEqual([]);
+  });
+
   it("uses only each provider's SDK read and returns its host row", async () => {
     const inventory = [installed()];
     const catalog = [community({ displayName: "Git Memory", pluginId: "git-memory" })];
