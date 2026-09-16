@@ -113,11 +113,11 @@ export const DEFAULT_WORKFLOW_CONFIG: WorkflowConfig = {
 const LEGACY_SECTION_NAMES: Readonly<Record<string, readonly string[]>> = {
   inbox: ["📥 Inbox"],
   planning: ["📋 Planning"],
-  "spec-review": ["🔎 Spec Review"],
+  "spec-review": ["🔎 Spec Review", "📄 Spec Review"],
   building: ["🛠️ Building"],
-  "testing-deploy": ["✅ Testing / Deploy"],
+  "testing-deploy": ["✅ Testing / Deploy", "🧪 Testing / Deploy"],
   handoff: ["🤝 Handoff"],
-  "on-hold": ["Parked"],
+  "on-hold": ["Parked", "⏸️ On Hold"],
 };
 
 function normalizeText(value: string): string {

@@ -52,7 +52,9 @@ function agentContext(originPluginId: string | null = null) {
   };
 }
 
-function createHarness(options: { legacyPlanning?: boolean } = {}) {
+function createHarness(
+  options: { iconEraSections?: boolean; legacyPlanning?: boolean } = {},
+) {
   const initialThread = makeThreadResponse({
     id: "thr_test",
     projectId: "proj_test",
@@ -69,16 +71,42 @@ function createHarness(options: { legacyPlanning?: boolean } = {}) {
     return thread;
   };
   let sectionCounter = 0;
-  let sections: TestSection[] = options.legacyPlanning
-    ? [
-        {
-          id: "sec_legacy_planning",
-          name: "📋 Planning",
-          createdAt: 1,
-          updatedAt: 1,
-        },
-      ]
-    : [];
+  let sections: TestSection[] = [
+    ...(options.legacyPlanning
+      ? [
+          {
+            id: "sec_legacy_planning",
+            name: "📋 Planning",
+            createdAt: 1,
+            updatedAt: 1,
+          },
+        ]
+      : []),
+    // Names the icon-era plugin gave its defaults (emoji derived from the
+    // default icons), as found on every install of the previous release.
+    ...(options.iconEraSections
+      ? [
+          {
+            id: "sec_icon_spec_review",
+            name: "📄 Spec Review",
+            createdAt: 1,
+            updatedAt: 1,
+          },
+          {
+            id: "sec_icon_testing",
+            name: "🧪 Testing / Deploy",
+            createdAt: 1,
+            updatedAt: 1,
+          },
+          {
+            id: "sec_icon_on_hold",
+            name: "⏸️ On Hold",
+            createdAt: 1,
+            updatedAt: 1,
+          },
+        ]
+      : []),
+  ];
   type TestThreadChange =
     | "archived-changed"
     | "parent-changed"
@@ -404,6 +432,38 @@ describe("Thread Organizer server", () => {
         id: "sec_legacy_planning",
         name: "Planning",
       }),
+    );
+    await organizer.harness.lifecycle.dispose();
+  });
+
+  it("adopts icon-era default section names by name when no config is stored", async () => {
+    const organizer = createHarness({ iconEraSections: true });
+    await plugin(organizer.bb);
+    const config = await configFor(organizer);
+    const sectionId = (key: string) =>
+      config.stages.find((stage) => stage.key === key)!.sectionId;
+
+    expect(sectionId("spec-review")).toBe("sec_icon_spec_review");
+    expect(sectionId("testing-deploy")).toBe("sec_icon_testing");
+    expect(sectionId("on-hold")).toBe("sec_icon_on_hold");
+    expect(organizer.create.mock.calls.map(([{ name }]) => name)).toEqual([
+      "Inbox",
+      "Planning",
+      "Building",
+      "Handoff",
+    ]);
+    expect(organizer.sections()).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: "sec_icon_spec_review",
+          name: "Spec Review",
+        }),
+        expect.objectContaining({
+          id: "sec_icon_testing",
+          name: "Testing / Deploy",
+        }),
+        expect.objectContaining({ id: "sec_icon_on_hold", name: "On Hold" }),
+      ]),
     );
     await organizer.harness.lifecycle.dispose();
   });

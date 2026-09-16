@@ -14597,11 +14597,11 @@ var DEFAULT_WORKFLOW_CONFIG = {
 var LEGACY_SECTION_NAMES = {
   inbox: ["\u{1F4E5} Inbox"],
   planning: ["\u{1F4CB} Planning"],
-  "spec-review": ["\u{1F50E} Spec Review"],
+  "spec-review": ["\u{1F50E} Spec Review", "\u{1F4C4} Spec Review"],
   building: ["\u{1F6E0}\uFE0F Building"],
-  "testing-deploy": ["\u2705 Testing / Deploy"],
+  "testing-deploy": ["\u2705 Testing / Deploy", "\u{1F9EA} Testing / Deploy"],
   handoff: ["\u{1F91D} Handoff"],
-  "on-hold": ["Parked"]
+  "on-hold": ["Parked", "\u23F8\uFE0F On Hold"]
 };
 function normalizeText(value) {
   return value.normalize("NFKC").trim().replace(/\s+/gu, " ");
