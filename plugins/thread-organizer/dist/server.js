@@ -15170,7 +15170,7 @@ async function plugin(bb) {
       await bb.sdk.threads.send({
         threadId: thread.id,
         mode: stage.entryPromptDelivery === "steer" ? "steer-if-active" : "queue-if-active",
-        input: [{ type: "text", text }]
+        input: [{ type: "text", text, mentions: [] }]
       });
     } catch (error51) {
       state.pendingEntryPrompt = {
@@ -15217,7 +15217,9 @@ async function plugin(bb) {
   async function reconcileExisting(signal) {
     for (const threadId of await listManageableThreadIds(signal)) {
       if (signal?.aborted) return;
-      await schedule(threadId, () => reconcileThread(threadId));
+      await schedule(threadId, async () => {
+        await reconcileThread(threadId);
+      });
     }
   }
   async function finishConfigOperation(operation) {
@@ -15395,7 +15397,9 @@ Available: ${available}
   ]) {
     bb.events.on(
       event,
-      ({ thread }) => schedule(thread.id, () => reconcileThread(thread.id))
+      ({ thread }) => schedule(thread.id, async () => {
+        await reconcileThread(thread.id);
+      })
     );
   }
   for (const event of ["thread.archived", "thread.deleted"]) {

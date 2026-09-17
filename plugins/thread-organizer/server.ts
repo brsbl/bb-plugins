@@ -515,7 +515,7 @@ export default async function plugin(bb: BbPluginApi): Promise<void> {
           stage.entryPromptDelivery === "steer"
             ? "steer-if-active"
             : "queue-if-active",
-        input: [{ type: "text", text }],
+        input: [{ type: "text", text, mentions: [] }],
       });
     } catch (error) {
       state.pendingEntryPrompt = {
@@ -566,7 +566,9 @@ export default async function plugin(bb: BbPluginApi): Promise<void> {
   async function reconcileExisting(signal?: AbortSignal): Promise<void> {
     for (const threadId of await listManageableThreadIds(signal)) {
       if (signal?.aborted) return;
-      await schedule(threadId, () => reconcileThread(threadId));
+      await schedule(threadId, async () => {
+        await reconcileThread(threadId);
+      });
     }
   }
 
@@ -774,7 +776,9 @@ export default async function plugin(bb: BbPluginApi): Promise<void> {
     "thread.failed",
   ] as const) {
     bb.events.on(event, ({ thread }) =>
-      schedule(thread.id, () => reconcileThread(thread.id)),
+      schedule(thread.id, async () => {
+        await reconcileThread(thread.id);
+      }),
     );
   }
   for (const event of ["thread.archived", "thread.deleted"] as const) {
