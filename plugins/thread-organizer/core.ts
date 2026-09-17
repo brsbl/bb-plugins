@@ -19,14 +19,24 @@ export interface WorkflowStage extends EditableWorkflowStage {
 }
 
 export interface EditableWorkflowConfig {
+  /** Revision the editor started from; a save is refused when the stored revision differs. */
+  baseRevision?: number;
   stages: EditableWorkflowStage[];
   version: typeof WORKFLOW_CONFIG_VERSION;
 }
 
 export interface WorkflowConfig {
+  /** Bumped by the server on every saved change. */
+  revision?: number;
   stages: WorkflowStage[];
   version: typeof WORKFLOW_CONFIG_VERSION;
 }
+
+/** Renderer id of the confirmation form CLI configuration changes wait on. */
+export const WORKFLOW_CHANGE_INTERACTION_ID = "confirm-workflow-change";
+/** Raised when a save is based on a revision the server has moved past. */
+export const WORKFLOW_CHANGED_ELSEWHERE_MESSAGE =
+  "The workflow changed elsewhere. Reload and try again.";
 
 export interface OrganizableThread {
   archivedAt: number | null;
@@ -259,7 +269,17 @@ export function parseWorkflowConfig(value: unknown): WorkflowConfig | null {
       .map((stage) => parseStage(stage, true))
       .map(migrateDraftStage);
     validateStages(stages);
-    return { version: WORKFLOW_CONFIG_VERSION, stages };
+    const revision =
+      typeof value.revision === "number" &&
+      Number.isInteger(value.revision) &&
+      value.revision >= 0
+        ? value.revision
+        : undefined;
+    return {
+      version: WORKFLOW_CONFIG_VERSION,
+      stages,
+      ...(revision === undefined ? {} : { revision }),
+    };
   } catch {
     return null;
   }
@@ -289,6 +309,7 @@ export function editableWorkflowConfig(
     stages: config.stages.map(({ sectionId: _sectionId, ...stage }) => ({
       ...stage,
     })),
+    ...(config.revision === undefined ? {} : { baseRevision: config.revision }),
   };
 }
 
@@ -376,6 +397,12 @@ export function stageForSectionId(
   return config.stages.find((stage) => stage.sectionId === sectionId) ?? null;
 }
 
+/**
+ * Keys `migrateDraftStage` rewrites on load. A new stage must never take one,
+ * or the next load would produce a duplicate key and reject the whole config.
+ */
+const MIGRATED_STAGE_KEYS = ["parked"] as const;
+
 export function createStageKey(
   title: string,
   existingKeys: readonly string[],
@@ -387,7 +414,11 @@ export function createStageKey(
       .replace(/[^a-z0-9]+/gu, "-")
       .replace(/^-+|-+$/gu, "")
       .slice(0, 32) || "stage";
-  const unavailable = new Set(["inbox", ...existingKeys]);
+  const unavailable = new Set([
+    "inbox",
+    ...MIGRATED_STAGE_KEYS,
+    ...existingKeys,
+  ]);
   if (!unavailable.has(base)) return base;
   for (let suffix = 2; suffix < 10_000; suffix += 1) {
     const key = `${base.slice(0, 36)}-${suffix}`;

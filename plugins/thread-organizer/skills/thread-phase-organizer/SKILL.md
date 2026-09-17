@@ -94,3 +94,9 @@ a prompt, and never twice for the same stage. After moving, finish the current
 step and end your turn promptly so the queued prompt can dispatch, and do not
 move the thread again while carrying out an entry prompt unless that prompt
 tells you to.
+
+## Leave the workflow configuration to the user
+
+`bb organizer prompt` and `bb organizer section` change the user's sections
+and entry prompts. Never run them on your own initiative; use them only when
+the user asks for that change in this thread.

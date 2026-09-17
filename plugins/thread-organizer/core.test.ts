@@ -414,3 +414,35 @@ describe("entry prompts", () => {
     );
   });
 });
+
+describe("stage keys and revisions", () => {
+  it("never derives a key the loader migrates away", () => {
+    expect(core.createStageKey("Parked", ["inbox"])).toBe("parked-2");
+    const parsed = core.parseWorkflowConfig({
+      version: 2,
+      stages: [
+        ...core.DEFAULT_WORKFLOW_CONFIG.stages,
+        {
+          key: "parked-2",
+          role: "stage",
+          title: "Parked",
+          rule: "Later.",
+          sectionId: null,
+        },
+      ],
+    });
+    expect(parsed?.stages.map((stage) => stage.key)).toContain("parked-2");
+  });
+
+  it("keeps the revision through parse and exposes it as the editor's base", () => {
+    const parsed = core.parseWorkflowConfig({
+      ...core.DEFAULT_WORKFLOW_CONFIG,
+      revision: 7,
+    });
+    expect(parsed?.revision).toBe(7);
+    expect(core.editableWorkflowConfig(parsed!).baseRevision).toBe(7);
+    expect(
+      core.editableWorkflowConfig(core.DEFAULT_WORKFLOW_CONFIG),
+    ).not.toHaveProperty("baseRevision");
+  });
+});

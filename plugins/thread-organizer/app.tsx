@@ -15,12 +15,19 @@ import {
   Tick02Icon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { definePluginApp, useRealtime, useRpc } from "@get-bb/plugin-sdk/app";
+import {
+  definePluginApp,
+  useRealtime,
+  useRpc,
+  type PluginPendingInteractionProps,
+} from "@get-bb/plugin-sdk/app";
 
 import {
   ENTRY_PROMPT_MAX_LENGTH,
   WORKFLOW_CONFIG_VERSION,
   createStageKey,
+  WORKFLOW_CHANGE_INTERACTION_ID,
+  WORKFLOW_CHANGED_ELSEWHERE_MESSAGE,
   editableWorkflowConfig,
   normalizeEditableWorkflowConfig,
   type EditableWorkflowConfig,
@@ -407,6 +414,8 @@ export function WorkflowSettings() {
   const editRevisionRef = useRef(0);
   const dirtyRef = useRef(false);
   const savingRef = useRef(false);
+  const loadedRevisionRef = useRef(0);
+  const [changedElsewhere, setChangedElsewhere] = useState(false);
 
   const load = useCallback(async () => {
     if (dirtyRef.current || savingRef.current) return;
@@ -419,10 +428,15 @@ export function WorkflowSettings() {
         savingRef.current ||
         editRevisionRef.current !== requestedRevision
       ) {
+        // The user started editing while this reload was in flight; the
+        // newer config could not be applied, so hold Save as changed elsewhere.
+        if (dirtyRef.current && !savingRef.current) setChangedElsewhere(true);
         return;
       }
       setConfig(editableWorkflowConfig(full));
       cacheWorkflowConfig(full);
+      loadedRevisionRef.current = full.revision ?? 0;
+      setChangedElsewhere(false);
     } catch (loadError) {
       setError(errorMessage(loadError));
     } finally {
@@ -433,9 +447,31 @@ export function WorkflowSettings() {
   useEffect(() => {
     void load();
   }, [load]);
-  useRealtime("workflow-config-changed", () => {
-    if (!dirtyRef.current && !savingRef.current) void load();
+  useRealtime("workflow-config-changed", (payload) => {
+    const revision =
+      typeof payload === "object" &&
+      payload !== null &&
+      typeof (payload as { revision?: unknown }).revision === "number"
+        ? (payload as { revision: number }).revision
+        : null;
+    if (revision !== null && revision <= loadedRevisionRef.current) return;
+    if (savingRef.current) return;
+    if (dirtyRef.current) {
+      // Someone else saved while this panel holds unsaved edits. Saving now
+      // would overwrite their change, so hold Save until the user reloads.
+      setChangedElsewhere(true);
+      return;
+    }
+    void load();
   });
+
+  const reloadFromServer = () => {
+    editRevisionRef.current += 1;
+    dirtyRef.current = false;
+    draftKeysRef.current.clear();
+    setChangedElsewhere(false);
+    void load();
+  };
 
   const markEdited = () => {
     editRevisionRef.current += 1;
@@ -524,8 +560,12 @@ export function WorkflowSettings() {
     setSaved(false);
     setError(null);
     try {
-      const full = await rpc.call("saveConfig", normalized);
+      const full = await rpc.call("saveConfig", {
+        ...normalized,
+        baseRevision: loadedRevisionRef.current,
+      });
       cacheWorkflowConfig(full);
+      loadedRevisionRef.current = full.revision ?? 0;
       if (editRevisionRef.current === submittedRevision) {
         dirtyRef.current = false;
         draftKeysRef.current.clear();
@@ -533,7 +573,11 @@ export function WorkflowSettings() {
         setSaved(true);
       }
     } catch (saveError) {
-      setError(errorMessage(saveError));
+      const message = errorMessage(saveError);
+      setError(message);
+      if (message.includes(WORKFLOW_CHANGED_ELSEWHERE_MESSAGE)) {
+        setChangedElsewhere(true);
+      }
     } finally {
       savingRef.current = false;
       setSaving(false);
@@ -583,7 +627,7 @@ export function WorkflowSettings() {
           </button>
           <button
             className={primaryButtonClass}
-            disabled={saving}
+            disabled={saving || changedElsewhere}
             onClick={() => void save()}
             type="button"
           >
@@ -596,6 +640,22 @@ export function WorkflowSettings() {
       {error ? (
         <p className="text-sm text-destructive" role="alert">
           {error}
+        </p>
+      ) : null}
+      {changedElsewhere ? (
+        <p
+          className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-md border border-border bg-muted/30 px-3 py-2 text-sm text-foreground"
+          role="status"
+        >
+          The workflow changed elsewhere. Reload to see the latest before
+          saving.
+          <button
+            className="font-medium underline underline-offset-2"
+            onClick={reloadFromServer}
+            type="button"
+          >
+            Discard my edits and reload
+          </button>
         </p>
       ) : null}
 
@@ -659,6 +719,71 @@ export function WorkflowSettings() {
   );
 }
 
+/**
+ * Approval form for configuration changes made from the CLI. It shows the
+ * exact text that will become an entry prompt or an agent rule, because a
+ * shell command has no other way to prove the user meant it.
+ */
+function ConfirmWorkflowChange({
+  interaction,
+  submit,
+  cancel,
+}: PluginPendingInteractionProps) {
+  const payload =
+    typeof interaction.payload === "object" && interaction.payload !== null
+      ? (interaction.payload as { summary?: unknown; text?: unknown })
+      : {};
+  const summary = typeof payload.summary === "string" ? payload.summary : "";
+  const text = typeof payload.text === "string" ? payload.text : null;
+  const lineCount = text === null ? 0 : text.split("\n").length;
+  const [busy, setBusy] = useState(false);
+  const decide = async (approve: boolean) => {
+    setBusy(true);
+    try {
+      if (approve) await submit(true);
+      else await cancel();
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <div className="grid gap-3 rounded-lg border border-border bg-background p-3 text-sm">
+      <p className="font-semibold text-foreground">{interaction.title}</p>
+      {summary ? <p className="text-muted-foreground">{summary}</p> : null}
+      {text !== null ? (
+        <>
+          <pre className="whitespace-pre-wrap rounded-md border border-border bg-muted/30 px-2.5 py-1.5 font-sans text-sm text-foreground">
+            {text}
+          </pre>
+          <p className="text-xs text-muted-foreground">
+            {text.length} characters
+            {lineCount > 1 ? `, ${lineCount} lines` : ""}, shown exactly as it
+            will be stored.
+          </p>
+        </>
+      ) : null}
+      <div className="flex justify-end gap-2">
+        <button
+          className={outlineButtonClass}
+          disabled={busy}
+          onClick={() => void decide(false)}
+          type="button"
+        >
+          Cancel
+        </button>
+        <button
+          className={primaryButtonClass}
+          disabled={busy}
+          onClick={() => void decide(true)}
+          type="button"
+        >
+          Approve
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export default definePluginApp((app) => {
   app.contentScripts.register({
     id: "workflow-sidebar",
@@ -669,6 +794,11 @@ export default definePluginApp((app) => {
   app.slots.settingsSection({
     id: "workflow-sections",
     component: WorkflowSettings,
+  });
+
+  app.slots.pendingInteraction({
+    id: WORKFLOW_CHANGE_INTERACTION_ID,
+    component: ConfirmWorkflowChange,
   });
 });
 

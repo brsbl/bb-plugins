@@ -8,6 +8,7 @@ import {
   WORKFLOW_CONFIG_VERSION,
   buildWorkflowSkillSlot,
   cloneWorkflowConfig,
+  createStageKey,
   editableWorkflowConfig,
   entryPromptMessage,
   firstWorkflowStage,
@@ -18,17 +19,23 @@ import {
   legacySectionNames,
   localSectionName,
   mergeEditableWorkflowConfig,
+  normalizeEditableWorkflowConfig,
   parseWorkflowConfig,
   placementForThread,
   stageForSectionId,
   type EditableWorkflowConfig,
+  type EditableWorkflowStage,
   type OrganizableThread,
+  WORKFLOW_CHANGE_INTERACTION_ID,
+  WORKFLOW_CHANGED_ELSEWHERE_MESSAGE,
   type WorkflowConfig,
   type WorkflowStage,
 } from "./core.js";
 
 const CONFIG_KEY = "workflow-config:v1";
 const PENDING_CONFIG_OPERATION_KEY = "workflow-config-operation:v1";
+/** Loads that may retry an interrupted config sweep before giving up on it. */
+const MAX_PENDING_OPERATION_ATTEMPTS = 3;
 const THREAD_STATE_PREFIX = "thread:v3:";
 const LEGACY_THREAD_STATE_PREFIX = "thread:v1:";
 const THREAD_LIST_PAGE_SIZE = 100;
@@ -66,15 +73,22 @@ const editableWorkflowConfigSchema = z
   .strict();
 
 const workflowConfigSchema = editableWorkflowConfigSchema.extend({
+  revision: z.number().int().nonnegative().optional(),
   stages: z.array(
     editableStageSchema.extend({ sectionId: z.string().min(1).nullable() }),
   ),
+});
+
+/** A save must name the revision it was based on so stale editors are refused. */
+const saveConfigInputSchema = editableWorkflowConfigSchema.extend({
+  baseRevision: z.number().int().nonnegative(),
 });
 
 const pendingConfigOperationSchema = z
   .object({
     version: z.literal(1),
     nextConfig: workflowConfigSchema,
+    attempts: z.number().int().nonnegative().optional(),
     removedStages: z.array(
       z
         .object({
@@ -92,7 +106,7 @@ export const rpcContract = defineRpcContract({
     output: workflowConfigSchema,
   },
   saveConfig: {
-    input: editableWorkflowConfigSchema,
+    input: saveConfigInputSchema,
     output: workflowConfigSchema,
   },
 });
@@ -153,6 +167,9 @@ function threadStateKey(threadId: string): string {
 function legacyThreadStateKey(threadId: string): string {
   return `${LEGACY_THREAD_STATE_PREFIX}${threadId}`;
 }
+
+/** A CLI argument or configuration problem: reported with exit code 2. */
+class CliInputError extends Error {}
 
 function describeError(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
@@ -343,17 +360,36 @@ export default async function plugin(bb: BbPluginApi): Promise<void> {
         stored ??
         cloneWorkflowConfig(DEFAULT_WORKFLOW_CONFIG),
     );
+    // Every served config carries a revision so editors can prove which
+    // state their save is based on.
+    if (configSnapshot.revision === undefined) configSnapshot.revision = 0;
     await bb.storage.kv.set(CONFIG_KEY, configSnapshot);
     if (pending !== null) {
-      const resumable = {
-        ...pending,
-        nextConfig: cloneWorkflowConfig(configSnapshot),
-      } satisfies PendingConfigOperation;
-      await bb.storage.kv.set(PENDING_CONFIG_OPERATION_KEY, resumable);
-      await finishConfigOperation(resumable);
+      const attempts = (pending.attempts ?? 0) + 1;
+      if (attempts > MAX_PENDING_OPERATION_ATTEMPTS) {
+        bb.log.error(`action=config-operation-abandoned attempts=${attempts}`);
+        await bb.storage.kv.delete(PENDING_CONFIG_OPERATION_KEY);
+      } else {
+        const resumable = {
+          ...pending,
+          nextConfig: cloneWorkflowConfig(configSnapshot),
+          attempts,
+        } satisfies PendingConfigOperation;
+        await bb.storage.kv.set(PENDING_CONFIG_OPERATION_KEY, resumable);
+        try {
+          await finishConfigOperation(resumable);
+        } catch (error) {
+          // The loaded snapshot is already valid; keep serving and let the
+          // next save or load retry the sweep instead of failing to start.
+          bb.log.error(
+            `action=config-resume-failed error=${describeError(error)}`,
+          );
+        }
+      }
     }
     bb.realtime.publish("workflow-config-changed", {
       version: configSnapshot.version,
+      revision: configSnapshot.revision ?? 0,
     });
     bb.log.info(
       `Thread Organizer loaded stages=${configSnapshot.stages.length}`,
@@ -674,51 +710,99 @@ export default async function plugin(bb: BbPluginApi): Promise<void> {
     }
   }
 
+  /**
+   * Persist the operation's config, move every thread, then delete the
+   * sections of removed stages. Returns false when the sweep did not reach
+   * every thread; the pending operation is then kept so a later save or load
+   * repeats it, and no section is deleted while threads may still sit in it.
+   */
   async function finishConfigOperation(
     operation: PendingConfigOperation,
-  ): Promise<void> {
+  ): Promise<boolean> {
     configSnapshot = cloneWorkflowConfig(operation.nextConfig);
     await bb.storage.kv.set(CONFIG_KEY, configSnapshot);
+    let failed = 0;
     for (const threadId of await listManageableThreadIds()) {
+      if (disposed) break;
       // Stages the config no longer has fall back inside readThreadState;
       // a config-induced remap records the landing without firing.
-      await enqueue(threadId, async () => {
-        await reconcileThread(threadId, { seedLanding: true });
-      });
+      try {
+        await enqueue(threadId, async () => {
+          await reconcileThread(threadId, { seedLanding: true });
+        });
+      } catch {
+        // enqueue already logged the failure.
+        failed += 1;
+      }
+    }
+    if (disposed || failed > 0) {
+      bb.log.warn(
+        `action=config-operation-incomplete threads=${failed} disposed=${disposed}`,
+      );
+      return false;
     }
 
+    const liveSectionIds = new Set(
+      configSnapshot.stages.flatMap((stage) =>
+        stage.sectionId === null ? [] : [stage.sectionId],
+      ),
+    );
     const existingSectionIds = new Set(
       (await bb.sdk.threadSections.list()).map((section) => section.id),
     );
     for (const stage of operation.removedStages) {
-      if (!stage.sectionId || !existingSectionIds.has(stage.sectionId)) {
+      if (
+        !stage.sectionId ||
+        liveSectionIds.has(stage.sectionId) ||
+        !existingSectionIds.has(stage.sectionId)
+      ) {
         continue;
       }
       await bb.sdk.threadSections.delete({ id: stage.sectionId });
       existingSectionIds.delete(stage.sectionId);
     }
     await bb.storage.kv.delete(PENDING_CONFIG_OPERATION_KEY);
+    return true;
   }
 
-  async function resumePendingConfigOperation(): Promise<void> {
+  async function pendingConfigOperation(): Promise<PendingConfigOperation | null> {
     const parsed = pendingConfigOperationSchema.safeParse(
       await bb.storage.kv.get<unknown>(PENDING_CONFIG_OPERATION_KEY),
     );
-    if (parsed.success) await finishConfigOperation(parsed.data);
+    return parsed.success ? parsed.data : null;
   }
 
   async function saveConfig(
-    edited: EditableWorkflowConfig,
+    edited:
+      | EditableWorkflowConfig
+      | ((current: WorkflowConfig) => EditableWorkflowConfig),
   ): Promise<WorkflowConfig> {
     let result = configSnapshot;
     const operation = configQueue
       .catch(() => undefined)
       .then(async () => {
-        await resumePendingConfigOperation();
+        // An operation an earlier sweep left incomplete is folded into this
+        // one rather than replayed: this save's sweep covers every thread
+        // with the newer config, and the earlier removals still need their
+        // sections deleted once a sweep completes.
+        const inherited =
+          (await pendingConfigOperation())?.removedStages ?? [];
         const previous = configSnapshot;
+        // Resolve the edit against the config as it stands now, inside the
+        // queue, so a caller that started from an older snapshot cannot
+        // revert a save that landed before it.
+        const input =
+          typeof edited === "function"
+            ? edited(cloneWorkflowConfig(previous))
+            : edited;
+        const currentRevision = previous.revision ?? 0;
+        if (input.baseRevision !== currentRevision) {
+          throw new Error(WORKFLOW_CHANGED_ELSEWHERE_MESSAGE);
+        }
         const next = await ensureWorkflowSections(
-          mergeEditableWorkflowConfig(previous, edited),
+          mergeEditableWorkflowConfig(previous, input),
         );
+        next.revision = currentRevision + 1;
         const nextKeys = new Set(next.stages.map((stage) => stage.key));
         const nextSectionIds = new Set(
           next.stages.flatMap((stage) =>
@@ -732,21 +816,37 @@ export default async function plugin(bb: BbPluginApi): Promise<void> {
             (stage.sectionId === null || !nextSectionIds.has(stage.sectionId)),
         );
 
+        const removedStages = [
+          ...inherited,
+          ...removed.map(({ key, sectionId }) => ({ key, sectionId })),
+        ].filter(
+          (stage, index, all) =>
+            (stage.sectionId === null ||
+              !nextSectionIds.has(stage.sectionId)) &&
+            all.findIndex(
+              (candidate) =>
+                candidate.key === stage.key &&
+                candidate.sectionId === stage.sectionId,
+            ) === index,
+        );
         const pending = {
           version: 1,
           nextConfig: cloneWorkflowConfig(next),
-          removedStages: removed.map(({ key, sectionId }) => ({
-            key,
-            sectionId,
-          })),
+          removedStages,
+          attempts: 0,
         } satisfies PendingConfigOperation;
         await bb.storage.kv.set(PENDING_CONFIG_OPERATION_KEY, pending);
-        await finishConfigOperation(pending);
-
-        bb.realtime.publish("workflow-config-changed", {
-          version: configSnapshot.version,
-        });
-        result = cloneWorkflowConfig(configSnapshot);
+        try {
+          await finishConfigOperation(pending);
+        } finally {
+          // The config is durable as soon as finishConfigOperation writes it,
+          // so open panels learn the new revision even if the cleanup fails.
+          bb.realtime.publish("workflow-config-changed", {
+            version: configSnapshot.version,
+            revision: configSnapshot.revision ?? 0,
+          });
+          result = cloneWorkflowConfig(configSnapshot);
+        }
       });
     configQueue = operation;
     await operation;
@@ -767,68 +867,414 @@ export default async function plugin(bb: BbPluginApi): Promise<void> {
     saveConfig,
   });
 
+  type CliResult = { exitCode: number; stdout?: string; stderr?: string };
+  type CliContext = { threadId?: string; signal?: AbortSignal };
+  type ConfigChange = {
+    /** Heading of the approval form. */
+    title: string;
+    /** Introduces the shown text; receives the key of the affected stage. */
+    summary: (key: string) => string;
+    /** Field of the affected stage the form shows, as it will be stored. */
+    field: "entryPrompt" | "rule" | null;
+    /** Applied inside the save queue against the current config. */
+    apply: (current: WorkflowConfig) => {
+      edited: EditableWorkflowConfig;
+      message: string;
+      key: string;
+    };
+  };
+  const CLI_USAGE = [
+    "Usage:",
+    "  bb organizer phase <stage-key>",
+    "  bb organizer prompt [<stage-key>] [--set <text> | --clear]",
+    "  bb organizer section list",
+    "  bb organizer section add <title> [--after <stage-key>] [--rule <text>]",
+    "",
+  ].join("\n");
+  const NEW_SECTION_RULE = "Describe the work that belongs in this section.";
+  const SECTION_TITLE_MAX_LENGTH = 80;
+  const CONFIRMATION_TIMEOUT_MS = 10 * 60 * 1000;
+
+  const findStage = (
+    config: WorkflowConfig,
+    raw: string,
+  ): WorkflowStage | undefined => {
+    const key = raw.trim().toLocaleLowerCase();
+    return config.stages.find((stage) => stage.key === key);
+  };
+  const stageKeysLine = (includeInbox: boolean): string =>
+    configSnapshot.stages
+      .filter((stage) => includeInbox || stage.role === "stage")
+      .map((stage) => stage.key)
+      .join(", ");
+  const stageLabel = (stage: EditableWorkflowStage): string =>
+    `${stage.title} (${stage.key})`;
+  const indent = (text: string): string =>
+    text
+      .split("\n")
+      .map((line) => `${"".padEnd(18)}${line}`)
+      .join("\n");
+  /** The config as it will be stored, or exit code 2 when it is not valid. */
+  const validated = (edited: EditableWorkflowConfig): EditableWorkflowConfig => {
+    try {
+      return {
+        ...normalizeEditableWorkflowConfig(edited),
+        ...(edited.baseRevision === undefined
+          ? {}
+          : { baseRevision: edited.baseRevision }),
+      };
+    } catch (error) {
+      throw new CliInputError(describeError(error));
+    }
+  };
+
+  /**
+   * Configuration changes from the CLI pass three steps: the change is
+   * checked against the current config so an impossible request fails before
+   * anyone is asked; the user approves the text exactly as it will be stored,
+   * in the thread that ran the command, because entry prompts become
+   * user-role messages and rules become agent instructions; then the change
+   * is re-derived and saved inside the config queue so it cannot revert a
+   * save that landed first. The approval confirms the user's intent for a
+   * CLI-initiated change. It is not an authorization boundary: the plugin's
+   * saveConfig RPC stays reachable by local processes under the host's rules.
+   */
+  async function confirmAndSave(
+    context: CliContext,
+    change: ConfigChange,
+  ): Promise<CliResult> {
+    let preview: { edited: EditableWorkflowConfig; key: string };
+    try {
+      const applied = change.apply(configSnapshot);
+      preview = { edited: validated(applied.edited), key: applied.key };
+    } catch (error) {
+      if (error instanceof CliInputError) {
+        return { exitCode: 2, stderr: `${error.message}\n` };
+      }
+      throw error;
+    }
+    const shown = preview.edited.stages.find(
+      (stage) => stage.key === preview.key,
+    );
+    const text = change.field === null ? null : (shown?.[change.field] ?? null);
+    if (!context.threadId) {
+      return {
+        exitCode: 2,
+        stderr:
+          "Run this inside a bb thread so the change can be approved there, or use Settings.\n",
+      };
+    }
+    const decision = await bb.ui.requestInput(
+      {
+        threadId: context.threadId,
+        rendererId: WORKFLOW_CHANGE_INTERACTION_ID,
+        title: change.title,
+        payload: { summary: change.summary(preview.key), text },
+        timeoutMs: CONFIRMATION_TIMEOUT_MS,
+      },
+      context.signal ? { signal: context.signal } : {},
+    );
+    if (decision.outcome !== "submitted" || decision.value !== true) {
+      const reason =
+        decision.outcome === "cancelled" ? ` (${decision.reason})` : "";
+      return {
+        exitCode: 2,
+        stderr: `Not approved${reason}; the workflow was left unchanged.\n`,
+      };
+    }
+    let message = "";
+    try {
+      await saveConfig((current) => {
+        const result = change.apply(current);
+        message = result.message;
+        return validated(result.edited);
+      });
+    } catch (error) {
+      if (error instanceof CliInputError) {
+        return { exitCode: 2, stderr: `${error.message}\n` };
+      }
+      return {
+        exitCode: 1,
+        stderr: `Could not save the workflow: ${describeError(error)}\n`,
+      };
+    }
+    bb.log.info(
+      `thread=${context.threadId} action=config-changed-from-cli change=${JSON.stringify(change.title)}`,
+    );
+    return { exitCode: 0, stdout: `${message}\n` };
+  }
+
+  async function runPhase(
+    argv: readonly string[],
+    threadId: string | undefined,
+  ): Promise<CliResult> {
+    if (!argv[0]) return { exitCode: 2, stderr: CLI_USAGE };
+    if (!threadId) {
+      return {
+        exitCode: 2,
+        stderr: "Run inside a bb thread so BB_THREAD_ID is available.\n",
+      };
+    }
+    const stage = findStage(configSnapshot, argv[0]);
+    if (!stage || stage.role === "inbox") {
+      return {
+        exitCode: 2,
+        stderr: `Unknown or system-managed stage: ${argv[0]}\nAvailable: ${stageKeysLine(false)}\n`,
+      };
+    }
+    const thread = await bb.sdk.threads.get({ threadId });
+    if (!isManageableThread(thread)) {
+      return { exitCode: 2, stderr: "This thread cannot be organized.\n" };
+    }
+    const result: { outcome: EntryPromptOutcome } = { outcome: null };
+    try {
+      await enqueue(thread.id, async () => {
+        result.outcome = await reconcileThread(thread.id, {
+          explicitStageKey: stage.key,
+        });
+      });
+    } catch (error) {
+      return {
+        exitCode: 1,
+        stderr: `Could not set the workflow stage: ${describeError(error)}\n`,
+      };
+    }
+    return {
+      exitCode: 0,
+      stdout: `Applied ${stage.title} to ${thread.id}.${entryPromptNote(
+        result.outcome,
+      )}\n`,
+    };
+  }
+
+  async function runPrompt(
+    argv: readonly string[],
+    context: CliContext,
+  ): Promise<CliResult> {
+    const [rawKey, ...rest] = argv;
+    if (rawKey === undefined) {
+      const blocks = configSnapshot.stages.map((stage) => {
+        const body =
+          stage.role === "inbox"
+            ? "(Inbox cannot send an entry prompt)"
+            : stage.entryPrompt ?? "(no entry prompt)";
+        return `${stage.key.padEnd(17)} ${stage.title}\n${indent(body)}`;
+      });
+      return { exitCode: 0, stdout: `${blocks.join("\n")}\n` };
+    }
+    const stage = findStage(configSnapshot, rawKey);
+    if (!stage) {
+      return {
+        exitCode: 2,
+        stderr: `Unknown stage: ${rawKey}\nAvailable: ${stageKeysLine(true)}\n`,
+      };
+    }
+    if (rest.length === 0) {
+      return {
+        exitCode: 0,
+        stdout: stage.entryPrompt
+          ? `${stage.entryPrompt}\n`
+          : `${stageLabel(stage)} has no entry prompt.\n`,
+      };
+    }
+    if (stage.role === "inbox") {
+      return { exitCode: 2, stderr: "Inbox cannot send an entry prompt.\n" };
+    }
+    const withStage = (
+      current: WorkflowConfig,
+      update: (target: EditableWorkflowStage) => EditableWorkflowStage,
+    ): EditableWorkflowConfig => {
+      const edited = editableWorkflowConfig(current);
+      const index = edited.stages.findIndex((entry) => entry.key === stage.key);
+      const target = edited.stages[index];
+      if (index < 0 || target === undefined) {
+        throw new CliInputError(
+          `Stage ${stage.key} no longer exists; the workflow changed elsewhere.`,
+        );
+      }
+      edited.stages[index] = update(target);
+      return edited;
+    };
+    if (rest.length === 1 && rest[0] === "--clear") {
+      return confirmAndSave(context, {
+        title: `Clear the entry prompt for ${stage.title}`,
+        summary: () =>
+          `Threads landing in ${stage.title} will no longer receive a message.`,
+        field: null,
+        apply: (current) => ({
+          edited: withStage(
+            current,
+            ({ entryPrompt: _omitted, ...withoutPrompt }) => withoutPrompt,
+          ),
+          message: `Cleared the entry prompt for ${stageLabel(stage)}.`,
+          key: stage.key,
+        }),
+      });
+    }
+    if (rest[0] === "--set") {
+      const text = rest[1];
+      if (rest.length !== 2 || text === undefined || text.startsWith("--")) {
+        return {
+          exitCode: 2,
+          stderr:
+            "Provide the prompt text as one quoted argument after --set, or use --clear.\n",
+        };
+      }
+      if (text.trim().length === 0) {
+        return {
+          exitCode: 2,
+          stderr: "Provide the prompt text after --set, or use --clear.\n",
+        };
+      }
+      return confirmAndSave(context, {
+        title: `Set the entry prompt for ${stage.title}`,
+        summary: () =>
+          `Threads landing in ${stage.title} will receive this message:`,
+        field: "entryPrompt",
+        apply: (current) => ({
+          edited: withStage(current, (target) => ({
+            ...target,
+            entryPrompt: text,
+          })),
+          message: `Set the entry prompt for ${stageLabel(stage)}.`,
+          key: stage.key,
+        }),
+      });
+    }
+    return { exitCode: 2, stderr: CLI_USAGE };
+  }
+
+  async function runSection(
+    argv: readonly string[],
+    context: CliContext,
+  ): Promise<CliResult> {
+    const [subcommand, ...rest] = argv;
+    if (subcommand === undefined || subcommand === "list") {
+      const lines = configSnapshot.stages.map((stage) => {
+        const note =
+          stage.role === "inbox"
+            ? "system-managed"
+            : stage.entryPrompt
+              ? "entry prompt"
+              : "";
+        return `${stage.key.padEnd(17)} ${stage.title}${note ? `  [${note}]` : ""}`;
+      });
+      return { exitCode: 0, stdout: `${lines.join("\n")}\n` };
+    }
+    if (subcommand !== "add") return { exitCode: 2, stderr: CLI_USAGE };
+    const [rawTitle, ...options] = rest;
+    const title = rawTitle?.trim() ?? "";
+    if (title.length === 0) {
+      return { exitCode: 2, stderr: "Provide a section title.\n" };
+    }
+    if (title.length > SECTION_TITLE_MAX_LENGTH) {
+      return {
+        exitCode: 2,
+        stderr: `Section titles must be at most ${SECTION_TITLE_MAX_LENGTH} characters.\n`,
+      };
+    }
+    let after: string | undefined;
+    let rule: string | undefined;
+    for (let index = 0; index < options.length; index += 1) {
+      const option = options[index];
+      const value = options[index + 1];
+      if (option === "--after" && value !== undefined) {
+        after = value;
+        index += 1;
+      } else if (option === "--rule" && value !== undefined) {
+        rule = value;
+        index += 1;
+      } else {
+        return { exitCode: 2, stderr: CLI_USAGE };
+      }
+    }
+    const anchorNow = after === undefined ? null : findStage(configSnapshot, after);
+    if (after !== undefined && !anchorNow) {
+      return {
+        exitCode: 2,
+        stderr: `Unknown stage: ${after}\nAvailable: ${stageKeysLine(true)}\n`,
+      };
+    }
+    const finalRule = rule?.trim() || NEW_SECTION_RULE;
+    return confirmAndSave(context, {
+      title: `Add section "${title}"`,
+      summary: (key) =>
+        `${anchorNow ? `After ${anchorNow.title}` : "At the end"}, keyed ${key}, with this rule for agents:`,
+      field: "rule",
+      apply: (current) => {
+        const edited = editableWorkflowConfig(current);
+        let position = edited.stages.length;
+        let anchor: WorkflowStage | undefined;
+        if (after !== undefined) {
+          anchor = findStage(current, after);
+          if (!anchor) {
+            throw new CliInputError(
+              `Stage ${after} no longer exists; the workflow changed elsewhere.`,
+            );
+          }
+          const anchorKey = anchor.key;
+          position =
+            edited.stages.findIndex((entry) => entry.key === anchorKey) + 1;
+        }
+        const key = createStageKey(
+          title,
+          edited.stages.map((entry) => entry.key),
+        );
+        edited.stages.splice(position, 0, {
+          key,
+          role: "stage",
+          title,
+          rule: finalRule,
+        });
+        return {
+          edited,
+          message: `Added ${title} (${key})${anchor ? ` after ${anchor.title}` : ""}.`,
+          key,
+        };
+      },
+    });
+  }
+
   bb.cli.register({
     name: "organizer",
-    summary: "Move the current thread to a workflow stage",
+    summary:
+      "Manage workflow sections and entry prompts, or move the current thread",
     commands: [
       {
         name: "phase",
-        summary: "Apply a workflow stage",
+        summary: "Apply a workflow stage to the current thread",
         usage: "bb organizer phase <stage-key>",
+      },
+      {
+        name: "prompt",
+        summary:
+          "Show, set, or clear a section's entry prompt (changes ask for approval in the thread)",
+        usage: "bb organizer prompt [<stage-key>] [--set <text> | --clear]",
+      },
+      {
+        name: "section",
+        summary:
+          "List sections or add one (changes ask for approval in the thread)",
+        usage:
+          "bb organizer section list | add <title> [--after <stage-key>] [--rule <text>]",
       },
     ],
     async run(argv, context) {
-      if (argv[0] !== "phase" || !argv[1]) {
-        return {
-          exitCode: 2,
-          stderr: "Usage: bb organizer phase <stage-key>\n",
-        };
-      }
-      if (!context.threadId) {
-        return {
-          exitCode: 2,
-          stderr: "Run inside a bb thread so BB_THREAD_ID is available.\n",
-        };
-      }
-      const key = argv[1].trim().toLocaleLowerCase();
-      const stage = configSnapshot.stages.find(
-        (candidate) => candidate.key === key,
-      );
-      if (!stage || stage.role === "inbox") {
-        const available = configSnapshot.stages
-          .filter((candidate) => candidate.role === "stage")
-          .map((candidate) => candidate.key)
-          .join(", ");
-        return {
-          exitCode: 2,
-          stderr: `Unknown or system-managed stage: ${argv[1]}\nAvailable: ${available}\n`,
-        };
-      }
-      const thread = await bb.sdk.threads.get({
-        threadId: context.threadId,
-      });
-      if (!isManageableThread(thread)) {
-        return { exitCode: 2, stderr: "This thread cannot be organized.\n" };
-      }
-      const result: { outcome: EntryPromptOutcome } = { outcome: null };
-      try {
-        await enqueue(thread.id, async () => {
-          result.outcome = await reconcileThread(thread.id, {
-            explicitStageKey: stage.key,
-          });
-        });
-      } catch (error) {
-        return {
-          exitCode: 1,
-          stderr: `Could not set the workflow stage: ${describeError(error)}\n`,
-        };
-      }
-      return {
-        exitCode: 0,
-        stdout: `Applied ${stage.title} to ${thread.id}.${entryPromptNote(
-          result.outcome,
-        )}\n`,
+      const [command, ...rest] = argv;
+      const cliContext: CliContext = {
+        ...(context.threadId ? { threadId: context.threadId } : {}),
+        ...(context.signal ? { signal: context.signal } : {}),
       };
+      switch (command) {
+        case "phase":
+          return runPhase(rest, cliContext.threadId);
+        case "prompt":
+          return runPrompt(rest, cliContext);
+        case "section":
+          return runSection(rest, cliContext);
+        default:
+          return { exitCode: 2, stderr: CLI_USAGE };
+      }
     },
   });
 
