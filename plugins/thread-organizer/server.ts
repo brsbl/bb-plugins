@@ -27,12 +27,15 @@ import {
   type EditableWorkflowStage,
   type OrganizableThread,
   WORKFLOW_CHANGE_INTERACTION_ID,
+  WORKFLOW_CHANGED_ELSEWHERE_MESSAGE,
   type WorkflowConfig,
   type WorkflowStage,
 } from "./core.js";
 
 const CONFIG_KEY = "workflow-config:v1";
 const PENDING_CONFIG_OPERATION_KEY = "workflow-config-operation:v1";
+/** Loads that may retry an interrupted config sweep before giving up on it. */
+const MAX_PENDING_OPERATION_ATTEMPTS = 3;
 const THREAD_STATE_PREFIX = "thread:v3:";
 const LEGACY_THREAD_STATE_PREFIX = "thread:v1:";
 const THREAD_LIST_PAGE_SIZE = 100;
@@ -66,7 +69,6 @@ const editableWorkflowConfigSchema = z
   .object({
     version: z.literal(WORKFLOW_CONFIG_VERSION),
     stages: z.array(editableStageSchema).min(2).max(12),
-    baseRevision: z.number().int().nonnegative().optional(),
   })
   .strict();
 
@@ -77,10 +79,16 @@ const workflowConfigSchema = editableWorkflowConfigSchema.extend({
   ),
 });
 
+/** A save must name the revision it was based on so stale editors are refused. */
+const saveConfigInputSchema = editableWorkflowConfigSchema.extend({
+  baseRevision: z.number().int().nonnegative(),
+});
+
 const pendingConfigOperationSchema = z
   .object({
     version: z.literal(1),
     nextConfig: workflowConfigSchema,
+    attempts: z.number().int().nonnegative().optional(),
     removedStages: z.array(
       z
         .object({
@@ -98,7 +106,7 @@ export const rpcContract = defineRpcContract({
     output: workflowConfigSchema,
   },
   saveConfig: {
-    input: editableWorkflowConfigSchema,
+    input: saveConfigInputSchema,
     output: workflowConfigSchema,
   },
 });
@@ -357,19 +365,26 @@ export default async function plugin(bb: BbPluginApi): Promise<void> {
     if (configSnapshot.revision === undefined) configSnapshot.revision = 0;
     await bb.storage.kv.set(CONFIG_KEY, configSnapshot);
     if (pending !== null) {
-      const resumable = {
-        ...pending,
-        nextConfig: cloneWorkflowConfig(configSnapshot),
-      } satisfies PendingConfigOperation;
-      await bb.storage.kv.set(PENDING_CONFIG_OPERATION_KEY, resumable);
-      try {
-        await finishConfigOperation(resumable);
-      } catch (error) {
-        // The loaded snapshot is already valid; keep serving and let the
-        // next save or load retry the sweep instead of failing to start.
-        bb.log.error(
-          `action=config-resume-failed error=${describeError(error)}`,
-        );
+      const attempts = (pending.attempts ?? 0) + 1;
+      if (attempts > MAX_PENDING_OPERATION_ATTEMPTS) {
+        bb.log.error(`action=config-operation-abandoned attempts=${attempts}`);
+        await bb.storage.kv.delete(PENDING_CONFIG_OPERATION_KEY);
+      } else {
+        const resumable = {
+          ...pending,
+          nextConfig: cloneWorkflowConfig(configSnapshot),
+          attempts,
+        } satisfies PendingConfigOperation;
+        await bb.storage.kv.set(PENDING_CONFIG_OPERATION_KEY, resumable);
+        try {
+          await finishConfigOperation(resumable);
+        } catch (error) {
+          // The loaded snapshot is already valid; keep serving and let the
+          // next save or load retry the sweep instead of failing to start.
+          bb.log.error(
+            `action=config-resume-failed error=${describeError(error)}`,
+          );
+        }
       }
     }
     bb.realtime.publish("workflow-config-changed", {
@@ -695,51 +710,66 @@ export default async function plugin(bb: BbPluginApi): Promise<void> {
     }
   }
 
+  /**
+   * Persist the operation's config, move every thread, then delete the
+   * sections of removed stages. Returns false when the sweep did not reach
+   * every thread; the pending operation is then kept so a later save or load
+   * repeats it, and no section is deleted while threads may still sit in it.
+   */
   async function finishConfigOperation(
     operation: PendingConfigOperation,
-  ): Promise<void> {
+  ): Promise<boolean> {
     configSnapshot = cloneWorkflowConfig(operation.nextConfig);
     await bb.storage.kv.set(CONFIG_KEY, configSnapshot);
     let failed = 0;
     for (const threadId of await listManageableThreadIds()) {
+      if (disposed) break;
       // Stages the config no longer has fall back inside readThreadState;
       // a config-induced remap records the landing without firing.
       try {
         await enqueue(threadId, async () => {
           await reconcileThread(threadId, { seedLanding: true });
         });
-      } catch (error) {
+      } catch {
+        // enqueue already logged the failure.
         failed += 1;
-        bb.log.warn(
-          `thread=${threadId} action=config-reconcile-failed error=${describeError(error)}`,
-        );
       }
     }
-    if (failed > 0) {
-      // The config is saved. Keep the pending operation so the next save or
-      // load repeats the sweep and the section cleanup below.
-      bb.log.warn(`action=config-operation-incomplete threads=${failed}`);
-      return;
+    if (disposed || failed > 0) {
+      bb.log.warn(
+        `action=config-operation-incomplete threads=${failed} disposed=${disposed}`,
+      );
+      return false;
     }
 
+    const liveSectionIds = new Set(
+      configSnapshot.stages.flatMap((stage) =>
+        stage.sectionId === null ? [] : [stage.sectionId],
+      ),
+    );
     const existingSectionIds = new Set(
       (await bb.sdk.threadSections.list()).map((section) => section.id),
     );
     for (const stage of operation.removedStages) {
-      if (!stage.sectionId || !existingSectionIds.has(stage.sectionId)) {
+      if (
+        !stage.sectionId ||
+        liveSectionIds.has(stage.sectionId) ||
+        !existingSectionIds.has(stage.sectionId)
+      ) {
         continue;
       }
       await bb.sdk.threadSections.delete({ id: stage.sectionId });
       existingSectionIds.delete(stage.sectionId);
     }
     await bb.storage.kv.delete(PENDING_CONFIG_OPERATION_KEY);
+    return true;
   }
 
-  async function resumePendingConfigOperation(): Promise<void> {
+  async function pendingConfigOperation(): Promise<PendingConfigOperation | null> {
     const parsed = pendingConfigOperationSchema.safeParse(
       await bb.storage.kv.get<unknown>(PENDING_CONFIG_OPERATION_KEY),
     );
-    if (parsed.success) await finishConfigOperation(parsed.data);
+    return parsed.success ? parsed.data : null;
   }
 
   async function saveConfig(
@@ -751,20 +781,23 @@ export default async function plugin(bb: BbPluginApi): Promise<void> {
     const operation = configQueue
       .catch(() => undefined)
       .then(async () => {
-        await resumePendingConfigOperation();
+        // An operation an earlier sweep left incomplete is folded into this
+        // one rather than replayed: this save's sweep covers every thread
+        // with the newer config, and the earlier removals still need their
+        // sections deleted once a sweep completes.
+        const inherited =
+          (await pendingConfigOperation())?.removedStages ?? [];
         const previous = configSnapshot;
         // Resolve the edit against the config as it stands now, inside the
         // queue, so a caller that started from an older snapshot cannot
         // revert a save that landed before it.
-        const input = typeof edited === "function" ? edited(previous) : edited;
+        const input =
+          typeof edited === "function"
+            ? edited(cloneWorkflowConfig(previous))
+            : edited;
         const currentRevision = previous.revision ?? 0;
-        if (
-          input.baseRevision !== undefined &&
-          input.baseRevision !== currentRevision
-        ) {
-          throw new Error(
-            "The workflow changed elsewhere. Reload and try again.",
-          );
+        if (input.baseRevision !== currentRevision) {
+          throw new Error(WORKFLOW_CHANGED_ELSEWHERE_MESSAGE);
         }
         const next = await ensureWorkflowSections(
           mergeEditableWorkflowConfig(previous, input),
@@ -783,22 +816,37 @@ export default async function plugin(bb: BbPluginApi): Promise<void> {
             (stage.sectionId === null || !nextSectionIds.has(stage.sectionId)),
         );
 
+        const removedStages = [
+          ...inherited,
+          ...removed.map(({ key, sectionId }) => ({ key, sectionId })),
+        ].filter(
+          (stage, index, all) =>
+            (stage.sectionId === null ||
+              !nextSectionIds.has(stage.sectionId)) &&
+            all.findIndex(
+              (candidate) =>
+                candidate.key === stage.key &&
+                candidate.sectionId === stage.sectionId,
+            ) === index,
+        );
         const pending = {
           version: 1,
           nextConfig: cloneWorkflowConfig(next),
-          removedStages: removed.map(({ key, sectionId }) => ({
-            key,
-            sectionId,
-          })),
+          removedStages,
+          attempts: 0,
         } satisfies PendingConfigOperation;
         await bb.storage.kv.set(PENDING_CONFIG_OPERATION_KEY, pending);
-        await finishConfigOperation(pending);
-
-        bb.realtime.publish("workflow-config-changed", {
-          version: configSnapshot.version,
-          revision: configSnapshot.revision ?? 0,
-        });
-        result = cloneWorkflowConfig(configSnapshot);
+        try {
+          await finishConfigOperation(pending);
+        } finally {
+          // The config is durable as soon as finishConfigOperation writes it,
+          // so open panels learn the new revision even if the cleanup fails.
+          bb.realtime.publish("workflow-config-changed", {
+            version: configSnapshot.version,
+            revision: configSnapshot.revision ?? 0,
+          });
+          result = cloneWorkflowConfig(configSnapshot);
+        }
       });
     configQueue = operation;
     await operation;
@@ -822,14 +870,17 @@ export default async function plugin(bb: BbPluginApi): Promise<void> {
   type CliResult = { exitCode: number; stdout?: string; stderr?: string };
   type CliContext = { threadId?: string; signal?: AbortSignal };
   type ConfigChange = {
-    /** What the confirmation form shows: the change and its exact text. */
+    /** Heading of the approval form. */
     title: string;
-    summary: string;
-    text: string | null;
+    /** Introduces the shown text; receives the key of the affected stage. */
+    summary: (key: string) => string;
+    /** Field of the affected stage the form shows, as it will be stored. */
+    field: "entryPrompt" | "rule" | null;
     /** Applied inside the save queue against the current config. */
     apply: (current: WorkflowConfig) => {
       edited: EditableWorkflowConfig;
       message: string;
+      key: string;
     };
   };
   const CLI_USAGE = [
@@ -863,35 +914,49 @@ export default async function plugin(bb: BbPluginApi): Promise<void> {
       .split("\n")
       .map((line) => `${"".padEnd(18)}${line}`)
       .join("\n");
+  /** The config as it will be stored, or exit code 2 when it is not valid. */
   const validated = (edited: EditableWorkflowConfig): EditableWorkflowConfig => {
     try {
-      normalizeEditableWorkflowConfig(edited);
+      return {
+        ...normalizeEditableWorkflowConfig(edited),
+        ...(edited.baseRevision === undefined
+          ? {}
+          : { baseRevision: edited.baseRevision }),
+      };
     } catch (error) {
       throw new CliInputError(describeError(error));
     }
-    return edited;
   };
 
   /**
-   * Configuration changes from the CLI pass three gates: the change is
+   * Configuration changes from the CLI pass three steps: the change is
    * checked against the current config so an impossible request fails before
-   * anyone is asked; the user approves the exact text in the thread that ran
-   * the command, because entry prompts become user-role messages and rules
-   * become agent instructions; then the change is re-derived and saved inside
-   * the config queue so it cannot revert a save that landed first.
+   * anyone is asked; the user approves the text exactly as it will be stored,
+   * in the thread that ran the command, because entry prompts become
+   * user-role messages and rules become agent instructions; then the change
+   * is re-derived and saved inside the config queue so it cannot revert a
+   * save that landed first. The approval confirms the user's intent for a
+   * CLI-initiated change. It is not an authorization boundary: the plugin's
+   * saveConfig RPC stays reachable by local processes under the host's rules.
    */
   async function confirmAndSave(
     context: CliContext,
     change: ConfigChange,
   ): Promise<CliResult> {
+    let preview: { edited: EditableWorkflowConfig; key: string };
     try {
-      validated(change.apply(configSnapshot).edited);
+      const applied = change.apply(configSnapshot);
+      preview = { edited: validated(applied.edited), key: applied.key };
     } catch (error) {
       if (error instanceof CliInputError) {
         return { exitCode: 2, stderr: `${error.message}\n` };
       }
       throw error;
     }
+    const shown = preview.edited.stages.find(
+      (stage) => stage.key === preview.key,
+    );
+    const text = change.field === null ? null : (shown?.[change.field] ?? null);
     if (!context.threadId) {
       return {
         exitCode: 2,
@@ -904,7 +969,7 @@ export default async function plugin(bb: BbPluginApi): Promise<void> {
         threadId: context.threadId,
         rendererId: WORKFLOW_CHANGE_INTERACTION_ID,
         title: change.title,
-        payload: { summary: change.summary, text: change.text },
+        payload: { summary: change.summary(preview.key), text },
         timeoutMs: CONFIRMATION_TIMEOUT_MS,
       },
       context.signal ? { signal: context.signal } : {},
@@ -1033,14 +1098,16 @@ export default async function plugin(bb: BbPluginApi): Promise<void> {
     if (rest.length === 1 && rest[0] === "--clear") {
       return confirmAndSave(context, {
         title: `Clear the entry prompt for ${stage.title}`,
-        summary: `Threads landing in ${stage.title} will no longer receive a message.`,
-        text: null,
+        summary: () =>
+          `Threads landing in ${stage.title} will no longer receive a message.`,
+        field: null,
         apply: (current) => ({
           edited: withStage(
             current,
             ({ entryPrompt: _omitted, ...withoutPrompt }) => withoutPrompt,
           ),
           message: `Cleared the entry prompt for ${stageLabel(stage)}.`,
+          key: stage.key,
         }),
       });
     }
@@ -1061,14 +1128,16 @@ export default async function plugin(bb: BbPluginApi): Promise<void> {
       }
       return confirmAndSave(context, {
         title: `Set the entry prompt for ${stage.title}`,
-        summary: `Threads landing in ${stage.title} will receive this message:`,
-        text,
+        summary: () =>
+          `Threads landing in ${stage.title} will receive this message:`,
+        field: "entryPrompt",
         apply: (current) => ({
           edited: withStage(current, (target) => ({
             ...target,
             entryPrompt: text,
           })),
           message: `Set the entry prompt for ${stageLabel(stage)}.`,
+          key: stage.key,
         }),
       });
     }
@@ -1129,8 +1198,9 @@ export default async function plugin(bb: BbPluginApi): Promise<void> {
     const finalRule = rule?.trim() || NEW_SECTION_RULE;
     return confirmAndSave(context, {
       title: `Add section "${title}"`,
-      summary: `${anchorNow ? `After ${anchorNow.title}` : "At the end"}, with this rule for agents:`,
-      text: finalRule,
+      summary: (key) =>
+        `${anchorNow ? `After ${anchorNow.title}` : "At the end"}, keyed ${key}, with this rule for agents:`,
+      field: "rule",
       apply: (current) => {
         const edited = editableWorkflowConfig(current);
         let position = edited.stages.length;
@@ -1159,6 +1229,7 @@ export default async function plugin(bb: BbPluginApi): Promise<void> {
         return {
           edited,
           message: `Added ${title} (${key})${anchor ? ` after ${anchor.title}` : ""}.`,
+          key,
         };
       },
     });

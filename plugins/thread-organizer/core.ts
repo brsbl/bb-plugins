@@ -34,6 +34,9 @@ export interface WorkflowConfig {
 
 /** Renderer id of the confirmation form CLI configuration changes wait on. */
 export const WORKFLOW_CHANGE_INTERACTION_ID = "confirm-workflow-change";
+/** Raised when a save is based on a revision the server has moved past. */
+export const WORKFLOW_CHANGED_ELSEWHERE_MESSAGE =
+  "The workflow changed elsewhere. Reload and try again.";
 
 export interface OrganizableThread {
   archivedAt: number | null;

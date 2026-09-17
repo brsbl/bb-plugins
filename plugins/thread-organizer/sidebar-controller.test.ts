@@ -308,3 +308,77 @@ describe("workflow sidebar controller", () => {
     controller.abort();
   });
 });
+
+describe("sidebar reorder after a refused save", () => {
+  it("refreshes its config when a save is refused so the next reorder succeeds", async () => {
+    const served = workflow();
+    let loads = 0;
+    const saveConfig = vi.fn(async (edited: EditableWorkflowConfig) =>
+      mergeEditableWorkflowConfig(served, edited),
+    );
+    saveConfig.mockRejectedValueOnce(
+      new Error("The workflow changed elsewhere. Reload and try again."),
+    );
+    const inbox = section("sec_inbox", "Inbox", false);
+    const planning = section("sec_planning", "Planning", false);
+    const building = section("sec_building", "Building", false);
+    const testing = section("sec_testing-deploy", "Testing / Deploy", false);
+    const root = sidebar(inbox, planning, building, testing);
+    const configured = order(
+      "sec_inbox",
+      "sec_planning",
+      "sec_spec-review",
+      "sec_building",
+      "sec_testing-deploy",
+      "sec_handoff",
+      "sec_on-hold",
+    );
+    window.localStorage.setItem(
+      "bb.sidebar.manualSectionOrder",
+      JSON.stringify(configured),
+    );
+    const controller = new AbortController();
+    mountThreadOrganizerSidebar({
+      document,
+      pluginId: "thread-organizer",
+      signal: controller.signal,
+      loadConfig: async () => {
+        loads += 1;
+        return served;
+      },
+      saveConfig,
+    });
+    await vi.waitFor(() =>
+      expect(
+        window.localStorage.getItem(WORKFLOW_CACHE_STORAGE_KEY),
+      ).not.toBeNull(),
+    );
+    const loadsBefore = loads;
+
+    const chosen = order(
+      "sec_inbox",
+      "sec_building",
+      "sec_planning",
+      "sec_spec-review",
+      "sec_testing-deploy",
+      "sec_handoff",
+      "sec_on-hold",
+    );
+    window.localStorage.setItem(
+      "bb.sidebar.manualSectionOrder",
+      JSON.stringify(chosen),
+    );
+    root.insertBefore(building, planning);
+    await vi.waitFor(() => expect(saveConfig).toHaveBeenCalledOnce());
+    await vi.waitFor(() => expect(loads).toBeGreaterThan(loadsBefore));
+
+    window.localStorage.setItem(
+      "bb.sidebar.manualSectionOrder",
+      JSON.stringify(chosen),
+    );
+    root.insertBefore(building, planning);
+    await vi.waitFor(() => expect(saveConfig).toHaveBeenCalledTimes(2));
+    await expect(saveConfig.mock.results[1]!.value).resolves.toBeTruthy();
+    controller.abort();
+  });
+});

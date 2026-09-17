@@ -347,7 +347,17 @@ export function mountThreadOrganizerSidebar({
         if (!signal.aborted) updateConfig(saved);
       }
     } catch {
+      // A refused save usually means the workflow changed elsewhere and this
+      // sidebar's cached revision is stale. Refresh it so the next reorder
+      // is based on the current config instead of failing every time.
       pendingSectionOrder = null;
+      try {
+        const latest = await (loadConfig ??
+          (() => fetchWorkflowConfig(pluginId)))();
+        if (!signal.aborted) updateConfig(latest);
+      } catch {
+        // Keep the cached config; the next reorder will try again.
+      }
       applyConfiguredOrder();
     } finally {
       savingSectionOrder = false;

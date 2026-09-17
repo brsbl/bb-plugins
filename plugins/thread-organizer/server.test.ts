@@ -1193,7 +1193,7 @@ describe("config CLI", () => {
     expect(added.request).toMatchObject({
       title: 'Add section "Review"',
       payload: {
-        summary: "After Testing / Deploy, with this rule for agents:",
+        summary: "After Testing / Deploy, keyed review, with this rule for agents:",
         text: "A PR needs its one review.",
       },
     });
@@ -1248,7 +1248,7 @@ describe("config CLI", () => {
     await plugin(organizer.bb);
     const added = await approved(organizer, ["section", "add", "Someday"]);
     expect(added.request.payload).toMatchObject({
-      summary: "At the end, with this rule for agents:",
+      summary: "At the end, keyed someday, with this rule for agents:",
     });
     expect(added.result).toMatchObject({
       exitCode: 0,
@@ -1317,6 +1317,12 @@ describe("config CLI", () => {
     await expect(
       organizer.harness.behavior.callRpc("saveConfig", edited),
     ).rejects.toThrow("changed elsewhere");
+    await expect(
+      organizer.harness.behavior.callRpc("saveConfig", {
+        version: edited.version,
+        stages: edited.stages,
+      }),
+    ).rejects.toThrow();
     expect((await configFor(organizer)).revision).toBe(1);
 
     const third = (await organizer.harness.behavior.callRpc(
@@ -1365,6 +1371,63 @@ describe("config CLI", () => {
       exitCode: 0,
       stdout: expect.stringContaining("planning"),
     });
+    expect(await organizer.bb.storage.kv.get(PENDING_KEY)).toMatchObject({
+      attempts: 1,
+    });
+    await organizer.harness.lifecycle.dispose();
+  });
+
+  it("gives up on a pending operation after three failed loads", async () => {
+    const seed = createHarness();
+    await plugin(seed.bb);
+    const config = await configFor(seed);
+    await seed.harness.lifecycle.dispose();
+
+    const organizer = createHarness();
+    await organizer.bb.storage.kv.set(PENDING_KEY, {
+      version: 1,
+      nextConfig: config,
+      removedStages: [],
+      attempts: 3,
+    });
+    await plugin(organizer.bb);
+    expect(await organizer.bb.storage.kv.get(PENDING_KEY)).toBeFalsy();
+    expect(await cli(organizer, ["section", "list"])).toMatchObject({
+      exitCode: 0,
+    });
+    await organizer.harness.lifecycle.dispose();
+  });
+
+  it("keeps earlier removals until a sweep completes, then deletes their sections", async () => {
+    const organizer = createHarness();
+    await plugin(organizer.bb);
+    await saveStagePatch(organizer, "planning", { rule: "Warm up." });
+    const current = await configFor(organizer);
+    const handoff = current.stages.find((stage) => stage.key === "handoff")!;
+    const without = editableWorkflowConfig(current);
+    without.stages = without.stages.filter((stage) => stage.key !== "handoff");
+
+    organizer.getThread.mockRejectedValueOnce(new Error("gone"));
+    await organizer.harness.behavior.callRpc("saveConfig", without);
+    expect(organizer.deleteSection).not.toHaveBeenCalled();
+    expect(await organizer.bb.storage.kv.get(PENDING_KEY)).toMatchObject({
+      removedStages: [{ key: "handoff", sectionId: handoff.sectionId }],
+    });
+
+    organizer.getThread.mockRejectedValueOnce(new Error("still gone"));
+    await saveStagePatch(organizer, "planning", { rule: "Plan carefully." });
+    expect(organizer.deleteSection).not.toHaveBeenCalled();
+    expect(await organizer.bb.storage.kv.get(PENDING_KEY)).toMatchObject({
+      removedStages: expect.arrayContaining([
+        expect.objectContaining({ key: "handoff" }),
+      ]),
+    });
+
+    await saveStagePatch(organizer, "planning", { rule: "Plan carefully!" });
+    expect(organizer.deleteSection).toHaveBeenCalledWith({
+      id: handoff.sectionId,
+    });
+    expect(await organizer.bb.storage.kv.get(PENDING_KEY)).toBeFalsy();
     await organizer.harness.lifecycle.dispose();
   });
 

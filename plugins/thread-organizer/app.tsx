@@ -27,6 +27,7 @@ import {
   WORKFLOW_CONFIG_VERSION,
   createStageKey,
   WORKFLOW_CHANGE_INTERACTION_ID,
+  WORKFLOW_CHANGED_ELSEWHERE_MESSAGE,
   editableWorkflowConfig,
   normalizeEditableWorkflowConfig,
   type EditableWorkflowConfig,
@@ -427,6 +428,9 @@ export function WorkflowSettings() {
         savingRef.current ||
         editRevisionRef.current !== requestedRevision
       ) {
+        // The user started editing while this reload was in flight; the
+        // newer config could not be applied, so hold Save as changed elsewhere.
+        if (dirtyRef.current && !savingRef.current) setChangedElsewhere(true);
         return;
       }
       setConfig(editableWorkflowConfig(full));
@@ -556,7 +560,10 @@ export function WorkflowSettings() {
     setSaved(false);
     setError(null);
     try {
-      const full = await rpc.call("saveConfig", normalized);
+      const full = await rpc.call("saveConfig", {
+        ...normalized,
+        baseRevision: loadedRevisionRef.current,
+      });
       cacheWorkflowConfig(full);
       loadedRevisionRef.current = full.revision ?? 0;
       if (editRevisionRef.current === submittedRevision) {
@@ -566,7 +573,11 @@ export function WorkflowSettings() {
         setSaved(true);
       }
     } catch (saveError) {
-      setError(errorMessage(saveError));
+      const message = errorMessage(saveError);
+      setError(message);
+      if (message.includes(WORKFLOW_CHANGED_ELSEWHERE_MESSAGE)) {
+        setChangedElsewhere(true);
+      }
     } finally {
       savingRef.current = false;
       setSaving(false);
@@ -643,7 +654,7 @@ export function WorkflowSettings() {
             onClick={reloadFromServer}
             type="button"
           >
-            Reload
+            Discard my edits and reload
           </button>
         </p>
       ) : null}
@@ -724,6 +735,7 @@ function ConfirmWorkflowChange({
       : {};
   const summary = typeof payload.summary === "string" ? payload.summary : "";
   const text = typeof payload.text === "string" ? payload.text : null;
+  const lineCount = text === null ? 0 : text.split("\n").length;
   const [busy, setBusy] = useState(false);
   const decide = async (approve: boolean) => {
     setBusy(true);
@@ -739,9 +751,16 @@ function ConfirmWorkflowChange({
       <p className="font-semibold text-foreground">{interaction.title}</p>
       {summary ? <p className="text-muted-foreground">{summary}</p> : null}
       {text !== null ? (
-        <pre className="max-h-48 overflow-auto whitespace-pre-wrap rounded-md border border-border bg-muted/30 px-2.5 py-1.5 font-sans text-sm text-foreground">
-          {text}
-        </pre>
+        <>
+          <pre className="whitespace-pre-wrap rounded-md border border-border bg-muted/30 px-2.5 py-1.5 font-sans text-sm text-foreground">
+            {text}
+          </pre>
+          <p className="text-xs text-muted-foreground">
+            {text.length} characters
+            {lineCount > 1 ? `, ${lineCount} lines` : ""}, shown exactly as it
+            will be stored.
+          </p>
+        </>
       ) : null}
       <div className="flex justify-end gap-2">
         <button

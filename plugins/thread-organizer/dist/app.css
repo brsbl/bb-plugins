@@ -314,9 +314,6 @@
     .justify-self-start {
       justify-self: flex-start;
     }
-    .overflow-auto {
-      overflow: auto;
-    }
     .overflow-visible {
       overflow: visible;
     }

@@ -14532,6 +14532,7 @@ var WORKFLOW_CONFIG_VERSION = 2;
 var ENTRY_PROMPT_MAX_LENGTH = 2e3;
 var RENDERED_ENTRY_PROMPT_MAX_LENGTH = 8e3;
 var WORKFLOW_CHANGE_INTERACTION_ID = "confirm-workflow-change";
+var WORKFLOW_CHANGED_ELSEWHERE_MESSAGE = "The workflow changed elsewhere. Reload and try again.";
 var INBOX_RULE = "Idle unread threads that need your attention appear here automatically and stay until work resumes or you move a read thread to another workflow section. This behavior can\u2019t be customized.";
 var HANDOFF_RULE = "Use only when the user explicitly says this thread is being handed to a colleague to take across the finish line; never infer it from packaging context, completed work, or waiting.";
 var PREVIOUS_INBOX_RULES = [
@@ -14858,6 +14859,7 @@ function buildWorkflowSkillSlot(config2) {
 // server.ts
 var CONFIG_KEY = "workflow-config:v1";
 var PENDING_CONFIG_OPERATION_KEY = "workflow-config-operation:v1";
+var MAX_PENDING_OPERATION_ATTEMPTS = 3;
 var THREAD_STATE_PREFIX = "thread:v3:";
 var LEGACY_THREAD_STATE_PREFIX = "thread:v1:";
 var THREAD_LIST_PAGE_SIZE = 100;
@@ -14882,8 +14884,7 @@ var editableStageSchema = external_exports.object({
 }).strict();
 var editableWorkflowConfigSchema = external_exports.object({
   version: external_exports.literal(WORKFLOW_CONFIG_VERSION),
-  stages: external_exports.array(editableStageSchema).min(2).max(12),
-  baseRevision: external_exports.number().int().nonnegative().optional()
+  stages: external_exports.array(editableStageSchema).min(2).max(12)
 }).strict();
 var workflowConfigSchema = editableWorkflowConfigSchema.extend({
   revision: external_exports.number().int().nonnegative().optional(),
@@ -14891,9 +14892,13 @@ var workflowConfigSchema = editableWorkflowConfigSchema.extend({
     editableStageSchema.extend({ sectionId: external_exports.string().min(1).nullable() })
   )
 });
+var saveConfigInputSchema = editableWorkflowConfigSchema.extend({
+  baseRevision: external_exports.number().int().nonnegative()
+});
 var pendingConfigOperationSchema = external_exports.object({
   version: external_exports.literal(1),
   nextConfig: workflowConfigSchema,
+  attempts: external_exports.number().int().nonnegative().optional(),
   removedStages: external_exports.array(
     external_exports.object({
       key: external_exports.string().min(1),
@@ -14907,7 +14912,7 @@ var rpcContract = defineRpcContract({
     output: workflowConfigSchema
   },
   saveConfig: {
-    input: editableWorkflowConfigSchema,
+    input: saveConfigInputSchema,
     output: workflowConfigSchema
   }
 });
@@ -15058,17 +15063,24 @@ async function plugin(bb) {
     if (configSnapshot.revision === void 0) configSnapshot.revision = 0;
     await bb.storage.kv.set(CONFIG_KEY, configSnapshot);
     if (pending !== null) {
-      const resumable = {
-        ...pending,
-        nextConfig: cloneWorkflowConfig(configSnapshot)
-      };
-      await bb.storage.kv.set(PENDING_CONFIG_OPERATION_KEY, resumable);
-      try {
-        await finishConfigOperation(resumable);
-      } catch (error51) {
-        bb.log.error(
-          `action=config-resume-failed error=${describeError(error51)}`
-        );
+      const attempts = (pending.attempts ?? 0) + 1;
+      if (attempts > MAX_PENDING_OPERATION_ATTEMPTS) {
+        bb.log.error(`action=config-operation-abandoned attempts=${attempts}`);
+        await bb.storage.kv.delete(PENDING_CONFIG_OPERATION_KEY);
+      } else {
+        const resumable = {
+          ...pending,
+          nextConfig: cloneWorkflowConfig(configSnapshot),
+          attempts
+        };
+        await bb.storage.kv.set(PENDING_CONFIG_OPERATION_KEY, resumable);
+        try {
+          await finishConfigOperation(resumable);
+        } catch (error51) {
+          bb.log.error(
+            `action=config-resume-failed error=${describeError(error51)}`
+          );
+        }
       }
     }
     bb.realtime.publish("workflow-config-changed", {
@@ -15316,50 +15328,54 @@ async function plugin(bb) {
     await bb.storage.kv.set(CONFIG_KEY, configSnapshot);
     let failed = 0;
     for (const threadId of await listManageableThreadIds()) {
+      if (disposed) break;
       try {
         await enqueue(threadId, async () => {
           await reconcileThread(threadId, { seedLanding: true });
         });
-      } catch (error51) {
+      } catch {
         failed += 1;
-        bb.log.warn(
-          `thread=${threadId} action=config-reconcile-failed error=${describeError(error51)}`
-        );
       }
     }
-    if (failed > 0) {
-      bb.log.warn(`action=config-operation-incomplete threads=${failed}`);
-      return;
+    if (disposed || failed > 0) {
+      bb.log.warn(
+        `action=config-operation-incomplete threads=${failed} disposed=${disposed}`
+      );
+      return false;
     }
+    const liveSectionIds = new Set(
+      configSnapshot.stages.flatMap(
+        (stage) => stage.sectionId === null ? [] : [stage.sectionId]
+      )
+    );
     const existingSectionIds = new Set(
       (await bb.sdk.threadSections.list()).map((section) => section.id)
     );
     for (const stage of operation.removedStages) {
-      if (!stage.sectionId || !existingSectionIds.has(stage.sectionId)) {
+      if (!stage.sectionId || liveSectionIds.has(stage.sectionId) || !existingSectionIds.has(stage.sectionId)) {
         continue;
       }
       await bb.sdk.threadSections.delete({ id: stage.sectionId });
       existingSectionIds.delete(stage.sectionId);
     }
     await bb.storage.kv.delete(PENDING_CONFIG_OPERATION_KEY);
+    return true;
   }
-  async function resumePendingConfigOperation() {
+  async function pendingConfigOperation() {
     const parsed = pendingConfigOperationSchema.safeParse(
       await bb.storage.kv.get(PENDING_CONFIG_OPERATION_KEY)
     );
-    if (parsed.success) await finishConfigOperation(parsed.data);
+    return parsed.success ? parsed.data : null;
   }
   async function saveConfig(edited) {
     let result = configSnapshot;
     const operation = configQueue.catch(() => void 0).then(async () => {
-      await resumePendingConfigOperation();
+      const inherited = (await pendingConfigOperation())?.removedStages ?? [];
       const previous = configSnapshot;
-      const input = typeof edited === "function" ? edited(previous) : edited;
+      const input = typeof edited === "function" ? edited(cloneWorkflowConfig(previous)) : edited;
       const currentRevision = previous.revision ?? 0;
-      if (input.baseRevision !== void 0 && input.baseRevision !== currentRevision) {
-        throw new Error(
-          "The workflow changed elsewhere. Reload and try again."
-        );
+      if (input.baseRevision !== currentRevision) {
+        throw new Error(WORKFLOW_CHANGED_ELSEWHERE_MESSAGE);
       }
       const next = await ensureWorkflowSections(
         mergeEditableWorkflowConfig(previous, input)
@@ -15374,21 +15390,30 @@ async function plugin(bb) {
       const removed = previous.stages.filter(
         (stage) => stage.role === "stage" && !nextKeys.has(stage.key) && (stage.sectionId === null || !nextSectionIds.has(stage.sectionId))
       );
+      const removedStages = [
+        ...inherited,
+        ...removed.map(({ key, sectionId }) => ({ key, sectionId }))
+      ].filter(
+        (stage, index, all) => (stage.sectionId === null || !nextSectionIds.has(stage.sectionId)) && all.findIndex(
+          (candidate) => candidate.key === stage.key && candidate.sectionId === stage.sectionId
+        ) === index
+      );
       const pending = {
         version: 1,
         nextConfig: cloneWorkflowConfig(next),
-        removedStages: removed.map(({ key, sectionId }) => ({
-          key,
-          sectionId
-        }))
+        removedStages,
+        attempts: 0
       };
       await bb.storage.kv.set(PENDING_CONFIG_OPERATION_KEY, pending);
-      await finishConfigOperation(pending);
-      bb.realtime.publish("workflow-config-changed", {
-        version: configSnapshot.version,
-        revision: configSnapshot.revision ?? 0
-      });
-      result = cloneWorkflowConfig(configSnapshot);
+      try {
+        await finishConfigOperation(pending);
+      } finally {
+        bb.realtime.publish("workflow-config-changed", {
+          version: configSnapshot.version,
+          revision: configSnapshot.revision ?? 0
+        });
+        result = cloneWorkflowConfig(configSnapshot);
+      }
     });
     configQueue = operation;
     await operation;
@@ -15426,15 +15451,19 @@ async function plugin(bb) {
   const indent = (text) => text.split("\n").map((line) => `${"".padEnd(18)}${line}`).join("\n");
   const validated = (edited) => {
     try {
-      normalizeEditableWorkflowConfig(edited);
+      return {
+        ...normalizeEditableWorkflowConfig(edited),
+        ...edited.baseRevision === void 0 ? {} : { baseRevision: edited.baseRevision }
+      };
     } catch (error51) {
       throw new CliInputError(describeError(error51));
     }
-    return edited;
   };
   async function confirmAndSave(context, change) {
+    let preview;
     try {
-      validated(change.apply(configSnapshot).edited);
+      const applied = change.apply(configSnapshot);
+      preview = { edited: validated(applied.edited), key: applied.key };
     } catch (error51) {
       if (error51 instanceof CliInputError) {
         return { exitCode: 2, stderr: `${error51.message}
@@ -15442,6 +15471,10 @@ async function plugin(bb) {
       }
       throw error51;
     }
+    const shown = preview.edited.stages.find(
+      (stage) => stage.key === preview.key
+    );
+    const text = change.field === null ? null : shown?.[change.field] ?? null;
     if (!context.threadId) {
       return {
         exitCode: 2,
@@ -15453,7 +15486,7 @@ async function plugin(bb) {
         threadId: context.threadId,
         rendererId: WORKFLOW_CHANGE_INTERACTION_ID,
         title: change.title,
-        payload: { summary: change.summary, text: change.text },
+        payload: { summary: change.summary(preview.key), text },
         timeoutMs: CONFIRMATION_TIMEOUT_MS
       },
       context.signal ? { signal: context.signal } : {}
@@ -15579,14 +15612,15 @@ Available: ${stageKeysLine(true)}
     if (rest.length === 1 && rest[0] === "--clear") {
       return confirmAndSave(context, {
         title: `Clear the entry prompt for ${stage.title}`,
-        summary: `Threads landing in ${stage.title} will no longer receive a message.`,
-        text: null,
+        summary: () => `Threads landing in ${stage.title} will no longer receive a message.`,
+        field: null,
         apply: (current) => ({
           edited: withStage(
             current,
             ({ entryPrompt: _omitted, ...withoutPrompt }) => withoutPrompt
           ),
-          message: `Cleared the entry prompt for ${stageLabel(stage)}.`
+          message: `Cleared the entry prompt for ${stageLabel(stage)}.`,
+          key: stage.key
         })
       });
     }
@@ -15606,14 +15640,15 @@ Available: ${stageKeysLine(true)}
       }
       return confirmAndSave(context, {
         title: `Set the entry prompt for ${stage.title}`,
-        summary: `Threads landing in ${stage.title} will receive this message:`,
-        text,
+        summary: () => `Threads landing in ${stage.title} will receive this message:`,
+        field: "entryPrompt",
         apply: (current) => ({
           edited: withStage(current, (target) => ({
             ...target,
             entryPrompt: text
           })),
-          message: `Set the entry prompt for ${stageLabel(stage)}.`
+          message: `Set the entry prompt for ${stageLabel(stage)}.`,
+          key: stage.key
         })
       });
     }
@@ -15669,8 +15704,8 @@ Available: ${stageKeysLine(true)}
     const finalRule = rule?.trim() || NEW_SECTION_RULE;
     return confirmAndSave(context, {
       title: `Add section "${title}"`,
-      summary: `${anchorNow ? `After ${anchorNow.title}` : "At the end"}, with this rule for agents:`,
-      text: finalRule,
+      summary: (key) => `${anchorNow ? `After ${anchorNow.title}` : "At the end"}, keyed ${key}, with this rule for agents:`,
+      field: "rule",
       apply: (current) => {
         const edited = editableWorkflowConfig(current);
         let position = edited.stages.length;
@@ -15697,7 +15732,8 @@ Available: ${stageKeysLine(true)}
         });
         return {
           edited,
-          message: `Added ${title} (${key})${anchor ? ` after ${anchor.title}` : ""}.`
+          message: `Added ${title} (${key})${anchor ? ` after ${anchor.title}` : ""}.`,
+          key
         };
       }
     });

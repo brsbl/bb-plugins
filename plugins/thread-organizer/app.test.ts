@@ -469,8 +469,19 @@ describe("workflow settings", () => {
     const title = (await rendered.findByLabelText(
       "Planning section title",
     )) as HTMLInputElement;
-    fireEvent.change(title, { target: { value: "Shaping" } });
 
+    await rendered.behavior.emitRealtime("workflow-config-changed", {
+      version: 2,
+      revision: 3,
+    });
+    expect(loads).toBe(1);
+    await rendered.behavior.emitRealtime("workflow-config-changed", {
+      version: 2,
+      revision: 4,
+    });
+    await vi.waitFor(() => expect(loads).toBe(2));
+
+    fireEvent.change(title, { target: { value: "Shaping" } });
     await rendered.behavior.emitRealtime("workflow-config-changed", {
       version: 2,
       revision: 3,
@@ -490,15 +501,56 @@ describe("workflow settings", () => {
       (rendered.getByRole("button", { name: "Save" }) as HTMLButtonElement)
         .disabled,
     ).toBe(true);
-    expect(loads).toBe(1);
+    expect(loads).toBe(2);
 
-    fireEvent.click(rendered.getByRole("button", { name: "Reload" }));
-    await vi.waitFor(() => expect(loads).toBe(2));
+    fireEvent.click(
+      rendered.getByRole("button", { name: "Discard my edits and reload" }),
+    );
+    await vi.waitFor(() => expect(loads).toBe(3));
     await vi.waitFor(() => expect(rendered.queryByRole("status")).toBeNull());
     expect(
       (rendered.getByRole("button", { name: "Save" }) as HTMLButtonElement)
         .disabled,
     ).toBe(false);
+    rendered.lifecycle.unmount();
+  });
+
+  it("holds Save and shows the error when the server refuses a stale save", async () => {
+    const app = await loadApp();
+    const initial = { ...configuredWorkflow(), revision: 3 };
+    let submitted: EditableWorkflowConfig | null = null;
+    const rendered = renderSlot<{}, typeof rpcContract>(
+      app.settingsSections[0]!,
+      {},
+      {
+        rpc: {
+          getConfig: async () => initial,
+          saveConfig: async (input) => {
+            submitted = input;
+            throw new Error(
+              "The workflow changed elsewhere. Reload and try again.",
+            );
+          },
+        },
+      },
+    );
+    const title = (await rendered.findByLabelText(
+      "Planning section title",
+    )) as HTMLInputElement;
+    fireEvent.change(title, { target: { value: "Shaping" } });
+    fireEvent.click(rendered.getByRole("button", { name: "Save" }));
+    await vi.waitFor(() => expect(submitted).not.toBeNull());
+    expect(submitted).toMatchObject({ baseRevision: 3 });
+    await vi.waitFor(() =>
+      expect(rendered.getByRole("alert").textContent).toContain(
+        "changed elsewhere",
+      ),
+    );
+    expect(rendered.getByRole("status")).toBeTruthy();
+    expect(
+      (rendered.getByRole("button", { name: "Save" }) as HTMLButtonElement)
+        .disabled,
+    ).toBe(true);
     rendered.lifecycle.unmount();
   });
 
@@ -530,6 +582,7 @@ describe("workflow settings", () => {
     );
     expect(rendered.getByText("Set the entry prompt for Review")).toBeTruthy();
     expect(rendered.getByText("Run /slop-cop on this PR.")).toBeTruthy();
+    expect(rendered.getByText(/25 characters/)).toBeTruthy();
     fireEvent.click(rendered.getByRole("button", { name: "Approve" }));
     await vi.waitFor(() => expect(submit).toHaveBeenCalledWith(true));
     await vi.waitFor(() =>
@@ -586,6 +639,7 @@ describe("workflow settings", () => {
       entryPrompt: "Run /slop-cop on {{thread.title}}.",
     });
     expect(savedInput!.stages[2]).not.toHaveProperty("entryPrompt");
+    expect(savedInput).toMatchObject({ baseRevision: 0 });
     await vi.waitFor(() =>
       expect(rendered.getByRole("button", { name: "Saved" })).toBeTruthy(),
     );
