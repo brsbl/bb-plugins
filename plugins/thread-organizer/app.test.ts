@@ -370,8 +370,12 @@ describe("workflow settings", () => {
       entryPrompt: "Run /slop-cop on {{thread.title}}.",
     });
     expect(savedInput!.stages[2]).not.toHaveProperty("entryPrompt");
+    await vi.waitFor(() =>
+      expect(rendered.getByRole("button", { name: "Saved" })).toBeTruthy(),
+    );
 
     fireEvent.change(prompt, { target: { value: "" } });
+    expect(rendered.getByRole("button", { name: "Save" })).toBeTruthy();
     fireEvent.click(rendered.getByRole("button", { name: "Save" }));
     await vi.waitFor(() =>
       expect(savedInput!.stages[1]).not.toHaveProperty("entryPrompt"),
