@@ -118,6 +118,14 @@ until you discard your edits and reload, and the sidebar refreshes its copy.
 
 ## Install
 
+Track releases (recommended; `bb plugin update` follows later 0.1.x tags):
+
+```bash
+bb plugin install "git:https://github.com/brsbl/bb-plugins.git@semver:thread-organizer/:^0.1.2" --subdirectory plugins/thread-organizer --yes
+```
+
+Or follow the prebuilt install branch, which CI republishes on every merge:
+
 ```bash
 bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/thread-organizer --yes
 ```
