@@ -18,6 +18,7 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import { definePluginApp, useRealtime, useRpc } from "@get-bb/plugin-sdk/app";
 
 import {
+  ENTRY_PROMPT_MAX_LENGTH,
   WORKFLOW_CONFIG_VERSION,
   createStageKey,
   editableWorkflowConfig,
@@ -41,10 +42,20 @@ const outlineButtonClass = `${buttonBaseClass} border border-input bg-transparen
 const primaryButtonClass = `${buttonBaseClass} bg-foreground text-background hover:bg-foreground/90`;
 const iconButtonClass =
   "inline-flex size-8 shrink-0 items-center justify-center rounded-md text-muted-foreground outline-none hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-40";
-const stageRowClass =
-  "grid min-w-0 grid-cols-[minmax(0,1fr)_2rem] items-start gap-x-2 gap-y-0 lg:grid-cols-[2rem_minmax(7rem,9rem)_minmax(0,1fr)_2rem]";
+// One row per section; at lg each field is a column named once by the header
+// row, below lg the fields stack under the title with their own captions.
+const stageColumnsClass =
+  "lg:grid-cols-[2rem_minmax(7rem,9rem)_minmax(0,1fr)_minmax(0,1.25fr)_2rem]";
+const stageRowClass = `grid min-w-0 grid-cols-[minmax(0,1fr)_2rem] items-start gap-x-2 gap-y-0 ${stageColumnsClass}`;
+const stageHeaderClass = `hidden min-w-0 items-end gap-x-2 rounded-t-lg border-b border-border bg-muted/30 px-3 py-2 lg:grid ${stageColumnsClass}`;
 const stageRuleLayoutClass =
   "col-span-2 col-start-1 row-start-2 min-w-0 lg:col-span-1 lg:col-start-3 lg:row-start-1";
+const stagePromptLayoutClass =
+  "col-span-2 col-start-1 row-start-3 min-w-0 lg:col-span-1 lg:col-start-4 lg:row-start-1";
+const fieldCaptionClass =
+  "text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground";
+const fieldHintClass =
+  "ml-1.5 font-normal normal-case tracking-normal text-muted-foreground/70";
 const workflowSettingsDescription =
   "Rename, reorder, and define the workflow your agents follow.";
 // Align the visible R to the rounded-lg panel's top-left tangent. Inter's
@@ -62,12 +73,12 @@ function uniqueNewStageTitle(stages: readonly EditableWorkflowStage[]): string {
   const titles = new Set(
     stages.map((stage) => stage.title.toLocaleLowerCase()),
   );
-  if (!titles.has("new stage")) return "New Stage";
+  if (!titles.has("new section")) return "New Section";
   for (let suffix = 2; suffix < 10_000; suffix += 1) {
-    const title = `New Stage ${suffix}`;
+    const title = `New Section ${suffix}`;
     if (!titles.has(title.toLocaleLowerCase())) return title;
   }
-  return "Untitled Stage";
+  return "Untitled Section";
 }
 
 function StageActions({
@@ -104,7 +115,7 @@ function StageActions({
 
   return (
     <div
-      className="relative col-start-2 row-start-1 shrink-0 lg:col-start-4"
+      className="relative col-start-2 row-start-1 shrink-0 lg:col-start-5"
       ref={rootRef}
     >
       <button
@@ -177,7 +188,7 @@ function StageActions({
               className="size-4"
               icon={Delete02Icon}
             />
-            Remove stage
+            Remove section
           </button>
         </div>
       ) : null}
@@ -196,6 +207,28 @@ interface StageCardProps {
   stageCount: number;
 }
 
+/**
+ * A section added in this editing session carries a key derived from its
+ * placeholder title. Derive the real key from the title the user typed, at
+ * save time, before any thread can reference it.
+ */
+function finalizeDraftKeys(
+  config: EditableWorkflowConfig,
+  draftKeys: ReadonlySet<string>,
+): EditableWorkflowConfig {
+  if (draftKeys.size === 0) return config;
+  const taken = config.stages
+    .filter((stage) => !draftKeys.has(stage.key))
+    .map((stage) => stage.key);
+  const stages = config.stages.map((stage) => {
+    if (!draftKeys.has(stage.key)) return stage;
+    const key = createStageKey(stage.title, taken);
+    taken.push(key);
+    return key === stage.key ? stage : { ...stage, key };
+  });
+  return { ...config, stages };
+}
+
 function StageCard({
   index,
   onChange,
@@ -211,10 +244,21 @@ function StageCard({
     key: Key,
     value: EditableWorkflowStage[Key],
   ) => onChange({ ...stage, [key]: value });
+  const hasPrompt = (stage.entryPrompt ?? "").trim().length > 0;
+  const [promptExpanded, setPromptExpanded] = useState(hasPrompt);
+  const [focusPromptPending, setFocusPromptPending] = useState(false);
+  const promptRef = useRef<HTMLTextAreaElement>(null);
+  const showPrompt = promptExpanded || hasPrompt;
+
+  useEffect(() => {
+    if (!focusPromptPending || promptRef.current === null) return;
+    setFocusPromptPending(false);
+    promptRef.current.focus();
+  }, [focusPromptPending]);
 
   return (
     <article
-      className="min-w-0 border-b border-border bg-background px-3 py-2.5 first:rounded-t-lg last:rounded-b-lg last:border-b-0 lg:p-3"
+      className="min-w-0 border-b border-border bg-background px-3 py-2.5 last:rounded-b-lg last:border-b-0 lg:p-3"
       onDragOver={(event) => {
         if (!inbox) event.preventDefault();
       }}
@@ -245,8 +289,9 @@ function StageCard({
           </span>
         )}
         <input
-          aria-label={`${stage.title || "Untitled stage"} section title`}
-          className="h-8 min-w-0 flex-1 rounded-md border border-transparent bg-transparent px-1.5 text-sm font-semibold text-foreground outline-none hover:border-border focus:border-foreground/45 focus:bg-background"
+          aria-label={`${stage.title || "Untitled section"} section title`}
+          data-stage-key={stage.key}
+          className="h-8 min-w-0 flex-1 rounded-md border border-transparent bg-transparent px-2.5 text-sm font-semibold text-foreground outline-none hover:border-border focus:border-foreground/45 focus:bg-background"
           maxLength={80}
           onChange={(event) => update("title", event.target.value)}
           value={stage.title}
@@ -254,7 +299,7 @@ function StageCard({
         {inbox ? (
           <span
             aria-hidden="true"
-            className="col-start-2 row-start-1 size-8 lg:col-start-4"
+            className="col-start-2 row-start-1 size-8 lg:col-start-5"
           />
         ) : (
           <StageActions
@@ -272,11 +317,13 @@ function StageCard({
             {stage.rule}
           </p>
         ) : (
-          <label className={`${stageRuleLayoutClass} grid gap-1`}>
-            <span className="sr-only">What belongs in {stage.title}</span>
+          <label className={`${stageRuleLayoutClass} mt-1.5 grid gap-0.5 lg:mt-0`}>
+            <span className={`${fieldCaptionClass} px-2.5 lg:sr-only`}>
+              Rule
+            </span>
             <textarea
               aria-label={`What belongs in ${stage.title}`}
-              className={`${quietFieldClass} min-h-8 max-h-24 resize-none overflow-y-auto leading-5`}
+              className={`${quietFieldClass} min-h-8 max-h-44 resize-none overflow-y-auto leading-5`}
               maxLength={240}
               onChange={(event) => update("rule", event.target.value)}
               rows={1}
@@ -284,6 +331,60 @@ function StageCard({
               value={stage.rule}
             />
           </label>
+        )}
+        {inbox ? (
+          <span
+            aria-hidden="true"
+            className={`${stagePromptLayoutClass} hidden px-2.5 py-1.5 text-sm leading-5 text-muted-foreground lg:block`}
+          >
+            —
+          </span>
+        ) : (
+          <>
+            {showPrompt ? null : (
+              <button
+                className={`${stagePromptLayoutClass} mt-2 inline-flex h-8 items-center gap-1.5 justify-self-start rounded-md border border-dashed border-border px-2.5 text-xs font-medium text-muted-foreground hover:border-foreground/40 hover:text-foreground lg:mt-0`}
+                onClick={() => {
+                  setPromptExpanded(true);
+                  setFocusPromptPending(true);
+                }}
+                type="button"
+              >
+                <HugeiconsIcon
+                  aria-hidden="true"
+                  className="size-3.5"
+                  icon={PlusSignIcon}
+                />
+                Add entry prompt
+              </button>
+            )}
+            <label
+              className={`${stagePromptLayoutClass} mt-2 gap-0.5 lg:mt-0 ${showPrompt ? "grid" : "hidden"}`}
+            >
+              <span className={`${fieldCaptionClass} px-2.5 lg:sr-only`}>
+                Entry prompt
+              </span>
+              <textarea
+                aria-label={`Entry prompt for ${stage.title}`}
+                className={`${fieldClass} min-h-8 max-h-48 resize-none overflow-y-auto leading-5`}
+                maxLength={ENTRY_PROMPT_MAX_LENGTH}
+                onChange={(event) => update("entryPrompt", event.target.value)}
+                ref={promptRef}
+                rows={2}
+                style={{ fieldSizing: "content" }}
+                value={stage.entryPrompt ?? ""}
+              />
+              {hasPrompt ? null : (
+                <button
+                  className="justify-self-end text-xs text-muted-foreground hover:text-foreground"
+                  onClick={() => setPromptExpanded(false)}
+                  type="button"
+                >
+                  Dismiss
+                </button>
+              )}
+            </label>
+          </>
         )}
       </div>
     </article>
@@ -298,6 +399,11 @@ export function WorkflowSettings() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
+  const [pendingFocusKey, setPendingFocusKey] = useState<string | null>(
+    null,
+  );
+  const listRef = useRef<HTMLDivElement>(null);
+  const draftKeysRef = useRef(new Set<string>());
   const editRevisionRef = useRef(0);
   const dirtyRef = useRef(false);
   const savingRef = useRef(false);
@@ -336,6 +442,19 @@ export function WorkflowSettings() {
     dirtyRef.current = true;
     setSaved(false);
   };
+
+  useEffect(() => {
+    if (pendingFocusKey === null) return;
+    const input = listRef.current?.querySelector<HTMLInputElement>(
+      `input[data-stage-key="${pendingFocusKey}"]`,
+    );
+    if (!input) return;
+    setPendingFocusKey(null);
+    input.focus();
+    if (typeof input.scrollIntoView === "function") {
+      input.scrollIntoView({ block: "nearest" });
+    }
+  }, [config, pendingFocusKey]);
 
   const replaceStage = (index: number, stage: EditableWorkflowStage) => {
     markEdited();
@@ -378,6 +497,8 @@ export function WorkflowSettings() {
       config.stages.map((stage) => stage.key),
     );
     markEdited();
+    draftKeysRef.current.add(key);
+    setPendingFocusKey(key);
     setConfig({
       ...config,
       stages: [
@@ -386,7 +507,7 @@ export function WorkflowSettings() {
           key,
           role: "stage",
           title,
-          rule: "Describe the work that belongs in this stage.",
+          rule: "Describe the work that belongs in this section.",
         },
       ],
     });
@@ -395,7 +516,9 @@ export function WorkflowSettings() {
   const save = async () => {
     if (config === null) return;
     const submittedRevision = editRevisionRef.current;
-    const normalized = normalizeEditableWorkflowConfig(config);
+    const normalized = normalizeEditableWorkflowConfig(
+      finalizeDraftKeys(config, draftKeysRef.current),
+    );
     savingRef.current = true;
     setSaving(true);
     setSaved(false);
@@ -405,6 +528,7 @@ export function WorkflowSettings() {
       cacheWorkflowConfig(full);
       if (editRevisionRef.current === submittedRevision) {
         dirtyRef.current = false;
+        draftKeysRef.current.clear();
         setConfig(editableWorkflowConfig(full));
         setSaved(true);
       }
@@ -455,7 +579,7 @@ export function WorkflowSettings() {
             type="button"
           >
             <HugeiconsIcon aria-hidden icon={PlusSignIcon} />
-            Add stage
+            Add section
           </button>
           <button
             className={primaryButtonClass}
@@ -475,7 +599,36 @@ export function WorkflowSettings() {
         </p>
       ) : null}
 
-      <div className="min-w-0 overflow-visible rounded-lg border border-border">
+      <div
+        className="min-w-0 overflow-visible rounded-lg border border-border"
+        ref={listRef}
+      >
+        <p
+          className={`${fieldCaptionClass} rounded-t-lg border-b border-border bg-muted/30 px-3 py-2 lg:hidden`}
+        >
+          Rule
+          <span className={fieldHintClass}>what belongs here</span>
+          <span aria-hidden="true" className="mx-2 font-normal">
+            ·
+          </span>
+          Entry prompt
+          <span className={fieldHintClass}>sent on arrival</span>
+        </p>
+        <div className={stageHeaderClass}>
+          <span />
+          <span className={`${fieldCaptionClass} px-2.5`}>Section</span>
+          <span className={`${fieldCaptionClass} px-2.5`}>
+            Rule
+            <span className={fieldHintClass}>what belongs here</span>
+          </span>
+          <span className={`${fieldCaptionClass} px-2.5`}>
+            Entry prompt
+            <span className={fieldHintClass}>
+              sent on arrival
+            </span>
+          </span>
+          <span />
+        </div>
         {config.stages.map((stage, index) => (
           <StageCard
             index={index}
@@ -495,6 +648,13 @@ export function WorkflowSettings() {
           />
         ))}
       </div>
+      <p className="text-xs text-muted-foreground">
+        Entry prompts can use{" "}
+        <code className="font-mono">{"{{thread.title}}"}</code>,{" "}
+        <code className="font-mono">{"{{thread.id}}"}</code>,{" "}
+        <code className="font-mono">{"{{section.title}}"}</code>, and{" "}
+        <code className="font-mono">{"{{section.key}}"}</code>.
+      </p>
     </div>
   );
 }

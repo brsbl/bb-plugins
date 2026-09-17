@@ -12,8 +12,10 @@
     --text-xs--line-height: calc(1 / 0.75);
     --text-sm: 0.8125rem;
     --text-sm--line-height: calc(1.25 / 0.875);
+    --font-weight-normal: 400;
     --font-weight-medium: 500;
     --font-weight-semibold: 600;
+    --tracking-normal: 0em;
     --radius-lg: var(--radius);
     --shadow-2xs: var(--shadow-2xs);
     --shadow-xs: var(--shadow-xs);
@@ -120,17 +122,6 @@
     .visible {
       visibility: visible;
     }
-    .sr-only {
-      position: absolute;
-      width: 1px;
-      height: 1px;
-      padding: 0;
-      margin: -1px;
-      overflow: hidden;
-      clip-path: inset(50%);
-      white-space: nowrap;
-      border-width: 0;
-    }
     .absolute {
       position: absolute;
     }
@@ -167,8 +158,23 @@
     .row-start-2 {
       grid-row-start: 2;
     }
+    .row-start-3 {
+      grid-row-start: 3;
+    }
+    .mx-2 {
+      margin-inline: calc(var(--spacing) * 2);
+    }
     .mt-1 {
       margin-top: calc(var(--spacing) * 1);
+    }
+    .mt-1\.5 {
+      margin-top: calc(var(--spacing) * 1.5);
+    }
+    .mt-2 {
+      margin-top: calc(var(--spacing) * 2);
+    }
+    .ml-1\.5 {
+      margin-left: calc(var(--spacing) * 1.5);
     }
     .ml-auto {
       margin-left: auto;
@@ -188,6 +194,10 @@
     .inline-flex {
       display: inline-flex;
     }
+    .size-3\.5 {
+      width: calc(var(--spacing) * 3.5);
+      height: calc(var(--spacing) * 3.5);
+    }
     .size-4 {
       width: calc(var(--spacing) * 4);
       height: calc(var(--spacing) * 4);
@@ -199,8 +209,11 @@
     .h-8 {
       height: calc(var(--spacing) * 8);
     }
-    .max-h-24 {
-      max-height: calc(var(--spacing) * 24);
+    .max-h-44 {
+      max-height: calc(var(--spacing) * 44);
+    }
+    .max-h-48 {
+      max-height: calc(var(--spacing) * 48);
     }
     .min-h-8 {
       min-height: calc(var(--spacing) * 8);
@@ -265,8 +278,8 @@
     .gap-0\.5 {
       gap: calc(var(--spacing) * 0.5);
     }
-    .gap-1 {
-      gap: calc(var(--spacing) * 1);
+    .gap-1\.5 {
+      gap: calc(var(--spacing) * 1.5);
     }
     .gap-2 {
       gap: calc(var(--spacing) * 2);
@@ -289,6 +302,12 @@
     .gap-y-3 {
       row-gap: calc(var(--spacing) * 3);
     }
+    .justify-self-end {
+      justify-self: flex-end;
+    }
+    .justify-self-start {
+      justify-self: flex-start;
+    }
     .overflow-visible {
       overflow: visible;
     }
@@ -301,6 +320,10 @@
     .rounded-md {
       border-radius: calc(var(--radius) - 2px);
     }
+    .rounded-t-lg {
+      border-top-left-radius: var(--radius);
+      border-top-right-radius: var(--radius);
+    }
     .border {
       border-style: var(--tw-border-style);
       border-width: 1px;
@@ -308,6 +331,10 @@
     .border-b {
       border-bottom-style: var(--tw-border-style);
       border-bottom-width: 1px;
+    }
+    .border-dashed {
+      --tw-border-style: dashed;
+      border-style: dashed;
     }
     .border-border {
       border-color: var(--border);
@@ -324,6 +351,12 @@
     .bg-foreground {
       background-color: var(--foreground);
     }
+    .bg-muted\/30 {
+      background-color: var(--muted);
+      @supports (color: color-mix(in lab, red, red)) {
+        background-color: color-mix(in oklab, var(--muted) 30%, transparent);
+      }
+    }
     .bg-popover {
       background-color: var(--popover);
     }
@@ -332,9 +365,6 @@
     }
     .p-1 {
       padding: calc(var(--spacing) * 1);
-    }
-    .px-1\.5 {
-      padding-inline: calc(var(--spacing) * 1.5);
     }
     .px-2 {
       padding-inline: calc(var(--spacing) * 2);
@@ -348,6 +378,9 @@
     .py-1\.5 {
       padding-block: calc(var(--spacing) * 1.5);
     }
+    .py-2 {
+      padding-block: calc(var(--spacing) * 2);
+    }
     .py-2\.5 {
       padding-block: calc(var(--spacing) * 2.5);
     }
@@ -360,6 +393,9 @@
     .\[text-indent\:-0\.088em\] {
       text-indent: -0.088em;
     }
+    .font-mono {
+      font-family: var(--font-mono);
+    }
     .text-sm {
       font-size: var(--text-sm);
       line-height: var(--tw-leading, var(--text-sm--line-height));
@@ -367,6 +403,9 @@
     .text-xs {
       font-size: var(--text-xs);
       line-height: var(--tw-leading, var(--text-xs--line-height));
+    }
+    .text-\[11px\] {
+      font-size: 11px;
     }
     .leading-5 {
       --tw-leading: calc(var(--spacing) * 5);
@@ -376,9 +415,21 @@
       --tw-font-weight: var(--font-weight-medium);
       font-weight: var(--font-weight-medium);
     }
+    .font-normal {
+      --tw-font-weight: var(--font-weight-normal);
+      font-weight: var(--font-weight-normal);
+    }
     .font-semibold {
       --tw-font-weight: var(--font-weight-semibold);
       font-weight: var(--font-weight-semibold);
+    }
+    .tracking-\[0\.06em\] {
+      --tw-tracking: 0.06em;
+      letter-spacing: 0.06em;
+    }
+    .tracking-normal {
+      --tw-tracking: var(--tracking-normal);
+      letter-spacing: var(--tracking-normal);
     }
     .whitespace-nowrap {
       white-space: nowrap;
@@ -395,11 +446,23 @@
     .text-muted-foreground {
       color: var(--muted-foreground);
     }
+    .text-muted-foreground\/70 {
+      color: var(--muted-foreground);
+      @supports (color: color-mix(in lab, red, red)) {
+        color: color-mix(in oklab, var(--muted-foreground) 70%, transparent);
+      }
+    }
     .text-popover-foreground {
       color: var(--popover-foreground);
     }
     .lowercase {
       text-transform: lowercase;
+    }
+    .normal-case {
+      text-transform: none;
+    }
+    .uppercase {
+      text-transform: uppercase;
     }
     .shadow-lg {
       --tw-shadow: var(--shadow-lg);
@@ -425,12 +488,6 @@
     .running {
       animation-play-state: running;
     }
-    .first\:rounded-t-lg {
-      &:first-child {
-        border-top-left-radius: var(--radius);
-        border-top-right-radius: var(--radius);
-      }
-    }
     .last\:rounded-b-lg {
       &:last-child {
         border-bottom-right-radius: var(--radius);
@@ -447,6 +504,16 @@
       &:hover {
         @media (hover: hover) {
           border-color: var(--border);
+        }
+      }
+    }
+    .hover\:border-foreground\/40 {
+      &:hover {
+        @media (hover: hover) {
+          border-color: var(--foreground);
+          @supports (color: color-mix(in lab, red, red)) {
+            border-color: color-mix(in oklab, var(--foreground) 40%, transparent);
+          }
         }
       }
     }
@@ -544,6 +611,19 @@
         opacity: 60%;
       }
     }
+    .lg\:sr-only {
+      @media (width >= 64rem) {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        padding: 0;
+        margin: -1px;
+        overflow: hidden;
+        clip-path: inset(50%);
+        white-space: nowrap;
+        border-width: 0;
+      }
+    }
     .lg\:col-span-1 {
       @media (width >= 64rem) {
         grid-column: span 1 / span 1;
@@ -569,9 +649,24 @@
         grid-row-start: 1;
       }
     }
+    .lg\:mt-0 {
+      @media (width >= 64rem) {
+        margin-top: calc(var(--spacing) * 0);
+      }
+    }
     .lg\:block {
       @media (width >= 64rem) {
         display: block;
+      }
+    }
+    .lg\:grid {
+      @media (width >= 64rem) {
+        display: grid;
+      }
+    }
+    .lg\:hidden {
+      @media (width >= 64rem) {
+        display: none;
       }
     }
     .lg\:inline-flex {
@@ -579,9 +674,9 @@
         display: inline-flex;
       }
     }
-    .lg\:grid-cols-\[2rem_minmax\(7rem\,9rem\)_minmax\(0\,1fr\)_2rem\] {
+    .lg\:grid-cols-\[2rem_minmax\(7rem\,9rem\)_minmax\(0\,1fr\)_minmax\(0\,1\.25fr\)_2rem\] {
       @media (width >= 64rem) {
-        grid-template-columns: 2rem minmax(7rem,9rem) minmax(0,1fr) 2rem;
+        grid-template-columns: 2rem minmax(7rem,9rem) minmax(0,1fr) minmax(0,1.25fr) 2rem;
       }
     }
     .lg\:p-3 {
@@ -617,6 +712,10 @@
   inherits: false;
 }
 @property --tw-font-weight {
+  syntax: "*";
+  inherits: false;
+}
+@property --tw-tracking {
   syntax: "*";
   inherits: false;
 }
@@ -708,6 +807,7 @@
       --tw-border-style: solid;
       --tw-leading: initial;
       --tw-font-weight: initial;
+      --tw-tracking: initial;
       --tw-shadow: 0 0 #0000;
       --tw-shadow-color: initial;
       --tw-shadow-alpha: 100%;

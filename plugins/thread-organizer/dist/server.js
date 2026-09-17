@@ -14529,6 +14529,8 @@ config(en_default());
 
 // core.ts
 var WORKFLOW_CONFIG_VERSION = 2;
+var ENTRY_PROMPT_MAX_LENGTH = 2e3;
+var RENDERED_ENTRY_PROMPT_MAX_LENGTH = 8e3;
 var INBOX_RULE = "Idle unread threads that need your attention appear here automatically and stay until work resumes or you move a read thread to another workflow section. This behavior can\u2019t be customized.";
 var HANDOFF_RULE = "Use only when the user explicitly says this thread is being handed to a colleague to take across the finish line; never infer it from packaging context, completed work, or waiting.";
 var PREVIOUS_INBOX_RULES = [
@@ -14619,6 +14621,7 @@ function parseStage(value, withSectionId) {
   const title = typeof value.title === "string" ? normalizeText(value.title) : "";
   const rule = typeof value.rule === "string" ? normalizeText(value.rule) : "";
   const role = value.role;
+  const entryPrompt = typeof value.entryPrompt === "string" ? value.entryPrompt.normalize("NFKC").replace(/\r\n?/gu, "\n").trim() : "";
   const sectionId = withSectionId ? value.sectionId === null || typeof value.sectionId === "string" ? value.sectionId : null : null;
   if (!/^[a-z0-9][a-z0-9-]{0,39}$/u.test(key)) {
     throw new Error(
@@ -14634,11 +14637,18 @@ function parseStage(value, withSectionId) {
   if (role !== "inbox" && role !== "stage") {
     throw new Error(`Stage "${key}" has an invalid role.`);
   }
+  if (entryPrompt.length > ENTRY_PROMPT_MAX_LENGTH) {
+    throw new Error(
+      `Stage "${key}" entry prompt must be at most ${ENTRY_PROMPT_MAX_LENGTH} characters.`
+    );
+  }
   return {
     key,
     title,
     rule,
     role,
+    // Defaults are not persisted, so configs without prompts stay byte-stable.
+    ...entryPrompt.length > 0 ? { entryPrompt } : {},
     sectionId: sectionId && sectionId.trim().length > 0 ? sectionId : null
   };
 }
@@ -14658,6 +14668,9 @@ function validateStages(stages) {
       throw new Error(`Stage title "${stage.title}" is duplicated.`);
     }
     titles.add(titleIdentity);
+    if (stage.role === "inbox" && hasEntryPrompt(stage)) {
+      throw new Error("Inbox cannot send an entry prompt.");
+    }
   }
   const inboxes = stages.filter((stage) => stage.role === "inbox");
   if (inboxes.length !== 1 || inboxes[0]?.key !== "inbox") {
@@ -14743,6 +14756,31 @@ function legacySectionNames(stage) {
 function localSectionName(stage) {
   return stage.title;
 }
+function hasEntryPrompt(stage) {
+  return typeof stage.entryPrompt === "string" && stage.entryPrompt.length > 0;
+}
+function renderEntryPrompt(template, variables) {
+  const values = {
+    "section.key": variables.stage.key,
+    "section.title": variables.stage.title,
+    "stage.key": variables.stage.key,
+    "stage.title": variables.stage.title,
+    "thread.id": variables.thread.id,
+    "thread.title": variables.thread.title
+  };
+  const rendered = template.replace(
+    /\{\{\s*([A-Za-z]+\.[A-Za-z]+)\s*\}\}/gu,
+    (match, name) => values[name.toLowerCase()] ?? match
+  );
+  return rendered.length > RENDERED_ENTRY_PROMPT_MAX_LENGTH ? rendered.slice(0, RENDERED_ENTRY_PROMPT_MAX_LENGTH) : rendered;
+}
+function entryPromptMessage(stage, variables) {
+  return [
+    `Thread Organizer \u2014 entering \u201C${variables.stage.title}\u201D:`,
+    "",
+    renderEntryPrompt(stage.entryPrompt, variables)
+  ].join("\n");
+}
 function inboxStage(config2) {
   return config2.stages.find((stage) => stage.role === "inbox");
 }
@@ -14770,6 +14808,14 @@ function placementForThread(config2, thread, rememberedStageKey, leaveInbox = fa
   const belongsInInbox = !isRunningThread(thread) && (isUnreadThread(thread) || !leaveInbox && currentStage?.role === "inbox");
   return belongsInInbox ? inboxStage(config2) : remembered;
 }
+function entryPromptGuidance(config2) {
+  const keys = config2.stages.filter((stage) => stage.role === "stage" && hasEntryPrompt(stage)).map((stage) => `\`${stage.key}\``);
+  if (keys.length === 0) return [];
+  return [
+    "",
+    `Entering ${keys.join(", ")} sends that stage\u2019s entry prompt to this thread as a follow-up message, queued until your current turn ends. Run \`bb organizer phase\` only when the thread\u2019s primary activity has genuinely changed \u2014 never as a shortcut to trigger that prompt, and never twice for the same stage. After moving, end your turn promptly so the prompt can dispatch.`
+  ];
+}
 function escapeTableCell(value) {
   return value.replace(/\|/gu, "\\|").replace(/\s+/gu, " ").trim();
 }
@@ -14782,7 +14828,8 @@ function buildWorkflowSkillSlot(config2) {
     "",
     "| Key | Section | What belongs here |",
     "| --- | --- | --- |",
-    ...rows
+    ...rows,
+    ...entryPromptGuidance(config2)
   ].join("\n");
 }
 
@@ -14792,10 +14839,20 @@ var PENDING_CONFIG_OPERATION_KEY = "workflow-config-operation:v1";
 var THREAD_STATE_PREFIX = "thread:v3:";
 var LEGACY_THREAD_STATE_PREFIX = "thread:v1:";
 var THREAD_LIST_PAGE_SIZE = 100;
+var ENTRY_PROMPT_RETRY_INTERVAL_MS = 30 * 1e3;
+var ENTRY_PROMPT_MAX_AGE_MS = 24 * 60 * 60 * 1e3;
+var ENTRY_PROMPT_SAME_STAGE_COOLDOWN_MS = 10 * 60 * 1e3;
+var ENTRY_PROMPT_WINDOW_MS = 30 * 60 * 1e3;
+var ENTRY_PROMPT_MAX_PER_WINDOW = 3;
+var ENTRY_PROMPT_HISTORY = 6;
 var editableStageSchema = external_exports.object({
   // Accepted and discarded so configs and clients written before
   // section icons were removed keep validating.
   icon: external_exports.unknown().optional(),
+  entryPrompt: external_exports.string().max(ENTRY_PROMPT_MAX_LENGTH).optional(),
+  // Accepted and discarded: written by the first entry-prompt build.
+  entryPromptDelivery: external_exports.unknown().optional(),
+  entryPromptOnAgentMove: external_exports.unknown().optional(),
   key: external_exports.string().min(1).max(40),
   role: external_exports.enum(["inbox", "stage"]),
   rule: external_exports.string().min(1).max(240),
@@ -14838,6 +14895,59 @@ function legacyThreadStateKey(threadId) {
 }
 function describeError(error51) {
   return error51 instanceof Error ? error51.message : String(error51);
+}
+function parseStageKeyOrNull(value) {
+  return typeof value === "string" && value.length > 0 ? value : null;
+}
+function parsePendingEntryPrompt(value) {
+  if (!value || typeof value !== "object") return null;
+  const candidate = value;
+  if (typeof candidate.stageKey !== "string" || typeof candidate.enteredAt !== "number") {
+    return null;
+  }
+  return {
+    attempts: typeof candidate.attempts === "number" ? candidate.attempts : 0,
+    enteredAt: candidate.enteredAt,
+    stageKey: candidate.stageKey,
+    ...typeof candidate.lastAttemptAt === "number" ? { lastAttemptAt: candidate.lastAttemptAt } : {},
+    ...typeof candidate.lastError === "string" ? { lastError: candidate.lastError } : {}
+  };
+}
+function parseQueuedEntryPrompt(value) {
+  if (!value || typeof value !== "object") return null;
+  const candidate = value;
+  return typeof candidate.queuedMessageId === "string" && typeof candidate.stageKey === "string" ? { queuedMessageId: candidate.queuedMessageId, stageKey: candidate.stageKey } : null;
+}
+function entryPromptNote(outcome) {
+  switch (outcome) {
+    case "sent":
+      return " Sent its entry prompt.";
+    case "queued":
+      return " Queued its entry prompt for after this turn.";
+    case "deferred":
+      return " Its entry prompt will be retried.";
+    case "dropped":
+      return " Its entry prompt was not sent; see the plugin log.";
+    default:
+      return "";
+  }
+}
+function queuedMessageIdFrom(result) {
+  if (!result || typeof result !== "object") return null;
+  const response = result;
+  if (response.delivery !== "queued" || !response.queuedMessage || typeof response.queuedMessage !== "object") {
+    return null;
+  }
+  const id = response.queuedMessage.id;
+  return typeof id === "string" ? id : null;
+}
+function parseEntryPromptRecords(value) {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((entry) => {
+    if (!entry || typeof entry !== "object") return [];
+    const candidate = entry;
+    return typeof candidate.stageKey === "string" && typeof candidate.sentAt === "number" ? [{ sentAt: candidate.sentAt, stageKey: candidate.stageKey }] : [];
+  });
 }
 function sectionMatchesName(section, name) {
   return section.name.normalize("NFKC").trim().toLocaleLowerCase() === name.normalize("NFKC").trim().toLocaleLowerCase();
@@ -14943,13 +15053,26 @@ async function plugin(bb) {
     const stored = await bb.storage.kv.get(threadStateKey(thread.id));
     if (stored && typeof stored === "object") {
       const value = stored;
-      const remembered2 = configSnapshot.stages.find(
-        (stage) => stage.key === value.rememberedStageKey && stage.role === "stage"
-      );
-      if ((value.version === 3 || value.version === 4 || value.version === 5) && remembered2) {
+      if (value.version === 3 || value.version === 4 || value.version === 5 || value.version === 6) {
+        const remembered2 = configSnapshot.stages.find(
+          (stage) => stage.key === value.rememberedStageKey && stage.role === "stage"
+        ) ?? initialRememberedStage(thread);
         return {
-          version: 5,
-          rememberedStageKey: remembered2.key
+          created: false,
+          state: {
+            version: 5,
+            rememberedStageKey: remembered2.key,
+            // Records written before landings were tracked already sat in
+            // their remembered stage; seeding from it keeps an upgrade silent.
+            lastLandedStageKey: "lastLandedStageKey" in value ? parseStageKeyOrNull(value.lastLandedStageKey) : remembered2.key,
+            pendingEntryPrompt: parsePendingEntryPrompt(
+              value.pendingEntryPrompt
+            ),
+            queuedEntryPrompt: parseQueuedEntryPrompt(value.queuedEntryPrompt),
+            recentEntryPrompts: parseEntryPromptRecords(
+              value.recentEntryPrompts
+            )
+          }
         };
       }
     }
@@ -14969,21 +15092,26 @@ async function plugin(bb) {
     }
     const migrated = {
       version: 5,
-      rememberedStageKey: remembered.key
+      rememberedStageKey: remembered.key,
+      lastLandedStageKey: remembered.key,
+      pendingEntryPrompt: null,
+      queuedEntryPrompt: null,
+      recentEntryPrompts: []
     };
     await bb.storage.kv.set(threadStateKey(thread.id), migrated);
     if (legacy !== void 0) {
       await bb.storage.kv.delete(legacyThreadStateKey(thread.id));
     }
-    return migrated;
+    return { created: true, state: migrated };
   }
   async function saveThreadState(threadId, state) {
     await bb.storage.kv.set(threadStateKey(threadId), state);
   }
-  async function reconcileThread(threadId, explicitStageKey) {
+  async function reconcileThread(threadId, options = {}) {
+    const { explicitStageKey, seedLanding = false } = options;
     const thread = await bb.sdk.threads.get({ threadId });
-    if (!isManageableThread(thread)) return;
-    const state = await readThreadState(thread);
+    if (!isManageableThread(thread)) return null;
+    const { created, state } = await readThreadState(thread);
     const currentStage = stageForSectionId(configSnapshot, thread.sectionId);
     if (explicitStageKey) {
       state.rememberedStageKey = explicitStageKey;
@@ -15013,7 +15141,114 @@ async function plugin(bb) {
         `thread=${threadId} action=section-updated stage=${destination.key}`
       );
     }
+    const landedStageKey = destination.role === "stage" ? destination.key : state.lastLandedStageKey;
+    const entered = !created && !seedLanding && landedStageKey !== null && landedStageKey !== state.lastLandedStageKey;
+    state.lastLandedStageKey = landedStageKey;
+    if (state.pendingEntryPrompt !== null && state.pendingEntryPrompt.stageKey !== state.rememberedStageKey) {
+      bb.log.info(
+        `thread=${threadId} action=entry-prompt-dropped stage=${state.pendingEntryPrompt.stageKey} reason=re-targeted`
+      );
+      state.pendingEntryPrompt = null;
+    }
+    if (state.queuedEntryPrompt !== null && state.queuedEntryPrompt.stageKey !== state.rememberedStageKey) {
+      await retractQueuedEntryPrompt(threadId, state);
+    }
+    if (entered && hasEntryPrompt(destination)) {
+      state.pendingEntryPrompt = {
+        attempts: 0,
+        enteredAt: Date.now(),
+        stageKey: destination.key
+      };
+    }
     await saveThreadState(threadId, state);
+    return state.pendingEntryPrompt === null ? null : await deliverEntryPrompt(thread, state);
+  }
+  async function retractQueuedEntryPrompt(threadId, state) {
+    const queued = state.queuedEntryPrompt;
+    if (queued === null) return;
+    state.queuedEntryPrompt = null;
+    try {
+      await bb.sdk.threads.queuedMessages.delete({
+        threadId,
+        queuedMessageId: queued.queuedMessageId
+      });
+      bb.log.info(
+        `thread=${threadId} action=entry-prompt-retracted stage=${queued.stageKey}`
+      );
+    } catch (error51) {
+      bb.log.info(
+        `thread=${threadId} action=entry-prompt-retract-skipped stage=${queued.stageKey} error=${describeError(error51)}`
+      );
+    }
+  }
+  async function deliverEntryPrompt(thread, state) {
+    const pending = state.pendingEntryPrompt;
+    if (pending === null) return null;
+    const now = Date.now();
+    if (pending.lastAttemptAt !== void 0 && now - pending.lastAttemptAt < ENTRY_PROMPT_RETRY_INTERVAL_MS) {
+      return "deferred";
+    }
+    const drop = async (reason) => {
+      state.pendingEntryPrompt = null;
+      await saveThreadState(thread.id, state);
+      bb.log.warn(
+        `thread=${thread.id} action=entry-prompt-dropped stage=${pending.stageKey} reason=${reason}`
+      );
+      return "dropped";
+    };
+    const stage = configSnapshot.stages.find(
+      (candidate) => candidate.key === pending.stageKey
+    );
+    if (!stage || !hasEntryPrompt(stage)) return drop("no-prompt");
+    if (now - pending.enteredAt > ENTRY_PROMPT_MAX_AGE_MS) {
+      return drop("expired");
+    }
+    const recent = state.recentEntryPrompts.filter(
+      (record2) => now - record2.sentAt < ENTRY_PROMPT_WINDOW_MS
+    );
+    if (recent.length >= ENTRY_PROMPT_MAX_PER_WINDOW || recent.some(
+      (record2) => record2.stageKey === stage.key && now - record2.sentAt < ENTRY_PROMPT_SAME_STAGE_COOLDOWN_MS
+    )) {
+      return drop("rate-limited");
+    }
+    const titleFallback = thread.titleFallback ?? "";
+    const text = entryPromptMessage(stage, {
+      stage: { key: stage.key, title: stage.title },
+      thread: { id: thread.id, title: thread.title ?? titleFallback }
+    });
+    let result;
+    try {
+      result = await bb.sdk.threads.send({
+        threadId: thread.id,
+        mode: "queue-if-active",
+        input: [{ type: "text", text, mentions: [] }]
+      });
+    } catch (error51) {
+      state.pendingEntryPrompt = {
+        ...pending,
+        attempts: pending.attempts + 1,
+        lastAttemptAt: now,
+        lastError: describeError(error51)
+      };
+      await saveThreadState(thread.id, state);
+      bb.log.info(
+        `thread=${thread.id} action=entry-prompt-deferred stage=${stage.key} attempt=${pending.attempts + 1} error=${describeError(error51)}`
+      );
+      return "deferred";
+    }
+    const queuedMessageId = queuedMessageIdFrom(result);
+    state.pendingEntryPrompt = null;
+    state.queuedEntryPrompt = queuedMessageId === null ? null : { queuedMessageId, stageKey: stage.key };
+    state.recentEntryPrompts = [
+      ...recent,
+      { sentAt: now, stageKey: stage.key }
+    ].slice(-ENTRY_PROMPT_HISTORY);
+    await saveThreadState(thread.id, state);
+    const outcome = queuedMessageId === null ? "sent" : "queued";
+    bb.log.info(
+      `thread=${thread.id} action=entry-prompt-${outcome} stage=${stage.key}`
+    );
+    return outcome;
   }
   async function listManageableThreadIds(signal) {
     const result = [];
@@ -15037,27 +15272,17 @@ async function plugin(bb) {
   async function reconcileExisting(signal) {
     for (const threadId of await listManageableThreadIds(signal)) {
       if (signal?.aborted) return;
-      await schedule(threadId, () => reconcileThread(threadId));
+      await schedule(threadId, async () => {
+        await reconcileThread(threadId, { seedLanding: true });
+      });
     }
   }
   async function finishConfigOperation(operation) {
     configSnapshot = cloneWorkflowConfig(operation.nextConfig);
     await bb.storage.kv.set(CONFIG_KEY, configSnapshot);
-    const removedKeys = new Set(
-      operation.removedStages.map((stage) => stage.key)
-    );
     for (const threadId of await listManageableThreadIds()) {
       await enqueue(threadId, async () => {
-        const thread = await bb.sdk.threads.get({
-          threadId
-        });
-        if (!isManageableThread(thread)) return;
-        const state = await readThreadState(thread);
-        if (removedKeys.has(state.rememberedStageKey)) {
-          state.rememberedStageKey = firstWorkflowStage(configSnapshot).key;
-          await saveThreadState(thread.id, state);
-        }
-        await reconcileThread(thread.id);
+        await reconcileThread(threadId, { seedLanding: true });
       });
     }
     const existingSectionIds = new Set(
@@ -15168,8 +15393,13 @@ Available: ${available}
       if (!isManageableThread(thread)) {
         return { exitCode: 2, stderr: "This thread cannot be organized.\n" };
       }
+      const result = { outcome: null };
       try {
-        await enqueue(thread.id, () => reconcileThread(thread.id, stage.key));
+        await enqueue(thread.id, async () => {
+          result.outcome = await reconcileThread(thread.id, {
+            explicitStageKey: stage.key
+          });
+        });
       } catch (error51) {
         return {
           exitCode: 1,
@@ -15179,7 +15409,9 @@ Available: ${available}
       }
       return {
         exitCode: 0,
-        stdout: `Applied ${stage.title} to ${thread.id}.
+        stdout: `Applied ${stage.title} to ${thread.id}.${entryPromptNote(
+          result.outcome
+        )}
 `
       };
     }
@@ -15206,7 +15438,9 @@ Available: ${available}
   ]) {
     bb.events.on(
       event,
-      ({ thread }) => schedule(thread.id, () => reconcileThread(thread.id))
+      ({ thread }) => schedule(thread.id, async () => {
+        await reconcileThread(thread.id);
+      })
     );
   }
   for (const event of ["thread.archived", "thread.deleted"]) {

@@ -76,3 +76,21 @@ correct stage immediately.
 
 Do not create, rename, or delete native sections; the plugin reconciles them
 from the user’s settings.
+
+## Respect entry prompts
+
+A stage can carry an entry prompt. When this thread lands in such a stage,
+Thread Organizer sends that prompt to this thread as a follow-up message; if a
+turn is running, it is queued until that turn ends. The live settings block
+names the stages that do this.
+
+Never move a thread between sections with `bb thread update --section` or
+`--clear-section`; `bb organizer phase` is the only move an agent may make, and
+it is the only one the plugin can attribute to an agent.
+
+Treat that as a consequence, not a tool: run `bb organizer phase` only when the
+thread’s primary activity has genuinely changed, never as a shortcut to trigger
+a prompt, and never twice for the same stage. After moving, finish the current
+step and end your turn promptly so the queued prompt can dispatch, and do not
+move the thread again while carrying out an entry prompt unless that prompt
+tells you to.

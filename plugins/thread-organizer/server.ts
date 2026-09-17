@@ -3,12 +3,15 @@ import { z } from "zod";
 
 import {
   DEFAULT_WORKFLOW_CONFIG,
+  ENTRY_PROMPT_MAX_LENGTH,
   INBOX_RULE,
   WORKFLOW_CONFIG_VERSION,
   buildWorkflowSkillSlot,
   cloneWorkflowConfig,
   editableWorkflowConfig,
+  entryPromptMessage,
   firstWorkflowStage,
+  hasEntryPrompt,
   inboxStage,
   isManageableThread,
   isUnreadThread,
@@ -29,12 +32,25 @@ const PENDING_CONFIG_OPERATION_KEY = "workflow-config-operation:v1";
 const THREAD_STATE_PREFIX = "thread:v3:";
 const LEGACY_THREAD_STATE_PREFIX = "thread:v1:";
 const THREAD_LIST_PAGE_SIZE = 100;
+// Entry prompts retry on later reconciles while a thread cannot be written to,
+// spaced out so a burst of streamed events cannot burn the budget, then expire;
+// the window caps how often one thread can be prompted.
+const ENTRY_PROMPT_RETRY_INTERVAL_MS = 30 * 1000;
+const ENTRY_PROMPT_MAX_AGE_MS = 24 * 60 * 60 * 1000;
+const ENTRY_PROMPT_SAME_STAGE_COOLDOWN_MS = 10 * 60 * 1000;
+const ENTRY_PROMPT_WINDOW_MS = 30 * 60 * 1000;
+const ENTRY_PROMPT_MAX_PER_WINDOW = 3;
+const ENTRY_PROMPT_HISTORY = 6;
 
 const editableStageSchema = z
   .object({
     // Accepted and discarded so configs and clients written before
     // section icons were removed keep validating.
     icon: z.unknown().optional(),
+    entryPrompt: z.string().max(ENTRY_PROMPT_MAX_LENGTH).optional(),
+    // Accepted and discarded: written by the first entry-prompt build.
+    entryPromptDelivery: z.unknown().optional(),
+    entryPromptOnAgentMove: z.unknown().optional(),
     key: z.string().min(1).max(40),
     role: z.enum(["inbox", "stage"]),
     rule: z.string().min(1).max(240),
@@ -88,10 +104,45 @@ type Section = Awaited<
   ReturnType<BbPluginApi["sdk"]["threadSections"]["list"]>
 >[number];
 
+interface PendingEntryPrompt {
+  attempts: number;
+  enteredAt: number;
+  lastAttemptAt?: number;
+  lastError?: string;
+  stageKey: string;
+}
+
+interface QueuedEntryPrompt {
+  queuedMessageId: string;
+  stageKey: string;
+}
+
+interface EntryPromptRecord {
+  sentAt: number;
+  stageKey: string;
+}
+
+// Version stays 5: every field after rememberedStageKey is optional on read so
+// an older build can still open this record, and absent fields are seeded.
 interface ThreadWorkflowState {
+  /** The last workflow stage the thread landed in; Inbox never counts. */
+  lastLandedStageKey: string | null;
+  pendingEntryPrompt: PendingEntryPrompt | null;
+  /** A prompt the host queued rather than started; retracted if the thread moves on. */
+  queuedEntryPrompt: QueuedEntryPrompt | null;
+  recentEntryPrompts: EntryPromptRecord[];
   rememberedStageKey: string;
   version: 5;
 }
+
+interface ReconcileOptions {
+  explicitStageKey?: string;
+  /** Record where the thread sits without treating it as an entry. */
+  seedLanding?: boolean;
+}
+
+type ThreadRecord = Awaited<ReturnType<BbPluginApi["sdk"]["threads"]["get"]>>;
+type EntryPromptOutcome = "sent" | "queued" | "deferred" | "dropped" | null;
 
 type PendingConfigOperation = z.infer<typeof pendingConfigOperationSchema>;
 
@@ -105,6 +156,83 @@ function legacyThreadStateKey(threadId: string): string {
 
 function describeError(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
+}
+
+function parseStageKeyOrNull(value: unknown): string | null {
+  return typeof value === "string" && value.length > 0 ? value : null;
+}
+
+function parsePendingEntryPrompt(value: unknown): PendingEntryPrompt | null {
+  if (!value || typeof value !== "object") return null;
+  const candidate = value as Partial<PendingEntryPrompt>;
+  if (
+    typeof candidate.stageKey !== "string" ||
+    typeof candidate.enteredAt !== "number"
+  ) {
+    return null;
+  }
+  return {
+    attempts: typeof candidate.attempts === "number" ? candidate.attempts : 0,
+    enteredAt: candidate.enteredAt,
+    stageKey: candidate.stageKey,
+    ...(typeof candidate.lastAttemptAt === "number"
+      ? { lastAttemptAt: candidate.lastAttemptAt }
+      : {}),
+    ...(typeof candidate.lastError === "string"
+      ? { lastError: candidate.lastError }
+      : {}),
+  };
+}
+
+function parseQueuedEntryPrompt(value: unknown): QueuedEntryPrompt | null {
+  if (!value || typeof value !== "object") return null;
+  const candidate = value as Partial<QueuedEntryPrompt>;
+  return typeof candidate.queuedMessageId === "string" &&
+    typeof candidate.stageKey === "string"
+    ? { queuedMessageId: candidate.queuedMessageId, stageKey: candidate.stageKey }
+    : null;
+}
+
+function entryPromptNote(outcome: EntryPromptOutcome): string {
+  switch (outcome) {
+    case "sent":
+      return " Sent its entry prompt.";
+    case "queued":
+      return " Queued its entry prompt for after this turn.";
+    case "deferred":
+      return " Its entry prompt will be retried.";
+    case "dropped":
+      return " Its entry prompt was not sent; see the plugin log.";
+    default:
+      return "";
+  }
+}
+
+function queuedMessageIdFrom(result: unknown): string | null {
+  // Newer hosts report where the message went; the pinned SDK only types { ok }.
+  if (!result || typeof result !== "object") return null;
+  const response = result as { delivery?: unknown; queuedMessage?: unknown };
+  if (
+    response.delivery !== "queued" ||
+    !response.queuedMessage ||
+    typeof response.queuedMessage !== "object"
+  ) {
+    return null;
+  }
+  const id = (response.queuedMessage as { id?: unknown }).id;
+  return typeof id === "string" ? id : null;
+}
+
+function parseEntryPromptRecords(value: unknown): EntryPromptRecord[] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((entry) => {
+    if (!entry || typeof entry !== "object") return [];
+    const candidate = entry as Partial<EntryPromptRecord>;
+    return typeof candidate.stageKey === "string" &&
+      typeof candidate.sentAt === "number"
+      ? [{ sentAt: candidate.sentAt, stageKey: candidate.stageKey }]
+      : [];
+  });
 }
 
 function sectionMatchesName(section: Section, name: string): boolean {
@@ -239,24 +367,44 @@ export default async function plugin(bb: BbPluginApi): Promise<void> {
       : firstWorkflowStage(configSnapshot);
   }
 
-  async function readThreadState(thread: Thread): Promise<ThreadWorkflowState> {
+  async function readThreadState(
+    thread: Thread,
+  ): Promise<{ created: boolean; state: ThreadWorkflowState }> {
     const stored = await bb.storage.kv.get<unknown>(threadStateKey(thread.id));
     if (stored && typeof stored === "object") {
-      const value = stored as {
-        rememberedStageKey?: unknown;
-        version?: unknown;
-      };
-      const remembered = configSnapshot.stages.find(
-        (stage) =>
-          stage.key === value.rememberedStageKey && stage.role === "stage",
-      );
+      const value = stored as Record<string, unknown>;
       if (
-        (value.version === 3 || value.version === 4 || value.version === 5) &&
-        remembered
+        value.version === 3 ||
+        value.version === 4 ||
+        value.version === 5 ||
+        value.version === 6
       ) {
+        // A remembered stage that no longer exists falls back in place so the
+        // rest of the record survives a config change.
+        const remembered =
+          configSnapshot.stages.find(
+            (stage) =>
+              stage.key === value.rememberedStageKey && stage.role === "stage",
+          ) ?? initialRememberedStage(thread);
         return {
-          version: 5,
-          rememberedStageKey: remembered.key,
+          created: false,
+          state: {
+            version: 5,
+            rememberedStageKey: remembered.key,
+            // Records written before landings were tracked already sat in
+            // their remembered stage; seeding from it keeps an upgrade silent.
+            lastLandedStageKey:
+              "lastLandedStageKey" in value
+                ? parseStageKeyOrNull(value.lastLandedStageKey)
+                : remembered.key,
+            pendingEntryPrompt: parsePendingEntryPrompt(
+              value.pendingEntryPrompt,
+            ),
+            queuedEntryPrompt: parseQueuedEntryPrompt(value.queuedEntryPrompt),
+            recentEntryPrompts: parseEntryPromptRecords(
+              value.recentEntryPrompts,
+            ),
+          },
         };
       }
     }
@@ -280,12 +428,16 @@ export default async function plugin(bb: BbPluginApi): Promise<void> {
     const migrated: ThreadWorkflowState = {
       version: 5,
       rememberedStageKey: remembered.key,
+      lastLandedStageKey: remembered.key,
+      pendingEntryPrompt: null,
+      queuedEntryPrompt: null,
+      recentEntryPrompts: [],
     };
     await bb.storage.kv.set(threadStateKey(thread.id), migrated);
     if (legacy !== undefined) {
       await bb.storage.kv.delete(legacyThreadStateKey(thread.id));
     }
-    return migrated;
+    return { created: true, state: migrated };
   }
 
   async function saveThreadState(
@@ -297,11 +449,12 @@ export default async function plugin(bb: BbPluginApi): Promise<void> {
 
   async function reconcileThread(
     threadId: string,
-    explicitStageKey?: string,
-  ): Promise<void> {
+    options: ReconcileOptions = {},
+  ): Promise<EntryPromptOutcome> {
+    const { explicitStageKey, seedLanding = false } = options;
     const thread = await bb.sdk.threads.get({ threadId });
-    if (!isManageableThread(thread)) return;
-    const state = await readThreadState(thread);
+    if (!isManageableThread(thread)) return null;
+    const { created, state } = await readThreadState(thread);
     const currentStage = stageForSectionId(configSnapshot, thread.sectionId);
 
     if (explicitStageKey) {
@@ -337,7 +490,157 @@ export default async function plugin(bb: BbPluginApi): Promise<void> {
         `thread=${threadId} action=section-updated stage=${destination.key}`,
       );
     }
+
+    // A thread only "lands" in a workflow stage; Inbox routing never counts,
+    // so the plugin's own Inbox round trips cannot re-trigger an entry prompt.
+    const landedStageKey =
+      destination.role === "stage" ? destination.key : state.lastLandedStageKey;
+    const entered =
+      !created &&
+      !seedLanding &&
+      landedStageKey !== null &&
+      landedStageKey !== state.lastLandedStageKey;
+    state.lastLandedStageKey = landedStageKey;
+
+    // The thread's real target moved on; anything still aimed at the old
+    // stage must not fire.
+    if (
+      state.pendingEntryPrompt !== null &&
+      state.pendingEntryPrompt.stageKey !== state.rememberedStageKey
+    ) {
+      bb.log.info(
+        `thread=${threadId} action=entry-prompt-dropped stage=${state.pendingEntryPrompt.stageKey} reason=re-targeted`,
+      );
+      state.pendingEntryPrompt = null;
+    }
+    if (
+      state.queuedEntryPrompt !== null &&
+      state.queuedEntryPrompt.stageKey !== state.rememberedStageKey
+    ) {
+      await retractQueuedEntryPrompt(threadId, state);
+    }
+
+    if (entered && hasEntryPrompt(destination)) {
+      state.pendingEntryPrompt = {
+        attempts: 0,
+        enteredAt: Date.now(),
+        stageKey: destination.key,
+      };
+    }
     await saveThreadState(threadId, state);
+    return state.pendingEntryPrompt === null
+      ? null
+      : await deliverEntryPrompt(thread, state);
+  }
+
+  async function retractQueuedEntryPrompt(
+    threadId: string,
+    state: ThreadWorkflowState,
+  ): Promise<void> {
+    const queued = state.queuedEntryPrompt;
+    if (queued === null) return;
+    state.queuedEntryPrompt = null;
+    try {
+      await bb.sdk.threads.queuedMessages.delete({
+        threadId,
+        queuedMessageId: queued.queuedMessageId,
+      });
+      bb.log.info(
+        `thread=${threadId} action=entry-prompt-retracted stage=${queued.stageKey}`,
+      );
+    } catch (error) {
+      // Already dispatched or removed by the user; nothing left to retract.
+      bb.log.info(
+        `thread=${threadId} action=entry-prompt-retract-skipped stage=${queued.stageKey} error=${describeError(error)}`,
+      );
+    }
+  }
+
+  async function deliverEntryPrompt(
+    thread: ThreadRecord,
+    state: ThreadWorkflowState,
+  ): Promise<EntryPromptOutcome> {
+    const pending = state.pendingEntryPrompt;
+    if (pending === null) return null;
+    const now = Date.now();
+    if (
+      pending.lastAttemptAt !== undefined &&
+      now - pending.lastAttemptAt < ENTRY_PROMPT_RETRY_INTERVAL_MS
+    ) {
+      return "deferred";
+    }
+    const drop = async (reason: string): Promise<EntryPromptOutcome> => {
+      state.pendingEntryPrompt = null;
+      await saveThreadState(thread.id, state);
+      bb.log.warn(
+        `thread=${thread.id} action=entry-prompt-dropped stage=${pending.stageKey} reason=${reason}`,
+      );
+      return "dropped";
+    };
+    const stage = configSnapshot.stages.find(
+      (candidate) => candidate.key === pending.stageKey,
+    );
+    if (!stage || !hasEntryPrompt(stage)) return drop("no-prompt");
+    if (now - pending.enteredAt > ENTRY_PROMPT_MAX_AGE_MS) {
+      return drop("expired");
+    }
+    const recent = state.recentEntryPrompts.filter(
+      (record) => now - record.sentAt < ENTRY_PROMPT_WINDOW_MS,
+    );
+    if (
+      recent.length >= ENTRY_PROMPT_MAX_PER_WINDOW ||
+      recent.some(
+        (record) =>
+          record.stageKey === stage.key &&
+          now - record.sentAt < ENTRY_PROMPT_SAME_STAGE_COOLDOWN_MS,
+      )
+    ) {
+      return drop("rate-limited");
+    }
+
+    const titleFallback =
+      (thread as { titleFallback?: string | null }).titleFallback ?? "";
+    const text = entryPromptMessage(stage, {
+      stage: { key: stage.key, title: stage.title },
+      thread: { id: thread.id, title: thread.title ?? titleFallback },
+    });
+    let result: unknown;
+    try {
+      result = await bb.sdk.threads.send({
+        threadId: thread.id,
+        mode: "queue-if-active",
+        input: [{ type: "text", text, mentions: [] }],
+      });
+    } catch (error) {
+      state.pendingEntryPrompt = {
+        ...pending,
+        attempts: pending.attempts + 1,
+        lastAttemptAt: now,
+        lastError: describeError(error),
+      };
+      await saveThreadState(thread.id, state);
+      bb.log.info(
+        `thread=${thread.id} action=entry-prompt-deferred stage=${stage.key} attempt=${pending.attempts + 1} error=${describeError(error)}`,
+      );
+      return "deferred";
+    }
+    const queuedMessageId = queuedMessageIdFrom(result);
+    state.pendingEntryPrompt = null;
+    state.queuedEntryPrompt =
+      queuedMessageId === null
+        ? null
+        : { queuedMessageId, stageKey: stage.key };
+    state.recentEntryPrompts = [
+      ...recent,
+      { sentAt: now, stageKey: stage.key },
+    ].slice(-ENTRY_PROMPT_HISTORY);
+    await saveThreadState(thread.id, state);
+    const outcome: EntryPromptOutcome =
+      queuedMessageId === null ? "sent" : "queued";
+    bb.log.info(
+      `thread=${thread.id} action=entry-prompt-${outcome} stage=${stage.key}`,
+    );
+    return outcome;
   }
 
   async function listManageableThreadIds(
@@ -365,7 +668,9 @@ export default async function plugin(bb: BbPluginApi): Promise<void> {
   async function reconcileExisting(signal?: AbortSignal): Promise<void> {
     for (const threadId of await listManageableThreadIds(signal)) {
       if (signal?.aborted) return;
-      await schedule(threadId, () => reconcileThread(threadId));
+      await schedule(threadId, async () => {
+        await reconcileThread(threadId, { seedLanding: true });
+      });
     }
   }
 
@@ -374,22 +679,11 @@ export default async function plugin(bb: BbPluginApi): Promise<void> {
   ): Promise<void> {
     configSnapshot = cloneWorkflowConfig(operation.nextConfig);
     await bb.storage.kv.set(CONFIG_KEY, configSnapshot);
-    const removedKeys = new Set(
-      operation.removedStages.map((stage) => stage.key),
-    );
-
     for (const threadId of await listManageableThreadIds()) {
+      // Stages the config no longer has fall back inside readThreadState;
+      // a config-induced remap records the landing without firing.
       await enqueue(threadId, async () => {
-        const thread = await bb.sdk.threads.get({
-          threadId,
-        });
-        if (!isManageableThread(thread)) return;
-        const state = await readThreadState(thread);
-        if (removedKeys.has(state.rememberedStageKey)) {
-          state.rememberedStageKey = firstWorkflowStage(configSnapshot).key;
-          await saveThreadState(thread.id, state);
-        }
-        await reconcileThread(thread.id);
+        await reconcileThread(threadId, { seedLanding: true });
       });
     }
 
@@ -516,8 +810,13 @@ export default async function plugin(bb: BbPluginApi): Promise<void> {
       if (!isManageableThread(thread)) {
         return { exitCode: 2, stderr: "This thread cannot be organized.\n" };
       }
+      const result: { outcome: EntryPromptOutcome } = { outcome: null };
       try {
-        await enqueue(thread.id, () => reconcileThread(thread.id, stage.key));
+        await enqueue(thread.id, async () => {
+          result.outcome = await reconcileThread(thread.id, {
+            explicitStageKey: stage.key,
+          });
+        });
       } catch (error) {
         return {
           exitCode: 1,
@@ -526,7 +825,9 @@ export default async function plugin(bb: BbPluginApi): Promise<void> {
       }
       return {
         exitCode: 0,
-        stdout: `Applied ${stage.title} to ${thread.id}.\n`,
+        stdout: `Applied ${stage.title} to ${thread.id}.${entryPromptNote(
+          result.outcome,
+        )}\n`,
       };
     },
   });
@@ -558,7 +859,9 @@ export default async function plugin(bb: BbPluginApi): Promise<void> {
     "thread.failed",
   ] as const) {
     bb.events.on(event, ({ thread }) =>
-      schedule(thread.id, () => reconcileThread(thread.id)),
+      schedule(thread.id, async () => {
+        await reconcileThread(thread.id);
+      }),
     );
   }
   for (const event of ["thread.archived", "thread.deleted"] as const) {

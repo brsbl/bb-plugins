@@ -172,6 +172,7 @@ var {
 
 // core.ts
 var WORKFLOW_CONFIG_VERSION = 2;
+var ENTRY_PROMPT_MAX_LENGTH = 2e3;
 var INBOX_RULE = "Idle unread threads that need your attention appear here automatically and stay until work resumes or you move a read thread to another workflow section. This behavior can\u2019t be customized.";
 var HANDOFF_RULE = "Use only when the user explicitly says this thread is being handed to a colleague to take across the finish line; never infer it from packaging context, completed work, or waiting.";
 var PREVIOUS_INBOX_RULES = [
@@ -199,6 +200,7 @@ function parseStage(value, withSectionId) {
   const title = typeof value.title === "string" ? normalizeText(value.title) : "";
   const rule = typeof value.rule === "string" ? normalizeText(value.rule) : "";
   const role = value.role;
+  const entryPrompt = typeof value.entryPrompt === "string" ? value.entryPrompt.normalize("NFKC").replace(/\r\n?/gu, "\n").trim() : "";
   const sectionId = withSectionId ? value.sectionId === null || typeof value.sectionId === "string" ? value.sectionId : null : null;
   if (!/^[a-z0-9][a-z0-9-]{0,39}$/u.test(key)) {
     throw new Error(
@@ -214,11 +216,18 @@ function parseStage(value, withSectionId) {
   if (role !== "inbox" && role !== "stage") {
     throw new Error(`Stage "${key}" has an invalid role.`);
   }
+  if (entryPrompt.length > ENTRY_PROMPT_MAX_LENGTH) {
+    throw new Error(
+      `Stage "${key}" entry prompt must be at most ${ENTRY_PROMPT_MAX_LENGTH} characters.`
+    );
+  }
   return {
     key,
     title,
     rule,
     role,
+    // Defaults are not persisted, so configs without prompts stay byte-stable.
+    ...entryPrompt.length > 0 ? { entryPrompt } : {},
     sectionId: sectionId && sectionId.trim().length > 0 ? sectionId : null
   };
 }
@@ -238,6 +247,9 @@ function validateStages(stages) {
       throw new Error(`Stage title "${stage.title}" is duplicated.`);
     }
     titles.add(titleIdentity);
+    if (stage.role === "inbox" && hasEntryPrompt(stage)) {
+      throw new Error("Inbox cannot send an entry prompt.");
+    }
   }
   const inboxes = stages.filter((stage) => stage.role === "inbox");
   if (inboxes.length !== 1 || inboxes[0]?.key !== "inbox") {
@@ -303,6 +315,9 @@ function editableWorkflowConfig(config) {
       ...stage
     }))
   };
+}
+function hasEntryPrompt(stage) {
+  return typeof stage.entryPrompt === "string" && stage.entryPrompt.length > 0;
 }
 function createStageKey(title, existingKeys) {
   const base = title.normalize("NFKD").toLocaleLowerCase().replace(/[^a-z0-9]+/gu, "-").replace(/^-+|-+$/gu, "").slice(0, 32) || "stage";
@@ -648,13 +663,19 @@ var {
 } = mod3;
 
 // app.tsx
+var fieldClass = "min-w-0 w-full rounded-md border border-border bg-background px-2.5 py-1.5 text-sm text-foreground outline-none focus:border-foreground/45 disabled:cursor-not-allowed disabled:opacity-60";
 var quietFieldClass = "min-w-0 w-full rounded-md border border-transparent bg-transparent px-2.5 py-1.5 text-sm text-foreground outline-none hover:border-border focus:border-foreground/45 focus:bg-background disabled:cursor-not-allowed disabled:opacity-60";
 var buttonBaseClass = "inline-flex h-8 cursor-pointer items-center justify-center gap-2 whitespace-nowrap rounded-md px-3 text-xs font-medium outline-none transition-colors focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0";
 var outlineButtonClass = `${buttonBaseClass} border border-input bg-transparent text-foreground hover:bg-muted`;
 var primaryButtonClass = `${buttonBaseClass} bg-foreground text-background hover:bg-foreground/90`;
 var iconButtonClass = "inline-flex size-8 shrink-0 items-center justify-center rounded-md text-muted-foreground outline-none hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-40";
-var stageRowClass = "grid min-w-0 grid-cols-[minmax(0,1fr)_2rem] items-start gap-x-2 gap-y-0 lg:grid-cols-[2rem_minmax(7rem,9rem)_minmax(0,1fr)_2rem]";
+var stageColumnsClass = "lg:grid-cols-[2rem_minmax(7rem,9rem)_minmax(0,1fr)_minmax(0,1.25fr)_2rem]";
+var stageRowClass = `grid min-w-0 grid-cols-[minmax(0,1fr)_2rem] items-start gap-x-2 gap-y-0 ${stageColumnsClass}`;
+var stageHeaderClass = `hidden min-w-0 items-end gap-x-2 rounded-t-lg border-b border-border bg-muted/30 px-3 py-2 lg:grid ${stageColumnsClass}`;
 var stageRuleLayoutClass = "col-span-2 col-start-1 row-start-2 min-w-0 lg:col-span-1 lg:col-start-3 lg:row-start-1";
+var stagePromptLayoutClass = "col-span-2 col-start-1 row-start-3 min-w-0 lg:col-span-1 lg:col-start-4 lg:row-start-1";
+var fieldCaptionClass = "text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground";
+var fieldHintClass = "ml-1.5 font-normal normal-case tracking-normal text-muted-foreground/70";
 var workflowSettingsDescription = "Rename, reorder, and define the workflow your agents follow.";
 var workflowSettingsDescriptionClass = "ps-[var(--radius-lg,0.5rem)] [text-indent:-0.088em] text-sm leading-5 text-muted-foreground";
 function errorMessage(error) {
@@ -664,12 +685,12 @@ function uniqueNewStageTitle(stages) {
   const titles = new Set(
     stages.map((stage) => stage.title.toLocaleLowerCase())
   );
-  if (!titles.has("new stage")) return "New Stage";
+  if (!titles.has("new section")) return "New Section";
   for (let suffix = 2; suffix < 1e4; suffix += 1) {
-    const title = `New Stage ${suffix}`;
+    const title = `New Section ${suffix}`;
     if (!titles.has(title.toLocaleLowerCase())) return title;
   }
-  return "Untitled Stage";
+  return "Untitled Section";
 }
 function StageActions({
   index,
@@ -701,7 +722,7 @@ function StageActions({
   return /* @__PURE__ */ jsxs(
     "div",
     {
-      className: "relative col-start-2 row-start-1 shrink-0 lg:col-start-4",
+      className: "relative col-start-2 row-start-1 shrink-0 lg:col-start-5",
       ref: rootRef,
       children: [
         /* @__PURE__ */ jsx(
@@ -799,7 +820,7 @@ function StageActions({
                         icon: Delete02Icon
                       }
                     ),
-                    "Remove stage"
+                    "Remove section"
                   ]
                 }
               )
@@ -809,6 +830,17 @@ function StageActions({
       ]
     }
   );
+}
+function finalizeDraftKeys(config, draftKeys) {
+  if (draftKeys.size === 0) return config;
+  const taken = config.stages.filter((stage) => !draftKeys.has(stage.key)).map((stage) => stage.key);
+  const stages = config.stages.map((stage) => {
+    if (!draftKeys.has(stage.key)) return stage;
+    const key = createStageKey(stage.title, taken);
+    taken.push(key);
+    return key === stage.key ? stage : { ...stage, key };
+  });
+  return { ...config, stages };
 }
 function StageCard({
   index,
@@ -822,10 +854,20 @@ function StageCard({
 }) {
   const inbox = stage.role === "inbox";
   const update = (key, value) => onChange({ ...stage, [key]: value });
+  const hasPrompt = (stage.entryPrompt ?? "").trim().length > 0;
+  const [promptExpanded, setPromptExpanded] = useState(hasPrompt);
+  const [focusPromptPending, setFocusPromptPending] = useState(false);
+  const promptRef = useRef(null);
+  const showPrompt = promptExpanded || hasPrompt;
+  useEffect(() => {
+    if (!focusPromptPending || promptRef.current === null) return;
+    setFocusPromptPending(false);
+    promptRef.current.focus();
+  }, [focusPromptPending]);
   return /* @__PURE__ */ jsx(
     "article",
     {
-      className: "min-w-0 border-b border-border bg-background px-3 py-2.5 first:rounded-t-lg last:rounded-b-lg last:border-b-0 lg:p-3",
+      className: "min-w-0 border-b border-border bg-background px-3 py-2.5 last:rounded-b-lg last:border-b-0 lg:p-3",
       onDragOver: (event) => {
         if (!inbox) event.preventDefault();
       },
@@ -856,8 +898,9 @@ function StageCard({
         /* @__PURE__ */ jsx(
           "input",
           {
-            "aria-label": `${stage.title || "Untitled stage"} section title`,
-            className: "h-8 min-w-0 flex-1 rounded-md border border-transparent bg-transparent px-1.5 text-sm font-semibold text-foreground outline-none hover:border-border focus:border-foreground/45 focus:bg-background",
+            "aria-label": `${stage.title || "Untitled section"} section title`,
+            "data-stage-key": stage.key,
+            className: "h-8 min-w-0 flex-1 rounded-md border border-transparent bg-transparent px-2.5 text-sm font-semibold text-foreground outline-none hover:border-border focus:border-foreground/45 focus:bg-background",
             maxLength: 80,
             onChange: (event) => update("title", event.target.value),
             value: stage.title
@@ -867,7 +910,7 @@ function StageCard({
           "span",
           {
             "aria-hidden": "true",
-            className: "col-start-2 row-start-1 size-8 lg:col-start-4"
+            className: "col-start-2 row-start-1 size-8 lg:col-start-5"
           }
         ) : /* @__PURE__ */ jsx(
           StageActions,
@@ -885,21 +928,80 @@ function StageCard({
             className: `${stageRuleLayoutClass} px-2.5 py-1.5 text-sm leading-5 text-muted-foreground`,
             children: stage.rule
           }
-        ) : /* @__PURE__ */ jsxs("label", { className: `${stageRuleLayoutClass} grid gap-1`, children: [
-          /* @__PURE__ */ jsxs("span", { className: "sr-only", children: [
-            "What belongs in ",
-            stage.title
-          ] }),
+        ) : /* @__PURE__ */ jsxs("label", { className: `${stageRuleLayoutClass} mt-1.5 grid gap-0.5 lg:mt-0`, children: [
+          /* @__PURE__ */ jsx("span", { className: `${fieldCaptionClass} px-2.5 lg:sr-only`, children: "Rule" }),
           /* @__PURE__ */ jsx(
             "textarea",
             {
               "aria-label": `What belongs in ${stage.title}`,
-              className: `${quietFieldClass} min-h-8 max-h-24 resize-none overflow-y-auto leading-5`,
+              className: `${quietFieldClass} min-h-8 max-h-44 resize-none overflow-y-auto leading-5`,
               maxLength: 240,
               onChange: (event) => update("rule", event.target.value),
               rows: 1,
               style: { fieldSizing: "content" },
               value: stage.rule
+            }
+          )
+        ] }),
+        inbox ? /* @__PURE__ */ jsx(
+          "span",
+          {
+            "aria-hidden": "true",
+            className: `${stagePromptLayoutClass} hidden px-2.5 py-1.5 text-sm leading-5 text-muted-foreground lg:block`,
+            children: "\u2014"
+          }
+        ) : /* @__PURE__ */ jsxs(Fragment2, { children: [
+          showPrompt ? null : /* @__PURE__ */ jsxs(
+            "button",
+            {
+              className: `${stagePromptLayoutClass} mt-2 inline-flex h-8 items-center gap-1.5 justify-self-start rounded-md border border-dashed border-border px-2.5 text-xs font-medium text-muted-foreground hover:border-foreground/40 hover:text-foreground lg:mt-0`,
+              onClick: () => {
+                setPromptExpanded(true);
+                setFocusPromptPending(true);
+              },
+              type: "button",
+              children: [
+                /* @__PURE__ */ jsx(
+                  HugeiconsIcon,
+                  {
+                    "aria-hidden": "true",
+                    className: "size-3.5",
+                    icon: PlusSignIcon
+                  }
+                ),
+                "Add entry prompt"
+              ]
+            }
+          ),
+          /* @__PURE__ */ jsxs(
+            "label",
+            {
+              className: `${stagePromptLayoutClass} mt-2 gap-0.5 lg:mt-0 ${showPrompt ? "grid" : "hidden"}`,
+              children: [
+                /* @__PURE__ */ jsx("span", { className: `${fieldCaptionClass} px-2.5 lg:sr-only`, children: "Entry prompt" }),
+                /* @__PURE__ */ jsx(
+                  "textarea",
+                  {
+                    "aria-label": `Entry prompt for ${stage.title}`,
+                    className: `${fieldClass} min-h-8 max-h-48 resize-none overflow-y-auto leading-5`,
+                    maxLength: ENTRY_PROMPT_MAX_LENGTH,
+                    onChange: (event) => update("entryPrompt", event.target.value),
+                    ref: promptRef,
+                    rows: 2,
+                    style: { fieldSizing: "content" },
+                    value: stage.entryPrompt ?? ""
+                  }
+                ),
+                hasPrompt ? null : /* @__PURE__ */ jsx(
+                  "button",
+                  {
+                    className: "justify-self-end text-xs text-muted-foreground hover:text-foreground",
+                    onClick: () => setPromptExpanded(false),
+                    type: "button",
+                    children: "Dismiss"
+                  }
+                )
+              ]
             }
           )
         ] })
@@ -915,6 +1017,11 @@ function WorkflowSettings() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
   const [saved, setSaved] = useState(false);
+  const [pendingFocusKey, setPendingFocusKey] = useState(
+    null
+  );
+  const listRef = useRef(null);
+  const draftKeysRef = useRef(/* @__PURE__ */ new Set());
   const editRevisionRef = useRef(0);
   const dirtyRef = useRef(false);
   const savingRef = useRef(false);
@@ -946,6 +1053,18 @@ function WorkflowSettings() {
     dirtyRef.current = true;
     setSaved(false);
   };
+  useEffect(() => {
+    if (pendingFocusKey === null) return;
+    const input = listRef.current?.querySelector(
+      `input[data-stage-key="${pendingFocusKey}"]`
+    );
+    if (!input) return;
+    setPendingFocusKey(null);
+    input.focus();
+    if (typeof input.scrollIntoView === "function") {
+      input.scrollIntoView({ block: "nearest" });
+    }
+  }, [config, pendingFocusKey]);
   const replaceStage = (index, stage) => {
     markEdited();
     setConfig(
@@ -982,6 +1101,8 @@ function WorkflowSettings() {
       config.stages.map((stage) => stage.key)
     );
     markEdited();
+    draftKeysRef.current.add(key);
+    setPendingFocusKey(key);
     setConfig({
       ...config,
       stages: [
@@ -990,7 +1111,7 @@ function WorkflowSettings() {
           key,
           role: "stage",
           title,
-          rule: "Describe the work that belongs in this stage."
+          rule: "Describe the work that belongs in this section."
         }
       ]
     });
@@ -998,7 +1119,9 @@ function WorkflowSettings() {
   const save = async () => {
     if (config === null) return;
     const submittedRevision = editRevisionRef.current;
-    const normalized = normalizeEditableWorkflowConfig(config);
+    const normalized = normalizeEditableWorkflowConfig(
+      finalizeDraftKeys(config, draftKeysRef.current)
+    );
     savingRef.current = true;
     setSaving(true);
     setSaved(false);
@@ -1008,6 +1131,7 @@ function WorkflowSettings() {
       cacheWorkflowConfig(full);
       if (editRevisionRef.current === submittedRevision) {
         dirtyRef.current = false;
+        draftKeysRef.current.clear();
         setConfig(editableWorkflowConfig(full));
         setSaved(true);
       }
@@ -1053,7 +1177,7 @@ function WorkflowSettings() {
                 type: "button",
                 children: [
                   /* @__PURE__ */ jsx(HugeiconsIcon, { "aria-hidden": true, icon: PlusSignIcon }),
-                  "Add stage"
+                  "Add section"
                 ]
               }
             ),
@@ -1075,23 +1199,73 @@ function WorkflowSettings() {
       )
     ] }),
     error ? /* @__PURE__ */ jsx("p", { className: "text-sm text-destructive", role: "alert", children: error }) : null,
-    /* @__PURE__ */ jsx("div", { className: "min-w-0 overflow-visible rounded-lg border border-border", children: config.stages.map((stage, index) => /* @__PURE__ */ jsx(
-      StageCard,
+    /* @__PURE__ */ jsxs(
+      "div",
       {
-        index,
-        onChange: (next) => replaceStage(index, next),
-        onDragStart: setDraggedIndex,
-        onDrop: (target) => {
-          if (draggedIndex !== null) moveStage(draggedIndex, target);
-          setDraggedIndex(null);
-        },
-        onMove: (stageIndex, direction) => moveStage(stageIndex, stageIndex + direction),
-        onRemove: removeStage,
-        stage,
-        stageCount: config.stages.length
-      },
-      stage.key
-    )) })
+        className: "min-w-0 overflow-visible rounded-lg border border-border",
+        ref: listRef,
+        children: [
+          /* @__PURE__ */ jsxs(
+            "p",
+            {
+              className: `${fieldCaptionClass} rounded-t-lg border-b border-border bg-muted/30 px-3 py-2 lg:hidden`,
+              children: [
+                "Rule",
+                /* @__PURE__ */ jsx("span", { className: fieldHintClass, children: "what belongs here" }),
+                /* @__PURE__ */ jsx("span", { "aria-hidden": "true", className: "mx-2 font-normal", children: "\xB7" }),
+                "Entry prompt",
+                /* @__PURE__ */ jsx("span", { className: fieldHintClass, children: "sent on arrival" })
+              ]
+            }
+          ),
+          /* @__PURE__ */ jsxs("div", { className: stageHeaderClass, children: [
+            /* @__PURE__ */ jsx("span", {}),
+            /* @__PURE__ */ jsx("span", { className: `${fieldCaptionClass} px-2.5`, children: "Section" }),
+            /* @__PURE__ */ jsxs("span", { className: `${fieldCaptionClass} px-2.5`, children: [
+              "Rule",
+              /* @__PURE__ */ jsx("span", { className: fieldHintClass, children: "what belongs here" })
+            ] }),
+            /* @__PURE__ */ jsxs("span", { className: `${fieldCaptionClass} px-2.5`, children: [
+              "Entry prompt",
+              /* @__PURE__ */ jsx("span", { className: fieldHintClass, children: "sent on arrival" })
+            ] }),
+            /* @__PURE__ */ jsx("span", {})
+          ] }),
+          config.stages.map((stage, index) => /* @__PURE__ */ jsx(
+            StageCard,
+            {
+              index,
+              onChange: (next) => replaceStage(index, next),
+              onDragStart: setDraggedIndex,
+              onDrop: (target) => {
+                if (draggedIndex !== null) moveStage(draggedIndex, target);
+                setDraggedIndex(null);
+              },
+              onMove: (stageIndex, direction) => moveStage(stageIndex, stageIndex + direction),
+              onRemove: removeStage,
+              stage,
+              stageCount: config.stages.length
+            },
+            stage.key
+          ))
+        ]
+      }
+    ),
+    /* @__PURE__ */ jsxs("p", { className: "text-xs text-muted-foreground", children: [
+      "Entry prompts can use",
+      " ",
+      /* @__PURE__ */ jsx("code", { className: "font-mono", children: "{{thread.title}}" }),
+      ",",
+      " ",
+      /* @__PURE__ */ jsx("code", { className: "font-mono", children: "{{thread.id}}" }),
+      ",",
+      " ",
+      /* @__PURE__ */ jsx("code", { className: "font-mono", children: "{{section.title}}" }),
+      ", and",
+      " ",
+      /* @__PURE__ */ jsx("code", { className: "font-mono", children: "{{section.key}}" }),
+      "."
+    ] })
   ] });
 }
 var app_default = definePluginApp((app) => {
