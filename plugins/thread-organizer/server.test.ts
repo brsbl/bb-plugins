@@ -1041,52 +1041,78 @@ describe("Thread Organizer server", () => {
 });
 
 describe("config CLI", () => {
+  const PENDING_KEY = "workflow-config-operation:v1";
+  type Organizer = ReturnType<typeof createHarness>;
   const cli = (
-    organizer: ReturnType<typeof createHarness>,
+    organizer: Organizer,
     argv: string[],
-  ) => organizer.harness.behavior.runCli(argv, { threadId: "thr_test" });
+    context: { threadId?: string } = { threadId: "thr_test" },
+  ) => organizer.harness.behavior.runCli(argv, context);
+  const pending = (organizer: Organizer) =>
+    organizer.harness.inspection.pendingInteractions;
+  const stageOf = async (organizer: Organizer, key: string) =>
+    (await configFor(organizer)).stages.find((stage) => stage.key === key);
+  /** Run a mutating command and approve its confirmation in the thread. */
+  async function approved(organizer: Organizer, argv: string[]) {
+    const before = pending(organizer).length;
+    const result = cli(organizer, argv);
+    await vi.waitFor(() =>
+      expect(pending(organizer).length).toBeGreaterThan(before),
+    );
+    const request = pending(organizer)[pending(organizer).length - 1]!;
+    organizer.harness.behavior.submitInteraction(request.id, true);
+    return { result: await result, request };
+  }
 
-  it("sets, shows, lists, and clears a section's entry prompt", async () => {
+  it("sets, shows, lists, and clears an entry prompt after approval in the thread", async () => {
     const organizer = createHarness();
     await plugin(organizer.bb);
 
-    expect(
-      await cli(organizer, ["prompt", "planning", "--set", "Plan", "it."]),
-    ).toMatchObject({
+    const set = await approved(organizer, [
+      "prompt",
+      "planning",
+      "--set",
+      "Plan it.",
+    ]);
+    expect(set.request).toMatchObject({
+      threadId: "thr_test",
+      rendererId: "confirm-workflow-change",
+      title: "Set the entry prompt for Planning",
+      payload: { text: "Plan it." },
+    });
+    expect(set.result).toMatchObject({
       exitCode: 0,
       stdout: "Set the entry prompt for Planning (planning).\n",
     });
-    expect(
-      (await configFor(organizer)).stages.find(
-        (stage) => stage.key === "planning",
-      ),
-    ).toMatchObject({ entryPrompt: "Plan it." });
+    expect(await stageOf(organizer, "planning")).toMatchObject({
+      entryPrompt: "Plan it.",
+    });
     expect(await cli(organizer, ["prompt", "planning"])).toMatchObject({
       exitCode: 0,
       stdout: "Plan it.\n",
     });
     const listed = await cli(organizer, ["prompt"]);
     expect(listed.exitCode).toBe(0);
-    expect(listed.stdout).toContain("planning");
     expect(listed.stdout).toContain("Plan it.");
     expect(listed.stdout).toContain("(Inbox cannot send an entry prompt)");
 
-    expect(await cli(organizer, ["prompt", "planning", "--clear"])).toMatchObject({
+    const cleared = await approved(organizer, ["prompt", "planning", "--clear"]);
+    expect(cleared.request.title).toBe("Clear the entry prompt for Planning");
+    expect(cleared.result).toMatchObject({
       exitCode: 0,
       stdout: "Cleared the entry prompt for Planning (planning).\n",
     });
-    expect(
-      (await configFor(organizer)).stages.find(
-        (stage) => stage.key === "planning",
-      ),
-    ).not.toHaveProperty("entryPrompt");
+    expect(await stageOf(organizer, "planning")).not.toHaveProperty(
+      "entryPrompt",
+    );
     expect(await cli(organizer, ["prompt", "planning"])).toMatchObject({
       exitCode: 0,
       stdout: "Planning (planning) has no entry prompt.\n",
     });
+    await organizer.harness.lifecycle.dispose();
   });
 
-  it("refuses Inbox, unknown stages, empty text, and oversized prompts without saving", async () => {
+  it("rejects an impossible request before asking for approval", async () => {
     const organizer = createHarness();
     await plugin(organizer.bb);
     const before = await configFor(organizer);
@@ -1103,29 +1129,68 @@ describe("config CLI", () => {
       exitCode: 2,
     });
     expect(
+      await cli(organizer, ["prompt", "planning", "--set", "Plan", "it."]),
+    ).toMatchObject({
+      exitCode: 2,
+      stderr: expect.stringContaining("one quoted argument"),
+    });
+    expect(
+      await cli(organizer, ["prompt", "planning", "--set", "a", "--clear"]),
+    ).toMatchObject({ exitCode: 2 });
+    expect(
       await cli(organizer, ["prompt", "planning", "--set", "x".repeat(2001)]),
     ).toMatchObject({
       exitCode: 2,
       stderr: expect.stringContaining("entry prompt must be at most"),
     });
+    expect(pending(organizer)).toHaveLength(0);
     expect(await configFor(organizer)).toEqual(before);
+    await organizer.harness.lifecycle.dispose();
   });
 
-  it("adds a section after another with a rule, keys it by title, and lists it", async () => {
+  it("leaves the workflow unchanged when approval is cancelled or there is no thread", async () => {
     const organizer = createHarness();
     await plugin(organizer.bb);
+    const before = await configFor(organizer);
 
-    expect(
-      await cli(organizer, [
-        "section",
-        "add",
-        "Review",
-        "--after",
-        "testing-deploy",
-        "--rule",
-        "A PR needs its one review.",
-      ]),
-    ).toMatchObject({
+    const declined = cli(organizer, ["prompt", "planning", "--set", "Plan it."]);
+    await vi.waitFor(() => expect(pending(organizer)).toHaveLength(1));
+    organizer.harness.behavior.cancelInteraction(pending(organizer)[0]!.id);
+    expect(await declined).toMatchObject({
+      exitCode: 2,
+      stderr: expect.stringContaining("Not approved"),
+    });
+
+    expect(await cli(organizer, ["section", "add", "Review"], {})).toMatchObject({
+      exitCode: 2,
+      stderr: expect.stringContaining("inside a bb thread"),
+    });
+    expect(await configFor(organizer)).toEqual(before);
+    await organizer.harness.lifecycle.dispose();
+  });
+
+  it("adds a section after another with a rule, keys it by title, and keeps existing sections", async () => {
+    const organizer = createHarness();
+    await plugin(organizer.bb);
+    const before = await configFor(organizer);
+
+    const added = await approved(organizer, [
+      "section",
+      "add",
+      "Review",
+      "--after",
+      "testing-deploy",
+      "--rule",
+      "A PR needs its one review.",
+    ]);
+    expect(added.request).toMatchObject({
+      title: 'Add section "Review"',
+      payload: {
+        summary: "After Testing / Deploy, with this rule for agents:",
+        text: "A PR needs its one review.",
+      },
+    });
+    expect(added.result).toMatchObject({
       exitCode: 0,
       stdout: "Added Review (review) after Testing / Deploy.\n",
     });
@@ -1138,6 +1203,13 @@ describe("config CLI", () => {
       rule: "A PR needs its one review.",
       sectionId: expect.any(String),
     });
+    for (const stage of before.stages) {
+      expect(
+        config.stages.find((candidate) => candidate.key === stage.key)
+          ?.sectionId,
+      ).toBe(stage.sectionId);
+    }
+    expect(organizer.deleteSection).not.toHaveBeenCalled();
 
     const listed = await cli(organizer, ["section", "list"]);
     expect(listed.exitCode).toBe(0);
@@ -1150,18 +1222,28 @@ describe("config CLI", () => {
     });
     expect(
       await cli(organizer, ["section", "add", "Later", "--after", "nope"]),
-    ).toMatchObject({ exitCode: 2, stderr: expect.stringContaining("Unknown stage: nope") });
+    ).toMatchObject({
+      exitCode: 2,
+      stderr: expect.stringContaining("Unknown stage: nope"),
+    });
     expect(await cli(organizer, ["section", "add", ""])).toMatchObject({
       exitCode: 2,
       stderr: "Provide a section title.\n",
     });
-    expect((await configFor(organizer)).stages.map((stage) => stage.key)).toEqual(keys);
+    expect(
+      (await configFor(organizer)).stages.map((stage) => stage.key),
+    ).toEqual(keys);
+    await organizer.harness.lifecycle.dispose();
   });
 
   it("appends a section at the end when no position is given", async () => {
     const organizer = createHarness();
     await plugin(organizer.bb);
-    expect(await cli(organizer, ["section", "add", "Someday"])).toMatchObject({
+    const added = await approved(organizer, ["section", "add", "Someday"]);
+    expect(added.request.payload).toMatchObject({
+      summary: "At the end, with this rule for agents:",
+    });
+    expect(added.result).toMatchObject({
       exitCode: 0,
       stdout: "Added Someday (someday).\n",
     });
@@ -1170,6 +1252,113 @@ describe("config CLI", () => {
       key: "someday",
       rule: "Describe the work that belongs in this section.",
     });
+    await organizer.harness.lifecycle.dispose();
+  });
+
+  it("applies a CLI change on top of a save that was still in flight", async () => {
+    const organizer = createHarness();
+    await plugin(organizer.bb);
+    const createSection = organizer.create.getMockImplementation()!;
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    organizer.create.mockImplementationOnce(async (input) => {
+      await gate;
+      return createSection(input);
+    });
+    const edited = editableWorkflowConfig(await configFor(organizer));
+    edited.stages.push({
+      key: "review",
+      role: "stage",
+      title: "Review",
+      rule: "A PR needs its one review.",
+    });
+    const uiSave = organizer.harness.behavior.callRpc("saveConfig", edited);
+    await vi.waitFor(() => expect(organizer.create).toHaveBeenCalled());
+
+    const cliSave = cli(organizer, ["prompt", "planning", "--set", "Plan it."]);
+    await vi.waitFor(() => expect(pending(organizer)).toHaveLength(1));
+    organizer.harness.behavior.submitInteraction(pending(organizer)[0]!.id, true);
+    release();
+    await uiSave;
+    expect(await cliSave).toMatchObject({ exitCode: 0 });
+
+    const config = await configFor(organizer);
+    expect(config.stages.map((stage) => stage.key)).toContain("review");
+    expect(
+      config.stages.find((stage) => stage.key === "planning"),
+    ).toMatchObject({ entryPrompt: "Plan it." });
+    expect(organizer.deleteSection).not.toHaveBeenCalled();
+    await organizer.harness.lifecycle.dispose();
+  });
+
+  it("refuses a save based on a stale revision and bumps the revision on every save", async () => {
+    const organizer = createHarness();
+    await plugin(organizer.bb);
+    const first = await configFor(organizer);
+    expect(first.revision).toBe(0);
+
+    const edited = editableWorkflowConfig(first);
+    expect(edited.baseRevision).toBe(0);
+    const second = (await organizer.harness.behavior.callRpc(
+      "saveConfig",
+      edited,
+    )) as WorkflowConfig;
+    expect(second.revision).toBe(1);
+
+    await expect(
+      organizer.harness.behavior.callRpc("saveConfig", edited),
+    ).rejects.toThrow("changed elsewhere");
+    expect((await configFor(organizer)).revision).toBe(1);
+
+    const third = (await organizer.harness.behavior.callRpc(
+      "saveConfig",
+      editableWorkflowConfig(second),
+    )) as WorkflowConfig;
+    expect(third.revision).toBe(2);
+    await organizer.harness.lifecycle.dispose();
+  });
+
+  it("keeps a save whose sweep hits a failing thread and completes it on the next save", async () => {
+    const organizer = createHarness();
+    await plugin(organizer.bb);
+    await saveStagePatch(organizer, "planning", { rule: "Warm up." });
+    expect(await organizer.bb.storage.kv.get(PENDING_KEY)).toBeFalsy();
+
+    organizer.getThread.mockRejectedValueOnce(new Error("gone"));
+    const saved = await saveStagePatch(organizer, "planning", {
+      rule: "Plan carefully.",
+    });
+    expect(
+      saved.stages.find((stage) => stage.key === "planning"),
+    ).toMatchObject({ rule: "Plan carefully." });
+    expect(await organizer.bb.storage.kv.get(PENDING_KEY)).toBeTruthy();
+
+    await saveStagePatch(organizer, "planning", { rule: "Plan carefully!" });
+    expect(await organizer.bb.storage.kv.get(PENDING_KEY)).toBeFalsy();
+    await organizer.harness.lifecycle.dispose();
+  });
+
+  it("keeps serving when resuming a pending operation fails during load", async () => {
+    const seed = createHarness();
+    await plugin(seed.bb);
+    const config = await configFor(seed);
+    await seed.harness.lifecycle.dispose();
+
+    const organizer = createHarness();
+    await organizer.bb.storage.kv.set(PENDING_KEY, {
+      version: 1,
+      nextConfig: config,
+      removedStages: [],
+    });
+    organizer.listThreads.mockRejectedValueOnce(new Error("offline"));
+    await plugin(organizer.bb);
+    expect(await cli(organizer, ["section", "list"])).toMatchObject({
+      exitCode: 0,
+      stdout: expect.stringContaining("planning"),
+    });
+    await organizer.harness.lifecycle.dispose();
   });
 
   it("prints usage for unknown commands", async () => {
@@ -1179,6 +1368,7 @@ describe("config CLI", () => {
       exitCode: 2,
       stderr: expect.stringContaining("bb organizer prompt"),
     });
+    await organizer.harness.lifecycle.dispose();
   });
 });
 

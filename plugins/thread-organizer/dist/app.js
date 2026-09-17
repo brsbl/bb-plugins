@@ -173,6 +173,7 @@ var {
 // core.ts
 var WORKFLOW_CONFIG_VERSION = 2;
 var ENTRY_PROMPT_MAX_LENGTH = 2e3;
+var WORKFLOW_CHANGE_INTERACTION_ID = "confirm-workflow-change";
 var INBOX_RULE = "Idle unread threads that need your attention appear here automatically and stay until work resumes or you move a read thread to another workflow section. This behavior can\u2019t be customized.";
 var HANDOFF_RULE = "Use only when the user explicitly says this thread is being handed to a colleague to take across the finish line; never infer it from packaging context, completed work, or waiting.";
 var PREVIOUS_INBOX_RULES = [
@@ -1036,6 +1037,8 @@ function WorkflowSettings() {
   const editRevisionRef = useRef(0);
   const dirtyRef = useRef(false);
   const savingRef = useRef(false);
+  const loadedRevisionRef = useRef(0);
+  const [changedElsewhere, setChangedElsewhere] = useState(false);
   const load = useCallback(async () => {
     if (dirtyRef.current || savingRef.current) return;
     const requestedRevision = editRevisionRef.current;
@@ -1047,6 +1050,8 @@ function WorkflowSettings() {
       }
       setConfig(editableWorkflowConfig(full));
       cacheWorkflowConfig(full);
+      loadedRevisionRef.current = full.revision ?? 0;
+      setChangedElsewhere(false);
     } catch (loadError) {
       setError(errorMessage(loadError));
     } finally {
@@ -1056,9 +1061,23 @@ function WorkflowSettings() {
   useEffect(() => {
     void load();
   }, [load]);
-  useRealtime("workflow-config-changed", () => {
-    if (!dirtyRef.current && !savingRef.current) void load();
+  useRealtime("workflow-config-changed", (payload) => {
+    const revision = typeof payload === "object" && payload !== null && typeof payload.revision === "number" ? payload.revision : null;
+    if (revision !== null && revision <= loadedRevisionRef.current) return;
+    if (savingRef.current) return;
+    if (dirtyRef.current) {
+      setChangedElsewhere(true);
+      return;
+    }
+    void load();
   });
+  const reloadFromServer = () => {
+    editRevisionRef.current += 1;
+    dirtyRef.current = false;
+    draftKeysRef.current.clear();
+    setChangedElsewhere(false);
+    void load();
+  };
   const markEdited = () => {
     editRevisionRef.current += 1;
     dirtyRef.current = true;
@@ -1140,6 +1159,7 @@ function WorkflowSettings() {
     try {
       const full = await rpc.call("saveConfig", normalized);
       cacheWorkflowConfig(full);
+      loadedRevisionRef.current = full.revision ?? 0;
       if (editRevisionRef.current === submittedRevision) {
         dirtyRef.current = false;
         draftKeysRef.current.clear();
@@ -1196,7 +1216,7 @@ function WorkflowSettings() {
               "button",
               {
                 className: primaryButtonClass,
-                disabled: saving,
+                disabled: saving || changedElsewhere,
                 onClick: () => void save(),
                 type: "button",
                 children: [
@@ -1210,6 +1230,25 @@ function WorkflowSettings() {
       )
     ] }),
     error ? /* @__PURE__ */ jsx("p", { className: "text-sm text-destructive", role: "alert", children: error }) : null,
+    changedElsewhere ? /* @__PURE__ */ jsxs(
+      "p",
+      {
+        className: "flex flex-wrap items-center gap-x-3 gap-y-1 rounded-md border border-border bg-muted/30 px-3 py-2 text-sm text-foreground",
+        role: "status",
+        children: [
+          "The workflow changed elsewhere. Reload to see the latest before saving.",
+          /* @__PURE__ */ jsx(
+            "button",
+            {
+              className: "font-medium underline underline-offset-2",
+              onClick: reloadFromServer,
+              type: "button",
+              children: "Reload"
+            }
+          )
+        ]
+      }
+    ) : null,
     /* @__PURE__ */ jsxs(
       "div",
       {
@@ -1279,6 +1318,52 @@ function WorkflowSettings() {
     ] })
   ] });
 }
+function ConfirmWorkflowChange({
+  interaction,
+  submit,
+  cancel
+}) {
+  const payload = typeof interaction.payload === "object" && interaction.payload !== null ? interaction.payload : {};
+  const summary = typeof payload.summary === "string" ? payload.summary : "";
+  const text = typeof payload.text === "string" ? payload.text : null;
+  const [busy, setBusy] = useState(false);
+  const decide = async (approve) => {
+    setBusy(true);
+    try {
+      if (approve) await submit(true);
+      else await cancel();
+    } finally {
+      setBusy(false);
+    }
+  };
+  return /* @__PURE__ */ jsxs("div", { className: "grid gap-3 rounded-lg border border-border bg-background p-3 text-sm", children: [
+    /* @__PURE__ */ jsx("p", { className: "font-semibold text-foreground", children: interaction.title }),
+    summary ? /* @__PURE__ */ jsx("p", { className: "text-muted-foreground", children: summary }) : null,
+    text !== null ? /* @__PURE__ */ jsx("pre", { className: "max-h-48 overflow-auto whitespace-pre-wrap rounded-md border border-border bg-muted/30 px-2.5 py-1.5 font-sans text-sm text-foreground", children: text }) : null,
+    /* @__PURE__ */ jsxs("div", { className: "flex justify-end gap-2", children: [
+      /* @__PURE__ */ jsx(
+        "button",
+        {
+          className: outlineButtonClass,
+          disabled: busy,
+          onClick: () => void decide(false),
+          type: "button",
+          children: "Cancel"
+        }
+      ),
+      /* @__PURE__ */ jsx(
+        "button",
+        {
+          className: primaryButtonClass,
+          disabled: busy,
+          onClick: () => void decide(true),
+          type: "button",
+          children: "Approve"
+        }
+      )
+    ] })
+  ] });
+}
 var app_default = definePluginApp((app) => {
   app.contentScripts.register({
     id: "workflow-sidebar",
@@ -1287,6 +1372,10 @@ var app_default = definePluginApp((app) => {
   app.slots.settingsSection({
     id: "workflow-sections",
     component: WorkflowSettings
+  });
+  app.slots.pendingInteraction({
+    id: WORKFLOW_CHANGE_INTERACTION_ID,
+    component: ConfirmWorkflowChange
   });
 });
 var workflowConfigVersion = WORKFLOW_CONFIG_VERSION;
