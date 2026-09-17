@@ -173,6 +173,28 @@ describe("provider registration and package shape", () => {
 });
 
 describe("provider searches", () => {
+  it("searches and resolves UI-only and theme plugins, including itself", async () => {
+    const plugins = [
+      installed({ id: "at-plugin", name: "@Plugin", capabilities: [] }),
+      installed({ id: "theme", name: "Theme", capabilities: [capability("theme")] }),
+      installed({ id: "ui-only", name: "UI Only", capabilities: [], app: { bundle: null, hasApp: true } }),
+    ];
+    const { bb, harness } = createFakePluginHost({
+      pluginId: "at-plugin",
+      sdk: { plugins: { list: async () => ({ plugins }) } },
+    });
+    await plugin(bb);
+    const provider = mentionProvider(harness, "installed");
+    const rows = await provider.search({ ...MENTION_CONTEXT, query: "plugin" });
+    expect(rows.map((row) => row.title)).toEqual(plugins.map((entry) => entry.name));
+    for (const [index, row] of rows.entries()) {
+      expect(await provider.resolve(row.id)).toEqual({
+        context: buildInstalledPluginContext({ name: plugins[index]!.name!, pluginId: plugins[index]!.id }),
+      });
+    }
+    expect((await provider.search({ ...MENTION_CONTEXT, query: "ui" })).map((row) => row.title)).toEqual(["UI Only"]);
+  });
+
   it("searches and resolves the newer catalog response while retaining array compatibility", async () => {
     const entry = community();
     const { bb, harness } = createFakePluginHost({
@@ -210,8 +232,7 @@ describe("provider searches", () => {
           list: async () => ({ plugins: [
             ...inventory,
             installed({ id: "disabled", status: "disabled" }),
-            installed({ id: "ui-only", capabilities: [] }),
-            installed({ id: "at-plugin" }),
+            installed({ id: "disabled-flag", enabled: false }),
           ] }),
           catalog: { search: async ({ query: catalogQuery }) => [
             ...catalog,
@@ -343,10 +364,10 @@ describe("Installed resolution", () => {
         "GitHub is not currently usable. Restore it in Plugins settings or remove @GitHub, then retry.",
     },
     {
-      label: "no-interface",
-      plugins: [installed({ capabilities: [], cliCommand: null })],
+      label: "disabled-flag",
+      plugins: [installed({ enabled: false })],
       message:
-        "GitHub no longer exposes an agent capability. Reload or update it, or remove @GitHub, then retry.",
+        "GitHub is not currently usable. Restore it in Plugins settings or remove @GitHub, then retry.",
     },
   ])("uses the curated $label error", async ({ plugins, message }) => {
     const { bb, harness } = createFakePluginHost({
@@ -481,7 +502,7 @@ describe("Community resolution", () => {
       pluginId: "at-plugin",
       sdk: {
         plugins: {
-          list: async () => ({ plugins: [installed({ id: "noema", name: "Noema Live" })] }),
+          list: async () => ({ plugins: [installed({ id: "noema", name: "Noema Live", capabilities: [] })] }),
           catalog: {
             search: async () => {
               throw new Error("catalog disappeared");
@@ -506,9 +527,9 @@ describe("Community resolution", () => {
         "Noema is not currently usable. Restore it in Plugins settings or remove @Noema, then retry.",
     },
     {
-      installedTarget: installed({ id: "noema", name: "Noema", capabilities: [] }),
+      installedTarget: installed({ id: "noema", name: "Noema", enabled: false }),
       message:
-        "Noema no longer exposes an agent capability. Reload or update it, or remove @Noema, then retry.",
+        "Noema is not currently usable. Restore it in Plugins settings or remove @Noema, then retry.",
     },
   ])("blocks an installed-but-unusable target without catalog access", async ({ installedTarget, message }) => {
     const { bb, harness } = createFakePluginHost({

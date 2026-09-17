@@ -75,16 +75,19 @@ describe("Installed eligibility", () => {
     expect(searchInstalledPlugins(plugins, "", "at-plugin")).toEqual([]);
   });
 
-  it("rejects self and UI, theme, thread-integration, or unavailable targets", () => {
+  it("includes every enabled running plugin, including UI, themes, and itself", () => {
     const plugins = [
       installed({ id: "at-plugin", capabilities: [capability("skill")] }),
       installed({ id: "ui-only", app: { bundle: null, hasApp: true } }),
       installed({ id: "theme-only", capabilities: [capability("theme")] }),
       installed({ id: "mention-only", capabilities: [capability("thread-integration")] }),
       installed({ id: "nothing" }),
+      installed({ id: "disabled-flag", enabled: false }),
     ];
 
-    expect(searchInstalledPlugins(plugins, "", "at-plugin")).toEqual([]);
+    expect(searchInstalledPlugins(plugins, "plugin", "at-plugin").map(
+      (item) => decodeInstalledItemId(item.id).pluginId,
+    )).toEqual(["at-plugin", "mention-only", "nothing", "theme-only", "ui-only"]);
   });
 });
 
