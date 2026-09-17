@@ -12,7 +12,13 @@ bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/at-plugin -
 
 ## Use
 
-Type `@`, search for a plugin, and select it.
+Type part of a plugin name, such as `@auto`, and select a result.
+Type `@plugin` to browse installed and Community plugins without
+the usual six-results-per-group limit. Bare `@` does not return results in BB.
+
+Installed results include all enabled, running plugins, including UI-only
+plugins and themes. Disabled or unhealthy plugins are excluded. Community
+results include compatible plugins that are not installed.
 
 - An installed plugin mention tells the agent which available plugin to prefer
   when it is relevant.

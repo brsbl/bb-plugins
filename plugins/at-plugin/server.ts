@@ -1,4 +1,5 @@
 import type { BbPluginApi } from "@get-bb/plugin-sdk";
+import { isPluginBrowseQuery } from "./mention-query";
 
 import {
   COMMUNITY_MARKETPLACE,
@@ -7,7 +8,7 @@ import {
 } from "./community-catalog";
 import {
   type InstalledPluginRecord,
-  hasAgentFacingInterface,
+  isUsableInstalledTarget,
   searchInstalledPlugins,
 } from "./installed-catalog";
 import {
@@ -72,12 +73,6 @@ function unusableInstalledError(target: string): Error {
   );
 }
 
-function noAgentCapabilityError(target: string): Error {
-  return new Error(
-    `${target} no longer exposes an agent capability. Reload or update it, or remove @${target}, then retry.`,
-  );
-}
-
 function inventoryVerificationError(target: string): Error {
   return new Error(
     `${target} could not be verified right now. Retry, or remove @${target} to send without it.`,
@@ -123,8 +118,7 @@ function findInstalledPlugin(
 
 function resolveInstalledRecord(plugin: InstalledPluginRecord): { context: string } {
   const target = targetName(plugin);
-  if (plugin.status !== "running") throw unusableInstalledError(target);
-  if (!hasAgentFacingInterface(plugin)) throw noAgentCapabilityError(target);
+  if (!isUsableInstalledTarget(plugin)) throw unusableInstalledError(target);
 
   return {
     context: buildInstalledPluginContext({ name: target, pluginId: plugin.id }),
@@ -143,14 +137,21 @@ function exactCommunityEntry(
   );
 }
 
+function catalogEntries(
+  response: CommunityCatalogRecord[] | { results: CommunityCatalogRecord[] },
+): CommunityCatalogRecord[] {
+  // Older BB SDKs return the array directly; newer hosts wrap it with collections.
+  return Array.isArray(response) ? response : response.results;
+}
+
 export default async function plugin(bb: BbPluginApi) {
   bb.ui.registerMentionProvider({
     id: "installed",
-    label: "Installed",
+    label: "Installed plugins",
     async search({ query }) {
       try {
         const inventory = await boundedSdkRead((signal) => bb.sdk.plugins.list({ signal }));
-        return searchInstalledPlugins(inventory.plugins, query, bb.pluginId);
+        return searchInstalledPlugins(inventory.plugins, query);
       } catch {
         return [];
       }
@@ -179,13 +180,13 @@ export default async function plugin(bb: BbPluginApi) {
 
   bb.ui.registerMentionProvider({
     id: "community",
-    label: "Community",
+    label: "Community plugins",
     async search({ query }) {
       try {
         const entries = await boundedSdkRead((signal) =>
-          bb.sdk.plugins.catalog.search({ query, signal }),
+          bb.sdk.plugins.catalog.search({ query: isPluginBrowseQuery(query) ? "" : query, signal }),
         );
-        return searchCommunityPlugins(entries, query);
+        return searchCommunityPlugins(catalogEntries(entries), query);
       } catch {
         return [];
       }
@@ -223,7 +224,7 @@ export default async function plugin(bb: BbPluginApi) {
         throw communityVerificationError(fallback);
       }
 
-      const entry = exactCommunityEntry(entries, identity);
+      const entry = exactCommunityEntry(catalogEntries(entries), identity);
       if (entry === undefined) throw communityMissingError(fallback);
 
       const liveTarget = boundUntrustedText(entry.displayName, MAX_ITEM_TITLE_BYTES);

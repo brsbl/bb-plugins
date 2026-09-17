@@ -142,6 +142,11 @@ function buildCommunityPluginContext(reference) {
   );
 }
 
+// mention-query.ts
+function isPluginBrowseQuery(query) {
+  return normalizeUntrustedText(query).toLowerCase() === "plugin";
+}
+
 // community-catalog.ts
 var COMMUNITY_MARKETPLACE = "bb-community";
 var RESULT_LIMIT = 6;
@@ -181,7 +186,8 @@ function toCandidate(entry, query, hostRank) {
   };
 }
 function searchCommunityPlugins(entries, query) {
-  const ranked = entries.map((entry, hostRank) => toCandidate(entry, query, hostRank)).filter((candidate) => candidate !== null).sort((left, right) => left.tier - right.tier || left.hostRank - right.hostRank);
+  const browse = isPluginBrowseQuery(query);
+  const ranked = entries.map((entry, hostRank) => toCandidate(entry, browse ? "" : query, hostRank)).filter((candidate) => candidate !== null).sort((left, right) => left.tier - right.tier || left.hostRank - right.hostRank);
   const seenPluginIds = /* @__PURE__ */ new Set();
   const deduplicated = ranked.filter((candidate) => {
     if (seenPluginIds.has(candidate.pluginId)) return false;
@@ -196,7 +202,7 @@ function searchCommunityPlugins(entries, query) {
       }, /* @__PURE__ */ new Map())
     ).filter(([, count]) => count > 1).map(([name]) => name)
   );
-  return deduplicated.slice(0, RESULT_LIMIT).map((candidate) => {
+  return deduplicated.slice(0, browse ? void 0 : RESULT_LIMIT).map((candidate) => {
     const detail = candidate.description || candidate.publisherLabel;
     const subtitleParts = [
       "Not installed",
@@ -234,24 +240,18 @@ function matchTier(query, displayName, pluginId, description) {
   if ([name, id, detail].some((field) => field.includes(foldedQuery))) return 2;
   return null;
 }
-function hasAgentFacingInterface(plugin2) {
-  return plugin2.cliCommand !== null || plugin2.capabilities.some(
-    (capability) => capability.kind === "skill" || capability.kind === "agent-tool"
-  );
+function isUsableInstalledTarget(plugin2) {
+  return normalizeStableIdentity(plugin2.id) !== null && plugin2.enabled && plugin2.status === "running";
 }
-function isUsableInstalledTarget(plugin2, ownerPluginId) {
-  const pluginId = normalizeStableIdentity(plugin2.id);
-  const ownerId = normalizeStableIdentity(ownerPluginId);
-  return pluginId !== null && pluginId !== ownerId && plugin2.status === "running" && hasAgentFacingInterface(plugin2);
-}
-function searchInstalledPlugins(plugins, query, ownerPluginId) {
+function searchInstalledPlugins(plugins, query) {
+  const browse = isPluginBrowseQuery(query);
   const eligible = plugins.flatMap((plugin2) => {
-    if (!isUsableInstalledTarget(plugin2, ownerPluginId)) return [];
+    if (!isUsableInstalledTarget(plugin2)) return [];
     const pluginId = normalizeStableIdentity(plugin2.id);
     if (pluginId === null) return [];
     const displayName = normalizeUntrustedText(plugin2.name ?? pluginId) || pluginId;
     const description = normalizeUntrustedText(plugin2.description ?? "");
-    const tier = matchTier(query, displayName, pluginId, description);
+    const tier = matchTier(browse ? "" : query, displayName, pluginId, description);
     if (tier === null) return [];
     return [
       {
@@ -274,7 +274,7 @@ function searchInstalledPlugins(plugins, query, ownerPluginId) {
   );
   return eligible.sort(
     (left, right) => left.tier - right.tier || compareText(left.displayName, right.displayName) || compareText(left.pluginId, right.pluginId)
-  ).slice(0, RESULT_LIMIT2).map((candidate) => {
+  ).slice(0, browse ? void 0 : RESULT_LIMIT2).map((candidate) => {
     const subtitleParts = duplicateNames.has(candidate.normalizedName) ? [candidate.pluginId, candidate.description] : [candidate.description];
     const subtitle = boundUntrustedText(
       subtitleParts.filter(Boolean).join(" \xB7 "),
@@ -327,11 +327,6 @@ function unusableInstalledError(target) {
     `${target} is not currently usable. Restore it in Plugins settings or remove @${target}, then retry.`
   );
 }
-function noAgentCapabilityError(target) {
-  return new Error(
-    `${target} no longer exposes an agent capability. Reload or update it, or remove @${target}, then retry.`
-  );
-}
 function inventoryVerificationError(target) {
   return new Error(
     `${target} could not be verified right now. Retry, or remove @${target} to send without it.`
@@ -367,8 +362,7 @@ function findInstalledPlugin(plugins, pluginId) {
 }
 function resolveInstalledRecord(plugin2) {
   const target = targetName(plugin2);
-  if (plugin2.status !== "running") throw unusableInstalledError(target);
-  if (!hasAgentFacingInterface(plugin2)) throw noAgentCapabilityError(target);
+  if (!isUsableInstalledTarget(plugin2)) throw unusableInstalledError(target);
   return {
     context: buildInstalledPluginContext({ name: target, pluginId: plugin2.id })
   };
@@ -378,14 +372,17 @@ function exactCommunityEntry(entries, identity) {
     (entry) => entry.pluginId === identity.pluginId && entry.marketplace === identity.marketplace && entry.entryId === identity.entryId
   );
 }
+function catalogEntries(response) {
+  return Array.isArray(response) ? response : response.results;
+}
 async function plugin(bb) {
   bb.ui.registerMentionProvider({
     id: "installed",
-    label: "Installed",
+    label: "Installed plugins",
     async search({ query }) {
       try {
         const inventory = await boundedSdkRead((signal) => bb.sdk.plugins.list({ signal }));
-        return searchInstalledPlugins(inventory.plugins, query, bb.pluginId);
+        return searchInstalledPlugins(inventory.plugins, query);
       } catch {
         return [];
       }
@@ -411,13 +408,13 @@ async function plugin(bb) {
   });
   bb.ui.registerMentionProvider({
     id: "community",
-    label: "Community",
+    label: "Community plugins",
     async search({ query }) {
       try {
         const entries = await boundedSdkRead(
-          (signal) => bb.sdk.plugins.catalog.search({ query, signal })
+          (signal) => bb.sdk.plugins.catalog.search({ query: isPluginBrowseQuery(query) ? "" : query, signal })
         );
-        return searchCommunityPlugins(entries, query);
+        return searchCommunityPlugins(catalogEntries(entries), query);
       } catch {
         return [];
       }
@@ -449,7 +446,7 @@ async function plugin(bb) {
       } catch {
         throw communityVerificationError(fallback);
       }
-      const entry = exactCommunityEntry(entries, identity);
+      const entry = exactCommunityEntry(catalogEntries(entries), identity);
       if (entry === void 0) throw communityMissingError(fallback);
       const liveTarget = boundUntrustedText(entry.displayName, MAX_ITEM_TITLE_BYTES);
       if (liveTarget.length === 0) throw communityMissingError(fallback);
