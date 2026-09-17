@@ -475,7 +475,7 @@ describe("createSectionOrderStore", () => {
   }
 
   it("reads the preference from bb's UI preferences document", async () => {
-    const fetchImpl = vi.fn(async () =>
+    const fetchImpl = vi.fn(async (_input: string, _init?: RequestInit) =>
       response(200, {
         preferences: {
           [SECTION_ORDER_PREFERENCE_KEY]: { revision: 3, value: ["pinned"] },
