@@ -114,7 +114,7 @@ Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/o
 
 ### @Plugin
 
-Adds installed and Community plugins to bb's existing `@` menu without installing or invoking them.
+Find installed and Community plugins from bb's `@` menu or let your agent search through the CLI, with full overviews and screenshot links.
 
 ![Plugin mentions in bb](plugins/at-plugin/docs/screenshot.png)
 

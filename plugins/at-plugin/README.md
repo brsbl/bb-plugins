@@ -1,6 +1,6 @@
 # @Plugin
 
-Adds installed and Community plugins to bb's existing `@` menu.
+Find plugins for your task from bb's `@` menu or let your agent search through the CLI.
 
 ![Plugin mentions in bb](docs/screenshot.png)
 
@@ -27,6 +27,33 @@ results include compatible plugins that are not installed.
 
 A mention never installs, enables, configures, authenticates, or invokes a
 plugin by itself.
+
+## Search coverage
+
+Search matches names, plugin IDs, full descriptions, and available long-form
+catalog overviews. Catalog search also matches tags, category, entry IDs, and
+marketplace names. Installed plugins use matching catalog details when available.
+Search does not crawl READMEs, documentation sites, or image contents. Older BB
+versions and listings without overviews retain name/description search.
+
+## Agent CLI
+
+```sh
+bb at-plugin search "pdf" --json
+bb at-plugin search --scope community --limit 10 --offset 0 --json
+bb at-plugin show <plugin-id> --json
+```
+
+Both commands return full descriptions, available overview text, and screenshot
+and public icon URLs. Images are returned as links, not downloaded bytes. Search
+defaults to 10 results, accepts `--limit 1..20`, and returns `nextOffset` for
+pagination. Use `--scope installed`, `community`, or `all` (the default).
+Omit `--json` for readable text. Check `warnings` for incomplete results and
+`textTruncated` for unusually large text. These commands only read plugin data.
+
+The plugin contributes CLI discovery metadata and an `at-plugin-discovery`
+skill so agents can find and inspect plugins independently. Only enabled,
+running installed plugins and compatible, uninstalled Community plugins appear.
 
 ## Develop
 

@@ -92,20 +92,20 @@ function removeLastCodePoint(value) {
   codePoints.pop();
   return codePoints.join("").trimEnd();
 }
-function renderBoundedContext(rawFields, render) {
+function renderBoundedContext(rawFields, render2) {
   const fields = Object.fromEntries(
-    Object.entries(rawFields).map(([key, value]) => [key, requireContextField(value)])
+    Object.entries(rawFields).map(([key2, value]) => [key2, requireContextField(value)])
   );
-  let context = render(fields);
+  let context = render2(fields);
   while (utf8ByteLength(context) > MAX_CONTEXT_BYTES) {
-    const candidate = Object.keys(fields).filter((key) => Array.from(fields[key]).length > 1).sort(
+    const candidate = Object.keys(fields).filter((key2) => Array.from(fields[key2]).length > 1).sort(
       (left, right) => utf8ByteLength(JSON.stringify(fields[right])) - utf8ByteLength(JSON.stringify(fields[left]))
     )[0];
     if (candidate === void 0) {
       throw new Error("Plugin reference template exceeds its UTF-8 budget");
     }
     fields[candidate] = removeLastCodePoint(fields[candidate]);
-    context = render(fields);
+    context = render2(fields);
   }
   return context;
 }
@@ -147,6 +147,70 @@ function isPluginBrowseQuery(query) {
   return normalizeUntrustedText(query).toLowerCase() === "plugin";
 }
 
+// catalog-details.ts
+function catalogEntries(response) {
+  return Array.isArray(response) ? response : response.results;
+}
+function key(entry) {
+  return JSON.stringify([entry.marketplace, entry.entryId, entry.pluginId]);
+}
+function matchesDetails(entry, query) {
+  const needle = normalizeUntrustedText(query).toLowerCase();
+  return [
+    entry.displayName,
+    entry.pluginId,
+    entry.entryId,
+    entry.description,
+    entry.category,
+    entry.marketplaceDisplayName,
+    entry.overview ?? ""
+  ].some((field) => normalizeUntrustedText(field ?? "").toLowerCase().includes(needle));
+}
+async function readCatalogDetails(bb, query, signal) {
+  const [all, searched] = await Promise.all([
+    bb.sdk.plugins.catalog.search({ query: "", signal }),
+    query ? bb.sdk.plugins.catalog.search({ query, signal }) : Promise.resolve(null)
+  ]);
+  const entries = catalogEntries(all);
+  if (searched === null) return { entries, matches: entries };
+  const hostMatches = catalogEntries(searched);
+  const byIdentity = new Map(entries.map((entry) => [key(entry), entry]));
+  const seen = new Set(hostMatches.map(key));
+  return {
+    entries,
+    matches: [
+      ...hostMatches.map((entry) => byIdentity.get(key(entry)) ?? entry),
+      ...entries.filter((entry) => !seen.has(key(entry)) && matchesDetails(entry, query))
+    ]
+  };
+}
+
+// sdk-read.ts
+var SDK_READ_TIMEOUT_MS = 1500;
+async function boundedSdkRead(read, parentSignal) {
+  const controller = new AbortController();
+  let timer;
+  let abort;
+  try {
+    return await new Promise((resolve, reject) => {
+      abort = () => {
+        controller.abort();
+        reject(new Error("SDK read cancelled"));
+      };
+      if (parentSignal?.aborted) return abort();
+      parentSignal?.addEventListener("abort", abort, { once: true });
+      timer = setTimeout(() => {
+        controller.abort();
+        reject(new Error("SDK read timed out"));
+      }, SDK_READ_TIMEOUT_MS);
+      Promise.resolve().then(() => read(controller.signal)).then(resolve, reject);
+    });
+  } finally {
+    if (timer !== void 0) clearTimeout(timer);
+    if (abort !== void 0) parentSignal?.removeEventListener("abort", abort);
+  }
+}
+
 // community-catalog.ts
 var COMMUNITY_MARKETPLACE = "bb-community";
 var RESULT_LIMIT = 6;
@@ -185,7 +249,7 @@ function toCandidate(entry, query, hostRank) {
     tier: identityMatchTier(query, displayName, pluginId, entryId)
   };
 }
-function searchCommunityPlugins(entries, query) {
+function searchCommunityPlugins(entries, query, limit = RESULT_LIMIT) {
   const browse = isPluginBrowseQuery(query);
   const ranked = entries.map((entry, hostRank) => toCandidate(entry, browse ? "" : query, hostRank)).filter((candidate) => candidate !== null).sort((left, right) => left.tier - right.tier || left.hostRank - right.hostRank);
   const seenPluginIds = /* @__PURE__ */ new Set();
@@ -202,12 +266,12 @@ function searchCommunityPlugins(entries, query) {
       }, /* @__PURE__ */ new Map())
     ).filter(([, count]) => count > 1).map(([name]) => name)
   );
-  return deduplicated.slice(0, browse ? void 0 : RESULT_LIMIT).map((candidate) => {
-    const detail = candidate.description || candidate.publisherLabel;
+  return deduplicated.slice(0, browse || limit === null ? void 0 : limit).map((candidate) => {
+    const detail2 = candidate.description || candidate.publisherLabel;
     const subtitleParts = [
       "Not installed",
       ...duplicateNames.has(candidate.normalizedName) ? [candidate.pluginId] : [],
-      detail
+      detail2
     ].filter(Boolean);
     return {
       id: encodeCommunityItemId({
@@ -234,16 +298,16 @@ function matchTier(query, displayName, pluginId, description) {
   if (foldedQuery.length === 0) return 2;
   const name = folded2(displayName);
   const id = folded2(pluginId);
-  const detail = folded2(description);
+  const detail2 = folded2(description);
   if (name === foldedQuery || id === foldedQuery) return 0;
-  if ([name, id, detail].some((field) => field.startsWith(foldedQuery))) return 1;
-  if ([name, id, detail].some((field) => field.includes(foldedQuery))) return 2;
+  if ([name, id, detail2].some((field) => field.startsWith(foldedQuery))) return 1;
+  if ([name, id, detail2].some((field) => field.includes(foldedQuery))) return 2;
   return null;
 }
 function isUsableInstalledTarget(plugin2) {
   return normalizeStableIdentity(plugin2.id) !== null && plugin2.enabled && plugin2.status === "running";
 }
-function searchInstalledPlugins(plugins, query) {
+function searchInstalledPlugins(plugins, query, options = {}) {
   const browse = isPluginBrowseQuery(query);
   const eligible = plugins.flatMap((plugin2) => {
     if (!isUsableInstalledTarget(plugin2)) return [];
@@ -251,7 +315,7 @@ function searchInstalledPlugins(plugins, query) {
     if (pluginId === null) return [];
     const displayName = normalizeUntrustedText(plugin2.name ?? pluginId) || pluginId;
     const description = normalizeUntrustedText(plugin2.description ?? "");
-    const tier = matchTier(browse ? "" : query, displayName, pluginId, description);
+    const tier = matchTier(browse ? "" : query, displayName, pluginId, description) ?? (options.catalogMatches?.has(pluginId) ? 3 : null);
     if (tier === null) return [];
     return [
       {
@@ -274,7 +338,7 @@ function searchInstalledPlugins(plugins, query) {
   );
   return eligible.sort(
     (left, right) => left.tier - right.tier || compareText(left.displayName, right.displayName) || compareText(left.pluginId, right.pluginId)
-  ).slice(0, browse ? void 0 : RESULT_LIMIT2).map((candidate) => {
+  ).slice(0, options.limit === null || browse ? void 0 : options.limit ?? RESULT_LIMIT2).map((candidate) => {
     const subtitleParts = duplicateNames.has(candidate.normalizedName) ? [candidate.pluginId, candidate.description] : [candidate.description];
     const subtitle = boundUntrustedText(
       subtitleParts.filter(Boolean).join(" \xB7 "),
@@ -288,29 +352,193 @@ function searchInstalledPlugins(plugins, query) {
   });
 }
 
-// server.ts
-var SDK_READ_TIMEOUT_MS = 1500;
-var SdkReadTimeoutError = class extends Error {
-  constructor() {
-    super("SDK read timed out");
-    this.name = "SdkReadTimeoutError";
+// search-cli.ts
+var HELP = `Usage:
+  bb at-plugin search [query] [--scope all|installed|community] [--limit 1..20] [--offset N] [--json]
+  bb at-plugin show <plugin-id> [--json]
+
+Search names, IDs, full descriptions, catalog metadata, and available overviews.
+Results include overview text and screenshot/icon URLs when supplied by BB.
+Images are references, not downloaded bytes. No install or invocation is performed.
+`;
+function parse(argv) {
+  const [command, ...args] = argv;
+  if (command !== "search" && command !== "show") throw new Error("Expected search or show.");
+  const options = { command, query: "", scope: "all", limit: 10, offset: 0, json: false };
+  const words = [];
+  for (let index = 0; index < args.length; index++) {
+    const arg = args[index];
+    if (arg === "--") {
+      words.push(...args.slice(index + 1));
+      break;
+    }
+    if (arg === "--json") {
+      options.json = true;
+      continue;
+    }
+    if (arg === "--scope" || arg === "--limit" || arg === "--offset") {
+      if (command === "show") throw new Error(`${arg} is only supported by search.`);
+      const value = args[++index];
+      if (arg === "--scope") {
+        if (value !== "all" && value !== "installed" && value !== "community") {
+          throw new Error("Scope must be all, installed, or community.");
+        }
+        options.scope = value;
+      } else {
+        const number = value === void 0 || !/^\d+$/.test(value) ? NaN : Number(value);
+        if (!Number.isSafeInteger(number) || number < (arg === "--limit" ? 1 : 0) || number > (arg === "--limit" ? 20 : 1e6)) {
+          throw new Error(`Invalid ${arg}.`);
+        }
+        if (arg === "--limit") options.limit = number;
+        else options.offset = number;
+      }
+    } else if (arg.startsWith("-")) throw new Error(`Unknown option: ${arg}`);
+    else words.push(arg);
   }
-};
-async function boundedSdkRead(read) {
-  const controller = new AbortController();
-  let timer;
+  options.query = normalizeUntrustedText(words.join(" "));
+  if (options.query.length > 512) throw new Error("Query must be at most 512 characters.");
+  if (command === "show" && words.length !== 1) throw new Error("Show requires one exact plugin ID.");
+  return options;
+}
+function imageUrl(value) {
+  if (typeof value !== "string" || value.length > 2048) return null;
   try {
-    return await new Promise((resolve, reject) => {
-      timer = setTimeout(() => {
-        controller.abort();
-        reject(new SdkReadTimeoutError());
-      }, SDK_READ_TIMEOUT_MS);
-      Promise.resolve().then(() => read(controller.signal)).then(resolve, reject);
-    });
-  } finally {
-    if (timer !== void 0) clearTimeout(timer);
+    const url = new URL(value);
+    return url.protocol === "https:" && !url.username && !url.password ? url.href : null;
+  } catch {
+    return null;
   }
 }
+function detail(plugin2, entry) {
+  const description = plugin2?.description ?? entry?.description ?? "";
+  const overview = typeof entry?.overview === "string" ? entry.overview : null;
+  const imageFields = plugin2 ?? {};
+  const screenshots = (entry?.screenshots ?? imageFields.screenshots ?? []).map(imageUrl).filter((url) => url !== null).slice(0, 6);
+  return {
+    pluginId: plugin2?.id ?? entry.pluginId,
+    name: truncateUtf8(plugin2?.name ?? entry?.displayName ?? plugin2.id, 512),
+    availability: plugin2 ? "installed" : "not-installed",
+    description: truncateUtf8(description, 16384),
+    overview: overview === null ? null : truncateUtf8(overview, 16384),
+    textTruncated: Buffer.byteLength(description) > 16384 || overview !== null && Buffer.byteLength(overview) > 16384,
+    screenshots,
+    iconUrl: imageUrl(entry?.iconUrl ?? plugin2?.iconUrl),
+    marketplace: entry?.marketplace ?? null,
+    entryId: entry?.entryId ?? null,
+    category: entry?.category ?? null,
+    cliCommand: plugin2?.cliCommand ?? null,
+    requiresInstallation: plugin2 === null
+  };
+}
+function installedEntry(plugin2, entries) {
+  const candidates = entries.filter((entry) => entry.pluginId === plugin2.id);
+  if (plugin2.catalogMarketplaceName && plugin2.catalogEntryId) {
+    return candidates.find((entry) => entry.marketplace === plugin2.catalogMarketplaceName && entry.entryId === plugin2.catalogEntryId);
+  }
+  return candidates.length === 1 ? candidates[0] : void 0;
+}
+function registerSearchCli(bb) {
+  bb.cli.register({
+    name: "at-plugin",
+    summary: "Find plugins for a task; read full overviews and screenshot URLs",
+    commands: [
+      {
+        name: "search",
+        summary: "Search installed and Community plugins, including overviews",
+        usage: "bb at-plugin search [query] [--scope all|installed|community] [--limit 1..20] [--offset N] [--json]"
+      },
+      {
+        name: "show",
+        summary: "Get plugin details, full overview, and screenshot/image URLs",
+        usage: "bb at-plugin show <plugin-id> [--json]"
+      }
+    ],
+    async run(argv, context) {
+      if (argv.length === 0 || argv[0] === "help" || argv.includes("--help")) {
+        return { exitCode: 0, stdout: HELP };
+      }
+      let options;
+      try {
+        options = parse(argv);
+      } catch (error) {
+        return { exitCode: 2, stderr: `${error.message}
+${HELP}` };
+      }
+      const query = options.command === "show" || isPluginBrowseQuery(options.query) ? "" : options.query;
+      const [inventory, catalog] = await Promise.allSettled([
+        boundedSdkRead((signal) => bb.sdk.plugins.list({ signal }), context.signal),
+        boundedSdkRead((signal) => readCatalogDetails(bb, query, signal), context.signal)
+      ]);
+      if (context.signal?.aborted) return { exitCode: 1, stderr: "Plugin search cancelled.\n" };
+      const warnings = [];
+      if (inventory.status === "rejected") warnings.push("Installed plugins could not be read; results may be incomplete.");
+      if (catalog.status === "rejected") warnings.push("Catalog details could not be read; overview search and Community results are unavailable.");
+      if (inventory.status === "rejected" && catalog.status === "rejected") {
+        return { exitCode: 1, stderr: `${warnings.join("\n")}
+` };
+      }
+      const plugins = inventory.status === "fulfilled" ? inventory.value.plugins : [];
+      const entries = catalog.status === "fulfilled" ? catalog.value.entries : [];
+      const matches = catalog.status === "fulfilled" ? catalog.value.matches : [];
+      const installedIds = new Set(plugins.map((plugin2) => plugin2.id));
+      const results = [];
+      if (options.scope !== "community") {
+        const rows = searchInstalledPlugins(plugins, query, {
+          limit: null,
+          catalogMatches: new Set(matches.map((entry) => entry.pluginId))
+        });
+        for (const row of rows) {
+          const plugin2 = plugins.find((plugin3) => plugin3.id === decodeInstalledItemId(row.id).pluginId);
+          results.push(detail(plugin2, installedEntry(plugin2, entries)));
+        }
+      }
+      if (options.scope !== "installed") {
+        const rows = searchCommunityPlugins(matches.filter((entry) => !installedIds.has(entry.pluginId)), query, null);
+        for (const row of rows) {
+          const identity = decodeCommunityItemId(row.id);
+          const entry = matches.find((entry2) => entry2.marketplace === COMMUNITY_MARKETPLACE && entry2.entryId === identity.entryId && entry2.pluginId === identity.pluginId);
+          results.push(detail(null, entry));
+        }
+      }
+      if (options.command === "show") {
+        const result = results.find((result2) => result2.pluginId === options.query);
+        if (!result) return { exitCode: 1, stderr: "Plugin not found among enabled installed or compatible Community plugins.\n" };
+        return { exitCode: 0, stdout: options.json ? `${JSON.stringify({ result, warnings }, null, 2)}
+` : `${render(result)}${warnings.map((warning) => `Warning: ${warning}
+`).join("")}` };
+      }
+      const page = [];
+      let bytes = 0;
+      for (const result of results.slice(options.offset, options.offset + options.limit)) {
+        const size = Buffer.byteLength(JSON.stringify(result, null, 2));
+        if (bytes + size > 512e3) break;
+        page.push(result);
+        bytes += size;
+      }
+      const end = options.offset + page.length;
+      const nextOffset = end < results.length ? end : null;
+      const output = { query: options.query, results: page, total: results.length, nextOffset, warnings };
+      return { exitCode: 0, stdout: options.json ? `${JSON.stringify(output, null, 2)}
+` : `${page.length ? page.map(render).join("\n") : "No plugins found.\n"}${nextOffset === null ? "" : `More results: repeat with --offset ${nextOffset}
+`}${warnings.map((warning) => `Warning: ${warning}
+`).join("")}` };
+    }
+  });
+}
+function render(result) {
+  return [
+    `${result.name} (${result.pluginId}) \u2014 ${result.availability}`,
+    result.description,
+    result.overview === null ? "Overview: not provided by BB." : `Overview:
+${result.overview}`,
+    ...result.iconUrl ? [`Icon: ${result.iconUrl}`] : [],
+    ...result.screenshots.map((url) => `Screenshot: ${url}`),
+    ...result.textTruncated ? ["Text truncated to the CLI output limit."] : [],
+    ""
+  ].join("\n");
+}
+
+// server.ts
 function targetName(plugin2) {
   return boundUntrustedText(plugin2.name ?? "", MAX_ITEM_TITLE_BYTES) || boundUntrustedText(plugin2.id, MAX_ITEM_TITLE_BYTES) || "This plugin";
 }
@@ -372,17 +600,29 @@ function exactCommunityEntry(entries, identity) {
     (entry) => entry.pluginId === identity.pluginId && entry.marketplace === identity.marketplace && entry.entryId === identity.entryId
   );
 }
-function catalogEntries(response) {
-  return Array.isArray(response) ? response : response.results;
-}
 async function plugin(bb) {
+  registerSearchCli(bb);
+  const pending = /* @__PURE__ */ new Map();
+  function searchCatalog(query) {
+    const normalized = isPluginBrowseQuery(query) ? "" : query.trim();
+    const existing = pending.get(normalized);
+    if (existing) return existing;
+    const request = boundedSdkRead((signal) => readCatalogDetails(bb, normalized, signal)).finally(() => pending.delete(normalized));
+    pending.set(normalized, request);
+    return request;
+  }
   bb.ui.registerMentionProvider({
     id: "installed",
     label: "Installed plugins",
     async search({ query }) {
       try {
-        const inventory = await boundedSdkRead((signal) => bb.sdk.plugins.list({ signal }));
-        return searchInstalledPlugins(inventory.plugins, query);
+        const [inventory, catalog] = await Promise.all([
+          boundedSdkRead((signal) => bb.sdk.plugins.list({ signal })),
+          searchCatalog(query).catch(() => null)
+        ]);
+        return searchInstalledPlugins(inventory.plugins, query, {
+          catalogMatches: new Set(catalog?.matches.map((entry) => entry.pluginId))
+        });
       } catch {
         return [];
       }
@@ -411,10 +651,8 @@ async function plugin(bb) {
     label: "Community plugins",
     async search({ query }) {
       try {
-        const entries = await boundedSdkRead(
-          (signal) => bb.sdk.plugins.catalog.search({ query: isPluginBrowseQuery(query) ? "" : query, signal })
-        );
-        return searchCommunityPlugins(catalogEntries(entries), query);
+        const catalog = await searchCatalog(query);
+        return searchCommunityPlugins(catalog.matches, query);
       } catch {
         return [];
       }
