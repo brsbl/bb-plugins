@@ -574,7 +574,6 @@ function mountSidebarController(sidebar, signal, getConfig, onStageOrderChange, 
     } catch {
     } finally {
       pushing = false;
-      if (!signal.aborted) schedule();
     }
   };
   const reconcile = () => {

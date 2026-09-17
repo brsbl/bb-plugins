@@ -378,8 +378,10 @@ function mountSidebarController(
       // bb could not be reached or refused the write; the next config
       // change or reorder tries again.
     } finally {
+      // Deliberately no reschedule here: bb's re-render after the write
+      // arrives as a DOM mutation and drives the next reconcile, so a push
+      // can never chain into another push on its own.
       pushing = false;
-      if (!signal.aborted) schedule();
     }
   };
 
