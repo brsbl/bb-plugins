@@ -1,3 +1,4 @@
+import type { BbPluginApi } from "@get-bb/plugin-sdk";
 import {
   createFakePluginHost,
   makeThreadResponse,
@@ -8,6 +9,7 @@ import {
   DEFAULT_WORKFLOW_CONFIG,
   editableWorkflowConfig,
   localSectionName,
+  type EditableWorkflowConfig,
   type WorkflowConfig,
 } from "./core.js";
 import plugin from "./server.js";
@@ -109,6 +111,7 @@ function createHarness(
   ];
   type TestThreadChange =
     | "archived-changed"
+    | "order-changed"
     | "parent-changed"
     | "read-state-changed"
     | "title-changed";
@@ -188,6 +191,11 @@ function createHarness(
     }),
   );
 
+  type SendThreadMessage = BbPluginApi["sdk"]["threads"]["send"];
+  const sendMessage = vi.fn<SendThreadMessage>(
+    async () => ({}) as Awaited<ReturnType<SendThreadMessage>>,
+  );
+
   const host = createFakePluginHost({
     pluginId: "thread-organizer",
     agentSkillIds: ["thread-phase-organizer"],
@@ -218,6 +226,7 @@ function createHarness(
       threads: {
         get: getThread,
         list: listThreads,
+        send: sendMessage,
         spawn: spawnThread,
         update: updateThread,
       },
@@ -231,6 +240,7 @@ function createHarness(
     getThread,
     listSections,
     listThreads,
+    sendMessage,
     updateSection,
     updateThread,
     spawnThread,
@@ -388,7 +398,7 @@ describe("Thread Organizer server", () => {
     expect(organizer.current().sectionId).toBe("sec_4");
     await expect(
       organizer.bb.storage.kv.get("thread:v3:thr_test"),
-    ).resolves.toEqual({ version: 5, rememberedStageKey: "building" });
+    ).resolves.toMatchObject({ version: 6, rememberedStageKey: "building" });
     await organizer.harness.lifecycle.dispose();
   });
 
@@ -600,7 +610,7 @@ describe("Thread Organizer server", () => {
     await vi.waitFor(async () => {
       await expect(
         organizer.bb.storage.kv.get("thread:v3:thr_test"),
-      ).resolves.toEqual({ version: 5, rememberedStageKey: "on-hold" });
+      ).resolves.toMatchObject({ version: 6, rememberedStageKey: "on-hold" });
     });
     await organizer.harness.lifecycle.dispose();
   });
@@ -634,7 +644,7 @@ describe("Thread Organizer server", () => {
     expect(organizer.current().sectionId).toBe(inboxId);
     await expect(
       organizer.bb.storage.kv.get("thread:v3:thr_test"),
-    ).resolves.toEqual({ version: 5, rememberedStageKey: "planning" });
+    ).resolves.toMatchObject({ version: 6, rememberedStageKey: "planning" });
 
     organizer.setThread({ status: "starting" });
     await organizer.harness.behavior.emitThreadEvent("thread.active", {
@@ -668,7 +678,7 @@ describe("Thread Organizer server", () => {
     expect(organizer.current().sectionId).toBe(inboxId);
     await expect(
       organizer.bb.storage.kv.get("thread:v3:thr_test"),
-    ).resolves.toEqual({ version: 5, rememberedStageKey: "planning" });
+    ).resolves.toMatchObject({ version: 6, rememberedStageKey: "planning" });
     await organizer.harness.lifecycle.dispose();
   });
 
@@ -760,7 +770,7 @@ describe("Thread Organizer server", () => {
       expect(organizer.current().sectionId).toBe(sectionId("on-hold"));
       await expect(
         organizer.bb.storage.kv.get("thread:v3:thr_test"),
-      ).resolves.toEqual({ version: 5, rememberedStageKey: "on-hold" });
+      ).resolves.toMatchObject({ version: 6, rememberedStageKey: "on-hold" });
     });
 
     organizer.setThread({ lastReadAt: 0 });
@@ -801,7 +811,7 @@ describe("Thread Organizer server", () => {
     expect(organizer.current().sectionId).toBe(sectionId("inbox"));
     await expect(
       organizer.bb.storage.kv.get("thread:v3:thr_test"),
-    ).resolves.toEqual({ version: 5, rememberedStageKey: "on-hold" });
+    ).resolves.toMatchObject({ version: 6, rememberedStageKey: "on-hold" });
 
     organizer.setThread({ lastReadAt: 20 });
     await organizer.harness.behavior.emitThreadEvent("thread.idle", {
@@ -816,7 +826,7 @@ describe("Thread Organizer server", () => {
     expect(organizer.current().sectionId).toBe(sectionId("on-hold"));
     await expect(
       organizer.bb.storage.kv.get("thread:v3:thr_test"),
-    ).resolves.toEqual({ version: 5, rememberedStageKey: "on-hold" });
+    ).resolves.toMatchObject({ version: 6, rememberedStageKey: "on-hold" });
     await organizer.harness.lifecycle.dispose();
   });
 
@@ -1021,4 +1031,304 @@ describe("Thread Organizer server", () => {
       await replacement.harness.lifecycle.dispose();
     },
   );
+});
+
+async function saveStagePatch(
+  organizer: ReturnType<typeof createHarness>,
+  key: string,
+  patch: Partial<EditableWorkflowConfig["stages"][number]>,
+): Promise<WorkflowConfig> {
+  const edited = editableWorkflowConfig(await configFor(organizer));
+  const index = edited.stages.findIndex((stage) => stage.key === key);
+  edited.stages[index] = { ...edited.stages[index]!, ...patch };
+  return (await organizer.harness.behavior.callRpc(
+    "saveConfig",
+    edited,
+  )) as WorkflowConfig;
+}
+
+describe("entry prompts", () => {
+  const threadState = (organizer: ReturnType<typeof createHarness>) =>
+    organizer.bb.storage.kv.get("thread:v3:thr_test");
+
+  it("sends a stage's entry prompt once when a read idle thread lands in it", async () => {
+    const organizer = createHarness();
+    await plugin(organizer.bb);
+    organizer.setThread({
+      status: "idle",
+      lastReadAt: 10,
+      latestAttentionAt: 10,
+      title: "Fix the flaky test",
+    });
+    const config = await saveStagePatch(organizer, "spec-review", {
+      entryPrompt: "Review {{thread.title}} in {{stage.title}}.",
+    });
+    const sectionId = (key: string) =>
+      config.stages.find((stage) => stage.key === key)!.sectionId;
+    expect(organizer.sendMessage).not.toHaveBeenCalled();
+
+    organizer.setThread({ sectionId: sectionId("spec-review") });
+    organizer.emitChanged("order-changed");
+    await vi.waitFor(() =>
+      expect(organizer.sendMessage).toHaveBeenCalledTimes(1),
+    );
+    expect(organizer.sendMessage).toHaveBeenCalledWith({
+      threadId: "thr_test",
+      mode: "queue-if-active",
+      input: [
+        {
+          type: "text",
+          text: "Thread Organizer — entering “Spec Review”:\n\nReview Fix the flaky test in Spec Review.",
+        },
+      ],
+    });
+
+    organizer.emitChanged("title-changed");
+    await vi.waitFor(async () => {
+      await expect(threadState(organizer)).resolves.toMatchObject({
+        version: 6,
+        lastLandedStageKey: "spec-review",
+        pendingEntryPrompt: null,
+        recentEntryPrompts: [expect.objectContaining({ stageKey: "spec-review" })],
+      });
+    });
+    expect(organizer.sendMessage).toHaveBeenCalledTimes(1);
+
+    // Leaving and re-entering inside the cooldown is refused, not re-sent.
+    organizer.setThread({ sectionId: sectionId("planning") });
+    organizer.emitChanged("order-changed");
+    await vi.waitFor(async () => {
+      await expect(threadState(organizer)).resolves.toMatchObject({
+        lastLandedStageKey: "planning",
+      });
+    });
+    organizer.setThread({ sectionId: sectionId("spec-review") });
+    organizer.emitChanged("order-changed");
+    await vi.waitFor(async () => {
+      await expect(threadState(organizer)).resolves.toMatchObject({
+        lastLandedStageKey: "spec-review",
+        pendingEntryPrompt: null,
+      });
+    });
+    expect(organizer.sendMessage).toHaveBeenCalledTimes(1);
+    await organizer.harness.lifecycle.dispose();
+  });
+
+  it("queues the entry prompt when an agent moves an active thread with the CLI, unless the stage opts out", async () => {
+    const organizer = createHarness();
+    await plugin(organizer.bb);
+    organizer.setThread({
+      status: "active",
+      lastReadAt: 10,
+      latestAttentionAt: 10,
+    });
+    await saveStagePatch(organizer, "handoff", {
+      entryPrompt: "Package the handoff.",
+    });
+    await saveStagePatch(organizer, "testing-deploy", {
+      entryPrompt: "Run the release checks.",
+      entryPromptOnAgentMove: false,
+    });
+
+    await expect(
+      organizer.harness.behavior.runCli(["phase", "handoff"], {
+        threadId: "thr_test",
+      }),
+    ).resolves.toMatchObject({
+      exitCode: 0,
+      stdout: "Applied Handoff to thr_test. Queued its entry prompt.\n",
+    });
+    expect(organizer.sendMessage).toHaveBeenCalledTimes(1);
+    expect(organizer.sendMessage).toHaveBeenCalledWith(
+      expect.objectContaining({ threadId: "thr_test", mode: "queue-if-active" }),
+    );
+
+    await expect(
+      organizer.harness.behavior.runCli(["phase", "handoff"], {
+        threadId: "thr_test",
+      }),
+    ).resolves.toMatchObject({ stdout: "Applied Handoff to thr_test.\n" });
+    expect(organizer.sendMessage).toHaveBeenCalledTimes(1);
+
+    await expect(
+      organizer.harness.behavior.runCli(["phase", "testing-deploy"], {
+        threadId: "thr_test",
+      }),
+    ).resolves.toMatchObject({
+      stdout: "Applied Testing / Deploy to thr_test.\n",
+    });
+    expect(organizer.sendMessage).toHaveBeenCalledTimes(1);
+    await organizer.harness.lifecycle.dispose();
+  });
+
+  it("never sends on the plugin's own Inbox round trip", async () => {
+    const organizer = createHarness();
+    await plugin(organizer.bb);
+    organizer.setThread({
+      status: "idle",
+      lastReadAt: 10,
+      latestAttentionAt: 10,
+    });
+    const config = await saveStagePatch(organizer, "spec-review", {
+      entryPrompt: "Review it.",
+    });
+    const sectionId = (key: string) =>
+      config.stages.find((stage) => stage.key === key)!.sectionId;
+
+    organizer.setThread({ sectionId: sectionId("spec-review") });
+    organizer.emitChanged("order-changed");
+    await vi.waitFor(() =>
+      expect(organizer.sendMessage).toHaveBeenCalledTimes(1),
+    );
+
+    organizer.setThread({ latestAttentionAt: 20 });
+    await organizer.harness.behavior.emitThreadEvent("thread.idle", {
+      thread: organizer.current(),
+      lastAssistantText: null,
+    });
+    expect(organizer.current().sectionId).toBe(sectionId("inbox"));
+
+    organizer.setThread({ lastReadAt: 20, status: "starting" });
+    await organizer.harness.behavior.emitThreadEvent("thread.active", {
+      thread: organizer.current(),
+    });
+    expect(organizer.current().sectionId).toBe(sectionId("spec-review"));
+    expect(organizer.sendMessage).toHaveBeenCalledTimes(1);
+    await organizer.harness.lifecycle.dispose();
+  });
+
+  it("waits for an unread move to land once the thread is read", async () => {
+    const organizer = createHarness();
+    await plugin(organizer.bb);
+    organizer.setThread({
+      status: "idle",
+      lastReadAt: 10,
+      latestAttentionAt: 10,
+    });
+    const config = await saveStagePatch(organizer, "on-hold", {
+      entryPrompt: "Parked.",
+    });
+    const sectionId = (key: string) =>
+      config.stages.find((stage) => stage.key === key)!.sectionId;
+
+    organizer.setThread({
+      lastReadAt: 0,
+      latestAttentionAt: 20,
+      sectionId: sectionId("on-hold"),
+    });
+    await organizer.harness.behavior.emitThreadEvent("thread.idle", {
+      thread: organizer.current(),
+      lastAssistantText: null,
+    });
+    expect(organizer.current().sectionId).toBe(sectionId("inbox"));
+    expect(organizer.sendMessage).not.toHaveBeenCalled();
+
+    organizer.setThread({ lastReadAt: 20, status: "starting" });
+    await organizer.harness.behavior.emitThreadEvent("thread.active", {
+      thread: organizer.current(),
+    });
+    expect(organizer.current().sectionId).toBe(sectionId("on-hold"));
+    expect(organizer.sendMessage).toHaveBeenCalledTimes(1);
+    await organizer.harness.lifecycle.dispose();
+  });
+
+  it("retries a deferred entry prompt on the thread's next event", async () => {
+    const organizer = createHarness();
+    await plugin(organizer.bb);
+    organizer.setThread({
+      status: "idle",
+      lastReadAt: 10,
+      latestAttentionAt: 10,
+    });
+    const config = await saveStagePatch(organizer, "spec-review", {
+      entryPrompt: "Review it.",
+    });
+    const sectionId = (key: string) =>
+      config.stages.find((stage) => stage.key === key)!.sectionId;
+    organizer.sendMessage.mockRejectedValueOnce(
+      new Error("Thread is still starting"),
+    );
+
+    organizer.setThread({ sectionId: sectionId("spec-review") });
+    organizer.emitChanged("order-changed");
+    await vi.waitFor(async () => {
+      await expect(threadState(organizer)).resolves.toMatchObject({
+        pendingEntryPrompt: expect.objectContaining({
+          stageKey: "spec-review",
+          attempts: 1,
+          lastError: "Thread is still starting",
+        }),
+      });
+    });
+    expect(organizer.sendMessage).toHaveBeenCalledTimes(1);
+
+    await organizer.harness.behavior.emitThreadEvent("thread.idle", {
+      thread: organizer.current(),
+      lastAssistantText: null,
+    });
+    expect(organizer.sendMessage).toHaveBeenCalledTimes(2);
+    await expect(threadState(organizer)).resolves.toMatchObject({
+      pendingEntryPrompt: null,
+    });
+    await organizer.harness.lifecycle.dispose();
+  });
+
+  it("drops a pending entry prompt when its stage is removed", async () => {
+    const organizer = createHarness();
+    await plugin(organizer.bb);
+    organizer.setThread({
+      status: "idle",
+      lastReadAt: 10,
+      latestAttentionAt: 10,
+    });
+    const config = await saveStagePatch(organizer, "on-hold", {
+      entryPrompt: "Parked.",
+    });
+    const sectionId = (key: string) =>
+      config.stages.find((stage) => stage.key === key)!.sectionId;
+    organizer.sendMessage.mockRejectedValue(new Error("Thread is stopping"));
+
+    organizer.setThread({ sectionId: sectionId("on-hold") });
+    organizer.emitChanged("order-changed");
+    await vi.waitFor(async () => {
+      await expect(threadState(organizer)).resolves.toMatchObject({
+        pendingEntryPrompt: expect.objectContaining({ stageKey: "on-hold" }),
+      });
+    });
+
+    const edited = editableWorkflowConfig(await configFor(organizer));
+    edited.stages = edited.stages.filter((stage) => stage.key !== "on-hold");
+    await organizer.harness.behavior.callRpc("saveConfig", edited);
+    await expect(threadState(organizer)).resolves.toMatchObject({
+      rememberedStageKey: "planning",
+      lastLandedStageKey: "planning",
+      pendingEntryPrompt: null,
+    });
+    await organizer.harness.lifecycle.dispose();
+  });
+
+  it("migrates version 5 state without firing a prompt", async () => {
+    const organizer = createHarness();
+    await organizer.bb.storage.kv.set("thread:v3:thr_test", {
+      version: 5,
+      rememberedStageKey: "spec-review",
+    });
+    await plugin(organizer.bb);
+    await saveStagePatch(organizer, "spec-review", {
+      entryPrompt: "Review it.",
+    });
+    const config = await configFor(organizer);
+    expect(organizer.current().sectionId).toBe(
+      config.stages.find((stage) => stage.key === "spec-review")!.sectionId,
+    );
+    expect(organizer.sendMessage).not.toHaveBeenCalled();
+    await expect(threadState(organizer)).resolves.toMatchObject({
+      version: 6,
+      rememberedStageKey: "spec-review",
+      lastLandedStageKey: "spec-review",
+      pendingEntryPrompt: null,
+      recentEntryPrompts: [],
+    });
+    await organizer.harness.lifecycle.dispose();
+  });
 });

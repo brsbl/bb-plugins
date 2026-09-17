@@ -18,6 +18,7 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import { definePluginApp, useRealtime, useRpc } from "@get-bb/plugin-sdk/app";
 
 import {
+  ENTRY_PROMPT_MAX_LENGTH,
   WORKFLOW_CONFIG_VERSION,
   createStageKey,
   editableWorkflowConfig,
@@ -45,6 +46,8 @@ const stageRowClass =
   "grid min-w-0 grid-cols-[minmax(0,1fr)_2rem] items-start gap-x-2 gap-y-0 lg:grid-cols-[2rem_minmax(7rem,9rem)_minmax(0,1fr)_2rem]";
 const stageRuleLayoutClass =
   "col-span-2 col-start-1 row-start-2 min-w-0 lg:col-span-1 lg:col-start-3 lg:row-start-1";
+const stageEntryPromptLayoutClass =
+  "col-span-2 col-start-1 row-start-3 min-w-0 lg:col-span-2 lg:col-start-3 lg:row-start-2";
 const workflowSettingsDescription =
   "Rename, reorder, and define the workflow your agents follow.";
 // Align the visible R to the rounded-lg panel's top-left tangent. Inter's
@@ -71,7 +74,9 @@ function uniqueNewStageTitle(stages: readonly EditableWorkflowStage[]): string {
 }
 
 function StageActions({
+  hasEntryPrompt,
   index,
+  onAddEntryPrompt,
   onMove,
   onRemove,
   stage,
@@ -79,7 +84,10 @@ function StageActions({
 }: Pick<
   StageCardProps,
   "index" | "onMove" | "onRemove" | "stage" | "stageCount"
->) {
+> & {
+  hasEntryPrompt: boolean;
+  onAddEntryPrompt(): void;
+}) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -163,6 +171,24 @@ function StageActions({
             />
             Move down
           </button>
+          {hasEntryPrompt ? null : (
+            <button
+              className="flex min-h-8 items-center gap-2 rounded-md px-2 text-left text-sm hover:bg-muted"
+              onClick={() => {
+                setOpen(false);
+                onAddEntryPrompt();
+              }}
+              role="menuitem"
+              type="button"
+            >
+              <HugeiconsIcon
+                aria-hidden="true"
+                className="size-4"
+                icon={PlusSignIcon}
+              />
+              Add entry prompt
+            </button>
+          )}
           <button
             className="flex min-h-8 items-center gap-2 rounded-md px-2 text-left text-sm text-destructive hover:bg-destructive/10"
             onClick={() => {
@@ -258,7 +284,9 @@ function StageCard({
           />
         ) : (
           <StageActions
+            hasEntryPrompt={stage.entryPrompt !== undefined}
             index={index}
+            onAddEntryPrompt={() => update("entryPrompt", "")}
             onMove={onMove}
             onRemove={onRemove}
             stage={stage}
@@ -285,6 +313,71 @@ function StageCard({
             />
           </label>
         )}
+        {!inbox && stage.entryPrompt !== undefined ? (
+          <div className={`${stageEntryPromptLayoutClass} grid gap-1`}>
+            <label className="grid gap-1">
+              <span className="sr-only">
+                Prompt sent when a thread enters {stage.title}
+              </span>
+              <textarea
+                aria-label={`Prompt sent when a thread enters ${stage.title}`}
+                className={`${quietFieldClass} min-h-8 max-h-48 resize-none overflow-y-auto leading-5`}
+                maxLength={ENTRY_PROMPT_MAX_LENGTH}
+                onChange={(event) => update("entryPrompt", event.target.value)}
+                placeholder="Sent to a thread when it enters this stage. Variables: {{thread.title}}, {{stage.title}}"
+                rows={2}
+                style={{ fieldSizing: "content" }}
+                value={stage.entryPrompt}
+              />
+            </label>
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 px-2.5 text-xs text-muted-foreground">
+              <label className="inline-flex items-center gap-1.5">
+                <input
+                  checked={stage.entryPromptOnAgentMove !== false}
+                  onChange={(event) =>
+                    update(
+                      "entryPromptOnAgentMove",
+                      event.target.checked ? undefined : false,
+                    )
+                  }
+                  type="checkbox"
+                />
+                Also when an agent moves it here
+              </label>
+              <label className="inline-flex items-center gap-1.5">
+                Deliver
+                <select
+                  aria-label={`Delivery for the ${stage.title} entry prompt`}
+                  className="rounded-md border border-transparent bg-transparent py-0.5 text-xs text-foreground hover:border-border"
+                  onChange={(event) =>
+                    update(
+                      "entryPromptDelivery",
+                      event.target.value === "steer" ? "steer" : undefined,
+                    )
+                  }
+                  value={stage.entryPromptDelivery ?? "queue"}
+                >
+                  <option value="queue">after the current turn</option>
+                  <option value="steer">immediately</option>
+                </select>
+              </label>
+              <button
+                className="text-xs text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
+                onClick={() =>
+                  onChange({
+                    ...stage,
+                    entryPrompt: undefined,
+                    entryPromptDelivery: undefined,
+                    entryPromptOnAgentMove: undefined,
+                  })
+                }
+                type="button"
+              >
+                Remove prompt
+              </button>
+            </div>
+          </div>
+        ) : null}
       </div>
     </article>
   );

@@ -332,3 +332,103 @@ describe("thread safeguards", () => {
     );
   });
 });
+
+describe("entry prompts", () => {
+  it("leaves stages without prompts untouched and normalizes configured ones", () => {
+    const plain = core.parseWorkflowConfig(core.DEFAULT_WORKFLOW_CONFIG)!;
+    expect(plain.stages.every((stage) => !("entryPrompt" in stage))).toBe(
+      true,
+    );
+
+    const next = editable();
+    next.stages[1] = {
+      ...next.stages[1]!,
+      entryPrompt: "  Run /slop-cop\r\nthen /slim-pr  ",
+      entryPromptDelivery: "queue",
+      entryPromptOnAgentMove: true,
+    };
+    next.stages[2] = {
+      ...next.stages[2]!,
+      entryPrompt: "Capture screenshots.",
+      entryPromptDelivery: "steer",
+      entryPromptOnAgentMove: false,
+    };
+    const normalized = core.normalizeEditableWorkflowConfig(next);
+    expect(normalized.stages[1]).toEqual({
+      key: "planning",
+      role: "stage",
+      title: "Planning",
+      rule: next.stages[1]!.rule,
+      entryPrompt: "Run /slop-cop\nthen /slim-pr",
+    });
+    expect(normalized.stages[2]).toMatchObject({
+      entryPrompt: "Capture screenshots.",
+      entryPromptDelivery: "steer",
+      entryPromptOnAgentMove: false,
+    });
+  });
+
+  it("rejects an Inbox prompt, an oversized prompt, and unknown delivery", () => {
+    const inbox = editable();
+    inbox.stages[0] = { ...inbox.stages[0]!, entryPrompt: "Nope." };
+    expect(() => core.normalizeEditableWorkflowConfig(inbox)).toThrow(
+      "Inbox cannot send an entry prompt.",
+    );
+
+    const long = editable();
+    long.stages[1] = {
+      ...long.stages[1]!,
+      entryPrompt: "x".repeat(core.ENTRY_PROMPT_MAX_LENGTH + 1),
+    };
+    expect(() => core.normalizeEditableWorkflowConfig(long)).toThrow(
+      "entry prompt must be at most",
+    );
+
+    const delivery = editable();
+    delivery.stages[1] = {
+      ...delivery.stages[1]!,
+      entryPrompt: "Go.",
+      entryPromptDelivery: "later" as never,
+    };
+    expect(() => core.normalizeEditableWorkflowConfig(delivery)).toThrow(
+      "invalid entry prompt delivery",
+    );
+  });
+
+  it("renders template variables and leaves unknown tokens alone", () => {
+    const rendered = core.renderEntryPrompt(
+      "{{thread.title}} → {{ stage.title }} ({{stage.key}}, {{thread.id}}) {{nope.x}}",
+      {
+        stage: { key: "review", title: "Review" },
+        thread: { id: "thr_1", title: "Fix it" },
+      },
+    );
+    expect(rendered).toBe("Fix it → Review (review, thr_1) {{nope.x}}");
+    expect(
+      core.entryPromptMessage(
+        { key: "review", role: "stage", rule: "r", title: "Review", entryPrompt: "Do {{stage.key}}." },
+        { stage: { key: "review", title: "Review" }, thread: { id: "thr_1", title: "" } },
+      ),
+    ).toBe("Thread Organizer — entering “Review”:\n\nDo review.");
+  });
+
+  it("tells agents about entry prompts only for stages that fire on agent moves", () => {
+    const config = core.cloneWorkflowConfig(core.DEFAULT_WORKFLOW_CONFIG);
+    expect(core.buildWorkflowSkillSlot(config)).not.toContain("Entering");
+
+    config.stages[2] = { ...config.stages[2]!, entryPrompt: "Review." };
+    config.stages[5] = {
+      ...config.stages[5]!,
+      entryPrompt: "Screenshots.",
+      entryPromptOnAgentMove: false,
+    };
+    const instructions = core.buildWorkflowSkillSlot(config);
+    expect(instructions).toContain(
+      "Entering `spec-review` sends that stage’s entry prompt",
+    );
+    expect(instructions).not.toContain("`handoff`");
+    expect(instructions).toContain(
+      "| spec-review | Spec Review | A spec or implementation plan is ready for, awaiting, or undergoing user review. |",
+    );
+  });
+});

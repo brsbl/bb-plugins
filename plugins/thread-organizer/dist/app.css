@@ -167,6 +167,9 @@
     .row-start-2 {
       grid-row-start: 2;
     }
+    .row-start-3 {
+      grid-row-start: 3;
+    }
     .mt-1 {
       margin-top: calc(var(--spacing) * 1);
     }
@@ -201,6 +204,9 @@
     }
     .max-h-24 {
       max-height: calc(var(--spacing) * 24);
+    }
+    .max-h-48 {
+      max-height: calc(var(--spacing) * 48);
     }
     .min-h-8 {
       min-height: calc(var(--spacing) * 8);
@@ -268,6 +274,9 @@
     .gap-1 {
       gap: calc(var(--spacing) * 1);
     }
+    .gap-1\.5 {
+      gap: calc(var(--spacing) * 1.5);
+    }
     .gap-2 {
       gap: calc(var(--spacing) * 2);
     }
@@ -285,6 +294,9 @@
     }
     .gap-y-0 {
       row-gap: calc(var(--spacing) * 0);
+    }
+    .gap-y-1 {
+      row-gap: calc(var(--spacing) * 1);
     }
     .gap-y-3 {
       row-gap: calc(var(--spacing) * 3);
@@ -345,6 +357,9 @@
     .px-3 {
       padding-inline: calc(var(--spacing) * 3);
     }
+    .py-0\.5 {
+      padding-block: calc(var(--spacing) * 0.5);
+    }
     .py-1\.5 {
       padding-block: calc(var(--spacing) * 1.5);
     }
@@ -400,6 +415,9 @@
     }
     .lowercase {
       text-transform: lowercase;
+    }
+    .underline-offset-2 {
+      text-underline-offset: 2px;
     }
     .shadow-lg {
       --tw-shadow: var(--shadow-lg);
@@ -484,6 +502,13 @@
         }
       }
     }
+    .hover\:underline {
+      &:hover {
+        @media (hover: hover) {
+          text-decoration-line: underline;
+        }
+      }
+    }
     .focus\:border-foreground\/45 {
       &:focus {
         border-color: var(--foreground);
@@ -549,6 +574,11 @@
         grid-column: span 1 / span 1;
       }
     }
+    .lg\:col-span-2 {
+      @media (width >= 64rem) {
+        grid-column: span 2 / span 2;
+      }
+    }
     .lg\:col-start-3 {
       @media (width >= 64rem) {
         grid-column-start: 3;
@@ -567,6 +597,11 @@
     .lg\:row-start-1 {
       @media (width >= 64rem) {
         grid-row-start: 1;
+      }
+    }
+    .lg\:row-start-2 {
+      @media (width >= 64rem) {
+        grid-row-start: 2;
       }
     }
     .lg\:block {

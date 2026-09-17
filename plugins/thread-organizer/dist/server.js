@@ -13,7 +13,7 @@ var __export = (target, all) => {
 // server.ts
 import { defineRpcContract } from "@get-bb/plugin-sdk";
 
-// ../../node_modules/zod/v4/classic/external.js
+// ../../../bb-plugins/node_modules/zod/v4/classic/external.js
 var external_exports = {};
 __export(external_exports, {
   $brand: () => $brand,
@@ -256,7 +256,7 @@ __export(external_exports, {
   xor: () => xor
 });
 
-// ../../node_modules/zod/v4/core/index.js
+// ../../../bb-plugins/node_modules/zod/v4/core/index.js
 var core_exports2 = {};
 __export(core_exports2, {
   $ZodAny: () => $ZodAny,
@@ -535,7 +535,7 @@ __export(core_exports2, {
   version: () => version
 });
 
-// ../../node_modules/zod/v4/core/core.js
+// ../../../bb-plugins/node_modules/zod/v4/core/core.js
 var _a;
 var NEVER = /* @__PURE__ */ Object.freeze({
   status: "aborted"
@@ -612,7 +612,7 @@ function config(newConfig) {
   return globalConfig;
 }
 
-// ../../node_modules/zod/v4/core/util.js
+// ../../../bb-plugins/node_modules/zod/v4/core/util.js
 var util_exports = {};
 __export(util_exports, {
   BIGINT_FORMAT_RANGES: () => BIGINT_FORMAT_RANGES,
@@ -1308,7 +1308,7 @@ var Class = class {
   }
 };
 
-// ../../node_modules/zod/v4/core/errors.js
+// ../../../bb-plugins/node_modules/zod/v4/core/errors.js
 var initializer = (inst, def) => {
   inst.name = "$ZodError";
   Object.defineProperty(inst, "_zod", {
@@ -1447,7 +1447,7 @@ function prettifyError(error51) {
   return lines.join("\n");
 }
 
-// ../../node_modules/zod/v4/core/parse.js
+// ../../../bb-plugins/node_modules/zod/v4/core/parse.js
 var _parse = (_Err) => (schema, value, _ctx, _params) => {
   const ctx = _ctx ? { ..._ctx, async: false } : { async: false };
   const result = schema._zod.run({ value, issues: [] }, ctx);
@@ -1535,7 +1535,7 @@ var _safeDecodeAsync = (_Err) => async (schema, value, _ctx) => {
 };
 var safeDecodeAsync = /* @__PURE__ */ _safeDecodeAsync($ZodRealError);
 
-// ../../node_modules/zod/v4/core/regexes.js
+// ../../../bb-plugins/node_modules/zod/v4/core/regexes.js
 var regexes_exports = {};
 __export(regexes_exports, {
   base64: () => base64,
@@ -1694,7 +1694,7 @@ var sha512_hex = /^[0-9a-fA-F]{128}$/;
 var sha512_base64 = /* @__PURE__ */ fixedBase64(86, "==");
 var sha512_base64url = /* @__PURE__ */ fixedBase64url(86);
 
-// ../../node_modules/zod/v4/core/checks.js
+// ../../../bb-plugins/node_modules/zod/v4/core/checks.js
 var $ZodCheck = /* @__PURE__ */ $constructor("$ZodCheck", (inst, def) => {
   var _a3;
   inst._zod ?? (inst._zod = {});
@@ -2242,7 +2242,7 @@ var $ZodCheckOverwrite = /* @__PURE__ */ $constructor("$ZodCheckOverwrite", (ins
   };
 });
 
-// ../../node_modules/zod/v4/core/doc.js
+// ../../../bb-plugins/node_modules/zod/v4/core/doc.js
 var Doc = class {
   constructor(args = []) {
     this.content = [];
@@ -2278,14 +2278,14 @@ var Doc = class {
   }
 };
 
-// ../../node_modules/zod/v4/core/versions.js
+// ../../../bb-plugins/node_modules/zod/v4/core/versions.js
 var version = {
   major: 4,
   minor: 4,
   patch: 3
 };
 
-// ../../node_modules/zod/v4/core/schemas.js
+// ../../../bb-plugins/node_modules/zod/v4/core/schemas.js
 var $ZodType = /* @__PURE__ */ $constructor("$ZodType", (inst, def) => {
   var _a3;
   inst ?? (inst = {});
@@ -4378,7 +4378,7 @@ function handleRefineResult(result, payload, input, inst) {
   }
 }
 
-// ../../node_modules/zod/v4/locales/index.js
+// ../../../bb-plugins/node_modules/zod/v4/locales/index.js
 var locales_exports = {};
 __export(locales_exports, {
   ar: () => ar_default,
@@ -4435,7 +4435,7 @@ __export(locales_exports, {
   zhTW: () => zh_TW_default
 });
 
-// ../../node_modules/zod/v4/locales/ar.js
+// ../../../bb-plugins/node_modules/zod/v4/locales/ar.js
 var error = () => {
   const Sizable = {
     string: { unit: "\u062D\u0631\u0641", verb: "\u0623\u0646 \u064A\u062D\u0648\u064A" },
@@ -4542,7 +4542,7 @@ function ar_default() {
   };
 }
 
-// ../../node_modules/zod/v4/locales/az.js
+// ../../../bb-plugins/node_modules/zod/v4/locales/az.js
 var error2 = () => {
   const Sizable = {
     string: { unit: "simvol", verb: "olmal\u0131d\u0131r" },
@@ -4648,7 +4648,7 @@ function az_default() {
   };
 }
 
-// ../../node_modules/zod/v4/locales/be.js
+// ../../../bb-plugins/node_modules/zod/v4/locales/be.js
 function getBelarusianPlural(count, one, few, many) {
   const absCount = Math.abs(count);
   const lastDigit = absCount % 10;
@@ -4805,7 +4805,7 @@ function be_default() {
   };
 }
 
-// ../../node_modules/zod/v4/locales/bg.js
+// ../../../bb-plugins/node_modules/zod/v4/locales/bg.js
 var error4 = () => {
   const Sizable = {
     string: { unit: "\u0441\u0438\u043C\u0432\u043E\u043B\u0430", verb: "\u0434\u0430 \u0441\u044A\u0434\u044A\u0440\u0436\u0430" },
@@ -4926,7 +4926,7 @@ function bg_default() {
   };
 }
 
-// ../../node_modules/zod/v4/locales/ca.js
+// ../../../bb-plugins/node_modules/zod/v4/locales/ca.js
 var error5 = () => {
   const Sizable = {
     string: { unit: "car\xE0cters", verb: "contenir" },
@@ -5035,7 +5035,7 @@ function ca_default() {
   };
 }
 
-// ../../node_modules/zod/v4/locales/cs.js
+// ../../../bb-plugins/node_modules/zod/v4/locales/cs.js
 var error6 = () => {
   const Sizable = {
     string: { unit: "znak\u016F", verb: "m\xEDt" },
@@ -5147,7 +5147,7 @@ function cs_default() {
   };
 }
 
-// ../../node_modules/zod/v4/locales/da.js
+// ../../../bb-plugins/node_modules/zod/v4/locales/da.js
 var error7 = () => {
   const Sizable = {
     string: { unit: "tegn", verb: "havde" },
@@ -5263,7 +5263,7 @@ function da_default() {
   };
 }
 
-// ../../node_modules/zod/v4/locales/de.js
+// ../../../bb-plugins/node_modules/zod/v4/locales/de.js
 var error8 = () => {
   const Sizable = {
     string: { unit: "Zeichen", verb: "zu haben" },
@@ -5372,7 +5372,7 @@ function de_default() {
   };
 }
 
-// ../../node_modules/zod/v4/locales/el.js
+// ../../../bb-plugins/node_modules/zod/v4/locales/el.js
 var error9 = () => {
   const Sizable = {
     string: { unit: "\u03C7\u03B1\u03C1\u03B1\u03BA\u03C4\u03AE\u03C1\u03B5\u03C2", verb: "\u03BD\u03B1 \u03AD\u03C7\u03B5\u03B9" },
@@ -5482,7 +5482,7 @@ function el_default() {
   };
 }
 
-// ../../node_modules/zod/v4/locales/en.js
+// ../../../bb-plugins/node_modules/zod/v4/locales/en.js
 var error10 = () => {
   const Sizable = {
     string: { unit: "characters", verb: "to have" },
@@ -5595,7 +5595,7 @@ function en_default() {
   };
 }
 
-// ../../node_modules/zod/v4/locales/eo.js
+// ../../../bb-plugins/node_modules/zod/v4/locales/eo.js
 var error11 = () => {
   const Sizable = {
     string: { unit: "karaktrojn", verb: "havi" },
@@ -5705,7 +5705,7 @@ function eo_default() {
   };
 }
 
-// ../../node_modules/zod/v4/locales/es.js
+// ../../../bb-plugins/node_modules/zod/v4/locales/es.js
 var error12 = () => {
   const Sizable = {
     string: { unit: "caracteres", verb: "tener" },
@@ -5838,7 +5838,7 @@ function es_default() {
   };
 }
 
-// ../../node_modules/zod/v4/locales/fa.js
+// ../../../bb-plugins/node_modules/zod/v4/locales/fa.js
 var error13 = () => {
   const Sizable = {
     string: { unit: "\u06A9\u0627\u0631\u0627\u06A9\u062A\u0631", verb: "\u062F\u0627\u0634\u062A\u0647 \u0628\u0627\u0634\u062F" },
@@ -5953,7 +5953,7 @@ function fa_default() {
   };
 }
 
-// ../../node_modules/zod/v4/locales/fi.js
+// ../../../bb-plugins/node_modules/zod/v4/locales/fi.js
 var error14 = () => {
   const Sizable = {
     string: { unit: "merkki\xE4", subject: "merkkijonon" },
@@ -6066,7 +6066,7 @@ function fi_default() {
   };
 }
 
-// ../../node_modules/zod/v4/locales/fr.js
+// ../../../bb-plugins/node_modules/zod/v4/locales/fr.js
 var error15 = () => {
   const Sizable = {
     string: { unit: "caract\xE8res", verb: "avoir" },
@@ -6192,7 +6192,7 @@ function fr_default() {
   };
 }
 
-// ../../node_modules/zod/v4/locales/fr-CA.js
+// ../../../bb-plugins/node_modules/zod/v4/locales/fr-CA.js
 var error16 = () => {
   const Sizable = {
     string: { unit: "caract\xE8res", verb: "avoir" },
@@ -6300,7 +6300,7 @@ function fr_CA_default() {
   };
 }
 
-// ../../node_modules/zod/v4/locales/he.js
+// ../../../bb-plugins/node_modules/zod/v4/locales/he.js
 var error17 = () => {
   const TypeNames = {
     string: { label: "\u05DE\u05D7\u05E8\u05D5\u05D6\u05EA", gender: "f" },
@@ -6495,7 +6495,7 @@ function he_default() {
   };
 }
 
-// ../../node_modules/zod/v4/locales/hr.js
+// ../../../bb-plugins/node_modules/zod/v4/locales/hr.js
 var error18 = () => {
   const Sizable = {
     string: { unit: "znakova", verb: "imati" },
@@ -6618,7 +6618,7 @@ function hr_default() {
   };
 }
 
-// ../../node_modules/zod/v4/locales/hu.js
+// ../../../bb-plugins/node_modules/zod/v4/locales/hu.js
 var error19 = () => {
   const Sizable = {
     string: { unit: "karakter", verb: "legyen" },
@@ -6727,7 +6727,7 @@ function hu_default() {
   };
 }
 
-// ../../node_modules/zod/v4/locales/hy.js
+// ../../../bb-plugins/node_modules/zod/v4/locales/hy.js
 function getArmenianPlural(count, one, many) {
   return Math.abs(count) === 1 ? one : many;
 }
@@ -6875,7 +6875,7 @@ function hy_default() {
   };
 }
 
-// ../../node_modules/zod/v4/locales/id.js
+// ../../../bb-plugins/node_modules/zod/v4/locales/id.js
 var error21 = () => {
   const Sizable = {
     string: { unit: "karakter", verb: "memiliki" },
@@ -6982,7 +6982,7 @@ function id_default() {
   };
 }
 
-// ../../node_modules/zod/v4/locales/is.js
+// ../../../bb-plugins/node_modules/zod/v4/locales/is.js
 var error22 = () => {
   const Sizable = {
     string: { unit: "stafi", verb: "a\xF0 hafa" },
@@ -7092,7 +7092,7 @@ function is_default() {
   };
 }
 
-// ../../node_modules/zod/v4/locales/it.js
+// ../../../bb-plugins/node_modules/zod/v4/locales/it.js
 var error23 = () => {
   const Sizable = {
     string: { unit: "caratteri", verb: "avere" },
@@ -7201,7 +7201,7 @@ function it_default() {
   };
 }
 
-// ../../node_modules/zod/v4/locales/ja.js
+// ../../../bb-plugins/node_modules/zod/v4/locales/ja.js
 var error24 = () => {
   const Sizable = {
     string: { unit: "\u6587\u5B57", verb: "\u3067\u3042\u308B" },
@@ -7309,7 +7309,7 @@ function ja_default() {
   };
 }
 
-// ../../node_modules/zod/v4/locales/ka.js
+// ../../../bb-plugins/node_modules/zod/v4/locales/ka.js
 var error25 = () => {
   const Sizable = {
     string: { unit: "\u10E1\u10D8\u10DB\u10D1\u10DD\u10DA\u10DD", verb: "\u10E3\u10DC\u10D3\u10D0 \u10E8\u10D4\u10D8\u10EA\u10D0\u10D5\u10D3\u10D4\u10E1" },
@@ -7422,7 +7422,7 @@ function ka_default() {
   };
 }
 
-// ../../node_modules/zod/v4/locales/km.js
+// ../../../bb-plugins/node_modules/zod/v4/locales/km.js
 var error26 = () => {
   const Sizable = {
     string: { unit: "\u178F\u17BD\u17A2\u1780\u17D2\u179F\u179A", verb: "\u1782\u17BD\u179A\u1798\u17B6\u1793" },
@@ -7533,12 +7533,12 @@ function km_default() {
   };
 }
 
-// ../../node_modules/zod/v4/locales/kh.js
+// ../../../bb-plugins/node_modules/zod/v4/locales/kh.js
 function kh_default() {
   return km_default();
 }
 
-// ../../node_modules/zod/v4/locales/ko.js
+// ../../../bb-plugins/node_modules/zod/v4/locales/ko.js
 var error27 = () => {
   const Sizable = {
     string: { unit: "\uBB38\uC790", verb: "to have" },
@@ -7650,7 +7650,7 @@ function ko_default() {
   };
 }
 
-// ../../node_modules/zod/v4/locales/lt.js
+// ../../../bb-plugins/node_modules/zod/v4/locales/lt.js
 var capitalizeFirstCharacter = (text) => {
   return text.charAt(0).toUpperCase() + text.slice(1);
 };
@@ -7854,7 +7854,7 @@ function lt_default() {
   };
 }
 
-// ../../node_modules/zod/v4/locales/mk.js
+// ../../../bb-plugins/node_modules/zod/v4/locales/mk.js
 var error29 = () => {
   const Sizable = {
     string: { unit: "\u0437\u043D\u0430\u0446\u0438", verb: "\u0434\u0430 \u0438\u043C\u0430\u0430\u0442" },
@@ -7964,7 +7964,7 @@ function mk_default() {
   };
 }
 
-// ../../node_modules/zod/v4/locales/ms.js
+// ../../../bb-plugins/node_modules/zod/v4/locales/ms.js
 var error30 = () => {
   const Sizable = {
     string: { unit: "aksara", verb: "mempunyai" },
@@ -8072,7 +8072,7 @@ function ms_default() {
   };
 }
 
-// ../../node_modules/zod/v4/locales/nl.js
+// ../../../bb-plugins/node_modules/zod/v4/locales/nl.js
 var error31 = () => {
   const Sizable = {
     string: { unit: "tekens", verb: "heeft" },
@@ -8183,7 +8183,7 @@ function nl_default() {
   };
 }
 
-// ../../node_modules/zod/v4/locales/no.js
+// ../../../bb-plugins/node_modules/zod/v4/locales/no.js
 var error32 = () => {
   const Sizable = {
     string: { unit: "tegn", verb: "\xE5 ha" },
@@ -8292,7 +8292,7 @@ function no_default() {
   };
 }
 
-// ../../node_modules/zod/v4/locales/ota.js
+// ../../../bb-plugins/node_modules/zod/v4/locales/ota.js
 var error33 = () => {
   const Sizable = {
     string: { unit: "harf", verb: "olmal\u0131d\u0131r" },
@@ -8402,7 +8402,7 @@ function ota_default() {
   };
 }
 
-// ../../node_modules/zod/v4/locales/ps.js
+// ../../../bb-plugins/node_modules/zod/v4/locales/ps.js
 var error34 = () => {
   const Sizable = {
     string: { unit: "\u062A\u0648\u06A9\u064A", verb: "\u0648\u0644\u0631\u064A" },
@@ -8517,7 +8517,7 @@ function ps_default() {
   };
 }
 
-// ../../node_modules/zod/v4/locales/pl.js
+// ../../../bb-plugins/node_modules/zod/v4/locales/pl.js
 var error35 = () => {
   const Sizable = {
     string: { unit: "znak\xF3w", verb: "mie\u0107" },
@@ -8627,7 +8627,7 @@ function pl_default() {
   };
 }
 
-// ../../node_modules/zod/v4/locales/pt.js
+// ../../../bb-plugins/node_modules/zod/v4/locales/pt.js
 var error36 = () => {
   const Sizable = {
     string: { unit: "caracteres", verb: "ter" },
@@ -8736,7 +8736,7 @@ function pt_default() {
   };
 }
 
-// ../../node_modules/zod/v4/locales/ro.js
+// ../../../bb-plugins/node_modules/zod/v4/locales/ro.js
 var error37 = () => {
   const Sizable = {
     string: { unit: "caractere", verb: "s\u0103 aib\u0103" },
@@ -8856,7 +8856,7 @@ function ro_default() {
   };
 }
 
-// ../../node_modules/zod/v4/locales/ru.js
+// ../../../bb-plugins/node_modules/zod/v4/locales/ru.js
 function getRussianPlural(count, one, few, many) {
   const absCount = Math.abs(count);
   const lastDigit = absCount % 10;
@@ -9013,7 +9013,7 @@ function ru_default() {
   };
 }
 
-// ../../node_modules/zod/v4/locales/sl.js
+// ../../../bb-plugins/node_modules/zod/v4/locales/sl.js
 var error39 = () => {
   const Sizable = {
     string: { unit: "znakov", verb: "imeti" },
@@ -9123,7 +9123,7 @@ function sl_default() {
   };
 }
 
-// ../../node_modules/zod/v4/locales/sv.js
+// ../../../bb-plugins/node_modules/zod/v4/locales/sv.js
 var error40 = () => {
   const Sizable = {
     string: { unit: "tecken", verb: "att ha" },
@@ -9234,7 +9234,7 @@ function sv_default() {
   };
 }
 
-// ../../node_modules/zod/v4/locales/ta.js
+// ../../../bb-plugins/node_modules/zod/v4/locales/ta.js
 var error41 = () => {
   const Sizable = {
     string: { unit: "\u0B8E\u0BB4\u0BC1\u0BA4\u0BCD\u0BA4\u0BC1\u0B95\u0BCD\u0B95\u0BB3\u0BCD", verb: "\u0B95\u0BCA\u0BA3\u0BCD\u0B9F\u0BBF\u0BB0\u0BC1\u0B95\u0BCD\u0B95 \u0BB5\u0BC7\u0BA3\u0BCD\u0B9F\u0BC1\u0BAE\u0BCD" },
@@ -9345,7 +9345,7 @@ function ta_default() {
   };
 }
 
-// ../../node_modules/zod/v4/locales/th.js
+// ../../../bb-plugins/node_modules/zod/v4/locales/th.js
 var error42 = () => {
   const Sizable = {
     string: { unit: "\u0E15\u0E31\u0E27\u0E2D\u0E31\u0E01\u0E29\u0E23", verb: "\u0E04\u0E27\u0E23\u0E21\u0E35" },
@@ -9456,7 +9456,7 @@ function th_default() {
   };
 }
 
-// ../../node_modules/zod/v4/locales/tr.js
+// ../../../bb-plugins/node_modules/zod/v4/locales/tr.js
 var error43 = () => {
   const Sizable = {
     string: { unit: "karakter", verb: "olmal\u0131" },
@@ -9562,7 +9562,7 @@ function tr_default() {
   };
 }
 
-// ../../node_modules/zod/v4/locales/uk.js
+// ../../../bb-plugins/node_modules/zod/v4/locales/uk.js
 var error44 = () => {
   const Sizable = {
     string: { unit: "\u0441\u0438\u043C\u0432\u043E\u043B\u0456\u0432", verb: "\u043C\u0430\u0442\u0438\u043C\u0435" },
@@ -9671,12 +9671,12 @@ function uk_default() {
   };
 }
 
-// ../../node_modules/zod/v4/locales/ua.js
+// ../../../bb-plugins/node_modules/zod/v4/locales/ua.js
 function ua_default() {
   return uk_default();
 }
 
-// ../../node_modules/zod/v4/locales/ur.js
+// ../../../bb-plugins/node_modules/zod/v4/locales/ur.js
 var error45 = () => {
   const Sizable = {
     string: { unit: "\u062D\u0631\u0648\u0641", verb: "\u06C1\u0648\u0646\u0627" },
@@ -9787,7 +9787,7 @@ function ur_default() {
   };
 }
 
-// ../../node_modules/zod/v4/locales/uz.js
+// ../../../bb-plugins/node_modules/zod/v4/locales/uz.js
 var error46 = () => {
   const Sizable = {
     string: { unit: "belgi", verb: "bo\u2018lishi kerak" },
@@ -9898,7 +9898,7 @@ function uz_default() {
   };
 }
 
-// ../../node_modules/zod/v4/locales/vi.js
+// ../../../bb-plugins/node_modules/zod/v4/locales/vi.js
 var error47 = () => {
   const Sizable = {
     string: { unit: "k\xFD t\u1EF1", verb: "c\xF3" },
@@ -10007,7 +10007,7 @@ function vi_default() {
   };
 }
 
-// ../../node_modules/zod/v4/locales/zh-CN.js
+// ../../../bb-plugins/node_modules/zod/v4/locales/zh-CN.js
 var error48 = () => {
   const Sizable = {
     string: { unit: "\u5B57\u7B26", verb: "\u5305\u542B" },
@@ -10117,7 +10117,7 @@ function zh_CN_default() {
   };
 }
 
-// ../../node_modules/zod/v4/locales/zh-TW.js
+// ../../../bb-plugins/node_modules/zod/v4/locales/zh-TW.js
 var error49 = () => {
   const Sizable = {
     string: { unit: "\u5B57\u5143", verb: "\u64C1\u6709" },
@@ -10225,7 +10225,7 @@ function zh_TW_default() {
   };
 }
 
-// ../../node_modules/zod/v4/locales/yo.js
+// ../../../bb-plugins/node_modules/zod/v4/locales/yo.js
 var error50 = () => {
   const Sizable = {
     string: { unit: "\xE0mi", verb: "n\xED" },
@@ -10333,7 +10333,7 @@ function yo_default() {
   };
 }
 
-// ../../node_modules/zod/v4/core/registries.js
+// ../../../bb-plugins/node_modules/zod/v4/core/registries.js
 var _a2;
 var $output = /* @__PURE__ */ Symbol("ZodOutput");
 var $input = /* @__PURE__ */ Symbol("ZodInput");
@@ -10383,7 +10383,7 @@ function registry() {
 (_a2 = globalThis).__zod_globalRegistry ?? (_a2.__zod_globalRegistry = registry());
 var globalRegistry = globalThis.__zod_globalRegistry;
 
-// ../../node_modules/zod/v4/core/api.js
+// ../../../bb-plugins/node_modules/zod/v4/core/api.js
 // @__NO_SIDE_EFFECTS__
 function _string(Class2, params) {
   return new Class2({
@@ -11422,7 +11422,7 @@ function _stringFormat(Class2, format, fnOrRegex, _params = {}) {
   return inst;
 }
 
-// ../../node_modules/zod/v4/core/to-json-schema.js
+// ../../../bb-plugins/node_modules/zod/v4/core/to-json-schema.js
 function initializeContext(params) {
   let target = params?.target ?? "draft-2020-12";
   if (target === "draft-4")
@@ -11781,7 +11781,7 @@ var createStandardJSONSchemaMethod = (schema, io, processors = {}) => (params) =
   return finalize(ctx, schema);
 };
 
-// ../../node_modules/zod/v4/core/json-schema-processors.js
+// ../../../bb-plugins/node_modules/zod/v4/core/json-schema-processors.js
 var formatMap = {
   guid: "uuid",
   url: "uri",
@@ -12325,7 +12325,7 @@ function toJSONSchema(input, params) {
   return finalize(ctx, input);
 }
 
-// ../../node_modules/zod/v4/core/json-schema-generator.js
+// ../../../bb-plugins/node_modules/zod/v4/core/json-schema-generator.js
 var JSONSchemaGenerator = class {
   /** @deprecated Access via ctx instead */
   get metadataRegistry() {
@@ -12400,10 +12400,10 @@ var JSONSchemaGenerator = class {
   }
 };
 
-// ../../node_modules/zod/v4/core/json-schema.js
+// ../../../bb-plugins/node_modules/zod/v4/core/json-schema.js
 var json_schema_exports = {};
 
-// ../../node_modules/zod/v4/classic/schemas.js
+// ../../../bb-plugins/node_modules/zod/v4/classic/schemas.js
 var schemas_exports2 = {};
 __export(schemas_exports2, {
   ZodAny: () => ZodAny,
@@ -12574,7 +12574,7 @@ __export(schemas_exports2, {
   xor: () => xor
 });
 
-// ../../node_modules/zod/v4/classic/checks.js
+// ../../../bb-plugins/node_modules/zod/v4/classic/checks.js
 var checks_exports2 = {};
 __export(checks_exports2, {
   endsWith: () => _endsWith,
@@ -12608,7 +12608,7 @@ __export(checks_exports2, {
   uppercase: () => _uppercase
 });
 
-// ../../node_modules/zod/v4/classic/iso.js
+// ../../../bb-plugins/node_modules/zod/v4/classic/iso.js
 var iso_exports = {};
 __export(iso_exports, {
   ZodISODate: () => ZodISODate,
@@ -12649,7 +12649,7 @@ function duration2(params) {
   return _isoDuration(ZodISODuration, params);
 }
 
-// ../../node_modules/zod/v4/classic/errors.js
+// ../../../bb-plugins/node_modules/zod/v4/classic/errors.js
 var initializer2 = (inst, issues) => {
   $ZodError.init(inst, issues);
   inst.name = "ZodError";
@@ -12689,7 +12689,7 @@ var ZodRealError = /* @__PURE__ */ $constructor("ZodError", initializer2, {
   Parent: Error
 });
 
-// ../../node_modules/zod/v4/classic/parse.js
+// ../../../bb-plugins/node_modules/zod/v4/classic/parse.js
 var parse2 = /* @__PURE__ */ _parse(ZodRealError);
 var parseAsync2 = /* @__PURE__ */ _parseAsync(ZodRealError);
 var safeParse2 = /* @__PURE__ */ _safeParse(ZodRealError);
@@ -12703,7 +12703,7 @@ var safeDecode2 = /* @__PURE__ */ _safeDecode(ZodRealError);
 var safeEncodeAsync2 = /* @__PURE__ */ _safeEncodeAsync(ZodRealError);
 var safeDecodeAsync2 = /* @__PURE__ */ _safeDecodeAsync(ZodRealError);
 
-// ../../node_modules/zod/v4/classic/schemas.js
+// ../../../bb-plugins/node_modules/zod/v4/classic/schemas.js
 var _installedGroups = /* @__PURE__ */ new WeakMap();
 function _installLazyMethods(inst, group, methods) {
   const proto = Object.getPrototypeOf(inst);
@@ -13993,7 +13993,7 @@ function preprocess(fn, schema) {
   });
 }
 
-// ../../node_modules/zod/v4/classic/compat.js
+// ../../../bb-plugins/node_modules/zod/v4/classic/compat.js
 var ZodIssueCode = {
   invalid_type: "invalid_type",
   too_big: "too_big",
@@ -14019,7 +14019,7 @@ var ZodFirstPartyTypeKind;
 /* @__PURE__ */ (function(ZodFirstPartyTypeKind2) {
 })(ZodFirstPartyTypeKind || (ZodFirstPartyTypeKind = {}));
 
-// ../../node_modules/zod/v4/classic/from-json-schema.js
+// ../../../bb-plugins/node_modules/zod/v4/classic/from-json-schema.js
 var z = {
   ...schemas_exports2,
   ...checks_exports2,
@@ -14499,7 +14499,7 @@ function fromJSONSchema(schema, params) {
   return convertSchema(normalized, ctx);
 }
 
-// ../../node_modules/zod/v4/classic/coerce.js
+// ../../../bb-plugins/node_modules/zod/v4/classic/coerce.js
 var coerce_exports = {};
 __export(coerce_exports, {
   bigint: () => bigint3,
@@ -14524,11 +14524,13 @@ function date4(params) {
   return _coercedDate(ZodDate, params);
 }
 
-// ../../node_modules/zod/v4/classic/external.js
+// ../../../bb-plugins/node_modules/zod/v4/classic/external.js
 config(en_default());
 
 // core.ts
 var WORKFLOW_CONFIG_VERSION = 2;
+var ENTRY_PROMPT_MAX_LENGTH = 2e3;
+var RENDERED_ENTRY_PROMPT_MAX_LENGTH = 8e3;
 var INBOX_RULE = "Idle unread threads that need your attention appear here automatically and stay until work resumes or you move a read thread to another workflow section. This behavior can\u2019t be customized.";
 var HANDOFF_RULE = "Use only when the user explicitly says this thread is being handed to a colleague to take across the finish line; never infer it from packaging context, completed work, or waiting.";
 var PREVIOUS_INBOX_RULES = [
@@ -14619,6 +14621,9 @@ function parseStage(value, withSectionId) {
   const title = typeof value.title === "string" ? normalizeText(value.title) : "";
   const rule = typeof value.rule === "string" ? normalizeText(value.rule) : "";
   const role = value.role;
+  const entryPrompt = typeof value.entryPrompt === "string" ? value.entryPrompt.normalize("NFKC").replace(/\r\n?/gu, "\n").trim() : "";
+  const entryPromptDelivery = value.entryPromptDelivery;
+  const entryPromptOnAgentMove = value.entryPromptOnAgentMove;
   const sectionId = withSectionId ? value.sectionId === null || typeof value.sectionId === "string" ? value.sectionId : null : null;
   if (!/^[a-z0-9][a-z0-9-]{0,39}$/u.test(key)) {
     throw new Error(
@@ -14634,11 +14639,30 @@ function parseStage(value, withSectionId) {
   if (role !== "inbox" && role !== "stage") {
     throw new Error(`Stage "${key}" has an invalid role.`);
   }
+  if (entryPrompt.length > ENTRY_PROMPT_MAX_LENGTH) {
+    throw new Error(
+      `Stage "${key}" entry prompt must be at most ${ENTRY_PROMPT_MAX_LENGTH} characters.`
+    );
+  }
+  if (entryPromptDelivery !== void 0 && entryPromptDelivery !== "queue" && entryPromptDelivery !== "steer") {
+    throw new Error(`Stage "${key}" has an invalid entry prompt delivery.`);
+  }
+  if (entryPromptOnAgentMove !== void 0 && typeof entryPromptOnAgentMove !== "boolean") {
+    throw new Error(
+      `Stage "${key}" has an invalid entry prompt agent-move setting.`
+    );
+  }
   return {
     key,
     title,
     rule,
     role,
+    // Defaults are not persisted, so configs without prompts stay byte-stable.
+    ...entryPrompt.length > 0 ? {
+      entryPrompt,
+      ...entryPromptDelivery === "steer" ? { entryPromptDelivery: "steer" } : {},
+      ...entryPromptOnAgentMove === false ? { entryPromptOnAgentMove: false } : {}
+    } : {},
     sectionId: sectionId && sectionId.trim().length > 0 ? sectionId : null
   };
 }
@@ -14658,6 +14682,9 @@ function validateStages(stages) {
       throw new Error(`Stage title "${stage.title}" is duplicated.`);
     }
     titles.add(titleIdentity);
+    if (stage.role === "inbox" && hasEntryPrompt(stage)) {
+      throw new Error("Inbox cannot send an entry prompt.");
+    }
   }
   const inboxes = stages.filter((stage) => stage.role === "inbox");
   if (inboxes.length !== 1 || inboxes[0]?.key !== "inbox") {
@@ -14743,6 +14770,29 @@ function legacySectionNames(stage) {
 function localSectionName(stage) {
   return stage.title;
 }
+function hasEntryPrompt(stage) {
+  return typeof stage.entryPrompt === "string" && stage.entryPrompt.length > 0;
+}
+function renderEntryPrompt(template, variables) {
+  const values = {
+    "stage.key": variables.stage.key,
+    "stage.title": variables.stage.title,
+    "thread.id": variables.thread.id,
+    "thread.title": variables.thread.title
+  };
+  const rendered = template.replace(
+    /\{\{\s*([A-Za-z]+\.[A-Za-z]+)\s*\}\}/gu,
+    (match, name) => values[name.toLowerCase()] ?? match
+  );
+  return rendered.length > RENDERED_ENTRY_PROMPT_MAX_LENGTH ? rendered.slice(0, RENDERED_ENTRY_PROMPT_MAX_LENGTH) : rendered;
+}
+function entryPromptMessage(stage, variables) {
+  return [
+    `Thread Organizer \u2014 entering \u201C${variables.stage.title}\u201D:`,
+    "",
+    renderEntryPrompt(stage.entryPrompt, variables)
+  ].join("\n");
+}
 function inboxStage(config2) {
   return config2.stages.find((stage) => stage.role === "inbox");
 }
@@ -14770,6 +14820,16 @@ function placementForThread(config2, thread, rememberedStageKey, leaveInbox = fa
   const belongsInInbox = !isRunningThread(thread) && (isUnreadThread(thread) || !leaveInbox && currentStage?.role === "inbox");
   return belongsInInbox ? inboxStage(config2) : remembered;
 }
+function entryPromptGuidance(config2) {
+  const keys = config2.stages.filter(
+    (stage) => stage.role === "stage" && hasEntryPrompt(stage) && stage.entryPromptOnAgentMove !== false
+  ).map((stage) => `\`${stage.key}\``);
+  if (keys.length === 0) return [];
+  return [
+    "",
+    `Entering ${keys.join(", ")} sends that stage\u2019s entry prompt to this thread as a follow-up message, queued until your current turn ends. Run \`bb organizer phase\` only when the thread\u2019s primary activity has genuinely changed \u2014 never as a shortcut to trigger that prompt, and never twice for the same stage. After moving, end your turn promptly so the prompt can dispatch.`
+  ];
+}
 function escapeTableCell(value) {
   return value.replace(/\|/gu, "\\|").replace(/\s+/gu, " ").trim();
 }
@@ -14782,7 +14842,8 @@ function buildWorkflowSkillSlot(config2) {
     "",
     "| Key | Section | What belongs here |",
     "| --- | --- | --- |",
-    ...rows
+    ...rows,
+    ...entryPromptGuidance(config2)
   ].join("\n");
 }
 
@@ -14792,10 +14853,19 @@ var PENDING_CONFIG_OPERATION_KEY = "workflow-config-operation:v1";
 var THREAD_STATE_PREFIX = "thread:v3:";
 var LEGACY_THREAD_STATE_PREFIX = "thread:v1:";
 var THREAD_LIST_PAGE_SIZE = 100;
+var ENTRY_PROMPT_MAX_ATTEMPTS = 5;
+var ENTRY_PROMPT_MAX_AGE_MS = 24 * 60 * 60 * 1e3;
+var ENTRY_PROMPT_SAME_STAGE_COOLDOWN_MS = 10 * 60 * 1e3;
+var ENTRY_PROMPT_WINDOW_MS = 30 * 60 * 1e3;
+var ENTRY_PROMPT_MAX_PER_WINDOW = 3;
+var ENTRY_PROMPT_HISTORY = 6;
 var editableStageSchema = external_exports.object({
   // Accepted and discarded so configs and clients written before
   // section icons were removed keep validating.
   icon: external_exports.unknown().optional(),
+  entryPrompt: external_exports.string().max(ENTRY_PROMPT_MAX_LENGTH).optional(),
+  entryPromptDelivery: external_exports.enum(["queue", "steer"]).optional(),
+  entryPromptOnAgentMove: external_exports.boolean().optional(),
   key: external_exports.string().min(1).max(40),
   role: external_exports.enum(["inbox", "stage"]),
   rule: external_exports.string().min(1).max(240),
@@ -14838,6 +14908,30 @@ function legacyThreadStateKey(threadId) {
 }
 function describeError(error51) {
   return error51 instanceof Error ? error51.message : String(error51);
+}
+function parseStageKeyOrNull(value) {
+  return typeof value === "string" && value.length > 0 ? value : null;
+}
+function parsePendingEntryPrompt(value) {
+  if (!value || typeof value !== "object") return null;
+  const candidate = value;
+  if (typeof candidate.stageKey !== "string" || typeof candidate.enteredAt !== "number") {
+    return null;
+  }
+  return {
+    attempts: typeof candidate.attempts === "number" ? candidate.attempts : 0,
+    enteredAt: candidate.enteredAt,
+    stageKey: candidate.stageKey,
+    ...typeof candidate.lastError === "string" ? { lastError: candidate.lastError } : {}
+  };
+}
+function parseEntryPromptRecords(value) {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((entry) => {
+    if (!entry || typeof entry !== "object") return [];
+    const candidate = entry;
+    return typeof candidate.stageKey === "string" && typeof candidate.sentAt === "number" ? [{ sentAt: candidate.sentAt, stageKey: candidate.stageKey }] : [];
+  });
 }
 function sectionMatchesName(section, name) {
   return section.name.normalize("NFKC").trim().toLocaleLowerCase() === name.normalize("NFKC").trim().toLocaleLowerCase();
@@ -14946,10 +15040,19 @@ async function plugin(bb) {
       const remembered2 = configSnapshot.stages.find(
         (stage) => stage.key === value.rememberedStageKey && stage.role === "stage"
       );
-      if ((value.version === 3 || value.version === 4 || value.version === 5) && remembered2) {
+      if ((value.version === 3 || value.version === 4 || value.version === 5 || value.version === 6) && remembered2) {
+        const current = value.version === 6;
         return {
-          version: 5,
-          rememberedStageKey: remembered2.key
+          created: false,
+          state: {
+            version: 6,
+            rememberedStageKey: remembered2.key,
+            // Older states already sat in their remembered stage, so seeding
+            // the landing from it keeps an upgrade from firing prompts.
+            lastLandedStageKey: current ? parseStageKeyOrNull(value.lastLandedStageKey) : remembered2.key,
+            pendingEntryPrompt: current ? parsePendingEntryPrompt(value.pendingEntryPrompt) : null,
+            recentEntryPrompts: current ? parseEntryPromptRecords(value.recentEntryPrompts) : []
+          }
         };
       }
     }
@@ -14968,22 +15071,25 @@ async function plugin(bb) {
       }
     }
     const migrated = {
-      version: 5,
-      rememberedStageKey: remembered.key
+      version: 6,
+      rememberedStageKey: remembered.key,
+      lastLandedStageKey: remembered.key,
+      pendingEntryPrompt: null,
+      recentEntryPrompts: []
     };
     await bb.storage.kv.set(threadStateKey(thread.id), migrated);
     if (legacy !== void 0) {
       await bb.storage.kv.delete(legacyThreadStateKey(thread.id));
     }
-    return migrated;
+    return { created: true, state: migrated };
   }
   async function saveThreadState(threadId, state) {
     await bb.storage.kv.set(threadStateKey(threadId), state);
   }
   async function reconcileThread(threadId, explicitStageKey) {
     const thread = await bb.sdk.threads.get({ threadId });
-    if (!isManageableThread(thread)) return;
-    const state = await readThreadState(thread);
+    if (!isManageableThread(thread)) return null;
+    const { created, state } = await readThreadState(thread);
     const currentStage = stageForSectionId(configSnapshot, thread.sectionId);
     if (explicitStageKey) {
       state.rememberedStageKey = explicitStageKey;
@@ -15013,7 +15119,81 @@ async function plugin(bb) {
         `thread=${threadId} action=section-updated stage=${destination.key}`
       );
     }
+    const landedStageKey = destination.role === "stage" ? destination.key : state.lastLandedStageKey;
+    const entered = !created && landedStageKey !== null && landedStageKey !== state.lastLandedStageKey;
+    state.lastLandedStageKey = landedStageKey;
+    if (state.pendingEntryPrompt !== null && state.pendingEntryPrompt.stageKey !== landedStageKey) {
+      state.pendingEntryPrompt = null;
+    }
+    if (entered && hasEntryPrompt(destination) && (explicitStageKey === void 0 || destination.entryPromptOnAgentMove !== false)) {
+      state.pendingEntryPrompt = {
+        attempts: 0,
+        enteredAt: Date.now(),
+        stageKey: destination.key
+      };
+    }
     await saveThreadState(threadId, state);
+    return state.pendingEntryPrompt === null ? null : await deliverEntryPrompt(thread, state);
+  }
+  async function deliverEntryPrompt(thread, state) {
+    const pending = state.pendingEntryPrompt;
+    if (pending === null) return null;
+    const now = Date.now();
+    const drop = async (reason) => {
+      state.pendingEntryPrompt = null;
+      await saveThreadState(thread.id, state);
+      bb.log.info(
+        `thread=${thread.id} action=entry-prompt-dropped stage=${pending.stageKey} reason=${reason}`
+      );
+      return "dropped";
+    };
+    const stage = configSnapshot.stages.find(
+      (candidate) => candidate.key === pending.stageKey
+    );
+    if (!stage || !hasEntryPrompt(stage)) return drop("no-prompt");
+    if (pending.attempts >= ENTRY_PROMPT_MAX_ATTEMPTS || now - pending.enteredAt > ENTRY_PROMPT_MAX_AGE_MS) {
+      return drop("expired");
+    }
+    const recent = state.recentEntryPrompts.filter(
+      (record2) => now - record2.sentAt < ENTRY_PROMPT_WINDOW_MS
+    );
+    if (recent.length >= ENTRY_PROMPT_MAX_PER_WINDOW || recent.some(
+      (record2) => record2.stageKey === stage.key && now - record2.sentAt < ENTRY_PROMPT_SAME_STAGE_COOLDOWN_MS
+    )) {
+      return drop("rate-limited");
+    }
+    const text = entryPromptMessage(stage, {
+      stage: { key: stage.key, title: stage.title },
+      thread: { id: thread.id, title: thread.title ?? "" }
+    });
+    try {
+      await bb.sdk.threads.send({
+        threadId: thread.id,
+        mode: stage.entryPromptDelivery === "steer" ? "steer-if-active" : "queue-if-active",
+        input: [{ type: "text", text }]
+      });
+    } catch (error51) {
+      state.pendingEntryPrompt = {
+        ...pending,
+        attempts: pending.attempts + 1,
+        lastError: describeError(error51)
+      };
+      await saveThreadState(thread.id, state);
+      bb.log.info(
+        `thread=${thread.id} action=entry-prompt-deferred stage=${stage.key} attempt=${pending.attempts + 1} error=${describeError(error51)}`
+      );
+      return "deferred";
+    }
+    state.pendingEntryPrompt = null;
+    state.recentEntryPrompts = [
+      ...recent,
+      { sentAt: now, stageKey: stage.key }
+    ].slice(-ENTRY_PROMPT_HISTORY);
+    await saveThreadState(thread.id, state);
+    bb.log.info(
+      `thread=${thread.id} action=entry-prompt-sent stage=${stage.key}`
+    );
+    return "sent";
   }
   async function listManageableThreadIds(signal) {
     const result = [];
@@ -15052,11 +15232,17 @@ async function plugin(bb) {
           threadId
         });
         if (!isManageableThread(thread)) return;
-        const state = await readThreadState(thread);
+        const { state } = await readThreadState(thread);
+        let changed = false;
         if (removedKeys.has(state.rememberedStageKey)) {
           state.rememberedStageKey = firstWorkflowStage(configSnapshot).key;
-          await saveThreadState(thread.id, state);
+          changed = true;
         }
+        if (state.lastLandedStageKey !== null && removedKeys.has(state.lastLandedStageKey)) {
+          state.lastLandedStageKey = state.rememberedStageKey;
+          changed = true;
+        }
+        if (changed) await saveThreadState(thread.id, state);
         await reconcileThread(thread.id);
       });
     }
@@ -15168,8 +15354,11 @@ Available: ${available}
       if (!isManageableThread(thread)) {
         return { exitCode: 2, stderr: "This thread cannot be organized.\n" };
       }
+      const result = { outcome: null };
       try {
-        await enqueue(thread.id, () => reconcileThread(thread.id, stage.key));
+        await enqueue(thread.id, async () => {
+          result.outcome = await reconcileThread(thread.id, stage.key);
+        });
       } catch (error51) {
         return {
           exitCode: 1,
@@ -15179,7 +15368,7 @@ Available: ${available}
       }
       return {
         exitCode: 0,
-        stdout: `Applied ${stage.title} to ${thread.id}.
+        stdout: `Applied ${stage.title} to ${thread.id}.${result.outcome === "sent" ? " Queued its entry prompt." : ""}
 `
       };
     }

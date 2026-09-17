@@ -49,19 +49,19 @@ var {
   version
 } = mod;
 
-// ../../node_modules/@hugeicons/core-free-icons/dist/esm/ArrowDown02Icon.js
+// ../../../bb-plugins/node_modules/@hugeicons/core-free-icons/dist/esm/ArrowDown02Icon.js
 var ArrowDown02Icon = [
   ["path", { d: "M12 18.502V5.00195", stroke: "currentColor", strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: "1.5", key: "0" }],
   ["path", { d: "M18 13.002C18 13.002 13.5811 19.0019 12 19.002C10.4188 19.002 6 13.002 6 13.002", stroke: "currentColor", strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: "1.5", key: "1" }]
 ];
 
-// ../../node_modules/@hugeicons/core-free-icons/dist/esm/ArrowUp02Icon.js
+// ../../../bb-plugins/node_modules/@hugeicons/core-free-icons/dist/esm/ArrowUp02Icon.js
 var ArrowUp02Icon = [
   ["path", { d: "M12 5.5V19", stroke: "currentColor", strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: "1.5", key: "0" }],
   ["path", { d: "M18 11C18 11 13.5811 5.00001 12 5C10.4188 4.99999 6 11 6 11", stroke: "currentColor", strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: "1.5", key: "1" }]
 ];
 
-// ../../node_modules/@hugeicons/core-free-icons/dist/esm/Delete02Icon.js
+// ../../../bb-plugins/node_modules/@hugeicons/core-free-icons/dist/esm/Delete02Icon.js
 var Delete02Icon = [
   ["path", { d: "M19.5 5.5L18.8803 15.5251C18.7219 18.0864 18.6428 19.3671 18.0008 20.2879C17.6833 20.7431 17.2747 21.1273 16.8007 21.416C15.8421 22 14.559 22 11.9927 22C9.42312 22 8.1383 22 7.17905 21.4149C6.7048 21.1257 6.296 20.7408 5.97868 20.2848C5.33688 19.3626 5.25945 18.0801 5.10461 15.5152L4.5 5.5", stroke: "currentColor", strokeLinecap: "round", strokeWidth: "1.5", key: "0" }],
   ["path", { d: "M3 5.5H21M16.0557 5.5L15.3731 4.09173C14.9196 3.15626 14.6928 2.68852 14.3017 2.39681C14.215 2.3321 14.1231 2.27454 14.027 2.2247C13.5939 2 13.0741 2 12.0345 2C10.9688 2 10.436 2 9.99568 2.23412C9.8981 2.28601 9.80498 2.3459 9.71729 2.41317C9.32164 2.7167 9.10063 3.20155 8.65861 4.17126L8.05292 5.5", stroke: "currentColor", strokeLinecap: "round", strokeWidth: "1.5", key: "1" }],
@@ -69,7 +69,7 @@ var Delete02Icon = [
   ["path", { d: "M14.5 16.5L14.5 10.5", stroke: "currentColor", strokeLinecap: "round", strokeWidth: "1.5", key: "3" }]
 ];
 
-// ../../node_modules/@hugeicons/core-free-icons/dist/esm/DragDropVerticalIcon.js
+// ../../../bb-plugins/node_modules/@hugeicons/core-free-icons/dist/esm/DragDropVerticalIcon.js
 var DragDropVerticalIcon = [
   ["path", { d: "M16 6C16 6.55228 15.5523 7 15 7C14.4477 7 14 6.55228 14 6C14 5.44772 14.4477 5 15 5C15.5523 5 16 5.44772 16 6Z", stroke: "currentColor", strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: "1.5", key: "0" }],
   ["path", { d: "M10 6C10 6.55228 9.55228 7 9 7C8.44772 7 8 6.55228 8 6C8 5.44772 8.44772 5 9 5C9.55228 5 10 5.44772 10 6Z", stroke: "currentColor", strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: "1.5", key: "1" }],
@@ -79,22 +79,22 @@ var DragDropVerticalIcon = [
   ["path", { d: "M10 12C10 12.5523 9.55228 13 9 13C8.44772 13 8 12.5523 8 12C8 11.4477 8.44772 11 9 11C9.55228 11 10 11.4477 10 12Z", stroke: "currentColor", strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: "1.5", key: "5" }]
 ];
 
-// ../../node_modules/@hugeicons/core-free-icons/dist/esm/MoreHorizontalIcon.js
+// ../../../bb-plugins/node_modules/@hugeicons/core-free-icons/dist/esm/MoreHorizontalIcon.js
 var MoreHorizontalIcon = [
   ["path", { d: "M6.00449 12.5V12M18.0045 12.5V12M12.0045 12.5V12M7.00449 12.5C7.00449 11.9477 6.55677 11.5 6.00449 11.5C5.4522 11.5 5.00449 11.9477 5.00449 12.5C5.00449 13.0523 5.4522 13.5 6.00449 13.5C6.55677 13.5 7.00449 13.0523 7.00449 12.5ZM19.0045 12.5C19.0045 11.9477 18.5568 11.5 18.0045 11.5C17.4522 11.5 17.0045 11.9477 17.0045 12.5C17.0045 13.0523 17.4522 13.5 18.0045 13.5C18.5568 13.5 19.0045 13.0523 19.0045 12.5ZM13.0045 12.5C13.0045 11.9477 12.5568 11.5 12.0045 11.5C11.4522 11.5 11.0045 11.9477 11.0045 12.5C11.0045 13.0523 11.4522 13.5 12.0045 13.5C12.5568 13.5 13.0045 13.0523 13.0045 12.5Z", stroke: "currentColor", strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: "1.5", key: "0" }]
 ];
 
-// ../../node_modules/@hugeicons/core-free-icons/dist/esm/PlusSignIcon.js
+// ../../../bb-plugins/node_modules/@hugeicons/core-free-icons/dist/esm/PlusSignIcon.js
 var PlusSignIcon = [
   ["path", { d: "M12 4V20M20 12H4", stroke: "currentColor", strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: "1.5", key: "0" }]
 ];
 
-// ../../node_modules/@hugeicons/core-free-icons/dist/esm/Tick02Icon.js
+// ../../../bb-plugins/node_modules/@hugeicons/core-free-icons/dist/esm/Tick02Icon.js
 var Tick02Icon = [
   ["path", { d: "M5 14L8.5 17.5L19 6.5", stroke: "currentColor", strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: "1.5", key: "0" }]
 ];
 
-// ../../node_modules/@hugeicons/react/dist/esm/HugeiconsIcon.js
+// ../../../bb-plugins/node_modules/@hugeicons/react/dist/esm/HugeiconsIcon.js
 var defaultAttributes = {
   xmlns: "http://www.w3.org/2000/svg",
   width: 24,
@@ -172,6 +172,7 @@ var {
 
 // core.ts
 var WORKFLOW_CONFIG_VERSION = 2;
+var ENTRY_PROMPT_MAX_LENGTH = 2e3;
 var INBOX_RULE = "Idle unread threads that need your attention appear here automatically and stay until work resumes or you move a read thread to another workflow section. This behavior can\u2019t be customized.";
 var HANDOFF_RULE = "Use only when the user explicitly says this thread is being handed to a colleague to take across the finish line; never infer it from packaging context, completed work, or waiting.";
 var PREVIOUS_INBOX_RULES = [
@@ -199,6 +200,9 @@ function parseStage(value, withSectionId) {
   const title = typeof value.title === "string" ? normalizeText(value.title) : "";
   const rule = typeof value.rule === "string" ? normalizeText(value.rule) : "";
   const role = value.role;
+  const entryPrompt = typeof value.entryPrompt === "string" ? value.entryPrompt.normalize("NFKC").replace(/\r\n?/gu, "\n").trim() : "";
+  const entryPromptDelivery = value.entryPromptDelivery;
+  const entryPromptOnAgentMove = value.entryPromptOnAgentMove;
   const sectionId = withSectionId ? value.sectionId === null || typeof value.sectionId === "string" ? value.sectionId : null : null;
   if (!/^[a-z0-9][a-z0-9-]{0,39}$/u.test(key)) {
     throw new Error(
@@ -214,11 +218,30 @@ function parseStage(value, withSectionId) {
   if (role !== "inbox" && role !== "stage") {
     throw new Error(`Stage "${key}" has an invalid role.`);
   }
+  if (entryPrompt.length > ENTRY_PROMPT_MAX_LENGTH) {
+    throw new Error(
+      `Stage "${key}" entry prompt must be at most ${ENTRY_PROMPT_MAX_LENGTH} characters.`
+    );
+  }
+  if (entryPromptDelivery !== void 0 && entryPromptDelivery !== "queue" && entryPromptDelivery !== "steer") {
+    throw new Error(`Stage "${key}" has an invalid entry prompt delivery.`);
+  }
+  if (entryPromptOnAgentMove !== void 0 && typeof entryPromptOnAgentMove !== "boolean") {
+    throw new Error(
+      `Stage "${key}" has an invalid entry prompt agent-move setting.`
+    );
+  }
   return {
     key,
     title,
     rule,
     role,
+    // Defaults are not persisted, so configs without prompts stay byte-stable.
+    ...entryPrompt.length > 0 ? {
+      entryPrompt,
+      ...entryPromptDelivery === "steer" ? { entryPromptDelivery: "steer" } : {},
+      ...entryPromptOnAgentMove === false ? { entryPromptOnAgentMove: false } : {}
+    } : {},
     sectionId: sectionId && sectionId.trim().length > 0 ? sectionId : null
   };
 }
@@ -238,6 +261,9 @@ function validateStages(stages) {
       throw new Error(`Stage title "${stage.title}" is duplicated.`);
     }
     titles.add(titleIdentity);
+    if (stage.role === "inbox" && hasEntryPrompt(stage)) {
+      throw new Error("Inbox cannot send an entry prompt.");
+    }
   }
   const inboxes = stages.filter((stage) => stage.role === "inbox");
   if (inboxes.length !== 1 || inboxes[0]?.key !== "inbox") {
@@ -303,6 +329,9 @@ function editableWorkflowConfig(config) {
       ...stage
     }))
   };
+}
+function hasEntryPrompt(stage) {
+  return typeof stage.entryPrompt === "string" && stage.entryPrompt.length > 0;
 }
 function createStageKey(title, existingKeys) {
   const base = title.normalize("NFKD").toLocaleLowerCase().replace(/[^a-z0-9]+/gu, "-").replace(/^-+|-+$/gu, "").slice(0, 32) || "stage";
@@ -655,6 +684,7 @@ var primaryButtonClass = `${buttonBaseClass} bg-foreground text-background hover
 var iconButtonClass = "inline-flex size-8 shrink-0 items-center justify-center rounded-md text-muted-foreground outline-none hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-40";
 var stageRowClass = "grid min-w-0 grid-cols-[minmax(0,1fr)_2rem] items-start gap-x-2 gap-y-0 lg:grid-cols-[2rem_minmax(7rem,9rem)_minmax(0,1fr)_2rem]";
 var stageRuleLayoutClass = "col-span-2 col-start-1 row-start-2 min-w-0 lg:col-span-1 lg:col-start-3 lg:row-start-1";
+var stageEntryPromptLayoutClass = "col-span-2 col-start-1 row-start-3 min-w-0 lg:col-span-2 lg:col-start-3 lg:row-start-2";
 var workflowSettingsDescription = "Rename, reorder, and define the workflow your agents follow.";
 var workflowSettingsDescriptionClass = "ps-[var(--radius-lg,0.5rem)] [text-indent:-0.088em] text-sm leading-5 text-muted-foreground";
 function errorMessage(error) {
@@ -672,7 +702,9 @@ function uniqueNewStageTitle(stages) {
   return "Untitled Stage";
 }
 function StageActions({
+  hasEntryPrompt: hasEntryPrompt2,
   index,
+  onAddEntryPrompt,
   onMove,
   onRemove,
   stage,
@@ -780,6 +812,29 @@ function StageActions({
                   ]
                 }
               ),
+              hasEntryPrompt2 ? null : /* @__PURE__ */ jsxs(
+                "button",
+                {
+                  className: "flex min-h-8 items-center gap-2 rounded-md px-2 text-left text-sm hover:bg-muted",
+                  onClick: () => {
+                    setOpen(false);
+                    onAddEntryPrompt();
+                  },
+                  role: "menuitem",
+                  type: "button",
+                  children: [
+                    /* @__PURE__ */ jsx(
+                      HugeiconsIcon,
+                      {
+                        "aria-hidden": "true",
+                        className: "size-4",
+                        icon: PlusSignIcon
+                      }
+                    ),
+                    "Add entry prompt"
+                  ]
+                }
+              ),
               /* @__PURE__ */ jsxs(
                 "button",
                 {
@@ -872,7 +927,9 @@ function StageCard({
         ) : /* @__PURE__ */ jsx(
           StageActions,
           {
+            hasEntryPrompt: stage.entryPrompt !== void 0,
             index,
+            onAddEntryPrompt: () => update("entryPrompt", ""),
             onMove,
             onRemove,
             stage,
@@ -902,7 +959,77 @@ function StageCard({
               value: stage.rule
             }
           )
-        ] })
+        ] }),
+        !inbox && stage.entryPrompt !== void 0 ? /* @__PURE__ */ jsxs("div", { className: `${stageEntryPromptLayoutClass} grid gap-1`, children: [
+          /* @__PURE__ */ jsxs("label", { className: "grid gap-1", children: [
+            /* @__PURE__ */ jsxs("span", { className: "sr-only", children: [
+              "Prompt sent when a thread enters ",
+              stage.title
+            ] }),
+            /* @__PURE__ */ jsx(
+              "textarea",
+              {
+                "aria-label": `Prompt sent when a thread enters ${stage.title}`,
+                className: `${quietFieldClass} min-h-8 max-h-48 resize-none overflow-y-auto leading-5`,
+                maxLength: ENTRY_PROMPT_MAX_LENGTH,
+                onChange: (event) => update("entryPrompt", event.target.value),
+                placeholder: "Sent to a thread when it enters this stage. Variables: {{thread.title}}, {{stage.title}}",
+                rows: 2,
+                style: { fieldSizing: "content" },
+                value: stage.entryPrompt
+              }
+            )
+          ] }),
+          /* @__PURE__ */ jsxs("div", { className: "flex flex-wrap items-center gap-x-4 gap-y-1 px-2.5 text-xs text-muted-foreground", children: [
+            /* @__PURE__ */ jsxs("label", { className: "inline-flex items-center gap-1.5", children: [
+              /* @__PURE__ */ jsx(
+                "input",
+                {
+                  checked: stage.entryPromptOnAgentMove !== false,
+                  onChange: (event) => update(
+                    "entryPromptOnAgentMove",
+                    event.target.checked ? void 0 : false
+                  ),
+                  type: "checkbox"
+                }
+              ),
+              "Also when an agent moves it here"
+            ] }),
+            /* @__PURE__ */ jsxs("label", { className: "inline-flex items-center gap-1.5", children: [
+              "Deliver",
+              /* @__PURE__ */ jsxs(
+                "select",
+                {
+                  "aria-label": `Delivery for the ${stage.title} entry prompt`,
+                  className: "rounded-md border border-transparent bg-transparent py-0.5 text-xs text-foreground hover:border-border",
+                  onChange: (event) => update(
+                    "entryPromptDelivery",
+                    event.target.value === "steer" ? "steer" : void 0
+                  ),
+                  value: stage.entryPromptDelivery ?? "queue",
+                  children: [
+                    /* @__PURE__ */ jsx("option", { value: "queue", children: "after the current turn" }),
+                    /* @__PURE__ */ jsx("option", { value: "steer", children: "immediately" })
+                  ]
+                }
+              )
+            ] }),
+            /* @__PURE__ */ jsx(
+              "button",
+              {
+                className: "text-xs text-muted-foreground underline-offset-2 hover:text-foreground hover:underline",
+                onClick: () => onChange({
+                  ...stage,
+                  entryPrompt: void 0,
+                  entryPromptDelivery: void 0,
+                  entryPromptOnAgentMove: void 0
+                }),
+                type: "button",
+                children: "Remove prompt"
+              }
+            )
+          ] })
+        ] }) : null
       ] })
     }
   );

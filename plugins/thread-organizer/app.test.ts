@@ -327,6 +327,77 @@ describe("workflow settings", () => {
     rendered.lifecycle.unmount();
   });
 
+  it("adds an entry prompt from the stage menu and saves it", async () => {
+    const app = await loadApp();
+    const initial = configuredWorkflow();
+    let savedInput: EditableWorkflowConfig | null = null;
+    const rendered = renderSlot<{}, typeof rpcContract>(
+      app.settingsSections[0]!,
+      {},
+      {
+        rpc: {
+          getConfig: async () => initial,
+          saveConfig: async (input) => {
+            savedInput = input;
+            return {
+              ...input,
+              stages: input.stages.map((stage) => ({
+                ...stage,
+                sectionId:
+                  initial.stages.find(
+                    (candidate) => candidate.key === stage.key,
+                  )?.sectionId ?? null,
+              })),
+            };
+          },
+        },
+      },
+    );
+
+    await rendered.findByLabelText("More actions for Planning");
+    expect(
+      rendered.queryByLabelText("Prompt sent when a thread enters Planning"),
+    ).toBeNull();
+    fireEvent.click(rendered.getByLabelText("More actions for Planning"));
+    fireEvent.click(
+      rendered.getByRole("menuitem", { name: "Add entry prompt" }),
+    );
+    const prompt = rendered.getByLabelText(
+      "Prompt sent when a thread enters Planning",
+    ) as HTMLTextAreaElement;
+    expect(prompt.value).toBe("");
+    fireEvent.change(prompt, {
+      target: { value: "Run /slop-cop on {{thread.title}}." },
+    });
+    fireEvent.click(
+      rendered.getByLabelText("Also when an agent moves it here"),
+    );
+
+    fireEvent.click(rendered.getByLabelText("More actions for Planning"));
+    expect(
+      rendered.queryByRole("menuitem", { name: "Add entry prompt" }),
+    ).toBeNull();
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(
+      rendered.queryByLabelText("Prompt sent when a thread enters Inbox"),
+    ).toBeNull();
+
+    fireEvent.click(rendered.getByRole("button", { name: "Save" }));
+    await vi.waitFor(() => expect(savedInput).not.toBeNull());
+    expect(savedInput!.stages[1]).toMatchObject({
+      key: "planning",
+      entryPrompt: "Run /slop-cop on {{thread.title}}.",
+      entryPromptOnAgentMove: false,
+    });
+    expect(savedInput!.stages[2]).not.toHaveProperty("entryPrompt");
+
+    fireEvent.click(rendered.getByRole("button", { name: "Remove prompt" }));
+    expect(
+      rendered.queryByLabelText("Prompt sent when a thread enters Planning"),
+    ).toBeNull();
+    rendered.lifecycle.unmount();
+  });
+
   it("dismisses stage actions after Escape, outside press, and selection", async () => {
     const app = await loadApp();
     const rendered = renderSlot<{}, typeof rpcContract>(
