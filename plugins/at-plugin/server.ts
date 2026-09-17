@@ -8,7 +8,7 @@ import {
 } from "./community-catalog";
 import {
   type InstalledPluginRecord,
-  hasAgentFacingInterface,
+  isUsableInstalledTarget,
   searchInstalledPlugins,
 } from "./installed-catalog";
 import {
@@ -73,12 +73,6 @@ function unusableInstalledError(target: string): Error {
   );
 }
 
-function noAgentCapabilityError(target: string): Error {
-  return new Error(
-    `${target} no longer exposes an agent capability. Reload or update it, or remove @${target}, then retry.`,
-  );
-}
-
 function inventoryVerificationError(target: string): Error {
   return new Error(
     `${target} could not be verified right now. Retry, or remove @${target} to send without it.`,
@@ -124,8 +118,7 @@ function findInstalledPlugin(
 
 function resolveInstalledRecord(plugin: InstalledPluginRecord): { context: string } {
   const target = targetName(plugin);
-  if (plugin.status !== "running") throw unusableInstalledError(target);
-  if (!hasAgentFacingInterface(plugin)) throw noAgentCapabilityError(target);
+  if (!isUsableInstalledTarget(plugin)) throw unusableInstalledError(target);
 
   return {
     context: buildInstalledPluginContext({ name: target, pluginId: plugin.id }),
@@ -158,7 +151,7 @@ export default async function plugin(bb: BbPluginApi) {
     async search({ query }) {
       try {
         const inventory = await boundedSdkRead((signal) => bb.sdk.plugins.list({ signal }));
-        return searchInstalledPlugins(inventory.plugins, query, bb.pluginId);
+        return searchInstalledPlugins(inventory.plugins, query);
       } catch {
         return [];
       }

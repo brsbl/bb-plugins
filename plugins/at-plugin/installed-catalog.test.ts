@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 
 import {
   type InstalledPluginRecord,
-  hasAgentFacingInterface,
   isUsableInstalledTarget,
   searchInstalledPlugins,
 } from "./installed-catalog";
@@ -53,8 +52,7 @@ describe("Installed eligibility", () => {
     const skill = installed({ capabilities: [capability("skill")] });
     const tool = installed({ capabilities: [capability("agent-tool")] });
 
-    expect([cli, skill, tool].every(hasAgentFacingInterface)).toBe(true);
-    expect([cli, skill, tool].every((plugin) => isUsableInstalledTarget(plugin, "at-plugin"))).toBe(
+    expect([cli, skill, tool].every((plugin) => isUsableInstalledTarget(plugin))).toBe(
       true,
     );
   });
@@ -72,7 +70,7 @@ describe("Installed eligibility", () => {
       installed({ id: status, name: status, status, capabilities: [capability("skill")] }),
     );
 
-    expect(searchInstalledPlugins(plugins, "", "at-plugin")).toEqual([]);
+    expect(searchInstalledPlugins(plugins, "")).toEqual([]);
   });
 
   it("includes every enabled running plugin, including UI, themes, and itself", () => {
@@ -85,7 +83,7 @@ describe("Installed eligibility", () => {
       installed({ id: "disabled-flag", enabled: false }),
     ];
 
-    expect(searchInstalledPlugins(plugins, "plugin", "at-plugin").map(
+    expect(searchInstalledPlugins(plugins, "plugin").map(
       (item) => decodeInstalledItemId(item.id).pluginId,
     )).toEqual(["at-plugin", "mention-only", "nothing", "theme-only", "ui-only"]);
   });
@@ -103,13 +101,13 @@ describe("Installed discovery", () => {
       }),
     ];
 
-    expect(searchInstalledPlugins(plugins, "alpha plugin", "at-plugin").map((item) => item.title)).toEqual([
+    expect(searchInstalledPlugins(plugins, "alpha plugin").map((item) => item.title)).toEqual([
       "Alpha Plugin",
     ]);
-    expect(searchInstalledPlugins(plugins, "BETA-ID", "at-plugin").map((item) => item.title)).toEqual([
+    expect(searchInstalledPlugins(plugins, "BETA-ID").map((item) => item.title)).toEqual([
       "Beta",
     ]);
-    expect(searchInstalledPlugins(plugins, "frob", "at-plugin").map((item) => item.title)).toEqual([
+    expect(searchInstalledPlugins(plugins, "frob").map((item) => item.title)).toEqual([
       "Beta",
     ]);
   });
@@ -123,7 +121,7 @@ describe("Installed discovery", () => {
       installed({ id: "prefix-two", name: "Git Beta", capabilities: [capability("skill")] }),
     ];
 
-    expect(searchInstalledPlugins(plugins, "git", "at-plugin").map((item) => item.title)).toEqual([
+    expect(searchInstalledPlugins(plugins, "git").map((item) => item.title)).toEqual([
       "Git",
       "Zulu",
       "Git Alpha",
@@ -148,7 +146,7 @@ describe("Installed discovery", () => {
       }),
     ];
 
-    const items = searchInstalledPlugins(plugins, "", "at-plugin");
+    const items = searchInstalledPlugins(plugins, "");
     expect(items).toHaveLength(2);
     expect(items[0]?.subtitle).toMatch(/^github-one · First$/);
     expect(items[1]?.subtitle).toMatch(/^github-two · Second$/);
@@ -161,7 +159,7 @@ describe("Installed discovery", () => {
       description: `\u0085Description\t${"界".repeat(200)}`,
       capabilities: [capability("skill")],
     });
-    const [item] = searchInstalledPlugins([plugin], "", "at-plugin");
+    const [item] = searchInstalledPlugins([plugin], "");
 
     expect(item?.title).not.toMatch(/[\u0000-\u001f\u007f-\u009f]/u);
     expect(item?.subtitle).not.toMatch(/[\u0000-\u001f\u007f-\u009f]/u);
@@ -179,6 +177,6 @@ describe("Installed discovery", () => {
       }),
     );
 
-    expect(searchInstalledPlugins(plugins, "", "at-plugin")).toHaveLength(6);
+    expect(searchInstalledPlugins(plugins, "")).toHaveLength(6);
   });
 });
