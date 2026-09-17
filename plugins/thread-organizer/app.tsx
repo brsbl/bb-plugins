@@ -222,6 +222,17 @@ function StageCard({
     key: Key,
     value: EditableWorkflowStage[Key],
   ) => onChange({ ...stage, [key]: value });
+  const hasPrompt = (stage.entryPrompt ?? "").trim().length > 0;
+  const [promptExpanded, setPromptExpanded] = useState(hasPrompt);
+  const [focusPromptPending, setFocusPromptPending] = useState(false);
+  const promptRef = useRef<HTMLTextAreaElement>(null);
+  const showPrompt = promptExpanded || hasPrompt;
+
+  useEffect(() => {
+    if (!focusPromptPending || promptRef.current === null) return;
+    setFocusPromptPending(false);
+    promptRef.current.focus();
+  }, [focusPromptPending]);
 
   return (
     <article
@@ -307,20 +318,51 @@ function StageCard({
             —
           </span>
         ) : (
-          <label className={`${stagePromptLayoutClass} mt-2 grid gap-0.5 lg:mt-0`}>
-            <span className={`${fieldCaptionClass} px-2.5 lg:sr-only`}>
-              Entry prompt
-            </span>
-            <textarea
-              aria-label={`Entry prompt for ${stage.title}`}
-              className={`${fieldClass} min-h-8 max-h-48 resize-none overflow-y-auto leading-5`}
-              maxLength={ENTRY_PROMPT_MAX_LENGTH}
-              onChange={(event) => update("entryPrompt", event.target.value)}
-              rows={2}
-              style={{ fieldSizing: "content" }}
-              value={stage.entryPrompt ?? ""}
-            />
-          </label>
+          <>
+            {showPrompt ? null : (
+              <button
+                className={`${stagePromptLayoutClass} mt-2 inline-flex h-8 items-center gap-1.5 justify-self-start rounded-md border border-dashed border-border px-2.5 text-xs font-medium text-muted-foreground hover:border-foreground/40 hover:text-foreground lg:hidden`}
+                onClick={() => {
+                  setPromptExpanded(true);
+                  setFocusPromptPending(true);
+                }}
+                type="button"
+              >
+                <HugeiconsIcon
+                  aria-hidden="true"
+                  className="size-3.5"
+                  icon={PlusSignIcon}
+                />
+                Add entry prompt
+              </button>
+            )}
+            <label
+              className={`${stagePromptLayoutClass} mt-2 gap-0.5 lg:mt-0 ${showPrompt ? "grid" : "hidden lg:grid"}`}
+            >
+              <span className={`${fieldCaptionClass} px-2.5 lg:sr-only`}>
+                Entry prompt
+              </span>
+              <textarea
+                aria-label={`Entry prompt for ${stage.title}`}
+                className={`${fieldClass} min-h-8 max-h-48 resize-none overflow-y-auto leading-5`}
+                maxLength={ENTRY_PROMPT_MAX_LENGTH}
+                onChange={(event) => update("entryPrompt", event.target.value)}
+                ref={promptRef}
+                rows={2}
+                style={{ fieldSizing: "content" }}
+                value={stage.entryPrompt ?? ""}
+              />
+            </label>
+            {showPrompt && !hasPrompt ? (
+              <button
+                className="col-span-2 col-start-1 row-start-4 mt-1 justify-self-end text-xs text-muted-foreground hover:text-foreground lg:hidden"
+                onClick={() => setPromptExpanded(false)}
+                type="button"
+              >
+                Dismiss
+              </button>
+            ) : null}
+          </>
         )}
       </div>
     </article>

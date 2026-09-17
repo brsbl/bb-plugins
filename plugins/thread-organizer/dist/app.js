@@ -843,6 +843,16 @@ function StageCard({
 }) {
   const inbox = stage.role === "inbox";
   const update = (key, value) => onChange({ ...stage, [key]: value });
+  const hasPrompt = (stage.entryPrompt ?? "").trim().length > 0;
+  const [promptExpanded, setPromptExpanded] = useState(hasPrompt);
+  const [focusPromptPending, setFocusPromptPending] = useState(false);
+  const promptRef = useRef(null);
+  const showPrompt = promptExpanded || hasPrompt;
+  useEffect(() => {
+    if (!focusPromptPending || promptRef.current === null) return;
+    setFocusPromptPending(false);
+    promptRef.current.focus();
+  }, [focusPromptPending]);
   return /* @__PURE__ */ jsx(
     "article",
     {
@@ -929,20 +939,60 @@ function StageCard({
             className: `${stagePromptLayoutClass} hidden px-2.5 py-1.5 text-sm leading-5 text-muted-foreground lg:block`,
             children: "\u2014"
           }
-        ) : /* @__PURE__ */ jsxs("label", { className: `${stagePromptLayoutClass} mt-2 grid gap-0.5 lg:mt-0`, children: [
-          /* @__PURE__ */ jsx("span", { className: `${fieldCaptionClass} px-2.5 lg:sr-only`, children: "Entry prompt" }),
-          /* @__PURE__ */ jsx(
-            "textarea",
+        ) : /* @__PURE__ */ jsxs(Fragment2, { children: [
+          showPrompt ? null : /* @__PURE__ */ jsxs(
+            "button",
             {
-              "aria-label": `Entry prompt for ${stage.title}`,
-              className: `${fieldClass} min-h-8 max-h-48 resize-none overflow-y-auto leading-5`,
-              maxLength: ENTRY_PROMPT_MAX_LENGTH,
-              onChange: (event) => update("entryPrompt", event.target.value),
-              rows: 2,
-              style: { fieldSizing: "content" },
-              value: stage.entryPrompt ?? ""
+              className: `${stagePromptLayoutClass} mt-2 inline-flex h-8 items-center gap-1.5 justify-self-start rounded-md border border-dashed border-border px-2.5 text-xs font-medium text-muted-foreground hover:border-foreground/40 hover:text-foreground lg:hidden`,
+              onClick: () => {
+                setPromptExpanded(true);
+                setFocusPromptPending(true);
+              },
+              type: "button",
+              children: [
+                /* @__PURE__ */ jsx(
+                  HugeiconsIcon,
+                  {
+                    "aria-hidden": "true",
+                    className: "size-3.5",
+                    icon: PlusSignIcon
+                  }
+                ),
+                "Add entry prompt"
+              ]
             }
-          )
+          ),
+          /* @__PURE__ */ jsxs(
+            "label",
+            {
+              className: `${stagePromptLayoutClass} mt-2 gap-0.5 lg:mt-0 ${showPrompt ? "grid" : "hidden lg:grid"}`,
+              children: [
+                /* @__PURE__ */ jsx("span", { className: `${fieldCaptionClass} px-2.5 lg:sr-only`, children: "Entry prompt" }),
+                /* @__PURE__ */ jsx(
+                  "textarea",
+                  {
+                    "aria-label": `Entry prompt for ${stage.title}`,
+                    className: `${fieldClass} min-h-8 max-h-48 resize-none overflow-y-auto leading-5`,
+                    maxLength: ENTRY_PROMPT_MAX_LENGTH,
+                    onChange: (event) => update("entryPrompt", event.target.value),
+                    ref: promptRef,
+                    rows: 2,
+                    style: { fieldSizing: "content" },
+                    value: stage.entryPrompt ?? ""
+                  }
+                )
+              ]
+            }
+          ),
+          showPrompt && !hasPrompt ? /* @__PURE__ */ jsx(
+            "button",
+            {
+              className: "col-span-2 col-start-1 row-start-4 mt-1 justify-self-end text-xs text-muted-foreground hover:text-foreground lg:hidden",
+              onClick: () => setPromptExpanded(false),
+              type: "button",
+              children: "Dismiss"
+            }
+          ) : null
         ] })
       ] })
     }
