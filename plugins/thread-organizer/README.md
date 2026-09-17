@@ -69,8 +69,8 @@ than three entry prompts in half an hour; a refused prompt is logged as a
 warning. If the thread cannot take a message yet, the prompt is retried on the
 thread’s next change, at most every thirty seconds, for up to a day.
 
-Prompts may use `{{thread.title}}`, `{{thread.id}}`, `{{stage.title}}`, and
-`{{stage.key}}`.
+Prompts may use `{{thread.title}}`, `{{thread.id}}`, `{{section.title}}`, and
+`{{section.key}}`; `{{stage.title}}` and `{{stage.key}}` are accepted aliases.
 
 ### Move a thread
 

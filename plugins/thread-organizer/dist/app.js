@@ -878,6 +878,7 @@ function StageCard({
           "input",
           {
             "aria-label": `${stage.title || "Untitled section"} section title`,
+            "data-stage-key": stage.key,
             className: "h-8 min-w-0 flex-1 rounded-md border border-transparent bg-transparent px-1.5 text-sm font-semibold text-foreground outline-none hover:border-border focus:border-foreground/45 focus:bg-background",
             maxLength: 80,
             onChange: (event) => update("title", event.target.value),
@@ -934,7 +935,7 @@ function StageCard({
         ) : /* @__PURE__ */ jsxs("label", { className: `${stagePromptLayoutClass} grid gap-1`, children: [
           /* @__PURE__ */ jsxs("span", { className: `${fieldCaptionClass} px-2.5 lg:sr-only`, children: [
             "Entry prompt",
-            /* @__PURE__ */ jsx("span", { className: fieldHintClass, children: "sent to the thread when it lands here" })
+            /* @__PURE__ */ jsx("span", { className: fieldHintClass, children: "sent when a thread lands here" })
           ] }),
           /* @__PURE__ */ jsx(
             "textarea",
@@ -961,6 +962,10 @@ function WorkflowSettings() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
   const [saved, setSaved] = useState(false);
+  const [pendingFocusKey, setPendingFocusKey] = useState(
+    null
+  );
+  const listRef = useRef(null);
   const editRevisionRef = useRef(0);
   const dirtyRef = useRef(false);
   const savingRef = useRef(false);
@@ -992,6 +997,18 @@ function WorkflowSettings() {
     dirtyRef.current = true;
     setSaved(false);
   };
+  useEffect(() => {
+    if (pendingFocusKey === null) return;
+    const input = listRef.current?.querySelector(
+      `input[data-stage-key="${pendingFocusKey}"]`
+    );
+    if (!input) return;
+    setPendingFocusKey(null);
+    input.focus();
+    if (typeof input.scrollIntoView === "function") {
+      input.scrollIntoView({ block: "nearest" });
+    }
+  }, [config, pendingFocusKey]);
   const replaceStage = (index, stage) => {
     markEdited();
     setConfig(
@@ -1028,6 +1045,7 @@ function WorkflowSettings() {
       config.stages.map((stage) => stage.key)
     );
     markEdited();
+    setPendingFocusKey(key);
     setConfig({
       ...config,
       stages: [
@@ -1121,37 +1139,59 @@ function WorkflowSettings() {
       )
     ] }),
     error ? /* @__PURE__ */ jsx("p", { className: "text-sm text-destructive", role: "alert", children: error }) : null,
-    /* @__PURE__ */ jsxs("div", { className: "min-w-0 overflow-visible rounded-lg border border-border", children: [
-      /* @__PURE__ */ jsxs("div", { className: stageHeaderClass, children: [
-        /* @__PURE__ */ jsx("span", {}),
-        /* @__PURE__ */ jsx("span", { className: `${fieldCaptionClass} px-1.5`, children: "Section" }),
-        /* @__PURE__ */ jsxs("span", { className: `${fieldCaptionClass} px-2.5`, children: [
-          "Rule",
-          /* @__PURE__ */ jsx("span", { className: fieldHintClass, children: "what belongs here" })
-        ] }),
-        /* @__PURE__ */ jsxs("span", { className: `${fieldCaptionClass} px-2.5`, children: [
-          "Entry prompt",
-          /* @__PURE__ */ jsx("span", { className: fieldHintClass, children: "sent to the thread when it lands here" })
-        ] }),
-        /* @__PURE__ */ jsx("span", {})
-      ] }),
-      config.stages.map((stage, index) => /* @__PURE__ */ jsx(
-        StageCard,
-        {
-          index,
-          onChange: (next) => replaceStage(index, next),
-          onDragStart: setDraggedIndex,
-          onDrop: (target) => {
-            if (draggedIndex !== null) moveStage(draggedIndex, target);
-            setDraggedIndex(null);
-          },
-          onMove: (stageIndex, direction) => moveStage(stageIndex, stageIndex + direction),
-          onRemove: removeStage,
-          stage,
-          stageCount: config.stages.length
-        },
-        stage.key
-      ))
+    /* @__PURE__ */ jsxs(
+      "div",
+      {
+        className: "min-w-0 overflow-visible rounded-lg border border-border",
+        ref: listRef,
+        children: [
+          /* @__PURE__ */ jsxs("div", { className: stageHeaderClass, children: [
+            /* @__PURE__ */ jsx("span", {}),
+            /* @__PURE__ */ jsx("span", { className: `${fieldCaptionClass} px-1.5`, children: "Section" }),
+            /* @__PURE__ */ jsxs("span", { className: `${fieldCaptionClass} px-2.5`, children: [
+              "Rule",
+              /* @__PURE__ */ jsx("span", { className: fieldHintClass, children: "what belongs here" })
+            ] }),
+            /* @__PURE__ */ jsxs("span", { className: `${fieldCaptionClass} px-2.5`, children: [
+              "Entry prompt",
+              /* @__PURE__ */ jsx("span", { className: fieldHintClass, children: "sent when a thread lands here" })
+            ] }),
+            /* @__PURE__ */ jsx("span", {})
+          ] }),
+          config.stages.map((stage, index) => /* @__PURE__ */ jsx(
+            StageCard,
+            {
+              index,
+              onChange: (next) => replaceStage(index, next),
+              onDragStart: setDraggedIndex,
+              onDrop: (target) => {
+                if (draggedIndex !== null) moveStage(draggedIndex, target);
+                setDraggedIndex(null);
+              },
+              onMove: (stageIndex, direction) => moveStage(stageIndex, stageIndex + direction),
+              onRemove: removeStage,
+              stage,
+              stageCount: config.stages.length
+            },
+            stage.key
+          ))
+        ]
+      }
+    ),
+    /* @__PURE__ */ jsxs("p", { className: "text-xs text-muted-foreground", children: [
+      "Entry prompts can use",
+      " ",
+      /* @__PURE__ */ jsx("code", { className: "font-mono", children: "{{thread.title}}" }),
+      ",",
+      " ",
+      /* @__PURE__ */ jsx("code", { className: "font-mono", children: "{{thread.id}}" }),
+      ",",
+      " ",
+      /* @__PURE__ */ jsx("code", { className: "font-mono", children: "{{section.title}}" }),
+      ", and",
+      " ",
+      /* @__PURE__ */ jsx("code", { className: "font-mono", children: "{{section.key}}" }),
+      "."
     ] })
   ] });
 }

@@ -373,6 +373,9 @@
     .\[text-indent\:-0\.088em\] {
       text-indent: -0.088em;
     }
+    .font-mono {
+      font-family: var(--font-mono);
+    }
     .text-sm {
       font-size: var(--text-sm);
       line-height: var(--tw-leading, var(--text-sm--line-height));

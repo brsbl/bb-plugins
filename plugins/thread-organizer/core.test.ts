@@ -385,6 +385,12 @@ describe("entry prompts", () => {
     );
     expect(rendered).toBe("Fix it → Review (review, thr_1) {{nope.x}}");
     expect(
+      core.renderEntryPrompt("{{section.title}} ({{section.key}})", {
+        stage: { key: "review", title: "Review" },
+        thread: { id: "thr_1", title: "" },
+      }),
+    ).toBe("Review (review)");
+    expect(
       core.entryPromptMessage(
         { key: "review", role: "stage", rule: "r", title: "Review", entryPrompt: "Do {{stage.key}}." },
         { stage: { key: "review", title: "Review" }, thread: { id: "thr_1", title: "" } },

@@ -333,6 +333,8 @@ export function renderEntryPrompt(
   variables: EntryPromptVariables,
 ): string {
   const values: Record<string, string> = {
+    "section.key": variables.stage.key,
+    "section.title": variables.stage.title,
     "stage.key": variables.stage.key,
     "stage.title": variables.stage.title,
     "thread.id": variables.thread.id,

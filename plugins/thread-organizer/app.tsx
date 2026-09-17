@@ -257,6 +257,7 @@ function StageCard({
         )}
         <input
           aria-label={`${stage.title || "Untitled section"} section title`}
+          data-stage-key={stage.key}
           className="h-8 min-w-0 flex-1 rounded-md border border-transparent bg-transparent px-1.5 text-sm font-semibold text-foreground outline-none hover:border-border focus:border-foreground/45 focus:bg-background"
           maxLength={80}
           onChange={(event) => update("title", event.target.value)}
@@ -311,7 +312,7 @@ function StageCard({
             <span className={`${fieldCaptionClass} px-2.5 lg:sr-only`}>
               Entry prompt
               <span className={fieldHintClass}>
-                sent to the thread when it lands here
+                sent when a thread lands here
               </span>
             </span>
             <textarea
@@ -338,6 +339,10 @@ export function WorkflowSettings() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
+  const [pendingFocusKey, setPendingFocusKey] = useState<string | null>(
+    null,
+  );
+  const listRef = useRef<HTMLDivElement>(null);
   const editRevisionRef = useRef(0);
   const dirtyRef = useRef(false);
   const savingRef = useRef(false);
@@ -376,6 +381,19 @@ export function WorkflowSettings() {
     dirtyRef.current = true;
     setSaved(false);
   };
+
+  useEffect(() => {
+    if (pendingFocusKey === null) return;
+    const input = listRef.current?.querySelector<HTMLInputElement>(
+      `input[data-stage-key="${pendingFocusKey}"]`,
+    );
+    if (!input) return;
+    setPendingFocusKey(null);
+    input.focus();
+    if (typeof input.scrollIntoView === "function") {
+      input.scrollIntoView({ block: "nearest" });
+    }
+  }, [config, pendingFocusKey]);
 
   const replaceStage = (index: number, stage: EditableWorkflowStage) => {
     markEdited();
@@ -418,6 +436,7 @@ export function WorkflowSettings() {
       config.stages.map((stage) => stage.key),
     );
     markEdited();
+    setPendingFocusKey(key);
     setConfig({
       ...config,
       stages: [
@@ -515,7 +534,10 @@ export function WorkflowSettings() {
         </p>
       ) : null}
 
-      <div className="min-w-0 overflow-visible rounded-lg border border-border">
+      <div
+        className="min-w-0 overflow-visible rounded-lg border border-border"
+        ref={listRef}
+      >
         <div className={stageHeaderClass}>
           <span />
           <span className={`${fieldCaptionClass} px-1.5`}>Section</span>
@@ -526,7 +548,7 @@ export function WorkflowSettings() {
           <span className={`${fieldCaptionClass} px-2.5`}>
             Entry prompt
             <span className={fieldHintClass}>
-              sent to the thread when it lands here
+              sent when a thread lands here
             </span>
           </span>
           <span />
@@ -550,6 +572,13 @@ export function WorkflowSettings() {
           />
         ))}
       </div>
+      <p className="text-xs text-muted-foreground">
+        Entry prompts can use{" "}
+        <code className="font-mono">{"{{thread.title}}"}</code>,{" "}
+        <code className="font-mono">{"{{thread.id}}"}</code>,{" "}
+        <code className="font-mono">{"{{section.title}}"}</code>, and{" "}
+        <code className="font-mono">{"{{section.key}}"}</code>.
+      </p>
     </div>
   );
 }

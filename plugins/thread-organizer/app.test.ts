@@ -327,6 +327,51 @@ describe("workflow settings", () => {
     rendered.lifecycle.unmount();
   });
 
+  it("reveals and focuses the new section after Add section and lists the prompt variables", async () => {
+    const app = await loadApp();
+    const initial = configuredWorkflow();
+    const scrolled: Element[] = [];
+    Object.defineProperty(HTMLElement.prototype, "scrollIntoView", {
+      configurable: true,
+      value: function (this: Element) {
+        scrolled.push(this);
+      },
+    });
+    const rendered = renderSlot<{}, typeof rpcContract>(
+      app.settingsSections[0]!,
+      {},
+      {
+        rpc: {
+          getConfig: async () => initial,
+          saveConfig: async (input) => ({
+            ...input,
+            stages: input.stages.map((stage) => ({
+              ...stage,
+              sectionId:
+                initial.stages.find((candidate) => candidate.key === stage.key)
+                  ?.sectionId ?? null,
+            })),
+          }),
+        },
+      },
+    );
+
+    await rendered.findByLabelText("Planning section title");
+    expect(rendered.getByText(/Entry prompts can use/).textContent).toContain(
+      "{{section.title}}",
+    );
+    expect(
+      rendered.getByText("sent when a thread lands here", { exact: false }),
+    ).toBeTruthy();
+
+    fireEvent.click(rendered.getByRole("button", { name: "Add section" }));
+    const title = await rendered.findByLabelText("New Section section title");
+    await vi.waitFor(() => expect(scrolled).toContain(title));
+    rendered.lifecycle.unmount();
+    delete (HTMLElement.prototype as unknown as Record<string, unknown>)
+      .scrollIntoView;
+  });
+
   it("saves an entry prompt typed into the section's field and clears it when emptied", async () => {
     const app = await loadApp();
     const initial = configuredWorkflow();
