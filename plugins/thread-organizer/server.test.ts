@@ -1122,7 +1122,7 @@ describe("entry prompts", () => {
     await organizer.harness.lifecycle.dispose();
   });
 
-  it("queues the entry prompt when an agent moves an active thread with the CLI, unless the stage opts out", async () => {
+  it("sends the entry prompt when an agent moves an active thread with the CLI", async () => {
     const organizer = createHarness();
     await plugin(organizer.bb);
     organizer.setThread({
@@ -1135,7 +1135,6 @@ describe("entry prompts", () => {
     });
     await saveStagePatch(organizer, "testing-deploy", {
       entryPrompt: "Run the release checks.",
-      entryPromptOnAgentMove: false,
     });
 
     await expect(
@@ -1163,9 +1162,9 @@ describe("entry prompts", () => {
         threadId: "thr_test",
       }),
     ).resolves.toMatchObject({
-      stdout: "Applied Testing / Deploy to thr_test.\n",
+      stdout: "Applied Testing / Deploy to thr_test. Sent its entry prompt.\n",
     });
-    expect(organizer.sendMessage).toHaveBeenCalledTimes(1);
+    expect(organizer.sendMessage).toHaveBeenCalledTimes(2);
     await organizer.harness.lifecycle.dispose();
   });
 
@@ -1394,49 +1393,6 @@ describe("entry prompts", () => {
     await organizer.harness.lifecycle.dispose();
   });
 
-  it("keeps an opted-out agent landing silent but fires when the user moves the thread back in", async () => {
-    const organizer = createHarness();
-    await plugin(organizer.bb);
-    organizer.setThread({
-      status: "active",
-      lastReadAt: 10,
-      latestAttentionAt: 10,
-    });
-    const config = await saveStagePatch(organizer, "handoff", {
-      entryPrompt: "Package the handoff.",
-      entryPromptOnAgentMove: false,
-    });
-    const sectionId = (key: string) =>
-      config.stages.find((stage) => stage.key === key)!.sectionId;
-
-    await organizer.harness.behavior.runCli(["phase", "handoff"], {
-      threadId: "thr_test",
-    });
-    expect(organizer.sendMessage).not.toHaveBeenCalled();
-    await expect(threadState(organizer)).resolves.toMatchObject({
-      suppressedEntryStageKey: "handoff",
-      lastLandedStageKey: "handoff",
-    });
-
-    organizer.setThread({ status: "idle", latestAttentionAt: 20 });
-    await organizer.harness.behavior.emitThreadEvent("thread.idle", {
-      thread: organizer.current(),
-      lastAssistantText: null,
-    });
-    expect(organizer.current().sectionId).toBe(sectionId("inbox"));
-
-    organizer.setThread({ lastReadAt: 20, sectionId: sectionId("handoff") });
-    organizer.emitChanged("order-changed");
-    await vi.waitFor(() =>
-      expect(organizer.sendMessage).toHaveBeenCalledTimes(1),
-    );
-    await expect(threadState(organizer)).resolves.toMatchObject({
-      suppressedEntryStageKey: null,
-      pendingEntryPrompt: null,
-    });
-    await organizer.harness.lifecycle.dispose();
-  });
-
   it("retracts a queued entry prompt when the thread moves on before it dispatches", async () => {
     const organizer = createHarness();
     await plugin(organizer.bb);
@@ -1481,43 +1437,6 @@ describe("entry prompts", () => {
       lastLandedStageKey: "on-hold",
     });
     expect(organizer.sendMessage).toHaveBeenCalledTimes(1);
-    await organizer.harness.lifecycle.dispose();
-  });
-
-  it("honors the opt-out when an agent move lands only after the thread is read", async () => {
-    const organizer = createHarness();
-    await plugin(organizer.bb);
-    organizer.setThread({
-      status: "idle",
-      lastReadAt: 10,
-      latestAttentionAt: 10,
-    });
-    const config = await saveStagePatch(organizer, "testing-deploy", {
-      entryPrompt: "Run the release checks.",
-      entryPromptOnAgentMove: false,
-    });
-    const sectionId = (key: string) =>
-      config.stages.find((stage) => stage.key === key)!.sectionId;
-
-    organizer.setThread({ latestAttentionAt: 20 });
-    await organizer.harness.behavior.runCli(["phase", "testing-deploy"], {
-      threadId: "thr_test",
-    });
-    expect(organizer.current().sectionId).toBe(sectionId("inbox"));
-    await expect(threadState(organizer)).resolves.toMatchObject({
-      deferredAgentMoveStageKey: "testing-deploy",
-    });
-
-    organizer.setThread({ lastReadAt: 20, status: "starting" });
-    await organizer.harness.behavior.emitThreadEvent("thread.active", {
-      thread: organizer.current(),
-    });
-    expect(organizer.current().sectionId).toBe(sectionId("testing-deploy"));
-    expect(organizer.sendMessage).not.toHaveBeenCalled();
-    await expect(threadState(organizer)).resolves.toMatchObject({
-      deferredAgentMoveStageKey: null,
-      suppressedEntryStageKey: "testing-deploy",
-    });
     await organizer.harness.lifecycle.dispose();
   });
 

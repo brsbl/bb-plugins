@@ -1,7 +1,6 @@
 export const WORKFLOW_CONFIG_VERSION = 2 as const;
 
 export type WorkflowStageRole = "inbox" | "stage";
-export type EntryPromptDelivery = "queue" | "steer";
 
 export const ENTRY_PROMPT_MAX_LENGTH = 2000;
 export const RENDERED_ENTRY_PROMPT_MAX_LENGTH = 8000;
@@ -9,10 +8,6 @@ export const RENDERED_ENTRY_PROMPT_MAX_LENGTH = 8000;
 export interface EditableWorkflowStage {
   /** Sent to a thread when it lands in this stage; omitted when unset. */
   entryPrompt?: string;
-  /** Only stored when "steer"; the default queues after the current turn. */
-  entryPromptDelivery?: EntryPromptDelivery;
-  /** Only stored when false; agent moves via `bb organizer phase` fire by default. */
-  entryPromptOnAgentMove?: boolean;
   key: string;
   role: WorkflowStageRole;
   rule: string;
@@ -155,8 +150,6 @@ function parseStage(value: unknown, withSectionId: boolean): WorkflowStage {
     typeof value.entryPrompt === "string"
       ? value.entryPrompt.normalize("NFKC").replace(/\r\n?/gu, "\n").trim()
       : "";
-  const entryPromptDelivery = value.entryPromptDelivery;
-  const entryPromptOnAgentMove = value.entryPromptOnAgentMove;
   const sectionId = withSectionId
     ? value.sectionId === null || typeof value.sectionId === "string"
       ? value.sectionId
@@ -182,38 +175,13 @@ function parseStage(value: unknown, withSectionId: boolean): WorkflowStage {
       `Stage "${key}" entry prompt must be at most ${ENTRY_PROMPT_MAX_LENGTH} characters.`,
     );
   }
-  if (
-    entryPromptDelivery !== undefined &&
-    entryPromptDelivery !== "queue" &&
-    entryPromptDelivery !== "steer"
-  ) {
-    throw new Error(`Stage "${key}" has an invalid entry prompt delivery.`);
-  }
-  if (
-    entryPromptOnAgentMove !== undefined &&
-    typeof entryPromptOnAgentMove !== "boolean"
-  ) {
-    throw new Error(
-      `Stage "${key}" has an invalid entry prompt agent-move setting.`,
-    );
-  }
   return {
     key,
     title,
     rule,
     role,
     // Defaults are not persisted, so configs without prompts stay byte-stable.
-    ...(entryPrompt.length > 0
-      ? {
-          entryPrompt,
-          ...(entryPromptDelivery === "steer"
-            ? { entryPromptDelivery: "steer" as const }
-            : {}),
-          ...(entryPromptOnAgentMove === false
-            ? { entryPromptOnAgentMove: false }
-            : {}),
-        }
-      : {}),
+    ...(entryPrompt.length > 0 ? { entryPrompt } : {}),
     sectionId: sectionId && sectionId.trim().length > 0 ? sectionId : null,
   };
 }
@@ -470,17 +438,12 @@ export function placementForThread(
 
 function entryPromptGuidance(config: WorkflowConfig): string[] {
   const keys = config.stages
-    .filter(
-      (stage) =>
-        stage.role === "stage" &&
-        hasEntryPrompt(stage) &&
-        stage.entryPromptOnAgentMove !== false,
-    )
+    .filter((stage) => stage.role === "stage" && hasEntryPrompt(stage))
     .map((stage) => `\`${stage.key}\``);
   if (keys.length === 0) return [];
   return [
     "",
-    `Entering ${keys.join(", ")} sends that stage’s entry prompt to this thread as a follow-up message — queued until your current turn ends, or steering the live turn where the stage says so. Run \`bb organizer phase\` only when the thread’s primary activity has genuinely changed — never as a shortcut to trigger that prompt, and never twice for the same stage. After moving, end your turn promptly so the prompt can dispatch.`,
+    `Entering ${keys.join(", ")} sends that stage’s entry prompt to this thread as a follow-up message, queued until your current turn ends. Run \`bb organizer phase\` only when the thread’s primary activity has genuinely changed — never as a shortcut to trigger that prompt, and never twice for the same stage. After moving, end your turn promptly so the prompt can dispatch.`,
   ];
 }
 

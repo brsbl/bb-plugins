@@ -48,8 +48,9 @@ const editableStageSchema = z
     // section icons were removed keep validating.
     icon: z.unknown().optional(),
     entryPrompt: z.string().max(ENTRY_PROMPT_MAX_LENGTH).optional(),
-    entryPromptDelivery: z.enum(["queue", "steer"]).optional(),
-    entryPromptOnAgentMove: z.boolean().optional(),
+    // Accepted and discarded: written by the first entry-prompt build.
+    entryPromptDelivery: z.unknown().optional(),
+    entryPromptOnAgentMove: z.unknown().optional(),
     key: z.string().min(1).max(40),
     role: z.enum(["inbox", "stage"]),
     rule: z.string().min(1).max(240),
@@ -124,10 +125,6 @@ interface EntryPromptRecord {
 // Version stays 5: every field after rememberedStageKey is optional on read so
 // an older build can still open this record, and absent fields are seeded.
 interface ThreadWorkflowState {
-  /** An explicit agent move whose landing Inbox routing deferred. */
-  deferredAgentMoveStageKey: string | null;
-  /** The plugin's own last placement, Inbox included, to spot outside moves. */
-  lastDestinationKey: string | null;
   /** The last workflow stage the thread landed in; Inbox never counts. */
   lastLandedStageKey: string | null;
   pendingEntryPrompt: PendingEntryPrompt | null;
@@ -135,8 +132,6 @@ interface ThreadWorkflowState {
   queuedEntryPrompt: QueuedEntryPrompt | null;
   recentEntryPrompts: EntryPromptRecord[];
   rememberedStageKey: string;
-  /** An agent landed here while the stage opts out; an outside move in still fires. */
-  suppressedEntryStageKey: string | null;
   version: 5;
 }
 
@@ -402,13 +397,6 @@ export default async function plugin(bb: BbPluginApi): Promise<void> {
               "lastLandedStageKey" in value
                 ? parseStageKeyOrNull(value.lastLandedStageKey)
                 : remembered.key,
-            lastDestinationKey: parseStageKeyOrNull(value.lastDestinationKey),
-            suppressedEntryStageKey: parseStageKeyOrNull(
-              value.suppressedEntryStageKey,
-            ),
-            deferredAgentMoveStageKey: parseStageKeyOrNull(
-              value.deferredAgentMoveStageKey,
-            ),
             pendingEntryPrompt: parsePendingEntryPrompt(
               value.pendingEntryPrompt,
             ),
@@ -441,9 +429,6 @@ export default async function plugin(bb: BbPluginApi): Promise<void> {
       version: 5,
       rememberedStageKey: remembered.key,
       lastLandedStageKey: remembered.key,
-      lastDestinationKey: null,
-      suppressedEntryStageKey: null,
-      deferredAgentMoveStageKey: null,
       pendingEntryPrompt: null,
       queuedEntryPrompt: null,
       recentEntryPrompts: [],
@@ -471,12 +456,6 @@ export default async function plugin(bb: BbPluginApi): Promise<void> {
     if (!isManageableThread(thread)) return null;
     const { created, state } = await readThreadState(thread);
     const currentStage = stageForSectionId(configSnapshot, thread.sectionId);
-    // A section the plugin did not put the thread in means someone else did.
-    const externalPlacement =
-      !created &&
-      currentStage !== null &&
-      state.lastDestinationKey !== null &&
-      currentStage.key !== state.lastDestinationKey;
 
     if (explicitStageKey) {
       state.rememberedStageKey = explicitStageKey;
@@ -516,32 +495,12 @@ export default async function plugin(bb: BbPluginApi): Promise<void> {
     // so the plugin's own Inbox round trips cannot re-trigger an entry prompt.
     const landedStageKey =
       destination.role === "stage" ? destination.key : state.lastLandedStageKey;
-    const landingChanged =
-      landedStageKey !== null && landedStageKey !== state.lastLandedStageKey;
-    const agentMove =
-      explicitStageKey !== undefined ||
-      (landedStageKey !== null &&
-        state.deferredAgentMoveStageKey === landedStageKey &&
-        !externalPlacement);
-    // An agent landed here while the stage opts out; the user moving the
-    // thread back in from outside is still an entry.
-    const resumedSuppressed =
-      !landingChanged &&
-      landedStageKey !== null &&
-      state.suppressedEntryStageKey === landedStageKey &&
-      externalPlacement &&
-      explicitStageKey === undefined;
     const entered =
-      !created && !seedLanding && (landingChanged || resumedSuppressed);
-
-    if (explicitStageKey !== undefined && destination.role === "inbox") {
-      state.deferredAgentMoveStageKey = explicitStageKey;
-    } else if (landingChanged) {
-      state.deferredAgentMoveStageKey = null;
-      state.suppressedEntryStageKey = null;
-    }
+      !created &&
+      !seedLanding &&
+      landedStageKey !== null &&
+      landedStageKey !== state.lastLandedStageKey;
     state.lastLandedStageKey = landedStageKey;
-    state.lastDestinationKey = destination.key;
 
     // The thread's real target moved on; anything still aimed at the old
     // stage must not fire.
@@ -562,16 +521,11 @@ export default async function plugin(bb: BbPluginApi): Promise<void> {
     }
 
     if (entered && hasEntryPrompt(destination)) {
-      if (agentMove && destination.entryPromptOnAgentMove === false) {
-        state.suppressedEntryStageKey = destination.key;
-      } else {
-        state.suppressedEntryStageKey = null;
-        state.pendingEntryPrompt = {
-          attempts: 0,
-          enteredAt: Date.now(),
-          stageKey: destination.key,
-        };
-      }
+      state.pendingEntryPrompt = {
+        attempts: 0,
+        enteredAt: Date.now(),
+        stageKey: destination.key,
+      };
     }
     await saveThreadState(threadId, state);
     return state.pendingEntryPrompt === null
@@ -654,10 +608,7 @@ export default async function plugin(bb: BbPluginApi): Promise<void> {
     try {
       result = await bb.sdk.threads.send({
         threadId: thread.id,
-        mode:
-          stage.entryPromptDelivery === "steer"
-            ? "steer-if-active"
-            : "queue-if-active",
+        mode: "queue-if-active",
         input: [{ type: "text", text, mentions: [] }],
       });
     } catch (error) {

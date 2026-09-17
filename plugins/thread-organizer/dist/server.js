@@ -14622,8 +14622,6 @@ function parseStage(value, withSectionId) {
   const rule = typeof value.rule === "string" ? normalizeText(value.rule) : "";
   const role = value.role;
   const entryPrompt = typeof value.entryPrompt === "string" ? value.entryPrompt.normalize("NFKC").replace(/\r\n?/gu, "\n").trim() : "";
-  const entryPromptDelivery = value.entryPromptDelivery;
-  const entryPromptOnAgentMove = value.entryPromptOnAgentMove;
   const sectionId = withSectionId ? value.sectionId === null || typeof value.sectionId === "string" ? value.sectionId : null : null;
   if (!/^[a-z0-9][a-z0-9-]{0,39}$/u.test(key)) {
     throw new Error(
@@ -14644,25 +14642,13 @@ function parseStage(value, withSectionId) {
       `Stage "${key}" entry prompt must be at most ${ENTRY_PROMPT_MAX_LENGTH} characters.`
     );
   }
-  if (entryPromptDelivery !== void 0 && entryPromptDelivery !== "queue" && entryPromptDelivery !== "steer") {
-    throw new Error(`Stage "${key}" has an invalid entry prompt delivery.`);
-  }
-  if (entryPromptOnAgentMove !== void 0 && typeof entryPromptOnAgentMove !== "boolean") {
-    throw new Error(
-      `Stage "${key}" has an invalid entry prompt agent-move setting.`
-    );
-  }
   return {
     key,
     title,
     rule,
     role,
     // Defaults are not persisted, so configs without prompts stay byte-stable.
-    ...entryPrompt.length > 0 ? {
-      entryPrompt,
-      ...entryPromptDelivery === "steer" ? { entryPromptDelivery: "steer" } : {},
-      ...entryPromptOnAgentMove === false ? { entryPromptOnAgentMove: false } : {}
-    } : {},
+    ...entryPrompt.length > 0 ? { entryPrompt } : {},
     sectionId: sectionId && sectionId.trim().length > 0 ? sectionId : null
   };
 }
@@ -14821,13 +14807,11 @@ function placementForThread(config2, thread, rememberedStageKey, leaveInbox = fa
   return belongsInInbox ? inboxStage(config2) : remembered;
 }
 function entryPromptGuidance(config2) {
-  const keys = config2.stages.filter(
-    (stage) => stage.role === "stage" && hasEntryPrompt(stage) && stage.entryPromptOnAgentMove !== false
-  ).map((stage) => `\`${stage.key}\``);
+  const keys = config2.stages.filter((stage) => stage.role === "stage" && hasEntryPrompt(stage)).map((stage) => `\`${stage.key}\``);
   if (keys.length === 0) return [];
   return [
     "",
-    `Entering ${keys.join(", ")} sends that stage\u2019s entry prompt to this thread as a follow-up message \u2014 queued until your current turn ends, or steering the live turn where the stage says so. Run \`bb organizer phase\` only when the thread\u2019s primary activity has genuinely changed \u2014 never as a shortcut to trigger that prompt, and never twice for the same stage. After moving, end your turn promptly so the prompt can dispatch.`
+    `Entering ${keys.join(", ")} sends that stage\u2019s entry prompt to this thread as a follow-up message, queued until your current turn ends. Run \`bb organizer phase\` only when the thread\u2019s primary activity has genuinely changed \u2014 never as a shortcut to trigger that prompt, and never twice for the same stage. After moving, end your turn promptly so the prompt can dispatch.`
   ];
 }
 function escapeTableCell(value) {
@@ -14864,8 +14848,9 @@ var editableStageSchema = external_exports.object({
   // section icons were removed keep validating.
   icon: external_exports.unknown().optional(),
   entryPrompt: external_exports.string().max(ENTRY_PROMPT_MAX_LENGTH).optional(),
-  entryPromptDelivery: external_exports.enum(["queue", "steer"]).optional(),
-  entryPromptOnAgentMove: external_exports.boolean().optional(),
+  // Accepted and discarded: written by the first entry-prompt build.
+  entryPromptDelivery: external_exports.unknown().optional(),
+  entryPromptOnAgentMove: external_exports.unknown().optional(),
   key: external_exports.string().min(1).max(40),
   role: external_exports.enum(["inbox", "stage"]),
   rule: external_exports.string().min(1).max(240),
@@ -15078,13 +15063,6 @@ async function plugin(bb) {
             // Records written before landings were tracked already sat in
             // their remembered stage; seeding from it keeps an upgrade silent.
             lastLandedStageKey: "lastLandedStageKey" in value ? parseStageKeyOrNull(value.lastLandedStageKey) : remembered2.key,
-            lastDestinationKey: parseStageKeyOrNull(value.lastDestinationKey),
-            suppressedEntryStageKey: parseStageKeyOrNull(
-              value.suppressedEntryStageKey
-            ),
-            deferredAgentMoveStageKey: parseStageKeyOrNull(
-              value.deferredAgentMoveStageKey
-            ),
             pendingEntryPrompt: parsePendingEntryPrompt(
               value.pendingEntryPrompt
             ),
@@ -15114,9 +15092,6 @@ async function plugin(bb) {
       version: 5,
       rememberedStageKey: remembered.key,
       lastLandedStageKey: remembered.key,
-      lastDestinationKey: null,
-      suppressedEntryStageKey: null,
-      deferredAgentMoveStageKey: null,
       pendingEntryPrompt: null,
       queuedEntryPrompt: null,
       recentEntryPrompts: []
@@ -15136,7 +15111,6 @@ async function plugin(bb) {
     if (!isManageableThread(thread)) return null;
     const { created, state } = await readThreadState(thread);
     const currentStage = stageForSectionId(configSnapshot, thread.sectionId);
-    const externalPlacement = !created && currentStage !== null && state.lastDestinationKey !== null && currentStage.key !== state.lastDestinationKey;
     if (explicitStageKey) {
       state.rememberedStageKey = explicitStageKey;
     } else if (currentStage?.role === "stage") {
@@ -15166,18 +15140,8 @@ async function plugin(bb) {
       );
     }
     const landedStageKey = destination.role === "stage" ? destination.key : state.lastLandedStageKey;
-    const landingChanged = landedStageKey !== null && landedStageKey !== state.lastLandedStageKey;
-    const agentMove = explicitStageKey !== void 0 || landedStageKey !== null && state.deferredAgentMoveStageKey === landedStageKey && !externalPlacement;
-    const resumedSuppressed = !landingChanged && landedStageKey !== null && state.suppressedEntryStageKey === landedStageKey && externalPlacement && explicitStageKey === void 0;
-    const entered = !created && !seedLanding && (landingChanged || resumedSuppressed);
-    if (explicitStageKey !== void 0 && destination.role === "inbox") {
-      state.deferredAgentMoveStageKey = explicitStageKey;
-    } else if (landingChanged) {
-      state.deferredAgentMoveStageKey = null;
-      state.suppressedEntryStageKey = null;
-    }
+    const entered = !created && !seedLanding && landedStageKey !== null && landedStageKey !== state.lastLandedStageKey;
     state.lastLandedStageKey = landedStageKey;
-    state.lastDestinationKey = destination.key;
     if (state.pendingEntryPrompt !== null && state.pendingEntryPrompt.stageKey !== state.rememberedStageKey) {
       bb.log.info(
         `thread=${threadId} action=entry-prompt-dropped stage=${state.pendingEntryPrompt.stageKey} reason=re-targeted`
@@ -15188,16 +15152,11 @@ async function plugin(bb) {
       await retractQueuedEntryPrompt(threadId, state);
     }
     if (entered && hasEntryPrompt(destination)) {
-      if (agentMove && destination.entryPromptOnAgentMove === false) {
-        state.suppressedEntryStageKey = destination.key;
-      } else {
-        state.suppressedEntryStageKey = null;
-        state.pendingEntryPrompt = {
-          attempts: 0,
-          enteredAt: Date.now(),
-          stageKey: destination.key
-        };
-      }
+      state.pendingEntryPrompt = {
+        attempts: 0,
+        enteredAt: Date.now(),
+        stageKey: destination.key
+      };
     }
     await saveThreadState(threadId, state);
     return state.pendingEntryPrompt === null ? null : await deliverEntryPrompt(thread, state);
@@ -15259,7 +15218,7 @@ async function plugin(bb) {
     try {
       result = await bb.sdk.threads.send({
         threadId: thread.id,
-        mode: stage.entryPromptDelivery === "steer" ? "steer-if-active" : "queue-if-active",
+        mode: "queue-if-active",
         input: [{ type: "text", text, mentions: [] }]
       });
     } catch (error51) {

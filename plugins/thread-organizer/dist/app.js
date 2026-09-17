@@ -201,8 +201,6 @@ function parseStage(value, withSectionId) {
   const rule = typeof value.rule === "string" ? normalizeText(value.rule) : "";
   const role = value.role;
   const entryPrompt = typeof value.entryPrompt === "string" ? value.entryPrompt.normalize("NFKC").replace(/\r\n?/gu, "\n").trim() : "";
-  const entryPromptDelivery = value.entryPromptDelivery;
-  const entryPromptOnAgentMove = value.entryPromptOnAgentMove;
   const sectionId = withSectionId ? value.sectionId === null || typeof value.sectionId === "string" ? value.sectionId : null : null;
   if (!/^[a-z0-9][a-z0-9-]{0,39}$/u.test(key)) {
     throw new Error(
@@ -223,25 +221,13 @@ function parseStage(value, withSectionId) {
       `Stage "${key}" entry prompt must be at most ${ENTRY_PROMPT_MAX_LENGTH} characters.`
     );
   }
-  if (entryPromptDelivery !== void 0 && entryPromptDelivery !== "queue" && entryPromptDelivery !== "steer") {
-    throw new Error(`Stage "${key}" has an invalid entry prompt delivery.`);
-  }
-  if (entryPromptOnAgentMove !== void 0 && typeof entryPromptOnAgentMove !== "boolean") {
-    throw new Error(
-      `Stage "${key}" has an invalid entry prompt agent-move setting.`
-    );
-  }
   return {
     key,
     title,
     rule,
     role,
     // Defaults are not persisted, so configs without prompts stay byte-stable.
-    ...entryPrompt.length > 0 ? {
-      entryPrompt,
-      ...entryPromptDelivery === "steer" ? { entryPromptDelivery: "steer" } : {},
-      ...entryPromptOnAgentMove === false ? { entryPromptOnAgentMove: false } : {}
-    } : {},
+    ...entryPrompt.length > 0 ? { entryPrompt } : {},
     sectionId: sectionId && sectionId.trim().length > 0 ? sectionId : null
   };
 }
@@ -677,14 +663,19 @@ var {
 } = mod3;
 
 // app.tsx
+var fieldClass = "min-w-0 w-full rounded-md border border-border bg-background px-2.5 py-1.5 text-sm text-foreground outline-none focus:border-foreground/45 disabled:cursor-not-allowed disabled:opacity-60";
 var quietFieldClass = "min-w-0 w-full rounded-md border border-transparent bg-transparent px-2.5 py-1.5 text-sm text-foreground outline-none hover:border-border focus:border-foreground/45 focus:bg-background disabled:cursor-not-allowed disabled:opacity-60";
 var buttonBaseClass = "inline-flex h-8 cursor-pointer items-center justify-center gap-2 whitespace-nowrap rounded-md px-3 text-xs font-medium outline-none transition-colors focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0";
 var outlineButtonClass = `${buttonBaseClass} border border-input bg-transparent text-foreground hover:bg-muted`;
 var primaryButtonClass = `${buttonBaseClass} bg-foreground text-background hover:bg-foreground/90`;
 var iconButtonClass = "inline-flex size-8 shrink-0 items-center justify-center rounded-md text-muted-foreground outline-none hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-40";
-var stageRowClass = "grid min-w-0 grid-cols-[minmax(0,1fr)_2rem] items-start gap-x-2 gap-y-0 lg:grid-cols-[2rem_minmax(7rem,9rem)_minmax(0,1fr)_2rem]";
+var stageColumnsClass = "lg:grid-cols-[2rem_minmax(7rem,9rem)_minmax(0,1fr)_minmax(0,1.25fr)_2rem]";
+var stageRowClass = `grid min-w-0 grid-cols-[minmax(0,1fr)_2rem] items-start gap-x-2 gap-y-0 ${stageColumnsClass}`;
+var stageHeaderClass = `hidden min-w-0 items-end gap-x-2 rounded-t-lg border-b border-border bg-muted/30 px-3 py-2 lg:grid ${stageColumnsClass}`;
 var stageRuleLayoutClass = "col-span-2 col-start-1 row-start-2 min-w-0 lg:col-span-1 lg:col-start-3 lg:row-start-1";
-var stageEntryPromptLayoutClass = "col-span-2 col-start-1 row-start-3 min-w-0 lg:col-span-2 lg:col-start-3 lg:row-start-2";
+var stagePromptLayoutClass = "col-span-2 col-start-1 row-start-3 min-w-0 lg:col-span-1 lg:col-start-4 lg:row-start-1";
+var fieldCaptionClass = "text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground";
+var fieldHintClass = "ml-1.5 font-normal normal-case tracking-normal text-muted-foreground/70";
 var workflowSettingsDescription = "Rename, reorder, and define the workflow your agents follow.";
 var workflowSettingsDescriptionClass = "ps-[var(--radius-lg,0.5rem)] [text-indent:-0.088em] text-sm leading-5 text-muted-foreground";
 function errorMessage(error) {
@@ -694,17 +685,15 @@ function uniqueNewStageTitle(stages) {
   const titles = new Set(
     stages.map((stage) => stage.title.toLocaleLowerCase())
   );
-  if (!titles.has("new stage")) return "New Stage";
+  if (!titles.has("new section")) return "New Section";
   for (let suffix = 2; suffix < 1e4; suffix += 1) {
-    const title = `New Stage ${suffix}`;
+    const title = `New Section ${suffix}`;
     if (!titles.has(title.toLocaleLowerCase())) return title;
   }
-  return "Untitled Stage";
+  return "Untitled Section";
 }
 function StageActions({
-  hasEntryPrompt: hasEntryPrompt2,
   index,
-  onAddEntryPrompt,
   onMove,
   onRemove,
   stage,
@@ -733,7 +722,7 @@ function StageActions({
   return /* @__PURE__ */ jsxs(
     "div",
     {
-      className: "relative col-start-2 row-start-1 shrink-0 lg:col-start-4",
+      className: "relative col-start-2 row-start-1 shrink-0 lg:col-start-5",
       ref: rootRef,
       children: [
         /* @__PURE__ */ jsx(
@@ -812,29 +801,6 @@ function StageActions({
                   ]
                 }
               ),
-              hasEntryPrompt2 ? null : /* @__PURE__ */ jsxs(
-                "button",
-                {
-                  className: "flex min-h-8 items-center gap-2 rounded-md px-2 text-left text-sm hover:bg-muted",
-                  onClick: () => {
-                    setOpen(false);
-                    onAddEntryPrompt();
-                  },
-                  role: "menuitem",
-                  type: "button",
-                  children: [
-                    /* @__PURE__ */ jsx(
-                      HugeiconsIcon,
-                      {
-                        "aria-hidden": "true",
-                        className: "size-4",
-                        icon: PlusSignIcon
-                      }
-                    ),
-                    "Add entry prompt"
-                  ]
-                }
-              ),
               /* @__PURE__ */ jsxs(
                 "button",
                 {
@@ -854,7 +820,7 @@ function StageActions({
                         icon: Delete02Icon
                       }
                     ),
-                    "Remove stage"
+                    "Remove section"
                   ]
                 }
               )
@@ -880,7 +846,7 @@ function StageCard({
   return /* @__PURE__ */ jsx(
     "article",
     {
-      className: "min-w-0 border-b border-border bg-background px-3 py-2.5 first:rounded-t-lg last:rounded-b-lg last:border-b-0 lg:p-3",
+      className: "min-w-0 border-b border-border bg-background px-3 py-2.5 last:rounded-b-lg last:border-b-0 lg:p-3",
       onDragOver: (event) => {
         if (!inbox) event.preventDefault();
       },
@@ -911,7 +877,7 @@ function StageCard({
         /* @__PURE__ */ jsx(
           "input",
           {
-            "aria-label": `${stage.title || "Untitled stage"} section title`,
+            "aria-label": `${stage.title || "Untitled section"} section title`,
             className: "h-8 min-w-0 flex-1 rounded-md border border-transparent bg-transparent px-1.5 text-sm font-semibold text-foreground outline-none hover:border-border focus:border-foreground/45 focus:bg-background",
             maxLength: 80,
             onChange: (event) => update("title", event.target.value),
@@ -922,14 +888,12 @@ function StageCard({
           "span",
           {
             "aria-hidden": "true",
-            className: "col-start-2 row-start-1 size-8 lg:col-start-4"
+            className: "col-start-2 row-start-1 size-8 lg:col-start-5"
           }
         ) : /* @__PURE__ */ jsx(
           StageActions,
           {
-            hasEntryPrompt: stage.entryPrompt !== void 0,
             index,
-            onAddEntryPrompt: () => update("entryPrompt", ""),
             onMove,
             onRemove,
             stage,
@@ -943,9 +907,9 @@ function StageCard({
             children: stage.rule
           }
         ) : /* @__PURE__ */ jsxs("label", { className: `${stageRuleLayoutClass} grid gap-1`, children: [
-          /* @__PURE__ */ jsxs("span", { className: "sr-only", children: [
-            "What belongs in ",
-            stage.title
+          /* @__PURE__ */ jsxs("span", { className: `${fieldCaptionClass} px-2.5 lg:sr-only`, children: [
+            "Rule",
+            /* @__PURE__ */ jsx("span", { className: fieldHintClass, children: "what belongs here" })
           ] }),
           /* @__PURE__ */ jsx(
             "textarea",
@@ -960,76 +924,31 @@ function StageCard({
             }
           )
         ] }),
-        !inbox && stage.entryPrompt !== void 0 ? /* @__PURE__ */ jsxs("div", { className: `${stageEntryPromptLayoutClass} grid gap-1`, children: [
-          /* @__PURE__ */ jsxs("label", { className: "grid gap-1", children: [
-            /* @__PURE__ */ jsxs("span", { className: "sr-only", children: [
-              "Prompt sent when a thread enters ",
-              stage.title
-            ] }),
-            /* @__PURE__ */ jsx(
-              "textarea",
-              {
-                "aria-label": `Prompt sent when a thread enters ${stage.title}`,
-                className: `${quietFieldClass} min-h-8 max-h-48 resize-none overflow-y-auto leading-5`,
-                maxLength: ENTRY_PROMPT_MAX_LENGTH,
-                onChange: (event) => update("entryPrompt", event.target.value),
-                placeholder: "Sent to a thread when it enters this stage. Variables: {{thread.title}}, {{stage.title}}",
-                rows: 2,
-                style: { fieldSizing: "content" },
-                value: stage.entryPrompt
-              }
-            )
+        inbox ? /* @__PURE__ */ jsx(
+          "span",
+          {
+            "aria-hidden": "true",
+            className: `${stagePromptLayoutClass} hidden px-2.5 py-1.5 text-sm leading-5 text-muted-foreground lg:block`,
+            children: "\u2014"
+          }
+        ) : /* @__PURE__ */ jsxs("label", { className: `${stagePromptLayoutClass} grid gap-1`, children: [
+          /* @__PURE__ */ jsxs("span", { className: `${fieldCaptionClass} px-2.5 lg:sr-only`, children: [
+            "Entry prompt",
+            /* @__PURE__ */ jsx("span", { className: fieldHintClass, children: "sent to the thread when it lands here" })
           ] }),
-          /* @__PURE__ */ jsxs("div", { className: "flex flex-wrap items-center gap-x-4 gap-y-1 px-2.5 text-xs text-muted-foreground", children: [
-            /* @__PURE__ */ jsxs("label", { className: "inline-flex items-center gap-1.5", children: [
-              /* @__PURE__ */ jsx(
-                "input",
-                {
-                  checked: stage.entryPromptOnAgentMove !== false,
-                  onChange: (event) => update(
-                    "entryPromptOnAgentMove",
-                    event.target.checked ? void 0 : false
-                  ),
-                  type: "checkbox"
-                }
-              ),
-              "Also when an agent moves it here with bb organizer phase"
-            ] }),
-            /* @__PURE__ */ jsxs("label", { className: "inline-flex items-center gap-1.5", children: [
-              "Deliver",
-              /* @__PURE__ */ jsxs(
-                "select",
-                {
-                  "aria-label": `Delivery for the ${stage.title} entry prompt`,
-                  className: "rounded-md border border-transparent bg-transparent py-0.5 text-xs text-foreground hover:border-border",
-                  onChange: (event) => update(
-                    "entryPromptDelivery",
-                    event.target.value === "steer" ? "steer" : void 0
-                  ),
-                  value: stage.entryPromptDelivery ?? "queue",
-                  children: [
-                    /* @__PURE__ */ jsx("option", { value: "queue", children: "after the current turn" }),
-                    /* @__PURE__ */ jsx("option", { value: "steer", children: "immediately" })
-                  ]
-                }
-              )
-            ] }),
-            /* @__PURE__ */ jsx(
-              "button",
-              {
-                className: "text-xs text-muted-foreground underline-offset-2 hover:text-foreground hover:underline",
-                onClick: () => onChange({
-                  ...stage,
-                  entryPrompt: void 0,
-                  entryPromptDelivery: void 0,
-                  entryPromptOnAgentMove: void 0
-                }),
-                type: "button",
-                children: "Remove prompt"
-              }
-            )
-          ] })
-        ] }) : null
+          /* @__PURE__ */ jsx(
+            "textarea",
+            {
+              "aria-label": `Entry prompt for ${stage.title}`,
+              className: `${fieldClass} min-h-8 max-h-48 resize-none overflow-y-auto leading-5`,
+              maxLength: ENTRY_PROMPT_MAX_LENGTH,
+              onChange: (event) => update("entryPrompt", event.target.value),
+              rows: 2,
+              style: { fieldSizing: "content" },
+              value: stage.entryPrompt ?? ""
+            }
+          )
+        ] })
       ] })
     }
   );
@@ -1117,7 +1036,7 @@ function WorkflowSettings() {
           key,
           role: "stage",
           title,
-          rule: "Describe the work that belongs in this stage."
+          rule: "Describe the work that belongs in this section."
         }
       ]
     });
@@ -1180,7 +1099,7 @@ function WorkflowSettings() {
                 type: "button",
                 children: [
                   /* @__PURE__ */ jsx(HugeiconsIcon, { "aria-hidden": true, icon: PlusSignIcon }),
-                  "Add stage"
+                  "Add section"
                 ]
               }
             ),
@@ -1202,23 +1121,38 @@ function WorkflowSettings() {
       )
     ] }),
     error ? /* @__PURE__ */ jsx("p", { className: "text-sm text-destructive", role: "alert", children: error }) : null,
-    /* @__PURE__ */ jsx("div", { className: "min-w-0 overflow-visible rounded-lg border border-border", children: config.stages.map((stage, index) => /* @__PURE__ */ jsx(
-      StageCard,
-      {
-        index,
-        onChange: (next) => replaceStage(index, next),
-        onDragStart: setDraggedIndex,
-        onDrop: (target) => {
-          if (draggedIndex !== null) moveStage(draggedIndex, target);
-          setDraggedIndex(null);
+    /* @__PURE__ */ jsxs("div", { className: "min-w-0 overflow-visible rounded-lg border border-border", children: [
+      /* @__PURE__ */ jsxs("div", { className: stageHeaderClass, children: [
+        /* @__PURE__ */ jsx("span", {}),
+        /* @__PURE__ */ jsx("span", { className: `${fieldCaptionClass} px-1.5`, children: "Section" }),
+        /* @__PURE__ */ jsxs("span", { className: `${fieldCaptionClass} px-2.5`, children: [
+          "Rule",
+          /* @__PURE__ */ jsx("span", { className: fieldHintClass, children: "what belongs here" })
+        ] }),
+        /* @__PURE__ */ jsxs("span", { className: `${fieldCaptionClass} px-2.5`, children: [
+          "Entry prompt",
+          /* @__PURE__ */ jsx("span", { className: fieldHintClass, children: "sent to the thread when it lands here" })
+        ] }),
+        /* @__PURE__ */ jsx("span", {})
+      ] }),
+      config.stages.map((stage, index) => /* @__PURE__ */ jsx(
+        StageCard,
+        {
+          index,
+          onChange: (next) => replaceStage(index, next),
+          onDragStart: setDraggedIndex,
+          onDrop: (target) => {
+            if (draggedIndex !== null) moveStage(draggedIndex, target);
+            setDraggedIndex(null);
+          },
+          onMove: (stageIndex, direction) => moveStage(stageIndex, stageIndex + direction),
+          onRemove: removeStage,
+          stage,
+          stageCount: config.stages.length
         },
-        onMove: (stageIndex, direction) => moveStage(stageIndex, stageIndex + direction),
-        onRemove: removeStage,
-        stage,
-        stageCount: config.stages.length
-      },
-      stage.key
-    )) })
+        stage.key
+      ))
+    ] })
   ] });
 }
 var app_default = definePluginApp((app) => {

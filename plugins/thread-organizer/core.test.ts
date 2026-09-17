@@ -344,15 +344,10 @@ describe("entry prompts", () => {
     next.stages[1] = {
       ...next.stages[1]!,
       entryPrompt: "  Run /slop-cop\r\nthen /slim-pr  ",
-      entryPromptDelivery: "queue",
-      entryPromptOnAgentMove: true,
-    };
-    next.stages[2] = {
-      ...next.stages[2]!,
-      entryPrompt: "Capture screenshots.",
+      // Written by the first entry-prompt build; no longer meaningful.
       entryPromptDelivery: "steer",
       entryPromptOnAgentMove: false,
-    };
+    } as never;
     const normalized = core.normalizeEditableWorkflowConfig(next);
     expect(normalized.stages[1]).toEqual({
       key: "planning",
@@ -361,14 +356,9 @@ describe("entry prompts", () => {
       rule: next.stages[1]!.rule,
       entryPrompt: "Run /slop-cop\nthen /slim-pr",
     });
-    expect(normalized.stages[2]).toMatchObject({
-      entryPrompt: "Capture screenshots.",
-      entryPromptDelivery: "steer",
-      entryPromptOnAgentMove: false,
-    });
   });
 
-  it("rejects an Inbox prompt, an oversized prompt, and unknown delivery", () => {
+  it("rejects an Inbox prompt and an oversized prompt", () => {
     const inbox = editable();
     inbox.stages[0] = { ...inbox.stages[0]!, entryPrompt: "Nope." };
     expect(() => core.normalizeEditableWorkflowConfig(inbox)).toThrow(
@@ -382,16 +372,6 @@ describe("entry prompts", () => {
     };
     expect(() => core.normalizeEditableWorkflowConfig(long)).toThrow(
       "entry prompt must be at most",
-    );
-
-    const delivery = editable();
-    delivery.stages[1] = {
-      ...delivery.stages[1]!,
-      entryPrompt: "Go.",
-      entryPromptDelivery: "later" as never,
-    };
-    expect(() => core.normalizeEditableWorkflowConfig(delivery)).toThrow(
-      "invalid entry prompt delivery",
     );
   });
 
@@ -412,21 +392,17 @@ describe("entry prompts", () => {
     ).toBe("Thread Organizer — entering “Review”:\n\nDo review.");
   });
 
-  it("tells agents about entry prompts only for stages that fire on agent moves", () => {
+  it("tells agents which stages send an entry prompt", () => {
     const config = core.cloneWorkflowConfig(core.DEFAULT_WORKFLOW_CONFIG);
     expect(core.buildWorkflowSkillSlot(config)).not.toContain("Entering");
 
     config.stages[2] = { ...config.stages[2]!, entryPrompt: "Review." };
-    config.stages[5] = {
-      ...config.stages[5]!,
-      entryPrompt: "Screenshots.",
-      entryPromptOnAgentMove: false,
-    };
+    config.stages[5] = { ...config.stages[5]!, entryPrompt: "Package it." };
     const instructions = core.buildWorkflowSkillSlot(config);
     expect(instructions).toContain(
-      "Entering `spec-review` sends that stage’s entry prompt",
+      "Entering `spec-review`, `handoff` sends that stage’s entry prompt",
     );
-    expect(instructions).not.toContain("`handoff`");
+    expect(instructions).toContain("queued until your current turn ends");
     expect(instructions).toContain(
       "| spec-review | Spec Review | A spec or implementation plan is ready for, awaiting, or undergoing user review. |",
     );
