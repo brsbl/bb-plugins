@@ -166,7 +166,7 @@ afterEach(() => {
 });
 
 describe("orderWithConfiguredSections", () => {
-  it("keeps unrelated sections in their slots", () => {
+  it("keeps unrelated sections in their slots and fills in the rest", () => {
     const current = order(
       "personal",
       "sec_testing-deploy",
@@ -180,9 +180,12 @@ describe("orderWithConfiguredSections", () => {
         "personal",
         "sec_inbox",
         "sec_planning",
+        "sec_spec-review",
         "design",
         "sec_building",
         "sec_testing-deploy",
+        "sec_handoff",
+        "sec_on-hold",
       ),
     );
   });

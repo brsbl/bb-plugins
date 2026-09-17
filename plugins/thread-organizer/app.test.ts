@@ -92,11 +92,36 @@ describe("Thread Organizer app registration", () => {
       sidebar.append(group);
     }
     document.body.append(sidebar);
-    window.localStorage.setItem(
-      "bb.sidebar.manualSectionOrder",
-      JSON.stringify(
-        initial.stages.map((stage) => `section:${stage.sectionId}`),
-      ),
+    // bb's synced sidebar order, served the way the real endpoint serves it.
+    const preference = {
+      revision: 1,
+      value: initial.stages.map((stage) => `section:${stage.sectionId}`),
+    };
+    const json = (status: number, body: unknown) =>
+      ({ ok: status < 300, status, json: async () => body }) as Response;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+        const url = String(input);
+        if (url === "/api/v1/preferences/ui") {
+          return json(200, {
+            preferences: { "sidebar.manualSectionOrder": preference },
+          });
+        }
+        if (url === "/api/v1/preferences/ui/sidebar.manualSectionOrder") {
+          const body = JSON.parse(String(init?.body)) as {
+            expectedRevision: number;
+            value: string[];
+          };
+          if (body.expectedRevision !== preference.revision) {
+            return json(409, { details: { currentRevision: preference.revision } });
+          }
+          preference.revision += 1;
+          preference.value = body.value;
+          return json(200, { key: "sidebar.manualSectionOrder", ...preference });
+        }
+        return json(404, { code: "not_found" });
+      }),
     );
     const scripts = await mountPluginContentScripts(app, {
       pluginId: "thread-organizer",
@@ -126,11 +151,7 @@ describe("Thread Organizer app registration", () => {
     fireEvent.click(rendered.getByRole("button", { name: "Save" }));
 
     await vi.waitFor(() =>
-      expect(
-        JSON.parse(
-          window.localStorage.getItem("bb.sidebar.manualSectionOrder")!,
-        ).slice(0, 4),
-      ).toEqual([
+      expect(preference.value.slice(0, 4)).toEqual([
         "section:sec_inbox",
         "section:sec_spec-review",
         "section:sec_planning",
@@ -139,6 +160,7 @@ describe("Thread Organizer app registration", () => {
     );
     rendered.lifecycle.unmount();
     await scripts.lifecycle.dispose();
+    vi.unstubAllGlobals();
   });
 });
 
