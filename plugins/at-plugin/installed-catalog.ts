@@ -64,6 +64,7 @@ export function isUsableInstalledTarget(
 export function searchInstalledPlugins(
   plugins: readonly InstalledPluginRecord[],
   query: string,
+  options: { catalogMatches?: ReadonlySet<string>; limit?: number | null } = {},
 ): PluginMentionItem[] {
   const browse = isPluginBrowseQuery(query);
   const eligible = plugins.flatMap((plugin): InstalledCandidate[] => {
@@ -73,7 +74,8 @@ export function searchInstalledPlugins(
     if (pluginId === null) return [];
     const displayName = normalizeUntrustedText(plugin.name ?? pluginId) || pluginId;
     const description = normalizeUntrustedText(plugin.description ?? "");
-    const tier = matchTier(browse ? "" : query, displayName, pluginId, description);
+    const tier = matchTier(browse ? "" : query, displayName, pluginId, description)
+      ?? (options.catalogMatches?.has(pluginId) ? 3 : null);
     if (tier === null) return [];
 
     return [
@@ -106,7 +108,7 @@ export function searchInstalledPlugins(
         compareText(left.displayName, right.displayName) ||
         compareText(left.pluginId, right.pluginId),
     )
-    .slice(0, browse ? undefined : RESULT_LIMIT)
+    .slice(0, options.limit === null || browse ? undefined : options.limit ?? RESULT_LIMIT)
     .map((candidate) => {
       const subtitleParts = duplicateNames.has(candidate.normalizedName)
         ? [candidate.pluginId, candidate.description]

@@ -87,6 +87,7 @@ function toCandidate(
 export function searchCommunityPlugins(
   entries: readonly CommunityCatalogRecord[],
   query: string,
+  limit: number | null = RESULT_LIMIT,
 ): PluginMentionItem[] {
   const browse = isPluginBrowseQuery(query);
   const ranked = entries
@@ -112,7 +113,7 @@ export function searchCommunityPlugins(
       .map(([name]) => name),
   );
 
-  return deduplicated.slice(0, browse ? undefined : RESULT_LIMIT).map((candidate) => {
+  return deduplicated.slice(0, browse || limit === null ? undefined : limit).map((candidate) => {
     const detail = candidate.description || candidate.publisherLabel;
     const subtitleParts = [
       "Not installed",

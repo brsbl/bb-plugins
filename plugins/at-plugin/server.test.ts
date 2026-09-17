@@ -9,6 +9,7 @@ import {
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { CommunityCatalogRecord } from "./community-catalog";
+import type { CatalogDetails } from "./catalog-details";
 import type { InstalledPluginRecord } from "./installed-catalog";
 import {
   buildCommunityPluginContext,
@@ -134,7 +135,7 @@ describe("provider registration and package shape", () => {
       rpcMethods: [],
       services: [],
       schedules: [],
-      cli: null,
+      cli: { name: "at-plugin" },
       agentTools: [],
       agentConfigurationProvider: null,
       instructionProvider: null,
@@ -157,7 +158,7 @@ describe("provider registration and package shape", () => {
         name: "@Plugin",
         branding: { icon: "./assets/at.svg" },
         server: "./server.ts",
-        skills: [],
+        skills: ["skills"],
       },
       devDependencies: {
         "@get-bb/plugin-sdk": "file:../../tooling/vendor/get-bb-plugin-sdk-0.4.8.tgz",
@@ -263,7 +264,7 @@ describe("provider searches", () => {
     expect(await communityProvider.search({ ...context, query: "plugin-tools" })).toEqual([]);
   });
 
-  it("uses only each provider's SDK read and returns its host row", async () => {
+  it("adds catalog details to installed search and returns host rows", async () => {
     const inventory = [installed()];
     const catalog = [community({ displayName: "Git Memory", pluginId: "git-memory" })];
     const { bb, harness } = createFakePluginHost({
@@ -281,7 +282,9 @@ describe("provider searches", () => {
     expect(installedRows).toEqual([
       { id: encodeInstalledItemId("github"), title: "GitHub", subtitle: "Plugin description" },
     ]);
-    expect(harness.inspection.sdk.calls.map((call) => call.path)).toEqual(["plugins.list"]);
+    expect(harness.inspection.sdk.calls.map((call) => call.path)).toEqual([
+      "plugins.list", "plugins.catalog.search", "plugins.catalog.search",
+    ]);
     expect(sdkSignal(harness.inspection.sdk.calls[0]!.args).aborted).toBe(false);
 
     const communityRows = await mentionProvider(harness, "community").search(MENTION_CONTEXT);
@@ -297,8 +300,8 @@ describe("provider searches", () => {
       },
     ]);
     expect(harness.inspection.sdk.calls.map((call) => call.path)).toEqual([
-      "plugins.list",
-      "plugins.catalog.search",
+      "plugins.list", "plugins.catalog.search", "plugins.catalog.search",
+      "plugins.catalog.search", "plugins.catalog.search",
     ]);
     expect(sdkSignal(harness.inspection.sdk.calls[1]!.args).aborted).toBe(false);
   });
@@ -328,9 +331,111 @@ describe("provider searches", () => {
       [],
     );
     expect(harness.inspection.sdk.calls.map((call) => call.path)).toEqual([
-      "plugins.list",
-      "plugins.catalog.search",
+      "plugins.list", "plugins.catalog.search", "plugins.catalog.search",
+      "plugins.catalog.search", "plugins.catalog.search",
     ]);
+  });
+});
+
+describe("overview discovery and agent CLI", () => {
+  const entry: CatalogDetails = {
+    ...community(),
+    overview: "## Workflows\nExplore the unique constellation workflow.",
+    screenshots: ["https://example.test/screen.png", "javascript:alert(1)"],
+    iconUrl: "https://example.test/icon.svg",
+  };
+
+  async function setup(plugins: InstalledPluginRecord[] = [], entries: CatalogDetails[] = [entry]) {
+    const { bb, harness } = createFakePluginHost({
+      pluginId: "at-plugin",
+      sdk: { plugins: {
+        list: async () => ({ plugins }),
+        catalog: { search: async ({ query }) => entries.filter((value) =>
+          !query || value.displayName.toLowerCase().includes(query.toLowerCase())) },
+      } },
+    });
+    await plugin(bb);
+    return harness;
+  }
+
+  it("finds overview-only Community and installed matches without changing subtitles", async () => {
+    const harness = await setup();
+    const rows = await mentionProvider(harness, "community").search({ ...MENTION_CONTEXT, query: "constellation" });
+    expect(rows.map((row) => row.title)).toEqual(["Noema"]);
+    expect(rows[0]?.subtitle).toBe("Not installed · Catalog description");
+    const installedHarness = await setup([installed({ id: "noema", name: "Local Noema" })], [{ ...entry, installed: true }]);
+    expect((await mentionProvider(installedHarness, "installed").search({ ...MENTION_CONTEXT, query: "constellation" })).map((row) => row.title)).toEqual(["Local Noema"]);
+  });
+
+  it("shares concurrent catalog reads between mention providers", async () => {
+    const harness = await setup();
+    await Promise.all(["installed", "community"].map((id) =>
+      mentionProvider(harness, id).search({ ...MENTION_CONTEXT, query: "constellation" })));
+    expect(harness.inspection.sdk.callsTo("plugins.catalog.search")).toHaveLength(2);
+  });
+
+  it("retains host-only tag matches alongside overview-only matches", async () => {
+    const harness = await setup();
+    const tagged = { ...entry, pluginId: "tagged", entryId: "tagged", displayName: "Tagged", overview: "" };
+    harness.inspection.sdk.stub("plugins.catalog.search", async ({ query }: { query: string }) => query ? [tagged] : [tagged, entry]);
+    const result = await harness.behavior.runCli(["search", "constellation", "--json"]);
+    expect(result.exitCode).toBe(0);
+    expect(JSON.parse(result.stdout).results.map((value: { pluginId: string }) => value.pluginId)).toEqual(["tagged", "noema"]);
+  });
+
+  it("returns full overview and safe image URLs through search and exact show", async () => {
+    const harness = await setup();
+    const search = await harness.behavior.runCli(["search", "constellation", "--json"]);
+    expect(search.exitCode).toBe(0);
+    expect(JSON.parse(search.stdout)).toMatchObject({ total: 1, nextOffset: null, warnings: [], results: [{
+      pluginId: "noema", overview: entry.overview,
+      screenshots: ["https://example.test/screen.png"], iconUrl: entry.iconUrl,
+      availability: "not-installed", requiresInstallation: true,
+    }] });
+    const show = await harness.behavior.runCli(["show", "noema", "--json"]);
+    expect(JSON.parse(show.stdout).result).toEqual(JSON.parse(search.stdout).results[0]);
+    expect((await harness.behavior.runCli(["show", "noem", "--json"])).exitCode).toBe(1);
+    const text = await harness.behavior.runCli(["show", "noema"]);
+    expect(text.stdout).toContain(entry.overview);
+    expect(text.stdout).toContain("Screenshot: https://example.test/screen.png");
+  });
+
+  it("pages beyond mention limits, filters scope, and excludes disabled installed duplicates", async () => {
+    const entries = Array.from({ length: 12 }, (_, index) => ({ ...entry, pluginId: `plugin-${index}`, entryId: `plugin-${index}` }));
+    const harness = await setup([
+      installed({ id: "plugin-0", enabled: false }),
+      installed({ id: "local", name: "Local", capabilities: [] }),
+    ], entries);
+    const page = await harness.behavior.runCli(["search", "--scope", "community", "--limit", "7", "--json"]);
+    expect(JSON.parse(page.stdout)).toMatchObject({ total: 11, nextOffset: 7 });
+    expect(JSON.parse(page.stdout).results).toHaveLength(7);
+    const next = await harness.behavior.runCli(["search", "--scope", "community", "--offset", "7", "--json"]);
+    expect(JSON.parse(next.stdout)).toMatchObject({ nextOffset: null });
+    expect(JSON.parse(next.stdout).results).toHaveLength(4);
+    const local = await harness.behavior.runCli(["search", "--scope", "installed", "--json"]);
+    expect(JSON.parse(local.stdout).results.map((value: { pluginId: string }) => value.pluginId)).toEqual(["local"]);
+  });
+
+  it("tolerates older hosts without overview/images and reports partial catalog failure", async () => {
+    const harness = await setup([installed()], [community()]);
+    const old = await harness.behavior.runCli(["show", "noema", "--json"]);
+    expect(JSON.parse(old.stdout).result).toMatchObject({ overview: null, screenshots: [] });
+    harness.inspection.sdk.stub("plugins.catalog.search", async () => { throw new Error("private diagnostic"); });
+    const partial = await harness.behavior.runCli(["search", "github", "--json"]);
+    expect(JSON.parse(partial.stdout).results).toHaveLength(1);
+    expect(JSON.parse(partial.stdout).warnings).toHaveLength(1);
+    expect(partial.stdout).not.toContain("private diagnostic");
+    expect((await mentionProvider(harness, "installed").search(MENTION_CONTEXT)).map((row) => row.title)).toEqual(["GitHub"]);
+  });
+
+  it("rejects invalid arguments without SDK calls and never mutates plugins", async () => {
+    const harness = await setup();
+    for (const argv of [["search", "--limit", "0"], ["search", "--limit", "21"], ["search", "--offset", "-1"], ["search", "--scope", "bad"], ["show"], ["show", "noema", "--limit", "2"], ["install", "noema"]]) {
+      expect((await harness.behavior.runCli(argv)).exitCode).toBe(2);
+    }
+    expect(harness.inspection.sdk.calls).toEqual([]);
+    await harness.behavior.runCli(["search", "--json"]);
+    expect(new Set(harness.inspection.sdk.calls.map((call) => call.path))).toEqual(new Set(["plugins.list", "plugins.catalog.search"]));
   });
 });
 
