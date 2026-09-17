@@ -5,7 +5,7 @@
   "type": "module",
   "private": true,
   "license": "UNLICENSED",
-  "files": ["assets", "dist", "docs", "README.md"],
+  "files": ["assets", "dist", "docs", "skills", "README.md"],
   "engines": {
     "bb": ">=0.0.34",
     "bbPluginSdk": ">=0.4.8"
@@ -17,7 +17,7 @@
       "icon": "./assets/at.svg"
     },
     "server": "./server.ts",
-    "skills": []
+    "skills": ["skills"]
   },
   "scripts": {
     "build": "node ../../tooling/build-plugin.mjs",
