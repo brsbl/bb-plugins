@@ -287,7 +287,6 @@ function StageCard({
           <label className={`${stageRuleLayoutClass} grid gap-1`}>
             <span className={`${fieldCaptionClass} px-2.5 lg:sr-only`}>
               Rule
-              <span className={fieldHintClass}>what belongs here</span>
             </span>
             <textarea
               aria-label={`What belongs in ${stage.title}`}
@@ -311,9 +310,6 @@ function StageCard({
           <label className={`${stagePromptLayoutClass} grid gap-1`}>
             <span className={`${fieldCaptionClass} px-2.5 lg:sr-only`}>
               Entry prompt
-              <span className={fieldHintClass}>
-                sent on arrival
-              </span>
             </span>
             <textarea
               aria-label={`Entry prompt for ${stage.title}`}
@@ -538,6 +534,17 @@ export function WorkflowSettings() {
         className="min-w-0 overflow-visible rounded-lg border border-border"
         ref={listRef}
       >
+        <p
+          className={`${fieldCaptionClass} rounded-t-lg border-b border-border bg-muted/30 px-3 py-2 lg:hidden`}
+        >
+          Rule
+          <span className={fieldHintClass}>what belongs here</span>
+          <span aria-hidden="true" className="mx-2 font-normal">
+            ·
+          </span>
+          Entry prompt
+          <span className={fieldHintClass}>sent on arrival</span>
+        </p>
         <div className={stageHeaderClass}>
           <span />
           <span className={`${fieldCaptionClass} px-1.5`}>Section</span>

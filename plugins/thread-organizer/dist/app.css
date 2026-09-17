@@ -161,6 +161,9 @@
     .row-start-3 {
       grid-row-start: 3;
     }
+    .mx-2 {
+      margin-inline: calc(var(--spacing) * 2);
+    }
     .mt-1 {
       margin-top: calc(var(--spacing) * 1);
     }
@@ -627,6 +630,11 @@
     .lg\:grid {
       @media (width >= 64rem) {
         display: grid;
+      }
+    }
+    .lg\:hidden {
+      @media (width >= 64rem) {
+        display: none;
       }
     }
     .lg\:inline-flex {

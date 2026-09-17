@@ -360,10 +360,9 @@ describe("workflow settings", () => {
     expect(rendered.getByText(/Entry prompts can use/).textContent).toContain(
       "{{section.title}}",
     );
-    expect(
-      rendered.getAllByText("sent on arrival", { exact: false })
-        .length,
-    ).toBeGreaterThan(0);
+    const hints = rendered.getAllByText("sent on arrival", { exact: false });
+    expect(hints).toHaveLength(2);
+    expect(hints.some((hint) => hint.closest("article") !== null)).toBe(false);
 
     fireEvent.click(rendered.getByRole("button", { name: "Add section" }));
     const title = await rendered.findByLabelText("New Section section title");

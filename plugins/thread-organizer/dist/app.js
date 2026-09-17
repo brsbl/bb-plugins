@@ -908,10 +908,7 @@ function StageCard({
             children: stage.rule
           }
         ) : /* @__PURE__ */ jsxs("label", { className: `${stageRuleLayoutClass} grid gap-1`, children: [
-          /* @__PURE__ */ jsxs("span", { className: `${fieldCaptionClass} px-2.5 lg:sr-only`, children: [
-            "Rule",
-            /* @__PURE__ */ jsx("span", { className: fieldHintClass, children: "what belongs here" })
-          ] }),
+          /* @__PURE__ */ jsx("span", { className: `${fieldCaptionClass} px-2.5 lg:sr-only`, children: "Rule" }),
           /* @__PURE__ */ jsx(
             "textarea",
             {
@@ -933,10 +930,7 @@ function StageCard({
             children: "\u2014"
           }
         ) : /* @__PURE__ */ jsxs("label", { className: `${stagePromptLayoutClass} grid gap-1`, children: [
-          /* @__PURE__ */ jsxs("span", { className: `${fieldCaptionClass} px-2.5 lg:sr-only`, children: [
-            "Entry prompt",
-            /* @__PURE__ */ jsx("span", { className: fieldHintClass, children: "sent on arrival" })
-          ] }),
+          /* @__PURE__ */ jsx("span", { className: `${fieldCaptionClass} px-2.5 lg:sr-only`, children: "Entry prompt" }),
           /* @__PURE__ */ jsx(
             "textarea",
             {
@@ -1145,6 +1139,19 @@ function WorkflowSettings() {
         className: "min-w-0 overflow-visible rounded-lg border border-border",
         ref: listRef,
         children: [
+          /* @__PURE__ */ jsxs(
+            "p",
+            {
+              className: `${fieldCaptionClass} rounded-t-lg border-b border-border bg-muted/30 px-3 py-2 lg:hidden`,
+              children: [
+                "Rule",
+                /* @__PURE__ */ jsx("span", { className: fieldHintClass, children: "what belongs here" }),
+                /* @__PURE__ */ jsx("span", { "aria-hidden": "true", className: "mx-2 font-normal", children: "\xB7" }),
+                "Entry prompt",
+                /* @__PURE__ */ jsx("span", { className: fieldHintClass, children: "sent on arrival" })
+              ]
+            }
+          ),
           /* @__PURE__ */ jsxs("div", { className: stageHeaderClass, children: [
             /* @__PURE__ */ jsx("span", {}),
             /* @__PURE__ */ jsx("span", { className: `${fieldCaptionClass} px-1.5`, children: "Section" }),
