@@ -125,8 +125,8 @@ describe("provider registration and package shape", () => {
 
     const registrations = harness.inspection.registrations;
     expect(registrations.mentionProviders.map(({ id, label, triggers }) => ({ id, label, triggers }))).toEqual([
-      { id: "installed", label: "Installed", triggers: ["@"] },
-      { id: "community", label: "Community", triggers: ["@"] },
+      { id: "installed", label: "Installed plugins", triggers: ["@"] },
+      { id: "community", label: "Community plugins", triggers: ["@"] },
     ]);
     expect(registrations).toMatchObject({
       settingsDescriptors: {},
@@ -173,6 +173,29 @@ describe("provider registration and package shape", () => {
 });
 
 describe("provider searches", () => {
+  it("searches and resolves the newer catalog response while retaining array compatibility", async () => {
+    const entry = community();
+    const { bb, harness } = createFakePluginHost({
+      pluginId: "at-plugin",
+      sdk: { plugins: { list: async () => ({ plugins: [] }) } },
+    });
+    await plugin(bb);
+    const provider = mentionProvider(harness, "community");
+    for (const response of [[entry], { results: [entry], collections: [] }]) {
+      harness.inspection.sdk.stub("plugins.catalog.search", async () => response);
+      const rows = await provider.search({ ...MENTION_CONTEXT, query: "plugin" });
+      expect(rows.map((row) => row.title)).toEqual(["Noema"]);
+      expect(await provider.resolve(rows[0]!.id)).toEqual({
+        context: buildCommunityPluginContext({
+          name: entry.displayName,
+          pluginId: entry.pluginId,
+          marketplace: entry.marketplace,
+          entryId: entry.entryId,
+        }),
+      });
+    }
+  });
+
   it.each(["plugin", " Plugin "])("browses every eligible plugin for %j and still searches names", async (query) => {
     const inventory = Array.from({ length: 9 }, (_, index) => installed({
       id: `installed-${index}`, name: `Tool ${index}`, description: "Manage tasks",

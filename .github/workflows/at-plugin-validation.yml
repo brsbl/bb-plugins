@@ -1,0 +1,21 @@
+name: At Plugin validation
+on:
+  push:
+    branches: [bb/fix-broken-plugin-integration-thr_n6te5fm8ii]
+permissions:
+  contents: read
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22.22.0
+          cache: npm
+      - run: npm ci
+      - run: npm run check --workspace=bb-plugin-at-plugin
+      - uses: actions/upload-artifact@v4
+        with:
+          name: at-plugin-dist
+          path: plugins/at-plugin/dist/
