@@ -361,8 +361,9 @@ describe("workflow settings", () => {
       "{{section.title}}",
     );
     expect(
-      rendered.getByText("sent when a thread lands here", { exact: false }),
-    ).toBeTruthy();
+      rendered.getAllByText("sent when a thread lands here", { exact: false })
+        .length,
+    ).toBeGreaterThan(0);
 
     fireEvent.click(rendered.getByRole("button", { name: "Add section" }));
     const title = await rendered.findByLabelText("New Section section title");
