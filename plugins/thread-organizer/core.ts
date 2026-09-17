@@ -480,7 +480,7 @@ function entryPromptGuidance(config: WorkflowConfig): string[] {
   if (keys.length === 0) return [];
   return [
     "",
-    `Entering ${keys.join(", ")} sends that stage’s entry prompt to this thread as a follow-up message, queued until your current turn ends. Run \`bb organizer phase\` only when the thread’s primary activity has genuinely changed — never as a shortcut to trigger that prompt, and never twice for the same stage. After moving, end your turn promptly so the prompt can dispatch.`,
+    `Entering ${keys.join(", ")} sends that stage’s entry prompt to this thread as a follow-up message — queued until your current turn ends, or steering the live turn where the stage says so. Run \`bb organizer phase\` only when the thread’s primary activity has genuinely changed — never as a shortcut to trigger that prompt, and never twice for the same stage. After moving, end your turn promptly so the prompt can dispatch.`,
   ];
 }
 

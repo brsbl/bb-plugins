@@ -14827,7 +14827,7 @@ function entryPromptGuidance(config2) {
   if (keys.length === 0) return [];
   return [
     "",
-    `Entering ${keys.join(", ")} sends that stage\u2019s entry prompt to this thread as a follow-up message, queued until your current turn ends. Run \`bb organizer phase\` only when the thread\u2019s primary activity has genuinely changed \u2014 never as a shortcut to trigger that prompt, and never twice for the same stage. After moving, end your turn promptly so the prompt can dispatch.`
+    `Entering ${keys.join(", ")} sends that stage\u2019s entry prompt to this thread as a follow-up message \u2014 queued until your current turn ends, or steering the live turn where the stage says so. Run \`bb organizer phase\` only when the thread\u2019s primary activity has genuinely changed \u2014 never as a shortcut to trigger that prompt, and never twice for the same stage. After moving, end your turn promptly so the prompt can dispatch.`
   ];
 }
 function escapeTableCell(value) {
@@ -14853,7 +14853,7 @@ var PENDING_CONFIG_OPERATION_KEY = "workflow-config-operation:v1";
 var THREAD_STATE_PREFIX = "thread:v3:";
 var LEGACY_THREAD_STATE_PREFIX = "thread:v1:";
 var THREAD_LIST_PAGE_SIZE = 100;
-var ENTRY_PROMPT_MAX_ATTEMPTS = 5;
+var ENTRY_PROMPT_RETRY_INTERVAL_MS = 30 * 1e3;
 var ENTRY_PROMPT_MAX_AGE_MS = 24 * 60 * 60 * 1e3;
 var ENTRY_PROMPT_SAME_STAGE_COOLDOWN_MS = 10 * 60 * 1e3;
 var ENTRY_PROMPT_WINDOW_MS = 30 * 60 * 1e3;
@@ -14922,8 +14922,37 @@ function parsePendingEntryPrompt(value) {
     attempts: typeof candidate.attempts === "number" ? candidate.attempts : 0,
     enteredAt: candidate.enteredAt,
     stageKey: candidate.stageKey,
+    ...typeof candidate.lastAttemptAt === "number" ? { lastAttemptAt: candidate.lastAttemptAt } : {},
     ...typeof candidate.lastError === "string" ? { lastError: candidate.lastError } : {}
   };
+}
+function parseQueuedEntryPrompt(value) {
+  if (!value || typeof value !== "object") return null;
+  const candidate = value;
+  return typeof candidate.queuedMessageId === "string" && typeof candidate.stageKey === "string" ? { queuedMessageId: candidate.queuedMessageId, stageKey: candidate.stageKey } : null;
+}
+function entryPromptNote(outcome) {
+  switch (outcome) {
+    case "sent":
+      return " Sent its entry prompt.";
+    case "queued":
+      return " Queued its entry prompt for after this turn.";
+    case "deferred":
+      return " Its entry prompt will be retried.";
+    case "dropped":
+      return " Its entry prompt was not sent; see the plugin log.";
+    default:
+      return "";
+  }
+}
+function queuedMessageIdFrom(result) {
+  if (!result || typeof result !== "object") return null;
+  const response = result;
+  if (response.delivery !== "queued" || !response.queuedMessage || typeof response.queuedMessage !== "object") {
+    return null;
+  }
+  const id = response.queuedMessage.id;
+  return typeof id === "string" ? id : null;
 }
 function parseEntryPromptRecords(value) {
   if (!Array.isArray(value)) return [];
@@ -15037,21 +15066,32 @@ async function plugin(bb) {
     const stored = await bb.storage.kv.get(threadStateKey(thread.id));
     if (stored && typeof stored === "object") {
       const value = stored;
-      const remembered2 = configSnapshot.stages.find(
-        (stage) => stage.key === value.rememberedStageKey && stage.role === "stage"
-      );
-      if ((value.version === 3 || value.version === 4 || value.version === 5 || value.version === 6) && remembered2) {
-        const current = value.version === 6;
+      if (value.version === 3 || value.version === 4 || value.version === 5 || value.version === 6) {
+        const remembered2 = configSnapshot.stages.find(
+          (stage) => stage.key === value.rememberedStageKey && stage.role === "stage"
+        ) ?? initialRememberedStage(thread);
         return {
           created: false,
           state: {
-            version: 6,
+            version: 5,
             rememberedStageKey: remembered2.key,
-            // Older states already sat in their remembered stage, so seeding
-            // the landing from it keeps an upgrade from firing prompts.
-            lastLandedStageKey: current ? parseStageKeyOrNull(value.lastLandedStageKey) : remembered2.key,
-            pendingEntryPrompt: current ? parsePendingEntryPrompt(value.pendingEntryPrompt) : null,
-            recentEntryPrompts: current ? parseEntryPromptRecords(value.recentEntryPrompts) : []
+            // Records written before landings were tracked already sat in
+            // their remembered stage; seeding from it keeps an upgrade silent.
+            lastLandedStageKey: "lastLandedStageKey" in value ? parseStageKeyOrNull(value.lastLandedStageKey) : remembered2.key,
+            lastDestinationKey: parseStageKeyOrNull(value.lastDestinationKey),
+            suppressedEntryStageKey: parseStageKeyOrNull(
+              value.suppressedEntryStageKey
+            ),
+            deferredAgentMoveStageKey: parseStageKeyOrNull(
+              value.deferredAgentMoveStageKey
+            ),
+            pendingEntryPrompt: parsePendingEntryPrompt(
+              value.pendingEntryPrompt
+            ),
+            queuedEntryPrompt: parseQueuedEntryPrompt(value.queuedEntryPrompt),
+            recentEntryPrompts: parseEntryPromptRecords(
+              value.recentEntryPrompts
+            )
           }
         };
       }
@@ -15071,10 +15111,14 @@ async function plugin(bb) {
       }
     }
     const migrated = {
-      version: 6,
+      version: 5,
       rememberedStageKey: remembered.key,
       lastLandedStageKey: remembered.key,
+      lastDestinationKey: null,
+      suppressedEntryStageKey: null,
+      deferredAgentMoveStageKey: null,
       pendingEntryPrompt: null,
+      queuedEntryPrompt: null,
       recentEntryPrompts: []
     };
     await bb.storage.kv.set(threadStateKey(thread.id), migrated);
@@ -15086,11 +15130,13 @@ async function plugin(bb) {
   async function saveThreadState(threadId, state) {
     await bb.storage.kv.set(threadStateKey(threadId), state);
   }
-  async function reconcileThread(threadId, explicitStageKey) {
+  async function reconcileThread(threadId, options = {}) {
+    const { explicitStageKey, seedLanding = false } = options;
     const thread = await bb.sdk.threads.get({ threadId });
     if (!isManageableThread(thread)) return null;
     const { created, state } = await readThreadState(thread);
     const currentStage = stageForSectionId(configSnapshot, thread.sectionId);
+    const externalPlacement = !created && currentStage !== null && state.lastDestinationKey !== null && currentStage.key !== state.lastDestinationKey;
     if (explicitStageKey) {
       state.rememberedStageKey = explicitStageKey;
     } else if (currentStage?.role === "stage") {
@@ -15120,29 +15166,71 @@ async function plugin(bb) {
       );
     }
     const landedStageKey = destination.role === "stage" ? destination.key : state.lastLandedStageKey;
-    const entered = !created && landedStageKey !== null && landedStageKey !== state.lastLandedStageKey;
+    const landingChanged = landedStageKey !== null && landedStageKey !== state.lastLandedStageKey;
+    const agentMove = explicitStageKey !== void 0 || landedStageKey !== null && state.deferredAgentMoveStageKey === landedStageKey && !externalPlacement;
+    const resumedSuppressed = !landingChanged && landedStageKey !== null && state.suppressedEntryStageKey === landedStageKey && externalPlacement && explicitStageKey === void 0;
+    const entered = !created && !seedLanding && (landingChanged || resumedSuppressed);
+    if (explicitStageKey !== void 0 && destination.role === "inbox") {
+      state.deferredAgentMoveStageKey = explicitStageKey;
+    } else if (landingChanged) {
+      state.deferredAgentMoveStageKey = null;
+      state.suppressedEntryStageKey = null;
+    }
     state.lastLandedStageKey = landedStageKey;
-    if (state.pendingEntryPrompt !== null && state.pendingEntryPrompt.stageKey !== landedStageKey) {
+    state.lastDestinationKey = destination.key;
+    if (state.pendingEntryPrompt !== null && state.pendingEntryPrompt.stageKey !== state.rememberedStageKey) {
+      bb.log.info(
+        `thread=${threadId} action=entry-prompt-dropped stage=${state.pendingEntryPrompt.stageKey} reason=re-targeted`
+      );
       state.pendingEntryPrompt = null;
     }
-    if (entered && hasEntryPrompt(destination) && (explicitStageKey === void 0 || destination.entryPromptOnAgentMove !== false)) {
-      state.pendingEntryPrompt = {
-        attempts: 0,
-        enteredAt: Date.now(),
-        stageKey: destination.key
-      };
+    if (state.queuedEntryPrompt !== null && state.queuedEntryPrompt.stageKey !== state.rememberedStageKey) {
+      await retractQueuedEntryPrompt(threadId, state);
+    }
+    if (entered && hasEntryPrompt(destination)) {
+      if (agentMove && destination.entryPromptOnAgentMove === false) {
+        state.suppressedEntryStageKey = destination.key;
+      } else {
+        state.suppressedEntryStageKey = null;
+        state.pendingEntryPrompt = {
+          attempts: 0,
+          enteredAt: Date.now(),
+          stageKey: destination.key
+        };
+      }
     }
     await saveThreadState(threadId, state);
     return state.pendingEntryPrompt === null ? null : await deliverEntryPrompt(thread, state);
+  }
+  async function retractQueuedEntryPrompt(threadId, state) {
+    const queued = state.queuedEntryPrompt;
+    if (queued === null) return;
+    state.queuedEntryPrompt = null;
+    try {
+      await bb.sdk.threads.queuedMessages.delete({
+        threadId,
+        queuedMessageId: queued.queuedMessageId
+      });
+      bb.log.info(
+        `thread=${threadId} action=entry-prompt-retracted stage=${queued.stageKey}`
+      );
+    } catch (error51) {
+      bb.log.info(
+        `thread=${threadId} action=entry-prompt-retract-skipped stage=${queued.stageKey} error=${describeError(error51)}`
+      );
+    }
   }
   async function deliverEntryPrompt(thread, state) {
     const pending = state.pendingEntryPrompt;
     if (pending === null) return null;
     const now = Date.now();
+    if (pending.lastAttemptAt !== void 0 && now - pending.lastAttemptAt < ENTRY_PROMPT_RETRY_INTERVAL_MS) {
+      return "deferred";
+    }
     const drop = async (reason) => {
       state.pendingEntryPrompt = null;
       await saveThreadState(thread.id, state);
-      bb.log.info(
+      bb.log.warn(
         `thread=${thread.id} action=entry-prompt-dropped stage=${pending.stageKey} reason=${reason}`
       );
       return "dropped";
@@ -15151,7 +15239,7 @@ async function plugin(bb) {
       (candidate) => candidate.key === pending.stageKey
     );
     if (!stage || !hasEntryPrompt(stage)) return drop("no-prompt");
-    if (pending.attempts >= ENTRY_PROMPT_MAX_ATTEMPTS || now - pending.enteredAt > ENTRY_PROMPT_MAX_AGE_MS) {
+    if (now - pending.enteredAt > ENTRY_PROMPT_MAX_AGE_MS) {
       return drop("expired");
     }
     const recent = state.recentEntryPrompts.filter(
@@ -15162,12 +15250,14 @@ async function plugin(bb) {
     )) {
       return drop("rate-limited");
     }
+    const titleFallback = thread.titleFallback ?? "";
     const text = entryPromptMessage(stage, {
       stage: { key: stage.key, title: stage.title },
-      thread: { id: thread.id, title: thread.title ?? "" }
+      thread: { id: thread.id, title: thread.title ?? titleFallback }
     });
+    let result;
     try {
-      await bb.sdk.threads.send({
+      result = await bb.sdk.threads.send({
         threadId: thread.id,
         mode: stage.entryPromptDelivery === "steer" ? "steer-if-active" : "queue-if-active",
         input: [{ type: "text", text, mentions: [] }]
@@ -15176,6 +15266,7 @@ async function plugin(bb) {
       state.pendingEntryPrompt = {
         ...pending,
         attempts: pending.attempts + 1,
+        lastAttemptAt: now,
         lastError: describeError(error51)
       };
       await saveThreadState(thread.id, state);
@@ -15184,16 +15275,19 @@ async function plugin(bb) {
       );
       return "deferred";
     }
+    const queuedMessageId = queuedMessageIdFrom(result);
     state.pendingEntryPrompt = null;
+    state.queuedEntryPrompt = queuedMessageId === null ? null : { queuedMessageId, stageKey: stage.key };
     state.recentEntryPrompts = [
       ...recent,
       { sentAt: now, stageKey: stage.key }
     ].slice(-ENTRY_PROMPT_HISTORY);
     await saveThreadState(thread.id, state);
+    const outcome = queuedMessageId === null ? "sent" : "queued";
     bb.log.info(
-      `thread=${thread.id} action=entry-prompt-sent stage=${stage.key}`
+      `thread=${thread.id} action=entry-prompt-${outcome} stage=${stage.key}`
     );
-    return "sent";
+    return outcome;
   }
   async function listManageableThreadIds(signal) {
     const result = [];
@@ -15218,34 +15312,16 @@ async function plugin(bb) {
     for (const threadId of await listManageableThreadIds(signal)) {
       if (signal?.aborted) return;
       await schedule(threadId, async () => {
-        await reconcileThread(threadId);
+        await reconcileThread(threadId, { seedLanding: true });
       });
     }
   }
   async function finishConfigOperation(operation) {
     configSnapshot = cloneWorkflowConfig(operation.nextConfig);
     await bb.storage.kv.set(CONFIG_KEY, configSnapshot);
-    const removedKeys = new Set(
-      operation.removedStages.map((stage) => stage.key)
-    );
     for (const threadId of await listManageableThreadIds()) {
       await enqueue(threadId, async () => {
-        const thread = await bb.sdk.threads.get({
-          threadId
-        });
-        if (!isManageableThread(thread)) return;
-        const { state } = await readThreadState(thread);
-        let changed = false;
-        if (removedKeys.has(state.rememberedStageKey)) {
-          state.rememberedStageKey = firstWorkflowStage(configSnapshot).key;
-          changed = true;
-        }
-        if (state.lastLandedStageKey !== null && removedKeys.has(state.lastLandedStageKey)) {
-          state.lastLandedStageKey = state.rememberedStageKey;
-          changed = true;
-        }
-        if (changed) await saveThreadState(thread.id, state);
-        await reconcileThread(thread.id);
+        await reconcileThread(threadId, { seedLanding: true });
       });
     }
     const existingSectionIds = new Set(
@@ -15359,7 +15435,9 @@ Available: ${available}
       const result = { outcome: null };
       try {
         await enqueue(thread.id, async () => {
-          result.outcome = await reconcileThread(thread.id, stage.key);
+          result.outcome = await reconcileThread(thread.id, {
+            explicitStageKey: stage.key
+          });
         });
       } catch (error51) {
         return {
@@ -15370,7 +15448,9 @@ Available: ${available}
       }
       return {
         exitCode: 0,
-        stdout: `Applied ${stage.title} to ${thread.id}.${result.outcome === "sent" ? " Queued its entry prompt." : ""}
+        stdout: `Applied ${stage.title} to ${thread.id}.${entryPromptNote(
+          result.outcome
+        )}
 `
       };
     }

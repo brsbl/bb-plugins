@@ -81,8 +81,12 @@ from the user’s settings.
 
 A stage can carry an entry prompt. When this thread lands in such a stage,
 Thread Organizer sends that prompt to this thread as a follow-up message; if a
-turn is running, it is queued until that turn ends. The live settings block
-names the stages that do this.
+turn is running, it is queued until that turn ends unless the stage delivers
+immediately. The live settings block names the stages that do this.
+
+Never move a thread between sections with `bb thread update --section` or
+`--clear-section`; `bb organizer phase` is the only move an agent may make, and
+it is the only one the plugin can attribute to an agent.
 
 Treat that as a consequence, not a tool: run `bb organizer phase` only when the
 thread’s primary activity has genuinely changed, never as a shortcut to trigger

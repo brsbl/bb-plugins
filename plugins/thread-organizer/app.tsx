@@ -342,7 +342,7 @@ function StageCard({
                   }
                   type="checkbox"
                 />
-                Also when an agent moves it here
+                Also when an agent moves it here with bb organizer phase
               </label>
               <label className="inline-flex items-center gap-1.5">
                 Deliver

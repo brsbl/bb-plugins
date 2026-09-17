@@ -370,7 +370,9 @@ describe("workflow settings", () => {
       target: { value: "Run /slop-cop on {{thread.title}}." },
     });
     fireEvent.click(
-      rendered.getByLabelText("Also when an agent moves it here"),
+      rendered.getByLabelText(
+        "Also when an agent moves it here with bb organizer phase",
+      ),
     );
 
     fireEvent.click(rendered.getByLabelText("More actions for Planning"));

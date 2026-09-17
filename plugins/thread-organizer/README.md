@@ -52,19 +52,27 @@ the context is insufficient, the thread stays where it is.
 ### Entry prompts
 
 From a stage’s “…” menu, choose **Add entry prompt**. Whenever a thread lands
-in that stage — you dragged it there, `bb thread update` moved it, or its agent
-ran `bb organizer phase <key>` — the plugin sends the prompt to that thread as
-a follow-up message. An idle thread starts a turn immediately; a running thread
-receives it once the current turn ends (choose “immediately” to steer the live
-turn instead). Uncheck “Also when an agent moves it here” for stages only you
-should trigger, such as a manual QA stage.
+in that stage — you dragged it there, `bb thread update --section` moved it, or
+its agent ran `bb organizer phase <key>` — the plugin sends the prompt to that
+thread as a follow-up message. It appears in the thread as a user message with
+a `Thread Organizer — entering “<stage>”:` prefix. An idle thread starts a turn
+immediately; a running thread receives it once the current turn ends (choose
+“immediately” to steer the live turn instead). A prompt the host queued is
+retracted if the thread moves on before it dispatches.
 
-Prompts fire once per entry: the plugin’s own Inbox routing never counts, a
-thread re-entering the same stage fires again only after leaving it, and no
-thread receives the same stage’s prompt twice within ten minutes or more than
-three entry prompts in half an hour. If the thread cannot take a message yet
-(starting, stopping, awaiting a permission answer), the prompt is retried on the
-thread’s next change for up to a day.
+“Also when an agent moves it here with bb organizer phase” controls the one move
+the plugin can attribute to an agent; a `bb thread update --section` move looks
+like yours. Uncheck it for stages only you should trigger: an agent landing
+there stays silent, and your later move into that stage still fires.
+
+Prompts fire once per entry. The plugin’s own Inbox routing never counts, a
+thread re-entering the same stage fires again only after leaving it, the first
+automatic placement of a new thread never fires, and neither do placements the
+plugin merely records — a config save or moves made while the plugin was off.
+No thread receives the same stage’s prompt twice within ten minutes or more
+than three entry prompts in half an hour; a refused prompt is logged as a
+warning. If the thread cannot take a message yet, the prompt is retried on the
+thread’s next change, at most every thirty seconds, for up to a day.
 
 Prompts may use `{{thread.title}}`, `{{thread.id}}`, `{{stage.title}}`, and
 `{{stage.key}}`.

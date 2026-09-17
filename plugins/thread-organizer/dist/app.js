@@ -993,7 +993,7 @@ function StageCard({
                   type: "checkbox"
                 }
               ),
-              "Also when an agent moves it here"
+              "Also when an agent moves it here with bb organizer phase"
             ] }),
             /* @__PURE__ */ jsxs("label", { className: "inline-flex items-center gap-1.5", children: [
               "Deliver",
