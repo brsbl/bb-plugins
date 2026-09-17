@@ -291,7 +291,12 @@ function parseWorkflowConfig(value) {
     if (!Array.isArray(value.stages)) return null;
     const stages = value.stages.map((stage) => parseStage(stage, true)).map(migrateDraftStage);
     validateStages(stages);
-    return { version: WORKFLOW_CONFIG_VERSION, stages };
+    const revision = typeof value.revision === "number" && Number.isInteger(value.revision) && value.revision >= 0 ? value.revision : void 0;
+    return {
+      version: WORKFLOW_CONFIG_VERSION,
+      stages,
+      ...revision === void 0 ? {} : { revision }
+    };
   } catch {
     return null;
   }
@@ -313,15 +318,21 @@ function editableWorkflowConfig(config) {
     version: WORKFLOW_CONFIG_VERSION,
     stages: config.stages.map(({ sectionId: _sectionId, ...stage }) => ({
       ...stage
-    }))
+    })),
+    ...config.revision === void 0 ? {} : { baseRevision: config.revision }
   };
 }
 function hasEntryPrompt(stage) {
   return typeof stage.entryPrompt === "string" && stage.entryPrompt.length > 0;
 }
+var MIGRATED_STAGE_KEYS = ["parked"];
 function createStageKey(title, existingKeys) {
   const base = title.normalize("NFKD").toLocaleLowerCase().replace(/[^a-z0-9]+/gu, "-").replace(/^-+|-+$/gu, "").slice(0, 32) || "stage";
-  const unavailable = /* @__PURE__ */ new Set(["inbox", ...existingKeys]);
+  const unavailable = /* @__PURE__ */ new Set([
+    "inbox",
+    ...MIGRATED_STAGE_KEYS,
+    ...existingKeys
+  ]);
   if (!unavailable.has(base)) return base;
   for (let suffix = 2; suffix < 1e4; suffix += 1) {
     const key = `${base.slice(0, 36)}-${suffix}`;
