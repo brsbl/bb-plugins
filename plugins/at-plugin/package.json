@@ -1,6 +1,6 @@
 {
   "name": "bb-plugin-at-plugin",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Mention installed and Community plugins from bb's existing @ menu.",
   "type": "module",
   "private": true,
