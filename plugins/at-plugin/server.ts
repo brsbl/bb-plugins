@@ -144,10 +144,17 @@ function exactCommunityEntry(
   );
 }
 
+function catalogEntries(
+  response: CommunityCatalogRecord[] | { results: CommunityCatalogRecord[] },
+): CommunityCatalogRecord[] {
+  // Older BB SDKs return the array directly; newer hosts wrap it with collections.
+  return Array.isArray(response) ? response : response.results;
+}
+
 export default async function plugin(bb: BbPluginApi) {
   bb.ui.registerMentionProvider({
     id: "installed",
-    label: "Installed",
+    label: "Installed plugins",
     async search({ query }) {
       try {
         const inventory = await boundedSdkRead((signal) => bb.sdk.plugins.list({ signal }));
@@ -180,13 +187,13 @@ export default async function plugin(bb: BbPluginApi) {
 
   bb.ui.registerMentionProvider({
     id: "community",
-    label: "Community",
+    label: "Community plugins",
     async search({ query }) {
       try {
         const entries = await boundedSdkRead((signal) =>
           bb.sdk.plugins.catalog.search({ query: isPluginBrowseQuery(query) ? "" : query, signal }),
         );
-        return searchCommunityPlugins(entries, query);
+        return searchCommunityPlugins(catalogEntries(entries), query);
       } catch {
         return [];
       }
@@ -224,7 +231,7 @@ export default async function plugin(bb: BbPluginApi) {
         throw communityVerificationError(fallback);
       }
 
-      const entry = exactCommunityEntry(entries, identity);
+      const entry = exactCommunityEntry(catalogEntries(entries), identity);
       if (entry === undefined) throw communityMissingError(fallback);
 
       const liveTarget = boundUntrustedText(entry.displayName, MAX_ITEM_TITLE_BYTES);
