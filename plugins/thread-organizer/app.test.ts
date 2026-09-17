@@ -296,7 +296,7 @@ describe("workflow settings", () => {
       within(planningActions).getByRole("menuitem", { name: "Move down" }),
     ).toBeTruthy();
 
-    const addStage = rendered.getByRole("button", { name: "Add stage" });
+    const addStage = rendered.getByRole("button", { name: "Add section" });
     const save = rendered.getByRole("button", { name: "Save" });
     const actions = rendered.getByRole("group", { name: "Workflow actions" });
     const description = rendered.getByText(
@@ -327,7 +327,7 @@ describe("workflow settings", () => {
     rendered.lifecycle.unmount();
   });
 
-  it("adds an entry prompt from the stage menu and saves it", async () => {
+  it("saves an entry prompt typed into the section's field and clears it when emptied", async () => {
     const app = await loadApp();
     const initial = configuredWorkflow();
     let savedInput: EditableWorkflowConfig | null = null;
@@ -354,49 +354,28 @@ describe("workflow settings", () => {
       },
     );
 
-    await rendered.findByLabelText("More actions for Planning");
-    expect(
-      rendered.queryByLabelText("Prompt sent when a thread enters Planning"),
-    ).toBeNull();
-    fireEvent.click(rendered.getByLabelText("More actions for Planning"));
-    fireEvent.click(
-      rendered.getByRole("menuitem", { name: "Add entry prompt" }),
-    );
-    const prompt = rendered.getByLabelText(
-      "Prompt sent when a thread enters Planning",
-    ) as HTMLTextAreaElement;
+    const prompt = (await rendered.findByLabelText(
+      "Entry prompt for Planning",
+    )) as HTMLTextAreaElement;
     expect(prompt.value).toBe("");
+    expect(rendered.queryByLabelText("Entry prompt for Inbox")).toBeNull();
+
     fireEvent.change(prompt, {
       target: { value: "Run /slop-cop on {{thread.title}}." },
     });
-    fireEvent.click(
-      rendered.getByLabelText(
-        "Also when an agent moves it here with bb organizer phase",
-      ),
-    );
-
-    fireEvent.click(rendered.getByLabelText("More actions for Planning"));
-    expect(
-      rendered.queryByRole("menuitem", { name: "Add entry prompt" }),
-    ).toBeNull();
-    fireEvent.keyDown(document, { key: "Escape" });
-    expect(
-      rendered.queryByLabelText("Prompt sent when a thread enters Inbox"),
-    ).toBeNull();
-
     fireEvent.click(rendered.getByRole("button", { name: "Save" }));
     await vi.waitFor(() => expect(savedInput).not.toBeNull());
     expect(savedInput!.stages[1]).toMatchObject({
       key: "planning",
       entryPrompt: "Run /slop-cop on {{thread.title}}.",
-      entryPromptOnAgentMove: false,
     });
     expect(savedInput!.stages[2]).not.toHaveProperty("entryPrompt");
 
-    fireEvent.click(rendered.getByRole("button", { name: "Remove prompt" }));
-    expect(
-      rendered.queryByLabelText("Prompt sent when a thread enters Planning"),
-    ).toBeNull();
+    fireEvent.change(prompt, { target: { value: "" } });
+    fireEvent.click(rendered.getByRole("button", { name: "Save" }));
+    await vi.waitFor(() =>
+      expect(savedInput!.stages[1]).not.toHaveProperty("entryPrompt"),
+    );
     rendered.lifecycle.unmount();
   });
 
@@ -482,18 +461,17 @@ describe("workflow settings", () => {
     const stageList = planningCard.parentElement!;
     const planningRuleLayout = planningRule.closest("label")!;
     expect(planningRuleLayout.parentElement).toBe(planningGrid);
-    expect(planningGrid.children).toHaveLength(4);
+    expect(planningGrid.children).toHaveLength(5);
     expect(planningGrid.className).toContain(
       "grid-cols-[minmax(0,1fr)_2rem]",
     );
     expect(planningGrid.className).toContain(
-      "lg:grid-cols-[2rem_minmax(7rem,9rem)_minmax(0,1fr)_2rem]",
+      "lg:grid-cols-[2rem_minmax(7rem,9rem)_minmax(0,1fr)_minmax(0,1.25fr)_2rem]",
     );
     expect(planningGrid.className).toContain("gap-y-0");
     expect(planningCard.className).toContain("px-3");
     expect(planningCard.className).toContain("py-2.5");
     expect(planningCard.className).toContain("lg:p-3");
-    expect(planningCard.className).toContain("first:rounded-t-lg");
     expect(planningCard.className).toContain("last:rounded-b-lg");
     expect(stageList.className).toContain("overflow-visible");
     expect(planningRuleLayout.className).toContain("col-span-2");
@@ -505,9 +483,16 @@ describe("workflow settings", () => {
       "More actions for Planning",
     ).parentElement!;
     expect(planningActions.className).toContain("col-start-2");
-    expect(planningActions.className).toContain("lg:col-start-4");
+    expect(planningActions.className).toContain("lg:col-start-5");
     expect(planningActions.className).not.toContain("col-start-3");
-    expect(planningActions.className).not.toContain("lg:col-start-5");
+    expect(planningActions.className).not.toContain("lg:col-start-4");
+    const planningPrompt = rendered
+      .getByLabelText("Entry prompt for Planning")
+      .closest("label")!;
+    expect(planningPrompt.parentElement).toBe(planningGrid);
+    expect(planningPrompt.className).toContain("row-start-3");
+    expect(planningPrompt.className).toContain("lg:col-start-4");
+    expect(planningPrompt.className).toContain("lg:row-start-1");
     expect(planningRule.className).toContain("border-transparent");
     expect(planningRule.className).toContain("resize-none");
     expect(planningRule.className).not.toContain("resize-y");
@@ -517,7 +502,7 @@ describe("workflow settings", () => {
     const inboxRule = rendered.getByText(INBOX_RULE);
     const inboxGrid = inboxTitle.parentElement!;
     expect(inboxRule.parentElement).toBe(inboxGrid);
-    expect(inboxGrid.children).toHaveLength(4);
+    expect(inboxGrid.children).toHaveLength(5);
     expect(inboxGrid.className).toBe(planningGrid.className);
     expect(inboxRule.className).toContain("col-span-2");
     expect(inboxRule.className).toContain("col-start-1");
