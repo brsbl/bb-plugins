@@ -1079,6 +1079,7 @@ describe("entry prompts", () => {
         {
           type: "text",
           text: "Thread Organizer — entering “Spec Review”:\n\nReview Fix the flaky test in Spec Review.",
+          mentions: [],
         },
       ],
     });
