@@ -49,19 +49,19 @@ var {
   version
 } = mod;
 
-// ../../../bb-plugins/node_modules/@hugeicons/core-free-icons/dist/esm/ArrowDown02Icon.js
+// ../../node_modules/@hugeicons/core-free-icons/dist/esm/ArrowDown02Icon.js
 var ArrowDown02Icon = [
   ["path", { d: "M12 18.502V5.00195", stroke: "currentColor", strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: "1.5", key: "0" }],
   ["path", { d: "M18 13.002C18 13.002 13.5811 19.0019 12 19.002C10.4188 19.002 6 13.002 6 13.002", stroke: "currentColor", strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: "1.5", key: "1" }]
 ];
 
-// ../../../bb-plugins/node_modules/@hugeicons/core-free-icons/dist/esm/ArrowUp02Icon.js
+// ../../node_modules/@hugeicons/core-free-icons/dist/esm/ArrowUp02Icon.js
 var ArrowUp02Icon = [
   ["path", { d: "M12 5.5V19", stroke: "currentColor", strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: "1.5", key: "0" }],
   ["path", { d: "M18 11C18 11 13.5811 5.00001 12 5C10.4188 4.99999 6 11 6 11", stroke: "currentColor", strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: "1.5", key: "1" }]
 ];
 
-// ../../../bb-plugins/node_modules/@hugeicons/core-free-icons/dist/esm/Delete02Icon.js
+// ../../node_modules/@hugeicons/core-free-icons/dist/esm/Delete02Icon.js
 var Delete02Icon = [
   ["path", { d: "M19.5 5.5L18.8803 15.5251C18.7219 18.0864 18.6428 19.3671 18.0008 20.2879C17.6833 20.7431 17.2747 21.1273 16.8007 21.416C15.8421 22 14.559 22 11.9927 22C9.42312 22 8.1383 22 7.17905 21.4149C6.7048 21.1257 6.296 20.7408 5.97868 20.2848C5.33688 19.3626 5.25945 18.0801 5.10461 15.5152L4.5 5.5", stroke: "currentColor", strokeLinecap: "round", strokeWidth: "1.5", key: "0" }],
   ["path", { d: "M3 5.5H21M16.0557 5.5L15.3731 4.09173C14.9196 3.15626 14.6928 2.68852 14.3017 2.39681C14.215 2.3321 14.1231 2.27454 14.027 2.2247C13.5939 2 13.0741 2 12.0345 2C10.9688 2 10.436 2 9.99568 2.23412C9.8981 2.28601 9.80498 2.3459 9.71729 2.41317C9.32164 2.7167 9.10063 3.20155 8.65861 4.17126L8.05292 5.5", stroke: "currentColor", strokeLinecap: "round", strokeWidth: "1.5", key: "1" }],
@@ -69,7 +69,7 @@ var Delete02Icon = [
   ["path", { d: "M14.5 16.5L14.5 10.5", stroke: "currentColor", strokeLinecap: "round", strokeWidth: "1.5", key: "3" }]
 ];
 
-// ../../../bb-plugins/node_modules/@hugeicons/core-free-icons/dist/esm/DragDropVerticalIcon.js
+// ../../node_modules/@hugeicons/core-free-icons/dist/esm/DragDropVerticalIcon.js
 var DragDropVerticalIcon = [
   ["path", { d: "M16 6C16 6.55228 15.5523 7 15 7C14.4477 7 14 6.55228 14 6C14 5.44772 14.4477 5 15 5C15.5523 5 16 5.44772 16 6Z", stroke: "currentColor", strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: "1.5", key: "0" }],
   ["path", { d: "M10 6C10 6.55228 9.55228 7 9 7C8.44772 7 8 6.55228 8 6C8 5.44772 8.44772 5 9 5C9.55228 5 10 5.44772 10 6Z", stroke: "currentColor", strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: "1.5", key: "1" }],
@@ -79,22 +79,22 @@ var DragDropVerticalIcon = [
   ["path", { d: "M10 12C10 12.5523 9.55228 13 9 13C8.44772 13 8 12.5523 8 12C8 11.4477 8.44772 11 9 11C9.55228 11 10 11.4477 10 12Z", stroke: "currentColor", strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: "1.5", key: "5" }]
 ];
 
-// ../../../bb-plugins/node_modules/@hugeicons/core-free-icons/dist/esm/MoreHorizontalIcon.js
+// ../../node_modules/@hugeicons/core-free-icons/dist/esm/MoreHorizontalIcon.js
 var MoreHorizontalIcon = [
   ["path", { d: "M6.00449 12.5V12M18.0045 12.5V12M12.0045 12.5V12M7.00449 12.5C7.00449 11.9477 6.55677 11.5 6.00449 11.5C5.4522 11.5 5.00449 11.9477 5.00449 12.5C5.00449 13.0523 5.4522 13.5 6.00449 13.5C6.55677 13.5 7.00449 13.0523 7.00449 12.5ZM19.0045 12.5C19.0045 11.9477 18.5568 11.5 18.0045 11.5C17.4522 11.5 17.0045 11.9477 17.0045 12.5C17.0045 13.0523 17.4522 13.5 18.0045 13.5C18.5568 13.5 19.0045 13.0523 19.0045 12.5ZM13.0045 12.5C13.0045 11.9477 12.5568 11.5 12.0045 11.5C11.4522 11.5 11.0045 11.9477 11.0045 12.5C11.0045 13.0523 11.4522 13.5 12.0045 13.5C12.5568 13.5 13.0045 13.0523 13.0045 12.5Z", stroke: "currentColor", strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: "1.5", key: "0" }]
 ];
 
-// ../../../bb-plugins/node_modules/@hugeicons/core-free-icons/dist/esm/PlusSignIcon.js
+// ../../node_modules/@hugeicons/core-free-icons/dist/esm/PlusSignIcon.js
 var PlusSignIcon = [
   ["path", { d: "M12 4V20M20 12H4", stroke: "currentColor", strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: "1.5", key: "0" }]
 ];
 
-// ../../../bb-plugins/node_modules/@hugeicons/core-free-icons/dist/esm/Tick02Icon.js
+// ../../node_modules/@hugeicons/core-free-icons/dist/esm/Tick02Icon.js
 var Tick02Icon = [
   ["path", { d: "M5 14L8.5 17.5L19 6.5", stroke: "currentColor", strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: "1.5", key: "0" }]
 ];
 
-// ../../../bb-plugins/node_modules/@hugeicons/react/dist/esm/HugeiconsIcon.js
+// ../../node_modules/@hugeicons/react/dist/esm/HugeiconsIcon.js
 var defaultAttributes = {
   xmlns: "http://www.w3.org/2000/svg",
   width: 24,
