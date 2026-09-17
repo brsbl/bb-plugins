@@ -240,20 +240,13 @@ function matchTier(query, displayName, pluginId, description) {
   if ([name, id, detail].some((field) => field.includes(foldedQuery))) return 2;
   return null;
 }
-function hasAgentFacingInterface(plugin2) {
-  return plugin2.cliCommand !== null || plugin2.capabilities.some(
-    (capability) => capability.kind === "skill" || capability.kind === "agent-tool"
-  );
+function isUsableInstalledTarget(plugin2) {
+  return normalizeStableIdentity(plugin2.id) !== null && plugin2.enabled && plugin2.status === "running";
 }
-function isUsableInstalledTarget(plugin2, ownerPluginId) {
-  const pluginId = normalizeStableIdentity(plugin2.id);
-  const ownerId = normalizeStableIdentity(ownerPluginId);
-  return pluginId !== null && pluginId !== ownerId && plugin2.status === "running" && hasAgentFacingInterface(plugin2);
-}
-function searchInstalledPlugins(plugins, query, ownerPluginId) {
+function searchInstalledPlugins(plugins, query) {
   const browse = isPluginBrowseQuery(query);
   const eligible = plugins.flatMap((plugin2) => {
-    if (!isUsableInstalledTarget(plugin2, ownerPluginId)) return [];
+    if (!isUsableInstalledTarget(plugin2)) return [];
     const pluginId = normalizeStableIdentity(plugin2.id);
     if (pluginId === null) return [];
     const displayName = normalizeUntrustedText(plugin2.name ?? pluginId) || pluginId;
@@ -334,11 +327,6 @@ function unusableInstalledError(target) {
     `${target} is not currently usable. Restore it in Plugins settings or remove @${target}, then retry.`
   );
 }
-function noAgentCapabilityError(target) {
-  return new Error(
-    `${target} no longer exposes an agent capability. Reload or update it, or remove @${target}, then retry.`
-  );
-}
 function inventoryVerificationError(target) {
   return new Error(
     `${target} could not be verified right now. Retry, or remove @${target} to send without it.`
@@ -374,8 +362,7 @@ function findInstalledPlugin(plugins, pluginId) {
 }
 function resolveInstalledRecord(plugin2) {
   const target = targetName(plugin2);
-  if (plugin2.status !== "running") throw unusableInstalledError(target);
-  if (!hasAgentFacingInterface(plugin2)) throw noAgentCapabilityError(target);
+  if (!isUsableInstalledTarget(plugin2)) throw unusableInstalledError(target);
   return {
     context: buildInstalledPluginContext({ name: target, pluginId: plugin2.id })
   };
@@ -395,7 +382,7 @@ async function plugin(bb) {
     async search({ query }) {
       try {
         const inventory = await boundedSdkRead((signal) => bb.sdk.plugins.list({ signal }));
-        return searchInstalledPlugins(inventory.plugins, query, bb.pluginId);
+        return searchInstalledPlugins(inventory.plugins, query);
       } catch {
         return [];
       }
