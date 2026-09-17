@@ -532,6 +532,12 @@ describe("workflow settings", () => {
     expect(rendered.getByText("Run /slop-cop on this PR.")).toBeTruthy();
     fireEvent.click(rendered.getByRole("button", { name: "Approve" }));
     await vi.waitFor(() => expect(submit).toHaveBeenCalledWith(true));
+    await vi.waitFor(() =>
+      expect(
+        (rendered.getByRole("button", { name: "Cancel" }) as HTMLButtonElement)
+          .disabled,
+      ).toBe(false),
+    );
     fireEvent.click(rendered.getByRole("button", { name: "Cancel" }));
     await vi.waitFor(() => expect(cancel).toHaveBeenCalled());
     rendered.lifecycle.unmount();

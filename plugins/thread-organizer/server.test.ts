@@ -1015,9 +1015,16 @@ describe("Thread Organizer server", () => {
         );
       }
 
-      await expect(
-        organizer.harness.behavior.callRpc("saveConfig", edited),
-      ).rejects.toThrow(`${failure} failed`);
+      if (failure === "migration") {
+        // One thread's move failing no longer fails the save: the config is
+        // persisted and the pending cleanup resumes on the next load.
+        await organizer.harness.behavior.callRpc("saveConfig", edited);
+        expect(organizer.deleteSection).not.toHaveBeenCalled();
+      } else {
+        await expect(
+          organizer.harness.behavior.callRpc("saveConfig", edited),
+        ).rejects.toThrow("deletion failed");
+      }
 
       const replacement = await organizer.harness.lifecycle.reload(plugin);
       const recovered = (await replacement.harness.behavior.callRpc(
