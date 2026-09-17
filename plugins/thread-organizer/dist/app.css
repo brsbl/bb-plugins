@@ -465,12 +465,6 @@
     .running {
       animation-play-state: running;
     }
-    .first\:rounded-t-lg {
-      &:first-child {
-        border-top-left-radius: var(--radius);
-        border-top-right-radius: var(--radius);
-      }
-    }
     .last\:rounded-b-lg {
       &:last-child {
         border-bottom-right-radius: var(--radius);
@@ -635,11 +629,6 @@
     .lg\:inline-flex {
       @media (width >= 64rem) {
         display: inline-flex;
-      }
-    }
-    .lg\:grid-cols-\[2rem_minmax\(7rem\,9rem\)_minmax\(0\,1fr\)_2rem\] {
-      @media (width >= 64rem) {
-        grid-template-columns: 2rem minmax(7rem,9rem) minmax(0,1fr) 2rem;
       }
     }
     .lg\:grid-cols-\[2rem_minmax\(7rem\,9rem\)_minmax\(0\,1fr\)_minmax\(0\,1\.25fr\)_2rem\] {
