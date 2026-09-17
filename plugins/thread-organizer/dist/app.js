@@ -560,7 +560,10 @@ function mountSidebarController(sidebar, signal, getConfig, onStageOrderChange, 
         const current = await store.read();
         if (signal.aborted) return;
         const next = orderWithConfiguredSections(current.value, config);
-        if (next === null) return;
+        if (next === null) {
+          renderedAtPush = renderedWorkflowSectionOrder(sidebar, config);
+          return;
+        }
         const result = await store.write(current.revision, next);
         if (signal.aborted) return;
         if (!("conflict" in result)) {

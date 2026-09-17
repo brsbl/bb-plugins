@@ -360,7 +360,13 @@ function mountSidebarController(
         const current = await store.read();
         if (signal.aborted) return;
         const next = orderWithConfiguredSections(current.value, config);
-        if (next === null) return;
+        if (next === null) {
+          // bb already holds the configured order. Whatever the sidebar shows
+          // right now is bb's render of it, not a drag, so do not push again
+          // until it changes.
+          renderedAtPush = renderedWorkflowSectionOrder(sidebar, config);
+          return;
+        }
         const result = await store.write(current.revision, next);
         if (signal.aborted) return;
         if (!("conflict" in result)) {
