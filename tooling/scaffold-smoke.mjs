@@ -232,7 +232,15 @@ try {
     description,
   );
 
-  run("npm", ["install", "--no-audit", "--no-fund"], fixtureRoot);
+  // vitest 4.x pins optional peers on its own companions; once those
+  // companions published 5.x, npm 10.9 crashes in arborist's #loadPeerSet
+  // ("Cannot read properties of null (reading 'edgesOut')") while resolving
+  // the fresh, lockfile-less scaffold. Legacy peer resolution sidesteps it.
+  run(
+    "npm",
+    ["install", "--no-audit", "--no-fund", "--legacy-peer-deps"],
+    fixtureRoot,
+  );
   run(
     "npm",
     ["run", "check", "--workspace=bb-plugin-scaffold-smoke"],
@@ -267,7 +275,11 @@ try {
     recursive: true,
     force: true,
   });
-  run("npm", ["ci", "--no-audit", "--no-fund"], fixtureRoot);
+  run(
+    "npm",
+    ["ci", "--no-audit", "--no-fund", "--legacy-peer-deps"],
+    fixtureRoot,
+  );
   run("npm", ["run", "check", "--workspaces", "--if-present"], fixtureRoot);
 
   const accidentalSkill = resolve(generated.directory, "skills/example-skill");
