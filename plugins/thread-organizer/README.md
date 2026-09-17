@@ -58,9 +58,9 @@ prompt to that thread as a follow-up message. It appears in the thread as a
 user message with a `Thread Organizer — entering “<section>”:` prefix. An idle
 thread starts a turn immediately; a running thread receives it once the current
 turn ends. A prompt the host queued is retracted if the thread moves on before
-it dispatches. An empty field means no prompt. On narrow screens a section without a prompt
-shows an **Add entry prompt** button instead of an empty field, and an empty
-field can be dismissed.
+it dispatches. A section without a prompt shows an **Add entry prompt** button instead of an
+empty field; an empty field can be dismissed, and an empty field means no
+prompt.
 
 Prompts fire once per landing. The plugin’s own Inbox routing never counts, a
 thread re-entering the same section fires again only after leaving it, the first

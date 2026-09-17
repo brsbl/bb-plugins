@@ -161,9 +161,6 @@
     .row-start-3 {
       grid-row-start: 3;
     }
-    .row-start-4 {
-      grid-row-start: 4;
-    }
     .mx-2 {
       margin-inline: calc(var(--spacing) * 2);
     }

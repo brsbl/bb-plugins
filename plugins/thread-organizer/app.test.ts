@@ -372,7 +372,7 @@ describe("workflow settings", () => {
       .scrollIntoView;
   });
 
-  it("collapses an empty entry prompt behind Add entry prompt on narrow widths and dismisses it again", async () => {
+  it("collapses an empty entry prompt behind Add entry prompt and dismisses it again", async () => {
     const app = await loadApp();
     const initial = configuredWorkflow();
     const rendered = renderSlot<{}, typeof rpcContract>(
@@ -399,11 +399,12 @@ describe("workflow settings", () => {
     const prompt = rendered.getByLabelText("Entry prompt for Planning");
     const promptLabel = prompt.closest("label")!;
     expect(promptLabel.className).toContain("hidden");
-    expect(promptLabel.className).toContain("lg:grid");
+    expect(promptLabel.className).toContain("lg:col-start-4");
     const add = within(planningCard).getByRole("button", {
       name: "Add entry prompt",
     });
-    expect(add.className).toContain("lg:hidden");
+    expect(add.className).toContain("lg:col-start-4");
+    expect(add.className).not.toContain("lg:hidden");
 
     fireEvent.click(add);
     await vi.waitFor(() =>
@@ -412,9 +413,9 @@ describe("workflow settings", () => {
     expect(
       within(planningCard).queryByRole("button", { name: "Add entry prompt" }),
     ).toBeNull();
-    expect(
-      within(planningCard).getByRole("button", { name: "Dismiss" }).className,
-    ).toContain("lg:hidden");
+    const dismiss = within(planningCard).getByRole("button", { name: "Dismiss" });
+    expect(dismiss.closest("label")).toBe(promptLabel);
+    expect(dismiss.className).not.toContain("lg:hidden");
 
     fireEvent.change(prompt, { target: { value: "Run /slop-cop." } });
     expect(

@@ -943,7 +943,7 @@ function StageCard({
           showPrompt ? null : /* @__PURE__ */ jsxs(
             "button",
             {
-              className: `${stagePromptLayoutClass} mt-2 inline-flex h-8 items-center gap-1.5 justify-self-start rounded-md border border-dashed border-border px-2.5 text-xs font-medium text-muted-foreground hover:border-foreground/40 hover:text-foreground lg:hidden`,
+              className: `${stagePromptLayoutClass} mt-2 inline-flex h-8 items-center gap-1.5 justify-self-start rounded-md border border-dashed border-border px-2.5 text-xs font-medium text-muted-foreground hover:border-foreground/40 hover:text-foreground lg:mt-0`,
               onClick: () => {
                 setPromptExpanded(true);
                 setFocusPromptPending(true);
@@ -965,7 +965,7 @@ function StageCard({
           /* @__PURE__ */ jsxs(
             "label",
             {
-              className: `${stagePromptLayoutClass} mt-2 gap-0.5 lg:mt-0 ${showPrompt ? "grid" : "hidden lg:grid"}`,
+              className: `${stagePromptLayoutClass} mt-2 gap-0.5 lg:mt-0 ${showPrompt ? "grid" : "hidden"}`,
               children: [
                 /* @__PURE__ */ jsx("span", { className: `${fieldCaptionClass} px-2.5 lg:sr-only`, children: "Entry prompt" }),
                 /* @__PURE__ */ jsx(
@@ -980,19 +980,19 @@ function StageCard({
                     style: { fieldSizing: "content" },
                     value: stage.entryPrompt ?? ""
                   }
+                ),
+                hasPrompt ? null : /* @__PURE__ */ jsx(
+                  "button",
+                  {
+                    className: "justify-self-end text-xs text-muted-foreground hover:text-foreground",
+                    onClick: () => setPromptExpanded(false),
+                    type: "button",
+                    children: "Dismiss"
+                  }
                 )
               ]
             }
-          ),
-          showPrompt && !hasPrompt ? /* @__PURE__ */ jsx(
-            "button",
-            {
-              className: "col-span-2 col-start-1 row-start-4 mt-1 justify-self-end text-xs text-muted-foreground hover:text-foreground lg:hidden",
-              onClick: () => setPromptExpanded(false),
-              type: "button",
-              children: "Dismiss"
-            }
-          ) : null
+          )
         ] })
       ] })
     }
