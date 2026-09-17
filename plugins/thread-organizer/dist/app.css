@@ -194,6 +194,9 @@
     .inline-flex {
       display: inline-flex;
     }
+    .table {
+      display: table;
+    }
     .size-3\.5 {
       width: calc(var(--spacing) * 3.5);
       height: calc(var(--spacing) * 3.5);
