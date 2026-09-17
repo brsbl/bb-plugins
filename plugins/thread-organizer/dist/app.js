@@ -879,7 +879,7 @@ function StageCard({
           {
             "aria-label": `${stage.title || "Untitled section"} section title`,
             "data-stage-key": stage.key,
-            className: "h-8 min-w-0 flex-1 rounded-md border border-transparent bg-transparent px-1.5 text-sm font-semibold text-foreground outline-none hover:border-border focus:border-foreground/45 focus:bg-background",
+            className: "h-8 min-w-0 flex-1 rounded-md border border-transparent bg-transparent px-2.5 text-sm font-semibold text-foreground outline-none hover:border-border focus:border-foreground/45 focus:bg-background",
             maxLength: 80,
             onChange: (event) => update("title", event.target.value),
             value: stage.title
@@ -907,7 +907,7 @@ function StageCard({
             className: `${stageRuleLayoutClass} px-2.5 py-1.5 text-sm leading-5 text-muted-foreground`,
             children: stage.rule
           }
-        ) : /* @__PURE__ */ jsxs("label", { className: `${stageRuleLayoutClass} grid gap-1`, children: [
+        ) : /* @__PURE__ */ jsxs("label", { className: `${stageRuleLayoutClass} mt-1.5 grid gap-0.5 lg:mt-0`, children: [
           /* @__PURE__ */ jsx("span", { className: `${fieldCaptionClass} px-2.5 lg:sr-only`, children: "Rule" }),
           /* @__PURE__ */ jsx(
             "textarea",
@@ -929,7 +929,7 @@ function StageCard({
             className: `${stagePromptLayoutClass} hidden px-2.5 py-1.5 text-sm leading-5 text-muted-foreground lg:block`,
             children: "\u2014"
           }
-        ) : /* @__PURE__ */ jsxs("label", { className: `${stagePromptLayoutClass} grid gap-1`, children: [
+        ) : /* @__PURE__ */ jsxs("label", { className: `${stagePromptLayoutClass} mt-2 grid gap-0.5 lg:mt-0`, children: [
           /* @__PURE__ */ jsx("span", { className: `${fieldCaptionClass} px-2.5 lg:sr-only`, children: "Entry prompt" }),
           /* @__PURE__ */ jsx(
             "textarea",
@@ -1154,7 +1154,7 @@ function WorkflowSettings() {
           ),
           /* @__PURE__ */ jsxs("div", { className: stageHeaderClass, children: [
             /* @__PURE__ */ jsx("span", {}),
-            /* @__PURE__ */ jsx("span", { className: `${fieldCaptionClass} px-1.5`, children: "Section" }),
+            /* @__PURE__ */ jsx("span", { className: `${fieldCaptionClass} px-2.5`, children: "Section" }),
             /* @__PURE__ */ jsxs("span", { className: `${fieldCaptionClass} px-2.5`, children: [
               "Rule",
               /* @__PURE__ */ jsx("span", { className: fieldHintClass, children: "what belongs here" })

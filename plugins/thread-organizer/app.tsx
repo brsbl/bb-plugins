@@ -258,7 +258,7 @@ function StageCard({
         <input
           aria-label={`${stage.title || "Untitled section"} section title`}
           data-stage-key={stage.key}
-          className="h-8 min-w-0 flex-1 rounded-md border border-transparent bg-transparent px-1.5 text-sm font-semibold text-foreground outline-none hover:border-border focus:border-foreground/45 focus:bg-background"
+          className="h-8 min-w-0 flex-1 rounded-md border border-transparent bg-transparent px-2.5 text-sm font-semibold text-foreground outline-none hover:border-border focus:border-foreground/45 focus:bg-background"
           maxLength={80}
           onChange={(event) => update("title", event.target.value)}
           value={stage.title}
@@ -284,7 +284,7 @@ function StageCard({
             {stage.rule}
           </p>
         ) : (
-          <label className={`${stageRuleLayoutClass} grid gap-1`}>
+          <label className={`${stageRuleLayoutClass} mt-1.5 grid gap-0.5 lg:mt-0`}>
             <span className={`${fieldCaptionClass} px-2.5 lg:sr-only`}>
               Rule
             </span>
@@ -307,7 +307,7 @@ function StageCard({
             —
           </span>
         ) : (
-          <label className={`${stagePromptLayoutClass} grid gap-1`}>
+          <label className={`${stagePromptLayoutClass} mt-2 grid gap-0.5 lg:mt-0`}>
             <span className={`${fieldCaptionClass} px-2.5 lg:sr-only`}>
               Entry prompt
             </span>
@@ -547,7 +547,7 @@ export function WorkflowSettings() {
         </p>
         <div className={stageHeaderClass}>
           <span />
-          <span className={`${fieldCaptionClass} px-1.5`}>Section</span>
+          <span className={`${fieldCaptionClass} px-2.5`}>Section</span>
           <span className={`${fieldCaptionClass} px-2.5`}>
             Rule
             <span className={fieldHintClass}>what belongs here</span>
