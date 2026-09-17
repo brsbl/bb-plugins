@@ -7,22 +7,144 @@ import {
 } from "./core.js";
 
 const SIDEBAR_SELECTOR = '[data-sidebar="sidebar"]';
-const MANUAL_SECTION_ORDER_STORAGE_KEY = "bb.sidebar.manualSectionOrder";
+const SECTION_ROW_SELECTOR = "[data-sidebar-section-id]";
+
+/**
+ * bb keeps the sidebar's manual section order as a server-synced UI
+ * preference. Every entry is a sidebar section id: `section:<threadSectionId>`
+ * for a thread section, plus built-in ids such as `pinned` and `threads`.
+ */
+export const SECTION_ORDER_PREFERENCE_KEY = "sidebar.manualSectionOrder";
+const UI_PREFERENCES_PATH = "/api/v1/preferences/ui";
 
 export const WORKFLOW_CACHE_STORAGE_KEY = "bb.thread-organizer.workflow-config";
 export const WORKFLOW_CONFIG_EVENT = "bb-thread-organizer-workflow-config";
+
+export interface SectionOrderPreference {
+  revision: number;
+  value: string[];
+}
+
+export type SectionOrderWriteResult =
+  | SectionOrderPreference
+  | { conflict: true; revision: number | null };
+
+/** Reads and writes bb's `sidebar.manualSectionOrder` preference. */
+export interface SectionOrderStore {
+  read: () => Promise<SectionOrderPreference>;
+  write: (
+    expectedRevision: number,
+    value: readonly string[],
+  ) => Promise<SectionOrderWriteResult>;
+}
 
 interface MountThreadOrganizerSidebarOptions {
   document?: Document;
   loadConfig?: () => Promise<WorkflowConfig>;
   pluginId: string;
   saveConfig?: (config: EditableWorkflowConfig) => Promise<WorkflowConfig>;
+  sectionOrderStore?: SectionOrderStore;
   signal: AbortSignal;
 }
 
 interface SidebarController {
   applyConfiguredOrder: () => void;
   dispose: () => void;
+}
+
+function isStringArray(value: unknown): value is string[] {
+  return (
+    Array.isArray(value) && value.every((entry) => typeof entry === "string")
+  );
+}
+
+function parseSectionOrderPreference(
+  payload: unknown,
+): SectionOrderPreference | null {
+  if (typeof payload !== "object" || payload === null) return null;
+  const revision = (payload as { revision?: unknown }).revision;
+  const value = (payload as { value?: unknown }).value;
+  if (
+    typeof revision !== "number" ||
+    !Number.isInteger(revision) ||
+    revision < 0 ||
+    !isStringArray(value)
+  ) {
+    return null;
+  }
+  return { revision, value: [...value] };
+}
+
+/** The default store talks to bb's UI preferences API on the app's origin. */
+export function createSectionOrderStore(
+  fetchImpl: typeof fetch = (...args) => fetch(...args),
+): SectionOrderStore {
+  return {
+    async read() {
+      const response = await fetchImpl(UI_PREFERENCES_PATH, {
+        headers: { accept: "application/json" },
+      });
+      if (!response.ok) {
+        throw new Error(
+          `Sidebar section order request failed (${response.status})`,
+        );
+      }
+      const payload: unknown = await response.json();
+      const preferences =
+        typeof payload === "object" && payload !== null
+          ? (payload as { preferences?: unknown }).preferences
+          : undefined;
+      const entry =
+        typeof preferences === "object" && preferences !== null
+          ? (preferences as Record<string, unknown>)[
+              SECTION_ORDER_PREFERENCE_KEY
+            ]
+          : undefined;
+      const parsed = parseSectionOrderPreference(entry);
+      if (parsed === null) {
+        throw new Error("bb returned an invalid sidebar section order");
+      }
+      return parsed;
+    },
+    async write(expectedRevision, value) {
+      const response = await fetchImpl(
+        `${UI_PREFERENCES_PATH}/${encodeURIComponent(SECTION_ORDER_PREFERENCE_KEY)}`,
+        {
+          method: "PUT",
+          headers: {
+            accept: "application/json",
+            "content-type": "application/json",
+          },
+          body: JSON.stringify({ expectedRevision, value: [...value] }),
+        },
+      );
+      if (response.status === 409) {
+        const payload: unknown = await response.json().catch(() => null);
+        const details =
+          typeof payload === "object" && payload !== null
+            ? (payload as { details?: unknown }).details
+            : undefined;
+        const current =
+          typeof details === "object" && details !== null
+            ? (details as { currentRevision?: unknown }).currentRevision
+            : undefined;
+        return {
+          conflict: true,
+          revision: typeof current === "number" ? current : null,
+        };
+      }
+      if (!response.ok) {
+        throw new Error(
+          `Sidebar section order update failed (${response.status})`,
+        );
+      }
+      const parsed = parseSectionOrderPreference(await response.json());
+      if (parsed === null) {
+        throw new Error("bb returned an invalid sidebar section order");
+      }
+      return parsed;
+    },
+  };
 }
 
 function parsedCachedConfig(view: Window): WorkflowConfig | null {
@@ -113,40 +235,87 @@ async function saveWorkflowConfig(
   return saved;
 }
 
-function currentWorkflowSectionOrder(
+function configuredSectionIds(config: WorkflowConfig): string[] {
+  return config.stages.flatMap((stage) =>
+    stage.sectionId === null ? [] : [stage.sectionId],
+  );
+}
+
+function sameOrder(left: readonly string[], right: readonly string[]): boolean {
+  return (
+    left.length === right.length &&
+    left.every((entry, index) => entry === right[index])
+  );
+}
+
+/**
+ * The workflow sections as the sidebar currently renders them, top to
+ * bottom. Null unless every configured section is on screen, so a partially
+ * rendered sidebar never reads as a reorder.
+ */
+function renderedWorkflowSectionOrder(
   sidebar: Element,
   config: WorkflowConfig,
 ): string[] | null {
-  const view = sidebar.ownerDocument.defaultView;
-  if (view === null) return null;
-  const raw = view.localStorage.getItem(MANUAL_SECTION_ORDER_STORAGE_KEY);
-  if (raw === null) return null;
-  let current: unknown;
-  try {
-    current = JSON.parse(raw);
-  } catch {
-    return null;
+  const configured = new Set(configuredSectionIds(config));
+  const rendered: string[] = [];
+  for (const row of sidebar.querySelectorAll(SECTION_ROW_SELECTOR)) {
+    const sectionId = row.getAttribute("data-sidebar-section-id");
+    if (sectionId !== null && configured.has(sectionId)) {
+      rendered.push(sectionId);
+    }
   }
-  if (
-    !Array.isArray(current) ||
-    current.some((value) => typeof value !== "string")
-  ) {
-    return null;
-  }
+  return rendered.length === configured.size ? rendered : null;
+}
 
-  const configuredSectionIds = new Set(
-    config.stages.flatMap((stage) =>
-      stage.sectionId === null ? [] : [stage.sectionId],
-    ),
+/**
+ * bb's manual order with the workflow sections in configured order. Sections
+ * bb already knows keep the slots they occupy, so unrelated sections do not
+ * move; a workflow section bb has never ordered is inserted right after its
+ * configured predecessor. Null when nothing would change.
+ */
+export function orderWithConfiguredSections(
+  current: readonly string[],
+  config: WorkflowConfig,
+): string[] | null {
+  const configured = configuredSectionIds(config).map(
+    (sectionId) => `section:${sectionId}`,
   );
-  const orderedSectionIds = (current as string[]).flatMap((orderId) => {
-    if (!orderId.startsWith("section:")) return [];
-    const sectionId = orderId.slice("section:".length);
-    return configuredSectionIds.has(sectionId) ? [sectionId] : [];
+  if (configured.length < 2) return null;
+  const configuredSet = new Set(configured);
+  const positions = current.flatMap((entry, index) =>
+    configuredSet.has(entry) ? [index] : [],
+  );
+  const present = new Set(current.filter((entry) => configuredSet.has(entry)));
+  const next = [...current];
+  const placed = configured.filter((entry) => present.has(entry));
+  positions.forEach((position, index) => {
+    next[position] = placed[index]!;
   });
-  return orderedSectionIds.length === configuredSectionIds.size
-    ? orderedSectionIds
-    : null;
+  for (const [index, entry] of configured.entries()) {
+    if (present.has(entry)) continue;
+    const predecessor = configured
+      .slice(0, index)
+      .reverse()
+      .find((candidate) => present.has(candidate));
+    let insertAt: number;
+    if (predecessor !== undefined) {
+      insertAt = next.indexOf(predecessor) + 1;
+    } else {
+      const successor = configured
+        .slice(index + 1)
+        .find((candidate) => present.has(candidate));
+      insertAt =
+        successor !== undefined
+          ? next.indexOf(successor)
+          : next[0] === "pinned"
+            ? 1
+            : 0;
+    }
+    next.splice(insertAt, 0, entry);
+    present.add(entry);
+  }
+  return sameOrder(next, current) ? null : next;
 }
 
 function configInSectionOrder(
@@ -170,73 +339,43 @@ function configInSectionOrder(
   return { ...config, stages };
 }
 
-function reorderWorkflowSections(
-  sidebar: Element,
-  config: WorkflowConfig,
-): void {
-  const view = sidebar.ownerDocument.defaultView;
-  if (view === null) return;
-  const rankByOrderId = new Map<string, number>(
-    config.stages.flatMap((stage, index) =>
-      stage.sectionId === null
-        ? []
-        : [[`section:${stage.sectionId}`, index] as const],
-    ),
-  );
-  if (rankByOrderId.size < 2) return;
-
-  const raw = view.localStorage.getItem(MANUAL_SECTION_ORDER_STORAGE_KEY);
-  if (raw === null) return;
-  let current: unknown;
-  try {
-    current = JSON.parse(raw);
-  } catch {
-    return;
-  }
-  if (
-    !Array.isArray(current) ||
-    current.some((value) => typeof value !== "string")
-  ) {
-    return;
-  }
-
-  const currentOrder = current as string[];
-  const positions = currentOrder.flatMap((id, index) =>
-    rankByOrderId.has(id) ? [index] : [],
-  );
-  if (positions.length < 2) return;
-  const configuredIds = positions
-    .map((position) => currentOrder[position]!)
-    .sort(
-      (left, right) => rankByOrderId.get(left)! - rankByOrderId.get(right)!,
-    );
-  const nextOrder = [...currentOrder];
-  positions.forEach((position, index) => {
-    nextOrder[position] = configuredIds[index]!;
-  });
-  if (nextOrder.every((id, index) => id === currentOrder[index])) return;
-
-  const nextRaw = JSON.stringify(nextOrder);
-  view.localStorage.setItem(MANUAL_SECTION_ORDER_STORAGE_KEY, nextRaw);
-  view.dispatchEvent(
-    new view.StorageEvent("storage", {
-      key: MANUAL_SECTION_ORDER_STORAGE_KEY,
-      oldValue: raw,
-      newValue: nextRaw,
-      storageArea: view.localStorage,
-      url: view.location.href,
-    }),
-  );
-}
-
 function mountSidebarController(
   sidebar: Element,
   signal: AbortSignal,
   getConfig: () => WorkflowConfig | null,
   onStageOrderChange: (sectionIds: readonly string[]) => boolean,
+  store: SectionOrderStore,
 ): SidebarController {
   let applyConfiguredOrder = true;
   let scheduled = false;
+  let pushing = false;
+  // After a push, the sidebar still shows the old order until bb re-renders
+  // from the preference. Until it changes, a mismatch is not a user drag.
+  let renderedAtPush: string[] | null = null;
+
+  const pushConfiguredOrder = async (config: WorkflowConfig) => {
+    pushing = true;
+    try {
+      for (let attempt = 0; attempt < 2; attempt += 1) {
+        const current = await store.read();
+        if (signal.aborted) return;
+        const next = orderWithConfiguredSections(current.value, config);
+        if (next === null) return;
+        const result = await store.write(current.revision, next);
+        if (signal.aborted) return;
+        if (!("conflict" in result)) {
+          renderedAtPush = renderedWorkflowSectionOrder(sidebar, config);
+          return;
+        }
+      }
+    } catch {
+      // bb could not be reached or refused the write; the next config
+      // change or reorder tries again.
+    } finally {
+      pushing = false;
+      if (!signal.aborted) schedule();
+    }
+  };
 
   const reconcile = () => {
     scheduled = false;
@@ -245,21 +384,23 @@ function mountSidebarController(
     if (config === null) return;
     if (applyConfiguredOrder) {
       applyConfiguredOrder = false;
-      reorderWorkflowSections(sidebar, config);
-    } else {
-      const currentOrder = currentWorkflowSectionOrder(sidebar, config);
-      const configuredOrder = config.stages.flatMap((stage) =>
-        stage.sectionId === null ? [] : [stage.sectionId],
-      );
-      if (
-        currentOrder !== null &&
-        !currentOrder.every(
-          (sectionId, index) => sectionId === configuredOrder[index],
-        ) &&
-        !onStageOrderChange(currentOrder)
-      ) {
-        reorderWorkflowSections(sidebar, config);
+      void pushConfiguredOrder(config);
+      return;
+    }
+    if (pushing) return;
+    const rendered = renderedWorkflowSectionOrder(sidebar, config);
+    if (rendered === null) return;
+    const configured = configuredSectionIds(config);
+    const matches = sameOrder(rendered, configured);
+    if (renderedAtPush !== null) {
+      if (matches || !sameOrder(rendered, renderedAtPush)) {
+        renderedAtPush = null;
+      } else {
+        return;
       }
+    }
+    if (!matches && !onStageOrderChange(rendered)) {
+      void pushConfiguredOrder(config);
     }
   };
 
@@ -304,6 +445,7 @@ export function mountThreadOrganizerSidebar({
   loadConfig,
   pluginId,
   saveConfig = (config) => saveWorkflowConfig(pluginId, config),
+  sectionOrderStore = createSectionOrderStore(),
   signal,
 }: MountThreadOrganizerSidebarOptions): () => void {
   const view = targetDocument.defaultView;
@@ -392,6 +534,7 @@ export function mountThreadOrganizerSidebar({
             signal,
             () => config,
             requestStageOrder,
+            sectionOrderStore,
           ),
         );
       }
