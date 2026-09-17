@@ -146,20 +146,14 @@
     .right-0 {
       right: calc(var(--spacing) * 0);
     }
-    .left-0 {
-      left: calc(var(--spacing) * 0);
-    }
     .z-20 {
       z-index: 20;
-    }
-    .z-30 {
-      z-index: 30;
     }
     .col-span-2 {
       grid-column: span 2 / span 2;
     }
-    .col-span-6 {
-      grid-column: span 6 / span 6;
+    .col-start-1 {
+      grid-column-start: 1;
     }
     .col-start-2 {
       grid-column-start: 2;
@@ -208,17 +202,11 @@
     .max-h-24 {
       max-height: calc(var(--spacing) * 24);
     }
-    .max-h-72 {
-      max-height: calc(var(--spacing) * 72);
-    }
     .min-h-8 {
       min-height: calc(var(--spacing) * 8);
     }
     .w-40 {
       width: calc(var(--spacing) * 40);
-    }
-    .w-72 {
-      width: calc(var(--spacing) * 72);
     }
     .w-fit {
       width: fit-content;
@@ -228,9 +216,6 @@
     }
     .max-w-3xl {
       max-width: var(--container-3xl);
-    }
-    .max-w-\[calc\(100vw-2rem\)\] {
-      max-width: calc(100vw - 2rem);
     }
     .min-w-0 {
       min-width: calc(var(--spacing) * 0);
@@ -256,11 +241,8 @@
     .resize-y {
       resize: vertical;
     }
-    .grid-cols-6 {
-      grid-template-columns: repeat(6, minmax(0, 1fr));
-    }
-    .grid-cols-\[2rem_minmax\(0\,1fr\)_2rem\] {
-      grid-template-columns: 2rem minmax(0,1fr) 2rem;
+    .grid-cols-\[minmax\(0\,1fr\)_2rem\] {
+      grid-template-columns: minmax(0,1fr) 2rem;
     }
     .flex-wrap {
       flex-wrap: wrap;
@@ -342,9 +324,6 @@
     .bg-foreground {
       background-color: var(--foreground);
     }
-    .bg-muted {
-      background-color: var(--muted);
-    }
     .bg-popover {
       background-color: var(--popover);
     }
@@ -353,9 +332,6 @@
     }
     .p-1 {
       padding: calc(var(--spacing) * 1);
-    }
-    .p-2 {
-      padding: calc(var(--spacing) * 2);
     }
     .px-1\.5 {
       padding-inline: calc(var(--spacing) * 1.5);
@@ -375,17 +351,8 @@
     .py-2\.5 {
       padding-block: calc(var(--spacing) * 2.5);
     }
-    .py-3 {
-      padding-block: calc(var(--spacing) * 3);
-    }
     .ps-\[var\(--radius-lg\,0\.5rem\)\] {
       padding-inline-start: var(--radius-lg,0.5rem);
-    }
-    .pr-1 {
-      padding-right: calc(var(--spacing) * 1);
-    }
-    .text-center {
-      text-align: center;
     }
     .text-left {
       text-align: left;
@@ -437,16 +404,6 @@
     .shadow-lg {
       --tw-shadow: var(--shadow-lg);
       box-shadow: var(--tw-inset-shadow), var(--tw-inset-ring-shadow), var(--tw-ring-offset-shadow), var(--tw-ring-shadow), var(--tw-shadow);
-    }
-    .ring-1 {
-      --tw-ring-shadow: var(--tw-ring-inset,) 0 0 0 calc(1px + var(--tw-ring-offset-width)) var(--tw-ring-color, currentcolor);
-      box-shadow: var(--tw-inset-shadow), var(--tw-inset-ring-shadow), var(--tw-ring-offset-shadow), var(--tw-ring-shadow), var(--tw-shadow);
-    }
-    .ring-foreground\/35 {
-      --tw-ring-color: var(--foreground);
-      @supports (color: color-mix(in lab, red, red)) {
-        --tw-ring-color: color-mix(in oklab, var(--foreground) 35%, transparent);
-      }
     }
     .transition {
       transition-property: color, background-color, border-color, outline-color, text-decoration-color, fill, stroke, --tw-gradient-from, --tw-gradient-via, --tw-gradient-to, opacity, box-shadow, transform, translate, scale, rotate, filter, -webkit-backdrop-filter, backdrop-filter, display, content-visibility, overlay, pointer-events;
@@ -592,6 +549,11 @@
         grid-column: span 1 / span 1;
       }
     }
+    .lg\:col-start-3 {
+      @media (width >= 64rem) {
+        grid-column-start: 3;
+      }
+    }
     .lg\:col-start-4 {
       @media (width >= 64rem) {
         grid-column-start: 4;
@@ -617,9 +579,9 @@
         display: inline-flex;
       }
     }
-    .lg\:grid-cols-\[2rem_2rem_minmax\(7rem\,9rem\)_minmax\(0\,1fr\)_2rem\] {
+    .lg\:grid-cols-\[2rem_minmax\(7rem\,9rem\)_minmax\(0\,1fr\)_2rem\] {
       @media (width >= 64rem) {
-        grid-template-columns: 2rem 2rem minmax(7rem,9rem) minmax(0,1fr) 2rem;
+        grid-template-columns: 2rem minmax(7rem,9rem) minmax(0,1fr) 2rem;
       }
     }
     .lg\:p-3 {

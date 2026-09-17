@@ -10,7 +10,6 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   DEFAULT_WORKFLOW_CONFIG,
   INBOX_RULE,
-  SECTION_ICON_OPTIONS,
   cloneWorkflowConfig,
   type EditableWorkflowConfig,
   type WorkflowConfig,
@@ -201,7 +200,7 @@ describe("workflow settings", () => {
     rendered.lifecycle.unmount();
   });
 
-  it("lets Inbox change title and icon while locking its routing rule", async () => {
+  it("lets Inbox change title while locking its routing rule", async () => {
     const app = await loadApp();
     const initial = configuredWorkflow();
     let savedInput: EditableWorkflowConfig | null = null;
@@ -239,18 +238,6 @@ describe("workflow settings", () => {
     expect(rendered.queryByLabelText("Unread routing is automatic")).toBeNull();
 
     fireEvent.change(inboxTitle, { target: { value: "Needs Me" } });
-    const iconButton = rendered.getByRole("button", {
-      name: "Choose icon for Needs Me",
-    });
-    expect(
-      iconButton.compareDocumentPosition(inboxTitle) &
-        Node.DOCUMENT_POSITION_FOLLOWING,
-    ).not.toBe(0);
-    fireEvent.click(iconButton);
-    expect(
-      rendered.getByRole("listbox", { name: "Icons for Needs Me" }),
-    ).toBeTruthy();
-    fireEvent.click(rendered.getByRole("option", { name: "Mail Open" }));
     fireEvent.click(rendered.getByRole("button", { name: "Save" }));
 
     await vi.waitFor(() => expect(savedInput).not.toBeNull());
@@ -260,7 +247,6 @@ describe("workflow settings", () => {
     expect(savedInput!.stages[0]).toMatchObject({
       key: "inbox",
       title: "Needs Me",
-      icon: "MailOpen",
       rule: INBOX_RULE,
     });
     expect(rendered.inspection.rpcCalls.map(({ method }) => method)).toEqual([
@@ -314,7 +300,7 @@ describe("workflow settings", () => {
     const save = rendered.getByRole("button", { name: "Save" });
     const actions = rendered.getByRole("group", { name: "Workflow actions" });
     const description = rendered.getByText(
-      "Rename, re-icon, reorder, and define the workflow your agents follow.",
+      "Rename, reorder, and define the workflow your agents follow.",
     );
     expect(description.className).toContain("ps-[var(--radius-lg,0.5rem)]");
     expect(description.className).toContain("[text-indent:-0.088em]");
@@ -338,28 +324,6 @@ describe("workflow settings", () => {
         Node.DOCUMENT_POSITION_FOLLOWING,
     ).not.toBe(0);
 
-    fireEvent.click(
-      rendered.getByRole("button", { name: "Choose icon for Planning" }),
-    );
-    const iconList = rendered.getByRole("listbox", {
-      name: "Icons for Planning",
-    });
-    expect(within(iconList).getAllByRole("option")).toHaveLength(
-      SECTION_ICON_OPTIONS.length,
-    );
-    expect(
-      within(iconList)
-        .getByRole("option", { name: "List Todo" })
-        .getAttribute("aria-selected"),
-    ).toBe("true");
-    expect(SECTION_ICON_OPTIONS).toHaveLength(142);
-    fireEvent.change(
-      rendered.getByRole("searchbox", { name: "Search icons" }),
-      {
-        target: { value: "calendar" },
-      },
-    );
-    expect(within(iconList).getAllByRole("option")).toHaveLength(2);
     rendered.lifecycle.unmount();
   });
 
@@ -439,22 +403,18 @@ describe("workflow settings", () => {
     const planningTitle = await rendered.findByLabelText(
       "Planning section title",
     );
-    const planningIcon = rendered.getByRole("button", {
-      name: "Choose icon for Planning",
-    });
     const planningRule = rendered.getByLabelText("What belongs in Planning");
     const planningGrid = planningTitle.parentElement!;
     const planningCard = planningGrid.parentElement!;
     const stageList = planningCard.parentElement!;
     const planningRuleLayout = planningRule.closest("label")!;
-    expect(planningIcon.parentElement?.parentElement).toBe(planningGrid);
     expect(planningRuleLayout.parentElement).toBe(planningGrid);
-    expect(planningGrid.children).toHaveLength(5);
+    expect(planningGrid.children).toHaveLength(4);
     expect(planningGrid.className).toContain(
-      "grid-cols-[2rem_minmax(0,1fr)_2rem]",
+      "grid-cols-[minmax(0,1fr)_2rem]",
     );
     expect(planningGrid.className).toContain(
-      "lg:grid-cols-[2rem_2rem_minmax(7rem,9rem)_minmax(0,1fr)_2rem]",
+      "lg:grid-cols-[2rem_minmax(7rem,9rem)_minmax(0,1fr)_2rem]",
     );
     expect(planningGrid.className).toContain("gap-y-0");
     expect(planningCard.className).toContain("px-3");
@@ -464,29 +424,32 @@ describe("workflow settings", () => {
     expect(planningCard.className).toContain("last:rounded-b-lg");
     expect(stageList.className).toContain("overflow-visible");
     expect(planningRuleLayout.className).toContain("col-span-2");
-    expect(planningRuleLayout.className).toContain("col-start-2");
+    expect(planningRuleLayout.className).toContain("col-start-1");
     expect(planningRuleLayout.className).toContain("row-start-2");
-    expect(planningRuleLayout.className).toContain("lg:col-start-4");
+    expect(planningRuleLayout.className).toContain("lg:col-start-3");
     expect(planningRuleLayout.className).toContain("lg:row-start-1");
+    const planningActions = rendered.getByLabelText(
+      "More actions for Planning",
+    ).parentElement!;
+    expect(planningActions.className).toContain("col-start-2");
+    expect(planningActions.className).toContain("lg:col-start-4");
+    expect(planningActions.className).not.toContain("col-start-3");
+    expect(planningActions.className).not.toContain("lg:col-start-5");
     expect(planningRule.className).toContain("border-transparent");
     expect(planningRule.className).toContain("resize-none");
     expect(planningRule.className).not.toContain("resize-y");
     expect(planningTitle.className).toContain("border-transparent");
 
     const inboxTitle = rendered.getByLabelText("Inbox section title");
-    const inboxIcon = rendered.getByRole("button", {
-      name: "Choose icon for Inbox",
-    });
     const inboxRule = rendered.getByText(INBOX_RULE);
     const inboxGrid = inboxTitle.parentElement!;
-    expect(inboxIcon.parentElement?.parentElement).toBe(inboxGrid);
     expect(inboxRule.parentElement).toBe(inboxGrid);
-    expect(inboxGrid.children).toHaveLength(5);
+    expect(inboxGrid.children).toHaveLength(4);
     expect(inboxGrid.className).toBe(planningGrid.className);
     expect(inboxRule.className).toContain("col-span-2");
-    expect(inboxRule.className).toContain("col-start-2");
+    expect(inboxRule.className).toContain("col-start-1");
     expect(inboxRule.className).toContain("row-start-2");
-    expect(inboxRule.className).toContain("lg:col-start-4");
+    expect(inboxRule.className).toContain("lg:col-start-3");
     expect(inboxRule.className).toContain("lg:row-start-1");
     expect(inboxRule.className).toContain("px-2.5");
     expect(inboxRule.className).toContain("text-sm");

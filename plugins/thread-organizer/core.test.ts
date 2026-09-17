@@ -28,45 +28,20 @@ function thread(
 }
 
 describe("workflow configuration", () => {
-  it("ships the approved starter stages without emoji labels", () => {
+  it("ships the approved starter stages", () => {
     expect(
-      core.DEFAULT_WORKFLOW_CONFIG.stages.map(({ key, title, icon }) => ({
+      core.DEFAULT_WORKFLOW_CONFIG.stages.map(({ key, title }) => ({
         key,
         title,
-        icon,
       })),
     ).toEqual([
-      { key: "inbox", title: "Inbox", icon: "Mail" },
-      {
-        key: "planning",
-        title: "Planning",
-        icon: "ListTodo",
-      },
-      {
-        key: "spec-review",
-        title: "Spec Review",
-        icon: "FileView",
-      },
-      {
-        key: "building",
-        title: "Building",
-        icon: "Code",
-      },
-      {
-        key: "testing-deploy",
-        title: "Testing / Deploy",
-        icon: "Beaker",
-      },
-      {
-        key: "handoff",
-        title: "Handoff",
-        icon: "ArrowRight",
-      },
-      {
-        key: "on-hold",
-        title: "On Hold",
-        icon: "Pause",
-      },
+      { key: "inbox", title: "Inbox" },
+      { key: "planning", title: "Planning" },
+      { key: "spec-review", title: "Spec Review" },
+      { key: "building", title: "Building" },
+      { key: "testing-deploy", title: "Testing / Deploy" },
+      { key: "handoff", title: "Handoff" },
+      { key: "on-hold", title: "On Hold" },
     ]);
     expect(
       core.DEFAULT_WORKFLOW_CONFIG.stages.find(
@@ -80,13 +55,11 @@ describe("workflow configuration", () => {
     next.stages[0] = {
       ...next.stages[0]!,
       title: "Needs Me",
-      icon: "MailOpen",
     };
 
     expect(core.normalizeEditableWorkflowConfig(next).stages[0]).toMatchObject({
       key: "inbox",
       title: "Needs Me",
-      icon: "MailOpen",
       rule: core.INBOX_RULE,
     });
   });
@@ -306,19 +279,10 @@ describe("agent guidance", () => {
 });
 
 describe("local section presentation", () => {
-  it("uses temporary emoji names without leaking them into workflow titles", () => {
+  it("uses the stage title verbatim as the bb section name", () => {
     const config = core.cloneWorkflowConfig(core.DEFAULT_WORKFLOW_CONFIG);
 
     expect(config.stages.map(core.localSectionName)).toEqual([
-      "📥 Inbox",
-      "📋 Planning",
-      "📄 Spec Review",
-      "🛠️ Building",
-      "🧪 Testing / Deploy",
-      "🤝 Handoff",
-      "⏸️ On Hold",
-    ]);
-    expect(config.stages.map((stage) => stage.title)).toEqual([
       "Inbox",
       "Planning",
       "Spec Review",
@@ -327,12 +291,30 @@ describe("local section presentation", () => {
       "Handoff",
       "On Hold",
     ]);
+    expect(config.stages.map(core.localSectionName)).toEqual(
+      config.stages.map((stage) => stage.title),
+    );
   });
 
-  it("gives every configurable icon a local emoji fallback", () => {
-    for (const icon of core.SECTION_ICON_OPTIONS) {
-      expect(core.localSectionEmoji(icon).length).toBeGreaterThan(0);
-    }
+});
+
+describe("legacy configuration", () => {
+  it("parses a stored config that still carries section icons", () => {
+    const legacy = {
+      version: core.WORKFLOW_CONFIG_VERSION,
+      stages: core.DEFAULT_WORKFLOW_CONFIG.stages.map((stage) => ({
+        ...stage,
+        icon: "ListTodo",
+      })),
+    };
+
+    const parsed = core.parseWorkflowConfig(legacy);
+
+    expect(parsed).not.toBeNull();
+    expect(parsed!.stages.map((stage) => stage.title)).toEqual(
+      core.DEFAULT_WORKFLOW_CONFIG.stages.map((stage) => stage.title),
+    );
+    expect(parsed!.stages.every((stage) => !("icon" in stage))).toBe(true);
   });
 });
 

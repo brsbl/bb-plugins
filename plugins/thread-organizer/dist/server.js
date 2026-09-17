@@ -14529,150 +14529,6 @@ config(en_default());
 
 // core.ts
 var WORKFLOW_CONFIG_VERSION = 2;
-var SECTION_ICON_OPTIONS = [
-  "AiContentGenerator01",
-  "AlertCircle",
-  "AlertTriangle",
-  "AlignLeft",
-  "AppWindow",
-  "Archive",
-  "ArchiveRestore",
-  "ArrowDown",
-  "ArrowReloadHorizontal",
-  "ArrowRight",
-  "ArrowTurnBackward",
-  "ArrowTurnForward",
-  "ArrowUp",
-  "ArrowUpDown",
-  "ArrowUpRight",
-  "Beaker",
-  "Brain",
-  "Browser",
-  "Bug",
-  "Calendar",
-  "CalendarCheckOut02",
-  "ChartColumn",
-  "Check",
-  "ChevronDown",
-  "ChevronLeft",
-  "ChevronRight",
-  "ChevronUp",
-  "ChevronsDown",
-  "ChevronsUp",
-  "Circle",
-  "CircleArrowShrink",
-  "CircleCheck",
-  "CircleQuestion",
-  "CircleX",
-  "Clean",
-  "Clock",
-  "ClosePluginPane",
-  "CloseThreadPane",
-  "Cloud",
-  "CloudOff",
-  "Code",
-  "Coffee",
-  "Columns2",
-  "ComputerTerminal01",
-  "Copy",
-  "CornerDownLeft",
-  "CornerDownRight",
-  "DateTime",
-  "Discord",
-  "Download",
-  "DragDropHorizontal",
-  "DragDropVertical",
-  "Edit",
-  "EditFile",
-  "ElectricPlugs",
-  "Explore",
-  "ExternalLink",
-  "Eye",
-  "EyeOff",
-  "File",
-  "FileAttachment",
-  "FileDiff",
-  "FileQuestion",
-  "FileText",
-  "FileView",
-  "Folder",
-  "FolderEdit",
-  "FolderExport",
-  "FolderGit",
-  "FolderMinus",
-  "FolderOpen",
-  "FolderPlus",
-  "Fork",
-  "GitBranch",
-  "GitMerge",
-  "GitPullRequest",
-  "GitPullRequestArrow",
-  "GitPullRequestClosed",
-  "GitPullRequestDraft",
-  "Github",
-  "Globe",
-  "GridView",
-  "Info",
-  "Laptop",
-  "Layers",
-  "ListTodo",
-  "ListView",
-  "Loading",
-  "Lock",
-  "Mail",
-  "MailOpen",
-  "Maximize2",
-  "MessageCirclePlus",
-  "MessageQuestion",
-  "MessageSquare",
-  "MessageSquarePlus",
-  "Mic",
-  "Minimize2",
-  "MoreHorizontal",
-  "NewTab",
-  "PackageReceive",
-  "Palette",
-  "PanelBottom",
-  "PanelLeft",
-  "PanelRight",
-  "Paperclip",
-  "Pause",
-  "Pin",
-  "PinOff",
-  "Play",
-  "Plus",
-  "Puzzle",
-  "Repeat",
-  "RotateCcw",
-  "Rows2",
-  "Search",
-  "SectionAdd",
-  "SecurityCheck",
-  "Sent",
-  "Settings",
-  "SideChat",
-  "SlidersHorizontal",
-  "Smartphone",
-  "Sort",
-  "Spinner",
-  "Square",
-  "SquareUnlock02",
-  "Star",
-  "Target",
-  "Terminal",
-  "TextWrap",
-  "TimeSchedule",
-  "ToolCase",
-  "Toolbox",
-  "Trash2",
-  "UserRound",
-  "UserRoundPlus",
-  "Workflow",
-  "X",
-  "Zap",
-  "ZoomIn",
-  "ZoomOut"
-];
 var INBOX_RULE = "Idle unread threads that need your attention appear here automatically and stay until work resumes or you move a read thread to another workflow section. This behavior can\u2019t be customized.";
 var HANDOFF_RULE = "Use only when the user explicitly says this thread is being handed to a colleague to take across the finish line; never infer it from packaging context, completed work, or waiting.";
 var PREVIOUS_INBOX_RULES = [
@@ -14691,7 +14547,6 @@ var DEFAULT_WORKFLOW_CONFIG = {
       key: "inbox",
       role: "inbox",
       title: "Inbox",
-      icon: "Mail",
       rule: INBOX_RULE,
       sectionId: null
     },
@@ -14699,7 +14554,6 @@ var DEFAULT_WORKFLOW_CONFIG = {
       key: "planning",
       role: "stage",
       title: "Planning",
-      icon: "ListTodo",
       rule: "Defining scope, requirements, or approach before a reviewable spec exists.",
       sectionId: null
     },
@@ -14707,7 +14561,6 @@ var DEFAULT_WORKFLOW_CONFIG = {
       key: "spec-review",
       role: "stage",
       title: "Spec Review",
-      icon: "FileView",
       rule: "A spec or implementation plan is ready for, awaiting, or undergoing user review.",
       sectionId: null
     },
@@ -14715,7 +14568,6 @@ var DEFAULT_WORKFLOW_CONFIG = {
       key: "building",
       role: "stage",
       title: "Building",
-      icon: "Code",
       rule: "Implementing or changing approved work.",
       sectionId: null
     },
@@ -14723,7 +14575,6 @@ var DEFAULT_WORKFLOW_CONFIG = {
       key: "testing-deploy",
       role: "stage",
       title: "Testing / Deploy",
-      icon: "Beaker",
       rule: "Validating, packaging, releasing, or deploying completed work.",
       sectionId: null
     },
@@ -14731,7 +14582,6 @@ var DEFAULT_WORKFLOW_CONFIG = {
       key: "handoff",
       role: "stage",
       title: "Handoff",
-      icon: "ArrowRight",
       rule: HANDOFF_RULE,
       sectionId: null
     },
@@ -14739,7 +14589,6 @@ var DEFAULT_WORKFLOW_CONFIG = {
       key: "on-hold",
       role: "stage",
       title: "On Hold",
-      icon: "Pause",
       rule: "Work intentionally paused until a later time or external condition.",
       sectionId: null
     }
@@ -14748,11 +14597,11 @@ var DEFAULT_WORKFLOW_CONFIG = {
 var LEGACY_SECTION_NAMES = {
   inbox: ["\u{1F4E5} Inbox"],
   planning: ["\u{1F4CB} Planning"],
-  "spec-review": ["\u{1F50E} Spec Review"],
+  "spec-review": ["\u{1F50E} Spec Review", "\u{1F4C4} Spec Review"],
   building: ["\u{1F6E0}\uFE0F Building"],
-  "testing-deploy": ["\u2705 Testing / Deploy"],
+  "testing-deploy": ["\u2705 Testing / Deploy", "\u{1F9EA} Testing / Deploy"],
   handoff: ["\u{1F91D} Handoff"],
-  "on-hold": ["Parked"]
+  "on-hold": ["Parked", "\u23F8\uFE0F On Hold"]
 };
 function normalizeText(value) {
   return value.normalize("NFKC").trim().replace(/\s+/gu, " ");
@@ -14770,7 +14619,6 @@ function parseStage(value, withSectionId) {
   const title = typeof value.title === "string" ? normalizeText(value.title) : "";
   const rule = typeof value.rule === "string" ? normalizeText(value.rule) : "";
   const role = value.role;
-  const icon = value.icon;
   const sectionId = withSectionId ? value.sectionId === null || typeof value.sectionId === "string" ? value.sectionId : null : null;
   if (!/^[a-z0-9][a-z0-9-]{0,39}$/u.test(key)) {
     throw new Error(
@@ -14786,15 +14634,11 @@ function parseStage(value, withSectionId) {
   if (role !== "inbox" && role !== "stage") {
     throw new Error(`Stage "${key}" has an invalid role.`);
   }
-  if (!SECTION_ICON_OPTIONS.includes(icon)) {
-    throw new Error(`Stage "${key}" has an unsupported icon.`);
-  }
   return {
     key,
     title,
     rule,
     role,
-    icon,
     sectionId: sectionId && sectionId.trim().length > 0 ? sectionId : null
   };
 }
@@ -14896,56 +14740,8 @@ function mergeEditableWorkflowConfig(current, edited) {
 function legacySectionNames(stage) {
   return [stage.title, ...LEGACY_SECTION_NAMES[stage.key] ?? []];
 }
-var LOCAL_SECTION_EMOJIS = {
-  ArrowRight: "\u{1F91D}",
-  Beaker: "\u{1F9EA}",
-  Circle: "\u26AA",
-  Code: "\u{1F6E0}\uFE0F",
-  FileView: "\u{1F4C4}",
-  ListTodo: "\u{1F4CB}",
-  Mail: "\u{1F4E5}",
-  MailOpen: "\u{1F4EC}",
-  Pause: "\u23F8\uFE0F"
-};
-function localSectionEmoji(icon) {
-  const exact = LOCAL_SECTION_EMOJIS[icon];
-  if (exact) return exact;
-  if (/Alert|Bug|CircleX/u.test(icon)) return "\u26A0\uFE0F";
-  if (/Archive/u.test(icon)) return "\u{1F5C4}\uFE0F";
-  if (/Arrow|Chevron|Corner/u.test(icon)) return "\u27A1\uFE0F";
-  if (/Brain|AiContent/u.test(icon)) return "\u{1F9E0}";
-  if (/Browser|AppWindow|Laptop|Smartphone/u.test(icon)) return "\u{1F5A5}\uFE0F";
-  if (/Calendar|Clock|DateTime|TimeSchedule/u.test(icon)) return "\u{1F4C5}";
-  if (/Check|Security/u.test(icon)) return "\u2705";
-  if (/Cloud/u.test(icon)) return "\u2601\uFE0F";
-  if (/Code|Terminal|Tool/u.test(icon)) return "\u{1F6E0}\uFE0F";
-  if (/Download|Package|Sent/u.test(icon)) return "\u{1F4E6}";
-  if (/Edit|File/u.test(icon)) return "\u{1F4C4}";
-  if (/Eye|Explore|Globe|Search|Zoom/u.test(icon)) return "\u{1F50E}";
-  if (/Folder/u.test(icon)) return "\u{1F4C1}";
-  if (/Fork|Git/u.test(icon)) return "\u{1F33F}";
-  if (/Info|Question/u.test(icon)) return "\u2753";
-  if (/List|Rows|Columns|Grid|Workflow/u.test(icon)) return "\u{1F4CB}";
-  if (/Loading|Repeat|Rotate/u.test(icon)) return "\u{1F504}";
-  if (/Lock|Unlock/u.test(icon)) return "\u{1F512}";
-  if (/Mail/u.test(icon)) return "\u{1F4E5}";
-  if (/Message|SideChat/u.test(icon)) return "\u{1F4AC}";
-  if (/Palette/u.test(icon)) return "\u{1F3A8}";
-  if (/Panel/u.test(icon)) return "\u{1F5C2}\uFE0F";
-  if (/Pause/u.test(icon)) return "\u23F8\uFE0F";
-  if (/Pin/u.test(icon)) return "\u{1F4CC}";
-  if (/Play/u.test(icon)) return "\u25B6\uFE0F";
-  if (/Plus|SectionAdd/u.test(icon)) return "\u2795";
-  if (/Settings|Sliders/u.test(icon)) return "\u2699\uFE0F";
-  if (/Star/u.test(icon)) return "\u2B50";
-  if (/Target/u.test(icon)) return "\u{1F3AF}";
-  if (/Trash|Clean/u.test(icon)) return "\u{1F5D1}\uFE0F";
-  if (/User/u.test(icon)) return "\u{1F464}";
-  if (/Zap|Electric/u.test(icon)) return "\u26A1";
-  return "\u{1F5C2}\uFE0F";
-}
 function localSectionName(stage) {
-  return `${localSectionEmoji(stage.icon)} ${stage.title}`;
+  return stage.title;
 }
 function inboxStage(config2) {
   return config2.stages.find((stage) => stage.role === "inbox");
@@ -14997,7 +14793,9 @@ var THREAD_STATE_PREFIX = "thread:v3:";
 var LEGACY_THREAD_STATE_PREFIX = "thread:v1:";
 var THREAD_LIST_PAGE_SIZE = 100;
 var editableStageSchema = external_exports.object({
-  icon: external_exports.enum(SECTION_ICON_OPTIONS),
+  // Accepted and discarded so configs and clients written before
+  // section icons were removed keep validating.
+  icon: external_exports.unknown().optional(),
   key: external_exports.string().min(1).max(40),
   role: external_exports.enum(["inbox", "stage"]),
   rule: external_exports.string().min(1).max(240),

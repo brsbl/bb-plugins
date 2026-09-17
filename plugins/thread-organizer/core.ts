@@ -1,155 +1,8 @@
 export const WORKFLOW_CONFIG_VERSION = 2 as const;
 
-export const SECTION_ICON_OPTIONS = [
-  "AiContentGenerator01",
-  "AlertCircle",
-  "AlertTriangle",
-  "AlignLeft",
-  "AppWindow",
-  "Archive",
-  "ArchiveRestore",
-  "ArrowDown",
-  "ArrowReloadHorizontal",
-  "ArrowRight",
-  "ArrowTurnBackward",
-  "ArrowTurnForward",
-  "ArrowUp",
-  "ArrowUpDown",
-  "ArrowUpRight",
-  "Beaker",
-  "Brain",
-  "Browser",
-  "Bug",
-  "Calendar",
-  "CalendarCheckOut02",
-  "ChartColumn",
-  "Check",
-  "ChevronDown",
-  "ChevronLeft",
-  "ChevronRight",
-  "ChevronUp",
-  "ChevronsDown",
-  "ChevronsUp",
-  "Circle",
-  "CircleArrowShrink",
-  "CircleCheck",
-  "CircleQuestion",
-  "CircleX",
-  "Clean",
-  "Clock",
-  "ClosePluginPane",
-  "CloseThreadPane",
-  "Cloud",
-  "CloudOff",
-  "Code",
-  "Coffee",
-  "Columns2",
-  "ComputerTerminal01",
-  "Copy",
-  "CornerDownLeft",
-  "CornerDownRight",
-  "DateTime",
-  "Discord",
-  "Download",
-  "DragDropHorizontal",
-  "DragDropVertical",
-  "Edit",
-  "EditFile",
-  "ElectricPlugs",
-  "Explore",
-  "ExternalLink",
-  "Eye",
-  "EyeOff",
-  "File",
-  "FileAttachment",
-  "FileDiff",
-  "FileQuestion",
-  "FileText",
-  "FileView",
-  "Folder",
-  "FolderEdit",
-  "FolderExport",
-  "FolderGit",
-  "FolderMinus",
-  "FolderOpen",
-  "FolderPlus",
-  "Fork",
-  "GitBranch",
-  "GitMerge",
-  "GitPullRequest",
-  "GitPullRequestArrow",
-  "GitPullRequestClosed",
-  "GitPullRequestDraft",
-  "Github",
-  "Globe",
-  "GridView",
-  "Info",
-  "Laptop",
-  "Layers",
-  "ListTodo",
-  "ListView",
-  "Loading",
-  "Lock",
-  "Mail",
-  "MailOpen",
-  "Maximize2",
-  "MessageCirclePlus",
-  "MessageQuestion",
-  "MessageSquare",
-  "MessageSquarePlus",
-  "Mic",
-  "Minimize2",
-  "MoreHorizontal",
-  "NewTab",
-  "PackageReceive",
-  "Palette",
-  "PanelBottom",
-  "PanelLeft",
-  "PanelRight",
-  "Paperclip",
-  "Pause",
-  "Pin",
-  "PinOff",
-  "Play",
-  "Plus",
-  "Puzzle",
-  "Repeat",
-  "RotateCcw",
-  "Rows2",
-  "Search",
-  "SectionAdd",
-  "SecurityCheck",
-  "Sent",
-  "Settings",
-  "SideChat",
-  "SlidersHorizontal",
-  "Smartphone",
-  "Sort",
-  "Spinner",
-  "Square",
-  "SquareUnlock02",
-  "Star",
-  "Target",
-  "Terminal",
-  "TextWrap",
-  "TimeSchedule",
-  "ToolCase",
-  "Toolbox",
-  "Trash2",
-  "UserRound",
-  "UserRoundPlus",
-  "Workflow",
-  "X",
-  "Zap",
-  "ZoomIn",
-  "ZoomOut",
-] as const;
-
-export type SectionIconName = (typeof SECTION_ICON_OPTIONS)[number];
 export type WorkflowStageRole = "inbox" | "stage";
 
 export interface EditableWorkflowStage {
-  icon: SectionIconName;
   key: string;
   role: WorkflowStageRole;
   rule: string;
@@ -209,7 +62,6 @@ export const DEFAULT_WORKFLOW_CONFIG: WorkflowConfig = {
       key: "inbox",
       role: "inbox",
       title: "Inbox",
-      icon: "Mail",
       rule: INBOX_RULE,
       sectionId: null,
     },
@@ -217,7 +69,6 @@ export const DEFAULT_WORKFLOW_CONFIG: WorkflowConfig = {
       key: "planning",
       role: "stage",
       title: "Planning",
-      icon: "ListTodo",
       rule: "Defining scope, requirements, or approach before a reviewable spec exists.",
       sectionId: null,
     },
@@ -225,7 +76,6 @@ export const DEFAULT_WORKFLOW_CONFIG: WorkflowConfig = {
       key: "spec-review",
       role: "stage",
       title: "Spec Review",
-      icon: "FileView",
       rule: "A spec or implementation plan is ready for, awaiting, or undergoing user review.",
       sectionId: null,
     },
@@ -233,7 +83,6 @@ export const DEFAULT_WORKFLOW_CONFIG: WorkflowConfig = {
       key: "building",
       role: "stage",
       title: "Building",
-      icon: "Code",
       rule: "Implementing or changing approved work.",
       sectionId: null,
     },
@@ -241,7 +90,6 @@ export const DEFAULT_WORKFLOW_CONFIG: WorkflowConfig = {
       key: "testing-deploy",
       role: "stage",
       title: "Testing / Deploy",
-      icon: "Beaker",
       rule: "Validating, packaging, releasing, or deploying completed work.",
       sectionId: null,
     },
@@ -249,7 +97,6 @@ export const DEFAULT_WORKFLOW_CONFIG: WorkflowConfig = {
       key: "handoff",
       role: "stage",
       title: "Handoff",
-      icon: "ArrowRight",
       rule: HANDOFF_RULE,
       sectionId: null,
     },
@@ -257,7 +104,6 @@ export const DEFAULT_WORKFLOW_CONFIG: WorkflowConfig = {
       key: "on-hold",
       role: "stage",
       title: "On Hold",
-      icon: "Pause",
       rule: "Work intentionally paused until a later time or external condition.",
       sectionId: null,
     },
@@ -267,11 +113,11 @@ export const DEFAULT_WORKFLOW_CONFIG: WorkflowConfig = {
 const LEGACY_SECTION_NAMES: Readonly<Record<string, readonly string[]>> = {
   inbox: ["📥 Inbox"],
   planning: ["📋 Planning"],
-  "spec-review": ["🔎 Spec Review"],
+  "spec-review": ["🔎 Spec Review", "📄 Spec Review"],
   building: ["🛠️ Building"],
-  "testing-deploy": ["✅ Testing / Deploy"],
+  "testing-deploy": ["✅ Testing / Deploy", "🧪 Testing / Deploy"],
   handoff: ["🤝 Handoff"],
-  "on-hold": ["Parked"],
+  "on-hold": ["Parked", "⏸️ On Hold"],
 };
 
 function normalizeText(value: string): string {
@@ -294,7 +140,6 @@ function parseStage(value: unknown, withSectionId: boolean): WorkflowStage {
     typeof value.title === "string" ? normalizeText(value.title) : "";
   const rule = typeof value.rule === "string" ? normalizeText(value.rule) : "";
   const role = value.role;
-  const icon = value.icon;
   const sectionId = withSectionId
     ? value.sectionId === null || typeof value.sectionId === "string"
       ? value.sectionId
@@ -315,15 +160,11 @@ function parseStage(value: unknown, withSectionId: boolean): WorkflowStage {
   if (role !== "inbox" && role !== "stage") {
     throw new Error(`Stage "${key}" has an invalid role.`);
   }
-  if (!SECTION_ICON_OPTIONS.includes(icon as SectionIconName)) {
-    throw new Error(`Stage "${key}" has an unsupported icon.`);
-  }
   return {
     key,
     title,
     rule,
     role,
-    icon: icon as SectionIconName,
     sectionId: sectionId && sectionId.trim().length > 0 ? sectionId : null,
   };
 }
@@ -452,58 +293,8 @@ export function legacySectionNames(stage: WorkflowStage): readonly string[] {
   return [stage.title, ...(LEGACY_SECTION_NAMES[stage.key] ?? [])];
 }
 
-const LOCAL_SECTION_EMOJIS: Partial<Record<SectionIconName, string>> = {
-  ArrowRight: "🤝",
-  Beaker: "🧪",
-  Circle: "⚪",
-  Code: "🛠️",
-  FileView: "📄",
-  ListTodo: "📋",
-  Mail: "📥",
-  MailOpen: "📬",
-  Pause: "⏸️",
-};
-
-export function localSectionEmoji(icon: SectionIconName): string {
-  const exact = LOCAL_SECTION_EMOJIS[icon];
-  if (exact) return exact;
-  if (/Alert|Bug|CircleX/u.test(icon)) return "⚠️";
-  if (/Archive/u.test(icon)) return "🗄️";
-  if (/Arrow|Chevron|Corner/u.test(icon)) return "➡️";
-  if (/Brain|AiContent/u.test(icon)) return "🧠";
-  if (/Browser|AppWindow|Laptop|Smartphone/u.test(icon)) return "🖥️";
-  if (/Calendar|Clock|DateTime|TimeSchedule/u.test(icon)) return "📅";
-  if (/Check|Security/u.test(icon)) return "✅";
-  if (/Cloud/u.test(icon)) return "☁️";
-  if (/Code|Terminal|Tool/u.test(icon)) return "🛠️";
-  if (/Download|Package|Sent/u.test(icon)) return "📦";
-  if (/Edit|File/u.test(icon)) return "📄";
-  if (/Eye|Explore|Globe|Search|Zoom/u.test(icon)) return "🔎";
-  if (/Folder/u.test(icon)) return "📁";
-  if (/Fork|Git/u.test(icon)) return "🌿";
-  if (/Info|Question/u.test(icon)) return "❓";
-  if (/List|Rows|Columns|Grid|Workflow/u.test(icon)) return "📋";
-  if (/Loading|Repeat|Rotate/u.test(icon)) return "🔄";
-  if (/Lock|Unlock/u.test(icon)) return "🔒";
-  if (/Mail/u.test(icon)) return "📥";
-  if (/Message|SideChat/u.test(icon)) return "💬";
-  if (/Palette/u.test(icon)) return "🎨";
-  if (/Panel/u.test(icon)) return "🗂️";
-  if (/Pause/u.test(icon)) return "⏸️";
-  if (/Pin/u.test(icon)) return "📌";
-  if (/Play/u.test(icon)) return "▶️";
-  if (/Plus|SectionAdd/u.test(icon)) return "➕";
-  if (/Settings|Sliders/u.test(icon)) return "⚙️";
-  if (/Star/u.test(icon)) return "⭐";
-  if (/Target/u.test(icon)) return "🎯";
-  if (/Trash|Clean/u.test(icon)) return "🗑️";
-  if (/User/u.test(icon)) return "👤";
-  if (/Zap|Electric/u.test(icon)) return "⚡";
-  return "🗂️";
-}
-
 export function localSectionName(stage: EditableWorkflowStage): string {
-  return `${localSectionEmoji(stage.icon)} ${stage.title}`;
+  return stage.title;
 }
 
 export function inboxStage(config: WorkflowConfig): WorkflowStage {
