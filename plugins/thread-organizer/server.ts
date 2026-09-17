@@ -10,7 +10,6 @@ import {
   cloneWorkflowConfig,
   createStageKey,
   editableWorkflowConfig,
-  editableWorkflowConfig,
   entryPromptMessage,
   firstWorkflowStage,
   hasEntryPrompt,
