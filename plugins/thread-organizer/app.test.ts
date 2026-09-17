@@ -327,10 +327,11 @@ describe("workflow settings", () => {
     rendered.lifecycle.unmount();
   });
 
-  it("reveals and focuses the new section after Add section and lists the prompt variables", async () => {
+  it("reveals and focuses the new section after Add section, keys it by its final title, and lists the prompt variables", async () => {
     const app = await loadApp();
     const initial = configuredWorkflow();
     const scrolled: Element[] = [];
+    let savedInput: EditableWorkflowConfig | null = null;
     Object.defineProperty(HTMLElement.prototype, "scrollIntoView", {
       configurable: true,
       value: function (this: Element) {
@@ -343,7 +344,7 @@ describe("workflow settings", () => {
       {
         rpc: {
           getConfig: async () => initial,
-          saveConfig: async (input) => ({
+          saveConfig: async (input) => ((savedInput = input), {
             ...input,
             stages: input.stages.map((stage) => ({
               ...stage,
@@ -367,6 +368,14 @@ describe("workflow settings", () => {
     fireEvent.click(rendered.getByRole("button", { name: "Add section" }));
     const title = await rendered.findByLabelText("New Section section title");
     await vi.waitFor(() => expect(scrolled).toContain(title));
+
+    fireEvent.change(title, { target: { value: "Triage" } });
+    fireEvent.click(rendered.getByRole("button", { name: "Save" }));
+    await vi.waitFor(() => expect(savedInput).not.toBeNull());
+    expect(savedInput!.stages[savedInput!.stages.length - 1]).toMatchObject({
+      key: "triage",
+      title: "Triage",
+    });
     rendered.lifecycle.unmount();
     delete (HTMLElement.prototype as unknown as Record<string, unknown>)
       .scrollIntoView;

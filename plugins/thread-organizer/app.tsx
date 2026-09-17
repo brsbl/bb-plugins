@@ -207,6 +207,28 @@ interface StageCardProps {
   stageCount: number;
 }
 
+/**
+ * A section added in this editing session carries a key derived from its
+ * placeholder title. Derive the real key from the title the user typed, at
+ * save time, before any thread can reference it.
+ */
+function finalizeDraftKeys(
+  config: EditableWorkflowConfig,
+  draftKeys: ReadonlySet<string>,
+): EditableWorkflowConfig {
+  if (draftKeys.size === 0) return config;
+  const taken = config.stages
+    .filter((stage) => !draftKeys.has(stage.key))
+    .map((stage) => stage.key);
+  const stages = config.stages.map((stage) => {
+    if (!draftKeys.has(stage.key)) return stage;
+    const key = createStageKey(stage.title, taken);
+    taken.push(key);
+    return key === stage.key ? stage : { ...stage, key };
+  });
+  return { ...config, stages };
+}
+
 function StageCard({
   index,
   onChange,
@@ -381,6 +403,7 @@ export function WorkflowSettings() {
     null,
   );
   const listRef = useRef<HTMLDivElement>(null);
+  const draftKeysRef = useRef(new Set<string>());
   const editRevisionRef = useRef(0);
   const dirtyRef = useRef(false);
   const savingRef = useRef(false);
@@ -474,6 +497,7 @@ export function WorkflowSettings() {
       config.stages.map((stage) => stage.key),
     );
     markEdited();
+    draftKeysRef.current.add(key);
     setPendingFocusKey(key);
     setConfig({
       ...config,
@@ -492,7 +516,9 @@ export function WorkflowSettings() {
   const save = async () => {
     if (config === null) return;
     const submittedRevision = editRevisionRef.current;
-    const normalized = normalizeEditableWorkflowConfig(config);
+    const normalized = normalizeEditableWorkflowConfig(
+      finalizeDraftKeys(config, draftKeysRef.current),
+    );
     savingRef.current = true;
     setSaving(true);
     setSaved(false);
@@ -502,6 +528,7 @@ export function WorkflowSettings() {
       cacheWorkflowConfig(full);
       if (editRevisionRef.current === submittedRevision) {
         dirtyRef.current = false;
+        draftKeysRef.current.clear();
         setConfig(editableWorkflowConfig(full));
         setSaved(true);
       }

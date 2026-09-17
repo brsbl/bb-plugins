@@ -831,6 +831,17 @@ function StageActions({
     }
   );
 }
+function finalizeDraftKeys(config, draftKeys) {
+  if (draftKeys.size === 0) return config;
+  const taken = config.stages.filter((stage) => !draftKeys.has(stage.key)).map((stage) => stage.key);
+  const stages = config.stages.map((stage) => {
+    if (!draftKeys.has(stage.key)) return stage;
+    const key = createStageKey(stage.title, taken);
+    taken.push(key);
+    return key === stage.key ? stage : { ...stage, key };
+  });
+  return { ...config, stages };
+}
 function StageCard({
   index,
   onChange,
@@ -1010,6 +1021,7 @@ function WorkflowSettings() {
     null
   );
   const listRef = useRef(null);
+  const draftKeysRef = useRef(/* @__PURE__ */ new Set());
   const editRevisionRef = useRef(0);
   const dirtyRef = useRef(false);
   const savingRef = useRef(false);
@@ -1089,6 +1101,7 @@ function WorkflowSettings() {
       config.stages.map((stage) => stage.key)
     );
     markEdited();
+    draftKeysRef.current.add(key);
     setPendingFocusKey(key);
     setConfig({
       ...config,
@@ -1106,7 +1119,9 @@ function WorkflowSettings() {
   const save = async () => {
     if (config === null) return;
     const submittedRevision = editRevisionRef.current;
-    const normalized = normalizeEditableWorkflowConfig(config);
+    const normalized = normalizeEditableWorkflowConfig(
+      finalizeDraftKeys(config, draftKeysRef.current)
+    );
     savingRef.current = true;
     setSaving(true);
     setSaved(false);
@@ -1116,6 +1131,7 @@ function WorkflowSettings() {
       cacheWorkflowConfig(full);
       if (editRevisionRef.current === submittedRevision) {
         dirtyRef.current = false;
+        draftKeysRef.current.clear();
         setConfig(editableWorkflowConfig(full));
         setSaved(true);
       }
