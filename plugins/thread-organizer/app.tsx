@@ -291,7 +291,7 @@ function StageCard({
             </span>
             <textarea
               aria-label={`What belongs in ${stage.title}`}
-              className={`${quietFieldClass} min-h-8 max-h-24 resize-none overflow-y-auto leading-5`}
+              className={`${quietFieldClass} min-h-8 max-h-44 resize-none overflow-y-auto leading-5`}
               maxLength={240}
               onChange={(event) => update("rule", event.target.value)}
               rows={1}
@@ -312,7 +312,7 @@ function StageCard({
             <span className={`${fieldCaptionClass} px-2.5 lg:sr-only`}>
               Entry prompt
               <span className={fieldHintClass}>
-                sent when a thread lands here
+                sent on arrival
               </span>
             </span>
             <textarea
@@ -548,7 +548,7 @@ export function WorkflowSettings() {
           <span className={`${fieldCaptionClass} px-2.5`}>
             Entry prompt
             <span className={fieldHintClass}>
-              sent when a thread lands here
+              sent on arrival
             </span>
           </span>
           <span />

@@ -361,7 +361,7 @@ describe("workflow settings", () => {
       "{{section.title}}",
     );
     expect(
-      rendered.getAllByText("sent when a thread lands here", { exact: false })
+      rendered.getAllByText("sent on arrival", { exact: false })
         .length,
     ).toBeGreaterThan(0);
 

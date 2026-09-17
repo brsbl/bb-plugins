@@ -916,7 +916,7 @@ function StageCard({
             "textarea",
             {
               "aria-label": `What belongs in ${stage.title}`,
-              className: `${quietFieldClass} min-h-8 max-h-24 resize-none overflow-y-auto leading-5`,
+              className: `${quietFieldClass} min-h-8 max-h-44 resize-none overflow-y-auto leading-5`,
               maxLength: 240,
               onChange: (event) => update("rule", event.target.value),
               rows: 1,
@@ -935,7 +935,7 @@ function StageCard({
         ) : /* @__PURE__ */ jsxs("label", { className: `${stagePromptLayoutClass} grid gap-1`, children: [
           /* @__PURE__ */ jsxs("span", { className: `${fieldCaptionClass} px-2.5 lg:sr-only`, children: [
             "Entry prompt",
-            /* @__PURE__ */ jsx("span", { className: fieldHintClass, children: "sent when a thread lands here" })
+            /* @__PURE__ */ jsx("span", { className: fieldHintClass, children: "sent on arrival" })
           ] }),
           /* @__PURE__ */ jsx(
             "textarea",
@@ -1154,7 +1154,7 @@ function WorkflowSettings() {
             ] }),
             /* @__PURE__ */ jsxs("span", { className: `${fieldCaptionClass} px-2.5`, children: [
               "Entry prompt",
-              /* @__PURE__ */ jsx("span", { className: fieldHintClass, children: "sent when a thread lands here" })
+              /* @__PURE__ */ jsx("span", { className: fieldHintClass, children: "sent on arrival" })
             ] }),
             /* @__PURE__ */ jsx("span", {})
           ] }),
