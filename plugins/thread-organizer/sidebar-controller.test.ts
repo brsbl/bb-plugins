@@ -9,9 +9,13 @@ import {
   type WorkflowConfig,
 } from "./core.js";
 import {
+  SECTION_ORDER_PREFERENCE_KEY,
   WORKFLOW_CACHE_STORAGE_KEY,
   cacheWorkflowConfig,
+  createSectionOrderStore,
   mountThreadOrganizerSidebar,
+  orderWithConfiguredSections,
+  type SectionOrderStore,
 } from "./sidebar-controller.js";
 
 function workflow(): WorkflowConfig {
@@ -56,6 +60,16 @@ function section(
   return group;
 }
 
+/** One rendered group per workflow stage, in configured order. */
+function workflowSections(config = workflow()): Record<string, HTMLElement> {
+  return Object.fromEntries(
+    config.stages.map((stage) => [
+      stage.key,
+      section(stage.sectionId!, stage.title, false),
+    ]),
+  );
+}
+
 function sidebar(...groups: HTMLElement[]): HTMLElement {
   const root = document.createElement("aside");
   root.dataset.sidebar = "sidebar";
@@ -72,12 +86,57 @@ function order(...ids: string[]): string[] {
   return ids.map((id) => `section:${id}`);
 }
 
+const CONFIGURED = order(
+  "sec_inbox",
+  "sec_planning",
+  "sec_spec-review",
+  "sec_building",
+  "sec_testing-deploy",
+  "sec_handoff",
+  "sec_on-hold",
+);
+
+/** An in-memory stand-in for bb's sidebar.manualSectionOrder preference. */
+function fakeStore(initial: readonly string[], options?: { conflictOnce?: boolean }) {
+  const state = { revision: 1, value: [...initial] };
+  const writes: { expectedRevision: number; value: string[] }[] = [];
+  let conflictOnce = options?.conflictOnce ?? false;
+  const store: SectionOrderStore = {
+    read: async () => ({ revision: state.revision, value: [...state.value] }),
+    write: async (expectedRevision, value) => {
+      writes.push({ expectedRevision, value: [...value] });
+      if (conflictOnce) {
+        conflictOnce = false;
+        state.revision += 1;
+        return { conflict: true, revision: state.revision };
+      }
+      if (expectedRevision !== state.revision) {
+        return { conflict: true, revision: state.revision };
+      }
+      state.revision += 1;
+      state.value = [...value];
+      return { revision: state.revision, value: [...state.value] };
+    },
+  };
+  return {
+    state,
+    store,
+    writes,
+    /** What bb does after a drag: store the new order at a new revision. */
+    set(value: readonly string[]) {
+      state.value = [...value];
+      state.revision += 1;
+    },
+  };
+}
+
 function mount(
   config = workflow(),
   saveConfig: (
     edited: EditableWorkflowConfig,
   ) => Promise<WorkflowConfig> = async (edited) =>
     mergeEditableWorkflowConfig(config, edited),
+  store: SectionOrderStore = fakeStore(CONFIGURED).store,
 ) {
   const controller = new AbortController();
   mountThreadOrganizerSidebar({
@@ -86,14 +145,83 @@ function mount(
     signal: controller.signal,
     loadConfig: async () => config,
     saveConfig,
+    sectionOrderStore: store,
   });
   return controller;
+}
+
+async function settled(): Promise<void> {
+  await vi.waitFor(() =>
+    expect(window.localStorage.getItem(WORKFLOW_CACHE_STORAGE_KEY)).not.toBeNull(),
+  );
+  for (let i = 0; i < 3; i += 1) {
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  }
 }
 
 afterEach(() => {
   document.body.replaceChildren();
   window.localStorage.clear();
   vi.restoreAllMocks();
+});
+
+describe("orderWithConfiguredSections", () => {
+  it("keeps unrelated sections in their slots and fills in the rest", () => {
+    const current = order(
+      "personal",
+      "sec_testing-deploy",
+      "sec_planning",
+      "design",
+      "sec_inbox",
+      "sec_building",
+    );
+    expect(orderWithConfiguredSections(current, workflow())).toEqual(
+      order(
+        "personal",
+        "sec_inbox",
+        "sec_planning",
+        "sec_spec-review",
+        "design",
+        "sec_building",
+        "sec_testing-deploy",
+        "sec_handoff",
+        "sec_on-hold",
+      ),
+    );
+  });
+
+  it("inserts sections bb has never ordered after their configured predecessor", () => {
+    const current = [
+      "pinned",
+      ...order("personal", "sec_inbox", "design", "sec_testing-deploy"),
+      "threads",
+    ];
+    expect(orderWithConfiguredSections(current, workflow())).toEqual([
+      "pinned",
+      ...order(
+        "personal",
+        "sec_inbox",
+        "sec_planning",
+        "sec_spec-review",
+        "sec_building",
+        "design",
+        "sec_testing-deploy",
+        "sec_handoff",
+        "sec_on-hold",
+      ),
+      "threads",
+    ]);
+  });
+
+  it("places the whole workflow after pinned when bb has ordered none of it", () => {
+    expect(
+      orderWithConfiguredSections(["pinned", "threads"], workflow()),
+    ).toEqual(["pinned", ...CONFIGURED, "threads"]);
+  });
+
+  it("returns null when the order already matches", () => {
+    expect(orderWithConfiguredSections(CONFIGURED, workflow())).toBeNull();
+  });
 });
 
 describe("workflow sidebar controller", () => {
@@ -104,89 +232,44 @@ describe("workflow sidebar controller", () => {
     const custom = section("custom", "Personal", true);
     sidebar(pinned, inbox, planning, custom);
     const controller = mount();
+    await settled();
 
-    await vi.waitFor(() =>
-      expect(
-        window.localStorage.getItem(WORKFLOW_CACHE_STORAGE_KEY),
-      ).not.toBeNull(),
-    );
     expect(toggle(inbox).getAttribute("aria-expanded")).toBe("false");
     expect(toggle(planning).getAttribute("aria-expanded")).toBe("true");
     expect(toggle(pinned).getAttribute("aria-expanded")).toBe("true");
     expect(toggle(custom).getAttribute("aria-expanded")).toBe("true");
 
     planning.append(document.createElement("a"));
-    await vi.waitFor(() =>
-      expect(
-        window.localStorage.getItem(WORKFLOW_CACHE_STORAGE_KEY),
-      ).not.toBeNull(),
-    );
+    await settled();
     expect(toggle(planning).getAttribute("aria-expanded")).toBe("true");
     controller.abort();
   });
 
-  it("restores configured order while preserving unrelated positions", async () => {
-    const personal = section("personal", "Personal", false);
-    const testing = section("sec_testing-deploy", "Testing / Deploy", false);
-    const planning = section("sec_planning", "Planning", false);
-    const design = section("design", "Design", false);
-    const inbox = section("sec_inbox", "Inbox", false);
-    const building = section("sec_building", "Building", false);
-    sidebar(personal, testing, planning, design, inbox, building);
-    window.localStorage.setItem(
-      "bb.sidebar.manualSectionOrder",
-      JSON.stringify(
-        order(
-          "personal",
-          "sec_testing-deploy",
-          "sec_planning",
-          "design",
-          "sec_inbox",
-          "sec_building",
-        ),
+  it("writes the configured order to bb's preference, preserving unrelated positions", async () => {
+    const groups = workflowSections();
+    sidebar(...Object.values(groups));
+    const bb = fakeStore(
+      order(
+        "personal",
+        "sec_testing-deploy",
+        "sec_planning",
+        "design",
+        "sec_inbox",
+        "sec_building",
+        "sec_spec-review",
+        "sec_handoff",
+        "sec_on-hold",
       ),
     );
-    const controller = mount();
+    const controller = mount(workflow(), undefined, bb.store);
 
     await vi.waitFor(() =>
-      expect(
-        JSON.parse(
-          window.localStorage.getItem("bb.sidebar.manualSectionOrder")!,
-        ),
-      ).toEqual(
+      expect(bb.state.value).toEqual(
         order(
           "personal",
           "sec_inbox",
           "sec_planning",
           "design",
-          "sec_building",
-          "sec_testing-deploy",
-        ),
-      ),
-    );
-    controller.abort();
-  });
-
-  it("keeps a workflow-stage order chosen in the native sidebar", async () => {
-    const config = workflow();
-    const saveConfig = vi.fn(async (edited: EditableWorkflowConfig) =>
-      mergeEditableWorkflowConfig(config, edited),
-    );
-    const inbox = section("sec_inbox", "Inbox", false);
-    const planning = section("sec_planning", "Planning", false);
-    const building = section("sec_building", "Building", false);
-    const testing = section(
-      "sec_testing-deploy",
-      "Testing / Deploy",
-      false,
-    );
-    const root = sidebar(inbox, planning, building, testing);
-    window.localStorage.setItem(
-      "bb.sidebar.manualSectionOrder",
-      JSON.stringify(
-        order(
-          "sec_inbox",
-          "sec_planning",
           "sec_spec-review",
           "sec_building",
           "sec_testing-deploy",
@@ -195,12 +278,68 @@ describe("workflow sidebar controller", () => {
         ),
       ),
     );
-    const controller = mount(config, saveConfig);
+    expect(bb.writes).toHaveLength(1);
+    expect(bb.writes[0]?.expectedRevision).toBe(1);
+    controller.abort();
+  });
+
+  it("adds a workflow section bb has not ordered, next to its neighbour", async () => {
+    const groups = workflowSections();
+    sidebar(...Object.values(groups));
+    const bb = fakeStore([
+      "pinned",
+      ...order(
+        "sec_inbox",
+        "sec_planning",
+        "sec_spec-review",
+        "sec_testing-deploy",
+        "sec_handoff",
+        "sec_on-hold",
+      ),
+      "threads",
+    ]);
+    const controller = mount(workflow(), undefined, bb.store);
+
     await vi.waitFor(() =>
-      expect(
-        window.localStorage.getItem(WORKFLOW_CACHE_STORAGE_KEY),
-      ).not.toBeNull(),
+      expect(bb.state.value).toEqual(["pinned", ...CONFIGURED, "threads"]),
     );
+    controller.abort();
+  });
+
+  it("writes nothing when bb's order already matches", async () => {
+    const groups = workflowSections();
+    sidebar(...Object.values(groups));
+    const bb = fakeStore(CONFIGURED);
+    const controller = mount(workflow(), undefined, bb.store);
+    await settled();
+
+    expect(bb.writes).toHaveLength(0);
+    controller.abort();
+  });
+
+  it("retries once with the current revision after a conflicting write", async () => {
+    const groups = workflowSections();
+    sidebar(...Object.values(groups));
+    const bb = fakeStore(order("sec_planning", "sec_inbox", ...CONFIGURED.slice(2).map((id) => id.slice("section:".length))), {
+      conflictOnce: true,
+    });
+    const controller = mount(workflow(), undefined, bb.store);
+
+    await vi.waitFor(() => expect(bb.state.value).toEqual(CONFIGURED));
+    expect(bb.writes.map((write) => write.expectedRevision)).toEqual([1, 2]);
+    controller.abort();
+  });
+
+  it("keeps a workflow-stage order chosen in the native sidebar", async () => {
+    const config = workflow();
+    const saveConfig = vi.fn(async (edited: EditableWorkflowConfig) =>
+      mergeEditableWorkflowConfig(config, edited),
+    );
+    const groups = workflowSections(config);
+    const root = sidebar(...Object.values(groups));
+    const bb = fakeStore(CONFIGURED);
+    const controller = mount(config, saveConfig, bb.store);
+    await settled();
 
     const chosen = order(
       "sec_inbox",
@@ -211,18 +350,10 @@ describe("workflow sidebar controller", () => {
       "sec_handoff",
       "sec_on-hold",
     );
-    window.localStorage.setItem(
-      "bb.sidebar.manualSectionOrder",
-      JSON.stringify(chosen),
-    );
-    root.insertBefore(building, planning);
+    bb.set(chosen);
+    root.insertBefore(groups.building!, groups.planning!);
     await vi.waitFor(() => expect(saveConfig).toHaveBeenCalledOnce());
 
-    expect(
-      JSON.parse(
-        window.localStorage.getItem("bb.sidebar.manualSectionOrder")!,
-      ),
-    ).toEqual(chosen);
     expect(saveConfig.mock.calls[0]?.[0].stages.map((stage) => stage.key)).toEqual(
       [
         "inbox",
@@ -234,6 +365,9 @@ describe("workflow sidebar controller", () => {
         "on-hold",
       ],
     );
+    await settled();
+    expect(bb.state.value).toEqual(chosen);
+    expect(bb.writes).toHaveLength(0);
     controller.abort();
   });
 
@@ -242,46 +376,16 @@ describe("workflow sidebar controller", () => {
     const saveConfig = vi.fn(async (edited: EditableWorkflowConfig) =>
       mergeEditableWorkflowConfig(config, edited),
     );
-    const inbox = section("sec_inbox", "Inbox", false);
-    const planning = section("sec_planning", "Planning", false);
-    const root = sidebar(inbox, planning);
-    const configured = order(
-      "sec_inbox",
-      "sec_planning",
-      "sec_spec-review",
-      "sec_building",
-      "sec_testing-deploy",
-      "sec_handoff",
-      "sec_on-hold",
-    );
-    window.localStorage.setItem(
-      "bb.sidebar.manualSectionOrder",
-      JSON.stringify(configured),
-    );
-    const controller = mount(config, saveConfig);
-    await vi.waitFor(() =>
-      expect(
-        window.localStorage.getItem(WORKFLOW_CACHE_STORAGE_KEY),
-      ).not.toBeNull(),
-    );
+    const groups = workflowSections(config);
+    const root = sidebar(...Object.values(groups));
+    const bb = fakeStore(CONFIGURED);
+    const controller = mount(config, saveConfig, bb.store);
+    await settled();
 
-    window.localStorage.setItem(
-      "bb.sidebar.manualSectionOrder",
-      JSON.stringify([
-        configured[1],
-        configured[0],
-        ...configured.slice(2),
-      ]),
-    );
-    root.insertBefore(planning, inbox);
+    bb.set([CONFIGURED[1]!, CONFIGURED[0]!, ...CONFIGURED.slice(2)]);
+    root.insertBefore(groups.planning!, groups.inbox!);
 
-    await vi.waitFor(() =>
-      expect(
-        JSON.parse(
-          window.localStorage.getItem("bb.sidebar.manualSectionOrder")!,
-        ),
-      ).toEqual(configured),
-    );
+    await vi.waitFor(() => expect(bb.state.value).toEqual(CONFIGURED));
     expect(saveConfig).not.toHaveBeenCalled();
     controller.abort();
   });
@@ -319,24 +423,9 @@ describe("sidebar reorder after a refused save", () => {
     saveConfig.mockRejectedValueOnce(
       new Error("The workflow changed elsewhere. Reload and try again."),
     );
-    const inbox = section("sec_inbox", "Inbox", false);
-    const planning = section("sec_planning", "Planning", false);
-    const building = section("sec_building", "Building", false);
-    const testing = section("sec_testing-deploy", "Testing / Deploy", false);
-    const root = sidebar(inbox, planning, building, testing);
-    const configured = order(
-      "sec_inbox",
-      "sec_planning",
-      "sec_spec-review",
-      "sec_building",
-      "sec_testing-deploy",
-      "sec_handoff",
-      "sec_on-hold",
-    );
-    window.localStorage.setItem(
-      "bb.sidebar.manualSectionOrder",
-      JSON.stringify(configured),
-    );
+    const groups = workflowSections(served);
+    const root = sidebar(...Object.values(groups));
+    const bb = fakeStore(CONFIGURED);
     const controller = new AbortController();
     mountThreadOrganizerSidebar({
       document,
@@ -347,12 +436,9 @@ describe("sidebar reorder after a refused save", () => {
         return served;
       },
       saveConfig,
+      sectionOrderStore: bb.store,
     });
-    await vi.waitFor(() =>
-      expect(
-        window.localStorage.getItem(WORKFLOW_CACHE_STORAGE_KEY),
-      ).not.toBeNull(),
-    );
+    await settled();
     const loadsBefore = loads;
 
     const chosen = order(
@@ -364,21 +450,74 @@ describe("sidebar reorder after a refused save", () => {
       "sec_handoff",
       "sec_on-hold",
     );
-    window.localStorage.setItem(
-      "bb.sidebar.manualSectionOrder",
-      JSON.stringify(chosen),
-    );
-    root.insertBefore(building, planning);
+    bb.set(chosen);
+    root.insertBefore(groups.building!, groups.planning!);
     await vi.waitFor(() => expect(saveConfig).toHaveBeenCalledOnce());
     await vi.waitFor(() => expect(loads).toBeGreaterThan(loadsBefore));
+    // The refreshed config still has the served order, so it is pushed back.
+    await vi.waitFor(() => expect(bb.state.value).toEqual(CONFIGURED));
 
-    window.localStorage.setItem(
-      "bb.sidebar.manualSectionOrder",
-      JSON.stringify(chosen),
-    );
-    root.insertBefore(building, planning);
+    // bb re-renders from the preference, then the user drags again.
+    root.insertBefore(groups.planning!, groups.building!);
+    await settled();
+    bb.set(chosen);
+    root.insertBefore(groups.building!, groups.planning!);
     await vi.waitFor(() => expect(saveConfig).toHaveBeenCalledTimes(2));
     await expect(saveConfig.mock.results[1]!.value).resolves.toBeTruthy();
     controller.abort();
+  });
+});
+
+describe("createSectionOrderStore", () => {
+  function response(status: number, body: unknown) {
+    return {
+      ok: status >= 200 && status < 300,
+      status,
+      json: async () => body,
+    } as unknown as Response;
+  }
+
+  it("reads the preference from bb's UI preferences document", async () => {
+    const fetchImpl = vi.fn(async (_input: string, _init?: RequestInit) =>
+      response(200, {
+        preferences: {
+          [SECTION_ORDER_PREFERENCE_KEY]: { revision: 3, value: ["pinned"] },
+          "sidebar.organizationMode": { revision: 1, value: "chronological" },
+        },
+      }),
+    );
+    const store = createSectionOrderStore(fetchImpl as unknown as typeof fetch);
+    await expect(store.read()).resolves.toEqual({ revision: 3, value: ["pinned"] });
+    expect(fetchImpl.mock.calls[0]?.[0]).toBe("/api/v1/preferences/ui");
+  });
+
+  it("writes with the expected revision and reports a conflict", async () => {
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValueOnce(
+        response(200, { key: SECTION_ORDER_PREFERENCE_KEY, revision: 4, value: ["pinned", "threads"] }),
+      )
+      .mockResolvedValueOnce(
+        response(409, {
+          code: "ui_preference_conflict",
+          details: { currentRevision: 9 },
+        }),
+      );
+    const store = createSectionOrderStore(fetchImpl as unknown as typeof fetch);
+    await expect(store.write(3, ["pinned", "threads"])).resolves.toEqual({
+      revision: 4,
+      value: ["pinned", "threads"],
+    });
+    const [url, init] = fetchImpl.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe("/api/v1/preferences/ui/sidebar.manualSectionOrder");
+    expect(init.method).toBe("PUT");
+    expect(JSON.parse(init.body as string)).toEqual({
+      expectedRevision: 3,
+      value: ["pinned", "threads"],
+    });
+    await expect(store.write(4, ["threads"])).resolves.toEqual({
+      conflict: true,
+      revision: 9,
+    });
   });
 });

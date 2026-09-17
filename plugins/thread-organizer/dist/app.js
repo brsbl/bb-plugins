@@ -345,9 +345,77 @@ function createStageKey(title, existingKeys) {
 
 // sidebar-controller.ts
 var SIDEBAR_SELECTOR = '[data-sidebar="sidebar"]';
-var MANUAL_SECTION_ORDER_STORAGE_KEY = "bb.sidebar.manualSectionOrder";
+var SECTION_ROW_SELECTOR = "[data-sidebar-section-id]";
+var SECTION_ORDER_PREFERENCE_KEY = "sidebar.manualSectionOrder";
+var UI_PREFERENCES_PATH = "/api/v1/preferences/ui";
 var WORKFLOW_CACHE_STORAGE_KEY = "bb.thread-organizer.workflow-config";
 var WORKFLOW_CONFIG_EVENT = "bb-thread-organizer-workflow-config";
+function isStringArray(value) {
+  return Array.isArray(value) && value.every((entry) => typeof entry === "string");
+}
+function parseSectionOrderPreference(payload) {
+  if (typeof payload !== "object" || payload === null) return null;
+  const revision = payload.revision;
+  const value = payload.value;
+  if (typeof revision !== "number" || !Number.isInteger(revision) || revision < 0 || !isStringArray(value)) {
+    return null;
+  }
+  return { revision, value: [...value] };
+}
+function createSectionOrderStore(fetchImpl = (...args) => fetch(...args)) {
+  return {
+    async read() {
+      const response = await fetchImpl(UI_PREFERENCES_PATH, {
+        headers: { accept: "application/json" }
+      });
+      if (!response.ok) {
+        throw new Error(
+          `Sidebar section order request failed (${response.status})`
+        );
+      }
+      const payload = await response.json();
+      const preferences = typeof payload === "object" && payload !== null ? payload.preferences : void 0;
+      const entry = typeof preferences === "object" && preferences !== null ? preferences[SECTION_ORDER_PREFERENCE_KEY] : void 0;
+      const parsed = parseSectionOrderPreference(entry);
+      if (parsed === null) {
+        throw new Error("bb returned an invalid sidebar section order");
+      }
+      return parsed;
+    },
+    async write(expectedRevision, value) {
+      const response = await fetchImpl(
+        `${UI_PREFERENCES_PATH}/${encodeURIComponent(SECTION_ORDER_PREFERENCE_KEY)}`,
+        {
+          method: "PUT",
+          headers: {
+            accept: "application/json",
+            "content-type": "application/json"
+          },
+          body: JSON.stringify({ expectedRevision, value: [...value] })
+        }
+      );
+      if (response.status === 409) {
+        const payload = await response.json().catch(() => null);
+        const details = typeof payload === "object" && payload !== null ? payload.details : void 0;
+        const current = typeof details === "object" && details !== null ? details.currentRevision : void 0;
+        return {
+          conflict: true,
+          revision: typeof current === "number" ? current : null
+        };
+      }
+      if (!response.ok) {
+        throw new Error(
+          `Sidebar section order update failed (${response.status})`
+        );
+      }
+      const parsed = parseSectionOrderPreference(await response.json());
+      if (parsed === null) {
+        throw new Error("bb returned an invalid sidebar section order");
+      }
+      return parsed;
+    }
+  };
+}
 function parsedCachedConfig(view) {
   try {
     const raw = view.localStorage.getItem(WORKFLOW_CACHE_STORAGE_KEY);
@@ -414,31 +482,54 @@ async function saveWorkflowConfig(pluginId, config) {
   }
   return saved;
 }
-function currentWorkflowSectionOrder(sidebar, config) {
-  const view = sidebar.ownerDocument.defaultView;
-  if (view === null) return null;
-  const raw = view.localStorage.getItem(MANUAL_SECTION_ORDER_STORAGE_KEY);
-  if (raw === null) return null;
-  let current;
-  try {
-    current = JSON.parse(raw);
-  } catch {
-    return null;
-  }
-  if (!Array.isArray(current) || current.some((value) => typeof value !== "string")) {
-    return null;
-  }
-  const configuredSectionIds = new Set(
-    config.stages.flatMap(
-      (stage) => stage.sectionId === null ? [] : [stage.sectionId]
-    )
+function configuredSectionIds(config) {
+  return config.stages.flatMap(
+    (stage) => stage.sectionId === null ? [] : [stage.sectionId]
   );
-  const orderedSectionIds = current.flatMap((orderId) => {
-    if (!orderId.startsWith("section:")) return [];
-    const sectionId = orderId.slice("section:".length);
-    return configuredSectionIds.has(sectionId) ? [sectionId] : [];
+}
+function sameOrder(left, right) {
+  return left.length === right.length && left.every((entry, index) => entry === right[index]);
+}
+function renderedWorkflowSectionOrder(sidebar, config) {
+  const configured = new Set(configuredSectionIds(config));
+  const rendered = [];
+  for (const row of sidebar.querySelectorAll(SECTION_ROW_SELECTOR)) {
+    const sectionId = row.getAttribute("data-sidebar-section-id");
+    if (sectionId !== null && configured.has(sectionId)) {
+      rendered.push(sectionId);
+    }
+  }
+  return rendered.length === configured.size ? rendered : null;
+}
+function orderWithConfiguredSections(current, config) {
+  const configured = configuredSectionIds(config).map(
+    (sectionId) => `section:${sectionId}`
+  );
+  if (configured.length < 2) return null;
+  const configuredSet = new Set(configured);
+  const positions = current.flatMap(
+    (entry, index) => configuredSet.has(entry) ? [index] : []
+  );
+  const present = new Set(current.filter((entry) => configuredSet.has(entry)));
+  const next = [...current];
+  const placed = configured.filter((entry) => present.has(entry));
+  positions.forEach((position, index) => {
+    next[position] = placed[index];
   });
-  return orderedSectionIds.length === configuredSectionIds.size ? orderedSectionIds : null;
+  for (const [index, entry] of configured.entries()) {
+    if (present.has(entry)) continue;
+    const predecessor = configured.slice(0, index).reverse().find((candidate) => present.has(candidate));
+    let insertAt;
+    if (predecessor !== void 0) {
+      insertAt = next.indexOf(predecessor) + 1;
+    } else {
+      const successor = configured.slice(index + 1).find((candidate) => present.has(candidate));
+      insertAt = successor !== void 0 ? next.indexOf(successor) : next[0] === "pinned" ? 1 : 0;
+    }
+    next.splice(insertAt, 0, entry);
+    present.add(entry);
+  }
+  return sameOrder(next, current) ? null : next;
 }
 function configInSectionOrder(config, sectionIds) {
   if (sectionIds.length !== config.stages.length) return null;
@@ -457,54 +548,34 @@ function configInSectionOrder(config, sectionIds) {
   }
   return { ...config, stages };
 }
-function reorderWorkflowSections(sidebar, config) {
-  const view = sidebar.ownerDocument.defaultView;
-  if (view === null) return;
-  const rankByOrderId = new Map(
-    config.stages.flatMap(
-      (stage, index) => stage.sectionId === null ? [] : [[`section:${stage.sectionId}`, index]]
-    )
-  );
-  if (rankByOrderId.size < 2) return;
-  const raw = view.localStorage.getItem(MANUAL_SECTION_ORDER_STORAGE_KEY);
-  if (raw === null) return;
-  let current;
-  try {
-    current = JSON.parse(raw);
-  } catch {
-    return;
-  }
-  if (!Array.isArray(current) || current.some((value) => typeof value !== "string")) {
-    return;
-  }
-  const currentOrder = current;
-  const positions = currentOrder.flatMap(
-    (id, index) => rankByOrderId.has(id) ? [index] : []
-  );
-  if (positions.length < 2) return;
-  const configuredIds = positions.map((position) => currentOrder[position]).sort(
-    (left, right) => rankByOrderId.get(left) - rankByOrderId.get(right)
-  );
-  const nextOrder = [...currentOrder];
-  positions.forEach((position, index) => {
-    nextOrder[position] = configuredIds[index];
-  });
-  if (nextOrder.every((id, index) => id === currentOrder[index])) return;
-  const nextRaw = JSON.stringify(nextOrder);
-  view.localStorage.setItem(MANUAL_SECTION_ORDER_STORAGE_KEY, nextRaw);
-  view.dispatchEvent(
-    new view.StorageEvent("storage", {
-      key: MANUAL_SECTION_ORDER_STORAGE_KEY,
-      oldValue: raw,
-      newValue: nextRaw,
-      storageArea: view.localStorage,
-      url: view.location.href
-    })
-  );
-}
-function mountSidebarController(sidebar, signal, getConfig, onStageOrderChange) {
+function mountSidebarController(sidebar, signal, getConfig, onStageOrderChange, store) {
   let applyConfiguredOrder = true;
   let scheduled = false;
+  let pushing = false;
+  let renderedAtPush = null;
+  const pushConfiguredOrder = async (config) => {
+    pushing = true;
+    try {
+      for (let attempt = 0; attempt < 2; attempt += 1) {
+        const current = await store.read();
+        if (signal.aborted) return;
+        const next = orderWithConfiguredSections(current.value, config);
+        if (next === null) {
+          renderedAtPush = renderedWorkflowSectionOrder(sidebar, config);
+          return;
+        }
+        const result = await store.write(current.revision, next);
+        if (signal.aborted) return;
+        if (!("conflict" in result)) {
+          renderedAtPush = renderedWorkflowSectionOrder(sidebar, config);
+          return;
+        }
+      }
+    } catch {
+    } finally {
+      pushing = false;
+    }
+  };
   const reconcile = () => {
     scheduled = false;
     if (signal.aborted || !sidebar.isConnected) return;
@@ -512,17 +583,23 @@ function mountSidebarController(sidebar, signal, getConfig, onStageOrderChange) 
     if (config === null) return;
     if (applyConfiguredOrder) {
       applyConfiguredOrder = false;
-      reorderWorkflowSections(sidebar, config);
-    } else {
-      const currentOrder = currentWorkflowSectionOrder(sidebar, config);
-      const configuredOrder = config.stages.flatMap(
-        (stage) => stage.sectionId === null ? [] : [stage.sectionId]
-      );
-      if (currentOrder !== null && !currentOrder.every(
-        (sectionId, index) => sectionId === configuredOrder[index]
-      ) && !onStageOrderChange(currentOrder)) {
-        reorderWorkflowSections(sidebar, config);
+      void pushConfiguredOrder(config);
+      return;
+    }
+    if (pushing) return;
+    const rendered = renderedWorkflowSectionOrder(sidebar, config);
+    if (rendered === null) return;
+    const configured = configuredSectionIds(config);
+    const matches = sameOrder(rendered, configured);
+    if (renderedAtPush !== null) {
+      if (matches || !sameOrder(rendered, renderedAtPush)) {
+        renderedAtPush = null;
+      } else {
+        return;
       }
+    }
+    if (!matches && !onStageOrderChange(rendered)) {
+      void pushConfiguredOrder(config);
     }
   };
   const schedule = () => {
@@ -561,6 +638,7 @@ function mountThreadOrganizerSidebar({
   loadConfig,
   pluginId,
   saveConfig = (config) => saveWorkflowConfig(pluginId, config),
+  sectionOrderStore = createSectionOrderStore(),
   signal
 }) {
   const view = targetDocument.defaultView;
@@ -637,7 +715,8 @@ function mountThreadOrganizerSidebar({
             sidebar,
             signal,
             () => config,
-            requestStageOrder
+            requestStageOrder,
+            sectionOrderStore
           )
         );
       }
