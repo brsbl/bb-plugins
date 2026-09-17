@@ -385,10 +385,13 @@ function exactCommunityEntry(entries, identity) {
     (entry) => entry.pluginId === identity.pluginId && entry.marketplace === identity.marketplace && entry.entryId === identity.entryId
   );
 }
+function catalogEntries(response) {
+  return Array.isArray(response) ? response : response.results;
+}
 async function plugin(bb) {
   bb.ui.registerMentionProvider({
     id: "installed",
-    label: "Installed",
+    label: "Installed plugins",
     async search({ query }) {
       try {
         const inventory = await boundedSdkRead((signal) => bb.sdk.plugins.list({ signal }));
@@ -418,13 +421,13 @@ async function plugin(bb) {
   });
   bb.ui.registerMentionProvider({
     id: "community",
-    label: "Community",
+    label: "Community plugins",
     async search({ query }) {
       try {
         const entries = await boundedSdkRead(
           (signal) => bb.sdk.plugins.catalog.search({ query: isPluginBrowseQuery(query) ? "" : query, signal })
         );
-        return searchCommunityPlugins(entries, query);
+        return searchCommunityPlugins(catalogEntries(entries), query);
       } catch {
         return [];
       }
@@ -456,7 +459,7 @@ async function plugin(bb) {
       } catch {
         throw communityVerificationError(fallback);
       }
-      const entry = exactCommunityEntry(entries, identity);
+      const entry = exactCommunityEntry(catalogEntries(entries), identity);
       if (entry === void 0) throw communityMissingError(fallback);
       const liveTarget = boundUntrustedText(entry.displayName, MAX_ITEM_TITLE_BYTES);
       if (liveTarget.length === 0) throw communityMissingError(fallback);
