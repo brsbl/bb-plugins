@@ -8,6 +8,8 @@ import {
   WORKFLOW_CONFIG_VERSION,
   buildWorkflowSkillSlot,
   cloneWorkflowConfig,
+  createStageKey,
+  editableWorkflowConfig,
   editableWorkflowConfig,
   entryPromptMessage,
   firstWorkflowStage,
@@ -18,10 +20,12 @@ import {
   legacySectionNames,
   localSectionName,
   mergeEditableWorkflowConfig,
+  normalizeEditableWorkflowConfig,
   parseWorkflowConfig,
   placementForThread,
   stageForSectionId,
   type EditableWorkflowConfig,
+  type EditableWorkflowStage,
   type OrganizableThread,
   type WorkflowConfig,
   type WorkflowStage,
@@ -767,68 +771,265 @@ export default async function plugin(bb: BbPluginApi): Promise<void> {
     saveConfig,
   });
 
+  type CliResult = { exitCode: number; stdout?: string; stderr?: string };
+  const CLI_USAGE = [
+    "Usage:",
+    "  bb organizer phase <stage-key>",
+    "  bb organizer prompt [<stage-key>] [--set <text> | --clear]",
+    "  bb organizer section list",
+    "  bb organizer section add <title> [--after <stage-key>] [--rule <text>]",
+    "",
+  ].join("\n");
+  const NEW_SECTION_RULE = "Describe the work that belongs in this section.";
+  const SECTION_TITLE_MAX_LENGTH = 80;
+
+  const stageByKey = (raw: string): WorkflowStage | undefined => {
+    const key = raw.trim().toLocaleLowerCase();
+    return configSnapshot.stages.find((stage) => stage.key === key);
+  };
+  const stageKeysLine = (includeInbox: boolean): string =>
+    configSnapshot.stages
+      .filter((stage) => includeInbox || stage.role === "stage")
+      .map((stage) => stage.key)
+      .join(", ");
+  const stageLabel = (stage: EditableWorkflowStage): string =>
+    `${stage.title} (${stage.key})`;
+  const indent = (text: string): string =>
+    text
+      .split("\n")
+      .map((line) => `${"".padEnd(18)}${line}`)
+      .join("\n");
+
+  /**
+   * Validate an edited config the same way the settings UI does, then save
+   * it through the same path so sections and thread landings stay in sync.
+   * Exit code 2 is a validation problem; 1 is a failed save.
+   */
+  async function saveEditedConfig(
+    edited: EditableWorkflowConfig,
+    success: string,
+  ): Promise<CliResult> {
+    try {
+      normalizeEditableWorkflowConfig(edited);
+    } catch (error) {
+      return { exitCode: 2, stderr: `${describeError(error)}\n` };
+    }
+    try {
+      await saveConfig(edited);
+    } catch (error) {
+      return {
+        exitCode: 1,
+        stderr: `Could not save the workflow: ${describeError(error)}\n`,
+      };
+    }
+    return { exitCode: 0, stdout: `${success}\n` };
+  }
+
+  async function runPhase(
+    argv: readonly string[],
+    threadId: string | null | undefined,
+  ): Promise<CliResult> {
+    if (!argv[0]) return { exitCode: 2, stderr: CLI_USAGE };
+    if (!threadId) {
+      return {
+        exitCode: 2,
+        stderr: "Run inside a bb thread so BB_THREAD_ID is available.\n",
+      };
+    }
+    const stage = stageByKey(argv[0]);
+    if (!stage || stage.role === "inbox") {
+      return {
+        exitCode: 2,
+        stderr: `Unknown or system-managed stage: ${argv[0]}\nAvailable: ${stageKeysLine(false)}\n`,
+      };
+    }
+    const thread = await bb.sdk.threads.get({ threadId });
+    if (!isManageableThread(thread)) {
+      return { exitCode: 2, stderr: "This thread cannot be organized.\n" };
+    }
+    const result: { outcome: EntryPromptOutcome } = { outcome: null };
+    try {
+      await enqueue(thread.id, async () => {
+        result.outcome = await reconcileThread(thread.id, {
+          explicitStageKey: stage.key,
+        });
+      });
+    } catch (error) {
+      return {
+        exitCode: 1,
+        stderr: `Could not set the workflow stage: ${describeError(error)}\n`,
+      };
+    }
+    return {
+      exitCode: 0,
+      stdout: `Applied ${stage.title} to ${thread.id}.${entryPromptNote(
+        result.outcome,
+      )}\n`,
+    };
+  }
+
+  async function runPrompt(argv: readonly string[]): Promise<CliResult> {
+    const [rawKey, ...rest] = argv;
+    if (rawKey === undefined) {
+      const blocks = configSnapshot.stages.map((stage) => {
+        const body =
+          stage.role === "inbox"
+            ? "(Inbox cannot send an entry prompt)"
+            : stage.entryPrompt ?? "(no entry prompt)";
+        return `${stage.key.padEnd(17)} ${stage.title}\n${indent(body)}`;
+      });
+      return { exitCode: 0, stdout: `${blocks.join("\n")}\n` };
+    }
+    const stage = stageByKey(rawKey);
+    if (!stage) {
+      return {
+        exitCode: 2,
+        stderr: `Unknown stage: ${rawKey}\nAvailable: ${stageKeysLine(true)}\n`,
+      };
+    }
+    if (rest.length === 0) {
+      return {
+        exitCode: 0,
+        stdout: stage.entryPrompt
+          ? `${stage.entryPrompt}\n`
+          : `${stageLabel(stage)} has no entry prompt.\n`,
+      };
+    }
+    if (stage.role === "inbox") {
+      return { exitCode: 2, stderr: "Inbox cannot send an entry prompt.\n" };
+    }
+    const edited = editableWorkflowConfig(configSnapshot);
+    const index = edited.stages.findIndex((entry) => entry.key === stage.key);
+    const current = edited.stages[index]!;
+    if (rest[0] === "--clear" && rest.length === 1) {
+      const { entryPrompt: _omitted, ...withoutPrompt } = current;
+      edited.stages[index] = withoutPrompt;
+      return saveEditedConfig(
+        edited,
+        `Cleared the entry prompt for ${stageLabel(stage)}.`,
+      );
+    }
+    if (rest[0] === "--set") {
+      const text = rest.slice(1).join(" ");
+      if (text.trim().length === 0) {
+        return {
+          exitCode: 2,
+          stderr: "Provide the prompt text after --set, or use --clear.\n",
+        };
+      }
+      edited.stages[index] = { ...current, entryPrompt: text };
+      return saveEditedConfig(
+        edited,
+        `Set the entry prompt for ${stageLabel(stage)}.`,
+      );
+    }
+    return { exitCode: 2, stderr: CLI_USAGE };
+  }
+
+  async function runSection(argv: readonly string[]): Promise<CliResult> {
+    const [subcommand, ...rest] = argv;
+    if (subcommand === undefined || subcommand === "list") {
+      const lines = configSnapshot.stages.map((stage) => {
+        const note =
+          stage.role === "inbox"
+            ? "system-managed"
+            : stage.entryPrompt
+              ? "entry prompt"
+              : "";
+        return `${stage.key.padEnd(17)} ${stage.title}${note ? `  [${note}]` : ""}`;
+      });
+      return { exitCode: 0, stdout: `${lines.join("\n")}\n` };
+    }
+    if (subcommand !== "add") return { exitCode: 2, stderr: CLI_USAGE };
+    const [rawTitle, ...options] = rest;
+    const title = rawTitle?.trim() ?? "";
+    if (title.length === 0) {
+      return { exitCode: 2, stderr: "Provide a section title.\n" };
+    }
+    if (title.length > SECTION_TITLE_MAX_LENGTH) {
+      return {
+        exitCode: 2,
+        stderr: `Section titles must be at most ${SECTION_TITLE_MAX_LENGTH} characters.\n`,
+      };
+    }
+    let after: string | undefined;
+    let rule: string | undefined;
+    for (let index = 0; index < options.length; index += 1) {
+      const option = options[index];
+      const value = options[index + 1];
+      if (option === "--after" && value !== undefined) {
+        after = value;
+        index += 1;
+      } else if (option === "--rule" && value !== undefined) {
+        rule = value;
+        index += 1;
+      } else {
+        return { exitCode: 2, stderr: CLI_USAGE };
+      }
+    }
+    const edited = editableWorkflowConfig(configSnapshot);
+    let position = edited.stages.length;
+    let anchor: WorkflowStage | undefined;
+    if (after !== undefined) {
+      anchor = stageByKey(after);
+      if (!anchor) {
+        return {
+          exitCode: 2,
+          stderr: `Unknown stage: ${after}\nAvailable: ${stageKeysLine(true)}\n`,
+        };
+      }
+      position =
+        edited.stages.findIndex((entry) => entry.key === anchor!.key) + 1;
+    }
+    const key = createStageKey(
+      title,
+      edited.stages.map((entry) => entry.key),
+    );
+    edited.stages.splice(position, 0, {
+      key,
+      role: "stage",
+      title,
+      rule: rule?.trim() || NEW_SECTION_RULE,
+    });
+    return saveEditedConfig(
+      edited,
+      `Added ${title} (${key})${anchor ? ` after ${anchor.title}` : ""}.`,
+    );
+  }
+
   bb.cli.register({
     name: "organizer",
-    summary: "Move the current thread to a workflow stage",
+    summary: "Manage workflow sections and entry prompts, or move the current thread",
     commands: [
       {
         name: "phase",
-        summary: "Apply a workflow stage",
+        summary: "Apply a workflow stage to the current thread",
         usage: "bb organizer phase <stage-key>",
+      },
+      {
+        name: "prompt",
+        summary: "Show, set, or clear a section's entry prompt",
+        usage: "bb organizer prompt [<stage-key>] [--set <text> | --clear]",
+      },
+      {
+        name: "section",
+        summary: "List sections or add one",
+        usage:
+          "bb organizer section list | add <title> [--after <stage-key>] [--rule <text>]",
       },
     ],
     async run(argv, context) {
-      if (argv[0] !== "phase" || !argv[1]) {
-        return {
-          exitCode: 2,
-          stderr: "Usage: bb organizer phase <stage-key>\n",
-        };
+      const [command, ...rest] = argv;
+      switch (command) {
+        case "phase":
+          return runPhase(rest, context.threadId);
+        case "prompt":
+          return runPrompt(rest);
+        case "section":
+          return runSection(rest);
+        default:
+          return { exitCode: 2, stderr: CLI_USAGE };
       }
-      if (!context.threadId) {
-        return {
-          exitCode: 2,
-          stderr: "Run inside a bb thread so BB_THREAD_ID is available.\n",
-        };
-      }
-      const key = argv[1].trim().toLocaleLowerCase();
-      const stage = configSnapshot.stages.find(
-        (candidate) => candidate.key === key,
-      );
-      if (!stage || stage.role === "inbox") {
-        const available = configSnapshot.stages
-          .filter((candidate) => candidate.role === "stage")
-          .map((candidate) => candidate.key)
-          .join(", ");
-        return {
-          exitCode: 2,
-          stderr: `Unknown or system-managed stage: ${argv[1]}\nAvailable: ${available}\n`,
-        };
-      }
-      const thread = await bb.sdk.threads.get({
-        threadId: context.threadId,
-      });
-      if (!isManageableThread(thread)) {
-        return { exitCode: 2, stderr: "This thread cannot be organized.\n" };
-      }
-      const result: { outcome: EntryPromptOutcome } = { outcome: null };
-      try {
-        await enqueue(thread.id, async () => {
-          result.outcome = await reconcileThread(thread.id, {
-            explicitStageKey: stage.key,
-          });
-        });
-      } catch (error) {
-        return {
-          exitCode: 1,
-          stderr: `Could not set the workflow stage: ${describeError(error)}\n`,
-        };
-      }
-      return {
-        exitCode: 0,
-        stdout: `Applied ${stage.title} to ${thread.id}.${entryPromptNote(
-          result.outcome,
-        )}\n`,
-      };
     },
   });
 

@@ -90,6 +90,25 @@ The plugin adds the current saved stage table—the source of truth for section
 names and rules—to the agent’s dynamic instructions whenever a session starts
 or resumes.
 
+### Configure from the CLI
+
+The same settings can be changed from a shell, for scripts and agents that set
+up a workflow, without opening Settings:
+
+```bash
+bb organizer section list
+bb organizer section add "Review" --after testing-deploy --rule "A PR is complete and needs its one review."
+bb organizer prompt                      # every section and its prompt
+bb organizer prompt review               # one section's prompt
+bb organizer prompt review --set "Run /slop-cop on this PR, then /slim-pr, /write-pr, and /merge-ready."
+bb organizer prompt review --clear
+```
+
+A new section is keyed by its title, gets the default rule unless `--rule` is
+given, and is appended unless `--after` names the section it should follow.
+Validation matches the settings page: Inbox cannot carry a prompt, titles must
+be unique, and prompts are limited to 2000 characters.
+
 ## Install
 
 ```bash

@@ -1040,6 +1040,148 @@ describe("Thread Organizer server", () => {
   );
 });
 
+describe("config CLI", () => {
+  const cli = (
+    organizer: ReturnType<typeof createHarness>,
+    argv: string[],
+  ) => organizer.harness.behavior.runCli(argv, { threadId: "thr_test" });
+
+  it("sets, shows, lists, and clears a section's entry prompt", async () => {
+    const organizer = createHarness();
+    await plugin(organizer.bb);
+
+    expect(
+      await cli(organizer, ["prompt", "planning", "--set", "Plan", "it."]),
+    ).toMatchObject({
+      exitCode: 0,
+      stdout: "Set the entry prompt for Planning (planning).\n",
+    });
+    expect(
+      (await configFor(organizer)).stages.find(
+        (stage) => stage.key === "planning",
+      ),
+    ).toMatchObject({ entryPrompt: "Plan it." });
+    expect(await cli(organizer, ["prompt", "planning"])).toMatchObject({
+      exitCode: 0,
+      stdout: "Plan it.\n",
+    });
+    const listed = await cli(organizer, ["prompt"]);
+    expect(listed.exitCode).toBe(0);
+    expect(listed.stdout).toContain("planning");
+    expect(listed.stdout).toContain("Plan it.");
+    expect(listed.stdout).toContain("(Inbox cannot send an entry prompt)");
+
+    expect(await cli(organizer, ["prompt", "planning", "--clear"])).toMatchObject({
+      exitCode: 0,
+      stdout: "Cleared the entry prompt for Planning (planning).\n",
+    });
+    expect(
+      (await configFor(organizer)).stages.find(
+        (stage) => stage.key === "planning",
+      ),
+    ).not.toHaveProperty("entryPrompt");
+    expect(await cli(organizer, ["prompt", "planning"])).toMatchObject({
+      exitCode: 0,
+      stdout: "Planning (planning) has no entry prompt.\n",
+    });
+  });
+
+  it("refuses Inbox, unknown stages, empty text, and oversized prompts without saving", async () => {
+    const organizer = createHarness();
+    await plugin(organizer.bb);
+    const before = await configFor(organizer);
+
+    expect(await cli(organizer, ["prompt", "inbox", "--set", "x"])).toMatchObject({
+      exitCode: 2,
+      stderr: "Inbox cannot send an entry prompt.\n",
+    });
+    expect(await cli(organizer, ["prompt", "nope", "--set", "x"])).toMatchObject({
+      exitCode: 2,
+      stderr: expect.stringContaining("Unknown stage: nope"),
+    });
+    expect(await cli(organizer, ["prompt", "planning", "--set", " "])).toMatchObject({
+      exitCode: 2,
+    });
+    expect(
+      await cli(organizer, ["prompt", "planning", "--set", "x".repeat(2001)]),
+    ).toMatchObject({
+      exitCode: 2,
+      stderr: expect.stringContaining("entry prompt must be at most"),
+    });
+    expect(await configFor(organizer)).toEqual(before);
+  });
+
+  it("adds a section after another with a rule, keys it by title, and lists it", async () => {
+    const organizer = createHarness();
+    await plugin(organizer.bb);
+
+    expect(
+      await cli(organizer, [
+        "section",
+        "add",
+        "Review",
+        "--after",
+        "testing-deploy",
+        "--rule",
+        "A PR needs its one review.",
+      ]),
+    ).toMatchObject({
+      exitCode: 0,
+      stdout: "Added Review (review) after Testing / Deploy.\n",
+    });
+    const config = await configFor(organizer);
+    const keys = config.stages.map((stage) => stage.key);
+    expect(keys.indexOf("review")).toBe(keys.indexOf("testing-deploy") + 1);
+    expect(config.stages.find((stage) => stage.key === "review")).toMatchObject({
+      role: "stage",
+      title: "Review",
+      rule: "A PR needs its one review.",
+      sectionId: expect.any(String),
+    });
+
+    const listed = await cli(organizer, ["section", "list"]);
+    expect(listed.exitCode).toBe(0);
+    expect(listed.stdout).toContain("review            Review");
+    expect(listed.stdout).toContain("[system-managed]");
+
+    expect(await cli(organizer, ["section", "add", "Review"])).toMatchObject({
+      exitCode: 2,
+      stderr: expect.stringContaining("duplicated"),
+    });
+    expect(
+      await cli(organizer, ["section", "add", "Later", "--after", "nope"]),
+    ).toMatchObject({ exitCode: 2, stderr: expect.stringContaining("Unknown stage: nope") });
+    expect(await cli(organizer, ["section", "add", ""])).toMatchObject({
+      exitCode: 2,
+      stderr: "Provide a section title.\n",
+    });
+    expect((await configFor(organizer)).stages.map((stage) => stage.key)).toEqual(keys);
+  });
+
+  it("appends a section at the end when no position is given", async () => {
+    const organizer = createHarness();
+    await plugin(organizer.bb);
+    expect(await cli(organizer, ["section", "add", "Someday"])).toMatchObject({
+      exitCode: 0,
+      stdout: "Added Someday (someday).\n",
+    });
+    const config = await configFor(organizer);
+    expect(config.stages[config.stages.length - 1]).toMatchObject({
+      key: "someday",
+      rule: "Describe the work that belongs in this section.",
+    });
+  });
+
+  it("prints usage for unknown commands", async () => {
+    const organizer = createHarness();
+    await plugin(organizer.bb);
+    expect(await cli(organizer, ["frobnicate"])).toMatchObject({
+      exitCode: 2,
+      stderr: expect.stringContaining("bb organizer prompt"),
+    });
+  });
+});
+
 async function saveStagePatch(
   organizer: ReturnType<typeof createHarness>,
   key: string,
