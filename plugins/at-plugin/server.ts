@@ -1,4 +1,9 @@
 import type { BbPluginApi } from "@get-bb/plugin-sdk";
+import { isPluginBrowseQuery } from "./mention-query";
+import { catalogEntries, readCatalogDetails } from "./catalog-details";
+import { boundedSdkRead } from "./sdk-read";
+import { registerSearchCli } from "./search-cli";
+export { SDK_READ_TIMEOUT_MS } from "./sdk-read";
 
 import {
   COMMUNITY_MARKETPLACE,
@@ -7,7 +12,7 @@ import {
 } from "./community-catalog";
 import {
   type InstalledPluginRecord,
-  hasAgentFacingInterface,
+  isUsableInstalledTarget,
   searchInstalledPlugins,
 } from "./installed-catalog";
 import {
@@ -18,35 +23,6 @@ import {
   decodeCommunityItemId,
   decodeInstalledItemId,
 } from "./mention-context";
-
-export const SDK_READ_TIMEOUT_MS = 1_500;
-
-class SdkReadTimeoutError extends Error {
-  constructor() {
-    super("SDK read timed out");
-    this.name = "SdkReadTimeoutError";
-  }
-}
-
-async function boundedSdkRead<T>(read: (signal: AbortSignal) => Promise<T>): Promise<T> {
-  const controller = new AbortController();
-  let timer: ReturnType<typeof setTimeout> | undefined;
-
-  try {
-    return await new Promise<T>((resolve, reject) => {
-      timer = setTimeout(() => {
-        controller.abort();
-        reject(new SdkReadTimeoutError());
-      }, SDK_READ_TIMEOUT_MS);
-
-      Promise.resolve()
-        .then(() => read(controller.signal))
-        .then(resolve, reject);
-    });
-  } finally {
-    if (timer !== undefined) clearTimeout(timer);
-  }
-}
 
 function targetName(plugin: InstalledPluginRecord): string {
   return (
@@ -69,12 +45,6 @@ function missingInstalledError(target: string): Error {
 function unusableInstalledError(target: string): Error {
   return new Error(
     `${target} is not currently usable. Restore it in Plugins settings or remove @${target}, then retry.`,
-  );
-}
-
-function noAgentCapabilityError(target: string): Error {
-  return new Error(
-    `${target} no longer exposes an agent capability. Reload or update it, or remove @${target}, then retry.`,
   );
 }
 
@@ -123,8 +93,7 @@ function findInstalledPlugin(
 
 function resolveInstalledRecord(plugin: InstalledPluginRecord): { context: string } {
   const target = targetName(plugin);
-  if (plugin.status !== "running") throw unusableInstalledError(target);
-  if (!hasAgentFacingInterface(plugin)) throw noAgentCapabilityError(target);
+  if (!isUsableInstalledTarget(plugin)) throw unusableInstalledError(target);
 
   return {
     context: buildInstalledPluginContext({ name: target, pluginId: plugin.id }),
@@ -144,13 +113,30 @@ function exactCommunityEntry(
 }
 
 export default async function plugin(bb: BbPluginApi) {
+  registerSearchCli(bb);
+  // The two mention providers share concurrent catalog reads for a query.
+  const pending = new Map<string, ReturnType<typeof readCatalogDetails>>();
+  function searchCatalog(query: string) {
+    const normalized = isPluginBrowseQuery(query) ? "" : query.trim();
+    const existing = pending.get(normalized);
+    if (existing) return existing;
+    const request = boundedSdkRead((signal) => readCatalogDetails(bb, normalized, signal))
+      .finally(() => pending.delete(normalized));
+    pending.set(normalized, request);
+    return request;
+  }
   bb.ui.registerMentionProvider({
     id: "installed",
-    label: "Installed",
+    label: "Installed plugins",
     async search({ query }) {
       try {
-        const inventory = await boundedSdkRead((signal) => bb.sdk.plugins.list({ signal }));
-        return searchInstalledPlugins(inventory.plugins, query, bb.pluginId);
+        const [inventory, catalog] = await Promise.all([
+          boundedSdkRead((signal) => bb.sdk.plugins.list({ signal })),
+          searchCatalog(query).catch(() => null),
+        ]);
+        return searchInstalledPlugins(inventory.plugins, query, {
+          catalogMatches: new Set(catalog?.matches.map((entry) => entry.pluginId)),
+        });
       } catch {
         return [];
       }
@@ -179,13 +165,11 @@ export default async function plugin(bb: BbPluginApi) {
 
   bb.ui.registerMentionProvider({
     id: "community",
-    label: "Community",
+    label: "Community plugins",
     async search({ query }) {
       try {
-        const entries = await boundedSdkRead((signal) =>
-          bb.sdk.plugins.catalog.search({ query, signal }),
-        );
-        return searchCommunityPlugins(entries, query);
+        const catalog = await searchCatalog(query);
+        return searchCommunityPlugins(catalog.matches, query);
       } catch {
         return [];
       }
@@ -223,7 +207,7 @@ export default async function plugin(bb: BbPluginApi) {
         throw communityVerificationError(fallback);
       }
 
-      const entry = exactCommunityEntry(entries, identity);
+      const entry = exactCommunityEntry(catalogEntries(entries), identity);
       if (entry === undefined) throw communityMissingError(fallback);
 
       const liveTarget = boundUntrustedText(entry.displayName, MAX_ITEM_TITLE_BYTES);
