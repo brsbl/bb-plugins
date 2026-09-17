@@ -1,4 +1,5 @@
 import type { BbPluginApi, PluginMentionItem } from "@get-bb/plugin-sdk";
+import { isPluginBrowseQuery } from "./mention-query";
 
 import {
   MAX_ITEM_SUBTITLE_BYTES,
@@ -50,42 +51,31 @@ function matchTier(
   return null;
 }
 
-export function hasAgentFacingInterface(plugin: InstalledPluginRecord): boolean {
-  return (
-    plugin.cliCommand !== null ||
-    plugin.capabilities.some(
-      (capability) => capability.kind === "skill" || capability.kind === "agent-tool",
-    )
-  );
-}
-
 export function isUsableInstalledTarget(
   plugin: InstalledPluginRecord,
-  ownerPluginId: string,
 ): boolean {
-  const pluginId = normalizeStableIdentity(plugin.id);
-  const ownerId = normalizeStableIdentity(ownerPluginId);
   return (
-    pluginId !== null &&
-    pluginId !== ownerId &&
-    plugin.status === "running" &&
-    hasAgentFacingInterface(plugin)
+    normalizeStableIdentity(plugin.id) !== null &&
+    plugin.enabled &&
+    plugin.status === "running"
   );
 }
 
 export function searchInstalledPlugins(
   plugins: readonly InstalledPluginRecord[],
   query: string,
-  ownerPluginId: string,
+  options: { catalogMatches?: ReadonlySet<string>; limit?: number | null } = {},
 ): PluginMentionItem[] {
+  const browse = isPluginBrowseQuery(query);
   const eligible = plugins.flatMap((plugin): InstalledCandidate[] => {
-    if (!isUsableInstalledTarget(plugin, ownerPluginId)) return [];
+    if (!isUsableInstalledTarget(plugin)) return [];
 
     const pluginId = normalizeStableIdentity(plugin.id);
     if (pluginId === null) return [];
     const displayName = normalizeUntrustedText(plugin.name ?? pluginId) || pluginId;
     const description = normalizeUntrustedText(plugin.description ?? "");
-    const tier = matchTier(query, displayName, pluginId, description);
+    const tier = matchTier(browse ? "" : query, displayName, pluginId, description)
+      ?? (options.catalogMatches?.has(pluginId) ? 3 : null);
     if (tier === null) return [];
 
     return [
@@ -118,7 +108,7 @@ export function searchInstalledPlugins(
         compareText(left.displayName, right.displayName) ||
         compareText(left.pluginId, right.pluginId),
     )
-    .slice(0, RESULT_LIMIT)
+    .slice(0, options.limit === null || browse ? undefined : options.limit ?? RESULT_LIMIT)
     .map((candidate) => {
       const subtitleParts = duplicateNames.has(candidate.normalizedName)
         ? [candidate.pluginId, candidate.description]

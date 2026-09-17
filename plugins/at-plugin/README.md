@@ -1,6 +1,6 @@
 # @Plugin
 
-Adds installed and Community plugins to bb's existing `@` menu.
+Find plugins for your task from bb's `@` menu or let your agent search through the CLI.
 
 ![Plugin mentions in bb](docs/screenshot.png)
 
@@ -12,7 +12,13 @@ bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/at-plugin -
 
 ## Use
 
-Type `@`, search for a plugin, and select it.
+Type part of a plugin name, such as `@auto`, and select a result.
+Type `@plugin` to browse installed and Community plugins without
+the usual six-results-per-group limit. Bare `@` does not return results in BB.
+
+Installed results include all enabled, running plugins, including UI-only
+plugins and themes. Disabled or unhealthy plugins are excluded. Community
+results include compatible plugins that are not installed.
 
 - An installed plugin mention tells the agent which available plugin to prefer
   when it is relevant.
@@ -21,6 +27,33 @@ Type `@`, search for a plugin, and select it.
 
 A mention never installs, enables, configures, authenticates, or invokes a
 plugin by itself.
+
+## Search coverage
+
+Search matches names, plugin IDs, full descriptions, and available long-form
+catalog overviews. Catalog search also matches tags, category, entry IDs, and
+marketplace names. Installed plugins use matching catalog details when available.
+Search does not crawl READMEs, documentation sites, or image contents. Older BB
+versions and listings without overviews retain name/description search.
+
+## Agent CLI
+
+```sh
+bb at-plugin search "pdf" --json
+bb at-plugin search --scope community --limit 10 --offset 0 --json
+bb at-plugin show <plugin-id> --json
+```
+
+Both commands return full descriptions, available overview text, and screenshot
+and public icon URLs. Images are returned as links, not downloaded bytes. Search
+defaults to 10 results, accepts `--limit 1..20`, and returns `nextOffset` for
+pagination. Use `--scope installed`, `community`, or `all` (the default).
+Omit `--json` for readable text. Check `warnings` for incomplete results and
+`textTruncated` for unusually large text. These commands only read plugin data.
+
+The plugin contributes CLI discovery metadata and an `at-plugin-discovery`
+skill so agents can find and inspect plugins independently. Only enabled,
+running installed plugins and compatible, uninstalled Community plugins appear.
 
 ## Develop
 
