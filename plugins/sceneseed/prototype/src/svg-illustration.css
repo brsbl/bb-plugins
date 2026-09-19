@@ -1,0 +1,628 @@
+:root {
+  --canvas: #ffffff;
+  --ink: #171717;
+  --accent: #4d6bff;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  color: var(--ink);
+  background: var(--canvas);
+  font-family:
+    Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI",
+    sans-serif;
+}
+
+#ladle-root {
+  padding: 0 !important;
+}
+
+.svg-prototype-root {
+  --prototype-line: color-mix(in oklch, var(--ink) 14%, var(--canvas));
+  --prototype-line-strong: color-mix(in oklch, var(--ink) 24%, var(--canvas));
+  --prototype-soft: color-mix(in oklch, var(--ink) 4%, var(--canvas));
+  --prototype-raised: color-mix(in oklch, var(--ink) 1.8%, var(--canvas));
+  --prototype-muted: color-mix(in oklch, var(--ink) 56%, var(--canvas));
+  --scene-body: #e7e7e7;
+  --scene-secondary: #a7a7a7;
+  --scene-accent: #363636;
+  --scene-ink: #171717;
+  --scene-highlight: #ffffff;
+  display: flex;
+  width: 100%;
+  min-width: 20rem;
+  min-height: 42rem;
+  height: 100vh;
+  flex-direction: column;
+  overflow: hidden;
+  color: var(--ink);
+  background: var(--canvas);
+}
+
+.svg-prototype-root[data-tint="blue"] {
+  --scene-body: #dce7fb;
+  --scene-secondary: #a8bfec;
+  --scene-accent: #3f6fce;
+  --scene-ink: #17315f;
+  --scene-highlight: #f7faff;
+}
+
+.svg-prototype-root[data-tint="green"] {
+  --scene-body: #dcece2;
+  --scene-secondary: #9bc2a9;
+  --scene-accent: #3f8860;
+  --scene-ink: #183c28;
+  --scene-highlight: #f7fbf8;
+}
+
+.svg-prototype-root[data-tint="orange"] {
+  --scene-body: #f2e3d4;
+  --scene-secondary: #d9b18c;
+  --scene-accent: #bf6b30;
+  --scene-ink: #542d18;
+  --scene-highlight: #fffaf5;
+}
+
+.svg-prototype-header {
+  position: relative;
+  z-index: 20;
+  display: flex;
+  min-height: 3.25rem;
+  align-items: center;
+  gap: 0.65rem;
+  padding: 0.45rem 0.85rem;
+  border-bottom: 1px solid var(--prototype-line);
+  background: var(--canvas);
+}
+
+.svg-prototype-header strong {
+  font-size: 0.9rem;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+}
+
+.svg-prototype-mark {
+  position: relative;
+  display: block;
+  width: 1.35rem;
+  height: 1.35rem;
+}
+
+.svg-prototype-mark i {
+  position: absolute;
+  display: block;
+  border: 1px solid var(--ink);
+  background: var(--canvas);
+}
+
+.svg-prototype-mark i:nth-child(1) {
+  top: 0.1rem;
+  left: 0.05rem;
+  width: 0.72rem;
+  height: 0.78rem;
+  border-radius: 55% 45% 52% 48%;
+  transform: rotate(-7deg);
+}
+
+.svg-prototype-mark i:nth-child(2) {
+  right: 0.04rem;
+  bottom: 0.06rem;
+  width: 0.76rem;
+  height: 0.72rem;
+  border-radius: 45% 55% 48% 52%;
+  background: color-mix(in oklch, var(--ink) 8%, var(--canvas));
+  transform: rotate(8deg);
+}
+
+.svg-prototype-mark i:nth-child(3) {
+  right: 0.12rem;
+  top: 0.08rem;
+  width: 0.3rem;
+  height: 0.3rem;
+  border-radius: 50%;
+  background: var(--ink);
+}
+
+.svg-prototype-stage {
+  position: relative;
+  min-height: 0;
+  flex: 1;
+  overflow: hidden;
+  background:
+    radial-gradient(
+      circle at 50% 44%,
+      color-mix(in oklch, var(--canvas) 78%, transparent) 0,
+      transparent 48%
+    ),
+    color-mix(in oklch, var(--ink) 3.5%, var(--canvas));
+}
+
+.svg-prototype-pan-layer {
+  position: absolute;
+  z-index: 1;
+  inset: 0 0 8rem;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  touch-action: none;
+}
+
+.svg-prototype-stage:has(.svg-prototype-scene) .svg-prototype-pan-layer {
+  cursor: grab;
+}
+
+.svg-prototype-stage:has(.svg-prototype-scene) .svg-prototype-pan-layer:active {
+  cursor: grabbing;
+}
+
+.svg-prototype-scene {
+  width: min(34rem, 68vw, 64vh);
+  height: min(34rem, 68vw, 64vh);
+  transform-origin: center;
+  transition: transform 120ms ease-out;
+  will-change: transform;
+}
+
+.svg-prototype-art {
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+.svg-prototype-empty {
+  position: absolute;
+  z-index: 2;
+  inset: 0 0 8rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.25rem;
+  padding: 2rem;
+  text-align: center;
+  pointer-events: none;
+}
+
+.svg-prototype-empty strong {
+  font-size: 0.9rem;
+  font-weight: 590;
+}
+
+.svg-prototype-empty span {
+  color: var(--prototype-muted);
+  font-size: 0.78rem;
+}
+
+.svg-prototype-shimmer {
+  position: absolute;
+  z-index: 8;
+  inset: 0;
+  background:
+    linear-gradient(
+      105deg,
+      transparent 37%,
+      color-mix(in oklab, var(--ink) 2.5%, transparent) 48%,
+      color-mix(in oklab, var(--canvas) 28%, transparent) 52%,
+      transparent 63%
+    ),
+    color-mix(in oklch, var(--ink) 1.5%, transparent);
+  background-size: 260% 100%, 100% 100%;
+  animation: svg-prototype-shimmer 1.8s ease-in-out infinite;
+  pointer-events: none;
+}
+
+.svg-prototype-status {
+  position: absolute;
+  z-index: 12;
+  top: 1rem;
+  left: 50%;
+  display: flex;
+  min-height: 2rem;
+  align-items: center;
+  gap: 0.48rem;
+  padding: 0.38rem 0.58rem;
+  border: 1px solid var(--prototype-line);
+  border-radius: 0.65rem;
+  color: var(--ink);
+  background: color-mix(in oklab, var(--canvas) 90%, transparent);
+  box-shadow: 0 0.65rem 2rem color-mix(in oklab, var(--ink) 8%, transparent);
+  font-size: 0.72rem;
+  font-weight: 580;
+  backdrop-filter: blur(16px);
+  transform: translateX(-50%);
+}
+
+.svg-prototype-status[data-tone="error"] {
+  border-color: color-mix(in oklch, #b42318 30%, var(--canvas));
+}
+
+.svg-prototype-status button {
+  min-height: 1.35rem;
+  margin-left: 0.3rem;
+  padding: 0.15rem 0.42rem;
+  border: 1px solid var(--prototype-line-strong);
+  border-radius: 0.4rem;
+  color: var(--ink);
+  background: var(--canvas);
+  font: inherit;
+  cursor: pointer;
+}
+
+.svg-prototype-status button:hover {
+  background: var(--prototype-soft);
+}
+
+.svg-prototype-status button:focus-visible,
+.svg-prototype-zoom button:focus-visible,
+.svg-prototype-colors button:focus-visible,
+.svg-prototype-remix:focus-visible,
+.svg-prototype-composer button:focus-visible,
+.svg-prototype-composer textarea:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.svg-prototype-spinner {
+  width: 0.78rem;
+  height: 0.78rem;
+  border: 1.5px solid var(--prototype-line-strong);
+  border-top-color: var(--ink);
+  border-radius: 50%;
+  animation: svg-prototype-spin 1s linear infinite;
+}
+
+.svg-prototype-error-dot {
+  width: 0.48rem;
+  height: 0.48rem;
+  border-radius: 50%;
+  background: #b42318;
+}
+
+.svg-prototype-zoom {
+  position: absolute;
+  z-index: 7;
+  top: 50%;
+  right: 1rem;
+  display: grid;
+  justify-items: center;
+  gap: 0.2rem;
+  padding: 0.24rem;
+  border: 1px solid var(--prototype-line);
+  border-radius: 0.65rem;
+  background: color-mix(in oklab, var(--canvas) 90%, transparent);
+  box-shadow: 0 0.5rem 1.75rem color-mix(in oklab, var(--ink) 8%, transparent);
+  backdrop-filter: blur(16px);
+  transform: translateY(-50%);
+}
+
+.svg-prototype-zoom button {
+  display: grid;
+  width: 1.75rem;
+  height: 1.75rem;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 0.45rem;
+  color: var(--ink);
+  background: transparent;
+  font: inherit;
+  font-size: 1rem;
+  cursor: pointer;
+}
+
+.svg-prototype-zoom button:hover:not(:disabled) {
+  background: var(--prototype-soft);
+}
+
+.svg-prototype-zoom button:disabled {
+  opacity: 0.34;
+  cursor: default;
+}
+
+.svg-prototype-zoom-track {
+  position: relative;
+  display: block;
+  width: 0.65rem;
+  height: 2.65rem;
+  border-radius: 999px;
+  background: color-mix(in oklch, var(--ink) 10%, var(--canvas));
+}
+
+.svg-prototype-zoom-track::after {
+  position: absolute;
+  right: 0.27rem;
+  bottom: 0;
+  left: 0.27rem;
+  height: 100%;
+  border-radius: inherit;
+  background: color-mix(in oklch, var(--ink) 35%, var(--canvas));
+  content: "";
+}
+
+.svg-prototype-zoom-track i {
+  position: absolute;
+  z-index: 1;
+  right: 0;
+  left: 0;
+  display: block;
+  height: 0.36rem;
+  border-radius: 999px;
+  background: var(--ink);
+  transition: bottom 100ms ease-out;
+  transform: translateY(50%);
+}
+
+.svg-prototype-compose-stack {
+  position: absolute;
+  z-index: 14;
+  right: 1rem;
+  bottom: 1rem;
+  left: 1rem;
+  display: flex;
+  width: min(48rem, calc(100% - 2rem));
+  flex-direction: column;
+  gap: 0.45rem;
+  margin: 0 auto;
+  pointer-events: none;
+}
+
+.svg-prototype-compose-stack > * {
+  pointer-events: auto;
+}
+
+.svg-prototype-object-controls {
+  display: flex;
+  width: max-content;
+  max-width: 100%;
+  min-height: 2.25rem;
+  align-items: center;
+  align-self: center;
+  gap: 0.35rem;
+  padding: 0.26rem 0.3rem 0.26rem 0.55rem;
+  border: 1px solid var(--prototype-line);
+  border-radius: 0.65rem;
+  background: color-mix(in oklab, var(--canvas) 90%, transparent);
+  box-shadow: 0 0.5rem 1.75rem color-mix(in oklab, var(--ink) 8%, transparent);
+  backdrop-filter: blur(16px);
+}
+
+.svg-prototype-selection-dot {
+  width: 0.45rem;
+  height: 0.45rem;
+  flex: 0 0 auto;
+  border-radius: 999px;
+  background: var(--scene-accent);
+  box-shadow: 0 0 0 0.15rem color-mix(in oklab, var(--scene-accent) 16%, transparent);
+}
+
+.svg-prototype-object-controls > strong {
+  max-width: min(22rem, 38vw);
+  margin-right: 0.35rem;
+  overflow: hidden;
+  font-size: 0.75rem;
+  font-weight: 570;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.svg-prototype-color-label {
+  color: var(--prototype-muted);
+  font-size: 0.68rem;
+  font-weight: 570;
+}
+
+.svg-prototype-colors {
+  display: flex;
+  align-items: center;
+  gap: 0.24rem;
+  margin-right: 0.22rem;
+}
+
+.svg-prototype-colors button {
+  display: grid;
+  width: 1.35rem;
+  height: 1.35rem;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  cursor: pointer;
+}
+
+.svg-prototype-colors button > span {
+  width: 0.72rem;
+  height: 0.72rem;
+  border: 1px solid var(--prototype-line-strong);
+  border-radius: inherit;
+  background: #ffffff;
+}
+
+.svg-prototype-colors button[data-color="mono"] > span {
+  border-color: var(--ink);
+  background: linear-gradient(135deg, #fff 0 48%, #202020 52% 100%);
+}
+
+.svg-prototype-colors button[data-color="blue"] > span {
+  background: #5b82d5;
+}
+
+.svg-prototype-colors button[data-color="green"] > span {
+  background: #5c9f74;
+}
+
+.svg-prototype-colors button[data-color="orange"] > span {
+  background: #ca7a43;
+}
+
+.svg-prototype-colors button[aria-pressed="true"] {
+  box-shadow: inset 0 0 0 1px var(--ink);
+}
+
+.svg-prototype-remix {
+  min-height: 1.75rem;
+  padding: 0.28rem 0.58rem;
+  border: 1px solid var(--prototype-line);
+  border-radius: 0.45rem;
+  color: var(--ink);
+  background: var(--prototype-soft);
+  font: inherit;
+  font-size: 0.72rem;
+  font-weight: 590;
+  cursor: pointer;
+}
+
+.svg-prototype-remix:hover {
+  background: color-mix(in oklch, var(--ink) 7%, var(--canvas));
+}
+
+.svg-prototype-composer {
+  width: 100%;
+  min-height: 7.15rem;
+  padding: 0.72rem 0.78rem 0.58rem;
+  border: 1px solid var(--prototype-line-strong);
+  border-radius: 0.88rem;
+  background: color-mix(in oklab, var(--canvas) 94%, transparent);
+  box-shadow: 0 1rem 3rem color-mix(in oklab, var(--ink) 10%, transparent);
+  backdrop-filter: blur(18px);
+}
+
+.svg-prototype-composer textarea {
+  display: block;
+  width: 100%;
+  min-height: 3.35rem;
+  padding: 0;
+  resize: none;
+  border: 0;
+  outline: 0;
+  color: var(--ink);
+  background: transparent;
+  font: inherit;
+  font-size: 0.9rem;
+  line-height: 1.42;
+}
+
+.svg-prototype-composer textarea::placeholder {
+  color: var(--prototype-muted);
+}
+
+.svg-prototype-composer textarea:disabled {
+  opacity: 0.58;
+}
+
+.svg-prototype-composer-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.svg-prototype-composer-footer > span {
+  color: var(--prototype-muted);
+  font-size: 0.68rem;
+}
+
+.svg-prototype-composer-footer > button {
+  display: inline-flex;
+  min-height: 2rem;
+  align-items: center;
+  gap: 0.36rem;
+  padding: 0.38rem 0.6rem 0.38rem 0.7rem;
+  border: 0;
+  border-radius: 0.55rem;
+  color: var(--canvas);
+  background: var(--ink);
+  font: inherit;
+  font-size: 0.74rem;
+  font-weight: 620;
+  cursor: pointer;
+}
+
+.svg-prototype-composer-footer > button svg {
+  width: 0.9rem;
+  height: 0.9rem;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.6;
+}
+
+.svg-prototype-composer-footer > button:disabled {
+  color: var(--prototype-muted);
+  background: var(--prototype-soft);
+  cursor: default;
+}
+
+@keyframes svg-prototype-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes svg-prototype-shimmer {
+  from {
+    background-position: 140% 0, 0 0;
+  }
+  to {
+    background-position: -140% 0, 0 0;
+  }
+}
+
+@media (max-width: 720px) {
+  .svg-prototype-root {
+    min-height: 38rem;
+  }
+
+  .svg-prototype-pan-layer,
+  .svg-prototype-empty {
+    bottom: 8.5rem;
+  }
+
+  .svg-prototype-compose-stack {
+    right: 0.5rem;
+    bottom: 0.5rem;
+    left: 0.5rem;
+    width: calc(100% - 1rem);
+  }
+
+  .svg-prototype-object-controls {
+    align-self: stretch;
+  }
+
+  .svg-prototype-object-controls > strong {
+    max-width: none;
+    flex: 1;
+  }
+
+  .svg-prototype-color-label {
+    display: none;
+  }
+
+  .svg-prototype-zoom {
+    right: 0.5rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .svg-prototype-scene,
+  .svg-prototype-zoom-track i {
+    transition: none;
+  }
+
+  .svg-prototype-spinner {
+    animation: none;
+    border-color: var(--ink);
+  }
+
+  .svg-prototype-shimmer {
+    animation: none;
+    background-position: 50% 0, 0 0;
+  }
+}

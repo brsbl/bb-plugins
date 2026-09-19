@@ -1,0 +1,875 @@
+{
+  "origin": "http://127.0.0.1:61000",
+  "browser": "Chrome for Testing 152.0.7977.64",
+  "viewport": {
+    "width": 1440,
+    "height": 900
+  },
+  "expected": 50,
+  "captured": 50,
+  "captures": [
+    {
+      "id": "01-release-notes-sidebar",
+      "index": 1,
+      "category": "Plugin prototype",
+      "filename": "01-01-release-notes-sidebar.png",
+      "bytes": 42889,
+      "vertices": 132,
+      "objects": 14,
+      "state": {
+        "promptId": "01-release-notes-sidebar",
+        "renderStatus": "ready",
+        "canvasWidth": 1182,
+        "canvasHeight": 690,
+        "bodyScrollWidth": 1440,
+        "viewportWidth": 1440
+      }
+    },
+    {
+      "id": "02-token-drift-inspector",
+      "index": 2,
+      "category": "Plugin prototype",
+      "filename": "02-02-token-drift-inspector.png",
+      "bytes": 45128,
+      "vertices": 156,
+      "objects": 16,
+      "state": {
+        "promptId": "02-token-drift-inspector",
+        "renderStatus": "ready",
+        "canvasWidth": 1182,
+        "canvasHeight": 690,
+        "bodyScrollWidth": 1440,
+        "viewportWidth": 1440
+      }
+    },
+    {
+      "id": "03-accessibility-annotation-overlay",
+      "index": 3,
+      "category": "Plugin prototype",
+      "filename": "03-03-accessibility-annotation-overlay.png",
+      "bytes": 47779,
+      "vertices": 172,
+      "objects": 18,
+      "state": {
+        "promptId": "03-accessibility-annotation-overlay",
+        "renderStatus": "ready",
+        "canvasWidth": 1182,
+        "canvasHeight": 690,
+        "bodyScrollWidth": 1440,
+        "viewportWidth": 1440
+      }
+    },
+    {
+      "id": "04-incident-command-palette",
+      "index": 4,
+      "category": "Plugin prototype",
+      "filename": "04-04-incident-command-palette.png",
+      "bytes": 42233,
+      "vertices": 128,
+      "objects": 14,
+      "state": {
+        "promptId": "04-incident-command-palette",
+        "renderStatus": "ready",
+        "canvasWidth": 1182,
+        "canvasHeight": 690,
+        "bodyScrollWidth": 1440,
+        "viewportWidth": 1440
+      }
+    },
+    {
+      "id": "05-focus-time-settings",
+      "index": 5,
+      "category": "Plugin prototype",
+      "filename": "05-05-focus-time-settings.png",
+      "bytes": 43696,
+      "vertices": 158,
+      "objects": 18,
+      "state": {
+        "promptId": "05-focus-time-settings",
+        "renderStatus": "ready",
+        "canvasWidth": 1182,
+        "canvasHeight": 690,
+        "bodyScrollWidth": 1440,
+        "viewportWidth": 1440
+      }
+    },
+    {
+      "id": "06-query-explainer",
+      "index": 6,
+      "category": "Plugin prototype",
+      "filename": "06-06-query-explainer.png",
+      "bytes": 44278,
+      "vertices": 146,
+      "objects": 15,
+      "state": {
+        "promptId": "06-query-explainer",
+        "renderStatus": "ready",
+        "canvasWidth": 1182,
+        "canvasHeight": 690,
+        "bodyScrollWidth": 1440,
+        "viewportWidth": 1440
+      }
+    },
+    {
+      "id": "07-screenshot-feedback-pins",
+      "index": 7,
+      "category": "Plugin prototype",
+      "filename": "07-07-screenshot-feedback-pins.png",
+      "bytes": 44718,
+      "vertices": 164,
+      "objects": 18,
+      "state": {
+        "promptId": "07-screenshot-feedback-pins",
+        "renderStatus": "ready",
+        "canvasWidth": 1182,
+        "canvasHeight": 690,
+        "bodyScrollWidth": 1440,
+        "viewportWidth": 1440
+      }
+    },
+    {
+      "id": "08-api-replay-timeline",
+      "index": 8,
+      "category": "Plugin prototype",
+      "filename": "08-08-api-replay-timeline.png",
+      "bytes": 42153,
+      "vertices": 212,
+      "objects": 19,
+      "state": {
+        "promptId": "08-api-replay-timeline",
+        "renderStatus": "ready",
+        "canvasWidth": 1182,
+        "canvasHeight": 690,
+        "bodyScrollWidth": 1440,
+        "viewportWidth": 1440
+      }
+    },
+    {
+      "id": "09-citation-checker",
+      "index": 9,
+      "category": "Plugin prototype",
+      "filename": "09-09-citation-checker.png",
+      "bytes": 42130,
+      "vertices": 142,
+      "objects": 15,
+      "state": {
+        "promptId": "09-citation-checker",
+        "renderStatus": "ready",
+        "canvasWidth": 1182,
+        "canvasHeight": 690,
+        "bodyScrollWidth": 1440,
+        "viewportWidth": 1440
+      }
+    },
+    {
+      "id": "10-password-health-dashboard",
+      "index": 10,
+      "category": "Plugin prototype",
+      "filename": "10-10-password-health-dashboard.png",
+      "bytes": 46672,
+      "vertices": 144,
+      "objects": 15,
+      "state": {
+        "promptId": "10-password-health-dashboard",
+        "renderStatus": "ready",
+        "canvasWidth": 1182,
+        "canvasHeight": 690,
+        "bodyScrollWidth": 1440,
+        "viewportWidth": 1440
+      }
+    },
+    {
+      "id": "11-transcript-highlights",
+      "index": 11,
+      "category": "Plugin prototype",
+      "filename": "11-11-transcript-highlights.png",
+      "bytes": 40792,
+      "vertices": 164,
+      "objects": 17,
+      "state": {
+        "promptId": "11-transcript-highlights",
+        "renderStatus": "ready",
+        "canvasWidth": 1182,
+        "canvasHeight": 690,
+        "bodyScrollWidth": 1440,
+        "viewportWidth": 1440
+      }
+    },
+    {
+      "id": "12-price-history-overlay",
+      "index": 12,
+      "category": "Plugin prototype",
+      "filename": "12-12-price-history-overlay.png",
+      "bytes": 42507,
+      "vertices": 166,
+      "objects": 18,
+      "state": {
+        "promptId": "12-price-history-overlay",
+        "renderStatus": "ready",
+        "canvasWidth": 1182,
+        "canvasHeight": 690,
+        "bodyScrollWidth": 1440,
+        "viewportWidth": 1440
+      }
+    },
+    {
+      "id": "13-asset-deduplicator-empty",
+      "index": 13,
+      "category": "Plugin prototype",
+      "filename": "13-13-asset-deduplicator-empty.png",
+      "bytes": 46831,
+      "vertices": 146,
+      "objects": 13,
+      "state": {
+        "promptId": "13-asset-deduplicator-empty",
+        "renderStatus": "ready",
+        "canvasWidth": 1182,
+        "canvasHeight": 690,
+        "bodyScrollWidth": 1440,
+        "viewportWidth": 1440
+      }
+    },
+    {
+      "id": "14-environment-switcher",
+      "index": 14,
+      "category": "Plugin prototype",
+      "filename": "14-14-environment-switcher.png",
+      "bytes": 41218,
+      "vertices": 128,
+      "objects": 14,
+      "state": {
+        "promptId": "14-environment-switcher",
+        "renderStatus": "ready",
+        "canvasWidth": 1182,
+        "canvasHeight": 690,
+        "bodyScrollWidth": 1440,
+        "viewportWidth": 1440
+      }
+    },
+    {
+      "id": "15-support-macro-suggester",
+      "index": 15,
+      "category": "Plugin prototype",
+      "filename": "15-15-support-macro-suggester.png",
+      "bytes": 44387,
+      "vertices": 152,
+      "objects": 16,
+      "state": {
+        "promptId": "15-support-macro-suggester",
+        "renderStatus": "ready",
+        "canvasWidth": 1182,
+        "canvasHeight": 690,
+        "bodyScrollWidth": 1440,
+        "viewportWidth": 1440
+      }
+    },
+    {
+      "id": "16-command-permissions-modal",
+      "index": 16,
+      "category": "Plugin prototype",
+      "filename": "16-16-command-permissions-modal.png",
+      "bytes": 46372,
+      "vertices": 152,
+      "objects": 17,
+      "state": {
+        "promptId": "16-command-permissions-modal",
+        "renderStatus": "ready",
+        "canvasWidth": 1182,
+        "canvasHeight": 690,
+        "bodyScrollWidth": 1440,
+        "viewportWidth": 1440
+      }
+    },
+    {
+      "id": "17-prompt-version-diff",
+      "index": 17,
+      "category": "Plugin prototype",
+      "filename": "17-17-prompt-version-diff.png",
+      "bytes": 40497,
+      "vertices": 172,
+      "objects": 21,
+      "state": {
+        "promptId": "17-prompt-version-diff",
+        "renderStatus": "ready",
+        "canvasWidth": 1182,
+        "canvasHeight": 690,
+        "bodyScrollWidth": 1440,
+        "viewportWidth": 1440
+      }
+    },
+    {
+      "id": "18-bank-transfer-confirmation",
+      "index": 18,
+      "category": "Product UI / screen",
+      "filename": "18-18-bank-transfer-confirmation.png",
+      "bytes": 44320,
+      "vertices": 72,
+      "objects": 10,
+      "state": {
+        "promptId": "18-bank-transfer-confirmation",
+        "renderStatus": "ready",
+        "canvasWidth": 1182,
+        "canvasHeight": 690,
+        "bodyScrollWidth": 1440,
+        "viewportWidth": 1440
+      }
+    },
+    {
+      "id": "19-restaurant-table-plan",
+      "index": 19,
+      "category": "Product UI / screen",
+      "filename": "19-19-restaurant-table-plan.png",
+      "bytes": 42935,
+      "vertices": 110,
+      "objects": 14,
+      "state": {
+        "promptId": "19-restaurant-table-plan",
+        "renderStatus": "ready",
+        "canvasWidth": 1182,
+        "canvasHeight": 690,
+        "bodyScrollWidth": 1440,
+        "viewportWidth": 1440
+      }
+    },
+    {
+      "id": "20-video-export-queue",
+      "index": 20,
+      "category": "Product UI / screen",
+      "filename": "20-20-video-export-queue.png",
+      "bytes": 40417,
+      "vertices": 156,
+      "objects": 17,
+      "state": {
+        "promptId": "20-video-export-queue",
+        "renderStatus": "ready",
+        "canvasWidth": 1182,
+        "canvasHeight": 690,
+        "bodyScrollWidth": 1440,
+        "viewportWidth": 1440
+      }
+    },
+    {
+      "id": "21-analytics-loading-state",
+      "index": 21,
+      "category": "Product UI / screen",
+      "filename": "21-21-analytics-loading-state.png",
+      "bytes": 42596,
+      "vertices": 146,
+      "objects": 16,
+      "state": {
+        "promptId": "21-analytics-loading-state",
+        "renderStatus": "ready",
+        "canvasWidth": 1182,
+        "canvasHeight": 690,
+        "bodyScrollWidth": 1440,
+        "viewportWidth": 1440
+      }
+    },
+    {
+      "id": "22-low-stock-product-page",
+      "index": 22,
+      "category": "Product UI / screen",
+      "filename": "22-22-low-stock-product-page.png",
+      "bytes": 44133,
+      "vertices": 136,
+      "objects": 15,
+      "state": {
+        "promptId": "22-low-stock-product-page",
+        "renderStatus": "ready",
+        "canvasWidth": 1182,
+        "canvasHeight": 690,
+        "bodyScrollWidth": 1440,
+        "viewportWidth": 1440
+      }
+    },
+    {
+      "id": "23-appointment-reschedule",
+      "index": 23,
+      "category": "Product UI / screen",
+      "filename": "23-23-appointment-reschedule.png",
+      "bytes": 46756,
+      "vertices": 130,
+      "objects": 18,
+      "state": {
+        "promptId": "23-appointment-reschedule",
+        "renderStatus": "ready",
+        "canvasWidth": 1182,
+        "canvasHeight": 690,
+        "bodyScrollWidth": 1440,
+        "viewportWidth": 1440
+      }
+    },
+    {
+      "id": "24-collaborative-music-queue",
+      "index": 24,
+      "category": "Product UI / screen",
+      "filename": "24-24-collaborative-music-queue.png",
+      "bytes": 47125,
+      "vertices": 182,
+      "objects": 16,
+      "state": {
+        "promptId": "24-collaborative-music-queue",
+        "renderStatus": "ready",
+        "canvasWidth": 1182,
+        "canvasHeight": 690,
+        "bodyScrollWidth": 1440,
+        "viewportWidth": 1440
+      }
+    },
+    {
+      "id": "25-thermostat-offline",
+      "index": 25,
+      "category": "Product UI / screen",
+      "filename": "25-25-thermostat-offline.png",
+      "bytes": 43779,
+      "vertices": 114,
+      "objects": 13,
+      "state": {
+        "promptId": "25-thermostat-offline",
+        "renderStatus": "ready",
+        "canvasWidth": 1182,
+        "canvasHeight": 690,
+        "bodyScrollWidth": 1440,
+        "viewportWidth": 1440
+      }
+    },
+    {
+      "id": "26-travel-itinerary-map",
+      "index": 26,
+      "category": "Product UI / screen",
+      "filename": "26-26-travel-itinerary-map.png",
+      "bytes": 44433,
+      "vertices": 206,
+      "objects": 18,
+      "state": {
+        "promptId": "26-travel-itinerary-map",
+        "renderStatus": "ready",
+        "canvasWidth": 1182,
+        "canvasHeight": 690,
+        "bodyScrollWidth": 1440,
+        "viewportWidth": 1440
+      }
+    },
+    {
+      "id": "27-kanban-bulk-selection",
+      "index": 27,
+      "category": "Product UI / screen",
+      "filename": "27-27-kanban-bulk-selection.png",
+      "bytes": 41791,
+      "vertices": 166,
+      "objects": 18,
+      "state": {
+        "promptId": "27-kanban-bulk-selection",
+        "renderStatus": "ready",
+        "canvasWidth": 1182,
+        "canvasHeight": 690,
+        "bodyScrollWidth": 1440,
+        "viewportWidth": 1440
+      }
+    },
+    {
+      "id": "28-permissions-onboarding",
+      "index": 28,
+      "category": "Product UI / screen",
+      "filename": "28-28-permissions-onboarding.png",
+      "bytes": 47804,
+      "vertices": 136,
+      "objects": 14,
+      "state": {
+        "promptId": "28-permissions-onboarding",
+        "renderStatus": "ready",
+        "canvasWidth": 1182,
+        "canvasHeight": 690,
+        "bodyScrollWidth": 1440,
+        "viewportWidth": 1440
+      }
+    },
+    {
+      "id": "29-address-validation-error",
+      "index": 29,
+      "category": "Product UI / screen",
+      "filename": "29-29-address-validation-error.png",
+      "bytes": 43528,
+      "vertices": 134,
+      "objects": 15,
+      "state": {
+        "promptId": "29-address-validation-error",
+        "renderStatus": "ready",
+        "canvasWidth": 1182,
+        "canvasHeight": 690,
+        "bodyScrollWidth": 1440,
+        "viewportWidth": 1440
+      }
+    },
+    {
+      "id": "30-search-no-results",
+      "index": 30,
+      "category": "Product UI / screen",
+      "filename": "30-30-search-no-results.png",
+      "bytes": 41051,
+      "vertices": 130,
+      "objects": 12,
+      "state": {
+        "promptId": "30-search-no-results",
+        "renderStatus": "ready",
+        "canvasWidth": 1182,
+        "canvasHeight": 690,
+        "bodyScrollWidth": 1440,
+        "viewportWidth": 1440
+      }
+    },
+    {
+      "id": "31-workout-pause-watch",
+      "index": 31,
+      "category": "Product UI / screen",
+      "filename": "31-31-workout-pause-watch.png",
+      "bytes": 43759,
+      "vertices": 90,
+      "objects": 11,
+      "state": {
+        "promptId": "31-workout-pause-watch",
+        "renderStatus": "ready",
+        "canvasWidth": 1182,
+        "canvasHeight": 690,
+        "bodyScrollWidth": 1440,
+        "viewportWidth": 1440
+      }
+    },
+    {
+      "id": "32-tv-profile-picker",
+      "index": 32,
+      "category": "Product UI / screen",
+      "filename": "32-32-tv-profile-picker.png",
+      "bytes": 41719,
+      "vertices": 110,
+      "objects": 9,
+      "state": {
+        "promptId": "32-tv-profile-picker",
+        "renderStatus": "ready",
+        "canvasWidth": 1182,
+        "canvasHeight": 690,
+        "bodyScrollWidth": 1440,
+        "viewportWidth": 1440
+      }
+    },
+    {
+      "id": "33-ar-furniture-placement",
+      "index": 33,
+      "category": "Product UI / screen",
+      "filename": "33-33-ar-furniture-placement.png",
+      "bytes": 47132,
+      "vertices": 148,
+      "objects": 15,
+      "state": {
+        "promptId": "33-ar-furniture-placement",
+        "renderStatus": "ready",
+        "canvasWidth": 1182,
+        "canvasHeight": 690,
+        "bodyScrollWidth": 1440,
+        "viewportWidth": 1440
+      }
+    },
+    {
+      "id": "34-email-triage-split-pane",
+      "index": 34,
+      "category": "Product UI / screen",
+      "filename": "34-34-email-triage-split-pane.png",
+      "bytes": 43547,
+      "vertices": 206,
+      "objects": 24,
+      "state": {
+        "promptId": "34-email-triage-split-pane",
+        "renderStatus": "ready",
+        "canvasWidth": 1182,
+        "canvasHeight": 690,
+        "bodyScrollWidth": 1440,
+        "viewportWidth": 1440
+      }
+    },
+    {
+      "id": "35-neighborhood-tool-library",
+      "index": 35,
+      "category": "Early product idea",
+      "filename": "35-35-neighborhood-tool-library.png",
+      "bytes": 47623,
+      "vertices": 180,
+      "objects": 16,
+      "state": {
+        "promptId": "35-neighborhood-tool-library",
+        "renderStatus": "ready",
+        "canvasWidth": 1182,
+        "canvasHeight": 690,
+        "bodyScrollWidth": 1440,
+        "viewportWidth": 1440
+      }
+    },
+    {
+      "id": "36-async-standup-room",
+      "index": 36,
+      "category": "Early product idea",
+      "filename": "36-36-async-standup-room.png",
+      "bytes": 42831,
+      "vertices": 216,
+      "objects": 20,
+      "state": {
+        "promptId": "36-async-standup-room",
+        "renderStatus": "ready",
+        "canvasWidth": 1182,
+        "canvasHeight": 690,
+        "bodyScrollWidth": 1440,
+        "viewportWidth": 1440
+      }
+    },
+    {
+      "id": "37-leftovers-meal-planner",
+      "index": 37,
+      "category": "Early product idea",
+      "filename": "37-37-leftovers-meal-planner.png",
+      "bytes": 45761,
+      "vertices": 152,
+      "objects": 16,
+      "state": {
+        "promptId": "37-leftovers-meal-planner",
+        "renderStatus": "ready",
+        "canvasWidth": 1182,
+        "canvasHeight": 690,
+        "bodyScrollWidth": 1440,
+        "viewportWidth": 1440
+      }
+    },
+    {
+      "id": "38-family-care-coordinator",
+      "index": 38,
+      "category": "Early product idea",
+      "filename": "38-38-family-care-coordinator.png",
+      "bytes": 44352,
+      "vertices": 144,
+      "objects": 16,
+      "state": {
+        "promptId": "38-family-care-coordinator",
+        "renderStatus": "ready",
+        "canvasWidth": 1182,
+        "canvasHeight": 690,
+        "bodyScrollWidth": 1440,
+        "viewportWidth": 1440
+      }
+    },
+    {
+      "id": "39-carbon-receipt",
+      "index": 39,
+      "category": "Early product idea",
+      "filename": "39-39-carbon-receipt.png",
+      "bytes": 43322,
+      "vertices": 88,
+      "objects": 11,
+      "state": {
+        "promptId": "39-carbon-receipt",
+        "renderStatus": "ready",
+        "canvasWidth": 1182,
+        "canvasHeight": 690,
+        "bodyScrollWidth": 1440,
+        "viewportWidth": 1440
+      }
+    },
+    {
+      "id": "40-repairability-scanner",
+      "index": 40,
+      "category": "Early product idea",
+      "filename": "40-40-repairability-scanner.png",
+      "bytes": 43804,
+      "vertices": 112,
+      "objects": 16,
+      "state": {
+        "promptId": "40-repairability-scanner",
+        "renderStatus": "ready",
+        "canvasWidth": 1182,
+        "canvasHeight": 690,
+        "bodyScrollWidth": 1440,
+        "viewportWidth": 1440
+      }
+    },
+    {
+      "id": "41-commute-micro-learning",
+      "index": 41,
+      "category": "Early product idea",
+      "filename": "41-41-commute-micro-learning.png",
+      "bytes": 42990,
+      "vertices": 80,
+      "objects": 11,
+      "state": {
+        "promptId": "41-commute-micro-learning",
+        "renderStatus": "ready",
+        "canvasWidth": 1182,
+        "canvasHeight": 690,
+        "bodyScrollWidth": 1440,
+        "viewportWidth": 1440
+      }
+    },
+    {
+      "id": "42-scope-creep-tracker",
+      "index": 42,
+      "category": "Early product idea",
+      "filename": "42-42-scope-creep-tracker.png",
+      "bytes": 46035,
+      "vertices": 150,
+      "objects": 15,
+      "state": {
+        "promptId": "42-scope-creep-tracker",
+        "renderStatus": "ready",
+        "canvasWidth": 1182,
+        "canvasHeight": 690,
+        "bodyScrollWidth": 1440,
+        "viewportWidth": 1440
+      }
+    },
+    {
+      "id": "43-quiet-coworking-match",
+      "index": 43,
+      "category": "Early product idea",
+      "filename": "43-43-quiet-coworking-match.png",
+      "bytes": 48728,
+      "vertices": 170,
+      "objects": 15,
+      "state": {
+        "promptId": "43-quiet-coworking-match",
+        "renderStatus": "ready",
+        "canvasWidth": 1182,
+        "canvasHeight": 690,
+        "bodyScrollWidth": 1440,
+        "viewportWidth": 1440
+      }
+    },
+    {
+      "id": "44-community-garden-planner",
+      "index": 44,
+      "category": "Early product idea",
+      "filename": "44-44-community-garden-planner.png",
+      "bytes": 43037,
+      "vertices": 110,
+      "objects": 13,
+      "state": {
+        "promptId": "44-community-garden-planner",
+        "renderStatus": "ready",
+        "canvasWidth": 1182,
+        "canvasHeight": 690,
+        "bodyScrollWidth": 1440,
+        "viewportWidth": 1440
+      }
+    },
+    {
+      "id": "45-school-pickup-coordinator",
+      "index": 45,
+      "category": "Early product idea",
+      "filename": "45-45-school-pickup-coordinator.png",
+      "bytes": 46609,
+      "vertices": 206,
+      "objects": 18,
+      "state": {
+        "promptId": "45-school-pickup-coordinator",
+        "renderStatus": "ready",
+        "canvasWidth": 1182,
+        "canvasHeight": 690,
+        "bodyScrollWidth": 1440,
+        "viewportWidth": 1440
+      }
+    },
+    {
+      "id": "46-pet-medication-routine",
+      "index": 46,
+      "category": "Early product idea",
+      "filename": "46-46-pet-medication-routine.png",
+      "bytes": 45444,
+      "vertices": 154,
+      "objects": 16,
+      "state": {
+        "promptId": "46-pet-medication-routine",
+        "renderStatus": "ready",
+        "canvasWidth": 1182,
+        "canvasHeight": 690,
+        "bodyScrollWidth": 1440,
+        "viewportWidth": 1440
+      }
+    },
+    {
+      "id": "47-local-event-buddy",
+      "index": 47,
+      "category": "Early product idea",
+      "filename": "47-47-local-event-buddy.png",
+      "bytes": 45968,
+      "vertices": 180,
+      "objects": 16,
+      "state": {
+        "promptId": "47-local-event-buddy",
+        "renderStatus": "ready",
+        "canvasWidth": 1182,
+        "canvasHeight": 690,
+        "bodyScrollWidth": 1440,
+        "viewportWidth": 1440
+      }
+    },
+    {
+      "id": "48-sponsorship-pipeline",
+      "index": 48,
+      "category": "Early product idea",
+      "filename": "48-48-sponsorship-pipeline.png",
+      "bytes": 42655,
+      "vertices": 166,
+      "objects": 18,
+      "state": {
+        "promptId": "48-sponsorship-pipeline",
+        "renderStatus": "ready",
+        "canvasWidth": 1182,
+        "canvasHeight": 690,
+        "bodyScrollWidth": 1440,
+        "viewportWidth": 1440
+      }
+    },
+    {
+      "id": "49-digital-estate-plan",
+      "index": 49,
+      "category": "Early product idea",
+      "filename": "49-49-digital-estate-plan.png",
+      "bytes": 43039,
+      "vertices": 160,
+      "objects": 16,
+      "state": {
+        "promptId": "49-digital-estate-plan",
+        "renderStatus": "ready",
+        "canvasWidth": 1182,
+        "canvasHeight": 690,
+        "bodyScrollWidth": 1440,
+        "viewportWidth": 1440
+      }
+    },
+    {
+      "id": "50-hobby-parts-inventory",
+      "index": 50,
+      "category": "Early product idea",
+      "filename": "50-50-hobby-parts-inventory.png",
+      "bytes": 45530,
+      "vertices": 204,
+      "objects": 20,
+      "state": {
+        "promptId": "50-hobby-parts-inventory",
+        "renderStatus": "ready",
+        "canvasWidth": 1182,
+        "canvasHeight": 690,
+        "bodyScrollWidth": 1440,
+        "viewportWidth": 1440
+      }
+    }
+  ],
+  "gallery": {
+    "cards": 50,
+    "images": 50,
+    "categories": [
+      "Plugin prototype",
+      "Product UI / screen",
+      "Early product idea"
+    ],
+    "bodyScrollWidth": 1440,
+    "viewportWidth": 1440
+  },
+  "runtimeErrors": [],
+  "failures": []
+}
