@@ -78,11 +78,16 @@ jobs:
           bb-plugins/tooling/compatibility/plugin-sdk-upgrade.external.test.ts
           bb-host/apps/server/test/services/plugins/plugin-scaffold-upgrade.external.test.ts
       - run: >-
+          cp
+          bb-plugins/tooling/compatibility/thread-organizer-install.external.test.ts
+          bb-host/apps/server/test/services/plugins/thread-organizer-install.external.test.ts
+      - run: >-
           pnpm --filter @bb/server test --
-          plugin-scaffold-upgrade.external.test.ts
+          plugin-scaffold-upgrade.external.test.ts thread-organizer-install.external.test.ts
         working-directory: bb-host
         env:
           BB_PLUGIN_COMPAT_REPOSITORY: ${{ github.workspace }}/bb-plugins
+          BB_PLUGIN_INSTALL_COMMIT: ${{ github.event.pull_request.head.sha || github.sha }}
 
   plugins:
     needs: inventory
