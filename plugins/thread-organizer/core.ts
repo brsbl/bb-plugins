@@ -455,8 +455,20 @@ export function placementForThread(
   config: WorkflowConfig,
   thread: OrganizableThread,
   rememberedStageKey: string,
+  leaveInbox?: boolean,
+): WorkflowStage;
+export function placementForThread(
+  config: WorkflowConfig,
+  thread: OrganizableThread,
+  rememberedStageKey: string | null,
+  leaveInbox?: boolean,
+): WorkflowStage | null;
+export function placementForThread(
+  config: WorkflowConfig,
+  thread: OrganizableThread,
+  rememberedStageKey: string | null,
   leaveInbox = false,
-): WorkflowStage {
+): WorkflowStage | null {
   const remembered =
     config.stages.find(
       (stage) => stage.key === rememberedStageKey && stage.role === "stage",
@@ -466,7 +478,9 @@ export function placementForThread(
     !isRunningThread(thread) &&
     (isUnreadThread(thread) ||
       (!leaveInbox && currentStage?.role === "inbox"));
-  return belongsInInbox ? inboxStage(config) : remembered;
+  return belongsInInbox
+    ? inboxStage(config)
+    : rememberedStageKey === null ? null : remembered;
 }
 
 function entryPromptGuidance(config: WorkflowConfig): string[] {

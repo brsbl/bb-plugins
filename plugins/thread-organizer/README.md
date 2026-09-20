@@ -8,7 +8,10 @@ thread’s actual stage.
 
 ## Behavior
 
-- Running threads appear in their remembered workflow stage.
+- New threads stay in the native Threads section until a user or agent explicitly
+  moves them into a workflow stage. Reordering sections never assigns new work.
+- Running threads appear in their remembered workflow stage, or Threads when
+  they have not been assigned one.
 - Idle unread threads appear in Inbox and stay there after being marked read.
 - After reading one, drag it to any workflow section to clear it from Inbox
   without starting another agent turn.

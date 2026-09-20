@@ -15,8 +15,9 @@ organizer command.
 ## Understand the remembered stage
 
 Thread Organizer does not classify prompts. A new manageable root thread
-mechanically remembers the first configured non-Inbox workflow stage. That
-remembered value is storage state, not a semantic decision about the work.
+starts in the native Threads section with no remembered workflow stage until
+the user or agent explicitly moves it. Section order never assigns new work.
+That remembered value is storage state, not a semantic decision about the work.
 
 The remembered stage changes when the user moves the thread or when you run
 `bb organizer phase <stage-key>`. `update_plan` and other internal task plans do

@@ -197,6 +197,12 @@ describe("thread placement precedence", () => {
   config.stages.find((stage) => stage.role === "inbox")!.sectionId =
     "sec_inbox";
 
+  it("returns unassigned running and read threads to Threads", () => {
+    expect(core.placementForThread(config, thread({ status: "active" }), null)).toBeNull();
+    expect(core.placementForThread(config, thread(), null)).toBeNull();
+    expect(core.placementForThread(config, thread({ status: "idle", lastReadAt: 0, latestAttentionAt: 10 }), null)?.key).toBe("inbox");
+  });
+
   it("keeps running work in its remembered stage", () => {
     expect(
       core.placementForThread(

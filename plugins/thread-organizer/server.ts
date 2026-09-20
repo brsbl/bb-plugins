@@ -136,8 +136,6 @@ interface EntryPromptRecord {
   stageKey: string;
 }
 
-// Version stays 5: every field after rememberedStageKey is optional on read so
-// an older build can still open this record, and absent fields are seeded.
 interface ThreadWorkflowState {
   /** The last workflow stage the thread landed in; Inbox never counts. */
   lastLandedStageKey: string | null;
@@ -145,7 +143,7 @@ interface ThreadWorkflowState {
   /** A prompt the host queued rather than started; retracted if the thread moves on. */
   queuedEntryPrompt: QueuedEntryPrompt | null;
   recentEntryPrompts: EntryPromptRecord[];
-  rememberedStageKey: string;
+  rememberedStageKey: string | null;
   version: 5;
 }
 
@@ -396,11 +394,11 @@ export default async function plugin(bb: BbPluginApi): Promise<void> {
     );
   }
 
-  function initialRememberedStage(thread: Thread): WorkflowStage {
+  function initialRememberedStage(thread: Thread): WorkflowStage | null {
     const current = stageForSectionId(configSnapshot, thread.sectionId);
     return current?.role === "stage"
       ? current
-      : firstWorkflowStage(configSnapshot);
+      : null;
   }
 
   async function readThreadState(
@@ -417,22 +415,23 @@ export default async function plugin(bb: BbPluginApi): Promise<void> {
       ) {
         // A remembered stage that no longer exists falls back in place so the
         // rest of the record survives a config change.
-        const remembered =
-          configSnapshot.stages.find(
+        const remembered = value.rememberedStageKey === null
+          ? null
+          : configSnapshot.stages.find(
             (stage) =>
               stage.key === value.rememberedStageKey && stage.role === "stage",
-          ) ?? initialRememberedStage(thread);
+          ) ?? initialRememberedStage(thread) ?? firstWorkflowStage(configSnapshot);
         return {
           created: false,
           state: {
             version: 5,
-            rememberedStageKey: remembered.key,
+            rememberedStageKey: remembered?.key ?? null,
             // Records written before landings were tracked already sat in
             // their remembered stage; seeding from it keeps an upgrade silent.
             lastLandedStageKey:
               "lastLandedStageKey" in value
                 ? parseStageKeyOrNull(value.lastLandedStageKey)
-                : remembered.key,
+                : remembered?.key ?? null,
             pendingEntryPrompt: parsePendingEntryPrompt(
               value.pendingEntryPrompt,
             ),
@@ -463,8 +462,8 @@ export default async function plugin(bb: BbPluginApi): Promise<void> {
     }
     const migrated: ThreadWorkflowState = {
       version: 5,
-      rememberedStageKey: remembered.key,
-      lastLandedStageKey: remembered.key,
+      rememberedStageKey: remembered?.key ?? null,
+      lastLandedStageKey: remembered?.key ?? null,
       pendingEntryPrompt: null,
       queuedEntryPrompt: null,
       recentEntryPrompts: [],
@@ -500,6 +499,7 @@ export default async function plugin(bb: BbPluginApi): Promise<void> {
     }
 
     if (
+      state.rememberedStageKey !== null &&
       !configSnapshot.stages.some(
         (stage) =>
           stage.key === state.rememberedStageKey && stage.role === "stage",
@@ -514,23 +514,26 @@ export default async function plugin(bb: BbPluginApi): Promise<void> {
       state.rememberedStageKey,
       explicitStageKey !== undefined,
     );
-    if (!destination.sectionId) {
+    if (destination && !destination.sectionId) {
       throw new Error(`Stage ${destination.key} has no native section.`);
     }
-    if (thread.sectionId !== destination.sectionId) {
+    const destinationSectionId = destination?.sectionId ?? null;
+    if (thread.sectionId !== destinationSectionId) {
       await bb.sdk.threads.update({
         threadId,
-        sectionId: destination.sectionId,
+        sectionId: destinationSectionId,
       });
       bb.log.info(
-        `thread=${threadId} action=section-updated stage=${destination.key}`,
+        `thread=${threadId} action=section-updated stage=${destination?.key ?? "unassigned"}`,
       );
     }
 
     // A thread only "lands" in a workflow stage; Inbox routing never counts,
     // so the plugin's own Inbox round trips cannot re-trigger an entry prompt.
     const landedStageKey =
-      destination.role === "stage" ? destination.key : state.lastLandedStageKey;
+      destination === null
+        ? null
+        : destination.role === "stage" ? destination.key : state.lastLandedStageKey;
     const entered =
       !created &&
       !seedLanding &&
@@ -556,7 +559,7 @@ export default async function plugin(bb: BbPluginApi): Promise<void> {
       await retractQueuedEntryPrompt(threadId, state);
     }
 
-    if (entered && hasEntryPrompt(destination)) {
+    if (entered && destination && hasEntryPrompt(destination)) {
       state.pendingEntryPrompt = {
         attempts: 0,
         enteredAt: Date.now(),

@@ -485,6 +485,55 @@ describe("Thread Organizer server", () => {
     await organizer.harness.lifecycle.dispose();
   });
 
+  it("keeps new threads unassigned across Review-first configuration, Inbox, and reload", async () => {
+    const organizer = createHarness();
+    await plugin(organizer.bb);
+    const edited = editableWorkflowConfig(await configFor(organizer));
+    edited.stages.splice(1, 0, {
+      key: "review",
+      title: "Review",
+      role: "stage",
+      rule: "Review completed work.",
+      entryPrompt: "Review this PR.",
+    });
+    const config = await organizer.harness.behavior.callRpc("saveConfig", edited) as WorkflowConfig;
+    const inboxId = config.stages.find((stage) => stage.key === "inbox")!.sectionId;
+    await organizer.harness.behavior.emitThreadEvent("thread.created", {
+      thread: organizer.current(),
+    });
+    expect(organizer.current().sectionId).toBeNull();
+    expect(organizer.updateThread).not.toHaveBeenCalled();
+    expect(organizer.sendMessage).not.toHaveBeenCalled();
+
+    organizer.setThread({ status: "idle" });
+    await organizer.harness.behavior.emitThreadEvent("thread.idle", {
+      thread: organizer.current(), lastAssistantText: null,
+    });
+    expect(organizer.current().sectionId).toBe(inboxId);
+    organizer.setThread({ lastReadAt: 10 });
+    const replacement = await organizer.harness.lifecycle.reload(plugin);
+    expect(organizer.current().sectionId).toBe(inboxId);
+    organizer.setThread({ status: "active" });
+    await replacement.harness.behavior.emitThreadEvent("thread.active", {
+      thread: organizer.current(),
+    });
+    expect(organizer.current().sectionId).toBeNull();
+    expect(organizer.sendMessage).not.toHaveBeenCalled();
+    await replacement.harness.behavior.runCli(["phase", "review"], { threadId: "thr_test" });
+    expect(organizer.current().sectionId).toBe(config.stages.find((stage) => stage.key === "review")!.sectionId);
+    expect(organizer.sendMessage).toHaveBeenCalledTimes(1);
+    await replacement.harness.lifecycle.dispose();
+  });
+
+  it("keeps an idle read new thread in Threads", async () => {
+    const organizer = createHarness();
+    organizer.setThread({ status: "idle", lastReadAt: 10 });
+    await plugin(organizer.bb);
+    expect(organizer.current().sectionId).toBeNull();
+    expect(organizer.updateThread).not.toHaveBeenCalled();
+    await organizer.harness.lifecycle.dispose();
+  });
+
   it("keeps Inbox sticky across read changes until work resumes", async () => {
     const organizer = createHarness();
     await plugin(organizer.bb);
@@ -495,7 +544,7 @@ describe("Thread Organizer server", () => {
     await organizer.harness.behavior.emitThreadEvent("thread.created", {
       thread: organizer.current(),
     });
-    expect(organizer.current().sectionId).toBe(sectionId("planning"));
+    expect(organizer.current().sectionId).toBeNull();
 
     organizer.setThread({
       status: "idle",
