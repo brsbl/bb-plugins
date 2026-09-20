@@ -486,7 +486,10 @@ async function verifyReleaseCommit(plugin, releaseCommit, subdirectory = "") {
       "npm",
       [
         "install",
+        "--prefix",
+        checkout,
         "--omit=dev",
+        "--omit=optional",
         "--ignore-scripts",
         "--package-lock=false",
         "--audit=false",
