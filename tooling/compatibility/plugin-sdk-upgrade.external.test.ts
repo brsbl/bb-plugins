@@ -264,8 +264,8 @@ it.each(["fresh install", "upgrade from 0.1.3"])(
         `${server!.baseUrl}/api/v1/plugins/thread-organizer/rpc/${method}`,
         { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(input) },
       );
-      expect(response.status).toBe(200);
       const body = await response.json();
+      expect(response.status, JSON.stringify(body)).toBe(200);
       expect(body.ok).toBe(true);
       return body.result;
     };
@@ -303,9 +303,10 @@ it.each(["fresh install", "upgrade from 0.1.3"])(
       const config = await rpc("getConfig");
       savedConfig = await rpc("saveConfig", {
         version: config.version, baseRevision: config.revision,
-        stages: config.stages.map(({ sectionId, ...stage }: Record<string, unknown>) => ({
-          ...stage, rule: "Preserve this custom workflow rule across the upgrade.",
-        })),
+        stages: config.stages.map(({ sectionId, ...stage }: Record<string, unknown>) =>
+          stage.role === "inbox" ? stage : {
+            ...stage, rule: "Preserve this custom workflow rule across the upgrade.",
+          }),
       });
       await expect(server.pluginService.checkForUpdates("thread-organizer")).resolves.toEqual([
         expect.objectContaining({ id: "thread-organizer", outcome: "update-available" }),
