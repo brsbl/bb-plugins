@@ -18,7 +18,7 @@ import {
   createPluginService,
   type PluginService,
 } from "../../../src/services/plugins/plugin-service.js";
-import { testLogger } from "../../helpers/test-app.js";
+import { startTestServer, testLogger } from "../../helpers/test-app.js";
 
 type PersistedScaffold = {
   provenance: {
@@ -228,3 +228,119 @@ describe("persisted 0.4.6 scaffold upgrade", () => {
     );
   }, 30_000);
 });
+
+it.each(["fresh install", "upgrade from 0.1.3"])(
+  "loads a bundled Thread Organizer tag without registry access: %s", async (scenario) => {
+  const repository = pluginRepository;
+  if (!repository) throw new Error("BB_PLUGIN_COMPAT_REPOSITORY is required");
+  const moduleUrl = pathToFileURL(resolve(repository, "tooling/publish-install-refs.mjs")).href;
+  const { prepareVersionedRelease, assertVersionTagUnchanged } = await import(moduleUrl);
+  const release = await prepareVersionedRelease("thread-organizer");
+  expect((await prepareVersionedRelease("thread-organizer")).commit).toBe(release.commit);
+  expect(() => assertVersionTagUnchanged(release, release.commit)).not.toThrow();
+  expect(() => assertVersionTagUnchanged(release, release.sourceRevision))
+    .toThrow(/already exists with different contents/);
+
+  const fixture = await mkdtemp(join(tmpdir(), "organizer-version-install-"));
+  const remote = join(fixture, "release.git");
+  await git(repository, ["init", "--bare", remote]);
+  await git(remote, ["fetch", "--depth=1", "--no-tags", repository, release.commit]);
+  await git(remote, ["tag", release.tag, release.commit]);
+  const previous = {
+    npm_config_cache: process.env.npm_config_cache,
+    npm_config_registry: process.env.npm_config_registry,
+    npm_config_fetch_retries: process.env.npm_config_fetch_retries,
+  };
+  process.env.npm_config_cache = join(fixture, "npm-cache");
+  process.env.npm_config_registry = "http://127.0.0.1:9";
+  process.env.npm_config_fetch_retries = "0";
+  let server: Awaited<ReturnType<typeof startTestServer>> | undefined;
+  try {
+    server = await startTestServer({ appVersion: "0.39.0" });
+    server.pluginService.bindSdk({ baseUrl: server.baseUrl });
+    const source = `git:${remote}@semver:thread-organizer/:^0.1.2`;
+    const rpc = async (method: string, input: unknown = {}) => {
+      const response = await fetch(
+        `${server!.baseUrl}/api/v1/plugins/thread-organizer/rpc/${method}`,
+        { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(input) },
+      );
+      const body = await response.json();
+      expect(response.status, JSON.stringify(body)).toBe(200);
+      expect(body.ok).toBe(true);
+      return body.result;
+    };
+    let savedConfig;
+    if (scenario === "upgrade from 0.1.3") {
+      // Recreate a working persisted installation from the actual shipped
+      // artifact, rather than reinstalling its now-broken dependency range.
+      const previousRevision = "97a6610a914a637f1e7f082e24ebc5862ca05ec7";
+      await git(remote, ["fetch", "--depth=1", "--no-tags", "https://github.com/brsbl/bb-plugins.git", previousRevision]);
+      await git(remote, ["tag", "thread-organizer/v0.1.3", previousRevision]);
+      const legacyCheckout = join(fixture, "installed-0.1.3");
+      await git(fixture, ["clone", "--quiet", "--no-checkout", remote, legacyCheckout]);
+      await git(legacyCheckout, ["checkout", previousRevision, "--", "plugins/thread-organizer"]);
+      upsertInstalledPlugin(server.db, {
+        id: "thread-organizer",
+        source,
+        provenance: { kind: "direct" },
+        sourceIntent: {
+          kind: "git", url: remote, subdirectory: "plugins/thread-organizer",
+          selector: { kind: "range", range: "^0.1.2", tagPrefix: "thread-organizer/", resolvedTag: "thread-organizer/v0.1.3" },
+        },
+        exactResolution: { kind: "git", commit: previousRevision },
+        updateState: {
+          lastCheckAt: null, availableCompatibleVersion: null,
+          newestIncompatibleVersion: null, statusDetail: null,
+        },
+        activeArtifactId: null,
+        rootDir: join(legacyCheckout, "plugins/thread-organizer"),
+        version: "0.1.3", enabled: true,
+      });
+      await server.pluginService.reload("thread-organizer");
+      expect(server.pluginService.list()).toEqual(expect.arrayContaining([
+        expect.objectContaining({ id: "thread-organizer", version: "0.1.3", status: "running" }),
+      ]));
+      const config = await rpc("getConfig");
+      savedConfig = await rpc("saveConfig", {
+        version: config.version, baseRevision: config.revision,
+        stages: config.stages.map(({ sectionId, ...stage }: Record<string, unknown>) =>
+          stage.role === "inbox" ? stage : {
+            ...stage, rule: "Preserve this custom workflow rule across the upgrade.",
+          }),
+      });
+      await expect(server.pluginService.checkForUpdates("thread-organizer")).resolves.toEqual([
+        expect.objectContaining({ id: "thread-organizer", outcome: "update-available" }),
+      ]);
+      await expect(server.pluginService.applyUpdate("thread-organizer")).resolves.toMatchObject({
+        ok: true, result: { applied: true },
+      });
+    } else {
+      await server.pluginService.install(source, { kind: "subdirectory", path: "plugins/thread-organizer" });
+    }
+    const installed = server.pluginService.list().find((entry) => entry.id === "thread-organizer")!;
+    expect(installed.status, installed.statusDetail ?? undefined).toBe("running");
+    expect(installed).toMatchObject({
+      id: "thread-organizer", version: release.plugin.manifest.version,
+    });
+    const manifest = JSON.parse(await readFile(join(installed.rootDir, "package.json"), "utf8"));
+    expect(manifest.dependencies).toBeUndefined();
+    expect(manifest.devDependencies).toBeUndefined();
+    await expect(readFile(join(installed.rootDir, "node_modules/@hugeicons/core-free-icons/package.json")))
+      .rejects.toMatchObject({ code: "ENOENT" });
+    expect(getInstalledPluginRegistration(server.db, "thread-organizer"))
+      .toMatchObject({ gitResolvedCommit: release.commit });
+    const config = await rpc("getConfig");
+    expect(config).toMatchObject({ version: 2 });
+    if (savedConfig) expect(config).toEqual(savedConfig);
+  } finally {
+    if (server) {
+      await server.pluginService.stop();
+      await server.close();
+    }
+    for (const [key, value] of Object.entries(previous)) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+    await rm(fixture, { recursive: true, force: true });
+  }
+}, 180_000);

@@ -21,7 +21,27 @@ This folder holds the small amount of machinery the plugins genuinely share. Run
 | [`validate-plugin-artifacts.mjs`](validate-plugin-artifacts.mjs) | Makes sure production bundles contain everything bb needs to install them. |
 | [`create-plugin.mjs`](create-plugin.mjs) | Starts a plugin with package scripts, local SDK declarations, and a focused test. |
 | [`scaffold-smoke.mjs`](scaffold-smoke.mjs) | Runs the generator inside a clean temporary repository. |
-| [`publish-install-refs.mjs`](publish-install-refs.mjs) | Publishes one root-shaped `plugin/<slug>` ref per plugin after `main` passes CI. |
+| [`publish-install-refs.mjs`](publish-install-refs.mjs) | Publishes root-shaped `plugin/<slug>` refs and bundled Thread Organizer version tags after `main` passes CI. |
+
+## Thread Organizer releases
+
+Bump the plugin version and lockfile, rebuild its artifacts, and merge after CI
+passes. The existing publish job creates `thread-organizer/v<version>` from the
+same bundles as `plugin/thread-organizer`. The tag retains
+`plugins/thread-organizer`, so marketplace URLs and version ranges stay valid.
+Do not tag the source commit manually.
+
+The generated release commit is parented by its source commit and records the
+package tree, lockfile digest, SDK archive, and builder provenance in
+`plugin-release.json`. Its plugin manifest points to prebuilt wrappers and has
+no install-time package dependencies. Source manifests on `main` retain the
+dependencies needed for development.
+
+Published version tags are immutable. A rerun accepts an existing tag only when
+its plugin contents match; otherwise bump the version. Other plugins keep their
+existing release process. The remote compatibility test installs the generated
+tag through BB's managed Git installer with an empty npm cache and registry
+access disabled.
 
 ## Boundaries
 

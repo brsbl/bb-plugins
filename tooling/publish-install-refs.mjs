@@ -1,4 +1,5 @@
 import { spawnSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import { mkdir, mkdtemp, readFile, readdir, rm, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, resolve } from "node:path";
@@ -24,6 +25,8 @@ const productionDependencyFields = [
   "optionalDependencies",
   "peerDependencies",
 ];
+// Opt in per plugin so existing release histories are never rewritten.
+const versionTaggedPlugins = new Set(["thread-organizer"]);
 const explicitlyRetiredInstallRefs = Object.freeze([
   "plugin/omegacode",
   "plugin/ui-patterns",
@@ -241,6 +244,102 @@ function createReleaseCommit(plugin, tree, sourceRevision) {
   );
 }
 
+export async function prepareVersionedRelease(slug) {
+  if (!versionTaggedPlugins.has(slug)) {
+    throw new Error(`version-tag publishing is not enabled for ${slug}`);
+  }
+  const plugin = (await readPluginWorkspaces(root)).find((item) => item.slug === slug);
+  const sourceRevision = git(["rev-parse", "HEAD"]);
+  await validatePluginArtifacts(plugin.directory, {
+    expectedId: plugin.pluginId,
+    expectedName: plugin.name,
+  });
+  const packageTree = await createReleaseTree(
+    plugin,
+    git(["rev-parse", `${sourceRevision}:${plugin.source}`]),
+  );
+  const version = plugin.manifest.version;
+  if (!/^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/.test(version)) {
+    throw new Error(`${slug}: stable release version required`);
+  }
+  const tag = `${slug}/v${version}`;
+  const temporary = await mkdtemp(resolve(tmpdir(), "bb-plugin-tag-"));
+  const indexPath = resolve(temporary, "index");
+  try {
+    git(["read-tree", sourceRevision], { env: { GIT_INDEX_FILE: indexPath } });
+    const paths = git(["ls-files", "-z", "--", plugin.source], {
+      env: { GIT_INDEX_FILE: indexPath },
+    });
+    git(["update-index", "--force-remove", "-z", "--stdin"], {
+      env: { GIT_INDEX_FILE: indexPath }, input: paths,
+    });
+    git(["read-tree", `--prefix=${plugin.source}/`, packageTree], {
+      env: { GIT_INDEX_FILE: indexPath },
+    });
+    const readJson = async (path) => JSON.parse(await readFile(resolve(root, path), "utf8"));
+    const provenance = {
+      sourceCommit: sourceRevision,
+      plugin: slug,
+      version,
+      packageTree,
+      lockfileSha256: createHash("sha256")
+        .update(await readFile(resolve(root, "package-lock.json"))).digest("hex"),
+      sdk: await readJson("tooling/vendor/sdk-provenance.json"),
+      builder: await readJson("tooling/vendor/plugin-build-provenance.json"),
+    };
+    addBlob(indexPath, "plugin-release.json", `${JSON.stringify(provenance, null, 2)}\n`);
+    const tree = git(["write-tree"], { env: { GIT_INDEX_FILE: indexPath } });
+    const sourceDate = git(["show", "-s", "--format=%cI", sourceRevision]);
+    const commit = git([
+      "commit-tree", tree, "-p", sourceRevision,
+      "-m", `build: release ${tag} from ${sourceRevision}`,
+    ], { env: {
+      GIT_AUTHOR_NAME: "bb-plugins release",
+      GIT_AUTHOR_EMAIL: "bb-plugins@users.noreply.github.com",
+      GIT_COMMITTER_NAME: "bb-plugins release",
+      GIT_COMMITTER_EMAIL: "bb-plugins@users.noreply.github.com",
+      GIT_AUTHOR_DATE: sourceDate,
+      GIT_COMMITTER_DATE: sourceDate,
+    } });
+    return { plugin, tag, commit, packageTree, sourceRevision };
+  } finally {
+    await rm(temporary, { recursive: true, force: true });
+  }
+}
+
+export function assertVersionTagUnchanged(release, existingCommit) {
+  const existingPackageTree = git([
+    "rev-parse", `${existingCommit}:${release.plugin.source}`,
+  ], { allowFailure: true });
+  if (existingPackageTree !== release.packageTree) {
+    throw new Error(`${release.tag} already exists with different contents; bump the plugin version`);
+  }
+}
+
+async function publishVersionTag(release, push) {
+  const ref = `refs/tags/${release.tag}`;
+  const remote = hasOrigin() ? git(["ls-remote", "--tags", "origin", ref]) : "";
+  let existingCommit = localRefCommit(`${ref}^{commit}`);
+  if (remote) {
+    const probeRef = `refs/bb-plugins/tag-probe/${release.tag}`;
+    git(["fetch", "--quiet", "--no-tags", "origin", `+${ref}:${probeRef}`]);
+    existingCommit = git(["rev-parse", `${probeRef}^{commit}`]);
+  }
+  if (existingCommit) {
+    assertVersionTagUnchanged(release, existingCommit);
+    if (push && !remote) throw new Error(`${release.tag} exists only locally; refusing ambiguous publication`);
+    console.log(`${release.tag} ${existingCommit} already published and unchanged`);
+    return;
+  }
+  await verifyReleaseCommit(release.plugin, release.commit, release.plugin.source);
+  if (push) {
+    // A normal tag push cannot overwrite an existing release, including a
+    // concurrent publisher that won the race after the lookup above.
+    git(["push", "origin", `${release.commit}:${ref}`]);
+  }
+  console.log(`${release.tag} ${release.commit} verified${push ? " and published" : ""}`);
+}
+
 function localRefCommit(ref) {
   return git(["rev-parse", "--verify", ref], { allowFailure: true });
 }
@@ -314,16 +413,17 @@ export function assertPublishWorktreeClean(
   }
 }
 
-async function verifyReleaseCommit(plugin, releaseCommit) {
+async function verifyReleaseCommit(plugin, releaseCommit, subdirectory = "") {
   const checkoutRoot = await mkdtemp(
     resolve(tmpdir(), `bb-plugin-install-${plugin.slug}-`),
   );
-  const checkout = resolve(checkoutRoot, "checkout");
+  const repositoryCheckout = resolve(checkoutRoot, "checkout");
+  const checkout = resolve(repositoryCheckout, subdirectory);
   const indexPath = resolve(checkoutRoot, "index");
   try {
-    await mkdir(checkout);
+    await mkdir(repositoryCheckout);
     git(["read-tree", releaseCommit], { env: { GIT_INDEX_FILE: indexPath } });
-    git(["checkout-index", "--all", "--force", `--prefix=${checkout}/`], {
+    git(["checkout-index", "--all", "--force", `--prefix=${repositoryCheckout}/`], {
       env: { GIT_INDEX_FILE: indexPath },
     });
 
@@ -386,7 +486,10 @@ async function verifyReleaseCommit(plugin, releaseCommit) {
       "npm",
       [
         "install",
+        "--prefix",
+        checkout,
         "--omit=dev",
+        "--omit=optional",
         "--ignore-scripts",
         "--package-lock=false",
         "--audit=false",
@@ -453,6 +556,10 @@ export async function publishInstallRefs(options = {}) {
     console.log(
       `${plugin.installRef} ${releaseCommit} verified${push ? " and pushed" : ""}`,
     );
+  }
+
+  for (const slug of versionTaggedPlugins) {
+    await publishVersionTag(await prepareVersionedRelease(slug), push);
   }
 
   retireInstallRefs(plugins, push);
