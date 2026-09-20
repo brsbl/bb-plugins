@@ -14829,7 +14829,7 @@ function placementForThread(config2, thread, rememberedStageKey, leaveInbox = fa
   ) ?? firstWorkflowStage(config2);
   const currentStage = stageForSectionId(config2, thread.sectionId);
   const belongsInInbox = !isRunningThread(thread) && (isUnreadThread(thread) || !leaveInbox && currentStage?.role === "inbox");
-  return belongsInInbox ? inboxStage(config2) : remembered;
+  return belongsInInbox ? inboxStage(config2) : rememberedStageKey === null ? null : remembered;
 }
 function entryPromptGuidance(config2) {
   const keys = config2.stages.filter((stage) => stage.role === "stage" && hasEntryPrompt(stage)).map((stage) => `\`${stage.key}\``);
@@ -15093,24 +15093,24 @@ async function plugin(bb) {
   }
   function initialRememberedStage(thread) {
     const current = stageForSectionId(configSnapshot, thread.sectionId);
-    return current?.role === "stage" ? current : firstWorkflowStage(configSnapshot);
+    return current?.role === "stage" ? current : null;
   }
   async function readThreadState(thread) {
     const stored = await bb.storage.kv.get(threadStateKey(thread.id));
     if (stored && typeof stored === "object") {
       const value = stored;
       if (value.version === 3 || value.version === 4 || value.version === 5 || value.version === 6) {
-        const remembered2 = configSnapshot.stages.find(
+        const remembered2 = value.rememberedStageKey === null ? null : configSnapshot.stages.find(
           (stage) => stage.key === value.rememberedStageKey && stage.role === "stage"
-        ) ?? initialRememberedStage(thread);
+        ) ?? initialRememberedStage(thread) ?? firstWorkflowStage(configSnapshot);
         return {
           created: false,
           state: {
             version: 5,
-            rememberedStageKey: remembered2.key,
+            rememberedStageKey: remembered2?.key ?? null,
             // Records written before landings were tracked already sat in
             // their remembered stage; seeding from it keeps an upgrade silent.
-            lastLandedStageKey: "lastLandedStageKey" in value ? parseStageKeyOrNull(value.lastLandedStageKey) : remembered2.key,
+            lastLandedStageKey: "lastLandedStageKey" in value ? parseStageKeyOrNull(value.lastLandedStageKey) : remembered2?.key ?? null,
             pendingEntryPrompt: parsePendingEntryPrompt(
               value.pendingEntryPrompt
             ),
@@ -15138,8 +15138,8 @@ async function plugin(bb) {
     }
     const migrated = {
       version: 5,
-      rememberedStageKey: remembered.key,
-      lastLandedStageKey: remembered.key,
+      rememberedStageKey: remembered?.key ?? null,
+      lastLandedStageKey: remembered?.key ?? null,
       pendingEntryPrompt: null,
       queuedEntryPrompt: null,
       recentEntryPrompts: []
@@ -15164,7 +15164,7 @@ async function plugin(bb) {
     } else if (currentStage?.role === "stage") {
       state.rememberedStageKey = currentStage.key;
     }
-    if (!configSnapshot.stages.some(
+    if (state.rememberedStageKey !== null && !configSnapshot.stages.some(
       (stage) => stage.key === state.rememberedStageKey && stage.role === "stage"
     )) {
       state.rememberedStageKey = firstWorkflowStage(configSnapshot).key;
@@ -15175,19 +15175,20 @@ async function plugin(bb) {
       state.rememberedStageKey,
       explicitStageKey !== void 0
     );
-    if (!destination.sectionId) {
+    if (destination && !destination.sectionId) {
       throw new Error(`Stage ${destination.key} has no native section.`);
     }
-    if (thread.sectionId !== destination.sectionId) {
+    const destinationSectionId = destination?.sectionId ?? null;
+    if (thread.sectionId !== destinationSectionId) {
       await bb.sdk.threads.update({
         threadId,
-        sectionId: destination.sectionId
+        sectionId: destinationSectionId
       });
       bb.log.info(
-        `thread=${threadId} action=section-updated stage=${destination.key}`
+        `thread=${threadId} action=section-updated stage=${destination?.key ?? "unassigned"}`
       );
     }
-    const landedStageKey = destination.role === "stage" ? destination.key : state.lastLandedStageKey;
+    const landedStageKey = destination === null ? null : destination.role === "stage" ? destination.key : state.lastLandedStageKey;
     const entered = !created && !seedLanding && landedStageKey !== null && landedStageKey !== state.lastLandedStageKey;
     state.lastLandedStageKey = landedStageKey;
     if (state.pendingEntryPrompt !== null && state.pendingEntryPrompt.stageKey !== state.rememberedStageKey) {
@@ -15199,7 +15200,7 @@ async function plugin(bb) {
     if (state.queuedEntryPrompt !== null && state.queuedEntryPrompt.stageKey !== state.rememberedStageKey) {
       await retractQueuedEntryPrompt(threadId, state);
     }
-    if (entered && hasEntryPrompt(destination)) {
+    if (entered && destination && hasEntryPrompt(destination)) {
       state.pendingEntryPrompt = {
         attempts: 0,
         enteredAt: Date.now(),
