@@ -244,7 +244,7 @@ it.each(["fresh install", "upgrade from 0.1.3"])(
   const fixture = await mkdtemp(join(tmpdir(), "organizer-version-install-"));
   const remote = join(fixture, "release.git");
   await git(repository, ["init", "--bare", remote]);
-  await git(remote, ["fetch", "--no-tags", repository, release.commit]);
+  await git(remote, ["fetch", "--depth=1", "--no-tags", repository, release.commit]);
   await git(remote, ["tag", release.tag, release.commit]);
   const previous = {
     npm_config_cache: process.env.npm_config_cache,
@@ -274,7 +274,7 @@ it.each(["fresh install", "upgrade from 0.1.3"])(
       // Recreate a working persisted installation from the actual shipped
       // artifact, rather than reinstalling its now-broken dependency range.
       const previousRevision = "97a6610a914a637f1e7f082e24ebc5862ca05ec7";
-      await git(remote, ["fetch", "--no-tags", "https://github.com/brsbl/bb-plugins.git", previousRevision]);
+      await git(remote, ["fetch", "--depth=1", "--no-tags", "https://github.com/brsbl/bb-plugins.git", previousRevision]);
       await git(remote, ["tag", "thread-organizer/v0.1.3", previousRevision]);
       const legacyCheckout = join(fixture, "installed-0.1.3");
       await git(fixture, ["clone", "--quiet", "--no-checkout", remote, legacyCheckout]);
