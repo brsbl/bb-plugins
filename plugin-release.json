@@ -1,0 +1,27 @@
+{
+  "sourceCommit": "ed1f2396f6da7c63ccc3ad384b1b2d5847922a92",
+  "plugin": "thread-organizer",
+  "version": "0.1.5",
+  "packageTree": "41132f6af2e3674d615617030d99fc76c881fcc9",
+  "lockfileSha256": "ec0f4a34bec196ba2f6c5c083462021640fd342eff22b1f2a8ad4b7f375eb68d",
+  "sdk": {
+    "package": "@get-bb/plugin-sdk@0.4.8",
+    "registryTarball": "https://registry.npmjs.org/@get-bb/plugin-sdk/-/plugin-sdk-0.4.8.tgz",
+    "registryIntegrity": "sha512-C2gC0OMaAQmndGozFlctmgYwa5WbvhVK389r1KOfjuRpGME3axTQ6p6gq1UHw66y19bIX7VGzEwxvxNILReX0A==",
+    "registryShasum": "8322e2f82a7ca20643fe8145a18fd3d38901a194",
+    "sourceRepository": "https://github.com/get-bb/bb",
+    "sourceCommit": "b33abbff098ac4c857578e7350d492dcaa65d489",
+    "sourcePath": "packages/plugin-sdk",
+    "archive": "get-bb-plugin-sdk-0.4.8.tgz",
+    "sha256": "0b9221e6ba0f92205bf8414ad62e1c3608ddf1b6cd60e5a90b1a52b1e891a936"
+  },
+  "builder": {
+    "builder": "bb plugin build@0.39.0",
+    "sourceRepository": "https://github.com/get-bb/bb",
+    "sourceCommit": "b33abbff098ac4c857578e7350d492dcaa65d489",
+    "sourcePath": "packages/plugin-build",
+    "buildCommand": "pnpm exec esbuild packages/plugin-build/src/index.ts --bundle --platform=node --format=esm",
+    "bundle": "bb-plugin-build-0.39.0.mjs",
+    "sha256": "6a4d27f1a9556a59bdd1a3c58dc746189a8dff9fd0898b21616b7f63181bc4d1"
+  }
+}
