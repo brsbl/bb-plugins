@@ -229,39 +229,49 @@ describe("persisted 0.4.6 scaffold upgrade", () => {
   }, 30_000);
 });
 
-it("installs Thread Organizer from its Git subdirectory on Linux", async () => {
+it("installs a bundled Thread Organizer version tag without registry access", async () => {
   const repository = pluginRepository;
   if (!repository) throw new Error("BB_PLUGIN_COMPAT_REPOSITORY is required");
-  const eventPath = process.env.GITHUB_EVENT_PATH;
-  const event = eventPath ? JSON.parse(await readFile(eventPath, "utf8")) : null;
-  const revision = event?.pull_request?.head?.sha ?? await git(repository, ["rev-parse", "HEAD"]);
-  const manifest = JSON.parse(
-    await readFile(join(repository, "plugins/thread-organizer/package.json"), "utf8"),
-  );
-  const npmCache = await mkdtemp(join(tmpdir(), "organizer-install-npm-"));
-  const previousCache = process.env.npm_config_cache;
-  process.env.npm_config_cache = npmCache;
-  const server = await startTestServer({ appVersion: "0.39.0" });
-  server.pluginService.bindSdk({ baseUrl: server.baseUrl });
+  const moduleUrl = pathToFileURL(resolve(repository, "tooling/publish-install-refs.mjs")).href;
+  const { prepareVersionedRelease, assertVersionTagUnchanged } = await import(moduleUrl);
+  const release = await prepareVersionedRelease("thread-organizer");
+  expect((await prepareVersionedRelease("thread-organizer")).commit).toBe(release.commit);
+  expect(() => assertVersionTagUnchanged(release, release.commit)).not.toThrow();
+  expect(() => assertVersionTagUnchanged(release, release.sourceRevision))
+    .toThrow(/already exists with different contents/);
+
+  const fixture = await mkdtemp(join(tmpdir(), "organizer-version-install-"));
+  const remote = join(fixture, "release.git");
+  await git(repository, ["init", "--bare", remote]);
+  await git(remote, ["fetch", "--no-tags", repository, release.commit]);
+  await git(remote, ["tag", release.tag, release.commit]);
+  const previous = {
+    npm_config_cache: process.env.npm_config_cache,
+    npm_config_registry: process.env.npm_config_registry,
+    npm_config_fetch_retries: process.env.npm_config_fetch_retries,
+  };
+  process.env.npm_config_cache = join(fixture, "npm-cache");
+  process.env.npm_config_registry = "http://127.0.0.1:9";
+  process.env.npm_config_fetch_retries = "0";
+  let server: Awaited<ReturnType<typeof startTestServer>> | undefined;
   try {
+    server = await startTestServer({ appVersion: "0.39.0" });
+    server.pluginService.bindSdk({ baseUrl: server.baseUrl });
     const installed = await server.pluginService.install(
-      `git:https://github.com/brsbl/bb-plugins.git@${revision}`,
+      `git:${remote}@semver:thread-organizer/:^0.1.2`,
       { kind: "subdirectory", path: "plugins/thread-organizer" },
     );
     expect(installed.status, installed.statusDetail ?? undefined).toBe("running");
     expect(installed).toMatchObject({
-      id: "thread-organizer",
-      version: manifest.version,
-      status: "running",
+      id: "thread-organizer", version: release.plugin.manifest.version,
     });
-    const icons = JSON.parse(await readFile(
-      join(installed.rootDir, "node_modules/@hugeicons/core-free-icons/package.json"),
-      "utf8",
-    ));
-    expect(icons.version).toBe("4.2.2");
+    const manifest = JSON.parse(await readFile(join(installed.rootDir, "package.json"), "utf8"));
+    expect(manifest.dependencies).toBeUndefined();
+    expect(manifest.devDependencies).toBeUndefined();
+    await expect(readFile(join(installed.rootDir, "node_modules/@hugeicons/core-free-icons/package.json")))
+      .rejects.toMatchObject({ code: "ENOENT" });
     expect(getInstalledPluginRegistration(server.db, "thread-organizer"))
-      .toMatchObject({ gitResolvedCommit: revision });
-
+      .toMatchObject({ gitResolvedCommit: release.commit });
     const response = await fetch(
       `${server.baseUrl}/api/v1/plugins/thread-organizer/rpc/getConfig`,
       { method: "POST", headers: { "content-type": "application/json" }, body: "{}" },
@@ -269,10 +279,14 @@ it("installs Thread Organizer from its Git subdirectory on Linux", async () => {
     expect(response.status).toBe(200);
     expect(await response.json()).toMatchObject({ ok: true, result: { version: 2 } });
   } finally {
-    await server.pluginService.stop();
-    await server.close();
-    if (previousCache === undefined) delete process.env.npm_config_cache;
-    else process.env.npm_config_cache = previousCache;
-    await rm(npmCache, { recursive: true, force: true });
+    if (server) {
+      await server.pluginService.stop();
+      await server.close();
+    }
+    for (const [key, value] of Object.entries(previous)) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+    await rm(fixture, { recursive: true, force: true });
   }
 }, 180_000);
