@@ -120,14 +120,14 @@ afterEach(() => {
 });
 
 describe("provider registration and package shape", () => {
-  it("registers only Installed then Community with the default @ trigger", async () => {
+  it("registers Installed then Community for @ and isolated # search", async () => {
     const { bb, harness } = createFakePluginHost({ pluginId: "at-plugin" });
     await plugin(bb);
 
     const registrations = harness.inspection.registrations;
     expect(registrations.mentionProviders.map(({ id, label, triggers }) => ({ id, label, triggers }))).toEqual([
-      { id: "installed", label: "Installed plugins", triggers: ["@"] },
-      { id: "community", label: "Community plugins", triggers: ["@"] },
+      { id: "installed", label: "Installed plugins", triggers: ["@", "#"] },
+      { id: "community", label: "Community plugins", triggers: ["@", "#"] },
     ]);
     expect(registrations).toMatchObject({
       settingsDescriptors: {},
@@ -174,6 +174,23 @@ describe("provider registration and package shape", () => {
 });
 
 describe("provider searches", () => {
+  it("browses the full catalog with #plugins without changing @plugins search", async () => {
+    const entries = Array.from({ length: 9 }, (_, index) => community({
+      pluginId: `tool-${index}`, entryId: `tool-${index}`, displayName: `Tool ${index}`,
+    }));
+    const { bb, harness } = createFakePluginHost({ pluginId: "at-plugin", sdk: { plugins: {
+      list: async () => ({ plugins: entries.map((entry) => installed({ id: entry.pluginId, name: entry.displayName, description: "A tool" })) }),
+      catalog: { search: async ({ query }) => query ? [] : entries },
+    } } });
+    await plugin(bb);
+    for (const id of ["installed", "community"]) {
+      const provider = mentionProvider(harness, id);
+      expect(await provider.search({ ...MENTION_CONTEXT, trigger: "#", query: "plugins" })).toHaveLength(9);
+      expect(await provider.search({ ...MENTION_CONTEXT, trigger: "@", query: "plugins" })).toEqual([]);
+      expect(await provider.search({ ...MENTION_CONTEXT, trigger: "#", query: "tool" })).toHaveLength(6);
+    }
+  });
+
   it("searches and resolves UI-only and theme plugins, including itself", async () => {
     const plugins = [
       installed({ id: "at-plugin", name: "@Plugin", capabilities: [] }),

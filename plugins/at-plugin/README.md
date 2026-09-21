@@ -12,7 +12,11 @@ bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/at-plugin -
 
 ## Use
 
-Type part of a plugin name, such as `@auto`, and select a result.
+Use `#plugins` to browse installed and Community plugins, or type a name such as
+`#auto`. The `#` trigger searches plugin mentions separately from the shared `@`
+menu, so slow Docs or other `@` providers cannot hold up the results.
+
+The existing `@` syntax remains available: type `@auto` and select a result.
 Type `@plugin` to browse installed and Community plugins without
 the usual six-results-per-group limit. Bare `@` does not return results in BB.
 

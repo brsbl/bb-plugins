@@ -122,7 +122,9 @@ export default async function plugin(bb: BbPluginApi) {
   bb.ui.registerMentionProvider({
     id: "installed",
     label: "Installed plugins",
-    async search({ query }) {
+    triggers: ["@", "#"],
+    async search({ query, trigger }) {
+      if (trigger === "#" && query.trim().toLowerCase() === "plugins") query = "plugin";
       try {
         const [inventory, catalog] = await Promise.all([
           boundedSdkRead((signal) => bb.sdk.plugins.list({ signal })),
@@ -160,7 +162,9 @@ export default async function plugin(bb: BbPluginApi) {
   bb.ui.registerMentionProvider({
     id: "community",
     label: "Community plugins",
-    async search({ query }) {
+    triggers: ["@", "#"],
+    async search({ query, trigger }) {
+      if (trigger === "#" && query.trim().toLowerCase() === "plugins") query = "plugin";
       try {
         const catalog = await searchCatalog(query);
         return searchCommunityPlugins(catalog.matches, query);
