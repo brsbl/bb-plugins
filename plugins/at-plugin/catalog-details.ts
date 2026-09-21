@@ -46,7 +46,7 @@ export function createMentionCatalogReader(bb: BbPluginApi) {
     }
     cache.delete(query);
     const request = boundedSdkRead(async (signal) =>
-      catalogEntries(await bb.sdk.plugins.catalog.search({ query, signal })));
+      catalogEntries(await bb.sdk.plugins.catalog.search({ query, signal })), undefined, 10_000);
     const entry = { request, expiresAt: Infinity };
     cache.set(query, entry);
     while (cache.size > 64) cache.delete(cache.keys().next().value!);

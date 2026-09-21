@@ -116,7 +116,8 @@ export default async function plugin(bb: BbPluginApi) {
   registerSearchCli(bb);
   const readCatalog = createMentionCatalogReader(bb);
   function searchCatalog(query: string) {
-    return readCatalog(isPluginBrowseQuery(query) ? "" : query.trim().toLowerCase());
+    return boundedSdkRead(() =>
+      readCatalog(isPluginBrowseQuery(query) ? "" : query.trim().toLowerCase()));
   }
   bb.ui.registerMentionProvider({
     id: "installed",

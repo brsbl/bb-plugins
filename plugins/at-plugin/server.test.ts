@@ -400,6 +400,21 @@ describe("overview discovery and agent CLI", () => {
     expect(await provider.search({ ...MENTION_CONTEXT, query: "plugin" })).toHaveLength(1);
   });
 
+  it("lets a slow catalog populate the cache after autocomplete gives up waiting", async () => {
+    vi.useFakeTimers();
+    const harness = await setup();
+    const provider = mentionProvider(harness, "community");
+    harness.inspection.sdk.stub("plugins.catalog.search", () => new Promise((resolve) => {
+      setTimeout(() => resolve([entry]), SDK_READ_TIMEOUT_MS + 100);
+    }));
+    const first = provider.search({ ...MENTION_CONTEXT, query: "plugin" });
+    await vi.advanceTimersByTimeAsync(SDK_READ_TIMEOUT_MS);
+    expect(await first).toEqual([]);
+    await vi.advanceTimersByTimeAsync(100);
+    expect(await provider.search({ ...MENTION_CONTEXT, query: "plugin" })).toHaveLength(1);
+    expect(harness.inspection.sdk.callsTo("plugins.catalog.search")).toHaveLength(1);
+  });
+
   it("shares concurrent catalog reads between mention providers", async () => {
     const harness = await setup();
     await Promise.all(["installed", "community"].map((id) =>
