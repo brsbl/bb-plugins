@@ -5,7 +5,7 @@
   "type": "module",
   "private": true,
   "license": "UNLICENSED",
-  "files": ["assets", "dist", "docs", "skills", "README.md"],
+  "files": ["dist", "docs", "skills", "README.md"],
   "engines": {
     "bb": ">=0.0.34",
     "bbPluginSdk": ">=0.4.8"
@@ -13,9 +13,6 @@
   "bb": {
     "name": "Plugin Finder",
     "description": "Mention installed and Community plugins in bb conversations.",
-    "branding": {
-      "icon": "./assets/at.svg"
-    },
     "server": "./server.ts",
     "skills": ["skills"]
   },
