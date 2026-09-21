@@ -367,6 +367,20 @@ describe("overview discovery and agent CLI", () => {
     expect((await mentionProvider(installedHarness, "installed").search({ ...MENTION_CONTEXT, query: "constellation" })).map((row) => row.title)).toEqual(["Local Noema"]);
   });
 
+  it("reuses successful catalog reads across repeated and refined mention queries", async () => {
+    const harness = await setup();
+    const provider = mentionProvider(harness, "community");
+    const browse = { ...MENTION_CONTEXT, query: "plugin" };
+    const first = await provider.search(browse);
+    expect(first).toHaveLength(1);
+    expect(await provider.search(browse)).toEqual(first);
+    expect(harness.inspection.sdk.callsTo("plugins.catalog.search")).toHaveLength(1);
+    await provider.search({ ...MENTION_CONTEXT, query: "constellation" });
+    expect(harness.inspection.sdk.callsTo("plugins.catalog.search")).toHaveLength(2);
+    await provider.search({ ...MENTION_CONTEXT, query: "constellation" });
+    expect(harness.inspection.sdk.callsTo("plugins.catalog.search")).toHaveLength(2);
+  });
+
   it("shares concurrent catalog reads between mention providers", async () => {
     const harness = await setup();
     await Promise.all(["installed", "community"].map((id) =>
