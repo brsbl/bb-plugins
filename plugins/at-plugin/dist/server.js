@@ -147,6 +147,32 @@ function isPluginBrowseQuery(query) {
   return normalizeUntrustedText(query).toLowerCase() === "plugin";
 }
 
+// sdk-read.ts
+var SDK_READ_TIMEOUT_MS = 1500;
+async function boundedSdkRead(read, parentSignal, timeoutMs = SDK_READ_TIMEOUT_MS) {
+  const controller = new AbortController();
+  let timer;
+  let abort;
+  try {
+    return await new Promise((resolve, reject) => {
+      abort = () => {
+        controller.abort();
+        reject(new Error("SDK read cancelled"));
+      };
+      if (parentSignal?.aborted) return abort();
+      parentSignal?.addEventListener("abort", abort, { once: true });
+      timer = setTimeout(() => {
+        controller.abort();
+        reject(new Error("SDK read timed out"));
+      }, timeoutMs);
+      Promise.resolve().then(() => read(controller.signal)).then(resolve, reject);
+    });
+  } finally {
+    if (timer !== void 0) clearTimeout(timer);
+    if (abort !== void 0) parentSignal?.removeEventListener("abort", abort);
+  }
+}
+
 // catalog-details.ts
 function catalogEntries(response) {
   return Array.isArray(response) ? response : response.results;
@@ -166,14 +192,46 @@ function matchesDetails(entry, query) {
     entry.overview ?? ""
   ].some((field) => normalizeUntrustedText(field ?? "").toLowerCase().includes(needle));
 }
-async function readCatalogDetails(bb, query, signal) {
-  const [all, searched] = await Promise.all([
-    bb.sdk.plugins.catalog.search({ query: "", signal }),
-    query ? bb.sdk.plugins.catalog.search({ query, signal }) : Promise.resolve(null)
+function readCatalogDetails(bb, query, signal) {
+  return catalogDetails(query, async (value) => catalogEntries(await bb.sdk.plugins.catalog.search({ query: value, signal })));
+}
+function createMentionCatalogReader(bb) {
+  const cache = /* @__PURE__ */ new Map();
+  const lifetime = new AbortController();
+  bb.onDispose(() => {
+    lifetime.abort();
+    cache.clear();
+  });
+  function search(query) {
+    const cached = cache.get(query);
+    if (cached && cached.expiresAt > Date.now()) {
+      cache.delete(query);
+      cache.set(query, cached);
+      return cached.request;
+    }
+    cache.delete(query);
+    const request = boundedSdkRead(async (signal) => catalogEntries(await bb.sdk.plugins.catalog.search({ query, signal })), lifetime.signal, 1e4);
+    const entry = { request, expiresAt: Infinity };
+    cache.set(query, entry);
+    while (cache.size > 64) cache.delete(cache.keys().next().value);
+    void request.then(
+      () => {
+        entry.expiresAt = Date.now() + 3e4;
+      },
+      () => {
+        if (cache.get(query) === entry) cache.delete(query);
+      }
+    );
+    return request;
+  }
+  return (query) => catalogDetails(query, search);
+}
+async function catalogDetails(query, search) {
+  const [entries, hostMatches] = await Promise.all([
+    search(""),
+    query ? search(query) : Promise.resolve(null)
   ]);
-  const entries = catalogEntries(all);
-  if (searched === null) return { entries, matches: entries };
-  const hostMatches = catalogEntries(searched);
+  if (hostMatches === null) return { entries, matches: entries };
   const byIdentity = new Map(entries.map((entry) => [key(entry), entry]));
   const seen = new Set(hostMatches.map(key));
   return {
@@ -183,32 +241,6 @@ async function readCatalogDetails(bb, query, signal) {
       ...entries.filter((entry) => !seen.has(key(entry)) && matchesDetails(entry, query))
     ]
   };
-}
-
-// sdk-read.ts
-var SDK_READ_TIMEOUT_MS = 1500;
-async function boundedSdkRead(read, parentSignal) {
-  const controller = new AbortController();
-  let timer;
-  let abort;
-  try {
-    return await new Promise((resolve, reject) => {
-      abort = () => {
-        controller.abort();
-        reject(new Error("SDK read cancelled"));
-      };
-      if (parentSignal?.aborted) return abort();
-      parentSignal?.addEventListener("abort", abort, { once: true });
-      timer = setTimeout(() => {
-        controller.abort();
-        reject(new Error("SDK read timed out"));
-      }, SDK_READ_TIMEOUT_MS);
-      Promise.resolve().then(() => read(controller.signal)).then(resolve, reject);
-    });
-  } finally {
-    if (timer !== void 0) clearTimeout(timer);
-    if (abort !== void 0) parentSignal?.removeEventListener("abort", abort);
-  }
 }
 
 // community-catalog.ts
@@ -602,24 +634,21 @@ function exactCommunityEntry(entries, identity) {
 }
 async function plugin(bb) {
   registerSearchCli(bb);
-  const pending = /* @__PURE__ */ new Map();
+  const readCatalog = createMentionCatalogReader(bb);
   function searchCatalog(query) {
-    const normalized = isPluginBrowseQuery(query) ? "" : query.trim();
-    const existing = pending.get(normalized);
-    if (existing) return existing;
-    const request = boundedSdkRead((signal) => readCatalogDetails(bb, normalized, signal)).finally(() => pending.delete(normalized));
-    pending.set(normalized, request);
-    return request;
+    return boundedSdkRead(() => readCatalog(isPluginBrowseQuery(query) ? "" : query.trim().toLowerCase()));
   }
   bb.ui.registerMentionProvider({
     id: "installed",
     label: "Installed plugins",
-    async search({ query }) {
+    triggers: ["@", "#"],
+    async search({ query, trigger }) {
+      if (trigger === "#" && query.trim().toLowerCase() === "plugins") query = "plugin";
       try {
-        const [inventory, catalog] = await Promise.all([
-          boundedSdkRead((signal) => bb.sdk.plugins.list({ signal })),
-          searchCatalog(query).catch(() => null)
-        ]);
+        const inventory = await boundedSdkRead((signal) => bb.sdk.plugins.list({ signal }));
+        const directMatches = searchInstalledPlugins(inventory.plugins, query);
+        if (directMatches.length > 0 || isPluginBrowseQuery(query)) return directMatches;
+        const catalog = await searchCatalog(query).catch(() => null);
         return searchInstalledPlugins(inventory.plugins, query, {
           catalogMatches: new Set(catalog?.matches.map((entry) => entry.pluginId))
         });
@@ -649,7 +678,9 @@ async function plugin(bb) {
   bb.ui.registerMentionProvider({
     id: "community",
     label: "Community plugins",
-    async search({ query }) {
+    triggers: ["@", "#"],
+    async search({ query, trigger }) {
+      if (trigger === "#" && query.trim().toLowerCase() === "plugins") query = "plugin";
       try {
         const catalog = await searchCatalog(query);
         return searchCommunityPlugins(catalog.matches, query);
