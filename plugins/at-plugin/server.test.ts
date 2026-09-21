@@ -155,6 +155,7 @@ describe("provider registration and package shape", () => {
       engines: { bbPluginSdk: ">=0.4.8" },
       bb: {
         name: "Plugin Finder",
+        branding: { icon: "Zap" },
         server: "./server.ts",
         skills: ["skills"],
       },
@@ -165,7 +166,6 @@ describe("provider registration and package shape", () => {
     expect(packageJson).not.toHaveProperty("dependencies");
     expect(packageJson).not.toHaveProperty("bb.app");
     expect(packageJson).not.toHaveProperty("bb.host");
-    expect(packageJson).not.toHaveProperty("bb.branding");
   });
 });
 

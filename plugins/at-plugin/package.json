@@ -13,6 +13,7 @@
   "bb": {
     "name": "Plugin Finder",
     "description": "Mention installed and Community plugins in bb conversations.",
+    "branding": { "icon": "Zap" },
     "server": "./server.ts",
     "skills": ["skills"]
   },
