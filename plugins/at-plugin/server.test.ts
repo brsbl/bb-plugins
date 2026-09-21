@@ -281,18 +281,6 @@ describe("provider searches", () => {
     expect(await communityProvider.search({ ...context, query: "plugin-tools" })).toEqual([]);
   });
 
-  it("returns direct installed matches while the catalog is still pending", async () => {
-    vi.useFakeTimers();
-    const harness = await setup([installed()], []);
-    harness.inspection.sdk.stub("plugins.catalog.search", () => new Promise(() => {}));
-    let titles: string[] | undefined;
-    void mentionProvider(harness, "installed").search(MENTION_CONTEXT).then((rows) => {
-      titles = rows.map((row) => row.title);
-    });
-    await vi.advanceTimersByTimeAsync(0);
-    expect(titles).toEqual(["GitHub"]);
-  });
-
   it("adds catalog details to installed search and returns host rows", async () => {
     const inventory = [installed()];
     const catalog = [community({ displayName: "Git Memory", pluginId: "git-memory" })];
@@ -385,6 +373,18 @@ describe("overview discovery and agent CLI", () => {
     await plugin(bb);
     return harness;
   }
+
+  it("returns direct installed matches while the catalog is still pending", async () => {
+    vi.useFakeTimers();
+    const harness = await setup([installed()], []);
+    harness.inspection.sdk.stub("plugins.catalog.search", () => new Promise(() => {}));
+    let titles: string[] | undefined;
+    void Promise.resolve(mentionProvider(harness, "installed").search(MENTION_CONTEXT)).then((rows) => {
+      titles = rows.map((row) => row.title);
+    });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(titles).toEqual(["GitHub"]);
+  });
 
   it("finds overview-only Community and installed matches without changing subtitles", async () => {
     const harness = await setup();
