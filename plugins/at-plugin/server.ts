@@ -126,10 +126,10 @@ export default async function plugin(bb: BbPluginApi) {
     async search({ query, trigger }) {
       if (trigger === "#" && query.trim().toLowerCase() === "plugins") query = "plugin";
       try {
-        const [inventory, catalog] = await Promise.all([
-          boundedSdkRead((signal) => bb.sdk.plugins.list({ signal })),
-          searchCatalog(query).catch(() => null),
-        ]);
+        const inventory = await boundedSdkRead((signal) => bb.sdk.plugins.list({ signal }));
+        const directMatches = searchInstalledPlugins(inventory.plugins, query);
+        if (directMatches.length > 0 || isPluginBrowseQuery(query)) return directMatches;
+        const catalog = await searchCatalog(query).catch(() => null);
         return searchInstalledPlugins(inventory.plugins, query, {
           catalogMatches: new Set(catalog?.matches.map((entry) => entry.pluginId)),
         });

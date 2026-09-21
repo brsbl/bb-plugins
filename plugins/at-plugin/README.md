@@ -36,7 +36,8 @@ plugin by itself.
 
 Search matches names, plugin IDs, full descriptions, and available long-form
 catalog overviews. Catalog search also matches tags, category, entry IDs, and
-marketplace names. Installed plugins use matching catalog details when available.
+marketplace names. Installed name and description matches return without waiting for the catalog.
+When there are no direct matches, installed search falls back to catalog details.
 Mention search reuses successful catalog reads for up to 30 seconds (at most 64
 queries), including the full catalog across different search terms. A slow catalog
 read can finish in the background for up to 10 seconds after autocomplete stops

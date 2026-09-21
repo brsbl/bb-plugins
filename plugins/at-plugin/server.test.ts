@@ -281,7 +281,7 @@ describe("provider searches", () => {
     expect(await communityProvider.search({ ...context, query: "plugin-tools" })).toEqual([]);
   });
 
-  it("adds catalog details to installed search and returns host rows", async () => {
+  it("searches installed plugins without catalog reads and returns Community host rows", async () => {
     const inventory = [installed()];
     const catalog = [community({ displayName: "Git Memory", pluginId: "git-memory" })];
     const { bb, harness } = createFakePluginHost({
@@ -300,7 +300,7 @@ describe("provider searches", () => {
       { id: encodeInstalledItemId("github"), title: "GitHub", subtitle: "Plugin description" },
     ]);
     expect(harness.inspection.sdk.calls.map((call) => call.path)).toEqual([
-      "plugins.list", "plugins.catalog.search", "plugins.catalog.search",
+      "plugins.list",
     ]);
     expect(sdkSignal(harness.inspection.sdk.calls[0]!.args).aborted).toBe(false);
 
@@ -348,7 +348,6 @@ describe("provider searches", () => {
     );
     expect(harness.inspection.sdk.calls.map((call) => call.path)).toEqual([
       "plugins.list", "plugins.catalog.search", "plugins.catalog.search",
-      "plugins.catalog.search", "plugins.catalog.search",
     ]);
   });
 });
