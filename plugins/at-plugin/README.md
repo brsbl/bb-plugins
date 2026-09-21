@@ -1,6 +1,6 @@
-# @Plugin
+# Plugin Finder
 
-Find plugins for your task from bb's `@` menu or let your agent search through the CLI.
+Find plugins for your task with `#plugin` or `@plugin` or let your agent search through the CLI.
 
 ![Plugin mentions in bb](docs/screenshot.png)
 

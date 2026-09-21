@@ -1,6 +1,6 @@
 ---
 name: at-plugin-discovery
-description: Find installed or BB Community plugins for a task, inspect their full overviews and screenshots, or identify a plugin mentioned in a thread. Use for autonomous plugin discovery with the @Plugin CLI.
+description: Find installed or BB Community plugins for a task, inspect their full overviews and screenshots, or identify a plugin mentioned in a thread. Use for autonomous plugin discovery with the Plugin Finder CLI.
 ---
 
 # Find plugins for a task

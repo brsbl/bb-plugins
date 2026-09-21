@@ -155,7 +155,7 @@ describe("provider registration and package shape", () => {
       name: "bb-plugin-at-plugin",
       engines: { bbPluginSdk: ">=0.4.8" },
       bb: {
-        name: "@Plugin",
+        name: "Plugin Finder",
         branding: { icon: "./assets/at.svg" },
         server: "./server.ts",
         skills: ["skills"],
@@ -193,7 +193,7 @@ describe("provider searches", () => {
 
   it("searches and resolves UI-only and theme plugins, including itself", async () => {
     const plugins = [
-      installed({ id: "at-plugin", name: "@Plugin", capabilities: [] }),
+      installed({ id: "at-plugin", name: "Plugin Finder", capabilities: [] }),
       installed({ id: "theme", name: "Theme", capabilities: [capability("theme")] }),
       installed({ id: "ui-only", name: "UI Only", capabilities: [], app: { bundle: null, hasApp: true } }),
     ];
