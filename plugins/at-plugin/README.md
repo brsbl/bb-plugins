@@ -33,6 +33,12 @@ plugin by itself.
 Search matches names, plugin IDs, full descriptions, and available long-form
 catalog overviews. Catalog search also matches tags, category, entry IDs, and
 marketplace names. Installed plugins use matching catalog details when available.
+Mention search reuses successful catalog reads for up to 30 seconds (at most 64
+queries), including the full catalog across different search terms. Failures are
+retried on the next search. Installed status and selected mentions are checked
+fresh; CLI reads remain fresh. A new or expired query can still wait for BB’s
+catalog service.
+
 Search does not crawl READMEs, documentation sites, or image contents. Older BB
 versions and listings without overviews retain name/description search.
 

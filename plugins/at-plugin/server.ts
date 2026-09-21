@@ -1,6 +1,6 @@
 import type { BbPluginApi } from "@get-bb/plugin-sdk";
 import { isPluginBrowseQuery } from "./mention-query";
-import { catalogEntries, readCatalogDetails } from "./catalog-details";
+import { catalogEntries, createMentionCatalogReader } from "./catalog-details";
 import { boundedSdkRead } from "./sdk-read";
 import { registerSearchCli } from "./search-cli";
 export { SDK_READ_TIMEOUT_MS } from "./sdk-read";
@@ -114,16 +114,9 @@ function exactCommunityEntry(
 
 export default async function plugin(bb: BbPluginApi) {
   registerSearchCli(bb);
-  // The two mention providers share concurrent catalog reads for a query.
-  const pending = new Map<string, ReturnType<typeof readCatalogDetails>>();
+  const readCatalog = createMentionCatalogReader(bb);
   function searchCatalog(query: string) {
-    const normalized = isPluginBrowseQuery(query) ? "" : query.trim();
-    const existing = pending.get(normalized);
-    if (existing) return existing;
-    const request = boundedSdkRead((signal) => readCatalogDetails(bb, normalized, signal))
-      .finally(() => pending.delete(normalized));
-    pending.set(normalized, request);
-    return request;
+    return readCatalog(isPluginBrowseQuery(query) ? "" : query.trim().toLowerCase());
   }
   bb.ui.registerMentionProvider({
     id: "installed",

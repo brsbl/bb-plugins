@@ -301,7 +301,6 @@ describe("provider searches", () => {
     ]);
     expect(harness.inspection.sdk.calls.map((call) => call.path)).toEqual([
       "plugins.list", "plugins.catalog.search", "plugins.catalog.search",
-      "plugins.catalog.search", "plugins.catalog.search",
     ]);
     expect(sdkSignal(harness.inspection.sdk.calls[1]!.args).aborted).toBe(false);
   });
@@ -379,6 +378,26 @@ describe("overview discovery and agent CLI", () => {
     expect(harness.inspection.sdk.callsTo("plugins.catalog.search")).toHaveLength(2);
     await provider.search({ ...MENTION_CONTEXT, query: "constellation" });
     expect(harness.inspection.sdk.callsTo("plugins.catalog.search")).toHaveLength(2);
+  });
+
+  it("refreshes expired catalog reads and revalidates selected mentions immediately", async () => {
+    vi.useFakeTimers();
+    const harness = await setup();
+    const provider = mentionProvider(harness, "community");
+    const rows = await provider.search({ ...MENTION_CONTEXT, query: "plugin" });
+    harness.inspection.sdk.stub("plugins.catalog.search", async () => []);
+    await expect(provider.resolve(rows[0]!.id)).rejects.toThrow("no longer available");
+    await vi.advanceTimersByTimeAsync(30_001);
+    expect(await provider.search({ ...MENTION_CONTEXT, query: "plugin" })).toEqual([]);
+  });
+
+  it("retries a failed catalog read instead of caching the failure", async () => {
+    const harness = await setup();
+    const provider = mentionProvider(harness, "community");
+    harness.inspection.sdk.stub("plugins.catalog.search", async () => { throw new Error("offline"); });
+    expect(await provider.search({ ...MENTION_CONTEXT, query: "plugin" })).toEqual([]);
+    harness.inspection.sdk.stub("plugins.catalog.search", async () => [entry]);
+    expect(await provider.search({ ...MENTION_CONTEXT, query: "plugin" })).toHaveLength(1);
   });
 
   it("shares concurrent catalog reads between mention providers", async () => {
