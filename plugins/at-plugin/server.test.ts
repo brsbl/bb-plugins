@@ -764,7 +764,7 @@ describe("hard SDK read timeouts", () => {
     expect(vi.getTimerCount()).toBe(0);
   });
 
-  it("aborts a never-settling Community search and returns no rows", async () => {
+  it("bounds Community autocomplete and aborts a stalled background read", async () => {
     vi.useFakeTimers();
     let signal: AbortSignal | undefined;
     const { bb, harness } = createFakePluginHost({
@@ -785,6 +785,8 @@ describe("hard SDK read timeouts", () => {
 
     await vi.advanceTimersByTimeAsync(SDK_READ_TIMEOUT_MS);
     await expect(pending).resolves.toEqual([]);
+    expect(signal?.aborted).toBe(false);
+    await vi.advanceTimersByTimeAsync(10_000 - SDK_READ_TIMEOUT_MS);
     expect(signal?.aborted).toBe(true);
     expect(vi.getTimerCount()).toBe(0);
   });

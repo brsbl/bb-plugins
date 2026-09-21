@@ -37,6 +37,11 @@ export function readCatalogDetails(
 
 export function createMentionCatalogReader(bb: BbPluginApi) {
   const cache = new Map<string, { request: Promise<CatalogDetails[]>; expiresAt: number }>();
+  const lifetime = new AbortController();
+  bb.onDispose(() => {
+    lifetime.abort();
+    cache.clear();
+  });
   function search(query: string): Promise<CatalogDetails[]> {
     const cached = cache.get(query);
     if (cached && cached.expiresAt > Date.now()) {
@@ -46,7 +51,7 @@ export function createMentionCatalogReader(bb: BbPluginApi) {
     }
     cache.delete(query);
     const request = boundedSdkRead(async (signal) =>
-      catalogEntries(await bb.sdk.plugins.catalog.search({ query, signal })), undefined, 10_000);
+      catalogEntries(await bb.sdk.plugins.catalog.search({ query, signal })), lifetime.signal, 10_000);
     const entry = { request, expiresAt: Infinity };
     cache.set(query, entry);
     while (cache.size > 64) cache.delete(cache.keys().next().value!);
