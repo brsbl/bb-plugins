@@ -1,8 +1,8 @@
 import type { BbPluginApi } from "@get-bb/plugin-sdk";
 import type { CommunityCatalogRecord } from "./community-catalog";
 import { normalizeUntrustedText } from "./mention-context";
+import { boundedSdkRead } from "./sdk-read";
 
-// Additive host fields: older supported BB versions may not provide these.
 export type CatalogDetails = CommunityCatalogRecord & {
   overview?: string;
   screenshots?: string[];
@@ -26,20 +26,53 @@ export function matchesDetails(entry: CatalogDetails, query: string): boolean {
     .some((field) => normalizeUntrustedText(field ?? "").toLowerCase().includes(needle));
 }
 
-export async function readCatalogDetails(
+export function readCatalogDetails(
   bb: BbPluginApi,
   query: string,
   signal: AbortSignal,
+) {
+  return catalogDetails(query, async (value) =>
+    catalogEntries(await bb.sdk.plugins.catalog.search({ query: value, signal })));
+}
+
+export function createMentionCatalogReader(bb: BbPluginApi) {
+  const cache = new Map<string, { request: Promise<CatalogDetails[]>; expiresAt: number }>();
+  const lifetime = new AbortController();
+  bb.onDispose(() => {
+    lifetime.abort();
+    cache.clear();
+  });
+  function search(query: string): Promise<CatalogDetails[]> {
+    const cached = cache.get(query);
+    if (cached && cached.expiresAt > Date.now()) {
+      cache.delete(query);
+      cache.set(query, cached);
+      return cached.request;
+    }
+    cache.delete(query);
+    const request = boundedSdkRead(async (signal) =>
+      catalogEntries(await bb.sdk.plugins.catalog.search({ query, signal })), lifetime.signal, 10_000);
+    const entry = { request, expiresAt: Infinity };
+    cache.set(query, entry);
+    while (cache.size > 64) cache.delete(cache.keys().next().value!);
+    void request.then(
+      () => { entry.expiresAt = Date.now() + 30_000; },
+      () => { if (cache.get(query) === entry) cache.delete(query); },
+    );
+    return request;
+  }
+  return (query: string) => catalogDetails(query, search);
+}
+
+async function catalogDetails(
+  query: string,
+  search: (query: string) => Promise<CatalogDetails[]>,
 ): Promise<{ entries: CatalogDetails[]; matches: CatalogDetails[] }> {
-  // Keep host-only matches (notably tags) while adding overview-only matches.
-  // Both calls run inside the same bounded read, not one request per plugin.
-  const [all, searched] = await Promise.all([
-    bb.sdk.plugins.catalog.search({ query: "", signal }),
-    query ? bb.sdk.plugins.catalog.search({ query, signal }) : Promise.resolve(null),
+  const [entries, hostMatches] = await Promise.all([
+    search(""),
+    query ? search(query) : Promise.resolve(null),
   ]);
-  const entries = catalogEntries(all);
-  if (searched === null) return { entries, matches: entries };
-  const hostMatches = catalogEntries(searched);
+  if (hostMatches === null) return { entries, matches: entries };
   const byIdentity = new Map(entries.map((entry) => [key(entry), entry]));
   const seen = new Set(hostMatches.map(key));
   return {

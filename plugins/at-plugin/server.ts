@@ -1,6 +1,6 @@
 import type { BbPluginApi } from "@get-bb/plugin-sdk";
 import { isPluginBrowseQuery } from "./mention-query";
-import { catalogEntries, readCatalogDetails } from "./catalog-details";
+import { catalogEntries, createMentionCatalogReader } from "./catalog-details";
 import { boundedSdkRead } from "./sdk-read";
 import { registerSearchCli } from "./search-cli";
 export { SDK_READ_TIMEOUT_MS } from "./sdk-read";
@@ -114,26 +114,22 @@ function exactCommunityEntry(
 
 export default async function plugin(bb: BbPluginApi) {
   registerSearchCli(bb);
-  // The two mention providers share concurrent catalog reads for a query.
-  const pending = new Map<string, ReturnType<typeof readCatalogDetails>>();
+  const readCatalog = createMentionCatalogReader(bb);
   function searchCatalog(query: string) {
-    const normalized = isPluginBrowseQuery(query) ? "" : query.trim();
-    const existing = pending.get(normalized);
-    if (existing) return existing;
-    const request = boundedSdkRead((signal) => readCatalogDetails(bb, normalized, signal))
-      .finally(() => pending.delete(normalized));
-    pending.set(normalized, request);
-    return request;
+    return boundedSdkRead(() =>
+      readCatalog(isPluginBrowseQuery(query) ? "" : query.trim().toLowerCase()));
   }
   bb.ui.registerMentionProvider({
     id: "installed",
     label: "Installed plugins",
-    async search({ query }) {
+    triggers: ["@", "#"],
+    async search({ query, trigger }) {
+      if (trigger === "#" && query.trim().toLowerCase() === "plugins") query = "plugin";
       try {
-        const [inventory, catalog] = await Promise.all([
-          boundedSdkRead((signal) => bb.sdk.plugins.list({ signal })),
-          searchCatalog(query).catch(() => null),
-        ]);
+        const inventory = await boundedSdkRead((signal) => bb.sdk.plugins.list({ signal }));
+        const directMatches = searchInstalledPlugins(inventory.plugins, query);
+        if (directMatches.length > 0 || isPluginBrowseQuery(query)) return directMatches;
+        const catalog = await searchCatalog(query).catch(() => null);
         return searchInstalledPlugins(inventory.plugins, query, {
           catalogMatches: new Set(catalog?.matches.map((entry) => entry.pluginId)),
         });
@@ -166,7 +162,9 @@ export default async function plugin(bb: BbPluginApi) {
   bb.ui.registerMentionProvider({
     id: "community",
     label: "Community plugins",
-    async search({ query }) {
+    triggers: ["@", "#"],
+    async search({ query, trigger }) {
+      if (trigger === "#" && query.trim().toLowerCase() === "plugins") query = "plugin";
       try {
         const catalog = await searchCatalog(query);
         return searchCommunityPlugins(catalog.matches, query);

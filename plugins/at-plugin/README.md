@@ -1,6 +1,6 @@
-# @Plugin
+# Plugin Finder
 
-Find plugins for your task from bb's `@` menu or let your agent search through the CLI.
+Find plugins for your task with `#plugin` or `@plugin` or let your agent search through the CLI.
 
 ![Plugin mentions in bb](docs/screenshot.png)
 
@@ -12,7 +12,11 @@ bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/at-plugin -
 
 ## Use
 
-Type part of a plugin name, such as `@auto`, and select a result.
+Use `#plugins` to browse installed and Community plugins, or type a name such as
+`#auto`. The `#` trigger searches plugin mentions separately from the shared `@`
+menu, so slow Docs or other `@` providers cannot hold up the results.
+
+The existing `@` syntax remains available: type `@auto` and select a result.
 Type `@plugin` to browse installed and Community plugins without
 the usual six-results-per-group limit. Bare `@` does not return results in BB.
 
@@ -32,7 +36,16 @@ plugin by itself.
 
 Search matches names, plugin IDs, full descriptions, and available long-form
 catalog overviews. Catalog search also matches tags, category, entry IDs, and
-marketplace names. Installed plugins use matching catalog details when available.
+marketplace names. Installed name and description matches return without waiting for the catalog.
+When there are no direct matches, installed search falls back to catalog details.
+Mention search reuses successful catalog reads for up to 30 seconds (at most 64
+queries), including the full catalog across different search terms. A slow catalog
+read can finish in the background for up to 10 seconds after autocomplete stops
+waiting, so the next search can reuse it. Failures are
+retried on the next search. Installed status and selected mentions are checked
+fresh; CLI reads remain fresh. A new or expired query can still wait for BB’s
+catalog service.
+
 Search does not crawl READMEs, documentation sites, or image contents. Older BB
 versions and listings without overviews retain name/description search.
 

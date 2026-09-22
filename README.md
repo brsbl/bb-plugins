@@ -114,9 +114,9 @@ Makes local Markdown links in bb open directly in Moss, with bb's viewer kept as
 
 Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/open-in-moss --yes`
 
-### @Plugin
+### Plugin Finder
 
-Find installed and Community plugins from bb's `@` menu or let your agent search through the CLI, with full overviews and screenshot links.
+Find installed and Community plugins with `#plugin` or `@plugin` or let your agent search through the CLI, with full overviews and screenshot links.
 
 ![Plugin mentions in bb](plugins/at-plugin/docs/screenshot.png)
 

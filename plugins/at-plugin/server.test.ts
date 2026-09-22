@@ -120,14 +120,14 @@ afterEach(() => {
 });
 
 describe("provider registration and package shape", () => {
-  it("registers only Installed then Community with the default @ trigger", async () => {
+  it("registers Installed then Community for @ and isolated # search", async () => {
     const { bb, harness } = createFakePluginHost({ pluginId: "at-plugin" });
     await plugin(bb);
 
     const registrations = harness.inspection.registrations;
     expect(registrations.mentionProviders.map(({ id, label, triggers }) => ({ id, label, triggers }))).toEqual([
-      { id: "installed", label: "Installed plugins", triggers: ["@"] },
-      { id: "community", label: "Community plugins", triggers: ["@"] },
+      { id: "installed", label: "Installed plugins", triggers: ["@", "#"] },
+      { id: "community", label: "Community plugins", triggers: ["@", "#"] },
     ]);
     expect(registrations).toMatchObject({
       settingsDescriptors: {},
@@ -146,17 +146,16 @@ describe("provider registration and package shape", () => {
     );
   });
 
-  it("uses the vendored SDK 0.4.8 and ships only the faithful AtIcon backend branding", async () => {
+  it("uses the vendored SDK 0.4.8 and the default plugin branding", async () => {
     const packageText = await readFile(new URL("./package.json", import.meta.url), "utf8");
     const packageJson: unknown = JSON.parse(packageText);
-    const icon = (await readFile(new URL("./assets/at.svg", import.meta.url), "utf8")).trim();
 
     expect(packageJson).toMatchObject({
       name: "bb-plugin-at-plugin",
       engines: { bbPluginSdk: ">=0.4.8" },
       bb: {
-        name: "@Plugin",
-        branding: { icon: "./assets/at.svg" },
+        name: "Plugin Finder",
+        branding: { icon: "Zap" },
         server: "./server.ts",
         skills: ["skills"],
       },
@@ -167,16 +166,30 @@ describe("provider registration and package shape", () => {
     expect(packageJson).not.toHaveProperty("dependencies");
     expect(packageJson).not.toHaveProperty("bb.app");
     expect(packageJson).not.toHaveProperty("bb.host");
-    expect(icon).toBe(
-      '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="1.5"><path d="M15.6 8.40033V12.9003C15.6 14.3915 16.8088 15.6003 18.3 15.6003C19.7912 15.6003 21 14.3915 21 12.9003V12C21 7.02944 16.9706 3 12 3C7.02944 3 3 7.02944 3 12C3 16.9706 7.02944 21 12 21C14.0265 21 15.8965 20.3302 17.4009 19.2M15.6 12.0003C15.6 13.9886 13.9882 15.6003 12 15.6003C10.0118 15.6003 8.4 13.9886 8.4 12.0003C8.4 10.0121 10.0118 8.40033 12 8.40033C13.9882 8.40033 15.6 10.0121 15.6 12.0003Z"/></svg>',
-    );
   });
 });
 
 describe("provider searches", () => {
+  it("browses the full catalog with #plugins without changing @plugins search", async () => {
+    const entries = Array.from({ length: 9 }, (_, index) => community({
+      pluginId: `tool-${index}`, entryId: `tool-${index}`, displayName: `Tool ${index}`,
+    }));
+    const { bb, harness } = createFakePluginHost({ pluginId: "at-plugin", sdk: { plugins: {
+      list: async () => ({ plugins: entries.map((entry) => installed({ id: entry.pluginId, name: entry.displayName, description: "A tool" })) }),
+      catalog: { search: async ({ query }) => query ? [] : entries },
+    } } });
+    await plugin(bb);
+    for (const id of ["installed", "community"]) {
+      const provider = mentionProvider(harness, id);
+      expect(await provider.search({ ...MENTION_CONTEXT, trigger: "#", query: "plugins" })).toHaveLength(9);
+      expect(await provider.search({ ...MENTION_CONTEXT, trigger: "@", query: "plugins" })).toEqual([]);
+      expect(await provider.search({ ...MENTION_CONTEXT, trigger: "#", query: "tool" })).toHaveLength(6);
+    }
+  });
+
   it("searches and resolves UI-only and theme plugins, including itself", async () => {
     const plugins = [
-      installed({ id: "at-plugin", name: "@Plugin", capabilities: [] }),
+      installed({ id: "at-plugin", name: "Plugin Finder", capabilities: [] }),
       installed({ id: "theme", name: "Theme", capabilities: [capability("theme")] }),
       installed({ id: "ui-only", name: "UI Only", capabilities: [], app: { bundle: null, hasApp: true } }),
     ];
@@ -264,7 +277,7 @@ describe("provider searches", () => {
     expect(await communityProvider.search({ ...context, query: "plugin-tools" })).toEqual([]);
   });
 
-  it("adds catalog details to installed search and returns host rows", async () => {
+  it("searches installed plugins without catalog reads and returns Community host rows", async () => {
     const inventory = [installed()];
     const catalog = [community({ displayName: "Git Memory", pluginId: "git-memory" })];
     const { bb, harness } = createFakePluginHost({
@@ -283,7 +296,7 @@ describe("provider searches", () => {
       { id: encodeInstalledItemId("github"), title: "GitHub", subtitle: "Plugin description" },
     ]);
     expect(harness.inspection.sdk.calls.map((call) => call.path)).toEqual([
-      "plugins.list", "plugins.catalog.search", "plugins.catalog.search",
+      "plugins.list",
     ]);
     expect(sdkSignal(harness.inspection.sdk.calls[0]!.args).aborted).toBe(false);
 
@@ -301,7 +314,6 @@ describe("provider searches", () => {
     ]);
     expect(harness.inspection.sdk.calls.map((call) => call.path)).toEqual([
       "plugins.list", "plugins.catalog.search", "plugins.catalog.search",
-      "plugins.catalog.search", "plugins.catalog.search",
     ]);
     expect(sdkSignal(harness.inspection.sdk.calls[1]!.args).aborted).toBe(false);
   });
@@ -332,7 +344,6 @@ describe("provider searches", () => {
     );
     expect(harness.inspection.sdk.calls.map((call) => call.path)).toEqual([
       "plugins.list", "plugins.catalog.search", "plugins.catalog.search",
-      "plugins.catalog.search", "plugins.catalog.search",
     ]);
   });
 });
@@ -358,6 +369,18 @@ describe("overview discovery and agent CLI", () => {
     return harness;
   }
 
+  it("returns direct installed matches while the catalog is still pending", async () => {
+    vi.useFakeTimers();
+    const harness = await setup([installed()], []);
+    harness.inspection.sdk.stub("plugins.catalog.search", () => new Promise(() => {}));
+    let titles: string[] | undefined;
+    void Promise.resolve(mentionProvider(harness, "installed").search(MENTION_CONTEXT)).then((rows) => {
+      titles = rows.map((row) => row.title);
+    });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(titles).toEqual(["GitHub"]);
+  });
+
   it("finds overview-only Community and installed matches without changing subtitles", async () => {
     const harness = await setup();
     const rows = await mentionProvider(harness, "community").search({ ...MENTION_CONTEXT, query: "constellation" });
@@ -365,6 +388,55 @@ describe("overview discovery and agent CLI", () => {
     expect(rows[0]?.subtitle).toBe("Not installed · Catalog description");
     const installedHarness = await setup([installed({ id: "noema", name: "Local Noema" })], [{ ...entry, installed: true }]);
     expect((await mentionProvider(installedHarness, "installed").search({ ...MENTION_CONTEXT, query: "constellation" })).map((row) => row.title)).toEqual(["Local Noema"]);
+  });
+
+  it("reuses successful catalog reads across repeated and refined mention queries", async () => {
+    const harness = await setup();
+    const provider = mentionProvider(harness, "community");
+    const browse = { ...MENTION_CONTEXT, query: "plugin" };
+    const first = await provider.search(browse);
+    expect(first).toHaveLength(1);
+    expect(await provider.search(browse)).toEqual(first);
+    expect(harness.inspection.sdk.callsTo("plugins.catalog.search")).toHaveLength(1);
+    await provider.search({ ...MENTION_CONTEXT, query: "constellation" });
+    expect(harness.inspection.sdk.callsTo("plugins.catalog.search")).toHaveLength(2);
+    await provider.search({ ...MENTION_CONTEXT, query: "constellation" });
+    expect(harness.inspection.sdk.callsTo("plugins.catalog.search")).toHaveLength(2);
+  });
+
+  it("refreshes expired catalog reads and revalidates selected mentions immediately", async () => {
+    vi.useFakeTimers();
+    const harness = await setup();
+    const provider = mentionProvider(harness, "community");
+    const rows = await provider.search({ ...MENTION_CONTEXT, query: "plugin" });
+    harness.inspection.sdk.stub("plugins.catalog.search", async () => []);
+    await expect(provider.resolve(rows[0]!.id)).rejects.toThrow("no longer available");
+    await vi.advanceTimersByTimeAsync(30_001);
+    expect(await provider.search({ ...MENTION_CONTEXT, query: "plugin" })).toEqual([]);
+  });
+
+  it("retries a failed catalog read instead of caching the failure", async () => {
+    const harness = await setup();
+    const provider = mentionProvider(harness, "community");
+    harness.inspection.sdk.stub("plugins.catalog.search", async () => { throw new Error("offline"); });
+    expect(await provider.search({ ...MENTION_CONTEXT, query: "plugin" })).toEqual([]);
+    harness.inspection.sdk.stub("plugins.catalog.search", async () => [entry]);
+    expect(await provider.search({ ...MENTION_CONTEXT, query: "plugin" })).toHaveLength(1);
+  });
+
+  it("lets a slow catalog populate the cache after autocomplete gives up waiting", async () => {
+    vi.useFakeTimers();
+    const harness = await setup();
+    const provider = mentionProvider(harness, "community");
+    harness.inspection.sdk.stub("plugins.catalog.search", () => new Promise((resolve) => {
+      setTimeout(() => resolve([entry]), SDK_READ_TIMEOUT_MS + 100);
+    }));
+    const first = provider.search({ ...MENTION_CONTEXT, query: "plugin" });
+    await vi.advanceTimersByTimeAsync(SDK_READ_TIMEOUT_MS);
+    expect(await first).toEqual([]);
+    await vi.advanceTimersByTimeAsync(100);
+    expect(await provider.search({ ...MENTION_CONTEXT, query: "plugin" })).toHaveLength(1);
+    expect(harness.inspection.sdk.callsTo("plugins.catalog.search")).toHaveLength(1);
   });
 
   it("shares concurrent catalog reads between mention providers", async () => {
@@ -716,7 +788,7 @@ describe("hard SDK read timeouts", () => {
     expect(vi.getTimerCount()).toBe(0);
   });
 
-  it("aborts a never-settling Community search and returns no rows", async () => {
+  it("bounds Community autocomplete and aborts a stalled background read", async () => {
     vi.useFakeTimers();
     let signal: AbortSignal | undefined;
     const { bb, harness } = createFakePluginHost({
@@ -737,6 +809,8 @@ describe("hard SDK read timeouts", () => {
 
     await vi.advanceTimersByTimeAsync(SDK_READ_TIMEOUT_MS);
     await expect(pending).resolves.toEqual([]);
+    expect(signal?.aborted).toBe(false);
+    await vi.advanceTimersByTimeAsync(10_000 - SDK_READ_TIMEOUT_MS);
     expect(signal?.aborted).toBe(true);
     expect(vi.getTimerCount()).toBe(0);
   });
