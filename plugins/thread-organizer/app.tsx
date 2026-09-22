@@ -25,6 +25,8 @@ import {
 import {
   ENTRY_PROMPT_MAX_LENGTH,
   WORKFLOW_CONFIG_VERSION,
+  DEFAULT_STAGE_RULE,
+  MAX_WORKFLOW_STAGES,
   createStageKey,
   WORKFLOW_CHANGE_INTERACTION_ID,
   WORKFLOW_CHANGED_ELSEWHERE_MESSAGE,
@@ -526,7 +528,7 @@ export function WorkflowSettings() {
   };
 
   const addStage = () => {
-    if (config === null || config.stages.length >= 12) return;
+    if (config === null || config.stages.length >= MAX_WORKFLOW_STAGES) return;
     const title = uniqueNewStageTitle(config.stages);
     const key = createStageKey(
       title,
@@ -543,7 +545,7 @@ export function WorkflowSettings() {
           key,
           role: "stage",
           title,
-          rule: "Describe the work that belongs in this section.",
+          rule: DEFAULT_STAGE_RULE,
         },
       ],
     });
@@ -618,7 +620,7 @@ export function WorkflowSettings() {
         >
           <button
             className={outlineButtonClass}
-            disabled={config.stages.length >= 12}
+            disabled={config.stages.length >= MAX_WORKFLOW_STAGES}
             onClick={addStage}
             type="button"
           >
