@@ -172,6 +172,8 @@ var {
 
 // core.ts
 var WORKFLOW_CONFIG_VERSION = 2;
+var MAX_WORKFLOW_STAGES = 12;
+var DEFAULT_STAGE_RULE = "Threads the user files here by hand. Never move a thread into this section on your own, and leave a thread you find here where it is, until this rule describes real work.";
 var ENTRY_PROMPT_MAX_LENGTH = 2e3;
 var WORKFLOW_CHANGE_INTERACTION_ID = "confirm-workflow-change";
 var WORKFLOW_CHANGED_ELSEWHERE_MESSAGE = "The workflow changed elsewhere. Reload and try again.";
@@ -234,7 +236,7 @@ function parseStage(value, withSectionId) {
   };
 }
 function validateStages(stages) {
-  if (stages.length < 2 || stages.length > 12) {
+  if (stages.length < 2 || stages.length > MAX_WORKFLOW_STAGES) {
     throw new Error("Configure Inbox plus 1\u201311 workflow stages.");
   }
   const keys = /* @__PURE__ */ new Set();
@@ -1210,7 +1212,7 @@ function WorkflowSettings() {
     setConfig({ ...config, stages });
   };
   const addStage = () => {
-    if (config === null || config.stages.length >= 12) return;
+    if (config === null || config.stages.length >= MAX_WORKFLOW_STAGES) return;
     const title = uniqueNewStageTitle(config.stages);
     const key = createStageKey(
       title,
@@ -1227,7 +1229,7 @@ function WorkflowSettings() {
           key,
           role: "stage",
           title,
-          rule: "Describe the work that belongs in this section."
+          rule: DEFAULT_STAGE_RULE
         }
       ]
     });
@@ -1296,7 +1298,7 @@ function WorkflowSettings() {
               "button",
               {
                 className: outlineButtonClass,
-                disabled: config.stages.length >= 12,
+                disabled: config.stages.length >= MAX_WORKFLOW_STAGES,
                 onClick: addStage,
                 type: "button",
                 children: [

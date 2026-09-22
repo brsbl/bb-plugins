@@ -6,7 +6,9 @@ import {
 import { describe, expect, it, vi } from "vitest";
 
 import {
+  DEFAULT_STAGE_RULE,
   DEFAULT_WORKFLOW_CONFIG,
+  WORKFLOW_CHANGED_ELSEWHERE_MESSAGE,
   editableWorkflowConfig,
   localSectionName,
   type EditableWorkflowConfig,
@@ -55,7 +57,11 @@ function agentContext(originPluginId: string | null = null) {
 }
 
 function createHarness(
-  options: { iconEraSections?: boolean; legacyPlanning?: boolean } = {},
+  options: {
+    iconEraSections?: boolean;
+    legacyPlanning?: boolean;
+    unmanagedSections?: ReadonlyArray<{ id: string; name: string }>;
+  } = {},
 ) {
   const initialThread = makeThreadResponse({
     id: "thr_test",
@@ -108,6 +114,11 @@ function createHarness(
           },
         ]
       : []),
+    ...(options.unmanagedSections ?? []).map((section) => ({
+      ...section,
+      createdAt: 1,
+      updatedAt: 1,
+    })),
   ];
   type TestThreadChange =
     | "archived-changed"
@@ -118,6 +129,8 @@ function createHarness(
   const changedCallbacks: Array<
     (threadId: string, changes: readonly TestThreadChange[]) => void
   > = [];
+  const projectChangedCallbacks: Array<(changes: readonly string[]) => void> =
+    [];
 
   const create = vi.fn(async ({ name }: { name: string }) => {
     const section: TestSection = {
@@ -206,6 +219,23 @@ function createHarness(
     agentSkillIds: ["thread-phase-organizer"],
     sdk: {
       subscribe: (args) => {
+        if (args.event === "project:changed") {
+          const callback = args.callback as unknown as (event: {
+            changes: readonly string[];
+            entity: "project";
+            id: string;
+            type: "changed";
+          }) => void;
+          projectChangedCallbacks.push((changes) =>
+            callback({
+              entity: "project",
+              type: "changed",
+              id: "proj_personal",
+              changes,
+            }),
+          );
+          return () => undefined;
+        }
         const callback = args.callback as unknown as (event: {
           changes: readonly TestThreadChange[];
           entity: "thread";
@@ -253,6 +283,16 @@ function createHarness(
     spawnThread,
     current: (threadId = "thr_test") => getTestThread(threadId),
     sections: () => sections.map((section) => ({ ...section })),
+    addSection(name: string) {
+      const section: TestSection = {
+        id: `sec_added_${++sectionCounter}`,
+        name,
+        createdAt: sectionCounter + 10,
+        updatedAt: sectionCounter + 10,
+      };
+      sections.push(section);
+      return section;
+    },
     setThread(changes: Partial<TestThread>, threadId = "thr_test") {
       const thread = getTestThread(threadId);
       threads.set(threadId, makeThreadResponse({ ...thread, ...changes }));
@@ -264,6 +304,11 @@ function createHarness(
     ) {
       const changeList = Array.isArray(changes) ? changes : [changes];
       for (const callback of changedCallbacks) callback(threadId, changeList);
+    },
+    emitSectionListChanged() {
+      for (const callback of projectChangedCallbacks) {
+        callback(["threads-changed"]);
+      }
     },
   };
 }
@@ -435,6 +480,122 @@ describe("Thread Organizer server", () => {
     releaseList();
     await Promise.all([activation, disposal]);
     expect(organizer.listThreads).toHaveBeenCalledTimes(1);
+  });
+
+  it("adopts a section created outside the plugin without renaming it", async () => {
+    const organizer = createHarness({
+      unmanagedSections: [{ id: "sec_demos", name: "\u{1D483}\u{1D483} demos" }],
+    });
+    await plugin(organizer.bb);
+    let config = await configFor(organizer);
+    await vi.waitFor(async () => {
+      config = await configFor(organizer);
+      expect(config.stages.some((stage) => stage.sectionId === "sec_demos")).toBe(true);
+    });
+    const adopted = config.stages.find(
+      (stage) => stage.sectionId === "sec_demos",
+    );
+
+    expect(adopted).toMatchObject({ key: "bb-demos", role: "stage" });
+    // A fresh install loads at revision 0; adopting is one saved change.
+    expect(config.revision).toBe(1);
+    expect(
+      organizer.updateSection.mock.calls.some(
+        ([{ id }]) => id === "sec_demos",
+      ),
+    ).toBe(false);
+    expect(organizer.sections()).toContainEqual(
+      expect.objectContaining({ id: "sec_demos", name: "\u{1D483}\u{1D483} demos" }),
+    );
+    await organizer.harness.lifecycle.dispose();
+  });
+
+  it("keeps a thread in a section no stage owns", async () => {
+    const organizer = createHarness();
+    await plugin(organizer.bb);
+    const parked = organizer.addSection("Scratch");
+    organizer.setThread({
+      sectionId: parked.id,
+      status: "idle",
+      lastReadAt: 0,
+      latestAttentionAt: 10,
+    });
+    organizer.updateThread.mockClear();
+    await organizer.harness.behavior.emitThreadEvent("thread.idle", {
+      thread: organizer.current(),
+      lastAssistantText: null,
+    });
+
+    expect(organizer.updateThread).not.toHaveBeenCalled();
+    expect(organizer.current().sectionId).toBe(parked.id);
+    await organizer.harness.lifecycle.dispose();
+  });
+
+  it("adopts a section as soon as bb reports the section list changed", async () => {
+    const organizer = createHarness();
+    await plugin(organizer.bb);
+    await vi.waitFor(async () =>
+      expect((await configFor(organizer)).revision).toBeDefined(),
+    );
+    const before = await configFor(organizer);
+    const created = organizer.addSection("Demos");
+    organizer.emitSectionListChanged();
+
+    await vi.waitFor(async () => {
+      const config = await configFor(organizer);
+      expect(config.stages.find((stage) => stage.sectionId === created.id))
+        .toMatchObject({ key: "demos", title: "Demos", role: "stage" });
+      expect(config.revision).toBe((before.revision ?? 0) + 1);
+    });
+    expect(organizer.updateSection).not.toHaveBeenCalled();
+    await organizer.harness.lifecycle.dispose();
+  });
+
+  it("refuses a save based on the revision before adoption instead of deleting the section", async () => {
+    const organizer = createHarness();
+    await plugin(organizer.bb);
+    const stale = await configFor(organizer);
+    const created = organizer.addSection("Demos");
+    organizer.emitSectionListChanged();
+    await vi.waitFor(async () =>
+      expect((await configFor(organizer)).revision).toBe((stale.revision ?? 0) + 1),
+    );
+
+    await expect(
+      organizer.harness.behavior.callRpc(
+        "saveConfig",
+        editableWorkflowConfig(stale),
+      ),
+    ).rejects.toThrow(WORKFLOW_CHANGED_ELSEWHERE_MESSAGE);
+    expect(organizer.deleteSection).not.toHaveBeenCalled();
+    expect(organizer.sections()).toContainEqual(
+      expect.objectContaining({ id: created.id }),
+    );
+    await organizer.harness.lifecycle.dispose();
+  });
+
+  it("leaves a thread in a not-yet-adopted section alone across an unrelated config save", async () => {
+    const organizer = createHarness();
+    await plugin(organizer.bb);
+    const parked = organizer.addSection("Scratch");
+    organizer.setThread({
+      sectionId: parked.id,
+      status: "idle",
+      lastReadAt: 20,
+      latestAttentionAt: 10,
+    });
+    organizer.updateThread.mockClear();
+    const current = await configFor(organizer);
+    const edited = editableWorkflowConfig(current);
+    const planning = edited.stages.find((stage) => stage.key === "planning")!;
+    planning.rule = "Scoping work before a spec exists.";
+    await organizer.harness.behavior.callRpc("saveConfig", edited);
+
+    expect(
+      organizer.updateThread.mock.calls.some(([{ threadId }]) => threadId === "thr_test"),
+    ).toBe(false);
+    expect(organizer.current().sectionId).toBe(parked.id);
+    await organizer.harness.lifecycle.dispose();
   });
 
   it("migrates an emoji-prefixed default in place and preserves its id", async () => {
@@ -1120,6 +1281,34 @@ describe("config CLI", () => {
     return { result: await result, request };
   }
 
+  it("sets and shows a section's rule after approval in the thread", async () => {
+    const organizer = createHarness();
+    await plugin(organizer.bb);
+
+    const set = await approved(organizer, [
+      "section",
+      "rule",
+      "planning",
+      "--set",
+      "Scoping before a spec exists.",
+    ]);
+    expect(set.result).toMatchObject({ exitCode: 0 });
+    expect(set.request.payload).toMatchObject({
+      text: "Scoping before a spec exists.",
+    });
+    expect((await stageOf(organizer, "planning"))?.rule).toBe(
+      "Scoping before a spec exists.",
+    );
+    const shown = await cli(organizer, ["section", "rule", "planning"]);
+    expect(shown).toMatchObject({
+      exitCode: 0,
+      stdout: "Scoping before a spec exists.\n",
+    });
+    const inbox = await cli(organizer, ["section", "rule", "inbox", "--set", "x"]);
+    expect(inbox).toMatchObject({ exitCode: 2 });
+    await organizer.harness.lifecycle.dispose();
+  });
+
   it("sets, shows, lists, and clears an entry prompt after approval in the thread", async () => {
     const organizer = createHarness();
     await plugin(organizer.bb);
@@ -1306,7 +1495,7 @@ describe("config CLI", () => {
     const config = await configFor(organizer);
     expect(config.stages[config.stages.length - 1]).toMatchObject({
       key: "someday",
-      rule: "Describe the work that belongs in this section.",
+      rule: DEFAULT_STAGE_RULE,
     });
     await organizer.harness.lifecycle.dispose();
   });

@@ -452,3 +452,96 @@ describe("stage keys and revisions", () => {
     ).not.toHaveProperty("baseRevision");
   });
 });
+
+describe("adopting sections created outside the plugin", () => {
+  function managed() {
+    return core.cloneWorkflowConfig(core.DEFAULT_WORKFLOW_CONFIG);
+  }
+
+  function withSectionIds(config: core.WorkflowConfig): core.WorkflowConfig {
+    return {
+      ...config,
+      stages: config.stages.map((stage, index) => ({
+        ...stage,
+        sectionId: `sec_${index}`,
+      })),
+    };
+  }
+
+  it("adopts an unclaimed section as a stage carrying the default rule", () => {
+    const config = withSectionIds(managed());
+    const next = core.adoptUnmanagedSections(config, [
+      { id: "sec_demos", name: "bb demos" },
+    ]);
+    const adopted = next.stages.at(-1);
+    expect(adopted).toMatchObject({
+      role: "stage",
+      sectionId: "sec_demos",
+      title: "bb demos",
+      rule: core.DEFAULT_STAGE_RULE,
+    });
+    expect(adopted?.key).toBe("bb-demos");
+    expect(() =>
+      core.normalizeEditableWorkflowConfig(core.editableWorkflowConfig(next)),
+    ).not.toThrow();
+  });
+
+  it("folds a styled section name onto the same stage identity", () => {
+    const config = withSectionIds(managed());
+    const next = core.adoptUnmanagedSections(config, [
+      { id: "sec_demos", name: "\u{1D483}\u{1D483} demos" },
+    ]);
+    expect(next.stages.at(-1)?.title).toBe("bb demos");
+    expect(next.stages.at(-1)?.key).toBe("bb-demos");
+  });
+
+  it("leaves sections a stage already claims alone", () => {
+    const config = withSectionIds(managed());
+    const before = config.stages.length;
+    const next = core.adoptUnmanagedSections(config, [
+      { id: "sec_0", name: "Inbox" },
+      { id: "sec_1", name: "Planning" },
+    ]);
+    expect(next.stages).toHaveLength(before);
+  });
+
+  it("never adopts a section a pending removal still has to delete", () => {
+    const config = withSectionIds(managed());
+    const before = config.stages.length;
+    const next = core.adoptUnmanagedSections(
+      config,
+      [{ id: "sec_removed", name: "Retired" }],
+      new Set(["sec_removed"]),
+    );
+    expect(next.stages).toHaveLength(before);
+  });
+
+  it("skips a section whose name collides with an existing stage title", () => {
+    const config = withSectionIds(managed());
+    const before = config.stages.length;
+    const next = core.adoptUnmanagedSections(config, [
+      { id: "sec_dupe", name: "  planning  " },
+    ]);
+    expect(next.stages).toHaveLength(before);
+  });
+
+  it("stops adopting once the workflow reaches its stage cap", () => {
+    const config = withSectionIds(managed());
+    const room = core.MAX_WORKFLOW_STAGES - config.stages.length;
+    const next = core.adoptUnmanagedSections(
+      config,
+      Array.from({ length: room + 3 }, (_unused, index) => ({
+        id: `sec_extra_${index}`,
+        name: `Extra ${index}`,
+      })),
+    );
+    expect(next.stages).toHaveLength(core.MAX_WORKFLOW_STAGES);
+  });
+
+  it("does not mutate the config it was given", () => {
+    const config = withSectionIds(managed());
+    const before = config.stages.length;
+    core.adoptUnmanagedSections(config, [{ id: "sec_new", name: "Fresh" }]);
+    expect(config.stages).toHaveLength(before);
+  });
+});

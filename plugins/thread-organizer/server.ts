@@ -2,10 +2,13 @@ import { defineRpcContract, type BbPluginApi } from "@get-bb/plugin-sdk";
 import { z } from "zod";
 
 import {
+  DEFAULT_STAGE_RULE,
   DEFAULT_WORKFLOW_CONFIG,
   ENTRY_PROMPT_MAX_LENGTH,
+  MAX_WORKFLOW_STAGES,
   INBOX_RULE,
   WORKFLOW_CONFIG_VERSION,
+  adoptUnmanagedSections,
   buildWorkflowSkillSlot,
   cloneWorkflowConfig,
   createStageKey,
@@ -31,6 +34,12 @@ import {
   type WorkflowConfig,
   type WorkflowStage,
 } from "./core.js";
+
+/**
+ * bb notifies section list changes as a `threads-changed` update on the
+ * Personal project; the plugin adopts new sections from that signal.
+ */
+const PERSONAL_PROJECT_ID = "proj_personal";
 
 const CONFIG_KEY = "workflow-config:v1";
 const PENDING_CONFIG_OPERATION_KEY = "workflow-config-operation:v1";
@@ -68,7 +77,7 @@ const editableStageSchema = z
 const editableWorkflowConfigSchema = z
   .object({
     version: z.literal(WORKFLOW_CONFIG_VERSION),
-    stages: z.array(editableStageSchema).min(2).max(12),
+    stages: z.array(editableStageSchema).min(2).max(MAX_WORKFLOW_STAGES),
   })
   .strict();
 
@@ -151,6 +160,13 @@ interface ReconcileOptions {
   explicitStageKey?: string;
   /** Record where the thread sits without treating it as an entry. */
   seedLanding?: boolean;
+  /**
+   * Sections the caller may move threads out of even though no stage owns
+   * them any more: a config sweep draining the sections of removed stages
+   * before it deletes them. Every other section without a stage belongs to
+   * the user and is left alone.
+   */
+  evictFromSectionIds?: ReadonlySet<string>;
 }
 
 type ThreadRecord = Awaited<ReturnType<BbPluginApi["sdk"]["threads"]["get"]>>;
@@ -335,7 +351,7 @@ export default async function plugin(bb: BbPluginApi): Promise<void> {
 
       claimed.add(section.id);
       stage.sectionId = section.id;
-      if (section.name !== displayName) {
+      if (!sectionMatchesName(section, displayName)) {
         await bb.sdk.threadSections.update({
           id: section.id,
           name: displayName,
@@ -392,6 +408,7 @@ export default async function plugin(bb: BbPluginApi): Promise<void> {
     bb.log.info(
       `Thread Organizer loaded stages=${configSnapshot.stages.length}`,
     );
+    requestAdoption();
   }
 
   function initialRememberedStage(thread: Thread): WorkflowStage | null {
@@ -486,11 +503,26 @@ export default async function plugin(bb: BbPluginApi): Promise<void> {
     threadId: string,
     options: ReconcileOptions = {},
   ): Promise<EntryPromptOutcome> {
-    const { explicitStageKey, seedLanding = false } = options;
+    const { explicitStageKey, seedLanding = false, evictFromSectionIds } =
+      options;
     const thread = await bb.sdk.threads.get({ threadId });
     if (!isManageableThread(thread)) return null;
     const { created, state } = await readThreadState(thread);
     const currentStage = stageForSectionId(configSnapshot, thread.sectionId);
+
+    // A section no stage owns is the user's own bucket, not a misplacement.
+    // Leave the thread where they put it and adopt the section so it becomes
+    // a stage. An explicit stage move still wins, and a config sweep may
+    // drain exactly the sections it is about to delete.
+    if (
+      explicitStageKey === undefined &&
+      thread.sectionId !== null &&
+      currentStage === null &&
+      !evictFromSectionIds?.has(thread.sectionId)
+    ) {
+      requestAdoption();
+      return null;
+    }
 
     if (explicitStageKey) {
       state.rememberedStageKey = explicitStageKey;
@@ -724,6 +756,11 @@ export default async function plugin(bb: BbPluginApi): Promise<void> {
   ): Promise<boolean> {
     configSnapshot = cloneWorkflowConfig(operation.nextConfig);
     await bb.storage.kv.set(CONFIG_KEY, configSnapshot);
+    const evictFromSectionIds = new Set(
+      operation.removedStages.flatMap((stage) =>
+        stage.sectionId === null ? [] : [stage.sectionId],
+      ),
+    );
     let failed = 0;
     for (const threadId of await listManageableThreadIds()) {
       if (disposed) break;
@@ -731,7 +768,10 @@ export default async function plugin(bb: BbPluginApi): Promise<void> {
       // a config-induced remap records the landing without firing.
       try {
         await enqueue(threadId, async () => {
-          await reconcileThread(threadId, { seedLanding: true });
+          await reconcileThread(threadId, {
+            seedLanding: true,
+            evictFromSectionIds,
+          });
         });
       } catch {
         // enqueue already logged the failure.
@@ -773,6 +813,59 @@ export default async function plugin(bb: BbPluginApi): Promise<void> {
       await bb.storage.kv.get<unknown>(PENDING_CONFIG_OPERATION_KEY),
     );
     return parsed.success ? parsed.data : null;
+  }
+
+  let adoptionQueued = false;
+
+  /**
+   * Adopt every bb section no stage owns, as one operation on the config
+   * queue so it is serialized with saves, bumps the revision like a save,
+   * and tells open editors to reload. Sections a pending removal still has
+   * to delete are skipped; adopting one would silently undo the removal.
+   */
+  function requestAdoption(): void {
+    if (adoptionQueued || disposed) return;
+    adoptionQueued = true;
+    configQueue = configQueue
+      .catch(() => undefined)
+      .then(async () => {
+        adoptionQueued = false;
+        if (disposed) return;
+        const pending = await pendingConfigOperation();
+        const pendingRemovalSectionIds = new Set(
+          (pending?.removedStages ?? []).flatMap((stage) =>
+            stage.sectionId === null ? [] : [stage.sectionId],
+          ),
+        );
+        const previous = configSnapshot;
+        const next = adoptUnmanagedSections(
+          previous,
+          await bb.sdk.threadSections.list(),
+          pendingRemovalSectionIds,
+        );
+        if (next.stages.length === previous.stages.length) return;
+        next.revision = (previous.revision ?? 0) + 1;
+        configSnapshot = next;
+        await bb.storage.kv.set(CONFIG_KEY, configSnapshot);
+        if (pending !== null) {
+          await bb.storage.kv.set(PENDING_CONFIG_OPERATION_KEY, {
+            ...pending,
+            nextConfig: cloneWorkflowConfig(configSnapshot),
+          } satisfies PendingConfigOperation);
+        }
+        for (const stage of next.stages.slice(previous.stages.length)) {
+          bb.log.info(
+            `action=section-adopted stage=${stage.key} section=${stage.sectionId}`,
+          );
+        }
+        bb.realtime.publish("workflow-config-changed", {
+          version: configSnapshot.version,
+          revision: configSnapshot.revision ?? 0,
+        });
+      })
+      .catch((error: unknown) => {
+        bb.log.error(`action=adoption-failed error=${describeError(error)}`);
+      });
   }
 
   async function saveConfig(
@@ -892,9 +985,9 @@ export default async function plugin(bb: BbPluginApi): Promise<void> {
     "  bb organizer prompt [<stage-key>] [--set <text> | --clear]",
     "  bb organizer section list",
     "  bb organizer section add <title> [--after <stage-key>] [--rule <text>]",
+    "  bb organizer section rule <stage-key> [--set <text>]",
     "",
   ].join("\n");
-  const NEW_SECTION_RULE = "Describe the work that belongs in this section.";
   const SECTION_TITLE_MAX_LENGTH = 80;
   const CONFIRMATION_TIMEOUT_MS = 10 * 60 * 1000;
 
@@ -1164,6 +1257,7 @@ export default async function plugin(bb: BbPluginApi): Promise<void> {
       });
       return { exitCode: 0, stdout: `${lines.join("\n")}\n` };
     }
+    if (subcommand === "rule") return runSectionRule(rest, context);
     if (subcommand !== "add") return { exitCode: 2, stderr: CLI_USAGE };
     const [rawTitle, ...options] = rest;
     const title = rawTitle?.trim() ?? "";
@@ -1198,7 +1292,7 @@ export default async function plugin(bb: BbPluginApi): Promise<void> {
         stderr: `Unknown stage: ${after}\nAvailable: ${stageKeysLine(true)}\n`,
       };
     }
-    const finalRule = rule?.trim() || NEW_SECTION_RULE;
+    const finalRule = rule?.trim() || DEFAULT_STAGE_RULE;
     return confirmAndSave(context, {
       title: `Add section "${title}"`,
       summary: (key) =>
@@ -1238,6 +1332,53 @@ export default async function plugin(bb: BbPluginApi): Promise<void> {
     });
   }
 
+  async function runSectionRule(
+    argv: readonly string[],
+    context: CliContext,
+  ): Promise<CliResult> {
+    const [rawKey, ...rest] = argv;
+    if (rawKey === undefined) return { exitCode: 2, stderr: CLI_USAGE };
+    const stage = findStage(configSnapshot, rawKey);
+    if (!stage) {
+      return {
+        exitCode: 2,
+        stderr: `Unknown stage: ${rawKey}\nAvailable: ${stageKeysLine(true)}\n`,
+      };
+    }
+    if (rest.length === 0) return { exitCode: 0, stdout: `${stage.rule}\n` };
+    if (stage.role === "inbox") {
+      return { exitCode: 2, stderr: "Inbox routing and its rule cannot be changed.\n" };
+    }
+    const text = rest[1];
+    if (rest[0] !== "--set" || rest.length !== 2 || text === undefined) {
+      return { exitCode: 2, stderr: CLI_USAGE };
+    }
+    if (text.trim().length === 0) {
+      return { exitCode: 2, stderr: "Provide the rule text after --set.\n" };
+    }
+    return confirmAndSave(context, {
+      title: `Set the rule for ${stage.title}`,
+      summary: () => `Agents will file work into ${stage.title} by this rule:`,
+      field: "rule",
+      apply: (current) => {
+        const edited = editableWorkflowConfig(current);
+        const index = edited.stages.findIndex((entry) => entry.key === stage.key);
+        const target = edited.stages[index];
+        if (index < 0 || target === undefined) {
+          throw new CliInputError(
+            `Stage ${stage.key} no longer exists; the workflow changed elsewhere.`,
+          );
+        }
+        edited.stages[index] = { ...target, rule: text };
+        return {
+          edited,
+          message: `Set the rule for ${stageLabel(stage)}.`,
+          key: stage.key,
+        };
+      },
+    });
+  }
+
   bb.cli.register({
     name: "organizer",
     summary:
@@ -1259,7 +1400,7 @@ export default async function plugin(bb: BbPluginApi): Promise<void> {
         summary:
           "List sections or add one (changes ask for approval in the thread)",
         usage:
-          "bb organizer section list | add <title> [--after <stage-key>] [--rule <text>]",
+          "bb organizer section list | add <title> [--after <stage-key>] [--rule <text>] | rule <stage-key> [--set <text>]",
       },
     ],
     async run(argv, context) {
@@ -1322,6 +1463,16 @@ export default async function plugin(bb: BbPluginApi): Promise<void> {
     );
   }
 
+  // bb has no section event; creating one is reported as a threads change on
+  // the Personal project, which is enough to adopt it right away.
+  const unsubscribeSections = bb.sdk.subscribe({
+    event: "project:changed",
+    projectId: PERSONAL_PROJECT_ID,
+    callback(event) {
+      if (event.changes.includes("threads-changed")) requestAdoption();
+    },
+  });
+
   const unsubscribe = bb.sdk.subscribe({
     event: "thread:changed",
     callback(event) {
@@ -1341,6 +1492,7 @@ export default async function plugin(bb: BbPluginApi): Promise<void> {
   bb.onDispose(async () => {
     disposed = true;
     reconciliationController.abort();
+    unsubscribeSections();
     unsubscribe();
     await Promise.allSettled([
       startupReconciliation,
