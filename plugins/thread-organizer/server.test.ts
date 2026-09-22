@@ -487,8 +487,7 @@ describe("Thread Organizer server", () => {
       unmanagedSections: [{ id: "sec_demos", name: "\u{1D483}\u{1D483} demos" }],
     });
     await plugin(organizer.bb);
-    const loaded = await configFor(organizer);
-    let config = loaded;
+    let config = await configFor(organizer);
     await vi.waitFor(async () => {
       config = await configFor(organizer);
       expect(config.stages.some((stage) => stage.sectionId === "sec_demos")).toBe(true);
@@ -498,7 +497,8 @@ describe("Thread Organizer server", () => {
     );
 
     expect(adopted).toMatchObject({ key: "bb-demos", role: "stage" });
-    expect(config.revision).toBe((loaded.revision ?? 0) + 1);
+    // A fresh install loads at revision 0; adopting is one saved change.
+    expect(config.revision).toBe(1);
     expect(
       organizer.updateSection.mock.calls.some(
         ([{ id }]) => id === "sec_demos",
