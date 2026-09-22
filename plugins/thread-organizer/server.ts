@@ -524,11 +524,13 @@ export default async function plugin(bb: BbPluginApi): Promise<void> {
     const currentStage = stageForSectionId(configSnapshot, thread.sectionId);
 
     // A section no stage owns is the user's own bucket, not a misplacement.
-    // Adoption normally claims it on the next load; until then, and for any
-    // section the workflow deliberately leaves alone, respect where the user
-    // put the thread. An explicit stage move still wins.
+    // Adoption normally claims it on the next load; until then respect where
+    // the user put the thread. An explicit stage move still wins, and so does
+    // a config sweep, which has to migrate threads off a section it is about
+    // to delete with the removed stage.
     if (
       explicitStageKey === undefined &&
+      !seedLanding &&
       thread.sectionId !== null &&
       currentStage === null
     ) {

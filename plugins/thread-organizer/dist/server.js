@@ -15215,7 +15215,7 @@ async function plugin(bb) {
     if (!isManageableThread(thread)) return null;
     const { created, state } = await readThreadState(thread);
     const currentStage = stageForSectionId(configSnapshot, thread.sectionId);
-    if (explicitStageKey === void 0 && thread.sectionId !== null && currentStage === null) {
+    if (explicitStageKey === void 0 && !seedLanding && thread.sectionId !== null && currentStage === null) {
       return null;
     }
     if (explicitStageKey) {
