@@ -55,7 +55,11 @@ function agentContext(originPluginId: string | null = null) {
 }
 
 function createHarness(
-  options: { iconEraSections?: boolean; legacyPlanning?: boolean } = {},
+  options: {
+    iconEraSections?: boolean;
+    legacyPlanning?: boolean;
+    unmanagedSections?: ReadonlyArray<{ id: string; name: string }>;
+  } = {},
 ) {
   const initialThread = makeThreadResponse({
     id: "thr_test",
@@ -108,6 +112,11 @@ function createHarness(
           },
         ]
       : []),
+    ...(options.unmanagedSections ?? []).map((section) => ({
+      ...section,
+      createdAt: 1,
+      updatedAt: 1,
+    })),
   ];
   type TestThreadChange =
     | "archived-changed"
@@ -253,6 +262,16 @@ function createHarness(
     spawnThread,
     current: (threadId = "thr_test") => getTestThread(threadId),
     sections: () => sections.map((section) => ({ ...section })),
+    addSection(name: string) {
+      const section: TestSection = {
+        id: `sec_added_${++sectionCounter}`,
+        name,
+        createdAt: sectionCounter + 10,
+        updatedAt: sectionCounter + 10,
+      };
+      sections.push(section);
+      return section;
+    },
     setThread(changes: Partial<TestThread>, threadId = "thr_test") {
       const thread = getTestThread(threadId);
       threads.set(threadId, makeThreadResponse({ ...thread, ...changes }));
@@ -435,6 +454,49 @@ describe("Thread Organizer server", () => {
     releaseList();
     await Promise.all([activation, disposal]);
     expect(organizer.listThreads).toHaveBeenCalledTimes(1);
+  });
+
+  it("adopts a section created outside the plugin without renaming it", async () => {
+    const organizer = createHarness({
+      unmanagedSections: [{ id: "sec_demos", name: "\u{1D483}\u{1D483} demos" }],
+    });
+    await plugin(organizer.bb);
+    const config = await configFor(organizer);
+    const adopted = config.stages.find(
+      (stage) => stage.sectionId === "sec_demos",
+    );
+
+    expect(adopted).toMatchObject({ key: "bb-demos", role: "stage" });
+    expect(
+      organizer.updateSection.mock.calls.some(
+        ([{ id }]) => id === "sec_demos",
+      ),
+    ).toBe(false);
+    expect(organizer.sections()).toContainEqual(
+      expect.objectContaining({ id: "sec_demos", name: "\u{1D483}\u{1D483} demos" }),
+    );
+    await organizer.harness.lifecycle.dispose();
+  });
+
+  it("keeps a thread in a section no stage owns", async () => {
+    const organizer = createHarness();
+    await plugin(organizer.bb);
+    const parked = organizer.addSection("Scratch");
+    organizer.setThread({
+      sectionId: parked.id,
+      status: "idle",
+      lastReadAt: 0,
+      latestAttentionAt: 10,
+    });
+    organizer.updateThread.mockClear();
+    await organizer.harness.behavior.emitThreadEvent("thread.idle", {
+      thread: organizer.current(),
+      lastAssistantText: null,
+    });
+
+    expect(organizer.updateThread).not.toHaveBeenCalled();
+    expect(organizer.current().sectionId).toBe(parked.id);
+    await organizer.harness.lifecycle.dispose();
   });
 
   it("migrates an emoji-prefixed default in place and preserves its id", async () => {

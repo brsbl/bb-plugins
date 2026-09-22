@@ -14529,6 +14529,8 @@ config(en_default());
 
 // core.ts
 var WORKFLOW_CONFIG_VERSION = 2;
+var MAX_WORKFLOW_STAGES = 12;
+var DEFAULT_STAGE_RULE = "Describe the work that belongs in this section.";
 var ENTRY_PROMPT_MAX_LENGTH = 2e3;
 var RENDERED_ENTRY_PROMPT_MAX_LENGTH = 8e3;
 var WORKFLOW_CHANGE_INTERACTION_ID = "confirm-workflow-change";
@@ -14655,7 +14657,7 @@ function parseStage(value, withSectionId) {
   };
 }
 function validateStages(stages) {
-  if (stages.length < 2 || stages.length > 12) {
+  if (stages.length < 2 || stages.length > MAX_WORKFLOW_STAGES) {
     throw new Error("Configure Inbox plus 1\u201311 workflow stages.");
   }
   const keys = /* @__PURE__ */ new Set();
@@ -14798,6 +14800,39 @@ function firstWorkflowStage(config2) {
 function stageForSectionId(config2, sectionId) {
   if (sectionId === null) return null;
   return config2.stages.find((stage) => stage.sectionId === sectionId) ?? null;
+}
+function adoptUnmanagedSections(config2, sections, skipSectionIds = /* @__PURE__ */ new Set()) {
+  const next = cloneWorkflowConfig(config2);
+  const claimed = new Set(
+    next.stages.flatMap(
+      (stage) => stage.sectionId === null ? [] : [stage.sectionId]
+    )
+  );
+  const titles = new Set(
+    next.stages.map((stage) => normalizedIdentity(stage.title))
+  );
+  for (const section of sections) {
+    if (next.stages.length >= MAX_WORKFLOW_STAGES) break;
+    if (claimed.has(section.id) || skipSectionIds.has(section.id)) continue;
+    const title = normalizeText(section.name);
+    const identity = normalizedIdentity(title);
+    if (title.length === 0 || title.length > 80 || titles.has(identity)) {
+      continue;
+    }
+    next.stages.push({
+      key: createStageKey(
+        title,
+        next.stages.map((stage) => stage.key)
+      ),
+      role: "stage",
+      title,
+      rule: DEFAULT_STAGE_RULE,
+      sectionId: section.id
+    });
+    claimed.add(section.id);
+    titles.add(identity);
+  }
+  return next;
 }
 var MIGRATED_STAGE_KEYS = ["parked"];
 function createStageKey(title, existingKeys) {
@@ -15009,8 +15044,8 @@ async function plugin(bb) {
   function schedule(threadId, work) {
     return enqueue(threadId, work).catch(() => void 0);
   }
-  async function ensureWorkflowSections(input) {
-    const config2 = cloneWorkflowConfig(input);
+  async function ensureWorkflowSections(input, options = {}) {
+    let config2 = cloneWorkflowConfig(input);
     let listed = await bb.sdk.threadSections.list();
     const claimed = /* @__PURE__ */ new Set();
     for (const stage of config2.stages) {
@@ -15040,12 +15075,25 @@ async function plugin(bb) {
       }
       claimed.add(section.id);
       stage.sectionId = section.id;
-      if (section.name !== displayName) {
+      if (!sectionMatchesName(section, displayName)) {
         await bb.sdk.threadSections.update({
           id: section.id,
           name: displayName
         });
       }
+    }
+    if (options.adoptUnmanaged) {
+      const adopted = adoptUnmanagedSections(
+        config2,
+        listed.filter((section) => !claimed.has(section.id)),
+        options.pendingRemovalSectionIds ?? /* @__PURE__ */ new Set()
+      );
+      for (const stage of adopted.stages.slice(config2.stages.length)) {
+        bb.log.info(
+          `action=section-adopted stage=${stage.key} section=${stage.sectionId}`
+        );
+      }
+      config2 = adopted;
     }
     return config2;
   }
@@ -15058,7 +15106,15 @@ async function plugin(bb) {
       await bb.storage.kv.get(CONFIG_KEY)
     );
     configSnapshot = await ensureWorkflowSections(
-      pending?.nextConfig ?? stored ?? cloneWorkflowConfig(DEFAULT_WORKFLOW_CONFIG)
+      pending?.nextConfig ?? stored ?? cloneWorkflowConfig(DEFAULT_WORKFLOW_CONFIG),
+      {
+        adoptUnmanaged: true,
+        pendingRemovalSectionIds: new Set(
+          (pending?.removedStages ?? []).flatMap(
+            (stage) => stage.sectionId ? [stage.sectionId] : []
+          )
+        )
+      }
     );
     if (configSnapshot.revision === void 0) configSnapshot.revision = 0;
     await bb.storage.kv.set(CONFIG_KEY, configSnapshot);
@@ -15159,6 +15215,9 @@ async function plugin(bb) {
     if (!isManageableThread(thread)) return null;
     const { created, state } = await readThreadState(thread);
     const currentStage = stageForSectionId(configSnapshot, thread.sectionId);
+    if (explicitStageKey === void 0 && thread.sectionId !== null && currentStage === null) {
+      return null;
+    }
     if (explicitStageKey) {
       state.rememberedStageKey = explicitStageKey;
     } else if (currentStage?.role === "stage") {

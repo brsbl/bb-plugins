@@ -2,6 +2,9 @@ export const WORKFLOW_CONFIG_VERSION = 2 as const;
 
 export type WorkflowStageRole = "inbox" | "stage";
 
+export const MAX_WORKFLOW_STAGES = 12;
+export const DEFAULT_STAGE_RULE =
+  "Describe the work that belongs in this section.";
 export const ENTRY_PROMPT_MAX_LENGTH = 2000;
 export const RENDERED_ENTRY_PROMPT_MAX_LENGTH = 8000;
 
@@ -197,7 +200,7 @@ function parseStage(value: unknown, withSectionId: boolean): WorkflowStage {
 }
 
 function validateStages(stages: WorkflowStage[]): void {
-  if (stages.length < 2 || stages.length > 12) {
+  if (stages.length < 2 || stages.length > MAX_WORKFLOW_STAGES) {
     throw new Error("Configure Inbox plus 1–11 workflow stages.");
   }
   const keys = new Set<string>();
@@ -395,6 +398,55 @@ export function stageForSectionId(
 ): WorkflowStage | null {
   if (sectionId === null) return null;
   return config.stages.find((stage) => stage.sectionId === sectionId) ?? null;
+}
+
+export interface AdoptableSection {
+  id: string;
+  name: string;
+}
+
+/**
+ * Turns sections created outside the plugin into real workflow stages so the
+ * reconciler stops treating threads parked in them as misplaced. Sections
+ * awaiting deletion from a pending removal are skipped, otherwise a restart
+ * mid-sweep would re-adopt the stage the user just removed.
+ */
+export function adoptUnmanagedSections(
+  config: WorkflowConfig,
+  sections: readonly AdoptableSection[],
+  skipSectionIds: ReadonlySet<string> = new Set(),
+): WorkflowConfig {
+  const next = cloneWorkflowConfig(config);
+  const claimed = new Set(
+    next.stages.flatMap((stage) =>
+      stage.sectionId === null ? [] : [stage.sectionId],
+    ),
+  );
+  const titles = new Set(
+    next.stages.map((stage) => normalizedIdentity(stage.title)),
+  );
+  for (const section of sections) {
+    if (next.stages.length >= MAX_WORKFLOW_STAGES) break;
+    if (claimed.has(section.id) || skipSectionIds.has(section.id)) continue;
+    const title = normalizeText(section.name);
+    const identity = normalizedIdentity(title);
+    if (title.length === 0 || title.length > 80 || titles.has(identity)) {
+      continue;
+    }
+    next.stages.push({
+      key: createStageKey(
+        title,
+        next.stages.map((stage) => stage.key),
+      ),
+      role: "stage",
+      title,
+      rule: DEFAULT_STAGE_RULE,
+      sectionId: section.id,
+    });
+    claimed.add(section.id);
+    titles.add(identity);
+  }
+  return next;
 }
 
 /**

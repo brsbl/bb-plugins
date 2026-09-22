@@ -20,7 +20,11 @@ thread’s actual stage.
   moves it explicitly.
 - Inbox keeps that system behavior even when its visible title changes.
 - A stage title is used verbatim as its bb section name, so any emoji you want
-  in the sidebar goes in the title itself.
+  in the sidebar goes in the title itself. A section whose name differs from its
+  title only by Unicode styling keeps the name you gave it.
+- A section you create in bb's own sidebar is adopted as a workflow stage on the
+  next load, with a default rule you can edit. Until it is adopted, threads you
+  park there stay put rather than being reconciled away.
 - Section expansion and collapse are owned by bb and the user; Thread Organizer
   never changes them automatically.
 - Reordering a non-Inbox stage in the native sidebar saves the same workflow

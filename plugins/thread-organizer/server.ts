@@ -6,6 +6,7 @@ import {
   ENTRY_PROMPT_MAX_LENGTH,
   INBOX_RULE,
   WORKFLOW_CONFIG_VERSION,
+  adoptUnmanagedSections,
   buildWorkflowSkillSlot,
   cloneWorkflowConfig,
   createStageKey,
@@ -31,6 +32,13 @@ import {
   type WorkflowConfig,
   type WorkflowStage,
 } from "./core.js";
+
+interface EnsureSectionsOptions {
+  /** Adopt sections created outside the plugin as workflow stages. */
+  adoptUnmanaged?: boolean;
+  /** Sections a pending removal still has to delete; never adopt these. */
+  pendingRemovalSectionIds?: ReadonlySet<string>;
+}
 
 const CONFIG_KEY = "workflow-config:v1";
 const PENDING_CONFIG_OPERATION_KEY = "workflow-config-operation:v1";
@@ -295,8 +303,9 @@ export default async function plugin(bb: BbPluginApi): Promise<void> {
 
   async function ensureWorkflowSections(
     input: WorkflowConfig,
+    options: EnsureSectionsOptions = {},
   ): Promise<WorkflowConfig> {
-    const config = cloneWorkflowConfig(input);
+    let config = cloneWorkflowConfig(input);
     let listed = await bb.sdk.threadSections.list();
     const claimed = new Set<string>();
 
@@ -335,12 +344,26 @@ export default async function plugin(bb: BbPluginApi): Promise<void> {
 
       claimed.add(section.id);
       stage.sectionId = section.id;
-      if (section.name !== displayName) {
+      if (!sectionMatchesName(section, displayName)) {
         await bb.sdk.threadSections.update({
           id: section.id,
           name: displayName,
         });
       }
+    }
+
+    if (options.adoptUnmanaged) {
+      const adopted = adoptUnmanagedSections(
+        config,
+        listed.filter((section) => !claimed.has(section.id)),
+        options.pendingRemovalSectionIds ?? new Set<string>(),
+      );
+      for (const stage of adopted.stages.slice(config.stages.length)) {
+        bb.log.info(
+          `action=section-adopted stage=${stage.key} section=${stage.sectionId}`,
+        );
+      }
+      config = adopted;
     }
     return config;
   }
@@ -357,6 +380,14 @@ export default async function plugin(bb: BbPluginApi): Promise<void> {
       pending?.nextConfig ??
         stored ??
         cloneWorkflowConfig(DEFAULT_WORKFLOW_CONFIG),
+      {
+        adoptUnmanaged: true,
+        pendingRemovalSectionIds: new Set(
+          (pending?.removedStages ?? []).flatMap((stage) =>
+            stage.sectionId ? [stage.sectionId] : [],
+          ),
+        ),
+      },
     );
     // Every served config carries a revision so editors can prove which
     // state their save is based on.
@@ -491,6 +522,18 @@ export default async function plugin(bb: BbPluginApi): Promise<void> {
     if (!isManageableThread(thread)) return null;
     const { created, state } = await readThreadState(thread);
     const currentStage = stageForSectionId(configSnapshot, thread.sectionId);
+
+    // A section no stage owns is the user's own bucket, not a misplacement.
+    // Adoption normally claims it on the next load; until then, and for any
+    // section the workflow deliberately leaves alone, respect where the user
+    // put the thread. An explicit stage move still wins.
+    if (
+      explicitStageKey === undefined &&
+      thread.sectionId !== null &&
+      currentStage === null
+    ) {
+      return null;
+    }
 
     if (explicitStageKey) {
       state.rememberedStageKey = explicitStageKey;
