@@ -23,8 +23,11 @@ thread’s actual stage.
   in the sidebar goes in the title itself. A section whose name differs from its
   title only by Unicode styling keeps the name you gave it.
 - A section you create in bb's own sidebar is adopted as a workflow stage on the
-  next load, with a default rule you can edit. Until it is adopted, threads you
-  park there stay put rather than being reconciled away.
+  next load. Until it is adopted, threads you park there stay put rather than
+  being reconciled away.
+- Every section created without a rule — from the panel, from `bb organizer
+  section add`, or by adoption — starts as user-managed: agents are told to
+  leave it alone until you describe the work that belongs there.
 - Section expansion and collapse are owned by bb and the user; Thread Organizer
   never changes them automatically.
 - Reordering a non-Inbox stage in the native sidebar saves the same workflow

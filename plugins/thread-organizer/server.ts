@@ -2,6 +2,7 @@ import { defineRpcContract, type BbPluginApi } from "@get-bb/plugin-sdk";
 import { z } from "zod";
 
 import {
+  DEFAULT_STAGE_RULE,
   DEFAULT_WORKFLOW_CONFIG,
   ENTRY_PROMPT_MAX_LENGTH,
   INBOX_RULE,
@@ -939,7 +940,6 @@ export default async function plugin(bb: BbPluginApi): Promise<void> {
     "  bb organizer section add <title> [--after <stage-key>] [--rule <text>]",
     "",
   ].join("\n");
-  const NEW_SECTION_RULE = "Describe the work that belongs in this section.";
   const SECTION_TITLE_MAX_LENGTH = 80;
   const CONFIRMATION_TIMEOUT_MS = 10 * 60 * 1000;
 
@@ -1243,7 +1243,7 @@ export default async function plugin(bb: BbPluginApi): Promise<void> {
         stderr: `Unknown stage: ${after}\nAvailable: ${stageKeysLine(true)}\n`,
       };
     }
-    const finalRule = rule?.trim() || NEW_SECTION_RULE;
+    const finalRule = rule?.trim() || DEFAULT_STAGE_RULE;
     return confirmAndSave(context, {
       title: `Add section "${title}"`,
       summary: (key) =>

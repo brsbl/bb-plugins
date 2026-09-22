@@ -6,6 +6,7 @@ import {
 import { describe, expect, it, vi } from "vitest";
 
 import {
+  DEFAULT_STAGE_RULE,
   DEFAULT_WORKFLOW_CONFIG,
   editableWorkflowConfig,
   localSectionName,
@@ -1368,7 +1369,7 @@ describe("config CLI", () => {
     const config = await configFor(organizer);
     expect(config.stages[config.stages.length - 1]).toMatchObject({
       key: "someday",
-      rule: "Describe the work that belongs in this section.",
+      rule: DEFAULT_STAGE_RULE,
     });
     await organizer.harness.lifecycle.dispose();
   });

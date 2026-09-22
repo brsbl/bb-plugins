@@ -3,8 +3,13 @@ export const WORKFLOW_CONFIG_VERSION = 2 as const;
 export type WorkflowStageRole = "inbox" | "stage";
 
 export const MAX_WORKFLOW_STAGES = 12;
+/**
+ * Rule a section starts with until its owner describes one. It has to be safe
+ * for an agent to act on as written, so it says the section is user-managed
+ * rather than inviting a guess about what belongs here.
+ */
 export const DEFAULT_STAGE_RULE =
-  "Describe the work that belongs in this section.";
+  "Threads the user files here by hand. Never move a thread into this section on your own, and leave a thread you find here where it is, until this rule describes real work.";
 export const ENTRY_PROMPT_MAX_LENGTH = 2000;
 export const RENDERED_ENTRY_PROMPT_MAX_LENGTH = 8000;
 

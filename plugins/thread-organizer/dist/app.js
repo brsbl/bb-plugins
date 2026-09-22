@@ -173,7 +173,7 @@ var {
 // core.ts
 var WORKFLOW_CONFIG_VERSION = 2;
 var MAX_WORKFLOW_STAGES = 12;
-var DEFAULT_STAGE_RULE = "Describe the work that belongs in this section.";
+var DEFAULT_STAGE_RULE = "Threads the user files here by hand. Never move a thread into this section on your own, and leave a thread you find here where it is, until this rule describes real work.";
 var ENTRY_PROMPT_MAX_LENGTH = 2e3;
 var WORKFLOW_CHANGE_INTERACTION_ID = "confirm-workflow-change";
 var WORKFLOW_CHANGED_ELSEWHERE_MESSAGE = "The workflow changed elsewhere. Reload and try again.";

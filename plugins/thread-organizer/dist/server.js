@@ -14530,7 +14530,7 @@ config(en_default());
 // core.ts
 var WORKFLOW_CONFIG_VERSION = 2;
 var MAX_WORKFLOW_STAGES = 12;
-var DEFAULT_STAGE_RULE = "Describe the work that belongs in this section.";
+var DEFAULT_STAGE_RULE = "Threads the user files here by hand. Never move a thread into this section on your own, and leave a thread you find here where it is, until this rule describes real work.";
 var ENTRY_PROMPT_MAX_LENGTH = 2e3;
 var RENDERED_ENTRY_PROMPT_MAX_LENGTH = 8e3;
 var WORKFLOW_CHANGE_INTERACTION_ID = "confirm-workflow-change";
@@ -15499,7 +15499,6 @@ async function plugin(bb) {
     "  bb organizer section add <title> [--after <stage-key>] [--rule <text>]",
     ""
   ].join("\n");
-  const NEW_SECTION_RULE = "Describe the work that belongs in this section.";
   const SECTION_TITLE_MAX_LENGTH = 80;
   const CONFIRMATION_TIMEOUT_MS = 10 * 60 * 1e3;
   const findStage = (config2, raw) => {
@@ -15761,7 +15760,7 @@ Available: ${stageKeysLine(true)}
 `
       };
     }
-    const finalRule = rule?.trim() || NEW_SECTION_RULE;
+    const finalRule = rule?.trim() || DEFAULT_STAGE_RULE;
     return confirmAndSave(context, {
       title: `Add section "${title}"`,
       summary: (key) => `${anchorNow ? `After ${anchorNow.title}` : "At the end"}, keyed ${key}, with this rule for agents:`,
