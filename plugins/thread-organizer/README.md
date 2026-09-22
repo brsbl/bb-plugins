@@ -22,12 +22,13 @@ thread’s actual stage.
 - A stage title is used verbatim as its bb section name, so any emoji you want
   in the sidebar goes in the title itself. A section whose name differs from its
   title only by Unicode styling keeps the name you gave it.
-- A section you create in bb's own sidebar is adopted as a workflow stage on the
-  next load. Until it is adopted, threads you park there stay put rather than
-  being reconciled away.
+- A section you or an agent creates in bb's own sidebar becomes a workflow
+  stage as soon as bb reports it, so threads can be moved there immediately.
+  Threads in a section the plugin does not yet own are never reconciled away.
 - Every section created without a rule — from the panel, from `bb organizer
   section add`, or by adoption — starts as user-managed: agents are told to
-  leave it alone until you describe the work that belongs there.
+  leave it alone until the rule describes real work. Set one afterwards with
+  `bb organizer section rule <stage-key> --set <text>`.
 - Section expansion and collapse are owned by bb and the user; Thread Organizer
   never changes them automatically.
 - Reordering a non-Inbox stage in the native sidebar saves the same workflow

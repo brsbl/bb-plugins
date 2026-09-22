@@ -14892,6 +14892,7 @@ function buildWorkflowSkillSlot(config2) {
 }
 
 // server.ts
+var PERSONAL_PROJECT_ID = "proj_personal";
 var CONFIG_KEY = "workflow-config:v1";
 var PENDING_CONFIG_OPERATION_KEY = "workflow-config-operation:v1";
 var MAX_PENDING_OPERATION_ATTEMPTS = 3;
@@ -14919,7 +14920,7 @@ var editableStageSchema = external_exports.object({
 }).strict();
 var editableWorkflowConfigSchema = external_exports.object({
   version: external_exports.literal(WORKFLOW_CONFIG_VERSION),
-  stages: external_exports.array(editableStageSchema).min(2).max(12)
+  stages: external_exports.array(editableStageSchema).min(2).max(MAX_WORKFLOW_STAGES)
 }).strict();
 var workflowConfigSchema = editableWorkflowConfigSchema.extend({
   revision: external_exports.number().int().nonnegative().optional(),
@@ -15044,8 +15045,8 @@ async function plugin(bb) {
   function schedule(threadId, work) {
     return enqueue(threadId, work).catch(() => void 0);
   }
-  async function ensureWorkflowSections(input, options = {}) {
-    let config2 = cloneWorkflowConfig(input);
+  async function ensureWorkflowSections(input) {
+    const config2 = cloneWorkflowConfig(input);
     let listed = await bb.sdk.threadSections.list();
     const claimed = /* @__PURE__ */ new Set();
     for (const stage of config2.stages) {
@@ -15082,19 +15083,6 @@ async function plugin(bb) {
         });
       }
     }
-    if (options.adoptUnmanaged) {
-      const adopted = adoptUnmanagedSections(
-        config2,
-        listed.filter((section) => !claimed.has(section.id)),
-        options.pendingRemovalSectionIds ?? /* @__PURE__ */ new Set()
-      );
-      for (const stage of adopted.stages.slice(config2.stages.length)) {
-        bb.log.info(
-          `action=section-adopted stage=${stage.key} section=${stage.sectionId}`
-        );
-      }
-      config2 = adopted;
-    }
     return config2;
   }
   async function loadConfig() {
@@ -15106,15 +15094,7 @@ async function plugin(bb) {
       await bb.storage.kv.get(CONFIG_KEY)
     );
     configSnapshot = await ensureWorkflowSections(
-      pending?.nextConfig ?? stored ?? cloneWorkflowConfig(DEFAULT_WORKFLOW_CONFIG),
-      {
-        adoptUnmanaged: true,
-        pendingRemovalSectionIds: new Set(
-          (pending?.removedStages ?? []).flatMap(
-            (stage) => stage.sectionId ? [stage.sectionId] : []
-          )
-        )
-      }
+      pending?.nextConfig ?? stored ?? cloneWorkflowConfig(DEFAULT_WORKFLOW_CONFIG)
     );
     if (configSnapshot.revision === void 0) configSnapshot.revision = 0;
     await bb.storage.kv.set(CONFIG_KEY, configSnapshot);
@@ -15146,6 +15126,7 @@ async function plugin(bb) {
     bb.log.info(
       `Thread Organizer loaded stages=${configSnapshot.stages.length}`
     );
+    requestAdoption();
   }
   function initialRememberedStage(thread) {
     const current = stageForSectionId(configSnapshot, thread.sectionId);
@@ -15210,12 +15191,13 @@ async function plugin(bb) {
     await bb.storage.kv.set(threadStateKey(threadId), state);
   }
   async function reconcileThread(threadId, options = {}) {
-    const { explicitStageKey, seedLanding = false } = options;
+    const { explicitStageKey, seedLanding = false, evictFromSectionIds } = options;
     const thread = await bb.sdk.threads.get({ threadId });
     if (!isManageableThread(thread)) return null;
     const { created, state } = await readThreadState(thread);
     const currentStage = stageForSectionId(configSnapshot, thread.sectionId);
-    if (explicitStageKey === void 0 && !seedLanding && thread.sectionId !== null && currentStage === null) {
+    if (explicitStageKey === void 0 && thread.sectionId !== null && currentStage === null && !evictFromSectionIds?.has(thread.sectionId)) {
+      requestAdoption();
       return null;
     }
     if (explicitStageKey) {
@@ -15386,12 +15368,20 @@ async function plugin(bb) {
   async function finishConfigOperation(operation) {
     configSnapshot = cloneWorkflowConfig(operation.nextConfig);
     await bb.storage.kv.set(CONFIG_KEY, configSnapshot);
+    const evictFromSectionIds = new Set(
+      operation.removedStages.flatMap(
+        (stage) => stage.sectionId === null ? [] : [stage.sectionId]
+      )
+    );
     let failed = 0;
     for (const threadId of await listManageableThreadIds()) {
       if (disposed) break;
       try {
         await enqueue(threadId, async () => {
-          await reconcileThread(threadId, { seedLanding: true });
+          await reconcileThread(threadId, {
+            seedLanding: true,
+            evictFromSectionIds
+          });
         });
       } catch {
         failed += 1;
@@ -15426,6 +15416,48 @@ async function plugin(bb) {
       await bb.storage.kv.get(PENDING_CONFIG_OPERATION_KEY)
     );
     return parsed.success ? parsed.data : null;
+  }
+  let adoptionQueued = false;
+  function requestAdoption() {
+    if (adoptionQueued || disposed) return;
+    adoptionQueued = true;
+    configQueue = configQueue.catch(() => void 0).then(async () => {
+      adoptionQueued = false;
+      if (disposed) return;
+      const pending = await pendingConfigOperation();
+      const pendingRemovalSectionIds = new Set(
+        (pending?.removedStages ?? []).flatMap(
+          (stage) => stage.sectionId === null ? [] : [stage.sectionId]
+        )
+      );
+      const previous = configSnapshot;
+      const next = adoptUnmanagedSections(
+        previous,
+        await bb.sdk.threadSections.list(),
+        pendingRemovalSectionIds
+      );
+      if (next.stages.length === previous.stages.length) return;
+      next.revision = (previous.revision ?? 0) + 1;
+      configSnapshot = next;
+      await bb.storage.kv.set(CONFIG_KEY, configSnapshot);
+      if (pending !== null) {
+        await bb.storage.kv.set(PENDING_CONFIG_OPERATION_KEY, {
+          ...pending,
+          nextConfig: cloneWorkflowConfig(configSnapshot)
+        });
+      }
+      for (const stage of next.stages.slice(previous.stages.length)) {
+        bb.log.info(
+          `action=section-adopted stage=${stage.key} section=${stage.sectionId}`
+        );
+      }
+      bb.realtime.publish("workflow-config-changed", {
+        version: configSnapshot.version,
+        revision: configSnapshot.revision ?? 0
+      });
+    }).catch((error51) => {
+      bb.log.error(`action=adoption-failed error=${describeError(error51)}`);
+    });
   }
   async function saveConfig(edited) {
     let result = configSnapshot;
@@ -15497,6 +15529,7 @@ async function plugin(bb) {
     "  bb organizer prompt [<stage-key>] [--set <text> | --clear]",
     "  bb organizer section list",
     "  bb organizer section add <title> [--after <stage-key>] [--rule <text>]",
+    "  bb organizer section rule <stage-key> [--set <text>]",
     ""
   ].join("\n");
   const SECTION_TITLE_MAX_LENGTH = 80;
@@ -15723,6 +15756,7 @@ Available: ${stageKeysLine(true)}
       return { exitCode: 0, stdout: `${lines.join("\n")}
 ` };
     }
+    if (subcommand === "rule") return runSectionRule(rest, context);
     if (subcommand !== "add") return { exitCode: 2, stderr: CLI_USAGE };
     const [rawTitle, ...options] = rest;
     const title = rawTitle?.trim() ?? "";
@@ -15797,6 +15831,52 @@ Available: ${stageKeysLine(true)}
       }
     });
   }
+  async function runSectionRule(argv, context) {
+    const [rawKey, ...rest] = argv;
+    if (rawKey === void 0) return { exitCode: 2, stderr: CLI_USAGE };
+    const stage = findStage(configSnapshot, rawKey);
+    if (!stage) {
+      return {
+        exitCode: 2,
+        stderr: `Unknown stage: ${rawKey}
+Available: ${stageKeysLine(true)}
+`
+      };
+    }
+    if (rest.length === 0) return { exitCode: 0, stdout: `${stage.rule}
+` };
+    if (stage.role === "inbox") {
+      return { exitCode: 2, stderr: "Inbox routing and its rule cannot be changed.\n" };
+    }
+    const text = rest[1];
+    if (rest[0] !== "--set" || rest.length !== 2 || text === void 0) {
+      return { exitCode: 2, stderr: CLI_USAGE };
+    }
+    if (text.trim().length === 0) {
+      return { exitCode: 2, stderr: "Provide the rule text after --set.\n" };
+    }
+    return confirmAndSave(context, {
+      title: `Set the rule for ${stage.title}`,
+      summary: () => `Agents will file work into ${stage.title} by this rule:`,
+      field: "rule",
+      apply: (current) => {
+        const edited = editableWorkflowConfig(current);
+        const index = edited.stages.findIndex((entry) => entry.key === stage.key);
+        const target = edited.stages[index];
+        if (index < 0 || target === void 0) {
+          throw new CliInputError(
+            `Stage ${stage.key} no longer exists; the workflow changed elsewhere.`
+          );
+        }
+        edited.stages[index] = { ...target, rule: text };
+        return {
+          edited,
+          message: `Set the rule for ${stageLabel(stage)}.`,
+          key: stage.key
+        };
+      }
+    });
+  }
   bb.cli.register({
     name: "organizer",
     summary: "Manage workflow sections and entry prompts, or move the current thread",
@@ -15814,7 +15894,7 @@ Available: ${stageKeysLine(true)}
       {
         name: "section",
         summary: "List sections or add one (changes ask for approval in the thread)",
-        usage: "bb organizer section list | add <title> [--after <stage-key>] [--rule <text>]"
+        usage: "bb organizer section list | add <title> [--after <stage-key>] [--rule <text>] | rule <stage-key> [--set <text>]"
       }
     ],
     async run(argv, context) {
@@ -15871,6 +15951,13 @@ Available: ${stageKeysLine(true)}
       })
     );
   }
+  const unsubscribeSections = bb.sdk.subscribe({
+    event: "project:changed",
+    projectId: PERSONAL_PROJECT_ID,
+    callback(event) {
+      if (event.changes.includes("threads-changed")) requestAdoption();
+    }
+  });
   const unsubscribe = bb.sdk.subscribe({
     event: "thread:changed",
     callback(event) {
@@ -15889,6 +15976,7 @@ Available: ${stageKeysLine(true)}
   bb.onDispose(async () => {
     disposed = true;
     reconciliationController.abort();
+    unsubscribeSections();
     unsubscribe();
     await Promise.allSettled([
       startupReconciliation,
