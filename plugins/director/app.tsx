@@ -171,7 +171,7 @@ function ReviewVersion({threadId,versionId,onDirty}: {threadId:string;versionId:
   const refresh=useCallback(()=>setReload(n=>n+1),[]);
   const dirtyChanged=useCallback((value:boolean)=>{setDirty(value);onDirty?.(value);},[onDirty]);
   useEffect(()=>{let cancelled=false;setError("");setPreview(null);setVersion(null);void Promise.all([rpc.call("version",{threadId,versionId}),rpc.call("preview",{threadId,versionId})]).then(([v,p])=>{if(!cancelled){setVersion(v);setPreview(p);}}).catch(e=>{if(!cancelled)setError(errorText(e));});return()=>{cancelled=true;};},[rpc,threadId,versionId]);
-  useEffect(()=>{let cancelled=false;void(async()=>{const all:FrameNote[]=[];let offset:number|null=0;do{const page=await rpc.call("notes",{threadId,versionId,offset});all.push(...page.notes);offset=page.nextOffset;}while(offset!==null&&!cancelled);if(!cancelled)setNotes(all);})().catch(e=>{if(!cancelled)setError(errorText(e));});return()=>{cancelled=true;};},[rpc,threadId,versionId,reload]);
+  useEffect(()=>{let cancelled=false;void(async()=>{const all:FrameNote[]=[];let offset:number|null=0;do{const page: {notes: FrameNote[]; nextOffset: number | null}=await rpc.call("notes",{threadId,versionId,offset});all.push(...page.notes);offset=page.nextOffset;}while(offset!==null&&!cancelled);if(!cancelled)setNotes(all);})().catch(e=>{if(!cancelled)setError(errorText(e));});return()=>{cancelled=true;};},[rpc,threadId,versionId,reload]);
   useRealtime("changed",refresh);
   if(error&&!version)return <ErrorNotice>{error}</ErrorNotice>;
   if(!version||!preview)return <Notice>Opening version…</Notice>;
@@ -187,7 +187,7 @@ export function DirectorPanel({threadId,params}: PluginThreadPanelProps) {
   const [versions,setVersions]=useState<Version[]>([]),[current,setCurrent]=useState<string|null>(initial),[demo,setDemo]=useState<string|null>(null),[error,setError]=useState(""),[loading,setLoading]=useState(true),[reload,setReload]=useState(0),[registering,setRegistering]=useState(false),[dirty,setDirty]=useState(false);
   const refresh=useCallback(()=>setReload(n=>n+1),[]);
   useRealtime("changed",refresh);
-  useEffect(()=>{let cancelled=false;void(async()=>{const all:Version[]=[];let offset:number|null=0;do{const page=await rpc.call("versions",{threadId,offset});all.push(...page.versions);offset=page.nextOffset;}while(offset!==null&&!cancelled);if(!cancelled){setVersions(all);setCurrent(v=>v??all.at(-1)?.id??null);setLoading(false);}})().catch(e=>{if(!cancelled){setError(errorText(e));setLoading(false);}});return()=>{cancelled=true;};},[rpc,threadId,reload]);
+  useEffect(()=>{let cancelled=false;void(async()=>{const all:Version[]=[];let offset:number|null=0;do{const page: {versions: Version[]; nextOffset: number | null}=await rpc.call("versions",{threadId,offset});all.push(...page.versions);offset=page.nextOffset;}while(offset!==null&&!cancelled);if(!cancelled){setVersions(all);setCurrent(v=>v??all.at(-1)?.id??null);setLoading(false);}})().catch(e=>{if(!cancelled){setError(errorText(e));setLoading(false);}});return()=>{cancelled=true;};},[rpc,threadId,reload]);
   const active=versions.find(v=>v.id===current),activeDemo=demo??active?.demo??versions.at(-1)?.demo;
   const rail=versions.filter(v=>v.demo===activeDemo);
   return <main className="director bg-background text-foreground">
@@ -207,7 +207,7 @@ export function DirectorFileViewer({path,source}: PluginFileOpenerProps) {
   const sourceKey=JSON.stringify(source);
   useEffect(()=>{let cancelled=false;setPreview(null);setVersion(null);setError("");void(async()=>{
     const p=await rpc.call("openFile",{file:path,source}); if(cancelled)return;setPreview(p);
-    if(source.threadId){let offset:number|null=0;do{const result=await rpc.call("versions",{threadId:source.threadId,offset});const found=result.versions.find(v=>v.media.path===p.media.path && v.media.hostId===p.media.hostId && v.media.modifiedAt===p.media.modifiedAt);if(found){if(!cancelled)setVersion(found);break;}offset=result.nextOffset;}while(offset!==null&&!cancelled);}
+    if(source.threadId){let offset:number|null=0;do{const result: {versions: Version[]; nextOffset: number | null}=await rpc.call("versions",{threadId:source.threadId,offset});const found=result.versions.find(v=>v.media.path===p.media.path && v.media.hostId===p.media.hostId && v.media.modifiedAt===p.media.modifiedAt);if(found){if(!cancelled)setVersion(found);break;}offset=result.nextOffset;}while(offset!==null&&!cancelled);}
   })().catch(e=>{if(!cancelled)setError(errorText(e));});return()=>{cancelled=true;};},[path,sourceKey,rpc]);
   return <main className="director director-review bg-background text-foreground">{error?<ErrorNotice>{error}</ErrorNotice>:version&&source.threadId?<ReviewVersion threadId={source.threadId} versionId={version.id}/>:preview?<><Player key={path} preview={preview}/>{source.threadId?<RegistrationForm threadId={source.threadId} file={path} source={source} onRegistered={setVersion}/>:<Notice>Open this video from a thread to save frame notes and versions.</Notice>}</>:<Notice>Opening video…</Notice>}</main>;
 }
