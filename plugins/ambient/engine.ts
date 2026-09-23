@@ -16,9 +16,22 @@ void main() {
 
 export type CompileResult = { ok: true } | { ok: false; log: string };
 
+const MOTION_SAMPLE_WIDTH = 64;
+
 export interface Capture {
   dataUrl: string;
   visibility: { fromBackground: number; spread: number };
+  samples: Float32Array;
+}
+
+export function motionBetween(before: Capture, after: Capture): number {
+  const length = Math.min(before.samples.length, after.samples.length);
+  if (length === 0) return 0;
+  let total = 0;
+  for (let index = 0; index < length; index += 1) {
+    total += Math.abs(before.samples[index]! - after.samples[index]!);
+  }
+  return total / length;
 }
 
 export interface ThemeColors {
@@ -166,7 +179,20 @@ export class AmbientRenderer {
     gl.drawArrays(gl.TRIANGLES, 0, 3);
   }
 
-  capture(maxWidth: number, canvasColor: readonly [number, number, number]): Capture {
+  benchmark(input: FrameInput, frames: number): number {
+    const { gl } = this;
+    gl.finish();
+    const start = performance.now();
+    for (let index = 0; index < frames; index += 1) this.render(input);
+    gl.finish();
+    return (performance.now() - start) / frames;
+  }
+
+  capture(
+    maxWidth: number,
+    canvasColor: readonly [number, number, number],
+    options: { encode: boolean },
+  ): Capture {
     const source = this.canvas;
     const scale = Math.min(1, maxWidth / source.width);
     const target = document.createElement("canvas");
@@ -191,12 +217,25 @@ export class AmbientRenderer {
       samples += 1;
     }
     const mean = lumaSum / samples;
+    const small = document.createElement("canvas");
+    small.width = MOTION_SAMPLE_WIDTH;
+    small.height = Math.max(1, Math.round((MOTION_SAMPLE_WIDTH * source.height) / source.width));
+    const smallContext = small.getContext("2d", { willReadFrequently: true });
+    if (!smallContext) throw new Error("2D canvas unavailable");
+    smallContext.drawImage(target, 0, 0, small.width, small.height);
+    const smallData = smallContext.getImageData(0, 0, small.width, small.height).data;
+    const lumas = new Float32Array(smallData.length / 4);
+    for (let index = 0; index < lumas.length; index += 1) {
+      lumas[index] =
+        (0.2126 * smallData[index * 4]! + 0.7152 * smallData[index * 4 + 1]! + 0.0722 * smallData[index * 4 + 2]!) / 255;
+    }
     return {
-      dataUrl: target.toDataURL("image/png"),
+      dataUrl: options.encode ? target.toDataURL("image/png") : "",
       visibility: {
         fromBackground: distance / samples,
         spread: Math.sqrt(Math.max(0, lumaSquares / samples - mean * mean)),
       },
+      samples: lumas,
     };
   }
 

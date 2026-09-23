@@ -1,7 +1,14 @@
 import { createFakePluginHost } from "@get-bb/plugin-sdk/testing";
 import { describe, expect, it } from "vitest";
 
-import plugin, { describeVisibility, isDailyDue, localMoment, type DailyScene } from "./server";
+import plugin, {
+  DAILY_CONCEPTS,
+  dailyConcept,
+  describeVisibility,
+  isDailyDue,
+  localMoment,
+  type DailyScene,
+} from "./server";
 
 describe("Ambient plugin", () => {
   it("loads through the bb plugin harness", async () => {
@@ -14,9 +21,30 @@ describe("Ambient plugin", () => {
 
 describe("look visibility", () => {
   it("flags a dimmed, flat scene but not the sparse built-in ones", () => {
-    expect(describeVisibility({ fromBackground: 0.104, spread: 0.009 }, true)).toContain("Too faint");
-    expect(describeVisibility({ fromBackground: 0.115, spread: 0.051 }, true)).not.toContain("Too faint");
-    expect(describeVisibility({ fromBackground: 0.369, spread: 0.141 }, true)).not.toContain("Too faint");
+    expect(describeVisibility({ fromBackground: 0.104, spread: 0.009, motion: 0.01, frameMs: 2, detail: 0.5 }, true)).toContain("Too faint");
+    expect(describeVisibility({ fromBackground: 0.115, spread: 0.051, motion: 0.01, frameMs: 2, detail: 0.5 }, true)).not.toContain("Too faint");
+    expect(describeVisibility({ fromBackground: 0.369, spread: 0.141, motion: 0.01, frameMs: 2, detail: 0.5 }, true)).not.toContain("Too faint");
+  });
+
+  it("flags a scene that barely moves", () => {
+    expect(describeVisibility({ fromBackground: 0.3, spread: 0.1, motion: 0.0005, frameMs: 2, detail: 0.5 }, true)).toContain("Nearly still");
+    expect(describeVisibility({ fromBackground: 0.3, spread: 0.1, motion: 0.01, frameMs: 2, detail: 0.5 }, true)).not.toContain("Nearly still");
+  });
+});
+
+describe("look cost", () => {
+  it("flags a scene that is too expensive to render", () => {
+    const base = { fromBackground: 0.3, spread: 0.1, motion: 0.01, detail: 0.5 };
+    expect(describeVisibility({ ...base, frameMs: 40 }, true)).toContain("Too heavy");
+    expect(describeVisibility({ ...base, frameMs: 2 }, true)).not.toContain("Too heavy");
+  });
+});
+
+describe("daily concepts", () => {
+  it("rotates to a different concept on consecutive days", () => {
+    const concepts = ["2026-09-22", "2026-09-23", "2026-09-24"].map(dailyConcept);
+    expect(new Set(concepts).size).toBe(3);
+    expect(DAILY_CONCEPTS).toContain(concepts[0]);
   });
 });
 

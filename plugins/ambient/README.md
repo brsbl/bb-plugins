@@ -25,10 +25,10 @@ bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/ambient --y
 
 | Surface | What it does |
 | --- | --- |
-| Sidebar footer → Ambient | Scene picker, generated sliders, palette, show-through, speed, resolution, test ripples, save |
-| `ambient` agent tool | `get`, `set`, `look`, `library`, `load`, `save` |
+| Sidebar footer → Ambient | Scene picker and Save; each scene's sliders and four colors; Display (Visibility: how much shows through bb, Motion: speed, Detail: render resolution); Preview a ripple |
+| `ambient` agent tool | `get`, `set`, `look` (with visibility and motion checks), `library`, `load`, `save` |
 | `bb ambient` | `status`, `list`, `load`, `set <param>=<value>`, `save`, `delete`, `on`, `off`, `daily` |
-| Sidebar footer → Ambient → Daily scene | An agent paints and saves a new scene each morning after the hour you pick, in your time zone; **Paint one now** runs it immediately |
+| Sidebar footer → Ambient → New scene every morning | After the hour you pick, in your time zone, an agent paints, checks, and saves a new scene around a rotating concept; **Paint now** runs it immediately |
 
 Built-in scenes: **Tide**, **Fireflies**, and **Contour**.
 

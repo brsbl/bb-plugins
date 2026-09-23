@@ -85,24 +85,36 @@ const summarySchema = z.object({
 const visibilitySchema = z.object({
   fromBackground: z.number().min(0).max(1),
   spread: z.number().min(0).max(1),
+  motion: z.number().min(0).max(1),
+  frameMs: z.number().min(0).max(10_000),
+  detail: z.number().min(0).max(1),
 });
 
 const FAINT_FROM_BACKGROUND = 0.06;
 const FLAT_SPREAD = 0.025;
+const STILL_MOTION = 0.0025;
+const HEAVY_FRAME_MS = 8;
 
 export function describeVisibility(
   visibility: z.infer<typeof visibilitySchema>,
   dark: boolean,
 ): string {
   const percent = (value: number) => `${Math.round(value * 100)}%`;
-  const measured = `Measured against bb's ${dark ? "dark" : "light"} background: ${percent(visibility.fromBackground)} average color difference, ${percent(visibility.spread)} brightness variation.`;
-  const problems = [
+  const measured = `Measured against bb's ${dark ? "dark" : "light"} background: ${percent(visibility.fromBackground)} average color difference, ${percent(visibility.spread)} brightness variation, ${(visibility.motion * 100).toFixed(1)}% change over one second. One frame takes ${visibility.frameMs.toFixed(1)} ms to render at ${percent(visibility.detail)} detail.`;
+  const faint = [
     visibility.fromBackground < FAINT_FROM_BACKGROUND &&
       "the scene is nearly the same color as bb's background, so it will be close to invisible behind bb's veil",
     visibility.spread < FLAT_SPREAD && "the scene is almost flat, with little visible structure",
   ].filter(Boolean);
-  if (problems.length === 0) return measured;
-  return `${measured} Too faint: ${problems.join("; ")}. The veil already adapts to the theme, so do not darken or wash out the scene yourself; raise its contrast and color.`;
+  const notes = [
+    faint.length > 0 &&
+      `Too faint: ${faint.join("; ")}. The veil already adapts to the theme, so do not darken or wash out the scene yourself; raise its contrast and color.`,
+    visibility.motion < STILL_MOTION &&
+      "Nearly still: almost nothing moved in a second at the user's speed. Give the scene visible, continuous motion.",
+    visibility.frameMs > HEAVY_FRAME_MS &&
+      `Too heavy: frames should render in under ${HEAVY_FRAME_MS} ms or bb slows down. Use fewer loop iterations and fbm octaves, and never call fbm inside the per-agent or per-ripple loops.`,
+  ].filter(Boolean);
+  return [measured, ...notes].join(" ");
 }
 
 const timeZoneSchema = z.string().min(1).max(64).refine((zone) => {
@@ -288,16 +300,62 @@ export function isDailyDue(daily: DailyScene, at: Date): boolean {
   return moment.date !== daily.lastRunDate && moment.hour >= daily.hour;
 }
 
-export function dailyPrompt(moment: LocalMoment, timeZone: string): string {
+export const DAILY_CONCEPTS = [
+  "bioluminescent tide pool at night, agents as glowing jellyfish",
+  "aurora over a frozen lake, agents as drifting lanterns on the ice",
+  "koi pond from above, agents as koi that leave wakes",
+  "rain running down a window with city bokeh behind it, agents as passing headlights",
+  "ink blooming in water, agents as drops that keep feeding new blooms",
+  "murmuration of starlings at dusk, agents as the birds leading the flock",
+  "slow meteor shower over a desert, agents as comets with tails",
+  "paper-cut mountain ranges in parallax, agents as hot-air balloons",
+  "lava lamp, agents as rising wax blobs",
+  "wheat field swaying in wind, agents as gusts moving through it",
+  "coral reef caustics, agents as small bright fish",
+  "neon fog over a night city, agents as moving signs",
+  "snow falling under streetlights, agents as the lamps",
+  "deep-space nebula with slow gas currents, agents as newborn stars",
+  "cloud chamber with particle trails, agents as the particle sources",
+  "sun through slowly turning window blinds, agents as floating dust motes",
+  "ocean swell from above with foam lines, agents as small boats",
+  "moss and ferns on a forest floor with drifting pollen, agents as fireflies",
+  "stained glass lit from behind by a moving sun, agents as brighter panes",
+  "sand dunes shifting at golden hour, agents as wandering caravans",
+] as const;
+
+export function dailyConcept(date: string): string {
+  const [year, month, day] = date.split("-").map(Number);
+  const dayNumber = Math.floor(Date.UTC(year!, month! - 1, day!) / 86_400_000);
+  return DAILY_CONCEPTS[dayNumber % DAILY_CONCEPTS.length]!;
+}
+
+export function dailyPrompt(
+  moment: LocalMoment,
+  timeZone: string,
+  recentScenes: readonly string[],
+): string {
   return [
-    `Paint today's Ambient scene: the generative background bb shows behind its UI. It is ${moment.label} in the user's time zone (${timeZone}).`,
+    `Paint today's Ambient scene: the living background bb shows behind its UI. It is ${moment.label} in the user's time zone (${timeZone}).`,
+    `Today's starting concept: ${dailyConcept(moment.date)}. Make it your own; let the season, the time of day, and what the user has been working on lately (\`bb thread list\` shows recent thread titles) color it.`,
+    recentScenes.length > 0
+      ? `Recent scenes to stay clearly different from: ${recentScenes.join(", ")}.`
+      : "",
+    "It should feel alive, not like a still gradient:",
+    "- Continuous, visible motion at the default speed: things drift, flow, orbit, or fall. Layer at least two motions at different speeds.",
+    "- Agents (u_agents) are characters in the concept, not generic dots: give working agents movement or trails and let waiting agents pulse or call out.",
+    "- Ripples (u_ripples) are events in the concept, like splashes, bursts, or gusts. Errors (kind 1) read red or alarming.",
+    "- The cursor (u_pointer) disturbs the scene nearby.",
+    "- Stay readable behind text: the motion can be lively, but keep contrast soft in the middle of the screen.",
+    "Steps:",
     "1. Call the ambient tool with action=get to read the shader contract and the current scene.",
-    "2. Write a new scene with action=set that fits today. Draw on the season and time of day, and on what the user has been working on lately (`bb thread list` shows recent thread titles). It must stay calm and low-contrast enough to sit behind text. Name it after the day's mood in under 40 characters, and expose 3 to 6 params someone would enjoy tuning.",
-    "3. If the compile fails, fix the GLSL and set it again. Then call action=look and adjust until the capture is neither too busy nor reported as too faint.",
+    "2. Write the scene with action=set. Name it evocatively in under 40 characters, and expose 3 to 6 params someone would enjoy tuning (for example speed of a motion, density, glow, trail length).",
+    "3. If the compile fails, fix the GLSL and set it again. Then call action=look with ripple=done and adjust until the report flags nothing (not too faint, nearly still, or too heavy) and the image shows the concept clearly.",
     "4. Call action=save so the scene lands in the library.",
     "If no bb window is open, set reports the scene as unverified and look cannot capture; keep the GLSL conservative and save anyway.",
     "Finish with one sentence describing the scene.",
-  ].join("\n");
+  ]
+    .filter(Boolean)
+    .join("\n");
 }
 
 function describeScene(state: AmbientState): string {
@@ -371,7 +429,11 @@ export default function plugin(bb: BbPluginApi): void {
       projectId: PERSONAL_PROJECT_ID,
       environment: { type: "project-default" },
       title: `Ambient scene for ${moment.label.split(" at ")[0]}`,
-      prompt: dailyPrompt(moment, daily.timeZone),
+      prompt: dailyPrompt(
+        moment,
+        daily.timeZone,
+        (await listLibrary()).slice(0, 5).map((entry) => entry.scene.name),
+      ),
     });
     const threadId = thread.id;
     await writeDaily({ ...daily, lastRunDate: moment.date, lastThreadId: threadId });

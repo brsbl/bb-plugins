@@ -9,13 +9,19 @@ import {
 } from "@get-bb/plugin-sdk/app";
 
 import { ActivityField, signalsOf } from "./activity.js";
-import { AmbientRenderer, type ThemeColors } from "./engine.js";
+import { AmbientRenderer, motionBetween, type FrameInput, type ThemeColors } from "./engine.js";
 import { DEFAULT_SCENE, type Controls, type RippleKind, type SceneParam } from "./scene.js";
 import type { AmbientState, CaptureRequest, DailyScene, ambientRpcContract } from "./server.js";
 import { ambientStore, useAmbient } from "./store.js";
 
 const FRAME_INTERVAL_MS = 1000 / 30;
+const SLOW_FRAME_MS = 60;
+const FAST_FRAME_MS = 40;
+const STALLED_FRAME_INTERVAL_MS = 250;
+const MIN_AUTO_SCALE = 0.25;
 const CAPTURE_DELAY_MS = 900;
+const MOTION_SAMPLE_MS = 1000;
+const BENCHMARK_FRAMES = 6;
 const VEIL_STYLE_ID = "bb-ambient-veil";
 
 function veilCss(showThrough: number): string {
@@ -176,20 +182,29 @@ function AmbientOverlay() {
     renderer.setParamValues(valuesOf(state.scene.params));
   }, [canvas, rpc, state]);
 
-  const renderFrame = useCallback((clock: { time: number }) => {
-    const renderer = rendererRef.current;
-    const current = liveRef.current.state;
-    if (!renderer || !current) return;
-    const field = fieldRef.current;
-    renderer.resize(current.controls.quality);
-    renderer.render({
+  const autoScaleRef = useRef(1);
+
+  const frameInput = useCallback(
+    (clock: { time: number }): FrameInput => ({
       time: clock.time,
-      frame: field.step(performance.now() / 1000),
+      frame: fieldRef.current.step(performance.now() / 1000),
       pointer: liveRef.current.pointer,
       theme: liveRef.current.theme,
-    });
-    ambientStore.setSummary(field.summary());
-  }, []);
+    }),
+    [],
+  );
+
+  const renderFrame = useCallback(
+    (clock: { time: number }) => {
+      const renderer = rendererRef.current;
+      const current = liveRef.current.state;
+      if (!renderer || !current) return;
+      renderer.resize(current.controls.quality * autoScaleRef.current);
+      renderer.render(frameInput(clock));
+      ambientStore.setSummary(fieldRef.current.summary());
+    },
+    [frameInput],
+  );
 
   const clockRef = useRef({ time: 0 });
 
@@ -198,6 +213,8 @@ function AmbientOverlay() {
     const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
     let frame = 0;
     let last = performance.now();
+    let average = FRAME_INTERVAL_MS;
+    let lastAdjust = last;
     const loop = (timestamp: number) => {
       frame = requestAnimationFrame(loop);
       if (document.hidden) {
@@ -205,8 +222,18 @@ function AmbientOverlay() {
         return;
       }
       const elapsed = timestamp - last;
-      if (elapsed < FRAME_INTERVAL_MS) return;
+      const stalled = autoScaleRef.current <= MIN_AUTO_SCALE && average > SLOW_FRAME_MS * 2;
+      if (elapsed < (stalled ? STALLED_FRAME_INTERVAL_MS : FRAME_INTERVAL_MS)) return;
       last = timestamp;
+      average = average * 0.9 + Math.min(elapsed, 1000) * 0.1;
+      if (average > SLOW_FRAME_MS && timestamp - lastAdjust > 1500 && autoScaleRef.current > MIN_AUTO_SCALE) {
+        autoScaleRef.current = Math.max(MIN_AUTO_SCALE, autoScaleRef.current * 0.7);
+        lastAdjust = timestamp;
+      } else if (average < FAST_FRAME_MS && timestamp - lastAdjust > 8000 && autoScaleRef.current < 1) {
+        autoScaleRef.current = Math.min(1, autoScaleRef.current / 0.85);
+        lastAdjust = timestamp;
+      }
+      ambientStore.setThrottled(autoScaleRef.current < 1);
       const speed = liveRef.current.state?.controls.speed ?? 1;
       clockRef.current.time +=
         (Math.min(elapsed, 250) / 1000) * speed * (reducedMotion.matches ? 0.25 : 1);
@@ -234,17 +261,27 @@ function AmbientOverlay() {
     window.setTimeout(
       () => {
         renderFrame(clockRef.current);
-        const { theme } = liveRef.current;
-        const { dataUrl, visibility } = renderer.capture(960, theme.canvas);
-        void rpc
-          .call("submitCapture", {
-            requestId: request.requestId,
-            dataUrl,
-            summary: fieldRef.current.summary(),
-            visibility,
-            dark: theme.dark,
-          })
-          .catch(() => undefined);
+        const before = renderer.capture(960, liveRef.current.theme.canvas, { encode: false });
+        window.setTimeout(() => {
+          renderFrame(clockRef.current);
+          const { theme } = liveRef.current;
+          const after = renderer.capture(960, theme.canvas, { encode: true });
+          const frameMs = renderer.benchmark(frameInput(clockRef.current), BENCHMARK_FRAMES);
+          void rpc
+            .call("submitCapture", {
+              requestId: request.requestId,
+              dataUrl: after.dataUrl,
+              summary: fieldRef.current.summary(),
+              visibility: {
+                ...after.visibility,
+                motion: motionBetween(before, after),
+                frameMs: Math.min(frameMs, 10_000),
+                detail: (liveRef.current.state?.controls.quality ?? 1) * autoScaleRef.current,
+              },
+              dark: theme.dark,
+            })
+            .catch(() => undefined);
+        }, MOTION_SAMPLE_MS);
       },
       request.ripple ? CAPTURE_DELAY_MS : 0,
     );
@@ -279,8 +316,17 @@ function AmbientOverlay() {
   );
 }
 
+function clamp(value: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, value));
+}
+
+function snap(value: number, min: number, max: number, step: number): number {
+  return clamp(Number((Math.round((value - min) / step) * step + min).toFixed(4)), min, max);
+}
+
 function Slider({
   label,
+  hint,
   value,
   min,
   max,
@@ -289,6 +335,7 @@ function Slider({
   onChange,
 }: {
   label: string;
+  hint?: string;
   value: number;
   min: number;
   max: number;
@@ -296,22 +343,58 @@ function Slider({
   format?: (value: number) => string;
   onChange: (value: number) => void;
 }) {
+  const track = useRef<HTMLDivElement>(null);
+  const fraction = (clamp(value, min, max) - min) / (max - min);
+  const text = format ? format(value) : value.toFixed(step >= 1 ? 0 : step >= 0.1 ? 1 : 2);
+  const fromPointer = (clientX: number) => {
+    const rect = track.current?.getBoundingClientRect();
+    if (!rect || rect.width === 0) return;
+    onChange(snap(min + ((clientX - rect.left) / rect.width) * (max - min), min, max, step));
+  };
   return (
-    <label className="grid grid-cols-[1fr_auto] items-center gap-x-2 gap-y-1">
+    <div className="grid h-6 grid-cols-[5.75rem_1fr_2.25rem] items-center gap-2" title={hint}>
       <span className="truncate text-xs text-muted-foreground">{label}</span>
-      <span className="text-xs tabular-nums text-muted-foreground">
-        {format ? format(value) : value.toFixed(step >= 1 ? 0 : 2)}
-      </span>
-      <input
-        type="range"
-        className="col-span-2 h-4 w-full cursor-pointer accent-primary"
-        min={min}
-        max={max}
-        step={step}
-        value={value}
-        onChange={(event) => onChange(Number(event.currentTarget.value))}
-      />
-    </label>
+      <div
+        ref={track}
+        role="slider"
+        tabIndex={0}
+        aria-label={label}
+        aria-valuemin={min}
+        aria-valuemax={max}
+        aria-valuenow={value}
+        aria-valuetext={text}
+        className="group relative flex h-5 cursor-pointer touch-none items-center outline-none"
+        onPointerDown={(event) => {
+          event.currentTarget.setPointerCapture(event.pointerId);
+          fromPointer(event.clientX);
+        }}
+        onPointerMove={(event) => {
+          if (event.currentTarget.hasPointerCapture(event.pointerId)) fromPointer(event.clientX);
+        }}
+        onKeyDown={(event) => {
+          const direction =
+            event.key === "ArrowRight" || event.key === "ArrowUp"
+              ? 1
+              : event.key === "ArrowLeft" || event.key === "ArrowDown"
+                ? -1
+                : 0;
+          if (direction === 0) return;
+          event.preventDefault();
+          onChange(snap(value + direction * step * (event.shiftKey ? 10 : 1), min, max, step));
+        }}
+      >
+        <div className="h-0.5 w-full rounded-full bg-foreground/15" />
+        <div
+          className="absolute left-0 h-0.5 rounded-full bg-foreground/60"
+          style={{ width: `${fraction * 100}%` }}
+        />
+        <div
+          className="absolute size-2.5 -translate-x-1/2 rounded-full bg-foreground shadow-sm transition-transform group-hover:scale-125 group-focus-visible:ring-2 group-focus-visible:ring-ring"
+          style={{ left: `${fraction * 100}%` }}
+        />
+      </div>
+      <span className="text-right text-xs tabular-nums text-muted-foreground">{text}</span>
+    </div>
   );
 }
 
@@ -343,18 +426,50 @@ function useDebouncedCall<Args extends unknown[]>(
   );
 }
 
-const RIPPLE_BUTTONS: { kind: RippleKind; label: string }[] = [
-  { kind: "done", label: "Done" },
-  { kind: "error", label: "Error" },
-  { kind: "started", label: "Start" },
+const RIPPLE_BUTTONS: { kind: RippleKind; label: string; dot: string }[] = [
+  { kind: "started", label: "Start", dot: "bg-foreground/50" },
+  { kind: "done", label: "Done", dot: "bg-foreground" },
+  { kind: "error", label: "Error", dot: "bg-destructive" },
 ];
 
-function Section({ title, children }: { title: string; children: ReactNode }) {
+function Section({
+  title,
+  action,
+  children,
+}: {
+  title: string;
+  action?: ReactNode;
+  children: ReactNode;
+}) {
   return (
-    <section className="space-y-2">
-      <h3 className="text-xs font-medium text-foreground">{title}</h3>
+    <section className="space-y-1">
+      <div className="flex h-5 items-center justify-between gap-2">
+        <h3 className="text-xs font-medium text-foreground/70">{title}</h3>
+        {action}
+      </div>
       {children}
     </section>
+  );
+}
+
+function TextButton({
+  children,
+  disabled,
+  onClick,
+}: {
+  children: ReactNode;
+  disabled?: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      disabled={disabled}
+      onClick={onClick}
+      className="rounded-full px-1.5 text-xs text-muted-foreground transition-colors hover:text-foreground disabled:opacity-50"
+    >
+      {children}
+    </button>
   );
 }
 
@@ -374,10 +489,10 @@ function Switch({
       aria-checked={checked}
       aria-label={label}
       onClick={() => onChange(!checked)}
-      className={`relative h-5 w-9 shrink-0 rounded-full transition-colors ${checked ? "bg-primary" : "bg-muted"}`}
+      className={`relative h-4 w-7 shrink-0 rounded-full transition-colors ${checked ? "bg-foreground" : "bg-foreground/20"}`}
     >
       <span
-        className={`absolute top-0.5 left-0.5 size-4 rounded-full bg-background shadow-sm transition-transform ${checked ? "translate-x-4" : "translate-x-0"}`}
+        className={`absolute top-0.5 left-0.5 size-3 rounded-full bg-background shadow-sm transition-transform ${checked ? "translate-x-3" : "translate-x-0"}`}
       />
     </button>
   );
@@ -387,7 +502,7 @@ function hourLabel(hour: number): string {
   return new Date(2000, 0, 1, hour).toLocaleTimeString([], { hour: "numeric" });
 }
 
-function DailySceneSection() {
+function DailySceneRow() {
   const rpc = useRpc<typeof ambientRpcContract>();
   const [daily, setDaily] = useState<DailyScene | null>(null);
   const [painting, setPainting] = useState(false);
@@ -417,57 +532,54 @@ function DailySceneSection() {
   };
 
   return (
-    <Section title="Daily scene">
-      <div className="flex items-center justify-between gap-2">
-        <span className="text-xs text-muted-foreground">An agent paints a new scene every morning</span>
+    <Section
+      title="New scene every morning"
+      action={
         <Switch
           checked={daily.enabled}
-          label="Daily scene"
+          label="New scene every morning"
           onChange={(enabled) => void update({ enabled })}
         />
-      </div>
-      {daily.enabled && (
-        <label className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
-          <span>After</span>
-          <select
-            value={daily.hour}
-            onChange={(event) => void update({ hour: Number(event.currentTarget.value) })}
-            className="rounded-md border border-border bg-transparent px-1.5 py-0.5 text-xs text-foreground"
+      }
+    >
+      <div className="flex h-6 items-center gap-1 text-xs text-muted-foreground">
+        <span>An agent paints one after</span>
+        <select
+          aria-label="Daily scene hour"
+          value={daily.hour}
+          onChange={(event) => void update({ hour: Number(event.currentTarget.value) })}
+          className="cursor-pointer appearance-none rounded bg-transparent px-0.5 text-xs text-foreground underline decoration-foreground/30 underline-offset-2 outline-none"
+        >
+          {Array.from({ length: 24 }, (_, hour) => (
+            <option key={hour} value={hour}>
+              {hourLabel(hour)}
+            </option>
+          ))}
+        </select>
+        <span className="ml-auto">
+          <TextButton
+            disabled={painting}
+            onClick={async () => {
+              setPainting(true);
+              try {
+                await rpc.call("paintNow");
+                await refresh();
+              } finally {
+                setPainting(false);
+              }
+            }}
           >
-            {Array.from({ length: 24 }, (_, hour) => (
-              <option key={hour} value={hour}>
-                {hourLabel(hour)}
-              </option>
-            ))}
-          </select>
-        </label>
-      )}
-      <button
-        type="button"
-        disabled={painting}
-        onClick={async () => {
-          setPainting(true);
-          try {
-            await rpc.call("paintNow");
-            await refresh();
-          } finally {
-            setPainting(false);
-          }
-        }}
-        className="w-full rounded-md border border-border px-2 py-1 text-xs text-foreground transition-colors hover:bg-accent disabled:opacity-50"
-      >
-        {painting ? "Starting…" : "Paint one now"}
-      </button>
-      {daily.lastRunDate && (
-        <div className="text-xs text-muted-foreground">Last painted {daily.lastRunDate}</div>
-      )}
+            {painting ? "Starting…" : "Paint now"}
+          </TextButton>
+        </span>
+      </div>
     </Section>
   );
 }
 
 function AmbientControls() {
   const rpc = useRpc<typeof ambientRpcContract>();
-  const { state, summary, compileError } = useAmbient();
+  const { state, summary, compileError, throttled } = useAmbient();
   const [library, setLibrary] = useState<{ id: string; name: string; builtIn: boolean }[]>([]);
   const [saving, setSaving] = useState(false);
 
@@ -528,14 +640,21 @@ function AmbientControls() {
   }
 
   const { scene, controls } = state;
+  const activity =
+    summary.working + summary.waiting === 0
+      ? "No agents running"
+      : [
+          summary.working > 0 && `${summary.working} working`,
+          summary.waiting > 0 && `${summary.waiting} waiting on you`,
+        ]
+          .filter(Boolean)
+          .join(" · ");
   return (
-    <div className="max-h-[70vh] w-full space-y-4 overflow-y-auto p-3">
+    <div className="max-h-[70vh] w-full space-y-3 overflow-y-auto px-3 pt-2 pb-3">
       <div className="flex items-center justify-between gap-2">
         <div className="min-w-0">
-          <div className="truncate text-sm font-medium text-foreground">{scene.name}</div>
-          <div className="text-xs text-muted-foreground">
-            {summary.working} working · {summary.waiting} waiting
-          </div>
+          <div className="truncate text-sm font-medium text-foreground">Ambient</div>
+          <div className="truncate text-xs text-muted-foreground">{activity}</div>
         </div>
         <Switch
           checked={controls.enabled}
@@ -550,14 +669,38 @@ function AmbientControls() {
         </pre>
       )}
 
-      <Section title="Scene">
+      {throttled && (
+        <div className="text-xs text-muted-foreground">
+          This scene is heavy for this machine, so Ambient lowered its detail to keep bb responsive.
+        </div>
+      )}
+
+      <Section
+        title="Scene"
+        action={
+          <TextButton
+            disabled={saving}
+            onClick={async () => {
+              setSaving(true);
+              try {
+                await rpc.call("saveScene", {});
+                await refreshLibrary();
+              } finally {
+                setSaving(false);
+              }
+            }}
+          >
+            {saving ? "Saving…" : "Save"}
+          </TextButton>
+        }
+      >
         <div className="flex flex-wrap gap-1">
           {library.map((entry) => (
             <button
               key={entry.id}
               type="button"
               onClick={() => void rpc.call("loadScene", { id: entry.id }).then(receive)}
-              className={`rounded-md border px-2 py-0.5 text-xs transition-colors ${entry.id === activeId ? "border-primary bg-primary text-primary-foreground" : "border-border text-foreground hover:bg-accent"}`}
+              className={`max-w-full truncate rounded-full px-2.5 py-0.5 text-xs transition-colors ${entry.id === activeId ? "bg-foreground text-background" : "text-muted-foreground hover:bg-foreground/10 hover:text-foreground"}`}
             >
               {entry.name}
             </button>
@@ -565,116 +708,98 @@ function AmbientControls() {
         </div>
       </Section>
 
-      {scene.params.length > 0 && (
-        <Section title="Knobs">
-          <div className="space-y-2">
-            {scene.params.map((entry) => (
-              <Slider
-                key={entry.id}
-                label={entry.label}
-                value={entry.value}
-                min={entry.min}
-                max={entry.max}
-                step={entry.step}
-                onChange={(value) => {
-                  ambientStore.setValue(entry.id, value);
-                  sendValue(entry.id, value);
-                }}
-              />
+      <Section
+        title={scene.name}
+        action={
+          <div className="flex items-center gap-1" aria-label="Palette">
+            {scene.palette.map((color, index) => (
+              <label
+                key={index}
+                className="relative size-3.5 cursor-pointer overflow-hidden rounded-full ring-1 ring-foreground/15 transition-transform hover:scale-125"
+                style={{ backgroundColor: color }}
+                title={`Color ${index + 1}: ${color}`}
+              >
+                <input
+                  type="color"
+                  value={color}
+                  aria-label={`Palette color ${index + 1}`}
+                  className="absolute inset-0 size-full cursor-pointer opacity-0"
+                  onChange={(event) => {
+                    ambientStore.setPaletteColor(index, event.currentTarget.value);
+                    sendPalette();
+                  }}
+                />
+              </label>
             ))}
           </div>
-        </Section>
-      )}
-
-      <Section title="Palette">
-        <div className="grid grid-cols-4 gap-1.5">
-          {scene.palette.map((color, index) => (
-            <label
-              key={index}
-              className="relative h-7 cursor-pointer overflow-hidden rounded-md border border-border"
-              style={{ backgroundColor: color }}
-              title={color}
-            >
-              <input
-                type="color"
-                value={color}
-                aria-label={`Palette color ${index + 1}`}
-                className="absolute inset-0 size-full cursor-pointer opacity-0"
-                onChange={(event) => {
-                  ambientStore.setPaletteColor(index, event.currentTarget.value);
-                  sendPalette();
-                }}
-              />
-            </label>
-          ))}
-        </div>
+        }
+      >
+        {scene.params.map((entry) => (
+          <Slider
+            key={entry.id}
+            label={entry.label}
+            value={entry.value}
+            min={entry.min}
+            max={entry.max}
+            step={entry.step}
+            onChange={(value) => {
+              ambientStore.setValue(entry.id, value);
+              sendValue(entry.id, value);
+            }}
+          />
+        ))}
       </Section>
 
-      <Section title="Presence">
-        <div className="space-y-2">
-          <Slider
-            label="Show-through"
-            value={controls.showThrough}
-            min={0}
-            max={0.8}
-            step={0.01}
-            format={(value) => `${Math.round(value * 100)}%`}
-            onChange={(value) => setControl("showThrough", value)}
-          />
-          <Slider
-            label="Speed"
-            value={controls.speed}
-            min={0}
-            max={4}
-            step={0.05}
-            format={(value) => `${value.toFixed(2)}×`}
-            onChange={(value) => setControl("speed", value)}
-          />
-          <Slider
-            label="Resolution"
-            value={controls.quality}
-            min={0.2}
-            max={1}
-            step={0.05}
-            format={(value) => `${Math.round(value * 100)}%`}
-            onChange={(value) => setControl("quality", value)}
-          />
-        </div>
+      <Section title="Display">
+        <Slider
+          label="Visibility"
+          hint="How much of the scene shows through bb"
+          value={controls.showThrough}
+          min={0}
+          max={0.8}
+          step={0.01}
+          format={(value) => `${Math.round(value * 100)}%`}
+          onChange={(value) => setControl("showThrough", value)}
+        />
+        <Slider
+          label="Motion"
+          hint="How fast the scene moves"
+          value={controls.speed}
+          min={0}
+          max={4}
+          step={0.05}
+          format={(value) => `${value.toFixed(1)}×`}
+          onChange={(value) => setControl("speed", value)}
+        />
+        <Slider
+          label="Detail"
+          hint="Render resolution; lower is softer and uses less GPU"
+          value={controls.quality}
+          min={0.2}
+          max={1}
+          step={0.05}
+          format={(value) => `${Math.round(value * 100)}%`}
+          onChange={(value) => setControl("quality", value)}
+        />
       </Section>
 
-      <Section title="Test a ripple">
+      <Section title="Preview a ripple">
         <div className="flex gap-1">
           {RIPPLE_BUTTONS.map((button) => (
             <button
               key={button.kind}
               type="button"
               onClick={() => ambientStore.requestRipple(button.kind)}
-              className="flex-1 rounded-md border border-border px-2 py-1 text-xs text-foreground transition-colors hover:bg-accent"
+              className="flex items-center gap-1.5 rounded-full px-2 py-0.5 text-xs text-muted-foreground transition-colors hover:bg-foreground/10 hover:text-foreground"
             >
+              <span className={`size-1.5 rounded-full ${button.dot}`} />
               {button.label}
             </button>
           ))}
         </div>
       </Section>
 
-      <DailySceneSection />
-
-      <button
-        type="button"
-        disabled={saving}
-        onClick={async () => {
-          setSaving(true);
-          try {
-            await rpc.call("saveScene", {});
-            await refreshLibrary();
-          } finally {
-            setSaving(false);
-          }
-        }}
-        className="w-full rounded-md border border-border px-2 py-1.5 text-xs text-foreground transition-colors hover:bg-accent disabled:opacity-50"
-      >
-        {saving ? "Saving…" : "Save to library"}
-      </button>
+      <DailySceneRow />
     </div>
   );
 }

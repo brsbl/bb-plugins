@@ -12,6 +12,7 @@ export interface AmbientSnapshot {
   state: AmbientState | null;
   summary: ActivitySummary;
   compileError: string | null;
+  throttled: boolean;
 }
 
 type Listener = () => void;
@@ -23,6 +24,7 @@ export class AmbientStore {
     state: null,
     summary: { working: 0, waiting: 0 },
     compileError: null,
+    throttled: false,
   };
   private listeners = new Set<Listener>();
   private rippleListeners = new Set<(kind: RippleKind) => void>();
@@ -79,6 +81,12 @@ export class AmbientStore {
   setCompileError(compileError: string | null): void {
     if (this.snapshot.compileError === compileError) return;
     this.snapshot = { ...this.snapshot, compileError };
+    this.emit();
+  }
+
+  setThrottled(throttled: boolean): void {
+    if (this.snapshot.throttled === throttled) return;
+    this.snapshot = { ...this.snapshot, throttled };
     this.emit();
   }
 
