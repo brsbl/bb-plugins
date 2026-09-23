@@ -572,18 +572,12 @@ export default function plugin(bb: BbPluginApi): void {
 
   async function readAutomation(automationId: string | null): Promise<z.infer<typeof automationSchema> | null> {
     if (!automationId) return null;
-    try {
-      const result = automationSchema.safeParse(
-        await automations(
-          "automations_get",
-          { projectId: PERSONAL_PROJECT_ID, automationId },
-          z.unknown(),
-        ),
-      );
-      return result.success ? result.data : null;
-    } catch {
-      return null;
-    }
+    const listed = await automations("automations_list", { projectId: PERSONAL_PROJECT_ID }, z.array(z.unknown()));
+    const entry = listed.find((candidate) => z.object({ id: z.literal(automationId) }).safeParse(candidate).success);
+    if (entry === undefined) return null;
+    const automation = automationSchema.safeParse(entry);
+    if (!automation.success) throw new Error("The daily scene automation can't be read. Check it in Automations.");
+    return automation.data;
   }
 
   async function readDaily(): Promise<DailyScene> {
