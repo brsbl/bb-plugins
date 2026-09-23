@@ -1,6 +1,6 @@
 {
   "name": "bb-plugin-thread-organizer",
-  "version": "0.1.6",
+  "version": "0.1.7",
   "description": "Organizes bb threads with configurable workflow sections and unread Inbox routing.",
   "type": "module",
   "license": "UNLICENSED",
