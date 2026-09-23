@@ -1,5 +1,5 @@
-import { readFile } from "node:fs/promises";
-import { dirname, resolve } from "node:path";
+import { readFile, writeFile } from "node:fs/promises";
+import { dirname, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   buildPluginApp,
@@ -24,6 +24,12 @@ if (!appOnly) {
     pluginPath,
     pluginBuildBbVersion,
     toolchain,
+  );
+  const map = await readFile(server.mapPath, "utf8");
+  const portableRoot = relative(dirname(server.mapPath), repositoryRoot);
+  await writeFile(
+    server.mapPath,
+    map.replaceAll(`:${repositoryRoot}/`, `:${portableRoot}/`),
   );
   files.push(server.jsPath, server.mapPath, server.metaPath);
 }
