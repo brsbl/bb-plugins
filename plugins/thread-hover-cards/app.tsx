@@ -264,6 +264,14 @@ function statusPresentation(
         label: "Waiting for host",
         tone: "warning",
       };
+    case "pending":
+      return {
+        animated: false,
+        icon: null,
+        iconName: null,
+        label: "Queued",
+        tone: "muted",
+      };
     case "idle":
       return {
         animated: false,
