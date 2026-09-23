@@ -602,7 +602,7 @@ function AmbientControls() {
                 className="absolute inset-0 size-full cursor-pointer opacity-0"
                 onChange={(event) => {
                   ambientStore.setPaletteColor(index, event.currentTarget.value);
-                  sendPalette("palette");
+                  sendPalette();
                 }}
               />
             </label>
