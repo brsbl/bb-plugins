@@ -572,6 +572,26 @@ export async function publishInstallRefs(options = {}) {
   retireInstallRefs(plugins, push);
 }
 
+// Exercise one plugin's actual release packaging and install-time rebuild
+// without creating, changing, fetching, or publishing an install ref.
+async function verifyPluginInstallRef(slug) {
+  const plugin = (await readPluginWorkspaces(root)).find((item) => item.slug === slug);
+  if (!plugin) throw new Error(`unknown plugin: ${slug}`);
+  const sourceRevision = git(["rev-parse", "HEAD"]);
+  const tree = await createReleaseTree(
+    plugin,
+    git(["rev-parse", `${sourceRevision}:${plugin.source}`]),
+  );
+  const commit = createReleaseCommit(plugin, tree, sourceRevision);
+  await verifyReleaseCommit(plugin, commit);
+  console.log(`${plugin.installRef} verified outside the repository dependency tree`);
+}
+
 if (resolve(process.argv[1] ?? "") === fileURLToPath(import.meta.url)) {
-  await publishInstallRefs({ push: process.argv.includes("--push") });
+  if (process.argv[2] === "--verify") {
+    if (process.argv.length !== 4) throw new Error("--verify requires one plugin slug");
+    await verifyPluginInstallRef(process.argv[3]);
+  } else {
+    await publishInstallRefs({ push: process.argv.includes("--push") });
+  }
 }

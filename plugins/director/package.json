@@ -14,6 +14,7 @@
     "build": "node ../../tooling/build-plugin.mjs",
     "check": "npm run typecheck && npm run build && npm test",
     "test": "vitest run",
+    "test:built": "node ../../tooling/publish-install-refs.mjs --verify director",
     "typecheck": "tsc --noEmit"
   },
   "engines": {

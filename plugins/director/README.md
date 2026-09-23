@@ -62,10 +62,14 @@ Scene maps/storyboards, promoting a note to the direction skill, and render auto
 Use this repository's remote CI for typechecks, builds, and tests. For a dedicated development bb instance:
 
 ```bash
-bb plugin install "path:/absolute/path/to/bb-plugins/plugins/director" --yes
+cd /absolute/path/to/bb-plugins
+npm ci --workspace=bb-plugin-director --include-workspace-root --ignore-scripts
+bb plugin install "path:$PWD/plugins/director" --yes
 ```
 
-Point that instance's `bb` CLI at its own server. The source install builds `server.ts`, `host.ts`, and `app.tsx`. To use the repository's pinned toolchain in that instance, run `npm ci` from the repository root and `npm run build --workspace=bb-plugin-director`, then install the same path. No production BB profile is needed.
+Point that instance's `bb` CLI at its own server. **Install dependencies in this checkout before installing its path.** bb builds the frontend for path installs but does not run npm for them; dependencies in a different checkout or bb's own `node_modules` do not count. The scoped command above prepares Director without installing every workspace or running native build scripts. A normal repository-wide `npm ci` also works. No separate local plugin build or production BB profile is needed.
+
+The published `plugin/director` ref includes self-contained frontend, server, and host bundles. Its release manifest points at those bundles and has no npm dependencies. CI rebuilds that exact release layout outside the repository's dependency tree via Director's `test:built` script, independently of the catalog screenshot check.
 
 The host entry reads video metadata with ffprobe and verifies file identity; it never renders, transcodes, copies, or modifies source videos. The backend streams HTTP byte ranges through public plugin HTTP and host RPC APIs, keeping reads to 256 KiB and avoiding the core file-preview size limit. It uses public `resolve().experimental_images` for image context. This additive mention field is documented in bb's public Plugin Guide; it is structurally compatible with this repository's pinned SDK declarations. The host minimum is scoped to Director.
 
