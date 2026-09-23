@@ -23,6 +23,7 @@ const defaultBbEngine = ">=0.0.34";
 // instead of raising the compatibility floor for every package.
 const pluginBbEngineOverrides = new Map([
   ["theme-preview", ">=0.38.0"],
+  ["director", ">=0.43.4"],
 ]);
 
 async function readJson(path) {

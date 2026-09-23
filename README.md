@@ -1,6 +1,6 @@
 # bb plugins
 
-Ten bb plugins I use for product design work, kept together with the few build and repository tools they share. [![CI](https://github.com/brsbl/bb-plugins/actions/workflows/ci.yml/badge.svg)](https://github.com/brsbl/bb-plugins/actions/workflows/ci.yml)
+bb plugins I use for product design work, kept together with the few build and repository tools they share. [![CI](https://github.com/brsbl/bb-plugins/actions/workflows/ci.yml/badge.svg)](https://github.com/brsbl/bb-plugins/actions/workflows/ci.yml)
 
 [bb](https://getbb.app) is an agentic IDE for running coding agents across projects, threads, and environments. Its plugins can add UI, commands, skills, and server capabilities; this repository is where I build and maintain mine.
 
@@ -17,6 +17,17 @@ Turns recurring product-design feedback into a searchable rule library that agen
 [Source](plugins/design-doctrine) · [README](plugins/design-doctrine/README.md)
 
 Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/design-doctrine --yes`
+
+### Director
+
+Review product films in bb with inline playback, frame annotations, and version history. Send selected feedback and captured frames to the agent, guided by the bundled Product Demo Direction skill.
+
+<!-- TODO: Screenshot worker will add plugins/director/docs/screenshot.png from the isolated development app. -->
+![Director reviewing a product film with frame notes and version history](plugins/director/docs/screenshot.png)
+
+[Source](plugins/director) · [README](plugins/director/README.md)
+
+Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/director --yes`
 
 ### GitHub Activity
 

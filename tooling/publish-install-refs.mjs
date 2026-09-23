@@ -10,6 +10,7 @@ import { validatePluginArtifacts } from "./validate-plugin-artifacts.mjs";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const releaseServerEntry = "./dist/install-server.mjs";
+const releaseHostEntry = "./dist/install-host.mjs";
 const releaseAppEntry = "./dist/install-app.mjs";
 const releaseAppCss = "dist/install-app.css";
 const serverBundleBanner = `${[
@@ -108,6 +109,7 @@ export function releaseManifest(sourceManifest) {
   // self-contained release entry generated from the prebuilt bundle instead
   // of authored TypeScript whose development dependencies are not shipped.
   if (manifest.bb?.server) manifest.bb.server = releaseServerEntry;
+  if (manifest.bb?.host) manifest.bb.host = releaseHostEntry;
   // bb recompiles frontend entries for direct git installs. Point the
   // release-only manifest at a self-contained wrapper around the prebuilt app
   // so installation never depends on development node_modules. The wrapper
@@ -189,6 +191,11 @@ async function createReleaseTree(plugin, sourceCommit) {
         releaseServerEntry.replace(/^\.\//, ""),
         releaseServerBundle(serverBundle),
       );
+    }
+
+    if (sourceManifest.bb?.host) {
+      const hostBundle = await readFile(resolve(pluginDirectory, "dist/host.js"), "utf8");
+      addBlob(indexPath, releaseHostEntry.replace(/^\.\//, ""), releaseServerBundle(hostBundle));
     }
 
     if (sourceManifest.bb?.app) {

@@ -3,6 +3,7 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   buildPluginApp,
+  buildPluginHost,
   buildPluginServer,
   resolvePluginBuildToolchain,
 } from "./vendor/bb-plugin-build-0.39.0.mjs";
@@ -30,6 +31,10 @@ if (!appOnly) {
 const manifest = JSON.parse(
   await readFile(resolve(pluginPath, "package.json"), "utf8"),
 );
+if (!appOnly && typeof manifest.bb?.host === "string") {
+  const host = await buildPluginHost(pluginPath, pluginBuildBbVersion, toolchain);
+  files.push(host.jsPath, host.mapPath, host.metaPath);
+}
 if (typeof manifest.bb?.app === "string") {
   const app = await buildPluginApp(pluginPath, pluginBuildBbVersion, toolchain);
   files.push(app.jsPath, app.cssPath, app.metaPath);
