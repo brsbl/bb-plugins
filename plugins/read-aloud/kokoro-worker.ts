@@ -31,6 +31,7 @@ import { KokoroTTS, TextSplitterStream } from ${JSON.stringify(kokoroModuleUrl)}
 
 const models = new Map();
 let activeId = 0;
+let queue = Promise.resolve();
 
 function load(device) {
   let model = models.get(device);
@@ -54,6 +55,7 @@ async function speak({ id, text, voice, speed, device }) {
     if (device !== "webgpu") throw error;
     postMessage({ type: "loading", id, device: "wasm" });
     tts = await load("wasm");
+    models.set("webgpu", Promise.resolve(tts));
   }
   if (id !== activeId) return;
   const splitter = new TextSplitterStream();
@@ -77,12 +79,16 @@ self.onmessage = (event) => {
     return;
   }
   activeId = request.id;
-  speak(request).catch((error) => {
-    postMessage({
-      type: "error",
-      id: request.id,
-      message: error instanceof Error ? error.message : String(error),
+  // One ONNX session cannot run concurrently; a cancelled reading stops at its
+  // next sentence boundary before the next one starts.
+  queue = queue
+    .then(() => (request.id === activeId ? speak(request) : undefined))
+    .catch((error) => {
+      postMessage({
+        type: "error",
+        id: request.id,
+        message: error instanceof Error ? error.message : String(error),
+      });
     });
-  });
 };
 `;

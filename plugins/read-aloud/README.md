@@ -23,7 +23,7 @@ Kokoro runs in a background worker in the browser you use bb from. Audio never l
 | Setting | Default | Purpose |
 | --- | --- | --- |
 | Voice | `af_heart` | Any Kokoro v1.0 English voice (`a*` American, `b*` British). |
-| Speed | `1` | Playback rate from 0.5 to 2. |
+| Speed | `1` | Playback rate: 0.75, 1, 1.25, 1.5, 1.75, or 2. |
 | Engine | `auto` | `auto` uses WebGPU when available and otherwise WASM; `webgpu` falls back to WASM if it fails to load. |
 
 ```bash

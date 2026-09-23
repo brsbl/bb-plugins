@@ -31,6 +31,8 @@ export const voices = [
   "bm_lewis",
 ] as const;
 
+export const speeds = ["0.75", "1", "1.25", "1.5", "1.75", "2"] as const;
+
 export const devices = ["auto", "webgpu", "wasm"] as const;
 
 export interface ReadAloudSettings {
@@ -48,9 +50,10 @@ export default function plugin(bb: BbPluginApi): void {
       default: "af_heart",
     },
     speed: {
-      type: "number",
-      label: "Speed (0.5–2)",
-      default: 1,
+      type: "select",
+      label: "Speed",
+      options: [...speeds],
+      default: "1",
     },
     device: {
       type: "select",
@@ -64,7 +67,7 @@ export default function plugin(bb: BbPluginApi): void {
     const current = await settings.get();
     const body: ReadAloudSettings = {
       voice: current.voice as ReadAloudSettings["voice"],
-      speed: Math.min(2, Math.max(0.5, current.speed)),
+      speed: Number(current.speed) || 1,
       device: current.device as ReadAloudSettings["device"],
     };
     return context.json(body);
