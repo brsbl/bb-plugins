@@ -27,7 +27,8 @@ bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/ambient --y
 | --- | --- |
 | Sidebar footer → Ambient | Scene picker, generated sliders, palette, show-through, speed, resolution, test ripples, save |
 | `ambient` agent tool | `get`, `set`, `look`, `library`, `load`, `save` |
-| `bb ambient` | `status`, `list`, `load`, `set <param>=<value>`, `save`, `on`, `off` |
+| `bb ambient` | `status`, `list`, `load`, `set <param>=<value>`, `save`, `delete`, `on`, `off`, `daily` |
+| Sidebar footer → Ambient → Daily scene | An agent paints and saves a new scene each morning after the hour you pick, in your time zone; **Paint one now** runs it immediately |
 
 Built-in scenes: **Tide**, **Fireflies**, and **Contour**.
 

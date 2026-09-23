@@ -18,9 +18,11 @@ import {
 } from "./scene.js";
 
 const STATE_KEY = "state";
+const DAILY_KEY = "daily";
 const LIBRARY_PREFIX = "library/";
 const COMPILE_TIMEOUT_MS = 6_000;
 const CAPTURE_TIMEOUT_MS = 8_000;
+const PERSONAL_PROJECT_ID = "proj_personal";
 
 const hexColor = z.string().regex(HEX_COLOR_PATTERN);
 const paletteSchema = z.tuple([hexColor, hexColor, hexColor, hexColor]);
@@ -80,6 +82,57 @@ const summarySchema = z.object({
   waiting: z.number().int().nonnegative(),
 });
 
+const visibilitySchema = z.object({
+  fromBackground: z.number().min(0).max(1),
+  spread: z.number().min(0).max(1),
+});
+
+const FAINT_FROM_BACKGROUND = 0.06;
+const FLAT_SPREAD = 0.025;
+
+export function describeVisibility(
+  visibility: z.infer<typeof visibilitySchema>,
+  dark: boolean,
+): string {
+  const percent = (value: number) => `${Math.round(value * 100)}%`;
+  const measured = `Measured against bb's ${dark ? "dark" : "light"} background: ${percent(visibility.fromBackground)} average color difference, ${percent(visibility.spread)} brightness variation.`;
+  const problems = [
+    visibility.fromBackground < FAINT_FROM_BACKGROUND &&
+      "the scene is nearly the same color as bb's background, so it will be close to invisible behind bb's veil",
+    visibility.spread < FLAT_SPREAD && "the scene is almost flat, with little visible structure",
+  ].filter(Boolean);
+  if (problems.length === 0) return measured;
+  return `${measured} Too faint: ${problems.join("; ")}. The veil already adapts to the theme, so do not darken or wash out the scene yourself; raise its contrast and color.`;
+}
+
+const timeZoneSchema = z.string().min(1).max(64).refine((zone) => {
+  try {
+    new Intl.DateTimeFormat("en-US", { timeZone: zone });
+    return true;
+  } catch {
+    return false;
+  }
+}, "unknown time zone");
+
+const dailySchema = z.object({
+  enabled: z.boolean(),
+  hour: z.number().int().min(0).max(23),
+  timeZone: timeZoneSchema,
+  lastRunDate: z.string().nullable(),
+  lastThreadId: z.string().nullable(),
+});
+
+export type DailyScene = z.infer<typeof dailySchema>;
+
+const dailyUpdateSchema = z
+  .object({
+    enabled: z.boolean(),
+    hour: z.number().int().min(0).max(23),
+    timeZone: timeZoneSchema,
+  })
+  .partial()
+  .strict();
+
 export const ambientRpcContract = defineRpcContract({
   state: { input: z.null(), output: stateSchema },
   setValues: {
@@ -130,10 +183,15 @@ export const ambientRpcContract = defineRpcContract({
         requestId: z.string().min(1),
         dataUrl: z.string().max(6_000_000).startsWith("data:image/png;base64,"),
         summary: summarySchema,
+        visibility: visibilitySchema,
+        dark: z.boolean(),
       })
       .strict(),
     output: z.object({ accepted: z.boolean() }),
   },
+  daily: { input: z.null(), output: dailySchema },
+  setDaily: { input: dailyUpdateSchema, output: dailySchema },
+  paintNow: { input: z.null(), output: z.object({ threadId: z.string() }) },
 });
 
 export interface CaptureRequest {
@@ -142,7 +200,12 @@ export interface CaptureRequest {
 }
 
 type CompileReport = { ok: boolean; log?: string };
-type CaptureReport = { dataUrl: string; summary: z.infer<typeof summarySchema> };
+type CaptureReport = {
+  dataUrl: string;
+  summary: z.infer<typeof summarySchema>;
+  visibility: z.infer<typeof visibilitySchema>;
+  dark: boolean;
+};
 
 function clampValue(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
@@ -183,6 +246,58 @@ export function applyValues(scene: Scene, values: Record<string, number>): Scene
         : entry,
     ),
   };
+}
+
+export interface LocalMoment {
+  date: string;
+  hour: number;
+  label: string;
+}
+
+export function localMoment(timeZone: string, at: Date): LocalMoment {
+  const parts = Object.fromEntries(
+    new Intl.DateTimeFormat("en-US", {
+      timeZone,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      hourCycle: "h23",
+    })
+      .formatToParts(at)
+      .map((part) => [part.type, part.value]),
+  );
+  const label = new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    weekday: "long",
+    month: "long",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  }).format(at);
+  return {
+    date: `${parts.year}-${parts.month}-${parts.day}`,
+    hour: Number(parts.hour),
+    label,
+  };
+}
+
+export function isDailyDue(daily: DailyScene, at: Date): boolean {
+  if (!daily.enabled) return false;
+  const moment = localMoment(daily.timeZone, at);
+  return moment.date !== daily.lastRunDate && moment.hour >= daily.hour;
+}
+
+export function dailyPrompt(moment: LocalMoment, timeZone: string): string {
+  return [
+    `Paint today's Ambient scene: the generative background bb shows behind its UI. It is ${moment.label} in the user's time zone (${timeZone}).`,
+    "1. Call the ambient tool with action=get to read the shader contract and the current scene.",
+    "2. Write a new scene with action=set that fits today. Draw on the season and time of day, and on what the user has been working on lately (`bb thread list` shows recent thread titles). It must stay calm and low-contrast enough to sit behind text. Name it after the day's mood in under 40 characters, and expose 3 to 6 params someone would enjoy tuning.",
+    "3. If the compile fails, fix the GLSL and set it again. Then call action=look and adjust until the capture is neither too busy nor reported as too faint.",
+    "4. Call action=save so the scene lands in the library.",
+    "If no bb window is open, set reports the scene as unverified and look cannot capture; keep the GLSL conservative and save anyway.",
+    "Finish with one sentence describing the scene.",
+  ].join("\n");
 }
 
 function describeScene(state: AmbientState): string {
@@ -231,6 +346,38 @@ export default function plugin(bb: BbPluginApi): void {
     return state;
   }
 
+  async function readDaily(): Promise<DailyScene> {
+    const stored = dailySchema.safeParse(await bb.storage.kv.get(DAILY_KEY));
+    if (stored.success) return stored.data;
+    return {
+      enabled: false,
+      hour: 8,
+      timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+      lastRunDate: null,
+      lastThreadId: null,
+    };
+  }
+
+  async function writeDaily(daily: DailyScene): Promise<DailyScene> {
+    await bb.storage.kv.set(DAILY_KEY, daily);
+    bb.realtime.publish("daily", { lastRunDate: daily.lastRunDate });
+    return daily;
+  }
+
+  async function paintScene(at: Date): Promise<string> {
+    const daily = await readDaily();
+    const moment = localMoment(daily.timeZone, at);
+    const thread = await bb.sdk.threads.spawn({
+      projectId: PERSONAL_PROJECT_ID,
+      environment: { type: "project-default" },
+      title: `Ambient scene for ${moment.label.split(" at ")[0]}`,
+      prompt: dailyPrompt(moment, daily.timeZone),
+    });
+    const threadId = thread.id;
+    await writeDaily({ ...daily, lastRunDate: moment.date, lastThreadId: threadId });
+    return threadId;
+  }
+
   async function listLibrary(): Promise<LibraryEntry[]> {
     const keys = await bb.storage.kv.list(LIBRARY_PREFIX);
     const values = await Promise.all(keys.map((key) => bb.storage.kv.get(key)));
@@ -271,6 +418,14 @@ export default function plugin(bb: BbPluginApi): void {
     } satisfies LibraryEntry);
     bb.realtime.publish("library", { id });
     return id;
+  }
+
+  async function deleteScene(id: string): Promise<boolean> {
+    const key = `${LIBRARY_PREFIX}${id}`;
+    if ((await bb.storage.kv.get(key)) === undefined) return false;
+    await bb.storage.kv.delete(key);
+    bb.realtime.publish("library", { id });
+    return true;
   }
 
   function awaitCompile(sceneRevision: number): Promise<CompileReport | null> {
@@ -336,11 +491,7 @@ export default function plugin(bb: BbPluginApi): void {
       return { id: await saveScene(name) };
     },
     async deleteScene({ id }) {
-      const key = `${LIBRARY_PREFIX}${id}`;
-      if ((await bb.storage.kv.get(key)) === undefined) return { deleted: false };
-      await bb.storage.kv.delete(key);
-      bb.realtime.publish("library", { id });
-      return { deleted: true };
+      return { deleted: await deleteScene(id) };
     },
     async library() {
       const saved = await listLibrary();
@@ -364,11 +515,23 @@ export default function plugin(bb: BbPluginApi): void {
       waiter?.({ ok, ...(log === undefined ? {} : { log }) });
       return { accepted: waiter !== undefined };
     },
-    submitCapture({ requestId, dataUrl, summary }) {
+    submitCapture({ requestId, dataUrl, summary, visibility, dark }) {
       const waiter = captureWaiters.get(requestId);
-      waiter?.({ dataUrl, summary });
+      waiter?.({ dataUrl, summary, visibility, dark });
       return { accepted: waiter !== undefined };
     },
+    daily: () => readDaily(),
+    async setDaily(update) {
+      return writeDaily({ ...(await readDaily()), ...update });
+    },
+    async paintNow() {
+      return { threadId: await paintScene(new Date()) };
+    },
+  });
+
+  bb.background.schedule("daily-scene", "*/15 * * * *", async () => {
+    const now = new Date();
+    if (isDailyDue(await readDaily(), now)) await paintScene(now);
   });
 
   bb.agents.registerTool({
@@ -463,7 +626,7 @@ export default function plugin(bb: BbPluginApi): void {
               },
               {
                 type: "text" as const,
-                text: `Captured the raw scene (bb's UI veil is not included). Live agents: ${working} working, ${waiting} waiting.`,
+                text: `Captured the raw scene (bb's UI veil is not included). Live agents: ${working} working, ${waiting} waiting. ${describeVisibility(report.visibility, report.dark)}`,
               },
             ],
           };
@@ -530,8 +693,14 @@ export default function plugin(bb: BbPluginApi): void {
       { name: "load", summary: "Make a built-in or saved scene active", usage: "bb ambient load <id-or-name>" },
       { name: "set", summary: "Set scene params", usage: "bb ambient set <param>=<value> [...]" },
       { name: "save", summary: "Save the active scene to the library", usage: "bb ambient save [name]" },
+      { name: "delete", summary: "Remove a saved scene from the library", usage: "bb ambient delete <id>" },
       { name: "on", summary: "Turn the background on", usage: "bb ambient on" },
       { name: "off", summary: "Turn the background off", usage: "bb ambient off" },
+      {
+        name: "daily",
+        summary: "Have an agent paint a new scene every morning",
+        usage: "bb ambient daily <status|on [hour] [time-zone]|off|now>",
+      },
     ],
     async run(argv) {
       const [command, ...rest] = argv;
@@ -583,6 +752,12 @@ export default function plugin(bb: BbPluginApi): void {
           const id = await saveScene(name || undefined);
           return { exitCode: 0, stdout: `saved as ${id}\n` };
         }
+        if (command === "delete") {
+          const id = rest.join(" ").trim();
+          if (!id) throw new Error("usage: bb ambient delete <id>");
+          if (!(await deleteScene(id))) throw new Error(`no saved scene ${JSON.stringify(id)}; built-in scenes cannot be deleted`);
+          return { exitCode: 0, stdout: `deleted ${id}\n` };
+        }
         if (command === "on" || command === "off") {
           const state = await readState();
           await writeState(
@@ -591,9 +766,35 @@ export default function plugin(bb: BbPluginApi): void {
           );
           return { exitCode: 0, stdout: `ambient ${command}\n` };
         }
+        if (command === "daily") {
+          const [action = "status", ...options] = rest;
+          if (action === "now") {
+            return { exitCode: 0, stdout: `painting in ${await paintScene(new Date())}\n` };
+          }
+          if (action === "on" || action === "off") {
+            const [hourText, timeZone] = options;
+            const hour = hourText === undefined ? undefined : Number(hourText);
+            const update = dailyUpdateSchema.parse({
+              enabled: action === "on",
+              ...(hour === undefined ? {} : { hour }),
+              ...(timeZone === undefined ? {} : { timeZone }),
+            });
+            await writeDaily({ ...(await readDaily()), ...update });
+          } else if (action !== "status") {
+            throw new Error("usage: bb ambient daily <status|on [hour] [time-zone]|off|now>");
+          }
+          const daily = await readDaily();
+          const schedule = daily.enabled
+            ? `on, after ${daily.hour}:00 ${daily.timeZone}`
+            : "off";
+          const last = daily.lastRunDate
+            ? `${daily.lastRunDate} (${daily.lastThreadId ?? "no thread"})`
+            : "never";
+          return { exitCode: 0, stdout: `daily scene: ${schedule}\nlast painted: ${last}\n` };
+        }
         return {
           exitCode: 1,
-          stderr: "usage: bb ambient <status|list|load|set|save|on|off>\n",
+          stderr: "usage: bb ambient <status|list|load|set|save|delete|on|off|daily>\n",
         };
       } catch (caught) {
         const message = caught instanceof Error ? caught.message : String(caught);

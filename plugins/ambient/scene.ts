@@ -65,7 +65,8 @@ Uniforms:
 
 Helpers: hash21(vec2), noise(vec2), fbm(vec2), toP(vec2 uv) -> p space, pal(float t) cycles the palette, ramp(float t) blends the palette 0..1 without wrapping.
 Loop over agents with: for (int i = 0; i < ${MAX_AGENTS}; i++) { if (i >= u_agentCount) break; ... }. Ripples fade out on their own; they live about 4 seconds.
-bb draws its UI over the scene with a translucent veil, so favor soft, low-frequency, slow motion that stays readable behind text.`;
+bb draws its UI over the scene with a translucent veil, so favor soft, low-frequency, slow motion that stays readable behind text.
+The veil already matches bb's light or dark theme and the user controls how much shows through, so render the palette at full strength in both modes: do not darken the scene for u_dark or blend most of it into u_canvas. The built-in scenes end with mix(u_canvas, col, p_color), where p_color defaults near 0.9. action=look reports how far the frame differs from bb's background; if it says the scene is too faint, raise contrast and color.`;
 
 const PRELUDE = `#version 300 es
 precision highp float;

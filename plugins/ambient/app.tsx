@@ -11,7 +11,7 @@ import {
 import { ActivityField, signalsOf } from "./activity.js";
 import { AmbientRenderer, type ThemeColors } from "./engine.js";
 import { DEFAULT_SCENE, type Controls, type RippleKind, type SceneParam } from "./scene.js";
-import type { AmbientState, CaptureRequest, ambientRpcContract } from "./server.js";
+import type { AmbientState, CaptureRequest, DailyScene, ambientRpcContract } from "./server.js";
 import { ambientStore, useAmbient } from "./store.js";
 
 const FRAME_INTERVAL_MS = 1000 / 30;
@@ -234,12 +234,15 @@ function AmbientOverlay() {
     window.setTimeout(
       () => {
         renderFrame(clockRef.current);
-        const dataUrl = renderer.capture(960);
+        const { theme } = liveRef.current;
+        const { dataUrl, visibility } = renderer.capture(960, theme.canvas);
         void rpc
           .call("submitCapture", {
             requestId: request.requestId,
             dataUrl,
             summary: fieldRef.current.summary(),
+            visibility,
+            dark: theme.dark,
           })
           .catch(() => undefined);
       },
@@ -355,6 +358,113 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
   );
 }
 
+function Switch({
+  checked,
+  label,
+  onChange,
+}: {
+  checked: boolean;
+  label: string;
+  onChange: (checked: boolean) => void;
+}) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      aria-label={label}
+      onClick={() => onChange(!checked)}
+      className={`relative h-5 w-9 shrink-0 rounded-full transition-colors ${checked ? "bg-primary" : "bg-muted"}`}
+    >
+      <span
+        className={`absolute top-0.5 left-0.5 size-4 rounded-full bg-background shadow-sm transition-transform ${checked ? "translate-x-4" : "translate-x-0"}`}
+      />
+    </button>
+  );
+}
+
+function hourLabel(hour: number): string {
+  return new Date(2000, 0, 1, hour).toLocaleTimeString([], { hour: "numeric" });
+}
+
+function DailySceneSection() {
+  const rpc = useRpc<typeof ambientRpcContract>();
+  const [daily, setDaily] = useState<DailyScene | null>(null);
+  const [painting, setPainting] = useState(false);
+
+  const refresh = useCallback(async () => {
+    setDaily(await rpc.call("daily"));
+  }, [rpc]);
+
+  useEffect(() => {
+    void refresh();
+  }, [refresh]);
+
+  useRealtime("daily", () => {
+    void refresh();
+  });
+
+  if (!daily) return null;
+
+  const update = async (next: { enabled?: boolean; hour?: number }) => {
+    setDaily({ ...daily, ...next });
+    setDaily(
+      await rpc.call("setDaily", {
+        ...next,
+        timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+      }),
+    );
+  };
+
+  return (
+    <Section title="Daily scene">
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-xs text-muted-foreground">An agent paints a new scene every morning</span>
+        <Switch
+          checked={daily.enabled}
+          label="Daily scene"
+          onChange={(enabled) => void update({ enabled })}
+        />
+      </div>
+      {daily.enabled && (
+        <label className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
+          <span>After</span>
+          <select
+            value={daily.hour}
+            onChange={(event) => void update({ hour: Number(event.currentTarget.value) })}
+            className="rounded-md border border-border bg-transparent px-1.5 py-0.5 text-xs text-foreground"
+          >
+            {Array.from({ length: 24 }, (_, hour) => (
+              <option key={hour} value={hour}>
+                {hourLabel(hour)}
+              </option>
+            ))}
+          </select>
+        </label>
+      )}
+      <button
+        type="button"
+        disabled={painting}
+        onClick={async () => {
+          setPainting(true);
+          try {
+            await rpc.call("paintNow");
+            await refresh();
+          } finally {
+            setPainting(false);
+          }
+        }}
+        className="w-full rounded-md border border-border px-2 py-1 text-xs text-foreground transition-colors hover:bg-accent disabled:opacity-50"
+      >
+        {painting ? "Starting…" : "Paint one now"}
+      </button>
+      {daily.lastRunDate && (
+        <div className="text-xs text-muted-foreground">Last painted {daily.lastRunDate}</div>
+      )}
+    </Section>
+  );
+}
+
 function AmbientControls() {
   const rpc = useRpc<typeof ambientRpcContract>();
   const { state, summary, compileError } = useAmbient();
@@ -427,18 +537,11 @@ function AmbientControls() {
             {summary.working} working · {summary.waiting} waiting
           </div>
         </div>
-        <button
-          type="button"
-          role="switch"
-          aria-checked={controls.enabled}
-          aria-label="Ambient background"
-          onClick={() => setControl("enabled", !controls.enabled)}
-          className={`relative h-5 w-9 shrink-0 rounded-full transition-colors ${controls.enabled ? "bg-primary" : "bg-muted"}`}
-        >
-          <span
-            className={`absolute top-0.5 left-0.5 size-4 rounded-full bg-background shadow-sm transition-transform ${controls.enabled ? "translate-x-4" : "translate-x-0"}`}
-          />
-        </button>
+        <Switch
+          checked={controls.enabled}
+          label="Ambient background"
+          onChange={(enabled) => setControl("enabled", enabled)}
+        />
       </div>
 
       {compileError && (
@@ -553,6 +656,8 @@ function AmbientControls() {
           ))}
         </div>
       </Section>
+
+      <DailySceneSection />
 
       <button
         type="button"

@@ -16,6 +16,11 @@ void main() {
 
 export type CompileResult = { ok: true } | { ok: false; log: string };
 
+export interface Capture {
+  dataUrl: string;
+  visibility: { fromBackground: number; spread: number };
+}
+
 export interface ThemeColors {
   canvas: [number, number, number];
   ink: [number, number, number];
@@ -161,16 +166,38 @@ export class AmbientRenderer {
     gl.drawArrays(gl.TRIANGLES, 0, 3);
   }
 
-  capture(maxWidth: number): string {
+  capture(maxWidth: number, canvasColor: readonly [number, number, number]): Capture {
     const source = this.canvas;
     const scale = Math.min(1, maxWidth / source.width);
     const target = document.createElement("canvas");
     target.width = Math.round(source.width * scale);
     target.height = Math.round(source.height * scale);
-    const context = target.getContext("2d");
+    const context = target.getContext("2d", { willReadFrequently: true });
     if (!context) throw new Error("2D canvas unavailable");
     context.drawImage(source, 0, 0, target.width, target.height);
-    return target.toDataURL("image/png");
+    const { data } = context.getImageData(0, 0, target.width, target.height);
+    let distance = 0;
+    let lumaSum = 0;
+    let lumaSquares = 0;
+    let samples = 0;
+    for (let index = 0; index < data.length; index += 4 * 16) {
+      const r = data[index]! / 255;
+      const g = data[index + 1]! / 255;
+      const b = data[index + 2]! / 255;
+      distance += Math.hypot(r - canvasColor[0], g - canvasColor[1], b - canvasColor[2]) / Math.sqrt(3);
+      const luma = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+      lumaSum += luma;
+      lumaSquares += luma * luma;
+      samples += 1;
+    }
+    const mean = lumaSum / samples;
+    return {
+      dataUrl: target.toDataURL("image/png"),
+      visibility: {
+        fromBackground: distance / samples,
+        spread: Math.sqrt(Math.max(0, lumaSquares / samples - mean * mean)),
+      },
+    };
   }
 
   dispose(): void {
