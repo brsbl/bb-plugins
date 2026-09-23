@@ -30,6 +30,7 @@ function veilCss(showThrough: number): string {
 body.bb-app-shell { background-color: transparent; --ambient-background: var(--background); --ambient-sidebar: var(--sidebar); }
 body.bb-app-shell > #root { --background: color-mix(in oklab, var(--ambient-background) ${keep}%, transparent); --sidebar: color-mix(in oklab, var(--ambient-sidebar) ${keep}%, transparent); }
 body.bb-app-shell > #root .bg-sidebar .bg-sidebar { --sidebar: transparent; }
+body.bb-app-shell > #root [data-sidebar="inset"][data-sidebar-shelf] { --background: var(--ambient-background); }
 body.bb-app-shell > #root [data-sidebar-sticky-stack]::before, body.bb-app-shell > #root [data-sidebar-sticky-tier] { -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px); }`;
 }
 
