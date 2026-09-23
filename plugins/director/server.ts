@@ -32,7 +32,7 @@ export default function plugin(bb: BbPluginApi): void {
   const host = bb.hosts.experimental_client({contract: hostContract});
   const leases = new Map<string, {media: Media; expiresAt: number}>();
   for (const method of ["HEAD", "GET"]) bb.http.route(method, "/media/:lease", context => {
-    const lease = leases.get(context.req.param("lease"));
+    const lease = leases.get(context.req.param("lease") ?? "");
     if (!lease || lease.expiresAt <= Date.now()) return new Response("Video preview expired. Reopen the version.", {status: 404});
     return mediaResponse({media: lease.media, range: context.req.header("range") ?? null, head: context.req.method === "HEAD", signal: context.req.raw.signal,
       read: async (start, length, signal) => (await host.call("readChunk", {path: lease.media.path, size: lease.media.size, modifiedAt: lease.media.modifiedAt, start, length}, {hostId: lease.media.hostId, signal})).data,
