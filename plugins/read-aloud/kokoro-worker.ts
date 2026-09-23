@@ -1,5 +1,27 @@
-export const kokoroModuleUrl =
-  "https://cdn.jsdelivr.net/npm/kokoro-js@1.2.1/dist/kokoro.web.js";
+// Runtime code comes from jsDelivr, so every file is pinned to the SHA-384 of
+// its npm tarball and rejected by fetch() if the CDN serves anything else.
+const transformersDist =
+  "https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.5.1/dist";
+export const runtimeFiles = {
+  kokoro: {
+    url: "https://cdn.jsdelivr.net/npm/kokoro-js@1.2.1/dist/kokoro.web.js",
+    integrity:
+      "sha384-suR1TeKe6Fe8fT0n/uTWoohnPJrp1zu3z0bj4VH2anmmq739wlmFSnMFJyMYszAC",
+    type: "text/javascript",
+  },
+  mjs: {
+    url: `${transformersDist}/ort-wasm-simd-threaded.jsep.mjs`,
+    integrity:
+      "sha384-7GJqH5vc83Yt7VHwrMXTM8bNCrt/e/8eCtok8zlB2u5dwqmhzSakzCkQWrfYGRN4",
+    type: "text/javascript",
+  },
+  wasm: {
+    url: `${transformersDist}/ort-wasm-simd-threaded.jsep.wasm`,
+    integrity:
+      "sha384-u/bDsx39c+wt0LbHmOCydxt4fyiig3118hQgOTfOvrfkgScM4hRo2IwTtlxyoI02",
+    type: "application/wasm",
+  },
+} as const;
 export const kokoroModelId = "onnx-community/Kokoro-82M-v1.0-ONNX";
 
 export type EngineDevice = "webgpu" | "wasm";
@@ -27,7 +49,31 @@ export type WorkerResponse =
  * caches the weights between sessions.
  */
 export const kokoroWorkerSource = `
-import { KokoroTTS, TextSplitterStream } from ${JSON.stringify(kokoroModuleUrl)};
+const files = ${JSON.stringify(runtimeFiles)};
+
+async function verifiedUrl({ url, integrity, type }) {
+  const response = await fetch(url, { integrity });
+  if (!response.ok) throw new Error("Couldn’t download " + url);
+  const bytes = await response.arrayBuffer();
+  return URL.createObjectURL(new Blob([bytes], { type }));
+}
+
+let runtime = null;
+
+function loadRuntime() {
+  if (!runtime) {
+    runtime = Promise.all([
+      verifiedUrl(files.kokoro).then((url) => import(url)),
+      verifiedUrl(files.mjs),
+      verifiedUrl(files.wasm),
+    ]).then(([kokoro, mjs, wasm]) => {
+      kokoro.env.wasmPaths = { mjs, wasm };
+      return kokoro;
+    });
+    runtime.catch(() => (runtime = null));
+  }
+  return runtime;
+}
 
 const models = new Map();
 let activeId = 0;
@@ -36,10 +82,10 @@ let queue = Promise.resolve();
 function load(device) {
   let model = models.get(device);
   if (!model) {
-    model = KokoroTTS.from_pretrained(${JSON.stringify(kokoroModelId)}, {
+    model = loadRuntime().then(({ KokoroTTS }) => KokoroTTS.from_pretrained(${JSON.stringify(kokoroModelId)}, {
       dtype: device === "webgpu" ? "fp32" : "q8",
       device,
-    });
+    }));
     models.set(device, model);
     model.catch(() => models.delete(device));
   }
@@ -58,6 +104,7 @@ async function speak({ id, text, voice, speed, device }) {
     models.set("webgpu", Promise.resolve(tts));
   }
   if (id !== activeId) return;
+  const { TextSplitterStream } = await loadRuntime();
   const splitter = new TextSplitterStream();
   splitter.push(text);
   splitter.close();

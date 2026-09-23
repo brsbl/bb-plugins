@@ -16,7 +16,7 @@ bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/read-aloud 
 - Highlight text in an agent message and choose **Read aloud** to hear only the selection.
 - Code blocks, URLs, and Markdown syntax are skipped so the reading sounds like prose.
 
-Kokoro runs in a background worker in the browser you use bb from. Audio never leaves your device. The first reading downloads the model and caches it in the browser: about 330 MB with WebGPU or about 90 MB with the WASM fallback. The model and runtime come from Hugging Face and jsDelivr.
+Kokoro runs in a background worker in the browser you use bb from. Audio never leaves your device. The first reading downloads the model and caches it in the browser: about 330 MB with WebGPU or about 90 MB with the WASM fallback. The model weights come from Hugging Face. The Kokoro and ONNX runtime files come from jsDelivr, and each is pinned to the SHA-384 hash of its npm release.
 
 ## Settings
 

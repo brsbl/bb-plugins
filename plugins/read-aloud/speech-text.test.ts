@@ -28,6 +28,13 @@ describe("toSpeechText", () => {
     );
   });
 
+  it("skips multi-line and unterminated code blocks but keeps the prose after them", () => {
+    expect(
+      toSpeechText("Before\n```ts\nconst a = 1;\nconst b = 2;\n```\nAfter\n~~~\nx\ny\n~~~\nDone"),
+    ).toBe("Before.\nAfter.\nDone.");
+    expect(toSpeechText("Intro\n```sh\nnpm test\nnpm run build")).toBe("Intro.");
+  });
+
   it("reads table rows as comma-separated phrases", () => {
     expect(toSpeechText("| Check | Result |\n| --- | --- |\n| Build | Passed |")).toBe(
       "Check, Result.\nBuild, Passed.",
