@@ -5,6 +5,16 @@ import type { Controls, RippleKind, Scene } from "./scene.js";
 import type { AmbientState } from "./server.js";
 
 const OVERRIDE_MS = 1_500;
+const DEVICE_DETAIL_KEY = "bb-ambient:detail";
+
+function readDeviceDetail(): number | null {
+  try {
+    const value = Number(window.localStorage.getItem(DEVICE_DETAIL_KEY));
+    return Number.isFinite(value) && value >= 0.2 && value <= 1 ? value : null;
+  } catch {
+    return null;
+  }
+}
 
 type Override = { at: number; apply: (state: AmbientState) => AmbientState };
 
@@ -13,6 +23,7 @@ export interface AmbientSnapshot {
   summary: ActivitySummary;
   compileError: string | null;
   throttled: boolean;
+  deviceDetail: number | null;
 }
 
 type Listener = () => void;
@@ -25,6 +36,7 @@ export class AmbientStore {
     summary: { working: 0, waiting: 0 },
     compileError: null,
     throttled: false,
+    deviceDetail: typeof window === "undefined" ? null : readDeviceDetail(),
   };
   private listeners = new Set<Listener>();
   private rippleListeners = new Set<(kind: RippleKind) => void>();
@@ -81,6 +93,15 @@ export class AmbientStore {
   setCompileError(compileError: string | null): void {
     if (this.snapshot.compileError === compileError) return;
     this.snapshot = { ...this.snapshot, compileError };
+    this.emit();
+  }
+
+  setDeviceDetail(deviceDetail: number): void {
+    if (this.snapshot.deviceDetail === deviceDetail) return;
+    try {
+      window.localStorage.setItem(DEVICE_DETAIL_KEY, String(deviceDetail));
+    } catch {}
+    this.snapshot = { ...this.snapshot, deviceDetail };
     this.emit();
   }
 

@@ -12,6 +12,7 @@ import {
   MAX_SOURCE_LENGTH,
   PARAM_ID_PATTERN,
   SHADER_CONTRACT,
+  rebuildBuiltIn,
   sceneOf,
   type Controls,
   type Scene,
@@ -23,6 +24,10 @@ const LIBRARY_PREFIX = "library/";
 const COMPILE_TIMEOUT_MS = 6_000;
 const CAPTURE_TIMEOUT_MS = 8_000;
 const PERSONAL_PROJECT_ID = "proj_personal";
+const LAST_GOOD_KEY = "last-good";
+const LIBRARY_INDEX_KEY = "library-index";
+const WINDOW_FRESH_MS = 3 * 60_000;
+const BUSY_THREAD_STATUSES = new Set(["active", "pending", "starting", "stopping"]);
 
 const hexColor = z.string().regex(HEX_COLOR_PATTERN);
 const paletteSchema = z.tuple([hexColor, hexColor, hexColor, hexColor]);
@@ -49,7 +54,15 @@ const sceneSchema = z.object({
       "param ids must be unique",
     ),
   palette: paletteSchema,
+  baseId: z.string().optional(),
 });
+
+export const sceneNameSchema = z
+  .string()
+  .trim()
+  .min(1)
+  .max(60)
+  .regex(/^[^\p{Cc}\p{Cf}]+$/u, "scene names must be a single line of plain text");
 
 const controlsSchema = z.object({
   enabled: z.boolean(),
@@ -74,6 +87,12 @@ const libraryEntrySchema = z.object({
 });
 
 type LibraryEntry = z.infer<typeof libraryEntrySchema>;
+
+const libraryIndexSchema = z.array(
+  z.object({ id: z.string().min(1), name: z.string(), savedAt: z.number().int().nonnegative() }),
+);
+
+type LibraryIndex = z.infer<typeof libraryIndexSchema>;
 
 const rippleKindSchema = z.enum(["done", "error", "started"]);
 
@@ -164,7 +183,7 @@ export const ambientRpcContract = defineRpcContract({
     output: stateSchema,
   },
   saveScene: {
-    input: z.object({ name: z.string().min(1).max(60).optional() }).strict(),
+    input: z.object({ name: sceneNameSchema.optional() }).strict(),
     output: z.object({ id: z.string() }),
   },
   deleteScene: {
@@ -204,6 +223,7 @@ export const ambientRpcContract = defineRpcContract({
   daily: { input: z.null(), output: dailySchema },
   setDaily: { input: dailyUpdateSchema, output: dailySchema },
   paintNow: { input: z.null(), output: z.object({ threadId: z.string() }) },
+  heartbeat: { input: z.null(), output: z.object({ ok: z.boolean() }) },
 });
 
 export interface CaptureRequest {
@@ -253,7 +273,7 @@ export function applyValues(scene: Scene, values: Record<string, number>): Scene
   return {
     ...scene,
     params: scene.params.map((entry) =>
-      entry.id in values
+      Object.hasOwn(values, entry.id)
         ? { ...entry, value: clampValue(values[entry.id]!, entry.min, entry.max) }
         : entry,
     ),
@@ -294,10 +314,22 @@ export function localMoment(timeZone: string, at: Date): LocalMoment {
   };
 }
 
-export function isDailyDue(daily: DailyScene, at: Date): boolean {
-  if (!daily.enabled) return false;
+export function isDailyDue(daily: DailyScene, at: Date, windowOpen: boolean): boolean {
+  if (!daily.enabled || !windowOpen) return false;
   const moment = localMoment(daily.timeZone, at);
   return moment.date !== daily.lastRunDate && moment.hour >= daily.hour;
+}
+
+export function parseDailyOptions(options: readonly string[]): { hour?: number; timeZone?: string } {
+  const parsed: { hour?: number; timeZone?: string } = {};
+  for (const option of options) {
+    if (/^\d{1,2}$/.test(option)) {
+      parsed.hour = Number(option);
+    } else {
+      parsed.timeZone = option;
+    }
+  }
+  return parsed;
 }
 
 export const DAILY_CONCEPTS = [
@@ -329,17 +361,10 @@ export function dailyConcept(date: string): string {
   return DAILY_CONCEPTS[dayNumber % DAILY_CONCEPTS.length]!;
 }
 
-export function dailyPrompt(
-  moment: LocalMoment,
-  timeZone: string,
-  recentScenes: readonly string[],
-): string {
+export function dailyPrompt(moment: LocalMoment, timeZone: string): string {
   return [
     `Paint today's Ambient scene: the living background bb shows behind its UI. It is ${moment.label} in the user's time zone (${timeZone}).`,
-    `Today's starting concept: ${dailyConcept(moment.date)}. Make it your own; let the season, the time of day, and what the user has been working on lately (\`bb thread list\` shows recent thread titles) color it.`,
-    recentScenes.length > 0
-      ? `Recent scenes to stay clearly different from: ${recentScenes.join(", ")}.`
-      : "",
+    `Today's starting concept: ${dailyConcept(moment.date)}. Make it your own, and let the season and time of day color it.`,
     "It should feel alive, not like a still gradient:",
     "- Continuous, visible motion at the default speed: things drift, flow, orbit, or fall. Layer at least two motions at different speeds.",
     "- Agents (u_agents) are characters in the concept, not generic dots: give working agents movement or trails and let waiting agents pulse or call out.",
@@ -347,15 +372,17 @@ export function dailyPrompt(
     "- The cursor (u_pointer) disturbs the scene nearby.",
     "- Stay readable behind text: the motion can be lively, but keep contrast soft in the middle of the screen.",
     "Steps:",
-    "1. Call the ambient tool with action=get to read the shader contract and the current scene.",
+    "1. Call the ambient tool with action=get to read the shader contract and the current scene, and action=library to see recent scenes; make something clearly different from them.",
     "2. Write the scene with action=set. Name it evocatively in under 40 characters, and expose 3 to 6 params someone would enjoy tuning (for example speed of a motion, density, glow, trail length).",
-    "3. If the compile fails, fix the GLSL and set it again. Then call action=look with ripple=done and adjust until the report flags nothing (not too faint, nearly still, or too heavy) and the image shows the concept clearly.",
+    "3. If set reports a compile error or that the scene is too heavy, fix the GLSL and set it again. Then call action=look with ripple=done and adjust until the report flags nothing (not too faint, nearly still, or too heavy) and the image shows the concept clearly.",
     "4. Call action=save so the scene lands in the library.",
-    "If no bb window is open, set reports the scene as unverified and look cannot capture; keep the GLSL conservative and save anyway.",
+    "If set says no bb window verified the scene, stop and say so instead of saving.",
     "Finish with one sentence describing the scene.",
-  ]
-    .filter(Boolean)
-    .join("\n");
+  ].join("\n");
+}
+
+function describeControls(controls: Controls): string {
+  return `${controls.enabled ? "on" : "off"}; Visibility (show-through) ${Math.round(controls.showThrough * 100)}%, Motion (speed) ${controls.speed}×, Detail (quality) ${Math.round(controls.quality * 100)}%`;
 }
 
 function describeScene(state: AmbientState): string {
@@ -370,18 +397,97 @@ function describeScene(state: AmbientState): string {
     `Scene: ${scene.name}`,
     `Palette: ${scene.palette.join(" ")}`,
     `Params:\n${params || "  (none)"}`,
-    `User controls: ${controls.enabled ? "on" : "off"}, show-through ${controls.showThrough}, speed ${controls.speed}, quality ${controls.quality}`,
+    `Controls: ${describeControls(controls)}`,
     `Source:\n${scene.source}`,
   ].join("\n");
+}
+
+const controlInputSchema = z
+  .object({
+    enabled: z.boolean(),
+    visibility: controlsSchema.shape.showThrough,
+    motion: controlsSchema.shape.speed,
+    detail: controlsSchema.shape.quality,
+  })
+  .partial()
+  .strict();
+
+function controlsFromInput(input: z.infer<typeof controlInputSchema>): Partial<Controls> {
+  return {
+    ...(input.enabled === undefined ? {} : { enabled: input.enabled }),
+    ...(input.visibility === undefined ? {} : { showThrough: input.visibility }),
+    ...(input.motion === undefined ? {} : { speed: input.motion }),
+    ...(input.detail === undefined ? {} : { quality: input.detail }),
+  };
+}
+
+const CLI_CONTROL_KEYS: Record<string, keyof Controls> = {
+  visibility: "showThrough",
+  showthrough: "showThrough",
+  motion: "speed",
+  speed: "speed",
+  detail: "quality",
+  quality: "quality",
+};
+
+export function parseSetPairs(pairs: readonly string[]): {
+  values: Record<string, number>;
+  controls: Partial<Controls>;
+} {
+  const values: Record<string, number> = {};
+  const controls: Partial<Controls> = {};
+  for (const pair of pairs) {
+    const match = /^([a-z][a-z0-9_]*)=(-?\d+(?:\.\d+)?)(%?)$/.exec(pair);
+    if (!match) throw new Error(`expected <param>=<number>, got ${JSON.stringify(pair)}`);
+    const [, key, number, percent] = match;
+    const control = CLI_CONTROL_KEYS[key!];
+    const value = Number(number) / (percent ? 100 : 1);
+    if (control && control !== "enabled") {
+      controls[control] = value;
+    } else {
+      values[key!] = value;
+    }
+  }
+  return { values, controls };
+}
+
+function formatIssues(error: z.ZodError): string {
+  return error.issues
+    .map((issue) => `${issue.path.join(".") || "input"}: ${issue.message}`)
+    .join("\n");
 }
 
 export default function plugin(bb: BbPluginApi): void {
   const compileWaiters = new Map<number, (report: CompileReport) => void>();
   const captureWaiters = new Map<string, (report: CaptureReport) => void>();
+  let lastWindowAt = 0;
+  let queue: Promise<unknown> = Promise.resolve();
+
+  function serialized<T>(task: () => Promise<T>): Promise<T> {
+    const run = queue.then(task, task);
+    queue = run.catch(() => undefined);
+    return run;
+  }
 
   async function readState(): Promise<AmbientState> {
-    const stored = stateSchema.safeParse(await bb.storage.kv.get(STATE_KEY));
-    return stored.success ? stored.data : initialState();
+    const raw = await bb.storage.kv.get(STATE_KEY);
+    const stored = stateSchema.safeParse(raw);
+    if (stored.success) {
+      return { ...stored.data, scene: rebuildBuiltIn(stored.data.scene) };
+    }
+    const base = initialState();
+    if (raw === undefined) return base;
+    bb.log.warn("Ambient state failed validation; keeping the parts that still parse");
+    const record = typeof raw === "object" && raw !== null ? (raw as Record<string, unknown>) : {};
+    const controls = controlsSchema.safeParse(record.controls);
+    const scene = sceneSchema.safeParse(record.scene);
+    const revision = z.number().int().nonnegative().safeParse(record.revision);
+    return {
+      ...base,
+      ...(revision.success ? { revision: revision.data, sceneRevision: revision.data } : {}),
+      ...(controls.success ? { controls: controls.data } : {}),
+      ...(scene.success ? { scene: rebuildBuiltIn(scene.data) } : {}),
+    };
   }
 
   async function writeState(
@@ -389,19 +495,32 @@ export default function plugin(bb: BbPluginApi): void {
     options: { sceneChanged: boolean },
   ): Promise<AmbientState> {
     const previous = await readState();
-    const state: AmbientState = {
+    const state = stateSchema.parse({
       ...next,
       revision: previous.revision + 1,
       sceneRevision: options.sceneChanged
         ? previous.revision + 1
         : previous.sceneRevision,
-    };
+    });
     await bb.storage.kv.set(STATE_KEY, state);
     bb.realtime.publish("state", {
       revision: state.revision,
       sceneRevision: state.sceneRevision,
     });
     return state;
+  }
+
+  async function readLastGood(): Promise<Scene | null> {
+    const stored = sceneSchema.safeParse(await bb.storage.kv.get(LAST_GOOD_KEY));
+    return stored.success ? rebuildBuiltIn(stored.data) : null;
+  }
+
+  async function restoreScene(sceneRevision: number, fallback?: Scene): Promise<boolean> {
+    const current = await readState();
+    if (current.sceneRevision !== sceneRevision) return false;
+    const scene = fallback ?? (await readLastGood()) ?? DEFAULT_SCENE;
+    await writeState({ ...current, scene }, { sceneChanged: true });
+    return true;
   }
 
   async function readDaily(): Promise<DailyScene> {
@@ -422,72 +541,129 @@ export default function plugin(bb: BbPluginApi): void {
     return daily;
   }
 
-  async function paintScene(at: Date): Promise<string> {
-    const daily = await readDaily();
-    const moment = localMoment(daily.timeZone, at);
-    const thread = await bb.sdk.threads.spawn({
-      projectId: PERSONAL_PROJECT_ID,
-      environment: { type: "project-default" },
-      title: `Ambient scene for ${moment.label.split(" at ")[0]}`,
-      prompt: dailyPrompt(
-        moment,
-        daily.timeZone,
-        (await listLibrary()).slice(0, 5).map((entry) => entry.scene.name),
-      ),
-    });
-    const threadId = thread.id;
-    await writeDaily({ ...daily, lastRunDate: moment.date, lastThreadId: threadId });
-    return threadId;
+  function updateDaily(update: Partial<DailyScene>): Promise<DailyScene> {
+    return serialized(async () => writeDaily({ ...(await readDaily()), ...update }));
   }
 
-  async function listLibrary(): Promise<LibraryEntry[]> {
-    const keys = await bb.storage.kv.list(LIBRARY_PREFIX);
-    const values = await Promise.all(keys.map((key) => bb.storage.kv.get(key)));
-    return values
-      .map((value) => libraryEntrySchema.safeParse(value))
-      .flatMap((parsed) => (parsed.success ? [parsed.data] : []))
-      .sort((left, right) => right.savedAt - left.savedAt);
-  }
-
-  async function resolveScene(id: string): Promise<Scene> {
-    const builtIn = BUILT_IN_SCENES.find((entry) => entry.id === id);
-    if (builtIn) return sceneOf(builtIn);
-    const saved = libraryEntrySchema.safeParse(
-      await bb.storage.kv.get(`${LIBRARY_PREFIX}${id}`),
-    );
-    if (saved.success) return saved.data.scene;
-    const byName = (await listLibrary()).find(
-      (entry) => entry.scene.name.toLowerCase() === id.toLowerCase(),
-    );
-    if (byName) return byName.scene;
-    throw new Error(`no scene matches ${JSON.stringify(id)}`);
-  }
-
-  async function saveScene(name: string | undefined): Promise<string> {
-    const { scene } = await readState();
-    const finalName = name ?? scene.name;
-    const base = slugOf(finalName);
-    const existing = new Set((await listLibrary()).map((entry) => entry.id));
-    const builtInIds = new Set(BUILT_IN_SCENES.map((entry) => entry.id));
-    let id = base;
-    for (let suffix = 2; existing.has(id) || builtInIds.has(id); suffix += 1) {
-      id = `${base}-${suffix}`;
+  async function painterRunning(threadId: string | null): Promise<boolean> {
+    if (!threadId) return false;
+    try {
+      const thread = await bb.sdk.threads.get({ threadId });
+      return BUSY_THREAD_STATUSES.has(thread.status);
+    } catch {
+      return false;
     }
-    await bb.storage.kv.set(`${LIBRARY_PREFIX}${id}`, {
-      id,
-      scene: { ...scene, name: finalName },
-      savedAt: Date.now(),
-    } satisfies LibraryEntry);
-    bb.realtime.publish("library", { id });
-    return id;
   }
 
-  async function deleteScene(id: string): Promise<boolean> {
-    const key = `${LIBRARY_PREFIX}${id}`;
-    if ((await bb.storage.kv.get(key)) === undefined) return false;
-    await bb.storage.kv.delete(key);
-    bb.realtime.publish("library", { id });
-    return true;
+  function paintScene(at: Date): Promise<string> {
+    return serialized(async () => {
+      const daily = await readDaily();
+      if (await painterRunning(daily.lastThreadId)) {
+        throw new Error(`a scene is already being painted in ${daily.lastThreadId}`);
+      }
+      const moment = localMoment(daily.timeZone, at);
+      const thread = await bb.sdk.threads.spawn({
+        projectId: PERSONAL_PROJECT_ID,
+        environment: { type: "project-default" },
+        permissionMode: "auto",
+        title: `Ambient scene for ${moment.label.split(" at ")[0]}`,
+        prompt: dailyPrompt(moment, daily.timeZone),
+      });
+      await writeDaily({ ...daily, lastRunDate: moment.date, lastThreadId: thread.id });
+      return thread.id;
+    });
+  }
+
+  async function readIndex(): Promise<LibraryIndex> {
+    const stored = libraryIndexSchema.safeParse(await bb.storage.kv.get(LIBRARY_INDEX_KEY));
+    if (stored.success) return stored.data;
+    const keys = await bb.storage.kv.list(LIBRARY_PREFIX);
+    const entries = await Promise.all(keys.map((key) => bb.storage.kv.get(key)));
+    const index = entries
+      .map((value) => libraryEntrySchema.safeParse(value))
+      .flatMap((parsed) =>
+        parsed.success
+          ? [{ id: parsed.data.id, name: parsed.data.scene.name, savedAt: parsed.data.savedAt }]
+          : [],
+      )
+      .sort((left, right) => right.savedAt - left.savedAt);
+    await bb.storage.kv.set(LIBRARY_INDEX_KEY, index);
+    return index;
+  }
+
+  async function readSaved(id: string): Promise<Scene | null> {
+    const saved = libraryEntrySchema.safeParse(await bb.storage.kv.get(`${LIBRARY_PREFIX}${id}`));
+    return saved.success ? rebuildBuiltIn(saved.data.scene) : null;
+  }
+
+  async function resolveScene(idOrName: string): Promise<Scene> {
+    const wanted = idOrName.trim().toLowerCase();
+    const builtIn = BUILT_IN_SCENES.find(
+      (entry) => entry.id === wanted || entry.name.toLowerCase() === wanted,
+    );
+    if (builtIn) return sceneOf(builtIn);
+    const byId = await readSaved(idOrName.trim());
+    if (byId) return byId;
+    const byName = (await readIndex()).find((entry) => entry.name.toLowerCase() === wanted);
+    const named = byName ? await readSaved(byName.id) : null;
+    if (named) return named;
+    throw new Error(`no scene matches ${JSON.stringify(idOrName)}`);
+  }
+
+  function saveScene(name: string | undefined): Promise<string> {
+    return serialized(async () => {
+      const { scene } = await readState();
+      let finalName = name ?? scene.name;
+      if (BUILT_IN_SCENES.some((entry) => entry.name.toLowerCase() === finalName.toLowerCase())) {
+        finalName = `${finalName.slice(0, 53)} (mine)`;
+      }
+      const index = await readIndex();
+      const existing = index.find((entry) => entry.name.toLowerCase() === finalName.toLowerCase());
+      let id = existing?.id;
+      if (!id) {
+        const taken = new Set([
+          ...index.map((entry) => entry.id),
+          ...BUILT_IN_SCENES.map((entry) => entry.id),
+        ]);
+        const base = slugOf(finalName);
+        id = base;
+        for (let suffix = 2; taken.has(id); suffix += 1) id = `${base}-${suffix}`;
+      }
+      const savedAt = Date.now();
+      await bb.storage.kv.set(`${LIBRARY_PREFIX}${id}`, {
+        id,
+        scene: { ...scene, name: finalName },
+        savedAt,
+      } satisfies LibraryEntry);
+      await bb.storage.kv.set(LIBRARY_INDEX_KEY, [
+        { id, name: finalName, savedAt },
+        ...index.filter((entry) => entry.id !== id),
+      ]);
+      bb.realtime.publish("library", { id });
+      return id;
+    });
+  }
+
+  function deleteScene(id: string): Promise<boolean> {
+    return serialized(async () => {
+      const key = `${LIBRARY_PREFIX}${id}`;
+      if ((await bb.storage.kv.get(key)) === undefined) return false;
+      await bb.storage.kv.delete(key);
+      const index = await readIndex();
+      await bb.storage.kv.set(
+        LIBRARY_INDEX_KEY,
+        index.filter((entry) => entry.id !== id),
+      );
+      bb.realtime.publish("library", { id });
+      return true;
+    });
+  }
+
+  async function libraryLines(): Promise<string[]> {
+    return [
+      ...BUILT_IN_SCENES.map((entry) => `${entry.id}  ${entry.name}  (built-in)`),
+      ...(await readIndex()).map((entry) => `${entry.id}  ${entry.name}`),
+    ];
   }
 
   function awaitCompile(sceneRevision: number): Promise<CompileReport | null> {
@@ -519,6 +695,14 @@ export default function plugin(bb: BbPluginApi): void {
     });
   }
 
+  async function updateControls(partial: Partial<Controls>): Promise<AmbientState> {
+    const state = await readState();
+    return writeState(
+      { ...state, controls: { ...state.controls, ...partial } },
+      { sceneChanged: false },
+    );
+  }
+
   bb.rpc.register(ambientRpcContract, {
     state: () => readState(),
     async setValues({ values }) {
@@ -535,13 +719,7 @@ export default function plugin(bb: BbPluginApi): void {
         { sceneChanged: false },
       );
     },
-    async setControls(partial) {
-      const state = await readState();
-      return writeState(
-        { ...state, controls: { ...state.controls, ...partial } },
-        { sceneChanged: false },
-      );
-    },
+    setControls: (partial) => updateControls(partial),
     async loadScene({ id }) {
       const state = await readState();
       return writeState(
@@ -556,14 +734,10 @@ export default function plugin(bb: BbPluginApi): void {
       return { deleted: await deleteScene(id) };
     },
     async library() {
-      const saved = await listLibrary();
+      const saved = await readIndex();
       return {
         entries: [
-          ...saved.map((entry) => ({
-            id: entry.id,
-            name: entry.scene.name,
-            builtIn: false,
-          })),
+          ...saved.map((entry) => ({ id: entry.id, name: entry.name, builtIn: false })),
           ...BUILT_IN_SCENES.map((entry) => ({
             id: entry.id,
             name: entry.name,
@@ -572,28 +746,48 @@ export default function plugin(bb: BbPluginApi): void {
         ],
       };
     },
-    reportCompile({ sceneRevision, ok, log }) {
+    async reportCompile({ sceneRevision, ok, log }) {
+      lastWindowAt = Date.now();
       const waiter = compileWaiters.get(sceneRevision);
-      waiter?.({ ok, ...(log === undefined ? {} : { log }) });
-      return { accepted: waiter !== undefined };
+      if (waiter) {
+        waiter({ ok, ...(log === undefined ? {} : { log }) });
+        return { accepted: true };
+      }
+      if (ok) {
+        const current = await readState();
+        if (current.sceneRevision === sceneRevision) {
+          await bb.storage.kv.set(LAST_GOOD_KEY, current.scene);
+        }
+        return { accepted: true };
+      }
+      return { accepted: await serialized(() => restoreScene(sceneRevision)) };
     },
     submitCapture({ requestId, dataUrl, summary, visibility, dark }) {
+      lastWindowAt = Date.now();
       const waiter = captureWaiters.get(requestId);
       waiter?.({ dataUrl, summary, visibility, dark });
       return { accepted: waiter !== undefined };
     },
     daily: () => readDaily(),
-    async setDaily(update) {
-      return writeDaily({ ...(await readDaily()), ...update });
-    },
+    setDaily: (update) => updateDaily(update),
     async paintNow() {
       return { threadId: await paintScene(new Date()) };
+    },
+    heartbeat() {
+      lastWindowAt = Date.now();
+      return { ok: true };
     },
   });
 
   bb.background.schedule("daily-scene", "*/15 * * * *", async () => {
     const now = new Date();
-    if (isDailyDue(await readDaily(), now)) await paintScene(now);
+    const windowOpen = now.getTime() - lastWindowAt < WINDOW_FRESH_MS;
+    if (!isDailyDue(await readDaily(), now, windowOpen)) return;
+    try {
+      await paintScene(now);
+    } catch (caught) {
+      bb.log.warn(`Ambient daily scene skipped: ${caught instanceof Error ? caught.message : String(caught)}`);
+    }
   });
 
   bb.agents.registerTool({
@@ -601,17 +795,17 @@ export default function plugin(bb: BbPluginApi): void {
     description:
       "Read, rewrite, and look at the Ambient scene: the live GLSL background bb paints behind its UI, driven by what the user's agents are doing. The user tunes it with sliders generated from the params you declare.",
     instructions:
-      "When the user asks to change bb's ambient background, call ambient action=get first for the shader contract and current source, then action=set, then action=look to see the result before describing it. Expose the knobs a person would want to play with as params rather than hard-coding them.",
+      "When the user asks to change bb's ambient background, call ambient action=get first for the shader contract and current source, then action=set, then action=look to see the result before describing it. Expose the knobs a person would want to play with as params rather than hard-coding them. To make the background subtler or bolder without rewriting the scene, use action=set with controls.visibility.",
     presentation: {
       label: { pending: "Painting the ambient scene", completed: "Painted the ambient scene" },
     },
     parameters: z.object({
       action: z
-        .enum(["get", "set", "look", "library", "load", "save"])
+        .enum(["get", "set", "look", "library", "load", "save", "delete"])
         .describe(
-          "get: shader contract + current scene. set: replace any of name/source/params/palette or nudge values. look: capture the rendered scene as an image. library/load/save: manage saved scenes.",
+          "get: shader contract + current scene. set: replace any of name/source/params/palette, nudge values, or change controls. look: capture the rendered scene as an image. library/load/save/delete: manage saved scenes.",
         ),
-      name: z.string().min(1).max(60).optional().describe("scene name (set, save)"),
+      name: sceneNameSchema.optional().describe("scene name (set, save)"),
       source: z
         .string()
         .max(MAX_SOURCE_LENGTH)
@@ -636,10 +830,15 @@ export default function plugin(bb: BbPluginApi): void {
         .optional()
         .describe("set existing param values by id"),
       palette: z.array(hexColor).length(4).optional().describe("four #rrggbb colors"),
+      controls: controlInputSchema
+        .optional()
+        .describe(
+          "user display controls: enabled, visibility (0..1, how much of the scene shows through bb), motion (0..4 speed), detail (0.2..1 render resolution)",
+        ),
       ripple: rippleKindSchema
         .optional()
         .describe("look: fire a test ripple of this kind just before capturing"),
-      id: z.string().optional().describe("scene id or name for action=load"),
+      id: z.string().optional().describe("scene id or name for action=load and action=delete"),
     }),
     async execute(input) {
       const error = (text: string) => ({
@@ -651,11 +850,7 @@ export default function plugin(bb: BbPluginApi): void {
           return `${SHADER_CONTRACT}\n\n---\n${describeScene(await readState())}`;
         }
         if (input.action === "library") {
-          const saved = await listLibrary();
-          return [
-            ...BUILT_IN_SCENES.map((entry) => `${entry.id}  ${entry.name}  (built-in)`),
-            ...saved.map((entry) => `${entry.id}  ${entry.scene.name}`),
-          ].join("\n");
+          return (await libraryLines()).join("\n");
         }
         if (input.action === "load") {
           if (!input.id) return error("action=load needs an id");
@@ -670,13 +865,19 @@ export default function plugin(bb: BbPluginApi): void {
           const id = await saveScene(input.name);
           return `Saved as ${id}.`;
         }
+        if (input.action === "delete") {
+          if (!input.id) return error("action=delete needs an id");
+          return (await deleteScene(input.id))
+            ? `Deleted ${input.id}.`
+            : error(`no saved scene ${JSON.stringify(input.id)}; built-in scenes cannot be deleted`);
+        }
         if (input.action === "look") {
           const report = await awaitCapture({
             requestId: randomUUID(),
             ripple: input.ripple ?? null,
           });
           if (!report) {
-            return error("No bb window answered. The user needs a bb window open with Ambient enabled.");
+            return error("No visible bb window answered. The user needs bb open in the foreground with Ambient enabled.");
           }
           const { working, waiting } = report.summary;
           return {
@@ -713,34 +914,37 @@ export default function plugin(bb: BbPluginApi): void {
                 })),
               }),
         };
+        if (structural) delete scene.baseId;
         if (input.values) scene = applyValues(scene, input.values);
         const parsed = sceneSchema.safeParse(scene);
-        if (!parsed.success) {
-          return error(parsed.error.issues.map((issue) => `${issue.path.join(".")}: ${issue.message}`).join("\n"));
-        }
+        if (!parsed.success) return error(formatIssues(parsed.error));
         if (!/\bvec3\s+scene\s*\(/.test(parsed.data.source)) {
           return error("source must define vec3 scene(vec2 uv, vec2 p)");
         }
         const next = await writeState(
-          { ...state, scene: parsed.data },
+          {
+            ...state,
+            scene: parsed.data,
+            controls: { ...state.controls, ...controlsFromInput(input.controls ?? {}) },
+          },
           { sceneChanged: structural },
         );
-        if (!structural) return `Updated ${next.scene.name}.`;
+        if (!structural) return `Updated ${next.scene.name}. Controls: ${describeControls(next.controls)}.`;
         const report = await awaitCompile(next.sceneRevision);
         if (report === null) {
-          return `Saved ${next.scene.name}, but no bb window compiled it within ${COMPILE_TIMEOUT_MS / 1000}s, so it is unverified.`;
+          await serialized(() => restoreScene(next.sceneRevision, state.scene));
+          return error(
+            `No visible bb window verified ${next.scene.name} within ${COMPILE_TIMEOUT_MS / 1000}s, so it was not applied. Ask the user to bring bb to the foreground and try again.`,
+          );
         }
         if (!report.ok) {
-          await writeState(
-            { ...next, scene: state.scene },
-            { sceneChanged: true },
-          );
-          return error(
-            `GLSL compile failed; the previous scene was restored.\n${report.log ?? ""}`,
-          );
+          await serialized(() => restoreScene(next.sceneRevision, state.scene));
+          return error(`The scene was not applied; the previous scene was restored.\n${report.log ?? ""}`);
         }
+        await bb.storage.kv.set(LAST_GOOD_KEY, next.scene);
         return `Compiled and live: ${next.scene.name} with ${next.scene.params.length} sliders.`;
       } catch (caught) {
+        if (caught instanceof z.ZodError) return error(formatIssues(caught));
         return error(caught instanceof Error ? caught.message : String(caught));
       }
     },
@@ -753,7 +957,12 @@ export default function plugin(bb: BbPluginApi): void {
       { name: "status", summary: "Show the active scene, its params, and controls", usage: "bb ambient status" },
       { name: "list", summary: "List built-in and saved scenes", usage: "bb ambient list" },
       { name: "load", summary: "Make a built-in or saved scene active", usage: "bb ambient load <id-or-name>" },
-      { name: "set", summary: "Set scene params", usage: "bb ambient set <param>=<value> [...]" },
+      {
+        name: "set",
+        summary: "Set scene params or the Visibility, Motion, and Detail controls",
+        usage: "bb ambient set <param|visibility|motion|detail>=<value>[%] [...]",
+      },
+      { name: "palette", summary: "Set the scene's four colors", usage: "bb ambient palette <#rrggbb> <#rrggbb> <#rrggbb> <#rrggbb>" },
       { name: "save", summary: "Save the active scene to the library", usage: "bb ambient save [name]" },
       { name: "delete", summary: "Remove a saved scene from the library", usage: "bb ambient delete <id>" },
       { name: "on", summary: "Turn the background on", usage: "bb ambient on" },
@@ -773,12 +982,7 @@ export default function plugin(bb: BbPluginApi): void {
           return { exitCode: 0, stdout: `${lines}\n` };
         }
         if (command === "list") {
-          const saved = await listLibrary();
-          const lines = [
-            ...BUILT_IN_SCENES.map((entry) => `${entry.id}  ${entry.name}  (built-in)`),
-            ...saved.map((entry) => `${entry.id}  ${entry.scene.name}`),
-          ];
-          return { exitCode: 0, stdout: `${lines.join("\n")}\n` };
+          return { exitCode: 0, stdout: `${(await libraryLines()).join("\n")}\n` };
         }
         if (command === "load") {
           const id = rest.join(" ").trim();
@@ -791,27 +995,34 @@ export default function plugin(bb: BbPluginApi): void {
           return { exitCode: 0, stdout: `loaded ${next.scene.name}\n` };
         }
         if (command === "set") {
-          if (rest.length === 0) throw new Error("usage: bb ambient set <param>=<value> [...]");
-          const values: Record<string, number> = {};
-          for (const pair of rest) {
-            const match = /^([a-z][a-z0-9_]*)=(-?\d+(?:\.\d+)?)$/.exec(pair);
-            if (!match) throw new Error(`expected <param>=<number>, got ${JSON.stringify(pair)}`);
-            values[match[1]!] = Number(match[2]);
+          if (rest.length === 0) {
+            throw new Error("usage: bb ambient set <param|visibility|motion|detail>=<value>[%] [...]");
           }
+          const { values, controls } = parseSetPairs(rest);
           const state = await readState();
           const next = await writeState(
-            { ...state, scene: applyValues(state.scene, values) },
+            {
+              ...state,
+              scene: applyValues(state.scene, values),
+              controls: controlsSchema.parse({ ...state.controls, ...controls }),
+            },
             { sceneChanged: false },
           );
           const applied = next.scene.params
-            .filter((entry) => entry.id in values)
-            .map((entry) => `${entry.id}=${entry.value}`)
-            .join(" ");
-          return { exitCode: 0, stdout: `${applied}\n` };
+            .filter((entry) => Object.hasOwn(values, entry.id))
+            .map((entry) => `${entry.id}=${entry.value}`);
+          if (Object.keys(controls).length > 0) applied.push(describeControls(next.controls));
+          return { exitCode: 0, stdout: `${applied.join("\n")}\n` };
+        }
+        if (command === "palette") {
+          const palette = paletteSchema.parse(rest);
+          const state = await readState();
+          await writeState({ ...state, scene: { ...state.scene, palette } }, { sceneChanged: false });
+          return { exitCode: 0, stdout: `palette ${palette.join(" ")}\n` };
         }
         if (command === "save") {
           const name = rest.join(" ").trim();
-          const id = await saveScene(name || undefined);
+          const id = await saveScene(name ? sceneNameSchema.parse(name) : undefined);
           return { exitCode: 0, stdout: `saved as ${id}\n` };
         }
         if (command === "delete") {
@@ -821,11 +1032,7 @@ export default function plugin(bb: BbPluginApi): void {
           return { exitCode: 0, stdout: `deleted ${id}\n` };
         }
         if (command === "on" || command === "off") {
-          const state = await readState();
-          await writeState(
-            { ...state, controls: { ...state.controls, enabled: command === "on" } },
-            { sceneChanged: false },
-          );
+          await updateControls({ enabled: command === "on" });
           return { exitCode: 0, stdout: `ambient ${command}\n` };
         }
         if (command === "daily") {
@@ -834,20 +1041,15 @@ export default function plugin(bb: BbPluginApi): void {
             return { exitCode: 0, stdout: `painting in ${await paintScene(new Date())}\n` };
           }
           if (action === "on" || action === "off") {
-            const [hourText, timeZone] = options;
-            const hour = hourText === undefined ? undefined : Number(hourText);
-            const update = dailyUpdateSchema.parse({
-              enabled: action === "on",
-              ...(hour === undefined ? {} : { hour }),
-              ...(timeZone === undefined ? {} : { timeZone }),
-            });
-            await writeDaily({ ...(await readDaily()), ...update });
+            await updateDaily(
+              dailyUpdateSchema.parse({ enabled: action === "on", ...parseDailyOptions(options) }),
+            );
           } else if (action !== "status") {
             throw new Error("usage: bb ambient daily <status|on [hour] [time-zone]|off|now>");
           }
           const daily = await readDaily();
           const schedule = daily.enabled
-            ? `on, after ${daily.hour}:00 ${daily.timeZone}`
+            ? `on, after ${daily.hour}:00 ${daily.timeZone} while a bb window is open`
             : "off";
           const last = daily.lastRunDate
             ? `${daily.lastRunDate} (${daily.lastThreadId ?? "no thread"})`
@@ -856,10 +1058,15 @@ export default function plugin(bb: BbPluginApi): void {
         }
         return {
           exitCode: 1,
-          stderr: "usage: bb ambient <status|list|load|set|save|delete|on|off|daily>\n",
+          stderr: "usage: bb ambient <status|list|load|set|palette|save|delete|on|off|daily>\n",
         };
       } catch (caught) {
-        const message = caught instanceof Error ? caught.message : String(caught);
+        const message =
+          caught instanceof z.ZodError
+            ? formatIssues(caught)
+            : caught instanceof Error
+              ? caught.message
+              : String(caught);
         return { exitCode: 1, stderr: `${message}\n` };
       }
     },

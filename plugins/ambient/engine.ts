@@ -14,9 +14,15 @@ void main() {
   gl_Position = vec4(position, 0.0, 1.0);
 }`;
 
-export type CompileResult = { ok: true } | { ok: false; log: string };
+export type CompileResult =
+  | { ok: true }
+  | { ok: false; log: string }
+  | { ok: "superseded" };
 
 const MOTION_SAMPLE_WIDTH = 64;
+const PROBE_SIZES = [64, 192] as const;
+const PROBE_FRAMES = 3;
+const COMPILE_POLL_MS = 16;
 
 export interface Capture {
   dataUrl: string;
@@ -32,6 +38,21 @@ export function motionBetween(before: Capture, after: Capture): number {
     total += Math.abs(before.samples[index]! - after.samples[index]!);
   }
   return total / length;
+}
+
+function encodePng(canvas: HTMLCanvasElement): Promise<string> {
+  return new Promise((resolve, reject) => {
+    canvas.toBlob((blob) => {
+      if (!blob) {
+        reject(new Error("could not encode the capture"));
+        return;
+      }
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result));
+      reader.onerror = () => reject(reader.error ?? new Error("could not read the capture"));
+      reader.readAsDataURL(blob);
+    }, "image/png");
+  });
 }
 
 export interface ThemeColors {
@@ -59,6 +80,9 @@ export class AmbientRenderer {
   private current: Program | null = null;
   private palette = new Float32Array(12);
   private paramValues = new Map<string, number>();
+  private compileToken = 0;
+  private readonly parallel: { COMPLETION_STATUS_KHR: number } | null;
+  private probeTarget: { framebuffer: WebGLFramebuffer; texture: WebGLTexture } | null = null;
 
   constructor(private readonly canvas: HTMLCanvasElement) {
     const gl = canvas.getContext("webgl2", {
@@ -71,6 +95,7 @@ export class AmbientRenderer {
     });
     if (!gl) throw new Error("WebGL2 is unavailable");
     this.gl = gl;
+    this.parallel = gl.getExtension("KHR_parallel_shader_compile");
     const buffer = gl.createBuffer();
     if (!buffer) throw new Error("could not allocate a vertex buffer");
     this.buffer = buffer;
@@ -82,30 +107,52 @@ export class AmbientRenderer {
     );
   }
 
-  compile(scene: Pick<Scene, "source" | "params">): CompileResult {
+  async compile(scene: Pick<Scene, "source" | "params">): Promise<CompileResult> {
     const { gl } = this;
+    const token = ++this.compileToken;
     const assembled = assembleShader(scene);
-    const vertex = this.shader(gl.VERTEX_SHADER, VERTEX_SOURCE);
-    const fragment = this.shader(gl.FRAGMENT_SHADER, assembled.code);
-    if (!vertex.ok || !fragment.ok) {
-      const log = !fragment.ok ? fragment.log : !vertex.ok ? vertex.log : "";
-      if (vertex.ok) gl.deleteShader(vertex.shader);
-      if (fragment.ok) gl.deleteShader(fragment.shader);
-      return { ok: false, log: remapShaderLog(log, assembled.sourceLineOffset) };
-    }
+    const vertex = gl.createShader(gl.VERTEX_SHADER);
+    const fragment = gl.createShader(gl.FRAGMENT_SHADER);
     const program = gl.createProgram();
-    if (!program) return { ok: false, log: "could not allocate a program" };
-    gl.attachShader(program, vertex.shader);
-    gl.attachShader(program, fragment.shader);
+    if (!vertex || !fragment || !program) return { ok: false, log: "could not allocate a shader program" };
+    gl.shaderSource(vertex, VERTEX_SOURCE);
+    gl.compileShader(vertex);
+    gl.shaderSource(fragment, assembled.code);
+    gl.compileShader(fragment);
+    gl.attachShader(program, vertex);
+    gl.attachShader(program, fragment);
     gl.bindAttribLocation(program, 0, "position");
     gl.linkProgram(program);
-    gl.deleteShader(vertex.shader);
-    gl.deleteShader(fragment.shader);
-    if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
-      const log = gl.getProgramInfoLog(program) ?? "link failed";
-      gl.deleteProgram(program);
-      return { ok: false, log: remapShaderLog(log, assembled.sourceLineOffset) };
+    const parallel = this.parallel;
+    if (parallel) {
+      await new Promise<void>((resolve) => {
+        const poll = () => {
+          if (gl.isContextLost() || gl.getProgramParameter(program, parallel.COMPLETION_STATUS_KHR)) {
+            resolve();
+          } else {
+            setTimeout(poll, COMPILE_POLL_MS);
+          }
+        };
+        poll();
+      });
     }
+    const cleanup = () => {
+      gl.deleteShader(vertex);
+      gl.deleteShader(fragment);
+    };
+    if (token !== this.compileToken || gl.isContextLost()) {
+      cleanup();
+      gl.deleteProgram(program);
+      return { ok: "superseded" };
+    }
+    const failure = [fragment, vertex].find((shader) => !gl.getShaderParameter(shader, gl.COMPILE_STATUS));
+    if (failure || !gl.getProgramParameter(program, gl.LINK_STATUS)) {
+      const log = failure ? gl.getShaderInfoLog(failure) : gl.getProgramInfoLog(program);
+      cleanup();
+      gl.deleteProgram(program);
+      return { ok: false, log: remapShaderLog(log ?? "compile failed", assembled.sourceLineOffset) };
+    }
+    cleanup();
     if (this.current) gl.deleteProgram(this.current.program);
     const names = [
       "u_resolution",
@@ -132,6 +179,10 @@ export class AmbientRenderer {
     return { ok: true };
   }
 
+  isContextLost(): boolean {
+    return this.gl.isContextLost();
+  }
+
   setPalette(palette: readonly string[]): void {
     palette.slice(0, 4).forEach((hex, index) => {
       this.palette.set(hexToRgb(hex), index * 3);
@@ -153,15 +204,19 @@ export class AmbientRenderer {
   }
 
   render(input: FrameInput): void {
+    this.draw(input, this.canvas.width, this.canvas.height);
+  }
+
+  private draw(input: FrameInput, width: number, height: number): void {
     const { gl, current } = this;
     if (!current) return;
     const uniform = (name: string) => current.uniforms.get(name) ?? null;
-    gl.viewport(0, 0, this.canvas.width, this.canvas.height);
+    gl.viewport(0, 0, width, height);
     gl.useProgram(current.program);
     gl.bindBuffer(gl.ARRAY_BUFFER, this.buffer);
     gl.enableVertexAttribArray(0);
     gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
-    gl.uniform2f(uniform("u_resolution"), this.canvas.width, this.canvas.height);
+    gl.uniform2f(uniform("u_resolution"), width, height);
     gl.uniform1f(uniform("u_time"), input.time);
     gl.uniform3fv(uniform("u_palette"), this.palette);
     gl.uniform3fv(uniform("u_canvas"), input.theme.canvas);
@@ -179,20 +234,44 @@ export class AmbientRenderer {
     gl.drawArrays(gl.TRIANGLES, 0, 3);
   }
 
-  benchmark(input: FrameInput, frames: number): number {
+  estimateFrameMs(input: FrameInput): number {
     const { gl } = this;
-    gl.finish();
-    const start = performance.now();
-    for (let index = 0; index < frames; index += 1) this.render(input);
-    gl.finish();
-    return (performance.now() - start) / frames;
+    if (!this.current || gl.isContextLost()) return 0;
+    const aspect = this.canvas.height / Math.max(1, this.canvas.width);
+    const timings = PROBE_SIZES.map((width) => {
+      const height = Math.max(1, Math.round(width * aspect));
+      this.bindProbeTarget(width, height);
+      gl.finish();
+      const start = performance.now();
+      for (let index = 0; index < PROBE_FRAMES; index += 1) this.draw(input, width, height);
+      gl.finish();
+      return { pixels: width * height, ms: (performance.now() - start) / PROBE_FRAMES };
+    });
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+    const [small, large] = timings as [(typeof timings)[number], (typeof timings)[number]];
+    const perPixel = Math.max(0, large.ms - small.ms) / (large.pixels - small.pixels);
+    return perPixel * this.canvas.width * this.canvas.height;
   }
 
-  capture(
+  private bindProbeTarget(width: number, height: number): void {
+    const { gl } = this;
+    if (!this.probeTarget) {
+      const framebuffer = gl.createFramebuffer();
+      const texture = gl.createTexture();
+      if (!framebuffer || !texture) throw new Error("could not allocate a probe target");
+      this.probeTarget = { framebuffer, texture };
+    }
+    gl.bindTexture(gl.TEXTURE_2D, this.probeTarget.texture);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, width, height, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, this.probeTarget.framebuffer);
+    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, this.probeTarget.texture, 0);
+  }
+
+  async capture(
     maxWidth: number,
     canvasColor: readonly [number, number, number],
     options: { encode: boolean },
-  ): Capture {
+  ): Promise<Capture> {
     const source = this.canvas;
     const scale = Math.min(1, maxWidth / source.width);
     const target = document.createElement("canvas");
@@ -230,7 +309,7 @@ export class AmbientRenderer {
         (0.2126 * smallData[index * 4]! + 0.7152 * smallData[index * 4 + 1]! + 0.0722 * smallData[index * 4 + 2]!) / 255;
     }
     return {
-      dataUrl: options.encode ? target.toDataURL("image/png") : "",
+      dataUrl: options.encode ? await encodePng(target) : "",
       visibility: {
         fromBackground: distance / samples,
         spread: Math.sqrt(Math.max(0, lumaSquares / samples - mean * mean)),
@@ -241,25 +320,14 @@ export class AmbientRenderer {
 
   dispose(): void {
     const { gl } = this;
+    this.compileToken += 1;
     if (this.current) gl.deleteProgram(this.current.program);
+    if (this.probeTarget) {
+      gl.deleteFramebuffer(this.probeTarget.framebuffer);
+      gl.deleteTexture(this.probeTarget.texture);
+      this.probeTarget = null;
+    }
     gl.deleteBuffer(this.buffer);
     this.current = null;
-  }
-
-  private shader(
-    type: number,
-    source: string,
-  ): { ok: true; shader: WebGLShader } | { ok: false; log: string } {
-    const { gl } = this;
-    const shader = gl.createShader(type);
-    if (!shader) return { ok: false, log: "could not allocate a shader" };
-    gl.shaderSource(shader, source);
-    gl.compileShader(shader);
-    if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
-      const log = gl.getShaderInfoLog(shader) ?? "compile failed";
-      gl.deleteShader(shader);
-      return { ok: false, log };
-    }
-    return { ok: true, shader };
   }
 }

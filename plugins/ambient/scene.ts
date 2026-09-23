@@ -19,6 +19,7 @@ export interface Scene {
   source: string;
   params: SceneParam[];
   palette: [string, string, string, string];
+  baseId?: string;
 }
 
 export interface Controls {
@@ -348,5 +349,23 @@ export function sceneOf(builtIn: BuiltInScene): Scene {
     source: builtIn.source,
     palette: [...builtIn.palette],
     params: builtIn.params.map((entry) => ({ ...entry })),
+    baseId: builtIn.id,
+  };
+}
+
+export function rebuildBuiltIn(scene: Scene): Scene {
+  const builtIn = BUILT_IN_SCENES.find((entry) => entry.id === scene.baseId);
+  if (!builtIn) return scene;
+  const values = new Map(scene.params.map((entry) => [entry.id, entry.value]));
+  return {
+    ...sceneOf(builtIn),
+    name: scene.name,
+    palette: scene.palette,
+    params: builtIn.params.map((entry) => {
+      const value = values.get(entry.id);
+      return value === undefined
+        ? { ...entry }
+        : { ...entry, value: Math.min(entry.max, Math.max(entry.min, value)) };
+    }),
   };
 }

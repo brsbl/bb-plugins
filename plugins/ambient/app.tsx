@@ -15,23 +15,33 @@ import type { AmbientState, CaptureRequest, DailyScene, ambientRpcContract } fro
 import { ambientStore, useAmbient } from "./store.js";
 
 const FRAME_INTERVAL_MS = 1000 / 30;
-const SLOW_FRAME_MS = 60;
-const FAST_FRAME_MS = 40;
+const FRAME_TOLERANCE_MS = 2;
+const DISCONTINUITY_MS = 1000;
+const SLOW_LATENESS_MS = 25;
+const FAST_LATENESS_MS = 6;
+const STALL_LATENESS_MS = 80;
 const STALLED_FRAME_INTERVAL_MS = 250;
 const MIN_AUTO_SCALE = 0.25;
+const TARGET_FRAME_MS = 12;
+const REJECT_FRAME_MS = 50;
+const HEARTBEAT_MS = 60_000;
 const CAPTURE_DELAY_MS = 900;
 const MOTION_SAMPLE_MS = 1000;
-const BENCHMARK_FRAMES = 6;
 const VEIL_STYLE_ID = "bb-ambient-veil";
+
+const PANES = 'body.bb-app-shell > #root, [data-testid="secondary-panel-shelf"]';
+const BLUR = "-webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px);";
 
 function veilCss(showThrough: number): string {
   const keep = Math.round((1 - showThrough) * 1000) / 10;
   return `html.bb-app-shell-root { background-color: var(--canvas); }
 body.bb-app-shell { background-color: transparent; --ambient-background: var(--background); --ambient-sidebar: var(--sidebar); }
-body.bb-app-shell > #root { --background: color-mix(in oklab, var(--ambient-background) ${keep}%, transparent); --sidebar: color-mix(in oklab, var(--ambient-sidebar) ${keep}%, transparent); }
-body.bb-app-shell > #root .bg-sidebar .bg-sidebar { --sidebar: transparent; }
-body.bb-app-shell > #root [data-sidebar="panel"][data-vaul-drawer-direction][data-state="closed"]:not([data-vaul-animate]) { visibility: hidden; transition: visibility 0s linear 260ms; }
-body.bb-app-shell > #root [data-sidebar-sticky-stack]::before, body.bb-app-shell > #root [data-sidebar-sticky-tier] { -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px); }`;
+:is(${PANES}) { --background: color-mix(in oklab, var(--ambient-background) ${keep}%, transparent); --sidebar: color-mix(in oklab, var(--ambient-sidebar) ${keep}%, transparent); }
+:is(${PANES}) .bg-sidebar .bg-sidebar:not(.sticky), [data-testid="secondary-panel-shelf"] .bg-sidebar:not(.sticky) { --sidebar: transparent; }
+:is(${PANES}) .sticky:is(.bg-sidebar, .bg-background) { --sidebar: transparent; --background: transparent; ${BLUR} }
+:is(${PANES}) .bg-surface-scrim { background-color: transparent; ${BLUR} }
+body.bb-app-shell > #root [data-sidebar-sticky-stack]::before, body.bb-app-shell > #root [data-sidebar-sticky-tier] { ${BLUR} }
+body.bb-app-shell > #root [data-sidebar="panel"][data-vaul-drawer-direction][data-state="closed"]:not([data-vaul-animate]) { visibility: hidden; transition: visibility 0s linear 260ms; }`;
 }
 
 function readThemeColors(): ThemeColors {
@@ -138,6 +148,11 @@ function AmbientOverlay() {
   );
 
   const enabled = state?.controls.enabled ?? false;
+  const [rendererEpoch, setRendererEpoch] = useState(0);
+  const fallbackRef = useRef(false);
+  const autoScaleRef = useRef(1);
+  const pacingRef = useRef({ lateness: 0, lastAdjust: 0 });
+  const clockRef = useRef({ time: 0 });
 
   useEffect(() => {
     if (!canvas) return;
@@ -151,39 +166,16 @@ function AmbientOverlay() {
     rendererRef.current = renderer;
     compiledRevision.current = null;
     const lost = (event: Event) => event.preventDefault();
+    const restored = () => setRendererEpoch((epoch) => epoch + 1);
     canvas.addEventListener("webglcontextlost", lost);
+    canvas.addEventListener("webglcontextrestored", restored);
     return () => {
       canvas.removeEventListener("webglcontextlost", lost);
+      canvas.removeEventListener("webglcontextrestored", restored);
       renderer.dispose();
       rendererRef.current = null;
     };
-  }, [canvas]);
-
-  useEffect(() => {
-    const renderer = rendererRef.current;
-    if (!renderer || !state) return;
-    if (compiledRevision.current !== state.sceneRevision) {
-      compiledRevision.current = state.sceneRevision;
-      const result = renderer.compile(state.scene);
-      if (result.ok) {
-        ambientStore.setCompileError(null);
-      } else {
-        ambientStore.setCompileError(result.log);
-        if (!renderer.compile(DEFAULT_SCENE).ok) return;
-      }
-      void rpc
-        .call("reportCompile", {
-          sceneRevision: state.sceneRevision,
-          ok: result.ok,
-          ...(result.ok ? {} : { log: result.log.slice(0, 8_000) }),
-        })
-        .catch(() => undefined);
-    }
-    renderer.setPalette(state.scene.palette);
-    renderer.setParamValues(valuesOf(state.scene.params));
-  }, [canvas, rpc, state]);
-
-  const autoScaleRef = useRef(1);
+  }, [canvas, rendererEpoch]);
 
   const frameInput = useCallback(
     (clock: { time: number }): FrameInput => ({
@@ -195,44 +187,122 @@ function AmbientOverlay() {
     [],
   );
 
+  const detail = useCallback(() => {
+    const current = liveRef.current.state;
+    return (ambientStore.getSnapshot().deviceDetail ?? current?.controls.quality ?? 0.5) * autoScaleRef.current;
+  }, []);
+
   const renderFrame = useCallback(
     (clock: { time: number }) => {
       const renderer = rendererRef.current;
-      const current = liveRef.current.state;
-      if (!renderer || !current) return;
-      renderer.resize(current.controls.quality * autoScaleRef.current);
+      if (!renderer || !liveRef.current.state) return;
+      renderer.resize(detail());
       renderer.render(frameInput(clock));
       ambientStore.setSummary(fieldRef.current.summary());
     },
-    [frameInput],
+    [detail, frameInput],
   );
 
-  const clockRef = useRef({ time: 0 });
+  useEffect(() => {
+    const renderer = rendererRef.current;
+    if (!renderer || !state) return;
+    const applySceneValues = () => {
+      const source = fallbackRef.current ? DEFAULT_SCENE : state.scene;
+      renderer.setPalette(source.palette);
+      renderer.setParamValues(valuesOf(source.params));
+    };
+    if (compiledRevision.current === state.sceneRevision) {
+      applySceneValues();
+      return;
+    }
+    const revision = state.sceneRevision;
+    const scene = state.scene;
+    compiledRevision.current = revision;
+    void (async () => {
+      let result = await renderer.compile(scene);
+      if (result.ok === "superseded" || compiledRevision.current !== revision) return;
+      if (result.ok) {
+        renderer.setPalette(scene.palette);
+        renderer.setParamValues(valuesOf(scene.params));
+        renderer.resize(detail() / autoScaleRef.current);
+        const fullDetailMs = renderer.estimateFrameMs(frameInput(clockRef.current));
+        const lowestDetailMs = fullDetailMs * MIN_AUTO_SCALE * MIN_AUTO_SCALE;
+        if (lowestDetailMs > REJECT_FRAME_MS) {
+          result = {
+            ok: false,
+            log: `Too heavy: about ${Math.round(fullDetailMs)} ms per frame, and still ${Math.round(lowestDetailMs)} ms at the lowest detail. Frames must render in a few milliseconds; use fewer loop iterations and fbm octaves.`,
+          };
+        } else {
+          autoScaleRef.current =
+            fullDetailMs > TARGET_FRAME_MS
+              ? Math.max(MIN_AUTO_SCALE, Math.sqrt(TARGET_FRAME_MS / fullDetailMs))
+              : 1;
+          pacingRef.current.lateness = 0;
+          pacingRef.current.lastAdjust = performance.now();
+        }
+      }
+      if (result.ok === true) {
+        fallbackRef.current = false;
+        ambientStore.setCompileError(null);
+      } else if (result.ok === false) {
+        fallbackRef.current = true;
+        autoScaleRef.current = 1;
+        ambientStore.setCompileError(result.log);
+        const fallback = await renderer.compile(DEFAULT_SCENE);
+        if (fallback.ok !== true) return;
+        applySceneValues();
+      }
+      if (document.hidden || renderer.isContextLost()) return;
+      void rpc
+        .call("reportCompile", {
+          sceneRevision: revision,
+          ok: result.ok === true,
+          ...(result.ok === false ? { log: result.log.slice(0, 8_000) } : {}),
+        })
+        .catch(() => undefined);
+    })();
+  }, [canvas, detail, frameInput, rendererEpoch, rpc, state]);
+
+  useEffect(() => {
+    if (!enabled) return;
+    const beat = () => {
+      if (!document.hidden) void rpc.call("heartbeat").catch(() => undefined);
+    };
+    beat();
+    const timer = window.setInterval(beat, HEARTBEAT_MS);
+    document.addEventListener("visibilitychange", beat);
+    return () => {
+      window.clearInterval(timer);
+      document.removeEventListener("visibilitychange", beat);
+    };
+  }, [enabled, rpc]);
 
   useEffect(() => {
     if (!enabled || !canvas) return;
     const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
     let frame = 0;
     let last = performance.now();
-    let average = FRAME_INTERVAL_MS;
-    let lastAdjust = last;
+    const pacing = pacingRef.current;
     const loop = (timestamp: number) => {
       frame = requestAnimationFrame(loop);
       if (document.hidden) {
         last = timestamp;
         return;
       }
+      const stalled = autoScaleRef.current <= MIN_AUTO_SCALE && pacing.lateness > STALL_LATENESS_MS;
+      const interval = stalled ? STALLED_FRAME_INTERVAL_MS : FRAME_INTERVAL_MS;
       const elapsed = timestamp - last;
-      const stalled = autoScaleRef.current <= MIN_AUTO_SCALE && average > SLOW_FRAME_MS * 2;
-      if (elapsed < (stalled ? STALLED_FRAME_INTERVAL_MS : FRAME_INTERVAL_MS)) return;
+      if (elapsed < interval - FRAME_TOLERANCE_MS) return;
       last = timestamp;
-      average = average * 0.9 + Math.min(elapsed, 1000) * 0.1;
-      if (average > SLOW_FRAME_MS && timestamp - lastAdjust > 1500 && autoScaleRef.current > MIN_AUTO_SCALE) {
-        autoScaleRef.current = Math.max(MIN_AUTO_SCALE, autoScaleRef.current * 0.7);
-        lastAdjust = timestamp;
-      } else if (average < FAST_FRAME_MS && timestamp - lastAdjust > 8000 && autoScaleRef.current < 1) {
-        autoScaleRef.current = Math.min(1, autoScaleRef.current / 0.85);
-        lastAdjust = timestamp;
+      if (elapsed < DISCONTINUITY_MS) {
+        pacing.lateness = pacing.lateness * 0.9 + Math.max(0, elapsed - interval) * 0.1;
+        if (pacing.lateness > SLOW_LATENESS_MS && timestamp - pacing.lastAdjust > 1500 && autoScaleRef.current > MIN_AUTO_SCALE) {
+          autoScaleRef.current = Math.max(MIN_AUTO_SCALE, autoScaleRef.current * 0.7);
+          pacing.lastAdjust = timestamp;
+        } else if (pacing.lateness < FAST_LATENESS_MS && timestamp - pacing.lastAdjust > 8000 && autoScaleRef.current < 1) {
+          autoScaleRef.current = Math.min(1, autoScaleRef.current / 0.85);
+          pacing.lastAdjust = timestamp;
+        }
       }
       ambientStore.setThrottled(autoScaleRef.current < 1);
       const speed = liveRef.current.state?.controls.speed ?? 1;
@@ -241,15 +311,21 @@ function AmbientOverlay() {
       renderFrame(clockRef.current);
     };
     frame = requestAnimationFrame(loop);
+    const resume = () => {
+      last = performance.now();
+    };
     const move = (event: PointerEvent) => {
       liveRef.current.pointer = [
         event.clientX / window.innerWidth,
         1 - event.clientY / window.innerHeight,
       ];
     };
+    document.addEventListener("visibilitychange", resume);
     window.addEventListener("pointermove", move, { passive: true });
     return () => {
       cancelAnimationFrame(frame);
+      pacing.lateness = 0;
+      document.removeEventListener("visibilitychange", resume);
       window.removeEventListener("pointermove", move);
     };
   }, [canvas, enabled, renderFrame]);
@@ -257,32 +333,39 @@ function AmbientOverlay() {
   useRealtime("capture", (payload) => {
     const request = payload as CaptureRequest;
     const renderer = rendererRef.current;
-    if (!renderer || typeof request?.requestId !== "string") return;
+    if (!renderer || document.hidden || renderer.isContextLost() || typeof request?.requestId !== "string") {
+      return;
+    }
     if (request.ripple) ambientStore.requestRipple(request.ripple);
     window.setTimeout(
       () => {
         renderFrame(clockRef.current);
-        const before = renderer.capture(960, liveRef.current.theme.canvas, { encode: false });
-        window.setTimeout(() => {
-          renderFrame(clockRef.current);
-          const { theme } = liveRef.current;
-          const after = renderer.capture(960, theme.canvas, { encode: true });
-          const frameMs = renderer.benchmark(frameInput(clockRef.current), BENCHMARK_FRAMES);
-          void rpc
-            .call("submitCapture", {
-              requestId: request.requestId,
-              dataUrl: after.dataUrl,
-              summary: fieldRef.current.summary(),
-              visibility: {
-                ...after.visibility,
-                motion: motionBetween(before, after),
-                frameMs: Math.min(frameMs, 10_000),
-                detail: (liveRef.current.state?.controls.quality ?? 1) * autoScaleRef.current,
-              },
-              dark: theme.dark,
-            })
-            .catch(() => undefined);
-        }, MOTION_SAMPLE_MS);
+        void renderer
+          .capture(960, liveRef.current.theme.canvas, { encode: false })
+          .then((before) => {
+            window.setTimeout(() => {
+              renderFrame(clockRef.current);
+              const { theme } = liveRef.current;
+              void renderer
+                .capture(960, theme.canvas, { encode: true })
+                .then((after) =>
+                  rpc.call("submitCapture", {
+                    requestId: request.requestId,
+                    dataUrl: after.dataUrl,
+                    summary: fieldRef.current.summary(),
+                    visibility: {
+                      ...after.visibility,
+                      motion: motionBetween(before, after),
+                      frameMs: Math.min(renderer.estimateFrameMs(frameInput(clockRef.current)), 10_000),
+                      detail: Math.min(1, detail()),
+                    },
+                    dark: theme.dark,
+                  }),
+                )
+                .catch(() => undefined);
+            }, MOTION_SAMPLE_MS);
+          })
+          .catch(() => undefined);
       },
       request.ripple ? CAPTURE_DELAY_MS : 0,
     );
@@ -507,6 +590,7 @@ function DailySceneRow() {
   const rpc = useRpc<typeof ambientRpcContract>();
   const [daily, setDaily] = useState<DailyScene | null>(null);
   const [painting, setPainting] = useState(false);
+  const [paintError, setPaintError] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
     setDaily(await rpc.call("daily"));
@@ -527,7 +611,7 @@ function DailySceneRow() {
     setDaily(
       await rpc.call("setDaily", {
         ...next,
-        timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+        ...(next.enabled ? { timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone } : {}),
       }),
     );
   };
@@ -562,9 +646,12 @@ function DailySceneRow() {
             disabled={painting}
             onClick={async () => {
               setPainting(true);
+              setPaintError(null);
               try {
                 await rpc.call("paintNow");
                 await refresh();
+              } catch (error) {
+                setPaintError(error instanceof Error ? error.message : String(error));
               } finally {
                 setPainting(false);
               }
@@ -574,13 +661,14 @@ function DailySceneRow() {
           </TextButton>
         </span>
       </div>
+      {paintError && <div className="text-xs text-destructive">{paintError}</div>}
     </Section>
   );
 }
 
 function AmbientControls() {
   const rpc = useRpc<typeof ambientRpcContract>();
-  const { state, summary, compileError, throttled } = useAmbient();
+  const { state, summary, compileError, throttled, deviceDetail } = useAmbient();
   const [library, setLibrary] = useState<{ id: string; name: string; builtIn: boolean }[]>([]);
   const [saving, setSaving] = useState(false);
 
@@ -774,13 +862,13 @@ function AmbientControls() {
         />
         <Slider
           label="Detail"
-          hint="Render resolution; lower is softer and uses less GPU"
-          value={controls.quality}
+          hint="Render resolution on this device; lower is softer and uses less GPU"
+          value={deviceDetail ?? controls.quality}
           min={0.2}
           max={1}
           step={0.05}
           format={(value) => `${Math.round(value * 100)}%`}
-          onChange={(value) => setControl("quality", value)}
+          onChange={(value) => ambientStore.setDeviceDetail(value)}
         />
       </Section>
 
