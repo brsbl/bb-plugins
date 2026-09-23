@@ -1,9 +1,9 @@
 {
-  "builder": "bb plugin build@0.39.0",
+  "builder": "bb plugin build@0.43.4",
   "sourceRepository": "https://github.com/get-bb/bb",
-  "sourceCommit": "b33abbff098ac4c857578e7350d492dcaa65d489",
+  "sourceCommit": "9b8c1d3457b00359af206e3fd423fe50520182c2",
   "sourcePath": "packages/plugin-build",
-  "buildCommand": "pnpm exec esbuild packages/plugin-build/src/index.ts --bundle --platform=node --format=esm",
-  "bundle": "bb-plugin-build-0.39.0.mjs",
-  "sha256": "6a4d27f1a9556a59bdd1a3c58dc746189a8dff9fd0898b21616b7f63181bc4d1"
+  "buildCommand": "pnpm exec esbuild packages/plugin-build/src/index.ts --bundle --platform=node --format=esm '--banner:js=import { createRequire as __createRequire } from \"node:module\"; const require = __createRequire(import.meta.url);'",
+  "bundle": "bb-plugin-build-0.43.4.mjs",
+  "sha256": "6d588f4e181b357470c206df2988eb1085337544326d6bf2c79ef36fa2cf3929"
 }

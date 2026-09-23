@@ -135,11 +135,15 @@ Install: \`bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/
 
 const fixtureRoot = await mkdtemp(resolve(tmpdir(), "bb-plugin-scaffold-smoke-"));
 try {
-  assert.equal(sdkRangeIncludesVersion("^0.4.1", "0.4.8"), true);
-  assert.equal(sdkRangeIncludesVersion(">=0.4.1", "0.4.8"), true);
-  assert.equal(sdkRangeIncludesVersion("^0.3.9", "0.4.8"), false);
-  assert.equal(sdkRangeIncludesVersion("^0.4.9", "0.4.8"), false);
-  assert.equal(sdkRangeIncludesVersion("^00.4.1", "0.4.8"), false);
+  assert.equal(sdkRangeIncludesVersion("^0.4.1", "0.5.9"), true);
+  assert.equal(sdkRangeIncludesVersion(">=0.4.1", "0.5.9"), true);
+  assert.equal(sdkRangeIncludesVersion("^0.3.9", "0.5.9"), true);
+  assert.equal(sdkRangeIncludesVersion("^0.5.9", "0.5.9"), true);
+  assert.equal(sdkRangeIncludesVersion("^0.5.10", "0.5.9"), false);
+  assert.equal(sdkRangeIncludesVersion(">=0.5.10", "0.5.9"), false);
+  assert.equal(sdkRangeIncludesVersion("^1.0.0", "0.5.9"), false);
+  assert.equal(sdkRangeIncludesVersion("^0.4.1", "1.0.0"), false);
+  assert.equal(sdkRangeIncludesVersion("^00.4.1", "0.5.9"), false);
   assert.throws(
     () => assertPublishWorktreeClean(" M tooling/publish-install-refs.mjs"),
     /refusing to push install refs from a dirty worktree/,

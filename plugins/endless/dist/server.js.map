@@ -1,7 +1,6 @@
 {
   "version": 3,
   "sources": ["../../server.ts"],
-  "sourcesContent": ["import type { BbPluginApi } from \"@get-bb/plugin-sdk\";\n\nexport default function plugin(bb: BbPluginApi): void {\n  bb.log.info(\"Endless loaded\");\n}\n"],
-  "mappings": ";;;;;;;;AAEe,SAAR,OAAwB,IAAuB;AACpD,KAAG,IAAI,KAAK,gBAAgB;AAC9B;",
-  "names": []
+  "mappings": ";;;;;;+EAEe,SAARA,EAAwBC,EAAuB,CACpDA,EAAG,IAAI,KAAK,gBAAgB,CAC9B,CAFwBC,EAAAF,EAAA",
+  "names": ["plugin", "bb", "__name"]
 }
