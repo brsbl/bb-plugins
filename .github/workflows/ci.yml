@@ -56,7 +56,7 @@ jobs:
       - uses: actions/checkout@v6
         with:
           repository: get-bb/bb
-          ref: b33abbff098ac4c857578e7350d492dcaa65d489
+          ref: 9b8c1d3457b00359af206e3fd423fe50520182c2
           path: bb-host
       - uses: pnpm/action-setup@v4
         with:
