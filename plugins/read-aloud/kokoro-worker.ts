@@ -23,6 +23,9 @@ const runtimeFiles = {
   },
 } as const;
 const kokoroModelId = "onnx-community/Kokoro-82M-v1.0-ONNX";
+// Hugging Face commit of the weights and voices; kokoro-js always asks for
+// "main", so the worker rewrites those requests to this immutable revision.
+const kokoroRevision = "1939ad2a8e416c0acfeecc08a694d14ef25f2231";
 
 export type EngineDevice = "webgpu" | "wasm";
 
@@ -30,11 +33,12 @@ export type WorkerRequest =
   | {
       type: "speak";
       id: number;
-      text: string;
+      chunks: string[];
       voice: string;
       speed: number;
       device: EngineDevice;
     }
+  | { type: "pull"; id: number }
   | { type: "cancel"; id: number };
 
 export type WorkerResponse =
@@ -45,14 +49,26 @@ export type WorkerResponse =
 
 /**
  * Module worker source. Kokoro runs off the main thread so synthesis never
- * blocks the timeline; each device's model loads once per page and the browser
- * caches the weights between sessions.
+ * blocks the timeline. The worker keeps one model loaded, synthesizes one
+ * chunk at a time, and waits for the player to pull before generating more
+ * than it has buffered.
  */
 export const kokoroWorkerSource = `
 const files = ${JSON.stringify(runtimeFiles)};
+const modelMain = "https://huggingface.co/${kokoroModelId}/resolve/main/";
+const modelPinned = "https://huggingface.co/${kokoroModelId}/resolve/${kokoroRevision}/";
+
+const networkFetch = self.fetch.bind(self);
+self.fetch = (input, init) => {
+  const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+  return networkFetch(
+    url.startsWith(modelMain) ? modelPinned + url.slice(modelMain.length) : input,
+    init,
+  );
+};
 
 async function verifiedUrl({ url, integrity, type }) {
-  const response = await fetch(url, { integrity });
+  const response = await networkFetch(url, { integrity });
   if (!response.ok) throw new Error("Couldn’t download " + url);
   const bytes = await response.arrayBuffer();
   return URL.createObjectURL(new Blob([bytes], { type }));
@@ -75,59 +91,85 @@ function loadRuntime() {
   return runtime;
 }
 
-const models = new Map();
-let activeId = 0;
-let queue = Promise.resolve();
+let loaded = null;
+let webgpuFailed = false;
 
 function load(device) {
-  let model = models.get(device);
-  if (!model) {
-    model = loadRuntime().then(({ KokoroTTS }) => KokoroTTS.from_pretrained(${JSON.stringify(kokoroModelId)}, {
+  if (loaded && loaded.device === device) return loaded.promise;
+  const previous = loaded;
+  const entry = { device, ready: false };
+  entry.promise = loadRuntime().then(({ KokoroTTS }) =>
+    KokoroTTS.from_pretrained(${JSON.stringify(kokoroModelId)}, {
       dtype: device === "webgpu" ? "fp32" : "q8",
       device,
-    }));
-    models.set(device, model);
-    model.catch(() => models.delete(device));
-  }
-  return model;
+    }),
+  );
+  entry.promise.then(
+    () => (entry.ready = true),
+    () => {
+      if (loaded === entry) loaded = null;
+    },
+  );
+  loaded = entry;
+  // Only one engine stays resident; switching releases the other model.
+  previous?.promise.then((tts) => tts.model.dispose?.()).catch(() => {});
+  return entry.promise;
 }
 
-async function speak({ id, text, voice, speed, device }) {
+let activeId = 0;
+let queue = Promise.resolve();
+const waiting = new Map();
+
+function release(id) {
+  waiting.get(id)?.();
+  waiting.delete(id);
+}
+
+async function speak({ id, chunks, voice, speed, device }) {
+  if (device === "webgpu" && webgpuFailed) device = "wasm";
+  if (!(loaded && loaded.device === device && loaded.ready)) {
+    postMessage({ type: "loading", id, device });
+  }
   let tts;
-  if (!models.has(device)) postMessage({ type: "loading", id, device });
   try {
     tts = await load(device);
   } catch (error) {
     if (device !== "webgpu") throw error;
+    webgpuFailed = true;
     postMessage({ type: "loading", id, device: "wasm" });
     tts = await load("wasm");
-    models.set("webgpu", Promise.resolve(tts));
   }
-  if (id !== activeId) return;
-  const { TextSplitterStream } = await loadRuntime();
-  const splitter = new TextSplitterStream();
-  splitter.push(text);
-  splitter.close();
-  for await (const { audio } of tts.stream(splitter, { voice, speed })) {
+  for (let index = 0; index < chunks.length; index += 1) {
+    if (id !== activeId) return;
+    const audio = await tts.generate(chunks[index], { voice, speed });
     if (id !== activeId) return;
     const samples = audio.audio;
     postMessage(
       { type: "chunk", id, audio: samples, sampleRate: audio.sampling_rate },
       [samples.buffer],
     );
+    if (index < chunks.length - 1) {
+      await new Promise((resolve) => waiting.set(id, resolve));
+    }
   }
   if (id === activeId) postMessage({ type: "done", id });
 }
 
 self.onmessage = (event) => {
   const request = event.data;
+  if (request.type === "pull") {
+    release(request.id);
+    return;
+  }
   if (request.type === "cancel") {
     if (request.id === activeId) activeId = 0;
+    release(request.id);
     return;
   }
   activeId = request.id;
-  // One ONNX session cannot run concurrently; a cancelled reading stops at its
-  // next sentence boundary before the next one starts.
+  for (const id of [...waiting.keys()]) release(id);
+  // One ONNX session cannot run concurrently; a cancelled reading stops after
+  // its current chunk before the next one starts.
   queue = queue
     .then(() => (request.id === activeId ? speak(request) : undefined))
     .catch((error) => {

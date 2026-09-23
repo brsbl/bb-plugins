@@ -6,7 +6,7 @@ import {
 } from "./kokoro-worker";
 
 export interface SpeakOptions {
-  text: string;
+  chunks: string[];
   voice: string;
   speed: number;
   device: EngineDevice;
@@ -27,13 +27,20 @@ interface Session {
   nextStart: number;
   started: boolean;
   generated: boolean;
+  pullTimer: ReturnType<typeof setTimeout> | null;
 }
+
+/** Seconds of audio to keep scheduled ahead before asking for more. */
+const bufferAheadSeconds = 15;
+/** Idle time after which the worker and its model are released. */
+const idleReleaseMs = 3 * 60_000;
 
 /** One reading at a time: starting another message stops the current one. */
 export class ReadAloudPlayer {
   private worker: Worker | null = null;
   private context: AudioContext | null = null;
   private session: Session | null = null;
+  private idleTimer: ReturnType<typeof setTimeout> | null = null;
   private nextId = 1;
 
   isReading(key: string): boolean {
@@ -52,6 +59,7 @@ export class ReadAloudPlayer {
   speak(key: string, options: SpeakOptions, callbacks: PlaybackCallbacks): void {
     this.stop();
     this.unlockAudio();
+    this.clearIdleTimer();
     const context = this.context!;
     const session: Session = {
       id: this.nextId++,
@@ -61,6 +69,7 @@ export class ReadAloudPlayer {
       nextStart: context.currentTime,
       started: false,
       generated: false,
+      pullTimer: null,
     };
     this.session = session;
     this.post({ type: "speak", id: session.id, ...options });
@@ -70,20 +79,39 @@ export class ReadAloudPlayer {
     const session = this.session;
     if (!session) return;
     this.session = null;
-    this.post({ type: "cancel", id: session.id });
+    if (session.pullTimer) clearTimeout(session.pullTimer);
+    this.worker?.postMessage({ type: "cancel", id: session.id } satisfies WorkerRequest);
     for (const source of session.sources) {
       source.onended = null;
       source.stop();
     }
     session.sources.clear();
+    this.becomeIdle();
   }
 
   dispose(): void {
     this.stop();
+    this.clearIdleTimer();
     this.worker?.terminate();
     this.worker = null;
     void this.context?.close();
     this.context = null;
+  }
+
+  private becomeIdle(): void {
+    if (this.context?.state === "running") void this.context.suspend();
+    this.clearIdleTimer();
+    this.idleTimer = setTimeout(() => {
+      this.idleTimer = null;
+      if (this.session) return;
+      this.worker?.terminate();
+      this.worker = null;
+    }, idleReleaseMs);
+  }
+
+  private clearIdleTimer(): void {
+    if (this.idleTimer) clearTimeout(this.idleTimer);
+    this.idleTimer = null;
   }
 
   private post(request: WorkerRequest): void {
@@ -120,22 +148,37 @@ export class ReadAloudPlayer {
         return;
       case "chunk":
         this.schedule(session, response.audio, response.sampleRate);
+        this.requestMore(session);
         return;
       case "done":
         session.generated = true;
         this.finishIfDrained(session);
         return;
-      case "error":
+      case "error": {
+        const { callbacks } = session;
         this.stop();
-        session.callbacks.onError(response.message);
+        callbacks.onError(response.message);
+      }
     }
+  }
+
+  /** Lets the worker synthesize the next chunk once the buffer runs low. */
+  private requestMore(session: Session): void {
+    const context = this.context;
+    if (!context || this.session !== session) return;
+    const ahead = session.nextStart - context.currentTime;
+    const wait = Math.max(0, ahead - bufferAheadSeconds) * 1000;
+    session.pullTimer = setTimeout(() => {
+      session.pullTimer = null;
+      if (this.session === session) this.post({ type: "pull", id: session.id });
+    }, wait);
   }
 
   private schedule(session: Session, samples: Float32Array, sampleRate: number): void {
     const context = this.context;
     if (!context || samples.length === 0) return;
     const buffer = context.createBuffer(1, samples.length, sampleRate);
-    buffer.copyToChannel(new Float32Array(samples), 0);
+    buffer.getChannelData(0).set(samples);
     const source = context.createBufferSource();
     source.buffer = buffer;
     source.connect(context.destination);
@@ -158,6 +201,7 @@ export class ReadAloudPlayer {
       return;
     }
     this.session = null;
+    this.becomeIdle();
     session.callbacks.onFinished();
   }
 }

@@ -4,9 +4,8 @@ import { toast } from "sonner";
 import type { EngineDevice } from "./kokoro-worker";
 import { ReadAloudPlayer } from "./player";
 import type { ReadAloudSettings } from "./server";
-import { toSpeechText } from "./speech-text";
+import { chunkForSpeech, toSpeechText } from "./speech-text";
 
-const pluginId = "read-aloud";
 const toastId = "read-aloud";
 const defaults: ReadAloudSettings = { voice: "af_heart", speed: 1, device: "auto" };
 const downloadSize: Record<EngineDevice, string> = {
@@ -14,18 +13,24 @@ const downloadSize: Record<EngineDevice, string> = {
   wasm: "about 90 MB",
 };
 
+let pluginId = "read-aloud";
 let player: ReadAloudPlayer | null = null;
+/** The reading the user asked for most recently, including while it prepares. */
+let current: { key: string; token: number } | null = null;
+let nextToken = 1;
 
 async function loadSettings(): Promise<ReadAloudSettings> {
   try {
-    const response = await fetch(`/api/v1/plugins/${pluginId}/http/settings`);
+    const response = await fetch(
+      `/api/v1/plugins/${encodeURIComponent(pluginId)}/http/settings`,
+    );
     if (!response.ok) return defaults;
     const value = (await response.json()) as Partial<ReadAloudSettings>;
     return {
       voice: typeof value.voice === "string" ? value.voice : defaults.voice,
       speed:
         typeof value.speed === "number" && Number.isFinite(value.speed)
-          ? Math.min(2, Math.max(0.5, value.speed))
+          ? value.speed
           : defaults.speed,
       device:
         value.device === "webgpu" || value.device === "wasm" ? value.device : "auto",
@@ -48,6 +53,7 @@ async function resolveDevice(preference: ReadAloudSettings["device"]): Promise<E
 }
 
 function stop(): void {
+  current = null;
   player?.stop();
   toast.dismiss(toastId);
 }
@@ -55,27 +61,33 @@ function stop(): void {
 const stopAction = { label: "Stop", onClick: stop };
 
 async function readAloud(key: string, markdown: string): Promise<void> {
-  player ??= new ReadAloudPlayer();
-  if (player.isReading(key)) {
+  if (current?.key === key) {
     stop();
     return;
   }
-  const text = toSpeechText(markdown);
-  if (text.length === 0) {
+  stop();
+  const chunks = chunkForSpeech(toSpeechText(markdown));
+  if (chunks.length === 0) {
     toast.message("Nothing to read aloud", {
       id: toastId,
       description: "This message only contains code or media.",
     });
     return;
   }
+  const request = { key, token: nextToken++ };
+  current = request;
+  player ??= new ReadAloudPlayer();
   // Start audio while the click still counts as a user gesture.
   player.unlockAudio();
   toast.loading("Preparing to read aloud…", { id: toastId, action: stopAction });
   const settings = await loadSettings();
   const device = await resolveDevice(settings.device);
+  // A stop, another click, or a plugin reload while preparing wins.
+  if (current !== request || !player) return;
+  const isCurrent = () => current === request;
   player.speak(
     key,
-    { text, voice: settings.voice, speed: settings.speed, device },
+    { chunks, voice: settings.voice, speed: settings.speed, device },
     {
       onLoading(loadingDevice) {
         toast.loading("Loading the Kokoro voice…", {
@@ -93,9 +105,11 @@ async function readAloud(key: string, markdown: string): Promise<void> {
         });
       },
       onFinished() {
+        if (isCurrent()) current = null;
         toast.dismiss(toastId);
       },
       onError(message) {
+        if (isCurrent()) current = null;
         toast.error("Couldn’t read this message aloud", {
           id: toastId,
           description: message,
@@ -112,17 +126,22 @@ export default definePluginApp((app) => {
     title: "Read aloud",
     icon: "Play",
     run({ message, selectedText }) {
-      const text = selectedText ?? message.text;
-      const key = selectedText === undefined ? message.id : `${message.id}:selection`;
-      return readAloud(key, text);
+      const key =
+        selectedText === undefined
+          ? message.id
+          : `${message.id}:selection:${selectedText}`;
+      return readAloud(key, selectedText ?? message.text);
     },
   });
   app.contentScripts.register({
-    id: "read-aloud-cleanup",
-    mount: () => () => {
-      stop();
-      player?.dispose();
-      player = null;
+    id: "read-aloud-lifecycle",
+    mount(context) {
+      pluginId = context.pluginId;
+      return () => {
+        stop();
+        player?.dispose();
+        player = null;
+      };
     },
   });
 });

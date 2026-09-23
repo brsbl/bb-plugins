@@ -66,9 +66,9 @@ export default function plugin(bb: BbPluginApi): void {
   bb.http.route("GET", "/settings", async (context) => {
     const current = await settings.get();
     const body: ReadAloudSettings = {
-      voice: current.voice as ReadAloudSettings["voice"],
+      voice: voices.find((voice) => voice === current.voice) ?? "af_heart",
       speed: Number(current.speed) || 1,
-      device: current.device as ReadAloudSettings["device"],
+      device: devices.find((device) => device === current.device) ?? "auto",
     };
     return context.json(body);
   });

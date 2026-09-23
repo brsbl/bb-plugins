@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { toSpeechText } from "./speech-text";
+import { chunkForSpeech, toSpeechText } from "./speech-text";
 
 describe("toSpeechText", () => {
   it("reads prose and skips code, links, and directives", () => {
@@ -39,5 +39,26 @@ describe("toSpeechText", () => {
     expect(toSpeechText("| Check | Result |\n| --- | --- |\n| Build | Passed |")).toBe(
       "Check, Result.\nBuild, Passed.",
     );
+  });
+
+  it("stays fast on hostile Markdown", () => {
+    const inputs = ["<a".repeat(40_000), "[x](".repeat(40_000), "  \n".repeat(5_000), "**a".repeat(40_000)];
+    for (const input of inputs) {
+      const started = performance.now();
+      toSpeechText(input);
+      expect(performance.now() - started).toBeLessThan(1_000);
+    }
+  });
+});
+
+describe("chunkForSpeech", () => {
+  it("keeps short sentences whole and splits long ones at clauses", () => {
+    const long =
+      "This sentence keeps going with several clauses, describing what changed in the plugin in detail; it should be split into readable pieces rather than one enormous block that takes a long time to synthesize.";
+    const chunks = chunkForSpeech(`Build finished.\n${long}`);
+    expect(chunks[0]).toBe("Build finished.");
+    expect(chunks.slice(1).join(" ")).toBe(long);
+    expect(chunks.length).toBeGreaterThan(2);
+    for (const chunk of chunks) expect(chunk.length).toBeLessThanOrEqual(140);
   });
 });
