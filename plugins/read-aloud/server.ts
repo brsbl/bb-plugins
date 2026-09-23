@@ -1,6 +1,6 @@
 import type { BbPluginApi } from "@get-bb/plugin-sdk";
 
-export const voices = [
+const voices = [
   "af_heart",
   "af_alloy",
   "af_aoede",
@@ -31,9 +31,9 @@ export const voices = [
   "bm_lewis",
 ] as const;
 
-export const speeds = ["0.75", "1", "1.25", "1.5", "1.75", "2"] as const;
+const speeds = ["0.75", "1", "1.25", "1.5", "1.75", "2"] as const;
 
-export const devices = ["auto", "webgpu", "wasm"] as const;
+const devices = ["auto", "webgpu", "wasm"] as const;
 
 export interface ReadAloudSettings {
   voice: (typeof voices)[number];

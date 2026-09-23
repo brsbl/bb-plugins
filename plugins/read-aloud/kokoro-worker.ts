@@ -2,7 +2,7 @@
 // its npm tarball and rejected by fetch() if the CDN serves anything else.
 const transformersDist =
   "https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.5.1/dist";
-export const runtimeFiles = {
+const runtimeFiles = {
   kokoro: {
     url: "https://cdn.jsdelivr.net/npm/kokoro-js@1.2.1/dist/kokoro.web.js",
     integrity:
@@ -22,7 +22,7 @@ export const runtimeFiles = {
     type: "application/wasm",
   },
 } as const;
-export const kokoroModelId = "onnx-community/Kokoro-82M-v1.0-ONNX";
+const kokoroModelId = "onnx-community/Kokoro-82M-v1.0-ONNX";
 
 export type EngineDevice = "webgpu" | "wasm";
 
