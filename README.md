@@ -84,6 +84,16 @@ Frank Ocean's *Endless* as a bb palette — achromatic, grained, squared. Ten ye
 
 Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/endless --yes`
 
+### Read Aloud
+
+Reads agent messages or highlighted passages aloud with Kokoro text-to-speech that runs locally in your browser.
+
+![Read aloud playing an agent message, with the Stop control](plugins/read-aloud/docs/screenshot.png)
+
+[Source](plugins/read-aloud) · [README](plugins/read-aloud/README.md)
+
+Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/read-aloud --yes`
+
 ### Theme Preview
 
 A skeleton of the bb app in every configuration — sidebar, splits, panels, overlays, real thread timelines and controls — drawn from the active theme's tokens, so a palette can be judged before it ships.
