@@ -661,6 +661,11 @@ function DailySceneRow() {
           </TextButton>
         </span>
       </div>
+      {daily.enabled && daily.nextRunAt && (
+        <div className="text-xs text-muted-foreground">
+          Next {new Date(daily.nextRunAt).toLocaleString([], { weekday: "short", hour: "numeric", minute: "2-digit" })} · in Automations
+        </div>
+      )}
       {paintError && <div className="text-xs text-destructive">{paintError}</div>}
     </Section>
   );

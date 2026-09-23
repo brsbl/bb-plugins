@@ -18,7 +18,9 @@ translucent veil, so the scene reads as a soft, living backdrop.
 2. `action=set` with `source` and `params` swaps the scene. The tool waits for a bb window to compile it and restores the previous scene on a GLSL error, returning the log with scene-relative line numbers.
 3. `action=look` returns a PNG of the raw scene and how far it differs from bb's background; it flags scenes that will be too faint behind the veil. Pass `ripple: "done" | "error" | "started"` to fire a test ripple first, so you can judge how events read.
 4. `action=set` with only `values` or `palette` nudges an existing scene without recompiling.
-5. `action=save` keeps the current scene in the library; `action=load` switches scenes.
+5. `action=save` keeps the current scene in the library; `action=load` switches scenes; `action=delete` removes a saved one.
+6. `action=set` with `controls` changes Visibility (how much shows through bb), Motion, or Detail without touching the scene.
+7. `action=brief` returns today's instructions for the daily scene automation.
 
 Declare every aesthetic choice a person might want to feel out as a param (scale, glow,
 drift, contrast) instead of hard-coding it. Params become sliders immediately. Keep one

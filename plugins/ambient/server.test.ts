@@ -5,15 +5,15 @@ import { BUILT_IN_SCENES, DEFAULT_SCENE, rebuildBuiltIn, sceneOf } from "./scene
 import plugin, {
   DAILY_CONCEPTS,
   applyValues,
+  cronHour,
   dailyConcept,
+  dailyCron,
   dailyPrompt,
   describeVisibility,
-  isDailyDue,
   localMoment,
   parseDailyOptions,
   parseSetPairs,
   sceneNameSchema,
-  type DailyScene,
 } from "./server";
 
 describe("Ambient plugin", () => {
@@ -110,15 +110,7 @@ describe("daily concepts", () => {
   });
 });
 
-describe("daily scene timing", () => {
-  const daily: DailyScene = {
-    enabled: true,
-    hour: 8,
-    timeZone: "America/Los_Angeles",
-    lastRunDate: null,
-    lastThreadId: null,
-  };
-
+describe("daily scene schedule", () => {
   it("uses the user's calendar day, not the server's", () => {
     const lateEveningInLosAngeles = new Date("2026-09-23T04:30:00Z");
     expect(localMoment("America/Los_Angeles", lateEveningInLosAngeles)).toMatchObject({
@@ -127,16 +119,11 @@ describe("daily scene timing", () => {
     });
   });
 
-  it("waits for the configured local hour", () => {
-    expect(isDailyDue(daily, new Date("2026-09-22T14:59:00Z"), true)).toBe(false);
-    expect(isDailyDue(daily, new Date("2026-09-22T15:00:00Z"), true)).toBe(true);
-  });
-
-  it("paints once per local day, only with a window open, and not when disabled", () => {
-    const at = new Date("2026-09-22T18:00:00Z");
-    expect(isDailyDue({ ...daily, lastRunDate: "2026-09-22" }, at, true)).toBe(false);
-    expect(isDailyDue({ ...daily, lastRunDate: "2026-09-21" }, at, true)).toBe(true);
-    expect(isDailyDue(daily, at, false)).toBe(false);
-    expect(isDailyDue({ ...daily, enabled: false }, at, true)).toBe(false);
+  it("round-trips the automation's daily cron hour", () => {
+    expect(dailyCron(8)).toBe("0 8 * * *");
+    expect(cronHour(dailyCron(8))).toBe(8);
+    expect(cronHour(dailyCron(23))).toBe(23);
+    expect(cronHour("*/15 * * * *")).toBeNull();
+    expect(cronHour(undefined)).toBeNull();
   });
 });

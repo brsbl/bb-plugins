@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 
-import { defineRpcContract, type BbPluginApi } from "@get-bb/plugin-sdk";
+import { defineRpcContract, type BbPluginApi, type JsonValue } from "@get-bb/plugin-sdk";
 import { z } from "zod";
 
 import {
@@ -27,7 +27,10 @@ const PERSONAL_PROJECT_ID = "proj_personal";
 const LAST_GOOD_KEY = "last-good";
 const LIBRARY_INDEX_KEY = "library-index";
 const WINDOW_FRESH_MS = 3 * 60_000;
-const BUSY_THREAD_STATUSES = new Set(["active", "pending", "starting", "stopping"]);
+const AUTOMATIONS_PLUGIN_ID = "automations";
+const DAILY_AUTOMATION_NAME = "Ambient: new scene every morning";
+const DAILY_AUTOMATION_PROMPT =
+  "Paint today's Ambient scene: call the ambient tool with action=brief and follow the instructions it returns.";
 
 const hexColor = z.string().regex(HEX_COLOR_PATTERN);
 const paletteSchema = z.tuple([hexColor, hexColor, hexColor, hexColor]);
@@ -149,8 +152,38 @@ const dailySchema = z.object({
   enabled: z.boolean(),
   hour: z.number().int().min(0).max(23),
   timeZone: timeZoneSchema,
-  lastRunDate: z.string().nullable(),
-  lastThreadId: z.string().nullable(),
+  automationId: z.string().nullable(),
+  nextRunAt: z.number().nullable(),
+  lastRunAt: z.number().nullable(),
+});
+
+const storedDailySchema = z.object({
+  automationId: z.string().nullable().catch(null),
+  hour: z.number().int().min(0).max(23).catch(8),
+  timeZone: timeZoneSchema.catch(() => Intl.DateTimeFormat().resolvedOptions().timeZone),
+});
+
+const automationSchema = z.object({
+  id: z.string(),
+  enabled: z.boolean(),
+  trigger: z.object({ triggerType: z.string(), cron: z.string().optional(), timezone: z.string().optional() }),
+  nextRunAt: z.number().nullable(),
+  lastRunAt: z.number().nullable(),
+});
+
+const automationRunSchema = z.object({
+  run: z.object({
+    threadId: z.string().nullable(),
+    status: z.string(),
+    skipReason: z.string().nullable(),
+    error: z.string().nullable(),
+  }),
+});
+
+const executionDefaultsSchema = z.object({
+  providerId: z.string().min(1),
+  model: z.string().min(1),
+  reasoningLevel: z.string().min(1),
 });
 
 export type DailyScene = z.infer<typeof dailySchema>;
@@ -222,7 +255,7 @@ export const ambientRpcContract = defineRpcContract({
   },
   daily: { input: z.null(), output: dailySchema },
   setDaily: { input: dailyUpdateSchema, output: dailySchema },
-  paintNow: { input: z.null(), output: z.object({ threadId: z.string() }) },
+  paintNow: { input: z.null(), output: z.object({ threadId: z.string().nullable() }) },
   heartbeat: { input: z.null(), output: z.object({ ok: z.boolean() }) },
 });
 
@@ -314,10 +347,13 @@ export function localMoment(timeZone: string, at: Date): LocalMoment {
   };
 }
 
-export function isDailyDue(daily: DailyScene, at: Date, windowOpen: boolean): boolean {
-  if (!daily.enabled || !windowOpen) return false;
-  const moment = localMoment(daily.timeZone, at);
-  return moment.date !== daily.lastRunDate && moment.hour >= daily.hour;
+export function dailyCron(hour: number): string {
+  return `0 ${hour} * * *`;
+}
+
+export function cronHour(cron: string | undefined): number | null {
+  const match = /^0 (\d{1,2}) \* \* \*$/.exec(cron ?? "");
+  return match ? Number(match[1]) : null;
 }
 
 export function parseDailyOptions(options: readonly string[]): { hour?: number; timeZone?: string } {
@@ -523,55 +559,141 @@ export default function plugin(bb: BbPluginApi): void {
     return true;
   }
 
-  async function readDaily(): Promise<DailyScene> {
-    const stored = dailySchema.safeParse(await bb.storage.kv.get(DAILY_KEY));
-    if (stored.success) return stored.data;
-    return {
-      enabled: false,
-      hour: 8,
-      timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-      lastRunDate: null,
-      lastThreadId: null,
-    };
+  async function readStoredDaily(): Promise<z.infer<typeof storedDailySchema>> {
+    const stored = storedDailySchema.safeParse((await bb.storage.kv.get(DAILY_KEY)) ?? {});
+    return stored.success
+      ? stored.data
+      : { automationId: null, hour: 8, timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone };
   }
 
-  async function writeDaily(daily: DailyScene): Promise<DailyScene> {
-    await bb.storage.kv.set(DAILY_KEY, daily);
-    bb.realtime.publish("daily", { lastRunDate: daily.lastRunDate });
-    return daily;
+  async function automations<T>(method: string, input: JsonValue, outputSchema: z.ZodType<T>): Promise<T> {
+    return bb.sdk.plugins.callRpc({ pluginId: AUTOMATIONS_PLUGIN_ID, method, input, outputSchema });
   }
 
-  function updateDaily(update: Partial<DailyScene>): Promise<DailyScene> {
-    return serialized(async () => writeDaily({ ...(await readDaily()), ...update }));
-  }
-
-  async function painterRunning(threadId: string | null): Promise<boolean> {
-    if (!threadId) return false;
+  async function readAutomation(automationId: string | null): Promise<z.infer<typeof automationSchema> | null> {
+    if (!automationId) return null;
     try {
-      const thread = await bb.sdk.threads.get({ threadId });
-      return BUSY_THREAD_STATUSES.has(thread.status);
+      const result = automationSchema.safeParse(
+        await automations(
+          "automations_get",
+          { projectId: PERSONAL_PROJECT_ID, automationId },
+          z.unknown(),
+        ),
+      );
+      return result.success ? result.data : null;
     } catch {
-      return false;
+      return null;
     }
   }
 
-  function paintScene(at: Date): Promise<string> {
-    return serialized(async () => {
-      const daily = await readDaily();
-      if (await painterRunning(daily.lastThreadId)) {
-        throw new Error(`a scene is already being painted in ${daily.lastThreadId}`);
-      }
-      const moment = localMoment(daily.timeZone, at);
-      const thread = await bb.sdk.threads.spawn({
+  async function readDaily(): Promise<DailyScene> {
+    const stored = await readStoredDaily();
+    const automation = await readAutomation(stored.automationId);
+    return {
+      enabled: automation?.enabled ?? false,
+      hour: cronHour(automation?.trigger.cron) ?? stored.hour,
+      timeZone: automation?.trigger.timezone ?? stored.timeZone,
+      automationId: automation?.id ?? null,
+      nextRunAt: automation?.nextRunAt ?? null,
+      lastRunAt: automation?.lastRunAt ?? null,
+    };
+  }
+
+  async function agentDefaults(): Promise<z.infer<typeof executionDefaultsSchema>> {
+    const project = executionDefaultsSchema.safeParse(
+      await bb.sdk.projects.defaultExecutionOptions({ projectId: PERSONAL_PROJECT_ID }),
+    );
+    if (project.success) return project.data;
+    const [recent] = await bb.sdk.threads.list({ projectId: PERSONAL_PROJECT_ID, limit: 1 });
+    if (recent) {
+      const options = executionDefaultsSchema
+        .omit({ providerId: true })
+        .safeParse(await bb.sdk.threads.defaultExecutionOptions({ threadId: recent.id }));
+      if (options.success) return { providerId: recent.providerId, ...options.data };
+    }
+    throw new Error("Start a thread in your personal workspace first so bb knows which agent to use.");
+  }
+
+  async function createDailyAutomation(hour: number, timeZone: string, enabled: boolean): Promise<string> {
+    const defaults = { data: await agentDefaults() };
+    const created = await automations(
+      "automations_create",
+      {
         projectId: PERSONAL_PROJECT_ID,
-        environment: { type: "project-default" },
-        permissionMode: "auto",
-        title: `Ambient scene for ${moment.label.split(" at ")[0]}`,
-        prompt: dailyPrompt(moment, daily.timeZone),
-      });
-      await writeDaily({ ...daily, lastRunDate: moment.date, lastThreadId: thread.id });
-      return thread.id;
+        name: DAILY_AUTOMATION_NAME,
+        enabled,
+        origin: "app",
+        trigger: { triggerType: "schedule", cron: dailyCron(hour), timezone: timeZone },
+        execution: {
+          mode: "agent",
+          prompt: DAILY_AUTOMATION_PROMPT,
+          providerId: defaults.data.providerId,
+          model: defaults.data.model,
+          reasoningLevel: defaults.data.reasoningLevel,
+          permissionMode: "auto",
+          environment: { type: "project-default" },
+        },
+      },
+      automationSchema,
+    );
+    return created.id;
+  }
+
+  function updateDaily(update: { enabled?: boolean; hour?: number; timeZone?: string }): Promise<DailyScene> {
+    return serialized(async () => {
+      const stored = await readStoredDaily();
+      const hour = update.hour ?? stored.hour;
+      const timeZone = update.timeZone ?? stored.timeZone;
+      let automation = await readAutomation(stored.automationId);
+      if (!automation && update.enabled) {
+        automation = await readAutomation(await createDailyAutomation(hour, timeZone, true));
+      } else if (automation) {
+        const target = { projectId: PERSONAL_PROJECT_ID, automationId: automation.id };
+        if (cronHour(automation.trigger.cron) !== hour || automation.trigger.timezone !== timeZone) {
+          await automations(
+            "automations_update",
+            { ...target, trigger: { triggerType: "schedule", cron: dailyCron(hour), timezone: timeZone } },
+            z.unknown(),
+          );
+        }
+        if (update.enabled !== undefined && update.enabled !== automation.enabled) {
+          await automations(update.enabled ? "automations_resume" : "automations_pause", target, z.unknown());
+        }
+      }
+      await bb.storage.kv.set(DAILY_KEY, { automationId: automation?.id ?? null, hour, timeZone });
+      bb.realtime.publish("daily", { automationId: automation?.id ?? null });
+      return readDaily();
     });
+  }
+
+  function paintNow(): Promise<string | null> {
+    return serialized(async () => {
+      const stored = await readStoredDaily();
+      const automationId =
+        (await readAutomation(stored.automationId))?.id ??
+        (await createDailyAutomation(stored.hour, stored.timeZone, false));
+      if (automationId !== stored.automationId) {
+        await bb.storage.kv.set(DAILY_KEY, { ...stored, automationId });
+      }
+      const { run } = await automations(
+        "automations_run",
+        { projectId: PERSONAL_PROJECT_ID, automationId },
+        automationRunSchema,
+      );
+      if (run.status === "skipped" || run.status === "failed") {
+        throw new Error(run.skipReason ?? run.error ?? `the run was ${run.status}`);
+      }
+      bb.realtime.publish("daily", { automationId });
+      return run.threadId;
+    });
+  }
+
+  async function dailyBrief(at: Date): Promise<string> {
+    if (at.getTime() - lastWindowAt > WINDOW_FRESH_MS) {
+      return "No bb window is open, so today's scene can't be checked. Stop now without changing the scene and say it was skipped because bb wasn't open.";
+    }
+    const { timeZone } = await readStoredDaily();
+    return dailyPrompt(localMoment(timeZone, at), timeZone);
   }
 
   async function readIndex(): Promise<LibraryIndex> {
@@ -771,23 +893,12 @@ export default function plugin(bb: BbPluginApi): void {
     daily: () => readDaily(),
     setDaily: (update) => updateDaily(update),
     async paintNow() {
-      return { threadId: await paintScene(new Date()) };
+      return { threadId: await paintNow() };
     },
     heartbeat() {
       lastWindowAt = Date.now();
       return { ok: true };
     },
-  });
-
-  bb.background.schedule("daily-scene", "*/15 * * * *", async () => {
-    const now = new Date();
-    const windowOpen = now.getTime() - lastWindowAt < WINDOW_FRESH_MS;
-    if (!isDailyDue(await readDaily(), now, windowOpen)) return;
-    try {
-      await paintScene(now);
-    } catch (caught) {
-      bb.log.warn(`Ambient daily scene skipped: ${caught instanceof Error ? caught.message : String(caught)}`);
-    }
   });
 
   bb.agents.registerTool({
@@ -801,9 +912,9 @@ export default function plugin(bb: BbPluginApi): void {
     },
     parameters: z.object({
       action: z
-        .enum(["get", "set", "look", "library", "load", "save", "delete"])
+        .enum(["get", "set", "look", "library", "load", "save", "delete", "brief"])
         .describe(
-          "get: shader contract + current scene. set: replace any of name/source/params/palette, nudge values, or change controls. look: capture the rendered scene as an image. library/load/save/delete: manage saved scenes.",
+          "get: shader contract + current scene. set: replace any of name/source/params/palette, nudge values, or change controls. look: capture the rendered scene as an image. library/load/save/delete: manage saved scenes. brief: today's instructions for the daily scene automation.",
         ),
       name: sceneNameSchema.optional().describe("scene name (set, save)"),
       source: z
@@ -851,6 +962,9 @@ export default function plugin(bb: BbPluginApi): void {
         }
         if (input.action === "library") {
           return (await libraryLines()).join("\n");
+        }
+        if (input.action === "brief") {
+          return dailyBrief(new Date());
         }
         if (input.action === "load") {
           if (!input.id) return error("action=load needs an id");
@@ -1038,7 +1152,8 @@ export default function plugin(bb: BbPluginApi): void {
         if (command === "daily") {
           const [action = "status", ...options] = rest;
           if (action === "now") {
-            return { exitCode: 0, stdout: `painting in ${await paintScene(new Date())}\n` };
+            const threadId = await paintNow();
+            return { exitCode: 0, stdout: `painting${threadId ? ` in ${threadId}` : ""}\n` };
           }
           if (action === "on" || action === "off") {
             await updateDaily(
@@ -1049,12 +1164,10 @@ export default function plugin(bb: BbPluginApi): void {
           }
           const daily = await readDaily();
           const schedule = daily.enabled
-            ? `on, after ${daily.hour}:00 ${daily.timeZone} while a bb window is open`
+            ? `on, after ${daily.hour}:00 ${daily.timeZone} (bb automation ${daily.automationId})`
             : "off";
-          const last = daily.lastRunDate
-            ? `${daily.lastRunDate} (${daily.lastThreadId ?? "no thread"})`
-            : "never";
-          return { exitCode: 0, stdout: `daily scene: ${schedule}\nlast painted: ${last}\n` };
+          const next = daily.nextRunAt ? new Date(daily.nextRunAt).toISOString() : "none";
+          return { exitCode: 0, stdout: `daily scene: ${schedule}\nnext run: ${daily.enabled ? next : "none"}\n` };
         }
         return {
           exitCode: 1,
