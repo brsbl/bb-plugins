@@ -60,10 +60,10 @@ function Player({preview, version, onSave, onDirty, compact = false, seekRequest
   useEffect(() => { if (seekRequest && !draft) { seek(seekRequest.time); setShapes(seekRequest.shapes); } }, [seekRequest, seek]);
   useEffect(() => () => onDirty?.(false), [onDirty]);
   async function togglePlay() {
-    if (!video.current || draft) return;
+    if (!video.current || draft || busy) return;
     try { if (video.current.paused) { setShapes([]); await video.current.play(); } else video.current.pause(); } catch (e) { setError(errorText(e)); }
   }
-  function step(direction: -1 | 1) { if (!draft && video.current && canStep) { setShapes([]); seek(stepTime({...preview.media, duration}, video.current.currentTime, direction)); } }
+  function step(direction: -1 | 1) { if (!draft && !busy && video.current && canStep) { setShapes([]); seek(stepTime({...preview.media, duration}, video.current.currentTime, direction)); } }
   async function beginNote(kind: Shape["kind"] | null = null) {
     if (draft) { setTool(kind); return; }
     if (!video.current) return;
@@ -77,7 +77,7 @@ function Player({preview, version, onSave, onDirty, compact = false, seekRequest
   function cancel() { setDraft(null); setTool(null); setShapes([]); setText(""); setEndTime(null); setRangeMode(false); onDirty?.(false); }
   function point(e: PointerEvent<HTMLDivElement>) { const r = e.currentTarget.getBoundingClientRect(); return {x: Math.max(0, Math.min(1, (e.clientX-r.left)/r.width)), y: Math.max(0, Math.min(1, (e.clientY-r.top)/r.height))}; }
   return <section className="director-player" tabIndex={0} aria-label="Video review player" onKeyDown={e => {
-    if ((e.target as HTMLElement).closest("input,textarea,select,button") || draft || e.altKey || e.ctrlKey || e.metaKey) return;
+    if ((e.target as HTMLElement).closest("input,textarea,select,button") || draft || busy || e.altKey || e.ctrlKey || e.metaKey) return;
     if (e.key === " ") { e.preventDefault(); void togglePlay(); }
     if (e.key === "ArrowLeft" || e.key === "ArrowRight") { e.preventDefault(); step(e.key === "ArrowLeft" ? -1 : 1); }
   }}>
@@ -100,7 +100,7 @@ function Player({preview, version, onSave, onDirty, compact = false, seekRequest
       <IconButton label={playing ? "Pause" : "Play"} disabled={!ready || !!draft || busy} onClick={() => void togglePlay()}>{playing ? <Pause /> : <Play />}</IconButton>
       {!compact && <><IconButton label="Previous frame" disabled={!ready || !canStep || !!draft || busy || seeking} onClick={() => step(-1)}><ChevronLeft /></IconButton><IconButton label="Next frame" disabled={!ready || !canStep || !!draft || busy || seeking} onClick={() => step(1)}><ChevronRight /></IconButton></>}
       <output className="director-time text-muted-foreground">{timecode(time)} <span>/ {timecode(duration || 0)}</span></output>
-      <IconButton label="Fullscreen video" onClick={() => { void video.current?.requestFullscreen?.().catch(e => setError(errorText(e))); }}><Maximize2 /></IconButton>
+      <IconButton label="Fullscreen video" disabled={busy || !!draft} onClick={() => { void video.current?.requestFullscreen?.().catch(e => setError(errorText(e))); }}><Maximize2 /></IconButton>
     </div>
     <input className="director-seek" aria-label="Video time" type="range" min="0" max={duration || 0} step="any" value={time} disabled={!ready || !!draft || busy} onChange={e => {setShapes([]);seek(Number(e.target.value));}} />
     {onSave && <div className="director-tools">
@@ -176,8 +176,8 @@ function ReviewVersion({threadId,versionId,onDirty}: {threadId:string;versionId:
   if(error&&!version)return <ErrorNotice>{error}</ErrorNotice>;
   if(!version||!preview)return <Notice>Opening version…</Notice>;
   return <><div className="director-version-heading"><span className="text-xs text-muted-foreground">VERSION {version.ordinal}</span><h2 className="text-lg font-medium">{version.label}</h2>{version.summary&&<p className="text-sm text-muted-foreground">{version.summary}</p>}</div>
-    <Player key={versionId} preview={preview} version={version} seekRequest={seekRequest} onDirty={dirtyChanged} onSave={async fields=>{await rpc.call("addNote",{threadId,versionId,...fields});refresh();}} />
-    <NoteList key={versionId} threadId={threadId} version={version} notes={notes} disabled={dirty} onRefresh={refresh} onSeek={note=>setSeekRequest({time:Math.min(note.timestamp,preview.media.duration||note.timestamp),shapes:note.frameVersionId===versionId ? note.shapes : [],sequence:Date.now()})} />
+    <Player key={`player-${versionId}`} preview={preview} version={version} seekRequest={seekRequest} onDirty={dirtyChanged} onSave={async fields=>{await rpc.call("addNote",{threadId,versionId,...fields});refresh();}} />
+    <NoteList key={`notes-${versionId}`} threadId={threadId} version={version} notes={notes} disabled={dirty} onRefresh={refresh} onSeek={note=>setSeekRequest({time:Math.min(note.timestamp,preview.media.duration||note.timestamp),shapes:note.frameVersionId===versionId ? note.shapes : [],sequence:Date.now()})} />
     {error&&<ErrorNotice>{error}</ErrorNotice>}</>;
 }
 

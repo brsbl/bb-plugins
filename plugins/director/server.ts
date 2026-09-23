@@ -60,7 +60,7 @@ export default function plugin(bb: BbPluginApi): void {
   }
   async function inspect(file: string, source: z.infer<typeof sourceSchema>, fps?: number): Promise<Media> {
     const resolved = await resolveFile(file, source);
-    const result = await host.call("inspect", {path: resolved.path, rootPath: resolved.rootPath, fps}, {hostId: resolved.hostId});
+    const result = await host.call("inspect", {path: resolved.path, rootPath: resolved.rootPath, ...(fps === undefined ? {} : {fps})}, {hostId: resolved.hostId});
     return {...result, hostId: resolved.hostId};
   }
   async function prepare(media: Media) {
