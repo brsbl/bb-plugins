@@ -25,7 +25,7 @@
     "name": "Ambient",
     "description": "A living generative background for bb, driven by what your agents are doing.",
     "branding": {
-      "icon": "./assets/ripple.svg"
+      "icon": "./assets/ambient.svg"
     },
     "server": "./server.ts",
     "skills": [
