@@ -576,7 +576,8 @@ function Switch({
       className={`relative h-4 w-7 shrink-0 rounded-full transition-colors ${checked ? "bg-foreground" : "bg-foreground/20"}`}
     >
       <span
-        className={`absolute top-0.5 left-0.5 size-3 rounded-full bg-background shadow-sm transition-transform ${checked ? "translate-x-3" : "translate-x-0"}`}
+        className={`absolute top-0.5 left-0.5 size-3 rounded-full shadow-sm transition-transform ${checked ? "translate-x-3" : "translate-x-0"}`}
+        style={{ backgroundColor: "var(--canvas)" }}
       />
     </button>
   );
@@ -794,7 +795,8 @@ function AmbientControls() {
               key={entry.id}
               type="button"
               onClick={() => void rpc.call("loadScene", { id: entry.id }).then(receive)}
-              className={`max-w-full truncate rounded-full px-2.5 py-0.5 text-xs transition-colors ${entry.id === activeId ? "bg-foreground text-background" : "text-muted-foreground hover:bg-foreground/10 hover:text-foreground"}`}
+              className={`max-w-full truncate rounded-full px-2.5 py-0.5 text-xs transition-colors ${entry.id === activeId ? "bg-foreground font-medium" : "text-muted-foreground hover:bg-foreground/10 hover:text-foreground"}`}
+              style={entry.id === activeId ? { color: "var(--canvas)" } : undefined}
             >
               {entry.name}
             </button>
