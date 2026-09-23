@@ -1,10 +1,12 @@
 import path from "node:path";
+import { randomUUID } from "node:crypto";
 import { parseArgs } from "node:util";
 import { defineRpcContract, type BbPluginApi } from "@get-bb/plugin-sdk";
 import { z } from "zod";
 import { hostContract } from "./host-contract.js";
 import { directive, id, isActionable, listSchema, mediaSchema, MENTION_PROVIDER, noteInputSchema, noteSchema, promptContext, registerSchema, selectionSchema, sourceSchema, statusInputSchema, stillSchema, versionSchema, VIDEO_EXTENSIONS, type Media } from "./model.js";
 import { openStore } from "./store.js";
+import { mediaResponse } from "./media.js";
 
 const target = z.object({threadId: id, versionId: id}).strict();
 const frameTarget = z.object({threadId: id, noteId: id}).strict();
@@ -28,6 +30,14 @@ export const directorContract = defineRpcContract({
 export default function plugin(bb: BbPluginApi): void {
   const store = openStore(bb);
   const host = bb.hosts.experimental_client({contract: hostContract});
+  const leases = new Map<string, {media: Media; expiresAt: number}>();
+  for (const method of ["HEAD", "GET"]) bb.http.route(method, "/media/:lease", context => {
+    const lease = leases.get(context.req.param("lease"));
+    if (!lease || lease.expiresAt <= Date.now()) return new Response("Video preview expired. Reopen the version.", {status: 404});
+    return mediaResponse({media: lease.media, range: context.req.header("range") ?? null, head: context.req.method === "HEAD", signal: context.req.raw.signal,
+      read: async (start, length, signal) => (await host.call("readChunk", {path: lease.media.path, size: lease.media.size, modifiedAt: lease.media.modifiedAt, start, length}, {hostId: lease.media.hostId, signal})).data,
+    });
+  });
   const changed = (threadId: string) => bb.realtime.publish("changed", {threadId});
   async function resolveFile(file: string, source: z.infer<typeof sourceSchema>) {
     if (!VIDEO_EXTENSIONS.includes(path.extname(file).slice(1).toLowerCase())) throw new Error("Choose an MP4, WebM, or MOV file");
@@ -66,8 +76,11 @@ export default function plugin(bb: BbPluginApi): void {
   async function prepare(media: Media) {
     const live = await host.call("inspect", {path: media.path, rootPath: path.dirname(media.path), probe: false}, {hostId: media.hostId});
     if (live.size !== media.size || live.modifiedAt !== media.modifiedAt) throw new Error("This video changed on disk. Register the new render as a new version before reviewing it.");
-    const lease = await bb.sdk.files.createPreview({hostId: media.hostId, rootPath: path.dirname(media.path), ttlMs: 3_600_000});
-    return {url: `${lease.baseUrl}/${encodeURIComponent(path.basename(media.path))}`, expiresAt: lease.expiresAtMs, media};
+    const now = Date.now();
+    for (const [id, lease] of leases) if (lease.expiresAt <= now) leases.delete(id);
+    const leaseId = randomUUID(), expiresAt = now + 3_600_000;
+    leases.set(leaseId, {media, expiresAt});
+    return {url: `/api/v1/plugins/${encodeURIComponent(bb.pluginId)}/http/media/${leaseId}`, expiresAt, media};
   }
   const handlers = {
     async register(input: z.output<typeof registerSchema>) {

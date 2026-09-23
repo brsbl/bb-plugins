@@ -63,7 +63,7 @@ describe("Director persistence and feedback",()=>{
     const host=createFakePluginHost({pluginId:"director",sdk:{system:{config:async()=>({primaryHostId:"host_a"})},files:{createPreview:async()=>({baseUrl:"/preview/lease",expiresAtMs:9000})}},experimental_callHostRpc:async()=>{const {hostId,...rest}=media;return {...rest,modifiedAt};}});
     plugin(host.bb);cleanups.push(()=>host.harness.lifecycle.dispose());
     const version=versionSchema.parse(await host.harness.behavior.callRpc("register",{threadId:"thr_demo",demo:"Duo",label:"v1",file:"/demo/v1.mp4",source:{kind:"host",threadId:null,environmentId:null,projectId:null,experimental_hostId:"host_a"}}));
-    expect(await host.harness.behavior.callRpc("preview",{threadId:"thr_demo",versionId:version.id})).toMatchObject({url:"/preview/lease/v1.mp4"});
+    expect(await host.harness.behavior.callRpc("preview",{threadId:"thr_demo",versionId:version.id})).toMatchObject({url:expect.stringMatching(/^\/api\/v1\/plugins\/director\/http\/media\//)});
     modifiedAt=2;
     await expect(host.harness.behavior.callRpc("preview",{threadId:"thr_demo",versionId:version.id})).rejects.toThrow(/changed on disk/);
   });

@@ -1,5 +1,5 @@
 import { execFile } from "node:child_process";
-import { realpath, stat } from "node:fs/promises";
+import { open, realpath, stat } from "node:fs/promises";
 import path from "node:path";
 import { promisify } from "node:util";
 import { experimental_defineHostEntry } from "@get-bb/plugin-sdk/host";
@@ -8,6 +8,19 @@ import { VIDEO_EXTENSIONS } from "./model.js";
 
 const execute = promisify(execFile);
 export default experimental_defineHostEntry({contract: hostContract, handlers: {
+  async readChunk(input, context) {
+    if (context.signal.aborted) throw new Error("Video request cancelled");
+    if (!path.isAbsolute(input.path) || !VIDEO_EXTENSIONS.includes(path.extname(input.path).slice(1).toLowerCase())) throw new Error("Invalid video path");
+    if (await realpath(input.path) !== input.path) throw new Error("The video path changed");
+    const file = await open(input.path, "r");
+    try {
+      const details = await file.stat();
+      if (!details.isFile() || details.size !== input.size || details.mtimeMs !== input.modifiedAt) throw new Error("The registered video changed on disk");
+      const buffer = Buffer.alloc(Math.min(input.length, Math.max(0, details.size - input.start)));
+      const {bytesRead} = await file.read(buffer, 0, buffer.length, input.start);
+      return {data: buffer.subarray(0, bytesRead).toString("base64")};
+    } finally { await file.close(); }
+  },
   async inspect(input, context) {
     if (!path.isAbsolute(input.path) || !path.isAbsolute(input.rootPath)) throw new Error("Video paths must be absolute");
     if (!VIDEO_EXTENSIONS.includes(path.extname(input.path).slice(1).toLowerCase())) throw new Error("Choose an MP4, WebM, or MOV file");
