@@ -52,7 +52,7 @@ ${THREAD} [data-overflow-fade] { display: none; }
 ${THREAD} [data-timeline-row-list] :is([data-message-column].border, [data-message-column] .border) { border-color: color-mix(in oklab, var(--ink) 8%, transparent); }
 ${THREAD} [data-scroll-footer] > .bg-background { background-color: transparent; }
 ${THREAD} [data-scroll-footer] div:has(> [data-app-composer]) { position: relative; isolation: isolate; }
-${THREAD} [data-scroll-footer] div:has(> [data-app-composer])::before { content: ""; position: absolute; z-index: -1; pointer-events: none; inset: -16px 0 12px; border-radius: 20px; ${GLASS_SURFACE} }
+${THREAD} [data-scroll-footer] div:has(> [data-app-composer])::before { content: ""; position: absolute; z-index: -1; pointer-events: none; inset: -16px 8px 12px; border-radius: 20px; ${GLASS_SURFACE} }
 body.bb-app-shell > #root header.bg-surface-scrim { border-color: transparent; }
 body.bb-app-shell > #root [data-sidebar="panel"] { border-inline-end-color: transparent; }
 :is(${CHROME_PILLS}) { ${GLASS_SURFACE} border-radius: 12px; padding-inline: 6px; }
