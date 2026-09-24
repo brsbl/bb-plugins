@@ -627,6 +627,7 @@ Object.defineProperties(pointerOver, {
   pointerType: { value: "mouse" },
   relatedTarget: { value: null },
 });
+delayNextSummaryFor.add("thr_1");
 trigger.dispatchEvent(pointerOver);
 const card = window.document.getElementById("bb-thread-hover-card");
 assert.ok(card, "opens the hover card in the pointer event turn");
@@ -652,6 +653,7 @@ assert.deepEqual(
   "does not block first paint on timing hydration",
 );
 assert.match(card.textContent, /Loading thread summary/);
+delayedSummaryResponses.get("thr_1")?.();
 await new Promise((resolve) => setTimeout(resolve, 20));
 
 assert.equal(card.hidden, false);
