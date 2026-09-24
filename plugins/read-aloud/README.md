@@ -23,7 +23,7 @@ Speech is synthesized on the bb server and streamed to whatever device you're us
 
 The first time the plugin loads, it prepares Kokoro on the bb server, which takes a few minutes. The server then keeps the voice loaded, so readings start right away.
 
-- **Runtime install:** `npm ci` installs the pinned runtime from `runtime/package-lock.json` into the plugin's data directory. That's about 700 MB, and it's reinstalled only when the lockfile changes.
+- **Runtime install:** `npm ci` installs the pinned runtime from `runtime/runtime-lock.json` into the plugin's data directory. That's about 700 MB, and it's reinstalled only when the lockfile changes.
 - **Voices:** all 28 Kokoro voices come bundled in that runtime.
 - **Model:** the fp32 weights (about 330 MB) are downloaded once from a pinned Hugging Face commit.
 - **Memory:** synthesis runs in a separate, low-priority process that uses about 1 GB.

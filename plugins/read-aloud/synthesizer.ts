@@ -38,7 +38,10 @@ const maxConcurrent = 2;
 const maxQueued = 8;
 const readyTimeoutMs = 10 * 60_000;
 const installTimeoutMs = 15 * 60_000;
-const runtimeFiles = ["package.json", "package-lock.json", "sharp-stub"];
+// The lockfile ships under another name so the monorepo keeps one root
+// lockfile; provisioning restores it as package-lock.json for `npm ci`.
+const runtimeLock = "runtime-lock.json";
+const runtimeFiles = ["package.json", "sharp-stub"];
 
 export class SynthesisBusyError extends Error {}
 
@@ -151,7 +154,7 @@ export class KokoroSynthesizer implements Synthesizer {
   /** Reinstalls dependencies only when the shipped lockfile changes. */
   private async provision(): Promise<string> {
     const runtimeDir = join(this.dataDir, "runtime");
-    const lock = await readFile(join(this.shippedRuntimeDir, "package-lock.json"));
+    const lock = await readFile(join(this.shippedRuntimeDir, runtimeLock));
     const digest = createHash("sha256").update(lock).digest("hex");
     const stamp = join(runtimeDir, ".lock-sha256");
     const installed = await readFile(stamp, "utf8").catch(() => null);
@@ -163,6 +166,7 @@ export class KokoroSynthesizer implements Synthesizer {
       for (const file of runtimeFiles) {
         await cp(join(this.shippedRuntimeDir, file), join(staging, file), { recursive: true });
       }
+      await writeFile(join(staging, "package-lock.json"), lock);
       await execFileAsync(
         "npm",
         ["ci", "--omit=dev", "--omit=optional", "--ignore-scripts", "--no-audit", "--no-fund"],
@@ -192,7 +196,7 @@ function withTimeout<T>(promise: Promise<T>, ms: number, message: string): Promi
 }
 
 /** Wraps 16-bit mono PCM in a WAV container any browser can play. */
-export function toWav({ sampleRate, pcm }: SpeechAudio): Uint8Array {
+export function toWav({ sampleRate, pcm }: SpeechAudio): Uint8Array<ArrayBuffer> {
   const wav = new Uint8Array(44 + pcm.byteLength);
   const view = new DataView(wav.buffer);
   const ascii = (offset: number, text: string) => {
