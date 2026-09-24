@@ -453,8 +453,10 @@ function Slider({
     onChange(snap(min + ((clientX - rect.left) / rect.width) * (max - min), min, max, step));
   };
   return (
-    <div className="grid h-6 grid-cols-[5.75rem_1fr_2.25rem] items-center gap-2" title={hint}>
-      <span className="truncate text-xs text-muted-foreground">{label}</span>
+    <div className="grid min-h-6 grid-cols-[7rem_1fr_2.25rem] items-center gap-2">
+      <span className="line-clamp-2 text-xs leading-tight break-words text-muted-foreground" title={hint ? `${label}: ${hint}` : label}>
+        {label}
+      </span>
       <div
         ref={track}
         role="slider"
