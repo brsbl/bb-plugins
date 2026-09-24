@@ -12,7 +12,7 @@ const cleanups: (()=>Promise<void>)[]=[];
 afterEach(async()=>{for(const cleanup of cleanups.splice(0))await cleanup();});
 function load() {const host=createFakePluginHost({pluginId:"video-markup"});plugin(host.bb);cleanups.push(()=>host.harness.lifecycle.dispose());return host;}
 function seed(host:ReturnType<typeof load>) {const store=openStore(host.bb);return store.register({threadId:"thr_demo",demo:"Duo",label:"v1",summary:"First review",media});}
-function noteInput(versionId:string,text="Keep the composer in frame") {return noteInputSchema.parse({threadId:"thr_demo",versionId,timestamp:12.5,endTime:14,shapes:[{kind:"box",x1:.1,y1:.6,x2:.9,y2:.95}],text,still});}
+function noteInput(versionId:string,text="Keep the composer in frame") {return noteInputSchema.parse({threadId:"thr_demo",versionId,timestamp:12.5,shapes:[{kind:"box",x1:.1,y1:.6,x2:.9,y2:.95}],text,still});}
 
 describe("Video Markup persistence and feedback",()=>{
   it("persists notes and selections across plugin reload and isolates threads",async()=>{
@@ -21,7 +21,7 @@ describe("Video Markup persistence and feedback",()=>{
     const selection=z.object({id:z.string()}).parse(await host.harness.behavior.callRpc("context",{threadId:"thr_demo",noteIds:[note.id]}));
     const reloaded=await host.harness.lifecycle.reload(plugin);cleanups.push(()=>reloaded.harness.lifecycle.dispose());
     const notes=await reloaded.harness.behavior.callRpc("notes",{threadId:"thr_demo",versionId:v.id});
-    expect(notes).toMatchObject({notes:[{id:note.id,text:"Keep the composer in frame",endTime:14}]});
+    expect(notes).toMatchObject({notes:[{id:note.id,text:"Keep the composer in frame",timestamp:12.5}]});
     expect(await reloaded.harness.behavior.callRpc("notes",{threadId:"another"})).toEqual({notes:[],nextOffset:null});
     await expect(reloaded.harness.behavior.callRpc("frame",{threadId:"another",noteId:note.id})).rejects.toThrow();
     const resolved=await reloaded.harness.inspection.registrations.mentionProviders[0].resolve(selection.id);
@@ -41,14 +41,30 @@ describe("Video Markup persistence and feedback",()=>{
     const v3=store.register({threadId:"thr_demo",demo:"Duo",label:"v3",summary:"One more",media:{...media,path:"/demo/v3.mp4"}});
     expect(store.notes("thr_demo").filter(n=>n.versionId===v3.id).map(n=>n.status)).toEqual(["still wrong","regressed"]);
   });
-  it("rejects invalid regions, reversed ranges, duplicate labels, and fixed prompt selections",async()=>{
+  it("rejects invalid regions, timestamps outside the video, duplicate labels, and fixed prompt selections",async()=>{
     const host=load(),v=seed(host),input=noteInput(v.id);
     await expect(host.harness.behavior.callRpc("addNote",{...input,shapes:[{kind:"box",x1:-1,y1:0,x2:1,y2:1}]})).rejects.toThrow();
-    await expect(host.harness.behavior.callRpc("addNote",{...input,endTime:1})).rejects.toThrow();
-    await expect(host.harness.behavior.callRpc("addNote",{...input,timestamp:100,endTime:null})).rejects.toThrow();
+    await expect(host.harness.behavior.callRpc("addNote",{...input,timestamp:100})).rejects.toThrow();
     const store=openStore(host.bb),note=store.addNote(input);store.setStatus("thr_demo",note.id,"fixed");
     await expect(host.harness.behavior.callRpc("context",{threadId:"thr_demo",noteIds:[note.id]})).rejects.toThrow();
     expect(()=>store.register({threadId:"thr_demo",demo:"Duo",label:"v1",summary:"",media})).toThrow(/label/);
+  });
+  it.each(["tools","CLI"])("creates and lists timestamped notes and includes them in prompt context through %s",async(transport)=>{
+    const host=load(),v=seed(host),input=noteInput(v.id);
+    async function run(command:string,tool:string,data:unknown) {
+      if(transport==="tools") return JSON.parse(z.string().parse(await host.harness.behavior.callAgentTool(tool,data)));
+      const result=await host.harness.behavior.runCli([command,"--data",JSON.stringify(data),"--json"]);
+      expect(result.exitCode).toBe(0);
+      return JSON.parse(result.stdout);
+    }
+    const note=await run("add-note","video_markup_add_note",input);
+    const {still:capturedStill,...fields}=input;
+    expect(note).toEqual({...fields,id:expect.any(String),demo:v.demo,frameVersionId:v.id,status:"open",createdAt:expect.any(Number),updatedAt:expect.any(Number),carriedFrom:null,stillId:note.id});
+    expect(await run("notes","video_markup_list_notes",{threadId:"thr_demo",versionId:v.id})).toEqual({notes:[note],nextOffset:null});
+    const context=await run("context","video_markup_context",{threadId:"thr_demo",noteIds:[note.id]});
+    expect(context.count).toBe(1);
+    expect(JSON.parse(context.context).notes).toEqual([{...note,version:"v1",frameVersion:"v1",moment:"00:12.500",still:{tool:"video_markup_frame",noteId:note.id}}]);
+    expect(openStore(host.bb).still("thr_demo",note.id)).toEqual(capturedStill);
   });
   it("routes CLI and native tools through the same status, frame, and inline-player operations",async()=>{
     const host=load(),v=seed(host),note=openStore(host.bb).addNote(noteInput(v.id));

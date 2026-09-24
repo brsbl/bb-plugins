@@ -16,7 +16,7 @@ Requires bb 0.43.4 or newer for composer mentions with image context. Uses only 
 
 Open an `.mp4`, `.webm`, or `.mov` anywhere bb supports file viewers. Register it with a demo and version label to save feedback. The **Video Markup** action in the thread's side-panel new-tab menu opens its version rail. Register new renders at distinct paths; Video Markup references files in place and detects a registered file being overwritten.
 
-Pause and choose **Note frame**, **Box**, **Arrow**, or **Zoom region**. Drag on the frame, type a note, and optionally drag a range end. ←/→ step one frame; space plays or pauses while the player is focused. Frame stepping uses probed timestamps, including variable frame rates; a supplied constant FPS is the fallback. Zoom regions mark desired focus; they do not alter the rendered film.
+Pause and choose **Note**, **Box**, **Arrow**, or **Zoom region**. Draw on the frame and type a note. Each note keeps its timestamp, captured still, and drawn shapes. ←/→ step one frame; space plays or pauses while the player is focused. Frame stepping uses probed timestamps, including variable frame rates; a supplied constant FPS is the fallback. Zoom regions mark desired focus; they do not alter the rendered film.
 
 Select open notes and choose **Add to prompt**. A composer mention resolves to structured version/time/region feedback plus captured JPEG stills when sent. This preserves the existing draft and leaves sending to the user. Up to 12 notes fit one selection. Notes persist in plugin SQLite storage and sync across clients. Status can be **open**, **fixed**, **still wrong**, or **regressed**. Only unresolved statuses carry forward; copied notes preserve their original frame and version provenance.
 
@@ -37,7 +37,7 @@ All commands return JSON and accept `--thread ID`; otherwise the CLI uses the ac
 | `video_markup_register_version` | `bb video-markup register` | `--demo`, `--file`, `--label`, optional `--summary`, `--fps`. |
 | `video_markup_versions` | `bb video-markup versions` | Optional `--offset`. |
 | `video_markup_list_notes` | `bb video-markup notes` | Optional `--version`, `--demo`, `--status`, `--actionable`, `--offset`. |
-| `video_markup_add_note` | `bb video-markup add-note --data '<JSON>'` | Version, timestamp/range, shapes, text, captured still. |
+| `video_markup_add_note` | `bb video-markup add-note --data '<JSON>'` | Version, timestamp, shapes, text, captured still. |
 | `video_markup_update_note_status` | `bb video-markup status` | `--note`, `--status`. |
 | `video_markup_context` | `bb video-markup context --data '<JSON>'` | `noteIds`: up to 12 selected actionable notes. |
 | `video_markup_frame` | `bb video-markup frame --note ID` | Returns the captured still. |
@@ -50,7 +50,7 @@ bb video-markup status --note NOTE_ID --status "still wrong"
 bb video-markup post --version VERSION_ID
 ```
 
-For `add-note`, supply `versionId`, `timestamp` (seconds), optional `endTime`, `text`, `shapes`, and `still: {dataUrl, width, height}`. Shapes have `kind` (`box`, `arrow`, `zoom`) and `x1`, `y1`, `x2`, `y2` normalized to 0–1 relative to the video frame. The still is a JPEG data URL, at most 350,000 characters. Tool `video_markup_frame` returns a native image; CLI returns its data URL. `context` returns structured context and a saved selection ID used by the UI's composer mention. Neither CLI `post` nor `context` submits a chat message on the user's behalf.
+For `add-note`, supply `versionId`, `timestamp` (seconds), `text`, `shapes`, and `still: {dataUrl, width, height}`. Shapes have `kind` (`box`, `arrow`, `zoom`) and `x1`, `y1`, `x2`, `y2` normalized to 0–1 relative to the video frame. The still is a JPEG data URL, at most 350,000 characters. Tool `video_markup_frame` returns a native image; CLI returns its data URL. `context` returns structured context and a saved selection ID used by the UI's composer mention. Neither CLI `post` nor `context` submits a chat message on the user's behalf.
 
 ### Later
 

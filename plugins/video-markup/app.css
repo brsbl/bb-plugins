@@ -47,7 +47,7 @@
 .video-markup-note-editor { border-top-width: 1px; padding: 10px 0; display: grid; gap: 10px; }
 .video-markup-textarea { resize: vertical; min-height: 84px; width: 100%; border-width: 1px; border-radius: var(--radius); padding: 10px; font-family: inherit; font-size: var(--text-sm); }
 .video-markup-textarea:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
-.video-markup-range-toggle,.video-markup-check { display: flex; align-items: center; gap: 8px; font-size: var(--text-xs); min-height: 28px; }
+.video-markup-check { display: flex; align-items: center; gap: 8px; font-size: var(--text-xs); min-height: 28px; }
 .video-markup-notes { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
 .video-markup-notes-heading,.video-markup-selection { flex-wrap: wrap; }
 .video-markup-filter { width: auto; max-width: 100%; height: 28px; gap: 8px; padding: 4px 6px; border-color: transparent; font-size: var(--text-xs); color: var(--muted-foreground); }

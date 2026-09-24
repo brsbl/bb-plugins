@@ -41,7 +41,7 @@ export class VideoMarkupStore {
   }
   addNote(input: z.output<typeof noteInputSchema>): FrameNote {
     const version = this.version(input.threadId, input.versionId);
-    if (version.media.duration > 0 && (input.timestamp > version.media.duration || (input.endTime ?? 0) > version.media.duration)) throw new Error("Note is outside this video's duration");
+    if (version.media.duration > 0 && input.timestamp > version.media.duration) throw new Error("Note is outside this video's duration");
     return this.db.transaction(() => {
       const noteId = randomUUID(), now = Date.now();
       const {still, ...fields} = input;

@@ -37,7 +37,7 @@ export const versionSchema = z.object({
 export type Version = z.infer<typeof versionSchema>;
 export const noteSchema = z.object({
   id, threadId: id, demo: id, versionId: id, frameVersionId: id,
-  timestamp: z.number().nonnegative(), endTime: z.number().nonnegative().nullable(),
+  timestamp: z.number().nonnegative(),
   shapes: z.array(shapeSchema).max(30), text: z.string().min(1).max(8000),
   status: statusSchema, createdAt: z.number(), updatedAt: z.number(),
   carriedFrom: id.nullable(), stillId: id,
@@ -50,10 +50,9 @@ export const registerSchema = z.object({
 }).strict();
 export const noteInputSchema = z.object({
   threadId: id, versionId: id, timestamp: z.number().nonnegative(),
-  endTime: z.number().nonnegative().nullable().default(null),
   shapes: z.array(shapeSchema).max(30).default([]),
   text: z.string().trim().min(1).max(8000), still: stillSchema,
-}).strict().refine(v => v.endTime === null || v.endTime >= v.timestamp, "Range must end after the note timestamp");
+}).strict();
 export const listSchema = z.object({
   threadId: id, demo: id.optional(), versionId: id.optional(),
   status: statusSchema.optional(), actionable: z.boolean().optional(),

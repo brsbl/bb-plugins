@@ -168,7 +168,7 @@ export default function plugin(bb: BbPluginApi): void {
         const {values, positionals} = parseArgs({args: argv, allowPositionals: true, options: {
           thread: {type: "string"}, demo: {type: "string"}, file: {type: "string"}, label: {type: "string"}, summary: {type: "string"}, fps: {type: "string"}, version: {type: "string"}, note: {type: "string"}, status: {type: "string"}, offset: {type: "string"}, actionable: {type: "boolean"}, data: {type: "string"}, json: {type: "boolean"}, help: {type: "boolean"},
         }});
-        if (!positionals.length || values.help) return {exitCode: 0, stdout: `Video Markup commands: ${Object.keys(operations).join(", ")}\nUse --data JSON for shapes, stills, and selected note IDs. See the Video Markup README.\n`};
+        if (!positionals.length || values.help) return {exitCode: 0, stdout: `Video Markup commands: ${Object.keys(operations).join(", ")}\nUse --data JSON for note timestamps, shapes, stills, and selected note IDs. See the Video Markup README.\n`};
         if (positionals.length !== 1) throw new Error("Use named flags or --data JSON; unexpected positional argument");
         const fields: Record<string, unknown> = values.data ? z.record(z.string(), z.unknown()).parse(JSON.parse(values.data)) : {};
         for (const [flag, field] of Object.entries({thread: "threadId", demo: "demo", file: "file", label: "label", summary: "summary", version: "versionId", note: "noteId", status: "status", actionable: "actionable"})) {

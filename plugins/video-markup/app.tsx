@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useId, useRef, useState, type PointerEvent, type ReactNode } from "react";
-import { ArrowRight, Check, ChevronLeft, ChevronRight, Clapperboard, CornerUpLeft, Maximize2, MessageSquarePlus, Pause, Play, Send, Square, X } from "lucide-react";
+import { ArrowRight, Check, ChevronLeft, ChevronRight, Clapperboard, CornerUpLeft, Maximize2, Pause, Play, Send, Square, StickyNote, X } from "lucide-react";
 import { definePluginApp, useBbNavigate, useComposer, useRealtime, useRpc, type PluginFileOpenerProps, type PluginMessageDirectiveProps, type PluginThreadPanelProps } from "@get-bb/plugin-sdk/app";
 import { Button } from "./components/ui/button.js";
 import { Input } from "./components/ui/input.js";
@@ -39,7 +39,7 @@ async function captureFrame(video: HTMLVideoElement): Promise<Still> {
 }
 
 function Player({preview, version, onSave, onDirty, compact = false, seekRequest, nextNoteNumber}: {
-  preview: Preview; version?: Version; onSave?: (fields: {timestamp: number; endTime: number | null; text: string; shapes: Shape[]; still: Still}) => Promise<void>;
+  preview: Preview; version?: Version; onSave?: (fields: {timestamp: number; text: string; shapes: Shape[]; still: Still}) => Promise<void>;
   onDirty?: (value: boolean) => void; compact?: boolean; seekRequest?: {time: number; shapes: Shape[]; sequence: number; noteNumber: number}; nextNoteNumber?: number;
 }) {
   const video = useRef<HTMLVideoElement>(null);
@@ -48,10 +48,9 @@ function Player({preview, version, onSave, onDirty, compact = false, seekRequest
   const [aspect, setAspect] = useState(preview.media.width && preview.media.height ? preview.media.width / preview.media.height : 16/9);
   const [draft, setDraft] = useState<{timestamp: number; still: Still} | null>(null);
   const [tool, setTool] = useState<Shape["kind"] | null>(null), [shapes, setShapes] = useState<Shape[]>([]), [drawing, setDrawing] = useState<Shape | null>(null);
-  const [text, setText] = useState(""), [endTime, setEndTime] = useState<number | null>(null), [rangeMode, setRangeMode] = useState(false);
+  const [text, setText] = useState("");
   const [busy, setBusy] = useState(false), [error, setError] = useState("");
   const gesture = useRef<Shape | null>(null);
-  const rangeId = useId();
   const canStep = preview.media.frameTimes.length > 0 || preview.media.fps !== null;
   const seek = useCallback((value: number) => { if (video.current) { video.current.pause(); video.current.currentTime = value; setTime(value); } }, []);
   useEffect(() => { if (seekRequest && !draft) { seek(seekRequest.time); setShapes(seekRequest.shapes); } }, [seekRequest, seek]);
@@ -71,7 +70,7 @@ function Player({preview, version, onSave, onDirty, compact = false, seekRequest
       setDraft({timestamp, still}); setShapes([]); setTool(kind); onDirty?.(true);
     } catch (e) { setError(errorText(e)); } finally { setBusy(false); }
   }
-  function cancel() { setDraft(null); setTool(null); setShapes([]); setText(""); setEndTime(null); setRangeMode(false); onDirty?.(false); }
+  function cancel() { setDraft(null); setTool(null); setShapes([]); setText(""); onDirty?.(false); }
   function point(e: PointerEvent<HTMLDivElement>) { const r = e.currentTarget.getBoundingClientRect(); return {x: Math.max(0, Math.min(1, (e.clientX-r.left)/r.width)), y: Math.max(0, Math.min(1, (e.clientY-r.top)/r.height))}; }
   return <section className="video-markup-player" tabIndex={0} aria-label="Video review player" onKeyDown={e => {
     if ((e.target as HTMLElement).closest("input,textarea,select,button") || draft || busy || e.altKey || e.ctrlKey || e.metaKey) return;
@@ -109,18 +108,16 @@ function Player({preview, version, onSave, onDirty, compact = false, seekRequest
     </div>
     <input className="video-markup-seek" aria-label="Video time" type="range" min="0" max={duration || 0} step="any" value={time} disabled={!ready || !!draft || busy} onChange={e => {setShapes([]);seek(Number(e.target.value));}} />
     {onSave && <div className="video-markup-tools">
-      <Button variant={draft && !tool ? "secondary" : "ghost"} size="sm" disabled={!ready || seeking || busy} onClick={() => void beginNote()}><MessageSquarePlus /> Note frame</Button>
+      <Button variant={draft && !tool ? "secondary" : "ghost"} size="sm" disabled={!ready || seeking || busy} onClick={() => void beginNote()}><StickyNote /> Note</Button>
       {([['box', Square, 'Box'], ['arrow', ArrowRight, 'Arrow'], ['zoom', Maximize2, 'Zoom region']] as const).map(([kind, Icon, label]) => <Button key={kind} variant={tool===kind ? "secondary" : "ghost"} size="sm" aria-pressed={tool===kind} disabled={!ready || seeking || busy} onClick={() => void beginNote(kind)}><Icon />{label}</Button>)}
     </div>}
     {draft && tool === "arrow" && <p className="video-markup-draw-hint text-xs text-muted-foreground">Drag from the numbered marker toward what needs attention.</p>}
     {draft && <form className="video-markup-note-editor border-border" onSubmit={e => {
       e.preventDefault(); if (!onSave || !text.trim()) return; setBusy(true);setError("");
-      void onSave({timestamp:draft.timestamp, still:draft.still, shapes, text:text.trim(), endTime}).then(cancel).catch(e => setError(errorText(e))).finally(() => setBusy(false));
+      void onSave({timestamp:draft.timestamp, still:draft.still, shapes, text:text.trim()}).then(cancel).catch(e => setError(errorText(e))).finally(() => setBusy(false));
     }}>
-      <div className="video-markup-row"><span className="video-markup-check text-muted-foreground text-xs"><span className="video-markup-note-number" aria-label={`Note ${nextNoteNumber}`}>{nextNoteNumber}</span>Frame at {timecode(draft.timestamp)}{endTime !== null ? ` → ${timecode(endTime)}` : ""}</span><IconButton label="Undo last shape" disabled={!shapes.length || busy} onClick={() => setShapes(v => v.slice(0,-1))}><CornerUpLeft /></IconButton></div>
+      <div className="video-markup-row"><span className="video-markup-check text-muted-foreground text-xs"><span className="video-markup-note-number" aria-label={`Note ${nextNoteNumber}`}>{nextNoteNumber}</span>Frame at {timecode(draft.timestamp)}</span><IconButton label="Undo last shape" disabled={!shapes.length || busy} onClick={() => setShapes(v => v.slice(0,-1))}><CornerUpLeft /></IconButton></div>
       <textarea autoFocus aria-label="Frame note" placeholder="What should change at this moment?" value={text} maxLength={8000} onChange={e => setText(e.target.value)} className="video-markup-textarea border-input bg-background text-foreground" disabled={busy} />
-      <div className="video-markup-range-toggle text-muted-foreground"><Checkbox id={rangeId} checked={rangeMode} disabled={busy} onCheckedChange={checked => {setRangeMode(checked===true);setEndTime(checked===true ? draft.timestamp : null);}} /><label htmlFor={rangeId}>Include a time range</label></div>
-      {rangeMode && <label className="text-xs text-muted-foreground">Drag to the end of the moment<input aria-label="Note range end" className="video-markup-seek" type="range" min={draft.timestamp} max={duration} step={preview.media.fps ? 1/preview.media.fps : .001} value={endTime ?? draft.timestamp} disabled={busy} onChange={e => setEndTime(Number(e.target.value))} /></label>}
       <div className="video-markup-row"><span className="text-xs text-muted-foreground">{shapes.length ? `${shapes.length} drawn region${shapes.length===1 ? "" : "s"}` : "Frame still attached"}</span><div className="video-markup-actions"><Button type="button" variant="ghost" size="sm" onClick={cancel} disabled={busy}>Cancel</Button><Button size="sm" disabled={!text.trim() || busy}>{busy ? "Saving…" : "Save note"}</Button></div></div>
     </form>}
     {!compact && !canStep && <Notice>Frame stepping needs ffprobe on the video's machine or a known constant frame rate supplied when registering.</Notice>}
@@ -185,7 +182,7 @@ function NoteList({threadId, version, notes, onSeek, onRefresh, disabled}: {thre
           <div className="video-markup-row video-markup-note-heading">
             <button type="button" className="video-markup-moment" aria-label={`Go to note ${noteNumber(note)} at ${timecode(note.timestamp)}`} disabled={disabled} onClick={()=>onSeek(note)}>
               <span className="video-markup-note-number" aria-hidden="true">{noteNumber(note)}</span>
-              <span>{timecode(note.timestamp)}{note.endTime!==null ? `–${timecode(note.endTime)}` : ""}</span>
+              <span>{timecode(note.timestamp)}</span>
             </button>
             <Select value={note.status} disabled={busy} onValueChange={value=>changeStatus(note,value as NoteStatus)}>
               <SelectTrigger aria-label={`Status for note at ${timecode(note.timestamp)}`} className={`${badgeVariants({variant:"secondary"})} video-markup-status`}>
