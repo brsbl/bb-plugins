@@ -2190,6 +2190,7 @@ function installSectionHoverCards({
   let card: HTMLDivElement | null = null;
   let active: SectionTrigger | null = null;
   let closeTimer: ReturnType<typeof setTimeout> | null = null;
+  let summaryTimer: ReturnType<typeof setTimeout> | null = null;
   let generation = 0;
   let disposed = false;
   const cache = new Map<string, { fetchedAt: number; summary: SectionSummary }>();
@@ -2249,8 +2250,15 @@ function installSectionHoverCards({
     pending.clear();
   }
 
+  function cancelSummaryRequest(): void {
+    if (!summaryTimer) return;
+    clearTimeout(summaryTimer);
+    summaryTimer = null;
+  }
+
   function closeCard(): void {
     cancelClose();
+    cancelSummaryRequest();
     generation += 1;
     abortPendingRequests();
     active?.toggle.removeAttribute("aria-describedby");
@@ -2307,7 +2315,7 @@ function installSectionHoverCards({
       });
   }
 
-  function showCard(target: SectionTrigger): void {
+  function showCard(target: SectionTrigger, summaryDelayMs = 0): void {
     const knownUnknownAt = unknownSections.get(keyOf(target));
     if (disposed) return;
     if (
@@ -2319,6 +2327,7 @@ function installSectionHoverCards({
     }
     onOpen();
     cancelClose();
+    cancelSummaryRequest();
     abortPendingRequests();
     active?.toggle.removeAttribute("aria-describedby");
     active = target;
@@ -2347,31 +2356,46 @@ function installSectionHoverCards({
       return;
     }
 
-    void requestSummary(target)
-      .then((summary) => {
-        if (!summary.known) {
-          if (!disposed && requestGeneration === generation) closeCard();
+    const loadSummary = () => {
+      void requestSummary(target)
+        .then((summary) => {
+          if (!summary.known) {
+            if (!disposed && requestGeneration === generation) closeCard();
+            return;
+          }
+          if (disposed || requestGeneration !== generation) return;
+          renderSectionSummary(hoverCard, summary);
+          requestAnimationFrame(position);
+          setHoverCardRenderState(hoverCard, "summary");
+          void markHoverCardComplete(
+            hoverCard,
+            () =>
+              !disposed &&
+              requestGeneration === generation &&
+              active !== null,
+          );
+        })
+        .catch((error) => {
+          if (disposed || requestGeneration !== generation || cached) return;
+          if (isAbortError(error)) return;
+          renderError(hoverCard);
+          setHoverCardRenderState(hoverCard, "error");
+          requestAnimationFrame(position);
+        });
+    };
+    if (summaryDelayMs > 0) {
+      const loadWhenSettled = () => {
+        if (closeTimer) {
+          summaryTimer = setTimeout(loadWhenSettled, summaryDelayMs);
           return;
         }
-        if (disposed || requestGeneration !== generation) return;
-        renderSectionSummary(hoverCard, summary);
-        requestAnimationFrame(position);
-        setHoverCardRenderState(hoverCard, "summary");
-        void markHoverCardComplete(
-          hoverCard,
-          () =>
-            !disposed &&
-            requestGeneration === generation &&
-            active !== null,
-        );
-      })
-      .catch((error) => {
-        if (disposed || requestGeneration !== generation || cached) return;
-        if (isAbortError(error)) return;
-        renderError(hoverCard);
-        setHoverCardRenderState(hoverCard, "error");
-        requestAnimationFrame(position);
-      });
+        summaryTimer = null;
+        loadSummary();
+      };
+      summaryTimer = setTimeout(loadWhenSettled, summaryDelayMs);
+      return;
+    }
+    loadSummary();
   }
 
   function onPointerOver(event: PointerEvent): void {
@@ -2382,7 +2406,7 @@ function installSectionHoverCards({
       cancelClose();
       return;
     }
-    showCard(target);
+    showCard(target, POINTER_SUMMARY_SETTLE_MS);
   }
 
   function onPointerOut(event: PointerEvent): void {

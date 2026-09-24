@@ -1760,7 +1760,7 @@ assert.equal(
 );
 
 hoverOver(designHeader.title);
-await new Promise((resolve) => setTimeout(resolve, 20));
+await new Promise((resolve) => setTimeout(resolve, 170));
 
 const sectionCard = window.document.getElementById("bb-section-hover-card");
 assert.ok(sectionCard, "opens a card from the section header row");
@@ -1834,12 +1834,12 @@ const delayedAHeader = sectionHeaderRow("Delayed A");
 const delayedBHeader = sectionHeaderRow("Delayed B");
 sectionGroup.append(delayedAHeader.row, delayedBHeader.row);
 hoverOver(delayedBHeader.title);
-await new Promise((resolve) => setTimeout(resolve, 20));
+await new Promise((resolve) => setTimeout(resolve, 170));
 assert.match(sectionCard.textContent, /2 threads/);
 
 delayNextSectionFor.add("Delayed A");
 hoverOver(delayedAHeader.title);
-await new Promise((resolve) => setTimeout(resolve, 0));
+await new Promise((resolve) => setTimeout(resolve, 160));
 assert.equal(sectionCard.dataset.bbHoverCardRenderState, "loading");
 assert.equal(sectionCard.getAttribute("aria-busy"), "true");
 delayedSectionResponses.get("Delayed A")?.();
@@ -1848,19 +1848,31 @@ assert.equal(sectionCard.dataset.bbHoverCardRenderState, "complete");
 assert.equal(sectionCard.hasAttribute("aria-busy"), false);
 
 hoverOver(delayedBHeader.title);
-await new Promise((resolve) => setTimeout(resolve, 20));
+await new Promise((resolve) => setTimeout(resolve, 170));
 testNow += 4_100;
 delayNextSectionFor.add("Delayed A");
 hoverOver(delayedAHeader.title);
-await new Promise((resolve) => setTimeout(resolve, 0));
+await new Promise((resolve) => setTimeout(resolve, 160));
 assert.ok(delayedSectionResponses.has("Delayed A"));
 hoverOver(delayedBHeader.title);
-await new Promise((resolve) => setTimeout(resolve, 20));
+await new Promise((resolve) => setTimeout(resolve, 170));
 assert.ok(
   abortedSectionNames.includes("Delayed A"),
   "a cached section still aborts the superseded summary request",
 );
 assert.match(sectionCard.textContent, /2 threads/);
+
+testNow += 4_100;
+const requestsBeforeSectionSweep = sectionRequestBodies.length;
+hoverOver(delayedAHeader.title);
+hoverOver(delayedBHeader.title);
+hoverOver(designHeader.title);
+await new Promise((resolve) => setTimeout(resolve, 170));
+assert.deepEqual(
+  sectionRequestBodies.slice(requestsBeforeSectionSweep).map(({ name }) => name),
+  ["Design"],
+  "a pointer sweep across section headers fetches only where it settles",
+);
 
 // Pointer movement must not dismiss a card whose toggle still owns focus.
 designHeader.toggle.focus();
@@ -1891,7 +1903,7 @@ assert.equal(window.document.getElementById("bb-thread-hover-card").hidden, true
 const writingHeader = sectionHeaderRow("Writing");
 sectionGroup.append(writingHeader.row);
 hoverOver(writingHeader.title);
-await new Promise((resolve) => setTimeout(resolve, 20));
+await new Promise((resolve) => setTimeout(resolve, 170));
 assert.equal(
   sectionCard.querySelector(".bb-section-hover-card__empty").textContent,
   "No threads yet",
@@ -1938,7 +1950,7 @@ projectItem.append(projectGroup);
 window.document.body.append(projectItem);
 
 hoverOver(nestedHeader.title);
-await new Promise((resolve) => setTimeout(resolve, 20));
+await new Promise((resolve) => setTimeout(resolve, 170));
 assert.deepEqual(sectionRequestBodies.at(-1), {
   name: "Design",
   projectId: "proj_1",
@@ -1949,7 +1961,7 @@ assert.deepEqual(sectionRequestBodies.at(-1), {
 // A project row reuses the section header markup but is not a section.
 const requestsBeforeProjectHover = sectionRequestBodies.length;
 hoverOver(projectHeader.title);
-await new Promise((resolve) => setTimeout(resolve, 20));
+await new Promise((resolve) => setTimeout(resolve, 170));
 assert.equal(
   sectionRequestBodies.length,
   requestsBeforeProjectHover,
@@ -1978,7 +1990,7 @@ assert.equal(
 const quietHeader = sectionHeaderRow("Quiet");
 sectionGroup.append(quietHeader.row);
 hoverOver(quietHeader.title);
-await new Promise((resolve) => setTimeout(resolve, 20));
+await new Promise((resolve) => setTimeout(resolve, 170));
 assert.equal(
   sectionCard.querySelector(".bb-section-hover-card__headline"),
   null,
@@ -2003,7 +2015,7 @@ assert.deepEqual(
 const pinnedHeader = sectionHeaderRow("Pinned");
 sectionGroup.append(pinnedHeader.row);
 hoverOver(pinnedHeader.title);
-await new Promise((resolve) => setTimeout(resolve, 20));
+await new Promise((resolve) => setTimeout(resolve, 170));
 assert.equal(
   sectionCard.hidden,
   true,
@@ -2011,7 +2023,7 @@ assert.equal(
 );
 const requestsAfterFirstPinnedHover = sectionRequestBodies.length;
 hoverOver(pinnedHeader.title);
-await new Promise((resolve) => setTimeout(resolve, 20));
+await new Promise((resolve) => setTimeout(resolve, 170));
 assert.equal(
   sectionRequestBodies.length,
   requestsAfterFirstPinnedHover,
@@ -2021,12 +2033,12 @@ assert.equal(sectionCard.hidden, true);
 
 delayNextSectionFor.add("Delayed A");
 hoverOver(delayedAHeader.title);
-await new Promise((resolve) => setTimeout(resolve, 0));
+await new Promise((resolve) => setTimeout(resolve, 160));
 const delayedAAbortCount = abortedSectionNames.filter(
   (name) => name === "Delayed A",
 ).length;
 hoverOver(pinnedHeader.title);
-await new Promise((resolve) => setTimeout(resolve, 20));
+await new Promise((resolve) => setTimeout(resolve, 170));
 assert.equal(
   abortedSectionNames.filter((name) => name === "Delayed A").length,
   delayedAAbortCount + 1,
@@ -2036,7 +2048,7 @@ assert.equal(sectionCard.hidden, true);
 
 // Moving from a section header onto a thread row swaps the cards.
 hoverOver(designHeader.title);
-await new Promise((resolve) => setTimeout(resolve, 20));
+await new Promise((resolve) => setTimeout(resolve, 170));
 assert.equal(sectionCard.hidden, false);
 hoverOver(nestedThread);
 await new Promise((resolve) => setTimeout(resolve, 20));
