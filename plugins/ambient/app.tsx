@@ -42,7 +42,6 @@ const COLUMN_MASK = `linear-gradient(to right, transparent max(10px, 50% - ${COL
 const RIGHT_PANEL = "body.bb-app-shell > #root #thread-detail-secondary-panel-handle + [data-panel] > aside";
 const COLUMN_WIDTH = `min(calc(100% - 20px), calc(2 * ${COLUMN_HALF}))`;
 const COLUMN_BOTTOM = "6px";
-const TOP_FADE = "linear-gradient(to bottom, transparent var(--ambient-scroll-top, -28px), #000 calc(var(--ambient-scroll-top, -28px) + 28px))";
 const THREAD = "body.bb-app-shell > #root [data-thread-window]";
 const CHROME_PILLS = 'body.bb-app-shell > #root :is([data-testid="app-page-header-content-row"] > :first-child, [data-app-page-header-actions], [data-testid="app-sidebar-top-reserve-row"] > div, button[data-sidebar="trigger"])';
 const SIDEBAR_CARDS = 'body.bb-app-shell > #root :is([data-testid="sidebar-navigation-region"], [data-sidebar="content"], [data-sidebar="footer"])';
@@ -52,7 +51,7 @@ function glassCss(glass: number): string {
 ${THREAD} { position: relative; isolation: isolate; }
 ${THREAD}::before { content: ""; position: absolute; z-index: -1; pointer-events: none; ${GLASS_SURFACE} border-radius: 20px; top: 0; bottom: ${COLUMN_BOTTOM}; left: 50%; width: ${COLUMN_WIDTH}; transform: translateX(-50%); }
 ${THREAD} [data-overflow-fade] { display: none; }
-${THREAD} .thread-scrollbar > div > div:first-child { -webkit-mask-image: ${TOP_FADE}; mask-image: ${TOP_FADE}; }
+${THREAD}::after { content: ""; position: absolute; z-index: 1; pointer-events: none; top: 1px; height: 28px; left: 50%; width: calc(${COLUMN_WIDTH} - 2px); transform: translateX(-50%); border-radius: 19px 19px 0 0; background: linear-gradient(to bottom, color-mix(in oklab, var(--ambient-background) 88%, transparent), transparent); }
 ${THREAD} [data-timeline-row-list] :is([data-message-column].border, [data-message-column] .border) { border-color: color-mix(in oklab, var(--ink) 8%, transparent); }
 ${THREAD} [data-scroll-footer] > .bg-background { background-color: transparent; }
 ${THREAD} [data-scroll-footer] { isolation: isolate; }
@@ -417,26 +416,6 @@ function AmbientOverlay() {
       request.ripple ? CAPTURE_DELAY_MS : 0,
     );
   });
-
-  useEffect(() => {
-    if (!enabled) return;
-    const selector = "[data-thread-window] .thread-scrollbar";
-    const track = (scroller: HTMLElement) => {
-      scroller.style.setProperty("--ambient-scroll-top", scroller.scrollTop > 0 ? `${scroller.scrollTop}px` : "-28px");
-    };
-    const onScroll = (event: Event) => {
-      if (event.target instanceof HTMLElement && event.target.matches(selector)) track(event.target);
-    };
-    const sweep = () => document.querySelectorAll<HTMLElement>(selector).forEach(track);
-    document.addEventListener("scroll", onScroll, { capture: true, passive: true });
-    const interval = window.setInterval(sweep, 1000);
-    sweep();
-    return () => {
-      document.removeEventListener("scroll", onScroll, { capture: true });
-      window.clearInterval(interval);
-      document.querySelectorAll<HTMLElement>(selector).forEach((scroller) => scroller.style.removeProperty("--ambient-scroll-top"));
-    };
-  }, [enabled]);
 
   const showThrough = state?.controls.showThrough ?? 0;
   const glass = state?.controls.glass ?? 0.6;
