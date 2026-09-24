@@ -2505,10 +2505,15 @@ function installHoverCards({ onOpen }) {
       }
     }
     if (summaryDelayMs > 0) {
-      summaryTimer = setTimeout(() => {
+      const loadWhenSettled = () => {
+        if (closeTimer) {
+          summaryTimer = setTimeout(loadWhenSettled, summaryDelayMs);
+          return;
+        }
         summaryTimer = null;
         loadSummary(threadId, cached, generation, hoverCard, requestedAt);
-      }, summaryDelayMs);
+      };
+      summaryTimer = setTimeout(loadWhenSettled, summaryDelayMs);
       return;
     }
     loadSummary(threadId, cached, generation, hoverCard, requestedAt);
