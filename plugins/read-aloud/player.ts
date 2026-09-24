@@ -1,9 +1,4 @@
-export type FetchSpeech = (
-  text: string,
-  speed: number,
-  signal: AbortSignal,
-  first: boolean,
-) => Promise<Blob>;
+export type FetchSpeech = (text: string, signal: AbortSignal, first: boolean) => Promise<Blob>;
 
 export interface PlaybackCallbacks {
   onPlaying(): void;
@@ -19,7 +14,6 @@ interface Pending {
 interface Session {
   key: string;
   chunks: string[];
-  speed: number;
   /** Chunk being played, or awaited before playing. */
   index: number;
   playing: boolean;
@@ -41,7 +35,8 @@ const silentWav =
 /**
  * Plays server-synthesized chunks one reading at a time, fetching a couple of
  * chunks ahead. Two audio elements alternate so the next chunk is already
- * loaded when the current one ends.
+ * loaded when the current one ends. Chunks are synthesized at 1× and sped up
+ * here, so one clip serves every speed and speed changes apply at once.
  */
 export class ReadAloudPlayer {
   private readonly elements = [new Audio(), new Audio()] as const;
@@ -50,7 +45,10 @@ export class ReadAloudPlayer {
   private session: Session | null = null;
 
   constructor(private readonly fetchSpeech: FetchSpeech) {
-    for (const element of this.elements) element.preload = "auto";
+    for (const element of this.elements) {
+      element.preload = "auto";
+      element.preservesPitch = true;
+    }
   }
 
   isReading(key: string): boolean {
@@ -70,10 +68,10 @@ export class ReadAloudPlayer {
 
   speak(key: string, chunks: string[], speed: number, callbacks: PlaybackCallbacks): void {
     this.stop();
+    this.setSpeed(speed);
     const session: Session = {
       key,
       chunks,
-      speed,
       index: 0,
       playing: false,
       started: false,
@@ -88,21 +86,13 @@ export class ReadAloudPlayer {
     void this.play(session);
   }
 
-  /**
-   * Applies after the next chunk: the chunk playing and the one right behind
-   * it keep their audio so playback never gaps, and later chunks are
-   * re-requested at the new speed.
-   */
+  /** Applies immediately, including to the chunk playing; pitch is preserved. */
   setSpeed(speed: number): void {
-    const session = this.session;
-    if (!session || session.speed === speed) return;
-    session.speed = speed;
-    for (const [index, pending] of session.pending) {
-      if (index <= session.index + 1) continue;
-      this.discard(pending);
-      session.pending.delete(index);
+    for (const element of this.elements) {
+      // Loading a new clip resets the rate to the default, so set both.
+      element.defaultPlaybackRate = speed;
+      element.playbackRate = speed;
     }
-    this.fill(session);
   }
 
   /** Pauses the current chunk, or holds the next one until resumed. */
@@ -144,13 +134,9 @@ export class ReadAloudPlayer {
     for (let index = session.index; index < end; index += 1) {
       if (session.pending.has(index)) continue;
       const controller = new AbortController();
-      const url = this.fetchSpeech(
-        session.chunks[index]!,
-        session.speed,
-        controller.signal,
-        index === 0,
-      )
-        .then((blob) => URL.createObjectURL(blob));
+      const url = this.fetchSpeech(session.chunks[index]!, controller.signal, index === 0).then(
+        (blob) => URL.createObjectURL(blob),
+      );
       url.catch(() => {});
       session.pending.set(index, { controller, url });
     }
@@ -204,20 +190,16 @@ export class ReadAloudPlayer {
     }
   }
 
-  /** Resolves the current chunk's audio, following re-requests after a speed change. */
+  /** Resolves the current chunk's audio, or null once the session has ended. */
   private async awaitCurrent(session: Session): Promise<string | null> {
-    for (;;) {
-      const pending = session.pending.get(session.index);
-      if (!pending || this.session !== session) return null;
-      try {
-        const url = await pending.url;
-        if (session.pending.get(session.index) === pending && this.session === session) {
-          return url;
-        }
-      } catch (error) {
-        if (this.session !== session) return null;
-        if (session.pending.get(session.index) === pending) throw error;
-      }
+    const pending = session.pending.get(session.index);
+    if (!pending || this.session !== session) return null;
+    try {
+      const url = await pending.url;
+      return this.session === session ? url : null;
+    } catch (error) {
+      if (this.session !== session) return null;
+      throw error;
     }
   }
 

@@ -14,7 +14,7 @@ bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/read-aloud 
 
 - Press **Read aloud** (▶) in a message's action bar. Press it again, or ■ in the controls, to stop.
 - Highlight text in an agent message and choose **Read aloud** to hear only the selection.
-- While reading, compact controls open above the sidebar footer: a soundwave showing the reading state, a button that jumps to the message being read, **1×** / **1.5×** / **2×**, pause/resume, and stop. Each device remembers its speed.
+- While reading, compact controls open above the sidebar footer: a soundwave showing the reading state, a button that jumps to the message being read, **1×** / **1.5×** / **2×**, pause/resume, and stop. Speed changes apply instantly, and each device remembers its speed.
 - The footer's ▶ button collapses the controls and pauses; pressing it again expands them and resumes. Pressing **Read aloud** on a paused message also resumes.
 - On bb versions without footer items, the controls appear in a small toast without pause.
 - Code blocks, URLs, and Markdown syntax are skipped so the reading sounds like prose.

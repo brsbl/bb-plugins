@@ -2,7 +2,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { BbPluginApi } from "@get-bb/plugin-sdk";
 
-import { chunkForSpeech, maxSpeakLength, speeds, toSpeechText } from "./speech-text";
+import { chunkForSpeech, maxSpeakLength, toSpeechText } from "./speech-text";
 import {
   KokoroSynthesizer,
   SynthesisBusyError,
@@ -48,7 +48,7 @@ const voices = [
 const moduleDir = dirname(fileURLToPath(import.meta.url));
 const pluginDir = moduleDir.endsWith("dist") ? dirname(moduleDir) : moduleDir;
 
-/** Recently synthesized chunks, keyed by voice, speed, and text. */
+/** Recently synthesized chunks, keyed by voice and text. */
 class SpeechCache {
   private readonly entries = new Map<string, Uint8Array<ArrayBuffer>>();
 
@@ -95,9 +95,7 @@ export function registerReadAloud(bb: BbPluginApi, synthesizer: Synthesizer): vo
     string,
     { wav: Promise<Uint8Array<ArrayBuffer>>; started: boolean; controller: AbortController }
   >();
-  /** The speed listeners last chose; replies are prepared at this speed. */
-  let lastSpeed: number = speeds[0];
-  const cacheKey = (voice: string, speed: number, text: string) => `${voice}|${speed}|${text}`;
+  const cacheKey = (voice: string, text: string) => `${voice}|${text}`;
 
   async function currentVoice(): Promise<string> {
     const current = await settings.get();
@@ -107,12 +105,11 @@ export function registerReadAloud(bb: BbPluginApi, synthesizer: Synthesizer): vo
   async function synthesizeWav(
     text: string,
     voice: string,
-    speed: number,
     options: Pick<SynthesisRequest, "first" | "background" | "onStart" | "signal">,
   ): Promise<Uint8Array<ArrayBuffer>> {
-    const audio = await synthesizer.synthesize({ text, voice, speed, ...options });
-    const wav = toWav(trimSilence(audio, text, speed));
-    cache.set(cacheKey(voice, speed, text), wav);
+    const audio = await synthesizer.synthesize({ text, voice, ...options });
+    const wav = toWav(trimSilence(audio, text));
+    cache.set(cacheKey(voice, text), wav);
     return wav;
   }
 
@@ -121,15 +118,14 @@ export function registerReadAloud(bb: BbPluginApi, synthesizer: Synthesizer): vo
     const current = await settings.get();
     if (!current.prepare) return;
     const voice = await currentVoice();
-    const speed = lastSpeed;
     for (const text of chunkForSpeech(toSpeechText(lastAssistantText)).slice(0, preparedChunks)) {
-      const key = cacheKey(voice, speed, text);
+      const key = cacheKey(voice, text);
       if (cache.get(key) || preparing.has(key)) continue;
       const controller = new AbortController();
       const entry = {
         started: false,
         controller,
-        wav: synthesizeWav(text, voice, speed, {
+        wav: synthesizeWav(text, voice, {
           background: true,
           signal: controller.signal,
           onStart: () => {
@@ -145,17 +141,14 @@ export function registerReadAloud(bb: BbPluginApi, synthesizer: Synthesizer): vo
   bb.http.route("POST", "/speak", async (context) => {
     const body = (await context.req.json().catch(() => null)) as {
       text?: unknown;
-      speed?: unknown;
       first?: unknown;
     } | null;
     const text = typeof body?.text === "string" ? body.text.trim() : "";
-    const speed = speeds.find((value) => value === body?.speed);
-    if (text.length === 0 || text.length > maxSpeakLength || speed === undefined) {
+    if (text.length === 0 || text.length > maxSpeakLength) {
       return context.json({ error: "Invalid speech request" }, 400);
     }
-    lastSpeed = speed;
     const voice = await currentVoice();
-    const key = cacheKey(voice, speed, text);
+    const key = cacheKey(voice, text);
     const respond = (wav: Uint8Array<ArrayBuffer>) =>
       new Response(wav, {
         headers: { "content-type": "audio/wav", "cache-control": "no-store" },
@@ -169,7 +162,7 @@ export function registerReadAloud(bb: BbPluginApi, synthesizer: Synthesizer): vo
       if (prepared?.started) return respond(await prepared.wav);
       prepared?.controller.abort();
       return respond(
-        await synthesizeWav(text, voice, speed, {
+        await synthesizeWav(text, voice, {
           first: body?.first === true,
           signal: context.req.raw.signal,
         }),

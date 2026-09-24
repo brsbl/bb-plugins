@@ -27,7 +27,7 @@ describe("Read Aloud speech route", () => {
       pcm: new Uint8Array([1, 0, 2, 0]),
     }));
     const { harness, speak } = setup(synthesize);
-    const response = await speak({ text: "Hello there.", speed: 1.5 });
+    const response = await speak({ text: "Hello there." });
     expect(response.status).toBe(200);
     expect(response.headers.get("content-type")).toBe("audio/wav");
     const wav = new Uint8Array(await response.arrayBuffer());
@@ -35,15 +35,15 @@ describe("Read Aloud speech route", () => {
     expect(new DataView(wav.buffer).getUint32(24, true)).toBe(24_000);
     expect(wav.byteLength).toBe(48);
     expect(synthesize).toHaveBeenCalledWith(
-      expect.objectContaining({ text: "Hello there.", voice: "af_heart", speed: 1.5 }),
+      expect.objectContaining({ text: "Hello there.", voice: "af_heart" }),
     );
     await harness.lifecycle.dispose();
   });
 
-  it("rejects empty, oversized, or unsupported-speed requests", async () => {
+  it("rejects empty or oversized requests", async () => {
     const synthesize = vi.fn();
     const { harness, speak } = setup(synthesize);
-    for (const body of [{ text: "", speed: 1 }, { text: "x".repeat(401), speed: 1 }, { text: "Hi", speed: 3 }]) {
+    for (const body of [{ text: "" }, { text: "x".repeat(401) }, {}]) {
       expect((await speak(body)).status).toBe(400);
     }
     expect(synthesize).not.toHaveBeenCalled();
@@ -54,7 +54,7 @@ describe("Read Aloud speech route", () => {
     const { harness, speak } = setup(async () => {
       throw new SynthesisBusyError("Too many requests");
     });
-    expect((await speak({ text: "Hi", speed: 1 })).status).toBe(429);
+    expect((await speak({ text: "Hi" })).status).toBe(429);
     await harness.lifecycle.dispose();
   });
 
@@ -62,7 +62,7 @@ describe("Read Aloud speech route", () => {
     const { harness, speak } = setup(async () => {
       throw new SynthesisUnavailableError("The voice server is restarting");
     });
-    const response = await speak({ text: "Hi", speed: 1 });
+    const response = await speak({ text: "Hi" });
     expect(response.status).toBe(503);
     expect(response.headers.get("retry-after")).toBe("1");
     await harness.lifecycle.dispose();
@@ -77,7 +77,7 @@ describe("Read Aloud speech route", () => {
       ["Done.", true],
       ["It works.", true],
     ]);
-    const response = await speak({ text: "Done.", speed: 1, first: true });
+    const response = await speak({ text: "Done.", first: true });
     expect(response.status).toBe(200);
     expect(synthesize).toHaveBeenCalledTimes(2);
     await harness.lifecycle.dispose();
@@ -107,7 +107,7 @@ describe("Read Aloud speech route", () => {
     const { harness, speak, idle } = setup(synthesize);
     await idle("It works.");
     await vi.waitFor(() => expect(signals).toHaveLength(1));
-    const response = await speak({ text: "It works.", speed: 1, first: true });
+    const response = await speak({ text: "It works.", first: true });
     expect(response.status).toBe(200);
     expect(signals[0]!.aborted).toBe(true);
     expect(synthesize).toHaveBeenLastCalledWith(expect.objectContaining({ first: true }));

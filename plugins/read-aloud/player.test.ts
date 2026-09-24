@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ReadAloudPlayer, type FetchSpeech } from "./player";
 
-let requests: Array<{ text: string; speed: number; signal: AbortSignal; resolve(): void }>;
+let requests: Array<{ text: string; signal: AbortSignal; resolve(): void }>;
 let playing: HTMLMediaElement | null;
 
 beforeEach(() => {
@@ -24,10 +24,10 @@ beforeEach(() => {
 afterEach(() => vi.restoreAllMocks());
 
 // Like fetch, a request rejects as soon as its signal aborts.
-const fetchSpeech: FetchSpeech = (text, speed, signal) =>
+const fetchSpeech: FetchSpeech = (text, signal) =>
   new Promise((resolve, reject) => {
     signal.addEventListener("abort", () => reject(new DOMException("Aborted", "AbortError")));
-    requests.push({ text, speed, signal, resolve: () => resolve(new Blob([text])) });
+    requests.push({ text, signal, resolve: () => resolve(new Blob([text])) });
   });
 
 const flush = async () => {
@@ -56,26 +56,21 @@ describe("ReadAloudPlayer", () => {
     expect(onFinished).toHaveBeenCalledOnce();
   });
 
-  it("keeps the next chunk and re-requests later chunks at the new speed", async () => {
+  it("changes speed on the playing chunk without re-requesting audio", async () => {
     const player = new ReadAloudPlayer(fetchSpeech);
-    player.speak("m", ["One.", "Two.", "Three.", "Four."], 1, {
+    player.speak("m", ["One.", "Two.", "Three."], 1.5, {
       onPlaying: vi.fn(),
       onFinished: vi.fn(),
       onError: vi.fn(),
     });
-    player.setSpeed(2);
-    expect(requests.map((request) => [request.text, request.speed, request.signal.aborted])).toEqual([
-      ["One.", 1, false],
-      ["Two.", 1, false],
-      ["Three.", 1, true],
-      ["Three.", 2, false],
-    ]);
     requests[0]!.resolve();
     await flush();
-    expect(playing?.src).toBe("blob:chunk-0");
-    playing!.onended?.(new Event("ended"));
-    await flush();
-    expect(requests.at(-1)).toMatchObject({ text: "Four.", speed: 2 });
+    expect(playing?.playbackRate).toBe(1.5);
+    player.setSpeed(2);
+    expect(playing?.playbackRate).toBe(2);
+    expect(playing?.defaultPlaybackRate).toBe(2);
+    expect(requests).toHaveLength(3);
+    expect(requests.some((request) => request.signal.aborted)).toBe(false);
   });
 
   it("stop cancels outstanding requests and never reports finishing", async () => {

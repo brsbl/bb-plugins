@@ -15,7 +15,6 @@ export interface SpeechAudio {
 export interface SynthesisRequest {
   text: string;
   voice: string;
-  speed: number;
   /** The opening chunk of a reading; it goes to the front of the queue. */
   first?: boolean;
   /**
@@ -42,7 +41,7 @@ interface Job extends SynthesisRequest {
   reject(error: Error): void;
 }
 
-type SynthesisJob = Pick<SynthesisRequest, "text" | "voice" | "speed">;
+type SynthesisJob = Pick<SynthesisRequest, "text" | "voice">;
 
 /** Two chunks in flight keep 4 vCPUs ahead of 2× playback. */
 const maxConcurrent = 2;
@@ -63,8 +62,8 @@ export class SynthesisUnavailableError extends Error {}
 
 /**
  * Bounded FIFO in front of the synthesis process. A request whose client
- * disconnects leaves the queue at once, so cancelled prefetches from speed
- * changes or stops never count against the limit.
+ * disconnects leaves the queue at once, so cancelled prefetches from stops
+ * or new readings never count against the limit.
  */
 export class SynthesisQueue {
   private readonly waiting: Job[] = [];
@@ -158,7 +157,7 @@ export class SynthesisQueue {
       job.onStart?.();
       const id = this.nextId++;
       this.running.set(id, job);
-      this.send(id, { text: job.text, voice: job.voice, speed: job.speed });
+      this.send(id, { text: job.text, voice: job.voice });
     }
   }
 }
@@ -386,11 +385,11 @@ function withTimeout<T>(promise: Promise<T>, ms: number, error: () => Error): Pr
 const silenceThreshold = Math.round(0.01 * 0x7fff);
 
 /**
- * Kokoro pads every clip with about 0.3 s of silence before and 0.45 s after
- * at 1×, which doubles up between consecutive chunks. Trim both ends to a
+ * Kokoro pads every clip with about 0.3 s of silence before and 0.45 s after,
+ * which doubles up between consecutive chunks. Trim both ends to a
  * natural pause: short after a clause, longer after a sentence.
  */
-export function trimSilence(audio: SpeechAudio, text: string, speed: number): SpeechAudio {
+export function trimSilence(audio: SpeechAudio, text: string): SpeechAudio {
   const view = new DataView(audio.pcm.buffer, audio.pcm.byteOffset, audio.pcm.byteLength);
   const count = Math.floor(audio.pcm.byteLength / 2);
   const loud = (index: number) => Math.abs(view.getInt16(index * 2, true)) >= silenceThreshold;
@@ -401,7 +400,7 @@ export function trimSilence(audio: SpeechAudio, text: string, speed: number): Sp
   if (start >= end) return audio;
   const sentenceEnd = /[.!?…]["')\]]?$/.test(text.trim());
   const leadSamples = Math.round(audio.sampleRate * 0.04);
-  const tailSamples = Math.round((audio.sampleRate * (sentenceEnd ? 0.22 : 0.09)) / speed);
+  const tailSamples = Math.round(audio.sampleRate * (sentenceEnd ? 0.22 : 0.09));
   const from = Math.max(0, start - leadSamples);
   const to = Math.min(count, end + tailSamples);
   return {

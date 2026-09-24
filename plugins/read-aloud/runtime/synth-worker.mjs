@@ -29,10 +29,7 @@ function toPcm16(samples) {
 process.on("message", async (request) => {
   if (request?.type !== "synthesize") return;
   try {
-    const audio = await tts.generate(request.text, {
-      voice: request.voice,
-      speed: request.speed,
-    });
+    const audio = await tts.generate(request.text, { voice: request.voice });
     process.send({
       type: "audio",
       id: request.id,

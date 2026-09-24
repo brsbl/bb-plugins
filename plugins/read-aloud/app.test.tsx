@@ -78,10 +78,10 @@ describe("Read aloud action", () => {
 
     const fetch = vi.fn(async () => new Response("wav"));
     vi.stubGlobal("fetch", fetch);
-    await player.fetchSpeech!("Done.", 1.5, new AbortController().signal, true);
+    await player.fetchSpeech!("Done.", new AbortController().signal, true);
     expect(fetch).toHaveBeenCalledWith(
       "/api/v1/plugins/read-aloud-dev/http/speak",
-      expect.objectContaining({ method: "POST", body: JSON.stringify({ text: "Done.", speed: 1.5, first: true }) }),
+      expect.objectContaining({ method: "POST", body: JSON.stringify({ text: "Done.", first: true }) }),
     );
   });
 
@@ -128,7 +128,7 @@ describe("Read aloud action", () => {
       .mockRejectedValueOnce(new TypeError("Failed to fetch"))
       .mockResolvedValueOnce(new Response("wav"));
     vi.stubGlobal("fetch", fetch);
-    const blob = player.fetchSpeech!("Hello.", 1, new AbortController().signal, true);
+    const blob = player.fetchSpeech!("Hello.", new AbortController().signal, true);
     await vi.runAllTimersAsync();
     await expect(blob.then((audio) => audio.text())).resolves.toBe("wav");
     expect(fetch).toHaveBeenCalledTimes(3);

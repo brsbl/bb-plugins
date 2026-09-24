@@ -39,19 +39,14 @@ function savedSpeed(): Speed {
 const retryableStatuses = new Set([429, 502, 503, 504]);
 const retryDelaysMs = [500, 1000, 2000, 4000, 4000];
 
-async function fetchSpeech(
-  text: string,
-  speed: number,
-  signal: AbortSignal,
-  first: boolean,
-): Promise<Blob> {
+async function fetchSpeech(text: string, signal: AbortSignal, first: boolean): Promise<Blob> {
   for (let attempt = 0; ; attempt += 1) {
     let response: Response | null = null;
     try {
       response = await fetch(`/api/v1/plugins/${encodeURIComponent(pluginId)}/http/speak`, {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ text, speed, first }),
+        body: JSON.stringify({ text, first }),
         signal,
       });
     } catch (error) {
