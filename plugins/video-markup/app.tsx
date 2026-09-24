@@ -1,13 +1,12 @@
 import { useCallback, useEffect, useId, useRef, useState, type PointerEvent, type ReactNode } from "react";
 import { ArrowRight, Check, ChevronLeft, ChevronRight, Clapperboard, CornerUpLeft, Maximize2, Pause, Play, Send, Square, StickyNote, X } from "lucide-react";
-import { definePluginApp, useBbNavigate, useComposer, useRealtime, useRpc, type PluginFileOpenerProps, type PluginMessageDirectiveProps, type PluginThreadPanelProps } from "@get-bb/plugin-sdk/app";
+import { definePluginApp, useBbNavigate, useComposer, useRealtime, useRpc, type PluginFileOpenerProps, type PluginMessageDirectiveProps, type PluginThreadPanelProps, type PluginThreadHeaderActionProps } from "@get-bb/plugin-sdk/app";
 import { Button } from "./components/ui/button.js";
-import { Input } from "./components/ui/input.js";
 import { Checkbox } from "./components/ui/checkbox.js";
 import { badgeVariants } from "./components/ui/badge.js";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./components/ui/select.js";
 import { ShapeOverlay } from "./shape-overlay.js";
-import { isActionable, MENTION_PROVIDER, stepTime, timecode, VIDEO_EXTENSIONS, type FrameNote, type Media, type NoteStatus, type Shape, type Still, type Version } from "./model.js";
+import { isActionable, presentationSchema, MENTION_PROVIDER, stepTime, timecode, videoName, VIDEO_EXTENSIONS, type FrameNote, type Media, type NoteStatus, type Shape, type Still, type Version } from "./model.js";
 import type { videoMarkupContract } from "./server.js";
 import "./app.css";
 
@@ -78,7 +77,7 @@ function Player({preview, version, onSave, onDirty, compact = false, seekRequest
     if (e.key === "ArrowLeft" || e.key === "ArrowRight") { e.preventDefault(); step(e.key === "ArrowLeft" ? -1 : 1); }
   }}>
     <div className="video-markup-stage bg-muted" style={{aspectRatio: aspect}}>
-      <video ref={video} src={preview.url} playsInline preload="metadata" crossOrigin="anonymous" aria-label={version?.label ?? "Video preview"}
+      <video ref={video} src={preview.url} playsInline preload="metadata" crossOrigin="anonymous" aria-label={version ? videoName(version.media.path) : "Video preview"}
         onLoadedMetadata={e => { const v=e.currentTarget; setDuration(v.duration); setAspect(v.videoWidth/v.videoHeight || 16/9); }}
         onLoadedData={() => setReady(true)} onTimeUpdate={e => setTime(e.currentTarget.currentTime)}
         onPlay={() => setPlaying(true)} onPause={() => setPlaying(false)} onEnded={() => setPlaying(false)}
@@ -125,20 +124,10 @@ function Player({preview, version, onSave, onDirty, compact = false, seekRequest
   </section>;
 }
 
-function RegistrationForm({threadId, file, source, onRegistered}: {threadId: string; file?: string; source?: PluginFileOpenerProps["source"]; onRegistered: (version: Version) => void}) {
+function AddVideo({threadId, file, source, onRegistered}: {threadId: string; file: string; source: PluginFileOpenerProps["source"]; onRegistered: (version: Version) => void}) {
   const rpc = useRpc<typeof videoMarkupContract>();
-  const [demo,setDemo]=useState(""),[label,setLabel]=useState(""),[location,setLocation]=useState(file ?? ""),[summary,setSummary]=useState(""),[fps,setFps]=useState("");
   const [busy,setBusy]=useState(false),[error,setError]=useState("");
-  return <form className="video-markup-register" onSubmit={e => {e.preventDefault();setBusy(true);setError("");void rpc.call("register",{threadId,demo,label,file:location,summary,...(source ? {source} : {}),...(fps ? {fps:Number(fps)} : {})}).then(onRegistered).catch(e=>setError(errorText(e))).finally(()=>setBusy(false));}}>
-    <div><h3 className="font-medium">{file ? "Review this video" : "Register a version"}</h3><p className="text-sm text-muted-foreground">Keep the film, its changes, and frame feedback together.</p></div>
-    <label>Demo<Input required placeholder="iPhone Duo" value={demo} maxLength={160} onChange={e=>setDemo(e.target.value)} /></label>
-    <label>Version label<Input required placeholder="v10 · A quieter camera" value={label} maxLength={120} onChange={e=>setLabel(e.target.value)} /></label>
-    {!file && <label>Video path<Input required placeholder="/path/to/demo-v10.mp4" value={location} onChange={e=>setLocation(e.target.value)} /></label>}
-    <label>What changed?<Input placeholder="Gentler zooms; composer stays in frame" value={summary} maxLength={4000} onChange={e=>setSummary(e.target.value)} /></label>
-    <details><summary className="text-xs text-muted-foreground">Frame rate fallback</summary><label className="text-xs">Only for a known constant frame rate when ffprobe is unavailable<Input aria-label="Frames per second" type="number" min="1" max="240" step="any" value={fps} onChange={e=>setFps(e.target.value)} /></label></details>
-    <Button disabled={busy || !demo.trim() || !label.trim() || !location.trim()}>{busy ? "Reading video…" : "Register version"}</Button>
-    {error && <ErrorNotice>{error}</ErrorNotice>}
-  </form>;
+  return <div><Button disabled={busy} onClick={()=>{setBusy(true);setError("");void rpc.call("register",{threadId,file,source}).then(onRegistered).catch(e=>setError(errorText(e))).finally(()=>setBusy(false));}}>{busy ? "Adding video…" : "Add as next version"}</Button>{error&&<ErrorNotice>{error}</ErrorNotice>}</div>;
 }
 
 function NoteList({threadId, version, notes, onSeek, onRefresh, disabled}: {threadId: string;version:Version;notes:FrameNote[];onSeek:(note:FrameNote)=>void;onRefresh:()=>void;disabled:boolean}) {
@@ -153,7 +142,7 @@ function NoteList({threadId, version, notes, onSeek, onRefresh, disabled}: {thre
   const noteNumber = (note: FrameNote) => notes.findIndex(n => n.id === note.id) + 1;
   async function addToPrompt() {
     setBusy(true);setError("");
-    try {const result=await rpc.call("context",{threadId,noteIds:validSelected});composer.insertMention({provider:MENTION_PROVIDER,id:result.id,label:`${version.demo} · ${result.count} frame note${result.count===1 ? "" : "s"}`});composer.focus();setNotice(`${result.count} note${result.count===1 ? "" : "s"} and frame stills added to the prompt.`);setSelected([]);} catch(e){setError(errorText(e));}finally{setBusy(false);}
+    try {const result=await rpc.call("context",{threadId,noteIds:validSelected});composer.insertMention({provider:MENTION_PROVIDER,id:result.id,label:`${videoName(version.media.path)} · ${result.count} frame note${result.count===1 ? "" : "s"}`});composer.focus();setNotice(`${result.count} note${result.count===1 ? "" : "s"} and frame stills added to the prompt.`);setSelected([]);} catch(e){setError(errorText(e));}finally{setBusy(false);}
   }
   function changeStatus(note: FrameNote, status: NoteStatus) {
     setBusy(true);setError("");
@@ -218,7 +207,7 @@ function ReviewVersion({threadId,versionId,onDirty}: {threadId:string;versionId:
   useRealtime("changed",refresh);
   if(error&&!version)return <ErrorNotice>{error}</ErrorNotice>;
   if(!version||!preview)return <Notice>Opening version…</Notice>;
-  return <><div className="video-markup-version-heading"><span className="text-xs text-muted-foreground">VERSION {version.ordinal}</span><h2 className="text-lg font-medium">{version.label}</h2>{version.summary&&<p className="text-sm text-muted-foreground">{version.summary}</p>}</div>
+  return <><div className="video-markup-version-heading"><span className="text-xs text-muted-foreground">VERSION {version.ordinal}</span><h2 className="text-lg font-medium">{videoName(version.media.path)}</h2></div>
     <Player key={`player-${versionId}`} preview={preview} version={version} seekRequest={seekRequest} nextNoteNumber={notes.length+1} onDirty={dirtyChanged} onSave={async fields=>{await rpc.call("addNote",{threadId,versionId,...fields});refresh();}} />
     <NoteList key={`notes-${versionId}`} threadId={threadId} version={version} notes={notes} disabled={dirty} onRefresh={refresh} onSeek={note=>setSeekRequest({time:Math.min(note.timestamp,preview.media.duration||note.timestamp),shapes:note.frameVersionId===versionId ? note.shapes : [],sequence:Date.now(),noteNumber:notes.findIndex(n=>n.id===note.id)+1})} />
     {error&&<ErrorNotice>{error}</ErrorNotice>}</>;
@@ -227,19 +216,19 @@ function ReviewVersion({threadId,versionId,onDirty}: {threadId:string;versionId:
 export function VideoMarkupPanel({threadId,params}: PluginThreadPanelProps) {
   const rpc=useRpc<typeof videoMarkupContract>();
   const initial=params && typeof params==="object" && !Array.isArray(params) && typeof params.versionId==="string" ? params.versionId : null;
-  const [versions,setVersions]=useState<Version[]>([]),[current,setCurrent]=useState<string|null>(initial),[demo,setDemo]=useState<string|null>(null),[error,setError]=useState(""),[loading,setLoading]=useState(true),[reload,setReload]=useState(0),[registering,setRegistering]=useState(false),[dirty,setDirty]=useState(false);
+  const [versions,setVersions]=useState<Version[]>([]),[current,setCurrent]=useState<string|null>(initial),[demo,setDemo]=useState<string|null>(null),[error,setError]=useState(""),[loading,setLoading]=useState(true),[reload,setReload]=useState(0),[dirty,setDirty]=useState(false);
   const refresh=useCallback(()=>setReload(n=>n+1),[]);
   useRealtime("changed",refresh);
-  useEffect(()=>{let cancelled=false;void(async()=>{const all:Version[]=[];let offset:number|null=0;do{const page: {versions: Version[]; nextOffset: number | null}=await rpc.call("versions",{threadId,offset});all.push(...page.versions);offset=page.nextOffset;}while(offset!==null&&!cancelled);if(!cancelled){setVersions(all);setCurrent(v=>v??all.at(-1)?.id??null);setLoading(false);}})().catch(e=>{if(!cancelled){setError(errorText(e));setLoading(false);}});return()=>{cancelled=true;};},[rpc,threadId,reload]);
+  useEffect(()=>{let cancelled=false;void(async()=>{const all:Version[]=[];let offset:number|null=0,selectedDemo:string|null=null;do{const page: {versions: Version[]; nextOffset: number | null; currentDemo: string | null}=await rpc.call("versions",{threadId,offset});all.push(...page.versions);selectedDemo=page.currentDemo;offset=page.nextOffset;}while(offset!==null&&!cancelled);if(!cancelled){setVersions(all);setCurrent(v=>v??all.filter(item=>!selectedDemo||item.demo===selectedDemo).at(-1)?.id??null);setLoading(false);}})().catch(e=>{if(!cancelled){setError(errorText(e));setLoading(false);}});return()=>{cancelled=true;};},[rpc,threadId,reload]);
   const active=versions.find(v=>v.id===current),activeDemo=demo??active?.demo??versions.at(-1)?.demo;
   const rail=versions.filter(v=>v.demo===activeDemo);
   return <main className="video-markup bg-background text-foreground">
-    <header className="video-markup-header border-border"><div className="video-markup-row"><span className="video-markup-brand"><Clapperboard size={18}/>Video Markup</span><Button variant="ghost" size="sm" disabled={dirty} onClick={()=>setRegistering(v=>!v)}>{registering ? "Back to review" : "Add version"}</Button></div>
-    {versions.length>0&&<Select value={activeDemo} disabled={dirty} onValueChange={value=>{setDemo(value);setCurrent(versions.filter(v=>v.demo===value).at(-1)?.id??null);}}><SelectTrigger aria-label="Demo" className="video-markup-demo"><SelectValue /></SelectTrigger><SelectContent>{[...new Set(versions.map(v=>v.demo))].map(name=><SelectItem key={name} value={name}>{name}</SelectItem>)}</SelectContent></Select>}
+    <header className="video-markup-header border-border"><div className="video-markup-row"><span className="video-markup-brand"><Clapperboard size={18}/>Video Markup</span></div>
+    {versions.length>0&&<Select value={activeDemo} disabled={dirty} onValueChange={value=>{setDemo(value);setCurrent(versions.filter(v=>v.demo===value).at(-1)?.id??null);void rpc.call("selectDemo",{threadId,demo:value}).catch(e=>setError(errorText(e)));}}><SelectTrigger aria-label="Demo" className="video-markup-demo"><SelectValue /></SelectTrigger><SelectContent>{[...new Set(versions.map(v=>v.demo))].map(name=><SelectItem key={name} value={name}>{name}</SelectItem>)}</SelectContent></Select>}
     </header>
     {error&&<ErrorNotice>{error}</ErrorNotice>}
-    {loading ? <Notice>Loading demos…</Notice> : registering || !current ? <RegistrationForm threadId={threadId} onRegistered={v=>{setCurrent(v.id);setDemo(v.demo);setRegistering(false);refresh();}} /> : <>
-      <nav aria-label="Demo versions" className="video-markup-rail border-border">{rail.map(v=><button key={v.id} disabled={dirty} aria-current={current===v.id ? "true" : undefined} className={`video-markup-version border-border ${current===v.id ? "bg-secondary text-secondary-foreground" : "text-muted-foreground"}`} onClick={()=>setCurrent(v.id)}><span className="video-markup-version-number text-xs">{v.ordinal.toString().padStart(2,"0")}</span><span>{v.label}</span>{current===v.id&&<Check size={13}/>}</button>)}</nav>
+    {loading ? <Notice>Loading demos…</Notice> : !current ? <Notice>Attach a video in the prompt box, or ask your agent to share one.</Notice> : <>
+      <nav aria-label="Demo versions" className="video-markup-rail border-border">{rail.map(v=><button key={v.id} disabled={dirty} aria-current={current===v.id ? "true" : undefined} className={`video-markup-version border-border ${current===v.id ? "bg-secondary text-secondary-foreground" : "text-muted-foreground"}`} onClick={()=>setCurrent(v.id)}><span className="video-markup-version-number text-xs">{v.ordinal.toString().padStart(2,"0")}</span><span>{videoName(v.media.path)}</span>{current===v.id&&<Check size={13}/>}</button>)}</nav>
       <div className="video-markup-review"><ReviewVersion key={current} threadId={threadId} versionId={current} onDirty={setDirty} /></div></>}
   </main>;
 }
@@ -258,7 +247,7 @@ export function VideoMarkupFileViewer({path,source}: PluginFileOpenerProps) {
     } catch { /* Optional frame metadata must not replace the playable preview with an error. */ }
     finally {if(!cancelled)setFrameProbe("failed");}
   })().catch(e=>{if(!cancelled)setError(errorText(e));});return()=>{cancelled=true;};},[path,sourceKey,rpc]);
-  return <main className="video-markup video-markup-review bg-background text-foreground">{error?<ErrorNotice>{error}</ErrorNotice>:version&&source.threadId?<ReviewVersion threadId={source.threadId} versionId={version.id}/>:preview?<><Player key={path} preview={preview} frameProbe={frameProbe}/>{source.threadId?<RegistrationForm threadId={source.threadId} file={path} source={source} onRegistered={setVersion}/>:<Notice>Open this video from a thread to save frame notes and versions.</Notice>}</>:<Notice>Opening video…</Notice>}</main>;
+  return <main className="video-markup video-markup-review bg-background text-foreground">{error?<ErrorNotice>{error}</ErrorNotice>:version&&source.threadId?<ReviewVersion threadId={source.threadId} versionId={version.id}/>:preview?<><Player key={path} preview={preview} frameProbe={frameProbe}/>{source.threadId?<AddVideo threadId={source.threadId} file={path} source={source} onRegistered={setVersion}/>:<Notice>Open this video from a thread to save frame notes and versions.</Notice>}</>:<Notice>Opening video…</Notice>}</main>;
 }
 
 export function VideoMarkupInline({attributes,message}:PluginMessageDirectiveProps) {
@@ -266,13 +255,23 @@ export function VideoMarkupInline({attributes,message}:PluginMessageDirectivePro
   const [preview,setPreview]=useState<Preview|null>(null),[version,setVersion]=useState<Version|null>(null),[error,setError]=useState("");
   const [expanded,setExpanded]=useState(false);
   useEffect(()=>{let cancelled=false;setPreview(null);setVersion(null);setError("");void Promise.all([rpc.call("preview",{threadId:message.threadId,versionId:attributes.version??""}),rpc.call("version",{threadId:message.threadId,versionId:attributes.version??""})]).then(([p,v])=>{if(!cancelled){setPreview(p);setVersion(v);}}).catch(e=>{if(!cancelled)setError(errorText(e));});return()=>{cancelled=true;};},[rpc,message.threadId,attributes.version]);
-  return <section className="video-markup video-markup-inline border-border bg-background text-foreground"><header className="video-markup-row video-markup-inline-header border-border"><div><span className="video-markup-brand text-xs"><Clapperboard size={14}/>Video Markup</span>{version&&<p className="text-sm font-medium">{version.demo} <span className="text-muted-foreground">· {version.label}</span></p>}</div>{version&&<Button variant="ghost" size="sm" onClick={()=>{if(!navigate.openThreadPanel({actionId:"video-markup",params:{versionId:version.id}}))setExpanded(v=>!v);}}>Review notes</Button>}</header>
+  return <section className="video-markup video-markup-inline border-border bg-background text-foreground"><header className="video-markup-row video-markup-inline-header border-border"><div><span className="video-markup-brand text-xs"><Clapperboard size={14}/>Video Markup</span>{version&&<p className="text-sm font-medium">{version.demo} <span className="text-muted-foreground">· {videoName(version.media.path)}</span></p>}</div>{version&&<Button variant="ghost" size="sm" onClick={()=>{if(!navigate.openThreadPanel({actionId:"video-markup",params:{versionId:version.id}}))setExpanded(v=>!v);}}>Review notes</Button>}</header>
     {error?<ErrorNotice>{error}</ErrorNotice>:preview?<Player key={attributes.version} preview={preview} version={version??undefined} compact/>:<Notice>Loading video…</Notice>}
     {expanded&&version&&<VideoMarkupPanel threadId={message.threadId} params={{versionId:version.id}}/>}
   </section>;
 }
 
+function PresentVideo({threadId}: PluginThreadHeaderActionProps) {
+  const navigate=useBbNavigate();
+  useRealtime("present",useCallback((payload: unknown)=>{
+    const event=presentationSchema.safeParse(payload);
+    if(event.success && event.data.threadId===threadId) navigate.openThreadPanel({actionId:"video-markup",params:{versionId:event.data.versionId}});
+  },[navigate,threadId]));
+  return null;
+}
+
 export default definePluginApp(app=>{
+  app.slots.experimental_threadHeaderAction({id:"video-markup-present",title:"Video Markup",component:PresentVideo});
   app.slots.threadPanelAction({id:"video-markup",title:"Video Markup",icon:"Clapperboard",layout:"flush",component:VideoMarkupPanel});
   app.slots.fileOpener({id:"video-markup-video",title:"Video Markup",extensions:VIDEO_EXTENSIONS,component:VideoMarkupFileViewer});
   app.slots.messageDirective({id:"video-markup",component:VideoMarkupInline});

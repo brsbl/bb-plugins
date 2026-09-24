@@ -1,5 +1,6 @@
+import { createHash, randomUUID } from "node:crypto";
 import { execFile } from "node:child_process";
-import { open, realpath, stat } from "node:fs/promises";
+import { copyFile, link, mkdir, open, realpath, stat, unlink } from "node:fs/promises";
 import path from "node:path";
 import { promisify } from "node:util";
 import { experimental_defineHostEntry } from "@get-bb/plugin-sdk/host";
@@ -24,11 +25,29 @@ export default experimental_defineHostEntry({contract: hostContract, handlers: {
   async inspect(input, context) {
     if (!path.isAbsolute(input.path) || !path.isAbsolute(input.rootPath)) throw new Error("Video paths must be absolute");
     if (!VIDEO_EXTENSIONS.includes(path.extname(input.path).slice(1).toLowerCase())) throw new Error("Choose an MP4, WebM, or MOV file");
-    const [file, root] = await Promise.all([realpath(input.path), realpath(input.rootPath)]);
-    const relative = path.relative(root, file);
+    const [sourceFile, root] = await Promise.all([realpath(input.path), realpath(input.rootPath)]);
+    const relative = path.relative(root, sourceFile);
     if (relative === ".." || relative.startsWith(`..${path.sep}`) || path.isAbsolute(relative)) throw new Error("Video escapes its workspace");
-    const details = await stat(file);
+    let file = sourceFile;
+    let details = await stat(file);
     if (!details.isFile()) throw new Error("Video is not a regular file");
+    if (input.retain) {
+      // Composer attachments are deleted after their turn. Keep a durable, atomic copy.
+      const key = createHash("sha256").update(JSON.stringify([file, details.size, details.mtimeMs])).digest("hex");
+      const directory = path.join(context.experimental_paths.dataDir, "videos", key);
+      await mkdir(directory, {recursive: true});
+      const destination = path.join(directory, path.basename(file));
+      try { await stat(destination); } catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+        const temporary = path.join(directory, `.${randomUUID()}.partial`);
+        try {
+          await copyFile(file, temporary);
+          await link(temporary, destination).catch(error => { if (error.code !== "EEXIST") throw error; });
+        } finally { await unlink(temporary).catch(() => undefined); }
+      }
+      file = await realpath(destination);
+      details = await stat(file);
+    }
     const media = {path: file, size: details.size, modifiedAt: details.mtimeMs, duration: 0, fps: input.fps ?? null, width: 0, height: 0, frameTimes: [] as number[]};
     if (!input.probe) return media;
     try {

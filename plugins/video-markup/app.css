@@ -77,8 +77,6 @@
 .video-markup-inline-header { padding: 10px 12px; border-bottom-width: 1px; }
 .video-markup-inline>.video-markup-player { padding: 10px; }
 .video-markup-inline>.video-markup-notice { padding: 12px; }
-.video-markup-register { padding: 16px; display: grid; gap: 14px; max-width: 560px; margin: 0 auto; width: 100%; }
-.video-markup-register label { display: grid; gap: 5px; font-size: var(--text-xs); }
 @container (max-width:380px) {
   .video-markup-header,.video-markup-review { padding: 12px; }
   .video-markup-rail { padding: 8px 12px; }

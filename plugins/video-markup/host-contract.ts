@@ -11,7 +11,7 @@ export const hostContract = defineRpcContract({
     output: z.object({data: z.string().max(350_000)}).strict(),
   },
   inspect: {
-    input: z.object({path: z.string().min(1), rootPath: z.string().min(1), fps: z.number().positive().optional(), probe: z.boolean().default(true)}).strict(),
+    input: z.object({path: z.string().min(1), rootPath: z.string().min(1), fps: z.number().positive().optional(), probe: z.boolean().default(true), retain: z.boolean().default(false)}).strict(),
     output: mediaSchema.omit({hostId: true}),
   },
 });

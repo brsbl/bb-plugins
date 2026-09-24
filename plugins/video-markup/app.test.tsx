@@ -11,9 +11,29 @@ beforeAll(() => {
   HTMLElement.prototype.hasPointerCapture = vi.fn(() => false);
 });
 afterAll(() => vi.unstubAllGlobals());
-const version:Version={id:"v1",threadId:"thr_demo",demo:"Duo",label:"v1",summary:"Gentler camera",createdAt:1,ordinal:1,media:{path:"/v1.mp4",hostId:"host_a",size:10,modifiedAt:1,duration:34,fps:60,frameTimes:[0,1/60],width:1920,height:1080}};
+const version:Version={id:"v1",threadId:"thr_demo",demo:"Duo",summary:"Gentler camera",createdAt:1,ordinal:1,media:{path:"/v1.mp4",hostId:"host_a",size:10,modifiedAt:1,duration:34,fps:60,frameTimes:[0,1/60],width:1920,height:1080}};
 const note:FrameNote={id:"n1",threadId:"thr_demo",demo:"Duo",versionId:"v1",frameVersionId:"v1",timestamp:12,shapes:[],text:"Keep the composer in frame",status:"open",createdAt:1,updatedAt:1,carriedFrom:null,stillId:"n1"};
 describe("Video Markup UI contracts",()=>{
+  it("opens the presented version only in its thread",async()=>{
+    const app=await loadPluginApp(()=>import("./app.js"));
+    const slot=renderSlot(app.threadHeaderActions[0],{threadId:"thr_demo",projectId:"proj_demo",isCompactViewport:true});
+    await slot.behavior.emitRealtime("present",{threadId:"another",versionId:"v2"});
+    expect(slot.inspection.navigateCalls).toEqual([]);
+    await slot.behavior.emitRealtime("present",{threadId:"thr_demo",versionId:"v1"});
+    expect(slot.inspection.navigateCalls).toEqual([{method:"openThreadPanel",options:{actionId:"video-markup",params:{versionId:"v1"}}}]);
+    slot.lifecycle.unmount();
+  });
+  it("adds an opened video with one action and shows its filename",async()=>{
+    const app=await loadPluginApp(()=>import("./app.js"));
+    const source={kind:"host" as const,threadId:"thr_demo",environmentId:null,projectId:null};
+    const preview={media:version.media,url:"/video.mp4",expiresAt:99999};
+    const slot=renderSlot(app.fileOpeners[0],{path:"/v1.mp4",source,experimental_Original:()=>null},{rpc:{openFile:()=>preview,probeFile:()=>version.media,versions:()=>({versions:[],nextOffset:null,currentDemo:null}),register:()=>version,version:()=>version,preview:()=>preview,notes:()=>({notes:[],nextOffset:null})}});
+    fireEvent.click(await slot.findByRole("button",{name:"Add as next version"}));
+    expect(await slot.findByRole("heading",{name:"v1.mp4"})).toBeTruthy();
+    expect(slot.inspection.rpcCalls.find(c=>c.method==="register")?.input).toEqual({threadId:"thr_demo",file:"/v1.mp4",source});
+    expect(slot.queryByRole("textbox")).toBeNull();
+    slot.lifecycle.unmount();
+  });
   it("keeps the file playable while frame metadata is pending or fails",async()=>{
     const app=await loadPluginApp(()=>import("./app.js"));
     let failProbe!:(error:Error)=>void;
@@ -40,7 +60,7 @@ describe("Video Markup UI contracts",()=>{
   });
   it("inserts selected actionable notes as a mention while preserving the composer draft",async()=>{
     const app=await loadPluginApp(()=>import("./app.js"));
-    const slot=renderSlot(app.threadPanelActions[0],{threadId:"thr_demo",params:{versionId:"v1"}},{rpc:{versions:()=>({versions:[version],nextOffset:null}),version:()=>version,preview:()=>({media:version.media,url:"/video.mp4",expiresAt:99999}),notes:()=>({notes:[note,{...note,id:"fixed",status:"fixed"}],nextOffset:null}),context:()=>({id:"selection",count:1,context:"{}"})}});
+    const slot=renderSlot(app.threadPanelActions[0],{threadId:"thr_demo",params:{versionId:"v1"}},{rpc:{versions:()=>({versions:[version],nextOffset:null,currentDemo:"Duo"}),version:()=>version,preview:()=>({media:version.media,url:"/video.mp4",expiresAt:99999}),notes:()=>({notes:[note,{...note,id:"fixed",status:"fixed"}],nextOffset:null}),context:()=>({id:"selection",count:1,context:"{}"})}});
     await slot.behavior.setComposerScope({kind:"thread",threadId:"thr_demo"});
     await slot.behavior.setComposerText("Please revise this.");
     const checkbox=await slot.findByRole("checkbox",{name:"Select open notes"});fireEvent.click(checkbox);
@@ -55,7 +75,7 @@ describe("Video Markup UI contracts",()=>{
     const app=await loadPluginApp(()=>import("./app.js"));
     let notes: FrameNote[] = [{...note,status:"fixed"},{...note,id:"n2",timestamp:15,shapes:[{kind:"arrow",x1:.2,y1:.3,x2:.8,y2:.7}]}];
     const slot=renderSlot(app.threadPanelActions[0],{threadId:"thr_demo",params:{versionId:"v1"}},{rpc:{
-      versions:()=>({versions:[version],nextOffset:null}),version:()=>version,
+      versions:()=>({versions:[version],nextOffset:null,currentDemo:"Duo"}),version:()=>version,
       preview:()=>({media:version.media,url:"/video.mp4",expiresAt:99999}),
       notes:()=>({notes,nextOffset:null}),
       status:(input)=>{const {noteId,status}=input as {noteId:string;status:FrameNote["status"]};notes=notes.map(n=>n.id===noteId?{...n,status}:n);return notes.find(n=>n.id===noteId);},

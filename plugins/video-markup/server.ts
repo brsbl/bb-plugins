@@ -4,18 +4,20 @@ import { parseArgs } from "node:util";
 import { defineRpcContract, type BbPluginApi } from "@get-bb/plugin-sdk";
 import { z } from "zod";
 import { hostContract } from "./host-contract.js";
-import { directive, id, isActionable, listSchema, mediaSchema, MENTION_PROVIDER, noteInputSchema, noteSchema, promptContext, registerSchema, selectionSchema, sourceSchema, statusInputSchema, stillSchema, versionSchema, VIDEO_EXTENSIONS, type Media } from "./model.js";
+import { directive, id, isActionable, listSchema, mediaSchema, MENTION_PROVIDER, noteInputSchema, noteSchema, promptContext, registerSchema, selectionSchema, sourceSchema, statusInputSchema, stillSchema, versionSchema, videoName, VIDEO_EXTENSIONS, type Media } from "./model.js";
 import { openStore } from "./store.js";
 import { mediaResponse } from "./media.js";
 
 const target = z.object({threadId: id, versionId: id}).strict();
 const frameTarget = z.object({threadId: id, noteId: id}).strict();
 const libraryInput = z.object({threadId: id, offset: z.number().int().nonnegative().default(0)}).strict();
+const demoInput = z.object({threadId: id, demo: id}).strict();
 const openInput = z.object({file: z.string().min(1), source: sourceSchema}).strict();
 const previewSchema = z.object({url: z.string(), expiresAt: z.number(), media: mediaSchema});
 export const videoMarkupContract = defineRpcContract({
   register: {input: registerSchema, output: versionSchema},
-  versions: {input: libraryInput, output: z.object({versions: z.array(versionSchema), nextOffset: z.number().nullable()})},
+  versions: {input: libraryInput, output: z.object({versions: z.array(versionSchema), nextOffset: z.number().nullable(), currentDemo: id.nullable()})},
+  selectDemo: {input: demoInput, output: z.object({demo: id})},
   version: {input: target, output: versionSchema},
   preview: {input: target, output: previewSchema},
   openFile: {input: openInput, output: previewSchema},
@@ -40,6 +42,7 @@ export default function plugin(bb: BbPluginApi): void {
       read: async (start, length, signal) => (await host.call("readChunk", {path: lease.media.path, size: lease.media.size, modifiedAt: lease.media.modifiedAt, start, length}, {hostId: lease.media.hostId, signal})).data,
     });
   });
+  const currentDemo = (threadId: string) => bb.storage.kv.get<string>(`demo:${threadId}`) ?? store.versions(threadId).at(-1)?.demo ?? null;
   const changed = (threadId: string) => bb.realtime.publish("changed", {threadId});
   async function resolveFile(file: string, source: z.infer<typeof sourceSchema>) {
     if (!VIDEO_EXTENSIONS.includes(path.extname(file).slice(1).toLowerCase())) throw new Error("Choose an MP4, WebM, or MOV file");
@@ -70,9 +73,9 @@ export default function plugin(bb: BbPluginApi): void {
     if (relative === ".." || relative.startsWith(`..${path.sep}`) || path.isAbsolute(relative)) throw new Error("Video escapes its workspace");
     return {path: resolved, rootPath: root, hostId};
   }
-  async function inspect(file: string, source: z.infer<typeof sourceSchema>, fps?: number, probe = true): Promise<Media> {
+  async function inspect(file: string, source: z.infer<typeof sourceSchema>, fps?: number, probe = true, retain = false): Promise<Media> {
     const resolved = await resolveFile(file, source);
-    const result = await host.call("inspect", {path: resolved.path, rootPath: resolved.rootPath, probe, ...(fps === undefined ? {} : {fps})}, {hostId: resolved.hostId});
+    const result = await host.call("inspect", {path: resolved.path, rootPath: resolved.rootPath, probe, retain, ...(fps === undefined ? {} : {fps})}, {hostId: resolved.hostId});
     return {...result, hostId: resolved.hostId};
   }
   async function prepare(media: Media) {
@@ -87,13 +90,19 @@ export default function plugin(bb: BbPluginApi): void {
   const handlers = {
     async register(input: z.output<typeof registerSchema>) {
       const source = input.source ?? {kind: path.isAbsolute(input.file) ? "host" as const : "workspace" as const, threadId: input.threadId, environmentId: null, projectId: null};
-      const media = await inspect(input.file, source, input.fps);
-      const version = store.register({threadId: input.threadId, demo: input.demo, label: input.label, summary: input.summary, media});
+      const media = await inspect(input.file, source, input.fps, true, input.attachment);
+      const demo = input.demo ?? currentDemo(input.threadId) ?? (videoName(media.path).replace(/\.[^.]+$/, "").slice(0,160) || "Video");
+      const version = store.register({threadId: input.threadId, demo, summary: input.summary, media});
+      bb.storage.kv.set(`demo:${input.threadId}`, demo);
       changed(input.threadId); return version;
     },
     versions(input: z.output<typeof libraryInput>) {
       const all = store.versions(input.threadId);
-      return {versions: all.slice(input.offset, input.offset + 100).map(v => ({...v, media: {...v.media, frameTimes: []}})), nextOffset: all.length > input.offset + 100 ? input.offset + 100 : null};
+      return {versions: all.slice(input.offset, input.offset + 100).map(v => ({...v, media: {...v.media, frameTimes: []}})), nextOffset: all.length > input.offset + 100 ? input.offset + 100 : null, currentDemo: currentDemo(input.threadId)};
+    },
+    selectDemo({threadId, demo}: z.output<typeof demoInput>) {
+      if (!store.versions(threadId).some(v => v.demo === demo)) throw new Error("This demo is no longer available");
+      bb.storage.kv.set(`demo:${threadId}`, demo); changed(threadId); return {demo};
     },
     version: ({threadId, versionId}: z.output<typeof target>) => store.version(threadId, versionId),
     preview: ({threadId, versionId}: z.output<typeof target>) => prepare(store.version(threadId, versionId).media),
@@ -135,7 +144,13 @@ export default function plugin(bb: BbPluginApi): void {
       };
     },
   });
+  async function present(input: z.output<typeof registerSchema>) {
+    const version = await handlers.register(input);
+    bb.realtime.publish("present", {threadId: input.threadId, versionId: version.id});
+    return {version, ...handlers.post({threadId: input.threadId, versionId: version.id})};
+  }
   const operations = {
+    present: {schema: registerSchema, tool: "video_markup_present", description: "Present an attached or rendered video for markup: register it if needed, request its review panel, and return the inline player directive to emit. Set attachment=true for temporary composer attachment files.", run: present},
     register: {schema: registerSchema, tool: "video_markup_register_version", description: "Register a rendered demo version and carry forward unresolved notes.", run: handlers.register},
     versions: {schema: libraryInput, tool: "video_markup_versions", description: "List a thread's demos and versions in order.", run: handlers.versions},
     notes: {schema: listSchema, tool: "video_markup_list_notes", description: "Read frame notes before revising a demo; filter by version, status, or actionable.", run: handlers.notes},
@@ -169,12 +184,12 @@ export default function plugin(bb: BbPluginApi): void {
     async run(argv, context) {
       try {
         const {values, positionals} = parseArgs({args: argv, allowPositionals: true, options: {
-          thread: {type: "string"}, demo: {type: "string"}, file: {type: "string"}, label: {type: "string"}, summary: {type: "string"}, fps: {type: "string"}, version: {type: "string"}, note: {type: "string"}, status: {type: "string"}, offset: {type: "string"}, actionable: {type: "boolean"}, data: {type: "string"}, json: {type: "boolean"}, help: {type: "boolean"},
+          thread: {type: "string"}, demo: {type: "string"}, file: {type: "string"}, attachment: {type: "boolean"}, summary: {type: "string"}, fps: {type: "string"}, version: {type: "string"}, note: {type: "string"}, status: {type: "string"}, offset: {type: "string"}, actionable: {type: "boolean"}, data: {type: "string"}, json: {type: "boolean"}, help: {type: "boolean"},
         }});
-        if (!positionals.length || values.help) return {exitCode: 0, stdout: `Video Markup commands: ${Object.keys(operations).join(", ")}\nUse --data JSON for note timestamps, shapes, stills, and selected note IDs. See the Video Markup README.\n`};
+        if (!positionals.length || values.help) return {exitCode: 0, stdout: `Video Markup commands: ${Object.keys(operations).join(", ")}\npresent --file PATH [--attachment] [--demo NAME] [--summary TEXT] [--fps N]\nUse --data JSON for note timestamps, shapes, stills, and selected note IDs. See the Video Markup README.\n`};
         if (positionals.length !== 1) throw new Error("Use named flags or --data JSON; unexpected positional argument");
         const fields: Record<string, unknown> = values.data ? z.record(z.string(), z.unknown()).parse(JSON.parse(values.data)) : {};
-        for (const [flag, field] of Object.entries({thread: "threadId", demo: "demo", file: "file", label: "label", summary: "summary", version: "versionId", note: "noteId", status: "status", actionable: "actionable"})) {
+        for (const [flag, field] of Object.entries({thread: "threadId", demo: "demo", file: "file", attachment: "attachment", summary: "summary", version: "versionId", note: "noteId", status: "status", actionable: "actionable"})) {
           const value = values[flag as keyof typeof values]; if (value !== undefined) fields[field] = value;
         }
         for (const field of ["fps", "offset"] as const) if (values[field] !== undefined) fields[field] = Number(values[field]);

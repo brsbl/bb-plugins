@@ -14,7 +14,11 @@ Requires bb 0.43.4 or newer for composer mentions with image context. Uses only 
 
 ## Use
 
-Open an `.mp4`, `.webm`, or `.mov` anywhere bb supports file viewers. Register it with a demo and version label to save feedback. The **Video Markup** action in the thread's side-panel new-tab menu opens its version rail. Register new renders at distinct paths; Video Markup references files in place and detects a registered file being overwritten.
+Attach an `.mp4`, `.webm`, or `.mov` in bb's prompt box, or ask your agent to share a video. The agent calls `video_markup_present`, emits its inline player directive, and requests the Video Markup panel for that version. Videos use their filenames and ordered numbers. The current demo is reused; the first video's filename supplies the initial demo name. The existing demo selector switches between demos.
+
+Opening a video in bb's file viewer also offers **Add as next version**. The panel has no add-video form or uploader. Its launcher cannot be hidden per thread with the current SDK, so an empty panel has one brief instruction.
+
+Composer attachments are temporary host files: pass `attachment: true` / `--attachment` so Video Markup preserves them in its persistent plugin directory before turn cleanup. Ordinary renders are referenced in place; keep each render at a distinct durable path. Presenting the same unchanged file reuses its version.
 
 Pause and choose **Note**, **Box**, **Arrow**, or **Zoom region**. Draw on the frame and type a note. Each note keeps its timestamp, captured still, and drawn shapes. ←/→ step one frame; space plays or pauses while the player is focused. Frame stepping uses probed timestamps, including variable frame rates; a supplied constant FPS is the fallback. Zoom regions mark desired focus; they do not alter the rendered film.
 
@@ -26,7 +30,7 @@ Agents post a player using the returned directive, on its own line:
 ::video-markup{version="VERSION_ID"}
 ```
 
-The bundled **Product Demo Direction** skill records grounded camera, pacing, liveness, physical-motion, rendering, audio, and delivery guidance. It tells agents to read open notes before revising and register every render.
+The bundled **Product Demo Direction** skill records grounded camera, pacing, liveness, physical-motion, rendering, audio, and delivery guidance. It tells agents to read open notes before revising and present every attached or shared video through Video Markup.
 
 ### Tools and CLI
 
@@ -34,7 +38,8 @@ All commands return JSON and accept `--thread ID`; otherwise the CLI uses the ac
 
 | Agent tool | CLI | Inputs beyond the thread |
 | --- | --- | --- |
-| `video_markup_register_version` | `bb video-markup register` | `--demo`, `--file`, `--label`, optional `--summary`, `--fps`. |
+| `video_markup_present` | `bb video-markup present --file PATH` | Optional `--attachment`, `--demo`, `--summary`, `--fps`. Registers if needed, requests the panel, and returns the player directive. |
+| `video_markup_register_version` | `bb video-markup register --file PATH` | Same optional inputs; register without presenting. |
 | `video_markup_versions` | `bb video-markup versions` | Optional `--offset`. |
 | `video_markup_list_notes` | `bb video-markup notes` | Optional `--version`, `--demo`, `--status`, `--actionable`, `--offset`. |
 | `video_markup_add_note` | `bb video-markup add-note --data '<JSON>'` | Version, timestamp, shapes, text, captured still. |
@@ -44,13 +49,14 @@ All commands return JSON and accept `--thread ID`; otherwise the CLI uses the ac
 | `video_markup_post_player` | `bb video-markup post --version ID` | Returns the directive for the agent to emit in its reply. |
 
 ```bash
-bb video-markup register --demo "iPhone Duo" --file /absolute/demo-v10.mp4 --label v10 --summary "Gentler zoom; full composer"
+bb video-markup present --file /absolute/demo-v10.mp4 --summary "Gentler zoom; full composer"
+bb video-markup present --file /absolute/attachment.mp4 --attachment
 bb video-markup notes --version VERSION_ID --actionable
 bb video-markup status --note NOTE_ID --status "still wrong"
 bb video-markup post --version VERSION_ID
 ```
 
-For `add-note`, supply `versionId`, `timestamp` (seconds), `text`, `shapes`, and `still: {dataUrl, width, height}`. Shapes have `kind` (`box`, `arrow`, `zoom`) and `x1`, `y1`, `x2`, `y2` normalized to 0–1 relative to the video frame. The still is a JPEG data URL, at most 350,000 characters. Tool `video_markup_frame` returns a native image; CLI returns its data URL. `context` returns structured context and a saved selection ID used by the UI's composer mention. Neither CLI `post` nor `context` submits a chat message on the user's behalf.
+For `add-note`, supply `versionId`, `timestamp` (seconds), `text`, `shapes`, and `still: {dataUrl, width, height}`. Shapes have `kind` (`box`, `arrow`, `zoom`) and `x1`, `y1`, `x2`, `y2` normalized to 0–1 relative to the video frame. The still is a JPEG data URL, at most 350,000 characters. Tool `video_markup_frame` returns a native image; CLI returns its data URL. `context` returns structured context and a saved selection ID used by the UI's composer mention. The agent emits the returned player directive in its reply; these commands never submit a user chat message. Panel opening uses public realtime events and `useBbNavigate().openThreadPanel()` in the visible thread header; when the thread is not open, the inline player still offers **Review notes**.
 
 ### Later
 
@@ -70,4 +76,4 @@ Point that instance's `bb` CLI at its own server. **Install dependencies in this
 
 The published `plugin/video-markup` ref includes self-contained frontend, server, and host bundles. Its release manifest points at those bundles and has no npm dependencies. CI rebuilds that exact release layout outside the repository's dependency tree via Video Markup's `test:built` script, independently of the catalog screenshot check.
 
-Opening a file returns a playable URL after file checks; frame stepping becomes available when background probing finishes. A slow or failed probe never blocks playback. The host entry reads video metadata with ffprobe and verifies file identity; it never renders, transcodes, copies, or modifies source videos. The backend streams HTTP byte ranges through public plugin HTTP and host RPC APIs, keeping reads to 256 KiB and avoiding the core file-preview size limit. It uses public `resolve().experimental_images` for image context. This additive mention field is documented in bb's public Plugin Guide; it is structurally compatible with this repository's pinned SDK declarations. The host minimum is scoped to Video Markup.
+Opening a file returns a playable URL after file checks; frame stepping becomes available when background probing finishes. A slow or failed probe never blocks playback. The host entry reads video metadata with ffprobe and verifies file identity; it never renders, transcodes, or modifies source videos. Only temporary attachments are copied, using `experimental_paths.dataDir` on the thread's host. The backend streams HTTP byte ranges through public plugin HTTP and host RPC APIs, keeping reads to 256 KiB and avoiding the core file-preview size limit. It uses public `resolve().experimental_images` for image context. This additive mention field is documented in bb's public Plugin Guide; it is structurally compatible with this repository's pinned SDK declarations. The host minimum is scoped to Video Markup.

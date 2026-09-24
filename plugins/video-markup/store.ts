@@ -15,10 +15,11 @@ export class VideoMarkupStore {
     if (!row) throw new Error("This Video Markup version is no longer available in this thread");
     return versionSchema.parse(JSON.parse(jsonRow.parse(row).body));
   }
-  register(input: {threadId: string; demo: string; label: string; summary: string; media: Media}): Version {
+  register(input: {threadId: string; demo: string; summary: string; media: Media}): Version {
     return this.db.transaction(() => {
       const previous = this.versions(input.threadId).filter(v => v.demo === input.demo);
-      if (previous.some(v => v.label === input.label)) throw new Error("This demo already has that version label. Choose a new label.");
+      const existing = previous.find(v => v.media.path === input.media.path && v.media.hostId === input.media.hostId && v.media.size === input.media.size && v.media.modifiedAt === input.media.modifiedAt);
+      if (existing) return existing;
       const version: Version = {...input, id: randomUUID(), createdAt: Date.now(), ordinal: previous.length + 1};
       this.db.prepare("INSERT INTO versions (id, thread_id, body) VALUES (?, ?, ?)").run(version.id, version.threadId, JSON.stringify(version));
       const last = previous.at(-1);

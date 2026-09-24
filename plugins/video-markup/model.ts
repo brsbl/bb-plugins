@@ -30,7 +30,7 @@ export const mediaSchema = z.object({
 });
 export type Media = z.infer<typeof mediaSchema>;
 export const versionSchema = z.object({
-  id, threadId: id, demo: id, label: z.string().min(1).max(120),
+  id, threadId: id, demo: id,
   summary: z.string().max(4000), createdAt: z.number(), ordinal: z.number().int(),
   media: mediaSchema,
 });
@@ -43,9 +43,10 @@ export const noteSchema = z.object({
   carriedFrom: id.nullable(), stillId: id,
 });
 export type FrameNote = z.infer<typeof noteSchema>;
+export const presentationSchema = z.object({threadId: id, versionId: id}).strict();
 export const registerSchema = z.object({
-  threadId: id, demo: id, file: z.string().min(1).max(4096),
-  label: z.string().trim().min(1).max(120), summary: z.string().max(4000).default(""),
+  threadId: id, demo: id.optional(), file: z.string().min(1).max(4096),
+  attachment: z.boolean().default(false), summary: z.string().max(4000).default(""),
   fps: z.number().min(1).max(240).optional(), source: sourceSchema.optional(),
 }).strict();
 export const noteInputSchema = z.object({
@@ -66,12 +67,13 @@ export function timecode(seconds: number): string {
   const ms = Math.round(Math.max(0, seconds) * 1000);
   return `${Math.floor(ms / 60000).toString().padStart(2, "0")}:${Math.floor(ms / 1000 % 60).toString().padStart(2, "0")}.${(ms % 1000).toString().padStart(3, "0")}`;
 }
+export function videoName(file: string): string { return file.split(/[\\/]/).at(-1) || file; }
 export function promptContext(notes: FrameNote[], versions: Version[]): string {
   return JSON.stringify({
-    kind: "video-markup-frame-notes", coordinateSpace: "normalized-video-frame", instructions: "Treat notes as review feedback. Inspect the attached stills before revising. Read current open notes with video_markup_list_notes; register and post the next render with Video Markup.",
+    kind: "video-markup-frame-notes", coordinateSpace: "normalized-video-frame", instructions: "Treat notes as review feedback. Inspect the attached stills before revising. Read current open notes with video_markup_list_notes; present the next render with video_markup_present and emit its inline player directive.",
     notes: notes.map(note => ({...note,
-      version: versions.find(v => v.id === note.versionId)?.label,
-      frameVersion: versions.find(v => v.id === note.frameVersionId)?.label,
+      version: videoName(versions.find(v => v.id === note.versionId)?.media.path ?? ""),
+      frameVersion: videoName(versions.find(v => v.id === note.frameVersionId)?.media.path ?? ""),
       moment: timecode(note.timestamp),
       still: {tool: "video_markup_frame", noteId: note.id},
     })),

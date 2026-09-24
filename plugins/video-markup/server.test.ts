@@ -11,10 +11,35 @@ const still = {dataUrl:"data:image/jpeg;base64,/9j/2Q==",width:1280,height:720};
 const cleanups: (()=>Promise<void>)[]=[];
 afterEach(async()=>{for(const cleanup of cleanups.splice(0))await cleanup();});
 function load() {const host=createFakePluginHost({pluginId:"video-markup"});plugin(host.bb);cleanups.push(()=>host.harness.lifecycle.dispose());return host;}
-function seed(host:ReturnType<typeof load>) {const store=openStore(host.bb);return store.register({threadId:"thr_demo",demo:"Duo",label:"v1",summary:"First review",media});}
+function seed(host:ReturnType<typeof load>) {const store=openStore(host.bb);return store.register({threadId:"thr_demo",demo:"Duo",summary:"First review",media});}
 function noteInput(versionId:string,text="Keep the composer in frame") {return noteInputSchema.parse({threadId:"thr_demo",versionId,timestamp:12.5,shapes:[{kind:"box",x1:.1,y1:.6,x2:.9,y2:.95}],text,still});}
 
 describe("Video Markup persistence and feedback",()=>{
+  it("presents videos through tools and CLI with filenames, demo defaults, and no duplicate versions",async()=>{
+    const host=createFakePluginHost({pluginId:"video-markup",experimental_callHostRpc:async(call)=>{
+      const {path,retain}=z.object({path:z.string(),retain:z.boolean()}).parse(call.input);
+      const {hostId,...file}=media;
+      return {...file,path:retain ? path.replace("/uploads/","/plugin/videos/") : path};
+    }});
+    plugin(host.bb);cleanups.push(()=>host.harness.lifecycle.dispose());
+    const source={kind:"host",threadId:null,environmentId:null,projectId:null,experimental_hostId:"host_a"};
+    const input={threadId:"thr_demo",file:"/uploads/duo-v1.mp4",attachment:true,source};
+    const first=JSON.parse(z.string().parse(await host.harness.behavior.callAgentTool("video_markup_present",input)));
+    expect(first.version).toMatchObject({demo:"duo-v1",ordinal:1,summary:"",media:{path:"/plugin/videos/duo-v1.mp4"}});
+    expect(first.directive).toBe(`::video-markup{version="${first.version.id}"}`);
+    expect(host.harness.inspection.realtimeSignals).toContainEqual({channel:"present",payload:{threadId:"thr_demo",versionId:first.version.id}});
+    const again=await host.harness.behavior.runCli(["present","--data",JSON.stringify(input)]);
+    expect(again.exitCode).toBe(0);
+    expect(JSON.parse(again.stdout).version.id).toBe(first.version.id);
+    const second=await host.harness.behavior.runCli(["present","--data",JSON.stringify({...input,file:"/renders/duo-v2.mp4",attachment:false}),"--summary","Gentler camera"]);
+    expect(second.exitCode).toBe(0);
+    expect(JSON.parse(second.stdout).version).toMatchObject({demo:"duo-v1",ordinal:2,summary:"Gentler camera",media:{path:"/renders/duo-v2.mp4"}});
+    await host.harness.behavior.callAgentTool("video_markup_present",{...input,demo:"Another",file:"/renders/another.mp4",attachment:false});
+    await host.harness.behavior.callRpc("selectDemo",{threadId:"thr_demo",demo:"duo-v1"});
+    const next=JSON.parse(z.string().parse(await host.harness.behavior.callAgentTool("video_markup_present",{...input,file:"/renders/duo-v3.mp4",attachment:false})));
+    expect(next.version).toMatchObject({demo:"duo-v1",ordinal:3});
+    expect((await host.harness.behavior.runCli(["present","--help"])).stdout).toContain("present");
+  });
   it("persists notes and selections across plugin reload and isolates threads",async()=>{
     const host=load(),v=seed(host);
     const note=noteSchema.parse(await host.harness.behavior.callRpc("addNote",noteInput(v.id)));
@@ -25,29 +50,28 @@ describe("Video Markup persistence and feedback",()=>{
     expect(await reloaded.harness.behavior.callRpc("notes",{threadId:"another"})).toEqual({notes:[],nextOffset:null});
     await expect(reloaded.harness.behavior.callRpc("frame",{threadId:"another",noteId:note.id})).rejects.toThrow();
     const resolved=await reloaded.harness.inspection.registrations.mentionProviders[0].resolve(selection.id);
-    expect(JSON.parse(resolved.context).notes[0]).toMatchObject({id:note.id,version:"v1",frameVersion:"v1",timestamp:12.5});
+    expect(JSON.parse(resolved.context).notes[0]).toMatchObject({id:note.id,version:"v1.mp4",frameVersion:"v1.mp4",timestamp:12.5});
     expect(resolved).toMatchObject({experimental_images:[{type:"image",url:still.dataUrl}]});
   });
   it("carries only unresolved notes, preserving original frame provenance and historical statuses",async()=>{
     const host=load(),store=openStore(host.bb),v1=seed(host);
     for(const status of ["open","fixed","still wrong","regressed"] as const){const note=store.addNote(noteInput(v1.id,status));store.setStatus("thr_demo",note.id,status);}
-    const v2=store.register({threadId:"thr_demo",demo:"Duo",label:"v2",summary:"Revised",media:{...media,path:"/demo/v2.mp4"}});
+    const v2=store.register({threadId:"thr_demo",demo:"Duo",summary:"Revised",media:{...media,path:"/demo/v2.mp4"}});
     const next=store.notes("thr_demo").filter(n=>n.versionId===v2.id);
     expect(next.map(n=>n.status)).toEqual(["open","still wrong","regressed"]);
     expect(next.every(n=>n.frameVersionId===v1.id&&n.carriedFrom!==null)).toBe(true);
     expect(store.still("thr_demo",next[0].id)).toEqual(still);
     store.setStatus("thr_demo",next[0].id,"fixed");
     expect(store.note("thr_demo",next[0].carriedFrom!).status).toBe("open");
-    const v3=store.register({threadId:"thr_demo",demo:"Duo",label:"v3",summary:"One more",media:{...media,path:"/demo/v3.mp4"}});
+    const v3=store.register({threadId:"thr_demo",demo:"Duo",summary:"One more",media:{...media,path:"/demo/v3.mp4"}});
     expect(store.notes("thr_demo").filter(n=>n.versionId===v3.id).map(n=>n.status)).toEqual(["still wrong","regressed"]);
   });
-  it("rejects invalid regions, timestamps outside the video, duplicate labels, and fixed prompt selections",async()=>{
+  it("rejects invalid regions, timestamps outside the video, and fixed prompt selections",async()=>{
     const host=load(),v=seed(host),input=noteInput(v.id);
     await expect(host.harness.behavior.callRpc("addNote",{...input,shapes:[{kind:"box",x1:-1,y1:0,x2:1,y2:1}]})).rejects.toThrow();
     await expect(host.harness.behavior.callRpc("addNote",{...input,timestamp:100})).rejects.toThrow();
     const store=openStore(host.bb),note=store.addNote(input);store.setStatus("thr_demo",note.id,"fixed");
     await expect(host.harness.behavior.callRpc("context",{threadId:"thr_demo",noteIds:[note.id]})).rejects.toThrow();
-    expect(()=>store.register({threadId:"thr_demo",demo:"Duo",label:"v1",summary:"",media})).toThrow(/label/);
   });
   it.each(["tools","CLI"])("creates and lists timestamped notes and includes them in prompt context through %s",async(transport)=>{
     const host=load(),v=seed(host),input=noteInput(v.id);
@@ -63,7 +87,7 @@ describe("Video Markup persistence and feedback",()=>{
     expect(await run("notes","video_markup_list_notes",{threadId:"thr_demo",versionId:v.id})).toEqual({notes:[note],nextOffset:null});
     const context=await run("context","video_markup_context",{threadId:"thr_demo",noteIds:[note.id]});
     expect(context.count).toBe(1);
-    expect(JSON.parse(context.context).notes).toEqual([{...note,version:"v1",frameVersion:"v1",moment:"00:12.500",still:{tool:"video_markup_frame",noteId:note.id}}]);
+    expect(JSON.parse(context.context).notes).toEqual([{...note,version:"v1.mp4",frameVersion:"v1.mp4",moment:"00:12.500",still:{tool:"video_markup_frame",noteId:note.id}}]);
     expect(openStore(host.bb).still("thr_demo",note.id)).toEqual(capturedStill);
   });
   it("routes CLI and native tools through the same status, frame, and inline-player operations",async()=>{
@@ -107,7 +131,7 @@ describe("Video Markup persistence and feedback",()=>{
       const {hostId,...rest}=media;return {...rest,modifiedAt};
     }});
     plugin(host.bb);cleanups.push(()=>host.harness.lifecycle.dispose());
-    const version=versionSchema.parse(await host.harness.behavior.callRpc("register",{threadId:"thr_demo",demo:"Duo",label:"v1",file:"/demo/v1.mp4",source:{kind:"host",threadId:null,environmentId:null,projectId:null,experimental_hostId:"host_a"}}));
+    const version=versionSchema.parse(await host.harness.behavior.callRpc("register",{threadId:"thr_demo",demo:"Duo",file:"/demo/v1.mp4",source:{kind:"host",threadId:null,environmentId:null,projectId:null,experimental_hostId:"host_a"}}));
     const preview=z.object({url:z.string()}).parse(await host.harness.behavior.callRpc("preview",{threadId:"thr_demo",versionId:version.id}));
     const url=new URL(preview.url,"http://plugin.test");
     const route=url.pathname.replace("/api/v1/plugins/video-markup/http","")+url.search;
