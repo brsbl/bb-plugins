@@ -74,14 +74,15 @@ export const sceneRequestSchema = z
   .max(400)
   .regex(/^[^\p{Cc}\p{Cf}]+$/u, "describe the scene in a single line of plain text");
 
-const controlsSchema = z.object({
+const controlFields = {
   enabled: z.boolean(),
   showThrough: z.number().min(0).max(1),
   speed: z.number().min(0).max(4),
   quality: z.number().min(0.2).max(1),
-  backing: z.boolean().default(true),
-  glass: z.number().min(0.2).max(0.95).default(0.6),
-});
+  glass: z.number().min(0.2).max(0.6),
+};
+
+const controlsSchema = z.object({ ...controlFields, glass: controlFields.glass.default(0.6) });
 
 const stateSchema = z.object({
   revision: z.number().int().nonnegative(),
@@ -217,7 +218,7 @@ export const ambientRpcContract = defineRpcContract({
     output: stateSchema,
   },
   setControls: {
-    input: controlsSchema.partial().strict(),
+    input: z.object(controlFields).partial().strict(),
     output: stateSchema,
   },
   loadScene: {
@@ -452,7 +453,7 @@ export function dailyPrompt(moment: LocalMoment, timeZone: string, request?: str
 }
 
 function describeControls(controls: Controls): string {
-  return `${controls.enabled ? "on" : "off"}; Visibility (show-through) ${Math.round(controls.showThrough * 100)}%, Motion (speed) ${controls.speed}×, Detail (quality) ${Math.round(controls.quality * 100)}%, Backing ${controls.backing ? "on" : "off"}, Glass opacity ${Math.round(controls.glass * 100)}%`;
+  return `${controls.enabled ? "on" : "off"}; Visibility (show-through) ${Math.round(controls.showThrough * 100)}%, Motion (speed) ${controls.speed}×, Detail (quality) ${Math.round(controls.quality * 100)}%, Glass opacity ${Math.round(controls.glass * 100)}%`;
 }
 
 function describeScene(state: AmbientState): string {
@@ -475,11 +476,10 @@ function describeScene(state: AmbientState): string {
 const controlInputSchema = z
   .object({
     enabled: z.boolean(),
-    visibility: controlsSchema.shape.showThrough,
-    motion: controlsSchema.shape.speed,
-    detail: controlsSchema.shape.quality,
-    backing: z.boolean(),
-    glass: controlsSchema.shape.glass,
+    visibility: controlFields.showThrough,
+    motion: controlFields.speed,
+    detail: controlFields.quality,
+    glass: controlFields.glass,
   })
   .partial()
   .strict();
@@ -490,7 +490,6 @@ function controlsFromInput(input: z.infer<typeof controlInputSchema>): Partial<C
     ...(input.visibility === undefined ? {} : { showThrough: input.visibility }),
     ...(input.motion === undefined ? {} : { speed: input.motion }),
     ...(input.detail === undefined ? {} : { quality: input.detail }),
-    ...(input.backing === undefined ? {} : { backing: input.backing }),
     ...(input.glass === undefined ? {} : { glass: input.glass }),
   };
 }
@@ -991,7 +990,7 @@ export default function plugin(bb: BbPluginApi): void {
       controls: controlInputSchema
         .optional()
         .describe(
-          "user display controls: enabled, visibility (0..1, how much of the scene shows through bb), motion (0..4 speed), detail (0.2..1 render resolution), backing (true puts frosted glass behind the thread timeline and the sidebar so text stays readable), glass (0.2..0.95 opacity of that glass)",
+          "user display controls: enabled, visibility (0..1, how much of the scene shows through bb), motion (0..4 speed), detail (0.2..1 render resolution), glass (0.2..0.6 opacity of the frosted glass that keeps text readable over the scene; it is always on and can only be lowered from its 0.6 default)",
         ),
       ripple: rippleKindSchema
         .optional()
@@ -1136,7 +1135,6 @@ export default function plugin(bb: BbPluginApi): void {
         summary: "Start a thread where an agent paints the scene you describe",
         usage: "bb ambient paint <description>",
       },
-      { name: "backing", summary: "Put frosted glass behind the timeline and sidebar", usage: "bb ambient backing <on|off>" },
       {
         name: "daily",
         summary: "Have an agent paint a new scene every morning",
@@ -1210,12 +1208,6 @@ export default function plugin(bb: BbPluginApi): void {
           const threadId = await paintRequest(request);
           return { exitCode: 0, stdout: `painting in ${threadId}\n` };
         }
-        if (command === "backing") {
-          const [value] = rest;
-          if (value !== "on" && value !== "off") throw new Error("usage: bb ambient backing <on|off>");
-          await updateControls({ backing: value === "on" });
-          return { exitCode: 0, stdout: `backing ${value}\n` };
-        }
         if (command === "daily") {
           const [action = "status", ...options] = rest;
           if (action === "now") {
@@ -1238,7 +1230,7 @@ export default function plugin(bb: BbPluginApi): void {
         }
         return {
           exitCode: 1,
-          stderr: "usage: bb ambient <status|list|load|set|palette|save|delete|on|off|paint|backing|daily>\n",
+          stderr: "usage: bb ambient <status|list|load|set|palette|save|delete|on|off|paint|daily>\n",
         };
       } catch (caught) {
         const message =

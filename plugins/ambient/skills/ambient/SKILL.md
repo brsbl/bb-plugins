@@ -19,7 +19,7 @@ translucent veil, so the scene reads as a soft, living backdrop.
 3. `action=look` returns a PNG of the raw scene and how far it differs from bb's background; it flags scenes that will be too faint behind the veil. Pass `ripple: "done" | "error" | "started"` to fire a test ripple first, so you can judge how events read.
 4. `action=set` with only `values` or `palette` nudges an existing scene without recompiling.
 5. `action=save` keeps the current scene in the library; `action=load` switches scenes; `action=delete` removes a saved one.
-6. `action=set` with `controls` changes Visibility (how much shows through bb), Motion, Detail, Backing (frosted glass behind the timeline and sidebar), or Glass opacity (`glass`, 0.2–0.95) without touching the scene.
+6. `action=set` with `controls` changes Visibility (how much shows through bb), Motion, Detail, or Glass opacity (`glass`, 0.2–0.6; the frosted glass behind text is always on and can only be lowered) without touching the scene.
 7. `action=brief` returns step-by-step instructions for painting a new scene. When the user describes the scene they want, pass `request` with their words: the brief has you expand it into a full concept (art style, palette, motion, what agents and ripples become, a name) before writing GLSL. Without `request`, it gives today's daily concept.
 
 Declare every aesthetic choice a person might want to feel out as a param (scale, glow,
@@ -41,7 +41,7 @@ bb ambient save [name]
 bb ambient delete <id>
 bb ambient on | off
 bb ambient paint "california poppies, impressionist, in the wind"   # an agent paints it in a new thread
-bb ambient backing on | off    # frosted glass behind the timeline and sidebar
+bb ambient set glass=45%       # lower the frosted glass behind text (max 60%)
 bb ambient daily on 8 America/New_York   # an agent paints a new scene each morning after 8
 bb ambient daily now | off | status
 ```

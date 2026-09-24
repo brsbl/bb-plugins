@@ -44,7 +44,7 @@ const THREAD = "body.bb-app-shell > #root [data-thread-window]";
 const CHROME_PILLS = 'body.bb-app-shell > #root :is([data-testid="app-page-header-content-row"] > :first-child, [data-app-page-header-actions], [data-testid="app-sidebar-top-reserve-row"] > div, button[data-sidebar="trigger"])';
 const SIDEBAR_CARDS = 'body.bb-app-shell > #root :is([data-testid="sidebar-navigation-region"], [data-sidebar="content"], [data-sidebar="footer"])';
 
-function backingCss(glass: number): string {
+function glassCss(glass: number): string {
   return `body.bb-app-shell { --ambient-glass-fill: color-mix(in oklab, var(--ambient-background) ${Math.round(glass * 100)}%, transparent); }
 ${THREAD} { position: relative; isolation: isolate; }
 ${THREAD}::before { content: ""; position: absolute; z-index: -1; pointer-events: none; ${GLASS_SURFACE} border-radius: 20px; top: 0; bottom: 6px; left: 50%; width: min(calc(100% - 20px), calc(2 * ${COLUMN_HALF})); transform: translateX(-50%); }
@@ -412,16 +412,15 @@ function AmbientOverlay() {
   });
 
   const showThrough = state?.controls.showThrough ?? 0;
-  const backed = state?.controls.backing ?? true;
   const glass = state?.controls.glass ?? 0.6;
   useEffect(() => {
     if (!enabled) return;
     const style = document.createElement("style");
     style.id = VEIL_STYLE_ID;
-    style.textContent = backed ? `${veilCss(showThrough)}\n${backingCss(glass)}` : veilCss(showThrough);
+    style.textContent = `${veilCss(showThrough)}\n${glassCss(glass)}`;
     document.head.append(style);
     return () => style.remove();
-  }, [enabled, showThrough, backed, glass]);
+  }, [enabled, showThrough, glass]);
 
   if (!enabled) return null;
   return createPortal(
@@ -976,26 +975,16 @@ function AmbientControls() {
           format={(value) => `${Math.round(value * 100)}%`}
           onChange={(value) => ambientStore.setDeviceDetail(value)}
         />
-        <div className="flex h-6 items-center justify-between gap-2 text-xs text-muted-foreground">
-          <span>Glass behind text</span>
-          <Switch
-            checked={controls.backing}
-            label="Glass behind text"
-            onChange={(backing) => setControl("backing", backing)}
-          />
-        </div>
-        {controls.backing && (
-          <Slider
-            label="Glass opacity"
-            hint="How solid the floating glass panels behind text are"
-            value={controls.glass}
-            min={0.2}
-            max={0.95}
-            step={0.01}
-            format={(value) => `${Math.round(value * 100)}%`}
-            onChange={(value) => setControl("glass", value)}
-          />
-        )}
+        <Slider
+          label="Glass opacity"
+          hint="How solid the glass behind text is; lower lets more of the scene through"
+          value={controls.glass}
+          min={0.2}
+          max={0.6}
+          step={0.01}
+          format={(value) => `${Math.round(value * 100)}%`}
+          onChange={(value) => setControl("glass", value)}
+        />
       </Section>
 
       <Section title="Preview a ripple">

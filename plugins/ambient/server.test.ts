@@ -26,6 +26,26 @@ describe("Ambient plugin", () => {
   });
 });
 
+describe("display controls", () => {
+  it("keeps glass opacity when a different control changes", async () => {
+    const { bb, harness } = createFakePluginHost({ pluginId: "ambient" });
+    plugin(bb);
+    await harness.behavior.callRpc("setControls", { glass: 0.4 });
+    const next = (await harness.behavior.callRpc("setControls", { showThrough: 0.5 })) as {
+      controls: { glass: number; showThrough: number };
+    };
+    expect(next.controls).toMatchObject({ glass: 0.4, showThrough: 0.5 });
+    await harness.lifecycle.dispose();
+  });
+
+  it("only lets glass opacity go down from its default", async () => {
+    const { bb, harness } = createFakePluginHost({ pluginId: "ambient" });
+    plugin(bb);
+    await expect(harness.behavior.callRpc("setControls", { glass: 0.9 })).rejects.toThrow();
+    await harness.lifecycle.dispose();
+  });
+});
+
 describe("look report", () => {
   const base = { fromBackground: 0.3, spread: 0.1, motion: 0.01, frameMs: 2, detail: 0.5 };
 

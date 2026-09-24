@@ -27,7 +27,6 @@ export interface Controls {
   showThrough: number;
   speed: number;
   quality: number;
-  backing: boolean;
   glass: number;
 }
 
@@ -36,7 +35,6 @@ export const DEFAULT_CONTROLS: Controls = {
   showThrough: 0.22,
   speed: 1,
   quality: 0.5,
-  backing: true,
   glass: 0.6,
 };
 

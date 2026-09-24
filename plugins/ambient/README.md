@@ -25,10 +25,10 @@ bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/ambient --y
 
 | Surface | What it does |
 | --- | --- |
-| Sidebar footer → Ambient | Scene picker and Save; each scene's sliders and four colors; Display (Visibility: how much shows through bb, Motion: speed, Detail: render resolution, Glass behind text: frosted glass behind the thread column, the composer, the sidebar's cards, and the header's pills, with a Glass opacity slider); Preview a ripple |
+| Sidebar footer → Ambient | Scene picker and Save; each scene's sliders and four colors; Display (Visibility: how much shows through bb, Motion: speed, Detail: render resolution, Glass opacity: frosted glass always sits behind the thread column, the composer, the right panel, the sidebar's cards, and the header's pills so text stays readable; the slider only lowers it from its 60% default); Preview a ripple |
 | Sidebar footer → Ambient → Paint a scene | Describe a scene in your own words and an agent paints it in a new thread. The agent first expands your description into a full concept (art style, palette, motion, what your agents and ripples become, a name), then writes, checks, and saves the scene |
 | `ambient` agent tool | `get`, `set` (scene or controls), `look` (with visibility, motion, and cost checks), `library`, `load`, `save`, `delete`, `brief` (pass `request` to paint what the user described) |
-| `bb ambient` | `status`, `list`, `load`, `set <param or visibility/motion/detail/glass>=<value>`, `palette`, `save`, `delete`, `on`, `off`, `paint <description>`, `backing on\|off`, `daily` |
+| `bb ambient` | `status`, `list`, `load`, `set <param or visibility/motion/detail/glass>=<value>`, `palette`, `save`, `delete`, `on`, `off`, `paint <description>`, `daily` |
 | Sidebar footer → Ambient → New scene every morning | Creates a bb automation that runs after the hour you pick, in your time zone. Its agent asks the `ambient` tool for today's brief, then paints, checks, and saves a scene around a rotating concept. Pause, edit, or see run history in Automations; **Paint now** runs it immediately |
 
 Built-in scenes: **Tide**, **Fireflies**, **Contour**, and **Poppy Hill in the Wind**.
