@@ -69,7 +69,7 @@ describe("Read Aloud speech route", () => {
   });
 
   it("prepares a finished reply in the background and serves it from cache", async () => {
-    const synthesize = vi.fn(async () => audio);
+    const synthesize = vi.fn<Synthesizer["synthesize"]>(async () => audio);
     const { harness, speak, idle } = setup(synthesize);
     await idle("## Done\n\nIt works. Here is the rest of the reply.\n\nAnd a third chunk.");
     await vi.waitFor(() => expect(synthesize).toHaveBeenCalledTimes(2));
