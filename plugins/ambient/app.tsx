@@ -64,8 +64,9 @@ body.bb-app-shell > #root [data-testid="app-page-header-content-row"] > [data-ap
 :is(${THREAD}, ${SIDEBAR_CARDS}, ${CHROME_PILLS}) { --state-hover: color-mix(in oklab, var(--ink) 9%, transparent); --state-active: color-mix(in oklab, var(--ink) 15%, transparent); --sidebar-accent: var(--state-hover); }
 ${SIDEBAR_CARDS} { ${GLASS_SURFACE} border-radius: 16px; margin-inline: 8px; }
 body.bb-app-shell > #root [data-testid="sidebar-navigation-region"] { margin-block: 4px 8px; }
-body.bb-app-shell > #root [data-sidebar="content"] { flex: 0 1 auto; margin-block-end: auto; }
-body.bb-app-shell > #root [data-sidebar="footer"] { margin-block: 8px; }
+body.bb-app-shell > #root [data-sidebar="content"] { flex: 0 1 auto; min-height: min(7rem, 18dvh); margin-block-end: auto; }
+@media (max-height: 560px) { body.bb-app-shell > #root [data-testid="sidebar-navigation-region"] { flex: 0 1 auto; min-height: 3rem; overflow-y: auto; } }
+body.bb-app-shell > #root [data-sidebar="footer"] { flex-shrink: 0; margin-block: 8px; }
 :is(${SIDEBAR_CARDS}) :is(.sticky, [data-sidebar-sticky-tier], [data-sidebar-sticky-stack]), :is(${SIDEBAR_CARDS}) [data-sidebar-sticky-stack]::before { -webkit-backdrop-filter: none; backdrop-filter: none; }
 body.bb-app-shell > #root [data-app-composer] { --background: color-mix(in oklab, var(--ambient-background) 88%, transparent); }
 ${RIGHT_PANEL} { ${GLASS_SURFACE} inset: 8px 8px 8px 2px; height: auto; max-width: calc(100% - 10px); border-radius: 20px; overflow: hidden; --background: transparent; --sidebar: transparent; }
@@ -846,7 +847,11 @@ function AmbientControls({ dismiss }: { dismiss: () => void }) {
           .filter(Boolean)
           .join(" · ");
   return (
-    <div className="max-h-[70vh] w-full space-y-3 overflow-y-auto px-3 pt-2 pb-3">
+    <div
+      className="w-full space-y-3 overflow-y-auto overscroll-contain px-3 pt-2 pb-3"
+      style={{ maxHeight: "min(70vh, max(9rem, calc(100dvh - 32rem)))" }}
+    >
+      <style>{'[data-testid="plugin-sidebar-footer-disclosure-ambient-controls"] > div { max-height: none; overflow: visible; }'}</style>
       <div className="flex items-center justify-between gap-2">
         <div className="min-w-0">
           <div className="truncate text-sm font-medium text-foreground">Ambient</div>
