@@ -75,6 +75,25 @@ describe("Video Markup persistence and feedback",()=>{
     expect(JSON.parse(post.stdout).directive).toBe(`::video-markup{version="${v.id}"}`);
     expect((await host.harness.behavior.runCli(["status","--thread","thr_demo","--note",note.id,"--status","done"])).exitCode).toBe(1);
   });
+  it("opens a playable file without waiting for a slow frame probe",async()=>{
+    const host=createFakePluginHost({pluginId:"video-markup",experimental_callHostRpc:async(call)=>{
+      if(call.method==="readChunk") return {data:Buffer.from("01").toString("base64")};
+      const {probe}=z.object({probe:z.boolean()}).parse(call.input);
+      if(probe) {
+        await new Promise(resolve=>setTimeout(resolve,50));
+        throw new Error("Slow frame probe exceeded the host deadline");
+      }
+      const {hostId,...file}=media;
+      return {...file,duration:0,fps:null,width:0,height:0,frameTimes:[]};
+    }});
+    plugin(host.bb);cleanups.push(()=>host.harness.lifecycle.dispose());
+    const preview=z.object({url:z.string(),media:z.object({duration:z.number(),frameTimes:z.array(z.number())})}).parse(await host.harness.behavior.callRpc("openFile",{file:media.path,source:{kind:"host",threadId:null,environmentId:null,projectId:null,experimental_hostId:"host_a"}}));
+    expect(preview.media).toEqual({duration:0,frameTimes:[]});
+    const url=new URL(preview.url,"http://plugin.test");
+    const response=await host.harness.behavior.fetchHttp("GET",url.pathname.replace("/api/v1/plugins/video-markup/http","")+url.search,{headers:{range:"bytes=0-1"}});
+    expect(response.status).toBe(206);
+    expect(await response.text()).toBe("01");
+  });
   it("serves preview URLs through literal routes with HEAD and Safari seek ranges, and detects replacement",async()=>{
     let modifiedAt=1;
     let reads=0;
