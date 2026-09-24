@@ -45,12 +45,15 @@ const COLUMN_BOTTOM = "6px";
 const THREAD = "body.bb-app-shell > #root [data-thread-window]";
 const CHROME_PILLS = 'body.bb-app-shell > #root :is([data-testid="app-page-header-content-row"] > :first-child, [data-app-page-header-actions], [data-testid="app-sidebar-top-reserve-row"] > div, button[data-sidebar="trigger"])';
 const SIDEBAR_CARDS = 'body.bb-app-shell > #root :is([data-testid="sidebar-navigation-region"], [data-sidebar="content"], [data-sidebar="footer"])';
+const PAGE = 'body.bb-app-shell > #root [data-testid="app-layout-content-shell"] > main:not(:has([data-thread-window], [data-app-composer], [role="img"][aria-label="bb"]))';
 
 function glassCss(glass: number): string {
   return `body.bb-app-shell { --ambient-glass-fill: color-mix(in oklab, var(--ambient-background) ${Math.round(glass * 100)}%, transparent); --ambient-glass-solid: color-mix(in oklab, var(--ambient-background) ${Math.round(Math.min(0.92, Math.max(0.88, glass + 0.3)) * 100)}%, transparent); }
 ${THREAD} { position: relative; isolation: isolate; }
 ${THREAD}::before { content: ""; position: absolute; z-index: -1; pointer-events: none; ${GLASS_SURFACE} border-radius: 20px; top: 0; bottom: ${COLUMN_BOTTOM}; left: 50%; width: ${COLUMN_WIDTH}; transform: translateX(-50%); }
 ${THREAD} [data-overflow-fade] { display: none; }
+${PAGE} { position: relative; isolation: isolate; }
+${PAGE}::before { content: ""; position: absolute; z-index: -1; pointer-events: none; ${GLASS_SURFACE} border-radius: 20px; inset: 0 8px 8px; }
 ${THREAD}::after { content: ""; position: absolute; z-index: 1; pointer-events: none; top: 1px; height: 28px; left: 50%; width: calc(${COLUMN_WIDTH} - 2px); transform: translateX(-50%); border-radius: 19px 19px 0 0; background: linear-gradient(to bottom, color-mix(in oklab, var(--ambient-background) 18%, transparent), transparent); }
 ${THREAD} [data-timeline-row-list] :is([data-message-column].border, [data-message-column] .border) { border-color: color-mix(in oklab, var(--ink) 8%, transparent); }
 ${THREAD} [data-markdown-preview] div:has(> div > table) { width: 100% !important; margin-inline: 0 !important; }
@@ -74,7 +77,7 @@ body.bb-app-shell > #root [data-testid="app-page-header-content-row"] > :first-c
 body.bb-app-shell > #root [data-testid="app-page-header-content-row"] > :first-child:has([data-pane-header-focus-tab]) { background-image: linear-gradient(var(--state-active), var(--state-active)); }
 body.bb-app-shell > #root [data-pane-header-focus-tab] { background-color: transparent; }
 body.bb-app-shell > #root [data-testid="app-page-header-content-row"] > [data-app-page-header-actions] { margin-inline: auto -6px; min-height: 32px; }
-:is(${THREAD}, ${SIDEBAR_CARDS}, ${CHROME_PILLS}) { --state-hover: color-mix(in oklab, var(--ink) 9%, transparent); --state-active: color-mix(in oklab, var(--ink) 15%, transparent); --sidebar-accent: var(--state-hover); }
+:is(${THREAD}, ${PAGE}, ${SIDEBAR_CARDS}, ${CHROME_PILLS}) { --state-hover: color-mix(in oklab, var(--ink) 9%, transparent); --state-active: color-mix(in oklab, var(--ink) 15%, transparent); --sidebar-accent: var(--state-hover); }
 ${SIDEBAR_CARDS} { ${GLASS_SURFACE} border-radius: 16px; margin-inline: 8px; }
 body.bb-app-shell > #root [data-testid="sidebar-navigation-region"] { margin-block: 4px 8px; }
 body.bb-app-shell > #root [data-sidebar="content"] { flex: 0 1 auto; min-height: min(7rem, 18dvh); margin-block-end: auto; }
