@@ -1,4 +1,14 @@
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import type { BbPluginApi } from "@get-bb/plugin-sdk";
+
+import { maxSpeakLength, speeds } from "./speech-text";
+import {
+  KokoroSynthesizer,
+  SynthesisBusyError,
+  toWav,
+  type Synthesizer,
+} from "./synthesizer";
 
 const voices = [
   "af_heart",
@@ -31,17 +41,11 @@ const voices = [
   "bm_lewis",
 ] as const;
 
-const speeds = ["0.75", "1", "1.25", "1.5", "1.75", "2"] as const;
 
-const devices = ["auto", "webgpu", "wasm"] as const;
+const moduleDir = dirname(fileURLToPath(import.meta.url));
+const pluginDir = moduleDir.endsWith("dist") ? dirname(moduleDir) : moduleDir;
 
-export interface ReadAloudSettings {
-  voice: (typeof voices)[number];
-  speed: number;
-  device: (typeof devices)[number];
-}
-
-export default function plugin(bb: BbPluginApi): void {
+export function registerReadAloud(bb: BbPluginApi, synthesizer: Synthesizer): void {
   const settings = bb.settings.define({
     voice: {
       type: "select",
@@ -49,27 +53,49 @@ export default function plugin(bb: BbPluginApi): void {
       options: [...voices],
       default: "af_heart",
     },
-    speed: {
-      type: "select",
-      label: "Speed",
-      options: [...speeds],
-      default: "1",
-    },
-    device: {
-      type: "select",
-      label: "Engine (auto uses WebGPU when the browser supports it)",
-      options: [...devices],
-      default: "auto",
-    },
   });
 
-  bb.http.route("GET", "/settings", async (context) => {
+  bb.http.route("POST", "/speak", async (context) => {
+    const body = (await context.req.json().catch(() => null)) as {
+      text?: unknown;
+      speed?: unknown;
+    } | null;
+    const text = typeof body?.text === "string" ? body.text.trim() : "";
+    const speed = speeds.find((value) => value === body?.speed);
+    if (text.length === 0 || text.length > maxSpeakLength || speed === undefined) {
+      return context.json({ error: "Invalid speech request" }, 400);
+    }
     const current = await settings.get();
-    const body: ReadAloudSettings = {
-      voice: voices.find((voice) => voice === current.voice) ?? "af_heart",
-      speed: Number(current.speed) || 1,
-      device: devices.find((device) => device === current.device) ?? "auto",
-    };
-    return context.json(body);
+    const voice = voices.find((value) => value === current.voice) ?? "af_heart";
+    try {
+      const audio = await synthesizer.synthesize({
+        text,
+        voice,
+        speed,
+        signal: context.req.raw.signal,
+      });
+      return new Response(toWav(audio), {
+        headers: { "content-type": "audio/wav", "cache-control": "no-store" },
+      });
+    } catch (error) {
+      const busy = error instanceof SynthesisBusyError;
+      return context.json(
+        { error: error instanceof Error ? error.message : "Speech failed" },
+        busy ? 429 : 503,
+      );
+    }
   });
+}
+
+export default function plugin(bb: BbPluginApi): void {
+  // The plugin's SQLite file sits in its private data directory, which
+  // survives updates, so the Kokoro runtime and model are fetched only once.
+  const dataDir = dirname(bb.storage.database().name);
+  const synthesizer = new KokoroSynthesizer(
+    join(pluginDir, "runtime"),
+    dataDir,
+    (message) => bb.log.info(message),
+  );
+  registerReadAloud(bb, synthesizer);
+  bb.background.service("kokoro", { start: (signal) => synthesizer.run(signal) });
 }

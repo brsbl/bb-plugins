@@ -1,0 +1,12 @@
+{
+  "name": "read-aloud-runtime",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "kokoro-js": "1.2.1",
+    "sharp": "file:./sharp-stub"
+  },
+  "overrides": {
+    "sharp": "$sharp"
+  }
+}

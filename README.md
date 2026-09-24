@@ -86,9 +86,9 @@ Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/e
 
 ### Read Aloud
 
-Reads agent messages or highlighted passages aloud with Kokoro text-to-speech that runs locally in your browser.
+Reads agent messages or highlighted passages aloud on any device, using Kokoro text-to-speech on your bb server, with 1×, 1.5×, and 2× speed.
 
-![Read aloud playing an agent message, with the Stop control](plugins/read-aloud/docs/screenshot.png)
+![Read aloud playing an agent message, with the speed and Stop controls](plugins/read-aloud/docs/screenshot.png)
 
 [Source](plugins/read-aloud) · [README](plugins/read-aloud/README.md)
 

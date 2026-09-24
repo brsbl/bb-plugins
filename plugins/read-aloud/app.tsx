@@ -1,123 +1,90 @@
 import { definePluginApp } from "@get-bb/plugin-sdk/app";
 import { toast } from "sonner";
 
-import type { EngineDevice } from "./kokoro-worker";
 import { ReadAloudPlayer } from "./player";
-import type { ReadAloudSettings } from "./server";
-import { chunkForSpeech, toSpeechText } from "./speech-text";
+import { chunkForSpeech, speeds, toSpeechText, type Speed } from "./speech-text";
 
 const toastId = "read-aloud";
-const defaults: ReadAloudSettings = { voice: "af_heart", speed: 1, device: "auto" };
-const downloadSize: Record<EngineDevice, string> = {
-  webgpu: "about 330 MB",
-  wasm: "about 90 MB",
-};
+const speedKey = "read-aloud:speed";
 
 let pluginId = "read-aloud";
 let player: ReadAloudPlayer | null = null;
-/** The reading the user asked for most recently, including while it prepares. */
-let current: { key: string; token: number } | null = null;
-let nextToken = 1;
 
-async function loadSettings(): Promise<ReadAloudSettings> {
-  try {
-    const response = await fetch(
-      `/api/v1/plugins/${encodeURIComponent(pluginId)}/http/settings`,
-    );
-    if (!response.ok) return defaults;
-    const value = (await response.json()) as Partial<ReadAloudSettings>;
-    return {
-      voice: typeof value.voice === "string" ? value.voice : defaults.voice,
-      speed:
-        typeof value.speed === "number" && Number.isFinite(value.speed)
-          ? value.speed
-          : defaults.speed,
-      device:
-        value.device === "webgpu" || value.device === "wasm" ? value.device : "auto",
-    } as ReadAloudSettings;
-  } catch {
-    return defaults;
-  }
+function savedSpeed(): Speed {
+  const value = Number(globalThis.localStorage?.getItem(speedKey));
+  return speeds.find((speed) => speed === value) ?? 1;
 }
 
-async function resolveDevice(preference: ReadAloudSettings["device"]): Promise<EngineDevice> {
-  if (preference !== "auto") return preference;
-  const gpu = (navigator as Navigator & {
-    gpu?: { requestAdapter(): Promise<unknown | null> };
-  }).gpu;
-  try {
-    return gpu && (await gpu.requestAdapter()) ? "webgpu" : "wasm";
-  } catch {
-    return "wasm";
+async function fetchSpeech(text: string, speed: number, signal: AbortSignal): Promise<Blob> {
+  const response = await fetch(`/api/v1/plugins/${encodeURIComponent(pluginId)}/http/speak`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ text, speed }),
+    signal,
+  });
+  if (!response.ok) {
+    const body = (await response.json().catch(() => null)) as { error?: string } | null;
+    throw new Error(body?.error ?? `The voice server returned ${response.status}`);
   }
+  return response.blob();
 }
 
 function stop(): void {
-  current = null;
   player?.stop();
   toast.dismiss(toastId);
 }
 
-const stopAction = { label: "Stop", onClick: stop };
+function showToast(state: "preparing" | "playing"): void {
+  const speed = savedSpeed();
+  const options = {
+    id: toastId,
+    duration: Number.POSITIVE_INFINITY,
+    action: {
+      label: `${speed}×`,
+      onClick(event: { preventDefault(): void }) {
+        // Keep the toast open; the label shows the new speed.
+        event.preventDefault();
+        const next = speeds[(speeds.indexOf(speed) + 1) % speeds.length]!;
+        globalThis.localStorage?.setItem(speedKey, String(next));
+        player?.setSpeed(next);
+        showToast(state);
+      },
+    },
+    cancel: { label: "Stop", onClick: stop },
+  };
+  if (state === "preparing") toast.loading("Preparing to read aloud…", options);
+  else toast("Reading aloud", options);
+}
 
-async function readAloud(key: string, markdown: string): Promise<void> {
-  if (current?.key === key) {
+function readAloud(key: string, markdown: string): void {
+  if (player?.isReading(key)) {
     stop();
     return;
   }
-  stop();
   const chunks = chunkForSpeech(toSpeechText(markdown));
   if (chunks.length === 0) {
+    stop();
     toast.message("Nothing to read aloud", {
       id: toastId,
       description: "This message only contains code or media.",
     });
     return;
   }
-  const request = { key, token: nextToken++ };
-  current = request;
-  player ??= new ReadAloudPlayer();
-  // Start audio while the click still counts as a user gesture.
-  player.unlockAudio();
-  toast.loading("Preparing to read aloud…", { id: toastId, action: stopAction });
-  const settings = await loadSettings();
-  const device = await resolveDevice(settings.device);
-  // A stop, another click, or a plugin reload while preparing wins.
-  if (current !== request || !player) return;
-  const isCurrent = () => current === request;
-  player.speak(
-    key,
-    { chunks, voice: settings.voice, speed: settings.speed, device },
-    {
-      onLoading(loadingDevice) {
-        toast.loading("Loading the Kokoro voice…", {
-          id: toastId,
-          description: `The first time downloads ${downloadSize[loadingDevice]}; after that it loads from your browser cache.`,
-          action: stopAction,
-        });
-      },
-      onPlaying() {
-        toast("Reading aloud", {
-          id: toastId,
-          description: undefined,
-          duration: Number.POSITIVE_INFINITY,
-          action: stopAction,
-        });
-      },
-      onFinished() {
-        if (isCurrent()) current = null;
-        toast.dismiss(toastId);
-      },
-      onError(message) {
-        if (isCurrent()) current = null;
-        toast.error("Couldn’t read this message aloud", {
-          id: toastId,
-          description: message,
-          duration: 8000,
-        });
-      },
+  player ??= new ReadAloudPlayer(fetchSpeech);
+  player.stop();
+  player.unlock();
+  showToast("preparing");
+  player.speak(key, chunks, savedSpeed(), {
+    onPlaying: () => showToast("playing"),
+    onFinished: () => toast.dismiss(toastId),
+    onError(message) {
+      toast.error("Couldn’t read this message aloud", {
+        id: toastId,
+        description: message,
+        duration: 8000,
+      });
     },
-  );
+  });
 }
 
 export default definePluginApp((app) => {
@@ -130,7 +97,7 @@ export default definePluginApp((app) => {
         selectedText === undefined
           ? message.id
           : `${message.id}:selection:${selectedText}`;
-      return readAloud(key, selectedText ?? message.text);
+      readAloud(key, selectedText ?? message.text);
     },
   });
   app.contentScripts.register({
@@ -139,7 +106,6 @@ export default definePluginApp((app) => {
       pluginId = context.pluginId;
       return () => {
         stop();
-        player?.dispose();
         player = null;
       };
     },

@@ -1,13 +1,14 @@
 {
   "name": "bb-plugin-read-aloud",
   "version": "0.1.0",
-  "description": "Read agent messages aloud with Kokoro text-to-speech that runs on your device.",
+  "description": "Read agent messages aloud with Kokoro text-to-speech running on your bb server.",
   "type": "module",
   "license": "UNLICENSED",
   "files": [
     "dist",
     "docs",
     "icons",
+    "runtime",
     "README.md"
   ],
   "scripts": {
@@ -22,7 +23,7 @@
   },
   "bb": {
     "name": "Read Aloud",
-    "description": "Read agent messages aloud with Kokoro text-to-speech that runs on your device.",
+    "description": "Read agent messages aloud with Kokoro text-to-speech running on your bb server.",
     "branding": {
       "icon": "./icons/speaker.svg"
     },

@@ -1,207 +1,193 @@
-import {
-  kokoroWorkerSource,
-  type EngineDevice,
-  type WorkerRequest,
-  type WorkerResponse,
-} from "./kokoro-worker";
-
-export interface SpeakOptions {
-  chunks: string[];
-  voice: string;
-  speed: number;
-  device: EngineDevice;
-}
+export type FetchSpeech = (
+  text: string,
+  speed: number,
+  signal: AbortSignal,
+) => Promise<Blob>;
 
 export interface PlaybackCallbacks {
-  onLoading(device: EngineDevice): void;
   onPlaying(): void;
   onFinished(): void;
   onError(message: string): void;
 }
 
-interface Session {
-  id: number;
-  key: string;
-  callbacks: PlaybackCallbacks;
-  sources: Set<AudioBufferSourceNode>;
-  nextStart: number;
-  started: boolean;
-  generated: boolean;
-  pullTimer: ReturnType<typeof setTimeout> | null;
+interface Pending {
+  controller: AbortController;
+  url: Promise<string>;
 }
 
-/** Seconds of audio to keep scheduled ahead before asking for more. */
-const bufferAheadSeconds = 15;
-/** Idle time after which the worker and its model are released. */
-const idleReleaseMs = 3 * 60_000;
+interface Session {
+  key: string;
+  chunks: string[];
+  speed: number;
+  /** Chunk being played, or awaited before playing. */
+  index: number;
+  playing: boolean;
+  started: boolean;
+  pending: Map<number, Pending>;
+  callbacks: PlaybackCallbacks;
+  interrupt: (() => void) | null;
+}
 
-/** One reading at a time: starting another message stops the current one. */
+/** Chunks requested ahead of the one playing. */
+const prefetch = 2;
+// 10 ms of silence, played from the click so mobile browsers allow later audio.
+const silentWav =
+  "data:audio/wav;base64,UklGRsQAAABXQVZFZm10IBAAAAABAAEAQB8AAIA+AAACABAAZGF0YaAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA";
+
+/**
+ * Plays server-synthesized chunks through one audio element, one reading at a
+ * time, fetching a couple of chunks ahead so speech stays continuous.
+ */
 export class ReadAloudPlayer {
-  private worker: Worker | null = null;
-  private context: AudioContext | null = null;
+  private readonly element = new Audio();
   private session: Session | null = null;
-  private idleTimer: ReturnType<typeof setTimeout> | null = null;
-  private nextId = 1;
+
+  constructor(private readonly fetchSpeech: FetchSpeech) {
+    this.element.preload = "auto";
+  }
 
   isReading(key: string): boolean {
     return this.session?.key === key;
   }
 
-  /**
-   * Must be called from the click that requested playback so browsers allow
-   * the audio context to start.
-   */
-  unlockAudio(): void {
-    this.context ??= new AudioContext();
-    void this.context.resume();
+  /** Call from the click so iOS and other mobile browsers allow playback. */
+  unlock(): void {
+    const audioSession = (navigator as { audioSession?: { type: string } }).audioSession;
+    if (audioSession) audioSession.type = "playback";
+    if (this.session) return;
+    this.element.src = silentWav;
+    void this.element.play().catch(() => {});
   }
 
-  speak(key: string, options: SpeakOptions, callbacks: PlaybackCallbacks): void {
+  speak(key: string, chunks: string[], speed: number, callbacks: PlaybackCallbacks): void {
     this.stop();
-    this.unlockAudio();
-    this.clearIdleTimer();
-    const context = this.context!;
     const session: Session = {
-      id: this.nextId++,
       key,
-      callbacks,
-      sources: new Set(),
-      nextStart: context.currentTime,
+      chunks,
+      speed,
+      index: 0,
+      playing: false,
       started: false,
-      generated: false,
-      pullTimer: null,
+      pending: new Map(),
+      callbacks,
+      interrupt: null,
     };
     this.session = session;
-    this.post({ type: "speak", id: session.id, ...options });
+    this.fill(session);
+    void this.play(session);
+  }
+
+  /** Applies from the next chunk; audio already fetched ahead is re-requested. */
+  setSpeed(speed: number): void {
+    const session = this.session;
+    if (!session || session.speed === speed) return;
+    session.speed = speed;
+    for (const [index, pending] of session.pending) {
+      if (index === session.index && session.playing) continue;
+      this.discard(pending);
+      session.pending.delete(index);
+    }
+    this.fill(session);
   }
 
   stop(): void {
     const session = this.session;
     if (!session) return;
     this.session = null;
-    if (session.pullTimer) clearTimeout(session.pullTimer);
-    this.worker?.postMessage({ type: "cancel", id: session.id } satisfies WorkerRequest);
-    for (const source of session.sources) {
-      source.onended = null;
-      source.stop();
+    for (const pending of session.pending.values()) this.discard(pending);
+    session.pending.clear();
+    this.element.pause();
+    session.interrupt?.();
+  }
+
+  private discard(pending: Pending): void {
+    pending.controller.abort();
+    pending.url.then(URL.revokeObjectURL, () => {});
+  }
+
+  private fill(session: Session): void {
+    const end = Math.min(session.chunks.length, session.index + prefetch + 1);
+    for (let index = session.index; index < end; index += 1) {
+      if (session.pending.has(index)) continue;
+      const controller = new AbortController();
+      const url = this.fetchSpeech(session.chunks[index]!, session.speed, controller.signal)
+        .then((blob) => URL.createObjectURL(blob));
+      url.catch(() => {});
+      session.pending.set(index, { controller, url });
     }
-    session.sources.clear();
-    this.becomeIdle();
   }
 
-  dispose(): void {
-    this.stop();
-    this.clearIdleTimer();
-    this.worker?.terminate();
-    this.worker = null;
-    void this.context?.close();
-    this.context = null;
-  }
-
-  private becomeIdle(): void {
-    if (this.context?.state === "running") void this.context.suspend();
-    this.clearIdleTimer();
-    this.idleTimer = setTimeout(() => {
-      this.idleTimer = null;
-      if (this.session) return;
-      this.worker?.terminate();
-      this.worker = null;
-    }, idleReleaseMs);
-  }
-
-  private clearIdleTimer(): void {
-    if (this.idleTimer) clearTimeout(this.idleTimer);
-    this.idleTimer = null;
-  }
-
-  private post(request: WorkerRequest): void {
-    this.ensureWorker().postMessage(request);
-  }
-
-  private ensureWorker(): Worker {
-    if (this.worker) return this.worker;
-    const url = URL.createObjectURL(
-      new Blob([kokoroWorkerSource], { type: "text/javascript" }),
-    );
-    const worker = new Worker(url, { type: "module", name: "read-aloud-kokoro" });
-    URL.revokeObjectURL(url);
-    worker.onmessage = (event: MessageEvent<WorkerResponse>) =>
-      this.receive(event.data);
-    worker.onerror = (event) => {
-      event.preventDefault();
-      const session = this.session;
+  private async play(session: Session): Promise<void> {
+    try {
+      while (this.session === session && session.index < session.chunks.length) {
+        const url = await this.awaitCurrent(session);
+        if (url === null) return;
+        session.playing = true;
+        this.element.src = url;
+        const ended = this.waitForEnd(session);
+        await this.element.play();
+        if (!session.started) {
+          session.started = true;
+          session.callbacks.onPlaying();
+        }
+        await ended;
+        URL.revokeObjectURL(url);
+        if (this.session !== session) return;
+        session.playing = false;
+        session.pending.delete(session.index);
+        session.index += 1;
+        this.fill(session);
+      }
+      if (this.session === session) {
+        this.session = null;
+        session.callbacks.onFinished();
+      }
+    } catch (error) {
+      if (this.session !== session) return;
       this.stop();
-      this.worker?.terminate();
-      this.worker = null;
-      session?.callbacks.onError(event.message || "Kokoro failed to start");
-    };
-    this.worker = worker;
-    return worker;
+      session.callbacks.onError(
+        error instanceof Error && error.name === "NotAllowedError"
+          ? "Your browser blocked audio. Tap Read aloud again."
+          : error instanceof Error
+            ? error.message
+            : "Playback failed",
+      );
+    }
   }
 
-  private receive(response: WorkerResponse): void {
-    const session = this.session;
-    if (!session || response.id !== session.id) return;
-    switch (response.type) {
-      case "loading":
-        session.callbacks.onLoading(response.device);
-        return;
-      case "chunk":
-        this.schedule(session, response.audio, response.sampleRate);
-        this.requestMore(session);
-        return;
-      case "done":
-        session.generated = true;
-        this.finishIfDrained(session);
-        return;
-      case "error": {
-        const { callbacks } = session;
-        this.stop();
-        callbacks.onError(response.message);
+  /** Resolves the current chunk's audio, following re-requests after a speed change. */
+  private async awaitCurrent(session: Session): Promise<string | null> {
+    for (;;) {
+      const pending = session.pending.get(session.index);
+      if (!pending || this.session !== session) return null;
+      try {
+        const url = await pending.url;
+        if (session.pending.get(session.index) === pending && this.session === session) {
+          return url;
+        }
+      } catch (error) {
+        if (this.session !== session) return null;
+        if (session.pending.get(session.index) === pending) throw error;
       }
     }
   }
 
-  /** Lets the worker synthesize the next chunk once the buffer runs low. */
-  private requestMore(session: Session): void {
-    const context = this.context;
-    if (!context || this.session !== session) return;
-    const ahead = session.nextStart - context.currentTime;
-    const wait = Math.max(0, ahead - bufferAheadSeconds) * 1000;
-    session.pullTimer = setTimeout(() => {
-      session.pullTimer = null;
-      if (this.session === session) this.post({ type: "pull", id: session.id });
-    }, wait);
-  }
-
-  private schedule(session: Session, samples: Float32Array, sampleRate: number): void {
-    const context = this.context;
-    if (!context || samples.length === 0) return;
-    const buffer = context.createBuffer(1, samples.length, sampleRate);
-    buffer.getChannelData(0).set(samples);
-    const source = context.createBufferSource();
-    source.buffer = buffer;
-    source.connect(context.destination);
-    const start = Math.max(context.currentTime + 0.05, session.nextStart);
-    source.start(start);
-    session.nextStart = start + buffer.duration;
-    session.sources.add(source);
-    source.onended = () => {
-      session.sources.delete(source);
-      this.finishIfDrained(session);
-    };
-    if (!session.started) {
-      session.started = true;
-      session.callbacks.onPlaying();
-    }
-  }
-
-  private finishIfDrained(session: Session): void {
-    if (this.session !== session || !session.generated || session.sources.size > 0) {
-      return;
-    }
-    this.session = null;
-    this.becomeIdle();
-    session.callbacks.onFinished();
+  private waitForEnd(session: Session): Promise<void> {
+    return new Promise((resolve, reject) => {
+      const cleanup = () => {
+        this.element.onended = null;
+        this.element.onerror = null;
+        session.interrupt = null;
+      };
+      session.interrupt = () => {
+        cleanup();
+        resolve();
+      };
+      this.element.onended = session.interrupt;
+      this.element.onerror = () => {
+        cleanup();
+        reject(new Error("The browser couldn’t play this audio"));
+      };
+    });
   }
 }

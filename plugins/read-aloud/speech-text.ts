@@ -34,8 +34,14 @@ export function toSpeechText(markdown: string): string {
     .join("\n");
 }
 
+/** Playback speeds offered in the reading toast. */
+export const speeds = [1, 1.5, 2] as const;
+export type Speed = (typeof speeds)[number];
+/** Longest text the speech route accepts in one request. */
+export const maxSpeakLength = 400;
+
 const maxChunkLength = 140;
-const firstChunkLength = 60;
+const firstChunkLength = 50;
 
 /**
  * Splits speech text into short pieces so the first audio arrives quickly and

@@ -5,9 +5,17 @@ import {
   mountPluginContentScripts,
   type MountedPluginContentScripts,
 } from "@get-bb/plugin-sdk/testing/app";
+import { toast } from "sonner";
 
-const speak = vi.fn();
-const stop = vi.fn();
+import type { FetchSpeech } from "./player";
+
+const player = vi.hoisted(() => ({
+  fetchSpeech: null as FetchSpeech | null,
+  reading: null as string | null,
+  speak: vi.fn(),
+  stop: vi.fn(),
+  setSpeed: vi.fn(),
+}));
 
 vi.mock("sonner", () => ({
   toast: Object.assign(vi.fn(), {
@@ -19,17 +27,28 @@ vi.mock("sonner", () => ({
 }));
 vi.mock("./player", () => ({
   ReadAloudPlayer: class {
-    speak = speak;
-    stop = stop;
-    unlockAudio() {}
-    dispose() {}
+    constructor(fetchSpeech: FetchSpeech) {
+      player.fetchSpeech = fetchSpeech;
+    }
+    isReading(key: string) {
+      return player.reading === key;
+    }
+    speak(key: string, ...rest: unknown[]) {
+      player.reading = key;
+      player.speak(key, ...rest);
+    }
+    stop() {
+      player.reading = null;
+      player.stop();
+    }
+    setSpeed = player.setSpeed;
+    unlock() {}
   },
 }));
 
 const app = await loadPluginApp(() => import("./app"));
 const action = app.messageActions[0]!;
 let mounted: MountedPluginContentScripts;
-let settingsRequests: Array<{ url: string; resolve: () => void }>;
 
 function run(messageId: string, text: string, selectedText?: string) {
   return action.run({
@@ -41,23 +60,8 @@ function run(messageId: string, text: string, selectedText?: string) {
 }
 
 beforeEach(async () => {
-  settingsRequests = [];
-  vi.stubGlobal(
-    "fetch",
-    vi.fn(
-      (url: string) =>
-        new Promise((resolve) =>
-          settingsRequests.push({
-            url,
-            resolve: () =>
-              resolve({
-                ok: true,
-                json: async () => ({ voice: "bm_george", speed: 1.25, device: "wasm" }),
-              }),
-          }),
-        ),
-    ),
-  );
+  localStorage.clear();
+  player.reading = null;
   mounted = await mountPluginContentScripts(app, { pluginId: "read-aloud-dev" });
 });
 
@@ -68,43 +72,50 @@ afterEach(async () => {
 });
 
 describe("Read aloud action", () => {
-  it("reads settings from the installed plugin id and speaks the cleaned text", async () => {
-    const reading = run("msg_1", "## Done\n\nIt **works**.");
-    settingsRequests[0]!.resolve();
-    await reading;
-    expect(settingsRequests[0]!.url).toBe("/api/v1/plugins/read-aloud-dev/http/settings");
-    expect(speak).toHaveBeenCalledWith(
-      "msg_1",
-      { chunks: ["Done.", "It works."], voice: "bm_george", speed: 1.25, device: "wasm" },
-      expect.any(Object),
+  it("speaks cleaned chunks and fetches audio from the installed plugin id", async () => {
+    run("msg_1", "## Done\n\nIt **works**.");
+    expect(player.speak).toHaveBeenCalledWith("msg_1", ["Done.", "It works."], 1, expect.any(Object));
+
+    const fetch = vi.fn(async () => new Response(new Blob(["wav"])));
+    vi.stubGlobal("fetch", fetch);
+    await player.fetchSpeech!("Done.", 1.5, new AbortController().signal);
+    expect(fetch).toHaveBeenCalledWith(
+      "/api/v1/plugins/read-aloud-dev/http/speak",
+      expect.objectContaining({ method: "POST", body: JSON.stringify({ text: "Done.", speed: 1.5 }) }),
     );
   });
 
-  it("does not start when stopped or toggled off while preparing", async () => {
-    const first = run("msg_1", "Hello.");
-    const toggle = run("msg_1", "Hello.");
-    settingsRequests[0]!.resolve();
-    await Promise.all([first, toggle]);
-    expect(speak).not.toHaveBeenCalled();
+  it("stops when the same message is pressed again", () => {
+    run("msg_1", "Hello.");
+    run("msg_1", "Hello.");
+    expect(player.speak).toHaveBeenCalledTimes(1);
+    expect(player.reading).toBeNull();
   });
 
-  it("plays only the most recently clicked message", async () => {
-    const a = run("msg_a", "First.");
-    const b = run("msg_b", "Second.");
-    settingsRequests[1]!.resolve();
-    settingsRequests[0]!.resolve();
-    await Promise.all([a, b]);
-    expect(speak).toHaveBeenCalledTimes(1);
-    expect(speak.mock.calls[0]![0]).toBe("msg_b");
+  it("switches to a different selection in the same message", () => {
+    run("msg_1", "One. Two.", "One.");
+    run("msg_1", "One. Two.", "Two.");
+    expect(player.speak.mock.calls.map((call) => call[1])).toEqual([["One."], ["Two."]]);
   });
 
-  it("switches to a different selection in the same message", async () => {
-    const first = run("msg_1", "One. Two.", "One.");
-    settingsRequests[0]!.resolve();
-    await first;
-    const second = run("msg_1", "One. Two.", "Two.");
-    settingsRequests[1]!.resolve();
-    await second;
-    expect(speak.mock.calls.map((call) => call[1].chunks)).toEqual([["One."], ["Two."]]);
+  it("cycles 1×, 1.5×, 2× from the toast and remembers the choice", () => {
+    run("msg_1", "Hello.");
+    const speedAction = () =>
+      vi.mocked(toast.loading).mock.lastCall![1]!.action as {
+        label: string;
+        onClick(event: { preventDefault(): void }): void;
+      };
+    expect(speedAction().label).toBe("1×");
+    speedAction().onClick({ preventDefault() {} });
+    expect(player.setSpeed).toHaveBeenLastCalledWith(1.5);
+    expect(speedAction().label).toBe("1.5×");
+    speedAction().onClick({ preventDefault() {} });
+    speedAction().onClick({ preventDefault() {} });
+    expect(player.setSpeed).toHaveBeenLastCalledWith(1);
+    expect(localStorage.getItem("read-aloud:speed")).toBe("1");
+
+    localStorage.setItem("read-aloud:speed", "2");
+    run("msg_2", "Again.");
+    expect(player.speak).toHaveBeenLastCalledWith("msg_2", ["Again."], 2, expect.any(Object));
   });
 });
