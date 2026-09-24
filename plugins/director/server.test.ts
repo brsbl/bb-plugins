@@ -1,4 +1,5 @@
 import { createFakePluginHost } from "@get-bb/plugin-sdk/testing";
+import { Context } from "hono";
 import { afterEach, describe, expect, it } from "vitest";
 import { z } from "zod";
 import plugin from "./server.js";
@@ -75,7 +76,11 @@ describe("Director persistence and feedback",()=>{
     const preview=z.object({url:z.string()}).parse(await host.harness.behavior.callRpc("preview",{threadId:"thr_demo",versionId:version.id}));
     const url=new URL(preview.url,"http://plugin.test");
     const route=url.pathname.replace("/api/v1/plugins/director/http","")+url.search;
-    const head=await host.harness.behavior.fetchHttp("HEAD",route);
+    // The pinned harness's fetchHttp builds a HEAD-only Hono app, but Hono
+    // dispatches HEAD as GET. Match literally and invoke as BB's router does.
+    const headRoute=host.harness.inspection.registrations.httpRoutes.find(r=>r.method==="HEAD"&&r.path===url.pathname.replace("/api/v1/plugins/director/http",""));
+    expect(headRoute).toBeDefined();
+    const head=await headRoute!.handler(new Context(new Request(url,{method:"HEAD"})));
     expect(head.status).toBe(200);expect(head.headers.get("content-length")).toBe("10");
     expect(await head.text()).toBe("");expect(reads).toBe(0);
     expect(url.pathname).toBe("/api/v1/plugins/director/http/media");
