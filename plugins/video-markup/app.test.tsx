@@ -60,7 +60,12 @@ describe("Video Markup UI contracts",()=>{
     await slot.behavior.emitRealtime("present",{threadId:"another",versionId:"v2"});
     expect(slot.inspection.navigateCalls).toEqual([]);
     await slot.behavior.emitRealtime("present",{threadId:"thr_demo",versionId:"v1"});
-    expect(slot.inspection.navigateCalls).toEqual([{method:"openThreadPanel",options:{actionId:"video-markup",params:{versionId:"v1"}}}]);
+    expect(slot.inspection.navigateCalls).toEqual([{method:"openThreadPanel",options:{actionId:"video-markup"}}]);
+    // Mount after the event: the requested version wins over the newest version.
+    const latest={...version,id:"v2",ordinal:2,media:{...version.media,path:"/v2.mp4"}};
+    const panel=renderSlot(app.threadPanelActions[0],{threadId:"thr_demo",params:null},{rpc:{versions:()=>({versions:[version,latest],nextOffset:null,currentDemo:"Duo"}),version:input=>(input as {versionId:string}).versionId==="v1"?version:latest,preview:()=>({media:version.media,url:"/video.mp4",expiresAt:99999}),notes:()=>({notes:[],nextOffset:null})}});
+    expect(await panel.findByRole("heading",{name:"v1.mp4"})).toBeTruthy();
+    panel.lifecycle.unmount();
     slot.lifecycle.unmount();
   });
   it("adds an opened video with one action and shows its filename",async()=>{

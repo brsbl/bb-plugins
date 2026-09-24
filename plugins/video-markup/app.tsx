@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useId, useRef, useState, type PointerEvent, type ReactNode } from "react";
+import { useCallback, useEffect, useId, useRef, useState, useSyncExternalStore, type PointerEvent, type ReactNode } from "react";
 import { ArrowRight, Check, ChevronLeft, ChevronRight, Clapperboard, CornerUpLeft, Maximize2, Pause, Play, Send, Square, StickyNote, X } from "lucide-react";
 import { definePluginApp, useBbNavigate, useComposer, useRealtime, useRpc, type PluginFileOpenerProps, type PluginMessageDirectiveProps, type PluginThreadPanelProps, type PluginThreadHeaderActionProps } from "@get-bb/plugin-sdk/app";
 import { Button } from "./components/ui/button.js";
@@ -16,6 +16,19 @@ const errorText = (error: unknown) => error instanceof Error ? error.message : S
 const statuses: NoteStatus[] = ["open", "fixed", "still wrong", "regressed"];
 const statusLabels: Record<NoteStatus, string> = {open: "Open", fixed: "Fixed", "still wrong": "Still wrong", regressed: "Regressed"};
 const noteFilters = [{value: "actionable", label: "Needs attention"}, {value: "all", label: "All notes"}, ...statuses.map(value => ({value, label: statusLabels[value]}))];
+// BB keys panel tabs by params. Keep one parameter-free tab and route the
+// version separately, including when the panel mounts after the request.
+const presentedVersions = new Map<string, {versionId: string}>();
+const presentationListeners = new Set<() => void>();
+function subscribePresentation(listener: () => void) {
+  presentationListeners.add(listener);
+  return () => { presentationListeners.delete(listener); };
+}
+function openVersion(navigate: ReturnType<typeof useBbNavigate>, threadId: string, versionId: string) {
+  presentedVersions.set(threadId, {versionId});
+  for (const listener of presentationListeners) listener();
+  return navigate.openThreadPanel({actionId: "video-markup"});
+}
 function Notice({children}: {children: ReactNode}) { return <p role="status" className="video-markup-notice text-muted-foreground">{children}</p>; }
 function ErrorNotice({children}: {children: ReactNode}) { return <p role="alert" className="video-markup-notice text-destructive">{children}</p>; }
 function IconButton({label, children, ...props}: {label: string; children: ReactNode} & React.ComponentProps<typeof Button>) {
@@ -215,10 +228,12 @@ function ReviewVersion({threadId,versionId,onDirty}: {threadId:string;versionId:
 
 export function VideoMarkupPanel({threadId,params}: PluginThreadPanelProps) {
   const rpc=useRpc<typeof videoMarkupContract>();
+  const presentation=useSyncExternalStore(subscribePresentation,()=>presentedVersions.get(threadId)??null);
   const initial=params && typeof params==="object" && !Array.isArray(params) && typeof params.versionId==="string" ? params.versionId : null;
-  const [versions,setVersions]=useState<Version[]>([]),[current,setCurrent]=useState<string|null>(initial),[demo,setDemo]=useState<string|null>(null),[error,setError]=useState(""),[loading,setLoading]=useState(true),[reload,setReload]=useState(0),[dirty,setDirty]=useState(false);
+  const [versions,setVersions]=useState<Version[]>([]),[current,setCurrent]=useState<string|null>(presentation?.versionId??initial),[demo,setDemo]=useState<string|null>(null),[error,setError]=useState(""),[loading,setLoading]=useState(true),[reload,setReload]=useState(0),[dirty,setDirty]=useState(false);
   const refresh=useCallback(()=>setReload(n=>n+1),[]);
   useRealtime("changed",refresh);
+  useEffect(()=>{setCurrent(presentation?.versionId??initial);setDemo(null);setDirty(false);setError("");refresh();},[threadId,initial,presentation,refresh]);
   useEffect(()=>{let cancelled=false;void(async()=>{const all:Version[]=[];let offset:number|null=0,selectedDemo:string|null=null;do{const page: {versions: Version[]; nextOffset: number | null; currentDemo: string | null}=await rpc.call("versions",{threadId,offset});all.push(...page.versions);selectedDemo=page.currentDemo;offset=page.nextOffset;}while(offset!==null&&!cancelled);if(!cancelled){setVersions(all);setCurrent(v=>v??all.filter(item=>!selectedDemo||item.demo===selectedDemo).at(-1)?.id??null);setLoading(false);}})().catch(e=>{if(!cancelled){setError(errorText(e));setLoading(false);}});return()=>{cancelled=true;};},[rpc,threadId,reload]);
   const active=versions.find(v=>v.id===current),activeDemo=demo??active?.demo??versions.at(-1)?.demo;
   const rail=versions.filter(v=>v.demo===activeDemo);
@@ -255,7 +270,7 @@ export function VideoMarkupInline({attributes,message}:PluginMessageDirectivePro
   const [preview,setPreview]=useState<Preview|null>(null),[version,setVersion]=useState<Version|null>(null),[error,setError]=useState("");
   const [expanded,setExpanded]=useState(false);
   useEffect(()=>{let cancelled=false;setPreview(null);setVersion(null);setError("");void Promise.all([rpc.call("preview",{threadId:message.threadId,versionId:attributes.version??""}),rpc.call("version",{threadId:message.threadId,versionId:attributes.version??""})]).then(([p,v])=>{if(!cancelled){setPreview(p);setVersion(v);}}).catch(e=>{if(!cancelled)setError(errorText(e));});return()=>{cancelled=true;};},[rpc,message.threadId,attributes.version]);
-  return <section className="video-markup video-markup-inline border-border bg-background text-foreground"><header className="video-markup-row video-markup-inline-header border-border"><div><span className="video-markup-brand text-xs"><Clapperboard size={14}/>Video Markup</span>{version&&<p className="text-sm font-medium">{version.demo} <span className="text-muted-foreground">· {videoName(version.media.path)}</span></p>}</div>{version&&<Button variant="ghost" size="sm" onClick={()=>{if(!navigate.openThreadPanel({actionId:"video-markup",params:{versionId:version.id}}))setExpanded(v=>!v);}}>Review notes</Button>}</header>
+  return <section className="video-markup video-markup-inline border-border bg-background text-foreground"><header className="video-markup-row video-markup-inline-header border-border"><div><span className="video-markup-brand text-xs"><Clapperboard size={14}/>Video Markup</span>{version&&<p className="text-sm font-medium">{version.demo} <span className="text-muted-foreground">· {videoName(version.media.path)}</span></p>}</div>{version&&<Button variant="ghost" size="sm" onClick={()=>{if(!openVersion(navigate,message.threadId,version.id))setExpanded(v=>!v);}}>Review notes</Button>}</header>
     {error?<ErrorNotice>{error}</ErrorNotice>:preview?<Player key={attributes.version} preview={preview} version={version??undefined} compact/>:<Notice>Loading video…</Notice>}
     {expanded&&version&&<VideoMarkupPanel threadId={message.threadId} params={{versionId:version.id}}/>}
   </section>;
@@ -265,7 +280,7 @@ function PresentVideo({threadId}: PluginThreadHeaderActionProps) {
   const navigate=useBbNavigate();
   useRealtime("present",useCallback((payload: unknown)=>{
     const event=presentationSchema.safeParse(payload);
-    if(event.success && event.data.threadId===threadId) navigate.openThreadPanel({actionId:"video-markup",params:{versionId:event.data.versionId}});
+    if(event.success && event.data.threadId===threadId) openVersion(navigate,threadId,event.data.versionId);
   },[navigate,threadId]));
   return null;
 }

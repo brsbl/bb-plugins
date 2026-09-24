@@ -9,6 +9,8 @@ Make the product legible, alive, and believable. These defaults come from brsbl 
 
 ## Work with Video Markup
 
+When the user attaches a video for review, present it immediately with `video_markup_present` and emit the returned inline player directive before analyzing it. Analyze the whole video only if the user asks, or after presenting when that analysis is needed to act on frame notes. Presentation must not wait for a full-video review.
+
 1. Before revising, call `video_markup_versions` and `video_markup_list_notes` with the current `threadId`, `versionId`, and `actionable: true`. Follow `nextOffset` until all notes are read. Inspect the attached frame stills; use `video_markup_frame` for any note whose image is absent.
 2. Split dictated feedback into separate items. Restate each as **problem + moment**. Fix the largest perceptual problem first. “Less” or “more” means a small step. Show a still for subjective tuning before a full render.
 3. Keep source and each rendered version at durable, distinct paths. Never overwrite a registered file. Save source with the keeper; Video Markup references media in place and does not archive video files.
