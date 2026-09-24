@@ -22,12 +22,16 @@ beforeEach(() => {
 
 afterEach(() => vi.restoreAllMocks());
 
+// Like fetch, a request rejects as soon as its signal aborts.
 const fetchSpeech: FetchSpeech = (text, speed, signal) =>
-  new Promise((resolve) =>
-    requests.push({ text, speed, signal, resolve: () => resolve(new Blob([text])) }),
-  );
+  new Promise((resolve, reject) => {
+    signal.addEventListener("abort", () => reject(new DOMException("Aborted", "AbortError")));
+    requests.push({ text, speed, signal, resolve: () => resolve(new Blob([text])) });
+  });
 
-const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
+const flush = async () => {
+  for (let tick = 0; tick < 5; tick += 1) await new Promise((resolve) => setTimeout(resolve, 0));
+};
 
 describe("ReadAloudPlayer", () => {
   it("prefetches two chunks ahead and plays them in order", async () => {

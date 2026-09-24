@@ -76,7 +76,7 @@ describe("Read aloud action", () => {
     run("msg_1", "## Done\n\nIt **works**.");
     expect(player.speak).toHaveBeenCalledWith("msg_1", ["Done.", "It works."], 1, expect.any(Object));
 
-    const fetch = vi.fn(async () => new Response(new Blob(["wav"])));
+    const fetch = vi.fn(async () => new Response("wav"));
     vi.stubGlobal("fetch", fetch);
     await player.fetchSpeech!("Done.", 1.5, new AbortController().signal);
     expect(fetch).toHaveBeenCalledWith(
