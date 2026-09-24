@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useId, useRef, useState, useSyncExternalStore, type PointerEvent, type ReactNode } from "react";
-import { ArrowRight, ChevronLeft, ChevronRight, Clapperboard, Maximize2, Pause, Play, Send, Square, StickyNote, Undo2, X, ZoomIn } from "lucide-react";
+import { ArrowRight, ChevronLeft, ChevronRight, Clapperboard, Maximize2, Pause, Play, Send, Square, StickyNote, Undo2, X } from "lucide-react";
 import { definePluginApp, useBbNavigate, useComposer, useRealtime, useRpc, type PluginFileOpenerProps, type PluginMessageDirectiveProps, type PluginThreadPanelProps, type PluginThreadHeaderActionProps } from "@get-bb/plugin-sdk/app";
 import { Button } from "./components/ui/button.js";
 import { Checkbox } from "./components/ui/checkbox.js";
@@ -16,6 +16,7 @@ type Preview = {url: string; expiresAt: number; media: Media};
 const errorText = (error: unknown) => error instanceof Error ? error.message : String(error);
 const statuses: NoteStatus[] = ["open", "fixed", "still wrong", "regressed"];
 const statusLabels: Record<NoteStatus, string> = {open: "Open", fixed: "Fixed", "still wrong": "Still wrong", regressed: "Regressed"};
+const drawHints: Record<Shape["kind"], string> = {box: "Drag on the video to draw a box.", arrow: "Drag from the numbered marker toward what needs attention.", zoom: "Drag on the video around the area to enlarge."};
 const noteFilters = [{value: "actionable", label: "Needs attention"}, {value: "all", label: "All notes"}, ...statuses.map(value => ({value, label: statusLabels[value]}))];
 // BB keys panel tabs by params. Keep one parameter-free tab and route the
 // version separately, including when the panel mounts after the request.
@@ -75,14 +76,13 @@ function Player({preview, version, onSave, onDirty, compact = false, seekRequest
     try { if (video.current.paused) { setShapes([]); await video.current.play(); } else video.current.pause(); } catch (e) { setError(errorText(e)); }
   }
   function step(direction: -1 | 1) { if (!draft && !busy && video.current && canStep) { setShapes([]); seek(stepTime({...preview.media, duration}, video.current.currentTime, direction)); } }
-  async function beginNote(kind: Shape["kind"] | null = null) {
-    if (draft) { setTool(kind); return; }
-    if (!video.current) return;
+  async function beginNote() {
+    if (draft || !video.current) return;
     video.current.pause(); setBusy(true); setError("");
     try {
       const timestamp = video.current.currentTime;
       const still = await captureFrame(video.current);
-      setDraft({timestamp, still}); setShapes([]); setTool(kind); onDirty?.(true);
+      setDraft({timestamp, still}); setShapes([]); setTool(null); onDirty?.(true);
     } catch (e) { setError(errorText(e)); } finally { setBusy(false); }
   }
   function cancel() { setDraft(null); setTool(null); setShapes([]); setText(""); onDirty?.(false); }
@@ -114,9 +114,6 @@ function Player({preview, version, onSave, onDirty, compact = false, seekRequest
         gesture.current=null;setDrawing(null);
       }}
       onPointerCancel={() => {gesture.current=null;setDrawing(null);}} />}
-      {onSave && <div className="video-markup-tools" role="toolbar" aria-label="Annotation tools">
-        {([['box', Square, 'Box'], ['arrow', ArrowRight, 'Arrow'], ['zoom', ZoomIn, 'Zoom region']] as const).map(([kind, Icon, label]) => <IconButton key={kind} label={label} side="bottom" className="video-markup-overlay-button" aria-pressed={tool===kind} disabled={!ready || seeking || busy} onClick={() => void beginNote(kind)}><Icon /></IconButton>)}
-      </div>}
       {!draft && <div className="video-markup-fullscreen"><IconButton label="Fullscreen" className="video-markup-overlay-button" disabled={busy} onClick={() => { void video.current?.requestFullscreen?.().catch(e => setError(errorText(e))); }}><Maximize2 /></IconButton></div>}
     </div>
     <div className="video-markup-transport border-border">
@@ -126,14 +123,17 @@ function Player({preview, version, onSave, onDirty, compact = false, seekRequest
       <output className="video-markup-time text-xs text-muted-foreground">{timecode(time)} <span>/ {timecode(duration || 0)}</span></output>
     </div>
     <input className="video-markup-seek" aria-label="Video time" type="range" min="0" max={duration || 0} step="any" value={time} disabled={!ready || !!draft || busy} onChange={e => {setShapes([]);seek(Number(e.target.value));}} />
-    {draft && tool === "arrow" && <p className="video-markup-draw-hint text-xs text-muted-foreground">Drag from the numbered marker toward what needs attention.</p>}
     {draft && <form className="video-markup-note-editor border-border" onSubmit={e => {
       e.preventDefault(); if (!onSave || !text.trim()) return; setBusy(true);setError("");
       void onSave({timestamp:draft.timestamp, still:draft.still, shapes, text:text.trim()}).then(cancel).catch(e => setError(errorText(e))).finally(() => setBusy(false));
     }}>
       <div className="video-markup-row"><span className="video-markup-check text-muted-foreground text-xs"><span className="video-markup-note-number" aria-label={`Note ${nextNoteNumber}`}>{nextNoteNumber}</span>Frame at {timecode(draft.timestamp)}</span>{shapes.length > 0 && <Button type="button" variant="ghost" size="sm" disabled={busy} onClick={() => setShapes(v => v.slice(0,-1))}><Undo2 />Undo shape</Button>}</div>
+      <div className="video-markup-row video-markup-draw-tools" role="toolbar" aria-label="Point at something on the frame">
+        {([['box', Square, 'Box'], ['arrow', ArrowRight, 'Arrow'], ['zoom', Maximize2, 'Zoom region']] as const).map(([kind, Icon, label]) => <Button key={kind} type="button" variant={tool===kind ? "secondary" : "ghost"} size="sm" aria-pressed={tool===kind} disabled={busy} onClick={() => setTool(current => current===kind ? null : kind)}><Icon />{label}</Button>)}
+      </div>
+      {tool && <p className="video-markup-draw-hint text-xs text-muted-foreground">{drawHints[tool]}</p>}
       <textarea autoFocus aria-label="Frame note" placeholder="What should change at this moment?" value={text} maxLength={8000} onChange={e => setText(e.target.value)} className="video-markup-textarea border-input bg-background text-foreground" disabled={busy} />
-      <div className="video-markup-row"><span className="text-xs text-muted-foreground">{shapes.length ? `${shapes.length} drawn region${shapes.length===1 ? "" : "s"}` : "Draw a box, arrow, or zoom region to point at something."}</span><div className="video-markup-actions"><Button type="button" variant="ghost" size="sm" onClick={cancel} disabled={busy}>Cancel</Button><Button type="submit" size="sm" disabled={!text.trim() || busy}>{busy ? "Saving…" : "Save note"}</Button></div></div>
+      <div className="video-markup-row"><span className="text-xs text-muted-foreground">{shapes.length ? `${shapes.length} drawn region${shapes.length===1 ? "" : "s"}` : ""}</span><div className="video-markup-actions"><Button type="button" variant="ghost" size="sm" onClick={cancel} disabled={busy}>Cancel</Button><Button type="submit" size="sm" disabled={!text.trim() || busy}>{busy ? "Saving…" : "Save note"}</Button></div></div>
     </form>}
     {!compact && !canStep && <Notice>{frameProbe === "pending" ? "Preparing frame stepping…" : frameProbe === "failed" ? "Frame stepping is unavailable. Playback and seeking still work." : "Frame stepping needs ffprobe on the video's machine or a known constant frame rate supplied when registering."}</Notice>}
     {error && <ErrorNotice>{error}</ErrorNotice>}

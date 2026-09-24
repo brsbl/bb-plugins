@@ -31,13 +31,12 @@
 .video-markup-shape-label { fill: var(--background); stroke: var(--video-markup-accent); stroke-width: 2.5px; }
 .video-markup-shape-number { fill: var(--video-markup-accent); font-size: var(--text-xs); font-weight: 600; font-variant-numeric: tabular-nums; }
 .video-markup-draw { touch-action: none; cursor: crosshair; }
-.video-markup-draw-hint { padding: 0 0 8px; }
+.video-markup-draw-tools { justify-content: flex-start; gap: 2px; }
 .video-markup-transport { display: flex; align-items: center; gap: 2px; padding-top: 6px; }
 .video-markup-time { flex: 1; text-align: center; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .video-markup-seek { display: block; width: 100%; margin: 6px 0; min-height: 24px; accent-color: var(--video-markup-accent); }
-/* Annotation tools and fullscreen float over the frame so the controls stay next to what they act on. */
-.video-markup-tools,.video-markup-fullscreen { position: absolute; z-index: 2; display: flex; gap: 2px; padding: 2px; border-radius: var(--radius); background: color-mix(in oklab,var(--background) 82%,transparent); backdrop-filter: blur(8px); box-shadow: 0 1px 3px color-mix(in oklab,var(--foreground) 16%,transparent); }
-.video-markup-tools { top: 8px; right: 8px; }
+/* Fullscreen floats over the frame so it stays out of the note controls. */
+.video-markup-fullscreen { position: absolute; z-index: 2; display: flex; gap: 2px; padding: 2px; border-radius: var(--radius); background: color-mix(in oklab,var(--background) 82%,transparent); backdrop-filter: blur(8px); box-shadow: 0 1px 3px color-mix(in oklab,var(--foreground) 16%,transparent); }
 .video-markup-fullscreen { right: 8px; bottom: 8px; opacity: 0; transition: opacity 150ms ease; }
 .video-markup-stage:hover .video-markup-fullscreen,.video-markup-fullscreen:focus-within { opacity: 1; }
 .video-markup-overlay-button { width: 32px; height: 32px; }
