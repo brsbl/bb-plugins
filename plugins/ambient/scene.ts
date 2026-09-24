@@ -32,8 +32,8 @@ export interface Controls {
 
 export const DEFAULT_CONTROLS: Controls = {
   enabled: true,
-  showThrough: 0.22,
-  speed: 1,
+  showThrough: 0.77,
+  speed: 0.75,
   quality: 0.5,
   glass: 0.6,
 };

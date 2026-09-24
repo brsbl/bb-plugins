@@ -58,10 +58,13 @@ describe("display controls", () => {
     plugin(bb);
     await harness.behavior.callRpc("loadScene", { id: "tide" });
     await harness.behavior.callRpc("setValues", { values: { glow: 1.7 } });
+    await harness.behavior.callRpc("setControls", { showThrough: 0.1, glass: 0.3 });
     const reset = (await harness.behavior.callRpc("resetScene", { id: "tide" })) as {
       scene: { params: { id: string; value: number }[] };
+      controls: { showThrough: number; speed: number; glass: number };
     };
     expect(reset.scene.params.find((entry) => entry.id === "glow")?.value).toBe(0.8);
+    expect(reset.controls).toMatchObject({ showThrough: 0.77, speed: 0.75, glass: 0.6 });
     const reloaded = (await harness.behavior.callRpc("loadScene", { id: "tide" })) as {
       scene: { params: { id: string; value: number }[] };
     };

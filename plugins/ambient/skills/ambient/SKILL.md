@@ -40,7 +40,7 @@ bb ambient set glow=1.2 scale=3
 bb ambient save [name]
 bb ambient delete <id>
 bb ambient on | off
-bb ambient reset tide           # restore a built-in scene's original sliders and colors
+bb ambient reset tide           # restore a built-in scene's original sliders, colors, and display settings
 bb ambient paint "california poppies, impressionist, in the wind"   # an agent paints it in a new thread
 bb ambient set glass=45%       # lower the frosted glass behind text (max 60%)
 bb ambient daily on 8 America/New_York   # an agent paints a new scene each morning after 8

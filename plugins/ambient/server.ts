@@ -833,7 +833,7 @@ export default function plugin(bb: BbPluginApi): void {
     await bb.storage.kv.delete(`${TWEAKS_PREFIX}${builtIn.id}`);
     bb.realtime.publish("library", { id: builtIn.id });
     const state = await readState();
-    return writeState({ ...state, scene: sceneOf(builtIn) }, { sceneChanged: true });
+    return writeState({ ...state, scene: sceneOf(builtIn), controls: DEFAULT_CONTROLS }, { sceneChanged: true });
   }
 
   async function autosaveScene(scene: Scene): Promise<void> {
@@ -1175,7 +1175,7 @@ export default function plugin(bb: BbPluginApi): void {
       { name: "status", summary: "Show the active scene, its params, and controls", usage: "bb ambient status" },
       { name: "list", summary: "List built-in and saved scenes", usage: "bb ambient list" },
       { name: "load", summary: "Make a built-in or saved scene active", usage: "bb ambient load <id-or-name>" },
-      { name: "reset", summary: "Restore a built-in scene's original sliders and colors", usage: "bb ambient reset <built-in-id>" },
+      { name: "reset", summary: "Restore a built-in scene's original sliders and colors and the default display settings", usage: "bb ambient reset <built-in-id>" },
       {
         name: "set",
         summary: "Set scene params or the Visibility, Motion, Detail, and Glass opacity controls",
