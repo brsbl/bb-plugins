@@ -47,7 +47,7 @@ describe("Video Markup UI contracts",()=>{
     expect(slot.getByLabelText("v2.mp4").getAttribute("src")).toBe("/video-v2.mp4");
     expect(oldVideo.isConnected).toBe(false);
     expect(slot.getByRole("tab",{name:"Video Markup"}).getAttribute("aria-selected")).toBe("true");
-    fireEvent.click(slot.getByRole("button",{name:"01 v1.mp4"}));
+    fireEvent.click(slot.getByRole("button",{name:/01\s*v1\.mp4/}));
     await slot.findByRole("heading",{name:"v1.mp4"});
     await slot.behavior.emitRealtime("present",{threadId,versionId:"v2"});
     expect(await slot.findByRole("heading",{name:"v2.mp4"})).toBeTruthy();
