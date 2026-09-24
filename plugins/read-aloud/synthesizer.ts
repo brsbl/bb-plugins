@@ -91,14 +91,24 @@ export class SynthesisQueue {
         "abort",
         () => {
           const index = this.waiting.indexOf(job);
-          if (index === -1) return;
-          this.waiting.splice(index, 1);
-          reject(new Error("Cancelled"));
+          if (index !== -1) {
+            this.waiting.splice(index, 1);
+            reject(new Error("Cancelled"));
+          }
+          // An abandoned run cannot be interrupted, but it no longer holds
+          // a slot, so the next request can start beside it.
+          this.pump();
         },
         { once: true },
       );
       this.pump();
     });
+  }
+
+  private liveRunning(): number {
+    let live = 0;
+    for (const job of this.running.values()) if (!job.signal?.aborted) live += 1;
+    return live;
   }
 
   settle(id: number, result: SpeechAudio | Error): void {
@@ -111,7 +121,12 @@ export class SynthesisQueue {
   }
 
   private pump(): void {
-    while (this.send && this.running.size < this.concurrency && this.waiting.length > 0) {
+    while (
+      this.send &&
+      this.waiting.length > 0 &&
+      this.liveRunning() < this.concurrency &&
+      this.running.size < this.concurrency * 2
+    ) {
       const job = this.waiting.shift()!;
       const id = this.nextId++;
       this.running.set(id, job);

@@ -43,4 +43,23 @@ describe("SynthesisQueue", () => {
     void queue.enqueue(request("waiting"));
     await expect(queue.enqueue(request("overflow"))).rejects.toBeInstanceOf(SynthesisBusyError);
   });
+
+  it("starts new work beside abandoned runs, up to twice the concurrency", () => {
+    const queue = new SynthesisQueue(2, 12);
+    const send = vi.fn();
+    queue.attach(send);
+    const stale = [new AbortController(), new AbortController()];
+    for (const [index, controller] of stale.entries()) {
+      void queue.enqueue(request(`stale-${index}`, controller.signal)).catch(() => {});
+    }
+    for (const text of ["fresh-1", "fresh-2", "fresh-3"]) void queue.enqueue(request(text));
+    for (const controller of stale) controller.abort();
+    expect(send.mock.calls.map((call) => call[1].text)).toEqual([
+      "stale-0",
+      "stale-1",
+      "fresh-1",
+      "fresh-2",
+    ]);
+    expect(queue.size).toBe(1);
+  });
 });
