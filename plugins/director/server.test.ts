@@ -58,12 +58,36 @@ describe("Director persistence and feedback",()=>{
     expect(JSON.parse(post.stdout).directive).toBe(`::director{version="${v.id}"}`);
     expect((await host.harness.behavior.runCli(["status","--thread","thr_demo","--note",note.id,"--status","done"])).exitCode).toBe(1);
   });
-  it("registers and streams a video on its owning host, and detects replacement",async()=>{
+  it("serves preview URLs through literal routes with HEAD and Safari seek ranges, and detects replacement",async()=>{
     let modifiedAt=1;
-    const host=createFakePluginHost({pluginId:"director",sdk:{system:{config:async()=>({primaryHostId:"host_a"})},files:{createPreview:async()=>({baseUrl:"/preview/lease",expiresAtMs:9000})}},experimental_callHostRpc:async()=>{const {hostId,...rest}=media;return {...rest,modifiedAt};}});
+    let reads=0;
+    const host=createFakePluginHost({pluginId:"director",experimental_callHostRpc:async(call)=>{
+      expect(call.hostId).toBe("host_a");
+      if(call.method==="readChunk"){
+        reads++;
+        const {start,length}=z.object({start:z.number(),length:z.number()}).parse(call.input);
+        return {data:Buffer.from("0123456789").subarray(start,start+length).toString("base64")};
+      }
+      const {hostId,...rest}=media;return {...rest,modifiedAt};
+    }});
     plugin(host.bb);cleanups.push(()=>host.harness.lifecycle.dispose());
     const version=versionSchema.parse(await host.harness.behavior.callRpc("register",{threadId:"thr_demo",demo:"Duo",label:"v1",file:"/demo/v1.mp4",source:{kind:"host",threadId:null,environmentId:null,projectId:null,experimental_hostId:"host_a"}}));
-    expect(await host.harness.behavior.callRpc("preview",{threadId:"thr_demo",versionId:version.id})).toMatchObject({url:expect.stringMatching(/^\/api\/v1\/plugins\/director\/http\/media\//)});
+    const preview=z.object({url:z.string()}).parse(await host.harness.behavior.callRpc("preview",{threadId:"thr_demo",versionId:version.id}));
+    const url=new URL(preview.url,"http://plugin.test");
+    const route=url.pathname.replace("/api/v1/plugins/director/http","")+url.search;
+    const head=await host.harness.behavior.fetchHttp("HEAD",route);
+    expect(head.status).toBe(200);expect(head.headers.get("content-length")).toBe("10");
+    expect(await head.text()).toBe("");expect(reads).toBe(0);
+    expect(url.pathname).toBe("/api/v1/plugins/director/http/media");
+    expect(url.searchParams.get("lease")).toBeTruthy();
+    for(const [range,body,contentRange] of [["bytes=0-1","01","bytes 0-1/10"],["bytes=7-","789","bytes 7-9/10"],["bytes=-3","789","bytes 7-9/10"]]){
+      const response=await host.harness.behavior.fetchHttp("GET",route,{headers:{range}});
+      expect(response.status).toBe(206);expect(response.headers.get("accept-ranges")).toBe("bytes");
+      expect(response.headers.get("content-range")).toBe(contentRange);
+      expect(response.headers.get("content-length")).toBe(String(body.length));
+      expect(await response.text()).toBe(body);
+    }
+    expect((await host.harness.behavior.fetchHttp("GET","/media?lease=unknown")).status).toBe(404);
     modifiedAt=2;
     await expect(host.harness.behavior.callRpc("preview",{threadId:"thr_demo",versionId:version.id})).rejects.toThrow(/changed on disk/);
   });
