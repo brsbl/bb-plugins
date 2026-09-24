@@ -933,16 +933,6 @@ function AmbientControls({ dismiss }: { dismiss: () => void }) {
     sendControl(key, value);
   };
 
-  const sceneStrip = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    const strip = sceneStrip.current;
-    const chip = strip?.querySelector<HTMLElement>("[data-active]");
-    if (!strip || !chip) return;
-    const left = chip.offsetLeft - strip.offsetLeft;
-    if (left < strip.scrollLeft || left + chip.offsetWidth > strip.scrollLeft + strip.clientWidth) {
-      strip.scrollTo({ left: left - (strip.clientWidth - chip.offsetWidth) / 2, behavior: "smooth" });
-    }
-  }, [activeId]);
 
   if (!state) {
     return <div className="p-3 text-xs text-muted-foreground">Loading Ambient…</div>;
@@ -961,7 +951,7 @@ function AmbientControls({ dismiss }: { dismiss: () => void }) {
   return (
     <div
       ref={panel}
-      className="w-full space-y-3 overflow-y-auto overscroll-contain px-3 pt-2 pb-3"
+      className="w-full space-y-3 overflow-x-hidden overflow-y-auto overscroll-contain px-3 pt-2 pb-3"
       style={{ maxHeight: "min(70vh, max(9rem, calc(100dvh - 32rem)))" }}
     >
       <style>{'[data-testid="plugin-sidebar-footer-disclosure-ambient-controls"] > div { max-height: none; overflow: visible; }'}</style>
@@ -1019,34 +1009,46 @@ function AmbientControls({ dismiss }: { dismiss: () => void }) {
           ) : undefined
         }
       >
-        <div
-          ref={sceneStrip}
-          className="-mx-3 flex gap-1 overflow-x-auto overscroll-x-contain px-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-          style={{ maskImage: "linear-gradient(to right, transparent, #000 12px, #000 calc(100% - 12px), transparent)" }}
-        >
-          {library.map((entry) => (
-            <button
-              key={entry.id}
-              type="button"
-              data-active={entry.id === activeId || undefined}
-              title={entry.name}
-              onClick={() => {
-                if (entry.id === activeId) return;
-                record(`scene:${Date.now()}`);
-                void rpc.call("loadScene", { id: entry.id }).then(receive);
-              }}
-              className={`max-w-48 shrink-0 truncate whitespace-nowrap rounded-full px-2.5 py-0.5 text-xs transition-colors ${entry.id === activeId ? "bg-foreground font-medium" : "text-muted-foreground hover:bg-foreground/10 hover:text-foreground"}`}
-              style={entry.id === activeId ? { color: "var(--canvas)" } : undefined}
-            >
-              {entry.name}
-            </button>
-          ))}
+        <div className="relative">
+          <select
+            aria-label="Scene"
+            value={activeId ?? ""}
+            onChange={(event) => {
+              const id = event.currentTarget.value;
+              if (!id || id === activeId) return;
+              record(`scene:${Date.now()}`);
+              void rpc.call("loadScene", { id }).then(receive);
+            }}
+            className="h-7 w-full cursor-pointer appearance-none truncate rounded-md bg-foreground/5 pr-7 pl-2 text-xs text-foreground outline-none transition-colors hover:bg-foreground/10 focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            {activeId === null && <option value="">{scene.name}</option>}
+            <optgroup label="Built-in">
+              {library
+                .filter((entry) => entry.builtIn)
+                .map((entry) => (
+                  <option key={entry.id} value={entry.id}>
+                    {entry.name}
+                  </option>
+                ))}
+            </optgroup>
+            {library.some((entry) => !entry.builtIn) && (
+              <optgroup label="Saved">
+                {library
+                  .filter((entry) => !entry.builtIn)
+                  .map((entry) => (
+                    <option key={entry.id} value={entry.id}>
+                      {entry.name}
+                    </option>
+                  ))}
+              </optgroup>
+            )}
+          </select>
+          <svg viewBox="0 0 16 16" aria-hidden="true" className="pointer-events-none absolute top-1/2 right-2 size-3.5 -translate-y-1/2 text-muted-foreground" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M4 6l4 4 4-4" />
+          </svg>
         </div>
-      </Section>
-
-      <Section
-        title={scene.name}
-        action={
+        <div className="flex h-6 items-center justify-between">
+          <span className="text-xs text-muted-foreground">Colors</span>
           <div className="flex items-center gap-1" aria-label="Palette">
             {scene.palette.map((color, index) => (
               <label
@@ -1069,8 +1071,10 @@ function AmbientControls({ dismiss }: { dismiss: () => void }) {
               </label>
             ))}
           </div>
-        }
-      >
+        </div>
+      </Section>
+
+      <div className="space-y-1">
         {scene.params.map((entry) => (
           <Slider
             key={entry.id}
@@ -1086,7 +1090,7 @@ function AmbientControls({ dismiss }: { dismiss: () => void }) {
             }}
           />
         ))}
-      </Section>
+      </div>
 
       <Section title="Display">
         <Slider
