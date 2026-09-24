@@ -46,10 +46,13 @@ const SIDEBAR_CARDS = 'body.bb-app-shell > #root :is([data-testid="sidebar-navig
 
 function backingCss(): string {
   return `${THREAD} { position: relative; isolation: isolate; }
-${THREAD}::before { content: ""; position: absolute; z-index: -1; pointer-events: none; ${GLASS_SURFACE} border-block: 0; border-radius: 0; top: 0; bottom: 0; left: 50%; width: min(calc(100% - 20px), calc(2 * ${COLUMN_HALF})); transform: translateX(-50%); }
-${THREAD} [data-overflow-fade] { --background: ${GLASS_FILL}; height: 40px; top: -40px; -webkit-mask-image: ${COLUMN_MASK}; mask-image: ${COLUMN_MASK}; }
-${THREAD} [data-scroll-footer] > .bg-background { background-color: ${GLASS_FILL}; -webkit-backdrop-filter: blur(24px); backdrop-filter: blur(24px); -webkit-mask-image: ${COLUMN_MASK}; mask-image: ${COLUMN_MASK}; }
+${THREAD}::before { content: ""; position: absolute; z-index: -1; pointer-events: none; ${GLASS_SURFACE} border-bottom: 0; border-radius: 20px 20px 0 0; top: 0; bottom: 0; left: 50%; width: min(calc(100% - 20px), calc(2 * ${COLUMN_HALF})); transform: translateX(-50%); }
+${THREAD} [data-overflow-fade] { display: none; }
+${THREAD} [data-scroll-footer] > .bg-background { background-color: transparent; }
+${THREAD} [data-scroll-footer] div:has(> [data-app-composer]) { position: relative; isolation: isolate; }
+${THREAD} [data-scroll-footer] div:has(> [data-app-composer])::before { content: ""; position: absolute; z-index: -1; pointer-events: none; inset: -16px 0 6px; border-radius: 20px; ${GLASS_SURFACE} }
 body.bb-app-shell > #root header.bg-surface-scrim { border-color: transparent; }
+body.bb-app-shell > #root [data-sidebar="panel"] { border-inline-end-color: transparent; }
 :is(${CHROME_PILLS}) { ${GLASS_SURFACE} border-radius: 12px; padding-inline: 6px; }
 body.bb-app-shell > #root :is([data-testid="app-page-header-content-row"] > :first-child, [data-testid="app-sidebar-top-reserve-row"] > div, button[data-sidebar="trigger"]) { margin-inline: -6px; }
 body.bb-app-shell > #root [data-testid="app-page-header-content-row"] > :first-child { flex: 0 1 auto; min-height: 32px; }
@@ -61,7 +64,7 @@ body.bb-app-shell > #root [data-sidebar="content"] { flex: 0 1 auto; margin-bloc
 body.bb-app-shell > #root [data-sidebar="footer"] { margin-block: 8px; }
 :is(${SIDEBAR_CARDS}) :is(.sticky, [data-sidebar-sticky-tier], [data-sidebar-sticky-stack]), :is(${SIDEBAR_CARDS}) [data-sidebar-sticky-stack]::before { -webkit-backdrop-filter: none; backdrop-filter: none; }
 body.bb-app-shell > #root [data-app-composer] { --background: color-mix(in oklab, var(--ambient-background) 88%, transparent); }
-:is(${SECONDARY_PANEL}) { --background: color-mix(in oklab, var(--ambient-background) 88%, transparent); --sidebar: color-mix(in oklab, var(--ambient-sidebar) 88%, transparent); }`;
+:is(${SECONDARY_PANEL}) { border-inline-start-color: transparent; --background: color-mix(in oklab, var(--ambient-background) 88%, transparent); --sidebar: color-mix(in oklab, var(--ambient-sidebar) 88%, transparent); }`;
 }
 
 function veilCss(showThrough: number): string {
