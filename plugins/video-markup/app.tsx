@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useId, useRef, useState, useSyncExternalStore, type PointerEvent, type ReactNode } from "react";
-import { ArrowRight, ChevronLeft, ChevronRight, Clapperboard, Maximize2, Pause, Play, Send, Square, StickyNote, Undo2, X } from "lucide-react";
+import { ArrowRight, ChevronLeft, ChevronRight, Clapperboard, Expand, Maximize2, Pause, Play, Send, Shrink, Square, StickyNote, Undo2, X } from "lucide-react";
 import { definePluginApp, useBbNavigate, useComposer, useRealtime, useRpc, type PluginFileOpenerProps, type PluginMessageDirectiveProps, type PluginThreadPanelProps, type PluginThreadHeaderActionProps } from "@get-bb/plugin-sdk/app";
 import { Button } from "./components/ui/button.js";
 import { Checkbox } from "./components/ui/checkbox.js";
@@ -37,6 +37,11 @@ function IconButton({label, children, side = "top", ...props}: {label: string; c
   return <TooltipProvider delayDuration={300}><Tooltip><TooltipTrigger asChild><Button type="button" variant="ghost" size="icon" aria-label={label} {...props}>{children}</Button></TooltipTrigger><TooltipContent side={side}>{label}</TooltipContent></Tooltip></TooltipProvider>;
 }
 
+// A fitted video may take this share of the window height, so tall renders stay watchable.
+const FIT_HEIGHT = .6;
+const FIT_KEY = "video-markup:fit";
+function readFit() { try { return localStorage.getItem(FIT_KEY) !== "0"; } catch { return true; } }
+
 async function captureFrame(video: HTMLVideoElement): Promise<Still> {
   if (video.seeking || video.readyState < 2 || !video.videoWidth) throw new Error("Wait for the frame to finish loading, then try again.");
   await new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
@@ -65,6 +70,15 @@ function Player({preview, version, onSave, onDirty, compact = false, seekRequest
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false), [error, setError] = useState("");
   const gesture = useRef<Shape | null>(null);
+  const root = useRef<HTMLElement>(null);
+  const [fit, setFit] = useState(readFit), [canFit, setCanFit] = useState(false);
+  useEffect(() => {
+    const element = root.current; if (!element) return;
+    const measure = () => setCanFit(element.clientWidth > window.innerHeight * FIT_HEIGHT * aspect + 1);
+    const observer = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(measure); observer?.observe(element); window.addEventListener("resize", measure); measure();
+    return () => { observer?.disconnect(); window.removeEventListener("resize", measure); };
+  }, [aspect]);
+  function toggleFit() { setFit(value => { try { localStorage.setItem(FIT_KEY, value ? "0" : "1"); } catch { /* Size preference is optional. */ } return !value; }); }
   const canStep = preview.media.frameTimes.length > 0 || preview.media.fps !== null;
   const seek = useCallback((value: number) => { if (video.current) { video.current.pause(); video.current.currentTime = value; setTime(value); } }, []);
   useEffect(() => { if (seekRequest && !draft) { seek(seekRequest.time); setShapes(seekRequest.shapes); } }, [seekRequest, seek]);
@@ -87,12 +101,12 @@ function Player({preview, version, onSave, onDirty, compact = false, seekRequest
   }
   function cancel() { setDraft(null); setTool(null); setShapes([]); setText(""); onDirty?.(false); }
   function point(e: PointerEvent<HTMLDivElement>) { const r = e.currentTarget.getBoundingClientRect(); return {x: Math.max(0, Math.min(1, (e.clientX-r.left)/r.width)), y: Math.max(0, Math.min(1, (e.clientY-r.top)/r.height))}; }
-  return <section className="video-markup-player" tabIndex={0} aria-label="Video review player" onKeyDown={e => {
+  return <section ref={root} className="video-markup-player" tabIndex={0} aria-label="Video review player" onKeyDown={e => {
     if ((e.target as HTMLElement).closest("input,textarea,select,button") || draft || busy || e.altKey || e.ctrlKey || e.metaKey) return;
     if (e.key === " ") { e.preventDefault(); void togglePlay(); }
     if (e.key === "ArrowLeft" || e.key === "ArrowRight") { e.preventDefault(); step(e.key === "ArrowLeft" ? -1 : 1); }
   }}>
-    <div className="video-markup-stage bg-muted" style={{aspectRatio: aspect}}>
+    <div className="video-markup-stage bg-muted" style={{aspectRatio: aspect, ...(fit ? {width: `min(100%, calc(${FIT_HEIGHT * 100}vh * ${aspect}))`} : {})}}>
       <video ref={video} src={preview.url} playsInline preload="metadata" crossOrigin="anonymous" aria-label={version ? videoName(version.media.path) : "Video preview"}
         onLoadedMetadata={e => { const v=e.currentTarget; setDuration(v.duration); setAspect(v.videoWidth/v.videoHeight || 16/9); }}
         onLoadedData={() => setReady(true)} onTimeUpdate={e => setTime(e.currentTarget.currentTime)}
@@ -121,6 +135,7 @@ function Player({preview, version, onSave, onDirty, compact = false, seekRequest
       <IconButton label={playing ? "Pause" : "Play"} disabled={!ready || !!draft || busy} onClick={() => void togglePlay()}>{playing ? <Pause /> : <Play />}</IconButton>
       <IconButton label="Next frame" disabled={!ready || !canStep || !!draft || busy || seeking} onClick={() => step(1)}><ChevronRight /></IconButton>
       <output className="video-markup-time text-xs text-muted-foreground">{timecode(time)} <span>/ {timecode(duration || 0)}</span></output>
+      {canFit && <IconButton label={fit ? "Fill width" : "Fit to screen"} onClick={toggleFit}>{fit ? <Expand /> : <Shrink />}</IconButton>}
     </div>
     <input className="video-markup-seek" aria-label="Video time" type="range" min="0" max={duration || 0} step="any" value={time} disabled={!ready || !!draft || busy} onChange={e => {setShapes([]);seek(Number(e.target.value));}} />
     {draft && <form className="video-markup-note-editor border-border" onSubmit={e => {

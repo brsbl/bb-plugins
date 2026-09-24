@@ -19,7 +19,7 @@
 .video-markup-demo { display: flex; align-items: center; font-size: var(--text-base); font-weight: 500; min-width: 0; border: 0; padding: 0; margin: 0; height: 32px; overflow-wrap: anywhere; }
 .video-markup-demo > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .video-markup-review { padding: 16px; display: flex; flex-direction: column; gap: 16px; }
-.video-markup-stage { position: relative; width: 100%; overflow: hidden; border-radius: calc(var(--radius) - 2px); }
+.video-markup-stage { position: relative; width: 100%; margin-inline: auto; overflow: hidden; border-radius: calc(var(--radius) - 2px); }
 .video-markup-stage video,.video-markup-stage img { display: block; width: 100%; height: 100%; object-fit: contain; }
 .video-markup-shapes,.video-markup-draw { position: absolute; inset: 0; width: 100%; height: 100%; }
 .video-markup-shapes { pointer-events: none; stroke-linecap: round; stroke-linejoin: round; }
