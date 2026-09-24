@@ -1,8 +1,13 @@
 import { useLayoutEffect, type ComponentType } from "react";
-import { definePluginApp } from "@get-bb/plugin-sdk/app";
+import { definePluginApp, useBbNavigate } from "@get-bb/plugin-sdk/app";
 import { toast } from "sonner";
 
-import { playback, ReadAloudControls, type PlaybackStatus } from "./controls";
+import {
+  playback,
+  ReadAloudControls,
+  type PlaybackStatus,
+  type ReadingSource,
+} from "./controls";
 import { ReadAloudPlayer } from "./player";
 import { chunkForSpeech, speeds, toSpeechText, type Speed } from "./speech-text";
 import "./app.css";
@@ -117,7 +122,7 @@ function stop(): void {
   setStatus("idle");
 }
 
-function readAloud(key: string, markdown: string): void {
+function readAloud(key: string, markdown: string, source: ReadingSource): void {
   if (player?.isReading(key)) {
     if (playback.get().status === "paused") {
       pausedByCollapse = false;
@@ -145,6 +150,7 @@ function readAloud(key: string, markdown: string): void {
   player.stop();
   player.unlock();
   readingStarted = false;
+  playback.set({ source });
   setStatus("preparing");
   player.speak(key, chunks, savedSpeed(), {
     onPlaying: () => {
@@ -163,7 +169,27 @@ function readAloud(key: string, markdown: string): void {
   });
 }
 
+/** Scrolls the message into view once its thread's timeline has rendered it. */
+function revealMessage(messageId: string): void {
+  const selector = `[data-timeline-row-id="${CSS.escape(messageId)}"]`;
+  const deadline = Date.now() + 5000;
+  const attempt = () => {
+    const row = document.querySelector<HTMLElement>(selector);
+    if (!row) {
+      if (Date.now() < deadline) setTimeout(attempt, 100);
+      return;
+    }
+    row.scrollIntoView({ behavior: "smooth", block: "center" });
+    row.classList.remove("bb-read-aloud-target");
+    void row.offsetWidth;
+    row.classList.add("bb-read-aloud-target");
+    setTimeout(() => row.classList.remove("bb-read-aloud-target"), 1600);
+  };
+  attempt();
+}
+
 function FooterControls() {
+  const navigate = useBbNavigate();
   // Layout effects run inside the toggle's click, so resuming stays a user
   // gesture that mobile browsers accept.
   useLayoutEffect(() => {
@@ -180,7 +206,16 @@ function FooterControls() {
     };
   }, []);
   return (
-    <ReadAloudControls onSpeed={setSpeed} onPause={pause} onResume={resume} onStop={stop} />
+    <ReadAloudControls
+      onSpeed={setSpeed}
+      onJump={({ threadId, messageId }) => {
+        navigate.toThread(threadId);
+        revealMessage(messageId);
+      }}
+      onPause={pause}
+      onResume={resume}
+      onStop={stop}
+    />
   );
 }
 
@@ -215,7 +250,10 @@ export default definePluginApp((app) => {
         selectedText === undefined
           ? message.id
           : `${message.id}:selection:${selectedText}`;
-      readAloud(key, selectedText ?? message.text);
+      readAloud(key, selectedText ?? message.text, {
+        threadId: message.threadId,
+        messageId: message.id,
+      });
     },
   });
   app.contentScripts.register({

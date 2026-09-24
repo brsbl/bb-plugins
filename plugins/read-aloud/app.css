@@ -9,16 +9,88 @@
   color: var(--foreground);
 }
 
-.bb-read-aloud-status {
+.bb-read-aloud-wave {
   display: flex;
   flex: 1;
   align-items: center;
-  gap: 4px;
+  gap: 5px;
   min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  height: 22px;
   color: var(--muted-foreground);
+}
+
+.bb-read-aloud-wave > svg {
+  flex: none;
+  width: 12px;
+  height: 12px;
+  fill: currentColor;
+}
+
+.bb-read-aloud-bars {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  height: 14px;
+}
+
+.bb-read-aloud-bars > span {
+  width: 2.5px;
+  height: 100%;
+  border-radius: 999px;
+  background: currentColor;
+  transform: scaleY(0.25);
+  transform-origin: center;
+}
+
+.bb-read-aloud-wave[data-state="playing"] {
+  color: var(--foreground);
+}
+
+.bb-read-aloud-wave[data-state="playing"] .bb-read-aloud-bars > span {
+  animation: bb-read-aloud-wave 0.9s ease-in-out infinite;
+}
+
+.bb-read-aloud-wave[data-state="preparing"] .bb-read-aloud-bars > span {
+  animation: bb-read-aloud-pulse 1.2s ease-in-out infinite;
+}
+
+.bb-read-aloud-bars > span:nth-child(2) { animation-delay: -0.45s !important; }
+.bb-read-aloud-bars > span:nth-child(3) { animation-delay: -0.2s !important; }
+.bb-read-aloud-bars > span:nth-child(4) { animation-delay: -0.65s !important; }
+.bb-read-aloud-bars > span:nth-child(5) { animation-delay: -0.3s !important; }
+
+.bb-read-aloud-wave[data-state="paused"] .bb-read-aloud-bars > span:nth-child(odd) {
+  transform: scaleY(0.45);
+}
+
+@keyframes bb-read-aloud-wave {
+  0%, 100% { transform: scaleY(0.25); }
+  50% { transform: scaleY(1); }
+}
+
+@keyframes bb-read-aloud-pulse {
+  0%, 100% { opacity: 0.35; }
+  50% { opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bb-read-aloud-bars > span {
+    animation: none !important;
+  }
+
+  .bb-read-aloud-wave[data-state="playing"] .bb-read-aloud-bars > span:nth-child(odd) {
+    transform: scaleY(0.7);
+  }
+}
+
+.bb-read-aloud-target {
+  border-radius: 8px;
+  animation: bb-read-aloud-target 1.6s ease-out;
+}
+
+@keyframes bb-read-aloud-target {
+  0%, 40% { box-shadow: 0 0 0 2px color-mix(in oklab, var(--foreground) 35%, transparent); }
+  100% { box-shadow: 0 0 0 2px transparent; }
 }
 
 .bb-read-aloud-speeds {
@@ -64,6 +136,13 @@
   fill: currentColor;
 }
 
+.bb-read-aloud-button svg.bb-read-aloud-stroke {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.4;
+  stroke-linecap: round;
+}
+
 .bb-read-aloud-speed:hover,
 .bb-read-aloud-button:hover {
   color: var(--foreground);
@@ -76,9 +155,3 @@
   outline-offset: 1px;
 }
 
-.bb-read-aloud-status svg {
-  flex: none;
-  width: 12px;
-  height: 12px;
-  fill: currentColor;
-}
