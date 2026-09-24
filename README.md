@@ -22,8 +22,7 @@ Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/d
 
 Review product films in bb with inline playback, frame annotations, and version history. Send selected feedback and captured frames to the agent, guided by the bundled Product Demo Direction skill.
 
-<!-- TODO: Screenshot worker will add plugins/director/docs/screenshot.png from the isolated development app. -->
-![Director reviewing a product film with frame notes and version history](plugins/director/docs/screenshot.png)
+![Director's inline player, annotated video frame, and selected feedback in the composer](plugins/director/docs/screenshot.png)
 
 [Source](plugins/director) · [README](plugins/director/README.md)
 

@@ -2,8 +2,7 @@
 
 Review product films without leaving bb. Open a video, mark a paused frame, and hand precise feedback to the agent alongside the captured still. The Director thread panel keeps each demo's versions and unresolved notes together.
 
-<!-- TODO: The QA/screenshot worker will add docs/screenshot.png from the isolated bb development app. -->
-![Director video review with frame annotations and version history](docs/screenshot.png)
+![Director's inline player, annotated video frame, and selected feedback in the composer](docs/screenshot.png)
 
 ## Install
 
@@ -72,5 +71,3 @@ Point that instance's `bb` CLI at its own server. **Install dependencies in this
 The published `plugin/director` ref includes self-contained frontend, server, and host bundles. Its release manifest points at those bundles and has no npm dependencies. CI rebuilds that exact release layout outside the repository's dependency tree via Director's `test:built` script, independently of the catalog screenshot check.
 
 The host entry reads video metadata with ffprobe and verifies file identity; it never renders, transcodes, copies, or modifies source videos. The backend streams HTTP byte ranges through public plugin HTTP and host RPC APIs, keeping reads to 256 KiB and avoiding the core file-preview size limit. It uses public `resolve().experimental_images` for image context. This additive mention field is documented in bb's public Plugin Guide; it is structurally compatible with this repository's pinned SDK declarations. The host minimum is scoped to Director.
-
-QA handoff: verify playback and range seeking, frame stepping, drawing with mouse and touch, refresh persistence, version carry-forward, composer text plus image resolution, and the inline player in light/dark themes at desktop and phone widths. Add `docs/screenshot.png` and before/after PR evidence from the dedicated dev app. Until then, catalog hygiene deliberately remains pending on the missing real screenshot.
