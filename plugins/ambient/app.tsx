@@ -3,7 +3,6 @@ import { createPortal } from "react-dom";
 import {
   definePluginApp,
   experimental_useSidebarThreads,
-  useBbContext,
   useBbNavigate,
   useRealtime,
   useRealtimeConnectionState,
@@ -33,12 +32,19 @@ const VEIL_STYLE_ID = "bb-ambient-veil";
 
 const PANES = 'body.bb-app-shell > #root, [data-testid="secondary-panel-shelf"]';
 const BLUR = "-webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px);";
-const MESSAGE_BACKING = "color-mix(in oklab, var(--ambient-background) 78%, transparent)";
 const SECONDARY_PANEL = '#thread-detail-secondary-panel-handle + [data-panel] > aside, [data-testid="secondary-panel-shelf"]';
+const GLASS_HOSTS = 'body.bb-app-shell > #root :is([data-timeline-row-list="top-level"], [data-sidebar="sidebar"])';
+const GLASS = `content: ""; position: absolute; z-index: -1; pointer-events: none; border-radius: 20px;
+  background: color-mix(in oklab, var(--ambient-background) 58%, transparent);
+  -webkit-backdrop-filter: blur(24px) saturate(1.6); backdrop-filter: blur(24px) saturate(1.6);
+  border: 1px solid color-mix(in oklab, var(--ink) 9%, transparent);
+  box-shadow: inset 0 1px 0 color-mix(in oklab, var(--canvas) 60%, transparent), 0 12px 32px -16px color-mix(in oklab, var(--ink) 35%, transparent);`;
 
 function backingCss(): string {
-  return `body.bb-app-shell > #root [data-message-column] { background-color: ${MESSAGE_BACKING}; border-radius: 14px; box-shadow: 0 0 0 10px ${MESSAGE_BACKING}; }
-body.bb-app-shell > #root [data-app-composer] { --background: color-mix(in oklab, var(--ambient-background) 90%, transparent); }
+  return `:is(${GLASS_HOSTS}) { position: relative; isolation: isolate; }
+body.bb-app-shell > #root [data-timeline-row-list="top-level"]::before { ${GLASS} inset: -18px -22px; }
+body.bb-app-shell > #root [data-sidebar="sidebar"]::before { ${GLASS} inset: 6px; }
+body.bb-app-shell > #root [data-app-composer] { --background: color-mix(in oklab, var(--ambient-background) 88%, transparent); }
 :is(${SECONDARY_PANEL}) { --background: color-mix(in oklab, var(--ambient-background) 88%, transparent); --sidebar: color-mix(in oklab, var(--ambient-sidebar) 88%, transparent); }`;
 }
 
@@ -382,8 +388,7 @@ function AmbientOverlay() {
   });
 
   const showThrough = state?.controls.showThrough ?? 0;
-  const { threadId } = useBbContext();
-  const backed = (state?.controls.backing ?? true) && threadId !== null;
+  const backed = state?.controls.backing ?? true;
   useEffect(() => {
     if (!enabled) return;
     const style = document.createElement("style");
@@ -945,10 +950,10 @@ function AmbientControls() {
           onChange={(value) => ambientStore.setDeviceDetail(value)}
         />
         <div className="flex h-6 items-center justify-between gap-2 text-xs text-muted-foreground">
-          <span>Backing behind thread text</span>
+          <span>Glass behind text</span>
           <Switch
             checked={controls.backing}
-            label="Backing behind thread text"
+            label="Glass behind text"
             onChange={(backing) => setControl("backing", backing)}
           />
         </div>
@@ -983,7 +988,7 @@ export default definePluginApp((app) => {
     kind: "disclosure",
     id: "controls",
     label: "Ambient",
-    icon: "Sparkles",
+    icon: "ambient/ambient",
     component: AmbientControls,
   });
 });

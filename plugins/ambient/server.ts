@@ -987,7 +987,7 @@ export default function plugin(bb: BbPluginApi): void {
       controls: controlInputSchema
         .optional()
         .describe(
-          "user display controls: enabled, visibility (0..1, how much of the scene shows through bb), motion (0..4 speed), detail (0.2..1 render resolution), backing (true keeps messages, the composer, and the side panel on soft rounded backings while a thread is open)",
+          "user display controls: enabled, visibility (0..1, how much of the scene shows through bb), motion (0..4 speed), detail (0.2..1 render resolution), backing (true puts frosted glass behind the thread timeline and the sidebar so text stays readable)",
         ),
       ripple: rippleKindSchema
         .optional()
@@ -1132,7 +1132,7 @@ export default function plugin(bb: BbPluginApi): void {
         summary: "Start a thread where an agent paints the scene you describe",
         usage: "bb ambient paint <description>",
       },
-      { name: "backing", summary: "Keep thread text on soft backings over the scene", usage: "bb ambient backing <on|off>" },
+      { name: "backing", summary: "Put frosted glass behind the timeline and sidebar", usage: "bb ambient backing <on|off>" },
       {
         name: "daily",
         summary: "Have an agent paint a new scene every morning",
