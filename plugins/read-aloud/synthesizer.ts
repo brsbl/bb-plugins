@@ -77,6 +77,8 @@ export class KokoroSynthesizer implements Synthesizer {
     const child = fork(join(runtimeDir, "synth-worker.mjs"), [], {
       cwd: runtimeDir,
       env: { ...process.env, READ_ALOUD_MODEL_CACHE: join(this.dataDir, "models") },
+      // Parent loader flags (such as a TypeScript loader) do not apply here.
+      execArgv: [],
       serialization: "advanced",
       stdio: ["ignore", "ignore", "pipe", "ipc"],
     });

@@ -101,7 +101,7 @@ describe("Read aloud action", () => {
   it("cycles 1×, 1.5×, 2× from the toast and remembers the choice", () => {
     run("msg_1", "Hello.");
     const speedAction = () =>
-      vi.mocked(toast.loading).mock.lastCall![1]!.action as {
+      vi.mocked(toast).mock.lastCall![1]!.action as {
         label: string;
         onClick(event: { preventDefault(): void }): void;
       };

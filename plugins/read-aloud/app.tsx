@@ -52,8 +52,7 @@ function showToast(state: "preparing" | "playing"): void {
     },
     cancel: { label: "Stop", onClick: stop },
   };
-  if (state === "preparing") toast.loading("Preparing to read aloud…", options);
-  else toast("Reading aloud", options);
+  toast(state === "preparing" ? "Preparing to read aloud…" : "Reading aloud", options);
 }
 
 function readAloud(key: string, markdown: string): void {
