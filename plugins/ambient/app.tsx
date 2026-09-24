@@ -771,7 +771,7 @@ function PaintRequestRow() {
   );
 }
 
-function AmbientControls() {
+function AmbientControls({ dismiss }: { dismiss: () => void }) {
   const rpc = useRpc<typeof ambientRpcContract>();
   const { state, summary, compileError, throttled, deviceDetail } = useAmbient();
   const [library, setLibrary] = useState<{ id: string; name: string; builtIn: boolean }[]>([]);
@@ -850,11 +850,24 @@ function AmbientControls() {
           <div className="truncate text-sm font-medium text-foreground">Ambient</div>
           <div className="truncate text-xs text-muted-foreground">{activity}</div>
         </div>
-        <Switch
-          checked={controls.enabled}
-          label="Ambient background"
-          onChange={(enabled) => setControl("enabled", enabled)}
-        />
+        <div className="flex shrink-0 items-center gap-1.5">
+          <Switch
+            checked={controls.enabled}
+            label="Ambient background"
+            onChange={(enabled) => setControl("enabled", enabled)}
+          />
+          <button
+            type="button"
+            aria-label="Close Ambient"
+            title="Close"
+            onClick={dismiss}
+            className="flex size-6 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-state-hover hover:text-foreground"
+          >
+            <svg viewBox="0 0 16 16" aria-hidden="true" className="size-3.5" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
+              <path d="M4 4l8 8M12 4l-8 8" />
+            </svg>
+          </button>
+        </div>
       </div>
 
       {compileError && (
