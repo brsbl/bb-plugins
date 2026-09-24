@@ -41,7 +41,7 @@ export type Speed = (typeof speeds)[number];
 export const maxSpeakLength = 400;
 
 const maxChunkLength = 140;
-const firstChunkLength = 50;
+const firstChunkLength = 40;
 
 /**
  * Splits speech text into short pieces so the first audio arrives quickly and

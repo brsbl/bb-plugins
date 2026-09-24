@@ -1,0 +1,74 @@
+.bb-read-aloud-controls {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  padding: 4px 6px;
+  font-size: 12px;
+  line-height: 1;
+  color: var(--foreground);
+}
+
+.bb-read-aloud-status {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--muted-foreground);
+}
+
+.bb-read-aloud-speeds {
+  display: flex;
+  padding: 2px;
+  border-radius: 6px;
+  background: color-mix(in oklab, var(--foreground) 6%, transparent);
+}
+
+.bb-read-aloud-speed,
+.bb-read-aloud-stop {
+  display: grid;
+  place-items: center;
+  height: 22px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--muted-foreground);
+  font: inherit;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+}
+
+.bb-read-aloud-speed {
+  min-width: 30px;
+  padding: 0 5px;
+}
+
+.bb-read-aloud-speed[aria-checked="true"] {
+  background: var(--background);
+  color: var(--foreground);
+  box-shadow: 0 0 0 1px var(--border);
+}
+
+.bb-read-aloud-stop {
+  width: 22px;
+  color: var(--foreground);
+}
+
+.bb-read-aloud-stop svg {
+  width: 14px;
+  height: 14px;
+  fill: currentColor;
+}
+
+.bb-read-aloud-speed:hover,
+.bb-read-aloud-stop:hover {
+  color: var(--foreground);
+  background: color-mix(in oklab, var(--foreground) 8%, transparent);
+}
+
+.bb-read-aloud-speed:focus-visible,
+.bb-read-aloud-stop:focus-visible {
+  outline: 1px solid color-mix(in oklab, var(--foreground) 30%, transparent);
+  outline-offset: 1px;
+}

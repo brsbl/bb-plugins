@@ -2,6 +2,7 @@ export type FetchSpeech = (
   text: string,
   speed: number,
   signal: AbortSignal,
+  first: boolean,
 ) => Promise<Blob>;
 
 export interface PlaybackCallbacks {
@@ -114,7 +115,12 @@ export class ReadAloudPlayer {
     for (let index = session.index; index < end; index += 1) {
       if (session.pending.has(index)) continue;
       const controller = new AbortController();
-      const url = this.fetchSpeech(session.chunks[index]!, session.speed, controller.signal)
+      const url = this.fetchSpeech(
+        session.chunks[index]!,
+        session.speed,
+        controller.signal,
+        index === 0,
+      )
         .then((blob) => URL.createObjectURL(blob));
       url.catch(() => {});
       session.pending.set(index, { controller, url });

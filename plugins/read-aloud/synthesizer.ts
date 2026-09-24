@@ -16,6 +16,8 @@ export interface SynthesisRequest {
   text: string;
   voice: string;
   speed: number;
+  /** The opening chunk of a reading; it goes to the front of the queue. */
+  first?: boolean;
   signal?: AbortSignal;
 }
 
@@ -68,6 +70,17 @@ export class SynthesisQueue {
     return this.waiting.length;
   }
 
+  get idle(): boolean {
+    return this.waiting.length === 0 && this.running.size === 0;
+  }
+
+  /** True while the process only computes audio nobody is waiting for. */
+  get onlyAbandonedWork(): boolean {
+    if (this.running.size === 0) return false;
+    for (const job of this.running.values()) if (!job.signal?.aborted) return false;
+    return true;
+  }
+
   attach(send: (id: number, job: SynthesisJob) => void): void {
     this.send = send;
     this.pump();
@@ -86,7 +99,8 @@ export class SynthesisQueue {
     }
     return new Promise((resolve, reject) => {
       const job: Job = { ...request, resolve, reject };
-      this.waiting.push(job);
+      if (request.first) this.waiting.unshift(job);
+      else this.waiting.push(job);
       request.signal?.addEventListener(
         "abort",
         () => {
@@ -124,12 +138,66 @@ export class SynthesisQueue {
   }
 }
 
+/** One forked Kokoro process; `ready` resolves once its model is loaded. */
+class KokoroProcess {
+  readonly ready: Promise<void>;
+  readonly exited: Promise<Error>;
+  isReady = false;
+  retired = false;
+  private readonly child: ChildProcess;
+
+  constructor(runtimeDir: string, modelDir: string, onMessage: (message: WorkerMessage) => void) {
+    this.child = fork(join(runtimeDir, "synth-worker.mjs"), [], {
+      cwd: runtimeDir,
+      env: { ...process.env, READ_ALOUD_MODEL_CACHE: modelDir },
+      // Parent loader flags (such as a TypeScript loader) do not apply here.
+      execArgv: [],
+      serialization: "advanced",
+      stdio: ["ignore", "ignore", "pipe", "ipc"],
+    });
+    if (this.child.pid) setPriority(this.child.pid, 10);
+    let stderr = "";
+    this.child.stderr?.on("data", (data: Buffer) => {
+      stderr = (stderr + data.toString()).slice(-2000);
+    });
+    this.exited = new Promise((resolve) =>
+      this.child.on("exit", (code) =>
+        resolve(new Error(`Kokoro stopped (exit ${code}). ${stderr.trim()}`.trim())),
+      ),
+    );
+    this.ready = new Promise((resolve, reject) => {
+      this.child.on("message", (message: WorkerMessage) => {
+        if (message.type !== "ready") return onMessage(message);
+        this.isReady = true;
+        resolve();
+      });
+      void this.exited.then(reject);
+    });
+    this.ready.catch(() => {});
+  }
+
+  send(id: number, job: SynthesisJob): void {
+    this.child.send({ type: "synthesize", id, ...job });
+  }
+
+  retire(): void {
+    this.retired = true;
+    this.child.kill();
+  }
+}
+
 /**
  * Installs the pinned Kokoro runtime into the plugin's data directory (once
- * per lockfile) and keeps a low-priority synthesis process warm.
+ * per lockfile) and keeps a low-priority synthesis process warm, plus a
+ * standby. An in-flight ONNX run cannot be interrupted, so when a new reading
+ * starts while the active process only works on abandoned audio, the standby
+ * takes over and the busy process is killed.
  */
 export class KokoroSynthesizer implements Synthesizer {
-  private child: ChildProcess | null = null;
+  private active: KokoroProcess | null = null;
+  private standby: KokoroProcess | null = null;
+  private runtimeDir = "";
+  private fail: ((error: Error) => void) | null = null;
   private ready: Promise<void>;
   private markReady!: () => void;
   private failStartup!: (error: Error) => void;
@@ -143,47 +211,72 @@ export class KokoroSynthesizer implements Synthesizer {
     this.ready = this.resetReady();
   }
 
-  /** Runs until `signal` aborts; rejects if the process exits unexpectedly. */
+  /** Runs until `signal` aborts; rejects if a process exits unexpectedly. */
   async run(signal: AbortSignal): Promise<void> {
-    let runtimeDir: string;
     try {
-      runtimeDir = await this.provision();
+      this.runtimeDir = await this.provision();
+      if (signal.aborted) return;
+      await new Promise<void>((resolve, reject) => {
+        this.fail = reject;
+        signal.addEventListener("abort", () => resolve(), { once: true });
+        const active = this.spawn();
+        this.active = active;
+        void active.ready.then(() => {
+          this.log("Kokoro is ready");
+          this.queue.attach((id, job) => active.send(id, job));
+          this.markReady();
+          this.ensureStandby();
+        }, reject);
+      });
     } catch (error) {
-      this.failStartup(error instanceof Error ? error : new Error(String(error)));
+      if (!signal.aborted) throw error;
+    } finally {
+      const error = new Error("Kokoro stopped");
+      for (const worker of [this.active, this.standby]) worker?.retire();
+      this.active = null;
+      this.standby = null;
+      this.fail = null;
+      this.failStartup(error);
+      this.queue.detach(error);
       this.ready = this.resetReady();
-      throw error;
     }
-    if (signal.aborted) return;
-    const child = fork(join(runtimeDir, "synth-worker.mjs"), [], {
-      cwd: runtimeDir,
-      env: { ...process.env, READ_ALOUD_MODEL_CACHE: join(this.dataDir, "models") },
-      // Parent loader flags (such as a TypeScript loader) do not apply here.
-      execArgv: [],
-      serialization: "advanced",
-      stdio: ["ignore", "ignore", "pipe", "ipc"],
-    });
-    this.child = child;
-    if (child.pid) setPriority(child.pid, 10);
-    let stderr = "";
-    child.stderr?.on("data", (data: Buffer) => {
-      stderr = (stderr + data.toString()).slice(-2000);
-    });
-    child.on("message", (message: WorkerMessage) => this.receive(message));
-    const stop = () => child.kill();
-    signal.addEventListener("abort", stop, { once: true });
-    const exit = await new Promise<number | null>((resolve) => child.on("exit", resolve));
-    signal.removeEventListener("abort", stop);
-    this.child = null;
-    const error = new Error(`Kokoro stopped (exit ${exit}). ${stderr.trim()}`.trim());
-    this.failStartup(error);
-    this.queue.detach(error);
-    this.ready = this.resetReady();
-    if (!signal.aborted) throw error;
   }
 
   async synthesize(request: SynthesisRequest): Promise<SpeechAudio> {
     await withTimeout(this.ready, readyTimeoutMs, "Kokoro is still starting");
+    if (request.first && this.queue.onlyAbandonedWork && this.standby?.isReady) {
+      this.promoteStandby();
+    }
     return this.queue.enqueue(request);
+  }
+
+  private spawn(): KokoroProcess {
+    const worker = new KokoroProcess(
+      this.runtimeDir,
+      join(this.dataDir, "models"),
+      (message) => this.receive(worker, message),
+    );
+    void worker.exited.then((error) => {
+      if (!worker.retired) this.fail?.(error);
+    });
+    return worker;
+  }
+
+  /** Loads a spare process only while idle so it never slows live speech. */
+  private ensureStandby(): void {
+    if (this.standby || !this.active || !this.queue.idle || !this.fail) return;
+    this.standby = this.spawn();
+  }
+
+  private promoteStandby(): void {
+    const abandoned = this.active!;
+    const active = this.standby!;
+    this.active = active;
+    this.standby = null;
+    this.queue.detach(new Error("Cancelled"));
+    this.queue.attach((id, job) => active.send(id, job));
+    abandoned.retire();
+    this.log("Cancelled abandoned speech by switching to the standby process");
   }
 
   private resetReady(): Promise<void> {
@@ -195,20 +288,15 @@ export class KokoroSynthesizer implements Synthesizer {
     return ready;
   }
 
-  private receive(message: WorkerMessage): void {
-    if (message.type === "ready") {
-      this.log("Kokoro is ready");
-      this.markReady();
-      const child = this.child;
-      this.queue.attach((id, job) => child?.send({ type: "synthesize", id, ...job }));
-      return;
-    }
+  private receive(worker: KokoroProcess, message: WorkerMessage): void {
+    if (worker !== this.active || message.type === "ready") return;
     this.queue.settle(
       message.id,
       message.type === "audio"
         ? { sampleRate: message.sampleRate, pcm: message.pcm }
         : new Error(message.message),
     );
+    this.ensureStandby();
   }
 
   /** Reinstalls dependencies only when the shipped lockfile changes. */

@@ -1,8 +1,11 @@
+import type { ComponentType } from "react";
 import { definePluginApp } from "@get-bb/plugin-sdk/app";
 import { toast } from "sonner";
 
+import { playback, ReadAloudControls, type PlaybackStatus } from "./controls";
 import { ReadAloudPlayer } from "./player";
 import { chunkForSpeech, speeds, toSpeechText, type Speed } from "./speech-text";
+import "./app.css";
 
 const toastId = "read-aloud";
 const speedKey = "read-aloud:speed";
@@ -10,12 +13,25 @@ const speedKey = "read-aloud:speed";
 let pluginId = "read-aloud";
 let player: ReadAloudPlayer | null = null;
 
+/** The sidebar-footer disclosure controller, on hosts that provide one. */
+interface FooterDisclosure {
+  open(): void;
+  close(): void;
+}
+let footer: FooterDisclosure | null = null;
+let footerOpenedForReading = false;
+
 function savedSpeed(): Speed {
   const value = Number(globalThis.localStorage?.getItem(speedKey));
   return speeds.find((speed) => speed === value) ?? 1;
 }
 
-async function fetchSpeech(text: string, speed: number, signal: AbortSignal): Promise<Blob> {
+async function fetchSpeech(
+  text: string,
+  speed: number,
+  signal: AbortSignal,
+  first: boolean,
+): Promise<Blob> {
   // A busy server (other devices reading at once) clears within seconds.
   for (let attempt = 0; ; attempt += 1) {
     const response = await fetch(
@@ -23,7 +39,7 @@ async function fetchSpeech(text: string, speed: number, signal: AbortSignal): Pr
       {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ text, speed }),
+        body: JSON.stringify({ text, speed, first }),
         signal,
       },
     );
@@ -38,14 +54,33 @@ async function fetchSpeech(text: string, speed: number, signal: AbortSignal): Pr
   }
 }
 
-function stop(): void {
-  player?.stop();
-  toast.dismiss(toastId);
+function setSpeed(speed: Speed): void {
+  globalThis.localStorage?.setItem(speedKey, String(speed));
+  playback.set({ speed });
+  player?.setSpeed(speed);
+  if (!footer && playback.get().status !== "idle") showToast();
 }
 
-function showToast(state: "preparing" | "playing"): void {
-  const speed = savedSpeed();
-  const options = {
+/** Shows the reading state in the sidebar footer, or a toast on older hosts. */
+function setStatus(status: PlaybackStatus): void {
+  playback.set({ status });
+  if (footer) {
+    if (status !== "idle" && !playback.get().shown) {
+      footer.open();
+      footerOpenedForReading = true;
+    } else if (status === "idle" && footerOpenedForReading) {
+      footerOpenedForReading = false;
+      footer.close();
+    }
+    return;
+  }
+  if (status === "idle") toast.dismiss(toastId);
+  else showToast();
+}
+
+function showToast(): void {
+  const { speed, status } = playback.get();
+  toast(status === "preparing" ? "Preparing…" : "Reading aloud", {
     id: toastId,
     duration: Number.POSITIVE_INFINITY,
     action: {
@@ -53,15 +88,16 @@ function showToast(state: "preparing" | "playing"): void {
       onClick(event: { preventDefault(): void }) {
         // Keep the toast open; the label shows the new speed.
         event.preventDefault();
-        const next = speeds[(speeds.indexOf(speed) + 1) % speeds.length]!;
-        globalThis.localStorage?.setItem(speedKey, String(next));
-        player?.setSpeed(next);
-        showToast(state);
+        setSpeed(speeds[(speeds.indexOf(speed) + 1) % speeds.length]!);
       },
     },
     cancel: { label: "Stop", onClick: stop },
-  };
-  toast(state === "preparing" ? "Preparing to read aloud…" : "Reading aloud", options);
+  });
+}
+
+function stop(): void {
+  player?.stop();
+  setStatus("idle");
 }
 
 function readAloud(key: string, markdown: string): void {
@@ -81,11 +117,12 @@ function readAloud(key: string, markdown: string): void {
   player ??= new ReadAloudPlayer(fetchSpeech);
   player.stop();
   player.unlock();
-  showToast("preparing");
+  setStatus("preparing");
   player.speak(key, chunks, savedSpeed(), {
-    onPlaying: () => showToast("playing"),
-    onFinished: () => toast.dismiss(toastId),
+    onPlaying: () => setStatus("playing"),
+    onFinished: () => setStatus("idle"),
     onError(message) {
+      setStatus("idle");
       toast.error("Couldn’t read this message aloud", {
         id: toastId,
         description: message,
@@ -95,7 +132,32 @@ function readAloud(key: string, markdown: string): void {
   });
 }
 
+function FooterControls() {
+  return <ReadAloudControls onSpeed={setSpeed} onStop={stop} />;
+}
+
+type SidebarFooterApi = {
+  register(registration: {
+    kind: "disclosure";
+    id: string;
+    label: string;
+    icon: string;
+    component: ComponentType<{ dismiss(): void }>;
+  }): FooterDisclosure;
+};
+
 export default definePluginApp((app) => {
+  playback.set({ speed: savedSpeed() });
+  const sidebarFooter = (app as { experimental_sidebarFooter?: SidebarFooterApi })
+    .experimental_sidebarFooter;
+  footer =
+    sidebarFooter?.register({
+      kind: "disclosure",
+      id: "read-aloud",
+      label: "Read aloud",
+      icon: "Play",
+      component: FooterControls,
+    }) ?? null;
   app.slots.messageAction({
     id: "read-aloud",
     title: "Read aloud",

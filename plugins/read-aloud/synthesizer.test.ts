@@ -43,4 +43,27 @@ describe("SynthesisQueue", () => {
     void queue.enqueue(request("waiting"));
     await expect(queue.enqueue(request("overflow"))).rejects.toBeInstanceOf(SynthesisBusyError);
   });
+
+  it("puts the first chunk of a new reading ahead of queued prefetches", () => {
+    const queue = new SynthesisQueue(1, 12);
+    const send = vi.fn();
+    queue.attach(send);
+    void queue.enqueue(request("running"));
+    void queue.enqueue(request("prefetch"));
+    void queue.enqueue({ ...request("opening"), first: true });
+    queue.settle(send.mock.calls[0]![0], audio);
+    expect(send.mock.calls.map((call) => call[1].text)).toEqual(["running", "opening"]);
+  });
+
+  it("recognizes when only abandoned audio is being computed", () => {
+    const queue = new SynthesisQueue(2, 12);
+    queue.attach(vi.fn());
+    const controller = new AbortController();
+    void queue.enqueue(request("old", controller.signal)).catch(() => {});
+    expect(queue.onlyAbandonedWork).toBe(false);
+    controller.abort();
+    expect(queue.onlyAbandonedWork).toBe(true);
+    queue.detach(new Error("Cancelled"));
+    expect(queue.idle).toBe(true);
+  });
 });

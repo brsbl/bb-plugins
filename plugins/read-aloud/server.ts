@@ -59,6 +59,7 @@ export function registerReadAloud(bb: BbPluginApi, synthesizer: Synthesizer): vo
     const body = (await context.req.json().catch(() => null)) as {
       text?: unknown;
       speed?: unknown;
+      first?: unknown;
     } | null;
     const text = typeof body?.text === "string" ? body.text.trim() : "";
     const speed = speeds.find((value) => value === body?.speed);
@@ -72,6 +73,7 @@ export function registerReadAloud(bb: BbPluginApi, synthesizer: Synthesizer): vo
         text,
         voice,
         speed,
+        first: body?.first === true,
         signal: context.req.raw.signal,
       });
       return new Response(toWav(audio), {
