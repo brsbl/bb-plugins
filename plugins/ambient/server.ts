@@ -21,6 +21,7 @@ import {
 const STATE_KEY = "state";
 const DAILY_KEY = "daily";
 const LIBRARY_PREFIX = "library/";
+const TWEAKS_PREFIX = "tweaks/";
 const COMPILE_TIMEOUT_MS = 6_000;
 const CAPTURE_TIMEOUT_MS = 8_000;
 const PERSONAL_PROJECT_ID = "proj_personal";
@@ -100,6 +101,11 @@ const libraryEntrySchema = z.object({
 });
 
 type LibraryEntry = z.infer<typeof libraryEntrySchema>;
+
+const tweaksSchema = z.object({
+  values: z.record(z.string(), z.number().finite()),
+  palette: paletteSchema,
+});
 
 const libraryIndexSchema = z.array(
   z.object({ id: z.string().min(1), name: z.string(), savedAt: z.number().int().nonnegative() }),
@@ -766,7 +772,15 @@ export default function plugin(bb: BbPluginApi): void {
     const builtIn = BUILT_IN_SCENES.find(
       (entry) => entry.id === wanted || entry.name.toLowerCase() === wanted,
     );
-    if (builtIn) return sceneOf(builtIn);
+    if (builtIn) {
+      const scene = sceneOf(builtIn);
+      const tweaks = tweaksSchema.safeParse(await bb.storage.kv.get(`${TWEAKS_PREFIX}${builtIn.id}`));
+      if (!tweaks.success) return scene;
+      const known = Object.fromEntries(
+        Object.entries(tweaks.data.values).filter(([id]) => scene.params.some((entry) => entry.id === id)),
+      );
+      return { ...applyValues(scene, known), palette: tweaks.data.palette };
+    }
     const byId = await readSaved(idOrName.trim());
     if (byId) return byId;
     const byName = (await readIndex()).find((entry) => entry.name.toLowerCase() === wanted);
@@ -807,6 +821,23 @@ export default function plugin(bb: BbPluginApi): void {
       bb.realtime.publish("library", { id });
       return id;
     });
+  }
+
+  async function autosaveScene(scene: Scene): Promise<void> {
+    const builtIn = BUILT_IN_SCENES.find((entry) => entry.id === scene.baseId && entry.name === scene.name);
+    if (builtIn) {
+      await bb.storage.kv.set(`${TWEAKS_PREFIX}${builtIn.id}`, {
+        values: Object.fromEntries(scene.params.map((entry) => [entry.id, entry.value])),
+        palette: scene.palette,
+      });
+      return;
+    }
+    const saved = (await readIndex()).find((entry) => entry.name === scene.name);
+    if (!saved) return;
+    const current = libraryEntrySchema.safeParse(await bb.storage.kv.get(`${LIBRARY_PREFIX}${saved.id}`));
+    if (current.success) {
+      await bb.storage.kv.set(`${LIBRARY_PREFIX}${saved.id}`, { ...current.data, scene });
+    }
   }
 
   function deleteScene(id: string): Promise<boolean> {
@@ -872,17 +903,21 @@ export default function plugin(bb: BbPluginApi): void {
     state: () => readState(),
     async setValues({ values }) {
       const state = await readState();
-      return writeState(
+      const next = await writeState(
         { ...state, scene: applyValues(state.scene, values) },
         { sceneChanged: false },
       );
+      await autosaveScene(next.scene);
+      return next;
     },
     async setPalette({ palette }) {
       const state = await readState();
-      return writeState(
+      const next = await writeState(
         { ...state, scene: { ...state.scene, palette } },
         { sceneChanged: false },
       );
+      await autosaveScene(next.scene);
+      return next;
     },
     setControls: (partial) => updateControls(partial),
     async loadScene({ id }) {
@@ -902,12 +937,12 @@ export default function plugin(bb: BbPluginApi): void {
       const saved = await readIndex();
       return {
         entries: [
-          ...saved.map((entry) => ({ id: entry.id, name: entry.name, builtIn: false })),
           ...BUILT_IN_SCENES.map((entry) => ({
             id: entry.id,
             name: entry.name,
             builtIn: true,
           })),
+          ...saved.map((entry) => ({ id: entry.id, name: entry.name, builtIn: false })),
         ],
       };
     },

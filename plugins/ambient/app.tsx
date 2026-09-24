@@ -144,6 +144,13 @@ function useThemeColors(): ThemeColors {
   return theme;
 }
 
+interface Snapshot {
+  sceneId: string | null;
+  values: Record<string, number>;
+  palette: [string, string, string, string];
+  controls: { showThrough: number; speed: number; glass: number; enabled: boolean };
+}
+
 function valuesOf(params: readonly SceneParam[]): Record<string, number> {
   return Object.fromEntries(params.map((entry) => [entry.id, entry.value]));
 }
@@ -667,24 +674,33 @@ function DailySceneRow() {
     );
   };
 
+  const paint = async () => {
+    setPainting(true);
+    setPaintError(null);
+    try {
+      await rpc.call("paintNow");
+      await refresh();
+    } catch (error) {
+      setPaintError(error instanceof Error ? error.message : String(error));
+    } finally {
+      setPainting(false);
+    }
+  };
+
+  const next =
+    daily.enabled && daily.nextRunAt
+      ? `Next ${new Date(daily.nextRunAt).toLocaleString([], { weekday: "short", hour: "numeric", minute: "2-digit" })}, in Automations`
+      : "An agent paints a new scene each day";
+
   return (
-    <Section
-      title="New scene every morning"
-      action={
-        <Switch
-          checked={daily.enabled}
-          label="New scene every morning"
-          onChange={(enabled) => void update({ enabled })}
-        />
-      }
-    >
-      <div className="flex h-6 items-center gap-1 text-xs text-muted-foreground">
-        <span>An agent paints one after</span>
+    <div className="space-y-1">
+      <div className="flex h-6 items-center gap-1 whitespace-nowrap text-xs text-muted-foreground" title={next}>
+        <span className="font-medium text-foreground/70">Daily scene</span>
         <select
           aria-label="Daily scene hour"
           value={daily.hour}
           onChange={(event) => void update({ hour: Number(event.currentTarget.value) })}
-          className="cursor-pointer appearance-none rounded bg-transparent px-0.5 text-xs text-foreground underline decoration-foreground/30 underline-offset-2 outline-none"
+          className="min-w-0 cursor-pointer appearance-none rounded bg-transparent px-0.5 text-xs text-foreground underline decoration-foreground/30 underline-offset-2 outline-none"
         >
           {Array.from({ length: 24 }, (_, hour) => (
             <option key={hour} value={hour}>
@@ -692,33 +708,19 @@ function DailySceneRow() {
             </option>
           ))}
         </select>
-        <span className="ml-auto">
-          <TextButton
-            disabled={painting}
-            onClick={async () => {
-              setPainting(true);
-              setPaintError(null);
-              try {
-                await rpc.call("paintNow");
-                await refresh();
-              } catch (error) {
-                setPaintError(error instanceof Error ? error.message : String(error));
-              } finally {
-                setPainting(false);
-              }
-            }}
-          >
+        <span className="ml-auto flex shrink-0 items-center gap-1">
+          <TextButton disabled={painting} onClick={() => void paint()}>
             {painting ? "Starting…" : "Paint now"}
           </TextButton>
+          <Switch
+            checked={daily.enabled}
+            label="New scene every morning"
+            onChange={(enabled) => void update({ enabled })}
+          />
         </span>
       </div>
-      {daily.enabled && daily.nextRunAt && (
-        <div className="text-xs text-muted-foreground">
-          Next {new Date(daily.nextRunAt).toLocaleString([], { weekday: "short", hour: "numeric", minute: "2-digit" })} · in Automations
-        </div>
-      )}
       {paintError && <div className="text-xs text-destructive">{paintError}</div>}
-    </Section>
+    </div>
   );
 }
 
@@ -762,9 +764,17 @@ function PaintRequestRow() {
           onChange={(event) => setRequest(event.currentTarget.value)}
           className="min-w-0 flex-1 bg-transparent text-xs text-foreground outline-none placeholder:text-muted-foreground/70"
         />
-        <TextButton disabled={painting || request.trim().length < 3} onClick={() => void submit()}>
-          {painting ? "Starting…" : "Paint"}
-        </TextButton>
+        <button
+          type="submit"
+          aria-label="Paint this scene"
+          title="Paint this scene"
+          disabled={painting || request.trim().length < 3}
+          className="flex size-5 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-state-hover hover:text-foreground disabled:opacity-40"
+        >
+          <svg viewBox="0 0 16 16" aria-hidden="true" className="size-3.5" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M3.5 8.5l3 3 6-7" />
+          </svg>
+        </button>
       </form>
       {threadId && (
         <div className="flex items-center gap-1 text-xs text-muted-foreground">
@@ -781,7 +791,6 @@ function AmbientControls({ dismiss }: { dismiss: () => void }) {
   const rpc = useRpc<typeof ambientRpcContract>();
   const { state, summary, compileError, throttled, deviceDetail } = useAmbient();
   const [library, setLibrary] = useState<{ id: string; name: string; builtIn: boolean }[]>([]);
-  const [saving, setSaving] = useState(false);
 
   const refreshLibrary = useCallback(async () => {
     setLibrary((await rpc.call("library")).entries);
@@ -825,15 +834,115 @@ function AmbientControls({ dismiss }: { dismiss: () => void }) {
     120,
   );
 
-  const setControl = <Key extends keyof Controls>(key: Key, value: Controls[Key]) => {
-    ambientStore.setControl(key, value);
-    sendControl(key, value);
-  };
-
   const activeId = useMemo(() => {
     if (!state) return null;
     return library.find((entry) => entry.name === state.scene.name)?.id ?? null;
   }, [library, state]);
+
+  const history = useRef<{ past: Snapshot[]; future: Snapshot[]; lastKey: string | null; lastAt: number }>({
+    past: [],
+    future: [],
+    lastKey: null,
+    lastAt: 0,
+  });
+  const activeIdRef = useRef(activeId);
+  activeIdRef.current = activeId;
+
+  const snapshot = useCallback((): Snapshot | null => {
+    const current = ambientStore.getSnapshot().state;
+    if (!current) return null;
+    return {
+      sceneId: activeIdRef.current,
+      values: valuesOf(current.scene.params),
+      palette: [...current.scene.palette],
+      controls: {
+        showThrough: current.controls.showThrough,
+        speed: current.controls.speed,
+        glass: current.controls.glass,
+        enabled: current.controls.enabled,
+      },
+    };
+  }, []);
+
+  const record = useCallback(
+    (key: string) => {
+      const entry = history.current;
+      const now = Date.now();
+      if (key !== entry.lastKey || now - entry.lastAt > 800) {
+        const before = snapshot();
+        if (before) entry.past = [...entry.past.slice(-49), before];
+        entry.future = [];
+      }
+      entry.lastKey = key;
+      entry.lastAt = now;
+    },
+    [snapshot],
+  );
+
+  const restore = useCallback(
+    async (target: Snapshot) => {
+      ambientStore.clearOverrides();
+      if (target.sceneId && target.sceneId !== activeIdRef.current) {
+        receive(await rpc.call("loadScene", { id: target.sceneId }));
+      }
+      receive(await rpc.call("setValues", { values: target.values }));
+      receive(await rpc.call("setPalette", { palette: target.palette }));
+      receive(await rpc.call("setControls", target.controls));
+    },
+    [receive, rpc],
+  );
+
+  const step = useCallback(
+    (direction: "undo" | "redo") => {
+      const entry = history.current;
+      const source = direction === "undo" ? entry.past : entry.future;
+      const target = source.at(-1);
+      const current = snapshot();
+      if (!target || !current) return;
+      if (direction === "undo") {
+        entry.past = entry.past.slice(0, -1);
+        entry.future = [...entry.future, current];
+      } else {
+        entry.future = entry.future.slice(0, -1);
+        entry.past = [...entry.past, current];
+      }
+      entry.lastKey = null;
+      void restore(target);
+    },
+    [restore, snapshot],
+  );
+
+  const panel = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if (!(event.metaKey || event.ctrlKey) || event.key.toLowerCase() !== "z" || event.altKey) return;
+      const focus = document.activeElement;
+      const inPanel = focus instanceof Node && panel.current?.contains(focus);
+      if (!inPanel && focus !== document.body) return;
+      if (focus instanceof HTMLInputElement && focus.type === "text") return;
+      event.preventDefault();
+      step(event.shiftKey ? "redo" : "undo");
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [step]);
+
+  const setControl = <Key extends keyof Controls>(key: Key, value: Controls[Key]) => {
+    if (key !== "quality") record(`control:${key}`);
+    ambientStore.setControl(key, value);
+    sendControl(key, value);
+  };
+
+  const sceneStrip = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const strip = sceneStrip.current;
+    const chip = strip?.querySelector<HTMLElement>("[data-active]");
+    if (!strip || !chip) return;
+    const left = chip.offsetLeft - strip.offsetLeft;
+    if (left < strip.scrollLeft || left + chip.offsetWidth > strip.scrollLeft + strip.clientWidth) {
+      strip.scrollTo({ left: left - (strip.clientWidth - chip.offsetWidth) / 2, behavior: "smooth" });
+    }
+  }, [activeId]);
 
   if (!state) {
     return <div className="p-3 text-xs text-muted-foreground">Loading Ambient…</div>;
@@ -851,6 +960,7 @@ function AmbientControls({ dismiss }: { dismiss: () => void }) {
           .join(" · ");
   return (
     <div
+      ref={panel}
       className="w-full space-y-3 overflow-y-auto overscroll-contain px-3 pt-2 pb-3"
       style={{ maxHeight: "min(70vh, max(9rem, calc(100dvh - 32rem)))" }}
     >
@@ -892,32 +1002,24 @@ function AmbientControls({ dismiss }: { dismiss: () => void }) {
         </div>
       )}
 
-      <Section
-        title="Scene"
-        action={
-          <TextButton
-            disabled={saving}
-            onClick={async () => {
-              setSaving(true);
-              try {
-                await rpc.call("saveScene", {});
-                await refreshLibrary();
-              } finally {
-                setSaving(false);
-              }
-            }}
-          >
-            {saving ? "Saving…" : "Save"}
-          </TextButton>
-        }
-      >
-        <div className="flex flex-wrap gap-1">
+      <Section title="Scene">
+        <div
+          ref={sceneStrip}
+          className="-mx-3 flex gap-1 overflow-x-auto overscroll-x-contain px-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+          style={{ maskImage: "linear-gradient(to right, transparent, #000 12px, #000 calc(100% - 12px), transparent)" }}
+        >
           {library.map((entry) => (
             <button
               key={entry.id}
               type="button"
-              onClick={() => void rpc.call("loadScene", { id: entry.id }).then(receive)}
-              className={`max-w-full truncate rounded-full px-2.5 py-0.5 text-xs transition-colors ${entry.id === activeId ? "bg-foreground font-medium" : "text-muted-foreground hover:bg-foreground/10 hover:text-foreground"}`}
+              data-active={entry.id === activeId || undefined}
+              title={entry.name}
+              onClick={() => {
+                if (entry.id === activeId) return;
+                record(`scene:${Date.now()}`);
+                void rpc.call("loadScene", { id: entry.id }).then(receive);
+              }}
+              className={`max-w-48 shrink-0 truncate whitespace-nowrap rounded-full px-2.5 py-0.5 text-xs transition-colors ${entry.id === activeId ? "bg-foreground font-medium" : "text-muted-foreground hover:bg-foreground/10 hover:text-foreground"}`}
               style={entry.id === activeId ? { color: "var(--canvas)" } : undefined}
             >
               {entry.name}
@@ -943,6 +1045,7 @@ function AmbientControls({ dismiss }: { dismiss: () => void }) {
                   aria-label={`Palette color ${index + 1}`}
                   className="absolute inset-0 size-full cursor-pointer opacity-0"
                   onChange={(event) => {
+                    record(`palette:${index}`);
                     ambientStore.setPaletteColor(index, event.currentTarget.value);
                     sendPalette();
                   }}
@@ -961,6 +1064,7 @@ function AmbientControls({ dismiss }: { dismiss: () => void }) {
             max={entry.max}
             step={entry.step}
             onChange={(value) => {
+              record(`value:${entry.id}`);
               ambientStore.setValue(entry.id, value);
               sendValue(entry.id, value);
             }}
@@ -1011,21 +1115,22 @@ function AmbientControls({ dismiss }: { dismiss: () => void }) {
         />
       </Section>
 
-      <Section title="Preview a ripple">
-        <div className="flex gap-1">
+      <div className="flex h-6 items-center justify-between gap-1 whitespace-nowrap">
+        <h3 className="shrink-0 text-xs font-medium text-foreground/70">Preview a ripple</h3>
+        <div className="flex min-w-0 gap-0.5">
           {RIPPLE_BUTTONS.map((button) => (
             <button
               key={button.kind}
               type="button"
               onClick={() => ambientStore.requestRipple(button.kind)}
-              className="flex items-center gap-1.5 rounded-full px-2 py-0.5 text-xs text-muted-foreground transition-colors hover:bg-foreground/10 hover:text-foreground"
+              className="flex shrink-0 items-center gap-1 rounded-full px-1.5 py-0.5 text-xs text-muted-foreground transition-colors hover:bg-foreground/10 hover:text-foreground"
             >
               <span className={`size-1.5 rounded-full ${button.dot}`} />
               {button.label}
             </button>
           ))}
         </div>
-      </Section>
+      </div>
 
       <PaintRequestRow />
 

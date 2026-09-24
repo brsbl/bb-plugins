@@ -111,6 +111,11 @@ export class AmbientStore {
     this.emit();
   }
 
+  clearOverrides(): void {
+    this.overrides.clear();
+    this.publish();
+  }
+
   requestRipple(kind: RippleKind): void {
     for (const listener of this.rippleListeners) listener(kind);
   }
