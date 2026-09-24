@@ -10,6 +10,7 @@ import plugin, {
   dailyCron,
   dailyPrompt,
   sceneRequestSchema,
+  describeContext,
   describeVisibility,
   localMoment,
   parseDailyOptions,
@@ -77,6 +78,35 @@ describe("display controls", () => {
     plugin(bb);
     await expect(harness.behavior.callRpc("setControls", { glass: 0.9 })).rejects.toThrow();
     await harness.lifecycle.dispose();
+  });
+});
+
+describe("in-context look report", () => {
+  const report = {
+    width: 1440,
+    height: 900,
+    panels: [{ x0: 0.17, y0: 0.01, x1: 0.83, y1: 0.95 }],
+    openArea: 0.4,
+    openSpread: 0.12,
+    coveredSpread: 0.1,
+    text: { words: 400, median: 9.1, worst: 4.2, hardToRead: 2, examples: [] },
+  };
+
+  it("flags a scene whose visible areas are flat", () => {
+    expect(describeContext({ ...report, openSpread: 0.01, coveredSpread: 0.2 })).toContain("Hidden subject");
+    expect(describeContext(report)).not.toContain("Hidden subject");
+  });
+
+  it("flags a scene that makes text hard to read", () => {
+    const text = { ...report.text, hardToRead: 40, examples: [{ text: "Threads", x: 0.06, y: 0.84, contrast: 1.8 }] };
+    const described = describeContext({ ...report, text });
+    expect(described).toContain("Hard to read");
+    expect(described).toContain('"Threads" at uv (0.06, 0.84), 1.8:1');
+    expect(describeContext(report)).not.toContain("Hard to read");
+  });
+
+  it("lists where bb's panels cover the scene in uv", () => {
+    expect(describeContext(report)).toContain("cover 60% of the window, at uv (y up): x 0.17–0.83, y 0.01–0.95");
   });
 });
 

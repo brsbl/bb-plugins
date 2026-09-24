@@ -30,6 +30,7 @@ const LIBRARY_INDEX_KEY = "library-index";
 const WINDOW_FRESH_MS = 3 * 60_000;
 const AUTOMATIONS_PLUGIN_ID = "automations";
 const DAILY_AUTOMATION_NAME = "Ambient: new scene every morning";
+const PAINT_REASONING_LEVEL = "high";
 const DAILY_AUTOMATION_PROMPT =
   "Paint today's Ambient scene: call the ambient tool with action=brief and follow the instructions it returns.";
 
@@ -128,6 +129,34 @@ const visibilitySchema = z.object({
   detail: z.number().min(0).max(1),
 });
 
+const contextReportSchema = z.object({
+  width: z.number().positive(),
+  height: z.number().positive(),
+  panels: z
+    .array(z.object({ x0: z.number(), y0: z.number(), x1: z.number(), y1: z.number() }))
+    .max(64),
+  openArea: z.number().min(0).max(1),
+  openSpread: z.number().min(0).max(1),
+  coveredSpread: z.number().min(0).max(1),
+  text: z.object({
+    words: z.number().int().nonnegative(),
+    median: z.number().nonnegative(),
+    worst: z.number().nonnegative(),
+    hardToRead: z.number().int().nonnegative(),
+    examples: z
+      .array(z.object({ text: z.string().max(40), x: z.number(), y: z.number(), contrast: z.number() }))
+      .max(3),
+  }),
+});
+
+const contextCaptureSchema = z.object({
+  dataUrl: z.string().max(8_000_000).startsWith("data:image/png;base64,"),
+  report: contextReportSchema,
+});
+
+const FLAT_OPEN_SPREAD = 0.04;
+const HARD_TO_READ_SHARE = 0.02;
+
 const FAINT_FROM_BACKGROUND = 0.06;
 const FLAT_SPREAD = 0.025;
 const STILL_MOTION = 0.0025;
@@ -153,6 +182,30 @@ export function describeVisibility(
       `Too heavy: frames should render in under ${HEAVY_FRAME_MS} ms or bb slows down. Use fewer loop iterations and fbm octaves, and never call fbm inside the per-agent or per-ripple loops.`,
   ].filter(Boolean);
   return [measured, ...notes].join(" ");
+}
+
+export function describeContext(report: z.infer<typeof contextReportSchema>): string {
+  const percent = (value: number) => `${Math.round(value * 100)}%`;
+  const range = (a: number, b: number) => `${a.toFixed(2)}–${b.toFixed(2)}`;
+  const panels = report.panels
+    .map((panel) => `x ${range(panel.x0, panel.x1)}, y ${range(panel.y0, panel.y1)}`)
+    .join("; ");
+  const { text } = report;
+  const lines = [
+    `The first image is the scene as the user sees it: behind bb's real panels, frosted glass, and text in a ${Math.round(report.width)}×${Math.round(report.height)} window. Judge the scene by that image. The second image is the raw scene.`,
+    `bb's panels cover ${percent(1 - report.openArea)} of the window, at uv (y up): ${panels || "none"}. Under them the scene is blurred and tinted, so only big shapes and color fields read there; the rest of the window shows the scene clearly. Brightness variation is ${percent(report.openSpread)} in the open areas and ${percent(report.coveredSpread)} under the panels.`,
+    text.words > 0
+      ? `Text over the scene: ${text.words} words checked, median contrast ${text.median.toFixed(1)}:1, worst 5% ${text.worst.toFixed(1)}:1. ${text.hardToRead} ${text.hardToRead === 1 ? "word is" : "words are"} harder to read because of the scene (outlined in red)${text.examples.length > 0 ? `, for example ${text.examples.map((example) => `"${example.text}" at uv (${example.x.toFixed(2)}, ${example.y.toFixed(2)}), ${example.contrast.toFixed(1)}:1`).join("; ")}` : ""}.`
+      : "No text was visible to check.",
+  ];
+  const notes = [
+    report.openSpread < FLAT_OPEN_SPREAD &&
+      "Hidden subject: the parts of the window people actually see are nearly flat, so the scene's detail is sitting behind bb's panels. Move the subject, horizon, and characters into the open areas and fill the frame edge to edge.",
+    text.words > 0 &&
+      text.hardToRead / text.words > HARD_TO_READ_SHARE &&
+      "Hard to read: the scene fights the text above it. Calm the value contrast and fine detail under the panels, especially where the red outlines are.",
+  ].filter(Boolean);
+  return [...lines, ...notes].join("\n");
 }
 
 const timeZoneSchema = z.string().min(1).max(64).refine((zone) => {
@@ -269,6 +322,7 @@ export const ambientRpcContract = defineRpcContract({
         summary: summarySchema,
         visibility: visibilitySchema,
         dark: z.boolean(),
+        context: contextCaptureSchema.optional(),
       })
       .strict(),
     output: z.object({ accepted: z.boolean() }),
@@ -294,6 +348,7 @@ type CaptureReport = {
   summary: z.infer<typeof summarySchema>;
   visibility: z.infer<typeof visibilitySchema>;
   dark: boolean;
+  context: z.infer<typeof contextCaptureSchema> | null;
 };
 
 function clampValue(value: number, min: number, max: number): number {
@@ -446,19 +501,33 @@ export function dailyPrompt(moment: LocalMoment, timeZone: string, request?: str
   return [
     ...conceptLines(moment, request),
     `The user's time zone is ${timeZone}.`,
+    "Paint for how bb frames the scene:",
+    "- bb's sidebar, a wide centered thread column, and the composer cover most of the middle of the window with frosted glass that blurs and tints what is behind it. The scene reads clearly only in the open areas: the side margins, the gaps between panels, and the strips along the top and bottom. action=look reports exactly where they are.",
+    "- Fill the frame edge to edge and never center a lone subject. Put the recognizable parts (horizon, silhouettes, characters, the brightest accents) where they are seen: along the edges, low in the frame, and repeated across the width. Under the glass only big shapes and color fields survive the blur, so give the middle large, soft masses of color, not fine detail.",
+    "- Work at a readable scale: key shapes should be 5 to 30% of the window's height. Texture (brushstrokes, grain, dots) is a surface on top of those shapes, never the whole idea.",
+    "- Build depth with at least three layers (far, middle, near), each with its own value and its own speed of motion, like parallax.",
+    "- Give it strong value structure and saturated color: clear lights and darks, all four palette colors visible, not one flat mid-tone or a single hue.",
+    "- Make the named style unmistakable by translating it into concrete techniques: impressionism is short, oriented, broken-color strokes; pointillism is a dot grid sampling an underlying image; claymation is soft-lit SDF shapes with rim shadows and thumbprints; woodcut is quantized value bands with carved lines.",
     "It should feel alive, not like a still gradient:",
     "- Continuous, visible motion at the default speed: things drift, flow, orbit, or fall. Layer at least two motions at different speeds.",
     "- Agents (u_agents) are characters in the concept, not generic dots: give working agents movement or trails and let waiting agents pulse or call out.",
     "- Ripples (u_ripples) are events in the concept, like splashes, bursts, or gusts. Errors (kind 1) read red or alarming.",
     "- The cursor (u_pointer) disturbs the scene nearby.",
-    "- Stay readable behind text: the motion can be lively, but keep contrast soft in the middle of the screen.",
+    "- Stay readable behind text: the motion can be lively, but keep value contrast gentle under the panels.",
     "Steps:",
     "1. Call the ambient tool with action=get to read the shader contract and the current scene, and action=library to see recent scenes; make something clearly different from them.",
     "2. Write the scene with action=set. Name it evocatively in under 40 characters, and expose 3 to 6 params someone would enjoy tuning (for example speed of a motion, density, glow, trail length).",
-    "3. If set reports a compile error or that the scene is too heavy, fix the GLSL and set it again. Then call action=look with ripple=done and adjust until the report flags nothing (not too faint, nearly still, or too heavy) and the image shows the concept clearly.",
-    "4. Call action=save so the scene lands in the library.",
+    "3. If set reports a compile error or that the scene is too heavy, fix the GLSL and set it again.",
+    "4. Call action=look with ripple=done. Its first image is the scene behind bb's real UI, exactly as the user sees it; judge that image, not the raw scene. Write a short, honest critique that answers each question:",
+    "   - Could someone name the concept from the open areas alone within two seconds?",
+    "   - Is the art style unmistakable?",
+    "   - Are there three layers of depth, clear lights and darks, and all four palette colors?",
+    "   - Is the text readable? The report counts words the scene made harder to read and outlines them in red.",
+    "   - Does the report flag anything (too faint, nearly still, too heavy, hidden subject, hard to read)?",
+    "   Then fix the weakest answer with action=set and look again. A report that flags nothing only rules out technical failures; it does not mean the scene is good. Revise at least twice after the first look unless every answer is a clear yes, and stop after six looks.",
+    "5. Call action=save so the scene lands in the library.",
     "If set says no bb window verified the scene, stop and say so instead of saving.",
-    "Finish with one sentence describing the scene.",
+    "Finish with one sentence describing the scene, and one sentence on what you would still improve.",
   ].join("\n");
 }
 
@@ -671,7 +740,7 @@ export default function plugin(bb: BbPluginApi): void {
           prompt: DAILY_AUTOMATION_PROMPT,
           providerId: defaults.data.providerId,
           model: defaults.data.model,
-          reasoningLevel: defaults.data.reasoningLevel,
+          reasoningLevel: PAINT_REASONING_LEVEL,
           permissionMode: "auto",
           environment: { type: "project-default" },
         },
@@ -743,6 +812,7 @@ export default function plugin(bb: BbPluginApi): void {
       projectId: PERSONAL_PROJECT_ID,
       environment: { type: "project-default" },
       permissionMode: "auto",
+      reasoningLevel: PAINT_REASONING_LEVEL,
       title: `Ambient: ${request.length > 48 ? `${request.slice(0, 47)}…` : request}`,
       prompt: `Paint a new Ambient scene the user described: ${JSON.stringify(request)}. Call the ambient tool with action=brief and request set to exactly that text, then follow the instructions it returns.`,
     });
@@ -982,10 +1052,10 @@ export default function plugin(bb: BbPluginApi): void {
       }
       return { accepted: await serialized(() => restoreScene(sceneRevision)) };
     },
-    submitCapture({ requestId, dataUrl, summary, visibility, dark }) {
+    submitCapture({ requestId, dataUrl, summary, visibility, dark, context }) {
       lastWindowAt = Date.now();
       const waiter = captureWaiters.get(requestId);
-      waiter?.({ dataUrl, summary, visibility, dark });
+      waiter?.({ dataUrl, summary, visibility, dark, context: context ?? null });
       return { accepted: waiter !== undefined };
     },
     daily: () => readDaily(),
@@ -1015,7 +1085,7 @@ export default function plugin(bb: BbPluginApi): void {
       action: z
         .enum(["get", "set", "look", "library", "load", "save", "delete", "brief"])
         .describe(
-          "get: shader contract + current scene. set: replace any of name/source/params/palette, nudge values, or change controls. look: capture the rendered scene as an image. library/load/save/delete: manage saved scenes. brief: step-by-step instructions for painting a new scene; pass request to paint what the user described, or omit it for today's daily concept.",
+          "get: shader contract + current scene. set: replace any of name/source/params/palette, nudge values, or change controls. look: capture the scene behind bb's real UI as the user sees it, plus the raw scene, with readability and visibility checks. library/load/save/delete: manage saved scenes. brief: step-by-step instructions for painting a new scene; pass request to paint what the user described, or omit it for today's daily concept.",
         ),
       name: sceneNameSchema.optional().describe("scene name (set, save)"),
       source: z
@@ -1098,16 +1168,23 @@ export default function plugin(bb: BbPluginApi): void {
             return error("No visible bb window answered. The user needs bb open in the foreground with Ambient enabled.");
           }
           const { working, waiting } = report.summary;
+          const png = (dataUrl: string) => ({
+            type: "image" as const,
+            data: dataUrl.slice("data:image/png;base64,".length),
+            mimeType: "image/png",
+          });
           return {
             content: [
-              {
-                type: "image" as const,
-                data: report.dataUrl.slice("data:image/png;base64,".length),
-                mimeType: "image/png",
-              },
+              ...(report.context ? [png(report.context.dataUrl)] : []),
+              png(report.dataUrl),
               {
                 type: "text" as const,
-                text: `Captured the raw scene (bb's UI veil is not included). Live agents: ${working} working, ${waiting} waiting. ${describeVisibility(report.visibility, report.dark)}`,
+                text: [
+                  report.context
+                    ? describeContext(report.context.report)
+                    : "Captured the raw scene only; this bb window could not draw its UI over it.",
+                  `Live agents: ${working} working, ${waiting} waiting. ${describeVisibility(report.visibility, report.dark)}`,
+                ].join("\n"),
               },
             ],
           };

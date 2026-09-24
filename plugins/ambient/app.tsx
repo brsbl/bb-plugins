@@ -10,6 +10,7 @@ import {
 } from "@get-bb/plugin-sdk/app";
 
 import { ActivityField, signalsOf } from "./activity.js";
+import { captureInContext, snapshotScene } from "./context.js";
 import { AmbientRenderer, motionBetween, type FrameInput, type ThemeColors } from "./engine.js";
 import { DEFAULT_SCENE, type Controls, type RippleKind, type SceneParam } from "./scene.js";
 import type { AmbientState, CaptureRequest, DailyScene, ambientRpcContract } from "./server.js";
@@ -28,6 +29,7 @@ const REJECT_FRAME_MS = 50;
 const HEARTBEAT_MS = 60_000;
 const CAPTURE_DELAY_MS = 900;
 const MOTION_SAMPLE_MS = 1000;
+const CONTEXT_CAPTURE_WIDTH = 1280;
 const VEIL_STYLE_ID = "bb-ambient-veil";
 
 const PANES = 'body.bb-app-shell > #root, [data-testid="secondary-panel-shelf"]';
@@ -421,12 +423,19 @@ function AmbientOverlay() {
             window.setTimeout(() => {
               renderFrame(clockRef.current);
               const { theme } = liveRef.current;
+              const source = document.querySelector<HTMLCanvasElement>("canvas[data-bb-ambient]");
+              const frame = source ? snapshotScene(source, CONTEXT_CAPTURE_WIDTH) : null;
               void renderer
                 .capture(960, theme.canvas, { encode: true })
-                .then((after) =>
+                .then(async (after) => ({
+                  after,
+                  inContext: frame ? await captureInContext(frame, theme.canvas).catch(() => null) : null,
+                }))
+                .then(({ after, inContext }) =>
                   rpc.call("submitCapture", {
                     requestId: request.requestId,
                     dataUrl: after.dataUrl,
+                    ...(inContext ? { context: inContext } : {}),
                     summary: fieldRef.current.summary(),
                     visibility: {
                       ...after.visibility,
