@@ -656,8 +656,6 @@ function hourLabel(hour: number): string {
 function DailySceneRow() {
   const rpc = useRpc<typeof ambientRpcContract>();
   const [daily, setDaily] = useState<DailyScene | null>(null);
-  const [painting, setPainting] = useState(false);
-  const [paintError, setPaintError] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
     setDaily(await rpc.call("daily"));
@@ -683,18 +681,6 @@ function DailySceneRow() {
     );
   };
 
-  const paint = async () => {
-    setPainting(true);
-    setPaintError(null);
-    try {
-      await rpc.call("paintNow");
-      await refresh();
-    } catch (error) {
-      setPaintError(error instanceof Error ? error.message : String(error));
-    } finally {
-      setPainting(false);
-    }
-  };
 
   const next =
     daily.enabled && daily.nextRunAt
@@ -718,9 +704,6 @@ function DailySceneRow() {
           ))}
         </select>
         <span className="ml-auto flex shrink-0 items-center gap-1">
-          <TextButton disabled={painting} onClick={() => void paint()}>
-            {painting ? "Starting…" : "Paint now"}
-          </TextButton>
           <Switch
             checked={daily.enabled}
             label="New scene every morning"
@@ -728,7 +711,6 @@ function DailySceneRow() {
           />
         </span>
       </div>
-      {paintError && <div className="text-xs text-destructive">{paintError}</div>}
     </div>
   );
 }
@@ -757,7 +739,7 @@ function PaintRequestRow() {
   };
 
   return (
-    <Section title="Paint a scene">
+    <Section title="Create a scene">
       <form
         className="flex h-7 items-center gap-1 rounded-md bg-foreground/5 pr-1 pl-2"
         onSubmit={(event) => {
@@ -766,7 +748,7 @@ function PaintRequestRow() {
         }}
       >
         <input
-          aria-label="Describe a scene for an agent to paint"
+          aria-label="Describe a scene for an agent to create"
           value={request}
           maxLength={400}
           placeholder="California poppies, impressionist, in the wind"
@@ -775,8 +757,8 @@ function PaintRequestRow() {
         />
         <button
           type="submit"
-          aria-label="Paint this scene"
-          title="Paint this scene"
+          aria-label="Create this scene"
+          title="Create this scene"
           disabled={painting || request.trim().length < 3}
           className="flex size-5 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-state-hover hover:text-foreground disabled:opacity-40"
         >
@@ -787,7 +769,7 @@ function PaintRequestRow() {
       </form>
       {threadId && (
         <div className="flex items-center gap-1 text-xs text-muted-foreground">
-          <span>An agent is painting it in a new thread.</span>
+          <span>An agent is creating it in a new thread.</span>
           <TextButton onClick={() => navigate.toThread(threadId)}>Open</TextButton>
         </div>
       )}
