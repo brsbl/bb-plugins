@@ -55,24 +55,26 @@ describe("ReadAloudPlayer", () => {
     expect(onFinished).toHaveBeenCalledOnce();
   });
 
-  it("re-requests audio that has not started playing at the new speed", async () => {
+  it("keeps the next chunk and re-requests later chunks at the new speed", async () => {
     const player = new ReadAloudPlayer(fetchSpeech);
-    player.speak("m", ["One.", "Two.", "Three."], 1, {
+    player.speak("m", ["One.", "Two.", "Three.", "Four."], 1, {
       onPlaying: vi.fn(),
       onFinished: vi.fn(),
       onError: vi.fn(),
     });
-    const original = [...requests];
     player.setSpeed(2);
-    expect(original.every((request) => request.signal.aborted)).toBe(true);
-    expect(requests.slice(3).map((request) => [request.text, request.speed])).toEqual([
-      ["One.", 2],
-      ["Two.", 2],
-      ["Three.", 2],
+    expect(requests.map((request) => [request.text, request.speed, request.signal.aborted])).toEqual([
+      ["One.", 1, false],
+      ["Two.", 1, false],
+      ["Three.", 1, true],
+      ["Three.", 2, false],
     ]);
-    requests[3]!.resolve();
+    requests[0]!.resolve();
     await flush();
     expect(playing?.src).toBe("blob:chunk-0");
+    playing!.onended?.(new Event("ended"));
+    await flush();
+    expect(requests.at(-1)).toMatchObject({ text: "Four.", speed: 2 });
   });
 
   it("stop cancels outstanding requests and never reports finishing", async () => {

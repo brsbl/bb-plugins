@@ -77,13 +77,17 @@ export class ReadAloudPlayer {
     void this.play(session);
   }
 
-  /** Applies from the next chunk; audio already fetched ahead is re-requested. */
+  /**
+   * Applies after the next chunk: the chunk playing and the one right behind
+   * it keep their audio so playback never gaps, and later chunks are
+   * re-requested at the new speed.
+   */
   setSpeed(speed: number): void {
     const session = this.session;
     if (!session || session.speed === speed) return;
     session.speed = speed;
     for (const [index, pending] of session.pending) {
-      if (index === session.index && session.playing) continue;
+      if (index <= session.index + 1) continue;
       this.discard(pending);
       session.pending.delete(index);
     }
