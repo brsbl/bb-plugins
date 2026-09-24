@@ -3,6 +3,8 @@ import { createPortal } from "react-dom";
 import {
   definePluginApp,
   experimental_useSidebarThreads,
+  useBbContext,
+  useBbNavigate,
   useRealtime,
   useRealtimeConnectionState,
   useRpc,
@@ -31,6 +33,14 @@ const VEIL_STYLE_ID = "bb-ambient-veil";
 
 const PANES = 'body.bb-app-shell > #root, [data-testid="secondary-panel-shelf"]';
 const BLUR = "-webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px);";
+const MESSAGE_BACKING = "color-mix(in oklab, var(--ambient-background) 78%, transparent)";
+const SECONDARY_PANEL = '#thread-detail-secondary-panel-handle + [data-panel] > aside, [data-testid="secondary-panel-shelf"]';
+
+function backingCss(): string {
+  return `body.bb-app-shell > #root [data-message-column] { background-color: ${MESSAGE_BACKING}; border-radius: 14px; box-shadow: 0 0 0 10px ${MESSAGE_BACKING}; }
+body.bb-app-shell > #root [data-app-composer] { --background: color-mix(in oklab, var(--ambient-background) 90%, transparent); }
+:is(${SECONDARY_PANEL}) { --background: color-mix(in oklab, var(--ambient-background) 88%, transparent); --sidebar: color-mix(in oklab, var(--ambient-sidebar) 88%, transparent); }`;
+}
 
 function veilCss(showThrough: number): string {
   const keep = Math.round((1 - showThrough) * 1000) / 10;
@@ -372,14 +382,16 @@ function AmbientOverlay() {
   });
 
   const showThrough = state?.controls.showThrough ?? 0;
+  const { threadId } = useBbContext();
+  const backed = (state?.controls.backing ?? true) && threadId !== null;
   useEffect(() => {
     if (!enabled) return;
     const style = document.createElement("style");
     style.id = VEIL_STYLE_ID;
-    style.textContent = veilCss(showThrough);
+    style.textContent = backed ? `${veilCss(showThrough)}\n${backingCss()}` : veilCss(showThrough);
     document.head.append(style);
     return () => style.remove();
-  }, [enabled, showThrough]);
+  }, [enabled, showThrough, backed]);
 
   if (!enabled) return null;
   return createPortal(
@@ -672,6 +684,61 @@ function DailySceneRow() {
   );
 }
 
+function PaintRequestRow() {
+  const rpc = useRpc<typeof ambientRpcContract>();
+  const navigate = useBbNavigate();
+  const [request, setRequest] = useState("");
+  const [painting, setPainting] = useState(false);
+  const [threadId, setThreadId] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const submit = async () => {
+    const text = request.trim();
+    if (text.length < 3 || painting) return;
+    setPainting(true);
+    setError(null);
+    try {
+      setThreadId((await rpc.call("paintRequest", { request: text })).threadId);
+      setRequest("");
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : String(caught));
+    } finally {
+      setPainting(false);
+    }
+  };
+
+  return (
+    <Section title="Paint a scene">
+      <form
+        className="flex h-7 items-center gap-1 rounded-md bg-foreground/5 pr-1 pl-2"
+        onSubmit={(event) => {
+          event.preventDefault();
+          void submit();
+        }}
+      >
+        <input
+          aria-label="Describe a scene for an agent to paint"
+          value={request}
+          maxLength={400}
+          placeholder="California poppies, impressionist, in the wind"
+          onChange={(event) => setRequest(event.currentTarget.value)}
+          className="min-w-0 flex-1 bg-transparent text-xs text-foreground outline-none placeholder:text-muted-foreground/70"
+        />
+        <TextButton disabled={painting || request.trim().length < 3} onClick={() => void submit()}>
+          {painting ? "Starting…" : "Paint"}
+        </TextButton>
+      </form>
+      {threadId && (
+        <div className="flex items-center gap-1 text-xs text-muted-foreground">
+          <span>An agent is painting it in a new thread.</span>
+          <TextButton onClick={() => navigate.toThread(threadId)}>Open</TextButton>
+        </div>
+      )}
+      {error && <div className="text-xs text-destructive">{error}</div>}
+    </Section>
+  );
+}
+
 function AmbientControls() {
   const rpc = useRpc<typeof ambientRpcContract>();
   const { state, summary, compileError, throttled, deviceDetail } = useAmbient();
@@ -877,6 +944,14 @@ function AmbientControls() {
           format={(value) => `${Math.round(value * 100)}%`}
           onChange={(value) => ambientStore.setDeviceDetail(value)}
         />
+        <div className="flex h-6 items-center justify-between gap-2 text-xs text-muted-foreground">
+          <span>Backing behind thread text</span>
+          <Switch
+            checked={controls.backing}
+            label="Backing behind thread text"
+            onChange={(backing) => setControl("backing", backing)}
+          />
+        </div>
       </Section>
 
       <Section title="Preview a ripple">
@@ -894,6 +969,8 @@ function AmbientControls() {
           ))}
         </div>
       </Section>
+
+      <PaintRequestRow />
 
       <DailySceneRow />
     </div>

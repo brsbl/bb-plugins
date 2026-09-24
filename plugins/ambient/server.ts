@@ -72,6 +72,7 @@ const controlsSchema = z.object({
   showThrough: z.number().min(0).max(1),
   speed: z.number().min(0).max(4),
   quality: z.number().min(0.2).max(1),
+  backing: z.boolean().default(true),
 });
 
 const stateSchema = z.object({
@@ -256,6 +257,10 @@ export const ambientRpcContract = defineRpcContract({
   daily: { input: z.null(), output: dailySchema },
   setDaily: { input: dailyUpdateSchema, output: dailySchema },
   paintNow: { input: z.null(), output: z.object({ threadId: z.string().nullable() }) },
+  paintRequest: {
+    input: z.object({ request: sceneRequestSchema }).strict(),
+    output: z.object({ threadId: z.string() }),
+  },
   heartbeat: { input: z.null(), output: z.object({ ok: z.boolean() }) },
 });
 
@@ -397,10 +402,38 @@ export function dailyConcept(date: string): string {
   return DAILY_CONCEPTS[dayNumber % DAILY_CONCEPTS.length]!;
 }
 
-export function dailyPrompt(moment: LocalMoment, timeZone: string): string {
+export const sceneRequestSchema = z
+  .string()
+  .trim()
+  .min(3)
+  .max(400)
+  .regex(/^[^\p{Cc}\p{Cf}]+$/u, "describe the scene in a single line of plain text");
+
+function conceptLines(moment: LocalMoment, request: string | undefined): string[] {
+  if (!request) {
+    return [
+      `Paint today's Ambient scene: the living background bb shows behind its UI. It is ${moment.label} in the user's time zone.`,
+      `Today's starting concept: ${dailyConcept(moment.date)}. Make it your own, and let the season and time of day color it.`,
+    ];
+  }
   return [
-    `Paint today's Ambient scene: the living background bb shows behind its UI. It is ${moment.label} in the user's time zone (${timeZone}).`,
-    `Today's starting concept: ${dailyConcept(moment.date)}. Make it your own, and let the season and time of day color it.`,
+    `Paint a new Ambient scene: the living background bb shows behind its UI. It is ${moment.label} in the user's time zone.`,
+    `The user asked for: ${JSON.stringify(request)}`,
+    "Before writing any GLSL, expand that request into a full concept the way an art director would, keeping the user's words at its center:",
+    "- The subject and setting, concretely.",
+    "- A specific art style with visible traits: brushwork, texture, linework, lighting.",
+    "- A four-color palette that makes it vivid against bb's UI.",
+    "- The motion: what moves, and how wind, water, or light behaves.",
+    "- What working agents become (bright, characterful elements), what waiting agents do, and what ripples become: finished turns, and something red for errors.",
+    "- An evocative name under 40 characters.",
+    "Say the expanded concept in two or three sentences, then paint it.",
+  ];
+}
+
+export function dailyPrompt(moment: LocalMoment, timeZone: string, request?: string): string {
+  return [
+    ...conceptLines(moment, request),
+    `The user's time zone is ${timeZone}.`,
     "It should feel alive, not like a still gradient:",
     "- Continuous, visible motion at the default speed: things drift, flow, orbit, or fall. Layer at least two motions at different speeds.",
     "- Agents (u_agents) are characters in the concept, not generic dots: give working agents movement or trails and let waiting agents pulse or call out.",
@@ -418,7 +451,7 @@ export function dailyPrompt(moment: LocalMoment, timeZone: string): string {
 }
 
 function describeControls(controls: Controls): string {
-  return `${controls.enabled ? "on" : "off"}; Visibility (show-through) ${Math.round(controls.showThrough * 100)}%, Motion (speed) ${controls.speed}×, Detail (quality) ${Math.round(controls.quality * 100)}%`;
+  return `${controls.enabled ? "on" : "off"}; Visibility (show-through) ${Math.round(controls.showThrough * 100)}%, Motion (speed) ${controls.speed}×, Detail (quality) ${Math.round(controls.quality * 100)}%, Backing ${controls.backing ? "on" : "off"}`;
 }
 
 function describeScene(state: AmbientState): string {
@@ -444,6 +477,7 @@ const controlInputSchema = z
     visibility: controlsSchema.shape.showThrough,
     motion: controlsSchema.shape.speed,
     detail: controlsSchema.shape.quality,
+    backing: z.boolean(),
   })
   .partial()
   .strict();
@@ -454,6 +488,7 @@ function controlsFromInput(input: z.infer<typeof controlInputSchema>): Partial<C
     ...(input.visibility === undefined ? {} : { showThrough: input.visibility }),
     ...(input.motion === undefined ? {} : { speed: input.motion }),
     ...(input.detail === undefined ? {} : { quality: input.detail }),
+    ...(input.backing === undefined ? {} : { backing: input.backing }),
   };
 }
 
@@ -682,12 +717,23 @@ export default function plugin(bb: BbPluginApi): void {
     });
   }
 
-  async function dailyBrief(at: Date): Promise<string> {
+  async function dailyBrief(at: Date, request?: string): Promise<string> {
     if (at.getTime() - lastWindowAt > WINDOW_FRESH_MS) {
-      return "No bb window is open, so today's scene can't be checked. Stop now without changing the scene and say it was skipped because bb wasn't open.";
+      return "No bb window is open, so the scene can't be checked. Stop now without changing the scene and say it was skipped because bb wasn't open.";
     }
     const { timeZone } = await readStoredDaily();
-    return dailyPrompt(localMoment(timeZone, at), timeZone);
+    return dailyPrompt(localMoment(timeZone, at), timeZone, request);
+  }
+
+  async function paintRequest(request: string): Promise<string> {
+    const thread = await bb.sdk.threads.spawn({
+      projectId: PERSONAL_PROJECT_ID,
+      environment: { type: "project-default" },
+      permissionMode: "auto",
+      title: `Ambient: ${request.length > 48 ? `${request.slice(0, 47)}…` : request}`,
+      prompt: `Paint a new Ambient scene the user described: ${JSON.stringify(request)}. Call the ambient tool with action=brief and request set to exactly that text, then follow the instructions it returns.`,
+    });
+    return thread.id;
   }
 
   async function readIndex(): Promise<LibraryIndex> {
@@ -889,6 +935,9 @@ export default function plugin(bb: BbPluginApi): void {
     async paintNow() {
       return { threadId: await paintNow() };
     },
+    async paintRequest({ request }) {
+      return { threadId: await paintRequest(request) };
+    },
     heartbeat() {
       lastWindowAt = Date.now();
       return { ok: true };
@@ -900,7 +949,7 @@ export default function plugin(bb: BbPluginApi): void {
     description:
       "Read, rewrite, and look at the Ambient scene: the live GLSL background bb paints behind its UI, driven by what the user's agents are doing. The user tunes it with sliders generated from the params you declare.",
     instructions:
-      "When the user asks to change bb's ambient background, call ambient action=get first for the shader contract and current source, then action=set, then action=look to see the result before describing it. Expose the knobs a person would want to play with as params rather than hard-coding them. To make the background subtler or bolder without rewriting the scene, use action=set with controls.visibility.",
+      "When the user asks to change bb's ambient background, call ambient action=get first for the shader contract and current source, then action=set, then action=look to see the result before describing it. Expose the knobs a person would want to play with as params rather than hard-coding them. To make the background subtler or bolder without rewriting the scene, use action=set with controls.visibility. When the user describes a new scene they want, call action=brief with request set to their words and follow the instructions it returns.",
     presentation: {
       label: { pending: "Painting the ambient scene", completed: "Painted the ambient scene" },
     },
@@ -908,7 +957,7 @@ export default function plugin(bb: BbPluginApi): void {
       action: z
         .enum(["get", "set", "look", "library", "load", "save", "delete", "brief"])
         .describe(
-          "get: shader contract + current scene. set: replace any of name/source/params/palette, nudge values, or change controls. look: capture the rendered scene as an image. library/load/save/delete: manage saved scenes. brief: today's instructions for the daily scene automation.",
+          "get: shader contract + current scene. set: replace any of name/source/params/palette, nudge values, or change controls. look: capture the rendered scene as an image. library/load/save/delete: manage saved scenes. brief: step-by-step instructions for painting a new scene; pass request to paint what the user described, or omit it for today's daily concept.",
         ),
       name: sceneNameSchema.optional().describe("scene name (set, save)"),
       source: z
@@ -938,12 +987,15 @@ export default function plugin(bb: BbPluginApi): void {
       controls: controlInputSchema
         .optional()
         .describe(
-          "user display controls: enabled, visibility (0..1, how much of the scene shows through bb), motion (0..4 speed), detail (0.2..1 render resolution)",
+          "user display controls: enabled, visibility (0..1, how much of the scene shows through bb), motion (0..4 speed), detail (0.2..1 render resolution), backing (true keeps messages, the composer, and the side panel on soft rounded backings while a thread is open)",
         ),
       ripple: rippleKindSchema
         .optional()
         .describe("look: fire a test ripple of this kind just before capturing"),
       id: z.string().optional().describe("scene id or name for action=load and action=delete"),
+      request: sceneRequestSchema
+        .optional()
+        .describe("brief: the user's own description of the scene to paint, in their words"),
     }),
     async execute(input) {
       const error = (text: string) => ({
@@ -958,7 +1010,7 @@ export default function plugin(bb: BbPluginApi): void {
           return (await libraryLines()).join("\n");
         }
         if (input.action === "brief") {
-          return dailyBrief(new Date());
+          return dailyBrief(new Date(), input.request);
         }
         if (input.action === "load") {
           if (!input.id) return error("action=load needs an id");
@@ -1076,6 +1128,12 @@ export default function plugin(bb: BbPluginApi): void {
       { name: "on", summary: "Turn the background on", usage: "bb ambient on" },
       { name: "off", summary: "Turn the background off", usage: "bb ambient off" },
       {
+        name: "paint",
+        summary: "Start a thread where an agent paints the scene you describe",
+        usage: "bb ambient paint <description>",
+      },
+      { name: "backing", summary: "Keep thread text on soft backings over the scene", usage: "bb ambient backing <on|off>" },
+      {
         name: "daily",
         summary: "Have an agent paint a new scene every morning",
         usage: "bb ambient daily <status|on [hour] [time-zone]|off|now>",
@@ -1143,6 +1201,17 @@ export default function plugin(bb: BbPluginApi): void {
           await updateControls({ enabled: command === "on" });
           return { exitCode: 0, stdout: `ambient ${command}\n` };
         }
+        if (command === "paint") {
+          const request = sceneRequestSchema.parse(rest.join(" "));
+          const threadId = await paintRequest(request);
+          return { exitCode: 0, stdout: `painting in ${threadId}\n` };
+        }
+        if (command === "backing") {
+          const [value] = rest;
+          if (value !== "on" && value !== "off") throw new Error("usage: bb ambient backing <on|off>");
+          await updateControls({ backing: value === "on" });
+          return { exitCode: 0, stdout: `backing ${value}\n` };
+        }
         if (command === "daily") {
           const [action = "status", ...options] = rest;
           if (action === "now") {
@@ -1165,7 +1234,7 @@ export default function plugin(bb: BbPluginApi): void {
         }
         return {
           exitCode: 1,
-          stderr: "usage: bb ambient <status|list|load|set|palette|save|delete|on|off|daily>\n",
+          stderr: "usage: bb ambient <status|list|load|set|palette|save|delete|on|off|paint|backing|daily>\n",
         };
       } catch (caught) {
         const message =

@@ -27,6 +27,7 @@ export interface Controls {
   showThrough: number;
   speed: number;
   quality: number;
+  backing: boolean;
 }
 
 export const DEFAULT_CONTROLS: Controls = {
@@ -34,6 +35,7 @@ export const DEFAULT_CONTROLS: Controls = {
   showThrough: 0.22,
   speed: 1,
   quality: 0.5,
+  backing: true,
 };
 
 export type RippleKind = "done" | "error" | "started";
