@@ -790,7 +790,7 @@ function PaintRequestRow() {
 function AmbientControls({ dismiss }: { dismiss: () => void }) {
   const rpc = useRpc<typeof ambientRpcContract>();
   const { state, summary, compileError, throttled, deviceDetail } = useAmbient();
-  const [library, setLibrary] = useState<{ id: string; name: string; builtIn: boolean }[]>([]);
+  const [library, setLibrary] = useState<{ id: string; name: string; builtIn: boolean; tweaked: boolean }[]>([]);
 
   const refreshLibrary = useCallback(async () => {
     setLibrary((await rpc.call("library")).entries);
@@ -1002,7 +1002,23 @@ function AmbientControls({ dismiss }: { dismiss: () => void }) {
         </div>
       )}
 
-      <Section title="Scene">
+      <Section
+        title="Scene"
+        action={
+          library.find((entry) => entry.id === activeId)?.tweaked ? (
+            <TextButton
+              onClick={() => {
+                if (!activeId) return;
+                record(`reset:${Date.now()}`);
+                ambientStore.clearOverrides();
+                void rpc.call("resetScene", { id: activeId }).then(receive);
+              }}
+            >
+              Reset
+            </TextButton>
+          ) : undefined
+        }
+      >
         <div
           ref={sceneStrip}
           className="-mx-3 flex gap-1 overflow-x-auto overscroll-x-contain px-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"

@@ -231,6 +231,10 @@ export const ambientRpcContract = defineRpcContract({
     input: z.object({ id: z.string().min(1) }).strict(),
     output: stateSchema,
   },
+  resetScene: {
+    input: z.object({ id: z.string().min(1) }).strict(),
+    output: stateSchema,
+  },
   saveScene: {
     input: z.object({ name: sceneNameSchema.optional() }).strict(),
     output: z.object({ id: z.string() }),
@@ -243,7 +247,7 @@ export const ambientRpcContract = defineRpcContract({
     input: z.null(),
     output: z.object({
       entries: z.array(
-        z.object({ id: z.string(), name: z.string(), builtIn: z.boolean() }),
+        z.object({ id: z.string(), name: z.string(), builtIn: z.boolean(), tweaked: z.boolean() }),
       ),
     }),
   },
@@ -823,9 +827,21 @@ export default function plugin(bb: BbPluginApi): void {
     });
   }
 
+  async function resetScene(id: string): Promise<AmbientState> {
+    const builtIn = BUILT_IN_SCENES.find((entry) => entry.id === id);
+    if (!builtIn) throw new Error(`${JSON.stringify(id)} is not a built-in scene; only built-in scenes can be reset`);
+    await bb.storage.kv.delete(`${TWEAKS_PREFIX}${builtIn.id}`);
+    bb.realtime.publish("library", { id: builtIn.id });
+    const state = await readState();
+    return writeState({ ...state, scene: sceneOf(builtIn) }, { sceneChanged: true });
+  }
+
   async function autosaveScene(scene: Scene): Promise<void> {
     const builtIn = BUILT_IN_SCENES.find((entry) => entry.id === scene.baseId && entry.name === scene.name);
     if (builtIn) {
+      if ((await bb.storage.kv.get(`${TWEAKS_PREFIX}${builtIn.id}`)) === undefined) {
+        bb.realtime.publish("library", { id: builtIn.id });
+      }
       await bb.storage.kv.set(`${TWEAKS_PREFIX}${builtIn.id}`, {
         values: Object.fromEntries(scene.params.map((entry) => [entry.id, entry.value])),
         palette: scene.palette,
@@ -927,6 +943,7 @@ export default function plugin(bb: BbPluginApi): void {
         { sceneChanged: true },
       );
     },
+    resetScene: ({ id }) => resetScene(id),
     async saveScene({ name }) {
       return { id: await saveScene(name) };
     },
@@ -937,12 +954,15 @@ export default function plugin(bb: BbPluginApi): void {
       const saved = await readIndex();
       return {
         entries: [
-          ...BUILT_IN_SCENES.map((entry) => ({
-            id: entry.id,
-            name: entry.name,
-            builtIn: true,
-          })),
-          ...saved.map((entry) => ({ id: entry.id, name: entry.name, builtIn: false })),
+          ...(await Promise.all(
+            BUILT_IN_SCENES.map(async (entry) => ({
+              id: entry.id,
+              name: entry.name,
+              builtIn: true,
+              tweaked: (await bb.storage.kv.get(`${TWEAKS_PREFIX}${entry.id}`)) !== undefined,
+            })),
+          )),
+          ...saved.map((entry) => ({ id: entry.id, name: entry.name, builtIn: false, tweaked: false })),
         ],
       };
     },
@@ -1155,6 +1175,7 @@ export default function plugin(bb: BbPluginApi): void {
       { name: "status", summary: "Show the active scene, its params, and controls", usage: "bb ambient status" },
       { name: "list", summary: "List built-in and saved scenes", usage: "bb ambient list" },
       { name: "load", summary: "Make a built-in or saved scene active", usage: "bb ambient load <id-or-name>" },
+      { name: "reset", summary: "Restore a built-in scene's original sliders and colors", usage: "bb ambient reset <built-in-id>" },
       {
         name: "set",
         summary: "Set scene params or the Visibility, Motion, Detail, and Glass opacity controls",
@@ -1238,6 +1259,12 @@ export default function plugin(bb: BbPluginApi): void {
           await updateControls({ enabled: command === "on" });
           return { exitCode: 0, stdout: `ambient ${command}\n` };
         }
+        if (command === "reset") {
+          const id = rest.join(" ").trim();
+          if (!id) throw new Error("usage: bb ambient reset <built-in-id>");
+          const next = await resetScene(id);
+          return { exitCode: 0, stdout: `reset ${next.scene.name}\n` };
+        }
         if (command === "paint") {
           const request = sceneRequestSchema.parse(rest.join(" "));
           const threadId = await paintRequest(request);
@@ -1265,7 +1292,7 @@ export default function plugin(bb: BbPluginApi): void {
         }
         return {
           exitCode: 1,
-          stderr: "usage: bb ambient <status|list|load|set|palette|save|delete|on|off|paint|daily>\n",
+          stderr: "usage: bb ambient <status|list|load|set|palette|save|delete|on|off|reset|paint|daily>\n",
         };
       } catch (caught) {
         const message =

@@ -53,6 +53,22 @@ describe("display controls", () => {
     await harness.lifecycle.dispose();
   });
 
+  it("resets a tweaked built-in scene to its original look", async () => {
+    const { bb, harness } = createFakePluginHost({ pluginId: "ambient" });
+    plugin(bb);
+    await harness.behavior.callRpc("loadScene", { id: "tide" });
+    await harness.behavior.callRpc("setValues", { values: { glow: 1.7 } });
+    const reset = (await harness.behavior.callRpc("resetScene", { id: "tide" })) as {
+      scene: { params: { id: string; value: number }[] };
+    };
+    expect(reset.scene.params.find((entry) => entry.id === "glow")?.value).toBe(0.8);
+    const reloaded = (await harness.behavior.callRpc("loadScene", { id: "tide" })) as {
+      scene: { params: { id: string; value: number }[] };
+    };
+    expect(reloaded.scene.params.find((entry) => entry.id === "glow")?.value).toBe(0.8);
+    await harness.lifecycle.dispose();
+  });
+
   it("only lets glass opacity go down from its default", async () => {
     const { bb, harness } = createFakePluginHost({ pluginId: "ambient" });
     plugin(bb);
