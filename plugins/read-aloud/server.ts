@@ -6,6 +6,7 @@ import { maxSpeakLength, speeds } from "./speech-text";
 import {
   KokoroSynthesizer,
   SynthesisBusyError,
+  SynthesisUnavailableError,
   toWav,
   type Synthesizer,
 } from "./synthesizer";
@@ -80,10 +81,16 @@ export function registerReadAloud(bb: BbPluginApi, synthesizer: Synthesizer): vo
         headers: { "content-type": "audio/wav", "cache-control": "no-store" },
       });
     } catch (error) {
-      const busy = error instanceof SynthesisBusyError;
+      const status =
+        error instanceof SynthesisBusyError
+          ? 429
+          : error instanceof SynthesisUnavailableError
+            ? 503
+            : 500;
       return context.json(
         { error: error instanceof Error ? error.message : "Speech failed" },
-        busy ? 429 : 503,
+        status,
+        status === 503 ? { "retry-after": "1" } : undefined,
       );
     }
   });

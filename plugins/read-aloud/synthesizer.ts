@@ -41,7 +41,9 @@ type SynthesisJob = Pick<SynthesisRequest, "text" | "voice" | "speed">;
 const maxConcurrent = 2;
 /** Room for several devices each prefetching a few chunks. */
 const maxQueued = 12;
-const readyTimeoutMs = 10 * 60_000;
+const readyTimeoutMs = 90_000;
+/** Upper bound for one chunk, including time spent queued. */
+const requestTimeoutMs = 60_000;
 const installTimeoutMs = 15 * 60_000;
 // The lockfile ships under another name so the monorepo keeps one root
 // lockfile; provisioning restores it as package-lock.json for `npm ci`.
@@ -49,6 +51,8 @@ const runtimeLock = "runtime-lock.json";
 const runtimeFiles = ["package.json", "sharp-stub"];
 
 export class SynthesisBusyError extends Error {}
+/** Temporary: the voice process is starting, restarting, or overloaded. */
+export class SynthesisUnavailableError extends Error {}
 
 /**
  * Bounded FIFO in front of the synthesis process. A request whose client
@@ -86,10 +90,14 @@ export class SynthesisQueue {
     this.pump();
   }
 
-  detach(error: Error): void {
+  /** Rejects running work; with `includeWaiting`, queued work too. */
+  detach(error: Error, { includeWaiting = false } = {}): void {
     this.send = null;
     for (const job of this.running.values()) job.reject(error);
     this.running.clear();
+    if (includeWaiting) {
+      for (const job of this.waiting.splice(0)) job.reject(error);
+    }
   }
 
   enqueue(request: SynthesisRequest): Promise<SpeechAudio> {
@@ -231,23 +239,35 @@ export class KokoroSynthesizer implements Synthesizer {
     } catch (error) {
       if (!signal.aborted) throw error;
     } finally {
-      const error = new Error("Kokoro stopped");
+      const error = new SynthesisUnavailableError("The voice server is restarting");
       for (const worker of [this.active, this.standby]) worker?.retire();
       this.active = null;
       this.standby = null;
       this.fail = null;
       this.failStartup(error);
-      this.queue.detach(error);
+      // Nothing will serve queued requests once this run ends, so release
+      // them instead of leaving their HTTP handlers open.
+      this.queue.detach(error, { includeWaiting: true });
       this.ready = this.resetReady();
     }
   }
 
   async synthesize(request: SynthesisRequest): Promise<SpeechAudio> {
-    await withTimeout(this.ready, readyTimeoutMs, "Kokoro is still starting");
+    await withTimeout(
+      this.ready,
+      readyTimeoutMs,
+      () => new SynthesisUnavailableError("The voice server is still starting"),
+    );
     if (request.first && this.queue.onlyAbandonedWork && this.standby?.isReady) {
       this.promoteStandby();
     }
-    return this.queue.enqueue(request);
+    const timeout = AbortSignal.timeout(requestTimeoutMs);
+    const signal = request.signal ? AbortSignal.any([request.signal, timeout]) : timeout;
+    return withTimeout(
+      this.queue.enqueue({ ...request, signal }),
+      requestTimeoutMs,
+      () => new SynthesisUnavailableError("The voice server took too long"),
+    );
   }
 
   private spawn(): KokoroProcess {
@@ -333,12 +353,12 @@ export class KokoroSynthesizer implements Synthesizer {
   }
 }
 
-function withTimeout<T>(promise: Promise<T>, ms: number, message: string): Promise<T> {
+function withTimeout<T>(promise: Promise<T>, ms: number, error: () => Error): Promise<T> {
   let timer: ReturnType<typeof setTimeout>;
   return Promise.race([
     promise,
     new Promise<never>((_, reject) => {
-      timer = setTimeout(() => reject(new Error(message)), ms);
+      timer = setTimeout(() => reject(error()), ms);
     }),
   ]).finally(() => clearTimeout(timer));
 }

@@ -118,4 +118,20 @@ describe("Read aloud action", () => {
     run("msg_2", "Again.");
     expect(player.speak).toHaveBeenLastCalledWith("msg_2", ["Again."], 2, expect.any(Object));
   });
+
+  it("retries speech while the voice server restarts", async () => {
+    run("msg_1", "Hello.");
+    vi.useFakeTimers();
+    const fetch = vi
+      .fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({ error: "restarting" }), { status: 503 }))
+      .mockRejectedValueOnce(new TypeError("Failed to fetch"))
+      .mockResolvedValueOnce(new Response("wav"));
+    vi.stubGlobal("fetch", fetch);
+    const blob = player.fetchSpeech!("Hello.", 1, new AbortController().signal, true);
+    await vi.runAllTimersAsync();
+    await expect(blob).resolves.toBeInstanceOf(Blob);
+    expect(fetch).toHaveBeenCalledTimes(3);
+    vi.useRealTimers();
+  });
 });

@@ -2,7 +2,7 @@ import { createFakePluginHost } from "@get-bb/plugin-sdk/testing";
 import { describe, expect, it, vi } from "vitest";
 
 import { registerReadAloud } from "./server";
-import { SynthesisBusyError, type Synthesizer } from "./synthesizer";
+import { SynthesisBusyError, SynthesisUnavailableError, type Synthesizer } from "./synthesizer";
 
 function setup(synthesize: Synthesizer["synthesize"]) {
   const { bb, harness } = createFakePluginHost({ pluginId: "read-aloud" });
@@ -51,6 +51,16 @@ describe("Read Aloud speech route", () => {
       throw new SynthesisBusyError("Too many requests");
     });
     expect((await speak({ text: "Hi", speed: 1 })).status).toBe(429);
+    await harness.lifecycle.dispose();
+  });
+
+  it("tells the client to retry while the voice process restarts", async () => {
+    const { harness, speak } = setup(async () => {
+      throw new SynthesisUnavailableError("The voice server is restarting");
+    });
+    const response = await speak({ text: "Hi", speed: 1 });
+    expect(response.status).toBe(503);
+    expect(response.headers.get("retry-after")).toBe("1");
     await harness.lifecycle.dispose();
   });
 });

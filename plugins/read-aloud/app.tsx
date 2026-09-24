@@ -35,31 +35,36 @@ function savedSpeed(): Speed {
   return speeds.find((speed) => speed === value) ?? 1;
 }
 
+/** Statuses that mean "try again shortly": busy, restarting, or a proxy hiccup. */
+const retryableStatuses = new Set([429, 502, 503, 504]);
+const retryDelaysMs = [500, 1000, 2000, 4000, 4000];
+
 async function fetchSpeech(
   text: string,
   speed: number,
   signal: AbortSignal,
   first: boolean,
 ): Promise<Blob> {
-  // A busy server (other devices reading at once) clears within seconds.
   for (let attempt = 0; ; attempt += 1) {
-    const response = await fetch(
-      `/api/v1/plugins/${encodeURIComponent(pluginId)}/http/speak`,
-      {
+    let response: Response | null = null;
+    try {
+      response = await fetch(`/api/v1/plugins/${encodeURIComponent(pluginId)}/http/speak`, {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ text, speed, first }),
         signal,
-      },
-    );
-    if (response.ok) return response.blob();
-    if (response.status === 429 && attempt < 4) {
-      await new Promise((resolve) => setTimeout(resolve, 500 * 2 ** attempt));
-      signal.throwIfAborted();
-      continue;
+      });
+    } catch (error) {
+      // A dropped connection during a server restart is retried like a 503.
+      if (signal.aborted || attempt >= retryDelaysMs.length) throw error;
     }
-    const body = (await response.json().catch(() => null)) as { error?: string } | null;
-    throw new Error(body?.error ?? `The voice server returned ${response.status}`);
+    if (response?.ok) return response.blob();
+    if (response && (!retryableStatuses.has(response.status) || attempt >= retryDelaysMs.length)) {
+      const body = (await response.json().catch(() => null)) as { error?: string } | null;
+      throw new Error(body?.error ?? `The voice server returned ${response.status}`);
+    }
+    await new Promise((resolve) => setTimeout(resolve, retryDelaysMs[attempt]));
+    signal.throwIfAborted();
   }
 }
 

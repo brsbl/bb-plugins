@@ -66,4 +66,15 @@ describe("SynthesisQueue", () => {
     queue.detach(new Error("Cancelled"));
     expect(queue.idle).toBe(true);
   });
+
+  it("releases queued requests when the voice process shuts down", async () => {
+    const queue = new SynthesisQueue(1, 12);
+    queue.attach(vi.fn());
+    const running = queue.enqueue(request("running"));
+    const waiting = queue.enqueue(request("waiting"));
+    queue.detach(new Error("restarting"), { includeWaiting: true });
+    await expect(running).rejects.toThrow("restarting");
+    await expect(waiting).rejects.toThrow("restarting");
+    expect(queue.idle).toBe(true);
+  });
 });
