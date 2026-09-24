@@ -67,6 +67,13 @@ export const sceneNameSchema = z
   .max(60)
   .regex(/^[^\p{Cc}\p{Cf}]+$/u, "scene names must be a single line of plain text");
 
+export const sceneRequestSchema = z
+  .string()
+  .trim()
+  .min(3)
+  .max(400)
+  .regex(/^[^\p{Cc}\p{Cf}]+$/u, "describe the scene in a single line of plain text");
+
 const controlsSchema = z.object({
   enabled: z.boolean(),
   showThrough: z.number().min(0).max(1),
@@ -402,13 +409,6 @@ export function dailyConcept(date: string): string {
   return DAILY_CONCEPTS[dayNumber % DAILY_CONCEPTS.length]!;
 }
 
-export const sceneRequestSchema = z
-  .string()
-  .trim()
-  .min(3)
-  .max(400)
-  .regex(/^[^\p{Cc}\p{Cf}]+$/u, "describe the scene in a single line of plain text");
-
 function conceptLines(moment: LocalMoment, request: string | undefined): string[] {
   if (!request) {
     return [
@@ -492,7 +492,7 @@ function controlsFromInput(input: z.infer<typeof controlInputSchema>): Partial<C
   };
 }
 
-const CLI_CONTROL_KEYS: Record<string, keyof Controls> = {
+const CLI_CONTROL_KEYS: Record<string, "showThrough" | "speed" | "quality"> = {
   visibility: "showThrough",
   showthrough: "showThrough",
   motion: "speed",
@@ -513,7 +513,7 @@ export function parseSetPairs(pairs: readonly string[]): {
     const [, key, number, percent] = match;
     const control = CLI_CONTROL_KEYS[key!];
     const value = Number(number) / (percent ? 100 : 1);
-    if (control && control !== "enabled") {
+    if (control) {
       controls[control] = value;
     } else {
       values[key!] = value;
