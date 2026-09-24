@@ -130,7 +130,7 @@ describe("Read aloud action", () => {
     vi.stubGlobal("fetch", fetch);
     const blob = player.fetchSpeech!("Hello.", 1, new AbortController().signal, true);
     await vi.runAllTimersAsync();
-    await expect(blob).resolves.toBeInstanceOf(Blob);
+    await expect(blob.then((audio) => audio.text())).resolves.toBe("wav");
     expect(fetch).toHaveBeenCalledTimes(3);
     vi.useRealTimers();
   });
