@@ -275,7 +275,9 @@ export class KokoroSynthesizer implements Synthesizer {
       readyTimeoutMs,
       () => new SynthesisUnavailableError("The voice server is still starting"),
     );
-    if (request.first && this.queue.onlyAbandonedWork && this.standby?.isReady) {
+    // Live requests never wait on audio nobody is listening to: abandoned
+    // chunks or speculative preparation.
+    if (!request.background && this.queue.onlyAbandonedWork && this.standby?.isReady) {
       this.promoteStandby();
     }
     const timeout = AbortSignal.timeout(requestTimeoutMs);
