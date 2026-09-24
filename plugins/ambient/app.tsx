@@ -1047,15 +1047,15 @@ function AmbientControls({ dismiss }: { dismiss: () => void }) {
             <path d="M4 6l4 4 4-4" />
           </svg>
         </div>
-        <div className="flex h-6 items-center justify-between">
+        <div className="flex h-7 items-center justify-between">
           <span className="text-xs text-muted-foreground">Colors</span>
-          <div className="flex items-center gap-1" aria-label="Palette">
+          <div className="flex items-center gap-1.5" aria-label="Palette">
             {scene.palette.map((color, index) => (
               <label
                 key={index}
-                className="relative size-3.5 cursor-pointer overflow-hidden rounded-full ring-1 ring-foreground/15 transition-transform hover:scale-125"
+                className="relative h-6 w-7 cursor-pointer overflow-hidden rounded-md border border-foreground/20 shadow-[0_1px_2px_color-mix(in_oklab,var(--ink)_30%,transparent),inset_0_1px_0_color-mix(in_oklab,var(--canvas)_35%,transparent)] transition-[transform,box-shadow] duration-150 hover:-translate-y-px hover:ring-2 hover:ring-foreground/25 active:translate-y-0 focus-within:ring-2 focus-within:ring-ring"
                 style={{ backgroundColor: color }}
-                title={`Color ${index + 1}: ${color}`}
+                title={`Change color ${index + 1} (${color})`}
               >
                 <input
                   type="color"
