@@ -36,21 +36,20 @@ describe("Video Markup UI contracts",()=>{
       preview:input=>{const v=versions.find(v=>v.id===(input as {versionId:string}).versionId)!;return {media:v.media,url:`/video-${v.id}.mp4`,expiresAt:99999};},
       notes:()=>({notes:[],nextOffset:null}),
     }});
-    await slot.findByRole("heading",{name:"v1.mp4"});
+    await slot.findByLabelText("v1.mp4");
     const oldVideo=slot.getByLabelText("v1.mp4");
     fireEvent.timeUpdate(oldVideo,{target:{currentTime:13.5}});
     versions=[first,next];
     await slot.behavior.emitRealtime("changed",{threadId});
     await slot.behavior.emitRealtime("present",{threadId,versionId:"v2"});
     expect.soft(slot.getAllByRole("tab",{name:"Video Markup"})).toHaveLength(1);
-    expect(await slot.findByRole("heading",{name:"v2.mp4"})).toBeTruthy();
+    expect(await slot.findByLabelText("v2.mp4")).toBeTruthy();
     expect(slot.getByLabelText("v2.mp4").getAttribute("src")).toBe("/video-v2.mp4");
     expect(oldVideo.isConnected).toBe(false);
     expect(slot.getByRole("tab",{name:"Video Markup"}).getAttribute("aria-selected")).toBe("true");
-    fireEvent.click(slot.getByRole("button",{name:/01\s*v1\.mp4/}));
-    await slot.findByRole("heading",{name:"v1.mp4"});
-    await slot.behavior.emitRealtime("present",{threadId,versionId:"v2"});
-    expect(await slot.findByRole("heading",{name:"v2.mp4"})).toBeTruthy();
+    // The panel has no version list; one title names the demo.
+    expect(slot.getByRole("heading",{name:"Duo"})).toBeTruthy();
+    expect(slot.queryByRole("navigation",{name:"Demo versions"})).toBeNull();
     expect(slot.getAllByRole("tab",{name:"Video Markup"})).toHaveLength(1);
     slot.lifecycle.unmount();
   });
@@ -64,7 +63,7 @@ describe("Video Markup UI contracts",()=>{
     // Mount after the event: the requested version wins over the newest version.
     const latest={...version,id:"v2",ordinal:2,media:{...version.media,path:"/v2.mp4"}};
     const panel=renderSlot(app.threadPanelActions[0],{threadId:"thr_demo",params:null},{rpc:{versions:()=>({versions:[version,latest],nextOffset:null,currentDemo:"Duo"}),version:input=>(input as {versionId:string}).versionId==="v1"?version:latest,preview:()=>({media:version.media,url:"/video.mp4",expiresAt:99999}),notes:()=>({notes:[],nextOffset:null})}});
-    expect(await panel.findByRole("heading",{name:"v1.mp4"})).toBeTruthy();
+    expect(await panel.findByLabelText("v1.mp4")).toBeTruthy();
     panel.lifecycle.unmount();
     slot.lifecycle.unmount();
   });
@@ -73,8 +72,8 @@ describe("Video Markup UI contracts",()=>{
     const source={kind:"host" as const,threadId:"thr_demo",environmentId:null,projectId:null};
     const preview={media:version.media,url:"/video.mp4",expiresAt:99999};
     const slot=renderSlot(app.fileOpeners[0],{path:"/v1.mp4",source,experimental_Original:()=>null},{rpc:{openFile:()=>preview,probeFile:()=>version.media,versions:()=>({versions:[],nextOffset:null,currentDemo:null}),register:()=>version,version:()=>version,preview:()=>preview,notes:()=>({notes:[],nextOffset:null})}});
-    fireEvent.click(await slot.findByRole("button",{name:"Add as next version"}));
-    expect(await slot.findByRole("heading",{name:"v1.mp4"})).toBeTruthy();
+    fireEvent.click(await slot.findByRole("button",{name:"Leave notes on this video"}));
+    expect(await slot.findByLabelText("v1.mp4")).toBeTruthy();
     expect(slot.inspection.rpcCalls.find(c=>c.method==="register")?.input).toEqual({threadId:"thr_demo",file:"/v1.mp4",source});
     expect(slot.queryByRole("textbox")).toBeNull();
     slot.lifecycle.unmount();

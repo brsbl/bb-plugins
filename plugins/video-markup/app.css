@@ -16,16 +16,9 @@
 .video-markup-actions,.video-markup-brand { display: flex; align-items: center; gap: 8px; }
 .video-markup-brand { font-weight: 500; }
 .video-markup-brand svg { flex-shrink: 0; }
-.video-markup-demo { font-size: var(--text-base); font-weight: 500; min-width: 0; border: 0; padding: 0; height: 32px; }
+.video-markup-demo { display: flex; align-items: center; font-size: var(--text-base); font-weight: 500; min-width: 0; border: 0; padding: 0; margin: 0; height: 32px; overflow-wrap: anywhere; }
 .video-markup-demo > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.video-markup-rail { display: flex; gap: 4px; padding: 8px 16px; overflow: auto; border-bottom-width: 1px; scrollbar-width: thin; }
-.video-markup-version { display: flex; align-items: center; gap: 8px; flex-shrink: 0; max-width: 230px; padding: 6px 8px; border-radius: calc(var(--radius) - 2px); text-align: left; font-size: var(--text-xs); }
-.video-markup-version:hover { background: var(--state-hover); }
-.video-markup-version[aria-current=true] { background: var(--state-active); }
-.video-markup-version span:nth-child(2) { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.video-markup-version-number { font-variant-numeric: tabular-nums; color: var(--muted-foreground); }
 .video-markup-review { padding: 16px; display: flex; flex-direction: column; gap: 16px; }
-.video-markup-version-heading { display: grid; gap: 4px; overflow-wrap: anywhere; }
 .video-markup-stage { position: relative; width: 100%; overflow: hidden; border-radius: calc(var(--radius) - 2px); }
 .video-markup-stage video,.video-markup-stage img { display: block; width: 100%; height: 100%; object-fit: contain; }
 .video-markup-shapes,.video-markup-draw { position: absolute; inset: 0; width: 100%; height: 100%; }
@@ -42,8 +35,13 @@
 .video-markup-transport { display: flex; align-items: center; gap: 2px; padding-top: 6px; }
 .video-markup-time { flex: 1; text-align: center; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .video-markup-seek { display: block; width: 100%; margin: 6px 0; min-height: 24px; accent-color: var(--video-markup-accent); }
-.video-markup-tools { display: flex; flex-wrap: wrap; gap: 2px; padding: 6px 0; }
-.video-markup-player:focus-visible,.video-markup-moment:focus-visible,.video-markup-version:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; border-radius: calc(var(--radius) - 2px); }
+/* Annotation tools and fullscreen float over the frame so the controls stay next to what they act on. */
+.video-markup-tools,.video-markup-fullscreen { position: absolute; z-index: 2; display: flex; gap: 2px; padding: 2px; border-radius: var(--radius); background: color-mix(in oklab,var(--background) 82%,transparent); backdrop-filter: blur(8px); box-shadow: 0 1px 3px color-mix(in oklab,var(--foreground) 16%,transparent); }
+.video-markup-tools { top: 8px; right: 8px; }
+.video-markup-fullscreen { right: 8px; bottom: 8px; opacity: 0; transition: opacity 150ms ease; }
+.video-markup-stage:hover .video-markup-fullscreen,.video-markup-fullscreen:focus-within { opacity: 1; }
+.video-markup-overlay-button { width: 32px; height: 32px; }
+.video-markup-player:focus-visible,.video-markup-moment:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; border-radius: calc(var(--radius) - 2px); }
 .video-markup-note-editor { border-top-width: 1px; padding: 10px 0; display: grid; gap: 10px; }
 .video-markup-textarea { resize: vertical; min-height: 84px; width: 100%; border-width: 1px; border-radius: var(--radius); padding: 10px; font-family: inherit; font-size: var(--text-sm); }
 .video-markup-textarea:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
@@ -79,11 +77,10 @@
 .video-markup-inline>.video-markup-notice { padding: 12px; }
 @container (max-width:380px) {
   .video-markup-header,.video-markup-review { padding: 12px; }
-  .video-markup-rail { padding: 8px 12px; }
-  .video-markup-tools button { gap: 6px; padding-left: 8px; padding-right: 8px; }
   .video-markup-time span { display: none; }
 }
 @media(pointer:coarse) {
   .video-markup button:not([role=checkbox]) { min-height: 40px; }
   .video-markup-textarea { font-size: var(--text-base); }
+  .video-markup-fullscreen { opacity: 1; }
 }
