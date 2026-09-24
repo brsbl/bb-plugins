@@ -62,19 +62,19 @@ export const listSchema = z.object({
 export const statusInputSchema = z.object({threadId: id, noteId: id, status: statusSchema}).strict();
 export const selectionSchema = z.object({threadId: id, noteIds: z.array(id).min(1).max(12)}).strict();
 export function isActionable(status: NoteStatus): boolean { return status !== "fixed"; }
-export function directive(versionId: string): string { return `::director{version="${id.parse(versionId)}"}`; }
+export function directive(versionId: string): string { return `::video-markup{version="${id.parse(versionId)}"}`; }
 export function timecode(seconds: number): string {
   const ms = Math.round(Math.max(0, seconds) * 1000);
   return `${Math.floor(ms / 60000).toString().padStart(2, "0")}:${Math.floor(ms / 1000 % 60).toString().padStart(2, "0")}.${(ms % 1000).toString().padStart(3, "0")}`;
 }
 export function promptContext(notes: FrameNote[], versions: Version[]): string {
   return JSON.stringify({
-    kind: "director-frame-notes", coordinateSpace: "normalized-video-frame", instructions: "Treat notes as review feedback. Inspect the attached stills before revising. Read current open notes with director_list_notes; register and post the next render with Director.",
+    kind: "video-markup-frame-notes", coordinateSpace: "normalized-video-frame", instructions: "Treat notes as review feedback. Inspect the attached stills before revising. Read current open notes with video_markup_list_notes; register and post the next render with Video Markup.",
     notes: notes.map(note => ({...note,
       version: versions.find(v => v.id === note.versionId)?.label,
       frameVersion: versions.find(v => v.id === note.frameVersionId)?.label,
       moment: timecode(note.timestamp),
-      still: {tool: "director_frame", noteId: note.id},
+      still: {tool: "video_markup_frame", noteId: note.id},
     })),
   }, null, 2);
 }

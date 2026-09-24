@@ -5,14 +5,14 @@ import { isActionable, noteInputSchema, noteSchema, stillSchema, versionSchema, 
 
 type Database = ReturnType<BbPluginApi["storage"]["database"]>;
 const jsonRow = z.object({body: z.string()});
-export class DirectorStore {
+export class VideoMarkupStore {
   constructor(private db: Database) {}
   versions(threadId: string): Version[] {
     return this.db.prepare("SELECT body FROM versions WHERE thread_id = ? ORDER BY rowid").all(threadId).map(row => versionSchema.parse(JSON.parse(jsonRow.parse(row).body)));
   }
   version(threadId: string, versionId: string): Version {
     const row = this.db.prepare("SELECT body FROM versions WHERE thread_id = ? AND id = ?").get(threadId, versionId);
-    if (!row) throw new Error("This Director version is no longer available in this thread");
+    if (!row) throw new Error("This Video Markup version is no longer available in this thread");
     return versionSchema.parse(JSON.parse(jsonRow.parse(row).body));
   }
   register(input: {threadId: string; demo: string; label: string; summary: string; media: Media}): Version {
@@ -67,12 +67,12 @@ export class DirectorStore {
   }
   selection(selectionId: string): {threadId: string; noteIds: string[]} {
     const row = this.db.prepare("SELECT body FROM selections WHERE id = ?").get(selectionId);
-    if (!row) throw new Error("This Director selection is no longer available");
+    if (!row) throw new Error("This Video Markup selection is no longer available");
     return z.object({threadId: z.string(), noteIds: z.array(z.string())}).parse(JSON.parse(jsonRow.parse(row).body));
   }
 }
 
-export function openStore(bb: BbPluginApi): DirectorStore {
+export function openStore(bb: BbPluginApi): VideoMarkupStore {
   const db = bb.storage.database();
   bb.storage.migrate(db, [
     "CREATE TABLE versions (id TEXT PRIMARY KEY, thread_id TEXT NOT NULL, body TEXT NOT NULL)",
@@ -82,5 +82,5 @@ export function openStore(bb: BbPluginApi): DirectorStore {
     "CREATE TABLE stills (id TEXT PRIMARY KEY, body TEXT NOT NULL)",
     "CREATE TABLE selections (id TEXT PRIMARY KEY, body TEXT NOT NULL)",
   ]);
-  return new DirectorStore(db);
+  return new VideoMarkupStore(db);
 }

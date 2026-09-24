@@ -1,5 +1,5 @@
 {
-  "name": "bb-plugin-director",
+  "name": "bb-plugin-video-markup",
   "version": "0.1.0",
   "description": "Review product films in bb with frame notes and version history.",
   "type": "module",
@@ -14,7 +14,7 @@
     "build": "node ../../tooling/build-plugin.mjs",
     "check": "npm run typecheck && npm run build && npm test",
     "test": "vitest run",
-    "test:built": "node ../../tooling/publish-install-refs.mjs --verify director",
+    "test:built": "node ../../tooling/publish-install-refs.mjs --verify video-markup",
     "typecheck": "tsc --noEmit"
   },
   "engines": {
@@ -22,7 +22,7 @@
     "bbPluginSdk": "^0.4.8"
   },
   "bb": {
-    "name": "Director",
+    "name": "Video Markup",
     "description": "Review product films in bb with frame notes and version history.",
     "branding": {
       "icon": "Clapperboard"

@@ -13,7 +13,7 @@ const frameTarget = z.object({threadId: id, noteId: id}).strict();
 const libraryInput = z.object({threadId: id, offset: z.number().int().nonnegative().default(0)}).strict();
 const openInput = z.object({file: z.string().min(1), source: sourceSchema}).strict();
 const previewSchema = z.object({url: z.string(), expiresAt: z.number(), media: mediaSchema});
-export const directorContract = defineRpcContract({
+export const videoMarkupContract = defineRpcContract({
   register: {input: registerSchema, output: versionSchema},
   versions: {input: libraryInput, output: z.object({versions: z.array(versionSchema), nextOffset: z.number().nullable()})},
   version: {input: target, output: versionSchema},
@@ -118,9 +118,9 @@ export default function plugin(bb: BbPluginApi): void {
       return {directive: directive(versionId), instruction: "Emit this directive exactly once on its own line in your reply, outside a code fence, after stating known rough spots."};
     },
   };
-  bb.rpc.register(directorContract, handlers);
+  bb.rpc.register(videoMarkupContract, handlers);
   bb.ui.registerMentionProvider({
-    id: MENTION_PROVIDER, label: "Director frame notes", search: () => [],
+    id: MENTION_PROVIDER, label: "Video Markup frame notes", search: () => [],
     resolve(selectionId) {
       const {threadId, noteIds} = store.selection(selectionId);
       const notes = noteIds.map(noteId => store.note(threadId, noteId));
@@ -128,23 +128,23 @@ export default function plugin(bb: BbPluginApi): void {
         context: promptContext(notes, store.versions(threadId)),
         // Public additive SDK API documented in bb's Plugin Guide and api_to_audit.md.
         // Structural return typing also supports the repository's pinned declarations.
-        experimental_images: notes.map(note => ({type: "image" as const, url: store.still(threadId, note.id).dataUrl, context: `Director note ${note.id}; frame from version ${note.frameVersionId}, ${note.timestamp}s. ${note.text}`})),
+        experimental_images: notes.map(note => ({type: "image" as const, url: store.still(threadId, note.id).dataUrl, context: `Video Markup note ${note.id}; frame from version ${note.frameVersionId}, ${note.timestamp}s. ${note.text}`})),
       };
     },
   });
   const operations = {
-    register: {schema: registerSchema, tool: "director_register_version", description: "Register a rendered demo version and carry forward unresolved notes.", run: handlers.register},
-    versions: {schema: libraryInput, tool: "director_versions", description: "List a thread's demos and versions in order.", run: handlers.versions},
-    notes: {schema: listSchema, tool: "director_list_notes", description: "Read frame notes before revising a demo; filter by version, status, or actionable.", run: handlers.notes},
-    "add-note": {schema: noteInputSchema, tool: "director_add_note", description: "Save a timestamped note, normalized box/arrow/zoom shapes, and a captured JPEG still.", run: handlers.addNote},
-    status: {schema: statusInputSchema, tool: "director_update_note_status", description: "Mark a note open, fixed, still wrong, or regressed.", run: handlers.status},
-    context: {schema: selectionSchema, tool: "director_context", description: "Prepare selected actionable notes as structured prompt context.", run: handlers.context},
-    frame: {schema: frameTarget, tool: "director_frame", description: "Read the captured still for a frame note.", run: handlers.frame},
-    post: {schema: target, tool: "director_post_player", description: "Get a playable Director directive to emit inline in the assistant reply.", run: handlers.post},
+    register: {schema: registerSchema, tool: "video_markup_register_version", description: "Register a rendered demo version and carry forward unresolved notes.", run: handlers.register},
+    versions: {schema: libraryInput, tool: "video_markup_versions", description: "List a thread's demos and versions in order.", run: handlers.versions},
+    notes: {schema: listSchema, tool: "video_markup_list_notes", description: "Read frame notes before revising a demo; filter by version, status, or actionable.", run: handlers.notes},
+    "add-note": {schema: noteInputSchema, tool: "video_markup_add_note", description: "Save a timestamped note, normalized box/arrow/zoom shapes, and a captured JPEG still.", run: handlers.addNote},
+    status: {schema: statusInputSchema, tool: "video_markup_update_note_status", description: "Mark a note open, fixed, still wrong, or regressed.", run: handlers.status},
+    context: {schema: selectionSchema, tool: "video_markup_context", description: "Prepare selected actionable notes as structured prompt context.", run: handlers.context},
+    frame: {schema: frameTarget, tool: "video_markup_frame", description: "Read the captured still for a frame note.", run: handlers.frame},
+    post: {schema: target, tool: "video_markup_post_player", description: "Get a playable Video Markup directive to emit inline in the assistant reply.", run: handlers.post},
   };
   async function run(command: string, input: unknown) {
     const operation = operations[command as keyof typeof operations];
-    if (!operation) throw new Error(`Unknown Director command: ${command}`);
+    if (!operation) throw new Error(`Unknown Video Markup command: ${command}`);
     return (operation.run as (value: unknown) => unknown)(operation.schema.parse(input));
   }
   for (const [command, operation] of Object.entries(operations)) {
@@ -161,14 +161,14 @@ export default function plugin(bb: BbPluginApi): void {
       },
     });
   }
-  bb.cli.register({name: "director", summary: "Register demo versions and act on frame feedback",
-    commands: Object.entries(operations).map(([name, operation]) => ({name, summary: operation.description, usage: `bb director ${name} [--thread ID] [--data JSON] [--json]`})),
+  bb.cli.register({name: "video-markup", summary: "Register demo versions and act on frame feedback",
+    commands: Object.entries(operations).map(([name, operation]) => ({name, summary: operation.description, usage: `bb video-markup ${name} [--thread ID] [--data JSON] [--json]`})),
     async run(argv, context) {
       try {
         const {values, positionals} = parseArgs({args: argv, allowPositionals: true, options: {
           thread: {type: "string"}, demo: {type: "string"}, file: {type: "string"}, label: {type: "string"}, summary: {type: "string"}, fps: {type: "string"}, version: {type: "string"}, note: {type: "string"}, status: {type: "string"}, offset: {type: "string"}, actionable: {type: "boolean"}, data: {type: "string"}, json: {type: "boolean"}, help: {type: "boolean"},
         }});
-        if (!positionals.length || values.help) return {exitCode: 0, stdout: `Director commands: ${Object.keys(operations).join(", ")}\nUse --data JSON for shapes, stills, and selected note IDs. See the Director README.\n`};
+        if (!positionals.length || values.help) return {exitCode: 0, stdout: `Video Markup commands: ${Object.keys(operations).join(", ")}\nUse --data JSON for shapes, stills, and selected note IDs. See the Video Markup README.\n`};
         if (positionals.length !== 1) throw new Error("Use named flags or --data JSON; unexpected positional argument");
         const fields: Record<string, unknown> = values.data ? z.record(z.string(), z.unknown()).parse(JSON.parse(values.data)) : {};
         for (const [flag, field] of Object.entries({thread: "threadId", demo: "demo", file: "file", label: "label", summary: "summary", version: "versionId", note: "noteId", status: "status", actionable: "actionable"})) {

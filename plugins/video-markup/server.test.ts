@@ -10,11 +10,11 @@ const media: Media = {path:"/demo/v1.mp4",hostId:"host_a",size:10,modifiedAt:1,d
 const still = {dataUrl:"data:image/jpeg;base64,/9j/2Q==",width:1280,height:720};
 const cleanups: (()=>Promise<void>)[]=[];
 afterEach(async()=>{for(const cleanup of cleanups.splice(0))await cleanup();});
-function load() {const host=createFakePluginHost({pluginId:"director"});plugin(host.bb);cleanups.push(()=>host.harness.lifecycle.dispose());return host;}
+function load() {const host=createFakePluginHost({pluginId:"video-markup"});plugin(host.bb);cleanups.push(()=>host.harness.lifecycle.dispose());return host;}
 function seed(host:ReturnType<typeof load>) {const store=openStore(host.bb);return store.register({threadId:"thr_demo",demo:"Duo",label:"v1",summary:"First review",media});}
 function noteInput(versionId:string,text="Keep the composer in frame") {return noteInputSchema.parse({threadId:"thr_demo",versionId,timestamp:12.5,endTime:14,shapes:[{kind:"box",x1:.1,y1:.6,x2:.9,y2:.95}],text,still});}
 
-describe("Director persistence and feedback",()=>{
+describe("Video Markup persistence and feedback",()=>{
   it("persists notes and selections across plugin reload and isolates threads",async()=>{
     const host=load(),v=seed(host);
     const note=noteSchema.parse(await host.harness.behavior.callRpc("addNote",noteInput(v.id)));
@@ -53,16 +53,16 @@ describe("Director persistence and feedback",()=>{
   it("routes CLI and native tools through the same status, frame, and inline-player operations",async()=>{
     const host=load(),v=seed(host),note=openStore(host.bb).addNote(noteInput(v.id));
     expect(await host.harness.behavior.runCli(["status","--thread","thr_demo","--note",note.id,"--status","regressed"])).toMatchObject({exitCode:0});
-    expect(await host.harness.behavior.callAgentTool("director_list_notes",{threadId:"thr_demo",versionId:v.id,status:"regressed"})).toContain(note.id);
-    expect(await host.harness.behavior.callAgentTool("director_frame",{threadId:"thr_demo",noteId:note.id})).toMatchObject({content:[{type:"image",mimeType:"image/jpeg"}]});
+    expect(await host.harness.behavior.callAgentTool("video_markup_list_notes",{threadId:"thr_demo",versionId:v.id,status:"regressed"})).toContain(note.id);
+    expect(await host.harness.behavior.callAgentTool("video_markup_frame",{threadId:"thr_demo",noteId:note.id})).toMatchObject({content:[{type:"image",mimeType:"image/jpeg"}]});
     const post=await host.harness.behavior.runCli(["post","--thread","thr_demo","--version",v.id]);
-    expect(JSON.parse(post.stdout).directive).toBe(`::director{version="${v.id}"}`);
+    expect(JSON.parse(post.stdout).directive).toBe(`::video-markup{version="${v.id}"}`);
     expect((await host.harness.behavior.runCli(["status","--thread","thr_demo","--note",note.id,"--status","done"])).exitCode).toBe(1);
   });
   it("serves preview URLs through literal routes with HEAD and Safari seek ranges, and detects replacement",async()=>{
     let modifiedAt=1;
     let reads=0;
-    const host=createFakePluginHost({pluginId:"director",experimental_callHostRpc:async(call)=>{
+    const host=createFakePluginHost({pluginId:"video-markup",experimental_callHostRpc:async(call)=>{
       expect(call.hostId).toBe("host_a");
       if(call.method==="readChunk"){
         reads++;
@@ -75,15 +75,15 @@ describe("Director persistence and feedback",()=>{
     const version=versionSchema.parse(await host.harness.behavior.callRpc("register",{threadId:"thr_demo",demo:"Duo",label:"v1",file:"/demo/v1.mp4",source:{kind:"host",threadId:null,environmentId:null,projectId:null,experimental_hostId:"host_a"}}));
     const preview=z.object({url:z.string()}).parse(await host.harness.behavior.callRpc("preview",{threadId:"thr_demo",versionId:version.id}));
     const url=new URL(preview.url,"http://plugin.test");
-    const route=url.pathname.replace("/api/v1/plugins/director/http","")+url.search;
+    const route=url.pathname.replace("/api/v1/plugins/video-markup/http","")+url.search;
     // The pinned harness's fetchHttp builds a HEAD-only Hono app, but Hono
     // dispatches HEAD as GET. Match literally and invoke as BB's router does.
-    const headRoute=host.harness.inspection.registrations.httpRoutes.find(r=>r.method==="HEAD"&&r.path===url.pathname.replace("/api/v1/plugins/director/http",""));
+    const headRoute=host.harness.inspection.registrations.httpRoutes.find(r=>r.method==="HEAD"&&r.path===url.pathname.replace("/api/v1/plugins/video-markup/http",""));
     expect(headRoute).toBeDefined();
     const head=await headRoute!.handler(new Context(new Request(url,{method:"HEAD"})));
     expect(head.status).toBe(200);expect(head.headers.get("content-length")).toBe("10");
     expect(await head.text()).toBe("");expect(reads).toBe(0);
-    expect(url.pathname).toBe("/api/v1/plugins/director/http/media");
+    expect(url.pathname).toBe("/api/v1/plugins/video-markup/http/media");
     expect(url.searchParams.get("lease")).toBeTruthy();
     for(const [range,body,contentRange] of [["bytes=0-1","01","bytes 0-1/10"],["bytes=7-","789","bytes 7-9/10"],["bytes=-3","789","bytes 7-9/10"]]){
       const response=await host.harness.behavior.fetchHttp("GET",route,{headers:{range}});
