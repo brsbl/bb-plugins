@@ -33,17 +33,27 @@ const VEIL_STYLE_ID = "bb-ambient-veil";
 const PANES = 'body.bb-app-shell > #root, [data-testid="secondary-panel-shelf"]';
 const BLUR = "-webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px);";
 const SECONDARY_PANEL = '#thread-detail-secondary-panel-handle + [data-panel] > aside, [data-testid="secondary-panel-shelf"]';
-const GLASS_HOSTS = 'body.bb-app-shell > #root :is([data-timeline-row-list="top-level"], [data-sidebar="sidebar"])';
-const GLASS = `content: ""; position: absolute; z-index: -1; pointer-events: none; border-radius: 20px;
-  background: color-mix(in oklab, var(--ambient-background) 58%, transparent);
-  -webkit-backdrop-filter: blur(24px) saturate(1.6); backdrop-filter: blur(24px) saturate(1.6);
+const GLASS_FILL = "color-mix(in oklab, var(--ambient-background) 72%, transparent)";
+const GLASS_BLUR = "-webkit-backdrop-filter: blur(24px) saturate(1.6); backdrop-filter: blur(24px) saturate(1.6);";
+const GLASS_SURFACE = `background-color: ${GLASS_FILL}; ${GLASS_BLUR}
   border: 1px solid color-mix(in oklab, var(--ink) 9%, transparent);
   box-shadow: inset 0 1px 0 color-mix(in oklab, var(--canvas) 60%, transparent), 0 12px 32px -16px color-mix(in oklab, var(--ink) 35%, transparent);`;
+const COLUMN_HALF = "404px";
+const COLUMN_MASK = `linear-gradient(to right, transparent max(10px, 50% - ${COLUMN_HALF}), #000 max(10px, 50% - ${COLUMN_HALF}), #000 min(calc(100% - 10px), 50% + ${COLUMN_HALF}), transparent min(calc(100% - 10px), 50% + ${COLUMN_HALF}))`;
+const THREAD = "body.bb-app-shell > #root [data-thread-window]";
+const SIDEBAR_CARDS = 'body.bb-app-shell > #root :is([data-testid="sidebar-navigation-region"], [data-sidebar="content"], [data-sidebar="footer"])';
 
 function backingCss(): string {
-  return `:is(${GLASS_HOSTS}) { position: relative; isolation: isolate; }
-body.bb-app-shell > #root [data-timeline-row-list="top-level"]::before { ${GLASS} inset: -18px -22px; }
-body.bb-app-shell > #root [data-sidebar="sidebar"]::before { ${GLASS} inset: 6px; }
+  return `${THREAD} { position: relative; isolation: isolate; }
+${THREAD}::before { content: ""; position: absolute; z-index: -1; pointer-events: none; ${GLASS_SURFACE} border-block: 0; border-radius: 0; top: 0; bottom: 0; left: 50%; width: min(calc(100% - 20px), calc(2 * ${COLUMN_HALF})); transform: translateX(-50%); }
+${THREAD} [data-overflow-fade] { display: none; }
+${THREAD} [data-scroll-footer] > .bg-background { background-color: ${GLASS_FILL}; -webkit-backdrop-filter: blur(24px); backdrop-filter: blur(24px); -webkit-mask-image: linear-gradient(to bottom, transparent, #000 24px), ${COLUMN_MASK}; -webkit-mask-composite: source-in; mask-image: linear-gradient(to bottom, transparent, #000 24px), ${COLUMN_MASK}; mask-composite: intersect; }
+body.bb-app-shell > #root header.bg-surface-scrim { background-color: ${GLASS_FILL}; }
+${SIDEBAR_CARDS} { ${GLASS_SURFACE} border-radius: 16px; margin-inline: 8px; }
+body.bb-app-shell > #root [data-testid="sidebar-navigation-region"] { margin-block: 4px 8px; }
+body.bb-app-shell > #root [data-sidebar="content"] { flex: 0 1 auto; margin-block-end: auto; }
+body.bb-app-shell > #root [data-sidebar="footer"] { margin-block: 8px; }
+:is(${SIDEBAR_CARDS}) :is(.sticky, [data-sidebar-sticky-tier], [data-sidebar-sticky-stack]), :is(${SIDEBAR_CARDS}) [data-sidebar-sticky-stack]::before { -webkit-backdrop-filter: none; backdrop-filter: none; }
 body.bb-app-shell > #root [data-app-composer] { --background: color-mix(in oklab, var(--ambient-background) 88%, transparent); }
 :is(${SECONDARY_PANEL}) { --background: color-mix(in oklab, var(--ambient-background) 88%, transparent); --sidebar: color-mix(in oklab, var(--ambient-sidebar) 88%, transparent); }`;
 }
