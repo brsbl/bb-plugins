@@ -524,14 +524,14 @@ function Slider({
           onChange(snap(value + direction * step * (event.shiftKey ? 10 : 1), min, max, step));
         }}
       >
-        <div className="h-0.5 w-full rounded-full bg-foreground/15" />
+        <div className="h-1 w-full rounded-full bg-foreground/15" />
         <div
-          className="absolute left-0 h-0.5 rounded-full bg-foreground/60"
+          className="absolute left-0 h-1 rounded-full bg-foreground/60"
           style={{ width: `${fraction * 100}%` }}
         />
         <div
-          className="absolute size-2.5 -translate-x-1/2 rounded-full bg-foreground shadow-sm transition-transform duration-150 group-hover:scale-125 group-focus:scale-150 group-focus:ring-4 group-focus:ring-foreground/15"
-          style={{ left: `${fraction * 100}%` }}
+          className="absolute h-4 w-4 -translate-x-1/2 cursor-grab rounded-full border border-foreground/20 shadow-[0_1px_3px_color-mix(in_oklab,var(--ink)_35%,transparent)] transition-transform duration-150 group-hover:scale-110 group-focus:scale-110 group-focus:ring-4 group-focus:ring-foreground/15 group-active:cursor-grabbing"
+          style={{ left: `${fraction * 100}%`, backgroundColor: "var(--canvas)" }}
         />
       </div>
       <span className="text-right text-xs tabular-nums text-muted-foreground">{text}</span>
@@ -567,10 +567,10 @@ function useDebouncedCall<Args extends unknown[]>(
   );
 }
 
-const RIPPLE_BUTTONS: { kind: RippleKind; label: string; dot: string }[] = [
-  { kind: "started", label: "Start", dot: "bg-foreground/50" },
-  { kind: "done", label: "Done", dot: "bg-foreground" },
-  { kind: "error", label: "Error", dot: "bg-destructive" },
+const RIPPLE_BUTTONS: { kind: RippleKind; label: string; hint: string; dot: string }[] = [
+  { kind: "started", label: "starts", hint: "Show what the scene does when an agent starts", dot: "bg-foreground/50" },
+  { kind: "done", label: "finishes", hint: "Show what the scene does when an agent finishes a turn", dot: "bg-foreground" },
+  { kind: "error", label: "errors", hint: "Show what the scene does when an agent hits an error", dot: "bg-destructive" },
 ];
 
 function Section({
@@ -1136,14 +1136,15 @@ function AmbientControls({ dismiss }: { dismiss: () => void }) {
       </Section>
 
       <div className="flex h-6 items-center justify-between gap-1 whitespace-nowrap">
-        <h3 className="shrink-0 text-xs font-medium text-foreground/70">Preview a ripple</h3>
-        <div className="flex min-w-0 gap-0.5">
+        <h3 className="shrink-0 text-xs font-medium text-foreground/70">When an agent</h3>
+        <div className="flex min-w-0 gap-0">
           {RIPPLE_BUTTONS.map((button) => (
             <button
               key={button.kind}
               type="button"
+              title={button.hint}
               onClick={() => ambientStore.requestRipple(button.kind)}
-              className="flex shrink-0 items-center gap-1 rounded-full px-1.5 py-0.5 text-xs text-muted-foreground transition-colors hover:bg-foreground/10 hover:text-foreground"
+              className="flex shrink-0 items-center gap-1 rounded-full px-1 py-0.5 text-xs text-muted-foreground transition-colors hover:bg-foreground/10 hover:text-foreground"
             >
               <span className={`size-1.5 rounded-full ${button.dot}`} />
               {button.label}
