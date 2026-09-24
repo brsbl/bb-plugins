@@ -492,6 +492,7 @@ function Slider({
         aria-valuetext={text}
         className="group relative flex h-5 cursor-pointer touch-none items-center outline-none"
         onPointerDown={(event) => {
+          event.currentTarget.focus();
           event.currentTarget.setPointerCapture(event.pointerId);
           fromPointer(event.clientX);
         }}
@@ -516,7 +517,7 @@ function Slider({
           style={{ width: `${fraction * 100}%` }}
         />
         <div
-          className="absolute size-2.5 -translate-x-1/2 rounded-full bg-foreground shadow-sm transition-transform group-hover:scale-125 group-focus-visible:ring-2 group-focus-visible:ring-ring"
+          className="absolute size-2.5 -translate-x-1/2 rounded-full bg-foreground shadow-sm transition-transform duration-150 group-hover:scale-125 group-focus:scale-150 group-focus:ring-4 group-focus:ring-foreground/15"
           style={{ left: `${fraction * 100}%` }}
         />
       </div>
