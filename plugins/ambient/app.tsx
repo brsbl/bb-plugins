@@ -33,7 +33,7 @@ const VEIL_STYLE_ID = "bb-ambient-veil";
 const PANES = 'body.bb-app-shell > #root, [data-testid="secondary-panel-shelf"]';
 const BLUR = "-webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px);";
 const SECONDARY_PANEL = '#thread-detail-secondary-panel-handle + [data-panel] > aside, [data-testid="secondary-panel-shelf"]';
-const GLASS_FILL = "color-mix(in oklab, var(--ambient-background) 72%, transparent)";
+const GLASS_FILL = "color-mix(in oklab, var(--ambient-background) 60%, transparent)";
 const GLASS_BLUR = "-webkit-backdrop-filter: blur(24px) saturate(1.6); backdrop-filter: blur(24px) saturate(1.6);";
 const GLASS_SURFACE = `background-color: ${GLASS_FILL}; ${GLASS_BLUR}
   border: 1px solid color-mix(in oklab, var(--ink) 9%, transparent);
@@ -41,14 +41,20 @@ const GLASS_SURFACE = `background-color: ${GLASS_FILL}; ${GLASS_BLUR}
 const COLUMN_HALF = "404px";
 const COLUMN_MASK = `linear-gradient(to right, transparent max(10px, 50% - ${COLUMN_HALF}), #000 max(10px, 50% - ${COLUMN_HALF}), #000 min(calc(100% - 10px), 50% + ${COLUMN_HALF}), transparent min(calc(100% - 10px), 50% + ${COLUMN_HALF}))`;
 const THREAD = "body.bb-app-shell > #root [data-thread-window]";
+const CHROME_PILLS = 'body.bb-app-shell > #root :is([data-testid="app-page-header-content-row"] > :first-child, [data-app-page-header-actions], [data-testid="app-sidebar-top-reserve-row"] > div, button[data-sidebar="trigger"])';
 const SIDEBAR_CARDS = 'body.bb-app-shell > #root :is([data-testid="sidebar-navigation-region"], [data-sidebar="content"], [data-sidebar="footer"])';
 
 function backingCss(): string {
   return `${THREAD} { position: relative; isolation: isolate; }
 ${THREAD}::before { content: ""; position: absolute; z-index: -1; pointer-events: none; ${GLASS_SURFACE} border-block: 0; border-radius: 0; top: 0; bottom: 0; left: 50%; width: min(calc(100% - 20px), calc(2 * ${COLUMN_HALF})); transform: translateX(-50%); }
-${THREAD} [data-overflow-fade] { display: none; }
-${THREAD} [data-scroll-footer] > .bg-background { background-color: ${GLASS_FILL}; -webkit-backdrop-filter: blur(24px); backdrop-filter: blur(24px); -webkit-mask-image: linear-gradient(to bottom, transparent, #000 24px), ${COLUMN_MASK}; -webkit-mask-composite: source-in; mask-image: linear-gradient(to bottom, transparent, #000 24px), ${COLUMN_MASK}; mask-composite: intersect; }
-body.bb-app-shell > #root header.bg-surface-scrim { background-color: ${GLASS_FILL}; }
+${THREAD} [data-overflow-fade] { --background: ${GLASS_FILL}; height: 40px; top: -40px; -webkit-mask-image: ${COLUMN_MASK}; mask-image: ${COLUMN_MASK}; }
+${THREAD} [data-scroll-footer] > .bg-background { background-color: ${GLASS_FILL}; -webkit-backdrop-filter: blur(24px); backdrop-filter: blur(24px); -webkit-mask-image: ${COLUMN_MASK}; mask-image: ${COLUMN_MASK}; }
+body.bb-app-shell > #root header.bg-surface-scrim { border-color: transparent; }
+:is(${CHROME_PILLS}) { ${GLASS_SURFACE} border-radius: 12px; padding-inline: 6px; }
+body.bb-app-shell > #root :is([data-testid="app-page-header-content-row"] > :first-child, [data-testid="app-sidebar-top-reserve-row"] > div, button[data-sidebar="trigger"]) { margin-inline: -6px; }
+body.bb-app-shell > #root [data-testid="app-page-header-content-row"] > :first-child { flex: 0 1 auto; min-height: 32px; }
+body.bb-app-shell > #root [data-testid="app-page-header-content-row"] > [data-app-page-header-actions] { margin-inline: auto -6px; min-height: 32px; }
+:is(${THREAD}, ${SIDEBAR_CARDS}, ${CHROME_PILLS}) { --state-hover: color-mix(in oklab, var(--ink) 9%, transparent); --state-active: color-mix(in oklab, var(--ink) 15%, transparent); --sidebar-accent: var(--state-hover); }
 ${SIDEBAR_CARDS} { ${GLASS_SURFACE} border-radius: 16px; margin-inline: 8px; }
 body.bb-app-shell > #root [data-testid="sidebar-navigation-region"] { margin-block: 4px 8px; }
 body.bb-app-shell > #root [data-sidebar="content"] { flex: 0 1 auto; margin-block-end: auto; }
