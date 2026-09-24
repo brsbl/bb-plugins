@@ -55,8 +55,8 @@ ${THREAD}::after { content: ""; position: absolute; z-index: 1; pointer-events: 
 ${THREAD} [data-timeline-row-list] :is([data-message-column].border, [data-message-column] .border) { border-color: color-mix(in oklab, var(--ink) 8%, transparent); }
 ${THREAD} [data-markdown-preview] div:has(> div > table) { width: 100% !important; margin-inline: 0 !important; }
 ${THREAD} [data-scroll-footer] > .bg-background { background-color: transparent; }
-${THREAD} [data-scroll-footer] { isolation: isolate; }
-${THREAD} [data-scroll-footer]::before { content: ""; position: absolute; z-index: -1; pointer-events: none; top: -16px; bottom: ${COLUMN_BOTTOM}; left: 50%; width: ${COLUMN_WIDTH}; transform: translateX(-50%); border-radius: 20px; background: linear-gradient(to bottom, color-mix(in oklab, var(--canvas) 28%, transparent), transparent 45%), var(--ambient-background); border: 1px solid color-mix(in oklab, var(--ink) 9%, transparent); box-shadow: inset 0 1px 0 color-mix(in oklab, var(--canvas) 70%, transparent), inset 0 0 0 1px color-mix(in oklab, var(--canvas) 18%, transparent), 0 -10px 24px -18px color-mix(in oklab, var(--ink) 40%, transparent); }
+${THREAD} [data-scroll-footer] { isolation: isolate; padding-top: 16px; }
+${THREAD} [data-scroll-footer]::before { content: ""; position: absolute; z-index: -1; pointer-events: none; top: 0; bottom: ${COLUMN_BOTTOM}; left: 50%; width: ${COLUMN_WIDTH}; transform: translateX(-50%); border-radius: 20px; background: linear-gradient(to bottom, color-mix(in oklab, var(--canvas) 28%, transparent), transparent 45%), var(--ambient-background); border: 1px solid color-mix(in oklab, var(--ink) 9%, transparent); box-shadow: inset 0 1px 0 color-mix(in oklab, var(--canvas) 70%, transparent), inset 0 0 0 1px color-mix(in oklab, var(--canvas) 18%, transparent); }
 body.bb-app-shell > #root header.bg-surface-scrim { border-color: transparent; }
 body.bb-app-shell > #root [data-root-compose-mobile-recents] { ${GLASS_SURFACE} border-radius: 20px; padding-block: 2px 6px; }
 body.bb-app-shell > #root [data-root-compose-mobile-recents] > .sticky { background-color: transparent; border-radius: 20px 20px 0 0; }
