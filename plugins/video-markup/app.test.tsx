@@ -1,7 +1,9 @@
 // @vitest-environment jsdom
 import { cleanup, fireEvent, waitFor, within } from "@testing-library/react";
+import { useState } from "react";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { loadPluginApp, renderSlot } from "@get-bb/plugin-sdk/testing/app";
+import type { BbNavigate, JsonValue } from "@get-bb/plugin-sdk/app";
 import type { FrameNote, Version } from "./model.js";
 
 afterEach(() => {cleanup();vi.restoreAllMocks();});
@@ -14,6 +16,44 @@ afterAll(() => vi.unstubAllGlobals());
 const version:Version={id:"v1",threadId:"thr_demo",demo:"Duo",summary:"Gentler camera",createdAt:1,ordinal:1,media:{path:"/v1.mp4",hostId:"host_a",size:10,modifiedAt:1,duration:34,fps:60,codec:"h264",frameTimes:[0,1/60],width:1920,height:1080}};
 const note:FrameNote={id:"n1",threadId:"thr_demo",demo:"Duo",versionId:"v1",frameVersionId:"v1",timestamp:12,shapes:[],text:"Keep the composer in frame",status:"open",createdAt:1,updatedAt:1,carriedFrom:null,stillId:"n1"};
 describe("Video Markup UI contracts",()=>{
+  it("presents into the existing tab and switches an already mounted panel",async()=>{
+    const app=await loadPluginApp(()=>import("./app.js"));
+    const threadId="thr_present_again";
+    const first={...version,threadId},next={...first,id:"v2",ordinal:2,media:{...first.media,path:"/v2.mp4"}};
+    let versions=[first];
+    let openPanel!:BbNavigate["openThreadPanel"];
+    const Header=app.threadHeaderActions[0].component,Panel=app.threadPanelActions[0].component;
+    function ThreadSurface() {
+      // The SDK de-duplicates by action + serialized params; null is the launcher tab.
+      const [tabs,setTabs]=useState<{key:string;params:JsonValue|null}[]>([{key:"null",params:null}]);
+      const [active,setActive]=useState("null");
+      openPanel=options=>{const params=options.params??null,key=JSON.stringify(params);setTabs(items=>items.some(tab=>tab.key===key)?items:[...items,{key,params}]);setActive(key);return true;};
+      return <><Header threadId={threadId} projectId="proj_demo" isCompactViewport={false}/>{tabs.map(tab=><button key={tab.key} role="tab" aria-selected={active===tab.key} onClick={()=>setActive(tab.key)}>Video Markup</button>)}<Panel threadId={threadId} params={tabs.find(tab=>tab.key===active)!.params}/></>;
+    }
+    const slot=renderSlot({component:ThreadSurface},{},{openThreadPanel:options=>openPanel(options),rpc:{
+      versions:()=>({versions,nextOffset:null,currentDemo:"Duo"}),
+      version:input=>versions.find(v=>v.id===(input as {versionId:string}).versionId),
+      preview:input=>{const v=versions.find(v=>v.id===(input as {versionId:string}).versionId)!;return {media:v.media,url:`/video-${v.id}.mp4`,expiresAt:99999};},
+      notes:()=>({notes:[],nextOffset:null}),
+    }});
+    await slot.findByRole("heading",{name:"v1.mp4"});
+    const oldVideo=slot.getByLabelText("v1.mp4");
+    fireEvent.timeUpdate(oldVideo,{target:{currentTime:13.5}});
+    versions=[first,next];
+    await slot.behavior.emitRealtime("changed",{threadId});
+    await slot.behavior.emitRealtime("present",{threadId,versionId:"v2"});
+    expect.soft(slot.getAllByRole("tab",{name:"Video Markup"})).toHaveLength(1);
+    expect(await slot.findByRole("heading",{name:"v2.mp4"})).toBeTruthy();
+    expect(slot.getByLabelText("v2.mp4").getAttribute("src")).toBe("/video-v2.mp4");
+    expect(oldVideo.isConnected).toBe(false);
+    expect(slot.getByRole("tab",{name:"Video Markup"}).getAttribute("aria-selected")).toBe("true");
+    fireEvent.click(slot.getByRole("button",{name:"01 v1.mp4"}));
+    await slot.findByRole("heading",{name:"v1.mp4"});
+    await slot.behavior.emitRealtime("present",{threadId,versionId:"v2"});
+    expect(await slot.findByRole("heading",{name:"v2.mp4"})).toBeTruthy();
+    expect(slot.getAllByRole("tab",{name:"Video Markup"})).toHaveLength(1);
+    slot.lifecycle.unmount();
+  });
   it("opens the presented version only in its thread",async()=>{
     const app=await loadPluginApp(()=>import("./app.js"));
     const slot=renderSlot(app.threadHeaderActions[0],{threadId:"thr_demo",projectId:"proj_demo",isCompactViewport:true});
