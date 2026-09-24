@@ -224,6 +224,30 @@ function FooterControls() {
   );
 }
 
+/** Same artwork as the plugin's branding icon, which bb shows on messages. */
+function SpeakerIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className}
+      aria-hidden="true"
+    >
+      <path d="M3 10.5v3a1.5 1.5 0 0 0 1.5 1.5H7l4.2 3.6a.8.8 0 0 0 1.3-.6V6a.8.8 0 0 0-1.3-.6L7 9H4.5A1.5 1.5 0 0 0 3 10.5Z" />
+      <path d="M16 9a4 4 0 0 1 0 6" />
+      <path d="M18.5 6.5a7.5 7.5 0 0 1 0 11" />
+    </svg>
+  );
+}
+
+type AppIconsApi = {
+  register(registration: { name: string; component: ComponentType<{ className?: string }> }): void;
+};
+
 type SidebarFooterApi = {
   register(registration: {
     kind: "disclosure";
@@ -236,14 +260,18 @@ type SidebarFooterApi = {
 
 export default definePluginApp((app) => {
   playback.set({ speed: savedSpeed() });
-  const sidebarFooter = (app as { experimental_sidebarFooter?: SidebarFooterApi })
-    .experimental_sidebarFooter;
+  const host = app as {
+    experimental_icons?: AppIconsApi;
+    experimental_sidebarFooter?: SidebarFooterApi;
+  };
+  host.experimental_icons?.register({ name: "read-aloud-speaker", component: SpeakerIcon });
+  const sidebarFooter = host.experimental_sidebarFooter;
   footer =
     sidebarFooter?.register({
       kind: "disclosure",
       id: "read-aloud",
       label: "Read aloud",
-      icon: "Play",
+      icon: host.experimental_icons ? "read-aloud-speaker" : "Play",
       component: FooterControls,
     }) ?? null;
   app.slots.messageAction({

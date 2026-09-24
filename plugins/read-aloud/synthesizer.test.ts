@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { SynthesisBusyError, SynthesisQueue } from "./synthesizer";
+import { SynthesisBusyError, SynthesisQueue, trimSilence } from "./synthesizer";
 
 const audio = { sampleRate: 24_000, pcm: new Uint8Array(2) };
 const request = (text: string, signal?: AbortSignal) => ({ text, voice: "af_heart", speed: 1, signal });
@@ -76,5 +76,30 @@ describe("SynthesisQueue", () => {
     await expect(running).rejects.toThrow("restarting");
     await expect(waiting).rejects.toThrow("restarting");
     expect(queue.idle).toBe(true);
+  });
+});
+
+describe("trimSilence", () => {
+  const sampleRate = 1000;
+  function clip(leadMs: number, voiceMs: number, tailMs: number) {
+    const samples = new Int16Array(leadMs + voiceMs + tailMs);
+    samples.fill(8000, leadMs, leadMs + voiceMs);
+    return { sampleRate, pcm: new Uint8Array(samples.buffer) };
+  }
+  const durationMs = (audio: { pcm: Uint8Array }) => audio.pcm.byteLength / 2;
+
+  it("trims Kokoro's padding to a short lead and a sentence-length pause", () => {
+    const trimmed = trimSilence(clip(330, 1000, 460), "Build finished.", 1);
+    expect(durationMs(trimmed)).toBe(40 + 1000 + 220);
+  });
+
+  it("leaves a shorter pause after a clause and scales it with speed", () => {
+    expect(durationMs(trimSilence(clip(300, 500, 400), "with several clauses,", 1))).toBe(40 + 500 + 90);
+    expect(durationMs(trimSilence(clip(300, 500, 400), "Build finished.", 2))).toBe(40 + 500 + 110);
+  });
+
+  it("keeps silent clips unchanged", () => {
+    const silent = clip(100, 0, 100);
+    expect(trimSilence(silent, "Hi.", 1)).toBe(silent);
   });
 });

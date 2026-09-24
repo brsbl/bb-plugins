@@ -15,6 +15,7 @@ beforeEach(() => {
     playing = this;
   });
   vi.spyOn(HTMLMediaElement.prototype, "pause").mockImplementation(() => {});
+  vi.spyOn(HTMLMediaElement.prototype, "load").mockImplementation(() => {});
   let nextUrl = 0;
   URL.createObjectURL = vi.fn(() => `blob:chunk-${nextUrl++}`);
   URL.revokeObjectURL = vi.fn();

@@ -363,6 +363,34 @@ function withTimeout<T>(promise: Promise<T>, ms: number, error: () => Error): Pr
   ]).finally(() => clearTimeout(timer));
 }
 
+/** Samples quieter than this (about -40 dBFS) count as silence. */
+const silenceThreshold = Math.round(0.01 * 0x7fff);
+
+/**
+ * Kokoro pads every clip with about 0.3 s of silence before and 0.45 s after
+ * at 1×, which doubles up between consecutive chunks. Trim both ends to a
+ * natural pause: short after a clause, longer after a sentence.
+ */
+export function trimSilence(audio: SpeechAudio, text: string, speed: number): SpeechAudio {
+  const view = new DataView(audio.pcm.buffer, audio.pcm.byteOffset, audio.pcm.byteLength);
+  const count = Math.floor(audio.pcm.byteLength / 2);
+  const loud = (index: number) => Math.abs(view.getInt16(index * 2, true)) >= silenceThreshold;
+  let start = 0;
+  while (start < count && !loud(start)) start += 1;
+  let end = count;
+  while (end > start && !loud(end - 1)) end -= 1;
+  if (start >= end) return audio;
+  const sentenceEnd = /[.!?…]["')\]]?$/.test(text.trim());
+  const leadSamples = Math.round(audio.sampleRate * 0.04);
+  const tailSamples = Math.round((audio.sampleRate * (sentenceEnd ? 0.22 : 0.09)) / speed);
+  const from = Math.max(0, start - leadSamples);
+  const to = Math.min(count, end + tailSamples);
+  return {
+    sampleRate: audio.sampleRate,
+    pcm: new Uint8Array(audio.pcm.buffer, audio.pcm.byteOffset + from * 2, (to - from) * 2),
+  };
+}
+
 /** Wraps 16-bit mono PCM in a WAV container any browser can play. */
 export function toWav({ sampleRate, pcm }: SpeechAudio): Uint8Array<ArrayBuffer> {
   const wav = new Uint8Array(44 + pcm.byteLength);

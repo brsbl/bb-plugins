@@ -39,15 +39,18 @@ const silentWav =
   "data:audio/wav;base64,UklGRsQAAABXQVZFZm10IBAAAAABAAEAQB8AAIA+AAACABAAZGF0YaAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA";
 
 /**
- * Plays server-synthesized chunks through one audio element, one reading at a
- * time, fetching a couple of chunks ahead so speech stays continuous.
+ * Plays server-synthesized chunks one reading at a time, fetching a couple of
+ * chunks ahead. Two audio elements alternate so the next chunk is already
+ * loaded when the current one ends.
  */
 export class ReadAloudPlayer {
-  private readonly element = new Audio();
+  private readonly elements = [new Audio(), new Audio()] as const;
+  /** The element playing, or last played, for pause and resume. */
+  private element: HTMLAudioElement = this.elements[0];
   private session: Session | null = null;
 
   constructor(private readonly fetchSpeech: FetchSpeech) {
-    this.element.preload = "auto";
+    for (const element of this.elements) element.preload = "auto";
   }
 
   isReading(key: string): boolean {
@@ -59,8 +62,10 @@ export class ReadAloudPlayer {
     const audioSession = (navigator as { audioSession?: { type: string } }).audioSession;
     if (audioSession) audioSession.type = "playback";
     if (this.session) return;
-    this.element.src = silentWav;
-    void this.element.play().catch(() => {});
+    for (const element of this.elements) {
+      element.src = silentWav;
+      void element.play().catch(() => {});
+    }
   }
 
   speak(key: string, chunks: string[], speed: number, callbacks: PlaybackCallbacks): void {
@@ -124,7 +129,7 @@ export class ReadAloudPlayer {
     this.session = null;
     for (const pending of session.pending.values()) this.discard(pending);
     session.pending.clear();
-    this.element.pause();
+    for (const element of this.elements) element.pause();
     session.resumeWaiter?.();
     session.interrupt?.();
   }
@@ -164,13 +169,16 @@ export class ReadAloudPlayer {
           }
         }
         session.playing = true;
-        this.element.src = url;
-        const ended = this.waitForEnd(session);
-        await this.element.play();
+        const element = this.elements[session.index % 2]!;
+        if (element.src !== url) element.src = url;
+        this.element = element;
+        const ended = this.waitForEnd(session, element);
+        await element.play();
         if (!session.started) {
           session.started = true;
           session.callbacks.onPlaying();
         }
+        void this.preloadNext(session);
         await ended;
         URL.revokeObjectURL(url);
         if (this.session !== session) return;
@@ -213,19 +221,38 @@ export class ReadAloudPlayer {
     }
   }
 
-  private waitForEnd(session: Session): Promise<void> {
+  /** Loads the next chunk into the idle element while this one plays. */
+  private async preloadNext(session: Session): Promise<void> {
+    const index = session.index + 1;
+    const pending = session.pending.get(index);
+    if (!pending) return;
+    const url = await pending.url.catch(() => null);
+    if (
+      url === null ||
+      this.session !== session ||
+      session.index !== index - 1 ||
+      session.pending.get(index) !== pending
+    ) {
+      return;
+    }
+    const element = this.elements[index % 2]!;
+    element.src = url;
+    element.load();
+  }
+
+  private waitForEnd(session: Session, element: HTMLAudioElement): Promise<void> {
     return new Promise((resolve, reject) => {
       const cleanup = () => {
-        this.element.onended = null;
-        this.element.onerror = null;
+        element.onended = null;
+        element.onerror = null;
         session.interrupt = null;
       };
       session.interrupt = () => {
         cleanup();
         resolve();
       };
-      this.element.onended = session.interrupt;
-      this.element.onerror = () => {
+      element.onended = session.interrupt;
+      element.onerror = () => {
         cleanup();
         reject(new Error("The browser couldn’t play this audio"));
       };

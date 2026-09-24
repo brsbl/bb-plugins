@@ -8,6 +8,7 @@ import {
   SynthesisBusyError,
   SynthesisUnavailableError,
   toWav,
+  trimSilence,
   type Synthesizer,
 } from "./synthesizer";
 
@@ -77,7 +78,7 @@ export function registerReadAloud(bb: BbPluginApi, synthesizer: Synthesizer): vo
         first: body?.first === true,
         signal: context.req.raw.signal,
       });
-      return new Response(toWav(audio), {
+      return new Response(toWav(trimSilence(audio, text, speed)), {
         headers: { "content-type": "audio/wav", "cache-control": "no-store" },
       });
     } catch (error) {
