@@ -4,6 +4,8 @@ Read agent messages aloud with [Kokoro](https://huggingface.co/hexgrad/Kokoro-82
 
 ![Read aloud playing an agent message, with the speed and Stop controls](docs/screenshot.png)
 
+![Read aloud playing at 1.5× on a phone-sized screen](docs/mobile.png)
+
 ## Install
 
 ```bash
