@@ -31,8 +31,9 @@ export default function plugin(bb: BbPluginApi): void {
   const store = openStore(bb);
   const host = bb.hosts.experimental_client({contract: hostContract});
   const leases = new Map<string, {media: Media; expiresAt: number}>();
-  for (const method of ["HEAD", "GET"]) bb.http.route(method, "/media/:lease", context => {
-    const lease = leases.get(context.req.param("lease") ?? "");
+  // BB matches plugin route paths literally; per-preview keys belong in the query.
+  for (const method of ["HEAD", "GET"]) bb.http.route(method, "/media", context => {
+    const lease = leases.get(context.req.query("lease") ?? "");
     if (!lease || lease.expiresAt <= Date.now()) return new Response("Video preview expired. Reopen the version.", {status: 404});
     return mediaResponse({media: lease.media, range: context.req.header("range") ?? null, head: context.req.method === "HEAD", signal: context.req.raw.signal,
       read: async (start, length, signal) => (await host.call("readChunk", {path: lease.media.path, size: lease.media.size, modifiedAt: lease.media.modifiedAt, start, length}, {hostId: lease.media.hostId, signal})).data,
@@ -80,7 +81,7 @@ export default function plugin(bb: BbPluginApi): void {
     for (const [id, lease] of leases) if (lease.expiresAt <= now) leases.delete(id);
     const leaseId = randomUUID(), expiresAt = now + 3_600_000;
     leases.set(leaseId, {media, expiresAt});
-    return {url: `/api/v1/plugins/${encodeURIComponent(bb.pluginId)}/http/media/${leaseId}`, expiresAt, media};
+    return {url: `/api/v1/plugins/${encodeURIComponent(bb.pluginId)}/http/media?lease=${leaseId}`, expiresAt, media};
   }
   const handlers = {
     async register(input: z.output<typeof registerSchema>) {
