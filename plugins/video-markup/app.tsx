@@ -3,6 +3,10 @@ import { ArrowRight, Check, ChevronLeft, ChevronRight, Clapperboard, CornerUpLef
 import { definePluginApp, useBbNavigate, useComposer, useRealtime, useRpc, type PluginFileOpenerProps, type PluginMessageDirectiveProps, type PluginThreadPanelProps } from "@get-bb/plugin-sdk/app";
 import { Button } from "./components/ui/button.js";
 import { Input } from "./components/ui/input.js";
+import { Checkbox } from "./components/ui/checkbox.js";
+import { badgeVariants } from "./components/ui/badge.js";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./components/ui/select.js";
+import { ShapeOverlay } from "./shape-overlay.js";
 import { isActionable, MENTION_PROVIDER, stepTime, timecode, VIDEO_EXTENSIONS, type FrameNote, type Media, type NoteStatus, type Shape, type Still, type Version } from "./model.js";
 import type { videoMarkupContract } from "./server.js";
 import "./app.css";
@@ -11,20 +15,12 @@ type Rpc = ReturnType<typeof useRpc<typeof videoMarkupContract>>;
 type Preview = {url: string; expiresAt: number; media: Media};
 const errorText = (error: unknown) => error instanceof Error ? error.message : String(error);
 const statuses: NoteStatus[] = ["open", "fixed", "still wrong", "regressed"];
+const statusLabels: Record<NoteStatus, string> = {open: "Open", fixed: "Fixed", "still wrong": "Still wrong", regressed: "Regressed"};
+const noteFilters = [{value: "actionable", label: "Needs attention"}, {value: "all", label: "All notes"}, ...statuses.map(value => ({value, label: statusLabels[value]}))];
 function Notice({children}: {children: ReactNode}) { return <p role="status" className="video-markup-notice text-muted-foreground">{children}</p>; }
 function ErrorNotice({children}: {children: ReactNode}) { return <p role="alert" className="video-markup-notice text-destructive">{children}</p>; }
 function IconButton({label, children, ...props}: {label: string; children: ReactNode} & React.ComponentProps<typeof Button>) {
   return <Button type="button" variant="ghost" size="icon" aria-label={label} {...props}>{children}</Button>;
-}
-
-export function ShapeOverlay({shapes}: {shapes: Shape[]}) {
-  const marker = useId().replace(/:/g, "");
-  return <svg className="video-markup-shapes text-foreground" viewBox="0 0 1000 1000" preserveAspectRatio="none" aria-hidden="true">
-    <defs><marker id={marker} viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="currentColor" /></marker></defs>
-    {shapes.map((s, i) => s.kind === "arrow"
-      ? <line key={i} x1={s.x1 * 1000} y1={s.y1 * 1000} x2={s.x2 * 1000} y2={s.y2 * 1000} stroke="currentColor" strokeWidth="3" vectorEffect="non-scaling-stroke" markerEnd={`url(#${marker})`} />
-      : <rect key={i} x={Math.min(s.x1, s.x2) * 1000} y={Math.min(s.y1, s.y2) * 1000} width={Math.abs(s.x2-s.x1) * 1000} height={Math.abs(s.y2-s.y1) * 1000} fill="none" stroke="currentColor" strokeWidth="3" vectorEffect="non-scaling-stroke" strokeDasharray={s.kind === "zoom" ? "8 5" : undefined} />)}
-  </svg>;
 }
 
 async function captureFrame(video: HTMLVideoElement): Promise<Still> {
@@ -42,9 +38,9 @@ async function captureFrame(video: HTMLVideoElement): Promise<Still> {
   return {dataUrl, width: canvas.width, height: canvas.height};
 }
 
-function Player({preview, version, onSave, onDirty, compact = false, seekRequest}: {
+function Player({preview, version, onSave, onDirty, compact = false, seekRequest, nextNoteNumber}: {
   preview: Preview; version?: Version; onSave?: (fields: {timestamp: number; endTime: number | null; text: string; shapes: Shape[]; still: Still}) => Promise<void>;
-  onDirty?: (value: boolean) => void; compact?: boolean; seekRequest?: {time: number; shapes: Shape[]; sequence: number};
+  onDirty?: (value: boolean) => void; compact?: boolean; seekRequest?: {time: number; shapes: Shape[]; sequence: number; noteNumber: number}; nextNoteNumber?: number;
 }) {
   const video = useRef<HTMLVideoElement>(null);
   const [time, setTime] = useState(0), [duration, setDuration] = useState(preview.media.duration);
@@ -55,6 +51,7 @@ function Player({preview, version, onSave, onDirty, compact = false, seekRequest
   const [text, setText] = useState(""), [endTime, setEndTime] = useState<number | null>(null), [rangeMode, setRangeMode] = useState(false);
   const [busy, setBusy] = useState(false), [error, setError] = useState("");
   const gesture = useRef<Shape | null>(null);
+  const rangeId = useId();
   const canStep = preview.media.frameTimes.length > 0 || preview.media.fps !== null;
   const seek = useCallback((value: number) => { if (video.current) { video.current.pause(); video.current.currentTime = value; setTime(value); } }, []);
   useEffect(() => { if (seekRequest && !draft) { seek(seekRequest.time); setShapes(seekRequest.shapes); } }, [seekRequest, seek]);
@@ -88,18 +85,26 @@ function Player({preview, version, onSave, onDirty, compact = false, seekRequest
         onPlay={() => setPlaying(true)} onPause={() => setPlaying(false)} onEnded={() => setPlaying(false)}
         onSeeking={() => setSeeking(true)} onSeeked={() => setSeeking(false)}
         onError={() => setError("This browser cannot play the file or its preview expired. Reload the version; for MOV codec compatibility, render an H.264 MP4 review copy.")} />
-      {shapes.length > 0 || drawing ? <ShapeOverlay shapes={[...shapes, ...(drawing ? [drawing] : [])]} /> : null}
+      {shapes.length > 0 || drawing ? <ShapeOverlay shapes={[...shapes, ...(drawing ? [drawing] : [])]} noteNumber={draft ? nextNoteNumber : seekRequest?.noteNumber} /> : null}
       {draft && tool && <div className="video-markup-draw" aria-label={`Draw ${tool} on the paused frame`} onPointerDown={e => {
-        if (shapes.length >= 30) return; e.preventDefault(); e.currentTarget.setPointerCapture(e.pointerId); const p = point(e);
+        if (shapes.length >= 30 || busy || e.button !== 0) return; e.preventDefault(); e.currentTarget.setPointerCapture(e.pointerId); const p = point(e);
         gesture.current = {kind: tool, x1:p.x,y1:p.y,x2:p.x,y2:p.y}; setDrawing(gesture.current);
       }} onPointerMove={e => { if (!gesture.current) return; const p=point(e); gesture.current={...gesture.current,x2:p.x,y2:p.y};setDrawing(gesture.current); }}
-      onPointerUp={() => { const s=gesture.current; if (s && Math.hypot(s.x2-s.x1,s.y2-s.y1) > .005) setShapes(current => [...current,s]); gesture.current=null;setDrawing(null); }}
+      onPointerUp={e => {
+        if (gesture.current) {
+          const p = point(e), s = {...gesture.current, x2: p.x, y2: p.y};
+          const bounds = e.currentTarget.getBoundingClientRect();
+          const visibleLength = Math.hypot((s.x2-s.x1)*bounds.width, (s.y2-s.y1)*bounds.height);
+          if (s.kind === "arrow" ? visibleLength >= 12 : Math.hypot(s.x2-s.x1,s.y2-s.y1) > .005) setShapes(current => [...current,s]);
+        }
+        gesture.current=null;setDrawing(null);
+      }}
       onPointerCancel={() => {gesture.current=null;setDrawing(null);}} />}
     </div>
     <div className="video-markup-transport border-border">
       <IconButton label={playing ? "Pause" : "Play"} disabled={!ready || !!draft || busy} onClick={() => void togglePlay()}>{playing ? <Pause /> : <Play />}</IconButton>
       {!compact && <><IconButton label="Previous frame" disabled={!ready || !canStep || !!draft || busy || seeking} onClick={() => step(-1)}><ChevronLeft /></IconButton><IconButton label="Next frame" disabled={!ready || !canStep || !!draft || busy || seeking} onClick={() => step(1)}><ChevronRight /></IconButton></>}
-      <output className="video-markup-time text-muted-foreground">{timecode(time)} <span>/ {timecode(duration || 0)}</span></output>
+      <output className="video-markup-time text-xs text-muted-foreground">{timecode(time)} <span>/ {timecode(duration || 0)}</span></output>
       <IconButton label="Fullscreen video" disabled={busy || !!draft} onClick={() => { void video.current?.requestFullscreen?.().catch(e => setError(errorText(e))); }}><Maximize2 /></IconButton>
     </div>
     <input className="video-markup-seek" aria-label="Video time" type="range" min="0" max={duration || 0} step="any" value={time} disabled={!ready || !!draft || busy} onChange={e => {setShapes([]);seek(Number(e.target.value));}} />
@@ -107,13 +112,14 @@ function Player({preview, version, onSave, onDirty, compact = false, seekRequest
       <Button variant={draft && !tool ? "secondary" : "ghost"} size="sm" disabled={!ready || seeking || busy} onClick={() => void beginNote()}><MessageSquarePlus /> Note frame</Button>
       {([['box', Square, 'Box'], ['arrow', ArrowRight, 'Arrow'], ['zoom', Maximize2, 'Zoom region']] as const).map(([kind, Icon, label]) => <Button key={kind} variant={tool===kind ? "secondary" : "ghost"} size="sm" aria-pressed={tool===kind} disabled={!ready || seeking || busy} onClick={() => void beginNote(kind)}><Icon />{label}</Button>)}
     </div>}
+    {draft && tool === "arrow" && <p className="video-markup-draw-hint text-xs text-muted-foreground">Drag from the numbered marker toward what needs attention.</p>}
     {draft && <form className="video-markup-note-editor border-border" onSubmit={e => {
       e.preventDefault(); if (!onSave || !text.trim()) return; setBusy(true);setError("");
       void onSave({timestamp:draft.timestamp, still:draft.still, shapes, text:text.trim(), endTime}).then(cancel).catch(e => setError(errorText(e))).finally(() => setBusy(false));
     }}>
-      <div className="video-markup-row"><span className="text-muted-foreground text-xs">Frame at {timecode(draft.timestamp)}{endTime !== null ? ` → ${timecode(endTime)}` : ""}</span><IconButton label="Undo last shape" disabled={!shapes.length || busy} onClick={() => setShapes(v => v.slice(0,-1))}><CornerUpLeft /></IconButton></div>
+      <div className="video-markup-row"><span className="video-markup-check text-muted-foreground text-xs"><span className="video-markup-note-number" aria-label={`Note ${nextNoteNumber}`}>{nextNoteNumber}</span>Frame at {timecode(draft.timestamp)}{endTime !== null ? ` → ${timecode(endTime)}` : ""}</span><IconButton label="Undo last shape" disabled={!shapes.length || busy} onClick={() => setShapes(v => v.slice(0,-1))}><CornerUpLeft /></IconButton></div>
       <textarea autoFocus aria-label="Frame note" placeholder="What should change at this moment?" value={text} maxLength={8000} onChange={e => setText(e.target.value)} className="video-markup-textarea border-input bg-background text-foreground" disabled={busy} />
-      <label className="video-markup-range-toggle text-muted-foreground"><input type="checkbox" checked={rangeMode} disabled={busy} onChange={e => {setRangeMode(e.target.checked);setEndTime(e.target.checked ? draft.timestamp : null);}} /> Include a time range</label>
+      <div className="video-markup-range-toggle text-muted-foreground"><Checkbox id={rangeId} checked={rangeMode} disabled={busy} onCheckedChange={checked => {setRangeMode(checked===true);setEndTime(checked===true ? draft.timestamp : null);}} /><label htmlFor={rangeId}>Include a time range</label></div>
       {rangeMode && <label className="text-xs text-muted-foreground">Drag to the end of the moment<input aria-label="Note range end" className="video-markup-seek" type="range" min={draft.timestamp} max={duration} step={preview.media.fps ? 1/preview.media.fps : .001} value={endTime ?? draft.timestamp} disabled={busy} onChange={e => setEndTime(Number(e.target.value))} /></label>}
       <div className="video-markup-row"><span className="text-xs text-muted-foreground">{shapes.length ? `${shapes.length} drawn region${shapes.length===1 ? "" : "s"}` : "Frame still attached"}</span><div className="video-markup-actions"><Button type="button" variant="ghost" size="sm" onClick={cancel} disabled={busy}>Cancel</Button><Button size="sm" disabled={!text.trim() || busy}>{busy ? "Saving…" : "Save note"}</Button></div></div>
     </form>}
@@ -142,24 +148,64 @@ function NoteList({threadId, version, notes, onSeek, onRefresh, disabled}: {thre
   const rpc=useRpc<typeof videoMarkupContract>(),composer=useComposer();
   const [selected,setSelected]=useState<string[]>([]),[filter,setFilter]=useState("actionable"),[error,setError]=useState(""),[busy,setBusy]=useState(false),[notice,setNotice]=useState("");
   const [still,setStill]=useState<{note:FrameNote;image:Still}|null>(null);
+  const selectionId = useId();
   const actionable=notes.filter(n=>isActionable(n.status));
   const validSelected=selected.filter(id=>actionable.some(n=>n.id===id));
   const visible=notes.filter(n=>filter==="all" || (filter==="actionable" ? isActionable(n.status) : n.status===filter));
+  const allSelected = actionable.length>0 && validSelected.length===Math.min(12,actionable.length);
+  const noteNumber = (note: FrameNote) => notes.findIndex(n => n.id === note.id) + 1;
   async function addToPrompt() {
     setBusy(true);setError("");
-    try {const result=await rpc.call("context",{threadId,noteIds:validSelected});composer.insertMention({provider:MENTION_PROVIDER,id:result.id,label:`${version.demo} · ${result.count} frame note${result.count===1 ? "" : "s"}`});composer.focus();setNotice(`${result.count} notes and frame stills added to the prompt.`);setSelected([]);} catch(e){setError(errorText(e));}finally{setBusy(false);}
+    try {const result=await rpc.call("context",{threadId,noteIds:validSelected});composer.insertMention({provider:MENTION_PROVIDER,id:result.id,label:`${version.demo} · ${result.count} frame note${result.count===1 ? "" : "s"}`});composer.focus();setNotice(`${result.count} note${result.count===1 ? "" : "s"} and frame stills added to the prompt.`);setSelected([]);} catch(e){setError(errorText(e));}finally{setBusy(false);}
   }
-  return <section className="video-markup-notes">
-    <div className="video-markup-row"><h3 className="font-medium">Frame notes <span className="text-muted-foreground">{actionable.length}</span></h3><select aria-label="Filter notes" value={filter} onChange={e=>setFilter(e.target.value)} className="video-markup-select border-input bg-background"><option value="actionable">Needs attention</option><option value="all">All notes</option>{statuses.map(s=><option key={s} value={s}>{s}</option>)}</select></div>
-    {notes.length>0 && <div className="video-markup-row"><label className="text-xs text-muted-foreground video-markup-check"><input type="checkbox" checked={actionable.length>0 && validSelected.length===Math.min(12,actionable.length)} onChange={e=>setSelected(e.target.checked ? actionable.slice(0,12).map(n=>n.id) : [])} />Select open notes</label><Button size="sm" disabled={!validSelected.length || busy} onClick={()=>void addToPrompt()}><Send />Add to prompt{validSelected.length ? ` (${validSelected.length})` : ""}</Button></div>}
+  function changeStatus(note: FrameNote, status: NoteStatus) {
+    setBusy(true);setError("");
+    void rpc.call("status",{threadId,noteId:note.id,status}).then(onRefresh).catch(e=>setError(errorText(e))).finally(()=>setBusy(false));
+  }
+  return <section className="video-markup-notes" aria-label="Frame notes">
+    <div className="video-markup-row video-markup-notes-heading">
+      <h3 className="text-sm font-medium">Frame notes</h3>
+      <Select value={filter} onValueChange={setFilter}>
+        <SelectTrigger aria-label="Filter notes" className="video-markup-filter"><SelectValue /></SelectTrigger>
+        <SelectContent align="end">{noteFilters.map(item => <SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>)}</SelectContent>
+      </Select>
+    </div>
+    {notes.length>0 && <div className="video-markup-row video-markup-selection">
+      <div className="video-markup-check text-xs text-muted-foreground">
+        <Checkbox id={selectionId} checked={allSelected ? true : validSelected.length ? "indeterminate" : false} disabled={!actionable.length || busy} onCheckedChange={checked=>setSelected(checked===true ? actionable.slice(0,12).map(n=>n.id) : [])} />
+        <label htmlFor={selectionId}>Select open notes</label>
+      </div>
+      <Button size="sm" disabled={!validSelected.length || busy} onClick={()=>void addToPrompt()}><Send />Add to prompt</Button>
+    </div>}
     {!visible.length && <Notice>{notes.length ? "No notes in this view." : "Pause at a moment, mark a region, and leave a note."}</Notice>}
-    {visible.map(note=><article key={note.id} className="video-markup-note border-border">
-      <div className="video-markup-row"><label className="video-markup-check"><input aria-label={`Select note at ${timecode(note.timestamp)}`} type="checkbox" checked={validSelected.includes(note.id)} disabled={!isActionable(note.status) || (!validSelected.includes(note.id)&&validSelected.length>=12)} onChange={e=>setSelected(v=>e.target.checked ? [...v,note.id] : v.filter(id=>id!==note.id))} /><button className="video-markup-moment text-foreground" disabled={disabled} onClick={()=>onSeek(note)}>{timecode(note.timestamp)}{note.endTime!==null ? `–${timecode(note.endTime)}` : ""}</button></label>
-      <select aria-label={`Status for note at ${timecode(note.timestamp)}`} className="video-markup-select border-input bg-background" value={note.status} disabled={busy} onChange={e=>{setBusy(true);void rpc.call("status",{threadId,noteId:note.id,status:e.target.value as NoteStatus}).then(onRefresh).catch(e=>setError(errorText(e))).finally(()=>setBusy(false));}}>{statuses.map(s=><option key={s}>{s}</option>)}</select></div>
-      <p className="video-markup-note-text">{note.text}</p>
-      <div className="video-markup-row text-xs text-muted-foreground"><span>{note.carriedFrom ? "Carried forward · original frame" : `${note.shapes.length} region${note.shapes.length===1 ? "" : "s"}`}</span><Button variant="ghost" size="sm" onClick={()=>{void rpc.call("frame",{threadId,noteId:note.id}).then(image=>setStill({note,image})).catch(e=>setError(errorText(e)));}}>View still</Button></div>
-    </article>)}
-    {still && <div className="video-markup-still border-border"><div className="video-markup-row"><span className="text-xs text-muted-foreground">Captured frame · {timecode(still.note.timestamp)}{still.note.carriedFrom ? " · earlier version" : ""}</span><IconButton label="Close still" onClick={()=>setStill(null)}><X /></IconButton></div><div className="video-markup-stage"><img src={still.image.dataUrl} alt={`Frame at ${timecode(still.note.timestamp)}: ${still.note.text}`} /><ShapeOverlay shapes={still.note.shapes} /></div></div>}
+    <div className="video-markup-note-list">
+      {visible.map(note=><article key={note.id} className="video-markup-note border-border" aria-label={`Note ${noteNumber(note)}`}>
+        <Checkbox className="video-markup-note-checkbox" aria-label={`Select note at ${timecode(note.timestamp)}`} checked={validSelected.includes(note.id)} disabled={busy || !isActionable(note.status) || (!validSelected.includes(note.id)&&validSelected.length>=12)} onCheckedChange={checked=>setSelected(v=>checked===true ? [...v,note.id] : v.filter(id=>id!==note.id))} />
+        <div className="video-markup-note-content">
+          <div className="video-markup-row video-markup-note-heading">
+            <button type="button" className="video-markup-moment" aria-label={`Go to note ${noteNumber(note)} at ${timecode(note.timestamp)}`} disabled={disabled} onClick={()=>onSeek(note)}>
+              <span className="video-markup-note-number" aria-hidden="true">{noteNumber(note)}</span>
+              <span>{timecode(note.timestamp)}{note.endTime!==null ? `–${timecode(note.endTime)}` : ""}</span>
+            </button>
+            <Select value={note.status} disabled={busy} onValueChange={value=>changeStatus(note,value as NoteStatus)}>
+              <SelectTrigger aria-label={`Status for note at ${timecode(note.timestamp)}`} className={`${badgeVariants({variant:"secondary"})} video-markup-status`}>
+                <SelectValue><span className="video-markup-status-label"><span className="video-markup-status-dot" data-status={note.status} />{statusLabels[note.status]}</span></SelectValue>
+              </SelectTrigger>
+              <SelectContent align="end">{statuses.map(status=><SelectItem key={status} value={status}><span className="video-markup-status-label"><span className="video-markup-status-dot" data-status={status} />{statusLabels[status]}</span></SelectItem>)}</SelectContent>
+            </Select>
+          </div>
+          <p className="video-markup-note-text text-sm">{note.text}</p>
+          <div className="video-markup-row video-markup-note-footer text-xs text-muted-foreground">
+            <span>{note.carriedFrom ? "Carried forward · original frame" : note.shapes.length ? "Marked frame" : "Frame note"}</span>
+            <Button variant="ghost" size="sm" onClick={()=>{void rpc.call("frame",{threadId,noteId:note.id}).then(image=>setStill({note,image})).catch(e=>setError(errorText(e)));}}>View still</Button>
+          </div>
+        </div>
+      </article>)}
+    </div>
+    {still && <div className="video-markup-still border-border">
+      <div className="video-markup-row"><span className="video-markup-check text-xs text-muted-foreground"><span className="video-markup-note-number">{noteNumber(still.note)}</span>Captured frame · {timecode(still.note.timestamp)}{still.note.carriedFrom ? " · earlier version" : ""}</span><IconButton label="Close still" onClick={()=>setStill(null)}><X /></IconButton></div>
+      <div className="video-markup-stage"><img src={still.image.dataUrl} alt={`Frame at ${timecode(still.note.timestamp)}: ${still.note.text}`} /><ShapeOverlay shapes={still.note.shapes} noteNumber={noteNumber(still.note)} /></div>
+    </div>}
     {notice && <Notice>{notice}</Notice>}{error && <ErrorNotice>{error}</ErrorNotice>}
   </section>;
 }
@@ -167,7 +213,7 @@ function NoteList({threadId, version, notes, onSeek, onRefresh, disabled}: {thre
 function ReviewVersion({threadId,versionId,onDirty}: {threadId:string;versionId:string;onDirty?:(dirty:boolean)=>void}) {
   const rpc=useRpc<typeof videoMarkupContract>();
   const [version,setVersion]=useState<Version|null>(null),[preview,setPreview]=useState<Preview|null>(null),[notes,setNotes]=useState<FrameNote[]>([]),[error,setError]=useState(""),[reload,setReload]=useState(0),[dirty,setDirty]=useState(false);
-  const [seekRequest,setSeekRequest]=useState<{time:number;shapes:Shape[];sequence:number}>();
+  const [seekRequest,setSeekRequest]=useState<{time:number;shapes:Shape[];sequence:number;noteNumber:number}>();
   const refresh=useCallback(()=>setReload(n=>n+1),[]);
   const dirtyChanged=useCallback((value:boolean)=>{setDirty(value);onDirty?.(value);},[onDirty]);
   useEffect(()=>{let cancelled=false;setError("");setPreview(null);setVersion(null);void Promise.all([rpc.call("version",{threadId,versionId}),rpc.call("preview",{threadId,versionId})]).then(([v,p])=>{if(!cancelled){setVersion(v);setPreview(p);}}).catch(e=>{if(!cancelled)setError(errorText(e));});return()=>{cancelled=true;};},[rpc,threadId,versionId]);
@@ -176,8 +222,8 @@ function ReviewVersion({threadId,versionId,onDirty}: {threadId:string;versionId:
   if(error&&!version)return <ErrorNotice>{error}</ErrorNotice>;
   if(!version||!preview)return <Notice>Opening version…</Notice>;
   return <><div className="video-markup-version-heading"><span className="text-xs text-muted-foreground">VERSION {version.ordinal}</span><h2 className="text-lg font-medium">{version.label}</h2>{version.summary&&<p className="text-sm text-muted-foreground">{version.summary}</p>}</div>
-    <Player key={`player-${versionId}`} preview={preview} version={version} seekRequest={seekRequest} onDirty={dirtyChanged} onSave={async fields=>{await rpc.call("addNote",{threadId,versionId,...fields});refresh();}} />
-    <NoteList key={`notes-${versionId}`} threadId={threadId} version={version} notes={notes} disabled={dirty} onRefresh={refresh} onSeek={note=>setSeekRequest({time:Math.min(note.timestamp,preview.media.duration||note.timestamp),shapes:note.frameVersionId===versionId ? note.shapes : [],sequence:Date.now()})} />
+    <Player key={`player-${versionId}`} preview={preview} version={version} seekRequest={seekRequest} nextNoteNumber={notes.length+1} onDirty={dirtyChanged} onSave={async fields=>{await rpc.call("addNote",{threadId,versionId,...fields});refresh();}} />
+    <NoteList key={`notes-${versionId}`} threadId={threadId} version={version} notes={notes} disabled={dirty} onRefresh={refresh} onSeek={note=>setSeekRequest({time:Math.min(note.timestamp,preview.media.duration||note.timestamp),shapes:note.frameVersionId===versionId ? note.shapes : [],sequence:Date.now(),noteNumber:notes.findIndex(n=>n.id===note.id)+1})} />
     {error&&<ErrorNotice>{error}</ErrorNotice>}</>;
 }
 
@@ -192,11 +238,11 @@ export function VideoMarkupPanel({threadId,params}: PluginThreadPanelProps) {
   const rail=versions.filter(v=>v.demo===activeDemo);
   return <main className="video-markup bg-background text-foreground">
     <header className="video-markup-header border-border"><div className="video-markup-row"><span className="video-markup-brand"><Clapperboard size={18}/>Video Markup</span><Button variant="ghost" size="sm" disabled={dirty} onClick={()=>setRegistering(v=>!v)}>{registering ? "Back to review" : "Add version"}</Button></div>
-    {versions.length>0&&<select aria-label="Demo" className="video-markup-demo bg-background" value={activeDemo} disabled={dirty} onChange={e=>{setDemo(e.target.value);setCurrent(versions.filter(v=>v.demo===e.target.value).at(-1)?.id??null);}}>{[...new Set(versions.map(v=>v.demo))].map(name=><option key={name}>{name}</option>)}</select>}
+    {versions.length>0&&<Select value={activeDemo} disabled={dirty} onValueChange={value=>{setDemo(value);setCurrent(versions.filter(v=>v.demo===value).at(-1)?.id??null);}}><SelectTrigger aria-label="Demo" className="video-markup-demo"><SelectValue /></SelectTrigger><SelectContent>{[...new Set(versions.map(v=>v.demo))].map(name=><SelectItem key={name} value={name}>{name}</SelectItem>)}</SelectContent></Select>}
     </header>
     {error&&<ErrorNotice>{error}</ErrorNotice>}
     {loading ? <Notice>Loading demos…</Notice> : registering || !current ? <RegistrationForm threadId={threadId} onRegistered={v=>{setCurrent(v.id);setDemo(v.demo);setRegistering(false);refresh();}} /> : <>
-      <nav aria-label="Demo versions" className="video-markup-rail border-border">{rail.map(v=><button key={v.id} disabled={dirty} aria-current={current===v.id ? "true" : undefined} className={`video-markup-version border-border ${current===v.id ? "bg-secondary text-secondary-foreground" : "text-muted-foreground"}`} onClick={()=>setCurrent(v.id)}><span className="video-markup-version-number">{v.ordinal.toString().padStart(2,"0")}</span><span>{v.label}</span>{current===v.id&&<Check size={13}/>}</button>)}</nav>
+      <nav aria-label="Demo versions" className="video-markup-rail border-border">{rail.map(v=><button key={v.id} disabled={dirty} aria-current={current===v.id ? "true" : undefined} className={`video-markup-version border-border ${current===v.id ? "bg-secondary text-secondary-foreground" : "text-muted-foreground"}`} onClick={()=>setCurrent(v.id)}><span className="video-markup-version-number text-xs">{v.ordinal.toString().padStart(2,"0")}</span><span>{v.label}</span>{current===v.id&&<Check size={13}/>}</button>)}</nav>
       <div className="video-markup-review"><ReviewVersion key={current} threadId={threadId} versionId={current} onDirty={setDirty} /></div></>}
   </main>;
 }
