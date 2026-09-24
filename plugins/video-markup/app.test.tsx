@@ -26,7 +26,7 @@ describe("Video Markup UI contracts",()=>{
     await slot.behavior.setComposerScope({kind:"thread",threadId:"thr_demo"});
     await slot.behavior.setComposerText("Please revise this.");
     const checkbox=await slot.findByRole("checkbox",{name:"Select open notes"});fireEvent.click(checkbox);
-    const addButton = slot.getByRole("button",{name:"Add to prompt",exact:true});
+    const addButton = slot.getByRole("button",{name:"Add to prompt"});
     fireEvent.click(addButton);
     await waitFor(()=>expect(slot.inspection.composer.mentions).toMatchObject([{provider:"frame-notes",id:"selection"}]));
     expect(slot.inspection.composer.text).toContain("Please revise this.");
@@ -57,7 +57,7 @@ describe("Video Markup UI contracts",()=>{
     expect(still.parentElement?.querySelector(".video-markup-shape-number")?.textContent).toBe("2");
     expect(still.parentElement?.querySelector(".video-markup-shape-accent .video-markup-arrowhead")).toBeTruthy();
     fireEvent.keyDown(slot.getByRole("combobox",{name:"Status for note at 00:15.000"}),{key:"ArrowDown"});
-    fireEvent.click(await slot.findByRole("option",{name:"Fixed",exact:true}));
+    fireEvent.click(await slot.findByRole("option",{name:"Fixed"}));
     await waitFor(()=>expect(slot.inspection.rpcCalls.find(c=>c.method==="status")?.input).toEqual({threadId:"thr_demo",noteId:"n2",status:"fixed"}));
     await waitFor(()=>expect(slot.getByRole("button",{name:"Add to prompt"}).hasAttribute("disabled")).toBe(true));
     expect(within(slot.getByRole("article",{name:"Note 2"})).getByRole("button",{name:"Go to note 2 at 00:15.000"})).toBeTruthy();
