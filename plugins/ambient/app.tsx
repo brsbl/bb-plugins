@@ -40,19 +40,21 @@ const GLASS_SURFACE = `background-color: ${GLASS_FILL}; ${GLASS_BLUR}
 const COLUMN_HALF = "404px";
 const COLUMN_MASK = `linear-gradient(to right, transparent max(10px, 50% - ${COLUMN_HALF}), #000 max(10px, 50% - ${COLUMN_HALF}), #000 min(calc(100% - 10px), 50% + ${COLUMN_HALF}), transparent min(calc(100% - 10px), 50% + ${COLUMN_HALF}))`;
 const RIGHT_PANEL = "body.bb-app-shell > #root #thread-detail-secondary-panel-handle + [data-panel] > aside";
+const COLUMN_WIDTH = `min(calc(100% - 20px), calc(2 * ${COLUMN_HALF}))`;
+const COLUMN_BOTTOM = "6px";
 const THREAD = "body.bb-app-shell > #root [data-thread-window]";
 const CHROME_PILLS = 'body.bb-app-shell > #root :is([data-testid="app-page-header-content-row"] > :first-child, [data-app-page-header-actions], [data-testid="app-sidebar-top-reserve-row"] > div, button[data-sidebar="trigger"])';
 const SIDEBAR_CARDS = 'body.bb-app-shell > #root :is([data-testid="sidebar-navigation-region"], [data-sidebar="content"], [data-sidebar="footer"])';
 
 function glassCss(glass: number): string {
-  return `body.bb-app-shell { --ambient-glass-fill: color-mix(in oklab, var(--ambient-background) ${Math.round(glass * 100)}%, transparent); }
+  return `body.bb-app-shell { --ambient-glass-fill: color-mix(in oklab, var(--ambient-background) ${Math.round(glass * 100)}%, transparent); --ambient-glass-solid: color-mix(in oklab, var(--ambient-background) ${Math.round(Math.min(0.92, Math.max(0.85, glass + 0.3)) * 100)}%, transparent); }
 ${THREAD} { position: relative; isolation: isolate; }
-${THREAD}::before { content: ""; position: absolute; z-index: -1; pointer-events: none; ${GLASS_SURFACE} border-radius: 20px; top: 0; bottom: 6px; left: 50%; width: min(calc(100% - 20px), calc(2 * ${COLUMN_HALF})); transform: translateX(-50%); }
+${THREAD}::before { content: ""; position: absolute; z-index: -1; pointer-events: none; ${GLASS_SURFACE} border-radius: 20px; top: 0; bottom: ${COLUMN_BOTTOM}; left: 50%; width: ${COLUMN_WIDTH}; transform: translateX(-50%); }
 ${THREAD} [data-overflow-fade] { display: none; }
 ${THREAD} [data-timeline-row-list] :is([data-message-column].border, [data-message-column] .border) { border-color: color-mix(in oklab, var(--ink) 8%, transparent); }
 ${THREAD} [data-scroll-footer] > .bg-background { background-color: transparent; }
-${THREAD} [data-scroll-footer] div:has(> [data-app-composer]) { position: relative; isolation: isolate; }
-${THREAD} [data-scroll-footer] div:has(> [data-app-composer])::before { content: ""; position: absolute; z-index: -1; pointer-events: none; inset: -16px 8px 12px; border-radius: 20px; ${GLASS_SURFACE} }
+${THREAD} [data-scroll-footer] { isolation: isolate; }
+${THREAD} [data-scroll-footer]::before { content: ""; position: absolute; z-index: -1; pointer-events: none; top: -16px; bottom: ${COLUMN_BOTTOM}; left: 50%; width: ${COLUMN_WIDTH}; transform: translateX(-50%); border-radius: 20px; background-color: var(--ambient-glass-solid); -webkit-backdrop-filter: blur(32px); backdrop-filter: blur(32px); border: 1px solid color-mix(in oklab, var(--ink) 9%, transparent); box-shadow: 0 -10px 24px -18px color-mix(in oklab, var(--ink) 40%, transparent); }
 body.bb-app-shell > #root header.bg-surface-scrim { border-color: transparent; }
 body.bb-app-shell > #root [data-sidebar="panel"] { border-inline-end-color: transparent; }
 :is(${CHROME_PILLS}) { ${GLASS_SURFACE} border-radius: 12px; padding-inline: 6px; }
