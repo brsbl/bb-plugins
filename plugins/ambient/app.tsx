@@ -53,6 +53,7 @@ ${THREAD}::before { content: ""; position: absolute; z-index: -1; pointer-events
 ${THREAD} [data-overflow-fade] { display: none; }
 ${THREAD}::after { content: ""; position: absolute; z-index: 1; pointer-events: none; top: 1px; height: 28px; left: 50%; width: calc(${COLUMN_WIDTH} - 2px); transform: translateX(-50%); border-radius: 19px 19px 0 0; background: linear-gradient(to bottom, color-mix(in oklab, var(--ambient-background) 18%, transparent), transparent); }
 ${THREAD} [data-timeline-row-list] :is([data-message-column].border, [data-message-column] .border) { border-color: color-mix(in oklab, var(--ink) 8%, transparent); }
+${THREAD} [data-markdown-preview] div:has(> div > table) { width: 100% !important; margin-inline: 0 !important; }
 ${THREAD} [data-scroll-footer] > .bg-background { background-color: transparent; }
 ${THREAD} [data-scroll-footer] { isolation: isolate; }
 ${THREAD} [data-scroll-footer]::before { content: ""; position: absolute; z-index: -1; pointer-events: none; top: -16px; bottom: ${COLUMN_BOTTOM}; left: 50%; width: ${COLUMN_WIDTH}; transform: translateX(-50%); border-radius: 20px; background: linear-gradient(to bottom, color-mix(in oklab, var(--canvas) 28%, transparent), transparent 45%), var(--ambient-background); border: 1px solid color-mix(in oklab, var(--ink) 9%, transparent); box-shadow: inset 0 1px 0 color-mix(in oklab, var(--canvas) 70%, transparent), inset 0 0 0 1px color-mix(in oklab, var(--canvas) 18%, transparent), 0 -10px 24px -18px color-mix(in oklab, var(--ink) 40%, transparent); }
