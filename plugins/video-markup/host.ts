@@ -32,7 +32,8 @@ export default experimental_defineHostEntry({contract: hostContract, handlers: {
     const media = {path: file, size: details.size, modifiedAt: details.mtimeMs, duration: 0, fps: input.fps ?? null, width: 0, height: 0, frameTimes: [] as number[]};
     if (!input.probe) return media;
     try {
-      const {stdout} = await execute("ffprobe", ["-v", "error", "-select_streams", "v:0", "-show_entries", "stream=avg_frame_rate,width,height:format=duration:frame=best_effort_timestamp_time", "-of", "json", file], {timeout: 60_000, maxBuffer: 8 * 1024 * 1024, signal: context.signal});
+      // Finish optional probing before BB's default 30s host-call deadline.
+      const {stdout} = await execute("ffprobe", ["-v", "error", "-select_streams", "v:0", "-show_entries", "stream=avg_frame_rate,width,height:format=duration:frame=best_effort_timestamp_time", "-of", "json", file], {timeout: 20_000, maxBuffer: 8 * 1024 * 1024, signal: context.signal});
       const probe = JSON.parse(stdout);
       const stream = probe.streams?.[0];
       const [n, d] = String(stream?.avg_frame_rate ?? "0/1").split("/").map(Number);

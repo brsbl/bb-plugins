@@ -19,6 +19,7 @@ export const videoMarkupContract = defineRpcContract({
   version: {input: target, output: versionSchema},
   preview: {input: target, output: previewSchema},
   openFile: {input: openInput, output: previewSchema},
+  probeFile: {input: openInput, output: mediaSchema},
   notes: {input: listSchema, output: z.object({notes: z.array(noteSchema), nextOffset: z.number().nullable()})},
   addNote: {input: noteInputSchema, output: noteSchema},
   status: {input: statusInputSchema, output: noteSchema},
@@ -69,9 +70,9 @@ export default function plugin(bb: BbPluginApi): void {
     if (relative === ".." || relative.startsWith(`..${path.sep}`) || path.isAbsolute(relative)) throw new Error("Video escapes its workspace");
     return {path: resolved, rootPath: root, hostId};
   }
-  async function inspect(file: string, source: z.infer<typeof sourceSchema>, fps?: number): Promise<Media> {
+  async function inspect(file: string, source: z.infer<typeof sourceSchema>, fps?: number, probe = true): Promise<Media> {
     const resolved = await resolveFile(file, source);
-    const result = await host.call("inspect", {path: resolved.path, rootPath: resolved.rootPath, ...(fps === undefined ? {} : {fps})}, {hostId: resolved.hostId});
+    const result = await host.call("inspect", {path: resolved.path, rootPath: resolved.rootPath, probe, ...(fps === undefined ? {} : {fps})}, {hostId: resolved.hostId});
     return {...result, hostId: resolved.hostId};
   }
   async function prepare(media: Media) {
@@ -96,7 +97,9 @@ export default function plugin(bb: BbPluginApi): void {
     },
     version: ({threadId, versionId}: z.output<typeof target>) => store.version(threadId, versionId),
     preview: ({threadId, versionId}: z.output<typeof target>) => prepare(store.version(threadId, versionId).media),
-    async openFile({file, source}: z.output<typeof openInput>) { return prepare(await inspect(file, source)); },
+    // A full frame scan must never delay the first playable URL.
+    async openFile({file, source}: z.output<typeof openInput>) { return prepare(await inspect(file, source, undefined, false)); },
+    probeFile: ({file, source}: z.output<typeof openInput>) => inspect(file, source),
     notes(input: z.output<typeof listSchema>) {
       const notes = store.notes(input.threadId).filter(n => (!input.demo || n.demo === input.demo) && (!input.versionId || n.versionId === input.versionId) && (!input.status || n.status === input.status) && (!input.actionable || isActionable(n.status)));
       return {notes: notes.slice(input.offset, input.offset + 100), nextOffset: notes.length > input.offset + 100 ? input.offset + 100 : null};

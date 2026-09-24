@@ -38,9 +38,9 @@ async function captureFrame(video: HTMLVideoElement): Promise<Still> {
   return {dataUrl, width: canvas.width, height: canvas.height};
 }
 
-function Player({preview, version, onSave, onDirty, compact = false, seekRequest, nextNoteNumber}: {
+function Player({preview, version, onSave, onDirty, compact = false, seekRequest, nextNoteNumber, frameProbe}: {
   preview: Preview; version?: Version; onSave?: (fields: {timestamp: number; text: string; shapes: Shape[]; still: Still}) => Promise<void>;
-  onDirty?: (value: boolean) => void; compact?: boolean; seekRequest?: {time: number; shapes: Shape[]; sequence: number; noteNumber: number}; nextNoteNumber?: number;
+  onDirty?: (value: boolean) => void; compact?: boolean; seekRequest?: {time: number; shapes: Shape[]; sequence: number; noteNumber: number}; nextNoteNumber?: number; frameProbe?: "pending" | "failed";
 }) {
   const video = useRef<HTMLVideoElement>(null);
   const [time, setTime] = useState(0), [duration, setDuration] = useState(preview.media.duration);
@@ -120,7 +120,7 @@ function Player({preview, version, onSave, onDirty, compact = false, seekRequest
       <textarea autoFocus aria-label="Frame note" placeholder="What should change at this moment?" value={text} maxLength={8000} onChange={e => setText(e.target.value)} className="video-markup-textarea border-input bg-background text-foreground" disabled={busy} />
       <div className="video-markup-row"><span className="text-xs text-muted-foreground">{shapes.length ? `${shapes.length} drawn region${shapes.length===1 ? "" : "s"}` : "Frame still attached"}</span><div className="video-markup-actions"><Button type="button" variant="ghost" size="sm" onClick={cancel} disabled={busy}>Cancel</Button><Button size="sm" disabled={!text.trim() || busy}>{busy ? "Saving…" : "Save note"}</Button></div></div>
     </form>}
-    {!compact && !canStep && <Notice>Frame stepping needs ffprobe on the video's machine or a known constant frame rate supplied when registering.</Notice>}
+    {!compact && !canStep && <Notice>{frameProbe === "pending" ? "Preparing frame stepping…" : frameProbe === "failed" ? "Frame stepping is unavailable. Playback and seeking still work." : "Frame stepping needs ffprobe on the video's machine or a known constant frame rate supplied when registering."}</Notice>}
     {error && <ErrorNotice>{error}</ErrorNotice>}
   </section>;
 }
@@ -247,12 +247,18 @@ export function VideoMarkupPanel({threadId,params}: PluginThreadPanelProps) {
 export function VideoMarkupFileViewer({path,source}: PluginFileOpenerProps) {
   const rpc=useRpc<typeof videoMarkupContract>();
   const [preview,setPreview]=useState<Preview|null>(null),[version,setVersion]=useState<Version|null>(null),[error,setError]=useState("");
+  const [frameProbe,setFrameProbe]=useState<"pending"|"failed">("pending");
   const sourceKey=JSON.stringify(source);
-  useEffect(()=>{let cancelled=false;setPreview(null);setVersion(null);setError("");void(async()=>{
+  useEffect(()=>{let cancelled=false;setPreview(null);setVersion(null);setError("");setFrameProbe("pending");void(async()=>{
     const p=await rpc.call("openFile",{file:path,source}); if(cancelled)return;setPreview(p);
-    if(source.threadId){let offset:number|null=0;do{const result: {versions: Version[]; nextOffset: number | null}=await rpc.call("versions",{threadId:source.threadId,offset});const found=result.versions.find(v=>v.media.path===p.media.path && v.media.hostId===p.media.hostId && v.media.modifiedAt===p.media.modifiedAt);if(found){if(!cancelled)setVersion(found);break;}offset=result.nextOffset;}while(offset!==null&&!cancelled);}
+    if(source.threadId){let offset:number|null=0;do{const result: {versions: Version[]; nextOffset: number | null}=await rpc.call("versions",{threadId:source.threadId,offset});const found=result.versions.find(v=>v.media.path===p.media.path && v.media.hostId===p.media.hostId && v.media.modifiedAt===p.media.modifiedAt);if(found){if(!cancelled)setVersion(found);return;}offset=result.nextOffset;}while(offset!==null&&!cancelled);}
+    try {
+      const media=await rpc.call("probeFile",{file:path,source});
+      if(!cancelled && media.path===p.media.path && media.hostId===p.media.hostId && media.size===p.media.size && media.modifiedAt===p.media.modifiedAt) setPreview({...p,media});
+    } catch { /* Optional frame metadata must not replace the playable preview with an error. */ }
+    finally {if(!cancelled)setFrameProbe("failed");}
   })().catch(e=>{if(!cancelled)setError(errorText(e));});return()=>{cancelled=true;};},[path,sourceKey,rpc]);
-  return <main className="video-markup video-markup-review bg-background text-foreground">{error?<ErrorNotice>{error}</ErrorNotice>:version&&source.threadId?<ReviewVersion threadId={source.threadId} versionId={version.id}/>:preview?<><Player key={path} preview={preview}/>{source.threadId?<RegistrationForm threadId={source.threadId} file={path} source={source} onRegistered={setVersion}/>:<Notice>Open this video from a thread to save frame notes and versions.</Notice>}</>:<Notice>Opening video…</Notice>}</main>;
+  return <main className="video-markup video-markup-review bg-background text-foreground">{error?<ErrorNotice>{error}</ErrorNotice>:version&&source.threadId?<ReviewVersion threadId={source.threadId} versionId={version.id}/>:preview?<><Player key={path} preview={preview} frameProbe={frameProbe}/>{source.threadId?<RegistrationForm threadId={source.threadId} file={path} source={source} onRegistered={setVersion}/>:<Notice>Open this video from a thread to save frame notes and versions.</Notice>}</>:<Notice>Opening video…</Notice>}</main>;
 }
 
 export function VideoMarkupInline({attributes,message}:PluginMessageDirectiveProps) {

@@ -14,6 +14,24 @@ afterAll(() => vi.unstubAllGlobals());
 const version:Version={id:"v1",threadId:"thr_demo",demo:"Duo",label:"v1",summary:"Gentler camera",createdAt:1,ordinal:1,media:{path:"/v1.mp4",hostId:"host_a",size:10,modifiedAt:1,duration:34,fps:60,frameTimes:[0,1/60],width:1920,height:1080}};
 const note:FrameNote={id:"n1",threadId:"thr_demo",demo:"Duo",versionId:"v1",frameVersionId:"v1",timestamp:12,shapes:[],text:"Keep the composer in frame",status:"open",createdAt:1,updatedAt:1,carriedFrom:null,stillId:"n1"};
 describe("Video Markup UI contracts",()=>{
+  it("keeps the file playable while frame metadata is pending or fails",async()=>{
+    const app=await loadPluginApp(()=>import("./app.js"));
+    let failProbe!:(error:Error)=>void;
+    const probe=new Promise<never>((_resolve,reject)=>{failProbe=reject;});
+    const slot=renderSlot(app.fileOpeners[0],{path:"/v1.mp4",source:{kind:"host",threadId:null,environmentId:null,projectId:null}},{rpc:{
+      openFile:()=>({media:{...version.media,duration:0,fps:null,frameTimes:[]},url:"/video.mp4",expiresAt:99999}),
+      probeFile:()=>probe,
+    }});
+    const player=await slot.findByRole("region",{name:"Video review player"});
+    const video=player.querySelector("video");
+    expect(video?.getAttribute("src")).toBe("/video.mp4");
+    expect(await slot.findByText("Preparing frame stepping…")).toBeTruthy();
+    failProbe(new Error("Slow frame probe exceeded the host deadline"));
+    expect(await slot.findByText("Frame stepping is unavailable. Playback and seeking still work.")).toBeTruthy();
+    expect(slot.queryByRole("alert")).toBeNull();
+    expect(player.querySelector("video")).toBe(video);
+    slot.lifecycle.unmount();
+  });
   it("registers the three video file types, inline directive, and thread panel",async()=>{
     const app=await loadPluginApp(()=>import("./app.js"));
     expect(app.fileOpeners).toMatchObject([{id:"video-markup-video",extensions:["mp4","webm","mov"]}]);
