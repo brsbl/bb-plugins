@@ -1206,6 +1206,7 @@ var SECTION_SUMMARY_CACHE_TTL_MS = 4e3;
 var SECTION_CACHE_MAX_ENTRIES = 32;
 var SECTION_UNKNOWN_TTL_MS = 6e4;
 var OPEN_DELAY_MS = 0;
+var POINTER_SUMMARY_SETTLE_MS = 150;
 var CLOSE_DELAY_MS = 120;
 var ACTIVE_SUMMARY_CACHE_TTL_MS = 2e3;
 var IDLE_SUMMARY_CACHE_TTL_MS = 5e3;
@@ -2050,6 +2051,7 @@ function installHoverCards({ onOpen }) {
   let activeThreadId = null;
   let openTimer = null;
   let closeTimer = null;
+  let summaryTimer = null;
   let timeTimer = null;
   let disposed = false;
   let requestGeneration = 0;
@@ -2450,9 +2452,15 @@ function installHoverCards({ onOpen }) {
     if (triggerIndex < 0) return null;
     return candidates[(triggerIndex + 1) % candidates.length] ?? null;
   }
-  function showCard(trigger, requestedAt = monotonicNow()) {
+  function cancelSummaryRequest() {
+    if (!summaryTimer) return;
+    clearTimeout(summaryTimer);
+    summaryTimer = null;
+  }
+  function showCard(trigger, requestedAt = monotonicNow(), summaryDelayMs = 0) {
     const threadId = threadIdFor(trigger);
     if (!threadId || disposed) return;
+    cancelSummaryRequest();
     onOpen();
     activeTrigger?.removeAttribute("aria-describedby");
     activeTrigger = trigger;
@@ -2496,6 +2504,16 @@ function installHoverCards({ onOpen }) {
         return;
       }
     }
+    if (summaryDelayMs > 0) {
+      summaryTimer = setTimeout(() => {
+        summaryTimer = null;
+        loadSummary(threadId, cached, generation, hoverCard, requestedAt);
+      }, summaryDelayMs);
+      return;
+    }
+    loadSummary(threadId, cached, generation, hoverCard, requestedAt);
+  }
+  function loadSummary(threadId, cached, generation, hoverCard, requestedAt) {
     void requestSummary(
       threadId,
       cached ? "stale" : "miss",
@@ -2551,23 +2569,24 @@ function installHoverCards({ onOpen }) {
     clearTimeout(closeTimer);
     closeTimer = null;
   }
-  function scheduleOpen(trigger, delay) {
+  function scheduleOpen(trigger, delay, summaryDelayMs = 0) {
     cancelOpen();
     cancelClose();
     if (activeTrigger === trigger && card && !card.hidden) return;
     const requestedAt = monotonicNow();
     if (delay <= 0) {
-      showCard(trigger, requestedAt);
+      showCard(trigger, requestedAt, summaryDelayMs);
       return;
     }
     openTimer = setTimeout(() => {
       openTimer = null;
-      showCard(trigger, requestedAt);
+      showCard(trigger, requestedAt, summaryDelayMs);
     }, delay);
   }
   function closeCard() {
     cancelOpen();
     cancelClose();
+    cancelSummaryRequest();
     requestGeneration += 1;
     activeTrigger?.removeAttribute("aria-describedby");
     activeTrigger = null;
@@ -2599,7 +2618,7 @@ function installHoverCards({ onOpen }) {
     if (!trigger) return;
     const previousTrigger = findThreadTrigger(event.relatedTarget);
     if (previousTrigger === trigger) return;
-    scheduleOpen(trigger, OPEN_DELAY_MS);
+    scheduleOpen(trigger, OPEN_DELAY_MS, POINTER_SUMMARY_SETTLE_MS);
   }
   function onPointerOut(event) {
     const trigger = findThreadTrigger(event.target);

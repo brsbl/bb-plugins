@@ -635,8 +635,14 @@ assert.equal(card.dataset.bbHoverCardRenderState, "loading");
 assert.equal(card.getAttribute("aria-busy"), "true");
 assert.deepEqual(
   requestBodies,
+  [],
+  "waits for the pointer to settle before requesting a summary",
+);
+await new Promise((resolve) => setTimeout(resolve, 160));
+assert.deepEqual(
+  requestBodies,
   [{ threadId: "thr_1" }],
-  "starts the summary request immediately",
+  "requests the summary once the pointer settles",
 );
 assert.equal(typeof summaryRequestMetadata[0]?.clientId, "string");
 assert.equal(summaryRequestMetadata[0]?.generation, 1);
@@ -1051,11 +1057,11 @@ trigger.dispatchEvent(quickPointerOut);
 await new Promise((resolve) => setTimeout(resolve, 280));
 
 assert.equal(card.hidden, true);
-assert.deepEqual(requestBodies, [
-  { threadId: "thr_1" },
-  { threadId: "thr_1" },
-  { threadId: "thr_2" },
-]);
+assert.deepEqual(
+  requestBodies,
+  [{ threadId: "thr_1" }, { threadId: "thr_1" }],
+  "skips the summary request when the pointer passes over a row",
+);
 
 trigger.blur();
 trigger.dataset.sidebarThreadId = "thr_local";
@@ -1158,7 +1164,6 @@ assert.equal(card.querySelector(".bb-thread-hover-card__status-icon"), null);
 assert.deepEqual(requestBodies, [
   { threadId: "thr_1" },
   { threadId: "thr_1" },
-  { threadId: "thr_2" },
   { threadId: "thr_local" },
 ]);
 
@@ -1189,7 +1194,6 @@ assert.deepEqual(
 assert.deepEqual(requestBodies, [
   { threadId: "thr_1" },
   { threadId: "thr_1" },
-  { threadId: "thr_2" },
   { threadId: "thr_local" },
   { threadId: "thr_no_pr" },
 ]);
@@ -1206,7 +1210,6 @@ assert.doesNotMatch(card.textContent, /PR unavailable/);
 assert.deepEqual(requestBodies, [
   { threadId: "thr_1" },
   { threadId: "thr_1" },
-  { threadId: "thr_2" },
   { threadId: "thr_local" },
   { threadId: "thr_no_pr" },
   { threadId: "thr_pr_unavailable" },
@@ -1240,7 +1243,6 @@ assert.ok(
 assert.deepEqual(requestBodies, [
   { threadId: "thr_1" },
   { threadId: "thr_1" },
-  { threadId: "thr_2" },
   { threadId: "thr_local" },
   { threadId: "thr_no_pr" },
   { threadId: "thr_pr_unavailable" },
@@ -1274,7 +1276,7 @@ assert.ok(
   window.document.getElementById("bb-thread-hover-card"),
   "keeps immediate opening after the plugin lifecycle reloads",
 );
-await new Promise((resolve) => setTimeout(resolve, 20));
+await new Promise((resolve) => setTimeout(resolve, 170));
 
 const reloadedCard = window.document.getElementById("bb-thread-hover-card");
 assert.ok(reloadedCard);
@@ -1282,7 +1284,6 @@ assert.equal(reloadedCard.hidden, false);
 assert.deepEqual(requestBodies, [
   { threadId: "thr_1" },
   { threadId: "thr_1" },
-  { threadId: "thr_2" },
   { threadId: "thr_local" },
   { threadId: "thr_no_pr" },
   { threadId: "thr_pr_unavailable" },
@@ -1426,6 +1427,7 @@ for (let index = 0; index < fanoutTriggers.length; index += 1) {
     relatedTarget: { value: fanoutTriggers[index - 1] ?? null },
   });
   fanoutTriggers[index].dispatchEvent(pointerOver);
+  await new Promise((resolve) => setTimeout(resolve, 160));
 }
 assert.deepEqual(
   abortedSummaryThreadIds.slice(-2),
