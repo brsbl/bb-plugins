@@ -19,7 +19,7 @@ bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/read-aloud 
 - On bb versions without footer items, the controls appear in a small toast without pause.
 - Code blocks, URLs, and Markdown syntax are skipped so the reading sounds like prose.
 
-Speech is synthesized on the bb server and streamed to whatever device you're using, including phones. Devices never download the model. The server synthesizes a short first phrase so audio starts within a couple of seconds, and fetches the rest ahead of playback. A new reading's first phrase jumps the queue. If the server is still computing audio you abandoned, a warm standby process takes over at once.
+Speech is synthesized on the bb server and streamed to whatever device you're using, including phones. Devices never download the model. When an agent finishes a reply, the server quietly prepares its first two chunks at low priority, so reading the latest reply starts almost instantly. The server synthesizes a short first phrase so audio starts within a couple of seconds, and fetches the rest ahead of playback. A new reading's first phrase jumps the queue. If the server is still computing audio you abandoned, a warm standby process takes over at once.
 
 ## Server setup
 
@@ -35,6 +35,7 @@ The first time the plugin loads, it prepares Kokoro on the bb server, which take
 | Setting | Default | Purpose |
 | --- | --- | --- |
 | Voice | `af_heart` | Any Kokoro v1.0 English voice (`a*` American, `b*` British). |
+| Prepare replies in advance | on | Synthesize the opening of each finished reply before you press play. It uses spare server CPU and always yields to live reading. |
 
 ```bash
 bb plugin config read-aloud set voice bm_george

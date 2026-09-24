@@ -18,6 +18,13 @@ export interface SynthesisRequest {
   speed: number;
   /** The opening chunk of a reading; it goes to the front of the queue. */
   first?: boolean;
+  /**
+   * Speculative work (preparing a reply before anyone asks). It runs only
+   * while nothing else does, and a new reading may take over from it.
+   */
+  background?: boolean;
+  /** Called when the job reaches the voice process. */
+  onStart?(): void;
   signal?: AbortSignal;
 }
 
@@ -81,7 +88,9 @@ export class SynthesisQueue {
   /** True while the process only computes audio nobody is waiting for. */
   get onlyAbandonedWork(): boolean {
     if (this.running.size === 0) return false;
-    for (const job of this.running.values()) if (!job.signal?.aborted) return false;
+    for (const job of this.running.values()) {
+      if (!job.signal?.aborted && !job.background) return false;
+    }
     return true;
   }
 
@@ -108,7 +117,12 @@ export class SynthesisQueue {
     return new Promise((resolve, reject) => {
       const job: Job = { ...request, resolve, reject };
       if (request.first) this.waiting.unshift(job);
-      else this.waiting.push(job);
+      else if (request.background) this.waiting.push(job);
+      else {
+        const firstBackground = this.waiting.findIndex((queued) => queued.background);
+        if (firstBackground === -1) this.waiting.push(job);
+        else this.waiting.splice(firstBackground, 0, job);
+      }
       request.signal?.addEventListener(
         "abort",
         () => {
@@ -134,11 +148,14 @@ export class SynthesisQueue {
 
   private pump(): void {
     while (this.send && this.running.size < this.concurrency && this.waiting.length > 0) {
+      // Background work never shares the process with anything else.
+      if (this.waiting[0]!.background && this.running.size > 0) break;
       const job = this.waiting.shift()!;
       if (job.signal?.aborted) {
         job.reject(new Error("Cancelled"));
         continue;
       }
+      job.onStart?.();
       const id = this.nextId++;
       this.running.set(id, job);
       this.send(id, { text: job.text, voice: job.voice, speed: job.speed });

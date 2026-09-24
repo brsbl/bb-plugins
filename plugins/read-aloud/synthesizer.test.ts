@@ -77,6 +77,21 @@ describe("SynthesisQueue", () => {
     await expect(waiting).rejects.toThrow("restarting");
     expect(queue.idle).toBe(true);
   });
+
+  it("runs background work only when nothing else is running, after live work", () => {
+    const queue = new SynthesisQueue(2, 12);
+    const send = vi.fn();
+    queue.attach(send);
+    void queue.enqueue(request("live"));
+    void queue.enqueue({ ...request("prepared"), background: true });
+    void queue.enqueue(request("prefetch"));
+    expect(send.mock.calls.map((call) => call[1].text)).toEqual(["live", "prefetch"]);
+    queue.settle(send.mock.calls[0]![0], audio);
+    expect(send.mock.calls.map((call) => call[1].text)).toEqual(["live", "prefetch"]);
+    queue.settle(send.mock.calls[1]![0], audio);
+    expect(send.mock.calls.map((call) => call[1].text)).toEqual(["live", "prefetch", "prepared"]);
+    expect(queue.onlyAbandonedWork).toBe(true);
+  });
 });
 
 describe("trimSilence", () => {
