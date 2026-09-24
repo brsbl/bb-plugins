@@ -327,7 +327,7 @@ vec3 base(vec2 p, float w, float t) {
     g += vec3(0.12, 0.14, 0.02) * smoothstep(0.4, 1.3, w);
     col = mix(col, g, smoothstep(hy + 0.004, hy - 0.004, p.y));
 
-    float s = 1.0 / p_density;
+    float s = p_size / 324.0;
     vec2 c0 = floor(p / s);
     for (int j = -1; j <= 1; j++) {
       for (int i = -1; i <= 1; i++) {
@@ -507,7 +507,7 @@ export const BUILT_IN_SCENES: BuiltInScene[] = [
     params: [
       param("wind", "Wind speed", 0, 3, 1),
       param("bend", "Gust strength", 0, 2, 1),
-      param("density", "Poppy size", 8, 40, 18, 0.5),
+      param("size", "Poppy size", 8, 40, 18, 0.5),
       param("bloom", "Bloom amount", 0, 1, 0.72),
       param("brush", "Brush stroke size", 0.006, 0.03, 0.017, 0.001),
       param("color", "Color strength", 0, 1, 0.95),
