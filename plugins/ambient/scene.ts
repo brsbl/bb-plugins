@@ -462,7 +462,7 @@ export const BUILT_IN_SCENES: BuiltInScene[] = [
     id: "tide",
     name: "Tide",
     source: TIDE_SOURCE,
-    palette: ["#0b1d3a", "#1f6f8b", "#6fb7a8", "#f2d0a4"],
+    palette: ["#06122e", "#0a5e8c", "#19d3c5", "#ffb35c"],
     params: [
       param("scale", "Zoom", 0.5, 6, 2.2),
       param("reach", "Light size", 0.3, 3, 1),
@@ -477,11 +477,11 @@ export const BUILT_IN_SCENES: BuiltInScene[] = [
     id: "fireflies",
     name: "Fireflies",
     source: FIREFLIES_SOURCE,
-    palette: ["#070b18", "#1b2340", "#ffd27a", "#ff8fb1"],
+    palette: ["#0b0f3d", "#3d2a9c", "#ffe14d", "#ff4fa0"],
     params: [
-      param("size", "Firefly size", 0.2, 3, 1),
+      param("size", "Firefly size", 0.2, 3, 1.2),
       param("motes", "Background motes", 0, 2, 0.6),
-      param("haze", "Haze", 0, 2, 0.8),
+      param("haze", "Haze", 0, 2, 1.4),
       param("burst", "Ripple size", 0.3, 3, 1),
       param("color", "Color strength", 0, 1, 1),
     ],
@@ -490,7 +490,7 @@ export const BUILT_IN_SCENES: BuiltInScene[] = [
     id: "contour",
     name: "Contour",
     source: CONTOUR_SOURCE,
-    palette: ["#f4efe6", "#d9c6a5", "#8aa39b", "#2f4858"],
+    palette: ["#0d1b3e", "#3a2d8f", "#e0457b", "#ffd36b"],
     params: [
       param("scale", "Zoom", 0.5, 5, 1.6),
       param("density", "Line density", 2, 30, 10, 0.5),
