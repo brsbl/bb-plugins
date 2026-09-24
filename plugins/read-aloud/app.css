@@ -10,7 +10,10 @@
 }
 
 .bb-read-aloud-status {
+  display: flex;
   flex: 1;
+  align-items: center;
+  gap: 4px;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -26,7 +29,7 @@
 }
 
 .bb-read-aloud-speed,
-.bb-read-aloud-stop {
+.bb-read-aloud-button {
   display: grid;
   place-items: center;
   height: 22px;
@@ -50,25 +53,32 @@
   box-shadow: 0 0 0 1px var(--border);
 }
 
-.bb-read-aloud-stop {
+.bb-read-aloud-button {
   width: 22px;
   color: var(--foreground);
 }
 
-.bb-read-aloud-stop svg {
+.bb-read-aloud-button svg {
   width: 14px;
   height: 14px;
   fill: currentColor;
 }
 
 .bb-read-aloud-speed:hover,
-.bb-read-aloud-stop:hover {
+.bb-read-aloud-button:hover {
   color: var(--foreground);
   background: color-mix(in oklab, var(--foreground) 8%, transparent);
 }
 
 .bb-read-aloud-speed:focus-visible,
-.bb-read-aloud-stop:focus-visible {
+.bb-read-aloud-button:focus-visible {
   outline: 1px solid color-mix(in oklab, var(--foreground) 30%, transparent);
   outline-offset: 1px;
+}
+
+.bb-read-aloud-status svg {
+  flex: none;
+  width: 12px;
+  height: 12px;
+  fill: currentColor;
 }

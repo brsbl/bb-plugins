@@ -1,4 +1,4 @@
-import type { ComponentType } from "react";
+import { useLayoutEffect, type ComponentType } from "react";
 import { definePluginApp } from "@get-bb/plugin-sdk/app";
 import { toast } from "sonner";
 
@@ -20,6 +20,10 @@ interface FooterDisclosure {
 }
 let footer: FooterDisclosure | null = null;
 let footerOpenedForReading = false;
+/** Collapsing the footer controls pauses; expanding them again resumes. */
+let pausedByCollapse = false;
+/** Whether the current reading has produced audio yet. */
+let readingStarted = false;
 
 function savedSpeed(): Speed {
   const value = Number(globalThis.localStorage?.getItem(speedKey));
@@ -65,7 +69,7 @@ function setSpeed(speed: Speed): void {
 function setStatus(status: PlaybackStatus): void {
   playback.set({ status });
   if (footer) {
-    if (status !== "idle" && !playback.get().shown) {
+    if (status === "preparing" && !playback.get().shown) {
       footer.open();
       footerOpenedForReading = true;
     } else if (status === "idle" && footerOpenedForReading) {
@@ -95,16 +99,39 @@ function showToast(): void {
   });
 }
 
+function pause(): void {
+  if (!player || playback.get().status === "idle") return;
+  player.pause();
+  setStatus("paused");
+}
+
+function resume(): void {
+  if (!player || playback.get().status !== "paused") return;
+  player.resume();
+  setStatus(readingStarted ? "playing" : "preparing");
+}
+
 function stop(): void {
+  pausedByCollapse = false;
   player?.stop();
   setStatus("idle");
 }
 
 function readAloud(key: string, markdown: string): void {
   if (player?.isReading(key)) {
-    stop();
+    if (playback.get().status === "paused") {
+      pausedByCollapse = false;
+      resume();
+      if (footer && !playback.get().shown) {
+        footer.open();
+        footerOpenedForReading = true;
+      }
+    } else {
+      stop();
+    }
     return;
   }
+  pausedByCollapse = false;
   const chunks = chunkForSpeech(toSpeechText(markdown));
   if (chunks.length === 0) {
     stop();
@@ -117,9 +144,13 @@ function readAloud(key: string, markdown: string): void {
   player ??= new ReadAloudPlayer(fetchSpeech);
   player.stop();
   player.unlock();
+  readingStarted = false;
   setStatus("preparing");
   player.speak(key, chunks, savedSpeed(), {
-    onPlaying: () => setStatus("playing"),
+    onPlaying: () => {
+      readingStarted = true;
+      if (playback.get().status !== "paused") setStatus("playing");
+    },
     onFinished: () => setStatus("idle"),
     onError(message) {
       setStatus("idle");
@@ -133,7 +164,24 @@ function readAloud(key: string, markdown: string): void {
 }
 
 function FooterControls() {
-  return <ReadAloudControls onSpeed={setSpeed} onStop={stop} />;
+  // Layout effects run inside the toggle's click, so resuming stays a user
+  // gesture that mobile browsers accept.
+  useLayoutEffect(() => {
+    if (pausedByCollapse) {
+      pausedByCollapse = false;
+      resume();
+    }
+    return () => {
+      const { status } = playback.get();
+      if (status === "playing" || status === "preparing") {
+        pause();
+        pausedByCollapse = true;
+      }
+    };
+  }, []);
+  return (
+    <ReadAloudControls onSpeed={setSpeed} onPause={pause} onResume={resume} onStop={stop} />
+  );
 }
 
 type SidebarFooterApi = {

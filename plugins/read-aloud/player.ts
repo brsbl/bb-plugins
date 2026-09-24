@@ -23,6 +23,9 @@ interface Session {
   /** Chunk being played, or awaited before playing. */
   index: number;
   playing: boolean;
+  paused: boolean;
+  /** Releases playback held by a pause between chunks. */
+  resumeWaiter: (() => void) | null;
   started: boolean;
   pending: Map<number, Pending>;
   callbacks: PlaybackCallbacks;
@@ -72,6 +75,8 @@ export class ReadAloudPlayer {
       pending: new Map(),
       callbacks,
       interrupt: null,
+      paused: false,
+      resumeWaiter: null,
     };
     this.session = session;
     this.fill(session);
@@ -95,6 +100,24 @@ export class ReadAloudPlayer {
     this.fill(session);
   }
 
+  /** Pauses the current chunk, or holds the next one until resumed. */
+  pause(): void {
+    const session = this.session;
+    if (!session || session.paused) return;
+    session.paused = true;
+    if (session.playing) this.element.pause();
+  }
+
+  /** Call from the click so mobile browsers allow playback to continue. */
+  resume(): void {
+    const session = this.session;
+    if (!session?.paused) return;
+    session.paused = false;
+    if (session.playing) void this.element.play().catch(() => {});
+    session.resumeWaiter?.();
+    session.resumeWaiter = null;
+  }
+
   stop(): void {
     const session = this.session;
     if (!session) return;
@@ -102,6 +125,7 @@ export class ReadAloudPlayer {
     for (const pending of session.pending.values()) this.discard(pending);
     session.pending.clear();
     this.element.pause();
+    session.resumeWaiter?.();
     session.interrupt?.();
   }
 
@@ -132,6 +156,13 @@ export class ReadAloudPlayer {
       while (this.session === session && session.index < session.chunks.length) {
         const url = await this.awaitCurrent(session);
         if (url === null) return;
+        if (session.paused) {
+          await new Promise<void>((resolve) => (session.resumeWaiter = resolve));
+          if (this.session !== session) {
+            URL.revokeObjectURL(url);
+            return;
+          }
+        }
         session.playing = true;
         this.element.src = url;
         const ended = this.waitForEnd(session);

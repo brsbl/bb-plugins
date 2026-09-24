@@ -88,4 +88,25 @@ describe("ReadAloudPlayer", () => {
     await flush();
     expect(onFinished).not.toHaveBeenCalled();
   });
+
+  it("pauses the current chunk and holds the next one until resumed", async () => {
+    const player = new ReadAloudPlayer(fetchSpeech);
+    const pause = vi.spyOn(HTMLMediaElement.prototype, "pause");
+    player.speak("m", ["One.", "Two."], 1, { onPlaying: vi.fn(), onFinished: vi.fn(), onError: vi.fn() });
+    for (const request of requests) request.resolve();
+    await flush();
+    const play = vi.mocked(HTMLMediaElement.prototype.play);
+    expect(play).toHaveBeenCalledTimes(1);
+
+    player.pause();
+    expect(pause).toHaveBeenCalled();
+    playing!.onended?.(new Event("ended"));
+    await flush();
+    expect(play).toHaveBeenCalledTimes(1);
+
+    player.resume();
+    await flush();
+    expect(play).toHaveBeenCalledTimes(2);
+    expect(playing?.src).toBe("blob:chunk-1");
+  });
 });
