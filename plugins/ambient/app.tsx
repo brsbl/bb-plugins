@@ -617,10 +617,12 @@ function Section({
 
 function TextButton({
   children,
+  danger,
   disabled,
   onClick,
 }: {
   children: ReactNode;
+  danger?: boolean;
   disabled?: boolean;
   onClick: () => void;
 }) {
@@ -629,7 +631,9 @@ function TextButton({
       type="button"
       disabled={disabled}
       onClick={onClick}
-      className="rounded-full px-1.5 text-xs text-muted-foreground transition-colors hover:text-foreground disabled:opacity-50"
+      className={`rounded-full px-1.5 text-xs transition-colors disabled:opacity-50 ${
+        danger ? "text-destructive hover:text-destructive/80" : "text-muted-foreground hover:text-foreground"
+      }`}
     >
       {children}
     </button>
@@ -851,6 +855,31 @@ function AmbientControls({ dismiss }: { dismiss: () => void }) {
   });
   const activeIdRef = useRef(activeId);
   activeIdRef.current = activeId;
+  const activeEntry = library.find((entry) => entry.id === activeId);
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
+
+  useEffect(() => {
+    setConfirmingDelete(false);
+  }, [activeId]);
+
+  useEffect(() => {
+    if (!confirmingDelete) return;
+    const timer = setTimeout(() => setConfirmingDelete(false), 4000);
+    return () => clearTimeout(timer);
+  }, [confirmingDelete]);
+
+  const deleteActiveScene = useCallback(async () => {
+    const id = activeIdRef.current;
+    setConfirmingDelete(false);
+    if (!id) return;
+    const { deleted } = await rpc.call("deleteScene", { id });
+    if (!deleted) return;
+    const entry = history.current;
+    entry.past = entry.past.filter((snap) => snap.sceneId !== id);
+    entry.future = entry.future.filter((snap) => snap.sceneId !== id);
+    const fallback = library.find((entry) => entry.builtIn);
+    if (fallback) receive(await rpc.call("loadScene", { id: fallback.id }));
+  }, [library, receive, rpc]);
 
   const snapshot = useCallback((): Snapshot | null => {
     const current = ambientStore.getSnapshot().state;
@@ -999,17 +1028,32 @@ function AmbientControls({ dismiss }: { dismiss: () => void }) {
       <Section
         title="Scene"
         action={
-          library.find((entry) => entry.id === activeId)?.tweaked ? (
-            <TextButton
-              onClick={() => {
-                if (!activeId) return;
-                record(`reset:${Date.now()}`);
-                ambientStore.clearOverrides();
-                void rpc.call("resetScene", { id: activeId }).then(receive);
-              }}
-            >
-              Reset
-            </TextButton>
+          activeEntry && (activeEntry.tweaked || !activeEntry.builtIn) ? (
+            <div className="flex items-center">
+              {activeEntry.tweaked && !confirmingDelete && (
+                <TextButton
+                  onClick={() => {
+                    if (!activeId) return;
+                    record(`reset:${Date.now()}`);
+                    ambientStore.clearOverrides();
+                    void rpc.call("resetScene", { id: activeId }).then(receive);
+                  }}
+                >
+                  Reset
+                </TextButton>
+              )}
+              {!activeEntry.builtIn &&
+                (confirmingDelete ? (
+                  <>
+                    <TextButton onClick={() => setConfirmingDelete(false)}>Cancel</TextButton>
+                    <TextButton danger onClick={() => void deleteActiveScene()}>
+                      Delete scene
+                    </TextButton>
+                  </>
+                ) : (
+                  <TextButton onClick={() => setConfirmingDelete(true)}>Delete</TextButton>
+                ))}
+            </div>
           ) : undefined
         }
       >
