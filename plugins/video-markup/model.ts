@@ -25,6 +25,7 @@ export const sourceSchema = z.object({
 export const mediaSchema = z.object({
   path: z.string(), hostId: id, size: z.number(), modifiedAt: z.number(),
   duration: z.number().nonnegative(), fps: z.number().positive().nullable(),
+  codec: z.string().nullable(),
   frameTimes: z.array(z.number().nonnegative()).max(100_000),
   width: z.number().nonnegative(), height: z.number().nonnegative(),
 });
@@ -80,7 +81,7 @@ export function promptContext(notes: FrameNote[], versions: Version[]): string {
   }, null, 2);
 }
 
-/** Frame timestamps handle variable-rate sources; an explicit CFR rate is a fallback. */
+/** Packet timestamps handle variable-rate sources; the stream or supplied CFR rate is a fallback. */
 export function stepTime(media: Pick<Media, "frameTimes" | "fps" | "duration">, time: number, direction: -1 | 1): number {
   const frames = media.frameTimes;
   if (frames.length) {

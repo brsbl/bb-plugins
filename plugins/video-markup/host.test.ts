@@ -26,6 +26,28 @@ it("keeps fast stream metadata and CFR stepping when frame indexing times out", 
     expect(media).toMatchObject({duration: 34, fps: 30, width: 1920, height: 1080, codec: "h264", frameTimes: []});
     expect(stepTime(media, 1, 1)).toBeCloseTo(31 / 30);
     expect(stepTime(media, 1, -1)).toBeCloseTo(29 / 30);
+    const indexing = probe.mock.calls.find(([, args]) => args.includes("packet=pts_time"));
+    expect(indexing?.[2].timeout).toBeLessThanOrEqual(1_000);
+    expect(probe.mock.calls.some(([, args]) => args.some((arg: string) => /\bframe=/.test(arg)))).toBe(false);
+  } finally { await harness.experimental_dispose(); await rm(root, {recursive: true, force: true}); }
+});
+
+it("steps through variable packet PTS in presentation order without decoding frames", async () => {
+  const root = await mkdtemp(path.join(tmpdir(), "video-markup-packets-"));
+  const harness = experimental_createHostEntryHarness(hostEntry);
+  try {
+    const file = path.join(root, "variable.mp4");
+    await writeFile(file, "video bytes");
+    probe.mockResolvedValueOnce({stdout: JSON.stringify({streams: [{codec_name: "h264", width: 1920, height: 1080, duration: "34", avg_frame_rate: "0/0", r_frame_rate: "30000/1001", start_time: "10"}]})});
+    probe.mockResolvedValueOnce({stdout: JSON.stringify({packets: ["10.12", "10", "10.04", "9.96", "10.04", "N/A"].map(pts_time => ({pts_time}))})});
+    const media = await harness.experimental_call("inspect", {path: file, rootPath: root});
+    expect(media.duration).toBe(34);
+    expect(media.fps).toBeCloseTo(30000 / 1001);
+    expect(media.frameTimes).toHaveLength(3);
+    expect(media.frameTimes[0]).toBe(0);
+    expect(stepTime(media, 0, 1)).toBeCloseTo(.04);
+    expect(stepTime(media, .04, 1)).toBeCloseTo(.12);
+    expect(stepTime(media, .12, -1)).toBeCloseTo(.04);
   } finally { await harness.experimental_dispose(); await rm(root, {recursive: true, force: true}); }
 });
 

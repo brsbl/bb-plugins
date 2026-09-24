@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { byteRange, CHUNK_BYTES, mediaResponse } from "./media.js";
 import type { Media } from "./model.js";
-const media: Media = {path:"/film.mp4",hostId:"host_1",size:32*1024*1024,modifiedAt:1,duration:34,fps:60,frameTimes:[],width:1920,height:1080};
+const media: Media = {path:"/film.mp4",hostId:"host_1",size:32*1024*1024,modifiedAt:1,duration:34,fps:60,codec:"h264",frameTimes:[],width:1920,height:1080};
 const signal = new AbortController().signal;
 
 describe("video streaming",()=>{

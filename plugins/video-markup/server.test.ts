@@ -6,7 +6,7 @@ import plugin from "./server.js";
 import { openStore } from "./store.js";
 import { noteInputSchema, noteSchema, stepTime, versionSchema, type Media } from "./model.js";
 
-const media: Media = {path:"/demo/v1.mp4",hostId:"host_a",size:10,modifiedAt:1,duration:34,fps:60,frameTimes:[0,1/60,2/60],width:1920,height:1080};
+const media: Media = {path:"/demo/v1.mp4",hostId:"host_a",size:10,modifiedAt:1,duration:34,fps:60,codec:"h264",frameTimes:[0,1/60,2/60],width:1920,height:1080};
 const still = {dataUrl:"data:image/jpeg;base64,/9j/2Q==",width:1280,height:720};
 const cleanups: (()=>Promise<void>)[]=[];
 afterEach(async()=>{for(const cleanup of cleanups.splice(0))await cleanup();});
@@ -19,18 +19,20 @@ describe("Video Markup persistence and feedback",()=>{
     const host=createFakePluginHost({pluginId:"video-markup",experimental_callHostRpc:async(call)=>{
       const {path,retain}=z.object({path:z.string(),retain:z.boolean()}).parse(call.input);
       const {hostId,...file}=media;
-      return {...file,path:retain ? path.replace("/uploads/","/plugin/videos/") : path};
+      return {...file,frameTimes:[],path:retain ? path.replace("/uploads/","/plugin/videos/") : path};
     }});
     plugin(host.bb);cleanups.push(()=>host.harness.lifecycle.dispose());
     const source={kind:"host",threadId:null,environmentId:null,projectId:null,experimental_hostId:"host_a"};
     const input={threadId:"thr_demo",file:"/uploads/duo-v1.mp4",attachment:true,source};
     const first=JSON.parse(z.string().parse(await host.harness.behavior.callAgentTool("video_markup_present",input)));
-    expect(first.version).toMatchObject({demo:"duo-v1",ordinal:1,summary:"",media:{path:"/plugin/videos/duo-v1.mp4"}});
+    expect(first.version).toMatchObject({demo:"duo-v1",ordinal:1,summary:"",media:{path:"/plugin/videos/duo-v1.mp4",duration:34,fps:60,codec:"h264",frameTimes:[]}});
+    expect(stepTime(first.version.media,1,1)).toBeCloseTo(61/60);
     expect(first.directive).toBe(`::video-markup{version="${first.version.id}"}`);
     expect(host.harness.inspection.realtimeSignals).toContainEqual({channel:"present",payload:{threadId:"thr_demo",versionId:first.version.id}});
     const again=await host.harness.behavior.runCli(["present","--data",JSON.stringify(input)]);
     expect(again.exitCode).toBe(0);
     expect(JSON.parse(again.stdout).version.id).toBe(first.version.id);
+    expect(JSON.parse(again.stdout).version.media).toMatchObject({duration:34,fps:60,codec:"h264"});
     const second=await host.harness.behavior.runCli(["present","--data",JSON.stringify({...input,file:"/renders/duo-v2.mp4",attachment:false}),"--summary","Gentler camera"]);
     expect(second.exitCode).toBe(0);
     expect(JSON.parse(second.stdout).version).toMatchObject({demo:"duo-v1",ordinal:2,summary:"Gentler camera",media:{path:"/renders/duo-v2.mp4"}});

@@ -48,24 +48,40 @@ export default experimental_defineHostEntry({contract: hostContract, handlers: {
       file = await realpath(destination);
       details = await stat(file);
     }
-    const media = {path: file, size: details.size, modifiedAt: details.mtimeMs, duration: 0, fps: input.fps ?? null, width: 0, height: 0, frameTimes: [] as number[]};
+    const media = {path: file, size: details.size, modifiedAt: details.mtimeMs, duration: 0, fps: input.fps ?? null, width: 0, height: 0, codec: null as string | null, frameTimes: [] as number[]};
     if (!input.probe) return media;
+    let startTime = NaN;
     try {
-      // Finish optional probing before BB's default 30s host-call deadline.
-      const {stdout} = await execute("ffprobe", ["-v", "error", "-select_streams", "v:0", "-show_entries", "stream=avg_frame_rate,width,height:format=duration:frame=best_effort_timestamp_time", "-of", "json", file], {timeout: 20_000, maxBuffer: 8 * 1024 * 1024, signal: context.signal});
+      // Never couple basic metadata to reading or decoding every frame.
+      const {stdout} = await execute("ffprobe", ["-v", "error", "-select_streams", "v:0", "-show_entries", "stream=avg_frame_rate,r_frame_rate,width,height,codec_name,duration,start_time:format=duration,start_time", "-of", "json", file], {timeout: 5_000, killSignal: "SIGKILL", maxBuffer: 256 * 1024, signal: context.signal});
       const probe = JSON.parse(stdout);
       const stream = probe.streams?.[0];
-      const [n, d] = String(stream?.avg_frame_rate ?? "0/1").split("/").map(Number);
-      const rate = n / d;
-      media.fps = input.fps ?? (Number.isFinite(rate) && rate > 0 ? rate : null);
+      const rates = [stream?.avg_frame_rate, stream?.r_frame_rate].map(value => {
+        const [n, d = 1] = String(value ?? "0/1").split("/").map(Number);
+        return n / d;
+      });
+      media.fps = input.fps ?? rates.find(rate => Number.isFinite(rate) && rate > 0) ?? null;
       media.width = Number(stream?.width) || 0; media.height = Number(stream?.height) || 0;
-      media.duration = Number(probe.format?.duration) || 0;
-      const times: number[] = (probe.frames ?? []).map((frame: {best_effort_timestamp_time?: string}) => Number(frame.best_effort_timestamp_time)).filter((t: number) => Number.isFinite(t) && t >= 0);
-      const first = times[0] ?? 0;
-      media.frameTimes = [...new Set(times.map(t => t - first))].sort((a, b) => a - b).slice(0, 100_000);
+      media.duration = Number(probe.format?.duration) || Number(stream?.duration) || 0;
+      media.codec = typeof stream?.codec_name === "string" ? stream.codec_name : null;
+      startTime = Number(stream?.start_time ?? probe.format?.start_time);
     } catch (error) {
       if (context.signal.aborted) throw error;
       // Playback remains available when ffprobe is absent; stepping needs an explicit CFR rate.
+      return media;
+    }
+    try {
+      // Packet PTS preserves variable timing without decoding. Optional indexing
+      // gets a short budget; a timeout must not discard the metadata above.
+      const {stdout} = await execute("ffprobe", ["-v", "error", "-select_streams", "v:0", "-show_entries", "packet=pts_time", "-of", "json", file], {timeout: 1_000, killSignal: "SIGKILL", maxBuffer: 8 * 1024 * 1024, signal: context.signal});
+      const probe = JSON.parse(stdout);
+      const times: number[] = (probe.packets ?? []).map((packet: {pts_time?: string}) => Number(packet.pts_time)).filter((t: number) => Number.isFinite(t)).sort((a: number, b: number) => a - b);
+      // Packets arrive in decoding order; B-frame PTS can be out of order.
+      const first = Number.isFinite(startTime) ? startTime : times[0] ?? 0;
+      media.frameTimes = [...new Set(times.filter(t => t >= first).map(t => t - first))].slice(0, 100_000);
+    } catch (error) {
+      if (context.signal.aborted) throw error;
+      // The stream's rate still provides immediate CFR stepping.
     }
     return media;
   },
