@@ -33,9 +33,12 @@ interface Job extends SynthesisRequest {
   reject(error: Error): void;
 }
 
+type SynthesisJob = Pick<SynthesisRequest, "text" | "voice" | "speed">;
+
 /** Two chunks in flight keep 4 vCPUs ahead of 2× playback. */
 const maxConcurrent = 2;
-const maxQueued = 8;
+/** Room for several devices each prefetching a few chunks. */
+const maxQueued = 12;
 const readyTimeoutMs = 10 * 60_000;
 const installTimeoutMs = 15 * 60_000;
 // The lockfile ships under another name so the monorepo keeps one root
@@ -46,6 +49,78 @@ const runtimeFiles = ["package.json", "sharp-stub"];
 export class SynthesisBusyError extends Error {}
 
 /**
+ * Bounded FIFO in front of the synthesis process. A request whose client
+ * disconnects leaves the queue at once, so cancelled prefetches from speed
+ * changes or stops never count against the limit.
+ */
+export class SynthesisQueue {
+  private readonly waiting: Job[] = [];
+  private readonly running = new Map<number, Job>();
+  private send: ((id: number, job: SynthesisJob) => void) | null = null;
+  private nextId = 1;
+
+  constructor(
+    private readonly concurrency = maxConcurrent,
+    private readonly capacity = maxQueued,
+  ) {}
+
+  get size(): number {
+    return this.waiting.length;
+  }
+
+  attach(send: (id: number, job: SynthesisJob) => void): void {
+    this.send = send;
+    this.pump();
+  }
+
+  detach(error: Error): void {
+    this.send = null;
+    for (const job of this.running.values()) job.reject(error);
+    this.running.clear();
+  }
+
+  enqueue(request: SynthesisRequest): Promise<SpeechAudio> {
+    if (request.signal?.aborted) return Promise.reject(new Error("Cancelled"));
+    if (this.waiting.length >= this.capacity) {
+      return Promise.reject(new SynthesisBusyError("The voice server is busy"));
+    }
+    return new Promise((resolve, reject) => {
+      const job: Job = { ...request, resolve, reject };
+      this.waiting.push(job);
+      request.signal?.addEventListener(
+        "abort",
+        () => {
+          const index = this.waiting.indexOf(job);
+          if (index === -1) return;
+          this.waiting.splice(index, 1);
+          reject(new Error("Cancelled"));
+        },
+        { once: true },
+      );
+      this.pump();
+    });
+  }
+
+  settle(id: number, result: SpeechAudio | Error): void {
+    const job = this.running.get(id);
+    if (!job) return;
+    this.running.delete(id);
+    if (result instanceof Error) job.reject(result);
+    else job.resolve(result);
+    this.pump();
+  }
+
+  private pump(): void {
+    while (this.send && this.running.size < this.concurrency && this.waiting.length > 0) {
+      const job = this.waiting.shift()!;
+      const id = this.nextId++;
+      this.running.set(id, job);
+      this.send(id, { text: job.text, voice: job.voice, speed: job.speed });
+    }
+  }
+}
+
+/**
  * Installs the pinned Kokoro runtime into the plugin's data directory (once
  * per lockfile) and keeps a low-priority synthesis process warm.
  */
@@ -54,9 +129,7 @@ export class KokoroSynthesizer implements Synthesizer {
   private ready: Promise<void>;
   private markReady!: () => void;
   private failStartup!: (error: Error) => void;
-  private readonly queue: Job[] = [];
-  private readonly running = new Map<number, Job>();
-  private nextId = 1;
+  private readonly queue = new SynthesisQueue();
 
   constructor(
     private readonly shippedRuntimeDir: string,
@@ -99,19 +172,14 @@ export class KokoroSynthesizer implements Synthesizer {
     this.child = null;
     const error = new Error(`Kokoro stopped (exit ${exit}). ${stderr.trim()}`.trim());
     this.failStartup(error);
-    for (const job of this.running.values()) job.reject(error);
-    this.running.clear();
+    this.queue.detach(error);
     this.ready = this.resetReady();
     if (!signal.aborted) throw error;
   }
 
   async synthesize(request: SynthesisRequest): Promise<SpeechAudio> {
-    if (this.queue.length >= maxQueued) throw new SynthesisBusyError("Too many requests");
     await withTimeout(this.ready, readyTimeoutMs, "Kokoro is still starting");
-    return new Promise((resolve, reject) => {
-      this.queue.push({ ...request, resolve, reject });
-      this.pump();
-    });
+    return this.queue.enqueue(request);
   }
 
   private resetReady(): Promise<void> {
@@ -123,32 +191,20 @@ export class KokoroSynthesizer implements Synthesizer {
     return ready;
   }
 
-  private pump(): void {
-    while (this.child && this.running.size < maxConcurrent && this.queue.length > 0) {
-      const job = this.queue.shift()!;
-      if (job.signal?.aborted) {
-        job.reject(new Error("Cancelled"));
-        continue;
-      }
-      const id = this.nextId++;
-      this.running.set(id, job);
-      this.child.send({ type: "synthesize", id, text: job.text, voice: job.voice, speed: job.speed });
-    }
-  }
-
   private receive(message: WorkerMessage): void {
     if (message.type === "ready") {
       this.log("Kokoro is ready");
       this.markReady();
-      this.pump();
+      const child = this.child;
+      this.queue.attach((id, job) => child?.send({ type: "synthesize", id, ...job }));
       return;
     }
-    const job = this.running.get(message.id);
-    if (!job) return;
-    this.running.delete(message.id);
-    if (message.type === "audio") job.resolve({ sampleRate: message.sampleRate, pcm: message.pcm });
-    else job.reject(new Error(message.message));
-    this.pump();
+    this.queue.settle(
+      message.id,
+      message.type === "audio"
+        ? { sampleRate: message.sampleRate, pcm: message.pcm }
+        : new Error(message.message),
+    );
   }
 
   /** Reinstalls dependencies only when the shipped lockfile changes. */

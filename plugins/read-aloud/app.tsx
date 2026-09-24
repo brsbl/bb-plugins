@@ -16,17 +16,26 @@ function savedSpeed(): Speed {
 }
 
 async function fetchSpeech(text: string, speed: number, signal: AbortSignal): Promise<Blob> {
-  const response = await fetch(`/api/v1/plugins/${encodeURIComponent(pluginId)}/http/speak`, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({ text, speed }),
-    signal,
-  });
-  if (!response.ok) {
+  // A busy server (other devices reading at once) clears within seconds.
+  for (let attempt = 0; ; attempt += 1) {
+    const response = await fetch(
+      `/api/v1/plugins/${encodeURIComponent(pluginId)}/http/speak`,
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ text, speed }),
+        signal,
+      },
+    );
+    if (response.ok) return response.blob();
+    if (response.status === 429 && attempt < 4) {
+      await new Promise((resolve) => setTimeout(resolve, 500 * 2 ** attempt));
+      signal.throwIfAborted();
+      continue;
+    }
     const body = (await response.json().catch(() => null)) as { error?: string } | null;
     throw new Error(body?.error ?? `The voice server returned ${response.status}`);
   }
-  return response.blob();
 }
 
 function stop(): void {
