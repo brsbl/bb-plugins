@@ -18,7 +18,7 @@ describe("Video Markup UI contracts",()=>{
     const app=await loadPluginApp(()=>import("./app.js"));
     let failProbe!:(error:Error)=>void;
     const probe=new Promise<never>((_resolve,reject)=>{failProbe=reject;});
-    const slot=renderSlot(app.fileOpeners[0],{path:"/v1.mp4",source:{kind:"host",threadId:null,environmentId:null,projectId:null}},{rpc:{
+    const slot=renderSlot(app.fileOpeners[0],{path:"/v1.mp4",experimental_Original:()=>null,source:{kind:"host",threadId:null,environmentId:null,projectId:null}},{rpc:{
       openFile:()=>({media:{...version.media,duration:0,fps:null,frameTimes:[]},url:"/video.mp4",expiresAt:99999}),
       probeFile:()=>probe,
     }});
