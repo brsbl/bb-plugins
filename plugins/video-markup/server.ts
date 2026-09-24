@@ -42,7 +42,7 @@ export default function plugin(bb: BbPluginApi): void {
       read: async (start, length, signal) => (await host.call("readChunk", {path: lease.media.path, size: lease.media.size, modifiedAt: lease.media.modifiedAt, start, length}, {hostId: lease.media.hostId, signal})).data,
     });
   });
-  const currentDemo = (threadId: string) => bb.storage.kv.get<string>(`demo:${threadId}`) ?? store.versions(threadId).at(-1)?.demo ?? null;
+  const currentDemo = async (threadId: string) => await bb.storage.kv.get<string>(`demo:${threadId}`) ?? store.versions(threadId).at(-1)?.demo ?? null;
   const changed = (threadId: string) => bb.realtime.publish("changed", {threadId});
   async function resolveFile(file: string, source: z.infer<typeof sourceSchema>) {
     if (!VIDEO_EXTENSIONS.includes(path.extname(file).slice(1).toLowerCase())) throw new Error("Choose an MP4, WebM, or MOV file");
@@ -91,18 +91,18 @@ export default function plugin(bb: BbPluginApi): void {
     async register(input: z.output<typeof registerSchema>) {
       const source = input.source ?? {kind: path.isAbsolute(input.file) ? "host" as const : "workspace" as const, threadId: input.threadId, environmentId: null, projectId: null};
       const media = await inspect(input.file, source, input.fps, true, input.attachment);
-      const demo = input.demo ?? currentDemo(input.threadId) ?? (videoName(media.path).replace(/\.[^.]+$/, "").slice(0,160) || "Video");
+      const demo = input.demo ?? await currentDemo(input.threadId) ?? (videoName(media.path).replace(/\.[^.]+$/, "").slice(0,160) || "Video");
       const version = store.register({threadId: input.threadId, demo, summary: input.summary, media});
-      bb.storage.kv.set(`demo:${input.threadId}`, demo);
+      await bb.storage.kv.set(`demo:${input.threadId}`, demo);
       changed(input.threadId); return version;
     },
-    versions(input: z.output<typeof libraryInput>) {
+    async versions(input: z.output<typeof libraryInput>) {
       const all = store.versions(input.threadId);
-      return {versions: all.slice(input.offset, input.offset + 100).map(v => ({...v, media: {...v.media, frameTimes: []}})), nextOffset: all.length > input.offset + 100 ? input.offset + 100 : null, currentDemo: currentDemo(input.threadId)};
+      return {versions: all.slice(input.offset, input.offset + 100).map(v => ({...v, media: {...v.media, frameTimes: []}})), nextOffset: all.length > input.offset + 100 ? input.offset + 100 : null, currentDemo: await currentDemo(input.threadId)};
     },
-    selectDemo({threadId, demo}: z.output<typeof demoInput>) {
+    async selectDemo({threadId, demo}: z.output<typeof demoInput>) {
       if (!store.versions(threadId).some(v => v.demo === demo)) throw new Error("This demo is no longer available");
-      bb.storage.kv.set(`demo:${threadId}`, demo); changed(threadId); return {demo};
+      await bb.storage.kv.set(`demo:${threadId}`, demo); changed(threadId); return {demo};
     },
     version: ({threadId, versionId}: z.output<typeof target>) => store.version(threadId, versionId),
     preview: ({threadId, versionId}: z.output<typeof target>) => prepare(store.version(threadId, versionId).media),
