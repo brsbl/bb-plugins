@@ -32,25 +32,26 @@ const VEIL_STYLE_ID = "bb-ambient-veil";
 
 const PANES = 'body.bb-app-shell > #root, [data-testid="secondary-panel-shelf"]';
 const BLUR = "-webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px);";
-const SECONDARY_PANEL = '#thread-detail-secondary-panel-handle + [data-panel] > aside, [data-testid="secondary-panel-shelf"]';
-const GLASS_FILL = "color-mix(in oklab, var(--ambient-background) 60%, transparent)";
+const GLASS_FILL = "var(--ambient-glass-fill)";
 const GLASS_BLUR = "-webkit-backdrop-filter: blur(24px) saturate(1.6); backdrop-filter: blur(24px) saturate(1.6);";
 const GLASS_SURFACE = `background-color: ${GLASS_FILL}; ${GLASS_BLUR}
   border: 1px solid color-mix(in oklab, var(--ink) 9%, transparent);
   box-shadow: inset 0 1px 0 color-mix(in oklab, var(--canvas) 60%, transparent), 0 12px 32px -16px color-mix(in oklab, var(--ink) 35%, transparent);`;
 const COLUMN_HALF = "404px";
 const COLUMN_MASK = `linear-gradient(to right, transparent max(10px, 50% - ${COLUMN_HALF}), #000 max(10px, 50% - ${COLUMN_HALF}), #000 min(calc(100% - 10px), 50% + ${COLUMN_HALF}), transparent min(calc(100% - 10px), 50% + ${COLUMN_HALF}))`;
+const RIGHT_PANEL = "body.bb-app-shell > #root #thread-detail-secondary-panel-handle + [data-panel] > aside";
 const THREAD = "body.bb-app-shell > #root [data-thread-window]";
 const CHROME_PILLS = 'body.bb-app-shell > #root :is([data-testid="app-page-header-content-row"] > :first-child, [data-app-page-header-actions], [data-testid="app-sidebar-top-reserve-row"] > div, button[data-sidebar="trigger"])';
 const SIDEBAR_CARDS = 'body.bb-app-shell > #root :is([data-testid="sidebar-navigation-region"], [data-sidebar="content"], [data-sidebar="footer"])';
 
-function backingCss(): string {
-  return `${THREAD} { position: relative; isolation: isolate; }
-${THREAD}::before { content: ""; position: absolute; z-index: -1; pointer-events: none; ${GLASS_SURFACE} border-bottom: 0; border-radius: 20px 20px 0 0; top: 0; bottom: 0; left: 50%; width: min(calc(100% - 20px), calc(2 * ${COLUMN_HALF})); transform: translateX(-50%); }
+function backingCss(glass: number): string {
+  return `body.bb-app-shell { --ambient-glass-fill: color-mix(in oklab, var(--ambient-background) ${Math.round(glass * 100)}%, transparent); }
+${THREAD} { position: relative; isolation: isolate; }
+${THREAD}::before { content: ""; position: absolute; z-index: -1; pointer-events: none; ${GLASS_SURFACE} border-radius: 20px; top: 0; bottom: 6px; left: 50%; width: min(calc(100% - 20px), calc(2 * ${COLUMN_HALF})); transform: translateX(-50%); }
 ${THREAD} [data-overflow-fade] { display: none; }
 ${THREAD} [data-scroll-footer] > .bg-background { background-color: transparent; }
 ${THREAD} [data-scroll-footer] div:has(> [data-app-composer]) { position: relative; isolation: isolate; }
-${THREAD} [data-scroll-footer] div:has(> [data-app-composer])::before { content: ""; position: absolute; z-index: -1; pointer-events: none; inset: -16px 0 6px; border-radius: 20px; ${GLASS_SURFACE} }
+${THREAD} [data-scroll-footer] div:has(> [data-app-composer])::before { content: ""; position: absolute; z-index: -1; pointer-events: none; inset: -16px 0 12px; border-radius: 20px; ${GLASS_SURFACE} }
 body.bb-app-shell > #root header.bg-surface-scrim { border-color: transparent; }
 body.bb-app-shell > #root [data-sidebar="panel"] { border-inline-end-color: transparent; }
 :is(${CHROME_PILLS}) { ${GLASS_SURFACE} border-radius: 12px; padding-inline: 6px; }
@@ -64,7 +65,9 @@ body.bb-app-shell > #root [data-sidebar="content"] { flex: 0 1 auto; margin-bloc
 body.bb-app-shell > #root [data-sidebar="footer"] { margin-block: 8px; }
 :is(${SIDEBAR_CARDS}) :is(.sticky, [data-sidebar-sticky-tier], [data-sidebar-sticky-stack]), :is(${SIDEBAR_CARDS}) [data-sidebar-sticky-stack]::before { -webkit-backdrop-filter: none; backdrop-filter: none; }
 body.bb-app-shell > #root [data-app-composer] { --background: color-mix(in oklab, var(--ambient-background) 88%, transparent); }
-:is(${SECONDARY_PANEL}) { border-inline-start-color: transparent; --background: color-mix(in oklab, var(--ambient-background) 88%, transparent); --sidebar: color-mix(in oklab, var(--ambient-sidebar) 88%, transparent); }`;
+${RIGHT_PANEL} { border-inline-start-color: transparent; background-color: transparent; isolation: isolate; --background: transparent; --sidebar: transparent; }
+${RIGHT_PANEL}::before { content: ""; position: absolute; z-index: -1; pointer-events: none; inset: 0 10px 10px 0; border-radius: 20px; ${GLASS_SURFACE} }
+[data-testid="secondary-panel-shelf"] { --background: color-mix(in oklab, var(--ambient-background) 88%, transparent); --sidebar: color-mix(in oklab, var(--ambient-sidebar) 88%, transparent); }`;
 }
 
 function veilCss(showThrough: number): string {
@@ -408,14 +411,15 @@ function AmbientOverlay() {
 
   const showThrough = state?.controls.showThrough ?? 0;
   const backed = state?.controls.backing ?? true;
+  const glass = state?.controls.glass ?? 0.6;
   useEffect(() => {
     if (!enabled) return;
     const style = document.createElement("style");
     style.id = VEIL_STYLE_ID;
-    style.textContent = backed ? `${veilCss(showThrough)}\n${backingCss()}` : veilCss(showThrough);
+    style.textContent = backed ? `${veilCss(showThrough)}\n${backingCss(glass)}` : veilCss(showThrough);
     document.head.append(style);
     return () => style.remove();
-  }, [enabled, showThrough, backed]);
+  }, [enabled, showThrough, backed, glass]);
 
   if (!enabled) return null;
   return createPortal(
@@ -978,6 +982,18 @@ function AmbientControls() {
             onChange={(backing) => setControl("backing", backing)}
           />
         </div>
+        {controls.backing && (
+          <Slider
+            label="Glass opacity"
+            hint="How solid the floating glass panels behind text are"
+            value={controls.glass}
+            min={0.2}
+            max={0.95}
+            step={0.01}
+            format={(value) => `${Math.round(value * 100)}%`}
+            onChange={(value) => setControl("glass", value)}
+          />
+        )}
       </Section>
 
       <Section title="Preview a ripple">

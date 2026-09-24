@@ -80,6 +80,7 @@ const controlsSchema = z.object({
   speed: z.number().min(0).max(4),
   quality: z.number().min(0.2).max(1),
   backing: z.boolean().default(true),
+  glass: z.number().min(0.2).max(0.95).default(0.6),
 });
 
 const stateSchema = z.object({
@@ -451,7 +452,7 @@ export function dailyPrompt(moment: LocalMoment, timeZone: string, request?: str
 }
 
 function describeControls(controls: Controls): string {
-  return `${controls.enabled ? "on" : "off"}; Visibility (show-through) ${Math.round(controls.showThrough * 100)}%, Motion (speed) ${controls.speed}×, Detail (quality) ${Math.round(controls.quality * 100)}%, Backing ${controls.backing ? "on" : "off"}`;
+  return `${controls.enabled ? "on" : "off"}; Visibility (show-through) ${Math.round(controls.showThrough * 100)}%, Motion (speed) ${controls.speed}×, Detail (quality) ${Math.round(controls.quality * 100)}%, Backing ${controls.backing ? "on" : "off"}, Glass opacity ${Math.round(controls.glass * 100)}%`;
 }
 
 function describeScene(state: AmbientState): string {
@@ -478,6 +479,7 @@ const controlInputSchema = z
     motion: controlsSchema.shape.speed,
     detail: controlsSchema.shape.quality,
     backing: z.boolean(),
+    glass: controlsSchema.shape.glass,
   })
   .partial()
   .strict();
@@ -489,10 +491,12 @@ function controlsFromInput(input: z.infer<typeof controlInputSchema>): Partial<C
     ...(input.motion === undefined ? {} : { speed: input.motion }),
     ...(input.detail === undefined ? {} : { quality: input.detail }),
     ...(input.backing === undefined ? {} : { backing: input.backing }),
+    ...(input.glass === undefined ? {} : { glass: input.glass }),
   };
 }
 
-const CLI_CONTROL_KEYS: Record<string, "showThrough" | "speed" | "quality"> = {
+const CLI_CONTROL_KEYS: Record<string, "showThrough" | "speed" | "quality" | "glass"> = {
+  glass: "glass",
   visibility: "showThrough",
   showthrough: "showThrough",
   motion: "speed",
@@ -987,7 +991,7 @@ export default function plugin(bb: BbPluginApi): void {
       controls: controlInputSchema
         .optional()
         .describe(
-          "user display controls: enabled, visibility (0..1, how much of the scene shows through bb), motion (0..4 speed), detail (0.2..1 render resolution), backing (true puts frosted glass behind the thread timeline and the sidebar so text stays readable)",
+          "user display controls: enabled, visibility (0..1, how much of the scene shows through bb), motion (0..4 speed), detail (0.2..1 render resolution), backing (true puts frosted glass behind the thread timeline and the sidebar so text stays readable), glass (0.2..0.95 opacity of that glass)",
         ),
       ripple: rippleKindSchema
         .optional()
@@ -1119,8 +1123,8 @@ export default function plugin(bb: BbPluginApi): void {
       { name: "load", summary: "Make a built-in or saved scene active", usage: "bb ambient load <id-or-name>" },
       {
         name: "set",
-        summary: "Set scene params or the Visibility, Motion, and Detail controls",
-        usage: "bb ambient set <param|visibility|motion|detail>=<value>[%] [...]",
+        summary: "Set scene params or the Visibility, Motion, Detail, and Glass opacity controls",
+        usage: "bb ambient set <param|visibility|motion|detail|glass>=<value>[%] [...]",
       },
       { name: "palette", summary: "Set the scene's four colors", usage: "bb ambient palette <#rrggbb> <#rrggbb> <#rrggbb> <#rrggbb>" },
       { name: "save", summary: "Save the active scene to the library", usage: "bb ambient save [name]" },
