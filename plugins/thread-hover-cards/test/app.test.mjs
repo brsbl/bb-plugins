@@ -2060,7 +2060,7 @@ nestedThread.dispatchEvent(
 await new Promise((resolve) => setTimeout(resolve, 140));
 nestedThread.dataset.sidebarThreadId = "thr_claude";
 hoverOver(nestedThread);
-await new Promise((resolve) => setTimeout(resolve, 20));
+await new Promise((resolve) => setTimeout(resolve, 170));
 assert.equal(
   window.document.querySelector(".bb-thread-hover-card__provider-model")
     ?.textContent,
@@ -2092,7 +2092,7 @@ nestedThread.dispatchEvent(
 await new Promise((resolve) => setTimeout(resolve, 140));
 nestedThread.dataset.sidebarThreadId = "thr_claude_version";
 hoverOver(nestedThread);
-await new Promise((resolve) => setTimeout(resolve, 20));
+await new Promise((resolve) => setTimeout(resolve, 170));
 assert.equal(
   window.document.querySelector(".bb-thread-hover-card__provider-model")
     ?.textContent,
