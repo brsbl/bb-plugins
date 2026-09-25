@@ -47,8 +47,9 @@ describe("Video Markup UI contracts",()=>{
     expect(slot.getByLabelText("v2.mp4").getAttribute("src")).toBe("/video-v2.mp4");
     expect(oldVideo.isConnected).toBe(false);
     expect(slot.getByRole("tab",{name:"Video Markup"}).getAttribute("aria-selected")).toBe("true");
-    // The panel has no version list; one title names the demo.
+    // The panel has no version list; one title names the demo and a label names the version.
     expect(slot.getByRole("heading",{name:"Duo"})).toBeTruthy();
+    expect(slot.getByText(/^Version \d of \d$/)).toBeTruthy();
     expect(slot.queryByRole("navigation",{name:"Demo versions"})).toBeNull();
     expect(slot.getAllByRole("tab",{name:"Video Markup"})).toHaveLength(1);
     slot.lifecycle.unmount();
@@ -64,6 +65,7 @@ describe("Video Markup UI contracts",()=>{
     const latest={...version,id:"v2",ordinal:2,media:{...version.media,path:"/v2.mp4"}};
     const panel=renderSlot(app.threadPanelActions[0],{threadId:"thr_demo",params:null},{rpc:{versions:()=>({versions:[version,latest],nextOffset:null,currentDemo:"Duo"}),version:input=>(input as {versionId:string}).versionId==="v1"?version:latest,preview:()=>({media:version.media,url:"/video.mp4",expiresAt:99999}),notes:()=>({notes:[],nextOffset:null})}});
     expect(await panel.findByLabelText("v1.mp4")).toBeTruthy();
+    expect(panel.getByText("Version 1 of 2 · not the latest")).toBeTruthy();
     panel.lifecycle.unmount();
     slot.lifecycle.unmount();
   });

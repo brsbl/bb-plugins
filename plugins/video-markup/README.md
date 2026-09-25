@@ -14,7 +14,7 @@ Requires bb 0.43.4 or newer for composer mentions with image context. Uses only 
 
 ## Use
 
-Attach an `.mp4`, `.webm`, or `.mov` in bb's prompt box, or ask your agent to share a video. The agent calls `video_markup_present`, emits its inline player directive, and requests the Video Markup panel for that version. Videos use their filenames and ordered numbers. The current demo is reused; the first video's filename supplies the initial demo name. The existing demo selector switches between demos.
+Attach an `.mp4`, `.webm`, or `.mov` in bb's prompt box, or ask your agent to share a video. The agent calls `video_markup_present`, emits its inline player directive, and requests the Video Markup panel for that version. Videos use their filenames and ordered numbers. The current demo is reused; the first video's filename supplies the initial demo name. The existing demo selector switches between demos, and the panel header names the version on screen, such as **Version 1 of 3 · not the latest**.
 
 Opening a video in bb's file viewer also offers **Leave notes on this video**. The panel has no add-video form or uploader. Its launcher cannot be hidden per thread with the current SDK, so an empty panel has one brief instruction.
 
