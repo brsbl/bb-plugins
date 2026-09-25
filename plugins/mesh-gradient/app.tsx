@@ -26,6 +26,7 @@ import {
   generateMeshGradient,
   hexToHsl,
   hslToHex,
+  mostReadable,
   nameFor,
   newPointAt,
   randomSeed,
@@ -764,12 +765,13 @@ function Studio({ threadId }: PluginThreadPanelProps) {
       setProposals(next);
       const seen = seenProposals.current;
       seenProposals.current = new Set(next.map((proposal) => proposal.id));
-      const newest = next[0];
+      const fresh = next.filter(
+        (proposal) => seen === null || !seen.has(proposal.id),
+      );
+      const newest = fresh[0];
       if (!newest) return;
-      const isNew = seen === null || !seen.has(newest.id);
-      if (!isNew) return;
       if (pristineRef.current) {
-        loadProposal(newest);
+        loadProposal(mostReadable(fresh) ?? newest);
       } else if (seen !== null) {
         toast.success(`The agent proposed “${newest.name}”`);
       }

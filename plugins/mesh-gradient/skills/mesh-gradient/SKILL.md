@@ -16,7 +16,7 @@ When the user asks for gradient ideas, call `mesh_gradient` with
 `note` on why it fits. Pick `style` (aurora, sunset, ocean, candy, forest,
 mono) or pass `color` (#hex) from the project's brand. Proposals appear under
 **For this thread** in the Mesh Gradient panel; a fresh panel opens on the
-newest one. The panel keeps up to six proposals per thread, newest first.
+one whose text reads best. The panel keeps up to six proposals per thread, newest first.
 
 ```bash
 bb mesh-gradient propose --color '#0f766e' --name "calm teal" --note "matches the docs accent"

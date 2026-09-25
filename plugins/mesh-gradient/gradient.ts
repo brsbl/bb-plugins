@@ -447,6 +447,21 @@ export function readabilityFor(spec: MeshGradientSpec): ContrastReport {
   return contrastReportFor(sampleLuminances(spec));
 }
 
+export function mostReadable<T extends MeshGradientSpec>(
+  specs: readonly T[],
+): T | undefined {
+  let best: T | undefined;
+  let bestRatio = -1;
+  for (const spec of specs) {
+    const ratio = readabilityFor(spec).bestRatio;
+    if (ratio > bestRatio) {
+      best = spec;
+      bestRatio = ratio;
+    }
+  }
+  return best;
+}
+
 export function readabilityLabel(report: ContrastReport): string {
   return report.passesAA
     ? "Readable"

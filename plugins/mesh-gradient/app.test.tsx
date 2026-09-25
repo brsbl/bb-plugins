@@ -230,7 +230,7 @@ describe("mesh gradient app", () => {
     slot.lifecycle.unmount();
   });
 
-  it("opens on the agent's newest proposal for this thread", async () => {
+  it("opens on the agent's proposal for this thread", async () => {
     const app = await loadPluginApp(() => import("./app.js"));
     const slot = renderSlot(
       app.threadPanelActions[0]!,

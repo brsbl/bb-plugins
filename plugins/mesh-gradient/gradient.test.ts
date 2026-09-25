@@ -14,6 +14,7 @@ import {
   generateMeshGradient,
   hexToHsl,
   hslToHex,
+  mostReadable,
   nameFor,
   newPointAt,
   normalizeSeed,
@@ -287,6 +288,13 @@ describe("canvas-free readability sampling", () => {
     expect(readabilityFor(pale).best).toBe("black");
     expect(readabilityFor(deep).best).toBe("white");
     expect(readabilitySummary(deep)).toMatch(/^white text, [\d.]+:1 worst case \(Readable\)$/);
+  });
+
+  it("picks the proposal whose best text color reads best", () => {
+    const mid = { seed: 1, style: "mono" as const, points: [point({ lightness: 50, radius: 200 })] };
+    const deep = { seed: 2, style: "mono" as const, points: [point({ lightness: 15, radius: 200 })] };
+    expect(mostReadable([mid, deep])).toBe(deep);
+    expect(mostReadable([])).toBeUndefined();
   });
 
   it("rejects a spec without points", () => {
