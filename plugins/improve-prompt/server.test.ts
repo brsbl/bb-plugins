@@ -38,6 +38,7 @@ async function createHarness(options?: {
   defaultExecutionOptions?: () => Promise<Record<string, unknown> | null>;
   timeline?: () => Promise<Record<string, unknown>>;
   initialKv?: Iterable<readonly [string, unknown]>;
+  instructions?: string;
 }) {
   const kv = new Map<string, unknown>(options?.initialKv);
   const database = new Database(":memory:");
@@ -62,6 +63,19 @@ async function createHarness(options?: {
   };
   const publish = vi.fn();
   const bb = {
+    settings: {
+      define(schema: { instructions: { default: string } }) {
+        return {
+          async get() {
+            return {
+              instructions:
+                options?.instructions ?? schema.instructions.default,
+            };
+          },
+          onChange: vi.fn(),
+        };
+      },
+    },
     storage: {
       database() {
         return database;
@@ -508,5 +522,27 @@ describe("Improve Prompt runtime context", () => {
     expect(spawnInput).not.toHaveProperty("originKind");
     expect(spawnInput?.prompt).not.toContain("thr_source");
     expect(spawnInput?.prompt).not.toContain("history snapshot");
+  });
+
+  it("injects the configured rewrite instructions into the helper prompt", async () => {
+    const harness = await createHarness({
+      instructions: "Always answer in haiku form.",
+    });
+
+    await harness.rpc.startEnhancement(START_INPUT);
+
+    const prompt = harness.threads.spawn.mock.calls[0]?.[0]?.prompt;
+    expect(prompt).toContain("Always answer in haiku form.");
+    expect(prompt).not.toContain("You're editing someone's draft");
+    expect(prompt).toContain("Return only `## Enhanced prompt`");
+  });
+
+  it("uses the default instructions when the setting is left at its default", async () => {
+    const harness = await createHarness();
+
+    await harness.rpc.startEnhancement(START_INPUT);
+
+    const prompt = harness.threads.spawn.mock.calls[0]?.[0]?.prompt;
+    expect(prompt).toContain("You're editing someone's draft");
   });
 });
