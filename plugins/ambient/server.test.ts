@@ -1,7 +1,7 @@
 import { createFakePluginHost } from "@get-bb/plugin-sdk/testing";
 import { describe, expect, it } from "vitest";
 
-import { BUILT_IN_SCENES, DEFAULT_SCENE, rebuildBuiltIn, sceneOf } from "./scene";
+import { BUILT_IN_SCENES, DEFAULT_SCENE, POPPY_HILL_SOURCE, rebuildBuiltIn, sceneOf } from "./scene";
 import plugin, {
   DAILY_CONCEPTS,
   applyValues,
@@ -201,6 +201,13 @@ describe("daily concepts", () => {
     expect(prompt).toContain('"california poppies impressionist style blowing in the wind"');
     expect(prompt).toContain("What working agents become");
     expect(prompt).not.toContain("Today's starting concept");
+  });
+
+  it("asks for researched references and shows Poppy Hill's two-pass source as the bar", () => {
+    const prompt = dailyPrompt(localMoment("UTC", new Date("2026-09-23T09:00:00Z")), "UTC", "claymation");
+    expect(prompt).toContain("Search the web");
+    expect(prompt).toContain(POPPY_HILL_SOURCE);
+    expect(prompt.indexOf("Research the style")).toBeLessThan(prompt.indexOf("action=set"));
   });
 
   it("rejects multi-line scene requests", () => {

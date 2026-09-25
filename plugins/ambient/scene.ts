@@ -297,7 +297,7 @@ export interface BuiltInScene extends Scene {
   id: string;
 }
 
-const POPPY_HILL_SOURCE = `float hillY(float x) {
+export const POPPY_HILL_SOURCE = `float hillY(float x) {
   return 0.07 + 0.09 * sin(x * 1.5 + 0.7) + 0.035 * sin(x * 3.7 + 1.3);
 }
 
