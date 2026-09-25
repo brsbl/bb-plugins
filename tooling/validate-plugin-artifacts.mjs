@@ -223,7 +223,8 @@ export async function validatePluginArtifacts(pluginDirectory, options = {}) {
   if (options.expectedName && manifest.bb.name !== options.expectedName) {
     throw new Error(`${directory}: expected display name ${options.expectedName}`);
   }
-  const sdkVersion = pluginSdkVersionFor(manifest);
+  // Release manifests drop devDependencies, so callers pass the source's SDK.
+  const sdkVersion = options.sdkVersion ?? pluginSdkVersionFor(manifest);
   if (!sdkRangeIncludesVersion(manifest.engines?.bbPluginSdk, sdkVersion)) {
     throw new Error(
       `${directory}: engines.bbPluginSdk must be a compatible floor at or below ${sdkVersion}`,

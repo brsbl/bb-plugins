@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { pluginSdkVersionFor } from "./plugin-sdk-provenance.mjs";
 import { readPluginWorkspaces } from "./plugin-workspaces.mjs";
 import { validatePluginArtifacts } from "./validate-plugin-artifacts.mjs";
 
@@ -450,6 +451,7 @@ async function verifyReleaseCommit(plugin, releaseCommit, subdirectory = "") {
     await validatePluginArtifacts(checkout, {
       expectedId: plugin.pluginId,
       expectedName: plugin.name,
+      sdkVersion: pluginSdkVersionFor(plugin.manifest),
     });
 
     // Check both the canonical artifact and the release-only server entry
@@ -500,6 +502,7 @@ async function verifyReleaseCommit(plugin, releaseCommit, subdirectory = "") {
     await validatePluginArtifacts(checkout, {
       expectedId: plugin.pluginId,
       expectedName: plugin.name,
+      sdkVersion: pluginSdkVersionFor(plugin.manifest),
     });
   } finally {
     await rm(checkoutRoot, { recursive: true, force: true });
