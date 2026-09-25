@@ -1,0 +1,123 @@
+.bbd-mine {
+  --bbd-mine-face: oklch(0.8 0.012 250);
+  --bbd-mine-light: oklch(0.97 0.006 250);
+  --bbd-mine-shade: oklch(0.52 0.015 250);
+  --bbd-mine-open: oklch(0.86 0.01 250);
+  --bbd-mine-line: oklch(0.66 0.015 250);
+}
+
+.bbd-mine-panel {
+  gap: 8px;
+  margin: 6px;
+  padding: 8px;
+  background: var(--bbd-mine-face);
+  box-shadow:
+    inset 2px 2px 0 var(--bbd-mine-light),
+    inset -2px -2px 0 var(--bbd-mine-shade);
+}
+
+.bbd-mine-head {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: space-between;
+  padding: 5px 6px;
+  box-shadow:
+    inset 2px 2px 0 var(--bbd-mine-shade),
+    inset -2px -2px 0 var(--bbd-mine-light);
+}
+
+.bbd-mine-led {
+  min-width: 3.4ch;
+  padding: 1px 4px;
+  background: oklch(0.16 0.02 25);
+  color: oklch(0.63 0.25 28);
+  font-family: ui-monospace, "Consolas", monospace;
+  font-size: var(--text-base);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.1;
+  text-align: center;
+  box-shadow: inset 1px 1px 0 var(--bbd-mine-shade), inset -1px -1px 0 var(--bbd-mine-light);
+}
+
+.bbd-mine-face {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  background: var(--bbd-mine-face);
+  box-shadow:
+    inset 2px 2px 0 var(--bbd-mine-light),
+    inset -2px -2px 0 var(--bbd-mine-shade);
+}
+
+.bbd-mine-face:active {
+  box-shadow: inset 1px 1px 0 var(--bbd-mine-shade);
+}
+
+.bbd-mine-field {
+  display: grid;
+  place-items: center;
+  overflow: auto;
+}
+
+.bbd-mine-grid {
+  display: grid;
+  box-shadow:
+    0 0 0 3px var(--bbd-mine-face),
+    0 0 0 5px var(--bbd-mine-shade);
+  user-select: none;
+}
+
+.bbd-mine-cell {
+  display: grid;
+  place-items: center;
+  padding: 0;
+  background: var(--bbd-mine-face);
+  box-shadow:
+    inset 2px 2px 0 var(--bbd-mine-light),
+    inset -2px -2px 0 var(--bbd-mine-shade);
+  font-family: Tahoma, Verdana, "Segoe UI", sans-serif;
+  font-size: var(--text-sm);
+  font-weight: 800;
+  line-height: 1;
+  cursor: default;
+}
+
+.bbd-mine-cell:not([data-revealed="true"]):active {
+  background: var(--bbd-mine-open);
+  box-shadow: inset 1px 1px 0 var(--bbd-mine-line);
+}
+
+.bbd-mine-cell[data-revealed="true"] {
+  background: var(--bbd-mine-open);
+  box-shadow: inset 1px 1px 0 var(--bbd-mine-line);
+}
+
+.bbd-mine-cell[data-exploded="true"] {
+  background: oklch(0.62 0.22 28);
+}
+
+.bbd-mine-cell[data-wrong="true"] {
+  background: oklch(0.85 0.08 28);
+}
+
+.bbd-mine-cell:focus-visible {
+  outline: 2px solid var(--bbd-blue);
+  outline-offset: -2px;
+}
+
+.bbd-mine-glyph {
+  width: 70%;
+  height: 70%;
+}
+
+.bbd-mine-cell[data-count="1"] { color: oklch(0.45 0.25 264); }
+.bbd-mine-cell[data-count="2"] { color: oklch(0.52 0.17 145); }
+.bbd-mine-cell[data-count="3"] { color: oklch(0.58 0.23 28); }
+.bbd-mine-cell[data-count="4"] { color: oklch(0.3 0.17 264); }
+.bbd-mine-cell[data-count="5"] { color: oklch(0.38 0.14 28); }
+.bbd-mine-cell[data-count="6"] { color: oklch(0.55 0.1 195); }
+.bbd-mine-cell[data-count="7"] { color: oklch(0.22 0.02 260); }
+.bbd-mine-cell[data-count="8"] { color: oklch(0.55 0.02 260); }

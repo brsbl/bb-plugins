@@ -333,6 +333,48 @@ export function RunArt({ size = 40 }: { size?: number }) {
   );
 }
 
+export function MinesweeperArt({ size = 40 }: { size?: number }) {
+  const spikes = [0, 45, 90, 135];
+  return (
+    <IconSvg size={size}>
+      <path d="M6 40 30 34 42 40 18 46Z" fill={ICON.metal} stroke={ICON.metalEdge} strokeLinejoin="round" />
+      {spikes.map((angle) => (
+        <path key={angle} d="M22 11V43M6 27H38" transform={`rotate(${angle} 22 27)`} stroke={ICON.lead} strokeWidth="2.6" strokeLinecap="round" />
+      ))}
+      <circle cx="22" cy="27" r="11" fill={ICON.lead} />
+      <circle cx="18" cy="23" r="3.6" fill={ICON.paper} opacity="0.9" />
+      <path d="M36 8V26" stroke={ICON.lead} strokeWidth="1.8" strokeLinecap="round" />
+      <path d="M36 8 45 12.5 36 17Z" fill={ICON.redTop} stroke={ICON.redEdge} strokeWidth="0.8" strokeLinejoin="round" />
+    </IconSvg>
+  );
+}
+
+const HEART =
+  "M12 21.5C5 16 1.5 12.5 1.5 8c0-3.2 2.5-5.5 5.5-5.5 2.2 0 4 1.3 5 3.1 1-1.8 2.8-3.1 5-3.1 3 0 5.5 2.3 5.5 5.5 0 4.5-3.5 8-10.5 13.5Z";
+
+const SPADE =
+  "M12 1.5c4 5 10 8.5 10 13 0 3-2.2 5-4.8 5-1.8 0-3.4-.9-4.2-2.3.3 2.3 1.2 3.8 2.8 5.3H8.2c1.6-1.5 2.5-3 2.8-5.3-.8 1.4-2.4 2.3-4.2 2.3C4.2 19.5 2 17.5 2 14.5c0-4.5 6-8 10-13Z";
+
+function PlayingCard({ symbol, fill, stroke, angle, x }: { symbol: string; fill: string; stroke?: string; angle: number; x: number }) {
+  return (
+    <g transform={`rotate(${angle} ${x + 11} 40)`}>
+      <rect x={x} y={9} width={22} height={31} rx={2.6} fill="url(#bbd-g-bubble)" stroke={ICON.bubbleEdge} />
+      <path d={symbol} fill={fill} stroke={stroke} strokeWidth={stroke === undefined ? 0 : 1.2} transform={`translate(${x + 5.5} 18) scale(0.46)`} />
+      <path d={symbol} fill={fill} transform={`translate(${x + 2.4} 11.6) scale(0.2)`} />
+      <path d={symbol} fill={fill} transform={`translate(${x + 19.6} 37.4) rotate(180) scale(0.2)`} />
+    </g>
+  );
+}
+
+export function SolitaireArt({ size = 40 }: { size?: number }) {
+  return (
+    <IconSvg size={size}>
+      <PlayingCard symbol={SPADE} fill={ICON.lead} angle={-14} x={9} />
+      <PlayingCard symbol={HEART} fill={ICON.redBottom} stroke={ICON.redEdge} angle={12} x={17} />
+    </IconSvg>
+  );
+}
+
 export function DetailsArt({ size = 40 }: { size?: number }) {
   return (
     <IconSvg size={size}>

@@ -38,6 +38,7 @@ Rules:
 - Luna hues are fixed, like XP's. Surfaces behind content derive from bb's `--canvas`/`--ink`/`--background` so light, dark, and Ambient all work.
 - Mix translucent steps in `oklab`, opaque steps in `oklch`. No achromatic `oklch(L 0 0)` literals.
 - New shared colors are added as a token first, then used.
+- A self-contained app (the games in `games/`) may keep its own palette, but only as scoped tokens declared once at the top of its CSS file (`--bbd-mine-*`, `--bbd-sol-*`). Game logic lives in a pure `*-core.ts` module with tests; the component renders only the window body and `desktop.tsx` wraps it in `WindowFrame`.
 
 ## 4. Icons
 
@@ -76,6 +77,8 @@ Use the real XP icon when bb has an XP counterpart. When it does not, build from
 | Threads | My Documents pattern: folder with the item tucked in, here a speech bubble | `ThreadsArt` |
 | Plugins | Add or Remove Programs pattern: software box with a CD | `PluginsArt` |
 | Skills | No XP counterpart; a glossy bolt in XP style | `SkillsArt` |
+| Minesweeper | Minesweeper: a spiked black mine with a red flag | `MinesweeperArt` |
+| Solitaire | Solitaire: two fanned cards, a spade behind a heart | `SolitaireArt` |
 | Thread search | Search: straight-on magnifying glass with a gold handle | `SearchArt` |
 | Command palette | Run: small window with a text field and speed lines | `RunArt` |
 | Thread details | A window with a side pane | `DetailsArt` |

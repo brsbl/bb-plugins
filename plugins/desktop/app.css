@@ -719,6 +719,16 @@
   color: oklch(0.9 0.04 250);
 }
 
+.bbd-start-section {
+  display: block;
+  padding: 2px 12px 0;
+  color: var(--muted-foreground);
+  font-size: var(--text-2xs);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
 .bbd-start-rule {
   height: 1px;
   margin: 0 12px;

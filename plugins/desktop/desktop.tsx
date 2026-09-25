@@ -44,6 +44,8 @@ import {
   GridViewGlyph,
   ListViewGlyph,
   MediaPlayerArt,
+  MinesweeperArt,
+  SolitaireArt,
   RecycleBinArt,
   StatusIcon,
   StickyNoteArt,
@@ -76,6 +78,8 @@ import {
   type SortKey,
 } from "./core";
 import { NeedsInputBalloon } from "./balloon";
+import { MinesweeperGame } from "./games/minesweeper";
+import { SolitaireGame } from "./games/solitaire";
 import { toggleDesktop, useDesktopEnabled } from "./enabled";
 import { MediaDeskband, MediaPlayerWindow, useMic } from "./media-player";
 import { addStickyNote } from "./sticky-notes";
@@ -1146,6 +1150,10 @@ function windowTitle(spec: WindowSpec, desktop: DesktopContextValue): string {
       return "Recycle Bin";
     case "more":
       return "More";
+    case "minesweeper":
+      return "Minesweeper";
+    case "solitaire":
+      return "Solitaire";
     case "new-folder":
       return "New folder";
     case "new-thread":
@@ -1177,6 +1185,10 @@ function windowArt(spec: WindowSpec, desktop: DesktopContextValue, size: number)
       return <RecycleBinArt size={size} full={desktop.archivedThreads.length > 0} />;
     case "more":
       return <FolderArt kind="section" size={size} empty={desktop.moreGroups.length === 0} />;
+    case "minesweeper":
+      return <MinesweeperArt size={size} />;
+    case "solitaire":
+      return <SolitaireArt size={size} />;
     case "new-folder":
       return <NewFolderArt size={size} />;
     case "new-thread":
@@ -1273,6 +1285,32 @@ function StartMenu({ onClose }: { onClose: () => void }) {
             <small>Pin a note in the margin</small>
           </span>
         </button>
+      </div>
+      <div className="bbd-start-rule" aria-hidden />
+      <div className="bbd-start-body">
+        <span className="bbd-start-section">Games</span>
+        {(
+          [
+            { spec: { kind: "minesweeper" }, label: "Minesweeper", detail: "Clear the field" },
+            { spec: { kind: "solitaire" }, label: "Solitaire", detail: "Klondike, draw one" },
+          ] as const
+        ).map((item) => (
+          <button
+            key={item.label}
+            type="button"
+            role="menuitem"
+            className="bbd-start-item"
+            title="Right-click to add to Quick Launch"
+            onClick={run(() => manager.open(item.spec))}
+            onContextMenu={(event) => desktop.openMenu(event, [quickLaunchToggleEntry(desktop, item.spec.kind)])}
+          >
+            {windowArt(item.spec, desktop, 30)}
+            <span>
+              <strong>{item.label}</strong>
+              <small>{item.detail}</small>
+            </span>
+          </button>
+        ))}
       </div>
       <div className="bbd-start-rule" aria-hidden />
       <div className="bbd-start-body">
@@ -1406,6 +1444,8 @@ function useQuickLaunchCatalog(): QuickLaunchItem[] {
     launcher({ kind: "threads" }, "Threads"),
     launcher({ kind: "recycle-bin" }, "Recycle Bin"),
     launcher({ kind: "media-player" }, "Media Player"),
+    launcher({ kind: "minesweeper" }, "Minesweeper"),
+    launcher({ kind: "solitaire" }, "Solitaire"),
     { id: "sticky-note", label: "Sticky note", art: <StickyNoteArt size={18} />, run: () => addStickyNote() },
     { id: "search", label: "Search", art: <SearchArt size={20} />, run: () => void runAppCommand("thread.search") },
     { id: "run", label: "Run…", art: <RunArt size={20} />, run: () => void runAppCommand("palette.open") },
@@ -2009,6 +2049,18 @@ function WindowContent({ window: desktopWindow }: { window: DesktopWindow }) {
       return <RecycleBinWindow window={desktopWindow} />;
     case "more":
       return <MoreWindow window={desktopWindow} />;
+    case "minesweeper":
+      return (
+        <WindowFrame window={desktopWindow} title="Minesweeper" icon={<MinesweeperArt size={16} />}>
+          <MinesweeperGame />
+        </WindowFrame>
+      );
+    case "solitaire":
+      return (
+        <WindowFrame window={desktopWindow} title="Solitaire" icon={<SolitaireArt size={16} />}>
+          <SolitaireGame />
+        </WindowFrame>
+      );
     case "new-folder":
       return <NewFolderWindow window={desktopWindow} />;
     case "new-thread":

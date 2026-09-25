@@ -14,5 +14,5 @@
     "noEmit": true,
     "skipLibCheck": true
   },
-  "include": ["*.ts", "*.tsx"]
+  "include": ["*.ts", "*.tsx", "games/*.ts", "games/*.tsx"]
 }
