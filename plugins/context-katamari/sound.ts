@@ -104,7 +104,7 @@ export class KatamariAudio {
     }
     // Let the fade finish, then stop sending samples to the speakers.
     window.setTimeout(() => {
-      if (this.muted) void context.suspend();
+      if (this.muted && context.state === "running") void context.suspend();
     }, 300);
   }
 
@@ -327,7 +327,9 @@ export class KatamariAudio {
     endHz = hz,
   ): void {
     const context = this.context;
-    if (!context || !this.master) return;
+    // A suspended clock stands still, so anything scheduled now would all
+    // play at once when audio resumes.
+    if (!context || !this.master || context.state !== "running") return;
     const oscillator = context.createOscillator();
     oscillator.type = type;
     oscillator.frequency.setValueAtTime(hz, time);
@@ -350,7 +352,7 @@ export class KatamariAudio {
     destination: AudioNode | null = this.master,
   ): void {
     const context = this.context;
-    if (!context || !this.noise || !destination) return;
+    if (!context || !this.noise || !destination || context.state !== "running") return;
     const source = context.createBufferSource();
     source.buffer = this.noise;
     source.playbackRate.value = 4;

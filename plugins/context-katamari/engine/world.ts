@@ -37,6 +37,9 @@ const MAX_STUCK = 140;
 const SPAWN_BUDGET_MS = 4;
 const ACTOR_CACHE_LIMIT = 8;
 const HUD_INTERVAL_SECONDS = 0.1;
+/** Frame budgets: full speed while anything moves, half when the scene is idle. */
+const ACTIVE_FRAME_MS = 1000 / 60;
+const CALM_FRAME_MS = 1000 / 30;
 /** After the player lets go, the cousin keeps still this long before wandering again. */
 const MANUAL_HOLD_SECONDS = 4;
 /** Top rolling speed and turn rate under the player's hands, in radii and radians per second. */
@@ -440,12 +443,12 @@ export class KatamariWorld {
     if (this.running || this.disposed) return;
     this.running = true;
     this.lastFrameTime = performance.now();
-    let skip = false;
     const tick = (now: number) => {
       if (!this.running) return;
-      // Nothing is rolling: half the frame rate is plenty for idle fidgets.
-      skip = !skip && this.isCalm();
-      if (skip) {
+      // Cap by time so fast displays don't multiply the cost; idle fidgets
+      // need even less.
+      const interval = this.isCalm() ? CALM_FRAME_MS : ACTIVE_FRAME_MS;
+      if (now - this.lastFrameTime < interval - 1) {
         this.frame = window.requestAnimationFrame(tick);
         return;
       }
