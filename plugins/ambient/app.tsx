@@ -78,17 +78,18 @@ ${THREAD} [data-timeline-row-list] :is([data-message-column].border, [data-messa
 ${THREAD} [data-markdown-preview] div:has(> div > table) { width: 100% !important; margin-inline: 0 !important; }
 ${THREAD} [data-scroll-footer] > .bg-background { background-color: transparent; }
 ${THREAD} [data-scroll-footer] { isolation: isolate; padding-top: 16px; }
-${THREAD} [data-scroll-footer]::before { content: ""; position: absolute; z-index: -1; pointer-events: none; top: 0; bottom: ${COLUMN_BOTTOM}; left: ${COLUMN_LEFT}; right: ${COLUMN_RIGHT}; border-radius: 20px; background: linear-gradient(to bottom, color-mix(in oklab, var(--canvas) 28%, transparent), transparent 45%), var(--ambient-background); border: 1px solid color-mix(in oklab, var(--ink) 9%, transparent); box-shadow: inset 0 1px 0 color-mix(in oklab, var(--canvas) 70%, transparent), inset 0 0 0 1px color-mix(in oklab, var(--canvas) 18%, transparent); }
+${THREAD} [data-scroll-footer]::before { content: ""; position: absolute; z-index: -1; pointer-events: none; top: 0; bottom: ${COLUMN_BOTTOM}; left: ${COLUMN_LEFT}; right: ${COLUMN_RIGHT}; border-radius: 20px; background: linear-gradient(to bottom, color-mix(in oklab, var(--canvas) 28%, transparent), transparent 45%), ${GLASS_FILL}; ${GLASS_BLUR} border: 1px solid color-mix(in oklab, var(--ink) 9%, transparent); box-shadow: inset 0 1px 0 color-mix(in oklab, var(--canvas) 70%, transparent), inset 0 0 0 1px color-mix(in oklab, var(--canvas) 18%, transparent); }
+${THREAD} [data-scroll-footer] .bg-surface-raised-solid { background-color: ${GLASS_FILL}; ${GLASS_BLUR} }
 body.bb-app-shell > #root header.bg-surface-scrim { border-color: transparent; }
 ${COMPACT_HOME} > [data-testid="root-compose-compact-scroll-viewport"] { ${GLASS_SURFACE} top: auto !important; bottom: 6px; left: ${COMPACT_INSET}; right: ${COMPACT_INSET}; max-height: min(calc(100% - 62px), 600px); border-radius: 20px; }
 ${COMPACT_HOME} [data-testid="root-compose-compact-recents-offset"] { display: none; }
 ${COMPACT_HOME} [data-testid="root-compose-compact-scroll-viewport"] > .px-4 { padding-inline: 0; }
 ${COMPACT_HOME} [data-testid="root-compose-compact-composer"] > .bg-background { border-radius: 0 0 20px 20px; }
 body.bb-app-shell > #root [data-root-compose-mobile-recents] { padding-block: 0 6px; }
-body.bb-app-shell > #root [data-root-compose-mobile-recents] > .sticky { background-color: var(--ambient-background); padding-block-start: 4px; }
+body.bb-app-shell > #root [data-root-compose-mobile-recents] > .sticky { background-color: transparent; padding-block-start: 4px; }
 body.bb-app-shell > #root [data-root-compose-mobile-recents] > .sticky [data-overflow-fade] { display: none; }
 body.bb-app-shell > #root [data-testid="root-compose-compact-composer"] > [data-overflow-fade] { display: none; }
-body.bb-app-shell > #root [data-testid="root-compose-compact-composer"] > .bg-background { background: linear-gradient(to bottom, color-mix(in oklab, var(--canvas) 28%, transparent), transparent 45%), var(--ambient-background); margin-inline: ${COMPACT_INSET}; margin-block-end: 6px; padding-block-start: 12px; border-radius: 20px; border: 1px solid color-mix(in oklab, var(--ink) 9%, transparent); box-shadow: inset 0 1px 0 color-mix(in oklab, var(--canvas) 70%, transparent), 0 -10px 24px -18px color-mix(in oklab, var(--ink) 40%, transparent); }
+body.bb-app-shell > #root [data-testid="root-compose-compact-composer"] > .bg-background { background: linear-gradient(to bottom, color-mix(in oklab, var(--canvas) 28%, transparent), transparent 45%), ${GLASS_FILL}; ${GLASS_BLUR} margin-inline: ${COMPACT_INSET}; margin-block-end: 6px; padding-block-start: 12px; border-radius: 20px; border: 1px solid color-mix(in oklab, var(--ink) 9%, transparent); box-shadow: inset 0 1px 0 color-mix(in oklab, var(--canvas) 70%, transparent), 0 -10px 24px -18px color-mix(in oklab, var(--ink) 40%, transparent); }
 body.bb-app-shell > #root [data-app-composer]:not([data-thread-window] *, [data-testid="root-compose-compact-composer"] *) { ${GLASS_SURFACE} border-radius: 20px; padding: 10px 10px 4px; }
 body.bb-app-shell > #root [role="img"][aria-label="bb"] + div { ${GLASS_SURFACE} border-radius: 20px; padding: 6px; }
 body.bb-app-shell > #root div.fixed:has(> button[aria-label*="right panel" i]) { top: calc(6px + env(safe-area-inset-top)); right: calc(6px + env(safe-area-inset-right)); }
@@ -116,7 +117,7 @@ body.bb-app-shell > #root [data-sidebar="footer"]:has([data-testid^="plugin-side
 body.bb-app-shell > #root [data-sidebar="footer"] [data-testid^="plugin-sidebar-footer-disclosure-"] { border-color: transparent; background-color: transparent; }
 body.bb-app-shell > #root [data-sidebar="footer"] > [data-overflow-fade], body.bb-app-shell > #root [data-sidebar="footer"] > ul > li[aria-hidden="true"]:empty { display: none; }
 :is(${SIDEBAR_CARDS}) :is(.sticky, [data-sidebar-sticky-tier], [data-sidebar-sticky-stack]), :is(${SIDEBAR_CARDS}) [data-sidebar-sticky-stack]::before { -webkit-backdrop-filter: none; backdrop-filter: none; }
-body.bb-app-shell > #root [data-app-composer] { --background: color-mix(in oklab, var(--ambient-background) 88%, transparent); }
+body.bb-app-shell > #root [data-app-composer] { --background: color-mix(in oklab, var(--ambient-background) 68%, transparent); }
 ${RIGHT_PANEL} { ${GLASS_SURFACE} inset: 8px 8px 8px 2px; height: auto; max-width: calc(100% - 10px); border-radius: 20px; overflow: hidden; --background: transparent; --sidebar: transparent; }
 body.bb-app-shell > #root :is([role="separator"][data-split-resize-grid-boundary], [data-panel-resize-handle-id]):not(:hover, [data-dragging], [data-resize-handle-state="drag"]), body.bb-app-shell > #root [data-panel-resize-handle-id]:not(:hover, [data-resize-handle-state="drag"]) > span { background-color: transparent; }
 ${RIGHT_PANEL} :is(.sticky, [data-sidebar-sticky-tier]) { -webkit-backdrop-filter: none; backdrop-filter: none; }
