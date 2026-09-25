@@ -775,7 +775,6 @@ float bandTop(){ return 0.05 + 0.15*p_blaze; }
 float hillY(float x){ return 0.012 + 0.028*sin(x*2.0 + 0.6) + 0.014*sin(x*5.1 + 2.0); }
 float shoreY(float x){ return -0.05 + 0.014*sin(x*3.0 + 1.0) + 0.008*sin(x*7.3); }
 float railY(float x, float W){ return -0.12 - 0.24*(x + W)/(2.0*W); }
-float figX(float W){ return 0.58*W; }
 vec2 deckVP(float W){ return vec2(-W - 0.25, -0.06); }
 
 float cyp(vec2 p, float cx, float H, float wmax, float sw){
@@ -785,19 +784,6 @@ float cyp(vec2 p, float cx, float H, float wmax, float sw){
   float lob = 1.0 + 0.2*sin(h*21.0 + sw*1.1 + cx*5.0) + 0.1*sin(h*45.0 - sw*1.6);
   return wmax*pow(1.0 - h, 0.8)*lob - abs(p.x - cx - sway);
 }
-
-float figBody(vec2 p, float fx, float sw, out float side){
-  side = 0.0;
-  float h = (p.y + 0.52)/0.34;
-  if (h < 0.0 || h > 1.0) return -1.0;
-  float bcx = fx - 0.075*(1.0 - h)*(1.0 - h) + 0.03*sin(h*3.6 + 0.2 + 0.5*sin(sw*1.1))*(1.0 - h*0.4);
-  float bw = mix(0.095, 0.022, pow(h, 0.45));
-  float dx = p.x - bcx - 0.005*sin(p.y*40.0 + sw*2.0);
-  side = dx/bw;
-  return bw - abs(dx);
-}
-
-vec2 headC(float fx, float sw){ return vec2(fx + 0.008*sin(sw*1.1 + 5.0), -0.13); }
 
 vec3 skyCol(vec2 p, float sw, float W){
   vec3 deep = u_palette[0]*0.72 + vec3(0.0, 0.02, 0.07);
@@ -843,11 +829,6 @@ vec3 skyCol(vec2 p, float sw, float W){
     col = mix(col, mix(u_palette[1], mix(u_palette[1], u_palette[2], 0.35), smoothstep(0.02, 0.048, ml)), cres);
   }
   return col;
-}
-
-float segD(vec2 p, vec2 a, vec2 b){
-  vec2 pa = p - a, ba = b - a;
-  return length(pa - ba*clamp(dot(pa, ba)/dot(ba, ba), 0.0, 1.0));
 }
 
 vec3 base(vec2 p, float t, float W){
@@ -909,40 +890,6 @@ vec3 base(vec2 p, float t, float W){
     cc *= 0.75 + 0.25*smoothstep(0.0, 0.03, ins);
     col = mix(col, cc, smoothstep(-0.004, 0.002, ins));
   }
-  float fx = figX(W);
-  if (abs(p.x - fx) < 0.16 && p.y < -0.05){
-    vec3 bodyC = mix(drk, blu*0.4, 0.45);
-    float side;
-    float bdy = figBody(p, fx, sw, side);
-    float n = noise(vec2(p.x*50.0, p.y*8.0));
-    vec3 bcol = bodyC*(0.85 + 0.3*n);
-    bcol = mix(bcol, mix(blu, drk, 0.3), smoothstep(0.2, 0.9, side)*0.5);
-    col = mix(col, bcol, smoothstep(-0.003, 0.002, bdy));
-    vec2 hc = headC(fx, sw);
-    vec3 skin = mix(yel, vec3(0.62, 0.62, 0.48), 0.55);
-    for (int s = 0; s < 2; s++){
-      float sg = s == 0 ? -1.0 : 1.0;
-      vec2 hand = hc + vec2(sg*0.036, -0.05);
-      vec2 elbow = vec2(fx + sg*0.052 - 0.006, -0.235);
-      vec2 shoulder = vec2(fx + sg*0.018 - 0.01, -0.2);
-      float ad = min(segD(p, hand, elbow), segD(p, elbow, shoulder));
-      col = mix(col, bodyC*0.95, smoothstep(0.014, 0.011, ad));
-    }
-    vec2 d = p - hc;
-    float wx = 0.034*(1.0 + 0.32*clamp(d.y/0.06, -1.0, 1.0));
-    float e = length(vec2(d.x/wx, d.y/0.06));
-    vec3 hcol = skin*(0.78 + 0.28*smoothstep(-0.03, 0.03, d.y - d.x*0.6));
-    float eye = length(vec2((abs(d.x) - 0.014)/0.0075, (d.y - 0.012)/0.012));
-    float nose = length(vec2((abs(d.x) - 0.003)/0.0022, (d.y + 0.004)/0.004));
-    float mouth = length(vec2(d.x/0.0075, (d.y + 0.03)/0.014));
-    hcol = mix(hcol, drk*1.2 + blu*0.1, smoothstep(1.0, 0.7, min(min(eye, mouth), nose)));
-    col = mix(col, hcol, smoothstep(1.0, 0.92, e));
-    for (int s = 0; s < 2; s++){
-      float sg = s == 0 ? -1.0 : 1.0;
-      vec2 hd = rot2(p - hc - vec2(sg*0.033, -0.022), sg*0.28)/vec2(0.0095, 0.03);
-      col = mix(col, skin*0.82, smoothstep(1.0, 0.8, length(hd)));
-    }
-  }
   return col;
 }
 
@@ -987,14 +934,10 @@ vec2 disturb(vec2 p, float t){
 
 float formAng(vec2 p, float t, float W){
   float sw = t*p_swirl;
-  float fx = figX(W);
-  float side;
   float ry = railY(p.x, W);
   vec2 dir;
   if (cyp(p, W - 0.085, 0.9, 0.075, sw) > 0.0){
     dir = vec2(0.25*sin(p.y*14.0 + sw*1.2), 1.0);
-  } else if (figBody(p, fx, sw, side) > 0.0 || length(p - headC(fx, sw)) < 0.075){
-    dir = vec2(0.35*sin(p.y*16.0 + sw) - 0.3, 1.0);
   } else if (p.y < ry - 0.08){
     dir = p - deckVP(W);
   } else if (p.y < ry + 0.012){
@@ -1049,9 +992,6 @@ vec3 scene(vec2 uv, vec2 p){
   col *= 1.0 - 0.1*smoothstep(0.44, 0.54, mA)*smoothstep(0.68, 0.56, mA);
   col *= 0.97 + 0.06*noise(p*150.0);
 
-  vec2 hc = headC(figX(W), sw);
-  float fm = smoothstep(0.09, 0.06, length(p - hc));
-  if (fm > 0.0) col = mix(col, base(p, t, W)*(0.95 + 0.08*sA), fm*0.6);
 
   vec3 warm = mix(u_palette[1], vec3(1.0, 0.97, 0.8), 0.45);
   vec3 lite = mix(u_palette[0], vec3(0.78, 0.88, 1.0), 0.55);
