@@ -31,7 +31,7 @@ bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/ambient --y
 | `bb ambient` | `status`, `list`, `load`, `set <param or visibility/motion/detail/glass>=<value>`, `palette`, `save`, `delete`, `on`, `off`, `reset <built-in>`, `paint <description>`, `daily` |
 | Sidebar footer → Ambient → Daily scene | Creates a bb automation that runs after the hour you pick, in your time zone. Its agent asks the `ambient` tool for today's brief, then paints, checks, and saves a scene around a rotating concept. Pause, edit, or see run history in Automations; `bb ambient daily now` runs it immediately |
 
-Built-in scenes: **Tide**, **Fireflies**, **Contour**, and **Poppy Hill in the Wind**.
+Built-in scenes: **Tide**, **Fireflies**, **Contour**, **Poppy Hill in the Wind**, **Plasticine Lighthouse Cove**, and **Swirling Stars, Screaming Fjord**.
 
 ## Develop
 
