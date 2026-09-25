@@ -55,11 +55,28 @@ describe("desktop server", () => {
     expect(snapshot.folders).toEqual([]);
     expect(snapshot.sections).toEqual([{ id: "sec_1", name: "Review" }]);
     expect(snapshot.machines).toEqual([{ id: "host_1", name: "Laptop" }]);
-    expect(snapshot.preferences).toEqual({ sort: "sidebar", organize: "sidebar", lifecycle: "sidebar" });
+    expect(snapshot.preferences).toEqual({
+      sort: "sidebar",
+      organize: "sidebar",
+      lifecycle: "sidebar",
+      quickLaunch: ["show-desktop", "new-thread", "threads"],
+    });
     expect(snapshot.threads.map((thread) => [thread.id, thread.isArchived, thread.hostId])).toEqual([
       ["thr_a", false, "host_1"],
       ["thr_old", true, "host_1"],
     ]);
+  });
+
+  it("keeps preferences saved before Quick Launch existed", async () => {
+    const { harness, bb } = await setup();
+    await bb.storage.kv.set("preferences", { sort: "alpha", organize: "project", lifecycle: "all" });
+    const snapshot = (await harness.callRpc("snapshot", null)) as DesktopSnapshot;
+    expect(snapshot.preferences).toEqual({
+      sort: "alpha",
+      organize: "project",
+      lifecycle: "all",
+      quickLaunch: ["show-desktop", "new-thread", "threads"],
+    });
   });
 
   it("leaves out hidden threads unless a desktop folder hid them", async () => {

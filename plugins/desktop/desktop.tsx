@@ -42,7 +42,10 @@ import {
   NewThreadGlyph,
   StickyNoteGlyph,
   PanelRightGlyph,
+  PluginsGlyph,
   PowerGlyph,
+  ShowDesktopGlyph,
+  SkillsGlyph,
   ThreadArt,
   ThreadsGlyph,
   TileGlyph,
@@ -66,6 +69,7 @@ import {
   type SortDirection,
   type SortKey,
 } from "./core";
+import { NeedsInputBalloon } from "./balloon";
 import { toggleDesktop, useDesktopEnabled } from "./enabled";
 import { MediaDeskband, MediaPlayerWindow, useMic } from "./media-player";
 import { addStickyNote } from "./sticky-notes";
@@ -494,6 +498,7 @@ function DesktopData() {
               <WindowContent key={window.id} window={window} />
             ))}
             <Taskbar frame={dockFrame} />
+            <NeedsInputBalloon />
           </div>,
           document.body,
         )}
@@ -1157,9 +1162,91 @@ function StartMenu({ onClose }: { onClose: () => void }) {
   );
 }
 
+interface QuickLaunchItem {
+  id: string;
+  label: string;
+  art: ReactNode;
+  run: () => void;
+}
+
+function navigateInApp(path: string) {
+  window.history.pushState(null, "", path);
+  window.dispatchEvent(new PopStateEvent("popstate"));
+}
+
+function useQuickLaunchCatalog(): QuickLaunchItem[] {
+  const desktop = useDesktop();
+  const manager = useWindowManager();
+  const hiddenByShowDesktop = useRef<string[]>([]);
+  const showDesktop = () => {
+    const open = manager.windows.filter((window) => !window.minimized);
+    if (open.length > 0) {
+      hiddenByShowDesktop.current = open.map((window) => window.id);
+      for (const window of open) manager.minimize(window.id, true);
+      return;
+    }
+    for (const id of hiddenByShowDesktop.current) manager.minimize(id, false);
+    hiddenByShowDesktop.current = [];
+  };
+  const launcher = (spec: WindowSpec, label: string): QuickLaunchItem => ({
+    id: spec.kind,
+    label,
+    art: windowArt(spec, desktop, 18),
+    run: () => manager.open(spec),
+  });
+  return [
+    { id: "show-desktop", label: "Show desktop", art: <GlyphTile glyph={ShowDesktopGlyph} size={20} />, run: showDesktop },
+    launcher({ kind: "new-thread", groupKey: null }, "New thread"),
+    launcher({ kind: "new-folder" }, "New folder"),
+    launcher({ kind: "threads" }, "Threads"),
+    launcher({ kind: "recycle-bin" }, "Recycle Bin"),
+    launcher({ kind: "media-player" }, "Windows Media Player"),
+    { id: "sticky-note", label: "Sticky note", art: <StickyNoteArt size={18} />, run: () => addStickyNote() },
+    { id: "plugins", label: "Plugins", art: <GlyphTile glyph={PluginsGlyph} size={20} />, run: () => navigateInApp("/plugins") },
+    { id: "skills", label: "Skills", art: <GlyphTile glyph={SkillsGlyph} size={20} />, run: () => navigateInApp("/skills") },
+  ];
+}
+
+function quickLaunchMenu(
+  desktop: DesktopContextValue,
+  catalog: QuickLaunchItem[],
+  itemId: string | null,
+): MenuEntry[] {
+  const chosen = desktop.snapshot.preferences.quickLaunch;
+  const save = (quickLaunch: string[]) => desktop.setPreferences({ quickLaunch });
+  const index = itemId === null ? -1 : chosen.indexOf(itemId);
+  const move = (offset: number) => {
+    const next = [...chosen];
+    const [item] = next.splice(index, 1);
+    if (item === undefined) return;
+    next.splice(index + offset, 0, item);
+    save(next);
+  };
+  return [
+    ...(index === -1
+      ? []
+      : [
+          { label: "Move left", disabled: index === 0, run: () => move(-1) },
+          { label: "Move right", disabled: index === chosen.length - 1, run: () => move(1) },
+          "separator" as const,
+        ]),
+    { heading: "Quick Launch" },
+    ...catalog.map((item) => ({
+      label: item.label,
+      checked: chosen.includes(item.id),
+      run: () =>
+        save(chosen.includes(item.id) ? chosen.filter((id) => id !== item.id) : [...chosen, item.id]),
+    })),
+  ];
+}
+
 function Taskbar({ frame }: { frame: DockFrame | null }) {
   const desktop = useDesktop();
   const manager = useWindowManager();
+  const catalog = useQuickLaunchCatalog();
+  const quickLaunch = desktop.snapshot.preferences.quickLaunch.flatMap(
+    (id) => catalog.find((item) => item.id === id) ?? [],
+  );
   const { status } = useMic();
   const playing = status === "live" || status === "starting";
   const [startOpen, setStartOpen] = useState(false);
@@ -1173,6 +1260,7 @@ function Taskbar({ frame }: { frame: DockFrame | null }) {
       className="bbd-taskbar"
       aria-label="Taskbar"
       style={frame === null ? undefined : { left: frame.left, maxWidth: frame.maxWidth - 24 }}
+      onContextMenu={(event) => desktop.openMenu(event, quickLaunchMenu(desktop, catalog, null))}
     >
       <button
         type="button"
@@ -1185,6 +1273,21 @@ function Taskbar({ frame }: { frame: DockFrame | null }) {
         <span>start</span>
       </button>
       {startOpen && <StartMenu onClose={closeStart} />}
+      <div className="bbd-quick" role="toolbar" aria-label="Quick Launch">
+        {quickLaunch.map((item) => (
+          <button
+            key={item.id}
+            type="button"
+            className="bbd-quick-item"
+            aria-label={item.label}
+            title={item.label}
+            onClick={item.run}
+            onContextMenu={(event) => desktop.openMenu(event, quickLaunchMenu(desktop, catalog, item.id))}
+          >
+            {item.art}
+          </button>
+        ))}
+      </div>
       <div className="bbd-tasks">
         {manager.windows.map((window) => {
           const title = windowTitle(window.spec, desktop);

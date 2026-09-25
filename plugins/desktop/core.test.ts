@@ -6,6 +6,7 @@ import {
   gridPositions,
   groupThreads,
   nextFreePosition,
+  trackNeedsInput,
   resizeRect,
   resolveSidebarPreferences,
   sortThreads,
@@ -148,5 +149,30 @@ describe("layout geometry", () => {
     const start = { x: 100, y: 100, width: 400, height: 300 };
     expect(resizeRect(start, "w", { x: 50, y: 0 })).toEqual({ x: 150, y: 100, width: 350, height: 300 });
     expect(resizeRect(start, "nw", { x: 1000, y: 1000 })).toEqual({ x: 220, y: 220, width: 280, height: 180 });
+  });
+});
+
+describe("trackNeedsInput", () => {
+  it("does not announce threads that already needed input when tracking starts", () => {
+    const first = trackNeedsInput({ known: null, queue: [] }, ["a"]);
+    expect(first).toMatchObject({ queue: [], arrived: false });
+  });
+
+  it("queues newly waiting threads in arrival order and drops answered ones", () => {
+    let tracker = trackNeedsInput({ known: null, queue: [] }, []);
+    tracker = trackNeedsInput(tracker, ["a"]);
+    expect(tracker).toMatchObject({ queue: ["a"], arrived: true });
+    tracker = trackNeedsInput(tracker, ["a", "b"]);
+    expect(tracker).toMatchObject({ queue: ["a", "b"], arrived: true });
+    tracker = trackNeedsInput(tracker, ["b"]);
+    expect(tracker).toMatchObject({ queue: ["b"], arrived: false });
+  });
+
+  it("announces a dismissed thread again only after it stops and restarts waiting", () => {
+    let tracker = trackNeedsInput(trackNeedsInput({ known: null, queue: [] }, []), ["a"]);
+    tracker = { ...tracker, queue: [] };
+    expect(trackNeedsInput(tracker, ["a"])).toMatchObject({ queue: [], arrived: false });
+    tracker = trackNeedsInput(tracker, []);
+    expect(trackNeedsInput(tracker, ["a"])).toMatchObject({ queue: ["a"], arrived: true });
   });
 });

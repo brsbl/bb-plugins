@@ -10,7 +10,10 @@ export interface Preferences {
   sort: SortPreference;
   organize: OrganizePreference;
   lifecycle: LifecyclePreference;
+  quickLaunch: string[];
 }
+
+export const DEFAULT_QUICK_LAUNCH = ["show-desktop", "new-thread", "threads"] as const;
 
 export interface Folder {
   id: string;
@@ -307,4 +310,21 @@ export function tileRects(
     width,
     height,
   }));
+}
+
+export interface NeedsInputTracker {
+  known: ReadonlySet<string> | null;
+  queue: readonly string[];
+}
+
+export function trackNeedsInput(
+  tracker: NeedsInputTracker,
+  pendingIds: readonly string[],
+): NeedsInputTracker & { arrived: boolean } {
+  const pending = new Set(pendingIds);
+  if (tracker.known === null) return { known: pending, queue: [], arrived: false };
+  const previous = tracker.known;
+  const kept = tracker.queue.filter((id) => pending.has(id));
+  const arrived = pendingIds.filter((id) => !previous.has(id) && !kept.includes(id));
+  return { known: pending, queue: [...kept, ...arrived], arrived: arrived.length > 0 };
 }

@@ -5,6 +5,7 @@ import { defineRpcContract, type BbPluginApi } from "@get-bb/plugin-sdk";
 import { z } from "zod";
 
 import {
+  DEFAULT_QUICK_LAUNCH,
   type DesktopThread,
   type Folder,
   type Point,
@@ -20,9 +21,15 @@ const preferencesSchema = z
     sort: z.enum(["sidebar", "updated", "created", "alpha"]),
     organize: z.enum(["sidebar", "section", "project", "machine"]),
     lifecycle: z.enum(["sidebar", "active", "archived", "all"]),
+    quickLaunch: z.array(z.string().max(64)).max(24).default([...DEFAULT_QUICK_LAUNCH]),
   })
   .strict();
-const DEFAULT_PREFERENCES: Preferences = { sort: "sidebar", organize: "sidebar", lifecycle: "sidebar" };
+const DEFAULT_PREFERENCES: Preferences = {
+  sort: "sidebar",
+  organize: "sidebar",
+  lifecycle: "sidebar",
+  quickLaunch: [...DEFAULT_QUICK_LAUNCH],
+};
 const namedSchema = z.object({ id: z.string(), name: z.string() }).strict();
 const nameSchema = z.string().trim().min(1).max(80);
 

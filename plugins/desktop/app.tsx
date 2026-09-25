@@ -1,6 +1,7 @@
 import { definePluginApp } from "@get-bb/plugin-sdk/app";
 
 import "./app.css";
+import { NeedsInputBalloon } from "./balloon";
 import { Desktop } from "./desktop";
 import { readCompact, toggleDesktop } from "./enabled";
 import { mountStickyNotes, StickyNoteHeaderButton } from "./sticky-notes";
@@ -20,7 +21,12 @@ export default definePluginApp((app) => {
   app.slots.experimental_threadHeaderAction({
     id: "sticky-note",
     title: "Sticky notes",
-    component: StickyNoteHeaderButton,
+    component: ({ isCompactViewport }) => (
+      <>
+        <StickyNoteHeaderButton isCompactViewport={isCompactViewport} />
+        <NeedsInputBalloon />
+      </>
+    ),
   });
   app.contentScripts.register({ id: "sticky-notes", mount: mountStickyNotes });
 });

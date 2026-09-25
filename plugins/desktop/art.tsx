@@ -3,10 +3,12 @@ import {
   BubbleChatAddIcon,
   Cancel01Icon,
   CollapseIcon,
+  ComputerDesk01Icon,
   CubeIcon,
   DashboardSquare01Icon,
   ExpandIcon,
   Delete02Icon,
+  FlashIcon,
   FolderAddIcon,
   GridViewIcon,
   HierarchySquare01Icon,
@@ -17,6 +19,7 @@ import {
   NextIcon,
   PlayIcon,
   PreviousIcon,
+  PuzzleIcon,
   StickyNote03Icon,
   PowerIcon,
   StopIcon,
@@ -60,6 +63,9 @@ export const CloseGlyph = bbGlyph(Cancel01Icon);
 export const PlayGlyph = bbGlyph(PlayIcon);
 export const StopGlyph = bbGlyph(StopIcon);
 export const PowerGlyph = bbGlyph(PowerIcon);
+export const ShowDesktopGlyph = bbGlyph(ComputerDesk01Icon);
+export const PluginsGlyph = bbGlyph(PuzzleIcon);
+export const SkillsGlyph = bbGlyph(FlashIcon);
 export const StickyNoteGlyph = bbGlyph(StickyNote03Icon);
 export const NextGlyph = bbGlyph(NextIcon);
 export const PreviousGlyph = bbGlyph(PreviousIcon);
