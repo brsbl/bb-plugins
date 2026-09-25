@@ -107,6 +107,7 @@ describe("in-context look report", () => {
 
   it("lists where bb's panels cover the scene in uv", () => {
     expect(describeContext(report)).toContain("cover 60% of the window, at uv (y up): x 0.17–0.83, y 0.01–0.95");
+    expect(describeContext(report)).toContain("never mask, fade, or tint the scene to fit them");
   });
 });
 

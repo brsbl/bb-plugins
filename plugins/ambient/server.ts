@@ -193,7 +193,7 @@ export function describeContext(report: z.infer<typeof contextReportSchema>): st
   const { text } = report;
   const lines = [
     `The first image is the scene as the user sees it: behind bb's real panels, frosted glass, and text in a ${Math.round(report.width)}×${Math.round(report.height)} window. Judge the scene by that image. The second image is the raw scene.`,
-    `bb's panels cover ${percent(1 - report.openArea)} of the window, at uv (y up): ${panels || "none"}. Under them the scene is blurred and tinted, so only big shapes and color fields read there; the rest of the window shows the scene clearly. Brightness variation is ${percent(report.openSpread)} in the open areas and ${percent(report.coveredSpread)} under the panels.`,
+    `bb's panels cover ${percent(1 - report.openArea)} of the window, at uv (y up): ${panels || "none"}. Under them the scene is blurred and tinted, so only big shapes and color fields read there; the rest of the window shows the scene clearly. These positions hold only for this window: the sidebar collapses and windows resize, so never mask, fade, or tint the scene to fit them. Brightness variation is ${percent(report.openSpread)} in the open areas and ${percent(report.coveredSpread)} under the panels.`,
     text.words > 0
       ? `Text over the scene: ${text.words} words checked, median contrast ${text.median.toFixed(1)}:1, worst 5% ${text.worst.toFixed(1)}:1. ${text.hardToRead} ${text.hardToRead === 1 ? "word is" : "words are"} harder to read because of the scene (outlined in red)${text.examples.length > 0 ? `, for example ${text.examples.map((example) => `"${example.text}" at uv (${example.x.toFixed(2)}, ${example.y.toFixed(2)}), ${example.contrast.toFixed(1)}:1`).join("; ")}` : ""}.`
       : "No text was visible to check.",
@@ -203,7 +203,7 @@ export function describeContext(report: z.infer<typeof contextReportSchema>): st
       "Hidden subject: the parts of the window people actually see are nearly flat, so the scene's detail is sitting behind bb's panels. Move the subject, horizon, and characters into the open areas and fill the frame edge to edge.",
     text.words > 0 &&
       text.hardToRead / text.words > HARD_TO_READ_SHARE &&
-      "Hard to read: the scene fights the text above it. Calm the value contrast and fine detail under the panels, especially where the red outlines are.",
+      "Hard to read: the scene fights the text above it. Calm the value contrast and fine detail in that part of the composition, especially where the red outlines are, without fading or masking the panel's area.",
   ].filter(Boolean);
   return [...lines, ...notes].join("\n");
 }
@@ -502,7 +502,7 @@ export function dailyPrompt(moment: LocalMoment, timeZone: string, request?: str
     ...conceptLines(moment, request),
     `The user's time zone is ${timeZone}.`,
     "Paint for how bb frames the scene:",
-    "- bb's sidebar, a wide centered thread column, and the composer cover most of the middle of the window with frosted glass that blurs and tints what is behind it. The scene reads clearly only in the open areas: the side margins, the gaps between panels, and the strips along the top and bottom. action=look reports exactly where they are.",
+    "- bb's sidebar, a wide centered thread column, and the composer cover most of the middle of the window with frosted glass that blurs and tints what is behind it. The scene reads clearly only in the open areas: the side margins, the gaps between panels, and the strips along the top and bottom. action=look reports where they are in the user's current window, but the layout changes: the sidebar collapses, windows resize, and side panels open.",
     "- Fill the frame edge to edge and never center a lone subject. Put the recognizable parts (horizon, silhouettes, characters, the brightest accents) where they are seen: along the edges, low in the frame, and repeated across the width. Under the glass only big shapes and color fields survive the blur, so give the middle large, soft masses of color, not fine detail.",
     "- Work at a readable scale: key shapes should be 5 to 30% of the window's height. Texture (brushstrokes, grain, dots) is a surface on top of those shapes, never the whole idea.",
     "- Build depth with at least three layers (far, middle, near), each with its own value and its own speed of motion, like parallax.",
@@ -513,7 +513,7 @@ export function dailyPrompt(moment: LocalMoment, timeZone: string, request?: str
     "- Agents (u_agents) are characters in the concept, not generic dots: give working agents movement or trails and let waiting agents pulse or call out.",
     "- Ripples (u_ripples) are events in the concept, like splashes, bursts, or gusts. Errors (kind 1) read red or alarming.",
     "- The cursor (u_pointer) disturbs the scene nearby.",
-    "- Stay readable behind text: the motion can be lively, but keep value contrast gentle under the panels.",
+    "- Stay readable behind text: the motion can be lively, but keep value contrast gentle where panels usually sit. Never fade, blank, lighten, or tint a region to match a panel's current position; fix readability in the composition itself.",
     "Steps:",
     "1. Call the ambient tool with action=get to read the shader contract and the current scene, and action=library to see recent scenes; make something clearly different from them.",
     "2. Write the scene with action=set. Name it evocatively in under 40 characters, and expose 3 to 6 params someone would enjoy tuning (for example speed of a motion, density, glow, trail length).",
