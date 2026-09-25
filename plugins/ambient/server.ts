@@ -145,7 +145,7 @@ const contextReportSchema = z.object({
     worst: z.number().nonnegative(),
     hardToRead: z.number().int().nonnegative(),
     examples: z
-      .array(z.object({ text: z.string().max(40), x: z.number(), y: z.number(), contrast: z.number() }))
+      .array(z.object({ x: z.number(), y: z.number(), contrast: z.number() }))
       .max(3),
   }),
 });
@@ -193,10 +193,10 @@ export function describeContext(report: z.infer<typeof contextReportSchema>): st
     .join("; ");
   const { text } = report;
   const lines = [
-    `The first image is the scene as the user sees it: behind bb's real panels, frosted glass, and text in a ${Math.round(report.width)}×${Math.round(report.height)} window. Judge the scene by that image. The second image is the raw scene.`,
+    `The first image is the scene as the user sees it: behind bb's real panels and frosted glass, with each word of bb's text drawn as a bar in its real color and position, in a ${Math.round(report.width)}×${Math.round(report.height)} window. Judge the scene by that image. The second image is the raw scene.`,
     `bb's panels cover ${percent(1 - report.openArea)} of the window, at uv (y up): ${panels || "none"}. Under them the scene is blurred and tinted, so only big shapes and color fields read there; the rest of the window shows the scene clearly. These positions hold only for this window: the sidebar collapses and windows resize, so never mask, fade, or tint the scene to fit them. Brightness variation is ${percent(report.openSpread)} in the open areas and ${percent(report.coveredSpread)} under the panels.`,
     text.words > 0
-      ? `Text over the scene: ${text.words} words checked, median contrast ${text.median.toFixed(1)}:1, worst 5% ${text.worst.toFixed(1)}:1. ${text.hardToRead} ${text.hardToRead === 1 ? "word is" : "words are"} harder to read because of the scene (outlined in red)${text.examples.length > 0 ? `, for example ${text.examples.map((example) => `"${example.text}" at uv (${example.x.toFixed(2)}, ${example.y.toFixed(2)}), ${example.contrast.toFixed(1)}:1`).join("; ")}` : ""}.`
+      ? `Text over the scene: ${text.words} words checked, median contrast ${text.median.toFixed(1)}:1, worst 5% ${text.worst.toFixed(1)}:1. ${text.hardToRead} ${text.hardToRead === 1 ? "word is" : "words are"} harder to read because of the scene (outlined in red)${text.examples.length > 0 ? `, for example ${text.examples.map((example) => `a word at uv (${example.x.toFixed(2)}, ${example.y.toFixed(2)}), ${example.contrast.toFixed(1)}:1`).join("; ")}` : ""}.`
       : "No text was visible to check.",
   ];
   const notes = [
@@ -531,7 +531,7 @@ export function dailyPrompt(moment: LocalMoment, timeZone: string, request?: str
     "2. Call the ambient tool with action=get to read the shader contract and the current scene, and action=library to see recent scenes; make something clearly different from them.",
     "3. Write the scene with action=set. Name it evocatively in under 40 characters, and expose 3 to 6 params someone would enjoy tuning (for example speed of a motion, density, glow, trail length).",
     "4. If set reports a compile error or that the scene is too heavy, fix the GLSL and set it again.",
-    "5. Call action=look with ripple=done. Its first image is the scene behind bb's real UI, exactly as the user sees it; judge that image, not the raw scene. Write a short, honest critique that answers each question:",
+    "5. Call action=look with ripple=done. Its first image is the scene behind bb's real UI as the user sees it, with text drawn as bars; judge that image, not the raw scene. Write a short, honest critique that answers each question:",
     "   - Could someone name the concept from the open areas alone within two seconds?",
     "   - Put it next to your reference images: would someone who knows the style name it? What are the three biggest differences from the references and from Poppy Hill's finish?",
     "   - Are there three layers of depth, clear lights and darks, and all four palette colors?",

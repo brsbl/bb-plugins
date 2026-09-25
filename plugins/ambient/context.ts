@@ -211,7 +211,7 @@ export async function captureInContext(
     }
   }
 
-  const words: { text: string; rect: Rect; font: string; color: string; rgba: Rgba }[] = [];
+  const words: { rect: Rect; size: number; color: string; rgba: Rgba }[] = [];
   const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
   const range = document.createRange();
   const styles = new Map<Element, CSSStyleDeclaration>();
@@ -228,7 +228,7 @@ export async function captureInContext(
     const color = style.color;
     const rgba = parse(color);
     if (rgba[3] === 0) continue;
-    const font = `${style.fontStyle} ${style.fontWeight} ${style.fontSize} ${style.fontFamily}`;
+    const size = Number.parseFloat(style.fontSize) || 12;
     const clip = clipOf(parent);
     for (const match of text.matchAll(/\S+/g)) {
       if (words.length >= MAX_WORDS) break;
@@ -238,7 +238,7 @@ export async function captureInContext(
       const box = range.getBoundingClientRect();
       const visible = intersect(box, clip);
       if (isEmpty(visible) || visible.right - visible.left < (box.right - box.left) * 0.8) continue;
-      words.push({ text: match[0], rect: box, font, color, rgba });
+      words.push({ rect: box, size, color, rgba });
     }
   }
 
@@ -287,11 +287,10 @@ export async function captureInContext(
   });
 
   toCss();
-  context.textBaseline = "middle";
   for (const { word } of scored) {
-    context.font = word.font;
+    const barHeight = word.size * 0.55;
     context.fillStyle = word.color;
-    context.fillText(word.text, word.rect.left, (word.rect.top + word.rect.bottom) / 2);
+    context.fillRect(word.rect.left, (word.rect.top + word.rect.bottom - barHeight) / 2, word.rect.right - word.rect.left, barHeight);
   }
   const hard = scored.filter(
     (entry) => Number.isFinite(entry.contrast) && entry.contrast < HARD_TO_READ && entry.contrast < entry.baseline * 0.75,
@@ -358,7 +357,6 @@ export async function captureInContext(
           .sort((left, right) => left.contrast - right.contrast)
           .slice(0, 3)
           .map(({ word, contrast: ratio }) => ({
-            text: word.text.slice(0, 40),
             x: round((word.rect.left + word.rect.right) / 2 / width),
             y: round(1 - (word.rect.top + word.rect.bottom) / 2 / height),
             contrast: Math.round(ratio * 10) / 10,

@@ -98,10 +98,10 @@ describe("in-context look report", () => {
   });
 
   it("flags a scene that makes text hard to read", () => {
-    const text = { ...report.text, hardToRead: 40, examples: [{ text: "Threads", x: 0.06, y: 0.84, contrast: 1.8 }] };
+    const text = { ...report.text, hardToRead: 40, examples: [{ x: 0.06, y: 0.84, contrast: 1.8 }] };
     const described = describeContext({ ...report, text });
     expect(described).toContain("Hard to read");
-    expect(described).toContain('"Threads" at uv (0.06, 0.84), 1.8:1');
+    expect(described).toContain("a word at uv (0.06, 0.84), 1.8:1");
     expect(describeContext(report)).not.toContain("Hard to read");
   });
 
