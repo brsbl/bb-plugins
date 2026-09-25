@@ -467,6 +467,12 @@
   font-size: var(--text-xs);
 }
 
+@media (max-width: 767px) {
+  .bbd-taskbar {
+    display: none;
+  }
+}
+
 .bbd-start {
   display: flex;
   flex: none;
