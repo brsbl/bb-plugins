@@ -1,0 +1,32 @@
+{
+  "name": "bb-plugin-design-doctrine",
+  "version": "0.3.0",
+  "description": "Learn, browse, and apply product-design rules from your bb feedback.",
+  "type": "module",
+  "license": "MIT",
+  "engines": {
+    "bb": ">=0.0.34",
+    "bbPluginSdk": "^0.4.1"
+  },
+  "bb": {
+    "name": "Design Doctrine",
+    "description": "Learn, browse, and apply product-design rules from your bb feedback.",
+    "branding": {
+      "icon": "Palette"
+    },
+    "server": "./dist/install-server.mjs",
+    "app": "./dist/install-app.mjs",
+    "skills": [
+      "skills"
+    ]
+  },
+  "files": [
+    "dist",
+    "docs",
+    "README.md",
+    "skills",
+    "governance.md",
+    "rules",
+    "maintenance/automation-prompt.md"
+  ]
+}
