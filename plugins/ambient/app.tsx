@@ -86,7 +86,7 @@ ${COMPACT_HOME} [data-testid="root-compose-compact-recents-offset"] { display: n
 ${COMPACT_HOME} [data-testid="root-compose-compact-scroll-viewport"] > .px-4 { padding-inline: 0; }
 ${COMPACT_HOME} [data-testid="root-compose-compact-composer"] > .bg-background { border-radius: 0 0 20px 20px; }
 body.bb-app-shell > #root [data-root-compose-mobile-recents] { padding-block: 0 6px; }
-body.bb-app-shell > #root [data-root-compose-mobile-recents] > .sticky { background-color: transparent; padding-block-start: 4px; }
+body.bb-app-shell > #root [data-root-compose-mobile-recents] > .sticky { position: static; background-color: transparent; padding-block-start: 4px; }
 body.bb-app-shell > #root [data-root-compose-mobile-recents] > .sticky [data-overflow-fade] { display: none; }
 body.bb-app-shell > #root [data-testid="root-compose-compact-composer"] > [data-overflow-fade] { display: none; }
 body.bb-app-shell > #root [data-testid="root-compose-compact-composer"] > .bg-background { background: linear-gradient(to bottom, color-mix(in oklab, var(--canvas) 28%, transparent), transparent 45%), ${GLASS_FILL}; ${GLASS_BLUR} margin-inline: ${COMPACT_INSET}; margin-block-end: 6px; padding-block-start: 12px; border-radius: 20px; border: 1px solid color-mix(in oklab, var(--ink) 9%, transparent); box-shadow: inset 0 1px 0 color-mix(in oklab, var(--canvas) 70%, transparent), 0 -10px 24px -18px color-mix(in oklab, var(--ink) 40%, transparent); }
