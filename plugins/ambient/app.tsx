@@ -106,6 +106,7 @@ body.bb-app-shell > #root [data-app-page-header-actions] button.border { border-
 :is(${THREAD}, ${PAGE}, ${SIDEBAR_CARDS}, ${CHROME_PILLS}) { --state-hover: color-mix(in oklab, var(--ink) 9%, transparent); --state-active: color-mix(in oklab, var(--ink) 15%, transparent); --sidebar-accent: var(--state-hover); }
 ${SIDEBAR_CARDS} { ${GLASS_SURFACE} border-radius: 16px; margin-inline: 8px; }
 body.bb-app-shell > #root [data-testid="sidebar-navigation-region"] { margin-block: 0 8px; }
+body.bb-app-shell > #root [data-testid="sidebar-navigation-region"] [data-testid="navigation-divider"] { display: none; }
 body.bb-app-shell > #root [data-sidebar="content"] { flex: 0 1 auto; min-height: min(7rem, 18dvh); margin-block-end: auto; }
 body.bb-app-shell > #root [data-sidebar="content"]:not(:has(~ [data-sidebar="footer"])) { margin-block-end: 8px; }
 body.bb-app-shell > #root [data-sidebar="content"] > .px-2:first-child { padding-block-start: 12px; }
