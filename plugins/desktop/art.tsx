@@ -129,7 +129,7 @@ export function ThreadArt({
       width={size}
       height={size * 0.9}
       aria-hidden
-      style={{ opacity: archived ? 0.55 : 1 }}
+      style={{ flex: "none", opacity: archived ? 0.55 : 1 }}
     >
       <rect x="1.5" y="1.5" width="33" height="29" rx="3" fill={PAPER} stroke="var(--bbd-blue-deep)" />
       <path d="M1.5 4.5a3 3 0 0 1 3-3h27a3 3 0 0 1 3 3V8h-33z" fill="var(--bbd-blue)" />
@@ -219,4 +219,49 @@ export function RecycleBinArt({ size = 40, full = false }: { size?: number; full
       <path d="M20.2 19.6 L22.4 21.5 L19.8 22.7 Z M20.2 30.9 L17.9 29 L20.5 27.8 Z" fill={arrows} />
     </svg>
   );
+}
+
+export type StatusKind = "attention" | "working" | "error" | "unread" | "archived" | "idle";
+
+export function WarningArt({ size = 16 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 16 16" style={{ flex: "none" }} aria-hidden>
+      <path d="M8 1.2 15.2 14.3H.8Z" fill="oklch(0.84 0.17 90)" stroke="oklch(0.5 0.1 80)" strokeLinejoin="round" />
+      <path d="M8 5.4v4.6M8 11.6v1.1" stroke="oklch(0.2 0.03 80)" strokeWidth="1.5" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+export function StatusIcon({ kind, size = 14 }: { kind: StatusKind; size?: number }) {
+  const box = { width: size, height: size, flex: "none" } as const;
+  switch (kind) {
+    case "attention":
+      return <WarningArt size={size} />;
+    case "working":
+      return (
+        <svg viewBox="0 0 16 16" style={box} className="bbd-hourglass" aria-hidden>
+          <path d="M3.5 1.5h9M3.5 14.5h9" stroke="oklch(0.45 0.08 60)" strokeWidth="1.6" strokeLinecap="round" />
+          <path d="M4.5 1.5C4.5 5.5 7.3 6.6 7.3 8S4.5 10.5 4.5 14.5h7c0-4-2.8-5.1-2.8-6.5s2.8-2.5 2.8-6.5Z" fill="oklch(0.95 0.03 230)" stroke="oklch(0.45 0.08 60)" strokeLinejoin="round" />
+          <path d="M5.6 13.6c.4-2 1.4-2.8 2.4-2.8s2 .8 2.4 2.8ZM6.2 4h3.6C9.4 5.5 8.6 6.2 8 6.6 7.4 6.2 6.6 5.5 6.2 4Z" fill="oklch(0.8 0.13 80)" />
+        </svg>
+      );
+    case "error":
+      return (
+        <svg viewBox="0 0 16 16" style={box} aria-hidden>
+          <circle cx="8" cy="8" r="7" fill="oklch(0.58 0.21 27)" stroke="oklch(0.42 0.16 27)" />
+          <path d="M5.5 5.5l5 5M10.5 5.5l-5 5" stroke="var(--bbd-white)" strokeWidth="1.8" strokeLinecap="round" />
+        </svg>
+      );
+    case "unread":
+      return (
+        <svg viewBox="0 0 16 16" style={box} aria-hidden>
+          <rect x="1.5" y="3.5" width="13" height="9.5" rx="1.2" fill="var(--bbd-white)" stroke="var(--bbd-blue-deep)" />
+          <path d="M2 4.2 8 9l6-4.8" fill="none" stroke="var(--bbd-blue)" strokeWidth="1.3" strokeLinejoin="round" />
+        </svg>
+      );
+    case "archived":
+      return <RecycleBinArt size={size} />;
+    case "idle":
+      return <span style={box} aria-hidden />;
+  }
 }

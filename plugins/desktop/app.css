@@ -1122,3 +1122,23 @@
     animation: none;
   }
 }
+
+.bbd-hourglass {
+  animation: bbd-hourglass-flip 2.4s ease-in-out infinite;
+}
+
+@keyframes bbd-hourglass-flip {
+  0%,
+  80% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(180deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bbd-hourglass {
+    animation: none;
+  }
+}

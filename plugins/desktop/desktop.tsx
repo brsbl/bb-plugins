@@ -38,8 +38,10 @@ import {
   ListViewGlyph,
   MediaPlayerArt,
   RecycleBinArt,
+  StatusIcon,
   StickyNoteArt,
   NewThreadGlyph,
+  type StatusKind,
   StickyNoteGlyph,
   PanelRightGlyph,
   PluginsGlyph,
@@ -1833,6 +1835,14 @@ function ThreadGlyph({ thread }: { thread: DesktopThread }) {
   );
 }
 
+function statusKind(thread: DesktopThread): StatusKind {
+  if (thread.needsInput) return "attention";
+  if (thread.isArchived) return "archived";
+  if (thread.status === "error") return "error";
+  if (thread.status === "active" || thread.status === "starting" || thread.status === "stopping") return "working";
+  return thread.isUnread ? "unread" : "idle";
+}
+
 function describeStatus(thread: DesktopThread): string {
   if (thread.needsInput) return "Needs input";
   if (thread.isArchived) return "Archived";
@@ -1923,13 +1933,13 @@ function ThreadCollection({
 
   return (
     <div role="listbox" aria-label="Threads" className="py-1">
-      <div className="bbd-row grid-cols-[1fr_88px_80px] font-semibold text-muted-foreground">
+      <div className="bbd-row grid-cols-[1fr_112px_80px] font-semibold text-muted-foreground">
         <span>Name</span>
         <span>Status</span>
         <span>{desktop.sort.key === "created" ? "Created" : "Updated"}</span>
       </div>
       {threads.map((thread) => (
-        <div key={thread.id} className="bbd-row grid-cols-[1fr_88px_80px]" title={threadTooltip(desktop, thread)} {...itemProps(thread)}>
+        <div key={thread.id} className="bbd-row grid-cols-[1fr_112px_80px]" title={threadTooltip(desktop, thread)} {...itemProps(thread)}>
           <span className="flex min-w-0 items-center gap-2">
             <ThreadArt size={16} archived={thread.isArchived} />
             <span className="flex min-w-0 flex-col">
@@ -1942,7 +1952,10 @@ function ThreadCollection({
               ) : null}
             </span>
           </span>
-          <span className="truncate">{describeStatus(thread)}</span>
+          <span className="flex min-w-0 items-center gap-1.5">
+            <StatusIcon kind={statusKind(thread)} />
+            <span className="truncate">{describeStatus(thread)}</span>
+          </span>
           <span className="truncate tabular-nums">
             {relativeTime(desktop.sort.key === "created" ? thread.createdAt : thread.updatedAt)}
           </span>

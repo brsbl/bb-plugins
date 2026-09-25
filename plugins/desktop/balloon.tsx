@@ -7,7 +7,7 @@ import {
   type PluginSidebarThread,
 } from "@get-bb/plugin-sdk/app";
 
-import { CloseGlyph } from "./art";
+import { CloseGlyph, WarningArt } from "./art";
 import { trackNeedsInput, type NeedsInputTracker } from "./core";
 import { useDesktopEnabled } from "./enabled";
 
@@ -79,15 +79,6 @@ function balloonPlacement(): { left: number; bottom: number; tail: number } {
   const anchor = clock.left + clock.width / 2;
   const left = Math.min(Math.max(12, anchor - BALLOON_WIDTH + 48), window.innerWidth - BALLOON_WIDTH - 12);
   return { left, bottom: window.innerHeight - clock.top + 14, tail: anchor - left - 8 };
-}
-
-function WarningArt() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 16 16" className="flex-none" aria-hidden>
-      <path d="M8 1.2 15.2 14.3H.8Z" fill="oklch(0.84 0.17 90)" stroke="oklch(0.5 0.1 80)" strokeLinejoin="round" />
-      <path d="M8 5.4v4.6M8 11.6v1.1" stroke="oklch(0.2 0.03 80)" strokeWidth="1.5" strokeLinecap="round" />
-    </svg>
-  );
 }
 
 export function NeedsInputBalloon() {
