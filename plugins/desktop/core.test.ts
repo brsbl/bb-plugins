@@ -5,6 +5,7 @@ import {
   filterLifecycle,
   gridPositions,
   groupThreads,
+  clearanceShift,
   nextFreePosition,
   trackNeedsInput,
   resizeRect,
@@ -181,5 +182,28 @@ describe("trackNeedsInput", () => {
     expect(trackNeedsInput(tracker, ["a"])).toMatchObject({ queue: [], arrived: false });
     tracker = trackNeedsInput(tracker, []);
     expect(trackNeedsInput(tracker, ["a"])).toMatchObject({ queue: ["a"], arrived: true });
+  });
+});
+
+describe("clearanceShift", () => {
+  const composer = { x: 300, y: 50, width: 600, height: 150 };
+  const viewport = { width: 1200, height: 900 };
+
+  it("leaves windows that do not overlap alone", () => {
+    expect(clearanceShift({ x: 300, y: 400, width: 400, height: 300 }, composer, viewport)).toBeNull();
+  });
+
+  it("moves a window the shortest distance that clears the composer", () => {
+    expect(clearanceShift({ x: 350, y: 150, width: 400, height: 300 }, composer, viewport)).toEqual({ x: 0, y: 62 });
+    expect(clearanceShift({ x: 850, y: 60, width: 200, height: 700 }, composer, viewport)).toEqual({ x: 62, y: 0 });
+  });
+
+  it("prefers a shift that keeps the whole window on screen", () => {
+    expect(clearanceShift({ x: 350, y: 100, width: 400, height: 600 }, composer, viewport)).toEqual({ x: 0, y: 112 });
+    expect(clearanceShift({ x: 600, y: 80, width: 280, height: 800 }, composer, viewport)).toEqual({ x: 312, y: 0 });
+  });
+
+  it("lets a window hang off an edge when nothing fits, keeping its title bar reachable", () => {
+    expect(clearanceShift({ x: 350, y: 100, width: 400, height: 780 }, composer, viewport)).toEqual({ x: 0, y: 112 });
   });
 });

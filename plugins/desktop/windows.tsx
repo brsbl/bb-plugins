@@ -6,12 +6,37 @@ import {
   useMemo,
   useReducer,
   useRef,
+  useState,
+  useSyncExternalStore,
   type PointerEvent as ReactPointerEvent,
   type ReactNode,
 } from "react";
 import { CloseGlyph, MaximizeGlyph, MinusGlyph, RestoreGlyph } from "./art";
 
-import { clampRect, resizeRect, type Rect, type ResizeEdge } from "./core";
+import { clampRect, resizeRect, type Point, type Rect, type ResizeEdge } from "./core";
+
+let nudges: ReadonlyMap<string, Point> = new Map();
+const nudgeListeners = new Set<() => void>();
+
+function subscribeNudges(listener: () => void) {
+  nudgeListeners.add(listener);
+  return () => nudgeListeners.delete(listener);
+}
+
+export function setWindowNudges(next: ReadonlyMap<string, Point>) {
+  if (next.size === 0 && nudges.size === 0) return;
+  nudges = next;
+  for (const listener of nudgeListeners) listener();
+}
+
+function takeWindowNudge(id: string): Point | undefined {
+  const nudge = nudges.get(id);
+  if (nudge === undefined) return undefined;
+  const next = new Map(nudges);
+  next.delete(id);
+  setWindowNudges(next);
+  return nudge;
+}
 
 export type WindowSpec =
   | { kind: "finder"; key: string }
@@ -356,9 +381,20 @@ export function WindowFrame({
   children: ReactNode;
 }) {
   const manager = useWindowManager();
-  const { id, rect } = desktopWindow;
+  const { id } = desktopWindow;
   const focused = manager.focusedId === id;
   const maximized = desktopWindow.restoreRect !== null;
+  const nudge = useSyncExternalStore(subscribeNudges, () => nudges.get(id));
+  const [settling, setSettling] = useState(false);
+  const rect = nudge === undefined ? desktopWindow.rect : { ...desktopWindow.rect, x: desktopWindow.rect.x + nudge.x, y: desktopWindow.rect.y + nudge.y };
+
+  const settle = () => {
+    const taken = takeWindowNudge(id);
+    if (taken === undefined) return;
+    setSettling(true);
+    manager.move(id, { ...desktopWindow.rect, x: desktopWindow.rect.x + taken.x, y: desktopWindow.rect.y + taken.y });
+    requestAnimationFrame(() => setSettling(false));
+  };
 
   const startMove = (event: ReactPointerEvent<HTMLElement>) => {
     if ((event.target as HTMLElement).closest("button") !== null) return;
@@ -387,14 +423,19 @@ export function WindowFrame({
       aria-label={title}
       className="bbd-window"
       data-focused={focused}
+      data-settling={settling}
       style={{
-        left: rect.x,
-        top: rect.y,
+        left: desktopWindow.rect.x,
+        top: desktopWindow.rect.y,
         width: rect.width,
         height: rect.height,
         zIndex: desktopWindow.z,
+        transform: nudge === undefined ? undefined : `translate(${nudge.x}px, ${nudge.y}px)`,
       }}
-      onPointerDownCapture={() => manager.focus(id)}
+      onPointerDownCapture={() => {
+        settle();
+        manager.focus(id);
+      }}
     >
       <header
         className="bbd-titlebar"

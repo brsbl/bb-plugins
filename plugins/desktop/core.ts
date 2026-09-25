@@ -333,3 +333,34 @@ export function trackNeedsInput(
   const arrived = pendingIds.filter((id) => !previous.has(id) && !kept.includes(id));
   return { known: pending, queue: [...kept, ...arrived], arrived: arrived.length > 0 };
 }
+
+export function clearanceShift(
+  rect: Rect,
+  obstacle: Rect,
+  viewport: { width: number; height: number },
+  gap = 12,
+): Point | null {
+  const overlaps =
+    rect.x < obstacle.x + obstacle.width + gap &&
+    rect.x + rect.width > obstacle.x - gap &&
+    rect.y < obstacle.y + obstacle.height + gap &&
+    rect.y + rect.height > obstacle.y - gap;
+  if (!overlaps) return null;
+  const candidates: Point[] = [
+    { x: 0, y: obstacle.y + obstacle.height + gap - rect.y },
+    { x: 0, y: obstacle.y - gap - (rect.y + rect.height) },
+    { x: obstacle.x - gap - (rect.x + rect.width), y: 0 },
+    { x: obstacle.x + obstacle.width + gap - rect.x, y: 0 },
+  ].sort((left, right) => Math.hypot(left.x, left.y) - Math.hypot(right.x, right.y));
+  const fits = (shift: Point) =>
+    rect.x + shift.x >= 0 &&
+    rect.y + shift.y >= 0 &&
+    rect.x + shift.x + rect.width <= viewport.width &&
+    rect.y + shift.y + rect.height <= viewport.height;
+  const reachable = (shift: Point) =>
+    rect.y + shift.y >= 0 &&
+    rect.y + shift.y + 40 <= viewport.height &&
+    rect.x + shift.x + rect.width >= 80 &&
+    rect.x + shift.x <= viewport.width - 80;
+  return candidates.find(fits) ?? candidates.find(reachable) ?? null;
+}
