@@ -922,7 +922,7 @@ function StartMenu({ onClose }: { onClose: () => void }) {
         <span className="bbd-start-avatar">
           <StartFlag />
         </span>
-        <span>Desktop</span>
+        <span>bb</span>
       </div>
       <div className="bbd-start-body">
         {START_ITEMS.map((item) => (

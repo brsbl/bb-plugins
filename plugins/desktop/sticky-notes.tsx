@@ -278,12 +278,11 @@ export function mountStickyNotes() {
 
 export function StickyNoteHeaderButton({ isCompactViewport }: { isCompactViewport: boolean }) {
   const enabled = useDesktopEnabled();
-  if (!enabled) return null;
+  if (!enabled || isCompactViewport) return null;
   return (
     <button
       type="button"
       className="bbd-root bbd-note-add"
-      data-compact={isCompactViewport}
       aria-label="Add sticky note"
       title="Add sticky note"
       onClick={(event) => {

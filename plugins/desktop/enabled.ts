@@ -31,6 +31,20 @@ export function toggleDesktop() {
   }
 }
 
+const COMPACT_QUERY = "(max-width: 767px)";
+
+function subscribeCompact(listener: () => void) {
+  const query = window.matchMedia(COMPACT_QUERY);
+  query.addEventListener("change", listener);
+  return () => query.removeEventListener("change", listener);
+}
+
+function readCompact(): boolean {
+  return window.matchMedia(COMPACT_QUERY).matches;
+}
+
 export function useDesktopEnabled(): boolean {
-  return useSyncExternalStore(subscribeEnabled, readEnabled);
+  const enabled = useSyncExternalStore(subscribeEnabled, readEnabled);
+  const compact = useSyncExternalStore(subscribeCompact, readCompact);
+  return enabled && !compact;
 }

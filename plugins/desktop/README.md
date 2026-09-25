@@ -14,7 +14,7 @@ Desktop turns bb's new-thread page into an operating system for your agents. Thr
 - **Windows Media Player.** Press play to visualize your microphone with classic visualizations (Bars, Scope, and Ambience); use the arrows or double-click the screen to switch. Audio never leaves the browser, and pressing stop releases the microphone.
 - **Desktop menu.** Right-click the desktop or any empty part of the new-thread page to set Show, Organize by, and Sort by, to Arrange icons into a grid, or to Tile windows, both in sort order.
 - **Sticky notes.** Add one from the note button in a thread's header, the Start menu, or New sticky note in the desktop menu to place it where you clicked. Notes stay in the screen margins and follow you across every page, pinned to the nearer side. Drag the top strip to move, the corner to resize, the dot to change color, and × to delete (with Undo). Notes are saved on this device and hide when Desktop is off.
-- **On/off.** The Desktop button in the sidebar footer turns the whole desktop on or off on this device. Turning it on takes you to the new-thread page. When it is off, the new-thread page shows no desktop, windows, or taskbar.
+- **On/off.** The Desktop button in the sidebar footer turns the whole desktop on or off on this device. Turning it on takes you to the new-thread page. When it is off, the new-thread page shows no desktop, windows, or taskbar. The desktop, taskbar, and sticky notes never appear on phone-sized screens.
 
 Agents and scripts can use the same features from the `bb desktop` CLI; see [the skill](skills/desktop/SKILL.md).
 

@@ -467,12 +467,6 @@
   font-size: var(--text-xs);
 }
 
-@media (max-width: 767px) {
-  .bbd-taskbar {
-    display: none;
-  }
-}
-
 .bbd-start {
   display: flex;
   flex: none;
@@ -958,9 +952,32 @@
   color: var(--foreground);
 }
 
-.bbd-note-add[data-compact="true"] {
-  width: 36px;
-  height: 36px;
+@media (hover: none) {
+  .bbd-note-bar {
+    height: 34px;
+    touch-action: none;
+  }
+
+  .bbd-note-tone,
+  .bbd-note-close {
+    opacity: 1;
+  }
+
+  .bbd-note-tone {
+    width: 16px;
+    height: 16px;
+  }
+
+  .bbd-note-close {
+    width: 30px;
+    height: 30px;
+  }
+
+  .bbd-note-grip {
+    width: 24px;
+    height: 24px;
+    touch-action: none;
+  }
 }
 
 .bbd-note button:focus-visible,
