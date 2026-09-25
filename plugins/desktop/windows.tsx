@@ -48,6 +48,7 @@ export type WindowSpec =
   | { kind: "minesweeper" }
   | { kind: "solitaire" }
   | { kind: "command-prompt" }
+  | { kind: "paint" }
   | { kind: "new-folder" }
   | { kind: "media-player" }
   | { kind: "new-thread"; groupKey: string | null };
@@ -201,6 +202,7 @@ function parseSpec(value: unknown): WindowSpec | null {
     case "minesweeper":
     case "solitaire":
     case "command-prompt":
+    case "paint":
     case "media-player":
       return { kind: record.kind };
     default:
@@ -276,6 +278,8 @@ export function defaultRect(spec: WindowSpec, stagger: number): Rect {
               ? { width: 720, height: 540 }
             : spec.kind === "command-prompt"
               ? { width: 680, height: 420 }
+            : spec.kind === "paint"
+              ? { width: 780, height: 580 }
             : { width: 560, height: 400 };
   const offset = (stagger % 8) * 28;
   return clampRect(

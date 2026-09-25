@@ -385,7 +385,38 @@ export function CommandPromptArt({ size = 40 }: { size?: number }) {
       <rect x="3" y="8" width="42" height="32" rx="2.5" fill={ICON.lead} stroke={ICON.blueOutline} />
       <path d="M3 10.5A2.5 2.5 0 0 1 5.5 8h37a2.5 2.5 0 0 1 2.5 2.5V14H3Z" fill="url(#bbd-g-title)" />
       <rect x="39" y="9.4" width="3.8" height="3.4" rx="0.8" fill={ICON.redTop} stroke={ICON.paper} strokeWidth="0.5" />
-      <path d="M12.5 22.5a4 4 0 1 0 0 7M16 32 21 21M26 32h10" fill="none" stroke={ICON.paper} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M12.5 22.5a4 4 0 1 0 0 7M19.5 21l5 11M28 32h9" fill="none" stroke={ICON.paper} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
+      <circle cx="16.2" cy="23.6" r="1.2" fill={ICON.paper} />
+      <circle cx="16.2" cy="29.6" r="1.2" fill={ICON.paper} />
+    </IconSvg>
+  );
+}
+
+export function InternetExplorerArt({ size = 40 }: { size?: number }) {
+  return (
+    <IconSvg size={size}>
+      <path d="M36.5 33.5A14 14 0 1 1 38 22H17.5" fill="none" stroke={ICON.blueOutline} strokeWidth="9" strokeLinecap="round" />
+      <path d="M36.5 33.5A14 14 0 1 1 38 22H17.5" fill="none" stroke="url(#bbd-g-title)" strokeWidth="6.4" strokeLinecap="round" />
+      <path d="M13.5 17.5a9.5 9.5 0 0 1 6-5" fill="none" stroke={ICON.paper} strokeOpacity="0.7" strokeWidth="1.8" strokeLinecap="round" />
+      <ellipse cx="24" cy="25" rx="22" ry="8.5" transform="rotate(-28 24 25)" fill="none" stroke={ICON.boltEdge} strokeWidth="3.6" />
+      <ellipse cx="24" cy="25" rx="22" ry="8.5" transform="rotate(-28 24 25)" fill="none" stroke="url(#bbd-g-bolt)" strokeWidth="2.2" strokeDasharray="95 30" strokeDashoffset="10" />
+    </IconSvg>
+  );
+}
+
+export function PaintArt({ size = 40 }: { size?: number }) {
+  return (
+    <IconSvg size={size}>
+      <path d="M5 26c0-11 9-19 20-19 10 0 18 6 18 14 0 5-4 7-8 6-3-.5-5 1-4.5 4 .6 3.5-1.5 7-7.5 7C12.5 38 5 33 5 26Z" fill="url(#bbd-g-cream)" stroke={ICON.boltEdge} strokeLinejoin="round" />
+      <circle cx="14" cy="23" r="3.2" fill={ICON.wmpBlue} />
+      <circle cx="20" cy="15" r="3.2" fill={ICON.wmpGreen} />
+      <circle cx="29" cy="13.5" r="3.2" fill={ICON.wmpYellow} />
+      <circle cx="36" cy="18" r="2.8" fill={ICON.wmpOrange} />
+      <circle cx="15" cy="31" r="2.8" fill={ICON.redBottom} />
+      <circle cx="24" cy="31" r="2.6" fill="none" stroke={ICON.boltEdge} strokeWidth="0.8" />
+      <path d="M27 42 43 20" stroke={ICON.pencilDark} strokeWidth="4.2" strokeLinecap="round" />
+      <path d="M27 42 43 20" stroke={ICON.pencil} strokeWidth="2.6" strokeLinecap="round" />
+      <path d="M23.5 46 27 41.5 29.5 43.5 26 47Z" fill={ICON.lead} />
     </IconSvg>
   );
 }

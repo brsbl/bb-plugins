@@ -1,0 +1,211 @@
+.bbd-paint {
+  --bbd-paint-face: oklch(0.9 0.018 95);
+  --bbd-paint-light: oklch(0.99 0.006 95);
+  --bbd-paint-shade: oklch(0.6 0.02 95);
+  --bbd-paint-dark: oklch(0.36 0.02 95);
+  --bbd-paint-work: oklch(0.56 0.012 250);
+  --bbd-paint-press: oklch(0.95 0.012 95);
+  --bbd-paint-handle: oklch(0.42 0.16 262);
+  --bbd-paint-ghost: color-mix(in oklab, var(--bbd-paint-dark) 80%, transparent);
+  outline: none;
+}
+
+.bbd-paint-toolbox {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  width: 64px;
+  padding: 5px;
+  background: var(--bbd-paint-face);
+  box-shadow:
+    inset 1px 1px 0 var(--bbd-paint-light),
+    inset -1px -1px 0 var(--bbd-paint-shade);
+}
+
+.bbd-paint-tools {
+  display: grid;
+  grid-template-columns: repeat(2, 25px);
+  grid-auto-rows: 25px;
+  gap: 1px;
+}
+
+.bbd-paint-tool {
+  display: grid;
+  place-items: center;
+  padding: 0;
+  background: var(--bbd-paint-face);
+  box-shadow:
+    inset 1px 1px 0 var(--bbd-paint-light),
+    inset -1px -1px 0 var(--bbd-paint-dark),
+    inset -2px -2px 0 var(--bbd-paint-shade);
+  cursor: default;
+}
+
+.bbd-paint-tool:active,
+.bbd-paint-tool[data-pressed="true"] {
+  background: var(--bbd-paint-press);
+  box-shadow:
+    inset 1px 1px 0 var(--bbd-paint-dark),
+    inset 2px 2px 0 var(--bbd-paint-shade),
+    inset -1px -1px 0 var(--bbd-paint-light);
+}
+
+.bbd-paint-tool[data-pressed="true"] svg {
+  transform: translate(1px, 1px);
+}
+
+.bbd-paint-tool:focus-visible,
+.bbd-paint-size:focus-visible,
+.bbd-paint-swatch:focus-visible {
+  outline: 2px solid var(--bbd-blue);
+  outline-offset: -2px;
+}
+
+.bbd-paint-sizes {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 1px;
+  width: 51px;
+  min-height: 78px;
+  padding: 3px;
+  box-shadow:
+    inset 1px 1px 0 var(--bbd-paint-shade),
+    inset -1px -1px 0 var(--bbd-paint-light);
+}
+
+.bbd-paint-size {
+  display: grid;
+  place-items: center;
+  height: 14px;
+  padding: 0;
+  border-radius: 1px;
+  cursor: default;
+}
+
+.bbd-paint-size[data-pressed="true"] {
+  background: var(--bbd-blue);
+}
+
+.bbd-paint-size[data-pressed="true"] svg * {
+  fill: var(--bbd-white);
+}
+
+.bbd-paint-work {
+  overflow: auto;
+  padding: 4px 12px 12px 4px;
+  background: var(--bbd-paint-work);
+  box-shadow:
+    inset 1px 1px 0 var(--bbd-paint-dark),
+    inset -1px -1px 0 var(--bbd-paint-light);
+}
+
+.bbd-paint-sheet {
+  position: relative;
+  flex: none;
+}
+
+.bbd-paint-canvas,
+.bbd-paint-overlay {
+  position: absolute;
+  inset: 0 auto auto 0;
+  display: block;
+  touch-action: none;
+}
+
+.bbd-paint-canvas {
+  cursor: crosshair;
+}
+
+.bbd-paint-canvas[data-tool="pencil"],
+.bbd-paint-canvas[data-tool="picker"],
+.bbd-paint-canvas[data-tool="fill"] {
+  cursor: cell;
+}
+
+.bbd-paint-overlay {
+  pointer-events: none;
+}
+
+.bbd-paint-ghost {
+  position: absolute;
+  top: 0;
+  left: 0;
+  outline: 1px dashed var(--bbd-paint-ghost);
+  pointer-events: none;
+}
+
+.bbd-paint-handle {
+  position: absolute;
+  right: -5px;
+  bottom: -5px;
+  width: 5px;
+  height: 5px;
+  background: var(--bbd-paint-handle);
+  cursor: nwse-resize;
+  touch-action: none;
+}
+
+.bbd-paint-handle::before {
+  content: "";
+  position: absolute;
+  inset: -4px;
+}
+
+.bbd-paint-colorbox {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 5px 6px;
+  background: var(--bbd-paint-face);
+  box-shadow:
+    inset 1px 1px 0 var(--bbd-paint-light),
+    inset -1px -1px 0 var(--bbd-paint-shade);
+}
+
+.bbd-paint-current {
+  position: relative;
+  flex: none;
+  width: 31px;
+  height: 31px;
+  background: var(--bbd-paint-press);
+  box-shadow:
+    inset 1px 1px 0 var(--bbd-paint-shade),
+    inset -1px -1px 0 var(--bbd-paint-light);
+}
+
+.bbd-paint-chip {
+  position: absolute;
+  width: 13px;
+  height: 13px;
+  box-shadow:
+    0 0 0 1px var(--bbd-paint-dark),
+    0 0 0 2px var(--bbd-paint-light);
+}
+
+.bbd-paint-chip-primary {
+  top: 5px;
+  left: 5px;
+}
+
+.bbd-paint-chip-secondary {
+  right: 5px;
+  bottom: 5px;
+}
+
+.bbd-paint-swatches {
+  display: grid;
+  grid-template-columns: repeat(14, 15px);
+  grid-template-rows: repeat(2, 15px);
+  gap: 1px;
+}
+
+.bbd-paint-swatch {
+  padding: 0;
+  box-shadow:
+    inset 1px 1px 0 var(--bbd-paint-shade),
+    inset 2px 2px 0 var(--bbd-paint-dark),
+    inset -1px -1px 0 var(--bbd-paint-light);
+  cursor: default;
+}

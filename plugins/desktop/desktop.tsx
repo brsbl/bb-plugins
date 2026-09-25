@@ -21,6 +21,7 @@ import {
   experimental_useSidebarThreadActions as useSidebarThreadActions,
   experimental_useSidebarThreadPullRequest as useSidebarThreadPullRequest,
   experimental_useSidebarThreads as useSidebarThreads,
+  useBbNavigate,
   useRealtime,
   useRealtimeConnectionState,
   useRpc,
@@ -45,6 +46,8 @@ import {
   ListViewGlyph,
   MediaPlayerArt,
   MinesweeperArt,
+  PaintArt,
+  InternetExplorerArt,
   CommandPromptArt,
   SolitaireArt,
   RecycleBinArt,
@@ -79,6 +82,7 @@ import {
   type SortKey,
 } from "./core";
 import { NeedsInputBalloon } from "./balloon";
+import { PaintApp } from "./apps/paint";
 import { CommandPrompt, closeCommandPromptSession } from "./command-prompt";
 import { MinesweeperGame } from "./games/minesweeper";
 import { SolitaireGame } from "./games/solitaire";
@@ -1158,6 +1162,8 @@ function windowTitle(spec: WindowSpec, desktop: DesktopContextValue): string {
       return "Solitaire";
     case "command-prompt":
       return "Command Prompt";
+    case "paint":
+      return "untitled - Paint";
     case "new-folder":
       return "New folder";
     case "new-thread":
@@ -1195,6 +1201,8 @@ function windowArt(spec: WindowSpec, desktop: DesktopContextValue, size: number)
       return <SolitaireArt size={size} />;
     case "command-prompt":
       return <CommandPromptArt size={size} />;
+    case "paint":
+      return <PaintArt size={size} />;
     case "new-folder":
       return <NewFolderArt size={size} />;
     case "new-thread":
@@ -1228,6 +1236,7 @@ function StartFlag() {
 
 function StartMenu({ onClose }: { onClose: () => void }) {
   const manager = useWindowManager();
+  const openInternetExplorer = useOpenInternetExplorer();
   const desktop = useDesktop();
   const menuRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -1251,6 +1260,55 @@ function StartMenu({ onClose }: { onClose: () => void }) {
     onClose();
     action();
   };
+  interface Launch {
+    id: string;
+    label: string;
+    detail: string;
+    art: (size: number) => ReactNode;
+    run: () => void;
+  }
+  const open = (spec: WindowSpec): Launch["run"] => () => manager.open(spec);
+  const programs: Launch[] = [
+    { id: "internet-explorer", label: "Internet Explorer", detail: "Browse the web in bb", art: (size) => <InternetExplorerArt size={size} />, run: openInternetExplorer },
+    ...START_ITEMS.map((item) => ({
+      id: item.spec.kind,
+      label: item.label,
+      detail: item.detail,
+      art: (size: number) => windowArt(item.spec, desktop, size),
+      run: open(item.spec),
+    })),
+    { id: "sticky-note", label: "Note pad", detail: "Pin a note in the margin", art: (size) => <NotePadArt size={size} />, run: () => addStickyNote() },
+  ];
+  const places: { section: string; items: Launch[] }[] = [
+    {
+      section: "Accessories",
+      items: [
+        { id: "paint", label: "Paint", detail: "", art: (size) => <PaintArt size={size} />, run: open({ kind: "paint" }) },
+        { id: "command-prompt", label: "Command Prompt", detail: "", art: (size) => <CommandPromptArt size={size} />, run: open({ kind: "command-prompt" }) },
+      ],
+    },
+    {
+      section: "Games",
+      items: [
+        { id: "minesweeper", label: "Minesweeper", detail: "", art: (size) => <MinesweeperArt size={size} />, run: open({ kind: "minesweeper" }) },
+        { id: "solitaire", label: "Solitaire", detail: "", art: (size) => <SolitaireArt size={size} />, run: open({ kind: "solitaire" }) },
+      ],
+    },
+    {
+      section: "",
+      items: [
+        { id: "search", label: "Search", detail: "", art: (size) => <SearchArt size={size} />, run: () => void runAppCommand("thread.search") },
+        { id: "run", label: "Run…", detail: "", art: (size) => <RunArt size={size} />, run: () => void runAppCommand("palette.open") },
+      ],
+    },
+  ];
+  const itemProps = (item: Launch) => ({
+    type: "button" as const,
+    role: "menuitem",
+    title: "Right-click to add to Quick Launch",
+    onClick: run(item.run),
+    onContextMenu: (event: ReactMouseEvent) => desktop.openMenu(event, [quickLaunchToggleEntry(desktop, item.id)]),
+  });
   return (
     <div ref={menuRef} className="bbd-start-menu" role="menu" aria-label="Start menu">
       <div className="bbd-start-head">
@@ -1259,103 +1317,31 @@ function StartMenu({ onClose }: { onClose: () => void }) {
         </span>
         <span>bb</span>
       </div>
-      <div className="bbd-start-body">
-        {START_ITEMS.map((item) => (
-          <button
-            key={item.label}
-            type="button"
-            role="menuitem"
-            className="bbd-start-item"
-            title="Right-click to add to Quick Launch"
-            onClick={run(() => manager.open(item.spec))}
-            onContextMenu={(event) => desktop.openMenu(event, [quickLaunchToggleEntry(desktop, item.spec.kind)])}
-          >
-            {windowArt(item.spec, desktop, 30)}
-            <span>
-              <strong>{item.label}</strong>
-              <small>{item.detail}</small>
-            </span>
-          </button>
-        ))}
-        <button
-          type="button"
-          role="menuitem"
-          className="bbd-start-item"
-          title="Right-click to add to Quick Launch"
-          onClick={run(() => addStickyNote())}
-          onContextMenu={(event) => desktop.openMenu(event, [quickLaunchToggleEntry(desktop, "sticky-note")])}
-        >
-          <NotePadArt size={30} />
-          <span>
-            <strong>Note pad</strong>
-            <small>Pin a note in the margin</small>
-          </span>
-        </button>
-      </div>
-      <div className="bbd-start-rule" aria-hidden />
-      <div className="bbd-start-body">
-        <span className="bbd-start-section">Games</span>
-        {(
-          [
-            { spec: { kind: "minesweeper" }, label: "Minesweeper", detail: "Clear the field" },
-            { spec: { kind: "solitaire" }, label: "Solitaire", detail: "Klondike, draw one" },
-          ] as const
-        ).map((item) => (
-          <button
-            key={item.label}
-            type="button"
-            role="menuitem"
-            className="bbd-start-item"
-            title="Right-click to add to Quick Launch"
-            onClick={run(() => manager.open(item.spec))}
-            onContextMenu={(event) => desktop.openMenu(event, [quickLaunchToggleEntry(desktop, item.spec.kind)])}
-          >
-            {windowArt(item.spec, desktop, 30)}
-            <span>
-              <strong>{item.label}</strong>
-              <small>{item.detail}</small>
-            </span>
-          </button>
-        ))}
-      </div>
-      <div className="bbd-start-rule" aria-hidden />
-      <div className="bbd-start-body">
-        {(
-          [
-            { id: "search", label: "Search", detail: "Find a thread", art: <SearchArt size={30} />, command: "thread.search" },
-            { id: "run", label: "Run…", detail: "Open the command palette", art: <RunArt size={30} />, command: "palette.open" },
-          ] as const
-        ).map((item) => (
-          <button
-            key={item.id}
-            type="button"
-            role="menuitem"
-            className="bbd-start-item"
-            title="Right-click to add to Quick Launch"
-            onClick={run(() => void runAppCommand(item.command))}
-            onContextMenu={(event) => desktop.openMenu(event, [quickLaunchToggleEntry(desktop, item.id)])}
-          >
-            {item.art}
-            <span>
-              <strong>{item.label}</strong>
-              <small>{item.detail}</small>
-            </span>
-          </button>
-        ))}
-        <button
-          type="button"
-          role="menuitem"
-          className="bbd-start-item"
-          title="Right-click to add to Quick Launch"
-          onClick={run(() => manager.open({ kind: "command-prompt" }))}
-          onContextMenu={(event) => desktop.openMenu(event, [quickLaunchToggleEntry(desktop, "command-prompt")])}
-        >
-          <CommandPromptArt size={30} />
-          <span>
-            <strong>Command Prompt</strong>
-            <small>A terminal on this machine</small>
-          </span>
-        </button>
+      <div className="bbd-start-columns">
+        <div className="bbd-start-body">
+          {programs.map((item) => (
+            <button key={item.id} className="bbd-start-item" {...itemProps(item)}>
+              {item.art(30)}
+              <span>
+                <strong>{item.label}</strong>
+                <small>{item.detail}</small>
+              </span>
+            </button>
+          ))}
+        </div>
+        <div className="bbd-start-places">
+          {places.map((group, index) => (
+            <div key={group.section || index} className="grid">
+              {group.section === "" ? <div className="bbd-start-rule" aria-hidden /> : <span className="bbd-start-section">{group.section}</span>}
+              {group.items.map((item) => (
+                <button key={item.id} className="bbd-start-place" {...itemProps(item)}>
+                  {item.art(22)}
+                  <span>{item.label}</span>
+                </button>
+              ))}
+            </div>
+          ))}
+        </div>
       </div>
       <div className="bbd-start-foot">
         <button type="button" role="menuitem" className="bbd-start-off" onClick={run(toggleDesktop)}>
@@ -1432,6 +1418,16 @@ async function runAppCommand(command: AppShortcutCommand) {
   document.body.dispatchEvent(new KeyboardEvent("keyup", init));
 }
 
+const BROWSER_HOME = "https://www.google.com";
+
+function useOpenInternetExplorer(): () => void {
+  const navigate = useBbNavigate() as ReturnType<typeof useBbNavigate> & { openUrl?: (url: string) => boolean };
+  return () => {
+    if (navigate.openUrl?.(BROWSER_HOME) === true) return;
+    window.open(BROWSER_HOME, "_blank", "noopener");
+  };
+}
+
 function navigateInApp(path: string) {
   window.history.pushState(null, "", path);
   window.dispatchEvent(new PopStateEvent("popstate"));
@@ -1451,6 +1447,7 @@ function useQuickLaunchCatalog(): QuickLaunchItem[] {
     for (const id of hiddenByShowDesktop.current) manager.minimize(id, false);
     hiddenByShowDesktop.current = [];
   };
+  const openInternetExplorer = useOpenInternetExplorer();
   const launcher = (spec: WindowSpec, label: string): QuickLaunchItem => ({
     id: spec.kind,
     label,
@@ -1467,7 +1464,9 @@ function useQuickLaunchCatalog(): QuickLaunchItem[] {
     launcher({ kind: "minesweeper" }, "Minesweeper"),
     launcher({ kind: "solitaire" }, "Solitaire"),
     launcher({ kind: "command-prompt" }, "Command Prompt"),
+    launcher({ kind: "paint" }, "Paint"),
     { id: "sticky-note", label: "Note pad", art: <NotePadArt size={18} />, run: () => addStickyNote() },
+    { id: "internet-explorer", label: "Internet Explorer", art: <InternetExplorerArt size={20} />, run: openInternetExplorer },
     { id: "search", label: "Search", art: <SearchArt size={20} />, run: () => void runAppCommand("thread.search") },
     { id: "run", label: "Run…", art: <RunArt size={20} />, run: () => void runAppCommand("palette.open") },
     { id: "plugins", label: "Plugins", art: <PluginsArt size={20} />, run: () => navigateInApp("/plugins") },
@@ -2084,6 +2083,12 @@ function WindowContent({ window: desktopWindow }: { window: DesktopWindow }) {
       );
     case "command-prompt":
       return <CommandPromptWindow window={desktopWindow} />;
+    case "paint":
+      return (
+        <WindowFrame window={desktopWindow} title="untitled - Paint" icon={<PaintArt size={16} />}>
+          <PaintApp />
+        </WindowFrame>
+      );
     case "new-folder":
       return <NewFolderWindow window={desktopWindow} />;
     case "new-thread":

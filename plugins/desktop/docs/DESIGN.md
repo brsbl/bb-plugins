@@ -79,6 +79,8 @@ Use the real XP icon when bb has an XP counterpart. When it does not, build from
 | Skills | No XP counterpart; a glossy bolt in XP style | `SkillsArt` |
 | Minesweeper | Minesweeper: a spiked black mine with a red flag | `MinesweeperArt` |
 | Solitaire | Solitaire: two fanned cards, a spade behind a heart | `SolitaireArt` |
+| Browser | Internet Explorer: blue glossy "e" with a gold orbit | `InternetExplorerArt` |
+| Drawing | Paint: a palette of paint blobs with a brush | `PaintArt` |
 | Terminal | Command Prompt: black window with a blue title bar and `C:\ _` | `CommandPromptArt` |
 | Thread search | Search: straight-on magnifying glass with a gold handle | `SearchArt` |
 | Command palette | Run: small window with a text field and speed lines | `RunArt` |
@@ -95,6 +97,7 @@ Reuse these before building anything new.
 
 | Need | Use |
 | --- | --- |
+| A Start menu entry | `programs` (left column, with a detail line) or `places` (right column, grouped by section) in `StartMenu`; every entry can be added to Quick Launch by id |
 | A window | `WindowFrame` (title bar, minimize, maximize, close, status bar, resize) |
 | A toolbar row in a window | `.bbd-menubar` |
 | A button in a window | `.bbd-button .bbd-bevel` |
@@ -162,4 +165,3 @@ These differ from XP on purpose; keep them unless the owner decides otherwise.
 These predate this document and should be brought in line when touched:
 
 - `ThreadArt` still uses the older `36 × 32` viewBox without the shared drop shadow. Move it to `IconSvg` when it is next changed.
-- The Start menu is one column. XP's two-column menu (programs left, places right) is the reference if it grows.
