@@ -32,24 +32,24 @@ import {
   CheckGlyph,
   ExternalLinkGlyph,
   FolderArt,
-  FolderPlusGlyph,
-  GlyphTile,
+  DetailsArt,
+  NewFolderArt,
+  NewThreadArt,
+  PluginsArt,
+  ShowDesktopArt,
+  SkillsArt,
+  ThreadsArt,
   GridViewGlyph,
   ListViewGlyph,
   MediaPlayerArt,
   RecycleBinArt,
   StatusIcon,
   StickyNoteArt,
-  NewThreadGlyph,
   type StatusKind,
   StickyNoteGlyph,
   PanelRightGlyph,
-  PluginsGlyph,
   PowerGlyph,
-  ShowDesktopGlyph,
-  SkillsGlyph,
   ThreadArt,
-  ThreadsGlyph,
   TileGlyph,
   TrashGlyph,
 } from "./art";
@@ -1034,10 +1034,10 @@ function DesktopCanvas() {
   };
 
   const commands: MenuEntry[] = [
-    { label: "New folder", icon: <FolderPlusGlyph className="size-3.5" />, run: () => manager.open({ kind: "new-folder" }) },
-    { label: "New thread", icon: <NewThreadGlyph className="size-3.5" />, run: () => manager.open({ kind: "new-thread", groupKey: null }) },
+    { label: "New folder", icon: <NewFolderArt size={16} />, run: () => manager.open({ kind: "new-folder" }) },
+    { label: "New thread", icon: <NewThreadArt size={16} />, run: () => manager.open({ kind: "new-thread", groupKey: null }) },
     "separator",
-    { label: "Threads", icon: <ThreadsGlyph className="size-3.5" />, run: () => manager.open({ kind: "threads" }) },
+    { label: "Threads", icon: <ThreadsArt size={16} />, run: () => manager.open({ kind: "threads" }) },
     { label: "Recycle Bin", icon: <RecycleBinArt size={14} />, run: () => manager.open({ kind: "recycle-bin" }) },
     { label: "Windows Media Player", icon: <MediaPlayerArt size={14} />, run: () => manager.open({ kind: "media-player" }) },
     "separator",
@@ -1167,17 +1167,17 @@ function windowArt(spec: WindowSpec, desktop: DesktopContextValue, size: number)
     case "thread":
       return <ThreadArt size={size} />;
     case "panel":
-      return <GlyphTile glyph={PanelRightGlyph} size={size + 2} />;
+      return <DetailsArt size={size} />;
     case "threads":
-      return <GlyphTile glyph={ThreadsGlyph} size={size + 2} />;
+      return <ThreadsArt size={size} />;
     case "recycle-bin":
       return <RecycleBinArt size={size} full={desktop.archivedThreads.length > 0} />;
     case "more":
       return <FolderArt kind="section" size={size} empty={desktop.moreGroups.length === 0} />;
     case "new-folder":
-      return <GlyphTile glyph={FolderPlusGlyph} size={size + 2} tone="green" />;
+      return <NewFolderArt size={size} />;
     case "new-thread":
-      return <GlyphTile glyph={NewThreadGlyph} size={size + 2} tone="green" />;
+      return <NewThreadArt size={size} />;
     case "media-player":
       return <MediaPlayerArt size={size} />;
   }
@@ -1301,15 +1301,15 @@ function useQuickLaunchCatalog(): QuickLaunchItem[] {
     run: () => manager.open(spec),
   });
   return [
-    { id: "show-desktop", label: "Show desktop", art: <GlyphTile glyph={ShowDesktopGlyph} size={20} />, run: showDesktop },
+    { id: "show-desktop", label: "Show desktop", art: <ShowDesktopArt size={20} />, run: showDesktop },
     launcher({ kind: "new-thread", groupKey: null }, "New thread"),
     launcher({ kind: "new-folder" }, "New folder"),
     launcher({ kind: "threads" }, "Threads"),
     launcher({ kind: "recycle-bin" }, "Recycle Bin"),
     launcher({ kind: "media-player" }, "Windows Media Player"),
     { id: "sticky-note", label: "Sticky note", art: <StickyNoteArt size={18} />, run: () => addStickyNote() },
-    { id: "plugins", label: "Plugins", art: <GlyphTile glyph={PluginsGlyph} size={20} />, run: () => navigateInApp("/plugins") },
-    { id: "skills", label: "Skills", art: <GlyphTile glyph={SkillsGlyph} size={20} />, run: () => navigateInApp("/skills") },
+    { id: "plugins", label: "Plugins", art: <PluginsArt size={20} />, run: () => navigateInApp("/plugins") },
+    { id: "skills", label: "Skills", art: <SkillsArt size={20} />, run: () => navigateInApp("/skills") },
   ];
 }
 
@@ -1531,7 +1531,7 @@ function groupMenu(
 ): MenuEntry[] {
   const newThread: MenuEntry = {
     label: `New thread in ${group.name}`,
-    icon: <NewThreadGlyph className="size-3.5" />,
+    icon: <NewThreadArt size={16} />,
     run: () => manager.open({ kind: "new-thread", groupKey: group.key }),
   };
   const fail = (error: unknown) => toast.error(errorMessage(error));
@@ -1906,7 +1906,7 @@ function threadMenu(
   );
   return [
     { label: "Open", run: () => desktop.openThread(thread.id) },
-    { label: "Open details", icon: <PanelRightGlyph className="size-3.5" />, run: () => manager.open({ kind: "panel", threadId: thread.id }) },
+    { label: "Open details", icon: <DetailsArt size={16} />, run: () => manager.open({ kind: "panel", threadId: thread.id }) },
     { label: "Open in bb", icon: <ExternalLinkGlyph className="size-3.5" />, run: () => actions.open(thread.id) },
     ...(targets.length > 0 ? ["separator" as const, { heading: "Move to" }] : []),
     ...targets.map((target): MenuEntry => ({
@@ -2191,7 +2191,7 @@ function FinderWindow({ window: desktopWindow, groupKey }: { window: DesktopWind
               className="bbd-button bbd-bevel flex-none"
               onClick={() => manager.open({ kind: "new-thread", groupKey: group.key })}
             >
-              <NewThreadGlyph className="size-3.5" /> New thread
+              <NewThreadArt size={16} /> New thread
             </button>
           )}
           <div className="ml-auto flex flex-none gap-1">
@@ -2327,7 +2327,7 @@ function PanelWindow({ window: desktopWindow, threadId }: { window: DesktopWindo
     <WindowFrame
       window={desktopWindow}
       title={`${thread?.title ?? "Thread"} — Details`}
-      icon={<PanelRightGlyph className="size-3.5" />}
+      icon={<DetailsArt size={16} />}
     >
       <div className="bbd-sunken h-full overflow-auto p-3">
         {thread === undefined ? (
@@ -2398,7 +2398,7 @@ function ThreadsWindow({ window: desktopWindow }: { window: DesktopWindow }) {
     <WindowFrame
       window={desktopWindow}
       title="Threads"
-      icon={<ThreadsGlyph className="size-3.5" />}
+      icon={<ThreadsArt size={16} />}
       statusBar={<span className="flex-1">{threads.length} threads · drag onto a folder to file</span>}
     >
       <div className="flex h-full flex-col">
@@ -2517,7 +2517,7 @@ function NewFolderWindow({ window: desktopWindow }: { window: DesktopWindow }) {
   };
 
   return (
-    <WindowFrame window={desktopWindow} title="New folder" icon={<FolderPlusGlyph className="size-3.5" />}>
+    <WindowFrame window={desktopWindow} title="New folder" icon={<NewFolderArt size={16} />}>
       <form
         className="flex h-full flex-col gap-3 overflow-auto p-3 text-xs"
         onSubmit={(event) => {
@@ -2615,7 +2615,7 @@ function NewThreadWindow({ window: desktopWindow, groupKey }: { window: DesktopW
     <WindowFrame
       window={desktopWindow}
       title={group === null ? "New thread" : `New thread in ${group.name}`}
-      icon={<NewThreadGlyph className="size-3.5" />}
+      icon={<NewThreadArt size={16} />}
     >
       <div className="h-full overflow-auto bg-background p-3">
         <NewThreadComposer

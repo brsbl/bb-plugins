@@ -1,14 +1,12 @@
-import type { ComponentType } from "react";
+import type { ReactNode } from "react";
 import {
   BubbleChatAddIcon,
   Cancel01Icon,
   CollapseIcon,
-  ComputerDesk01Icon,
   CubeIcon,
   DashboardSquare01Icon,
   ExpandIcon,
   Delete02Icon,
-  FlashIcon,
   FolderAddIcon,
   GridViewIcon,
   HierarchySquare01Icon,
@@ -20,7 +18,6 @@ import {
   NextIcon,
   PlayIcon,
   PreviousIcon,
-  PuzzleIcon,
   StickyNote03Icon,
   PowerIcon,
   StopIcon,
@@ -32,25 +29,282 @@ import { HugeiconsIcon, type IconSvgElement } from "@hugeicons/react";
 
 import type { DesktopGroup } from "./core";
 
-const FOLDER_BACK = "oklch(0.8 0.13 80)";
-const FOLDER_FRONT_TOP = "oklch(0.93 0.11 92)";
-const FOLDER_FRONT_BOTTOM = "oklch(0.82 0.14 82)";
-const FOLDER_EDGE = "oklch(0.6 0.12 70)";
 const PAPER = "oklch(0.98 0.005 250)";
 
 const ICON = {
-  outline: "oklch(0.42 0.04 225)",
-  shadow: "oklch(0.25 0.03 250 / 0.28)",
-  binLight: "oklch(0.95 0.02 195)",
-  binMid: "oklch(0.86 0.035 200)",
-  binDark: "oklch(0.7 0.045 215)",
-  binInside: "oklch(0.5 0.035 220)",
-  binRim: "oklch(0.98 0.01 200)",
-  recycle: "oklch(0.64 0.17 145)",
-  recycleEdge: "oklch(0.45 0.13 145)",
-  paperShade: "oklch(0.8 0.012 250)",
-  paperEdge: "oklch(0.55 0.02 240)",
+  shadow: "oklch(0.2 0.03 260)",
+  blueOutline: "oklch(0.42 0.15 258)",
+  bubbleTop: "oklch(0.995 0.003 240)",
+  bubbleBottom: "oklch(0.88 0.03 245)",
+  bubbleEdge: "oklch(0.55 0.06 250)",
+  dot: "oklch(0.5 0.2 262)",
+  sparkRay: "oklch(0.62 0.21 33)",
+  sparkCore: "oklch(0.9 0.16 95)",
+  sparkEdge: "oklch(0.52 0.17 40)",
+  folderBack: "oklch(0.85 0.12 88)",
+  folderFrontTop: "oklch(0.97 0.08 98)",
+  folderFrontBottom: "oklch(0.86 0.13 86)",
+  folderEdge: "oklch(0.62 0.12 75)",
+  navyTop: "oklch(0.5 0.17 262)",
+  navyBottom: "oklch(0.32 0.14 265)",
+  navyEdge: "oklch(0.24 0.1 265)",
+  cream: "oklch(0.97 0.02 95)",
+  creamShade: "oklch(0.9 0.03 90)",
+  pencil: "oklch(0.58 0.17 255)",
+  pencilDark: "oklch(0.4 0.14 258)",
+  eraser: "oklch(0.64 0.19 35)",
+  wood: "oklch(0.88 0.06 75)",
+  lead: "oklch(0.3 0.02 260)",
+  glassTop: "oklch(0.97 0.025 215)",
+  glassMid: "oklch(0.88 0.06 230)",
+  glassBottom: "oklch(0.76 0.1 245)",
+  glassEdge: "oklch(0.55 0.13 250)",
+  recycleLight: "oklch(0.72 0.19 142)",
+  recycle: "oklch(0.52 0.17 145)",
+  recycleEdge: "oklch(0.38 0.12 145)",
+  paper: "oklch(0.99 0.005 250)",
+  paperShade: "oklch(0.85 0.012 250)",
+  paperEdge: "oklch(0.6 0.02 245)",
+  noteTop: "oklch(0.97 0.14 102)",
+  noteBottom: "oklch(0.86 0.16 88)",
+  noteEdge: "oklch(0.65 0.14 75)",
+  noteDot: "oklch(0.6 0.21 28)",
+  boxTop: "oklch(0.78 0.11 250)",
+  boxFront: "oklch(0.55 0.18 258)",
+  boxSide: "oklch(0.42 0.16 262)",
+  discLight: "oklch(0.98 0.01 250)",
+  discMid: "oklch(0.85 0.04 280)",
+  discDark: "oklch(0.72 0.05 230)",
+  discEdge: "oklch(0.55 0.03 250)",
+  boltTop: "oklch(0.96 0.13 100)",
+  boltBottom: "oklch(0.82 0.17 75)",
+  boltEdge: "oklch(0.56 0.14 60)",
+  titleTop: "oklch(0.72 0.14 250)",
+  titleBottom: "oklch(0.52 0.21 260)",
+  panel: "oklch(0.92 0.04 240)",
+  line: "oklch(0.75 0.03 250)",
+  wmpOrange: "oklch(0.68 0.2 38)",
+  wmpGreen: "oklch(0.72 0.19 138)",
+  wmpBlue: "oklch(0.55 0.19 258)",
+  wmpYellow: "oklch(0.85 0.17 88)",
+  wmpRim: "oklch(0.28 0.08 265)",
+  playTop: "oklch(0.68 0.16 250)",
+  playBottom: "oklch(0.45 0.2 262)",
+  redTop: "oklch(0.72 0.2 25)",
+  redBottom: "oklch(0.5 0.21 27)",
+  redEdge: "oklch(0.38 0.15 27)",
+  warnTop: "oklch(0.95 0.15 98)",
+  warnBottom: "oklch(0.8 0.17 80)",
+  warnEdge: "oklch(0.45 0.08 260)",
+  sand: "oklch(0.82 0.13 80)",
+  frame: "oklch(0.45 0.08 60)",
+  envelope: "oklch(0.97 0.05 95)",
+  envelopeEdge: "oklch(0.6 0.1 75)",
 } as const;
+
+function gradient(id: string, from: string, to: string, x2 = 0.4, y2 = 1) {
+  return (
+    <linearGradient id={id} x1="0" y1="0" x2={x2} y2={y2}>
+      <stop offset="0" stopColor={from} />
+      <stop offset="1" stopColor={to} />
+    </linearGradient>
+  );
+}
+
+function IconDefs() {
+  return (
+    <defs>
+      <filter id="bbd-drop" x="-20%" y="-20%" width="150%" height="150%">
+        <feDropShadow dx="1.2" dy="1.2" stdDeviation="0.9" floodColor={ICON.shadow} floodOpacity="0.55" />
+      </filter>
+      {gradient("bbd-g-bubble", ICON.bubbleTop, ICON.bubbleBottom)}
+      {gradient("bbd-g-folder", ICON.folderFrontTop, ICON.folderFrontBottom, 0.2)}
+      {gradient("bbd-g-navy", ICON.navyTop, ICON.navyBottom)}
+      {gradient("bbd-g-cream", ICON.cream, ICON.creamShade)}
+      {gradient("bbd-g-glass", ICON.glassTop, ICON.glassBottom, 1, 0.6)}
+      {gradient("bbd-g-recycle", ICON.recycleLight, ICON.recycle)}
+      {gradient("bbd-g-note", ICON.noteTop, ICON.noteBottom)}
+      {gradient("bbd-g-box", ICON.boxTop, ICON.boxFront, 0, 1)}
+      {gradient("bbd-g-bolt", ICON.boltTop, ICON.boltBottom)}
+      {gradient("bbd-g-title", ICON.titleTop, ICON.titleBottom, 0, 1)}
+      {gradient("bbd-g-play", ICON.playTop, ICON.playBottom)}
+      {gradient("bbd-g-red", ICON.redTop, ICON.redBottom)}
+      {gradient("bbd-g-warn", ICON.warnTop, ICON.warnBottom, 0, 1)}
+      <radialGradient id="bbd-g-disc" cx="0.38" cy="0.32" r="0.75">
+        <stop offset="0" stopColor={ICON.discLight} />
+        <stop offset="0.6" stopColor={ICON.discMid} />
+        <stop offset="1" stopColor={ICON.discDark} />
+      </radialGradient>
+    </defs>
+  );
+}
+
+function IconSvg({ size, children }: { size: number; children: ReactNode }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 48 48" style={{ flex: "none", overflow: "visible" }} aria-hidden>
+      <IconDefs />
+      <g filter="url(#bbd-drop)">{children}</g>
+    </svg>
+  );
+}
+
+function Sparkle({ x, y, scale = 1 }: { x: number; y: number; scale?: number }) {
+  const rays = [0, 45, 90, 135, 180, 225, 270, 315];
+  return (
+    <g transform={`translate(${x} ${y}) scale(${scale})`}>
+      {rays.map((angle) => (
+        <path
+          key={angle}
+          d="M0 -5.2 1.6 -10.4 -1.6 -10.4Z"
+          transform={`rotate(${angle})`}
+          fill={ICON.sparkRay}
+          stroke={ICON.sparkEdge}
+          strokeWidth="0.4"
+          strokeLinejoin="round"
+        />
+      ))}
+      <circle r="4.6" fill={ICON.sparkCore} stroke={ICON.sparkEdge} strokeWidth="0.8" />
+      <circle cx="-1.3" cy="-1.3" r="1.5" fill={ICON.paper} opacity="0.8" />
+    </g>
+  );
+}
+
+function Pencil({ from, to }: { from: [number, number]; to: [number, number] }) {
+  const angle = (Math.atan2(to[1] - from[1], to[0] - from[0]) * 180) / Math.PI;
+  const length = Math.hypot(to[0] - from[0], to[1] - from[1]);
+  return (
+    <g transform={`translate(${from[0]} ${from[1]}) rotate(${angle})`}>
+      <path d={`M0 0 6 -2.6V2.6Z`} fill={ICON.wood} stroke={ICON.pencilDark} strokeWidth="0.6" strokeLinejoin="round" />
+      <path d="M0 0 2.2 -0.95V0.95Z" fill={ICON.lead} />
+      <rect x="6" y="-2.6" width={length - 10} height="5.2" fill={ICON.pencil} stroke={ICON.pencilDark} strokeWidth="0.6" />
+      <path d={`M6 -0.9H${length - 4}`} stroke={ICON.paper} strokeOpacity="0.55" strokeWidth="0.9" />
+      <rect x={length - 4} y="-2.6" width="4" height="5.2" rx="1.4" fill={ICON.eraser} stroke={ICON.pencilDark} strokeWidth="0.6" />
+    </g>
+  );
+}
+
+function Bubble({ x, y, width, height }: { x: number; y: number; width: number; height: number }) {
+  const r = Math.min(7, height / 2.4);
+  return (
+    <g>
+      <path
+        d={`M${x + r} ${y}h${width - 2 * r}a${r} ${r} 0 0 1 ${r} ${r}v${height - 2 * r}a${r} ${r} 0 0 1 -${r} ${r}H${x + width * 0.36}l-${width * 0.22} ${height * 0.34} ${width * 0.04}-${height * 0.34}H${x + r}a${r} ${r} 0 0 1 -${r} -${r}v-${height - 2 * r}a${r} ${r} 0 0 1 ${r} -${r}Z`}
+        fill="url(#bbd-g-bubble)"
+        stroke={ICON.bubbleEdge}
+        strokeLinejoin="round"
+      />
+      <path d={`M${x + r} ${y + 2.2}h${width - 2 * r - 2}`} stroke={ICON.paper} strokeWidth="1.6" strokeLinecap="round" opacity="0.9" />
+      {[0.3, 0.5, 0.7].map((fraction) => (
+        <circle key={fraction} cx={x + width * fraction} cy={y + height / 2} r={Math.max(1.6, height / 9)} fill={ICON.dot} />
+      ))}
+    </g>
+  );
+}
+
+function FolderShape({ children }: { children?: ReactNode }) {
+  return (
+    <>
+      <path d="M4 12.5a2 2 0 0 1 2-2h11l3.2 3.5H40a2 2 0 0 1 2 2V38H4Z" fill={ICON.folderBack} stroke={ICON.folderEdge} strokeLinejoin="round" />
+      {children}
+      <path d="M2.5 20.5a1.5 1.5 0 0 1 1.5-1.5h38.6a1.3 1.3 0 0 1 1.3 1.5L41.5 38.8a1.5 1.5 0 0 1-1.5 1.2H6a1.5 1.5 0 0 1-1.5-1.3Z" fill="url(#bbd-g-folder)" stroke={ICON.folderEdge} strokeLinejoin="round" />
+      <path d="M4.5 21h37.5" stroke={ICON.paper} strokeOpacity="0.85" strokeWidth="1.2" />
+    </>
+  );
+}
+
+function MiniWindow({ x, y, width, height, panel = false }: { x: number; y: number; width: number; height: number; panel?: boolean }) {
+  return (
+    <g>
+      <rect x={x} y={y} width={width} height={height} rx="2.5" fill={ICON.paper} stroke={ICON.blueOutline} />
+      <path d={`M${x} ${y + 2.5}a2.5 2.5 0 0 1 2.5-2.5h${width - 5}a2.5 2.5 0 0 1 2.5 2.5V${y + 6.5}H${x}Z`} fill="url(#bbd-g-title)" />
+      <rect x={x + width - 5.5} y={y + 1.6} width="3.4" height="3.4" rx="0.8" fill={ICON.redTop} stroke={ICON.paper} strokeWidth="0.5" />
+      {panel ? <rect x={x + width * 0.6} y={y + 7} width={width * 0.4 - 1} height={height - 8} fill={ICON.panel} /> : null}
+      <path
+        d={`M${x + 4} ${y + 12}h${width * 0.4}M${x + 4} ${y + 17}h${width * 0.28}M${x + 4} ${y + 22}h${width * 0.36}`}
+        stroke={ICON.line}
+        strokeWidth="2"
+        strokeLinecap="round"
+      />
+    </g>
+  );
+}
+
+export function NewThreadArt({ size = 40 }: { size?: number }) {
+  return (
+    <IconSvg size={size}>
+      <Bubble x={3} y={12} width={36} height={24} />
+      <Sparkle x={37} y={12} scale={0.95} />
+    </IconSvg>
+  );
+}
+
+export function ThreadsArt({ size = 40 }: { size?: number }) {
+  return (
+    <IconSvg size={size}>
+      <FolderShape>
+        <g transform="rotate(-8 28 14)">
+          <Bubble x={15} y={3} width={27} height={17} />
+        </g>
+      </FolderShape>
+    </IconSvg>
+  );
+}
+
+export function NewFolderArt({ size = 40 }: { size?: number }) {
+  return (
+    <IconSvg size={size}>
+      <FolderShape />
+      <Sparkle x={37} y={12} scale={0.95} />
+    </IconSvg>
+  );
+}
+
+export function ShowDesktopArt({ size = 40 }: { size?: number }) {
+  return (
+    <IconSvg size={size}>
+      <g transform="rotate(-10 24 24)">
+        <rect x="5" y="7" width="36" height="34" rx="3.5" fill="url(#bbd-g-navy)" stroke={ICON.navyEdge} />
+        <path d="M9 11h28v26H9Z" fill="url(#bbd-g-cream)" stroke={ICON.navyEdge} strokeWidth="0.6" />
+        <path d="M13 17h14M13 22h18M13 27h11" stroke={ICON.line} strokeWidth="1.4" strokeLinecap="round" />
+        <path d="M6.5 8.8h33" stroke={ICON.paper} strokeOpacity="0.45" strokeWidth="1.2" />
+      </g>
+      <Pencil from={[22, 34]} to={[45, 9]} />
+    </IconSvg>
+  );
+}
+
+export function PluginsArt({ size = 40 }: { size?: number }) {
+  return (
+    <IconSvg size={size}>
+      <path d="M6 14 20 7 36 12 22 19Z" fill={ICON.boxTop} stroke={ICON.blueOutline} strokeLinejoin="round" />
+      <path d="M6 14 22 19V41L6 35Z" fill="url(#bbd-g-box)" stroke={ICON.blueOutline} strokeLinejoin="round" />
+      <path d="M22 19 36 12V34L22 41Z" fill={ICON.boxSide} stroke={ICON.blueOutline} strokeLinejoin="round" />
+      <path d="M9 18.5 19 21.8" stroke={ICON.paper} strokeOpacity="0.6" strokeWidth="1.2" strokeLinecap="round" />
+      <circle cx="33" cy="32" r="11" fill="url(#bbd-g-disc)" stroke={ICON.discEdge} />
+      <path d="M26 27a9 9 0 0 1 8-4" stroke={ICON.wmpGreen} strokeOpacity="0.55" strokeWidth="2" fill="none" strokeLinecap="round" />
+      <path d="M40 36a9 9 0 0 1-6 5" stroke={ICON.wmpOrange} strokeOpacity="0.5" strokeWidth="2" fill="none" strokeLinecap="round" />
+      <circle cx="33" cy="32" r="3.4" fill={ICON.paper} stroke={ICON.discEdge} />
+      <circle cx="33" cy="32" r="1.4" fill={ICON.discDark} />
+    </IconSvg>
+  );
+}
+
+export function SkillsArt({ size = 40 }: { size?: number }) {
+  return (
+    <IconSvg size={size}>
+      <path d="M29 3 11 26h10.5L16 45l21-26H26.5L33 3Z" fill="url(#bbd-g-bolt)" stroke={ICON.boltEdge} strokeLinejoin="round" />
+      <path d="M28.5 7 16.5 23" stroke={ICON.paper} strokeOpacity="0.7" strokeWidth="1.4" strokeLinecap="round" />
+    </IconSvg>
+  );
+}
+
+export function DetailsArt({ size = 40 }: { size?: number }) {
+  return (
+    <IconSvg size={size}>
+      <MiniWindow x={4} y={8} width={40} height={32} panel />
+    </IconSvg>
+  );
+}
 
 function bbGlyph(icon: IconSvgElement) {
   return function BbGlyph({ className, strokeWidth }: { className?: string; strokeWidth?: number }) {
@@ -79,9 +333,6 @@ export const PlayGlyph = bbGlyph(PlayIcon);
 export const StopGlyph = bbGlyph(StopIcon);
 export const PowerGlyph = bbGlyph(PowerIcon);
 export const MicGlyph = bbGlyph(Mic01Icon);
-export const ShowDesktopGlyph = bbGlyph(ComputerDesk01Icon);
-export const PluginsGlyph = bbGlyph(PuzzleIcon);
-export const SkillsGlyph = bbGlyph(FlashIcon);
 export const StickyNoteGlyph = bbGlyph(StickyNote03Icon);
 export const NextGlyph = bbGlyph(NextIcon);
 export const PreviousGlyph = bbGlyph(PreviousIcon);
@@ -95,28 +346,22 @@ export function FolderArt({
   size?: number;
   empty?: boolean;
 }) {
-  const gradientId = `bbd-folder-${kind}`;
   const Badge = kind === "project" ? ProjectGlyph : kind === "machine" ? MachineGlyph : kind === "folder" ? PinGlyph : null;
+  const showBadge = Badge !== null && size >= 24;
   return (
     <span className="relative inline-grid place-items-center" style={{ width: size, height: size }}>
-      <svg viewBox="0 0 40 34" width={size} height={size * 0.85} aria-hidden>
-        <defs>
-          <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0" stopColor={FOLDER_FRONT_TOP} />
-            <stop offset="1" stopColor={FOLDER_FRONT_BOTTOM} />
-          </linearGradient>
-        </defs>
-        <path d="M3 5.5h12l3 3.5h18a1.5 1.5 0 0 1 1.5 1.5v19H3z" fill={FOLDER_BACK} stroke={FOLDER_EDGE} strokeLinejoin="round" />
-        {empty ? null : (
-          <>
-            <rect x="8" y="7" width="26" height="14" rx="1" fill={PAPER} stroke={FOLDER_EDGE} strokeWidth="0.5" transform="rotate(4 21 14)" />
-            <rect x="6" y="8.5" width="27" height="14" rx="1" fill={PAPER} stroke={FOLDER_EDGE} strokeWidth="0.5" />
-          </>
-        )}
-        <path d="M2 13.5h36l-2.5 17H4.5z" fill={`url(#${gradientId})`} stroke={FOLDER_EDGE} strokeLinejoin="round" />
-        <path d="M3.4 14.6h33.2" stroke={PAPER} strokeOpacity="0.8" />
-      </svg>
-      {Badge === null ? null : (
+      <IconSvg size={size}>
+        <FolderShape>
+          {empty ? null : (
+            <>
+              <rect x="10" y="7" width="27" height="15" rx="1" fill={ICON.paper} stroke={ICON.paperEdge} strokeWidth="0.6" transform="rotate(5 23 14)" />
+              <rect x="8" y="9" width="28" height="14" rx="1" fill={ICON.paper} stroke={ICON.paperEdge} strokeWidth="0.6" />
+              <path d="M12 13h14M12 16.5h10" stroke={ICON.line} strokeWidth="1.2" strokeLinecap="round" />
+            </>
+          )}
+        </FolderShape>
+      </IconSvg>
+      {showBadge ? (
         <span
           className="absolute right-0 bottom-0 grid size-4 place-items-center rounded-sm"
           style={{
@@ -127,7 +372,7 @@ export function FolderArt({
         >
           <Badge className="size-2.5" strokeWidth={2.25} />
         </span>
-      )}
+      ) : null}
     </span>
   );
 }
@@ -157,150 +402,127 @@ export function ThreadArt({
   );
 }
 
-export function GlyphTile({
-  glyph: Glyph,
-  size = 40,
-  tone = "blue",
-}: {
-  glyph: ComponentType<{ className?: string; strokeWidth?: number }>;
-  size?: number;
-  tone?: "blue" | "green";
-}) {
-  const [light, base, deep] =
-    tone === "green"
-      ? ["color-mix(in oklch, var(--bbd-green) 60%, var(--bbd-white) 40%)", "var(--bbd-green)", "var(--bbd-green-deep)"]
-      : ["var(--bbd-blue-bright)", "var(--bbd-blue)", "var(--bbd-blue-deep)"];
-  return (
-    <span
-      className="inline-grid place-items-center rounded-md"
-      style={{
-        width: size - 4,
-        height: size - 4,
-        background: `radial-gradient(90% 90% at 30% 25%, ${light}, ${base} 70%, ${deep})`,
-        boxShadow: "0 0 0 1.5px var(--bbd-white), 0 2px 4px oklch(0.2 0.05 260 / 0.4)",
-        color: "var(--bbd-white)",
-      }}
-      aria-hidden
-    >
-      <Glyph className="size-[55%]" strokeWidth={2} />
-    </span>
-  );
-}
-
 export function StickyNoteArt({ size = 40 }: { size?: number }) {
   return (
-    <svg width={size} height={size} viewBox="0 0 40 40" aria-hidden>
-      <path d="M7 6 H33 V25 L25 34 H7 Z" fill="oklch(0.9 0.14 95)" stroke="oklch(0.62 0.12 80)" strokeWidth="1.5" strokeLinejoin="round" />
-      <path d="M33 25 H26.5 Q25 25 25 26.5 V34 Z" fill="oklch(0.78 0.14 88)" stroke="oklch(0.62 0.12 80)" strokeWidth="1.5" strokeLinejoin="round" />
-      <path d="M12 13 H28 M12 18.5 H28 M12 24 H20" stroke="oklch(0.62 0.12 80)" strokeWidth="1.6" strokeLinecap="round" />
-    </svg>
+    <IconSvg size={size}>
+      <path d="M4 12 30 6 36 32 10 38Z" fill={ICON.noteBottom} stroke={ICON.noteEdge} strokeLinejoin="round" />
+      <path d="M6 10 32 5 37 30 30 38 11 41Z" fill="url(#bbd-g-note)" stroke={ICON.noteEdge} strokeLinejoin="round" />
+      <path d="M37 30 31 31.5 30 38Z" fill={ICON.noteBottom} stroke={ICON.noteEdge} strokeLinejoin="round" />
+      <circle cx="30.5" cy="9" r="1.8" fill={ICON.noteDot} />
+      <path d="M11 17 27 14M12 22.5 26 20M13 28 22 26.5" stroke={ICON.noteEdge} strokeOpacity="0.45" strokeWidth="1.2" strokeLinecap="round" />
+      <Pencil from={[24, 33]} to={[46, 12]} />
+    </IconSvg>
   );
 }
 
 export function MediaPlayerArt({ size = 40 }: { size?: number }) {
   return (
-    <svg width={size} height={size} viewBox="0 0 40 40" aria-hidden>
-      <circle cx="20" cy="20" r="18" fill="var(--bbd-orange)" />
-      <circle cx="20" cy="20" r="14" fill="var(--bbd-blue)" />
-      <path d="M16.5 13.8 Q16.5 12.6 17.6 13.2 L26.4 18.9 Q27.4 19.6 26.4 20.3 L17.6 26.8 Q16.5 27.4 16.5 26.2 Z" fill={PAPER} />
-    </svg>
+    <IconSvg size={size}>
+      <circle cx="24" cy="24" r="20.5" fill={ICON.wmpRim} />
+      <path d="M4.50 24.00A19.5 19.5 0 0 1 24.00 4.50L24.00 10.50A13.5 13.5 0 0 0 10.50 24.00Z" fill={ICON.wmpOrange} />
+      <path d="M24.00 4.50A19.5 19.5 0 0 1 43.50 24.00L37.50 24.00A13.5 13.5 0 0 0 24.00 10.50Z" fill={ICON.wmpGreen} />
+      <path d="M43.50 24.00A19.5 19.5 0 0 1 24.00 43.50L24.00 37.50A13.5 13.5 0 0 0 37.50 24.00Z" fill={ICON.wmpYellow} />
+      <path d="M24.00 43.50A19.5 19.5 0 0 1 4.50 24.00L10.50 24.00A13.5 13.5 0 0 0 24.00 37.50Z" fill={ICON.wmpBlue} />
+      <path d="M4.5 24H43.5M24 4.5V43.5" stroke={ICON.paper} strokeWidth="1" />
+      <circle cx="24" cy="24" r="13.5" fill="url(#bbd-g-disc)" stroke={ICON.discEdge} />
+      <path d="M19.5 16.5 32.5 24 19.5 31.5Z" fill="url(#bbd-g-play)" stroke={ICON.playBottom} strokeLinejoin="round" />
+      <path d="M8 16a18 18 0 0 1 16-11.5" stroke={ICON.paper} strokeOpacity="0.55" strokeWidth="2.2" fill="none" strokeLinecap="round" />
+    </IconSvg>
   );
 }
 
-
-function RecycleArrow() {
+function RecycleArrows() {
   return (
-    <>
-      <path d="M24.9 21.6 28.1 27.1" stroke={ICON.recycle} strokeWidth="2.4" strokeLinecap="round" />
-      <path d="M26.3 28.4 30.1 26.3 29.6 30.7Z" fill={ICON.recycle} stroke={ICON.recycleEdge} strokeWidth="0.5" strokeLinejoin="round" />
-    </>
+    <g strokeLinecap="round" strokeLinejoin="round">
+      <path d="M18.8 24.2A6.8 6.8 0 0 1 30.4 20.6" fill="none" stroke={ICON.recycleEdge} strokeWidth="4.4" />
+      <path d="M30.6 30.2A6.8 6.8 0 0 1 19 33.8" fill="none" stroke={ICON.recycleEdge} strokeWidth="4.4" />
+      <path d="M18.8 24.2A6.8 6.8 0 0 1 30.4 20.6" fill="none" stroke="url(#bbd-g-recycle)" strokeWidth="2.8" />
+      <path d="M30.6 30.2A6.8 6.8 0 0 1 19 33.8" fill="none" stroke="url(#bbd-g-recycle)" strokeWidth="2.8" />
+      <path d="M27.6 18.2 34 19.4 30.4 25Z" fill={ICON.recycleLight} stroke={ICON.recycleEdge} strokeWidth="0.9" />
+      <path d="M21.8 36.2 15.4 35 19 29.4Z" fill={ICON.recycle} stroke={ICON.recycleEdge} strokeWidth="0.9" />
+    </g>
   );
 }
 
 export function RecycleBinArt({ size = 40, full = false }: { size?: number; full?: boolean }) {
   return (
-    <svg width={size} height={size} viewBox="0 0 48 48" style={{ flex: "none" }} aria-hidden>
-      <defs>
-        <linearGradient id="bbd-bin-body" x1="0" y1="0" x2="1" y2="0.25">
-          <stop offset="0" stopColor={ICON.binLight} />
-          <stop offset="0.45" stopColor={ICON.binMid} />
-          <stop offset="1" stopColor={ICON.binDark} />
-        </linearGradient>
-        <linearGradient id="bbd-bin-inside" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0" stopColor={ICON.binInside} />
-          <stop offset="1" stopColor={ICON.binDark} />
-        </linearGradient>
-      </defs>
-      <ellipse cx="24" cy="44" rx="12" ry="2.4" fill={ICON.shadow} />
-      <ellipse cx="24" cy="11" rx="15" ry="4.6" fill="url(#bbd-bin-inside)" />
+    <IconSvg size={size}>
+      <path d="M7 10.5C15 5 33 4.5 41 8.5 33 12.5 15 13.5 7 10.5Z" fill={ICON.glassMid} stroke={ICON.glassEdge} strokeWidth="0.8" />
       {full ? (
-        <g stroke={ICON.paperEdge} strokeWidth="0.6" strokeLinejoin="round">
-          <path d="M14.5 12 15.4 7.6 17.8 8.4 18.6 5.2 22 6.4 21.2 9.4 22.6 12.6Z" fill={PAPER} />
-          <path d="M17.6 9.2 19.8 7.4M16.4 10.8 19 11.4" fill="none" stroke={ICON.paperShade} strokeWidth="0.7" />
-          <path d="M20.6 12.8 21.8 6.2 24.6 7.4 26 3.6 29.8 5.4 29 8.6 31.8 9.2 30.6 13Z" fill={PAPER} />
-          <path d="M23.4 9.4 26.6 7.2 28.4 10.2M22.8 11.6 26 12.2" fill="none" stroke={ICON.paperShade} strokeWidth="0.7" />
-          <path d="M29.4 12.8 30.4 9.2 33 8.4 34.4 10.4 33.6 13Z" fill="oklch(0.93 0.09 95)" />
+        <g stroke={ICON.paperEdge} strokeWidth="0.7" strokeLinejoin="round">
+          <path d="M14 13 13 3.5 22 1.5 24.5 11Z" fill={ICON.paper} />
+          <path d="M15.5 6 21 4.8M16 8.5 22 7.4" stroke={ICON.paperShade} />
+          <path d="M21 12 26.5 2.5 34.5 6.5 31 13.5Z" fill={ICON.cream} />
+          <path d="M26 6.5 31.5 9" stroke={ICON.paperShade} />
+          <path d="M11 14 13 20 20 22 17 15Z" fill={ICON.paper} />
         </g>
       ) : null}
-      <path d="M9 11 14.2 40.6A9.8 2.8 0 0 0 33.8 40.6L39 11A15 4.6 0 0 1 9 11Z" fill="url(#bbd-bin-body)" stroke={ICON.outline} strokeLinejoin="round" />
-      <path d="M13.5 15.2 17.4 41.8M19.2 15.6 21 42.6M28.8 15.6 27 42.6M34.5 15.2 30.6 41.8" stroke={ICON.binRim} strokeOpacity="0.55" strokeWidth="1.1" />
-      <path d="M16.3 15.5 19.2 42.3M24 15.8V42.9M31.7 15.5 28.8 42.3" stroke={ICON.binDark} strokeOpacity="0.35" strokeWidth="0.8" />
-      <path d="M9 11A15 4.6 0 0 0 39 11" fill="none" stroke={ICON.binRim} strokeWidth="1.6" />
-      <ellipse cx="24" cy="11" rx="15" ry="4.6" fill="none" stroke={ICON.outline} />
-      <g transform="translate(0 2)">
-        <RecycleArrow />
-        <g transform="rotate(120 24 27)">
-          <RecycleArrow />
-        </g>
-        <g transform="rotate(240 24 27)">
-          <RecycleArrow />
-        </g>
-      </g>
-    </svg>
+      <path
+        d="M7 10.5C15 13.5 33 12.5 41 8.5L36.5 39.5C35.8 42 13 42.5 12 39.8Z"
+        fill="url(#bbd-g-glass)"
+        fillOpacity={full ? 0.88 : 0.95}
+        stroke={ICON.glassEdge}
+        strokeLinejoin="round"
+      />
+      <path d="M13.5 37.5C18 36 30 35.5 35 37" stroke={ICON.paper} strokeOpacity="0.8" strokeWidth="1.4" fill="none" strokeLinecap="round" />
+      <path d="M10.5 14.5 14 36" stroke={ICON.paper} strokeOpacity="0.75" strokeWidth="2" strokeLinecap="round" />
+      <path d="M8 10.8C16 13.4 32 12.6 40 9" stroke={ICON.paper} strokeOpacity="0.9" strokeWidth="1" fill="none" />
+      <RecycleArrows />
+    </IconSvg>
   );
 }
 
 export type StatusKind = "attention" | "working" | "error" | "unread" | "archived" | "idle";
 
-export function WarningArt({ size = 16 }: { size?: number }) {
+function SmallSvg({ size, children, className }: { size: number; children: ReactNode; className?: string }) {
   return (
-    <svg width={size} height={size} viewBox="0 0 16 16" style={{ flex: "none" }} aria-hidden>
-      <path d="M8 1.2 15.2 14.3H.8Z" fill="oklch(0.84 0.17 90)" stroke="oklch(0.5 0.1 80)" strokeLinejoin="round" />
-      <path d="M8 5.4v4.6M8 11.6v1.1" stroke="oklch(0.2 0.03 80)" strokeWidth="1.5" strokeLinecap="round" />
+    <svg width={size} height={size} viewBox="0 0 16 16" style={{ flex: "none" }} className={className} aria-hidden>
+      <IconDefs />
+      {children}
     </svg>
   );
 }
 
+export function WarningArt({ size = 16 }: { size?: number }) {
+  return (
+    <SmallSvg size={size}>
+      <path d="M8 1.3a1 1 0 0 1 .87.5l6.4 11.5a1 1 0 0 1-.87 1.5H1.6a1 1 0 0 1-.87-1.5L7.13 1.8A1 1 0 0 1 8 1.3Z" fill="url(#bbd-g-warn)" stroke={ICON.warnEdge} strokeWidth="0.8" strokeLinejoin="round" />
+      <path d="M8 5.3v4.2" stroke={ICON.lead} strokeWidth="1.8" strokeLinecap="round" />
+      <circle cx="8" cy="12" r="1" fill={ICON.lead} />
+    </SmallSvg>
+  );
+}
+
 export function StatusIcon({ kind, size = 14 }: { kind: StatusKind; size?: number }) {
-  const box = { width: size, height: size, flex: "none" } as const;
   switch (kind) {
     case "attention":
       return <WarningArt size={size} />;
     case "working":
       return (
-        <svg viewBox="0 0 16 16" style={box} className="bbd-hourglass" aria-hidden>
-          <path d="M3.5 1.5h9M3.5 14.5h9" stroke="oklch(0.45 0.08 60)" strokeWidth="1.6" strokeLinecap="round" />
-          <path d="M4.5 1.5C4.5 5.5 7.3 6.6 7.3 8S4.5 10.5 4.5 14.5h7c0-4-2.8-5.1-2.8-6.5s2.8-2.5 2.8-6.5Z" fill="oklch(0.95 0.03 230)" stroke="oklch(0.45 0.08 60)" strokeLinejoin="round" />
-          <path d="M5.6 13.6c.4-2 1.4-2.8 2.4-2.8s2 .8 2.4 2.8ZM6.2 4h3.6C9.4 5.5 8.6 6.2 8 6.6 7.4 6.2 6.6 5.5 6.2 4Z" fill="oklch(0.8 0.13 80)" />
-        </svg>
+        <SmallSvg size={size} className="bbd-hourglass">
+          <path d="M3.5 1.5h9M3.5 14.5h9" stroke={ICON.frame} strokeWidth="1.6" strokeLinecap="round" />
+          <path d="M4.5 1.5C4.5 5.5 7.3 6.6 7.3 8S4.5 10.5 4.5 14.5h7c0-4-2.8-5.1-2.8-6.5s2.8-2.5 2.8-6.5Z" fill={ICON.glassTop} stroke={ICON.frame} strokeLinejoin="round" />
+          <path d="M5.6 13.6c.4-2 1.4-2.8 2.4-2.8s2 .8 2.4 2.8ZM6.2 4h3.6C9.4 5.5 8.6 6.2 8 6.6 7.4 6.2 6.6 5.5 6.2 4Z" fill={ICON.sand} />
+        </SmallSvg>
       );
     case "error":
       return (
-        <svg viewBox="0 0 16 16" style={box} aria-hidden>
-          <circle cx="8" cy="8" r="7" fill="oklch(0.58 0.21 27)" stroke="oklch(0.42 0.16 27)" />
-          <path d="M5.5 5.5l5 5M10.5 5.5l-5 5" stroke="var(--bbd-white)" strokeWidth="1.8" strokeLinecap="round" />
-        </svg>
+        <SmallSvg size={size}>
+          <circle cx="8" cy="8" r="7" fill="url(#bbd-g-red)" stroke={ICON.redEdge} />
+          <path d="M5.4 5.4l5.2 5.2M10.6 5.4l-5.2 5.2" stroke={ICON.paper} strokeWidth="2" strokeLinecap="round" />
+          <path d="M3.6 6a4.8 4.8 0 0 1 4-3.6" stroke={ICON.paper} strokeOpacity="0.6" strokeWidth="1" fill="none" strokeLinecap="round" />
+        </SmallSvg>
       );
     case "unread":
       return (
-        <svg viewBox="0 0 16 16" style={box} aria-hidden>
-          <rect x="1.5" y="3.5" width="13" height="9.5" rx="1.2" fill="var(--bbd-white)" stroke="var(--bbd-blue-deep)" />
-          <path d="M2 4.2 8 9l6-4.8" fill="none" stroke="var(--bbd-blue)" strokeWidth="1.3" strokeLinejoin="round" />
-        </svg>
+        <SmallSvg size={size}>
+          <rect x="1.5" y="3.5" width="13" height="9.5" rx="1" fill={ICON.envelope} stroke={ICON.envelopeEdge} />
+          <path d="M2 4.2 8 9l6-4.8" fill="none" stroke={ICON.envelopeEdge} strokeWidth="1.1" strokeLinejoin="round" />
+        </SmallSvg>
       );
     case "archived":
       return <RecycleBinArt size={size} />;
     case "idle":
-      return <span style={box} aria-hidden />;
+      return <span style={{ width: size, height: size, flex: "none" }} aria-hidden />;
   }
 }

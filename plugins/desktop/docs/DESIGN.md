@@ -41,24 +41,47 @@ Rules:
 
 ## 4. Icons
 
-There are two icon families. Never mix them in one place.
+Icons follow Microsoft's own rules from [Creating Windows XP Icons](https://learn.microsoft.com/previous-versions/ms997636(v=msdn.10)) (MSDN, 2001) and the [Windows XP Visual Guidelines](https://www.retrospace.net/download/WebApplications/WindowsXPDesignGuidelines/icons.htm). The real icons, drawn by The Iconfactory, are the reference; compare against them before drawing ([upscaled set](https://github.com/softwarehistorysociety/XPIcons), [original sizes](https://github.com/ShizukuIchi/winXP/tree/master/src/assets/windowsIcons)).
 
-### Object icons (drawn, XP style)
+### The rules (from Microsoft)
 
-For things a user can open or hold: folders, threads, the Recycle Bin, apps, status. They live in `art.tsx` as `<Name>Art` components.
+- **Style:** "fun, color, and energy". Rich color, soft slightly rounded corners, gradients for depth, and a modern consumer look for everyday objects.
+- **Light:** from the upper left, with ambient light.
+- **Angle:** 48 and 32 px objects sit at an angle in perspective. At 16 px, documents, symbols (warning, error, info), and single objects face straight on.
+- **Outline:** every object has an outline so it reads on any background: a darker shade of the object's own color, never plain black.
+- **Drop shadow:** down and to the right (Photoshop angle 135°, distance 2, size 2). Here: the shared `bbd-drop` filter, which `IconSvg` applies to every object icon. Toolbar icons have no shadow.
+- **Avoid:** letters, words, hands, and faces; more than three objects in one icon; the Windows flag outside the Start button.
 
-- **Grid:** a `48 × 48` viewBox for new object icons, rendered at 48, 40, 32, 18, or 16 px through a `size` prop. Status icons use a `16 × 16` viewBox.
-- **View:** three-quarter view from slightly above, as XP drew them. Flat front views only for flat objects (a page, a note).
-- **Light:** from the top left. Gradient body that is lighter at top left, darker at bottom right, plus a thin light rim highlight.
-- **Outline:** a darker shade of the object's own hue (`ICON.outline` for neutral objects), never black.
-- **Shadow:** a soft ellipse under freestanding objects (`ICON.shadow`).
-- **State by drawing, not by badge:** an empty folder has no papers, a full bin has crumpled papers. Use the `.bbd-dot` badge only for thread status that rolls up.
-- **Legibility:** check every icon at 16 px. Drop detail that turns to mush; keep the silhouette.
-- **Palette:** colors come from `ICON`, `FOLDER_*`, or `PAPER` at the top of `art.tsx`.
+### How it works in this plugin
 
-### Action glyphs (line icons in a tile)
+- Object icons are `<Name>Art` components in `art.tsx`, drawn on a `48 × 48` viewBox inside `IconSvg`. Status icons use `16 × 16` inside `SmallSvg`.
+- Colors come only from the `ICON` palette at the top of `art.tsx`. Gradients are defined once in `IconDefs`.
+- Reuse the shared parts: `FolderShape`, `Bubble`, `Sparkle`, `Pencil`, `MiniWindow`.
+- **"New" is the XP starburst** (`Sparkle`), as on XP's Make a new folder icon. Never a plus sign.
+- Check every icon at 48, 32, and 16 px before shipping.
 
-For actions with no XP object: New thread, Threads, Plugins, Skills, Show desktop. Use `bbGlyph(...)` with a Hugeicons icon inside `GlyphTile` (blue, or green for create). Mirrored tray icons keep the plugin's own icon from bb's sidebar footer.
+### Mapping bb to XP
+
+Use the real XP icon when bb has an XP counterpart. When it does not, build from XP's vocabulary (the glossy speech bubble, the manila folder, the starburst, windows with a blue title bar) rather than inventing a style.
+
+| bb thing | XP source | Icon |
+| --- | --- | --- |
+| Archive | Recycle Bin: frosted blue glass bin, two green curved arrows; full adds crumpled paper | `RecycleBinArt` |
+| Folder, section, project | Folder: manila, angled, front flap; papers when it holds something | `FolderArt` |
+| New folder | Make a new folder: folder plus starburst | `NewFolderArt` |
+| Show desktop | Show Desktop: navy desk blotter with a sheet and a blue pencil | `ShowDesktopArt` |
+| Media Player | Windows Media Player 10: ring in four colors, white disc, blue play triangle | `MediaPlayerArt` |
+| Sticky note | Sticky Notes (Tablet PC Edition): yellow notes with a blue pen | `StickyNoteArt` |
+| New thread | XP speech bubble (as on Information) plus starburst | `NewThreadArt` |
+| Threads | My Documents pattern: folder with the item tucked in, here a speech bubble | `ThreadsArt` |
+| Plugins | Add or Remove Programs pattern: software box with a CD | `PluginsArt` |
+| Skills | No XP counterpart; a glossy bolt in XP style | `SkillsArt` |
+| Thread details | A window with a side pane | `DetailsArt` |
+| Needs input, error | Warning (yellow triangle, black "!"), Critical (glossy red sphere, white X) | `StatusIcon` |
+
+### Line glyphs
+
+Hugeicons line glyphs (`bbGlyph`) are allowed only for small controls inside a window (view toggles, title-bar buttons) and for the bb layer (the sticky-note header button). They never stand in for an app, place, or object.
 
 ## 5. Components
 
@@ -105,9 +128,32 @@ Reuse these before building anything new.
 5. Give motion a reduced-motion fallback (section 7).
 6. Update the README feature list.
 
+## Luna reference values
+
+Measured values for when a surface should match XP exactly. Sources: the [Visual Guidelines](https://www.retrospace.net/download/WebApplications/WindowsXPDesignGuidelines/controls.htm) and two faithful recreations, [XP.css](https://github.com/botoxparty/XP.css) and [winXP](https://github.com/ShizukuIchi/winXP).
+
+| Element | XP value |
+| --- | --- |
+| Selection highlight | `#316AC5` with white text |
+| Tooltip and balloon background | `#FFFFE1` |
+| Title bar | Blue gradient `#0054E3` to `#3D95FF` (system colors); Trebuchet MS Bold 10 pt |
+| System text | Tahoma 8 pt |
+| Command button | 3 px radius, white to `#D8D0C4`, orange glow on hover |
+| Close button | Red means high impact (Close); blue means neutral (minimize, maximize) |
+| Start menu | Blue header with user picture, orange rule, white left and `#CBE3FF` right columns, blue footer |
+
+### Deliberate departures
+
+These differ from XP on purpose; keep them unless the owner decides otherwise.
+
+- Window and menu surfaces are translucent glass that follows bb's theme and Ambient, instead of XP's opaque `#ECE9D8`.
+- The taskbar is a floating pill sized to its contents, not a full-width bar.
+- Text uses bb's sans font; only the balloon quotes Tahoma.
+- The busy hourglass flips; XP's default hourglass was static. The motion shows that an agent is working.
+
 ## Known gaps
 
 These predate this document and should be brought in line when touched:
 
-- `StickyNoteArt` and `MediaPlayerArt` are flat with no gradient, light, or outline shade. Redraw them to section 4.
-- `FolderArt` and `ThreadArt` use older `40 × 34` and `36 × 32` viewBoxes. Move them to the 48 grid when they are next changed.
+- `ThreadArt` still uses the older `36 × 32` viewBox without the shared drop shadow. Move it to `IconSvg` when it is next changed.
+- The Start menu is one column. XP's two-column menu (programs left, places right) is the reference if it grows.
