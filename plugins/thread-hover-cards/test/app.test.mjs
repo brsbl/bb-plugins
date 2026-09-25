@@ -627,16 +627,28 @@ Object.defineProperties(pointerOver, {
   pointerType: { value: "mouse" },
   relatedTarget: { value: null },
 });
+delayNextSummaryFor.add("thr_1");
 trigger.dispatchEvent(pointerOver);
+await new Promise((resolve) => setTimeout(resolve, 100));
+assert.ok(
+  window.document.getElementById("bb-thread-hover-card")?.hidden ?? true,
+  "keeps an uncached card closed while the pointer settles",
+);
+assert.deepEqual(
+  requestBodies,
+  [],
+  "waits for the pointer to settle before requesting a summary",
+);
+await new Promise((resolve) => setTimeout(resolve, 60));
 const card = window.document.getElementById("bb-thread-hover-card");
-assert.ok(card, "opens the hover card in the pointer event turn");
+assert.ok(card, "opens the hover card once the pointer settles");
 assert.equal(card.hidden, false);
 assert.equal(card.dataset.bbHoverCardRenderState, "loading");
 assert.equal(card.getAttribute("aria-busy"), "true");
 assert.deepEqual(
   requestBodies,
   [{ threadId: "thr_1" }],
-  "starts the summary request immediately",
+  "requests the summary once the pointer settles",
 );
 assert.equal(typeof summaryRequestMetadata[0]?.clientId, "string");
 assert.equal(summaryRequestMetadata[0]?.generation, 1);
@@ -646,6 +658,7 @@ assert.deepEqual(
   "does not block first paint on timing hydration",
 );
 assert.match(card.textContent, /Loading thread summary/);
+delayedSummaryResponses.get("thr_1")?.();
 await new Promise((resolve) => setTimeout(resolve, 20));
 
 assert.equal(card.hidden, false);
@@ -1051,11 +1064,11 @@ trigger.dispatchEvent(quickPointerOut);
 await new Promise((resolve) => setTimeout(resolve, 280));
 
 assert.equal(card.hidden, true);
-assert.deepEqual(requestBodies, [
-  { threadId: "thr_1" },
-  { threadId: "thr_1" },
-  { threadId: "thr_2" },
-]);
+assert.deepEqual(
+  requestBodies,
+  [{ threadId: "thr_1" }, { threadId: "thr_1" }],
+  "skips the summary request when the pointer passes over a row",
+);
 
 trigger.blur();
 trigger.dataset.sidebarThreadId = "thr_local";
@@ -1158,7 +1171,6 @@ assert.equal(card.querySelector(".bb-thread-hover-card__status-icon"), null);
 assert.deepEqual(requestBodies, [
   { threadId: "thr_1" },
   { threadId: "thr_1" },
-  { threadId: "thr_2" },
   { threadId: "thr_local" },
 ]);
 
@@ -1189,7 +1201,6 @@ assert.deepEqual(
 assert.deepEqual(requestBodies, [
   { threadId: "thr_1" },
   { threadId: "thr_1" },
-  { threadId: "thr_2" },
   { threadId: "thr_local" },
   { threadId: "thr_no_pr" },
 ]);
@@ -1206,7 +1217,6 @@ assert.doesNotMatch(card.textContent, /PR unavailable/);
 assert.deepEqual(requestBodies, [
   { threadId: "thr_1" },
   { threadId: "thr_1" },
-  { threadId: "thr_2" },
   { threadId: "thr_local" },
   { threadId: "thr_no_pr" },
   { threadId: "thr_pr_unavailable" },
@@ -1240,7 +1250,6 @@ assert.ok(
 assert.deepEqual(requestBodies, [
   { threadId: "thr_1" },
   { threadId: "thr_1" },
-  { threadId: "thr_2" },
   { threadId: "thr_local" },
   { threadId: "thr_no_pr" },
   { threadId: "thr_pr_unavailable" },
@@ -1270,11 +1279,7 @@ Object.defineProperties(reloadPointerOver, {
   relatedTarget: { value: null },
 });
 trigger.dispatchEvent(reloadPointerOver);
-assert.ok(
-  window.document.getElementById("bb-thread-hover-card"),
-  "keeps immediate opening after the plugin lifecycle reloads",
-);
-await new Promise((resolve) => setTimeout(resolve, 20));
+await new Promise((resolve) => setTimeout(resolve, 170));
 
 const reloadedCard = window.document.getElementById("bb-thread-hover-card");
 assert.ok(reloadedCard);
@@ -1282,7 +1287,6 @@ assert.equal(reloadedCard.hidden, false);
 assert.deepEqual(requestBodies, [
   { threadId: "thr_1" },
   { threadId: "thr_1" },
-  { threadId: "thr_2" },
   { threadId: "thr_local" },
   { threadId: "thr_no_pr" },
   { threadId: "thr_pr_unavailable" },
@@ -1426,6 +1430,7 @@ for (let index = 0; index < fanoutTriggers.length; index += 1) {
     relatedTarget: { value: fanoutTriggers[index - 1] ?? null },
   });
   fanoutTriggers[index].dispatchEvent(pointerOver);
+  await new Promise((resolve) => setTimeout(resolve, 160));
 }
 assert.deepEqual(
   abortedSummaryThreadIds.slice(-2),
@@ -1756,7 +1761,12 @@ assert.equal(
 );
 
 hoverOver(designHeader.title);
-await new Promise((resolve) => setTimeout(resolve, 20));
+await new Promise((resolve) => setTimeout(resolve, 100));
+assert.ok(
+  window.document.getElementById("bb-section-hover-card")?.hidden ?? true,
+  "keeps an uncached section card closed while the pointer settles",
+);
+await new Promise((resolve) => setTimeout(resolve, 70));
 
 const sectionCard = window.document.getElementById("bb-section-hover-card");
 assert.ok(sectionCard, "opens a card from the section header row");
@@ -1830,12 +1840,12 @@ const delayedAHeader = sectionHeaderRow("Delayed A");
 const delayedBHeader = sectionHeaderRow("Delayed B");
 sectionGroup.append(delayedAHeader.row, delayedBHeader.row);
 hoverOver(delayedBHeader.title);
-await new Promise((resolve) => setTimeout(resolve, 20));
+await new Promise((resolve) => setTimeout(resolve, 170));
 assert.match(sectionCard.textContent, /2 threads/);
 
 delayNextSectionFor.add("Delayed A");
 hoverOver(delayedAHeader.title);
-await new Promise((resolve) => setTimeout(resolve, 0));
+await new Promise((resolve) => setTimeout(resolve, 160));
 assert.equal(sectionCard.dataset.bbHoverCardRenderState, "loading");
 assert.equal(sectionCard.getAttribute("aria-busy"), "true");
 delayedSectionResponses.get("Delayed A")?.();
@@ -1844,19 +1854,31 @@ assert.equal(sectionCard.dataset.bbHoverCardRenderState, "complete");
 assert.equal(sectionCard.hasAttribute("aria-busy"), false);
 
 hoverOver(delayedBHeader.title);
-await new Promise((resolve) => setTimeout(resolve, 20));
+await new Promise((resolve) => setTimeout(resolve, 170));
 testNow += 4_100;
 delayNextSectionFor.add("Delayed A");
 hoverOver(delayedAHeader.title);
-await new Promise((resolve) => setTimeout(resolve, 0));
+await new Promise((resolve) => setTimeout(resolve, 160));
 assert.ok(delayedSectionResponses.has("Delayed A"));
 hoverOver(delayedBHeader.title);
-await new Promise((resolve) => setTimeout(resolve, 20));
+await new Promise((resolve) => setTimeout(resolve, 170));
 assert.ok(
   abortedSectionNames.includes("Delayed A"),
   "a cached section still aborts the superseded summary request",
 );
 assert.match(sectionCard.textContent, /2 threads/);
+
+testNow += 4_100;
+const requestsBeforeSectionSweep = sectionRequestBodies.length;
+hoverOver(delayedAHeader.title);
+hoverOver(delayedBHeader.title);
+hoverOver(designHeader.title);
+await new Promise((resolve) => setTimeout(resolve, 170));
+assert.deepEqual(
+  sectionRequestBodies.slice(requestsBeforeSectionSweep).map(({ name }) => name),
+  ["Design"],
+  "a pointer sweep across section headers fetches only where it settles",
+);
 
 // Pointer movement must not dismiss a card whose toggle still owns focus.
 designHeader.toggle.focus();
@@ -1887,7 +1909,7 @@ assert.equal(window.document.getElementById("bb-thread-hover-card").hidden, true
 const writingHeader = sectionHeaderRow("Writing");
 sectionGroup.append(writingHeader.row);
 hoverOver(writingHeader.title);
-await new Promise((resolve) => setTimeout(resolve, 20));
+await new Promise((resolve) => setTimeout(resolve, 170));
 assert.equal(
   sectionCard.querySelector(".bb-section-hover-card__empty").textContent,
   "No threads yet",
@@ -1934,7 +1956,7 @@ projectItem.append(projectGroup);
 window.document.body.append(projectItem);
 
 hoverOver(nestedHeader.title);
-await new Promise((resolve) => setTimeout(resolve, 20));
+await new Promise((resolve) => setTimeout(resolve, 170));
 assert.deepEqual(sectionRequestBodies.at(-1), {
   name: "Design",
   projectId: "proj_1",
@@ -1945,7 +1967,7 @@ assert.deepEqual(sectionRequestBodies.at(-1), {
 // A project row reuses the section header markup but is not a section.
 const requestsBeforeProjectHover = sectionRequestBodies.length;
 hoverOver(projectHeader.title);
-await new Promise((resolve) => setTimeout(resolve, 20));
+await new Promise((resolve) => setTimeout(resolve, 170));
 assert.equal(
   sectionRequestBodies.length,
   requestsBeforeProjectHover,
@@ -1963,7 +1985,7 @@ nestedThreadRow.append(nestedThread);
 nestedGroup.append(nestedThreadRow);
 const requestsBeforeThreadHover = sectionRequestBodies.length;
 hoverOver(nestedThread);
-await new Promise((resolve) => setTimeout(resolve, 20));
+await new Promise((resolve) => setTimeout(resolve, 170));
 assert.equal(
   sectionRequestBodies.length,
   requestsBeforeThreadHover,
@@ -1974,7 +1996,7 @@ assert.equal(
 const quietHeader = sectionHeaderRow("Quiet");
 sectionGroup.append(quietHeader.row);
 hoverOver(quietHeader.title);
-await new Promise((resolve) => setTimeout(resolve, 20));
+await new Promise((resolve) => setTimeout(resolve, 170));
 assert.equal(
   sectionCard.querySelector(".bb-section-hover-card__headline"),
   null,
@@ -1999,7 +2021,7 @@ assert.deepEqual(
 const pinnedHeader = sectionHeaderRow("Pinned");
 sectionGroup.append(pinnedHeader.row);
 hoverOver(pinnedHeader.title);
-await new Promise((resolve) => setTimeout(resolve, 20));
+await new Promise((resolve) => setTimeout(resolve, 170));
 assert.equal(
   sectionCard.hidden,
   true,
@@ -2007,7 +2029,7 @@ assert.equal(
 );
 const requestsAfterFirstPinnedHover = sectionRequestBodies.length;
 hoverOver(pinnedHeader.title);
-await new Promise((resolve) => setTimeout(resolve, 20));
+await new Promise((resolve) => setTimeout(resolve, 170));
 assert.equal(
   sectionRequestBodies.length,
   requestsAfterFirstPinnedHover,
@@ -2017,12 +2039,12 @@ assert.equal(sectionCard.hidden, true);
 
 delayNextSectionFor.add("Delayed A");
 hoverOver(delayedAHeader.title);
-await new Promise((resolve) => setTimeout(resolve, 0));
+await new Promise((resolve) => setTimeout(resolve, 160));
 const delayedAAbortCount = abortedSectionNames.filter(
   (name) => name === "Delayed A",
 ).length;
 hoverOver(pinnedHeader.title);
-await new Promise((resolve) => setTimeout(resolve, 20));
+await new Promise((resolve) => setTimeout(resolve, 170));
 assert.equal(
   abortedSectionNames.filter((name) => name === "Delayed A").length,
   delayedAAbortCount + 1,
@@ -2032,7 +2054,7 @@ assert.equal(sectionCard.hidden, true);
 
 // Moving from a section header onto a thread row swaps the cards.
 hoverOver(designHeader.title);
-await new Promise((resolve) => setTimeout(resolve, 20));
+await new Promise((resolve) => setTimeout(resolve, 170));
 assert.equal(sectionCard.hidden, false);
 hoverOver(nestedThread);
 await new Promise((resolve) => setTimeout(resolve, 20));
@@ -2056,7 +2078,7 @@ nestedThread.dispatchEvent(
 await new Promise((resolve) => setTimeout(resolve, 140));
 nestedThread.dataset.sidebarThreadId = "thr_claude";
 hoverOver(nestedThread);
-await new Promise((resolve) => setTimeout(resolve, 20));
+await new Promise((resolve) => setTimeout(resolve, 170));
 assert.equal(
   window.document.querySelector(".bb-thread-hover-card__provider-model")
     ?.textContent,
@@ -2088,7 +2110,7 @@ nestedThread.dispatchEvent(
 await new Promise((resolve) => setTimeout(resolve, 140));
 nestedThread.dataset.sidebarThreadId = "thr_claude_version";
 hoverOver(nestedThread);
-await new Promise((resolve) => setTimeout(resolve, 20));
+await new Promise((resolve) => setTimeout(resolve, 170));
 assert.equal(
   window.document.querySelector(".bb-thread-hover-card__provider-model")
     ?.textContent,

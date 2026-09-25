@@ -386,7 +386,7 @@ describe("Improve Prompt composer action", () => {
     expect(builtJs).not.toContain("data-vaul-drawer");
     const builtCss = await readFile(resolve("dist/app.css"), "utf8");
     expect(builtCss).toContain(".bb-improve-prompt-shimmer");
-    expect(builtCss).toContain('@scope ([data-bb-plugin="prompt-shaper"]');
+    expect(builtCss).toContain(":where([data-bb-plugin=prompt-shaper]");
     expect((improveButton as HTMLButtonElement).disabled).toBe(false);
     expect(fireEvent.mouseDown(improveButton)).toBe(false);
     fireEvent.click(improveButton);

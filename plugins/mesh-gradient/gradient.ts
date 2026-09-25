@@ -377,18 +377,106 @@ export function toSvg(spec: MeshGradientSpec, options: SvgOptions = {}): string 
   );
 }
 
-export function hslToHex(hue: number, saturation: number, lightness: number): string {
+export function hslToRgb(
+  hue: number,
+  saturation: number,
+  lightness: number,
+): [number, number, number] {
   const s = saturation / 100;
   const l = lightness / 100;
   const k = (n: number) => (n + hue / 30) % 12;
   const a = s * Math.min(l, 1 - l);
-  const channel = (n: number) => {
-    const value = l - a * Math.max(-1, Math.min(k(n) - 3, Math.min(9 - k(n), 1)));
-    return Math.round(value * 255)
-      .toString(16)
-      .padStart(2, "0");
-  };
-  return `#${channel(0)}${channel(8)}${channel(4)}`;
+  const channel = (n: number) =>
+    (l - a * Math.max(-1, Math.min(k(n) - 3, Math.min(9 - k(n), 1)))) * 255;
+  return [channel(0), channel(8), channel(4)];
+}
+
+export function hslToHex(hue: number, saturation: number, lightness: number): string {
+  return `#${hslToRgb(hue, saturation, lightness)
+    .map((value) => Math.round(value).toString(16).padStart(2, "0"))
+    .join("")}`;
+}
+
+/**
+ * Sample the painted surface without a canvas, mirroring `drawMeshGradient`:
+ * the base fill, then each point as a circular fade of its color over
+ * `radius`% of the longest side, composited back-to-front. Lets the server and
+ * the panel score readability with one implementation.
+ */
+export function sampleLuminances(
+  spec: MeshGradientSpec,
+  options: { width?: number; height?: number } = {},
+): number[] {
+  const width = options.width ?? 64;
+  const height = options.height ?? 40;
+  const first = spec.points[0];
+  if (!first) throw new Error("mesh gradient has no points");
+  const base = hslToRgb(
+    first.hue,
+    first.saturation,
+    Math.max(8, round(first.lightness * 0.45)),
+  );
+  const longest = Math.max(width, height);
+  const layers = [...spec.points].reverse().map((point) => ({
+    cx: (point.x / 100) * width,
+    cy: (point.y / 100) * height,
+    radius: Math.max(1, (point.radius / 100) * longest),
+    color: hslToRgb(point.hue, point.saturation, point.lightness),
+  }));
+  const luminances: number[] = [];
+  for (let y = 0; y < height; y += 1) {
+    for (let x = 0; x < width; x += 1) {
+      let [r, g, b] = base;
+      for (const layer of layers) {
+        const distance = Math.hypot(x + 0.5 - layer.cx, y + 0.5 - layer.cy);
+        const alpha = 1 - Math.min(1, distance / layer.radius);
+        if (alpha <= 0) continue;
+        r = layer.color[0] * alpha + r * (1 - alpha);
+        g = layer.color[1] * alpha + g * (1 - alpha);
+        b = layer.color[2] * alpha + b * (1 - alpha);
+      }
+      luminances.push(
+        relativeLuminance(Math.round(r), Math.round(g), Math.round(b)),
+      );
+    }
+  }
+  return luminances;
+}
+
+export function readabilityFor(spec: MeshGradientSpec): ContrastReport {
+  return contrastReportFor(sampleLuminances(spec));
+}
+
+export function mostReadable<T extends MeshGradientSpec>(
+  specs: readonly T[],
+): T | undefined {
+  let best: T | undefined;
+  let bestRatio = -1;
+  for (const spec of specs) {
+    const ratio = readabilityFor(spec).bestRatio;
+    if (ratio > bestRatio) {
+      best = spec;
+      bestRatio = ratio;
+    }
+  }
+  return best;
+}
+
+export function readabilityLabel(report: ContrastReport): string {
+  return report.passesAA
+    ? "Readable"
+    : report.passesAALarge
+      ? "Large text only"
+      : "Hard to read";
+}
+
+/** One line for agents: which text color to use and how well it holds up. */
+export function readabilitySummary(spec: MeshGradientSpec): string {
+  const report = readabilityFor(spec);
+  if (!report.passesAALarge) {
+    return `neither white nor black text is readable everywhere (best ${report.best}, ${report.bestRatio}:1); put text on a scrim (Hard to read)`;
+  }
+  return `${report.best} text, ${report.bestRatio}:1 worst case (${readabilityLabel(report)})`;
 }
 
 export function hexToHsl(hex: string): {

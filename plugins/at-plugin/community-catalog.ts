@@ -12,7 +12,7 @@ import {
 
 export type CommunityCatalogRecord = Awaited<
   ReturnType<BbPluginApi["sdk"]["plugins"]["catalog"]["search"]>
->[number];
+>["results"][number];
 
 interface CommunityCandidate {
   entry: CommunityCatalogRecord;

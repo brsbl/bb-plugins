@@ -1,11 +1,11 @@
-import { readFile } from "node:fs/promises";
-import { dirname, resolve } from "node:path";
+import { readFile, writeFile } from "node:fs/promises";
+import { dirname, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   buildPluginApp,
   buildPluginServer,
   resolvePluginBuildToolchain,
-} from "./vendor/bb-plugin-build-0.39.0.mjs";
+} from "./vendor/bb-plugin-build-0.43.4.mjs";
 import { pluginBuildBbVersion } from "./plugin-build-provenance.mjs";
 
 const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
@@ -24,6 +24,12 @@ if (!appOnly) {
     pluginPath,
     pluginBuildBbVersion,
     toolchain,
+  );
+  const map = await readFile(server.mapPath, "utf8");
+  const portableRoot = relative(dirname(server.mapPath), repositoryRoot);
+  await writeFile(
+    server.mapPath,
+    map.replaceAll(`:${repositoryRoot}/`, `:${portableRoot}/`),
   );
   files.push(server.jsPath, server.mapPath, server.metaPath);
 }

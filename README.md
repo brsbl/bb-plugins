@@ -64,6 +64,16 @@ Organizes work into configurable workflow sections that agents follow, and keeps
 
 Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/thread-organizer --yes`
 
+### Context Katamari
+
+Shows how full each thread's context window is as a Katamari Damacy-style ball in a floating window. The ball grows as context fills, pops when the thread compacts, and rolls only while the thread is working.
+
+![Context Katamari rolling in its floating window](plugins/context-katamari/docs/screenshot.png)
+
+[Source](plugins/context-katamari) · [README](plugins/context-katamari/README.md)
+
+Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/context-katamari --yes`
+
 ### Mesh Gradient
 
 Creates, edits, saves, and shares reusable mesh gradients from a visual studio beside a thread. Users can hand an exact saved gradient to the current agent, while agents can generate gradients, inspect the shared library, and apply saved designs through the same plugin.

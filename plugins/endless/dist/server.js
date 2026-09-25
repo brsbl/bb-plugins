@@ -4,12 +4,5 @@ import { fileURLToPath as __fileURLToPath } from "node:url";
 const require = __createRequire(import.meta.url);
 var __filename = __fileURLToPath(import.meta.url);
 var __dirname = __pathDirname(__filename);
-
-// server.ts
-function plugin(bb) {
-  bb.log.info("Endless loaded");
-}
-export {
-  plugin as default
-};
+var o=Object.defineProperty;var l=(i,n)=>o(i,"name",{value:n,configurable:!0});function p(i){i.log.info("Endless loaded")}l(p,"plugin");export{p as default};
 //# sourceMappingURL=server.js.map

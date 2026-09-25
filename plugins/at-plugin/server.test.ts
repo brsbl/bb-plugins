@@ -39,21 +39,25 @@ function installed(
     app: { bundle: null, hasApp: false },
     capabilities: [capability("skill")],
     cliCommand: null,
+    collections: [],
     description: "Plugin description",
     enabled: true,
     handlerStats: { count: 0, errorCount: 0, maxMs: 0, totalMs: 0 },
     hasSettings: false,
     icon: null,
     iconUrl: null,
+    icons: {},
     id: "github",
     isOrphanedBuiltin: false,
     logoDarkUrl: null,
     logoUrl: null,
     name: "GitHub",
     provenance: "direct",
+    providerIds: [],
     publisherLabel: null,
     rootDir: "/plugins/github",
     schedules: [],
+    screenshots: [],
     services: [],
     source: "path:/plugins/github",
     sourceDisplay: "/plugins/github",
@@ -69,22 +73,27 @@ function community(
   overrides: Partial<CommunityCatalogRecord> = {},
 ): CommunityCatalogRecord {
   return {
-    author: { name: "Publisher", url: null },
+    author: { github: null, name: "Publisher", url: null },
     category: "Developer tools",
+    collections: [],
     compatible: true,
     description: "Catalog description",
     displayName: "Noema",
     entryId: "noema-entry",
     icon: null,
+    iconTinted: false,
     iconUrl: null,
     incompatibleReason: null,
     installed: false,
+    installs: null,
     marketplace: "bb-community",
     marketplaceDisplayName: "BB Community",
     official: false,
     pluginId: "noema",
     publisherKey: "publisher",
     publisherLabel: "Publisher",
+    repositoryUrl: null,
+    screenshots: [],
     source: "git:https://example.test/noema.git",
     ...overrides,
   };
@@ -146,7 +155,7 @@ describe("provider registration and package shape", () => {
     );
   });
 
-  it("uses the vendored SDK 0.4.8 and the default plugin branding", async () => {
+  it("uses the vendored SDK 0.5.9 and the default plugin branding", async () => {
     const packageText = await readFile(new URL("./package.json", import.meta.url), "utf8");
     const packageJson: unknown = JSON.parse(packageText);
 
@@ -160,7 +169,7 @@ describe("provider registration and package shape", () => {
         skills: ["skills"],
       },
       devDependencies: {
-        "@get-bb/plugin-sdk": "file:../../tooling/vendor/get-bb-plugin-sdk-0.4.8.tgz",
+        "@get-bb/plugin-sdk": "file:../../tooling/vendor/get-bb-plugin-sdk-0.5.9.tgz",
       },
     });
     expect(packageJson).not.toHaveProperty("dependencies");
