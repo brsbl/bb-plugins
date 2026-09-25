@@ -1364,9 +1364,98 @@ function Taskbar({ frame }: { frame: DockFrame | null }) {
       </div>
       <div className="bbd-tray">
         {playing && <MediaDeskband onRestore={() => manager.open({ kind: "media-player" })} />}
+        <TrayIcons />
         <TrayClock />
       </div>
     </nav>
+  );
+}
+
+interface FooterItem {
+  key: string;
+  label: string;
+  title: string;
+  iconHtml: string;
+  disclosure: boolean;
+}
+
+const OWN_FOOTER_ITEM = "plugin-sidebar-footer-action-desktop-toggle";
+
+function footerElements(): HTMLElement[] {
+  const footer = document.querySelector('[data-sidebar="footer"]');
+  return footer === null ? [] : [...footer.querySelectorAll<HTMLElement>("a[aria-label], button[aria-label]")];
+}
+
+function footerKey(element: HTMLElement): string {
+  const testId = element.dataset.testid;
+  return testId !== undefined && testId.startsWith("plugin-sidebar-footer") ? testId : element.getAttribute("aria-label") ?? "";
+}
+
+function readFooterItems(): FooterItem[] {
+  return footerElements().flatMap((element) => {
+    const key = footerKey(element);
+    const icon = element.querySelector("svg, [data-icon-root]");
+    if (key === OWN_FOOTER_ITEM || icon === null) return [];
+    const title = element.getAttribute("aria-label") ?? "";
+    return [
+      {
+        key,
+        title,
+        label: title.replace(/\s*\(.*\)$/, ""),
+        iconHtml: icon.outerHTML,
+        disclosure: element.hasAttribute("aria-expanded"),
+      },
+    ];
+  });
+}
+
+function useFooterItems(): FooterItem[] {
+  const [items, setItems] = useState<FooterItem[]>(readFooterItems);
+  useEffect(() => {
+    let last = JSON.stringify(items);
+    const sync = () => {
+      const next = readFooterItems();
+      const serialized = JSON.stringify(next);
+      if (serialized === last) return;
+      last = serialized;
+      setItems(next);
+    };
+    const timer = setInterval(sync, 1500);
+    sync();
+    return () => clearInterval(timer);
+  }, []);
+  return items;
+}
+
+function activateFooterItem(item: FooterItem) {
+  const target = footerElements().find((element) => footerKey(element) === item.key);
+  if (target === undefined) return;
+  const collapsed = document.querySelector('.peer[data-side="left"][data-state="collapsed"]') !== null;
+  if (item.disclosure && collapsed) {
+    document.querySelector<HTMLElement>('button[data-sidebar="trigger"]')?.click();
+    requestAnimationFrame(() => requestAnimationFrame(() => target.click()));
+    return;
+  }
+  target.click();
+}
+
+function TrayIcons() {
+  const items = useFooterItems();
+  if (items.length === 0) return null;
+  return (
+    <div className="bbd-tray-icons" role="group" aria-label="Sidebar footer">
+      {items.map((item) => (
+        <button
+          key={item.key}
+          type="button"
+          className="bbd-tray-icon"
+          aria-label={item.label}
+          title={item.title}
+          onClick={() => activateFooterItem(item)}
+          dangerouslySetInnerHTML={{ __html: item.iconHtml }}
+        />
+      ))}
+    </div>
   );
 }
 

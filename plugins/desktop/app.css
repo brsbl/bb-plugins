@@ -505,6 +505,31 @@
   background: linear-gradient(var(--bbd-green-deep), var(--bbd-green) 60%, var(--bbd-green-deep));
 }
 
+.bbd-tray-icons {
+  display: flex;
+  align-items: center;
+  gap: 1px;
+  margin-left: -8px;
+}
+
+.bbd-tray-icon {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 5px;
+  color: var(--bbd-white);
+}
+
+.bbd-tray-icon svg {
+  width: 16px;
+  height: 16px;
+}
+
+.bbd-tray-icon:hover {
+  background: color-mix(in oklab, var(--bbd-white) 22%, transparent);
+}
+
 .bbd-quick {
   display: flex;
   flex: none;
