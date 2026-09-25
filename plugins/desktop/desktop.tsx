@@ -429,7 +429,7 @@ function DesktopData() {
     if (!ready || element === null) return;
     const measure = () => {
       const rect = element.getBoundingClientRect();
-      setDockFrame({ left: rect.left + rect.width / 2, width: rect.width });
+      setDockFrame({ left: rect.left + rect.width / 2, maxWidth: rect.width });
     };
     const observer = new ResizeObserver(measure);
     for (let node: Element | null = element; node !== null; node = node.parentElement) observer.observe(node);
@@ -855,7 +855,7 @@ function windowArt(spec: WindowSpec, desktop: DesktopContextValue, size: number)
 
 interface DockFrame {
   left: number;
-  width: number;
+  maxWidth: number;
 }
 
 function Dock({ frame }: { frame: DockFrame | null }) {

@@ -443,7 +443,8 @@
   display: flex;
   align-items: stretch;
   gap: 4px;
-  width: min(880px, calc(100vw - 24px));
+  width: max-content;
+  max-width: min(880px, calc(100vw - 24px));
   height: 44px;
   padding: 4px;
   transform: translateX(-50%);
@@ -509,7 +510,7 @@
 
 .bbd-tasks {
   display: flex;
-  flex: 1;
+  flex: 0 1 auto;
   align-items: stretch;
   gap: 4px;
   min-width: 0;
@@ -517,10 +518,11 @@
 
 .bbd-task {
   display: flex;
-  flex: 0 1 172px;
+  flex: 0 1 auto;
   align-items: center;
   gap: 7px;
   min-width: 36px;
+  max-width: 172px;
   padding: 0 10px 0 8px;
   border-radius: 9px;
   color: inherit;
