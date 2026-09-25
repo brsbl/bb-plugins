@@ -1,7 +1,9 @@
 import { definePluginApp } from "@get-bb/plugin-sdk/app";
 
 import "./app.css";
-import { Desktop, toggleDesktop } from "./desktop";
+import { Desktop } from "./desktop";
+import { toggleDesktop } from "./enabled";
+import { mountStickyNotes, StickyNoteHeaderButton } from "./sticky-notes";
 
 export default definePluginApp((app) => {
   app.slots.homepageSection({
@@ -15,4 +17,10 @@ export default definePluginApp((app) => {
     icon: "AppWindow",
     run: toggleDesktop,
   });
+  app.slots.experimental_threadHeaderAction({
+    id: "sticky-note",
+    title: "Sticky notes",
+    component: StickyNoteHeaderButton,
+  });
+  app.contentScripts.register({ id: "sticky-notes", mount: mountStickyNotes });
 });

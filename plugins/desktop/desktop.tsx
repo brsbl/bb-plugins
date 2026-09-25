@@ -6,7 +6,6 @@ import {
   useMemo,
   useRef,
   useState,
-  useSyncExternalStore,
   type DragEvent as ReactDragEvent,
   type MouseEvent as ReactMouseEvent,
   type PointerEvent as ReactPointerEvent,
@@ -38,6 +37,7 @@ import {
   ListViewGlyph,
   MediaPlayerArt,
   NewThreadGlyph,
+  StickyNoteGlyph,
   PanelRightGlyph,
   ThreadArt,
   ThreadsGlyph,
@@ -64,7 +64,9 @@ import {
   type SortDirection,
   type SortKey,
 } from "./core";
+import { useDesktopEnabled } from "./enabled";
 import { MediaDeskband, MediaPlayerWindow } from "./media-player";
+import { addStickyNote } from "./sticky-notes";
 import type { DesktopSnapshot, rpcContract } from "./server";
 import {
   WindowFrame,
@@ -257,39 +259,8 @@ function useDesktopData() {
   return { snapshot, error, refresh, call };
 }
 
-const ENABLED_KEY = "bb-desktop:enabled";
-const enabledListeners = new Set<() => void>();
-
-function readEnabled(): boolean {
-  return typeof localStorage === "undefined" || localStorage.getItem(ENABLED_KEY) !== "false";
-}
-
-function subscribeEnabled(listener: () => void) {
-  enabledListeners.add(listener);
-  const onStorage = (event: StorageEvent) => {
-    if (event.key === ENABLED_KEY) listener();
-  };
-  window.addEventListener("storage", onStorage);
-  return () => {
-    enabledListeners.delete(listener);
-    window.removeEventListener("storage", onStorage);
-  };
-}
-
-export function toggleDesktop() {
-  const enabled = !readEnabled();
-  localStorage.setItem(ENABLED_KEY, String(enabled));
-  for (const listener of enabledListeners) listener();
-  toast.success(enabled ? "Desktop turned on" : "Desktop turned off");
-  if (enabled && window.location.pathname !== "/") {
-    window.history.pushState(null, "", "/");
-    window.dispatchEvent(new PopStateEvent("popstate"));
-  }
-}
-
 export function Desktop() {
-  const enabled = useSyncExternalStore(subscribeEnabled, readEnabled);
-  if (!enabled) return null;
+  if (!useDesktopEnabled()) return null;
   return (
     <WindowManagerProvider>
       <DesktopData />
@@ -695,7 +666,7 @@ const PAGE_MENU_IGNORED = [
 
 function usePageBackgroundMenu(
   canvasRef: RefObject<HTMLDivElement | null>,
-  entries: () => MenuEntry[],
+  entries: (event: MenuTrigger) => MenuEntry[],
 ) {
   const desktop = useDesktop();
   const latest = useRef({ desktop, entries });
@@ -712,7 +683,7 @@ function usePageBackgroundMenu(
       }
       if (node === null) return;
       if (window.getSelection()?.isCollapsed === false) return;
-      latest.current.desktop.openMenu(event, latest.current.entries());
+      latest.current.desktop.openMenu(event, latest.current.entries(event));
     };
     page.addEventListener("contextmenu", onContextMenu);
     return () => page.removeEventListener("contextmenu", onContextMenu);
@@ -814,7 +785,17 @@ function DesktopCanvas() {
       run: tileWindows,
     },
   ];
-  const canvasMenu = (): MenuEntry[] => [...commands, "separator", ...viewMenuEntries(desktop)];
+  const canvasMenu = (event: MenuTrigger): MenuEntry[] => [
+    ...commands.slice(0, 2),
+    {
+      label: "New sticky note",
+      icon: <StickyNoteGlyph className="size-3.5" />,
+      run: () => addStickyNote({ left: event.clientX, top: event.clientY }),
+    },
+    ...commands.slice(2),
+    "separator",
+    ...viewMenuEntries(desktop),
+  ];
   usePageBackgroundMenu(canvasRef, canvasMenu);
 
   const bottom = Math.max(
@@ -831,7 +812,7 @@ function DesktopCanvas() {
         onPointerDown={(event) => {
           if (event.target === event.currentTarget) setSelected(null);
         }}
-        onContextMenu={(event) => desktop.openMenu(event, canvasMenu())}
+        onContextMenu={(event) => desktop.openMenu(event, canvasMenu(event))}
       >
         {items.map((item) => (
           <DesktopIcon

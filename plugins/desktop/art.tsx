@@ -17,6 +17,7 @@ import {
   NextIcon,
   PlayIcon,
   PreviousIcon,
+  StickyNote03Icon,
   StopIcon,
   PinIcon,
   SidebarRightIcon,
@@ -57,6 +58,7 @@ export const RestoreGlyph = bbGlyph(CollapseIcon);
 export const CloseGlyph = bbGlyph(Cancel01Icon);
 export const PlayGlyph = bbGlyph(PlayIcon);
 export const StopGlyph = bbGlyph(StopIcon);
+export const StickyNoteGlyph = bbGlyph(StickyNote03Icon);
 export const NextGlyph = bbGlyph(NextIcon);
 export const PreviousGlyph = bbGlyph(PreviousIcon);
 
