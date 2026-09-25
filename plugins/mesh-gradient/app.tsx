@@ -555,6 +555,27 @@ function ProposalTile({
   );
 }
 
+function samePoints(
+  a: MeshGradientSpec["points"],
+  b: MeshGradientSpec["points"],
+): boolean {
+  return (
+    a === b ||
+    (a.length === b.length &&
+      a.every((point, index) => {
+        const other = b[index]!;
+        return (
+          point.x === other.x &&
+          point.y === other.y &&
+          point.hue === other.hue &&
+          point.saturation === other.saturation &&
+          point.lightness === other.lightness &&
+          point.radius === other.radius
+        );
+      }))
+  );
+}
+
 const PROPOSAL_REQUEST =
   "Propose three mesh gradients for this project with the mesh_gradient tool (action=propose), each with a short name and a note on why it fits. Base them on ";
 
@@ -1286,7 +1307,7 @@ function Studio({ threadId }: PluginThreadPanelProps) {
                   <ProposalTile
                     key={proposal.id}
                     proposal={proposal}
-                    active={proposal.points === spec.points}
+                    active={samePoints(proposal.points, spec.points)}
                     onLoad={loadProposal}
                     onDismiss={(id) => void dismissProposal(id)}
                   />
