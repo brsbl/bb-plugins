@@ -73,7 +73,7 @@
 .video-markup-inline { height: auto; margin: 12px 0; border-width: 1px; border-radius: var(--radius); overflow: hidden; }
 .video-markup-inline-header { padding: 10px 12px; border-bottom-width: 1px; }
 .video-markup-inline>.video-markup-player { padding: 10px; }
-.video-markup-inline>.video-markup-notice { padding: 12px; }
+.video-markup>.video-markup-notice { padding: 12px 16px; }
 @container (max-width:380px) {
   .video-markup-header,.video-markup-review { padding: 12px; }
   .video-markup-time span { display: none; }

@@ -58,9 +58,9 @@ async function captureFrame(video: HTMLVideoElement): Promise<Still> {
   return {dataUrl, width: canvas.width, height: canvas.height};
 }
 
-function Player({preview, version, onSave, onDirty, compact = false, seekRequest, noteRequest, nextNoteNumber, frameProbe}: {
+function Player({preview, version, onSave, onDirty, onMediaError, compact = false, seekRequest, noteRequest, nextNoteNumber, frameProbe}: {
   preview: Preview; version?: Version; onSave?: (fields: {timestamp: number; text: string; shapes: Shape[]; still: Still}) => Promise<void>;
-  onDirty?: (value: boolean) => void; compact?: boolean; seekRequest?: {time: number; shapes: Shape[]; sequence: number; noteNumber: number}; noteRequest?: number; nextNoteNumber?: number; frameProbe?: "pending" | "failed";
+  onDirty?: (value: boolean) => void; onMediaError?: () => void; compact?: boolean; seekRequest?: {time: number; shapes: Shape[]; sequence: number; noteNumber: number}; noteRequest?: number; nextNoteNumber?: number; frameProbe?: "pending" | "failed";
 }) {
   const video = useRef<HTMLVideoElement>(null);
   const [time, setTime] = useState(0), [duration, setDuration] = useState(preview.media.duration);
@@ -86,7 +86,7 @@ function Player({preview, version, onSave, onDirty, compact = false, seekRequest
   // Jumping to a note from the list must show the frame, even when the player is scrolled away.
   useEffect(() => { if (seekRequest && !draft) { seek(seekRequest.time); setShapes(seekRequest.shapes); root.current?.scrollIntoView?.({block: "nearest", behavior: "smooth"}); } }, [seekRequest, seek]);
   // Keep Save and Cancel on screen when a note opens under the player.
-  useEffect(() => { if (draft) editor.current?.scrollIntoView?.({block: "nearest", behavior: "smooth"}); }, [draft]);
+  useEffect(() => { if (draft) editor.current?.scrollIntoView?.({block: "nearest", behavior: "smooth"}); }, [draft, tool]);
   useEffect(() => () => onDirty?.(false), [onDirty]);
   // The Notes section owns the Note button; each press starts a note on the paused frame.
   useEffect(() => { if (noteRequest) void beginNote(); }, [noteRequest]);
@@ -117,7 +117,7 @@ function Player({preview, version, onSave, onDirty, compact = false, seekRequest
         onLoadedData={() => setReady(true)} onTimeUpdate={e => setTime(e.currentTarget.currentTime)}
         onPlay={() => setPlaying(true)} onPause={() => setPlaying(false)} onEnded={() => setPlaying(false)}
         onSeeking={() => setSeeking(true)} onSeeked={() => setSeeking(false)}
-        onError={() => setError("This browser cannot play the file or its preview expired. Reload the version; for MOV codec compatibility, render an H.264 MP4 review copy.")} />
+        onError={() => onMediaError ? onMediaError() : setError("This browser cannot play the file or its preview expired. Reload the version; for MOV codec compatibility, render an H.264 MP4 review copy.")} />
       {shapes.length > 0 || drawing ? <ShapeOverlay shapes={[...shapes, ...(drawing ? [drawing] : [])]} noteNumber={draft ? nextNoteNumber : seekRequest?.noteNumber} /> : null}
       {draft && tool && <div className="video-markup-draw" aria-label={`Draw ${tool} on the paused frame`} onPointerDown={e => {
         if (shapes.length >= 30 || busy || e.button !== 0) return; e.preventDefault(); e.currentTarget.setPointerCapture(e.pointerId); const p = point(e);
@@ -197,7 +197,7 @@ function NoteList({threadId, version, notes, onSeek, onRefresh, onAddNote, disab
       </Select>
       </div>
     </div>
-    {notes.length>0 && <div className="video-markup-row video-markup-selection">
+    {actionable.length>0 && <div className="video-markup-row video-markup-selection">
       <div className="video-markup-check text-xs text-muted-foreground">
         <Checkbox id={selectionId} checked={allSelected ? true : validSelected.length ? "indeterminate" : false} disabled={!actionable.length || busy} onCheckedChange={checked=>setSelected(checked===true ? actionable.slice(0,12).map(n=>n.id) : [])} />
         <label htmlFor={selectionId}>Select open notes</label>
@@ -291,13 +291,22 @@ export function VideoMarkupFileViewer({path,source}: PluginFileOpenerProps) {
   return <main className="video-markup video-markup-review bg-background text-foreground">{error?<ErrorNotice>{error}</ErrorNotice>:version&&source.threadId?<ReviewVersion threadId={source.threadId} versionId={version.id}/>:preview?<><Player key={path} preview={preview} frameProbe={frameProbe}/>{source.threadId?<AddVideo threadId={source.threadId} file={path} source={source} onRegistered={setVersion}/>:<Notice>Open this video from a thread to leave notes.</Notice>}</>:<Notice>Opening video…</Notice>}</main>;
 }
 
+// The chat list remounts directives as they scroll. Reusing a still-valid preview keeps the
+// player from collapsing to "Loading video…" and reloading its media on every remount.
+const inlineCache = new Map<string, {preview: Preview; version: Version}>();
+function cachedInline(key: string) { const hit = inlineCache.get(key); return hit && hit.preview.expiresAt > Date.now() + 60_000 ? hit : null; }
+
 export function VideoMarkupInline({attributes,message}:PluginMessageDirectiveProps) {
   const rpc=useRpc<typeof videoMarkupContract>(),navigate=useBbNavigate();
-  const [preview,setPreview]=useState<Preview|null>(null),[version,setVersion]=useState<Version|null>(null),[error,setError]=useState("");
-  const [expanded,setExpanded]=useState(false);
-  useEffect(()=>{let cancelled=false;setPreview(null);setVersion(null);setError("");void Promise.all([rpc.call("preview",{threadId:message.threadId,versionId:attributes.version??""}),rpc.call("version",{threadId:message.threadId,versionId:attributes.version??""})]).then(([p,v])=>{if(!cancelled){setPreview(p);setVersion(v);}}).catch(e=>{if(!cancelled)setError(errorText(e));});return()=>{cancelled=true;};},[rpc,message.threadId,attributes.version]);
+  const key=`${message.threadId}:${attributes.version ?? ""}`;
+  const [preview,setPreview]=useState<Preview|null>(()=>cachedInline(key)?.preview ?? null),[version,setVersion]=useState<Version|null>(()=>cachedInline(key)?.version ?? null),[error,setError]=useState("");
+  const [expanded,setExpanded]=useState(false),[reload,setReload]=useState(0);
+  useEffect(()=>{
+    const hit=reload ? null : cachedInline(key); if(hit){setPreview(hit.preview);setVersion(hit.version);return;}
+    let cancelled=false;setPreview(null);setVersion(null);setError("");void Promise.all([rpc.call("preview",{threadId:message.threadId,versionId:attributes.version??""}),rpc.call("version",{threadId:message.threadId,versionId:attributes.version??""})]).then(([p,v])=>{inlineCache.set(key,{preview:p,version:v});if(!cancelled){setPreview(p);setVersion(v);}}).catch(e=>{if(!cancelled)setError(errorText(e));});return()=>{cancelled=true;};
+  },[rpc,key,message.threadId,attributes.version,reload]);
   return <section className="video-markup video-markup-inline border-border bg-background text-foreground"><header className="video-markup-row video-markup-inline-header border-border"><div><span className="video-markup-brand text-xs"><Clapperboard size={14}/>Video Markup</span>{version&&<p className="text-sm font-medium">{version.demo} <span className="text-muted-foreground">· {videoName(version.media.path)}</span></p>}</div>{version&&<Button variant="ghost" size="sm" onClick={()=>{if(!openVersion(navigate,message.threadId,version.id))setExpanded(v=>!v);}}>Review notes</Button>}</header>
-    {error?<ErrorNotice>{error}</ErrorNotice>:preview?<Player key={attributes.version} preview={preview} version={version??undefined} compact/>:<Notice>Loading video…</Notice>}
+    {error?<ErrorNotice>{error}</ErrorNotice>:preview?<Player key={`${attributes.version}-${reload}`} preview={preview} version={version??undefined} compact onMediaError={reload ? undefined : ()=>{inlineCache.delete(key);setReload(1);}}/>:<Notice>Loading video…</Notice>}
     {expanded&&version&&<VideoMarkupPanel threadId={message.threadId} params={{versionId:version.id}}/>}
   </section>;
 }

@@ -141,7 +141,8 @@ describe("Video Markup UI contracts",()=>{
     fireEvent.keyDown(slot.getByRole("combobox",{name:"Status for note at 00:15.000"}),{key:"ArrowDown"});
     fireEvent.click(await slot.findByRole("option",{name:"Fixed"}));
     await waitFor(()=>expect(slot.inspection.rpcCalls.find(c=>c.method==="status")?.input).toEqual({threadId:"thr_demo",noteId:"n2",status:"fixed"}));
-    await waitFor(()=>expect(slot.getByRole("button",{name:"Add to prompt"}).hasAttribute("disabled")).toBe(true));
+    // With nothing left to send, the selection row goes away instead of offering a dead button.
+    await waitFor(()=>expect(slot.queryByRole("button",{name:"Add to prompt"})).toBeNull());
     expect(within(slot.getByRole("article",{name:"Note 2"})).getByRole("button",{name:"Go to note 2 at 00:15.000"})).toBeTruthy();
     slot.lifecycle.unmount();
   });
