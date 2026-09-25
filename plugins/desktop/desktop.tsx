@@ -2626,7 +2626,7 @@ function ThreadCollection({
             <span className="flex min-w-0 flex-col">
               <span className={`truncate ${thread.isUnread ? "font-semibold" : ""}`}>{thread.title}</span>
               {showFolders && desktop.foldersOf(thread.id).length > 0 ? (
-                <span className="flex min-w-0 items-center gap-1 text-muted-foreground">
+                <span className="bbd-row-folders flex min-w-0 items-center gap-1">
                   <FolderArt kind="section" size={12} />
                   <span className="truncate">{desktop.foldersOf(thread.id).join(", ")}</span>
                 </span>

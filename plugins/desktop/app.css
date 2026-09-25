@@ -366,6 +366,14 @@
   background: var(--bbd-hover);
 }
 
+.bbd-row-folders {
+  color: var(--muted-foreground);
+}
+
+.bbd-row[aria-selected="true"] .bbd-row-folders {
+  color: color-mix(in oklch, var(--bbd-white) 85%, var(--bbd-select));
+}
+
 .bbd-statusbar {
   display: flex;
   gap: 12px;
