@@ -97,6 +97,8 @@ body.bb-app-shell > #root div.fixed > button[aria-label*="right panel" i] { ${GL
 body.bb-app-shell > #root [data-sidebar="panel"] { border-inline-end-color: transparent; }
 :is(${CHROME_PILLS}) { ${GLASS_SURFACE} border-radius: 12px; padding-inline: 6px; }
 body.bb-app-shell > #root :is([data-testid="app-page-header-content-row"] > :first-child, [data-testid="app-sidebar-top-reserve-row"] > div) { margin-inline: -6px; }
+body.bb-app-shell > #root [data-testid="app-desktop-sidebar-trigger"][class~="left-[84px]"] { margin-inline-start: 6px; }
+body.bb-app-shell > #root [data-testid="app-page-header-content-row"][class~="pl-[104px]"] { padding-inline-start: 110px; }
 body.bb-app-shell > #root button[data-sidebar="trigger"] { margin-inline: -4px 0; width: 32px; height: 32px; }
 body.bb-app-shell > #root [data-testid="app-sidebar-top-reserve-row"] > div:nth-child(n) { margin-inline-end: 0; min-height: 32px; }
 body.bb-app-shell > #root [data-testid="app-page-header-content-row"] > :first-child { flex: 0 1 auto; min-width: 0; min-height: 32px; margin-inline-end: 4px; padding-inline-start: 12px; }
