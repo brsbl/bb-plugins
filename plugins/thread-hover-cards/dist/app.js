@@ -1206,6 +1206,7 @@ var SECTION_SUMMARY_CACHE_TTL_MS = 4e3;
 var SECTION_CACHE_MAX_ENTRIES = 32;
 var SECTION_UNKNOWN_TTL_MS = 6e4;
 var OPEN_DELAY_MS = 0;
+var POINTER_SUMMARY_SETTLE_MS = 150;
 var CLOSE_DELAY_MS = 120;
 var ACTIVE_SUMMARY_CACHE_TTL_MS = 2e3;
 var IDLE_SUMMARY_CACHE_TTL_MS = 5e3;
@@ -2050,6 +2051,7 @@ function installHoverCards({ onOpen }) {
   let activeThreadId = null;
   let openTimer = null;
   let closeTimer = null;
+  let summaryTimer = null;
   let timeTimer = null;
   let disposed = false;
   let requestGeneration = 0;
@@ -2450,9 +2452,15 @@ function installHoverCards({ onOpen }) {
     if (triggerIndex < 0) return null;
     return candidates[(triggerIndex + 1) % candidates.length] ?? null;
   }
-  function showCard(trigger, requestedAt = monotonicNow()) {
+  function cancelSummaryRequest() {
+    if (!summaryTimer) return;
+    clearTimeout(summaryTimer);
+    summaryTimer = null;
+  }
+  function showCard(trigger, requestedAt = monotonicNow(), summaryDelayMs = 0) {
     const threadId = threadIdFor(trigger);
     if (!threadId || disposed) return;
+    cancelSummaryRequest();
     onOpen();
     activeTrigger?.removeAttribute("aria-describedby");
     activeTrigger = trigger;
@@ -2496,6 +2504,21 @@ function installHoverCards({ onOpen }) {
         return;
       }
     }
+    if (summaryDelayMs > 0) {
+      const loadWhenSettled = () => {
+        if (closeTimer) {
+          summaryTimer = setTimeout(loadWhenSettled, summaryDelayMs);
+          return;
+        }
+        summaryTimer = null;
+        loadSummary(threadId, cached, generation, hoverCard, requestedAt);
+      };
+      summaryTimer = setTimeout(loadWhenSettled, summaryDelayMs);
+      return;
+    }
+    loadSummary(threadId, cached, generation, hoverCard, requestedAt);
+  }
+  function loadSummary(threadId, cached, generation, hoverCard, requestedAt) {
     void requestSummary(
       threadId,
       cached ? "stale" : "miss",
@@ -2551,23 +2574,24 @@ function installHoverCards({ onOpen }) {
     clearTimeout(closeTimer);
     closeTimer = null;
   }
-  function scheduleOpen(trigger, delay) {
+  function scheduleOpen(trigger, delay, summaryDelayMs = 0) {
     cancelOpen();
     cancelClose();
     if (activeTrigger === trigger && card && !card.hidden) return;
     const requestedAt = monotonicNow();
     if (delay <= 0) {
-      showCard(trigger, requestedAt);
+      showCard(trigger, requestedAt, summaryDelayMs);
       return;
     }
     openTimer = setTimeout(() => {
       openTimer = null;
-      showCard(trigger, requestedAt);
+      showCard(trigger, requestedAt, summaryDelayMs);
     }, delay);
   }
   function closeCard() {
     cancelOpen();
     cancelClose();
+    cancelSummaryRequest();
     requestGeneration += 1;
     activeTrigger?.removeAttribute("aria-describedby");
     activeTrigger = null;
@@ -2599,7 +2623,7 @@ function installHoverCards({ onOpen }) {
     if (!trigger) return;
     const previousTrigger = findThreadTrigger(event.relatedTarget);
     if (previousTrigger === trigger) return;
-    scheduleOpen(trigger, OPEN_DELAY_MS);
+    scheduleOpen(trigger, OPEN_DELAY_MS, POINTER_SUMMARY_SETTLE_MS);
   }
   function onPointerOut(event) {
     const trigger = findThreadTrigger(event.target);
@@ -2739,6 +2763,7 @@ function installSectionHoverCards({
   let card = null;
   let active = null;
   let closeTimer = null;
+  let summaryTimer = null;
   let generation = 0;
   let disposed = false;
   const cache = /* @__PURE__ */ new Map();
@@ -2786,8 +2811,14 @@ function installSectionHoverCards({
     for (const controller of pending.values()) controller.abort();
     pending.clear();
   }
+  function cancelSummaryRequest() {
+    if (!summaryTimer) return;
+    clearTimeout(summaryTimer);
+    summaryTimer = null;
+  }
   function closeCard() {
     cancelClose();
+    cancelSummaryRequest();
     generation += 1;
     abortPendingRequests();
     active?.toggle.removeAttribute("aria-describedby");
@@ -2835,7 +2866,7 @@ function installSectionHoverCards({
       if (pending.get(key) === controller) pending.delete(key);
     });
   }
-  function showCard(target) {
+  function showCard(target, summaryDelayMs = 0) {
     const knownUnknownAt = unknownSections.get(keyOf(target));
     if (disposed) return;
     if (knownUnknownAt !== void 0 && Date.now() - knownUnknownAt < SECTION_UNKNOWN_TTL_MS) {
@@ -2844,6 +2875,7 @@ function installSectionHoverCards({
     }
     onOpen();
     cancelClose();
+    cancelSummaryRequest();
     abortPendingRequests();
     active?.toggle.removeAttribute("aria-describedby");
     active = target;
@@ -2870,26 +2902,41 @@ function installSectionHoverCards({
       );
       return;
     }
-    void requestSummary(target).then((summary) => {
-      if (!summary.known) {
-        if (!disposed && requestGeneration === generation) closeCard();
-        return;
-      }
-      if (disposed || requestGeneration !== generation) return;
-      renderSectionSummary(hoverCard, summary);
-      requestAnimationFrame(position);
-      setHoverCardRenderState(hoverCard, "summary");
-      void markHoverCardComplete(
-        hoverCard,
-        () => !disposed && requestGeneration === generation && active !== null
-      );
-    }).catch((error) => {
-      if (disposed || requestGeneration !== generation || cached) return;
-      if (isAbortError(error)) return;
-      renderError(hoverCard);
-      setHoverCardRenderState(hoverCard, "error");
-      requestAnimationFrame(position);
-    });
+    const loadSummary = () => {
+      void requestSummary(target).then((summary) => {
+        if (!summary.known) {
+          if (!disposed && requestGeneration === generation) closeCard();
+          return;
+        }
+        if (disposed || requestGeneration !== generation) return;
+        renderSectionSummary(hoverCard, summary);
+        requestAnimationFrame(position);
+        setHoverCardRenderState(hoverCard, "summary");
+        void markHoverCardComplete(
+          hoverCard,
+          () => !disposed && requestGeneration === generation && active !== null
+        );
+      }).catch((error) => {
+        if (disposed || requestGeneration !== generation || cached) return;
+        if (isAbortError(error)) return;
+        renderError(hoverCard);
+        setHoverCardRenderState(hoverCard, "error");
+        requestAnimationFrame(position);
+      });
+    };
+    if (summaryDelayMs > 0) {
+      const loadWhenSettled = () => {
+        if (closeTimer) {
+          summaryTimer = setTimeout(loadWhenSettled, summaryDelayMs);
+          return;
+        }
+        summaryTimer = null;
+        loadSummary();
+      };
+      summaryTimer = setTimeout(loadWhenSettled, summaryDelayMs);
+      return;
+    }
+    loadSummary();
   }
   function onPointerOver(event) {
     if (event.pointerType === "touch") return;
@@ -2899,7 +2946,7 @@ function installSectionHoverCards({
       cancelClose();
       return;
     }
-    showCard(target);
+    showCard(target, POINTER_SUMMARY_SETTLE_MS);
   }
   function onPointerOut(event) {
     if (!findSectionTrigger(event.target)) return;
