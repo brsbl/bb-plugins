@@ -1985,7 +1985,7 @@ nestedThreadRow.append(nestedThread);
 nestedGroup.append(nestedThreadRow);
 const requestsBeforeThreadHover = sectionRequestBodies.length;
 hoverOver(nestedThread);
-await new Promise((resolve) => setTimeout(resolve, 20));
+await new Promise((resolve) => setTimeout(resolve, 170));
 assert.equal(
   sectionRequestBodies.length,
   requestsBeforeThreadHover,
