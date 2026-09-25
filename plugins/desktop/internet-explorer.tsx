@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState, type FormEvent } from "react";
 
 import type { DesktopWindow } from "./windows";
 
@@ -44,6 +44,16 @@ export function nativeBrowser(): NativeBrowser | null {
 
 export function closeInternetExplorer() {
   nativeBrowser()?.detach(TAB_ID);
+}
+
+export function threadBrowserTab(tabId: string): { tabId: string; urlKey: string } {
+  return { tabId: `bb-desktop-thread-browser-${tabId}`, urlKey: `bb-desktop:thread-browser:${tabId}:url` };
+}
+
+export function closeThreadBrowser(tabId: string) {
+  const tab = threadBrowserTab(tabId);
+  nativeBrowser()?.detach(tab.tabId);
+  localStorage.removeItem(tab.urlKey);
 }
 
 const OCCLUDERS = [
@@ -99,8 +109,8 @@ function normalizeAddress(input: string): string | null {
   return `https://www.google.com/search?q=${encodeURIComponent(text)}`;
 }
 
-function storedUrl(): string {
-  const stored = localStorage.getItem(URL_KEY);
+function storedUrl(urlKey: string): string {
+  const stored = localStorage.getItem(urlKey);
   return stored !== null && /^https?:\/\//.test(stored) ? stored : BROWSER_HOME;
 }
 
@@ -158,10 +168,14 @@ function HomeArt() {
 
 export function InternetExplorer({
   window: desktopWindow,
+  tabId = TAB_ID,
+  urlKey = URL_KEY,
   loadThread,
   onTitle,
 }: {
   window: DesktopWindow;
+  tabId?: string;
+  urlKey?: string;
   loadThread: () => Promise<string>;
   onTitle: (title: string | null) => void;
 }) {
@@ -170,11 +184,12 @@ export function InternetExplorer({
   const [threadId, setThreadId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [state, setState] = useState<BrowserState | null>(null);
-  const [address, setAddress] = useState(storedUrl);
+  const [address, setAddress] = useState(() => storedUrl(urlKey));
   const [editing, setEditing] = useState(false);
   const [shown, setShown] = useState(false);
   const lastBounds = useRef<ViewBounds | null>(null);
   const shownRef = useRef(false);
+  const addressId = useId();
   const onTitleRef = useRef(onTitle);
   onTitleRef.current = onTitle;
 
@@ -198,12 +213,12 @@ export function InternetExplorer({
     if (browser === null || threadId === null || element === null) return;
     const bounds = readBounds(element);
     lastBounds.current = bounds;
-    browser.attach({ tabId: TAB_ID, threadId, url: storedUrl(), bounds, visible: false });
+    browser.attach({ tabId, threadId, url: storedUrl(urlKey), bounds, visible: false });
     const unsubscribe = browser.onState((next) => {
-      if (next.tabId !== TAB_ID) return;
+      if (next.tabId !== tabId) return;
       setState(next);
       if (next.url !== "") {
-        localStorage.setItem(URL_KEY, next.url);
+        localStorage.setItem(urlKey, next.url);
         setAddress((current) => (document.activeElement?.classList.contains("bbd-ie-address") ? current : next.url));
       }
       onTitleRef.current(next.title);
@@ -211,9 +226,9 @@ export function InternetExplorer({
     return () => {
       unsubscribe();
       shownRef.current = false;
-      browser.setVisible({ tabId: TAB_ID, visible: false });
+      browser.setVisible({ tabId, visible: false });
     };
-  }, [browser, threadId]);
+  }, [browser, threadId, tabId, urlKey]);
 
   const sync = useCallback((reassert = false) => {
     const element = viewRef.current;
@@ -234,15 +249,15 @@ export function InternetExplorer({
       previous.height !== bounds.height
     ) {
       lastBounds.current = bounds;
-      browser.setBounds({ tabId: TAB_ID, bounds });
+      browser.setBounds({ tabId, bounds });
     }
     if (shownRef.current === visible && !reassert) return;
     shownRef.current = visible;
-    const request = { tabId: TAB_ID, visible };
+    const request = { tabId, visible };
     if (browser.setVisibleWithoutFocus !== undefined) browser.setVisibleWithoutFocus(request);
     else browser.setVisible(request);
     setShown(visible);
-  }, [browser, threadId, desktopWindow.minimized, desktopWindow.z]);
+  }, [browser, threadId, tabId, desktopWindow.minimized, desktopWindow.z]);
 
   useLayoutEffect(() => sync(), [sync, desktopWindow.rect]);
 
@@ -268,7 +283,7 @@ export function InternetExplorer({
     event.preventDefault();
     const url = normalizeAddress(address);
     if (url === null || browser === null) return;
-    browser.navigate({ tabId: TAB_ID, url });
+    browser.navigate({ tabId, url });
     (document.activeElement as HTMLElement | null)?.blur();
   };
 
@@ -289,29 +304,29 @@ export function InternetExplorer({
   return (
     <div className="bbd-ie flex h-full flex-col">
       <div className="bbd-ie-toolbar flex-none">
-        <button type="button" className="bbd-ie-nav" disabled={disabled || state?.canGoBack !== true} onClick={() => browser?.goBack(TAB_ID)}>
+        <button type="button" className="bbd-ie-nav" disabled={disabled || state?.canGoBack !== true} onClick={() => browser?.goBack(tabId)}>
           <NavArt kind="back" />
           <span>Back</span>
         </button>
-        <button type="button" className="bbd-ie-nav" aria-label="Forward" title="Forward" disabled={disabled || state?.canGoForward !== true} onClick={() => browser?.goForward(TAB_ID)}>
+        <button type="button" className="bbd-ie-nav" aria-label="Forward" title="Forward" disabled={disabled || state?.canGoForward !== true} onClick={() => browser?.goForward(tabId)}>
           <NavArt kind="forward" />
         </button>
-        <button type="button" className="bbd-ie-tool" aria-label="Stop" title="Stop" disabled={disabled || !loading} onClick={() => browser?.stop(TAB_ID)}>
+        <button type="button" className="bbd-ie-tool" aria-label="Stop" title="Stop" disabled={disabled || !loading} onClick={() => browser?.stop(tabId)}>
           <StopArt />
         </button>
-        <button type="button" className="bbd-ie-tool" aria-label="Refresh" title="Refresh" disabled={disabled} onClick={() => browser?.reload(TAB_ID)}>
+        <button type="button" className="bbd-ie-tool" aria-label="Refresh" title="Refresh" disabled={disabled} onClick={() => browser?.reload(tabId)}>
           <RefreshArt />
         </button>
-        <button type="button" className="bbd-ie-tool" aria-label="Home" title="Home" disabled={disabled} onClick={() => browser?.navigate({ tabId: TAB_ID, url: BROWSER_HOME })}>
+        <button type="button" className="bbd-ie-tool" aria-label="Home" title="Home" disabled={disabled} onClick={() => browser?.navigate({ tabId, url: BROWSER_HOME })}>
           <HomeArt />
         </button>
       </div>
       <form className="bbd-ie-addressbar flex-none" onSubmit={go}>
-        <label htmlFor="bbd-ie-address" className="bbd-ie-address-label">
+        <label htmlFor={addressId} className="bbd-ie-address-label">
           Address
         </label>
         <input
-          id="bbd-ie-address"
+          id={addressId}
           className="bbd-ie-address bbd-field bbd-sunken"
           value={address}
           spellCheck={false}
@@ -325,7 +340,7 @@ export function InternetExplorer({
           onChange={(event) => setAddress(event.target.value)}
           onKeyDown={(event) => {
             if (event.key === "Escape") {
-              setAddress(state?.url ?? storedUrl());
+              setAddress(state?.url ?? storedUrl(urlKey));
               event.currentTarget.blur();
             }
           }}

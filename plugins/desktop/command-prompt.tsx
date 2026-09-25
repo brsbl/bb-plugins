@@ -5,6 +5,8 @@ import { useEffect, useRef, useState } from "react";
 
 const SESSION_KEY = "bb-desktop:command-prompt";
 
+export type CommandPromptTarget = { kind: "host"; hostId: string } | { kind: "thread"; threadId: string };
+
 interface StoredSession {
   terminalId: string;
   hostId: string;
@@ -16,9 +18,13 @@ interface TerminalSession {
   status: "starting" | "running" | "disconnected" | "exited";
 }
 
-function readStored(): StoredSession | null {
+export function threadTerminalSessionKey(tabId: string): string {
+  return `bb-desktop:thread-terminal:${tabId}`;
+}
+
+function readStored(sessionKey: string): StoredSession | null {
   try {
-    const parsed: unknown = JSON.parse(localStorage.getItem(SESSION_KEY) ?? "null");
+    const parsed: unknown = JSON.parse(localStorage.getItem(sessionKey) ?? "null");
     if (typeof parsed !== "object" || parsed === null) return null;
     const record = parsed as Record<string, unknown>;
     return typeof record.terminalId === "string" && typeof record.hostId === "string"
@@ -49,9 +55,9 @@ async function api(path: string, init?: RequestInit): Promise<unknown> {
   return body;
 }
 
-async function openSession(hostId: string, cols: number, rows: number): Promise<TerminalSession> {
-  const stored = readStored();
-  if (stored !== null && stored.hostId === hostId) {
+async function openSession(target: CommandPromptTarget, sessionKey: string, cols: number, rows: number): Promise<TerminalSession> {
+  const stored = readStored(sessionKey);
+  if (stored !== null && (target.kind !== "host" || stored.hostId === target.hostId)) {
     const existing = await api(`/terminals/${encodeURIComponent(stored.terminalId)}`).catch(() => null);
     if (isSession(existing) && (existing.status === "running" || existing.status === "starting")) return existing;
   }
@@ -61,18 +67,18 @@ async function openSession(hostId: string, cols: number, rows: number): Promise<
       cols,
       rows,
       start: { mode: "shell" },
-      target: { kind: "host_path", hostId, cwd: null },
+      target: target.kind === "host" ? { kind: "host_path", hostId: target.hostId, cwd: null } : { kind: "thread", threadId: target.threadId },
       title: "Command Prompt",
     }),
   });
   if (!isSession(created)) throw new Error("bb returned an unexpected terminal");
-  localStorage.setItem(SESSION_KEY, JSON.stringify({ terminalId: created.id, hostId }));
+  localStorage.setItem(sessionKey, JSON.stringify({ terminalId: created.id, hostId: created.hostId }));
   return created;
 }
 
-export function closeCommandPromptSession() {
-  const stored = readStored();
-  localStorage.removeItem(SESSION_KEY);
+export function closeCommandPromptSession(sessionKey = SESSION_KEY) {
+  const stored = readStored(sessionKey);
+  localStorage.removeItem(sessionKey);
   if (stored === null) return;
   void api(`/terminals/${encodeURIComponent(stored.terminalId)}/close`, {
     method: "POST",
@@ -93,13 +99,22 @@ function fromBase64(data: string): Uint8Array {
   return bytes;
 }
 
-export function CommandPrompt({ hostId }: { hostId: string | null }) {
+export function CommandPrompt({
+  target,
+  sessionKey = SESSION_KEY,
+  unavailable = "No machine is connected to bb.",
+}: {
+  target: CommandPromptTarget | null;
+  sessionKey?: string;
+  unavailable?: string;
+}) {
+  const targetKey = target === null ? null : target.kind === "host" ? `host:${target.hostId}` : `thread:${target.threadId}`;
   const containerRef = useRef<HTMLDivElement>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     const container = containerRef.current;
-    if (container === null || hostId === null) return;
+    if (container === null || target === null) return;
     const terminal = new Terminal({
       cursorBlink: true,
       cursorStyle: "underline",
@@ -124,7 +139,7 @@ export function CommandPrompt({ hostId }: { hostId: string | null }) {
     });
     observer.observe(container);
 
-    openSession(hostId, terminal.cols, terminal.rows).then(
+    openSession(target, sessionKey, terminal.cols, terminal.rows).then(
       (session) => {
         if (disposed) return;
         const scheme = window.location.protocol === "https:" ? "wss" : "ws";
@@ -141,7 +156,7 @@ export function CommandPrompt({ hostId }: { hostId: string | null }) {
           if (record.type === "output" && typeof record.chunk?.dataBase64 === "string") {
             terminal.write(fromBase64(record.chunk.dataBase64));
           } else if (record.type === "exited") {
-            localStorage.removeItem(SESSION_KEY);
+            localStorage.removeItem(sessionKey);
             terminal.write("\r\n\r\n[Process exited. Close this window and open Command Prompt again for a new session.]\r\n");
           } else if (record.type === "error") {
             setError(typeof record.message === "string" ? record.message : "The terminal connection failed.");
@@ -164,16 +179,16 @@ export function CommandPrompt({ hostId }: { hostId: string | null }) {
       socket?.close();
       terminal.dispose();
     };
-  }, [hostId]);
+  }, [targetKey, sessionKey]);
 
   return (
     <div className="bbd-cmd h-full">
-      {hostId === null ? (
-        <p className="bbd-cmd-message">No machine is connected to bb.</p>
+      {target === null ? (
+        <p className="bbd-cmd-message">{unavailable}</p>
       ) : error !== null ? (
         <p className="bbd-cmd-message">Could not open a terminal: {error}</p>
       ) : null}
-      <div ref={containerRef} className="bbd-cmd-screen" hidden={hostId === null || error !== null} />
+      <div ref={containerRef} className="bbd-cmd-screen" hidden={target === null || error !== null} />
     </div>
   );
 }

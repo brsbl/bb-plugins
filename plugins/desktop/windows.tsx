@@ -44,6 +44,7 @@ export type WindowSpec =
   | { kind: "thread"; threadId: string }
   | { kind: "panel"; threadId: string }
   | { kind: "buddy-list"; threadId: string }
+  | { kind: "thread-tab"; threadId: string; tab: ThreadTabKind; tabId: string }
   | { kind: "threads" }
   | { kind: "recycle-bin" }
   | { kind: "more" }
@@ -56,6 +57,8 @@ export type WindowSpec =
   | { kind: "new-folder" }
   | { kind: "media-player" }
   | { kind: "new-thread"; groupKey: string | null };
+
+export type ThreadTabKind = "browser" | "terminal";
 
 export interface DesktopWindow {
   id: string;
@@ -92,6 +95,8 @@ export function windowId(spec: WindowSpec): string {
     case "panel":
     case "buddy-list":
       return `${spec.kind}:${spec.threadId}`;
+    case "thread-tab":
+      return `thread-tab:${spec.tabId}`;
     case "new-thread":
       return `new-thread:${spec.groupKey ?? "desktop"}`;
     case "app":
@@ -206,6 +211,10 @@ function parseSpec(value: unknown): WindowSpec | null {
     case "panel":
     case "buddy-list":
       return text("threadId") === null ? null : { kind: record.kind, threadId: text("threadId")! };
+    case "thread-tab":
+      return text("threadId") === null || text("tabId") === null || (record.tab !== "browser" && record.tab !== "terminal")
+        ? null
+        : { kind: "thread-tab", threadId: text("threadId")!, tab: record.tab, tabId: text("tabId")! };
     case "threads":
     case "recycle-bin":
     case "more":
@@ -279,6 +288,8 @@ export function defaultRect(spec: WindowSpec, stagger: number): Rect {
         ? { width: 280, height: 560 }
         : spec.kind === "threads" || spec.kind === "recycle-bin"
           ? { width: 460, height: 560 }
+        : spec.kind === "thread-tab"
+          ? spec.tab === "browser" ? { width: 880, height: 640 } : { width: 680, height: 420 }
         : spec.kind === "new-thread"
           ? { width: 720, height: 420 }
           : spec.kind === "new-folder"

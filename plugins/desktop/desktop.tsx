@@ -87,8 +87,15 @@ import {
 import { NeedsInputBalloon } from "./balloon";
 import { attachAppWindow, findApp, registeredApps, setAppOpener, subscribeApps, type DesktopApp } from "./bridge";
 import { PaintApp } from "./apps/paint";
-import { CommandPrompt, closeCommandPromptSession } from "./command-prompt";
-import { BROWSER_HOME, InternetExplorer, closeInternetExplorer, nativeBrowser } from "./internet-explorer";
+import { CommandPrompt, closeCommandPromptSession, threadTerminalSessionKey } from "./command-prompt";
+import {
+  BROWSER_HOME,
+  InternetExplorer,
+  closeInternetExplorer,
+  closeThreadBrowser,
+  nativeBrowser,
+  threadBrowserTab,
+} from "./internet-explorer";
 import { MinesweeperGame } from "./games/minesweeper";
 import { SolitaireGame } from "./games/solitaire";
 import { toggleDesktop, useDesktopEnabled } from "./enabled";
@@ -105,6 +112,7 @@ import {
   workAreaRect,
   windowId,
   type DesktopWindow,
+  type ThreadTabKind,
   type WindowSpec,
 } from "./windows";
 
@@ -301,10 +309,21 @@ export function Desktop() {
   );
 }
 
+function closeThreadTab(spec: { tab: ThreadTabKind; tabId: string }) {
+  if (spec.tab === "browser") closeThreadBrowser(spec.tabId);
+  else closeCommandPromptSession(threadTerminalSessionKey(spec.tabId));
+}
+
 function closeThreadWindows(manager: ReturnType<typeof useWindowManager>, threadId: string) {
+  for (const window of manager.windows) {
+    if (window.spec.kind === "thread-tab" && window.spec.threadId === threadId) closeThreadTab(window.spec);
+  }
   manager.closeWhere(
     (window) =>
-      (window.spec.kind === "thread" || window.spec.kind === "panel" || window.spec.kind === "buddy-list") &&
+      (window.spec.kind === "thread" ||
+        window.spec.kind === "panel" ||
+        window.spec.kind === "buddy-list" ||
+        window.spec.kind === "thread-tab") &&
       window.spec.threadId === threadId,
   );
 }
@@ -1163,6 +1182,8 @@ function windowTitle(spec: WindowSpec, desktop: DesktopContextValue): string {
       return `${desktop.threadById.get(spec.threadId)?.title ?? "Thread"} — Details`;
     case "buddy-list":
       return buddyListTitle(desktop, spec.threadId);
+    case "thread-tab":
+      return threadTabTitle(spec.tab, desktop.threadById.get(spec.threadId)?.title ?? "Thread");
     case "threads":
       return "My Threads";
     case "recycle-bin":
@@ -1208,6 +1229,8 @@ function windowArt(spec: WindowSpec, desktop: DesktopContextValue, size: number)
       return <DetailsArt size={size} />;
     case "buddy-list":
       return <BuddyListArt size={size} />;
+    case "thread-tab":
+      return spec.tab === "browser" ? <InternetExplorerArt size={size} /> : <CommandPromptArt size={size} />;
     case "threads":
       return <ThreadsArt size={size} />;
     case "recycle-bin":
@@ -2306,6 +2329,8 @@ function WindowContent({ window: desktopWindow }: { window: DesktopWindow }) {
       return <PanelWindow window={desktopWindow} threadId={spec.threadId} />;
     case "buddy-list":
       return <BuddyListWindow window={desktopWindow} threadId={spec.threadId} />;
+    case "thread-tab":
+      return <ThreadTabWindow window={desktopWindow} threadId={spec.threadId} tab={spec.tab} tabId={spec.tabId} />;
     case "threads":
       return <ThreadsWindow window={desktopWindow} />;
     case "recycle-bin":
@@ -2721,6 +2746,12 @@ function ThreadWindow({ window: desktopWindow, threadId }: { window: DesktopWind
   const panelOpen = manager.windows.some((window) => window.id === windowId({ kind: "panel", threadId }));
   const buddiesOpen = manager.windows.some((window) => window.id === windowId({ kind: "buddy-list", threadId }));
   const buddy = screenName(thread?.providerId ?? "");
+  const browserAvailable = nativeBrowser() !== null;
+
+  const openTab = (tab: ThreadTabKind) => {
+    const tabId = Math.random().toString(36).slice(2, 10);
+    manager.open({ kind: "thread-tab", threadId, tab, tabId });
+  };
 
   const toggleDocked = (spec: { kind: "panel" | "buddy-list"; threadId: string }, width: number) => {
     const id = windowId(spec);
@@ -2767,7 +2798,7 @@ function ThreadWindow({ window: desktopWindow, threadId }: { window: DesktopWind
     >
       <div className="bbd-im flex h-full flex-col" style={{ "--bbd-im-buddy": JSON.stringify(`${buddy}:`) } as CSSProperties}>
         <div className="bbd-im-chat min-h-0 flex-1">
-          <ThreadChat threadId={threadId} variant="compact" layout="contained" className="h-full" />
+          <ThreadChat threadId={threadId} variant="compact" layout="contained" permissionPolicy="editable" className="h-full" />
         </div>
         <div className="bbd-im-actions flex-none">
           <button
@@ -2789,6 +2820,25 @@ function ThreadWindow({ window: desktopWindow, threadId }: { window: DesktopWind
           >
             <DetailsArt size={24} />
             <span>Get Info</span>
+          </button>
+          <button
+            type="button"
+            className="bbd-im-action"
+            disabled={!browserAvailable}
+            title={browserAvailable ? "Open a new browser tab for this thread" : "Browser tabs need the bb desktop app"}
+            onClick={() => openTab("browser")}
+          >
+            <InternetExplorerArt size={24} />
+            <span>Browser</span>
+          </button>
+          <button
+            type="button"
+            className="bbd-im-action"
+            title="Open a new terminal in this thread's environment"
+            onClick={() => openTab("terminal")}
+          >
+            <CommandPromptArt size={24} />
+            <span>Terminal</span>
           </button>
         </div>
       </div>
@@ -3187,7 +3237,55 @@ function CommandPromptWindow({ window: desktopWindow }: { window: DesktopWindow 
       icon={<CommandPromptArt size={16} />}
       onClose={closeCommandPromptSession}
     >
-      <CommandPrompt hostId={machine?.id ?? null} />
+      <CommandPrompt target={machine === null ? null : { kind: "host", hostId: machine.id }} />
+    </WindowFrame>
+  );
+}
+
+function threadTabTitle(tab: ThreadTabKind, threadTitle: string, pageTitle: string | null = null): string {
+  if (tab === "terminal") return `Command Prompt — ${threadTitle}`;
+  return `${pageTitle === null || pageTitle === "" ? threadTitle : pageTitle} - Internet Explorer`;
+}
+
+function ThreadTabWindow({
+  window: desktopWindow,
+  threadId,
+  tab,
+  tabId,
+}: {
+  window: DesktopWindow;
+  threadId: string;
+  tab: ThreadTabKind;
+  tabId: string;
+}) {
+  const desktop = useDesktop();
+  const [pageTitle, setPageTitle] = useState<string | null>(null);
+  const threadTitle = desktop.threadById.get(threadId)?.title ?? "Thread";
+  const loadThread = useCallback(async () => threadId, [threadId]);
+  const browserTab = threadBrowserTab(tabId);
+  return (
+    <WindowFrame
+      window={desktopWindow}
+      title={threadTabTitle(tab, threadTitle, pageTitle)}
+      icon={tab === "browser" ? <InternetExplorerArt size={16} /> : <CommandPromptArt size={16} />}
+      onClose={() => closeThreadTab({ tab, tabId })}
+      keepMounted={tab === "browser"}
+    >
+      {tab === "browser" ? (
+        <InternetExplorer
+          window={desktopWindow}
+          tabId={browserTab.tabId}
+          urlKey={browserTab.urlKey}
+          loadThread={loadThread}
+          onTitle={setPageTitle}
+        />
+      ) : (
+        <CommandPrompt
+          target={{ kind: "thread", threadId }}
+          sessionKey={threadTerminalSessionKey(tabId)}
+          unavailable="This thread has no environment to open a terminal in."
+        />
+      )}
     </WindowFrame>
   );
 }
