@@ -642,7 +642,35 @@ vec3 scene(vec2 uv, vec2 p) {
   return mix(u_canvas, col, p_color);
 }`;
 
-const CONTOUR_SOURCE = `float terrain(vec2 p, float td) {
+const CONTOUR_SOURCE = `vec3 scene(vec2 uv, vec2 p) {
+  float t = u_time * 0.02 * p_drift;
+  float h = fbm(p * p_scale + vec2(t, t * 0.4)) * 1.2;
+  for (int i = 0; i < 16; i++) {
+    if (i >= u_agentCount) break;
+    vec4 a = u_agents[i];
+    vec2 d = p - toP(a.xy);
+    float breathe = a.z > 0.5 ? 0.8 + 0.2 * sin(u_time * 2.0) : 1.0;
+    h += p_height * a.w * breathe * exp(-dot(d, d) / 0.03);
+  }
+  for (int i = 0; i < 12; i++) {
+    if (i >= u_rippleCount) break;
+    vec4 r = u_ripples[i];
+    float dist = length(p - toP(r.xy));
+    float dir = abs(r.w - 1.0) < 0.5 ? -1.0 : 1.0;
+    h += dir * 0.25 * exp(-pow((dist - r.z * 0.28) * 18.0, 2.0)) * exp(-r.z);
+  }
+  float v = h * p_density;
+  float w = fwidth(v) * p_weight;
+  float f = fract(v);
+  float line = 1.0 - smoothstep(0.0, w * 1.5, min(f, 1.0 - f));
+  float m = fract(v / 5.0);
+  float major = 1.0 - smoothstep(0.0, w * 2.5, min(m, 1.0 - m) * 5.0);
+  vec3 base = mix(u_palette[0], ramp(h * 0.8), p_fill);
+  vec3 col = mix(base, u_palette[3], clamp(line * 0.55 + major * 0.35, 0.0, 1.0));
+  return mix(u_canvas, col, p_color);
+}`;
+
+const RISOGRAPH_SOURCE = `float terrain(vec2 p, float td) {
   vec2 q = p * 1.9 + vec2(td, td * 0.4);
   float b = noise(q) * 0.52
           + noise(q * 2.07 + vec2(5.2, 1.3) - vec2(td * 0.6, 0.0)) * 0.28
@@ -651,15 +679,6 @@ const CONTOUR_SOURCE = `float terrain(vec2 p, float td) {
   float h = (b - 0.45) * 2.6;
   h += 0.45 * smoothstep(0.3, 0.9, abs(p.x)) - 0.05;
   return h;
-}
-
-float sdTri(vec2 p, float r) {
-  const float k = 1.7320508;
-  p.x = abs(p.x) - r;
-  p.y = p.y + r / k;
-  if (p.x + k * p.y > 0.0) p = vec2(p.x - k * p.y, -k * p.x - p.y) / 2.0;
-  p.x -= clamp(p.x, -2.0 * r, 0.0);
-  return -length(p) * sign(p.y);
 }
 
 float halftone(float T, vec2 p, float ang, float cell, float seed) {
@@ -686,23 +705,6 @@ float inkDensity(vec2 p, float seed) {
 float isoLine(float v, float px) {
   float fw = fwidth(v) * px;
   return smoothstep(fw, fw * 0.35, abs(fract(v + 0.5) - 0.5));
-}
-
-vec2 marker(vec2 d, float waiting, float t, float fi, float grow) {
-  float tri = smoothstep(0.0012, -0.0012, sdTri(d, 0.02) - grow);
-  float pole = smoothstep(0.0026 + grow, 0.0014 + grow, abs(d.x)) * step(0.012, d.y) * step(d.y, 0.08 + grow);
-  vec2 f = d - vec2(0.0, 0.08);
-  float flag;
-  if (waiting < 0.5) {
-    float fx = f.x / 0.045;
-    float fy = f.y + 0.012 - sin(fx * 7.0 - t * 6.0 - fi) * 0.006 * fx;
-    float hw = 0.012 * (1.0 - 0.4 * clamp(fx, 0.0, 1.0)) + grow;
-    flag = step(-grow / 0.045, fx) * step(fx, 1.0 + grow / 0.045) * smoothstep(hw + 0.0012, hw - 0.0012, abs(fy));
-  } else {
-    vec2 fd = vec2(f.x - 0.008, f.y + 0.024 + 0.002 * sin(t * 2.0 + fi));
-    flag = smoothstep(0.0095 + grow, 0.0078 + grow, abs(fd.x)) * smoothstep(0.024 + grow, 0.022 + grow, abs(fd.y));
-  }
-  return vec2(tri, max(pole, flag));
 }
 
 vec3 scene(vec2 uv, vec2 p) {
@@ -786,33 +788,21 @@ vec3 scene(vec2 uv, vec2 p) {
   float lineB = max(max(minorB * 0.75, majorB), max(shore, wl * 0.8));
   float lineP = max(minorP * 0.25, majorP);
 
-  float solidP = 0.0, solidB = 0.0, knock = 0.0;
+  float ringW = 0.0;
   for (int i = 0; i < 16; i++) {
     if (i >= u_agentCount) break;
     vec4 a = u_agents[i];
-    float fi = float(i);
-    float waiting = step(0.5, a.z);
-    vec2 top = toP(a.xy);
-    vec2 d = p - top;
-    float blink = mix(1.0, 0.35 + 0.65 * step(0.0, sin(t * 4.0 + fi)), waiting);
-    vec2 mP = marker(p - oP - top, waiting, t, fi, 0.0);
-    vec2 mB = marker(p - oB - top, waiting, t, fi, 0.0);
-    vec2 mK = marker(d, waiting, t, fi, 0.0055);
-    knock = max(knock, max(mK.x, mK.y) * a.w);
-    solidP = max(solidP, max(mP.x * blink, mP.y) * a.w);
-    solidB = max(solidB, max(mB.y, smoothstep(0.003, 0.0012, abs(sdTri(p - oB - top, 0.02)))) * a.w);
-    if (waiting > 0.5) {
-      float fr = fract(t * 0.6 + fi * 0.3);
-      float rr = abs(length(d) - (0.045 + 0.08 * fr));
-      float dash = step(0.0, sin(atan(d.y, d.x) * 14.0 + t));
-      solidB = max(solidB, smoothstep(0.0032, 0.0016, rr) * dash * (1.0 - fr) * a.w);
-    }
+    if (a.z < 0.5) continue;
+    vec2 d = p - toP(a.xy);
+    float fr = fract(t * 0.6 + float(i) * 0.3);
+    float rr = abs(length(d) - (0.045 + 0.08 * fr));
+    float dash = step(0.0, sin(atan(d.y, d.x) * 14.0 + t));
+    ringW = max(ringW, smoothstep(0.0032, 0.0016, rr) * dash * (1.0 - fr) * a.w);
   }
 
-  float open = 1.0 - knock;
-  float kY = clamp(max(cY * open, max(ringY, flash)), 0.0, 1.0) * inkDensity(p, 1.0);
-  float kP = clamp(max(max(cP, lineP) * open, max(max(solidP, ringP), flash)), 0.0, 1.0) * inkDensity(p, 4.0);
-  float kB = clamp(max(max(cB, lineB) * open * (1.0 - 0.6 * flash), max(solidB, ringB)), 0.0, 1.0) * inkDensity(p, 9.0);
+    float kY = clamp(max(cY, max(ringY, flash)), 0.0, 1.0) * inkDensity(p, 1.0);
+  float kP = clamp(max(max(cP, lineP), max(ringP, flash)), 0.0, 1.0) * inkDensity(p, 4.0);
+  float kB = clamp(max(max(cB, lineB) * (1.0 - 0.6 * flash), max(ringW, ringB)), 0.0, 1.0) * inkDensity(p, 9.0);
 
   vec3 col = paper * (0.96 + 0.04 * noise(p * u_resolution.y * 0.12) + 0.02 * (noise(p * 6.0) - 0.5));
   col *= mix(vec3(1.0), Y, kY);
@@ -1607,6 +1597,21 @@ export const BUILT_IN_SCENES: BuiltInScene[] = [
     id: "contour",
     name: "Contour",
     source: CONTOUR_SOURCE,
+    palette: ["#0d1b3e", "#3a2d8f", "#e0457b", "#ffd36b"],
+    params: [
+      param("scale", "Zoom", 0.5, 5, 1.6),
+      param("density", "Line density", 2, 30, 22, 0.5),
+      param("weight", "Line weight", 0.5, 3, 1),
+      param("height", "Agent peaks", 0, 2, 1.9),
+      param("fill", "Fill", 0, 1, 0.5),
+      param("drift", "Drift", 0, 3, 1),
+      param("color", "Color strength", 0, 1, 1),
+    ],
+  },
+  {
+    id: "risograph-map",
+    name: "Risograph Map",
+    source: RISOGRAPH_SOURCE,
     palette: ["#ff48b0", "#0078bf", "#ffe800", "#f6f0e1"],
     params: [
       param("drift", "Terrain drift", 0, 3, 1),
