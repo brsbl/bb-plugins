@@ -309,6 +309,27 @@ export function Desktop() {
   );
 }
 
+const THREAD_ROUTE = /^(?:\/projects\/[^/]+)?\/threads\/([^/?#]+)\/?$/;
+
+function linkedThreadId(target: EventTarget | null): string | null {
+  if (!(target instanceof Element) || target.closest(".bbd-window") === null) return null;
+  if (target.closest('[contenteditable="true"]') !== null) return null;
+  const mention = target.closest("[data-prompt-mention-resource]");
+  if (mention !== null) {
+    try {
+      const resource: unknown = JSON.parse(mention.getAttribute("data-prompt-mention-resource") ?? "null");
+      const record = typeof resource === "object" && resource !== null ? (resource as Record<string, unknown>) : null;
+      if (record?.kind === "thread" && typeof record.threadId === "string") return record.threadId;
+    } catch {
+      return null;
+    }
+  }
+  const anchor = target.closest("a[href]");
+  if (!(anchor instanceof HTMLAnchorElement) || anchor.target === "_blank" || anchor.origin !== window.location.origin) return null;
+  const match = THREAD_ROUTE.exec(anchor.pathname);
+  return match === null ? null : decodeURIComponent(match[1]!);
+}
+
 function closeThreadTab(spec: { tab: ThreadTabKind; tabId: string }) {
   if (spec.tab === "browser") closeThreadBrowser(spec.tabId);
   else closeCommandPromptSession(threadTerminalSessionKey(spec.tabId));
@@ -622,7 +643,18 @@ function DesktopData() {
       <div ref={rootRef} className="bbd-root">
         <DesktopCanvas />
         {createPortal(
-          <div {...PLUGIN_SCOPE} className="bbd-root bbd-window-layer">
+          <div
+            {...PLUGIN_SCOPE}
+            className="bbd-root bbd-window-layer"
+            onClickCapture={(event) => {
+              if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+              const threadId = linkedThreadId(event.target);
+              if (threadId === null) return;
+              event.preventDefault();
+              event.stopPropagation();
+              openThread(threadId);
+            }}
+          >
             {manager.windows.map((window) => (
               <WindowContent key={window.id} window={window} />
             ))}
