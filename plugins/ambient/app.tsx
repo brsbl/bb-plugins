@@ -53,6 +53,7 @@ const SIDEBAR_CARDS = 'body.bb-app-shell > #root :is([data-testid="sidebar-navig
 const PAGE_MAIN = '[data-testid="app-layout-content-shell"] > main:not(:has([data-thread-window], [data-app-composer], [role="img"][aria-label="bb"]))';
 const PAGE = `body.bb-app-shell > #root ${PAGE_MAIN}`;
 const SIDEBAR_OPEN = 'body.bb-app-shell > #root .peer[data-state="expanded"][data-side="left"] + [data-sidebar="inset"]';
+const THREAD_TITLE_ROW = '[data-split-pane-id]:has([data-thread-window]) > header > [data-testid="app-page-header-content-row"]';
 
 function glassCss(glass: number): string {
   return `body.bb-app-shell { --ambient-glass-fill: color-mix(in oklab, var(--ambient-background) ${Math.round(glass * 100)}%, transparent); --ambient-glass-solid: color-mix(in oklab, var(--ambient-background) ${Math.round(Math.min(0.92, Math.max(0.88, glass + 0.3)) * 100)}%, transparent); }
@@ -62,6 +63,7 @@ ${THREAD} [data-overflow-fade] { display: none; }
 ${PAGE} { position: relative; isolation: isolate; }
 ${PAGE}::before { content: ""; position: absolute; z-index: -1; pointer-events: none; ${GLASS_SURFACE} border-radius: 20px; inset: 0 8px 8px; }
 @media (min-width: 768px) { ${SIDEBAR_OPEN} { --ambient-column-gutter: 0px; } ${SIDEBAR_OPEN} ${PAGE_MAIN}::before { left: 0; } ${SIDEBAR_OPEN} [data-testid="app-page-header-content-row"] > :first-child { margin-inline-start: -16px; } }
+@media (min-width: 768px) { body.bb-app-shell > #root ${THREAD_TITLE_ROW} { padding-inline-start: max(32px, 50% - ${COLUMN_HALF} + 6px); } ${SIDEBAR_OPEN} ${THREAD_TITLE_ROW} { padding-inline-start: max(0px, 50% - ${COLUMN_HALF} + 16px); } }
 ${THREAD}::after { content: ""; position: absolute; z-index: 1; pointer-events: none; top: 1px; height: 28px; left: calc(${COLUMN_LEFT} + 1px); right: calc(${COLUMN_RIGHT} + 1px); border-radius: 19px 19px 0 0; background: linear-gradient(to bottom, color-mix(in oklab, var(--ambient-background) 18%, transparent), transparent); }
 ${THREAD} [data-timeline-row-list] :is([data-message-column].border, [data-message-column] .border) { border-color: color-mix(in oklab, var(--ink) 8%, transparent); }
 ${THREAD} [data-markdown-preview] div:has(> div > table) { width: 100% !important; margin-inline: 0 !important; }
