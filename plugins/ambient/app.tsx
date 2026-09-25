@@ -39,6 +39,9 @@ const GLASS_BLUR = "-webkit-backdrop-filter: blur(24px) saturate(1.6); backdrop-
 const GLASS_SURFACE = `background-color: ${GLASS_FILL}; ${GLASS_BLUR}
   border: 1px solid color-mix(in oklab, var(--ink) 9%, transparent);
   box-shadow: inset 0 1px 0 color-mix(in oklab, var(--canvas) 60%, transparent), 0 12px 32px -16px color-mix(in oklab, var(--ink) 35%, transparent);`;
+const CHROME_SURFACE = `background-color: var(--ambient-chrome-fill); -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px);
+  border: 1px solid color-mix(in oklab, var(--ink) 7%, transparent);
+  box-shadow: 0 4px 12px -8px color-mix(in oklab, var(--ink) 25%, transparent);`;
 const COLUMN_HALF = "404px";
 const COLUMN_MASK = `linear-gradient(to right, transparent max(10px, 50% - ${COLUMN_HALF}), #000 max(10px, 50% - ${COLUMN_HALF}), #000 min(calc(100% - 10px), 50% + ${COLUMN_HALF}), transparent min(calc(100% - 10px), 50% + ${COLUMN_HALF}))`;
 const RIGHT_PANEL = "body.bb-app-shell > #root #thread-detail-secondary-panel-handle + [data-panel] > aside";
@@ -53,7 +56,7 @@ const PAGE = `body.bb-app-shell > #root ${PAGE_MAIN}`;
 const SIDEBAR_OPEN = 'body.bb-app-shell > #root .peer[data-state="expanded"][data-side="left"] + [data-sidebar="inset"]';
 
 function glassCss(glass: number): string {
-  return `body.bb-app-shell { --ambient-glass-fill: color-mix(in oklab, var(--ambient-background) ${Math.round(glass * 100)}%, transparent); --ambient-glass-solid: color-mix(in oklab, var(--ambient-background) ${Math.round(Math.min(0.92, Math.max(0.88, glass + 0.3)) * 100)}%, transparent); }
+  return `body.bb-app-shell { --ambient-glass-fill: color-mix(in oklab, var(--ambient-background) ${Math.round(glass * 100)}%, transparent); --ambient-glass-solid: color-mix(in oklab, var(--ambient-background) ${Math.round(Math.min(0.92, Math.max(0.88, glass + 0.3)) * 100)}%, transparent); --ambient-chrome-fill: color-mix(in oklab, var(--ambient-background) ${Math.round(glass * 50)}%, transparent); }
 ${THREAD} { position: relative; isolation: isolate; }
 ${THREAD}::before { content: ""; position: absolute; z-index: -1; pointer-events: none; ${GLASS_SURFACE} border-radius: 20px; top: 0; bottom: ${COLUMN_BOTTOM}; left: ${COLUMN_LEFT}; right: ${COLUMN_RIGHT}; }
 ${THREAD} [data-overflow-fade] { display: none; }
@@ -75,9 +78,9 @@ body.bb-app-shell > #root [data-testid="root-compose-compact-composer"] > .bg-ba
 body.bb-app-shell > #root [data-app-composer]:not([data-thread-window] *, [data-testid="root-compose-compact-composer"] *) { ${GLASS_SURFACE} border-radius: 20px; padding: 10px 10px 4px; }
 body.bb-app-shell > #root [role="img"][aria-label="bb"] + div { ${GLASS_SURFACE} border-radius: 20px; padding: 6px; }
 body.bb-app-shell > #root div.fixed:has(> button[aria-label*="right panel" i]) { top: calc(6px + env(safe-area-inset-top)); right: calc(6px + env(safe-area-inset-right)); }
-body.bb-app-shell > #root div.fixed > button[aria-label*="right panel" i] { ${GLASS_SURFACE} border-radius: 12px; }
+body.bb-app-shell > #root div.fixed > button[aria-label*="right panel" i] { ${CHROME_SURFACE} border-radius: 12px; }
 body.bb-app-shell > #root [data-sidebar="panel"] { border-inline-end-color: transparent; }
-:is(${CHROME_PILLS}) { ${GLASS_SURFACE} border-radius: 12px; padding-inline: 6px; }
+:is(${CHROME_PILLS}) { ${CHROME_SURFACE} border-radius: 12px; padding-inline: 6px; }
 body.bb-app-shell > #root :is([data-testid="app-page-header-content-row"] > :first-child, [data-testid="app-sidebar-top-reserve-row"] > div) { margin-inline: -6px; }
 body.bb-app-shell > #root button[data-sidebar="trigger"] { margin-inline: -4px 0; width: 32px; height: 32px; }
 body.bb-app-shell > #root [data-testid="app-sidebar-top-reserve-row"] > div:nth-child(n) { margin-inline-end: 0; min-height: 32px; }
