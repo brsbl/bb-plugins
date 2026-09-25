@@ -54,7 +54,7 @@ const SIDEBAR_OPEN = 'body.bb-app-shell > #root .peer[data-state="expanded"][dat
 
 function glassCss(glass: number): string {
   return `body.bb-app-shell { --ambient-glass-fill: color-mix(in oklab, var(--ambient-background) ${Math.round(glass * 100)}%, transparent); --ambient-glass-solid: color-mix(in oklab, var(--ambient-background) ${Math.round(Math.min(0.92, Math.max(0.88, glass + 0.3)) * 100)}%, transparent); }
-${THREAD} { position: relative; isolation: isolate; }
+${THREAD} { position: relative; isolation: isolate; clip-path: inset(0 ${COLUMN_RIGHT} ${COLUMN_BOTTOM} ${COLUMN_LEFT} round 20px); }
 ${THREAD}::before { content: ""; position: absolute; z-index: -1; pointer-events: none; ${GLASS_SURFACE} border-radius: 20px; top: 0; bottom: ${COLUMN_BOTTOM}; left: ${COLUMN_LEFT}; right: ${COLUMN_RIGHT}; }
 ${THREAD} [data-overflow-fade] { display: none; }
 ${PAGE} { position: relative; isolation: isolate; }
@@ -109,7 +109,7 @@ body.bb-app-shell { background-color: transparent; --ambient-background: var(--b
 :is(${PANES}) { --background: color-mix(in oklab, var(--ambient-background) ${keep}%, transparent); --sidebar: color-mix(in oklab, var(--ambient-sidebar) ${keep}%, transparent); }
 :is(${PANES}) .bg-sidebar .bg-sidebar:not(.sticky), [data-testid="secondary-panel-shelf"] .bg-sidebar:not(.sticky) { --sidebar: transparent; }
 :is(${PANES}) .sticky:is(.bg-sidebar, .bg-background) { --sidebar: transparent; --background: transparent; ${BLUR} }
-:is(${PANES}) header.bg-surface-scrim { background-color: transparent; ${BLUR} }
+:is(${PANES}) header.bg-surface-scrim { background-color: transparent; }
 body.bb-app-shell [role="switch"][aria-checked="true"] > span.bg-background { background-color: var(--canvas); }
 body.bb-app-shell > #root [data-sidebar-sticky-stack]::before, body.bb-app-shell > #root [data-sidebar-sticky-tier] { ${BLUR} }
 body.bb-app-shell > #root [data-sidebar="panel"][data-vaul-drawer-direction][data-state="closed"]:not([data-vaul-animate]) { visibility: hidden; transition: visibility 0s linear 260ms; }`;
