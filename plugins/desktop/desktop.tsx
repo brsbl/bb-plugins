@@ -10,6 +10,7 @@ import {
   type MouseEvent as ReactMouseEvent,
   type PointerEvent as ReactPointerEvent,
   type ReactNode,
+  type RefObject,
 } from "react";
 import { createPortal } from "react-dom";
 import { toast } from "sonner";
@@ -118,7 +119,7 @@ interface DesktopContextValue {
   call: ReturnType<typeof useRpc<typeof rpcContract>>["call"];
   refresh: () => void;
   openThread: (threadId: string) => void;
-  openMenu: (event: ReactMouseEvent, entries: MenuEntry[]) => void;
+  openMenu: (event: MenuTrigger, entries: MenuEntry[]) => void;
   dropThread: (group: DesktopGroup, drag: ThreadDrag) => Promise<void>;
   setPreferences: (patch: Partial<Preferences>) => void;
 }
@@ -408,7 +409,7 @@ function DesktopData() {
     [call, refresh, threadById],
   );
 
-  const openMenu = useCallback((event: ReactMouseEvent, entries: MenuEntry[]) => {
+  const openMenu = useCallback((event: MenuTrigger, entries: MenuEntry[]) => {
     event.preventDefault();
     event.stopPropagation();
     setMenu({ x: event.clientX, y: event.clientY, entries });
@@ -642,6 +643,49 @@ function viewMenuEntries(desktop: DesktopContextValue): MenuEntry[] {
   ];
 }
 
+type MenuTrigger = Pick<MouseEvent, "clientX" | "clientY" | "preventDefault" | "stopPropagation">;
+
+const PAGE_MENU_IGNORED = [
+  "input",
+  "textarea",
+  "select",
+  "button",
+  "a",
+  "label",
+  "[contenteditable]",
+  "[role]",
+  "[data-promptbox]",
+  "[data-promptbox-shell]",
+  ".bbd-root",
+  '[id^="plugin-homepage:"]:not([id="plugin-homepage:desktop:desktop"])',
+].join(",");
+
+function usePageBackgroundMenu(
+  canvasRef: RefObject<HTMLDivElement | null>,
+  entries: () => MenuEntry[],
+) {
+  const desktop = useDesktop();
+  const latest = useRef({ desktop, entries });
+  latest.current = { desktop, entries };
+
+  useEffect(() => {
+    const page = canvasRef.current?.closest('[class~="@container/page"]')?.parentElement;
+    if (page === null || page === undefined) return;
+    const onContextMenu = (event: MouseEvent) => {
+      let node = event.target instanceof Element ? event.target : null;
+      while (node !== null && node !== page) {
+        if (node.matches(PAGE_MENU_IGNORED)) return;
+        node = node.parentElement;
+      }
+      if (node === null) return;
+      if (window.getSelection()?.isCollapsed === false) return;
+      latest.current.desktop.openMenu(event, latest.current.entries());
+    };
+    page.addEventListener("contextmenu", onContextMenu);
+    return () => page.removeEventListener("contextmenu", onContextMenu);
+  }, [canvasRef]);
+}
+
 function DesktopCanvas() {
   const desktop = useDesktop();
   const manager = useWindowManager();
@@ -737,6 +781,8 @@ function DesktopCanvas() {
       run: tileWindows,
     },
   ];
+  const canvasMenu = (): MenuEntry[] => [...commands, "separator", ...viewMenuEntries(desktop)];
+  usePageBackgroundMenu(canvasRef, canvasMenu);
 
   const bottom = Math.max(
     ICON_CELL.height * 2,
@@ -752,9 +798,7 @@ function DesktopCanvas() {
         onPointerDown={(event) => {
           if (event.target === event.currentTarget) setSelected(null);
         }}
-        onContextMenu={(event) =>
-          desktop.openMenu(event, [...commands, "separator", ...viewMenuEntries(desktop)])
-        }
+        onContextMenu={(event) => desktop.openMenu(event, canvasMenu())}
       >
         {items.map((item) => (
           <DesktopIcon
