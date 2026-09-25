@@ -682,6 +682,84 @@ function TextButton({
   );
 }
 
+const THEME_KEY = "bb.theme";
+type ThemeMode = "light" | "dark" | "system";
+const THEME_MODES: { mode: ThemeMode; label: string; icon: ReactNode }[] = [
+  {
+    mode: "light",
+    label: "Light",
+    icon: (
+      <>
+        <circle cx="8" cy="8" r="2.75" />
+        <path d="M8 1.75v1.5M8 12.75v1.5M1.75 8h1.5M12.75 8h1.5M3.6 3.6l1.05 1.05M11.35 11.35l1.05 1.05M3.6 12.4l1.05-1.05M11.35 4.65l1.05-1.05" />
+      </>
+    ),
+  },
+  { mode: "dark", label: "Dark", icon: <path d="M13.25 9.6A5.5 5.5 0 1 1 6.4 2.75a4.5 4.5 0 0 0 6.85 6.85z" /> },
+  {
+    mode: "system",
+    label: "System",
+    icon: (
+      <>
+        <rect x="2" y="3" width="12" height="8" rx="1.5" />
+        <path d="M6 13.5h4M8 11v2.5" />
+      </>
+    ),
+  },
+];
+
+function readThemeMode(): ThemeMode {
+  const stored = localStorage.getItem(THEME_KEY);
+  return stored === "light" || stored === "dark" ? stored : "system";
+}
+
+function ThemeModeSwitch() {
+  const [mode, setMode] = useState<ThemeMode>(readThemeMode);
+
+  useEffect(() => {
+    const sync = () => setMode(readThemeMode());
+    const observer = new MutationObserver(sync);
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ["class"] });
+    window.addEventListener("storage", sync);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("storage", sync);
+    };
+  }, []);
+
+  const choose = (next: ThemeMode) => {
+    const previous = localStorage.getItem(THEME_KEY);
+    localStorage.setItem(THEME_KEY, next);
+    window.dispatchEvent(
+      new StorageEvent("storage", { key: THEME_KEY, oldValue: previous, newValue: next, storageArea: localStorage }),
+    );
+    setMode(next);
+  };
+
+  return (
+    <div role="radiogroup" aria-label="Appearance" className="flex items-center gap-px rounded-full bg-foreground/5 p-px">
+      {THEME_MODES.map((entry) => (
+        <button
+          key={entry.mode}
+          type="button"
+          role="radio"
+          aria-checked={mode === entry.mode}
+          aria-label={entry.label}
+          title={entry.label}
+          onClick={() => choose(entry.mode)}
+          className={`flex size-5 items-center justify-center rounded-full transition-colors ${
+            mode === entry.mode ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          <svg viewBox="0 0 16 16" aria-hidden="true" className="size-3" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+            {entry.icon}
+          </svg>
+        </button>
+      ))}
+    </div>
+  );
+}
+
 function Switch({
   checked,
   label,
@@ -1191,7 +1269,7 @@ function AmbientControls({ dismiss }: { dismiss: () => void }) {
         ))}
       </div>
 
-      <Section title="Display">
+      <Section title="Display" action={<ThemeModeSwitch />}>
         <Slider
           label="Visibility"
           hint="How much of the scene shows through bb"
