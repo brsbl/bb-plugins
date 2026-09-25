@@ -1533,8 +1533,8 @@
   color: inherit;
 }
 
-.bbd-im-chat [data-timeline-row-id] > .rounded-md :is(.leading-5, .line-clamp-2) {
-  padding-right: 0.2em;
+.bbd-im-chat [data-timeline-row-id] > .rounded-md :is(.overflow-hidden, .truncate, .leading-5, .line-clamp-2) {
+  padding-right: 0.25em;
 }
 
 .bbd-im-chat [data-timeline-row-id] > .rounded-md.opacity-40,

@@ -328,7 +328,16 @@ export default function plugin(bb: BbPluginApi) {
     const hidden = await Promise.all(
       hiddenIds
         .filter((threadId) => !listedIds.has(threadId))
-        .map((threadId) => bb.sdk.threads.get({ threadId }).catch(() => null)),
+        .map((threadId) =>
+          bb.sdk.threads
+            .get({ threadId, include: "host" })
+            .then((thread) => ({
+              ...thread,
+              environmentHostId: "host" in thread ? (thread.host?.id ?? null) : null,
+              hasPendingInteraction: false,
+            }))
+            .catch(() => null),
+        ),
     );
     const seen = new Set<string>();
     const threads: DesktopThread[] = [];
