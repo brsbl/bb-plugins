@@ -98,8 +98,10 @@ import {
 } from "./internet-explorer";
 import { MinesweeperGame } from "./games/minesweeper";
 import { SolitaireGame } from "./games/solitaire";
+import { playDoorClose, playDoorOpen } from "./door-sounds";
 import { toggleDesktop, useDesktopEnabled } from "./enabled";
 import { MediaDeskband, MediaPlayerWindow, useMic } from "./media-player";
+import { aimScreenName } from "./screen-names";
 import { addStickyNote } from "./sticky-notes";
 import type { DesktopSnapshot, rpcContract } from "./server";
 import {
@@ -1632,23 +1634,36 @@ function quickLaunchMenu(
 const TASK_MIN_WIDTH = 96;
 const TASK_GAP = 3;
 const TASK_MORE_WIDTH = 44;
+const QUICK_ITEM_WIDTH = 27;
+const QUICK_CHROME_WIDTH = 26;
+const TASKS_BEFORE_QUICK = 2;
 
-function useTaskCapacity(navRef: RefObject<HTMLElement | null>, count: number): number {
-  const [capacity, setCapacity] = useState(count);
+interface TaskbarCapacity {
+  quick: number;
+  tasks: number;
+}
+
+function useTaskbarCapacity(navRef: RefObject<HTMLElement | null>, quickCount: number, taskCount: number): TaskbarCapacity {
+  const [capacity, setCapacity] = useState<TaskbarCapacity>({ quick: quickCount, tasks: taskCount });
   useLayoutEffect(() => {
     const nav = navRef.current;
     if (nav === null) return;
     const measure = () => {
       const limit = Number.parseFloat(getComputedStyle(nav).maxWidth);
-      const fixed = [...nav.querySelectorAll<HTMLElement>(":scope > .bbd-start, :scope > .bbd-quick, :scope > .bbd-tray")]
+      const fixed = [...nav.querySelectorAll<HTMLElement>(":scope > .bbd-start, :scope > .bbd-tray")]
         .reduce((total, element) => total + element.getBoundingClientRect().width, 0);
-      const available = (Number.isFinite(limit) ? limit : window.innerWidth - 24) - fixed - 18;
+      const available = (Number.isFinite(limit) ? limit : window.innerWidth - 24) - fixed - 18 - QUICK_CHROME_WIDTH;
       const fits = (width: number) => Math.max(0, Math.floor((width + TASK_GAP) / (TASK_MIN_WIDTH + TASK_GAP)));
-      setCapacity(fits(available) >= count ? count : fits(available - TASK_MORE_WIDTH - TASK_GAP));
+      const reserved = Math.min(taskCount, TASKS_BEFORE_QUICK);
+      let quick = quickCount;
+      while (quick > 0 && fits(available - quick * QUICK_ITEM_WIDTH) < reserved) quick -= 1;
+      const room = available - quick * QUICK_ITEM_WIDTH;
+      const tasks = fits(room) >= taskCount ? taskCount : fits(room - TASK_MORE_WIDTH - TASK_GAP);
+      setCapacity((current) => (current.quick === quick && current.tasks === tasks ? current : { quick, tasks }));
     };
     measure();
     const observer = new ResizeObserver(measure);
-    for (const element of nav.querySelectorAll(":scope > .bbd-start, :scope > .bbd-quick, :scope > .bbd-tray")) {
+    for (const element of nav.querySelectorAll(":scope > .bbd-start, :scope > .bbd-tray")) {
       observer.observe(element);
     }
     window.addEventListener("resize", measure);
@@ -1679,7 +1694,9 @@ function Taskbar({ frame }: { frame: DockFrame | null }) {
   };
   const navRef = useRef<HTMLElement>(null);
   const tasks = manager.windows.filter((window) => !(deskband && window.id === player?.id));
-  const capacity = useTaskCapacity(navRef, tasks.length);
+  const { quick: quickCapacity, tasks: capacity } = useTaskbarCapacity(navRef, quickLaunch.length, tasks.length);
+  const quickShown = quickLaunch.slice(0, quickCapacity);
+  const quickHidden = quickLaunch.slice(quickCapacity);
   const shown = tasks.slice(0, capacity);
   const focused = tasks.find((window) => window.id === manager.focusedId);
   if (capacity > 0 && focused !== undefined && !shown.includes(focused)) shown[capacity - 1] = focused;
@@ -1704,7 +1721,7 @@ function Taskbar({ frame }: { frame: DockFrame | null }) {
       </button>
       {startOpen && <StartMenu onClose={closeStart} />}
       <div className="bbd-quick" role="toolbar" aria-label="Quick Launch">
-        {quickLaunch.map((item) => (
+        {quickShown.map((item) => (
           <button
             key={item.id}
             type="button"
@@ -1720,9 +1737,16 @@ function Taskbar({ frame }: { frame: DockFrame | null }) {
         <button
           type="button"
           className="bbd-quick-more"
-          aria-label="Choose Quick Launch items"
-          title="Choose Quick Launch items"
-          onClick={(event) => desktop.openMenu(event, quickLaunchMenu(desktop, catalog, null))}
+          aria-label={quickHidden.length > 0 ? "More Quick Launch items" : "Choose Quick Launch items"}
+          title={quickHidden.length > 0 ? "More Quick Launch items" : "Choose Quick Launch items"}
+          aria-haspopup="menu"
+          onClick={(event) =>
+            desktop.openMenu(event, [
+              ...quickHidden.map((item): MenuEntry => ({ label: item.label, icon: item.art, run: item.run })),
+              ...(quickHidden.length > 0 ? ["separator" as const] : []),
+              ...quickLaunchMenu(desktop, catalog, null),
+            ])
+          }
         >
           <ChevronsRightGlyph className="size-3" strokeWidth={2.5} />
         </button>
@@ -2742,15 +2766,6 @@ function FinderWindow({ window: desktopWindow, groupKey }: { window: DesktopWind
   );
 }
 
-function screenName(providerId: string): string {
-  const name = providerId
-    .split(/[^A-Za-z0-9]+/)
-    .filter((part) => part !== "")
-    .map((part) => part[0]!.toUpperCase() + part.slice(1))
-    .join("");
-  return name === "" ? "Agent" : name;
-}
-
 function typingLine(thread: DesktopThread, buddy: string): string {
   switch (statusKind(thread)) {
     case "working":
@@ -2779,8 +2794,19 @@ function ThreadWindow({ window: desktopWindow, threadId }: { window: DesktopWind
   const thread = desktop.threadById.get(threadId);
   const panelOpen = manager.windows.some((window) => window.id === windowId({ kind: "panel", threadId }));
   const buddiesOpen = manager.windows.some((window) => window.id === windowId({ kind: "buddy-list", threadId }));
-  const buddy = screenName(thread?.providerId ?? "");
+  const buddy = aimScreenName(thread?.providerId ?? "", threadId);
   const browserAvailable = nativeBrowser() !== null;
+  const working = thread === undefined ? null : statusKind(thread) === "working";
+  const wasWorking = useRef<boolean | null>(null);
+
+  useEffect(() => {
+    if (working === null) return;
+    const previous = wasWorking.current;
+    wasWorking.current = working;
+    if (previous === null || previous === working) return;
+    if (working) playDoorOpen();
+    else playDoorClose();
+  }, [working]);
 
   const openTab = (tab: ThreadTabKind) => {
     const tabId = Math.random().toString(36).slice(2, 10);
@@ -3131,6 +3157,7 @@ function PanelWindow({ window: desktopWindow, threadId }: { window: DesktopWindo
             <fieldset className="bbd-fieldset">
               <legend>Thread</legend>
               <DetailRow label="Status">{describeStatus(thread)}</DetailRow>
+              <DetailRow label="Screen name">{aimScreenName(thread.providerId, thread.id)}</DetailRow>
               <DetailRow label="Agent">{thread.providerId}</DetailRow>
               {live?.environment?.branchName ? <DetailRow label="Branch">{live.environment.branchName}</DetailRow> : null}
               {live?.environment?.name ? <DetailRow label="Environment">{live.environment.name}</DetailRow> : null}

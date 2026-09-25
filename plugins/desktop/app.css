@@ -1422,8 +1422,9 @@
 }
 
 .bbd-im {
-  --bbd-im-me: color-mix(in oklch, oklch(0.55 0.21 27) 82%, var(--ink));
-  --bbd-im-them: color-mix(in oklch, oklch(0.5 0.22 262) 82%, var(--ink));
+  --bbd-im-field: color-mix(in oklch, oklch(0.66 0.07 245) 85%, var(--ink));
+  --bbd-im-me: color-mix(in oklch, oklch(0.5 0.22 262) 82%, var(--ink));
+  --bbd-im-them: color-mix(in oklch, oklch(0.55 0.21 27) 82%, var(--ink));
 }
 
 .bbd-im-chat {
@@ -1432,23 +1433,23 @@
 }
 
 .bbd-im-chat [data-message-column] {
-  display: grid;
-  grid-template-columns: fit-content(8rem) minmax(0, 1fr);
-  column-gap: 6px;
-  align-items: start;
+  display: flow-root;
   min-width: 0;
   max-width: 100%;
 }
 
 .bbd-im-chat [data-message-column] > * {
-  grid-column: 2;
   min-width: 0;
   max-width: 100%;
 }
 
+.bbd-im-chat [data-message-column] > :not(:first-child) {
+  clear: both;
+}
+
 .bbd-im-chat [data-message-column]::before {
-  grid-column: 1;
-  grid-row: 1;
+  float: left;
+  margin-right: 6px;
   content: var(--bbd-im-buddy);
   font-size: var(--text-sm);
   font-weight: 700;
@@ -1474,6 +1475,19 @@
   width: 100%;
   max-width: 100%;
   margin-left: 0;
+}
+
+.bbd-im-chat [data-message-column] > .ml-auto,
+.bbd-im-chat [data-message-column] > .ml-auto > .flex {
+  display: block;
+}
+
+.bbd-im-chat [data-message-column] > .ml-auto :is(.w-fit, .max-w-full) {
+  width: auto;
+}
+
+.bbd-im-chat [data-message-column] > .ml-auto .overflow-hidden:not(.absolute) {
+  overflow: clip;
 }
 
 .bbd-im-chat [data-message-column] > .ml-auto,
@@ -1508,6 +1522,108 @@
   white-space: inherit;
 }
 
+.bbd-im-chat [data-timeline-row-id] > .rounded-md {
+  font-family: Tahoma, Verdana, sans-serif;
+  font-style: italic;
+  color: color-mix(in oklch, var(--ink) 52%, var(--canvas));
+}
+
+.bbd-im-chat [data-timeline-row-id] > .rounded-md :is(.text-sm, .text-muted-foreground) {
+  font-size: var(--text-xs);
+  color: inherit;
+}
+
+.bbd-im-chat [data-timeline-row-id] > .rounded-md :is(.leading-5, .line-clamp-2) {
+  padding-right: 0.2em;
+}
+
+.bbd-im-chat [data-timeline-row-id] > .rounded-md.opacity-40,
+.bbd-im-chat [data-timeline-row-id] > .rounded-md .opacity-40 {
+  opacity: 0.8;
+}
+
+.bbd-im-chat [data-timeline-row-id] > .rounded-md svg[data-icon] {
+  display: none;
+}
+
+.bbd-im-chat [data-timeline-row-id] > .rounded-md :is(pre, code) {
+  font-style: normal;
+}
+
+.bbd-im-chat :is([data-timeline-row-id*=":op:warning:"], [data-timeline-row-id*=":op:error:"]) > .rounded-md {
+  color: var(--bbd-im-them);
+}
+
+.bbd-im-chat :is([data-timeline-row-id*=":op:warning:"], [data-timeline-row-id*=":op:error:"]) > .rounded-md button {
+  font-style: normal;
+  color: var(--bbd-im-me);
+  text-decoration: underline;
+}
+
+.bbd-im-chat :is(pre, div:has(> pre)) {
+  border-radius: 0;
+}
+
+.bbd-im-chat div:has(> pre) {
+  border: 1px solid var(--bbd-im-field);
+  background: var(--canvas);
+  box-shadow: inset 1px 1px 0 color-mix(in oklab, var(--ink) 12%, transparent);
+}
+
+.bbd-im-chat :is(pre, code) {
+  font-family: "Lucida Console", "Courier New", monospace;
+}
+
+.bbd-im-chat [data-message-column] a:not([data-prompt-mention-resource]) {
+  color: var(--bbd-im-me);
+  text-decoration: underline;
+}
+
+.bbd-im-chat [data-message-column] [data-prompt-mention-resource] {
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  color: var(--bbd-im-me);
+  text-decoration: underline;
+}
+
+.bbd-im-chat [data-message-column] [data-prompt-mention-resource] svg {
+  display: none;
+}
+
+.bbd-im-chat [data-promptbox] {
+  border-radius: 0;
+  border-color: var(--bbd-im-field);
+  background: var(--canvas);
+}
+
+.bbd-im-chat [data-promptbox] button[data-promptbox-submit-action] {
+  width: auto;
+  padding-inline: 14px;
+  border: 1px solid color-mix(in oklab, var(--ink) 30%, transparent);
+  border-radius: 3px;
+  background: linear-gradient(to bottom, color-mix(in oklch, var(--canvas) 98%, var(--ink)), color-mix(in oklch, var(--canvas) 86%, var(--ink)));
+  box-shadow: inset 0 1px 0 color-mix(in oklab, var(--canvas) 65%, transparent);
+}
+
+.bbd-im-chat [data-promptbox] button[data-promptbox-submit-action] svg {
+  display: none;
+}
+
+.bbd-im-chat [data-promptbox] button[data-promptbox-submit-action]::after {
+  content: "Send";
+  color: color-mix(in oklch, var(--ink) 88%, var(--canvas));
+  font-family: Tahoma, Verdana, sans-serif;
+  font-size: var(--text-xs);
+  font-weight: 700;
+}
+
+.bbd-im-chat [data-promptbox] button[data-promptbox-submit-action]:hover:not(:disabled) {
+  border-color: var(--bbd-accent-line);
+  background: color-mix(in oklch, var(--canvas) 86%, var(--bbd-blue-sky));
+}
+
 .bbd-window:has(.bbd-im) .bbd-titlebar,
 .bbd-window:has(.bbd-im) .bbd-statusbar {
   min-width: 0;
@@ -1537,9 +1653,9 @@
   flex-direction: column;
   align-items: center;
   gap: 1px;
-  flex: 1 1 0;
-  min-width: 0;
-  padding: 3px 2px 2px;
+  flex: none;
+  min-width: 60px;
+  padding: 3px 8px 2px;
   border: 1px solid color-mix(in oklab, var(--ink) 20%, transparent);
   border-radius: 3px;
   font-size: var(--text-xs);
