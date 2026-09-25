@@ -1,0 +1,29 @@
+{
+  "name": "bb-plugin-at-plugin",
+  "version": "0.1.2",
+  "description": "Find and mention installed and Community plugins with # or @.",
+  "type": "module",
+  "private": true,
+  "license": "UNLICENSED",
+  "files": [
+    "dist",
+    "docs",
+    "skills",
+    "README.md"
+  ],
+  "engines": {
+    "bb": ">=0.0.34",
+    "bbPluginSdk": ">=0.4.8"
+  },
+  "bb": {
+    "name": "Plugin Finder",
+    "description": "Mention installed and Community plugins in bb conversations.",
+    "branding": {
+      "icon": "Zap"
+    },
+    "server": "./dist/install-server.mjs",
+    "skills": [
+      "skills"
+    ]
+  }
+}
