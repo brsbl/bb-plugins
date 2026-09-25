@@ -2923,6 +2923,9 @@ function BuddyListWindow({ window: desktopWindow, threadId }: { window: DesktopW
         : []),
     ];
   }, [activeScope, desktop.groups, desktop.liveById, desktop.threads, environmentId, thread]);
+  const onlineCount = new Set(
+    buddyGroups.flatMap((group) => group.key === "offline" ? [] : group.threads.map((buddy) => buddy.id)),
+  ).size;
 
   const selected = desktop.threadById.get(selectedId);
   const toggleGroup = (key: string) =>
@@ -2939,9 +2942,7 @@ function BuddyListWindow({ window: desktopWindow, threadId }: { window: DesktopW
           <BuddyListArt size={32} />
           <div className="min-w-0">
             <p className="truncate font-semibold">{activeScope === "project" ? projectName : environmentName}</p>
-            <p className="truncate text-muted-foreground">
-              {activeScope === "project" ? "Project" : `Environment in ${projectName}`}
-            </p>
+            <p className="bbd-buddies-online truncate">Online ({onlineCount})</p>
           </div>
         </div>
         {environmentId === null ? null : (

@@ -1397,7 +1397,8 @@
 }
 
 .bbd-im-chat .thread-scrollbar {
-  background: var(--background);
+  background: color-mix(in oklch, var(--canvas) 97%, var(--ink));
+  box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--ink) 14%, transparent);
 }
 
 .bbd-im-chat .sticky.bottom-0 > .relative {
@@ -1425,15 +1426,24 @@
   --bbd-im-them: color-mix(in oklch, oklch(0.5 0.22 262) 82%, var(--ink));
 }
 
+.bbd-im-chat {
+  min-width: 0;
+  overflow: hidden;
+}
+
 .bbd-im-chat [data-message-column] {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-columns: fit-content(8rem) minmax(0, 1fr);
   column-gap: 6px;
   align-items: start;
+  min-width: 0;
+  max-width: 100%;
 }
 
 .bbd-im-chat [data-message-column] > * {
   grid-column: 2;
+  min-width: 0;
+  max-width: 100%;
 }
 
 .bbd-im-chat [data-message-column]::before {
@@ -1444,6 +1454,11 @@
   font-weight: 700;
   line-height: 1.625;
   color: var(--bbd-im-them);
+  min-width: 0;
+  max-width: 8rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .bbd-im-chat [data-message-column]:has(> .ml-auto)::before {
@@ -1456,6 +1471,7 @@
 }
 
 .bbd-im-chat [data-message-column] > .ml-auto {
+  width: 100%;
   max-width: 100%;
   margin-left: 0;
 }
@@ -1475,6 +1491,31 @@
 
 .bbd-im-chat [data-message-column] :is(p, li, blockquote) {
   font-family: "Times New Roman", Times, serif;
+  overflow-wrap: anywhere;
+}
+
+.bbd-im-chat [data-message-column] :is([data-markdown-preview], a, code, pre) {
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+
+.bbd-im-chat [data-message-column] pre {
+  white-space: pre-wrap;
+}
+
+.bbd-im-chat [data-message-column] pre code {
+  white-space: inherit;
+}
+
+.bbd-window:has(.bbd-im) .bbd-titlebar,
+.bbd-window:has(.bbd-im) .bbd-statusbar {
+  min-width: 0;
+  overflow: hidden;
+}
+
+.bbd-window:has(.bbd-im) .bbd-statusbar > * {
+  min-width: 0;
 }
 
 .bbd-statusbar [data-typing="true"] {
@@ -1483,9 +1524,12 @@
 
 .bbd-im-actions {
   display: flex;
+  min-width: 0;
   gap: 2px;
-  padding: 3px 6px;
+  padding: 4px 6px 3px;
   border-top: 1px solid var(--bbd-hairline);
+  background: color-mix(in oklch, var(--canvas) 92%, var(--ink));
+  box-shadow: inset 0 1px 0 color-mix(in oklab, var(--canvas) 70%, transparent);
 }
 
 .bbd-im-action {
@@ -1493,18 +1537,22 @@
   flex-direction: column;
   align-items: center;
   gap: 1px;
-  min-width: 56px;
-  padding: 3px 6px 2px;
-  border: 1px solid transparent;
-  border-radius: 6px;
+  flex: 1 1 0;
+  min-width: 0;
+  padding: 3px 2px 2px;
+  border: 1px solid color-mix(in oklab, var(--ink) 20%, transparent);
+  border-radius: 3px;
   font-size: var(--text-xs);
+  line-height: 1.2;
   color: var(--foreground);
+  background: linear-gradient(to bottom, color-mix(in oklch, var(--canvas) 98%, var(--ink)), color-mix(in oklch, var(--canvas) 90%, var(--ink)));
+  box-shadow: inset 0 1px 0 color-mix(in oklab, var(--canvas) 65%, transparent);
   cursor: default;
 }
 
 .bbd-im-action:hover:not(:disabled) {
-  border-color: var(--bbd-hairline);
-  background: var(--bbd-hover);
+  border-color: var(--bbd-accent-line);
+  background: color-mix(in oklch, var(--canvas) 86%, var(--bbd-blue-sky));
 }
 
 .bbd-im-action:active:not(:disabled),
@@ -1536,8 +1584,16 @@
   gap: 8px;
   padding: 8px 10px;
   font-size: var(--text-xs);
-  background: linear-gradient(to bottom, color-mix(in oklab, oklch(0.9 0.15 96) 32%, transparent), transparent);
+  background: linear-gradient(to bottom, color-mix(in oklch, var(--canvas) 84%, var(--bbd-orange)), color-mix(in oklch, var(--canvas) 96%, var(--ink)));
   border-bottom: 1px solid var(--bbd-hairline);
+}
+
+.bbd-buddies-banner > div {
+  min-width: 0;
+}
+
+.bbd-buddies-online {
+  color: var(--muted-foreground);
 }
 
 .bbd-buddies-tabs {
@@ -1580,6 +1636,7 @@
   align-items: center;
   gap: 5px;
   width: 100%;
+  min-width: 0;
   padding: 3px 8px;
   font-weight: 600;
   text-align: left;
@@ -1615,6 +1672,7 @@
   align-items: center;
   gap: 6px;
   width: 100%;
+  min-width: 0;
   padding: 2px 8px 2px 20px;
   text-align: left;
   color: var(--foreground);
@@ -1640,6 +1698,10 @@
 
 .bbd-buddy-idle {
   flex: none;
+  max-width: 40%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   opacity: 0.8;
 }
 
