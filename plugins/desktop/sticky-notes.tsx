@@ -8,7 +8,7 @@ import {
 import { createRoot } from "react-dom/client";
 import { toast } from "sonner";
 
-import { CloseGlyph, StickyNoteGlyph } from "./art";
+import { CloseGlyph, NotePadGlyph } from "./art";
 import { useDesktopEnabled } from "./enabled";
 
 export interface StickyNote {
@@ -93,7 +93,7 @@ function removeNote(id: string) {
   if (note === undefined) return;
   saveNotes(notes.filter((candidate) => candidate.id !== id));
   if (note.text.trim() === "") return;
-  toast("Sticky note deleted", {
+  toast("Note pad deleted", {
     action: {
       label: "Undo",
       onClick: () => saveNotes([...notes.slice(0, index), note, ...notes.slice(index)]),
@@ -198,7 +198,7 @@ function StickyNoteView({ note }: { note: StickyNote }) {
       className="bbd-note"
       data-tone={TONES[note.tone % TONES.length]}
       data-dragging={drag !== null}
-      aria-label="Sticky note"
+      aria-label="Note pad"
       style={{ left: rect.left, top: rect.top, width: rect.width, height: rect.height }}
       onPointerDown={() => raiseNote(note.id)}
     >
@@ -219,7 +219,7 @@ function StickyNoteView({ note }: { note: StickyNote }) {
         <button
           type="button"
           className="bbd-note-close"
-          aria-label="Delete sticky note"
+          aria-label="Delete note pad"
           title="Delete"
           onClick={() => removeNote(note.id)}
         >
@@ -283,14 +283,14 @@ export function StickyNoteHeaderButton({ isCompactViewport }: { isCompactViewpor
     <button
       type="button"
       className="bbd-root bbd-note-add"
-      aria-label="Add sticky note"
-      title="Add sticky note"
+      aria-label="Add a note pad"
+      title="Add a note pad"
       onClick={(event) => {
         const button = event.currentTarget.getBoundingClientRect();
         addStickyNote({ left: window.innerWidth - DEFAULT_SIZE.width - MARGIN, top: button.bottom + 12 });
       }}
     >
-      <StickyNoteGlyph className="size-4" />
+      <NotePadGlyph className="size-4" />
     </button>
   );
 }

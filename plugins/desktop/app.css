@@ -905,17 +905,25 @@
 
 .bbd-note {
   --bbd-note-hue: 95;
+  --bbd-note-paper: oklch(0.975 0.035 var(--bbd-note-hue));
+  --bbd-note-rule: oklch(0.78 0.12 145 / 0.55);
+  --bbd-note-cover: oklch(0.42 0.15 262);
+  --bbd-note-cover-edge: oklch(0.28 0.11 265);
+  --bbd-note-coil: oklch(0.86 0.015 250);
+  --bbd-note-coil-shade: oklch(0.5 0.03 250);
+  --bbd-note-line: 1.5em;
   position: fixed;
   display: flex;
   flex-direction: column;
   overflow: hidden;
   pointer-events: auto;
-  border-radius: 10px;
-  background: color-mix(in oklch, oklch(0.93 0.11 var(--bbd-note-hue)) 72%, var(--canvas));
-  border: 1px solid color-mix(in oklab, oklch(0.6 0.12 var(--bbd-note-hue)) 35%, transparent);
-  box-shadow: var(--bbd-highlight), 0 10px 24px -14px color-mix(in oklab, var(--ink) 45%, transparent);
-  color: var(--foreground);
-  font-size: var(--text-sm);
+  border-radius: 3px 3px 4px 4px;
+  background: var(--bbd-note-paper);
+  border: 1px solid var(--bbd-note-cover-edge);
+  box-shadow: 3px 4px 10px -4px oklch(0.2 0.03 260 / 0.55);
+  color: oklch(0.22 0.03 260);
+  font-family: "Lucida Console", Consolas, ui-monospace, monospace;
+  font-size: var(--text-xs);
 }
 
 .bbd-note[data-tone="Pink"] {
@@ -931,7 +939,7 @@
 }
 
 .bbd-note[data-dragging="true"] {
-  box-shadow: var(--bbd-highlight), 0 18px 36px -16px color-mix(in oklab, var(--ink) 55%, transparent);
+  box-shadow: 5px 8px 18px -6px oklch(0.2 0.03 260 / 0.6);
 }
 
 .bbd-note-bar {
@@ -942,7 +950,11 @@
   height: 22px;
   padding: 0 4px 0 7px;
   cursor: grab;
-  background: color-mix(in oklch, oklch(0.86 0.13 var(--bbd-note-hue)) 60%, transparent);
+  background:
+    radial-gradient(circle at 7px 14px, var(--bbd-note-cover-edge) 0 1.6px, transparent 1.7px) 0 0 / 14px 100% repeat-x,
+    radial-gradient(ellipse 3.2px 7px at 7px 9px, transparent 0 1.8px, var(--bbd-note-coil) 1.9px 2.9px, var(--bbd-note-coil-shade) 3px 3.3px, transparent 3.4px) 0 0 / 14px 100% repeat-x,
+    linear-gradient(var(--bbd-note-cover), color-mix(in oklch, var(--bbd-note-cover) 80%, var(--bbd-note-cover-edge)));
+  border-bottom: 1px solid var(--bbd-note-cover-edge);
 }
 
 .bbd-note[data-dragging="true"] .bbd-note-bar {
@@ -964,8 +976,10 @@
   place-items: center;
   width: 18px;
   height: 18px;
-  border-radius: 5px;
-  color: color-mix(in oklab, var(--foreground) 70%, transparent);
+  border-radius: 4px;
+  background: var(--bbd-close);
+  box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--bbd-white) 70%, transparent);
+  color: var(--bbd-white);
   opacity: 0;
   transition: opacity 120ms, background-color 120ms;
 }
@@ -978,25 +992,28 @@
 }
 
 .bbd-note-close:hover {
-  background: var(--bbd-hover);
-  color: var(--foreground);
+  background: var(--bbd-close-deep);
+}
+
+.bbd-note-tone {
+  box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--bbd-white) 70%, transparent);
 }
 
 .bbd-note-text {
   flex: 1;
   min-height: 0;
-  padding: 6px 10px 12px;
+  padding: 4px 10px 12px;
   resize: none;
   border: 0;
   outline: none;
-  background: transparent;
+  background: repeating-linear-gradient(transparent 0 calc(var(--bbd-note-line) - 1px), var(--bbd-note-rule) calc(var(--bbd-note-line) - 1px) var(--bbd-note-line)) 0 4px / 100% var(--bbd-note-line) local;
   color: inherit;
   font: inherit;
-  line-height: 1.45;
+  line-height: var(--bbd-note-line);
 }
 
 .bbd-note-text::placeholder {
-  color: color-mix(in oklab, var(--foreground) 40%, transparent);
+  color: oklch(0.55 0.03 260);
 }
 
 .bbd-note-grip {
@@ -1006,7 +1023,7 @@
   width: 14px;
   height: 14px;
   cursor: nwse-resize;
-  background: linear-gradient(135deg, transparent 50%, color-mix(in oklab, oklch(0.6 0.12 var(--bbd-note-hue)) 45%, transparent) 50% 60%, transparent 60% 72%, color-mix(in oklab, oklch(0.6 0.12 var(--bbd-note-hue)) 45%, transparent) 72% 82%, transparent 82%);
+  background: linear-gradient(135deg, transparent 50%, oklch(0.55 0.05 260 / 0.55) 50% 60%, transparent 60% 72%, oklch(0.55 0.05 260 / 0.55) 72% 82%, transparent 82%);
 }
 
 .bbd-folder-chip {

@@ -20,7 +20,7 @@ export default definePluginApp((app) => {
   });
   app.slots.experimental_threadHeaderAction({
     id: "sticky-note",
-    title: "Sticky notes",
+    title: "Note pads",
     component: ({ threadId, isCompactViewport }) => (
       <>
         {isCompactViewport ? null : <ThreadFolderChip threadId={threadId} />}

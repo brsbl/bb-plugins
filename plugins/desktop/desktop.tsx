@@ -48,9 +48,9 @@ import {
   SolitaireArt,
   RecycleBinArt,
   StatusIcon,
-  StickyNoteArt,
+  NotePadArt,
   type StatusKind,
-  StickyNoteGlyph,
+  NotePadGlyph,
   PanelRightGlyph,
   ChevronsRightGlyph,
   PowerGlyph,
@@ -1059,8 +1059,8 @@ function DesktopCanvas() {
   const canvasMenu = (event: MenuTrigger): MenuEntry[] => [
     ...commands.slice(0, 2),
     {
-      label: "New sticky note",
-      icon: <StickyNoteGlyph className="size-3.5" />,
+      label: "New note pad",
+      icon: <NotePadGlyph className="size-3.5" />,
       run: () => addStickyNote({ left: event.clientX, top: event.clientY }),
     },
     ...commands.slice(2),
@@ -1279,9 +1279,9 @@ function StartMenu({ onClose }: { onClose: () => void }) {
           onClick={run(() => addStickyNote())}
           onContextMenu={(event) => desktop.openMenu(event, [quickLaunchToggleEntry(desktop, "sticky-note")])}
         >
-          <StickyNoteArt size={30} />
+          <NotePadArt size={30} />
           <span>
-            <strong>Sticky note</strong>
+            <strong>Note pad</strong>
             <small>Pin a note in the margin</small>
           </span>
         </button>
@@ -1446,7 +1446,7 @@ function useQuickLaunchCatalog(): QuickLaunchItem[] {
     launcher({ kind: "media-player" }, "Media Player"),
     launcher({ kind: "minesweeper" }, "Minesweeper"),
     launcher({ kind: "solitaire" }, "Solitaire"),
-    { id: "sticky-note", label: "Sticky note", art: <StickyNoteArt size={18} />, run: () => addStickyNote() },
+    { id: "sticky-note", label: "Note pad", art: <NotePadArt size={18} />, run: () => addStickyNote() },
     { id: "search", label: "Search", art: <SearchArt size={20} />, run: () => void runAppCommand("thread.search") },
     { id: "run", label: "Run…", art: <RunArt size={20} />, run: () => void runAppCommand("palette.open") },
     { id: "plugins", label: "Plugins", art: <PluginsArt size={20} />, run: () => navigateInApp("/plugins") },

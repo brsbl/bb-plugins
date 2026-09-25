@@ -9,9 +9,9 @@ Every surface belongs to exactly one layer. Decide which before designing anythi
 | Layer | Surfaces | Looks like | Why |
 | --- | --- | --- | --- |
 | **XP layer** | The desktop, icons, windows, taskbar, Start menu, tray, balloons, context menus opened on the desktop | Windows XP Luna: blue title bars, green Start, bevelled buttons, yellow balloons, drawn icons | This is the plugin's whole point |
-| **bb layer** | Anything the plugin renders inside bb's own chrome: the thread-header folder label, the sticky-note header button, settings | Native bb: bb tokens, bb typography, line glyphs, no XP chrome | XP chrome inside bb's header would look broken, not nostalgic |
+| **bb layer** | Anything the plugin renders inside bb's own chrome: the thread-header folder label, the note pad header button, settings | Native bb: bb tokens, bb typography, line glyphs, no XP chrome | XP chrome inside bb's header would look broken, not nostalgic |
 
-Sticky notes are the one floating exception: they live on every page, so they use their own paper style rather than XP window chrome.
+Note pads are the one floating exception: they live on every page, so they are drawn as XP Notepad paper (spiral binding, ruled page, Lucida Console) rather than full XP window chrome.
 
 ## 2. Names
 
@@ -72,7 +72,7 @@ Use the real XP icon when bb has an XP counterpart. When it does not, build from
 | New folder | Make a new folder: folder plus starburst | `NewFolderArt` |
 | Show desktop | Show Desktop: navy desk blotter with a sheet and a blue pencil | `ShowDesktopArt` |
 | Media Player | Windows Media Player 10: ring in four colors, white disc, blue play triangle | `MediaPlayerArt` |
-| Sticky note | Sticky Notes (Tablet PC Edition): yellow notes with a blue pen | `StickyNoteArt` |
+| Note pad | Notepad: spiral-bound pad with a pale-blue page and green ruled lines | `NotePadArt` |
 | New thread | XP speech bubble (as on Information) plus starburst | `NewThreadArt` |
 | Threads | My Documents pattern: folder with the item tucked in, here a speech bubble | `ThreadsArt` |
 | Plugins | Add or Remove Programs pattern: software box with a CD | `PluginsArt` |
@@ -86,7 +86,7 @@ Use the real XP icon when bb has an XP counterpart. When it does not, build from
 
 ### Line glyphs
 
-Hugeicons line glyphs (`bbGlyph`) are allowed only for small controls inside a window (view toggles, title-bar buttons) and for the bb layer (the sticky-note header button). They never stand in for an app, place, or object.
+Hugeicons line glyphs (`bbGlyph`) are allowed only for small controls inside a window (view toggles, title-bar buttons) and for the bb layer (the note pad header button). They never stand in for an app, place, or object.
 
 ## 5. Components
 
@@ -109,7 +109,7 @@ Reuse these before building anything new.
 
 - Windows open with `defaultRect` sizes and stay inside the viewport (`clampRect`). List windows start at least 460 px wide so titles fit.
 - The taskbar is a pill sized to its contents: Start, Quick Launch, window buttons, tray.
-- Text uses bb's sans font and typography tokens (`--text-xs`, and so on). The only XP typeface exception is the balloon (Tahoma first), which is a quoted XP artifact.
+- Text uses bb's sans font and typography tokens (`--text-xs`, and so on). The XP typeface exceptions are quoted XP artifacts: the balloon (Tahoma), Minesweeper numbers (Tahoma), and note pads (Lucida Console, Notepad's font).
 
 ## 7. Motion
 

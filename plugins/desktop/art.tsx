@@ -19,7 +19,7 @@ import {
   NextIcon,
   PlayIcon,
   PreviousIcon,
-  StickyNote03Icon,
+  Notebook01Icon,
   PowerIcon,
   StopIcon,
   PinIcon,
@@ -87,6 +87,9 @@ const ICON = {
   metal: "oklch(0.8 0.02 250)",
   metalEdge: "oklch(0.5 0.03 250)",
   lensTop: "oklch(0.98 0.02 220)",
+  notepadTop: "oklch(0.98 0.02 230)",
+  notepadBottom: "oklch(0.9 0.05 235)",
+  notepadLine: "oklch(0.75 0.14 145)",
   lensBottom: "oklch(0.78 0.08 235)",
   wmpOrange: "oklch(0.68 0.2 38)",
   wmpGreen: "oklch(0.72 0.19 138)",
@@ -137,6 +140,7 @@ function IconDefs() {
       {gradient("bbd-g-red", ICON.redTop, ICON.redBottom)}
       {gradient("bbd-g-ok", ICON.okTop, ICON.okBottom)}
       {gradient("bbd-g-lens", ICON.lensTop, ICON.lensBottom)}
+      {gradient("bbd-g-notepad", ICON.notepadTop, ICON.notepadBottom)}
       {gradient("bbd-g-warn", ICON.warnTop, ICON.warnBottom, 0, 1)}
       <radialGradient id="bbd-g-disc" cx="0.38" cy="0.32" r="0.75">
         <stop offset="0" stopColor={ICON.discLight} />
@@ -411,7 +415,7 @@ export const StopGlyph = bbGlyph(StopIcon);
 export const PowerGlyph = bbGlyph(PowerIcon);
 export const ChevronsRightGlyph = bbGlyph(ArrowRightDoubleIcon);
 export const MicGlyph = bbGlyph(Mic01Icon);
-export const StickyNoteGlyph = bbGlyph(StickyNote03Icon);
+export const NotePadGlyph = bbGlyph(Notebook01Icon);
 export const NextGlyph = bbGlyph(NextIcon);
 export const PreviousGlyph = bbGlyph(PreviousIcon);
 
@@ -480,15 +484,22 @@ export function ThreadArt({
   );
 }
 
-export function StickyNoteArt({ size = 40 }: { size?: number }) {
+export function NotePadArt({ size = 40 }: { size?: number }) {
+  const coils = [11, 17, 23, 29, 35];
   return (
     <IconSvg size={size}>
-      <path d="M4 12 30 6 36 32 10 38Z" fill={ICON.noteBottom} stroke={ICON.noteEdge} strokeLinejoin="round" />
-      <path d="M6 10 32 5 37 30 30 38 11 41Z" fill="url(#bbd-g-note)" stroke={ICON.noteEdge} strokeLinejoin="round" />
-      <path d="M37 30 31 31.5 30 38Z" fill={ICON.noteBottom} stroke={ICON.noteEdge} strokeLinejoin="round" />
-      <circle cx="30.5" cy="9" r="1.8" fill={ICON.noteDot} />
-      <path d="M11 17 27 14M12 22.5 26 20M13 28 22 26.5" stroke={ICON.noteEdge} strokeOpacity="0.45" strokeWidth="1.2" strokeLinecap="round" />
-      <Pencil from={[24, 33]} to={[46, 12]} />
+      <g transform="rotate(-8 24 26)">
+        <rect x="7" y="8" width="32" height="36" rx="2.5" fill={ICON.navyBottom} stroke={ICON.navyEdge} />
+        <rect x="9" y="10" width="30" height="33" rx="1.5" fill="url(#bbd-g-notepad)" stroke={ICON.blueOutline} strokeWidth="0.7" />
+        <path d="M12 19h24M12 24h24M12 29h24M12 34h24M12 39h18" stroke={ICON.notepadLine} strokeWidth="1.3" strokeLinecap="round" />
+        {coils.map((x) => (
+          <g key={x}>
+            <path d={`M${x} 13.5v-6a2 2 0 0 1 4 0v4`} fill="none" stroke={ICON.metalEdge} strokeWidth="2.4" strokeLinecap="round" />
+            <path d={`M${x} 13.5v-6a2 2 0 0 1 4 0v4`} fill="none" stroke={ICON.metal} strokeWidth="1.2" strokeLinecap="round" />
+            <circle cx={x + 2} cy="13" r="1.1" fill={ICON.navyEdge} />
+          </g>
+        ))}
+      </g>
     </IconSvg>
   );
 }
