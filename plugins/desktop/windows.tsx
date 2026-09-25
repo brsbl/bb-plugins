@@ -375,6 +375,7 @@ export function WindowFrame({
   titleActions,
   statusBar,
   children,
+  onClose,
 }: {
   window: DesktopWindow;
   title: string;
@@ -382,6 +383,7 @@ export function WindowFrame({
   titleActions?: ReactNode;
   statusBar?: ReactNode;
   children: ReactNode;
+  onClose?: () => void;
 }) {
   const manager = useWindowManager();
   const { id } = desktopWindow;
@@ -480,7 +482,10 @@ export function WindowFrame({
           data-variant="close"
           aria-label="Close"
           title="Close"
-          onClick={() => manager.close(id)}
+          onClick={() => {
+            onClose?.();
+            manager.close(id);
+          }}
         >
           <CloseGlyph className="size-3.5" strokeWidth={2} />
         </button>

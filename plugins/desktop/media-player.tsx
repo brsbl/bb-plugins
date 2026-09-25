@@ -1,6 +1,6 @@
 import { useEffect, useRef, useSyncExternalStore } from "react";
 
-import { MediaPlayerArt, MicGlyph, NextGlyph, PlayGlyph, PreviousGlyph, StopGlyph } from "./art";
+import { MediaPlayerArt, MicGlyph, PlayGlyph, StopGlyph } from "./art";
 import { WindowFrame, type DesktopWindow } from "./windows";
 
 type MicStatus = "off" | "starting" | "live" | "blocked";
@@ -230,11 +230,17 @@ function loadPreset(): number {
 const presetListeners = new Set<() => void>();
 let presetIndex = typeof localStorage === "undefined" ? 0 : loadPreset();
 
-function cyclePreset(step: number) {
-  presetIndex = (presetIndex + step + PRESETS.length) % PRESETS.length;
+function selectPreset(index: number) {
+  presetIndex = index;
   localStorage.setItem(PRESET_KEY, String(presetIndex));
   for (const listener of presetListeners) listener();
 }
+
+function cyclePreset(step: number) {
+  selectPreset((presetIndex + step + PRESETS.length) % PRESETS.length);
+}
+
+const PRESET_GROUPS = [...new Set(PRESETS.map((preset) => preset.name.split(": ")[0]!))];
 
 function usePreset(): Preset {
   const index = useSyncExternalStore(
@@ -340,13 +346,28 @@ function PlayButton({ size }: { size: "large" | "small" }) {
   );
 }
 
-function PresetButton({ step }: { step: number }) {
-  const Glyph = step < 0 ? PreviousGlyph : NextGlyph;
-  const label = step < 0 ? "Previous visualization" : "Next visualization";
+function VisualizationPicker({ preset }: { preset: Preset }) {
   return (
-    <button type="button" className="bbd-wmp-button" aria-label={label} title={label} onClick={() => cyclePreset(step)}>
-      <Glyph className="size-3.5" strokeWidth={2} />
-    </button>
+    <label className="bbd-wmp-readout" title="Double-click the screen to switch quickly">
+      <span className="text-muted-foreground">Visualization</span>
+      <select
+        className="bbd-wmp-select"
+        value={PRESETS.indexOf(preset)}
+        onChange={(event) => selectPreset(Number(event.target.value))}
+      >
+        {PRESET_GROUPS.map((group) => (
+          <optgroup key={group} label={group}>
+            {PRESETS.map((candidate, index) =>
+              candidate.name.startsWith(`${group}: `) ? (
+                <option key={candidate.name} value={index}>
+                  {candidate.name.slice(group.length + 2)}
+                </option>
+              ) : null,
+            )}
+          </optgroup>
+        ))}
+      </select>
+    </label>
   );
 }
 
@@ -368,13 +389,13 @@ export function MediaPlayerWindow({ window: desktopWindow }: { window: DesktopWi
 
   useEffect(() => {
     if (autoplay.current) void startMic();
-    return stopMic;
   }, []);
   return (
     <WindowFrame
       window={desktopWindow}
       title="Windows Media Player"
       icon={<MediaPlayerArt size={16} />}
+      onClose={stopMic}
       statusBar={<span className="flex-1 truncate">{statusText(status, preset)}</span>}
     >
       <div className="bbd-wmp h-full">
@@ -397,17 +418,8 @@ export function MediaPlayerWindow({ window: desktopWindow }: { window: DesktopWi
           )}
         </div>
         <div className="bbd-wmp-transport">
-          <PresetButton step={-1} />
           <PlayButton size="large" />
-          <PresetButton step={1} />
-          <div className="bbd-wmp-readout">
-            <span>{preset.name}</span>
-            <span className="bbd-wmp-dots" aria-hidden>
-              {PRESETS.map((candidate) => (
-                <i key={candidate.name} data-active={candidate === preset} />
-              ))}
-            </span>
-          </div>
+          <VisualizationPicker preset={preset} />
         </div>
       </div>
     </WindowFrame>
