@@ -15,7 +15,7 @@ translucent veil, so the scene reads as a soft, living backdrop.
 ## Collaborate through the `ambient` tool
 
 1. `action=get` returns the shader contract, the current source, params, and palette. Read it before writing.
-2. `action=set` with `source` and `params` swaps the scene. The tool waits for a bb window to compile it and restores the previous scene on a GLSL error, returning the log with scene-relative line numbers.
+2. `action=set` with `source` and `params` swaps the scene. The tool waits for a bb window to compile it and restores the previous scene on a GLSL error, returning the log with scene-relative line numbers. Omit `name` (or keep the current one) to edit the open scene: the edit saves into that scene, and Reset restores its original. Pass a new `name` to start a new scene; a name that's already taken gets a number.
 3. `action=look` returns two PNGs: the scene behind bb's real panels and frosted glass as the user sees it, with bb's text drawn as bars in its real color and position, then the raw scene. The report lists where bb's panels sit (in uv), how much detail shows in the open areas, and which words the scene makes hard to read (outlined in red), and flags scenes that are too faint, nearly still, too heavy, or hidden behind the panels. Judge the first image. Pass `ripple: "done" | "error" | "started"` to fire a test ripple first, so you can judge how events read.
 4. `action=set` with only `values` or `palette` nudges an existing scene without recompiling.
 5. `action=save` keeps the current scene in the library; `action=load` switches scenes; `action=delete` removes a saved one.
@@ -40,7 +40,7 @@ bb ambient set glow=1.2 scale=3
 bb ambient save [name]
 bb ambient delete <id>
 bb ambient on | off
-bb ambient reset tide           # restore a built-in scene's original sliders, colors, and display settings
+bb ambient reset tide           # restore a scene's original version; edits to the open scene save into it until reset
 bb ambient paint "california poppies, impressionist, in the wind"   # an agent paints it in a new thread
 bb ambient set glass=45%       # lower the frosted glass behind text (max 60%)
 bb ambient daily on 8 America/New_York   # an agent paints a new scene each morning after 8

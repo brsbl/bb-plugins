@@ -99,14 +99,27 @@ export type AmbientState = z.infer<typeof stateSchema>;
 const libraryEntrySchema = z.object({
   id: z.string().min(1),
   scene: sceneSchema,
+  original: sceneSchema.optional(),
   savedAt: z.number().int().nonnegative(),
 });
 
 type LibraryEntry = z.infer<typeof libraryEntrySchema>;
 
+function sameScene(left: Scene, right: Scene): boolean {
+  const key = (scene: Scene) =>
+    JSON.stringify([
+      scene.name,
+      scene.source,
+      scene.palette,
+      scene.params.map((entry) => [entry.id, entry.label, entry.min, entry.max, entry.step, entry.value]),
+    ]);
+  return key(left) === key(right);
+}
+
 const tweaksSchema = z.object({
   values: z.record(z.string(), z.number().finite()),
   palette: paletteSchema,
+  scene: sceneSchema.optional(),
 });
 
 const libraryIndexSchema = z.array(
@@ -867,6 +880,7 @@ export default function plugin(bb: BbPluginApi): void {
       const scene = sceneOf(builtIn);
       const tweaks = tweaksSchema.safeParse(await bb.storage.kv.get(`${TWEAKS_PREFIX}${builtIn.id}`));
       if (!tweaks.success) return scene;
+      if (tweaks.data.scene) return tweaks.data.scene;
       const known = Object.fromEntries(
         Object.entries(tweaks.data.values).filter(([id]) => scene.params.some((entry) => entry.id === id)),
       );
@@ -909,9 +923,14 @@ export default function plugin(bb: BbPluginApi): void {
         for (let suffix = 2; taken.has(id); suffix += 1) id = `${base}-${suffix}`;
       }
       const savedAt = Date.now();
+      const saving = { ...scene, name: finalName };
+      const previous = existing ? await readEntry(id) : null;
+      const original =
+        previous?.original ?? (previous && !sameScene(previous.scene, saving) ? previous.scene : undefined);
       await bb.storage.kv.set(`${LIBRARY_PREFIX}${id}`, {
         id,
-        scene: { ...scene, name: finalName },
+        scene: saving,
+        ...(original ? { original } : {}),
         savedAt,
       } satisfies LibraryEntry);
       await bb.storage.kv.set(LIBRARY_INDEX_KEY, [
@@ -925,20 +944,47 @@ export default function plugin(bb: BbPluginApi): void {
 
   async function resetScene(id: string): Promise<AmbientState> {
     const builtIn = BUILT_IN_SCENES.find((entry) => entry.id === id);
-    if (!builtIn) throw new Error(`${JSON.stringify(id)} is not a built-in scene; only built-in scenes can be reset`);
+    if (!builtIn) return resetSaved(id);
     await bb.storage.kv.delete(`${TWEAKS_PREFIX}${builtIn.id}`);
     bb.realtime.publish("library", { id: builtIn.id });
     const state = await readState();
     return writeState({ ...state, scene: sceneOf(builtIn), controls: DEFAULT_CONTROLS }, { sceneChanged: true });
   }
 
-  async function readSavedSource(id: string): Promise<string | null> {
+  async function resetSaved(id: string): Promise<AmbientState> {
+    const entry = await readEntry(id);
+    if (!entry) throw new Error(`no scene matches ${JSON.stringify(id)}`);
+    const { original, ...rest } = entry;
+    if (!original) throw new Error(`${entry.scene.name} has no edits to reset`);
+    await bb.storage.kv.set(`${LIBRARY_PREFIX}${id}`, { ...rest, scene: original } satisfies LibraryEntry);
+    bb.realtime.publish("library", { id });
+    const state = await readState();
+    return writeState({ ...state, scene: rebuildBuiltIn(original) }, { sceneChanged: true });
+  }
+
+  async function readEntry(id: string): Promise<LibraryEntry | null> {
     const entry = libraryEntrySchema.safeParse(await bb.storage.kv.get(`${LIBRARY_PREFIX}${id}`));
-    return entry.success ? entry.data.scene.source : null;
+    return entry.success ? entry.data : null;
+  }
+
+  async function readSavedSource(id: string): Promise<string | null> {
+    return (await readEntry(id))?.scene.source ?? null;
+  }
+
+  async function uniqueName(name: string): Promise<string> {
+    const taken = new Set([
+      ...BUILT_IN_SCENES.map((entry) => entry.name.toLowerCase()),
+      ...(await readIndex()).map((entry) => entry.name.toLowerCase()),
+    ]);
+    if (!taken.has(name.toLowerCase())) return name;
+    const base = name.slice(0, 56);
+    let suffix = 2;
+    while (taken.has(`${base} ${suffix}`.toLowerCase())) suffix += 1;
+    return `${base} ${suffix}`;
   }
 
   async function autosaveScene(scene: Scene): Promise<void> {
-    const builtIn = BUILT_IN_SCENES.find((entry) => entry.id === scene.baseId && entry.name === scene.name);
+    const builtIn = BUILT_IN_SCENES.find((entry) => entry.name === scene.name);
     if (builtIn) {
       if ((await bb.storage.kv.get(`${TWEAKS_PREFIX}${builtIn.id}`)) === undefined) {
         bb.realtime.publish("library", { id: builtIn.id });
@@ -946,15 +992,20 @@ export default function plugin(bb: BbPluginApi): void {
       await bb.storage.kv.set(`${TWEAKS_PREFIX}${builtIn.id}`, {
         values: Object.fromEntries(scene.params.map((entry) => [entry.id, entry.value])),
         palette: scene.palette,
+        ...(scene.baseId === builtIn.id ? {} : { scene }),
       });
       return;
     }
     const saved = (await readIndex()).find((entry) => entry.name === scene.name);
     if (!saved) return;
-    const current = libraryEntrySchema.safeParse(await bb.storage.kv.get(`${LIBRARY_PREFIX}${saved.id}`));
-    if (current.success && current.data.scene.source === scene.source) {
-      await bb.storage.kv.set(`${LIBRARY_PREFIX}${saved.id}`, { ...current.data, scene });
-    }
+    const current = await readEntry(saved.id);
+    if (!current || sameScene(current.scene, scene)) return;
+    await bb.storage.kv.set(`${LIBRARY_PREFIX}${saved.id}`, {
+      ...current,
+      original: current.original ?? current.scene,
+      scene,
+    } satisfies LibraryEntry);
+    if (current.original === undefined) bb.realtime.publish("library", { id: saved.id });
   }
 
   function deleteScene(id: string): Promise<boolean> {
@@ -1063,7 +1114,14 @@ export default function plugin(bb: BbPluginApi): void {
               tweaked: (await bb.storage.kv.get(`${TWEAKS_PREFIX}${entry.id}`)) !== undefined,
             })),
           )),
-          ...saved.map((entry) => ({ id: entry.id, name: entry.name, builtIn: false, tweaked: false })),
+          ...(await Promise.all(
+            saved.map(async (entry) => ({
+              id: entry.id,
+              name: entry.name,
+              builtIn: false,
+              tweaked: (await readEntry(entry.id))?.original !== undefined,
+            })),
+          )),
         ],
       };
     },
@@ -1118,7 +1176,7 @@ export default function plugin(bb: BbPluginApi): void {
         .describe(
           "get: shader contract + current scene. set: replace any of name/source/params/palette, nudge values, or change controls. look: capture the scene behind bb's real UI as the user sees it, plus the raw scene, with readability and visibility checks. library/load/save/delete: manage saved scenes. brief: step-by-step instructions for painting a new scene; pass request to paint what the user described, or omit it for today's daily concept.",
         ),
-      name: sceneNameSchema.optional().describe("scene name (set, save)"),
+      name: sceneNameSchema.optional().describe("scene name (set, save); on set, omit it to edit the open scene, or pass a new name to start a new scene"),
       source: z
         .string()
         .max(MAX_SOURCE_LENGTH)
@@ -1226,7 +1284,9 @@ export default function plugin(bb: BbPluginApi): void {
           input.source !== undefined || input.params !== undefined;
         let scene: Scene = {
           ...state.scene,
-          ...(input.name === undefined ? {} : { name: input.name }),
+          ...(input.name === undefined || input.name === state.scene.name
+            ? {}
+            : { name: await uniqueName(input.name) }),
           ...(input.source === undefined ? {} : { source: input.source }),
           ...(input.palette === undefined
             ? {}
@@ -1255,7 +1315,10 @@ export default function plugin(bb: BbPluginApi): void {
           },
           { sceneChanged: structural },
         );
-        if (!structural) return `Updated ${next.scene.name}. Controls: ${describeControls(next.controls)}.`;
+        if (!structural) {
+          await autosaveScene(next.scene);
+          return `Updated ${next.scene.name}. Controls: ${describeControls(next.controls)}.`;
+        }
         const report = await awaitCompile(next.sceneRevision);
         if (report === null) {
           await serialized(() => restoreScene(next.sceneRevision, state.scene));
@@ -1268,6 +1331,7 @@ export default function plugin(bb: BbPluginApi): void {
           return error(`The scene was not applied; the previous scene was restored.\n${report.log ?? ""}`);
         }
         await bb.storage.kv.set(LAST_GOOD_KEY, next.scene);
+        await autosaveScene(next.scene);
         return `Compiled and live: ${next.scene.name} with ${next.scene.params.length} sliders.`;
       } catch (caught) {
         if (caught instanceof z.ZodError) return error(formatIssues(caught));
@@ -1283,7 +1347,7 @@ export default function plugin(bb: BbPluginApi): void {
       { name: "status", summary: "Show the active scene, its params, and controls", usage: "bb ambient status" },
       { name: "list", summary: "List built-in and saved scenes", usage: "bb ambient list" },
       { name: "load", summary: "Make a built-in or saved scene active", usage: "bb ambient load <id-or-name>" },
-      { name: "reset", summary: "Restore a built-in scene's original sliders and colors and the default display settings", usage: "bb ambient reset <built-in-id>" },
+      { name: "reset", summary: "Restore a scene's original version: a built-in's shader, sliders, colors, and default display settings, or a saved scene as first saved", usage: "bb ambient reset <scene-id>" },
       {
         name: "set",
         summary: "Set scene params or the Visibility, Motion, Detail, and Glass opacity controls",
@@ -1340,6 +1404,7 @@ export default function plugin(bb: BbPluginApi): void {
             },
             { sceneChanged: false },
           );
+          await autosaveScene(next.scene);
           const applied = next.scene.params
             .filter((entry) => Object.hasOwn(values, entry.id))
             .map((entry) => `${entry.id}=${entry.value}`);
@@ -1349,7 +1414,8 @@ export default function plugin(bb: BbPluginApi): void {
         if (command === "palette") {
           const palette = paletteSchema.parse(rest);
           const state = await readState();
-          await writeState({ ...state, scene: { ...state.scene, palette } }, { sceneChanged: false });
+          const next = await writeState({ ...state, scene: { ...state.scene, palette } }, { sceneChanged: false });
+          await autosaveScene(next.scene);
           return { exitCode: 0, stdout: `palette ${palette.join(" ")}\n` };
         }
         if (command === "save") {
@@ -1369,7 +1435,7 @@ export default function plugin(bb: BbPluginApi): void {
         }
         if (command === "reset") {
           const id = rest.join(" ").trim();
-          if (!id) throw new Error("usage: bb ambient reset <built-in-id>");
+          if (!id) throw new Error("usage: bb ambient reset <scene-id>");
           const next = await resetScene(id);
           return { exitCode: 0, stdout: `reset ${next.scene.name}\n` };
         }

@@ -73,6 +73,26 @@ describe("display controls", () => {
     await harness.lifecycle.dispose();
   });
 
+  it("saves edits into a saved scene and resets it to the version first saved", async () => {
+    const { bb, harness } = createFakePluginHost({ pluginId: "ambient" });
+    plugin(bb);
+    type Library = { entries: { id: string; builtIn: boolean; tweaked: boolean }[] };
+    type SceneState = { scene: { params: { id: string; value: number }[] } };
+    const glow = (state: SceneState) => state.scene.params.find((entry) => entry.id === "glow")?.value;
+    await harness.behavior.callRpc("loadScene", { id: "tide" });
+    const { id } = (await harness.behavior.callRpc("saveScene", { name: "Calm Tide" })) as { id: string };
+    await harness.behavior.callRpc("loadScene", { id });
+    await harness.behavior.callRpc("setValues", { values: { glow: 1.7 } });
+    const edited = (await harness.behavior.callRpc("library", null)) as Library;
+    expect(edited.entries.find((entry) => entry.id === id)?.tweaked).toBe(true);
+    await harness.behavior.callRpc("loadScene", { id: "fireflies" });
+    expect(glow((await harness.behavior.callRpc("loadScene", { id })) as SceneState)).toBe(1.7);
+    expect(glow((await harness.behavior.callRpc("resetScene", { id })) as SceneState)).toBe(1);
+    const reset = (await harness.behavior.callRpc("library", null)) as Library;
+    expect(reset.entries.find((entry) => entry.id === id)?.tweaked).toBe(false);
+    await harness.lifecycle.dispose();
+  });
+
   it("only lets glass opacity go down from its default", async () => {
     const { bb, harness } = createFakePluginHost({ pluginId: "ambient" });
     plugin(bb);
