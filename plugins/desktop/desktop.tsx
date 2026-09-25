@@ -1050,7 +1050,7 @@ function DesktopCanvas() {
     { label: "New folder", icon: <NewFolderArt size={16} />, run: () => manager.open({ kind: "new-folder" }) },
     { label: "New thread", icon: <NewThreadArt size={16} />, run: () => manager.open({ kind: "new-thread", groupKey: null }) },
     "separator",
-    { label: "Threads", icon: <ThreadsArt size={16} />, run: () => manager.open({ kind: "threads" }) },
+    { label: "My Threads", icon: <ThreadsArt size={16} />, run: () => manager.open({ kind: "threads" }) },
     { label: "Recycle Bin", icon: <RecycleBinArt size={14} />, run: () => manager.open({ kind: "recycle-bin" }) },
     { label: "Media Player", icon: <MediaPlayerArt size={14} />, run: () => manager.open({ kind: "media-player" }) },
     "separator",
@@ -1151,7 +1151,7 @@ function windowTitle(spec: WindowSpec, desktop: DesktopContextValue): string {
     case "panel":
       return `${desktop.threadById.get(spec.threadId)?.title ?? "Thread"} — Details`;
     case "threads":
-      return "Threads";
+      return "My Threads";
     case "recycle-bin":
       return "Recycle Bin";
     case "more":
@@ -1458,7 +1458,7 @@ function useQuickLaunchCatalog(): QuickLaunchItem[] {
     { id: "show-desktop", label: "Show desktop", art: <ShowDesktopArt size={20} />, run: showDesktop },
     launcher({ kind: "new-thread", groupKey: null }, "New thread"),
     launcher({ kind: "new-folder" }, "New folder"),
-    launcher({ kind: "threads" }, "Threads"),
+    launcher({ kind: "threads" }, "My Threads"),
     launcher({ kind: "recycle-bin" }, "Recycle Bin"),
     launcher({ kind: "media-player" }, "Media Player"),
     launcher({ kind: "minesweeper" }, "Minesweeper"),
@@ -2424,7 +2424,7 @@ function FinderWindow({ window: desktopWindow, groupKey }: { window: DesktopWind
             view={view}
             emptyText={
               acceptsDrop(group)
-                ? "Nothing here. Drag threads in from another folder or the Threads window."
+                ? "Nothing here. Drag threads in from another folder or My Threads."
                 : "No threads here."
             }
           />
@@ -2606,7 +2606,7 @@ function ThreadsWindow({ window: desktopWindow }: { window: DesktopWindow }) {
   return (
     <WindowFrame
       window={desktopWindow}
-      title="Threads"
+      title="My Threads"
       icon={<ThreadsArt size={16} />}
       statusBar={<span className="flex-1">{threads.length} threads · drag onto a folder to file</span>}
     >

@@ -74,7 +74,7 @@ Use the real XP icon when bb has an XP counterpart. When it does not, build from
 | Media Player | Windows Media Player 10: ring in four colors, white disc, blue play triangle | `MediaPlayerArt` |
 | Note pad | Notepad: spiral-bound pad with a pale-blue page and green ruled lines | `NotePadArt` |
 | New thread | XP speech bubble (as on Information) plus starburst | `NewThreadArt` |
-| Threads | My Documents pattern: folder with the item tucked in, here a speech bubble | `ThreadsArt` |
+| My Threads (every thread) | My Documents: folder with the item tucked in, here a speech bubble; named "My …" like XP's personal folders | `ThreadsArt` |
 | Plugins | Add or Remove Programs pattern: software box with a CD | `PluginsArt` |
 | Skills | No XP counterpart; a glossy bolt in XP style | `SkillsArt` |
 | Minesweeper | Minesweeper: a spiked black mine with a red flag | `MinesweeperArt` |
