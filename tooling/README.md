@@ -21,15 +21,15 @@ This folder holds the small amount of machinery the plugins genuinely share. Run
 | [`validate-plugin-artifacts.mjs`](validate-plugin-artifacts.mjs) | Makes sure production bundles contain everything bb needs to install them. |
 | [`create-plugin.mjs`](create-plugin.mjs) | Starts a plugin with package scripts, local SDK declarations, and a focused test. |
 | [`scaffold-smoke.mjs`](scaffold-smoke.mjs) | Runs the generator inside a clean temporary repository. |
-| [`publish-install-refs.mjs`](publish-install-refs.mjs) | Publishes root-shaped `plugin/<slug>` refs and bundled Thread Organizer version tags after `main` passes CI. |
+| [`publish-install-refs.mjs`](publish-install-refs.mjs) | Publishes root-shaped `plugin/<slug>` refs and bundled marketplace version tags after `main` passes CI. |
 
-## Thread Organizer releases
+## Marketplace releases
 
-Bump the plugin version and lockfile, rebuild its artifacts, and merge after CI
-passes. The existing publish job creates `thread-organizer/v<version>` from the
-same bundles as `plugin/thread-organizer`. The tag retains
-`plugins/thread-organizer`, so marketplace URLs and version ranges stay valid.
-Do not tag the source commit manually.
+Thread Organizer and Context Katamari are listed in the BB marketplace. Bump the
+plugin version and lockfile, rebuild its artifacts, and merge after CI passes.
+The existing publish job creates `<slug>/v<version>` from the same bundles as
+`plugin/<slug>`. The tag retains `plugins/<slug>`, so marketplace URLs and
+version ranges stay valid. Do not tag the source commit manually.
 
 The generated release commit is parented by its source commit and records the
 package tree, lockfile digest, SDK archive, and builder provenance in

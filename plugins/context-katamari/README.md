@@ -14,7 +14,7 @@ Requires bb 0.43 or newer.
 
 ## Use
 
-Click the katamari button in the sidebar footer to open the floating window in the bottom-right corner. Drag the handle at its top edge to move it.
+Click the katamari button in the sidebar footer to open the floating window in the bottom-right corner, beside the thread pane when there is room. Drag the handle at its top edge to move it and its top-left corner to resize it. Press **?** for a guide that labels the screen.
 
 | What you see | What it means |
 | --- | --- |
