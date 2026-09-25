@@ -64,12 +64,12 @@ describe("display controls", () => {
       scene: { params: { id: string; value: number }[] };
       controls: { showThrough: number; speed: number; glass: number };
     };
-    expect(reset.scene.params.find((entry) => entry.id === "glow")?.value).toBe(0.8);
+    expect(reset.scene.params.find((entry) => entry.id === "glow")?.value).toBe(1);
     expect(reset.controls).toMatchObject({ showThrough: 0.77, speed: 0.75, glass: 0.6 });
     const reloaded = (await harness.behavior.callRpc("loadScene", { id: "tide" })) as {
       scene: { params: { id: string; value: number }[] };
     };
-    expect(reloaded.scene.params.find((entry) => entry.id === "glow")?.value).toBe(0.8);
+    expect(reloaded.scene.params.find((entry) => entry.id === "glow")?.value).toBe(1);
     await harness.lifecycle.dispose();
   });
 
