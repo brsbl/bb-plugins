@@ -1,0 +1,811 @@
+[data-bb-plugin-release-style="bb-plugin-context-katamari"] { --bb-plugin-release-style: 1; }
+/* Authored CSS is global, so every selector carries the ck- prefix. */
+
+.ck-window {
+  position: fixed;
+  z-index: 60;
+  width: 360px;
+  height: 280px;
+  border-radius: 20px;
+  padding: 3px;
+  background: linear-gradient(135deg, #ff4f6d, #ffd23f 30%, #3bceac 60%, #3a86ff 85%, #8338ec);
+  box-shadow:
+    0 18px 40px rgb(22 12 48 / 0.35),
+    0 2px 6px rgb(22 12 48 / 0.25);
+  /* The game's HUD type is a chunky rounded face with a thick outline. */
+  font-family: "Arial Rounded MT Bold", ui-rounded, "SF Pro Rounded", "Nunito", system-ui, sans-serif;
+  color: #1d1b3a;
+  user-select: none;
+  animation: ck-pop-in 420ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+@keyframes ck-pop-in {
+  from {
+    opacity: 0;
+    transform: scale(0.6) rotate(-6deg);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) rotate(0);
+  }
+}
+
+.ck-stage {
+  position: relative;
+  container-type: size;
+  width: 100%;
+  height: 100%;
+  border-radius: 17px;
+  overflow: hidden;
+  background: #9fdcff;
+  outline: none;
+  cursor: pointer;
+}
+
+.ck-window[data-focused="true"] .ck-stage {
+  cursor: default;
+  box-shadow: inset 0 0 0 3px rgb(255 255 255 / 0.9);
+}
+
+.ck-canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  opacity: 1;
+  transition: opacity 400ms ease;
+}
+
+.ck-window[data-ready="false"] .ck-canvas {
+  opacity: 0;
+}
+
+.ck-stage::before {
+  content: "Rolling out the world…";
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  color: #ffffff;
+  font-size: 14px;
+  letter-spacing: 0.02em;
+  -webkit-text-stroke: 4px #1b1f5e;
+  paint-order: stroke fill;
+  background: linear-gradient(#5ab8ff, #c8f1ff 70%, #7ccd55 70%);
+  opacity: 0;
+  transition: opacity 300ms ease;
+  pointer-events: none;
+}
+
+.ck-window[data-ready="false"] .ck-stage::before {
+  opacity: 1;
+}
+
+/*
+ * The PS2 HUD: the rainbow flower size gauge tucked into the top-left corner
+ * with the size in big rounded numerals, the clock top right, the last rolled
+ * up object in a grey disc bottom left, and the Prince on the Earth bottom
+ * right. Text is white with a thin dark edge, like the original.
+ */
+.ck-gauge {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 150px;
+  height: 90px;
+  pointer-events: none;
+}
+
+.ck-flower {
+  position: absolute;
+  top: -30px;
+  left: -30px;
+  width: 92px;
+  height: 92px;
+  animation: ck-flower-spin 24s linear infinite;
+}
+
+@keyframes ck-flower-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.ck-size-text,
+.ck-goal,
+.ck-clock-number,
+.ck-title,
+.ck-item-name,
+.ck-look-out {
+  font-family: "Arial Rounded MT Bold", "Helvetica Rounded", ui-rounded, "SF Pro Rounded", system-ui, sans-serif;
+  color: #ffffff;
+  text-shadow:
+    0 0 2px rgb(20 16 40 / 0.9),
+    1px 1px 0 rgb(20 16 40 / 0.75);
+}
+
+.ck-size-text {
+  position: absolute;
+  top: 12px;
+  left: 48px;
+  font-size: 17px;
+  letter-spacing: -0.03em;
+  white-space: nowrap;
+}
+
+.ck-size-text small {
+  margin: 0 1px;
+  font-size: 10px;
+}
+
+.ck-goal {
+  position: absolute;
+  top: 34px;
+  left: 30px;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  font-size: 10px;
+  font-style: italic;
+  opacity: 0.95;
+}
+
+.ck-goal svg {
+  width: 24px;
+  height: 10px;
+  fill: none;
+  stroke: #ffffff;
+  stroke-width: 2;
+  stroke-linecap: round;
+  filter: drop-shadow(0 0 1px rgb(20 16 40 / 0.9));
+}
+
+.ck-clock {
+  position: absolute;
+  top: 8px;
+  right: 90px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  pointer-events: none;
+}
+
+.ck-clock-number {
+  font-size: 15px;
+  letter-spacing: 0.02em;
+}
+
+.ck-clock-number small {
+  margin-left: 1px;
+  font-size: 11px;
+}
+
+.ck-clock svg {
+  width: 22px;
+  height: 22px;
+}
+
+.ck-clock-face {
+  fill: rgb(40 36 60 / 0.75);
+  stroke: #ffffff;
+  stroke-width: 1.5;
+}
+
+.ck-clock-hand {
+  stroke: #ffffff;
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+
+.ck-clock[data-urgent="true"] .ck-clock-face {
+  fill: #f26b1d;
+}
+
+.ck-clock[data-urgent="true"] .ck-clock-number {
+  color: #ffb27a;
+}
+
+.ck-clock-bang {
+  fill: #ffffff;
+  font: bold 12px system-ui, sans-serif;
+}
+
+.ck-title {
+  position: absolute;
+  bottom: 9px;
+  left: 50%;
+  max-width: 38%;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: rgb(40 36 60 / 0.4);
+  overflow: hidden;
+  font-size: 10px;
+  text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+
+.ck-king {
+  position: absolute;
+  top: 58px;
+  left: 50%;
+  display: flex;
+  align-items: center;
+  width: 82%;
+  transform: translateX(-50%);
+  pointer-events: none;
+  animation: ck-king 3800ms ease forwards;
+}
+
+.ck-king-face {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 34px;
+  height: 34px;
+  margin-right: -10px;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at 30% 30%, #b18cff 0 2px, transparent 3px),
+    radial-gradient(circle at 70% 60%, #d7c2ff 0 1.5px, transparent 2.5px),
+    radial-gradient(circle, #5a2aa8, #2d1466 75%);
+  box-shadow: 0 0 0 2px rgb(125 80 220 / 0.6);
+  color: #ffd23f;
+  font-size: 17px;
+}
+
+.ck-king-caption {
+  flex: 1;
+  min-height: 22px;
+  padding: 5px 12px 5px 16px;
+  border-radius: 999px;
+  background: rgb(38 32 36 / 0.62);
+  color: #ffffff;
+  font-family: "Arial Rounded MT Bold", ui-rounded, system-ui, sans-serif;
+  font-size: 11px;
+  line-height: 1.25;
+}
+
+@keyframes ck-king {
+  0% {
+    opacity: 0;
+  }
+  6%,
+  88% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+.ck-item {
+  position: absolute;
+  bottom: 8px;
+  left: 8px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  pointer-events: none;
+}
+
+.ck-item-disc {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgb(210 214 220 / 0.55), rgb(150 156 166 / 0.55));
+  box-shadow: inset 0 0 0 6px rgb(120 126 136 / 0.35);
+}
+
+.ck-item-disc img {
+  width: 44px;
+  height: 44px;
+  animation: ck-item-in 500ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+@keyframes ck-item-in {
+  from {
+    opacity: 0;
+    transform: scale(0.3);
+  }
+}
+
+.ck-item[data-look-out="true"] .ck-item-disc {
+  box-shadow:
+    inset 0 0 0 6px rgb(230 70 90 / 0.75),
+    0 0 0 2px rgb(230 70 90 / 0.5);
+}
+
+.ck-item-name {
+  max-width: 120px;
+  padding: 1px 6px;
+  overflow: hidden;
+  border-radius: 4px;
+  background: rgb(60 60 70 / 0.55);
+  font-size: 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  animation: ck-item-in 400ms ease;
+}
+
+.ck-look-out {
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: rgb(228 64 84 / 0.8);
+  font-size: 10px;
+  letter-spacing: 0.04em;
+}
+
+.ck-prince-earth {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: 80px;
+  height: 80px;
+  pointer-events: none;
+}
+
+.ck-prince-earth svg {
+  width: 100%;
+  height: 100%;
+}
+
+.ck-prince-glow {
+  opacity: 0.35;
+  transition: opacity 400ms ease;
+}
+
+.ck-prince-earth[data-mode="rolling"] .ck-prince-glow {
+  opacity: 1;
+  animation: ck-glow 1400ms ease-in-out infinite;
+}
+
+@keyframes ck-glow {
+  50% {
+    opacity: 0.6;
+  }
+}
+
+.ck-prince-earth[data-mode="rolling"] .ck-prince-figure {
+  animation: ck-prince-bob 500ms ease-in-out infinite;
+}
+
+@keyframes ck-prince-bob {
+  50% {
+    transform: translateY(-1.5px);
+  }
+}
+
+.ck-prince-mark {
+  position: absolute;
+  top: 4px;
+  left: 10px;
+  color: #ffffff;
+  font: 11px "Arial Rounded MT Bold", ui-rounded, system-ui, sans-serif;
+  text-shadow: 0 0 2px rgb(20 16 40 / 0.9);
+}
+
+.ck-stars {
+  position: absolute;
+  top: 0;
+  right: 4px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: rgb(255 210 63 / 0.9);
+  color: #3a2a00;
+  font: 13px "Arial Rounded MT Bold", ui-rounded, system-ui, sans-serif;
+}
+
+.ck-hint {
+  position: absolute;
+  bottom: 30px;
+  left: 50%;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgb(29 27 58 / 0.6);
+  color: #ffffff;
+  font-size: 10px;
+  font-weight: 800;
+  white-space: nowrap;
+  opacity: 0;
+  transform: translateX(-50%);
+  transition: opacity 200ms ease;
+  pointer-events: none;
+}
+
+.ck-stage:hover .ck-hint,
+.ck-window[data-focused="true"] .ck-hint {
+  opacity: 1;
+}
+
+.ck-grip {
+  position: absolute;
+  z-index: 3;
+  top: 3px;
+  left: 50%;
+  display: flex;
+  justify-content: center;
+  width: 84px;
+  height: 18px;
+  padding-top: 5px;
+  transform: translateX(-50%);
+  cursor: grab;
+  touch-action: none;
+}
+
+.ck-grip:active {
+  cursor: grabbing;
+}
+
+/* Top-left, since the window is anchored to the bottom-right corner. */
+.ck-resize {
+  position: absolute;
+  z-index: 3;
+  top: 0;
+  left: 0;
+  width: 20px;
+  height: 20px;
+  border-top-left-radius: 20px;
+  border-top: 4px solid rgb(255 255 255 / 0.85);
+  border-left: 4px solid rgb(255 255 255 / 0.85);
+  opacity: 0;
+  cursor: nwse-resize;
+  touch-action: none;
+  transition: opacity 0.15s ease;
+}
+
+.ck-window:hover .ck-resize,
+.ck-resize:active {
+  opacity: 1;
+}
+
+.ck-grip span {
+  width: 40px;
+  height: 5px;
+  border-radius: 999px;
+  background: rgb(255 255 255 / 0.85);
+  box-shadow: 0 1px 3px rgb(22 12 48 / 0.3);
+}
+
+.ck-controls {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  display: flex;
+  gap: 4px;
+  opacity: 0.55;
+  transition: opacity 150ms ease;
+}
+
+.ck-window:hover .ck-controls {
+  opacity: 1;
+}
+
+.ck-button {
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: rgb(255 255 255 / 0.85);
+  color: #1d1b3a;
+  box-shadow: 0 2px 6px rgb(22 12 48 / 0.3);
+  cursor: pointer;
+  transition: transform 120ms ease;
+}
+
+.ck-button:hover {
+  transform: scale(1.1);
+}
+
+.ck-button:focus-visible {
+  outline: 2px solid #3a86ff;
+  outline-offset: 2px;
+}
+
+.ck-button svg {
+  width: 13px;
+  height: 13px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ck-window,
+  .ck-king,
+  .ck-item-name,
+  .ck-prince-glow {
+    animation: none !important;
+  }
+}
+
+/* Recent turns: one bar per turn, as tall as the context it swallowed. */
+.ck-turns {
+  position: absolute;
+  top: 38px;
+  right: 10px;
+}
+
+.ck-turn-bars {
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: 18px;
+  padding: 2px 3px;
+  border-radius: 4px;
+  background: rgb(29 27 58 / 0.35);
+}
+
+.ck-turn-bar {
+  width: 5px;
+  border-radius: 2px 2px 1px 1px;
+  background: #7ee081;
+  box-shadow: 0 0 0 0.5px rgb(20 16 40 / 0.6);
+}
+
+.ck-turn-bar[data-tier="bite"] {
+  background: #ffe14d;
+}
+
+.ck-turn-bar[data-tier="gulp"] {
+  background: #ff8a1d;
+}
+
+.ck-turn-bar[data-tier="heavy"] {
+  background: #ff3d5a;
+}
+
+.ck-turn-bar[data-tier="compacted"] {
+  background: #b18cff;
+}
+
+/* The first turn: bb's system prompt and tools, not the prompt's own appetite. */
+.ck-turn-bar[data-tier="setup"] {
+  background: #b9c3d6;
+}
+
+.ck-turn-bar[data-running="true"] {
+  animation: ck-glow 900ms ease-in-out infinite;
+}
+
+/* "+18k" bursting out of the katamari as it swallows new context. */
+.ck-gulp {
+  position: absolute;
+  top: 44%;
+  left: 50%;
+  font-size: 15px;
+  letter-spacing: -0.02em;
+  white-space: nowrap;
+  color: #ffffff;
+  text-shadow:
+    0 0 2px rgb(20 16 40 / 0.95),
+    1px 1px 0 rgb(20 16 40 / 0.8);
+  transform: translate(-50%, 0);
+  pointer-events: none;
+  animation: ck-gulp 1600ms cubic-bezier(0.22, 1.2, 0.36, 1) forwards;
+}
+
+.ck-gulp[data-tier="nibble"] {
+  font-size: 11px;
+  opacity: 0.85;
+}
+
+.ck-gulp[data-tier="gulp"] {
+  font-size: 19px;
+  color: #ffe14d;
+}
+
+.ck-gulp[data-tier="setup"] {
+  font-size: 17px;
+  color: #d8e0f0;
+}
+
+.ck-gulp[data-tier="heavy"] {
+  font-size: 24px;
+  color: #ff5a6e;
+  text-shadow:
+    0 0 3px rgb(20 16 40 / 0.95),
+    2px 2px 0 rgb(20 16 40 / 0.85);
+}
+
+@keyframes ck-gulp {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, 10px) scale(0.4);
+  }
+  18% {
+    opacity: 1;
+    transform: translate(-50%, 0) scale(1.25);
+  }
+  30% {
+    transform: translate(-50%, 0) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -34px) scale(1);
+  }
+}
+
+.ck-button-glyph {
+  font: 900 13px/1 "Arial Rounded MT Bold", ui-rounded, system-ui, sans-serif;
+}
+
+/* The help screen: the world dims and each HUD piece gets a label. */
+.ck-guide {
+  position: absolute;
+  z-index: 1;
+  inset: 0;
+  background: rgb(22 18 48 / 0.55);
+  cursor: default;
+  animation: ck-guide-in 180ms ease;
+}
+
+/* The pieces the labels point at stay lit above the dimmed world. */
+.ck-stage:has(.ck-guide[data-page="hud"]) :is(.ck-gauge, .ck-clock, .ck-turns, .ck-item, .ck-stars) {
+  z-index: 2;
+}
+
+@keyframes ck-guide-in {
+  from {
+    opacity: 0;
+  }
+}
+
+.ck-guide-label {
+  position: absolute;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: #ffe14d;
+  color: #1d1b3a;
+  font-size: 10px;
+  font-weight: 800;
+  white-space: nowrap;
+  box-shadow: 0 2px 6px rgb(22 12 48 / 0.35);
+}
+
+.ck-guide-label[data-spot="size"] {
+  top: 58px;
+  left: 26px;
+}
+
+.ck-guide-label[data-spot="clock"] {
+  top: 36px;
+  right: 64px;
+}
+
+.ck-guide-label[data-spot="turns"] {
+  top: 64px;
+  right: 8px;
+}
+
+.ck-guide-label[data-spot="item"] {
+  bottom: 26px;
+  left: 66px;
+}
+
+.ck-guide-label[data-spot="stars"] {
+  right: 36px;
+  bottom: 48px;
+}
+
+.ck-guide-card {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: min(78%, 280px);
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: rgb(255 255 255 / 0.95);
+  color: #1d1b3a;
+  font-size: 11px;
+  line-height: 1.35;
+  text-align: center;
+  transform: translate(-50%, -50%);
+  box-shadow: 0 6px 18px rgb(22 12 48 / 0.35);
+}
+
+.ck-guide-card p {
+  margin: 0 0 6px;
+}
+
+/* A short window keeps only what the labels cannot say. */
+@container (max-height: 280px) {
+  .ck-guide-keys {
+    display: none;
+  }
+}
+
+.ck-guide-card[data-page="events"] {
+  width: min(92%, 330px);
+  padding: 8px 10px;
+  text-align: left;
+}
+
+.ck-guide-events {
+  display: grid;
+  gap: 3px;
+  margin: 0 0 7px;
+  padding: 0;
+  list-style: none;
+  font: 11px/1.25 system-ui, sans-serif;
+}
+
+.ck-guide-events li {
+  display: grid;
+  grid-template-columns: 16px 1fr;
+  gap: 5px;
+}
+
+.ck-guide-events b {
+  font-weight: 700;
+}
+
+.ck-guide-events b::after {
+  content: ":";
+}
+
+.ck-guide-actions {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.ck-guide-arrow {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  padding: 0 0 2px;
+  border: 0;
+  border-radius: 50%;
+  background: #3a86ff;
+  color: #ffffff;
+  font: 900 18px/1 system-ui, sans-serif;
+  cursor: pointer;
+}
+
+.ck-guide-arrow:disabled {
+  background: rgb(29 27 58 / 0.12);
+  color: rgb(29 27 58 / 0.3);
+  cursor: default;
+}
+
+.ck-guide-dots {
+  display: flex;
+  gap: 4px;
+}
+
+.ck-guide-dots span {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: rgb(29 27 58 / 0.2);
+}
+
+.ck-guide-dots span[data-on="true"] {
+  background: #3a86ff;
+}
+
+.ck-guide-close {
+  padding: 3px 14px;
+  border: 0;
+  border-radius: 999px;
+  background: #3a86ff;
+  color: #ffffff;
+  font: inherit;
+  font-weight: 800;
+  cursor: pointer;
+}
