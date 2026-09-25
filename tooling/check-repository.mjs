@@ -23,6 +23,7 @@ const defaultBbEngine = ">=0.0.34";
 // instead of raising the compatibility floor for every package.
 const pluginBbEngineOverrides = new Map([
   ["context-katamari", ">=0.43.0"],
+  ["improve-prompt", ">=0.40.0"],
   ["theme-preview", ">=0.38.0"],
 ]);
 

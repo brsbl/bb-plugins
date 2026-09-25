@@ -894,12 +894,22 @@ function Studio({ threadId }: PluginThreadPanelProps) {
         id: gradient.id,
         label: gradient.name,
       });
-      const suffix = handoffSuffix(preset, contrast);
+      const suffix = handoffSuffix(
+        preset,
+        measureContrast({
+          seed: gradient.seed,
+          style: gradient.style,
+          points: gradient.points,
+          ...(gradient.customColor === undefined
+            ? {}
+            : { customColor: gradient.customColor }),
+        }),
+      );
       composer.updateText((current) => `${current}${suffix}`);
       composer.focus();
       toast.success("Handoff added to the composer");
     },
-    [composer, preset, contrast],
+    [composer, preset],
   );
 
   const sendToAgent = useCallback(async () => {
