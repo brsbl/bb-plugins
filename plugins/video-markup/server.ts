@@ -91,7 +91,7 @@ export default function plugin(bb: BbPluginApi): void {
     async register(input: z.output<typeof registerSchema>) {
       const source = input.source ?? {kind: path.isAbsolute(input.file) ? "host" as const : "workspace" as const, threadId: input.threadId, environmentId: null, projectId: null};
       const media = await inspect(input.file, source, input.fps, true, input.attachment);
-      const demo = input.demo ?? await currentDemo(input.threadId) ?? (videoName(media.path).replace(/\.[^.]+$/, "").slice(0,160) || "Video");
+      const demo = input.demo ?? await currentDemo(input.threadId) ?? (videoName(media.path).replace(/\.[^.]+$/, "").replace(/[\s._-]+v(?:ersion)?[\s._-]?\d+$/i, "").slice(0,160) || "Video");
       const version = store.register({threadId: input.threadId, demo, summary: input.summary, media});
       await bb.storage.kv.set(`demo:${input.threadId}`, demo);
       changed(input.threadId); return version;

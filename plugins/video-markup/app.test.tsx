@@ -148,4 +148,20 @@ describe("Video Markup UI contracts",()=>{
     expect(within(slot.getByRole("article",{name:"Note 2"})).getByRole("button",{name:"Go to note 2 at 00:15.000"})).toBeTruthy();
     slot.lifecycle.unmount();
   });
+  it("shows the all-fixed outcome once the last note needing attention is resolved",async()=>{
+    const app=await loadPluginApp(()=>import("./app.js"));
+    let notes: FrameNote[] = [note];
+    const slot=renderSlot(app.threadPanelActions[0],{threadId:"thr_demo",params:{versionId:"v1"}},{rpc:{
+      versions:()=>({versions:[version],nextOffset:null,currentDemo:"Duo"}),version:()=>version,
+      preview:()=>({media:version.media,url:"/video.mp4",expiresAt:99999}),
+      notes:()=>({notes,nextOffset:null}),
+      status:(input)=>{const {noteId,status}=input as {noteId:string;status:FrameNote["status"]};notes=notes.map(n=>n.id===noteId?{...n,status}:n);return notes.find(n=>n.id===noteId);},
+    }});
+    await slot.findByRole("article",{name:"Note 1"});
+    fireEvent.keyDown(slot.getByRole("combobox",{name:"Status for note at 00:12.000"}),{key:"ArrowDown"});
+    fireEvent.click(await slot.findByRole("option",{name:"Fixed"}));
+    expect(await slot.findByText("All 1 note is fixed.")).toBeTruthy();
+    expect(slot.queryByRole("article",{name:"Note 1"})).toBeNull();
+    slot.lifecycle.unmount();
+  });
 });

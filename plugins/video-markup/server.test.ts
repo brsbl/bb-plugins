@@ -25,7 +25,7 @@ describe("Video Markup persistence and feedback",()=>{
     const source={kind:"host",threadId:null,environmentId:null,projectId:null,experimental_hostId:"host_a"};
     const input={threadId:"thr_demo",file:"/uploads/duo-v1.mp4",attachment:true,source};
     const first=JSON.parse(z.string().parse(await host.harness.behavior.callAgentTool("video_markup_present",input)));
-    expect(first.version).toMatchObject({demo:"duo-v1",ordinal:1,summary:"",media:{path:"/plugin/videos/duo-v1.mp4",duration:34,fps:60,codec:"h264",frameTimes:[]}});
+    expect(first.version).toMatchObject({demo:"duo",ordinal:1,summary:"",media:{path:"/plugin/videos/duo-v1.mp4",duration:34,fps:60,codec:"h264",frameTimes:[]}});
     expect(stepTime(first.version.media,1,1)).toBeCloseTo(61/60);
     expect(first.directive).toBe(`::video-markup{version="${first.version.id}"}`);
     expect(host.harness.inspection.realtimeSignals).toContainEqual({channel:"present",payload:{threadId:"thr_demo",versionId:first.version.id}});
@@ -35,11 +35,11 @@ describe("Video Markup persistence and feedback",()=>{
     expect(JSON.parse(again.stdout).version.media).toMatchObject({duration:34,fps:60,codec:"h264"});
     const second=await host.harness.behavior.runCli(["present","--data",JSON.stringify({...input,file:"/renders/duo-v2.mp4",attachment:false}),"--summary","Gentler camera"]);
     expect(second.exitCode).toBe(0);
-    expect(JSON.parse(second.stdout).version).toMatchObject({demo:"duo-v1",ordinal:2,summary:"Gentler camera",media:{path:"/renders/duo-v2.mp4"}});
+    expect(JSON.parse(second.stdout).version).toMatchObject({demo:"duo",ordinal:2,summary:"Gentler camera",media:{path:"/renders/duo-v2.mp4"}});
     await host.harness.behavior.callAgentTool("video_markup_present",{...input,demo:"Another",file:"/renders/another.mp4",attachment:false});
-    await host.harness.behavior.callRpc("selectDemo",{threadId:"thr_demo",demo:"duo-v1"});
+    await host.harness.behavior.callRpc("selectDemo",{threadId:"thr_demo",demo:"duo"});
     const next=JSON.parse(z.string().parse(await host.harness.behavior.callAgentTool("video_markup_present",{...input,file:"/renders/duo-v3.mp4",attachment:false})));
-    expect(next.version).toMatchObject({demo:"duo-v1",ordinal:3});
+    expect(next.version).toMatchObject({demo:"duo",ordinal:3});
     expect((await host.harness.behavior.runCli(["present","--help"])).stdout).toContain("present");
   });
   it("persists notes and selections across plugin reload and isolates threads",async()=>{
