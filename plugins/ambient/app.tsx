@@ -66,6 +66,7 @@ ${PAGE}::before { content: ""; position: absolute; z-index: -1; pointer-events: 
 ${PAGE_MAIN} :is(.max-w-5xl, [class~="max-w-[760px]"]):not(:is(.max-w-5xl, [class~="max-w-[760px]"]) *) { anchor-name: --ambient-page-column; }
 ${PAGE}::before { left: max(var(--ambient-column-gutter, 8px), anchor(--ambient-page-column left, 8px)); right: max(8px, anchor(--ambient-page-column right, 8px)); }
 ${PAGE}:has([data-testid="app-page-header-content-row"])::before { top: var(--bb-app-chrome-row-height, 3rem); }
+@media (max-width: 767px) { ${PAGE} header:has([data-testid="app-page-header-content-row"]) + div { clip-path: inset(0 8px 8px round 0 0 20px 20px); } }
 ${PAGE} :is(input[type="search"], input[placeholder^="Search" i]) { background-color: color-mix(in oklab, var(--card) 72%, transparent); border-color: color-mix(in oklab, var(--ink) 12%, transparent); }
 ${PAGE} .bg-card[class*="hover:bg-"]:hover { background-color: color-mix(in oklab, var(--card) 97%, var(--ink)); border-color: color-mix(in oklab, var(--ink) 14%, transparent); box-shadow: 0 8px 24px -16px color-mix(in oklab, var(--ink) 35%, transparent); }
 @media (min-width: 768px) { ${SIDEBAR_OPEN} { --ambient-column-gutter: 0px; } ${SIDEBAR_OPEN} [data-testid="app-page-header-content-row"] > :first-child { margin-inline-start: -16px; } }
@@ -132,6 +133,8 @@ body.bb-app-shell [role="switch"][aria-checked="true"] > span.bg-background { ba
 body.bb-app-shell [class~="text-background"] { color: var(--ambient-background); }
 body.bb-app-shell :is(button[role="checkbox"][data-state="checked"], [data-category-option-checkbox][data-state="enabled"]) { color: var(--canvas); }
 body.bb-app-shell > #root [data-sidebar-sticky-stack]::before, body.bb-app-shell > #root [data-sidebar-sticky-tier] { ${BLUR} }
+body.bb-app-shell > #root [style*="--sidebar-width-mobile"]:has(> [data-sidebar="panel"]) { --ambient-sidebar-width-mobile: round(down, var(--sidebar-width-mobile), 1px); }
+body.bb-app-shell > #root :is([data-sidebar="panel"][data-vaul-drawer-direction], [data-sidebar-mobile-backdrop], main[data-sidebar-shelf]) { --sidebar-width-mobile: var(--ambient-sidebar-width-mobile) !important; }
 body.bb-app-shell > #root [data-sidebar="panel"][data-vaul-drawer-direction][data-state="closed"]:not([data-vaul-animate]) { visibility: hidden; transition: visibility 0s linear 260ms; }`;
 }
 
@@ -1015,9 +1018,9 @@ function AmbientControls({ dismiss }: { dismiss: () => void }) {
     <div
       ref={panel}
       className="w-full space-y-3 overflow-x-hidden overflow-y-auto overscroll-contain px-3 pt-2 pb-3"
-      style={{ maxHeight: "min(70vh, max(9rem, calc(100dvh - 32rem)))" }}
+      style={{ maxHeight: "min(70vh, max(9rem, calc(100dvh - var(--ambient-panel-reserve, 32rem))))" }}
     >
-      <style>{'[data-testid="plugin-sidebar-footer-disclosure-ambient-controls"] > div { max-height: none; overflow: visible; }'}</style>
+      <style>{'[data-testid="plugin-sidebar-footer-disclosure-ambient-controls"] > div { max-height: none; overflow: visible; } @media (max-width: 767px) { [data-testid="plugin-sidebar-footer-disclosure-ambient-controls"] { --ambient-panel-reserve: 36rem; } }'}</style>
       <div className="flex items-center justify-between gap-2">
         <div className="min-w-0">
           <div className="truncate text-sm font-medium text-foreground">Ambient</div>
@@ -1213,7 +1216,7 @@ function AmbientControls({ dismiss }: { dismiss: () => void }) {
         />
       </Section>
 
-      <div className="flex h-6 items-center justify-between gap-1 whitespace-nowrap">
+      <div className="flex min-h-6 flex-wrap items-center justify-between gap-x-1 gap-y-0.5 whitespace-nowrap">
         <h3 className="shrink-0 text-xs font-medium text-foreground/70">When an agent</h3>
         <div className="flex min-w-0 gap-0">
           {RIPPLE_BUTTONS.map((button) => (
