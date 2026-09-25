@@ -235,7 +235,11 @@
 }
 
 .bbd-icon .bbd-icon-label {
-  color: var(--foreground);
+  color: var(--bbd-white);
+  text-shadow:
+    1px 1px 1px oklch(0.16 0.03 262 / 0.95),
+    0 0 2px oklch(0.16 0.03 262 / 0.85),
+    0 0 6px oklch(0.16 0.03 262 / 0.6);
 }
 
 .bbd-marquee {
