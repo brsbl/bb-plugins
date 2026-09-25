@@ -68,6 +68,12 @@ describe("Video Markup persistence and feedback",()=>{
     const v3=store.register({threadId:"thr_demo",demo:"Duo",summary:"One more",media:{...media,path:"/demo/v3.mp4"}});
     expect(store.notes("thr_demo").filter(n=>n.versionId===v3.id).map(n=>n.status)).toEqual(["still wrong","regressed"]);
   });
+  it("applies a status set on a sent note to its copies in later renders",async()=>{
+    const host=load(),store=openStore(host.bb),v1=seed(host),sent=store.addNote(noteInput(v1.id));
+    const v2=store.register({threadId:"thr_demo",demo:"Duo",summary:"Revised",media:{...media,path:"/demo/v2.mp4"}});
+    store.setStatus("thr_demo",sent.id,"fixed");
+    expect(store.notes("thr_demo").map(n=>[n.versionId,n.status])).toEqual([[v1.id,"fixed"],[v2.id,"fixed"]]);
+  });
   it("rejects invalid regions, timestamps outside the video, and fixed prompt selections",async()=>{
     const host=load(),v=seed(host),input=noteInput(v.id);
     await expect(host.harness.behavior.callRpc("addNote",{...input,shapes:[{kind:"box",x1:-1,y1:0,x2:1,y2:1}]})).rejects.toThrow();

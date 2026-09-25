@@ -61,7 +61,7 @@
 .video-markup-note-number { display: inline-flex; justify-content: center; align-items: center; flex-shrink: 0; min-width: 20px; height: 20px; padding: 0 4px; border-radius: 50%; color: var(--video-markup-accent); background: color-mix(in oklab,var(--video-markup-accent) 12%,var(--background)); font-size: var(--text-xs); font-weight: 500; font-variant-numeric: tabular-nums; }
 .video-markup-status { width: auto; height: 26px; gap: 6px; padding: 2px 6px; border-color: transparent; border-radius: var(--radius); font-size: var(--text-xs); font-weight: 400; background: var(--secondary); }
 .video-markup-status-label { display: inline-flex; align-items: center; gap: 6px; }
-.video-markup-status-dot { display: inline-block; flex-shrink: 0; width: 6px; height: 6px; border-radius: 50%; background: var(--muted-foreground); }
+.video-markup-status-dot { display: inline-block; flex-shrink: 0; width: 6px; height: 6px; border-radius: 50%; background: var(--foreground); }
 .video-markup-status-dot[data-status=fixed] { background: var(--success); }
 .video-markup-status-dot[data-status="still wrong"] { background: var(--warning); }
 .video-markup-status-dot[data-status=regressed] { background: var(--destructive); }

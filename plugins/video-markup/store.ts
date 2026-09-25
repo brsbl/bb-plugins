@@ -52,9 +52,16 @@ export class VideoMarkupStore {
       return note;
     })();
   }
+  // An agent marks the notes it was sent, which belong to the version it fixed. Their copies in later
+  // renders are the same request, so the status follows them forward; earlier versions keep their history.
   setStatus(threadId: string, noteId: string, status: NoteStatus): FrameNote {
-    const note = {...this.note(threadId, noteId), status, updatedAt: Date.now()};
-    this.putNote(note); return note;
+    return this.db.transaction(() => {
+      const now = Date.now(), note = {...this.note(threadId, noteId), status, updatedAt: now};
+      this.putNote(note);
+      const all = this.notes(threadId), chain = new Set([noteId]);
+      for (const copy of all) if (copy.carriedFrom && chain.has(copy.carriedFrom)) { chain.add(copy.id); this.putNote({...copy, status, updatedAt: now}); }
+      return note;
+    })();
   }
   still(threadId: string, noteId: string): Still {
     const note = this.note(threadId, noteId);

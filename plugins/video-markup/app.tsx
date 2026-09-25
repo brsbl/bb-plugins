@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useId, useRef, useState, useSyncExternalStore, type PointerEvent, type ReactNode } from "react";
-import { ArrowRight, ChevronLeft, ChevronRight, Clapperboard, Expand, Maximize2, Pause, Play, Send, Shrink, Square, StickyNote, Undo2, X } from "lucide-react";
+import { ArrowRight, ChevronLeft, ChevronRight, Clapperboard, Maximize2, Pause, Play, Send, Square, StickyNote, Undo2, X } from "lucide-react";
 import { definePluginApp, useBbNavigate, useComposer, useRealtime, useRpc, type PluginFileOpenerProps, type PluginMessageDirectiveProps, type PluginThreadPanelProps, type PluginThreadHeaderActionProps } from "@get-bb/plugin-sdk/app";
 import { Button } from "./components/ui/button.js";
 import { Checkbox } from "./components/ui/checkbox.js";
@@ -7,7 +7,7 @@ import { badgeVariants } from "./components/ui/badge.js";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./components/ui/select.js";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "./components/ui/tooltip.js";
 import { ShapeOverlay } from "./shape-overlay.js";
-import { isActionable, presentationSchema, MENTION_PROVIDER, stepTime, timecode, videoName, VIDEO_EXTENSIONS, type FrameNote, type Media, type NoteStatus, type Shape, type Still, type Version } from "./model.js";
+import { isActionable, presentationSchema, MENTION_PROVIDER, snapTime, stepTime, timecode, videoName, VIDEO_EXTENSIONS, type FrameNote, type Media, type NoteStatus, type Shape, type Still, type Version } from "./model.js";
 import type { videoMarkupContract } from "./server.js";
 import "./app.css";
 
@@ -38,7 +38,8 @@ function IconButton({label, children, side = "top", ...props}: {label: string; c
 }
 
 // A fitted video may take this share of the window height, so tall renders stay watchable.
-const FIT_HEIGHT = .6;
+// The inline chat player shares the window with the composer, so it fits tighter.
+const FIT_HEIGHT = .6, COMPACT_FIT_HEIGHT = .45, STILL_FIT_HEIGHT = .45;
 const FIT_KEY = "video-markup:fit";
 function readFit() { try { return localStorage.getItem(FIT_KEY) !== "0"; } catch { return true; } }
 
@@ -70,18 +71,22 @@ function Player({preview, version, onSave, onDirty, compact = false, seekRequest
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false), [error, setError] = useState("");
   const gesture = useRef<Shape | null>(null);
-  const root = useRef<HTMLElement>(null);
+  const root = useRef<HTMLElement>(null), editor = useRef<HTMLFormElement>(null);
+  const fitHeight = compact ? COMPACT_FIT_HEIGHT : FIT_HEIGHT;
   const [fit, setFit] = useState(readFit), [canFit, setCanFit] = useState(false);
   useEffect(() => {
     const element = root.current; if (!element) return;
-    const measure = () => setCanFit(element.clientWidth > window.innerHeight * FIT_HEIGHT * aspect + 1);
+    const measure = () => setCanFit(element.clientWidth > window.innerHeight * fitHeight * aspect + 1);
     const observer = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(measure); observer?.observe(element); window.addEventListener("resize", measure); measure();
     return () => { observer?.disconnect(); window.removeEventListener("resize", measure); };
-  }, [aspect]);
+  }, [aspect, fitHeight]);
   function toggleFit() { setFit(value => { try { localStorage.setItem(FIT_KEY, value ? "0" : "1"); } catch { /* Size preference is optional. */ } return !value; }); }
   const canStep = preview.media.frameTimes.length > 0 || preview.media.fps !== null;
   const seek = useCallback((value: number) => { if (video.current) { video.current.pause(); video.current.currentTime = value; setTime(value); } }, []);
-  useEffect(() => { if (seekRequest && !draft) { seek(seekRequest.time); setShapes(seekRequest.shapes); } }, [seekRequest, seek]);
+  // Jumping to a note from the list must show the frame, even when the player is scrolled away.
+  useEffect(() => { if (seekRequest && !draft) { seek(seekRequest.time); setShapes(seekRequest.shapes); root.current?.scrollIntoView?.({block: "nearest", behavior: "smooth"}); } }, [seekRequest, seek]);
+  // Keep Save and Cancel on screen when a note opens under the player.
+  useEffect(() => { if (draft) editor.current?.scrollIntoView?.({block: "nearest", behavior: "smooth"}); }, [draft]);
   useEffect(() => () => onDirty?.(false), [onDirty]);
   // The Notes section owns the Note button; each press starts a note on the paused frame.
   useEffect(() => { if (noteRequest) void beginNote(); }, [noteRequest]);
@@ -106,7 +111,7 @@ function Player({preview, version, onSave, onDirty, compact = false, seekRequest
     if (e.key === " ") { e.preventDefault(); void togglePlay(); }
     if (e.key === "ArrowLeft" || e.key === "ArrowRight") { e.preventDefault(); step(e.key === "ArrowLeft" ? -1 : 1); }
   }}>
-    <div className="video-markup-stage bg-muted" style={{aspectRatio: aspect, ...(fit ? {width: `min(100%, calc(${FIT_HEIGHT * 100}vh * ${aspect}))`} : {})}}>
+    <div className="video-markup-stage bg-muted" style={{aspectRatio: aspect, ...(fit ? {width: `min(100%, calc(${fitHeight * 100}vh * ${aspect}))`} : {})}}>
       <video ref={video} src={preview.url} playsInline preload="metadata" crossOrigin="anonymous" aria-label={version ? videoName(version.media.path) : "Video preview"}
         onLoadedMetadata={e => { const v=e.currentTarget; setDuration(v.duration); setAspect(v.videoWidth/v.videoHeight || 16/9); }}
         onLoadedData={() => setReady(true)} onTimeUpdate={e => setTime(e.currentTarget.currentTime)}
@@ -135,10 +140,10 @@ function Player({preview, version, onSave, onDirty, compact = false, seekRequest
       <IconButton label={playing ? "Pause" : "Play"} disabled={!ready || !!draft || busy} onClick={() => void togglePlay()}>{playing ? <Pause /> : <Play />}</IconButton>
       <IconButton label="Next frame" disabled={!ready || !canStep || !!draft || busy || seeking} onClick={() => step(1)}><ChevronRight /></IconButton>
       <output className="video-markup-time text-xs text-muted-foreground">{timecode(time)} <span>/ {timecode(duration || 0)}</span></output>
-      {canFit && <IconButton label={fit ? "Fill width" : "Fit to screen"} onClick={toggleFit}>{fit ? <Expand /> : <Shrink />}</IconButton>}
+      {canFit && <Button type="button" variant="ghost" size="sm" onClick={toggleFit}>{fit ? "Fill width" : "Fit to screen"}</Button>}
     </div>
-    <input className="video-markup-seek" aria-label="Video time" type="range" min="0" max={duration || 0} step="any" value={time} disabled={!ready || !!draft || busy} onChange={e => {setShapes([]);seek(Number(e.target.value));}} />
-    {draft && <form className="video-markup-note-editor border-border" onSubmit={e => {
+    <input className="video-markup-seek" aria-label="Video time" type="range" min="0" max={duration || 0} step={preview.media.fps ? 1 / preview.media.fps : "any"} value={time} disabled={!ready || !!draft || busy} onChange={e => {setShapes([]);seek(snapTime({...preview.media, duration}, Number(e.target.value)));}} />
+    {draft && <form ref={editor} className="video-markup-note-editor border-border" onSubmit={e => {
       e.preventDefault(); if (!onSave || !text.trim()) return; setBusy(true);setError("");
       void onSave({timestamp:draft.timestamp, still:draft.still, shapes, text:text.trim()}).then(cancel).catch(e => setError(errorText(e))).finally(() => setBusy(false));
     }}>
@@ -148,7 +153,7 @@ function Player({preview, version, onSave, onDirty, compact = false, seekRequest
       </div>
       {tool && <p className="video-markup-draw-hint text-xs text-muted-foreground">{drawHints[tool]}</p>}
       <textarea autoFocus aria-label="Frame note" placeholder="What should change at this moment?" value={text} maxLength={8000} onChange={e => setText(e.target.value)} className="video-markup-textarea border-input bg-background text-foreground" disabled={busy} />
-      <div className="video-markup-row"><span className="text-xs text-muted-foreground">{shapes.length ? `${shapes.length} drawn region${shapes.length===1 ? "" : "s"}` : ""}</span><div className="video-markup-actions"><Button type="button" variant="ghost" size="sm" onClick={cancel} disabled={busy}>Cancel</Button><Button type="submit" size="sm" disabled={!text.trim() || busy}>{busy ? "Saving…" : "Save note"}</Button></div></div>
+      <div className="video-markup-row"><span className="text-xs text-muted-foreground">{shapes.length ? `${shapes.length} shape${shapes.length===1 ? "" : "s"} drawn` : ""}</span><div className="video-markup-actions"><Button type="button" variant="ghost" size="sm" onClick={cancel} disabled={busy}>Cancel</Button><Button type="submit" size="sm" disabled={!text.trim() || busy}>{busy ? "Saving…" : "Save note"}</Button></div></div>
     </form>}
     {!compact && !canStep && <Notice>{frameProbe === "pending" ? "Preparing frame stepping…" : frameProbe === "failed" ? "Frame stepping is unavailable. Playback and seeking still work." : "Frame stepping needs ffprobe on the video's machine or a known constant frame rate supplied when registering."}</Notice>}
     {error && <ErrorNotice>{error}</ErrorNotice>}
@@ -165,10 +170,12 @@ function NoteList({threadId, version, notes, onSeek, onRefresh, onAddNote, disab
   const rpc=useRpc<typeof videoMarkupContract>(),composer=useComposer();
   const [selected,setSelected]=useState<string[]>([]),[filter,setFilter]=useState("actionable"),[error,setError]=useState(""),[busy,setBusy]=useState(false),[notice,setNotice]=useState("");
   const [still,setStill]=useState<{note:FrameNote;image:Still}|null>(null);
+  // A note whose status just changed stays in view until the filter changes, so it never vanishes mid-click.
+  const [kept,setKept]=useState<string[]>([]);
   const selectionId = useId();
   const actionable=notes.filter(n=>isActionable(n.status));
   const validSelected=selected.filter(id=>actionable.some(n=>n.id===id));
-  const visible=notes.filter(n=>filter==="all" || (filter==="actionable" ? isActionable(n.status) : n.status===filter));
+  const visible=notes.filter(n=>kept.includes(n.id) || filter==="all" || (filter==="actionable" ? isActionable(n.status) : n.status===filter));
   const allSelected = actionable.length>0 && validSelected.length===Math.min(12,actionable.length);
   const noteNumber = (note: FrameNote) => notes.findIndex(n => n.id === note.id) + 1;
   async function addToPrompt() {
@@ -176,7 +183,7 @@ function NoteList({threadId, version, notes, onSeek, onRefresh, onAddNote, disab
     try {const result=await rpc.call("context",{threadId,noteIds:validSelected});composer.insertMention({provider:MENTION_PROVIDER,id:result.id,label:`${videoName(version.media.path)} · ${result.count} note${result.count===1 ? "" : "s"}`});composer.focus();setNotice(`${result.count} note${result.count===1 ? "" : "s"} added to the prompt.`);setSelected([]);} catch(e){setError(errorText(e));}finally{setBusy(false);}
   }
   function changeStatus(note: FrameNote, status: NoteStatus) {
-    setBusy(true);setError("");
+    setBusy(true);setError("");setKept(ids=>ids.includes(note.id) ? ids : [...ids,note.id]);
     void rpc.call("status",{threadId,noteId:note.id,status}).then(onRefresh).catch(e=>setError(errorText(e))).finally(()=>setBusy(false));
   }
   return <section className="video-markup-notes" aria-label="Notes">
@@ -184,7 +191,7 @@ function NoteList({threadId, version, notes, onSeek, onRefresh, onAddNote, disab
       <h3 className="text-sm font-medium">Notes</h3>
       <div className="video-markup-actions">
       <Button variant="outline" size="sm" disabled={disabled} onClick={onAddNote}><StickyNote />Note</Button>
-      <Select value={filter} onValueChange={setFilter}>
+      <Select value={filter} onValueChange={value=>{setFilter(value);setKept([]);}}>
         <SelectTrigger aria-label="Filter notes" className="video-markup-filter"><SelectValue /></SelectTrigger>
         <SelectContent align="end">{noteFilters.map(item => <SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>)}</SelectContent>
       </Select>
@@ -197,7 +204,7 @@ function NoteList({threadId, version, notes, onSeek, onRefresh, onAddNote, disab
       </div>
       <Button size="sm" disabled={!validSelected.length || busy} onClick={()=>void addToPrompt()}><Send />Add to prompt</Button>
     </div>}
-    {!visible.length && <Notice>{notes.length ? "No notes in this view." : "Pause on a frame, then add a note or draw on the video."}</Notice>}
+    {!visible.length && <Notice>{!notes.length ? "Pause on a frame, then press Note." : filter==="actionable" ? `All ${notes.length} note${notes.length===1 ? " is" : "s are"} fixed.` : "No notes in this view."}</Notice>}
     <div className="video-markup-note-list">
       {visible.map(note=><article key={note.id} className="video-markup-note border-border" aria-label={`Note ${noteNumber(note)}`}>
         <Checkbox className="video-markup-note-checkbox" aria-label={`Select note at ${timecode(note.timestamp)}`} checked={validSelected.includes(note.id)} disabled={busy || !isActionable(note.status) || (!validSelected.includes(note.id)&&validSelected.length>=12)} onCheckedChange={checked=>setSelected(v=>checked===true ? [...v,note.id] : v.filter(id=>id!==note.id))} />
@@ -217,15 +224,16 @@ function NoteList({threadId, version, notes, onSeek, onRefresh, onAddNote, disab
           <p className="video-markup-note-text text-sm">{note.text}</p>
           <div className="video-markup-row video-markup-note-footer text-xs text-muted-foreground">
             <span>{note.carriedFrom ? "Carried forward · original frame" : note.shapes.length ? "Marked frame" : "Frame note"}</span>
-            <Button variant="ghost" size="sm" onClick={()=>{void rpc.call("frame",{threadId,noteId:note.id}).then(image=>setStill({note,image})).catch(e=>setError(errorText(e)));}}>View still</Button>
+            <Button variant="ghost" size="sm" aria-expanded={still?.note.id===note.id} onClick={()=>{if(still?.note.id===note.id){setStill(null);return;}void rpc.call("frame",{threadId,noteId:note.id}).then(image=>setStill({note,image})).catch(e=>setError(errorText(e)));}}>{still?.note.id===note.id ? "Hide still" : "View still"}</Button>
           </div>
+          {/* The still opens under its own note, at the same fitted size as the player, so it appears where it was asked for. */}
+          {still?.note.id===note.id && <div className="video-markup-still border-border">
+            <div className="video-markup-row"><span className="video-markup-check text-xs text-muted-foreground">Captured frame · {timecode(note.timestamp)}{note.carriedFrom ? " · earlier version" : ""}</span><IconButton label="Close still" onClick={()=>setStill(null)}><X /></IconButton></div>
+            <div className="video-markup-stage" style={{aspectRatio: still.image.width/still.image.height, width: `min(100%, calc(${STILL_FIT_HEIGHT * 100}vh * ${still.image.width/still.image.height}))`}}><img src={still.image.dataUrl} alt={`Frame at ${timecode(note.timestamp)}: ${note.text}`} /><ShapeOverlay shapes={note.shapes} noteNumber={noteNumber(note)} /></div>
+          </div>}
         </div>
       </article>)}
     </div>
-    {still && <div className="video-markup-still border-border">
-      <div className="video-markup-row"><span className="video-markup-check text-xs text-muted-foreground"><span className="video-markup-note-number">{noteNumber(still.note)}</span>Captured frame · {timecode(still.note.timestamp)}{still.note.carriedFrom ? " · earlier version" : ""}</span><IconButton label="Close still" onClick={()=>setStill(null)}><X /></IconButton></div>
-      <div className="video-markup-stage"><img src={still.image.dataUrl} alt={`Frame at ${timecode(still.note.timestamp)}: ${still.note.text}`} /><ShapeOverlay shapes={still.note.shapes} noteNumber={noteNumber(still.note)} /></div>
-    </div>}
     {notice && <Notice>{notice}</Notice>}{error && <ErrorNotice>{error}</ErrorNotice>}
   </section>;
 }

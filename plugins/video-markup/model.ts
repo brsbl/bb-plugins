@@ -82,6 +82,18 @@ export function promptContext(notes: FrameNote[], versions: Version[]): string {
 }
 
 /** Packet timestamps handle variable-rate sources; the stream or supplied CFR rate is a fallback. */
+/** Nearest decodable frame to a scrubbed time, so the slider never lands between frames. */
+export function snapTime(media: Pick<Media, "frameTimes" | "fps" | "duration">, time: number): number {
+  const frames = media.frameTimes;
+  if (frames.length) {
+    let low = 0, high = frames.length - 1;
+    while (low < high) { const middle = (low + high) >>> 1; if (frames[middle] < time) low = middle + 1; else high = middle; }
+    return low > 0 && time - frames[low - 1] < frames[low] - time ? frames[low - 1] : frames[low];
+  }
+  if (!media.fps) return time;
+  return Math.max(0, Math.min(Math.max(0, media.duration - 1 / media.fps), Math.round(time * media.fps) / media.fps));
+}
+
 export function stepTime(media: Pick<Media, "frameTimes" | "fps" | "duration">, time: number, direction: -1 | 1): number {
   const frames = media.frameTimes;
   if (frames.length) {

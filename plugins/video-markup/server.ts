@@ -155,7 +155,7 @@ export default function plugin(bb: BbPluginApi): void {
     versions: {schema: libraryInput, tool: "video_markup_versions", description: "List a thread's demos and versions in order.", run: handlers.versions},
     notes: {schema: listSchema, tool: "video_markup_list_notes", description: "Read frame notes before revising a demo; filter by version, status, or actionable.", run: handlers.notes},
     "add-note": {schema: noteInputSchema, tool: "video_markup_add_note", description: "Save a timestamped note, normalized box/arrow/zoom shapes, and a captured JPEG still.", run: handlers.addNote},
-    status: {schema: statusInputSchema, tool: "video_markup_update_note_status", description: "Mark a note open, fixed, still wrong, or regressed.", run: handlers.status},
+    status: {schema: statusInputSchema, tool: "video_markup_update_note_status", description: "Mark a note open, fixed, still wrong, or regressed. Its copies in later versions of the demo take the same status.", run: handlers.status},
     context: {schema: selectionSchema, tool: "video_markup_context", description: "Prepare selected actionable notes as structured prompt context.", run: handlers.context},
     frame: {schema: frameTarget, tool: "video_markup_frame", description: "Read the captured still for a frame note.", run: handlers.frame},
     post: {schema: target, tool: "video_markup_post_player", description: "Get a playable Video Markup directive to emit inline in the assistant reply.", run: handlers.post},
