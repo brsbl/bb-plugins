@@ -1040,7 +1040,7 @@ function DesktopCanvas() {
     "separator",
     { label: "Threads", icon: <ThreadsArt size={16} />, run: () => manager.open({ kind: "threads" }) },
     { label: "Recycle Bin", icon: <RecycleBinArt size={14} />, run: () => manager.open({ kind: "recycle-bin" }) },
-    { label: "Windows Media Player", icon: <MediaPlayerArt size={14} />, run: () => manager.open({ kind: "media-player" }) },
+    { label: "Media Player", icon: <MediaPlayerArt size={14} />, run: () => manager.open({ kind: "media-player" }) },
     "separator",
     { label: "Arrange icons", icon: <GridViewGlyph className="size-3.5" />, run: arrange },
     {
@@ -1149,7 +1149,7 @@ function windowTitle(spec: WindowSpec, desktop: DesktopContextValue): string {
     case "new-thread":
       return "New thread";
     case "media-player":
-      return "Windows Media Player";
+      return "Media Player";
   }
 }
 
@@ -1192,7 +1192,7 @@ interface DockFrame {
 const START_ITEMS: { spec: WindowSpec; label: string; detail: string }[] = [
   { spec: { kind: "new-thread", groupKey: null }, label: "New thread", detail: "Start a conversation" },
   { spec: { kind: "new-folder" }, label: "New folder", detail: "Group threads on the desktop" },
-  { spec: { kind: "media-player" }, label: "Windows Media Player", detail: "Visualize your microphone" },
+  { spec: { kind: "media-player" }, label: "Media Player", detail: "Visualize your microphone" },
 ];
 
 function StartFlag() {
@@ -1322,7 +1322,7 @@ function useQuickLaunchCatalog(): QuickLaunchItem[] {
     launcher({ kind: "new-folder" }, "New folder"),
     launcher({ kind: "threads" }, "Threads"),
     launcher({ kind: "recycle-bin" }, "Recycle Bin"),
-    launcher({ kind: "media-player" }, "Windows Media Player"),
+    launcher({ kind: "media-player" }, "Media Player"),
     { id: "sticky-note", label: "Sticky note", art: <StickyNoteArt size={18} />, run: () => addStickyNote() },
     { id: "plugins", label: "Plugins", art: <PluginsArt size={20} />, run: () => navigateInApp("/plugins") },
     { id: "skills", label: "Skills", art: <SkillsArt size={20} />, run: () => navigateInApp("/skills") },

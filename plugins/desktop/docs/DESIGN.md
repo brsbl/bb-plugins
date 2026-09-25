@@ -15,7 +15,7 @@ Sticky notes are the one floating exception: they live on every page, so they us
 
 ## 2. Names
 
-- Use the XP name when a feature maps to an XP thing: **Start**, **Recycle Bin**, **Quick Launch**, **Show desktop**, **Windows Media Player**, **Turn Off Desktop**, **balloon**.
+- Use the XP name when a feature maps to an XP thing: **Start**, **Recycle Bin**, **Quick Launch**, **Show desktop**, **Turn Off Desktop**, **balloon**. Drop the "Windows" brand: it is **Media Player**, not Windows Media Player.
 - Use bb's words for bb concepts: **thread**, **section**, **project**, **archive**, **needs input**. Never rename a bb concept to an XP one (a thread is never a "document").
 - Sentence case everywhere except XP proper names.
 

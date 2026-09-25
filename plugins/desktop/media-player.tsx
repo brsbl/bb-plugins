@@ -393,7 +393,7 @@ export function MediaPlayerWindow({ window: desktopWindow }: { window: DesktopWi
   return (
     <WindowFrame
       window={desktopWindow}
-      title="Windows Media Player"
+      title="Media Player"
       icon={<MediaPlayerArt size={16} />}
       onClose={stopMic}
       statusBar={<span className="flex-1 truncate">{statusText(status, preset)}</span>}
@@ -428,13 +428,13 @@ export function MediaPlayerWindow({ window: desktopWindow }: { window: DesktopWi
 
 export function MediaDeskband({ onRestore }: { onRestore: () => void }) {
   return (
-    <div className="bbd-deskband" role="group" aria-label="Windows Media Player">
+    <div className="bbd-deskband" role="group" aria-label="Media Player">
       <PlayButton size="small" />
       <button
         type="button"
         className="bbd-deskband-screen"
-        aria-label="Open Windows Media Player"
-        title="Open Windows Media Player"
+        aria-label="Open Media Player"
+        title="Open Media Player"
         onClick={onRestore}
       >
         <Visualizer compact />
