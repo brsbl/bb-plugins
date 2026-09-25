@@ -140,6 +140,10 @@ describe("layout geometry", () => {
     expect(nextFreePosition([{ x: 16, y: 16 }], 800)).toEqual({ x: 112, y: 16 });
   });
 
+  it("skips grid cells overlapped by icons dropped between cells", () => {
+    expect(nextFreePosition([{ x: 104, y: 18 }], 800)).toEqual({ x: 208, y: 16 });
+  });
+
   it("resizes from the west edge without letting the window shrink below the minimum", () => {
     const start = { x: 100, y: 100, width: 400, height: 300 };
     expect(resizeRect(start, "w", { x: 50, y: 0 })).toEqual({ x: 150, y: 100, width: 350, height: 300 });

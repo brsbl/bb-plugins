@@ -231,11 +231,15 @@ export function nextFreePosition(
   taken: readonly Point[],
   canvasWidth: number,
 ): Point {
-  const occupied = new Set(taken.map((point) => `${point.x}:${point.y}`));
-  for (const candidate of gridPositions(taken.length + 1, canvasWidth)) {
-    if (!occupied.has(`${candidate.x}:${candidate.y}`)) return candidate;
-  }
-  return gridPositions(taken.length + 1, canvasWidth).at(-1)!;
+  const candidates = gridPositions(taken.length * 4 + 1, canvasWidth);
+  const free = candidates.find((candidate) =>
+    taken.every(
+      (point) =>
+        Math.abs(point.x - candidate.x) >= ICON_CELL.width ||
+        Math.abs(point.y - candidate.y) >= ICON_CELL.height,
+    ),
+  );
+  return free ?? candidates.at(-1)!;
 }
 
 export function snapToGrid(point: Point): Point {

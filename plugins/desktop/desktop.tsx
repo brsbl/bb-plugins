@@ -7,6 +7,7 @@ import {
   useRef,
   useState,
   type DragEvent as ReactDragEvent,
+  type KeyboardEvent as ReactKeyboardEvent,
   type MouseEvent as ReactMouseEvent,
   type PointerEvent as ReactPointerEvent,
   type ReactNode,
@@ -36,6 +37,7 @@ import {
   GridViewGlyph,
   ListViewGlyph,
   MediaPlayerArt,
+  RecycleBinArt,
   StickyNoteArt,
   NewThreadGlyph,
   StickyNoteGlyph,
@@ -50,7 +52,6 @@ import {
   ICON_CELL,
   acceptsDrop,
   buildGroups,
-  filterLifecycle,
   gridPositions,
   groupThreads,
   nextFreePosition,
@@ -59,7 +60,6 @@ import {
   tileRects,
   type DesktopGroup,
   type DesktopThread,
-  type Lifecycle,
   type Organize,
   type Point,
   type Preferences,
@@ -108,13 +108,13 @@ interface MenuState {
 interface Effective {
   sort: { key: SortKey; direction: SortDirection };
   organize: Organize;
-  lifecycle: Lifecycle;
 }
 
 interface DesktopContextValue {
   snapshot: DesktopSnapshot;
   threads: DesktopThread[];
   visibleThreads: DesktopThread[];
+  archivedThreads: DesktopThread[];
   threadById: Map<string, DesktopThread>;
   liveById: Map<string, PluginSidebarThread>;
   groups: DesktopGroup[];
@@ -126,6 +126,7 @@ interface DesktopContextValue {
   openThread: (threadId: string) => void;
   openMenu: (event: MenuTrigger, entries: MenuEntry[]) => void;
   dropThread: (group: DesktopGroup, drag: ThreadDrag) => Promise<void>;
+  restoreThread: (threadId: string) => Promise<void>;
   setPreferences: (patch: Partial<Preferences>) => void;
 }
 
@@ -290,9 +291,7 @@ function DesktopData() {
 
   const usesSidebar =
     snapshot !== null &&
-    (snapshot.preferences.sort === "sidebar" ||
-      snapshot.preferences.organize === "sidebar" ||
-      snapshot.preferences.lifecycle === "sidebar");
+    (snapshot.preferences.sort === "sidebar" || snapshot.preferences.organize === "sidebar");
 
   useEffect(() => {
     if (snapshot === null) return;
@@ -347,17 +346,11 @@ function DesktopData() {
         preferences === undefined || preferences.organize === "sidebar"
           ? fromSidebar.organize
           : preferences.organize,
-      lifecycle:
-        preferences === undefined || preferences.lifecycle === "sidebar"
-          ? fromSidebar.lifecycle
-          : preferences.lifecycle,
     };
   }, [sidebar, snapshot?.preferences]);
 
-  const visibleThreads = useMemo(
-    () => filterLifecycle(threads, effective.lifecycle),
-    [effective.lifecycle, threads],
-  );
+  const visibleThreads = useMemo(() => threads.filter((thread) => !thread.isArchived), [threads]);
+  const archivedThreads = useMemo(() => threads.filter((thread) => thread.isArchived), [threads]);
 
   const groups = useMemo(
     () =>
@@ -394,6 +387,9 @@ function DesktopData() {
   const dropThread = useCallback(
     async (group: DesktopGroup, drag: ThreadDrag) => {
       try {
+        if (threadById.get(drag.threadId)?.isArchived === true) {
+          await call("unarchiveThread", { threadId: drag.threadId });
+        }
         if (group.kind === "section") {
           if (threadById.get(drag.threadId)?.sectionId === group.id) return;
           await call("moveToSection", { threadIds: [drag.threadId], sectionId: group.id });
@@ -413,6 +409,14 @@ function DesktopData() {
       }
     },
     [call, refresh, threadById],
+  );
+
+  const restoreThread = useCallback(
+    (threadId: string) =>
+      call("unarchiveThread", { threadId })
+        .then(refresh)
+        .catch((restoreError) => toast.error(errorMessage(restoreError))),
+    [call, refresh],
   );
 
   const openMenu = useCallback((event: MenuTrigger, entries: MenuEntry[]) => {
@@ -464,6 +468,7 @@ function DesktopData() {
     snapshot,
     threads,
     visibleThreads,
+    archivedThreads,
     threadById,
     liveById,
     groups,
@@ -475,6 +480,7 @@ function DesktopData() {
     openThread,
     openMenu,
     dropThread,
+    restoreThread,
     setPreferences,
   };
 
@@ -598,12 +604,6 @@ const ORGANIZE_LABELS: Record<Organize, string> = {
   machine: "Machines",
 };
 
-const LIFECYCLE_LABELS: Record<Lifecycle, string> = {
-  active: "Active",
-  archived: "Archived",
-  all: "All",
-};
-
 const SORT_LABELS: Record<SortKey, string> = {
   updated: "Updated at",
   created: "Created at",
@@ -613,17 +613,6 @@ const SORT_LABELS: Record<SortKey, string> = {
 function viewMenuEntries(desktop: DesktopContextValue): MenuEntry[] {
   const { preferences } = desktop.snapshot;
   return [
-    { heading: "Show" },
-    {
-      label: "Same as sidebar",
-      checked: preferences.lifecycle === "sidebar",
-      run: () => desktop.setPreferences({ lifecycle: "sidebar" }),
-    },
-    ...(["active", "archived", "all"] as const).map((lifecycle) => ({
-      label: LIFECYCLE_LABELS[lifecycle],
-      checked: preferences.lifecycle === lifecycle,
-      run: () => desktop.setPreferences({ lifecycle }),
-    })),
     { heading: "Organize by" },
     {
       label: "Same as sidebar",
@@ -692,13 +681,40 @@ function usePageBackgroundMenu(
   }, [canvasRef]);
 }
 
+const RECYCLE_BIN_KEY = "recycle-bin";
+const ICON_BOX = { width: 88, height: 84 } as const;
+
+interface IconDrag {
+  keys: ReadonlySet<string>;
+  delta: Point;
+  overBin: boolean;
+}
+
+function isDeletable(group: DesktopGroup): boolean {
+  return group.kind === "folder" || (group.kind === "section" && group.id !== null);
+}
+
+function deletePrompt(groups: DesktopGroup[]): string {
+  const [only] = groups;
+  if (groups.length === 1 && only !== undefined) {
+    return only.kind === "folder"
+      ? `Delete “${only.name}”? Threads inside are kept.`
+      : `Delete the “${only.name}” section? Its threads move to Threads.`;
+  }
+  return `Delete these ${groups.length} items? Threads inside folders are kept, and threads in deleted sections move to Threads.`;
+}
+
 function DesktopCanvas() {
   const desktop = useDesktop();
   const manager = useWindowManager();
+  const actions = useSidebarThreadActions();
   const { snapshot, call, sort } = desktop;
   const canvasRef = useRef<HTMLDivElement>(null);
+  const binRef = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState(900);
-  const [selected, setSelected] = useState<string | null>(null);
+  const [selected, setSelected] = useState<ReadonlySet<string>>(() => new Set());
+  const [drag, setDrag] = useState<IconDrag | null>(null);
+  const [marquee, setMarquee] = useState<{ left: number; top: number; width: number; height: number } | null>(null);
   const [overrides, setOverrides] = useState<Record<string, Point>>({});
 
   useEffect(() => {
@@ -714,19 +730,20 @@ function DesktopCanvas() {
   useEffect(() => setOverrides({}), [snapshot.layout]);
 
   const items = desktop.groups;
+  const keys = useMemo(() => [RECYCLE_BIN_KEY, ...items.map((item) => item.key)], [items]);
 
   const positions = useMemo(() => {
     const placed = new Map<string, Point>();
-    for (const item of items) {
-      const point = overrides[item.key] ?? snapshot.layout[item.key];
-      if (point !== undefined) placed.set(item.key, point);
+    for (const key of keys) {
+      const point = overrides[key] ?? snapshot.layout[key];
+      if (point !== undefined) placed.set(key, point);
     }
-    for (const item of items) {
-      if (placed.has(item.key)) continue;
-      placed.set(item.key, nextFreePosition([...placed.values()], width));
+    for (const key of keys) {
+      if (placed.has(key)) continue;
+      placed.set(key, nextFreePosition([...placed.values()], width));
     }
     return placed;
-  }, [items, overrides, snapshot.layout, width]);
+  }, [keys, overrides, snapshot.layout, width]);
 
   const saveLayout = useCallback(
     (entries: Record<string, Point>) => {
@@ -736,6 +753,153 @@ function DesktopCanvas() {
     [call],
   );
 
+  const deletableIn = (keySet: ReadonlySet<string>) =>
+    items.filter((group) => keySet.has(group.key) && isDeletable(group));
+
+  const deleteGroups = (groups: DesktopGroup[]) => {
+    if (groups.length === 0) {
+      toast("Only folders and sections can be deleted.");
+      return;
+    }
+    if (!window.confirm(deletePrompt(groups))) return;
+    const fail = (error: unknown) => toast.error(errorMessage(error));
+    for (const group of groups) {
+      manager.close(`finder:${group.key}`);
+      if (group.kind === "folder") void desktop.call("deleteFolder", { id: group.folder.id }).catch(fail);
+      else if (group.kind === "section" && group.id !== null) {
+        void desktop.call("deleteSection", { id: group.id }).catch(fail);
+      }
+    }
+    setSelected(new Set());
+  };
+
+  const overBin = (x: number, y: number) => {
+    const bin = binRef.current?.getBoundingClientRect();
+    return bin !== undefined && x >= bin.left && x <= bin.right && y >= bin.top && y <= bin.bottom;
+  };
+
+  const beginIconDrag = (key: string, event: ReactPointerEvent<HTMLDivElement>) => {
+    if (event.button !== 0) return;
+    if (event.metaKey || event.ctrlKey || event.shiftKey) {
+      setSelected((current) => {
+        const next = new Set(current);
+        if (next.has(key)) next.delete(key);
+        else next.add(key);
+        return next;
+      });
+      return;
+    }
+    const moving: ReadonlySet<string> = selected.has(key) ? selected : new Set([key]);
+    if (!selected.has(key)) setSelected(moving);
+    const origin = { x: event.clientX, y: event.clientY };
+    const canDropOnBin = !moving.has(RECYCLE_BIN_KEY);
+    let moved = false;
+    let delta: Point = { x: 0, y: 0 };
+    trackPointer(
+      event,
+      (next) => {
+        if (!moved && Math.hypot(next.x, next.y) < 4) return;
+        moved = true;
+        delta = next;
+        setDrag({ keys: moving, delta: next, overBin: canDropOnBin && overBin(origin.x + next.x, origin.y + next.y) });
+      },
+      () => {
+        setDrag(null);
+        if (!moved) return;
+        if (canDropOnBin && overBin(origin.x + delta.x, origin.y + delta.y)) {
+          deleteGroups(deletableIn(moving));
+          return;
+        }
+        saveLayout(
+          Object.fromEntries(
+            [...moving].flatMap((movingKey) => {
+              const point = positions.get(movingKey);
+              return point === undefined
+                ? []
+                : [[movingKey, { x: Math.max(0, point.x + delta.x), y: Math.max(0, point.y + delta.y) }]];
+            }),
+          ),
+        );
+      },
+    );
+  };
+
+  const beginMarquee = (event: ReactPointerEvent<HTMLDivElement>) => {
+    if (event.target !== event.currentTarget || event.button !== 0) return;
+    const base: ReadonlySet<string> =
+      event.metaKey || event.ctrlKey || event.shiftKey ? selected : new Set<string>();
+    setSelected(base);
+    const bounds = event.currentTarget.getBoundingClientRect();
+    const start = { x: event.clientX - bounds.left, y: event.clientY - bounds.top };
+    trackPointer(
+      event,
+      (delta) => {
+        const box = {
+          left: Math.min(start.x, start.x + delta.x),
+          top: Math.min(start.y, start.y + delta.y),
+          width: Math.abs(delta.x),
+          height: Math.abs(delta.y),
+        };
+        setMarquee(box);
+        const hit = new Set(base);
+        for (const [key, point] of positions) {
+          if (
+            point.x < box.left + box.width &&
+            point.x + ICON_BOX.width > box.left &&
+            point.y < box.top + box.height &&
+            point.y + ICON_BOX.height > box.top
+          ) {
+            hit.add(key);
+          }
+        }
+        setSelected(hit);
+      },
+      () => setMarquee(null),
+    );
+  };
+
+  const onKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>) => {
+    if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement) return;
+    if ((event.key === "Delete" || event.key === "Backspace") && selected.size > 0) {
+      event.preventDefault();
+      deleteGroups(deletableIn(selected));
+    } else if (event.key === "Escape") {
+      setSelected(new Set());
+    } else if (event.key === "a" && (event.metaKey || event.ctrlKey)) {
+      event.preventDefault();
+      setSelected(new Set(keys));
+    }
+  };
+
+  const iconMenu = (key: string, single: MenuEntry[]): MenuEntry[] => {
+    if (!(selected.has(key) && selected.size > 1)) return single;
+    const groups = items.filter((group) => selected.has(group.key));
+    const deletable = groups.filter(isDeletable);
+    return [
+      {
+        label: `Open ${groups.length} folders`,
+        disabled: groups.length === 0,
+        run: () => {
+          for (const group of groups) manager.open({ kind: "finder", key: group.key });
+        },
+      },
+      "separator",
+      {
+        label: deletable.length === 1 ? "Delete 1 item" : `Delete ${deletable.length} items`,
+        icon: <TrashGlyph className="size-3.5" />,
+        disabled: deletable.length === 0,
+        run: () => deleteGroups(deletable),
+      },
+    ];
+  };
+
+  const placed = (key: string): Point => {
+    const point = positions.get(key)!;
+    return drag !== null && drag.keys.has(key)
+      ? { x: Math.max(0, point.x + drag.delta.x), y: Math.max(0, point.y + drag.delta.y) }
+      : point;
+  };
+
   const arrange = () => {
     const direction = sort.direction === "ascending" ? 1 : -1;
     const valueOf = (group: DesktopGroup) => groupSortValue(group, desktop.visibleThreads, sort.key);
@@ -744,8 +908,9 @@ function DesktopCanvas() {
       const rightValue = valueOf(right);
       return leftValue < rightValue ? -direction : leftValue > rightValue ? direction : 0;
     });
-    const grid = gridPositions(ordered.length, width);
-    saveLayout(Object.fromEntries(ordered.map((item, index) => [item.key, grid[index]!])));
+    const keys = [...ordered.map((item) => item.key), RECYCLE_BIN_KEY];
+    const grid = gridPositions(keys.length, width);
+    saveLayout(Object.fromEntries(keys.map((key, index) => [key, grid[index]!])));
   };
 
   const tileWindows = () => {
@@ -777,6 +942,7 @@ function DesktopCanvas() {
     { label: "New thread", icon: <NewThreadGlyph className="size-3.5" />, run: () => manager.open({ kind: "new-thread", groupKey: null }) },
     "separator",
     { label: "Threads", icon: <ThreadsGlyph className="size-3.5" />, run: () => manager.open({ kind: "threads" }) },
+    { label: "Recycle Bin", icon: <RecycleBinArt size={14} />, run: () => manager.open({ kind: "recycle-bin" }) },
     { label: "Windows Media Player", icon: <MediaPlayerArt size={14} />, run: () => manager.open({ kind: "media-player" }) },
     "separator",
     { label: "Arrange icons", icon: <GridViewGlyph className="size-3.5" />, run: arrange },
@@ -811,21 +977,46 @@ function DesktopCanvas() {
         ref={canvasRef}
         className="relative flex-1"
         style={{ minHeight: bottom + 8 }}
-        onPointerDown={(event) => {
-          if (event.target === event.currentTarget) setSelected(null);
-        }}
+        onPointerDown={beginMarquee}
+        onKeyDown={onKeyDown}
         onContextMenu={(event) => desktop.openMenu(event, canvasMenu(event))}
       >
         {items.map((item) => (
           <DesktopIcon
             key={item.key}
             group={item}
-            position={positions.get(item.key)!}
-            selected={selected === item.key}
-            onSelect={() => setSelected(item.key)}
-            onMoved={(point) => saveLayout({ [item.key]: point })}
+            position={placed(item.key)}
+            selected={selected.has(item.key)}
+            dragging={drag !== null && drag.keys.has(item.key)}
+            onPointerDown={(event) => beginIconDrag(item.key, event)}
+            menu={(single) => iconMenu(item.key, single)}
+            onSelect={() => {
+              if (!selected.has(item.key)) setSelected(new Set([item.key]));
+            }}
           />
         ))}
+        <RecycleBinIcon
+          binRef={binRef}
+          position={placed(RECYCLE_BIN_KEY)}
+          selected={selected.has(RECYCLE_BIN_KEY)}
+          dragging={drag !== null && drag.keys.has(RECYCLE_BIN_KEY)}
+          iconsOver={drag?.overBin === true}
+          onPointerDown={(event) => beginIconDrag(RECYCLE_BIN_KEY, event)}
+          onSelect={() => {
+            if (!selected.has(RECYCLE_BIN_KEY)) setSelected(new Set([RECYCLE_BIN_KEY]));
+          }}
+          onArchive={(threadId) => {
+            closeThreadWindows(manager, threadId);
+            actions.archive(threadId);
+          }}
+        />
+        {marquee === null ? null : (
+          <div
+            className="bbd-marquee"
+            style={{ left: marquee.left, top: marquee.top, width: marquee.width, height: marquee.height }}
+            aria-hidden
+          />
+        )}
       </div>
     </div>
   );
@@ -841,6 +1032,8 @@ function windowTitle(spec: WindowSpec, desktop: DesktopContextValue): string {
       return `${desktop.threadById.get(spec.threadId)?.title ?? "Thread"} — Details`;
     case "threads":
       return "Threads";
+    case "recycle-bin":
+      return "Recycle Bin";
     case "new-folder":
       return "New folder";
     case "new-thread":
@@ -868,6 +1061,8 @@ function windowArt(spec: WindowSpec, desktop: DesktopContextValue, size: number)
       return <GlyphTile glyph={PanelRightGlyph} size={size + 2} />;
     case "threads":
       return <GlyphTile glyph={ThreadsGlyph} size={size + 2} />;
+    case "recycle-bin":
+      return <RecycleBinArt size={size} full={desktop.archivedThreads.length > 0} />;
     case "new-folder":
       return <GlyphTile glyph={FolderPlusGlyph} size={size + 2} tone="green" />;
     case "new-thread":
@@ -1096,61 +1291,43 @@ function DesktopIcon({
   group,
   position,
   selected,
+  dragging,
+  onPointerDown,
   onSelect,
-  onMoved,
+  menu,
 }: {
   group: DesktopGroup;
   position: Point;
   selected: boolean;
+  dragging: boolean;
+  onPointerDown: (event: ReactPointerEvent<HTMLDivElement>) => void;
   onSelect: () => void;
-  onMoved: (point: Point) => void;
+  menu: (single: MenuEntry[]) => MenuEntry[];
 }) {
   const desktop = useDesktop();
   const manager = useWindowManager();
-  const [drag, setDrag] = useState<Point | null>(null);
   const drop = useDropTarget(group);
 
   const open = () => manager.open({ kind: "finder", key: group.key });
-
-  const onPointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
-    onSelect();
-    let moved = false;
-    let latest = position;
-    trackPointer(
-      event,
-      (delta) => {
-        if (!moved && Math.hypot(delta.x, delta.y) < 4) return;
-        moved = true;
-        latest = { x: Math.max(0, position.x + delta.x), y: Math.max(0, position.y + delta.y) };
-        setDrag(latest);
-      },
-      () => {
-        setDrag(null);
-        if (moved) onMoved(latest);
-      },
-    );
-  };
 
   const members = groupThreads(group, desktop.visibleThreads);
   const tones = members.map(statusTone);
   const tone = tones.includes("attention") ? "attention" : tones.includes("running") ? "running" : null;
   const toneCount = tones.filter((candidate) => candidate === tone).length;
   const unread = tone === null && members.some((thread) => thread.isUnread);
-  const point = drag ?? position;
-
-  const menu = groupMenu(desktop, manager, group, open);
+  const summary = folderSummary(group.name, members.length, tone, toneCount);
 
   return (
     <div
       role="button"
       tabIndex={0}
       aria-selected={selected}
-      aria-label={folderSummary(group.name, members.length, tone, toneCount)}
-      title={folderSummary(group.name, members.length, tone, toneCount)}
+      aria-label={summary}
+      title={summary}
       className="bbd-icon"
-      data-dragging={drag !== null}
+      data-dragging={dragging}
       data-drop-target={drop.over}
-      style={{ left: point.x, top: point.y }}
+      style={{ left: position.x, top: position.y }}
       onPointerDown={onPointerDown}
       onDoubleClick={open}
       onKeyDown={(event) => {
@@ -1158,7 +1335,7 @@ function DesktopIcon({
       }}
       onContextMenu={(event) => {
         onSelect();
-        desktop.openMenu(event, menu);
+        desktop.openMenu(event, menu(groupMenu(desktop, manager, group, open)));
       }}
       {...drop.handlers}
     >
@@ -1177,6 +1354,78 @@ function DesktopIcon({
   );
 }
 
+function RecycleBinIcon({
+  binRef,
+  position,
+  selected,
+  dragging,
+  iconsOver,
+  onPointerDown,
+  onSelect,
+  onArchive,
+}: {
+  binRef: RefObject<HTMLDivElement | null>;
+  position: Point;
+  selected: boolean;
+  dragging: boolean;
+  iconsOver: boolean;
+  onPointerDown: (event: ReactPointerEvent<HTMLDivElement>) => void;
+  onSelect: () => void;
+  onArchive: (threadId: string) => void;
+}) {
+  const desktop = useDesktop();
+  const manager = useWindowManager();
+  const [threadOver, setThreadOver] = useState(false);
+  const open = () => manager.open({ kind: "recycle-bin" });
+  const count = desktop.archivedThreads.length;
+  const summary =
+    count === 0 ? "Recycle Bin — empty" : `Recycle Bin — ${count} archived ${count === 1 ? "thread" : "threads"}`;
+
+  return (
+    <div
+      ref={binRef}
+      role="button"
+      tabIndex={0}
+      aria-selected={selected}
+      aria-label={summary}
+      title={summary}
+      className="bbd-icon"
+      data-dragging={dragging}
+      data-drop-target={threadOver || iconsOver}
+      style={{ left: position.x, top: position.y }}
+      onPointerDown={onPointerDown}
+      onDoubleClick={open}
+      onKeyDown={(event) => {
+        if (event.key === "Enter") open();
+      }}
+      onContextMenu={(event) => {
+        onSelect();
+        desktop.openMenu(event, [{ label: "Open", run: open }]);
+      }}
+      onDragOver={(event) => {
+        if (!event.dataTransfer.types.includes(THREAD_DRAG_TYPE)) return;
+        event.preventDefault();
+        event.dataTransfer.dropEffect = "move";
+        setThreadOver(true);
+      }}
+      onDragLeave={() => setThreadOver(false)}
+      onDrop={(event) => {
+        setThreadOver(false);
+        const threadDrag = readThreadDrag(event);
+        if (threadDrag === null) return;
+        event.preventDefault();
+        if (desktop.threadById.get(threadDrag.threadId)?.isArchived === true) return;
+        onArchive(threadDrag.threadId);
+      }}
+    >
+      <span className="bbd-icon-art">
+        <RecycleBinArt full={count > 0} />
+      </span>
+      <span className="bbd-icon-label">Recycle Bin</span>
+    </div>
+  );
+}
+
 function WindowContent({ window: desktopWindow }: { window: DesktopWindow }) {
   const { spec } = desktopWindow;
   switch (spec.kind) {
@@ -1188,6 +1437,8 @@ function WindowContent({ window: desktopWindow }: { window: DesktopWindow }) {
       return <PanelWindow window={desktopWindow} threadId={spec.threadId} />;
     case "threads":
       return <ThreadsWindow window={desktopWindow} />;
+    case "recycle-bin":
+      return <RecycleBinWindow window={desktopWindow} />;
     case "new-folder":
       return <NewFolderWindow window={desktopWindow} />;
     case "new-thread":
@@ -1238,14 +1489,15 @@ function threadMenu(
       label: thread.isUnread ? "Mark as read" : "Mark as unread",
       run: () => void actions.setRead(thread.id, thread.isUnread).catch((error) => toast.error(errorMessage(error))),
     },
-    {
-      label: "Archive",
-      disabled: thread.isArchived,
-      run: () => {
-        closeThreadWindows(manager, thread.id);
-        actions.archive(thread.id);
-      },
-    },
+    thread.isArchived
+      ? { label: "Restore", run: () => void desktop.restoreThread(thread.id) }
+      : {
+          label: "Archive",
+          run: () => {
+            closeThreadWindows(manager, thread.id);
+            actions.archive(thread.id);
+          },
+        },
   ];
 }
 
@@ -1386,28 +1638,6 @@ function ThreadCollection({
   );
 }
 
-function LifecycleSelect() {
-  const desktop = useDesktop();
-  const { preferences } = desktop.snapshot;
-  return (
-    <label className="flex min-w-0 shrink items-center gap-1.5 text-xs whitespace-nowrap">
-      Show
-      <select
-        className="bbd-field bbd-sunken min-w-0 shrink truncate"
-        value={preferences.lifecycle}
-        onChange={(event) =>
-          desktop.setPreferences({ lifecycle: event.target.value as Preferences["lifecycle"] })
-        }
-      >
-        <option value="sidebar">Same as sidebar</option>
-        <option value="active">Active</option>
-        <option value="archived">Archived</option>
-        <option value="all">All</option>
-      </select>
-    </label>
-  );
-}
-
 function groupDescription(group: DesktopGroup): string {
   switch (group.kind) {
     case "folder":
@@ -1474,7 +1704,6 @@ function FinderWindow({ window: desktopWindow, groupKey }: { window: DesktopWind
             value={query}
             onChange={(event) => setQuery(event.target.value)}
           />
-          <LifecycleSelect />
           {group.kind === "folder" ? (
             <label className="flex flex-none items-center gap-1 text-xs whitespace-nowrap">
               <input
@@ -1519,8 +1748,8 @@ function FinderWindow({ window: desktopWindow, groupKey }: { window: DesktopWind
             view={view}
             emptyText={
               acceptsDrop(group)
-                ? `Nothing here${desktop.effective.lifecycle === "all" ? "" : ` that is ${LIFECYCLE_LABELS[desktop.effective.lifecycle].toLowerCase()}`}. Drag threads in from another folder or the Threads window.`
-                : "No threads match the current Show filter."
+                ? "Nothing here. Drag threads in from another folder or the Threads window."
+                : "No threads here."
             }
           />
         </div>
@@ -1715,10 +1944,54 @@ function ThreadsWindow({ window: desktopWindow }: { window: DesktopWindow }) {
             value={query}
             onChange={(event) => setQuery(event.target.value)}
           />
-          <LifecycleSelect />
         </div>
         <div className="bbd-sunken min-h-0 flex-1 overflow-auto">
           <ThreadCollection threads={threads} group={null} view="list" emptyText="No threads." />
+        </div>
+      </div>
+    </WindowFrame>
+  );
+}
+
+function RecycleBinWindow({ window: desktopWindow }: { window: DesktopWindow }) {
+  const desktop = useDesktop();
+  const [query, setQuery] = useState("");
+  const needle = query.trim().toLocaleLowerCase();
+  const threads = sortThreads(
+    desktop.archivedThreads.filter(
+      (thread) => needle === "" || thread.title.toLocaleLowerCase().includes(needle),
+    ),
+    desktop.sort.key,
+    desktop.sort.direction,
+  );
+  return (
+    <WindowFrame
+      window={desktopWindow}
+      title="Recycle Bin"
+      icon={<RecycleBinArt size={16} full={desktop.archivedThreads.length > 0} />}
+      statusBar={
+        <span className="flex-1 truncate">
+          {threads.length} archived threads · right-click to restore, or drag onto a folder
+        </span>
+      }
+    >
+      <div className="flex h-full flex-col">
+        <div className="bbd-menubar flex-none">
+          <input
+            className="bbd-field bbd-sunken min-w-0 flex-1"
+            placeholder="Search archived threads"
+            aria-label="Search archived threads"
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+          />
+        </div>
+        <div className="bbd-sunken min-h-0 flex-1 overflow-auto">
+          <ThreadCollection
+            threads={threads}
+            group={null}
+            view="list"
+            emptyText="The Recycle Bin is empty. Drag a thread here to archive it."
+          />
         </div>
       </div>
     </WindowFrame>

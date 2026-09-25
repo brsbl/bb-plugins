@@ -184,3 +184,33 @@ export function MediaPlayerArt({ size = 40 }: { size?: number }) {
     </svg>
   );
 }
+
+export function RecycleBinArt({ size = 40, full = false }: { size?: number; full?: boolean }) {
+  const glass = "oklch(0.88 0.04 230)";
+  const glassDeep = "oklch(0.74 0.06 235)";
+  const edge = "oklch(0.52 0.07 240)";
+  const arrows = "oklch(0.62 0.17 145)";
+  return (
+    <svg width={size} height={size} viewBox="0 0 40 40" aria-hidden>
+      <defs>
+        <linearGradient id="bbd-bin-body" x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0" stopColor={glassDeep} />
+          <stop offset="0.45" stopColor={glass} />
+          <stop offset="1" stopColor={glassDeep} />
+        </linearGradient>
+      </defs>
+      {full ? (
+        <>
+          <path d="M11 11.5 L14 5.5 L19.5 7.5 L18 12 Z" fill={PAPER} stroke={edge} strokeWidth="0.75" strokeLinejoin="round" />
+          <path d="M18 11 L22.5 4.5 L28.5 8 L25.5 12.5 Z" fill={PAPER} stroke={edge} strokeWidth="0.75" strokeLinejoin="round" />
+          <path d="M24.5 12 L28 7.5 L31 11 Z" fill="oklch(0.9 0.1 95)" stroke={edge} strokeWidth="0.75" strokeLinejoin="round" />
+        </>
+      ) : null}
+      <path d="M8 12 H32 L29.5 36 Q29.3 37 28.3 37 H11.7 Q10.7 37 10.5 36 Z" fill="url(#bbd-bin-body)" stroke={edge} strokeLinejoin="round" />
+      <path d="M14 14.5 L15 34.5 M20 14.5 V34.5 M26 14.5 L25 34.5" stroke={PAPER} strokeOpacity="0.55" strokeWidth="1.2" strokeLinecap="round" />
+      <ellipse cx="20" cy="12" rx="12.5" ry="2.6" fill={glass} stroke={edge} />
+      <path d="M16.5 26.5 A4 4 0 0 1 20.8 21.3 M23.6 24 A4 4 0 0 1 19.6 29.2" fill="none" stroke={arrows} strokeWidth="2" strokeLinecap="round" />
+      <path d="M20.2 19.6 L22.4 21.5 L19.8 22.7 Z M20.2 30.9 L17.9 29 L20.5 27.8 Z" fill={arrows} />
+    </svg>
+  );
+}

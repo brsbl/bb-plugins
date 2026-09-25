@@ -123,6 +123,7 @@ export const rpcContract = defineRpcContract({
       .strict(),
     output: okSchema,
   },
+  unarchiveThread: { input: z.object({ threadId: z.string() }).strict(), output: okSchema },
   spawnThread: {
     input: z.object({ request: z.record(z.string(), z.unknown()) }).strict(),
     output: z.object({ threadId: z.string() }).strict(),
@@ -485,6 +486,11 @@ export default function plugin(bb: BbPluginApi) {
       threadsChanged();
       return { ok: true as const };
     },
+    async unarchiveThread({ threadId }) {
+      await bb.sdk.threads.unarchive({ threadId });
+      threadsChanged();
+      return { ok: true as const };
+    },
     async spawnThread({ request }) {
       const thread = await bb.sdk.threads.spawn(request as unknown as ThreadSpawnArgs);
       threadsChanged();
@@ -507,6 +513,7 @@ export default function plugin(bb: BbPluginApi) {
   bb.events.on("thread.created", threadsChanged);
   bb.events.on("thread.active", threadsChanged);
   bb.events.on("thread.archived", threadsChanged);
+  bb.events.on("thread.unarchived", threadsChanged);
   bb.events.on("thread.deleted", ({ thread }) => {
     db.prepare(`DELETE FROM folder_threads WHERE thread_id = ?`).run(thread.id);
     threadsChanged();

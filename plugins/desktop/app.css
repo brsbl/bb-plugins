@@ -230,6 +230,14 @@
   color: var(--foreground);
 }
 
+.bbd-marquee {
+  position: absolute;
+  z-index: 6;
+  pointer-events: none;
+  border: 1px solid var(--bbd-select);
+  background: color-mix(in oklab, var(--bbd-select) 22%, transparent);
+}
+
 .bbd-icon[data-dragging="true"] {
   opacity: 0.75;
   z-index: 5;
