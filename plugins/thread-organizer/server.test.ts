@@ -27,6 +27,7 @@ interface TestSection {
 
 function agentContext(originPluginId: string | null = null) {
   return {
+    pluginMetadata: {},
     thread: {
       id: "thr_test",
       title: "Current work",

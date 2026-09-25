@@ -43,22 +43,5 @@ export function sdkRangeIncludesVersion(range, version) {
   const floor = match.slice(2).map(Number);
   if (compareVersions(target, floor) < 0) return false;
   if (operator === ">=") return true;
-  if (floor[0] > 0) return target[0] === floor[0];
-  if (floor[1] > 0) return target[0] === 0 && target[1] === floor[1];
-  return target[0] === 0 && target[1] === 0 && target[2] === floor[2];
-}
-
-/**
- * A plugin may depend on an exact published SDK instead of the shared archive
- * when it needs newer host surfaces; its floor is checked against that version.
- */
-export function publishedSdkVersion(manifest) {
-  const dependency = manifest.devDependencies?.["@get-bb/plugin-sdk"];
-  return typeof dependency === "string" && parseVersion(dependency) !== null
-    ? dependency
-    : null;
-}
-
-export function pluginSdkVersionFor(manifest) {
-  return publishedSdkVersion(manifest) ?? pluginSdkVersion;
+  return target[0] === floor[0];
 }

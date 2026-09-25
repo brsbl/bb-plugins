@@ -8,7 +8,6 @@ import { readPluginWorkspaces } from "./plugin-workspaces.mjs";
 import { pluginBuildBbVersion } from "./plugin-build-provenance.mjs";
 import {
   pluginSdkVersion,
-  pluginSdkVersionFor,
   sdkRangeIncludesVersion,
 } from "./plugin-sdk-provenance.mjs";
 
@@ -223,11 +222,9 @@ export async function validatePluginArtifacts(pluginDirectory, options = {}) {
   if (options.expectedName && manifest.bb.name !== options.expectedName) {
     throw new Error(`${directory}: expected display name ${options.expectedName}`);
   }
-  // Release manifests drop devDependencies, so callers pass the source's SDK.
-  const sdkVersion = options.sdkVersion ?? pluginSdkVersionFor(manifest);
-  if (!sdkRangeIncludesVersion(manifest.engines?.bbPluginSdk, sdkVersion)) {
+  if (!sdkRangeIncludesVersion(manifest.engines?.bbPluginSdk, pluginSdkVersion)) {
     throw new Error(
-      `${directory}: engines.bbPluginSdk must be a compatible floor at or below ${sdkVersion}`,
+      `${directory}: engines.bbPluginSdk must be a compatible floor at or below ${pluginSdkVersion}`,
     );
   }
 

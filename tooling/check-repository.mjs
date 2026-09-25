@@ -6,8 +6,7 @@ import { fileURLToPath } from "node:url";
 import { readPluginWorkspaces } from "./plugin-workspaces.mjs";
 import {
   pluginSdkArchive,
-  pluginSdkVersionFor,
-  publishedSdkVersion,
+  pluginSdkVersion,
   sdkRangeIncludesVersion,
 } from "./plugin-sdk-provenance.mjs";
 
@@ -218,19 +217,15 @@ export async function checkRepository(repositoryRoot = defaultRoot, options = {}
     assert(manifest.files.includes("README.md"), `${slug}: README missing from package files`);
     const expectedBbEngine = pluginBbEngineOverrides.get(slug) ?? defaultBbEngine;
     assert(manifest.engines?.bb === expectedBbEngine, `${slug}: bb engine drift`);
-    const sdkVersion = pluginSdkVersionFor(manifest);
     assert(
-      sdkRangeIncludesVersion(manifest.engines?.bbPluginSdk, sdkVersion),
-      `${slug}: SDK floor is newer than its SDK ${sdkVersion}`,
+      sdkRangeIncludesVersion(manifest.engines?.bbPluginSdk, pluginSdkVersion),
+      `${slug}: SDK floor is newer than vendored SDK ${pluginSdkVersion}`,
     );
     assert(
       manifest.devDependencies?.["@bb/plugin-sdk"] === undefined,
       `${slug}: legacy @bb/plugin-sdk dependency remains`,
     );
-    if (
-      manifest.devDependencies?.["@get-bb/plugin-sdk"] !== undefined &&
-      publishedSdkVersion(manifest) === null
-    ) {
+    if (manifest.devDependencies?.["@get-bb/plugin-sdk"] !== undefined) {
       // Plugins may vendor the SDK archive next to their sources so a
       // pinned-commit install is standalone; that copy must stay byte-equal
       // to the shared tooling archive.

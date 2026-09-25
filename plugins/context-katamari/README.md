@@ -50,5 +50,3 @@ npm ci
 npm run check --workspace=bb-plugin-context-katamari
 bb plugin install "path:$PWD/plugins/context-katamari" --yes
 ```
-
-The plugin depends on the published Plugin SDK 0.4.108 rather than the shared archive, because the app overlay and thread context APIs arrived after it.
