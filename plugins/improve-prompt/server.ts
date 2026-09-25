@@ -6,6 +6,7 @@ import {
   parseShaperOutput,
   type ParsedShaperOutput,
 } from "./core.js";
+import { DEFAULT_INSTRUCTIONS } from "./instructions.js";
 
 const REQUEST_TTL_MS = 24 * 60 * 60 * 1_000;
 const REQUEST_PREFIX = "request:";
@@ -151,6 +152,16 @@ function errorMessage(error: unknown): string {
 }
 
 export default async function plugin(bb: BbPluginApi) {
+  const settings = bb.settings.define({
+    instructions: {
+      type: "string",
+      label: "Rewrite instructions",
+      description:
+        "What the hidden helper follows when it rewrites your draft. The output format and the rule against running the draft stay fixed. Clear the field to restore the default.",
+      experimental_multiline: true,
+      default: DEFAULT_INSTRUCTIONS,
+    },
+  });
   const reconciliationRequests = new Map<string, Promise<void>>();
   const emptyOutputChecks = new Map<
     string,
@@ -380,6 +391,7 @@ export default async function plugin(bb: BbPluginApi) {
     // "default" and "thread" both take the inheritance path below — match the
     // composer's thread, or fall back to the project's spawn defaults.
     const configured = await readHelperExecution();
+    const { instructions } = await settings.get();
     const configuredExecution =
       configured.mode !== "fixed"
         ? null
@@ -393,6 +405,7 @@ export default async function plugin(bb: BbPluginApi) {
         projectId: input.projectId,
         prompt: buildWorkerPrompt({
           draft: input.draft,
+          instructions,
           targetModel: input.targetModel,
         }),
         environment: { type: "project-default" },
@@ -418,6 +431,7 @@ export default async function plugin(bb: BbPluginApi) {
         projectId: input.projectId,
         prompt: buildWorkerPrompt({
           draft: input.draft,
+          instructions,
           targetModel: input.targetModel,
         }),
         environment,
@@ -434,6 +448,7 @@ export default async function plugin(bb: BbPluginApi) {
       projectId: input.projectId,
       prompt: buildWorkerPrompt({
         draft: input.draft,
+        instructions,
         targetModel: input.targetModel,
       }),
       environment,
