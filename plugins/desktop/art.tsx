@@ -2,7 +2,6 @@ import type { ComponentType } from "react";
 import {
   BubbleChatAddIcon,
   Cancel01Icon,
-  Copy01Icon,
   CollapseIcon,
   CubeIcon,
   DashboardSquare01Icon,
@@ -15,11 +14,9 @@ import {
   LinkSquare02Icon,
   ListViewIcon,
   MinusSignIcon,
-  Notification03Icon,
   PinIcon,
   SidebarRightIcon,
   Tick02Icon,
-  WebhookIcon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon, type IconSvgElement } from "@hugeicons/react";
 
@@ -40,13 +37,10 @@ function bbGlyph(icon: IconSvgElement) {
 export const NewThreadGlyph = bbGlyph(BubbleChatAddIcon);
 export const GridViewGlyph = bbGlyph(GridViewIcon);
 export const ListViewGlyph = bbGlyph(ListViewIcon);
-export const BellGlyph = bbGlyph(Notification03Icon);
 export const ProjectGlyph = bbGlyph(CubeIcon);
 export const MachineGlyph = bbGlyph(LaptopIcon);
 export const PinGlyph = bbGlyph(PinIcon);
-export const WebhookGlyph = bbGlyph(WebhookIcon);
 export const CheckGlyph = bbGlyph(Tick02Icon);
-export const CopyGlyph = bbGlyph(Copy01Icon);
 export const ExternalLinkGlyph = bbGlyph(LinkSquare02Icon);
 export const FolderPlusGlyph = bbGlyph(FolderAddIcon);
 export const TileGlyph = bbGlyph(DashboardSquare01Icon);
@@ -123,14 +117,12 @@ export function GlyphTile({
 }: {
   glyph: ComponentType<{ className?: string; strokeWidth?: number }>;
   size?: number;
-  tone?: "blue" | "orange" | "green";
+  tone?: "blue" | "green";
 }) {
   const [light, base, deep] =
-    tone === "orange"
-      ? ["var(--bbd-orange)", "var(--bbd-close)", "var(--bbd-close-deep)"]
-      : tone === "green"
-        ? ["color-mix(in oklch, var(--bbd-green) 60%, var(--bbd-white) 40%)", "var(--bbd-green)", "var(--bbd-green-deep)"]
-        : ["var(--bbd-blue-bright)", "var(--bbd-blue)", "var(--bbd-blue-deep)"];
+    tone === "green"
+      ? ["color-mix(in oklch, var(--bbd-green) 60%, var(--bbd-white) 40%)", "var(--bbd-green)", "var(--bbd-green-deep)"]
+      : ["var(--bbd-blue-bright)", "var(--bbd-blue)", "var(--bbd-blue-deep)"];
   return (
     <span
       className="inline-grid place-items-center rounded-md"
@@ -146,12 +138,4 @@ export function GlyphTile({
       <Glyph className="size-[55%]" strokeWidth={2} />
     </span>
   );
-}
-
-export function WebhookArt({ size = 40 }: { size?: number }) {
-  return <GlyphTile glyph={WebhookGlyph} size={size} />;
-}
-
-export function BellArt({ size = 40 }: { size?: number }) {
-  return <GlyphTile glyph={BellGlyph} size={size} tone="orange" />;
 }

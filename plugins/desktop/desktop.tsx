@@ -27,10 +27,7 @@ import {
 } from "@get-bb/plugin-sdk/app";
 
 import {
-  BellArt,
-  BellGlyph,
   CheckGlyph,
-  CopyGlyph,
   ExternalLinkGlyph,
   FolderArt,
   FolderPlusGlyph,
@@ -43,8 +40,6 @@ import {
   ThreadsGlyph,
   TileGlyph,
   TrashGlyph,
-  WebhookArt,
-  WebhookGlyph,
 } from "./art";
 import {
   ICON_CELL,
@@ -65,7 +60,6 @@ import {
   type Preferences,
   type SortDirection,
   type SortKey,
-  type Webhook,
 } from "./core";
 import type { DesktopSnapshot, rpcContract } from "./server";
 import {
@@ -115,8 +109,6 @@ interface DesktopContextValue {
   visibleThreads: DesktopThread[];
   threadById: Map<string, DesktopThread>;
   liveById: Map<string, PluginSidebarThread>;
-  unreadThreads: DesktopThread[];
-  markAllRead: () => void;
   groups: DesktopGroup[];
   groupByKey: Map<string, DesktopGroup>;
   effective: Effective;
@@ -282,6 +274,8 @@ function DesktopData() {
   const live = useSidebarThreads();
   const manager = useWindowManager();
   const actions = useSidebarThreadActions();
+  const rootRef = useRef<HTMLDivElement>(null);
+  const [dockCenterX, setDockCenterX] = useState<number | null>(null);
   const [sidebar, setSidebar] = useState<ReturnType<typeof resolveSidebarPreferences> | null>(null);
   const [menu, setMenu] = useState<MenuState | null>(null);
 
@@ -378,11 +372,6 @@ function DesktopData() {
     [threads],
   );
 
-  const unreadThreads = useMemo(
-    () => threads.filter((thread) => thread.isUnread && !thread.isArchived),
-    [threads],
-  );
-
   const openThread = useCallback(
     (threadId: string) => {
       manager.open({ kind: "thread", threadId });
@@ -392,12 +381,6 @@ function DesktopData() {
     },
     [actions, manager, threadById],
   );
-
-  const markAllRead = useCallback(() => {
-    void Promise.all(unreadThreads.map((thread) => actions.setRead(thread.id, true))).catch((error) =>
-      toast.error(errorMessage(error)),
-    );
-  }, [actions, unreadThreads]);
 
   const dropThread = useCallback(
     async (group: DesktopGroup, drag: ThreadDrag) => {
@@ -437,6 +420,24 @@ function DesktopData() {
     [call, refresh],
   );
 
+  const ready = snapshot !== null && sidebar !== null;
+  useEffect(() => {
+    const element = rootRef.current;
+    if (!ready || element === null) return;
+    const measure = () => {
+      const rect = element.getBoundingClientRect();
+      setDockCenterX(rect.left + rect.width / 2);
+    };
+    const observer = new ResizeObserver(measure);
+    for (let node: Element | null = element; node !== null; node = node.parentElement) observer.observe(node);
+    window.addEventListener("resize", measure);
+    measure();
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("resize", measure);
+    };
+  }, [ready]);
+
   if (snapshot === null || sidebar === null) {
     return (
       <div className="bbd-root">
@@ -456,8 +457,6 @@ function DesktopData() {
     visibleThreads,
     threadById,
     liveById,
-    unreadThreads,
-    markAllRead,
     groups,
     groupByKey,
     effective,
@@ -472,14 +471,14 @@ function DesktopData() {
 
   return (
     <DesktopContext.Provider value={value}>
-      <div className="bbd-root">
+      <div ref={rootRef} className="bbd-root">
         <DesktopCanvas />
         {createPortal(
           <div {...PLUGIN_SCOPE} className="bbd-root bbd-window-layer">
             {manager.windows.map((window) => (
               <WindowContent key={window.id} window={window} />
             ))}
-            <Dock />
+            <Dock centerX={dockCenterX} />
           </div>,
           document.body,
         )}
@@ -584,10 +583,6 @@ function groupSortValue(
   return Math.max(0, ...members.map((thread) => thread.updatedAt));
 }
 
-type IconItem =
-  | { key: string; kind: "group"; group: DesktopGroup }
-  | { key: string; kind: "webhook"; webhook: Webhook };
-
 const ORGANIZE_LABELS: Record<Organize, string> = {
   section: "Sections",
   project: "Projects",
@@ -667,17 +662,7 @@ function DesktopCanvas() {
 
   useEffect(() => setOverrides({}), [snapshot.layout]);
 
-  const items = useMemo<IconItem[]>(
-    () => [
-      ...desktop.groups.map((group) => ({ key: group.key, kind: "group" as const, group })),
-      ...snapshot.webhooks.map((webhook) => ({
-        key: `webhook:${webhook.id}`,
-        kind: "webhook" as const,
-        webhook,
-      })),
-    ],
-    [desktop.groups, snapshot.webhooks],
-  );
+  const items = desktop.groups;
 
   const positions = useMemo(() => {
     const placed = new Map<string, Point>();
@@ -702,16 +687,8 @@ function DesktopCanvas() {
 
   const arrange = () => {
     const direction = sort.direction === "ascending" ? 1 : -1;
-    const valueOf = (item: IconItem) =>
-      item.kind === "group"
-        ? groupSortValue(item.group, desktop.visibleThreads, sort.key)
-        : sort.key === "alpha"
-          ? item.webhook.name.toLocaleLowerCase()
-          : sort.key === "created"
-            ? item.webhook.createdAt
-            : (item.webhook.lastEventAt ?? item.webhook.createdAt);
+    const valueOf = (group: DesktopGroup) => groupSortValue(group, desktop.visibleThreads, sort.key);
     const ordered = [...items].sort((left, right) => {
-      if (left.kind !== right.kind) return left.kind === "group" ? -1 : 1;
       const leftValue = valueOf(left);
       const rightValue = valueOf(right);
       return leftValue < rightValue ? -direction : leftValue > rightValue ? direction : 0;
@@ -747,10 +724,8 @@ function DesktopCanvas() {
   const commands: MenuEntry[] = [
     { label: "New folder", icon: <FolderPlusGlyph className="size-3.5" />, run: () => manager.open({ kind: "new-folder" }) },
     { label: "New thread", icon: <NewThreadGlyph className="size-3.5" />, run: () => manager.open({ kind: "new-thread", groupKey: null }) },
-    { label: "New webhook", icon: <WebhookGlyph className="size-3.5" />, run: () => manager.open({ kind: "new-webhook" }) },
     "separator",
     { label: "Threads", icon: <ThreadsGlyph className="size-3.5" />, run: () => manager.open({ kind: "threads" }) },
-    { label: "Notifications", icon: <BellGlyph className="size-3.5" />, run: () => manager.open({ kind: "notifications" }) },
     "separator",
     { label: "Arrange icons", icon: <GridViewGlyph className="size-3.5" />, run: arrange },
     {
@@ -782,7 +757,7 @@ function DesktopCanvas() {
         {items.map((item) => (
           <DesktopIcon
             key={item.key}
-            item={item}
+            group={item}
             position={positions.get(item.key)!}
             selected={selected === item.key}
             onSelect={() => setSelected(item.key)}
@@ -804,16 +779,10 @@ function windowTitle(spec: WindowSpec, desktop: DesktopContextValue): string {
       return `${desktop.threadById.get(spec.threadId)?.title ?? "Thread"} — Details`;
     case "threads":
       return "Threads";
-    case "notifications":
-      return "Notifications";
     case "new-folder":
       return "New folder";
     case "new-thread":
       return "New thread";
-    case "new-webhook":
-      return "New webhook";
-    case "webhook":
-      return desktop.snapshot.webhooks.find((webhook) => webhook.id === spec.webhookId)?.name ?? "Webhook";
   }
 }
 
@@ -825,13 +794,8 @@ function windowArt(spec: WindowSpec, desktop: DesktopContextValue): ReactNode {
       return <ThreadArt size={38} />;
     case "panel":
       return <GlyphTile glyph={PanelRightGlyph} size={44} />;
-    case "notifications":
-      return <BellArt size={44} />;
     case "threads":
       return <GlyphTile glyph={ThreadsGlyph} size={44} />;
-    case "webhook":
-    case "new-webhook":
-      return <WebhookArt size={44} />;
     case "new-folder":
       return <GlyphTile glyph={FolderPlusGlyph} size={44} tone="green" />;
     case "new-thread":
@@ -839,17 +803,14 @@ function windowArt(spec: WindowSpec, desktop: DesktopContextValue): ReactNode {
   }
 }
 
-function Dock() {
+function Dock({ centerX }: { centerX: number | null }) {
   const desktop = useDesktop();
   const manager = useWindowManager();
   const launchers: { label: string; spec: WindowSpec; art: ReactNode }[] = [
     { label: "New thread", spec: { kind: "new-thread", groupKey: null }, art: <GlyphTile glyph={NewThreadGlyph} size={44} tone="green" /> },
     { label: "New folder", spec: { kind: "new-folder" }, art: <GlyphTile glyph={FolderPlusGlyph} size={44} tone="green" /> },
-    { label: "New webhook", spec: { kind: "new-webhook" }, art: <WebhookArt size={44} /> },
-    { label: "Threads", spec: { kind: "threads" }, art: <GlyphTile glyph={ThreadsGlyph} size={44} /> },
   ];
-  const launcherIds = new Set(["new-thread:desktop", "new-folder", "new-webhook", "threads", "notifications"]);
-  const unreadNotifications = desktop.unreadThreads.length;
+  const launcherIds = new Set(["new-thread:desktop", "new-folder"]);
   const windows = manager.windows.filter((window) => !launcherIds.has(window.id));
   const isOpen = (id: string) => manager.windows.some((window) => window.id === id);
   const activate = (id: string, spec: WindowSpec) => {
@@ -859,7 +820,7 @@ function Dock() {
     else manager.focus(id);
   };
   return (
-    <nav className="bbd-dock" aria-label="Dock">
+    <nav className="bbd-dock" aria-label="Dock" style={centerX === null ? undefined : { left: centerX }}>
       {launchers.map((launcher) => {
         const id = launcher.spec.kind === "new-thread" ? "new-thread:desktop" : launcher.spec.kind;
         return (
@@ -896,31 +857,6 @@ function Dock() {
           </button>
         );
       })}
-      <span className="bbd-dock-separator" aria-hidden />
-      <button
-        type="button"
-        className="bbd-dock-item"
-        aria-label={`Notifications${unreadNotifications > 0 ? `, ${unreadNotifications} unread` : ""}`}
-        data-open={isOpen("notifications")}
-        data-focused={manager.focusedId === "notifications"}
-        onClick={() => activate("notifications", { kind: "notifications" })}
-        onContextMenu={(event) =>
-          desktop.openMenu(event, [
-            { label: "Open", run: () => manager.open({ kind: "notifications" }) },
-            {
-              label: "Mark all read",
-              disabled: unreadNotifications === 0,
-              run: desktop.markAllRead,
-            },
-          ])
-        }
-      >
-        <BellArt size={44} />
-        {unreadNotifications > 0 ? (
-          <span className="bbd-dot">{unreadNotifications > 99 ? "99+" : unreadNotifications}</span>
-        ) : null}
-        <span className="bbd-dock-tip">Notifications</span>
-      </button>
     </nav>
   );
 }
@@ -988,13 +924,13 @@ function groupMenu(
 }
 
 function DesktopIcon({
-  item,
+  group,
   position,
   selected,
   onSelect,
   onMoved,
 }: {
-  item: IconItem;
+  group: DesktopGroup;
   position: Point;
   selected: boolean;
   onSelect: () => void;
@@ -1003,18 +939,9 @@ function DesktopIcon({
   const desktop = useDesktop();
   const manager = useWindowManager();
   const [drag, setDrag] = useState<Point | null>(null);
-  const drop = useDropTarget(item.kind === "group" ? item.group : null);
+  const drop = useDropTarget(group);
 
-  const open = () => {
-    if (item.kind === "group") {
-      manager.open({ kind: "finder", key: item.group.key });
-      return;
-    }
-    desktop.openThread(item.webhook.threadId);
-    if (item.webhook.unread > 0) {
-      void desktop.call("markRead", { threadId: null, webhookId: item.webhook.id }).catch(() => undefined);
-    }
-  };
+  const open = () => manager.open({ kind: "finder", key: group.key });
 
   const onPointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
     onSelect();
@@ -1035,30 +962,19 @@ function DesktopIcon({
     );
   };
 
-  const members = item.kind === "group" ? groupThreads(item.group, desktop.visibleThreads) : [];
-  const label = item.kind === "group" ? item.group.name : item.webhook.name;
-  const badge =
-    item.kind === "webhook"
-      ? item.webhook.unread
-      : members.filter((thread) => thread.isUnread).length;
+  const members = groupThreads(group, desktop.visibleThreads);
   const needsInput = members.some((thread) => thread.needsInput);
   const point = drag ?? position;
 
-  const menu: MenuEntry[] =
-    item.kind === "group"
-      ? groupMenu(desktop, manager, item.group, open)
-      : [
-          { label: "Open thread", run: open },
-          { label: "Webhook settings", icon: <WebhookGlyph className="size-3.5" />, run: () => manager.open({ kind: "webhook", webhookId: item.webhook.id }) },
-        ];
+  const menu = groupMenu(desktop, manager, group, open);
 
   return (
     <div
       role="button"
       tabIndex={0}
       aria-selected={selected}
-      aria-label={`${label}${badge > 0 ? `, ${badge} unread` : ""}`}
-      title={item.kind === "group" ? `${label} — ${members.length} threads` : label}
+      aria-label={group.name}
+      title={`${group.name} — ${members.length} threads`}
       className="bbd-icon"
       data-dragging={drag !== null}
       data-drop-target={drop.over}
@@ -1075,18 +991,12 @@ function DesktopIcon({
       {...drop.handlers}
     >
       <span className="bbd-icon-art">
-        {item.kind === "group" ? (
-          <FolderArt kind={item.group.kind} />
-        ) : (
-          <WebhookArt />
-        )}
-        {badge > 0 ? (
-          <span className="bbd-dot">{badge > 99 ? "99+" : badge}</span>
-        ) : needsInput ? (
+        <FolderArt kind={group.kind} />
+        {needsInput ? (
           <span className="bbd-dot" data-tone="attention" aria-hidden />
         ) : null}
       </span>
-      <span className="bbd-icon-label">{label}</span>
+      <span className="bbd-icon-label">{group.name}</span>
     </div>
   );
 }
@@ -1102,16 +1012,10 @@ function WindowContent({ window: desktopWindow }: { window: DesktopWindow }) {
       return <PanelWindow window={desktopWindow} threadId={spec.threadId} />;
     case "threads":
       return <ThreadsWindow window={desktopWindow} />;
-    case "notifications":
-      return <NotificationsWindow window={desktopWindow} />;
     case "new-folder":
       return <NewFolderWindow window={desktopWindow} />;
     case "new-thread":
       return <NewThreadWindow window={desktopWindow} groupKey={spec.groupKey} />;
-    case "new-webhook":
-      return <NewWebhookWindow window={desktopWindow} />;
-    case "webhook":
-      return <WebhookWindow window={desktopWindow} webhookId={spec.webhookId} />;
   }
 }
 
@@ -1355,7 +1259,6 @@ function FinderWindow({ window: desktopWindow, groupKey }: { window: DesktopWind
     desktop.sort.key,
     desktop.sort.direction,
   );
-  const unreadCount = threads.filter((thread) => thread.isUnread).length;
 
   return (
     <WindowFrame
@@ -1365,7 +1268,6 @@ function FinderWindow({ window: desktopWindow, groupKey }: { window: DesktopWind
       statusBar={
         <>
           <span>{threads.length} threads</span>
-          <span>{unreadCount} unread</span>
           <span className="flex-1 truncate">{groupDescription(group)}</span>
         </>
       }
@@ -1530,7 +1432,6 @@ function PanelWindow({ window: desktopWindow, threadId }: { window: DesktopWindo
   const actions = useSidebarThreadActions();
   const thread = desktop.threadById.get(threadId);
   const live = desktop.liveById.get(threadId);
-  const webhooks = desktop.snapshot.webhooks.filter((webhook) => webhook.threadId === threadId);
   const folders = desktop.snapshot.folders.filter((folder) => folder.threadIds.includes(threadId));
   const section = desktop.snapshot.sections.find((candidate) => candidate.id === thread?.sectionId);
 
@@ -1587,25 +1488,6 @@ function PanelWindow({ window: desktopWindow, threadId }: { window: DesktopWindo
                 Archive
               </button>
             </div>
-            {webhooks.length > 0 ? (
-              <fieldset className="bbd-fieldset">
-                <legend>Webhooks feeding this thread</legend>
-                {webhooks.map((webhook) => (
-                  <button
-                    key={webhook.id}
-                    type="button"
-                    className="bbd-row w-full grid-cols-[16px_1fr_auto] text-left"
-                    onClick={() => manager.open({ kind: "webhook", webhookId: webhook.id })}
-                  >
-                    <WebhookGlyph className="size-3.5" />
-                    <span className="truncate">{webhook.name}</span>
-                    <span className="text-muted-foreground">
-                      {webhook.lastEventAt === null ? "no events" : relativeTime(webhook.lastEventAt)}
-                    </span>
-                  </button>
-                ))}
-              </fieldset>
-            ) : null}
           </div>
         )}
       </div>
@@ -1644,35 +1526,6 @@ function ThreadsWindow({ window: desktopWindow }: { window: DesktopWindow }) {
         </div>
         <div className="bbd-sunken min-h-0 flex-1 overflow-auto">
           <ThreadCollection threads={threads} group={null} view="list" emptyText="No threads." />
-        </div>
-      </div>
-    </WindowFrame>
-  );
-}
-
-function NotificationsWindow({ window: desktopWindow }: { window: DesktopWindow }) {
-  const desktop = useDesktop();
-  const threads = sortThreads(desktop.unreadThreads, "updated", "descending");
-  return (
-    <WindowFrame
-      window={desktopWindow}
-      title="Notifications"
-      icon={<BellGlyph className="size-3.5" />}
-      statusBar={<span className="flex-1">{threads.length} unread</span>}
-    >
-      <div className="flex h-full flex-col">
-        <div className="bbd-menubar flex-none">
-          <button
-            type="button"
-            className="bbd-button bbd-bevel"
-            disabled={threads.length === 0}
-            onClick={desktop.markAllRead}
-          >
-            <CheckGlyph className="size-3.5" /> Mark all read
-          </button>
-        </div>
-        <div className="bbd-sunken min-h-0 flex-1 overflow-auto">
-          <ThreadCollection threads={threads} group={null} view="list" emptyText="No unread threads." />
         </div>
       </div>
     </WindowFrame>
@@ -1839,202 +1692,6 @@ function NewThreadWindow({ window: desktopWindow, groupKey }: { window: DesktopW
           draftKey={`desktop:new-thread:${groupKey ?? "desktop"}`}
           placeholder="What should this thread do?"
         />
-      </div>
-    </WindowFrame>
-  );
-}
-
-function webhookHandlerPrompt(name: string): string {
-  return [
-    `You handle the "${name}" webhook for me.`,
-    "Each incoming event arrives here as a message containing its payload.",
-    "For every event: summarize what happened, take any follow-up I describe below, and and reply with a short summary when I should know about it.",
-    "",
-    "What this webhook is and what to do with it:",
-  ].join("\n");
-}
-
-function NewWebhookWindow({ window: desktopWindow }: { window: DesktopWindow }) {
-  const desktop = useDesktop();
-  const manager = useWindowManager();
-  const [name, setName] = useState("");
-  const [target, setTarget] = useState<"new" | "existing">("new");
-  const [threadId, setThreadId] = useState("");
-  const [busy, setBusy] = useState(false);
-  const candidates = sortThreads(
-    desktop.threads.filter((thread) => !thread.isArchived),
-    desktop.sort.key,
-    desktop.sort.direction,
-  );
-
-  const finish = async (boundThreadId: string) => {
-    const webhook = await desktop.call("createWebhook", {
-      name: name.trim(),
-      threadId: boundThreadId,
-      position: null,
-    });
-    manager.close(desktopWindow.id);
-    manager.open({ kind: "webhook", webhookId: webhook.id });
-  };
-
-  const trimmed = name.trim();
-
-  return (
-    <WindowFrame window={desktopWindow} title="New webhook" icon={<WebhookGlyph className="size-3.5" />}>
-      <div className="flex h-full flex-col gap-3 overflow-auto p-3 text-xs">
-        <label className="flex items-center gap-2">
-          Name
-          <input
-            className="bbd-field bbd-sunken flex-1"
-            placeholder="GitHub deploys, Calendar, Support inbox…"
-            value={name}
-            autoFocus
-            onChange={(event) => setName(event.target.value)}
-          />
-        </label>
-        <fieldset className="bbd-fieldset space-y-1">
-          <legend>Deliver events to</legend>
-          <label className="flex items-center gap-2">
-            <input type="radio" name="target" checked={target === "new"} onChange={() => setTarget("new")} />
-            A new thread that handles this webhook
-          </label>
-          <label className="flex items-center gap-2">
-            <input type="radio" name="target" checked={target === "existing"} onChange={() => setTarget("existing")} />
-            An existing thread
-            <select
-              className="bbd-field bbd-sunken min-w-0 flex-1"
-              aria-label="Existing thread"
-              disabled={target !== "existing"}
-              value={threadId}
-              onChange={(event) => setThreadId(event.target.value)}
-            >
-              <option value="">Choose a thread…</option>
-              {candidates.map((thread) => (
-                <option key={thread.id} value={thread.id}>
-                  {thread.title}
-                </option>
-              ))}
-            </select>
-          </label>
-        </fieldset>
-        {target === "new" ? (
-          trimmed === "" ? (
-            <p className="text-muted-foreground">Name the webhook to set up its handler thread.</p>
-          ) : (
-            <div className="bg-background p-2">
-              <NewThreadComposer
-                key={trimmed}
-                initialPrompt={webhookHandlerPrompt(trimmed)}
-                draftKey={`desktop:webhook:${trimmed}`}
-                onSubmit={async (request) => {
-                  const { threadId: created } = await desktop.call("spawnThread", { request: { ...request } });
-                  await finish(created);
-                }}
-              />
-            </div>
-          )
-        ) : (
-          <div className="flex justify-end gap-2">
-            <button type="button" className="bbd-button bbd-bevel min-w-20 justify-center" onClick={() => manager.close(desktopWindow.id)}>
-              Cancel
-            </button>
-            <button
-              type="button"
-              className="bbd-button bbd-bevel min-w-20 justify-center font-semibold"
-              disabled={busy || trimmed === "" || threadId === ""}
-              onClick={() => {
-                setBusy(true);
-                void finish(threadId)
-                  .catch((error) => toast.error(errorMessage(error)))
-                  .finally(() => setBusy(false));
-              }}
-            >
-              Create
-            </button>
-          </div>
-        )}
-      </div>
-    </WindowFrame>
-  );
-}
-
-function CopyField({ label, value }: { label: string; value: string }) {
-  return (
-    <label className="grid grid-cols-[72px_1fr_auto] items-center gap-2">
-      <span className="text-muted-foreground">{label}</span>
-      <input className="bbd-field bbd-sunken min-w-0 font-mono" readOnly value={value} onFocus={(event) => event.target.select()} />
-      <button
-        type="button"
-        className="bbd-button bbd-bevel"
-        aria-label={`Copy ${label}`}
-        onClick={() =>
-          void navigator.clipboard.writeText(value).then(
-            () => toast.success(`${label} copied`),
-            () => toast.error("Copy failed"),
-          )
-        }
-      >
-        <CopyGlyph className="size-3.5" />
-      </button>
-    </label>
-  );
-}
-
-function WebhookWindow({ window: desktopWindow, webhookId }: { window: DesktopWindow; webhookId: string }) {
-  const desktop = useDesktop();
-  const manager = useWindowManager();
-  const webhook = desktop.snapshot.webhooks.find((candidate) => candidate.id === webhookId) ?? null;
-
-  useEffect(() => {
-    if (webhook === null) manager.close(desktopWindow.id);
-  }, [desktopWindow.id, manager, webhook]);
-
-  if (webhook === null) return null;
-  const url = `${desktop.snapshot.webhookBaseUrl}?id=${webhook.id}`;
-  const thread = desktop.threadById.get(webhook.threadId);
-  const curl = `curl -X POST '${url}' -H 'x-desktop-secret: ${webhook.secret}' -H 'content-type: application/json' -d '{"hello":"desktop"}'`;
-
-  return (
-    <WindowFrame
-      window={desktopWindow}
-      title={webhook.name}
-      icon={<WebhookGlyph className="size-3.5" />}
-      statusBar={
-        <span className="flex-1">
-          {webhook.lastEventAt === null ? "No events yet" : `Last event ${relativeTime(webhook.lastEventAt)}`}
-        </span>
-      }
-    >
-      <div className="flex h-full flex-col gap-3 overflow-auto p-3 text-xs">
-        <p>
-          POST any payload to this URL. Each event is delivered to{" "}
-          <button type="button" className="text-primary underline" onClick={() => desktop.openThread(webhook.threadId)}>
-            {thread?.title ?? webhook.threadId}
-          </button>{" "}
-          as a message, and the webhook icon on the desktop gets a badge.
-        </p>
-        <CopyField label="URL" value={url} />
-        <CopyField label="Secret" value={webhook.secret} />
-        <CopyField label="curl" value={curl} />
-        <p className="text-muted-foreground">
-          Send the secret in the <code>x-desktop-secret</code> header, or as <code>&amp;key=</code> for services that
-          only accept a URL. Set the plugin’s public base URL in Settings when events come from outside this machine.
-        </p>
-        <div className="mt-auto flex justify-between gap-2">
-          <button
-            type="button"
-            className="bbd-button bbd-bevel"
-            onClick={() => {
-              if (!window.confirm(`Delete the “${webhook.name}” webhook? Its URL stops working.`)) return;
-              void desktop.call("deleteWebhook", { id: webhook.id }).catch((error) => toast.error(errorMessage(error)));
-            }}
-          >
-            <TrashGlyph className="size-3.5" /> Delete webhook
-          </button>
-          <button type="button" className="bbd-button bbd-bevel font-semibold" onClick={() => desktop.openThread(webhook.threadId)}>
-            Open thread
-          </button>
-        </div>
       </div>
     </WindowFrame>
   );

@@ -1,7 +1,7 @@
 {
   "name": "bb-plugin-desktop",
   "version": "0.1.0",
-  "description": "A desktop for your threads: folders, a finder, draggable thread windows, an unread bell, and webhooks.",
+  "description": "A desktop for your threads: folders, a finder, and draggable thread windows.",
   "type": "module",
   "license": "UNLICENSED",
   "files": [
@@ -22,7 +22,7 @@
   },
   "bb": {
     "name": "Desktop",
-    "description": "Browse threads as folders and windows on a desktop, with agent notifications and webhooks that feed threads.",
+    "description": "Browse threads as folders and windows on a desktop.",
     "branding": {
       "icon": "Monitor"
     },

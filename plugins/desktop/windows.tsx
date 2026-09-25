@@ -18,11 +18,8 @@ export type WindowSpec =
   | { kind: "thread"; threadId: string }
   | { kind: "panel"; threadId: string }
   | { kind: "threads" }
-  | { kind: "notifications" }
   | { kind: "new-folder" }
-  | { kind: "new-thread"; groupKey: string | null }
-  | { kind: "new-webhook" }
-  | { kind: "webhook"; webhookId: string };
+  | { kind: "new-thread"; groupKey: string | null };
 
 export interface DesktopWindow {
   id: string;
@@ -57,8 +54,6 @@ export function windowId(spec: WindowSpec): string {
     case "thread":
     case "panel":
       return `${spec.kind}:${spec.threadId}`;
-    case "webhook":
-      return `webhook:${spec.webhookId}`;
     case "new-thread":
       return `new-thread:${spec.groupKey ?? "desktop"}`;
     default:
@@ -167,10 +162,7 @@ function parseSpec(value: unknown): WindowSpec | null {
     case "thread":
     case "panel":
       return text("threadId") === null ? null : { kind: record.kind, threadId: text("threadId")! };
-    case "webhook":
-      return text("webhookId") === null ? null : { kind: "webhook", webhookId: text("webhookId")! };
     case "threads":
-    case "notifications":
       return { kind: record.kind };
     default:
       return null;
@@ -220,13 +212,11 @@ export function defaultRect(spec: WindowSpec, stagger: number): Rect {
       ? { width: 620, height: 640 }
       : spec.kind === "panel" || spec.kind === "threads"
         ? { width: 320, height: 560 }
-        : spec.kind === "new-thread" || spec.kind === "new-webhook"
+        : spec.kind === "new-thread"
           ? { width: 720, height: 420 }
-          : spec.kind === "notifications"
-            ? { width: 380, height: 460 }
-            : spec.kind === "new-folder"
-              ? { width: 440, height: 480 }
-              : { width: 560, height: 400 };
+          : spec.kind === "new-folder"
+            ? { width: 440, height: 480 }
+            : { width: 560, height: 400 };
   const offset = (stagger % 8) * 28;
   return clampRect(
     {

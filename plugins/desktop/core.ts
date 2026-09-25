@@ -41,16 +41,6 @@ export interface DesktopThread {
   updatedAt: number;
 }
 
-export interface Webhook {
-  id: string;
-  name: string;
-  threadId: string;
-  secret: string;
-  unread: number;
-  lastEventAt: number | null;
-  createdAt: number;
-}
-
 export type DesktopGroup =
   | { key: string; kind: "folder"; name: string; folder: Folder }
   | { key: string; kind: "section" | "project" | "machine"; name: string; id: string | null };
@@ -313,34 +303,4 @@ export function tileRects(
     width,
     height,
   }));
-}
-
-const MAX_WEBHOOK_BODY_CHARS = 8_000;
-
-export function webhookMessage(args: {
-  webhookName: string;
-  contentType: string | null;
-  body: string;
-  receivedAt: Date;
-}): string {
-  let rendered = args.body;
-  if (args.contentType?.includes("json")) {
-    try {
-      rendered = JSON.stringify(JSON.parse(args.body), null, 2);
-    } catch {
-      rendered = args.body;
-    }
-  }
-  const truncated =
-    rendered.length > MAX_WEBHOOK_BODY_CHARS
-      ? `${rendered.slice(0, MAX_WEBHOOK_BODY_CHARS)}\n… (${rendered.length - MAX_WEBHOOK_BODY_CHARS} more characters truncated)`
-      : rendered;
-  return [
-    `Webhook event received on "${args.webhookName}" at ${args.receivedAt.toISOString()}.`,
-    "Handle it according to this thread's instructions.",
-    "",
-    "```",
-    truncated.replaceAll("```", "``​`"),
-    "```",
-  ].join("\n");
 }
