@@ -40,6 +40,7 @@ import {
   NewThreadGlyph,
   StickyNoteGlyph,
   PanelRightGlyph,
+  PowerGlyph,
   ThreadArt,
   ThreadsGlyph,
   TileGlyph,
@@ -65,7 +66,7 @@ import {
   type SortDirection,
   type SortKey,
 } from "./core";
-import { useDesktopEnabled } from "./enabled";
+import { toggleDesktop, useDesktopEnabled } from "./enabled";
 import { MediaDeskband, MediaPlayerWindow, useMic } from "./media-player";
 import { addStickyNote } from "./sticky-notes";
 import type { DesktopSnapshot, rpcContract } from "./server";
@@ -75,7 +76,6 @@ import {
   trackPointer,
   useWindowManager,
   viewportRect,
-  windowId,
   workAreaRect,
   type DesktopWindow,
   type WindowSpec,
@@ -487,7 +487,7 @@ function DesktopData() {
             {manager.windows.map((window) => (
               <WindowContent key={window.id} window={window} />
             ))}
-            <Dock frame={dockFrame} />
+            <Taskbar frame={dockFrame} />
           </div>,
           document.body,
         )}
@@ -874,64 +874,151 @@ interface DockFrame {
   maxWidth: number;
 }
 
-const DOCK_APPS: { spec: WindowSpec; label: string }[] = [
-  { spec: { kind: "new-thread", groupKey: null }, label: "New thread" },
-  { spec: { kind: "new-folder" }, label: "New folder" },
-  { spec: { kind: "media-player" }, label: "Windows Media Player" },
+const START_ITEMS: { spec: WindowSpec; label: string; detail: string }[] = [
+  { spec: { kind: "new-thread", groupKey: null }, label: "New thread", detail: "Start a conversation" },
+  { spec: { kind: "new-folder" }, label: "New folder", detail: "Group threads on the desktop" },
+  { spec: { kind: "media-player" }, label: "Windows Media Player", detail: "Visualize your microphone" },
 ];
 
-function Dock({ frame }: { frame: DockFrame | null }) {
+function StartFlag() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden>
+      <path d="M2 3.2 Q4.8 2 8.2 3.4 L7.4 8.2 Q4.2 7 1.4 8 Z" fill="oklch(0.66 0.21 30)" />
+      <path d="M9.4 3.8 Q12.6 5 16 3.6 L15.2 8.4 Q12 9.6 8.6 8.6 Z" fill="oklch(0.74 0.19 140)" />
+      <path d="M1.2 9.2 Q4 8.2 7.2 9.4 L6.4 14.2 Q3.4 13 0.4 14 Z" fill="oklch(0.62 0.18 250)" />
+      <path d="M8.4 9.8 Q11.6 11 15 9.6 L14.2 14.4 Q11 15.6 7.6 14.6 Z" fill="oklch(0.86 0.16 90)" />
+    </svg>
+  );
+}
+
+function StartMenu({ onClose }: { onClose: () => void }) {
+  const manager = useWindowManager();
+  const desktop = useDesktop();
+  const menuRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    menuRef.current?.querySelector<HTMLButtonElement>("button")?.focus();
+    const onPointerDown = (event: PointerEvent) => {
+      const target = event.target as Node;
+      if (menuRef.current?.contains(target) || (target as Element).closest?.(".bbd-start")) return;
+      onClose();
+    };
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") onClose();
+    };
+    window.addEventListener("pointerdown", onPointerDown, true);
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      window.removeEventListener("pointerdown", onPointerDown, true);
+      window.removeEventListener("keydown", onKeyDown);
+    };
+  }, [onClose]);
+  const run = (action: () => void) => () => {
+    onClose();
+    action();
+  };
+  return (
+    <div ref={menuRef} className="bbd-start-menu" role="menu" aria-label="Start menu">
+      <div className="bbd-start-head">
+        <span className="bbd-start-avatar">
+          <StartFlag />
+        </span>
+        <span>bb</span>
+      </div>
+      <div className="bbd-start-body">
+        {START_ITEMS.map((item) => (
+          <button key={item.label} type="button" role="menuitem" className="bbd-start-item" onClick={run(() => manager.open(item.spec))}>
+            {windowArt(item.spec, desktop, 30)}
+            <span>
+              <strong>{item.label}</strong>
+              <small>{item.detail}</small>
+            </span>
+          </button>
+        ))}
+        <button type="button" role="menuitem" className="bbd-start-item" onClick={run(() => addStickyNote())}>
+          <StickyNoteArt size={30} />
+          <span>
+            <strong>Sticky note</strong>
+            <small>Pin a note in the margin</small>
+          </span>
+        </button>
+      </div>
+      <div className="bbd-start-foot">
+        <button type="button" role="menuitem" className="bbd-start-off" onClick={run(toggleDesktop)}>
+          <span className="bbd-start-power" aria-hidden>
+            <PowerGlyph className="size-3.5" strokeWidth={2.5} />
+          </span>
+          Turn Off Desktop
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function Taskbar({ frame }: { frame: DockFrame | null }) {
   const desktop = useDesktop();
   const manager = useWindowManager();
   const { status } = useMic();
   const playing = status === "live" || status === "starting";
-  const appIds = new Set(DOCK_APPS.map((app) => windowId(app.spec)));
-  const others = manager.windows.filter((window) => !appIds.has(window.id));
+  const [startOpen, setStartOpen] = useState(false);
+  const closeStart = useCallback(() => setStartOpen(false), []);
   const activate = (id: string) => {
     if (manager.focusedId === id) manager.minimize(id, true);
     else manager.focus(id);
   };
-  const item = (key: string, label: string, art: ReactNode, onClick: () => void, window?: DesktopWindow) => (
-    <button
-      key={key}
-      type="button"
-      className="bbd-dock-item"
-      aria-label={window?.minimized ? `${label} (minimized)` : label}
-      data-running={window !== undefined}
-      data-minimized={window?.minimized === true}
-      data-focused={window !== undefined && manager.focusedId === window.id}
-      onClick={onClick}
-    >
-      {art}
-      <span className="bbd-dock-tip">{label}</span>
-    </button>
-  );
   return (
-    <nav className="bbd-dock" aria-label="Dock" style={frame ?? undefined}>
-      {DOCK_APPS.map((app) => {
-        const id = windowId(app.spec);
-        const window = manager.windows.find((candidate) => candidate.id === id);
-        return item(
-          id,
-          app.label,
-          windowArt(app.spec, desktop, 24),
-          () => (window === undefined ? manager.open(app.spec) : activate(id)),
-          window,
-        );
-      })}
-      {item("sticky-note", "New sticky note", <StickyNoteArt size={24} />, () => addStickyNote())}
-      {others.length > 0 && <span className="bbd-dock-divider" aria-hidden />}
-      {others.map((window) => {
-        const title = windowTitle(window.spec, desktop);
-        return item(window.id, title, windowArt(window.spec, desktop, 24), () => activate(window.id), window);
-      })}
-      {playing && (
-        <>
-          <span className="bbd-dock-divider" aria-hidden />
-          <MediaDeskband onRestore={() => manager.open({ kind: "media-player" })} />
-        </>
-      )}
+    <nav
+      className="bbd-taskbar"
+      aria-label="Taskbar"
+      style={frame === null ? undefined : { left: frame.left, width: frame.maxWidth }}
+    >
+      <button
+        type="button"
+        className="bbd-start"
+        aria-haspopup="menu"
+        aria-expanded={startOpen}
+        onClick={() => setStartOpen((open) => !open)}
+      >
+        <StartFlag />
+        <span>start</span>
+      </button>
+      {startOpen && <StartMenu onClose={closeStart} />}
+      <div className="bbd-tasks">
+        {manager.windows.map((window) => {
+          const title = windowTitle(window.spec, desktop);
+          return (
+            <button
+              key={window.id}
+              type="button"
+              className="bbd-task"
+              aria-label={`${title}${window.minimized ? " (minimized)" : ""}`}
+              title={title}
+              data-focused={manager.focusedId === window.id && !window.minimized}
+              onClick={() => activate(window.id)}
+            >
+              <span className="bbd-task-icon">{windowArt(window.spec, desktop, 16)}</span>
+              <span className="min-w-0 truncate">{title}</span>
+            </button>
+          );
+        })}
+      </div>
+      <div className="bbd-tray">
+        {playing && <MediaDeskband onRestore={() => manager.open({ kind: "media-player" })} />}
+        <TrayClock />
+      </div>
     </nav>
+  );
+}
+
+function TrayClock() {
+  const [now, setNow] = useState(() => new Date());
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(new Date()), 15_000);
+    return () => window.clearInterval(timer);
+  }, []);
+  return (
+    <time className="bbd-clock" dateTime={now.toISOString()} title={now.toLocaleDateString(undefined, { dateStyle: "full" })}>
+      {now.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}
+    </time>
   );
 }
 
