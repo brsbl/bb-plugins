@@ -45,6 +45,8 @@ const RIGHT_PANEL = "body.bb-app-shell > #root #thread-detail-secondary-panel-ha
 const COLUMN_LEFT = `max(var(--ambient-column-gutter, 8px), 50% - ${COLUMN_HALF})`;
 const COLUMN_RIGHT = `max(8px, 50% - ${COLUMN_HALF})`;
 const COLUMN_BOTTOM = "8px";
+const FOOTER_LEFT = `max(var(--ambient-column-gutter, 8px), 50% - 380px)`;
+const FOOTER_RIGHT = `max(8px, 50% - 380px)`;
 const THREAD = "body.bb-app-shell > #root [data-thread-window]";
 const CHROME_PILLS = 'body.bb-app-shell > #root :is([data-testid="app-page-header-content-row"] > :first-child, [data-app-page-header-actions], [data-testid="app-sidebar-top-reserve-row"] > div, button[data-sidebar="trigger"])';
 const SIDEBAR_CARDS = 'body.bb-app-shell > #root :is([data-testid="sidebar-navigation-region"], [data-sidebar="content"], [data-sidebar="footer"])';
@@ -65,7 +67,7 @@ ${THREAD} [data-timeline-row-list] :is([data-message-column].border, [data-messa
 ${THREAD} [data-markdown-preview] div:has(> div > table) { width: 100% !important; margin-inline: 0 !important; }
 ${THREAD} [data-scroll-footer] > .bg-background { background-color: transparent; }
 ${THREAD} [data-scroll-footer] { isolation: isolate; padding-top: 16px; }
-${THREAD} [data-scroll-footer]::before { content: ""; position: absolute; z-index: -1; pointer-events: none; top: 0; bottom: ${COLUMN_BOTTOM}; left: ${COLUMN_LEFT}; right: ${COLUMN_RIGHT}; border-radius: 20px; background: linear-gradient(to bottom, color-mix(in oklab, var(--canvas) 28%, transparent), transparent 45%), var(--ambient-background); border: 1px solid color-mix(in oklab, var(--ink) 9%, transparent); box-shadow: inset 0 1px 0 color-mix(in oklab, var(--canvas) 70%, transparent), inset 0 0 0 1px color-mix(in oklab, var(--canvas) 18%, transparent); }
+${THREAD} [data-scroll-footer]::before { content: ""; position: absolute; z-index: -1; pointer-events: none; top: 0; bottom: ${COLUMN_BOTTOM}; left: ${FOOTER_LEFT}; right: ${FOOTER_RIGHT}; border-radius: 20px; background: linear-gradient(to bottom, color-mix(in oklab, var(--canvas) 28%, transparent), transparent 45%), var(--ambient-background); border: 1px solid color-mix(in oklab, var(--ink) 9%, transparent); box-shadow: inset 0 1px 0 color-mix(in oklab, var(--canvas) 70%, transparent), inset 0 0 0 1px color-mix(in oklab, var(--canvas) 18%, transparent); }
 body.bb-app-shell > #root header.bg-surface-scrim { border-color: transparent; }
 body.bb-app-shell > #root [data-root-compose-mobile-recents] { ${GLASS_SURFACE} border-radius: 20px; padding-block: 2px 6px; }
 body.bb-app-shell > #root [data-root-compose-mobile-recents] > .sticky { background-color: transparent; border-radius: 20px 20px 0 0; }
