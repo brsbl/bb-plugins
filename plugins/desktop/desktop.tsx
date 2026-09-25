@@ -46,6 +46,7 @@ import {
   GridViewGlyph,
   ListViewGlyph,
   MediaPlayerArt,
+  BuddyListArt,
   MinesweeperArt,
   PaintArt,
   InternetExplorerArt,
@@ -56,7 +57,6 @@ import {
   NotePadArt,
   type StatusKind,
   NotePadGlyph,
-  PanelRightGlyph,
   ChevronsRightGlyph,
   PowerGlyph,
   ThreadArt,
@@ -101,6 +101,7 @@ import {
   useWindowManager,
   viewportRect,
   workAreaRect,
+  windowId,
   type DesktopWindow,
   type WindowSpec,
 } from "./windows";
@@ -301,7 +302,7 @@ export function Desktop() {
 function closeThreadWindows(manager: ReturnType<typeof useWindowManager>, threadId: string) {
   manager.closeWhere(
     (window) =>
-      (window.spec.kind === "thread" || window.spec.kind === "panel") &&
+      (window.spec.kind === "thread" || window.spec.kind === "panel" || window.spec.kind === "buddy-list") &&
       window.spec.threadId === threadId,
   );
 }
@@ -1158,6 +1159,8 @@ function windowTitle(spec: WindowSpec, desktop: DesktopContextValue): string {
       return desktop.threadById.get(spec.threadId)?.title ?? "Thread";
     case "panel":
       return `${desktop.threadById.get(spec.threadId)?.title ?? "Thread"} — Details`;
+    case "buddy-list":
+      return "bb Messenger";
     case "threads":
       return "My Threads";
     case "recycle-bin":
@@ -1201,6 +1204,8 @@ function windowArt(spec: WindowSpec, desktop: DesktopContextValue, size: number)
       return <ThreadArt size={size} />;
     case "panel":
       return <DetailsArt size={size} />;
+    case "buddy-list":
+      return <BuddyListArt size={size} />;
     case "threads":
       return <ThreadsArt size={size} />;
     case "recycle-bin":
@@ -2236,6 +2241,8 @@ function WindowContent({ window: desktopWindow }: { window: DesktopWindow }) {
       return <ThreadWindow window={desktopWindow} threadId={spec.threadId} />;
     case "panel":
       return <PanelWindow window={desktopWindow} threadId={spec.threadId} />;
+    case "buddy-list":
+      return <BuddyListWindow window={desktopWindow} threadId={spec.threadId} />;
     case "threads":
       return <ThreadsWindow window={desktopWindow} />;
     case "recycle-bin":
@@ -2613,69 +2620,286 @@ function FinderWindow({ window: desktopWindow, groupKey }: { window: DesktopWind
   );
 }
 
+function lastActivity(timestamp: number): string {
+  const date = new Date(timestamp);
+  const time = date.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+  return date.toDateString() === new Date().toDateString() ? time : `${date.toLocaleDateString()} ${time}`;
+}
+
 function ThreadWindow({ window: desktopWindow, threadId }: { window: DesktopWindow; threadId: string }) {
   const desktop = useDesktop();
   const manager = useWindowManager();
   const actions = useSidebarThreadActions();
   const thread = desktop.threadById.get(threadId);
-  const panelOpen = manager.windows.some(
-    (window) => window.spec.kind === "panel" && window.spec.threadId === threadId,
-  );
+  const panelOpen = manager.windows.some((window) => window.id === windowId({ kind: "panel", threadId }));
+  const buddiesOpen = manager.windows.some((window) => window.id === windowId({ kind: "buddy-list", threadId }));
 
-  const togglePanel = () => {
-    const panelId = `panel:${threadId}`;
-    if (panelOpen) {
-      manager.close(panelId);
+  const toggleDocked = (spec: { kind: "panel" | "buddy-list"; threadId: string }, width: number) => {
+    const id = windowId(spec);
+    if (manager.windows.some((window) => window.id === id)) {
+      manager.close(id);
       return;
     }
     const { rect } = desktopWindow;
     const viewport = viewportRect();
-    const width = 320;
+    const right = rect.x + rect.width + 8;
+    const left = rect.x - width - 8;
+    const fitsRight = right + width <= viewport.width;
+    const fitsLeft = left >= 0;
     const x =
-      rect.x + rect.width + 8 + width <= viewport.width ? rect.x + rect.width + 8 : Math.max(0, rect.x - width - 8);
-    manager.open({ kind: "panel", threadId }, { x, y: rect.y, width, height: rect.height });
+      spec.kind === "buddy-list"
+        ? fitsLeft ? left : fitsRight ? right : 0
+        : fitsRight ? right : Math.max(0, left);
+    manager.open(spec, { x, y: rect.y, width, height: rect.height });
   };
 
   return (
     <WindowFrame
       window={desktopWindow}
-      title={thread?.title ?? "Thread"}
+      title={`${thread?.title ?? "Thread"} - Instant Message`}
       icon={<ThreadArt size={16} />}
       titleActions={
-        <>
-          <button
-            type="button"
-            className="bbd-titlebar-button"
-            aria-label={panelOpen ? "Close details panel" : "Open details panel"}
-            title={panelOpen ? "Close details panel" : "Open details panel"}
-            data-pressed={panelOpen}
-            onClick={togglePanel}
-          >
-            <PanelRightGlyph className="size-3" strokeWidth={2} />
-          </button>
-          <button
-            type="button"
-            className="bbd-titlebar-button mr-1"
-            aria-label="Open in bb"
-            title="Open in bb"
-            onClick={() => actions.open(threadId)}
-          >
-            <ExternalLinkGlyph className="size-3" strokeWidth={2} />
-          </button>
-        </>
+        <button
+          type="button"
+          className="bbd-titlebar-button mr-1"
+          aria-label="Open in bb"
+          title="Open in bb"
+          onClick={() => actions.open(threadId)}
+        >
+          <ExternalLinkGlyph className="size-3" strokeWidth={2} />
+        </button>
       }
       statusBar={
         thread === undefined ? undefined : (
           <>
             <span>{describeStatus(thread)}</span>
             <span>{thread.providerId}</span>
-            <span className="flex-1 truncate">Updated {relativeTime(thread.updatedAt)}</span>
+            <span className="flex-1 truncate">Last activity at {lastActivity(thread.updatedAt)}</span>
           </>
         )
       }
     >
-      <div className="h-full bg-background">
-        <ThreadChat threadId={threadId} variant="compact" layout="contained" className="h-full" />
+      <div className="bbd-im flex h-full flex-col">
+        <div className="bbd-im-chat min-h-0 flex-1">
+          <ThreadChat threadId={threadId} variant="compact" layout="contained" className="h-full" />
+        </div>
+        <div className="bbd-im-actions flex-none">
+          <button
+            type="button"
+            className="bbd-im-action"
+            aria-pressed={buddiesOpen}
+            title={buddiesOpen ? "Close the Buddy List" : "Buddy List: threads in this project and environment"}
+            onClick={() => toggleDocked({ kind: "buddy-list", threadId }, 280)}
+          >
+            <BuddyListArt size={24} />
+            <span>Buddies</span>
+          </button>
+          <button
+            type="button"
+            className="bbd-im-action"
+            aria-pressed={panelOpen}
+            title={panelOpen ? "Close thread info" : "Status, branch, pull request, and folders"}
+            onClick={() => toggleDocked({ kind: "panel", threadId }, 320)}
+          >
+            <DetailsArt size={24} />
+            <span>Get Info</span>
+          </button>
+        </div>
+      </div>
+    </WindowFrame>
+  );
+}
+
+type BuddyScope = "project" | "environment";
+
+interface BuddyGroup {
+  key: string;
+  name: string;
+  threads: DesktopThread[];
+}
+
+function buddyRank(thread: DesktopThread): number {
+  switch (statusKind(thread)) {
+    case "attention":
+      return 0;
+    case "working":
+      return 1;
+    case "error":
+      return 2;
+    default:
+      return 3;
+  }
+}
+
+function sortBuddies(threads: readonly DesktopThread[]): DesktopThread[] {
+  return [...threads].sort((left, right) => buddyRank(left) - buddyRank(right) || right.updatedAt - left.updatedAt);
+}
+
+function idleFor(timestamp: number): string {
+  const minutes = Math.max(0, Math.round((Date.now() - timestamp) / 60_000));
+  if (minutes < 60) return `${minutes}m`;
+  const hours = Math.round(minutes / 60);
+  return hours < 48 ? `${hours}h` : `${Math.round(hours / 24)}d`;
+}
+
+function BuddyListWindow({ window: desktopWindow, threadId }: { window: DesktopWindow; threadId: string }) {
+  const desktop = useDesktop();
+  const manager = useWindowManager();
+  const actions = useSidebarThreadActions();
+  const thread = desktop.threadById.get(threadId);
+  const environment = desktop.liveById.get(threadId)?.environment ?? null;
+  const environmentId = environment?.id ?? null;
+  const [scope, setScope] = useState<BuddyScope>("project");
+  const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(() => new Set(["archived"]));
+  const [selectedId, setSelectedId] = useState(threadId);
+  const activeScope: BuddyScope = environmentId === null ? "project" : scope;
+  const projectName = desktop.snapshot.projects.find((project) => project.id === thread?.projectId)?.name ?? "Project";
+  const environmentName = environment?.name ?? environment?.branchName ?? "Environment";
+
+  const buddyGroups = useMemo((): BuddyGroup[] => {
+    if (thread === undefined) return [];
+    const members = desktop.threads.filter(
+      (candidate) =>
+        candidate.projectId === thread.projectId &&
+        (activeScope === "project" || desktop.liveById.get(candidate.id)?.environment?.id === environmentId),
+    );
+    const online = members.filter((candidate) => !candidate.isArchived);
+    const filed = new Set<string>();
+    const folders = desktop.groups.flatMap((group): BuddyGroup[] => {
+      if (group.kind !== "folder") return [];
+      const inFolder = online.filter((candidate) => group.folder.threadIds.includes(candidate.id));
+      for (const candidate of inFolder) filed.add(candidate.id);
+      return inFolder.length === 0 ? [] : [{ key: group.key, name: group.name, threads: sortBuddies(inFolder) }];
+    });
+    const unfiled = online.filter((candidate) => !filed.has(candidate.id));
+    const archived = members.filter((candidate) => candidate.isArchived);
+    return [
+      ...folders,
+      ...(unfiled.length > 0 ? [{ key: "threads", name: "Threads", threads: sortBuddies(unfiled) }] : []),
+      ...(archived.length > 0 ? [{ key: "archived", name: "Archived", threads: sortBuddies(archived) }] : []),
+    ];
+  }, [activeScope, desktop.groups, desktop.liveById, desktop.threads, environmentId, thread]);
+
+  const selected = desktop.threadById.get(selectedId);
+  const toggleGroup = (key: string) =>
+    setCollapsed((current) => {
+      const next = new Set(current);
+      if (!next.delete(key)) next.add(key);
+      return next;
+    });
+
+  return (
+    <WindowFrame window={desktopWindow} title="bb Messenger" icon={<BuddyListArt size={16} />}>
+      <div className="bbd-buddies flex h-full flex-col">
+        <div className="bbd-buddies-banner flex-none">
+          <BuddyListArt size={32} />
+          <div className="min-w-0">
+            <p className="truncate font-semibold">{activeScope === "project" ? projectName : environmentName}</p>
+            <p className="truncate text-muted-foreground">
+              {activeScope === "project" ? "Project" : `Environment in ${projectName}`}
+            </p>
+          </div>
+        </div>
+        {environmentId === null ? null : (
+          <div className="bbd-buddies-tabs flex-none" role="tablist" aria-label="Buddy List scope">
+            {(["project", "environment"] as const).map((value) => (
+              <button
+                key={value}
+                type="button"
+                role="tab"
+                className="bbd-buddies-tab"
+                aria-selected={activeScope === value}
+                onClick={() => setScope(value)}
+              >
+                {value === "project" ? "Project" : "Environment"}
+              </button>
+            ))}
+          </div>
+        )}
+        <div className="bbd-buddies-list min-h-0 flex-1 overflow-auto">
+          {thread === undefined ? (
+            <p className="p-3 text-xs text-muted-foreground">This thread is not available.</p>
+          ) : (
+            buddyGroups.map((group) => {
+              const open = !collapsed.has(group.key);
+              const awake = group.threads.filter((candidate) => statusKind(candidate) !== "idle").length;
+              return (
+                <section key={group.key}>
+                  <button
+                    type="button"
+                    className="bbd-buddies-group"
+                    aria-expanded={open}
+                    title={group.key === "archived" ? "Archived threads" : `${awake} of ${group.threads.length} active`}
+                    onClick={() => toggleGroup(group.key)}
+                  >
+                    <span className="bbd-buddies-caret" aria-hidden data-open={open} />
+                    <span className="truncate">{group.name}</span>
+                    <span className="text-muted-foreground">
+                      {group.key === "archived" ? `(${group.threads.length})` : `(${awake}/${group.threads.length})`}
+                    </span>
+                  </button>
+                  {open ? (
+                    <ul className="bbd-buddies-rows">
+                      {group.threads.map((buddy) => {
+                        const kind = statusKind(buddy);
+                        return (
+                          <li key={buddy.id}>
+                            <button
+                              type="button"
+                              className="bbd-buddy"
+                              aria-current={buddy.id === threadId ? "true" : undefined}
+                              data-selected={buddy.id === selectedId}
+                              data-dim={kind === "idle" || kind === "archived"}
+                              data-bold={buddy.isUnread || kind === "attention"}
+                              title={`${buddy.title}\n${describeStatus(buddy)} · last activity ${relativeTime(buddy.updatedAt)}`}
+                              onClick={() => setSelectedId(buddy.id)}
+                              onDoubleClick={() => desktop.openThread(buddy.id)}
+                              onKeyDown={(event) => {
+                                if (event.key !== "Enter") return;
+                                event.preventDefault();
+                                desktop.openThread(buddy.id);
+                              }}
+                              onContextMenu={(event) => {
+                                setSelectedId(buddy.id);
+                                desktop.openMenu(event, threadMenu(desktop, manager, actions, buddy, null));
+                              }}
+                            >
+                              <StatusIcon kind={kind} size={14} />
+                              <span className="min-w-0 flex-1 truncate">{buddy.title}</span>
+                              {kind === "idle" ? <span className="bbd-buddy-idle">({idleFor(buddy.updatedAt)})</span> : null}
+                            </button>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  ) : null}
+                </section>
+              );
+            })
+          )}
+        </div>
+        <div className="bbd-im-actions flex-none">
+          <button
+            type="button"
+            className="bbd-im-action"
+            disabled={selected === undefined}
+            title="Open the selected thread"
+            onClick={() => desktop.openThread(selectedId)}
+          >
+            <ThreadArt size={22} />
+            <span>IM</span>
+          </button>
+          <button
+            type="button"
+            className="bbd-im-action"
+            disabled={selected === undefined}
+            title="Info for the selected thread"
+            onClick={() => manager.open({ kind: "panel", threadId: selectedId })}
+          >
+            <DetailsArt size={24} />
+            <span>Info</span>
+          </button>
+        </div>
       </div>
     </WindowFrame>
   );
@@ -2753,11 +2977,7 @@ function PanelWindow({ window: desktopWindow, threadId }: { window: DesktopWindo
                 className="bbd-button bbd-bevel"
                 disabled={thread.isArchived}
                 onClick={() => {
-                  manager.closeWhere(
-                    (window) =>
-                      (window.spec.kind === "thread" || window.spec.kind === "panel") &&
-                      window.spec.threadId === threadId,
-                  );
+                  closeThreadWindows(manager, threadId);
                   actions.archive(threadId);
                 }}
               >

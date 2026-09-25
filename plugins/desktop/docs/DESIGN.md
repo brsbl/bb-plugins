@@ -18,6 +18,7 @@ Note pads are the one floating exception: they live on every page, so they are d
 - Use the XP name when a feature maps to an XP thing: **Start**, **Recycle Bin**, **Quick Launch**, **Show desktop**, **Turn Off Desktop**, **balloon**. Drop the "Windows" brand: it is **Media Player**, not Windows Media Player.
 - Use bb's words for bb concepts: **thread**, **section**, **project**, **archive**, **needs input**. Never rename a bb concept to an XP one (a thread is never a "document").
 - Sentence case everywhere except XP proper names.
+- Thread windows borrow early-2000s instant messaging: the program is **bb Messenger** (never an AIM or MSN name or logo), a thread window is an **Instant Message**, and its related threads are the **Buddy List**. Diffs, tool calls, and the composer stay bb-styled inside it. No sounds.
 
 ## 3. Color
 
@@ -85,6 +86,7 @@ Use the real XP icon when bb has an XP counterpart. When it does not, build from
 | Thread search | Search: straight-on magnifying glass with a gold handle | `SearchArt` |
 | Command palette | Run: small window with a text field and speed lines | `RunArt` |
 | Thread details | A window with a side pane | `DetailsArt` |
+| Buddy List (bb Messenger) | Windows Messenger: two glossy figures, blue behind green; no faces | `BuddyListArt` |
 | Needs input, error, idle | Warning (yellow triangle, black "!"), Critical (glossy red sphere, white X), and a matching green sphere with a white check for idle | `StatusIcon` |
 
 ### Line glyphs
@@ -104,6 +106,8 @@ Reuse these before building anything new.
 | A text field or select | `.bbd-field .bbd-sunken` |
 | A grouped form section | `.bbd-fieldset` with a `<legend>` |
 | A list of threads | `ThreadCollection` (icon or list view, status icons, folders line) |
+| A thread window | `ThreadWindow`, drawn as a bb Messenger instant message: bb's `ThreadChat` restyled only through `.bbd-im-chat` CSS, plus a `.bbd-im-actions` row (**Buddies**, **Get Info**) that docks the Buddy List on the left and thread info on the right |
+| Threads related to one thread | `BuddyListWindow` ("bb Messenger"): the thread's project, or its environment when it has one; groups are folders, then unfiled **Threads**, then **Archived** (collapsed). Idle threads are dimmed with their idle time, as AIM showed idle buddies; unread and needs-input are bold |
 | A right-click menu | `desktop.openMenu(event, entries)` with `MenuEntry` items, headings, and separators |
 | A desktop icon | `.bbd-icon` with `.bbd-icon-art` and `.bbd-icon-label` |
 | A status | `StatusIcon` plus the `describeStatus` text |

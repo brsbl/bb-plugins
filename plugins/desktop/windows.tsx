@@ -43,6 +43,7 @@ export type WindowSpec =
   | { kind: "finder"; key: string }
   | { kind: "thread"; threadId: string }
   | { kind: "panel"; threadId: string }
+  | { kind: "buddy-list"; threadId: string }
   | { kind: "threads" }
   | { kind: "recycle-bin" }
   | { kind: "more" }
@@ -89,6 +90,7 @@ export function windowId(spec: WindowSpec): string {
       return `finder:${spec.key}`;
     case "thread":
     case "panel":
+    case "buddy-list":
       return `${spec.kind}:${spec.threadId}`;
     case "new-thread":
       return `new-thread:${spec.groupKey ?? "desktop"}`;
@@ -202,6 +204,7 @@ function parseSpec(value: unknown): WindowSpec | null {
       return text("key") === null ? null : { kind: "app", key: text("key")! };
     case "thread":
     case "panel":
+    case "buddy-list":
       return text("threadId") === null ? null : { kind: record.kind, threadId: text("threadId")! };
     case "threads":
     case "recycle-bin":
@@ -272,6 +275,8 @@ export function defaultRect(spec: WindowSpec, stagger: number): Rect {
       ? { width: 620, height: 640 }
       : spec.kind === "panel"
         ? { width: 320, height: 560 }
+      : spec.kind === "buddy-list"
+        ? { width: 280, height: 560 }
         : spec.kind === "threads" || spec.kind === "recycle-bin"
           ? { width: 460, height: 560 }
         : spec.kind === "new-thread"

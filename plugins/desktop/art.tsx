@@ -501,6 +501,26 @@ export function FolderArt({
   );
 }
 
+function Buddy({ x, y, scale, fill, edge }: { x: number; y: number; scale: number; fill: string; edge: string }) {
+  return (
+    <g transform={`translate(${x} ${y}) scale(${scale})`}>
+      <path d="M-11 22c0-8 5-13 11-13s11 5 11 13a2 2 0 0 1-2 2h-18a2 2 0 0 1-2-2z" fill={fill} stroke={edge} strokeWidth="1.2" />
+      <circle cx="0" cy="0" r="7" fill={fill} stroke={edge} strokeWidth="1.2" />
+      <ellipse cx="-2.4" cy="-2.6" rx="3.2" ry="2.2" fill={ICON.paper} opacity="0.55" />
+      <ellipse cx="-4" cy="13.5" rx="3.6" ry="2.2" fill={ICON.paper} opacity="0.35" />
+    </g>
+  );
+}
+
+export function BuddyListArt({ size = 40 }: { size?: number }) {
+  return (
+    <IconSvg size={size}>
+      <Buddy x={30} y={11} scale={0.9} fill="url(#bbd-g-play)" edge={ICON.playBottom} />
+      <Buddy x={18} y={19} scale={1} fill="url(#bbd-g-ok)" edge={ICON.okEdge} />
+    </IconSvg>
+  );
+}
+
 export function ThreadArt({
   size = 36,
   archived = false,
