@@ -1,0 +1,29 @@
+{
+  "name": "bb-plugin-timeline-comments",
+  "version": "0.1.0",
+  "description": "Attach durable comment threads to selected text in bb timelines.",
+  "type": "module",
+  "license": "UNLICENSED",
+  "files": [
+    "dist",
+    "docs",
+    "skills",
+    "README.md"
+  ],
+  "engines": {
+    "bb": ">=0.0.34",
+    "bbPluginSdk": "^0.4.1"
+  },
+  "bb": {
+    "name": "Timeline Comments",
+    "description": "Attach durable comment threads to selected text in bb timelines.",
+    "branding": {
+      "icon": "MessageCirclePlus"
+    },
+    "server": "./dist/install-server.mjs",
+    "app": "./dist/install-app.mjs",
+    "skills": [
+      "skills"
+    ]
+  }
+}
