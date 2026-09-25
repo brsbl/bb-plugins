@@ -639,7 +639,7 @@ describe("mesh gradient backend", () => {
       "sunset",
     ]);
     expect(result.stdout).toMatch(
-      /\/\* readability: (white|black) text, [\d.]+:1 worst case \((Readable|Large text only|Hard to read)\) \*\//,
+      /\/\* readability: .*\((Readable|Large text only|Hard to read)\) \*\//,
     );
     await host.harness.lifecycle.dispose();
   });

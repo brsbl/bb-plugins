@@ -1021,8 +1021,9 @@ function Studio({ threadId }: PluginThreadPanelProps) {
                 className="pointer-events-none absolute right-3 top-3 rounded-full bg-black/50 px-2 py-0.5 text-xs font-medium text-white"
                 title={`Worst-case contrast for ${contrast.best} text on this gradient: ${contrast.bestRatio}:1. White ${contrast.white}:1, black ${contrast.black}:1.`}
               >
-                {contrast.best === "white" ? "White" : "Black"} text ·{" "}
-                {readabilityLabel(contrast)}
+                {contrast.passesAALarge
+                  ? `${contrast.best === "white" ? "White" : "Black"} text · ${readabilityLabel(contrast)}`
+                  : "Text is hard to read"}
               </div>
             )}
             <div className="pointer-events-none absolute bottom-3 left-3 rounded-md bg-black/45 px-2.5 py-1 text-white">

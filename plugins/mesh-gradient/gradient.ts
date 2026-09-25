@@ -458,6 +458,9 @@ export function readabilityLabel(report: ContrastReport): string {
 /** One line for agents: which text color to use and how well it holds up. */
 export function readabilitySummary(spec: MeshGradientSpec): string {
   const report = readabilityFor(spec);
+  if (!report.passesAALarge) {
+    return `neither white nor black text is readable everywhere (best ${report.best}, ${report.bestRatio}:1); put text on a scrim (Hard to read)`;
+  }
   return `${report.best} text, ${report.bestRatio}:1 worst case (${readabilityLabel(report)})`;
 }
 

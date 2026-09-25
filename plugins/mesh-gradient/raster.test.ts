@@ -57,4 +57,17 @@ describe("surface-aware agent handoff", () => {
     );
     expect(handoffSuffix(presetById("avatar"), report)).toContain("circular avatar (400×400)");
   });
+
+  it("asks for a scrim instead of naming a text color that fails", () => {
+    expect(
+      handoffSuffix(presetById("hero"), {
+        ...report,
+        bestRatio: 2.4,
+        passesAA: false,
+        passesAALarge: false,
+      }),
+    ).toBe(
+      " mesh gradient as the hero section background, with a scrim behind any text (neither white nor black reads on it). ",
+    );
+  });
 });

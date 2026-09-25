@@ -310,7 +310,7 @@ describe("mesh gradient app", () => {
     );
     await slot.behavior.setComposerScope({ kind: "thread", threadId: "thr_1" });
     expect(slot.getByTestId("readability").textContent).toMatch(
-      /^(White|Black) text · (Readable|Large text only|Hard to read)$/,
+      /^((White|Black) text · (Readable|Large text only)|Text is hard to read)$/,
     );
     fireEvent.click(slot.getByRole("button", { name: "Surface" }));
     fireEvent.click(slot.getByRole("menuitemradio", { name: /OG card/ }));
@@ -319,7 +319,7 @@ describe("mesh gradient app", () => {
     );
     await waitFor(() => {
       expect(slot.inspection.composer.text).toMatch(
-        /mesh gradient as the Open Graph card background \(1200×630\), with (white|black) text on top/,
+        /mesh gradient as the Open Graph card background \(1200×630\), with (white|black) text on top|a scrim/,
       );
     });
     slot.lifecycle.unmount();

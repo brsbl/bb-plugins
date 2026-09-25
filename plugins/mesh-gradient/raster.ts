@@ -60,9 +60,11 @@ export function handoffSuffix(
   preset: SurfacePreset,
   report: ContrastReport | null,
 ): string {
-  const text = report
-    ? `, with ${report.best} text on top (${report.bestRatio}:1 contrast)`
-    : "";
+  const text = !report
+    ? ""
+    : report.passesAALarge
+      ? `, with ${report.best} text on top (${report.bestRatio}:1 contrast)`
+      : ", with a scrim behind any text (neither white nor black reads on it)";
   if (preset.id === "og") {
     return ` mesh gradient as the Open Graph card background (${preset.width}×${preset.height})${text}. `;
   }
