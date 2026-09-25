@@ -13,7 +13,7 @@ export interface ContextReport {
     median: number;
     worst: number;
     hardToRead: number;
-    examples: { text: string; x: number; y: number; contrast: number }[];
+    examples: { x: number; y: number; contrast: number }[];
   };
 }
 
