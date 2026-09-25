@@ -599,7 +599,7 @@
   flex: 0 1 160px;
   align-items: center;
   gap: 6px;
-  min-width: 36px;
+  min-width: 96px;
   height: 26px;
   padding: 0 8px;
   border-radius: 3px;
@@ -1580,4 +1580,13 @@
 
 .bbd-im-action > svg {
   height: 24px;
+}
+
+.bbd-task.bbd-task-more {
+  flex: none;
+  justify-content: center;
+  gap: 2px;
+  width: 44px;
+  min-width: 0;
+  padding: 0 6px;
 }

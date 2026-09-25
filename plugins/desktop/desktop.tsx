@@ -3,6 +3,7 @@ import {
   useCallback,
   useContext,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -1570,6 +1571,37 @@ function quickLaunchMenu(
   ];
 }
 
+const TASK_MIN_WIDTH = 96;
+const TASK_GAP = 3;
+const TASK_MORE_WIDTH = 44;
+
+function useTaskCapacity(navRef: RefObject<HTMLElement | null>, count: number): number {
+  const [capacity, setCapacity] = useState(count);
+  useLayoutEffect(() => {
+    const nav = navRef.current;
+    if (nav === null) return;
+    const measure = () => {
+      const limit = Number.parseFloat(getComputedStyle(nav).maxWidth);
+      const fixed = [...nav.querySelectorAll<HTMLElement>(":scope > .bbd-start, :scope > .bbd-quick, :scope > .bbd-tray")]
+        .reduce((total, element) => total + element.getBoundingClientRect().width, 0);
+      const available = (Number.isFinite(limit) ? limit : window.innerWidth - 24) - fixed - 18;
+      const fits = (width: number) => Math.max(0, Math.floor((width + TASK_GAP) / (TASK_MIN_WIDTH + TASK_GAP)));
+      setCapacity(fits(available) >= count ? count : fits(available - TASK_MORE_WIDTH - TASK_GAP));
+    };
+    measure();
+    const observer = new ResizeObserver(measure);
+    for (const element of nav.querySelectorAll(":scope > .bbd-start, :scope > .bbd-quick, :scope > .bbd-tray")) {
+      observer.observe(element);
+    }
+    window.addEventListener("resize", measure);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("resize", measure);
+    };
+  });
+  return capacity;
+}
+
 function Taskbar({ frame }: { frame: DockFrame | null }) {
   const desktop = useDesktop();
   const manager = useWindowManager();
@@ -1587,8 +1619,16 @@ function Taskbar({ frame }: { frame: DockFrame | null }) {
     if (manager.focusedId === id) manager.minimize(id, true);
     else manager.focus(id);
   };
+  const navRef = useRef<HTMLElement>(null);
+  const tasks = manager.windows.filter((window) => !(deskband && window.id === player?.id));
+  const capacity = useTaskCapacity(navRef, tasks.length);
+  const shown = tasks.slice(0, capacity);
+  const focused = tasks.find((window) => window.id === manager.focusedId);
+  if (capacity > 0 && focused !== undefined && !shown.includes(focused)) shown[capacity - 1] = focused;
+  const hidden = tasks.filter((window) => !shown.includes(window));
   return (
     <nav
+      ref={navRef}
       className="bbd-taskbar"
       aria-label="Taskbar"
       style={frame === null ? undefined : { left: frame.left, maxWidth: frame.maxWidth - 24 }}
@@ -1630,7 +1670,7 @@ function Taskbar({ frame }: { frame: DockFrame | null }) {
         </button>
       </div>
       <div className="bbd-tasks">
-        {manager.windows.filter((window) => !(deskband && window.id === player?.id)).map((window) => {
+        {shown.map((window) => {
           const title = windowTitle(window.spec, desktop);
           return (
             <button
@@ -1647,6 +1687,28 @@ function Taskbar({ frame }: { frame: DockFrame | null }) {
             </button>
           );
         })}
+        {hidden.length > 0 ? (
+          <button
+            type="button"
+            className="bbd-task bbd-task-more"
+            aria-label={`${hidden.length} more ${hidden.length === 1 ? "window" : "windows"}`}
+            title={`${hidden.length} more ${hidden.length === 1 ? "window" : "windows"}`}
+            aria-haspopup="menu"
+            onClick={(event) =>
+              desktop.openMenu(
+                event,
+                hidden.map((window): MenuEntry => ({
+                  label: `${windowTitle(window.spec, desktop)}${window.minimized ? " (minimized)" : ""}`,
+                  icon: windowArt(window.spec, desktop, 16),
+                  run: () => manager.focus(window.id),
+                })),
+              )
+            }
+          >
+            <ChevronsRightGlyph className="size-3" strokeWidth={2.5} />
+            <span>{hidden.length}</span>
+          </button>
+        ) : null}
       </div>
       <div className="bbd-tray">
         {deskband && <MediaDeskband onRestore={() => manager.open({ kind: "media-player" })} />}

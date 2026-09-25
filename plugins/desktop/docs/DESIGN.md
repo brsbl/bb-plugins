@@ -119,6 +119,7 @@ Reuse these before building anything new.
 
 - Windows open with `defaultRect` sizes and stay inside the viewport (`clampRect`). List windows start at least 460 px wide so titles fit.
 - The taskbar is a pill sized to its contents: Start, Quick Launch, window buttons, tray.
+- Window buttons never shrink below a readable label (96 px). Buttons that don't fit move behind a » count button that lists them in a menu, and the focused window's button always stays visible.
 - Text uses bb's sans font and typography tokens (`--text-xs`, and so on). The XP typeface exceptions are quoted XP artifacts: the balloon (Tahoma), Minesweeper numbers (Tahoma), note pads, and Command Prompt (Lucida Console, the XP console font).
 
 ## 7. Motion
