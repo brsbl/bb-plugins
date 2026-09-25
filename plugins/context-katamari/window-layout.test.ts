@@ -6,7 +6,7 @@ const viewport = { width: 1900, height: 1100 };
 
 describe("defaultLayout", () => {
   it("fits beside the thread pane without covering it", () => {
-    const pane = { left: 780, right: 1580 };
+    const pane = { left: 760, right: 1560 };
     const layout = defaultLayout(viewport, pane);
     expect(viewport.width - layout.right - layout.width).toBeGreaterThanOrEqual(pane.right + EDGE_GAP);
     expect(layout.width).toBeGreaterThanOrEqual(MIN_SIZE.width);
