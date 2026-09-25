@@ -2,7 +2,7 @@ import { definePluginApp } from "@get-bb/plugin-sdk/app";
 
 import "./app.css";
 import { Desktop } from "./desktop";
-import { toggleDesktop } from "./enabled";
+import { readCompact, toggleDesktop } from "./enabled";
 import { mountStickyNotes, StickyNoteHeaderButton } from "./sticky-notes";
 
 export default definePluginApp((app) => {
@@ -15,7 +15,7 @@ export default definePluginApp((app) => {
     id: "toggle",
     title: "Desktop",
     icon: "AppWindow",
-    run: toggleDesktop,
+    run: ({ openSettings }) => (readCompact() ? openSettings() : toggleDesktop()),
   });
   app.slots.experimental_threadHeaderAction({
     id: "sticky-note",

@@ -39,7 +39,7 @@ function subscribeCompact(listener: () => void) {
   return () => query.removeEventListener("change", listener);
 }
 
-function readCompact(): boolean {
+export function readCompact(): boolean {
   return window.matchMedia(COMPACT_QUERY).matches;
 }
 
