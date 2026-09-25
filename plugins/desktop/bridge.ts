@@ -27,7 +27,7 @@ export interface DesktopApp extends DesktopAppRegistration {
 
 declare global {
   interface Window {
-    bbDesktop?: DesktopBridge;
+    bbDesktopApps?: DesktopBridge;
   }
 }
 
@@ -137,9 +137,9 @@ const bridge: DesktopBridge = {
 };
 
 export function installDesktopBridge(): () => void {
-  window.bbDesktop = bridge;
-  window.dispatchEvent(new Event("bb-desktop:ready"));
+  window.bbDesktopApps = bridge;
+  window.dispatchEvent(new Event("bb-desktop-apps:ready"));
   return () => {
-    if (window.bbDesktop === bridge) delete window.bbDesktop;
+    if (window.bbDesktopApps === bridge) delete window.bbDesktopApps;
   };
 }

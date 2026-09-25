@@ -27,13 +27,13 @@ interface DesktopBridge {
 const NO_WINDOWS: readonly DesktopAppWindow[] = [];
 
 function desktopBridge(): DesktopBridge | undefined {
-  const bridge = (window as { bbDesktop?: DesktopBridge }).bbDesktop;
+  const bridge = (window as { bbDesktopApps?: DesktopBridge }).bbDesktopApps;
   return bridge?.version === 1 ? bridge : undefined;
 }
 
 function subscribeReady(listener: () => void) {
-  window.addEventListener("bb-desktop:ready", listener);
-  return () => window.removeEventListener("bb-desktop:ready", listener);
+  window.addEventListener("bb-desktop-apps:ready", listener);
+  return () => window.removeEventListener("bb-desktop-apps:ready", listener);
 }
 
 export function useDesktop(): DesktopBridge | undefined {

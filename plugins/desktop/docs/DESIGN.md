@@ -108,7 +108,7 @@ Reuse these before building anything new.
 | A desktop icon | `.bbd-icon` with `.bbd-icon-art` and `.bbd-icon-label` |
 | A status | `StatusIcon` plus the `describeStatus` text |
 | A notification | The tray balloon (`balloon.tsx`), one at a time |
-| Another plugin's own UI as a program | The desktop app bridge (`bridge.ts`, `window.bbDesktop` version 1): the plugin registers an app and portals its UI into `AppWindow`. Plugin authors follow `skills/desktop-apps` |
+| Another plugin's own UI as a program | The desktop app bridge (`bridge.ts`, `window.bbDesktopApps` version 1): the plugin registers an app and portals its UI into `AppWindow`. Plugin authors follow `skills/desktop-apps` |
 | Another plugin's sidebar footer panel | Nothing to build: with the sidebar collapsed, the tray shows any footer disclosure as an XP window (`usePanelWindows`). bb keeps rendering the panel; Desktop only restyles and repositions it |
 
 ## 6. Layout and type
