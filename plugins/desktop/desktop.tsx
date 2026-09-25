@@ -852,8 +852,16 @@ function windowTitle(spec: WindowSpec, desktop: DesktopContextValue): string {
 
 function windowArt(spec: WindowSpec, desktop: DesktopContextValue, size: number): ReactNode {
   switch (spec.kind) {
-    case "finder":
-      return <FolderArt kind={desktop.groupByKey.get(spec.key)?.kind ?? "section"} size={size} />;
+    case "finder": {
+      const group = desktop.groupByKey.get(spec.key);
+      return (
+        <FolderArt
+          kind={group?.kind ?? "section"}
+          size={size}
+          empty={group !== undefined && groupThreads(group, desktop.visibleThreads).length === 0}
+        />
+      );
+    }
     case "thread":
       return <ThreadArt size={size} />;
     case "panel":
@@ -1124,7 +1132,10 @@ function DesktopIcon({
   };
 
   const members = groupThreads(group, desktop.visibleThreads);
-  const needsInput = members.some((thread) => thread.needsInput);
+  const tones = members.map(statusTone);
+  const tone = tones.includes("attention") ? "attention" : tones.includes("running") ? "running" : null;
+  const toneCount = tones.filter((candidate) => candidate === tone).length;
+  const unread = tone === null && members.some((thread) => thread.isUnread);
   const point = drag ?? position;
 
   const menu = groupMenu(desktop, manager, group, open);
@@ -1134,8 +1145,8 @@ function DesktopIcon({
       role="button"
       tabIndex={0}
       aria-selected={selected}
-      aria-label={group.name}
-      title={`${group.name} — ${members.length} threads`}
+      aria-label={folderSummary(group.name, members.length, tone, toneCount)}
+      title={folderSummary(group.name, members.length, tone, toneCount)}
       className="bbd-icon"
       data-dragging={drag !== null}
       data-drop-target={drop.over}
@@ -1152,9 +1163,13 @@ function DesktopIcon({
       {...drop.handlers}
     >
       <span className="bbd-icon-art">
-        <FolderArt kind={group.kind} />
-        {needsInput ? (
-          <span className="bbd-dot" data-tone="attention" aria-hidden />
+        <FolderArt kind={group.kind} empty={members.length === 0} />
+        {tone !== null ? (
+          <span className="bbd-dot" data-tone={tone} aria-hidden>
+            {toneCount > 1 ? toneCount : null}
+          </span>
+        ) : unread ? (
+          <span className="bbd-dot" data-tone="running" style={{ animation: "none" }} aria-hidden />
         ) : null}
       </span>
       <span className="bbd-icon-label">{group.name}</span>
@@ -1238,6 +1253,19 @@ function statusTone(thread: DesktopThread): "attention" | "running" | null {
   if (thread.needsInput) return "attention";
   if (thread.status === "active" || thread.status === "starting") return "running";
   return null;
+}
+
+function folderSummary(
+  name: string,
+  total: number,
+  tone: "attention" | "running" | null,
+  toneCount: number,
+): string {
+  if (total === 0) return `${name} — empty`;
+  const threads = `${total} ${total === 1 ? "thread" : "threads"}`;
+  if (tone === "attention") return `${name} — ${threads}, ${toneCount} ${toneCount === 1 ? "needs" : "need"} input`;
+  if (tone === "running") return `${name} — ${threads}, ${toneCount} running`;
+  return `${name} — ${threads}`;
 }
 
 function ThreadGlyph({ thread }: { thread: DesktopThread }) {
@@ -1362,19 +1390,21 @@ function LifecycleSelect() {
   const desktop = useDesktop();
   const { preferences } = desktop.snapshot;
   return (
-    <select
-      className="bbd-field bbd-sunken min-w-0 shrink truncate"
-      aria-label="Show threads"
-      value={preferences.lifecycle}
-      onChange={(event) =>
-        desktop.setPreferences({ lifecycle: event.target.value as Preferences["lifecycle"] })
-      }
-    >
-      <option value="sidebar">Show: Same as sidebar</option>
-      <option value="active">Show: Active</option>
-      <option value="archived">Show: Archived</option>
-      <option value="all">Show: All</option>
-    </select>
+    <label className="flex min-w-0 shrink items-center gap-1.5 text-xs whitespace-nowrap">
+      Show
+      <select
+        className="bbd-field bbd-sunken min-w-0 shrink truncate"
+        value={preferences.lifecycle}
+        onChange={(event) =>
+          desktop.setPreferences({ lifecycle: event.target.value as Preferences["lifecycle"] })
+        }
+      >
+        <option value="sidebar">Same as sidebar</option>
+        <option value="active">Active</option>
+        <option value="archived">Archived</option>
+        <option value="all">All</option>
+      </select>
+    </label>
   );
 }
 
@@ -1427,7 +1457,7 @@ function FinderWindow({ window: desktopWindow, groupKey }: { window: DesktopWind
     <WindowFrame
       window={desktopWindow}
       title={group.name}
-      icon={<FolderArt kind={group.kind} size={16} />}
+      icon={<FolderArt kind={group.kind} size={16} empty={groupThreads(group, desktop.visibleThreads).length === 0} />}
       statusBar={
         <>
           <span>{threads.length} threads</span>

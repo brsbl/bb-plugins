@@ -64,7 +64,15 @@ export const StickyNoteGlyph = bbGlyph(StickyNote03Icon);
 export const NextGlyph = bbGlyph(NextIcon);
 export const PreviousGlyph = bbGlyph(PreviousIcon);
 
-export function FolderArt({ kind, size = 40 }: { kind: DesktopGroup["kind"]; size?: number }) {
+export function FolderArt({
+  kind,
+  size = 40,
+  empty = false,
+}: {
+  kind: DesktopGroup["kind"];
+  size?: number;
+  empty?: boolean;
+}) {
   const gradientId = `bbd-folder-${kind}`;
   const Badge = kind === "project" ? ProjectGlyph : kind === "machine" ? MachineGlyph : kind === "folder" ? PinGlyph : null;
   return (
@@ -77,7 +85,12 @@ export function FolderArt({ kind, size = 40 }: { kind: DesktopGroup["kind"]; siz
           </linearGradient>
         </defs>
         <path d="M3 5.5h12l3 3.5h18a1.5 1.5 0 0 1 1.5 1.5v19H3z" fill={FOLDER_BACK} stroke={FOLDER_EDGE} strokeLinejoin="round" />
-        <rect x="6" y="9" width="27" height="14" rx="1" fill={PAPER} stroke={FOLDER_EDGE} strokeWidth="0.5" />
+        {empty ? null : (
+          <>
+            <rect x="8" y="7" width="26" height="14" rx="1" fill={PAPER} stroke={FOLDER_EDGE} strokeWidth="0.5" transform="rotate(4 21 14)" />
+            <rect x="6" y="8.5" width="27" height="14" rx="1" fill={PAPER} stroke={FOLDER_EDGE} strokeWidth="0.5" />
+          </>
+        )}
         <path d="M2 13.5h36l-2.5 17H4.5z" fill={`url(#${gradientId})`} stroke={FOLDER_EDGE} strokeLinejoin="round" />
         <path d="M3.4 14.6h33.2" stroke={PAPER} strokeOpacity="0.8" />
       </svg>

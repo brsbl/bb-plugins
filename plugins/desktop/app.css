@@ -292,6 +292,7 @@
 
 .bbd-dot[data-tone="attention"] {
   background: linear-gradient(180deg, oklch(0.88 0.15 90), oklch(0.72 0.16 70));
+  color: oklch(0.3 0.07 70);
 }
 
 .bbd-dot[data-tone="running"] {
