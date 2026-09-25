@@ -80,7 +80,7 @@ interface Preset {
   draw: (context: CanvasRenderingContext2D, scene: Scene) => void;
 }
 
-const BACKDROP = "oklch(0.13 0.03 262)";
+const BACKDROP = "oklch(0.16 0.04 262)";
 
 function bands(freq: Uint8Array, count: number): number[] {
   const usable = Math.floor(freq.length * 0.7);
@@ -93,74 +93,126 @@ function bands(freq: Uint8Array, count: number): number[] {
   });
 }
 
+function smoothLine(context: CanvasRenderingContext2D, points: readonly [number, number][], closed = false) {
+  if (points.length < 2) return;
+  const at = (index: number) => points[(index + points.length) % points.length]!;
+  const mid = (a: [number, number], b: [number, number]): [number, number] => [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
+  const first = closed ? mid(at(-1), at(0)) : at(0);
+  context.moveTo(first[0], first[1]);
+  const last = closed ? points.length : points.length - 1;
+  for (let index = closed ? 0 : 1; index < last; index += 1) {
+    const [x, y] = mid(at(index), at(index + 1));
+    context.quadraticCurveTo(at(index)[0], at(index)[1], x, y);
+  }
+  if (closed) context.closePath();
+  else context.lineTo(at(-1)[0], at(-1)[1]);
+}
+
 const PRESETS: readonly Preset[] = [
   {
     name: "Bars and Waves: Bars",
     trail: 1,
     draw(context, { freq, peaks, width, height, compact }) {
-      const levels = bands(freq, compact ? 10 : 40);
-      const gap = compact ? 1 : 2;
-      const barWidth = (width - gap * (levels.length - 1)) / levels.length;
-      const gradient = context.createLinearGradient(0, height, 0, 0);
-      gradient.addColorStop(0, "oklch(0.72 0.19 150)");
-      gradient.addColorStop(0.6, "oklch(0.9 0.17 105)");
-      gradient.addColorStop(1, "oklch(0.68 0.22 30)");
+      const levels = bands(freq, compact ? 12 : 36);
+      const gap = compact ? 2 : 4;
+      const barWidth = (width - gap * (levels.length + 1)) / levels.length;
+      const floor = compact ? height - 2 : height * 0.78;
+      const reach = floor - (compact ? 2 : 10);
+      const gradient = context.createLinearGradient(0, floor, 0, floor - reach);
+      gradient.addColorStop(0, "oklch(0.72 0.14 160)");
+      gradient.addColorStop(0.55, "oklch(0.88 0.13 110)");
+      gradient.addColorStop(1, "oklch(0.74 0.15 40)");
+      const radius = Math.min(barWidth / 2, compact ? 1.5 : 4);
       levels.forEach((level, index) => {
-        const x = index * (barWidth + gap);
-        const barHeight = Math.max(1, level * height);
+        const x = gap + index * (barWidth + gap);
+        const barHeight = Math.max(barWidth, level * reach);
         context.fillStyle = gradient;
-        context.fillRect(x, height - barHeight, barWidth, barHeight);
-        const peak = Math.max(level, (peaks[index] ?? 0) - 0.012);
+        context.beginPath();
+        context.roundRect(x, floor - barHeight, barWidth, barHeight, radius);
+        context.fill();
+        if (!compact) {
+          const reflection = context.createLinearGradient(0, floor, 0, floor + barHeight * 0.3);
+          reflection.addColorStop(0, "oklch(0.72 0.14 160 / 0.28)");
+          reflection.addColorStop(1, "oklch(0.72 0.14 160 / 0)");
+          context.fillStyle = reflection;
+          context.beginPath();
+          context.roundRect(x, floor + 3, barWidth, barHeight * 0.3, radius);
+          context.fill();
+        }
+        const peak = Math.max(level, (peaks[index] ?? 0) - 0.008);
         peaks[index] = peak;
-        context.fillStyle = "oklch(0.97 0.02 250)";
-        context.fillRect(x, height - peak * height - 2, barWidth, compact ? 1 : 2);
+        if (!compact && peak > 0.02) {
+          context.fillStyle = "oklch(0.97 0.02 250 / 0.9)";
+          context.beginPath();
+          context.roundRect(x, floor - peak * reach - 6, barWidth, 3, 1.5);
+          context.fill();
+        }
       });
     },
   },
   {
     name: "Bars and Waves: Scope",
-    trail: 0.28,
+    trail: 0.45,
     draw(context, { wave, tick, width, height, compact }) {
-      context.lineWidth = compact ? 1.25 : 2.5;
-      context.strokeStyle = `oklch(0.82 0.16 ${(tick * 0.6) % 360})`;
-      context.shadowColor = context.strokeStyle;
-      context.shadowBlur = compact ? 4 : 12;
+      const count = compact ? 32 : 96;
+      const points = Array.from({ length: count }, (_, index): [number, number] => {
+        const sample = ((wave[Math.floor((index / (count - 1)) * (wave.length - 1))] ?? 128) - 128) / 128;
+        const taper = Math.sin((index / (count - 1)) * Math.PI);
+        return [(index / (count - 1)) * width, height / 2 + sample * taper * height * 0.42];
+      });
+      const hue = 220 + Math.sin(tick * 0.01) * 40;
+      const stroke = context.createLinearGradient(0, 0, width, 0);
+      stroke.addColorStop(0, `oklch(0.8 0.13 ${hue})`);
+      stroke.addColorStop(0.5, `oklch(0.88 0.12 ${hue - 60})`);
+      stroke.addColorStop(1, `oklch(0.8 0.14 ${hue + 90})`);
+      context.lineCap = "round";
+      context.lineJoin = "round";
+      context.strokeStyle = stroke;
+      context.shadowColor = `oklch(0.75 0.15 ${hue})`;
+      context.shadowBlur = compact ? 4 : 16;
+      context.lineWidth = compact ? 1.5 : 3;
       context.beginPath();
-      const step = wave.length / width;
-      for (let x = 0; x <= width; x += 1) {
-        const sample = ((wave[Math.floor(x * step)] ?? 128) - 128) / 128;
-        const y = height / 2 + sample * height * 0.45;
-        if (x === 0) context.moveTo(x, y);
-        else context.lineTo(x, y);
-      }
+      smoothLine(context, points);
       context.stroke();
       context.shadowBlur = 0;
+      if (!compact) {
+        context.globalAlpha = 0.25;
+        context.lineWidth = 1.5;
+        context.beginPath();
+        smoothLine(context, points.map(([x, y]): [number, number] => [x, height - y]));
+        context.stroke();
+        context.globalAlpha = 1;
+      }
     },
   },
   {
     name: "Ambience: Swirl",
-    trail: 0.12,
+    trail: 0.16,
     draw(context, { freq, tick, width, height, compact }) {
-      const levels = bands(freq, compact ? 16 : 48);
+      const levels = bands(freq, compact ? 12 : 32);
       const energy = levels.reduce((sum, level) => sum + level, 0) / levels.length;
-      const radius = Math.min(width, height) * (0.18 + energy * 0.35);
-      const arms = 6;
+      const radius = Math.min(width, height) * (compact ? 0.3 : 0.16 + energy * 0.3);
+      const arms = compact ? 5 : 7;
       context.save();
+      context.globalCompositeOperation = "lighter";
       context.translate(width / 2, height / 2);
-      context.rotate(tick * 0.006 + energy);
+      context.rotate(tick * 0.005 + energy * 0.8);
+      context.lineCap = "round";
+      context.lineJoin = "round";
       for (let arm = 0; arm < arms; arm += 1) {
         context.rotate((Math.PI * 2) / arms);
-        context.beginPath();
-        levels.forEach((level, index) => {
-          const angle = (index / levels.length) * Math.PI;
-          const reach = radius * (0.4 + level * 1.6);
-          const x = Math.cos(angle) * reach;
-          const y = Math.sin(angle) * reach * 0.5;
-          if (index === 0) context.moveTo(x, y);
-          else context.lineTo(x, y);
+        const points = levels.map((level, index): [number, number] => {
+          const angle = (index / (levels.length - 1)) * Math.PI;
+          const reach = radius * (0.35 + level * 1.7);
+          return [Math.cos(angle) * reach, Math.sin(angle) * reach * 0.45];
         });
-        context.strokeStyle = `oklch(0.78 0.17 ${(tick * 0.8 + arm * 40) % 360} / 0.85)`;
-        context.lineWidth = compact ? 1 : 2;
+        const hue = 250 + Math.sin(tick * 0.008 + arm) * 70;
+        context.strokeStyle = `oklch(0.7 0.14 ${hue} / 0.4)`;
+        context.shadowColor = `oklch(0.7 0.16 ${hue})`;
+        context.shadowBlur = compact ? 2 : 6;
+        context.lineWidth = compact ? 1 : 1.75;
+        context.beginPath();
+        smoothLine(context, points);
         context.stroke();
       }
       context.restore();
@@ -308,7 +360,7 @@ export function MediaPlayerWindow({ window: desktopWindow }: { window: DesktopWi
       icon={<MediaPlayerArt size={16} />}
       statusBar={<span className="flex-1 truncate">{statusText(status, preset)}</span>}
     >
-      <div className="bbd-wmp flex h-full flex-col">
+      <div className="bbd-wmp h-full">
         <div
           className="bbd-wmp-screen relative min-h-0 flex-1"
           onDoubleClick={() => cyclePreset(1)}
@@ -329,7 +381,14 @@ export function MediaPlayerWindow({ window: desktopWindow }: { window: DesktopWi
           <PresetButton step={-1} />
           <PlayButton size="large" />
           <PresetButton step={1} />
-          <span className="bbd-wmp-readout">{preset.name}</span>
+          <div className="bbd-wmp-readout">
+            <span>{preset.name}</span>
+            <span className="bbd-wmp-dots" aria-hidden>
+              {PRESETS.map((candidate) => (
+                <i key={candidate.name} data-active={candidate === preset} />
+              ))}
+            </span>
+          </div>
         </div>
       </div>
     </WindowFrame>

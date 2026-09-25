@@ -151,21 +151,9 @@ export function GlyphTile({
 export function MediaPlayerArt({ size = 40 }: { size?: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 40 40" aria-hidden>
-      <defs>
-        <radialGradient id="bbd-wmp-disc" cx="35%" cy="30%" r="75%">
-          <stop offset="0" stopColor="var(--bbd-blue-sky)" />
-          <stop offset="0.55" stopColor="var(--bbd-blue)" />
-          <stop offset="1" stopColor="var(--bbd-blue-deep)" />
-        </radialGradient>
-        <linearGradient id="bbd-wmp-ring" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0" stopColor="oklch(0.9 0.13 85)" />
-          <stop offset="1" stopColor="oklch(0.66 0.18 50)" />
-        </linearGradient>
-      </defs>
-      <circle cx="20" cy="20" r="17.5" fill="url(#bbd-wmp-ring)" stroke="oklch(0.5 0.15 45)" strokeWidth="1" />
-      <circle cx="20" cy="20" r="13" fill="url(#bbd-wmp-disc)" />
-      <path d="M16.5 13.5 L27 20 L16.5 26.5 Z" fill={PAPER} stroke="oklch(0.35 0.1 260 / 0.35)" strokeWidth="0.8" strokeLinejoin="round" />
-      <ellipse cx="16" cy="11.5" rx="7" ry="3" fill={PAPER} opacity="0.35" />
+      <circle cx="20" cy="20" r="18" fill="var(--bbd-orange)" />
+      <circle cx="20" cy="20" r="14" fill="var(--bbd-blue)" />
+      <path d="M16.5 13.8 Q16.5 12.6 17.6 13.2 L26.4 18.9 Q27.4 19.6 26.4 20.3 L17.6 26.8 Q16.5 27.4 16.5 26.2 Z" fill={PAPER} />
     </svg>
   );
 }
