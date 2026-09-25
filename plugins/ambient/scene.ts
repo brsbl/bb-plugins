@@ -665,7 +665,7 @@ const CONTOUR_SOURCE = `vec3 scene(vec2 uv, vec2 p) {
   float line = 1.0 - smoothstep(0.0, w * 1.5, min(f, 1.0 - f));
   float m = fract(v / 5.0);
   float major = 1.0 - smoothstep(0.0, w * 2.5, min(m, 1.0 - m) * 5.0);
-  vec3 base = mix(u_palette[0], ramp(h * 0.8), p_fill);
+  vec3 base = mix(u_canvas, ramp(h * 0.8), p_fill);
   vec3 col = mix(base, u_palette[3], clamp(line * 0.55 + major * 0.35, 0.0, 1.0));
   return mix(u_canvas, col, p_color);
 }`;
