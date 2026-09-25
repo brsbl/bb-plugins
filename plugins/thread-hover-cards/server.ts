@@ -6,6 +6,7 @@ const displayStatusSchema = z.enum([
   "error",
   "host-reconnecting",
   "idle",
+  "pending",
   "provisioning",
   "starting",
   "stopping",

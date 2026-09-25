@@ -1,10 +1,17 @@
+import { createRequire as __createRequire } from "node:module"; const require = __createRequire(import.meta.url);
 var __create = Object.create;
 var __defProp = Object.defineProperty;
 var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
 var __getOwnPropNames = Object.getOwnPropertyNames;
 var __getProtoOf = Object.getPrototypeOf;
 var __hasOwnProp = Object.prototype.hasOwnProperty;
-var __commonJS = (cb, mod) => function __require() {
+var __require = /* @__PURE__ */ ((x) => typeof require !== "undefined" ? require : typeof Proxy !== "undefined" ? new Proxy(x, {
+  get: (a, b) => (typeof require !== "undefined" ? require : a)[b]
+}) : x)(function(x) {
+  if (typeof require !== "undefined") return require.apply(this, arguments);
+  throw Error('Dynamic require of "' + x + '" is not supported');
+});
+var __commonJS = (cb, mod) => function __require2() {
   try {
     return mod || (0, cb[__getOwnPropNames(cb)[0]])((mod = { exports: {} }).exports, mod), mod.exports;
   } catch (e) {
@@ -160,12 +167,12 @@ var require_saxes = __commonJS({
     var isNCNameStartChar = NSed3.isNCNameStartChar;
     var isNCNameChar = NSed3.isNCNameChar;
     var NC_NAME_RE = NSed3.NC_NAME_RE;
-    var XML_NAMESPACE = "http://www.w3.org/XML/1998/namespace";
+    var XML_NAMESPACE2 = "http://www.w3.org/XML/1998/namespace";
     var XMLNS_NAMESPACE = "http://www.w3.org/2000/xmlns/";
     var rootNS = {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-assignment
       __proto__: null,
-      xml: XML_NAMESPACE,
+      xml: XML_NAMESPACE2,
       xmlns: XMLNS_NAMESPACE
     };
     var XML_ENTITIES = {
@@ -252,8 +259,8 @@ var require_saxes = __commonJS({
     function nsPairCheck(parser, prefix, uri) {
       switch (prefix) {
         case "xml":
-          if (uri !== XML_NAMESPACE) {
-            parser.fail(`xml prefix must be bound to ${XML_NAMESPACE}.`);
+          if (uri !== XML_NAMESPACE2) {
+            parser.fail(`xml prefix must be bound to ${XML_NAMESPACE2}.`);
           }
           break;
         case "xmlns":
@@ -267,7 +274,7 @@ var require_saxes = __commonJS({
         case XMLNS_NAMESPACE:
           parser.fail(prefix === "" ? `the default namespace may not be set to ${uri}.` : `may not assign a prefix (even "xmlns") to the URI ${XMLNS_NAMESPACE}.`);
           break;
-        case XML_NAMESPACE:
+        case XML_NAMESPACE2:
           switch (prefix) {
             case "xml":
               break;
@@ -1940,18 +1947,516 @@ var require_saxes = __commonJS({
   }
 });
 
+// node_modules/.pnpm/isexe@2.0.0/node_modules/isexe/windows.js
+var require_windows = __commonJS({
+  "node_modules/.pnpm/isexe@2.0.0/node_modules/isexe/windows.js"(exports, module) {
+    module.exports = isexe;
+    isexe.sync = sync;
+    var fs = __require("fs");
+    function checkPathExt(path2, options) {
+      var pathext = options.pathExt !== void 0 ? options.pathExt : process.env.PATHEXT;
+      if (!pathext) {
+        return true;
+      }
+      pathext = pathext.split(";");
+      if (pathext.indexOf("") !== -1) {
+        return true;
+      }
+      for (var i = 0; i < pathext.length; i++) {
+        var p = pathext[i].toLowerCase();
+        if (p && path2.substr(-p.length).toLowerCase() === p) {
+          return true;
+        }
+      }
+      return false;
+    }
+    function checkStat(stat5, path2, options) {
+      if (!stat5.isSymbolicLink() && !stat5.isFile()) {
+        return false;
+      }
+      return checkPathExt(path2, options);
+    }
+    function isexe(path2, options, cb) {
+      fs.stat(path2, function(er, stat5) {
+        cb(er, er ? false : checkStat(stat5, path2, options));
+      });
+    }
+    function sync(path2, options) {
+      return checkStat(fs.statSync(path2), path2, options);
+    }
+  }
+});
+
+// node_modules/.pnpm/isexe@2.0.0/node_modules/isexe/mode.js
+var require_mode = __commonJS({
+  "node_modules/.pnpm/isexe@2.0.0/node_modules/isexe/mode.js"(exports, module) {
+    module.exports = isexe;
+    isexe.sync = sync;
+    var fs = __require("fs");
+    function isexe(path2, options, cb) {
+      fs.stat(path2, function(er, stat5) {
+        cb(er, er ? false : checkStat(stat5, options));
+      });
+    }
+    function sync(path2, options) {
+      return checkStat(fs.statSync(path2), options);
+    }
+    function checkStat(stat5, options) {
+      return stat5.isFile() && checkMode(stat5, options);
+    }
+    function checkMode(stat5, options) {
+      var mod = stat5.mode;
+      var uid = stat5.uid;
+      var gid = stat5.gid;
+      var myUid = options.uid !== void 0 ? options.uid : process.getuid && process.getuid();
+      var myGid = options.gid !== void 0 ? options.gid : process.getgid && process.getgid();
+      var u = parseInt("100", 8);
+      var g = parseInt("010", 8);
+      var o = parseInt("001", 8);
+      var ug = u | g;
+      var ret = mod & o || mod & g && gid === myGid || mod & u && uid === myUid || mod & ug && myUid === 0;
+      return ret;
+    }
+  }
+});
+
+// node_modules/.pnpm/isexe@2.0.0/node_modules/isexe/index.js
+var require_isexe = __commonJS({
+  "node_modules/.pnpm/isexe@2.0.0/node_modules/isexe/index.js"(exports, module) {
+    var fs = __require("fs");
+    var core;
+    if (process.platform === "win32" || global.TESTING_WINDOWS) {
+      core = require_windows();
+    } else {
+      core = require_mode();
+    }
+    module.exports = isexe;
+    isexe.sync = sync;
+    function isexe(path2, options, cb) {
+      if (typeof options === "function") {
+        cb = options;
+        options = {};
+      }
+      if (!cb) {
+        if (typeof Promise !== "function") {
+          throw new TypeError("callback not provided");
+        }
+        return new Promise(function(resolve4, reject) {
+          isexe(path2, options || {}, function(er, is) {
+            if (er) {
+              reject(er);
+            } else {
+              resolve4(is);
+            }
+          });
+        });
+      }
+      core(path2, options || {}, function(er, is) {
+        if (er) {
+          if (er.code === "EACCES" || options && options.ignoreErrors) {
+            er = null;
+            is = false;
+          }
+        }
+        cb(er, is);
+      });
+    }
+    function sync(path2, options) {
+      try {
+        return core.sync(path2, options || {});
+      } catch (er) {
+        if (options && options.ignoreErrors || er.code === "EACCES") {
+          return false;
+        } else {
+          throw er;
+        }
+      }
+    }
+  }
+});
+
+// node_modules/.pnpm/which@2.0.2/node_modules/which/which.js
+var require_which = __commonJS({
+  "node_modules/.pnpm/which@2.0.2/node_modules/which/which.js"(exports, module) {
+    var isWindows = process.platform === "win32" || process.env.OSTYPE === "cygwin" || process.env.OSTYPE === "msys";
+    var path2 = __require("path");
+    var COLON = isWindows ? ";" : ":";
+    var isexe = require_isexe();
+    var getNotFoundError = (cmd) => Object.assign(new Error(`not found: ${cmd}`), { code: "ENOENT" });
+    var getPathInfo = (cmd, opt) => {
+      const colon = opt.colon || COLON;
+      const pathEnv = cmd.match(/\//) || isWindows && cmd.match(/\\/) ? [""] : [
+        // windows always checks the cwd first
+        ...isWindows ? [process.cwd()] : [],
+        ...(opt.path || process.env.PATH || /* istanbul ignore next: very unusual */
+        "").split(colon)
+      ];
+      const pathExtExe = isWindows ? opt.pathExt || process.env.PATHEXT || ".EXE;.CMD;.BAT;.COM" : "";
+      const pathExt = isWindows ? pathExtExe.split(colon) : [""];
+      if (isWindows) {
+        if (cmd.indexOf(".") !== -1 && pathExt[0] !== "")
+          pathExt.unshift("");
+      }
+      return {
+        pathEnv,
+        pathExt,
+        pathExtExe
+      };
+    };
+    var which = (cmd, opt, cb) => {
+      if (typeof opt === "function") {
+        cb = opt;
+        opt = {};
+      }
+      if (!opt)
+        opt = {};
+      const { pathEnv, pathExt, pathExtExe } = getPathInfo(cmd, opt);
+      const found = [];
+      const step = (i) => new Promise((resolve4, reject) => {
+        if (i === pathEnv.length)
+          return opt.all && found.length ? resolve4(found) : reject(getNotFoundError(cmd));
+        const ppRaw = pathEnv[i];
+        const pathPart = /^".*"$/.test(ppRaw) ? ppRaw.slice(1, -1) : ppRaw;
+        const pCmd = path2.join(pathPart, cmd);
+        const p = !pathPart && /^\.[\\\/]/.test(cmd) ? cmd.slice(0, 2) + pCmd : pCmd;
+        resolve4(subStep(p, i, 0));
+      });
+      const subStep = (p, i, ii) => new Promise((resolve4, reject) => {
+        if (ii === pathExt.length)
+          return resolve4(step(i + 1));
+        const ext = pathExt[ii];
+        isexe(p + ext, { pathExt: pathExtExe }, (er, is) => {
+          if (!er && is) {
+            if (opt.all)
+              found.push(p + ext);
+            else
+              return resolve4(p + ext);
+          }
+          return resolve4(subStep(p, i, ii + 1));
+        });
+      });
+      return cb ? step(0).then((res) => cb(null, res), cb) : step(0);
+    };
+    var whichSync = (cmd, opt) => {
+      opt = opt || {};
+      const { pathEnv, pathExt, pathExtExe } = getPathInfo(cmd, opt);
+      const found = [];
+      for (let i = 0; i < pathEnv.length; i++) {
+        const ppRaw = pathEnv[i];
+        const pathPart = /^".*"$/.test(ppRaw) ? ppRaw.slice(1, -1) : ppRaw;
+        const pCmd = path2.join(pathPart, cmd);
+        const p = !pathPart && /^\.[\\\/]/.test(cmd) ? cmd.slice(0, 2) + pCmd : pCmd;
+        for (let j = 0; j < pathExt.length; j++) {
+          const cur = p + pathExt[j];
+          try {
+            const is = isexe.sync(cur, { pathExt: pathExtExe });
+            if (is) {
+              if (opt.all)
+                found.push(cur);
+              else
+                return cur;
+            }
+          } catch (ex) {
+          }
+        }
+      }
+      if (opt.all && found.length)
+        return found;
+      if (opt.nothrow)
+        return null;
+      throw getNotFoundError(cmd);
+    };
+    module.exports = which;
+    which.sync = whichSync;
+  }
+});
+
+// node_modules/.pnpm/path-key@3.1.1/node_modules/path-key/index.js
+var require_path_key = __commonJS({
+  "node_modules/.pnpm/path-key@3.1.1/node_modules/path-key/index.js"(exports, module) {
+    "use strict";
+    var pathKey = (options = {}) => {
+      const environment = options.env || process.env;
+      const platform = options.platform || process.platform;
+      if (platform !== "win32") {
+        return "PATH";
+      }
+      return Object.keys(environment).reverse().find((key) => key.toUpperCase() === "PATH") || "Path";
+    };
+    module.exports = pathKey;
+    module.exports.default = pathKey;
+  }
+});
+
+// node_modules/.pnpm/cross-spawn@7.0.6/node_modules/cross-spawn/lib/util/resolveCommand.js
+var require_resolveCommand = __commonJS({
+  "node_modules/.pnpm/cross-spawn@7.0.6/node_modules/cross-spawn/lib/util/resolveCommand.js"(exports, module) {
+    "use strict";
+    var path2 = __require("path");
+    var which = require_which();
+    var getPathKey = require_path_key();
+    function resolveCommandAttempt(parsed, withoutPathExt) {
+      const env = parsed.options.env || process.env;
+      const cwd = process.cwd();
+      const hasCustomCwd = parsed.options.cwd != null;
+      const shouldSwitchCwd = hasCustomCwd && process.chdir !== void 0 && !process.chdir.disabled;
+      if (shouldSwitchCwd) {
+        try {
+          process.chdir(parsed.options.cwd);
+        } catch (err) {
+        }
+      }
+      let resolved;
+      try {
+        resolved = which.sync(parsed.command, {
+          path: env[getPathKey({ env })],
+          pathExt: withoutPathExt ? path2.delimiter : void 0
+        });
+      } catch (e) {
+      } finally {
+        if (shouldSwitchCwd) {
+          process.chdir(cwd);
+        }
+      }
+      if (resolved) {
+        resolved = path2.resolve(hasCustomCwd ? parsed.options.cwd : "", resolved);
+      }
+      return resolved;
+    }
+    function resolveCommand(parsed) {
+      return resolveCommandAttempt(parsed) || resolveCommandAttempt(parsed, true);
+    }
+    module.exports = resolveCommand;
+  }
+});
+
+// node_modules/.pnpm/cross-spawn@7.0.6/node_modules/cross-spawn/lib/util/escape.js
+var require_escape = __commonJS({
+  "node_modules/.pnpm/cross-spawn@7.0.6/node_modules/cross-spawn/lib/util/escape.js"(exports, module) {
+    "use strict";
+    var metaCharsRegExp = /([()\][%!^"`<>&|;, *?])/g;
+    function escapeCommand(arg) {
+      arg = arg.replace(metaCharsRegExp, "^$1");
+      return arg;
+    }
+    function escapeArgument(arg, doubleEscapeMetaChars) {
+      arg = `${arg}`;
+      arg = arg.replace(/(?=(\\+?)?)\1"/g, '$1$1\\"');
+      arg = arg.replace(/(?=(\\+?)?)\1$/, "$1$1");
+      arg = `"${arg}"`;
+      arg = arg.replace(metaCharsRegExp, "^$1");
+      if (doubleEscapeMetaChars) {
+        arg = arg.replace(metaCharsRegExp, "^$1");
+      }
+      return arg;
+    }
+    module.exports.command = escapeCommand;
+    module.exports.argument = escapeArgument;
+  }
+});
+
+// node_modules/.pnpm/shebang-regex@3.0.0/node_modules/shebang-regex/index.js
+var require_shebang_regex = __commonJS({
+  "node_modules/.pnpm/shebang-regex@3.0.0/node_modules/shebang-regex/index.js"(exports, module) {
+    "use strict";
+    module.exports = /^#!(.*)/;
+  }
+});
+
+// node_modules/.pnpm/shebang-command@2.0.0/node_modules/shebang-command/index.js
+var require_shebang_command = __commonJS({
+  "node_modules/.pnpm/shebang-command@2.0.0/node_modules/shebang-command/index.js"(exports, module) {
+    "use strict";
+    var shebangRegex = require_shebang_regex();
+    module.exports = (string4 = "") => {
+      const match = string4.match(shebangRegex);
+      if (!match) {
+        return null;
+      }
+      const [path2, argument] = match[0].replace(/#! ?/, "").split(" ");
+      const binary = path2.split("/").pop();
+      if (binary === "env") {
+        return argument;
+      }
+      return argument ? `${binary} ${argument}` : binary;
+    };
+  }
+});
+
+// node_modules/.pnpm/cross-spawn@7.0.6/node_modules/cross-spawn/lib/util/readShebang.js
+var require_readShebang = __commonJS({
+  "node_modules/.pnpm/cross-spawn@7.0.6/node_modules/cross-spawn/lib/util/readShebang.js"(exports, module) {
+    "use strict";
+    var fs = __require("fs");
+    var shebangCommand = require_shebang_command();
+    function readShebang(command) {
+      const size = 150;
+      const buffer = Buffer.alloc(size);
+      let fd;
+      try {
+        fd = fs.openSync(command, "r");
+        fs.readSync(fd, buffer, 0, size, 0);
+        fs.closeSync(fd);
+      } catch (e) {
+      }
+      return shebangCommand(buffer.toString());
+    }
+    module.exports = readShebang;
+  }
+});
+
+// node_modules/.pnpm/cross-spawn@7.0.6/node_modules/cross-spawn/lib/parse.js
+var require_parse = __commonJS({
+  "node_modules/.pnpm/cross-spawn@7.0.6/node_modules/cross-spawn/lib/parse.js"(exports, module) {
+    "use strict";
+    var path2 = __require("path");
+    var resolveCommand = require_resolveCommand();
+    var escape = require_escape();
+    var readShebang = require_readShebang();
+    var isWin = process.platform === "win32";
+    var isExecutableRegExp = /\.(?:com|exe)$/i;
+    var isCmdShimRegExp = /node_modules[\\/].bin[\\/][^\\/]+\.cmd$/i;
+    function detectShebang(parsed) {
+      parsed.file = resolveCommand(parsed);
+      const shebang = parsed.file && readShebang(parsed.file);
+      if (shebang) {
+        parsed.args.unshift(parsed.file);
+        parsed.command = shebang;
+        return resolveCommand(parsed);
+      }
+      return parsed.file;
+    }
+    function parseNonShell(parsed) {
+      if (!isWin) {
+        return parsed;
+      }
+      const commandFile = detectShebang(parsed);
+      const needsShell = !isExecutableRegExp.test(commandFile);
+      if (parsed.options.forceShell || needsShell) {
+        const needsDoubleEscapeMetaChars = isCmdShimRegExp.test(commandFile);
+        parsed.command = path2.normalize(parsed.command);
+        parsed.command = escape.command(parsed.command);
+        parsed.args = parsed.args.map((arg) => escape.argument(arg, needsDoubleEscapeMetaChars));
+        const shellCommand = [parsed.command].concat(parsed.args).join(" ");
+        parsed.args = ["/d", "/s", "/c", `"${shellCommand}"`];
+        parsed.command = process.env.comspec || "cmd.exe";
+        parsed.options.windowsVerbatimArguments = true;
+      }
+      return parsed;
+    }
+    function parse3(command, args, options) {
+      if (args && !Array.isArray(args)) {
+        options = args;
+        args = null;
+      }
+      args = args ? args.slice(0) : [];
+      options = Object.assign({}, options);
+      const parsed = {
+        command,
+        args,
+        options,
+        file: void 0,
+        original: {
+          command,
+          args
+        }
+      };
+      return options.shell ? parsed : parseNonShell(parsed);
+    }
+    module.exports = parse3;
+  }
+});
+
+// node_modules/.pnpm/cross-spawn@7.0.6/node_modules/cross-spawn/lib/enoent.js
+var require_enoent = __commonJS({
+  "node_modules/.pnpm/cross-spawn@7.0.6/node_modules/cross-spawn/lib/enoent.js"(exports, module) {
+    "use strict";
+    var isWin = process.platform === "win32";
+    function notFoundError(original, syscall) {
+      return Object.assign(new Error(`${syscall} ${original.command} ENOENT`), {
+        code: "ENOENT",
+        errno: "ENOENT",
+        syscall: `${syscall} ${original.command}`,
+        path: original.command,
+        spawnargs: original.args
+      });
+    }
+    function hookChildProcess(cp2, parsed) {
+      if (!isWin) {
+        return;
+      }
+      const originalEmit = cp2.emit;
+      cp2.emit = function(name, arg1) {
+        if (name === "exit") {
+          const err = verifyENOENT(arg1, parsed);
+          if (err) {
+            return originalEmit.call(cp2, "error", err);
+          }
+        }
+        return originalEmit.apply(cp2, arguments);
+      };
+    }
+    function verifyENOENT(status, parsed) {
+      if (isWin && status === 1 && !parsed.file) {
+        return notFoundError(parsed.original, "spawn");
+      }
+      return null;
+    }
+    function verifyENOENTSync(status, parsed) {
+      if (isWin && status === 1 && !parsed.file) {
+        return notFoundError(parsed.original, "spawnSync");
+      }
+      return null;
+    }
+    module.exports = {
+      hookChildProcess,
+      verifyENOENT,
+      verifyENOENTSync,
+      notFoundError
+    };
+  }
+});
+
+// node_modules/.pnpm/cross-spawn@7.0.6/node_modules/cross-spawn/index.js
+var require_cross_spawn = __commonJS({
+  "node_modules/.pnpm/cross-spawn@7.0.6/node_modules/cross-spawn/index.js"(exports, module) {
+    "use strict";
+    var cp2 = __require("child_process");
+    var parse3 = require_parse();
+    var enoent = require_enoent();
+    function spawn(command, args, options) {
+      const parsed = parse3(command, args, options);
+      const spawned = cp2.spawn(parsed.command, parsed.args, parsed.options);
+      enoent.hookChildProcess(spawned, parsed);
+      return spawned;
+    }
+    function spawnSync(command, args, options) {
+      const parsed = parse3(command, args, options);
+      const result = cp2.spawnSync(parsed.command, parsed.args, parsed.options);
+      result.error = result.error || enoent.verifyENOENTSync(result.status, parsed);
+      return result;
+    }
+    module.exports = spawn;
+    module.exports.spawn = spawn;
+    module.exports.sync = spawnSync;
+    module.exports._parse = parse3;
+    module.exports._enoent = enoent;
+  }
+});
+
 // packages/plugin-build/src/build-plugin-app.ts
 import {
   mkdir,
   mkdtemp,
   readFile as readFile2,
+  realpath as realpath2,
   rename,
   rm,
   stat as stat2,
   writeFile
 } from "node:fs/promises";
 import { existsSync } from "node:fs";
-import { dirname, isAbsolute as isAbsolute2, join, resolve as resolve2 } from "node:path";
+import { dirname as dirname2, extname, join as join2, resolve as resolve2 } from "node:path";
 
 // node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/classic/external.js
 var external_exports = {};
@@ -2456,7 +2961,7 @@ __export(core_exports2, {
   parse: () => parse,
   parseAsync: () => parseAsync,
   prettifyError: () => prettifyError,
-  process: () => process,
+  process: () => process2,
   regexes: () => regexes_exports,
   registry: () => registry,
   safeDecode: () => safeDecode,
@@ -2720,10 +3225,10 @@ function mergeDefs(...defs) {
 function cloneDef(schema) {
   return mergeDefs(schema._zod.def);
 }
-function getElementAtPath(obj, path) {
-  if (!path)
+function getElementAtPath(obj, path2) {
+  if (!path2)
     return obj;
-  return path.reduce((acc, key) => acc?.[key], obj);
+  return path2.reduce((acc, key) => acc?.[key], obj);
 }
 function promiseAllObject(promisesObj) {
   const keys = Object.keys(promisesObj);
@@ -3106,11 +3611,11 @@ function aborted(x, startIndex = 0) {
   }
   return false;
 }
-function prefixIssues(path, issues) {
+function prefixIssues(path2, issues) {
   return issues.map((iss) => {
     var _a2;
     (_a2 = iss).path ?? (_a2.path = []);
-    iss.path.unshift(path);
+    iss.path.unshift(path2);
     return iss;
   });
 }
@@ -3293,7 +3798,7 @@ function formatError(error48, mapper = (issue2) => issue2.message) {
 }
 function treeifyError(error48, mapper = (issue2) => issue2.message) {
   const result = { errors: [] };
-  const processError = (error49, path = []) => {
+  const processError = (error49, path2 = []) => {
     var _a2, _b;
     for (const issue2 of error49.issues) {
       if (issue2.code === "invalid_union" && issue2.errors.length) {
@@ -3303,7 +3808,7 @@ function treeifyError(error48, mapper = (issue2) => issue2.message) {
       } else if (issue2.code === "invalid_element") {
         processError({ issues: issue2.issues }, issue2.path);
       } else {
-        const fullpath = [...path, ...issue2.path];
+        const fullpath = [...path2, ...issue2.path];
         if (fullpath.length === 0) {
           result.errors.push(mapper(issue2));
           continue;
@@ -3335,8 +3840,8 @@ function treeifyError(error48, mapper = (issue2) => issue2.message) {
 }
 function toDotPath(_path) {
   const segs = [];
-  const path = _path.map((seg) => typeof seg === "object" ? seg.key : seg);
-  for (const seg of path) {
+  const path2 = _path.map((seg) => typeof seg === "object" ? seg.key : seg);
+  for (const seg of path2) {
     if (typeof seg === "number")
       segs.push(`[${seg}]`);
     else if (typeof seg === "symbol")
@@ -12857,7 +13362,7 @@ function initializeContext(params) {
     external: params?.external ?? void 0
   };
 }
-function process(schema, ctx, _params = { path: [], schemaPath: [] }) {
+function process2(schema, ctx, _params = { path: [], schemaPath: [] }) {
   var _a2;
   const def = schema._zod.def;
   const seen = ctx.seen.get(schema);
@@ -12894,7 +13399,7 @@ function process(schema, ctx, _params = { path: [], schemaPath: [] }) {
     if (parent) {
       if (!result.ref)
         result.ref = parent;
-      process(parent, ctx, params);
+      process2(parent, ctx, params);
       ctx.seen.get(parent).isParent = true;
     }
   }
@@ -13175,14 +13680,14 @@ function isTransforming(_schema, _ctx) {
 }
 var createToJSONSchemaMethod = (schema, processors = {}) => (params) => {
   const ctx = initializeContext({ ...params, processors });
-  process(schema, ctx);
+  process2(schema, ctx);
   extractDefs(ctx, schema);
   return finalize(ctx, schema);
 };
 var createStandardJSONSchemaMethod = (schema, io, processors = {}) => (params) => {
   const { libraryOptions, target } = params ?? {};
   const ctx = initializeContext({ ...libraryOptions ?? {}, target, io, processors });
-  process(schema, ctx);
+  process2(schema, ctx);
   extractDefs(ctx, schema);
   return finalize(ctx, schema);
 };
@@ -13439,7 +13944,7 @@ var arrayProcessor = (schema, ctx, _json, params) => {
   if (typeof maximum === "number")
     json2.maxItems = maximum;
   json2.type = "array";
-  json2.items = process(def.element, ctx, { ...params, path: [...params.path, "items"] });
+  json2.items = process2(def.element, ctx, { ...params, path: [...params.path, "items"] });
 };
 var objectProcessor = (schema, ctx, _json, params) => {
   const json2 = _json;
@@ -13448,7 +13953,7 @@ var objectProcessor = (schema, ctx, _json, params) => {
   json2.properties = {};
   const shape = def.shape;
   for (const key in shape) {
-    json2.properties[key] = process(shape[key], ctx, {
+    json2.properties[key] = process2(shape[key], ctx, {
       ...params,
       path: [...params.path, "properties", key]
     });
@@ -13471,7 +13976,7 @@ var objectProcessor = (schema, ctx, _json, params) => {
     if (ctx.io === "output")
       json2.additionalProperties = false;
   } else if (def.catchall) {
-    json2.additionalProperties = process(def.catchall, ctx, {
+    json2.additionalProperties = process2(def.catchall, ctx, {
       ...params,
       path: [...params.path, "additionalProperties"]
     });
@@ -13480,7 +13985,7 @@ var objectProcessor = (schema, ctx, _json, params) => {
 var unionProcessor = (schema, ctx, json2, params) => {
   const def = schema._zod.def;
   const isExclusive = def.inclusive === false;
-  const options = def.options.map((x, i) => process(x, ctx, {
+  const options = def.options.map((x, i) => process2(x, ctx, {
     ...params,
     path: [...params.path, isExclusive ? "oneOf" : "anyOf", i]
   }));
@@ -13492,11 +13997,11 @@ var unionProcessor = (schema, ctx, json2, params) => {
 };
 var intersectionProcessor = (schema, ctx, json2, params) => {
   const def = schema._zod.def;
-  const a = process(def.left, ctx, {
+  const a = process2(def.left, ctx, {
     ...params,
     path: [...params.path, "allOf", 0]
   });
-  const b = process(def.right, ctx, {
+  const b = process2(def.right, ctx, {
     ...params,
     path: [...params.path, "allOf", 1]
   });
@@ -13513,11 +14018,11 @@ var tupleProcessor = (schema, ctx, _json, params) => {
   json2.type = "array";
   const prefixPath = ctx.target === "draft-2020-12" ? "prefixItems" : "items";
   const restPath = ctx.target === "draft-2020-12" ? "items" : ctx.target === "openapi-3.0" ? "items" : "additionalItems";
-  const prefixItems = def.items.map((x, i) => process(x, ctx, {
+  const prefixItems = def.items.map((x, i) => process2(x, ctx, {
     ...params,
     path: [...params.path, prefixPath, i]
   }));
-  const rest = def.rest ? process(def.rest, ctx, {
+  const rest = def.rest ? process2(def.rest, ctx, {
     ...params,
     path: [...params.path, restPath, ...ctx.target === "openapi-3.0" ? [def.items.length] : []]
   }) : null;
@@ -13557,7 +14062,7 @@ var recordProcessor = (schema, ctx, _json, params) => {
   const keyBag = keyType._zod.bag;
   const patterns = keyBag?.patterns;
   if (def.mode === "loose" && patterns && patterns.size > 0) {
-    const valueSchema = process(def.valueType, ctx, {
+    const valueSchema = process2(def.valueType, ctx, {
       ...params,
       path: [...params.path, "patternProperties", "*"]
     });
@@ -13567,12 +14072,12 @@ var recordProcessor = (schema, ctx, _json, params) => {
     }
   } else {
     if (ctx.target === "draft-07" || ctx.target === "draft-2020-12") {
-      json2.propertyNames = process(def.keyType, ctx, {
+      json2.propertyNames = process2(def.keyType, ctx, {
         ...params,
         path: [...params.path, "propertyNames"]
       });
     }
-    json2.additionalProperties = process(def.valueType, ctx, {
+    json2.additionalProperties = process2(def.valueType, ctx, {
       ...params,
       path: [...params.path, "additionalProperties"]
     });
@@ -13587,7 +14092,7 @@ var recordProcessor = (schema, ctx, _json, params) => {
 };
 var nullableProcessor = (schema, ctx, json2, params) => {
   const def = schema._zod.def;
-  const inner = process(def.innerType, ctx, params);
+  const inner = process2(def.innerType, ctx, params);
   const seen = ctx.seen.get(schema);
   if (ctx.target === "openapi-3.0") {
     seen.ref = def.innerType;
@@ -13598,20 +14103,20 @@ var nullableProcessor = (schema, ctx, json2, params) => {
 };
 var nonoptionalProcessor = (schema, ctx, _json, params) => {
   const def = schema._zod.def;
-  process(def.innerType, ctx, params);
+  process2(def.innerType, ctx, params);
   const seen = ctx.seen.get(schema);
   seen.ref = def.innerType;
 };
 var defaultProcessor = (schema, ctx, json2, params) => {
   const def = schema._zod.def;
-  process(def.innerType, ctx, params);
+  process2(def.innerType, ctx, params);
   const seen = ctx.seen.get(schema);
   seen.ref = def.innerType;
   json2.default = JSON.parse(JSON.stringify(def.defaultValue));
 };
 var prefaultProcessor = (schema, ctx, json2, params) => {
   const def = schema._zod.def;
-  process(def.innerType, ctx, params);
+  process2(def.innerType, ctx, params);
   const seen = ctx.seen.get(schema);
   seen.ref = def.innerType;
   if (ctx.io === "input")
@@ -13619,7 +14124,7 @@ var prefaultProcessor = (schema, ctx, json2, params) => {
 };
 var catchProcessor = (schema, ctx, json2, params) => {
   const def = schema._zod.def;
-  process(def.innerType, ctx, params);
+  process2(def.innerType, ctx, params);
   const seen = ctx.seen.get(schema);
   seen.ref = def.innerType;
   let catchValue;
@@ -13633,32 +14138,32 @@ var catchProcessor = (schema, ctx, json2, params) => {
 var pipeProcessor = (schema, ctx, _json, params) => {
   const def = schema._zod.def;
   const innerType = ctx.io === "input" ? def.in._zod.def.type === "transform" ? def.out : def.in : def.out;
-  process(innerType, ctx, params);
+  process2(innerType, ctx, params);
   const seen = ctx.seen.get(schema);
   seen.ref = innerType;
 };
 var readonlyProcessor = (schema, ctx, json2, params) => {
   const def = schema._zod.def;
-  process(def.innerType, ctx, params);
+  process2(def.innerType, ctx, params);
   const seen = ctx.seen.get(schema);
   seen.ref = def.innerType;
   json2.readOnly = true;
 };
 var promiseProcessor = (schema, ctx, _json, params) => {
   const def = schema._zod.def;
-  process(def.innerType, ctx, params);
+  process2(def.innerType, ctx, params);
   const seen = ctx.seen.get(schema);
   seen.ref = def.innerType;
 };
 var optionalProcessor = (schema, ctx, _json, params) => {
   const def = schema._zod.def;
-  process(def.innerType, ctx, params);
+  process2(def.innerType, ctx, params);
   const seen = ctx.seen.get(schema);
   seen.ref = def.innerType;
 };
 var lazyProcessor = (schema, ctx, _json, params) => {
   const innerType = schema._zod.innerType;
-  process(innerType, ctx, params);
+  process2(innerType, ctx, params);
   const seen = ctx.seen.get(schema);
   seen.ref = innerType;
 };
@@ -13710,7 +14215,7 @@ function toJSONSchema(input, params) {
     const defs = {};
     for (const entry of registry2._idmap.entries()) {
       const [_, schema] = entry;
-      process(schema, ctx2);
+      process2(schema, ctx2);
     }
     const schemas = {};
     const external = {
@@ -13733,7 +14238,7 @@ function toJSONSchema(input, params) {
     return { schemas };
   }
   const ctx = initializeContext({ ...params, processors: allProcessors });
-  process(input, ctx);
+  process2(input, ctx);
   extractDefs(ctx, input);
   return finalize(ctx, input);
 }
@@ -13791,7 +14296,7 @@ var JSONSchemaGenerator = class {
    * This must be called before emit().
    */
   process(schema, _params = { path: [], schemaPath: [] }) {
-    return process(schema, this.ctx, _params);
+    return process2(schema, this.ctx, _params);
   }
   /**
    * Emit the final JSON Schema after processing.
@@ -15313,13 +15818,13 @@ function resolveRef(ref, ctx) {
   if (!ref.startsWith("#")) {
     throw new Error("External $ref is not supported, only local refs (#/...) are allowed");
   }
-  const path = ref.slice(1).split("/").filter(Boolean);
-  if (path.length === 0) {
+  const path2 = ref.slice(1).split("/").filter(Boolean);
+  if (path2.length === 0) {
     return ctx.rootSchema;
   }
   const defsKey = ctx.version === "draft-2020-12" ? "$defs" : "definitions";
-  if (path[0] === defsKey) {
-    const key = path[1];
+  if (path2[0] === defsKey) {
+    const key = path2[1];
     if (!key || !ctx.defs[key]) {
       throw new Error(`Reference not found: ${ref}`);
     }
@@ -15721,541 +16226,6 @@ function date4(params) {
 // node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/classic/external.js
 config(en_default());
 
-// packages/domain/src/active-thinking.ts
-var activeThinkingSchema = external_exports.object({
-  id: external_exports.string(),
-  text: external_exports.string(),
-  startedAt: external_exports.number(),
-  updatedAt: external_exports.number()
-});
-
-// packages/domain/src/shared-types.ts
-var reasoningLevelValues = [
-  "none",
-  "low",
-  "medium",
-  "high",
-  "xhigh",
-  "ultracode",
-  "max",
-  "ultra"
-];
-var reasoningLevelSchema = external_exports.enum(reasoningLevelValues);
-var serviceTierSchema = external_exports.enum(["fast", "default"]);
-var instructionModeValues = ["append", "replace"];
-var instructionModeSchema = external_exports.enum(instructionModeValues);
-var permissionModeValues = ["accept-edits", "auto", "full"];
-var permissionModeSchema = external_exports.enum(permissionModeValues);
-var permissionModeInputSchema = external_exports.union([permissionModeSchema, external_exports.literal("workspace-write")]).transform(
-  (permissionMode) => permissionMode === "workspace-write" ? "accept-edits" : permissionMode
-);
-var legacyRecordedPermissionModeValues = [
-  "workspace-write",
-  "readonly"
-];
-var recordedPermissionModeSchema = external_exports.enum([
-  ...permissionModeValues,
-  ...legacyRecordedPermissionModeValues
-]);
-var permissionEscalationValues = ["ask", "deny"];
-var permissionEscalationSchema = external_exports.enum(permissionEscalationValues);
-var LOOPBACK_HOSTNAMES = /* @__PURE__ */ new Set(["127.0.0.1", "::1", "localhost"]);
-var CLAUDE_CODE_MOCK_CLI_TRAFFIC_TEST_HOSTNAME = "api.anthropic.com";
-function normalizeUrlHostname(value) {
-  return value.toLowerCase().replace(/^\[(.*)\]$/u, "$1");
-}
-function isClaudeCodeMockCliTrafficEndpoint(value) {
-  let url2;
-  try {
-    url2 = new URL(value);
-  } catch {
-    return false;
-  }
-  const hostname3 = normalizeUrlHostname(url2.hostname);
-  if (url2.protocol === "http:" && LOOPBACK_HOSTNAMES.has(hostname3)) {
-    return true;
-  }
-  return url2.protocol === "https:" && hostname3 === CLAUDE_CODE_MOCK_CLI_TRAFFIC_TEST_HOSTNAME && url2.port === "" && url2.username === "" && url2.password === "";
-}
-var claudeCodeMockCliTrafficEndpointSchema = external_exports.string().url().refine(
-  isClaudeCodeMockCliTrafficEndpoint,
-  "Endpoint must be an http:// loopback URL or https://api.anthropic.com"
-);
-var claudeCodeMockCliTrafficConfigSchema = external_exports.object({
-  enabled: external_exports.boolean(),
-  endpoint: claudeCodeMockCliTrafficEndpointSchema
-}).strict();
-var promptInputVisibilityValues = ["agent-only"];
-var promptInputVisibilitySchema = external_exports.enum(promptInputVisibilityValues);
-var promptInputVisibilityFields = {
-  visibility: promptInputVisibilitySchema.optional()
-};
-var promptMentionPathSourceValues = [
-  "workspace",
-  "thread-storage"
-];
-var promptMentionPathSourceSchema = external_exports.enum(
-  promptMentionPathSourceValues
-);
-var promptMentionPathEntryKindValues = ["file", "directory"];
-var promptMentionPathEntryKindSchema = external_exports.enum(
-  promptMentionPathEntryKindValues
-);
-var promptMentionCommandTriggerValues = ["/"];
-var promptMentionCommandTriggerSchema = external_exports.enum(
-  promptMentionCommandTriggerValues
-);
-var promptMentionCommandSourceValues = ["skill", "command"];
-var promptMentionCommandSourceSchema = external_exports.enum(
-  promptMentionCommandSourceValues
-);
-var promptMentionCommandOriginValues = [
-  "builtin",
-  "project",
-  "user"
-];
-var promptMentionCommandOriginSchema = external_exports.enum(
-  promptMentionCommandOriginValues
-);
-var canonicalPromptMentionResourceSchema = external_exports.discriminatedUnion("kind", [
-  external_exports.object({
-    kind: external_exports.literal("thread"),
-    threadId: external_exports.string(),
-    projectId: external_exports.string().optional(),
-    label: external_exports.string()
-  }),
-  external_exports.object({
-    kind: external_exports.literal("project"),
-    projectId: external_exports.string(),
-    label: external_exports.string()
-  }),
-  external_exports.object({
-    kind: external_exports.literal("section"),
-    sectionId: external_exports.string(),
-    label: external_exports.string()
-  }),
-  external_exports.object({
-    kind: external_exports.literal("path"),
-    source: promptMentionPathSourceSchema,
-    entryKind: promptMentionPathEntryKindSchema,
-    path: external_exports.string(),
-    label: external_exports.string()
-  }),
-  external_exports.object({
-    kind: external_exports.literal("command"),
-    trigger: promptMentionCommandTriggerSchema,
-    name: external_exports.string(),
-    source: promptMentionCommandSourceSchema,
-    origin: promptMentionCommandOriginSchema,
-    label: external_exports.string(),
-    argumentHint: external_exports.string().nullable()
-  }),
-  external_exports.object({
-    kind: external_exports.literal("plugin"),
-    pluginId: external_exports.string(),
-    /**
-     * Named shared-UI icon hint supplied by the plugin mention item. Omitted
-     * by mentions persisted before icon hints were stored.
-     */
-    icon: external_exports.string().nullable().optional(),
-    /**
-     * Opaque item reference minted by the server's mention search
-     * (`<providerId>:<provider item id>`); resolved back through the same
-     * plugin's mention provider at send time (plugin design §4.9).
-     */
-    itemId: external_exports.string(),
-    label: external_exports.string()
-  })
-]);
-function normalizeLegacyPromptMentionResource(value) {
-  if (typeof value !== "object" || value === null || Array.isArray(value)) {
-    return value;
-  }
-  const record2 = value;
-  if (record2.kind !== "folder" || typeof record2.folderId !== "string") {
-    return value;
-  }
-  const { folderId, ...rest } = record2;
-  return { ...rest, kind: "section", sectionId: folderId };
-}
-var promptMentionResourceSchema = external_exports.preprocess(
-  normalizeLegacyPromptMentionResource,
-  canonicalPromptMentionResourceSchema
-);
-var promptTextMentionSchema = external_exports.object({
-  start: external_exports.number().int().nonnegative(),
-  end: external_exports.number().int().nonnegative(),
-  resource: promptMentionResourceSchema
-});
-var promptInputSchema = external_exports.discriminatedUnion("type", [
-  external_exports.object({
-    type: external_exports.literal("text"),
-    text: external_exports.string(),
-    mentions: external_exports.array(promptTextMentionSchema).default([]),
-    ...promptInputVisibilityFields
-  }),
-  external_exports.object({
-    type: external_exports.literal("image"),
-    url: external_exports.string().url(),
-    ...promptInputVisibilityFields
-  }),
-  external_exports.object({
-    type: external_exports.literal("localImage"),
-    /**
-     * Absolute paths and URI-like values are passed through to the runtime.
-     * Relative paths are server-managed attachment references, not workspace
-     * relative files.
-     */
-    path: external_exports.string(),
-    ...promptInputVisibilityFields
-  }),
-  external_exports.object({
-    type: external_exports.literal("localFile"),
-    /**
-     * Absolute paths and URI-like values are passed through to the runtime.
-     * Relative paths are server-managed attachment references, not workspace
-     * relative files.
-     */
-    path: external_exports.string(),
-    name: external_exports.string().optional(),
-    sizeBytes: external_exports.number().int().nonnegative().optional(),
-    mimeType: external_exports.string().optional(),
-    ...promptInputVisibilityFields
-  })
-]);
-var threadExecutionSourceSchema = external_exports.enum([
-  "client/thread/start",
-  "client/turn/requested",
-  "client/turn/start"
-]);
-var callerExecutionInputSourceValues = [
-  "explicit",
-  "client-preference"
-];
-var callerExecutionInputSourceSchema = external_exports.enum(
-  callerExecutionInputSourceValues
-);
-var threadExecutionOptionsSchema = external_exports.object({
-  model: external_exports.string().optional(),
-  serviceTier: serviceTierSchema.optional(),
-  reasoningLevel: reasoningLevelSchema.optional(),
-  permissionMode: permissionModeSchema.optional(),
-  source: threadExecutionSourceSchema.optional(),
-  seq: external_exports.number().int().optional()
-});
-var resolvedThreadExecutionOptionsSchema = threadExecutionOptionsSchema.extend({
-  model: external_exports.string().min(1),
-  serviceTier: serviceTierSchema,
-  reasoningLevel: reasoningLevelSchema,
-  permissionMode: permissionModeSchema,
-  source: threadExecutionSourceSchema
-});
-var recordedThreadExecutionOptionsSchema = resolvedThreadExecutionOptionsSchema.extend({
-  permissionMode: recordedPermissionModeSchema
-});
-var runtimePermissionScopeValues = ["workspace", "full"];
-var runtimePermissionScopeSchema = external_exports.enum(
-  runtimePermissionScopeValues
-);
-var approvalReviewerValues = ["user", "automatic"];
-var approvalReviewerSchema = external_exports.enum(approvalReviewerValues);
-var runtimePermissionPolicySchema = external_exports.discriminatedUnion(
-  "permissionMode",
-  [
-    external_exports.object({
-      permissionMode: external_exports.literal("accept-edits"),
-      permissionScope: external_exports.literal("workspace"),
-      approvalReviewer: external_exports.literal("user"),
-      permissionEscalation: permissionEscalationSchema
-    }),
-    external_exports.object({
-      permissionMode: external_exports.literal("auto"),
-      permissionScope: external_exports.literal("workspace"),
-      approvalReviewer: external_exports.literal("automatic"),
-      permissionEscalation: permissionEscalationSchema
-    }),
-    external_exports.object({
-      permissionMode: external_exports.literal("full"),
-      permissionScope: external_exports.literal("full"),
-      approvalReviewer: external_exports.null(),
-      permissionEscalation: external_exports.null()
-    })
-  ]
-);
-var runtimeThreadExecutionBaseOptionsSchema = external_exports.object({
-  model: external_exports.string().min(1),
-  serviceTier: serviceTierSchema,
-  reasoningLevel: reasoningLevelSchema,
-  claudeCodePermissionMode: external_exports.literal("plan").optional(),
-  // Optional for legacy command compatibility; the server fills the current
-  // app setting before dispatching new runtime work.
-  claudeCodeMockCliTraffic: claudeCodeMockCliTrafficConfigSchema.optional(),
-  /**
-   * Server-owned product policy: whether the provider session may use the
-   * Workflows feature. Filled explicitly at the server boundary (per-provider
-   * policy), never defaulted downstream.
-   */
-  workflowsEnabled: external_exports.boolean(),
-  // Optional for legacy command compatibility; the server fills the current
-  // provider preference before dispatching new runtime work.
-  memoryEnabled: external_exports.boolean().optional(),
-  // Optional for legacy command compatibility; the server fills the current
-  // provider preference before dispatching new runtime work.
-  providerSubagentsEnabled: external_exports.boolean().optional()
-});
-var runtimeThreadExecutionOptionsSchema = runtimeThreadExecutionBaseOptionsSchema.and(runtimePermissionPolicySchema);
-var projectExecutionDefaultsSchema = external_exports.object({
-  providerId: external_exports.string().min(1),
-  model: external_exports.string().min(1),
-  serviceTier: serviceTierSchema,
-  reasoningLevel: reasoningLevelSchema,
-  permissionMode: permissionModeSchema
-});
-
-// packages/domain/src/acp-cli.ts
-var providerSkillRootPathSchema = external_exports.string().min(1).refine((value) => {
-  const normalized = value.replaceAll("\\", "/");
-  return !normalized.startsWith("/") && !/^[a-zA-Z]:\//u.test(normalized) && normalized.split("/").every(
-    (segment) => segment !== "" && segment !== "." && segment !== ".."
-  );
-}, "Skill roots must be relative paths without dot segments");
-var uniqueProviderSkillRootPathsSchema = external_exports.array(providerSkillRootPathSchema).superRefine((paths, context) => {
-  if (new Set(paths).size !== paths.length) {
-    context.addIssue({
-      code: "custom",
-      message: "Skill roots must not contain duplicates"
-    });
-  }
-});
-var providerNativeSkillRootsSchema = external_exports.object({
-  user: uniqueProviderSkillRootPathsSchema.default([]),
-  project: uniqueProviderSkillRootPathsSchema.default([])
-}).strict();
-var acpReasoningCliLevelValueOverridesSchema = external_exports.partialRecord(
-  reasoningLevelSchema,
-  external_exports.string().min(1)
-);
-var acpReasoningCliSchema = external_exports.object({
-  flag: external_exports.string().min(1),
-  supportedLevels: external_exports.array(reasoningLevelSchema).min(1),
-  levelValues: acpReasoningCliLevelValueOverridesSchema.optional(),
-  defaultLevel: reasoningLevelSchema.optional()
-}).strict().superRefine((reasoningCli, context) => {
-  const supportedLevels = new Set(reasoningCli.supportedLevels);
-  if (supportedLevels.size !== reasoningCli.supportedLevels.length) {
-    context.addIssue({
-      code: "custom",
-      message: "supportedLevels must not contain duplicates",
-      path: ["supportedLevels"]
-    });
-  }
-  if (reasoningCli.defaultLevel !== void 0 && !supportedLevels.has(reasoningCli.defaultLevel)) {
-    context.addIssue({
-      code: "custom",
-      message: "defaultLevel must be one of supportedLevels",
-      path: ["defaultLevel"]
-    });
-  }
-});
-var acpNativeReasoningSchema = external_exports.object({
-  configId: external_exports.string().min(1),
-  supportedLevels: external_exports.array(reasoningLevelSchema).min(1),
-  levelValues: acpReasoningCliLevelValueOverridesSchema.optional(),
-  defaultLevel: reasoningLevelSchema.optional()
-}).strict().superRefine((nativeReasoning, context) => {
-  const supportedLevels = new Set(nativeReasoning.supportedLevels);
-  if (supportedLevels.size !== nativeReasoning.supportedLevels.length) {
-    context.addIssue({
-      code: "custom",
-      message: "supportedLevels must not contain duplicates",
-      path: ["supportedLevels"]
-    });
-  }
-  if (nativeReasoning.defaultLevel !== void 0 && !supportedLevels.has(nativeReasoning.defaultLevel)) {
-    context.addIssue({
-      code: "custom",
-      message: "defaultLevel must be one of supportedLevels",
-      path: ["defaultLevel"]
-    });
-  }
-});
-var acpPermissionCliArgsSchema = external_exports.array(external_exports.string().min(1)).min(1);
-var acpPermissionCliSchema = external_exports.object({
-  full: acpPermissionCliArgsSchema.optional(),
-  workspaceWrite: acpPermissionCliArgsSchema.optional(),
-  readonly: acpPermissionCliArgsSchema.optional(),
-  insertAfterArgs: external_exports.number().int().min(0).optional()
-}).strict().superRefine((permissionCli, context) => {
-  if (permissionCli.full === void 0 && permissionCli.workspaceWrite === void 0 && permissionCli.readonly === void 0) {
-    context.addIssue({
-      code: "custom",
-      message: "permissionCli must configure at least one permission mode"
-    });
-  }
-});
-
-// packages/domain/src/app-settings.ts
-var appSettingsSchema = external_exports.object({
-  /** Show shortcut hints after holding Command or Control. */
-  showKeyboardHints: external_exports.boolean(),
-  /**
-   * While a thread is running, make Enter steer the active turn and use
-   * Command+Enter to queue a follow-up.
-   */
-  steerActiveThreadOnEnter: external_exports.boolean(),
-  /** Show raw provider events that bb does not yet understand. */
-  showUnhandledProviderEvents: external_exports.boolean(),
-  /** Enable Codex's native memory recall and generation for bb threads. */
-  codexMemoryEnabled: external_exports.boolean(),
-  /** Enable Claude Code's native auto-memory reads and writes for bb threads. */
-  claudeCodeMemoryEnabled: external_exports.boolean(),
-  /** Prevent Codex from exposing its native multi-agent tools to bb threads. */
-  codexSubagentsDisabled: external_exports.boolean(),
-  /** Prevent Claude Code from exposing its native Task tool to bb threads. */
-  claudeCodeSubagentsDisabled: external_exports.boolean(),
-  /** Prevent Claude Code from exposing its native Workflow tool. */
-  claudeCodeWorkflowsDisabled: external_exports.boolean(),
-  /**
-   * ISO timestamp of when first-run onboarding last finished or was
-   * dismissed; null means it has never run. A timestamp rather than a boolean
-   * so we also know *when*, and so "never ran" has an honest value.
-   *
-   * Deliberately not a proxy for "is bb set up": whether an agent is usable is
-   * answered live by `provider.usage`, so dismissing onboarding never claims
-   * the machine is configured. Setting this back to null re-triggers the flow.
-   */
-  onboardingCompletedAt: external_exports.string().nullable()
-}).strict();
-
-// packages/domain/src/app-keybindings.ts
-var THREAD_JUMP_APP_COMMAND_IDS = [
-  "thread.jump.1",
-  "thread.jump.2",
-  "thread.jump.3",
-  "thread.jump.4",
-  "thread.jump.5",
-  "thread.jump.6",
-  "thread.jump.7",
-  "thread.jump.8",
-  "thread.jump.9"
-];
-var QUESTION_SELECT_APP_COMMAND_IDS = [
-  "question.select.1",
-  "question.select.2",
-  "question.select.3",
-  "question.select.4",
-  "question.select.5",
-  "question.select.6",
-  "question.select.7",
-  "question.select.8",
-  "question.select.9"
-];
-var PANE_FOCUS_APP_COMMAND_IDS = [
-  "pane.focus.1",
-  "pane.focus.2",
-  "pane.focus.3",
-  "pane.focus.4",
-  "pane.focus.5",
-  "pane.focus.6",
-  "pane.focus.7",
-  "pane.focus.8"
-];
-var APP_COMMAND_IDS = [
-  "thread.new",
-  "thread.search",
-  "thread.rename",
-  "thread.archive",
-  "thread.previous",
-  "thread.next",
-  ...THREAD_JUMP_APP_COMMAND_IDS,
-  "pane.focus.previous",
-  "pane.focus.next",
-  ...PANE_FOCUS_APP_COMMAND_IDS,
-  "pane.maximize.toggle",
-  "pane.close",
-  "window.new",
-  "settings.open",
-  "settings.openServers",
-  "sidebar.toggle",
-  "panel.newTab",
-  "panel.close",
-  "panel.toggle",
-  "file.quickOpen",
-  "diff.toggle",
-  "terminal.open",
-  "composer.focus",
-  "modelPicker.toggle",
-  "modelPicker.cycleModel",
-  "modelPicker.cycleModelBackward",
-  "modelPicker.cycleProvider",
-  "modelPicker.cycleProviderBackward",
-  "modelPicker.cycleReasoning",
-  "modelPicker.cycleReasoningBackward",
-  "browser.focusLocation",
-  "browser.reload",
-  "workspace.openPreferred",
-  ...QUESTION_SELECT_APP_COMMAND_IDS
-];
-var appCommandIdSchema = external_exports.enum(APP_COMMAND_IDS);
-var APP_COMMAND_CONTEXT_KEYS = [
-  "mainSurface",
-  "modalOpen",
-  "editableFocus",
-  "terminalFocus",
-  "browserFocus",
-  "modelPickerOpen",
-  "questionOpen",
-  "promptAvailable",
-  "splitActive",
-  "webSurface",
-  "macPlatform"
-];
-var appCommandContextKeySchema = external_exports.enum(APP_COMMAND_CONTEXT_KEYS);
-var appShortcutSchema = external_exports.object({
-  // Store the unshifted base key; `shift` records the modifier separately.
-  // For example, Command+Shift+[ is `{ key: "[", shift: true }`.
-  key: external_exports.string().min(1).max(32),
-  mod: external_exports.boolean(),
-  meta: external_exports.boolean(),
-  control: external_exports.boolean(),
-  alt: external_exports.boolean(),
-  shift: external_exports.boolean()
-}).strict();
-var appCommandWhenSchema = external_exports.object({
-  all: external_exports.array(appCommandContextKeySchema),
-  none: external_exports.array(appCommandContextKeySchema)
-}).strict();
-var appKeybindingSchema = external_exports.object({
-  command: appCommandIdSchema,
-  desktopOnly: external_exports.boolean(),
-  shortcut: appShortcutSchema,
-  when: appCommandWhenSchema
-}).strict();
-var appDefaultKeybindingSchema = appKeybindingSchema.extend({
-  // Null keeps a command assignable without shipping a default shortcut.
-  shortcut: appShortcutSchema.nullable()
-});
-var appKeybindingsSchema = external_exports.array(appKeybindingSchema).max(256);
-var appDefaultKeybindingsSchema = external_exports.array(appDefaultKeybindingSchema).max(256);
-var appKeybindingOverrideSchema = external_exports.object({
-  command: appCommandIdSchema,
-  // Null has explicit meaning: disable every default binding for this command.
-  shortcut: appShortcutSchema.nullable()
-}).strict();
-var appKeybindingOverridesSchema = external_exports.array(appKeybindingOverrideSchema).max(APP_COMMAND_IDS.length).superRefine((overrides, context) => {
-  const seen = /* @__PURE__ */ new Set();
-  for (const [index, override] of overrides.entries()) {
-    if (seen.has(override.command)) {
-      context.addIssue({
-        code: "custom",
-        message: `Duplicate override for ${override.command}`,
-        path: [index, "command"]
-      });
-    }
-    seen.add(override.command);
-  }
-});
-
 // packages/domain/src/json-value.ts
 var jsonValueSchema = external_exports.lazy(
   () => external_exports.union([
@@ -16273,8 +16243,6 @@ var jsonObjectSchema = external_exports.record(
 );
 
 // packages/domain/src/code-theme.ts
-var DEFAULT_CODE_THEME_DARK = "pierre-dark";
-var DEFAULT_CODE_THEME_LIGHT = "pierre-light";
 var codeThemeNameSchema = external_exports.string().min(1).max(128).regex(
   /^[a-zA-Z0-9][a-zA-Z0-9._:-]*$/,
   "Code theme names may use letters, digits, '.', '_', ':', and '-' and cannot start with '.'"
@@ -16292,1954 +16260,13 @@ var resolvedCodeThemeSchema = external_exports.object({
   light: codeThemeNameSchema,
   files: external_exports.record(external_exports.string(), jsonObjectSchema)
 }).strict();
-var defaultResolvedCodeTheme = {
-  dark: DEFAULT_CODE_THEME_DARK,
-  light: DEFAULT_CODE_THEME_LIGHT,
-  files: {}
-};
 var uiCodeThemeDeclarationSchema = external_exports.object({
   dark: external_exports.string().min(1).max(256).optional(),
   light: external_exports.string().min(1).max(256).optional()
 }).strict();
 
-// packages/domain/src/app-theme.ts
-var builtInThemeIdSchema = external_exports.enum([
-  "default",
-  "nord",
-  "dracula",
-  "solarized",
-  "gruvbox",
-  "catppuccin"
-]);
-var BUILTIN_THEME_IDS = builtInThemeIdSchema.options;
-function isBuiltInThemeId(id) {
-  return BUILTIN_THEME_IDS.includes(id);
-}
-var customThemeNameSchema = external_exports.string().min(1).max(64).regex(
-  /^[a-zA-Z0-9][a-zA-Z0-9._-]*$/,
-  "Custom theme names may use letters, digits, '.', '_', and '-' and cannot start with '.'"
-).refine((name) => name !== "." && name !== "..", "Invalid custom theme name").refine(
-  (name) => !isBuiltInThemeId(name),
-  "Custom theme name collides with a built-in palette id"
-);
-var CUSTOM_THEME_CSS_MAX_LENGTH = 256e3;
-var FAVICON_COLORS = [
-  "red",
-  "orange",
-  "yellow",
-  "green",
-  "teal",
-  "blue",
-  "purple",
-  "pink"
-];
-var faviconColorPreferenceSchema = external_exports.enum([
-  "default",
-  ...FAVICON_COLORS
-]);
-var appThemeSchema = external_exports.object({
-  themeId: external_exports.string().min(1),
-  /** Resolved CSS for a custom palette; null for built-ins. */
-  customCss: external_exports.string().max(CUSTOM_THEME_CSS_MAX_LENGTH).nullable(),
-  /** Browser tab icon tint; "default" leaves the glyph untinted. */
-  faviconColor: faviconColorPreferenceSchema,
-  /**
-   * Pierre / Shiki names (and any custom JSON) derived from the active
-   * palette. Always filled at the server boundary.
-   */
-  resolvedCodeTheme: resolvedCodeThemeSchema.default(defaultResolvedCodeTheme)
-});
-var pluginThemeMetaSchema = external_exports.object({
-  id: external_exports.string().min(1),
-  pluginId: external_exports.string().min(1),
-  name: external_exports.string().min(1),
-  description: external_exports.string().nullable()
-});
-var appThemeSelectionSchema = external_exports.object({
-  themeId: external_exports.string().min(1),
-  faviconColor: faviconColorPreferenceSchema
-});
-
-// packages/domain/src/background-task.ts
-var backgroundTaskStatusValues = [
-  "pending",
-  "running",
-  "paused",
-  "completed",
-  "failed",
-  "killed",
-  "stopped"
-];
-var backgroundTaskStatusSchema = external_exports.enum(backgroundTaskStatusValues);
-var workflowAgentStateValues = [
-  "queued",
-  "running",
-  "done",
-  "failed",
-  "skipped"
-];
-var workflowAgentStateSchema = external_exports.enum(workflowAgentStateValues);
-var workflowAgentSnapshotSchema = external_exports.object({
-  /** 1-based agent counter; the stable identity for fold/replace semantics. */
-  index: external_exports.number().int().positive(),
-  label: external_exports.string(),
-  state: workflowAgentStateSchema,
-  model: external_exports.string(),
-  attempt: external_exports.number().int().positive(),
-  cached: external_exports.boolean(),
-  lastProgressAt: external_exports.number(),
-  phaseIndex: external_exports.number().int().positive().optional(),
-  phaseTitle: external_exports.string().optional(),
-  agentType: external_exports.string().optional(),
-  isolation: external_exports.string().optional(),
-  queuedAt: external_exports.number().optional(),
-  startedAt: external_exports.number().optional(),
-  lastToolName: external_exports.string().optional(),
-  lastToolSummary: external_exports.string().optional(),
-  promptPreview: external_exports.string().optional(),
-  resultPreview: external_exports.string().optional(),
-  error: external_exports.string().optional(),
-  tokens: external_exports.number().optional(),
-  toolCalls: external_exports.number().optional(),
-  durationMs: external_exports.number().optional()
-});
-var workflowPhaseSnapshotSchema = external_exports.object({
-  /** 1-based phase counter; meta.phases are seeded before any agent runs. */
-  index: external_exports.number().int().positive(),
-  title: external_exports.string(),
-  /** "child" marks a nested workflow() sub-run group. */
-  kind: external_exports.string().optional()
-});
-var workflowProgressSnapshotSchema = external_exports.object({
-  phases: external_exports.array(workflowPhaseSnapshotSchema),
-  agents: external_exports.array(workflowAgentSnapshotSchema)
-});
-var backgroundTaskUsageSchema = external_exports.object({
-  totalTokens: external_exports.number(),
-  toolUses: external_exports.number(),
-  durationMs: external_exports.number()
-});
-
-// packages/domain/src/plugin-interaction-limits.ts
-var PLUGIN_INTERACTION_MAX_TITLE_LENGTH = 160;
-
-// packages/domain/src/pending-interactions.ts
-var pendingInteractionStatusSchema = external_exports.enum([
-  "pending",
-  "resolving",
-  "resolved",
-  "interrupted"
-]);
-var pendingInteractionCommandActionSchema = external_exports.discriminatedUnion(
-  "type",
-  [
-    external_exports.object({
-      type: external_exports.literal("read"),
-      command: external_exports.string(),
-      name: external_exports.string(),
-      path: external_exports.string()
-    }),
-    external_exports.object({
-      type: external_exports.literal("listFiles"),
-      command: external_exports.string(),
-      path: external_exports.string().nullable()
-    }),
-    external_exports.object({
-      type: external_exports.literal("search"),
-      command: external_exports.string(),
-      query: external_exports.string().nullable(),
-      path: external_exports.string().nullable()
-    }),
-    external_exports.object({
-      type: external_exports.literal("unknown"),
-      command: external_exports.string()
-    })
-  ]
-);
-var pendingInteractionNetworkPermissionsSchema = external_exports.object({
-  enabled: external_exports.boolean().nullable()
-});
-var pendingInteractionFileSystemPermissionsSchema = external_exports.object({
-  read: external_exports.array(external_exports.string()),
-  write: external_exports.array(external_exports.string())
-});
-var pendingInteractionMacOsPreferencesPermissionSchema = external_exports.enum([
-  "none",
-  "read_only",
-  "read_write"
-]);
-var pendingInteractionMacOsContactsPermissionSchema = external_exports.enum([
-  "none",
-  "read_only",
-  "read_write"
-]);
-var pendingInteractionMacOsAutomationPermissionSchema = external_exports.union([
-  external_exports.literal("none"),
-  external_exports.literal("all"),
-  external_exports.object({
-    kind: external_exports.literal("bundle_ids"),
-    bundleIds: external_exports.array(external_exports.string())
-  })
-]);
-var pendingInteractionMacOsPermissionsSchema = external_exports.object({
-  preferences: pendingInteractionMacOsPreferencesPermissionSchema,
-  automations: pendingInteractionMacOsAutomationPermissionSchema,
-  launchServices: external_exports.boolean(),
-  accessibility: external_exports.boolean(),
-  calendar: external_exports.boolean(),
-  reminders: external_exports.boolean(),
-  contacts: pendingInteractionMacOsContactsPermissionSchema
-});
-var pendingInteractionRequestedPermissionProfileSchema = external_exports.object({
-  network: pendingInteractionNetworkPermissionsSchema.nullable(),
-  fileSystem: pendingInteractionFileSystemPermissionsSchema.nullable(),
-  macos: pendingInteractionMacOsPermissionsSchema.nullable()
-});
-var pendingInteractionGrantablePermissionProfileSchema = external_exports.object({
-  network: pendingInteractionNetworkPermissionsSchema.nullable(),
-  fileSystem: pendingInteractionFileSystemPermissionsSchema.nullable()
-}).strict();
-var pendingInteractionGrantedPermissionProfileSchema = pendingInteractionGrantablePermissionProfileSchema;
-var pendingInteractionApprovalDecisionSchema = external_exports.enum([
-  "allow_once",
-  "allow_for_session",
-  "deny"
-]);
-var pendingInteractionFileChangeWriteScopeSchema = external_exports.string().min(1);
-var pendingInteractionCommandApprovalSubjectSchema = external_exports.object({
-  kind: external_exports.literal("command"),
-  itemId: external_exports.string().min(1),
-  command: external_exports.string().min(1),
-  cwd: external_exports.string().nullable(),
-  actions: external_exports.array(pendingInteractionCommandActionSchema),
-  sessionGrant: pendingInteractionGrantablePermissionProfileSchema.nullable()
-});
-var pendingInteractionFileChangeApprovalSubjectSchema = external_exports.object({
-  kind: external_exports.literal("file_change"),
-  itemId: external_exports.string().min(1),
-  writeScope: pendingInteractionFileChangeWriteScopeSchema.nullable(),
-  sessionGrant: pendingInteractionGrantablePermissionProfileSchema.nullable()
-});
-var pendingInteractionPermissionGrantApprovalSubjectSchema = external_exports.object({
-  kind: external_exports.literal("permission_grant"),
-  itemId: external_exports.string().min(1),
-  toolName: external_exports.string().nullable(),
-  permissions: pendingInteractionGrantablePermissionProfileSchema
-});
-var pendingInteractionPlanApprovalSubjectSchema = external_exports.object({
-  kind: external_exports.literal("plan"),
-  itemId: external_exports.string().min(1),
-  /** The plan body, as Markdown. */
-  plan: external_exports.string().min(1),
-  /** Where the provider saved the plan, or null when it kept it in memory. */
-  planFilePath: external_exports.string().min(1).nullable()
-});
-var pendingInteractionApprovalSubjectSchema = external_exports.discriminatedUnion(
-  "kind",
-  [
-    pendingInteractionCommandApprovalSubjectSchema,
-    pendingInteractionFileChangeApprovalSubjectSchema,
-    pendingInteractionPermissionGrantApprovalSubjectSchema,
-    pendingInteractionPlanApprovalSubjectSchema
-  ]
-);
-var approvalPendingInteractionPayloadSchema = external_exports.object({
-  kind: external_exports.literal("approval"),
-  subject: pendingInteractionApprovalSubjectSchema,
-  reason: external_exports.string().nullable(),
-  availableDecisions: external_exports.array(pendingInteractionApprovalDecisionSchema).min(1)
-});
-var USER_QUESTION_MAX_QUESTIONS = 4;
-var USER_QUESTION_MAX_OPTIONS = 4;
-var USER_QUESTION_MAX_SELECTED = 4;
-var USER_QUESTION_MAX_FREE_TEXT_LENGTH = 4096;
-var pendingInteractionUserQuestionIdSchema = external_exports.string().min(1).refine((value) => value.trim().length > 0, {
-  message: "User question ids cannot be blank"
-});
-var pendingInteractionUserQuestionPromptSchema = external_exports.string().min(1).refine((value) => value.trim().length > 0, {
-  message: "User question prompts cannot be blank"
-});
-var pendingInteractionUserQuestionShortLabelSchema = external_exports.string().min(1).refine((value) => value.trim().length > 0, {
-  message: "User question short labels cannot be blank"
-});
-var pendingInteractionUserQuestionOptionValueSchema = external_exports.string().min(1).refine((value) => value.trim().length > 0, {
-  message: "User question option values cannot be blank"
-});
-var pendingInteractionUserQuestionOptionLabelSchema = external_exports.string().min(1).refine((value) => value.trim().length > 0, {
-  message: "User question option labels cannot be blank"
-});
-var pendingInteractionUserQuestionOptionDescriptionSchema = external_exports.string().min(1).refine((value) => value.trim().length > 0, {
-  message: "User question option descriptions cannot be blank"
-});
-var pendingInteractionUserQuestionFreeTextSchema = external_exports.string().min(1).max(
-  USER_QUESTION_MAX_FREE_TEXT_LENGTH,
-  `User question free text cannot exceed ${USER_QUESTION_MAX_FREE_TEXT_LENGTH} characters`
-).refine((value) => value.trim().length > 0, {
-  message: "User question free text cannot be blank"
-});
-var pendingInteractionUserQuestionOptionSchema = external_exports.object({
-  value: pendingInteractionUserQuestionOptionValueSchema,
-  label: pendingInteractionUserQuestionOptionLabelSchema,
-  description: pendingInteractionUserQuestionOptionDescriptionSchema.optional()
-});
-var pendingInteractionUserQuestionQuestionSchema = external_exports.object({
-  id: pendingInteractionUserQuestionIdSchema,
-  prompt: pendingInteractionUserQuestionPromptSchema,
-  shortLabel: pendingInteractionUserQuestionShortLabelSchema.optional(),
-  multiSelect: external_exports.boolean(),
-  options: external_exports.array(pendingInteractionUserQuestionOptionSchema).max(
-    USER_QUESTION_MAX_OPTIONS,
-    `User questions cannot include more than ${USER_QUESTION_MAX_OPTIONS} options`
-  ).optional(),
-  allowFreeText: external_exports.boolean()
-}).superRefine((question, context) => {
-  const optionValues = /* @__PURE__ */ new Set();
-  question.options?.forEach((option, index) => {
-    if (optionValues.has(option.value)) {
-      context.addIssue({
-        code: external_exports.ZodIssueCode.custom,
-        message: "User question option values must be unique",
-        path: ["options", index, "value"]
-      });
-      return;
-    }
-    optionValues.add(option.value);
-  });
-}).refine(
-  (question) => question.allowFreeText || (question.options?.length ?? 0) > 0,
-  {
-    message: "User questions must allow free text or provide at least one option",
-    path: ["options"]
-  }
-);
-var userQuestionPendingInteractionPayloadSchema = external_exports.object({
-  kind: external_exports.literal("user_question"),
-  questions: external_exports.array(pendingInteractionUserQuestionQuestionSchema).min(1).max(
-    USER_QUESTION_MAX_QUESTIONS,
-    `User questions cannot include more than ${USER_QUESTION_MAX_QUESTIONS} questions`
-  )
-}).superRefine((payload, context) => {
-  const questionIds = /* @__PURE__ */ new Set();
-  payload.questions.forEach((question, index) => {
-    if (questionIds.has(question.id)) {
-      context.addIssue({
-        code: external_exports.ZodIssueCode.custom,
-        message: "User question ids must be unique",
-        path: ["questions", index, "id"]
-      });
-      return;
-    }
-    questionIds.add(question.id);
-  });
-});
-var pluginPendingInteractionPayloadSchema = external_exports.object({
-  kind: external_exports.literal("plugin"),
-  title: external_exports.string().trim().min(1).max(PLUGIN_INTERACTION_MAX_TITLE_LENGTH),
-  data: jsonValueSchema
-});
-var pendingInteractionPayloadSchema = external_exports.discriminatedUnion("kind", [
-  approvalPendingInteractionPayloadSchema,
-  userQuestionPendingInteractionPayloadSchema
-]);
-var approvalDecisionDiscriminatorError = "Invalid discriminator value. Expected 'allow_once' | 'allow_for_session' | 'deny'";
-var approvalPendingInteractionResolutionSchema = external_exports.discriminatedUnion(
-  "decision",
-  [
-    external_exports.object({
-      decision: external_exports.literal("allow_once"),
-      grantedPermissions: pendingInteractionGrantedPermissionProfileSchema.nullable()
-    }),
-    external_exports.object({
-      decision: external_exports.literal("allow_for_session"),
-      grantedPermissions: pendingInteractionGrantedPermissionProfileSchema.nullable()
-    }),
-    external_exports.object({
-      decision: external_exports.literal("deny")
-    })
-  ],
-  approvalDecisionDiscriminatorError
-);
-var pendingInteractionUserAnswerSchema = external_exports.object({
-  selected: external_exports.array(external_exports.string().min(1)).max(
-    USER_QUESTION_MAX_SELECTED,
-    `User question selected choices cannot exceed ${USER_QUESTION_MAX_SELECTED}`
-  ),
-  freeText: pendingInteractionUserQuestionFreeTextSchema.optional()
-});
-var userQuestionPendingInteractionResolutionSchema = external_exports.object({
-  kind: external_exports.literal("user_answer"),
-  answers: external_exports.record(external_exports.string().min(1), pendingInteractionUserAnswerSchema)
-});
-var pluginPendingInteractionResolutionSchema = external_exports.object({
-  kind: external_exports.literal("plugin_submitted")
-});
-var pendingInteractionResolutionSchema = external_exports.union(
-  [
-    approvalPendingInteractionResolutionSchema,
-    userQuestionPendingInteractionResolutionSchema,
-    pluginPendingInteractionResolutionSchema
-  ],
-  approvalDecisionDiscriminatorError
-);
-var pendingInteractionProviderOriginSchema = external_exports.object({
-  kind: external_exports.literal("provider"),
-  providerId: external_exports.string().min(1),
-  providerThreadId: external_exports.string().min(1),
-  providerRequestId: external_exports.string().min(1)
-});
-var pendingInteractionPluginOriginSchema = external_exports.object({
-  kind: external_exports.literal("plugin"),
-  pluginId: external_exports.string().min(1),
-  rendererId: external_exports.string().min(1)
-});
-var pendingInteractionOriginSchema = external_exports.discriminatedUnion("kind", [
-  pendingInteractionProviderOriginSchema,
-  pendingInteractionPluginOriginSchema
-]);
-var pendingInteractionCreateSchema = external_exports.object({
-  threadId: external_exports.string().min(1),
-  turnId: external_exports.string().min(1),
-  providerId: external_exports.string().min(1),
-  providerThreadId: external_exports.string().min(1),
-  providerRequestId: external_exports.string().min(1),
-  payload: external_exports.union([
-    approvalPendingInteractionPayloadSchema,
-    userQuestionPendingInteractionPayloadSchema
-  ])
-});
-var pendingInteractionBaseSchema = external_exports.object({
-  id: external_exports.string().min(1),
-  threadId: external_exports.string().min(1),
-  status: pendingInteractionStatusSchema,
-  statusReason: external_exports.string().nullable(),
-  createdAt: external_exports.number().int().nonnegative(),
-  expiresAt: external_exports.number().int().nonnegative().nullable().optional(),
-  resolvedAt: external_exports.number().int().nonnegative().nullable()
-});
-var providerPendingInteractionSchema = pendingInteractionBaseSchema.extend({
-  turnId: external_exports.string().min(1),
-  providerId: external_exports.string().min(1),
-  providerThreadId: external_exports.string().min(1),
-  providerRequestId: external_exports.string().min(1),
-  origin: pendingInteractionProviderOriginSchema.optional(),
-  payload: external_exports.union([
-    approvalPendingInteractionPayloadSchema,
-    userQuestionPendingInteractionPayloadSchema
-  ]),
-  resolution: external_exports.union([
-    approvalPendingInteractionResolutionSchema,
-    userQuestionPendingInteractionResolutionSchema
-  ]).nullable()
-});
-var pluginPendingInteractionSchema = pendingInteractionBaseSchema.extend({
-  turnId: external_exports.string().min(1).nullable(),
-  origin: pendingInteractionPluginOriginSchema,
-  payload: pluginPendingInteractionPayloadSchema,
-  resolution: pluginPendingInteractionResolutionSchema.nullable()
-});
-var pendingInteractionSchema = external_exports.union([
-  providerPendingInteractionSchema,
-  pluginPendingInteractionSchema
-]);
-
-// packages/domain/src/protocol-ids.ts
-var clientTurnRequestIdSchema = external_exports.string().regex(/^creq_[23456789abcdefghijkmnpqrstuvwxyz]{10}$/u);
-
-// packages/domain/src/thread-events.ts
-var systemEventTypeValues = [
-  "client/thread/start",
-  "client/turn/requested",
-  "client/turn/rejected",
-  "client/turn/start",
-  "system/error",
-  // Legacy persisted user-visible system event from a removed runtime path.
-  // Retained for read/decode/render compatibility only.
-  "system/manager/user_message",
-  "system/thread/interrupted",
-  "system/operation",
-  "system/permissionGrant/lifecycle",
-  "system/userQuestion/lifecycle",
-  "system/thread-provisioning",
-  // Legacy persisted watchdog diagnostic; retained for read/decode/render
-  // only, with no current producer.
-  "system/provider-turn-watchdog"
-];
-var systemEventTypeSchema = external_exports.enum(systemEventTypeValues);
-var threadTurnInitiatorValues = ["user", "agent", "system"];
-var threadTurnInitiatorSchema = external_exports.enum(threadTurnInitiatorValues);
-var systemMessageKindValues = [
-  "ownership-assigned",
-  "ownership-removed",
-  "child-needs-attention",
-  "child-completed",
-  "child-failed",
-  "child-interrupted",
-  "child-outcome-batch",
-  "unlabeled"
-];
-var systemMessageKindSchema = external_exports.enum(systemMessageKindValues);
-var systemMessageSubjectSchema = external_exports.discriminatedUnion("kind", [
-  external_exports.object({
-    kind: external_exports.literal("thread"),
-    threadId: external_exports.string(),
-    threadName: external_exports.string()
-  }),
-  external_exports.object({
-    kind: external_exports.literal("thread-batch"),
-    count: external_exports.number()
-  })
-]);
-var threadProvisioningReasonValues = [
-  "thread-created",
-  "boot-created-thread",
-  "tell-after-provisioning-failure",
-  "tell-after-missing-environment-attachment",
-  "resume-missing-provider-thread"
-];
-var threadEnvironmentStartReasonValues = [
-  ...threadProvisioningReasonValues,
-  "boot-active-resume",
-  "resume-existing-provider-session"
-];
-var threadEnvironmentStartReasonSchema = external_exports.enum(
-  threadEnvironmentStartReasonValues
-);
-var turnRequestOptionsSchema = recordedThreadExecutionOptionsSchema;
-var turnRequestTargetSchema = external_exports.discriminatedUnion("kind", [
-  external_exports.object({ kind: external_exports.literal("thread-start") }),
-  external_exports.object({ kind: external_exports.literal("new-turn") }),
-  external_exports.object({
-    kind: external_exports.literal("auto"),
-    expectedTurnId: external_exports.string().nullable()
-  }),
-  external_exports.object({
-    kind: external_exports.literal("steer"),
-    expectedTurnId: external_exports.string().nullable()
-  })
-]);
-var clientTurnLifecycleEventDataSchema = external_exports.object({
-  direction: external_exports.literal("outbound"),
-  source: external_exports.enum(["spawn", "tell"]),
-  initiator: threadTurnInitiatorSchema,
-  request: external_exports.object({
-    method: external_exports.enum(["thread/start", "turn/start"]),
-    params: external_exports.record(external_exports.string(), external_exports.unknown())
-  })
-});
-var turnRequestEventDataSchema = external_exports.object({
-  direction: external_exports.literal("outbound"),
-  requestId: clientTurnRequestIdSchema,
-  /** Failed request resumed by a guarded system continuation, when present. */
-  continuationOfRequestId: clientTurnRequestIdSchema.optional(),
-  source: external_exports.enum(["spawn", "tell"]),
-  initiator: threadTurnInitiatorSchema,
-  // Non-null only when initiator === "agent". The invariant is enforced by
-  // writer typings rather than a schema refine so legacy persisted events
-  // (initiator: "agent", senderThreadId: null from before the field
-  // existed) still parse — the stored variant defaults both fields.
-  senderThreadId: external_exports.string().nullable(),
-  // Family-B system-message taxonomy fields. Optional at the persisted-event
-  // level: legacy events (pre-taxonomy) lack them and must still parse. The
-  // projection defaults absent values to `unlabeled` / `null`.
-  systemMessageKind: systemMessageKindSchema.optional(),
-  systemMessageSubject: systemMessageSubjectSchema.nullable().optional(),
-  input: external_exports.array(promptInputSchema),
-  inputGroups: external_exports.array(external_exports.array(promptInputSchema).min(1)).min(1).optional(),
-  target: turnRequestTargetSchema,
-  request: external_exports.object({
-    method: external_exports.enum(["thread/start", "turn/start"]),
-    params: external_exports.record(external_exports.string(), external_exports.unknown())
-  }),
-  execution: turnRequestOptionsSchema
-});
-var turnRequestRejectedEventDataSchema = external_exports.object({
-  requestId: clientTurnRequestIdSchema,
-  reason: external_exports.string().min(1),
-  message: external_exports.string().min(1)
-});
-var systemErrorEventDataSchema = external_exports.object({
-  code: external_exports.string().optional(),
-  message: external_exports.string(),
-  detail: external_exports.string().optional(),
-  reconnectAttempt: external_exports.number().int().positive().optional(),
-  reconnectTotal: external_exports.number().int().positive().optional()
-}).superRefine((value, ctx) => {
-  const hasReconnectAttempt = value.reconnectAttempt !== void 0;
-  const hasReconnectTotal = value.reconnectTotal !== void 0;
-  if (hasReconnectAttempt !== hasReconnectTotal) {
-    ctx.addIssue({
-      code: external_exports.ZodIssueCode.custom,
-      message: "system/error reconnectAttempt and reconnectTotal must be provided together"
-    });
-    return;
-  }
-  if (value.reconnectAttempt !== void 0 && value.reconnectTotal !== void 0 && value.reconnectAttempt > value.reconnectTotal) {
-    ctx.addIssue({
-      code: external_exports.ZodIssueCode.custom,
-      message: "system/error reconnectAttempt cannot be greater than reconnectTotal"
-    });
-  }
-});
-var ownershipChangeOperationActionValues = [
-  "assign",
-  "release",
-  "transfer"
-];
-var ownershipChangeOperationActionSchema = external_exports.enum(
-  ownershipChangeOperationActionValues
-);
-var ownershipChangeOperationMetadataSchema = external_exports.object({
-  action: ownershipChangeOperationActionSchema,
-  nextParentThreadId: external_exports.string().nullable(),
-  nextParentThreadTitle: external_exports.string().nullable(),
-  previousParentThreadId: external_exports.string().nullable(),
-  previousParentThreadTitle: external_exports.string().nullable()
-});
-var systemOperationEventDataSchema = external_exports.object({
-  operation: external_exports.string(),
-  status: external_exports.string(),
-  message: external_exports.string(),
-  operationId: external_exports.string(),
-  metadata: external_exports.record(external_exports.string(), jsonValueSchema).optional()
-});
-var systemPermissionGrantLifecycleEventDataSchema = external_exports.object({
-  interactionId: external_exports.string(),
-  providerId: external_exports.string(),
-  providerRequestId: external_exports.string(),
-  status: pendingInteractionStatusSchema,
-  resolution: approvalPendingInteractionResolutionSchema.nullable().default(null),
-  statusReason: external_exports.string().nullable().default(null),
-  subject: pendingInteractionPermissionGrantApprovalSubjectSchema
-});
-var systemUserQuestionLifecycleEventDataSchema = external_exports.object({
-  interactionId: external_exports.string(),
-  providerId: external_exports.string(),
-  providerRequestId: external_exports.string(),
-  status: pendingInteractionStatusSchema,
-  resolution: userQuestionPendingInteractionResolutionSchema.nullable().default(null),
-  statusReason: external_exports.string().nullable().default(null),
-  payload: userQuestionPendingInteractionPayloadSchema
-});
-var systemThreadInterruptedReasonValues = [
-  "manual-stop",
-  "host-daemon-restarted",
-  // Legacy persisted watchdog interruption; retained for read/replay only,
-  // with no current producer.
-  "provider-turn-idle"
-];
-var systemThreadInterruptedReasonSchema = external_exports.enum(
-  systemThreadInterruptedReasonValues
-);
-var systemThreadInterruptedEventDataSchema = external_exports.object({
-  reason: systemThreadInterruptedReasonSchema
-});
-var provisioningTranscriptEntrySchema = external_exports.object({
-  type: external_exports.enum(["step", "output"]),
-  key: external_exports.string(),
-  text: external_exports.string(),
-  startedAt: external_exports.number().optional(),
-  status: external_exports.enum(["started", "completed", "failed"]).optional(),
-  metadata: external_exports.record(external_exports.string(), external_exports.unknown()).optional()
-});
-var systemThreadProvisioningStatusValues = [
-  "active",
-  "completed",
-  "failed",
-  "cancelled"
-];
-var systemThreadProvisioningStatusSchema = external_exports.enum(
-  systemThreadProvisioningStatusValues
-);
-var systemThreadProvisioningEventDataSchema = external_exports.object({
-  provisioningId: external_exports.string(),
-  status: systemThreadProvisioningStatusSchema,
-  environmentId: external_exports.string(),
-  entries: external_exports.array(provisioningTranscriptEntrySchema)
-});
-var systemLegacyUserMessageEventDataSchema = external_exports.object({
-  text: external_exports.string(),
-  toolCallId: external_exports.string().optional(),
-  turnId: external_exports.string().optional()
-});
-var systemProviderTurnWatchdogEventDataSchema = external_exports.object({
-  reason: external_exports.literal("provider-turn-idle"),
-  thresholdMs: external_exports.number().int().positive(),
-  elapsedMs: external_exports.number().int().nonnegative(),
-  activeTurnId: external_exports.string().min(1),
-  activeTurnStartedAt: external_exports.number().int().nonnegative(),
-  lastActivityEventSequence: external_exports.number().int().positive(),
-  /**
-   * Diagnostic label only (the UI interpolates it verbatim). A plain string —
-   * not the activity enum — so editing event classifications never makes
-   * previously persisted watchdog events unparseable.
-   */
-  lastActivityEventType: external_exports.string().min(1),
-  lastActivityEventAt: external_exports.number().int().nonnegative(),
-  providerId: external_exports.string().min(1),
-  providerThreadId: external_exports.string().min(1).nullable(),
-  firedAt: external_exports.number().int().nonnegative()
-});
-
-// packages/domain/src/thread-event-scope.ts
-var threadEventScopeKindValues = ["thread", "turn"];
-var threadEventScopeKindSchema = external_exports.enum(threadEventScopeKindValues);
-var threadEventScopeSchema = external_exports.discriminatedUnion("kind", [
-  external_exports.object({ kind: external_exports.literal("thread") }),
-  external_exports.object({ kind: external_exports.literal("turn"), turnId: external_exports.string().min(1) })
-]);
-var threadEventScopePolicyValues = [
-  "thread",
-  "turn",
-  "thread-or-turn"
-];
-var threadEventScopePolicySchema = external_exports.enum(
-  threadEventScopePolicyValues
-);
-var threadEventScopeDefinitionByType = {
-  "thread/started": {
-    policy: "thread",
-    rationale: "Thread lifecycle event; it creates the thread timeline itself."
-  },
-  "thread/identity": {
-    policy: "thread",
-    rationale: "Thread metadata event; it identifies the provider thread outside turn chronology."
-  },
-  "turn/started": { policy: "turn" },
-  "turn/completed": { policy: "turn" },
-  "turn/input/accepted": { policy: "turn" },
-  "thread/name/updated": {
-    policy: "thread",
-    rationale: "Thread metadata event; names are not part of a specific turn transcript."
-  },
-  "thread/compacted": { policy: "turn" },
-  "thread/context/cleared": { policy: "turn" },
-  "thread/goal/updated": {
-    policy: "thread",
-    rationale: "Thread goal state is current thread metadata, not part of a specific turn transcript."
-  },
-  "thread/goal/cleared": {
-    policy: "thread",
-    rationale: "Thread goal state is current thread metadata, not part of a specific turn transcript."
-  },
-  "item/started": { policy: "turn" },
-  "item/completed": { policy: "turn" },
-  "item/agentMessage/delta": { policy: "turn" },
-  "item/commandExecution/outputDelta": { policy: "turn" },
-  "item/fileChange/outputDelta": { policy: "turn" },
-  "item/reasoning/summaryTextDelta": { policy: "turn" },
-  "item/reasoning/textDelta": { policy: "turn" },
-  "item/plan/delta": { policy: "turn" },
-  "item/mcpToolCall/progress": { policy: "turn" },
-  "item/toolCall/progress": { policy: "turn" },
-  "item/backgroundTask/progress": {
-    policy: "thread",
-    rationale: "Background tasks outlive their spawning turn; thread scope keeps turn windows sequence-contiguous (late progress must not interleave into later turns' ranges)."
-  },
-  "item/backgroundTask/completed": {
-    policy: "thread",
-    rationale: "Terminal task state can arrive turns after the spawning turn completed; thread scope avoids appending into a closed turn's sequence range."
-  },
-  "thread/tokenUsage/updated": { policy: "turn" },
-  "thread/contextWindowUsage/updated": {
-    policy: "thread-or-turn",
-    rationale: "Context usage is session state; providers can report it before, during, or after a turn."
-  },
-  "turn/plan/updated": { policy: "turn" },
-  "turn/diff/updated": { policy: "turn" },
-  "provider/error": {
-    policy: "thread-or-turn",
-    rationale: "Provider diagnostics use thread scope for provider setup/session failures; in-turn failures use turn scope."
-  },
-  "provider/rateLimits/updated": {
-    policy: "thread",
-    rationale: "Subscription usage is account-scoped state that can affect multiple turns and threads."
-  },
-  "provider/warning": {
-    policy: "thread-or-turn",
-    rationale: "Provider warnings use thread scope for config, deprecation, or global notices; turn-specific warnings use turn scope."
-  },
-  "provider/modelFallback": {
-    policy: "thread-or-turn",
-    rationale: "Provider model fallback signals can occur while a turn is active or at session scope before a turn is established."
-  },
-  "provider/unhandled": {
-    policy: "thread-or-turn",
-    rationale: "Unhandled provider events use thread scope only when no active turn context exists; in-turn unknown events use turn scope."
-  },
-  "client/thread/start": {
-    policy: "thread",
-    rationale: "Outbound client lifecycle event; it requests thread creation before any turn exists."
-  },
-  "client/turn/requested": {
-    policy: "thread",
-    rationale: "Outbound client lifecycle event; it records the request before provider turn acceptance."
-  },
-  "client/turn/rejected": {
-    policy: "thread",
-    rationale: "Client request rejection occurs before provider turn acceptance and identifies the request at thread scope."
-  },
-  "client/turn/start": {
-    policy: "thread",
-    rationale: "Outbound client lifecycle event; it records the start request before provider turn acceptance."
-  },
-  "system/error": {
-    policy: "thread-or-turn",
-    rationale: "System errors use thread scope for app, daemon, or session failures outside a turn; turn failures use turn scope."
-  },
-  "system/manager/user_message": {
-    policy: "thread-or-turn",
-    rationale: "Legacy persisted user-visible system messages may be thread-scoped for general updates or turn-scoped for in-turn updates."
-  },
-  "system/thread/interrupted": {
-    policy: "thread",
-    rationale: "Thread stop lifecycle event; it represents user interruption of the whole running thread."
-  },
-  "system/operation": {
-    policy: "thread-or-turn",
-    rationale: "Thread-management operations use thread scope outside provider turns; tool-owned operations use turn scope so the operation stays with the tool call that caused it."
-  },
-  "system/permissionGrant/lifecycle": { policy: "turn" },
-  "system/userQuestion/lifecycle": { policy: "turn" },
-  "system/thread-provisioning": {
-    policy: "thread",
-    rationale: "Workspace provisioning lifecycle event; environment setup belongs to the thread, not a turn."
-  },
-  "system/provider-turn-watchdog": {
-    policy: "thread",
-    rationale: "Legacy persisted watchdog diagnostics are decoded for old timelines only; there is no current producer."
-  }
-};
-function getThreadEventScopePolicyDefinitionEntries() {
-  return Object.entries(threadEventScopeDefinitionByType).map(
-    ([type, definition]) => ({
-      type,
-      definition
-    })
-  );
-}
-function getThreadEventTypesForScopePolicy(policy) {
-  return getThreadEventScopePolicyDefinitionEntries().filter((entry) => entry.definition.policy === policy).map((entry) => entry.type);
-}
-function buildThreadEventScopePolicyByType() {
-  const policies = {};
-  for (const entry of getThreadEventScopePolicyDefinitionEntries()) {
-    policies[entry.type] = entry.definition.policy;
-  }
-  return policies;
-}
-function buildThreadScopeRationaleByType() {
-  const rationales = {};
-  for (const entry of getThreadEventScopePolicyDefinitionEntries()) {
-    if (entry.definition.rationale) {
-      rationales[entry.type] = entry.definition.rationale;
-    }
-  }
-  return rationales;
-}
-var turnOnlyThreadEventTypes = getThreadEventTypesForScopePolicy("turn");
-var threadOnlyThreadEventTypes = getThreadEventTypesForScopePolicy("thread");
-var threadOrTurnThreadEventTypes = getThreadEventTypesForScopePolicy("thread-or-turn");
-var threadEventScopePolicyByType = buildThreadEventScopePolicyByType();
-var threadScopeRationaleByType = buildThreadScopeRationaleByType();
-function validateThreadEventScope(args) {
-  const policy = threadEventScopePolicyByType[args.type];
-  if (policy === "thread-or-turn") {
-    return { valid: true };
-  }
-  if (policy !== args.scope.kind) {
-    return {
-      valid: false,
-      message: `${args.type} requires ${policy} scope but received ${args.scope.kind} scope`
-    };
-  }
-  return { valid: true };
-}
-
-// packages/domain/src/thread-timeline-goal.ts
-var threadTimelineGoalStatusSchema = external_exports.enum([
-  "active",
-  "paused",
-  "budgetLimited",
-  "complete"
-]);
-var threadTimelineGoalSchema = external_exports.object({
-  sourceSeq: external_exports.number().int().nonnegative(),
-  updatedAt: external_exports.number(),
-  objective: external_exports.string(),
-  status: threadTimelineGoalStatusSchema,
-  tokenBudget: external_exports.number().nullable(),
-  tokensUsed: external_exports.number(),
-  timeUsedSeconds: external_exports.number()
-});
-
-// packages/domain/src/provider-event.ts
-var threadEventItemStatusSchema = external_exports.enum([
-  "pending",
-  "completed",
-  "failed",
-  "interrupted"
-]);
-var threadEventItemApprovalStatusSchema = external_exports.enum(["waiting_for_approval", "denied"]).nullable();
-var threadEventTurnStatusSchema = external_exports.enum([
-  "completed",
-  "failed",
-  "interrupted"
-]);
-var providerErrorCategoryValues = [
-  "active-turn-not-steerable",
-  "bad-request",
-  "connection-failed",
-  "context-window-exceeded",
-  "billing",
-  "budget-exceeded",
-  "internal",
-  "max-output-tokens",
-  "max-turns",
-  "overloaded",
-  "policy",
-  "rate-limit",
-  "sandbox",
-  "stream-disconnected",
-  "structured-output-retries",
-  "thread-rollback-failed",
-  "too-many-failed-attempts",
-  "unauthorized",
-  "unknown"
-];
-var providerErrorCategorySchema = external_exports.enum(providerErrorCategoryValues);
-var providerErrorInfoSchema = external_exports.object({
-  category: providerErrorCategorySchema,
-  providerCode: external_exports.string().nullable(),
-  httpStatusCode: external_exports.number().nullable()
-});
-var providerRateLimitStatusSchema = external_exports.enum([
-  "allowed",
-  "warning",
-  "blocked",
-  "unknown"
-]);
-var providerRateLimitWindowSchema = external_exports.object({
-  /** Opaque provider-issued key. New provider windows must not break parsing. */
-  providerKey: external_exports.string().min(1).nullable(),
-  label: external_exports.string().min(1).nullable(),
-  status: providerRateLimitStatusSchema,
-  resetsAtMs: external_exports.number().int().nonnegative().nullable()
-});
-var providerRateLimitStateSchema = external_exports.object({
-  providerId: external_exports.string().min(1),
-  status: providerRateLimitStatusSchema,
-  kind: external_exports.enum(["subscription-window", "credits", "spend-control", "unknown"]),
-  windows: external_exports.array(providerRateLimitWindowSchema),
-  reachedReason: external_exports.string().min(1).nullable(),
-  overageStatus: external_exports.enum(["allowed", "warning", "rejected", "unavailable"]).nullable(),
-  overageReason: external_exports.string().min(1).nullable()
-});
-var threadEventFileChangeKindSchema = external_exports.enum([
-  "add",
-  "delete",
-  "update"
-]);
-var threadEventFileChangeSchema = external_exports.object({
-  path: external_exports.string(),
-  kind: threadEventFileChangeKindSchema,
-  movePath: external_exports.string().optional(),
-  diff: external_exports.string().optional()
-});
-var threadEventPlanStepStatusSchema = external_exports.enum([
-  "pending",
-  "active",
-  "completed",
-  "failed"
-]);
-var threadEventPlanStepSchema = external_exports.object({
-  step: external_exports.string(),
-  status: threadEventPlanStepStatusSchema.optional()
-});
-var threadEventWebSearchItemSchema = external_exports.object({
-  type: external_exports.literal("webSearch"),
-  id: external_exports.string(),
-  queries: external_exports.array(external_exports.string()).min(1),
-  resultText: external_exports.string().nullable(),
-  parentToolCallId: external_exports.string().optional()
-});
-var threadEventWebFetchItemSchema = external_exports.object({
-  type: external_exports.literal("webFetch"),
-  id: external_exports.string(),
-  url: external_exports.string(),
-  prompt: external_exports.string().nullable(),
-  pattern: external_exports.string().nullable(),
-  resultText: external_exports.string().nullable(),
-  parentToolCallId: external_exports.string().optional()
-});
-var threadEventImageViewItemSchema = external_exports.object({
-  type: external_exports.literal("imageView"),
-  id: external_exports.string(),
-  path: external_exports.string(),
-  parentToolCallId: external_exports.string().optional()
-});
-var threadEventTextTruncationSchema = external_exports.object({
-  originalLength: external_exports.number(),
-  retainedHeadLength: external_exports.number(),
-  retainedTailLength: external_exports.number(),
-  truncatedAt: external_exports.number()
-});
-var threadEventItemTruncationSchema = external_exports.object({
-  aggregatedOutput: threadEventTextTruncationSchema.optional(),
-  result: threadEventTextTruncationSchema.optional(),
-  resultText: threadEventTextTruncationSchema.optional()
-});
-var threadEventUserContentSchema = external_exports.discriminatedUnion("type", [
-  external_exports.object({ type: external_exports.literal("text"), text: external_exports.string() }),
-  external_exports.object({ type: external_exports.literal("image"), url: external_exports.string() }),
-  external_exports.object({ type: external_exports.literal("localImage"), path: external_exports.string() }),
-  external_exports.object({ type: external_exports.literal("localFile"), path: external_exports.string() })
-]);
-var threadEventTokenUsageBreakdownSchema = external_exports.object({
-  totalTokens: external_exports.number(),
-  inputTokens: external_exports.number(),
-  cachedInputTokens: external_exports.number(),
-  outputTokens: external_exports.number(),
-  reasoningOutputTokens: external_exports.number()
-});
-var threadEventContextWindowUsageSchema = external_exports.object({
-  usedTokens: external_exports.number().nullable(),
-  modelContextWindow: external_exports.number().nullable(),
-  estimated: external_exports.boolean()
-});
-var threadEventTokenUsageSchema = external_exports.object({
-  total: threadEventTokenUsageBreakdownSchema,
-  last: threadEventTokenUsageBreakdownSchema,
-  modelContextWindow: external_exports.number().nullable()
-});
-var threadEventWarningCategorySchema = external_exports.enum([
-  "deprecation",
-  "config",
-  "general",
-  /**
-   * The provider declined a compaction that bb asked for because there was
-   * nothing to compact. The warning settles the pending compaction row.
-   */
-  "compaction-skipped"
-]);
-var providerRawEventSchema = external_exports.object({
-  jsonrpc: external_exports.literal("2.0"),
-  id: external_exports.union([external_exports.string(), external_exports.number()]).optional(),
-  method: external_exports.string(),
-  params: jsonValueSchema.optional()
-});
-var providerUnhandledEventSchema = external_exports.object({
-  type: external_exports.literal("provider/unhandled"),
-  threadId: external_exports.string(),
-  providerThreadId: external_exports.string(),
-  providerId: external_exports.string(),
-  rawType: external_exports.string(),
-  rawEvent: providerRawEventSchema,
-  parentToolCallId: external_exports.string().optional()
-});
-var toolCallProgressEventSchema = external_exports.object({
-  type: external_exports.literal("item/toolCall/progress"),
-  threadId: external_exports.string(),
-  providerThreadId: external_exports.string(),
-  itemId: external_exports.string(),
-  message: external_exports.string().optional(),
-  parentToolCallId: external_exports.string().optional()
-});
-var threadEventBackgroundTaskItemSchema = external_exports.object({
-  type: external_exports.literal("backgroundTask"),
-  id: external_exports.string(),
-  /** Raw SDK task discriminant (e.g. "local_workflow"); "unknown" when the provider omitted it. */
-  taskType: external_exports.string(),
-  description: external_exports.string(),
-  status: threadEventItemStatusSchema,
-  taskStatus: backgroundTaskStatusSchema,
-  /** Ambient/housekeeping task; consumers hide it from the inline transcript. */
-  skipTranscript: external_exports.boolean(),
-  /** meta.name of the workflow script; only present for workflow tasks. */
-  workflowName: external_exports.string().optional(),
-  /** Merged workflow tree; absent until the provider reports progress records. */
-  workflow: workflowProgressSnapshotSchema.optional(),
-  /** Absent until the provider reports usage. */
-  usage: backgroundTaskUsageSchema.optional(),
-  /** Terminal summary from the provider; absent while the task runs. */
-  summary: external_exports.string().optional(),
-  error: external_exports.string().optional(),
-  outputFile: external_exports.string().optional(),
-  parentToolCallId: external_exports.string().optional()
-});
-var threadEventItemSchema = external_exports.discriminatedUnion("type", [
-  external_exports.object({
-    type: external_exports.literal("userMessage"),
-    id: external_exports.string(),
-    content: external_exports.array(threadEventUserContentSchema),
-    clientRequestId: clientTurnRequestIdSchema.optional(),
-    parentToolCallId: external_exports.string().optional()
-  }).strict(),
-  external_exports.object({
-    type: external_exports.literal("agentMessage"),
-    id: external_exports.string(),
-    text: external_exports.string(),
-    parentToolCallId: external_exports.string().optional()
-  }),
-  external_exports.object({
-    type: external_exports.literal("commandExecution"),
-    id: external_exports.string(),
-    command: external_exports.string(),
-    cwd: external_exports.string(),
-    status: threadEventItemStatusSchema,
-    approvalStatus: threadEventItemApprovalStatusSchema,
-    /**
-     * Omitted when the process produced no stdout/stderr. Adapters should omit
-     * this field instead of emitting an empty string placeholder.
-     */
-    aggregatedOutput: external_exports.string().optional(),
-    exitCode: external_exports.number().optional(),
-    durationMs: external_exports.number().optional(),
-    truncation: threadEventItemTruncationSchema.optional(),
-    parentToolCallId: external_exports.string().optional()
-  }),
-  external_exports.object({
-    type: external_exports.literal("fileChange"),
-    id: external_exports.string(),
-    changes: external_exports.array(threadEventFileChangeSchema),
-    status: threadEventItemStatusSchema,
-    approvalStatus: threadEventItemApprovalStatusSchema,
-    parentToolCallId: external_exports.string().optional()
-  }),
-  threadEventWebSearchItemSchema,
-  threadEventWebFetchItemSchema,
-  threadEventImageViewItemSchema,
-  external_exports.object({
-    type: external_exports.literal("toolCall"),
-    id: external_exports.string(),
-    server: external_exports.string().optional(),
-    tool: external_exports.string(),
-    arguments: external_exports.record(external_exports.string(), external_exports.unknown()).optional(),
-    /** Server-enriched labels for a native plugin tool's timeline row. */
-    statusLabels: external_exports.object({ pending: external_exports.string(), completed: external_exports.string() }).optional(),
-    status: threadEventItemStatusSchema,
-    result: external_exports.unknown().optional(),
-    error: external_exports.string().optional(),
-    durationMs: external_exports.number().optional(),
-    truncation: threadEventItemTruncationSchema.optional(),
-    parentToolCallId: external_exports.string().optional()
-  }),
-  external_exports.object({
-    type: external_exports.literal("reasoning"),
-    id: external_exports.string(),
-    summary: external_exports.array(external_exports.string()),
-    content: external_exports.array(external_exports.string()),
-    parentToolCallId: external_exports.string().optional()
-  }),
-  external_exports.object({
-    type: external_exports.literal("plan"),
-    id: external_exports.string(),
-    text: external_exports.string(),
-    parentToolCallId: external_exports.string().optional()
-  }),
-  external_exports.object({
-    type: external_exports.literal("contextCompaction"),
-    id: external_exports.string(),
-    parentToolCallId: external_exports.string().optional()
-  }),
-  threadEventBackgroundTaskItemSchema
-]);
-var unscopedProviderEventSchema = external_exports.discriminatedUnion("type", [
-  external_exports.object({
-    type: external_exports.literal("thread/started"),
-    threadId: external_exports.string()
-  }),
-  external_exports.object({
-    type: external_exports.literal("thread/identity"),
-    threadId: external_exports.string(),
-    providerThreadId: external_exports.string()
-  }),
-  external_exports.object({
-    type: external_exports.literal("turn/started"),
-    threadId: external_exports.string(),
-    providerThreadId: external_exports.string(),
-    parentToolCallId: external_exports.string().optional()
-  }),
-  external_exports.object({
-    type: external_exports.literal("turn/completed"),
-    threadId: external_exports.string(),
-    // Server reconciliation can synthesize interrupted completions when the
-    // original provider thread id was never persisted.
-    providerThreadId: external_exports.string().nullable(),
-    status: threadEventTurnStatusSchema,
-    error: external_exports.object({ message: external_exports.string() }).optional(),
-    /** Provider-native point through which a replacement branch should retain history. */
-    providerCheckpointId: external_exports.string().min(1).optional()
-  }),
-  external_exports.object({
-    type: external_exports.literal("turn/input/accepted"),
-    threadId: external_exports.string(),
-    providerThreadId: external_exports.string(),
-    clientRequestId: clientTurnRequestIdSchema,
-    scope: threadEventScopeSchema
-  }).strict(),
-  external_exports.object({
-    type: external_exports.literal("thread/name/updated"),
-    threadId: external_exports.string(),
-    providerThreadId: external_exports.string(),
-    threadName: external_exports.string()
-  }),
-  external_exports.object({
-    type: external_exports.literal("thread/compacted"),
-    threadId: external_exports.string(),
-    providerThreadId: external_exports.string()
-  }),
-  external_exports.object({
-    type: external_exports.literal("thread/context/cleared"),
-    threadId: external_exports.string(),
-    providerThreadId: external_exports.string()
-  }),
-  external_exports.object({
-    type: external_exports.literal("thread/goal/updated"),
-    threadId: external_exports.string(),
-    providerThreadId: external_exports.string(),
-    objective: external_exports.string(),
-    status: threadTimelineGoalStatusSchema,
-    tokenBudget: external_exports.number().nullable(),
-    tokensUsed: external_exports.number(),
-    timeUsedSeconds: external_exports.number()
-  }),
-  external_exports.object({
-    type: external_exports.literal("thread/goal/cleared"),
-    threadId: external_exports.string(),
-    providerThreadId: external_exports.string()
-  }),
-  external_exports.object({
-    type: external_exports.literal("item/started"),
-    threadId: external_exports.string(),
-    providerThreadId: external_exports.string(),
-    item: threadEventItemSchema
-  }),
-  external_exports.object({
-    type: external_exports.literal("item/completed"),
-    threadId: external_exports.string(),
-    providerThreadId: external_exports.string(),
-    item: threadEventItemSchema
-  }),
-  external_exports.object({
-    type: external_exports.literal("item/agentMessage/delta"),
-    threadId: external_exports.string(),
-    providerThreadId: external_exports.string(),
-    itemId: external_exports.string(),
-    delta: external_exports.string(),
-    parentToolCallId: external_exports.string().optional()
-  }),
-  external_exports.object({
-    type: external_exports.literal("item/commandExecution/outputDelta"),
-    threadId: external_exports.string(),
-    providerThreadId: external_exports.string(),
-    itemId: external_exports.string(),
-    delta: external_exports.string(),
-    /**
-     * When true, this delta replaces previously accumulated command output
-     * instead of appending to it. Omission means the delta appends.
-     */
-    reset: external_exports.boolean().optional(),
-    parentToolCallId: external_exports.string().optional()
-  }),
-  external_exports.object({
-    type: external_exports.literal("item/fileChange/outputDelta"),
-    threadId: external_exports.string(),
-    providerThreadId: external_exports.string(),
-    itemId: external_exports.string(),
-    delta: external_exports.string(),
-    parentToolCallId: external_exports.string().optional()
-  }),
-  external_exports.object({
-    type: external_exports.literal("item/reasoning/summaryTextDelta"),
-    threadId: external_exports.string(),
-    providerThreadId: external_exports.string(),
-    itemId: external_exports.string(),
-    delta: external_exports.string(),
-    parentToolCallId: external_exports.string().optional()
-  }),
-  external_exports.object({
-    type: external_exports.literal("item/reasoning/textDelta"),
-    threadId: external_exports.string(),
-    providerThreadId: external_exports.string(),
-    itemId: external_exports.string(),
-    delta: external_exports.string(),
-    parentToolCallId: external_exports.string().optional()
-  }),
-  external_exports.object({
-    type: external_exports.literal("item/plan/delta"),
-    threadId: external_exports.string(),
-    providerThreadId: external_exports.string(),
-    itemId: external_exports.string(),
-    delta: external_exports.string(),
-    parentToolCallId: external_exports.string().optional()
-  }),
-  external_exports.object({
-    type: external_exports.literal("item/mcpToolCall/progress"),
-    threadId: external_exports.string(),
-    providerThreadId: external_exports.string(),
-    itemId: external_exports.string(),
-    message: external_exports.string().optional(),
-    parentToolCallId: external_exports.string().optional()
-  }),
-  toolCallProgressEventSchema,
-  /**
-   * Superseding state snapshot for an in-flight background task. Thread-scoped
-   * (not turn-scoped) because tasks outlive their spawning turn: late events
-   * must not interleave into later turns' sequence-contiguous windows. Each
-   * progress event carries the full current item state; consumers replace, not
-   * merge. The item is placed in the timeline by its turn-scoped item/started.
-   */
-  external_exports.object({
-    type: external_exports.literal("item/backgroundTask/progress"),
-    threadId: external_exports.string(),
-    providerThreadId: external_exports.string(),
-    item: threadEventBackgroundTaskItemSchema
-  }),
-  /**
-   * Terminal state for a background task, carrying the full final item
-   * payload. Dedicated event (instead of the generic turn-scoped
-   * item/completed) because it may arrive turns after the item/started.
-   */
-  external_exports.object({
-    type: external_exports.literal("item/backgroundTask/completed"),
-    threadId: external_exports.string(),
-    providerThreadId: external_exports.string(),
-    item: threadEventBackgroundTaskItemSchema
-  }),
-  external_exports.object({
-    type: external_exports.literal("thread/tokenUsage/updated"),
-    threadId: external_exports.string(),
-    providerThreadId: external_exports.string(),
-    tokenUsage: threadEventTokenUsageSchema
-  }),
-  external_exports.object({
-    type: external_exports.literal("thread/contextWindowUsage/updated"),
-    threadId: external_exports.string(),
-    providerThreadId: external_exports.string(),
-    contextWindowUsage: threadEventContextWindowUsageSchema
-  }),
-  external_exports.object({
-    type: external_exports.literal("turn/plan/updated"),
-    threadId: external_exports.string(),
-    providerThreadId: external_exports.string(),
-    plan: external_exports.array(threadEventPlanStepSchema),
-    explanation: external_exports.string().optional()
-  }),
-  external_exports.object({
-    type: external_exports.literal("turn/diff/updated"),
-    threadId: external_exports.string(),
-    providerThreadId: external_exports.string(),
-    diff: external_exports.string().optional()
-  }),
-  external_exports.object({
-    type: external_exports.literal("provider/error"),
-    threadId: external_exports.string(),
-    providerThreadId: external_exports.string(),
-    message: external_exports.string(),
-    detail: external_exports.string().optional(),
-    willRetry: external_exports.boolean().optional(),
-    errorInfo: providerErrorInfoSchema.optional()
-  }),
-  external_exports.object({
-    type: external_exports.literal("provider/rateLimits/updated"),
-    threadId: external_exports.string(),
-    providerThreadId: external_exports.string(),
-    rateLimits: providerRateLimitStateSchema
-  }),
-  external_exports.object({
-    type: external_exports.literal("provider/warning"),
-    threadId: external_exports.string(),
-    providerThreadId: external_exports.string(),
-    category: threadEventWarningCategorySchema,
-    summary: external_exports.string().optional(),
-    details: external_exports.string().optional()
-  }),
-  external_exports.object({
-    type: external_exports.literal("provider/modelFallback"),
-    threadId: external_exports.string(),
-    providerThreadId: external_exports.string(),
-    originalModel: external_exports.string().min(1),
-    fallbackModel: external_exports.string().min(1),
-    reason: external_exports.enum(["refusal", "provider"]),
-    message: external_exports.string()
-  }),
-  providerUnhandledEventSchema
-]);
-var scopedEventDataSchema = external_exports.object({
-  scope: threadEventScopeSchema
-});
-var providerEventSchema = unscopedProviderEventSchema.and(
-  scopedEventDataSchema
-);
-var providerEventTypeValues = unscopedProviderEventSchema.options.map(
-  (option) => option.shape.type.value
-);
-var unscopedSystemEventSchema = external_exports.union([
-  external_exports.object({
-    type: external_exports.literal("client/thread/start"),
-    threadId: external_exports.string()
-  }).merge(clientTurnLifecycleEventDataSchema),
-  external_exports.object({
-    type: external_exports.literal("client/turn/requested"),
-    threadId: external_exports.string()
-  }).merge(turnRequestEventDataSchema),
-  external_exports.object({
-    type: external_exports.literal("client/turn/rejected"),
-    threadId: external_exports.string()
-  }).merge(turnRequestRejectedEventDataSchema),
-  external_exports.object({
-    type: external_exports.literal("client/turn/start"),
-    threadId: external_exports.string()
-  }).merge(clientTurnLifecycleEventDataSchema),
-  external_exports.object({
-    type: external_exports.literal("system/error"),
-    threadId: external_exports.string()
-  }).merge(systemErrorEventDataSchema),
-  external_exports.object({
-    type: external_exports.literal("system/manager/user_message"),
-    threadId: external_exports.string()
-  }).merge(systemLegacyUserMessageEventDataSchema),
-  external_exports.object({
-    type: external_exports.literal("system/thread/interrupted"),
-    threadId: external_exports.string()
-  }).merge(systemThreadInterruptedEventDataSchema),
-  external_exports.object({
-    type: external_exports.literal("system/operation"),
-    threadId: external_exports.string()
-  }).merge(systemOperationEventDataSchema),
-  external_exports.object({
-    type: external_exports.literal("system/permissionGrant/lifecycle"),
-    threadId: external_exports.string()
-  }).merge(systemPermissionGrantLifecycleEventDataSchema),
-  external_exports.object({
-    type: external_exports.literal("system/userQuestion/lifecycle"),
-    threadId: external_exports.string()
-  }).merge(systemUserQuestionLifecycleEventDataSchema),
-  external_exports.object({
-    type: external_exports.literal("system/thread-provisioning"),
-    threadId: external_exports.string()
-  }).merge(systemThreadProvisioningEventDataSchema),
-  external_exports.object({
-    type: external_exports.literal("system/provider-turn-watchdog"),
-    threadId: external_exports.string()
-  }).merge(systemProviderTurnWatchdogEventDataSchema)
-]);
-var systemEventSchema = unscopedSystemEventSchema.and(
-  scopedEventDataSchema
-);
-var eventPropertyBagSchema = external_exports.record(external_exports.string(), external_exports.unknown());
-var legacyClientRequestKey = ["clientRequest", "Sequence"].join("");
-var rejectLegacyClientRequestSequenceSchema = external_exports.unknown().superRefine((value, ctx) => {
-  const eventResult = eventPropertyBagSchema.safeParse(value);
-  if (!eventResult.success) {
-    return;
-  }
-  if (Object.hasOwn(eventResult.data, legacyClientRequestKey)) {
-    ctx.addIssue({
-      code: external_exports.ZodIssueCode.custom,
-      message: "legacy request sequence field is no longer accepted",
-      path: [legacyClientRequestKey]
-    });
-  }
-  const itemResult = eventPropertyBagSchema.safeParse(eventResult.data.item);
-  if (itemResult.success && itemResult.data.type === "userMessage" && Object.hasOwn(itemResult.data, legacyClientRequestKey)) {
-    ctx.addIssue({
-      code: external_exports.ZodIssueCode.custom,
-      message: "legacy user-message request sequence field is no longer accepted",
-      path: ["item", legacyClientRequestKey]
-    });
-  }
-});
-var threadEventSchema = rejectLegacyClientRequestSequenceSchema.pipe(
-  external_exports.union([providerEventSchema, systemEventSchema]).superRefine((event, ctx) => {
-    const result = validateThreadEventScope({
-      type: event.type,
-      scope: event.scope
-    });
-    if (!result.valid) {
-      ctx.addIssue({
-        code: external_exports.ZodIssueCode.custom,
-        message: result.message ?? "Invalid thread event scope",
-        path: ["scope"]
-      });
-      return;
-    }
-  })
-);
-var threadEventTypeValues = [
-  ...providerEventTypeValues,
-  ...systemEventTypeValues
-];
-var threadEventTypeSet = new Set(threadEventTypeValues);
-var threadEventTypeSchema = external_exports.string().refine(
-  (value) => threadEventTypeSet.has(value),
-  "Invalid thread event type"
-);
-
-// packages/domain/src/change-kinds.ts
-var THREAD_CHANGE_KINDS = [
-  "thread-created",
-  "thread-deleted",
-  "events-appended",
-  "history-rewritten",
-  "interactions-changed",
-  "status-changed",
-  "title-changed",
-  "queue-changed",
-  "archived-changed",
-  "pin-state-changed",
-  "parent-changed",
-  "environment-changed",
-  "read-state-changed",
-  "order-changed",
-  "tabs-changed",
-  "terminals-changed"
-];
-var PROJECT_CHANGE_KINDS = [
-  "project-created",
-  "project-updated",
-  "project-deleted",
-  "project-sources-changed",
-  "threads-changed",
-  "project-order-changed"
-];
-var ENVIRONMENT_CHANGE_KINDS = [
-  "environment-created",
-  "environment-deleted",
-  "metadata-changed",
-  "status-changed",
-  "work-status-changed",
-  "git-refs-changed",
-  "thread-storage-changed"
-];
-var HOST_CHANGE_KINDS = [
-  "host-connected",
-  "host-disconnected"
-];
-var SYSTEM_CHANGE_KINDS = [
-  "config-changed",
-  "plugins-changed",
-  "provider-registrations-changed"
-];
-var threadChangeKindSchema = external_exports.enum(THREAD_CHANGE_KINDS);
-var projectChangeKindSchema = external_exports.enum(PROJECT_CHANGE_KINDS);
-var environmentChangeKindSchema = external_exports.enum(ENVIRONMENT_CHANGE_KINDS);
-var hostChangeKindSchema = external_exports.enum(HOST_CHANGE_KINDS);
-var systemChangeKindSchema = external_exports.enum(SYSTEM_CHANGE_KINDS);
-var realtimeSubscriptionTargetSchema = external_exports.discriminatedUnion("kind", [
-  external_exports.object({
-    kind: external_exports.literal("thread-detail"),
-    threadId: external_exports.string().min(1)
-  }).strict(),
-  external_exports.object({
-    kind: external_exports.literal("thread-list")
-  }).strict(),
-  external_exports.object({
-    kind: external_exports.literal("project-detail"),
-    projectId: external_exports.string().min(1)
-  }).strict(),
-  external_exports.object({
-    kind: external_exports.literal("project-list")
-  }).strict(),
-  external_exports.object({
-    kind: external_exports.literal("environment-detail"),
-    environmentId: external_exports.string().min(1)
-  }).strict(),
-  external_exports.object({
-    kind: external_exports.literal("environment-list")
-  }).strict(),
-  external_exports.object({
-    kind: external_exports.literal("host-detail"),
-    hostId: external_exports.string().min(1)
-  }).strict(),
-  external_exports.object({
-    kind: external_exports.literal("host-list")
-  }).strict(),
-  external_exports.object({
-    kind: external_exports.literal("system")
-  }).strict()
-]);
-var subscribeMessageSchema = external_exports.object({
-  type: external_exports.literal("subscribe"),
-  target: realtimeSubscriptionTargetSchema
-});
-var unsubscribeMessageSchema = external_exports.object({
-  type: external_exports.literal("unsubscribe"),
-  target: realtimeSubscriptionTargetSchema
-});
-var clientMessageSchema = external_exports.discriminatedUnion("type", [
-  subscribeMessageSchema,
-  unsubscribeMessageSchema
-]);
-var threadChangeMetadataSchema = external_exports.object({
-  backgroundActivityChanged: external_exports.boolean().optional(),
-  eventTypes: external_exports.array(threadEventTypeSchema).readonly().optional(),
-  hasPendingInteraction: external_exports.boolean().optional(),
-  projectId: external_exports.string().optional()
-}).strict();
-var threadChangedMessageSchema = external_exports.object({
-  type: external_exports.literal("changed"),
-  entity: external_exports.literal("thread"),
-  id: external_exports.string().optional(),
-  metadata: threadChangeMetadataSchema.optional(),
-  changes: external_exports.array(threadChangeKindSchema).readonly()
-}).strict();
-var projectChangedMessageSchema = external_exports.object({
-  type: external_exports.literal("changed"),
-  entity: external_exports.literal("project"),
-  id: external_exports.string().optional(),
-  changes: external_exports.array(projectChangeKindSchema).readonly()
-}).strict();
-var environmentChangedMessageSchema = external_exports.object({
-  type: external_exports.literal("changed"),
-  entity: external_exports.literal("environment"),
-  id: external_exports.string().optional(),
-  changes: external_exports.array(environmentChangeKindSchema).readonly()
-}).strict();
-var hostChangedMessageSchema = external_exports.object({
-  type: external_exports.literal("changed"),
-  entity: external_exports.literal("host"),
-  id: external_exports.string().optional(),
-  changes: external_exports.array(hostChangeKindSchema).readonly()
-}).strict();
-var systemChangedMessageSchema = external_exports.object({
-  type: external_exports.literal("changed"),
-  entity: external_exports.literal("system"),
-  changes: external_exports.array(systemChangeKindSchema).readonly()
-}).strict();
-var changedMessageSchema = external_exports.discriminatedUnion("entity", [
-  threadChangedMessageSchema,
-  projectChangedMessageSchema,
-  environmentChangedMessageSchema,
-  hostChangedMessageSchema,
-  systemChangedMessageSchema
-]);
-function lenientKinds(kinds) {
-  const known = new Set(kinds);
-  return external_exports.array(external_exports.string()).transform(
-    (values) => values.filter((value) => known.has(value))
-  );
-}
-var knownThreadEventTypes = new Set(
-  threadEventTypeValues
-);
-var threadChangeMetadataLenientSchema = external_exports.object({
-  backgroundActivityChanged: external_exports.boolean().optional(),
-  eventTypes: external_exports.array(external_exports.string()).transform(
-    (values) => values.filter(
-      (value) => knownThreadEventTypes.has(value)
-    )
-  ).optional(),
-  hasPendingInteraction: external_exports.boolean().optional(),
-  projectId: external_exports.string().optional()
-});
-var threadChangedMessageLenientSchema = external_exports.object({
-  type: external_exports.literal("changed"),
-  entity: external_exports.literal("thread"),
-  id: external_exports.string().optional(),
-  metadata: threadChangeMetadataLenientSchema.optional(),
-  changes: lenientKinds(THREAD_CHANGE_KINDS)
-});
-var projectChangedMessageLenientSchema = external_exports.object({
-  type: external_exports.literal("changed"),
-  entity: external_exports.literal("project"),
-  id: external_exports.string().optional(),
-  changes: lenientKinds(PROJECT_CHANGE_KINDS)
-});
-var environmentChangedMessageLenientSchema = external_exports.object({
-  type: external_exports.literal("changed"),
-  entity: external_exports.literal("environment"),
-  id: external_exports.string().optional(),
-  changes: lenientKinds(ENVIRONMENT_CHANGE_KINDS)
-});
-var hostChangedMessageLenientSchema = external_exports.object({
-  type: external_exports.literal("changed"),
-  entity: external_exports.literal("host"),
-  id: external_exports.string().optional(),
-  changes: lenientKinds(HOST_CHANGE_KINDS)
-});
-var systemChangedMessageLenientSchema = external_exports.object({
-  type: external_exports.literal("changed"),
-  entity: external_exports.literal("system"),
-  changes: lenientKinds(SYSTEM_CHANGE_KINDS)
-});
-var changedMessageLenientSchema = external_exports.discriminatedUnion("entity", [
-  threadChangedMessageLenientSchema,
-  projectChangedMessageLenientSchema,
-  environmentChangedMessageLenientSchema,
-  hostChangedMessageLenientSchema,
-  systemChangedMessageLenientSchema
-]);
-
-// packages/domain/src/claude-task-tools.ts
-var claudeTaskToolNameValues = [
-  "TaskCreate",
-  "TaskGet",
-  "TaskList",
-  "TaskUpdate"
-];
-var claudeTaskToolNameSchema = external_exports.enum(claudeTaskToolNameValues);
-var claudeTaskStatusValues = [
-  "pending",
-  "in_progress",
-  "completed"
-];
-var claudeTaskStatusSchema = external_exports.enum(claudeTaskStatusValues);
-var claudeTaskUpdateStatusValues = [
-  ...claudeTaskStatusValues,
-  "deleted"
-];
-var claudeTaskUpdateStatusSchema = external_exports.enum(
-  claudeTaskUpdateStatusValues
-);
-var claudeTaskListStatusValues = [
-  ...claudeTaskStatusValues,
-  "deleted"
-];
-var claudeTaskListStatusSchema = external_exports.enum(claudeTaskListStatusValues);
-var claudeTaskCreateArgsSchema = external_exports.object({
-  activeForm: external_exports.string().optional(),
-  subject: external_exports.string()
-}).passthrough();
-var claudeTaskGetArgsSchema = external_exports.object({
-  taskId: external_exports.string()
-}).passthrough();
-var claudeTaskUpdateArgsSchema = external_exports.object({
-  activeForm: external_exports.string().optional(),
-  status: claudeTaskUpdateStatusSchema.optional(),
-  subject: external_exports.string().optional(),
-  taskId: external_exports.string()
-}).passthrough();
-var claudeTaskCreateOutputSchema = external_exports.object({
-  task: external_exports.object({
-    id: external_exports.string(),
-    subject: external_exports.string()
-  }).passthrough()
-}).passthrough();
-var claudeTaskGetOutputTaskSchema = external_exports.object({
-  id: external_exports.string(),
-  status: claudeTaskStatusSchema,
-  subject: external_exports.string()
-}).passthrough();
-var claudeTaskGetOutputSchema = external_exports.object({
-  task: claudeTaskGetOutputTaskSchema.nullable()
-}).passthrough();
-var claudeTaskUpdateOutputSchema = external_exports.object({
-  success: external_exports.boolean(),
-  taskId: external_exports.string()
-}).passthrough();
-var claudeTaskListItemSchema = external_exports.object({
-  id: external_exports.string(),
-  status: claudeTaskListStatusSchema,
-  subject: external_exports.string()
-}).passthrough();
-var claudeTaskListOutputSchema = external_exports.object({
-  tasks: external_exports.array(external_exports.unknown())
-}).passthrough();
-var claudeTaskToolOutputSchema = external_exports.union([
-  claudeTaskCreateOutputSchema,
-  claudeTaskGetOutputSchema,
-  claudeTaskListOutputSchema,
-  claudeTaskUpdateOutputSchema
-]);
-
-// packages/domain/src/environment.ts
-var environmentStatusValues = [
-  "provisioning",
-  "ready",
-  "retiring",
-  "error",
-  "destroying",
-  "destroyed"
-];
-var environmentStatusSchema = external_exports.enum(environmentStatusValues);
-var WORKSPACE_PROVISION_TYPES = [
-  "unmanaged",
-  "managed-worktree",
-  "personal"
-];
-var workspaceProvisionTypeSchema = external_exports.enum(WORKSPACE_PROVISION_TYPES);
-var environmentWorkspaceDisplayKindValues = [
-  "managed-worktree",
-  "unmanaged-worktree",
-  "other"
-];
-var environmentWorkspaceDisplayKindSchema = external_exports.enum(
-  environmentWorkspaceDisplayKindValues
-);
-var discoveredWorkspacePropertiesSchema = external_exports.object({
-  path: external_exports.string().min(1),
-  isGitRepo: external_exports.boolean(),
-  isWorktree: external_exports.boolean(),
-  branchName: external_exports.string().nullable(),
-  defaultBranch: external_exports.string().nullable()
-});
-var environmentSchema = external_exports.object({
-  id: external_exports.string(),
-  name: external_exports.string().nullable(),
-  projectId: external_exports.string(),
-  hostId: external_exports.string(),
-  path: external_exports.string().nullable(),
-  managed: external_exports.boolean(),
-  isGitRepo: external_exports.boolean(),
-  isWorktree: external_exports.boolean(),
-  workspaceProvisionType: workspaceProvisionTypeSchema,
-  branchName: external_exports.string().nullable(),
-  baseBranch: external_exports.string().nullable(),
-  defaultBranch: external_exports.string().nullable(),
-  mergeBaseBranch: external_exports.string().nullable(),
-  status: environmentStatusSchema,
-  createdAt: external_exports.number(),
-  updatedAt: external_exports.number()
-});
-
-// packages/domain/src/experiments.ts
-var experimentKeys = [
-  "claudeCodeMockCliTraffic",
-  "editMessages",
-  "newOnboarding",
-  "providerSessionReaping"
-];
-var experimentKeySchema = external_exports.enum(experimentKeys);
-var experimentsSchema = external_exports.record(experimentKeySchema, external_exports.boolean());
-
-// packages/domain/src/feature-flags.ts
-var featureFlagsSchema = external_exports.object({
-  placeholder: external_exports.boolean(),
-  /**
-   * Max events a single thread-timeline window may span.
-   *
-   * A window is otherwise bounded only by segment (user-message) count, which
-   * is a weak bound on work: an agentic turn can be thousands of events, so a
-   * thread with few user messages and a long history reprojects all of it on
-   * every request and blocks the server's event loop.
-   *
-   * Operator escape hatch rather than a product knob — raising it far above the
-   * default restores the old unbounded-in-practice behavior without a second
-   * code path.
-   */
-  timelineWindowEventBudget: external_exports.number().int().positive()
-});
-
-// packages/domain/src/git-checkout.ts
-var gitBranchForbiddenCharacterPattern = /[\u0000-\u001f\u007f\\:~^?*\[]/u;
-var gitBranchWhitespacePattern = /[ \t]/u;
-var gitReservedBranchNames = /* @__PURE__ */ new Set([
-  "AUTO_MERGE",
-  "BISECT_HEAD",
-  "CHERRY_PICK_HEAD",
-  "FETCH_HEAD",
-  "HEAD",
-  "MERGE_HEAD",
-  "ORIG_HEAD",
-  "REVERT_HEAD"
-]);
-function isValidGitBranchName(name) {
-  const components = name.split("/");
-  return name.length > 0 && name.trim().length > 0 && !name.startsWith("-") && !name.startsWith("/") && name !== "@" && !gitReservedBranchNames.has(name) && !gitBranchForbiddenCharacterPattern.test(name) && !gitBranchWhitespacePattern.test(name) && !name.includes("..") && !name.includes("@{") && !name.includes("//") && !name.endsWith("/") && !name.endsWith(".") && components.every(
-    (component) => component.length > 0 && !component.startsWith(".") && !component.endsWith(".lock")
-  );
-}
-var gitBranchNameSchema = external_exports.string().refine(isValidGitBranchName, { message: "Invalid git branch name" });
-var gitCheckoutRefSchema = external_exports.discriminatedUnion("kind", [
-  external_exports.object({
-    kind: external_exports.literal("branch"),
-    branchName: external_exports.string().min(1),
-    headSha: external_exports.string().min(1).nullable()
-  }),
-  external_exports.object({
-    kind: external_exports.literal("detached"),
-    headSha: external_exports.string().min(1).nullable()
-  }),
-  external_exports.object({
-    kind: external_exports.literal("unborn"),
-    branchName: external_exports.string().min(1).nullable()
-  }),
-  external_exports.object({
-    kind: external_exports.literal("unknown"),
-    reason: external_exports.string().min(1)
-  })
-]);
-var workspaceGitOperationSchema = external_exports.discriminatedUnion("kind", [
-  external_exports.object({ kind: external_exports.literal("none") }),
-  external_exports.object({
-    kind: external_exports.literal("merge"),
-    hasConflicts: external_exports.boolean()
-  }),
-  external_exports.object({
-    kind: external_exports.literal("rebase"),
-    hasConflicts: external_exports.boolean()
-  }),
-  external_exports.object({
-    kind: external_exports.literal("cherry-pick"),
-    hasConflicts: external_exports.boolean()
-  }),
-  external_exports.object({
-    kind: external_exports.literal("revert"),
-    hasConflicts: external_exports.boolean()
-  }),
-  external_exports.object({
-    kind: external_exports.literal("unknown"),
-    reason: external_exports.string().min(1),
-    hasConflicts: external_exports.boolean()
-  })
-]);
-var gitBranchRefClassificationSchema = external_exports.object({
-  name: external_exports.string().min(1),
-  kind: external_exports.enum(["local", "remote", "missing"])
-});
-var defaultBranchRelationSchema = external_exports.enum([
-  "equal",
-  "local-behind",
-  "local-ahead",
-  "diverged",
-  "unknown"
-]);
-var projectSourceCheckoutSchema = external_exports.object({
-  /** Local branches under refs/heads, safe for checkout and write targets. */
-  branches: external_exports.array(external_exports.string()),
-  branchesTruncated: external_exports.boolean(),
-  checkout: gitCheckoutRefSchema,
-  defaultBranch: external_exports.string().min(1).nullable(),
-  defaultBranchRelation: defaultBranchRelationSchema.nullable(),
-  hasUncommittedChanges: external_exports.boolean(),
-  operation: workspaceGitOperationSchema,
-  originDefaultBranch: external_exports.string().min(1).nullable(),
-  /** Remote-tracking branches under refs/remotes, for base/diff selection. */
-  remoteBranches: external_exports.array(external_exports.string()),
-  remoteBranchesTruncated: external_exports.boolean(),
-  /**
-   * Exact classification of the requested branch/ref, resolved before branch
-   * list pagination so callers can validate selected refs even when they are
-   * not present in the current page.
-   */
-  selectedBranch: gitBranchRefClassificationSchema.nullable()
-});
-
-// packages/domain/src/host.ts
-var hostTypeValues = ["persistent"];
-var hostTypeSchema = external_exports.enum(hostTypeValues);
-var hostStatusValues = ["connected", "disconnected"];
-var hostStatusSchema = external_exports.enum(hostStatusValues);
-var hostSchema = external_exports.object({
-  id: external_exports.string(),
-  name: external_exports.string(),
-  type: hostTypeSchema,
-  status: hostStatusSchema,
-  /**
-   * Permission ceiling for work that runs on this machine. Threads resolve
-   * down to this mode, so a sandbox machine can stay at "full" while a
-   * personal laptop refuses to go above "accept-edits". Only an owner session
-   * changes it; machine credentials cannot (see the hosts routes).
-   */
-  maxPermissionMode: permissionModeSchema,
-  lastSeenAt: external_exports.number().nullable(),
-  lastRejectedProtocolVersion: external_exports.number().int().positive().nullable(),
-  createdAt: external_exports.number(),
-  updatedAt: external_exports.number()
-});
-
 // packages/domain/src/plugin-id.ts
+var pluginIdSchema = external_exports.string().regex(/^[a-z0-9][a-z0-9-]*$/u);
 function derivePluginId(packageName) {
   const base = packageName.includes("/") ? packageName.split("/").at(-1) ?? packageName : packageName;
   const id = base.replace(/^bb-plugin-/, "").toLowerCase().replace(/[^a-z0-9-]/g, "-").replace(/^-+|-+$/g, "");
@@ -18255,21 +16282,54 @@ function derivePluginId(packageName) {
 function isPluginOwnedIconPath(icon) {
   return icon.startsWith("./");
 }
+var PLUGIN_ICON_NAME_PATTERN = /^[a-z0-9][a-z0-9-]*$/u;
+var PLUGIN_ICON_NAME_MAX_LENGTH = 48;
+var PLUGIN_ICON_MAX_BYTES = 32 * 1024;
+var PLUGIN_ICONS_MAX_COUNT = 64;
+var NAMESPACED_GLYPH_PATTERN = /^[a-z0-9-]+\/[a-z0-9][a-z0-9-]*$/u;
+function isNamespacedGlyph(glyph) {
+  return NAMESPACED_GLYPH_PATTERN.test(glyph);
+}
 
 // packages/domain/src/plugin-manifest.ts
 var requiredManifestString = external_exports.string().trim().min(1);
+var pluginBrandingIconsSchema = external_exports.record(
+  external_exports.string().max(
+    PLUGIN_ICON_NAME_MAX_LENGTH,
+    `icon names are at most ${PLUGIN_ICON_NAME_MAX_LENGTH} characters`
+  ).regex(
+    PLUGIN_ICON_NAME_PATTERN,
+    'icon names use lowercase letters, digits and "-", starting with a letter or digit'
+  ),
+  requiredManifestString.refine(
+    (path2) => isPluginOwnedIconPath(path2) && path2.toLowerCase().endsWith(".svg"),
+    {
+      message: 'icon paths are plugin-relative .svg files starting with "./" (for example "./icons/receipt.svg")'
+    }
+  )
+).refine((icons) => Object.keys(icons).length <= PLUGIN_ICONS_MAX_COUNT, {
+  message: `a plugin declares at most ${PLUGIN_ICONS_MAX_COUNT} icons`
+});
 var pluginBrandingSchema = external_exports.object({
   icon: requiredManifestString.optional(),
   logo: external_exports.object({
     light: requiredManifestString,
     dark: requiredManifestString.optional()
-  }).strict().optional()
+  }).strict().optional(),
+  experimental_icons: pluginBrandingIconsSchema.optional()
 }).strict().superRefine((branding, context) => {
   if (branding.icon !== void 0 && isPluginOwnedIconPath(branding.icon) && !branding.icon.toLowerCase().endsWith(".svg")) {
     context.addIssue({
       code: "custom",
       path: ["icon"],
       message: 'plugin-owned branding.icon paths must point at an .svg file (for example "./assets/icon.svg")'
+    });
+  }
+  if (branding.icon !== void 0 && isNamespacedGlyph(branding.icon)) {
+    context.addIssue({
+      code: "custom",
+      path: ["icon"],
+      message: `"${branding.icon}" is a namespaced glyph ("<pluginId>/<name>"), which names a declared icon from a tool presentation or a provider declaration; branding.icon is the plugin's own mark, so name a host glyph ("Zap") or the SVG file itself ("./icons/logo.svg")`
     });
   }
 }).refine(
@@ -18307,650 +16367,11 @@ var pluginPackageJsonSchema = external_exports.object({
 }).passthrough();
 
 // packages/domain/src/plugin-sdk-version.ts
-var PLUGIN_SDK_VERSION = "0.4.8";
+var PLUGIN_SDK_VERSION = "0.5.9";
 var PLUGIN_SDK_MAJOR = Number(PLUGIN_SDK_VERSION.split(".", 1)[0]);
 
-// packages/domain/src/project.ts
-var projectKindValues = ["standard", "personal"];
-var projectKindSchema = external_exports.enum(projectKindValues);
-var projectSchema = external_exports.object({
-  id: external_exports.string(),
-  kind: projectKindSchema,
-  name: external_exports.string(),
-  gitRemoteUrl: external_exports.string().nullable(),
-  createdAt: external_exports.number(),
-  updatedAt: external_exports.number()
-});
-var projectSourceTypeValues = ["local_path"];
-var projectSourceTypeSchema = external_exports.enum(projectSourceTypeValues);
-var baseProjectSourceSchema = external_exports.object({
-  id: external_exports.string(),
-  projectId: external_exports.string(),
-  isDefault: external_exports.boolean(),
-  createdAt: external_exports.number(),
-  updatedAt: external_exports.number()
-});
-var localPathProjectSourceSchema = baseProjectSourceSchema.extend({
-  type: external_exports.literal("local_path"),
-  hostId: external_exports.string(),
-  path: external_exports.string()
-});
-
-// packages/domain/src/prompt-history.ts
-var promptHistoryScopeValues = ["project", "thread"];
-var promptHistoryScopeSchema = external_exports.enum(promptHistoryScopeValues);
-var promptHistoryEntrySchema = external_exports.object({
-  id: external_exports.string().min(1),
-  createdAt: external_exports.number(),
-  input: external_exports.array(promptInputSchema).min(1)
-});
-
-// packages/domain/src/provider-fork.ts
-var PROVIDER_FORK_VALUES = ["none", "tip", "checkpoint"];
-var providerForkSchema = external_exports.enum(PROVIDER_FORK_VALUES);
-
-// packages/domain/src/provider-types.ts
-var modelReasoningEffortSchema = external_exports.object({
-  reasoningEffort: reasoningLevelSchema,
-  description: external_exports.string()
-});
-var availableModelSchema = external_exports.object({
-  id: external_exports.string(),
-  model: external_exports.string(),
-  displayName: external_exports.string(),
-  /** Provider route used to run this model when it is distinct from the
-   * selected agent provider (for example, a model provider nested under Pi). */
-  routeProviderId: external_exports.string().min(1).optional(),
-  description: external_exports.string(),
-  supportedReasoningEfforts: external_exports.array(modelReasoningEffortSchema),
-  defaultReasoningEffort: reasoningLevelSchema,
-  isDefault: external_exports.boolean()
-});
-var providerCapabilitiesSchema = external_exports.object({
-  supportsThreadArchive: external_exports.boolean(),
-  supportsThreadRename: external_exports.boolean(),
-  supportsServiceTier: external_exports.boolean(),
-  supportsNativeUserQuestion: external_exports.boolean(),
-  supportsFork: external_exports.boolean(),
-  /**
-   * The provider can recreate a session at an earlier point, which is what
-   * edit-past-message rewind needs. Separate from `supportsFork`: ACP clones
-   * whole sessions (tip-only) and cannot stop at a checkpoint.
-   */
-  supportsSessionRewind: external_exports.boolean(),
-  permissionModes: external_exports.array(permissionModeSchema).min(1)
-});
-var providerComposerCommandSchema = external_exports.object({
-  trigger: promptMentionCommandTriggerSchema,
-  name: external_exports.string().min(1).regex(/^[^\s/$]+$/u),
-  trailingText: external_exports.string().regex(/^\s*$/u)
-});
-var providerComposerActionSchema = external_exports.discriminatedUnion("kind", [
-  external_exports.object({
-    kind: external_exports.literal("skills"),
-    trigger: promptMentionCommandTriggerSchema
-  }),
-  external_exports.object({
-    kind: external_exports.literal("plan"),
-    command: providerComposerCommandSchema
-  }),
-  external_exports.object({
-    kind: external_exports.literal("goal"),
-    command: providerComposerCommandSchema
-  })
-]);
-var providerInfoSchema = external_exports.object({
-  id: external_exports.string(),
-  displayName: external_exports.string(),
-  logoUrl: external_exports.string().min(1).nullable(),
-  capabilities: providerCapabilitiesSchema,
-  composerActions: external_exports.array(providerComposerActionSchema),
-  available: external_exports.boolean()
-});
-var toolCallOutputItemSchema = external_exports.discriminatedUnion("type", [
-  external_exports.object({
-    type: external_exports.literal("inputText"),
-    text: external_exports.string()
-  }),
-  external_exports.object({
-    type: external_exports.literal("inputImage"),
-    imageUrl: external_exports.string()
-  })
-]);
-var toolCallRequestSchema = external_exports.object({
-  requestId: external_exports.union([external_exports.string().min(1), external_exports.number()]),
-  threadId: external_exports.string().min(1),
-  providerThreadId: external_exports.string().min(1),
-  turnId: external_exports.string().min(1),
-  callId: external_exports.string().min(1),
-  tool: external_exports.string().min(1),
-  arguments: external_exports.unknown().optional()
-});
-var toolCallResponseSchema = external_exports.object({
-  contentItems: external_exports.array(toolCallOutputItemSchema),
-  success: external_exports.boolean()
-});
-var dynamicToolSchema = external_exports.object({
-  name: external_exports.string(),
-  description: external_exports.string(),
-  inputSchema: external_exports.unknown()
-});
-
-// packages/domain/src/raw-thread-id.ts
-var GENERATED_ID_ALPHABET = "23456789abcdefghijkmnpqrstuvwxyz";
-var GENERATED_ID_SUFFIX_LENGTH = 10;
-var THREAD_ID_PREFIX = "thr_";
-var RAW_THREAD_ID_PATTERN_SOURCE = `${THREAD_ID_PREFIX}[${GENERATED_ID_ALPHABET}]{${GENERATED_ID_SUFFIX_LENGTH}}`;
-var rawThreadIdPattern = new RegExp(`^${RAW_THREAD_ID_PATTERN_SOURCE}$`, "u");
-var rawThreadIdSchema = external_exports.string().regex(rawThreadIdPattern);
-
-// packages/domain/src/stored-thread-event.ts
-var threadEventRowInputSchema = external_exports.object({
-  id: external_exports.string(),
-  scope: threadEventScopeSchema,
-  threadId: external_exports.string(),
-  seq: external_exports.number(),
-  type: threadEventTypeSchema,
-  data: external_exports.record(external_exports.string(), external_exports.unknown()),
-  createdAt: external_exports.number()
-});
-var storedTurnRequestTypeSet = /* @__PURE__ */ new Set([
-  "client/turn/requested"
-]);
-var LEGACY_TURN_REQUEST_TARGET = {
-  kind: "new-turn"
-};
-var storedTurnRequestEventDataSchema = turnRequestEventDataSchema.extend({
-  senderThreadId: external_exports.string().nullable().default(null),
-  target: turnRequestTargetSchema.default(LEGACY_TURN_REQUEST_TARGET),
-  // Family-B taxonomy fields are new, so pre-change rows lack them. Default to
-  // the generic `unlabeled` / no-subject shape here so old rows load without a
-  // backfill migration — same pattern as `senderThreadId`.
-  systemMessageKind: systemMessageKindSchema.default("unlabeled"),
-  systemMessageSubject: systemMessageSubjectSchema.nullable().default(null)
-});
-function parseStoredTurnRequestEventData(args) {
-  return storedTurnRequestEventDataSchema.parse(args.data);
-}
-function toStoredThreadEventData(event) {
-  const { scope: _scope, threadId: _threadId, type: _type, ...data } = event;
-  return data;
-}
-function omitStoredScopeFields(data) {
-  const { scope: _scope, turnId: _turnId, ...rest } = data;
-  return rest;
-}
-function parseStoredThreadEvent(args) {
-  const scopeResult = threadEventScopeSchema.safeParse(args.scope);
-  if (!scopeResult.success) {
-    throw new Error("Stored thread event is missing valid scope");
-  }
-  const scope = scopeResult.data;
-  const eventData = storedTurnRequestTypeSet.has(args.type) ? parseStoredTurnRequestEventData(args) : args.data;
-  return threadEventSchema.parse({
-    ...omitStoredScopeFields(eventData),
-    ...args.providerThreadId != null ? { providerThreadId: args.providerThreadId } : {},
-    scope,
-    threadId: args.threadId,
-    type: args.type
-  });
-}
-function buildThreadEventRow(args) {
-  const { event, ...row } = args;
-  return {
-    ...row,
-    type: event.type,
-    data: toStoredThreadEventData(event)
-  };
-}
-function parseThreadEventRowInput(row) {
-  return buildThreadEventRow({
-    id: row.id,
-    scope: row.scope,
-    threadId: row.threadId,
-    seq: row.seq,
-    createdAt: row.createdAt,
-    event: parseStoredThreadEvent({
-      type: row.type,
-      data: row.data,
-      threadId: row.threadId,
-      scope: row.scope
-    })
-  });
-}
-var threadEventRowSchema = threadEventRowInputSchema.transform(
-  (row) => parseThreadEventRowInput(row)
-);
-
-// packages/domain/src/terminal.ts
-var TERMINAL_COLS_MAX = 500;
-var TERMINAL_ROWS_MAX = 200;
-var TERMINAL_DATA_MAX_BYTES = 64 * 1024;
-var TERMINAL_DATA_MAX_BASE64_LENGTH = Math.ceil(TERMINAL_DATA_MAX_BYTES / 3) * 4;
-var terminalBase64DataPattern = /^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/u;
-var terminalSessionStatusValues = [
-  "starting",
-  "running",
-  "disconnected",
-  "exited"
-];
-var terminalSessionStatusSchema = external_exports.enum(
-  terminalSessionStatusValues
-);
-var terminalSessionCloseReasonValues = [
-  "user",
-  "process-exit",
-  "daemon-disconnect",
-  "environment-destroyed",
-  "thread-archived",
-  "thread-deleted",
-  "open-timeout"
-];
-var terminalSessionCloseReasonSchema = external_exports.enum(
-  terminalSessionCloseReasonValues
-);
-function getTerminalBase64DecodedByteLength(value) {
-  const padding = value.endsWith("==") ? 2 : value.endsWith("=") ? 1 : 0;
-  return value.length / 4 * 3 - padding;
-}
-var terminalColsSchema = external_exports.number().int().positive().max(
-  TERMINAL_COLS_MAX
-);
-var terminalRowsSchema = external_exports.number().int().positive().max(
-  TERMINAL_ROWS_MAX
-);
-var terminalDataBase64Schema = external_exports.string().min(1).max(TERMINAL_DATA_MAX_BASE64_LENGTH).regex(terminalBase64DataPattern).refine(
-  (value) => getTerminalBase64DecodedByteLength(value) <= TERMINAL_DATA_MAX_BYTES,
-  {
-    message: `Terminal data must decode to ${TERMINAL_DATA_MAX_BYTES} bytes or less`
-  }
-);
-
-// packages/domain/src/thread-git-diff.ts
-var workspaceDiffTargetSchema = external_exports.discriminatedUnion("type", [
-  external_exports.object({
-    type: external_exports.literal("uncommitted")
-  }),
-  external_exports.object({
-    type: external_exports.literal("branch_committed"),
-    mergeBaseBranch: external_exports.string().min(1)
-  }),
-  external_exports.object({
-    type: external_exports.literal("all"),
-    mergeBaseBranch: external_exports.string().min(1)
-  }),
-  external_exports.object({
-    type: external_exports.literal("commit"),
-    sha: external_exports.string().regex(/^[0-9a-f]{4,40}$/iu)
-  })
-]);
-var rawDiffFileStatSchema = external_exports.object({
-  path: external_exports.string(),
-  previousPath: external_exports.string().nullable(),
-  statusLetter: external_exports.enum(["A", "M", "D", "R", "C", "T"]),
-  additions: external_exports.number().int().nonnegative(),
-  deletions: external_exports.number().int().nonnegative(),
-  binary: external_exports.boolean(),
-  origin: external_exports.enum(["tracked", "untracked"])
-});
-var threadGitDiffResponseSchema = external_exports.object({
-  diff: external_exports.string(),
-  truncated: external_exports.boolean(),
-  shortstat: external_exports.string(),
-  files: external_exports.string(),
-  /**
-   * Resolved merge-base SHA for `branch_committed` / `all` targets — the
-   * exact ref the diff was computed against. `null` for targets that don't
-   * use a merge-base (`uncommitted`, `commit`), and also when no merge-base
-   * exists (e.g. the branch has been removed locally). Callers fetching
-   * per-file content for context expansion must pass this SHA as the
-   * "old side" ref so the file content lines up with the diff's hunk
-   * coordinates — passing the branch name reads from its current tip, which
-   * may have diverged past the merge-base.
-   */
-  mergeBaseRef: external_exports.string().nullable()
-});
-
-// packages/domain/src/thread-search.ts
-var threadSearchSourceKindValues = [
-  "title",
-  "title_fallback",
-  "user_message",
-  "assistant_message",
-  "system_message"
-];
-var threadSearchSourceKindSchema = external_exports.enum(
-  threadSearchSourceKindValues
-);
-
-// packages/domain/src/thread-timeline-active-prompt-mode.ts
-var threadTimelineActivePromptModeSchema = external_exports.object({
-  mode: external_exports.literal("plan"),
-  /**
-   * Any provider id. Eligibility is not this field's job: it comes from the
-   * provider declaring a `plan` composer action, so a plugin provider that
-   * declares one gets plan mode. This used to be `z.enum(["claude-code",
-   * "codex"])`, which made plan mode structurally unreachable for anyone
-   * else.
-   */
-  providerId: external_exports.string().min(1),
-  prompt: external_exports.string()
-}).strict();
-
-// packages/domain/src/thread-timeline-model-fallback.ts
-var threadTimelineModelFallbackSchema = external_exports.object({
-  sourceSeq: external_exports.number().int().nonnegative(),
-  detectedAt: external_exports.number(),
-  originalModel: external_exports.string().min(1),
-  fallbackModel: external_exports.string().min(1),
-  reason: external_exports.enum(["refusal", "provider"]),
-  message: external_exports.string()
-});
-
-// packages/domain/src/thread-timeline-pending-todos.ts
-var threadTimelinePendingTodoItemStatusSchema = external_exports.enum([
-  "pending",
-  "in_progress",
-  "completed"
-]);
-var threadTimelinePendingTodoItemSchema = external_exports.object({
-  id: external_exports.string(),
-  text: external_exports.string(),
-  status: threadTimelinePendingTodoItemStatusSchema
-});
-var threadTimelinePendingTodosSchema = external_exports.object({
-  sourceSeq: external_exports.number().int().nonnegative(),
-  updatedAt: external_exports.number(),
-  items: external_exports.array(threadTimelinePendingTodoItemSchema)
-});
-
-// packages/domain/src/thread-visibility.ts
-var threadVisibilityValues = ["visible", "hidden"];
-var threadVisibilitySchema = external_exports.enum(threadVisibilityValues);
-
-// packages/domain/src/thread-status.ts
-var threadStatusValues = [
-  "idle",
-  "starting",
-  "active",
-  "stopping",
-  "error"
-];
-var threadStatusSchema = external_exports.enum(threadStatusValues);
-
-// packages/domain/src/thread-origin-kind.ts
-var threadOriginKindValues = ["fork"];
-var threadOriginKindSchema = external_exports.enum(threadOriginKindValues);
-
-// packages/domain/src/thread.ts
-var threadRuntimeDisplayStatusValues = [
-  ...threadStatusValues,
-  "provisioning",
-  "host-reconnecting",
-  "waiting-for-host"
-];
-var threadRuntimeDisplayStatusSchema = external_exports.enum(
-  threadRuntimeDisplayStatusValues
-);
-var threadRuntimeStateSchema = external_exports.object({
-  displayStatus: threadRuntimeDisplayStatusSchema,
-  hostReconnectGraceExpiresAt: external_exports.number().nullable()
-});
-var threadActivityStateSchema = external_exports.object({
-  activeWorkflowCount: external_exports.number().int().nonnegative(),
-  activeBackgroundAgentCount: external_exports.number().int().nonnegative(),
-  activeBackgroundCommandCount: external_exports.number().int().nonnegative(),
-  activePlanModeCount: external_exports.number().int().nonnegative(),
-  activeGoalCount: external_exports.number().int().nonnegative()
-});
-var workspaceStateValues = [
-  "clean",
-  "untracked",
-  "dirty_uncommitted",
-  "committed_unmerged",
-  "dirty_and_committed_unmerged"
-];
-var workspaceStateSchema = external_exports.enum(workspaceStateValues);
-var workspaceFileStatusKindSchema = external_exports.enum([
-  "M",
-  "A",
-  "D",
-  "R",
-  "C",
-  "U",
-  "??",
-  /**
-   * Fallback for git status letters we don't recognize. Kept distinct from
-   * "M" so UI and consumers can surface the ambiguity rather than silently
-   * mislabeling the change.
-   */
-  "?"
-]);
-var workspaceFileStatusSchema = external_exports.object({
-  path: external_exports.string(),
-  status: workspaceFileStatusKindSchema,
-  /**
-   * Per-file line counts from `git diff --numstat`. Null when the count is
-   * unknown — binary files (numstat reports `-`) and untracked files (numstat
-   * does not include them).
-   */
-  insertions: external_exports.number().nullable(),
-  deletions: external_exports.number().nullable()
-});
-var workspaceCommitSummarySchema = external_exports.object({
-  sha: external_exports.string(),
-  shortSha: external_exports.string(),
-  subject: external_exports.string(),
-  authorName: external_exports.string(),
-  authoredAt: external_exports.number()
-});
-var workspaceChangeStatsSchema = external_exports.object({
-  insertions: external_exports.number(),
-  deletions: external_exports.number(),
-  /** False when line totals omit files whose contents were intentionally not read. */
-  lineStatsComplete: external_exports.boolean(),
-  files: external_exports.array(workspaceFileStatusSchema)
-});
-var workspaceWorkingTreeSchema = workspaceChangeStatsSchema.extend({
-  hasUncommittedChanges: external_exports.boolean(),
-  state: workspaceStateSchema
-});
-var workspaceBranchSchema = external_exports.object({
-  currentBranch: external_exports.string().nullable(),
-  defaultBranch: external_exports.string()
-});
-var workspaceMergeBaseSchema = workspaceChangeStatsSchema.extend({
-  mergeBaseBranch: external_exports.string(),
-  baseRef: external_exports.string().nullable(),
-  aheadCount: external_exports.number(),
-  behindCount: external_exports.number(),
-  hasCommittedUnmergedChanges: external_exports.boolean(),
-  commits: external_exports.array(workspaceCommitSummarySchema)
-});
-var workspaceStatusSchema = external_exports.object({
-  workingTree: workspaceWorkingTreeSchema,
-  checkout: gitCheckoutRefSchema,
-  branch: workspaceBranchSchema,
-  mergeBase: workspaceMergeBaseSchema.nullable()
-});
-var gitHostPullRequestCheckStatusSchema = external_exports.enum([
-  "queued",
-  "in_progress",
-  "completed",
-  "unknown"
-]);
-var gitHostPullRequestCheckConclusionSchema = external_exports.enum([
-  "success",
-  "failure",
-  "cancelled",
-  "skipped",
-  "neutral",
-  "timed_out",
-  "action_required",
-  "startup_failure",
-  "stale",
-  "unknown"
-]);
-var gitHostPullRequestCheckSchema = external_exports.object({
-  name: external_exports.string().min(1),
-  status: gitHostPullRequestCheckStatusSchema,
-  conclusion: gitHostPullRequestCheckConclusionSchema.nullable(),
-  url: external_exports.string().url().nullable(),
-  startedAt: external_exports.string().datetime().nullable()
-}).strict();
-var gitHostPullRequestReviewDecisionSchema = external_exports.enum([
-  "APPROVED",
-  "CHANGES_REQUESTED",
-  "REVIEW_REQUIRED"
-]);
-var gitHostPullRequestMergeStateStatusSchema = external_exports.enum([
-  "BEHIND",
-  "BLOCKED",
-  "CLEAN",
-  "DIRTY",
-  "DRAFT",
-  "HAS_HOOKS",
-  "UNKNOWN",
-  "UNSTABLE"
-]);
-var gitHostPullRequestMergeableSchema = external_exports.enum([
-  "CONFLICTING",
-  "MERGEABLE",
-  "UNKNOWN"
-]);
-var gitHostPullRequestSchema = external_exports.object({
-  number: external_exports.number().int().positive(),
-  title: external_exports.string(),
-  state: external_exports.enum(["OPEN", "CLOSED", "MERGED"]),
-  url: external_exports.string().url(),
-  isDraft: external_exports.boolean(),
-  baseRefName: external_exports.string(),
-  headRefName: external_exports.string(),
-  updatedAt: external_exports.string().datetime(),
-  checks: external_exports.array(gitHostPullRequestCheckSchema),
-  reviewDecision: gitHostPullRequestReviewDecisionSchema.nullable(),
-  reviewRequestCount: external_exports.number().int().nonnegative(),
-  mergeStateStatus: gitHostPullRequestMergeStateStatusSchema.nullable(),
-  mergeable: gitHostPullRequestMergeableSchema.nullable()
-}).strict();
-var pullRequestStateSchema = external_exports.enum([
-  "draft",
-  "open",
-  "merged",
-  "closed"
-]);
-var threadPullRequestChecksStateSchema = external_exports.enum([
-  "passing",
-  "failing",
-  "pending",
-  "no_checks",
-  "unknown"
-]);
-var threadPullRequestChecksSchema = external_exports.object({
-  state: threadPullRequestChecksStateSchema,
-  totalCount: external_exports.number().int().nonnegative(),
-  passedCount: external_exports.number().int().nonnegative(),
-  failedCount: external_exports.number().int().nonnegative(),
-  pendingCount: external_exports.number().int().nonnegative()
-}).strict();
-var threadPullRequestReviewStateSchema = external_exports.enum([
-  "approved",
-  "changes_requested",
-  "review_required",
-  "review_requested",
-  "none"
-]);
-var threadPullRequestReviewSchema = external_exports.object({
-  state: threadPullRequestReviewStateSchema,
-  reviewRequestCount: external_exports.number().int().nonnegative()
-}).strict();
-var threadPullRequestMergeabilityStateSchema = external_exports.enum([
-  "mergeable",
-  "conflicts",
-  "blocked",
-  "draft",
-  "unknown"
-]);
-var threadPullRequestMergeabilitySchema = external_exports.object({
-  state: threadPullRequestMergeabilityStateSchema,
-  mergeStateStatus: gitHostPullRequestMergeStateStatusSchema.nullable(),
-  mergeable: gitHostPullRequestMergeableSchema.nullable()
-}).strict();
-var threadPullRequestAttentionStateSchema = external_exports.enum([
-  "checks_failed",
-  "checks_pending",
-  "changes_requested",
-  "review_requested",
-  "conflicts",
-  "blocked",
-  "draft",
-  "ready_to_merge",
-  "merged",
-  "closed",
-  "none"
-]);
-var threadPullRequestSchema = external_exports.object({
-  number: external_exports.number().int().positive(),
-  title: external_exports.string(),
-  state: pullRequestStateSchema,
-  url: external_exports.string().url(),
-  baseRefName: external_exports.string(),
-  headRefName: external_exports.string(),
-  updatedAt: external_exports.string().datetime(),
-  checks: threadPullRequestChecksSchema,
-  review: threadPullRequestReviewSchema,
-  mergeability: threadPullRequestMergeabilitySchema,
-  attention: threadPullRequestAttentionStateSchema
-}).strict();
-var threadQueuedMessageSchema = external_exports.object({
-  id: external_exports.string(),
-  content: external_exports.array(promptInputSchema).min(1),
-  model: external_exports.string().min(1),
-  reasoningLevel: reasoningLevelSchema,
-  permissionMode: permissionModeSchema,
-  serviceTier: serviceTierSchema,
-  groupWithNext: external_exports.boolean(),
-  createdAt: external_exports.number(),
-  updatedAt: external_exports.number()
-});
-var threadSchema = external_exports.object({
-  id: external_exports.string(),
-  projectId: external_exports.string(),
-  environmentId: external_exports.string().nullable(),
-  providerId: external_exports.string(),
-  title: external_exports.string().nullable(),
-  titleFallback: external_exports.string().nullable(),
-  sectionId: external_exports.string().nullable(),
-  status: threadStatusSchema,
-  parentThreadId: external_exports.string().nullable(),
-  sourceThreadId: external_exports.string().nullable(),
-  originKind: threadOriginKindSchema.nullable(),
-  /** Id of the plugin that spawned this thread; null for non-plugin origins. */
-  originPluginId: external_exports.string().nullable(),
-  visibility: threadVisibilitySchema,
-  archivedAt: external_exports.number().nullable(),
-  pinnedAt: external_exports.number().nullable(),
-  deletedAt: external_exports.number().nullable(),
-  lastReadAt: external_exports.number().nullable(),
-  latestAttentionAt: external_exports.number(),
-  createdAt: external_exports.number(),
-  updatedAt: external_exports.number()
-});
-var threadWithRuntimeSchema = threadSchema.extend({
-  runtime: threadRuntimeStateSchema
-});
-var threadListEntrySchema = threadWithRuntimeSchema.extend({
-  activity: threadActivityStateSchema,
-  pinSortKey: external_exports.string().nullable(),
-  hasPendingInteraction: external_exports.boolean(),
-  environmentHostId: external_exports.string().nullable(),
-  environmentName: external_exports.string().nullable(),
-  environmentBranchName: external_exports.string().nullable(),
-  environmentWorkspaceDisplayKind: environmentWorkspaceDisplayKindSchema
-});
-
 // packages/plugin-build/src/generated/plugin-theme.generated.ts
-var PLUGIN_THEME_CSS = `@theme inline {
+var PLUGIN_THEME_CSS = `@theme inline reference {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
@@ -18968,6 +16389,7 @@ var PLUGIN_THEME_CSS = `@theme inline {
    * settled/closed-turn machinery, and a text-only destructive that clears AA in
    * dark mode (the --destructive fill is below the 4.5:1 text floor there). */
   --color-readback-foreground: var(--readback-foreground);
+  --color-version-upgrade: var(--version-upgrade);
   --color-timeline-accent: var(--timeline-accent);
   --color-file-accent: var(--file-accent);
   --color-accent: var(--accent);
@@ -18986,6 +16408,7 @@ var PLUGIN_THEME_CSS = `@theme inline {
   /* GitHub's merged-PR purple \u2014 the one chromatic exception in the PR state
    * dots, matching the universal merged-PR color language. */
   --color-pr-merged: var(--pr-merged);
+  --color-brand-discord: var(--brand-discord);
   --color-diff-removed: var(--diff-removed);
   --color-border: var(--border);
   --color-border-hairline: var(--border-hairline);
@@ -19042,13 +16465,29 @@ var PLUGIN_THEME_CSS = `@theme inline {
 }`;
 var TW_ANIMATE_CSS = `@property --tw-animation-delay{syntax:"*";inherits:false;initial-value:0s}@property --tw-animation-direction{syntax:"*";inherits:false;initial-value:normal}@property --tw-animation-duration{syntax:"*";inherits:false}@property --tw-animation-fill-mode{syntax:"*";inherits:false;initial-value:none}@property --tw-animation-iteration-count{syntax:"*";inherits:false;initial-value:1}@property --tw-enter-blur{syntax:"*";inherits:false;initial-value:0}@property --tw-enter-opacity{syntax:"*";inherits:false;initial-value:1}@property --tw-enter-rotate{syntax:"*";inherits:false;initial-value:0}@property --tw-enter-scale{syntax:"*";inherits:false;initial-value:1}@property --tw-enter-translate-x{syntax:"*";inherits:false;initial-value:0}@property --tw-enter-translate-y{syntax:"*";inherits:false;initial-value:0}@property --tw-exit-blur{syntax:"*";inherits:false;initial-value:0}@property --tw-exit-opacity{syntax:"*";inherits:false;initial-value:1}@property --tw-exit-rotate{syntax:"*";inherits:false;initial-value:0}@property --tw-exit-scale{syntax:"*";inherits:false;initial-value:1}@property --tw-exit-translate-x{syntax:"*";inherits:false;initial-value:0}@property --tw-exit-translate-y{syntax:"*";inherits:false;initial-value:0}@theme inline{--animation-delay-0: 0s; --animation-delay-75: 75ms; --animation-delay-100: .1s; --animation-delay-150: .15s; --animation-delay-200: .2s; --animation-delay-300: .3s; --animation-delay-500: .5s; --animation-delay-700: .7s; --animation-delay-1000: 1s; --animation-repeat-0: 0; --animation-repeat-1: 1; --animation-repeat-infinite: infinite; --animation-direction-normal: normal; --animation-direction-reverse: reverse; --animation-direction-alternate: alternate; --animation-direction-alternate-reverse: alternate-reverse; --animation-fill-mode-none: none; --animation-fill-mode-forwards: forwards; --animation-fill-mode-backwards: backwards; --animation-fill-mode-both: both; --percentage-0: 0; --percentage-5: .05; --percentage-10: .1; --percentage-15: .15; --percentage-20: .2; --percentage-25: .25; --percentage-30: .3; --percentage-35: .35; --percentage-40: .4; --percentage-45: .45; --percentage-50: .5; --percentage-55: .55; --percentage-60: .6; --percentage-65: .65; --percentage-70: .7; --percentage-75: .75; --percentage-80: .8; --percentage-85: .85; --percentage-90: .9; --percentage-95: .95; --percentage-100: 1; --percentage-translate-full: 1; --animate-in: enter var(--tw-animation-duration,var(--tw-duration,.15s))var(--tw-ease,ease)var(--tw-animation-delay,0s)var(--tw-animation-iteration-count,1)var(--tw-animation-direction,normal)var(--tw-animation-fill-mode,none); --animate-out: exit var(--tw-animation-duration,var(--tw-duration,.15s))var(--tw-ease,ease)var(--tw-animation-delay,0s)var(--tw-animation-iteration-count,1)var(--tw-animation-direction,normal)var(--tw-animation-fill-mode,none); @keyframes enter { from { opacity: var(--tw-enter-opacity,1); transform: translate3d(var(--tw-enter-translate-x,0),var(--tw-enter-translate-y,0),0)scale3d(var(--tw-enter-scale,1),var(--tw-enter-scale,1),var(--tw-enter-scale,1))rotate(var(--tw-enter-rotate,0)); filter: blur(var(--tw-enter-blur,0)); }}@keyframes exit { to { opacity: var(--tw-exit-opacity,1); transform: translate3d(var(--tw-exit-translate-x,0),var(--tw-exit-translate-y,0),0)scale3d(var(--tw-exit-scale,1),var(--tw-exit-scale,1),var(--tw-exit-scale,1))rotate(var(--tw-exit-rotate,0)); filter: blur(var(--tw-exit-blur,0)); }}--animate-accordion-down: accordion-down var(--tw-animation-duration,var(--tw-duration,.2s))var(--tw-ease,ease-out)var(--tw-animation-delay,0s)var(--tw-animation-iteration-count,1)var(--tw-animation-direction,normal)var(--tw-animation-fill-mode,none); --animate-accordion-up: accordion-up var(--tw-animation-duration,var(--tw-duration,.2s))var(--tw-ease,ease-out)var(--tw-animation-delay,0s)var(--tw-animation-iteration-count,1)var(--tw-animation-direction,normal)var(--tw-animation-fill-mode,none); --animate-collapsible-down: collapsible-down var(--tw-animation-duration,var(--tw-duration,.2s))var(--tw-ease,ease-out)var(--tw-animation-delay,0s)var(--tw-animation-iteration-count,1)var(--tw-animation-direction,normal)var(--tw-animation-fill-mode,none); --animate-collapsible-up: collapsible-up var(--tw-animation-duration,var(--tw-duration,.2s))var(--tw-ease,ease-out)var(--tw-animation-delay,0s)var(--tw-animation-iteration-count,1)var(--tw-animation-direction,normal)var(--tw-animation-fill-mode,none); @keyframes accordion-down { from { height: 0; }to { height: var(--radix-accordion-content-height,var(--bits-accordion-content-height,var(--reka-accordion-content-height,var(--kb-accordion-content-height,var(--ngp-accordion-content-height,auto))))); }}@keyframes accordion-up { from { height: var(--radix-accordion-content-height,var(--bits-accordion-content-height,var(--reka-accordion-content-height,var(--kb-accordion-content-height,var(--ngp-accordion-content-height,auto))))); }to { height: 0; }}@keyframes collapsible-down { from { height: 0; }to { height: var(--radix-collapsible-content-height,var(--bits-collapsible-content-height,var(--reka-collapsible-content-height,var(--kb-collapsible-content-height,auto)))); }}@keyframes collapsible-up { from { height: var(--radix-collapsible-content-height,var(--bits-collapsible-content-height,var(--reka-collapsible-content-height,var(--kb-collapsible-content-height,auto)))); }to { height: 0; }}--animate-caret-blink: caret-blink 1.25s ease-out infinite; @keyframes caret-blink { 0%,70%,100% { opacity: 1; }20%,50% { opacity: 0; }}}@utility animation-duration-*{--tw-animation-duration: calc(--value(number)*1ms); --tw-animation-duration: --value(--animation-duration-*,[duration],"initial",[*]); animation-duration: calc(--value(number)*1ms); animation-duration: --value(--animation-duration-*,[duration],"initial",[*]);}@utility delay-*{animation-delay: calc(--value(number)*1ms); animation-delay: --value(--animation-delay-*,[duration],"initial",[*]); --tw-animation-delay: calc(--value(number)*1ms); --tw-animation-delay: --value(--animation-delay-*,[duration],"initial",[*]);}@utility repeat-*{animation-iteration-count: --value(--animation-repeat-*,number,"initial",[*]); --tw-animation-iteration-count: --value(--animation-repeat-*,number,"initial",[*]);}@utility direction-*{animation-direction: --value(--animation-direction-*,"initial",[*]); --tw-animation-direction: --value(--animation-direction-*,"initial",[*]);}@utility fill-mode-*{animation-fill-mode: --value(--animation-fill-mode-*,"initial",[*]); --tw-animation-fill-mode: --value(--animation-fill-mode-*,"initial",[*]);}@utility running{animation-play-state: running;}@utility paused{animation-play-state: paused;}@utility play-state-*{animation-play-state: --value("initial",[*]);}@utility blur-in{--tw-enter-blur: 20px;}@utility blur-in-*{--tw-enter-blur: calc(--value(number)*1px); --tw-enter-blur: --value(--blur-*,[*]);}@utility blur-out{--tw-exit-blur: 20px;}@utility blur-out-*{--tw-exit-blur: calc(--value(number)*1px); --tw-exit-blur: --value(--blur-*,[*]);}@utility fade-in{--tw-enter-opacity: 0;}@utility fade-in-*{--tw-enter-opacity: calc(--value(number)/100); --tw-enter-opacity: --value(--percentage-*,[*]);}@utility fade-out{--tw-exit-opacity: 0;}@utility fade-out-*{--tw-exit-opacity: calc(--value(number)/100); --tw-exit-opacity: --value(--percentage-*,[*]);}@utility zoom-in{--tw-enter-scale: 0;}@utility zoom-in-*{--tw-enter-scale: calc(--value(number)*1%); --tw-enter-scale: calc(--value(ratio)); --tw-enter-scale: --value(--percentage-*,[*]);}@utility -zoom-in-*{--tw-enter-scale: calc(--value(number)*-1%); --tw-enter-scale: calc(--value(ratio)*-1); --tw-enter-scale: --value(--percentage-*,[*]);}@utility zoom-out{--tw-exit-scale: 0;}@utility zoom-out-*{--tw-exit-scale: calc(--value(number)*1%); --tw-exit-scale: calc(--value(ratio)); --tw-exit-scale: --value(--percentage-*,[*]);}@utility -zoom-out-*{--tw-exit-scale: calc(--value(number)*-1%); --tw-exit-scale: calc(--value(ratio)*-1); --tw-exit-scale: --value(--percentage-*,[*]);}@utility spin-in{--tw-enter-rotate: 30deg;}@utility spin-in-*{--tw-enter-rotate: calc(--value(number)*1deg); --tw-enter-rotate: calc(--value(ratio)*360deg); --tw-enter-rotate: --value(--rotate-*,[*]);}@utility -spin-in{--tw-enter-rotate: -30deg;}@utility -spin-in-*{--tw-enter-rotate: calc(--value(number)*-1deg); --tw-enter-rotate: calc(--value(ratio)*-360deg); --tw-enter-rotate: --value(--rotate-*,[*]);}@utility spin-out{--tw-exit-rotate: 30deg;}@utility spin-out-*{--tw-exit-rotate: calc(--value(number)*1deg); --tw-exit-rotate: calc(--value(ratio)*360deg); --tw-exit-rotate: --value(--rotate-*,[*]);}@utility -spin-out{--tw-exit-rotate: -30deg;}@utility -spin-out-*{--tw-exit-rotate: calc(--value(number)*-1deg); --tw-exit-rotate: calc(--value(ratio)*-360deg); --tw-exit-rotate: --value(--rotate-*,[*]);}@utility slide-in-from-top{--tw-enter-translate-y: -100%;}@utility slide-in-from-top-*{--tw-enter-translate-y: calc(--value(integer)*var(--spacing)*-1); --tw-enter-translate-y: calc(--value(--percentage-*,--percentage-translate-*)*-100%); --tw-enter-translate-y: calc(--value(ratio)*-100%); --tw-enter-translate-y: calc(--value(--translate-*,[percentage],[length])*-1);}@utility slide-in-from-bottom{--tw-enter-translate-y: 100%;}@utility slide-in-from-bottom-*{--tw-enter-translate-y: calc(--value(integer)*var(--spacing)); --tw-enter-translate-y: calc(--value(--percentage-*,--percentage-translate-*)*100%); --tw-enter-translate-y: calc(--value(ratio)*100%); --tw-enter-translate-y: --value(--translate-*,[percentage],[length]);}@utility slide-in-from-left{--tw-enter-translate-x: -100%;}@utility slide-in-from-left-*{--tw-enter-translate-x: calc(--value(integer)*var(--spacing)*-1); --tw-enter-translate-x: calc(--value(--percentage-*,--percentage-translate-*)*-100%); --tw-enter-translate-x: calc(--value(ratio)*-100%); --tw-enter-translate-x: calc(--value(--translate-*,[percentage],[length])*-1);}@utility slide-in-from-right{--tw-enter-translate-x: 100%;}@utility slide-in-from-right-*{--tw-enter-translate-x: calc(--value(integer)*var(--spacing)); --tw-enter-translate-x: calc(--value(--percentage-*,--percentage-translate-*)*100%); --tw-enter-translate-x: calc(--value(ratio)*100%); --tw-enter-translate-x: --value(--translate-*,[percentage],[length]);}@utility slide-in-from-start{&:dir(ltr){ --tw-enter-translate-x: -100%; }&:dir(rtl){ --tw-enter-translate-x: 100%; }}@utility slide-in-from-start-*{&:where(:dir(ltr),[dir="ltr"],[dir="ltr"]*){ --tw-enter-translate-x: calc(--value(integer)*var(--spacing)*-1); --tw-enter-translate-x: calc(--value(--percentage-*,--percentage-translate-*)*-100%); --tw-enter-translate-x: calc(--value(ratio)*-100%); --tw-enter-translate-x: calc(--value(--translate-*,[percentage],[length])*-1); }&:where(:dir(rtl),[dir="rtl"],[dir="rtl"]*){ --tw-enter-translate-x: calc(--value(integer)*var(--spacing)); --tw-enter-translate-x: calc(--value(--percentage-*,--percentage-translate-*)*100%); --tw-enter-translate-x: calc(--value(ratio)*100%); --tw-enter-translate-x: --value(--translate-*,[percentage],[length]); }}@utility slide-in-from-end{&:dir(ltr){ --tw-enter-translate-x: 100%; }&:dir(rtl){ --tw-enter-translate-x: -100%; }}@utility slide-in-from-end-*{&:where(:dir(ltr),[dir="ltr"],[dir="ltr"]*){ --tw-enter-translate-x: calc(--value(integer)*var(--spacing)); --tw-enter-translate-x: calc(--value(--percentage-*,--percentage-translate-*)*100%); --tw-enter-translate-x: calc(--value(ratio)*100%); --tw-enter-translate-x: --value(--translate-*,[percentage],[length]); }&:where(:dir(rtl),[dir="rtl"],[dir="rtl"]*){ --tw-enter-translate-x: calc(--value(integer)*var(--spacing)*-1); --tw-enter-translate-x: calc(--value(--percentage-*,--percentage-translate-*)*-100%); --tw-enter-translate-x: calc(--value(ratio)*-100%); --tw-enter-translate-x: calc(--value(--translate-*,[percentage],[length])*-1); }}@utility slide-out-to-top{--tw-exit-translate-y: -100%;}@utility slide-out-to-top-*{--tw-exit-translate-y: calc(--value(integer)*var(--spacing)*-1); --tw-exit-translate-y: calc(--value(--percentage-*,--percentage-translate-*)*-100%); --tw-exit-translate-y: calc(--value(ratio)*-100%); --tw-exit-translate-y: calc(--value(--translate-*,[percentage],[length])*-1);}@utility slide-out-to-bottom{--tw-exit-translate-y: 100%;}@utility slide-out-to-bottom-*{--tw-exit-translate-y: calc(--value(integer)*var(--spacing)); --tw-exit-translate-y: calc(--value(--percentage-*,--percentage-translate-*)*100%); --tw-exit-translate-y: calc(--value(ratio)*100%); --tw-exit-translate-y: --value(--translate-*,[percentage],[length]);}@utility slide-out-to-left{--tw-exit-translate-x: -100%;}@utility slide-out-to-left-*{--tw-exit-translate-x: calc(--value(integer)*var(--spacing)*-1); --tw-exit-translate-x: calc(--value(--percentage-*,--percentage-translate-*)*-100%); --tw-exit-translate-x: calc(--value(ratio)*-100%); --tw-exit-translate-x: calc(--value(--translate-*,[percentage],[length])*-1);}@utility slide-out-to-right{--tw-exit-translate-x: 100%;}@utility slide-out-to-right-*{--tw-exit-translate-x: calc(--value(integer)*var(--spacing)); --tw-exit-translate-x: calc(--value(--percentage-*,--percentage-translate-*)*100%); --tw-exit-translate-x: calc(--value(ratio)*100%); --tw-exit-translate-x: --value(--translate-*,[percentage],[length]);}@utility slide-out-to-start{&:dir(ltr){ --tw-exit-translate-x: -100%; }&:dir(rtl){ --tw-exit-translate-x: 100%; }}@utility slide-out-to-start-*{&:where(:dir(ltr),[dir="ltr"],[dir="ltr"]*){ --tw-exit-translate-x: calc(--value(integer)*var(--spacing)*-1); --tw-exit-translate-x: calc(--value(--percentage-*,--percentage-translate-*)*-100%); --tw-exit-translate-x: calc(--value(ratio)*-100%); --tw-exit-translate-x: calc(--value(--translate-*,[percentage],[length])*-1); }&:where(:dir(rtl),[dir="rtl"],[dir="rtl"]*){ --tw-exit-translate-x: calc(--value(integer)*var(--spacing)); --tw-exit-translate-x: calc(--value(--percentage-*,--percentage-translate-*)*100%); --tw-exit-translate-x: calc(--value(ratio)*100%); --tw-exit-translate-x: --value(--translate-*,[percentage],[length]); }}@utility slide-out-to-end{&:dir(ltr){ --tw-exit-translate-x: 100%; }&:dir(rtl){ --tw-exit-translate-x: -100%; }}@utility slide-out-to-end-*{&:where(:dir(ltr),[dir="ltr"],[dir="ltr"]*){ --tw-exit-translate-x: calc(--value(integer)*var(--spacing)); --tw-exit-translate-x: calc(--value(--percentage-*,--percentage-translate-*)*100%); --tw-exit-translate-x: calc(--value(ratio)*100%); --tw-exit-translate-x: --value(--translate-*,[percentage],[length]); }&:where(:dir(rtl),[dir="rtl"],[dir="rtl"]*){ --tw-exit-translate-x: calc(--value(integer)*var(--spacing)*-1); --tw-exit-translate-x: calc(--value(--percentage-*,--percentage-translate-*)*-100%); --tw-exit-translate-x: calc(--value(ratio)*-100%); --tw-exit-translate-x: calc(--value(--translate-*,[percentage],[length])*-1); }}`;
 
-// packages/plugin-build/src/runtime-export-manifest.ts
+// packages/plugin-build/src/generated/runtime-export-manifest.generated.ts
 var RUNTIME_EXPORT_MANIFEST = {
   "@get-bb/plugin-sdk/app": [
     "Markdown",
     "ThreadChat",
+    "ThreadTitle",
+    "UrlLink",
     "definePluginApp",
+    "experimental_BranchPicker",
+    "experimental_Diff",
+    "experimental_FileLink",
+    "experimental_Icon",
     "experimental_NewThreadComposer",
+    "experimental_PermissionModePicker",
+    "experimental_ProviderIcon",
+    "experimental_ProviderModelPicker",
+    "experimental_SourceCode",
+    "experimental_useAppPanel",
+    "experimental_useBranches",
+    "experimental_useCheckoutState",
+    "experimental_useCodeTheme",
+    "experimental_useFixedTabTarget",
+    "experimental_useProviders",
     "experimental_useSidebarThreadActions",
     "experimental_useSidebarThreadPullRequest",
     "experimental_useSidebarThreadSplit",
@@ -19057,10 +16496,18 @@ var RUNTIME_EXPORT_MANIFEST = {
     "useBbNavigate",
     "useComposer",
     "useComposerView",
+    "useEnvironmentProviders",
     "useRealtime",
     "useRealtimeConnectionState",
     "useRpc",
-    "useSettings"
+    "useSdk",
+    "useSettings",
+    "useSidebarSplitLayout",
+    "useSidebarThreadDraft",
+    "useSidebarThreadDraftIds",
+    "useSidebarThreadRowStatus",
+    "useSidebarThreadRowStatuses",
+    "useSidebarThreadShortcut"
   ],
   "react": [
     "Activity",
@@ -19134,6 +16581,202 @@ var RUNTIME_EXPORT_MANIFEST = {
   "react/jsx-dev-runtime": [
     "Fragment",
     "jsxDEV"
+  ],
+  "@pierre/diffs": [
+    "ALTERNATE_FILE_NAMES_GIT",
+    "AttachedLanguages",
+    "AttachedThemes",
+    "COMMIT_METADATA_SPLIT",
+    "CORE_CSS_ATTRIBUTE",
+    "CUSTOM_HEADER_SLOT_ID",
+    "CodeToTokenTransformStream",
+    "CodeView",
+    "DEFAULT_CODE_VIEW_FILE_METRICS",
+    "DEFAULT_CODE_VIEW_LAYOUT",
+    "DEFAULT_COLLAPSED_CONTEXT_THRESHOLD",
+    "DEFAULT_EXPANDED_REGION",
+    "DEFAULT_RENDER_RANGE",
+    "DEFAULT_SMOOTH_SCROLL_SETTINGS",
+    "DEFAULT_THEMES",
+    "DEFAULT_TOKENIZE_MAX_LENGTH",
+    "DEFAULT_VIRTUAL_FILE_METRICS",
+    "DIFFS_DEVELOPMENT_BUILD",
+    "DIFFS_SCROLLBAR_GUTTER_MEASURED_PROPERTY",
+    "DIFFS_SCROLLBAR_MEASURE_ATTRIBUTE",
+    "DIFFS_TAG_NAME",
+    "DiffHunksRenderer",
+    "EMPTY_RENDER_RANGE",
+    "EXTENSION_TO_FILE_FORMAT",
+    "FILENAME_HEADER_REGEX",
+    "FILENAME_HEADER_REGEX_GIT",
+    "FILE_CONTEXT_BLOB",
+    "File",
+    "FileDiff",
+    "FileRenderer",
+    "FileStream",
+    "GIT_DIFF_FILE_BREAK_REGEX",
+    "HEADER_METADATA_SLOT_ID",
+    "HEADER_PREFIX_SLOT_ID",
+    "HUNK_HEADER",
+    "INDEX_LINE_METADATA",
+    "InteractionManager",
+    "MERGE_CONFLICT_BASE_MARKER_REGEX",
+    "MERGE_CONFLICT_END_MARKER_REGEX",
+    "MERGE_CONFLICT_SEPARATOR_MARKER_REGEX",
+    "MERGE_CONFLICT_START_MARKER_REGEX",
+    "RegisteredCustomLanguages",
+    "ResizeManager",
+    "ResolvedLanguages",
+    "ResolvingLanguages",
+    "SPLIT_WITH_NEWLINES",
+    "SVGSpriteSheet",
+    "ScrollSyncManager",
+    "ShikiStreamTokenizer",
+    "THEME_CSS_ATTRIBUTE",
+    "UNIFIED_DIFF_FILE_BREAK_REGEX",
+    "UNSAFE_CSS_ATTRIBUTE",
+    "UnresolvedFile",
+    "VirtualizedFile",
+    "VirtualizedFileDiff",
+    "Virtualizer",
+    "areDiffLineAnnotationsEqual",
+    "areDiffRenderOptionsEqual",
+    "areDiffTargetsEqual",
+    "areFileRenderOptionsEqual",
+    "areFilesEqual",
+    "areHunkDataEqual",
+    "areLanguagesAttached",
+    "areLineAnnotationsEqual",
+    "areObjectsEqual",
+    "areOptionsEqual",
+    "arePrePropertiesEqual",
+    "areRenderRangesEqual",
+    "areSelectionsEqual",
+    "areThemesAttached",
+    "areThemesEqual",
+    "areVirtualWindowSpecsEqual",
+    "areWorkerStatsEqual",
+    "attachResolvedLanguages",
+    "attachResolvedThemes",
+    "cleanLastNewline",
+    "cleanUpResolvedLanguages",
+    "cleanUpResolvedThemes",
+    "codeToHtml",
+    "createAnnotationElement",
+    "createAnnotationWrapperNode",
+    "createCSSVariablesTheme",
+    "createDiffSpanDecoration",
+    "createEmptyRowBuffer",
+    "createFileHeaderElement",
+    "createGutterGap",
+    "createGutterItem",
+    "createGutterUtilityContentNode",
+    "createGutterUtilityElement",
+    "createGutterWrapper",
+    "createHastElement",
+    "createIconElement",
+    "createNoNewlineElement",
+    "createPreElement",
+    "createPreWrapperProperties",
+    "createRowNodes",
+    "createSeparator",
+    "createSpanFromToken",
+    "createStyleElement",
+    "createTextNodeElement",
+    "createThemeStyleElement",
+    "createTransformerWithState",
+    "createUnsafeCSSStyleNode",
+    "createWindowFromScrollPosition",
+    "dequeueRender",
+    "detachString",
+    "diffAcceptRejectHunk",
+    "disposeHighlighter",
+    "findCodeElement",
+    "formatCSSVariablePrefix",
+    "getCustomExtensionsMap",
+    "getCustomExtensionsVersion",
+    "getFiletypeFromFileName",
+    "getHighlighterIfLoaded",
+    "getHighlighterOptions",
+    "getHighlighterThemeStyles",
+    "getHunkSeparatorSlotName",
+    "getIconForType",
+    "getLineAnnotationName",
+    "getLineEndingType",
+    "getLineNodes",
+    "getOrCreateCodeNode",
+    "getResolvedLanguages",
+    "getResolvedOrResolveLanguage",
+    "getResolvedOrResolveTheme",
+    "getResolvedThemes",
+    "getSharedHighlighter",
+    "getSingularPatch",
+    "getThemes",
+    "getTotalLineCountFromHunks",
+    "getUnresolvedDiffHunksRendererOptions",
+    "hasResolvedLanguages",
+    "hasResolvedThemes",
+    "isDefaultRenderRange",
+    "isHighlighterLoaded",
+    "isHighlighterLoading",
+    "isHighlighterNull",
+    "isWorkerContext",
+    "parseDiffFromFile",
+    "parseLineType",
+    "parsePatchFiles",
+    "patchScrollbarGutterSize",
+    "pluckInteractionOptions",
+    "prefersReducedMotion",
+    "preloadHighlighter",
+    "prerenderHTMLIfNecessary",
+    "processFile",
+    "processLine",
+    "processPatch",
+    "pushOrJoinSpan",
+    "queueRender",
+    "registerCustomCSSVariableTheme",
+    "registerCustomLanguage",
+    "registerCustomTheme",
+    "releaseStringDetachBuffer",
+    "renderDiffWithHighlighter",
+    "renderFileWithHighlighter",
+    "replaceCustomExtensions",
+    "resolveConflict",
+    "resolveLanguage",
+    "resolveLanguages",
+    "resolveRegion",
+    "resolveTheme",
+    "resolveThemes",
+    "setCustomExtension",
+    "setLanguageOverride",
+    "setPreNodeProperties",
+    "trimPatchContext",
+    "wrapCoreCSS",
+    "wrapThemeCSS",
+    "wrapUnsafeCSS"
+  ],
+  "@pierre/diffs/react": [
+    "CodeView",
+    "File",
+    "FileDiff",
+    "GutterUtilitySlotStyles",
+    "MergeConflictSlotStyles",
+    "MultiFileDiff",
+    "PatchDiff",
+    "UnresolvedFile",
+    "Virtualizer",
+    "VirtualizerContext",
+    "WorkerPoolContext",
+    "WorkerPoolContextProvider",
+    "noopRender",
+    "renderDiffChildren",
+    "renderFileChildren",
+    "templateRender",
+    "useFileDiffInstance",
+    "useFileInstance",
+    "useStableCallback",
+    "useVirtualizer",
+    "useWorkerPool"
   ],
   "@radix-ui/react-alert-dialog": [
     "Action",
@@ -19402,201 +17045,32 @@ var RUNTIME_EXPORT_MANIFEST = {
     "Portal",
     "Root"
   ],
-  "@pierre/diffs": [
-    "ALTERNATE_FILE_NAMES_GIT",
-    "AttachedLanguages",
-    "AttachedThemes",
-    "COMMIT_METADATA_SPLIT",
-    "CORE_CSS_ATTRIBUTE",
-    "CUSTOM_HEADER_SLOT_ID",
-    "CodeToTokenTransformStream",
-    "CodeView",
-    "DEFAULT_CODE_VIEW_FILE_METRICS",
-    "DEFAULT_CODE_VIEW_LAYOUT",
-    "DEFAULT_COLLAPSED_CONTEXT_THRESHOLD",
-    "DEFAULT_EXPANDED_REGION",
-    "DEFAULT_RENDER_RANGE",
-    "DEFAULT_SMOOTH_SCROLL_SETTINGS",
-    "DEFAULT_THEMES",
-    "DEFAULT_TOKENIZE_MAX_LENGTH",
-    "DEFAULT_VIRTUAL_FILE_METRICS",
-    "DIFFS_DEVELOPMENT_BUILD",
-    "DIFFS_SCROLLBAR_GUTTER_MEASURED_PROPERTY",
-    "DIFFS_SCROLLBAR_MEASURE_ATTRIBUTE",
-    "DIFFS_TAG_NAME",
-    "DiffHunksRenderer",
-    "EMPTY_RENDER_RANGE",
-    "EXTENSION_TO_FILE_FORMAT",
-    "FILENAME_HEADER_REGEX",
-    "FILENAME_HEADER_REGEX_GIT",
-    "FILE_CONTEXT_BLOB",
-    "File",
-    "FileDiff",
-    "FileRenderer",
-    "FileStream",
-    "GIT_DIFF_FILE_BREAK_REGEX",
-    "HEADER_METADATA_SLOT_ID",
-    "HEADER_PREFIX_SLOT_ID",
-    "HUNK_HEADER",
-    "INDEX_LINE_METADATA",
-    "InteractionManager",
-    "MERGE_CONFLICT_BASE_MARKER_REGEX",
-    "MERGE_CONFLICT_END_MARKER_REGEX",
-    "MERGE_CONFLICT_SEPARATOR_MARKER_REGEX",
-    "MERGE_CONFLICT_START_MARKER_REGEX",
-    "RegisteredCustomLanguages",
-    "ResizeManager",
-    "ResolvedLanguages",
-    "ResolvingLanguages",
-    "SPLIT_WITH_NEWLINES",
-    "SVGSpriteSheet",
-    "ScrollSyncManager",
-    "ShikiStreamTokenizer",
-    "THEME_CSS_ATTRIBUTE",
-    "UNIFIED_DIFF_FILE_BREAK_REGEX",
-    "UNSAFE_CSS_ATTRIBUTE",
-    "UnresolvedFile",
-    "VirtualizedFile",
-    "VirtualizedFileDiff",
-    "Virtualizer",
-    "areDiffLineAnnotationsEqual",
-    "areDiffRenderOptionsEqual",
-    "areDiffTargetsEqual",
-    "areFileRenderOptionsEqual",
-    "areFilesEqual",
-    "areHunkDataEqual",
-    "areLanguagesAttached",
-    "areLineAnnotationsEqual",
-    "areObjectsEqual",
-    "areOptionsEqual",
-    "arePrePropertiesEqual",
-    "areRenderRangesEqual",
-    "areSelectionsEqual",
-    "areThemesAttached",
-    "areThemesEqual",
-    "areVirtualWindowSpecsEqual",
-    "areWorkerStatsEqual",
-    "attachResolvedLanguages",
-    "attachResolvedThemes",
-    "cleanLastNewline",
-    "cleanUpResolvedLanguages",
-    "cleanUpResolvedThemes",
-    "codeToHtml",
-    "createAnnotationElement",
-    "createAnnotationWrapperNode",
-    "createCSSVariablesTheme",
-    "createDiffSpanDecoration",
-    "createEmptyRowBuffer",
-    "createFileHeaderElement",
-    "createGutterGap",
-    "createGutterItem",
-    "createGutterUtilityContentNode",
-    "createGutterUtilityElement",
-    "createGutterWrapper",
-    "createHastElement",
-    "createIconElement",
-    "createNoNewlineElement",
-    "createPreElement",
-    "createPreWrapperProperties",
-    "createRowNodes",
-    "createSeparator",
-    "createSpanFromToken",
-    "createStyleElement",
-    "createTextNodeElement",
-    "createThemeStyleElement",
-    "createTransformerWithState",
-    "createUnsafeCSSStyleNode",
-    "createWindowFromScrollPosition",
-    "dequeueRender",
-    "detachString",
-    "diffAcceptRejectHunk",
-    "disposeHighlighter",
-    "findCodeElement",
-    "formatCSSVariablePrefix",
-    "getCustomExtensionsMap",
-    "getCustomExtensionsVersion",
-    "getFiletypeFromFileName",
-    "getHighlighterIfLoaded",
-    "getHighlighterOptions",
-    "getHighlighterThemeStyles",
-    "getHunkSeparatorSlotName",
-    "getIconForType",
-    "getLineAnnotationName",
-    "getLineEndingType",
-    "getLineNodes",
-    "getOrCreateCodeNode",
-    "getResolvedLanguages",
-    "getResolvedOrResolveLanguage",
-    "getResolvedOrResolveTheme",
-    "getResolvedThemes",
-    "getSharedHighlighter",
-    "getSingularPatch",
-    "getThemes",
-    "getTotalLineCountFromHunks",
-    "getUnresolvedDiffHunksRendererOptions",
-    "hasResolvedLanguages",
-    "hasResolvedThemes",
-    "isDefaultRenderRange",
-    "isHighlighterLoaded",
-    "isHighlighterLoading",
-    "isHighlighterNull",
-    "isWorkerContext",
-    "parseDiffFromFile",
-    "parseLineType",
-    "parsePatchFiles",
-    "patchScrollbarGutterSize",
-    "pluckInteractionOptions",
-    "prefersReducedMotion",
-    "preloadHighlighter",
-    "prerenderHTMLIfNecessary",
-    "processFile",
-    "processLine",
-    "processPatch",
-    "pushOrJoinSpan",
-    "queueRender",
-    "registerCustomCSSVariableTheme",
-    "registerCustomLanguage",
-    "registerCustomTheme",
-    "releaseStringDetachBuffer",
-    "renderDiffWithHighlighter",
-    "renderFileWithHighlighter",
-    "replaceCustomExtensions",
-    "resolveConflict",
-    "resolveLanguage",
-    "resolveLanguages",
-    "resolveRegion",
-    "resolveTheme",
-    "resolveThemes",
-    "setCustomExtension",
-    "setLanguageOverride",
-    "setPreNodeProperties",
-    "trimPatchContext",
-    "wrapCoreCSS",
-    "wrapThemeCSS",
-    "wrapUnsafeCSS"
+  "clsx": [
+    "clsx"
   ],
-  "@pierre/diffs/react": [
-    "CodeView",
-    "File",
-    "FileDiff",
-    "GutterUtilitySlotStyles",
-    "MergeConflictSlotStyles",
-    "MultiFileDiff",
-    "PatchDiff",
-    "UnresolvedFile",
-    "Virtualizer",
-    "VirtualizerContext",
-    "WorkerPoolContext",
-    "WorkerPoolContextProvider",
-    "noopRender",
-    "renderDiffChildren",
-    "renderFileChildren",
-    "templateRender",
-    "useFileDiffInstance",
-    "useFileInstance",
-    "useStableCallback",
-    "useVirtualizer",
-    "useWorkerPool"
+  "tailwind-merge": [
+    "createTailwindMerge",
+    "extendTailwindMerge",
+    "fromTheme",
+    "getDefaultConfig",
+    "mergeConfigs",
+    "twJoin",
+    "twMerge",
+    "validators"
+  ],
+  "class-variance-authority": [
+    "cva",
+    "cx"
+  ],
+  "@bb/shared-ui/question-form-host": [
+    "QuestionFormHostProvider",
+    "useQuestionFormHost"
+  ],
+  "@bb/shared-ui/icon": [
+    "ICON_NAMES",
+    "Icon",
+    "isBuiltinIconName",
+    "preloadExtendedIcons"
   ]
 };
 
@@ -19622,20 +17096,115 @@ import { isAbsolute, resolve } from "node:path";
 // packages/plugin-build/src/svg-asset.ts
 var import_saxes = __toESM(require_saxes(), 1);
 var SVG_NAMESPACE = "http://www.w3.org/2000/svg";
-function assertValidPluginCompactIconSvg(bytes, label = "bb.branding.icon") {
+var XML_NAMESPACE = "http://www.w3.org/XML/1998/namespace";
+var SCRIPT_ELEMENTS = /* @__PURE__ */ new Set([
+  "script",
+  "handler",
+  "listener"
+]);
+var FORBIDDEN_ICON_ELEMENTS = /* @__PURE__ */ new Set([
+  ...SCRIPT_ELEMENTS,
+  "foreignobject",
+  "iframe",
+  "image",
+  "video",
+  "audio",
+  "a",
+  "style"
+]);
+function hasExternalUrlFunction(value) {
+  for (const match of value.matchAll(
+    /(?:url|src|image-set|image)\(\s*["']?\s*/giu
+  )) {
+    if (value[match.index + match[0].length] !== "#") {
+      return true;
+    }
+  }
+  return false;
+}
+function isForbiddenAnimatedAttribute(value) {
+  const target = value.trim().toLowerCase();
+  return target.startsWith("on") || target === "href" || target.endsWith(":href");
+}
+function isJavascriptUrl(value) {
+  return value.replace(/[\t\n\r]/gu, "").replace(/^[\u0000-\u0020]+|[\u0000-\u0020]+$/gu, "").toLowerCase().startsWith("javascript:");
+}
+function scriptVectorProblem(tag) {
+  if (SCRIPT_ELEMENTS.has(tag.local.toLowerCase())) {
+    return `must not contain a <${tag.name}> element`;
+  }
+  for (const attribute of Object.values(tag.attributes)) {
+    const name = attribute.local.toLowerCase();
+    if (name.startsWith("on")) {
+      return `must not contain a <${tag.name} ${attribute.name}> event handler attribute`;
+    }
+    if (name === "href" && isJavascriptUrl(attribute.value)) {
+      return `must not contain a javascript: URL in <${tag.name} ${attribute.name}>`;
+    }
+  }
+  return null;
+}
+function declaredIconProblem(tag) {
+  if (tag.uri !== "" && tag.uri !== SVG_NAMESPACE) {
+    return `contains a <${tag.name}> element outside the SVG namespace`;
+  }
+  if (FORBIDDEN_ICON_ELEMENTS.has(tag.local.toLowerCase())) {
+    return `must not contain a <${tag.local}> element`;
+  }
+  for (const attribute of Object.values(tag.attributes)) {
+    const name = attribute.local.toLowerCase();
+    if (name.startsWith("on")) {
+      return `must not contain a <${tag.local} ${attribute.name}> event handler attribute`;
+    }
+    if (name === "href" && !attribute.value.startsWith("#")) {
+      return `must not reference ${JSON.stringify(attribute.value)} through <${tag.local} ${attribute.name}>; only same-document "#" references are allowed`;
+    }
+    if (attribute.value.includes("\\")) {
+      return `must not contain a CSS escape in <${tag.local} ${attribute.name}>`;
+    }
+    if (hasExternalUrlFunction(attribute.value)) {
+      return `must not reference ${JSON.stringify(attribute.value)} through <${tag.local} ${attribute.name}>; only same-document "url(#\u2026)" references are allowed`;
+    }
+    if (name === "attributename" && isForbiddenAnimatedAttribute(attribute.value)) {
+      return `must not animate ${JSON.stringify(attribute.value)} through <${tag.local} ${attribute.name}>`;
+    }
+    if (name === "base" && attribute.uri === XML_NAMESPACE) {
+      return `must not contain a <${tag.local} ${attribute.name}> attribute`;
+    }
+  }
+  return null;
+}
+var COMPACT_ICON_RULES = { structure: true, elementProblem: null };
+var LOGO_RULES = {
+  structure: false,
+  elementProblem: scriptVectorProblem
+};
+var DECLARED_ICON_RULES = {
+  structure: true,
+  elementProblem: declaredIconProblem
+};
+function assertValidPluginSvg(bytes, subject, rules) {
   let source;
-  try {
-    source = new TextDecoder("utf-8", { fatal: true }).decode(bytes);
-  } catch {
-    throw new Error(`manifest ${label} must contain valid UTF-8 SVG bytes`);
+  if (rules.structure) {
+    try {
+      source = new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+    } catch {
+      throw new Error(`${subject} must contain valid UTF-8 SVG bytes`);
+    }
+  } else {
+    source = new TextDecoder("utf-8").decode(bytes);
   }
   const roots = [];
   let parseError = null;
   let hasDoctype = false;
   let hasProcessingInstruction = false;
+  let problem = null;
   const parser = new import_saxes.SaxesParser({ xmlns: true });
   parser.on("opentag", (tag) => {
     if (roots.length === 0) roots.push({ local: tag.local, uri: tag.uri });
+    if (rules.elementProblem !== null) {
+      problem ??= rules.elementProblem(tag);
+    }
   });
   parser.on("doctype", () => {
     hasDoctype = true;
@@ -19647,24 +17216,57 @@ function assertValidPluginCompactIconSvg(bytes, label = "bb.branding.icon") {
     parseError ??= error48.message;
   });
   parser.write(source).close();
-  if (hasDoctype) {
-    throw new Error(`manifest ${label} must not contain a doctype declaration`);
+  if (rules.structure) {
+    if (hasDoctype) {
+      throw new Error(`${subject} must not contain a doctype declaration`);
+    }
+    if (hasProcessingInstruction) {
+      throw new Error(`${subject} must not contain processing instructions`);
+    }
+    if (parseError !== null) {
+      throw new Error(`${subject} is not valid SVG XML: ${parseError}`);
+    }
+    const root = roots[0];
+    if (root === void 0 || root.local !== "svg" || root.uri !== "" && root.uri !== SVG_NAMESPACE) {
+      throw new Error(`${subject} must have an <svg> root element`);
+    }
   }
-  if (hasProcessingInstruction) {
+  if (problem !== null) {
+    throw new Error(`${subject} ${problem}`);
+  }
+}
+function assertValidPluginCompactIconSvg(bytes, label = "bb.branding.icon") {
+  assertValidPluginSvg(bytes, `manifest ${label}`, COMPACT_ICON_RULES);
+}
+function assertValidPluginLogoSvg(bytes, subject) {
+  assertValidPluginSvg(bytes, subject, LOGO_RULES);
+}
+function assertValidPluginIconSvg(bytes, label) {
+  if (bytes.byteLength > PLUGIN_ICON_MAX_BYTES) {
     throw new Error(
-      `manifest ${label} must not contain processing instructions`
+      `manifest ${label} is ${bytes.byteLength} bytes; the limit is ${PLUGIN_ICON_MAX_BYTES}`
     );
   }
-  if (parseError !== null) {
-    throw new Error(`manifest ${label} is not valid SVG XML: ${parseError}`);
-  }
-  const root = roots[0];
-  if (root === void 0 || root.local !== "svg" || root.uri !== "" && root.uri !== SVG_NAMESPACE) {
-    throw new Error(`manifest ${label} must have an <svg> root element`);
-  }
+  assertValidPluginSvg(bytes, `manifest ${label}`, DECLARED_ICON_RULES);
 }
 
 // packages/plugin-build/src/plugin-manifest.ts
+function isRecord(value) {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+async function readPluginPackageJsonFile(packageJsonPath) {
+  let raw;
+  try {
+    raw = await readFile(packageJsonPath, "utf8");
+  } catch {
+    throw new Error(`no readable package.json at ${packageJsonPath}`);
+  }
+  try {
+    return JSON.parse(raw);
+  } catch {
+    throw new Error(`package.json is not valid JSON at ${packageJsonPath}`);
+  }
+}
 function resolveManifestPath(rootDir, entry, label) {
   if (isAbsolute(entry)) {
     throw new Error(`manifest ${label} must be relative, got "${entry}"`);
@@ -19677,13 +17279,43 @@ function resolveManifestPath(rootDir, entry, label) {
   }
   return resolved;
 }
+async function resolveManifestEntryFile(rootDir, entry, label) {
+  const resolved = resolveManifestPath(rootDir, entry, label);
+  try {
+    await stat(resolved);
+  } catch {
+    throw new Error(`manifest ${label} points at a missing file: ${entry}`);
+  }
+  return resolved;
+}
+async function resolveManifestAssetFile(rootDir, assetPath, label) {
+  let assetStat;
+  try {
+    assetStat = await stat(assetPath);
+  } catch {
+    throw new Error(`manifest ${label} points at a missing file`);
+  }
+  if (!assetStat.isFile()) {
+    throw new Error(`manifest ${label} must point at a file`);
+  }
+  const [realRoot, realAsset] = await Promise.all([
+    realpath(rootDir),
+    realpath(assetPath)
+  ]);
+  if (realAsset !== realRoot && !realAsset.startsWith(realRoot + "/")) {
+    throw new Error(
+      `manifest ${label} escapes the plugin directory through a symlink`
+    );
+  }
+  return realAsset;
+}
 async function validatePluginBuildManifest(value, rootDir, packageJsonPath) {
   const parsed = pluginPackageJsonSchema.safeParse(value);
   if (!parsed.success) {
     const issue2 = parsed.error.issues[0];
-    const path = issue2?.path.join(".") ?? "";
+    const path2 = issue2?.path.join(".") ?? "";
     throw new Error(
-      `invalid plugin package.json${path ? ` (${path})` : ""} at ${packageJsonPath}: ${issue2?.message ?? "unknown error"}`
+      `invalid plugin package.json${path2 ? ` (${path2})` : ""} at ${packageJsonPath}: ${issue2?.message ?? "unknown error"}`
     );
   }
   const logo = parsed.data.bb.branding.logo;
@@ -19699,36 +17331,39 @@ async function validatePluginBuildManifest(value, rootDir, packageJsonPath) {
         `manifest ${label} must point at a .svg, .png, or .webp file, got "${entry}"`
       );
     }
-    const assetPath = resolveManifestPath(rootDir, entry, label);
-    let assetStat;
-    try {
-      assetStat = await stat(assetPath);
-    } catch {
-      throw new Error(`manifest ${label} points at a missing file`);
-    }
-    if (!assetStat.isFile()) {
-      throw new Error(`manifest ${label} must point at a file`);
-    }
-    const [realRoot, realAsset] = await Promise.all([
-      realpath(rootDir),
-      realpath(assetPath)
-    ]);
-    if (realAsset !== realRoot && !realAsset.startsWith(realRoot + "/")) {
-      throw new Error(
-        `manifest ${label} escapes the plugin directory through a symlink`
-      );
-    }
+    const realAsset = await resolveManifestAssetFile(
+      rootDir,
+      resolveManifestPath(rootDir, entry, label),
+      label
+    );
     if (label === "bb.branding.icon") {
       assertValidPluginCompactIconSvg(await readFile(realAsset), label);
+    } else if (/\.svg$/iu.test(entry)) {
+      assertValidPluginLogoSvg(
+        await readFile(realAsset),
+        `manifest ${label} (${JSON.stringify(entry)})`
+      );
     }
+  }
+  for (const [name, entry] of Object.entries(
+    parsed.data.bb.branding.experimental_icons ?? {}
+  )) {
+    const label = `bb.branding.experimental_icons["${name}"]`;
+    const realAsset = await resolveManifestAssetFile(
+      rootDir,
+      resolveManifestPath(rootDir, entry, label),
+      label
+    );
+    assertValidPluginIconSvg(await readFile(realAsset), label);
   }
   return parsed.data;
 }
 
-// packages/plugin-build/src/build-plugin-app.ts
+// packages/plugin-build/src/runtime-shims.mjs
 var PLUGIN_SDK_APP_SPECIFIER = "@get-bb/plugin-sdk/app";
 var LEGACY_PLUGIN_SDK_APP_SPECIFIER = "@bb/plugin-sdk/app";
-var RUNTIME_SLOT_BY_SPECIFIER = {
+var SHARED_UI_ICON_SPECIFIER = "@bb/shared-ui/icon";
+var RUNTIME_SLOT_BY_SPECIFIER = Object.freeze({
   react: "react",
   "react-dom": "reactDom",
   "react-dom/client": "reactDomClient",
@@ -19749,8 +17384,262 @@ var RUNTIME_SLOT_BY_SPECIFIER = {
   "@radix-ui/react-select": "radixSelect",
   "@radix-ui/react-tooltip": "radixTooltip",
   sonner: "sonner",
-  vaul: "vaul"
-};
+  vaul: "vaul",
+  clsx: "clsx",
+  "tailwind-merge": "tailwindMerge",
+  "class-variance-authority": "classVarianceAuthority",
+  [SHARED_UI_ICON_SPECIFIER]: "sharedUiIcon",
+  "@bb/shared-ui/question-form-host": "questionFormHost"
+});
+function packageNameOf(specifier) {
+  const segments = specifier.split("/");
+  return specifier.startsWith("@") ? segments.slice(0, 2).join("/") : segments[0];
+}
+var NON_NPM_SHIM_PACKAGES = /* @__PURE__ */ new Set([
+  packageNameOf(PLUGIN_SDK_APP_SPECIFIER),
+  packageNameOf(LEGACY_PLUGIN_SDK_APP_SPECIFIER),
+  packageNameOf(SHARED_UI_ICON_SPECIFIER)
+]);
+var RUNTIME_SHIM_NPM_SPECIFIERS = Object.freeze(
+  Object.keys(RUNTIME_SLOT_BY_SPECIFIER).filter(
+    (specifier) => !NON_NPM_SHIM_PACKAGES.has(packageNameOf(specifier))
+  )
+);
+var SHIMMED_TYPE_PACKAGES = Object.freeze(
+  [
+    ...new Set(
+      RUNTIME_SHIM_NPM_SPECIFIERS.map(packageNameOf).filter(
+        (name) => name !== "react" && name !== "react-dom"
+      )
+    )
+  ].sort()
+);
+
+// packages/plugin-build/src/scope-plugin-utilities.ts
+var NESTED_STYLE_RULE_AT_RULES = /* @__PURE__ */ new Set([
+  "media",
+  "supports",
+  "container",
+  "layer",
+  "scope",
+  "starting-style"
+]);
+function pluginScopeRoots(pluginId) {
+  return `[data-bb-plugin="${pluginId}"], [data-bb-plugin-root]:not([data-bb-plugin])`;
+}
+function scopePluginUtilities(css, scopeRoots) {
+  const scope = `:where(${scopeRoots})`;
+  return splitStatements(css).map((statement) => {
+    if (statement.body === null) return statement.prelude;
+    if (isUtilitiesLayer(statement.prelude)) {
+      return `${statement.prelude}{${scopeStatements(statement.body, scope)}}`;
+    }
+    assertNoUnscopedClassRule(statement);
+    return `${statement.prelude}{${statement.body}}`;
+  }).join("");
+}
+function assertNoUnscopedClassRule(statement) {
+  if (statement.body === null) return;
+  const prelude = statement.prelude.trim();
+  if (!prelude.startsWith("@")) {
+    if (!prelude.includes(".")) return;
+    throw new Error(
+      `Compiled plugin CSS has a class rule outside the utilities layer (${prelude.slice(0, 80)}). Its utilities would leak into the host page; check the Tailwind version against buildTailwindCss()'s input.`
+    );
+  }
+  const name = /^@([\w-]+)/.exec(prelude)?.[1]?.toLowerCase() ?? "";
+  if (!NESTED_STYLE_RULE_AT_RULES.has(name)) return;
+  for (const nested of splitStatements(statement.body)) {
+    assertNoUnscopedClassRule(nested);
+  }
+}
+function isUtilitiesLayer(prelude) {
+  return /^@layer\s+utilities$/.test(prelude.trim());
+}
+function scopeStatements(css, scope) {
+  return splitStatements(css).map((statement) => {
+    if (statement.body === null) return statement.prelude;
+    const prelude = statement.prelude.trim();
+    if (prelude.startsWith("@")) {
+      const name = /^@([\w-]+)/.exec(prelude)?.[1]?.toLowerCase() ?? "";
+      const body = NESTED_STYLE_RULE_AT_RULES.has(name) ? scopeStatements(statement.body, scope) : statement.body;
+      return `${statement.prelude}{${body}}`;
+    }
+    const nestedSibling = hasNestedSiblingRule(statement.body);
+    const selectors = splitSelectorList(prelude).flatMap(
+      (selector) => nestedSibling || hasSiblingCombinator(selector) ? [`${scope} ${selector}`] : [`${scope} ${selector}`, `${scope}${selector}`]
+    ).join(",");
+    return `${selectors}{${statement.body}}`;
+  }).join("");
+}
+function splitStatements(css) {
+  const statements = [];
+  let preludeStart = 0;
+  let parenDepth = 0;
+  for (let index = 0; index < css.length; index += 1) {
+    const char = css[index];
+    if (char === "\\") {
+      index += 1;
+      continue;
+    }
+    if (char === '"' || char === "'") {
+      index = findStringEnd(css, index);
+      continue;
+    }
+    if (char === "(") parenDepth += 1;
+    else if (char === ")") parenDepth -= 1;
+    else if (parenDepth === 0 && char === ";") {
+      statements.push({
+        prelude: css.slice(preludeStart, index + 1),
+        body: null
+      });
+      preludeStart = index + 1;
+    } else if (parenDepth === 0 && char === "{") {
+      const blockEnd = findBlockEnd(css, index);
+      statements.push({
+        prelude: css.slice(preludeStart, index),
+        body: css.slice(index + 1, blockEnd)
+      });
+      index = blockEnd;
+      preludeStart = index + 1;
+    }
+  }
+  const tail = css.slice(preludeStart);
+  if (tail.trim().length > 0) statements.push({ prelude: tail, body: null });
+  return statements;
+}
+function splitSelectorList(selectors) {
+  const parts = [];
+  let start = 0;
+  let parenDepth = 0;
+  for (let index = 0; index < selectors.length; index += 1) {
+    const char = selectors[index];
+    if (char === "\\") {
+      index += 1;
+      continue;
+    }
+    if (char === '"' || char === "'") {
+      index = findStringEnd(selectors, index);
+      continue;
+    }
+    if (char === "(") parenDepth += 1;
+    else if (char === ")") parenDepth -= 1;
+    else if (char === "," && parenDepth === 0) {
+      parts.push(selectors.slice(start, index));
+      start = index + 1;
+    }
+  }
+  parts.push(selectors.slice(start));
+  return parts.map((part) => part.trim()).filter((part) => part.length > 0);
+}
+function hasNestedSiblingRule(body) {
+  return splitStatements(body).some((statement) => {
+    if (statement.body === null) return false;
+    const prelude = statement.prelude.trim();
+    if (prelude.startsWith("@")) {
+      const name = /^@([\w-]+)/.exec(prelude)?.[1]?.toLowerCase() ?? "";
+      return NESTED_STYLE_RULE_AT_RULES.has(name) && hasNestedSiblingRule(statement.body);
+    }
+    return splitSelectorList(prelude).some(hasSiblingCombinator) || hasNestedSiblingRule(statement.body);
+  });
+}
+function hasSiblingCombinator(selector) {
+  let depth = 0;
+  let found = false;
+  for (let index = 0; index < selector.length; index += 1) {
+    const char = selector[index];
+    if (char === "\\") {
+      index += 1;
+      continue;
+    }
+    if (char === '"' || char === "'") {
+      index = findStringEnd(selector, index);
+      continue;
+    }
+    if (char === "(" || char === "[") depth += 1;
+    else if (char === ")" || char === "]") depth -= 1;
+    else if (depth === 0 && char === "&") found = false;
+    else if (depth === 0 && (char === "+" || char === "~")) found = true;
+  }
+  return found;
+}
+function findBlockEnd(css, openIndex) {
+  let depth = 0;
+  for (let index = openIndex; index < css.length; index += 1) {
+    const char = css[index];
+    if (char === "\\") {
+      index += 1;
+      continue;
+    }
+    if (char === '"' || char === "'") {
+      index = findStringEnd(css, index);
+      continue;
+    }
+    if (char === "{") depth += 1;
+    else if (char === "}") {
+      depth -= 1;
+      if (depth === 0) return index;
+    }
+  }
+  throw new Error("Unbalanced braces in compiled plugin CSS.");
+}
+function findStringEnd(css, openIndex) {
+  const quote = css[openIndex];
+  for (let index = openIndex + 1; index < css.length; index += 1) {
+    const char = css[index];
+    if (char === "\\") {
+      index += 1;
+      continue;
+    }
+    if (char === quote) return index;
+  }
+  throw new Error("Unterminated string in compiled plugin CSS.");
+}
+
+// packages/plugin-build/src/zod-locale-stub.mjs
+import { dirname, join } from "node:path";
+var ZOD_LOCALE_STUB_NAMESPACE = "bb-zod-locale-stub";
+var NAMESPACE = ZOD_LOCALE_STUB_NAMESPACE;
+var RESOLVED_MARK = "bb-zod-locale-stub-resolved";
+var LOCALE_BARREL_FILTER = /locales[\\/]index\.js$/;
+var ZOD_PACKAGE_SEGMENT = /[\\/]zod[\\/]/;
+function zodLocaleStubPlugin() {
+  return {
+    name: NAMESPACE,
+    setup(build) {
+      build.onResolve({ filter: LOCALE_BARREL_FILTER }, async (args) => {
+        if (args.pluginData === RESOLVED_MARK) return void 0;
+        if (!ZOD_PACKAGE_SEGMENT.test(args.importer)) return void 0;
+        const resolved = await build.resolve(args.path, {
+          importer: args.importer,
+          kind: args.kind,
+          resolveDir: args.resolveDir,
+          pluginData: RESOLVED_MARK
+        });
+        if (resolved.errors.length > 0 || resolved.path === "")
+          return void 0;
+        return { path: resolved.path, namespace: NAMESPACE };
+      });
+      build.onLoad({ filter: /.*/, namespace: NAMESPACE }, (args) => ({
+        contents: `export { default as en } from ${JSON.stringify(
+          join(dirname(args.path), "en.js")
+        )};
+`,
+        loader: "js",
+        resolveDir: dirname(args.path)
+      }));
+    }
+  };
+}
+
+// packages/plugin-build/src/build-plugin-app.ts
+var SHARED_UI_ICON_MODULE_SUFFIX = "/shared-ui/src/components/ui/icon";
+var SHARED_UI_SOURCE_IMPORTER = /[\\/]shared-ui[\\/]src[\\/]/;
+function isSharedUiIconRelativeImport(importPath, importer) {
+  if (!SHARED_UI_SOURCE_IMPORTER.test(importer)) return false;
+  const resolved = resolve2(dirname2(importer), importPath).replace(/\\/g, "/").replace(/\.(?:tsx?|jsx?)$/, "");
+  return resolved.endsWith(SHARED_UI_ICON_MODULE_SUFFIX);
+}
 var freshFacadeImportSequence = 0;
 async function freshModuleExports(moduleUrl) {
   const freshUrl = new URL(moduleUrl);
@@ -19795,7 +17684,7 @@ async function shimModuleSource(specifier, slot, pluginSdkAppModuleUrl) {
     )});`,
     `}`,
     `const mod = runtime.${slot};`,
-    `export default mod;`,
+    `export default ("default" in mod ? mod.default : mod);`,
     `export const {`,
     ...names.map((name) => `  ${name},`),
     `} = mod;`,
@@ -19814,6 +17703,12 @@ function runtimeShimPlugin(pluginSdkAppModuleUrl) {
         path: args.path,
         namespace: SHIM_NAMESPACE
       }));
+      build.onResolve({ filter: /(^|\/)icon(\.[jt]sx?)?$/ }, (args) => {
+        if (args.namespace !== "file" || !args.path.startsWith(".") || !isSharedUiIconRelativeImport(args.path, args.importer)) {
+          return void 0;
+        }
+        return { path: SHARED_UI_ICON_SPECIFIER, namespace: SHIM_NAMESPACE };
+      });
       build.onLoad(
         { filter: /.*/, namespace: SHIM_NAMESPACE },
         async (args) => ({
@@ -19828,9 +17723,6 @@ function runtimeShimPlugin(pluginSdkAppModuleUrl) {
     }
   };
 }
-function isRecord(value) {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
 function readDependencyNames(pkg) {
   const names = /* @__PURE__ */ new Set();
   for (const field of ["dependencies", "devDependencies"]) {
@@ -19843,18 +17735,7 @@ function readDependencyNames(pkg) {
   return [...names].sort();
 }
 async function readPackageJson(filePath) {
-  let raw;
-  try {
-    raw = await readFile2(filePath, "utf8");
-  } catch {
-    throw new Error(`no readable package.json at ${filePath}`);
-  }
-  let json2;
-  try {
-    json2 = JSON.parse(raw);
-  } catch {
-    throw new Error(`package.json is not valid JSON at ${filePath}`);
-  }
+  const json2 = await readPluginPackageJsonFile(filePath);
   if (!isRecord(json2)) {
     throw new Error(`package.json must contain an object at ${filePath}`);
   }
@@ -19874,7 +17755,7 @@ function readTailwindContentPatterns(pkg, packageJsonPath) {
   return patterns;
 }
 async function packageJsonPathForDirectDependency(rootDir, packageName) {
-  const packageJsonPath = join(
+  const packageJsonPath = join2(
     rootDir,
     "node_modules",
     packageName,
@@ -19888,7 +17769,7 @@ async function packageJsonPathForDirectDependency(rootDir, packageName) {
   }
 }
 async function readDependencyTailwindSources(rootDir) {
-  const rootPackageJsonPath = join(rootDir, "package.json");
+  const rootPackageJsonPath = join2(rootDir, "package.json");
   const rootPackageJson = await readPackageJson(rootPackageJsonPath);
   const sources = [];
   for (const packageName of readDependencyNames(rootPackageJson)) {
@@ -19898,23 +17779,19 @@ async function readDependencyTailwindSources(rootDir) {
     );
     if (packageJsonPath === null) continue;
     const packageJson = await readPackageJson(packageJsonPath);
-    for (const rawPattern of readTailwindContentPatterns(
-      packageJson,
-      packageJsonPath
-    )) {
+    const patterns = readTailwindContentPatterns(packageJson, packageJsonPath);
+    if (patterns.length === 0) continue;
+    const base = await realpath2(dirname2(packageJsonPath));
+    for (const rawPattern of patterns) {
       const negated = rawPattern.startsWith("!");
       const pattern = negated ? rawPattern.slice(1) : rawPattern;
-      sources.push({
-        base: dirname(packageJsonPath),
-        pattern,
-        negated
-      });
+      sources.push({ base, pattern, negated });
     }
   }
   return sources;
 }
 async function readPluginAppConfig(rootDir) {
-  const packageJsonPath = join(rootDir, "package.json");
+  const packageJsonPath = join2(rootDir, "package.json");
   const pkg = await readPackageJson(packageJsonPath);
   const manifest = await validatePluginBuildManifest(
     pkg,
@@ -19927,25 +17804,14 @@ async function readPluginAppConfig(rootDir) {
       `no frontend entry: ${packageJsonPath} has no "bb": { "app": "./app.tsx" } field (only plugins with an app entry can be built)`
     );
   }
-  if (isAbsolute2(app)) {
-    throw new Error(`manifest bb.app must be relative, got "${app}"`);
-  }
-  const appEntry = resolve2(rootDir, app);
-  if (appEntry !== rootDir && !appEntry.startsWith(rootDir + "/")) {
-    throw new Error(`manifest bb.app escapes the plugin directory: "${app}"`);
-  }
-  try {
-    await stat2(appEntry);
-  } catch {
-    throw new Error(`manifest bb.app points at a missing file: ${app}`);
-  }
+  const appEntry = await resolveManifestEntryFile(rootDir, app, "bb.app");
   return {
     appEntry,
     packageName: manifest.name,
     pluginVersion: manifest.version
   };
 }
-async function buildTailwindCss(rootDir, pluginId, toolchain) {
+async function buildTailwindCss(rootDir, pluginId, toolchain, dependencySources, bundledInputs) {
   const [{ compile }, { Scanner }] = await Promise.all([
     import(toolchain.tailwindNode),
     import(toolchain.tailwindOxide)
@@ -19953,14 +17819,10 @@ async function buildTailwindCss(rootDir, pluginId, toolchain) {
   const input = [
     `@layer theme, utilities;`,
     `@import "tailwindcss/theme.css" layer(theme);`,
-    // Same order as the host's theme.css: tw-animate first, then the host
-    // @theme blocks (so host tokens win any overlapping keys).
     TW_ANIMATE_CSS,
     PLUGIN_THEME_CSS,
     `@layer utilities {`,
-    `  @scope ([data-bb-plugin="${pluginId}"], [data-bb-plugin-root]:not([data-bb-plugin])) {`,
-    `    @tailwind utilities;`,
-    `  }`,
+    `  @tailwind utilities;`,
     `}`,
     ``
   ].join("\n");
@@ -19968,68 +17830,95 @@ async function buildTailwindCss(rootDir, pluginId, toolchain) {
     base: rootDir,
     onDependency: () => {
     },
-    // Resolved against the toolchain rather than this module: a shipped
-    // server bundles @bb/plugin-build but installs no tailwindcss, so
-    // resolving relative to import.meta.url finds nothing there.
     customCssResolver: async (id) => {
       if (id !== "tailwindcss" && !id.startsWith("tailwindcss/")) {
         return void 0;
       }
       const subpath = id === "tailwindcss" ? "index.css" : id.slice("tailwindcss/".length);
-      const candidate = join(toolchain.tailwindCssDir, subpath);
+      const candidate = join2(toolchain.tailwindCssDir, subpath);
       return existsSync(candidate) ? candidate : void 0;
     }
   });
-  const scannerSources = [
-    { base: rootDir, pattern: "**/*", negated: false },
-    { base: join(rootDir, "dist"), pattern: "**/*", negated: true },
-    { base: join(rootDir, "node_modules"), pattern: "**/*", negated: true },
-    ...await readDependencyTailwindSources(rootDir)
-  ];
-  const scanner = new Scanner({
-    sources: scannerSources
+  const ownScanner = new Scanner({
+    sources: [
+      { base: rootDir, pattern: "**/*", negated: false },
+      { base: join2(rootDir, "dist"), pattern: "**/*", negated: true },
+      { base: join2(rootDir, "node_modules"), pattern: "**/*", negated: true }
+    ]
   });
-  return compiler.build(scanner.scan());
+  const candidates = new Set(ownScanner.scan());
+  if (dependencySources.length > 0) {
+    const dependencyFileIdentities = await Promise.all(
+      new Scanner({ sources: dependencySources }).files.map(
+        (file2) => realpath2(file2)
+      )
+    );
+    const bundledDependencyFiles = [
+      ...new Set(
+        dependencyFileIdentities.filter((file2) => bundledInputs.has(file2))
+      )
+    ];
+    const contents = await Promise.all(
+      bundledDependencyFiles.map(async (file2) => ({
+        content: await readFile2(file2, "utf8"),
+        extension: extname(file2).slice(1)
+      }))
+    );
+    for (const candidate of new Scanner({ sources: [] }).scanFiles(contents)) {
+      candidates.add(candidate);
+    }
+  }
+  return scopePluginUtilities(
+    compiler.build([...candidates]),
+    pluginScopeRoots(pluginId)
+  );
 }
-async function buildPluginApp(rootDir, bbVersion, toolchain) {
+async function bundledInputPaths(metafile, absWorkingDir) {
+  const paths = /* @__PURE__ */ new Set();
+  await Promise.all(
+    Object.keys(metafile.inputs).map(async (input) => {
+      if (input.startsWith(`${SHIM_NAMESPACE}:`) || input.startsWith(`${ZOD_LOCALE_STUB_NAMESPACE}:`) || input.startsWith("(")) {
+        return;
+      }
+      paths.add(await realpath2(resolve2(absWorkingDir, input)));
+    })
+  );
+  return paths;
+}
+async function buildPluginApp(rootDir, bbVersion, toolchain, options = { minify: true }) {
   const { appEntry, packageName, pluginVersion } = await readPluginAppConfig(rootDir);
   const pluginId = derivePluginId(packageName);
-  const distDir = join(rootDir, "dist");
+  const dependencySources = await readDependencyTailwindSources(rootDir);
+  const distDir = join2(rootDir, "dist");
   await mkdir(distDir, { recursive: true });
-  const jsPath = join(distDir, "app.js");
-  const cssPath = join(distDir, "app.css");
-  const metaPath = join(distDir, "app.meta.json");
-  const stageDir = await mkdtemp(join(distDir, ".stage-"));
+  const jsPath = join2(distDir, "app.js");
+  const cssPath = join2(distDir, "app.css");
+  const metaPath = join2(distDir, "app.meta.json");
+  const stageDir = await mkdtemp(join2(distDir, ".stage-"));
   try {
-    const stagedJsPath = join(stageDir, "app.js");
-    const stagedCssPath = join(stageDir, "app.css");
-    const stagedMetaPath = join(stageDir, "app.meta.json");
+    const stagedJsPath = join2(stageDir, "app.js");
+    const stagedCssPath = join2(stageDir, "app.css");
+    const stagedMetaPath = join2(stageDir, "app.meta.json");
     const esbuild = await import(toolchain.esbuild);
-    await esbuild.build({
+    const bundle = await esbuild.build({
       entryPoints: [appEntry],
       outfile: stagedJsPath,
+      absWorkingDir: rootDir,
       bundle: true,
+      metafile: dependencySources.length > 0,
       format: "esm",
       platform: "browser",
       target: "es2022",
-      // Production jsx-runtime, always — the host only guarantees the dev
-      // runtime for `bb plugin dev`, and dev-transformed output in a
-      // production page is how subtle double-React bugs start. Deliberately
-      // a single mode: `bb plugin dev` builds through here too, so the
-      // reserved jsxDevRuntime shim slot is unreachable from our own output.
-      // Enabling dev JSX would take a dev-mode build flag that flips jsxDev
-      // and relies on that reserved slot.
+      minify: options.minify,
+      legalComments: "none",
       jsx: "automatic",
       jsxDev: false,
       define: {
         "process.env.NODE_ENV": '"production"',
-        // Consumed by shared-ui's vendored portal-scope so plugin-rendered
-        // portals (dialog, select, …) carry this plugin's own scope id and
-        // match the per-plugin `@scope` arm of app.css.
         __BB_PLUGIN_ID__: JSON.stringify(pluginId)
       },
       logLevel: "error",
-      plugins: [runtimeShimPlugin()]
+      plugins: [zodLocaleStubPlugin(), runtimeShimPlugin()]
     });
     let authoredCss = "";
     try {
@@ -20037,9 +17926,28 @@ async function buildPluginApp(rootDir, bbVersion, toolchain) {
     } catch (error48) {
       if (!isRecord(error48) || error48.code !== "ENOENT") throw error48;
     }
-    const tailwindCss = (await buildTailwindCss(rootDir, pluginId, toolchain)).trimEnd();
-    await writeFile(stagedCssPath, `${tailwindCss}
-${authoredCss}`);
+    let bundledInputs = /* @__PURE__ */ new Set();
+    if (dependencySources.length > 0) {
+      if (bundle.metafile === void 0) {
+        throw new Error(
+          "esbuild did not return the metafile required for dependency Tailwind scanning"
+        );
+      }
+      bundledInputs = await bundledInputPaths(bundle.metafile, rootDir);
+    }
+    const tailwindCss = (await buildTailwindCss(
+      rootDir,
+      pluginId,
+      toolchain,
+      dependencySources,
+      bundledInputs
+    )).trimEnd();
+    const { optimize } = await import(toolchain.tailwindNode);
+    const css = optimize(`${tailwindCss}
+${authoredCss}`, {
+      minify: options.minify
+    }).code;
+    await writeFile(stagedCssPath, css);
     await writeFile(
       stagedMetaPath,
       JSON.stringify(
@@ -20058,16 +17966,149 @@ ${authoredCss}`);
 }
 
 // packages/plugin-build/src/build-plugin-server.ts
-import {
-  mkdir as mkdir2,
-  mkdtemp as mkdtemp2,
-  readFile as readFile3,
-  rename as rename2,
-  rm as rm2,
-  stat as stat3,
-  writeFile as writeFile2
-} from "node:fs/promises";
-import { isAbsolute as isAbsolute3, join as join2, resolve as resolve3 } from "node:path";
+import { mkdir as mkdir3, mkdtemp as mkdtemp2, rename as rename3, rm as rm3, writeFile as writeFile3 } from "node:fs/promises";
+import { join as join6 } from "node:path";
+
+// packages/plugin-build/src/plugin-sdk-install.ts
+import { readFile as readFile3, stat as stat3 } from "node:fs/promises";
+import { dirname as dirname3, join as join3, resolve as resolve3 } from "node:path";
+var PLUGIN_SDK_PACKAGE_NAME = "@get-bb/plugin-sdk";
+async function pathExists(path2) {
+  try {
+    await stat3(path2);
+    return true;
+  } catch {
+    return false;
+  }
+}
+async function installedPluginSdkDirectory(fromDir) {
+  let directory = fromDir;
+  while (true) {
+    const candidate = join3(directory, "node_modules", PLUGIN_SDK_PACKAGE_NAME);
+    if (await pathExists(join3(candidate, "package.json"))) return candidate;
+    const parent = dirname3(directory);
+    if (parent === directory) return null;
+    directory = parent;
+  }
+}
+async function installedPluginSdkExportTarget(packageDir2, subpath) {
+  let json2;
+  try {
+    json2 = JSON.parse(await readFile3(join3(packageDir2, "package.json"), "utf8"));
+  } catch {
+    return null;
+  }
+  if (!isRecord(json2) || !isRecord(json2.exports)) return null;
+  let target = json2.exports[subpath];
+  while (isRecord(target)) {
+    target = target.import ?? target.node ?? target.default ?? target.require;
+  }
+  return typeof target === "string" ? target : null;
+}
+async function describeUnresolvedSdkImport(args) {
+  const packageDir2 = await installedPluginSdkDirectory(args.resolveDir);
+  if (packageDir2 === null) {
+    return `"${args.specifier}" is not installed for this plugin (no node_modules/${PLUGIN_SDK_PACKAGE_NAME}); ${args.need} the SDK as a dependency`;
+  }
+  const subpath = `.${args.specifier.slice(PLUGIN_SDK_PACKAGE_NAME.length)}`;
+  const target = await installedPluginSdkExportTarget(packageDir2, subpath);
+  if (target === null) {
+    return `"${args.specifier}" is not exported by the ${PLUGIN_SDK_PACKAGE_NAME} installed at ${packageDir2}; ${args.need} an SDK version that ships it`;
+  }
+  const targetPath = resolve3(packageDir2, target);
+  if (!await pathExists(targetPath)) {
+    return `"${args.specifier}" is installed for this plugin but its dist is not built: run the SDK build (${targetPath} is missing); ${args.need} the built SDK`;
+  }
+  return `"${args.specifier}" could not be resolved from ${packageDir2}: ${args.esbuildErrors.map((error48) => error48.text).join("; ")}`;
+}
+
+// packages/plugin-build/src/zod-resolution.ts
+var ZOD_FILTER = /^zod($|\/)/;
+var RESOLVED_MARK2 = "bb-zod-resolution-resolved";
+var SDK_IMPORTER = /[\\/]@get-bb[\\/]plugin-sdk[\\/]/;
+function describeUnresolvedZod(args) {
+  const viaSdk = SDK_IMPORTER.test(args.importer);
+  const cause = viaSdk ? `the ${PLUGIN_SDK_PACKAGE_NAME} installation is missing its required zod dependency` : `this ${args.entryKind} entry imports it`;
+  const remedy = viaSdk ? `reinstall ${PLUGIN_SDK_PACKAGE_NAME} before building the plugin` : `add zod to the plugin's dependencies`;
+  return `could not resolve "${args.specifier}": ${cause}; ${remedy}. Marking zod external instead would leave an unresolvable import in the built bundle.`;
+}
+function zodResolutionPlugin(entryKind, options = {}) {
+  return {
+    name: "bb-zod-resolution",
+    setup(build) {
+      build.onResolve({ filter: ZOD_FILTER }, async (args) => {
+        if (options.hostProvidedBareZod === true && args.path === "zod") {
+          return { path: args.path, external: true };
+        }
+        if (args.pluginData === RESOLVED_MARK2) return void 0;
+        const resolved = await build.resolve(args.path, {
+          importer: args.importer,
+          kind: args.kind,
+          resolveDir: args.resolveDir,
+          pluginData: RESOLVED_MARK2
+        });
+        if (resolved.errors.length > 0 || resolved.path === "") {
+          return {
+            errors: [
+              {
+                text: describeUnresolvedZod({
+                  specifier: args.path,
+                  importer: args.importer,
+                  entryKind
+                })
+              }
+            ]
+          };
+        }
+        return resolved;
+      });
+    }
+  };
+}
+
+// packages/plugin-build/src/toolchain.ts
+import { execFile } from "node:child_process";
+import { randomUUID } from "node:crypto";
+import { existsSync as existsSync2, readFileSync } from "node:fs";
+import { mkdir as mkdir2, readFile as readFile4, rename as rename2, rm as rm2, writeFile as writeFile2 } from "node:fs/promises";
+import { createRequire as createRequire2 } from "node:module";
+import { dirname as dirname5, join as join5 } from "node:path";
+import { pathToFileURL } from "node:url";
+import { promisify } from "node:util";
+
+// packages/process-utils/src/index.ts
+var import_cross_spawn = __toESM(require_cross_spawn(), 1);
+var NPM_SCRIPT_POLICY_ENV_KEYS = /* @__PURE__ */ new Set([
+  "npm_config_allow_scripts",
+  "npm_config_ignore_scripts",
+  "npm_config_foreground_scripts"
+]);
+function omitNpmScriptPolicyEnv(env) {
+  const childEnv = {};
+  for (const [key, value] of Object.entries(env)) {
+    if (value === void 0) continue;
+    if (NPM_SCRIPT_POLICY_ENV_KEYS.has(key.toLowerCase())) continue;
+    childEnv[key] = value;
+  }
+  return childEnv;
+}
+
+// packages/plugin-build/src/npm-cli.ts
+import { createRequire } from "node:module";
+import { dirname as dirname4, join as join4 } from "node:path";
+function bundledNpmBin(fileName) {
+  const require2 = createRequire(import.meta.url);
+  return join4(dirname4(require2.resolve("npm/package.json")), "bin", fileName);
+}
+function resolveBundledNpmCli() {
+  return bundledNpmBin("npm-cli.js");
+}
+function resolveBundledNpxCli() {
+  return bundledNpmBin("npx-cli.js");
+}
+
+// packages/plugin-build/src/toolchain.ts
+var run = promisify(execFile);
 var NODE_ESM_REQUIRE_BANNER = [
   'import { createRequire as __createRequire } from "node:module";',
   'import { dirname as __pathDirname } from "node:path";',
@@ -20076,31 +18117,172 @@ var NODE_ESM_REQUIRE_BANNER = [
   "var __filename = __fileURLToPath(import.meta.url);",
   "var __dirname = __pathDirname(__filename);"
 ].join("\n");
-var PLUGIN_SDK_SPECIFIER = "@get-bb/plugin-sdk";
+var PLUGIN_TOOLCHAIN_PINS = {
+  esbuild: "0.28.1",
+  "@tailwindcss/node": "4.3.0",
+  "@tailwindcss/oxide": "4.3.0",
+  tailwindcss: "4.3.0"
+};
+function pinKey() {
+  return Object.entries(PLUGIN_TOOLCHAIN_PINS).map(([name, version2]) => `${name}@${version2}`).sort().join(",");
+}
+function toolchainCacheDir(baseDir) {
+  const key = Object.values(PLUGIN_TOOLCHAIN_PINS).join("-");
+  return join5(baseDir, `toolchain-${key}`);
+}
+function packageDir(require2, name) {
+  let dir;
+  try {
+    dir = dirname5(require2.resolve(name));
+  } catch {
+    return null;
+  }
+  for (let depth = 0; depth < 10; depth += 1) {
+    const manifest = join5(dir, "package.json");
+    if (existsSync2(manifest)) {
+      try {
+        const parsed = JSON.parse(readFileSync(manifest, "utf8"));
+        if (typeof parsed === "object" && parsed !== null && parsed.name === name) {
+          return dir;
+        }
+      } catch {
+        return null;
+      }
+    }
+    const parent = dirname5(dir);
+    if (parent === dir) return null;
+    dir = parent;
+  }
+  return null;
+}
+function readVersion(require2, name) {
+  const dir = packageDir(require2, name);
+  if (dir === null) return null;
+  try {
+    const parsed = JSON.parse(
+      readFileSync(join5(dir, "package.json"), "utf8")
+    );
+    const version2 = typeof parsed === "object" && parsed !== null ? parsed.version : void 0;
+    return typeof version2 === "string" ? version2 : null;
+  } catch {
+    return null;
+  }
+}
+function toolchainFrom(require2) {
+  for (const [name, pinned] of Object.entries(PLUGIN_TOOLCHAIN_PINS)) {
+    if (readVersion(require2, name) !== pinned) return null;
+  }
+  try {
+    const tailwindCssDir = packageDir(require2, "tailwindcss");
+    if (tailwindCssDir === null) return null;
+    return {
+      esbuild: pathToFileURL(require2.resolve("esbuild")).href,
+      tailwindNode: pathToFileURL(require2.resolve("@tailwindcss/node")).href,
+      tailwindOxide: pathToFileURL(require2.resolve("@tailwindcss/oxide")).href,
+      tailwindCssDir
+    };
+  } catch {
+    return null;
+  }
+}
+function resolveLocalToolchain() {
+  return toolchainFrom(createRequire2(import.meta.url));
+}
+async function isInstalled(dir) {
+  try {
+    const raw = await readFile4(join5(dir, ".bb-toolchain.json"), "utf8");
+    const parsed = JSON.parse(raw);
+    if (typeof parsed !== "object" || parsed === null || parsed.pins !== pinKey()) {
+      return false;
+    }
+  } catch {
+    return false;
+  }
+  return toolchainFrom(createRequire2(join5(dir, "noop.js"))) !== null;
+}
+async function resolvePluginBuildToolchain(baseDir, options) {
+  if (options?.ignoreLocal !== true) {
+    const local = resolveLocalToolchain();
+    if (local !== null) return local;
+  }
+  const dir = toolchainCacheDir(baseDir);
+  if (await isInstalled(dir)) {
+    const cached2 = toolchainFrom(createRequire2(join5(dir, "noop.js")));
+    if (cached2 !== null) return cached2;
+  }
+  options?.onFetchStart?.();
+  const startedAt = Date.now();
+  const staging = `${dir}.staging-${randomUUID()}`;
+  try {
+    await mkdir2(staging, { recursive: true });
+    await writeFile2(
+      join5(staging, "package.json"),
+      `${JSON.stringify({ name: "bb-plugin-toolchain", private: true, version: "0.0.0" }, null, 2)}
+`
+    );
+    await run(
+      process.execPath,
+      [
+        resolveBundledNpmCli(),
+        "install",
+        "--prefix",
+        staging,
+        "--ignore-scripts",
+        "--no-audit",
+        "--no-fund",
+        "--no-package-lock",
+        ...Object.entries(PLUGIN_TOOLCHAIN_PINS).map(
+          ([name, version2]) => `${name}@${version2}`
+        )
+      ],
+      {
+        maxBuffer: 1024 * 1024 * 16,
+        env: omitNpmScriptPolicyEnv(process.env)
+      }
+    );
+    const staged = toolchainFrom(createRequire2(join5(staging, "noop.js")));
+    if (staged === null) {
+      throw new Error(
+        "the downloaded plugin build toolchain is incomplete or misversioned"
+      );
+    }
+    await writeFile2(
+      join5(staging, ".bb-toolchain.json"),
+      `${JSON.stringify({ pins: pinKey() }, null, 2)}
+`
+    );
+    await mkdir2(dirname5(dir), { recursive: true });
+    try {
+      await rename2(staging, dir);
+    } catch {
+      if (!await isInstalled(dir)) throw new Error(errorPromoting(dir));
+    }
+  } finally {
+    await rm2(staging, { recursive: true, force: true });
+  }
+  const promoted = toolchainFrom(createRequire2(join5(dir, "noop.js")));
+  if (promoted === null) throw new Error(errorPromoting(dir));
+  options?.onFetchDone?.(Date.now() - startedAt);
+  return promoted;
+}
+function errorPromoting(dir) {
+  return `could not install the plugin build toolchain into ${dir}`;
+}
+
+// packages/plugin-build/src/build-plugin-server.ts
 var LEGACY_PLUGIN_SDK_SPECIFIER = "@bb/plugin-sdk";
 var PLUGIN_SERVER_EXTERNALS = [
-  PLUGIN_SDK_SPECIFIER,
+  PLUGIN_SDK_PACKAGE_NAME,
   LEGACY_PLUGIN_SDK_SPECIFIER,
   "better-sqlite3"
 ];
-function isRecord2(value) {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
+var PLUGIN_SDK_ROOT_FILTER = /^@get-bb\/plugin-sdk$|^@bb\/plugin-sdk$/;
+var PLUGIN_SDK_SUBPATH_FILTER = /^@get-bb\/plugin-sdk\//;
+var PLUGIN_SDK_SUBPATH_RESOLVE_MARK = "bb-server-sdk-subpath";
 async function readPluginServerConfig(rootDir) {
-  const packageJsonPath = join2(rootDir, "package.json");
-  let raw;
-  try {
-    raw = await readFile3(packageJsonPath, "utf8");
-  } catch {
-    throw new Error(`no readable package.json at ${packageJsonPath}`);
-  }
-  let json2;
-  try {
-    json2 = JSON.parse(raw);
-  } catch {
-    throw new Error(`package.json is not valid JSON at ${packageJsonPath}`);
-  }
-  if (!isRecord2(json2) || !isRecord2(json2.bb) || json2.bb.server === void 0) {
+  const packageJsonPath = join6(rootDir, "package.json");
+  const json2 = await readPluginPackageJsonFile(packageJsonPath);
+  if (!isRecord(json2) || !isRecord(json2.bb) || json2.bb.server === void 0) {
     throw new Error(
       `no server entry: ${packageJsonPath} has no "bb": { "server": "./server.ts" } field`
     );
@@ -20110,38 +18292,28 @@ async function readPluginServerConfig(rootDir) {
     rootDir,
     packageJsonPath
   );
-  const server = manifest.bb.server;
-  if (isAbsolute3(server)) {
-    throw new Error(`manifest bb.server must be relative, got "${server}"`);
-  }
-  const serverEntry = resolve3(rootDir, server);
-  if (serverEntry !== rootDir && !serverEntry.startsWith(rootDir + "/")) {
-    throw new Error(
-      `manifest bb.server escapes the plugin directory: "${server}"`
-    );
-  }
-  try {
-    await stat3(serverEntry);
-  } catch {
-    throw new Error(`manifest bb.server points at a missing file: ${server}`);
-  }
+  const serverEntry = await resolveManifestEntryFile(
+    rootDir,
+    manifest.bb.server,
+    "bb.server"
+  );
   return {
     serverEntry,
     packageName: manifest.name,
     pluginVersion: manifest.version
   };
 }
-async function buildPluginServer(rootDir, bbVersion, toolchain) {
+async function buildPluginServer(rootDir, bbVersion, toolchain, options = { hostProvidedZod: false }) {
   const { serverEntry, packageName, pluginVersion } = await readPluginServerConfig(rootDir);
-  const distDir = join2(rootDir, "dist");
-  await mkdir2(distDir, { recursive: true });
-  const jsPath = join2(distDir, "server.js");
-  const mapPath = join2(distDir, "server.js.map");
-  const metaPath = join2(distDir, "server.meta.json");
-  const stageDir = await mkdtemp2(join2(distDir, ".stage-"));
+  const distDir = join6(rootDir, "dist");
+  await mkdir3(distDir, { recursive: true });
+  const jsPath = join6(distDir, "server.js");
+  const mapPath = join6(distDir, "server.js.map");
+  const metaPath = join6(distDir, "server.meta.json");
+  const stageDir = await mkdtemp2(join6(distDir, ".stage-"));
   try {
-    const stagedJsPath = join2(stageDir, "server.js");
-    const stagedMetaPath = join2(stageDir, "server.meta.json");
+    const stagedJsPath = join6(stageDir, "server.js");
+    const stagedMetaPath = join6(stageDir, "server.meta.json");
     const esbuild = await import(toolchain.esbuild);
     await esbuild.build({
       entryPoints: [serverEntry],
@@ -20151,14 +18323,60 @@ async function buildPluginServer(rootDir, bbVersion, toolchain) {
       platform: "node",
       target: "node22",
       sourcemap: true,
+      sourcesContent: false,
       banner: { js: NODE_ESM_REQUIRE_BANNER },
-      // The server's loader aliases the SDK to its shipped runtime bundle at
-      // load time; better-sqlite3 comes from the host (bb.storage). Node
-      // builtins are auto-external via platform: "node".
-      external: [...PLUGIN_SERVER_EXTERNALS],
+      external: PLUGIN_SERVER_EXTERNALS.filter(
+        (specifier) => !PLUGIN_SDK_ROOT_FILTER.test(specifier)
+      ),
+      minify: true,
+      keepNames: true,
+      plugins: [
+        zodResolutionPlugin("server", {
+          hostProvidedBareZod: options.hostProvidedZod
+        }),
+        zodLocaleStubPlugin(),
+        {
+          name: "bb-plugin-sdk-resolution",
+          setup(build) {
+            build.onResolve({ filter: PLUGIN_SDK_ROOT_FILTER }, (args) => ({
+              path: args.path,
+              external: true
+            }));
+            build.onResolve(
+              { filter: PLUGIN_SDK_SUBPATH_FILTER },
+              async (args) => {
+                if (args.pluginData === PLUGIN_SDK_SUBPATH_RESOLVE_MARK) {
+                  return void 0;
+                }
+                const installed = await build.resolve(args.path, {
+                  resolveDir: args.resolveDir,
+                  kind: args.kind,
+                  importer: args.importer,
+                  pluginData: PLUGIN_SDK_SUBPATH_RESOLVE_MARK
+                });
+                if (installed.errors.length === 0 && installed.path !== "") {
+                  return { path: installed.path };
+                }
+                return {
+                  errors: [
+                    {
+                      text: await describeUnresolvedSdkImport({
+                        specifier: args.path,
+                        resolveDir: args.resolveDir,
+                        need: `a server entry's "${args.path}" import is bundled from the plugin's own SDK install (bb serves only the bare "${PLUGIN_SDK_PACKAGE_NAME}" at load time), so the plugin needs`,
+                        esbuildErrors: installed.errors
+                      })
+                    }
+                  ]
+                };
+              }
+            );
+          }
+        }
+      ],
       logLevel: "error"
     });
-    await writeFile2(
+    await writeFile3(
       stagedMetaPath,
       JSON.stringify(
         createPluginArtifactMeta({ packageName, pluginVersion, bbVersion }),
@@ -20166,11 +18384,11 @@ async function buildPluginServer(rootDir, bbVersion, toolchain) {
         2
       ) + "\n"
     );
-    await rename2(stagedJsPath, jsPath);
-    await rename2(join2(stageDir, "server.js.map"), mapPath);
-    await rename2(stagedMetaPath, metaPath);
+    await rename3(stagedJsPath, jsPath);
+    await rename3(join6(stageDir, "server.js.map"), mapPath);
+    await rename3(stagedMetaPath, metaPath);
   } finally {
-    await rm2(stageDir, { recursive: true, force: true });
+    await rm3(stageDir, { recursive: true, force: true });
   }
   return { jsPath, mapPath, metaPath };
 }
@@ -20178,60 +18396,41 @@ async function buildPluginServer(rootDir, bbVersion, toolchain) {
 // packages/plugin-build/src/build-plugin-host.ts
 import { createHash } from "node:crypto";
 import {
-  mkdir as mkdir3,
+  mkdir as mkdir4,
   mkdtemp as mkdtemp3,
-  readFile as readFile4,
+  readFile as readFile5,
   readdir,
-  rename as rename3,
-  rm as rm3,
+  rename as rename4,
+  rm as rm4,
   stat as stat4,
-  writeFile as writeFile3
+  writeFile as writeFile4
 } from "node:fs/promises";
-import { dirname as dirname2, isAbsolute as isAbsolute4, join as join3, resolve as resolve4 } from "node:path";
-var NODE_ESM_REQUIRE_BANNER2 = [
-  'import { createRequire as __createRequire } from "node:module";',
-  'import { dirname as __pathDirname } from "node:path";',
-  'import { fileURLToPath as __fileURLToPath } from "node:url";',
-  "const require = __createRequire(import.meta.url);",
-  "var __filename = __fileURLToPath(import.meta.url);",
-  "var __dirname = __pathDirname(__filename);"
-].join("\n");
+import { dirname as dirname6, isAbsolute as isAbsolute2, join as join7 } from "node:path";
 var PLUGIN_SDK_HOST_RUNTIME_NAMESPACE = "bb-host-sdk-runtime";
 var HOST_STAGE_DIRECTORY_PREFIX = ".host-stage-";
 var HOST_STAGE_STALE_AFTER_MS = 60 * 60 * 1e3;
+var PLUGIN_SDK_DEFINE_HOST_ENTRY_RUNTIME = `
+export function experimental_defineHostEntry(args) {
+  return {
+    experimental_apiVersion: 1,
+    contract: args.contract,
+    handlers: args.handlers,
+    ...(args.experimental_signals === undefined ? {} : { experimental_signals: args.experimental_signals }),
+    ...(args.dispose === undefined ? {} : { dispose: args.dispose }),
+  };
+}
+`;
 var PLUGIN_SDK_ROOT_RUNTIME = `
 export const PLUGIN_CLI_OUTPUT_MAX_BYTES = 1024 * 1024;
 export function defineRpcContract(contract) { return contract; }
-export function experimental_defineHostEntry(args) {
-  return {
-    experimental_apiVersion: 1,
-    contract: args.contract,
-    handlers: args.handlers,
-    ...(args.experimental_signals === undefined ? {} : { experimental_signals: args.experimental_signals }),
-    ...(args.dispose === undefined ? {} : { dispose: args.dispose }),
-  };
-}
-`;
-var PLUGIN_SDK_HOST_RUNTIME = `
-export function experimental_defineHostEntry(args) {
-  return {
-    experimental_apiVersion: 1,
-    contract: args.contract,
-    handlers: args.handlers,
-    ...(args.experimental_signals === undefined ? {} : { experimental_signals: args.experimental_signals }),
-    ...(args.dispose === undefined ? {} : { dispose: args.dispose }),
-  };
-}
-`;
-var HOST_ARTIFACT_RUNTIME_STUBS = {
-  "@get-bb/plugin-sdk": PLUGIN_SDK_ROOT_RUNTIME,
-  "@get-bb/plugin-sdk/host": PLUGIN_SDK_HOST_RUNTIME
-};
+${PLUGIN_SDK_DEFINE_HOST_ENTRY_RUNTIME}`;
+var PLUGIN_SDK_HOST_FALLBACK_SPECIFIER = "@get-bb/plugin-sdk/host";
+var PLUGIN_SDK_HOST_FALLBACK_EXPORTS = /* @__PURE__ */ new Set([
+  "experimental_defineHostEntry"
+]);
+var PLUGIN_SDK_HOST_FALLBACK_NAMESPACE = "bb-host-sdk-fallback";
 function escapeRegex2(value) {
   return value.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
-}
-function isRecord3(value) {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 function sourceTokens(source) {
   const tokens = [];
@@ -20314,11 +18513,75 @@ function sourceImportSpecifiers(source) {
   }
   return specifiers;
 }
+function importedRuntimeNames(source, specifier) {
+  const tokens = sourceTokens(source);
+  const names = [];
+  for (let index = 0; index < tokens.length; index += 1) {
+    const token = tokens[index];
+    if (token?.kind !== "string" || token.value !== specifier) continue;
+    if (tokens[index - 1]?.value !== "from") continue;
+    let start = index - 2;
+    while (start >= 0) {
+      const candidate = tokens[start];
+      if (candidate?.kind === "identifier" && (candidate.value === "import" || candidate.value === "export")) {
+        break;
+      }
+      start -= 1;
+    }
+    if (start < 0) continue;
+    const clause = tokens.slice(start + 1, index - 1);
+    if (clause[0]?.kind === "identifier" && clause[0].value === "type") {
+      continue;
+    }
+    let braceDepth = 0;
+    let entry = [];
+    let previousTopLevel;
+    const flushEntry = () => {
+      const first = entry[0];
+      if (first !== void 0) {
+        const typeOnly = first.kind === "identifier" && first.value === "type" && entry.length > 1 && entry[1]?.value !== "as";
+        if (!typeOnly) names.push(first.value);
+      }
+      entry = [];
+    };
+    for (const item of clause) {
+      if (item.kind === "punctuation" && item.value === "{") {
+        braceDepth += 1;
+        continue;
+      }
+      if (item.kind === "punctuation" && item.value === "}") {
+        flushEntry();
+        braceDepth -= 1;
+        continue;
+      }
+      if (item.kind === "punctuation" && item.value === ",") {
+        if (braceDepth > 0) flushEntry();
+        continue;
+      }
+      if (braceDepth > 0) {
+        entry.push(item);
+        continue;
+      }
+      if (item.kind === "punctuation" && item.value === "*") {
+        names.push("*");
+      } else if (item.kind === "identifier" && item.value !== "as" && previousTopLevel?.value !== "as") {
+        names.push("default");
+      }
+      previousTopLevel = item;
+    }
+  }
+  return names;
+}
+function describeImportedNames(names) {
+  return [...new Set(names)].map(
+    (name) => name === "*" ? "the whole module" : name === "default" ? "the default export" : name
+  ).join(", ");
+}
 function privateBbImportError(specifier) {
   return `host entries cannot import private BB workspace package "${specifier}"; use @get-bb/plugin-sdk, Node APIs, or a regular plugin dependency`;
 }
 async function owningPackageName(filePath, cache) {
-  let directory = dirname2(filePath);
+  let directory = dirname6(filePath);
   const visited = [];
   while (true) {
     const cached2 = cache.get(directory);
@@ -20329,13 +18592,13 @@ async function owningPackageName(filePath, cache) {
     visited.push(directory);
     try {
       const parsed = JSON.parse(
-        await readFile4(join3(directory, "package.json"), "utf8")
+        await readFile5(join7(directory, "package.json"), "utf8")
       );
-      const name = isRecord3(parsed) && typeof parsed.name === "string" ? parsed.name : null;
+      const name = isRecord(parsed) && typeof parsed.name === "string" ? parsed.name : null;
       for (const entry of visited) cache.set(entry, name);
       return name;
     } catch {
-      const parent = dirname2(directory);
+      const parent = dirname6(directory);
       if (parent === directory) {
         for (const entry of visited) cache.set(entry, null);
         return null;
@@ -20345,14 +18608,14 @@ async function owningPackageName(filePath, cache) {
   }
 }
 async function readPluginHostConfig(rootDir) {
-  const packageJsonPath = join3(rootDir, "package.json");
+  const packageJsonPath = join7(rootDir, "package.json");
   let json2;
   try {
-    json2 = JSON.parse(await readFile4(packageJsonPath, "utf8"));
+    json2 = JSON.parse(await readFile5(packageJsonPath, "utf8"));
   } catch {
     throw new Error(`no readable valid package.json at ${packageJsonPath}`);
   }
-  if (!isRecord3(json2) || !isRecord3(json2.bb) || json2.bb.host === void 0) {
+  if (!isRecord(json2) || !isRecord(json2.bb) || json2.bb.host === void 0) {
     throw new Error(
       `no host entry: ${packageJsonPath} has no "bb": { "host": "./host.ts" } field`
     );
@@ -20366,18 +18629,7 @@ async function readPluginHostConfig(rootDir) {
   if (host === void 0) {
     throw new Error(`no host entry in ${packageJsonPath}`);
   }
-  if (isAbsolute4(host)) {
-    throw new Error(`manifest bb.host must be relative, got "${host}"`);
-  }
-  const hostEntry = resolve4(rootDir, host);
-  if (hostEntry !== rootDir && !hostEntry.startsWith(rootDir + "/")) {
-    throw new Error(`manifest bb.host escapes the plugin directory: "${host}"`);
-  }
-  try {
-    await stat4(hostEntry);
-  } catch {
-    throw new Error(`manifest bb.host points at a missing file: ${host}`);
-  }
+  const hostEntry = await resolveManifestEntryFile(rootDir, host, "bb.host");
   return {
     hostEntry,
     packageName: manifest.name,
@@ -20391,26 +18643,26 @@ async function removeStaleHostStageDirectories(distDir) {
     entries.filter(
       (entry) => entry.isDirectory() && entry.name.startsWith(HOST_STAGE_DIRECTORY_PREFIX)
     ).map(async (entry) => {
-      const stageDir = join3(distDir, entry.name);
+      const stageDir = join7(distDir, entry.name);
       const stageStats = await stat4(stageDir).catch(() => null);
       if (stageStats !== null && stageStats.mtimeMs <= staleBefore) {
-        await rm3(stageDir, { recursive: true, force: true });
+        await rm4(stageDir, { recursive: true, force: true });
       }
     })
   );
 }
 async function buildPluginHost(rootDir, bbVersion, toolchain) {
   const { hostEntry, packageName, pluginVersion } = await readPluginHostConfig(rootDir);
-  const distDir = join3(rootDir, "dist");
-  await mkdir3(distDir, { recursive: true });
-  const jsPath = join3(distDir, "host.js");
-  const mapPath = join3(distDir, "host.js.map");
-  const metaPath = join3(distDir, "host.meta.json");
+  const distDir = join7(rootDir, "dist");
+  await mkdir4(distDir, { recursive: true });
+  const jsPath = join7(distDir, "host.js");
+  const mapPath = join7(distDir, "host.js.map");
+  const metaPath = join7(distDir, "host.meta.json");
   await removeStaleHostStageDirectories(distDir);
-  const stageDir = await mkdtemp3(join3(distDir, HOST_STAGE_DIRECTORY_PREFIX));
+  const stageDir = await mkdtemp3(join7(distDir, HOST_STAGE_DIRECTORY_PREFIX));
   try {
-    const stagedJsPath = join3(stageDir, "host.js");
-    const stagedMetaPath = join3(stageDir, "host.meta.json");
+    const stagedJsPath = join7(stageDir, "host.js");
+    const stagedMetaPath = join7(stageDir, "host.meta.json");
     const esbuild = await import(toolchain.esbuild);
     const packageNameByDirectory = /* @__PURE__ */ new Map();
     await esbuild.build({
@@ -20419,31 +18671,70 @@ async function buildPluginHost(rootDir, bbVersion, toolchain) {
       bundle: true,
       format: "esm",
       platform: "node",
+      minify: true,
+      keepNames: true,
       plugins: [
+        zodResolutionPlugin("host"),
+        zodLocaleStubPlugin(),
         {
           name: "provide-public-host-sdk-runtime",
           setup(build) {
-            const runtimeStubFilter = new RegExp(
-              `^(?:${Object.keys(HOST_ARTIFACT_RUNTIME_STUBS).map(escapeRegex2).join("|")})$`
+            const rootFilter = new RegExp(
+              `^${escapeRegex2(PLUGIN_SDK_PACKAGE_NAME)}$`
             );
-            build.onResolve({ filter: runtimeStubFilter }, (args) => ({
+            build.onResolve({ filter: rootFilter }, (args) => ({
               path: args.path,
               namespace: PLUGIN_SDK_HOST_RUNTIME_NAMESPACE
             }));
             build.onLoad(
-              {
-                filter: /.*/,
-                namespace: PLUGIN_SDK_HOST_RUNTIME_NAMESPACE
-              },
-              (args) => {
-                const contents = HOST_ARTIFACT_RUNTIME_STUBS[args.path];
-                if (contents === void 0) {
-                  throw new Error(
-                    `no host artifact runtime stub registered for "${args.path}"`
-                  );
-                }
-                return { contents, loader: "js" };
+              { filter: /.*/, namespace: PLUGIN_SDK_HOST_RUNTIME_NAMESPACE },
+              () => ({ contents: PLUGIN_SDK_ROOT_RUNTIME, loader: "js" })
+            );
+            const hostFilter = new RegExp(
+              `^${escapeRegex2(PLUGIN_SDK_HOST_FALLBACK_SPECIFIER)}$`
+            );
+            build.onResolve({ filter: hostFilter }, async (args) => {
+              if (args.pluginData === PLUGIN_SDK_HOST_FALLBACK_NAMESPACE) {
+                return void 0;
               }
+              const installed = await build.resolve(args.path, {
+                resolveDir: args.resolveDir,
+                kind: args.kind,
+                importer: args.importer,
+                pluginData: PLUGIN_SDK_HOST_FALLBACK_NAMESPACE
+              });
+              if (installed.errors.length === 0 && installed.path !== "") {
+                return { path: installed.path };
+              }
+              const importerSource = /\.[cm]?[jt]sx?$/u.test(args.importer) ? await readFile5(args.importer, "utf8").catch(() => null) : null;
+              const beyondStub = importerSource === null ? [] : importedRuntimeNames(importerSource, args.path).filter(
+                (name) => !PLUGIN_SDK_HOST_FALLBACK_EXPORTS.has(name)
+              );
+              if (beyondStub.length > 0) {
+                return {
+                  errors: [
+                    {
+                      text: await describeUnresolvedSdkImport({
+                        specifier: PLUGIN_SDK_HOST_FALLBACK_SPECIFIER,
+                        resolveDir: args.resolveDir,
+                        need: `a host entry that imports ${describeImportedNames(beyondStub)} needs`,
+                        esbuildErrors: installed.errors
+                      })
+                    }
+                  ]
+                };
+              }
+              return {
+                path: args.path,
+                namespace: PLUGIN_SDK_HOST_FALLBACK_NAMESPACE
+              };
+            });
+            build.onLoad(
+              { filter: /.*/, namespace: PLUGIN_SDK_HOST_FALLBACK_NAMESPACE },
+              () => ({
+                contents: PLUGIN_SDK_DEFINE_HOST_ENTRY_RUNTIME,
+                loader: "js"
+              })
             );
           }
         },
@@ -20463,20 +18754,20 @@ async function buildPluginHost(rootDir, bbVersion, toolchain) {
                   errors: [{ text: privateBbImportError(owner) }]
                 };
               }
-              const source = await readFile4(args.path, "utf8");
+              const source = await readFile5(args.path, "utf8");
               for (const specifier of sourceImportSpecifiers(source)) {
                 if (specifier === "@bb" || specifier.startsWith("@bb/")) {
                   return {
                     errors: [{ text: privateBbImportError(specifier) }]
                   };
                 }
-                if (!specifier.startsWith(".") && !isAbsolute4(specifier)) {
+                if (!specifier.startsWith(".") && !isAbsolute2(specifier)) {
                   continue;
                 }
                 const resolvedImport = await build.resolve(specifier, {
                   importer: args.path,
                   kind: "import-statement",
-                  resolveDir: dirname2(args.path)
+                  resolveDir: dirname6(args.path)
                 });
                 if (resolvedImport.errors.length > 0 || !resolvedImport.path) {
                   continue;
@@ -20498,11 +18789,12 @@ async function buildPluginHost(rootDir, bbVersion, toolchain) {
       ],
       target: "node22",
       sourcemap: true,
-      banner: { js: NODE_ESM_REQUIRE_BANNER2 },
+      sourcesContent: false,
+      banner: { js: NODE_ESM_REQUIRE_BANNER },
       logLevel: "error"
     });
-    const artifactDigest = createHash("sha256").update(await readFile4(stagedJsPath)).digest("hex");
-    await writeFile3(
+    const artifactDigest = createHash("sha256").update(await readFile5(stagedJsPath)).digest("hex");
+    await writeFile4(
       stagedMetaPath,
       JSON.stringify(
         {
@@ -20517,17 +18809,17 @@ async function buildPluginHost(rootDir, bbVersion, toolchain) {
         2
       ) + "\n"
     );
-    await rename3(stagedJsPath, jsPath);
-    await rename3(join3(stageDir, "host.js.map"), mapPath);
-    await rename3(stagedMetaPath, metaPath);
+    await rename4(stagedJsPath, jsPath);
+    await rename4(join7(stageDir, "host.js.map"), mapPath);
+    await rename4(stagedMetaPath, metaPath);
     return { jsPath, mapPath, metaPath, artifactDigest };
   } finally {
-    await rm3(stageDir, { recursive: true, force: true });
+    await rm4(stageDir, { recursive: true, force: true });
   }
 }
 
 // packages/plugin-build/src/plugin-dev-loop.ts
-var DEFAULT_DEBOUNCE_MS = 300;
+var DEBOUNCE_MS = 300;
 var IGNORED_SEGMENTS = /* @__PURE__ */ new Set(["dist", "node_modules", ".git"]);
 function isIgnoredPluginDevPath(relativePath) {
   return relativePath.split(/[\\/]/).some((segment) => IGNORED_SEGMENTS.has(segment));
@@ -20536,8 +18828,6 @@ function errorMessage(error48) {
   return error48 instanceof Error ? error48.message : String(error48);
 }
 function createPluginDevLoop(deps) {
-  const debounceMs = deps.debounceMs ?? DEFAULT_DEBOUNCE_MS;
-  const now = deps.now ?? (() => Date.now());
   const pending = /* @__PURE__ */ new Set();
   let timer = null;
   let disposed = false;
@@ -20547,12 +18837,20 @@ function createPluginDevLoop(deps) {
     const parts = [
       `${files.length} file${files.length === 1 ? "" : "s"} changed`
     ];
-    if (deps.hasApp) {
-      const startedAt = now();
+    let targets;
+    try {
+      targets = await deps.targets();
+    } catch (error48) {
+      parts.push(`manifest read failed: ${errorMessage(error48)}`);
+      deps.log(`${parts.join(" \xB7 ")} \u2014 fix and save to retry`);
+      return;
+    }
+    if (targets.hasApp) {
+      const startedAt = Date.now();
       try {
         await deps.buildApp();
         parts.push(
-          `rebuilt app in ${Math.max(0, Math.round(now() - startedAt))}ms`
+          `rebuilt app in ${Math.max(0, Math.round(Date.now() - startedAt))}ms`
         );
       } catch (error48) {
         parts.push(`build failed: ${errorMessage(error48)}`);
@@ -20560,12 +18858,12 @@ function createPluginDevLoop(deps) {
         return;
       }
     }
-    if (deps.hasHost) {
-      const startedAt = now();
+    if (targets.hasHost) {
+      const startedAt = Date.now();
       try {
         await deps.buildHost();
         parts.push(
-          `rebuilt host in ${Math.max(0, Math.round(now() - startedAt))}ms`
+          `rebuilt host in ${Math.max(0, Math.round(Date.now() - startedAt))}ms`
         );
       } catch (error48) {
         parts.push(`host build failed: ${errorMessage(error48)}`);
@@ -20593,7 +18891,7 @@ function createPluginDevLoop(deps) {
       if (disposed || isIgnoredPluginDevPath(relativePath)) return;
       pending.add(relativePath);
       if (timer !== null) clearTimeout(timer);
-      timer = setTimeout(flush, debounceMs);
+      timer = setTimeout(flush, DEBOUNCE_MS);
     },
     settled: () => queueTail,
     dispose() {
@@ -20605,176 +18903,110 @@ function createPluginDevLoop(deps) {
   };
 }
 
-// packages/plugin-build/src/toolchain.ts
-import { execFile } from "node:child_process";
-import { randomUUID } from "node:crypto";
-import { existsSync as existsSync2, readFileSync } from "node:fs";
-import { mkdir as mkdir4, readFile as readFile5, rename as rename4, rm as rm4, writeFile as writeFile4 } from "node:fs/promises";
-import { createRequire } from "node:module";
-import { dirname as dirname3, join as join4 } from "node:path";
-import { pathToFileURL } from "node:url";
-import { promisify } from "node:util";
-var run = promisify(execFile);
-var PLUGIN_TOOLCHAIN_PINS = {
-  esbuild: "0.28.1",
-  "@tailwindcss/node": "4.3.0",
-  "@tailwindcss/oxide": "4.3.0",
-  tailwindcss: "4.3.0"
-};
-function pinKey() {
-  return Object.entries(PLUGIN_TOOLCHAIN_PINS).map(([name, version2]) => `${name}@${version2}`).sort().join(",");
-}
-function toolchainCacheDir(baseDir) {
-  const key = Object.values(PLUGIN_TOOLCHAIN_PINS).join("-");
-  return join4(baseDir, `toolchain-${key}`);
-}
-function packageDir(require2, name) {
-  let dir;
-  try {
-    dir = dirname3(require2.resolve(name));
-  } catch {
-    return null;
+// packages/plugin-build/src/prepare-plugin-runtime.ts
+import {
+  cp,
+  mkdir as mkdir5,
+  mkdtemp as mkdtemp4,
+  readFile as readFile6,
+  realpath as realpath3,
+  rm as rm5,
+  symlink,
+  writeFile as writeFile5
+} from "node:fs/promises";
+import path from "node:path";
+var RUNTIME_DIRS = ["dist", "skills"];
+async function copyIfExists(from, to) {
+  if (await pathExists(from)) {
+    await cp(from, to, { recursive: true });
   }
-  for (let depth = 0; depth < 10; depth += 1) {
-    const manifest = join4(dir, "package.json");
-    if (existsSync2(manifest)) {
-      try {
-        const parsed = JSON.parse(readFileSync(manifest, "utf8"));
-        if (typeof parsed === "object" && parsed !== null && parsed.name === name) {
-          return dir;
+}
+async function writeRuntimePackageJson(args) {
+  const raw = await readFile6(
+    path.join(args.sourceRoot, "package.json"),
+    "utf8"
+  );
+  const packageJson = pluginPackageJsonSchema.parse(JSON.parse(raw));
+  await writeFile5(
+    path.join(args.targetDir, "package.json"),
+    `${JSON.stringify(
+      {
+        ...packageJson,
+        bb: {
+          ...packageJson.bb,
+          server: "./dist/server.js",
+          ...packageJson.bb.app === void 0 ? {} : { app: "./dist/app.js" },
+          ...packageJson.bb.host === void 0 ? {} : { host: "./dist/host.js" }
         }
-      } catch {
-        return null;
-      }
-    }
-    const parent = dirname3(dir);
-    if (parent === dir) return null;
-    dir = parent;
-  }
-  return null;
-}
-function readVersion(require2, name) {
-  const dir = packageDir(require2, name);
-  if (dir === null) return null;
-  try {
-    const parsed = JSON.parse(
-      readFileSync(join4(dir, "package.json"), "utf8")
-    );
-    const version2 = typeof parsed === "object" && parsed !== null ? parsed.version : void 0;
-    return typeof version2 === "string" ? version2 : null;
-  } catch {
-    return null;
-  }
-}
-function toolchainFrom(require2) {
-  for (const [name, pinned] of Object.entries(PLUGIN_TOOLCHAIN_PINS)) {
-    if (readVersion(require2, name) !== pinned) return null;
-  }
-  try {
-    const tailwindCssDir = packageDir(require2, "tailwindcss");
-    if (tailwindCssDir === null) return null;
-    return {
-      esbuild: pathToFileURL(require2.resolve("esbuild")).href,
-      tailwindNode: pathToFileURL(require2.resolve("@tailwindcss/node")).href,
-      tailwindOxide: pathToFileURL(require2.resolve("@tailwindcss/oxide")).href,
-      tailwindCssDir
-    };
-  } catch {
-    return null;
-  }
-}
-function resolveLocalToolchain() {
-  return toolchainFrom(createRequire(import.meta.url));
-}
-async function isInstalled(dir) {
-  try {
-    const raw = await readFile5(join4(dir, ".bb-toolchain.json"), "utf8");
-    const parsed = JSON.parse(raw);
-    if (typeof parsed !== "object" || parsed === null || parsed.pins !== pinKey()) {
-      return false;
-    }
-  } catch {
-    return false;
-  }
-  return toolchainFrom(createRequire(join4(dir, "noop.js"))) !== null;
-}
-async function resolvePluginBuildToolchain(baseDir, options) {
-  if (options?.ignoreLocal !== true) {
-    const local = resolveLocalToolchain();
-    if (local !== null) return local;
-  }
-  const dir = toolchainCacheDir(baseDir);
-  if (await isInstalled(dir)) {
-    const cached2 = toolchainFrom(createRequire(join4(dir, "noop.js")));
-    if (cached2 !== null) return cached2;
-  }
-  options?.onFetchStart?.();
-  const startedAt = Date.now();
-  const staging = `${dir}.staging-${randomUUID()}`;
-  try {
-    await mkdir4(staging, { recursive: true });
-    await writeFile4(
-      join4(staging, "package.json"),
-      `${JSON.stringify({ name: "bb-plugin-toolchain", private: true, version: "0.0.0" }, null, 2)}
+      },
+      null,
+      2
+    )}
 `
+  );
+}
+async function copyPluginRuntime(args) {
+  const targetDir = args.targetDir;
+  await rm5(targetDir, { recursive: true, force: true });
+  await mkdir5(targetDir, { recursive: true });
+  await writeRuntimePackageJson({
+    sourceRoot: args.sourceRoot,
+    targetDir
+  });
+  for (const dirName of RUNTIME_DIRS) {
+    await copyIfExists(
+      path.join(args.sourceRoot, dirName),
+      path.join(targetDir, dirName)
     );
-    await run(
-      "npm",
-      [
-        "install",
-        "--prefix",
-        staging,
-        "--ignore-scripts",
-        "--no-audit",
-        "--no-fund",
-        "--no-package-lock",
-        ...Object.entries(PLUGIN_TOOLCHAIN_PINS).map(
-          ([name, version2]) => `${name}@${version2}`
-        )
-      ],
-      { maxBuffer: 1024 * 1024 * 16 }
-    );
-    const staged = toolchainFrom(createRequire(join4(staging, "noop.js")));
-    if (staged === null) {
+  }
+  const packageJson = pluginPackageJsonSchema.parse(
+    JSON.parse(
+      await readFile6(path.join(args.sourceRoot, "package.json"), "utf8")
+    )
+  );
+  const logo = packageJson.bb.branding.logo;
+  const compactIcon = isPluginOwnedIconPath(packageJson.bb.branding.icon ?? "") ? packageJson.bb.branding.icon : void 0;
+  const declaredIcons = Object.values(
+    packageJson.bb.branding.experimental_icons ?? {}
+  );
+  for (const asset of [
+    compactIcon,
+    logo?.light,
+    logo?.dark,
+    ...declaredIcons
+  ]) {
+    if (asset === void 0) continue;
+    const sourcePath = path.resolve(args.sourceRoot, asset);
+    const targetPath = path.resolve(targetDir, asset);
+    if (sourcePath !== args.sourceRoot && !sourcePath.startsWith(args.sourceRoot + path.sep) || targetPath !== targetDir && !targetPath.startsWith(targetDir + path.sep)) {
       throw new Error(
-        "the downloaded plugin build toolchain is incomplete or misversioned"
+        `manifest branding asset escapes plugin directory: ${asset}`
       );
     }
-    await writeFile4(
-      join4(staging, ".bb-toolchain.json"),
-      `${JSON.stringify({ pins: pinKey() }, null, 2)}
-`
-    );
-    await mkdir4(dirname3(dir), { recursive: true });
-    try {
-      await rename4(staging, dir);
-    } catch {
-      if (!await isInstalled(dir)) throw new Error(errorPromoting(dir));
-    }
-  } finally {
-    await rm4(staging, { recursive: true, force: true });
+    await mkdir5(path.dirname(targetPath), { recursive: true });
+    await cp(sourcePath, targetPath);
   }
-  const promoted = toolchainFrom(createRequire(join4(dir, "noop.js")));
-  if (promoted === null) throw new Error(errorPromoting(dir));
-  options?.onFetchDone?.(Date.now() - startedAt);
-  return promoted;
-}
-function errorPromoting(dir) {
-  return `could not install the plugin build toolchain into ${dir}`;
 }
 export {
-  HOST_ARTIFACT_RUNTIME_STUBS,
   PLUGIN_SERVER_EXTERNALS,
   PLUGIN_TOOLCHAIN_PINS,
   RUNTIME_SLOT_BY_SPECIFIER,
+  SHIMMED_TYPE_PACKAGES,
   assertValidPluginCompactIconSvg,
+  assertValidPluginIconSvg,
   buildPluginApp,
   buildPluginHost,
   buildPluginServer,
+  copyPluginRuntime,
   createPluginDevLoop,
   isIgnoredPluginDevPath,
-  resolvePluginBuildToolchain,
-  toolchainCacheDir
+  readPluginPackageJsonFile,
+  resolveBundledNpmCli,
+  resolveBundledNpxCli,
+  resolveManifestAssetFile,
+  resolveManifestEntryFile,
+  resolveManifestPath,
+  resolvePluginBuildToolchain
 };
 /*! Bundled license information:
 

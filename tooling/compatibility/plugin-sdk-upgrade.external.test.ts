@@ -14,10 +14,12 @@ import {
 } from "@bb/db";
 import { PLUGIN_SDK_VERSION } from "@bb/domain";
 import type { Logger } from "@bb/logger";
+import { createAiServiceRegistry } from "../../../src/services/ai/ai-service-registry.js";
 import {
   createPluginService,
   type PluginService,
 } from "../../../src/services/plugins/plugin-service.js";
+import { createNoopTelemetryService } from "../../../src/services/system/telemetry.js";
 import { startTestServer, testLogger } from "../../helpers/test-app.js";
 
 type PersistedScaffold = {
@@ -62,6 +64,8 @@ describe("persisted 0.4.6 scaffold upgrade", () => {
     migrate(db);
     workDir = await mkdtemp(join(tmpdir(), "bb-plugin-sdk-compat-"));
     service = createPluginService({
+      aiServices: createAiServiceRegistry(),
+      telemetry: createNoopTelemetryService(),
       db,
       hub: {
         getDaemonSessionIdForHost: () => null,
@@ -70,7 +74,7 @@ describe("persisted 0.4.6 scaffold upgrade", () => {
       },
       logger,
       dataDir: join(workDir, "data"),
-      appVersion: "0.39.0",
+      appVersion: "0.43.4",
       loadTimeoutMs: 2_000,
       stabilizationWindowMs: 0,
       afterArtifactPromoted: async () => {},
@@ -84,7 +88,7 @@ describe("persisted 0.4.6 scaffold upgrade", () => {
   });
 
   it("loads a persisted scaffold and applies its tracked branch update", async () => {
-    expect(PLUGIN_SDK_VERSION).toBe("0.4.8");
+    expect(PLUGIN_SDK_VERSION).toBe("0.5.9");
 
     const fixturePath = resolve(
       pluginRepository!,
@@ -178,20 +182,20 @@ describe("persisted 0.4.6 scaffold upgrade", () => {
     expect(persistedManifest.devDependencies["@get-bb/plugin-sdk"]).toBe(
       "0.4.6",
     );
-    expect(candidateManifest.engines.bbPluginSdk).toBe("^0.4.8");
+    expect(candidateManifest.engines.bbPluginSdk).toBe("^0.5.9");
     expect(candidateManifest.devDependencies["@get-bb/plugin-sdk"]).toBe(
-      "file:../../tooling/vendor/get-bb-plugin-sdk-0.4.8.tgz",
+      "file:../../tooling/vendor/get-bb-plugin-sdk-0.5.9.tgz",
     );
 
-    persistedManifest.engines.bbPluginSdk = "^0.4.8";
-    persistedManifest.devDependencies["@get-bb/plugin-sdk"] = "0.4.8";
+    persistedManifest.engines.bbPluginSdk = "^0.5.9";
+    persistedManifest.devDependencies["@get-bb/plugin-sdk"] = "0.5.9";
     await writeFile(
       join(sourceRepo, "package.json"),
       `${JSON.stringify(persistedManifest, null, 2)}\n`,
     );
     await writeFile(
       join(sourceRepo, "server.ts"),
-      'export default function plugin(bb: any) { bb.log.info("updated on 0.4.8"); }\n',
+      'export default function plugin(bb: any) { bb.log.info("updated on 0.5.9"); }\n',
     );
     const candidateCommit = await commit(sourceRepo, "tracked scaffold update");
 
@@ -256,7 +260,7 @@ it.each(["fresh install", "upgrade from 0.1.3"])(
   process.env.npm_config_fetch_retries = "0";
   let server: Awaited<ReturnType<typeof startTestServer>> | undefined;
   try {
-    server = await startTestServer({ appVersion: "0.39.0" });
+    server = await startTestServer({ appVersion: "0.43.4" });
     server.pluginService.bindSdk({ baseUrl: server.baseUrl });
     const source = `git:${remote}@semver:thread-organizer/:^0.1.2`;
     const rpc = async (method: string, input: unknown = {}) => {

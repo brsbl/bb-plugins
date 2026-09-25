@@ -43,7 +43,5 @@ export function sdkRangeIncludesVersion(range, version) {
   const floor = match.slice(2).map(Number);
   if (compareVersions(target, floor) < 0) return false;
   if (operator === ">=") return true;
-  if (floor[0] > 0) return target[0] === floor[0];
-  if (floor[1] > 0) return target[0] === 0 && target[1] === floor[1];
-  return target[0] === 0 && target[1] === 0 && target[2] === floor[2];
+  return target[0] === floor[0];
 }
