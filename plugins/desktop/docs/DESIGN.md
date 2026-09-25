@@ -77,7 +77,7 @@ Use the real XP icon when bb has an XP counterpart. When it does not, build from
 | Plugins | Add or Remove Programs pattern: software box with a CD | `PluginsArt` |
 | Skills | No XP counterpart; a glossy bolt in XP style | `SkillsArt` |
 | Thread details | A window with a side pane | `DetailsArt` |
-| Needs input, error | Warning (yellow triangle, black "!"), Critical (glossy red sphere, white X) | `StatusIcon` |
+| Needs input, error, idle | Warning (yellow triangle, black "!"), Critical (glossy red sphere, white X), and a matching green sphere with a white check for idle | `StatusIcon` |
 
 ### Line glyphs
 

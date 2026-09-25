@@ -2024,7 +2024,7 @@ function statusKind(thread: DesktopThread): StatusKind {
   if (thread.isArchived) return "archived";
   if (thread.status === "error") return "error";
   if (thread.status === "active" || thread.status === "starting" || thread.status === "stopping") return "working";
-  return thread.isUnread ? "unread" : "idle";
+  return "idle";
 }
 
 function describeStatus(thread: DesktopThread): string {
@@ -2040,7 +2040,7 @@ function describeStatus(thread: DesktopThread): string {
     case "error":
       return "Error";
     default:
-      return thread.isUnread ? "Unread" : "Idle";
+      return "Idle";
   }
 }
 

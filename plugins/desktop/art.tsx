@@ -99,8 +99,9 @@ const ICON = {
   warnEdge: "oklch(0.45 0.08 260)",
   sand: "oklch(0.82 0.13 80)",
   frame: "oklch(0.45 0.08 60)",
-  envelope: "oklch(0.97 0.05 95)",
-  envelopeEdge: "oklch(0.6 0.1 75)",
+  okTop: "oklch(0.8 0.18 140)",
+  okBottom: "oklch(0.55 0.17 145)",
+  okEdge: "oklch(0.4 0.12 145)",
 } as const;
 
 function gradient(id: string, from: string, to: string, x2 = 0.4, y2 = 1) {
@@ -130,6 +131,7 @@ function IconDefs() {
       {gradient("bbd-g-title", ICON.titleTop, ICON.titleBottom, 0, 1)}
       {gradient("bbd-g-play", ICON.playTop, ICON.playBottom)}
       {gradient("bbd-g-red", ICON.redTop, ICON.redBottom)}
+      {gradient("bbd-g-ok", ICON.okTop, ICON.okBottom)}
       {gradient("bbd-g-warn", ICON.warnTop, ICON.warnBottom, 0, 1)}
       <radialGradient id="bbd-g-disc" cx="0.38" cy="0.32" r="0.75">
         <stop offset="0" stopColor={ICON.discLight} />
@@ -474,7 +476,7 @@ export function RecycleBinArt({ size = 40, full = false }: { size?: number; full
   );
 }
 
-export type StatusKind = "attention" | "working" | "error" | "unread" | "archived" | "idle";
+export type StatusKind = "attention" | "working" | "error" | "archived" | "idle";
 
 function SmallSvg({ size, children, className }: { size: number; children: ReactNode; className?: string }) {
   return (
@@ -515,16 +517,15 @@ export function StatusIcon({ kind, size = 14 }: { kind: StatusKind; size?: numbe
           <path d="M3.6 6a4.8 4.8 0 0 1 4-3.6" stroke={ICON.paper} strokeOpacity="0.6" strokeWidth="1" fill="none" strokeLinecap="round" />
         </SmallSvg>
       );
-    case "unread":
-      return (
-        <SmallSvg size={size}>
-          <rect x="1.5" y="3.5" width="13" height="9.5" rx="1" fill={ICON.envelope} stroke={ICON.envelopeEdge} />
-          <path d="M2 4.2 8 9l6-4.8" fill="none" stroke={ICON.envelopeEdge} strokeWidth="1.1" strokeLinejoin="round" />
-        </SmallSvg>
-      );
     case "archived":
       return <RecycleBinArt size={size} />;
     case "idle":
-      return <span style={{ width: size, height: size, flex: "none" }} aria-hidden />;
+      return (
+        <SmallSvg size={size}>
+          <circle cx="8" cy="8" r="7" fill="url(#bbd-g-ok)" stroke={ICON.okEdge} />
+          <path d="M4.6 8.3 7 10.6l4.4-5" fill="none" stroke={ICON.paper} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+          <path d="M3.6 6a4.8 4.8 0 0 1 4-3.6" stroke={ICON.paper} strokeOpacity="0.6" strokeWidth="1" fill="none" strokeLinecap="round" />
+        </SmallSvg>
+      );
   }
 }
