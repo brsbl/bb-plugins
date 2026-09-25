@@ -64,6 +64,7 @@ ${THREAD} [data-overflow-fade] { display: none; }
 ${PAGE} { position: relative; isolation: isolate; }
 ${PAGE}::before { content: ""; position: absolute; z-index: -1; pointer-events: none; ${GLASS_SURFACE} border-radius: 20px; inset: 0 8px 8px; }
 ${PAGE_MAIN} :is(.max-w-5xl, [class~="max-w-[760px]"]):not(:is(.max-w-5xl, [class~="max-w-[760px]"]) *) { anchor-name: --ambient-page-column; }
+${PAGE_MAIN} #thread-detail-secondary-panel :is(.max-w-5xl, [class~="max-w-[760px]"]) { anchor-name: none; }
 ${PAGE}::before { left: max(var(--ambient-column-gutter, 8px), anchor(--ambient-page-column left, 8px)); right: max(8px, anchor(--ambient-page-column right, 8px)); }
 ${PAGE}:has([data-testid="app-page-header-content-row"])::before { top: var(--bb-app-chrome-row-height, 3rem); }
 @media (max-width: 767px) { ${PAGE} header:has([data-testid="app-page-header-content-row"]) + div { clip-path: inset(0 8px 8px round 0 0 20px 20px); } }
