@@ -6,7 +6,8 @@ import { fileURLToPath } from "node:url";
 import { readPluginWorkspaces } from "./plugin-workspaces.mjs";
 import {
   pluginSdkArchive,
-  pluginSdkVersion,
+  pluginSdkVersionFor,
+  publishedSdkVersion,
   sdkRangeIncludesVersion,
 } from "./plugin-sdk-provenance.mjs";
 
@@ -22,6 +23,7 @@ const defaultBbEngine = ">=0.0.34";
 // Keep newer host requirements scoped to the plugin that consumes them
 // instead of raising the compatibility floor for every package.
 const pluginBbEngineOverrides = new Map([
+  ["context-katamari", ">=0.43.0"],
   ["theme-preview", ">=0.38.0"],
 ]);
 
@@ -216,15 +218,19 @@ export async function checkRepository(repositoryRoot = defaultRoot, options = {}
     assert(manifest.files.includes("README.md"), `${slug}: README missing from package files`);
     const expectedBbEngine = pluginBbEngineOverrides.get(slug) ?? defaultBbEngine;
     assert(manifest.engines?.bb === expectedBbEngine, `${slug}: bb engine drift`);
+    const sdkVersion = pluginSdkVersionFor(manifest);
     assert(
-      sdkRangeIncludesVersion(manifest.engines?.bbPluginSdk, pluginSdkVersion),
-      `${slug}: SDK floor is newer than vendored SDK ${pluginSdkVersion}`,
+      sdkRangeIncludesVersion(manifest.engines?.bbPluginSdk, sdkVersion),
+      `${slug}: SDK floor is newer than its SDK ${sdkVersion}`,
     );
     assert(
       manifest.devDependencies?.["@bb/plugin-sdk"] === undefined,
       `${slug}: legacy @bb/plugin-sdk dependency remains`,
     );
-    if (manifest.devDependencies?.["@get-bb/plugin-sdk"] !== undefined) {
+    if (
+      manifest.devDependencies?.["@get-bb/plugin-sdk"] !== undefined &&
+      publishedSdkVersion(manifest) === null
+    ) {
       // Plugins may vendor the SDK archive next to their sources so a
       // pinned-commit install is standalone; that copy must stay byte-equal
       // to the shared tooling archive.

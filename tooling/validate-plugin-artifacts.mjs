@@ -8,6 +8,7 @@ import { readPluginWorkspaces } from "./plugin-workspaces.mjs";
 import { pluginBuildBbVersion } from "./plugin-build-provenance.mjs";
 import {
   pluginSdkVersion,
+  pluginSdkVersionFor,
   sdkRangeIncludesVersion,
 } from "./plugin-sdk-provenance.mjs";
 
@@ -222,9 +223,10 @@ export async function validatePluginArtifacts(pluginDirectory, options = {}) {
   if (options.expectedName && manifest.bb.name !== options.expectedName) {
     throw new Error(`${directory}: expected display name ${options.expectedName}`);
   }
-  if (!sdkRangeIncludesVersion(manifest.engines?.bbPluginSdk, pluginSdkVersion)) {
+  const sdkVersion = pluginSdkVersionFor(manifest);
+  if (!sdkRangeIncludesVersion(manifest.engines?.bbPluginSdk, sdkVersion)) {
     throw new Error(
-      `${directory}: engines.bbPluginSdk must be a compatible floor at or below ${pluginSdkVersion}`,
+      `${directory}: engines.bbPluginSdk must be a compatible floor at or below ${sdkVersion}`,
     );
   }
 
