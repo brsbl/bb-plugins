@@ -13,6 +13,7 @@ import {
 } from "react";
 import { CloseGlyph, MaximizeGlyph, MinusGlyph, RestoreGlyph } from "./art";
 
+import { findApp } from "./bridge";
 import { clampRect, resizeRect, type Point, type Rect, type ResizeEdge } from "./core";
 
 let nudges: ReadonlyMap<string, Point> = new Map();
@@ -49,6 +50,7 @@ export type WindowSpec =
   | { kind: "solitaire" }
   | { kind: "command-prompt" }
   | { kind: "paint" }
+  | { kind: "app"; key: string }
   | { kind: "new-folder" }
   | { kind: "media-player" }
   | { kind: "new-thread"; groupKey: string | null };
@@ -89,6 +91,8 @@ export function windowId(spec: WindowSpec): string {
       return `${spec.kind}:${spec.threadId}`;
     case "new-thread":
       return `new-thread:${spec.groupKey ?? "desktop"}`;
+    case "app":
+      return `app:${spec.key}`;
     default:
       return spec.kind;
   }
@@ -193,6 +197,8 @@ function parseSpec(value: unknown): WindowSpec | null {
   switch (record.kind) {
     case "finder":
       return text("key") === null ? null : { kind: "finder", key: text("key")! };
+    case "app":
+      return text("key") === null ? null : { kind: "app", key: text("key")! };
     case "thread":
     case "panel":
       return text("threadId") === null ? null : { kind: record.kind, threadId: text("threadId")! };
@@ -280,6 +286,8 @@ export function defaultRect(spec: WindowSpec, stagger: number): Rect {
               ? { width: 680, height: 420 }
             : spec.kind === "paint"
               ? { width: 780, height: 580 }
+            : spec.kind === "app"
+              ? { width: findApp(spec.key)?.width ?? 520, height: findApp(spec.key)?.height ?? 420 }
             : { width: 560, height: 400 };
   const offset = (stagger % 8) * 28;
   return clampRect(
@@ -402,6 +410,7 @@ export function WindowFrame({
   statusBar,
   children,
   onClose,
+  keepMounted = false,
 }: {
   window: DesktopWindow;
   title: string;
@@ -410,6 +419,7 @@ export function WindowFrame({
   statusBar?: ReactNode;
   children: ReactNode;
   onClose?: () => void;
+  keepMounted?: boolean;
 }) {
   const manager = useWindowManager();
   const { id } = desktopWindow;
@@ -446,13 +456,14 @@ export function WindowFrame({
     );
   };
 
-  if (desktopWindow.minimized) return null;
+  if (desktopWindow.minimized && !keepMounted) return null;
 
   return (
     <section
       role="dialog"
       aria-label={title}
       className="bbd-window"
+      hidden={desktopWindow.minimized}
       data-focused={focused}
       data-settling={settling}
       style={{

@@ -100,6 +100,14 @@
   pointer-events: none;
 }
 
+.bbd-window[hidden] {
+  display: none;
+}
+
+[id^="plugin-homepage:"]:has([data-bbd-bridge-host]) {
+  display: none;
+}
+
 .bbd-window {
   position: absolute;
   display: flex;

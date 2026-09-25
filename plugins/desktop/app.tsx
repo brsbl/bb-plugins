@@ -2,11 +2,13 @@ import { definePluginApp } from "@get-bb/plugin-sdk/app";
 
 import "./app.css";
 import { NeedsInputBalloon } from "./balloon";
+import { installDesktopBridge } from "./bridge";
 import { Desktop, ThreadFolderChip } from "./desktop";
 import { readCompact, toggleDesktop } from "./enabled";
 import { mountStickyNotes, StickyNoteHeaderButton } from "./sticky-notes";
 
 export default definePluginApp((app) => {
+  installDesktopBridge();
   app.slots.homepageSection({
     id: "desktop",
     title: "Desktop",

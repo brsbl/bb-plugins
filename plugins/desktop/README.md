@@ -38,6 +38,10 @@ npm ci
 bb plugin install "path:$PWD/plugins/desktop" --yes
 ```
 
+## For plugin authors
+
+Other plugins can opt in to Desktop: their UI opens as an XP window, with a Start menu entry under Programs, a taskbar button, and a Quick Launch pin. Copy the helper from [skills/desktop-apps](skills/desktop-apps/SKILL.md) and render `DesktopApp` from a homepage section; the skill walks through it. Sidebar footer panels already open as XP windows when the sidebar is collapsed, with no changes.
+
 ## Develop
 
 Before adding a feature, read the [design system](docs/DESIGN.md): which surfaces are Windows XP and which are bb, the color tokens, how icons are drawn, and the components to reuse.

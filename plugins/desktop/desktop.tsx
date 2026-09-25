@@ -6,6 +6,7 @@ import {
   useMemo,
   useRef,
   useState,
+  useSyncExternalStore,
   type DragEvent as ReactDragEvent,
   type KeyboardEvent as ReactKeyboardEvent,
   type MouseEvent as ReactMouseEvent,
@@ -82,6 +83,7 @@ import {
   type SortKey,
 } from "./core";
 import { NeedsInputBalloon } from "./balloon";
+import { attachAppWindow, findApp, registeredApps, setAppOpener, subscribeApps, type DesktopApp } from "./bridge";
 import { PaintApp } from "./apps/paint";
 import { CommandPrompt, closeCommandPromptSession } from "./command-prompt";
 import { MinesweeperGame } from "./games/minesweeper";
@@ -483,6 +485,11 @@ function DesktopData() {
         .catch((preferenceError) => toast.error(errorMessage(preferenceError))),
     [call, refresh],
   );
+
+  useEffect(() => {
+    setAppOpener((key) => manager.open({ kind: "app", key }));
+    return () => setAppOpener(null);
+  }, [manager]);
 
   const windowsRef = useRef(manager.windows);
   windowsRef.current = manager.windows;
@@ -1164,6 +1171,8 @@ function windowTitle(spec: WindowSpec, desktop: DesktopContextValue): string {
       return "Command Prompt";
     case "paint":
       return "untitled - Paint";
+    case "app":
+      return findApp(spec.key)?.title ?? "Program";
     case "new-folder":
       return "New folder";
     case "new-thread":
@@ -1203,6 +1212,8 @@ function windowArt(spec: WindowSpec, desktop: DesktopContextValue, size: number)
       return <CommandPromptArt size={size} />;
     case "paint":
       return <PaintArt size={size} />;
+    case "app":
+      return <AppIcon app={findApp(spec.key)} size={size} />;
     case "new-folder":
       return <NewFolderArt size={size} />;
     case "new-thread":
@@ -1279,7 +1290,22 @@ function StartMenu({ onClose }: { onClose: () => void }) {
     })),
     { id: "sticky-note", label: "Note pad", detail: "Pin a note in the margin", art: (size) => <NotePadArt size={size} />, run: () => addStickyNote() },
   ];
+  const apps = useDesktopApps();
   const places: { section: string; items: Launch[] }[] = [
+    ...(apps.length === 0
+      ? []
+      : [
+          {
+            section: "Programs",
+            items: apps.map((app) => ({
+              id: `app:${app.key}`,
+              label: app.title,
+              detail: app.description ?? "",
+              art: (size: number) => <AppIcon app={app} size={size} />,
+              run: open({ kind: "app", key: app.key }),
+            })),
+          },
+        ]),
     {
       section: "Accessories",
       items: [
@@ -1454,7 +1480,14 @@ function useQuickLaunchCatalog(): QuickLaunchItem[] {
     art: windowArt(spec, desktop, 18),
     run: () => manager.open(spec),
   });
+  const apps = useDesktopApps();
   return [
+    ...apps.map((app) => ({
+      id: `app:${app.key}`,
+      label: app.title,
+      art: <AppIcon app={app} size={20} />,
+      run: () => manager.open({ kind: "app", key: app.key }),
+    })),
     { id: "show-desktop", label: "Show desktop", art: <ShowDesktopArt size={20} />, run: showDesktop },
     launcher({ kind: "new-thread", groupKey: null }, "New thread"),
     launcher({ kind: "new-folder" }, "New folder"),
@@ -2215,6 +2248,8 @@ function WindowContent({ window: desktopWindow }: { window: DesktopWindow }) {
       );
     case "command-prompt":
       return <CommandPromptWindow window={desktopWindow} />;
+    case "app":
+      return <AppWindow window={desktopWindow} appKey={spec.key} />;
     case "paint":
       return (
         <WindowFrame window={desktopWindow} title="untitled - Paint" icon={<PaintArt size={16} />}>
@@ -2756,6 +2791,41 @@ function ThreadsWindow({ window: desktopWindow }: { window: DesktopWindow }) {
           <ThreadCollection threads={threads} group={null} view="list" emptyText="No threads." showFolders />
         </div>
       </div>
+    </WindowFrame>
+  );
+}
+
+function useDesktopApps(): readonly DesktopApp[] {
+  return useSyncExternalStore(subscribeApps, registeredApps);
+}
+
+function AppIcon({ app, size }: { app: DesktopApp | undefined; size: number }) {
+  return app?.icon === undefined ? (
+    <DetailsArt size={size} />
+  ) : (
+    <img src={app.icon} width={size} height={size} alt="" style={{ flex: "none", objectFit: "contain" }} />
+  );
+}
+
+function AppWindow({ window: desktopWindow, appKey }: { window: DesktopWindow; appKey: string }) {
+  const apps = useDesktopApps();
+  const app = apps.find((candidate) => candidate.key === appKey);
+  const bodyRef = useRef<HTMLDivElement>(null);
+  const available = app !== undefined;
+  useEffect(() => {
+    const body = bodyRef.current;
+    if (body === null || !available) return;
+    return attachAppWindow(desktopWindow.id, appKey, body);
+  }, [available, appKey, desktopWindow.id]);
+  return (
+    <WindowFrame window={desktopWindow} title={app?.title ?? "Program"} icon={<AppIcon app={app} size={16} />} keepMounted>
+      {available ? (
+        <div ref={bodyRef} className="bbd-app-body h-full overflow-auto" />
+      ) : (
+        <p className="p-6 text-center text-xs text-muted-foreground">
+          This program isn't available right now. Its plugin may be turned off or still loading.
+        </p>
+      )}
     </WindowFrame>
   );
 }
