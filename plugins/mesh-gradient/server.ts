@@ -16,6 +16,7 @@ import {
   nameFor,
   normalizeSeed,
   randomSeed,
+  readabilitySummary,
   toCss,
   toCssLayers,
   toSvg,
@@ -25,6 +26,9 @@ import {
 
 const SAVED_PREFIX = "saved/";
 const REALTIME_CHANNEL = "gradients";
+const PROPOSALS_PREFIX = "proposals/";
+const PROPOSALS_CHANNEL = "proposals";
+export const MAX_PROPOSALS = 6;
 
 export const meshPointSchema = z.object({
   x: z.number().min(0).max(100),
@@ -55,6 +59,26 @@ export const savedGradientSchema = z.object({
 });
 
 export type SavedGradient = z.infer<typeof savedGradientSchema>;
+
+export const proposalSchema = z.object({
+  id: z.string().min(1),
+  name: z.string().min(1).max(80),
+  note: z.string().max(280).optional(),
+  seed: z.number().int().nonnegative(),
+  style: z.enum(MESH_STYLE_NAMES),
+  points: z.array(meshPointSchema).min(1).max(EDIT_MAX_POINTS),
+  customColor: z
+    .string()
+    .regex(/^#?[0-9a-fA-F]{6}$/)
+    .optional(),
+  createdAt: z.number().int().nonnegative(),
+});
+
+export type GradientProposal = z.infer<typeof proposalSchema>;
+
+const storedProposalsSchema = z.object({
+  proposals: z.array(z.unknown()),
+});
 
 /** Pre-editor records stored only the generator inputs; points regenerate. */
 const legacySavedGradientSchema = z.object({
@@ -105,6 +129,16 @@ export const meshGradientRpcContract = defineRpcContract({
       })
       .strict(),
     output: z.object({ path: z.string(), filename: z.string() }),
+  },
+  listProposals: {
+    input: z.object({ threadId: z.string().min(1) }).strict(),
+    output: z.object({ proposals: z.array(proposalSchema) }),
+  },
+  dismissProposal: {
+    input: z
+      .object({ threadId: z.string().min(1), id: z.string().min(1) })
+      .strict(),
+    output: z.object({ dismissed: z.boolean() }),
   },
   exportTokens: {
     input: z
@@ -238,6 +272,71 @@ async function saveGradient(
   return { gradient, alreadySaved: false };
 }
 
+export async function listProposals(
+  bb: BbPluginApi,
+  threadId: string,
+): Promise<GradientProposal[]> {
+  const stored = storedProposalsSchema.safeParse(
+    await bb.storage.kv.get(`${PROPOSALS_PREFIX}${threadId}`),
+  );
+  if (!stored.success) return [];
+  return stored.data.proposals.flatMap((value) => {
+    const parsed = proposalSchema.safeParse(value);
+    return parsed.success ? [parsed.data] : [];
+  });
+}
+
+/**
+ * Newest first, capped, and deduped by artwork: re-proposing the same points
+ * moves that option to the front instead of listing it twice.
+ */
+export async function addProposal(
+  bb: BbPluginApi,
+  threadId: string,
+  input: { spec: MeshGradientSpec; name?: string; note?: string },
+): Promise<GradientProposal> {
+  const existing = await listProposals(bb, threadId);
+  const key = specKeyFor(input.spec.points);
+  const proposal: GradientProposal = {
+    id: randomUUID(),
+    name: (input.name ?? nameFor(input.spec)).slice(0, 80),
+    ...(input.note ? { note: input.note.slice(0, 280) } : {}),
+    seed: input.spec.seed,
+    style: input.spec.style,
+    points: input.spec.points,
+    ...(input.spec.customColor === undefined
+      ? {}
+      : { customColor: input.spec.customColor }),
+    createdAt: Date.now(),
+  };
+  const proposals = [
+    proposal,
+    ...existing.filter((entry) => specKeyFor(entry.points) !== key),
+  ].slice(0, MAX_PROPOSALS);
+  await bb.storage.kv.set(`${PROPOSALS_PREFIX}${threadId}`, { proposals });
+  bb.realtime.publish(PROPOSALS_CHANNEL, { threadId });
+  return proposal;
+}
+
+async function dismissProposal(
+  bb: BbPluginApi,
+  threadId: string,
+  id: string,
+): Promise<boolean> {
+  const existing = await listProposals(bb, threadId);
+  const remaining = existing.filter((proposal) => proposal.id !== id);
+  if (remaining.length === existing.length) return false;
+  if (remaining.length === 0) {
+    await bb.storage.kv.delete(`${PROPOSALS_PREFIX}${threadId}`);
+  } else {
+    await bb.storage.kv.set(`${PROPOSALS_PREFIX}${threadId}`, {
+      proposals: remaining,
+    });
+  }
+  bb.realtime.publish(PROPOSALS_CHANNEL, { threadId });
+  return true;
+}
+
 function tokenSlug(name: string): string {
   const slug = name
     .toLowerCase()
@@ -362,6 +461,8 @@ function gradientContext(gradient: SavedGradient): string {
     JSON.stringify({ seed: gradient.seed, style: gradient.style, points: gradient.points }),
     "```",
     "",
+    `Readability: ${readabilitySummary(spec)}.`,
+    "",
     `Standalone SVG: run \`bb mesh-gradient show ${gradient.id} --format svg\`.`,
     "Prefer the CSS form (stacked radial-gradient background layers) over a raster asset when the target supports it.",
   ].join("\n");
@@ -373,10 +474,15 @@ interface GenerateFlags {
   style: (typeof MESH_STYLE_NAMES)[number];
   format: "css" | "svg" | "json";
   name?: string;
+  note?: string;
+  threadId?: string;
   customColor?: string;
 }
 
-function parseGenerateFlags(argv: string[]): GenerateFlags {
+function parseGenerateFlags(
+  argv: string[],
+  options: { proposal?: boolean } = {},
+): GenerateFlags {
   const flags: GenerateFlags = {
     seed: randomSeed(),
     pointCount: DEFAULT_POINTS,
@@ -421,6 +527,18 @@ function parseGenerateFlags(argv: string[]): GenerateFlags {
       }
       flags.name = value.trim();
       index += 1;
+    } else if (options.proposal && token === "--note") {
+      if (typeof value !== "string" || value.trim() === "") {
+        throw new Error("--note requires a value");
+      }
+      flags.note = value.trim();
+      index += 1;
+    } else if (options.proposal && token === "--thread") {
+      if (typeof value !== "string" || value.trim() === "") {
+        throw new Error("--thread requires a thread id");
+      }
+      flags.threadId = value.trim();
+      index += 1;
     } else if (token === "--color") {
       if (typeof value !== "string" || !/^#?[0-9a-f]{6}$/i.test(value.trim())) {
         throw new Error("--color requires a hex color like #3366ff");
@@ -438,7 +556,8 @@ function renderSpec(spec: MeshGradientSpec, format: "css" | "svg" | "json"): str
   if (format === "svg") return toSvg(spec);
   if (format === "json") return JSON.stringify(spec, null, 2);
   const header = `/* ${nameFor(spec)} — seed ${spec.seed}, style ${spec.style}, ${spec.points.length} points */`;
-  return [header, toCss(spec)].join("\n");
+  const readability = `/* readability: ${readabilitySummary(spec)} */`;
+  return [header, readability, toCss(spec)].join("\n");
 }
 
 function specFromFlags(flags: GenerateFlags): MeshGradientSpec {
@@ -543,6 +662,12 @@ export default function plugin(bb: BbPluginApi): void {
       });
       return { path: uploaded.path, filename };
     },
+    async listProposals({ threadId }) {
+      return { proposals: await listProposals(bb, threadId) };
+    },
+    async dismissProposal({ threadId, id }) {
+      return { dismissed: await dismissProposal(bb, threadId, id) };
+    },
     async exportTokens({ threadId, format }) {
       const gradients = await listSavedGradients(bb);
       if (gradients.length === 0) {
@@ -574,13 +699,15 @@ export default function plugin(bb: BbPluginApi): void {
   bb.agents.registerTool({
     name: "mesh_gradient",
     description:
-      "Generate a mesh gradient background, or read an exact one already saved in the Mesh Gradient library. Returns ready-to-use CSS, SVG, or JSON.",
+      "Generate a mesh gradient background, propose options into this thread's Mesh Gradient panel, or read an exact one already saved in the library. Returns ready-to-use CSS, SVG, or JSON plus the text color that stays readable on it.",
     instructions:
-      "Use mesh_gradient instead of hand-writing gradient CSS. When the user names a saved gradient, read it with action=show so the values are exact.",
+      "Use mesh_gradient instead of hand-writing gradient CSS. When the user asks for gradient options, call action=propose once per option (with a short name and note) so they appear in the Mesh Gradient panel beside this thread. When the user names a saved gradient, read it with action=show so the values are exact.",
     parameters: z.object({
       action: z
-        .enum(["generate", "show", "list"])
-        .describe("generate a new gradient, show a saved one, or list the library"),
+        .enum(["generate", "show", "list", "propose"])
+        .describe(
+          "generate a new gradient, propose one into this thread's panel, show a saved one, or list the library",
+        ),
       ref: z
         .string()
         .optional()
@@ -596,8 +723,18 @@ export default function plugin(bb: BbPluginApi): void {
       seed: z.number().int().optional(),
       points: z.number().int().min(MIN_POINTS).max(MAX_POINTS).optional(),
       format: z.enum(["css", "svg", "json"]).optional(),
+      name: z
+        .string()
+        .max(80)
+        .optional()
+        .describe("short label for action=propose, e.g. 'calm brand teal'"),
+      note: z
+        .string()
+        .max(280)
+        .optional()
+        .describe("one line on why this option fits, for action=propose"),
     }),
-    async execute(input) {
+    async execute(input, ctx) {
       const format = input.format ?? "css";
       if (input.action === "list") {
         const gradients = await listSavedGradients(bb);
@@ -638,6 +775,20 @@ export default function plugin(bb: BbPluginApi): void {
             pointCount: input.points,
             style: input.style === "custom" ? "aurora" : input.style,
           });
+      if (input.action === "propose") {
+        const name = input.name?.trim();
+        const note = input.note?.trim();
+        const proposal = await addProposal(bb, ctx.threadId, {
+          spec,
+          ...(name ? { name } : {}),
+          ...(note ? { note } : {}),
+        });
+        return [
+          `Proposed “${proposal.name}” in the Mesh Gradient panel for this thread (open it from the right panel's + menu). The user can tune it there and send it back with @gradient.`,
+          "",
+          renderSpec(spec, format),
+        ].join("\n");
+      }
       return renderSpec(spec, format);
     },
   });
@@ -709,8 +860,20 @@ export default function plugin(bb: BbPluginApi): void {
         summary: "List saved gradients with their ids, styles, and seeds",
         usage: "bb mesh-gradient list",
       },
+      {
+        name: "propose",
+        summary:
+          "Propose a gradient into a thread's Mesh Gradient panel (defaults to the current thread)",
+        usage:
+          "bb mesh-gradient propose [--thread <id>] [--name <text>] [--note <text>] [--seed <n>] [--points <3-8>] [--style <style>] [--color <#hex>]",
+      },
+      {
+        name: "proposals",
+        summary: "List the gradients proposed for a thread",
+        usage: "bb mesh-gradient proposals [--thread <id>]",
+      },
     ],
-    async run(argv) {
+    async run(argv, ctx) {
       const [command, ...rest] = argv;
       try {
         if (command === "generate") {
@@ -755,6 +918,46 @@ export default function plugin(bb: BbPluginApi): void {
               : `saved ${JSON.stringify(gradient.name)} (id ${gradient.id}, seed ${gradient.seed})\n`,
           };
         }
+        if (command === "propose") {
+          const flags = parseGenerateFlags(rest, { proposal: true });
+          const threadId = flags.threadId ?? ctx?.threadId;
+          if (!threadId) {
+            throw new Error("run this from a thread, or pass --thread <id>");
+          }
+          const spec = specFromFlags(flags);
+          const proposal = await addProposal(bb, threadId, {
+            spec,
+            ...(flags.name ? { name: flags.name } : {}),
+            ...(flags.note ? { note: flags.note } : {}),
+          });
+          return {
+            exitCode: 0,
+            stdout: `proposed ${JSON.stringify(proposal.name)} for ${threadId} (seed ${proposal.seed}; ${readabilitySummary(spec)})\n`,
+          };
+        }
+        if (command === "proposals") {
+          let threadId = ctx?.threadId;
+          for (let index = 0; index < rest.length; index += 1) {
+            if (rest[index] === "--thread" && rest[index + 1]) {
+              threadId = rest[index + 1];
+              index += 1;
+            } else {
+              throw new Error(`unknown flag ${JSON.stringify(rest[index])}`);
+            }
+          }
+          if (!threadId) {
+            throw new Error("run this from a thread, or pass --thread <id>");
+          }
+          const proposals = await listProposals(bb, threadId);
+          if (proposals.length === 0) {
+            return { exitCode: 0, stdout: "no proposals for this thread\n" };
+          }
+          const lines = proposals.map(
+            (proposal) =>
+              `${proposal.id}  ${proposal.name}  style=${proposal.style} seed=${proposal.seed}${proposal.note ? `  — ${proposal.note}` : ""}`,
+          );
+          return { exitCode: 0, stdout: `${lines.join("\n")}\n` };
+        }
         if (command === "list") {
           const gradients = await listSavedGradients(bb);
           if (gradients.length === 0) {
@@ -790,7 +993,8 @@ export default function plugin(bb: BbPluginApi): void {
         }
         return {
           exitCode: 1,
-          stderr: "usage: bb mesh-gradient <generate|show|save|list|tokens>\n",
+          stderr:
+            "usage: bb mesh-gradient <generate|show|save|list|tokens|propose|proposals>\n",
         };
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
