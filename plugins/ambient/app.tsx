@@ -62,7 +62,10 @@ ${THREAD}::before { content: ""; position: absolute; z-index: -1; pointer-events
 ${THREAD} [data-overflow-fade] { display: none; }
 ${PAGE} { position: relative; isolation: isolate; }
 ${PAGE}::before { content: ""; position: absolute; z-index: -1; pointer-events: none; ${GLASS_SURFACE} border-radius: 20px; inset: 0 8px 8px; }
-@media (min-width: 768px) { ${SIDEBAR_OPEN} { --ambient-column-gutter: 0px; } ${SIDEBAR_OPEN} ${PAGE_MAIN}::before { left: 0; } ${SIDEBAR_OPEN} [data-testid="app-page-header-content-row"] > :first-child { margin-inline-start: -16px; } }
+${PAGE_MAIN} :is(.max-w-5xl, [class~="max-w-[760px]"]) { anchor-name: --ambient-page-column; }
+${PAGE}::before { left: max(var(--ambient-column-gutter, 8px), anchor(--ambient-page-column left, 8px)); right: max(8px, anchor(--ambient-page-column right, 8px)); }
+${PAGE} .bg-card[class*="hover:bg-"]:hover { background-color: color-mix(in oklab, var(--card) 97%, var(--ink)); border-color: color-mix(in oklab, var(--ink) 14%, transparent); box-shadow: 0 8px 24px -16px color-mix(in oklab, var(--ink) 35%, transparent); }
+@media (min-width: 768px) { ${SIDEBAR_OPEN} { --ambient-column-gutter: 0px; } ${SIDEBAR_OPEN} [data-testid="app-page-header-content-row"] > :first-child { margin-inline-start: -16px; } }
 @media (min-width: 768px) { body.bb-app-shell > #root ${THREAD_TITLE_ROW} { padding-inline-start: max(32px, 50% - ${COLUMN_HALF} + 6px); } ${SIDEBAR_OPEN} ${THREAD_TITLE_ROW} { padding-inline-start: max(0px, 50% - ${COLUMN_HALF} + 16px); } }
 ${THREAD}::after { content: ""; position: absolute; z-index: 1; pointer-events: none; top: 1px; height: 28px; left: calc(${COLUMN_LEFT} + 1px); right: calc(${COLUMN_RIGHT} + 1px); border-radius: 19px 19px 0 0; background: linear-gradient(to bottom, color-mix(in oklab, var(--ambient-background) 18%, transparent), transparent); }
 ${THREAD} [data-timeline-row-list] :is([data-message-column].border, [data-message-column] .border) { border-color: color-mix(in oklab, var(--ink) 8%, transparent); }
