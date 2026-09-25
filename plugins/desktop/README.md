@@ -36,6 +36,8 @@ bb plugin install "path:$PWD/plugins/desktop" --yes
 
 ## Develop
 
+Before adding a feature, read the [design system](docs/DESIGN.md): which surfaces are Windows XP and which are bb, the color tokens, how icons are drawn, and the components to reuse.
+
 Run the focused package check from the repository root:
 
 ```bash

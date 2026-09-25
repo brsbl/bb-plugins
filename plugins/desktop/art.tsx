@@ -38,6 +38,20 @@ const FOLDER_FRONT_BOTTOM = "oklch(0.82 0.14 82)";
 const FOLDER_EDGE = "oklch(0.6 0.12 70)";
 const PAPER = "oklch(0.98 0.005 250)";
 
+const ICON = {
+  outline: "oklch(0.42 0.04 225)",
+  shadow: "oklch(0.25 0.03 250 / 0.28)",
+  binLight: "oklch(0.95 0.02 195)",
+  binMid: "oklch(0.86 0.035 200)",
+  binDark: "oklch(0.7 0.045 215)",
+  binInside: "oklch(0.5 0.035 220)",
+  binRim: "oklch(0.98 0.01 200)",
+  recycle: "oklch(0.64 0.17 145)",
+  recycleEdge: "oklch(0.45 0.13 145)",
+  paperShade: "oklch(0.8 0.012 250)",
+  paperEdge: "oklch(0.55 0.02 240)",
+} as const;
+
 function bbGlyph(icon: IconSvgElement) {
   return function BbGlyph({ className, strokeWidth }: { className?: string; strokeWidth?: number }) {
     return <HugeiconsIcon icon={icon} className={className} strokeWidth={strokeWidth} aria-hidden />;
@@ -193,32 +207,55 @@ export function MediaPlayerArt({ size = 40 }: { size?: number }) {
   );
 }
 
-export function RecycleBinArt({ size = 40, full = false }: { size?: number; full?: boolean }) {
-  const glass = "oklch(0.88 0.04 230)";
-  const glassDeep = "oklch(0.74 0.06 235)";
-  const edge = "oklch(0.52 0.07 240)";
-  const arrows = "oklch(0.62 0.17 145)";
+
+function RecycleArrow() {
   return (
-    <svg width={size} height={size} viewBox="0 0 40 40" aria-hidden>
+    <>
+      <path d="M24.9 21.6 28.1 27.1" stroke={ICON.recycle} strokeWidth="2.4" strokeLinecap="round" />
+      <path d="M26.3 28.4 30.1 26.3 29.6 30.7Z" fill={ICON.recycle} stroke={ICON.recycleEdge} strokeWidth="0.5" strokeLinejoin="round" />
+    </>
+  );
+}
+
+export function RecycleBinArt({ size = 40, full = false }: { size?: number; full?: boolean }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 48 48" style={{ flex: "none" }} aria-hidden>
       <defs>
-        <linearGradient id="bbd-bin-body" x1="0" y1="0" x2="1" y2="0">
-          <stop offset="0" stopColor={glassDeep} />
-          <stop offset="0.45" stopColor={glass} />
-          <stop offset="1" stopColor={glassDeep} />
+        <linearGradient id="bbd-bin-body" x1="0" y1="0" x2="1" y2="0.25">
+          <stop offset="0" stopColor={ICON.binLight} />
+          <stop offset="0.45" stopColor={ICON.binMid} />
+          <stop offset="1" stopColor={ICON.binDark} />
+        </linearGradient>
+        <linearGradient id="bbd-bin-inside" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stopColor={ICON.binInside} />
+          <stop offset="1" stopColor={ICON.binDark} />
         </linearGradient>
       </defs>
+      <ellipse cx="24" cy="44" rx="12" ry="2.4" fill={ICON.shadow} />
+      <ellipse cx="24" cy="11" rx="15" ry="4.6" fill="url(#bbd-bin-inside)" />
       {full ? (
-        <>
-          <path d="M11 11.5 L14 5.5 L19.5 7.5 L18 12 Z" fill={PAPER} stroke={edge} strokeWidth="0.75" strokeLinejoin="round" />
-          <path d="M18 11 L22.5 4.5 L28.5 8 L25.5 12.5 Z" fill={PAPER} stroke={edge} strokeWidth="0.75" strokeLinejoin="round" />
-          <path d="M24.5 12 L28 7.5 L31 11 Z" fill="oklch(0.9 0.1 95)" stroke={edge} strokeWidth="0.75" strokeLinejoin="round" />
-        </>
+        <g stroke={ICON.paperEdge} strokeWidth="0.6" strokeLinejoin="round">
+          <path d="M14.5 12 15.4 7.6 17.8 8.4 18.6 5.2 22 6.4 21.2 9.4 22.6 12.6Z" fill={PAPER} />
+          <path d="M17.6 9.2 19.8 7.4M16.4 10.8 19 11.4" fill="none" stroke={ICON.paperShade} strokeWidth="0.7" />
+          <path d="M20.6 12.8 21.8 6.2 24.6 7.4 26 3.6 29.8 5.4 29 8.6 31.8 9.2 30.6 13Z" fill={PAPER} />
+          <path d="M23.4 9.4 26.6 7.2 28.4 10.2M22.8 11.6 26 12.2" fill="none" stroke={ICON.paperShade} strokeWidth="0.7" />
+          <path d="M29.4 12.8 30.4 9.2 33 8.4 34.4 10.4 33.6 13Z" fill="oklch(0.93 0.09 95)" />
+        </g>
       ) : null}
-      <path d="M8 12 H32 L29.5 36 Q29.3 37 28.3 37 H11.7 Q10.7 37 10.5 36 Z" fill="url(#bbd-bin-body)" stroke={edge} strokeLinejoin="round" />
-      <path d="M14 14.5 L15 34.5 M20 14.5 V34.5 M26 14.5 L25 34.5" stroke={PAPER} strokeOpacity="0.55" strokeWidth="1.2" strokeLinecap="round" />
-      <ellipse cx="20" cy="12" rx="12.5" ry="2.6" fill={glass} stroke={edge} />
-      <path d="M16.5 26.5 A4 4 0 0 1 20.8 21.3 M23.6 24 A4 4 0 0 1 19.6 29.2" fill="none" stroke={arrows} strokeWidth="2" strokeLinecap="round" />
-      <path d="M20.2 19.6 L22.4 21.5 L19.8 22.7 Z M20.2 30.9 L17.9 29 L20.5 27.8 Z" fill={arrows} />
+      <path d="M9 11 14.2 40.6A9.8 2.8 0 0 0 33.8 40.6L39 11A15 4.6 0 0 1 9 11Z" fill="url(#bbd-bin-body)" stroke={ICON.outline} strokeLinejoin="round" />
+      <path d="M13.5 15.2 17.4 41.8M19.2 15.6 21 42.6M28.8 15.6 27 42.6M34.5 15.2 30.6 41.8" stroke={ICON.binRim} strokeOpacity="0.55" strokeWidth="1.1" />
+      <path d="M16.3 15.5 19.2 42.3M24 15.8V42.9M31.7 15.5 28.8 42.3" stroke={ICON.binDark} strokeOpacity="0.35" strokeWidth="0.8" />
+      <path d="M9 11A15 4.6 0 0 0 39 11" fill="none" stroke={ICON.binRim} strokeWidth="1.6" />
+      <ellipse cx="24" cy="11" rx="15" ry="4.6" fill="none" stroke={ICON.outline} />
+      <g transform="translate(0 2)">
+        <RecycleArrow />
+        <g transform="rotate(120 24 27)">
+          <RecycleArrow />
+        </g>
+        <g transform="rotate(240 24 27)">
+          <RecycleArrow />
+        </g>
+      </g>
     </svg>
   );
 }
