@@ -28,11 +28,15 @@
     },
     "server": "./server.ts",
     "app": "./app.tsx",
-    "skills": ["skills"]
+    "skills": [
+      "skills"
+    ]
   },
   "dependencies": {
     "@hugeicons/core-free-icons": "4.2.2",
     "@hugeicons/react": "^1.1.6",
+    "@xterm/addon-fit": "^0.10.0",
+    "@xterm/xterm": "^5.5.0",
     "zod": "^4.3.6"
   },
   "devDependencies": {

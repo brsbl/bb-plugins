@@ -45,6 +45,7 @@ import {
   ListViewGlyph,
   MediaPlayerArt,
   MinesweeperArt,
+  CommandPromptArt,
   SolitaireArt,
   RecycleBinArt,
   StatusIcon,
@@ -78,6 +79,7 @@ import {
   type SortKey,
 } from "./core";
 import { NeedsInputBalloon } from "./balloon";
+import { CommandPrompt, closeCommandPromptSession } from "./command-prompt";
 import { MinesweeperGame } from "./games/minesweeper";
 import { SolitaireGame } from "./games/solitaire";
 import { toggleDesktop, useDesktopEnabled } from "./enabled";
@@ -1154,6 +1156,8 @@ function windowTitle(spec: WindowSpec, desktop: DesktopContextValue): string {
       return "Minesweeper";
     case "solitaire":
       return "Solitaire";
+    case "command-prompt":
+      return "Command Prompt";
     case "new-folder":
       return "New folder";
     case "new-thread":
@@ -1189,6 +1193,8 @@ function windowArt(spec: WindowSpec, desktop: DesktopContextValue, size: number)
       return <MinesweeperArt size={size} />;
     case "solitaire":
       return <SolitaireArt size={size} />;
+    case "command-prompt":
+      return <CommandPromptArt size={size} />;
     case "new-folder":
       return <NewFolderArt size={size} />;
     case "new-thread":
@@ -1336,6 +1342,20 @@ function StartMenu({ onClose }: { onClose: () => void }) {
             </span>
           </button>
         ))}
+        <button
+          type="button"
+          role="menuitem"
+          className="bbd-start-item"
+          title="Right-click to add to Quick Launch"
+          onClick={run(() => manager.open({ kind: "command-prompt" }))}
+          onContextMenu={(event) => desktop.openMenu(event, [quickLaunchToggleEntry(desktop, "command-prompt")])}
+        >
+          <CommandPromptArt size={30} />
+          <span>
+            <strong>Command Prompt</strong>
+            <small>A terminal on this machine</small>
+          </span>
+        </button>
       </div>
       <div className="bbd-start-foot">
         <button type="button" role="menuitem" className="bbd-start-off" onClick={run(toggleDesktop)}>
@@ -1446,6 +1466,7 @@ function useQuickLaunchCatalog(): QuickLaunchItem[] {
     launcher({ kind: "media-player" }, "Media Player"),
     launcher({ kind: "minesweeper" }, "Minesweeper"),
     launcher({ kind: "solitaire" }, "Solitaire"),
+    launcher({ kind: "command-prompt" }, "Command Prompt"),
     { id: "sticky-note", label: "Note pad", art: <NotePadArt size={18} />, run: () => addStickyNote() },
     { id: "search", label: "Search", art: <SearchArt size={20} />, run: () => void runAppCommand("thread.search") },
     { id: "run", label: "Run…", art: <RunArt size={20} />, run: () => void runAppCommand("palette.open") },
@@ -2061,6 +2082,8 @@ function WindowContent({ window: desktopWindow }: { window: DesktopWindow }) {
           <SolitaireGame />
         </WindowFrame>
       );
+    case "command-prompt":
+      return <CommandPromptWindow window={desktopWindow} />;
     case "new-folder":
       return <NewFolderWindow window={desktopWindow} />;
     case "new-thread":
@@ -2596,6 +2619,21 @@ function ThreadsWindow({ window: desktopWindow }: { window: DesktopWindow }) {
           <ThreadCollection threads={threads} group={null} view="list" emptyText="No threads." showFolders />
         </div>
       </div>
+    </WindowFrame>
+  );
+}
+
+function CommandPromptWindow({ window: desktopWindow }: { window: DesktopWindow }) {
+  const desktop = useDesktop();
+  const machine = desktop.snapshot.machines[0] ?? null;
+  return (
+    <WindowFrame
+      window={desktopWindow}
+      title={machine === null ? "Command Prompt" : `Command Prompt — ${machine.name}`}
+      icon={<CommandPromptArt size={16} />}
+      onClose={closeCommandPromptSession}
+    >
+      <CommandPrompt hostId={machine?.id ?? null} />
     </WindowFrame>
   );
 }

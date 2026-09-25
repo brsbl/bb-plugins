@@ -379,6 +379,17 @@ export function SolitaireArt({ size = 40 }: { size?: number }) {
   );
 }
 
+export function CommandPromptArt({ size = 40 }: { size?: number }) {
+  return (
+    <IconSvg size={size}>
+      <rect x="3" y="8" width="42" height="32" rx="2.5" fill={ICON.lead} stroke={ICON.blueOutline} />
+      <path d="M3 10.5A2.5 2.5 0 0 1 5.5 8h37a2.5 2.5 0 0 1 2.5 2.5V14H3Z" fill="url(#bbd-g-title)" />
+      <rect x="39" y="9.4" width="3.8" height="3.4" rx="0.8" fill={ICON.redTop} stroke={ICON.paper} strokeWidth="0.5" />
+      <path d="M12.5 22.5a4 4 0 1 0 0 7M16 32 21 21M26 32h10" fill="none" stroke={ICON.paper} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
+    </IconSvg>
+  );
+}
+
 export function DetailsArt({ size = 40 }: { size?: number }) {
   return (
     <IconSvg size={size}>

@@ -79,6 +79,7 @@ Use the real XP icon when bb has an XP counterpart. When it does not, build from
 | Skills | No XP counterpart; a glossy bolt in XP style | `SkillsArt` |
 | Minesweeper | Minesweeper: a spiked black mine with a red flag | `MinesweeperArt` |
 | Solitaire | Solitaire: two fanned cards, a spade behind a heart | `SolitaireArt` |
+| Terminal | Command Prompt: black window with a blue title bar and `C:\\ _` | `CommandPromptArt` |
 | Thread search | Search: straight-on magnifying glass with a gold handle | `SearchArt` |
 | Command palette | Run: small window with a text field and speed lines | `RunArt` |
 | Thread details | A window with a side pane | `DetailsArt` |
@@ -109,7 +110,7 @@ Reuse these before building anything new.
 
 - Windows open with `defaultRect` sizes and stay inside the viewport (`clampRect`). List windows start at least 460 px wide so titles fit.
 - The taskbar is a pill sized to its contents: Start, Quick Launch, window buttons, tray.
-- Text uses bb's sans font and typography tokens (`--text-xs`, and so on). The XP typeface exceptions are quoted XP artifacts: the balloon (Tahoma), Minesweeper numbers (Tahoma), and note pads (Lucida Console, Notepad's font).
+- Text uses bb's sans font and typography tokens (`--text-xs`, and so on). The XP typeface exceptions are quoted XP artifacts: the balloon (Tahoma), Minesweeper numbers (Tahoma), note pads, and Command Prompt (Lucida Console, the XP console font).
 
 ## 7. Motion
 

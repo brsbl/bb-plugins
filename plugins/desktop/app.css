@@ -1207,3 +1207,23 @@
     transition: none;
   }
 }
+
+.bbd-cmd {
+  display: flex;
+  flex-direction: column;
+  margin: 0 2px 2px;
+  background: oklch(0.15 0.004 265);
+}
+
+.bbd-cmd-screen {
+  flex: 1;
+  min-height: 0;
+  padding: 4px 0 0 6px;
+}
+
+.bbd-cmd-message {
+  padding: 12px;
+  color: oklch(0.84 0.004 265);
+  font-family: "Lucida Console", Consolas, ui-monospace, monospace;
+  font-size: var(--text-xs);
+}
