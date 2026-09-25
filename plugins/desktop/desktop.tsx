@@ -281,6 +281,10 @@ export function toggleDesktop() {
   localStorage.setItem(ENABLED_KEY, String(enabled));
   for (const listener of enabledListeners) listener();
   toast.success(enabled ? "Desktop turned on" : "Desktop turned off");
+  if (enabled && window.location.pathname !== "/") {
+    window.history.pushState(null, "", "/");
+    window.dispatchEvent(new PopStateEvent("popstate"));
+  }
 }
 
 export function Desktop() {

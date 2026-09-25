@@ -13,7 +13,7 @@ Desktop turns bb's new-thread page into an operating system for your agents. Thr
 - **Taskbar.** An XP-style taskbar sits at the bottom of the new-thread page, sized to its buttons and capped at the page column. Its green **New thread** button and quick-launch icons open new threads, folders, and Windows Media Player; every open window gets a taskbar button, and clicking the focused one minimizes it. The tray holds the Media Player mini-player and a clock.
 - **Windows Media Player.** Press play to visualize your microphone with classic visualizations (Bars, Scope, and Ambience); use the arrows or double-click the screen to switch. Audio never leaves the browser, and pressing stop releases the microphone.
 - **Desktop menu.** Right-click the desktop or any empty part of the new-thread page to set Show, Organize by, and Sort by, to Arrange icons into a grid, or to Tile windows, both in sort order.
-- **On/off.** The window icon in the sidebar footer turns the whole desktop on or off on this device. When it is off, the new-thread page shows no desktop, windows, or taskbar.
+- **On/off.** The Desktop button in the sidebar footer turns the whole desktop on or off on this device. Turning it on takes you to the new-thread page. When it is off, the new-thread page shows no desktop, windows, or taskbar.
 
 Agents and scripts can use the same features from the `bb desktop` CLI; see [the skill](skills/desktop/SKILL.md).
 

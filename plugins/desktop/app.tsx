@@ -11,7 +11,7 @@ export default definePluginApp((app) => {
   });
   app.slots.sidebarFooterAction({
     id: "toggle",
-    title: "Turn Desktop on or off",
+    title: "Desktop",
     icon: "AppWindow",
     run: toggleDesktop,
   });
