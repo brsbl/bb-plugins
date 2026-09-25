@@ -1,6 +1,6 @@
 import { useEffect, useRef, useSyncExternalStore } from "react";
 
-import { MediaPlayerArt, NextGlyph, PlayGlyph, PreviousGlyph, StopGlyph } from "./art";
+import { MediaPlayerArt, MicGlyph, NextGlyph, PlayGlyph, PreviousGlyph, StopGlyph } from "./art";
 import { WindowFrame, type DesktopWindow } from "./windows";
 
 type MicStatus = "off" | "starting" | "live" | "blocked";
@@ -350,9 +350,26 @@ function PresetButton({ step }: { step: number }) {
   );
 }
 
+function idleText(status: MicStatus): string {
+  switch (status) {
+    case "starting":
+      return "Allow microphone access when your browser asks.";
+    case "blocked":
+      return "Microphone access is blocked. Allow it in your browser's site settings, then click here to try again.";
+    default:
+      return "Click here to visualize your microphone.";
+  }
+}
+
 export function MediaPlayerWindow({ window: desktopWindow }: { window: DesktopWindow }) {
   const { status } = useMic();
   const preset = usePreset();
+  const autoplay = useRef(desktopWindow.openedThisSession);
+
+  useEffect(() => {
+    if (autoplay.current) void startMic();
+    return stopMic;
+  }, []);
   return (
     <WindowFrame
       window={desktopWindow}
@@ -363,17 +380,19 @@ export function MediaPlayerWindow({ window: desktopWindow }: { window: DesktopWi
       <div className="bbd-wmp h-full">
         <div
           className="bbd-wmp-screen relative min-h-0 flex-1"
-          onDoubleClick={() => cyclePreset(1)}
+          data-idle={status !== "live"}
+          onClick={() => {
+            if (status === "off" || status === "blocked") void startMic();
+          }}
+          onDoubleClick={() => {
+            if (status === "live") cyclePreset(1);
+          }}
         >
           <Visualizer />
           {status === "live" ? null : (
             <div className="bbd-wmp-idle">
-              <MediaPlayerArt size={56} />
-              <span>
-                {status === "blocked"
-                  ? "Allow microphone access for bb, then press play."
-                  : "Press play to visualize your microphone."}
-              </span>
+              <MicGlyph className="size-10" strokeWidth={1.5} />
+              <span>{idleText(status)}</span>
             </div>
           )}
         </div>

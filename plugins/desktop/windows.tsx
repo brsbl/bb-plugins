@@ -56,6 +56,7 @@ export interface DesktopWindow {
   z: number;
   minimized: boolean;
   restoreRect: Rect | null;
+  openedThisSession: boolean;
 }
 
 interface WindowState {
@@ -106,6 +107,7 @@ function reducer(state: WindowState, action: Action): WindowState {
             z: state.nextZ,
             minimized: false,
             restoreRect: null,
+            openedThisSession: true,
           },
         ],
       };
@@ -217,6 +219,7 @@ function loadState(): WindowState {
           z: typeof record.z === "number" ? record.z : 1,
           minimized: record.minimized === true,
           restoreRect: isRect(record.restoreRect) ? record.restoreRect : null,
+          openedThisSession: false,
         },
       ];
     });

@@ -15,6 +15,7 @@ import {
   LaptopIcon,
   LinkSquare02Icon,
   ListViewIcon,
+  Mic01Icon,
   MinusSignIcon,
   NextIcon,
   PlayIcon,
@@ -63,6 +64,7 @@ export const CloseGlyph = bbGlyph(Cancel01Icon);
 export const PlayGlyph = bbGlyph(PlayIcon);
 export const StopGlyph = bbGlyph(StopIcon);
 export const PowerGlyph = bbGlyph(PowerIcon);
+export const MicGlyph = bbGlyph(Mic01Icon);
 export const ShowDesktopGlyph = bbGlyph(ComputerDesk01Icon);
 export const PluginsGlyph = bbGlyph(PuzzleIcon);
 export const SkillsGlyph = bbGlyph(FlashIcon);

@@ -800,6 +800,10 @@
   padding: 8px;
 }
 
+.bbd-wmp-screen[data-idle="true"] {
+  cursor: pointer;
+}
+
 .bbd-wmp-screen {
   overflow: hidden;
   border-radius: 10px;
