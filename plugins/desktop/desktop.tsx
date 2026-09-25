@@ -512,7 +512,9 @@ function DesktopData() {
     (threadId: string) =>
       call("unarchiveThread", { threadId })
         .then(refresh)
-        .catch((restoreError) => toast.error(errorMessage(restoreError))),
+        .catch((restoreError) => {
+          toast.error(errorMessage(restoreError));
+        }),
     [call, refresh],
   );
 

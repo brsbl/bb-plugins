@@ -20,6 +20,10 @@ function setMicState(next: MicState) {
   for (const listener of micListeners) listener();
 }
 
+function currentMicStatus(): MicStatus {
+  return micState.status;
+}
+
 function subscribeMic(listener: () => void) {
   micListeners.add(listener);
   return () => {
@@ -34,7 +38,7 @@ export async function startMic() {
     const stream = await navigator.mediaDevices.getUserMedia({
       audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: true },
     });
-    if (micState.status !== "starting") {
+    if (currentMicStatus() !== "starting") {
       for (const track of stream.getTracks()) track.stop();
       return;
     }
