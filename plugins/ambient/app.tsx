@@ -39,6 +39,7 @@ const GLASS_BLUR = "-webkit-backdrop-filter: blur(24px) saturate(1.6); backdrop-
 const GLASS_SURFACE = `background-color: ${GLASS_FILL}; ${GLASS_BLUR}
   border: 1px solid color-mix(in oklab, var(--ink) 9%, transparent);
   box-shadow: inset 0 1px 0 color-mix(in oklab, var(--canvas) 60%, transparent), 0 12px 32px -16px color-mix(in oklab, var(--ink) 35%, transparent);`;
+const OVERLAY = 'body.bb-app-shell [data-bb-portaled-overlay]:is([role="dialog"], [role="menu"], [role="listbox"])';
 const COLUMN_HALF = "404px";
 const COLUMN_MASK = `linear-gradient(to right, transparent max(10px, 50% - ${COLUMN_HALF}), #000 max(10px, 50% - ${COLUMN_HALF}), #000 min(calc(100% - 10px), 50% + ${COLUMN_HALF}), transparent min(calc(100% - 10px), 50% + ${COLUMN_HALF}))`;
 const RIGHT_PANEL = "body.bb-app-shell > #root #thread-detail-secondary-panel-handle + [data-panel] > aside";
@@ -122,7 +123,9 @@ ${RIGHT_PANEL} { ${GLASS_SURFACE} inset: 8px 8px 8px 2px; height: auto; max-widt
 body.bb-app-shell > #root :is([role="separator"][data-split-resize-grid-boundary], [data-panel-resize-handle-id]):not(:hover, [data-dragging], [data-resize-handle-state="drag"]), body.bb-app-shell > #root [data-panel-resize-handle-id]:not(:hover, [data-resize-handle-state="drag"]) > span { background-color: transparent; }
 ${RIGHT_PANEL} :is(.sticky, [data-sidebar-sticky-tier]) { -webkit-backdrop-filter: none; backdrop-filter: none; }
 ${RIGHT_PANEL} [data-app-browser] > [class~="flex-1"]:last-child { margin: 0 8px 8px; border-radius: 12px; overflow: hidden; }
-body.bb-app-shell [data-bb-portaled-overlay]:is([role="dialog"], [role="menu"], [role="listbox"]) { ${GLASS_SURFACE} }
+${OVERLAY} { ${GLASS_SURFACE} -webkit-backdrop-filter: none; backdrop-filter: none; --background: transparent; --popover: transparent; }
+${OVERLAY}::before { content: ""; position: absolute; inset: 0; z-index: -1; pointer-events: none; border-radius: inherit; ${GLASS_BLUR} }
+${OVERLAY} .sticky { -webkit-backdrop-filter: blur(24px); backdrop-filter: blur(24px); }
 body.bb-app-shell [data-bb-portaled-overlay] :is([data-palette-input-band], [data-palette-results-clip]) { background-color: transparent; }
 body.bb-app-shell [data-testid="secondary-panel-shelf"] { background-color: var(--ambient-glass-solid); -webkit-backdrop-filter: blur(32px); backdrop-filter: blur(32px); }`;
 }
