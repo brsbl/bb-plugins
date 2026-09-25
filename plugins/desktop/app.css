@@ -509,7 +509,6 @@
   display: flex;
   align-items: center;
   gap: 1px;
-  margin-left: -8px;
 }
 
 .bbd-tray-icon {
@@ -538,8 +537,19 @@
   padding: 0 4px 0 6px;
 }
 
-.bbd-quick:empty {
-  display: none;
+.bbd-quick-more {
+  display: grid;
+  place-items: center;
+  width: 16px;
+  height: 26px;
+  border-radius: 4px;
+  color: var(--bbd-white);
+  opacity: 0.75;
+}
+
+.bbd-quick-more:hover {
+  opacity: 1;
+  background: color-mix(in oklab, var(--bbd-white) 22%, transparent);
 }
 
 .bbd-quick-item {

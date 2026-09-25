@@ -5,6 +5,7 @@ import {
   filterLifecycle,
   gridPositions,
   groupThreads,
+  clampRect,
   clearanceShift,
   nextFreePosition,
   trackNeedsInput,
@@ -205,5 +206,16 @@ describe("clearanceShift", () => {
 
   it("lets a window hang off an edge when nothing fits, keeping its title bar reachable", () => {
     expect(clearanceShift({ x: 350, y: 100, width: 400, height: 780 }, composer, viewport)).toEqual({ x: 0, y: 112 });
+  });
+});
+
+describe("clampRect", () => {
+  it("keeps a window's title bar below the app's top controls", () => {
+    expect(clampRect({ x: 900, y: -20, width: 400, height: 300 }, { y: 48, width: 1200, height: 852 })).toEqual({
+      x: 900,
+      y: 48,
+      width: 400,
+      height: 300,
+    });
   });
 });

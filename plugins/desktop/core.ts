@@ -268,17 +268,18 @@ export function snapToGrid(point: Point): Point {
 
 export const MIN_WINDOW = { width: 280, height: 180 } as const;
 
-export function clampRect(rect: Rect, viewport: { width: number; height: number }): Rect {
-  const width = Math.min(Math.max(rect.width, MIN_WINDOW.width), viewport.width);
-  const height = Math.min(
-    Math.max(rect.height, MIN_WINDOW.height),
-    viewport.height,
-  );
+export function clampRect(
+  rect: Rect,
+  area: { x?: number; y?: number; width: number; height: number },
+): Rect {
+  const top = area.y ?? 0;
+  const width = Math.min(Math.max(rect.width, MIN_WINDOW.width), area.width);
+  const height = Math.min(Math.max(rect.height, MIN_WINDOW.height), area.height);
   return {
     width,
     height,
-    x: Math.min(Math.max(rect.x, 40 - width), viewport.width - 40),
-    y: Math.min(Math.max(rect.y, 0), viewport.height - 32),
+    x: Math.min(Math.max(rect.x, 40 - width), area.width - 40),
+    y: Math.min(Math.max(rect.y, top), top + area.height - 32),
   };
 }
 

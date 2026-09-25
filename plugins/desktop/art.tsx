@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import {
   BubbleChatAddIcon,
   Cancel01Icon,
+  ArrowRightDoubleIcon,
   CollapseIcon,
   CubeIcon,
   DashboardSquare01Icon,
@@ -332,6 +333,7 @@ export const CloseGlyph = bbGlyph(Cancel01Icon);
 export const PlayGlyph = bbGlyph(PlayIcon);
 export const StopGlyph = bbGlyph(StopIcon);
 export const PowerGlyph = bbGlyph(PowerIcon);
+export const ChevronsRightGlyph = bbGlyph(ArrowRightDoubleIcon);
 export const MicGlyph = bbGlyph(Mic01Icon);
 export const StickyNoteGlyph = bbGlyph(StickyNote03Icon);
 export const NextGlyph = bbGlyph(NextIcon);

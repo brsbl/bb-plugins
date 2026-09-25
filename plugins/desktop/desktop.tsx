@@ -48,6 +48,7 @@ import {
   type StatusKind,
   StickyNoteGlyph,
   PanelRightGlyph,
+  ChevronsRightGlyph,
   PowerGlyph,
   ThreadArt,
   TileGlyph,
@@ -1240,7 +1241,15 @@ function StartMenu({ onClose }: { onClose: () => void }) {
       </div>
       <div className="bbd-start-body">
         {START_ITEMS.map((item) => (
-          <button key={item.label} type="button" role="menuitem" className="bbd-start-item" onClick={run(() => manager.open(item.spec))}>
+          <button
+            key={item.label}
+            type="button"
+            role="menuitem"
+            className="bbd-start-item"
+            title="Right-click to add to Quick Launch"
+            onClick={run(() => manager.open(item.spec))}
+            onContextMenu={(event) => desktop.openMenu(event, [quickLaunchToggleEntry(desktop, item.spec.kind)])}
+          >
             {windowArt(item.spec, desktop, 30)}
             <span>
               <strong>{item.label}</strong>
@@ -1248,7 +1257,14 @@ function StartMenu({ onClose }: { onClose: () => void }) {
             </span>
           </button>
         ))}
-        <button type="button" role="menuitem" className="bbd-start-item" onClick={run(() => addStickyNote())}>
+        <button
+          type="button"
+          role="menuitem"
+          className="bbd-start-item"
+          title="Right-click to add to Quick Launch"
+          onClick={run(() => addStickyNote())}
+          onContextMenu={(event) => desktop.openMenu(event, [quickLaunchToggleEntry(desktop, "sticky-note")])}
+        >
           <StickyNoteArt size={30} />
           <span>
             <strong>Sticky note</strong>
@@ -1313,6 +1329,21 @@ function useQuickLaunchCatalog(): QuickLaunchItem[] {
   ];
 }
 
+function toggleQuickLaunch(desktop: DesktopContextValue, itemId: string) {
+  const chosen = desktop.snapshot.preferences.quickLaunch;
+  desktop.setPreferences({
+    quickLaunch: chosen.includes(itemId) ? chosen.filter((id) => id !== itemId) : [...chosen, itemId],
+  });
+}
+
+function quickLaunchToggleEntry(desktop: DesktopContextValue, itemId: string): MenuEntry {
+  const pinned = desktop.snapshot.preferences.quickLaunch.includes(itemId);
+  return {
+    label: pinned ? "Remove from Quick Launch" : "Add to Quick Launch",
+    run: () => toggleQuickLaunch(desktop, itemId),
+  };
+}
+
 function quickLaunchMenu(
   desktop: DesktopContextValue,
   catalog: QuickLaunchItem[],
@@ -1332,11 +1363,13 @@ function quickLaunchMenu(
     ...(index === -1
       ? []
       : [
+          quickLaunchToggleEntry(desktop, chosen[index]!),
+          "separator" as const,
           { label: "Move left", disabled: index === 0, run: () => move(-1) },
           { label: "Move right", disabled: index === chosen.length - 1, run: () => move(1) },
           "separator" as const,
         ]),
-    { heading: "Quick Launch" },
+    { heading: "Show in Quick Launch" },
     ...catalog.map((item) => ({
       label: item.label,
       checked: chosen.includes(item.id),
@@ -1355,6 +1388,8 @@ function Taskbar({ frame }: { frame: DockFrame | null }) {
   );
   const { status } = useMic();
   const playing = status === "live" || status === "starting";
+  const player = manager.windows.find((window) => window.spec.kind === "media-player");
+  const deskband = playing && (player === undefined || player.minimized);
   const [startOpen, setStartOpen] = useState(false);
   const closeStart = useCallback(() => setStartOpen(false), []);
   const activate = (id: string) => {
@@ -1393,9 +1428,18 @@ function Taskbar({ frame }: { frame: DockFrame | null }) {
             {item.art}
           </button>
         ))}
+        <button
+          type="button"
+          className="bbd-quick-more"
+          aria-label="Choose Quick Launch items"
+          title="Choose Quick Launch items"
+          onClick={(event) => desktop.openMenu(event, quickLaunchMenu(desktop, catalog, null))}
+        >
+          <ChevronsRightGlyph className="size-3" strokeWidth={2.5} />
+        </button>
       </div>
       <div className="bbd-tasks">
-        {manager.windows.map((window) => {
+        {manager.windows.filter((window) => !(deskband && window.id === player?.id)).map((window) => {
           const title = windowTitle(window.spec, desktop);
           return (
             <button
@@ -1414,7 +1458,7 @@ function Taskbar({ frame }: { frame: DockFrame | null }) {
         })}
       </div>
       <div className="bbd-tray">
-        {playing && <MediaDeskband onRestore={() => manager.open({ kind: "media-player" })} />}
+        {deskband && <MediaDeskband onRestore={() => manager.open({ kind: "media-player" })} />}
         <TrayIcons />
         <TrayClock />
       </div>

@@ -211,14 +211,15 @@ function loadState(): WindowState {
       const record = entry as Record<string, unknown>;
       const spec = parseSpec(record.spec);
       if (spec === null || !isRect(record.rect)) return [];
+      const restoreRect = isRect(record.restoreRect) ? clampRect(record.restoreRect, viewportRect()) : null;
       return [
         {
           id: windowId(spec),
           spec,
-          rect: record.rect,
+          rect: restoreRect === null ? clampRect(record.rect, viewportRect()) : workAreaRect(),
           z: typeof record.z === "number" ? record.z : 1,
           minimized: record.minimized === true,
-          restoreRect: isRect(record.restoreRect) ? record.restoreRect : null,
+          restoreRect,
           openedThisSession: false,
         },
       ];
@@ -229,14 +230,23 @@ function loadState(): WindowState {
   }
 }
 
+function chromeTop(): number {
+  const raw = getComputedStyle(document.documentElement).getPropertyValue("--bb-app-chrome-row-height").trim();
+  const value = Number.parseFloat(raw);
+  if (!Number.isFinite(value)) return 48;
+  return raw.endsWith("rem") ? value * Number.parseFloat(getComputedStyle(document.documentElement).fontSize) : value;
+}
+
 export function viewportRect(): Rect {
-  return { x: 0, y: 0, width: window.innerWidth, height: window.innerHeight };
+  const top = chromeTop();
+  return { x: 0, y: top, width: window.innerWidth, height: window.innerHeight - top };
 }
 
 const DOCK_RESERVE = 80;
 
 export function workAreaRect(): Rect {
-  return { x: 0, y: 0, width: window.innerWidth, height: Math.max(200, window.innerHeight - DOCK_RESERVE) };
+  const top = chromeTop();
+  return { x: 0, y: top, width: window.innerWidth, height: Math.max(200, window.innerHeight - DOCK_RESERVE - top) };
 }
 
 export function defaultRect(spec: WindowSpec, stagger: number): Rect {
@@ -260,7 +270,7 @@ export function defaultRect(spec: WindowSpec, stagger: number): Rect {
     {
       ...size,
       x: Math.round((viewport.width - size.width) / 2) + offset - 84,
-      y: Math.round((viewport.height - size.height) / 3) + offset,
+      y: viewport.y + Math.round((viewport.height - size.height) / 3) + offset,
     },
     viewport,
   );
