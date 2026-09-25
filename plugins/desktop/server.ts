@@ -53,6 +53,7 @@ const threadSchema = z
     providerId: z.string(),
     status: z.enum(["active", "error", "idle", "pending", "starting", "stopping"]),
     isArchived: z.boolean(),
+    isPinned: z.boolean(),
     isHidden: z.boolean(),
     isUnread: z.boolean(),
     needsInput: z.boolean(),
@@ -168,6 +169,7 @@ interface ListedThread {
   providerId: string;
   status: DesktopThread["status"];
   archivedAt: number | null;
+  pinnedAt: number | null;
   visibility: "hidden" | "visible";
   lastReadAt: number | null;
   latestAttentionAt: number;
@@ -186,6 +188,7 @@ export function toDesktopThread(thread: ListedThread): DesktopThread {
     providerId: thread.providerId,
     status: thread.status,
     isArchived: thread.archivedAt !== null,
+    isPinned: thread.pinnedAt !== null,
     isHidden: thread.visibility === "hidden",
     isUnread:
       thread.lastReadAt === null || thread.lastReadAt < thread.latestAttentionAt,

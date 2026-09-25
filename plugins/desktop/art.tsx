@@ -16,6 +16,7 @@ import {
   ListViewIcon,
   Mic01Icon,
   MinusSignIcon,
+  MoreHorizontalIcon,
   NextIcon,
   PlayIcon,
   PreviousIcon,
@@ -380,6 +381,20 @@ export function SolitaireArt({ size = 40 }: { size?: number }) {
   );
 }
 
+export function PinballArt({ size = 40 }: { size?: number }) {
+  return (
+    <IconSvg size={size}>
+      <path d="M13 5h22l9 37H4Z" fill="url(#bbd-g-navy)" stroke={ICON.navyEdge} strokeLinejoin="round" />
+      <circle cx="18" cy="14.5" r="3.6" fill={ICON.wmpOrange} stroke={ICON.sparkEdge} strokeWidth="0.8" />
+      <circle cx="30" cy="16.5" r="3.6" fill={ICON.wmpGreen} stroke={ICON.recycleEdge} strokeWidth="0.8" />
+      <path d="M12.5 35.5 21 39M35.5 35.5 27 39" stroke={ICON.boltEdge} strokeWidth="4.4" strokeLinecap="round" />
+      <path d="M12.5 35.5 21 39M35.5 35.5 27 39" stroke={ICON.boltTop} strokeWidth="2.6" strokeLinecap="round" />
+      <circle cx="24.5" cy="27" r="6" fill="url(#bbd-g-disc)" stroke={ICON.discEdge} />
+      <circle cx="22.4" cy="24.8" r="1.8" fill={ICON.discLight} />
+    </IconSvg>
+  );
+}
+
 export function CommandPromptArt({ size = 40 }: { size?: number }) {
   return (
     <IconSvg size={size}>
@@ -444,6 +459,7 @@ export const MachineGlyph = bbGlyph(LaptopIcon);
 export const PinGlyph = bbGlyph(PinIcon);
 export const CheckGlyph = bbGlyph(Tick02Icon);
 export const ExternalLinkGlyph = bbGlyph(LinkSquare02Icon);
+export const MoreGlyph = bbGlyph(MoreHorizontalIcon);
 export const FolderPlusGlyph = bbGlyph(FolderAddIcon);
 export const TileGlyph = bbGlyph(DashboardSquare01Icon);
 export const ThreadsGlyph = bbGlyph(HierarchySquare01Icon);

@@ -26,6 +26,7 @@ function thread(id: string, overrides: Partial<DesktopThread> = {}): DesktopThre
     providerId: "codex",
     status: "idle",
     isArchived: false,
+    isPinned: false,
     isHidden: false,
     isUnread: false,
     needsInput: false,

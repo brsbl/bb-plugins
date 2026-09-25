@@ -50,6 +50,7 @@ export type WindowSpec =
   | { kind: "more" }
   | { kind: "minesweeper" }
   | { kind: "solitaire" }
+  | { kind: "pinball" }
   | { kind: "command-prompt" }
   | { kind: "paint" }
   | { kind: "internet-explorer" }
@@ -220,6 +221,7 @@ function parseSpec(value: unknown): WindowSpec | null {
     case "more":
     case "minesweeper":
     case "solitaire":
+    case "pinball":
     case "command-prompt":
     case "paint":
     case "internet-explorer":
@@ -300,6 +302,8 @@ export function defaultRect(spec: WindowSpec, stagger: number): Rect {
               ? { width: 300, height: 400 }
             : spec.kind === "solitaire"
               ? { width: 720, height: 540 }
+            : spec.kind === "pinball"
+              ? { width: 560, height: 640 }
             : spec.kind === "command-prompt"
               ? { width: 680, height: 420 }
             : spec.kind === "paint"

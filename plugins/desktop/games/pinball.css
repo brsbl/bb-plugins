@@ -1,0 +1,272 @@
+.bbd-pinball {
+  --bbd-pinball-cabinet: oklch(0.2 0.07 272);
+  --bbd-pinball-panel: oklch(0.32 0.13 266);
+  --bbd-pinball-panel-deep: oklch(0.18 0.09 276);
+  --bbd-pinball-bevel-light: oklch(0.56 0.13 258);
+  --bbd-pinball-bevel-dark: oklch(0.11 0.05 275);
+  --bbd-pinball-led-bg: oklch(0.11 0.04 270);
+  --bbd-pinball-led: oklch(0.88 0.14 205);
+  --bbd-pinball-led-glow: oklch(0.75 0.16 215 / 0.6);
+  --bbd-pinball-gold: oklch(0.87 0.15 85);
+  --bbd-pinball-alert: oklch(0.76 0.18 32);
+  --bbd-pinball-text: oklch(0.92 0.03 240);
+  --bbd-pinball-muted: oklch(0.74 0.06 250);
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  container-type: inline-size;
+}
+
+.bbd-pinball-toolbar {
+  flex: none;
+  gap: 12px;
+}
+
+.bbd-pinball-stat {
+  margin-left: auto;
+  font-size: var(--text-xs);
+  font-variant-numeric: tabular-nums;
+  color: var(--foreground);
+  white-space: nowrap;
+}
+
+.bbd-pinball-body {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  gap: 8px;
+  padding: 8px;
+  background: var(--bbd-pinball-cabinet);
+  outline: none;
+}
+
+.bbd-pinball-body:focus-visible {
+  box-shadow: inset 0 0 0 2px var(--bbd-accent-line);
+}
+
+.bbd-pinball-stage {
+  display: grid;
+  place-items: center;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.bbd-pinball-canvas {
+  display: block;
+  border-radius: 3px;
+  outline: 1px solid var(--bbd-pinball-bevel-light);
+  outline-offset: -1px;
+  touch-action: none;
+  cursor: pointer;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+
+.bbd-pinball-panel {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  gap: 8px;
+  width: 156px;
+  min-height: 0;
+  padding: 10px 8px;
+  overflow: auto;
+  border-radius: 4px;
+  background: linear-gradient(180deg, var(--bbd-pinball-panel), var(--bbd-pinball-panel-deep));
+  box-shadow:
+    inset 1px 1px 0 var(--bbd-pinball-bevel-light),
+    inset -1px -1px 0 var(--bbd-pinball-bevel-dark);
+  color: var(--bbd-pinball-text);
+  font-family: Tahoma, Verdana, "Segoe UI", sans-serif;
+}
+
+.bbd-pinball-logo {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 6px 4px;
+  border-radius: 3px;
+  background:
+    radial-gradient(ellipse at 50% 30%, oklch(0.45 0.18 300 / 0.8), oklch(0.45 0.18 300 / 0) 75%),
+    var(--bbd-pinball-led-bg);
+  box-shadow:
+    inset 1px 1px 0 var(--bbd-pinball-bevel-dark),
+    inset -1px -1px 0 var(--bbd-pinball-bevel-light);
+}
+
+.bbd-pinball-logo-small {
+  font-size: var(--text-xs);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--bbd-pinball-muted);
+}
+
+.bbd-pinball-logo-big {
+  font-size: var(--text-base);
+  font-weight: 800;
+  font-style: italic;
+  color: var(--bbd-pinball-gold);
+  text-shadow:
+    0 1px 0 oklch(0.42 0.14 40),
+    0 0 8px oklch(0.8 0.16 70 / 0.5);
+  white-space: nowrap;
+}
+
+.bbd-pinball-readout {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.bbd-pinball-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.bbd-pinball-player {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.bbd-pinball-label {
+  font-size: var(--text-xs);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--bbd-pinball-muted);
+  white-space: nowrap;
+}
+
+.bbd-pinball-led {
+  display: block;
+  padding: 3px 6px;
+  overflow: hidden;
+  border-radius: 2px;
+  background: var(--bbd-pinball-led-bg);
+  box-shadow:
+    inset 1px 1px 0 var(--bbd-pinball-bevel-dark),
+    inset -1px -1px 0 var(--bbd-pinball-bevel-light);
+  color: var(--bbd-pinball-led);
+  font-family: ui-monospace, "Consolas", monospace;
+  font-size: var(--text-base);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.2;
+  text-align: right;
+  text-shadow: 0 0 6px var(--bbd-pinball-led-glow);
+  white-space: nowrap;
+}
+
+.bbd-pinball-led-small {
+  min-width: 3.2ch;
+  font-size: var(--text-sm);
+  text-align: center;
+}
+
+.bbd-pinball-high {
+  font-size: var(--text-xs);
+  font-variant-numeric: tabular-nums;
+  color: var(--bbd-pinball-gold);
+  white-space: nowrap;
+}
+
+.bbd-pinball-message {
+  min-height: 3.4em;
+  margin: 0;
+  padding: 6px;
+  border-radius: 2px;
+  background: var(--bbd-pinball-led-bg);
+  box-shadow:
+    inset 1px 1px 0 var(--bbd-pinball-bevel-dark),
+    inset -1px -1px 0 var(--bbd-pinball-bevel-light);
+  color: var(--bbd-pinball-led);
+  font-size: var(--text-xs);
+  line-height: 1.35;
+}
+
+.bbd-pinball-message[data-tone="launch"] {
+  color: var(--bbd-pinball-gold);
+}
+
+.bbd-pinball-message[data-tone="over"] {
+  color: var(--bbd-pinball-alert);
+}
+
+.bbd-pinball-launch {
+  justify-content: center;
+  width: 100%;
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.bbd-pinball-keys {
+  display: grid;
+  gap: 1px;
+  margin: auto 0 0;
+  font-size: var(--text-xs);
+  line-height: 1.3;
+  color: var(--bbd-pinball-muted);
+}
+
+.bbd-pinball-keys dt {
+  font-weight: 700;
+  color: var(--bbd-pinball-text);
+}
+
+.bbd-pinball-keys dd {
+  margin: 0 0 4px;
+}
+
+.bbd-pinball-live {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+@container (max-width: 440px) {
+  .bbd-pinball-body {
+    flex-direction: column;
+  }
+
+  .bbd-pinball-panel {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    width: auto;
+    overflow: visible;
+  }
+
+  .bbd-pinball-logo,
+  .bbd-pinball-keys {
+    display: none;
+  }
+
+  .bbd-pinball-readout {
+    flex: 1;
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 6px 10px;
+  }
+
+  .bbd-pinball-message {
+    flex: 1 1 100%;
+    min-height: 0;
+  }
+
+  .bbd-pinball-launch {
+    width: auto;
+  }
+}

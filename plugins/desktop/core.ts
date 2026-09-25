@@ -37,6 +37,7 @@ export interface DesktopThread {
   providerId: string;
   status: "active" | "error" | "idle" | "pending" | "starting" | "stopping";
   isArchived: boolean;
+  isPinned: boolean;
   isHidden: boolean;
   isUnread: boolean;
   needsInput: boolean;

@@ -35,6 +35,7 @@ import {
 import {
   CheckGlyph,
   ExternalLinkGlyph,
+  MoreGlyph,
   FolderArt,
   DetailsArt,
   NewFolderArt,
@@ -54,6 +55,7 @@ import {
   InternetExplorerArt,
   CommandPromptArt,
   SolitaireArt,
+  PinballArt,
   RecycleBinArt,
   StatusIcon,
   NotePadArt,
@@ -98,6 +100,7 @@ import {
 } from "./internet-explorer";
 import { MinesweeperGame } from "./games/minesweeper";
 import { SolitaireGame } from "./games/solitaire";
+import { PinballGame } from "./games/pinball";
 import { playDoorClose, playDoorOpen } from "./door-sounds";
 import { toggleDesktop, useDesktopEnabled } from "./enabled";
 import { MediaDeskband, MediaPlayerWindow, useMic } from "./media-player";
@@ -1230,6 +1233,8 @@ function windowTitle(spec: WindowSpec, desktop: DesktopContextValue): string {
       return "Minesweeper";
     case "solitaire":
       return "Solitaire";
+    case "pinball":
+      return "Pinball";
     case "command-prompt":
       return "Command Prompt";
     case "paint":
@@ -1277,6 +1282,8 @@ function windowArt(spec: WindowSpec, desktop: DesktopContextValue, size: number)
       return <MinesweeperArt size={size} />;
     case "solitaire":
       return <SolitaireArt size={size} />;
+    case "pinball":
+      return <PinballArt size={size} />;
     case "command-prompt":
       return <CommandPromptArt size={size} />;
     case "paint":
@@ -1389,6 +1396,7 @@ function StartMenu({ onClose }: { onClose: () => void }) {
       items: [
         { id: "minesweeper", label: "Minesweeper", detail: "", art: (size) => <MinesweeperArt size={size} />, run: open({ kind: "minesweeper" }) },
         { id: "solitaire", label: "Solitaire", detail: "", art: (size) => <SolitaireArt size={size} />, run: open({ kind: "solitaire" }) },
+        { id: "pinball", label: "Pinball", detail: "", art: (size) => <PinballArt size={size} />, run: open({ kind: "pinball" }) },
       ],
     },
     {
@@ -1570,6 +1578,7 @@ function useQuickLaunchCatalog(): QuickLaunchItem[] {
     launcher({ kind: "media-player" }, "Media Player"),
     launcher({ kind: "minesweeper" }, "Minesweeper"),
     launcher({ kind: "solitaire" }, "Solitaire"),
+    launcher({ kind: "pinball" }, "Pinball"),
     launcher({ kind: "command-prompt" }, "Command Prompt"),
     launcher({ kind: "paint" }, "Paint"),
     { id: "sticky-note", label: "Note pad", art: <NotePadArt size={18} />, run: () => addStickyNote() },
@@ -2407,6 +2416,12 @@ function WindowContent({ window: desktopWindow }: { window: DesktopWindow }) {
           <SolitaireGame />
         </WindowFrame>
       );
+    case "pinball":
+      return (
+        <WindowFrame window={desktopWindow} title="Pinball" icon={<PinballArt size={16} />}>
+          <PinballGame />
+        </WindowFrame>
+      );
     case "command-prompt":
       return <CommandPromptWindow window={desktopWindow} />;
     case "app":
@@ -2447,6 +2462,7 @@ function threadMenu(
     { label: "Open", run: () => desktop.openThread(thread.id) },
     { label: "Open details", icon: <DetailsArt size={16} />, run: () => manager.open({ kind: "panel", threadId: thread.id }) },
     { label: "Open in bb", icon: <ExternalLinkGlyph className="size-3.5" />, run: () => actions.open(thread.id) },
+    { label: "Open in split", run: () => actions.open(thread.id, { split: true }) },
     ...(targets.length > 0 ? ["separator" as const, { heading: "Move to" }] : []),
     ...targets.map((target): MenuEntry => ({
       label: target.name,
@@ -2465,10 +2481,30 @@ function threadMenu(
         ]
       : []),
     "separator",
+    { label: "Copy thread link", run: () => void copyThreadLink(thread) },
     {
       label: thread.isUnread ? "Mark as read" : "Mark as unread",
       run: () => void actions.setRead(thread.id, thread.isUnread).catch((error) => toast.error(errorMessage(error))),
     },
+    ...(thread.isArchived
+      ? []
+      : [
+          {
+            label: thread.isPinned ? "Unpin" : "Pin",
+            run: () =>
+              void actions.setPinned(thread.id, !thread.isPinned).then(desktop.refresh, (error) => toast.error(errorMessage(error))),
+          },
+        ]),
+    {
+      label: "Rename…",
+      run: () => {
+        const title = window.prompt("Thread name", thread.title)?.trim();
+        if (title && title !== thread.title) {
+          void actions.rename(thread.id, title).then(desktop.refresh, (error) => toast.error(errorMessage(error)));
+        }
+      },
+    },
+    "separator",
     thread.isArchived
       ? { label: "Restore", run: () => void desktop.restoreThread(thread.id) }
       : {
@@ -2478,7 +2514,25 @@ function threadMenu(
             actions.archive(thread.id);
           },
         },
+    { label: "Delete…", run: () => actions.requestDelete(thread.id) },
   ];
+}
+
+function threadLink(thread: DesktopThread): string {
+  const path =
+    thread.projectId === "proj_personal"
+      ? `/threads/${thread.id}`
+      : `/projects/${encodeURIComponent(thread.projectId)}/threads/${thread.id}`;
+  return new URL(path, window.location.origin).toString();
+}
+
+async function copyThreadLink(thread: DesktopThread) {
+  try {
+    await navigator.clipboard.writeText(threadLink(thread));
+    toast.success("Thread link copied");
+  } catch (error) {
+    toast.error(errorMessage(error));
+  }
 }
 
 function statusTone(thread: DesktopThread): "attention" | "running" | null {
@@ -2838,15 +2892,35 @@ function ThreadWindow({ window: desktopWindow, threadId }: { window: DesktopWind
       title={`${thread?.title ?? "Thread"} - Instant Message`}
       icon={<ThreadArt size={16} />}
       titleActions={
-        <button
-          type="button"
-          className="bbd-titlebar-button mr-1"
-          aria-label="Open in bb"
-          title="Open in bb"
-          onClick={() => actions.open(threadId)}
-        >
-          <ExternalLinkGlyph className="size-3" strokeWidth={2} />
-        </button>
+        <>
+          {thread === undefined ? null : (
+            <button
+              type="button"
+              className="bbd-titlebar-button mr-1"
+              aria-label="Thread actions"
+              aria-haspopup="menu"
+              title="Thread actions"
+              onClick={(event) => {
+                const bounds = event.currentTarget.getBoundingClientRect();
+                desktop.openMenu(
+                  { clientX: bounds.left, clientY: bounds.bottom + 2, preventDefault: () => event.preventDefault(), stopPropagation: () => event.stopPropagation() },
+                  threadMenu(desktop, manager, actions, thread, null).filter((entry) => typeof entry !== "object" || !("label" in entry) || entry.label !== "Open"),
+                );
+              }}
+            >
+              <MoreGlyph className="size-3.5" strokeWidth={2} />
+            </button>
+          )}
+          <button
+            type="button"
+            className="bbd-titlebar-button mr-1"
+            aria-label="Open in bb"
+            title="Open in bb"
+            onClick={() => actions.open(threadId)}
+          >
+            <ExternalLinkGlyph className="size-3" strokeWidth={2} />
+          </button>
+        </>
       }
       statusBar={
         thread === undefined ? undefined : (
