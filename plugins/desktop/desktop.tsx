@@ -36,6 +36,7 @@ import {
   GridViewGlyph,
   ListViewGlyph,
   MediaPlayerArt,
+  StickyNoteArt,
   NewThreadGlyph,
   StickyNoteGlyph,
   PanelRightGlyph,
@@ -65,7 +66,7 @@ import {
   type SortKey,
 } from "./core";
 import { useDesktopEnabled } from "./enabled";
-import { MediaDeskband, MediaPlayerWindow } from "./media-player";
+import { MediaDeskband, MediaPlayerWindow, useMic } from "./media-player";
 import { addStickyNote } from "./sticky-notes";
 import type { DesktopSnapshot, rpcContract } from "./server";
 import {
@@ -74,6 +75,7 @@ import {
   trackPointer,
   useWindowManager,
   viewportRect,
+  windowId,
   workAreaRect,
   type DesktopWindow,
   type WindowSpec,
@@ -872,81 +874,64 @@ interface DockFrame {
   maxWidth: number;
 }
 
+const DOCK_APPS: { spec: WindowSpec; label: string }[] = [
+  { spec: { kind: "new-thread", groupKey: null }, label: "New thread" },
+  { spec: { kind: "new-folder" }, label: "New folder" },
+  { spec: { kind: "media-player" }, label: "Windows Media Player" },
+];
+
 function Dock({ frame }: { frame: DockFrame | null }) {
   const desktop = useDesktop();
   const manager = useWindowManager();
+  const { status } = useMic();
+  const playing = status === "live" || status === "starting";
+  const appIds = new Set(DOCK_APPS.map((app) => windowId(app.spec)));
+  const others = manager.windows.filter((window) => !appIds.has(window.id));
   const activate = (id: string) => {
     if (manager.focusedId === id) manager.minimize(id, true);
     else manager.focus(id);
   };
-  return (
-    <nav className="bbd-dock" aria-label="Taskbar" style={frame ?? undefined}>
-      <button
-        type="button"
-        className="bbd-start"
-        onClick={() => manager.open({ kind: "new-thread", groupKey: null })}
-      >
-        <NewThreadGlyph className="size-4" strokeWidth={2.25} />
-        <span>New thread</span>
-      </button>
-      <div className="bbd-quick-launch">
-        <button
-          type="button"
-          className="bbd-quick"
-          aria-label="New folder"
-          onClick={() => manager.open({ kind: "new-folder" })}
-        >
-          <GlyphTile glyph={FolderPlusGlyph} size={22} tone="green" />
-          <span className="bbd-dock-tip">New folder</span>
-        </button>
-        <button
-          type="button"
-          className="bbd-quick"
-          aria-label="Windows Media Player"
-          onClick={() => manager.open({ kind: "media-player" })}
-        >
-          <MediaPlayerArt size={20} />
-          <span className="bbd-dock-tip">Windows Media Player</span>
-        </button>
-      </div>
-      <div className="bbd-tasks">
-        {manager.windows.map((window) => {
-          const title = windowTitle(window.spec, desktop);
-          return (
-            <button
-              key={window.id}
-              type="button"
-              className="bbd-task"
-              aria-label={`${title}${window.minimized ? " (minimized)" : ""}`}
-              title={title}
-              data-minimized={window.minimized}
-              data-focused={manager.focusedId === window.id}
-              onClick={() => activate(window.id)}
-            >
-              <span className="bbd-task-icon">{windowArt(window.spec, desktop, 18)}</span>
-              <span className="min-w-0 truncate">{title}</span>
-            </button>
-          );
-        })}
-      </div>
-      <div className="bbd-tray">
-        <MediaDeskband onRestore={() => manager.open({ kind: "media-player" })} />
-        <TrayClock />
-      </div>
-    </nav>
+  const item = (key: string, label: string, art: ReactNode, onClick: () => void, window?: DesktopWindow) => (
+    <button
+      key={key}
+      type="button"
+      className="bbd-dock-item"
+      aria-label={window?.minimized ? `${label} (minimized)` : label}
+      data-running={window !== undefined}
+      data-minimized={window?.minimized === true}
+      data-focused={window !== undefined && manager.focusedId === window.id}
+      onClick={onClick}
+    >
+      {art}
+      <span className="bbd-dock-tip">{label}</span>
+    </button>
   );
-}
-
-function TrayClock() {
-  const [now, setNow] = useState(() => new Date());
-  useEffect(() => {
-    const timer = window.setInterval(() => setNow(new Date()), 15_000);
-    return () => window.clearInterval(timer);
-  }, []);
   return (
-    <time className="bbd-clock" dateTime={now.toISOString()} title={now.toLocaleDateString(undefined, { dateStyle: "full" })}>
-      {now.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}
-    </time>
+    <nav className="bbd-dock" aria-label="Dock" style={frame ?? undefined}>
+      {DOCK_APPS.map((app) => {
+        const id = windowId(app.spec);
+        const window = manager.windows.find((candidate) => candidate.id === id);
+        return item(
+          id,
+          app.label,
+          windowArt(app.spec, desktop, 24),
+          () => (window === undefined ? manager.open(app.spec) : activate(id)),
+          window,
+        );
+      })}
+      {item("sticky-note", "New sticky note", <StickyNoteArt size={24} />, () => addStickyNote())}
+      {others.length > 0 && <span className="bbd-dock-divider" aria-hidden />}
+      {others.map((window) => {
+        const title = windowTitle(window.spec, desktop);
+        return item(window.id, title, windowArt(window.spec, desktop, 24), () => activate(window.id), window);
+      })}
+      {playing && (
+        <>
+          <span className="bbd-dock-divider" aria-hidden />
+          <MediaDeskband onRestore={() => manager.open({ kind: "media-player" })} />
+        </>
+      )}
+    </nav>
   );
 }
 

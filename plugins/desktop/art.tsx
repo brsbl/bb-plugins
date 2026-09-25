@@ -150,6 +150,16 @@ export function GlyphTile({
   );
 }
 
+export function StickyNoteArt({ size = 40 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 40 40" aria-hidden>
+      <path d="M7 6 H33 V25 L25 34 H7 Z" fill="oklch(0.9 0.14 95)" stroke="oklch(0.62 0.12 80)" strokeWidth="1.5" strokeLinejoin="round" />
+      <path d="M33 25 H26.5 Q25 25 25 26.5 V34 Z" fill="oklch(0.78 0.14 88)" stroke="oklch(0.62 0.12 80)" strokeWidth="1.5" strokeLinejoin="round" />
+      <path d="M12 13 H28 M12 18.5 H28 M12 24 H20" stroke="oklch(0.62 0.12 80)" strokeWidth="1.6" strokeLinecap="round" />
+    </svg>
+  );
+}
+
 export function MediaPlayerArt({ size = 40 }: { size?: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 40 40" aria-hidden>
