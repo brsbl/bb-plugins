@@ -57,7 +57,8 @@ const THREAD_TITLE_ROW = '[data-split-pane-id]:has([data-thread-window]) > heade
 
 function glassCss(glass: number): string {
   return `body.bb-app-shell { --ambient-glass-fill: color-mix(in oklab, var(--ambient-background) ${Math.round(glass * 100)}%, transparent); --ambient-glass-solid: color-mix(in oklab, var(--ambient-background) ${Math.round(Math.min(0.92, Math.max(0.88, glass + 0.3)) * 100)}%, transparent); }
-${THREAD} { position: relative; isolation: isolate; clip-path: inset(0 ${COLUMN_RIGHT} ${COLUMN_BOTTOM} ${COLUMN_LEFT} round 20px); }
+${THREAD} { position: relative; isolation: isolate; }
+${THREAD} > * { clip-path: inset(0 ${COLUMN_RIGHT} ${COLUMN_BOTTOM} ${COLUMN_LEFT} round 20px); }
 ${THREAD}::before { content: ""; position: absolute; z-index: -1; pointer-events: none; ${GLASS_SURFACE} border-radius: 20px; top: 0; bottom: ${COLUMN_BOTTOM}; left: ${COLUMN_LEFT}; right: ${COLUMN_RIGHT}; }
 ${THREAD} [data-overflow-fade] { display: none; }
 ${PAGE} { position: relative; isolation: isolate; }
