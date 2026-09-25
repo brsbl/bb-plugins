@@ -1,6 +1,6 @@
 {
   "name": "bb-plugin-at-plugin",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Find and mention installed and Community plugins with # or @.",
   "type": "module",
   "private": true,

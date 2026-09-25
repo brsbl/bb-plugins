@@ -1998,17 +1998,22 @@ function installHoverCards({ onOpen }: ThreadHoverCardOptions): HoverCardControl
     if (!trigger) return;
     const previousTrigger = findThreadTrigger(event.relatedTarget);
     if (previousTrigger === trigger) return;
-    scheduleOpen(trigger, OPEN_DELAY_MS, POINTER_SUMMARY_SETTLE_MS);
+    const threadId = threadIdFor(trigger);
+    if (threadId && cachedSummary(threadId)) {
+      scheduleOpen(trigger, OPEN_DELAY_MS, POINTER_SUMMARY_SETTLE_MS);
+      return;
+    }
+    scheduleOpen(trigger, POINTER_SUMMARY_SETTLE_MS);
   }
 
   function onPointerOut(event: PointerEvent): void {
     const trigger = findThreadTrigger(event.target);
     if (!trigger) return;
     if (findThreadTrigger(event.relatedTarget) === trigger) return;
+    cancelOpen();
     if (event.relatedTarget instanceof Node && card?.contains(event.relatedTarget)) {
       return;
     }
-    cancelOpen();
     scheduleClose();
   }
 
@@ -2197,6 +2202,7 @@ function installSectionHoverCards({
 }: SectionHoverCardOptions): HoverCardController {
   let card: HTMLDivElement | null = null;
   let active: SectionTrigger | null = null;
+  let openTimer: ReturnType<typeof setTimeout> | null = null;
   let closeTimer: ReturnType<typeof setTimeout> | null = null;
   let summaryTimer: ReturnType<typeof setTimeout> | null = null;
   let generation = 0;
@@ -2265,6 +2271,7 @@ function installSectionHoverCards({
   }
 
   function closeCard(): void {
+    cancelOpen();
     cancelClose();
     cancelSummaryRequest();
     generation += 1;
@@ -2275,6 +2282,12 @@ function installSectionHoverCards({
       card.hidden = true;
       card.classList.remove("is-visible");
     }
+  }
+
+  function cancelOpen(): void {
+    if (!openTimer) return;
+    clearTimeout(openTimer);
+    openTimer = null;
   }
 
   function cancelClose(): void {
@@ -2411,14 +2424,27 @@ function installSectionHoverCards({
     const target = findSectionTrigger(event.target);
     if (!target) return;
     if (active?.row === target.row && card && !card.hidden) {
+      cancelOpen();
       cancelClose();
       return;
     }
-    showCard(target, POINTER_SUMMARY_SETTLE_MS);
+    cancelOpen();
+    if (cache.has(keyOf(target))) {
+      showCard(target, POINTER_SUMMARY_SETTLE_MS);
+      return;
+    }
+    cancelClose();
+    openTimer = setTimeout(() => {
+      openTimer = null;
+      showCard(target);
+    }, POINTER_SUMMARY_SETTLE_MS);
   }
 
   function onPointerOut(event: PointerEvent): void {
-    if (!findSectionTrigger(event.target)) return;
+    const target = findSectionTrigger(event.target);
+    if (!target) return;
+    if (findSectionTrigger(event.relatedTarget)?.row === target.row) return;
+    cancelOpen();
     if (findSectionTrigger(event.relatedTarget)?.row === active?.row) return;
     if (
       event.relatedTarget instanceof Node &&
