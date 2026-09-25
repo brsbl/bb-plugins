@@ -629,17 +629,22 @@ Object.defineProperties(pointerOver, {
 });
 delayNextSummaryFor.add("thr_1");
 trigger.dispatchEvent(pointerOver);
-const card = window.document.getElementById("bb-thread-hover-card");
-assert.ok(card, "opens the hover card in the pointer event turn");
-assert.equal(card.hidden, false);
-assert.equal(card.dataset.bbHoverCardRenderState, "loading");
-assert.equal(card.getAttribute("aria-busy"), "true");
+await new Promise((resolve) => setTimeout(resolve, 100));
+assert.ok(
+  window.document.getElementById("bb-thread-hover-card")?.hidden ?? true,
+  "keeps an uncached card closed while the pointer settles",
+);
 assert.deepEqual(
   requestBodies,
   [],
   "waits for the pointer to settle before requesting a summary",
 );
-await new Promise((resolve) => setTimeout(resolve, 160));
+await new Promise((resolve) => setTimeout(resolve, 60));
+const card = window.document.getElementById("bb-thread-hover-card");
+assert.ok(card, "opens the hover card once the pointer settles");
+assert.equal(card.hidden, false);
+assert.equal(card.dataset.bbHoverCardRenderState, "loading");
+assert.equal(card.getAttribute("aria-busy"), "true");
 assert.deepEqual(
   requestBodies,
   [{ threadId: "thr_1" }],
@@ -1274,10 +1279,6 @@ Object.defineProperties(reloadPointerOver, {
   relatedTarget: { value: null },
 });
 trigger.dispatchEvent(reloadPointerOver);
-assert.ok(
-  window.document.getElementById("bb-thread-hover-card"),
-  "keeps immediate opening after the plugin lifecycle reloads",
-);
 await new Promise((resolve) => setTimeout(resolve, 170));
 
 const reloadedCard = window.document.getElementById("bb-thread-hover-card");
@@ -1760,7 +1761,12 @@ assert.equal(
 );
 
 hoverOver(designHeader.title);
-await new Promise((resolve) => setTimeout(resolve, 170));
+await new Promise((resolve) => setTimeout(resolve, 100));
+assert.ok(
+  window.document.getElementById("bb-section-hover-card")?.hidden ?? true,
+  "keeps an uncached section card closed while the pointer settles",
+);
+await new Promise((resolve) => setTimeout(resolve, 70));
 
 const sectionCard = window.document.getElementById("bb-section-hover-card");
 assert.ok(sectionCard, "opens a card from the section header row");

@@ -1,6 +1,6 @@
 {
   "name": "bb-plugin-thread-hover-cards",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Concise status previews for BB sidebar threads.",
   "type": "module",
   "files": [
