@@ -261,10 +261,10 @@ function useDesktopData() {
   return { snapshot, error, refresh, call };
 }
 
-export function Desktop({ fill }: { fill: boolean }) {
+export function Desktop() {
   return (
     <WindowManagerProvider>
-      <DesktopData fill={fill} />
+      <DesktopData />
     </WindowManagerProvider>
   );
 }
@@ -277,7 +277,7 @@ function closeThreadWindows(manager: ReturnType<typeof useWindowManager>, thread
   );
 }
 
-function DesktopData({ fill }: { fill: boolean }) {
+function DesktopData() {
   const { snapshot, error, refresh, call } = useDesktopData();
   const live = useSidebarThreads();
   const manager = useWindowManager();
@@ -442,7 +442,7 @@ function DesktopData({ fill }: { fill: boolean }) {
       <div className="bbd-root">
         <div
           className="bbd-desktop grid place-items-center text-sm text-muted-foreground"
-          style={{ height: fill ? "100%" : 240 }}
+          style={{ height: 240 }}
         >
           {error === null ? null : `Desktop failed to load: ${error}`}
         </div>
@@ -472,8 +472,8 @@ function DesktopData({ fill }: { fill: boolean }) {
 
   return (
     <DesktopContext.Provider value={value}>
-      <div className="bbd-root" style={fill ? { height: "100%" } : undefined}>
-        <DesktopCanvas fill={fill} />
+      <div className="bbd-root">
+        <DesktopCanvas />
         {createPortal(
           <div {...PLUGIN_SCOPE} className="bbd-root bbd-window-layer">
             {manager.windows.map((window) => (
@@ -646,7 +646,7 @@ function viewMenuEntries(desktop: DesktopContextValue): MenuEntry[] {
   ];
 }
 
-function DesktopCanvas({ fill }: { fill: boolean }) {
+function DesktopCanvas() {
   const desktop = useDesktop();
   const manager = useWindowManager();
   const { snapshot, call, sort } = desktop;
@@ -767,11 +767,11 @@ function DesktopCanvas({ fill }: { fill: boolean }) {
   );
 
   return (
-    <div className="bbd-desktop flex flex-col" style={fill ? { height: "100%" } : undefined}>
+    <div className="bbd-desktop flex flex-col">
       <div
         ref={canvasRef}
         className="relative flex-1"
-        style={{ minHeight: fill ? undefined : bottom + 8 }}
+        style={{ minHeight: bottom + 8 }}
         onPointerDown={(event) => {
           if (event.target === event.currentTarget) setSelected(null);
         }}

@@ -142,7 +142,7 @@ Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/t
 
 ### Desktop
 
-Turns bb's new-thread page into a desktop for your agents: folders that mirror your sidebar sections or projects, a finder for each folder, and resizable thread windows with detached detail panels. Agent notifications land on a bell, and webhooks become desktop icons that feed a thread.
+Turns bb's new-thread page into a desktop for your agents: folders that mirror your sidebar sections or projects, a finder for each folder, and resizable thread windows with detached detail panels. A bell lists threads with unread agent replies, and webhooks become desktop icons that feed a thread.
 
 ![Desktop with a notification center, a folder finder, a thread window, and its detached details panel](plugins/desktop/docs/screenshot.png)
 

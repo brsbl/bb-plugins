@@ -14,8 +14,6 @@ Desktop turns bb's new-thread page into an operating system for your agents. Thr
 - **Notifications.** The Notifications bell in the dock counts threads with agent replies you haven't read, using bb's own unread state. Open it to see those threads, or Mark all read. Folder icons show how many threads inside are unread. Opening a thread marks it read.
 - **Webhooks.** New webhook binds a URL to a new or existing thread. Each POST is delivered to that thread as a message and badges the webhook icon; double-click the icon to open the thread.
 
-The full desktop also has its own page, **Desktop**, in the sidebar.
-
 Agents and scripts can use the same features from the `bb desktop` CLI; see [the skill](skills/desktop/SKILL.md).
 
 ## Settings
