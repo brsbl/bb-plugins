@@ -84,6 +84,10 @@ const ICON = {
   titleBottom: "oklch(0.52 0.21 260)",
   panel: "oklch(0.92 0.04 240)",
   line: "oklch(0.75 0.03 250)",
+  metal: "oklch(0.8 0.02 250)",
+  metalEdge: "oklch(0.5 0.03 250)",
+  lensTop: "oklch(0.98 0.02 220)",
+  lensBottom: "oklch(0.78 0.08 235)",
   wmpOrange: "oklch(0.68 0.2 38)",
   wmpGreen: "oklch(0.72 0.19 138)",
   wmpBlue: "oklch(0.55 0.19 258)",
@@ -132,6 +136,7 @@ function IconDefs() {
       {gradient("bbd-g-play", ICON.playTop, ICON.playBottom)}
       {gradient("bbd-g-red", ICON.redTop, ICON.redBottom)}
       {gradient("bbd-g-ok", ICON.okTop, ICON.okBottom)}
+      {gradient("bbd-g-lens", ICON.lensTop, ICON.lensBottom)}
       {gradient("bbd-g-warn", ICON.warnTop, ICON.warnBottom, 0, 1)}
       <radialGradient id="bbd-g-disc" cx="0.38" cy="0.32" r="0.75">
         <stop offset="0" stopColor={ICON.discLight} />
@@ -297,6 +302,33 @@ export function SkillsArt({ size = 40 }: { size?: number }) {
     <IconSvg size={size}>
       <path d="M29 3 11 26h10.5L16 45l21-26H26.5L33 3Z" fill="url(#bbd-g-bolt)" stroke={ICON.boltEdge} strokeLinejoin="round" />
       <path d="M28.5 7 16.5 23" stroke={ICON.paper} strokeOpacity="0.7" strokeWidth="1.4" strokeLinecap="round" />
+    </IconSvg>
+  );
+}
+
+export function SearchArt({ size = 40 }: { size?: number }) {
+  return (
+    <IconSvg size={size}>
+      <path d="M8.5 43.5 19.5 30" stroke={ICON.boltEdge} strokeWidth="7" strokeLinecap="round" />
+      <path d="M8.5 43.5 19.5 30" stroke="url(#bbd-g-bolt)" strokeWidth="4.6" strokeLinecap="round" />
+      <circle cx="28" cy="20" r="14" fill={ICON.metal} stroke={ICON.metalEdge} />
+      <circle cx="28" cy="20" r="11" fill="url(#bbd-g-lens)" stroke={ICON.metalEdge} strokeWidth="0.8" />
+      <path d="M20.5 16a8.5 8.5 0 0 1 7-6" stroke={ICON.paper} strokeOpacity="0.9" strokeWidth="2.2" fill="none" strokeLinecap="round" />
+    </IconSvg>
+  );
+}
+
+export function RunArt({ size = 40 }: { size?: number }) {
+  return (
+    <IconSvg size={size}>
+      <path d="M2 18h7M4 24h6M2 30h7" stroke={ICON.metal} strokeWidth="2" strokeLinecap="round" />
+      <g transform="skewX(-8)">
+        <rect x="15" y="11" width="31" height="24" rx="2.5" fill={ICON.cream} stroke={ICON.blueOutline} />
+        <path d="M15 13.5a2.5 2.5 0 0 1 2.5-2.5h26a2.5 2.5 0 0 1 2.5 2.5V17H15Z" fill="url(#bbd-g-title)" />
+        <rect x="40" y="12.4" width="3.4" height="3.4" rx="0.8" fill={ICON.redTop} stroke={ICON.paper} strokeWidth="0.5" />
+        <rect x="19" y="22" width="23" height="7" rx="1" fill={ICON.paper} stroke={ICON.metalEdge} strokeWidth="0.8" />
+        <path d="M22 23.8v3.4" stroke={ICON.lead} strokeWidth="1.2" />
+      </g>
     </IconSvg>
   );
 }

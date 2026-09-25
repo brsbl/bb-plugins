@@ -36,6 +36,8 @@ import {
   NewFolderArt,
   NewThreadArt,
   PluginsArt,
+  RunArt,
+  SearchArt,
   ShowDesktopArt,
   SkillsArt,
   ThreadsArt,
@@ -1272,6 +1274,31 @@ function StartMenu({ onClose }: { onClose: () => void }) {
           </span>
         </button>
       </div>
+      <div className="bbd-start-rule" aria-hidden />
+      <div className="bbd-start-body">
+        {(
+          [
+            { id: "search", label: "Search", detail: "Find a thread", art: <SearchArt size={30} />, command: "thread.search" },
+            { id: "run", label: "Run…", detail: "Open the command palette", art: <RunArt size={30} />, command: "palette.open" },
+          ] as const
+        ).map((item) => (
+          <button
+            key={item.id}
+            type="button"
+            role="menuitem"
+            className="bbd-start-item"
+            title="Right-click to add to Quick Launch"
+            onClick={run(() => void runAppCommand(item.command))}
+            onContextMenu={(event) => desktop.openMenu(event, [quickLaunchToggleEntry(desktop, item.id)])}
+          >
+            {item.art}
+            <span>
+              <strong>{item.label}</strong>
+              <small>{item.detail}</small>
+            </span>
+          </button>
+        ))}
+      </div>
       <div className="bbd-start-foot">
         <button type="button" role="menuitem" className="bbd-start-off" onClick={run(toggleDesktop)}>
           <span className="bbd-start-power" aria-hidden>
@@ -1289,6 +1316,62 @@ interface QuickLaunchItem {
   label: string;
   art: ReactNode;
   run: () => void;
+}
+
+type AppShortcutCommand = "palette.open" | "thread.search";
+
+interface AppShortcut {
+  key: string;
+  mod: boolean;
+  meta: boolean;
+  control: boolean;
+  alt: boolean;
+  shift: boolean;
+}
+
+const DEFAULT_SHORTCUTS: Record<AppShortcutCommand, AppShortcut> = {
+  "palette.open": { key: "p", mod: true, meta: false, control: false, alt: false, shift: true },
+  "thread.search": { key: "k", mod: true, meta: false, control: false, alt: false, shift: false },
+};
+
+function isShortcut(value: unknown): value is AppShortcut {
+  if (typeof value !== "object" || value === null) return false;
+  const record = value as Record<string, unknown>;
+  return typeof record.key === "string" && ["mod", "meta", "control", "alt", "shift"].every((field) => typeof record[field] === "boolean");
+}
+
+async function appShortcut(command: AppShortcutCommand): Promise<AppShortcut> {
+  try {
+    const response = await fetch("/api/v1/system/config", { credentials: "same-origin" });
+    const body: unknown = await response.json();
+    const bindings = typeof body === "object" && body !== null ? (body as { keybindings?: unknown }).keybindings : undefined;
+    const match = Array.isArray(bindings)
+      ? bindings.find((binding: unknown) => (binding as { command?: unknown })?.command === command)
+      : undefined;
+    const shortcut = (match as { shortcut?: unknown } | undefined)?.shortcut;
+    return isShortcut(shortcut) ? shortcut : DEFAULT_SHORTCUTS[command];
+  } catch {
+    return DEFAULT_SHORTCUTS[command];
+  }
+}
+
+async function runAppCommand(command: AppShortcutCommand) {
+  const shortcut = await appShortcut(command);
+  const mac = /Mac|iPhone|iPad/.test(navigator.platform);
+  const key = shortcut.shift && shortcut.key.length === 1 ? shortcut.key.toUpperCase() : shortcut.key;
+  const init: KeyboardEventInit = {
+    key,
+    code: /^[a-z]$/i.test(shortcut.key) ? `Key${shortcut.key.toUpperCase()}` : undefined,
+    metaKey: shortcut.meta || (shortcut.mod && mac),
+    ctrlKey: shortcut.control || (shortcut.mod && !mac),
+    altKey: shortcut.alt,
+    shiftKey: shortcut.shift,
+    bubbles: true,
+    cancelable: true,
+  };
+  (document.activeElement instanceof HTMLElement ? document.activeElement : document.body).blur();
+  document.body.dispatchEvent(new KeyboardEvent("keydown", init));
+  document.body.dispatchEvent(new KeyboardEvent("keyup", init));
 }
 
 function navigateInApp(path: string) {
@@ -1324,6 +1407,8 @@ function useQuickLaunchCatalog(): QuickLaunchItem[] {
     launcher({ kind: "recycle-bin" }, "Recycle Bin"),
     launcher({ kind: "media-player" }, "Media Player"),
     { id: "sticky-note", label: "Sticky note", art: <StickyNoteArt size={18} />, run: () => addStickyNote() },
+    { id: "search", label: "Search", art: <SearchArt size={20} />, run: () => void runAppCommand("thread.search") },
+    { id: "run", label: "Run…", art: <RunArt size={20} />, run: () => void runAppCommand("palette.open") },
     { id: "plugins", label: "Plugins", art: <PluginsArt size={20} />, run: () => navigateInApp("/plugins") },
     { id: "skills", label: "Skills", art: <SkillsArt size={20} />, run: () => navigateInApp("/skills") },
   ];

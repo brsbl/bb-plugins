@@ -76,6 +76,8 @@ Use the real XP icon when bb has an XP counterpart. When it does not, build from
 | Threads | My Documents pattern: folder with the item tucked in, here a speech bubble | `ThreadsArt` |
 | Plugins | Add or Remove Programs pattern: software box with a CD | `PluginsArt` |
 | Skills | No XP counterpart; a glossy bolt in XP style | `SkillsArt` |
+| Thread search | Search: straight-on magnifying glass with a gold handle | `SearchArt` |
+| Command palette | Run: small window with a text field and speed lines | `RunArt` |
 | Thread details | A window with a side pane | `DetailsArt` |
 | Needs input, error, idle | Warning (yellow triangle, black "!"), Critical (glossy red sphere, white X), and a matching green sphere with a white check for idle | `StatusIcon` |
 

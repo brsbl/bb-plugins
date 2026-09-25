@@ -719,6 +719,12 @@
   color: oklch(0.9 0.04 250);
 }
 
+.bbd-start-rule {
+  height: 1px;
+  margin: 0 12px;
+  background: linear-gradient(to right, transparent, var(--bbd-hairline) 12%, var(--bbd-hairline) 88%, transparent);
+}
+
 .bbd-start-foot {
   display: flex;
   justify-content: flex-end;
