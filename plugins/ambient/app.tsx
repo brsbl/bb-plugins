@@ -67,8 +67,9 @@ ${PAGE_MAIN} :is(.max-w-5xl, [class~="max-w-[760px]"]):not(:is(.max-w-5xl, [clas
 ${PAGE}::before { left: max(var(--ambient-column-gutter, 8px), anchor(--ambient-page-column left, 8px)); right: max(8px, anchor(--ambient-page-column right, 8px)); }
 ${PAGE}:has([data-testid="app-page-header-content-row"])::before { top: var(--bb-app-chrome-row-height, 3rem); }
 @media (max-width: 767px) { ${PAGE} header:has([data-testid="app-page-header-content-row"]) + div { clip-path: inset(0 8px 8px round 0 0 20px 20px); } }
-${PAGE} :is(input[type="search"], input[placeholder^="Search" i]) { background-color: color-mix(in oklab, var(--card) 72%, transparent); border-color: color-mix(in oklab, var(--ink) 12%, transparent); }
-${PAGE} .bg-card[class*="hover:bg-"]:hover { background-color: color-mix(in oklab, var(--card) 97%, var(--ink)); border-color: color-mix(in oklab, var(--ink) 14%, transparent); box-shadow: 0 8px 24px -16px color-mix(in oklab, var(--ink) 35%, transparent); }
+${PAGE} { --card: color-mix(in oklab, var(--ambient-card) 55%, transparent); }
+${PAGE} :is(input[type="search"], input[placeholder^="Search" i]) { background-color: color-mix(in oklab, var(--ambient-card) 72%, transparent); border-color: color-mix(in oklab, var(--ink) 12%, transparent); }
+${PAGE} .bg-card[class*="hover:bg-"]:hover { background-color: color-mix(in oklab, var(--ambient-card) 97%, var(--ink)); border-color: color-mix(in oklab, var(--ink) 14%, transparent); box-shadow: 0 8px 24px -16px color-mix(in oklab, var(--ink) 35%, transparent); }
 @media (min-width: 768px) { ${SIDEBAR_OPEN} { --ambient-column-gutter: 0px; } ${SIDEBAR_OPEN} [data-testid="app-page-header-content-row"] > :first-child { margin-inline-start: -16px; } }
 @media (min-width: 768px) { body.bb-app-shell > #root ${THREAD_TITLE_ROW} { padding-inline-start: max(32px, 50% - ${COLUMN_HALF} + 6px); } ${SIDEBAR_OPEN} ${THREAD_TITLE_ROW} { padding-inline-start: max(0px, 50% - ${COLUMN_HALF} + 16px); } }
 ${THREAD}::after { content: ""; position: absolute; z-index: 1; pointer-events: none; top: 1px; height: 28px; left: calc(${COLUMN_LEFT} + 1px); right: calc(${COLUMN_RIGHT} + 1px); border-radius: 19px 19px 0 0; background: linear-gradient(to bottom, color-mix(in oklab, var(--ambient-background) 18%, transparent), transparent); }
@@ -124,7 +125,7 @@ body.bb-app-shell [data-testid="secondary-panel-shelf"] { background-color: var(
 function veilCss(showThrough: number): string {
   const keep = Math.round((1 - showThrough) * 1000) / 10;
   return `html.bb-app-shell-root { background-color: var(--canvas); }
-body.bb-app-shell { background-color: transparent; --ambient-background: var(--background); --ambient-sidebar: var(--sidebar); }
+body.bb-app-shell { background-color: transparent; --ambient-background: var(--background); --ambient-sidebar: var(--sidebar); --ambient-card: var(--card); }
 :is(${PANES}) { --background: color-mix(in oklab, var(--ambient-background) ${keep}%, transparent); --sidebar: color-mix(in oklab, var(--ambient-sidebar) ${keep}%, transparent); }
 :is(${PANES}) .bg-sidebar .bg-sidebar:not(.sticky), [data-testid="secondary-panel-shelf"] .bg-sidebar:not(.sticky) { --sidebar: transparent; }
 :is(${PANES}) .sticky:is(.bg-sidebar, .bg-background) { --sidebar: transparent; --background: transparent; ${BLUR} }
