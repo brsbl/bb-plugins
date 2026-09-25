@@ -70,6 +70,7 @@ const ICON = {
   noteBottom: "oklch(0.86 0.16 88)",
   noteEdge: "oklch(0.65 0.14 75)",
   noteDot: "oklch(0.6 0.21 28)",
+  runnerEdge: "oklch(0.3 0.05 70)",
   boxTop: "oklch(0.78 0.11 250)",
   boxFront: "oklch(0.55 0.18 258)",
   boxSide: "oklch(0.42 0.16 262)",
@@ -501,22 +502,15 @@ export function FolderArt({
   );
 }
 
-function Buddy({ x, y, scale, fill, edge }: { x: number; y: number; scale: number; fill: string; edge: string }) {
-  return (
-    <g transform={`translate(${x} ${y}) scale(${scale})`}>
-      <path d="M-11 22c0-8 5-13 11-13s11 5 11 13a2 2 0 0 1-2 2h-18a2 2 0 0 1-2-2z" fill={fill} stroke={edge} strokeWidth="1.2" />
-      <circle cx="0" cy="0" r="7" fill={fill} stroke={edge} strokeWidth="1.2" />
-      <ellipse cx="-2.4" cy="-2.6" rx="3.2" ry="2.2" fill={ICON.paper} opacity="0.55" />
-      <ellipse cx="-4" cy="13.5" rx="3.6" ry="2.2" fill={ICON.paper} opacity="0.35" />
-    </g>
-  );
-}
-
 export function BuddyListArt({ size = 40 }: { size?: number }) {
+  const limbs =
+    "M29 16.5 22.5 28.5M27.5 19 34.5 23 40 19.5M26.5 18.5 18.5 19.5 13 15M22.5 28.5 30.5 33.5 29 42.5M22.5 28.5 16.5 35.5 8 35";
   return (
     <IconSvg size={size}>
-      <Buddy x={30} y={11} scale={0.9} fill="url(#bbd-g-play)" edge={ICON.playBottom} />
-      <Buddy x={18} y={19} scale={1} fill="url(#bbd-g-ok)" edge={ICON.okEdge} />
+      <path d={limbs} fill="none" stroke={ICON.runnerEdge} strokeWidth="8" strokeLinecap="round" strokeLinejoin="round" />
+      <path d={limbs} fill="none" stroke="url(#bbd-g-note)" strokeWidth="5.2" strokeLinecap="round" strokeLinejoin="round" />
+      <circle cx="32" cy="9" r="5.6" fill="url(#bbd-g-note)" stroke={ICON.runnerEdge} strokeWidth="1.4" />
+      <ellipse cx="30.4" cy="7.2" rx="2.2" ry="1.5" fill={ICON.paper} opacity="0.6" />
     </IconSvg>
   );
 }

@@ -1410,6 +1410,67 @@
   box-shadow: inset 0 1px 2px color-mix(in oklab, var(--ink) 14%, transparent);
 }
 
+.bbd-im {
+  --bbd-im-me: color-mix(in oklch, oklch(0.55 0.21 27) 82%, var(--ink));
+  --bbd-im-them: color-mix(in oklch, oklch(0.5 0.22 262) 82%, var(--ink));
+}
+
+.bbd-im-chat [data-message-column] {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  column-gap: 6px;
+  align-items: start;
+}
+
+.bbd-im-chat [data-message-column] > * {
+  grid-column: 2;
+}
+
+.bbd-im-chat [data-message-column]::before {
+  grid-column: 1;
+  grid-row: 1;
+  content: var(--bbd-im-buddy);
+  font-size: var(--text-sm);
+  font-weight: 700;
+  line-height: 1.625;
+  color: var(--bbd-im-them);
+}
+
+.bbd-im-chat [data-message-column]:has(> .ml-auto)::before {
+  content: "Me:";
+  color: var(--bbd-im-me);
+}
+
+.bbd-im-chat [data-message-column]:has(> .ml-auto) {
+  padding-inline: 0.5rem;
+}
+
+.bbd-im-chat [data-message-column] > .ml-auto {
+  max-width: 100%;
+  margin-left: 0;
+}
+
+.bbd-im-chat [data-message-column] > .ml-auto,
+.bbd-im-chat [data-message-column] > .ml-auto > * {
+  align-items: flex-start;
+  justify-content: flex-start;
+}
+
+.bbd-im-chat [data-message-column] > .ml-auto .rounded-xl {
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+}
+
+.bbd-im-chat [data-message-column] :is(p, li, blockquote) {
+  font-family: "Times New Roman", Times, serif;
+}
+
+.bbd-statusbar [data-typing="true"] {
+  font-style: italic;
+}
+
 .bbd-im-actions {
   display: flex;
   gap: 2px;
@@ -1465,7 +1526,7 @@
   gap: 8px;
   padding: 8px 10px;
   font-size: var(--text-xs);
-  background: linear-gradient(to bottom, color-mix(in oklab, var(--bbd-blue-sky) 22%, transparent), transparent);
+  background: linear-gradient(to bottom, color-mix(in oklab, oklch(0.9 0.15 96) 32%, transparent), transparent);
   border-bottom: 1px solid var(--bbd-hairline);
 }
 
