@@ -186,6 +186,7 @@ const SELECTED_ORB: CSSProperties = {
 interface Draft {
   spec: MeshGradientSpec;
   edited: boolean;
+  name?: string;
 }
 
 interface StudioState {
@@ -587,9 +588,11 @@ function Studio({ threadId }: PluginThreadPanelProps) {
       : customHex;
   const contrast = useMemo(() => measureContrast(spec), [spec]);
   const layers = useMemo(() => toCssLayers(spec), [spec]);
+  const loadedName = state.draft.name;
   const displayName = useMemo(
-    () => (edited ? `${nameFor(spec)} (edited)` : nameFor(spec)),
-    [spec, edited],
+    () =>
+      loadedName ?? (edited ? `${nameFor(spec)} (edited)` : nameFor(spec)),
+    [spec, edited, loadedName],
   );
   const selectedPoint =
     state.selected !== null ? spec.points[state.selected] : undefined;
@@ -721,6 +724,7 @@ function Studio({ threadId }: PluginThreadPanelProps) {
               : { customColor: proposal.customColor }),
           },
           edited: false,
+          name: proposal.name,
         }),
         null,
       );
@@ -1339,6 +1343,7 @@ function Studio({ threadId }: PluginThreadPanelProps) {
                               : { customColor: loaded.customColor }),
                           },
                           edited: loaded.edited,
+                          name: loaded.name,
                         }),
                         null,
                       )
