@@ -260,7 +260,7 @@ describe("Improve Prompt cancellation", () => {
 });
 
 describe("Improve Prompt runtime context", () => {
-  it("sends both skills when the prompt targets Fable, regardless of the helper model", async () => {
+  it("sends Fable guidance with the rewrite instructions when the prompt targets Fable, regardless of the helper model", async () => {
     const harness = await createHarness({
       initialKv: [
         [
@@ -284,7 +284,7 @@ describe("Improve Prompt runtime context", () => {
         providerId: "codex",
         model: "gpt-5.5",
         prompt: expect.stringMatching(
-          /Use the fable-5-1-target-prompting skill as target-model guidance[\s\S]+Use the prompt-shaper skill/u,
+          /<rewrite-instructions>[\s\S]+<\/rewrite-instructions>[\s\S]+Use the fable-5-1-target-prompting skill as target-model guidance/u,
         ),
       }),
     );
