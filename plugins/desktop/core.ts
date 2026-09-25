@@ -190,6 +190,7 @@ export function resolveSidebarPreferences(preferences: unknown): {
   sort: { key: SortKey; direction: SortDirection };
   organize: Organize;
   lifecycle: Lifecycle;
+  hiddenGroupKeys: string[];
 } {
   const record =
     typeof preferences === "object" && preferences !== null
@@ -216,7 +217,11 @@ export function resolveSidebarPreferences(preferences: unknown): {
       : lifecycles.includes("archived")
         ? "archived"
         : "active";
-  return { sort: { key, direction }, organize, lifecycle };
+  const hiddenGroupKeys = (Array.isArray(record.hiddenGroups) ? record.hiddenGroups : []).flatMap(
+    (group: unknown) =>
+      group === "threads" ? ["section:none"] : typeof group === "string" && group.includes(":") ? [group] : [],
+  );
+  return { sort: { key, direction }, organize, lifecycle, hiddenGroupKeys };
 }
 
 export function gridPositions(count: number, canvasWidth: number): Point[] {

@@ -7,6 +7,8 @@ Desktop turns bb's new-thread page into an operating system for your agents. Thr
 ## Use
 
 - **Folders.** Desktop folders mirror the sidebar's organization: your sections plus the loose Threads bucket, your projects, or your machines. By default they follow the sidebar's own setting; change it by right-clicking the desktop. New folder creates either a real sidebar section or a desktop-only folder, and desktop-only folders can hide their threads from the sidebar.
+- **More.** Groups you move into More in the sidebar live inside a More folder on the desktop instead of cluttering it. Its icon rolls up their status.
+- **Which folder is this thread in?** The Threads window lists each thread's folders under its title, every thread's tooltip and details panel name its folders, and a thread page shows a folder label next to the sticky-note button when the thread is in a Desktop folder.
 - **Recycle Bin.** Archived threads live in the Recycle Bin, and folders show only active threads. Drag a thread onto the bin to archive it; right-click it inside the bin to restore it, or drag it onto a folder. Dropping desktop folders or sections on the bin deletes them after a confirmation.
 - **Selecting icons.** Drag across the desktop to select several icons, or Cmd/Ctrl/Shift-click to add and remove them. Drag any selected icon to move them together, press Delete to delete the selected folders and sections, and Cmd/Ctrl-A to select everything.
 - **Finder.** Double-click a folder to open it. Switch between icon and list views, search, and drag threads between folders. Dropping a thread on a section folder moves it into that bb section.

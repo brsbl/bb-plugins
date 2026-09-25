@@ -120,12 +120,19 @@ describe("resolveSidebarPreferences", () => {
         sortDirection: "default",
         organizationMode: "project",
         threadLifecycles: ["active", "archived"],
+        hiddenGroups: ["threads", "section:sec_1", "project:proj"],
       }),
-    ).toEqual({ sort: { key: "alpha", direction: "ascending" }, organize: "project", lifecycle: "all" });
+    ).toEqual({
+      sort: { key: "alpha", direction: "ascending" },
+      organize: "project",
+      lifecycle: "all",
+      hiddenGroupKeys: ["section:none", "section:sec_1", "project:proj"],
+    });
     expect(resolveSidebarPreferences(null)).toEqual({
       sort: { key: "updated", direction: "descending" },
       organize: "section",
       lifecycle: "active",
+      hiddenGroupKeys: [],
     });
   });
 });

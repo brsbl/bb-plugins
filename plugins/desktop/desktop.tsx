@@ -122,7 +122,10 @@ interface DesktopContextValue {
   threadById: Map<string, DesktopThread>;
   liveById: Map<string, PluginSidebarThread>;
   groups: DesktopGroup[];
+  desktopGroups: DesktopGroup[];
+  moreGroups: DesktopGroup[];
   groupByKey: Map<string, DesktopGroup>;
+  foldersOf: (threadId: string) => string[];
   effective: Effective;
   sort: { key: SortKey; direction: SortDirection };
   call: ReturnType<typeof useRpc<typeof rpcContract>>["call"];
@@ -283,6 +286,27 @@ function closeThreadWindows(manager: ReturnType<typeof useWindowManager>, thread
   );
 }
 
+export function ThreadFolderChip({ threadId }: { threadId: string }) {
+  const enabled = useDesktopEnabled();
+  const { snapshot } = useDesktopData();
+  const folders = (snapshot?.folders ?? []).filter((folder) => folder.threadIds.includes(threadId));
+  const [first] = folders;
+  if (!enabled || first === undefined) return null;
+  const names = folders.map((folder) => folder.name).join(", ");
+  return (
+    <span
+      className="bbd-root bbd-folder-chip"
+      data-bb-plugin="desktop"
+      title={`In Desktop ${folders.length === 1 ? "folder" : "folders"}: ${names}`}
+      aria-label={`In Desktop ${folders.length === 1 ? "folder" : "folders"}: ${names}`}
+    >
+      <FolderArt kind="section" size={16} />
+      <span className="truncate">{first.name}</span>
+      {folders.length > 1 ? <span className="text-muted-foreground">+{folders.length - 1}</span> : null}
+    </span>
+  );
+}
+
 function DesktopData() {
   const { snapshot, error, refresh, call } = useDesktopData();
   const live = useSidebarThreads();
@@ -293,16 +317,8 @@ function DesktopData() {
   const [sidebar, setSidebar] = useState<ReturnType<typeof resolveSidebarPreferences> | null>(null);
   const [menu, setMenu] = useState<MenuState | null>(null);
 
-  const usesSidebar =
-    snapshot !== null &&
-    (snapshot.preferences.sort === "sidebar" || snapshot.preferences.organize === "sidebar");
-
   useEffect(() => {
     if (snapshot === null) return;
-    if (!usesSidebar) {
-      setSidebar((current) => current ?? resolveSidebarPreferences(null));
-      return;
-    }
     let cancelled = false;
     void fetchSidebarPreferences().then((preferences) => {
       if (!cancelled) setSidebar(resolveSidebarPreferences(preferences));
@@ -310,7 +326,7 @@ function DesktopData() {
     return () => {
       cancelled = true;
     };
-  }, [usesSidebar, snapshot]);
+  }, [snapshot]);
 
   const liveById = useMemo(
     () => new Map(live.threads.map((thread) => [thread.id, thread])),
@@ -372,6 +388,20 @@ function DesktopData() {
   );
 
   const groupByKey = useMemo(() => new Map(groups.map((group) => [group.key, group])), [groups]);
+  const hiddenKeys = useMemo(() => new Set(sidebar?.hiddenGroupKeys ?? []), [sidebar]);
+  const desktopGroups = useMemo(() => groups.filter((group) => !hiddenKeys.has(group.key)), [groups, hiddenKeys]);
+  const moreGroups = useMemo(() => groups.filter((group) => hiddenKeys.has(group.key)), [groups, hiddenKeys]);
+  const folderNames = useMemo(() => {
+    const names = new Map<string, string[]>();
+    const ordered = [...groups].sort((left, right) => Number(right.kind === "folder") - Number(left.kind === "folder"));
+    for (const group of ordered) {
+      for (const thread of groupThreads(group, threads)) {
+        names.set(thread.id, [...(names.get(thread.id) ?? []), group.name]);
+      }
+    }
+    return names;
+  }, [groups, threads]);
+  const foldersOf = useCallback((threadId: string) => folderNames.get(threadId) ?? [], [folderNames]);
 
   const threadById = useMemo(
     () => new Map(threads.map((thread) => [thread.id, thread])),
@@ -476,7 +506,10 @@ function DesktopData() {
     threadById,
     liveById,
     groups,
+    desktopGroups,
+    moreGroups,
     groupByKey,
+    foldersOf,
     effective,
     sort: effective.sort,
     call,
@@ -687,6 +720,7 @@ function usePageBackgroundMenu(
 }
 
 const RECYCLE_BIN_KEY = "recycle-bin";
+const MORE_KEY = "more";
 const ICON_BOX = { width: 88, height: 84 } as const;
 
 interface IconDrag {
@@ -734,8 +768,12 @@ function DesktopCanvas() {
 
   useEffect(() => setOverrides({}), [snapshot.layout]);
 
-  const items = desktop.groups;
-  const keys = useMemo(() => [RECYCLE_BIN_KEY, ...items.map((item) => item.key)], [items]);
+  const items = desktop.desktopGroups;
+  const hasMore = desktop.moreGroups.length > 0;
+  const keys = useMemo(
+    () => [RECYCLE_BIN_KEY, ...(hasMore ? [MORE_KEY] : []), ...items.map((item) => item.key)],
+    [hasMore, items],
+  );
 
   const positions = useMemo(() => {
     const placed = new Map<string, Point>();
@@ -913,7 +951,7 @@ function DesktopCanvas() {
       const rightValue = valueOf(right);
       return leftValue < rightValue ? -direction : leftValue > rightValue ? direction : 0;
     });
-    const keys = [...ordered.map((item) => item.key), RECYCLE_BIN_KEY];
+    const keys = [...ordered.map((item) => item.key), ...(hasMore ? [MORE_KEY] : []), RECYCLE_BIN_KEY];
     const grid = gridPositions(keys.length, width);
     saveLayout(Object.fromEntries(keys.map((key, index) => [key, grid[index]!])));
   };
@@ -1000,6 +1038,17 @@ function DesktopCanvas() {
             }}
           />
         ))}
+        {hasMore ? (
+          <MoreIcon
+            position={placed(MORE_KEY)}
+            selected={selected.has(MORE_KEY)}
+            dragging={drag !== null && drag.keys.has(MORE_KEY)}
+            onPointerDown={(event) => beginIconDrag(MORE_KEY, event)}
+            onSelect={() => {
+              if (!selected.has(MORE_KEY)) setSelected(new Set([MORE_KEY]));
+            }}
+          />
+        ) : null}
         <RecycleBinIcon
           binRef={binRef}
           position={placed(RECYCLE_BIN_KEY)}
@@ -1039,6 +1088,8 @@ function windowTitle(spec: WindowSpec, desktop: DesktopContextValue): string {
       return "Threads";
     case "recycle-bin":
       return "Recycle Bin";
+    case "more":
+      return "More";
     case "new-folder":
       return "New folder";
     case "new-thread":
@@ -1068,6 +1119,8 @@ function windowArt(spec: WindowSpec, desktop: DesktopContextValue, size: number)
       return <GlyphTile glyph={ThreadsGlyph} size={size + 2} />;
     case "recycle-bin":
       return <RecycleBinArt size={size} full={desktop.archivedThreads.length > 0} />;
+    case "more":
+      return <FolderArt kind="section" size={size} empty={desktop.moreGroups.length === 0} />;
     case "new-folder":
       return <GlyphTile glyph={FolderPlusGlyph} size={size + 2} tone="green" />;
     case "new-thread":
@@ -1457,6 +1510,147 @@ function DesktopIcon({
   );
 }
 
+function groupTone(members: readonly DesktopThread[]) {
+  const tones = members.map(statusTone);
+  const tone = tones.includes("attention") ? "attention" : tones.includes("running") ? "running" : null;
+  return {
+    tone,
+    toneCount: tones.filter((candidate) => candidate === tone).length,
+    unread: tone === null && members.some((thread) => thread.isUnread),
+  } as const;
+}
+
+function StatusDot({ members }: { members: readonly DesktopThread[] }) {
+  const { tone, toneCount, unread } = groupTone(members);
+  if (tone !== null) {
+    return (
+      <span className="bbd-dot" data-tone={tone} aria-hidden>
+        {toneCount > 1 ? toneCount : null}
+      </span>
+    );
+  }
+  return unread ? <span className="bbd-dot" data-tone="running" style={{ animation: "none" }} aria-hidden /> : null;
+}
+
+function moreMembers(desktop: DesktopContextValue): DesktopThread[] {
+  const byId = new Map(
+    desktop.moreGroups.flatMap((group) => groupThreads(group, desktop.visibleThreads)).map((thread) => [thread.id, thread]),
+  );
+  return [...byId.values()];
+}
+
+function MoreIcon({
+  position,
+  selected,
+  dragging,
+  onPointerDown,
+  onSelect,
+}: {
+  position: Point;
+  selected: boolean;
+  dragging: boolean;
+  onPointerDown: (event: ReactPointerEvent<HTMLDivElement>) => void;
+  onSelect: () => void;
+}) {
+  const desktop = useDesktop();
+  const manager = useWindowManager();
+  const open = () => manager.open({ kind: "more" });
+  const members = moreMembers(desktop);
+  const { tone, toneCount } = groupTone(members);
+  const count = desktop.moreGroups.length;
+  const summary = `${folderSummary("More", members.length, tone, toneCount)} · ${count} ${count === 1 ? "folder" : "folders"} hidden in the sidebar`;
+  return (
+    <div
+      role="button"
+      tabIndex={0}
+      aria-selected={selected}
+      aria-label={summary}
+      title={summary}
+      className="bbd-icon"
+      data-dragging={dragging}
+      style={{ left: position.x, top: position.y }}
+      onPointerDown={onPointerDown}
+      onDoubleClick={open}
+      onKeyDown={(event) => {
+        if (event.key === "Enter") open();
+      }}
+      onContextMenu={(event) => {
+        onSelect();
+        desktop.openMenu(event, [{ label: "Open", run: open }]);
+      }}
+    >
+      <span className="bbd-icon-art">
+        <FolderArt kind="section" empty={count === 0} />
+        <StatusDot members={members} />
+      </span>
+      <span className="bbd-icon-label">More</span>
+    </div>
+  );
+}
+
+function MoreFolderItem({ group }: { group: DesktopGroup }) {
+  const desktop = useDesktop();
+  const manager = useWindowManager();
+  const drop = useDropTarget(group);
+  const open = () => manager.open({ kind: "finder", key: group.key });
+  const members = groupThreads(group, desktop.visibleThreads);
+  const { tone, toneCount } = groupTone(members);
+  const summary = folderSummary(group.name, members.length, tone, toneCount);
+  return (
+    <div
+      className="bbd-finder-item"
+      role="option"
+      tabIndex={0}
+      aria-selected={false}
+      aria-label={summary}
+      title={summary}
+      data-drop-target={drop.over}
+      onDoubleClick={open}
+      onKeyDown={(event) => {
+        if (event.key === "Enter") open();
+      }}
+      onContextMenu={(event) => desktop.openMenu(event, groupMenu(desktop, manager, group, open))}
+      {...drop.handlers}
+    >
+      <span className="bbd-icon-art relative">
+        <FolderArt kind={group.kind} empty={members.length === 0} />
+        <StatusDot members={members} />
+      </span>
+      <span className="bbd-icon-label">{group.name}</span>
+    </div>
+  );
+}
+
+function MoreWindow({ window: desktopWindow }: { window: DesktopWindow }) {
+  const desktop = useDesktop();
+  return (
+    <WindowFrame
+      window={desktopWindow}
+      title="More"
+      icon={<FolderArt kind="section" size={16} empty={desktop.moreGroups.length === 0} />}
+      statusBar={
+        <span className="flex-1 truncate">
+          {desktop.moreGroups.length} folders · the groups you moved into More in the sidebar
+        </span>
+      }
+    >
+      <div className="bbd-sunken h-full overflow-auto">
+        {desktop.moreGroups.length === 0 ? (
+          <p className="p-6 text-center text-xs text-muted-foreground">
+            Nothing here. Groups you move into More in the sidebar show up in this folder.
+          </p>
+        ) : (
+          <div className="bbd-finder-grid" role="listbox" aria-label="Folders">
+            {desktop.moreGroups.map((group) => (
+              <MoreFolderItem key={group.key} group={group} />
+            ))}
+          </div>
+        )}
+      </div>
+    </WindowFrame>
+  );
+}
+
 function RecycleBinIcon({
   binRef,
   position,
@@ -1542,6 +1736,8 @@ function WindowContent({ window: desktopWindow }: { window: DesktopWindow }) {
       return <ThreadsWindow window={desktopWindow} />;
     case "recycle-bin":
       return <RecycleBinWindow window={desktopWindow} />;
+    case "more":
+      return <MoreWindow window={desktopWindow} />;
     case "new-folder":
       return <NewFolderWindow window={desktopWindow} />;
     case "new-thread":
@@ -1664,16 +1860,23 @@ function relativeTime(timestamp: number): string {
   return new Date(timestamp).toLocaleDateString();
 }
 
+function threadTooltip(desktop: DesktopContextValue, thread: DesktopThread): string {
+  const folders = desktop.foldersOf(thread.id);
+  return folders.length === 0 ? thread.title : `${thread.title}\nIn ${folders.join(", ")}`;
+}
+
 function ThreadCollection({
   threads,
   group,
   view,
   emptyText,
+  showFolders = false,
 }: {
   threads: DesktopThread[];
   group: DesktopGroup | null;
   view: "icons" | "list";
   emptyText: string;
+  showFolders?: boolean;
 }) {
   const desktop = useDesktop();
   const manager = useWindowManager();
@@ -1709,7 +1912,7 @@ function ThreadCollection({
     return (
       <div className="bbd-finder-grid" role="listbox" aria-label="Threads">
         {threads.map((thread) => (
-          <div key={thread.id} className="bbd-finder-item" title={thread.title} {...itemProps(thread)}>
+          <div key={thread.id} className="bbd-finder-item" title={threadTooltip(desktop, thread)} {...itemProps(thread)}>
             <ThreadGlyph thread={thread} />
             <span className="bbd-icon-label">{thread.title}</span>
           </div>
@@ -1726,10 +1929,18 @@ function ThreadCollection({
         <span>{desktop.sort.key === "created" ? "Created" : "Updated"}</span>
       </div>
       {threads.map((thread) => (
-        <div key={thread.id} className="bbd-row grid-cols-[1fr_88px_80px]" {...itemProps(thread)}>
+        <div key={thread.id} className="bbd-row grid-cols-[1fr_88px_80px]" title={threadTooltip(desktop, thread)} {...itemProps(thread)}>
           <span className="flex min-w-0 items-center gap-2">
             <ThreadArt size={16} archived={thread.isArchived} />
-            <span className={`truncate ${thread.isUnread ? "font-semibold" : ""}`}>{thread.title}</span>
+            <span className="flex min-w-0 flex-col">
+              <span className={`truncate ${thread.isUnread ? "font-semibold" : ""}`}>{thread.title}</span>
+              {showFolders && desktop.foldersOf(thread.id).length > 0 ? (
+                <span className="flex min-w-0 items-center gap-1 text-muted-foreground">
+                  <FolderArt kind="section" size={12} />
+                  <span className="truncate">{desktop.foldersOf(thread.id).join(", ")}</span>
+                </span>
+              ) : null}
+            </span>
           </span>
           <span className="truncate">{describeStatus(thread)}</span>
           <span className="truncate tabular-nums">
@@ -1957,7 +2168,6 @@ function PanelWindow({ window: desktopWindow, threadId }: { window: DesktopWindo
   const actions = useSidebarThreadActions();
   const thread = desktop.threadById.get(threadId);
   const live = desktop.liveById.get(threadId);
-  const folders = desktop.snapshot.folders.filter((folder) => folder.threadIds.includes(threadId));
   const section = desktop.snapshot.sections.find((candidate) => candidate.id === thread?.sectionId);
 
   return (
@@ -1983,7 +2193,7 @@ function PanelWindow({ window: desktopWindow, threadId }: { window: DesktopWindo
               <DetailRow label="Sidebar">{thread.isHidden ? "Hidden (filed in a folder)" : "Visible"}</DetailRow>
               <DetailRow label="Section">{section?.name ?? "None"}</DetailRow>
               <DetailRow label="Folders">
-                {folders.length === 0 ? "None" : folders.map((folder) => folder.name).join(", ")}
+                {desktop.foldersOf(threadId).length === 0 ? "None" : desktop.foldersOf(threadId).join(", ")}
               </DetailRow>
             </fieldset>
             <div className="flex flex-wrap gap-1">
@@ -2049,7 +2259,7 @@ function ThreadsWindow({ window: desktopWindow }: { window: DesktopWindow }) {
           />
         </div>
         <div className="bbd-sunken min-h-0 flex-1 overflow-auto">
-          <ThreadCollection threads={threads} group={null} view="list" emptyText="No threads." />
+          <ThreadCollection threads={threads} group={null} view="list" emptyText="No threads." showFolders />
         </div>
       </div>
     </WindowFrame>

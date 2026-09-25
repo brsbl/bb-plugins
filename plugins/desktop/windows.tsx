@@ -19,6 +19,7 @@ export type WindowSpec =
   | { kind: "panel"; threadId: string }
   | { kind: "threads" }
   | { kind: "recycle-bin" }
+  | { kind: "more" }
   | { kind: "new-folder" }
   | { kind: "media-player" }
   | { kind: "new-thread"; groupKey: string | null };
@@ -166,6 +167,7 @@ function parseSpec(value: unknown): WindowSpec | null {
       return text("threadId") === null ? null : { kind: record.kind, threadId: text("threadId")! };
     case "threads":
     case "recycle-bin":
+    case "more":
     case "media-player":
       return { kind: record.kind };
     default:
@@ -214,8 +216,10 @@ export function defaultRect(spec: WindowSpec, stagger: number): Rect {
   const size =
     spec.kind === "thread"
       ? { width: 620, height: 640 }
-      : spec.kind === "panel" || spec.kind === "threads" || spec.kind === "recycle-bin"
+      : spec.kind === "panel"
         ? { width: 320, height: 560 }
+        : spec.kind === "threads" || spec.kind === "recycle-bin"
+          ? { width: 460, height: 560 }
         : spec.kind === "new-thread"
           ? { width: 720, height: 420 }
           : spec.kind === "new-folder"
