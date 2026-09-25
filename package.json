@@ -1,0 +1,26 @@
+{
+  "name": "bb-plugin-github-notifications",
+  "version": "0.1.0",
+  "description": "Shows comments and mentions on GitHub pull requests and issues you authored.",
+  "type": "module",
+  "license": "UNLICENSED",
+  "files": [
+    "dist",
+    "docs",
+    "README.md"
+  ],
+  "engines": {
+    "bb": ">=0.0.34",
+    "bbPluginSdk": ">=0.4.8"
+  },
+  "bb": {
+    "name": "GitHub Activity",
+    "description": "Shows comments and mentions on GitHub pull requests and issues you authored.",
+    "branding": {
+      "icon": "Github"
+    },
+    "server": "./dist/install-server.mjs",
+    "app": "./dist/install-app.mjs",
+    "skills": []
+  }
+}
