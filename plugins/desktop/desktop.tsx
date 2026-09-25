@@ -86,6 +86,7 @@ import { NeedsInputBalloon } from "./balloon";
 import { attachAppWindow, findApp, registeredApps, setAppOpener, subscribeApps, type DesktopApp } from "./bridge";
 import { PaintApp } from "./apps/paint";
 import { CommandPrompt, closeCommandPromptSession } from "./command-prompt";
+import { BROWSER_HOME, InternetExplorer, closeInternetExplorer, nativeBrowser } from "./internet-explorer";
 import { MinesweeperGame } from "./games/minesweeper";
 import { SolitaireGame } from "./games/solitaire";
 import { toggleDesktop, useDesktopEnabled } from "./enabled";
@@ -1171,6 +1172,8 @@ function windowTitle(spec: WindowSpec, desktop: DesktopContextValue): string {
       return "Command Prompt";
     case "paint":
       return "untitled - Paint";
+    case "internet-explorer":
+      return "Internet Explorer";
     case "app":
       return findApp(spec.key)?.title ?? "Program";
     case "new-folder":
@@ -1212,6 +1215,8 @@ function windowArt(spec: WindowSpec, desktop: DesktopContextValue, size: number)
       return <CommandPromptArt size={size} />;
     case "paint":
       return <PaintArt size={size} />;
+    case "internet-explorer":
+      return <InternetExplorerArt size={size} />;
     case "app":
       return <AppIcon app={findApp(spec.key)} size={size} />;
     case "new-folder":
@@ -1444,11 +1449,14 @@ async function runAppCommand(command: AppShortcutCommand) {
   document.body.dispatchEvent(new KeyboardEvent("keyup", init));
 }
 
-const BROWSER_HOME = "https://www.google.com";
-
 function useOpenInternetExplorer(): () => void {
   const navigate = useBbNavigate() as ReturnType<typeof useBbNavigate> & { openUrl?: (url: string) => boolean };
+  const manager = useWindowManager();
   return () => {
+    if (nativeBrowser() !== null) {
+      manager.open({ kind: "internet-explorer" });
+      return;
+    }
     if (navigate.openUrl?.(BROWSER_HOME) === true) return;
     window.open(BROWSER_HOME, "_blank", "noopener");
   };
@@ -2256,6 +2264,8 @@ function WindowContent({ window: desktopWindow }: { window: DesktopWindow }) {
           <PaintApp />
         </WindowFrame>
       );
+    case "internet-explorer":
+      return <InternetExplorerWindow window={desktopWindow} />;
     case "new-folder":
       return <NewFolderWindow window={desktopWindow} />;
     case "new-thread":
@@ -2369,6 +2379,8 @@ function describeStatus(thread: DesktopThread): string {
       return "Starting";
     case "stopping":
       return "Stopping";
+    case "pending":
+      return "Scheduled";
     case "error":
       return "Error";
     default:
@@ -2826,6 +2838,24 @@ function AppWindow({ window: desktopWindow, appKey }: { window: DesktopWindow; a
           This program isn't available right now. Its plugin may be turned off or still loading.
         </p>
       )}
+    </WindowFrame>
+  );
+}
+
+function InternetExplorerWindow({ window: desktopWindow }: { window: DesktopWindow }) {
+  const desktop = useDesktop();
+  const [pageTitle, setPageTitle] = useState<string | null>(null);
+  const { call } = desktop;
+  const loadThread = useCallback(async () => (await call("browserThread", {})).threadId, [call]);
+  return (
+    <WindowFrame
+      window={desktopWindow}
+      title={pageTitle === null || pageTitle === "" ? "Internet Explorer" : `${pageTitle} - Internet Explorer`}
+      icon={<InternetExplorerArt size={16} />}
+      onClose={closeInternetExplorer}
+      keepMounted
+    >
+      <InternetExplorer window={desktopWindow} loadThread={loadThread} onTitle={setPageTitle} />
     </WindowFrame>
   );
 }

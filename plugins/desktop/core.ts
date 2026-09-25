@@ -35,7 +35,7 @@ export interface DesktopThread {
   sectionId: string | null;
   hostId: string | null;
   providerId: string;
-  status: "active" | "error" | "idle" | "starting" | "stopping";
+  status: "active" | "error" | "idle" | "pending" | "starting" | "stopping";
   isArchived: boolean;
   isHidden: boolean;
   isUnread: boolean;

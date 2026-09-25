@@ -50,6 +50,7 @@ export type WindowSpec =
   | { kind: "solitaire" }
   | { kind: "command-prompt" }
   | { kind: "paint" }
+  | { kind: "internet-explorer" }
   | { kind: "app"; key: string }
   | { kind: "new-folder" }
   | { kind: "media-player" }
@@ -209,6 +210,7 @@ function parseSpec(value: unknown): WindowSpec | null {
     case "solitaire":
     case "command-prompt":
     case "paint":
+    case "internet-explorer":
     case "media-player":
       return { kind: record.kind };
     default:
@@ -286,6 +288,8 @@ export function defaultRect(spec: WindowSpec, stagger: number): Rect {
               ? { width: 680, height: 420 }
             : spec.kind === "paint"
               ? { width: 780, height: 580 }
+            : spec.kind === "internet-explorer"
+              ? { width: 880, height: 640 }
             : spec.kind === "app"
               ? { width: findApp(spec.key)?.width ?? 520, height: findApp(spec.key)?.height ?? 420 }
             : { width: 560, height: 400 };

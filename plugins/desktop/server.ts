@@ -51,7 +51,7 @@ const threadSchema = z
     sectionId: z.string().nullable(),
     hostId: z.string().nullable(),
     providerId: z.string(),
-    status: z.enum(["active", "error", "idle", "starting", "stopping"]),
+    status: z.enum(["active", "error", "idle", "pending", "starting", "stopping"]),
     isArchived: z.boolean(),
     isHidden: z.boolean(),
     isUnread: z.boolean(),
@@ -135,7 +135,14 @@ export const rpcContract = defineRpcContract({
     input: z.object({ request: z.record(z.string(), z.unknown()) }).strict(),
     output: z.object({ threadId: z.string() }).strict(),
   },
+  browserThread: {
+    input: z.object({}).strict(),
+    output: z.object({ threadId: z.string() }).strict(),
+  },
 });
+
+const PERSONAL_PROJECT_ID = "proj_personal";
+const NEVER = Date.UTC(9999, 11, 31);
 
 type ThreadSpawnArgs = Parameters<BbPluginApi["sdk"]["threads"]["spawn"]>[0];
 
@@ -501,6 +508,26 @@ export default function plugin(bb: BbPluginApi) {
     async spawnThread({ request }) {
       const thread = await bb.sdk.threads.spawn(request as unknown as ThreadSpawnArgs);
       threadsChanged();
+      return { threadId: thread.id };
+    },
+    async browserThread() {
+      const stored = await bb.storage.kv.get<unknown>("browserThreadId");
+      if (typeof stored === "string") {
+        const existing = await bb.sdk.threads.get({ threadId: stored }).catch(() => null);
+        if (existing !== null && existing.deletedAt === null && existing.archivedAt === null) {
+          return { threadId: existing.id };
+        }
+      }
+      const thread = await bb.sdk.threads.spawn({
+        projectId: PERSONAL_PROJECT_ID,
+        visibility: "hidden",
+        title: "Internet Explorer",
+        prompt: "Internet Explorer",
+        environment: { type: "host", workspace: { type: "personal" } },
+        sendAt: NEVER,
+        pluginMetadata: { role: "browser" },
+      });
+      await bb.storage.kv.set("browserThreadId", thread.id);
       return { threadId: thread.id };
     },
   });
