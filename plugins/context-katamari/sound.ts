@@ -1,6 +1,6 @@
 /**
  * Everything is synthesized, so the plugin ships no audio files. While a
- * cousin rolls, a bouncy original tune plays over the rumble of the ball;
+ * cousin rolls, a bouncy original tune plays over the clack of the ball;
  * pickups pop, bumps bonk, and a thread switch whooshes.
  */
 
@@ -50,8 +50,6 @@ export class KatamariAudio {
   private context: AudioContext | null = null;
   private master: GainNode | null = null;
   private musicBus: GainNode | null = null;
-  private rumbleGain: GainNode | null = null;
-  private rumbleFilter: BiquadFilterNode | null = null;
   private noise: AudioBuffer | null = null;
   private scheduler: number | null = null;
   private nextStepTime = 0;
@@ -89,35 +87,33 @@ export class KatamariAudio {
         brown = (brown + 0.02 * (Math.random() * 2 - 1)) / 1.02;
         samples[index] = brown * 3.5;
       }
-      const rumble = context.createBufferSource();
-      rumble.buffer = this.noise;
-      rumble.loop = true;
-      this.rumbleFilter = context.createBiquadFilter();
-      this.rumbleFilter.type = "lowpass";
-      this.rumbleFilter.frequency.value = 200;
-      this.rumbleGain = context.createGain();
-      this.rumbleGain.gain.value = 0;
-      rumble.connect(this.rumbleFilter).connect(this.rumbleGain).connect(this.master);
-      rumble.start();
     }
-    if (this.context.state === "suspended") void this.context.resume();
+    // Muted means silent: send no samples to the speakers at all.
+    if (this.muted) void this.context.suspend();
+    else if (this.context.state === "suspended") void this.context.resume();
   }
 
   setMuted(muted: boolean): void {
     this.muted = muted;
-    if (this.context && this.master) {
-      this.master.gain.setTargetAtTime(muted ? 0 : 0.5, this.context.currentTime, 0.05);
+    const context = this.context;
+    if (!context || !this.master) return;
+    this.master.gain.setTargetAtTime(muted ? 0 : 0.5, context.currentTime, 0.05);
+    if (!muted) {
+      void context.resume();
+      return;
     }
+    // Let the fade finish, then stop sending samples to the speakers.
+    window.setTimeout(() => {
+      if (this.muted) void context.suspend();
+    }, 300);
   }
 
   /** Call every frame with the ball's speed normalized to 0..1. */
   setRolling(rolling: boolean, speed: number): void {
     const context = this.context;
-    if (!context || !this.rumbleGain || !this.rumbleFilter || !this.musicBus) return;
+    if (!context || !this.musicBus) return;
     const now = context.currentTime;
     const intensity = rolling ? Math.min(1, Math.max(0, speed)) : 0;
-    this.rumbleGain.gain.setTargetAtTime(intensity * 0.35, now, 0.1);
-    this.rumbleFilter.frequency.setTargetAtTime(160 + intensity * 520, now, 0.1);
     if (rolling && intensity > 0.15 && now - this.lastClack > 0.09 + (1 - intensity) * 0.25) {
       this.lastClack = now;
       if (Math.random() < 0.55) this.clack(now);

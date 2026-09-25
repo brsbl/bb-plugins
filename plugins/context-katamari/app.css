@@ -426,6 +426,7 @@
 
 .ck-grip {
   position: absolute;
+  z-index: 3;
   top: 3px;
   left: 50%;
   display: flex;
@@ -445,6 +446,7 @@
 /* Top-left, since the window is anchored to the bottom-right corner. */
 .ck-resize {
   position: absolute;
+  z-index: 3;
   top: 0;
   left: 0;
   width: 20px;

@@ -99,14 +99,22 @@ function viewport() {
  * bb has no stable hook for the thread pane, so find it from the composer:
  * the first ancestor tall enough to be the whole pane.
  */
+/**
+ * The conversation column: the widest ancestor of the prompt box before the
+ * width jumps out to the whole main area around it.
+ */
 function findThreadPane(): PaneBounds | null {
   let element = document.querySelector("[data-promptbox-editor-content]")?.parentElement ?? null;
+  if (!element) return null;
+  const composerWidth = element.getBoundingClientRect().width;
+  let pane: PaneBounds | null = null;
   while (element && element !== document.body) {
     const bounds = element.getBoundingClientRect();
-    if (bounds.height >= window.innerHeight * 0.6) return { left: bounds.left, right: bounds.right };
+    if (bounds.width > composerWidth + 64) break;
+    pane = { left: bounds.left, right: bounds.right };
     element = element.parentElement;
   }
-  return null;
+  return pane;
 }
 
 function readSavedLayout(): WindowLayout | null {
@@ -641,7 +649,10 @@ export function KatamariWindow({
   useEffect(() => {
     const fit = () =>
       setLayout((current) =>
-        customizedRef.current ? clampLayout(current, viewport()) : defaultLayout(viewport(), findThreadPane()),
+        // Refit from the saved layout so a window squeezed by a small viewport grows back.
+        customizedRef.current
+          ? (readSavedLayout() ?? clampLayout(current, viewport()))
+          : defaultLayout(viewport(), findThreadPane()),
       );
     // The thread pane may render after the window does.
     const frame = window.requestAnimationFrame(fit);
