@@ -143,9 +143,9 @@ describe("scene inputs", () => {
       ...DEFAULT_SCENE,
       params: [...DEFAULT_SCENE.params, { id: "constructor", label: "C", min: 0, max: 1, step: 0.1, value: 0.5 }],
     };
-    const next = applyValues(scene, { scale: 3 });
+    const next = applyValues(scene, { swell: 2 });
     expect(next.params.find((entry) => entry.id === "constructor")?.value).toBe(0.5);
-    expect(next.params.find((entry) => entry.id === "scale")?.value).toBe(3);
+    expect(next.params.find((entry) => entry.id === "swell")?.value).toBe(2);
   });
 
   it("parses CLI set pairs into params and controls", () => {
@@ -178,7 +178,7 @@ describe("built-in scenes", () => {
     expect(rebuilt.source).toBe(DEFAULT_SCENE.source);
     expect(rebuilt.palette).toEqual(stored.palette);
     const glow = rebuilt.params.find((entry) => entry.id === "glow");
-    expect(glow).toMatchObject({ label: "Light glow", value: 1.7 });
+    expect(glow).toMatchObject({ label: "Lantern glow", value: 1.7 });
   });
 });
 
