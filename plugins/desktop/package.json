@@ -24,7 +24,7 @@
     "name": "Desktop",
     "description": "Browse threads as folders and windows on a desktop.",
     "branding": {
-      "icon": "Monitor"
+      "icon": "AppWindow"
     },
     "server": "./server.ts",
     "app": "./app.tsx",
