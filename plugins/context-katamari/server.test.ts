@@ -49,8 +49,8 @@ describe("readThreadContext rpc", () => {
             usage: { estimated: false, modelContextWindow: 400_000, usedTokens: 100_000 },
           }),
           events: {
-            list: async ({ types }: { types: string[] }) =>
-              types[0] === "thread/compacted"
+            list: async ({ types }: { types?: readonly string[] }) =>
+              types?.[0] === "thread/compacted"
                 ? [{ type: "thread/compacted" }, { type: "thread/compacted" }]
                 : [],
           },
@@ -181,9 +181,9 @@ describe("readThreadContext turn costs", () => {
         threads: {
           context: async () => ({ usage: null }),
           events: {
-            list: async ({ types }: { types: string[] }) => {
-              if (types[0] === "thread/compacted") return [];
-              if (types[0] === "thread/contextWindowUsage/updated") {
+            list: async ({ types }: { types?: readonly string[] }) => {
+              if (types?.[0] === "thread/compacted") return [];
+              if (types?.[0] === "thread/contextWindowUsage/updated") {
                 return latest === null
                   ? []
                   : [{ seq: latest.seq, data: { contextWindowUsage: { usedTokens: latest.used } } }];
@@ -205,7 +205,9 @@ describe("readThreadContext turn costs", () => {
     latest = { seq: 22, used: 34_606 };
     await harness.emitThreadEvent("thread.active", { thread });
     latest = { seq: 74, used: 35_455 };
-    const context = await harness.callRpc("readThreadContext", { threadId: "thr_a" });
+    const context = (await harness.callRpc("readThreadContext", { threadId: "thr_a" })) as {
+      turns: unknown;
+    };
     expect(context.turns).toEqual([
       { turnId: "t2", prompt: null, status: "completed", contextTokens: 849 },
       { turnId: "t1", prompt: null, status: "completed", contextTokens: 34_606, baseline: true },

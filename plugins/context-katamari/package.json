@@ -24,7 +24,7 @@
     "name": "Context Katamari",
     "description": "A floating Katamari world where each thread's ball grows as its context window fills.",
     "branding": {
-      "icon": "./assets/icon.svg"
+      "icon": "./assets/katamari.svg"
     },
     "server": "./server.ts",
     "app": "./app.tsx",
