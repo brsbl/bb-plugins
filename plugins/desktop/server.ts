@@ -123,7 +123,6 @@ export const rpcContract = defineRpcContract({
       .strict(),
     output: okSchema,
   },
-  },
   spawnThread: {
     input: z.object({ request: z.record(z.string(), z.unknown()) }).strict(),
     output: z.object({ threadId: z.string() }).strict(),
