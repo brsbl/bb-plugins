@@ -537,6 +537,16 @@
   height: 16px;
 }
 
+.bbd-tray-icon > :is(svg, [data-icon-root]),
+.bbd-tray-icon > :is(svg, [data-icon-root]) * {
+  color: var(--bbd-white);
+  opacity: 1;
+}
+
+.bbd-tray-icon > :is(svg, [data-icon-root]) {
+  filter: drop-shadow(1px 1px 1px oklch(0.25 0.12 264 / 0.8));
+}
+
 .bbd-tray-icon:hover {
   background: color-mix(in oklab, var(--bbd-white) 22%, transparent);
 }
