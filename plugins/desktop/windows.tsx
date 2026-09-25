@@ -19,6 +19,7 @@ export type WindowSpec =
   | { kind: "panel"; threadId: string }
   | { kind: "threads" }
   | { kind: "new-folder" }
+  | { kind: "media-player" }
   | { kind: "new-thread"; groupKey: string | null };
 
 export interface DesktopWindow {
@@ -163,6 +164,7 @@ function parseSpec(value: unknown): WindowSpec | null {
     case "panel":
       return text("threadId") === null ? null : { kind: record.kind, threadId: text("threadId")! };
     case "threads":
+    case "media-player":
       return { kind: record.kind };
     default:
       return null;
@@ -216,6 +218,8 @@ export function defaultRect(spec: WindowSpec, stagger: number): Rect {
           ? { width: 720, height: 420 }
           : spec.kind === "new-folder"
             ? { width: 440, height: 480 }
+            : spec.kind === "media-player"
+              ? { width: 480, height: 380 }
             : { width: 560, height: 400 };
   const offset = (stagger % 8) * 28;
   return clampRect(

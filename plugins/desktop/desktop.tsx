@@ -34,6 +34,7 @@ import {
   GlyphTile,
   GridViewGlyph,
   ListViewGlyph,
+  MediaPlayerArt,
   NewThreadGlyph,
   PanelRightGlyph,
   ThreadArt,
@@ -61,6 +62,7 @@ import {
   type SortDirection,
   type SortKey,
 } from "./core";
+import { MediaDeskband, MediaPlayerWindow } from "./media-player";
 import type { DesktopSnapshot, rpcContract } from "./server";
 import {
   WindowFrame,
@@ -275,7 +277,7 @@ function DesktopData() {
   const manager = useWindowManager();
   const actions = useSidebarThreadActions();
   const rootRef = useRef<HTMLDivElement>(null);
-  const [dockCenterX, setDockCenterX] = useState<number | null>(null);
+  const [dockFrame, setDockFrame] = useState<DockFrame | null>(null);
   const [sidebar, setSidebar] = useState<ReturnType<typeof resolveSidebarPreferences> | null>(null);
   const [menu, setMenu] = useState<MenuState | null>(null);
 
@@ -426,7 +428,7 @@ function DesktopData() {
     if (!ready || element === null) return;
     const measure = () => {
       const rect = element.getBoundingClientRect();
-      setDockCenterX(rect.left + rect.width / 2);
+      setDockFrame({ left: rect.left + rect.width / 2, width: rect.width });
     };
     const observer = new ResizeObserver(measure);
     for (let node: Element | null = element; node !== null; node = node.parentElement) observer.observe(node);
@@ -478,7 +480,7 @@ function DesktopData() {
             {manager.windows.map((window) => (
               <WindowContent key={window.id} window={window} />
             ))}
-            <Dock centerX={dockCenterX} />
+            <Dock frame={dockFrame} />
           </div>,
           document.body,
         )}
@@ -603,11 +605,10 @@ const SORT_LABELS: Record<SortKey, string> = {
 
 function viewMenuEntries(desktop: DesktopContextValue): MenuEntry[] {
   const { preferences } = desktop.snapshot;
-  const { effective } = desktop;
   return [
     { heading: "Show" },
     {
-      label: `Same as sidebar (${LIFECYCLE_LABELS[effective.lifecycle]})`,
+      label: "Same as sidebar",
       checked: preferences.lifecycle === "sidebar",
       run: () => desktop.setPreferences({ lifecycle: "sidebar" }),
     },
@@ -618,7 +619,7 @@ function viewMenuEntries(desktop: DesktopContextValue): MenuEntry[] {
     })),
     { heading: "Organize by" },
     {
-      label: `Same as sidebar (${ORGANIZE_LABELS[effective.organize]})`,
+      label: "Same as sidebar",
       checked: preferences.organize === "sidebar",
       run: () => desktop.setPreferences({ organize: "sidebar" }),
     },
@@ -629,7 +630,7 @@ function viewMenuEntries(desktop: DesktopContextValue): MenuEntry[] {
     })),
     { heading: "Sort by" },
     {
-      label: `Same as sidebar (${SORT_LABELS[effective.sort.key]})`,
+      label: "Same as sidebar",
       checked: preferences.sort === "sidebar",
       run: () => desktop.setPreferences({ sort: "sidebar" }),
     },
@@ -726,6 +727,7 @@ function DesktopCanvas() {
     { label: "New thread", icon: <NewThreadGlyph className="size-3.5" />, run: () => manager.open({ kind: "new-thread", groupKey: null }) },
     "separator",
     { label: "Threads", icon: <ThreadsGlyph className="size-3.5" />, run: () => manager.open({ kind: "threads" }) },
+    { label: "Windows Media Player", icon: <MediaPlayerArt size={14} />, run: () => manager.open({ kind: "media-player" }) },
     "separator",
     { label: "Arrange icons", icon: <GridViewGlyph className="size-3.5" />, run: arrange },
     {
@@ -783,81 +785,110 @@ function windowTitle(spec: WindowSpec, desktop: DesktopContextValue): string {
       return "New folder";
     case "new-thread":
       return "New thread";
+    case "media-player":
+      return "Windows Media Player";
   }
 }
 
-function windowArt(spec: WindowSpec, desktop: DesktopContextValue): ReactNode {
+function windowArt(spec: WindowSpec, desktop: DesktopContextValue, size: number): ReactNode {
   switch (spec.kind) {
     case "finder":
-      return <FolderArt kind={desktop.groupByKey.get(spec.key)?.kind ?? "section"} size={40} />;
+      return <FolderArt kind={desktop.groupByKey.get(spec.key)?.kind ?? "section"} size={size} />;
     case "thread":
-      return <ThreadArt size={38} />;
+      return <ThreadArt size={size} />;
     case "panel":
-      return <GlyphTile glyph={PanelRightGlyph} size={44} />;
+      return <GlyphTile glyph={PanelRightGlyph} size={size + 2} />;
     case "threads":
-      return <GlyphTile glyph={ThreadsGlyph} size={44} />;
+      return <GlyphTile glyph={ThreadsGlyph} size={size + 2} />;
     case "new-folder":
-      return <GlyphTile glyph={FolderPlusGlyph} size={44} tone="green" />;
+      return <GlyphTile glyph={FolderPlusGlyph} size={size + 2} tone="green" />;
     case "new-thread":
-      return <GlyphTile glyph={NewThreadGlyph} size={44} tone="green" />;
+      return <GlyphTile glyph={NewThreadGlyph} size={size + 2} tone="green" />;
+    case "media-player":
+      return <MediaPlayerArt size={size} />;
   }
 }
 
-function Dock({ centerX }: { centerX: number | null }) {
+interface DockFrame {
+  left: number;
+  width: number;
+}
+
+function Dock({ frame }: { frame: DockFrame | null }) {
   const desktop = useDesktop();
   const manager = useWindowManager();
-  const launchers: { label: string; spec: WindowSpec; art: ReactNode }[] = [
-    { label: "New thread", spec: { kind: "new-thread", groupKey: null }, art: <GlyphTile glyph={NewThreadGlyph} size={44} tone="green" /> },
-    { label: "New folder", spec: { kind: "new-folder" }, art: <GlyphTile glyph={FolderPlusGlyph} size={44} tone="green" /> },
-  ];
-  const launcherIds = new Set(["new-thread:desktop", "new-folder"]);
-  const windows = manager.windows.filter((window) => !launcherIds.has(window.id));
-  const isOpen = (id: string) => manager.windows.some((window) => window.id === id);
-  const activate = (id: string, spec: WindowSpec) => {
-    const window = manager.windows.find((candidate) => candidate.id === id);
-    if (window === undefined) manager.open(spec);
-    else if (manager.focusedId === id) manager.minimize(id, true);
+  const activate = (id: string) => {
+    if (manager.focusedId === id) manager.minimize(id, true);
     else manager.focus(id);
   };
   return (
-    <nav className="bbd-dock" aria-label="Dock" style={centerX === null ? undefined : { left: centerX }}>
-      {launchers.map((launcher) => {
-        const id = launcher.spec.kind === "new-thread" ? "new-thread:desktop" : launcher.spec.kind;
-        return (
-          <button
-            key={launcher.label}
-            type="button"
-            className="bbd-dock-item"
-            aria-label={launcher.label}
-            data-open={isOpen(id)}
-            data-focused={manager.focusedId === id}
-            onClick={() => activate(id, launcher.spec)}
-          >
-            {launcher.art}
-            <span className="bbd-dock-tip">{launcher.label}</span>
-          </button>
-        );
-      })}
-      {windows.length > 0 ? <span className="bbd-dock-separator" aria-hidden /> : null}
-      {windows.map((window) => {
-        const title = windowTitle(window.spec, desktop);
-        return (
-          <button
-            key={window.id}
-            type="button"
-            className="bbd-dock-item"
-            aria-label={`${title}${window.minimized ? " (minimized)" : ""}`}
-            data-open
-            data-minimized={window.minimized}
-            data-focused={manager.focusedId === window.id}
-            onClick={() => activate(window.id, window.spec)}
-          >
-            <span>{windowArt(window.spec, desktop)}</span>
-            <span className="bbd-dock-tip">{title}</span>
-          </button>
-        );
-      })}
+    <nav className="bbd-dock" aria-label="Taskbar" style={frame ?? undefined}>
+      <button
+        type="button"
+        className="bbd-start"
+        onClick={() => manager.open({ kind: "new-thread", groupKey: null })}
+      >
+        <NewThreadGlyph className="size-4" strokeWidth={2.25} />
+        <span>New thread</span>
+      </button>
+      <div className="bbd-quick-launch">
+        <button
+          type="button"
+          className="bbd-quick"
+          aria-label="New folder"
+          onClick={() => manager.open({ kind: "new-folder" })}
+        >
+          <GlyphTile glyph={FolderPlusGlyph} size={22} tone="green" />
+          <span className="bbd-dock-tip">New folder</span>
+        </button>
+        <button
+          type="button"
+          className="bbd-quick"
+          aria-label="Windows Media Player"
+          onClick={() => manager.open({ kind: "media-player" })}
+        >
+          <MediaPlayerArt size={20} />
+          <span className="bbd-dock-tip">Windows Media Player</span>
+        </button>
+      </div>
+      <div className="bbd-tasks">
+        {manager.windows.map((window) => {
+          const title = windowTitle(window.spec, desktop);
+          return (
+            <button
+              key={window.id}
+              type="button"
+              className="bbd-task"
+              aria-label={`${title}${window.minimized ? " (minimized)" : ""}`}
+              title={title}
+              data-minimized={window.minimized}
+              data-focused={manager.focusedId === window.id}
+              onClick={() => activate(window.id)}
+            >
+              <span className="bbd-task-icon">{windowArt(window.spec, desktop, 18)}</span>
+              <span className="min-w-0 truncate">{title}</span>
+            </button>
+          );
+        })}
+      </div>
+      <div className="bbd-tray">
+        <MediaDeskband onRestore={() => manager.open({ kind: "media-player" })} />
+        <TrayClock />
+      </div>
     </nav>
+  );
+}
+
+function TrayClock() {
+  const [now, setNow] = useState(() => new Date());
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(new Date()), 15_000);
+    return () => window.clearInterval(timer);
+  }, []);
+  return (
+    <time className="bbd-clock" dateTime={now.toISOString()} title={now.toLocaleDateString(undefined, { dateStyle: "full" })}>
+      {now.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}
+    </time>
   );
 }
 
@@ -1016,6 +1047,8 @@ function WindowContent({ window: desktopWindow }: { window: DesktopWindow }) {
       return <NewFolderWindow window={desktopWindow} />;
     case "new-thread":
       return <NewThreadWindow window={desktopWindow} groupKey={spec.groupKey} />;
+    case "media-player":
+      return <MediaPlayerWindow window={desktopWindow} />;
   }
 }
 
@@ -1207,7 +1240,7 @@ function LifecycleSelect() {
         desktop.setPreferences({ lifecycle: event.target.value as Preferences["lifecycle"] })
       }
     >
-      <option value="sidebar">Show: Sidebar ({LIFECYCLE_LABELS[desktop.effective.lifecycle]})</option>
+      <option value="sidebar">Show: Same as sidebar</option>
       <option value="active">Show: Active</option>
       <option value="archived">Show: Archived</option>
       <option value="all">Show: All</option>
