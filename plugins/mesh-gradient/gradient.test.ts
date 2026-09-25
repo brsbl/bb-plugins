@@ -17,7 +17,10 @@ import {
   nameFor,
   newPointAt,
   normalizeSeed,
+  readabilityFor,
+  readabilitySummary,
   relativeLuminance,
+  sampleLuminances,
   toCss,
   toCssLayers,
   toSvg,
@@ -229,5 +232,66 @@ describe("mesh gradient generation", () => {
       "mesh-13-1",
       "mesh-13-0",
     ]);
+  });
+});
+
+describe("canvas-free readability sampling", () => {
+  const point = (overrides: Partial<Parameters<typeof toCss>[0]["points"][number]>) => ({
+    x: 50,
+    y: 50,
+    hue: 0,
+    saturation: 0,
+    lightness: 100,
+    radius: 60,
+    ...overrides,
+  });
+
+  it("keeps hex conversion byte-identical after the rgb split", () => {
+    expect(hslToHex(0, 100, 50)).toBe("#ff0000");
+    expect(hslToHex(210, 60, 40)).toBe("#2966a3");
+    expect(hslToHex(0, 0, 100)).toBe("#ffffff");
+  });
+
+  it("paints a point fully at its center and fades to the base fill beyond its radius", () => {
+    const spec = {
+      seed: 1,
+      style: "mono" as const,
+      points: [point({ radius: 60 })],
+    };
+    const samples = sampleLuminances(spec, { width: 10, height: 10 });
+    expect(samples).toHaveLength(100);
+    const center = samples[5 * 10 + 5]!;
+    const corner = samples[0]!;
+    expect(center).toBeGreaterThan(0.8);
+    expect(corner).toBeCloseTo(relativeLuminance(115, 115, 115), 2);
+  });
+
+  it("composites the first point on top, matching the CSS layer order", () => {
+    const red = point({ hue: 0, saturation: 100, lightness: 50, radius: 200 });
+    const blue = point({ hue: 240, saturation: 100, lightness: 50, radius: 200 });
+    const redOnTop = sampleLuminances(
+      { seed: 1, style: "mono", points: [red, blue] },
+      { width: 1, height: 1 },
+    )[0]!;
+    const blueOnTop = sampleLuminances(
+      { seed: 1, style: "mono", points: [blue, red] },
+      { width: 1, height: 1 },
+    )[0]!;
+    expect(redOnTop).toBeCloseTo(relativeLuminance(255, 0, 0), 2);
+    expect(blueOnTop).toBeCloseTo(relativeLuminance(0, 0, 255), 2);
+  });
+
+  it("recommends black text on a pale gradient and white on a deep one", () => {
+    const pale = { seed: 1, style: "mono" as const, points: [point({ lightness: 95, radius: 200 })] };
+    const deep = { seed: 1, style: "mono" as const, points: [point({ lightness: 15, radius: 200 })] };
+    expect(readabilityFor(pale).best).toBe("black");
+    expect(readabilityFor(deep).best).toBe("white");
+    expect(readabilitySummary(deep)).toMatch(/^white text, [\d.]+:1 worst case \(Readable\)$/);
+  });
+
+  it("rejects a spec without points", () => {
+    expect(() => sampleLuminances({ seed: 1, style: "mono", points: [] })).toThrow(
+      /no points/,
+    );
   });
 });

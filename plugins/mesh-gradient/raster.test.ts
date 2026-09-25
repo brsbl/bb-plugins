@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 import type { MeshGradientSpec } from "./gradient.js";
-import { drawMeshGradient } from "./raster.js";
+import { drawMeshGradient, handoffSuffix, presetById } from "./raster.js";
 
 describe("mesh gradient raster rendering", () => {
   it("paints layers back-to-front so the first CSS layer remains topmost", () => {
@@ -31,5 +31,30 @@ describe("mesh gradient raster rendering", () => {
     drawMeshGradient(context, spec, 100, 100);
 
     expect(paintedCenters).toEqual([90, 50, 10]);
+  });
+});
+
+describe("surface-aware agent handoff", () => {
+  const report = {
+    white: 5.2,
+    black: 2.1,
+    best: "white" as const,
+    bestRatio: 5.2,
+    passesAA: true,
+    passesAALarge: true,
+  };
+
+  it("keeps the open-ended canvas phrasing", () => {
+    expect(handoffSuffix(presetById("canvas"), report)).toBe(" mesh gradient to ");
+  });
+
+  it("names the destination and readable text color for text surfaces", () => {
+    expect(handoffSuffix(presetById("og"), report)).toBe(
+      " mesh gradient as the Open Graph card background (1200×630), with white text on top (5.2:1 contrast). ",
+    );
+    expect(handoffSuffix(presetById("hero"), null)).toBe(
+      " mesh gradient as the hero section background. ",
+    );
+    expect(handoffSuffix(presetById("avatar"), report)).toContain("circular avatar (400×400)");
   });
 });

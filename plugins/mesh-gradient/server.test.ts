@@ -3,6 +3,8 @@ import { describe, expect, it } from "vitest";
 
 import { generateMeshGradient, toCss } from "./gradient.js";
 import plugin, {
+  MAX_PROPOSALS,
+  proposalSchema,
   renderTokens,
   savedGradientSchema,
   specKeyFor,
@@ -508,5 +510,137 @@ describe("mesh gradient backend", () => {
     expect(specKeyFor(a.points)).toBe(specKeyFor(b.points));
     const moved = [{ ...a.points[0], x: a.points[0].x + 1 }, ...a.points.slice(1)];
     expect(specKeyFor(moved)).not.toBe(specKeyFor(a.points));
+  });
+
+  it("lands agent proposals in the thread's panel, newest first and deduped", async () => {
+    const host = await loadPlugin();
+    const first = await host.harness.behavior.callAgentTool(
+      "mesh_gradient",
+      { action: "propose", seed: 3, style: "ocean", name: "calm tide", note: "matches the teal brand" },
+      { threadId: "thr_a" },
+    );
+    expect(JSON.stringify(first)).toContain("Proposed “calm tide”");
+    expect(JSON.stringify(first)).toContain("readability:");
+    await host.harness.behavior.callAgentTool(
+      "mesh_gradient",
+      { action: "propose", seed: 4, style: "sunset" },
+      { threadId: "thr_a" },
+    );
+    await host.harness.behavior.callAgentTool(
+      "mesh_gradient",
+      { action: "propose", seed: 3, style: "ocean", name: "calm tide again" },
+      { threadId: "thr_a" },
+    );
+
+    const listed = (await host.harness.behavior.callRpc("listProposals", {
+      threadId: "thr_a",
+    })) as { proposals: unknown[] };
+    const proposals = listed.proposals.map((entry) => proposalSchema.parse(entry));
+    expect(proposals.map((proposal) => proposal.name)).toEqual([
+      "calm tide again",
+      expect.any(String),
+    ]);
+    expect(proposals[0]!.note).toBeUndefined();
+    expect(
+      host.harness.inspection.realtimeSignals.filter(
+        (signal) => signal.channel === "proposals",
+      ),
+    ).toHaveLength(3);
+
+    const other = (await host.harness.behavior.callRpc("listProposals", {
+      threadId: "thr_b",
+    })) as { proposals: unknown[] };
+    expect(other.proposals).toHaveLength(0);
+    await host.harness.lifecycle.dispose();
+  });
+
+  it("caps proposals per thread and dismisses them individually", async () => {
+    const host = await loadPlugin();
+    for (let seed = 1; seed <= MAX_PROPOSALS + 2; seed += 1) {
+      await host.harness.behavior.runCli(
+        ["propose", "--seed", String(seed), "--style", "candy"],
+        { threadId: "thr_a" },
+      );
+    }
+    const listed = (await host.harness.behavior.callRpc("listProposals", {
+      threadId: "thr_a",
+    })) as { proposals: Array<{ id: string; seed: number }> };
+    expect(listed.proposals).toHaveLength(MAX_PROPOSALS);
+    expect(listed.proposals[0]!.seed).toBe(MAX_PROPOSALS + 2);
+
+    const dismissed = (await host.harness.behavior.callRpc("dismissProposal", {
+      threadId: "thr_a",
+      id: listed.proposals[0]!.id,
+    })) as { dismissed: boolean };
+    expect(dismissed.dismissed).toBe(true);
+    const again = (await host.harness.behavior.callRpc("dismissProposal", {
+      threadId: "thr_a",
+      id: listed.proposals[0]!.id,
+    })) as { dismissed: boolean };
+    expect(again.dismissed).toBe(false);
+
+    const cli = await host.harness.behavior.runCli(["proposals"], {
+      threadId: "thr_a",
+    });
+    expect(cli.stdout?.trim().split("\n")).toHaveLength(MAX_PROPOSALS - 1);
+    await host.harness.lifecycle.dispose();
+  });
+
+  it("ignores corrupt stored proposals instead of failing the panel", async () => {
+    const host = await loadPlugin();
+    await host.bb.storage.kv.set("proposals/thr_a", { proposals: [{ id: "x" }] });
+    const listed = (await host.harness.behavior.callRpc("listProposals", {
+      threadId: "thr_a",
+    })) as { proposals: unknown[] };
+    expect(listed.proposals).toEqual([]);
+    await host.bb.storage.kv.set("proposals/thr_b", "not an object");
+    const other = (await host.harness.behavior.callRpc("listProposals", {
+      threadId: "thr_b",
+    })) as { proposals: unknown[] };
+    expect(other.proposals).toEqual([]);
+    await host.harness.lifecycle.dispose();
+  });
+
+  it("requires a thread to propose and keeps proposal flags off other commands", async () => {
+    const host = await loadPlugin();
+    const noThread = await host.harness.behavior.runCli(["propose", "--seed", "1"]);
+    expect(noThread.exitCode).toBe(1);
+    expect(noThread.stderr).toContain("--thread");
+
+    const explicit = await host.harness.behavior.runCli([
+      "propose",
+      "--thread",
+      "thr_x",
+      "--color",
+      "#3366ff",
+      "--note",
+      "brand blue",
+    ]);
+    expect(explicit.exitCode).toBe(0);
+    expect(explicit.stdout).toContain("for thr_x");
+
+    const generateWithNote = await host.harness.behavior.runCli([
+      "generate",
+      "--note",
+      "x",
+    ]);
+    expect(generateWithNote.exitCode).toBe(1);
+    expect(generateWithNote.stderr).toContain("unknown flag");
+    await host.harness.lifecycle.dispose();
+  });
+
+  it("tells agents which text color reads on the gradient", async () => {
+    const host = await loadPlugin();
+    const result = await host.harness.behavior.runCli([
+      "generate",
+      "--seed",
+      "42",
+      "--style",
+      "sunset",
+    ]);
+    expect(result.stdout).toMatch(
+      /\/\* readability: (white|black) text, [\d.]+:1 worst case \((Readable|Large text only|Hard to read)\) \*\//,
+    );
+    await host.harness.lifecycle.dispose();
   });
 });
