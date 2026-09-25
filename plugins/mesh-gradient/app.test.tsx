@@ -31,6 +31,17 @@ const savedCustomGradient = {
   createdAt: 2,
 };
 
+const proposalSpec = generateMeshGradient({ seed: 77, style: "sunset" });
+const proposal = {
+  id: "prop_1",
+  name: "warm launch",
+  note: "matches the orange CTA",
+  seed: 77,
+  style: "sunset" as const,
+  points: proposalSpec.points,
+  createdAt: 3,
+};
+
 afterEach(() => {
   cleanup();
   vi.restoreAllMocks();
@@ -216,6 +227,101 @@ describe("mesh gradient app", () => {
     fireEvent.click(slot.getByRole("menuitem", { name: "Copy CSS" }));
     await waitFor(() => expect(writeText).toHaveBeenCalledTimes(1));
     expect(writeText.mock.calls[0]?.[0]).toContain("background-image: radial-gradient(");
+    slot.lifecycle.unmount();
+  });
+
+  it("opens on the agent's proposal for this thread", async () => {
+    const app = await loadPluginApp(() => import("./app.js"));
+    const slot = renderSlot(
+      app.threadPanelActions[0]!,
+      { threadId: "thr_1", params: null },
+      {
+        rpc: {
+          listSaved: () => ({ gradients: [] }),
+          listProposals: () => ({ proposals: [proposal] }),
+        },
+      },
+    );
+    await waitFor(() => expect(slot.getByText("seed 77")).toBeTruthy());
+    expect(
+      slot.getByRole("button", { name: /warm launch/, pressed: true }),
+    ).toBeTruthy();
+    expect(
+      slot.inspection.rpcCalls.find((call) => call.method === "listProposals")
+        ?.input,
+    ).toEqual({ threadId: "thr_1" });
+    slot.lifecycle.unmount();
+  });
+
+  it("does not replace an edited canvas when a proposal arrives", async () => {
+    let proposals: (typeof proposal)[] = [];
+    const app = await loadPluginApp(() => import("./app.js"));
+    const slot = renderSlot(
+      app.threadPanelActions[0]!,
+      { threadId: "thr_1", params: null },
+      {
+        rpc: {
+          listSaved: () => ({ gradients: [] }),
+          listProposals: () => ({ proposals }),
+        },
+      },
+    );
+    await slot.findByRole("button", { name: "Ask the agent" });
+    fireEvent.click(slot.getByRole("button", { name: "Shuffle" }));
+    const before = slot.getByTestId("gradient-preview").style.backgroundImage;
+    proposals = [proposal];
+    await slot.behavior.emitRealtime("proposals", { threadId: "thr_1" });
+    await slot.findByText("warm launch");
+    expect(slot.getByTestId("gradient-preview").style.backgroundImage).toBe(before);
+    slot.lifecycle.unmount();
+  });
+
+  it("asks the agent for proposals through the composer", async () => {
+    const app = await loadPluginApp(() => import("./app.js"));
+    const slot = renderSlot(
+      app.threadPanelActions[0]!,
+      { threadId: "thr_1", params: null },
+      {
+        rpc: {
+          listSaved: () => ({ gradients: [] }),
+          listProposals: () => ({ proposals: [] }),
+        },
+      },
+    );
+    await slot.behavior.setComposerScope({ kind: "thread", threadId: "thr_1" });
+    fireEvent.click(await slot.findByRole("button", { name: "Ask the agent" }));
+    await waitFor(() => {
+      expect(slot.inspection.composer.text).toContain("action=propose");
+    });
+    slot.lifecycle.unmount();
+  });
+
+  it("shows readability on the canvas and names the surface in the handoff", async () => {
+    const app = await loadPluginApp(() => import("./app.js"));
+    const slot = renderSlot(
+      app.threadPanelActions[0]!,
+      { threadId: "thr_1", params: null },
+      {
+        rpc: {
+          listSaved: () => ({ gradients: [savedGradient] }),
+          listProposals: () => ({ proposals: [] }),
+        },
+      },
+    );
+    await slot.behavior.setComposerScope({ kind: "thread", threadId: "thr_1" });
+    expect(slot.getByTestId("readability").textContent).toMatch(
+      /^((White|Black) text · (Readable|Large text only)|Text is hard to read)$/,
+    );
+    fireEvent.click(slot.getByRole("button", { name: "Surface" }));
+    fireEvent.click(slot.getByRole("menuitemradio", { name: /OG card/ }));
+    fireEvent.click(
+      await slot.findByRole("button", { name: "Send quiet lagoon to agent" }),
+    );
+    await waitFor(() => {
+      expect(slot.inspection.composer.text).toMatch(
+        /mesh gradient as the Open Graph card background \(1200×630\), with (white|black) text on top|a scrim/,
+      );
+    });
     slot.lifecycle.unmount();
   });
 });

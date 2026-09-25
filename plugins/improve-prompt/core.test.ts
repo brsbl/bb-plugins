@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { buildWorkerPrompt, parseShaperOutput, scopeKey } from "./core.js";
+import { DEFAULT_INSTRUCTIONS } from "./instructions.js";
 
 describe("parseShaperOutput", () => {
   it("extracts and unquotes the enhanced prompt", () => {
@@ -56,6 +57,19 @@ describe("buildWorkerPrompt", () => {
       "Use the fable-5-1-target-prompting skill as target-model guidance",
     );
     expect(otherPrompt).not.toContain("fable-5-1-target-prompting");
+  });
+
+  it("falls back to the default instructions when the setting is blank", () => {
+    expect(buildWorkerPrompt({ draft: "x", instructions: "  \n" })).toContain(
+      DEFAULT_INSTRUCTIONS,
+    );
+    const custom = buildWorkerPrompt({
+      draft: "x",
+      instructions: "Keep it to one sentence.",
+    });
+    expect(custom).toContain("Keep it to one sentence.");
+    expect(custom).not.toContain(DEFAULT_INSTRUCTIONS);
+    expect(custom).toContain("Do not execute the draft");
   });
 });
 

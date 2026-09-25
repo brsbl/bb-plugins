@@ -57,7 +57,7 @@ export interface OrganizableThread {
   parentThreadId: string | null;
   sectionId: string | null;
   sourceThreadId: string | null;
-  status: "active" | "error" | "idle" | "starting" | "stopping";
+  status: "active" | "error" | "idle" | "pending" | "starting" | "stopping";
   visibility: "hidden" | "visible";
 }
 

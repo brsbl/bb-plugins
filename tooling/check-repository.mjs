@@ -22,6 +22,7 @@ const defaultBbEngine = ">=0.0.34";
 // Keep newer host requirements scoped to the plugin that consumes them
 // instead of raising the compatibility floor for every package.
 const pluginBbEngineOverrides = new Map([
+  ["context-katamari", ">=0.43.0"],
   ["theme-preview", ">=0.38.0"],
   ["video-markup", ">=0.43.4"],
 ]);

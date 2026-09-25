@@ -26,9 +26,11 @@ import {
   generateMeshGradient,
   hexToHsl,
   hslToHex,
+  mostReadable,
   nameFor,
   newPointAt,
   randomSeed,
+  readabilityLabel,
   toCss,
   toCssLayers,
   toSvg,
@@ -38,12 +40,17 @@ import {
 import {
   SURFACE_PRESETS,
   base64FromDataUrl,
+  handoffSuffix,
   measureContrast,
   presetById,
   renderPngDataUrl,
   type SurfacePreset,
 } from "./raster.js";
-import type { SavedGradient, meshGradientRpcContract } from "./server.js";
+import type {
+  GradientProposal,
+  SavedGradient,
+  meshGradientRpcContract,
+} from "./server.js";
 import { toThemeCss } from "./theme.js";
 
 const MIN_EDIT_POINTS = 2;
@@ -180,6 +187,7 @@ const SELECTED_ORB: CSSProperties = {
 interface Draft {
   spec: MeshGradientSpec;
   edited: boolean;
+  name?: string;
 }
 
 interface StudioState {
@@ -191,6 +199,7 @@ interface StudioState {
 interface MenuItem {
   label: string;
   onSelect: () => void;
+  section?: string;
 }
 
 function usePopover() {
@@ -231,19 +240,28 @@ function MoreMenu({ items }: { items: MenuItem[] }) {
       </button>
       {open && (
         <div role="menu" className={menuClass}>
-          {items.map((item) => (
-            <button
-              key={item.label}
-              type="button"
-              role="menuitem"
-              className="block w-full rounded-lg px-2.5 py-1.5 text-left text-sm hover:bg-accent hover:text-accent-foreground"
-              onClick={() => {
-                setOpen(false);
-                item.onSelect();
-              }}
-            >
-              {item.label}
-            </button>
+          {items.map((item, index) => (
+            <div key={item.label}>
+              {item.section && item.section !== items[index - 1]?.section && (
+                <div
+                  aria-hidden
+                  className={`px-2.5 pb-0.5 text-xs text-muted-foreground ${index === 0 ? "pt-1" : "mt-1 border-t border-border pt-1.5"}`}
+                >
+                  {item.section}
+                </div>
+              )}
+              <button
+                type="button"
+                role="menuitem"
+                className="block w-full whitespace-nowrap rounded-lg px-2.5 py-1.5 text-left text-sm hover:bg-accent hover:text-accent-foreground"
+                onClick={() => {
+                  setOpen(false);
+                  item.onSelect();
+                }}
+              >
+                {item.label}
+              </button>
+            </div>
           ))}
         </div>
       )}
@@ -484,6 +502,84 @@ function SavedTile({
   );
 }
 
+function ProposalTile({
+  proposal,
+  active,
+  onLoad,
+  onDismiss,
+}: {
+  proposal: GradientProposal;
+  active: boolean;
+  onLoad: (proposal: GradientProposal) => void;
+  onDismiss: (id: string) => void;
+}) {
+  const layers = useMemo(() => toCssLayers(proposal), [proposal]);
+  return (
+    <div
+      className={`group relative w-40 shrink-0 overflow-hidden rounded-lg border bg-card ${active ? "border-foreground/40" : "border-border"}`}
+    >
+      <button
+        type="button"
+        aria-pressed={active}
+        className="block w-full text-left"
+        onClick={() => onLoad(proposal)}
+      >
+        <div
+          className="h-14 w-full"
+          style={{
+            backgroundColor: layers.backgroundColor,
+            backgroundImage: layers.backgroundImage,
+          }}
+        />
+        <div className="px-2.5 py-1.5">
+          <div className="truncate text-sm font-medium text-foreground">
+            {proposal.name}
+          </div>
+          <div
+            className="line-clamp-2 text-xs text-muted-foreground"
+            title={proposal.note}
+          >
+            {proposal.note ?? proposal.style}
+          </div>
+        </div>
+      </button>
+      <button
+        type="button"
+        aria-label={`Dismiss ${proposal.name}`}
+        title="Dismiss"
+        className="absolute right-1.5 top-1.5 inline-flex h-6 w-6 items-center justify-center rounded-md bg-black/45 text-xs text-white opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100 [@media(hover:none)]:opacity-100"
+        onClick={() => onDismiss(proposal.id)}
+      >
+        ×
+      </button>
+    </div>
+  );
+}
+
+function samePoints(
+  a: MeshGradientSpec["points"],
+  b: MeshGradientSpec["points"],
+): boolean {
+  return (
+    a === b ||
+    (a.length === b.length &&
+      a.every((point, index) => {
+        const other = b[index]!;
+        return (
+          point.x === other.x &&
+          point.y === other.y &&
+          point.hue === other.hue &&
+          point.saturation === other.saturation &&
+          point.lightness === other.lightness &&
+          point.radius === other.radius
+        );
+      }))
+  );
+}
+
+const PROPOSAL_REQUEST =
+  "Propose three mesh gradients for this project with the mesh_gradient tool (action=propose), each with a short name and a note on why it fits. Base them on ";
+
 function Studio({ threadId }: PluginThreadPanelProps) {
   const rpc = useRpc<typeof meshGradientRpcContract>();
   const composer = useComposer();
@@ -500,6 +596,8 @@ function Studio({ threadId }: PluginThreadPanelProps) {
   const [busy, setBusy] = useState(false);
   const [preset, setPreset] = useState<SurfacePreset>(() => presetById("canvas"));
   const [customHex, setCustomHex] = useState("#3366ff");
+  const [proposals, setProposals] = useState<GradientProposal[]>([]);
+  const seenProposals = useRef<Set<string> | null>(null);
   const canvasRef = useRef<HTMLDivElement>(null);
   const lastAction = useRef<string | null>(null);
   const dragKey = useRef<string | null>(null);
@@ -512,9 +610,11 @@ function Studio({ threadId }: PluginThreadPanelProps) {
       : customHex;
   const contrast = useMemo(() => measureContrast(spec), [spec]);
   const layers = useMemo(() => toCssLayers(spec), [spec]);
+  const loadedName = state.draft.name;
   const displayName = useMemo(
-    () => (edited ? `${nameFor(spec)} (edited)` : nameFor(spec)),
-    [spec, edited],
+    () =>
+      loadedName ?? (edited ? `${nameFor(spec)} (edited)` : nameFor(spec)),
+    [spec, edited, loadedName],
   );
   const selectedPoint =
     state.selected !== null ? spec.points[state.selected] : undefined;
@@ -632,6 +732,88 @@ function Studio({ threadId }: PluginThreadPanelProps) {
     void refresh();
   });
 
+  const loadProposal = useCallback(
+    (proposal: GradientProposal) => {
+      mutate(
+        null,
+        () => ({
+          spec: {
+            seed: proposal.seed,
+            style: proposal.style,
+            points: proposal.points,
+            ...(proposal.customColor === undefined
+              ? {}
+              : { customColor: proposal.customColor }),
+          },
+          edited: false,
+          name: proposal.name,
+        }),
+        null,
+      );
+    },
+    [mutate],
+  );
+
+  const pristine = state.history.length === 0;
+  const pristineRef = useRef(pristine);
+  pristineRef.current = pristine;
+
+  const refreshProposals = useCallback(async () => {
+    if (!threadId) return;
+    try {
+      const { proposals: next } = await rpc.call("listProposals", { threadId });
+      setProposals(next);
+      const seen = seenProposals.current;
+      seenProposals.current = new Set(next.map((proposal) => proposal.id));
+      const fresh = next.filter(
+        (proposal) => seen === null || !seen.has(proposal.id),
+      );
+      const newest = fresh[0];
+      if (!newest) return;
+      if (pristineRef.current) {
+        loadProposal(mostReadable(fresh) ?? newest);
+      } else if (seen !== null) {
+        toast.success(`The agent proposed “${newest.name}”`);
+      }
+    } catch (error) {
+      toast.error(`Loading proposals failed: ${errorMessage(error)}`);
+    }
+  }, [rpc, threadId, loadProposal]);
+
+  useEffect(() => {
+    void refreshProposals();
+  }, [refreshProposals]);
+
+  useRealtime("proposals", (payload) => {
+    if (
+      typeof payload === "object" &&
+      payload !== null &&
+      (payload as { threadId?: unknown }).threadId === threadId
+    ) {
+      void refreshProposals();
+    }
+  });
+
+  const dismissProposal = useCallback(
+    async (id: string) => {
+      if (!threadId) return;
+      try {
+        await rpc.call("dismissProposal", { threadId, id });
+        await refreshProposals();
+      } catch (error) {
+        toast.error(`Dismiss failed: ${errorMessage(error)}`);
+      }
+    },
+    [rpc, threadId, refreshProposals],
+  );
+
+  const askForProposals = useCallback(() => {
+    composer.updateText((current) =>
+      current.trim() === "" ? PROPOSAL_REQUEST : `${current}\n\n${PROPOSAL_REQUEST}`,
+    );
+    composer.focus();
+  }, [composer]);
+
   const persist = useCallback(async () => {
     const result = await rpc.call("saveGradient", {
       name: displayName,
@@ -712,11 +894,12 @@ function Studio({ threadId }: PluginThreadPanelProps) {
         id: gradient.id,
         label: gradient.name,
       });
-      composer.updateText((current) => `${current} mesh gradient to `);
+      const suffix = handoffSuffix(preset, contrast);
+      composer.updateText((current) => `${current}${suffix}`);
       composer.focus();
       toast.success("Handoff added to the composer");
     },
-    [composer],
+    [composer, preset, contrast],
   );
 
   const sendToAgent = useCallback(async () => {
@@ -775,16 +958,6 @@ function Studio({ threadId }: PluginThreadPanelProps) {
       }}
     >
       <div className="mx-auto w-full max-w-3xl space-y-2.5">
-        {/* Every instruction lives here, so nothing is repeated further down. */}
-        <p className="text-xs leading-relaxed text-muted-foreground">
-          Drag points to move them, click one to recolor it or set its falloff,
-          double-click the canvas to add one. ⌘Z undoes.{" "}
-          <span className="text-foreground">Send to agent</span> writes a handoff
-          into this thread&rsquo;s composer — or hover a saved gradient to send
-          it straight from the library. In any thread, type{" "}
-          <code className="rounded bg-muted px-1 py-0.5">@gradient</code> to hand
-          a saved gradient to an agent with its exact values.
-        </p>
         <div className="overflow-hidden rounded-lg border border-border">
           <div
             ref={canvasRef}
@@ -865,17 +1038,15 @@ function Studio({ threadId }: PluginThreadPanelProps) {
                 </p>
               </div>
             )}
-            {/* Only shown where text actually sits on the gradient. */}
-            {preset.overlay === "headline" && contrast && (
+            {preset.overlay !== "avatar" && contrast && (
               <div
+                data-testid="readability"
                 className="pointer-events-none absolute right-3 top-3 rounded-full bg-black/50 px-2 py-0.5 text-xs font-medium text-white"
                 title={`Worst-case contrast for ${contrast.best} text on this gradient: ${contrast.bestRatio}:1. White ${contrast.white}:1, black ${contrast.black}:1.`}
               >
-                {contrast.passesAA
-                  ? "Readable"
-                  : contrast.passesAALarge
-                    ? "Large text only"
-                    : "Hard to read"}
+                {contrast.passesAALarge
+                  ? `${contrast.best === "white" ? "White" : "Black"} text · ${readabilityLabel(contrast)}`
+                  : "Text is hard to read"}
               </div>
             )}
             <div className="pointer-events-none absolute bottom-3 left-3 rounded-md bg-black/45 px-2.5 py-1 text-white">
@@ -969,25 +1140,32 @@ function Studio({ threadId }: PluginThreadPanelProps) {
             <MoreMenu
             items={[
               {
-                label: "Add point",
-                onSelect: () =>
-                  addPoint(20 + Math.random() * 60, 20 + Math.random() * 60),
+                section: "Hand off",
+                label: `Export PNG (${preset.width}×${preset.height})`,
+                onSelect: () => void exportPng(),
               },
               {
+                section: "Hand off",
+                label: "Write token file",
+                onSelect: () => void exportTokens(),
+              },
+              {
+                section: "Hand off",
+                label: "Save to library",
+                onSelect: () => void save(),
+              },
+              {
+                section: "Copy",
                 label: "Copy CSS",
                 onSelect: () => void copyToClipboard("CSS", toCss(spec)),
               },
               {
+                section: "Copy",
                 label: "Copy SVG",
                 onSelect: () => void copyToClipboard("SVG", toSvg(spec)),
               },
               {
-                label: `Export PNG (${preset.width}×${preset.height})`,
-                onSelect: () => void exportPng(),
-              },
-              { label: "Save to library", onSelect: () => void save() },
-              { label: "Write token file", onSelect: () => void exportTokens() },
-              {
+                section: "Copy",
                 label: "Copy bb theme CSS",
                 onSelect: () =>
                   void copyToClipboard(
@@ -995,9 +1173,16 @@ function Studio({ threadId }: PluginThreadPanelProps) {
                     toThemeCss(spec, { name: displayName }),
                   ),
               },
+              {
+                section: "Edit",
+                label: "Add point",
+                onSelect: () =>
+                  addPoint(20 + Math.random() * 60, 20 + Math.random() * 60),
+              },
               ...(edited
                 ? [
                     {
+                      section: "Edit",
                       label: "Reset to seed",
                       onSelect: () =>
                         mutate(
@@ -1083,8 +1268,58 @@ function Studio({ threadId }: PluginThreadPanelProps) {
             Send to agent
           </button>
         </div>
+        <p className="text-xs text-muted-foreground">
+          Drag points to move them · click one to recolor · double-click to add
+          one · ⌘Z undoes
+        </p>
 
-        <div className="space-y-2">
+        {threadId && (
+          <div className="space-y-2 pt-1">
+            <div className="flex items-center gap-2">
+              <h2 className="text-sm font-medium text-foreground">
+                For this thread
+              </h2>
+              {proposals.length > 0 && (
+                <button
+                  type="button"
+                  className="ml-auto text-xs text-muted-foreground hover:text-foreground"
+                  onClick={askForProposals}
+                >
+                  Ask for more
+                </button>
+              )}
+            </div>
+            {proposals.length === 0 ? (
+              <div className="flex items-center gap-3 rounded-lg border border-dashed border-border px-3 py-2.5">
+                <p className="min-w-0 flex-1 text-sm text-muted-foreground">
+                  Let the agent suggest gradients that fit what this thread is
+                  building. They land here to tune.
+                </p>
+                <button
+                  type="button"
+                  className="inline-flex h-7 shrink-0 items-center rounded-full border border-border px-3 text-sm text-foreground hover:bg-accent"
+                  onClick={askForProposals}
+                >
+                  Ask the agent
+                </button>
+              </div>
+            ) : (
+              <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1">
+                {proposals.map((proposal) => (
+                  <ProposalTile
+                    key={proposal.id}
+                    proposal={proposal}
+                    active={samePoints(proposal.points, spec.points)}
+                    onLoad={loadProposal}
+                    onDismiss={(id) => void dismissProposal(id)}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        <div className="space-y-2 pt-1">
           <h2 className="text-sm font-medium text-foreground">Library</h2>
           {!libraryLoaded ? (
             <div className="grid grid-cols-2 gap-2 sm:grid-cols-3" aria-hidden>
@@ -1096,9 +1331,23 @@ function Studio({ threadId }: PluginThreadPanelProps) {
               ))}
             </div>
           ) : saved.length === 0 ? (
-            <p className="text-sm text-muted-foreground">
-              Nothing saved yet — sending to an agent saves automatically.
-            </p>
+            <div className="flex items-center gap-3 rounded-lg border border-dashed border-border px-3 py-2.5">
+              <p className="min-w-0 flex-1 text-sm text-muted-foreground">
+                Saved gradients follow you: mention one with{" "}
+                <code className="rounded bg-muted px-1 py-0.5 text-xs">
+                  @gradient
+                </code>{" "}
+                in any thread, or write them all into the project as tokens.
+              </p>
+              <button
+                type="button"
+                className="inline-flex h-7 shrink-0 items-center rounded-full border border-border px-3 text-sm text-foreground hover:bg-accent disabled:opacity-50"
+                disabled={busy}
+                onClick={() => void save()}
+              >
+                Save this one
+              </button>
+            </div>
           ) : (
             <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
                 {saved.map((gradient) => (
@@ -1118,6 +1367,7 @@ function Studio({ threadId }: PluginThreadPanelProps) {
                               : { customColor: loaded.customColor }),
                           },
                           edited: loaded.edited,
+                          name: loaded.name,
                         }),
                         null,
                       )
@@ -1136,6 +1386,13 @@ function Studio({ threadId }: PluginThreadPanelProps) {
                   />
               ))}
             </div>
+          )}
+          {saved.length > 0 && (
+            <p className="text-xs text-muted-foreground">
+              Hover a tile to send it here. In other threads, mention any of
+              these with{" "}
+              <code className="rounded bg-muted px-1 py-0.5">@gradient</code>.
+            </p>
           )}
         </div>
       </div>

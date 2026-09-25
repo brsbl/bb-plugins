@@ -27,7 +27,7 @@ const productionDependencyFields = [
   "peerDependencies",
 ];
 // Opt in per plugin so existing release histories are never rewritten.
-const versionTaggedPlugins = new Set(["thread-organizer"]);
+const versionTaggedPlugins = new Set(["thread-organizer", "context-katamari"]);
 const explicitlyRetiredInstallRefs = Object.freeze([
   "plugin/omegacode",
   "plugin/ui-patterns",

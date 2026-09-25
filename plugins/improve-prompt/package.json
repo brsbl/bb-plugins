@@ -1,6 +1,6 @@
 {
   "name": "bb-plugin-prompt-shaper",
-  "version": "0.1.0",
+  "version": "0.1.2",
   "type": "module",
   "files": [
     "dist",
@@ -14,7 +14,7 @@
   },
   "bb": {
     "name": "Prompt Improver",
-    "description": "Adds an Improve prompt action to the composer that sends your rough draft to a hidden helper agent, which applies the prompt-shaper skill to rewrite it into a clear, complete prompt and returns it in place for review before you send.",
+    "description": "Adds an Improve prompt action to the composer that sends your rough draft to a hidden helper agent, which follows your editable rewrite instructions to rewrite it into a clear, complete prompt and returns it in place for review before you send.",
     "branding": {
       "icon": "AiContentGenerator01"
     },
@@ -34,7 +34,7 @@
     "zod": "^4.3.6"
   },
   "devDependencies": {
-    "@get-bb/plugin-sdk": "file:./vendor/get-bb-plugin-sdk-0.4.8.tgz",
+    "@get-bb/plugin-sdk": "file:./vendor/get-bb-plugin-sdk-0.5.9.tgz",
     "@radix-ui/react-dialog": "^1.1.19",
     "@radix-ui/react-popover": "^1.1.23",
     "@radix-ui/react-tooltip": "^1.2.12",
