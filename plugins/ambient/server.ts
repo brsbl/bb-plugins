@@ -688,6 +688,7 @@ export default function plugin(bb: BbPluginApi): void {
     const current = await readState();
     if (current.sceneRevision !== sceneRevision) return false;
     const scene = fallback ?? (await readLastGood()) ?? DEFAULT_SCENE;
+    if (fallback === undefined && scene.source === current.scene.source) return false;
     await writeState({ ...current, scene }, { sceneChanged: true });
     return true;
   }
@@ -887,7 +888,16 @@ export default function plugin(bb: BbPluginApi): void {
         finalName = `${finalName.slice(0, 53)} (mine)`;
       }
       const index = await readIndex();
-      const existing = index.find((entry) => entry.name.toLowerCase() === finalName.toLowerCase());
+      const sameName = (candidate: string) =>
+        index.find((entry) => entry.name.toLowerCase() === candidate.toLowerCase());
+      const clash = sameName(finalName);
+      if (clash && (await readSavedSource(clash.id)) !== scene.source) {
+        const base = finalName.slice(0, 56);
+        let suffix = 2;
+        while (sameName(`${base} ${suffix}`)) suffix += 1;
+        finalName = `${base} ${suffix}`;
+      }
+      const existing = sameName(finalName);
       let id = existing?.id;
       if (!id) {
         const taken = new Set([
@@ -922,6 +932,11 @@ export default function plugin(bb: BbPluginApi): void {
     return writeState({ ...state, scene: sceneOf(builtIn), controls: DEFAULT_CONTROLS }, { sceneChanged: true });
   }
 
+  async function readSavedSource(id: string): Promise<string | null> {
+    const entry = libraryEntrySchema.safeParse(await bb.storage.kv.get(`${LIBRARY_PREFIX}${id}`));
+    return entry.success ? entry.data.scene.source : null;
+  }
+
   async function autosaveScene(scene: Scene): Promise<void> {
     const builtIn = BUILT_IN_SCENES.find((entry) => entry.id === scene.baseId && entry.name === scene.name);
     if (builtIn) {
@@ -937,7 +952,7 @@ export default function plugin(bb: BbPluginApi): void {
     const saved = (await readIndex()).find((entry) => entry.name === scene.name);
     if (!saved) return;
     const current = libraryEntrySchema.safeParse(await bb.storage.kv.get(`${LIBRARY_PREFIX}${saved.id}`));
-    if (current.success) {
+    if (current.success && current.data.scene.source === scene.source) {
       await bb.storage.kv.set(`${LIBRARY_PREFIX}${saved.id}`, { ...current.data, scene });
     }
   }

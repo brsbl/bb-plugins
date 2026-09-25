@@ -59,7 +59,7 @@ const THREAD_TITLE_ROW = '[data-split-pane-id]:has([data-thread-window]) > heade
 function glassCss(glass: number): string {
   return `body.bb-app-shell { --ambient-glass-fill: color-mix(in oklab, var(--ambient-background) ${Math.round(glass * 100)}%, transparent); --ambient-glass-solid: color-mix(in oklab, var(--ambient-background) ${Math.round(Math.min(0.92, Math.max(0.88, glass + 0.3)) * 100)}%, transparent); }
 ${THREAD} { position: relative; isolation: isolate; }
-${THREAD} > * { clip-path: inset(0 ${COLUMN_RIGHT} ${COLUMN_BOTTOM} ${COLUMN_LEFT} round 20px); }
+${THREAD} > * { clip-path: inset(0 0 ${COLUMN_BOTTOM} 0); }
 ${THREAD}::before { content: ""; position: absolute; z-index: -1; pointer-events: none; ${GLASS_SURFACE} border-radius: 20px; top: 0; bottom: ${COLUMN_BOTTOM}; left: ${COLUMN_LEFT}; right: ${COLUMN_RIGHT}; }
 ${THREAD} [data-overflow-fade] { display: none; }
 ${PAGE} { position: relative; isolation: isolate; }
@@ -79,8 +79,7 @@ ${THREAD} [data-timeline-row-list] :is([data-message-column].border, [data-messa
 ${THREAD} [data-markdown-preview] div:has(> div > table) { width: 100% !important; margin-inline: 0 !important; }
 ${THREAD} [data-scroll-footer] > .bg-background { background-color: transparent; }
 ${THREAD} [data-scroll-footer] { isolation: isolate; padding-top: 16px; }
-${THREAD} [data-scroll-footer]::before { content: ""; position: absolute; z-index: -1; pointer-events: none; top: 0; bottom: ${COLUMN_BOTTOM}; left: ${COLUMN_LEFT}; right: ${COLUMN_RIGHT}; border-radius: 20px; background: linear-gradient(to bottom, color-mix(in oklab, var(--canvas) 28%, transparent), transparent 45%), ${GLASS_FILL}; ${GLASS_BLUR} border: 1px solid color-mix(in oklab, var(--ink) 9%, transparent); box-shadow: inset 0 1px 0 color-mix(in oklab, var(--canvas) 70%, transparent), inset 0 0 0 1px color-mix(in oklab, var(--canvas) 18%, transparent); }
-${THREAD} [data-scroll-footer] .bg-surface-raised-solid { background-color: ${GLASS_FILL}; ${GLASS_BLUR} }
+${THREAD} [data-scroll-footer]::before { content: ""; position: absolute; z-index: -1; pointer-events: none; top: 0; bottom: ${COLUMN_BOTTOM}; left: ${COLUMN_LEFT}; right: ${COLUMN_RIGHT}; border-radius: 20px; background: linear-gradient(to bottom, color-mix(in oklab, var(--canvas) 28%, transparent), transparent 45%), var(--ambient-background); border: 1px solid color-mix(in oklab, var(--ink) 9%, transparent); box-shadow: inset 0 1px 0 color-mix(in oklab, var(--canvas) 70%, transparent), inset 0 0 0 1px color-mix(in oklab, var(--canvas) 18%, transparent); }
 body.bb-app-shell > #root header.bg-surface-scrim { border-color: transparent; }
 ${COMPACT_HOME} > [data-testid="root-compose-compact-scroll-viewport"] { ${GLASS_SURFACE} top: auto !important; bottom: 6px; left: ${COMPACT_INSET}; right: ${COMPACT_INSET}; max-height: min(calc(100% - 62px), 600px); border-radius: 20px; }
 ${COMPACT_HOME} [data-testid="root-compose-compact-recents-offset"] { display: none; }
@@ -105,6 +104,7 @@ body.bb-app-shell > #root [data-testid="app-page-header-content-row"] > :first-c
 body.bb-app-shell > #root [data-pane-header-focus-tab] { background-color: transparent; }
 body.bb-app-shell > #root [data-testid="app-page-header-content-row"] > [data-app-page-header-actions] { margin-inline: auto -8px; min-height: 32px; }
 body.bb-app-shell > #root [data-app-page-header-actions] button.border { border-color: transparent; }
+@media (max-width: 767px) { body.bb-app-shell > #root div.fixed:has(> button[aria-label*="right panel" i]) { top: calc(8px + env(safe-area-inset-top)); right: calc(8px + env(safe-area-inset-right)); } body.bb-app-shell > #root :is(div.fixed, [data-app-page-header-actions]) button[aria-label*="right panel" i] { width: 32px; height: 32px; } body.bb-app-shell > #root [data-testid="app-page-header-content-row"] > :is(:first-child, [data-app-page-header-actions]) { height: 32px; min-height: 32px; } body.bb-app-shell > #root [data-app-page-header-actions]:has(button[aria-label*="right panel" i]) { padding-inline-end: 0; } }
 :is(${THREAD}, ${PAGE}, ${SIDEBAR_CARDS}, ${CHROME_PILLS}) { --state-hover: color-mix(in oklab, var(--ink) 9%, transparent); --state-active: color-mix(in oklab, var(--ink) 15%, transparent); --sidebar-accent: var(--state-hover); }
 ${SIDEBAR_CARDS} { ${GLASS_SURFACE} border-radius: 16px; margin-inline: 8px; }
 body.bb-app-shell > #root [data-testid="sidebar-navigation-region"] { margin-block: 0 8px; }
@@ -715,6 +715,7 @@ function hourLabel(hour: number): string {
 function DailySceneRow() {
   const rpc = useRpc<typeof ambientRpcContract>();
   const [daily, setDaily] = useState<DailyScene | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
     setDaily(await rpc.call("daily"));
@@ -731,13 +732,20 @@ function DailySceneRow() {
   if (!daily) return null;
 
   const update = async (next: { enabled?: boolean; hour?: number }) => {
+    const previous = daily;
     setDaily({ ...daily, ...next });
-    setDaily(
-      await rpc.call("setDaily", {
-        ...next,
-        ...(next.enabled ? { timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone } : {}),
-      }),
-    );
+    setError(null);
+    try {
+      setDaily(
+        await rpc.call("setDaily", {
+          ...next,
+          ...(next.enabled ? { timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone } : {}),
+        }),
+      );
+    } catch (caught) {
+      setDaily(previous);
+      setError(caught instanceof Error ? caught.message : String(caught));
+    }
   };
 
 
@@ -770,6 +778,7 @@ function DailySceneRow() {
           />
         </span>
       </div>
+      {error && <div className="text-xs text-destructive">{error}</div>}
     </div>
   );
 }
