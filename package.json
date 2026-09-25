@@ -1,0 +1,26 @@
+{
+  "name": "bb-plugin-color-swatches",
+  "version": "0.1.0",
+  "type": "module",
+  "private": true,
+  "files": [
+    "assets",
+    "dist",
+    "docs",
+    "README.md"
+  ],
+  "engines": {
+    "bb": ">=0.0.34",
+    "bbPluginSdk": "^0.4.1"
+  },
+  "bb": {
+    "name": "Color Swatches",
+    "description": "Makes CSS color literals visible at a glance in thread code and submitted user messages — hex, rgb(), hsl(), oklch() and more.",
+    "branding": {
+      "icon": "./assets/color-chip.svg"
+    },
+    "server": "./dist/install-server.mjs",
+    "app": "./dist/install-app.mjs",
+    "skills": []
+  }
+}
