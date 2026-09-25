@@ -110,6 +110,7 @@ body.bb-app-shell { background-color: transparent; --ambient-background: var(--b
 :is(${PANES}) .bg-sidebar .bg-sidebar:not(.sticky), [data-testid="secondary-panel-shelf"] .bg-sidebar:not(.sticky) { --sidebar: transparent; }
 :is(${PANES}) .sticky:is(.bg-sidebar, .bg-background) { --sidebar: transparent; --background: transparent; ${BLUR} }
 :is(${PANES}) header.bg-surface-scrim { background-color: transparent; ${BLUR} }
+body.bb-app-shell [role="switch"][aria-checked="true"] > span.bg-background { background-color: var(--canvas); }
 body.bb-app-shell > #root [data-sidebar-sticky-stack]::before, body.bb-app-shell > #root [data-sidebar-sticky-tier] { ${BLUR} }
 body.bb-app-shell > #root [data-sidebar="panel"][data-vaul-drawer-direction][data-state="closed"]:not([data-vaul-animate]) { visibility: hidden; transition: visibility 0s linear 260ms; }`;
 }
