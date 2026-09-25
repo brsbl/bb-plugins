@@ -1,0 +1,157 @@
+import type { ComponentType } from "react";
+import {
+  BubbleChatAddIcon,
+  Cancel01Icon,
+  Copy01Icon,
+  CollapseIcon,
+  CubeIcon,
+  DashboardSquare01Icon,
+  ExpandIcon,
+  Delete02Icon,
+  FolderAddIcon,
+  GridViewIcon,
+  HierarchySquare01Icon,
+  LaptopIcon,
+  LinkSquare02Icon,
+  ListViewIcon,
+  MinusSignIcon,
+  Notification03Icon,
+  PinIcon,
+  SidebarRightIcon,
+  Tick02Icon,
+  WebhookIcon,
+} from "@hugeicons/core-free-icons";
+import { HugeiconsIcon, type IconSvgElement } from "@hugeicons/react";
+
+import type { DesktopGroup } from "./core";
+
+const FOLDER_BACK = "oklch(0.8 0.13 80)";
+const FOLDER_FRONT_TOP = "oklch(0.93 0.11 92)";
+const FOLDER_FRONT_BOTTOM = "oklch(0.82 0.14 82)";
+const FOLDER_EDGE = "oklch(0.6 0.12 70)";
+const PAPER = "oklch(0.98 0.005 250)";
+
+function bbGlyph(icon: IconSvgElement) {
+  return function BbGlyph({ className, strokeWidth }: { className?: string; strokeWidth?: number }) {
+    return <HugeiconsIcon icon={icon} className={className} strokeWidth={strokeWidth} aria-hidden />;
+  };
+}
+
+export const NewThreadGlyph = bbGlyph(BubbleChatAddIcon);
+export const GridViewGlyph = bbGlyph(GridViewIcon);
+export const ListViewGlyph = bbGlyph(ListViewIcon);
+export const BellGlyph = bbGlyph(Notification03Icon);
+export const ProjectGlyph = bbGlyph(CubeIcon);
+export const MachineGlyph = bbGlyph(LaptopIcon);
+export const PinGlyph = bbGlyph(PinIcon);
+export const WebhookGlyph = bbGlyph(WebhookIcon);
+export const CheckGlyph = bbGlyph(Tick02Icon);
+export const CopyGlyph = bbGlyph(Copy01Icon);
+export const ExternalLinkGlyph = bbGlyph(LinkSquare02Icon);
+export const FolderPlusGlyph = bbGlyph(FolderAddIcon);
+export const TileGlyph = bbGlyph(DashboardSquare01Icon);
+export const ThreadsGlyph = bbGlyph(HierarchySquare01Icon);
+export const PanelRightGlyph = bbGlyph(SidebarRightIcon);
+export const TrashGlyph = bbGlyph(Delete02Icon);
+export const MinusGlyph = bbGlyph(MinusSignIcon);
+export const MaximizeGlyph = bbGlyph(ExpandIcon);
+export const RestoreGlyph = bbGlyph(CollapseIcon);
+export const CloseGlyph = bbGlyph(Cancel01Icon);
+
+export function FolderArt({ kind, size = 40 }: { kind: DesktopGroup["kind"]; size?: number }) {
+  const gradientId = `bbd-folder-${kind}`;
+  const Badge = kind === "project" ? ProjectGlyph : kind === "machine" ? MachineGlyph : kind === "folder" ? PinGlyph : null;
+  return (
+    <span className="relative inline-grid place-items-center" style={{ width: size, height: size }}>
+      <svg viewBox="0 0 40 34" width={size} height={size * 0.85} aria-hidden>
+        <defs>
+          <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0" stopColor={FOLDER_FRONT_TOP} />
+            <stop offset="1" stopColor={FOLDER_FRONT_BOTTOM} />
+          </linearGradient>
+        </defs>
+        <path d="M3 5.5h12l3 3.5h18a1.5 1.5 0 0 1 1.5 1.5v19H3z" fill={FOLDER_BACK} stroke={FOLDER_EDGE} strokeLinejoin="round" />
+        <rect x="6" y="9" width="27" height="14" rx="1" fill={PAPER} stroke={FOLDER_EDGE} strokeWidth="0.5" />
+        <path d="M2 13.5h36l-2.5 17H4.5z" fill={`url(#${gradientId})`} stroke={FOLDER_EDGE} strokeLinejoin="round" />
+        <path d="M3.4 14.6h33.2" stroke={PAPER} strokeOpacity="0.8" />
+      </svg>
+      {Badge === null ? null : (
+        <span
+          className="absolute right-0 bottom-0 grid size-4 place-items-center rounded-sm"
+          style={{
+            background: "linear-gradient(180deg, var(--bbd-blue-bright), var(--bbd-blue))",
+            boxShadow: "0 0 0 1px var(--bbd-white)",
+            color: "var(--bbd-white)",
+          }}
+        >
+          <Badge className="size-2.5" strokeWidth={2.25} />
+        </span>
+      )}
+    </span>
+  );
+}
+
+export function ThreadArt({
+  size = 36,
+  archived = false,
+}: {
+  size?: number;
+  archived?: boolean;
+}) {
+  return (
+    <svg
+      viewBox="0 0 36 32"
+      width={size}
+      height={size * 0.9}
+      aria-hidden
+      style={{ opacity: archived ? 0.55 : 1 }}
+    >
+      <rect x="1.5" y="1.5" width="33" height="29" rx="3" fill={PAPER} stroke="var(--bbd-blue-deep)" />
+      <path d="M1.5 4.5a3 3 0 0 1 3-3h27a3 3 0 0 1 3 3V8h-33z" fill="var(--bbd-blue)" />
+      <rect x="29" y="3" width="3.5" height="3.5" rx="0.8" fill="var(--bbd-close)" />
+      <rect x="6" y="12" width="17" height="3" rx="1.5" fill="oklch(0.75 0.02 250)" />
+      <rect x="13" y="18" width="17" height="3" rx="1.5" fill="var(--bbd-blue-sky)" />
+      <rect x="6" y="24" width="12" height="3" rx="1.5" fill="oklch(0.75 0.02 250)" />
+    </svg>
+  );
+}
+
+export function GlyphTile({
+  glyph: Glyph,
+  size = 40,
+  tone = "blue",
+}: {
+  glyph: ComponentType<{ className?: string; strokeWidth?: number }>;
+  size?: number;
+  tone?: "blue" | "orange" | "green";
+}) {
+  const [light, base, deep] =
+    tone === "orange"
+      ? ["var(--bbd-orange)", "var(--bbd-close)", "var(--bbd-close-deep)"]
+      : tone === "green"
+        ? ["color-mix(in oklch, var(--bbd-green) 60%, var(--bbd-white) 40%)", "var(--bbd-green)", "var(--bbd-green-deep)"]
+        : ["var(--bbd-blue-bright)", "var(--bbd-blue)", "var(--bbd-blue-deep)"];
+  return (
+    <span
+      className="inline-grid place-items-center rounded-md"
+      style={{
+        width: size - 4,
+        height: size - 4,
+        background: `radial-gradient(90% 90% at 30% 25%, ${light}, ${base} 70%, ${deep})`,
+        boxShadow: "0 0 0 1.5px var(--bbd-white), 0 2px 4px oklch(0.2 0.05 260 / 0.4)",
+        color: "var(--bbd-white)",
+      }}
+      aria-hidden
+    >
+      <Glyph className="size-[55%]" strokeWidth={2} />
+    </span>
+  );
+}
+
+export function WebhookArt({ size = 40 }: { size?: number }) {
+  return <GlyphTile glyph={WebhookGlyph} size={size} />;
+}
+
+export function BellArt({ size = 40 }: { size?: number }) {
+  return <GlyphTile glyph={BellGlyph} size={size} tone="orange" />;
+}

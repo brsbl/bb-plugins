@@ -140,6 +140,16 @@ Attaches durable discussion threads to selected timeline text. Users and agents 
 
 Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/timeline-comments --yes`
 
+### Desktop
+
+Turns bb's new-thread page into a desktop for your agents: folders that mirror your sidebar sections or projects, a finder for each folder, and resizable thread windows with detached detail panels. Agent notifications land on a bell, and webhooks become desktop icons that feed a thread.
+
+![Desktop with a notification center, a folder finder, a thread window, and its detached details panel](plugins/desktop/docs/screenshot.png)
+
+[Source](plugins/desktop) · [README](plugins/desktop/README.md)
+
+Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/desktop --yes`
+
 Each `plugin/*` install ref is generated from `main` after CI passes. The separate refs are necessary because bb installs from the root of a git checkout.
 
 ## Develop
