@@ -64,6 +64,8 @@ ${PAGE} { position: relative; isolation: isolate; }
 ${PAGE}::before { content: ""; position: absolute; z-index: -1; pointer-events: none; ${GLASS_SURFACE} border-radius: 20px; inset: 0 8px 8px; }
 ${PAGE_MAIN} :is(.max-w-5xl, [class~="max-w-[760px]"]) { anchor-name: --ambient-page-column; }
 ${PAGE}::before { left: max(var(--ambient-column-gutter, 8px), anchor(--ambient-page-column left, 8px)); right: max(8px, anchor(--ambient-page-column right, 8px)); }
+${PAGE}:has([data-testid="app-page-header-content-row"])::before { top: var(--bb-app-chrome-row-height, 3rem); }
+${PAGE} :is(input[type="search"], input[placeholder^="Search" i]) { background-color: color-mix(in oklab, var(--card) 72%, transparent); border-color: color-mix(in oklab, var(--ink) 12%, transparent); }
 ${PAGE} .bg-card[class*="hover:bg-"]:hover { background-color: color-mix(in oklab, var(--card) 97%, var(--ink)); border-color: color-mix(in oklab, var(--ink) 14%, transparent); box-shadow: 0 8px 24px -16px color-mix(in oklab, var(--ink) 35%, transparent); }
 @media (min-width: 768px) { ${SIDEBAR_OPEN} { --ambient-column-gutter: 0px; } ${SIDEBAR_OPEN} [data-testid="app-page-header-content-row"] > :first-child { margin-inline-start: -16px; } }
 @media (min-width: 768px) { body.bb-app-shell > #root ${THREAD_TITLE_ROW} { padding-inline-start: max(32px, 50% - ${COLUMN_HALF} + 6px); } ${SIDEBAR_OPEN} ${THREAD_TITLE_ROW} { padding-inline-start: max(0px, 50% - ${COLUMN_HALF} + 16px); } }
@@ -98,6 +100,7 @@ ${SIDEBAR_CARDS} { ${GLASS_SURFACE} border-radius: 16px; margin-inline: 8px; }
 body.bb-app-shell > #root [data-testid="sidebar-navigation-region"] { margin-block: 0 8px; }
 body.bb-app-shell > #root [data-sidebar="content"] { flex: 0 1 auto; min-height: min(7rem, 18dvh); margin-block-end: auto; }
 body.bb-app-shell > #root [data-sidebar="content"]:not(:has(~ [data-sidebar="footer"])) { margin-block-end: 8px; }
+body.bb-app-shell > #root [data-sidebar="content"] > .px-2:first-child { padding-block-start: 12px; }
 @media (max-height: 560px) { body.bb-app-shell > #root [data-testid="sidebar-navigation-region"] { flex: 0 1 auto; min-height: 3rem; overflow-y: auto; } }
 body.bb-app-shell > #root [data-sidebar="footer"] { flex-shrink: 0; margin-block: 8px; align-self: flex-start; width: max-content; max-width: calc(100% - 16px); }
 body.bb-app-shell > #root [data-sidebar="footer"] > [data-overflow-fade], body.bb-app-shell > #root [data-sidebar="footer"] > ul > li[aria-hidden="true"]:empty { display: none; }
@@ -118,6 +121,7 @@ body.bb-app-shell { background-color: transparent; --ambient-background: var(--b
 :is(${PANES}) .sticky:is(.bg-sidebar, .bg-background) { --sidebar: transparent; --background: transparent; ${BLUR} }
 :is(${PANES}) header.bg-surface-scrim { background-color: transparent; }
 body.bb-app-shell [role="switch"][aria-checked="true"] > span.bg-background { background-color: var(--canvas); }
+body.bb-app-shell [class~="text-background"] { color: var(--ambient-background); }
 body.bb-app-shell :is(button[role="checkbox"][data-state="checked"], [data-category-option-checkbox][data-state="enabled"]) { color: var(--canvas); }
 body.bb-app-shell > #root [data-sidebar-sticky-stack]::before, body.bb-app-shell > #root [data-sidebar-sticky-tier] { ${BLUR} }
 body.bb-app-shell > #root [data-sidebar="panel"][data-vaul-drawer-direction][data-state="closed"]:not([data-vaul-animate]) { visibility: hidden; transition: visibility 0s linear 260ms; }`;
