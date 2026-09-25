@@ -969,7 +969,7 @@ function Taskbar({ frame }: { frame: DockFrame | null }) {
     <nav
       className="bbd-taskbar"
       aria-label="Taskbar"
-      style={frame === null ? undefined : { left: frame.left, width: frame.maxWidth }}
+      style={frame === null ? undefined : { left: frame.left, maxWidth: frame.maxWidth - 24 }}
     >
       <button
         type="button"
