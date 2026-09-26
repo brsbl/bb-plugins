@@ -340,18 +340,49 @@ export interface SvgOptions {
   height?: number;
 }
 
+export interface PointEllipse {
+  cx: number;
+  cy: number;
+  rx: number;
+  ry: number;
+}
+
+/**
+ * Where `radial-gradient(at x% y%, color 0px, transparent r%)` fades out on a
+ * width × height box: an ellipse sized to the farthest corner, with the color
+ * stop at r% of its radii. The sampler, canvas, and SVG renderers share it so
+ * every export matches the CSS preview.
+ */
+export function pointEllipse(
+  point: MeshPoint,
+  width: number,
+  height: number,
+): PointEllipse {
+  const cx = (point.x / 100) * width;
+  const cy = (point.y / 100) * height;
+  const scale = Math.SQRT2 * (point.radius / 100);
+  return {
+    cx,
+    cy,
+    rx: Math.max(1e-3, scale * Math.max(cx, width - cx)),
+    ry: Math.max(1e-3, scale * Math.max(cy, height - cy)),
+  };
+}
+
 export function toSvg(spec: MeshGradientSpec, options: SvgOptions = {}): string {
   const width = options.width ?? 800;
   const height = options.height ?? 600;
   const prefix = `mesh-${spec.seed}`;
   const defs = spec.points
     .map((point, index) => {
-      const cx = round((point.x / 100) * width);
-      const cy = round((point.y / 100) * height);
-      const r = round((point.radius / 100) * Math.max(width, height));
+      const ellipse = pointEllipse(point, width, height);
+      const cx = round(ellipse.cx);
+      const cy = round(ellipse.cy);
+      const squash = Math.round((ellipse.ry / ellipse.rx) * 1000) / 1000;
       return (
         `<radialGradient id="${prefix}-${index}" gradientUnits="userSpaceOnUse" ` +
-        `cx="${cx}" cy="${cy}" r="${r}">` +
+        `cx="${cx}" cy="${cy}" r="${round(ellipse.rx)}" ` +
+        `gradientTransform="translate(0 ${round(ellipse.cy - ellipse.cy * squash)}) scale(1 ${squash})">` +
         `<stop offset="0" stop-color="${pointColor(point)}"/>` +
         `<stop offset="1" stop-color="${pointColor(point)}" stop-opacity="0"/>` +
         `</radialGradient>`
@@ -391,6 +422,10 @@ export function hslToRgb(
   return [channel(0), channel(8), channel(4)];
 }
 
+export function cssCommentText(text: string): string {
+  return text.replace(/\*\//g, "* /");
+}
+
 export function hslToHex(hue: number, saturation: number, lightness: number): string {
   return `#${hslToRgb(hue, saturation, lightness)
     .map((value) => Math.round(value).toString(16).padStart(2, "0"))
@@ -398,10 +433,10 @@ export function hslToHex(hue: number, saturation: number, lightness: number): st
 }
 
 /**
- * Sample the painted surface without a canvas, mirroring `drawMeshGradient`:
- * the base fill, then each point as a circular fade of its color over
- * `radius`% of the longest side, composited back-to-front. Lets the server and
- * the panel score readability with one implementation.
+ * Sample the painted surface without a canvas, mirroring the CSS output: the
+ * base fill, then each point as an elliptical fade of its color (see
+ * `pointEllipse`), composited back-to-front. Lets the server and the panel
+ * score readability with one implementation.
  */
 export function sampleLuminances(
   spec: MeshGradientSpec,
@@ -416,11 +451,8 @@ export function sampleLuminances(
     first.saturation,
     Math.max(8, round(first.lightness * 0.45)),
   );
-  const longest = Math.max(width, height);
   const layers = [...spec.points].reverse().map((point) => ({
-    cx: (point.x / 100) * width,
-    cy: (point.y / 100) * height,
-    radius: Math.max(1, (point.radius / 100) * longest),
+    ...pointEllipse(point, width, height),
     color: hslToRgb(point.hue, point.saturation, point.lightness),
   }));
   const luminances: number[] = [];
@@ -428,8 +460,11 @@ export function sampleLuminances(
     for (let x = 0; x < width; x += 1) {
       let [r, g, b] = base;
       for (const layer of layers) {
-        const distance = Math.hypot(x + 0.5 - layer.cx, y + 0.5 - layer.cy);
-        const alpha = 1 - Math.min(1, distance / layer.radius);
+        const distance = Math.hypot(
+          (x + 0.5 - layer.cx) / layer.rx,
+          (y + 0.5 - layer.cy) / layer.ry,
+        );
+        const alpha = 1 - Math.min(1, distance);
         if (alpha <= 0) continue;
         r = layer.color[0] * alpha + r * (1 - alpha);
         g = layer.color[1] * alpha + g * (1 - alpha);

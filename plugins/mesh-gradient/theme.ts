@@ -1,4 +1,4 @@
-import { hslToHex, type MeshGradientSpec, type MeshPoint } from "./gradient.js";
+import { cssCommentText, hslToHex, type MeshGradientSpec, type MeshPoint } from "./gradient.js";
 
 /**
  * bb palettes derive every neutral surface from two anchors (--canvas/--ink)
@@ -45,7 +45,7 @@ export function toThemeCss(spec: MeshGradientSpec, options: ThemeOptions): strin
   const darkInk = hslToHex(hue, 16, 90);
   const darkPrimary = hslToHex(accentHue, 62, 68);
 
-  return `/* ${options.name} — generated from a mesh gradient (seed ${spec.seed}).
+  return `/* ${cssCommentText(options.name)} — generated from a mesh gradient (seed ${spec.seed}).
    Only the anchors, accent, and semantics are set; bb derives the rest. */
 :root, .light {
   --canvas: ${lightCanvas};

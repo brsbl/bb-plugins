@@ -8,6 +8,8 @@ import {
 } from "./core.js";
 import { DEFAULT_INSTRUCTIONS } from "./instructions.js";
 
+const HELPER_USAGE =
+  "usage: bb prompt-shaper helper [default|thread|fixed <provider-id> [model]]\n";
 const REQUEST_TTL_MS = 24 * 60 * 60 * 1_000;
 const REQUEST_PREFIX = "request:";
 const THREAD_PREFIX = "thread:";
@@ -465,6 +467,57 @@ export default async function plugin(bb: BbPluginApi) {
       title: "Improve Prompt",
     });
   }
+
+  function describeHelperExecution(execution: HelperExecution): string {
+    if (execution.mode === "fixed") {
+      return execution.model === null
+        ? `fixed provider=${execution.providerId}`
+        : `fixed provider=${execution.providerId} model=${execution.model}`;
+    }
+    return execution.mode;
+  }
+
+  bb.cli.register({
+    name: "prompt-shaper",
+    summary: "Show or choose which provider and model the hidden helper runs with",
+    commands: [
+      {
+        name: "helper",
+        summary:
+          "Print the helper execution, or set it to default, thread, or a fixed provider and model",
+        usage:
+          "bb prompt-shaper helper [default|thread|fixed <provider-id> [model]]",
+      },
+    ],
+    async run(argv) {
+      const [command, mode, providerId, model, ...extra] = argv;
+      if (command !== "helper") {
+        return { exitCode: 1, stderr: HELPER_USAGE };
+      }
+      if (mode === undefined) {
+        return { exitCode: 0, stdout: `${describeHelperExecution(await readHelperExecution())}\n` };
+      }
+      let next: HelperExecution;
+      if ((mode === "default" || mode === "thread") && providerId === undefined) {
+        next = { mode, providerId: null, model: null };
+      } else if (mode === "fixed" && providerId !== undefined && extra.length === 0) {
+        const providers = await bb.sdk.providers.list();
+        if (!providers.some((provider) => provider.id === providerId)) {
+          const ids = providers.map((provider) => provider.id).join(", ");
+          return { exitCode: 1, stderr: `unknown provider ${JSON.stringify(providerId)}; available: ${ids}\n` };
+        }
+        next = { mode, providerId, model: model ?? null };
+      } else {
+        return { exitCode: 1, stderr: HELPER_USAGE };
+      }
+      if (next.mode === "default") {
+        await bb.storage.kv.delete(HELPER_EXECUTION_KEY);
+      } else {
+        await bb.storage.kv.set(HELPER_EXECUTION_KEY, next);
+      }
+      return { exitCode: 0, stdout: `${describeHelperExecution(next)}\n` };
+    },
+  });
 
   bb.rpc.register(rpcContract, {
     async getHelperExecution() {

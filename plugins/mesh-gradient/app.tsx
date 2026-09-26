@@ -758,10 +758,14 @@ function Studio({ threadId }: PluginThreadPanelProps) {
   const pristineRef = useRef(pristine);
   pristineRef.current = pristine;
 
+  const proposalRequest = useRef(0);
+
   const refreshProposals = useCallback(async () => {
     if (!threadId) return;
+    const request = ++proposalRequest.current;
     try {
       const { proposals: next } = await rpc.call("listProposals", { threadId });
+      if (request !== proposalRequest.current) return;
       setProposals(next);
       const seen = seenProposals.current;
       seenProposals.current = new Set(next.map((proposal) => proposal.id));
@@ -776,6 +780,7 @@ function Studio({ threadId }: PluginThreadPanelProps) {
         toast.success(`The agent proposed “${newest.name}”`);
       }
     } catch (error) {
+      if (request !== proposalRequest.current) return;
       toast.error(`Loading proposals failed: ${errorMessage(error)}`);
     }
   }, [rpc, threadId, loadProposal]);
@@ -894,12 +899,22 @@ function Studio({ threadId }: PluginThreadPanelProps) {
         id: gradient.id,
         label: gradient.name,
       });
-      const suffix = handoffSuffix(preset, contrast);
+      const suffix = handoffSuffix(
+        preset,
+        measureContrast({
+          seed: gradient.seed,
+          style: gradient.style,
+          points: gradient.points,
+          ...(gradient.customColor === undefined
+            ? {}
+            : { customColor: gradient.customColor }),
+        }),
+      );
       composer.updateText((current) => `${current}${suffix}`);
       composer.focus();
       toast.success("Handoff added to the composer");
     },
-    [composer, preset, contrast],
+    [composer, preset],
   );
 
   const sendToAgent = useCallback(async () => {

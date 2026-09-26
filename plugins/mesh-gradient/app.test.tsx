@@ -324,4 +324,37 @@ describe("mesh gradient app", () => {
     });
     slot.lifecycle.unmount();
   });
+
+  it("names the sent library gradient's own text color, not the canvas's", async () => {
+    const flat = (lightness: number) => [
+      { x: 50, y: 50, hue: 200, saturation: 20, lightness, radius: 200 },
+    ];
+    const pale = { ...savedGradient, id: "grad_pale", name: "pale mist", style: "mono", points: flat(95) };
+    const deep = { ...savedGradient, id: "grad_deep", name: "deep night", style: "mono", points: flat(10) };
+    const app = await loadPluginApp(() => import("./app.js"));
+    const slot = renderSlot(
+      app.threadPanelActions[0]!,
+      { threadId: "thr_1", params: null },
+      {
+        rpc: {
+          listSaved: () => ({ gradients: [pale, deep] }),
+          listProposals: () => ({ proposals: [] }),
+        },
+      },
+    );
+    await slot.behavior.setComposerScope({ kind: "thread", threadId: "thr_1" });
+    fireEvent.click(await slot.findByText("pale mist"));
+    await waitFor(() => {
+      expect(slot.getByTestId("readability").textContent).toMatch(/^Black text/);
+    });
+    fireEvent.click(slot.getByRole("button", { name: "Surface" }));
+    fireEvent.click(slot.getByRole("menuitemradio", { name: /OG card/ }));
+    fireEvent.click(
+      await slot.findByRole("button", { name: "Send deep night to agent" }),
+    );
+    await waitFor(() => {
+      expect(slot.inspection.composer.text).toMatch(/with white text on top/);
+    });
+    slot.lifecycle.unmount();
+  });
 });

@@ -1,5 +1,6 @@
 import {
   contrastReportFor,
+  pointEllipse,
   sampleLuminances,
   type ContrastReport,
   type MeshGradientSpec,
@@ -113,14 +114,16 @@ export function drawMeshGradient(
     1,
   );
   context.fillRect(0, 0, width, height);
-  const longest = Math.max(width, height);
   // CSS paints the first background image on top. Canvas uses painter's
   // order, so draw the first CSS layer last to preserve the same stacking.
   for (const point of [...points].reverse()) {
-    const cx = (point.x / 100) * width;
-    const cy = (point.y / 100) * height;
-    const radius = Math.max(1, (point.radius / 100) * longest);
-    const gradient = context.createRadialGradient(cx, cy, 0, cx, cy, radius);
+    const { cx, cy, rx, ry } = pointEllipse(point, width, height);
+    const squash = ry / rx;
+    const offset = cy - cy * squash;
+    context.save();
+    context.translate(0, offset);
+    context.scale(1, squash);
+    const gradient = context.createRadialGradient(cx, cy, 0, cx, cy, rx);
     gradient.addColorStop(
       0,
       hslaString(point.hue, point.saturation, point.lightness, 1),
@@ -130,7 +133,8 @@ export function drawMeshGradient(
       hslaString(point.hue, point.saturation, point.lightness, 0),
     );
     context.fillStyle = gradient;
-    context.fillRect(0, 0, width, height);
+    context.fillRect(0, -offset / squash, width, height / squash);
+    context.restore();
   }
 }
 
