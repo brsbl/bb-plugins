@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type MouseEvent as ReactMouseEvent } from "react";
 
 import "./minesweeper.css";
+import { usePointerTracker } from "../windows";
 import { ProgramMenuBar } from "../apps/xp-chrome";
 import {
   DIFFICULTIES,
@@ -90,6 +91,7 @@ export function MinesweeperGame() {
   const [difficulty, setDifficulty] = useState<Difficulty>(loadDifficulty);
   const [board, setBoard] = useState<Board>(() => emptyBoard(difficulty));
   const [pressing, setPressing] = useState(false);
+  const track = usePointerTracker();
   const [startedAt, setStartedAt] = useState<number | null>(null);
   const [now, setNow] = useState(() => Date.now());
   const [cellSize, setCellSize] = useState(22);
@@ -181,10 +183,15 @@ export function MinesweeperGame() {
             aria-label={`Minesweeper, ${DIFFICULTIES[difficulty].label}`}
             style={{ gridTemplateColumns: `repeat(${board.cols}, ${cellSize}px)`, gridAutoRows: `${cellSize}px` }}
             onPointerDown={(event) => {
-              if (event.button === 0 && board.status !== "won" && board.status !== "lost") setPressing(true);
+              if (event.button !== 0 || board.status === "won" || board.status === "lost") return;
+              // Capture the cell, not the grid, so a normal click still reveals it.
+              const target = event.target as HTMLElement;
+              const cell = target.closest<HTMLElement>(".bbd-mine-cell");
+              if (!cell) return;
+              setPressing(true);
+              track({ ...event, currentTarget: cell }, () => setPressing(false), () => setPressing(false));
             }}
-            onPointerUp={() => setPressing(false)}
-            onPointerLeave={() => setPressing(false)}
+            onPointerCancel={() => setPressing(false)}
           >
             {board.cells.map((cell, index) => (
               <button

@@ -9,6 +9,7 @@ import {
 } from "react";
 
 import "./paint.css";
+import { usePointerTracker } from "../windows";
 import { ProgramMenuBar, ProgramStatusBar } from "./xp-chrome";
 import {
   DEFAULT_CANVAS_SIZE,
@@ -47,13 +48,6 @@ interface Stroke {
   width: number;
   start: Point;
   last: Point;
-}
-
-interface ResizeDrag {
-  pointerId: number;
-  originX: number;
-  originY: number;
-  start: Size;
 }
 
 const TOOL_ORDER: ToolId[] = ["eraser", "fill", "picker", "pencil", "brush", "line", "rectangle", "ellipse"];
@@ -205,11 +199,11 @@ export function PaintApp() {
   const overlayRef = useRef<HTMLCanvasElement>(null);
   const ratioRef = useRef(1);
   const strokeRef = useRef<Stroke | null>(null);
-  const resizeRef = useRef<ResizeDrag | null>(null);
+  const track = usePointerTracker();
+  const ghostRef = useRef<HTMLDivElement>(null);
   const historyRef = useRef<Snapshot[]>([]);
   const sizeRef = useRef<Size>(DEFAULT_CANVAS_SIZE);
   const [size, setSize] = useState<Size>(DEFAULT_CANVAS_SIZE);
-  const [pending, setPending] = useState<Size | null>(null);
   const [tool, setTool] = useState<ToolId>("pencil");
   const [previousTool, setPreviousTool] = useState<ToolId>("pencil");
   const [sizes, setSizes] = useState(defaultSizes);
@@ -304,16 +298,6 @@ export function PaintApp() {
     }, "image/png");
   };
 
-  const pointFrom = (event: ReactPointerEvent<HTMLCanvasElement>): Point => {
-    const rect = event.currentTarget.getBoundingClientRect();
-    const scaleX = rect.width > 0 ? sizeRef.current.width / rect.width : 1;
-    const scaleY = rect.height > 0 ? sizeRef.current.height / rect.height : 1;
-    return {
-      x: Math.floor((event.clientX - rect.left) * scaleX),
-      y: Math.floor((event.clientY - rect.top) * scaleY),
-    };
-  };
-
   const selectTool = (next: ToolId) => {
     if (next === "picker" && tool !== "picker") setPreviousTool(tool);
     setTool(next);
@@ -328,11 +312,17 @@ export function PaintApp() {
   };
 
   const onCanvasPointerDown = (event: ReactPointerEvent<HTMLCanvasElement>) => {
-    if ((event.button !== 0 && event.button !== 2) || strokeRef.current !== null) return;
+    if (event.button !== 0 || strokeRef.current !== null) return;
     event.preventDefault();
     rootRef.current?.focus({ preventScroll: true });
-    const point = pointFrom(event);
-    const alternate = event.button === 2;
+    const bounds = event.currentTarget.getBoundingClientRect();
+    const logicalSize = sizeRef.current;
+    const toPoint = (pointer: { clientX: number; clientY: number }): Point => ({
+      x: Math.floor((pointer.clientX - bounds.left) * logicalSize.width / bounds.width),
+      y: Math.floor((pointer.clientY - bounds.top) * logicalSize.height / bounds.height),
+    });
+    const point = toPoint(event);
+    const alternate = event.altKey;
     const canvas = canvasRef.current;
     if (canvas === null) return;
 
@@ -369,76 +359,57 @@ export function PaintApp() {
 
     const color = tool === "eraser" || alternate ? secondary : primary;
     const stroke: Stroke = { pointerId: event.pointerId, tool, color, width: sizes[tool], start: point, last: point };
-    event.currentTarget.setPointerCapture(event.pointerId);
     strokeRef.current = stroke;
     remember();
     if (tool === "pencil" || tool === "brush" || tool === "eraser") {
       const ctx = context(canvas);
       if (ctx !== null) strokeSegment(ctx, stroke, point, point);
     }
-  };
-
-  const onCanvasPointerMove = (event: ReactPointerEvent<HTMLCanvasElement>) => {
-    const stroke = strokeRef.current;
-    if (stroke === null || stroke.pointerId !== event.pointerId) return;
-    const point = pointFrom(event);
-    if (stroke.tool === "pencil" || stroke.tool === "brush" || stroke.tool === "eraser") {
-      const ctx = context(canvasRef.current);
-      if (ctx !== null) strokeSegment(ctx, stroke, stroke.last, point);
-      stroke.last = point;
-      return;
-    }
-    stroke.last = point;
-    clearOverlay();
-    const ctx = context(overlayRef.current);
-    if (ctx !== null) drawShape(ctx, stroke, point, event.shiftKey);
-  };
-
-  const finishStroke = (event: ReactPointerEvent<HTMLCanvasElement>, commit: boolean) => {
-    const stroke = strokeRef.current;
-    if (stroke === null || stroke.pointerId !== event.pointerId) return;
-    strokeRef.current = null;
-    if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
-    if (stroke.tool === "line" || stroke.tool === "rectangle" || stroke.tool === "ellipse") {
+    let square = event.shiftKey;
+    track(event, (_delta, pointer) => {
+      const next = toPoint(pointer);
+      square = pointer.shiftKey;
+      if (stroke.tool === "pencil" || stroke.tool === "brush" || stroke.tool === "eraser") {
+        const ctx = context(canvasRef.current);
+        if (ctx !== null) strokeSegment(ctx, stroke, stroke.last, next);
+      } else {
+        clearOverlay();
+        const ctx = context(overlayRef.current);
+        if (ctx !== null) drawShape(ctx, stroke, next, square);
+      }
+      stroke.last = next;
+    }, (cancelled) => {
+      strokeRef.current = null;
       clearOverlay();
-      const ctx = context(canvasRef.current);
-      if (commit && ctx !== null) drawShape(ctx, stroke, pointFrom(event), event.shiftKey);
-    }
+      if (!cancelled && (stroke.tool === "line" || stroke.tool === "rectangle" || stroke.tool === "ellipse")) {
+        const ctx = context(canvasRef.current);
+        if (ctx !== null) drawShape(ctx, stroke, stroke.last, square);
+      }
+    }, { threshold: 0, samples: true });
   };
 
   const onHandlePointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
     if (event.button !== 0 || strokeRef.current !== null) return;
     event.preventDefault();
     event.stopPropagation();
-    event.currentTarget.setPointerCapture(event.pointerId);
-    resizeRef.current = { pointerId: event.pointerId, originX: event.clientX, originY: event.clientY, start: sizeRef.current };
-    setPending(sizeRef.current);
-  };
-
-  const onHandlePointerMove = (event: ReactPointerEvent<HTMLDivElement>) => {
-    const drag = resizeRef.current;
-    if (drag === null || drag.pointerId !== event.pointerId) return;
-    setPending({
-      width: clampCanvasSize(drag.start.width + event.clientX - drag.originX),
-      height: clampCanvasSize(drag.start.height + event.clientY - drag.originY),
+    const start = sizeRef.current;
+    let next = start;
+    track(event, (delta) => {
+      next = { width: clampCanvasSize(start.width + delta.x), height: clampCanvasSize(start.height + delta.y) };
+      const ghost = ghostRef.current;
+      if (ghost) {
+        ghost.hidden = false;
+        ghost.style.width = `${next.width}px`;
+        ghost.style.height = `${next.height}px`;
+      }
+    }, (cancelled, moved) => {
+      if (ghostRef.current) ghostRef.current.hidden = true;
+      if (cancelled || !moved || (next.width === start.width && next.height === start.height)) return;
+      const snapshot = remember();
+      applySize(next, null);
+      const ctx = canvasRef.current?.getContext("2d", { willReadFrequently: true });
+      if (snapshot !== null && ctx != null) ctx.putImageData(snapshot.image, 0, 0);
     });
-  };
-
-  const onHandlePointerUp = (event: ReactPointerEvent<HTMLDivElement>, commit: boolean) => {
-    const drag = resizeRef.current;
-    if (drag === null || drag.pointerId !== event.pointerId) return;
-    resizeRef.current = null;
-    if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
-    const next = {
-      width: clampCanvasSize(drag.start.width + event.clientX - drag.originX),
-      height: clampCanvasSize(drag.start.height + event.clientY - drag.originY),
-    };
-    setPending(null);
-    if (!commit || (next.width === sizeRef.current.width && next.height === sizeRef.current.height)) return;
-    const snapshot = remember();
-    applySize(next, null);
-    const ctx = canvasRef.current?.getContext("2d", { willReadFrequently: true });
-    if (snapshot !== null && ctx != null) ctx.putImageData(snapshot.image, 0, 0);
   };
 
   const onKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>) => {
@@ -518,9 +489,6 @@ export function PaintApp() {
               aria-label={`Picture, ${size.width} by ${size.height} pixels`}
               role="img"
               onPointerDown={onCanvasPointerDown}
-              onPointerMove={onCanvasPointerMove}
-              onPointerUp={(event) => finishStroke(event, true)}
-              onPointerCancel={(event) => finishStroke(event, false)}
               onContextMenu={(event) => event.preventDefault()}
             />
             <canvas
@@ -529,18 +497,13 @@ export function PaintApp() {
               style={{ width: size.width, height: size.height }}
               aria-hidden
             />
-            {pending !== null ? (
-              <div className="bbd-paint-ghost" style={{ width: pending.width, height: pending.height }} aria-hidden />
-            ) : null}
+            <div ref={ghostRef} className="bbd-paint-ghost" hidden aria-hidden />
             <div
               className="bbd-paint-handle"
               role="separator"
               aria-label="Resize picture"
-              title={pending !== null ? `${pending.width} × ${pending.height}` : "Resize picture"}
+              title="Resize picture"
               onPointerDown={onHandlePointerDown}
-              onPointerMove={onHandlePointerMove}
-              onPointerUp={(event) => onHandlePointerUp(event, true)}
-              onPointerCancel={(event) => onHandlePointerUp(event, false)}
             />
           </div>
         </div>

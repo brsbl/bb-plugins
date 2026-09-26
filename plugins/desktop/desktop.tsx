@@ -111,7 +111,7 @@ import {
   WindowFrame,
   WindowManagerProvider,
   setWindowNudges,
-  trackPointer,
+  usePointerTracker,
   useWindowManager,
   viewportRect,
   workAreaRect,
@@ -213,6 +213,7 @@ function useDropTarget(group: DesktopGroup | null) {
     over,
     handlers: enabled
       ? {
+          "data-thread-drop": group.key,
           onDragOver(event: ReactDragEvent) {
             if (!event.dataTransfer.types.includes(THREAD_DRAG_TYPE)) return;
             event.preventDefault();
@@ -886,11 +887,6 @@ const MORE_KEY = "more";
 const NOTE_KEY_PREFIX = "note:";
 const ICON_BOX = { width: 88, height: 84 } as const;
 
-interface IconDrag {
-  keys: ReadonlySet<string>;
-  delta: Point;
-  overBin: boolean;
-}
 
 function isDeletable(group: DesktopGroup): boolean {
   return group.kind === "folder" || (group.kind === "section" && group.id !== null);
@@ -915,8 +911,8 @@ function DesktopCanvas() {
   const binRef = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState(900);
   const [selected, setSelected] = useState<ReadonlySet<string>>(() => new Set());
-  const [drag, setDrag] = useState<IconDrag | null>(null);
-  const [marquee, setMarquee] = useState<{ left: number; top: number; width: number; height: number } | null>(null);
+  const trackPointer = usePointerTracker();
+  const marqueeRef = useRef<HTMLDivElement>(null);
   const [overrides, setOverrides] = useState<Record<string, Point>>({});
 
   useEffect(() => {
@@ -944,7 +940,7 @@ function DesktopCanvas() {
     const placed = new Map<string, Point>();
     for (const key of keys) {
       const point = overrides[key] ?? snapshot.layout[key];
-      if (point !== undefined) placed.set(key, point);
+      if (point !== undefined) placed.set(key, { x: Math.max(0, Math.min(point.x, width - ICON_BOX.width)), y: Math.max(0, point.y) });
     }
     for (const key of keys) {
       if (placed.has(key)) continue;
@@ -991,10 +987,7 @@ function DesktopCanvas() {
     setSelected(new Set());
   };
 
-  const overBin = (x: number, y: number) => {
-    const bin = binRef.current?.getBoundingClientRect();
-    return bin !== undefined && x >= bin.left && x <= bin.right && y >= bin.top && y <= bin.bottom;
-  };
+  const iconElements = () => Array.from(canvasRef.current?.querySelectorAll<HTMLElement>("[data-desktop-key]") ?? []);
 
   const beginIconDrag = (key: string, event: ReactPointerEvent<HTMLDivElement>) => {
     if (event.button !== 0) return;
@@ -1007,73 +1000,77 @@ function DesktopCanvas() {
       });
       return;
     }
-    const moving: ReadonlySet<string> = selected.has(key) ? selected : new Set([key]);
+    const moving = selected.has(key) ? selected : new Set([key]);
     if (!selected.has(key)) setSelected(moving);
+    const elements = iconElements().filter((element) => moving.has(element.dataset.desktopKey!));
+    const bin = binRef.current?.getBoundingClientRect();
     const origin = { x: event.clientX, y: event.clientY };
-    const canDropOnBin = !moving.has(RECYCLE_BIN_KEY);
-    let moved = false;
+    const points = [...moving].map((movingKey) => positions.get(movingKey)!).filter(Boolean);
+    const minX = Math.min(...points.map((point) => point.x));
+    const minY = Math.min(...points.map((point) => point.y));
+    const maxX = Math.max(...points.map((point) => point.x));
     let delta: Point = { x: 0, y: 0 };
-    trackPointer(
-      event,
-      (next) => {
-        if (!moved && Math.hypot(next.x, next.y) < 4) return;
-        moved = true;
-        delta = next;
-        setDrag({ keys: moving, delta: next, overBin: canDropOnBin && overBin(origin.x + next.x, origin.y + next.y) });
-      },
-      () => {
-        setDrag(null);
-        if (!moved) return;
-        if (canDropOnBin && overBin(origin.x + delta.x, origin.y + delta.y)) {
-          deleteGroups(deletableIn(moving), deleteNotesIn(moving));
-          return;
-        }
-        saveLayout(
-          Object.fromEntries(
-            [...moving].flatMap((movingKey) => {
-              const point = positions.get(movingKey);
-              return point === undefined
-                ? []
-                : [[movingKey, { x: Math.max(0, point.x + delta.x), y: Math.max(0, point.y + delta.y) }]];
-            }),
-          ),
-        );
-      },
-    );
+    let overBin = false;
+    trackPointer(event, (next) => {
+      // Clamp the group as a unit so items retain their spacing at an edge.
+      delta = { x: Math.max(-minX, Math.min(next.x, Math.max(0, width - ICON_BOX.width) - maxX)), y: Math.max(-minY, next.y) };
+      overBin = !moving.has(RECYCLE_BIN_KEY) && bin !== undefined &&
+        origin.x + next.x >= bin.left && origin.x + next.x <= bin.right &&
+        origin.y + next.y >= bin.top && origin.y + next.y <= bin.bottom;
+      for (const element of elements) {
+        element.style.transform = `translate(${delta.x}px, ${delta.y}px)`;
+        element.dataset.dragging = "true";
+      }
+      if (binRef.current) binRef.current.dataset.dropTarget = String(overBin);
+    }, (cancelled, moved) => {
+      for (const element of elements) {
+        element.style.transform = "";
+        element.dataset.dragging = "false";
+      }
+      if (binRef.current) binRef.current.dataset.dropTarget = "false";
+      if (cancelled || !moved) return;
+      if (overBin) {
+        deleteGroups(deletableIn(moving), deleteNotesIn(moving));
+        return;
+      }
+      saveLayout(Object.fromEntries([...moving].flatMap((movingKey) => {
+        const point = positions.get(movingKey);
+        return point ? [[movingKey, { x: point.x + delta.x, y: point.y + delta.y }]] : [];
+      })));
+    });
   };
 
   const beginMarquee = (event: ReactPointerEvent<HTMLDivElement>) => {
     if (event.target !== event.currentTarget || event.button !== 0) return;
-    const base: ReadonlySet<string> =
-      event.metaKey || event.ctrlKey || event.shiftKey ? selected : new Set<string>();
+    const base = event.metaKey || event.ctrlKey || event.shiftKey ? selected : new Set<string>();
     setSelected(base);
     const bounds = event.currentTarget.getBoundingClientRect();
     const start = { x: event.clientX - bounds.left, y: event.clientY - bounds.top };
-    trackPointer(
-      event,
-      (delta) => {
-        const box = {
-          left: Math.min(start.x, start.x + delta.x),
-          top: Math.min(start.y, start.y + delta.y),
-          width: Math.abs(delta.x),
-          height: Math.abs(delta.y),
-        };
-        setMarquee(box);
-        const hit = new Set(base);
-        for (const [key, point] of positions) {
-          if (
-            point.x < box.left + box.width &&
-            point.x + ICON_BOX.width > box.left &&
-            point.y < box.top + box.height &&
-            point.y + ICON_BOX.height > box.top
-          ) {
-            hit.add(key);
-          }
-        }
-        setSelected(hit);
-      },
-      () => setMarquee(null),
-    );
+    const elements = iconElements();
+    let hit = new Set(base);
+    trackPointer(event, (delta) => {
+      const box = { left: Math.min(start.x, start.x + delta.x), top: Math.min(start.y, start.y + delta.y),
+        width: Math.abs(delta.x), height: Math.abs(delta.y) };
+      const marquee = marqueeRef.current;
+      if (marquee) {
+        marquee.hidden = false;
+        Object.assign(marquee.style, { left: `${box.left}px`, top: `${box.top}px`, width: `${box.width}px`, height: `${box.height}px` });
+      }
+      hit = new Set(base);
+      for (const [key, point] of positions) {
+        if (point.x < box.left + box.width && point.x + ICON_BOX.width > box.left &&
+            point.y < box.top + box.height && point.y + ICON_BOX.height > box.top) hit.add(key);
+      }
+      for (const element of elements) {
+        const value = String(hit.has(element.dataset.desktopKey!));
+        if (element.getAttribute("aria-selected") !== value) element.setAttribute("aria-selected", value);
+      }
+    }, (cancelled) => {
+      if (marqueeRef.current) marqueeRef.current.hidden = true;
+      const result = cancelled ? base : hit;
+      for (const element of elements) element.setAttribute("aria-selected", String(result.has(element.dataset.desktopKey!)));
+      setSelected(result);
+    });
   };
 
   const onKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>) => {
@@ -1111,12 +1108,7 @@ function DesktopCanvas() {
     ];
   };
 
-  const placed = (key: string): Point => {
-    const point = positions.get(key)!;
-    return drag !== null && drag.keys.has(key)
-      ? { x: Math.max(0, point.x + drag.delta.x), y: Math.max(0, point.y + drag.delta.y) }
-      : point;
-  };
+  const placed = (key: string): Point => positions.get(key)!;
 
   const arrange = () => {
     const direction = sort.direction === "ascending" ? 1 : -1;
@@ -1205,7 +1197,7 @@ function DesktopCanvas() {
             group={item}
             position={placed(item.key)}
             selected={selected.has(item.key)}
-            dragging={drag !== null && drag.keys.has(item.key)}
+            dragging={false}
             onPointerDown={(event) => beginIconDrag(item.key, event)}
             menu={(single) => iconMenu(item.key, single)}
             onSelect={() => {
@@ -1217,7 +1209,7 @@ function DesktopCanvas() {
           <MoreIcon
             position={placed(MORE_KEY)}
             selected={selected.has(MORE_KEY)}
-            dragging={drag !== null && drag.keys.has(MORE_KEY)}
+            dragging={false}
             onPointerDown={(event) => beginIconDrag(MORE_KEY, event)}
             onSelect={() => {
               if (!selected.has(MORE_KEY)) setSelected(new Set([MORE_KEY]));
@@ -1232,7 +1224,7 @@ function DesktopCanvas() {
               note={note}
               position={placed(key)}
               selected={selected.has(key)}
-              dragging={drag !== null && drag.keys.has(key)}
+              dragging={false}
               onPointerDown={(event) => beginIconDrag(key, event)}
               onSelect={() => {
                 if (!selected.has(key)) setSelected(new Set([key]));
@@ -1244,8 +1236,8 @@ function DesktopCanvas() {
           binRef={binRef}
           position={placed(RECYCLE_BIN_KEY)}
           selected={selected.has(RECYCLE_BIN_KEY)}
-          dragging={drag !== null && drag.keys.has(RECYCLE_BIN_KEY)}
-          iconsOver={drag?.overBin === true}
+          dragging={false}
+          iconsOver={false}
           onPointerDown={(event) => beginIconDrag(RECYCLE_BIN_KEY, event)}
           onSelect={() => {
             if (!selected.has(RECYCLE_BIN_KEY)) setSelected(new Set([RECYCLE_BIN_KEY]));
@@ -1255,13 +1247,7 @@ function DesktopCanvas() {
             actions.archive(threadId);
           }}
         />
-        {marquee === null ? null : (
-          <div
-            className="bbd-marquee"
-            style={{ left: marquee.left, top: marquee.top, width: marquee.width, height: marquee.height }}
-            aria-hidden
-          />
-        )}
+        <div ref={marqueeRef} className="bbd-marquee" hidden aria-hidden />
       </div>
     </div>
   );
@@ -2209,6 +2195,7 @@ function DesktopIcon({
       aria-label={summary}
       title={summary}
       className="bbd-icon"
+      data-desktop-key={group.key}
       data-dragging={dragging}
       data-drop-target={drop.over}
       style={{ left: position.x, top: position.y }}
@@ -2295,6 +2282,7 @@ function MoreIcon({
       aria-label={summary}
       title={summary}
       className="bbd-icon"
+      data-desktop-key={MORE_KEY}
       data-dragging={dragging}
       style={{ left: position.x, top: position.y }}
       onPointerDown={onPointerDown}
@@ -2405,6 +2393,7 @@ function NoteIcon({
       aria-label={`Note pad — ${title}`}
       title={title}
       className="bbd-icon"
+      data-desktop-key={NOTE_KEY_PREFIX + note.id}
       data-dragging={dragging}
       style={{ left: position.x, top: position.y }}
       onPointerDown={onPointerDown}
@@ -2465,6 +2454,8 @@ function RecycleBinIcon({
       aria-label={summary}
       title={summary}
       className="bbd-icon"
+      data-desktop-key={RECYCLE_BIN_KEY}
+      data-thread-drop="recycle-bin"
       data-dragging={dragging}
       data-drop-target={threadOver || iconsOver}
       style={{ left: position.x, top: position.y }}
@@ -2742,6 +2733,7 @@ function ThreadCollection({
   const desktop = useDesktop();
   const manager = useWindowManager();
   const actions = useSidebarThreadActions();
+  const track = usePointerTracker();
   const [selected, setSelected] = useState<string | null>(null);
 
   if (threads.length === 0) {
@@ -2749,13 +2741,48 @@ function ThreadCollection({
   }
 
   const itemProps = (thread: DesktopThread) => ({
-    draggable: true,
-    "aria-selected": selected === thread.id,
-    onDragStart: (event: ReactDragEvent) =>
-      startThreadDrag(event, {
-        threadId: thread.id,
-        fromFolderId: group?.kind === "folder" ? group.folder.id : null,
-      }),
+    draggable: false,
+    onPointerDown: (event: ReactPointerEvent<HTMLElement>) => {
+      if (event.button !== 0) return;
+      setSelected(thread.id);
+      const source = event.currentTarget;
+      const origin = { x: event.clientX, y: event.clientY };
+      const targets = Array.from(document.querySelectorAll<HTMLElement>("[data-thread-drop]")).filter((element) => !element.closest("[hidden]")).map((element) => ({
+        element, key: element.dataset.threadDrop!, rect: element.getBoundingClientRect(),
+        z: Number(element.closest<HTMLElement>(".bbd-window")?.style.zIndex ?? 0),
+      })).sort((a, b) => b.z - a.z);
+      const windows = Array.from(document.querySelectorAll<HTMLElement>(".bbd-window:not([hidden])")).map((element) => ({ rect: element.getBoundingClientRect(), z: Number(element.style.zIndex) || 0 }));
+      const preview = document.createElement("div");
+      preview.className = "bbd-root bbd-thread-drag-preview";
+      preview.textContent = thread.title;
+      let target: typeof targets[number] | undefined;
+      track(event, (delta) => {
+        const x = origin.x + delta.x, y = origin.y + delta.y;
+        const topZ = Math.max(0, ...windows.filter(({ rect }) => x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom).map(({ z }) => z));
+        const next = targets.find(({ rect, z }) => z >= topZ && x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom);
+        if (!preview.isConnected) document.body.append(preview);
+        preview.style.transform = `translate(${x + 12}px, ${y + 12}px)`;
+        if (target !== next) {
+          if (target) target.element.dataset.dropTarget = "false";
+          target = next;
+          if (target) target.element.dataset.dropTarget = "true";
+        }
+        source.style.opacity = "0.5";
+      }, (cancelled, moved) => {
+        source.style.opacity = "";
+        preview.remove();
+        if (target) target.element.dataset.dropTarget = "false";
+        if (cancelled || !moved || !target) return;
+        if (target.key === "recycle-bin") {
+          if (!thread.isArchived) { closeThreadWindows(manager, thread.id); actions.archive(thread.id); }
+        } else {
+          const destination = desktop.groupByKey.get(target.key);
+          if (destination) void desktop.dropThread(destination, {
+            threadId: thread.id, fromFolderId: group?.kind === "folder" ? group.folder.id : null,
+          });
+        }
+      });
+    },
     onClick: () => setSelected(thread.id),
     onDoubleClick: () => desktop.openThread(thread.id),
     onKeyDown: (event: { key: string }) => {

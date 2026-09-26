@@ -14,7 +14,7 @@ import {
 import { CloseGlyph, MaximizeGlyph, MinusGlyph, RestoreGlyph } from "./art";
 
 import { findApp } from "./bridge";
-import { clampRect, resizeRect, type Point, type Rect, type ResizeEdge } from "./core";
+import { resizeRect, type Point, type Rect, type ResizeEdge } from "./core";
 
 let nudges: ReadonlyMap<string, Point> = new Map();
 const nudgeListeners = new Set<() => void>();
@@ -175,17 +175,18 @@ function reducer(state: WindowState, action: Action): WindowState {
         windows: state.windows.map((window) => {
           if (window.id !== action.id) return window;
           return window.restoreRect !== null
-            ? { ...window, rect: window.restoreRect, restoreRect: null }
+            ? { ...window, rect: fitDragRect(window.restoreRect, action.viewport), restoreRect: null }
             : { ...window, rect: action.viewport, restoreRect: window.rect };
         }),
       };
     case "fit-maximized": {
       const { viewport } = action;
-      const stale = state.windows.some((window) => window.restoreRect !== null && !sameRect(window.rect, viewport));
+      const fitted = (window: DesktopWindow) => window.restoreRect !== null ? viewport : fitDragRect(window.rect, viewport);
+      const stale = state.windows.some((window) => !sameRect(window.rect, fitted(window)));
       if (!stale) return state;
       return {
         ...state,
-        windows: state.windows.map((window) => (window.restoreRect === null ? window : { ...window, rect: viewport })),
+        windows: state.windows.map((window) => ({ ...window, rect: fitted(window) })),
       };
     }
     case "arrange":
@@ -251,12 +252,12 @@ function loadState(): WindowState {
       const record = entry as Record<string, unknown>;
       const spec = parseSpec(record.spec);
       if (spec === null || !isRect(record.rect)) return [];
-      const restoreRect = isRect(record.restoreRect) ? clampRect(record.restoreRect, viewportRect()) : null;
+      const restoreRect = isRect(record.restoreRect) ? fitDragRect(record.restoreRect, workAreaRect()) : null;
       return [
         {
           id: windowId(spec),
           spec,
-          rect: restoreRect === null ? clampRect(record.rect, viewportRect()) : workAreaRect(),
+          rect: restoreRect === null ? fitDragRect(record.rect, workAreaRect()) : workAreaRect(),
           z: typeof record.z === "number" ? record.z : 1,
           minimized: record.minimized === true,
           restoreRect,
@@ -290,7 +291,7 @@ export function workAreaRect(): Rect {
   const top = chromeTop();
   const taskbar = document.querySelector(".bbd-taskbar")?.getBoundingClientRect();
   const bottom = taskbar !== undefined && taskbar.height > 0 ? taskbar.top - TASKBAR_GAP : window.innerHeight - DOCK_RESERVE;
-  return { x: 0, y: top, width: window.innerWidth, height: Math.max(200, bottom - top) };
+  return { x: 0, y: top, width: window.innerWidth, height: Math.max(0, bottom - top) };
 }
 
 function sameRect(a: Rect, b: Rect): boolean {
@@ -298,7 +299,7 @@ function sameRect(a: Rect, b: Rect): boolean {
 }
 
 export function defaultRect(spec: WindowSpec, stagger: number): Rect {
-  const viewport = viewportRect();
+  const viewport = workAreaRect();
   const size =
     spec.kind === "thread"
       ? { width: 620, height: 640 }
@@ -332,7 +333,7 @@ export function defaultRect(spec: WindowSpec, stagger: number): Rect {
               ? { width: findApp(spec.key)?.width ?? 520, height: findApp(spec.key)?.height ?? 420 }
             : { width: 560, height: 400 };
   const offset = (stagger % 8) * 28;
-  return clampRect(
+  return fitDragRect(
     {
       ...size,
       x: Math.round((viewport.width - size.width) / 2) + offset - 84,
@@ -429,30 +430,152 @@ export function WindowManagerProvider({ children }: { children: ReactNode }) {
 
 const EDGES: readonly ResizeEdge[] = ["n", "s", "e", "w", "ne", "nw", "se", "sw"];
 
+export const DRAG_THRESHOLD = 4;
+
+export function crossedDragThreshold(delta: Point, threshold = DRAG_THRESHOLD): boolean {
+  return Math.hypot(delta.x, delta.y) >= threshold;
+}
+
+/** Keep the whole frame inside the usable desktop, including on tiny viewports. */
+export function fitDragRect(rect: Rect, area: Rect, minimum = { width: 280, height: 180 }): Rect {
+  const width = Math.min(Math.max(rect.width, minimum.width), area.width);
+  const height = Math.min(Math.max(rect.height, minimum.height), area.height);
+  return { width, height,
+    x: Math.max(area.x, Math.min(rect.x, area.x + area.width - width)),
+    y: Math.max(area.y, Math.min(rect.y, area.y + area.height - height)),
+  };
+}
+
+/** Resize without moving the opposite edge when the pointer reaches a boundary. */
+export function resizeInArea(rect: Rect, edge: ResizeEdge, delta: Point, area: Rect): Rect {
+  const bounded = {
+    x: edge.includes("w") ? Math.max(delta.x, area.x - rect.x) : Math.min(delta.x, area.x + area.width - rect.x - rect.width),
+    y: edge.includes("n") ? Math.max(delta.y, area.y - rect.y) : Math.min(delta.y, area.y + area.height - rect.y - rect.height),
+  };
+  return fitDragRect(resizeRect(rect, edge, bounded), area);
+}
+
+let cancelActivePointer: (() => void) | undefined;
+
 function trackPointer(
   event: ReactPointerEvent<HTMLElement>,
-  onMove: (delta: { x: number; y: number }) => void,
-  onEnd?: () => void,
-) {
-  if (event.button !== 0) return;
+  onMove: (delta: Point, event: PointerEvent) => void,
+  onEnd?: (cancelled: boolean, moved: boolean) => void,
+  options: { threshold?: number; samples?: boolean } = {},
+): () => void {
+  if (event.button !== 0 || event.isPrimary === false) return () => {};
+  cancelActivePointer?.();
   const target = event.currentTarget;
+  const pointerId = event.pointerId;
   const start = { x: event.clientX, y: event.clientY };
-  target.setPointerCapture(event.pointerId);
-  const blockSelection = (selection: Event) => selection.preventDefault();
-  document.addEventListener("selectstart", blockSelection);
-  window.getSelection()?.removeAllRanges();
-  const move = (next: PointerEvent) =>
-    onMove({ x: next.clientX - start.x, y: next.clientY - start.y });
-  const end = () => {
-    document.removeEventListener("selectstart", blockSelection);
-    target.removeEventListener("pointermove", move);
-    target.removeEventListener("pointerup", end);
-    target.removeEventListener("pointercancel", end);
-    onEnd?.();
+  let moved = false;
+  let ended = false;
+  let frame = 0;
+  let latest: PointerEvent | null = null;
+  let samples: PointerEvent[] = [];
+  const selection = document.documentElement.style.userSelect;
+  const shield = document.createElement("div");
+  shield.className = "bbd-drag-shield";
+  const blockSelection = (selectionEvent: Event) => selectionEvent.preventDefault();
+  const flush = () => {
+    frame = 0;
+    if (latest === null) return;
+    const next = latest;
+    latest = null;
+    const batch = options.samples ? samples : [next];
+    samples = [];
+    for (const sample of batch) onMove({ x: sample.clientX - start.x, y: sample.clientY - start.y }, sample);
   };
-  target.addEventListener("pointermove", move);
-  target.addEventListener("pointerup", end);
-  target.addEventListener("pointercancel", end);
+  const move = (next: PointerEvent) => {
+    if (next.pointerId !== pointerId) return;
+    const delta = { x: next.clientX - start.x, y: next.clientY - start.y };
+    if (!moved && !crossedDragThreshold(delta, options.threshold)) return;
+    if (!moved) {
+      moved = true;
+      document.documentElement.style.userSelect = "none";
+      document.addEventListener("selectstart", blockSelection);
+      window.getSelection()?.removeAllRanges();
+      document.body.append(shield);
+      window.dispatchEvent(new Event("bbd-drag-state"));
+    }
+    latest = next;
+    if (options.samples) {
+      const coalesced = next.getCoalescedEvents?.() ?? [];
+      samples.push(...(coalesced.length ? coalesced : [next]));
+    }
+    if (!frame) frame = requestAnimationFrame(flush);
+  };
+  const end = (cancelled: boolean) => {
+    if (ended) return;
+    ended = true;
+    cancelAnimationFrame(frame);
+    if (!cancelled) flush();
+    window.removeEventListener("pointermove", move, true);
+    window.removeEventListener("pointerup", up, true);
+    window.removeEventListener("pointercancel", cancelPointer, true);
+    window.removeEventListener("pointerdown", cancel, true);
+    window.removeEventListener("keydown", key, true);
+    window.removeEventListener("blur", cancel);
+    window.removeEventListener("resize", cancel);
+    window.removeEventListener("contextmenu", cancel, true);
+    document.removeEventListener("visibilitychange", cancel);
+    target.removeEventListener("lostpointercapture", cancelPointer);
+    document.removeEventListener("selectstart", blockSelection);
+    if (moved) document.documentElement.style.userSelect = selection;
+    shield.remove();
+    if (cancelActivePointer === cancel) cancelActivePointer = undefined;
+    if (target.hasPointerCapture(pointerId)) target.releasePointerCapture(pointerId);
+    // Suppress only the click belonging to this completed drag. A later click is unaffected.
+    if (moved) {
+      const suppress = (click: MouseEvent) => { click.preventDefault(); click.stopImmediatePropagation(); };
+      window.addEventListener("click", suppress, true);
+      window.addEventListener("dblclick", suppress, true);
+      setTimeout(() => {
+        window.removeEventListener("click", suppress, true);
+        window.removeEventListener("dblclick", suppress, true);
+      }, 0);
+    }
+    onEnd?.(cancelled, moved);
+    window.dispatchEvent(new Event("bbd-drag-state"));
+  };
+  const cancel = () => end(true);
+  const cancelPointer = (next: PointerEvent) => { if (next.pointerId === pointerId) cancel(); };
+  const key = (next: KeyboardEvent) => { if (next.key === "Escape") { next.preventDefault(); cancel(); } };
+  const up = (next: PointerEvent) => {
+    if (next.pointerId !== pointerId) return;
+    if (moved) move(next);
+    end(false);
+  };
+  target.setPointerCapture(pointerId);
+  cancelActivePointer = cancel;
+  window.addEventListener("pointermove", move, true);
+  window.addEventListener("pointerup", up, true);
+  window.addEventListener("pointercancel", cancelPointer, true);
+  window.addEventListener("pointerdown", cancel, true);
+  window.addEventListener("keydown", key, true);
+  window.addEventListener("blur", cancel);
+  window.addEventListener("resize", cancel);
+  window.addEventListener("contextmenu", cancel, true);
+  document.addEventListener("visibilitychange", cancel);
+  target.addEventListener("lostpointercapture", cancelPointer);
+  return cancel;
+}
+
+/** Component ownership also cancels capture when a window/app unmounts. */
+export function usePointerTracker() {
+  const cancel = useRef<(() => void) | undefined>(undefined);
+  useEffect(() => () => cancel.current?.(), []);
+  return (...args: Parameters<typeof trackPointer>) => {
+    cancel.current?.();
+    cancel.current = trackPointer(...args);
+  };
+}
+
+export function previewRect(element: HTMLElement, rect: Rect) {
+  element.style.left = `${rect.x}px`;
+  element.style.top = `${rect.y}px`;
+  element.style.width = `${rect.width}px`;
+  element.style.height = `${rect.height}px`;
 }
 
 /** Shared title chrome; note pads retain their own persisted placement and lifecycle. */
@@ -492,6 +615,8 @@ export function WindowFrame({
   keepMounted?: boolean;
 }) {
   const manager = useWindowManager();
+  const track = usePointerTracker();
+  const frameRef = useRef<HTMLElement>(null);
   const { id } = desktopWindow;
   const focused = manager.focusedId === id;
   const maximized = desktopWindow.restoreRect !== null;
@@ -507,29 +632,42 @@ export function WindowFrame({
     requestAnimationFrame(() => setSettling(false));
   };
 
-  const startMove = (event: ReactPointerEvent<HTMLElement>) => {
-    if ((event.target as HTMLElement).closest("button") !== null) return;
+  const startDrag = (event: ReactPointerEvent<HTMLElement>, edge?: ResizeEdge) => {
+    if (event.button !== 0 || (event.target as HTMLElement).closest("button") !== null) return;
+    const element = frameRef.current;
+    if (!element) return;
     manager.focus(id);
-    if (maximized) return;
-    trackPointer(event, (delta) =>
-      manager.move(
-        id,
-        clampRect({ ...rect, x: rect.x + delta.x, y: rect.y + delta.y }, viewportRect()),
-      ),
-    );
+    const area = workAreaRect();
+    const origin = maximized && !edge ? fitDragRect({
+      ...desktopWindow.restoreRect!,
+      x: event.clientX - (event.clientX - rect.x) / rect.width * desktopWindow.restoreRect!.width,
+      y: event.clientY - Math.min(24, event.clientY - rect.y),
+    }, area) : fitDragRect(rect, area);
+    let latest = origin;
+    track(event, (delta) => {
+      latest = edge ? resizeInArea(origin, edge, delta, area)
+        : fitDragRect({ ...origin, x: origin.x + delta.x, y: origin.y + delta.y }, area);
+      element.dataset.dragging = "true";
+      if (maximized) element.removeAttribute("data-maximized");
+      if (edge || maximized) previewRect(element, latest);
+      else element.style.transform = `translate(${latest.x - rect.x}px, ${latest.y - rect.y}px)`;
+    }, (cancelled, moved) => {
+      delete element.dataset.dragging;
+      element.style.transform = "";
+      previewRect(element, cancelled || !moved ? rect : latest);
+      if (maximized && (cancelled || !moved)) element.dataset.maximized = "true";
+      if (!cancelled && moved) manager.move(id, latest);
+    });
   };
 
-  const startResize = (edge: ResizeEdge) => (event: ReactPointerEvent<HTMLElement>) => {
-    manager.focus(id);
-    trackPointer(event, (delta) =>
-      manager.move(id, clampRect(resizeRect(rect, edge, delta), viewportRect())),
-    );
-  };
+  const startMove = (event: ReactPointerEvent<HTMLElement>) => startDrag(event);
+  const startResize = (edge: ResizeEdge) => (event: ReactPointerEvent<HTMLElement>) => startDrag(event, edge);
 
   if (desktopWindow.minimized && !keepMounted) return null;
 
   return (
     <section
+      ref={frameRef}
       role="dialog"
       aria-label={title}
       className="bbd-window"

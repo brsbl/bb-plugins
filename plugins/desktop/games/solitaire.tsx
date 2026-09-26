@@ -26,6 +26,7 @@ import {
   type Suit,
 } from "./solitaire-core";
 import "./solitaire.css";
+import { usePointerTracker } from "../windows";
 import { ProgramMenuBar, ProgramStatusBar } from "../apps/xp-chrome";
 
 interface Metrics {
@@ -52,7 +53,6 @@ interface Drag {
   returning: boolean;
 }
 
-const DRAG_THRESHOLD = 4;
 const RETURN_MS = 180;
 
 function measure(width: number): Metrics {
@@ -211,6 +211,7 @@ export function SolitaireGame() {
   const boardRef = useRef<HTMLDivElement>(null);
   const dragStackRef = useRef<HTMLDivElement>(null);
   const dragRef = useRef<Drag | null>(null);
+  const track = usePointerTracker();
   const gameRef = useRef(game);
   const won = isWon(game);
   const running = game.moves > 0 && !won;
@@ -276,99 +277,46 @@ export function SolitaireGame() {
     return () => window.clearTimeout(timer);
   }, [drag?.returning, finishReturn]);
 
-  const dropTarget = useCallback((current: Drag): MoveTarget | null => {
+  const beginDrag = (source: MoveSource, event: ReactPointerEvent<HTMLDivElement>) => {
+    if (event.button !== 0 || dragRef.current || won) return;
     const board = boardRef.current;
-    const lead = dragStackRef.current?.firstElementChild;
-    if (!board || !lead) return null;
-    const leadRect = lead.getBoundingClientRect();
-    let best: { target: MoveTarget; area: number } | null = null;
-    for (const element of Array.from(board.querySelectorAll("[data-sol-drop]"))) {
-      const target = parseTarget(element);
-      if (!target || !canMove(gameRef.current, current.source, target)) continue;
-      const area = overlap(leadRect, element.getBoundingClientRect());
-      if (area > 0 && (!best || area > best.area)) best = { target, area };
-    }
-    return best?.target ?? null;
-  }, []);
-
-  useEffect(() => {
-    if (!drag || drag.returning) return;
-    const pointerId = drag.pointerId;
-
-    const handleMove = (event: PointerEvent) => {
-      const current = dragRef.current;
-      const board = boardRef.current;
-      if (!current || !board || event.pointerId !== pointerId) return;
-      const distance = Math.hypot(event.clientX - current.startX, event.clientY - current.startY);
-      if (!current.active && distance < DRAG_THRESHOLD) return;
-      const rect = board.getBoundingClientRect();
-      updateDrag({
-        ...current,
-        active: true,
-        x: event.clientX - rect.left + board.scrollLeft - current.offsetX,
-        y: event.clientY - rect.top + board.scrollTop - current.offsetY,
-      });
+    const cards = sourceCards(gameRef.current, source);
+    if (!board || cards.length === 0) return;
+    const cardRect = event.currentTarget.getBoundingClientRect();
+    const boardRect = board.getBoundingClientRect();
+    const targets = Array.from(board.querySelectorAll("[data-sol-drop]")).map((element) => ({
+      target: parseTarget(element), rect: element.getBoundingClientRect(),
+    }));
+    const originX = cardRect.left - boardRect.left + board.scrollLeft;
+    const originY = cardRect.top - boardRect.top + board.scrollTop;
+    const initial: Drag = {
+      source, cards, pointerId: event.pointerId, startX: event.clientX, startY: event.clientY,
+      offsetX: event.clientX - cardRect.left, offsetY: event.clientY - cardRect.top,
+      originX, originY, x: originX, y: originY, active: true, returning: false,
     };
-
-    const handleUp = (event: PointerEvent) => {
-      const current = dragRef.current;
-      if (!current || event.pointerId !== pointerId) return;
-      if (!current.active) {
-        updateDrag(null);
-        return;
+    let latest = initial;
+    let delta = { x: 0, y: 0 };
+    track(event, (next) => {
+      delta = next;
+      latest = { ...initial, x: originX + next.x, y: originY + next.y };
+      if (dragRef.current === null) updateDrag(latest);
+      else dragRef.current = latest;
+      if (dragStackRef.current) dragStackRef.current.style.transform = `translate(${latest.x}px, ${latest.y}px)`;
+    }, (cancelled, moved) => {
+      if (cancelled || !moved) { updateDrag(null); return; }
+      const lead = new DOMRect(cardRect.left + delta.x, cardRect.top + delta.y, cardRect.width, cardRect.height);
+      let best: { target: MoveTarget; area: number } | null = null;
+      for (const candidate of targets) {
+        if (!candidate.target || !canMove(gameRef.current, source, candidate.target)) continue;
+        const area = overlap(lead, candidate.rect);
+        if (area > 0 && (!best || area > best.area)) best = { target: candidate.target, area };
       }
-      const target = dropTarget(current);
-      const next = target ? move(gameRef.current, current.source, target) : null;
-      if (next) {
-        setGame(next);
-        updateDrag(null);
-        return;
-      }
-      if (prefersReducedMotion()) {
-        updateDrag(null);
-        return;
-      }
-      updateDrag({ ...current, returning: true, x: current.originX, y: current.originY });
-    };
-
-    window.addEventListener("pointermove", handleMove);
-    window.addEventListener("pointerup", handleUp);
-    window.addEventListener("pointercancel", handleUp);
-    return () => {
-      window.removeEventListener("pointermove", handleMove);
-      window.removeEventListener("pointerup", handleUp);
-      window.removeEventListener("pointercancel", handleUp);
-    };
-  }, [drag?.pointerId, drag?.returning, dropTarget, updateDrag]);
-
-  const beginDrag = useCallback(
-    (source: MoveSource, event: ReactPointerEvent<HTMLDivElement>) => {
-      if (event.button !== 0 || dragRef.current || won) return;
-      const board = boardRef.current;
-      const cards = sourceCards(gameRef.current, source);
-      if (!board || cards.length === 0) return;
-      const cardRect = event.currentTarget.getBoundingClientRect();
-      const boardRect = board.getBoundingClientRect();
-      const originX = cardRect.left - boardRect.left + board.scrollLeft;
-      const originY = cardRect.top - boardRect.top + board.scrollTop;
-      updateDrag({
-        source,
-        cards,
-        pointerId: event.pointerId,
-        startX: event.clientX,
-        startY: event.clientY,
-        offsetX: event.clientX - cardRect.left,
-        offsetY: event.clientY - cardRect.top,
-        originX,
-        originY,
-        x: originX,
-        y: originY,
-        active: false,
-        returning: false,
-      });
-    },
-    [updateDrag, won],
-  );
+      const next = best ? move(gameRef.current, source, best.target) : null;
+      if (next) { setGame(next); updateDrag(null); }
+      else if (prefersReducedMotion()) updateDrag(null);
+      else updateDrag({ ...latest, returning: true, x: originX, y: originY });
+    });
+  };
 
   const lifted = drag?.active ? drag : null;
   const isLifted = (source: MoveSource, index: number) =>

@@ -10,7 +10,7 @@ import { createRoot } from "react-dom/client";
 import { toast } from "sonner";
 
 import { NotePadArt, NotePadGlyph } from "./art";
-import { chromeTop, WindowTitleBar } from "./windows";
+import { workAreaRect, fitDragRect, previewRect, usePointerTracker, WindowTitleBar } from "./windows";
 import { ProgramMenuBar, ProgramStatusBar } from "./apps/xp-chrome";
 import { useDesktopEnabled } from "./enabled";
 
@@ -142,15 +142,12 @@ function anchoredNote(left: number, top: number, width: number, height: number) 
 }
 
 function screenRect(note: StickyNote) {
-  const width = Math.min(note.width, window.innerWidth - EDGE * 2);
-  const height = Math.min(note.height, window.innerHeight - EDGE * 2);
-  const offset = Math.min(Math.max(note.x, EDGE), window.innerWidth - width - EDGE);
-  return {
-    left: note.side === "left" ? offset : window.innerWidth - offset - width,
-    top: Math.max(Math.min(Math.max(note.y, EDGE), window.innerHeight - height - EDGE), chromeTop()),
-    width,
-    height,
-  };
+  const area = workAreaRect();
+  const rect = fitDragRect({
+    x: note.side === "left" ? note.x : window.innerWidth - note.x - note.width,
+    y: note.y, width: note.width, height: note.height,
+  }, { ...area, x: EDGE, width: Math.max(0, area.width - EDGE * 2) }, MIN_SIZE);
+  return { left: rect.x, top: rect.y, width: rect.width, height: rect.height };
 }
 
 interface SaveFileHandle {
@@ -226,8 +223,9 @@ function useViewportSize() {
 
 function StickyNoteView({ note }: { note: StickyNote }) {
   const textRef = useRef<HTMLTextAreaElement>(null);
-  const [drag, setDrag] = useState<{ left: number; top: number; width: number; height: number } | null>(null);
-  const rect = drag ?? screenRect(note);
+  const noteRef = useRef<HTMLElement>(null);
+  const trackPointer = usePointerTracker();
+  const rect = screenRect(note);
   const [wrap, setWrap] = useState(true);
   const save = () => updateNote(note.id, { saved: true });
   const exportFile = () => {
@@ -242,40 +240,38 @@ function StickyNoteView({ note }: { note: StickyNote }) {
     textRef.current?.focus();
   }, [note.id]);
 
-  const track = (
-    event: ReactPointerEvent,
-    next: (dx: number, dy: number) => { left: number; top: number; width: number; height: number },
-  ) => {
+  const track = (event: ReactPointerEvent<HTMLElement>, resize = false) => {
     if (event.button !== 0) return;
-    event.preventDefault();
+    const element = noteRef.current;
+    if (!element) return;
     raiseNote(note.id);
-    const startX = event.clientX;
-    const startY = event.clientY;
-    let latest = screenRect(note);
-    const onMove = (move: PointerEvent) => {
-      latest = next(move.clientX - startX, move.clientY - startY);
-      setDrag(latest);
-    };
-    const onUp = () => {
-      window.removeEventListener("pointermove", onMove);
-      window.removeEventListener("pointerup", onUp);
-      window.removeEventListener("pointercancel", onUp);
-      setDrag(null);
-      updateNote(note.id, anchoredNote(latest.left, latest.top, latest.width, latest.height));
-    };
-    window.addEventListener("pointermove", onMove);
-    window.addEventListener("pointerup", onUp);
-    window.addEventListener("pointercancel", onUp);
+    const area = workAreaRect();
+    const bounds = { ...area, x: EDGE, width: Math.max(0, area.width - EDGE * 2) };
+    const origin = { x: rect.left, y: rect.top, width: rect.width, height: rect.height };
+    let latest = origin;
+    trackPointer(event, (delta) => {
+      latest = fitDragRect(resize ? { ...origin,
+        width: Math.min(Math.max(MIN_SIZE.width, origin.width + delta.x), bounds.x + bounds.width - origin.x),
+        height: Math.min(Math.max(MIN_SIZE.height, origin.height + delta.y), bounds.y + bounds.height - origin.y),
+      } : { ...origin, x: origin.x + delta.x, y: origin.y + delta.y }, bounds, MIN_SIZE);
+      element.dataset.dragging = "true";
+      if (resize) previewRect(element, latest);
+      else element.style.transform = `translate(${latest.x - origin.x}px, ${latest.y - origin.y}px)`;
+    }, (cancelled, moved) => {
+      delete element.dataset.dragging;
+      element.style.transform = "";
+      previewRect(element, cancelled || !moved ? origin : latest);
+      if (!cancelled && moved) updateNote(note.id, anchoredNote(latest.x, latest.y, latest.width, latest.height));
+    });
   };
 
-  const start = screenRect(note);
 
   return (
     <section
+      ref={noteRef}
       className="bbd-note bbd-window bbd-program-note"
       data-focused="true"
       data-tone={TONES[note.tone % TONES.length]}
-      data-dragging={drag !== null}
       aria-label="Note pad"
       style={{ left: rect.left, top: rect.top, width: rect.width, height: rect.height }}
       onPointerDown={() => raiseNote(note.id)}
@@ -283,7 +279,7 @@ function StickyNoteView({ note }: { note: StickyNote }) {
       <WindowTitleBar title="Note pad" icon={<NotePadArt size={16} />}
         onPointerDown={(event) => {
           if ((event.target as HTMLElement).closest("button")) return;
-          track(event, (dx, dy) => ({ ...start, left: start.left + dx, top: Math.max(chromeTop(), start.top + dy) }));
+          track(event);
         }}
         onClose={() => closeNote(note)}
       />
@@ -302,7 +298,8 @@ function StickyNoteView({ note }: { note: StickyNote }) {
       ]} />
       <textarea
         ref={textRef}
-        className="bbd-note-text"
+        ref={noteRef}
+      className="bbd-note-text"
         value={note.text}
         aria-label="Note text"
         wrap={wrap ? "soft" : "off"}
@@ -318,15 +315,10 @@ function StickyNoteView({ note }: { note: StickyNote }) {
       />
       <ProgramStatusBar><span className="flex-1">{note.saved === true ? "Saved to Desktop" : "Not saved · Ctrl+S"}</span><span>{note.text.length} characters</span></ProgramStatusBar>
       <span
-        className="bbd-note-grip"
+        ref={noteRef}
+      className="bbd-note-grip"
         aria-hidden
-        onPointerDown={(event) =>
-          track(event, (dx, dy) => ({
-            ...start,
-            width: Math.max(MIN_SIZE.width, start.width + dx),
-            height: Math.max(MIN_SIZE.height, start.height + dy),
-          }))
-        }
+        onPointerDown={(event) => track(event, true)}
       />
     </section>
   );

@@ -88,6 +88,7 @@ function readBounds(element: HTMLElement): ViewBounds {
 }
 
 function occluded(element: HTMLElement, bounds: ViewBounds, z: number): boolean {
+  if (document.querySelector(".bbd-drag-shield")) return true;
   const own = element.closest(".bbd-window");
   for (const candidate of document.querySelectorAll<HTMLElement>(`${OCCLUDERS}, .bbd-window`)) {
     if (candidate === own || own?.contains(candidate)) continue;
@@ -276,9 +277,11 @@ export function InternetExplorer({
     const onResize = () => sync();
     tick();
     window.addEventListener("resize", onResize);
+    window.addEventListener("bbd-drag-state", onResize);
     return () => {
       window.clearTimeout(frame);
       window.removeEventListener("resize", onResize);
+      window.removeEventListener("bbd-drag-state", onResize);
     };
   }, [browser, threadId, sync]);
 
