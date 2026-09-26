@@ -79,16 +79,16 @@ void main() {
   float fresnel = pow(1.0 - n.z, 2.5);
   color *= 1.0 + 0.08 * dot(n, light);
   vec3 glow = fromLab(vec3(min(lab.x + 0.18, 0.98), lab.yz * 0.8));
-  float caustic = smoothstep(0.1, 0.95, -p.y) * smoothstep(1.0, 0.7, d) * (0.8 + 0.2 * swirl);
+  float caustic = smoothstep(0.1, 0.95, -p.y) * (1.0 - smoothstep(0.7, 1.0, d)) * (0.8 + 0.2 * swirl);
   color = mix(color, glow, caustic * 0.75);
   float spec = pow(max(dot(reflect(-light, n), view), 0.0), 70.0);
   color += vec3(1.0) * spec;
   vec2 cap = (p - vec2(0.0, 0.44)) * vec2(1.0, 1.85);
-  float glass = smoothstep(0.64, 0.6, length(cap)) * mix(0.5, 0.08, smoothstep(0.85, 0.2, p.y));
+  float glass = (1.0 - smoothstep(0.6, 0.64, length(cap))) * mix(0.5, 0.08, 1.0 - smoothstep(0.2, 0.85, p.y));
   color = mix(color, vec3(1.0), glass);
-  float glint = smoothstep(0.2, 0.0, length((p - vec2(-0.25, 0.33)) * vec2(1.0, 1.4)));
+  float glint = 1.0 - smoothstep(0.0, 0.2, length((p - vec2(-0.25, 0.33)) * vec2(1.0, 1.4)));
   color += vec3(0.7) * glint;
-  color = mix(color, vec3(1.0), fresnel * 0.45 * (0.6 + 0.4 * smoothstep(0.2, -0.8, p.x + p.y)));
+  color = mix(color, vec3(1.0), fresnel * 0.45 * (0.6 + 0.4 * (1.0 - smoothstep(-0.8, 0.2, p.x + p.y))));
   vec3 srgb = toSrgb(color) + (hash(gl_FragCoord.xy + fract(t)) - 0.5) / 128.0;
   gl_FragColor = vec4(clamp(srgb, 0.0, 1.0) * alpha, alpha);
 }
@@ -137,49 +137,58 @@ export function createClusterShader() {
   const start = performance.now();
   gl.canvas.addEventListener("webglcontextlost", event => { event.preventDefault(); lost = true; });
 
+  const animating = () => !reducedMotion.matches && document.visibilityState === "visible";
+  const render = (list: Tile[], time: number) => {
+    const size = Math.ceil(MAX_SIZE * dpr());
+    const rows = Math.ceil(list.length / COLUMNS);
+    const canvas = gl.canvas as HTMLCanvasElement;
+    if (canvas.width < COLUMNS * size || canvas.height < rows * size || tileSize !== size) {
+      tileSize = size;
+      canvas.width = COLUMNS * size;
+      canvas.height = Math.max(canvas.height, rows * size);
+    }
+    gl.clearColor(0, 0, 0, 0);
+    gl.clear(gl.COLOR_BUFFER_BIT);
+    const placed = list.map((tile, index) => ({ tile, px: Math.ceil(tile.size * dpr()), x: (index % COLUMNS) * size, y: Math.floor(index / COLUMNS) * size }));
+    for (const { tile, px, x, y } of placed) {
+      gl.viewport(x, canvas.height - y - px, px, px);
+      const blobs = new Float32Array(MAX_BLOBS * 4);
+      const colors = new Float32Array(MAX_BLOBS * 3);
+      tile.spec.blobs.slice(0, MAX_BLOBS).forEach((blob, i) => {
+        blobs.set([blob.x, blob.y, blob.r, 1], i * 4);
+        colors.set(rgb(blob.color), i * 3);
+      });
+      gl.uniform1f(u.time, time);
+      gl.uniform1f(u.seed, tile.seed);
+      gl.uniform1f(u.px, 2 / px);
+      gl.uniform3fv(u.base, rgb(tile.spec.base));
+      gl.uniform4fv(u.blob, blobs);
+      gl.uniform3fv(u.color, colors);
+      gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+    }
+    for (const { tile, px, x, y } of placed) {
+      if (tile.canvas.width !== px) { tile.canvas.width = px; tile.canvas.height = px; }
+      tile.ctx.clearRect(0, 0, px, px);
+      tile.ctx.drawImage(canvas, x, y, px, px, 0, 0, px, px);
+      if (!tile.drawn) { tile.drawn = true; tile.canvas.dataset.ready = "true"; }
+    }
+  };
   const draw = (now: number) => {
     frame = 0;
     if (lost || !tiles.size) return;
-    const animate = !reducedMotion.matches && document.visibilityState === "visible";
+    const animate = animating();
     const pending = [...tiles].filter(tile => tile.canvas.isConnected && (animate || !tile.drawn));
     if (pending.length && (!animate || now - last >= FRAME_MS)) {
       last = now;
-      const size = Math.ceil(MAX_SIZE * dpr());
-      const rows = Math.ceil(pending.length / COLUMNS);
-      const canvas = gl.canvas as HTMLCanvasElement;
-      if (canvas.width < COLUMNS * size || canvas.height < rows * size || tileSize !== size) {
-        tileSize = size;
-        canvas.width = COLUMNS * size;
-        canvas.height = Math.max(canvas.height, rows * size);
-      }
-      gl.clearColor(0, 0, 0, 0);
-      gl.clear(gl.COLOR_BUFFER_BIT);
-      const time = animate ? (now - start) / 1000 : 0;
-      pending.forEach((tile, index) => {
-        const px = Math.ceil(tile.size * dpr());
-        const col = index % COLUMNS;
-        const row = Math.floor(index / COLUMNS);
-        gl.viewport(col * size, canvas.height - row * size - px, px, px);
-        const blobs = new Float32Array(MAX_BLOBS * 4);
-        const colors = new Float32Array(MAX_BLOBS * 3);
-        tile.spec.blobs.slice(0, MAX_BLOBS).forEach((blob, i) => {
-          blobs.set([blob.x, blob.y, blob.r, 1], i * 4);
-          colors.set(rgb(blob.color), i * 3);
-        });
-        gl.uniform1f(u.time, time);
-        gl.uniform1f(u.seed, tile.seed);
-        gl.uniform1f(u.px, 2 / px);
-        gl.uniform3fv(u.base, rgb(tile.spec.base));
-        gl.uniform4fv(u.blob, blobs);
-        gl.uniform3fv(u.color, colors);
-        gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
-        if (tile.canvas.width !== px) { tile.canvas.width = px; tile.canvas.height = px; }
-        tile.ctx.clearRect(0, 0, px, px);
-        tile.ctx.drawImage(canvas, col * size, row * size, px, px, 0, 0, px, px);
-        if (!tile.drawn) { tile.drawn = true; tile.canvas.dataset.ready = "true"; }
-      });
+      render(pending, animate ? (now - start) / 1000 : 0);
     }
     if (animate) frame = requestAnimationFrame(draw);
+  };
+  let flushing = false;
+  const flush = () => {
+    flushing = false;
+    const fresh = [...tiles].filter(tile => tile.canvas.isConnected && !tile.drawn);
+    if (!lost && fresh.length) render(fresh, animating() ? (performance.now() - start) / 1000 : 0);
   };
   const schedule = () => { if (!frame) frame = requestAnimationFrame(draw); };
   const onVisibility = () => schedule();
@@ -195,6 +204,7 @@ export function createClusterShader() {
       if (!ctx) return { canvas, release: () => {} };
       const tile: Tile = { canvas, ctx, spec, seed, size, drawn: false };
       tiles.add(tile);
+      if (!flushing) { flushing = true; queueMicrotask(flush); }
       schedule();
       return { canvas, release: () => { tiles.delete(tile); } };
     },
