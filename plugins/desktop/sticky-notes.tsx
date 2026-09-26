@@ -126,6 +126,53 @@ function screenRect(note: StickyNote) {
   };
 }
 
+interface SaveFileHandle {
+  name: string;
+  createWritable(): Promise<{ write(data: string): Promise<void>; close(): Promise<void> }>;
+}
+type SaveFilePicker = (options: {
+  suggestedName: string;
+  types: { description: string; accept: Record<string, string[]> }[];
+}) => Promise<SaveFileHandle>;
+
+/** Session-scoped: file handles can't be serialized into the persisted note list. */
+const noteFiles = new Map<string, SaveFileHandle>();
+
+function suggestedFileName(text: string) {
+  const firstLine = text.trim().split("\n")[0]?.replace(/[\\/:*?"<>|]/g, "").trim().slice(0, 40) ?? "";
+  return `${firstLine || "Untitled"}.txt`;
+}
+
+/** Writes the note to a .txt file; Save reuses the file chosen earlier in this session. */
+async function saveNoteFile(note: StickyNote, saveAs: boolean): Promise<string | null> {
+  const picker = (window as Window & { showSaveFilePicker?: SaveFilePicker }).showSaveFilePicker;
+  if (picker === undefined) {
+    const url = URL.createObjectURL(new Blob([note.text], { type: "text/plain" }));
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = suggestedFileName(note.text);
+    link.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    return link.download;
+  }
+  let handle = saveAs ? undefined : noteFiles.get(note.id);
+  try {
+    handle ??= await picker({
+      suggestedName: suggestedFileName(note.text),
+      types: [{ description: "Text Document", accept: { "text/plain": [".txt"] } }],
+    });
+    const writable = await handle.createWritable();
+    await writable.write(note.text);
+    await writable.close();
+  } catch (error) {
+    if (error instanceof DOMException && error.name === "AbortError") return null;
+    toast("Couldn't save the note pad", { description: error instanceof Error ? error.message : String(error) });
+    return null;
+  }
+  noteFiles.set(note.id, handle);
+  return handle.name;
+}
+
 export function addStickyNote(at?: { left: number; top: number }) {
   const { width, height } = DEFAULT_SIZE;
   const base = at ?? { left: window.innerWidth - width - MARGIN, top: 72 };
@@ -161,6 +208,12 @@ function StickyNoteView({ note }: { note: StickyNote }) {
   const [drag, setDrag] = useState<{ left: number; top: number; width: number; height: number } | null>(null);
   const rect = drag ?? screenRect(note);
   const [wrap, setWrap] = useState(true);
+  const [savedFile, setSavedFile] = useState<{ name: string; text: string } | null>(null);
+  const save = (saveAs: boolean) => {
+    void saveNoteFile(note, saveAs).then((name) => {
+      if (name !== null) setSavedFile({ name, text: note.text });
+    });
+  };
 
   useEffect(() => {
     if (focusNoteId !== note.id) return;
@@ -214,7 +267,13 @@ function StickyNoteView({ note }: { note: StickyNote }) {
         onClose={() => removeNote(note.id)}
       />
       <ProgramMenuBar menus={[
-        { label: "File", items: [{ label: "New", action: () => addStickyNote() }, { label: "Delete note pad", action: () => removeNote(note.id) }] },
+        { label: "File", items: [
+          { label: "New", action: () => addStickyNote() },
+          { label: "Save", shortcut: "Ctrl+S", action: () => save(false) },
+          { label: "Save As…", action: () => save(true) },
+          "separator",
+          { label: "Delete note pad", action: () => removeNote(note.id) },
+        ] },
         { label: "Edit", items: [{ label: "Select All", action: () => { textRef.current?.focus(); textRef.current?.select(); } }] },
         { label: "Format", items: [{ label: "Word Wrap", checked: wrap, action: () => setWrap(!wrap) }] },
         { label: "View", items: TONES.map((tone, index) => ({ label: tone, checked: note.tone === index, action: () => updateNote(note.id, { tone: index }) })) },
@@ -229,8 +288,13 @@ function StickyNoteView({ note }: { note: StickyNote }) {
         placeholder=""
         spellCheck={false}
         onChange={(event) => updateNote(note.id, { text: event.target.value })}
+        onKeyDown={(event) => {
+          if (event.key.toLowerCase() !== "s" || !(event.metaKey || event.ctrlKey)) return;
+          event.preventDefault();
+          save(event.shiftKey);
+        }}
       />
-      <ProgramStatusBar><span className="flex-1">Saved</span><span>{note.text.length} characters</span></ProgramStatusBar>
+      <ProgramStatusBar><span className="flex-1">{savedFile === null ? "Saved" : savedFile.text === note.text ? `Saved to ${savedFile.name}` : `Edited since saving ${savedFile.name}`}</span><span>{note.text.length} characters</span></ProgramStatusBar>
       <span
         className="bbd-note-grip"
         aria-hidden
