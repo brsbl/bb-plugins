@@ -4,6 +4,7 @@ import { fillForRadius, hashString, mulberry32, radiusForFill, scaleLevel } from
 import { CompactionMoons, dressCore } from "./core";
 import { buildCousin, type CousinRig } from "./cousin";
 import { type MaterialKit, pick, TOY_COLORS } from "./materials";
+import { PropBatch } from "./prop-batch";
 import type { WorldProp } from "./prop-field";
 import { buildProp, pickWeighted, type PropDefinition, propsFor } from "./props";
 import { PICKUP_RATIO, randomDirection } from "./world-math";
@@ -41,6 +42,8 @@ export interface Actor {
   ball: THREE.Group;
   roll: THREE.Group;
   core: THREE.Group;
+  /** The stuck items' bodies, drawn in one call in the ball's rolling frame. */
+  items: PropBatch;
   nubColor: number;
   moons: CompactionMoons;
   compactions: number;
@@ -117,6 +120,7 @@ export function createActor(
     ball,
     roll,
     core,
+    items: new PropBatch(kit, roll, { instances: MAX_STUCK + 1, vertices: 32768, cull: false }),
     nubColor,
     moons,
     compactions,
@@ -197,14 +201,20 @@ export function attach(
         ),
       ),
     );
-  actor.roll.add(object);
+  actor.items.add(object);
   actor.stuck.push({ object, definition, size, depth });
   if (actor.stuck.length > MAX_STUCK) {
     const buried = actor.stuck.shift();
     if (buried) {
-      actor.roll.remove(buried.object);
+      actor.items.remove(buried.object);
     }
   }
+}
+
+/** Where a stuck item sits in the world; batched items are not in the scene graph. */
+export function stuckWorldPosition(actor: Actor, item: StuckItem, target: THREE.Vector3): THREE.Vector3 {
+  actor.roll.updateWorldMatrix(true, false);
+  return target.copy(item.object.position).applyMatrix4(actor.roll.matrixWorld);
 }
 
 /** Drop the items the growing core has swallowed, keeping the rest in order. */
@@ -214,7 +224,7 @@ export function pruneBuried(actor: Actor): void {
   let kept = 0;
   for (let index = 0; index < stuck.length; index += 1) {
     const item = stuck[index];
-    if (item.depth + item.size * 0.9 < coreRadius) actor.roll.remove(item.object);
+    if (item.depth + item.size * 0.9 < coreRadius) actor.items.remove(item.object);
     else stuck[kept++] = item;
   }
   stuck.length = kept;

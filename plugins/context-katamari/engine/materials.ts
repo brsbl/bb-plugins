@@ -18,7 +18,7 @@ export class MaterialKit {
     return texture;
   })();
 
-  /** One baked, normalized model per prop kind and color variant; callers clone it. */
+  /** One baked model per prop kind and color variant, or per core look; callers clone it. */
   template(key: string, create: () => THREE.Group): THREE.Group {
     let template = this.templates.get(key);
     if (!template) {
@@ -54,6 +54,19 @@ export class MaterialKit {
     if (!material) {
       material = new THREE.MeshToonMaterial({ vertexColors: true, gradientMap: this.toonBands });
       this.materials.set("vertex", material);
+    }
+    return material;
+  }
+
+  /**
+   * The same look for batched props. three.js compiles batched and plain
+   * meshes separately, so sharing one material would swap programs mid-frame.
+   */
+  batched(): THREE.MeshToonMaterial {
+    let material = this.materials.get("batched") as THREE.MeshToonMaterial | undefined;
+    if (!material) {
+      material = new THREE.MeshToonMaterial({ vertexColors: true, gradientMap: this.toonBands });
+      this.materials.set("batched", material);
     }
     return material;
   }
