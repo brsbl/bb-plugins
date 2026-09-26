@@ -108,6 +108,7 @@ async function createHarness(options?: {
       },
     },
     realtime: { publish },
+    cli: { register: vi.fn() },
     events: {
       on(event: string, handler: (payload: never) => unknown) {
         const handlers = eventHandlers.get(event) ?? [];
