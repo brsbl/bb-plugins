@@ -1,0 +1,33 @@
+{
+  "name": "bb-plugin-ambient",
+  "version": "0.1.0",
+  "description": "A living generative background for bb, driven by what your agents are doing.",
+  "type": "module",
+  "license": "UNLICENSED",
+  "files": [
+    "assets",
+    "dist",
+    "docs",
+    "skills",
+    "README.md"
+  ],
+  "engines": {
+    "bb": ">=0.0.34",
+    "bbPluginSdk": ">=0.5.8"
+  },
+  "bb": {
+    "name": "Ambient",
+    "description": "A living generative background for bb, driven by what your agents are doing.",
+    "branding": {
+      "icon": "./assets/ambient.svg",
+      "experimental_icons": {
+        "ambient": "./assets/ambient.svg"
+      }
+    },
+    "server": "./dist/install-server.mjs",
+    "skills": [
+      "skills"
+    ],
+    "app": "./dist/install-app.mjs"
+  }
+}
