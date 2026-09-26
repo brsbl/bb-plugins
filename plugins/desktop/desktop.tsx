@@ -1758,6 +1758,16 @@ function Taskbar({ frame }: { frame: DockFrame | null }) {
     else manager.focus(id);
   };
   const navRef = useRef<HTMLElement>(null);
+  const fitMaximized = useRef(manager.fitMaximized);
+  fitMaximized.current = manager.fitMaximized;
+  // Maximized windows stop just above the taskbar, which can only be measured once it has rendered.
+  useLayoutEffect(() => {
+    const nav = navRef.current;
+    if (nav === null) return;
+    const observer = new ResizeObserver(() => fitMaximized.current());
+    observer.observe(nav);
+    return () => observer.disconnect();
+  }, []);
   const tasks = manager.windows.filter((window) => !(deskband && window.id === player?.id));
   const { quick: quickCapacity, tasks: capacity } = useTaskbarCapacity(navRef, quickLaunch.length, tasks.length);
   const quickShown = quickLaunch.slice(0, quickCapacity);

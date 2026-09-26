@@ -352,6 +352,8 @@ interface WindowManager {
   move(id: string, rect: Rect): void;
   minimize(id: string, minimized: boolean): void;
   toggleMaximize(id: string): void;
+  /** Re-fits maximized windows to the work area, e.g. once the taskbar has rendered and can be measured. */
+  fitMaximized(): void;
   arrange(rects: Record<string, Rect>): void;
 }
 
@@ -415,6 +417,7 @@ export function WindowManagerProvider({ children }: { children: ReactNode }) {
       move: (id, rect) => dispatch({ type: "move", id, rect }),
       minimize: (id, minimized) => dispatch({ type: "minimize", id, minimized }),
       toggleMaximize: (id) => dispatch({ type: "maximize", id, viewport: workAreaRect() }),
+      fitMaximized: () => dispatch({ type: "fit-maximized", viewport: workAreaRect() }),
       arrange: (rects) => dispatch({ type: "arrange", rects }),
     };
   }, [open, state.windows]);

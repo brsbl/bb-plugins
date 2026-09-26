@@ -1993,8 +1993,9 @@
 .bbd-program-note .bbd-note-text {
   margin: 0;
   padding: 2px;
-  background: var(--bbd-xp-paper);
-  color: var(--bbd-xp-ink);
+  /* Stays paper-white in light mode; a white page would glare in dark mode, so it follows bb's canvas there. */
+  background: light-dark(var(--bbd-xp-paper), var(--canvas));
+  color: light-dark(var(--bbd-xp-ink), var(--ink));
   font: 13px/1.25 "Lucida Console", Consolas, monospace;
   border: 1px solid var(--bbd-xp-shadow);
   border-radius: 0;
