@@ -68,6 +68,17 @@ describe("Video Markup persistence and feedback",()=>{
     const v3=store.register({threadId:"thr_demo",demo:"Duo",summary:"One more",media:{...media,path:"/demo/v3.mp4"}});
     expect(store.notes("thr_demo").filter(n=>n.versionId===v3.id).map(n=>n.status)).toEqual(["still wrong","regressed"]);
   });
+  it("carries a note left on an older version into the next render once, from its most recent copy",async()=>{
+    const host=load(),store=openStore(host.bb),v1=seed(host),early=store.addNote(noteInput(v1.id,"Early note"));
+    const v2=store.register({threadId:"thr_demo",demo:"Duo",summary:"Revised",media:{...media,path:"/demo/v2.mp4"}});
+    const late=store.addNote(noteInput(v1.id,"Left on v1 after v2"));
+    const earlyCopy=store.notes("thr_demo").find(n=>n.versionId===v2.id&&n.carriedFrom===early.id)!;
+    store.setStatus("thr_demo",earlyCopy.id,"still wrong");
+    const v3=store.register({threadId:"thr_demo",demo:"Duo",summary:"Third",media:{...media,path:"/demo/v3.mp4"}});
+    const next=store.notes("thr_demo").filter(n=>n.versionId===v3.id);
+    expect(next.map(n=>[n.text,n.status,n.carriedFrom])).toEqual([["Early note","still wrong",earlyCopy.id],["Left on v1 after v2","open",late.id]]);
+    expect(next.every(n=>n.frameVersionId===v1.id)).toBe(true);
+  });
   it("applies a status set on a sent note to its copies in later renders",async()=>{
     const host=load(),store=openStore(host.bb),v1=seed(host),sent=store.addNote(noteInput(v1.id));
     const v2=store.register({threadId:"thr_demo",demo:"Duo",summary:"Revised",media:{...media,path:"/demo/v2.mp4"}});

@@ -22,8 +22,14 @@ export class VideoMarkupStore {
       if (existing) return existing;
       const version: Version = {...input, id: randomUUID(), createdAt: Date.now(), ordinal: previous.length + 1};
       this.db.prepare("INSERT INTO versions (id, thread_id, body) VALUES (?, ?, ?)").run(version.id, version.threadId, JSON.stringify(version));
-      const last = previous.at(-1);
-      if (last) for (const note of this.notes(input.threadId).filter(n => n.versionId === last.id && isActionable(n.status))) {
+      // Each note lineage (an original and its carried copies) is represented by its copy in the most recent
+      // version. That copy carries forward while unresolved, including a note left on an older version later.
+      const order = new Map(previous.map((v, index) => [v.id, index]));
+      const notes = this.notes(input.threadId).filter(n => order.has(n.versionId)), byId = new Map(notes.map(n => [n.id, n]));
+      const root = (note: FrameNote): string => { let current = note; while (current.carriedFrom && byId.has(current.carriedFrom)) current = byId.get(current.carriedFrom)!; return current.id; };
+      const latest = new Map<string, FrameNote>();
+      for (const note of notes) { const key = root(note), seen = latest.get(key); if (!seen || order.get(note.versionId)! > order.get(seen.versionId)!) latest.set(key, note); }
+      for (const note of notes.filter(n => latest.get(root(n)) === n && isActionable(n.status))) {
         this.putNote({...note, id: randomUUID(), versionId: version.id, carriedFrom: note.id, updatedAt: version.createdAt});
       }
       return version;
