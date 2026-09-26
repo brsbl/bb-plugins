@@ -9,7 +9,7 @@ import { createRoot } from "react-dom/client";
 import { toast } from "sonner";
 
 import { NotePadArt, NotePadGlyph } from "./art";
-import { WindowTitleBar } from "./windows";
+import { chromeTop, WindowTitleBar } from "./windows";
 import { ProgramMenuBar, ProgramStatusBar } from "./apps/xp-chrome";
 import { useDesktopEnabled } from "./enabled";
 
@@ -120,7 +120,7 @@ function screenRect(note: StickyNote) {
   const offset = Math.min(Math.max(note.x, EDGE), window.innerWidth - width - EDGE);
   return {
     left: note.side === "left" ? offset : window.innerWidth - offset - width,
-    top: Math.min(Math.max(note.y, EDGE), window.innerHeight - height - EDGE),
+    top: Math.max(Math.min(Math.max(note.y, EDGE), window.innerHeight - height - EDGE), chromeTop()),
     width,
     height,
   };
@@ -209,7 +209,7 @@ function StickyNoteView({ note }: { note: StickyNote }) {
       <WindowTitleBar title="Note pad" icon={<NotePadArt size={16} />}
         onPointerDown={(event) => {
           if ((event.target as HTMLElement).closest("button")) return;
-          track(event, (dx, dy) => ({ ...start, left: start.left + dx, top: start.top + dy }));
+          track(event, (dx, dy) => ({ ...start, left: start.left + dx, top: Math.max(chromeTop(), start.top + dy) }));
         }}
         onClose={() => removeNote(note.id)}
       />

@@ -114,6 +114,9 @@
   flex-direction: column;
   padding: 0 4px 4px;
   pointer-events: auto;
+  /* Windows can overlap bb's top row, which is a native window-drag region that would swallow the pointer. */
+  -webkit-app-region: no-drag;
+  app-region: no-drag;
   border-radius: 14px 14px 12px 12px;
   background:
     linear-gradient(color-mix(in oklab, var(--bbd-blue) 14%, transparent), color-mix(in oklab, var(--bbd-blue) 14%, transparent)),

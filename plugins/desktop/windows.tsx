@@ -270,7 +270,7 @@ function loadState(): WindowState {
   }
 }
 
-function chromeTop(): number {
+export function chromeTop(): number {
   const raw = getComputedStyle(document.documentElement).getPropertyValue("--bb-app-chrome-row-height").trim();
   const value = Number.parseFloat(raw);
   if (!Number.isFinite(value)) return 48;
