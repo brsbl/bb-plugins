@@ -41,6 +41,7 @@ function pointer(type: string, x: number, pointerId = 1) {
   return event;
 }
 function gesture() {
+  window.dispatchEvent(pointer("pointerdown", 0));
   const target = document.createElement("div");
   document.body.append(target);
   target.setPointerCapture = vi.fn();
@@ -82,6 +83,21 @@ describe("pointer lifecycle", () => {
     expect(document.documentElement.style.userSelect).toBe("text");
     expect(document.querySelector(".bbd-drag-shield")).toBeNull();
     expect(g.target.releasePointerCapture).toHaveBeenCalledTimes(1);
+  });
+  it("suppresses a cancelled press's release click but permits the next gesture", () => {
+    const g = gesture();
+    window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }));
+    window.dispatchEvent(pointer("pointerup", 0));
+    const click = () => new MouseEvent("click", { detail: 1, bubbles: true, cancelable: true });
+    expect(g.target.dispatchEvent(click())).toBe(false);
+    window.dispatchEvent(pointer("pointerdown", 0));
+    expect(g.target.dispatchEvent(click())).toBe(true);
+  });
+  it.each([1, 2])("does not capture button %s", (button) => {
+    const target = document.createElement("div");
+    target.setPointerCapture = vi.fn();
+    trackPointer({ currentTarget: target, button } as unknown as ReactPointerEvent<HTMLElement>, vi.fn());
+    expect(target.setPointerCapture).not.toHaveBeenCalled();
   });
   it("ignores other pointers and preserves a tiny drag as a click", () => {
     const g = gesture();

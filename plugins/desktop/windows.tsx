@@ -525,15 +525,26 @@ function trackPointer(
     shield.remove();
     if (cancelActivePointer === cancel) cancelActivePointer = undefined;
     if (target.hasPointerCapture(pointerId)) target.releasePointerCapture(pointerId);
-    // Suppress only the click belonging to this completed drag. A later click is unaffected.
-    if (moved) {
-      const suppress = (click: MouseEvent) => { click.preventDefault(); click.stopImmediatePropagation(); };
-      window.addEventListener("click", suppress, true);
-      window.addEventListener("dblclick", suppress, true);
-      setTimeout(() => {
+    // Cancellation can precede pointerup (Escape/blur). Keep its click suppressed
+    // until release, but never consume a subsequent gesture or keyboard activation.
+    if (moved || cancelled) {
+      const suppress = (click: MouseEvent) => {
+        if (click.detail === 0) return;
+        click.preventDefault(); click.stopImmediatePropagation();
+      };
+      const clear = () => {
         window.removeEventListener("click", suppress, true);
         window.removeEventListener("dblclick", suppress, true);
-      }, 0);
+        window.removeEventListener("pointerdown", clear, true);
+        window.removeEventListener("pointerup", afterUp, true);
+      };
+      const afterUp = () => { setTimeout(clear, 0); };
+      window.addEventListener("click", suppress, true);
+      window.addEventListener("dblclick", suppress, true);
+      if (cancelled) {
+        window.addEventListener("pointerdown", clear, true);
+        window.addEventListener("pointerup", afterUp, true);
+      } else afterUp();
     }
     onEnd?.(cancelled, moved);
     window.dispatchEvent(new Event("bbd-drag-state"));
