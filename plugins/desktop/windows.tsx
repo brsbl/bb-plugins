@@ -541,8 +541,8 @@ function trackPointer(
       const afterUp = () => { setTimeout(clear, 0); };
       window.addEventListener("click", suppress, true);
       window.addEventListener("dblclick", suppress, true);
+      window.addEventListener("pointerdown", clear, true);
       if (cancelled) {
-        window.addEventListener("pointerdown", clear, true);
         window.addEventListener("pointerup", afterUp, true);
       } else afterUp();
     }
