@@ -1324,8 +1324,8 @@
 
 .bbd-im {
   --bbd-im-field: color-mix(in oklch, oklch(0.66 0.07 245) 85%, var(--ink));
-  --bbd-im-me: color-mix(in oklch, oklch(0.5 0.22 262) 82%, var(--ink));
-  --bbd-im-them: color-mix(in oklch, oklch(0.55 0.21 27) 82%, var(--ink));
+  --bbd-im-me: light-dark(color-mix(in oklch, oklch(0.5 0.22 262) 82%, var(--ink)), oklch(0.76 0.13 262));
+  --bbd-im-them: light-dark(color-mix(in oklch, oklch(0.55 0.21 27) 82%, var(--ink)), oklch(0.75 0.13 27));
 }
 
 .bbd-im-chat {
@@ -1856,8 +1856,7 @@
   --bbd-xp-inactive: #7a96df;
   --bbd-xp-button: #d8d0c4;
 }
-.bbd-program,
-.bbd-program-note {
+.bbd-program {
   font: 11px Tahoma, Verdana, sans-serif;
   color: var(--foreground);
   background: var(--bbd-glass);
@@ -2006,4 +2005,3 @@
 .bbd-wmp-stop { display: grid; place-items: center; width: 24px; height: 24px; border: 1px solid var(--bbd-wmp-dark); border-radius: 50%; background: linear-gradient(var(--bbd-wmp-light), var(--bbd-wmp-silver)); color: var(--bbd-wmp-dark); }
 .bbd-program .bbd-wmp-readout { margin: 0; padding: 0 6px; height: 25px; border: 1px solid var(--bbd-xp-shadow); border-radius: 0; background: var(--bbd-wmp-light); color: var(--bbd-xp-ink); }
 .bbd-program .bbd-wmp-readout span, .bbd-program .bbd-wmp-select { color: var(--bbd-xp-ink); font: inherit; }
-
