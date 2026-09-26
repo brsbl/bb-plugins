@@ -124,6 +124,16 @@ Makes local Markdown links in bb open directly in Moss, with bb's viewer kept as
 
 Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/open-in-moss --yes`
 
+### Saved Places
+
+Your saved places on a map that gets clearer as you zoom, with lists, notes, walking reach, routes, and an Ask agent button that hands the current view to a new thread. Import your own Google Maps lists or any CSV.
+
+![Saved Places library of sample Tokyo lists beside a map with category-colored pins and clusters](plugins/saved-places/docs/screenshot.png)
+
+[Source](plugins/saved-places) · [README](plugins/saved-places/README.md)
+
+Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/saved-places --yes`
+
 ### Plugin Finder
 
 Find installed and Community plugins with `#plugin` or `@plugin` or let your agent search through the CLI, with full overviews and screenshot links.
