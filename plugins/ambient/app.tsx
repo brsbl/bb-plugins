@@ -112,6 +112,7 @@ body.bb-app-shell > #root [data-app-page-header-actions] button.border { border-
 ${SIDEBAR_CARDS} { ${GLASS_SURFACE} border-radius: 16px; margin-inline: 8px; }
 ${SECTION_BACK_ROW} { border: 1px solid transparent; border-radius: 12px; }
 ${SECTION_BACK_ROW}:is(:hover, :focus-visible) { ${GLASS_SURFACE} }
+:is(${SIDEBAR_CARDS}, ${OVERLAY}) .w-px.bg-border-hairline, :is(${SIDEBAR_CARDS}, ${OVERLAY}) [class*="before:bg-border-hairline"]::before { display: none; }
 body.bb-app-shell > #root [data-testid="sidebar-navigation-region"] { margin-block: 0 8px; }
 body.bb-app-shell > #root [data-testid="sidebar-navigation-region"] [data-testid="navigation-divider"] { display: none; }
 body.bb-app-shell > #root [data-sidebar="content"] { flex: 0 1 auto; min-height: min(7rem, 18dvh); margin-block-end: auto; }
