@@ -8,8 +8,6 @@ import { threadMenu } from "../../shell/menus";
 import { WindowFrame, useWindowManager, type DesktopWindow } from "../../windows";
 import { describeStatus, idleFor, relativeTime, sortBuddies, statusKind } from "./status";
 
-/** An AIM Buddy List of the threads in one thread's project or environment, grouped by desktop folder. */
-
 type BuddyScope = "project" | "environment";
 
 interface BuddyGroup {
@@ -19,12 +17,13 @@ interface BuddyGroup {
   total: number;
 }
 
-
 export function buddyListTitle(desktop: DesktopContextValue, threadId: string): string {
   const projectId = desktop.threadById.get(threadId)?.projectId;
   const name = desktop.snapshot.projects.find((project) => project.id === projectId)?.name;
   return name === undefined ? "Buddy List" : `${name}'s Buddy List`;
+}
 
+/** An AIM Buddy List of the threads in one thread's project or environment, grouped by desktop folder. */
 export function BuddyListWindow({ window: desktopWindow, threadId }: { window: DesktopWindow; threadId: string }) {
   const desktop = useDesktop();
   const manager = useWindowManager();

@@ -350,3 +350,4 @@ export function InternetExplorerWindow({ window: desktopWindow }: { window: Desk
       <InternetExplorer window={desktopWindow} loadThread={loadThread} onTitle={setPageTitle} />
     </WindowFrame>
   );
+}
