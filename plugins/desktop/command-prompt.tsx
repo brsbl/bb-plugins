@@ -182,7 +182,7 @@ export function CommandPrompt({
   }, [targetKey, sessionKey]);
 
   return (
-    <div className="bbd-cmd h-full">
+    <div className="bbd-program bbd-cmd h-full">
       {target === null ? (
         <p className="bbd-cmd-message">{unavailable}</p>
       ) : error !== null ? (

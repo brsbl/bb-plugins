@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState, type FormEvent } from "react";
 
+import { ProgramMenuBar, ProgramStatusBar } from "./apps/xp-chrome";
 import type { DesktopWindow } from "./windows";
 
 export const BROWSER_HOME = "https://www.google.com";
@@ -302,7 +303,15 @@ export function InternetExplorer({
             : "Done";
 
   return (
-    <div className="bbd-ie flex h-full flex-col">
+    <div className="bbd-program bbd-ie flex h-full flex-col">
+      <ProgramMenuBar menus={[
+        { label: "File", items: [{ label: "Open…", disabled, action: () => document.getElementById(addressId)?.focus() }] },
+        { label: "Edit", items: [{ label: "Copy", disabled: true }, { label: "Select All", disabled: true }] },
+        { label: "View", items: [{ label: "Stop", disabled: disabled || !loading, action: () => browser?.stop(tabId) }, { label: "Refresh", disabled, action: () => browser?.reload(tabId) }] },
+        { label: "Favorites", items: [{ label: "Add to Favorites…", disabled: true }] },
+        { label: "Tools", items: [{ label: "Internet Options…", disabled: true }] },
+        { label: "Help", items: [{ label: "Browser content is provided by bb" }] },
+      ]} />
       <div className="bbd-ie-toolbar flex-none">
         <button type="button" className="bbd-ie-nav" disabled={disabled || state?.canGoBack !== true} onClick={() => browser?.goBack(tabId)}>
           <NavArt kind="back" />
@@ -346,7 +355,7 @@ export function InternetExplorer({
           }}
         />
         <button type="submit" className="bbd-button bbd-bevel bbd-ie-go" disabled={disabled || (!editing && address === state?.url)}>
-          Go
+          <span className="bbd-ie-go-arrow" aria-hidden>➜</span> Go
         </button>
       </form>
       <div ref={viewRef} className="bbd-ie-view min-h-0 flex-1" data-shown={shown}>
@@ -362,10 +371,10 @@ export function InternetExplorer({
           </div>
         )}
       </div>
-      <footer className="bbd-ie-status flex-none">
+      <ProgramStatusBar>
         <span className="min-w-0 flex-1 truncate">{status}</span>
         <span className="bbd-ie-zone">Internet</span>
-      </footer>
+      </ProgramStatusBar>
     </div>
   );
 }

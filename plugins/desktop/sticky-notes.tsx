@@ -8,7 +8,9 @@ import {
 import { createRoot } from "react-dom/client";
 import { toast } from "sonner";
 
-import { CloseGlyph, NotePadGlyph } from "./art";
+import { NotePadArt, NotePadGlyph } from "./art";
+import { WindowTitleBar } from "./windows";
+import { ProgramMenuBar, ProgramStatusBar } from "./apps/xp-chrome";
 import { useDesktopEnabled } from "./enabled";
 
 export interface StickyNote {
@@ -24,7 +26,7 @@ export interface StickyNote {
 
 const NOTES_KEY = "bb-desktop:notes:v1";
 const TONES = ["Yellow", "Pink", "Green", "Blue"] as const;
-const DEFAULT_SIZE = { width: 184, height: 160 };
+const DEFAULT_SIZE = { width: 360, height: 260 };
 const MARGIN = 16;
 const MIN_SIZE = { width: 150, height: 110 };
 const EDGE = 8;
@@ -158,6 +160,7 @@ function StickyNoteView({ note }: { note: StickyNote }) {
   const textRef = useRef<HTMLTextAreaElement>(null);
   const [drag, setDrag] = useState<{ left: number; top: number; width: number; height: number } | null>(null);
   const rect = drag ?? screenRect(note);
+  const [wrap, setWrap] = useState(true);
 
   useEffect(() => {
     if (focusNoteId !== note.id) return;
@@ -195,45 +198,39 @@ function StickyNoteView({ note }: { note: StickyNote }) {
 
   return (
     <section
-      className="bbd-note"
+      className="bbd-note bbd-window bbd-program-note"
+      data-focused="true"
       data-tone={TONES[note.tone % TONES.length]}
       data-dragging={drag !== null}
       aria-label="Note pad"
       style={{ left: rect.left, top: rect.top, width: rect.width, height: rect.height }}
       onPointerDown={() => raiseNote(note.id)}
     >
-      <header
-        className="bbd-note-bar"
+      <WindowTitleBar title="Note pad" icon={<NotePadArt size={16} />}
         onPointerDown={(event) => {
-          if (event.target !== event.currentTarget) return;
+          if ((event.target as HTMLElement).closest("button")) return;
           track(event, (dx, dy) => ({ ...start, left: start.left + dx, top: start.top + dy }));
         }}
-      >
-        <button
-          type="button"
-          className="bbd-note-tone"
-          aria-label={`Color: ${TONES[note.tone % TONES.length]}`}
-          title="Change color"
-          onClick={() => updateNote(note.id, { tone: (note.tone + 1) % TONES.length })}
-        />
-        <button
-          type="button"
-          className="bbd-note-close"
-          aria-label="Delete note pad"
-          title="Delete"
-          onClick={() => removeNote(note.id)}
-        >
-          <CloseGlyph className="size-3" />
-        </button>
-      </header>
+        onClose={() => removeNote(note.id)}
+      />
+      <ProgramMenuBar menus={[
+        { label: "File", items: [{ label: "New", action: () => addStickyNote() }, { label: "Delete note pad", action: () => removeNote(note.id) }] },
+        { label: "Edit", items: [{ label: "Select All", action: () => { textRef.current?.focus(); textRef.current?.select(); } }] },
+        { label: "Format", items: [{ label: "Word Wrap", checked: wrap, action: () => setWrap(!wrap) }] },
+        { label: "View", items: TONES.map((tone, index) => ({ label: tone, checked: note.tone === index, action: () => updateNote(note.id, { tone: index }) })) },
+        { label: "Help", items: [{ label: "Notes save automatically" }] },
+      ]} />
       <textarea
         ref={textRef}
         className="bbd-note-text"
         value={note.text}
-        placeholder="Note"
-        spellCheck
+        aria-label="Note text"
+        wrap={wrap ? "soft" : "off"}
+        placeholder=""
+        spellCheck={false}
         onChange={(event) => updateNote(note.id, { text: event.target.value })}
       />
+      <ProgramStatusBar><span className="flex-1">Saved</span><span>{note.text.length} characters</span></ProgramStatusBar>
       <span
         className="bbd-note-grip"
         aria-hidden

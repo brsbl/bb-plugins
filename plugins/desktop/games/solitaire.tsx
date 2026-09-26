@@ -26,6 +26,7 @@ import {
   type Suit,
 } from "./solitaire-core";
 import "./solitaire.css";
+import { ProgramMenuBar, ProgramStatusBar } from "../apps/xp-chrome";
 
 interface Metrics {
   cardWidth: number;
@@ -56,8 +57,8 @@ const RETURN_MS = 180;
 
 function measure(width: number): Metrics {
   const gap = Math.max(4, Math.round(width * 0.018));
-  const cardWidth = Math.max(34, Math.min(112, Math.floor((width - gap * 8) / 7)));
-  const cardHeight = Math.round(cardWidth * 1.4);
+  const cardWidth = Math.max(34, Math.min(71, Math.floor((width - gap * 8) / 7)));
+  const cardHeight = Math.round(cardWidth * 96 / 71);
   return {
     cardWidth,
     cardHeight,
@@ -129,6 +130,20 @@ function SuitGlyph({ suit, className }: { suit: Suit; className: string }) {
   );
 }
 
+function pipPositions(rank: number): number[][] {
+  if (rank === 1) return [[50, 50]];
+  if (rank === 2) return [[50, 15], [50, 85]];
+  if (rank === 3) return [[50, 15], [50, 50], [50, 85]];
+  const pips = [[25, 15], [75, 15], [25, 85], [75, 85]];
+  if (rank === 5 || rank === 9) pips.push([50, 50]);
+  if (rank >= 6 && rank <= 8) pips.push([25, 50], [75, 50]);
+  if (rank >= 7 && rank <= 8) pips.push([50, 32]);
+  if (rank === 8) pips.push([50, 68]);
+  if (rank >= 9) pips.push([25, 38], [75, 38], [25, 62], [75, 62]);
+  if (rank === 10) pips.push([50, 26], [50, 74]);
+  return pips;
+}
+
 function CardFace({ card }: { card: Card }) {
   const label = rankLabel(card.rank);
   return (
@@ -137,7 +152,18 @@ function CardFace({ card }: { card: Card }) {
         <span className="bbd-sol-rank">{label}</span>
         <SuitGlyph suit={card.suit} className="bbd-sol-corner-suit" />
       </span>
-      <SuitGlyph suit={card.suit} className="bbd-sol-pip" />
+      {card.rank <= 10 ? <div className="bbd-sol-pips" data-rank={card.rank}>
+        {pipPositions(card.rank).map(([x, y], index) => <span key={index} style={{ left: `${x}%`, top: `${y}%`, transform: `translate(-50%, -50%) rotate(${y > 50 ? 180 : 0}deg)` }}><SuitGlyph suit={card.suit} className="bbd-sol-pip" /></span>)}
+      </div> : <svg className="bbd-sol-court" viewBox="0 0 40 70" aria-hidden>
+        {[false, true].map(flipped => <g key={String(flipped)} transform={flipped ? "rotate(180 20 35)" : undefined}>
+          <path d="M2 35V22L11 16h16l11 8v11Z" fill="var(--bbd-sol-gold)" stroke="currentColor" />
+          <path d="M4 35V24l10-5 17 16M11 21l23 14M6 28l13 7" fill="none" stroke="var(--bbd-sol-royal)" strokeWidth="3" />
+          <path d="M15 7h13v12l-5 5-8-7Z" fill="var(--bbd-sol-skin)" stroke="currentColor" />
+          <path d={card.rank === 13 ? "M13 8V2l5 3 4-4 4 4 5-3v6Z" : card.rank === 12 ? "M13 8l3-6 6 3 6-3 3 6Z" : "M12 8l3-6h15l3 6Z"} fill="var(--bbd-sol-gold)" stroke="currentColor" />
+          <path d="M24 11h2m-1 5h-5M14 10v11l5 4" stroke="currentColor" fill="none" />
+          <path d="M4 23V6m-2 3 2-5 2 5M33 26V12" stroke="currentColor" />
+        </g>)}
+      </svg>}
       <span className="bbd-sol-corner bbd-sol-corner-end">
         <span className="bbd-sol-rank">{label}</span>
         <SuitGlyph suit={card.suit} className="bbd-sol-corner-suit" />
@@ -217,6 +243,16 @@ export function SolitaireGame() {
     setSeconds(0);
     setGame(newGame(Math.random));
   }, [updateDrag]);
+
+  useEffect(() => {
+    const restart = (event: KeyboardEvent) => {
+      if (event.key === "F2" && boardRef.current?.closest(".bbd-window")?.getAttribute("data-focused") === "true") {
+        event.preventDefault(); startNewGame();
+      }
+    };
+    window.addEventListener("keydown", restart);
+    return () => window.removeEventListener("keydown", restart);
+  }, [startNewGame]);
 
   const drawCard = useCallback(() => {
     if (dragRef.current) return;
@@ -353,16 +389,11 @@ export function SolitaireGame() {
   const wasteLifted = isLifted({ kind: "waste" }, 0);
 
   return (
-    <div className="bbd-sol h-full">
-      <div className="bbd-menubar bbd-sol-toolbar">
-        <button type="button" className="bbd-button bbd-bevel" onClick={startNewGame}>
-          New game
-        </button>
-        <span className="bbd-sol-stat" aria-live="polite">
-          Moves: {game.moves}
-        </span>
-        <span className="bbd-sol-stat">Time: {formatTime(seconds)}</span>
-      </div>
+    <div className="bbd-program bbd-sol h-full">
+      <ProgramMenuBar menus={[
+        { label: "Game", items: [{ label: "Deal", shortcut: "F2", action: startNewGame }, { label: "Draw", action: drawCard }, "separator", { label: "Options…", disabled: true }, { label: "Deck…", disabled: true }] },
+        { label: "Help", items: [{ label: "Build alternating colors downward" }, { label: "Double-click a card to send it home" }] },
+      ]} />
       <div
         ref={boardRef}
         className="bbd-sol-board"
@@ -478,6 +509,7 @@ export function SolitaireGame() {
           </div>
         )}
       </div>
+      <ProgramStatusBar><span className="flex-1" /><span>Moves: {game.moves}</span><span>Time: {formatTime(seconds)}</span></ProgramStatusBar>
     </div>
   );
 }

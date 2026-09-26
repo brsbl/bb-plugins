@@ -426,6 +426,23 @@ function trackPointer(
   target.addEventListener("pointercancel", end);
 }
 
+/** Shared title chrome; note pads retain their own persisted placement and lifecycle. */
+export function WindowTitleBar({ title, icon, titleActions, maximized, onPointerDown, onDoubleClick, onMinimize, onMaximize, onClose }: {
+  title: string; icon: ReactNode; titleActions?: ReactNode; maximized?: boolean;
+  onPointerDown?: React.PointerEventHandler<HTMLElement>;
+  onDoubleClick?: React.MouseEventHandler<HTMLElement>;
+  onMinimize?: () => void; onMaximize?: () => void; onClose: () => void;
+}) {
+  return <header className="bbd-titlebar" onPointerDown={onPointerDown} onDoubleClick={onDoubleClick}>
+    <span className="flex size-4 flex-none items-center justify-center">{icon}</span>
+    <span className="min-w-0 flex-1 truncate">{title}</span>
+    {titleActions}
+    {onMinimize && <button type="button" className="bbd-titlebar-button" aria-label="Minimize" title="Minimize to the dock" onClick={onMinimize}><MinusGlyph className="size-3.5" strokeWidth={2} /></button>}
+    {onMaximize && <button type="button" className="bbd-titlebar-button" aria-label={maximized ? "Restore" : "Maximize"} title={maximized ? "Restore" : "Maximize"} onClick={onMaximize}>{maximized ? <RestoreGlyph className="size-3.5" strokeWidth={2} /> : <MaximizeGlyph className="size-3.5" strokeWidth={2} />}</button>}
+    <button type="button" className="bbd-titlebar-button ml-0.5" data-variant="close" aria-label="Close" title="Close" onClick={onClose}><CloseGlyph className="size-3.5" strokeWidth={2} /></button>
+  </header>;
+}
+
 export function WindowFrame({
   window: desktopWindow,
   title,
@@ -503,54 +520,15 @@ export function WindowFrame({
         manager.focus(id);
       }}
     >
-      <header
-        className="bbd-titlebar"
+      <WindowTitleBar title={title} icon={icon} titleActions={titleActions} maximized={maximized}
         onPointerDown={startMove}
         onDoubleClick={(event) => {
-          if ((event.target as HTMLElement).closest("button") === null) {
-            manager.toggleMaximize(id);
-          }
+          if ((event.target as HTMLElement).closest("button") === null) manager.toggleMaximize(id);
         }}
-      >
-        <span className="flex size-4 flex-none items-center justify-center">{icon}</span>
-        <span className="min-w-0 flex-1 truncate">{title}</span>
-        {titleActions}
-        <button
-          type="button"
-          className="bbd-titlebar-button"
-          aria-label="Minimize"
-          title="Minimize to the dock"
-          onClick={() => manager.minimize(id, true)}
-        >
-          <MinusGlyph className="size-3.5" strokeWidth={2} />
-        </button>
-        <button
-          type="button"
-          className="bbd-titlebar-button"
-          aria-label={maximized ? "Restore" : "Maximize"}
-          title={maximized ? "Restore" : "Maximize"}
-          onClick={() => manager.toggleMaximize(id)}
-        >
-          {maximized ? (
-            <RestoreGlyph className="size-3.5" strokeWidth={2} />
-          ) : (
-            <MaximizeGlyph className="size-3.5" strokeWidth={2} />
-          )}
-        </button>
-        <button
-          type="button"
-          className="bbd-titlebar-button ml-0.5"
-          data-variant="close"
-          aria-label="Close"
-          title="Close"
-          onClick={() => {
-            onClose?.();
-            manager.close(id);
-          }}
-        >
-          <CloseGlyph className="size-3.5" strokeWidth={2} />
-        </button>
-      </header>
+        onMinimize={() => manager.minimize(id, true)}
+        onMaximize={() => manager.toggleMaximize(id)}
+        onClose={() => { onClose?.(); manager.close(id); }}
+      />
       <div className="bbd-window-body">{children}</div>
       {statusBar !== undefined ? <footer className="bbd-statusbar">{statusBar}</footer> : null}
       {maximized

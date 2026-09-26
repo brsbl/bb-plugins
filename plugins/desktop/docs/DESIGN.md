@@ -11,7 +11,7 @@ Every surface belongs to exactly one layer. Decide which before designing anythi
 | **XP layer** | The desktop, icons, windows, taskbar, Start menu, tray, balloons, context menus opened on the desktop | Windows XP Luna: blue title bars, green Start, bevelled buttons, yellow balloons, drawn icons | This is the plugin's whole point |
 | **bb layer** | Anything the plugin renders inside bb's own chrome: the thread-header folder label, the note pad header button, settings | Native bb: bb tokens, bb typography, line glyphs, no XP chrome | XP chrome inside bb's header would look broken, not nostalgic |
 
-Note pads are the one floating exception: they live on every page, so they are drawn as XP Notepad paper (spiral binding, ruled page, Lucida Console) rather than full XP window chrome.
+Note pads still float on every page, but share the programs’ glass title bar and menus. XP Notepad had a plain white editing surface; the spiral binding and rules belong to its icon, not its document.
 
 ## 2. Names
 
@@ -36,7 +36,7 @@ All colors are tokens on `.bbd-root` in `app.css` (Luna palette, `--bbd-*`) or c
 
 Rules:
 
-- Luna hues are fixed, like XP's. Surfaces behind content derive from bb's `--canvas`/`--ink`/`--background` so light, dark, and Ambient all work.
+- Luna hues are fixed, like XP's. bb-facing surfaces derive from bb's `--canvas`/`--ink`/`--background`. Bundled XP program chrome uses the same glass tokens. Their documents, boards, cards and skins can use fixed `--bbd-xp-*` or app-scoped colors where the original content is the reference.
 - Mix translucent steps in `oklab`, opaque steps in `oklch`. No achromatic `oklch(L 0 0)` literals.
 - New shared colors are added as a token first, then used.
 - A self-contained app (the games in `games/`) may keep its own palette, but only as scoped tokens declared once at the top of its CSS file (`--bbd-mine-*`, `--bbd-sol-*`). Game logic lives in a pure `*-core.ts` module with tests; the component renders only the window body and `desktop.tsx` wraps it in `WindowFrame`.
@@ -103,6 +103,9 @@ Reuse these before building anything new.
 | A Start menu entry | `programs` (left column, with a detail line) or `places` (right column, grouped by section) in `StartMenu`; every entry can be added to Quick Launch by id |
 | A window | `WindowFrame` (title bar, minimize, maximize, close, status bar, resize) |
 | A toolbar row in a window | `.bbd-menubar` |
+| An XP program menu | `ProgramMenuBar` in `apps/xp-chrome.tsx`: compact Tahoma labels, separators, checks, shortcuts, disabled commands, arrow-key navigation and Escape |
+| An XP program status bar | `ProgramStatusBar`, or the `WindowFrame` status slot, with the same `.bbd-statusbar` styling |
+| A floating note title bar | `WindowTitleBar`, also used by `WindowFrame`; preserve the note’s separate persistence and drag lifecycle |
 | A button in a window | `.bbd-button .bbd-bevel` |
 | A text field or select | `.bbd-field .bbd-sunken` |
 | A grouped form section | `.bbd-fieldset` with a `<legend>` |
@@ -115,6 +118,25 @@ Reuse these before building anything new.
 | A notification | The tray balloon (`balloon.tsx`), one at a time |
 | Another plugin's own UI as a program | The desktop app bridge (`bridge.ts`, `window.bbDesktopApps` version 1): the plugin registers an app and portals its UI into `AppWindow`. Plugin authors follow `skills/desktop-apps` |
 | Another plugin's sidebar footer panel | Nothing to build: with the sidebar collapsed, the tray shows any footer disclosure as an XP window (`usePanelWindows`). bb keeps rendering the panel; Desktop only restyles and repositions it |
+
+### Bundled XP programs
+
+Compare against [GUIdebook’s XP application captures](https://guidebookgallery.org/screenshots/winxppro/), [XP Solitaire and its deck picker](https://www.mobygames.com/game/21468/microsoft-windows-xp-included-games/screenshots/), [XP Paint](https://media.criticalhit.net/2017/07/ms-paint-xp.jpg), and [Media Player 9 on XP](https://sdfox7.com/xp/files/wmp9xp.jpg). These references distinguish the document from the program icon and WMP’s silver-blue skin from the ordinary XP control face.
+
+All eight programs use `WindowFrame`/`WindowTitleBar`, `ProgramMenuBar` and `ProgramStatusBar` where the original has those rows. Keep the established split-the-difference treatment: frosted-glass frames, flat faintly blue title bars, and glass menu/status surfaces following bb’s theme and Ambient. Mark bodies `.bbd-program`; use `.bbd-program-note` for the persistent note. Inside that shared chrome, preserve the original program’s board, document, card or skin vocabulary with a modest modern twist. Menus are compact Tahoma with blue selection; status panes are inset, not floating pills. Unsupported commands are visibly disabled. Scope program rules away from IM, Buddy List and the host composer.
+
+| Program | Reference details and implementation boundary |
+| --- | --- |
+| Minesweeper | Classic gray `#C0C0C0`, three-digit red seven-segment counters, raised yellow face, inset field; numbers blue, green, red, navy, maroon, teal, black, gray. Game contains New/F2 and difficulty checks. Preserve responsive cells and the tested core. |
+| Solitaire | Flat `#008000` felt, white 71 × 96 proportioned cards, red/black corner ranks, rank-counted pips and mirrored court illustrations, blue geometric backs. Game/Help menus and bottom moves/time status. Artwork is an original vector adaptation; existing draw rules and move count remain. |
+| Pinball | Black cabinet, silver/red mechanisms, space-themed printed table art, purple score lettering, red ball label and silver inset side panel. Game/Options/Help rows; keyboard controls in Options. Artwork follows Space Cadet’s visual vocabulary but remains aligned with this plugin’s existing collision geometry; do not imply it reproduces the original mission table. |
+| Paint | File/Edit/View/Image/Colors/Help; two columns of eight tool positions, gray workspace, 28-color box and inset status. Eight existing tools remain active; unimplemented selection/text/curve/polygon tools occupy their original positions but are disabled. Do not alter the raster core to make a cosmetic change. |
+| Media Player | WMP 9 silver-blue skin, Now Playing band, black visualization screen and circular blue playback control. Keep the real microphone input and three existing visualization presets; this is not a media-library or CD player. |
+| Note pad | Plain white document, Lucida Console, File/Edit/Format/View/Help, shared glass title. Keep autosave, multiple notes, edge anchoring and deletion undo. Tone is a small frame accent selected from View; do not return ruled paper or a spiral to the document. |
+| Command Prompt | Shared glass frame, no program menu bar. [XP consoles originally kept Classic chrome under Luna](https://devblogs.microsoft.com/oldnewthing/20071231-00/?p=23983), but this plugin deliberately shares its modern glass frame across programs. Leave the embedded bb terminal’s rendering, theme, keyboard and session behavior untouched. |
+| Internet Explorer | IE6 File/Edit/View/Favorites/Tools/Help, compact navigation toolbar, square address field and green-arrow Go button, inset status panes. Change only chrome; the native browser view and web-only placeholder remain untouched. |
+
+Program names and Start/Quick Launch identifiers and icons are stable. Do not fold a pending rename into visual fidelity work. References are research evidence, not distributable assets; game and program drawings remain original source artwork.
 
 ### bb Messenger: AIM 4.x–5.x reference
 
@@ -134,7 +156,7 @@ The reference is Windows AIM around 2000–2004, rather than later AIM 6 or MSN.
 - Windows open with `defaultRect` sizes and stay inside the viewport (`clampRect`). List windows start at least 460 px wide so titles fit.
 - The taskbar is a pill sized to its contents: Start, Quick Launch, window buttons, tray.
 - Window buttons never shrink below a readable label (96 px). Buttons that don't fit move behind a » count button that lists them in a menu, and the focused window's button always stays visible.
-- Text uses bb's sans font and typography tokens (`--text-xs`, and so on). The XP typeface exceptions are quoted XP artifacts: the balloon (Tahoma), Minesweeper numbers (Tahoma), note pads, and Command Prompt (Lucida Console, the XP console font).
+- bb-facing text uses bb's sans font and typography tokens. Bundled XP programs use compact 11 px Tahoma menus and Lucida Console for Note pad; window titles keep the shared bb typography. Command Prompt retains the embedded terminal’s own type settings. The balloon also uses Tahoma; Messenger’s exceptions are specified above.
 
 ## 7. Motion
 
@@ -176,9 +198,9 @@ Measured values for when a surface should match XP exactly. Sources: the [Visual
 
 These differ from XP on purpose; keep them unless the owner decides otherwise.
 
-- Window and menu surfaces are translucent glass that follows bb's theme and Ambient, instead of XP's opaque `#ECE9D8`.
+- Window and menu surfaces are translucent glass that follows bb's theme and Ambient, instead of XP's opaque `#ECE9D8`. This includes the bundled programs’ outer frames, flat title bars, menus and status bars. Their inner documents and game fields may retain authentic fixed colors.
 - The taskbar is a floating pill sized to its contents, not a full-width bar.
-- Text uses bb's sans font; only the balloon quotes Tahoma.
+- bb-facing text uses bb's sans font; programs and the balloon quote XP typography.
 - The busy hourglass flips; XP's default hourglass was static. The motion shows that an agent is working.
 
 ## Known gaps

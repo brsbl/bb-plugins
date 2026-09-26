@@ -9,6 +9,7 @@ import {
 } from "react";
 
 import "./paint.css";
+import { ProgramMenuBar, ProgramStatusBar } from "./xp-chrome";
 import {
   DEFAULT_CANVAS_SIZE,
   DEFAULT_PRIMARY,
@@ -54,6 +55,9 @@ interface ResizeDrag {
   originY: number;
   start: Size;
 }
+
+const TOOL_ORDER: ToolId[] = ["eraser", "fill", "picker", "pencil", "brush", "line", "rectangle", "ellipse"];
+const TOOL_AREAS: Record<ToolId, string> = { eraser: "2 / 1", fill: "2 / 2", picker: "3 / 1", pencil: "4 / 1", brush: "4 / 2", line: "6 / 1", rectangle: "7 / 1", ellipse: "8 / 1" };
 
 const INK = "oklch(0.24 0.03 260)";
 
@@ -448,32 +452,34 @@ export function PaintApp() {
   const toolLabel = TOOLS.find((entry) => entry.id === tool)?.label ?? tool;
 
   return (
-    <div ref={rootRef} className="bbd-paint flex h-full flex-col" tabIndex={-1} onKeyDown={onKeyDown}>
-      <div className="bbd-menubar flex-none">
-        <button type="button" className="bbd-button bbd-bevel" title="New picture" onClick={newPicture}>
-          New
-        </button>
-        <button
-          type="button"
-          className="bbd-button bbd-bevel"
-          title="Undo (Ctrl+Z)"
-          disabled={!canUndo}
-          onClick={undo}
-        >
-          Undo
-        </button>
-        <button type="button" className="bbd-button bbd-bevel" title="Save as untitled.png" onClick={save}>
-          Save
-        </button>
-      </div>
+    <div ref={rootRef} className="bbd-program bbd-paint flex h-full flex-col" tabIndex={-1} onKeyDown={onKeyDown}>
+      <ProgramMenuBar menus={[
+        { label: "File", items: [{ label: "New", action: newPicture }, { label: "Save", action: save }, { label: "Save As…", action: save }] },
+        { label: "Edit", items: [{ label: "Undo", shortcut: "Ctrl+Z", disabled: !canUndo, action: undo }] },
+        { label: "View", items: [{ label: "Tool Box", checked: true }, { label: "Color Box", checked: true }, { label: "Status Bar", checked: true }] },
+        { label: "Image", items: [{ label: "Attributes…", disabled: true }, { label: "Clear Image", action: newPicture }] },
+        { label: "Colors", items: [{ label: "Choose foreground: click a color" }, { label: "Choose background: right-click" }] },
+        { label: "Help", items: [{ label: "Drag to draw; resize at bottom right" }] },
+      ]} />
       <div className="flex min-h-0 flex-1">
         <div className="bbd-paint-toolbox flex-none">
           <div className="bbd-paint-tools" role="toolbar" aria-label="Tools">
-            {TOOLS.map((entry) => (
+            {[
+              ["Free-form select", "1 / 1", "M2 5 6 2 11 4 14 9 9 13 3 11Z"],
+              ["Select", "1 / 2", "M2 3h12v10H2Z"],
+              ["Magnifier", "3 / 2", "M10 10l5 5M11 6a5 5 0 1 1-10 0 5 5 0 0 1 10 0"],
+              ["Airbrush", "5 / 1", "M2 5h5v9H2ZM8 3h1m3 2h1m-3 3h1m3 3h1"],
+              ["Text", "5 / 2", "M3 14 8 2l5 12M5 10h6"],
+              ["Curve", "6 / 2", "M3 14c12-6-7-6 8-12"],
+              ["Polygon", "7 / 2", "M2 13 5 3h6L8 8h6v5Z"],
+              ["Rounded rectangle", "8 / 2", "M5 3h6q3 0 3 3v4q0 3-3 3H5q-3 0-3-3V6q0-3 3-3"],
+            ].map(([label, area, path]) => <button key={label} className="bbd-paint-tool" style={{ gridArea: area }} type="button" disabled aria-label={label} title={`${label} (not available)`}><svg viewBox="0 0 16 16" width="16" height="16" aria-hidden><path d={path} fill="none" stroke="currentColor" strokeWidth="1.3" strokeDasharray={label?.includes("select") || label === "Select" ? "2 1" : undefined} /></svg></button>)}
+            {[...TOOLS].sort((a, b) => TOOL_ORDER.indexOf(a.id) - TOOL_ORDER.indexOf(b.id)).map((entry) => (
               <button
                 key={entry.id}
                 type="button"
                 className="bbd-paint-tool"
+                style={{ gridArea: TOOL_AREAS[entry.id] }}
                 data-pressed={tool === entry.id}
                 aria-pressed={tool === entry.id}
                 aria-label={entry.label}
@@ -562,6 +568,7 @@ export function PaintApp() {
           ))}
         </div>
       </div>
+      <ProgramStatusBar><span className="flex-1">{toolLabel}</span><span>{size.width} × {size.height} pixels</span></ProgramStatusBar>
     </div>
   );
 }

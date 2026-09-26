@@ -1,6 +1,7 @@
 import { useEffect, useRef, useSyncExternalStore } from "react";
 
 import { MediaPlayerArt, MicGlyph, PlayGlyph, StopGlyph } from "./art";
+import { ProgramMenuBar } from "./apps/xp-chrome";
 import { WindowFrame, type DesktopWindow } from "./windows";
 
 type MicStatus = "off" | "starting" | "live" | "blocked";
@@ -84,7 +85,7 @@ interface Preset {
   draw: (context: CanvasRenderingContext2D, scene: Scene) => void;
 }
 
-const BACKDROP = "oklch(0.16 0.04 262)";
+const BACKDROP = "#000000";
 
 function bands(freq: Uint8Array, count: number): number[] {
   const usable = Math.floor(freq.length * 0.7);
@@ -402,7 +403,15 @@ export function MediaPlayerWindow({ window: desktopWindow }: { window: DesktopWi
       onClose={stopMic}
       statusBar={<span className="flex-1 truncate">{statusText(status, preset)}</span>}
     >
-      <div className="bbd-wmp h-full">
+      <div className="bbd-program bbd-wmp h-full">
+        <ProgramMenuBar menus={[
+          { label: "File", items: [{ label: "Open microphone", action: () => void startMic() }] },
+          { label: "View", items: PRESETS.map((item, index) => ({ label: item.name, checked: item === preset, action: () => selectPreset(index) })) },
+          { label: "Play", items: [{ label: "Play", action: () => void startMic() }, { label: "Stop", action: stopMic }] },
+          { label: "Tools", items: [{ label: "Options…", disabled: true }] },
+          { label: "Help", items: [{ label: "Live microphone visualizations" }] },
+        ]} />
+        <div className="bbd-wmp-nowplaying"><strong>Now Playing</strong><span>Microphone</span></div>
         <div
           className="bbd-wmp-screen relative min-h-0 flex-1"
           data-idle={status !== "live"}
@@ -423,6 +432,7 @@ export function MediaPlayerWindow({ window: desktopWindow }: { window: DesktopWi
         </div>
         <div className="bbd-wmp-transport">
           <PlayButton size="large" />
+          <button className="bbd-wmp-stop" type="button" aria-label="Stop" title="Stop" onClick={stopMic}><StopGlyph className="size-3" /></button>
           <VisualizationPicker preset={preset} />
         </div>
       </div>

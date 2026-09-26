@@ -11,6 +11,7 @@ import {
 } from "react";
 
 import "./pinball.css";
+import { ProgramMenuBar } from "../apps/xp-chrome";
 import {
   BALLS_PER_GAME,
   MAX_MULTIPLIER,
@@ -56,12 +57,12 @@ const COLORS = {
   frame: "oklch(0.25 0.07 268)",
   frameEdge: "oklch(0.36 0.09 262)",
   lane: "oklch(0.16 0.05 268)",
-  rail: "oklch(0.84 0.11 212)",
-  railGlow: "oklch(0.7 0.16 228 / 0.35)",
+  rail: "#b5b5ba",
+  railGlow: "#6b313a",
   gateOpen: "oklch(0.84 0.11 212 / 0.35)",
-  bumper: "oklch(0.48 0.21 300)",
-  bumperCore: "oklch(0.72 0.16 300)",
-  bumperRing: "oklch(0.84 0.13 200)",
+  bumper: "#d6d3c6",
+  bumperCore: "#fbf2da",
+  bumperRing: "#a52b32",
   bumperLit: "oklch(0.95 0.13 95)",
   sling: "oklch(0.42 0.17 268)",
   slingLit: "oklch(0.9 0.15 95)",
@@ -164,6 +165,23 @@ function drawBackdrop(ctx: CanvasRenderingContext2D) {
     ctx.fillStyle = glow;
     ctx.fillRect(0, 0, width, height);
   }
+  // Printed Space Cadet motifs: blue planet, concentric mission lamps and circuitry.
+  const planet = ctx.createRadialGradient(185, 420, 5, 185, 420, 62);
+  planet.addColorStop(0, COLORS.railGlow);
+  planet.addColorStop(1, COLORS.spaceDeep);
+  ctx.fillStyle = planet;
+  ctx.beginPath(); ctx.arc(185, 420, 62, 0, Math.PI * 2); ctx.fill();
+  for (let index = 0; index < 24; index += 1) {
+    const angle = index / 24 * Math.PI * 2;
+    ctx.fillStyle = index % 3 === 0 ? COLORS.laneOn : COLORS.bumper;
+    ctx.beginPath(); ctx.arc(185 + Math.cos(angle) * 73, 420 + Math.sin(angle) * 73, 4, 0, Math.PI * 2); ctx.fill();
+  }
+  ctx.strokeStyle = COLORS.nebulaBlue; ctx.lineWidth = 1;
+  for (let index = 0; index < 12; index += 1) {
+    ctx.beginPath(); ctx.moveTo(30 + index * 28, 110); ctx.lineTo(70 + index * 17, 340); ctx.lineTo(24 + index * 29, 540); ctx.stroke();
+  }
+  ctx.fillStyle = COLORS.nebulaPink;
+  polygon(ctx, [[80, 610], [120, 480], [155, 562], [185, 495], [210, 562], [250, 480], [285, 610]]);
   ctx.fillStyle = COLORS.star;
   for (const star of STARS) {
     ctx.globalAlpha = star.alpha;
@@ -211,9 +229,9 @@ function drawDecals(ctx: CanvasRenderingContext2D, state: PinballState) {
   ctx.textBaseline = "middle";
   ctx.fillStyle = COLORS.title;
   ctx.font = `700 11px ${FONT}`;
-  ctx.fillText("3D PINBALL", 185, 400);
+  ctx.fillText("3D PINBALL", 185, 360);
   ctx.font = `700 22px ${FONT}`;
-  ctx.fillText("SPACE CADET", 185, 422);
+  ctx.fillText("SPACE CADET", 185, 380);
   ctx.font = `700 12px ${FONT}`;
   for (let level = 2; level <= MAX_MULTIPLIER; level += 1) {
     ctx.fillStyle = state.multiplier >= level ? COLORS.multiplierOn : COLORS.multiplierOff;
@@ -418,6 +436,7 @@ export function PinballGame() {
   const [hud, setHud] = useState<Hud>(() => hudOf(initial));
   const [highScore, setHighScore] = useState(loadHighScore);
   const highRef = useRef(highScore);
+  const [showControls, setShowControls] = useState(false);
   const [focused, setFocused] = useState(false);
   const [visible, setVisible] = useState(() => typeof document === "undefined" || document.visibilityState !== "hidden");
   const [announcement, setAnnouncement] = useState("");
@@ -595,23 +614,12 @@ export function PinballGame() {
           : "Light all three top lanes";
 
   return (
-    <div className="bbd-pinball">
-      <div className="bbd-menubar bbd-pinball-toolbar">
-        <button
-          type="button"
-          className="bbd-button bbd-bevel"
-          title="New game (F2)"
-          onClick={() => {
-            startNewGame();
-            bodyRef.current?.focus({ preventScroll: true });
-          }}
-        >
-          New game
-        </button>
-        <span className="bbd-pinball-stat">
-          Ball {hud.ballNumber} of {BALLS_PER_GAME}
-        </span>
-      </div>
+    <div className="bbd-program bbd-pinball">
+      <ProgramMenuBar menus={[
+        { label: "Game", items: [{ label: "New Game", shortcut: "F2", action: () => { startNewGame(); bodyRef.current?.focus(); } }] },
+        { label: "Options", items: [{ label: "Player Controls", action: () => setShowControls(!showControls), checked: showControls }] },
+        { label: "Help", items: [{ label: "Z / Left Shift: left flipper" }, { label: "/ / Right Shift: right flipper" }, { label: "Hold Space, then release to launch" }] },
+      ]} />
       <div
         ref={bodyRef}
         className="bbd-pinball-body"
@@ -640,6 +648,17 @@ export function PinballGame() {
           <div className="bbd-pinball-logo" aria-hidden>
             <span className="bbd-pinball-logo-small">3D Pinball</span>
             <span className="bbd-pinball-logo-big">Space Cadet</span>
+            <svg viewBox="0 0 160 110" className="bbd-pinball-ship" aria-hidden>
+              <circle cx="24" cy="79" r="14" fill="var(--bbd-pinball-gold)" />
+              <path d="m136 45 20-8-7 19Z" fill="var(--bbd-pinball-alert)" />
+              <path d="m28 67 62-35 57 14-17 36-60 8Z" fill="var(--bbd-pinball-bevel-light)" stroke="var(--bbd-pinball-bevel-dark)" strokeWidth="3" />
+              <ellipse cx="94" cy="52" rx="27" ry="14" fill="var(--bbd-pinball-panel-deep)" />
+              <path d="M74 52c0-30 12-43 27-31l14 30" fill="var(--bbd-pinball-panel)" stroke="var(--bbd-pinball-led)" strokeWidth="2" />
+              <path d="m46 61 42 4-17 18-36-6Z" fill="var(--bbd-pinball-text)" />
+              <path d="m80 72 28-5 19 11-20 17-29-9Z" fill="var(--bbd-pinball-muted)" />
+              <circle cx="100" cy="33" r="10" fill="var(--bbd-pinball-gold)" />
+              <path d="m87 50 10-8 12 8-1 9-25-2Z" fill="var(--bbd-pinball-led)" />
+            </svg>
           </div>
           <div className="bbd-pinball-readout">
             <div className="bbd-pinball-row">
@@ -677,7 +696,7 @@ export function PinballGame() {
           >
             Hold to launch
           </button>
-          <dl id={helpId} className="bbd-pinball-keys">
+          <dl id={helpId} className="bbd-pinball-keys" hidden={!showControls}>
             <dt>Z or Left Shift</dt>
             <dd>Left flipper</dd>
             <dt>/ or Right Shift</dt>
