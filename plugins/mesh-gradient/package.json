@@ -1,6 +1,6 @@
 {
   "name": "bb-plugin-mesh-gradient",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Design, preview, and export mesh gradients from bb.",
   "type": "module",
   "license": "UNLICENSED",
@@ -8,6 +8,7 @@
     "assets",
     "dist",
     "docs",
+    "skills",
     "themes",
     "README.md"
   ],
@@ -29,7 +30,7 @@
     },
     "server": "./server.ts",
     "app": "./app.tsx",
-    "skills": [],
+    "skills": ["skills"],
     "themes": [
       {
         "id": "aurora",

@@ -1,6 +1,6 @@
 import {
   contrastReportFor,
-  relativeLuminance,
+  sampleLuminances,
   type ContrastReport,
   type MeshGradientSpec,
 } from "./gradient.js";
@@ -50,6 +50,32 @@ export const SURFACE_PRESETS: SurfacePreset[] = [
     hint: "Circular identity mark",
   },
 ];
+
+/**
+ * What follows the mention in "Apply the [@name] …": names the surface the
+ * gradient is for and the text color that stays readable on it, so the agent
+ * gets the destination along with the exact values.
+ */
+export function handoffSuffix(
+  preset: SurfacePreset,
+  report: ContrastReport | null,
+): string {
+  const text = !report
+    ? ""
+    : report.passesAALarge
+      ? `, with ${report.best} text on top (${report.bestRatio}:1 contrast)`
+      : ", with a scrim behind any text (neither white nor black reads on it)";
+  if (preset.id === "og") {
+    return ` mesh gradient as the Open Graph card background (${preset.width}×${preset.height})${text}. `;
+  }
+  if (preset.id === "hero") {
+    return ` mesh gradient as the hero section background${text}. `;
+  }
+  if (preset.id === "avatar") {
+    return ` mesh gradient as a circular avatar (${preset.width}×${preset.height}). `;
+  }
+  return " mesh gradient to ";
+}
 
 export function presetById(id: string): SurfacePreset {
   return SURFACE_PRESETS.find((preset) => preset.id === id) ?? SURFACE_PRESETS[0];
@@ -115,33 +141,12 @@ function createCanvas(width: number, height: number): HTMLCanvasElement {
   return canvas;
 }
 
-/**
- * Sample a coarse grid and score both candidate text colors. Small on purpose:
- * this runs on every edit and only needs the luminance envelope.
- */
 export function measureContrast(
   spec: MeshGradientSpec,
   options: { width?: number; height?: number } = {},
 ): ContrastReport | null {
-  const width = options.width ?? 64;
-  const height = options.height ?? 40;
-  const canvas = createCanvas(width, height);
-  const context = canvas.getContext("2d", { willReadFrequently: true });
-  if (!context) return null;
-  drawMeshGradient(context, spec, width, height);
-  let data: Uint8ClampedArray;
-  try {
-    data = context.getImageData(0, 0, width, height).data;
-  } catch {
-    return null;
-  }
-  const luminances: number[] = [];
-  for (let index = 0; index < data.length; index += 4) {
-    luminances.push(
-      relativeLuminance(data[index], data[index + 1], data[index + 2]),
-    );
-  }
-  return luminances.length ? contrastReportFor(luminances) : null;
+  if (spec.points.length === 0) return null;
+  return contrastReportFor(sampleLuminances(spec, options));
 }
 
 export async function renderPngDataUrl(
