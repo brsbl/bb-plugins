@@ -85,9 +85,8 @@ body.bb-app-shell > #root header.bg-surface-scrim { border-color: transparent; }
 ${COMPACT_HOME} > [data-testid="root-compose-compact-scroll-viewport"] { ${GLASS_SURFACE} top: auto !important; bottom: 6px; left: ${COMPACT_INSET}; right: ${COMPACT_INSET}; max-height: min(calc(100% - 62px), 600px); border-radius: 20px; }
 ${COMPACT_HOME} [data-testid="root-compose-compact-recents-offset"] { display: none; }
 ${COMPACT_HOME} [data-testid="root-compose-compact-scroll-viewport"] > .px-4 { padding-inline: 0; }
-${COMPACT_HOME} [data-testid="root-compose-compact-composer"] > .bg-background { border-radius: 0 0 20px 20px; }
 body.bb-app-shell > #root [data-root-compose-mobile-recents] { padding-block: 0 6px; }
-body.bb-app-shell > #root [data-root-compose-mobile-recents] > .sticky { position: static; background-color: transparent; -webkit-backdrop-filter: none; backdrop-filter: none; padding-block-start: 4px; }
+body.bb-app-shell > #root [data-root-compose-mobile-recents] > .sticky { position: static; background-color: transparent; -webkit-backdrop-filter: none; backdrop-filter: none; padding-block-start: 16px; }
 body.bb-app-shell > #root [data-root-compose-mobile-recents] > .sticky [data-overflow-fade] { display: none; }
 body.bb-app-shell > #root [data-testid="root-compose-compact-composer"] > [data-overflow-fade] { display: none; }
 body.bb-app-shell > #root [data-testid="root-compose-compact-composer"] > .bg-background { background: linear-gradient(to bottom, color-mix(in oklab, var(--canvas) 28%, transparent), transparent 45%), ${GLASS_FILL}; ${GLASS_BLUR} margin-inline: ${COMPACT_INSET}; margin-block-end: 6px; padding-block-start: 12px; border-radius: 20px; border: 1px solid color-mix(in oklab, var(--ink) 9%, transparent); box-shadow: inset 0 1px 0 color-mix(in oklab, var(--canvas) 70%, transparent), 0 -10px 24px -18px color-mix(in oklab, var(--ink) 40%, transparent); }
@@ -124,6 +123,7 @@ body.bb-app-shell > #root [data-sidebar="footer"]:has([data-testid^="plugin-side
 body.bb-app-shell > #root [data-sidebar="footer"] [data-testid^="plugin-sidebar-footer-disclosure-"] { border-color: transparent; background-color: transparent; }
 body.bb-app-shell > #root [data-sidebar="footer"] > [data-overflow-fade], body.bb-app-shell > #root [data-sidebar="footer"] > ul > li[aria-hidden="true"]:empty { display: none; }
 :is(${SIDEBAR_CARDS}) :is(.sticky, [data-sidebar-sticky-tier], [data-sidebar-sticky-stack]), :is(${SIDEBAR_CARDS}) [data-sidebar-sticky-stack]::before { -webkit-backdrop-filter: none; backdrop-filter: none; }
+:is(${SIDEBAR_CARDS}) [data-sidebar-sticky-stack] [data-sidebar-sticky-tier] { position: relative; top: auto; }
 body.bb-app-shell > #root [data-app-composer] { --background: color-mix(in oklab, var(--ambient-background) 68%, transparent); }
 ${RIGHT_PANEL} { ${GLASS_SURFACE} inset: 8px 8px 8px 2px; height: auto; max-width: calc(100% - 10px); border-radius: 20px; overflow: hidden; --background: transparent; --sidebar: transparent; }
 body.bb-app-shell > #root :is([role="separator"][data-split-resize-grid-boundary], [data-panel-resize-handle-id]):not(:hover, [data-dragging], [data-resize-handle-state="drag"]), body.bb-app-shell > #root [data-panel-resize-handle-id]:not(:hover, [data-resize-handle-state="drag"]) > span { background-color: transparent; }
