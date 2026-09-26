@@ -105,7 +105,7 @@ import { playDoorClose, playDoorOpen } from "./door-sounds";
 import { toggleDesktop, useDesktopEnabled } from "./enabled";
 import { MediaDeskband, MediaPlayerWindow, useMic } from "./media-player";
 import { aimScreenName } from "./screen-names";
-import { addStickyNote } from "./sticky-notes";
+import { addStickyNote, noteTitle, openNote, removeNote, useSavedNotes, type StickyNote } from "./sticky-notes";
 import type { DesktopSnapshot, rpcContract } from "./server";
 import {
   WindowFrame,
@@ -883,6 +883,7 @@ function usePageBackgroundMenu(
 
 const RECYCLE_BIN_KEY = "recycle-bin";
 const MORE_KEY = "more";
+const NOTE_KEY_PREFIX = "note:";
 const ICON_BOX = { width: 88, height: 84 } as const;
 
 interface IconDrag {
@@ -932,9 +933,11 @@ function DesktopCanvas() {
 
   const items = desktop.desktopGroups;
   const hasMore = desktop.moreGroups.length > 0;
+  const savedNotes = useSavedNotes();
+  const noteKeys = useMemo(() => savedNotes.map((note) => NOTE_KEY_PREFIX + note.id), [savedNotes]);
   const keys = useMemo(
-    () => [RECYCLE_BIN_KEY, ...(hasMore ? [MORE_KEY] : []), ...items.map((item) => item.key)],
-    [hasMore, items],
+    () => [RECYCLE_BIN_KEY, ...(hasMore ? [MORE_KEY] : []), ...items.map((item) => item.key), ...noteKeys],
+    [hasMore, items, noteKeys],
   );
 
   const positions = useMemo(() => {
@@ -961,8 +964,18 @@ function DesktopCanvas() {
   const deletableIn = (keySet: ReadonlySet<string>) =>
     items.filter((group) => keySet.has(group.key) && isDeletable(group));
 
-  const deleteGroups = (groups: DesktopGroup[]) => {
+  const deleteNotesIn = (keySet: ReadonlySet<string>) => {
+    const ids = [...keySet].filter((key) => key.startsWith(NOTE_KEY_PREFIX)).map((key) => key.slice(NOTE_KEY_PREFIX.length));
+    for (const id of ids) removeNote(id);
+    return ids.length > 0;
+  };
+
+  const deleteGroups = (groups: DesktopGroup[], notesDeleted = false) => {
     if (groups.length === 0) {
+      if (notesDeleted) {
+        setSelected(new Set());
+        return;
+      }
       toast("Only folders and sections can be deleted.");
       return;
     }
@@ -1012,7 +1025,7 @@ function DesktopCanvas() {
         setDrag(null);
         if (!moved) return;
         if (canDropOnBin && overBin(origin.x + delta.x, origin.y + delta.y)) {
-          deleteGroups(deletableIn(moving));
+          deleteGroups(deletableIn(moving), deleteNotesIn(moving));
           return;
         }
         saveLayout(
@@ -1067,7 +1080,7 @@ function DesktopCanvas() {
     if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement) return;
     if ((event.key === "Delete" || event.key === "Backspace") && selected.size > 0) {
       event.preventDefault();
-      deleteGroups(deletableIn(selected));
+      deleteGroups(deletableIn(selected), deleteNotesIn(selected));
     } else if (event.key === "Escape") {
       setSelected(new Set());
     } else if (event.key === "a" && (event.metaKey || event.ctrlKey)) {
@@ -1113,7 +1126,7 @@ function DesktopCanvas() {
       const rightValue = valueOf(right);
       return leftValue < rightValue ? -direction : leftValue > rightValue ? direction : 0;
     });
-    const keys = [...ordered.map((item) => item.key), ...(hasMore ? [MORE_KEY] : []), RECYCLE_BIN_KEY];
+    const keys = [...ordered.map((item) => item.key), ...noteKeys, ...(hasMore ? [MORE_KEY] : []), RECYCLE_BIN_KEY];
     const grid = gridPositions(keys.length, width);
     saveLayout(Object.fromEntries(keys.map((key, index) => [key, grid[index]!])));
   };
@@ -1211,6 +1224,22 @@ function DesktopCanvas() {
             }}
           />
         ) : null}
+        {savedNotes.map((note) => {
+          const key = NOTE_KEY_PREFIX + note.id;
+          return (
+            <NoteIcon
+              key={key}
+              note={note}
+              position={placed(key)}
+              selected={selected.has(key)}
+              dragging={drag !== null && drag.keys.has(key)}
+              onPointerDown={(event) => beginIconDrag(key, event)}
+              onSelect={() => {
+                if (!selected.has(key)) setSelected(new Set([key]));
+              }}
+            />
+          );
+        })}
         <RecycleBinIcon
           binRef={binRef}
           position={placed(RECYCLE_BIN_KEY)}
@@ -2337,6 +2366,56 @@ function MoreWindow({ window: desktopWindow }: { window: DesktopWindow }) {
         )}
       </div>
     </WindowFrame>
+  );
+}
+
+function NoteIcon({
+  note,
+  position,
+  selected,
+  dragging,
+  onPointerDown,
+  onSelect,
+}: {
+  note: StickyNote;
+  position: Point;
+  selected: boolean;
+  dragging: boolean;
+  onPointerDown: (event: ReactPointerEvent<HTMLDivElement>) => void;
+  onSelect: () => void;
+}) {
+  const desktop = useDesktop();
+  const title = noteTitle(note);
+  const open = () => openNote(note.id);
+  return (
+    <div
+      role="button"
+      tabIndex={0}
+      aria-selected={selected}
+      aria-label={`Note pad — ${title}`}
+      title={title}
+      className="bbd-icon"
+      data-dragging={dragging}
+      style={{ left: position.x, top: position.y }}
+      onPointerDown={onPointerDown}
+      onDoubleClick={open}
+      onKeyDown={(event) => {
+        if (event.key === "Enter") open();
+      }}
+      onContextMenu={(event) => {
+        onSelect();
+        desktop.openMenu(event, [
+          { label: "Open", run: open },
+          "separator",
+          { label: "Delete", icon: <TrashGlyph className="size-3.5" />, run: () => removeNote(note.id) },
+        ]);
+      }}
+    >
+      <span className="bbd-icon-art">
+        <NotePadArt />
+      </span>
+      <span className="bbd-icon-label">{title}</span>
+    </div>
   );
 }
 

@@ -1,5 +1,6 @@
 import {
   useEffect,
+  useMemo,
   useRef,
   useState,
   useSyncExternalStore,
@@ -22,6 +23,10 @@ export interface StickyNote {
   width: number;
   height: number;
   tone: number;
+  /** Saved note pads keep a Desktop icon and survive closing. */
+  saved?: boolean;
+  /** A saved note pad whose window is closed; its Desktop icon reopens it. */
+  hidden?: boolean;
 }
 
 const NOTES_KEY = "bb-desktop:notes:v1";
@@ -89,7 +94,29 @@ function raiseNote(id: string) {
   saveNotes([...notes.filter((candidate) => candidate.id !== id), note]);
 }
 
-function removeNote(id: string) {
+/** Desktop icon label, taken from the note's first line like a saved file name. */
+export function noteTitle(note: StickyNote) {
+  return note.text.trim().split("\n")[0]?.trim().slice(0, 40) || "Untitled";
+}
+
+export function useSavedNotes(): StickyNote[] {
+  const list = useNotes();
+  return useMemo(() => list.filter((note) => note.saved === true), [list]);
+}
+
+export function openNote(id: string) {
+  const note = notes.find((candidate) => candidate.id === id);
+  if (note === undefined) return;
+  focusNoteId = id;
+  saveNotes([...notes.filter((candidate) => candidate.id !== id), { ...note, hidden: false }]);
+}
+
+function closeNote(note: StickyNote) {
+  if (note.saved === true) updateNote(note.id, { hidden: true });
+  else removeNote(note.id);
+}
+
+export function removeNote(id: string) {
   const index = notes.findIndex((note) => note.id === id);
   const note = notes[index];
   if (note === undefined) return;
@@ -135,42 +162,36 @@ type SaveFilePicker = (options: {
   types: { description: string; accept: Record<string, string[]> }[];
 }) => Promise<SaveFileHandle>;
 
-/** Session-scoped: file handles can't be serialized into the persisted note list. */
-const noteFiles = new Map<string, SaveFileHandle>();
-
-function suggestedFileName(text: string) {
-  const firstLine = text.trim().split("\n")[0]?.replace(/[\\/:*?"<>|]/g, "").trim().slice(0, 40) ?? "";
-  return `${firstLine || "Untitled"}.txt`;
+function suggestedFileName(note: StickyNote) {
+  return `${noteTitle(note).replace(/[\\/:*?"<>|]/g, "").trim() || "Untitled"}.txt`;
 }
 
-/** Writes the note to a .txt file; Save reuses the file chosen earlier in this session. */
-async function saveNoteFile(note: StickyNote, saveAs: boolean): Promise<string | null> {
+/** Exports the note as a .txt file wherever the user picks. */
+async function exportNoteFile(note: StickyNote): Promise<string | null> {
   const picker = (window as Window & { showSaveFilePicker?: SaveFilePicker }).showSaveFilePicker;
   if (picker === undefined) {
     const url = URL.createObjectURL(new Blob([note.text], { type: "text/plain" }));
     const link = document.createElement("a");
     link.href = url;
-    link.download = suggestedFileName(note.text);
+    link.download = suggestedFileName(note);
     link.click();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
     return link.download;
   }
-  let handle = saveAs ? undefined : noteFiles.get(note.id);
   try {
-    handle ??= await picker({
-      suggestedName: suggestedFileName(note.text),
+    const handle = await picker({
+      suggestedName: suggestedFileName(note),
       types: [{ description: "Text Document", accept: { "text/plain": [".txt"] } }],
     });
     const writable = await handle.createWritable();
     await writable.write(note.text);
     await writable.close();
+    return handle.name;
   } catch (error) {
     if (error instanceof DOMException && error.name === "AbortError") return null;
-    toast("Couldn't save the note pad", { description: error instanceof Error ? error.message : String(error) });
+    toast("Couldn't export the note pad", { description: error instanceof Error ? error.message : String(error) });
     return null;
   }
-  noteFiles.set(note.id, handle);
-  return handle.name;
 }
 
 export function addStickyNote(at?: { left: number; top: number }) {
@@ -208,10 +229,10 @@ function StickyNoteView({ note }: { note: StickyNote }) {
   const [drag, setDrag] = useState<{ left: number; top: number; width: number; height: number } | null>(null);
   const rect = drag ?? screenRect(note);
   const [wrap, setWrap] = useState(true);
-  const [savedFile, setSavedFile] = useState<{ name: string; text: string } | null>(null);
-  const save = (saveAs: boolean) => {
-    void saveNoteFile(note, saveAs).then((name) => {
-      if (name !== null) setSavedFile({ name, text: note.text });
+  const save = () => updateNote(note.id, { saved: true });
+  const exportFile = () => {
+    void exportNoteFile(note).then((name) => {
+      if (name !== null) toast(`Exported ${name}`);
     });
   };
 
@@ -264,13 +285,13 @@ function StickyNoteView({ note }: { note: StickyNote }) {
           if ((event.target as HTMLElement).closest("button")) return;
           track(event, (dx, dy) => ({ ...start, left: start.left + dx, top: Math.max(chromeTop(), start.top + dy) }));
         }}
-        onClose={() => removeNote(note.id)}
+        onClose={() => closeNote(note)}
       />
       <ProgramMenuBar menus={[
         { label: "File", items: [
           { label: "New", action: () => addStickyNote() },
-          { label: "Save", shortcut: "Ctrl+S", action: () => save(false) },
-          { label: "Save As…", action: () => save(true) },
+          { label: "Save to Desktop", shortcut: "Ctrl+S", action: save },
+          { label: "Export as .txt…", action: exportFile },
           "separator",
           { label: "Delete note pad", action: () => removeNote(note.id) },
         ] },
@@ -291,10 +312,11 @@ function StickyNoteView({ note }: { note: StickyNote }) {
         onKeyDown={(event) => {
           if (event.key.toLowerCase() !== "s" || !(event.metaKey || event.ctrlKey)) return;
           event.preventDefault();
-          save(event.shiftKey);
+          if (event.shiftKey) exportFile();
+          else save();
         }}
       />
-      <ProgramStatusBar><span className="flex-1">{savedFile === null ? "Saved" : savedFile.text === note.text ? `Saved to ${savedFile.name}` : `Edited since saving ${savedFile.name}`}</span><span>{note.text.length} characters</span></ProgramStatusBar>
+      <ProgramStatusBar><span className="flex-1">{note.saved === true ? "Saved to Desktop" : "Not saved · Ctrl+S"}</span><span>{note.text.length} characters</span></ProgramStatusBar>
       <span
         className="bbd-note-grip"
         aria-hidden
@@ -317,7 +339,7 @@ function StickyNotes() {
   if (!enabled) return null;
   return (
     <>
-      {list.map((note) => (
+      {list.filter((note) => note.hidden !== true).map((note) => (
         <StickyNoteView key={note.id} note={note} />
       ))}
     </>
