@@ -1,10 +1,10 @@
 .bbd-pinball {
   --bbd-pinball-cabinet: #000;
-  --bbd-pinball-panel: #7b7b7b;
+  --bbd-pinball-panel: #666661;
   --bbd-pinball-bevel-light: #c6c6c6;
   --bbd-pinball-bevel-dark: #3a3a3a;
   --bbd-pinball-box: #000;
-  --bbd-pinball-led: #9a8cff;
+  --bbd-pinball-led: #a69bf2;
   --bbd-pinball-logo: #b69cf0;
   --bbd-pinball-logo-edge: #321a70;
   --bbd-pinball-alert: #e0343a;
@@ -15,15 +15,17 @@
   width: 100%;
   height: 100%;
   min-height: 0;
-  container-type: inline-size;
+  container: pinball / inline-size;
 }
 
 .bbd-pinball-body {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 360fr) minmax(0, 202fr);
+  align-items: center;
   flex: 1;
   min-height: 0;
-  gap: 6px;
-  padding: 6px;
+  gap: 4.5%;
+  padding: 0 2% 0 0;
   background: var(--bbd-pinball-cabinet);
   outline: none;
 }
@@ -39,6 +41,7 @@
   min-width: 0;
   min-height: 0;
   overflow: hidden;
+  height: 100%;
 }
 
 /* Sized to the tilted table's footprint; the canvas hangs from its bottom edge. */
@@ -60,20 +63,18 @@
 }
 
 .bbd-pinball-panel {
-  display: flex;
-  flex: none;
-  flex-direction: column;
-  gap: 5px;
-  width: 190px;
+  display: grid;
+  grid-template-rows: 170fr 37fr 60fr 104fr;
+  gap: 6px;
+  width: 100%;
+  height: 94.5%;
   min-height: 0;
-  padding: 6px;
-  overflow: auto;
+  padding: 8px;
   background: var(--bbd-pinball-panel);
-  box-shadow:
-    inset 2px 2px 0 var(--bbd-pinball-bevel-light),
-    inset -2px -2px 0 var(--bbd-pinball-bevel-dark);
+  box-shadow: inset 2px 2px 0 var(--bbd-pinball-bevel-light), inset -2px -2px 0 var(--bbd-pinball-bevel-dark);
   color: var(--bbd-pinball-led);
   font-family: Tahoma, Verdana, "Segoe UI", sans-serif;
+  container-type: inline-size;
 }
 
 /* Recessed black readouts with the grey bevel of the original scoreboard. */
@@ -88,7 +89,10 @@
 /* Dot-matrix LED lettering. */
 .bbd-pinball-dots {
   color: var(--bbd-pinball-led);
-  font: bold 18px/1.2 "Lucida Console", Consolas, monospace;
+  font: bold 20px/1.1 "Lucida Console", Consolas, monospace;
+  font-size: clamp(13px, 10.5cqi, 24px);
+  letter-spacing: -1px;
+  white-space: pre-line;
   -webkit-mask: radial-gradient(circle, #000 0.75px, transparent 1px) 0 0 / 2px 2px;
   mask: radial-gradient(circle, #000 0.75px, transparent 1px) 0 0 / 2px 2px;
 }
@@ -98,7 +102,9 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding: 6px 4px 30px;
+  min-height: 0;
+  overflow: hidden;
+  padding: 6px 4px 25px;
   background:
     radial-gradient(ellipse at 50% 35%, oklch(0.4 0.17 300 / 0.55), oklch(0.4 0.17 300 / 0) 70%),
     radial-gradient(circle at 20% 80%, oklch(0.9 0 0 / 0.5) 0.6px, transparent 1px) 0 0 / 13px 11px,
@@ -123,17 +129,24 @@
 .bbd-pinball-logo-small {
   align-self: flex-end;
   margin-right: 10px;
-  font-size: 15px;
+  font-size: 9cqi;
 }
 
 .bbd-pinball-logo-big {
-  font-size: 29px;
+  display: flex;
+  align-items: center;
+  font-size: 23cqi;
+  transform: rotate(-9deg) skewY(-4deg);
+  transform-origin: center;
+  margin: 0 0 -8px;
   letter-spacing: -1px;
 }
 
 .bbd-pinball-ship {
   width: 100%;
-  height: auto;
+  height: 62%;
+  min-height: 0;
+  flex: 1;
   margin-top: -2px;
 }
 
@@ -161,11 +174,13 @@
 
 .bbd-pinball-score {
   display: flex;
-  gap: 5px;
+  gap: 2px;
 }
 
 .bbd-pinball-score > .bbd-pinball-box {
-  padding: 4px 6px;
+  padding: 4px 7px;
+  display: flex;
+  align-items: center;
   font-variant-numeric: tabular-nums;
 }
 
@@ -174,12 +189,14 @@
   min-width: 0;
   overflow: hidden;
   text-align: right;
+  justify-content: flex-end;
   white-space: nowrap;
 }
 
 .bbd-pinball-info {
-  min-height: 52px;
-  padding: 6px 8px;
+  min-height: 0;
+  overflow: hidden;
+  padding: 5px 8px;
 }
 
 .bbd-pinball-message {
@@ -187,12 +204,13 @@
   flex: 1;
   flex-direction: column;
   gap: 6px;
-  min-height: 80px;
-  padding: 8px;
+  min-height: 0;
+  overflow: hidden;
+  padding: 6px 8px;
 }
 
-.bbd-pinball-message[data-tone="over"] > .bbd-pinball-dots {
-  color: var(--bbd-pinball-alert);
+.bbd-pinball-score .bbd-pinball-dots {
+  font-style: italic;
 }
 
 .bbd-pinball-detail {
@@ -250,12 +268,18 @@
   white-space: nowrap;
 }
 
-@container (max-width: 440px) {
+@container pinball (max-width: 440px) {
   .bbd-pinball-body {
+    display: flex;
+    padding: 4px;
+    gap: 4px;
     flex-direction: column;
   }
 
   .bbd-pinball-panel {
+    display: flex;
+    height: auto;
+    container-type: normal;
     flex-direction: row;
     flex-wrap: wrap;
     align-items: stretch;
@@ -264,9 +288,13 @@
     overflow: auto;
   }
 
+  .bbd-pinball-dots { font-size: 15px; }
+
   .bbd-pinball-logo {
     justify-content: center;
-    padding: 4px 6px;
+    padding: 4px 7px;
+  display: flex;
+  align-items: center;
   }
 
   .bbd-pinball-logo-small,
@@ -298,3 +326,57 @@
     width: auto;
   }
 }
+
+.bbd-pinball-dialog {
+  width: min(430px, calc(100vw - 24px));
+  max-height: calc(100vh - 48px);
+  padding: 3px;
+  border: 1px solid var(--bbd-blue-deep);
+  border-radius: 5px 5px 0 0;
+  background: var(--bbd-glass-solid);
+  color: var(--foreground);
+  font: 11px/1.3 Tahoma, Verdana, sans-serif;
+  box-shadow: 3px 5px 12px var(--bbd-pinball-bevel-dark);
+}
+.bbd-pinball-dialog::backdrop { background: transparent; }
+.bbd-pinball-dialog header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 24px;
+  padding: 2px 4px;
+  background: var(--bbd-blue);
+  color: var(--bbd-white);
+  font-size: 13px;
+}
+.bbd-pinball-dialog header button {
+  border: 1px solid var(--bbd-white);
+  border-radius: 3px;
+  background: var(--bbd-close);
+  color: var(--bbd-white);
+  font: bold 18px/18px Tahoma, sans-serif;
+  width: 20px;
+  padding: 0;
+}
+.bbd-pinball-dialog-body { padding: 10px; }
+.bbd-pinball-dialog fieldset {
+  border: 1px solid var(--bbd-hairline);
+  padding: 10px;
+  margin: 0 0 10px;
+  border-radius: 3px;
+}
+.bbd-pinball-dialog legend { padding: 0 3px; }
+.bbd-pinball-dialog p { margin: 0 0 12px; }
+.bbd-pinball-dialog footer { display: flex; justify-content: flex-end; gap: 8px; margin-top: 12px; }
+.bbd-pinball-dialog footer button { min-width: 72px; justify-content: center; }
+.bbd-pinball-control-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px 30px; }
+.bbd-pinball-control-grid label { display: grid; grid-template-columns: 65px minmax(0, 1fr); align-items: center; gap: 4px; }
+.bbd-pinball-control-grid select { width: 100%; padding: 1px 2px; font: inherit; }
+.bbd-pinball-dialog .bbd-pinball-keys, .bbd-pinball-dialog .bbd-pinball-keys dt { color: inherit; }
+@media (max-width: 440px) {
+  .bbd-pinball-control-grid { grid-template-columns: 1fr; gap: 8px; }
+  .bbd-pinball-control-grid label { grid-template-columns: 1fr 1fr; }
+}
+
+.bbd-pinball-logo-big > span:last-child { font-size: 13cqi; }

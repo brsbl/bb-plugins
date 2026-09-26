@@ -8,6 +8,7 @@ import {
   type FocusEvent as ReactFocusEvent,
   type KeyboardEvent as ReactKeyboardEvent,
   type PointerEvent as ReactPointerEvent,
+  type ReactNode,
 } from "react";
 
 import "./pinball.css";
@@ -32,24 +33,56 @@ const MAX_FRAME_SECONDS = 0.05;
 
 type Control = "left" | "right" | "plunger";
 
-const HOLD_KEYS = new Map<string, Control>([
-  ["KeyZ", "left"],
-  ["ShiftLeft", "left"],
-  ["Slash", "right"],
-  ["ShiftRight", "right"],
-  ["Space", "plunger"],
-  ["ArrowDown", "plunger"],
-]);
+const DEFAULT_CONTROLS = {
+  left: "KeyZ", right: "Slash", nudgeLeft: "KeyX", nudgeRight: "Period", nudgeUp: "ArrowUp", plunger: "Space",
+} as const;
+type Controls = Record<keyof typeof DEFAULT_CONTROLS, string>;
+const CONTROL_KEY = "bb-desktop:pinball:controls:v1";
+const KEY_CHOICES = [
+  ..."ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("").map((key) => ["Key" + key, key]),
+  ..."0123456789".split("").map((key) => ["Digit" + key, key]),
+  ["Slash", "/"], ["Period", "."], ["Comma", ","], ["Space", "Space"],
+  ["ArrowUp", "Up"], ["ArrowDown", "Down"], ["ArrowLeft", "Left"], ["ArrowRight", "Right"],
+  ["ShiftLeft", "Left Shift"], ["ShiftRight", "Right Shift"],
+];
+function loadControls(): Controls {
+  try {
+    const stored = JSON.parse(localStorage.getItem(CONTROL_KEY) ?? "null") as Controls | null;
+    if (stored && Object.keys(DEFAULT_CONTROLS).every((key) => KEY_CHOICES.some(([code]) => code === stored[key as keyof Controls]))) return stored;
+  } catch { /* Keep the working defaults when a saved mapping cannot be read. */ }
+  return { ...DEFAULT_CONTROLS };
+}
+function keyLabel(code: string) { return KEY_CHOICES.find(([key]) => key === code)?.[1] ?? code; }
 
-const NUDGE_KEYS = new Map<string, Nudge>([
-  ["KeyX", "left"],
-  ["Period", "right"],
-  ["ArrowUp", "up"],
-]);
+function PinballDialog({ title, onClose, children }: { title: string; onClose: () => void; children: ReactNode }) {
+  const ref = useRef<HTMLDialogElement>(null);
+  const titleId = useId();
+  useEffect(() => { const dialog = ref.current; dialog?.showModal(); return () => dialog?.close(); }, []);
+  return <dialog ref={ref} className="bbd-pinball-dialog" aria-labelledby={titleId} onCancel={(event) => { event.preventDefault(); onClose(); }} onKeyDown={(event) => event.stopPropagation()}>
+    <header><strong id={titleId}>{title}</strong><button type="button" aria-label="Close dialog" onClick={onClose}>×</button></header>
+    <div className="bbd-pinball-dialog-body">{children}</div>
+  </dialog>;
+}
+
+function PlayerControls({ controls, onSave, onClose }: { controls: Controls; onSave: (value: Controls) => void; onClose: () => void }) {
+  const [draft, setDraft] = useState(controls);
+  const labels = [["left", "Left Flipper"], ["right", "Right Flipper"], ["nudgeLeft", "Left Table Bump"], ["nudgeRight", "Right Table Bump"], ["nudgeUp", "Bottom Table Bump"], ["plunger", "Plunger"]] as const;
+  const duplicate = new Set(Object.values(draft)).size !== labels.length;
+  return <PinballDialog title="3D Pinball: Player Controls" onClose={onClose}>
+    <fieldset><legend>Instructions</legend><p>Choose a key for each control, then choose OK.</p><p>To restore the original keys, choose Default, then OK.</p></fieldset>
+    <fieldset><legend>Control Options</legend><div className="bbd-pinball-control-grid">
+      {labels.map(([key, label]) => <label key={key}><span>{label}</span><select className="bbd-field bbd-sunken" value={draft[key]} onChange={(event) => setDraft({ ...draft, [key]: event.target.value })}>
+        {KEY_CHOICES.map(([code, name]) => <option key={code} value={code}>{name}</option>)}
+      </select></label>)}
+    </div></fieldset>
+    {duplicate && <p role="alert">Choose a different key for each control.</p>}
+    <footer><button className="bbd-button bbd-bevel" disabled={duplicate} onClick={() => onSave(draft)}>OK</button><button className="bbd-button bbd-bevel" onClick={onClose}>Cancel</button><button className="bbd-button bbd-bevel" onClick={() => setDraft({ ...DEFAULT_CONTROLS })}>Default</button></footer>
+  </PinballDialog>;
+}
 
 const COLORS = {
-  space: "#1b1352",
-  spaceDeep: "#070720",
+  space: "#18263e",
+  spaceDeep: "#10162c",
   nebulaRed: "oklch(0.5 0.19 30 / 0.5)",
   nebulaViolet: "oklch(0.45 0.2 300 / 0.45)",
   nebulaBlue: "oklch(0.5 0.16 250 / 0.35)",
@@ -57,13 +90,13 @@ const COLORS = {
   star: "oklch(0.96 0.03 240)",
   crack: "oklch(0.66 0.15 245 / 0.5)",
   crackGlow: "oklch(0.6 0.16 250 / 0.14)",
-  woodLight: "#b0643a",
-  woodDark: "#4a1d0c",
-  woodEdge: "#1d0904",
+  woodLight: "#716961",
+  woodDark: "#292929",
+  woodEdge: "#96958f",
   lane: "#0b0718",
   railShadow: "#1a0706",
-  rail: "#b8452f",
-  railShine: "#f2b48c",
+  rail: "#923027",
+  railShine: "#bfc4bb",
   gateOpen: "oklch(0.84 0.11 212 / 0.35)",
   ramp: "#6a3fb6",
   rampEdge: "#28125e",
@@ -86,12 +119,12 @@ const COLORS = {
   targetStripe: "#c3262c",
   targetDown: "#4b3310",
   holeRim: "#0e1b4c",
-  holeInner: "#1e4aa8",
+  holeInner: "#218da2",
   holeLampOff: "#1d3b8f",
   holeLampOn: "#9fe4ff",
-  holeCenter: "#ffcf6a",
-  holeCenterMid: "#d2491f",
-  holeCenterEdge: "#4a0f14",
+  holeCenter: "#17566c",
+  holeCenterMid: "#2795aa",
+  holeCenterEdge: "#153345",
   starburst: "#5b33a8",
   starburstLight: "#a57ce6",
   arrowOff: "#5c4a12",
@@ -186,13 +219,13 @@ function formatScore(score: number): string {
   return score.toLocaleString("en-US");
 }
 
-const HOLE = { x: 185, y: 410 };
+const HOLE = { x: 185, y: 548 };
 
 // Yellow arrow inserts: [x, y, angle] where angle 0 points up the table.
 const ARROWS = [
-  [150, 468, 0],
-  [220, 468, 0],
-  [185, 492, 0],
+  [135, 430, 0],
+  [130, 450, 0],
+  [125, 470, 0],
   [120, 300, -0.35],
   [250, 300, 0.35],
   [318, 250, 0],
@@ -263,84 +296,153 @@ function woodFill(ctx: CanvasRenderingContext2D, x0: number, x1: number) {
 function drawFrame(ctx: CanvasRenderingContext2D) {
   const { width, height, arcCenter, arcRadius, shooter } = TABLE;
   const [left, right] = TABLE.flippers;
-  ctx.fillStyle = woodFill(ctx, 0, width);
-  ctx.beginPath();
-  ctx.moveTo(0, 0);
-  ctx.lineTo(0, arcCenter.y);
-  ctx.arc(arcCenter.x, arcCenter.y, arcRadius, Math.PI, Math.PI * 2);
-  ctx.lineTo(width, arcCenter.y);
-  ctx.lineTo(width, 0);
-  ctx.closePath();
-  ctx.fill();
-  ctx.fillStyle = woodFill(ctx, 0, 8);
-  ctx.fillRect(0, arcCenter.y, 8, height - arcCenter.y);
+  ctx.fillStyle = COLORS.spaceDeep;
+  ctx.fillRect(0, 0, width, 16);
+  ctx.fillStyle = woodFill(ctx, 0, 9);
+  ctx.fillRect(0, 0, 9, height);
   ctx.fillStyle = woodFill(ctx, shooter.right, width);
-  ctx.fillRect(shooter.right, arcCenter.y, width - shooter.right, height - arcCenter.y);
+  ctx.fillRect(shooter.right, 0, width - shooter.right, height);
+  ctx.fillStyle = COLORS.woodDark;
+  ctx.fillRect(0, 0, width, 9);
+  ctx.strokeStyle = COLORS.woodEdge;
+  ctx.lineWidth = 3;
+  ctx.strokeRect(3, 3, width - 6, height - 6);
+  // The outer orbit has alternating steel and red cushion sections.
+  ctx.beginPath();
+  ctx.ellipse(arcCenter.x, arcCenter.y / 2, arcRadius - 6, (arcRadius - 6) / 2, 0, Math.PI, Math.PI * 2);
+  ctx.strokeStyle = COLORS.railShadow; ctx.lineWidth = 19; ctx.stroke();
+  ctx.strokeStyle = COLORS.bumperSkirtShade; ctx.lineWidth = 12; ctx.stroke();
+  ctx.strokeStyle = COLORS.rail; ctx.lineWidth = 4; ctx.stroke();
+  ctx.strokeStyle = COLORS.bumperSkirt; ctx.setLineDash([14, 55]); ctx.lineWidth = 14; ctx.stroke(); ctx.setLineDash([]);
+  for (let i = 0; i < 6; i++) {
+    const a = Math.PI + 0.28 + i * 0.52;
+    disc(ctx, arcCenter.x + Math.cos(a) * 179, arcCenter.y / 2 + Math.sin(a) * 89.5, 4, COLORS.lampOn);
+  }
+  // Red/silver wall running down the outside of the launch lane.
+  for (let y = 200; y < 670; y += 86) {
+    ctx.fillStyle = COLORS.rail; ctx.fillRect(shooter.left + 2, y, 24, 71);
+    ctx.fillStyle = COLORS.bumperSkirtShade; ctx.fillRect(shooter.left + 8, y + 2, 12, 64);
+    ctx.fillStyle = COLORS.lampOn; ctx.fillRect(shooter.left + 3, y + 71, 23, 6);
+  }
   // Inlane/outlane aprons below the slingshots.
   ctx.fillStyle = COLORS.woodDark;
   polygon(ctx, [
-    [0, 566],
-    [8, 566],
+    [0, 630],
+    [8, 630],
     [left.pivot.x, left.pivot.y],
     [left.pivot.x - 6, height],
     [0, height],
   ]);
   polygon(ctx, [
-    [shooter.left, 566],
+    [shooter.left, 630],
     [right.pivot.x, right.pivot.y],
     [right.pivot.x + 6, height],
     [shooter.left, height],
   ]);
   ctx.fillStyle = COLORS.lane;
-  ctx.fillRect(shooter.left, arcCenter.y, shooter.right - shooter.left, height - arcCenter.y);
+  ctx.fillRect(shooter.left + 1, 180, 6, height - 180);
   // Launch-lane chevrons.
   const center = (shooter.left + shooter.right) / 2;
   ctx.fillStyle = COLORS.lampOff;
-  for (let y = 250; y < 620; y += 46) polygon(ctx, [[center, y], [center + 9, y + 10], [center - 9, y + 10]]);
+  for (let y = 260; y < 620; y += 60) polygon(ctx, [[center, y], [center + 4, y + 6], [center - 4, y + 6]]);
   ctx.strokeStyle = COLORS.woodEdge;
   ctx.lineWidth = 2;
   ctx.strokeRect(1, 1, width - 2, height - 2);
 }
 
+// Original vector reconstruction of the left launch ramp and return platform.
 function drawRamp(ctx: CanvasRenderingContext2D) {
-  // The purple left ramp that curls up toward the top of the table.
-  ctx.lineCap = "butt";
+  ctx.fillStyle = COLORS.rampEdge;
   ctx.beginPath();
-  ctx.moveTo(34, 455);
-  ctx.bezierCurveTo(22, 330, 50, 200, 122, 138);
-  ctx.strokeStyle = COLORS.rampEdge;
-  ctx.lineWidth = 34;
-  ctx.stroke();
-  ctx.strokeStyle = COLORS.ramp;
-  ctx.lineWidth = 28;
-  ctx.stroke();
-  ctx.setLineDash([7, 9]);
+  ctx.moveTo(18, 310);
+  ctx.bezierCurveTo(36, 250, 110, 252, 152, 346);
+  ctx.lineTo(119, 365);
+  ctx.bezierCurveTo(80, 300, 46, 306, 42, 355);
+  ctx.bezierCurveTo(94, 393, 100, 450, 52, 512);
+  ctx.lineTo(31, 565);
+  ctx.lineTo(16, 555);
+  ctx.bezierCurveTo(43, 466, -5, 409, 18, 310);
+  ctx.fill();
   ctx.strokeStyle = COLORS.rampStripe;
-  ctx.lineWidth = 20;
+  ctx.lineWidth = 2;
+  ctx.stroke();
+  const surface = ctx.createLinearGradient(10, 310, 125, 380);
+  surface.addColorStop(0, COLORS.rampStripe);
+  surface.addColorStop(0.45, COLORS.ramp);
+  surface.addColorStop(1, COLORS.rampEdge);
+  ctx.strokeStyle = surface;
+  ctx.lineWidth = 31;
+  ctx.beginPath();
+  ctx.moveTo(27, 356);
+  ctx.bezierCurveTo(8, 269, 95, 273, 135, 351);
+  ctx.stroke();
+  ctx.strokeStyle = COLORS.rampStripe;
+  ctx.lineWidth = 26;
+  ctx.setLineDash([9, 10]);
   ctx.stroke();
   ctx.setLineDash([]);
-  ctx.fillStyle = COLORS.slingEdge;
-  polygon(ctx, [[22, 470], [46, 470], [34, 452]]);
+  // Printed fuel ladder and launch chevrons beneath the ramp.
+  for (let i = 0; i < 6; i++) {
+    ctx.save(); ctx.translate(71 + i * 4, 324 + i * 17); ctx.rotate(-0.42);
+    ctx.fillStyle = i % 2 ? COLORS.lampOn : COLORS.ramp;
+    ctx.fillRect(-11, -5, 22, 10); ctx.restore();
+  }
+  for (let i = 0; i < 3; i++) {
+    ctx.fillStyle = COLORS.bumperSkirt;
+    ctx.fillRect(18 + i * 19, 360, 5, 25);
+    disc(ctx, 20 + i * 19, 356, 4, i === 1 ? COLORS.lampOn : COLORS.plungerRed);
+  }
+}
+
+function drawPrintedArt(ctx: CanvasRenderingContext2D) {
+  // Asteroid chain, rocket, and red arrow formation: ink on the playfield.
+  const next = seeded(41);
+  for (let i = 0; i < 7; i++) {
+    const x = 252 + Math.sin(i * 0.8) * 20, y = 237 + i * 17;
+    const points: [number, number][] = [];
+    for (let j = 0; j < 9; j++) {
+      const a = j / 9 * Math.PI * 2, r = 8 + next() * 7;
+      points.push([x + Math.cos(a) * r, y + Math.sin(a) * r]);
+    }
+    ctx.fillStyle = COLORS.bumperSkirtShade; polygon(ctx, points);
+    ctx.strokeStyle = COLORS.holeRim; ctx.lineWidth = 2; ctx.stroke();
+    for (let j = 0; j < 3; j++) disc(ctx, x + (next() - 0.5) * 13, y + (next() - 0.5) * 13, 2, COLORS.space);
+  }
+  ctx.fillStyle = COLORS.rail;
+  polygon(ctx, [[254, 375], [292, 318], [293, 340], [318, 313], [298, 364], [286, 350], [275, 390]]);
+  ctx.strokeStyle = COLORS.crack; ctx.lineWidth = 3; ctx.stroke();
+  ctx.fillStyle = COLORS.bumperSkirtShade;
+  polygon(ctx, [[132, 265], [118, 240], [143, 229], [161, 249], [139, 251], [148, 282]]);
+  ctx.strokeStyle = COLORS.crack; ctx.lineWidth = 2; ctx.stroke();
+  ctx.fillStyle = COLORS.rail;
+  polygon(ctx, [[147, 299], [163, 303], [169, 294], [191, 311], [180, 326], [164, 337], [145, 320]]);
+  // Lane inserts and tiny labels remain original, drawn source rather than game assets.
+  for (const side of [0, 1]) {
+    const x = side ? 324 : 63;
+    for (let i = 0; i < 5; i++) disc(ctx, x + (side ? -1 : 1) * Math.sin(i) * 3, 492 + i * 15, 4, COLORS.lampOff);
+    ctx.strokeStyle = COLORS.bumperSkirtShade; ctx.lineWidth = 2;
+    for (let i = 0; i < 3; i++) ctx.strokeRect(x - 15 + i * 12, 530, 5, 26);
+  }
 }
 
 function drawHole(ctx: CanvasRenderingContext2D, state: PinballState, time: number) {
   // The hyperspace "black hole": two rings of blue inserts around an orange vortex.
   const { x, y } = HOLE;
-  const rim = ctx.createRadialGradient(x, y, 20, x, y, 78);
+  const rim = ctx.createRadialGradient(x, y, 20, x, y, 66);
   rim.addColorStop(0, COLORS.holeInner);
   rim.addColorStop(1, COLORS.holeRim);
-  disc(ctx, x, y, 78, rim);
+  disc(ctx, x, y, 66, rim);
   const lit = Math.round(((state.multiplier - 1) / (MAX_MULTIPLIER - 1)) * 22);
   const chase = Math.floor(time * 10) % 22;
   for (let index = 0; index < 22; index += 1) {
     const angle = (index / 22) * Math.PI * 2 - Math.PI / 2;
     const on = index < lit || index === chase;
-    disc(ctx, x + Math.cos(angle) * 66, y + Math.sin(angle) * 66, 5, on ? COLORS.holeLampOn : COLORS.holeLampOff);
+    disc(ctx, x + Math.cos(angle) * 63, y + Math.sin(angle) * 63, 5, on ? COLORS.holeLampOn : COLORS.holeLampOff);
   }
   for (let index = 0; index < 14; index += 1) {
     const angle = (index / 14) * Math.PI * 2;
     const on = (index + Math.floor(time * 6)) % 7 === 0;
-    disc(ctx, x + Math.cos(angle) * 46, y + Math.sin(angle) * 46, 4, on ? COLORS.holeLampOn : COLORS.holeLampOff);
+    disc(ctx, x + Math.cos(angle) * 43, y + Math.sin(angle) * 43, 4, on ? COLORS.holeCenter : COLORS.holeCenterMid);
   }
   const vortex = ctx.createRadialGradient(x, y, 2, x, y, 30);
   vortex.addColorStop(0, COLORS.spaceDeep);
@@ -352,10 +454,10 @@ function drawHole(ctx: CanvasRenderingContext2D, state: PinballState, time: numb
 
 function drawStarburst(ctx: CanvasRenderingContext2D) {
   const cx = 185;
-  const cy = 712;
+  const cy = 738;
   for (let index = 0; index < 11; index += 1) {
     const angle = -Math.PI / 2 + ((index - 5) / 5) * 1.15;
-    const length = index % 2 === 0 ? 118 : 78;
+    const length = index % 2 === 0 ? 154 : 95;
     const spread = 0.13;
     ctx.fillStyle = index % 2 === 0 ? COLORS.starburst : COLORS.starburstLight;
     polygon(ctx, [
@@ -380,8 +482,6 @@ function drawArrows(ctx: CanvasRenderingContext2D, state: PinballState, time: nu
 }
 
 function drawDecals(ctx: CanvasRenderingContext2D, state: PinballState, time: number) {
-  drawRamp(ctx);
-  drawStarburst(ctx);
   drawHole(ctx, state, time);
   drawArrows(ctx, state, time);
   ctx.textAlign = "center";
@@ -391,10 +491,10 @@ function drawDecals(ctx: CanvasRenderingContext2D, state: PinballState, time: nu
     const x = 140 + (level - 2) * 30;
     const on = state.multiplier >= level;
     ctx.fillStyle = on ? COLORS.lampOn : COLORS.lampOff;
-    ctx.fillRect(x - 11, 510, 22, 13);
+    ctx.fillRect(x - 11, 610, 22, 13);
     ctx.fillStyle = on ? COLORS.spaceDeep : COLORS.lampOn;
     ctx.globalAlpha = on ? 1 : 0.5;
-    ctx.fillText(`${level}×`, x, 517);
+    ctx.fillText(`${level}×`, x, 617);
     ctx.globalAlpha = 1;
   }
   TABLE.lanes.forEach((lane, index) => {
@@ -486,12 +586,14 @@ function drawBumpers(ctx: CanvasRenderingContext2D, state: PinballState) {
     skirt.addColorStop(0, COLORS.bumperSkirt);
     skirt.addColorStop(1, COLORS.bumperSkirtShade);
     disc(ctx, x, y, radius, skirt);
-    disc(ctx, x, y, radius * 0.74, lit ? COLORS.bumperLit : COLORS.bumperRing);
-    const cap = ctx.createRadialGradient(x - 3, y - 3, 1, x, y, radius * 0.5);
-    cap.addColorStop(0, COLORS.bumperCap);
-    cap.addColorStop(1, COLORS.bumperSkirt);
-    disc(ctx, x, y, radius * 0.5, cap);
-    disc(ctx, x, y, radius * 0.22, lit ? COLORS.bumperRing : COLORS.bumperCore);
+    disc(ctx, x, y - 5, radius * 0.82, COLORS.bumperCap);
+    for (let petal = 0; petal < 5; petal++) {
+      const a = petal / 5 * Math.PI * 2;
+      disc(ctx, x + Math.cos(a) * radius * 0.5, y - 5 + Math.sin(a) * radius * 0.5, radius * 0.25, lit ? COLORS.bumperLit : COLORS.bumperRing);
+    }
+    disc(ctx, x, y - 7, radius * 0.39, COLORS.bumperSkirt);
+    disc(ctx, x, y - 8, radius * 0.27, COLORS.bumperCore);
+
   });
 }
 
@@ -516,14 +618,6 @@ function drawPlunger(ctx: CanvasRenderingContext2D, state: PinballState) {
     ctx.fillStyle = stripe % 2 === 0 ? COLORS.plungerRed : COLORS.plungerWhite;
     ctx.fillRect(shooter.left + 4 + (stripe * knobWidth) / 4, floor, knobWidth / 4, 8);
   }
-}
-
-function drawLaunchHint(ctx: CanvasRenderingContext2D, time: number) {
-  const center = (TABLE.shooter.left + TABLE.shooter.right) / 2;
-  ctx.globalAlpha = 0.35 + 0.65 * (0.5 + 0.5 * Math.sin(time * 6));
-  ctx.fillStyle = COLORS.arrowOn;
-  for (let y = 250; y < 620; y += 46) polygon(ctx, [[center, y], [center + 9, y + 10], [center - 9, y + 10]]);
-  ctx.globalAlpha = 1;
 }
 
 function drawFlippers(ctx: CanvasRenderingContext2D, state: PinballState) {
@@ -561,37 +655,24 @@ function drawBall(ctx: CanvasRenderingContext2D, state: PinballState) {
   disc(ctx, x, y, radius, shine);
 }
 
-function drawOverlay(ctx: CanvasRenderingContext2D, title: string, detail: string) {
-  ctx.fillStyle = COLORS.shade;
-  ctx.fillRect(0, 0, TABLE.width, TABLE.height);
-  ctx.fillStyle = COLORS.overlayText;
-  ctx.textAlign = "center";
-  ctx.textBaseline = "middle";
-  ctx.font = `700 26px ${FONT}`;
-  ctx.fillText(title, TABLE.width / 2, 340);
-  ctx.font = `400 13px ${FONT}`;
-  ctx.fillText(detail, TABLE.width / 2, 372);
-}
-
-function drawTable(ctx: CanvasRenderingContext2D, state: PinballState, paused: boolean, time: number) {
-  drawBackdrop(ctx);
-  drawFrame(ctx);
+function drawTable(ctx: CanvasRenderingContext2D, state: PinballState, time: number, backdrop: HTMLCanvasElement) {
+  ctx.drawImage(backdrop, 0, 0, TABLE.width, TABLE.height);
   drawDecals(ctx, state, time);
   drawTargets(ctx, state);
   drawSlingshots(ctx, state);
   drawRails(ctx, state);
   drawBumpers(ctx, state);
   drawPlunger(ctx, state);
-  if (awaitingLaunch(state)) drawLaunchHint(ctx, time);
+
   drawFlippers(ctx, state);
   if (state.status === "playing") drawBall(ctx, state);
-  if (state.status === "over") drawOverlay(ctx, "GAME OVER", "Press F2 for a new game");
-  else if (paused) drawOverlay(ctx, "PAUSED", "");
+
 }
 
 // The table is drawn flat, then tilted away from the player like the original's 3D view.
-const TILT_ANGLE = (24 * Math.PI) / 180;
-const TILT_DEPTH = 1.3;
+const TILT_ANGLE = 0.42;
+const TILT_DEPTH = 0.7;
+const TABLE_STRETCH = 1.11;
 const TILT_TOP_SCALE = TILT_DEPTH / (TILT_DEPTH + Math.sin(TILT_ANGLE));
 const TILT_HEIGHT = Math.cos(TILT_ANGLE) * TILT_TOP_SCALE;
 
@@ -610,31 +691,43 @@ export function PinballGame({ active = true }: { active?: boolean }) {
   const stageRef = useRef<HTMLDivElement>(null);
   const tiltRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const backdropRef = useRef<HTMLCanvasElement | null>(null);
   const stateRef = useRef<PinballState>(initial);
   const keysRef = useRef(new Set<string>());
   const pointersRef = useRef(new Map<number, Control>());
   const nudgeRef = useRef<Nudge | null>(null);
   const hudRef = useRef<Hud>(hudOf(initial));
-  const pausedRef = useRef(true);
   const [hud, setHud] = useState<Hud>(() => hudOf(initial));
   const [highScore, setHighScore] = useState(loadHighScore);
   const highRef = useRef(highScore);
-  const [showControls, setShowControls] = useState(false);
+  const [controls, setControls] = useState<Controls>(loadControls);
+  const [dialog, setDialog] = useState<"controls" | "scores" | "help" | "about" | null>(null);
   const [focused, setFocused] = useState(false);
   const [paused, setPaused] = useState(false);
   const [visible, setVisible] = useState(() => typeof document === "undefined" || document.visibilityState !== "hidden");
   const [announcement, setAnnouncement] = useState("");
   const helpId = useId();
-  const running = active && focused && visible && !paused;
+  const running = active && focused && visible && !paused && dialog === null;
+  const holdKeys = new Map<string, Control>([["ShiftLeft", "left"], ["ShiftRight", "right"], ["ArrowDown", "plunger"], [controls.left, "left"], [controls.right, "right"], [controls.plunger, "plunger"]]);
+  const nudgeKeys = new Map<string, Nudge>([[controls.nudgeLeft, "left"], [controls.nudgeRight, "right"], [controls.nudgeUp, "up"]]);
 
-  pausedRef.current = !running;
 
   const render = useCallback(() => {
     const canvas = canvasRef.current;
     const ctx = canvas?.getContext("2d");
     if (!canvas || !ctx) return;
     ctx.setTransform(canvas.width / TABLE.width, 0, 0, canvas.height / TABLE.height, 0, 0);
-    drawTable(ctx, stateRef.current, pausedRef.current, performance.now() / 1000);
+    let backdrop = backdropRef.current;
+    if (!backdrop || backdrop.width !== canvas.width || backdrop.height !== canvas.height) {
+      backdrop = document.createElement("canvas");
+      backdrop.width = canvas.width; backdrop.height = canvas.height;
+      const background = backdrop.getContext("2d");
+      if (!background) return;
+      background.setTransform(canvas.width / TABLE.width, 0, 0, canvas.height / TABLE.height, 0, 0);
+      drawBackdrop(background); drawFrame(background); drawPrintedArt(background); drawRamp(background); drawStarburst(background);
+      backdropRef.current = backdrop;
+    }
+    drawTable(ctx, stateRef.current, performance.now() / 1000, backdrop);
   }, []);
 
   const recordHighScore = useCallback((score: number) => {
@@ -690,10 +783,10 @@ export function PinballGame({ active = true }: { active?: boolean }) {
       if (!tilt || stage.clientWidth === 0 || stage.clientHeight === 0) return;
       const scale = Math.max(
         0.05,
-        Math.min(stage.clientWidth / TABLE.width, stage.clientHeight / (TABLE.height * TILT_HEIGHT)),
+        Math.min(stage.clientWidth / TABLE.width, stage.clientHeight / (TABLE.height * TABLE_STRETCH * TILT_HEIGHT)),
       );
       const cssWidth = Math.max(1, Math.floor(TABLE.width * scale));
-      const cssHeight = Math.max(1, Math.floor(TABLE.height * scale));
+      const cssHeight = Math.max(1, Math.floor(TABLE.height * TABLE_STRETCH * scale));
       const ratio = window.devicePixelRatio || 1;
       tilt.style.width = `${cssWidth}px`;
       tilt.style.height = `${Math.ceil(cssHeight * TILT_HEIGHT)}px`;
@@ -749,7 +842,7 @@ export function PinballGame({ active = true }: { active?: boolean }) {
     const readInput = (): PinballInput => {
       const held = new Set<Control>(pointersRef.current.values());
       for (const code of keysRef.current) {
-        const control = HOLD_KEYS.get(code);
+        const control = holdKeys.get(code);
         if (control !== undefined) held.add(control);
       }
       const nudge = nudgeRef.current;
@@ -768,10 +861,14 @@ export function PinballGame({ active = true }: { active?: boolean }) {
     };
     frame = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(frame);
-  }, [running, clearInput, render, syncHud]);
+  }, [running, controls, clearInput, render, syncHud]);
 
   const onKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>) => {
     if (!active || event.metaKey || event.ctrlKey || event.altKey) return;
+    if (event.code === "F8" || event.code === "F1") {
+      event.preventDefault(); event.stopPropagation(); clearInput();
+      setDialog(event.code === "F8" ? "controls" : "help"); return;
+    }
     if (event.code === "F3") {
       event.preventDefault();
       event.stopPropagation();
@@ -788,14 +885,14 @@ export function PinballGame({ active = true }: { active?: boolean }) {
       return;
     }
     if (!bodyRef.current?.contains(event.target as Node)) return;
-    const nudge = NUDGE_KEYS.get(event.code);
+    const nudge = nudgeKeys.get(event.code);
     if (nudge !== undefined) {
       event.preventDefault();
       event.stopPropagation();
       if (running && !event.repeat) nudgeRef.current = nudge;
       return;
     }
-    if (HOLD_KEYS.has(event.code)) {
+    if (holdKeys.has(event.code)) {
       event.preventDefault();
       event.stopPropagation();
       if (running) keysRef.current.add(event.code);
@@ -803,7 +900,7 @@ export function PinballGame({ active = true }: { active?: boolean }) {
   };
 
   const onKeyUp = (event: ReactKeyboardEvent<HTMLDivElement>) => {
-    if (!HOLD_KEYS.has(event.code)) return;
+    if (!holdKeys.has(event.code)) return;
     event.preventDefault();
     event.stopPropagation();
     keysRef.current.delete(event.code);
@@ -842,12 +939,12 @@ export function PinballGame({ active = true }: { active?: boolean }) {
   const message = over
     ? "Game Over"
     : !running
-      ? "Paused"
+      ? "Game Paused\nF3 to Resume"
       : hud.awaiting
         ? "Awaiting Deployment"
         : hud.multiplier > 1
           ? `Bonus ${hud.multiplier}x Lit`
-          : "Launch Training";
+          : "Hit Targets To\nLight Bonus";
   const detail = over ? "F2 for a new game" : paused ? "F3 to resume" : !running ? "Click the table to resume" : hud.awaiting ? "Hold Space to launch" : "";
 
   return (
@@ -855,10 +952,26 @@ export function PinballGame({ active = true }: { active?: boolean }) {
       <ProgramMenuBar menus={[
         { label: "Game", items: [
           { label: "New Game", shortcut: "F2", action: () => { startNewGame(); bodyRef.current?.focus(); } },
-          { label: paused ? "Resume" : "Pause", shortcut: "F3", disabled: over, action: () => { setPaused(!paused); bodyRef.current?.focus(); } },
+          { label: "Launch Ball", disabled: over || !hud.awaiting, action: () => { stateRef.current.plunger = 1; setPaused(false); bodyRef.current?.focus(); } },
+          { label: "Pause/Resume Game", shortcut: "F3", disabled: over, action: () => { setPaused(!paused); bodyRef.current?.focus(); } },
+          "separator",
+          { label: "High Scores...", action: () => setDialog("scores") },
+          { label: "Demo", disabled: true },
         ] },
-        { label: "Options", items: [{ label: "Player Controls", action: () => setShowControls(!showControls), checked: showControls }] },
-        { label: "Help", items: [{ label: "Z / Left Shift: left flipper" }, { label: "/ / Right Shift: right flipper" }, { label: "Hold Space, then release to launch" }] },
+        { label: "Options", items: [
+          { label: "Full Screen", disabled: true, shortcut: "F4" },
+          { label: "Select Players", disabled: true },
+          "separator",
+          { label: "Sounds", disabled: true },
+          { label: "Music", disabled: true },
+          "separator",
+          { label: "Player Controls...", shortcut: "F8", action: () => setDialog("controls") },
+        ] },
+        { label: "Help", items: [
+          { label: "Help Topics", shortcut: "F1", action: () => setDialog("help") },
+          "separator",
+          { label: "About Pinball", action: () => setDialog("about") },
+        ] },
       ]} />
       <div
         ref={bodyRef}
@@ -887,25 +1000,31 @@ export function PinballGame({ active = true }: { active?: boolean }) {
         <aside className="bbd-pinball-panel" aria-label="Scoreboard">
           <div className="bbd-pinball-logo">
             <span className="bbd-pinball-logo-small" aria-hidden>3D Pinball</span>
-            <span className="bbd-pinball-logo-big" aria-hidden>Space Cadet</span>
-            <svg viewBox="0 0 180 90" className="bbd-pinball-ship" aria-hidden>
-              <circle cx="22" cy="68" r="17" fill="#5f9b3c" />
-              <path d="M10 60c6-4 12 2 18-2s8 6 4 10-14 2-22-8Z M14 76c6 2 12-2 18 1" fill="#3d6e28" />
-              <path d="m162 50 16-7-5 9 7 5-18 3Z" fill="#e8702a" />
-              <ellipse cx="110" cy="62" rx="44" ry="9" fill="#6f737e" />
-              <ellipse cx="110" cy="55" rx="58" ry="14" fill="#c3c7d0" stroke="#5a5e68" strokeWidth="2" />
-              <path d="M88 53c-2-18 8-30 22-30s24 12 22 30Z" fill="#8a4fd0" />
-              <circle cx="110" cy="31" r="10" fill="#f0c39a" />
-              <path d="M99 28c2-10 20-12 23 0-6-4-16-4-23 0Z" fill="#6b3b1a" />
-              <rect x="102" y="28" width="16" height="5" rx="2" fill="#3b2a6e" />
-              <path d="M84 55a26 30 0 0 1 52 0Z" fill="#bfe0ff" fillOpacity="0.35" stroke="#eaf5ff" strokeWidth="1.5" />
-              <circle cx="72" cy="57" r="2.5" fill="#ffc933" />
-              <circle cx="110" cy="62" r="2.5" fill="#ffc933" />
-              <circle cx="148" cy="57" r="2.5" fill="#ffc933" />
+            <span className="bbd-pinball-logo-big" aria-hidden><span>Space</span><span>Cadet</span></span>
+            <svg viewBox="0 0 180 100" className="bbd-pinball-ship" aria-hidden>
+              <defs><linearGradient id={`${helpId}-hull`} x2="0.3" y2="1"><stop stopColor="#deded8"/><stop offset=".45" stopColor="#969991"/><stop offset="1" stopColor="#5c6060"/></linearGradient></defs>
+              <circle cx="15" cy="78" r="17" fill="#506023" />
+              <path d="m2 69 11-5 9 5-5 5 10 8-10 5-5-8-11-1Z" fill="#778129" />
+              <path d="m160 23 19-10-5 15 6 7-22 7" fill="#bc4725" /><path d="m166 26 12-7-5 15-9 1" fill="#f3c943" />
+              <path d="m39 60 32-31 34-5 30-12 22 15 8 23 19 14-36 14-67 9-39-9Z" fill={`url(#${helpId}-hull)`} stroke="#4c5355" strokeWidth="2" />
+              <path d="m61 54 24-19 30-4 24 7 4 20-22 12-37-3Z" fill="#33383a" />
+              <path d="m61 58 21-15 41 11-4 15-37-4Z" fill="#849647" />
+              <path d="m76 56 4-15 14-8 24 7 12 19-16 4-16-7-9 8Z" fill="#7348a5" />
+              <path d="m86 42 12-7 7 4 8 10-7 5-9-9-9 4-14-1-3-5Z" fill="#d7ad7e" stroke="#7d6145" />
+              <ellipse cx="105" cy="29" rx="12" ry="15" fill="#e5b389" stroke="#785239" />
+              <path d="M92 26q0-20 16-19 17 2 13 28l-6-9-1-10-15 0-1 15Z" fill="#4f7fa6" stroke="#b3c7ca" />
+              <ellipse cx="101" cy="26" rx="3" ry="4" fill="#f2eee0"/><ellipse cx="110" cy="25" rx="3" ry="4" fill="#f2eee0"/>
+              <circle cx="102" cy="27" r="1.4" fill="#292d36"/><circle cx="110" cy="26" r="1.4" fill="#292d36"/>
+              <path d="m102 35 10-2-4 7Z" fill="#f0e1bd" stroke="#895740"/>
+              <path d="M78 55q-6-51 31-53 38 0 38 52" fill="none" stroke="#84b1bc" strokeWidth="2" />
+              <path d="m43 64 26-9 12 8-9 16-24-4Z M135 62l31-15 14 17-36 13Z" fill="#92958e" stroke="#c0c2b8" strokeWidth="2" />
+              <ellipse cx="64" cy="73" rx="10" ry="7" fill="#666e6d"/>
+              <path d="m39 60 10-6-3 12Z" fill="#fbdf79"/>
+              <text x="53" y="61" transform="rotate(24 53 61)" fill="#f5f0e5" fontSize="9" fontFamily="Tahoma">2001</text>
             </svg>
             <span className="bbd-pinball-ball">
               <span className="bbd-pinball-ball-label">Ball</span>
-              <span className="bbd-pinball-box"><span className="bbd-pinball-dots">{over ? "-" : hud.ballNumber}</span></span>
+              <span className="bbd-pinball-box"><span className="bbd-pinball-dots">{over ? "" : hud.ballNumber}</span></span>
             </span>
           </div>
           <div className="bbd-pinball-score">
@@ -915,11 +1034,11 @@ export function PinballGame({ active = true }: { active?: boolean }) {
             </span>
           </div>
           <p className="bbd-pinball-box bbd-pinball-info">
-            <span className="bbd-pinball-dots">{over ? `High Score ${formatScore(Math.max(highScore, hud.score))}` : "Player 1"}</span>
+            <span className="bbd-pinball-dots">{over ? "Game Over" : !running ? "Game Paused\nF3 to Resume" : "Player 1"}</span>
           </p>
           <p className="bbd-pinball-box bbd-pinball-message" data-tone={over ? "over" : undefined}>
-            <span className="bbd-pinball-dots">{message}</span>
-            {detail ? <span className="bbd-pinball-detail">{detail}</span> : null}
+            <span className="bbd-pinball-dots">{over ? `High Score\n${formatScore(Math.max(highScore, hud.score))}` : !running ? "" : message}</span>
+            <span className="bbd-pinball-live">{detail}</span>
           </p>
           <button
             type="button"
@@ -936,22 +1055,20 @@ export function PinballGame({ active = true }: { active?: boolean }) {
           >
             Hold to launch
           </button>
-          <dl id={helpId} className="bbd-pinball-keys" hidden={!showControls}>
-            <dt>Z or Left Shift</dt>
-            <dd>Left flipper</dd>
-            <dt>/ or Right Shift</dt>
-            <dd>Right flipper</dd>
-            <dt>Space or Down</dt>
-            <dd>Hold, then release to launch</dd>
-            <dt>X . Up</dt>
-            <dd>Nudge the table</dd>
-            <dt>F3</dt>
-            <dd>Pause or resume</dd>
-            <dt>F2</dt>
-            <dd>New game</dd>
-          </dl>
         </aside>
       </div>
+      <p id={helpId} className="bbd-pinball-live">{keyLabel(controls.left)}: left flipper. {keyLabel(controls.right)}: right flipper. Hold {keyLabel(controls.plunger)}, then release to launch. F3: pause. F8: player controls.</p>
+      {dialog === "controls" && <PlayerControls controls={controls} onClose={() => { setDialog(null); bodyRef.current?.focus(); }} onSave={(value) => { clearInput(); setControls(value); localStorage.setItem(CONTROL_KEY, JSON.stringify(value)); setDialog(null); bodyRef.current?.focus(); }} />}
+      {dialog !== null && dialog !== "controls" && <PinballDialog title={dialog === "scores" ? "3D Pinball: High Scores" : dialog === "help" ? "Pinball Help" : "About Pinball"} onClose={() => { setDialog(null); bodyRef.current?.focus(); }}>
+        {dialog === "scores" ? <p>High score: {formatScore(Math.max(highScore, hud.score))}</p> : dialog === "about" ? <><p><strong>3D Pinball — Space Cadet</strong></p><p>Desktop's original vector tribute to the Windows classic. No original game assets are included.</p><p>Single-player scoring with bumpers, targets, and lane bonuses. Original missions, sounds, and multiplayer are not implemented.</p></> : <><p>Hold {keyLabel(controls.plunger)} and release to launch. Hit bumpers and targets to score; light all three top lanes to increase the bonus multiplier.</p><dl className="bbd-pinball-keys">
+          <dt>{keyLabel(controls.left)} / Left Shift</dt><dd>Left flipper</dd>
+          <dt>{keyLabel(controls.right)} / Right Shift</dt><dd>Right flipper</dd>
+          <dt>{keyLabel(controls.plunger)} / Down</dt><dd>Hold, then release to launch</dd>
+          <dt>{[controls.nudgeLeft, controls.nudgeRight, controls.nudgeUp].map(keyLabel).join(" · ")}</dt><dd>Nudge the table</dd>
+          <dt>F3</dt><dd>Pause or resume</dd><dt>F2</dt><dd>New game</dd><dt>F8</dt><dd>Player controls</dd>
+        </dl></>}
+        <footer><button className="bbd-button bbd-bevel" onClick={() => { setDialog(null); bodyRef.current?.focus(); }}>OK</button></footer>
+      </PinballDialog>}
       <p className="bbd-pinball-live" role="status" aria-live="polite">
         {announcement}
       </p>

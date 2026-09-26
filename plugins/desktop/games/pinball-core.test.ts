@@ -54,7 +54,7 @@ describe("pinball", () => {
     const after = run(inPlay({ x: 150, y: 480, vx: 0, vy: 5000 }, raised), { ...idle, leftFlipper: true }, 0.15, (state) => {
       maxY = Math.max(maxY, state.ball.y);
     });
-    expect(maxY).toBeLessThan(605);
+    expect(maxY).toBeLessThan(TABLE.flippers[0].pivot.y - 15);
     expect(after.ballNumber).toBe(1);
   });
 
@@ -71,7 +71,7 @@ describe("pinball", () => {
     const direction = index === 0 ? 1 : -1;
     const pivot = TABLE.flippers[index]!.pivot;
     // Position observed after a real game settled in the old rail/pivot pocket.
-    const trapped = inPlay({ x: pivot.x - direction * 8.94, y: 610.38, vx: 0, vy: 0 });
+    const trapped = inPlay({ x: pivot.x - direction * 8.94, y: pivot.y - 15.62, vx: 0, vy: 0 });
     let progress = 0;
     run(trapped, idle, 1, (state) => {
       if (!state.inLane) progress = Math.max(progress, direction * (state.ball.x - pivot.x));
@@ -99,10 +99,28 @@ describe("pinball", () => {
   });
 
   it("scores and kicks the ball away when it hits a bumper", () => {
-    const after = run(inPlay({ x: 185, y: 240, vx: 0, vy: 400 }), idle, 0.1);
+    const bumper = TABLE.bumpers[2]!;
+    const after = run(inPlay({ x: bumper.x, y: bumper.y - bumper.radius - TABLE.ballRadius - 8, vx: 0, vy: 400 }), idle, 0.04);
     expect(after.score).toBe(POINTS.bumper);
     expect(after.bumperFlash[2]).toBeGreaterThan(0);
     expect(after.ball.vy).toBeLessThan(0);
+  });
+
+  it.each([0, 1, 2, 4, 5, 6])("scores a contact with attack/return bumper %i", (index) => {
+    const bumper = TABLE.bumpers[index]!;
+    const after = run(inPlay({ x: bumper.x, y: bumper.y - bumper.radius - TABLE.ballRadius - 4, vx: 0, vy: 350 }), idle, 1 / 60);
+    expect(after.bumperFlash[index]).toBeGreaterThan(0);
+    expect(after.score).toBeGreaterThanOrEqual(POINTS.bumper);
+    expect(Number.isFinite(after.ball.x + after.ball.y + after.ball.vx + after.ball.vy)).toBe(true);
+  });
+
+  it("keeps a full launch inside the flattened upper orbit", () => {
+    const charged = run(newGame(), { ...idle, plunger: true }, 1.2);
+    run(charged, idle, 5, (state) => {
+      expect(state.ball.x).toBeGreaterThanOrEqual(0);
+      expect(state.ball.x).toBeLessThanOrEqual(TABLE.width);
+      expect(state.ball.y).toBeGreaterThanOrEqual(0);
+    });
   });
 
   it("sends a falling ball back up when the flipper swings into it", () => {

@@ -151,8 +151,8 @@ function slingshot(top: Vec, bottom: Vec, inner: Vec): Slingshot {
   return { corners: [top, bottom, inner], kicker: { a: top, b: inner } };
 }
 
-const LEFT_SLING = slingshot({ x: 48, y: 470 }, { x: 48, y: 540 }, { x: 96, y: 568 });
-const RIGHT_SLING = slingshot({ x: 322, y: 470 }, { x: 322, y: 540 }, { x: 274, y: 568 });
+const LEFT_SLING = slingshot({ x: 74, y: 555 }, { x: 58, y: 627 }, { x: 106, y: 642 });
+const RIGHT_SLING = slingshot({ x: 296, y: 555 }, { x: 312, y: 627 }, { x: 264, y: 642 });
 const ARC_CENTER = { x: 200, y: 200 };
 const ARC_RADIUS = 192;
 
@@ -164,13 +164,13 @@ export const TABLE: Table = {
   arcCenter: ARC_CENTER,
   arcRadius: ARC_RADIUS,
   walls: [
-    ...arc(ARC_CENTER, ARC_RADIUS, Math.PI, Math.PI * 2, 28),
-    segment(8, 200, 8, 566),
+    ...arc(ARC_CENTER, ARC_RADIUS, Math.PI, Math.PI * 2, 28).map(({ a, b }) => segment(a.x, a.y / 2, b.x, b.y / 2)),
+    segment(8, 100, 8, 630),
     // Meet the upper edge of each pivot cap instead of making a pocket behind it.
-    segment(8, 566, 115, 618),
-    segment(362, 566, 255, 618),
+    segment(8, 630, 115, 676),
+    segment(362, 630, 255, 676),
     segment(362, 205, 362, 720),
-    segment(392, 200, 392, 720),
+    segment(392, 100, 392, 720),
     segment(125, 62, 125, 100),
     segment(165, 62, 165, 100),
     segment(205, 62, 205, 100),
@@ -183,9 +183,13 @@ export const TABLE: Table = {
   gate: segment(362, 205, 392, 177),
   shooter: { left: 362, right: 392, floor: 690, travel: 26 },
   bumpers: [
-    { x: 135, y: 215, radius: 22 },
-    { x: 235, y: 215, radius: 22 },
-    { x: 185, y: 290, radius: 22 },
+    { x: 155, y: 223, radius: 18 },
+    { x: 232, y: 207, radius: 18 },
+    { x: 185, y: 283, radius: 19 },
+    { x: 65, y: 83, radius: 20 },
+    { x: 24, y: 445, radius: 13 },
+    { x: 64, y: 454, radius: 13 },
+    { x: 38, y: 484, radius: 13 },
   ],
   slingshots: [LEFT_SLING, RIGHT_SLING],
   lanes: [
@@ -195,10 +199,10 @@ export const TABLE: Table = {
   ],
   targets: [segment(346, 300, 346, 328), segment(346, 336, 346, 364), segment(346, 372, 346, 400)],
   flippers: [
-    { side: "left", pivot: { x: 111, y: 626 }, length: 62, baseRadius: 9, tipRadius: 5, restAngle: 0.52, activeAngle: -0.38 },
+    { side: "left", pivot: { x: 111, y: 684 }, length: 62, baseRadius: 9, tipRadius: 5, restAngle: 0.52, activeAngle: -0.38 },
     {
       side: "right",
-      pivot: { x: 259, y: 626 },
+      pivot: { x: 259, y: 684 },
       length: 62,
       baseRadius: 9,
       tipRadius: 5,
@@ -234,7 +238,7 @@ export function newGame(): PinballState {
     lanesFlash: 0,
     targets: [true, true, true],
     targetsReset: 0,
-    bumperFlash: [0, 0, 0],
+    bumperFlash: TABLE.bumpers.map(() => 0),
     slingFlash: [0, 0],
     nudgeCooldown: 0,
     held: { left: false, right: false },
