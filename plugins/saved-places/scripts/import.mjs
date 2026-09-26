@@ -23,7 +23,7 @@ const CATEGORY_RULES = [
   ["bars", /\bbar\b|pub|brewery|cocktail|izakaya|wine|tavern|speakeasy|lounge/i],
   ["records", /record|vinyl|disk union|music store/i],
   ["music", /jazz|live music|concert|music venue|club|blue note/i],
-  ["culture", /museum|gallery|temple|shrine|church|cathedral|castle|palace|monument|landmark|tower|library|theater|theatre|tourist attraction|historical/i],
+  ["culture", /museum|museo|museu|gallery|temple|shrine|church|cathedral|castle|palace|monument|landmark|tower|library|theater|theatre|tourist attraction|historical/i],
   ["outdoors", /park|garden|beach|trail|hike|mountain|lake|viewpoint|nature|forest|island/i],
   ["stays", /hotel|hostel|inn\b|ryokan|resort|lodge|motel|airbnb/i],
   ["food", /restaurant|food|kitchen|diner|grill|taco|taqueria|pizza|burger|market|bistro|eatery|dumpling|bbq|steak|curry|bakery|deli|yokocho/i],
