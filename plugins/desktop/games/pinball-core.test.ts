@@ -67,6 +67,18 @@ describe("pinball", () => {
     expect(after.ball.vx).toBeGreaterThan(0);
   });
 
+  it.each([0, 1])("rolls past flipper %i's pivot instead of lodging against its guide rail", (index) => {
+    const direction = index === 0 ? 1 : -1;
+    const pivot = TABLE.flippers[index]!.pivot;
+    // Position observed after a real game settled in the old rail/pivot pocket.
+    const trapped = inPlay({ x: pivot.x - direction * 8.94, y: 610.38, vx: 0, vy: 0 });
+    let progress = 0;
+    run(trapped, idle, 1, (state) => {
+      if (!state.inLane) progress = Math.max(progress, direction * (state.ball.x - pivot.x));
+    });
+    expect(progress).toBeGreaterThan(20);
+  });
+
   it("drains an idle ball between the flippers and serves the next ball", () => {
     const after = run(inPlay({ x: 185, y: 450, vx: 0, vy: 0 }), idle, 1.5);
     expect(after.status).toBe("playing");

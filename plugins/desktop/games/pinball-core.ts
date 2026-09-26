@@ -166,8 +166,9 @@ export const TABLE: Table = {
   walls: [
     ...arc(ARC_CENTER, ARC_RADIUS, Math.PI, Math.PI * 2, 28),
     segment(8, 200, 8, 566),
-    segment(8, 566, 111, 626),
-    segment(362, 566, 259, 626),
+    // Meet the upper edge of each pivot cap instead of making a pocket behind it.
+    segment(8, 566, 115, 618),
+    segment(362, 566, 255, 618),
     segment(362, 205, 362, 720),
     segment(392, 200, 392, 720),
     segment(125, 62, 125, 100),
