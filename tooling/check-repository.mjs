@@ -24,6 +24,7 @@ const defaultBbEngine = ">=0.0.34";
 const pluginBbEngineOverrides = new Map([
   ["context-katamari", ">=0.43.0"],
   ["theme-preview", ">=0.38.0"],
+  ["video-markup", ">=0.43.4"],
 ]);
 
 async function readJson(path) {

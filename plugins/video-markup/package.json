@@ -1,0 +1,64 @@
+{
+  "name": "bb-plugin-video-markup",
+  "version": "0.1.0",
+  "description": "Review product films in bb with frame notes and version history.",
+  "type": "module",
+  "license": "UNLICENSED",
+  "files": [
+    "dist",
+    "docs",
+    "skills",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "node ../../tooling/build-plugin.mjs",
+    "check": "npm run typecheck && npm run build && npm test",
+    "test": "vitest run",
+    "test:built": "node ../../tooling/publish-install-refs.mjs --verify video-markup",
+    "typecheck": "tsc --noEmit"
+  },
+  "engines": {
+    "bb": ">=0.43.4",
+    "bbPluginSdk": "^0.4.8"
+  },
+  "bb": {
+    "name": "Video Markup",
+    "description": "Review product films in bb with frame notes and version history.",
+    "branding": {
+      "icon": "Clapperboard"
+    },
+    "server": "./server.ts",
+    "skills": [
+      "skills"
+    ],
+    "app": "./app.tsx",
+    "host": "./host.ts"
+  },
+  "devDependencies": {
+    "@get-bb/plugin-sdk": "file:../../tooling/vendor/get-bb-plugin-sdk-0.5.9.tgz",
+    "@types/better-sqlite3": "^7.6.12",
+    "@types/node": "^22.0.0",
+    "better-sqlite3": "^12.10.0",
+    "cron-parser": "^5.5.0",
+    "hono": "^4.11.9",
+    "typescript": "^5.7.0",
+    "vitest": "^4.1.8",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.2.3",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "@testing-library/react": "^16.3.2",
+    "jsdom": "^29.0.1",
+    "@radix-ui/react-select": "2.3.3"
+  },
+  "dependencies": {
+    "zod": "^4.3.6",
+    "@radix-ui/react-slot": "^1.2.3",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
+    "tailwind-merge": "^3.3.1",
+    "lucide-react": "^0.474.0",
+    "@radix-ui/react-checkbox": "1.3.7",
+    "@radix-ui/react-tooltip": "^1.2.12"
+  }
+}

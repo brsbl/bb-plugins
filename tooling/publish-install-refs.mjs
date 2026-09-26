@@ -10,6 +10,7 @@ import { validatePluginArtifacts } from "./validate-plugin-artifacts.mjs";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const releaseServerEntry = "./dist/install-server.mjs";
+const releaseHostEntry = "./dist/install-host.mjs";
 const releaseAppEntry = "./dist/install-app.mjs";
 const releaseAppCss = "dist/install-app.css";
 const serverBundleBanner = `${[
@@ -108,6 +109,7 @@ export function releaseManifest(sourceManifest) {
   // self-contained release entry generated from the prebuilt bundle instead
   // of authored TypeScript whose development dependencies are not shipped.
   if (manifest.bb?.server) manifest.bb.server = releaseServerEntry;
+  if (manifest.bb?.host) manifest.bb.host = releaseHostEntry;
   // bb recompiles frontend entries for direct git installs. Point the
   // release-only manifest at a self-contained wrapper around the prebuilt app
   // so installation never depends on development node_modules. The wrapper
@@ -189,6 +191,11 @@ async function createReleaseTree(plugin, sourceCommit) {
         releaseServerEntry.replace(/^\.\//, ""),
         releaseServerBundle(serverBundle),
       );
+    }
+
+    if (sourceManifest.bb?.host) {
+      const hostBundle = await readFile(resolve(pluginDirectory, "dist/host.js"), "utf8");
+      addBlob(indexPath, releaseHostEntry.replace(/^\.\//, ""), releaseServerBundle(hostBundle));
     }
 
     if (sourceManifest.bb?.app) {
@@ -565,6 +572,26 @@ export async function publishInstallRefs(options = {}) {
   retireInstallRefs(plugins, push);
 }
 
+// Exercise one plugin's actual release packaging and install-time rebuild
+// without creating, changing, fetching, or publishing an install ref.
+async function verifyPluginInstallRef(slug) {
+  const plugin = (await readPluginWorkspaces(root)).find((item) => item.slug === slug);
+  if (!plugin) throw new Error(`unknown plugin: ${slug}`);
+  const sourceRevision = git(["rev-parse", "HEAD"]);
+  const tree = await createReleaseTree(
+    plugin,
+    git(["rev-parse", `${sourceRevision}:${plugin.source}`]),
+  );
+  const commit = createReleaseCommit(plugin, tree, sourceRevision);
+  await verifyReleaseCommit(plugin, commit);
+  console.log(`${plugin.installRef} verified outside the repository dependency tree`);
+}
+
 if (resolve(process.argv[1] ?? "") === fileURLToPath(import.meta.url)) {
-  await publishInstallRefs({ push: process.argv.includes("--push") });
+  if (process.argv[2] === "--verify") {
+    if (process.argv.length !== 4) throw new Error("--verify requires one plugin slug");
+    await verifyPluginInstallRef(process.argv[3]);
+  } else {
+    await publishInstallRefs({ push: process.argv.includes("--push") });
+  }
 }
