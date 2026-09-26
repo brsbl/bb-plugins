@@ -90,7 +90,7 @@
 .bbd-pinball-dots {
   display: inline-block;
   color: var(--bbd-pinball-led);
-  font-size: clamp(13px, 10.5cqi, 24px);
+  font-size: clamp(13px, 11.8cqi, 24px);
   line-height: 1.05;
 }
 .bbd-pinball-dot-line { display: block; }

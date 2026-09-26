@@ -159,7 +159,7 @@ const ARC_RADIUS = 192;
 export const TABLE: Table = {
   width: 400,
   height: 720,
-  ballRadius: 9,
+  ballRadius: 6,
   gravity: 1300,
   arcCenter: ARC_CENTER,
   arcRadius: ARC_RADIUS,
@@ -167,8 +167,8 @@ export const TABLE: Table = {
     ...arc(ARC_CENTER, ARC_RADIUS, Math.PI, Math.PI * 2, 28).map(({ a, b }) => segment(a.x, a.y / 2, b.x, b.y / 2)),
     segment(8, 100, 8, 630),
     // Meet the upper edge of each pivot cap instead of making a pocket behind it.
-    segment(8, 630, 115, 676),
-    segment(362, 630, 255, 676),
+    segment(8, 630, 148, 678),
+    segment(362, 630, 255, 678),
     segment(362, 205, 362, 720),
     segment(392, 100, 392, 720),
     segment(125, 62, 125, 100),
@@ -199,13 +199,13 @@ export const TABLE: Table = {
   ],
   targets: [segment(346, 300, 346, 328), segment(346, 336, 346, 364), segment(346, 372, 346, 400)],
   flippers: [
-    { side: "left", pivot: { x: 111, y: 684 }, length: 62, baseRadius: 9, tipRadius: 5, restAngle: 0.52, activeAngle: -0.38 },
+    { side: "left", pivot: { x: 144, y: 684 }, length: 48, baseRadius: 6.5, tipRadius: 4, restAngle: 0.52, activeAngle: -0.38 },
     {
       side: "right",
       pivot: { x: 259, y: 684 },
-      length: 62,
-      baseRadius: 9,
-      tipRadius: 5,
+      length: 48,
+      baseRadius: 6.5,
+      tipRadius: 4,
       restAngle: Math.PI - 0.52,
       activeAngle: Math.PI + 0.38,
     },

@@ -228,7 +228,7 @@ const MATRIX: Record<string, string> = {
 };
 function DotMatrix({ text }: { text: string | number }) {
   return <span className="bbd-pinball-dots" aria-label={String(text)}>{String(text).split("\n").map((line, index) => <span className="bbd-pinball-dot-line" key={index}>{line.split(" ").map((word, wi) => <svg key={wi} aria-hidden viewBox={`0 0 ${word.length * 6} 8`} style={{ width: `${word.length * 0.68}em` }}>
-    {[...word].flatMap((char, ci) => (MATRIX[char] ?? MATRIX[char.toUpperCase()] ?? "").split("/").flatMap((row, y) => [...row].flatMap((bit, x) => bit === "1" ? [0, 1, 2, 3].map((dot) => <circle key={`${ci}-${y}-${x}-${dot}`} cx={ci * 6 + x + .25 + (dot % 2) * .5} cy={y + .25 + Math.floor(dot / 2) * .5} r={.22} fill="currentColor" />) : [])))}
+    {[...word].flatMap((char, ci) => (MATRIX[char] ?? MATRIX[char.toUpperCase()] ?? "").split("/").flatMap((row, y) => [...row].flatMap((bit, x) => bit === "1" ? Array.from({ length: 12 }, (_, dot) => <circle key={`${ci}-${y}-${x}-${dot}`} cx={ci * 6 + x + .16 + (dot % 4) / 3} cy={y + .16 + Math.floor(dot / 4) / 3} r={.145} fill="currentColor" />) : [])))}
   </svg>)}</span>)}</span>;
 }
 
@@ -287,7 +287,7 @@ function formatScore(score: number): string {
   return score.toLocaleString("en-US");
 }
 
-const HOLE = { x: 185, y: 548 };
+const HOLE = { x: 202, y: 548 };
 
 // Yellow arrow inserts: [x, y, angle] where angle 0 points up the table.
 const ARROWS = [
@@ -613,11 +613,14 @@ function drawRankCircle(ctx: CanvasRenderingContext2D, state: PinballState, time
 }
 
 function drawStarburst(ctx: CanvasRenderingContext2D) {
+  ctx.save();
+  ctx.translate(17, 0);
   const points = [[81, 656], [144, 680], [134, 605], [176, 678], [185, 597], [203, 679], [242, 608], [229, 681], [289, 648], [245, 692], [282, 714], [214, 710], [229, 720], [142, 720], [156, 710], [91, 714], [133, 692]] as const;
   ctx.fillStyle = COLORS.starburstLight; polygon(ctx, points);
   ctx.strokeStyle = COLORS.starburst; ctx.lineWidth = 5; ctx.stroke();
   disc(ctx, 185, 702, 6, COLORS.lampOff);
   disc(ctx, 185, 719, 3, COLORS.bumperSkirt);
+  ctx.restore();
 }
 
 function drawArrows(ctx: CanvasRenderingContext2D, state: PinballState, time: number) {

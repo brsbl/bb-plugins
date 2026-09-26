@@ -51,7 +51,7 @@ describe("pinball", () => {
   it("keeps a very fast ball from tunnelling through a raised flipper", () => {
     const raised = run(newGame(), { ...idle, leftFlipper: true }, 0.1);
     let maxY = -Infinity;
-    const after = run(inPlay({ x: 150, y: 480, vx: 0, vy: 5000 }, raised), { ...idle, leftFlipper: true }, 0.15, (state) => {
+    const after = run(inPlay({ x: TABLE.flippers[0].pivot.x + 30, y: 480, vx: 0, vy: 5000 }, raised), { ...idle, leftFlipper: true }, 0.15, (state) => {
       maxY = Math.max(maxY, state.ball.y);
     });
     expect(maxY).toBeLessThan(TABLE.flippers[0].pivot.y - 15);
@@ -63,7 +63,7 @@ describe("pinball", () => {
     const after = run(inPlay({ x: 100, y: 400, vx: -9000, vy: 0 }), idle, 0.2, (state) => {
       minX = Math.min(minX, state.ball.x);
     });
-    expect(minX).toBeGreaterThan(16);
+    expect(minX).toBeGreaterThanOrEqual(8 + TABLE.ballRadius - 0.1);
     expect(after.ball.vx).toBeGreaterThan(0);
   });
 
@@ -80,7 +80,7 @@ describe("pinball", () => {
   });
 
   it("drains an idle ball between the flippers and serves the next ball", () => {
-    const after = run(inPlay({ x: 185, y: 450, vx: 0, vy: 0 }), idle, 1.5);
+    const after = run(inPlay({ x: 202, y: 450, vx: 0, vy: 0 }), idle, 1.5);
     expect(after.status).toBe("playing");
     expect(after.ballNumber).toBe(2);
     expect(after.inLane).toBe(true);
@@ -88,7 +88,7 @@ describe("pinball", () => {
   });
 
   it("ends the game when the last ball drains and then ignores input", () => {
-    const last = { ...inPlay({ x: 185, y: 450, vx: 0, vy: 0 }), ballNumber: BALLS_PER_GAME, score: 1200 };
+    const last = { ...inPlay({ x: 202, y: 450, vx: 0, vy: 0 }), ballNumber: BALLS_PER_GAME, score: 1200 };
     const over = run(last, idle, 1.5);
     expect(over.status).toBe("over");
     expect(over.ballNumber).toBe(BALLS_PER_GAME);
