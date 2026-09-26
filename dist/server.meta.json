@@ -1,0 +1,11 @@
+{
+  "sdkMajor": 0,
+  "sdkVersion": "0.5.9",
+  "artifactFormatVersion": 1,
+  "pluginId": "thread-hover-cards",
+  "pluginVersion": "0.1.3",
+  "builtWith": {
+    "bbVersion": "0.43.4",
+    "pluginSdkVersion": "0.5.9"
+  }
+}
