@@ -869,21 +869,21 @@ function AmbientControls({ dismiss }: { dismiss: () => void }) {
   const activeIdRef = useRef(activeId);
   activeIdRef.current = activeId;
   const activeEntry = library.find((entry) => entry.id === activeId);
-  const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const [confirming, setConfirming] = useState<"reset" | "delete" | null>(null);
 
   useEffect(() => {
-    setConfirmingDelete(false);
+    setConfirming(null);
   }, [activeId]);
 
   useEffect(() => {
-    if (!confirmingDelete) return;
-    const timer = setTimeout(() => setConfirmingDelete(false), 4000);
+    if (!confirming) return;
+    const timer = setTimeout(() => setConfirming(null), 4000);
     return () => clearTimeout(timer);
-  }, [confirmingDelete]);
+  }, [confirming]);
 
   const deleteActiveScene = useCallback(async () => {
     const id = activeIdRef.current;
-    setConfirmingDelete(false);
+    setConfirming(null);
     if (!id) return;
     const { deleted } = await rpc.call("deleteScene", { id });
     if (!deleted) return;
@@ -1043,29 +1043,34 @@ function AmbientControls({ dismiss }: { dismiss: () => void }) {
         action={
           activeEntry && (activeEntry.tweaked || !activeEntry.builtIn) ? (
             <div className="flex items-center">
-              {activeEntry.tweaked && !confirmingDelete && (
-                <TextButton
-                  onClick={() => {
-                    if (!activeId) return;
-                    record(`reset:${Date.now()}`);
-                    ambientStore.clearOverrides();
-                    void rpc.call("resetScene", { id: activeId }).then(receive);
-                  }}
-                >
-                  Reset
-                </TextButton>
-              )}
-              {!activeEntry.builtIn &&
-                (confirmingDelete ? (
-                  <>
-                    <TextButton onClick={() => setConfirmingDelete(false)}>Cancel</TextButton>
+              {confirming ? (
+                <>
+                  <TextButton onClick={() => setConfirming(null)}>Cancel</TextButton>
+                  {confirming === "reset" ? (
+                    <TextButton
+                      danger
+                      onClick={() => {
+                        setConfirming(null);
+                        if (!activeId) return;
+                        record(`reset:${Date.now()}`);
+                        ambientStore.clearOverrides();
+                        void rpc.call("resetScene", { id: activeId }).then(receive);
+                      }}
+                    >
+                      Reset scene
+                    </TextButton>
+                  ) : (
                     <TextButton danger onClick={() => void deleteActiveScene()}>
                       Delete scene
                     </TextButton>
-                  </>
-                ) : (
-                  <TextButton onClick={() => setConfirmingDelete(true)}>Delete</TextButton>
-                ))}
+                  )}
+                </>
+              ) : (
+                <>
+                  {activeEntry.tweaked && <TextButton onClick={() => setConfirming("reset")}>Reset</TextButton>}
+                  {!activeEntry.builtIn && <TextButton onClick={() => setConfirming("delete")}>Delete</TextButton>}
+                </>
+              )}
             </div>
           ) : undefined
         }
