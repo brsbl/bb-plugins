@@ -232,7 +232,7 @@ describe("compaction announcements", () => {
     return host;
   };
   const thread = { id: "thr_a" } as Parameters<
-    ReturnType<typeof createFakePluginHost>["harness"]["emitThreadEvent"]
+    ReturnType<typeof createFakePluginHost>["harness"]["emitThreadEvent"]<"experimental_thread.events">
   >[1]["thread"];
 
   it("announces only compactions bb records after the thread was first seen", async () => {
