@@ -108,7 +108,7 @@ body.bb-app-shell > #root [data-pane-header-focus-tab] { background-color: trans
 body.bb-app-shell > #root [data-testid="app-page-header-content-row"] > [data-app-page-header-actions] { margin-inline: auto -8px; min-height: 32px; }
 body.bb-app-shell > #root [data-app-page-header-actions] button.border { border-color: transparent; }
 @media (max-width: 767px) { body.bb-app-shell > #root div.fixed:has(> button[aria-label*="right panel" i]) { top: calc(8px + env(safe-area-inset-top)); right: calc(8px + env(safe-area-inset-right)); } body.bb-app-shell > #root :is(div.fixed, [data-app-page-header-actions]) button[aria-label*="right panel" i] { width: 32px; height: 32px; } body.bb-app-shell > #root [data-testid="app-page-header-content-row"] > :is(:first-child, [data-app-page-header-actions]) { height: 32px; min-height: 32px; } body.bb-app-shell > #root [data-app-page-header-actions]:has(button[aria-label*="right panel" i]) { padding-inline-end: 0; } }
-:is(${THREAD}, ${PAGE}, ${SIDEBAR_CARDS}, ${CHROME_PILLS}) { --state-hover: color-mix(in oklab, var(--ink) 9%, transparent); --state-active: color-mix(in oklab, var(--ink) 15%, transparent); --sidebar-accent: var(--state-hover); }
+:is(${THREAD}, ${PAGE}, ${SIDEBAR_CARDS}, ${CHROME_PILLS}, ${OVERLAY}) { --state-hover: color-mix(in oklab, var(--ink) 9%, transparent); --state-active: color-mix(in oklab, var(--ink) 15%, transparent); --sidebar-accent: var(--state-hover); }
 ${SIDEBAR_CARDS} { ${GLASS_SURFACE} border-radius: 16px; margin-inline: 8px; }
 ${SECTION_BACK_ROW} { border: 1px solid transparent; border-radius: 12px; }
 ${SECTION_BACK_ROW}:is(:hover, :focus-visible) { ${GLASS_SURFACE} }
@@ -128,7 +128,7 @@ ${RIGHT_PANEL} { ${GLASS_SURFACE} inset: 8px 8px 8px 2px; height: auto; max-widt
 body.bb-app-shell > #root :is([role="separator"][data-split-resize-grid-boundary], [data-panel-resize-handle-id]):not(:hover, [data-dragging], [data-resize-handle-state="drag"]), body.bb-app-shell > #root [data-panel-resize-handle-id]:not(:hover, [data-resize-handle-state="drag"]) > span { background-color: transparent; }
 ${RIGHT_PANEL} :is(.sticky, [data-sidebar-sticky-tier]) { -webkit-backdrop-filter: none; backdrop-filter: none; }
 ${RIGHT_PANEL} [data-app-browser] > [class~="flex-1"]:last-child { margin: 0 8px 8px; border-radius: 12px; overflow: hidden; }
-${OVERLAY} { ${GLASS_SURFACE} -webkit-backdrop-filter: none; backdrop-filter: none; --background: transparent; --popover: transparent; }
+${OVERLAY} { ${GLASS_SURFACE} -webkit-backdrop-filter: none; backdrop-filter: none; --background: transparent; --popover: transparent; --sidebar: transparent; }
 ${OVERLAY}::before { content: ""; position: absolute; inset: 0; z-index: -1; pointer-events: none; border-radius: inherit; ${GLASS_BLUR} }
 ${OVERLAY} .sticky { -webkit-backdrop-filter: blur(24px); backdrop-filter: blur(24px); }
 body.bb-app-shell [data-bb-portaled-overlay] :is([data-palette-input-band], [data-palette-results-clip]) { background-color: transparent; }
