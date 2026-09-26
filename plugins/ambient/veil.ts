@@ -74,7 +74,8 @@ const HEADER_FIRST = `${ROOT} [data-testid="app-page-header-content-row"] > :fir
 const RIGHT_PANEL_BUTTON = 'button[aria-label*="right panel" i]';
 const SIDEBAR_CARDS = `${ROOT} :is([data-testid="sidebar-navigation-region"], [data-sidebar="content"], [data-sidebar="footer"])`;
 const SIDEBAR_FOOTER = `${ROOT} [data-sidebar="footer"]`;
-const SECTION_BACK_ROW = `${ROOT} [data-testid$="-sidebar-top-reserve-row"] + div a`;
+/** Plugins, Settings and Skills put "Back to app" above the section card; it joins the card as its first row. */
+const SECTION_BACK = `${ROOT} [data-testid$="-sidebar-top-reserve-row"] + div:has(+ [data-sidebar="content"])`;
 const SIDEBAR_OPEN = `${ROOT} .peer[data-state="expanded"][data-side="left"] + [data-sidebar="inset"]`;
 const THREAD_TITLE_ROW =
   '[data-split-pane-id]:has([data-thread-window]) > header > [data-testid="app-page-header-content-row"]';
@@ -170,10 +171,11 @@ ${ROOT} [data-pane-header-focus-tab] { background-color: transparent; }
 ${ROOT} [data-testid="app-page-header-content-row"] > [data-app-page-header-actions] { margin-inline: auto -8px; min-height: 32px; }
 ${ROOT} [data-app-page-header-actions] button.border { border-color: transparent; }
 @media (max-width: 767px) { ${ROOT} div.fixed:has(> ${RIGHT_PANEL_BUTTON}) { top: calc(8px + env(safe-area-inset-top)); right: calc(8px + env(safe-area-inset-right)); } ${ROOT} :is(div.fixed, [data-app-page-header-actions]) ${RIGHT_PANEL_BUTTON} { width: 32px; height: 32px; } ${ROOT} [data-testid="app-page-header-content-row"] > :is(:first-child, [data-app-page-header-actions]) { height: 32px; min-height: 32px; } ${ROOT} [data-app-page-header-actions]:has(${RIGHT_PANEL_BUTTON}) { padding-inline-end: 0; } }
-:is(${THREAD}, ${PAGE}, ${SIDEBAR_CARDS}, ${CHROME_PILLS}, ${OVERLAY}) { --state-hover: ${INK_WASH}; --state-active: ${mix("var(--ink)", "15%")}; --sidebar-accent: var(--state-hover); }
+:is(${THREAD}, ${PAGE}, ${SIDEBAR_CARDS}, ${SECTION_BACK}, ${CHROME_PILLS}, ${OVERLAY}) { --state-hover: ${INK_WASH}; --state-active: ${mix("var(--ink)", "15%")}; --sidebar-accent: var(--state-hover); }
 ${SIDEBAR_CARDS} { ${GLASS_SURFACE} border-radius: 16px; margin-inline: 8px; }
-${SECTION_BACK_ROW} { ${GLASS_CHIP} border-radius: 16px; }
-${SECTION_BACK_ROW}:is(:hover, :focus-visible) { background-image: linear-gradient(${INK_WASH}, ${INK_WASH}); }
+${SECTION_BACK} { ${GLASS_SURFACE} border-block-end: 0; border-radius: 16px 16px 0 0; margin-inline: 8px; padding-block: 8px 4px; box-shadow: inset 0 1px 0 ${mix("var(--canvas)", "60%")}; }
+${SECTION_BACK} + [data-sidebar="content"] { border-block-start-color: ${INK_WASH}; border-start-start-radius: 0; border-start-end-radius: 0; box-shadow: 0 12px 32px -16px ${mix("var(--ink)", "35%")}; }
+${SECTION_BACK} + [data-sidebar="content"] > .px-2:first-child { padding-block-start: 8px; }
 :is(${SIDEBAR_CARDS}, ${OVERLAY}) .w-px.bg-border-hairline, :is(${SIDEBAR_CARDS}, ${OVERLAY}) [class*="before:bg-border-hairline"]::before { ${HIDE} }
 ${ROOT} [data-testid="sidebar-navigation-region"] { margin-block: 0 8px; }
 ${ROOT} [data-testid="sidebar-navigation-region"] [data-testid="navigation-divider"] { ${HIDE} }
