@@ -7,9 +7,9 @@ import {
   type PluginSidebarThread,
 } from "@get-bb/plugin-sdk/app";
 
-import { CloseGlyph, WarningArt } from "./art";
-import { trackNeedsInput, type NeedsInputTracker } from "./core";
-import { useDesktopEnabled } from "./enabled";
+import { CloseGlyph, WarningArt } from "../art";
+import { trackNeedsInput, type NeedsInputTracker } from "../core";
+import { useDesktopEnabled } from "../enabled";
 
 const BALLOON_WIDTH = 300;
 const BALLOON_TIMEOUT_MS = 10_000;

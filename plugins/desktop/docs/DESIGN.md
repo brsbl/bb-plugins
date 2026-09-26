@@ -22,7 +22,7 @@ Note pads still float on every page, but share the programs’ glass title bar a
 
 ## 3. Color
 
-All colors are tokens on `.bbd-root` in `app.css` (Luna palette, `--bbd-*`) or constants at the top of `art.tsx` (icon palette). Components never introduce a new color literal.
+All colors are tokens on `.bbd-root` in `styles/base.css` (Luna palette, `--bbd-*`) or constants at the top of `art.tsx` (icon palette). Components never introduce a new color literal.
 
 | Token | Use |
 | --- | --- |
@@ -39,7 +39,7 @@ Rules:
 - Luna hues are fixed, like XP's. bb-facing surfaces derive from bb's `--canvas`/`--ink`/`--background`. Bundled XP program chrome uses the same glass tokens. Their documents, boards, cards and skins can use fixed `--bbd-xp-*` or app-scoped colors where the original content is the reference.
 - Mix translucent steps in `oklab`, opaque steps in `oklch`. No achromatic `oklch(L 0 0)` literals.
 - New shared colors are added as a token first, then used.
-- A self-contained app (the games in `games/`) may keep its own palette, but only as scoped tokens declared once at the top of its CSS file (`--bbd-mine-*`, `--bbd-sol-*`). Game logic lives in a pure `*-core.ts` module with tests; the component renders only the window body and `desktop.tsx` wraps it in `WindowFrame`.
+- A self-contained app (the games in `games/`) may keep its own palette, but only as scoped tokens declared once at the top of its CSS file (`--bbd-mine-*`, `--bbd-sol-*`). Game logic lives in a pure `*-core.ts` module with tests; the component renders only the window body and its entry in `programs/registry.tsx` wraps it in `WindowFrame`.
 
 ## 4. Icons
 
@@ -115,7 +115,7 @@ Reuse these before building anything new.
 | A right-click menu | `desktop.openMenu(event, entries)` with `MenuEntry` items, headings, and separators |
 | A desktop icon | `.bbd-icon` with `.bbd-icon-art` and `.bbd-icon-label` |
 | A status | `StatusIcon` plus the `describeStatus` text |
-| A notification | The tray balloon (`balloon.tsx`), one at a time |
+| A notification | The tray balloon (`page/balloon.tsx`), one at a time |
 | Another plugin's own UI as a program | The desktop app bridge (`bridge.ts`, `window.bbDesktopApps` version 1): the plugin registers an app and portals its UI into `AppWindow`. Plugin authors follow `skills/desktop-apps` |
 | Another plugin's sidebar footer panel | Nothing to build: with the sidebar collapsed, the tray shows any footer disclosure as an XP window (`usePanelWindows`). bb keeps rendering the panel; Desktop only restyles and repositions it |
 

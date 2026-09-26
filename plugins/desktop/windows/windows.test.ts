@@ -1,8 +1,8 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { PointerEvent as ReactPointerEvent } from "react";
-import { crossedDragThreshold, fitDragRect, resizeInArea, trackPointer } from "./windows";
-import type { ResizeEdge } from "./core";
+import { crossedDragThreshold, fitDragRect, resizeInArea, trackPointer } from "./index";
+import type { ResizeEdge } from "../core";
 
 const area = { x: 0, y: 48, width: 1000, height: 772 };
 const rect = { x: 200, y: 200, width: 400, height: 300 };

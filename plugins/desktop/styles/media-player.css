@@ -1,0 +1,102 @@
+.bbd-wmp-play {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 999px;
+  background: var(--bbd-blue);
+  box-shadow:
+    inset 0 1px 0 color-mix(in oklab, var(--bbd-white) 25%, transparent),
+    0 0 0 3px color-mix(in oklab, var(--bbd-orange) 0%, transparent);
+  color: var(--bbd-white);
+  transition: box-shadow 140ms, background-color 140ms;
+}
+
+.bbd-wmp-play[data-size="small"] {
+  width: 24px;
+  height: 24px;
+}
+
+.bbd-wmp-play:hover {
+  box-shadow:
+    inset 0 1px 0 color-mix(in oklab, var(--bbd-white) 25%, transparent),
+    0 0 0 2px color-mix(in oklab, var(--bbd-orange) 80%, transparent);
+}
+
+.bbd-wmp-play[data-playing="true"] {
+  background: var(--bbd-green);
+}
+
+.bbd-wmp {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px;
+}
+
+.bbd-wmp-screen[data-idle="true"] {
+  cursor: pointer;
+}
+
+.bbd-wmp-screen {
+  overflow: hidden;
+  border-radius: 10px;
+  background: var(--bbd-screen);
+  box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--bbd-blue-deep) 45%, transparent);
+}
+
+.bbd-wmp-idle {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  color: oklch(0.82 0.04 250);
+  font-size: var(--text-xs);
+  text-align: center;
+}
+
+.bbd-wmp-transport {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 4px;
+}
+
+.bbd-wmp-readout {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  margin-left: 6px;
+  height: 30px;
+  padding: 0 10px;
+  overflow: hidden;
+  border-radius: 8px;
+  background: var(--bbd-well);
+  box-shadow: inset 0 0 0 1px var(--bbd-hairline);
+  color: var(--foreground);
+  font-size: var(--text-xs);
+  white-space: nowrap;
+}
+
+.bbd-wmp-select {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  padding-right: 4px;
+  border: 0;
+  background: transparent;
+  color: var(--foreground);
+  font: inherit;
+  cursor: pointer;
+  outline: none;
+}
+
+.bbd-wmp-readout:focus-within {
+  box-shadow: inset 0 0 0 1px var(--bbd-hairline), 0 0 0 2px color-mix(in oklab, var(--bbd-blue) 45%, transparent);
+}

@@ -1,11 +1,12 @@
 import { definePluginApp } from "@get-bb/plugin-sdk/app";
 
-import "./app.css";
-import { NeedsInputBalloon } from "./balloon";
+import "./styles";
 import { installDesktopBridge } from "./bridge";
-import { Desktop, ThreadFolderChip } from "./desktop";
 import { readCompact, toggleDesktop } from "./enabled";
-import { mountStickyNotes, StickyNoteHeaderButton } from "./sticky-notes";
+import { NeedsInputBalloon } from "./page/balloon";
+import { mountStickyNotes, StickyNoteHeaderButton } from "./page/sticky-notes";
+import { Desktop } from "./shell/desktop";
+import { ThreadFolderChip } from "./shell/folder-chip";
 
 export default definePluginApp((app) => {
   installDesktopBridge();

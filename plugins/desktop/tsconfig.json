@@ -14,5 +14,6 @@
     "noEmit": true,
     "skipLibCheck": true
   },
-  "include": ["*.ts", "*.tsx", "games/*.ts", "games/*.tsx", "apps/*.ts", "apps/*.tsx"]
+  "include": ["**/*.ts", "**/*.tsx"],
+  "exclude": ["node_modules", "dist", "skills"]
 }

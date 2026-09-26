@@ -9,10 +9,10 @@ import {
 import { createRoot } from "react-dom/client";
 import { toast } from "sonner";
 
-import { NotePadArt, NotePadGlyph } from "./art";
-import { workAreaRect, fitDragRect, previewRect, usePointerTracker, WindowTitleBar } from "./windows";
-import { ProgramMenuBar, ProgramStatusBar } from "./apps/xp-chrome";
-import { useDesktopEnabled } from "./enabled";
+import { NotePadArt, NotePadGlyph } from "../art";
+import { workAreaRect, fitDragRect, previewRect, usePointerTracker, WindowTitleBar } from "../windows";
+import { ProgramMenuBar, ProgramStatusBar } from "../apps/xp-chrome";
+import { useDesktopEnabled } from "../enabled";
 
 export interface StickyNote {
   id: string;

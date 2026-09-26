@@ -1,61 +1,11 @@
 import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState, type FormEvent } from "react";
 
-import { ProgramMenuBar, ProgramStatusBar } from "./apps/xp-chrome";
-import type { DesktopWindow } from "./windows";
+import { ProgramMenuBar, ProgramStatusBar } from "../apps/xp-chrome";
+import { InternetExplorerArt } from "../art";
+import { BROWSER_HOME, TAB_ID, URL_KEY, nativeBrowser, type BrowserState, type ViewBounds } from "../services/browser";
+import { useDesktop } from "../shell/data";
+import { WindowFrame, type DesktopWindow } from "../windows";
 
-export const BROWSER_HOME = "https://www.google.com";
-const TAB_ID = "bb-desktop-internet-explorer";
-const URL_KEY = "bb-desktop:internet-explorer:url";
-
-interface ViewBounds {
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-}
-
-interface BrowserState {
-  tabId: string;
-  url: string;
-  title: string | null;
-  isLoading: boolean;
-  canGoBack: boolean;
-  canGoForward: boolean;
-  errorText: string | null;
-}
-
-interface NativeBrowser {
-  attach(request: { tabId: string; threadId: string; url: string; bounds: ViewBounds; visible: boolean }): void;
-  detach(tabId: string): void;
-  navigate(request: { tabId: string; url: string }): void;
-  goBack(tabId: string): void;
-  goForward(tabId: string): void;
-  reload(tabId: string): void;
-  stop(tabId: string): void;
-  setBounds(request: { tabId: string; bounds: ViewBounds }): void;
-  setVisible(request: { tabId: string; visible: boolean }): void;
-  setVisibleWithoutFocus?(request: { tabId: string; visible: boolean }): void;
-  onState(listener: (state: BrowserState) => void): () => void;
-}
-
-export function nativeBrowser(): NativeBrowser | null {
-  const bridge = (window as { bbDesktop?: { browser?: Partial<NativeBrowser> } }).bbDesktop?.browser;
-  return typeof bridge?.attach === "function" && typeof bridge.onState === "function" ? (bridge as NativeBrowser) : null;
-}
-
-export function closeInternetExplorer() {
-  nativeBrowser()?.detach(TAB_ID);
-}
-
-export function threadBrowserTab(tabId: string): { tabId: string; urlKey: string } {
-  return { tabId: `bb-desktop-thread-browser-${tabId}`, urlKey: `bb-desktop:thread-browser:${tabId}:url` };
-}
-
-export function closeThreadBrowser(tabId: string) {
-  const tab = threadBrowserTab(tabId);
-  nativeBrowser()?.detach(tab.tabId);
-  localStorage.removeItem(tab.urlKey);
-}
 
 const OCCLUDERS = [
   ".bbd-note",
@@ -383,3 +333,20 @@ export function InternetExplorer({
     </div>
   );
 }
+
+/** The desktop's own browser window, backed by the native tab `TAB_ID`. */
+export function InternetExplorerWindow({ window: desktopWindow }: { window: DesktopWindow }) {
+  const desktop = useDesktop();
+  const [pageTitle, setPageTitle] = useState<string | null>(null);
+  const { call } = desktop;
+  const loadThread = useCallback(async () => (await call("browserThread", {})).threadId, [call]);
+  return (
+    <WindowFrame
+      window={desktopWindow}
+      title={pageTitle === null || pageTitle === "" ? "Internet Explorer" : `${pageTitle} - Internet Explorer`}
+      icon={<InternetExplorerArt size={16} />}
+      keepMounted
+    >
+      <InternetExplorer window={desktopWindow} loadThread={loadThread} onTitle={setPageTitle} />
+    </WindowFrame>
+  );

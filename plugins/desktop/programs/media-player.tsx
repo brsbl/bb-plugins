@@ -1,73 +1,9 @@
 import { useEffect, useRef, useSyncExternalStore } from "react";
 
-import { MediaPlayerArt, MicGlyph, PlayGlyph, StopGlyph } from "./art";
-import { ProgramMenuBar } from "./apps/xp-chrome";
-import { WindowFrame, type DesktopWindow } from "./windows";
-
-type MicStatus = "off" | "starting" | "live" | "blocked";
-
-interface MicState {
-  status: MicStatus;
-  analyser: AnalyserNode | null;
-}
-
-let micState: MicState = { status: "off", analyser: null };
-let micStream: MediaStream | null = null;
-let micContext: AudioContext | null = null;
-const micListeners = new Set<() => void>();
-
-function setMicState(next: MicState) {
-  micState = next;
-  for (const listener of micListeners) listener();
-}
-
-function currentMicStatus(): MicStatus {
-  return micState.status;
-}
-
-function subscribeMic(listener: () => void) {
-  micListeners.add(listener);
-  return () => {
-    micListeners.delete(listener);
-  };
-}
-
-export async function startMic() {
-  if (micState.status === "live" || micState.status === "starting") return;
-  setMicState({ status: "starting", analyser: null });
-  try {
-    const stream = await navigator.mediaDevices.getUserMedia({
-      audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: true },
-    });
-    if (currentMicStatus() !== "starting") {
-      for (const track of stream.getTracks()) track.stop();
-      return;
-    }
-    const context = new AudioContext();
-    const analyser = context.createAnalyser();
-    analyser.fftSize = 2048;
-    analyser.smoothingTimeConstant = 0.78;
-    context.createMediaStreamSource(stream).connect(analyser);
-    for (const track of stream.getTracks()) track.addEventListener("ended", stopMic);
-    micStream = stream;
-    micContext = context;
-    setMicState({ status: "live", analyser });
-  } catch {
-    setMicState({ status: "blocked", analyser: null });
-  }
-}
-
-export function stopMic() {
-  for (const track of micStream?.getTracks() ?? []) track.stop();
-  void micContext?.close();
-  micStream = null;
-  micContext = null;
-  setMicState({ status: "off", analyser: null });
-}
-
-export function useMic(): MicState {
-  return useSyncExternalStore(subscribeMic, () => micState);
-}
+import { MediaPlayerArt, MicGlyph, PlayGlyph, StopGlyph } from "../art";
+import { ProgramMenuBar } from "../apps/xp-chrome";
+import { WindowFrame, type DesktopWindow } from "../windows";
+import { startMic, stopMic, useMic, type MicStatus } from "../services/mic";
 
 interface Scene {
   freq: Uint8Array<ArrayBuffer>;
@@ -400,7 +336,6 @@ export function MediaPlayerWindow({ window: desktopWindow }: { window: DesktopWi
       window={desktopWindow}
       title="Media Player"
       icon={<MediaPlayerArt size={16} />}
-      onClose={stopMic}
       statusBar={<span className="flex-1 truncate">{statusText(status, preset)}</span>}
     >
       <div className="bbd-program bbd-wmp h-full">

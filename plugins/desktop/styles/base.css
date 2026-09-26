@@ -1,0 +1,123 @@
+.bbd-root {
+  --bbd-blue: oklch(0.55 0.2 258);
+  --bbd-blue-deep: oklch(0.42 0.19 262);
+  --bbd-blue-bright: oklch(0.7 0.16 250);
+  --bbd-blue-sky: oklch(0.82 0.09 240);
+  --bbd-white: oklch(0.99 0.004 250);
+  --bbd-orange: oklch(0.8 0.15 70);
+  --bbd-close: oklch(0.63 0.19 32);
+  --bbd-close-deep: oklch(0.5 0.17 30);
+  --bbd-green: oklch(0.66 0.16 145);
+  --bbd-green-deep: oklch(0.5 0.14 145);
+  --bbd-glass: var(--ambient-glass-fill, color-mix(in oklab, var(--background) 72%, transparent));
+  --bbd-glass-solid: var(--ambient-glass-solid, color-mix(in oklab, var(--background) 90%, transparent));
+  --bbd-hairline: color-mix(in oklab, var(--ink) 9%, transparent);
+  --bbd-highlight: inset 0 1px 0 color-mix(in oklab, var(--canvas) 60%, transparent);
+  --bbd-lift: 0 12px 32px -16px color-mix(in oklab, var(--ink) 35%, transparent);
+  --bbd-hover: color-mix(in oklab, var(--ink) 7%, transparent);
+  --bbd-press: color-mix(in oklab, var(--ink) 13%, transparent);
+  --bbd-well: color-mix(in oklab, var(--ink) 5%, transparent);
+  --bbd-select: color-mix(in oklab, var(--bbd-blue) 88%, var(--bbd-blue-bright));
+  --bbd-accent-line: color-mix(in oklab, var(--bbd-blue) 55%, transparent);
+  font-family: var(--font-sans);
+}
+
+.bbd-glass {
+  background-color: var(--bbd-glass);
+  -webkit-backdrop-filter: blur(24px) saturate(1.6);
+  backdrop-filter: blur(24px) saturate(1.6);
+  border: 1px solid var(--bbd-hairline);
+  box-shadow: var(--bbd-highlight), var(--bbd-lift);
+}
+
+.bbd-desktop {
+  position: relative;
+}
+
+.bbd-menubar {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 4px;
+  min-height: 38px;
+  padding: 5px 8px;
+  border-bottom: 1px solid var(--bbd-hairline);
+}
+
+.bbd-bevel {
+  border: 1px solid color-mix(in oklab, var(--bbd-blue-deep) 30%, var(--bbd-hairline));
+  border-radius: 6px;
+  background: linear-gradient(180deg, color-mix(in oklab, var(--bbd-white) 70%, transparent), var(--bbd-well));
+  color: var(--foreground);
+  box-shadow: inset 0 -1px 0 var(--bbd-hairline);
+  transition: box-shadow 120ms;
+}
+
+.bbd-bevel:hover:not(:disabled) {
+  box-shadow: inset 0 0 0 1.5px color-mix(in oklab, var(--bbd-orange) 80%, transparent);
+}
+
+.bbd-bevel:active:not(:disabled),
+.bbd-bevel[data-pressed="true"] {
+  background: color-mix(in oklab, var(--bbd-blue) 16%, transparent);
+  box-shadow: inset 0 0 0 1px var(--bbd-accent-line);
+  color: var(--foreground);
+}
+
+.bbd-sunken {
+  background: var(--bbd-well);
+  border: 1px solid var(--bbd-hairline);
+  border-radius: 8px;
+}
+
+.bbd-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 26px;
+  padding: 0 10px;
+  font-size: var(--text-xs);
+  white-space: nowrap;
+  cursor: default;
+}
+
+.bbd-button:focus-visible,
+.bbd-icon:focus-visible,
+.bbd-taskbar button:focus-visible {
+  outline: 2px solid var(--bbd-accent-line);
+  outline-offset: 1px;
+}
+
+.bbd-button:disabled {
+  color: var(--muted-foreground);
+  opacity: 0.6;
+}
+
+.bbd-window-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 45;
+  pointer-events: none;
+}
+
+.bbd-window[hidden] {
+  display: none;
+}
+
+[id^="plugin-homepage:"]:has([data-bbd-bridge-host]) {
+  display: none;
+}
+
+.bbd-root {
+  --bbd-xp-face: #ece9d8;
+  --bbd-xp-paper: #fff;
+  --bbd-xp-ink: #000;
+  --bbd-xp-shadow: #808080;
+  --bbd-xp-edge: #aca899;
+  --bbd-xp-light: #fff;
+  --bbd-xp-select: #316ac5;
+  --bbd-xp-title: #0054e3;
+  --bbd-xp-title-light: #3d95ff;
+  --bbd-xp-inactive: #7a96df;
+  --bbd-xp-button: #d8d0c4;
+}

@@ -1,0 +1,135 @@
+.bbd-window {
+  transition: transform 340ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.bbd-window[data-settling="true"] {
+  transition: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bbd-window {
+    transition: none;
+  }
+}
+
+.bbd-cmd {
+  display: flex;
+  flex-direction: column;
+  margin: 0 2px 2px;
+  background: #000;
+}
+
+.bbd-cmd-screen {
+  flex: 1;
+  min-height: 0;
+  padding: 4px 0 0 6px;
+}
+
+.bbd-cmd-message {
+  padding: 12px;
+  color: #c0c0c0;
+  font-family: "Lucida Console", Consolas, ui-monospace, monospace;
+  font-size: var(--text-xs);
+}
+
+.bbd-ie-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 4px 6px;
+  border-bottom: 1px solid var(--bbd-hairline);
+}
+
+.bbd-ie-nav,
+.bbd-ie-tool {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 6px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  font-size: var(--text-xs);
+  color: var(--foreground);
+  cursor: default;
+}
+
+.bbd-ie-nav:hover:not(:disabled),
+.bbd-ie-tool:hover:not(:disabled) {
+  border-color: var(--bbd-hairline);
+  background: var(--bbd-hover);
+}
+
+.bbd-ie-nav:active:not(:disabled),
+.bbd-ie-tool:active:not(:disabled) {
+  background: var(--bbd-press);
+}
+
+.bbd-ie-nav:disabled,
+.bbd-ie-tool:disabled {
+  color: var(--muted-foreground);
+}
+
+.bbd-ie-nav:disabled svg,
+.bbd-ie-tool:disabled svg {
+  filter: grayscale(1) brightness(0.85);
+  opacity: 0.7;
+}
+
+.bbd-ie-addressbar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 6px;
+  border-bottom: 1px solid var(--bbd-hairline);
+}
+
+.bbd-ie-address-label {
+  font-size: var(--text-xs);
+  color: var(--muted-foreground);
+}
+
+.bbd-ie-address {
+  flex: 1;
+  min-width: 0;
+  border-radius: 4px;
+  background: var(--background);
+}
+
+.bbd-ie-view {
+  position: relative;
+  background: var(--bbd-white);
+}
+
+.bbd-ie-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 100%;
+  padding: 24px;
+  font-size: var(--text-sm);
+  color: oklch(0.45 0.02 250);
+  text-align: center;
+}
+
+.bbd-ie-placeholder a {
+  color: var(--bbd-blue);
+  text-decoration: underline;
+}
+
+.bbd-ie-status {
+  display: flex;
+  gap: 12px;
+  padding: 3px 8px;
+  border-top: 1px solid var(--bbd-hairline);
+  font-size: var(--text-xs);
+  color: var(--muted-foreground);
+}
+
+.bbd-ie-zone {
+  flex: none;
+  padding-left: 12px;
+  border-left: 1px solid var(--bbd-hairline);
+}

@@ -1,7 +1,7 @@
 import { useSyncExternalStore } from "react";
 import { toast } from "sonner";
 
-import { stopMic } from "./media-player";
+import { stopMic } from "./services/mic";
 
 const ENABLED_KEY = "bb-desktop:enabled";
 const enabledListeners = new Set<() => void>();
