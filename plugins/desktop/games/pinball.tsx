@@ -586,7 +586,7 @@ function drawTable(ctx: CanvasRenderingContext2D, state: PinballState, paused: b
   drawFlippers(ctx, state);
   if (state.status === "playing") drawBall(ctx, state);
   if (state.status === "over") drawOverlay(ctx, "GAME OVER", "Press F2 for a new game");
-  else if (paused && !state.inLane) drawOverlay(ctx, "PAUSED", "Click the table to resume");
+  else if (paused) drawOverlay(ctx, "PAUSED", "Click the table / F3 to resume");
 }
 
 // The table is drawn flat, then tilted away from the player like the original's 3D view.
@@ -604,7 +604,7 @@ function untilt(x: number, up: number, cssHeight: number): { x: number; y: numbe
   return { x: TABLE.width / 2 + x / scale / unit, y: TABLE.height - rise / unit };
 }
 
-export function PinballGame() {
+export function PinballGame({ active = true }: { active?: boolean }) {
   const [initial] = useState(newGame);
   const bodyRef = useRef<HTMLDivElement>(null);
   const stageRef = useRef<HTMLDivElement>(null);
@@ -621,10 +621,11 @@ export function PinballGame() {
   const highRef = useRef(highScore);
   const [showControls, setShowControls] = useState(false);
   const [focused, setFocused] = useState(false);
+  const [paused, setPaused] = useState(false);
   const [visible, setVisible] = useState(() => typeof document === "undefined" || document.visibilityState !== "hidden");
   const [announcement, setAnnouncement] = useState("");
   const helpId = useId();
-  const running = focused && visible;
+  const running = active && focused && visible && !paused;
 
   pausedRef.current = !running;
 
@@ -657,13 +658,28 @@ export function PinballGame() {
     }
   }, [recordHighScore]);
 
+  const clearInput = useCallback(() => {
+    keysRef.current.clear();
+    pointersRef.current.clear();
+    nudgeRef.current = null;
+    // Cancelling a held launch must not fire the ball when focus returns.
+    const state = stateRef.current;
+    state.plunger = 0;
+    if (state.inLane && state.ball.y > TABLE.shooter.floor - TABLE.ballRadius) {
+      state.ball.y = TABLE.shooter.floor - TABLE.ballRadius;
+      state.ball.vy = 0;
+    }
+  }, []);
+
   const startNewGame = useCallback(() => {
+    clearInput();
+    setPaused(false);
     recordHighScore(stateRef.current.score);
     stateRef.current = newGame();
     syncHud();
     setAnnouncement(`New game. Ball 1 of ${BALLS_PER_GAME}.`);
     render();
-  }, [recordHighScore, render, syncHud]);
+  }, [clearInput, recordHighScore, render, syncHud]);
 
   useLayoutEffect(() => {
     const stage = stageRef.current;
@@ -671,7 +687,7 @@ export function PinballGame() {
     if (!stage || !canvas) return;
     const apply = () => {
       const tilt = tiltRef.current;
-      if (!tilt) return;
+      if (!tilt || stage.clientWidth === 0 || stage.clientHeight === 0) return;
       const scale = Math.max(
         0.05,
         Math.min(stage.clientWidth / TABLE.width, stage.clientHeight / (TABLE.height * TILT_HEIGHT)),
@@ -695,10 +711,21 @@ export function PinballGame() {
   }, [render]);
 
   useEffect(() => {
-    const onVisibility = () => setVisible(document.visibilityState !== "hidden");
+    const suspend = () => {
+      clearInput();
+      setFocused(false);
+    };
+    const onVisibility = () => {
+      setVisible(document.visibilityState !== "hidden");
+      if (document.visibilityState === "hidden") suspend();
+    };
+    window.addEventListener("blur", suspend);
     document.addEventListener("visibilitychange", onVisibility);
-    return () => document.removeEventListener("visibilitychange", onVisibility);
-  }, []);
+    return () => {
+      window.removeEventListener("blur", suspend);
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
+  }, [clearInput]);
 
   useEffect(() => {
     bodyRef.current?.focus({ preventScroll: true });
@@ -714,6 +741,8 @@ export function PinballGame() {
 
   useEffect(() => {
     if (!running) {
+      clearInput();
+      syncHud();
       render();
       return;
     }
@@ -739,42 +768,57 @@ export function PinballGame() {
     };
     frame = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(frame);
-  }, [running, render, syncHud]);
+  }, [running, clearInput, render, syncHud]);
 
   const onKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>) => {
-    if (event.metaKey || event.ctrlKey || event.altKey) return;
+    if (!active || event.metaKey || event.ctrlKey || event.altKey) return;
+    if (event.code === "F3") {
+      event.preventDefault();
+      event.stopPropagation();
+      if (!event.repeat && stateRef.current.status === "playing") {
+        setPaused((value) => !value && focused);
+        bodyRef.current?.focus({ preventScroll: true });
+      }
+      return;
+    }
     if (event.code === "F2") {
       event.preventDefault();
+      event.stopPropagation();
       if (!event.repeat) startNewGame();
       return;
     }
+    if (!bodyRef.current?.contains(event.target as Node)) return;
     const nudge = NUDGE_KEYS.get(event.code);
     if (nudge !== undefined) {
       event.preventDefault();
-      if (!event.repeat) nudgeRef.current = nudge;
+      event.stopPropagation();
+      if (running && !event.repeat) nudgeRef.current = nudge;
       return;
     }
     if (HOLD_KEYS.has(event.code)) {
       event.preventDefault();
-      keysRef.current.add(event.code);
+      event.stopPropagation();
+      if (running) keysRef.current.add(event.code);
     }
   };
 
   const onKeyUp = (event: ReactKeyboardEvent<HTMLDivElement>) => {
     if (!HOLD_KEYS.has(event.code)) return;
     event.preventDefault();
+    event.stopPropagation();
     keysRef.current.delete(event.code);
   };
 
   const onBlur = (event: ReactFocusEvent<HTMLDivElement>) => {
     if (event.relatedTarget instanceof Node && event.currentTarget.contains(event.relatedTarget)) return;
-    keysRef.current.clear();
+    clearInput();
     setFocused(false);
   };
 
   const hold = (event: ReactPointerEvent<HTMLElement>, control: Control) => {
     event.preventDefault();
     bodyRef.current?.focus({ preventScroll: true });
+    if (paused || !active) return;
     pointersRef.current.set(event.pointerId, control);
     event.currentTarget.setPointerCapture(event.pointerId);
   };
@@ -797,19 +841,22 @@ export function PinballGame() {
   // Mission-box copy follows the original's terse status lines.
   const message = over
     ? "Game Over"
-    : hud.awaiting
-      ? "Awaiting Deployment"
-      : !running
-        ? "Paused"
+    : !running
+      ? "Paused"
+      : hud.awaiting
+        ? "Awaiting Deployment"
         : hud.multiplier > 1
           ? `Bonus ${hud.multiplier}x Lit`
           : "Launch Training";
-  const detail = over ? "F2 for a new game" : hud.awaiting ? "Hold Space to launch" : !running ? "Click the table to resume" : "";
+  const detail = over ? "F2 for a new game" : paused ? "F3 to resume" : !running ? "Click the table to resume" : hud.awaiting ? "Hold Space to launch" : "";
 
   return (
-    <div className="bbd-program bbd-pinball">
+    <div className="bbd-program bbd-pinball" onKeyDown={onKeyDown} onKeyUp={onKeyUp}>
       <ProgramMenuBar menus={[
-        { label: "Game", items: [{ label: "New Game", shortcut: "F2", action: () => { startNewGame(); bodyRef.current?.focus(); } }] },
+        { label: "Game", items: [
+          { label: "New Game", shortcut: "F2", action: () => { startNewGame(); bodyRef.current?.focus(); } },
+          { label: paused ? "Resume" : "Pause", shortcut: "F3", disabled: over, action: () => { setPaused(!paused); bodyRef.current?.focus(); } },
+        ] },
         { label: "Options", items: [{ label: "Player Controls", action: () => setShowControls(!showControls), checked: showControls }] },
         { label: "Help", items: [{ label: "Z / Left Shift: left flipper" }, { label: "/ / Right Shift: right flipper" }, { label: "Hold Space, then release to launch" }] },
       ]} />
@@ -820,8 +867,6 @@ export function PinballGame() {
         role="application"
         aria-label="3D Pinball table"
         aria-describedby={helpId}
-        onKeyDown={onKeyDown}
-        onKeyUp={onKeyUp}
         onFocus={() => setFocused(true)}
         onBlur={onBlur}
       >
@@ -860,17 +905,17 @@ export function PinballGame() {
             </svg>
             <span className="bbd-pinball-ball">
               <span className="bbd-pinball-ball-label">Ball</span>
-              <span className="bbd-pinball-box bbd-pinball-dots">{over ? "-" : hud.ballNumber}</span>
+              <span className="bbd-pinball-box"><span className="bbd-pinball-dots">{over ? "-" : hud.ballNumber}</span></span>
             </span>
           </div>
           <div className="bbd-pinball-score">
-            <span className="bbd-pinball-box bbd-pinball-dots">1</span>
-            <span className="bbd-pinball-box bbd-pinball-dots" aria-label={`Score ${formatScore(hud.score)}`}>
-              {formatScore(hud.score)}
+            <span className="bbd-pinball-box"><span className="bbd-pinball-dots">1</span></span>
+            <span className="bbd-pinball-box" aria-label={`Score ${formatScore(hud.score)}`}>
+              <span className="bbd-pinball-dots">{formatScore(hud.score)}</span>
             </span>
           </div>
-          <p className="bbd-pinball-box bbd-pinball-info bbd-pinball-dots">
-            {over ? `High Score ${formatScore(Math.max(highScore, hud.score))}` : "Player 1"}
+          <p className="bbd-pinball-box bbd-pinball-info">
+            <span className="bbd-pinball-dots">{over ? `High Score ${formatScore(Math.max(highScore, hud.score))}` : "Player 1"}</span>
           </p>
           <p className="bbd-pinball-box bbd-pinball-message" data-tone={over ? "over" : undefined}>
             <span className="bbd-pinball-dots">{message}</span>
@@ -900,6 +945,8 @@ export function PinballGame() {
             <dd>Hold, then release to launch</dd>
             <dt>X . Up</dt>
             <dd>Nudge the table</dd>
+            <dt>F3</dt>
+            <dd>Pause or resume</dd>
             <dt>F2</dt>
             <dd>New game</dd>
           </dl>

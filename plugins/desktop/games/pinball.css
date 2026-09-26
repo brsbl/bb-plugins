@@ -258,16 +258,32 @@
     flex-wrap: wrap;
     align-items: stretch;
     width: auto;
-    overflow: visible;
+    max-height: 50%;
+    overflow: auto;
   }
 
-  .bbd-pinball-logo,
-  .bbd-pinball-keys {
+  .bbd-pinball-logo {
+    justify-content: center;
+    padding: 4px 6px;
+  }
+
+  .bbd-pinball-logo-small,
+  .bbd-pinball-logo-big,
+  .bbd-pinball-ship {
     display: none;
   }
 
-  .bbd-pinball-score {
+  .bbd-pinball-ball {
+    position: static;
+  }
+
+  .bbd-pinball-keys {
     flex: 1 1 100%;
+  }
+
+  .bbd-pinball-score {
+    flex: 1;
+    min-width: 0;
   }
 
   .bbd-pinball-info,

@@ -2493,6 +2493,7 @@ function RecycleBinIcon({
 }
 
 function WindowContent({ window: desktopWindow }: { window: DesktopWindow }) {
+  const manager = useWindowManager();
   const { spec } = desktopWindow;
   switch (spec.kind) {
     case "finder":
@@ -2525,8 +2526,8 @@ function WindowContent({ window: desktopWindow }: { window: DesktopWindow }) {
       );
     case "pinball":
       return (
-        <WindowFrame window={desktopWindow} title="3D Pinball for Windows - Space Cadet" icon={<PinballArt size={16} />}>
-          <PinballGame />
+        <WindowFrame window={desktopWindow} title="3D Pinball for Windows - Space Cadet" icon={<PinballArt size={16} />} keepMounted>
+          <PinballGame active={!desktopWindow.minimized && manager.focusedId === desktopWindow.id} />
         </WindowFrame>
       );
     case "command-prompt":
