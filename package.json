@@ -1,0 +1,33 @@
+{
+  "name": "bb-plugin-saved-places",
+  "version": "0.1.0",
+  "description": "Your saved places on a map that gets clearer as you zoom, with lists, notes, travel times, and an Ask agent button.",
+  "type": "module",
+  "license": "UNLICENSED",
+  "files": [
+    "assets",
+    "dist",
+    "docs",
+    "skills",
+    "README.md"
+  ],
+  "engines": {
+    "bb": ">=0.43.0",
+    "bbPluginSdk": ">=0.4.88"
+  },
+  "bb": {
+    "name": "Saved Places",
+    "description": "Your saved places on a map that gets clearer as you zoom, with lists, notes, travel times, and an Ask agent button.",
+    "branding": {
+      "icon": "./assets/map.svg",
+      "experimental_icons": {
+        "map": "./assets/map.svg"
+      }
+    },
+    "server": "./dist/install-server.mjs",
+    "app": "./dist/install-app.mjs",
+    "skills": [
+      "skills"
+    ]
+  }
+}
