@@ -26,7 +26,7 @@ describe("import script", () => {
   it("builds lists from a CSV and a Takeout GeoJSON file", async () => {
     const dir = await mkdtemp(join(tmpdir(), "saved-places-import-"));
     try {
-      await writeFile(join(dir, "Coffee.csv"), 'Title,Note,URL\n"Cafe ""One""",,https://www.google.com/maps/place/Cafe/@35.1,139.2,17z\nNo coords,,\n');
+      await writeFile(join(dir, "Coffee.csv"), 'Title,Note,URL\n"Cafe ""One""",,"https://www.google.com/maps/place/Cafe/@35.1,139.2,17z"\nNo coords,,\n');
       await writeFile(join(dir, "Saved Places.json"), JSON.stringify({
         type: "FeatureCollection",
         features: [
