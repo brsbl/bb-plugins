@@ -218,7 +218,9 @@
 
 .bbd-pinball-keys {
   display: grid;
-  gap: 1px;
+  grid-template-columns: max-content minmax(0, 1fr);
+  align-items: baseline;
+  gap: 4px 8px;
   margin: 0;
   color: var(--bbd-pinball-bevel-light);
   font-size: 11px;
@@ -235,7 +237,7 @@
 }
 
 .bbd-pinball-keys dd {
-  margin: 0 0 4px;
+  margin: 0;
 }
 
 .bbd-pinball-live {
