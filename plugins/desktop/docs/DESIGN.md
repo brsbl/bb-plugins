@@ -22,7 +22,7 @@ Note pads still float on every page, but share the programs’ glass title bar a
 
 ## 3. Color
 
-All colors are tokens on `.bbd-root` in `styles/base.css` (Luna palette, `--bbd-*`) or constants at the top of `art.tsx` (icon palette). Components never introduce a new color literal.
+All colors are tokens on `.bbd-root` in `app.css` (Luna palette, `--bbd-*`) or constants at the top of `art.tsx` (icon palette). Components never introduce a new color literal.
 
 | Token | Use |
 | --- | --- |

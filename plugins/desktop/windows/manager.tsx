@@ -63,10 +63,9 @@ export function WindowManagerProvider({ sizeOf, onDispose, children }: {
 
   const closeWhere = useCallback((predicate: (window: DesktopWindow) => boolean) => {
     const closing = windowsRef.current.filter(predicate);
-    if (closing.length === 0) return;
-    const ids = new Set(closing.map((window) => window.id));
-    windowsRef.current = windowsRef.current.filter((window) => !ids.has(window.id));
-    dispatch({ type: "close-where", predicate: (window) => ids.has(window.id) });
+    windowsRef.current = windowsRef.current.filter((window) => !predicate(window));
+    // The reducer applies the predicate to its own state, which also sees windows opened earlier in this tick.
+    dispatch({ type: "close-where", predicate });
     for (const window of closing) disposeRef.current?.(window.spec);
   }, []);
 

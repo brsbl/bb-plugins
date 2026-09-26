@@ -91,7 +91,7 @@ Thread status wording and ranking (`statusTone`, `folderSummary`, `statusKind`, 
 
 ## CSS
 
-Stylesheets live in `styles/`, one per surface, and `styles/index.ts` imports them in cascade order. It is the first import in `app.tsx`, so `styles/base.css` (the `.bbd-root` tokens and shared primitives such as `.bbd-glass`, `.bbd-bevel`, `.bbd-sunken` and `.bbd-button`) comes first and later files override earlier ones at equal specificity. Keep a new rule in the file for its surface, and move a rule between files only after checking that no rule it passes shares its specificity. Class names are part of the visual contract; renaming one is a visual change. The build scans every source file for Tailwind classes, so new directories need no configuration.
+All authored CSS lives in one root `app.css`, the first import in `app.tsx`. It stays a single file because the install-ref publisher (`tooling/publish-install-refs.mjs`) copies the plugin's root `app.css` into git-install releases and ignores any other stylesheet. The `.bbd-root` tokens and shared primitives (`.bbd-glass`, `.bbd-bevel`, `.bbd-sunken`, `.bbd-button`) come first, and later rules override earlier ones at equal specificity, so add a rule next to the other rules for its surface and move one only after checking that no rule it passes shares its specificity. Class names are part of the visual contract; renaming one is a visual change. The build scans every source file for Tailwind classes, so new directories need no configuration.
 
 ## Stored and public contracts
 

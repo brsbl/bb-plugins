@@ -7,7 +7,7 @@ import { WindowManagerProvider, useWindowManager } from "../windows";
 import { DesktopCanvas } from "./canvas";
 import { DesktopDataProvider } from "./data";
 import { MenuProvider } from "./menu";
-import { WindowLayer } from "./window-layer";
+import { ComposerClearance, WindowLayer } from "./window-layer";
 
 /** Centers the floating taskbar on the homepage column, which moves as bb's sidebar opens and closes. */
 function useDockFrame(rootRef: RefObject<HTMLDivElement | null>): DockFrame | null {
@@ -58,6 +58,7 @@ export function Desktop() {
   return (
     <WindowManagerProvider sizeOf={windowSize} onDispose={disposeWindow}>
       <AppOpener />
+      <ComposerClearance />
       <DesktopDataProvider>
         <MenuProvider>
           <DesktopShell />

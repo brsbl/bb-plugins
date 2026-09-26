@@ -9,8 +9,11 @@ import { setWindowNudges, useWindowManager, workAreaRect } from "../windows";
 import { useDesktop } from "./data";
 import { chatWebLink, linkedThreadId, openChatWebLink } from "./links";
 
-/** Moves windows out of the way of bb's home composer while it has focus, and puts them back when it loses it. */
-function useComposerClearance() {
+/**
+ * Moves windows out of the way of bb's home composer while it has focus, and puts them back when it loses it. Mounted
+ * outside the data provider so a composer focused while the desktop loads still clears the restored windows.
+ */
+export function ComposerClearance() {
   const manager = useWindowManager();
   const windowsRef = useRef(manager.windows);
   windowsRef.current = manager.windows;
@@ -60,6 +63,7 @@ function useComposerClearance() {
       setWindowNudges(new Map());
     };
   }, []);
+  return null;
 }
 
 /**
@@ -69,7 +73,6 @@ function useComposerClearance() {
 export function WindowLayer({ dockFrame }: { dockFrame: DockFrame | null }) {
   const desktop = useDesktop();
   const manager = useWindowManager();
-  useComposerClearance();
   return createPortal(
     <div
       {...PLUGIN_SCOPE}

@@ -1,6 +1,6 @@
 import { definePluginApp } from "@get-bb/plugin-sdk/app";
 
-import "./styles";
+import "./app.css";
 import { installDesktopBridge } from "./bridge";
 import { readCompact, toggleDesktop } from "./enabled";
 import { NeedsInputBalloon } from "./page/balloon";
