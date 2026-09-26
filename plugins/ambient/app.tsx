@@ -109,8 +109,8 @@ body.bb-app-shell > #root [data-app-page-header-actions] button.border { border-
 @media (max-width: 767px) { body.bb-app-shell > #root div.fixed:has(> button[aria-label*="right panel" i]) { top: calc(8px + env(safe-area-inset-top)); right: calc(8px + env(safe-area-inset-right)); } body.bb-app-shell > #root :is(div.fixed, [data-app-page-header-actions]) button[aria-label*="right panel" i] { width: 32px; height: 32px; } body.bb-app-shell > #root [data-testid="app-page-header-content-row"] > :is(:first-child, [data-app-page-header-actions]) { height: 32px; min-height: 32px; } body.bb-app-shell > #root [data-app-page-header-actions]:has(button[aria-label*="right panel" i]) { padding-inline-end: 0; } }
 :is(${THREAD}, ${PAGE}, ${SIDEBAR_CARDS}, ${CHROME_PILLS}, ${OVERLAY}) { --state-hover: color-mix(in oklab, var(--ink) 9%, transparent); --state-active: color-mix(in oklab, var(--ink) 15%, transparent); --sidebar-accent: var(--state-hover); }
 ${SIDEBAR_CARDS} { ${GLASS_SURFACE} border-radius: 16px; margin-inline: 8px; }
-${SECTION_BACK_ROW} { border: 1px solid transparent; border-radius: 12px; }
-${SECTION_BACK_ROW}:is(:hover, :focus-visible) { ${GLASS_SURFACE} }
+${SECTION_BACK_ROW} { ${GLASS_SURFACE} border-radius: 16px; }
+${SECTION_BACK_ROW}:is(:hover, :focus-visible) { background-color: ${GLASS_FILL}; background-image: linear-gradient(color-mix(in oklab, var(--ink) 9%, transparent), color-mix(in oklab, var(--ink) 9%, transparent)); }
 :is(${SIDEBAR_CARDS}, ${OVERLAY}) .w-px.bg-border-hairline, :is(${SIDEBAR_CARDS}, ${OVERLAY}) [class*="before:bg-border-hairline"]::before { display: none; }
 body.bb-app-shell > #root [data-testid="sidebar-navigation-region"] { margin-block: 0 8px; }
 body.bb-app-shell > #root [data-testid="sidebar-navigation-region"] [data-testid="navigation-divider"] { display: none; }
