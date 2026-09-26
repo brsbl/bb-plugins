@@ -10,12 +10,6 @@
     "docs",
     "README.md"
   ],
-  "scripts": {
-    "build": "node ../../tooling/build-plugin.mjs",
-    "check": "npm run typecheck && npm run build && npm test",
-    "test": "vitest run",
-    "typecheck": "tsc --noEmit"
-  },
   "engines": {
     "bb": ">=0.43.0",
     "bbPluginSdk": ">=0.4.87"
@@ -26,20 +20,8 @@
     "branding": {
       "icon": "./assets/katamari.svg"
     },
-    "server": "./server.ts",
-    "app": "./app.tsx",
+    "server": "./dist/install-server.mjs",
+    "app": "./dist/install-app.mjs",
     "skills": []
-  },
-  "dependencies": {
-    "three": "^0.186.0",
-    "zod": "^4.3.6"
-  },
-  "devDependencies": {
-    "@get-bb/plugin-sdk": "file:../../tooling/vendor/get-bb-plugin-sdk-0.5.9.tgz",
-    "@types/node": "^22.0.0",
-    "@types/react": "^19.0.0",
-    "@types/three": "^0.186.0",
-    "typescript": "^5.7.0",
-    "vitest": "^4.1.8"
   }
 }

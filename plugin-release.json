@@ -1,0 +1,27 @@
+{
+  "sourceCommit": "fe448a4dfdf12b36c9262af3b6abd083e9f59f68",
+  "plugin": "context-katamari",
+  "version": "0.1.1",
+  "packageTree": "919b0b8e9136091f1488366a2b42343a614b03fb",
+  "lockfileSha256": "2ff66ff06af0a86366e9d80f53d9dc8bc119e91c7362de2c5d21e61d4bc4e557",
+  "sdk": {
+    "package": "@get-bb/plugin-sdk@0.5.9",
+    "registryTarball": "https://registry.npmjs.org/@get-bb/plugin-sdk/-/plugin-sdk-0.5.9.tgz",
+    "registryIntegrity": "sha512-rFfSE0tSI0xtbNYnx9aJC/dyguWQlwC7WO8OIgJ/W5Wx5z5m0sQm8/VC/gXNe7Y79XoZw0dJS9nqrhWYdmZe/Q==",
+    "registryShasum": "ae333e37402e8cc63b30d13219b832301ab73d3b",
+    "sourceRepository": "https://github.com/get-bb/bb",
+    "sourceCommit": "9b8c1d3457b00359af206e3fd423fe50520182c2",
+    "sourcePath": "packages/plugin-sdk",
+    "archive": "get-bb-plugin-sdk-0.5.9.tgz",
+    "sha256": "3655fcf0382a5e23d38f356eee2653740fe57fd28857e8137f011c8976683984"
+  },
+  "builder": {
+    "builder": "bb plugin build@0.43.4",
+    "sourceRepository": "https://github.com/get-bb/bb",
+    "sourceCommit": "9b8c1d3457b00359af206e3fd423fe50520182c2",
+    "sourcePath": "packages/plugin-build",
+    "buildCommand": "pnpm exec esbuild packages/plugin-build/src/index.ts --bundle --platform=node --format=esm '--banner:js=import { createRequire as __createRequire } from \"node:module\"; const require = __createRequire(import.meta.url);'",
+    "bundle": "bb-plugin-build-0.43.4.mjs",
+    "sha256": "6d588f4e181b357470c206df2988eb1085337544326d6bf2c79ef36fa2cf3929"
+  }
+}
