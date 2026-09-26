@@ -11,7 +11,7 @@ import {
 } from "../katamari-math";
 import { type Drive, IDLE_DRIVE, isIdle } from "../controls";
 import type { KatamariAudio } from "../sound";
-import type { StageMode } from "../stage";
+import { compactionChange, type StageMode } from "../stage";
 import { CompactionMoons, dressCore } from "./core";
 import { buildCousin, type CousinRig, MAX_DIZZY_STARS, poseCousin } from "./cousin";
 import { Environment } from "./environment";
@@ -69,7 +69,8 @@ export interface WorldStage {
   threadId: string | null;
   mode: StageMode;
   fill: number;
-  compactions: number;
+  /** Null until the thread's compaction count has been read. */
+  compactions: number | null;
   /** False until the thread's context has loaded at least once. */
   ready: boolean;
   /** Tokens the thread holds, for the coin trail; null while unknown. */
@@ -174,6 +175,8 @@ interface Actor {
   nubColor: number;
   moons: CompactionMoons;
   compactions: number;
+  /** False while the thread's real count is unknown and the core shows a guess. */
+  compactionsKnown: boolean;
   synced: boolean;
   pop: PopState | null;
   gulp: GulpState | null;
@@ -254,7 +257,7 @@ export class KatamariWorld {
   private pendingEntry: {
     threadId: string;
     fill: number;
-    compactions: number;
+    compactions: number | null;
     ready: boolean;
     delay: number;
     waited: number;
@@ -388,21 +391,26 @@ export class KatamariWorld {
       actor.synced = true;
       actor.radius = target;
       actor.targetRadius = target;
-      this.setCompactions(actor, stage.compactions, false);
+      this.showKnownCompactions(actor, stage.compactions);
       if (actor.stuck.length < 12) this.prefill(actor);
       return;
     }
     actor.targetRadius = target;
-    if (stage.compactions > actor.compactions && actor.phase === "stage" && !actor.pop) {
+    if (actor.pop) return;
+    const change = compactionChange(
+      actor.compactionsKnown ? actor.compactions : null,
+      stage.compactions,
+    );
+    if (change?.kind === "pop" && actor.phase === "stage") {
       actor.pop = {
         time: 0,
         fromRadius: actor.radius,
-        compactions: stage.compactions,
+        compactions: change.compactions,
         burst: false,
         startScale: 1,
       };
-    } else if (stage.compactions !== actor.compactions && !actor.pop) {
-      this.setCompactions(actor, stage.compactions, false);
+    } else if (change) {
+      this.showKnownCompactions(actor, change.compactions);
     }
   }
 
@@ -529,13 +537,25 @@ export class KatamariWorld {
     actor.moons.setCount(compactions, animate);
   }
 
-  private spawnEntering(threadId: string, fill: number, compactions: number, ready: boolean): void {
+  /** Show a count read from bb without a pop; an unknown count leaves the core as it is. */
+  private showKnownCompactions(actor: Actor, compactions: number | null): void {
+    if (compactions === null) return;
+    actor.compactionsKnown = true;
+    this.setCompactions(actor, compactions, false);
+  }
+
+  private spawnEntering(
+    threadId: string,
+    fill: number,
+    compactions: number | null,
+    ready: boolean,
+  ): void {
     // Switching straight back turns a departing cousin around.
     const returning = this.exiting.find((leaving) => leaving.threadId === threadId);
     if (returning) {
       this.exiting = this.exiting.filter((leaving) => leaving !== returning);
       returning.targetRadius = radiusForFill(fill);
-      if (ready) this.setCompactions(returning, compactions, false);
+      if (ready) this.showKnownCompactions(returning, compactions);
       returning.phase = "enter";
       returning.phaseTime = 0;
       this.active = returning;
@@ -546,7 +566,7 @@ export class KatamariWorld {
     this.actorCache.delete(threadId);
     const actor = cached ?? this.createActor(threadId, fill, compactions, ready);
     actor.targetRadius = radiusForFill(fill);
-    if (cached && ready) this.setCompactions(actor, compactions, false);
+    if (cached && ready) this.showKnownCompactions(actor, compactions);
     // Enter from screen left and roll to where the camera is looking.
     const left = new THREE.Vector2(
       Math.sin(this.cameraHeading),
@@ -574,7 +594,13 @@ export class KatamariWorld {
 
   private hasOrigin = false;
 
-  private createActor(threadId: string, fill: number, compactions: number, ready: boolean): Actor {
+  private createActor(
+    threadId: string,
+    fill: number,
+    knownCompactions: number | null,
+    ready: boolean,
+  ): Actor {
+    const compactions = knownCompactions ?? 0;
     const seed = hashString(threadId);
     const random = mulberry32(seed);
     const rig = buildCousin(this.kit, seed);
@@ -602,6 +628,7 @@ export class KatamariWorld {
       nubColor,
       moons,
       compactions,
+      compactionsKnown: ready && knownCompactions !== null,
       synced: ready,
       pop: null,
       gulp: null,

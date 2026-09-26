@@ -34,8 +34,11 @@ export type TurnCost = z.infer<typeof turnCostSchema>;
 export const threadContextSchema = z
   .object({
     usage: contextUsageSchema.nullable(),
-    /** How many times the thread's context has been compacted, capped at the read limit. */
-    compactions: z.number().int().nonnegative(),
+    /**
+     * How many times the thread's context has been compacted, capped at the read
+     * limit; null when the count could not be read this time.
+     */
+    compactions: z.number().int().nonnegative().nullable(),
     /** The most recent turns, newest first. */
     turns: z.array(turnCostSchema).max(TURN_HISTORY_LIMIT).optional(),
   })

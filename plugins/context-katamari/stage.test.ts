@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 
-import { EMPTY_STAGE, isThreadWorking, resolveStage } from "./stage";
+import {
+  compactionChange,
+  createReadOrder,
+  EMPTY_STAGE,
+  isThreadWorking,
+  resolveStage,
+} from "./stage";
 
 describe("resolveStage", () => {
   it("brings the first thread on stage", () => {
@@ -67,5 +73,41 @@ describe("isThreadWorking", () => {
     expect(isThreadWorking({ status: "idle", indicator: "none" })).toBe(false);
     expect(isThreadWorking({ status: "mystery", indicator: "none" })).toBe(false);
     expect(isThreadWorking({ status: "active", indicator: "waiting-for-input" })).toBe(false);
+  });
+});
+
+describe("compactionChange", () => {
+  it("pops only when the count rises", () => {
+    expect(compactionChange(1, 2)).toEqual({ kind: "pop", compactions: 2 });
+    expect(compactionChange(2, 2)).toBeNull();
+  });
+
+  it("ignores a lower, stale count so the true count cannot pop later", () => {
+    expect(compactionChange(2, 0)).toBeNull();
+  });
+
+  it("shows the first known count quietly and ignores unknown counts", () => {
+    expect(compactionChange(null, 3)).toEqual({ kind: "set", compactions: 3 });
+    expect(compactionChange(null, null)).toBeNull();
+    expect(compactionChange(2, null)).toBeNull();
+  });
+});
+
+describe("createReadOrder", () => {
+  it("drops a reply older than one already applied", () => {
+    const order = createReadOrder();
+    const first = order.begin();
+    const second = order.begin();
+    expect(order.accept(second)).toBe(true);
+    expect(order.accept(first)).toBe(false);
+  });
+
+  it("applies every newer reply even while more reads are in flight", () => {
+    const order = createReadOrder();
+    const first = order.begin();
+    const second = order.begin();
+    order.begin();
+    expect(order.accept(first)).toBe(true);
+    expect(order.accept(second)).toBe(true);
   });
 });

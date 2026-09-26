@@ -78,3 +78,36 @@ export function isThreadWorking(thread: {
   if (thread.status !== undefined) return WORKING_STATUSES.has(thread.status);
   return WORKING_INDICATORS.has(thread.indicator);
 }
+
+/**
+ * How the ball should react to a compaction count. Compactions only
+ * accumulate, so a lower reading is stale and ignored: taking it would make
+ * the next true reading pop as if the thread had just compacted. An unknown
+ * count (`null`) changes nothing, and the first known count is shown quietly.
+ */
+export function compactionChange(
+  shown: number | null,
+  reported: number | null,
+): { kind: "pop" | "set"; compactions: number } | null {
+  if (reported === null) return null;
+  if (shown === null) return { kind: "set", compactions: reported };
+  return reported > shown ? { kind: "pop", compactions: reported } : null;
+}
+
+/**
+ * Orders the replies to overlapping reads of one thread. A reply older than
+ * one already applied is stale and dropped; a newer one always lands, so
+ * frequent refreshes never starve the window of updates.
+ */
+export function createReadOrder() {
+  let issued = 0;
+  let applied = 0;
+  return {
+    begin: () => ++issued,
+    accept(read: number): boolean {
+      if (read <= applied) return false;
+      applied = read;
+      return true;
+    },
+  };
+}

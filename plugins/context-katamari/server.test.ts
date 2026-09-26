@@ -70,7 +70,7 @@ describe("readThreadContext rpc", () => {
     await harness.lifecycle.dispose();
   });
 
-  it("reports no usage and no compactions when the thread cannot be read", async () => {
+  it("reports no usage and an unknown compaction count when the thread cannot be read", async () => {
     const { bb, harness } = createFakePluginHost({
       pluginId: "context-katamari",
       sdk: {
@@ -89,7 +89,7 @@ describe("readThreadContext rpc", () => {
     plugin(bb);
     await expect(harness.callRpc("readThreadContext", { threadId: "thr_gone" })).resolves.toEqual({
       usage: null,
-      compactions: 0,
+      compactions: null,
       turns: [],
     });
     await harness.lifecycle.dispose();

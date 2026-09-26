@@ -305,7 +305,8 @@ export default function plugin(bb: BbPluginApi): void {
           .then((events) => events.length)
           .catch((error: unknown) => {
             bb.log.debug(`Could not count compactions for ${threadId}: ${describe(error)}`);
-            return 0;
+            // Unknown, not zero: a false zero followed by the real count looks like a compaction.
+            return null;
           }),
         readTurns(threadId).catch((error: unknown) => {
           bb.log.debug(`Could not read turns for ${threadId}: ${describe(error)}`);
