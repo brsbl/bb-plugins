@@ -586,7 +586,7 @@ function drawTable(ctx: CanvasRenderingContext2D, state: PinballState, paused: b
   drawFlippers(ctx, state);
   if (state.status === "playing") drawBall(ctx, state);
   if (state.status === "over") drawOverlay(ctx, "GAME OVER", "Press F2 for a new game");
-  else if (paused) drawOverlay(ctx, "PAUSED", "Click the table / F3 to resume");
+  else if (paused) drawOverlay(ctx, "PAUSED", "");
 }
 
 // The table is drawn flat, then tilted away from the player like the original's 3D view.
