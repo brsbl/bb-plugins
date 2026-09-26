@@ -1554,6 +1554,30 @@
   background: color-mix(in oklch, var(--canvas) 86%, var(--bbd-blue-sky));
 }
 
+/* bb wraps Send and its options chevron in a dark split button and forces both transparent; give the wrapper the XP face instead. */
+.bbd-im-chat [data-promptbox] [data-promptbox-send-menu] {
+  border: 1px solid color-mix(in oklab, var(--ink) 30%, transparent);
+  border-radius: 3px;
+  background: linear-gradient(to bottom, color-mix(in oklch, var(--canvas) 98%, var(--ink)), color-mix(in oklch, var(--canvas) 86%, var(--ink)));
+  box-shadow: inset 0 1px 0 color-mix(in oklab, var(--canvas) 65%, transparent);
+  color: color-mix(in oklch, var(--ink) 88%, var(--canvas));
+}
+
+.bbd-im-chat [data-promptbox] [data-promptbox-send-menu] button[data-promptbox-submit-action] {
+  border: 0;
+  box-shadow: none;
+}
+
+.bbd-im-chat [data-promptbox] [data-promptbox-send-menu] button[aria-label="Send options"]:not([aria-hidden]) {
+  border-left: 1px solid color-mix(in oklab, var(--ink) 22%, transparent);
+  border-radius: 0 2px 2px 0;
+}
+
+.bbd-im-chat [data-promptbox] [data-promptbox-send-menu]:has(button:hover:not(:disabled)) {
+  border-color: var(--bbd-accent-line);
+  background: color-mix(in oklch, var(--canvas) 86%, var(--bbd-blue-sky));
+}
+
 .bbd-window:has(.bbd-im) .bbd-titlebar,
 .bbd-window:has(.bbd-im) .bbd-statusbar {
   min-width: 0;
